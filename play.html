@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<!--
+Copyright 2014 darkf
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+ -->
+
+<html>
+
+<head>
+	<title>DarkFO</title>
+	<meta charset="utf-8">
+
+	<link rel="stylesheet" type="text/css" href="ui.css">
+
+	<script src="lib/pathfinding-browser.js"></script>
+
+	<script src="lut/intensityColorTable.js"></script>
+	<script type="module" src="js/main.js"></script>
+</head>
+
+<body>
+	<div id="game-container">
+		<canvas id="cnv" width="800" height="600">your browser doesn't support &lt;canvas&gt;</canvas>
+		<div id="overlay-container">
+			<div id="overlay">
+				<div id="fpsOverlay"></div>
+			</div>
+		</div>
+		<div id="lootBox">
+			<div id="lootBoxLeft"></div>
+			<div id="lootBoxRight"></div>
+
+			<div id="lootBoxDoneButton"></div>
+			<div id="lootBoxTakeAllButton"></div>
+		</div>
+		<div id="dialogueContainer">
+			<div id="dialogueBoxReply"></div>
+			<div id="dialogueBox">
+				<div id="dialogueBoxTextArea"></div>
+			</div>
+			<div id="barterBox">
+				<div id="barterBoxInventoryLeft"></div>
+				<div id="barterBoxInventoryRight"></div>
+
+				<div id="barterBoxLeft"></div>
+				<div id="barterBoxRight"></div>
+				<div id="barterBoxLeftAmount"></div>
+				<div id="barterBoxRightAmount"></div>
+
+				<div id="barterTalkButton"></div>
+				<div id="barterOfferButton"></div>
+			</div>
+		</div>
+		<div id="itemContextMenu"></div>
+		<div id="inventoryBox">
+			<div id="inventoryBoxList"></div>
+			<div id="inventoryDoneButton"></div>
+			<div id="inventoryBoxInfo"></div>
+
+			<!-- item1/item2/armor boxes -->
+			<div id="inventoryBoxItem1"></div>
+			<div id="inventoryBoxItem2"></div>
+			<div id="inventoryBoxArmor"></div>
+		</div>
+		<div id="bar">
+			<div id="displayLog"></div>
+
+			<div id="attackButtonContainer" class="disable-selection">
+				<div id="attackButton"></div>
+				<img id="attackButtonType">
+				<img id="attackButtonWeapon">
+				<div id="attackButtonCalled"></div>
+				<div id="attackButtonAP">
+					<div id="attackButtonAPDigit"></div>
+				</div>
+			</div>
+			<div id="inventoryButton"></div>
+			<div id="chrButton"></div>
+
+			<div id="hpNumber">
+				<div id="hpDigit1" class="number"></div>
+				<div id="hpDigit2" class="number"></div>
+				<div id="hpDigit3" class="number"></div>
+				<div id="hpDigit4" class="number"></div>
+			</div>
+
+			<div id="acNumber">
+				<div id="acDigit1" class="number"></div>
+				<div id="acDigit2" class="number"></div>
+				<div id="acDigit3" class="number"></div>
+				<div id="acDigit4" class="number"></div>
+			</div>
+
+			<div id="skilldexButton"></div>
+
+			<div id="endContainer">
+				<div id="endTurnButton"></div>
+				<div id="endCombatButton"></div>
+			</div>
+		</div>
+		<div id="worldMapContainer">
+			<div id="worldMapBox">
+				<div id="worldMapLabels"></div>
+			</div>
+			<div id="worldMapWorld">
+				<div id="worldmap">
+					<img id="worldmapImage" src="worldmap.png">
+					<div id="worldmapTarget"></div>
+					<div id="worldmapPlayer"></div>
+				</div>
+				<div id="areamap"></div>
+			</div>
+		</div>
+		<div id="elevatorBox">
+			<div id="elevatorLabel"></div>
+			<div id="elevatorButton1" class="elevatorButton"></div>
+			<div id="elevatorButton2" class="elevatorButton"></div>
+			<div id="elevatorButton3" class="elevatorButton"></div>
+			<div id="elevatorButton4" class="elevatorButton"></div>
+			<div id="elevatorPositioner"></div>
+		</div>
+		<div id="calledShotBox">
+			<div id="calledShotBackground"></div>
+			<div id="calledShotCancelBtn"></div>
+
+			<div id="calledShot-head-label" class="calledShotLabel">the head</div>
+			<div id="calledShot-eyes-label" class="calledShotLabel">the eyes</div>
+			<div id="calledShot-leftArm-label" class="calledShotLabel">the left arm</div>
+			<div id="calledShot-rightArm-label" class="calledShotLabel">the right arm</div>
+			<div id="calledShot-leftLeg-label" class="calledShotLabel">the left leg</div>
+			<div id="calledShot-rightLeg-label" class="calledShotLabel">the right leg</div>
+			<div id="calledShot-groin-label" class="calledShotLabel">the groin</div>
+			<div id="calledShot-torso-label" class="calledShotLabel">the torso</div>
+
+			<div id="calledShot-head-chance" class="calledShotChance"></div>
+			<div id="calledShot-eyes-chance" class="calledShotChance"></div>
+			<div id="calledShot-leftArm-chance" class="calledShotChance"></div>
+			<div id="calledShot-rightArm-chance" class="calledShotChance"></div>
+			<div id="calledShot-leftLeg-chance" class="calledShotChance"></div>
+			<div id="calledShot-rightLeg-chance" class="calledShotChance"></div>
+			<div id="calledShot-groin-chance" class="calledShotChance"></div>
+			<div id="calledShot-torso-chance" class="calledShotChance"></div>
+		</div>
+	</div>
+</body>
+
+</html>
