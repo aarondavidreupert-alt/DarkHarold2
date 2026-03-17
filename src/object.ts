@@ -1064,10 +1064,18 @@ export class Critter extends Obj {
 
         // default to punches
         if (!this.leftHand) {
-            this.leftHand = <WeaponObj>{ type: 'item', subtype: 'weapon', weapon: new Weapon(null) }
+            const fist = new WeaponObj()
+            fist.type = 'item'
+            fist.subtype = 'weapon'
+            fist.weapon = new Weapon(null)
+            this.leftHand = fist
         }
         if (!this.rightHand) {
-            this.rightHand = <WeaponObj>{ type: 'item', subtype: 'weapon', weapon: new Weapon(null) }
+            const fist = new WeaponObj()
+            fist.type = 'item'
+            fist.subtype = 'weapon'
+            fist.weapon = new Weapon(null)
+            this.rightHand = fist
         }
 
         // set them in their proper idle state for the weapon
