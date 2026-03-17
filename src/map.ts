@@ -385,7 +385,7 @@ export class GameMap {
         // have access to the map script object.
         this.objects = new Array(map.levels.length)
         for (let level = 0; level < map.levels.length; level++) {
-            this.objects[level] = map.levels[level].objects.map((obj: any) => objFromMapObject(obj))
+            this.objects[level] = (map.levels[level].objects ?? []).map((obj: any) => objFromMapObject(obj))
         }
 
         // change to our new elevation (sets up map state)
