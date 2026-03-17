@@ -73,7 +73,7 @@ export class Player extends Critter {
                 // todo: exit grids are likely multi-hex (maybe have a set?)
                 var exitMapID = objs[i].extra.exitMapID
                 var startingPosition = fromTileNum(objs[i].extra.startingPosition)
-                var startingElevation = objs[i].extra.startingElevation
+                var startingElevation = Number(objs[i].extra.startingElevation) || 0
                 this.clearAnim()
 
                 if (startingPosition.x === -1 || startingPosition.y === -1 || exitMapID < 0) {
