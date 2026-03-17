@@ -278,7 +278,7 @@ class Heart {
             return false
         }
         heart.canvas = el as HTMLCanvasElement
-        heart.ctx = heart.canvas.getContext('2d')
+        heart.ctx = heart.canvas.getContext('2d', { willReadFrequently: true })
         if (!heart.ctx) {
             alert("couldn't get canvas context")
         }

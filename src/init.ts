@@ -63,7 +63,7 @@ export function initGame() {
     globalState.tempCanvas = document.createElement('canvas') as HTMLCanvasElement
     globalState.tempCanvas.width = SCREEN_WIDTH
     globalState.tempCanvas.height = SCREEN_HEIGHT
-    globalState.tempCanvasCtx = globalState.tempCanvas.getContext('2d')
+    globalState.tempCanvasCtx = globalState.tempCanvas.getContext('2d', { willReadFrequently: true })
 
     saveLoadInit()
 
