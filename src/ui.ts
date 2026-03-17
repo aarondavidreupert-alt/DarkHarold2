@@ -1183,10 +1183,11 @@ export function uiSetDialogueReply(reply: string) {
 }
 
 export function uiAddDialogueOption(msg: string, optionID: number) {
-    $id('dialogueBoxTextArea').insertAdjacentHTML(
-        'beforeend',
-        `<li><a href="javascript:dialogueReply(${optionID})">${msg}</a></li>`
-    )
+    const item = document.createElement('div')
+    item.textContent = `- ${msg}`
+    item.style.cursor = 'pointer'
+    item.onclick = () => Scripting.dialogueReply(optionID)
+    $id('dialogueBoxTextArea').appendChild(item)
 }
 
 function uiGetAmount(item: Obj) {
