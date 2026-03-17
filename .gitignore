@@ -10,3 +10,4 @@ xcuserdata
 contents.xcworkspacedata
 node_modules
 js/
+lut/elevators.json
