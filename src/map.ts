@@ -335,9 +335,9 @@ export class GameMap {
         const map = getFileJSON('maps/' + mapName + '.json')
         this.mapObj = map
         this.mapID = map.mapID
-        this.numLevels = map.levels.length
+        this.numLevels = (map.levels ?? []).length
 
-        let elevation = startingElevation !== undefined ? startingElevation : 0
+        let elevation = Number(startingElevation) || 0
 
         if (Config.engine.doLoadScripts) {
             Scripting.init(mapName)
