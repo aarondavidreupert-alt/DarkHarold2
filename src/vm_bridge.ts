@@ -49,6 +49,7 @@ export module ScriptVMBridge {
        ,0x8128: function() { this.push(this.scriptObj.combat_is_initialized) } // combat_is_initialized
        ,0x8118: function() { this.push(1) } // get_month // TODO
        ,0x80F6: function() { this.push(1200) } // game_time_hour // TODO
+       ,0x80a8: function() { this.push(globalState.gameTickTime ? Math.floor((globalState.gameTickTime / 600) % 24) : 12) } // game_time_hour
        ,0x80EA: function() { this.push(this.scriptObj.game_time) } // game_time
        ,0x8119: function() { this.push(0) } // get_day // TODO
        ,0x8101: function() { this.push(this.scriptObj.cur_map_index) } // cur_map_index
