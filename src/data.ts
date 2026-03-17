@@ -123,7 +123,7 @@ function parseAreas(data: string): AreaMap {
                     y: parseInt(s[2]),
                     mapLookupName,
                     mapName,
-                    elevation: parseInt(s[4]),
+                    elevation: Math.max(0, parseInt(s[4])),
                     tileNum: parseInt(s[5]),
                     orientation: parseInt(s[6]),
                 }

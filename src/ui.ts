@@ -1594,7 +1594,7 @@ export function uiWorldMapShowArea(area: Area) {
             // hotspot click -- travel to relevant map
             const mapName = lookupMapNameFromLookup(entrance.mapLookupName)
             console.log('hotspot -> ' + mapName + ' (via ' + entrance.mapLookupName + ')')
-            globalState.gMap.loadMap(mapName)
+            globalState.gMap.loadMap(mapName, undefined, entrance.elevation)
             uiCloseWorldMap()
         }
 
