@@ -1674,7 +1674,7 @@ export function uiElevator(elevator: Elevator) {
             // todo: animate positioner/spinner (and come up with a better name for that)
 
             const mapID = elevator.buttons[i - 1].mapID
-            const level = elevator.buttons[i - 1].level
+            const level = Number(elevator.buttons[i - 1].level) || 0
             const position = fromTileNum(elevator.buttons[i - 1].tileNum)
 
             if (mapID !== globalState.gMap.mapID) {

@@ -71,8 +71,8 @@ export class Player extends Critter {
             if (objs[i].type === 'misc' && objs[i].extra && objs[i].extra.exitMapID !== undefined) {
                 // walking on an exit grid
                 // todo: exit grids are likely multi-hex (maybe have a set?)
-                var exitMapID = objs[i].extra.exitMapID
-                var startingPosition = fromTileNum(objs[i].extra.startingPosition)
+                var exitMapID = Number(objs[i].extra.exitMapID) || -1
+                var startingPosition = fromTileNum(Number(objs[i].extra.startingPosition) || 0)
                 var startingElevation = Number(objs[i].extra.startingElevation) || 0
                 this.clearAnim()
 
@@ -94,7 +94,7 @@ export class Player extends Critter {
                     )
                     if (exitMapID === globalState.gMap.mapID) {
                         // same map, different elevation
-                        globalState.gMap.changeElevation(startingElevation, true)
+                        globalState.gMap.changeElevation(Number(startingElevation) || 0, true)
                         globalState.player.move(startingPosition)
                         centerCamera(globalState.player.position)
                     } else globalState.gMap.loadMapByID(exitMapID, startingPosition, startingElevation)
