@@ -160,7 +160,6 @@ export class Renderer {
             if (bbox === null) {
                 continue
             }
-            heart.ctx.fillStyle = globalState.floatMessages[i].color
             const centerX = bbox.x - bbox.w / 2 - globalState.cameraPosition.x
             this.renderText(globalState.floatMessages[i].msg, centerX, bbox.y - globalState.cameraPosition.y - 16)
         }
