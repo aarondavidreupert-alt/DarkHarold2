@@ -270,7 +270,7 @@ export class GameMap {
             globalState.player.orientation = map.mapObj.startOrientation
 
             // Set elevation
-            this.currentElevation = globalState.currentElevation = startingElevation
+            this.currentElevation = globalState.currentElevation = Number(startingElevation) || 0
 
             // Change to our new elevation (sets up map state)
             this.changeElevation(this.currentElevation, false, true)

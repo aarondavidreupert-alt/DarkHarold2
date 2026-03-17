@@ -103,7 +103,7 @@ export class Renderer {
                 16
             )
         }
-        if (Config.ui.showObjects) {
+        if (Config.ui.showObjects && this.objects) {
             this.renderObjects(this.objects)
         }
         if (Config.ui.showRoof) {
