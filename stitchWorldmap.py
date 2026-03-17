@@ -29,7 +29,7 @@ def main():
 		tile = Image.open(tilePath)
 
 		x = i % 4
-		y = i / 4
+		y = i // 4
 
 		img.paste(tile, (x*350, y*300))
 
