@@ -874,7 +874,7 @@ export module Scripting {
                 return null
             }
 
-            if (obj.type === 'item' && obj.pro !== undefined) return obj.pro.extra.subtype
+            if (obj.type === 'item' && obj.pro != null) return obj.pro.extra.subtype
             stub('obj_item_subtype', arguments)
             return null
         }

@@ -128,6 +128,10 @@ export class GameMap {
     }
 
     changeElevation(level: number, updateScripts = false, isMapLoading = false) {
+        if (!this.mapObj.levels[level]) {
+            console.warn(`changeElevation: elevation ${level} does not exist`)
+            return
+        }
         const oldElevation = this.currentElevation
         this.currentElevation = level
         globalState.currentElevation = level // TODO: Get rid of this global

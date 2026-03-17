@@ -826,7 +826,13 @@ export class Obj {
             frame: this.frame,
             amount: this.amount,
             position: { x: this.position.x, y: this.position.y },
-            inventory: this.inventory.map((obj) => obj.serialize()),
+            inventory: this.inventory.map((obj) => {
+                if (typeof obj.serialize !== 'function') {
+                    console.warn('serialize: skipping non-serializable object', obj)
+                    return null
+                }
+                return obj.serialize()
+            }).filter((obj) => obj !== null),
             lightRadius: this.lightRadius,
             lightIntensity: this.lightIntensity,
         }
