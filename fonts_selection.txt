@@ -1,0 +1,20 @@
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+font-family: 'VT323', monospace;
+
+Share Tech Mono (retro terminal)
+
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+font-family: 'Share Tech Mono', monospace;
+
+Courier New (no import needed)
+font-family: 'Courier New', monospace;
+
+Orbitron (sci-fi/futuristic)
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron&display=swap');
+font-family: 'Orbitron', sans-serif;
+
+Press Start 2P (8-bit retro)
+
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+font-family: 'Press Start 2P', monospace;
