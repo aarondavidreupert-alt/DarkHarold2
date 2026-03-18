@@ -297,6 +297,11 @@ window.onload = async function () {
     })
 
     heart._init()
+
+    ;(window as any).toggleFloorLighting = () => {
+        Config.engine.doFloorLighting = !Config.engine.doFloorLighting
+        console.log('Floor lighting:', Config.engine.doFloorLighting)
+    }
 }
 
 heart.mousepressed = (x: number, y: number, btn: string) => {
