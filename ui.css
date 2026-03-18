@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
 /*
 Copyright 2014-2017 darkf
 
@@ -17,7 +19,7 @@ limitations under the License.
 /* Main stylesheet for the DarkFO UI */
 
 body {
-  font-family: sans-serif;
+  font-family: 'VT323', monospace;
   margin: 0;
 }
 

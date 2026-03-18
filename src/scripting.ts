@@ -1620,7 +1620,7 @@ export module Scripting {
                 script.combat_is_initialized = globalState.inCombat ? 1 : 0
                 script.self_obj = gameObjects[i] as ScriptableObj
                 script.game_time = Math.max(1, globalState.gameTickTime)
-                script.game_time_hour = 1200 // hour of the day
+                script.game_time_hour = Math.floor((globalState.gameTickTime / 600) % 24)
                 script.cur_map_index = currentMapID
                 script.map_update_p_proc()
                 updated++
