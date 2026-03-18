@@ -300,6 +300,9 @@ window.onload = async function () {
 
     ;(window as any).toggleFloorLighting = () => {
         Config.engine.doFloorLighting = !Config.engine.doFloorLighting
+        if (Config.engine.doFloorLighting) {
+            ;(globalState.renderer as WebGLRenderer).initFloorLighting()
+        }
         console.log('Floor lighting:', Config.engine.doFloorLighting)
     }
 }

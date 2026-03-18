@@ -39,7 +39,7 @@ export class WebGLRenderer extends Renderer {
     private u_intensityColorTable: WebGLUniformLocation // [65536];
     private u_paletteRGB: WebGLUniformLocation // vec3 [256];
     private lightBufferTexture: WebGLTexture
-    private floorLightShader: WebGLProgram
+    private floorLightShader: WebGLProgram | null = null
 
     private textures: { [key: string]: WebGLTexture } = {} // WebGL texture cache
 
@@ -206,71 +206,77 @@ export class WebGLRenderer extends Renderer {
 
         // set up floor light shader
         if (Config.engine.doFloorLighting) {
-            this.floorLightShader = this.getProgram(this.gl, 'vertex', 'fragmentLighting')
-            gl.useProgram(this.floorLightShader)
-            this.litOffsetLocation = gl.getUniformLocation(this.floorLightShader, 'u_offset')
-            this.litScaleLocation = gl.getUniformLocation(this.floorLightShader, 'u_scale')
-            this.uLightBuffer = gl.getUniformLocation(this.floorLightShader, 'u_lightBuffer')
-            const litResolutionLocation = gl.getUniformLocation(this.floorLightShader, 'u_resolution')
-            const litPositionLocation = gl.getAttribLocation(this.floorLightShader, 'a_position')
-
-            gl.uniform2f(litResolutionLocation, this.canvas.width, this.canvas.height)
-
-            const litTexCoordLocation = gl.getAttribLocation(this.floorLightShader, 'a_texCoord')
-            gl.enableVertexAttribArray(litTexCoordLocation)
-            gl.vertexAttribPointer(litTexCoordLocation, 2, gl.FLOAT, false, 0, 0)
-
-            gl.enableVertexAttribArray(litPositionLocation)
-            gl.vertexAttribPointer(litPositionLocation, 2, gl.FLOAT, false, 0, 0)
-
-            // upload ancillary textures
-
-            this.u_colorTable = gl.getUniformLocation(this.floorLightShader, 'u_colorTable')
-            this.u_intensityColorTable = gl.getUniformLocation(this.floorLightShader, 'u_intensityColorTable')
-            this.u_paletteRGB = gl.getUniformLocation(this.floorLightShader, 'u_paletteRGB')
-
-            // upload color tables
-            // TODO: have it in a typed array anyway
-            const _colorTable = getFileJSON('colorTable.json')
-            gl.activeTexture(gl.TEXTURE2)
-            this.textureFromArray(_colorTable)
-            gl.uniform1i(this.u_colorTable, 2)
-
-            // intensityColorTable
-            const _intensityColorTable = Lighting.intensityColorTable
-            const intensityColorTable = new Uint8Array(65536)
-            for (let i = 0; i < 65536; i++) {
-                intensityColorTable[i] = _intensityColorTable[i]
-            }
-            gl.activeTexture(gl.TEXTURE3)
-            this.textureFromArray(intensityColorTable)
-            gl.uniform1i(this.u_intensityColorTable, 3)
-
-            // paletteRGB
-            const _colorRGB = getFileJSON('color_rgb.json')
-            const paletteRGB = new Uint8Array(256 * 3)
-            for (let i = 0; i < 256; i++) {
-                paletteRGB[i * 3 + 0] = _colorRGB[i][0]
-                paletteRGB[i * 3 + 1] = _colorRGB[i][1]
-                paletteRGB[i * 3 + 2] = _colorRGB[i][2]
-            }
-            gl.activeTexture(gl.TEXTURE4)
-            this.textureFromColorArray(paletteRGB, 256)
-            gl.uniform1i(this.u_paletteRGB, 4)
-
-            // set up light buffer texture
-            gl.activeTexture(gl.TEXTURE1)
-            this.lightBufferTexture = gl.createTexture()
-            gl.bindTexture(gl.TEXTURE_2D, this.lightBufferTexture)
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-            gl.uniform1i(this.uLightBuffer, 1) // bind the light buffer texture to the shader
-
-            gl.activeTexture(gl.TEXTURE0)
-            gl.useProgram(this.tileShader)
+            this.initFloorLighting()
         }
+    }
+
+    initFloorLighting(): void {
+        if (this.floorLightShader !== null) return
+        const gl = this.gl
+        this.floorLightShader = this.getProgram(gl, 'vertex', 'fragmentLighting')
+        gl.useProgram(this.floorLightShader)
+        this.litOffsetLocation = gl.getUniformLocation(this.floorLightShader, 'u_offset')
+        this.litScaleLocation = gl.getUniformLocation(this.floorLightShader, 'u_scale')
+        this.uLightBuffer = gl.getUniformLocation(this.floorLightShader, 'u_lightBuffer')
+        const litResolutionLocation = gl.getUniformLocation(this.floorLightShader, 'u_resolution')
+        const litPositionLocation = gl.getAttribLocation(this.floorLightShader, 'a_position')
+
+        gl.uniform2f(litResolutionLocation, this.canvas.width, this.canvas.height)
+
+        const litTexCoordLocation = gl.getAttribLocation(this.floorLightShader, 'a_texCoord')
+        gl.enableVertexAttribArray(litTexCoordLocation)
+        gl.vertexAttribPointer(litTexCoordLocation, 2, gl.FLOAT, false, 0, 0)
+
+        gl.enableVertexAttribArray(litPositionLocation)
+        gl.vertexAttribPointer(litPositionLocation, 2, gl.FLOAT, false, 0, 0)
+
+        // upload ancillary textures
+
+        this.u_colorTable = gl.getUniformLocation(this.floorLightShader, 'u_colorTable')
+        this.u_intensityColorTable = gl.getUniformLocation(this.floorLightShader, 'u_intensityColorTable')
+        this.u_paletteRGB = gl.getUniformLocation(this.floorLightShader, 'u_paletteRGB')
+
+        // upload color tables
+        // TODO: have it in a typed array anyway
+        const _colorTable = getFileJSON('colorTable.json')
+        gl.activeTexture(gl.TEXTURE2)
+        this.textureFromArray(_colorTable)
+        gl.uniform1i(this.u_colorTable, 2)
+
+        // intensityColorTable
+        const _intensityColorTable = Lighting.intensityColorTable
+        const intensityColorTable = new Uint8Array(65536)
+        for (let i = 0; i < 65536; i++) {
+            intensityColorTable[i] = _intensityColorTable[i]
+        }
+        gl.activeTexture(gl.TEXTURE3)
+        this.textureFromArray(intensityColorTable)
+        gl.uniform1i(this.u_intensityColorTable, 3)
+
+        // paletteRGB
+        const _colorRGB = getFileJSON('color_rgb.json')
+        const paletteRGB = new Uint8Array(256 * 3)
+        for (let i = 0; i < 256; i++) {
+            paletteRGB[i * 3 + 0] = _colorRGB[i][0]
+            paletteRGB[i * 3 + 1] = _colorRGB[i][1]
+            paletteRGB[i * 3 + 2] = _colorRGB[i][2]
+        }
+        gl.activeTexture(gl.TEXTURE4)
+        this.textureFromColorArray(paletteRGB, 256)
+        gl.uniform1i(this.u_paletteRGB, 4)
+
+        // set up light buffer texture
+        gl.activeTexture(gl.TEXTURE1)
+        this.lightBufferTexture = gl.createTexture()
+        gl.bindTexture(gl.TEXTURE_2D, this.lightBufferTexture)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+        gl.uniform1i(this.uLightBuffer, 1) // bind the light buffer texture to the shader
+
+        gl.activeTexture(gl.TEXTURE0)
+        gl.useProgram(this.tileShader)
     }
 
     rectangleBuffer(gl: WebGLRenderingContext, x: number, y: number, width: number, height: number): WebGLBuffer {
