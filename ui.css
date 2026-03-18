@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
 
 /*
 Copyright 2014-2017 darkf
@@ -17,10 +17,55 @@ limitations under the License.
 */
 
 /* Main stylesheet for the DarkFO UI */
+/*
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+body {
+  font-family: 'VT323', monospace;
+  margin: 0;
+}
+*/
+/*
+@font-face {
+    font-family: 'Overseer';
+    src: url('fonts/Overseer.otf') format('opentype');
+}
+
+body {
+  font-family: 'Overseer', monospace;
+  margin: 0;
+}
+*/
+/*
+@import url('https://fonts.googleapis.com/css2?family=Atomic+Age&display=swap');
+
+body {
+  font-family: 'Atomic Age', sans-serif;
+  margin: 0;
+}
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+
+body {
+  font-family: 'Share Tech Mono', monospace;
+  margin: 0;
+}
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
 
 body {
   font-family: 'VT323', monospace;
   margin: 0;
+}
+*/
+
+
+@font-face {
+    font-family: 'Fallout';
+    src: url('fonts/fallout.ttf') format('truetype');
+}
+
+body {
+    font-family: 'Fallout', monospace;
+    margin: 0;
 }
 
 .disable-selection {
