@@ -135,7 +135,7 @@ export module Lighting {
     // zero array
     for (var i = 0; i < intensity_map.length; i++) intensity_map[i] = 0
 
-    var ambient = 0xa000 // ambient light level
+    export let ambient = 0xa000 // ambient light level
 
     // Color look-up table by light intensity
     export const intensityColorTable = (globalThis as unknown as { intensityColorTable: number[] }).intensityColorTable

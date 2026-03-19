@@ -37,6 +37,7 @@ import {
     uiWorldMap,
 } from './ui.js'
 import { getFileJSON, getProtoMsg } from './util.js'
+import { Lighting } from './lighting.js'
 import { WebGLRenderer } from './webglrenderer.js'
 import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
@@ -234,6 +235,8 @@ export function playerUse() {
         globalState.player.walkInFrontOf(obj.position, callback)
     }
 }
+
+(window as any).setAmbientLight = (val: number) => { Lighting.ambient = val }
 
 window.onload = async function () {
     globalState.isInitializing = true
