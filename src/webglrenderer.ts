@@ -343,9 +343,18 @@ export class WebGLRenderer extends Renderer {
 
         // use floor light shader
         gl.useProgram(this.floorLightShader)
-
-        // bind buffers
         gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
+
+        // Re-bind attrib pointers for floorLightShader (may have been overwritten by tile shader)
+        const litPositionLocation = gl.getAttribLocation(this.floorLightShader, 'a_position')
+        const litTexCoordLocation = gl.getAttribLocation(this.floorLightShader, 'a_texCoord')
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer)
+        gl.enableVertexAttribArray(litTexCoordLocation)
+        gl.vertexAttribPointer(litTexCoordLocation, 2, gl.FLOAT, false, 0, 0)
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
+        gl.enableVertexAttribArray(litPositionLocation)
+        gl.vertexAttribPointer(litPositionLocation, 2, gl.FLOAT, false, 0, 0)
+
         gl.uniform2f(this.litScaleLocation, 80, 36)
 
         // bind light buffer texture in texture unit 1
