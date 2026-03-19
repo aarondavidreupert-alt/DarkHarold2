@@ -218,6 +218,9 @@ export class WebGLRenderer extends Renderer {
         this.litOffsetLocation = gl.getUniformLocation(this.floorLightShader, 'u_offset')
         this.litScaleLocation = gl.getUniformLocation(this.floorLightShader, 'u_scale')
         this.uLightBuffer = gl.getUniformLocation(this.floorLightShader, 'u_lightBuffer')
+        const uImage = gl.getUniformLocation(this.floorLightShader, 'u_image')
+        gl.uniform1i(uImage, 0) // tile texture is on TEXTURE0
+        gl.uniform1i(this.uLightBuffer, 1) // light buffer is on TEXTURE1
         const litResolutionLocation = gl.getUniformLocation(this.floorLightShader, 'u_resolution')
         const litPositionLocation = gl.getAttribLocation(this.floorLightShader, 'a_position')
 
@@ -273,7 +276,6 @@ export class WebGLRenderer extends Renderer {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-        gl.uniform1i(this.uLightBuffer, 1) // bind the light buffer texture to the shader
 
         gl.activeTexture(gl.TEXTURE0)
         gl.useProgram(this.tileShader)
