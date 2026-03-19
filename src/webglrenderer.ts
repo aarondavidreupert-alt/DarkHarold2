@@ -348,16 +348,10 @@ export class WebGLRenderer extends Renderer {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
         gl.uniform2f(this.litScaleLocation, 80, 36)
 
-        // bind light buffer texture in texture unit 0
+        // bind light buffer texture in texture unit 1
         gl.activeTexture(gl.TEXTURE1)
         gl.bindTexture(gl.TEXTURE_2D, this.lightBufferTexture)
-
-        // allocate texture for tile image
-        //gl.activeTexture(gl.TEXTURE1)
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 80, 36, 0, gl.RED, gl.FLOAT, null)
-
-        // use tile texture unit
-        //gl.activeTexture(gl.TEXTURE0)
+        gl.activeTexture(gl.TEXTURE0)  // switch back to tile texture unit
 
         // construct light buffer
         const lightBuffer = new Float32Array(80 * 36)
