@@ -423,7 +423,7 @@ export class WebGLRenderer extends Renderer {
                             intensity_ = framebuffer[160 + 80 * y + x]
                         } else {
                             // uniformly lit
-                            intensity_ = Lighting.vertices[3]
+                            intensity_ = Lighting.ambient
                         }
 
                         // blit to the light buffer
