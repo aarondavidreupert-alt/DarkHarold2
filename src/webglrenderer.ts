@@ -206,6 +206,7 @@ export class WebGLRenderer extends Renderer {
 
         // set up floor light shader
         if (Config.engine.doFloorLighting) {
+            console.log("initFloorLighting called")
             this.floorLightShader = this.getProgram(this.gl, 'vertex', 'fragmentLighting')
             gl.useProgram(this.floorLightShader)
             this.litOffsetLocation = gl.getUniformLocation(this.floorLightShader, 'u_offset')
@@ -420,6 +421,7 @@ export class WebGLRenderer extends Renderer {
                 }
 
                 // update light buffer texture
+                console.log("light intensities (first 10):", lightBuffer.slice(0, 10))
                 gl.activeTexture(gl.TEXTURE1)
                 //gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 80, 36, 0, gl.RGBA, gl.UNSIGNED_BYTE, lightBuffer)
                 gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 80, 36, gl.RED, gl.FLOAT, lightBuffer)
