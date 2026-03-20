@@ -1,4 +1,5 @@
 precision mediump float;
+precision highp int;
 
 // uniform int u_colorTable[0x8000];
 // uniform int u_intensityColorTable[65536];
