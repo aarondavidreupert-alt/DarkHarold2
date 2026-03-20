@@ -231,7 +231,7 @@ export class WebGLRenderer extends Renderer {
 
             // upload color tables
             // TODO: have it in a typed array anyway
-            const _colorTable = getFileJSON('colorTable.json')
+            const _colorTable = getFileJSON('lut/colorTable.json')
             gl.activeTexture(gl.TEXTURE2)
             this.textureFromArray(_colorTable)
             gl.uniform1i(this.u_colorTable, 2)
