@@ -1,0 +1,521 @@
+shaders/fragmentLighting.glsl — fixed the Y-flip in the lighting shader
+src/config.ts — re-enabled doFloorLighting: true
+src/main.ts — added window.toggleFloorLighting helper
+And it compiled cleanly. So the question is: do the tiles still look black, or does lighting work now?
+
+Go ahead and test it in the browser — if tiles are still black, the shader fix might not be enough and we'd need to dig into the intensity values. What do you see?
+
+Credits Used: 103
+
+can i now control it in the console
+
+Fallout Remaster
+Claude Sonnet 4.6
+Yes! Since window.toggleFloorLighting was added, you can open the browser console and type:
+
+js
+Copy
+toggleFloorLighting()
+to toggle it on/off. That way you don't need to recompile to test it.
+
+Credits Used: 14,92
+
+ok it togles,but now it is black Floor lighting: true
+undefined
+webglrenderer.js:228 WebGL: INVALID_OPERATION: texImage2D: no texture bound to target
+renderLitFloor @ webglrenderer.js:228
+renderFloor @ webglrenderer.js:320
+render @ renderer.js:36
+heart.draw @ main.js:502
+_tick @ heart.js:201
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+128WebGL: INVALID_OPERATION: texSubImage2D: no texture bound to target
+127WebGL: INVALID_OPERATION: drawArrays: no valid shader program in use
+webglrenderer.js:274 WebGL: too many errors, no more errors will be reported to the console for this context.
+renderLitFloor @ webglrenderer.js:274
+renderFloor @ webglrenderer.js:320
+render @ renderer.js:36
+heart.draw @ main.js:502
+_tick @ heart.js:201
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+requestAnimationFrame
+_tick @ heart.js:204
+data.js:122 SID: 403
+
+Fallout Remaster
+Claude Sonnet 4.6
+Two separate issues here:
+
+no texture bound to target — the lightBufferTexture is null when toggled on at runtime, because it only gets created during init() which runs at startup with doFloorLighting: false. When you toggle it on later, the texture was never initialized.
+no valid shader program in use — same root cause: floorLightShader is also null for the same reason.
+The fix is to make toggleFloorLighting call the lighting init code if it hasn't run yet. Here's a prompt for Claude Code:
+
+Claude Code prompt:
+
+In src/webglrenderer.ts, extract the floor lighting initialization block from init() (everything inside if (Config.engine.doFloorLighting) { ... }) into a new method called initFloorLighting().
+
+Then in src/main.ts, update window.toggleFloorLighting to call (renderer as WebGLRenderer).initFloorLighting() the first time floor lighting is enabled (i.e. only if floorLightShader is null/uninitialized).
+
+This ensures the shader, textures, and light buffer are properly set up even when floor lighting is toggled on at runtime rather than at startup.
+
+The SID: 403 is a separate/unrelated issue — ignore that for now.
+
+Credits Used: 21,68
+
+webglrenderer.ts: Extracted the floor lighting block into initFloorLighting(). The method is idempotent (if (this.floorLightShader !== null) return) so calling it multiple times is safe. init() still calls it when doFloorLighting is true at startup. floorLightShader is now initialized to null.
+main.ts: toggleFloorLighting calls (globalState.renderer as WebGLRenderer).initFloorLighting() whenever floor lighting is toggled on — the idempotency guard ensures it only runs setup once.
+
+Fallout Remaster
+Claude Sonnet 4.6
+Nice, that's clean. Test it now — open the console and run:
+
+js
+Copy
+toggleFloorLighting()
+Do the tiles light up properly or still black?
+
+Credits Used: 14,92
+
+so yes it togles but with error: 
+play.html?newrst:1 [.WebGL-0x7d140012e900] GL_INVALID_OPERATION: glTexImage2DRobustANGLE: Invalid internal format 0x1908.
+play.html?newrst:1 [.WebGL-0x7d140012e900] GL_INVALID_OPERATION: glTexImage2DRobustANGLE: Invalid internal format 0x1908.
+play.html?newrst:1 [.WebGL-0x7d140012e900] GL_INVALID_OPERATION: glTexImage2DRobustANGLE: Invalid internal format 0x1906.
+253[.WebGL-0x7d140012e900] GL_INVALID_OPERATION: glTexSubImage2DRobustANGLE: Level of detail outside of range.
+
+play.html?newrst:1 WebGL: too many errors, no more errors will be reported to the console for this context.
+data.js:122 SID: 203
+
+Fallout Remaster
+Claude Sonnet 4.6
+The errors point to two WebGL2 format issues:
+
+0x1908 = gl.RGBA — used in texImage2D for the light buffer, but WebGL2 requires sized internal formats. gl.RGBA is unsized and invalid as an internal format in WebGL2.
+0x1906 = gl.ALPHA — same problem, gl.ALPHA is a WebGL1-only format, not supported in WebGL2.
+Level of detail outside of range — the texture wasn't created successfully (due to above errors), so texSubImage2D fails too.
+Claude Code prompt:
+
+In src/webglrenderer.ts, inside initFloorLighting(), fix two WebGL2 format issues in the light buffer texture setup:
+
+The texImage2D call that uses gl.ALPHA as internal format and gl.FLOAT as type — change it to use gl.R32F as internal format, gl.RED as format, and gl.FLOAT as type.
+The texSubImage2D call in renderLitFloor() that also uses gl.ALPHA and gl.FLOAT — change it to use gl.RED as format and gl.FLOAT as type (internal format is not specified in texSubImage2D).
+Any texImage2D call using gl.RGBA as the internal format for the light buffer — change to gl.RGBA8 (sized internal format required by WebGL2).
+This is required because WebGL2 does not support unsized internal formats (gl.RGBA, gl.ALPHA) in texImage2D.
+
+Credits Used: 115
+
+Floor lighting: true
+undefined
+play.html?newrst:1 [.WebGL-0x7d140c43d500] GL_INVALID_OPERATION: glTexImage2DRobustANGLE: Invalid internal format 0x1908.
+play.html?newrst:1 [.WebGL-0x7d140c43d500] GL_INVALID_OPERATION: glTexImage2DRobustANGLE: Invalid internal format 0x1908.
+data.js:122 SID: 203
+
+Fallout Remaster
+Claude Sonnet 4.6
+Still two 0x1908 (gl.RGBA) errors remaining. Let me check exactly where they are:
+
+Found them. The two remaining gl.RGBA errors are in textureFromArray():
+
+ts
+Copy
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, size, size, 0, gl.RGBA, gl.FLOAT, buf)
+WebGL2 requires a sized internal format. gl.RGBA + gl.FLOAT needs to be gl.RGBA32F. Claude Code prompt:
+
+In src/webglrenderer.ts, in the textureFromArray() method, change the texImage2D call from:
+
+ts
+Copy
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, size, size, 0, gl.RGBA, gl.FLOAT, buf)
+to:
+
+ts
+Copy
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, size, size, 0, gl.RGBA, gl.FLOAT, buf)
+Also in textureFromColorArray(), change:
+
+ts
+Copy
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, width, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, arr)
+to:
+
+ts
+Copy
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, width, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, arr)
+These are the only remaining unsized internal format usages causing the WebGL2 errors.
+
+Credits Used: 209
+
+oh my god -it works
+
+Fallout Remaster
+Claude Sonnet 4.6
+Let's gooo! 🎉 Floor lighting is working!
+
+How does it look — are the light levels correct, or does it look too dark/bright/weird?
+
+Credits Used: 190
+
+it looks much like fallout 1 - i actrivatet it with toggleFloorLighting() - what was the other effekt we implemente
+
+Fallout Remaster
+Claude Sonnet 4.6
+The Y-flip fix in shaders/fragmentLighting.glsl — that was the other change Claude Code made. It corrects the direction the lighting gradient is applied across tiles.
+
+With floor lighting now on, you should be seeing both effects together. Does the lighting look directionally correct, or does it seem like light is coming from the wrong side?
+
+Credits Used: 191
+
+no looks good. how can i change the lightingleven and the rendering - dindt we want to estabish gradients
+
+Fallout Remaster
+Claude Sonnet 4.6
+Let me check the current lighting and shader code to see what's already there:
+
+OK, here's the picture:
+
+The shader uses lightIntensity / 512.0 as the index into intensityColorTable — so light values from Lightmap (0–65536) map to table indices 0–128.
+The ambient is hardcoded at 0xa000 (40960), which is quite high — meaning even "dark" areas are fairly bright.
+Gradients are already being computed via renderTris() — the triangle interpolation is there.
+To tweak lighting you can do directly in the console:
+
+js
+Copy
+// Lower ambient for darker areas (default is 0xa000 = 40960)
+// Try values like 0x2000 (dark) to 0x8000 (medium)
+But to properly expose controls, here's a Claude Code prompt:
+
+In src/lighting.ts, change var ambient from const to an exported let:
+
+ts
+Copy
+export let ambient = 0xa000
+Then in src/main.ts, expose it on window:
+
+ts
+Copy
+window.setAmbientLight = (val: number) => { Lighting.ambient = val }
+Then you can tune it live in the console:
+
+js
+Copy
+setAmbientLight(0x2000)  // dark
+setAmbientLight(0xa000)  // default
+setAmbientLight(0xffff)  // full bright
+Want to do that, or do you want to tackle the gradient rendering quality first?
+
+Credits Used: 64,57
+
+ok that kind of broke it and we are back at black floor
+
+Fallout Remaster
+Claude Sonnet 4.6
+The ambient change probably broke the lighting init logic. Let's revert — Claude Code prompt:
+
+In src/lighting.ts, revert ambient back to:
+
+ts
+Copy
+var ambient = 0xa000
+And remove the export let change. Also remove window.setAmbientLight from src/main.ts.
+
+Then recompile with npx tsc and check if the floor comes back.
+
+Credits Used: 123
+
+intersects Arroyo
+idbcache.js:31 [Violation] 'success' handler took 671ms
+saveload.js:108 Established DB connection
+heart.js:179 [Violation] 'requestAnimationFrame' handler took 69ms
+geometry.js:164 This is not a rectangle: (96,39), (62,97), (98,97), (98,39)
+8data.js:122 SID: 203
+toggleFloorLighting()
+main.js:227 Floor lighting: true
+undefined
+data.js:122 SID: 203
+lightmap.js:33 initializing light tables
+heart.js:179 [Violation] 'requestAnimationFrame' handler took 70ms
+setAmbientLight(0x2000)  // dark
+
+undefined
+data.js:122 SID: 324
+data.js:122 SID: 403
+data.js:122 SID: 338
+heart.js:179 [Violation] 'requestAnimationFrame' handler took 52ms
+data.js:122 SID: 403
+data.js:122 SID: 338
+data.js:122 SID: 403
+data.js:122 SID: 338
+data.js:122 SID: 324
+setAmbientLight(0x2000)
+
+undefined
+data.js:122 SID: 403
+data.js:122 SID: 338
+data.js:122 SID: 403
+data.js:122 SID:
+
+Fallout Remaster
+Claude Sonnet 4.6
+The floor is working and setAmbientLight is still there — so the revert kept the function but it's not breaking anything visually now?
+
+What does the floor look like currently — is it black again or lit normally?
+
+Credits Used: 12,35
+
+no i did not try it ye just wanted to show the console
+
+Fallout Remaster
+Claude Sonnet 4.6
+Got it! So floor lighting is working fine. Go ahead and try:
+
+js
+Copy
+setAmbientLight(0x2000)
+Then move around a bit to see if the tiles update. What does it look like?
+
+Credits Used: 10,96
+
+setAmbientLight(0x2000)
+
+undefined
+
+Fallout Remaster
+Claude Sonnet 4.6
+And visually — does the floor look darker now, or still the same brightness?
+
+Credits Used: 10,48
+
+no as i said its black again
+
+Fallout Remaster
+Claude Sonnet 4.6
+OK so setAmbientLight(0x2000) is setting ambient too low and everything goes black. Try a less extreme value:
+
+js
+Copy
+setAmbientLight(0x8000)
+That's halfway between dark and the default 0xa000. Does that look better?
+
+Credits Used: 11,1
+
+: 338
+setAmbientLight(0x8000)
+undefined
+
+Fallout Remaster
+Claude Sonnet 4.6
+Still black? The issue is likely that ambient is being read at tile init time, so changing it after the map is loaded doesn't trigger a re-render with the new value. The tiles that are already computed stay black.
+
+Try toggling floor lighting off and back on after setting the ambient:
+
+js
+Copy
+setAmbientLight(0x8000)
+toggleFloorLighting()
+toggleFloorLighting()
+Does that force a re-render with the new ambient?
+
+Credits Used: 11,94
+
+doesnt work- it alos sais undifined when i call th command set ambient light
+
+Fallout Remaster
+Claude Sonnet 4.6
+undefined is actually normal — it just means the function doesn't return a value. But if it's still black, the issue is that Lighting.ambient isn't being read dynamically — it's likely captured at startup or the lightmap isn't being recomputed.
+
+Let's not go down this rabbit hole for now. Revert everything — remove setAmbientLight and keep ambient as the hardcoded var ambient = 0xa000. The floor lighting works correctly at default, which is the important thing.
+
+Want to move on to something else instead?
+
+Credits Used: 12,45
+
+how can i revert in github
+
+Fallout Remaster
+Claude Sonnet 4.6
+A few options:
+
+Option 1 — Via GitHub website (easiest):
+
+Go to your repo on GitHub
+Click Commits (clock icon)
+Find the commit where the ambient change was made
+Click the <> button to browse the repo at that point
+Copy the old content of the changed files back manually
+Option 2 — Via Git command line (cleanest):
+
+bash
+Copy
+git log --oneline
+Find the commit hash before the ambient change, then:
+
+bash
+Copy
+git revert <commit-hash>
+Or to hard reset:
+
+bash
+Copy
+git reset --hard <commit-hash>
+Option 3 — Just fix it directly (fastest):
+Tell Claude Code:
+
+In src/lighting.ts, change export let ambient back to var ambient = 0xa000 and remove the export. In src/main.ts, remove the window.setAmbientLight line. Recompile with npx tsc.
+
+Option 3 is probably quickest since it's only 2 small changes.
+
+Credits Used: 14,48
+
+what about github desktop
+
+Fallout Remaster
+Claude Sonnet 4.6
+Even easier! In GitHub Desktop:
+
+Click History tab (top left)
+Find the commit with the ambient changes
+Right-click it → Revert Changes in Commit
+That creates a new revert commit automatically. Then just recompile with npx tsc.
+
+Credits Used: 12,16
+
+hmm still black- sall i reverse the next change
+
+Fallout Remaster
+Claude Sonnet 4.6
+Yes, revert commits one by one going backwards until the floor lighting comes back. What was the commit before the ambient change — was it the gl.RGBA32F fix? That one should definitely stay.
+
+Check your History tab — what are the last 3-4 commit messages?
+
+Credits Used: 11,46
+
+olation] 'success' handler took 691ms
+saveload.js:108 Established DB connection
+toggleFloorLighting()
+main.js:225 Floor lighting: true
+undefined
+play.html?newrst:1 [.WebGL-0x493c00a4e900] GL_INVALID_OPERATION: glTexImage2DRobustANGLE: Invalid internal format 0x1908.
+play.html?newrst:1 [.WebGL-0x493c00a4e900] GL_INVALID_OPERATION: glTexImage2DRobustANGLE: Invalid internal format 0x1908
