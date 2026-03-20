@@ -42,11 +42,7 @@ void main() {
 
     float lightIntensity = min(light.r, 65536.0);
 
-    int colorIdx = colorToColorTableRGB(tileTexel.rgb);
-    int palIdx = int(atIndex(u_colorTable, colorIdx).r);
-    int tableIdx = palIdx * 256 + int(lightIntensity / 512.0);
-    int colorPal = int(atIndex(u_intensityColorTable, tableIdx).r);
-    vec3 color = paletteColor(colorPal);
+    float brightness = lightIntensity / 65536.0;
 
-    gl_FragColor = vec4(color, tileTexel.a);
+    gl_FragColor = vec4(tileTexel.rgb * brightness, tileTexel.a);
 }
