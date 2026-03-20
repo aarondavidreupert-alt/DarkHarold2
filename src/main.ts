@@ -302,6 +302,12 @@ window.onload = async function () {
         Config.engine.doFloorLighting = !Config.engine.doFloorLighting
         console.log('Floor lighting:', Config.engine.doFloorLighting)
     }
+
+    ;(window as any).setLightingMode = (mode: 'gpu' | 'cpu') => {
+        Config.engine.floorLightingMode = mode
+        ;(globalState.renderer as WebGLRenderer).setLightingMode(mode)
+        console.log('[Lighting] switched to:', mode)
+    }
 }
 
 heart.mousepressed = (x: number, y: number, btn: string) => {

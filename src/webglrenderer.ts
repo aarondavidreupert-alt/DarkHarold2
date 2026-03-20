@@ -2,6 +2,7 @@ import { heart } from './heart.js'
 import { hexFromScreen } from './geometry.js'
 import globalState from './globalState.js'
 import { Lighting } from './lighting.js'
+import { Lightmap } from './lightmap.js'
 import { Obj } from './object.js'
 import { Renderer, SCREEN_HEIGHT, SCREEN_WIDTH, TileMap } from './renderer.js'
 import { tileToScreen, TILE_HEIGHT, TILE_WIDTH } from './tile.js'
@@ -40,6 +41,11 @@ export class WebGLRenderer extends Renderer {
     private u_paletteRGB: WebGLUniformLocation // vec3 [256];
     private lightBufferTexture: WebGLTexture
     private floorLightShader: WebGLProgram
+
+    private tileIntensityTexture: WebGLTexture | null = null // 200x200 R32F texture for GPU path
+    private floorLightingMode: 'gpu' | 'cpu' = 'cpu'
+    private uTilePosLocation: WebGLUniformLocation | null = null
+    private uUseGPULighting: WebGLUniformLocation | null = null
 
     private textures: { [key: string]: WebGLTexture } = {} // WebGL texture cache
 
@@ -268,6 +274,37 @@ export class WebGLRenderer extends Renderer {
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
             gl.uniform1i(this.uLightBuffer, 1) // bind the light buffer texture to the shader
 
+            // detect GPU capability and choose lighting mode
+            const canGPU = (
+                this.gl instanceof WebGL2RenderingContext &&
+                this.gl.getExtension('OES_texture_float_linear') !== null
+            )
+            if (Config.engine.floorLightingMode === 'auto') {
+                this.floorLightingMode = canGPU ? 'gpu' : 'cpu'
+            } else {
+                this.floorLightingMode = Config.engine.floorLightingMode as 'gpu' | 'cpu'
+            }
+            console.log('[Lighting] mode:', this.floorLightingMode)
+
+            // create 200x200 R32F tile intensity texture for GPU path
+            if (this.floorLightingMode === 'gpu') {
+                gl.activeTexture(gl.TEXTURE5)
+                this.tileIntensityTexture = gl.createTexture()
+                gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 200, 200, 0, gl.RED, gl.FLOAT, null)
+                const uTileIntensity = gl.getUniformLocation(this.floorLightShader, 'u_tileIntensity')
+                gl.useProgram(this.floorLightShader)
+                gl.uniform1i(uTileIntensity, 5)
+            }
+
+            // get GPU-path uniform locations (needed by both CPU and GPU paths)
+            this.uTilePosLocation = gl.getUniformLocation(this.floorLightShader, 'u_tilePos')
+            this.uUseGPULighting = gl.getUniformLocation(this.floorLightShader, 'u_useGPULighting')
+
             gl.activeTexture(gl.TEXTURE0)
             gl.useProgram(this.tileShader)
         }
@@ -322,7 +359,9 @@ export class WebGLRenderer extends Renderer {
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT)
     }
 
-    renderLitFloor(tileMap: string[][], useColorTable = true) {
+    renderLitFloorCPU(tileMap: TileMap, useColorTable = true) {
+        Lightmap.rebuildDynamicLight()
+
         // initialize color tables if necessary (TODO: hack, should be initialized elsewhere)
         if (useColorTable) {
             if (Lighting.colorLUT === null) {
@@ -335,6 +374,7 @@ export class WebGLRenderer extends Renderer {
 
         // use floor light shader
         gl.useProgram(this.floorLightShader)
+        gl.uniform1i(this.uUseGPULighting, 0)
 
         // bind buffers
         gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
@@ -440,6 +480,66 @@ export class WebGLRenderer extends Renderer {
         gl.useProgram(this.tileShader)
     }
 
+    renderLitFloorGPU(tileMap: TileMap) {
+        Lightmap.rebuildDynamicLight()
+
+        const gl = this.gl
+
+        // upload full tile intensity array to TEXTURE5 once per frame
+        gl.activeTexture(gl.TEXTURE5)
+        gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 200, 200, gl.RED, gl.FLOAT,
+            new Float32Array(Lightmap.tile_intensity))
+
+        gl.useProgram(this.floorLightShader)
+        gl.uniform1i(this.uUseGPULighting, 1)
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
+        gl.uniform2f(this.litScaleLocation, 80, 36)
+
+        for (let i = tileMap.length - 1; i >= 0; i--) {
+            for (let j = 0; j < tileMap[0].length; j++) {
+                const tile = tileMap[j][i]
+                if (tile === 'grid000') {
+                    continue
+                }
+                const img = 'art/tiles/' + tile
+
+                const scr = tileToScreen(i, j)
+                if (
+                    scr.x + TILE_WIDTH < globalState.cameraPosition.x ||
+                    scr.y + TILE_HEIGHT < globalState.cameraPosition.y ||
+                    scr.x >= globalState.cameraPosition.x + SCREEN_WIDTH ||
+                    scr.y >= globalState.cameraPosition.y + SCREEN_HEIGHT
+                ) {
+                    continue
+                }
+
+                gl.activeTexture(gl.TEXTURE0)
+                const texture = this.getTextureFromHack(img)
+                if (!texture) {
+                    console.log('skipping tile without a texture: ' + img)
+                    continue
+                }
+                gl.bindTexture(gl.TEXTURE_2D, texture)
+
+                // pass tile hex position so shader can look up intensity
+                const hex = hexFromScreen(scr.x - 13, scr.y + 13)
+                gl.uniform2i(this.uTilePosLocation, hex.x, hex.y)
+
+                gl.uniform2f(
+                    this.litOffsetLocation,
+                    scr.x - globalState.cameraPosition.x,
+                    scr.y - globalState.cameraPosition.y
+                )
+                gl.drawArrays(gl.TRIANGLES, 0, 6)
+            }
+        }
+
+        gl.activeTexture(gl.TEXTURE0)
+        gl.useProgram(this.tileShader)
+    }
+
     drawTileMap(tilemap: TileMap, offsetY: number): void {
         const gl = this.gl
         this.gl.useProgram(this.tileShader)
@@ -492,10 +592,18 @@ export class WebGLRenderer extends Renderer {
 
     renderFloor(floor: TileMap): void {
         if (Config.engine.doFloorLighting) {
-            this.renderLitFloor(floor)
+            if (this.floorLightingMode === 'gpu') {
+                this.renderLitFloorGPU(floor)
+            } else {
+                this.renderLitFloorCPU(floor)
+            }
         } else {
             this.drawTileMap(floor, 0)
         }
+    }
+
+    setLightingMode(mode: 'gpu' | 'cpu'): void {
+        this.floorLightingMode = mode
     }
 
     renderObject(obj: Obj): void {

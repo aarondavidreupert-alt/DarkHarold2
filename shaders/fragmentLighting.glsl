@@ -10,6 +10,9 @@ uniform sampler2D u_paletteRGB;
 
 uniform sampler2D u_image;
 uniform sampler2D u_lightBuffer;
+uniform sampler2D u_tileIntensity;  // 200x200 tile intensity map
+uniform ivec2 u_tilePos;            // current tile position (x, y) in tile coords
+uniform bool u_useGPULighting;      // true = GPU path, false = CPU path (uses u_lightBuffer)
 
 varying vec2 v_texCoord;
 
@@ -36,11 +39,33 @@ vec3 paletteColor(int palIdx) {
     return texture2D(u_paletteRGB, vec2((float(palIdx) + 0.5) / 256.0, 1.0)).rgb;
 }
 
+float sampleTileIntensity(ivec2 tilePos) {
+    vec2 uv = (vec2(tilePos) + 0.5) / vec2(200.0, 200.0);
+    return texture2D(u_tileIntensity, uv).r;
+}
+
+float getGPULightIntensity(vec2 texCoord) {
+    // sample the 4 surrounding tile intensities and bilinearly interpolate
+    // based on texCoord position within the tile
+    float c  = sampleTileIntensity(u_tilePos);
+    float r  = sampleTileIntensity(u_tilePos + ivec2(1, 0));
+    float b  = sampleTileIntensity(u_tilePos + ivec2(0, 1));
+    float br = sampleTileIntensity(u_tilePos + ivec2(1, 1));
+    float fx = texCoord.x;
+    float fy = texCoord.y;
+    return mix(mix(c, r, fx), mix(b, br, fx), fy);
+}
+
 void main() {
     vec4 tileTexel = texture2D(u_image, v_texCoord);
-    vec4 light = texture2D(u_lightBuffer, v_texCoord);
 
-    float lightIntensity = min(light.r, 65536.0);
+    float lightIntensity;
+    if (u_useGPULighting) {
+        lightIntensity = getGPULightIntensity(v_texCoord);
+    } else {
+        // CPU path — per-tile 80x36 light buffer uploaded by renderLitFloorCPU
+        lightIntensity = min(texture2D(u_lightBuffer, v_texCoord).r, 65536.0);
+    }
 
     float brightness = lightIntensity / 65536.0;
 
