@@ -40,6 +40,7 @@ import { getFileJSON, getProtoMsg } from './util.js'
 import { WebGLRenderer } from './webglrenderer.js'
 import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
+import { Lightmap } from './lightmap.js'
 
 // Return the skill ID used by the Fallout 2 engine
 function getSkillID(skill: Skills): number {
@@ -292,6 +293,11 @@ window.onload = async function () {
                 // continue initialization
                 initGame()
                 globalState.isInitializing = false
+
+                // debug exposure for console inspection
+                ;(window as any).debugLightmap = Lightmap
+                ;(window as any).debugRenderer = globalState.renderer
+                ;(window as any).debugGlobalState = globalState
             })
         })
     })
