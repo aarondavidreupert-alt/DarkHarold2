@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Critter } from './object.js'
+import { Critter } from './critter.js'
 import { loadMessage } from './data.js'
 import globalState from './globalState.js'
 

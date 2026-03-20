@@ -15,7 +15,8 @@ limitations under the License.
 */
 
 import globalState from './globalState.js'
-import { Critter, deserializeObj, SerializedObj } from './object.js'
+import { Critter } from './critter.js'
+import { deserializeObj, SerializedObj } from './object.js'
 import { arrayIncludes, arrayRemove } from './util.js'
 
 // Party member system for DarkFO

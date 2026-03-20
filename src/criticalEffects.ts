@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Critter } from './object.js'
+import { Critter } from './critter.js'
 import { StatType } from './skills.js'
 import { getFileJSON, rollSkillCheck } from './util.js'
 
