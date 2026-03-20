@@ -1083,3 +1083,8 @@ body {
   left: 75px;
   top: 225px;
 }
+
+/* Hide OS cursor — Fallout renders its own cursor via WebGL */
+#cnv {
+  cursor: none;
+}

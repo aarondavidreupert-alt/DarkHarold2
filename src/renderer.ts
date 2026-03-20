@@ -103,6 +103,25 @@ export class Renderer {
                 16
             )
         }
+
+        // Render Fallout-authentic cursor overlay based on cursorMode
+        {
+            const rawX = mousePos[0]
+            const rawY = mousePos[1]
+
+            if (globalState.cursorMode === 'command') {
+                this.renderImage('art/intrface/actarrow', rawX, rawY, 14, 13)
+                if (globalState.showLookCursor) {
+                    this.renderImage('art/intrface/lookn', rawX + 16, rawY + 8, 32, 32)
+                }
+            } else if (globalState.cursorMode === 'interface') {
+                this.renderImage('art/intrface/stdarrow', rawX, rawY, 14, 13)
+            } else if (globalState.cursorMode === 'scroll') {
+                this.renderImage('art/intrface/stdarrow', rawX, rawY, 14, 13)
+            }
+            // 'move' mode: hex_outline already handles cursor rendering (snapped to hex grid)
+        }
+
         if (Config.ui.showObjects && this.objects) {
             this.renderObjects(this.objects)
         }

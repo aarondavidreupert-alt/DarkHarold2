@@ -310,11 +310,63 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
     } else if (btn === 'l') {
         playerUse()
     } else if (btn === 'r') {
-        // item context menu
-        const obj = getObjectUnderCursor((obj) => obj.isSelectable)
-        if (obj) {
-            uiContextMenu(obj, { clientX: x, clientY: y })
+        if (globalState.cursorMode === 'command') {
+            // second right-click → back to move mode
+            globalState.cursorMode = 'move'
+            globalState.showLookCursor = false
+            if (globalState.commandModeTimer !== null) {
+                clearTimeout(globalState.commandModeTimer)
+                globalState.commandModeTimer = null
+            }
+        } else if (globalState.cursorMode === 'move') {
+            // enter command mode
+            globalState.cursorMode = 'command'
+            globalState.showLookCursor = false
+            if (globalState.commandModeTimer !== null) clearTimeout(globalState.commandModeTimer)
+            globalState.commandModeTimer = window.setTimeout(() => {
+                globalState.showLookCursor = true
+            }, 1000)
+
+            // Show context menu on ANY object, not just isSelectable
+            const obj = getObjectUnderCursor((_: Obj) => true)
+            if (obj) {
+                uiContextMenu(obj, { clientX: x, clientY: y })
+            }
         }
+    }
+}
+
+heart.mousemoved = (x: number, y: number) => {
+    globalState.cursorPos = { x, y }
+
+    // Reset look-cursor timer on movement in command mode
+    if (globalState.cursorMode === 'command') {
+        globalState.showLookCursor = false
+        if (globalState.commandModeTimer !== null) clearTimeout(globalState.commandModeTimer)
+        globalState.commandModeTimer = window.setTimeout(() => {
+            globalState.showLookCursor = true
+        }, 1000)
+    }
+
+    // HUD zone detection (bottom 99px)
+    const HUD_Y = SCREEN_HEIGHT - 99
+    if (y >= HUD_Y) {
+        if (globalState.cursorMode !== 'command') globalState.cursorMode = 'interface'
+    } else if (globalState.cursorMode === 'interface') {
+        globalState.cursorMode = 'move'
+    }
+
+    // Scroll zone detection
+    const SCROLL_PAD = Config.ui.scrollPadding
+    if (
+        x <= SCROLL_PAD ||
+        x >= SCREEN_WIDTH - SCROLL_PAD ||
+        y <= SCROLL_PAD ||
+        (y >= SCREEN_HEIGHT - SCROLL_PAD - 99 && y < SCREEN_HEIGHT - 99)
+    ) {
+        if (globalState.cursorMode === 'move') globalState.cursorMode = 'scroll'
+    } else if (globalState.cursorMode === 'scroll') {
+        globalState.cursorMode = 'move'
     }
 }
 
@@ -498,8 +550,8 @@ heart.keydown = (k: string) => {
     //	Worldmap.checkEncounters()
 }
 
-function changeCursor(image: string) {
-    document.getElementById('cnv')!.style.cursor = image
+function changeCursor(_image: string) {
+    // No-op: cursor is now rendered via WebGL based on cursorMode
 }
 
 heart.update = function () {
