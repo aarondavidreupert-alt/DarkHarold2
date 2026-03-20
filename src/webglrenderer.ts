@@ -60,7 +60,7 @@ export class WebGLRenderer extends Renderer {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 
         // Upload the image into the texture.
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, img)
 
         if (doCache) {
             this.textures[key] = texture
@@ -346,7 +346,7 @@ export class WebGLRenderer extends Renderer {
 
         // allocate texture for tile image
         //gl.activeTexture(gl.TEXTURE1)
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.ALPHA, 80, 36, 0, gl.ALPHA, gl.FLOAT, null)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 80, 36, 0, gl.RED, gl.FLOAT, null)
 
         // use tile texture unit
         //gl.activeTexture(gl.TEXTURE0)
@@ -422,7 +422,7 @@ export class WebGLRenderer extends Renderer {
                 // update light buffer texture
                 gl.activeTexture(gl.TEXTURE1)
                 //gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 80, 36, 0, gl.RGBA, gl.UNSIGNED_BYTE, lightBuffer)
-                gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 80, 36, gl.ALPHA, gl.FLOAT, lightBuffer)
+                gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 80, 36, gl.RED, gl.FLOAT, lightBuffer)
 
                 // draw
                 gl.uniform2f(
