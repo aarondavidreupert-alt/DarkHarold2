@@ -18,10 +18,11 @@ Scripting system/engine for DarkFO
 
 import { Combat } from './combat.js'
 import { critterDamage, critterKill } from './critter.js'
-import { lookupScriptName } from './data.js'
+import { getElevator, lookupScriptName } from './data.js'
 import {
     hexDirectionTo,
     hexDistance,
+    hexesInRadius,
     hexInDirection,
     hexNearestNeighbor,
     Point,
@@ -29,17 +30,39 @@ import {
 } from './geometry.js'
 import globalState from './globalState.js'
 import { parseIntFile } from './intfile.js'
-import { useElevator } from './main.js'
 import { Critter, createObjectWithPID, Obj, objectGetDamageType } from './object.js'
-import { Player } from './player.js'
 import { makePID } from './pro.js'
 import { centerCamera, objectOnScreen } from './renderer.js'
 import { fromTileNum, toTileNum } from './tile.js'
-import { uiAddDialogueOption, uiBarterMode, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue } from './ui.js'
+import { uiAddDialogueOption, uiBarterMode, uiElevator, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue } from './ui.js'
 import { assert, BinaryReader, getFileBinarySync, getFileText, getRandomInt } from './util.js'
 import { ScriptVM } from './vm.js'
 import { ScriptVMBridge } from './vm_bridge.js'
 import { Config } from './config.js'
+
+function useElevator(): void {
+    const center = globalState.player.position
+    const hexes = hexesInRadius(center, 11)
+    let elevatorStub = null
+    for (let i = 0; i < hexes.length; i++) {
+        const objs = globalState.gMap.objectsAtPosition(hexes[i])
+        for (let j = 0; j < objs.length; j++) {
+            const obj = objs[j]
+            if (obj.type === 'scenery' && obj.pidID === 1293) {
+                elevatorStub = obj
+                break
+            }
+        }
+    }
+    if (elevatorStub === null) {
+        throw "couldn't find elevator stub near " + center.x + ', ' + center.y
+    }
+    const elevator = getElevator(elevatorStub.extra.type)
+    if (!elevator) {
+        throw 'no elevator: ' + elevatorStub.extra.type
+    }
+    uiElevator(elevator)
+}
 
 export module Scripting {
     var gameObjects: Obj[] | null = null
@@ -477,7 +500,7 @@ export module Scripting {
         get_critter_stat(obj: Critter, stat: number) {
             if (stat === 34) {
                 // STAT_gender
-                if (obj.isPlayer) return (<Player>obj).gender === 'female' ? 1 : 0
+                if (obj.isPlayer) return (obj as any).gender === 'female' ? 1 : 0
                 return 0 // Default to male
             }
             var namedStat = statMap[stat]

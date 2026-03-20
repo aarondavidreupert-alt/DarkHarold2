@@ -15,9 +15,8 @@
 import { HTMLAudioEngine, NullAudioEngine } from './audio.js'
 import { Combat } from './combat.js'
 import { critterKill } from './critter.js'
-import { getElevator } from './data.js'
 import { heart } from './heart.js'
-import { hexesInRadius, hexFromScreen } from './geometry.js'
+import { hexFromScreen } from './geometry.js'
 import globalState from './globalState.js'
 import { IDBCache } from './idbcache.js'
 import { initGame } from './init.js'
@@ -29,7 +28,6 @@ import {
     uiCalledShot,
     uiCloseCalledShot,
     uiContextMenu,
-    uiElevator,
     uiLog,
     uiLoot,
     UIMode,
@@ -642,40 +640,3 @@ heart.draw = () => {
     globalState.lastDrawTime = Math.floor(window.performance.now() - time)
 }
 
-export function useElevator(): void {
-    // Player walked into an elevator
-    //
-    // We search for the Elevator Stub (Scenery PID 1293)
-    // in the range of 11. The original engine uses a square
-    // of size 11x11, but we don't do that.
-
-    console.log('[elevator]')
-
-    const center = globalState.player.position
-    const hexes = hexesInRadius(center, 11)
-    let elevatorStub = null
-    for (let i = 0; i < hexes.length; i++) {
-        const objs = globalState.gMap.objectsAtPosition(hexes[i])
-        for (let j = 0; j < objs.length; j++) {
-            const obj = objs[j]
-            if (obj.type === 'scenery' && obj.pidID === 1293) {
-                console.log('elevator stub @ ' + hexes[i].x + ', ' + hexes[i].y)
-                elevatorStub = obj
-                break
-            }
-        }
-    }
-
-    if (elevatorStub === null) {
-        throw "couldn't find elevator stub near " + center.x + ', ' + center.y
-    }
-
-    console.log('elevator type: ' + elevatorStub.extra.type + ', ' + 'level: ' + elevatorStub.extra.level)
-
-    const elevator = getElevator(elevatorStub.extra.type)
-    if (!elevator) {
-        throw 'no elevator: ' + elevatorStub.extra.type
-    }
-
-    uiElevator(elevator)
-}
