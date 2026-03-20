@@ -247,7 +247,7 @@ export class WebGLRenderer extends Renderer {
             gl.uniform1i(this.u_intensityColorTable, 3)
 
             // paletteRGB
-            const _colorRGB = getFileJSON('color_rgb.json')
+            const _colorRGB = getFileJSON('lut/color_rgb.json')
             const paletteRGB = new Uint8Array(256 * 3)
             for (let i = 0; i < 256; i++) {
                 paletteRGB[i * 3 + 0] = _colorRGB[i][0]
@@ -326,8 +326,8 @@ export class WebGLRenderer extends Renderer {
         // initialize color tables if necessary (TODO: hack, should be initialized elsewhere)
         if (useColorTable) {
             if (Lighting.colorLUT === null) {
-                Lighting.colorLUT = getFileJSON('color_lut.json')
-                Lighting.colorRGB = getFileJSON('color_rgb.json')
+                Lighting.colorLUT = getFileJSON('lut/color_lut.json')
+                Lighting.colorRGB = getFileJSON('lut/color_rgb.json')
             }
         }
 
