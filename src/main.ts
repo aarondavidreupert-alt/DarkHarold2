@@ -325,6 +325,10 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
             if (globalState.commandModeTimer !== null) clearTimeout(globalState.commandModeTimer)
             globalState.commandModeTimer = window.setTimeout(() => {
                 globalState.showLookCursor = true
+                const hoverObj = getObjectUnderCursor((_: Obj) => true)
+                if (hoverObj) {
+                    uiLog(hoverObj.name ?? 'Unknown object')
+                }
             }, 1000)
 
             // Show context menu on ANY object, not just isSelectable
@@ -345,6 +349,10 @@ heart.mousemoved = (x: number, y: number) => {
         if (globalState.commandModeTimer !== null) clearTimeout(globalState.commandModeTimer)
         globalState.commandModeTimer = window.setTimeout(() => {
             globalState.showLookCursor = true
+            const hoverObj = getObjectUnderCursor((_: Obj) => true)
+            if (hoverObj) {
+                uiLog(hoverObj.name ?? 'Unknown object')
+            }
         }, 1000)
     }
 

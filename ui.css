@@ -1084,7 +1084,9 @@ body {
   top: 225px;
 }
 
-/* Hide OS cursor — Fallout renders its own cursor via WebGL */
-#cnv {
-  cursor: none;
+/* Hide OS cursor everywhere in the game — Fallout renders its own cursor via WebGL */
+#cnv,
+#game-container,
+#game-container * {
+  cursor: none !important;
 }
