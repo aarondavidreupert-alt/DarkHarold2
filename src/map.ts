@@ -423,6 +423,19 @@ export class GameMap {
         load('art/critters/hmjmpsat')
         load('hex_outline')
 
+        // load cursor assets
+        load('art/intrface/stdarrow')
+        load('art/intrface/actarrow')
+        load('art/intrface/lookn')
+        load('art/intrface/scrnorth')
+        load('art/intrface/scrsouth')
+        load('art/intrface/screast')
+        load('art/intrface/scrwest')
+        load('art/intrface/scrneast')
+        load('art/intrface/scrnwest')
+        load('art/intrface/scrseast')
+        load('art/intrface/scrswest')
+
         globalState.loadingAssetsTotal-- // we should know all of the assets we need by now
 
         // clear audio and use the map music

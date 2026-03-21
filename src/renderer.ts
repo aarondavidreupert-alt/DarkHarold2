@@ -93,7 +93,7 @@ export class Renderer {
         if (Config.ui.showFloor) {
             this.renderFloor(this.floorTiles)
         }
-        if (Config.ui.showCursor) {
+        if (Config.ui.showCursor && globalState.cursorMode === 'move') {
             const scr = hexToScreen(mouseHex.x, mouseHex.y)
             this.renderImage(
                 'hex_outline',
@@ -103,6 +103,7 @@ export class Renderer {
                 16
             )
         }
+
         if (Config.ui.showObjects && this.objects) {
             this.renderObjects(this.objects)
         }
@@ -167,6 +168,42 @@ export class Renderer {
         if (globalState.player.dead) {
             this.color(255, 0, 0, 50)
             this.rectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+        }
+
+        // Render Fallout-authentic cursor overlay — must be last so it's never occluded
+        {
+            const rawX = mousePos[0]
+            const rawY = mousePos[1]
+            const PAD = Config.ui.scrollPadding
+            const W = SCREEN_WIDTH
+            const H = SCREEN_HEIGHT
+
+            if (globalState.cursorMode === 'command') {
+                this.renderImage('art/intrface/actarrow', rawX, rawY, 28, 13)
+                if (globalState.showLookCursor) {
+                    this.renderImage('art/intrface/lookn', rawX + 40, rawY, 32, 32)
+                }
+            } else if (globalState.cursorMode === 'interface') {
+                this.renderImage('art/intrface/stdarrow', rawX, rawY, 14, 17)
+            } else if (globalState.cursorMode === 'scroll') {
+                const goN = rawY <= PAD
+                const goS = rawY >= H - PAD - 99
+                const goE = rawX >= W - PAD
+                const goW = rawX <= PAD
+
+                let scrollCursor = 'art/intrface/stdarrow'
+                if (goN && goE) scrollCursor = 'art/intrface/scrneast'
+                else if (goN && goW) scrollCursor = 'art/intrface/scrnwest'
+                else if (goS && goE) scrollCursor = 'art/intrface/scrseast'
+                else if (goS && goW) scrollCursor = 'art/intrface/scrswest'
+                else if (goN) scrollCursor = 'art/intrface/scrnorth'
+                else if (goS) scrollCursor = 'art/intrface/scrsouth'
+                else if (goE) scrollCursor = 'art/intrface/screast'
+                else if (goW) scrollCursor = 'art/intrface/scrwest'
+
+                this.renderImage(scrollCursor, rawX, rawY, 32, 32)
+            }
+            // 'move' mode: hex_outline handles cursor rendering (snapped to hex grid)
         }
     }
 

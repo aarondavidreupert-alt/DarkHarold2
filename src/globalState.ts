@@ -24,6 +24,8 @@ import { Renderer } from './renderer.js'
 import { Skills } from './skills.js'
 import { UIMode } from './ui.js'
 
+export type CursorMode = 'move' | 'command' | 'interface' | 'scroll'
+
 interface FloatMessage {
     msg: string
     obj: Obj
@@ -77,6 +79,13 @@ export default {
     uiMode: UIMode.none,
 
     mapAreas: null,
+
+    // Cursor system
+    cursorMode: 'move' as CursorMode,
+    cursorPos: { x: 0, y: 0 },
+    showLookCursor: false,
+    commandModeTimer: null as number | null,
+    commandClickTime: 0,
 } as {
     gMap: GameMap | null
     combat: Combat | null
@@ -127,4 +136,11 @@ export default {
     uiMode: UIMode
 
     mapAreas: AreaMap | null
+
+    // Cursor system
+    cursorMode: CursorMode
+    cursorPos: Point
+    showLookCursor: boolean
+    commandModeTimer: number | null
+    commandClickTime: number
 }
