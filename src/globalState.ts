@@ -85,7 +85,6 @@ export default {
     cursorPos: { x: 0, y: 0 },
     showLookCursor: false,
     commandModeTimer: null as number | null,
-    commandClickTime: 0,
 } as {
     gMap: GameMap | null
     combat: Combat | null
@@ -142,5 +141,4 @@ export default {
     cursorPos: Point
     showLookCursor: boolean
     commandModeTimer: number | null
-    commandClickTime: number
 }

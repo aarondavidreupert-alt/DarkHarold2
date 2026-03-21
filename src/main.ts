@@ -309,8 +309,11 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
         return
     } else if (btn === 'l') {
         if (globalState.cursorMode === 'command') {
-            // record time for long-click detection; context menu fires on mousereleased
-            globalState.commandClickTime = Date.now()
+            // open context menu immediately on any object under cursor
+            const obj = getObjectUnderCursor((_: Obj) => true)
+            if (obj) {
+                uiContextMenu(obj, { clientX: x, clientY: y })
+            }
         } else {
             playerUse()
         }
@@ -339,17 +342,6 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
     }
 }
 
-heart.mousereleased = (x: number, y: number, btn: string) => {
-    if (btn === 'l' && globalState.cursorMode === 'command') {
-        if (Date.now() - globalState.commandClickTime > 500) {
-            const obj = getObjectUnderCursor((_: Obj) => true)
-            if (obj) {
-                uiContextMenu(obj, { clientX: x, clientY: y })
-            }
-        }
-    }
-}
-
 heart.mousemoved = (x: number, y: number) => {
     globalState.cursorPos = { x, y }
 
@@ -366,18 +358,18 @@ heart.mousemoved = (x: number, y: number) => {
         }, 1000)
     }
 
-    // HUD zone detection (x: 80–720, y: 501–600)
-    const HUD_X_LEFT = 80
-    const HUD_X_RIGHT = 720
-    const HUD_Y_TOP = 501
+    // HUD zone detection — dynamic via getBoundingClientRect on #bar
+    const barEl = document.getElementById('bar')
+    const barRect = barEl?.getBoundingClientRect()
+    const inHUD = barRect !== undefined &&
+        x >= barRect.left && x <= barRect.right && y >= barRect.top && y <= barRect.bottom
 
-    // Dialogue zone detection (x: 80–720, y: 20–500)
+    // Dialogue zone detection — dynamic via getBoundingClientRect on #dialogueContainer
     const dialogueEl = document.getElementById('dialogueContainer')
-    const inDialogueArea =
-        dialogueEl?.style.visibility === 'visible' &&
-        x >= 80 && x <= 720 && y >= 20 && y <= 500
-
-    const inHUD = y >= HUD_Y_TOP && x >= HUD_X_LEFT && x <= HUD_X_RIGHT
+    const dialogueRect = dialogueEl?.getBoundingClientRect()
+    const inDialogueArea = dialogueEl?.style.visibility === 'visible' &&
+        dialogueRect !== undefined &&
+        x >= dialogueRect.left && x <= dialogueRect.right && y >= dialogueRect.top && y <= dialogueRect.bottom
 
     if (inHUD || inDialogueArea) {
         if (globalState.cursorMode !== 'command') globalState.cursorMode = 'interface'
@@ -385,9 +377,15 @@ heart.mousemoved = (x: number, y: number) => {
         globalState.cursorMode = 'move'
     }
 
+    // Show OS cursor over interface areas, hide it over the game canvas
+    heart.canvas.style.cursor = globalState.cursorMode === 'interface' ? 'default' : 'none'
+
     // Scroll zone detection — bottom scroll excludes the HUD area
     const SCROLL_PAD = Config.ui.scrollPadding
-    const goS = y >= SCREEN_HEIGHT - SCROLL_PAD && (y < HUD_Y_TOP || x < HUD_X_LEFT || x > HUD_X_RIGHT)
+    const hudTop = barRect?.top ?? SCREEN_HEIGHT
+    const hudLeft = barRect?.left ?? 0
+    const hudRight = barRect?.right ?? SCREEN_WIDTH
+    const goS = y >= SCREEN_HEIGHT - SCROLL_PAD && (y < hudTop || x < hudLeft || x > hudRight)
     if (x <= SCROLL_PAD || x >= SCREEN_WIDTH - SCROLL_PAD || y <= SCROLL_PAD || goS) {
         if (globalState.cursorMode === 'move') globalState.cursorMode = 'scroll'
     } else if (globalState.cursorMode === 'scroll') {
