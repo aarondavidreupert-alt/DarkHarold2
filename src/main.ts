@@ -308,10 +308,15 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
     if (globalState.isInitializing || globalState.isLoading || globalState.isWaitingOnRemote) {
         return
     } else if (btn === 'l') {
-        playerUse()
+        if (globalState.cursorMode === 'command') {
+            // record time for long-click detection; context menu fires on mousereleased
+            globalState.commandClickTime = Date.now()
+        } else {
+            playerUse()
+        }
     } else if (btn === 'r') {
         if (globalState.cursorMode === 'command') {
-            // second right-click → back to move mode
+            // right-click in command mode → back to move mode (no context menu)
             globalState.cursorMode = 'move'
             globalState.showLookCursor = false
             if (globalState.commandModeTimer !== null) {
@@ -319,7 +324,7 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
                 globalState.commandModeTimer = null
             }
         } else if (globalState.cursorMode === 'move') {
-            // enter command mode
+            // right-click in move mode → enter command mode
             globalState.cursorMode = 'command'
             globalState.showLookCursor = false
             if (globalState.commandModeTimer !== null) clearTimeout(globalState.commandModeTimer)
@@ -330,8 +335,13 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
                     uiLog(hoverObj.name ?? 'Unknown object')
                 }
             }, 1000)
+        }
+    }
+}
 
-            // Show context menu on ANY object, not just isSelectable
+heart.mousereleased = (x: number, y: number, btn: string) => {
+    if (btn === 'l' && globalState.cursorMode === 'command') {
+        if (Date.now() - globalState.commandClickTime > 500) {
             const obj = getObjectUnderCursor((_: Obj) => true)
             if (obj) {
                 uiContextMenu(obj, { clientX: x, clientY: y })
@@ -356,22 +366,29 @@ heart.mousemoved = (x: number, y: number) => {
         }, 1000)
     }
 
-    // HUD zone detection (bottom 99px)
-    const HUD_Y = SCREEN_HEIGHT - 99
-    if (y >= HUD_Y) {
+    // HUD zone detection (x: 80–720, y: 501–600)
+    const HUD_X_LEFT = 80
+    const HUD_X_RIGHT = 720
+    const HUD_Y_TOP = 501
+
+    // Dialogue zone detection (x: 80–720, y: 20–500)
+    const dialogueEl = document.getElementById('dialogueContainer')
+    const inDialogueArea =
+        dialogueEl?.style.visibility === 'visible' &&
+        x >= 80 && x <= 720 && y >= 20 && y <= 500
+
+    const inHUD = y >= HUD_Y_TOP && x >= HUD_X_LEFT && x <= HUD_X_RIGHT
+
+    if (inHUD || inDialogueArea) {
         if (globalState.cursorMode !== 'command') globalState.cursorMode = 'interface'
     } else if (globalState.cursorMode === 'interface') {
         globalState.cursorMode = 'move'
     }
 
-    // Scroll zone detection
+    // Scroll zone detection — bottom scroll excludes the HUD area
     const SCROLL_PAD = Config.ui.scrollPadding
-    if (
-        x <= SCROLL_PAD ||
-        x >= SCREEN_WIDTH - SCROLL_PAD ||
-        y <= SCROLL_PAD ||
-        (y >= SCREEN_HEIGHT - SCROLL_PAD - 99 && y < SCREEN_HEIGHT - 99)
-    ) {
+    const goS = y >= SCREEN_HEIGHT - SCROLL_PAD && (y < HUD_Y_TOP || x < HUD_X_LEFT || x > HUD_X_RIGHT)
+    if (x <= SCROLL_PAD || x >= SCREEN_WIDTH - SCROLL_PAD || y <= SCROLL_PAD || goS) {
         if (globalState.cursorMode === 'move') globalState.cursorMode = 'scroll'
     } else if (globalState.cursorMode === 'scroll') {
         globalState.cursorMode = 'move'
