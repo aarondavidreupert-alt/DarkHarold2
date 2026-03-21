@@ -1084,9 +1084,16 @@ body {
   top: 225px;
 }
 
-/* Hide OS cursor everywhere in the game — Fallout renders its own cursor via WebGL */
-#cnv,
-#game-container,
-#game-container * {
+/* Hide OS cursor over the game canvas — Fallout renders its own cursor via WebGL */
+#cnv {
   cursor: none !important;
+}
+
+/* HUD and UI overlays restore the OS cursor */
+#bar,
+#dialogueContainer,
+#inventoryBox,
+#lootBox,
+#barterBox {
+  cursor: default !important;
 }
