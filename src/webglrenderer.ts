@@ -5,7 +5,7 @@ import { Lighting } from './lighting.js'
 import { Lightmap } from './lightmap.js'
 import { Obj } from './object.js'
 import { Renderer, SCREEN_HEIGHT, SCREEN_WIDTH, TileMap } from './renderer.js'
-import { tileToScreen, TILE_HEIGHT, TILE_WIDTH } from './tile.js'
+import { tileToScreen, toTileNum, TILE_HEIGHT, TILE_WIDTH } from './tile.js'
 import { getFileJSON } from './util.js'
 import { Config } from './config.js'
 import { Font } from './formats/fon.js'
@@ -523,9 +523,12 @@ export class WebGLRenderer extends Renderer {
                 }
                 gl.bindTexture(gl.TEXTURE_2D, texture)
 
-                // pass tile hex position so shader can look up intensity
+                // convert tile hex → flat tile_intensity index → (tx, ty) in 200x200 texture
                 const hex = hexFromScreen(scr.x - 13, scr.y + 13)
-                gl.uniform2i(this.uTilePosLocation, hex.x, hex.y)
+                const tileNum = toTileNum(hex)
+                const tx = tileNum % 200
+                const ty = Math.floor(tileNum / 200)
+                gl.uniform2i(this.uTilePosLocation, tx, ty)
 
                 gl.uniform2f(
                     this.litOffsetLocation,
