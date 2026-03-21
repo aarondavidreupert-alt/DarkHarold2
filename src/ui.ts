@@ -777,8 +777,11 @@ export function initUI() {
 
 function uiHideContextMenu() {
     globalState.uiMode = UIMode.none
+    globalState.cursorMode = 'move'
     $id('itemContextMenu').style.visibility = 'hidden'
 }
+
+export { uiHideContextMenu }
 
 export function uiContextMenu(obj: Obj, evt: any) {
     globalState.uiMode = UIMode.contextMenu
@@ -816,7 +819,6 @@ export function uiContextMenu(obj: Obj, evt: any) {
     })
     const pickupBtn = button(obj, 'pickup', () => obj.pickup(globalState.player))
 
-    $menu.appendChild(cancelBtn)
     $menu.appendChild(lookBtn)
     if (obj._script && obj._script.talk_p_proc !== undefined) {
         $menu.appendChild(talkBtn)
@@ -825,6 +827,7 @@ export function uiContextMenu(obj: Obj, evt: any) {
         $menu.appendChild(useBtn)
     }
     $menu.appendChild(pickupBtn)
+    $menu.appendChild(cancelBtn)
 }
 
 export function uiStartCombat() {

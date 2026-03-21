@@ -30,6 +30,7 @@ import {
     uiCloseCalledShot,
     uiContextMenu,
     uiElevator,
+    uiHideContextMenu,
     uiLog,
     uiLoot,
     UIMode,
@@ -342,6 +343,13 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
     }
 }
 
+heart.mousereleased = (_x: number, _y: number, btn: string) => {
+    // If released on the canvas while context menu is open (no button selected), close + move mode
+    if (btn === 'l' && globalState.uiMode === UIMode.contextMenu) {
+        uiHideContextMenu()
+    }
+}
+
 heart.mousemoved = (x: number, y: number) => {
     globalState.cursorPos = { x, y }
 
@@ -380,12 +388,9 @@ heart.mousemoved = (x: number, y: number) => {
     // Show OS cursor over interface areas, hide it over the game canvas
     heart.canvas.style.cursor = globalState.cursorMode === 'interface' ? 'default' : 'none'
 
-    // Scroll zone detection — bottom scroll excludes the HUD area
+    // Scroll zone detection — bottom scroll triggers on Y only, regardless of HUD position
     const SCROLL_PAD = Config.ui.scrollPadding
-    const hudTop = barRect?.top ?? SCREEN_HEIGHT
-    const hudLeft = barRect?.left ?? 0
-    const hudRight = barRect?.right ?? SCREEN_WIDTH
-    const goS = y >= SCREEN_HEIGHT - SCROLL_PAD && (y < hudTop || x < hudLeft || x > hudRight)
+    const goS = y >= SCREEN_HEIGHT - SCROLL_PAD
     if (x <= SCROLL_PAD || x >= SCREEN_WIDTH - SCROLL_PAD || y <= SCROLL_PAD || goS) {
         if (globalState.cursorMode === 'move') globalState.cursorMode = 'scroll'
     } else if (globalState.cursorMode === 'scroll') {

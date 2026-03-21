@@ -386,7 +386,6 @@ body {
   /* height? */
   top: 0px;
   /* this will be overriden by the UI script */
-  background-color: gray;
   visibility: hidden;
   z-index: 10;
 }
