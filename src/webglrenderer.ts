@@ -530,6 +530,11 @@ export class WebGLRenderer extends Renderer {
                 const ty = Math.floor(tileNum / 200)
                 gl.uniform2i(this.uTilePosLocation, tx, ty)
 
+                // rebind TEXTURE5 before draw — switching to TEXTURE0 for tile tex loses the binding
+                gl.activeTexture(gl.TEXTURE5)
+                gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
+                gl.activeTexture(gl.TEXTURE0)
+
                 gl.uniform2f(
                     this.litOffsetLocation,
                     scr.x - globalState.cameraPosition.x,

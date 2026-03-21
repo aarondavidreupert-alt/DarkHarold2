@@ -12,7 +12,7 @@ uniform sampler2D u_image;
 uniform sampler2D u_lightBuffer;
 uniform sampler2D u_tileIntensity;  // 200x200 tile intensity map
 uniform ivec2 u_tilePos;            // current tile position (x, y) in tile coords
-uniform bool u_useGPULighting;      // true = GPU path, false = CPU path (uses u_lightBuffer)
+uniform int u_useGPULighting;      // 1 = GPU path, 0 = CPU path (uses u_lightBuffer)
 
 varying vec2 v_texCoord;
 
@@ -60,7 +60,7 @@ void main() {
     vec4 tileTexel = texture2D(u_image, v_texCoord);
 
     float lightIntensity;
-    if (u_useGPULighting) {
+    if (u_useGPULighting == 1) {
         lightIntensity = getGPULightIntensity(v_texCoord);
     } else {
         // CPU path — per-tile 80x36 light buffer uploaded by renderLitFloorCPU
