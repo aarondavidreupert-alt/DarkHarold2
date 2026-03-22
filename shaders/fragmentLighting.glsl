@@ -1,4 +1,5 @@
 precision mediump float;
+precision highp int;
 
 // uniform int u_colorTable[0x8000];
 // uniform int u_intensityColorTable[65536];
@@ -45,15 +46,14 @@ float sampleTileIntensity(ivec2 tilePos) {
 }
 
 float getGPULightIntensity(vec2 texCoord) {
-    // sample the 4 surrounding tile intensities and bilinearly interpolate
-    // based on texCoord position within the tile
-    float c  = sampleTileIntensity(u_tilePos);
-    float r  = sampleTileIntensity(u_tilePos + ivec2(1, 0));
-    float b  = sampleTileIntensity(u_tilePos + ivec2(0, 1));
-    float br = sampleTileIntensity(u_tilePos + ivec2(1, 1));
-    float fx = texCoord.x;
-    float fy = texCoord.y;
-    return mix(mix(c, r, fx), mix(b, br, fx), fy);
+    // Convert (tx, ty) back to a flat index, then sample the 4 quad corners
+    // using the same flat-index layout as tile_intensity[y*200 + x]
+    int flatIdx = u_tilePos.y * 200 + u_tilePos.x;
+    float tl = sampleTileIntensity(ivec2( flatIdx          % 200,  flatIdx          / 200));
+    float tr = sampleTileIntensity(ivec2((flatIdx + 1)     % 200, (flatIdx + 1)     / 200));
+    float bl = sampleTileIntensity(ivec2((flatIdx + 200)   % 200, (flatIdx + 200)   / 200));
+    float br = sampleTileIntensity(ivec2((flatIdx + 201)   % 200, (flatIdx + 201)   / 200));
+    return mix(mix(tl, tr, texCoord.x), mix(bl, br, texCoord.x), texCoord.y);
 }
 
 void main() {
