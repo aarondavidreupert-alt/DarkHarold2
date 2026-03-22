@@ -187,7 +187,7 @@ export class Renderer {
                 this.renderImage('art/intrface/stdarrow', rawX, rawY, 14, 17)
             } else if (globalState.cursorMode === 'scroll') {
                 const goN = rawY <= PAD
-                const goS = rawY >= H - PAD - 99
+                const goS = rawY >= H - PAD
                 const goE = rawX >= W - PAD
                 const goW = rawX <= PAD
 

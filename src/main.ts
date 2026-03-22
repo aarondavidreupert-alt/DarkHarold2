@@ -366,35 +366,37 @@ heart.mousemoved = (x: number, y: number) => {
         }, 1000)
     }
 
-    // HUD zone detection — dynamic via getBoundingClientRect on #bar
-    const barEl = document.getElementById('bar')
-    const barRect = barEl?.getBoundingClientRect()
-    const inHUD = barRect !== undefined &&
-        x >= barRect.left && x <= barRect.right && y >= barRect.top && y <= barRect.bottom
+    // Mode priority (scroll > interface > move); command is sticky via right-click only
+    if (globalState.cursorMode !== 'command') {
+        const SCROLL_PAD = Config.ui.scrollPadding
+        const anyScroll =
+            y <= SCROLL_PAD ||
+            y >= SCREEN_HEIGHT - SCROLL_PAD ||
+            x <= SCROLL_PAD ||
+            x >= SCREEN_WIDTH - SCROLL_PAD
 
-    // Dialogue zone detection — dynamic via getBoundingClientRect on #dialogueContainer
-    const dialogueEl = document.getElementById('dialogueContainer')
-    const dialogueRect = dialogueEl?.getBoundingClientRect()
-    const inDialogueArea = dialogueEl?.style.visibility === 'visible' &&
-        dialogueRect !== undefined &&
-        x >= dialogueRect.left && x <= dialogueRect.right && y >= dialogueRect.top && y <= dialogueRect.bottom
+        const barEl = document.getElementById('bar')
+        const barRect = barEl?.getBoundingClientRect()
+        const inHUD =
+            barRect !== undefined &&
+            x >= barRect.left && x <= barRect.right &&
+            y >= barRect.top && y <= barRect.bottom
 
-    if (inHUD || inDialogueArea) {
-        if (globalState.cursorMode !== 'command') globalState.cursorMode = 'interface'
-    } else if (globalState.cursorMode === 'interface') {
-        globalState.cursorMode = 'move'
-    }
+        const dialogueEl = document.getElementById('dialogueContainer')
+        const dialogueRect = dialogueEl?.getBoundingClientRect()
+        const inDialogueArea =
+            dialogueEl?.style.visibility === 'visible' &&
+            dialogueRect !== undefined &&
+            x >= dialogueRect.left && x <= dialogueRect.right &&
+            y >= dialogueRect.top && y <= dialogueRect.bottom
 
-    // Show OS cursor over interface areas, hide it over the game canvas
-    heart.canvas.style.cursor = globalState.cursorMode === 'interface' ? 'default' : 'none'
-
-    // Scroll zone detection — bottom scroll triggers on Y only, regardless of HUD position
-    const SCROLL_PAD = Config.ui.scrollPadding
-    const goS = y >= SCREEN_HEIGHT - SCROLL_PAD
-    if (x <= SCROLL_PAD || x >= SCREEN_WIDTH - SCROLL_PAD || y <= SCROLL_PAD || goS) {
-        if (globalState.cursorMode === 'move') globalState.cursorMode = 'scroll'
-    } else if (globalState.cursorMode === 'scroll') {
-        globalState.cursorMode = 'move'
+        if (anyScroll) {
+            globalState.cursorMode = 'scroll'
+        } else if (inHUD || inDialogueArea) {
+            globalState.cursorMode = 'interface'
+        } else {
+            globalState.cursorMode = 'move'
+        }
     }
 }
 
