@@ -153,6 +153,18 @@ export class WebGLRenderer extends Renderer {
         }
         this.gl = gl
 
+        // Scale the canvas buffer for high-DPI displays so pixels are crisp.
+        // Keep the CSS display size at the logical resolution so game coordinates
+        // (0–SCREEN_WIDTH, 0–SCREEN_HEIGHT) remain valid without any changes.
+        const dpr = window.devicePixelRatio || 1
+        const cssWidth = this.canvas.width   // logical width  (e.g. 800)
+        const cssHeight = this.canvas.height // logical height (e.g. 600)
+        this.canvas.style.width = cssWidth + 'px'
+        this.canvas.style.height = cssHeight + 'px'
+        this.canvas.width = Math.round(cssWidth * dpr)
+        this.canvas.height = Math.round(cssHeight * dpr)
+        gl.viewport(0, 0, this.canvas.width, this.canvas.height)
+
         for (const font of this.fonts) {
             this.textures[font.filepath] = this.textureFromFont(font)
         }
@@ -179,7 +191,7 @@ export class WebGLRenderer extends Renderer {
         this.offsetLocation = gl.getUniformLocation(this.tileShader, 'u_offset')
 
         const resolutionLocation = gl.getUniformLocation(this.tileShader, 'u_resolution')
-        gl.uniform2f(resolutionLocation, this.canvas.width, this.canvas.height)
+        gl.uniform2f(resolutionLocation, SCREEN_WIDTH, SCREEN_HEIGHT)
 
         this.texCoordLocation = gl.getAttribLocation(this.tileShader, 'a_texCoord')
         this.uNumFramesLocation = gl.getUniformLocation(this.tileShader, 'u_numFrames')
@@ -214,7 +226,7 @@ export class WebGLRenderer extends Renderer {
             const litResolutionLocation = gl.getUniformLocation(this.floorLightShader, 'u_resolution')
             const litPositionLocation = gl.getAttribLocation(this.floorLightShader, 'a_position')
 
-            gl.uniform2f(litResolutionLocation, this.canvas.width, this.canvas.height)
+            gl.uniform2f(litResolutionLocation, SCREEN_WIDTH, SCREEN_HEIGHT)
 
             const litTexCoordLocation = gl.getAttribLocation(this.floorLightShader, 'a_texCoord')
             gl.enableVertexAttribArray(litTexCoordLocation)

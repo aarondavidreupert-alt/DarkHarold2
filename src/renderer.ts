@@ -95,12 +95,13 @@ export class Renderer {
         }
         if (Config.ui.showCursor && globalState.cursorMode === 'move') {
             const scr = hexToScreen(mouseHex.x, mouseHex.y)
+            const hexImg = globalState.images['hex_outline']
             this.renderImage(
                 'hex_outline',
                 scr.x - 16 - globalState.cameraPosition.x,
                 scr.y - 12 - globalState.cameraPosition.y,
-                32,
-                16
+                hexImg?.naturalWidth ?? 32,
+                hexImg?.naturalHeight ?? 16
             )
         }
 
@@ -179,15 +180,18 @@ export class Renderer {
             const H = SCREEN_HEIGHT
 
             if (globalState.cursorMode === 'command') {
-                this.renderImage('art/intrface/actarrow', rawX, rawY, 28, 13)
+                const actarrowImg = globalState.images['art/intrface/actarrow']
+                this.renderImage('art/intrface/actarrow', rawX, rawY, actarrowImg?.naturalWidth ?? 28, actarrowImg?.naturalHeight ?? 13)
                 if (globalState.showLookCursor) {
-                    this.renderImage('art/intrface/lookn', rawX + 40, rawY, 32, 32)
+                    const looknImg = globalState.images['art/intrface/lookn']
+                    this.renderImage('art/intrface/lookn', rawX + 40, rawY, looknImg?.naturalWidth ?? 32, looknImg?.naturalHeight ?? 32)
                 }
             } else if (globalState.cursorMode === 'interface') {
-                this.renderImage('art/intrface/stdarrow', rawX, rawY, 14, 17)
+                const stdarrowImg = globalState.images['art/intrface/stdarrow']
+                this.renderImage('art/intrface/stdarrow', rawX, rawY, stdarrowImg?.naturalWidth ?? 14, stdarrowImg?.naturalHeight ?? 17)
             } else if (globalState.cursorMode === 'scroll') {
                 const goN = rawY <= PAD
-                const goS = rawY >= H - PAD - 99
+                const goS = rawY >= H - PAD
                 const goE = rawX >= W - PAD
                 const goW = rawX <= PAD
 
@@ -201,7 +205,8 @@ export class Renderer {
                 else if (goE) scrollCursor = 'art/intrface/screast'
                 else if (goW) scrollCursor = 'art/intrface/scrwest'
 
-                this.renderImage(scrollCursor, rawX, rawY, 32, 32)
+                const scrollImg = globalState.images[scrollCursor]
+                this.renderImage(scrollCursor, rawX, rawY, scrollImg?.naturalWidth ?? 32, scrollImg?.naturalHeight ?? 32)
             }
             // 'move' mode: hex_outline handles cursor rendering (snapped to hex grid)
         }

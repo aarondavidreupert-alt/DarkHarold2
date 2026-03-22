@@ -30,6 +30,7 @@ import {
     uiCloseCalledShot,
     uiContextMenu,
     uiElevator,
+    uiHideContextMenu,
     uiLog,
     uiLoot,
     UIMode,
@@ -309,8 +310,11 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
         return
     } else if (btn === 'l') {
         if (globalState.cursorMode === 'command') {
-            // record time for long-click detection; context menu fires on mousereleased
-            globalState.commandClickTime = Date.now()
+            // open context menu immediately on any object under cursor
+            const obj = getObjectUnderCursor((_: Obj) => true)
+            if (obj) {
+                uiContextMenu(obj, { clientX: x, clientY: y })
+            }
         } else {
             playerUse()
         }
@@ -339,14 +343,10 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
     }
 }
 
-heart.mousereleased = (x: number, y: number, btn: string) => {
-    if (btn === 'l' && globalState.cursorMode === 'command') {
-        if (Date.now() - globalState.commandClickTime > 500) {
-            const obj = getObjectUnderCursor((_: Obj) => true)
-            if (obj) {
-                uiContextMenu(obj, { clientX: x, clientY: y })
-            }
-        }
+heart.mousereleased = (_x: number, _y: number, btn: string) => {
+    // If released on the canvas while context menu is open (no button selected), close + move mode
+    if (btn === 'l' && globalState.uiMode === UIMode.contextMenu) {
+        uiHideContextMenu()
     }
 }
 
@@ -366,32 +366,37 @@ heart.mousemoved = (x: number, y: number) => {
         }, 1000)
     }
 
-    // HUD zone detection (x: 80–720, y: 501–600)
-    const HUD_X_LEFT = 80
-    const HUD_X_RIGHT = 720
-    const HUD_Y_TOP = 501
+    // Mode priority (scroll > interface > move); command is sticky via right-click only
+    if (globalState.cursorMode !== 'command') {
+        const SCROLL_PAD = Config.ui.scrollPadding
+        const anyScroll =
+            y <= SCROLL_PAD ||
+            y >= SCREEN_HEIGHT - SCROLL_PAD ||
+            x <= SCROLL_PAD ||
+            x >= SCREEN_WIDTH - SCROLL_PAD
 
-    // Dialogue zone detection (x: 80–720, y: 20–500)
-    const dialogueEl = document.getElementById('dialogueContainer')
-    const inDialogueArea =
-        dialogueEl?.style.visibility === 'visible' &&
-        x >= 80 && x <= 720 && y >= 20 && y <= 500
+        const barEl = document.getElementById('bar')
+        const barRect = barEl?.getBoundingClientRect()
+        const inHUD =
+            barRect !== undefined &&
+            x >= barRect.left && x <= barRect.right &&
+            y >= barRect.top && y <= barRect.bottom
 
-    const inHUD = y >= HUD_Y_TOP && x >= HUD_X_LEFT && x <= HUD_X_RIGHT
+        const dialogueEl = document.getElementById('dialogueContainer')
+        const dialogueRect = dialogueEl?.getBoundingClientRect()
+        const inDialogueArea =
+            dialogueEl?.style.visibility === 'visible' &&
+            dialogueRect !== undefined &&
+            x >= dialogueRect.left && x <= dialogueRect.right &&
+            y >= dialogueRect.top && y <= dialogueRect.bottom
 
-    if (inHUD || inDialogueArea) {
-        if (globalState.cursorMode !== 'command') globalState.cursorMode = 'interface'
-    } else if (globalState.cursorMode === 'interface') {
-        globalState.cursorMode = 'move'
-    }
-
-    // Scroll zone detection — bottom scroll excludes the HUD area
-    const SCROLL_PAD = Config.ui.scrollPadding
-    const goS = y >= SCREEN_HEIGHT - SCROLL_PAD && (y < HUD_Y_TOP || x < HUD_X_LEFT || x > HUD_X_RIGHT)
-    if (x <= SCROLL_PAD || x >= SCREEN_WIDTH - SCROLL_PAD || y <= SCROLL_PAD || goS) {
-        if (globalState.cursorMode === 'move') globalState.cursorMode = 'scroll'
-    } else if (globalState.cursorMode === 'scroll') {
-        globalState.cursorMode = 'move'
+        if (anyScroll) {
+            globalState.cursorMode = 'scroll'
+        } else if (inHUD || inDialogueArea) {
+            globalState.cursorMode = 'interface'
+        } else {
+            globalState.cursorMode = 'move'
+        }
     }
 }
 

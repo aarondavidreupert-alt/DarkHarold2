@@ -386,7 +386,6 @@ body {
   /* height? */
   top: 0px;
   /* this will be overriden by the UI script */
-  background-color: gray;
   visibility: hidden;
   z-index: 10;
 }
@@ -1084,9 +1083,26 @@ body {
   top: 225px;
 }
 
-/* Hide OS cursor everywhere in the game — Fallout renders its own cursor via WebGL */
-#cnv,
-#game-container,
-#game-container * {
+/* Hide OS cursor over the game canvas — Fallout renders its own cursor via WebGL */
+#cnv {
   cursor: none !important;
+}
+
+/* HUD and UI overlays use Fallout custom cursor */
+#bar,
+#dialogueContainer,
+#inventoryBox,
+#lootBox,
+#barterBox,
+#worldMapContainer,
+#elevatorBox,
+#calledShotBox,
+#itemContextMenu {
+  cursor: url('art/intrface/stdarrow.png'), none !important;
+}
+
+#bar *, #dialogueContainer *, #inventoryBox *, #lootBox *,
+#barterBox *, #worldMapContainer *, #elevatorBox *,
+#calledShotBox *, #itemContextMenu * {
+  cursor: url('art/intrface/stdarrow.png'), none !important;
 }
