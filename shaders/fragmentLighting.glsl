@@ -46,24 +46,26 @@ float sampleTileIntensity(ivec2 tilePos) {
 }
 
 float getGPULightIntensity(vec2 texCoord) {
-    // Convert (tx, ty) back to a flat index, then sample the 4 quad corners.
-    // Avoid % operator — not supported in GLSL ES 1.00; use x - (x/200)*200 instead.
-    // Fallout tile x increases going LEFT on screen → flip the x interpolation axis.
+    // 4 corners derived from CPU lighting geometry:
+    //   top-left  (texCoord 0,0): tilenum + 0
+    //   top-right (texCoord 1,0): tilenum + 199  (x-1, y+1 in hex → flat +199)
+    //   bot-left  (texCoord 0,1): tilenum + 200  (y+1             → flat +200)
+    //   bot-right (texCoord 1,1): tilenum + 399  (x-1, y+2        → flat +399)
     int flatIdx = u_tilePos.y * 200 + u_tilePos.x;
-    int f1 = flatIdx + 1;    // x+1 neighbour (left on screen)
-    int f2 = flatIdx + 200;  // y+1 neighbour (down-right on screen)
-    int f3 = flatIdx + 201;
-    ivec2 p0 = ivec2(flatIdx - (flatIdx / 200) * 200, flatIdx / 200);
-    ivec2 p1 = ivec2(f1     - (f1     / 200) * 200, f1     / 200);
-    ivec2 p2 = ivec2(f2     - (f2     / 200) * 200, f2     / 200);
-    ivec2 p3 = ivec2(f3     - (f3     / 200) * 200, f3     / 200);
-    float tl = sampleTileIntensity(p0);
-    float tr = sampleTileIntensity(p1);
-    float bl = sampleTileIntensity(p2);
-    float br = sampleTileIntensity(p3);
-    float u = 1.0 - texCoord.x; // flip x: tile x+ goes left on screen
-    float v = texCoord.y;
-    return mix(mix(tl, tr, u), mix(bl, br, u), v);
+    int idxTL = flatIdx;
+    int idxTR = flatIdx + 199;
+    int idxBL = flatIdx + 200;
+    int idxBR = flatIdx + 399;
+    // convert flat index back to (tx, ty) — avoid % with integer subtraction
+    ivec2 pTL = ivec2(idxTL - (idxTL / 200) * 200, idxTL / 200);
+    ivec2 pTR = ivec2(idxTR - (idxTR / 200) * 200, idxTR / 200);
+    ivec2 pBL = ivec2(idxBL - (idxBL / 200) * 200, idxBL / 200);
+    ivec2 pBR = ivec2(idxBR - (idxBR / 200) * 200, idxBR / 200);
+    float tl = sampleTileIntensity(pTL);
+    float tr = sampleTileIntensity(pTR);
+    float bl = sampleTileIntensity(pBL);
+    float br = sampleTileIntensity(pBR);
+    return mix(mix(tl, tr, texCoord.x), mix(bl, br, texCoord.x), texCoord.y);
 }
 
 void main() {
