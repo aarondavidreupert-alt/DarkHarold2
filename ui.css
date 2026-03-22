@@ -1100,3 +1100,9 @@ body {
 #itemContextMenu {
   cursor: url('art/intrface/stdarrow.png'), none !important;
 }
+
+#bar *, #dialogueContainer *, #inventoryBox *, #lootBox *,
+#barterBox *, #worldMapContainer *, #elevatorBox *,
+#calledShotBox *, #itemContextMenu * {
+  cursor: url('art/intrface/stdarrow.png'), none !important;
+}
