@@ -47,15 +47,15 @@ float sampleTileIntensity(ivec2 tilePos) {
 
 float getGPULightIntensity(vec2 texCoord) {
     // 4 corners derived from CPU lighting geometry:
-    //   top-left  (texCoord 0,0): tilenum + 0
-    //   top-right (texCoord 1,0): tilenum + 199  (x-1, y+1 in hex → flat +199)
-    //   bot-left  (texCoord 0,1): tilenum + 200  (y+1             → flat +200)
-    //   bot-right (texCoord 1,1): tilenum + 399  (x-1, y+2        → flat +399)
+    //   top-left  (texCoord 0,0): tilenum + 0    (sx,    sy)
+    //   top-right (texCoord 1,0): tilenum + 201  (sx+80, sy+12 → tileToScreen/back)
+    //   bot-left  (texCoord 0,1): tilenum + 200  (sx,    sy+36 → y+1 row)
+    //   bot-right (texCoord 1,1): tilenum + 401  (sx+112,sy+36)
     int flatIdx = u_tilePos.y * 200 + u_tilePos.x;
     int idxTL = flatIdx;
-    int idxTR = flatIdx + 199;
+    int idxTR = flatIdx + 201;
     int idxBL = flatIdx + 200;
-    int idxBR = flatIdx + 399;
+    int idxBR = flatIdx + 401;
     // convert flat index back to (tx, ty) — avoid % with integer subtraction
     ivec2 pTL = ivec2(idxTL - (idxTL / 200) * 200, idxTL / 200);
     ivec2 pTR = ivec2(idxTR - (idxTR / 200) * 200, idxTR / 200);
