@@ -366,27 +366,17 @@ export class WebGLRenderer extends Renderer {
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT)
     }
 
-    renderLitFloorCPU(tileMap: TileMap, useColorTable = true) {
+    renderLitFloorCPU(tileMap: TileMap) {
         Lightmap.rebuildDynamicLight()
-
-        // initialize color tables if necessary (TODO: hack, should be initialized elsewhere)
-        if (useColorTable) {
-            if (Lighting.colorLUT === null) {
-                Lighting.colorLUT = getFileJSON('lut/color_lut.json')
-                Lighting.colorRGB = getFileJSON('lut/color_rgb.json')
-            }
-        }
 
         const gl = this.gl
 
-        // Pass 1 — compute lighting for every visible tile and fill the global lightmap.
-        // One representative intensity value is stored per tile at its (tileX, tileY)
-        // position in the 200×200 grid. A single texSubImage2D then replaces the old
-        // per-tile upload loop.
-        const globalLightmap = new Float32Array(200 * 200)
+        // Use tile_intensity directly — same source as GPU path, correct light cone values
+        const globalLightmap = new Float32Array(Lightmap.tile_intensity)
+
+        // Collect visible tiles and their positions in the 200×200 lightmap grid
         const drawList: Array<{ img: string; scr: { x: number; y: number }; tileX: number; tileY: number }> = []
 
-        // reverse i to draw in the order Fallout 2 normally does
         for (let i = tileMap.length - 1; i >= 0; i--) {
             for (let j = 0; j < tileMap[0].length; j++) {
                 const tile = tileMap[j][i]
@@ -413,17 +403,6 @@ export class WebGLRenderer extends Renderer {
                 const tileX = tileNum % 200
                 const tileY = Math.floor(tileNum / 200)
 
-                // compute representative intensity for this tile (center pixel)
-                const isTriangleLit = Lighting.initTile(hex)
-                let intensity: number
-                if (isTriangleLit) {
-                    const framebuffer = Lighting.computeFrame()
-                    intensity = framebuffer[160 + 80 * 18 + 40] // center of 80x36 tile
-                } else {
-                    intensity = Lighting.vertices[3]
-                }
-
-                globalLightmap[tileY * 200 + tileX] = intensity
                 drawList.push({ img, scr, tileX, tileY })
             }
         }
@@ -433,7 +412,7 @@ export class WebGLRenderer extends Renderer {
         gl.bindTexture(gl.TEXTURE_2D, this.lightBufferTexture)
         gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 200, 200, gl.RED, gl.FLOAT, globalLightmap)
 
-        // Pass 2 — draw all visible tiles using the global lightmap
+        // Draw all visible tiles using the global lightmap
         gl.useProgram(this.floorLightShader)
         gl.uniform1i(this.uUseGPULighting, 0)
         gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
