@@ -1088,11 +1088,15 @@ body {
   cursor: none !important;
 }
 
-/* HUD and UI overlays restore the OS cursor */
+/* HUD and UI overlays use Fallout custom cursor */
 #bar,
 #dialogueContainer,
 #inventoryBox,
 #lootBox,
-#barterBox {
-  cursor: default !important;
+#barterBox,
+#worldMapContainer,
+#elevatorBox,
+#calledShotBox,
+#itemContextMenu {
+  cursor: url('art/intrface/stdarrow.png'), none !important;
 }
