@@ -15,8 +15,6 @@ uniform sampler2D u_tileIntensity;  // 200x200 tile intensity map
 uniform ivec2 u_tilePos;            // current tile position (x, y) in tile coords
 uniform int u_useGPULighting;      // 1 = GPU path, 0 = CPU path (uses u_lightBuffer)
 uniform float u_ambient;           // minimum brightness floor (e.g. 40960/65536 ≈ 0.625)
-uniform vec2 u_lightmapOffset;     // UV origin of this tile in the 200x200 global lightmap
-uniform vec2 u_lightmapScale;      // UV size of one tile (80/200, 36/200)
 
 varying vec2 v_texCoord;
 
@@ -78,9 +76,8 @@ void main() {
     if (u_useGPULighting == 1) {
         lightIntensity = getGPULightIntensity(v_texCoord);
     } else {
-        // CPU path — global 200x200 lightmap; tile position set via u_lightmapOffset/Scale
-        vec2 lightmapUV = u_lightmapOffset + v_texCoord * u_lightmapScale;
-        lightIntensity = min(texture2D(u_lightBuffer, lightmapUV).r, 65536.0);
+        // CPU path — per-tile 80x36 light buffer uploaded by renderLitFloorCPU
+        lightIntensity = min(texture2D(u_lightBuffer, v_texCoord).r, 65536.0);
     }
 
     float light = max(lightIntensity / 65536.0, u_ambient);
