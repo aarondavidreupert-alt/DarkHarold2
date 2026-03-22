@@ -48,9 +48,10 @@ float sampleTileIntensity(ivec2 tilePos) {
 float getGPULightIntensity(vec2 texCoord) {
     // Convert (tx, ty) back to a flat index, then sample the 4 quad corners.
     // Avoid % operator — not supported in GLSL ES 1.00; use x - (x/200)*200 instead.
+    // Fallout tile x increases going LEFT on screen → flip the x interpolation axis.
     int flatIdx = u_tilePos.y * 200 + u_tilePos.x;
-    int f1 = flatIdx + 1;
-    int f2 = flatIdx + 200;
+    int f1 = flatIdx + 1;    // x+1 neighbour (left on screen)
+    int f2 = flatIdx + 200;  // y+1 neighbour (down-right on screen)
     int f3 = flatIdx + 201;
     ivec2 p0 = ivec2(flatIdx - (flatIdx / 200) * 200, flatIdx / 200);
     ivec2 p1 = ivec2(f1     - (f1     / 200) * 200, f1     / 200);
@@ -60,7 +61,9 @@ float getGPULightIntensity(vec2 texCoord) {
     float tr = sampleTileIntensity(p1);
     float bl = sampleTileIntensity(p2);
     float br = sampleTileIntensity(p3);
-    return mix(mix(tl, tr, texCoord.x), mix(bl, br, texCoord.x), texCoord.y);
+    float u = 1.0 - texCoord.x; // flip x: tile x+ goes left on screen
+    float v = texCoord.y;
+    return mix(mix(tl, tr, u), mix(bl, br, u), v);
 }
 
 void main() {
