@@ -14,6 +14,7 @@ uniform sampler2D u_lightBuffer;
 uniform sampler2D u_tileIntensity;  // 200x200 tile intensity map
 uniform ivec2 u_tilePos;            // current tile position (x, y) in tile coords
 uniform int u_useGPULighting;      // 1 = GPU path, 0 = CPU path (uses u_lightBuffer)
+uniform float u_ambient;           // minimum brightness floor (e.g. 40960/65536 ≈ 0.625)
 
 varying vec2 v_texCoord;
 
@@ -79,7 +80,7 @@ void main() {
         lightIntensity = min(texture2D(u_lightBuffer, v_texCoord).r, 65536.0);
     }
 
-    float brightness = lightIntensity / 65536.0;
+    float light = max(lightIntensity / 65536.0, u_ambient);
 
-    gl_FragColor = vec4(tileTexel.rgb * brightness, tileTexel.a);
+    gl_FragColor = vec4(tileTexel.rgb * light, tileTexel.a);
 }

@@ -46,6 +46,7 @@ export class WebGLRenderer extends Renderer {
     private floorLightingMode: 'gpu' | 'cpu' = 'cpu'
     private uTilePosLocation: WebGLUniformLocation | null = null
     private uUseGPULighting: WebGLUniformLocation | null = null
+    private uAmbient: WebGLUniformLocation | null = null
 
     private textures: { [key: string]: WebGLTexture } = {} // WebGL texture cache
 
@@ -293,8 +294,8 @@ export class WebGLRenderer extends Renderer {
                 gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 200, 200, 0, gl.RED, gl.FLOAT, null)
                 const uTileIntensity = gl.getUniformLocation(this.floorLightShader, 'u_tileIntensity')
                 gl.useProgram(this.floorLightShader)
@@ -304,6 +305,7 @@ export class WebGLRenderer extends Renderer {
             // get GPU-path uniform locations (needed by both CPU and GPU paths)
             this.uTilePosLocation = gl.getUniformLocation(this.floorLightShader, 'u_tilePos')
             this.uUseGPULighting = gl.getUniformLocation(this.floorLightShader, 'u_useGPULighting')
+            this.uAmbient = gl.getUniformLocation(this.floorLightShader, 'u_ambient')
 
             gl.activeTexture(gl.TEXTURE0)
             gl.useProgram(this.tileShader)
@@ -375,6 +377,7 @@ export class WebGLRenderer extends Renderer {
         // use floor light shader
         gl.useProgram(this.floorLightShader)
         gl.uniform1i(this.uUseGPULighting, 0)
+        gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
 
         // bind buffers
         gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
@@ -493,6 +496,7 @@ export class WebGLRenderer extends Renderer {
 
         gl.useProgram(this.floorLightShader)
         gl.uniform1i(this.uUseGPULighting, 1)
+        gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
         gl.uniform2f(this.litScaleLocation, 80, 36)
