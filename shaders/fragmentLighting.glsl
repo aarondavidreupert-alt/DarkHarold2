@@ -46,13 +46,20 @@ float sampleTileIntensity(ivec2 tilePos) {
 }
 
 float getGPULightIntensity(vec2 texCoord) {
-    // Convert (tx, ty) back to a flat index, then sample the 4 quad corners
-    // using the same flat-index layout as tile_intensity[y*200 + x]
+    // Convert (tx, ty) back to a flat index, then sample the 4 quad corners.
+    // Avoid % operator — not supported in GLSL ES 1.00; use x - (x/200)*200 instead.
     int flatIdx = u_tilePos.y * 200 + u_tilePos.x;
-    float tl = sampleTileIntensity(ivec2( flatIdx          % 200,  flatIdx          / 200));
-    float tr = sampleTileIntensity(ivec2((flatIdx + 1)     % 200, (flatIdx + 1)     / 200));
-    float bl = sampleTileIntensity(ivec2((flatIdx + 200)   % 200, (flatIdx + 200)   / 200));
-    float br = sampleTileIntensity(ivec2((flatIdx + 201)   % 200, (flatIdx + 201)   / 200));
+    int f1 = flatIdx + 1;
+    int f2 = flatIdx + 200;
+    int f3 = flatIdx + 201;
+    ivec2 p0 = ivec2(flatIdx - (flatIdx / 200) * 200, flatIdx / 200);
+    ivec2 p1 = ivec2(f1     - (f1     / 200) * 200, f1     / 200);
+    ivec2 p2 = ivec2(f2     - (f2     / 200) * 200, f2     / 200);
+    ivec2 p3 = ivec2(f3     - (f3     / 200) * 200, f3     / 200);
+    float tl = sampleTileIntensity(p0);
+    float tr = sampleTileIntensity(p1);
+    float bl = sampleTileIntensity(p2);
+    float br = sampleTileIntensity(p3);
     return mix(mix(tl, tr, texCoord.x), mix(bl, br, texCoord.x), texCoord.y);
 }
 
