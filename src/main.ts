@@ -315,20 +315,21 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
             if (obj) {
                 uiContextMenu(obj, { clientX: x, clientY: y })
             }
+        } else if (globalState.cursorMode === 'attack') {
+            // left-click in attack mode → attack the object under cursor
+            if (globalState.inCombat) {
+                const target = getObjectUnderCursor((_: Obj) => true)
+                if (target && target !== globalState.player) {
+                    // TODO: hook into Combat.attack(target) or equivalent
+                    console.log('Attack target:', target.name ?? 'Unknown')
+                }
+            }
         } else {
             playerUse()
         }
     } else if (btn === 'r') {
-        if (globalState.cursorMode === 'command') {
-            // right-click in command mode → back to move mode (no context menu)
-            globalState.cursorMode = 'move'
-            globalState.showLookCursor = false
-            if (globalState.commandModeTimer !== null) {
-                clearTimeout(globalState.commandModeTimer)
-                globalState.commandModeTimer = null
-            }
-        } else if (globalState.cursorMode === 'move') {
-            // right-click in move mode → enter command mode
+        if (globalState.cursorMode === 'move') {
+            // move (hex) → command (arrow)
             globalState.cursorMode = 'command'
             globalState.showLookCursor = false
             if (globalState.commandModeTimer !== null) clearTimeout(globalState.commandModeTimer)
@@ -339,6 +340,22 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
                     uiLog(hoverObj.name ?? 'Unknown object')
                 }
             }, 1000)
+        } else if (globalState.cursorMode === 'command') {
+            // command (arrow) → attack (crosshair)
+            globalState.cursorMode = 'attack'
+            globalState.showLookCursor = false
+            if (globalState.commandModeTimer !== null) {
+                clearTimeout(globalState.commandModeTimer)
+                globalState.commandModeTimer = null
+            }
+        } else if (globalState.cursorMode === 'attack') {
+            // attack (crosshair) → back to move (hex)
+            globalState.cursorMode = 'move'
+            globalState.showLookCursor = false
+            if (globalState.commandModeTimer !== null) {
+                clearTimeout(globalState.commandModeTimer)
+                globalState.commandModeTimer = null
+            }
         }
     }
 }
@@ -366,8 +383,8 @@ heart.mousemoved = (x: number, y: number) => {
         }, 1000)
     }
 
-    // Mode priority (scroll > interface > move); command is sticky via right-click only
-    if (globalState.cursorMode !== 'command') {
+    // Mode priority (scroll > interface > move); command and attack are sticky via right-click only
+    if (globalState.cursorMode !== 'command' && globalState.cursorMode !== 'attack') {
         const SCROLL_PAD = Config.ui.scrollPadding
         const anyScroll =
             y <= SCROLL_PAD ||
@@ -391,11 +408,12 @@ heart.mousemoved = (x: number, y: number) => {
             y >= dialogueRect.top && y <= dialogueRect.bottom
 
         if (anyScroll) {
+            globalState.preScrollCursorMode = globalState.cursorMode
             globalState.cursorMode = 'scroll'
         } else if (inHUD || inDialogueArea) {
             globalState.cursorMode = 'interface'
         } else {
-            globalState.cursorMode = 'move'
+            globalState.cursorMode = globalState.preScrollCursorMode
         }
     }
 }

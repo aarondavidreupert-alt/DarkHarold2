@@ -709,10 +709,12 @@ export function initUI() {
             return
         }
         if (globalState.inCombat) {
-            // TODO: targeting reticle for attacks
+            // clicking gun in combat → switch to attack cursor
+            globalState.cursorMode = 'attack'
         } else {
-            // begin combat
+            // begin combat and switch to attack cursor
             Combat.start()
+            globalState.cursorMode = 'attack'
         }
     }
 
@@ -831,6 +833,7 @@ export function uiContextMenu(obj: Obj, evt: any) {
 }
 
 export function uiStartCombat() {
+    globalState.cursorMode = 'attack'
     // play end container animation
     Object.assign($id('endContainer').style, { animationPlayState: 'running', webkitAnimationPlayState: 'running' })
 }
@@ -842,6 +845,8 @@ export function uiEndCombat() {
     // disable buttons
     hidev($id('endTurnButton'))
     hidev($id('endCombatButton'))
+    // reset cursor back to move mode
+    globalState.cursorMode = 'move'
 }
 
 function uiEndCombatAnimationDone(this: HTMLElement) {
