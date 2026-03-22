@@ -47,6 +47,8 @@ export class WebGLRenderer extends Renderer {
     private uTilePosLocation: WebGLUniformLocation | null = null
     private uUseGPULighting: WebGLUniformLocation | null = null
     private uAmbient: WebGLUniformLocation | null = null
+    private uLightmapOffset: WebGLUniformLocation | null = null
+    private uLightmapScale: WebGLUniformLocation | null = null
 
     private textures: { [key: string]: WebGLTexture } = {} // WebGL texture cache
 
@@ -265,14 +267,15 @@ export class WebGLRenderer extends Renderer {
             this.textureFromColorArray(paletteRGB, 256)
             gl.uniform1i(this.u_paletteRGB, 4)
 
-            // set up light buffer texture
+            // set up light buffer texture (200x200 global lightmap, LINEAR for smooth gradients)
             gl.activeTexture(gl.TEXTURE1)
             this.lightBufferTexture = gl.createTexture()
             gl.bindTexture(gl.TEXTURE_2D, this.lightBufferTexture)
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 200, 200, 0, gl.RED, gl.FLOAT, null)
             gl.uniform1i(this.uLightBuffer, 1) // bind the light buffer texture to the shader
 
             // detect GPU capability and choose lighting mode
@@ -306,6 +309,8 @@ export class WebGLRenderer extends Renderer {
             this.uTilePosLocation = gl.getUniformLocation(this.floorLightShader, 'u_tilePos')
             this.uUseGPULighting = gl.getUniformLocation(this.floorLightShader, 'u_useGPULighting')
             this.uAmbient = gl.getUniformLocation(this.floorLightShader, 'u_ambient')
+            this.uLightmapOffset = gl.getUniformLocation(this.floorLightShader, 'u_lightmapOffset')
+            this.uLightmapScale = gl.getUniformLocation(this.floorLightShader, 'u_lightmapScale')
 
             gl.activeTexture(gl.TEXTURE0)
             gl.useProgram(this.tileShader)
@@ -374,33 +379,14 @@ export class WebGLRenderer extends Renderer {
 
         const gl = this.gl
 
-        // use floor light shader
-        gl.useProgram(this.floorLightShader)
-        gl.uniform1i(this.uUseGPULighting, 0)
-        gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
-
-        // bind buffers
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
-        gl.uniform2f(this.litScaleLocation, 80, 36)
-
-        // bind light buffer texture in texture unit 0
-        gl.activeTexture(gl.TEXTURE1)
-        gl.bindTexture(gl.TEXTURE_2D, this.lightBufferTexture)
-
-        // allocate texture for tile image
-        //gl.activeTexture(gl.TEXTURE1)
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 80, 36, 0, gl.RED, gl.FLOAT, null)
-
-        // use tile texture unit
-        //gl.activeTexture(gl.TEXTURE0)
-
-        // construct light buffer
-        const lightBuffer = new Float32Array(80 * 36)
-        let lastTexture = null
+        // Pass 1 — compute lighting for every visible tile and fill the global lightmap.
+        // One representative intensity value is stored per tile at its (tileX, tileY)
+        // position in the 200×200 grid. A single texSubImage2D then replaces the old
+        // per-tile upload loop.
+        const globalLightmap = new Float32Array(200 * 200)
+        const drawList: Array<{ img: string; scr: { x: number; y: number }; tileX: number; tileY: number }> = []
 
         // reverse i to draw in the order Fallout 2 normally does
-        // otherwise there will be artifacts in the light rendering
-        // due to tile sizes being different and not overlapping properly
         for (let i = tileMap.length - 1; i >= 0; i--) {
             for (let j = 0; j < tileMap[0].length; j++) {
                 const tile = tileMap[j][i]
@@ -419,67 +405,61 @@ export class WebGLRenderer extends Renderer {
                     continue
                 }
 
-                if (img !== lastTexture) {
-                    gl.activeTexture(gl.TEXTURE0)
-
-                    // TODO: uses hack
-                    const texture = this.getTextureFromHack(img)
-                    if (!texture) {
-                        console.log('skipping tile without a texture: ' + img)
-                        continue
-                    }
-
-                    gl.bindTexture(gl.TEXTURE_2D, texture)
-
-                    lastTexture = img
-                }
-
-                // compute lighting
-
-                // TODO: how correct is this?
                 const hex = hexFromScreen(scr.x - 13, scr.y + 13)
+                const tileNum = toTileNum(hex)
+                if (tileNum < 0 || tileNum >= 40000) {
+                    continue
+                }
+                const tileX = tileNum % 200
+                const tileY = Math.floor(tileNum / 200)
 
+                // compute representative intensity for this tile (center pixel)
                 const isTriangleLit = Lighting.initTile(hex)
-                let framebuffer
-                let intensity_
-
+                let intensity: number
                 if (isTriangleLit) {
-                    framebuffer = Lighting.computeFrame()
+                    const framebuffer = Lighting.computeFrame()
+                    intensity = framebuffer[160 + 80 * 18 + 40] // center of 80x36 tile
+                } else {
+                    intensity = Lighting.vertices[3]
                 }
 
-                // render tile
-                for (let y = 0; y < 36; y++) {
-                    for (let x = 0; x < 80; x++) {
-                        if (isTriangleLit) {
-                            intensity_ = framebuffer[160 + 80 * y + x]
-                        } else {
-                            // uniformly lit
-                            intensity_ = Lighting.vertices[3]
-                        }
-
-                        // blit to the light buffer
-                        lightBuffer[y * 80 + x] = intensity_ //(x%2 && y%2) ? 0.5 : 0.25 //Math.max(0.25, intensity_/65536)
-                    }
-                }
-
-                // update light buffer texture
-                gl.activeTexture(gl.TEXTURE1)
-                //gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 80, 36, 0, gl.RGBA, gl.UNSIGNED_BYTE, lightBuffer)
-                gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 80, 36, gl.RED, gl.FLOAT, lightBuffer)
-
-                // draw
-                gl.uniform2f(
-                    this.litOffsetLocation,
-                    scr.x - globalState.cameraPosition.x,
-                    scr.y - globalState.cameraPosition.y
-                )
-                gl.drawArrays(gl.TRIANGLES, 0, 6)
+                globalLightmap[tileY * 200 + tileX] = intensity
+                drawList.push({ img, scr, tileX, tileY })
             }
         }
 
-        gl.activeTexture(gl.TEXTURE0)
+        // Upload the full 200×200 lightmap once
+        gl.activeTexture(gl.TEXTURE1)
+        gl.bindTexture(gl.TEXTURE_2D, this.lightBufferTexture)
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 200, 200, gl.RED, gl.FLOAT, globalLightmap)
 
-        // use normal shader
+        // Pass 2 — draw all visible tiles using the global lightmap
+        gl.useProgram(this.floorLightShader)
+        gl.uniform1i(this.uUseGPULighting, 0)
+        gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
+        gl.uniform2f(this.uLightmapScale, 80.0 / 200.0, 36.0 / 200.0)
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
+        gl.uniform2f(this.litScaleLocation, 80, 36)
+
+        for (const { img, scr, tileX, tileY } of drawList) {
+            gl.activeTexture(gl.TEXTURE0)
+            const texture = this.getTextureFromHack(img)
+            if (!texture) {
+                continue
+            }
+            gl.bindTexture(gl.TEXTURE_2D, texture)
+
+            gl.uniform2f(this.uLightmapOffset, tileX / 200.0, tileY / 200.0)
+            gl.uniform2f(
+                this.litOffsetLocation,
+                scr.x - globalState.cameraPosition.x,
+                scr.y - globalState.cameraPosition.y
+            )
+            gl.drawArrays(gl.TRIANGLES, 0, 6)
+        }
+
+        gl.activeTexture(gl.TEXTURE0)
         gl.useProgram(this.tileShader)
     }
 
