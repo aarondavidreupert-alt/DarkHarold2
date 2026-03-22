@@ -187,11 +187,11 @@ export class Renderer {
                     this.renderImage('art/intrface/lookn', rawX + 40, rawY, looknImg?.naturalWidth ?? 32, looknImg?.naturalHeight ?? 32)
                 }
             } else if (globalState.cursorMode === 'attack') {
-                // Fallout 2 attack crosshair cursor (msef003); centered on the mouse hotspot
-                const attackImg = globalState.images['art/intrface/msef003']
+                // Fallout 2 attack crosshair cursor (acrshair); centered on the mouse hotspot
+                const attackImg = globalState.images['art/intrface/acrshair']
                 const w = attackImg?.naturalWidth ?? 32
                 const h = attackImg?.naturalHeight ?? 32
-                this.renderImage('art/intrface/msef003', rawX - Math.floor(w / 2), rawY - Math.floor(h / 2), w, h)
+                this.renderImage('art/intrface/acrshair', rawX - Math.floor(w / 2), rawY - Math.floor(h / 2), w, h)
             } else if (globalState.cursorMode === 'interface') {
                 const stdarrowImg = globalState.images['art/intrface/stdarrow']
                 this.renderImage('art/intrface/stdarrow', rawX, rawY, stdarrowImg?.naturalWidth ?? 14, stdarrowImg?.naturalHeight ?? 17)
