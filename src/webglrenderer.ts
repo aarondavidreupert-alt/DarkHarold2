@@ -43,10 +43,15 @@ export class WebGLRenderer extends Renderer {
     private floorLightShader: WebGLProgram
 
     private tileIntensityTexture: WebGLTexture | null = null // 200x200 R32F texture for GPU path
+    private screenLightmapTexture: WebGLTexture | null = null // SCREEN_WIDTH×SCREEN_HEIGHT R32F for screen-space GPU mode
     private floorLightingMode: 'gpu' | 'cpu' = 'cpu'
     private uTilePosLocation: WebGLUniformLocation | null = null
     private uUseGPULighting: WebGLUniformLocation | null = null
     private uAmbient: WebGLUniformLocation | null = null
+    private uLightmapOffset: WebGLUniformLocation | null = null
+    private uLightmapScale: WebGLUniformLocation | null = null
+    private uScreenLightmap: WebGLUniformLocation | null = null
+    private uScreenResolution: WebGLUniformLocation | null = null
 
     private textures: { [key: string]: WebGLTexture } = {} // WebGL texture cache
 
@@ -307,6 +312,21 @@ export class WebGLRenderer extends Renderer {
             this.uUseGPULighting = gl.getUniformLocation(this.floorLightShader, 'u_useGPULighting')
             this.uAmbient = gl.getUniformLocation(this.floorLightShader, 'u_ambient')
 
+            // screen-space lightmap texture (TEXTURE6) — one float per screen pixel
+            gl.activeTexture(gl.TEXTURE6)
+            this.screenLightmapTexture = gl.createTexture()
+            gl.bindTexture(gl.TEXTURE_2D, this.screenLightmapTexture)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, SCREEN_WIDTH, SCREEN_HEIGHT, 0, gl.RED, gl.FLOAT, null)
+            this.uScreenLightmap = gl.getUniformLocation(this.floorLightShader, 'u_screenLightmap')
+            this.uScreenResolution = gl.getUniformLocation(this.floorLightShader, 'u_screenResolution')
+            gl.useProgram(this.floorLightShader)
+            gl.uniform1i(this.uScreenLightmap, 6)
+            gl.uniform2f(this.uScreenResolution, SCREEN_WIDTH, SCREEN_HEIGHT)
+
             gl.activeTexture(gl.TEXTURE0)
             gl.useProgram(this.tileShader)
         }
@@ -487,19 +507,14 @@ export class WebGLRenderer extends Renderer {
         Lightmap.rebuildDynamicLight()
 
         const gl = this.gl
+        const cameraX = globalState.cameraPosition.x
+        const cameraY = globalState.cameraPosition.y
 
-        // upload full tile intensity array to TEXTURE5 once per frame
-        gl.activeTexture(gl.TEXTURE5)
-        gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 200, 200, gl.RED, gl.FLOAT,
-            new Float32Array(Lightmap.tile_intensity))
-
-        gl.useProgram(this.floorLightShader)
-        gl.uniform1i(this.uUseGPULighting, 1)
-        gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
-        gl.uniform2f(this.litScaleLocation, 80, 36)
+        // Build a screen-space lightmap on the CPU: one normalised float per screen pixel.
+        // Using Lighting.initTile + computeFrame gives the same per-pixel quality as the old
+        // CPU path, but we upload everything in a single texSubImage2D instead of N uploads.
+        const screenLightmap = new Float32Array(SCREEN_WIDTH * SCREEN_HEIGHT)
+        const drawList: Array<{ img: string; scrX: number; scrY: number }> = []
 
         for (let i = tileMap.length - 1; i >= 0; i--) {
             for (let j = 0; j < tileMap[0].length; j++) {
@@ -511,41 +526,69 @@ export class WebGLRenderer extends Renderer {
 
                 const scr = tileToScreen(i, j)
                 if (
-                    scr.x + TILE_WIDTH < globalState.cameraPosition.x ||
-                    scr.y + TILE_HEIGHT < globalState.cameraPosition.y ||
-                    scr.x >= globalState.cameraPosition.x + SCREEN_WIDTH ||
-                    scr.y >= globalState.cameraPosition.y + SCREEN_HEIGHT
+                    scr.x + TILE_WIDTH < cameraX ||
+                    scr.y + TILE_HEIGHT < cameraY ||
+                    scr.x >= cameraX + SCREEN_WIDTH ||
+                    scr.y >= cameraY + SCREEN_HEIGHT
                 ) {
                     continue
                 }
 
-                gl.activeTexture(gl.TEXTURE0)
-                const texture = this.getTextureFromHack(img)
-                if (!texture) {
-                    console.log('skipping tile without a texture: ' + img)
-                    continue
-                }
-                gl.bindTexture(gl.TEXTURE_2D, texture)
-
-                // convert tile hex → flat tile_intensity index → (tx, ty) in 200x200 texture
                 const hex = hexFromScreen(scr.x - 13, scr.y + 13)
-                const tileNum = toTileNum(hex)
-                const tx = tileNum % 200
-                const ty = Math.floor(tileNum / 200)
-                gl.uniform2i(this.uTilePosLocation, tx, ty)
+                const isTriangleLit = Lighting.initTile(hex)
+                let framebuffer: number[] | null = null
+                if (isTriangleLit) {
+                    framebuffer = Lighting.computeFrame()
+                }
 
-                // rebind TEXTURE5 before draw — switching to TEXTURE0 for tile tex loses the binding
-                gl.activeTexture(gl.TEXTURE5)
-                gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
-                gl.activeTexture(gl.TEXTURE0)
+                // Write per-pixel normalised intensity into screen-space lightmap.
+                // screenLightmap row 0 = top of engine screen; the Y-flip is handled in the shader.
+                const baseX = scr.x - cameraX
+                const baseY = scr.y - cameraY
+                for (let py = 0; py < TILE_HEIGHT; py++) {
+                    const screenY = baseY + py
+                    if (screenY < 0 || screenY >= SCREEN_HEIGHT) {
+                        continue
+                    }
+                    for (let px = 0; px < TILE_WIDTH; px++) {
+                        const screenX = baseX + px
+                        if (screenX < 0 || screenX >= SCREEN_WIDTH) {
+                            continue
+                        }
+                        const intensity = isTriangleLit
+                            ? (framebuffer[160 + TILE_WIDTH * py + px] as number)
+                            : Lighting.vertices[3]
+                        screenLightmap[screenY * SCREEN_WIDTH + screenX] = intensity / 65536.0
+                    }
+                }
 
-                gl.uniform2f(
-                    this.litOffsetLocation,
-                    scr.x - globalState.cameraPosition.x,
-                    scr.y - globalState.cameraPosition.y
-                )
-                gl.drawArrays(gl.TRIANGLES, 0, 6)
+                drawList.push({ img, scrX: scr.x, scrY: scr.y })
             }
+        }
+
+        // Single upload of the entire screen-space lightmap
+        gl.activeTexture(gl.TEXTURE6)
+        gl.bindTexture(gl.TEXTURE_2D, this.screenLightmapTexture)
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, gl.RED, gl.FLOAT, screenLightmap)
+
+        // Draw all tiles — shader samples u_screenLightmap via gl_FragCoord
+        gl.useProgram(this.floorLightShader)
+        gl.uniform1i(this.uUseGPULighting, 2)
+        gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
+        gl.uniform2f(this.litScaleLocation, TILE_WIDTH, TILE_HEIGHT)
+
+        for (const { img, scrX, scrY } of drawList) {
+            gl.activeTexture(gl.TEXTURE0)
+            const texture = this.getTextureFromHack(img)
+            if (!texture) {
+                continue
+            }
+            gl.bindTexture(gl.TEXTURE_2D, texture)
+
+            gl.uniform2f(this.litOffsetLocation, scrX - cameraX, scrY - cameraY)
+            gl.drawArrays(gl.TRIANGLES, 0, 6)
         }
 
         gl.activeTexture(gl.TEXTURE0)
