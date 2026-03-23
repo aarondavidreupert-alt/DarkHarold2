@@ -380,8 +380,8 @@ heart.mousemoved = (x: number, y: number) => {
         }, 1000)
     }
 
-    // Mode priority (scroll > interface > move/command/attack); scroll never blocks itself
-    if (globalState.cursorMode !== 'scroll') {
+    // Scroll / interface / move priority — command and attack are toggled by clicks, not mouse position
+    if (globalState.cursorMode !== 'command' && globalState.cursorMode !== 'attack') {
         const SCROLL_PAD = Config.ui.scrollPadding
         const anyScroll =
             y <= SCROLL_PAD ||
@@ -389,30 +389,30 @@ heart.mousemoved = (x: number, y: number) => {
             x <= SCROLL_PAD ||
             x >= SCREEN_WIDTH - SCROLL_PAD
 
-        const barEl = document.getElementById('bar')
-        const barRect = barEl?.getBoundingClientRect()
-        const inHUD =
-            barRect !== undefined &&
-            x >= barRect.left && x <= barRect.right &&
-            y >= barRect.top && y <= barRect.bottom
-
-        const dialogueEl = document.getElementById('dialogueContainer')
-        const dialogueRect = dialogueEl?.getBoundingClientRect()
-        const inDialogueArea =
-            dialogueEl?.style.visibility === 'visible' &&
-            dialogueRect !== undefined &&
-            x >= dialogueRect.left && x <= dialogueRect.right &&
-            y >= dialogueRect.top && y <= dialogueRect.bottom
-
         if (anyScroll) {
-            // snapshot the pre-scroll mode (we're already inside the !== 'scroll' guard)
-            globalState.preScrollCursorMode = globalState.cursorMode
             globalState.cursorMode = 'scroll'
-        } else if (inHUD || inDialogueArea) {
-            globalState.cursorMode = 'interface'
-        } else if (globalState.cursorMode === 'interface') {
-            // restore to what we were before interface — never overwrites command or attack
-            globalState.cursorMode = globalState.preScrollCursorMode
+        } else {
+            // anyScroll is false → not at any edge; HUD/dialogue check is safe from scroll overlap
+            const barEl = document.getElementById('bar')
+            const barRect = barEl?.getBoundingClientRect()
+            const inHUD =
+                barRect != null &&
+                x >= barRect.left && x <= barRect.right &&
+                y >= barRect.top && y <= barRect.bottom
+
+            const dialogueEl = document.getElementById('dialogueContainer')
+            const dialogueRect = dialogueEl?.getBoundingClientRect()
+            const inDialogueArea =
+                dialogueEl?.style.visibility === 'visible' &&
+                dialogueRect !== undefined &&
+                x >= dialogueRect.left && x <= dialogueRect.right &&
+                y >= dialogueRect.top && y <= dialogueRect.bottom
+
+            if (inHUD || inDialogueArea) {
+                globalState.cursorMode = 'interface'
+            } else {
+                globalState.cursorMode = 'move'
+            }
         }
     }
 }
