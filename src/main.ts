@@ -405,15 +405,13 @@ heart.mousemoved = (x: number, y: number) => {
             y >= dialogueRect.top && y <= dialogueRect.bottom
 
         if (anyScroll) {
-            // only snapshot the pre-scroll mode on the transition into scroll
-            if (globalState.cursorMode !== 'scroll') {
-                globalState.preScrollCursorMode = globalState.cursorMode
-            }
+            // snapshot the pre-scroll mode (we're already inside the !== 'scroll' guard)
+            globalState.preScrollCursorMode = globalState.cursorMode
             globalState.cursorMode = 'scroll'
         } else if (inHUD || inDialogueArea) {
             globalState.cursorMode = 'interface'
-        } else if (globalState.cursorMode === 'scroll' || globalState.cursorMode === 'interface') {
-            // restore to what we were before scroll/interface — never overwrites command or attack
+        } else if (globalState.cursorMode === 'interface') {
+            // restore to what we were before interface — never overwrites command or attack
             globalState.cursorMode = globalState.preScrollCursorMode
         }
     }
