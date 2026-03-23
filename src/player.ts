@@ -18,7 +18,7 @@ import { SkillSet, StatSet } from './char.js'
 import { Events } from './events.js'
 import { Point } from './geometry.js'
 import globalState from './globalState.js'
-import { Critter, createObjectWithPID, WeaponObj } from './object.js'
+import { Critter, createObjectWithPID, Obj, WeaponObj } from './object.js'
 import { centerCamera } from './renderer.js'
 import { fromTileNum } from './tile.js'
 import { uiWorldMap } from './ui.js'
@@ -40,6 +40,7 @@ export class Player extends Critter {
     orientation = 3
     gender = 'male'
     leftHand = <WeaponObj>createObjectWithPID(9)
+    armor: Obj | null = null
 
     inventory = [createObjectWithPID(41).setAmount(1337)]
 

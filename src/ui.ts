@@ -663,6 +663,9 @@ export function initUI() {
     makeDropTarget($id('inventoryBoxItem2'), (data: string) => {
         uiMoveSlot(data, 'rightHand')
     })
+    makeDropTarget($id('inventoryBoxArmor'), (data: string) => {
+        uiMoveSlot(data, 'armor')
+    })
 
     for (let i = 0; i < 2; i++) {
         for (const $chance of Array.from(document.querySelectorAll('#calledShotBox .calledShotChance'))) {
@@ -971,40 +974,77 @@ function makeDraggable($el: HTMLElement, data: string, endCallback?: () => void)
     }
 }
 
-function uiInventoryScreen() {
+export function uiInventoryScreen() {
     globalState.uiMode = UIMode.inventory
 
     showv($id('inventoryBox'))
-    drawInventory($id('inventoryBoxList'), globalState.player.inventory, (obj: Obj, e: MouseEvent) => {
-        makeItemContextMenu(e, obj, 'inventory')
-    })
 
-    function drawInventory($el: HTMLElement, objects: Obj[], clickCallback?: (item: Obj, e: MouseEvent) => void) {
+    function showItemInfo(obj: Obj) {
+        const $info = $id('inventoryBoxInfo')
+        clearEl($info)
+        const nameEl = document.createElement('div')
+        nameEl.className = 'invItemName'
+        nameEl.textContent = obj.name || ''
+        $info.appendChild(nameEl)
+        const desc = obj.getDescription ? obj.getDescription() : null
+        if (desc) {
+            const descEl = document.createElement('div')
+            descEl.className = 'invItemDesc'
+            descEl.textContent = desc
+            $info.appendChild(descEl)
+        }
+    }
+
+    function updateWeightDisplay() {
+        const $weight = document.getElementById('inventoryBoxWeight')
+        if (!$weight) return
+        let current = 0
+        for (const item of globalState.player.inventory) {
+            current += ((item.pro?.extra?.weight ?? 0) as number) * item.amount
+        }
+        const playerAny = globalState.player as any
+        if (playerAny.leftHand?.pro?.extra?.weight) current += playerAny.leftHand.pro.extra.weight
+        if (playerAny.rightHand?.pro?.extra?.weight) current += playerAny.rightHand.pro.extra.weight
+        if (playerAny.armor?.pro?.extra?.weight) current += playerAny.armor.pro.extra.weight
+        const max = 25 + globalState.player.getStat('STR') * 25
+        $weight.textContent = `Wt: ${current}/${max}`
+    }
+
+    function drawInventory($el: HTMLElement, objects: Obj[]) {
         clearEl($el)
         clearEl($id('inventoryBoxItem1'))
         clearEl($id('inventoryBoxItem2'))
+        clearEl($id('inventoryBoxArmor'))
 
         for (let i = 0; i < objects.length; i++) {
             const invObj = objects[i]
-            // 90x60 // 70x40
             const img = makeEl('img', {
                 src: invObj.invArt + '.png',
                 attrs: { width: 72, height: 60, title: invObj.name },
-                click: clickCallback
-                    ? (e: MouseEvent) => {
-                          clickCallback(invObj, e)
-                      }
-                    : undefined,
+                click: () => {
+                    showItemInfo(invObj)
+                },
             })
+            img.oncontextmenu = (e: MouseEvent) => {
+                e.preventDefault()
+                makeItemContextMenu(e, invObj, 'inventory')
+                return false
+            }
             $el.appendChild(img)
-            $el.insertAdjacentHTML('beforeend', 'x' + invObj.amount)
+            const amtSpan = document.createElement('span')
+            amtSpan.className = 'invItemAmount'
+            amtSpan.textContent = 'x' + invObj.amount
+            $el.appendChild(amtSpan)
             makeDraggable(img, 'i' + i, () => {
                 uiInventoryScreen()
             })
         }
     }
 
-    function itemAction(obj: Obj, slot: keyof Player, action: 'cancel' | 'use' | 'drop') {
+    type ItemAction = 'cancel' | 'use' | 'drop' | 'equip_left' | 'equip_right' | 'equip_armor' | 'unequip'
+
+    function itemAction(obj: Obj, slot: string, action: ItemAction) {
+        const playerAny = globalState.player as any
         switch (action) {
             case 'cancel':
                 break
@@ -1013,23 +1053,61 @@ function uiInventoryScreen() {
                 obj.use(globalState.player)
                 break
             case 'drop':
-                //console.log("todo: drop " + obj.art); break
                 console.log('dropping: ' + obj.art + ' with pid ' + obj.pid)
                 if (slot !== 'inventory') {
-                    // add into inventory to drop
                     console.log('moving into inventory first')
                     globalState.player.inventory.push(obj)
-                    // FIXME: this doesn't type check
-                    // player[slot] = null
+                    playerAny[slot] = null
                 }
-
                 obj.drop(globalState.player)
+                uiInventoryScreen()
+                break
+            case 'equip_left':
+            case 'equip_right': {
+                const targetSlot = action === 'equip_left' ? 'leftHand' : 'rightHand'
+                const idx = globalState.player.inventory.indexOf(obj)
+                if (idx !== -1) {
+                    globalState.player.inventory.splice(idx, 1)
+                    if (playerAny[targetSlot]) {
+                        globalState.player.inventory.push(playerAny[targetSlot])
+                    }
+                    playerAny[targetSlot] = obj
+                }
+                uiInventoryScreen()
+                break
+            }
+            case 'equip_armor': {
+                const idx = globalState.player.inventory.indexOf(obj)
+                if (idx !== -1) {
+                    globalState.player.inventory.splice(idx, 1)
+                    if (playerAny.armor) {
+                        globalState.player.inventory.push(playerAny.armor)
+                    }
+                    playerAny.armor = obj
+                }
+                uiInventoryScreen()
+                break
+            }
+            case 'unequip':
+                globalState.player.inventory.push(obj)
+                playerAny[slot] = null
                 uiInventoryScreen()
                 break
         }
     }
 
-    function makeContextButton(obj: Obj, slot: keyof Player, action: 'cancel' | 'use' | 'drop') {
+    function makeContextButton(obj: Obj, slot: string, action: ItemAction, label?: string) {
+        if (label) {
+            // text-based button for equip actions (no dedicated art asset)
+            const btn = document.createElement('div')
+            btn.className = 'itemContextMenuButton itemContextMenuText'
+            btn.textContent = label
+            btn.onclick = () => {
+                itemAction(obj, slot, action)
+                hidev($id('itemContextMenu'))
+            }
+            return btn
+        }
         return makeEl('img', {
             id: 'context_' + action,
             classes: ['itemContextMenuButton'],
@@ -1040,7 +1118,7 @@ function uiInventoryScreen() {
         })
     }
 
-    function makeItemContextMenu(e: MouseEvent, obj: Obj, slot: keyof Player) {
+    function makeItemContextMenu(e: MouseEvent, obj: Obj, slot: string) {
         const $menu = $id('itemContextMenu')
         clearEl($menu)
         Object.assign($menu.style, {
@@ -1048,27 +1126,42 @@ function uiInventoryScreen() {
             left: `${e.clientX}px`,
             top: `${e.clientY}px`,
         })
-        const cancelBtn = makeContextButton(obj, slot, 'cancel')
-        const useBtn = makeContextButton(obj, slot, 'use')
-        const dropBtn = makeContextButton(obj, slot, 'drop')
 
-        $menu.appendChild(cancelBtn)
+        $menu.appendChild(makeContextButton(obj, slot, 'cancel'))
         if (obj.canUse) {
-            $menu.appendChild(useBtn)
+            $menu.appendChild(makeContextButton(obj, slot, 'use'))
         }
-        $menu.appendChild(dropBtn)
+        $menu.appendChild(makeContextButton(obj, slot, 'drop'))
+
+        // Equip options for inventory items
+        if (slot === 'inventory') {
+            if (obj.subtype === 'weapon' || obj.subtype === 'misc') {
+                $menu.appendChild(makeContextButton(obj, slot, 'equip_left', 'Eq. Left'))
+                $menu.appendChild(makeContextButton(obj, slot, 'equip_right', 'Eq. Right'))
+            } else if (obj.subtype === 'armor') {
+                $menu.appendChild(makeContextButton(obj, slot, 'equip_armor', 'Equip'))
+            }
+        } else {
+            // Unequip from hand/armor slot
+            $menu.appendChild(makeContextButton(obj, slot, 'unequip', 'Unequip'))
+        }
     }
 
-    function drawSlot(slot: keyof Player, slotID: string) {
-        const art = globalState.player[slot].invArt
-        // 90x60 // 70x40
+    function drawSlot(slot: string, slotID: string) {
+        const item = (globalState.player as any)[slot] as Obj | null
+        if (!item || !item.invArt) return
         const img = makeEl('img', {
-            src: art + '.png',
-            attrs: { width: 72, height: 60, title: globalState.player[slot].name },
-            click: (e: MouseEvent) => {
-                makeItemContextMenu(e, globalState.player[slot], slot)
+            src: item.invArt + '.png',
+            attrs: { width: 72, height: 60, title: item.name },
+            click: () => {
+                showItemInfo(item)
             },
         })
+        img.oncontextmenu = (e: MouseEvent) => {
+            e.preventDefault()
+            makeItemContextMenu(e, item, slot)
+            return false
+        }
         makeDraggable(img, slot)
 
         const $slotEl = $id(slotID)
@@ -1076,11 +1169,18 @@ function uiInventoryScreen() {
         $slotEl.appendChild(img)
     }
 
+    drawInventory($id('inventoryBoxList'), globalState.player.inventory)
+    updateWeightDisplay()
+
     if (globalState.player.leftHand) {
         drawSlot('leftHand', 'inventoryBoxItem1')
     }
     if (globalState.player.rightHand) {
         drawSlot('rightHand', 'inventoryBoxItem2')
+    }
+    const playerAny = globalState.player as any
+    if (playerAny.armor) {
+        drawSlot('armor', 'inventoryBoxArmor')
     }
 }
 

@@ -31,6 +31,7 @@ import {
     uiContextMenu,
     uiElevator,
     uiHideContextMenu,
+    uiInventoryScreen,
     uiLog,
     uiLoot,
     UIMode,
@@ -592,6 +593,15 @@ heart.keydown = (k: string) => {
 
     if (k === Config.controls.loadKey) {
         uiSaveLoad(false)
+    }
+
+    if (k === Config.controls.inventory) {
+        if (globalState.uiMode === UIMode.inventory) {
+            globalState.uiMode = UIMode.none
+            document.getElementById('inventoryBox')!.style.visibility = 'hidden'
+        } else {
+            uiInventoryScreen()
+        }
     }
 
     //if(k == calledShotKey)
