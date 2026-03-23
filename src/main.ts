@@ -316,7 +316,11 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
                 uiContextMenu(obj, { clientX: x, clientY: y })
             }
         } else if (globalState.cursorMode === 'attack') {
-            playerUse()
+            // only attack if there's a valid target — no walking fallthrough
+            const target = getObjectUnderCursor((_: Obj) => true)
+            if (target && target !== globalState.player) {
+                playerUse()
+            }
         } else {
             playerUse()
         }
@@ -376,8 +380,8 @@ heart.mousemoved = (x: number, y: number) => {
         }, 1000)
     }
 
-    // Mode priority (scroll > interface > move); command and attack are sticky via right-click only
-    if (globalState.cursorMode !== 'command' && globalState.cursorMode !== 'attack') {
+    // Mode priority (scroll > interface > move/command/attack); scroll never blocks itself
+    if (globalState.cursorMode !== 'scroll') {
         const SCROLL_PAD = Config.ui.scrollPadding
         const anyScroll =
             y <= SCROLL_PAD ||
@@ -401,11 +405,15 @@ heart.mousemoved = (x: number, y: number) => {
             y >= dialogueRect.top && y <= dialogueRect.bottom
 
         if (anyScroll) {
-            globalState.preScrollCursorMode = globalState.cursorMode
+            // only snapshot the pre-scroll mode on the transition into scroll
+            if (globalState.cursorMode !== 'scroll') {
+                globalState.preScrollCursorMode = globalState.cursorMode
+            }
             globalState.cursorMode = 'scroll'
         } else if (inHUD || inDialogueArea) {
             globalState.cursorMode = 'interface'
-        } else {
+        } else if (globalState.cursorMode === 'scroll' || globalState.cursorMode === 'interface') {
+            // restore to what we were before scroll/interface — never overwrites command or attack
             globalState.cursorMode = globalState.preScrollCursorMode
         }
     }
