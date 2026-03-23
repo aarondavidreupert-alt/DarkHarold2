@@ -52,7 +52,8 @@ function objectFindItemIndex(obj: Obj, item: Obj): number {
 }
 
 export function cloneItem(item: Obj): Obj {
-    return Object.assign({}, item)
+    const clone = Object.create(Object.getPrototypeOf(item))
+    return Object.assign(clone, item)
 }
 
 function objectSwapItem(a: Obj, item: Obj, b: Obj, amount: number) {
@@ -603,9 +604,6 @@ export class Obj {
 
         // no existing item, add new inventory object
         const clone = item.clone()
-        clone.setAmount = this.setAmount
-        clone.approxEq = this.approxEq
-
         this.inventory.push(clone.setAmount(count))
     }
 
@@ -781,8 +779,13 @@ export class Obj {
     pickup(source: Critter) {
         if (this._script) {
             console.log('picking up %o', this)
-            Scripting.pickup(this, source)
+            if (Scripting.pickup(this, source)) {
+                return // script handled it
+            }
         }
+        // Default pickup: add to source inventory and remove from map
+        source.addInventoryItem(this, this.amount)
+        globalState.gMap.destroyObject(this)
     }
 
     drop(source: Obj) {

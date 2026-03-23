@@ -1020,7 +1020,8 @@ export function uiInventoryScreen() {
             const invObj = objects[i]
             const img = makeEl('img', {
                 src: invObj.invArt + '.png',
-                attrs: { width: 72, height: 60, title: invObj.name },
+                attrs: { title: invObj.name },
+                style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
                 click: () => {
                     showItemInfo(invObj)
                 },
@@ -1152,7 +1153,8 @@ export function uiInventoryScreen() {
         if (!item || !item.invArt) return
         const img = makeEl('img', {
             src: item.invArt + '.png',
-            attrs: { width: 72, height: 60, title: item.name },
+            attrs: { title: item.name },
+            style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
             click: () => {
                 showItemInfo(item)
             },
@@ -1455,10 +1457,10 @@ export function uiBarterMode(merchant: Critter) {
 
         for (let i = 0; i < objects.length; i++) {
             const inventoryImage = objects[i].invArt
-            // 90x60 // 70x40
             const img = makeEl('img', {
                 src: inventoryImage + '.png',
-                attrs: { width: 72, height: 60, title: objects[i].name },
+                attrs: { title: objects[i].name },
+                style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
             })
             $el.appendChild(img)
             $el.insertAdjacentHTML('beforeend', 'x' + objects[i].amount)
@@ -1600,10 +1602,10 @@ export function uiLoot(object: Obj) {
 
         for (let i = 0; i < objects.length; i++) {
             const inventoryImage = objects[i].invArt
-            // 90x60 // 70x40
             const img = makeEl('img', {
                 src: inventoryImage + '.png',
-                attrs: { width: 72, height: 60, title: objects[i].name },
+                attrs: { title: objects[i].name },
+                style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
             })
             $el.appendChild(img)
             $el.insertAdjacentHTML('beforeend', 'x' + objects[i].amount)
