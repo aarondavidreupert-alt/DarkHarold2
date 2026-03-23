@@ -380,39 +380,43 @@ heart.mousemoved = (x: number, y: number) => {
         }, 1000)
     }
 
-    // Scroll / interface / move priority — command and attack are toggled by clicks, not mouse position
-    if (globalState.cursorMode !== 'command' && globalState.cursorMode !== 'attack') {
-        const SCROLL_PAD = Config.ui.scrollPadding
-        const anyScroll =
-            y <= SCROLL_PAD ||
-            y >= SCREEN_HEIGHT - SCROLL_PAD ||
-            x <= SCROLL_PAD ||
-            x >= SCREEN_WIDTH - SCROLL_PAD
+    // Scroll interrupts any mode; HUD/move only apply when not in command/attack
+    const SCROLL_PAD = Config.ui.scrollPadding
+    const anyScroll =
+        y <= SCROLL_PAD ||
+        y >= SCREEN_HEIGHT - SCROLL_PAD ||
+        x <= SCROLL_PAD ||
+        x >= SCREEN_WIDTH - SCROLL_PAD
 
-        if (anyScroll) {
-            globalState.cursorMode = 'scroll'
+    if (anyScroll) {
+        if (globalState.cursorMode !== 'scroll') {
+            globalState.preScrollCursorMode = globalState.cursorMode
+        }
+        globalState.cursorMode = 'scroll'
+    } else if (globalState.cursorMode === 'scroll') {
+        // leaving scroll zone — restore whatever was active before (move, command, attack, …)
+        globalState.cursorMode = globalState.preScrollCursorMode
+    } else if (globalState.cursorMode !== 'command' && globalState.cursorMode !== 'attack') {
+        // move / interface: re-evaluate based on HUD / dialogue position
+        const barEl = document.getElementById('bar')
+        const barRect = barEl?.getBoundingClientRect()
+        const inHUD =
+            barRect != null &&
+            x >= barRect.left && x <= barRect.right &&
+            y >= barRect.top && y <= barRect.bottom
+
+        const dialogueEl = document.getElementById('dialogueContainer')
+        const dialogueRect = dialogueEl?.getBoundingClientRect()
+        const inDialogueArea =
+            dialogueEl?.style.visibility === 'visible' &&
+            dialogueRect !== undefined &&
+            x >= dialogueRect.left && x <= dialogueRect.right &&
+            y >= dialogueRect.top && y <= dialogueRect.bottom
+
+        if (inHUD || inDialogueArea) {
+            globalState.cursorMode = 'interface'
         } else {
-            // anyScroll is false → not at any edge; HUD/dialogue check is safe from scroll overlap
-            const barEl = document.getElementById('bar')
-            const barRect = barEl?.getBoundingClientRect()
-            const inHUD =
-                barRect != null &&
-                x >= barRect.left && x <= barRect.right &&
-                y >= barRect.top && y <= barRect.bottom
-
-            const dialogueEl = document.getElementById('dialogueContainer')
-            const dialogueRect = dialogueEl?.getBoundingClientRect()
-            const inDialogueArea =
-                dialogueEl?.style.visibility === 'visible' &&
-                dialogueRect !== undefined &&
-                x >= dialogueRect.left && x <= dialogueRect.right &&
-                y >= dialogueRect.top && y <= dialogueRect.bottom
-
-            if (inHUD || inDialogueArea) {
-                globalState.cursorMode = 'interface'
-            } else {
-                globalState.cursorMode = 'move'
-            }
+            globalState.cursorMode = 'move'
         }
     }
 }
