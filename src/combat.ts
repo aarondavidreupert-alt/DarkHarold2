@@ -491,9 +491,9 @@ export class Combat {
             }
 
             if (!didCreep) {
-                // no path
+                // no path — end this AI's turn rather than recursing infinitely
                 this.log('[NO PATH]')
-                that.doAITurn(obj, idx, depth + 1) // if we can, do another turn
+                return this.nextTurn()
             }
         } else if (AP.getAvailableCombatAP() >= 4) {
             // if we are in range, do we have enough AP to attack?
