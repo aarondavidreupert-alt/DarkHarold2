@@ -426,6 +426,7 @@ export class GameMap {
         // load cursor assets
         load('art/intrface/stdarrow')
         load('art/intrface/actarrow')
+        load('art/intrface/acrshair')
         load('art/intrface/lookn')
         load('art/intrface/scrnorth')
         load('art/intrface/scrsouth')

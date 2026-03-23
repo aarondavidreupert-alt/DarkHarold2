@@ -24,7 +24,7 @@ import { Renderer } from './renderer.js'
 import { Skills } from './skills.js'
 import { UIMode } from './ui.js'
 
-export type CursorMode = 'move' | 'command' | 'interface' | 'scroll'
+export type CursorMode = 'move' | 'command' | 'attack' | 'interface' | 'scroll'
 
 interface FloatMessage {
     msg: string
@@ -82,6 +82,7 @@ export default {
 
     // Cursor system
     cursorMode: 'move' as CursorMode,
+    preScrollCursorMode: 'move' as CursorMode,
     cursorPos: { x: 0, y: 0 },
     showLookCursor: false,
     commandModeTimer: null as number | null,
@@ -138,6 +139,7 @@ export default {
 
     // Cursor system
     cursorMode: CursorMode
+    preScrollCursorMode: CursorMode
     cursorPos: Point
     showLookCursor: boolean
     commandModeTimer: number | null
