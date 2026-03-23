@@ -316,14 +316,7 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
                 uiContextMenu(obj, { clientX: x, clientY: y })
             }
         } else if (globalState.cursorMode === 'attack') {
-            // left-click in attack mode → attack the object under cursor
-            if (globalState.inCombat) {
-                const target = getObjectUnderCursor((_: Obj) => true)
-                if (target && target !== globalState.player) {
-                    // TODO: hook into Combat.attack(target) or equivalent
-                    console.log('Attack target:', target.name ?? 'Unknown')
-                }
-            }
+            playerUse()
         } else {
             playerUse()
         }
