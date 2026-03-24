@@ -53,7 +53,11 @@ function objectFindItemIndex(obj: Obj, item: Obj): number {
 
 export function cloneItem(item: Obj): Obj {
     const clone = Object.create(Object.getPrototypeOf(item))
-    return Object.assign(clone, item)
+    Object.assign(clone, item)
+    if (item.inventory) {
+        clone.inventory = item.inventory.map(cloneItem)
+    }
+    return clone
 }
 
 function objectSwapItem(a: Obj, item: Obj, b: Obj, amount: number) {

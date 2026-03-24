@@ -1061,6 +1061,7 @@ export function uiInventoryScreen() {
                     playerAny[slot] = null
                 }
                 obj.drop(globalState.player)
+                uiDrawWeapon()
                 uiInventoryScreen()
                 break
             case 'equip_left':
@@ -1074,6 +1075,7 @@ export function uiInventoryScreen() {
                     }
                     playerAny[targetSlot] = obj
                 }
+                uiDrawWeapon()
                 uiInventoryScreen()
                 break
             }
