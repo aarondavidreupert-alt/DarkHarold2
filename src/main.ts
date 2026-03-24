@@ -241,10 +241,11 @@ window.onload = async function () {
 
     globalState.$fpsOverlay = document.getElementById('fpsOverlay')
 
-    const fragment = await fetch('shaders/fragment.glsl')
-    const fragmentLighting = await fetch('shaders/fragmentLighting.glsl')
-    const vertex = await fetch('shaders/vertex.glsl')
-    const fragmentFont = await fetch('shaders/fragmentFont.glsl')
+    const _v = '?v=' + Date.now()
+    const fragment = await fetch('shaders/fragment.glsl' + _v)
+    const fragmentLighting = await fetch('shaders/fragmentLighting.glsl' + _v)
+    const vertex = await fetch('shaders/vertex.glsl' + _v)
+    const fragmentFont = await fetch('shaders/fragmentFont.glsl' + _v)
 
     // initialize renderer
     globalState.renderer = new WebGLRenderer(
