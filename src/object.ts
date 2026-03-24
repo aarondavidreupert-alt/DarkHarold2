@@ -1255,11 +1255,8 @@ export class Critter extends Obj {
     get equippedWeapon(): WeaponObj | null {
         const self = this as any
         const activeHand: 'leftHand' | 'rightHand' = self.activeHand ?? 'leftHand'
-        const primary = self[activeHand]
-        const secondary = activeHand === 'leftHand' ? self.rightHand : self.leftHand
-        if (objectIsWeapon(primary)) return primary
-        if (objectIsWeapon(secondary)) return secondary
-        return null
+        const weapon = self[activeHand]
+        return objectIsWeapon(weapon) ? weapon : null
     }
 
     getAnimation(anim: string): string {

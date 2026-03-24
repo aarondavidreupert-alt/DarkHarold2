@@ -237,16 +237,20 @@ body {
 #handSwapButton {
   position: absolute;
   left: 213px;
-  top: 15px;
+  top: 5px;
   width: 32px;
   height: 21px;
   cursor: pointer;
-  background-image: url("art/intrface/lilredup.png");
+  background-image: url("art/intrface/menudown.png");
+  background-repeat: no-repeat;
+  background-size: contain;
   z-index: 10;
 }
 
 #handSwapButton:active {
-  background-image: url("art/intrface/lilreddn.png");
+  background-image: url("art/intrface/menuup.png");
+  background-repeat: no-repeat;
+  background-size: contain;
 }
 
 #inventoryButton {
