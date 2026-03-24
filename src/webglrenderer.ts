@@ -326,6 +326,14 @@ export class WebGLRenderer extends Renderer {
             gl.uniform1i(this.uScreenLightmap, 6)
             gl.uniform2f(this.uScreenResolution, SCREEN_WIDTH, SCREEN_HEIGHT)
 
+            console.log('[initFloorLighting] uniform locations:', {
+                uUseGPULighting: this.uUseGPULighting,
+                uScreenLightmap: this.uScreenLightmap,
+                uScreenResolution: this.uScreenResolution,
+                uImage: gl.getUniformLocation(this.floorLightShader, 'u_image'),
+                uLightBuffer: gl.getUniformLocation(this.floorLightShader, 'u_lightBuffer'),
+            })
+
             gl.activeTexture(gl.TEXTURE0)
             gl.useProgram(this.tileShader)
         }
@@ -593,17 +601,21 @@ export class WebGLRenderer extends Renderer {
         gl.enableVertexAttribArray(litPositionLoc)
         gl.vertexAttribPointer(litPositionLoc, 2, gl.FLOAT, false, 0, 0)
 
-        // Ensure texture unit uniforms are correct after useProgram
-        gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_image'), 0)
-        gl.uniform1i(this.uScreenLightmap, 6)
-        gl.uniform2f(this.uScreenResolution, SCREEN_WIDTH, SCREEN_HEIGHT)
-
-        gl.uniform1i(this.uUseGPULighting, 2)
+        // Ensure texture unit uniforms are correct after useProgram.
+        // Use fallback getUniformLocation in case member locations are null.
+        const uGPU = this.uUseGPULighting ?? gl.getUniformLocation(this.floorLightShader, 'u_useGPULighting')
+        const uScreen = this.uScreenLightmap ?? gl.getUniformLocation(this.floorLightShader, 'u_screenLightmap')
+        const uRes = this.uScreenResolution ?? gl.getUniformLocation(this.floorLightShader, 'u_screenResolution')
+        const uImg = gl.getUniformLocation(this.floorLightShader, 'u_image')
+        gl.uniform1i(uGPU, 2)
+        gl.uniform1i(uScreen, 6)
+        gl.uniform1i(uImg, 0)
+        gl.uniform2f(uRes, SCREEN_WIDTH, SCREEN_HEIGHT)
         gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
         gl.uniform2f(this.litScaleLocation, TILE_WIDTH, TILE_HEIGHT)
 
         if (shouldLog) {
-            console.log(`[GPU] u_useGPULighting=${gl.getUniform(this.floorLightShader, this.uUseGPULighting)}, u_screenLightmap=${gl.getUniform(this.floorLightShader, this.uScreenLightmap)}, u_screenResolution=${gl.getUniform(this.floorLightShader, this.uScreenResolution)}`)
+            console.log(`[GPU] uniforms set: u_useGPULighting=${gl.getUniform(this.floorLightShader, uGPU)}, u_screenLightmap=${gl.getUniform(this.floorLightShader, uScreen)}, u_screenResolution=${JSON.stringify(gl.getUniform(this.floorLightShader, uRes))}`)
         }
 
         for (const { img, scrX, scrY } of drawList) {
