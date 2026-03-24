@@ -234,6 +234,16 @@ body {
   background-image: url("art/intrface/sattkbdn.png");
 }
 
+#handSwapButton {
+  position: absolute;
+  left: 454px;
+  top: 75px;
+  width: 42px;
+  height: 20px;
+  cursor: pointer;
+  z-index: 10;
+}
+
 #inventoryButton {
   position: absolute;
   left: 213px;
@@ -335,7 +345,7 @@ body {
   image-rendering: pixelated;
   max-width: 100%;
   max-height: 100%;
-  margin-top: -35%;
+  margin-top: -55%;
 }
 
 #inventoryBoxInfo {
@@ -369,6 +379,7 @@ body {
   width: 150px;
   color: #00FF00;
   font-size: 0.7em;
+  display: none;
 }
 
 .invItemAmount {

@@ -1253,13 +1253,12 @@ export class Critter extends Obj {
     }
 
     get equippedWeapon(): WeaponObj | null {
-        // TODO: Get actual selection
-        if (objectIsWeapon(this.leftHand)) {
-            return this.leftHand || null
-        }
-        if (objectIsWeapon(this.rightHand)) {
-            return this.rightHand || null
-        }
+        const self = this as any
+        const activeHand: 'leftHand' | 'rightHand' = self.activeHand ?? 'leftHand'
+        const primary = self[activeHand]
+        const secondary = activeHand === 'leftHand' ? self.rightHand : self.leftHand
+        if (objectIsWeapon(primary)) return primary
+        if (objectIsWeapon(secondary)) return secondary
         return null
     }
 

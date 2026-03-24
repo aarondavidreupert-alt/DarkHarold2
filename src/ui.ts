@@ -707,6 +707,12 @@ export function initUI() {
         uiEndLoot()
     }
 
+    $id('handSwapButton').onclick = () => {
+        const p = globalState.player as any
+        p.activeHand = (p.activeHand === 'leftHand') ? 'rightHand' : 'leftHand'
+        uiDrawWeapon()
+    }
+
     $id('attackButtonContainer').onclick = () => {
         if (!Config.engine.doCombat) {
             return
@@ -866,17 +872,20 @@ function uiDrawWeapon() {
     // draw the active weapon in the interface bar
     const weapon = globalState.player.equippedWeapon
     clearEl($id('attackButton'))
+    const $wepImg = $id('attackButtonWeapon') as HTMLImageElement
+    const $typeImg = $img('attackButtonType')
     if (!weapon || !weapon.weapon) {
-        ;($id('attackButtonWeapon') as HTMLImageElement).src = ''
-        ;($img('attackButtonType')).src = ''
+        $wepImg.style.display = 'none'
+        $typeImg.style.display = 'none'
         hidev($id('attackButtonCalled'))
         return
     }
+    $wepImg.style.display = ''
+    $typeImg.style.display = ''
 
     if (weapon.weapon.type !== 'melee') {
-        const $attackButtonWeapon = $id('attackButtonWeapon') as HTMLImageElement
-        $attackButtonWeapon.onload = null
-        $attackButtonWeapon.onload = function (this: HTMLImageElement) {
+        $wepImg.onload = null
+        $wepImg.onload = function (this: HTMLImageElement) {
             if (!this.complete) {
                 return
             }
@@ -885,10 +894,11 @@ function uiDrawWeapon() {
                 top: '5px',
                 left: $id('attackButton').offsetWidth / 2 - this.width / 2 + 'px',
                 maxHeight: $id('attackButton').offsetHeight - 10 + 'px',
+                display: '',
             })
             this.setAttribute('draggable', 'false')
         }
-        $attackButtonWeapon.src = weapon.invArt + '.png'
+        $wepImg.src = weapon.invArt + '.png'
     }
 
     // draw weapon AP

@@ -41,6 +41,7 @@ export class Player extends Critter {
     gender = 'male'
     leftHand = <WeaponObj>createObjectWithPID(9) // 10mm SMG
     armor: Obj | null = null
+    activeHand: 'leftHand' | 'rightHand' = 'leftHand'
 
     inventory = [
         createObjectWithPID(41).setAmount(1337), // Money
