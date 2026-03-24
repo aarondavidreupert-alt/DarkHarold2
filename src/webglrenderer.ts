@@ -50,6 +50,7 @@ export class WebGLRenderer extends Renderer {
     private uAmbient: WebGLUniformLocation | null = null
     private uScreenLightmap: WebGLUniformLocation | null = null
     private uScreenResolution: WebGLUniformLocation | null = null
+    private _gpuDebugFrame = 0
 
     private textures: { [key: string]: WebGLTexture } = {} // WebGL texture cache
 
@@ -504,6 +505,9 @@ export class WebGLRenderer extends Renderer {
     renderLitFloorGPU(tileMap: TileMap) {
         Lightmap.rebuildDynamicLight()
 
+        this._gpuDebugFrame++
+        const shouldLog = this._gpuDebugFrame % 60 === 1
+
         const gl = this.gl
         const cameraX = globalState.cameraPosition.x
         const cameraY = globalState.cameraPosition.y
@@ -564,6 +568,13 @@ export class WebGLRenderer extends Renderer {
             }
         }
 
+        if (shouldLog) {
+            const nonZero = screenLightmap.filter(v => v > 0.0).length
+            const maxVal = Math.max(...screenLightmap.slice(0, 10000))
+            console.log(`[GPU] screenLightmap: ${nonZero} non-zero pixels, max(first 10k)=${maxVal.toFixed(4)}, total=${screenLightmap.length}`)
+            console.log(`[GPU] screenLightmapTexture=${this.screenLightmapTexture}, floorLightShader=${this.floorLightShader}`)
+        }
+
         // Single upload of the entire screen-space lightmap
         gl.activeTexture(gl.TEXTURE6)
         gl.bindTexture(gl.TEXTURE_2D, this.screenLightmapTexture)
@@ -590,6 +601,10 @@ export class WebGLRenderer extends Renderer {
         gl.uniform1i(this.uUseGPULighting, 2)
         gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
         gl.uniform2f(this.litScaleLocation, TILE_WIDTH, TILE_HEIGHT)
+
+        if (shouldLog) {
+            console.log(`[GPU] u_useGPULighting=${gl.getUniform(this.floorLightShader, this.uUseGPULighting)}, u_screenLightmap=${gl.getUniform(this.floorLightShader, this.uScreenLightmap)}, u_screenResolution=${gl.getUniform(this.floorLightShader, this.uScreenResolution)}`)
+        }
 
         for (const { img, scrX, scrY } of drawList) {
             gl.activeTexture(gl.TEXTURE0)
