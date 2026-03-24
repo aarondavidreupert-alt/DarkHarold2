@@ -867,6 +867,9 @@ function uiDrawWeapon() {
     const weapon = globalState.player.equippedWeapon
     clearEl($id('attackButton'))
     if (!weapon || !weapon.weapon) {
+        ;($id('attackButtonWeapon') as HTMLImageElement).src = ''
+        ;($img('attackButtonType')).src = ''
+        hidev($id('attackButtonCalled'))
         return
     }
 
@@ -1036,54 +1039,185 @@ export function uiInventoryScreen() {
         clearEl($info)
         const p = globalState.player
         const playerAny = p as any
-        const armorAC: number = playerAny.armor?.pro?.extra?.AC ?? 0
-        const baseAC: number = p.getStat('AGI')
-        const stats: [string, string][] = [
-            ['HP', `${p.getStat('HP')}/${p.getStat('Max HP')}`],
-            ['AC', `${baseAC + armorAC}`],
-            ['STR', `${p.getStat('STR')}`],
-            ['PER', `${p.getStat('PER')}`],
-            ['END', `${p.getStat('END')}`],
-            ['CHA', `${p.getStat('CHA')}`],
-            ['INT', `${p.getStat('INT')}`],
-            ['AGI', `${p.getStat('AGI')}`],
-            ['LUK', `${p.getStat('LUK')}`],
-        ]
-        for (const [label, value] of stats) {
+        const armor = playerAny.armor ?? null
+        const armorExtra = armor?.pro?.extra ?? null
+
+        const addHR = () => {
+            const hr = document.createElement('hr')
+            hr.className = 'invStatHr'
+            $info.appendChild(hr)
+        }
+
+        const addRow = (left: string, right: string) => {
             const row = document.createElement('div')
             row.className = 'invStatRow'
             const lbl = document.createElement('span')
             lbl.className = 'invStatLabel'
-            lbl.textContent = label
+            lbl.textContent = left
             const val = document.createElement('span')
-            val.textContent = value
+            val.className = 'invStatValue'
+            val.textContent = right
             row.appendChild(lbl)
             row.appendChild(val)
             $info.appendChild(row)
         }
+
+        const addWeaponSection = (weapon: any, label: string) => {
+            addHR()
+            if (!weapon) {
+                addRow(label, 'None')
+                return
+            }
+            const name = weapon.name ?? label
+            addRow(name, '')
+            const pro = weapon.pro?.extra
+            if (pro) {
+                const minD = pro.minDmg ?? '?'
+                const maxD = pro.maxDmg ?? '?'
+                const rng = pro.maxRange1 ?? '?'
+                addRow(`  Dmg: ${minD}-${maxD}`, `Rng: ${rng}`)
+            }
+        }
+
+        // Player name
+        const nameEl = document.createElement('div')
+        nameEl.className = 'invStatName'
+        nameEl.textContent = (p as any).name ?? 'Character'
+        $info.appendChild(nameEl)
+
+        addHR()
+
+        // SPECIAL (left) + derived stats (right) in a two-column layout
+        const twoCol = document.createElement('div')
+        twoCol.className = 'invStatTwoCol'
+
+        const leftCol = document.createElement('div')
+        leftCol.className = 'invStatColLeft'
+
+        const rightCol = document.createElement('div')
+        rightCol.className = 'invStatColRight'
+
+        const specialStats: [string, number][] = [
+            ['ST', p.getStat('STR')],
+            ['PE', p.getStat('PER')],
+            ['EN', p.getStat('END')],
+            ['CH', p.getStat('CHA')],
+            ['IN', p.getStat('INT')],
+            ['AG', p.getStat('AGI')],
+            ['LK', p.getStat('LUK')],
+        ]
+
+        for (const [lbl, val] of specialStats) {
+            const row = document.createElement('div')
+            row.className = 'invStatRow'
+            const l = document.createElement('span')
+            l.className = 'invStatLabel'
+            l.textContent = lbl
+            const v = document.createElement('span')
+            v.className = 'invStatValue'
+            v.textContent = String(val)
+            row.appendChild(l)
+            row.appendChild(v)
+            leftCol.appendChild(row)
+        }
+
+        const armorAC: number = armorExtra?.AC ?? 0
+        const baseAC: number = p.getStat('AGI')
+        const dr = (key: string) => armorExtra?.stats?.[key] ?? 0
+
+        const derivedStats: [string, string][] = [
+            ['HP', `${p.getStat('HP')}/${p.getStat('Max HP')}`],
+            ['AC', String(baseAC + armorAC)],
+            ['Normal', `${dr('DR Normal')}%`],
+            ['Laser', `${dr('DR Laser')}%`],
+            ['Fire', `${dr('DR Fire')}%`],
+            ['Plasma', `${dr('DR Plasma')}%`],
+            ['Explode', `${dr('DR Electrical')}%`],
+        ]
+
+        for (const [lbl, val] of derivedStats) {
+            const row = document.createElement('div')
+            row.className = 'invStatRow'
+            const l = document.createElement('span')
+            l.className = 'invStatLabel'
+            l.textContent = lbl
+            const v = document.createElement('span')
+            v.className = 'invStatValue'
+            v.textContent = val
+            row.appendChild(l)
+            row.appendChild(v)
+            rightCol.appendChild(row)
+        }
+
+        twoCol.appendChild(leftCol)
+        twoCol.appendChild(rightCol)
+        $info.appendChild(twoCol)
+
+        // Weapon sections
+        addWeaponSection(playerAny.leftHand ?? null, 'Left Hand')
+        const spacer = document.createElement('div')
+        spacer.style.height = '4px'
+        $info.appendChild(spacer)
+        addWeaponSection(playerAny.rightHand ?? null, 'Right Hand')
+
+        // Total weight
+        addHR()
+        let current = 0
+        for (const item of p.inventory) {
+            current += ((item.pro?.extra?.weight ?? 0) as number) * item.amount
+        }
+        if (playerAny.leftHand?.pro?.extra?.weight) current += playerAny.leftHand.pro.extra.weight
+        if (playerAny.rightHand?.pro?.extra?.weight) current += playerAny.rightHand.pro.extra.weight
+        if (armorExtra?.weight) current += armorExtra.weight
+        const max = 25 + p.getStat('STR') * 25
+        addRow('Total Wt:', `${current}/${max}`)
     }
+
+    let _portraitInterval: ReturnType<typeof setInterval> | null = null
 
     function drawCharacterPortrait() {
         const $char = $id('inventoryBoxChar')
         clearEl($char)
+
+        if (_portraitInterval !== null) {
+            clearInterval(_portraitInterval)
+            _portraitInterval = null
+        }
+
         const art = globalState.player.getAnimation('idle')
-        const doRender = (img: HTMLImageElement) => {
+        let currentOrientation = 0
+
+        const canvas = document.createElement('canvas')
+        $char.appendChild(canvas)
+
+        const renderOrientation = (img: HTMLImageElement, orientation: number) => {
             const info = globalState.imageInfo?.[art]
             if (!info) return
-            const orientation = globalState.player.orientation
-            const frame = 0
-            const spriteFrameNum = info.numFrames * orientation + frame
-            const fw: number = info.uniformFrameWidth || info.frameWidth
-            const fh: number = info.uniformFrameHeight || img.height
-            const sx = spriteFrameNum * fw
-            const canvas = document.createElement('canvas')
-            canvas.width = fw
-            canvas.height = fh
+            const numOrientations = Object.keys(info.frameOffsets).length
+            if (numOrientations === 0) return
+            const ori = orientation % numOrientations
+            const frameInfo = info.frameOffsets[ori]?.[0]
+            if (!frameInfo) return
+            canvas.width = frameInfo.w
+            canvas.height = frameInfo.h
             const ctx = canvas.getContext('2d')!
-            ctx.drawImage(img, sx, 0, fw, fh, 0, 0, fw, fh)
-            $char.appendChild(canvas)
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
+            ctx.drawImage(img, frameInfo.sx, 0, frameInfo.w, frameInfo.h, 0, 0, frameInfo.w, frameInfo.h)
         }
-        lazyLoadImage(art, doRender)
+
+        lazyLoadImage(art, (img: HTMLImageElement) => {
+            renderOrientation(img, currentOrientation)
+            _portraitInterval = setInterval(() => {
+                const $box = document.getElementById('inventoryBox')
+                if (!$box || $box.style.visibility === 'hidden') {
+                    clearInterval(_portraitInterval!)
+                    _portraitInterval = null
+                    return
+                }
+                currentOrientation = (currentOrientation + 1) % 6
+                renderOrientation(img, currentOrientation)
+            }, 250)
+        })
     }
 
     function updateWeightDisplay() {

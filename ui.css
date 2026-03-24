@@ -391,6 +391,39 @@ body {
   padding-right: 4px;
 }
 
+.invStatValue {
+  color: #00FF00;
+}
+
+.invStatName {
+  color: #FCFC7C;
+  font-size: 0.75em;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 2px;
+}
+
+.invStatHr {
+  border: none;
+  border-top: 1px solid #3a6a3a;
+  margin: 2px 0;
+}
+
+.invStatTwoCol {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+
+.invStatColLeft {
+  flex: 0 0 auto;
+  min-width: 44px;
+}
+
+.invStatColRight {
+  flex: 1 1 auto;
+}
+
 .number {
   position: absolute;
   /* 0 1 2 3 4 5 6 7 8 9 turn1 turn2 - */
