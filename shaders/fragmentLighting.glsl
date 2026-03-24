@@ -16,8 +16,6 @@ uniform sampler2D u_screenLightmap;  // SCREEN_WIDTH x SCREEN_HEIGHT screen-spac
 uniform ivec2 u_tilePos;            // current tile position (x, y) in tile coords
 uniform int u_useGPULighting;       // 0 = CPU lightbuffer, 1 = GPU tile-intensity, 2 = screen-space
 uniform float u_ambient;            // minimum brightness floor (e.g. 40960/65536 ≈ 0.625)
-uniform vec2 u_lightmapOffset;      // UV origin of this tile in the 200x200 global lightmap
-uniform vec2 u_lightmapScale;       // UV size of one tile (80/200, 36/200)
 uniform vec2 u_screenResolution;    // vec2(SCREEN_WIDTH, SCREEN_HEIGHT)
 
 varying vec2 v_texCoord;
@@ -91,9 +89,8 @@ void main() {
     } else if (u_useGPULighting == 1) {
         lightIntensity = getGPULightIntensity(v_texCoord);
     } else {
-        // CPU path — global 200x200 lightmap; tile position set via u_lightmapOffset/Scale
-        vec2 lightmapUV = u_lightmapOffset + v_texCoord * u_lightmapScale;
-        lightIntensity = min(texture2D(u_lightBuffer, lightmapUV).r, 65536.0);
+        // CPU path — per-tile 80x36 lightbuffer uploaded each tile
+        lightIntensity = min(texture2D(u_lightBuffer, v_texCoord).r, 65536.0);
     }
 
     float light = max(lightIntensity / 65536.0, u_ambient);

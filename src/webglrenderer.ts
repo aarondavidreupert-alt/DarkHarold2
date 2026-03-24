@@ -48,8 +48,6 @@ export class WebGLRenderer extends Renderer {
     private uTilePosLocation: WebGLUniformLocation | null = null
     private uUseGPULighting: WebGLUniformLocation | null = null
     private uAmbient: WebGLUniformLocation | null = null
-    private uLightmapOffset: WebGLUniformLocation | null = null
-    private uLightmapScale: WebGLUniformLocation | null = null
     private uScreenLightmap: WebGLUniformLocation | null = null
     private uScreenResolution: WebGLUniformLocation | null = null
 
@@ -573,10 +571,24 @@ export class WebGLRenderer extends Renderer {
 
         // Draw all tiles — shader samples u_screenLightmap via gl_FragCoord
         gl.useProgram(this.floorLightShader)
+
+        // Rebind vertex attributes after useProgram switch
+        const litPositionLoc = gl.getAttribLocation(this.floorLightShader, 'a_position')
+        const litTexCoordLoc = gl.getAttribLocation(this.floorLightShader, 'a_texCoord')
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer)
+        gl.enableVertexAttribArray(litTexCoordLoc)
+        gl.vertexAttribPointer(litTexCoordLoc, 2, gl.FLOAT, false, 0, 0)
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
+        gl.enableVertexAttribArray(litPositionLoc)
+        gl.vertexAttribPointer(litPositionLoc, 2, gl.FLOAT, false, 0, 0)
+
+        // Ensure texture unit uniforms are correct after useProgram
+        gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_image'), 0)
+        gl.uniform1i(this.uScreenLightmap, 6)
+        gl.uniform2f(this.uScreenResolution, SCREEN_WIDTH, SCREEN_HEIGHT)
+
         gl.uniform1i(this.uUseGPULighting, 2)
         gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
         gl.uniform2f(this.litScaleLocation, TILE_WIDTH, TILE_HEIGHT)
 
         for (const { img, scrX, scrY } of drawList) {
