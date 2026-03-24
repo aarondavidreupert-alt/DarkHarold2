@@ -1155,9 +1155,6 @@ export function uiInventoryScreen() {
 
         // Weapon sections
         addWeaponSection(playerAny.leftHand ?? null, 'Left Hand')
-        const spacer = document.createElement('div')
-        spacer.style.height = '4px'
-        $info.appendChild(spacer)
         addWeaponSection(playerAny.rightHand ?? null, 'Right Hand')
 
         // Total weight

@@ -335,6 +335,7 @@ body {
   image-rendering: pixelated;
   max-width: 100%;
   max-height: 100%;
+  margin-top: -35%;
 }
 
 #inventoryBoxInfo {
@@ -380,15 +381,15 @@ body {
 
 .invStatRow {
   color: #00FF00;
-  font-size: 0.7em;
-  line-height: 1.4em;
+  font-size: 0.65em;
+  line-height: 1.15em;
   display: flex;
   justify-content: space-between;
 }
 
 .invStatLabel {
   color: #FCFC7C;
-  padding-right: 4px;
+  padding-right: 2px;
 }
 
 .invStatValue {
@@ -397,16 +398,16 @@ body {
 
 .invStatName {
   color: #FCFC7C;
-  font-size: 0.75em;
+  font-size: 0.7em;
   font-weight: bold;
   text-align: center;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 
 .invStatHr {
   border: none;
   border-top: 1px solid #3a6a3a;
-  margin: 2px 0;
+  margin: 1px 0;
 }
 
 .invStatTwoCol {
