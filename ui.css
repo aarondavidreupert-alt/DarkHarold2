@@ -319,6 +319,24 @@ body {
   top: 180px;
 }
 
+#inventoryBoxChar {
+  position: absolute;
+  left: 128px;
+  top: 14px;
+  width: 154px;
+  height: 235px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#inventoryBoxChar canvas {
+  image-rendering: pixelated;
+  max-width: 100%;
+  max-height: 100%;
+}
+
 #inventoryBoxInfo {
   position: absolute;
   left: 295px;
@@ -358,6 +376,19 @@ body {
   color: #FCFC7C;
   font-size: 0.75em;
   margin-bottom: 2px;
+}
+
+.invStatRow {
+  color: #00FF00;
+  font-size: 0.7em;
+  line-height: 1.4em;
+  display: flex;
+  justify-content: space-between;
+}
+
+.invStatLabel {
+  color: #FCFC7C;
+  padding-right: 4px;
 }
 
 .number {

@@ -19,7 +19,7 @@ import { Area, Elevator, loadAreas, lookupMapNameFromLookup } from './data.js'
 import globalState from './globalState.js'
 import { Critter, cloneItem, Obj } from './object.js'
 import { Player } from './player.js'
-import { lookupInterfaceArt } from './pro.js'
+import { lookupArt, lookupInterfaceArt } from './pro.js'
 import { objectBoundingBox } from './renderer.js'
 import { formatSaveDate, load, save, SaveGame, saveList } from './saveload.js'
 import { Scripting } from './scripting.js'
@@ -947,7 +947,43 @@ function uiMoveSlot(data: string, target: string) {
         playerUnsafe[target] = obj // move the object over
     }
 
+    // Update armor appearance if armor slot changed
+    if (target === 'armor' || data === 'armor') {
+        applyArmorArt(target === 'armor' ? obj : null)
+    }
+
+    uiDrawWeapon()
     uiInventoryScreen()
+}
+
+// Apply or remove armor appearance — updates player.art to the armor's critter base art
+function applyArmorArt(armor: Obj | null) {
+    const playerAny = globalState.player as any
+    if (armor?.pro?.extra) {
+        const fid: number =
+            globalState.player.gender === 'female'
+                ? armor.pro.extra.femaleFID
+                : armor.pro.extra.maleFID
+        if (fid && fid !== 0) {
+            try {
+                const armorArt = lookupArt(fid)
+                if (armorArt) {
+                    if (!playerAny._baseArt) {
+                        playerAny._baseArt = globalState.player.art
+                    }
+                    globalState.player.art = armorArt
+                    return
+                }
+            } catch (e) {
+                console.warn('applyArmorArt: lookupArt failed for fid', fid, e)
+            }
+        }
+    }
+    // No armor or no valid FID — restore original art
+    if (playerAny._baseArt) {
+        globalState.player.art = playerAny._baseArt
+        playerAny._baseArt = null
+    }
 }
 
 function makeDropTarget($el: HTMLElement, dropCallback: (data: string, e?: DragEvent) => void) {
@@ -993,6 +1029,61 @@ export function uiInventoryScreen() {
             descEl.textContent = desc
             $info.appendChild(descEl)
         }
+    }
+
+    function showStats() {
+        const $info = $id('inventoryBoxInfo')
+        clearEl($info)
+        const p = globalState.player
+        const playerAny = p as any
+        const armorAC: number = playerAny.armor?.pro?.extra?.AC ?? 0
+        const baseAC: number = p.getStat('AGI')
+        const stats: [string, string][] = [
+            ['HP', `${p.getStat('HP')}/${p.getStat('Max HP')}`],
+            ['AC', `${baseAC + armorAC}`],
+            ['STR', `${p.getStat('STR')}`],
+            ['PER', `${p.getStat('PER')}`],
+            ['END', `${p.getStat('END')}`],
+            ['CHA', `${p.getStat('CHA')}`],
+            ['INT', `${p.getStat('INT')}`],
+            ['AGI', `${p.getStat('AGI')}`],
+            ['LUK', `${p.getStat('LUK')}`],
+        ]
+        for (const [label, value] of stats) {
+            const row = document.createElement('div')
+            row.className = 'invStatRow'
+            const lbl = document.createElement('span')
+            lbl.className = 'invStatLabel'
+            lbl.textContent = label
+            const val = document.createElement('span')
+            val.textContent = value
+            row.appendChild(lbl)
+            row.appendChild(val)
+            $info.appendChild(row)
+        }
+    }
+
+    function drawCharacterPortrait() {
+        const $char = $id('inventoryBoxChar')
+        clearEl($char)
+        const art = globalState.player.getAnimation('idle')
+        const doRender = (img: HTMLImageElement) => {
+            const info = globalState.imageInfo?.[art]
+            if (!info) return
+            const orientation = globalState.player.orientation
+            const frame = 0
+            const spriteFrameNum = info.numFrames * orientation + frame
+            const fw: number = info.uniformFrameWidth || info.frameWidth
+            const fh: number = info.uniformFrameHeight || img.height
+            const sx = spriteFrameNum * fw
+            const canvas = document.createElement('canvas')
+            canvas.width = fw
+            canvas.height = fh
+            const ctx = canvas.getContext('2d')!
+            ctx.drawImage(img, sx, 0, fw, fh, 0, 0, fw, fh)
+            $char.appendChild(canvas)
+        }
+        lazyLoadImage(art, doRender)
     }
 
     function updateWeightDisplay() {
@@ -1088,12 +1179,17 @@ export function uiInventoryScreen() {
                     }
                     playerAny.armor = obj
                 }
+                applyArmorArt(obj)
                 uiInventoryScreen()
                 break
             }
             case 'unequip':
                 globalState.player.inventory.push(obj)
                 playerAny[slot] = null
+                if (slot === 'armor') {
+                    applyArmorArt(null)
+                }
+                uiDrawWeapon()
                 uiInventoryScreen()
                 break
         }
@@ -1174,6 +1270,8 @@ export function uiInventoryScreen() {
     }
 
     drawInventory($id('inventoryBoxList'), globalState.player.inventory)
+    showStats()
+    drawCharacterPortrait()
     updateWeightDisplay()
 
     if (globalState.player.leftHand) {

@@ -39,10 +39,16 @@ export class Player extends Critter {
     position = { x: 94, y: 109 }
     orientation = 3
     gender = 'male'
-    leftHand = <WeaponObj>createObjectWithPID(9)
+    leftHand = <WeaponObj>createObjectWithPID(9) // 10mm SMG
     armor: Obj | null = null
 
-    inventory = [createObjectWithPID(41).setAmount(1337)]
+    inventory = [
+        createObjectWithPID(41).setAmount(1337), // Money
+        createObjectWithPID(4),                  // Combat Knife (weapon)
+        createObjectWithPID(15),                 // Hunting Rifle (weapon)
+        createObjectWithPID(2),                  // Leather Jacket (armor)
+        createObjectWithPID(3),                  // Leather Armor (armor)
+    ]
 
     lightRadius = 4
     lightIntensity = 65536
