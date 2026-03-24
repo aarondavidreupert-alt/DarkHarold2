@@ -591,6 +591,17 @@ export class WebGLRenderer extends Renderer {
         // Draw all tiles — shader samples u_screenLightmap via gl_FragCoord
         gl.useProgram(this.floorLightShader)
 
+        if (shouldLog) {
+            const linked = gl.getProgramParameter(this.floorLightShader, gl.LINK_STATUS)
+            const activeUniforms = gl.getProgramParameter(this.floorLightShader, gl.ACTIVE_UNIFORMS)
+            console.log(`[GPU] shader linked=${linked}, activeUniforms=${activeUniforms}`)
+            for (let i = 0; i < (activeUniforms as number); i++) {
+                const info = gl.getActiveUniform(this.floorLightShader, i)
+                const loc = gl.getUniformLocation(this.floorLightShader, info.name)
+                console.log(`  uniform[${i}]: ${info.name} type=${info.type} size=${info.size} loc=${loc}`)
+            }
+        }
+
         // Rebind vertex attributes after useProgram switch
         const litPositionLoc = gl.getAttribLocation(this.floorLightShader, 'a_position')
         const litTexCoordLoc = gl.getAttribLocation(this.floorLightShader, 'a_texCoord')
