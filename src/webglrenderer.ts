@@ -615,7 +615,7 @@ export class WebGLRenderer extends Renderer {
         gl.uniform2f(this.litScaleLocation, TILE_WIDTH, TILE_HEIGHT)
 
         if (shouldLog) {
-            console.log(`[GPU] uniforms set: u_useGPULighting=${gl.getUniform(this.floorLightShader, uGPU)}, u_screenLightmap=${gl.getUniform(this.floorLightShader, uScreen)}, u_screenResolution=${JSON.stringify(gl.getUniform(this.floorLightShader, uRes))}`)
+            console.log(`[GPU] uniforms set: uGPU=${uGPU}, uScreen=${uScreen}, uRes=${uRes}`)
         }
 
         for (const { img, scrX, scrY } of drawList) {
