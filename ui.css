@@ -236,12 +236,17 @@ body {
 
 #handSwapButton {
   position: absolute;
-  left: 454px;
-  top: 75px;
-  width: 42px;
-  height: 20px;
+  left: 213px;
+  top: 15px;
+  width: 32px;
+  height: 21px;
   cursor: pointer;
+  background-image: url("art/intrface/lilredup.png");
   z-index: 10;
+}
+
+#handSwapButton:active {
+  background-image: url("art/intrface/lilreddn.png");
 }
 
 #inventoryButton {
