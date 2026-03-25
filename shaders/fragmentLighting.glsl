@@ -53,9 +53,9 @@ float getGPULightIntensity(vec2 texCoord) {
     // Values are already normalised 0..1 in the texture.
     int tx = u_tilePos.x;
     int ty = u_tilePos.y;
-    // Clamp neighbours to valid 0..199 range
-    int tx1 = min(tx + 1, 199);
-    int ty1 = min(ty + 1, 199);
+    // Clamp neighbours to valid 0..199 range (no integer min() in GLSL ES 1.00)
+    int tx1 = tx + 1 < 200 ? tx + 1 : 199;
+    int ty1 = ty + 1 < 200 ? ty + 1 : 199;
     float tl = texture2D(u_tileIntensity, (vec2(float(tx),  float(ty))  + 0.5) / 200.0).r;
     float tr = texture2D(u_tileIntensity, (vec2(float(tx1), float(ty))  + 0.5) / 200.0).r;
     float bl = texture2D(u_tileIntensity, (vec2(float(tx),  float(ty1)) + 0.5) / 200.0).r;
