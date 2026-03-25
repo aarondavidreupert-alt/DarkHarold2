@@ -148,8 +148,8 @@ body {
 
 #skilldexButton {
   position: absolute;
-  left: 522px;
-  top: 5px;
+  left: 523px;
+  top: 7px;
   width: 22px;
   height: 21px;
 }
@@ -233,22 +233,34 @@ body {
 #attackButtonContainer:active #attackButton {
   background-image: url("art/intrface/sattkbdn.png");
 }
+/*
+#skilldexButton {
+  position: absolute;
+  left: 522px;
+  top: 5px;
+  width: 22px;
+  height: 21px;
+}
+
+#skilldexButton:active {
+  background-image: url("art/intrface/bigreddn.png");
+*/
 
 #handSwapButton {
   position: absolute;
-  left: 213px;
-  top: 5px;
-  width: 32px;
+  left: 218px;
+  top: 7px;
+  width: 22px;
   height: 21px;
-  cursor: pointer;
+/* cursor: pointer;
   background-image: url("art/intrface/menudown.png");
   background-repeat: no-repeat;
   background-size: contain;
-  z-index: 10;
+  z-index: 10;*/
 }
 
 #handSwapButton:active {
-  background-image: url("art/intrface/menuup.png");
+  background-image: url("art/intrface/bigreddn.png");
   background-repeat: no-repeat;
   background-size: contain;
 }
