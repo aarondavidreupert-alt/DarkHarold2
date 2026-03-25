@@ -43,13 +43,10 @@ export class WebGLRenderer extends Renderer {
     private floorLightShader: WebGLProgram
 
     private tileIntensityTexture: WebGLTexture | null = null // 200x200 R32F texture for GPU path
-    private screenLightmapTexture: WebGLTexture | null = null // SCREEN_WIDTH×SCREEN_HEIGHT R32F for screen-space GPU mode
     private floorLightingMode: 'gpu' | 'cpu' = 'cpu'
     private uTilePosLocation: WebGLUniformLocation | null = null
     private uUseGPULighting: WebGLUniformLocation | null = null
     private uAmbient: WebGLUniformLocation | null = null
-    private uScreenLightmap: WebGLUniformLocation | null = null
-    private uScreenResolution: WebGLUniformLocation | null = null
 
     private textures: { [key: string]: WebGLTexture } = {} // WebGL texture cache
 
@@ -290,40 +287,22 @@ export class WebGLRenderer extends Renderer {
             }
             console.log('[Lighting] mode:', this.floorLightingMode)
 
-            // create 200x200 R32F tile intensity texture for GPU path
-            if (this.floorLightingMode === 'gpu') {
-                gl.activeTexture(gl.TEXTURE5)
-                this.tileIntensityTexture = gl.createTexture()
-                gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 200, 200, 0, gl.RED, gl.FLOAT, null)
-                const uTileIntensity = gl.getUniformLocation(this.floorLightShader, 'u_tileIntensity')
-                gl.useProgram(this.floorLightShader)
-                gl.uniform1i(uTileIntensity, 5)
-            }
-
-            // get GPU-path uniform locations (needed by both CPU and GPU paths)
-            this.uTilePosLocation = gl.getUniformLocation(this.floorLightShader, 'u_tilePos')
-            this.uUseGPULighting = gl.getUniformLocation(this.floorLightShader, 'u_useGPULighting')
-            this.uAmbient = gl.getUniformLocation(this.floorLightShader, 'u_ambient')
-
-            // screen-space lightmap texture (TEXTURE6) — one float per screen pixel
-            gl.activeTexture(gl.TEXTURE6)
-            this.screenLightmapTexture = gl.createTexture()
-            gl.bindTexture(gl.TEXTURE_2D, this.screenLightmapTexture)
+            // create 200x200 R32F tile intensity texture (always, for GPU path)
+            gl.activeTexture(gl.TEXTURE5)
+            this.tileIntensityTexture = gl.createTexture()
+            gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, SCREEN_WIDTH, SCREEN_HEIGHT, 0, gl.RED, gl.FLOAT, null)
-            this.uScreenLightmap = gl.getUniformLocation(this.floorLightShader, 'u_screenLightmap')
-            this.uScreenResolution = gl.getUniformLocation(this.floorLightShader, 'u_screenResolution')
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 200, 200, 0, gl.RED, gl.FLOAT, null)
             gl.useProgram(this.floorLightShader)
-            gl.uniform1i(this.uScreenLightmap, 6)
-            gl.uniform2f(this.uScreenResolution, SCREEN_WIDTH, SCREEN_HEIGHT)
+            gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_tileIntensity'), 5)
+
+            // get uniform locations
+            this.uTilePosLocation = gl.getUniformLocation(this.floorLightShader, 'u_tilePos')
+            this.uUseGPULighting = gl.getUniformLocation(this.floorLightShader, 'u_useGPULighting')
+            this.uAmbient = gl.getUniformLocation(this.floorLightShader, 'u_ambient')
 
             gl.activeTexture(gl.TEXTURE0)
             gl.useProgram(this.tileShader)
@@ -508,90 +487,16 @@ export class WebGLRenderer extends Renderer {
         const cameraX = globalState.cameraPosition.x
         const cameraY = globalState.cameraPosition.y
 
-        // Build a screen-space lightmap on the CPU: one normalised float per screen pixel.
-        const screenLightmap = new Float32Array(SCREEN_WIDTH * SCREEN_HEIGHT)
-        const drawList: Array<{ img: string; scrX: number; scrY: number }> = []
-
-        for (let i = tileMap.length - 1; i >= 0; i--) {
-            for (let j = 0; j < tileMap[0].length; j++) {
-                const tile = tileMap[j][i]
-                if (tile === 'grid000') {
-                    continue
-                }
-                const img = 'art/tiles/' + tile
-
-                const scr = tileToScreen(i, j)
-                if (
-                    scr.x + TILE_WIDTH < cameraX ||
-                    scr.y + TILE_HEIGHT < cameraY ||
-                    scr.x >= cameraX + SCREEN_WIDTH ||
-                    scr.y >= cameraY + SCREEN_HEIGHT
-                ) {
-                    continue
-                }
-
-                const hex = hexFromScreen(scr.x - 13, scr.y + 13)
-                const isTriangleLit = Lighting.initTile(hex)
-                let framebuffer: number[] | null = null
-                if (isTriangleLit) {
-                    framebuffer = Lighting.computeFrame()
-                }
-
-                // Write per-pixel intensity — keep max so overlapping tiles don't darken each other.
-                // screenLightmap row 0 = top of engine screen; Y-flip is handled in the shader.
-                const baseX = scr.x - cameraX
-                const baseY = scr.y - cameraY
-                for (let py = 0; py < TILE_HEIGHT; py++) {
-                    const screenY = baseY + py
-                    if (screenY < 0 || screenY >= SCREEN_HEIGHT) {
-                        continue
-                    }
-                    for (let px = 0; px < TILE_WIDTH; px++) {
-                        const screenX = baseX + px
-                        if (screenX < 0 || screenX >= SCREEN_WIDTH) {
-                            continue
-                        }
-                        const intensity = isTriangleLit
-                            ? (framebuffer[160 + TILE_WIDTH * py + px] as number)
-                            : Lighting.vertices[3]
-                        const idx = screenY * SCREEN_WIDTH + screenX
-                        const newVal = intensity / 65536.0
-                        if (newVal > screenLightmap[idx]) {
-                            screenLightmap[idx] = newVal
-                        }
-                    }
-                }
-
-                drawList.push({ img, scrX: scr.x, scrY: scr.y })
-            }
+        // Upload tile_intensity as 200×200 R32F texture (normalised 0..1)
+        const tileData = new Float32Array(200 * 200)
+        for (let i = 0; i < 40000; i++) {
+            tileData[i] = Math.min(Lightmap.tile_intensity[i], 65536) / 65536.0
         }
+        gl.activeTexture(gl.TEXTURE5)
+        gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 200, 200, gl.RED, gl.FLOAT, tileData)
 
-        // 3×3 box blur to smooth triangle-interpolation seams at tile boundaries
-        const smoothed = new Float32Array(SCREEN_WIDTH * SCREEN_HEIGHT)
-        for (let y = 0; y < SCREEN_HEIGHT; y++) {
-            for (let x = 0; x < SCREEN_WIDTH; x++) {
-                let sum = 0
-                let count = 0
-                for (let dy = -1; dy <= 1; dy++) {
-                    for (let dx = -1; dx <= 1; dx++) {
-                        const sy = y + dy
-                        const sx = x + dx
-                        if (sy >= 0 && sy < SCREEN_HEIGHT && sx >= 0 && sx < SCREEN_WIDTH) {
-                            sum += screenLightmap[sy * SCREEN_WIDTH + sx]
-                            count++
-                        }
-                    }
-                }
-                smoothed[y * SCREEN_WIDTH + x] = sum / count
-            }
-        }
-
-        // Single upload of the smoothed screen-space lightmap
-        gl.activeTexture(gl.TEXTURE6)
-        gl.bindTexture(gl.TEXTURE_2D, this.screenLightmapTexture)
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, gl.RED, gl.FLOAT, smoothed)
-
-        // Draw all tiles — shader samples u_screenLightmap via gl_FragCoord
+        // Use floor light shader with Mode 1 (tile-intensity GPU interpolation)
         gl.useProgram(this.floorLightShader)
 
         // Rebind vertex attributes after useProgram switch
@@ -604,29 +509,45 @@ export class WebGLRenderer extends Renderer {
         gl.enableVertexAttribArray(litPositionLoc)
         gl.vertexAttribPointer(litPositionLoc, 2, gl.FLOAT, false, 0, 0)
 
-        // Ensure texture unit uniforms are correct after useProgram.
-        // Use fallback getUniformLocation in case member locations are null.
-        const uGPU = this.uUseGPULighting ?? gl.getUniformLocation(this.floorLightShader, 'u_useGPULighting')
-        const uScreen = this.uScreenLightmap ?? gl.getUniformLocation(this.floorLightShader, 'u_screenLightmap')
-        const uRes = this.uScreenResolution ?? gl.getUniformLocation(this.floorLightShader, 'u_screenResolution')
-        const uImg = gl.getUniformLocation(this.floorLightShader, 'u_image')
-        gl.uniform1i(uGPU, 2)
-        gl.uniform1i(uScreen, 6)
-        gl.uniform1i(uImg, 0)
-        gl.uniform2f(uRes, SCREEN_WIDTH, SCREEN_HEIGHT)
+        // Set uniforms
+        gl.uniform1i(this.uUseGPULighting, 1)
         gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
         gl.uniform2f(this.litScaleLocation, TILE_WIDTH, TILE_HEIGHT)
+        gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_image'), 0)
+        gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_tileIntensity'), 5)
 
-        for (const { img, scrX, scrY } of drawList) {
-            gl.activeTexture(gl.TEXTURE0)
-            const texture = this.getTextureFromHack(img)
-            if (!texture) {
-                continue
+        // Draw tiles
+        let lastTexture: string | null = null
+        for (let i = tileMap.length - 1; i >= 0; i--) {
+            for (let j = 0; j < tileMap[0].length; j++) {
+                const tile = tileMap[j][i]
+                if (tile === 'grid000') continue
+                const img = 'art/tiles/' + tile
+                const scr = tileToScreen(i, j)
+                if (
+                    scr.x + TILE_WIDTH < cameraX ||
+                    scr.y + TILE_HEIGHT < cameraY ||
+                    scr.x >= cameraX + SCREEN_WIDTH ||
+                    scr.y >= cameraY + SCREEN_HEIGHT
+                ) {
+                    continue
+                }
+
+                if (img !== lastTexture) {
+                    gl.activeTexture(gl.TEXTURE0)
+                    const texture = this.getTextureFromHack(img)
+                    if (!texture) continue
+                    gl.bindTexture(gl.TEXTURE_2D, texture)
+                    lastTexture = img
+                }
+
+                // Tell shader which tile to look up in the intensity texture
+                const hex = hexFromScreen(scr.x - 13, scr.y + 13)
+                gl.uniform2i(this.uTilePosLocation, hex.x, hex.y)
+
+                gl.uniform2f(this.litOffsetLocation, scr.x - cameraX, scr.y - cameraY)
+                gl.drawArrays(gl.TRIANGLES, 0, 6)
             }
-            gl.bindTexture(gl.TEXTURE_2D, texture)
-
-            gl.uniform2f(this.litOffsetLocation, scrX - cameraX, scrY - cameraY)
-            gl.drawArrays(gl.TRIANGLES, 0, 6)
         }
 
         gl.activeTexture(gl.TEXTURE0)

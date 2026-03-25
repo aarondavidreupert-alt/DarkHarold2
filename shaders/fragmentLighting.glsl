@@ -49,25 +49,17 @@ float sampleTileIntensity(ivec2 tilePos) {
 }
 
 float getGPULightIntensity(vec2 texCoord) {
-    // 4 corners derived from CPU lighting geometry:
-    //   top-left  (texCoord 0,0): tilenum + 0    (sx,    sy)
-    //   top-right (texCoord 1,0): tilenum + 201  (sx+80, sy+12 → tileToScreen/back)
-    //   bot-left  (texCoord 0,1): tilenum + 200  (sx,    sy+36 → y+1 row)
-    //   bot-right (texCoord 1,1): tilenum + 401  (sx+112,sy+36)
-    int flatIdx = u_tilePos.y * 200 + u_tilePos.x;
-    int idxTL = flatIdx;
-    int idxTR = flatIdx + 201;
-    int idxBL = flatIdx + 200;
-    int idxBR = flatIdx + 401;
-    // convert flat index back to (tx, ty) — avoid % with integer subtraction
-    ivec2 pTL = ivec2(idxTL - (idxTL / 200) * 200, idxTL / 200);
-    ivec2 pTR = ivec2(idxTR - (idxTR / 200) * 200, idxTR / 200);
-    ivec2 pBL = ivec2(idxBL - (idxBL / 200) * 200, idxBL / 200);
-    ivec2 pBR = ivec2(idxBR - (idxBR / 200) * 200, idxBR / 200);
-    float tl = sampleTileIntensity(pTL);
-    float tr = sampleTileIntensity(pTR);
-    float bl = sampleTileIntensity(pBL);
-    float br = sampleTileIntensity(pBR);
+    // Sample tile_intensity at current tile and its neighbours for bilinear interpolation.
+    // Values are already normalised 0..1 in the texture.
+    int tx = u_tilePos.x;
+    int ty = u_tilePos.y;
+    // Clamp neighbours to valid 0..199 range
+    int tx1 = min(tx + 1, 199);
+    int ty1 = min(ty + 1, 199);
+    float tl = texture2D(u_tileIntensity, (vec2(float(tx),  float(ty))  + 0.5) / 200.0).r;
+    float tr = texture2D(u_tileIntensity, (vec2(float(tx1), float(ty))  + 0.5) / 200.0).r;
+    float bl = texture2D(u_tileIntensity, (vec2(float(tx),  float(ty1)) + 0.5) / 200.0).r;
+    float br = texture2D(u_tileIntensity, (vec2(float(tx1), float(ty1)) + 0.5) / 200.0).r;
     return mix(mix(tl, tr, texCoord.x), mix(bl, br, texCoord.x), texCoord.y);
 }
 
@@ -87,7 +79,10 @@ void main() {
         gl_FragColor = vec4(tileTexel.rgb * light, tileTexel.a);
         return;
     } else if (u_useGPULighting == 1) {
-        lightIntensity = getGPULightIntensity(v_texCoord);
+        // tile-intensity path: value already normalised 0..1
+        float light = max(getGPULightIntensity(v_texCoord), u_ambient);
+        gl_FragColor = vec4(tileTexel.rgb * light, tileTexel.a);
+        return;
     } else {
         // CPU path — per-tile 80x36 lightbuffer uploaded each tile
         lightIntensity = min(texture2D(u_lightBuffer, v_texCoord).r, 65536.0);
