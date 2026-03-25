@@ -91,7 +91,7 @@ export class WindowFrame {
             return this
         }
         this.showing = true
-        // $uiContainer.appendChild(this.elem)
+        $uiContainer.appendChild(this.elem)
         return this
     }
 
@@ -100,7 +100,7 @@ export class WindowFrame {
             return
         }
         this.showing = false
-        // this.elem.parentNode!.removeChild(this.elem)
+        this.elem.parentNode!.removeChild(this.elem)
     }
 
     toggle(): this {
@@ -340,11 +340,40 @@ function initSkilldex() {
         185,
         368
     )
-        .add(new Label(65, 13, 'Skilldex'))
-        .add(new Label(25, 85, 'Lockpick').onClick(useSkill(Skills.Lockpick)))
-        .add(new Label(25, 300, 'Repair').onClick(useSkill(Skills.Repair)))
+        .add(new Label(65, 13, 'SKILLDEX'))
 
-    lazyLoadImage(skilldexWindow.background, () => globalState.renderer.addWindow(skilldexWindow))
+    const skilldexSkills: [string, Skills][] = [
+        ['Sneak',     Skills.Sneak],
+        ['Lockpick',  Skills.Lockpick],
+        ['Steal',     Skills.Steal],
+        ['Traps',     Skills.Traps],
+        ['First Aid', Skills.FirstAid],
+        ['Doctor',    Skills.Doctor],
+        ['Science',   Skills.Science],
+        ['Repair',    Skills.Repair],
+    ]
+
+    let yPos = 55
+    for (const [name, skill] of skilldexSkills) {
+        skilldexWindow.add(
+            new Label(25, yPos, name)
+                .css({ width: '135px', height: '24px', cursor: 'pointer', lineHeight: '24px' })
+                .onClick(useSkill(skill))
+        )
+        yPos += 30
+    }
+
+    skilldexWindow.add(
+        new SmallButton(80, 335).onClick(() => { skilldexWindow.close() })
+    )
+
+    Object.assign(skilldexWindow.elem.style, {
+        backgroundImage: `url('${skilldexWindow.background}.png')`,
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: '100% 100%',
+        zIndex: '20',
+        cursor: 'default',
+    })
 }
 
 function initCharacterScreen() {

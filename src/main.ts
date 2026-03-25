@@ -46,25 +46,38 @@ import { fonUnpack } from './formats/fon.js'
 // Return the skill ID used by the Fallout 2 engine
 function getSkillID(skill: Skills): number {
     switch (skill) {
-        case Skills.Lockpick:
-            return 9
-        case Skills.Repair:
-            return 13
+        case Skills.SmallGuns:     return 0
+        case Skills.BigGuns:       return 1
+        case Skills.EnergyWeapons: return 2
+        case Skills.Unarmed:       return 3
+        case Skills.MeleeWeapons:  return 4
+        case Skills.Throwing:      return 5
+        case Skills.FirstAid:      return 6
+        case Skills.Doctor:        return 7
+        case Skills.Sneak:         return 8
+        case Skills.Lockpick:      return 9
+        case Skills.Steal:         return 10
+        case Skills.Traps:         return 11
+        case Skills.Science:       return 12
+        case Skills.Repair:        return 13
+        case Skills.Speech:        return 14
+        case Skills.Barter:        return 15
+        case Skills.Gambling:      return 16
+        case Skills.Outdoorsman:   return 17
     }
-
     console.log('unimplemented skill %d', skill)
     return -1
 }
 
-// Is the skill passive, or does it require a targeted object to use?
+// Is the skill passive (no target needed), or does it require a targeted object?
 function isPassiveSkill(skill: Skills): boolean {
     switch (skill) {
-        case Skills.Lockpick:
-            return false
-        case Skills.Repair:
-            return false
+        case Skills.Sneak:
+        case Skills.FirstAid:
+        case Skills.Doctor:
+            return true
         default:
-            throw `TODO: is passive skill ${skill}`
+            return false
     }
 }
 
