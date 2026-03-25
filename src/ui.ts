@@ -340,7 +340,7 @@ function initSkilldex() {
         185,
         368
     )
-        .add(new Label(65, 13, 'SKILLDEX'))
+        .add(new Label(65, 15, 'SKILLDEX'))
 
     const skilldexSkills: [string, Skills][] = [
         ['Sneak',     Skills.Sneak],
@@ -353,18 +353,18 @@ function initSkilldex() {
         ['Repair',    Skills.Repair],
     ]
 
-    let yPos = 55
+    let yPos = 49
     for (const [name, skill] of skilldexSkills) {
         skilldexWindow.add(
             new Label(25, yPos, name)
                 .css({ width: '135px', height: '24px', cursor: 'pointer', lineHeight: '24px' })
                 .onClick(useSkill(skill))
         )
-        yPos += 30
+        yPos += 36
     }
 
     skilldexWindow.add(
-        new SmallButton(80, 335).onClick(() => { skilldexWindow.close() })
+        new SmallButton(47, 339).onClick(() => { skilldexWindow.close() })
     )
 
     Object.assign(skilldexWindow.elem.style, {
