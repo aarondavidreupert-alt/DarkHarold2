@@ -14,8 +14,24 @@
 
 export enum Skills {
     None = 0,
+    SmallGuns,
+    BigGuns,
+    EnergyWeapons,
+    Unarmed,
+    MeleeWeapons,
+    Throwing,
+    FirstAid,
+    Doctor,
+    Sneak,
     Lockpick,
+    Steal,
+    Traps,
+    Science,
     Repair,
+    Speech,
+    Barter,
+    Gambling,
+    Outdoorsman,
 }
 
 // Skill Dependencies system
