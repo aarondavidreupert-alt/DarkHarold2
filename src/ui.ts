@@ -91,7 +91,7 @@ export class WindowFrame {
             return this
         }
         this.showing = true
-        // $uiContainer.appendChild(this.elem)
+        $uiContainer.appendChild(this.elem)
         return this
     }
 
@@ -100,7 +100,7 @@ export class WindowFrame {
             return
         }
         this.showing = false
-        // this.elem.parentNode!.removeChild(this.elem)
+        this.elem.parentNode!.removeChild(this.elem)
     }
 
     toggle(): this {
@@ -344,7 +344,13 @@ function initSkilldex() {
         .add(new Label(25, 85, 'Lockpick').onClick(useSkill(Skills.Lockpick)))
         .add(new Label(25, 300, 'Repair').onClick(useSkill(Skills.Repair)))
 
-    lazyLoadImage(skilldexWindow.background, () => globalState.renderer.addWindow(skilldexWindow))
+    Object.assign(skilldexWindow.elem.style, {
+        backgroundImage: `url('${skilldexWindow.background}.png')`,
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: '100% 100%',
+        zIndex: '20',
+        cursor: 'default',
+    })
 }
 
 function initCharacterScreen() {
