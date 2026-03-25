@@ -41,6 +41,7 @@ import { getFileJSON, getProtoMsg } from './util.js'
 import { WebGLRenderer } from './webglrenderer.js'
 import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
+import { Lightmap } from './lightmap.js'
 
 // Return the skill ID used by the Fallout 2 engine
 function getSkillID(skill: Skills): number {
@@ -241,10 +242,11 @@ window.onload = async function () {
 
     globalState.$fpsOverlay = document.getElementById('fpsOverlay')
 
-    const fragment = await fetch('shaders/fragment.glsl')
-    const fragmentLighting = await fetch('shaders/fragmentLighting.glsl')
-    const vertex = await fetch('shaders/vertex.glsl')
-    const fragmentFont = await fetch('shaders/fragmentFont.glsl')
+    const _v = '?v=' + Date.now()
+    const fragment = await fetch('shaders/fragment.glsl' + _v)
+    const fragmentLighting = await fetch('shaders/fragmentLighting.glsl' + _v)
+    const vertex = await fetch('shaders/vertex.glsl' + _v)
+    const fragmentFont = await fetch('shaders/fragmentFont.glsl' + _v)
 
     // initialize renderer
     globalState.renderer = new WebGLRenderer(
@@ -293,6 +295,11 @@ window.onload = async function () {
                 // continue initialization
                 initGame()
                 globalState.isInitializing = false
+
+                // debug exposure for console inspection
+                ;(window as any).debugLightmap = Lightmap
+                ;(window as any).debugRenderer = globalState.renderer
+                ;(window as any).debugGlobalState = globalState
             })
         })
     })
@@ -302,6 +309,12 @@ window.onload = async function () {
     ;(window as any).toggleFloorLighting = () => {
         Config.engine.doFloorLighting = !Config.engine.doFloorLighting
         console.log('Floor lighting:', Config.engine.doFloorLighting)
+    }
+
+    ;(window as any).setLightingMode = (mode: 'gpu' | 'cpu') => {
+        Config.engine.floorLightingMode = mode
+        ;(globalState.renderer as WebGLRenderer).setLightingMode(mode)
+        console.log('[Lighting] switched to:', mode)
     }
 }
 

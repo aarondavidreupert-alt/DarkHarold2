@@ -37,6 +37,9 @@ export module Lightmap {
     export var tile_intensity = new Array(40000)
     light_reset()
 
+    // Static (non-critter) light bake — populated by bakeStaticLight()
+    export var staticTileIntensity = new Array(40000).fill(0)
+
     var light_offsets = new Array(532)
     zeroArray(light_offsets)
 
@@ -554,5 +557,29 @@ export module Lightmap {
 
     export function rebuildLight(): void {
         obj_rebuild_all_light()
+        bakeStaticLight()
+    }
+
+    // Bake static (non-critter) lighting into staticTileIntensity.
+    // Call after map load or elevation change.
+    export function bakeStaticLight(): void {
+        light_reset()
+        globalState.gMap.getObjects().forEach(obj => {
+            if (obj.type !== 'critter') {
+                obj_adjust_light(obj, false)
+            }
+        })
+        for (let i = 0; i < 40000; i++) staticTileIntensity[i] = tile_intensity[i]
+    }
+
+    // Rebuild dynamic (critter) lighting on top of the static bake.
+    // Call once per render frame before drawing the lit floor.
+    export function rebuildDynamicLight(): void {
+        for (let i = 0; i < 40000; i++) tile_intensity[i] = staticTileIntensity[i]
+        globalState.gMap.getObjects().forEach(obj => {
+            if (obj.type === 'critter') {
+                obj_adjust_light(obj, false)
+            }
+        })
     }
 }

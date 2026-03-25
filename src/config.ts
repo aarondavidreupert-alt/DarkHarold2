@@ -36,6 +36,7 @@ export const Config = {
         doEncounters: true, // allow random encounters?
         doInfiniteUse: false, // allow infinite-range object usage?
         doFloorLighting: true, // use FO2-realistic floor lighting?
+        floorLightingMode: 'auto' as 'auto' | 'gpu' | 'cpu', // lighting backend: 'auto' detects GPU capability
         useLightColorLUT: true, // Use intensityColorTable/colorLUT/colorRGB for accurate lighting colors?
         doAudio: false, // enable audio?
         doLogLazyLoads: false, // Log lazy-loading of images? (Noisy)
