@@ -49,18 +49,13 @@ float sampleTileIntensity(ivec2 tilePos) {
 }
 
 float getGPULightIntensity(vec2 texCoord) {
-    // Sample tile_intensity at current tile and its neighbours for bilinear interpolation.
-    // Values are already normalised 0..1 in the texture.
-    int tx = u_tilePos.x;
-    int ty = u_tilePos.y;
-    // Clamp neighbours to valid 0..199 range (no integer min() in GLSL ES 1.00)
-    int tx1 = tx + 1 < 200 ? tx + 1 : 199;
-    int ty1 = ty + 1 < 200 ? ty + 1 : 199;
-    float tl = texture2D(u_tileIntensity, (vec2(float(tx),  float(ty))  + 0.5) / 200.0).r;
-    float tr = texture2D(u_tileIntensity, (vec2(float(tx1), float(ty))  + 0.5) / 200.0).r;
-    float bl = texture2D(u_tileIntensity, (vec2(float(tx),  float(ty1)) + 0.5) / 200.0).r;
-    float br = texture2D(u_tileIntensity, (vec2(float(tx1), float(ty1)) + 0.5) / 200.0).r;
-    return mix(mix(tl, tr, texCoord.x), mix(bl, br, texCoord.x), texCoord.y);
+    // Transform fragment position in the 80x36 tile quad into tile grid space using
+    // the inverse Jacobian of tileToScreen (dx=48,dy=-12 per +tx; dx=32,dy=24 per +ty).
+    // The reference hex is hexFromScreen(scrX-13, scrY+13), so px/py offsets include
+    // that 13-pixel adjustment. GPU LINEAR filter interpolates between tile texels.
+    float sampleX = float(u_tilePos.x) + (240.0*texCoord.x - 144.0*texCoord.y + 91.0) / 192.0;
+    float sampleY = float(u_tilePos.y) + ( 80.0*texCoord.x + 144.0*texCoord.y - 39.0) / 128.0;
+    return texture2D(u_tileIntensity, (vec2(sampleX, sampleY) + 0.5) / 200.0).r;
 }
 
 void main() {
