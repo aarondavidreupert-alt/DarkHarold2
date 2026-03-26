@@ -1362,15 +1362,17 @@ export class Critter extends Obj {
     // (e.g., toggle activeHand or reassign a hand slot). If either animation FRM is absent from
     // the asset map, that phase is silently skipped so the swap still completes.
     playWeaponSwapAnim(swapFn: () => void, callback?: () => void): void {
+        const settle = () => {
+            this.clearAnim()
+            if (callback) callback()
+        }
+
         const playDraw = () => {
             swapFn()
             if (this.hasAnimation('weapon-draw')) {
-                this.staticAnimation('weapon-draw', () => {
-                    this.clearAnim()
-                    if (callback) callback()
-                })
+                this.staticAnimation('weapon-draw', settle)
             } else {
-                if (callback) callback()
+                settle()
             }
         }
 
@@ -1515,6 +1517,8 @@ const animInfo: { [anim: string]: { type: string } } = {
     hitFront: { type: 'static' },
     death: { type: 'static' },
     'death-explode': { type: 'static' },
+    'weapon-draw': { type: 'static' },
+    'weapon-holster': { type: 'static' },
     run: { type: 'move' },
 }
 
