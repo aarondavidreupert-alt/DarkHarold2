@@ -18,7 +18,7 @@ import { SkillSet, StatSet } from './char.js'
 import { Events } from './events.js'
 import { Point } from './geometry.js'
 import globalState from './globalState.js'
-import { Critter, createObjectWithPID, WeaponObj } from './object.js'
+import { Critter, createObjectWithPID, Obj, WeaponObj } from './object.js'
 import { centerCamera } from './renderer.js'
 import { fromTileNum } from './tile.js'
 import { uiWorldMap } from './ui.js'
@@ -39,9 +39,17 @@ export class Player extends Critter {
     position = { x: 94, y: 109 }
     orientation = 3
     gender = 'male'
-    leftHand = <WeaponObj>createObjectWithPID(9)
+    leftHand = <WeaponObj>createObjectWithPID(9) // 10mm SMG
+    armor: Obj | null = null
+    activeHand: 'leftHand' | 'rightHand' = 'leftHand'
 
-    inventory = [createObjectWithPID(41).setAmount(1337)]
+    inventory = [
+        createObjectWithPID(41).setAmount(1337), // Money
+        createObjectWithPID(4),                  // Combat Knife (weapon)
+        createObjectWithPID(15),                 // Hunting Rifle (weapon)
+        createObjectWithPID(2),                  // Leather Jacket (armor)
+        createObjectWithPID(3),                  // Leather Armor (armor)
+    ]
 
     lightRadius = 4
     lightIntensity = 65536

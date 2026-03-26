@@ -19,7 +19,7 @@ import { Area, Elevator, loadAreas, lookupMapNameFromLookup } from './data.js'
 import globalState from './globalState.js'
 import { Critter, cloneItem, Obj } from './object.js'
 import { Player } from './player.js'
-import { lookupInterfaceArt } from './pro.js'
+import { lookupArt, lookupInterfaceArt } from './pro.js'
 import { objectBoundingBox } from './renderer.js'
 import { formatSaveDate, load, save, SaveGame, saveList } from './saveload.js'
 import { Scripting } from './scripting.js'
@@ -91,7 +91,7 @@ export class WindowFrame {
             return this
         }
         this.showing = true
-        // $uiContainer.appendChild(this.elem)
+        $uiContainer.appendChild(this.elem)
         return this
     }
 
@@ -100,7 +100,7 @@ export class WindowFrame {
             return
         }
         this.showing = false
-        // this.elem.parentNode!.removeChild(this.elem)
+        this.elem.parentNode!.removeChild(this.elem)
     }
 
     toggle(): this {
@@ -340,11 +340,40 @@ function initSkilldex() {
         185,
         368
     )
-        .add(new Label(65, 13, 'Skilldex'))
-        .add(new Label(25, 85, 'Lockpick').onClick(useSkill(Skills.Lockpick)))
-        .add(new Label(25, 300, 'Repair').onClick(useSkill(Skills.Repair)))
+        .add(new Label(65, 15, 'SKILLDEX'))
 
-    lazyLoadImage(skilldexWindow.background, () => globalState.renderer.addWindow(skilldexWindow))
+    const skilldexSkills: [string, Skills][] = [
+        ['Sneak',     Skills.Sneak],
+        ['Lockpick',  Skills.Lockpick],
+        ['Steal',     Skills.Steal],
+        ['Traps',     Skills.Traps],
+        ['First Aid', Skills.FirstAid],
+        ['Doctor',    Skills.Doctor],
+        ['Science',   Skills.Science],
+        ['Repair',    Skills.Repair],
+    ]
+
+    let yPos = 49
+    for (const [name, skill] of skilldexSkills) {
+        skilldexWindow.add(
+            new Label(25, yPos, name)
+                .css({ width: '135px', height: '24px', cursor: 'pointer', lineHeight: '24px' })
+                .onClick(useSkill(skill))
+        )
+        yPos += 36
+    }
+
+    skilldexWindow.add(
+        new SmallButton(47, 339).onClick(() => { skilldexWindow.close() })
+    )
+
+    Object.assign(skilldexWindow.elem.style, {
+        backgroundImage: `url('${skilldexWindow.background}.png')`,
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: '100% 100%',
+        zIndex: '20',
+        cursor: 'default',
+    })
 }
 
 function initCharacterScreen() {
@@ -663,6 +692,9 @@ export function initUI() {
     makeDropTarget($id('inventoryBoxItem2'), (data: string) => {
         uiMoveSlot(data, 'rightHand')
     })
+    makeDropTarget($id('inventoryBoxArmor'), (data: string) => {
+        uiMoveSlot(data, 'armor')
+    })
 
     for (let i = 0; i < 2; i++) {
         for (const $chance of Array.from(document.querySelectorAll('#calledShotBox .calledShotChance'))) {
@@ -702,6 +734,12 @@ export function initUI() {
 
     $id('lootBoxDoneButton').onclick = () => {
         uiEndLoot()
+    }
+
+    $id('handSwapButton').onclick = () => {
+        const p = globalState.player as any
+        p.activeHand = (p.activeHand === 'leftHand') ? 'rightHand' : 'leftHand'
+        uiDrawWeapon()
     }
 
     $id('attackButtonContainer').onclick = () => {
@@ -863,14 +901,20 @@ function uiDrawWeapon() {
     // draw the active weapon in the interface bar
     const weapon = globalState.player.equippedWeapon
     clearEl($id('attackButton'))
+    const $wepImg = $id('attackButtonWeapon') as HTMLImageElement
+    const $typeImg = $img('attackButtonType')
     if (!weapon || !weapon.weapon) {
+        $wepImg.style.display = 'none'
+        $typeImg.style.display = 'none'
+        hidev($id('attackButtonCalled'))
         return
     }
+    $wepImg.style.display = ''
+    $typeImg.style.display = ''
 
     if (weapon.weapon.type !== 'melee') {
-        const $attackButtonWeapon = $id('attackButtonWeapon') as HTMLImageElement
-        $attackButtonWeapon.onload = null
-        $attackButtonWeapon.onload = function (this: HTMLImageElement) {
+        $wepImg.onload = null
+        $wepImg.onload = function (this: HTMLImageElement) {
             if (!this.complete) {
                 return
             }
@@ -879,10 +923,11 @@ function uiDrawWeapon() {
                 top: '5px',
                 left: $id('attackButton').offsetWidth / 2 - this.width / 2 + 'px',
                 maxHeight: $id('attackButton').offsetHeight - 10 + 'px',
+                display: '',
             })
             this.setAttribute('draggable', 'false')
         }
-        $attackButtonWeapon.src = weapon.invArt + '.png'
+        $wepImg.src = weapon.invArt + '.png'
     }
 
     // draw weapon AP
@@ -944,7 +989,43 @@ function uiMoveSlot(data: string, target: string) {
         playerUnsafe[target] = obj // move the object over
     }
 
+    // Update armor appearance if armor slot changed
+    if (target === 'armor' || data === 'armor') {
+        applyArmorArt(target === 'armor' ? obj : null)
+    }
+
+    uiDrawWeapon()
     uiInventoryScreen()
+}
+
+// Apply or remove armor appearance — updates player.art to the armor's critter base art
+function applyArmorArt(armor: Obj | null) {
+    const playerAny = globalState.player as any
+    if (armor?.pro?.extra) {
+        const fid: number =
+            globalState.player.gender === 'female'
+                ? armor.pro.extra.femaleFID
+                : armor.pro.extra.maleFID
+        if (fid && fid !== 0) {
+            try {
+                const armorArt = lookupArt(fid)
+                if (armorArt) {
+                    if (!playerAny._baseArt) {
+                        playerAny._baseArt = globalState.player.art
+                    }
+                    globalState.player.art = armorArt
+                    return
+                }
+            } catch (e) {
+                console.warn('applyArmorArt: lookupArt failed for fid', fid, e)
+            }
+        }
+    }
+    // No armor or no valid FID — restore original art
+    if (playerAny._baseArt) {
+        globalState.player.art = playerAny._baseArt
+        playerAny._baseArt = null
+    }
 }
 
 function makeDropTarget($el: HTMLElement, dropCallback: (data: string, e?: DragEvent) => void) {
@@ -971,40 +1052,261 @@ function makeDraggable($el: HTMLElement, data: string, endCallback?: () => void)
     }
 }
 
-function uiInventoryScreen() {
+export function uiInventoryScreen() {
     globalState.uiMode = UIMode.inventory
 
     showv($id('inventoryBox'))
-    drawInventory($id('inventoryBoxList'), globalState.player.inventory, (obj: Obj, e: MouseEvent) => {
-        makeItemContextMenu(e, obj, 'inventory')
-    })
 
-    function drawInventory($el: HTMLElement, objects: Obj[], clickCallback?: (item: Obj, e: MouseEvent) => void) {
+    function showItemInfo(obj: Obj) {
+        const $info = $id('inventoryBoxInfo')
+        clearEl($info)
+        const nameEl = document.createElement('div')
+        nameEl.className = 'invItemName'
+        nameEl.textContent = obj.name || ''
+        $info.appendChild(nameEl)
+        const desc = obj.getDescription ? obj.getDescription() : null
+        if (desc) {
+            const descEl = document.createElement('div')
+            descEl.className = 'invItemDesc'
+            descEl.textContent = desc
+            $info.appendChild(descEl)
+        }
+    }
+
+    function showStats() {
+        const $info = $id('inventoryBoxInfo')
+        clearEl($info)
+        const p = globalState.player
+        const playerAny = p as any
+        const armor = playerAny.armor ?? null
+        const armorExtra = armor?.pro?.extra ?? null
+
+        const addHR = () => {
+            const hr = document.createElement('hr')
+            hr.className = 'invStatHr'
+            $info.appendChild(hr)
+        }
+
+        const addRow = (left: string, right: string) => {
+            const row = document.createElement('div')
+            row.className = 'invStatRow'
+            const lbl = document.createElement('span')
+            lbl.className = 'invStatLabel'
+            lbl.textContent = left
+            const val = document.createElement('span')
+            val.className = 'invStatValue'
+            val.textContent = right
+            row.appendChild(lbl)
+            row.appendChild(val)
+            $info.appendChild(row)
+        }
+
+        const addWeaponSection = (weapon: any, label: string) => {
+            addHR()
+            if (!weapon) {
+                addRow(label, 'None')
+                return
+            }
+            const name = weapon.name ?? label
+            addRow(name, '')
+            const pro = weapon.pro?.extra
+            if (pro) {
+                const minD = pro.minDmg ?? '?'
+                const maxD = pro.maxDmg ?? '?'
+                const rng = pro.maxRange1 ?? '?'
+                addRow(`  Dmg: ${minD}-${maxD}`, `Rng: ${rng}`)
+            }
+        }
+
+        // Player name
+        const nameEl = document.createElement('div')
+        nameEl.className = 'invStatName'
+        nameEl.textContent = (p as any).name ?? 'Character'
+        $info.appendChild(nameEl)
+
+        addHR()
+
+        // SPECIAL (left) + derived stats (right) in a two-column layout
+        const twoCol = document.createElement('div')
+        twoCol.className = 'invStatTwoCol'
+
+        const leftCol = document.createElement('div')
+        leftCol.className = 'invStatColLeft'
+
+        const rightCol = document.createElement('div')
+        rightCol.className = 'invStatColRight'
+
+        const specialStats: [string, number][] = [
+            ['ST', p.getStat('STR')],
+            ['PE', p.getStat('PER')],
+            ['EN', p.getStat('END')],
+            ['CH', p.getStat('CHA')],
+            ['IN', p.getStat('INT')],
+            ['AG', p.getStat('AGI')],
+            ['LK', p.getStat('LUK')],
+        ]
+
+        for (const [lbl, val] of specialStats) {
+            const row = document.createElement('div')
+            row.className = 'invStatRow'
+            const l = document.createElement('span')
+            l.className = 'invStatLabel'
+            l.textContent = lbl
+            const v = document.createElement('span')
+            v.className = 'invStatValue'
+            v.textContent = String(val)
+            row.appendChild(l)
+            row.appendChild(v)
+            leftCol.appendChild(row)
+        }
+
+        const armorAC: number = armorExtra?.AC ?? 0
+        const baseAC: number = p.getStat('AGI')
+        const dr = (key: string) => armorExtra?.stats?.[key] ?? 0
+
+        const derivedStats: [string, string][] = [
+            ['HP', `${p.getStat('HP')}/${p.getStat('Max HP')}`],
+            ['AC', String(baseAC + armorAC)],
+            ['Normal', `${dr('DR Normal')}%`],
+            ['Laser', `${dr('DR Laser')}%`],
+            ['Fire', `${dr('DR Fire')}%`],
+            ['Plasma', `${dr('DR Plasma')}%`],
+            ['Explode', `${dr('DR Electrical')}%`],
+        ]
+
+        for (const [lbl, val] of derivedStats) {
+            const row = document.createElement('div')
+            row.className = 'invStatRow'
+            const l = document.createElement('span')
+            l.className = 'invStatLabel'
+            l.textContent = lbl
+            const v = document.createElement('span')
+            v.className = 'invStatValue'
+            v.textContent = val
+            row.appendChild(l)
+            row.appendChild(v)
+            rightCol.appendChild(row)
+        }
+
+        twoCol.appendChild(leftCol)
+        twoCol.appendChild(rightCol)
+        $info.appendChild(twoCol)
+
+        // Weapon sections
+        addWeaponSection(playerAny.leftHand ?? null, 'Left Hand')
+        addWeaponSection(playerAny.rightHand ?? null, 'Right Hand')
+
+        // Total weight
+        addHR()
+        let current = 0
+        for (const item of p.inventory) {
+            current += ((item.pro?.extra?.weight ?? 0) as number) * item.amount
+        }
+        if (playerAny.leftHand?.pro?.extra?.weight) current += playerAny.leftHand.pro.extra.weight
+        if (playerAny.rightHand?.pro?.extra?.weight) current += playerAny.rightHand.pro.extra.weight
+        if (armorExtra?.weight) current += armorExtra.weight
+        const max = 25 + p.getStat('STR') * 25
+        addRow('Total Wt:', `${current}/${max}`)
+    }
+
+    let _portraitInterval: ReturnType<typeof setInterval> | null = null
+
+    function drawCharacterPortrait() {
+        const $char = $id('inventoryBoxChar')
+        clearEl($char)
+
+        if (_portraitInterval !== null) {
+            clearInterval(_portraitInterval)
+            _portraitInterval = null
+        }
+
+        const art = globalState.player.getAnimation('idle')
+        let currentOrientation = 0
+
+        const canvas = document.createElement('canvas')
+        $char.appendChild(canvas)
+
+        const renderOrientation = (img: HTMLImageElement, orientation: number) => {
+            const info = globalState.imageInfo?.[art]
+            if (!info) return
+            const numOrientations = Object.keys(info.frameOffsets).length
+            if (numOrientations === 0) return
+            const ori = orientation % numOrientations
+            const frameInfo = info.frameOffsets[ori]?.[0]
+            if (!frameInfo) return
+            canvas.width = frameInfo.w
+            canvas.height = frameInfo.h
+            const ctx = canvas.getContext('2d')!
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
+            ctx.drawImage(img, frameInfo.sx, 0, frameInfo.w, frameInfo.h, 0, 0, frameInfo.w, frameInfo.h)
+        }
+
+        lazyLoadImage(art, (img: HTMLImageElement) => {
+            renderOrientation(img, currentOrientation)
+            _portraitInterval = setInterval(() => {
+                const $box = document.getElementById('inventoryBox')
+                if (!$box || $box.style.visibility === 'hidden') {
+                    clearInterval(_portraitInterval!)
+                    _portraitInterval = null
+                    return
+                }
+                currentOrientation = (currentOrientation + 1) % 6
+                renderOrientation(img, currentOrientation)
+            }, 250)
+        })
+    }
+
+    function updateWeightDisplay() {
+        const $weight = document.getElementById('inventoryBoxWeight')
+        if (!$weight) return
+        let current = 0
+        for (const item of globalState.player.inventory) {
+            current += ((item.pro?.extra?.weight ?? 0) as number) * item.amount
+        }
+        const playerAny = globalState.player as any
+        if (playerAny.leftHand?.pro?.extra?.weight) current += playerAny.leftHand.pro.extra.weight
+        if (playerAny.rightHand?.pro?.extra?.weight) current += playerAny.rightHand.pro.extra.weight
+        if (playerAny.armor?.pro?.extra?.weight) current += playerAny.armor.pro.extra.weight
+        const max = 25 + globalState.player.getStat('STR') * 25
+        $weight.textContent = `Wt: ${current}/${max}`
+    }
+
+    function drawInventory($el: HTMLElement, objects: Obj[]) {
         clearEl($el)
         clearEl($id('inventoryBoxItem1'))
         clearEl($id('inventoryBoxItem2'))
+        clearEl($id('inventoryBoxArmor'))
 
         for (let i = 0; i < objects.length; i++) {
             const invObj = objects[i]
-            // 90x60 // 70x40
             const img = makeEl('img', {
                 src: invObj.invArt + '.png',
-                attrs: { width: 72, height: 60, title: invObj.name },
-                click: clickCallback
-                    ? (e: MouseEvent) => {
-                          clickCallback(invObj, e)
-                      }
-                    : undefined,
+                attrs: { title: invObj.name },
+                style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
+                click: () => {
+                    showItemInfo(invObj)
+                },
             })
+            img.oncontextmenu = (e: MouseEvent) => {
+                e.preventDefault()
+                makeItemContextMenu(e, invObj, 'inventory')
+                return false
+            }
             $el.appendChild(img)
-            $el.insertAdjacentHTML('beforeend', 'x' + invObj.amount)
+            const amtSpan = document.createElement('span')
+            amtSpan.className = 'invItemAmount'
+            amtSpan.textContent = 'x' + invObj.amount
+            $el.appendChild(amtSpan)
             makeDraggable(img, 'i' + i, () => {
                 uiInventoryScreen()
             })
         }
     }
 
-    function itemAction(obj: Obj, slot: keyof Player, action: 'cancel' | 'use' | 'drop') {
+    type ItemAction = 'cancel' | 'use' | 'drop' | 'equip_left' | 'equip_right' | 'equip_armor' | 'unequip'
+
+    function itemAction(obj: Obj, slot: string, action: ItemAction) {
+        const playerAny = globalState.player as any
         switch (action) {
             case 'cancel':
                 break
@@ -1013,23 +1315,68 @@ function uiInventoryScreen() {
                 obj.use(globalState.player)
                 break
             case 'drop':
-                //console.log("todo: drop " + obj.art); break
                 console.log('dropping: ' + obj.art + ' with pid ' + obj.pid)
                 if (slot !== 'inventory') {
-                    // add into inventory to drop
                     console.log('moving into inventory first')
                     globalState.player.inventory.push(obj)
-                    // FIXME: this doesn't type check
-                    // player[slot] = null
+                    playerAny[slot] = null
                 }
-
                 obj.drop(globalState.player)
+                uiDrawWeapon()
+                uiInventoryScreen()
+                break
+            case 'equip_left':
+            case 'equip_right': {
+                const targetSlot = action === 'equip_left' ? 'leftHand' : 'rightHand'
+                const idx = globalState.player.inventory.indexOf(obj)
+                if (idx !== -1) {
+                    globalState.player.inventory.splice(idx, 1)
+                    if (playerAny[targetSlot]) {
+                        globalState.player.inventory.push(playerAny[targetSlot])
+                    }
+                    playerAny[targetSlot] = obj
+                }
+                uiDrawWeapon()
+                uiInventoryScreen()
+                break
+            }
+            case 'equip_armor': {
+                const idx = globalState.player.inventory.indexOf(obj)
+                if (idx !== -1) {
+                    globalState.player.inventory.splice(idx, 1)
+                    if (playerAny.armor) {
+                        globalState.player.inventory.push(playerAny.armor)
+                    }
+                    playerAny.armor = obj
+                }
+                applyArmorArt(obj)
+                uiInventoryScreen()
+                break
+            }
+            case 'unequip':
+                globalState.player.inventory.push(obj)
+                playerAny[slot] = null
+                if (slot === 'armor') {
+                    applyArmorArt(null)
+                }
+                uiDrawWeapon()
                 uiInventoryScreen()
                 break
         }
     }
 
-    function makeContextButton(obj: Obj, slot: keyof Player, action: 'cancel' | 'use' | 'drop') {
+    function makeContextButton(obj: Obj, slot: string, action: ItemAction, label?: string) {
+        if (label) {
+            // text-based button for equip actions (no dedicated art asset)
+            const btn = document.createElement('div')
+            btn.className = 'itemContextMenuButton itemContextMenuText'
+            btn.textContent = label
+            btn.onclick = () => {
+                itemAction(obj, slot, action)
+                hidev($id('itemContextMenu'))
+            }
+            return btn
+        }
         return makeEl('img', {
             id: 'context_' + action,
             classes: ['itemContextMenuButton'],
@@ -1040,7 +1387,7 @@ function uiInventoryScreen() {
         })
     }
 
-    function makeItemContextMenu(e: MouseEvent, obj: Obj, slot: keyof Player) {
+    function makeItemContextMenu(e: MouseEvent, obj: Obj, slot: string) {
         const $menu = $id('itemContextMenu')
         clearEl($menu)
         Object.assign($menu.style, {
@@ -1048,27 +1395,43 @@ function uiInventoryScreen() {
             left: `${e.clientX}px`,
             top: `${e.clientY}px`,
         })
-        const cancelBtn = makeContextButton(obj, slot, 'cancel')
-        const useBtn = makeContextButton(obj, slot, 'use')
-        const dropBtn = makeContextButton(obj, slot, 'drop')
 
-        $menu.appendChild(cancelBtn)
+        $menu.appendChild(makeContextButton(obj, slot, 'cancel'))
         if (obj.canUse) {
-            $menu.appendChild(useBtn)
+            $menu.appendChild(makeContextButton(obj, slot, 'use'))
         }
-        $menu.appendChild(dropBtn)
+        $menu.appendChild(makeContextButton(obj, slot, 'drop'))
+
+        // Equip options for inventory items
+        if (slot === 'inventory') {
+            if (obj.subtype === 'weapon' || obj.subtype === 'misc') {
+                $menu.appendChild(makeContextButton(obj, slot, 'equip_left', 'Eq. Left'))
+                $menu.appendChild(makeContextButton(obj, slot, 'equip_right', 'Eq. Right'))
+            } else if (obj.subtype === 'armor') {
+                $menu.appendChild(makeContextButton(obj, slot, 'equip_armor', 'Equip'))
+            }
+        } else {
+            // Unequip from hand/armor slot
+            $menu.appendChild(makeContextButton(obj, slot, 'unequip', 'Unequip'))
+        }
     }
 
-    function drawSlot(slot: keyof Player, slotID: string) {
-        const art = globalState.player[slot].invArt
-        // 90x60 // 70x40
+    function drawSlot(slot: string, slotID: string) {
+        const item = (globalState.player as any)[slot] as Obj | null
+        if (!item || !item.invArt) return
         const img = makeEl('img', {
-            src: art + '.png',
-            attrs: { width: 72, height: 60, title: globalState.player[slot].name },
-            click: (e: MouseEvent) => {
-                makeItemContextMenu(e, globalState.player[slot], slot)
+            src: item.invArt + '.png',
+            attrs: { title: item.name },
+            style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
+            click: () => {
+                showItemInfo(item)
             },
         })
+        img.oncontextmenu = (e: MouseEvent) => {
+            e.preventDefault()
+            makeItemContextMenu(e, item, slot)
+            return false
+        }
         makeDraggable(img, slot)
 
         const $slotEl = $id(slotID)
@@ -1076,11 +1439,20 @@ function uiInventoryScreen() {
         $slotEl.appendChild(img)
     }
 
+    drawInventory($id('inventoryBoxList'), globalState.player.inventory)
+    showStats()
+    drawCharacterPortrait()
+    updateWeightDisplay()
+
     if (globalState.player.leftHand) {
         drawSlot('leftHand', 'inventoryBoxItem1')
     }
     if (globalState.player.rightHand) {
         drawSlot('rightHand', 'inventoryBoxItem2')
+    }
+    const playerAny = globalState.player as any
+    if (playerAny.armor) {
+        drawSlot('armor', 'inventoryBoxArmor')
     }
 }
 
@@ -1355,10 +1727,10 @@ export function uiBarterMode(merchant: Critter) {
 
         for (let i = 0; i < objects.length; i++) {
             const inventoryImage = objects[i].invArt
-            // 90x60 // 70x40
             const img = makeEl('img', {
                 src: inventoryImage + '.png',
-                attrs: { width: 72, height: 60, title: objects[i].name },
+                attrs: { title: objects[i].name },
+                style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
             })
             $el.appendChild(img)
             $el.insertAdjacentHTML('beforeend', 'x' + objects[i].amount)
@@ -1500,10 +1872,10 @@ export function uiLoot(object: Obj) {
 
         for (let i = 0; i < objects.length; i++) {
             const inventoryImage = objects[i].invArt
-            // 90x60 // 70x40
             const img = makeEl('img', {
                 src: inventoryImage + '.png',
-                attrs: { width: 72, height: 60, title: objects[i].name },
+                attrs: { title: objects[i].name },
+                style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
             })
             $el.appendChild(img)
             $el.insertAdjacentHTML('beforeend', 'x' + objects[i].amount)

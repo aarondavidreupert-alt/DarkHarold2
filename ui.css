@@ -148,8 +148,8 @@ body {
 
 #skilldexButton {
   position: absolute;
-  left: 522px;
-  top: 5px;
+  left: 523px;
+  top: 7px;
   width: 22px;
   height: 21px;
 }
@@ -232,6 +232,37 @@ body {
 
 #attackButtonContainer:active #attackButton {
   background-image: url("art/intrface/sattkbdn.png");
+}
+/*
+#skilldexButton {
+  position: absolute;
+  left: 522px;
+  top: 5px;
+  width: 22px;
+  height: 21px;
+}
+
+#skilldexButton:active {
+  background-image: url("art/intrface/bigreddn.png");
+*/
+
+#handSwapButton {
+  position: absolute;
+  left: 218px;
+  top: 7px;
+  width: 22px;
+  height: 21px;
+/* cursor: pointer;
+  background-image: url("art/intrface/menudown.png");
+  background-repeat: no-repeat;
+  background-size: contain;
+  z-index: 10;*/
+}
+
+#handSwapButton:active {
+  background-image: url("art/intrface/bigreddn.png");
+  background-repeat: no-repeat;
+  background-size: contain;
 }
 
 #inventoryButton {
@@ -319,12 +350,111 @@ body {
   top: 180px;
 }
 
+#inventoryBoxChar {
+  position: absolute;
+  left: 128px;
+  top: 14px;
+  width: 154px;
+  height: 235px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#inventoryBoxChar canvas {
+  image-rendering: pixelated;
+  max-width: 100%;
+  max-height: 100%;
+  margin-top: -55%;
+}
+
 #inventoryBoxInfo {
   position: absolute;
   left: 295px;
   top: 45px;
   width: 150px;
   height: 190px;
+  overflow: hidden;
+}
+
+.invItemName {
+  color: #FCFC7C;
+  font-size: 0.75em;
+  font-weight: bold;
+  margin-bottom: 4px;
+  word-wrap: break-word;
+}
+
+.invItemDesc {
+  color: #00FF00;
+  font-size: 0.7em;
+  word-wrap: break-word;
+  line-height: 1.3em;
+}
+
+#inventoryBoxWeight {
+  position: absolute;
+  left: 295px;
+  top: 248px;
+  width: 150px;
+  color: #00FF00;
+  font-size: 0.7em;
+  display: none;
+}
+
+.invItemAmount {
+  display: block;
+  text-align: center;
+  color: #FCFC7C;
+  font-size: 0.75em;
+  margin-bottom: 2px;
+}
+
+.invStatRow {
+  color: #00FF00;
+  font-size: 0.65em;
+  line-height: 1.15em;
+  display: flex;
+  justify-content: space-between;
+}
+
+.invStatLabel {
+  color: #FCFC7C;
+  padding-right: 2px;
+}
+
+.invStatValue {
+  color: #00FF00;
+}
+
+.invStatName {
+  color: #FCFC7C;
+  font-size: 0.7em;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 1px;
+}
+
+.invStatHr {
+  border: none;
+  border-top: 1px solid #3a6a3a;
+  margin: 1px 0;
+}
+
+.invStatTwoCol {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+
+.invStatColLeft {
+  flex: 0 0 auto;
+  min-width: 44px;
+}
+
+.invStatColRight {
+  flex: 1 1 auto;
 }
 
 .number {
@@ -381,9 +511,8 @@ body {
 
 #itemContextMenu {
   position: absolute;
-  width: 40px;
-  height: 260px;
-  /* height? */
+  width: 60px;
+  height: auto;
   top: 0px;
   /* this will be overriden by the UI script */
   visibility: hidden;
@@ -394,6 +523,23 @@ body {
   /*position: absolute;*/
   width: 40px;
   height: 40px;
+}
+
+.itemContextMenuText {
+  width: 60px;
+  height: auto;
+  padding: 4px 2px;
+  color: #00FF00;
+  font-size: 0.7em;
+  text-align: center;
+  cursor: pointer;
+  background-color: rgba(0,0,0,0.7);
+  border-top: 1px solid #005500;
+}
+
+.itemContextMenuText:hover {
+  color: #FCFC7C;
+  background-color: rgba(0,64,0,0.8);
 }
 
 #context_cancel {

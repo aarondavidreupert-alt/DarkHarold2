@@ -52,7 +52,12 @@ function objectFindItemIndex(obj: Obj, item: Obj): number {
 }
 
 export function cloneItem(item: Obj): Obj {
-    return Object.assign({}, item)
+    const clone = Object.create(Object.getPrototypeOf(item))
+    Object.assign(clone, item)
+    if (item.inventory) {
+        clone.inventory = item.inventory.map(cloneItem)
+    }
+    return clone
 }
 
 function objectSwapItem(a: Obj, item: Obj, b: Obj, amount: number) {
@@ -575,22 +580,17 @@ export class Obj {
     }
 
     clone(): Obj {
-        // TODO: check this and probably fix it
-
-        // If we have a script, temporarily remove it so that we may clone the
-        // object without the script, and then re-load it for a new instance.
         if (this._script) {
             console.log('cloning an object with a script: %o', this)
             const _script = this._script
             this._script = null
-            const obj = deepClone(this)
+            const obj = cloneItem(this)
             this._script = _script
-            obj.loadScript() // load new copy of the script
+            obj.loadScript()
             return obj
         }
 
-        // no script, just deep clone the object
-        return deepClone(this)
+        return cloneItem(this)
     }
 
     addInventoryItem(item: Obj, count = 1): void {
@@ -603,9 +603,6 @@ export class Obj {
 
         // no existing item, add new inventory object
         const clone = item.clone()
-        clone.setAmount = this.setAmount
-        clone.approxEq = this.approxEq
-
         this.inventory.push(clone.setAmount(count))
     }
 
@@ -781,8 +778,13 @@ export class Obj {
     pickup(source: Critter) {
         if (this._script) {
             console.log('picking up %o', this)
-            Scripting.pickup(this, source)
+            if (Scripting.pickup(this, source)) {
+                return // script handled it
+            }
         }
+        // Default pickup: add to source inventory and remove from map
+        source.addInventoryItem(this, this.amount)
+        globalState.gMap.destroyObject(this)
     }
 
     drop(source: Obj) {
@@ -1251,14 +1253,10 @@ export class Critter extends Obj {
     }
 
     get equippedWeapon(): WeaponObj | null {
-        // TODO: Get actual selection
-        if (objectIsWeapon(this.leftHand)) {
-            return this.leftHand || null
-        }
-        if (objectIsWeapon(this.rightHand)) {
-            return this.rightHand || null
-        }
-        return null
+        const self = this as any
+        const activeHand: 'leftHand' | 'rightHand' = self.activeHand ?? 'leftHand'
+        const weapon = self[activeHand]
+        return objectIsWeapon(weapon) ? weapon : null
     }
 
     getAnimation(anim: string): string {

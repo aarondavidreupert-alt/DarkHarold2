@@ -73,6 +73,7 @@ export const Config = {
         calledShot: 'z',
         saveKey: 'n',
         loadKey: 'm',
+        inventory: 'b',
     },
 
     scripting: {
