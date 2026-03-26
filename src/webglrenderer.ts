@@ -277,11 +277,8 @@ export class WebGLRenderer extends Renderer {
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
             gl.uniform1i(this.uLightBuffer, 1) // bind the light buffer texture to the shader
 
-            // detect GPU capability and choose lighting mode
-            const canGPU = (
-                this.gl instanceof WebGL2RenderingContext &&
-                this.gl.getExtension('OES_texture_float_linear') !== null
-            )
+            // detect GPU capability: only requires WebGL2 (R8 always supports linear filter)
+            const canGPU = this.gl instanceof WebGL2RenderingContext
             if (Config.engine.floorLightingMode === 'auto') {
                 this.floorLightingMode = canGPU ? 'gpu' : 'cpu'
             } else {
@@ -289,7 +286,8 @@ export class WebGLRenderer extends Renderer {
             }
             console.log('[Lighting] mode:', this.floorLightingMode)
 
-            // create 200x200 R32F tile intensity texture (always, for GPU path)
+            // create 200x200 R8 tile intensity texture (R8 always supports LINEAR filter in WebGL2;
+            // R32F requires OES_texture_float_linear and silently falls back to NEAREST without it)
             gl.activeTexture(gl.TEXTURE5)
             this.tileIntensityTexture = gl.createTexture()
             gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
@@ -297,7 +295,7 @@ export class WebGLRenderer extends Renderer {
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 200, 200, 0, gl.RED, gl.FLOAT, null)
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 200, 200, 0, gl.RED, gl.UNSIGNED_BYTE, null)
             gl.useProgram(this.floorLightShader)
             gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_tileIntensity'), 5)
 
@@ -492,14 +490,14 @@ export class WebGLRenderer extends Renderer {
         const cameraX = globalState.cameraPosition.x
         const cameraY = globalState.cameraPosition.y
 
-        // Upload tile_intensity as 200×200 R32F texture (normalised 0..1)
-        const tileData = new Float32Array(200 * 200)
+        // Upload tile_intensity as 200×200 R8 (uint8, 0-255) — R8 always supports LINEAR filtering
+        const tileData = new Uint8Array(200 * 200)
         for (let i = 0; i < 40000; i++) {
-            tileData[i] = Math.min(Lightmap.tile_intensity[i], 65536) / 65536.0
+            tileData[i] = Math.round(Math.min(Lightmap.tile_intensity[i], 65536) / 65536.0 * 255)
         }
         gl.activeTexture(gl.TEXTURE5)
         gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 200, 200, gl.RED, gl.FLOAT, tileData)
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 200, 200, gl.RED, gl.UNSIGNED_BYTE, tileData)
 
         // Use floor light shader with Mode 1 (tile-intensity GPU interpolation)
         gl.useProgram(this.floorLightShader)
