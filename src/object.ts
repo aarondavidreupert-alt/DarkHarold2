@@ -1095,10 +1095,19 @@ export class Critter extends Obj {
         const fps = 8 // todo: get FPS from image info
 
         if (time - this.lastFrameTime >= 1000 / fps) {
-            this.frame++
+            const reversed = this.anim === 'reverse'
+            if (reversed) {
+                this.frame--
+            } else {
+                this.frame++
+            }
             this.lastFrameTime = time
 
-            if (this.frame === globalState.imageInfo[this.art].numFrames) {
+            const done = reversed
+                ? this.frame === -1
+                : this.frame === globalState.imageInfo[this.art].numFrames
+            if (done) {
+                if (reversed) this.frame++ // clamp back to frame 0
                 // animation is done
                 if (this.animCallback) {
                     this.animCallback()
@@ -1341,19 +1350,26 @@ export class Critter extends Obj {
         return this.pro.extra.killType
     }
 
-    staticAnimation(anim: string, callback?: () => void, waitForLoad = true): void {
+    staticAnimation(anim: string, callback?: () => void, waitForLoad = true, reversed = false): void {
         this.art = this.getAnimation(anim)
         this.frame = 0
         this.lastFrameTime = 0
 
-        if (waitForLoad) {
-            lazyLoadImage(this.art, () => {
+        const startAnim = () => {
+            if (reversed) {
+                // Start from the last frame and play backwards ('reverse' is handled by updateStaticAnim)
+                this.frame = globalState.imageInfo[this.art].numFrames - 1
+                this.anim = 'reverse'
+            } else {
                 this.anim = anim
-                this.animCallback = callback || (() => this.clearAnim())
-            })
-        } else {
-            this.anim = anim
+            }
             this.animCallback = callback || (() => this.clearAnim())
+        }
+
+        if (waitForLoad) {
+            lazyLoadImage(this.art, startAnim)
+        } else {
+            startAnim()
         }
     }
 
@@ -1370,7 +1386,8 @@ export class Critter extends Obj {
         const playDraw = () => {
             swapFn()
             if (this.hasAnimation('weapon-draw')) {
-                this.staticAnimation('weapon-draw', settle)
+                // Draw is the holster FRM played in reverse (frames go backward = pulling weapon out)
+                this.staticAnimation('weapon-draw', settle, true, true)
             } else {
                 settle()
             }
@@ -1519,6 +1536,7 @@ const animInfo: { [anim: string]: { type: string } } = {
     'death-explode': { type: 'static' },
     'weapon-draw': { type: 'static' },
     'weapon-holster': { type: 'static' },
+    reverse: { type: 'static' },
     run: { type: 'move' },
 }
 
