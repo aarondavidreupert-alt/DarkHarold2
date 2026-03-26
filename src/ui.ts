@@ -738,8 +738,12 @@ export function initUI() {
 
     $id('handSwapButton').onclick = () => {
         const p = globalState.player as any
-        p.activeHand = (p.activeHand === 'leftHand') ? 'rightHand' : 'leftHand'
-        uiDrawWeapon()
+        const player = globalState.player
+        const nextHand: 'leftHand' | 'rightHand' = p.activeHand === 'leftHand' ? 'rightHand' : 'leftHand'
+        player.playWeaponSwapAnim(() => {
+            p.activeHand = nextHand
+            uiDrawWeapon()
+        })
     }
 
     $id('attackButtonContainer').onclick = () => {

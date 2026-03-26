@@ -1289,6 +1289,15 @@ export class Critter extends Obj {
                 return base + wep + 'j'
             case 'weapon-reload':
                 return base + wep + 'a'
+            case 'weapon-draw':
+            case 'weapon-holster': {
+                // Draw/holster uses the 'd' anim code with the current weapon's skin letter.
+                // Call weapon-holster BEFORE swapping the active hand (old weapon),
+                // and weapon-draw AFTER swapping (new weapon).
+                const wObj = this.equippedWeapon
+                const skin = (wObj?.weapon?.getSkin()) ?? 'a'
+                return base + skin + 'd'
+            }
             case 'static-idle':
                 return base + wep + 'a'
             case 'static':
@@ -1345,6 +1354,30 @@ export class Critter extends Obj {
         } else {
             this.anim = anim
             this.animCallback = callback || (() => this.clearAnim())
+        }
+    }
+
+    // Play a weapon swap animation sequence: holster (old weapon) → swapFn() → draw (new weapon).
+    // swapFn is called between the holster and draw phases to perform the actual weapon change
+    // (e.g., toggle activeHand or reassign a hand slot). If either animation FRM is absent from
+    // the asset map, that phase is silently skipped so the swap still completes.
+    playWeaponSwapAnim(swapFn: () => void, callback?: () => void): void {
+        const playDraw = () => {
+            swapFn()
+            if (this.hasAnimation('weapon-draw')) {
+                this.staticAnimation('weapon-draw', () => {
+                    this.clearAnim()
+                    if (callback) callback()
+                })
+            } else {
+                if (callback) callback()
+            }
+        }
+
+        if (this.hasAnimation('weapon-holster')) {
+            this.staticAnimation('weapon-holster', playDraw)
+        } else {
+            playDraw()
         }
     }
 

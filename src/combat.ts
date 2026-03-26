@@ -442,6 +442,9 @@ export class Combat {
         if (!weaponObj) throw Error('AI has no weapon')
         var weapon = weaponObj.weapon
         if (!weapon) throw Error('AI weapon has no weapon data')
+        // TODO: When AI weapon-switching is implemented (e.g., swapping to a closer-range weapon),
+        // use obj.playWeaponSwapAnim(() => { obj.activeHand = newHand }, callback) to play the
+        // holster → draw sequence before proceeding with the attack turn.
         var fireDistance = weapon.getMaximumRange(1)
         this.log(
             'DEBUG: weapon: ' +

@@ -237,6 +237,9 @@ export class Weapon {
             case 'attack':
                 var attackSkin = this.getAttackSkin()
                 return wep + attackSkin
+            case 'weapon-draw':
+            case 'weapon-holster':
+                return wep + 'd'
             default:
                 return null // let something else handle it
         }
