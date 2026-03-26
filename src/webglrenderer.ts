@@ -47,6 +47,8 @@ export class WebGLRenderer extends Renderer {
     private uTilePosLocation: WebGLUniformLocation | null = null
     private uUseGPULighting: WebGLUniformLocation | null = null
     private uAmbient: WebGLUniformLocation | null = null
+    private uCamera: WebGLUniformLocation | null = null
+    private uScreenResolutionLighting: WebGLUniformLocation | null = null
 
     private textures: { [key: string]: WebGLTexture } = {} // WebGL texture cache
 
@@ -303,6 +305,9 @@ export class WebGLRenderer extends Renderer {
             this.uTilePosLocation = gl.getUniformLocation(this.floorLightShader, 'u_tilePos')
             this.uUseGPULighting = gl.getUniformLocation(this.floorLightShader, 'u_useGPULighting')
             this.uAmbient = gl.getUniformLocation(this.floorLightShader, 'u_ambient')
+            this.uCamera = gl.getUniformLocation(this.floorLightShader, 'u_camera')
+            this.uScreenResolutionLighting = gl.getUniformLocation(this.floorLightShader, 'u_screenResolution')
+            gl.uniform2f(this.uScreenResolutionLighting, this.canvas.width, this.canvas.height)
 
             gl.activeTexture(gl.TEXTURE0)
             gl.useProgram(this.tileShader)
@@ -513,6 +518,7 @@ export class WebGLRenderer extends Renderer {
         gl.uniform1i(this.uUseGPULighting, 1)
         gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
         gl.uniform2f(this.litScaleLocation, TILE_WIDTH, TILE_HEIGHT)
+        gl.uniform2f(this.uCamera, cameraX, cameraY)
         gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_image'), 0)
         gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_tileIntensity'), 5)
 
