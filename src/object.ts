@@ -1036,7 +1036,6 @@ export class Critter extends Obj {
 
     isPlayer = false // Is this critter the player character?
     dead = false // Is this critter dead?
-    nextFidgetTime = 0 // performance.now() timestamp; 0 = not yet initialized
 
     static fromPID(pid: number, sid?: number): Critter {
         return Obj.fromPID_(new Critter(), pid, sid)
@@ -1142,9 +1141,25 @@ export class Critter extends Obj {
         }
     }
 
+    // Advance the looping idle animation one frame. Called every frame while anim === 'idle'.
+    // Loops back to frame 0 at the end without setting animCallback, so inAnim() stays false.
+    updateLoopingAnim(): void {
+        const info = globalState.imageInfo[this.art]
+        if (!info || !info.numFrames) return
+        const time = window.performance.now()
+        const fps = info.fps || 8
+        if (time - this.lastFrameTime >= 1000 / fps) {
+            this.frame++
+            this.lastFrameTime = time
+            if (this.frame >= info.numFrames) {
+                this.frame = 0 // loop
+            }
+        }
+    }
+
     updateAnim(): void {
         if (!this.anim || this.anim === 'idle') {
-            this.maybeFidget()
+            this.updateLoopingAnim()
             return
         }
         if (animInfo[this.anim].type === 'static') {
@@ -1325,11 +1340,14 @@ export class Critter extends Obj {
                 return base + wep + 'j'
             case 'weapon-reload':
                 return base + wep + 'a'
-            case 'weapon-draw':
+            case 'weapon-draw': {
+                // Xc = pull out weapon (played forward)
+                const wObj = this.equippedWeapon
+                const skin = (wObj?.weapon?.getSkin()) ?? 'a'
+                return base + skin + 'c'
+            }
             case 'weapon-holster': {
-                // Draw/holster uses the 'd' anim code with the current weapon's skin letter.
-                // Call weapon-holster BEFORE swapping the active hand (old weapon),
-                // and weapon-draw AFTER swapping (new weapon).
+                // Xd = put away weapon (played forward)
                 const wObj = this.equippedWeapon
                 const skin = (wObj?.weapon?.getSkin()) ?? 'a'
                 return base + skin + 'd'
@@ -1339,11 +1357,15 @@ export class Critter extends Obj {
             case 'static':
                 return this.art
             case 'hitFront':
-                return base + 'ao'
+                return base + 'ao'   // unarmed 'a' prefix, front hit
             case 'hitBack':
-                return base + 'an'
-            case 'dodge':
-                return base + 'am'
+                return base + 'ap'   // unarmed 'a' prefix, back hit (was 'an' = dodge)
+            case 'dodge': {
+                // Xe = weapon-specific dodge; 'an' = unarmed dodge
+                const wObjD = this.equippedWeapon
+                const skinD = wObjD?.weapon?.getSkin()
+                return (skinD && skinD !== 'a') ? base + skinD + 'e' : base + 'an'
+            }
             case 'knockdownFront':
                 return base + 'ap'
             case 'knockdownBack':
@@ -1355,11 +1377,10 @@ export class Critter extends Obj {
             case 'knockout':
                 return base + 'au'
             case 'fidget': {
-                // Weapon-dependent idle fidget. Uses the equipped weapon's skin letter
-                // (same as idle/walk) so armed critters fidget while holding their weapon.
+                // Xa = idle/fidget/reload — the idle animation IS the fidget in Fallout 2
                 const wObj = this.equippedWeapon
                 const skin = (wObj?.weapon?.getSkin()) ?? 'a'
-                return base + skin + 'c'
+                return base + skin + 'a'
             }
             case 'use':
                 return base + 'al'
@@ -1434,8 +1455,8 @@ export class Critter extends Obj {
         const playDraw = () => {
             swapFn()
             if (this.hasAnimation('weapon-draw')) {
-                // Draw is the holster FRM played in reverse (frames go backward = pulling weapon out)
-                this.staticAnimation('weapon-draw', settle, true, true)
+                // Xc = pull out weapon, played forward
+                this.staticAnimation('weapon-draw', settle)
             } else {
                 settle()
             }
@@ -1448,24 +1469,6 @@ export class Critter extends Obj {
         }
     }
 
-    // Called each frame while the critter is idle. Fires a random fidget animation
-    // every 5–15 seconds (staggered at game start) to make the world feel alive.
-    // Silently skips if the FRM asset is missing for the current weapon type.
-    maybeFidget(): void {
-        if (this.dead || globalState.inCombat) return
-        const time = window.performance.now()
-        if (this.nextFidgetTime === 0) {
-            // Stagger first fidget so critters don't all animate in sync on map load
-            this.nextFidgetTime = time + Math.random() * 15000
-            return
-        }
-        if (time < this.nextFidgetTime) return
-        // Set next timer before playing so clearAnim() in the callback doesn't need to reschedule
-        this.nextFidgetTime = time + 5000 + Math.random() * 10000
-        if (this.hasAnimation('fidget')) {
-            this.staticAnimation('fidget', () => this.clearAnim())
-        }
-    }
 
     get directionalOffset(): Point {
         const info = globalState.imageInfo[this.art]

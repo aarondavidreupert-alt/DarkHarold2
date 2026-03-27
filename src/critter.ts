@@ -238,10 +238,11 @@ export class Weapon {
                 var attackSkin = this.getAttackSkin()
                 return wep + attackSkin
             case 'fidget':
-                return wep + 'c'
+                return wep + 'a'  // idle IS the fidget/reload animation (Xa)
             case 'weapon-draw':
+                return wep + 'c'  // Xc = pull out weapon, played forward
             case 'weapon-holster':
-                return wep + 'd'
+                return wep + 'd'  // Xd = put away weapon, played forward
             default:
                 return null // let something else handle it
         }
