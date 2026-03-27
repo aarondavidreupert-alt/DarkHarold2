@@ -175,6 +175,7 @@ export class GameMap {
         if (Config.engine.doFloorLighting) {
             Lightmap.resetLight()
             Lightmap.rebuildLight()
+            globalState.renderer.invalidateFloorFBO()
         }
 
         centerCamera(globalState.player.position)

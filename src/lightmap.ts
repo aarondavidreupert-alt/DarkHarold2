@@ -29,16 +29,24 @@ import { fromTileNum, setCenterTile, toTileNum } from "./tile.js"
 
 export module Lightmap {
     function light_reset(): void {
-        for(var i = 0; i < tile_intensity.length; i++)
-            tile_intensity[i] = 655
+        tile_intensity.fill(655)
     }
 
-    // Tile lightmap
-    export var tile_intensity = new Array(40000)
+    // Tile lightmap (Int32Array for fast TypedArray.set() copies)
+    export var tile_intensity = new Int32Array(40000)
     light_reset()
 
     // Static (non-critter) light bake — populated by bakeStaticLight()
-    export var staticTileIntensity = new Array(40000).fill(0)
+    export var staticTileIntensity = new Int32Array(40000)
+
+    // Monotonic counter incremented whenever tile_intensity data changes.
+    // Renderers compare against their last-uploaded version to skip redundant uploads.
+    export var lightmapVersion = 0
+
+    // Critters that actually emit light (lightRadius > 0).
+    // Rebuilt by bakeStaticLight(); used by rebuildDynamicLight() to avoid
+    // scanning all 2800+ objects every frame just to find 0-2 emitters.
+    export var dynamicEmitters: Obj[] = []
 
     var light_offsets = new Array(532)
     zeroArray(light_offsets)
@@ -569,17 +577,28 @@ export module Lightmap {
                 obj_adjust_light(obj, false)
             }
         })
-        for (let i = 0; i < 40000; i++) staticTileIntensity[i] = tile_intensity[i]
+        staticTileIntensity.set(tile_intensity) // fast TypedArray bulk copy
+        lightmapVersion++
+
+        // Rebuild the list of critters that actually emit light.
+        // Only these need to be processed each frame by rebuildDynamicLight().
+        dynamicEmitters.length = 0
+        globalState.gMap.getObjects().forEach(obj => {
+            if (obj.type === 'critter' && obj.lightRadius > 0) {
+                dynamicEmitters.push(obj)
+            }
+        })
     }
 
     // Rebuild dynamic (critter) lighting on top of the static bake.
     // Call once per render frame before drawing the lit floor.
+    // No-op when there are no light-emitting critters (common case in dense maps).
     export function rebuildDynamicLight(): void {
-        for (let i = 0; i < 40000; i++) tile_intensity[i] = staticTileIntensity[i]
-        globalState.gMap.getObjects().forEach(obj => {
-            if (obj.type === 'critter') {
-                obj_adjust_light(obj, false)
-            }
-        })
+        if (dynamicEmitters.length === 0) return
+        tile_intensity.set(staticTileIntensity) // fast TypedArray bulk copy
+        for (const obj of dynamicEmitters) {
+            obj_adjust_light(obj, false)
+        }
+        lightmapVersion++
     }
 }

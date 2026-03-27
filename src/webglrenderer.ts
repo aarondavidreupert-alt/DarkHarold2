@@ -5,7 +5,7 @@ import { Lighting } from './lighting.js'
 import { Lightmap } from './lightmap.js'
 import { Obj } from './object.js'
 import { Renderer, SCREEN_HEIGHT, SCREEN_WIDTH, TileMap } from './renderer.js'
-import { tileToScreen, toTileNum, TILE_HEIGHT, TILE_WIDTH } from './tile.js'
+import { tileToScreen, TILE_HEIGHT, TILE_WIDTH } from './tile.js'
 import { getFileJSON } from './util.js'
 import { Config } from './config.js'
 import { Font } from './formats/fon.js'
@@ -36,19 +36,31 @@ export class WebGLRenderer extends Renderer {
     private uLightBuffer: WebGLUniformLocation
     private litOffsetLocation: WebGLUniformLocation
     private litScaleLocation: WebGLUniformLocation
-    private u_colorTable: WebGLUniformLocation // [0x8000];
-    private u_intensityColorTable: WebGLUniformLocation // [65536];
-    private u_paletteRGB: WebGLUniformLocation // vec3 [256];
     private lightBufferTexture: WebGLTexture
     private floorLightShader: WebGLProgram
 
-    private tileIntensityTexture: WebGLTexture | null = null // 200x200 R32F texture for GPU path
+    private tileIntensityTexture: WebGLTexture | null = null // 200x200 R8 tile intensity texture
     private floorLightingMode: 'gpu' | 'cpu' = 'cpu'
-    private uTilePosLocation: WebGLUniformLocation | null = null
     private uUseGPULighting: WebGLUniformLocation | null = null
     private uAmbient: WebGLUniformLocation | null = null
     private uCamera: WebGLUniformLocation | null = null
     private uScreenResolutionLighting: WebGLUniformLocation | null = null
+
+    // FBO for caching unlit floor tiles; re-rendered only when camera moves
+    private floorFBO: WebGLFramebuffer | null = null
+    private floorFBOTexture: WebGLTexture | null = null
+    private floorFBODirty = true
+    private floorFBOCameraX = NaN
+    private floorFBOCameraY = NaN
+
+    // Pre-allocated buffer for tile intensity upload (avoids per-frame allocation)
+    private tileData = new Uint8Array(200 * 200)
+    // Version of the last lightmap data uploaded to the GPU
+    private lastLightmapVersion = -1
+
+    // Cached attribute locations for floorLightShader (set during init)
+    private litPositionLoc = -1
+    private litTexCoordLoc = -1
 
     private textures: { [key: string]: WebGLTexture } = {} // WebGL texture cache
 
@@ -244,42 +256,7 @@ export class WebGLRenderer extends Renderer {
             gl.enableVertexAttribArray(litPositionLocation)
             gl.vertexAttribPointer(litPositionLocation, 2, gl.FLOAT, false, 0, 0)
 
-            // upload ancillary textures
-
-            this.u_colorTable = gl.getUniformLocation(this.floorLightShader, 'u_colorTable')
-            this.u_intensityColorTable = gl.getUniformLocation(this.floorLightShader, 'u_intensityColorTable')
-            this.u_paletteRGB = gl.getUniformLocation(this.floorLightShader, 'u_paletteRGB')
-
-            // upload color tables
-            // TODO: have it in a typed array anyway
-            const _colorTable = getFileJSON('lut/colorTable.json')
-            gl.activeTexture(gl.TEXTURE2)
-            this.textureFromArray(_colorTable)
-            gl.uniform1i(this.u_colorTable, 2)
-
-            // intensityColorTable
-            const _intensityColorTable = Lighting.intensityColorTable
-            const intensityColorTable = new Uint8Array(65536)
-            for (let i = 0; i < 65536; i++) {
-                intensityColorTable[i] = _intensityColorTable[i]
-            }
-            gl.activeTexture(gl.TEXTURE3)
-            this.textureFromArray(intensityColorTable)
-            gl.uniform1i(this.u_intensityColorTable, 3)
-
-            // paletteRGB
-            const _colorRGB = getFileJSON('lut/color_rgb.json')
-            const paletteRGB = new Uint8Array(256 * 3)
-            for (let i = 0; i < 256; i++) {
-                paletteRGB[i * 3 + 0] = _colorRGB[i][0]
-                paletteRGB[i * 3 + 1] = _colorRGB[i][1]
-                paletteRGB[i * 3 + 2] = _colorRGB[i][2]
-            }
-            gl.activeTexture(gl.TEXTURE4)
-            this.textureFromColorArray(paletteRGB, 256)
-            gl.uniform1i(this.u_paletteRGB, 4)
-
-            // set up light buffer texture
+            // set up light buffer texture (CPU path only)
             gl.activeTexture(gl.TEXTURE1)
             this.lightBufferTexture = gl.createTexture()
             gl.bindTexture(gl.TEXTURE_2D, this.lightBufferTexture)
@@ -312,16 +289,44 @@ export class WebGLRenderer extends Renderer {
             gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_tileIntensity'), 5)
 
             // get uniform locations
-            this.uTilePosLocation = gl.getUniformLocation(this.floorLightShader, 'u_tilePos')
             this.uUseGPULighting = gl.getUniformLocation(this.floorLightShader, 'u_useGPULighting')
             this.uAmbient = gl.getUniformLocation(this.floorLightShader, 'u_ambient')
             this.uCamera = gl.getUniformLocation(this.floorLightShader, 'u_camera')
             this.uScreenResolutionLighting = gl.getUniformLocation(this.floorLightShader, 'u_screenResolution')
             gl.uniform2f(this.uScreenResolutionLighting, this.canvas.width, this.canvas.height)
 
+            // Cache attribute locations for the floor lighting shader
+            this.litPositionLoc = gl.getAttribLocation(this.floorLightShader, 'a_position')
+            this.litTexCoordLoc = gl.getAttribLocation(this.floorLightShader, 'a_texCoord')
+
+            // Create offscreen FBO for caching unlit floor tiles.
+            // Re-rendered only when the camera moves; lighting applied in a single
+            // fullscreen quad pass instead of thousands of per-tile draw calls.
+            this.floorFBO = gl.createFramebuffer()
+            this.floorFBOTexture = gl.createTexture()
+            gl.bindTexture(gl.TEXTURE_2D, this.floorFBOTexture)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, this.canvas.width, this.canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+            gl.bindFramebuffer(gl.FRAMEBUFFER, this.floorFBO)
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.floorFBOTexture, 0)
+            if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+                console.error('[Floor FBO] Framebuffer incomplete — floor lighting FBO disabled')
+                this.floorFBO = null
+            }
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
             gl.activeTexture(gl.TEXTURE0)
             gl.useProgram(this.tileShader)
         }
+    }
+
+    /** Call after map load or elevation change to force a full floor FBO rebuild. */
+    invalidateFloorFBO(): void {
+        this.floorFBODirty = true
+        this.lastLightmapVersion = -1
     }
 
     rectangleBuffer(gl: WebGLRenderingContext, x: number, y: number, width: number, height: number): WebGLBuffer {
@@ -495,76 +500,116 @@ export class WebGLRenderer extends Renderer {
         gl.useProgram(this.tileShader)
     }
 
-    renderLitFloorGPU(tileMap: TileMap) {
-        Lightmap.rebuildDynamicLight()
-
+    /**
+     * Render unlit floor tiles into the offscreen FBO.
+     * Called only when the camera position changes (or FBO is stale).
+     * The result is cached and reused across frames until the camera moves again.
+     */
+    private _renderFloorTilesIntoFBO(tileMap: TileMap): void {
         const gl = this.gl
-        const cameraX = globalState.cameraPosition.x
-        const cameraY = globalState.cameraPosition.y
+        const cameraX = this.floorFBOCameraX
+        const cameraY = this.floorFBOCameraY
 
-        // Upload tile_intensity as 200×200 R8 (uint8, 0-255) — R8 always supports LINEAR filtering
-        const tileData = new Uint8Array(200 * 200)
-        for (let i = 0; i < 40000; i++) {
-            tileData[i] = Math.round(Math.min(Lightmap.tile_intensity[i], 65536) / 65536.0 * 255)
-        }
-        gl.activeTexture(gl.TEXTURE5)
-        gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 200, 200, gl.RED, gl.UNSIGNED_BYTE, tileData)
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.floorFBO)
+        gl.viewport(0, 0, this.canvas.width, this.canvas.height)
+        gl.clearColor(0, 0, 0, 0)
+        gl.clear(gl.COLOR_BUFFER_BIT)
+        // No depth attachment on the FBO — disable depth test so all tiles draw
+        gl.disable(gl.DEPTH_TEST)
 
-        // Use floor light shader with Mode 1 (tile-intensity GPU interpolation)
-        gl.useProgram(this.floorLightShader)
-
-        // Rebind vertex attributes after useProgram switch
-        const litPositionLoc = gl.getAttribLocation(this.floorLightShader, 'a_position')
-        const litTexCoordLoc = gl.getAttribLocation(this.floorLightShader, 'a_texCoord')
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer)
-        gl.enableVertexAttribArray(litTexCoordLoc)
-        gl.vertexAttribPointer(litTexCoordLoc, 2, gl.FLOAT, false, 0, 0)
+        gl.useProgram(this.tileShader)
         gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
-        gl.enableVertexAttribArray(litPositionLoc)
-        gl.vertexAttribPointer(litPositionLoc, 2, gl.FLOAT, false, 0, 0)
+        gl.uniform1f(this.uNumFramesLocation, 1)
+        gl.uniform1f(this.uFrameLocation, 0)
+        gl.uniform2f(this.uScaleLocation, TILE_WIDTH, TILE_HEIGHT)
 
-        // Set uniforms
-        gl.uniform1i(this.uUseGPULighting, 1)
-        gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
-        gl.uniform2f(this.litScaleLocation, TILE_WIDTH, TILE_HEIGHT)
-        gl.uniform2f(this.uCamera, cameraX, cameraY)
-        gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_image'), 0)
-        gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_tileIntensity'), 5)
-
-        // Draw tiles
-        let lastTexture: string | null = null
         for (let i = tileMap.length - 1; i >= 0; i--) {
             for (let j = 0; j < tileMap[0].length; j++) {
                 const tile = tileMap[j][i]
                 if (tile === 'grid000') continue
-                const img = 'art/tiles/' + tile
                 const scr = tileToScreen(i, j)
                 if (
                     scr.x + TILE_WIDTH < cameraX ||
                     scr.y + TILE_HEIGHT < cameraY ||
                     scr.x >= cameraX + SCREEN_WIDTH ||
                     scr.y >= cameraY + SCREEN_HEIGHT
-                ) {
-                    continue
-                }
+                ) continue
 
-                if (img !== lastTexture) {
-                    gl.activeTexture(gl.TEXTURE0)
-                    const texture = this.getTextureFromHack(img)
-                    if (!texture) continue
-                    gl.bindTexture(gl.TEXTURE_2D, texture)
-                    lastTexture = img
-                }
+                const img = 'art/tiles/' + tile
+                const texture = this.getTextureFromHack(img)
+                if (!texture) continue
 
-                // Tell shader which tile to look up in the intensity texture
-                const hex = hexFromScreen(scr.x - 13, scr.y + 13)
-                gl.uniform2i(this.uTilePosLocation, hex.x, hex.y)
-
-                gl.uniform2f(this.litOffsetLocation, scr.x - cameraX, scr.y - cameraY)
+                gl.activeTexture(gl.TEXTURE0)
+                gl.bindTexture(gl.TEXTURE_2D, texture)
+                gl.uniform2f(this.offsetLocation, scr.x - cameraX, scr.y - cameraY)
                 gl.drawArrays(gl.TRIANGLES, 0, 6)
             }
         }
+
+        // Restore main framebuffer state
+        gl.enable(gl.DEPTH_TEST)
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+        gl.viewport(0, 0, this.canvas.width, this.canvas.height)
+        gl.clearColor(0.75, 0.75, 0.75, 1.0)
+    }
+
+    renderLitFloorGPU(tileMap: TileMap) {
+        // 1. Rebuild dynamic (critter) lights — fast no-op if no emitters exist
+        Lightmap.rebuildDynamicLight()
+
+        const gl = this.gl
+        const cameraX = globalState.cameraPosition.x
+        const cameraY = globalState.cameraPosition.y
+
+        // 2. Upload tile intensity texture only when the lightmap data has changed
+        if (this.lastLightmapVersion !== Lightmap.lightmapVersion) {
+            const td = this.tileData
+            const ti = Lightmap.tile_intensity
+            for (let i = 0; i < 40000; i++) {
+                td[i] = Math.round(Math.min(ti[i], 65536) / 65536.0 * 255)
+            }
+            gl.activeTexture(gl.TEXTURE5)
+            gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
+            gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 200, 200, gl.RED, gl.UNSIGNED_BYTE, td)
+            this.lastLightmapVersion = Lightmap.lightmapVersion
+        }
+
+        // 3. Re-render floor tiles into FBO only when camera moves or FBO is stale
+        if (this.floorFBO !== null &&
+            (this.floorFBODirty || cameraX !== this.floorFBOCameraX || cameraY !== this.floorFBOCameraY)) {
+            this.floorFBOCameraX = cameraX
+            this.floorFBOCameraY = cameraY
+            this.floorFBODirty = false
+            this._renderFloorTilesIntoFBO(tileMap)
+        }
+
+        // 4. Single fullscreen quad pass: multiply cached floor texture by the lightmap.
+        //    getGPULightIntensity() in the shader uses gl_FragCoord to look up the correct
+        //    hex-tile intensity for every pixel — no per-tile uniforms needed.
+        gl.useProgram(this.floorLightShader)
+
+        // Rebind vertex attributes for floorLightShader
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer)
+        gl.enableVertexAttribArray(this.litTexCoordLoc)
+        gl.vertexAttribPointer(this.litTexCoordLoc, 2, gl.FLOAT, false, 0, 0)
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
+        gl.enableVertexAttribArray(this.litPositionLoc)
+        gl.vertexAttribPointer(this.litPositionLoc, 2, gl.FLOAT, false, 0, 0)
+
+        gl.uniform1i(this.uUseGPULighting, 1)
+        gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
+        gl.uniform2f(this.uCamera, cameraX, cameraY)
+        gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_tileIntensity'), 5)
+
+        // Bind the cached floor FBO texture as the tile image source
+        gl.activeTexture(gl.TEXTURE0)
+        gl.bindTexture(gl.TEXTURE_2D, this.floorFBOTexture)
+        gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_image'), 0)
+
+        // Draw fullscreen quad covering the entire screen
+        gl.uniform2f(this.litOffsetLocation, 0, 0)
+        gl.uniform2f(this.litScaleLocation, SCREEN_WIDTH, SCREEN_HEIGHT)
+        gl.drawArrays(gl.TRIANGLES, 0, 6)
 
         gl.activeTexture(gl.TEXTURE0)
         gl.useProgram(this.tileShader)

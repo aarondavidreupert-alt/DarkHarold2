@@ -303,6 +303,7 @@ export class Renderer {
 
     renderRoof(roof: TileMap): void {}
     renderFloor(floor: TileMap): void {}
+    invalidateFloorFBO(): void {}
     renderObjectOutlined(obj: Obj): void {
         this.renderObject(obj)
     }
