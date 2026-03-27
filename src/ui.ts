@@ -852,7 +852,21 @@ export function uiContextMenu(obj: Obj, evt: any) {
     })
     const cancelBtn = button(obj, 'cancel')
     const lookBtn = button(obj, 'look', () => uiLog('You see: ' + obj.getDescription()))
-    const useBtn = button(obj, 'use', () => playerUse()) // TODO: playerUse should take an object
+    const useBtn = button(obj, 'use', () => {
+        const player = globalState.player
+        // Play 'use' animation on the player, then invoke the interaction.
+        // We call obj.use(player) directly (rather than playerUse()) because the
+        // context menu already holds a reference to the target object, so we don't
+        // need the mouse-cursor hit-test that playerUse() performs.
+        if (player.hasAnimation('use')) {
+            player.staticAnimation('use', () => {
+                player.clearAnim()
+                obj.use(player)
+            })
+        } else {
+            playerUse()
+        }
+    })
     const talkBtn = button(obj, 'talk', () => {
         console.log('talking to ' + obj.name)
         if (!obj._script) {

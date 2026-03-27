@@ -732,6 +732,16 @@ export class Obj {
             const destTile = fromTileNum(this.extra.destination & 0xffff)
             // TODO: destination also supposedly contains elevation and map
             console.log('ladder (' + (isTop ? 'top' : 'bottom') + ' -> level ' + level + ')')
+            const actor = source ?? globalState.player
+            if (actor.hasAnimation('climb')) {
+                actor.staticAnimation('climb', () => {
+                    actor.clearAnim()
+                    actor.position = destTile
+                    globalState.gMap.changeElevation(level)
+                    globalState.gMap.updateMap()
+                })
+                return true // updateMap() handled in callback above; skip the one below
+            }
             globalState.player.position = destTile
             globalState.gMap.changeElevation(level)
         } else {
@@ -1337,12 +1347,11 @@ export class Critter extends Obj {
                 return base + 'as'
             case 'knockout':
                 return base + 'au'
-            case 'fidget': {
-                // Weapon-dependent idle fidget (critter shifts weight, looks around, etc.)
-                const wObj = this.equippedWeapon
-                const skin = (wObj?.weapon?.getSkin()) ?? 'a'
-                return base + skin + 'c'
-            }
+            case 'fidget':
+                // Body-level idle fidget (shifting weight, looking around).
+                // Uses the unarmed 'a' prefix like other body animations (hitFront, use,
+                // pickUp) so it plays the critter's body movement regardless of held weapon.
+                return base + 'ac'
             case 'use':
                 return base + 'al'
             case 'pickUp':
