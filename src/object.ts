@@ -701,6 +701,13 @@ export class Obj {
             return true
         }
 
+        // Play the interact animation on the source critter (non-blocking: the
+        // interaction effect proceeds concurrently). Skipped for ladders because
+        // the climb animation already handles the timing in the isLadder branch.
+        if (source && !this.isLadder && source.hasAnimation('use')) {
+            source.staticAnimation('use', () => source.clearAnim())
+        }
+
         if (this.isDoor || this.isContainer) {
             toggleObjectOpen(this, true, true)
         } else if (this.isStairs) {
@@ -1347,11 +1354,13 @@ export class Critter extends Obj {
                 return base + 'as'
             case 'knockout':
                 return base + 'au'
-            case 'fidget':
-                // Body-level idle fidget (shifting weight, looking around).
-                // Uses the unarmed 'a' prefix like other body animations (hitFront, use,
-                // pickUp) so it plays the critter's body movement regardless of held weapon.
-                return base + 'ac'
+            case 'fidget': {
+                // Weapon-dependent idle fidget. Uses the equipped weapon's skin letter
+                // (same as idle/walk) so armed critters fidget while holding their weapon.
+                const wObj = this.equippedWeapon
+                const skin = (wObj?.weapon?.getSkin()) ?? 'a'
+                return base + skin + 'c'
+            }
             case 'use':
                 return base + 'al'
             case 'pickUp':

@@ -237,6 +237,8 @@ export class Weapon {
             case 'attack':
                 var attackSkin = this.getAttackSkin()
                 return wep + attackSkin
+            case 'fidget':
+                return wep + 'c'
             case 'weapon-draw':
             case 'weapon-holster':
                 return wep + 'd'
