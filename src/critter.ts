@@ -302,12 +302,20 @@ export function critterDamage(
         // TODO: Call damage_p_proc
     }
 
-    // TODO: other hit animations
-    if (useAnim && obj.hasAnimation('hitFront')) {
-        obj.staticAnimation('hitFront', () => {
-            obj.clearAnim()
-            if (callback) callback()
-        })
+    // Pick the most appropriate hit reaction: dodge (30% when available),
+    // then hitFront (default), then hitBack as fallback.
+    if (useAnim) {
+        const hitAnim =
+            (obj.hasAnimation('dodge') && Math.random() < 0.3) ? 'dodge' :
+            obj.hasAnimation('hitFront') ? 'hitFront' :
+            obj.hasAnimation('hitBack') ? 'hitBack' : null
+
+        if (hitAnim !== null) {
+            obj.staticAnimation(hitAnim, () => {
+                obj.clearAnim()
+                if (callback) callback()
+            })
+        }
     }
 }
 
