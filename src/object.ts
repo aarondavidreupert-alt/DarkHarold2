@@ -701,6 +701,13 @@ export class Obj {
             return true
         }
 
+        // Play the interact animation on the source critter (non-blocking: the
+        // interaction effect proceeds concurrently). Skipped for ladders because
+        // the climb animation already handles the timing in the isLadder branch.
+        if (source && !this.isLadder && source.hasAnimation('use')) {
+            source.staticAnimation('use', () => source.clearAnim())
+        }
+
         if (this.isDoor || this.isContainer) {
             toggleObjectOpen(this, true, true)
         } else if (this.isStairs) {
@@ -732,6 +739,16 @@ export class Obj {
             const destTile = fromTileNum(this.extra.destination & 0xffff)
             // TODO: destination also supposedly contains elevation and map
             console.log('ladder (' + (isTop ? 'top' : 'bottom') + ' -> level ' + level + ')')
+            const actor = source ?? globalState.player
+            if (actor.hasAnimation('climb')) {
+                actor.staticAnimation('climb', () => {
+                    actor.clearAnim()
+                    actor.position = destTile
+                    globalState.gMap.changeElevation(level)
+                    globalState.gMap.updateMap()
+                })
+                return true // updateMap() handled in callback above; skip the one below
+            }
             globalState.player.position = destTile
             globalState.gMap.changeElevation(level)
         } else {
@@ -782,9 +799,17 @@ export class Obj {
                 return // script handled it
             }
         }
-        // Default pickup: add to source inventory and remove from map
-        source.addInventoryItem(this, this.amount)
-        globalState.gMap.destroyObject(this)
+        const doPickup = () => {
+            source.addInventoryItem(this, this.amount)
+            globalState.gMap.destroyObject(this)
+        }
+        // Play the bend-down pick-up animation on the source critter, then transfer the item.
+        // Falls back to instant pickup if the FRM is absent for this critter type.
+        if (source.hasAnimation('pickUp')) {
+            source.staticAnimation('pickUp', doPickup)
+        } else {
+            doPickup()
+        }
     }
 
     drop(source: Obj) {
@@ -1011,6 +1036,7 @@ export class Critter extends Obj {
 
     isPlayer = false // Is this critter the player character?
     dead = false // Is this critter dead?
+    nextFidgetTime = 0 // performance.now() timestamp; 0 = not yet initialized
 
     static fromPID(pid: number, sid?: number): Critter {
         return Obj.fromPID_(new Critter(), pid, sid)
@@ -1118,6 +1144,7 @@ export class Critter extends Obj {
 
     updateAnim(): void {
         if (!this.anim || this.anim === 'idle') {
+            this.maybeFidget()
             return
         }
         if (animInfo[this.anim].type === 'static') {
@@ -1313,6 +1340,27 @@ export class Critter extends Obj {
                 return this.art
             case 'hitFront':
                 return base + 'ao'
+            case 'hitBack':
+                return base + 'an'
+            case 'dodge':
+                return base + 'am'
+            case 'knockdownFront':
+                return base + 'ap'
+            case 'knockdownBack':
+                return base + 'aq'
+            case 'getUpFront':
+                return base + 'ar'
+            case 'getUpBack':
+                return base + 'as'
+            case 'knockout':
+                return base + 'au'
+            case 'fidget': {
+                // Weapon-dependent idle fidget. Uses the equipped weapon's skin letter
+                // (same as idle/walk) so armed critters fidget while holding their weapon.
+                const wObj = this.equippedWeapon
+                const skin = (wObj?.weapon?.getSkin()) ?? 'a'
+                return base + skin + 'c'
+            }
             case 'use':
                 return base + 'al'
             case 'pickUp':
@@ -1397,6 +1445,25 @@ export class Critter extends Obj {
             this.staticAnimation('weapon-holster', playDraw)
         } else {
             playDraw()
+        }
+    }
+
+    // Called each frame while the critter is idle. Fires a random fidget animation
+    // every 5–15 seconds (staggered at game start) to make the world feel alive.
+    // Silently skips if the FRM asset is missing for the current weapon type.
+    maybeFidget(): void {
+        if (this.dead || globalState.inCombat) return
+        const time = window.performance.now()
+        if (this.nextFidgetTime === 0) {
+            // Stagger first fidget so critters don't all animate in sync on map load
+            this.nextFidgetTime = time + Math.random() * 15000
+            return
+        }
+        if (time < this.nextFidgetTime) return
+        // Set next timer before playing so clearAnim() in the callback doesn't need to reschedule
+        this.nextFidgetTime = time + 5000 + Math.random() * 10000
+        if (this.hasAnimation('fidget')) {
+            this.staticAnimation('fidget', () => this.clearAnim())
         }
     }
 
@@ -1537,6 +1604,14 @@ const animInfo: { [anim: string]: { type: string } } = {
     'weapon-draw': { type: 'static' },
     'weapon-holster': { type: 'static' },
     reverse: { type: 'static' },
+    fidget: { type: 'static' },
+    hitBack: { type: 'static' },
+    dodge: { type: 'static' },
+    knockdownFront: { type: 'static' },
+    knockdownBack: { type: 'static' },
+    getUpFront: { type: 'static' },
+    getUpBack: { type: 'static' },
+    knockout: { type: 'static' },
     run: { type: 'move' },
 }
 
