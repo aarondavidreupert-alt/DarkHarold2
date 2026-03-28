@@ -6,8 +6,9 @@ uniform sampler2D u_lightBuffer;
 uniform sampler2D u_tileIntensity;   // 200x200 tile intensity map
 uniform int u_useGPULighting;        // 0 = CPU lightbuffer, 1 = GPU tile-intensity
 uniform float u_ambient;             // minimum brightness floor (e.g. 40960/65536 ≈ 0.625)
-uniform vec2 u_screenResolution;     // vec2(canvas_width, canvas_height)
-uniform vec2 u_camera;               // world camera position (cameraX, cameraY)
+uniform vec2 u_screenResolution;     // physical canvas size (canvas.width, canvas.height)
+uniform vec2 u_camera;               // world camera position in logical pixels
+uniform float u_dpr;                 // window.devicePixelRatio (physical / logical)
 
 varying vec2 v_texCoord;
 
@@ -17,8 +18,8 @@ float getGPULightIntensity() {
     // bottom of the canvas. Engine Y increases downward, so:
     //   world_x = cameraX + gl_FragCoord.x
     //   world_y = cameraY + canvasHeight - gl_FragCoord.y
-    float world_x = u_camera.x + gl_FragCoord.x;
-    float world_y = u_camera.y + u_screenResolution.y - gl_FragCoord.y;
+    float world_x = u_camera.x + gl_FragCoord.x / u_dpr;
+    float world_y = u_camera.y + (u_screenResolution.y - gl_FragCoord.y) / u_dpr;
 
     // hexFromScreen without rounding (continuous hex UV for smooth GPU interpolation).
     // Derived from geometry.ts pixelToCube + cubeRoundToHex (HEX_WIDTH=32, HEX_HEIGHT=16):

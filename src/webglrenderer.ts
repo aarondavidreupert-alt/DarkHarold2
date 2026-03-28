@@ -45,6 +45,7 @@ export class WebGLRenderer extends Renderer {
     private uAmbient: WebGLUniformLocation | null = null
     private uCamera: WebGLUniformLocation | null = null
     private uScreenResolutionLighting: WebGLUniformLocation | null = null
+    private uDpr: WebGLUniformLocation | null = null
 
     // FBO for caching unlit floor tiles; re-rendered only when camera moves
     private floorFBO: WebGLFramebuffer | null = null
@@ -294,6 +295,7 @@ export class WebGLRenderer extends Renderer {
             this.uCamera = gl.getUniformLocation(this.floorLightShader, 'u_camera')
             this.uScreenResolutionLighting = gl.getUniformLocation(this.floorLightShader, 'u_screenResolution')
             gl.uniform2f(this.uScreenResolutionLighting, this.canvas.width, this.canvas.height)
+            this.uDpr = gl.getUniformLocation(this.floorLightShader, 'u_dpr')
 
             // Cache attribute locations for the floor lighting shader
             this.litPositionLoc = gl.getAttribLocation(this.floorLightShader, 'a_position')
@@ -599,6 +601,7 @@ export class WebGLRenderer extends Renderer {
         gl.uniform1i(this.uUseGPULighting, 1)
         gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
         gl.uniform2f(this.uCamera, cameraX, cameraY)
+        gl.uniform1f(this.uDpr, window.devicePixelRatio || 1)
         gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_tileIntensity'), 5)
 
         // Bind the cached floor FBO texture as the tile image source
