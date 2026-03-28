@@ -3,7 +3,7 @@ precision mediump float;
 uniform sampler2D u_image;
 uniform sampler2D u_lightBuffer;
 uniform sampler2D u_tileIntensity;
-uniform int u_useGPULighting;
+uniform float u_useGPULighting;
 uniform float u_ambient;
 uniform vec2 u_screenResolution;
 uniform vec2 u_camera;
@@ -30,7 +30,7 @@ void main() {
     vec4 tileTexel = texture2D(u_image, v_texCoord);
     float lightIntensity;
 
-    if (u_useGPULighting == 1) {
+    if (u_useGPULighting > 0.5) {
         float light = max(getGPULightIntensity(), u_ambient);
         gl_FragColor = vec4(tileTexel.rgb * light, tileTexel.a);
         return;
