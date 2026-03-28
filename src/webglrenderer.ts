@@ -51,6 +51,7 @@ export class WebGLRenderer extends Renderer {
     private lastFloorCameraY = -Infinity
     private lastFloorTileMap: TileMap | null = null
     private tileDataBuffer = new Uint8Array(200 * 200)
+    private compositeTexCoordBuffer: WebGLBuffer // Y-flipped UVs for FBO composite
     private uAmbient: WebGLUniformLocation | null = null
     private uCamera: WebGLUniformLocation | null = null
     private uScreenResolutionLighting: WebGLUniformLocation | null = null
@@ -300,6 +301,16 @@ export class WebGLRenderer extends Renderer {
             gl.bindFramebuffer(gl.FRAMEBUFFER, this.floorFBO)
             gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.floorFBOTexture, 0)
             gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
+            // Y-flipped texcoord buffer for FBO composite (vertex shader flips Y in clip space,
+            // so the FBO stores the scene upside-down relative to texture V; flip V to compensate)
+            this.compositeTexCoordBuffer = gl.createBuffer()
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.compositeTexCoordBuffer)
+            gl.bufferData(
+                gl.ARRAY_BUFFER,
+                new Float32Array([0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0]),
+                gl.STATIC_DRAW
+            )
 
             gl.activeTexture(gl.TEXTURE0)
             gl.useProgram(this.tileShader)
@@ -576,10 +587,10 @@ export class WebGLRenderer extends Renderer {
 
         gl.useProgram(this.floorLightShader)
 
-        // Rebind vertex attributes for the lighting shader
+        // Rebind vertex attributes for the lighting shader (use Y-flipped UVs for FBO sampling)
         const litPositionLoc = gl.getAttribLocation(this.floorLightShader, 'a_position')
         const litTexCoordLoc = gl.getAttribLocation(this.floorLightShader, 'a_texCoord')
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer)
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.compositeTexCoordBuffer)
         gl.enableVertexAttribArray(litTexCoordLoc)
         gl.vertexAttribPointer(litTexCoordLoc, 2, gl.FLOAT, false, 0, 0)
         gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
