@@ -36,14 +36,16 @@ float getGPULightIntensity() {
 }
 
 void main() {
-    vec4 tileTexel = texture2D(u_image, v_texCoord);
-
     if (u_useGPULighting == 1) {
-        // tile-intensity path: continuous hex UV via gl_FragCoord, value normalised 0..1
+        // FBO fullscreen pass: the floor FBO was rendered with the vertex shader's Y-flip
+        // baked in (clip y=1 → FBO top, stored at UV y≈1), so sample with flipped Y to
+        // undo the mismatch between framebuffer storage and texture UV convention.
+        vec4 tileTexel = texture2D(u_image, vec2(v_texCoord.x, 1.0 - v_texCoord.y));
         float light = max(getGPULightIntensity(), u_ambient);
         gl_FragColor = vec4(tileTexel.rgb * light, tileTexel.a);
     } else {
         // CPU path — per-tile 80x36 lightbuffer uploaded each tile
+        vec4 tileTexel = texture2D(u_image, v_texCoord);
         float lightIntensity = min(texture2D(u_lightBuffer, v_texCoord).r, 65536.0);
         float light = max(lightIntensity / 65536.0, u_ambient);
         gl_FragColor = vec4(tileTexel.rgb * light, tileTexel.a);
