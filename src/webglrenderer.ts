@@ -520,6 +520,7 @@ export class WebGLRenderer extends Renderer {
         gl.disable(gl.DEPTH_TEST)
 
         gl.useProgram(this.tileShader)
+        gl.activeTexture(gl.TEXTURE0)
         gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer)
         gl.enableVertexAttribArray(this.texCoordLocation)
         gl.vertexAttribPointer(this.texCoordLocation, 2, gl.FLOAT, false, 0, 0)
