@@ -1036,6 +1036,7 @@ export class Critter extends Obj {
 
     isPlayer = false // Is this critter the player character?
     dead = false // Is this critter dead?
+    nextIdleAnimTime = 0 // performance.now() after which the next idle cycle begins; 0 = uninitialised
 
     static fromPID(pid: number, sid?: number): Critter {
         return Obj.fromPID_(new Critter(), pid, sid)
@@ -1141,18 +1142,34 @@ export class Critter extends Obj {
         }
     }
 
-    // Advance the looping idle animation one frame. Called every frame while anim === 'idle'.
-    // Loops back to frame 0 at the end without setting animCallback, so inAnim() stays false.
+    // Advance the idle animation one frame, with a random pause between cycles so critters
+    // play their idle/fidget loop periodically rather than continuously.
+    // Never sets animCallback, so inAnim() stays false and movement is never blocked.
     updateLoopingAnim(): void {
         const info = globalState.imageInfo[this.art]
         if (!info || !info.numFrames) return
         const time = window.performance.now()
+
+        if (this.nextIdleAnimTime === 0) {
+            // Stagger first play per critter so they don't all start in sync on map load
+            this.nextIdleAnimTime = time + Math.random() * 5000
+        }
+
+        if (time < this.nextIdleAnimTime) {
+            // Holding the pause between cycles — sit on frame 0
+            this.frame = 0
+            this.lastFrameTime = time // reset so the animation starts at the correct fps
+            return
+        }
+
         const fps = info.fps || 8
         if (time - this.lastFrameTime >= 1000 / fps) {
             this.frame++
             this.lastFrameTime = time
             if (this.frame >= info.numFrames) {
-                this.frame = 0 // loop
+                this.frame = 0
+                // Pause 3–10 s before the next idle cycle
+                this.nextIdleAnimTime = time + 3000 + Math.random() * 7000
             }
         }
     }
