@@ -7,19 +7,22 @@ uniform sampler2D u_tileIntensity;   // 200x200 tile intensity map
 uniform sampler2D u_screenLightmap;  // SCREEN_WIDTH x SCREEN_HEIGHT screen-space lightmap (mode 2)
 uniform int u_useGPULighting;       // 0 = CPU lightbuffer, 1 = GPU tile-intensity, 2 = screen-space
 uniform float u_ambient;            // minimum brightness floor (e.g. 40960/65536 ≈ 0.625)
-uniform vec2 u_screenResolution;    // vec2(canvas_width, canvas_height)
+uniform vec2 u_screenResolution;    // vec2(canvas_width, canvas_height) — physical pixels
 uniform vec2 u_camera;              // world camera position (cameraX, cameraY)
+uniform highp vec2 u_resolution;    // vec2(SCREEN_WIDTH, SCREEN_HEIGHT) — logical pixels (highp to match vertex shader)
 
 varying vec2 v_texCoord;
 
 float getGPULightIntensity() {
-    // Compute world screen position from gl_FragCoord and camera.
-    // Vertex shader flips Y (clipSpace * vec2(1,-1)), so gl_FragCoord.y=0 is at the
-    // bottom of the canvas. Engine Y increases downward, so:
-    //   world_x = cameraX + gl_FragCoord.x
-    //   world_y = cameraY + canvasHeight - gl_FragCoord.y
-    float world_x = u_camera.x + gl_FragCoord.x;
-    float world_y = u_camera.y + u_screenResolution.y - gl_FragCoord.y;
+    // Convert physical gl_FragCoord to logical screen pixels (accounts for high-DPI displays).
+    // Then compute world position from camera + logical screen offset.
+    float dpr = u_screenResolution.x / u_resolution.x;
+    float world_x = u_camera.x + gl_FragCoord.x / dpr;
+    float world_y = u_camera.y + u_resolution.y - gl_FragCoord.y / dpr;
+
+    // Apply hex grid alignment offset (matches CPU path's hexFromScreen(x - 13, y + 13))
+    float adj_x = world_x - 13.0;
+    float adj_y = world_y + 13.0;
 
     // Match the CPU path's reference point: hexFromScreen(scr.x - 13, scr.y + 13)
     float adj_x = world_x - 13.0;
@@ -44,12 +47,9 @@ void main() {
     float lightIntensity;
     if (u_useGPULighting == 2) {
         // Screen-space lightmap: sample directly using gl_FragCoord.
-        // gl_FragCoord.y=0 is at the bottom of the canvas; screenLightmap row 0 is the top
-        // of the engine screen, so we flip Y to align them.
         vec2 screenUV = vec2(gl_FragCoord.x / u_screenResolution.x,
                              1.0 - gl_FragCoord.y / u_screenResolution.y);
         float lightVal = texture2D(u_screenLightmap, screenUV).r;
-        // lightVal is already normalised 0-1
         float light = max(lightVal, u_ambient);
         gl_FragColor = vec4(tileTexel.rgb * light, tileTexel.a);
         return;
