@@ -17,7 +17,7 @@ limitations under the License.
 import { Combat } from './combat.js'
 import { Area, Elevator, loadAreas, lookupMapNameFromLookup } from './data.js'
 import globalState from './globalState.js'
-import { Critter, cloneItem, Obj } from './object.js'
+import { Critter, cloneItem, createObjectWithPID, Obj } from './object.js'
 import { Player } from './player.js'
 import { lookupArt, lookupInterfaceArt } from './pro.js'
 import { objectBoundingBox } from './renderer.js'
@@ -862,15 +862,37 @@ export function uiContextMenu(obj: Obj, evt: any) {
         Scripting.talk(obj._script, obj)
     })
     const pickupBtn = button(obj, 'pickup', () => obj.pickup(globalState.player))
+    const inventoryBtn = button(obj, 'inventory', () => uiInventoryScreen())
+    const skillBtn = button(obj, 'skill', () => skilldexWindow.toggle())
 
-    $menu.appendChild(lookBtn)
-    if (obj._script && obj._script.talk_p_proc !== undefined) {
-        $menu.appendChild(talkBtn)
-    }
-    if (obj.canUse) {
+    const isCritter = obj.type === 'critter'
+    const isDead = isCritter && (obj as Critter).dead
+    const hasTalk = obj._script && obj._script.talk_p_proc !== undefined
+
+    if (isCritter && !isDead) {
+        // Living critter: Talk (if available) → Use (if available) → Look → Pickup → Inventory → Skill → Cancel
+        if (hasTalk) $menu.appendChild(talkBtn)
+        if (obj.canUse) $menu.appendChild(useBtn)
+        $menu.appendChild(lookBtn)
+        $menu.appendChild(pickupBtn)
+    } else if (isCritter && isDead) {
+        // Dead critter: Look → Pickup → Cancel
+        $menu.appendChild(lookBtn)
+        $menu.appendChild(pickupBtn)
+    } else if ((obj.type === 'scenery' || obj.type === 'misc') && obj.canUse) {
+        // Container/Scenery with canUse: Use → Look → Pickup → Inventory → Skill → Cancel
         $menu.appendChild(useBtn)
+        $menu.appendChild(lookBtn)
+        $menu.appendChild(pickupBtn)
+    } else if (obj.type === 'item') {
+        // Item on the ground: Pickup → Look → Inventory → Skill → Cancel
+        $menu.appendChild(pickupBtn)
+        $menu.appendChild(lookBtn)
+    } else {
+        // Fallback: Look → Cancel
+        $menu.appendChild(lookBtn)
     }
-    $menu.appendChild(pickupBtn)
+    // TODO: Inventory and Skill context buttons require art/intrface/invenn.png, invenh.png, skilln.png, skillh.png which are not present
     $menu.appendChild(cancelBtn)
 }
 
@@ -1307,7 +1329,7 @@ export function uiInventoryScreen() {
         }
     }
 
-    type ItemAction = 'cancel' | 'use' | 'drop' | 'equip_left' | 'equip_right' | 'equip_armor' | 'unequip'
+    type ItemAction = 'cancel' | 'use' | 'drop' | 'equip_left' | 'equip_right' | 'equip_armor' | 'unequip' | 'unload'
 
     function itemAction(obj: Obj, slot: string, action: ItemAction) {
         const playerAny = globalState.player as any
@@ -1366,6 +1388,18 @@ export function uiInventoryScreen() {
                 uiDrawWeapon()
                 uiInventoryScreen()
                 break
+            case 'unload': {
+                const ammoPID = obj.pro?.extra?.ammoPID
+                const ammoCurrent = obj.pro?.extra?.rounds
+                if (ammoPID && ammoCurrent > 0) {
+                    const ammoObj = createObjectWithPID(ammoPID)
+                    ammoObj.amount = ammoCurrent
+                    globalState.player.addInventoryItem(ammoObj, ammoCurrent)
+                    obj.pro.extra.rounds = 0
+                }
+                uiInventoryScreen()
+                break
+            }
         }
     }
 
@@ -1405,6 +1439,11 @@ export function uiInventoryScreen() {
             $menu.appendChild(makeContextButton(obj, slot, 'use'))
         }
         $menu.appendChild(makeContextButton(obj, slot, 'drop'))
+
+        // Unload option for loaded weapons
+        if (obj.subtype === 'weapon' && obj.pro?.extra?.ammoPID && obj.pro?.extra?.rounds > 0) {
+            $menu.appendChild(makeContextButton(obj, slot, 'unload', 'Unload'))
+        }
 
         // Equip options for inventory items
         if (slot === 'inventory') {
