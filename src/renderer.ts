@@ -236,6 +236,9 @@ export class Renderer {
             obj.orientation = 0
         } // ...
         const frameInfo = info.frameOffsets[obj.orientation][obj.frame]
+        if (!frameInfo) {
+            return null
+        }
         const dirOffset = info.directionOffsets[obj.orientation]
 
         // Anchored from the bottom center
@@ -374,6 +377,9 @@ export function objectBoundingBox(obj: Obj): BoundingBox | null {
         obj.orientation = 0
     } // ...
     const frameInfo = info.frameOffsets[obj.orientation][frameIdx]
+    if (!frameInfo) {
+        return null
+    }
     const dirOffset = info.directionOffsets[obj.orientation]
     const offsetX = Math.floor(frameInfo.w / 2) - dirOffset.x - frameInfo.ox
     const offsetY = frameInfo.h - dirOffset.y - frameInfo.oy

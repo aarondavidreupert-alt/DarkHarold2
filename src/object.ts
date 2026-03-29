@@ -661,7 +661,7 @@ export class Obj {
     }
 
     get isSelectable(): boolean {
-        return this.visible !== false && (this.canUse || this.type === 'critter')
+        return this.visible !== false && (this.canUse || this.type === 'critter' || this.type === 'item')
     }
 
     get canUse(): boolean {

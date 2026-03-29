@@ -511,22 +511,27 @@ body {
 
 #itemContextMenu {
   position: absolute;
-  width: 60px;
+  width: 40px;
   height: auto;
   top: 0px;
   /* this will be overriden by the UI script */
   visibility: hidden;
   z-index: 10;
+  line-height: 0;
+  font-size: 0;
 }
 
 .itemContextMenuButton {
-  /*position: absolute;*/
+  display: block;
   width: 40px;
   height: 40px;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .itemContextMenuText {
-  width: 60px;
+  width: 40px;
   height: auto;
   padding: 4px 2px;
   color: #00FF00;
@@ -588,6 +593,24 @@ body {
 
 #context_talk:hover {
   background-image: url("art/intrface/talkh.png");
+}
+
+/* TODO: art/intrface/invenn.png and invenh.png not yet available */
+#context_inventory {
+  background-image: url("art/intrface/invenn.png");
+}
+
+#context_inventory:hover {
+  background-image: url("art/intrface/invenh.png");
+}
+
+/* TODO: art/intrface/skilln.png and skillh.png not yet available */
+#context_skill {
+  background-image: url("art/intrface/skilln.png");
+}
+
+#context_skill:hover {
+  background-image: url("art/intrface/skillh.png");
 }
 
 /* bar height is 99
