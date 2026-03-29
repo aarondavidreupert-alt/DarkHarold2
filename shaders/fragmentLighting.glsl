@@ -21,13 +21,12 @@ float getGPULightIntensity() {
     float world_y = u_camera.y + u_resolution.y - gl_FragCoord.y / dpr;
 
     // hexFromScreen without rounding (continuous hex UV for smooth GPU interpolation).
-    // Derived from geometry.ts pixelToCube + cubeRoundToHex (HEX_WIDTH=32, HEX_HEIGHT=16):
-    //   cube_x = world_x/32 - world_y/24
-    //   hex_x  = 150 - cube_x
-    //   hex_y  = world_x/64 + world_y/16 - 75  (cube_z + cube_x/2 - 75, simplified)
+    // Derived from geometry.ts pixelToCube + cubeRoundToHex (HEX_WIDTH=32, HEX_HEIGHT=16).
+    // The continuous formula omits cubeRoundToHex's isEvenX adjustment (-0.25 avg) and
+    // integer floor (-0.5 avg), causing a +0.69 bias in hex_y. Corrected with -0.7 offset.
     float cube_x = world_x / 32.0 - world_y / 24.0;
     float hex_x = 150.0 - cube_x;
-    float hex_y = world_x / 64.0 + world_y / 16.0 - 75.0;
+    float hex_y = world_x / 64.0 + world_y / 16.0 - 75.7;
 
     // GPU LINEAR filter interpolates continuously between adjacent hex intensities.
     return texture2D(u_tileIntensity, (vec2(hex_x, hex_y) + 0.5) / 200.0).r;
