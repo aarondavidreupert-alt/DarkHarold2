@@ -29,13 +29,15 @@ import { fromTileNum, setCenterTile, toTileNum } from "./tile.js"
 
 export module Lightmap {
     function light_reset(): void {
-        for(var i = 0; i < tile_intensity.length; i++)
-            tile_intensity[i] = 655
+        tile_intensity.fill(655)
     }
 
-    // Tile lightmap
-    export var tile_intensity = new Array(40000)
+    // Tile lightmap (Int32Array for fast .set() bulk copy)
+    export var tile_intensity = new Int32Array(40000)
     light_reset()
+
+    // Static (non-critter) light bake — populated by bakeStaticLight()
+    export var staticTileIntensity = new Int32Array(40000)
 
     var light_offsets = new Array(532)
     zeroArray(light_offsets)
@@ -553,6 +555,29 @@ export module Lightmap {
     }
 
     export function rebuildLight(): void {
-        obj_rebuild_all_light()
+        bakeStaticLight()
+    }
+
+    // Bake static (non-critter) lighting into staticTileIntensity.
+    // Call after map load or elevation change.
+    export function bakeStaticLight(): void {
+        light_reset()
+        globalState.gMap.getObjects().forEach(obj => {
+            if (obj.type !== 'critter') {
+                obj_adjust_light(obj, false)
+            }
+        })
+        staticTileIntensity.set(tile_intensity)
+    }
+
+    // Rebuild dynamic (critter) lighting on top of the static bake.
+    // Call once per render frame before drawing the lit floor.
+    export function rebuildDynamicLight(): void {
+        tile_intensity.set(staticTileIntensity)
+        for (const obj of globalState.gMap.getObjects()) {
+            if (obj.type === 'critter' && obj.lightRadius > 0) {
+                obj_adjust_light(obj, false)
+            }
+        }
     }
 }

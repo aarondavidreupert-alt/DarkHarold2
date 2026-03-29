@@ -482,8 +482,8 @@ export class Obj {
             Events.emit('objMove', { obj: this, position })
         }
 
-        // rebuild the lightmap
-        if (Config.engine.doFloorLighting) {
+        // rebuild the lightmap (critters skip static rebake — dynamic light is recomputed each frame)
+        if (Config.engine.doFloorLighting && this.type !== 'critter') {
             Lightmap.rebuildLight()
         }
 
