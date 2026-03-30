@@ -852,7 +852,7 @@ export function uiContextMenu(obj: Obj, evt: any) {
         top: `${evt.clientY}px`,
     })
     const cancelBtn = button(obj, 'cancel')
-    const lookBtn = button(obj, 'look', () => uiLog('You see: ' + obj.getDescription()))
+    const lookBtn = button(obj, 'look', () => uiLog('You see: ' + obj.getLookText()))
     const useBtn = button(obj, 'use', () => playerUse()) // TODO: playerUse should take an object
     const talkBtn = button(obj, 'talk', () => {
         console.log('talking to ' + obj.name)

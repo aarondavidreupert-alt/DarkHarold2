@@ -625,6 +625,17 @@ export class Obj {
         return getMessage(this.getMessageCategory(), this.pro.textID + 1) || null
     }
 
+    getLookText(): string {
+        if (this.pro) {
+            const category = this.getMessageCategory()
+            const desc = getMessage(category, this.pro.textID + 1)
+            if (desc) return desc
+            const name = getMessage(category, this.pro.textID)
+            if (name) return name
+        }
+        return this.name ?? 'Unknown object'
+    }
+
     get money(): number {
         const MONEY_PID = 41
         for (let i = 0; i < this.inventory.length; i++) {
