@@ -883,6 +883,10 @@ export function uiContextMenu(obj: Obj, evt: any) {
         // Container/Scenery with canUse: Use → Look → Cancel
         $menu.appendChild(useBtn)
         $menu.appendChild(lookBtn)
+    } else if (obj.isContainer) {
+        // Container (type=item, subType=container): Use → Look → Cancel
+        if (obj.canUse) $menu.appendChild(useBtn)
+        $menu.appendChild(lookBtn)
     } else if (obj.type === 'item') {
         // Item on the ground: Pickup → Look → Cancel
         $menu.appendChild(pickupBtn)
