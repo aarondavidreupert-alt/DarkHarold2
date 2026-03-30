@@ -612,6 +612,7 @@ heart.keydown = (k: string) => {
         if (globalState.uiMode === UIMode.inventory) {
             globalState.uiMode = UIMode.none
             document.getElementById('inventoryBox')!.style.visibility = 'hidden'
+            globalState.player.clearAnim()
         } else {
             uiInventoryScreen()
         }

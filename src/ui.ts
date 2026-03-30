@@ -729,6 +729,7 @@ export function initUI() {
     $id('inventoryDoneButton').onclick = () => {
         globalState.uiMode = UIMode.none
         $id('inventoryBox').style.visibility = 'hidden'
+        globalState.player.clearAnim()
         uiDrawWeapon()
     }
 
