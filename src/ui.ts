@@ -729,6 +729,7 @@ export function initUI() {
     $id('inventoryDoneButton').onclick = () => {
         globalState.uiMode = UIMode.none
         $id('inventoryBox').style.visibility = 'hidden'
+        globalState.player.clearAnim()
         uiDrawWeapon()
     }
 
@@ -1348,6 +1349,7 @@ export function uiInventoryScreen() {
                     playerAny[slot] = null
                 }
                 obj.drop(globalState.player)
+                globalState.player.clearAnim()
                 uiDrawWeapon()
                 uiInventoryScreen()
                 break
@@ -1362,6 +1364,7 @@ export function uiInventoryScreen() {
                     }
                     playerAny[targetSlot] = obj
                 }
+                globalState.player.clearAnim()
                 uiDrawWeapon()
                 uiInventoryScreen()
                 break
@@ -1385,6 +1388,7 @@ export function uiInventoryScreen() {
                 if (slot === 'armor') {
                     applyArmorArt(null)
                 }
+                globalState.player.clearAnim()
                 uiDrawWeapon()
                 uiInventoryScreen()
                 break
