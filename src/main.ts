@@ -361,7 +361,7 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
                 globalState.showLookCursor = true
                 const hoverObj = getObjectUnderCursor((_: Obj) => true)
                 if (hoverObj) {
-                    uiLog(hoverObj.name ?? 'Unknown object')
+                    uiLog('You see: ' + hoverObj.getName())
                 }
             }, 1000)
         } else if (globalState.cursorMode === 'command') {
@@ -402,7 +402,7 @@ heart.mousemoved = (x: number, y: number) => {
             globalState.showLookCursor = true
             const hoverObj = getObjectUnderCursor((_: Obj) => true)
             if (hoverObj) {
-                uiLog(hoverObj.name ?? 'Unknown object')
+                uiLog('You see: ' + hoverObj.getName())
             }
         }, 1000)
     }
