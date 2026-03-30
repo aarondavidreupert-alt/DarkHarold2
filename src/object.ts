@@ -802,14 +802,17 @@ export class Obj {
         const doPickup = () => {
             source.addInventoryItem(this, this.amount)
             globalState.gMap.destroyObject(this)
+            source.clearAnim()
         }
-        // Play the bend-down pick-up animation on the source critter, then transfer the item.
-        // Falls back to instant pickup if the FRM is absent for this critter type.
-        if (source.hasAnimation('pickUp')) {
-            source.staticAnimation('pickUp', doPickup)
-        } else {
-            doPickup()
+        const playPickup = () => {
+            if (source.hasAnimation('pickUp')) {
+                source.staticAnimation('pickUp', doPickup)
+            } else {
+                doPickup()
+            }
         }
+        // Walk to the object first, then play the pickup animation
+        source.walkInFrontOf(this.position, playPickup)
     }
 
     drop(source: Obj) {
