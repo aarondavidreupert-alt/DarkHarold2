@@ -625,15 +625,17 @@ export class Obj {
         return getMessage(this.getMessageCategory(), this.pro.textID + 1) || null
     }
 
-    getLookText(): string {
+    getName(): string {
         if (this.pro) {
-            const category = this.getMessageCategory()
-            const desc = getMessage(category, this.pro.textID + 1)
-            if (desc) return desc
-            const name = getMessage(category, this.pro.textID)
+            const name = getMessage(this.getMessageCategory(), this.pro.textID)
             if (name) return name
         }
         return this.name ?? 'Unknown object'
+    }
+
+    getLookText(): string {
+        const desc = this.getDescription()
+        return desc ?? this.getName()
     }
 
     get money(): number {
