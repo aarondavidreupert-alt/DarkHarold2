@@ -871,22 +871,20 @@ export function uiContextMenu(obj: Obj, evt: any) {
     const hasTalk = obj._script && obj._script.talk_p_proc !== undefined
 
     if (isCritter && !isDead) {
-        // Living critter: Talk (if available) → Use (if available) → Look → Pickup → Inventory → Skill → Cancel
+        // Living critter: Talk (if available) → Use (if available) → Look → Cancel
         if (hasTalk) $menu.appendChild(talkBtn)
         if (obj.canUse) $menu.appendChild(useBtn)
         $menu.appendChild(lookBtn)
-        $menu.appendChild(pickupBtn)
     } else if (isCritter && isDead) {
-        // Dead critter: Look → Pickup → Cancel
+        // Dead critter: Look → Pickup (loot) → Cancel
         $menu.appendChild(lookBtn)
         $menu.appendChild(pickupBtn)
     } else if ((obj.type === 'scenery' || obj.type === 'misc') && obj.canUse) {
-        // Container/Scenery with canUse: Use → Look → Pickup → Inventory → Skill → Cancel
+        // Container/Scenery with canUse: Use → Look → Cancel
         $menu.appendChild(useBtn)
         $menu.appendChild(lookBtn)
-        $menu.appendChild(pickupBtn)
     } else if (obj.type === 'item') {
-        // Item on the ground: Pickup → Look → Inventory → Skill → Cancel
+        // Item on the ground: Pickup → Look → Cancel
         $menu.appendChild(pickupBtn)
         $menu.appendChild(lookBtn)
     } else {
