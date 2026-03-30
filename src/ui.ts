@@ -895,7 +895,8 @@ export function uiContextMenu(obj: Obj, evt: any) {
         // Fallback: Look → Cancel
         $menu.appendChild(lookBtn)
     }
-    // TODO: Inventory and Skill context buttons require art/intrface/invenn.png, invenh.png, skilln.png, skillh.png which are not present
+    $menu.appendChild(inventoryBtn)
+    $menu.appendChild(skillBtn)
     $menu.appendChild(cancelBtn)
 }
 

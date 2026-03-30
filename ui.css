@@ -595,7 +595,7 @@ body {
   background-image: url("art/intrface/talkh.png");
 }
 
-/* TODO: art/intrface/invenn.png and invenh.png not yet available */
+/* Inventory button in context menu */
 #context_inventory {
   background-image: url("art/intrface/invenn.png");
 }
@@ -604,7 +604,7 @@ body {
   background-image: url("art/intrface/invenh.png");
 }
 
-/* TODO: art/intrface/skilln.png and skillh.png not yet available */
+/* Skilldex button in context menu */
 #context_skill {
   background-image: url("art/intrface/skilln.png");
 }
