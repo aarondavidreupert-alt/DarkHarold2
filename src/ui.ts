@@ -1787,9 +1787,9 @@ function uiEndBarterMode() {
         off($id('barterTalkButton'), 'click')
         off($id('barterOfferButton'), 'click')
 
-        globalState.uiMode = UIMode.dialogue
-        $id('dialogueBox').style.pointerEvents = 'auto'
-        uiStartDialogue(true) // force dialogue mode
+        // Re-enter dialogue: re-trigger the NPC's talk_p_proc to present
+        // fresh dialogue options (the old ones were cleared when we entered barter)
+        Scripting.reenterDialogue()
     })
 }
 

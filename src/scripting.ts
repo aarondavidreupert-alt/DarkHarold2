@@ -224,6 +224,14 @@ export module Scripting {
         currentDialogueObject = null
     }
 
+    export function reenterDialogue(): void {
+        if (!currentDialogueObject || !currentDialogueObject._script) {
+            return
+        }
+        dialogueOptionProcs = []
+        talk(currentDialogueObject._script, currentDialogueObject)
+    }
+
     function canSee(obj: Obj, target: Obj): boolean {
         const dir = Math.abs(obj.orientation - hexDirectionTo(obj.position, target.position))
         return [0, 1, 5].indexOf(dir) !== -1
