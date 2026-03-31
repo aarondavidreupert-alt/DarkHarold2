@@ -1620,25 +1620,106 @@ export function uiAddDialogueOption(msg: string, optionID: number) {
     $id('dialogueBoxTextArea').appendChild(item)
 }
 
-function uiGetAmount(item: Obj) {
-    const forever = true
-    while (forever) {
-        let amount: any = prompt('How many?')
-        if (amount === null) {
-            return 0
-        } else if (amount === '') {
-            return item.amount
-        } // all of it!
-        else {
-            amount = parseInt(amount)
+function uiGetAmount(item: Obj): Promise<number> {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div')
+        Object.assign(overlay.style, {
+            position: 'absolute',
+            left: '0', top: '0', width: '100%', height: '100%',
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            zIndex: '50',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+        })
+
+        const modal = document.createElement('div')
+        Object.assign(modal.style, {
+            backgroundColor: '#1a1a1a',
+            border: '2px solid #00AA00',
+            padding: '16px 24px',
+            fontFamily: "'VT323', monospace",
+            color: '#00FF00',
+            textAlign: 'center',
+            minWidth: '180px',
+        })
+
+        const title = document.createElement('div')
+        title.textContent = 'How many?'
+        Object.assign(title.style, { fontSize: '1.2em', marginBottom: '10px', color: '#FCFC7C' })
+
+        const input = document.createElement('input')
+        input.type = 'number'
+        input.min = '1'
+        input.max = String(item.amount)
+        input.value = String(item.amount)
+        Object.assign(input.style, {
+            width: '80px',
+            backgroundColor: '#0a0a0a',
+            border: '1px solid #00AA00',
+            color: '#00FF00',
+            fontFamily: "'VT323', monospace",
+            fontSize: '1em',
+            textAlign: 'center',
+            padding: '4px',
+            outline: 'none',
+        })
+
+        const btnRow = document.createElement('div')
+        Object.assign(btnRow.style, { marginTop: '10px', display: 'flex', gap: '8px', justifyContent: 'center' })
+
+        function cleanup(amount: number) {
+            overlay.remove()
+            resolve(amount)
         }
 
-        if (isNaN(amount) || item.amount < amount) {
-            alert('Invalid amount')
-        } else {
-            return amount
+        const okBtn = document.createElement('div')
+        okBtn.textContent = 'OK'
+        Object.assign(okBtn.style, {
+            backgroundColor: '#004400',
+            border: '1px solid #00AA00',
+            padding: '4px 16px',
+            cursor: 'pointer',
+            color: '#00FF00',
+            fontFamily: "'VT323', monospace",
+        })
+        okBtn.onmouseenter = () => { okBtn.style.backgroundColor = '#006600' }
+        okBtn.onmouseleave = () => { okBtn.style.backgroundColor = '#004400' }
+        okBtn.onclick = () => {
+            const val = parseInt(input.value)
+            if (isNaN(val) || val < 1 || val > item.amount) return
+            cleanup(val)
         }
-    }
+
+        const cancelBtn = document.createElement('div')
+        cancelBtn.textContent = 'Cancel'
+        Object.assign(cancelBtn.style, {
+            backgroundColor: '#440000',
+            border: '1px solid #AA0000',
+            padding: '4px 16px',
+            cursor: 'pointer',
+            color: '#FF4444',
+            fontFamily: "'VT323', monospace",
+        })
+        cancelBtn.onmouseenter = () => { cancelBtn.style.backgroundColor = '#660000' }
+        cancelBtn.onmouseleave = () => { cancelBtn.style.backgroundColor = '#440000' }
+        cancelBtn.onclick = () => cleanup(0)
+
+        input.onkeydown = (e: KeyboardEvent) => {
+            if (e.key === 'Enter') okBtn.click()
+            if (e.key === 'Escape') cancelBtn.click()
+        }
+
+        btnRow.appendChild(okBtn)
+        btnRow.appendChild(cancelBtn)
+        modal.appendChild(title)
+        modal.appendChild(input)
+        modal.appendChild(btnRow)
+        overlay.appendChild(modal)
+        $id('game-container').appendChild(overlay)
+        input.focus()
+        input.select()
+    })
 }
 
 function _uiAddItem(items: Obj[], item: Obj, count: number) {
@@ -1687,7 +1768,8 @@ function uiEndBarterMode() {
     const $barterBox = $id('barterBox')
 
     uiAnimateBox($barterBox, null, 480, () => {
-        hidev($id('barterBox'))
+        $barterBox.style.visibility = 'hidden'
+        $barterBox.style.display = 'none'
         off($id('barterBoxLeft'), 'drop dragenter dragover')
         off($id('barterBoxRight'), 'drop dragenter dragover')
         off($id('barterBoxInventoryLeft'), 'drop dragenter dragover')
@@ -1695,6 +1777,7 @@ function uiEndBarterMode() {
         off($id('barterTalkButton'), 'click')
         off($id('barterOfferButton'), 'click')
 
+        globalState.uiMode = UIMode.dialogue
         uiStartDialogue(true) // force dialogue mode
     })
 }
@@ -1710,6 +1793,7 @@ export function uiBarterMode(merchant: Critter) {
 
         // Pop up the bartering screen (animate up)
         const $barterBox = $id('barterBox')
+        $barterBox.style.display = ''
         $barterBox.style.visibility = 'visible'
         uiAnimateBox($barterBox, 480, 290)
     })
@@ -1788,7 +1872,7 @@ export function uiBarterMode(merchant: Critter) {
         }
     }
 
-    function uiBarterMove(data: string, where: 'left' | 'right' | 'leftInv' | 'rightInv') {
+    async function uiBarterMove(data: string, where: 'left' | 'right' | 'leftInv' | 'rightInv') {
         console.log('barter: move ' + data + ' to ' + where)
 
         const from = (
@@ -1833,7 +1917,7 @@ export function uiBarterMode(merchant: Critter) {
             // table -> same table
             return
         } else if (obj.amount > 1) {
-            uiSwapItem(from, obj, to, uiGetAmount(obj))
+            uiSwapItem(from, obj, to, await uiGetAmount(obj))
         } else {
             uiSwapItem(from, obj, to, 1)
         }
@@ -1886,7 +1970,7 @@ function uiEndLoot() {
 export function uiLoot(object: Obj) {
     globalState.uiMode = UIMode.loot
 
-    function uiLootMove(data: string /* "l"|"r" */, where: 'left' | 'right') {
+    async function uiLootMove(data: string /* "l"|"r" */, where: 'left' | 'right') {
         console.log('loot: move ' + data + ' to ' + where)
 
         const from = ({ l: globalState.player.inventory, r: object.inventory } as any)[data[0]]
@@ -1909,7 +1993,7 @@ export function uiLoot(object: Obj) {
             // object -> same location
             return
         } else if (obj.amount > 1) {
-            uiSwapItem(from, obj, to, uiGetAmount(obj))
+            uiSwapItem(from, obj, to, await uiGetAmount(obj))
         } else {
             uiSwapItem(from, obj, to, 1)
         }
