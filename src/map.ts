@@ -241,7 +241,20 @@ export class GameMap {
 
         Scripting.updateMap(this.mapScript, objectsAndSpatials, this.currentElevation)
     }
-
+	
+	private playMapMusic(): void {
+		const curMapInfo = getCurrentMapInfo()
+		console.log('[Music] curMapInfo:', curMapInfo)
+		console.log('[Music] music field:', curMapInfo?.music)
+		globalState.audioEngine.stopAll()
+		if (curMapInfo && curMapInfo.music) {
+			console.log('[Music] calling playMusic with:', curMapInfo.music)
+			globalState.audioEngine.playMusic(curMapInfo.music)
+		} else {
+			console.log('[Music] no music to play')
+		}
+	}
+	
     loadMap(mapName: string, startingPosition?: Point, startingElevation = 0, loadedCallback?: () => void): void {
         if (Config.engine.doSaveDirtyMaps && this.name !== null) {
             // if a map is already loaded, save it to the dirty map cache before loading
@@ -282,6 +295,7 @@ export class GameMap {
             this.changeElevation(this.currentElevation, true, false)
 
             // Done
+			this.playMapMusic()
             console.log(`[Main] Loaded from dirty map cache`)
             loadedCallback && loadedCallback()
 
@@ -440,11 +454,7 @@ export class GameMap {
         globalState.loadingAssetsTotal-- // we should know all of the assets we need by now
 
         // clear audio and use the map music
-        const curMapInfo = getCurrentMapInfo()
-        globalState.audioEngine.stopAll()
-        if (curMapInfo && curMapInfo.music) {
-            globalState.audioEngine.playMusic(curMapInfo.music)
-        }
+		this.playMapMusic()
 
         Events.emit('loadMapPost')
     }

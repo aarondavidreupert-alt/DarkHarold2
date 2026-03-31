@@ -54,13 +54,15 @@ export class HTMLAudioEngine implements AudioEngine {
         this.musicAudio = this.playSound('music/' + music)
     }
 
-    playSound(soundName: string): HTMLAudioElement | null {
-        var sound = new Audio()
-        sound.addEventListener('loadeddata', () => sound.play(), false)
-        sound.src = 'audio/' + soundName + '.wav'
-        return sound
-    }
-
+	playSound(soundName: string): HTMLAudioElement | null {
+		var sound = new Audio()
+		sound.addEventListener('canplaythrough', () => {
+			console.log('[Audio] playing:', soundName)
+			sound.play().catch(e => console.log('[Audio] play() blocked:', e))
+		}, false)
+		sound.src = 'audio/' + soundName + '.wav'
+		return sound
+	}
     stopMusic(): void {
         if (this.musicAudio) this.musicAudio.pause()
     }
