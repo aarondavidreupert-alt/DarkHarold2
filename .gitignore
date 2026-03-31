@@ -11,3 +11,4 @@ contents.xcworkspacedata
 node_modules
 js/
 lut/elevators.json
+acm2wav.exe
