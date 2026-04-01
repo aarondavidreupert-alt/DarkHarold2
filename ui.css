@@ -528,6 +528,16 @@ body {
   margin: 0;
   padding: 0;
   border: 0;
+  outline: 0;
+  box-shadow: none;
+  background-color: transparent;
+}
+
+#itemContextMenu img {
+  border: 0;
+  outline: 0;
+  display: block;
+  vertical-align: top;
 }
 
 .itemContextMenuText {
