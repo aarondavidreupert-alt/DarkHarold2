@@ -228,6 +228,7 @@ export module Scripting {
         if (!currentDialogueObject || !currentDialogueObject._script) {
             return
         }
+        globalState.uiMode = UIMode.dialogue
         dialogueOptionProcs = []
         talk(currentDialogueObject._script, currentDialogueObject)
     }
