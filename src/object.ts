@@ -482,8 +482,8 @@ export class Obj {
             Events.emit('objMove', { obj: this, position })
         }
 
-        // rebuild the lightmap
-        if (Config.engine.doFloorLighting) {
+        // rebuild the lightmap (critters skip static rebake — dynamic light is recomputed each frame)
+        if (Config.engine.doFloorLighting && this.type !== 'critter') {
             Lightmap.rebuildLight()
         }
 
@@ -625,6 +625,19 @@ export class Obj {
         return getMessage(this.getMessageCategory(), this.pro.textID + 1) || null
     }
 
+    getName(): string {
+        if (this.pro) {
+            const name = getMessage(this.getMessageCategory(), this.pro.textID)
+            if (name) return name
+        }
+        return this.name ?? 'Unknown object'
+    }
+
+    getLookText(): string {
+        const desc = this.getDescription()
+        return desc ?? this.getName()
+    }
+
     get money(): number {
         const MONEY_PID = 41
         for (let i = 0; i < this.inventory.length; i++) {
@@ -661,7 +674,7 @@ export class Obj {
     }
 
     get isSelectable(): boolean {
-        return this.visible !== false && (this.canUse || this.type === 'critter')
+        return this.visible !== false && (this.canUse || this.type === 'critter' || this.type === 'item')
     }
 
     get canUse(): boolean {
@@ -679,7 +692,7 @@ export class Obj {
 
     // Returns whether or not the object was used
     use(source?: Critter, useScript?: boolean): boolean {
-        if (this.canUse === false) {
+        if (this.canUse === false && !this.isContainer) {
             console.log("can't use object")
             return false
         }
@@ -802,14 +815,17 @@ export class Obj {
         const doPickup = () => {
             source.addInventoryItem(this, this.amount)
             globalState.gMap.destroyObject(this)
+            source.clearAnim()
         }
-        // Play the bend-down pick-up animation on the source critter, then transfer the item.
-        // Falls back to instant pickup if the FRM is absent for this critter type.
-        if (source.hasAnimation('pickUp')) {
-            source.staticAnimation('pickUp', doPickup)
-        } else {
-            doPickup()
+        const playPickup = () => {
+            if (source.hasAnimation('pickUp')) {
+                source.staticAnimation('pickUp', doPickup)
+            } else {
+                doPickup()
+            }
         }
+        // Walk to the object first, then play the pickup animation
+        source.walkInFrontOf(this.position, playPickup)
     }
 
     drop(source: Obj) {

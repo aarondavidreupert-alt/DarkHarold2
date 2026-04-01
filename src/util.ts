@@ -24,7 +24,7 @@ import globalState from './globalState.js'
 export function parseIni(text: string) {
     // Parse a .ini-style categorized key-value format
     const ini: { [category: string]: any } = {}
-    const lines = text.split('\n')
+    const lines = text.split('\n').map(l => l.replace(/\r$/, ''))
     let category = null
 
     for (var i = 0; i < lines.length; i++) {
@@ -33,7 +33,7 @@ export function parseIni(text: string) {
         } else if (line[0] === '[') category = line.trim().slice(1, -1)
         else {
             // key=value
-            var kv = line.match(/(.+?)=(.+)/)
+            var kv = line.match(/^(.+?)[-=](.+)$/)
             if (kv === null) {
                 // MAPS.TXT has one of these, so it's not an exception
                 console.log('warning: parseIni: not a key=value line: ' + line)
