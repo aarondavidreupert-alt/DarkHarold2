@@ -832,7 +832,7 @@ export function uiContextMenu(obj: Obj, evt: any) {
     globalState.uiMode = UIMode.contextMenu
 
     function button(obj: Obj, action: string, onclick: (() => void) | undefined = undefined) {
-        return makeEl('img', {
+        return makeEl('div', {
             id: 'context_' + action,
             classes: ['itemContextMenuButton'],
             click: () => {
