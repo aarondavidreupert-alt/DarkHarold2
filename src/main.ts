@@ -97,19 +97,16 @@ function playerUseSkill(skill: Skills, obj: Obj): void {
     }
 }
 
-export function playerUse() {
-    // TODO: playerUse should take an object
+export function playerUse(obj: Obj | null) {
     const mousePos = heart.mouse.getPosition()
     const mouseHex = hexFromScreen(
         mousePos[0] + globalState.cameraPosition.x,
         mousePos[1] + globalState.cameraPosition.y
     )
-    let obj = getObjectUnderCursor((obj) => obj.isSelectable)
     const who = <Critter>obj
 
     if (globalState.uiMode === UIMode.useSkill) {
         // using a skill on object
-        obj = getObjectUnderCursor((_: Obj) => true) // obj might not be usable, so select non-usable ones too
         if (!obj) {
             return
         }
@@ -346,10 +343,10 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
             // only attack if there's a valid target — no walking fallthrough
             const target = getObjectUnderCursor((_: Obj) => true)
             if (target && target !== globalState.player) {
-                playerUse()
+                playerUse(target)
             }
         } else {
-            playerUse()
+            playerUse(getObjectUnderCursor((obj) => obj.isSelectable))
         }
     } else if (btn === 'r') {
         if (globalState.cursorMode === 'move') {
