@@ -52,15 +52,18 @@ export class HTMLAudioEngine implements AudioEngine {
     playMusic(music: string): void {
         this.stopMusic()
         this.musicAudio = this.playSound('music/' + music)
+		if (this.musicAudio) this.musicAudio.loop = true
     }
 
-    playSound(soundName: string): HTMLAudioElement | null {
-        var sound = new Audio()
-        sound.addEventListener('loadeddata', () => sound.play(), false)
-        sound.src = 'audio/' + soundName + '.wav'
-        return sound
-    }
-
+	playSound(soundName: string): HTMLAudioElement | null {
+		var sound = new Audio()
+		sound.addEventListener('canplaythrough', () => {
+			console.log('[Audio] playing:', soundName)
+			sound.play().catch(e => console.log('[Audio] play() blocked:', e))
+		}, false)
+		sound.src = 'audio/' + soundName + '.wav'
+		return sound
+	}
     stopMusic(): void {
         if (this.musicAudio) this.musicAudio.pause()
     }
@@ -80,13 +83,14 @@ export class HTMLAudioEngine implements AudioEngine {
         const sumFreqs = sfx.reduce((sum: number, x: [string, number]) => sum + x[1], 0)
         let roll = getRandomInt(0, sumFreqs)
 
-        for (var i = 0; i < sfx.length; i++) {
-            var freq = sfx[i][1]
+		for (var i = 0; i < sfx.length; i++) {
+			var freq = sfx[i][1]
+			if (roll < freq) return sfx[i][0]
+			roll -= freq
+		}
+		// fallback statt throw
+		return sfx[0][0]
 
-            if (roll >= freq) return sfx[i][0]
-
-            roll -= freq
-        }
 
         // XXX: What happens here when none roll?
         throw Error("shouldn't be here")

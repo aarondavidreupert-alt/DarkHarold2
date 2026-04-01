@@ -35,7 +35,7 @@ import { Player } from './player.js'
 import { makePID } from './pro.js'
 import { centerCamera, objectOnScreen } from './renderer.js'
 import { fromTileNum, toTileNum } from './tile.js'
-import { uiAddDialogueOption, uiBarterMode, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue } from './ui.js'
+import { uiAddDialogueOption, uiBarterMode, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, UIMode } from './ui.js'
 import { assert, BinaryReader, getFileBinarySync, getFileText, getRandomInt } from './util.js'
 import { ScriptVM } from './vm.js'
 import { ScriptVMBridge } from './vm_bridge.js'
@@ -190,7 +190,11 @@ export module Scripting {
         var f = dialogueOptionProcs[id]
         dialogueOptionProcs = []
         f()
-        // by this point we may have already exited dialogue
+        // by this point we may have already exited dialogue or switched to barter
+        if (globalState.uiMode === UIMode.barter) {
+            // script switched to barter mode — don't close dialogue
+            return
+        }
         if (currentDialogueObject !== null && dialogueOptionProcs.length === 0) {
             // after running the option procedure we have no options...
             // so close the dialogue
@@ -218,6 +222,15 @@ export module Scripting {
         }
 
         currentDialogueObject = null
+    }
+
+    export function reenterDialogue(): void {
+        if (!currentDialogueObject || !currentDialogueObject._script) {
+            return
+        }
+        globalState.uiMode = UIMode.dialogue
+        dialogueOptionProcs = []
+        talk(currentDialogueObject._script, currentDialogueObject)
     }
 
     function canSee(obj: Obj, target: Obj): boolean {
