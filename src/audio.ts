@@ -52,6 +52,7 @@ export class HTMLAudioEngine implements AudioEngine {
     playMusic(music: string): void {
         this.stopMusic()
         this.musicAudio = this.playSound('music/' + music)
+		if (this.musicAudio) this.musicAudio.loop = true
     }
 
 	playSound(soundName: string): HTMLAudioElement | null {
