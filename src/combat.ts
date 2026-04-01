@@ -44,11 +44,21 @@ export class ActionPoints {
         this.move = AP.move
     }
 
-    getMaxAP(): { combat: number; move: number } {
-        var bonusCombatAP = 0 // TODO: replace with get function
-        var bonusMoveAP = 0 // TODO: replace with get function
+    getBonusCombatAP(): number {
+        // TODO: add perk bonuses (e.g. Bonus HtH Attacks, Bonus Rate of Fire)
+        return 0
+    }
 
-        return { combat: 5 + Math.floor(this.attachedCritter.getStat('AGI') / 2) + bonusCombatAP, move: bonusMoveAP }
+    getBonusMoveAP(): number {
+        // TODO: add perk bonuses (e.g. Bonus Move)
+        return 0
+    }
+
+    getMaxAP(): { combat: number; move: number } {
+        return {
+            combat: 5 + Math.floor(this.attachedCritter.getStat('AGI') / 2) + this.getBonusCombatAP(),
+            move: this.getBonusMoveAP(),
+        }
     }
 
     getAvailableMoveAP(): number {
