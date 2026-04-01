@@ -533,12 +533,6 @@ body {
   background-color: transparent;
 }
 
-#itemContextMenu img {
-  border: 0;
-  outline: 0;
-  display: block;
-  vertical-align: top;
-}
 
 .itemContextMenuText {
   width: 40px;
