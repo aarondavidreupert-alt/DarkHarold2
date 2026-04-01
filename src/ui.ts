@@ -853,7 +853,12 @@ export function uiContextMenu(obj: Obj, evt: any) {
     })
     const cancelBtn = button(obj, 'cancel')
     const lookBtn = button(obj, 'look', () => uiLog('You see: ' + obj.getLookText()))
-    const useBtn = button(obj, 'use', () => playerUse()) // TODO: playerUse should take an object
+    const useBtn = button(obj, 'use', () => {
+        globalState.player.walkInFrontOf(obj.position, () => {
+            globalState.player.clearAnim()
+            obj.use(globalState.player)
+        })
+    })
     const talkBtn = button(obj, 'talk', () => {
         console.log('talking to ' + obj.name)
         if (!obj._script) {
@@ -884,8 +889,8 @@ export function uiContextMenu(obj: Obj, evt: any) {
         $menu.appendChild(useBtn)
         $menu.appendChild(lookBtn)
     } else if (obj.isContainer) {
-        // Container (type=item, subType=container): Use → Look → Cancel
-        if (obj.canUse) $menu.appendChild(useBtn)
+        // Container (type=item, subType=container): always show Use → Look → Cancel
+        $menu.appendChild(useBtn)
         $menu.appendChild(lookBtn)
     } else if (obj.type === 'item') {
         // Item on the ground: Pickup → Look → Cancel
