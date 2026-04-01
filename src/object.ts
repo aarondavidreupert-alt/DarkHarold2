@@ -692,7 +692,7 @@ export class Obj {
 
     // Returns whether or not the object was used
     use(source?: Critter, useScript?: boolean): boolean {
-        if (this.canUse === false) {
+        if (this.canUse === false && !this.isContainer) {
             console.log("can't use object")
             return false
         }
