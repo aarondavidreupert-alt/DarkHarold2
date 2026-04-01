@@ -537,7 +537,19 @@ export class Combat {
     }
 
     end() {
-        // TODO: check number of active combatants to see if we can end
+        // Check number of active combatants to see if we can end
+        var numActive = 0
+        for (var i = 0; i < this.combatants.length; i++) {
+            var obj = this.combatants[i]
+            if (obj.dead || obj.isPlayer) continue
+            var inRange = hexDistance(obj.position, this.player.position) <= obj.ai!.info.max_dist
+
+            if (inRange || obj.hostile) {
+                numActive++
+            }
+        }
+
+        if (numActive > 0) return
 
         // Set all combatants to non-hostile and remove their outline
         for (const combatant of this.combatants) {
