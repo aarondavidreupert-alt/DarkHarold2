@@ -27,6 +27,7 @@ import { uiEndCombat, uiLog, uiStartCombat } from './ui.js'
 import { getFileText, getMessage, getRandomInt, parseIni, rollSkillCheck } from './util.js'
 
 // Turn-based combat system
+console.log('[COMBAT MODULE] combat.js loaded successfully')
 
 export class ActionPoints {
     combat: number = 0 // Combat AP
@@ -464,7 +465,13 @@ export class Combat {
         }
         var msgID = getRandomInt(start, end)
         console.log(`[TAUNT] msgID=${msgID} (range ${start}-${end})`)
-        var msg = this.getCombatAIMessage(msgID)
+        var msg: string | null = null
+        try {
+            msg = this.getCombatAIMessage(msgID)
+        } catch (e) {
+            console.error(`[TAUNT] getCombatAIMessage(${msgID}) threw:`, e)
+            return
+        }
         console.log(`[TAUNT] getMessage('combatai', ${msgID}) = ${JSON.stringify(msg)}`)
         if (msg) {
             globalState.floatMessages.push({
@@ -509,6 +516,7 @@ export class Combat {
     }
 
     doAITurn(obj: Critter, idx: number, depth: number): void {
+        console.log(`[AI TURN] doAITurn called: obj=${obj.name} depth=${depth} ai=${!!obj.ai} ai.info=${obj.ai ? !!obj.ai.info : 'N/A'}`)
         if (depth > Config.combat.maxAIDepth) {
             console.warn(`Bailing out of ${depth}-deep AI turn recursion`)
             return this.nextTurn()
@@ -682,7 +690,11 @@ export class Combat {
         for (var i = 0; i < this.combatants.length; i++) {
             var obj = this.combatants[i]
             if (obj.dead || obj.isPlayer) continue
-            var inRange = hexDistance(obj.position, this.player.position) <= obj.ai!.info.max_dist
+            if (!obj.ai || !obj.ai.info) {
+                console.warn(`[COMBAT] Critter ${obj.name || obj.art} has no AI info, skipping range check`)
+                continue
+            }
+            var inRange = hexDistance(obj.position, this.player.position) <= obj.ai.info.max_dist
 
             if (inRange || obj.hostile) {
                 numActive++
@@ -721,7 +733,11 @@ export class Combat {
         for (var i = 0; i < this.combatants.length; i++) {
             var obj = this.combatants[i]
             if (obj.dead || obj.isPlayer) continue
-            var inRange = hexDistance(obj.position, this.player.position) <= obj.ai!.info.max_dist
+            if (!obj.ai || !obj.ai.info) {
+                console.warn(`[COMBAT] Critter ${obj.name || obj.art} has no AI info, skipping range check`)
+                continue
+            }
+            var inRange = hexDistance(obj.position, this.player.position) <= obj.ai.info.max_dist
 
             if (inRange || obj.hostile) {
                 obj.hostile = true
