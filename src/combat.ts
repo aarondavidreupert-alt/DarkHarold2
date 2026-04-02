@@ -23,7 +23,7 @@ import globalState from './globalState.js'
 import { Critter, Obj } from './object.js'
 import { Player } from './player.js'
 import { Scripting } from './scripting.js'
-import { uiEndCombat, uiLog, uiStartCombat } from './ui.js'
+import { drawAP, drawHP, uiEndCombat, uiLog, uiStartCombat } from './ui.js'
 import { getFileText, getMessage, getRandomInt, parseIni, rollSkillCheck } from './util.js'
 
 // Turn-based combat system
@@ -371,6 +371,7 @@ export class Combat {
             uiLog(who + ' hit ' + targetName + ' for ' + damage + ' damage' + extraMsg)
 
             critterDamage(target, damage, obj)
+            if (target.isPlayer) drawHP(target.getStat('HP'))
 
             if (target.dead) this.perish(target, obj)
         } else {
@@ -721,6 +722,9 @@ export class Combat {
             this.player.bonusAC = 0
             this.inPlayerTurn = true
             this.player.AP!.resetAP()
+            const maxAP = this.player.AP!.getMaxAP()
+            drawAP(this.player.AP!.getAvailableMoveAP() + this.player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
+            drawHP(this.player.getStat('HP'))
         } else {
             this.inPlayerTurn = false
             var critter = this.combatants[this.whoseTurn]
