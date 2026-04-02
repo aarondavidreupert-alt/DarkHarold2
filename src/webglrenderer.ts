@@ -58,6 +58,9 @@ export class WebGLRenderer extends Renderer {
 
     private textures: { [key: string]: WebGLTexture } = {} // WebGL texture cache
 
+    private textCanvas: HTMLCanvasElement
+    private textCtx: CanvasRenderingContext2D
+
     constructor(private shaderSources: ShaderSources, fonts: Font[]) {
         super()
         this.fonts = fonts
@@ -155,6 +158,10 @@ export class WebGLRenderer extends Renderer {
 
     init(): void {
         this.canvas = document.getElementById('cnv') as HTMLCanvasElement
+
+        // Set up 2D text overlay canvas
+        this.textCanvas = document.getElementById('textOverlay') as HTMLCanvasElement
+        this.textCtx = this.textCanvas.getContext('2d')!
 
         // TODO: hack
         heart.canvas = this.canvas
@@ -364,6 +371,19 @@ export class WebGLRenderer extends Renderer {
 
     clear(): void {
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT)
+        // Clear the 2D text overlay each frame
+        this.textCtx.clearRect(0, 0, this.textCanvas.width, this.textCanvas.height)
+    }
+
+    renderText(txt: string, x: number, y: number): void {
+        const ctx = this.textCtx
+        ctx.font = '16px "VT323", monospace'
+        ctx.fillStyle = '#00ff00'
+        ctx.textAlign = 'center'
+        ctx.strokeStyle = 'black'
+        ctx.lineWidth = 2
+        ctx.strokeText(txt, x, y)
+        ctx.fillText(txt, x, y)
     }
 
     renderLitFloorCPU(tileMap: TileMap, useColorTable = true) {

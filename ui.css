@@ -1262,6 +1262,15 @@ body {
   cursor: none !important;
 }
 
+#textOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 800px;
+  height: 600px;
+  pointer-events: none;
+}
+
 /* HUD and UI overlays use Fallout custom cursor */
 #bar,
 #dialogueContainer,
