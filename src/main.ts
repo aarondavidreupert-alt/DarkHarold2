@@ -26,6 +26,8 @@ import { getObjectUnderCursor, SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js
 import { Scripting } from './scripting.js'
 import { Skills } from './skills.js'
 import {
+    drawAP,
+    drawHP,
     uiCalledShot,
     uiCloseCalledShot,
     uiContextMenu,
@@ -151,6 +153,8 @@ export function playerUse(obj: Obj | null) {
                         maxWalkingDist
                     )
                 }
+                const maxAP = globalState.player.AP.getMaxAP()
+                drawAP(globalState.player.AP.getAvailableMoveAP() + globalState.player.AP.getAvailableCombatAP(), maxAP.combat + maxAP.move)
             }
         }
 
@@ -197,6 +201,8 @@ export function playerUse(obj: Obj | null) {
 
                 uiCalledShot(art, who, (region: string) => {
                     globalState.player.AP!.subtractCombatAP(4)
+                    const maxAP = globalState.player.AP!.getMaxAP()
+                    drawAP(globalState.player.AP!.getAvailableMoveAP() + globalState.player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
                     console.log('Attacking %s...', region)
                     globalState.combat!.attack(globalState.player, <Critter>obj, region)
                     uiCloseCalledShot()
@@ -204,6 +210,8 @@ export function playerUse(obj: Obj | null) {
                 })
             } else {
                 globalState.player.AP!.subtractCombatAP(4)
+                const maxAP = globalState.player.AP!.getMaxAP()
+                drawAP(globalState.player.AP!.getAvailableMoveAP() + globalState.player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
                 console.log('Attacking the torso...')
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
                 uiUpdateCombatAP()
@@ -549,6 +557,8 @@ heart.keydown = (k: string) => {
                 !globalState.combat.combatants[i].dead
             ) {
                 globalState.player.AP.subtractCombatAP(4)
+                const maxAP = globalState.player.AP.getMaxAP()
+                drawAP(globalState.player.AP.getAvailableMoveAP() + globalState.player.AP.getAvailableCombatAP(), maxAP.combat + maxAP.move)
                 console.log('Attacking...')
                 globalState.combat.attack(globalState.player, globalState.combat.combatants[i])
                 break
