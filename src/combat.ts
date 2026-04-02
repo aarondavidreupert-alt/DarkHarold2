@@ -604,6 +604,7 @@ export class Combat {
     }
 
     static start(forceTurn?: Critter): void {
+        console.log('[COMBAT] Combat.start() called')
         // begin combat
         globalState.inCombat = true
         globalState.combat = new Combat(globalState.gMap.getObjects())
