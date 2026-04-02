@@ -162,7 +162,7 @@ export class Renderer {
             if (bbox === null) {
                 continue
             }
-            const centerX = bbox.x - bbox.w / 2 - globalState.cameraPosition.x
+            const centerX = bbox.x + bbox.w / 2 - globalState.cameraPosition.x
             this.renderText(globalState.floatMessages[i].msg, centerX, bbox.y - globalState.cameraPosition.y - 16)
         }
 

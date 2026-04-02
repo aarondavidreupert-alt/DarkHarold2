@@ -456,7 +456,7 @@ export class Combat {
         }
         var distance = hexDistance(obj.position, target.position)
         var AP = obj.AP!
-        var messageRoll = rollSkillCheck(obj.ai!.info.chance, 0, false)
+        var messageRoll = rollSkillCheck(parseInt(obj.ai!.info.chance) || 85, 0, false)
 
         if (Config.engine.doLoadScripts === true && obj._script !== undefined) {
             // notify the critter script of a combat event
