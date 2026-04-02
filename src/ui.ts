@@ -2110,6 +2110,7 @@ export function uiLoot(object: Obj) {
 }
 
 export function uiLog(msg: string) {
+    console.log('[LOG]', msg)
     const $log = $id('displayLog')
     $log.insertAdjacentHTML('beforeend', `<li>${msg}</li>`)
     $log.scrollTop = $log.scrollHeight

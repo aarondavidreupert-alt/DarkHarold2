@@ -711,11 +711,13 @@ heart.update = function () {
             }
         }
 
-        for (let i = 0; i < globalState.floatMessages.length; i++) {
-            if (time >= globalState.floatMessages[i].startTime + 1000 * Config.ui.floatMessageDuration) {
-                globalState.floatMessages.splice(i--, 1)
-                continue
-            }
+    }
+
+    // Expire old float messages regardless of focus state
+    for (let i = 0; i < globalState.floatMessages.length; i++) {
+        if (time >= globalState.floatMessages[i].startTime + 1000 * Config.ui.floatMessageDuration) {
+            globalState.floatMessages.splice(i--, 1)
+            continue
         }
     }
 
