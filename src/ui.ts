@@ -908,6 +908,7 @@ export function uiStartCombat() {
     globalState.cursorMode = 'attack'
     // play end container animation
     Object.assign($id('endContainer').style, { animationPlayState: 'running', webkitAnimationPlayState: 'running' })
+    uiUpdateCombatAP()
 }
 
 export function uiEndCombat() {
@@ -919,6 +920,47 @@ export function uiEndCombat() {
     hidev($id('endCombatButton'))
     // reset cursor back to move mode
     globalState.cursorMode = 'move'
+
+    // hide combat-specific UI
+    const $ap = document.getElementById('combatAPDisplay')
+    if ($ap) $ap.style.display = 'none'
+    const $hover = document.getElementById('combatHoverInfo')
+    if ($hover) $hover.style.display = 'none'
+}
+
+export function uiUpdateCombatAP() {
+    const $ap = document.getElementById('combatAPDisplay')
+    if (!$ap) return
+    if (!globalState.inCombat || !globalState.player.AP) {
+        $ap.style.display = 'none'
+        return
+    }
+    const ap = globalState.player.AP
+    $ap.style.display = 'block'
+    $ap.textContent = `AP: ${ap.getAvailableCombatAP()} combat / ${ap.move} move`
+}
+
+export function uiShowCombatHover(target: Critter, screenX: number, screenY: number) {
+    const $hover = document.getElementById('combatHoverInfo')
+    if (!$hover) return
+
+    let info = `${target.name || 'Unknown'}\nHP: ${target.getStat('HP')}/${target.getStat('Max HP')}`
+
+    if (globalState.inCombat && globalState.player.equippedWeapon?.weapon) {
+        const hitChance = Combat.prototype.getHitChance(globalState.player, target, 'torso')
+        info += `\nHit: ${Math.max(0, hitChance.hit)}%`
+    }
+
+    $hover.style.display = 'block'
+    $hover.style.left = (screenX + 16) + 'px'
+    $hover.style.top = (screenY - 10) + 'px'
+    $hover.textContent = info
+    $hover.style.whiteSpace = 'pre'
+}
+
+export function uiHideCombatHover() {
+    const $hover = document.getElementById('combatHoverInfo')
+    if ($hover) $hover.style.display = 'none'
 }
 
 function uiEndCombatAnimationDone(this: HTMLElement) {
