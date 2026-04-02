@@ -962,6 +962,18 @@ body {
   background-image: url("art/intrface/hotspot2.png");
 }
 
+#pipBoyContainer {
+  position: absolute;
+  left: 80px;
+  top: 60px;
+  width: 640px;
+  height: 480px;
+  background-image: url("art/intrface/pip.png");
+  background-size: 640px 480px;
+  z-index: 100;
+  display: none;
+}
+
 #elevatorBox {
   position: absolute;
   width: 230px;
@@ -1280,12 +1292,14 @@ body {
 #worldMapContainer,
 #elevatorBox,
 #calledShotBox,
-#itemContextMenu {
+#itemContextMenu,
+#pipBoyContainer {
   cursor: url('art/intrface/stdarrow.png'), none !important;
 }
 
 #bar *, #dialogueContainer *, #inventoryBox *, #lootBox *,
 #barterBox *, #worldMapContainer *, #elevatorBox *,
-#calledShotBox *, #itemContextMenu * {
+#calledShotBox *, #itemContextMenu *,
+#pipBoyContainer * {
   cursor: url('art/intrface/stdarrow.png'), none !important;
 }

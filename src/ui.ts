@@ -586,6 +586,7 @@ export enum UIMode {
     contextMenu = 10,
     saveLoad = 11,
     char = 12,
+    pipBoy = 13,
 }
 
 // XXX: Should this throw if the element doesn't exist?

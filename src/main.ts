@@ -48,6 +48,7 @@ import { WebGLRenderer } from './webglrenderer.js'
 import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
 import { Lightmap } from './lightmap.js'
+import { togglePipBoy } from './pipboy.js'
 
 // Return the skill ID used by the Fallout 2 engine
 function getSkillID(skill: Skills): number {
@@ -623,6 +624,10 @@ heart.keydown = (k: string) => {
 
     if (k === Config.controls.worldmap) {
         uiWorldMap()
+    }
+
+    if (k === Config.controls.pipboy) {
+        togglePipBoy()
     }
 
     if (k === Config.controls.saveKey) {
