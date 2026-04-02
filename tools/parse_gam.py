@@ -24,6 +24,11 @@ Fallout 2 .GAM binary format (global vars):
 Fallout 2 .GAM text format (also supported):
   Lines like: GVAR_PLAYER_REPUTATION  :=50;  //(0)
   or:         MVAR_Darion_Attack      :=0;   //(0)
+  
+  %run C:/Users/aaron/OneDrive/Dokumente/GitHub/DarkHarold2/tools/parse_gam.py "C:/Users/aaron/OneDrive/Dokumente/GitHub/DarkHarold2/data/"
+  Warning: VAULT13.GAM not found in C:/Users/aaron/OneDrive/Dokumente/GitHub/DarkHarold2/data/
+  
+  
 """
 
 import json
