@@ -124,6 +124,7 @@ export class AI {
         AI.aiTxt = {}
         var ini = parseIni(getFileText('data/data/ai.txt'))
         if (ini === null) throw "couldn't load AI.TXT"
+        var packetCount = 0
         for (var key in ini) {
             var packet = ini[key]
             // Convert numeric fields from strings to numbers
@@ -134,6 +135,25 @@ export class AI {
             }
             packet.keyName = key
             AI.aiTxt[packet.packet_num] = packet
+            packetCount++
+        }
+        console.log(`[AI] Loaded ${packetCount} AI packets`)
+        // Dump first packet for debugging
+        var firstKey = Object.keys(AI.aiTxt)[0]
+        if (firstKey) {
+            var sample = AI.aiTxt[firstKey]
+            console.log(`[AI] Sample packet ${firstKey}:`, JSON.stringify({
+                keyName: sample.keyName,
+                packet_num: sample.packet_num,
+                attack_start: sample.attack_start,
+                attack_end: sample.attack_end,
+                move_start: sample.move_start,
+                move_end: sample.move_end,
+                run_start: sample.run_start,
+                run_end: sample.run_end,
+                chance: sample.chance,
+                min_hp: sample.min_hp,
+            }))
         }
     }
 
@@ -425,15 +445,27 @@ export class Combat {
     }
 
     maybeTaunt(obj: Critter, type: string, roll: boolean) {
-        if (roll === false) return
-        var start = parseInt(obj.ai!.info[type + '_start'])
-        var end = parseInt(obj.ai!.info[type + '_end'])
+        console.log(`[TAUNT] maybeTaunt called: obj=${obj.name} type=${type} roll=${roll}`)
+        if (roll === false) {
+            console.log(`[TAUNT] Skipped (roll=false)`)
+            return
+        }
+        var startKey = type + '_start'
+        var endKey = type + '_end'
+        var rawStart = obj.ai!.info[startKey]
+        var rawEnd = obj.ai!.info[endKey]
+        console.log(`[TAUNT] Raw values: info[${startKey}]=${JSON.stringify(rawStart)} info[${endKey}]=${JSON.stringify(rawEnd)}`)
+        console.log(`[TAUNT] All AI info keys:`, Object.keys(obj.ai!.info).join(', '))
+        var start = typeof rawStart === 'number' ? rawStart : parseInt(rawStart)
+        var end = typeof rawEnd === 'number' ? rawEnd : parseInt(rawEnd)
         if (isNaN(start) || isNaN(end)) {
-            console.warn(`[TAUNT] Missing AI info for ${obj.name}: ${type}_start/${type}_end`)
+            console.warn(`[TAUNT] NaN after parse: start=${start} end=${end}`)
             return
         }
         var msgID = getRandomInt(start, end)
+        console.log(`[TAUNT] msgID=${msgID} (range ${start}-${end})`)
         var msg = this.getCombatAIMessage(msgID)
+        console.log(`[TAUNT] getMessage('combatai', ${msgID}) = ${JSON.stringify(msg)}`)
         if (msg) {
             globalState.floatMessages.push({
                 msg: msg,
@@ -441,6 +473,9 @@ export class Combat {
                 startTime: window.performance.now(),
                 color: 'white',
             })
+            console.log(`[TAUNT] Pushed float message: "${msg}" (total: ${globalState.floatMessages.length})`)
+        } else {
+            console.warn(`[TAUNT] No message found for combatai ID ${msgID}`)
         }
     }
 
