@@ -816,6 +816,7 @@ export function initUI() {
     makeScrollable($id('dialogueBoxReply'), 30)
 
     drawHP(globalState.player.getStat('HP'))
+    drawAC(globalState.player.getStat('AC'))
     uiDrawWeapon()
 }
 
@@ -908,6 +909,12 @@ export function uiStartCombat() {
     globalState.cursorMode = 'attack'
     // play end container animation
     Object.assign($id('endContainer').style, { animationPlayState: 'running', webkitAnimationPlayState: 'running' })
+
+    const player = globalState.player
+    drawHP(player.getStat('HP'))
+    drawAC(player.getStat('AC'))
+    const maxAP = player.AP!.getMaxAP()
+    drawAP(player.AP!.getAvailableMoveAP() + player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
 }
 
 export function uiEndCombat() {
@@ -1510,8 +1517,21 @@ export function uiInventoryScreen() {
     }
 }
 
-function drawHP(hp: number) {
+export function drawHP(hp: number) {
     drawDigits('#hpDigit', hp, 4, true)
+}
+
+export function drawAC(ac: number) {
+    drawDigits('#acDigit', ac, 4, true)
+}
+
+export function drawAP(current: number, max: number) {
+    for (let i = 1; i <= 10; i++) {
+        const el = document.getElementById('apLight' + i)
+        if (el) {
+            el.style.visibility = i <= current ? 'visible' : 'hidden'
+        }
+    }
 }
 
 function drawDigits(idPrefix: string, amount: number, maxDigits: number, hasSign: boolean) {
