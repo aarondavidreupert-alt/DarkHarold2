@@ -23,7 +23,7 @@ import globalState from './globalState.js'
 import { Critter, Obj } from './object.js'
 import { Player } from './player.js'
 import { Scripting } from './scripting.js'
-import { uiEndCombat, uiStartCombat } from './ui.js'
+import { uiEndCombat, uiLog, uiStartCombat } from './ui.js'
 import { getFileText, getMessage, getRandomInt, parseIni, rollSkillCheck } from './util.js'
 
 // Turn-based combat system
@@ -349,13 +349,13 @@ export class Combat {
             var critModifier = hitRoll.crit ? hitRoll.DM : 2
             var damage = this.getDamageDone(obj, target, critModifier)
             var extraMsg = hitRoll.crit === true ? this.getCombatMsg(hitRoll.msgID) || '' : ''
-            this.log(who + ' hit ' + targetName + ' for ' + damage + ' damage' + extraMsg)
+            uiLog(who + ' hit ' + targetName + ' for ' + damage + ' damage' + extraMsg)
 
             critterDamage(target, damage, obj)
 
             if (target.dead) this.perish(target, obj)
         } else {
-            this.log(who + ' missed ' + targetName + (hitRoll.crit === true ? ' critically' : ''))
+            uiLog(who + ' missed ' + targetName + (hitRoll.crit === true ? ' critically' : ''))
             if (hitRoll.crit === true) {
                 var critFailMod = (obj.getStat('LUK') - 5) * -5
                 var critFailRoll = Math.floor(getRandomInt(1, 100) - critFailMod)
@@ -366,7 +366,7 @@ export class Combat {
                 else if (critFailRoll <= 95) critFailLevel = 4
                 else critFailLevel = 5
 
-                this.log(who + ' failed at fail level ' + critFailLevel)
+                uiLog(who + ' critically failed! (level ' + critFailLevel + ')')
 
                 // TODO: map weapon type to crit fail table types
                 var critFailEffect = CriticalEffects.criticalFailTable.unarmed[critFailLevel]
@@ -376,26 +376,22 @@ export class Combat {
     }
 
     perish(obj: Critter, attacker?: Critter) {
-        this.log('...And killed them.')
+        uiLog('...And killed them.')
 
         // Ensure the critter is properly marked dead via critterKill
         if (!obj.dead) {
             critterKill(obj, attacker)
         }
 
-        // Drop inventory as loot on the ground
-        const items = obj.inventory.splice(0)
-        for (const item of items) {
-            item.position = { x: obj.position.x, y: obj.position.y }
-            globalState.gMap!.addObject(item)
-        }
+        // Inventory stays on the critter — the player loots it via the context menu,
+        // just like a container.
 
         // Award XP to the player if the attacker is the player (or a party member)
         if (attacker?.isPlayer) {
             // Fallout 2 XP formula: base XP from critter's pro or a default based on level
             const killXP = obj.pro?.extra?.killExp ?? 50
             Scripting.give_exp_points(killXP)
-            this.log(`Gained ${killXP} experience points.`)
+            uiLog(`Gained ${killXP} experience points.`)
         }
     }
 
@@ -406,7 +402,15 @@ export class Combat {
     maybeTaunt(obj: Critter, type: string, roll: boolean) {
         if (roll === false) return
         var msgID = getRandomInt(parseInt(obj.ai!.info[type + '_start']), parseInt(obj.ai!.info[type + '_end']))
-        this.log('[TAUNT ' + obj.name + ': ' + this.getCombatAIMessage(msgID) + ']')
+        var msg = this.getCombatAIMessage(msgID)
+        if (msg) {
+            globalState.floatMessages.push({
+                msg: msg,
+                obj: obj,
+                startTime: window.performance.now(),
+                color: 'white',
+            })
+        }
     }
 
     findTarget(obj: Critter): Critter | null {

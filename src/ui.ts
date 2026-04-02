@@ -880,9 +880,10 @@ export function uiContextMenu(obj: Obj, evt: any) {
         if (obj.canUse) $menu.appendChild(useBtn)
         $menu.appendChild(lookBtn)
     } else if (isCritter && isDead) {
-        // Dead critter: Look → Pickup (loot) → Cancel
+        // Dead critter: Look → Loot → Cancel
+        const lootBtn = button(obj, 'pickup', () => uiLoot(obj))
         $menu.appendChild(lookBtn)
-        $menu.appendChild(pickupBtn)
+        $menu.appendChild(lootBtn)
     } else if ((obj.type === 'scenery' || obj.type === 'misc') && obj.canUse) {
         // Container/Scenery with canUse: Use → Look → Cancel
         $menu.appendChild(useBtn)
@@ -946,8 +947,8 @@ export function uiShowCombatHover(target: Critter, screenX: number, screenY: num
 
     let info = `${target.name || 'Unknown'}\nHP: ${target.getStat('HP')}/${target.getStat('Max HP')}`
 
-    if (globalState.inCombat && globalState.player.equippedWeapon?.weapon) {
-        const hitChance = Combat.prototype.getHitChance(globalState.player, target, 'torso')
+    if (globalState.inCombat && globalState.combat && globalState.player.equippedWeapon?.weapon) {
+        const hitChance = globalState.combat.getHitChance(globalState.player, target, 'torso')
         info += `\nHit: ${Math.max(0, hitChance.hit)}%`
     }
 

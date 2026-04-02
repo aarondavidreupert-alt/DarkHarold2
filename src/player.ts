@@ -58,6 +58,21 @@ export class Player extends Critter {
         return 'The Dude'
     }
 
+    addExperience(xp: number) {
+        this.stats.modifyBase('Experience', xp)
+
+        // Fallout 2 XP thresholds: level N requires N*(N-1)/2 * 1000 XP
+        const totalXP = this.stats.get('Experience')
+        const currentLevel = this.stats.get('Level')
+        const xpForNextLevel = currentLevel * (currentLevel + 1) / 2 * 1000
+        if (totalXP >= xpForNextLevel) {
+            this.stats.modifyBase('Level', 1)
+            const intBonus = 5 + this.getStat('INT') * 2
+            this.skills.skillPoints += intBonus
+            console.log(`Level up! Now level ${currentLevel + 1}. Gained ${intBonus} skill points.`)
+        }
+    }
+
     /*
     var obj = {position: {x: 94, y: 109}, orientation: 2, frame: 0, type: "critter",
                    art: "art/critters/hmjmpsaa", isPlayer: true, anim: "idle", lastFrameTime: 0,

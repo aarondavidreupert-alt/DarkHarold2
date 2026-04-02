@@ -483,7 +483,9 @@ export module Scripting {
 
         // player
         give_exp_points(xp: number) {
-            Scripting.give_exp_points(xp)
+            if (!globalState.player) return
+            globalState.player.addExperience(xp)
+            uiLog(`You gain ${xp} experience points.`)
         }
 
         // critters
@@ -1702,18 +1704,6 @@ export module Scripting {
 
     export function give_exp_points(xp: number) {
         if (!globalState.player) return
-        const player = globalState.player
-        player.stats.modifyBase('Experience', xp)
-
-        // Fallout 2 XP thresholds: level N requires N*(N-1)/2 * 1000 XP
-        const totalXP = player.stats.get('Experience')
-        const currentLevel = player.stats.get('Level')
-        const xpForNextLevel = currentLevel * (currentLevel + 1) / 2 * 1000
-        if (totalXP >= xpForNextLevel) {
-            player.stats.modifyBase('Level', 1)
-            const intBonus = 5 + player.getStat('INT') * 2
-            player.skills.skillPoints += intBonus
-            console.log(`Level up! Now level ${currentLevel + 1}. Gained ${intBonus} skill points.`)
-        }
+        globalState.player.addExperience(xp)
     }
 }
