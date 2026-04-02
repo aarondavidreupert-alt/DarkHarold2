@@ -1077,6 +1077,8 @@ function uiMoveSlot(data: string, target: string) {
     // Update armor appearance if armor slot changed
     if (target === 'armor' || data === 'armor') {
         applyArmorArt(target === 'armor' ? obj : null)
+        const armorAC = (globalState.player as any).armor?.pro?.extra?.AC ?? 0
+        drawAC(globalState.player.getStat('AC') + armorAC)
     }
 
     uiDrawWeapon()
@@ -1437,6 +1439,8 @@ export function uiInventoryScreen() {
                     playerAny.armor = obj
                 }
                 applyArmorArt(obj)
+                const armorAC = obj?.pro?.extra?.AC ?? 0
+                drawAC(globalState.player.getStat('AC') + armorAC)
                 uiInventoryScreen()
                 break
             }
@@ -1445,6 +1449,7 @@ export function uiInventoryScreen() {
                 playerAny[slot] = null
                 if (slot === 'armor') {
                     applyArmorArt(null)
+                    drawAC(globalState.player.getStat('AC'))
                 }
                 globalState.player.clearAnim()
                 uiDrawWeapon()
