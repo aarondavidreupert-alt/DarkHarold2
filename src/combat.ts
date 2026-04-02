@@ -378,8 +378,14 @@ export class Combat {
     perish(obj: Critter, attacker?: Critter) {
         uiLog('...And killed them.')
 
-        // Ensure the critter is properly marked dead via critterKill
-        if (!obj.dead) {
+        // Defensively ensure dead flag is set — critterKill (called by critterDamage
+        // when HP <= 0) should have already set this, but guard against edge cases.
+        obj.dead = true
+        obj.outline = null
+
+        // Only run critterKill if critterDamage didn't already do it
+        // (critterDamage calls critterKill when HP <= 0, which plays the death anim)
+        if (!obj.anim || obj.anim === 'idle') {
             critterKill(obj, attacker)
         }
 
