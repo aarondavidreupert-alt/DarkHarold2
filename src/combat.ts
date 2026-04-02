@@ -103,6 +103,18 @@ export class AI {
     combatant: Critter
     info: any
 
+    // Fields in AI.TXT that should be parsed as integers
+    static readonly numericFields = [
+        'packet_num', 'max_dist', 'min_hp', 'min_to_hit', 'area_attack_mode',
+        'run_start', 'run_end', 'move_start', 'move_end',
+        'attack_start', 'attack_end', 'miss_start', 'miss_end',
+        'hit_head_start', 'hit_head_end', 'hit_left_arm_start', 'hit_left_arm_end',
+        'hit_right_arm_start', 'hit_right_arm_end', 'hit_torso_start', 'hit_torso_end',
+        'hit_right_leg_start', 'hit_right_leg_end', 'hit_left_leg_start', 'hit_left_leg_end',
+        'hit_eyes_start', 'hit_eyes_end', 'hit_groin_start', 'hit_groin_end',
+        'chance',
+    ]
+
     static init(): void {
         // load and parse AI.TXT
         if (AI.aiTxt !== null)
@@ -113,8 +125,15 @@ export class AI {
         var ini = parseIni(getFileText('data/data/ai.txt'))
         if (ini === null) throw "couldn't load AI.TXT"
         for (var key in ini) {
-            ini[key].keyName = key
-            AI.aiTxt[ini[key].packet_num] = ini[key]
+            var packet = ini[key]
+            // Convert numeric fields from strings to numbers
+            for (var field of AI.numericFields) {
+                if (packet[field] !== undefined) {
+                    packet[field] = parseInt(packet[field]) || 0
+                }
+            }
+            packet.keyName = key
+            AI.aiTxt[packet.packet_num] = packet
         }
     }
 
@@ -407,7 +426,13 @@ export class Combat {
 
     maybeTaunt(obj: Critter, type: string, roll: boolean) {
         if (roll === false) return
-        var msgID = getRandomInt(parseInt(obj.ai!.info[type + '_start']), parseInt(obj.ai!.info[type + '_end']))
+        var start = parseInt(obj.ai!.info[type + '_start'])
+        var end = parseInt(obj.ai!.info[type + '_end'])
+        if (isNaN(start) || isNaN(end)) {
+            console.warn(`[TAUNT] Missing AI info for ${obj.name}: ${type}_start/${type}_end`)
+            return
+        }
+        var msgID = getRandomInt(start, end)
         var msg = this.getCombatAIMessage(msgID)
         if (msg) {
             globalState.floatMessages.push({
@@ -462,7 +487,7 @@ export class Combat {
         }
         var distance = hexDistance(obj.position, target.position)
         var AP = obj.AP!
-        var messageRoll = rollSkillCheck(parseInt(obj.ai!.info.chance) || 85, 0, false)
+        var messageRoll = rollSkillCheck(obj.ai!.info.chance || 85, 0, false)
 
         if (Config.engine.doLoadScripts === true && obj._script !== undefined) {
             // notify the critter script of a combat event
@@ -589,6 +614,7 @@ export class Combat {
         } else if (AP.getAvailableCombatAP() >= 4) {
             // if we are in range, do we have enough AP to attack?
             this.log('[ATTACKING]')
+            this.maybeTaunt(obj, 'attack', messageRoll)
             AP.subtractCombatAP(4)
 
             if (obj.equippedWeapon === null) throw 'combatant has no equipped weapon'
