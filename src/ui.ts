@@ -907,7 +907,6 @@ export function uiContextMenu(obj: Obj, evt: any) {
 }
 
 export function uiStartCombat() {
-    uiLog('=== COMBAT STARTED ===')
     globalState.cursorMode = 'attack'
     // play end container animation
     Object.assign($id('endContainer').style, { animationPlayState: 'running', webkitAnimationPlayState: 'running' })
@@ -2111,7 +2110,6 @@ export function uiLoot(object: Obj) {
 }
 
 export function uiLog(msg: string) {
-    console.log('[LOG]', msg)
     const $log = $id('displayLog')
     $log.insertAdjacentHTML('beforeend', `<li>${msg}</li>`)
     $log.scrollTop = $log.scrollHeight
