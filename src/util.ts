@@ -42,7 +42,7 @@ export function parseIni(text: string) {
             if (category === null) throw 'parseIni: key=value not in category: ' + line
 
             if (ini[category] === undefined) ini[category] = {}
-            ini[category][kv[1]] = kv[2]
+            ini[category][kv[1].trim()] = kv[2].trim()
         }
     }
 

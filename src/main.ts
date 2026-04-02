@@ -30,12 +30,15 @@ import {
     uiCloseCalledShot,
     uiContextMenu,
     uiElevator,
+    uiHideCombatHover,
     uiHideContextMenu,
     uiInventoryScreen,
     uiLog,
     uiLoot,
     UIMode,
     uiSaveLoad,
+    uiShowCombatHover,
+    uiUpdateCombatAP,
     uiWorldMap,
 } from './ui.js'
 import { getFileJSON, getProtoMsg } from './util.js'
@@ -197,11 +200,13 @@ export function playerUse(obj: Obj | null) {
                     console.log('Attacking %s...', region)
                     globalState.combat!.attack(globalState.player, <Critter>obj, region)
                     uiCloseCalledShot()
+                    uiUpdateCombatAP()
                 })
             } else {
                 globalState.player.AP!.subtractCombatAP(4)
                 console.log('Attacking the torso...')
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
+                uiUpdateCombatAP()
             }
 
             return
@@ -694,16 +699,25 @@ heart.update = function () {
             const obj = getObjectUnderCursor((obj) => obj.isSelectable)
             if (obj !== null) {
                 changeCursor('pointer')
+                // Show combat hover info for critters during combat
+                if (globalState.inCombat && obj instanceof Critter && !obj.dead) {
+                    uiShowCombatHover(obj as Critter, globalState.cursorPos.x, globalState.cursorPos.y)
+                } else {
+                    uiHideCombatHover()
+                }
             } else {
                 changeCursor('auto')
+                uiHideCombatHover()
             }
         }
 
-        for (let i = 0; i < globalState.floatMessages.length; i++) {
-            if (time >= globalState.floatMessages[i].startTime + 1000 * Config.ui.floatMessageDuration) {
-                globalState.floatMessages.splice(i--, 1)
-                continue
-            }
+    }
+
+    // Expire old float messages regardless of focus state
+    for (let i = 0; i < globalState.floatMessages.length; i++) {
+        if (time >= globalState.floatMessages[i].startTime + 1000 * Config.ui.floatMessageDuration) {
+            globalState.floatMessages.splice(i--, 1)
+            continue
         }
     }
 

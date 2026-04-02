@@ -872,6 +872,7 @@ export function uiContextMenu(obj: Obj, evt: any) {
 
     const isCritter = obj.type === 'critter'
     const isDead = isCritter && (obj as Critter).dead
+    console.log(`[CTX] ${obj.name} isCritter=${isCritter} dead=${(obj as Critter).dead} hp=${(obj as Critter).getStat?.('HP')}`)
     const hasTalk = obj._script && obj._script.talk_p_proc !== undefined
 
     if (isCritter && !isDead) {
@@ -880,9 +881,10 @@ export function uiContextMenu(obj: Obj, evt: any) {
         if (obj.canUse) $menu.appendChild(useBtn)
         $menu.appendChild(lookBtn)
     } else if (isCritter && isDead) {
-        // Dead critter: Look → Pickup (loot) → Cancel
+        // Dead critter: Look → Loot → Cancel
+        const lootBtn = button(obj, 'pickup', () => uiLoot(obj))
         $menu.appendChild(lookBtn)
-        $menu.appendChild(pickupBtn)
+        $menu.appendChild(lootBtn)
     } else if ((obj.type === 'scenery' || obj.type === 'misc') && obj.canUse) {
         // Container/Scenery with canUse: Use → Look → Cancel
         $menu.appendChild(useBtn)
@@ -908,6 +910,7 @@ export function uiStartCombat() {
     globalState.cursorMode = 'attack'
     // play end container animation
     Object.assign($id('endContainer').style, { animationPlayState: 'running', webkitAnimationPlayState: 'running' })
+    uiUpdateCombatAP()
 }
 
 export function uiEndCombat() {
@@ -919,6 +922,47 @@ export function uiEndCombat() {
     hidev($id('endCombatButton'))
     // reset cursor back to move mode
     globalState.cursorMode = 'move'
+
+    // hide combat-specific UI
+    const $ap = document.getElementById('combatAPDisplay')
+    if ($ap) $ap.style.display = 'none'
+    const $hover = document.getElementById('combatHoverInfo')
+    if ($hover) $hover.style.display = 'none'
+}
+
+export function uiUpdateCombatAP() {
+    const $ap = document.getElementById('combatAPDisplay')
+    if (!$ap) return
+    if (!globalState.inCombat || !globalState.player.AP) {
+        $ap.style.display = 'none'
+        return
+    }
+    const ap = globalState.player.AP
+    $ap.style.display = 'block'
+    $ap.textContent = `AP: ${ap.getAvailableCombatAP()} combat / ${ap.move} move`
+}
+
+export function uiShowCombatHover(target: Critter, screenX: number, screenY: number) {
+    const $hover = document.getElementById('combatHoverInfo')
+    if (!$hover) return
+
+    let info = `${target.name || 'Unknown'}\nHP: ${target.getStat('HP')}/${target.getStat('Max HP')}`
+
+    if (globalState.inCombat && globalState.combat && globalState.player.equippedWeapon?.weapon) {
+        const hitChance = globalState.combat.getHitChance(globalState.player, target, 'torso')
+        info += `\nHit: ${Math.max(0, hitChance.hit)}%`
+    }
+
+    $hover.style.display = 'block'
+    $hover.style.left = (screenX + 16) + 'px'
+    $hover.style.top = (screenY - 10) + 'px'
+    $hover.textContent = info
+    $hover.style.whiteSpace = 'pre'
+}
+
+export function uiHideCombatHover() {
+    const $hover = document.getElementById('combatHoverInfo')
+    if ($hover) $hover.style.display = 'none'
 }
 
 function uiEndCombatAnimationDone(this: HTMLElement) {

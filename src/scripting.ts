@@ -483,7 +483,9 @@ export module Scripting {
 
         // player
         give_exp_points(xp: number) {
-            stub('give_exp_points', arguments)
+            if (!globalState.player) return
+            globalState.player.addExperience(xp)
+            uiLog(`You gain ${xp} experience points.`)
         }
 
         // critters
@@ -1698,5 +1700,10 @@ export module Scripting {
     export function init(mapName: string, mapID?: number) {
         seed(123)
         reset(mapName, mapID)
+    }
+
+    export function give_exp_points(xp: number) {
+        if (!globalState.player) return
+        globalState.player.addExperience(xp)
     }
 }

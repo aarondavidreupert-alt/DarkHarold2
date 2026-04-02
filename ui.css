@@ -166,7 +166,8 @@ body {
   height: 54px;
   color: #00FF00;
   font-size: 8pt;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 #attackButtonContainer {
@@ -1259,6 +1260,15 @@ body {
 /* Hide OS cursor over the game canvas — Fallout renders its own cursor via WebGL */
 #cnv {
   cursor: none !important;
+}
+
+#textOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 800px;
+  height: 600px;
+  pointer-events: none;
 }
 
 /* HUD and UI overlays use Fallout custom cursor */
