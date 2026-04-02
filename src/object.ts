@@ -143,10 +143,14 @@ function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent = true)
     // Open/closable doors/containers
     // TODO: Door/Container subclasses
     if (obj.locked) {
+        globalState.audioEngine.playActionSfx('door_locked')
         return false
     }
 
     obj.open = open
+    if (obj.isDoor) {
+        globalState.audioEngine.playActionSfx(open ? 'door_open' : 'door_close')
+    }
 
     if (signalEvent) {
         Events.emit('objSetOpen', { obj, open })
@@ -813,6 +817,7 @@ export class Obj {
             }
         }
         const doPickup = () => {
+            globalState.audioEngine.playActionSfx('item_pickup')
             source.addInventoryItem(this, this.amount)
             globalState.gMap.destroyObject(this)
             source.clearAnim()
@@ -842,6 +847,7 @@ export class Obj {
             throw "dropObject: couldn't find object"
         }
 
+        globalState.audioEngine.playActionSfx('item_drop')
         globalState.gMap.addObject(this) // add to objects
         const idx = globalState.gMap.getObjects().length - 1 // our new index
         this.move({ x: source.position.x, y: source.position.y }, idx)

@@ -15,6 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { AudioEngine } from './audio.js'
 import { Config } from './config.js'
 import { CriticalEffects } from './criticalEffects.js'
 import { critterDamage, critterKill } from './critter.js'
@@ -359,6 +360,16 @@ export class Combat {
         // attack!
         obj.staticAnimation('attack', callback)
 
+        var audio: AudioEngine = globalState.audioEngine
+        var weaponObj = obj.equippedWeapon
+        var rawSoundID = weaponObj?.pro?.extra?.soundID
+        var soundIdChar = typeof rawSoundID === 'number' ? String.fromCharCode(rawSoundID) : null
+
+        // Play attack sound
+        if (soundIdChar) {
+            audio.playWeaponSfx(soundIdChar, 'attack')
+        }
+
         var who = obj.isPlayer ? 'You' : obj.name
         var targetName = target.isPlayer ? 'you' : target.name
         var hitRoll = this.rollHit(obj, target, region)
@@ -370,11 +381,19 @@ export class Combat {
             var extraMsg = hitRoll.crit === true ? this.getCombatMsg(hitRoll.msgID) || '' : ''
             uiLog(who + ' hit ' + targetName + ' for ' + damage + ' damage' + extraMsg)
 
+            // Play impact sound
+            if (soundIdChar) {
+                audio.playWeaponSfx(soundIdChar, 'impact')
+            } else {
+                audio.playActionSfx('hit_flesh')
+            }
+
             critterDamage(target, damage, obj)
             if (target.isPlayer) drawHP(target.getStat('HP'))
 
             if (target.dead) this.perish(target, obj)
         } else {
+            audio.playActionSfx('miss')
             uiLog(who + ' missed ' + targetName + (hitRoll.crit === true ? ' critically' : ''))
             if (hitRoll.crit === true) {
                 var critFailMod = (obj.getStat('LUK') - 5) * -5
@@ -397,6 +416,7 @@ export class Combat {
 
     perish(obj: Critter, attacker?: Critter) {
         uiLog('...And killed them.')
+        globalState.audioEngine.playActionSfx('critter_die')
 
         // Defensively ensure dead flag is set — critterKill (called by critterDamage
         // when HP <= 0) should have already set this, but guard against edge cases.
