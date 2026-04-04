@@ -68,8 +68,8 @@ function renderStatusTab(screen: HTMLDivElement): void {
     const player = globalState.player!
     const hp = player.getStat('HP')
     const maxHP = player.getStat('Max HP')
-    const poison = player.getStat('Poison') || 0
-    const radiation = player.getStat('Radiation') || 0
+    const poison = player.getStat('Poison Level') || 0
+    const radiation = player.getStat('Radiation Level') || 0
     const gameTime = formatGameTime(globalState.gameTickTime)
 
     screen.innerHTML = `
