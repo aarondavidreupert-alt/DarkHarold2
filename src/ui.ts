@@ -30,6 +30,7 @@ import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
+import { openPipBoy } from './pipboy.js'
 
 // UI system
 
@@ -314,6 +315,10 @@ function uiInit() {
     document.getElementById('chrButton')!.onclick = () => {
         characterWindow && characterWindow.close()
         initCharacterScreen()
+    }
+
+    document.getElementById('pipBoyButton')!.onclick = () => {
+        openPipBoy()
     }
 }
 

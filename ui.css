@@ -292,6 +292,19 @@ body {
   background-image: url("art/intrface/chadn.png");
 }
 
+#pipBoyButton {
+  position: absolute;
+  left: 526px;
+  top: 38px;
+  width: 41px;
+  height: 19px;
+  background-image: url("art/intrface/pipup.png");
+}
+
+#pipBoyButton:active {
+  background-image: url("art/intrface/pipdn.png");
+}
+
 /* inventory box */
 #inventoryBox {
   position: absolute;
