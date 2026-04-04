@@ -984,7 +984,6 @@ body {
   background-image: url("art/intrface/pip.png");
   background-size: 640px 480px;
   z-index: 100;
-  display: none;
 }
 
 #elevatorBox {
