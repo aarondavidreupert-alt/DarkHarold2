@@ -21,21 +21,30 @@ import { UIMode } from './ui.js'
 type PipBoyTab = 'STATUS' | 'AUTOMAPS' | 'ARCHIVES' | 'CLOSE'
 
 // Screen content area within pip.png (640x480 base)
-const SCREEN_X = 295
-const SCREEN_Y = 15
-const SCREEN_W = 320
-const SCREEN_H = 370
+const SCREEN_X = 270
+const SCREEN_Y = 12
+const SCREEN_W = 350
+const SCREEN_H = 430
 
-// Tab button regions (bottom-left of pip.png)
+// Tab button hotspot regions (invisible, positioned over pip.png text)
 const TAB_BUTTONS: { tab: PipBoyTab; x: number; y: number; w: number; h: number }[] = [
-    { tab: 'STATUS',   x: 22,  y: 400, w: 120, h: 22 },
-    { tab: 'AUTOMAPS', x: 22,  y: 425, w: 120, h: 22 },
-    { tab: 'ARCHIVES', x: 148, y: 400, w: 120, h: 22 },
-    { tab: 'CLOSE',    x: 148, y: 425, w: 120, h: 22 },
+    { tab: 'STATUS',   x: 45, y: 310, w: 160, h: 28 },
+    { tab: 'AUTOMAPS', x: 45, y: 340, w: 160, h: 28 },
+    { tab: 'ARCHIVES', x: 45, y: 368, w: 160, h: 28 },
+    { tab: 'CLOSE',    x: 45, y: 396, w: 160, h: 28 },
 ]
+
+// Red indicator dot positions (left of each label)
+const TAB_DOTS: Record<string, { x: number; y: number }> = {
+    STATUS:   { x: 22, y: 314 },
+    AUTOMAPS: { x: 22, y: 344 },
+    ARCHIVES: { x: 22, y: 372 },
+    CLOSE:    { x: 22, y: 400 },
+}
 
 let pipBoyContainer: HTMLDivElement | null = null
 let currentTab: PipBoyTab = 'STATUS'
+const dotElements: Map<string, HTMLDivElement> = new Map()
 
 function formatGameTime(ticks: number): string {
     const totalSeconds = Math.floor(ticks / 10)
@@ -197,12 +206,12 @@ function renderTab(tab: PipBoyTab): void {
             break
     }
 
-    // Update tab button highlights
-    const buttons = pipBoyContainer.querySelectorAll('.pipboy-tab-btn')
-    buttons.forEach((btn: Element) => {
-        const el = btn as HTMLDivElement
-        el.style.backgroundColor = el.dataset.tab === tab ? '#004400' : 'transparent'
-    })
+    // Update indicator dots
+    for (const [tabName, dotEl] of dotElements) {
+        dotEl.style.backgroundImage = tabName === tab
+            ? "url('art/intrface/lilreddn.png')"
+            : "url('art/intrface/lilredup.png')"
+    }
 }
 
 export function openPipBoy(): void {
@@ -234,22 +243,30 @@ export function openPipBoy(): void {
     `
     pipBoyContainer.appendChild(screen)
 
-    // Tab buttons
+    // Tab buttons (invisible hotspots over pip.png text)
+    dotElements.clear()
     for (const btn of TAB_BUTTONS) {
         const tabBtn = document.createElement('div')
-        tabBtn.className = 'pipboy-tab-btn'
-        tabBtn.dataset.tab = btn.tab
         tabBtn.style.cssText = `
             position: absolute;
             left: ${btn.x}px; top: ${btn.y}px;
             width: ${btn.w}px; height: ${btn.h}px;
-            color: #00FF00; font-family: monospace; font-size: 12px;
-            display: flex; align-items: center; justify-content: center;
             cursor: pointer;
         `
-        tabBtn.textContent = btn.tab
         tabBtn.onclick = () => renderTab(btn.tab)
         pipBoyContainer.appendChild(tabBtn)
+
+        // Red indicator dot
+        const dot = document.createElement('div')
+        const dotPos = TAB_DOTS[btn.tab]
+        dot.style.cssText = `
+            position: absolute;
+            left: ${dotPos.x}px; top: ${dotPos.y}px;
+            width: 15px; height: 16px;
+            background-image: url('art/intrface/lilredup.png');
+        `
+        dotElements.set(btn.tab, dot)
+        pipBoyContainer.appendChild(dot)
     }
 
     const gameContainer = document.getElementById('game-container')!
