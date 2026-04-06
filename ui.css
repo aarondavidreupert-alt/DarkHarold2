@@ -268,7 +268,7 @@ body {
 
 #inventoryButton {
   position: absolute;
-  left: 213px;
+  left: 211px;
   top: 40px;
   width: 32px;
   height: 21px;
@@ -308,7 +308,7 @@ body {
 #mapButton {
   position: absolute;
   left: 526px;
-  top: 17px;
+  top: 40px;
   width: 41px;
   height: 19px;
   background-image: url("art/intrface/mapup.png");
