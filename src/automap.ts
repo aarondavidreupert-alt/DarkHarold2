@@ -51,7 +51,7 @@ export function openAutomap(): void {
     const scannerDot = document.createElement('div')
     scannerDot.style.cssText = `
         position: absolute;
-        left: 22px; top: 432px;
+        left: 105px; top: 435px;
         width: 15px; height: 16px;
         background-image: url('art/intrface/lilredup.png');
         cursor: pointer;
@@ -65,7 +65,7 @@ export function openAutomap(): void {
     const cancelDot = document.createElement('div')
     cancelDot.style.cssText = `
         position: absolute;
-        left: 248px; top: 432px;
+        left: 265px; top: 435px;
         width: 15px; height: 16px;
         background-image: url('art/intrface/lilredup.png');
         cursor: pointer;
