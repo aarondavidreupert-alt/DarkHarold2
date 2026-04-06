@@ -21,25 +21,25 @@ import { UIMode } from './ui.js'
 type PipBoyTab = 'STATUS' | 'AUTOMAPS' | 'ARCHIVES' | 'CLOSE'
 
 // Screen content area within pip.png (640x480 base)
-const SCREEN_X = 270
+const SCREEN_X = 256
 const SCREEN_Y = 12
 const SCREEN_W = 350
 const SCREEN_H = 430
 
 // Tab button hotspot regions (invisible, positioned over pip.png text)
 const TAB_BUTTONS: { tab: PipBoyTab; x: number; y: number; w: number; h: number }[] = [
-    { tab: 'STATUS',   x: 45, y: 310, w: 160, h: 28 },
-    { tab: 'AUTOMAPS', x: 45, y: 340, w: 160, h: 28 },
-    { tab: 'ARCHIVES', x: 45, y: 368, w: 160, h: 28 },
-    { tab: 'CLOSE',    x: 45, y: 396, w: 160, h: 28 },
+    { tab: 'STATUS',   x: 53, y: 340, w: 160, h: 26 },
+    { tab: 'AUTOMAPS', x: 53, y: 394, w: 160, h: 26 },
+    { tab: 'ARCHIVES', x: 53, y: 422, w: 160, h: 26 },
+    { tab: 'CLOSE',    x: 53, y: 448, w: 160, h: 26 },
 ]
 
-// Red indicator dot positions (left of each label)
+// Red indicator dot positions (left of each tab label)
 const TAB_DOTS: Record<string, { x: number; y: number }> = {
-    STATUS:   { x: 22, y: 314 },
-    AUTOMAPS: { x: 22, y: 344 },
-    ARCHIVES: { x: 22, y: 372 },
-    CLOSE:    { x: 22, y: 400 },
+    STATUS:   { x: 34, y: 344 },
+    AUTOMAPS: { x: 34, y: 398 },
+    ARCHIVES: { x: 34, y: 426 },
+    CLOSE:    { x: 34, y: 452 },
 }
 
 let pipBoyContainer: HTMLDivElement | null = null
