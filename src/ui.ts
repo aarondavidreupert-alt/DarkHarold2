@@ -30,6 +30,7 @@ import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
+import { openAutomap } from './automap.js'
 import { openPipBoy } from './pipboy.js'
 
 // UI system
@@ -320,6 +321,10 @@ function uiInit() {
     document.getElementById('pipBoyButton')!.onclick = () => {
         openPipBoy()
     }
+
+    document.getElementById('mapButton')!.onclick = () => {
+        openAutomap()
+    }
 }
 
 let skilldexWindow: WindowFrame
@@ -592,6 +597,7 @@ export enum UIMode {
     saveLoad = 11,
     char = 12,
     pipBoy = 13,
+    automap = 14,
 }
 
 // XXX: Should this throw if the element doesn't exist?

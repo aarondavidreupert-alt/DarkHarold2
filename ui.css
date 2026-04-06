@@ -305,6 +305,19 @@ body {
   background-image: url("art/intrface/pipdn.png");
 }
 
+#mapButton {
+  position: absolute;
+  left: 526px;
+  top: 17px;
+  width: 41px;
+  height: 19px;
+  background-image: url("art/intrface/mapup.png");
+}
+
+#mapButton:active {
+  background-image: url("art/intrface/mapdn.png");
+}
+
 /* inventory box */
 #inventoryBox {
   position: absolute;
@@ -1305,13 +1318,15 @@ body {
 #elevatorBox,
 #calledShotBox,
 #itemContextMenu,
-#pipBoyContainer {
+#pipBoyContainer,
+#automapContainer {
   cursor: url('art/intrface/stdarrow.png'), none !important;
 }
 
 #bar *, #dialogueContainer *, #inventoryBox *, #lootBox *,
 #barterBox *, #worldMapContainer *, #elevatorBox *,
 #calledShotBox *, #itemContextMenu *,
-#pipBoyContainer * {
+#pipBoyContainer *,
+#automapContainer * {
   cursor: url('art/intrface/stdarrow.png'), none !important;
 }
