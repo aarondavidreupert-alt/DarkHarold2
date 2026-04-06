@@ -26,21 +26,13 @@ const SCREEN_Y = 12
 const SCREEN_W = 350
 const SCREEN_H = 430
 
-// Tab button hotspot regions (invisible, positioned over pip.png text)
-const TAB_BUTTONS: { tab: PipBoyTab; x: number; y: number; w: number; h: number }[] = [
-    { tab: 'STATUS',   x: 53, y: 340, w: 160, h: 26 },
-    { tab: 'AUTOMAPS', x: 53, y: 394, w: 160, h: 26 },
-    { tab: 'ARCHIVES', x: 53, y: 422, w: 160, h: 26 },
-    { tab: 'CLOSE',    x: 53, y: 448, w: 160, h: 26 },
+// Clickable tab dot positions (left of each label in pip.png)
+const TABS: { tab: PipBoyTab; x: number; y: number }[] = [
+    { tab: 'STATUS',   x: 53, y: 340 },
+    { tab: 'AUTOMAPS', x: 53, y: 394 },
+    { tab: 'ARCHIVES', x: 53, y: 422 },
+    { tab: 'CLOSE',    x: 53, y: 448 },
 ]
-
-// Red indicator dot positions (left of each tab label)
-const TAB_DOTS: Record<string, { x: number; y: number }> = {
-    STATUS:   { x: 34, y: 344 },
-    AUTOMAPS: { x: 34, y: 398 },
-    ARCHIVES: { x: 34, y: 426 },
-    CLOSE:    { x: 34, y: 452 },
-}
 
 let pipBoyContainer: HTMLDivElement | null = null
 let currentTab: PipBoyTab = 'STATUS'
@@ -245,32 +237,20 @@ export function openPipBoy(): void {
     `
     pipBoyContainer.appendChild(screen)
 
-    // Tab buttons — clickable hotspots positioned over pip.png text
+    // Tab buttons — clickable dot indicators
     dotElements.clear()
-    for (const btn of TAB_BUTTONS) {
-        // Red indicator dot (rendered first, behind the button)
+    for (const btn of TABS) {
         const dot = document.createElement('div')
-        const dotPos = TAB_DOTS[btn.tab]
         dot.style.cssText = `
             position: absolute;
-            left: ${dotPos.x}px; top: ${dotPos.y}px;
+            left: ${btn.x}px; top: ${btn.y}px;
             width: 15px; height: 16px;
             background-image: url('art/intrface/lilredup.png');
-            pointer-events: none;
-        `
-        dotElements.set(btn.tab, dot)
-        pipBoyContainer.appendChild(dot)
-
-        // Clickable hotspot (on top of dot)
-        const tabBtn = document.createElement('div')
-        tabBtn.style.cssText = `
-            position: absolute;
-            left: ${btn.x}px; top: ${btn.y}px;
-            width: ${btn.w}px; height: ${btn.h}px;
             cursor: pointer;
         `
-        tabBtn.onclick = () => renderTab(btn.tab)
-        pipBoyContainer.appendChild(tabBtn)
+        dot.onclick = () => renderTab(btn.tab)
+        dotElements.set(btn.tab, dot)
+        pipBoyContainer.appendChild(dot)
     }
 
     const gameContainer = document.getElementById('game-container')!
