@@ -37,21 +37,37 @@ const TABS: { tab: PipBoyTab; x: number; y: number }[] = [
 let pipBoyContainer: HTMLDivElement | null = null
 let currentTab: PipBoyTab = 'STATUS'
 const dotElements: Map<string, HTMLDivElement> = new Map()
+let alarmOn = false
+let waitMenuDiv: HTMLDivElement | null = null
 
-function formatGameTime(ticks: number): string {
-    const totalSeconds = Math.floor(ticks / 10)
-    const hours = Math.floor((ticks / 600) % 24)
-    const minutes = Math.floor((totalSeconds % 3600) / 60)
-    // Fallout 2 starts at July 25, 2241 — day 0
-    const totalDays = Math.floor(ticks / (10 * 60 * 60 * 24))
-    const startMonth = 7 // July
-    const startDay = 25
-    const startYear = 2241
-    const dayOfYear = totalDays + (startDay - 1) // 0-indexed from start of year
+// numbers.png sprite: each digit is 9x17, laid out horizontally 0-9 then extra glyphs
+// Index 12 = colon character
+const DIGIT_W = 9
+const DIGIT_H = 17
+
+function makeDigit(digit: number, left: number, top: number): HTMLDivElement {
+    const el = document.createElement('div')
+    el.style.cssText = `
+        position: absolute;
+        left: ${left}px; top: ${top}px;
+        width: ${DIGIT_W}px; height: ${DIGIT_H}px;
+        background-image: url('art/intrface/numbers.png');
+        background-position-x: -${digit * DIGIT_W}px;
+        background-repeat: no-repeat;
+    `
+    return el
+}
+
+function getGameDate(ticks: number): { day: number; month: number; year: number; hours: number; minutes: number } {
+    const totalMinutes = Math.floor(ticks / 600)
+    const hours = Math.floor(totalMinutes / 60) % 24
+    const minutes = totalMinutes % 60
+    const totalDays = Math.floor(ticks / 864000)
     const daysInMonths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    let year = startYear
-    let month = startMonth - 1 // 0-indexed
-    let day = startDay + totalDays
+    // Start: Day 25, Month 7 (August, 0-indexed=7), Year 2241
+    let year = 2241
+    let month = 7 // August (0-indexed)
+    let day = 25 + totalDays
     while (day > daysInMonths[month]) {
         day -= daysInMonths[month]
         month++
@@ -60,9 +76,149 @@ function formatGameTime(ticks: number): string {
             year++
         }
     }
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    return `${monthNames[month]} ${day}, ${year} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+    return { day, month, year, hours, minutes }
+}
+
+function renderDateTimeBar(): void {
+    if (!pipBoyContainer) return
+
+    // Remove old bar if exists
+    const oldBar = pipBoyContainer.querySelector('#pipboyDateTimeBar')
+    if (oldBar) oldBar.remove()
+
+    const bar = document.createElement('div')
+    bar.id = 'pipboyDateTimeBar'
+    bar.style.cssText = 'position: absolute; left: 0; top: 240px; width: 240px; height: 20px;'
+
+    const { day, month, year, hours, minutes } = getGameDate(globalState.gameTickTime)
+
+    // 1. DAY — 2 digits at left:20
+    const d1 = Math.floor(day / 10)
+    const d2 = day % 10
+    bar.appendChild(makeDigit(d1, 20, 0))
+    bar.appendChild(makeDigit(d2, 20 + DIGIT_W, 0))
+
+    // 2. MONTH sprite at left:40, top:242 (2px offset from bar top)
+    const monthEl = document.createElement('div')
+    monthEl.style.cssText = `
+        position: absolute;
+        left: 40px; top: 2px;
+        width: 38px; height: 18px;
+        background-image: url('art/intrface/months.png');
+        background-position-y: -${month * 18}px;
+        background-repeat: no-repeat;
+    `
+    bar.appendChild(monthEl)
+
+    // 3. YEAR — 4 digits at left:82
+    const y1 = Math.floor(year / 1000)
+    const y2 = Math.floor((year % 1000) / 100)
+    const y3 = Math.floor((year % 100) / 10)
+    const y4 = year % 10
+    bar.appendChild(makeDigit(y1, 82, 0))
+    bar.appendChild(makeDigit(y2, 82 + DIGIT_W, 0))
+    bar.appendChild(makeDigit(y3, 82 + DIGIT_W * 2, 0))
+    bar.appendChild(makeDigit(y4, 82 + DIGIT_W * 3, 0))
+
+    // 4. BELL button at left:130
+    const bell = document.createElement('div')
+    bell.style.cssText = `
+        position: absolute;
+        left: 130px; top: 0px;
+        width: 22px; height: 20px;
+        background-image: url('art/intrface/${alarmOn ? 'alarmin' : 'alarmout'}.png');
+        cursor: pointer;
+    `
+    bell.onclick = () => toggleWaitMenu()
+    bar.appendChild(bell)
+
+    // 5. TIME HH:MM at left:158
+    const h1 = Math.floor(hours / 10)
+    const h2 = hours % 10
+    const m1 = Math.floor(minutes / 10)
+    const m2 = minutes % 10
+    bar.appendChild(makeDigit(h1, 158, 0))
+    bar.appendChild(makeDigit(h2, 158 + DIGIT_W, 0))
+    // Colon at index 12
+    bar.appendChild(makeDigit(12, 158 + DIGIT_W * 2, 0))
+    bar.appendChild(makeDigit(m1, 158 + DIGIT_W * 3, 0))
+    bar.appendChild(makeDigit(m2, 158 + DIGIT_W * 4, 0))
+
+    pipBoyContainer.appendChild(bar)
+}
+
+function toggleWaitMenu(): void {
+    if (!pipBoyContainer) return
+
+    if (waitMenuDiv) {
+        waitMenuDiv.remove()
+        waitMenuDiv = null
+        alarmOn = false
+        renderDateTimeBar()
+        return
+    }
+
+    alarmOn = true
+    renderDateTimeBar()
+
+    waitMenuDiv = document.createElement('div')
+    waitMenuDiv.style.cssText = `
+        position: absolute;
+        left: 340px; top: 80px;
+        z-index: 200;
+        background-color: rgba(0, 20, 0, 0.95);
+        border: 1px solid #00AA00;
+        padding: 8px;
+    `
+
+    const options: { label: string; minutes: number }[] = [
+        { label: '10 MIN',  minutes: 10 },
+        { label: '20 MIN',  minutes: 20 },
+        { label: '30 MIN',  minutes: 30 },
+        { label: '1 HR',    minutes: 60 },
+        { label: '2 HR',    minutes: 120 },
+        { label: '3 HR',    minutes: 180 },
+        { label: '6 HR',    minutes: 360 },
+        { label: '1 DAY',   minutes: 1440 },
+    ]
+
+    for (const opt of options) {
+        const btn = document.createElement('div')
+        btn.style.cssText = `
+            color: #00FF00; font-family: monospace; font-size: 12px;
+            padding: 4px 12px; cursor: pointer;
+        `
+        btn.textContent = opt.label
+        btn.onmouseenter = () => { btn.style.backgroundColor = '#004400' }
+        btn.onmouseleave = () => { btn.style.backgroundColor = 'transparent' }
+        btn.onclick = () => {
+            advanceTime(opt.minutes)
+            if (waitMenuDiv) {
+                waitMenuDiv.remove()
+                waitMenuDiv = null
+            }
+            alarmOn = false
+            renderDateTimeBar()
+            // Re-render current tab to update time display
+            renderTab(currentTab)
+        }
+        waitMenuDiv.appendChild(btn)
+    }
+
+    pipBoyContainer.appendChild(waitMenuDiv)
+}
+
+function advanceTime(minutes: number): void {
+    // 1 minute = 600 ticks (1 tick = 0.1 seconds, 600 ticks = 60 seconds)
+    globalState.gameTickTime += minutes * 600
+}
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function formatGameTime(ticks: number): string {
+    const { day, month, year, hours, minutes } = getGameDate(ticks)
+    return `${MONTH_NAMES[month]} ${day}, ${year} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 }
 
 function renderStatusTab(screen: HTMLDivElement): void {
@@ -256,13 +412,16 @@ export function openPipBoy(): void {
     const gameContainer = document.getElementById('game-container')!
     gameContainer.appendChild(pipBoyContainer)
 
+    renderDateTimeBar()
     renderTab('STATUS')
 }
 
 export function closePipBoy(): void {
     if (!pipBoyContainer) return
 
-    pipBoyContainer.parentNode!.removeChild(pipBoyContainer)
+    waitMenuDiv = null
+    alarmOn = false
+    pipBoyContainer.remove()
     pipBoyContainer = null
     globalState.uiMode = UIMode.none
 }
