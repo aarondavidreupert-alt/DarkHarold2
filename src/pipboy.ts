@@ -215,7 +215,9 @@ function renderTab(tab: PipBoyTab): void {
 }
 
 export function openPipBoy(): void {
-    if (pipBoyContainer) return // already open
+    // Remove any stale container left in the DOM
+    const existing = document.getElementById('pipBoyContainer')
+    if (existing) existing.remove()
 
     globalState.uiMode = UIMode.pipBoy
 
@@ -243,9 +245,23 @@ export function openPipBoy(): void {
     `
     pipBoyContainer.appendChild(screen)
 
-    // Tab buttons (invisible hotspots over pip.png text)
+    // Tab buttons — clickable hotspots positioned over pip.png text
     dotElements.clear()
     for (const btn of TAB_BUTTONS) {
+        // Red indicator dot (rendered first, behind the button)
+        const dot = document.createElement('div')
+        const dotPos = TAB_DOTS[btn.tab]
+        dot.style.cssText = `
+            position: absolute;
+            left: ${dotPos.x}px; top: ${dotPos.y}px;
+            width: 15px; height: 16px;
+            background-image: url('art/intrface/lilredup.png');
+            pointer-events: none;
+        `
+        dotElements.set(btn.tab, dot)
+        pipBoyContainer.appendChild(dot)
+
+        // Clickable hotspot (on top of dot)
         const tabBtn = document.createElement('div')
         tabBtn.style.cssText = `
             position: absolute;
@@ -255,18 +271,6 @@ export function openPipBoy(): void {
         `
         tabBtn.onclick = () => renderTab(btn.tab)
         pipBoyContainer.appendChild(tabBtn)
-
-        // Red indicator dot
-        const dot = document.createElement('div')
-        const dotPos = TAB_DOTS[btn.tab]
-        dot.style.cssText = `
-            position: absolute;
-            left: ${dotPos.x}px; top: ${dotPos.y}px;
-            width: 15px; height: 16px;
-            background-image: url('art/intrface/lilredup.png');
-        `
-        dotElements.set(btn.tab, dot)
-        pipBoyContainer.appendChild(dot)
     }
 
     const gameContainer = document.getElementById('game-container')!
