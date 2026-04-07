@@ -45,10 +45,30 @@ export class Player extends Critter {
 
     inventory = [
         createObjectWithPID(41).setAmount(1337), // Money
-        createObjectWithPID(4),                  // Combat Knife (weapon)
-        createObjectWithPID(15),                 // Hunting Rifle (weapon)
+        createObjectWithPID(4),                  // Combat Knife (melee)
+        createObjectWithPID(15),                 // Hunting Rifle (small gun)
         createObjectWithPID(2),                  // Leather Jacket (armor)
         createObjectWithPID(3),                  // Leather Armor (armor)
+
+        // --- Testing weapons ---
+        createObjectWithPID(22),                 // Laser Pistol      (energy, uses Small Energy Cell)
+        createObjectWithPID(23),                 // Laser Rifle       (energy, uses Micro Fusion Cell)
+        createObjectWithPID(24),                 // Plasma Pistol     (energy, uses Micro Fusion Cell)
+        createObjectWithPID(25),                 // Plasma Rifle      (energy, uses Micro Fusion Cell)
+        createObjectWithPID(27),                 // Gatling Laser     (energy, uses Micro Fusion Cell)
+        createObjectWithPID(19),                 // Minigun           (big gun, uses 5mm JHP)
+        createObjectWithPID(20),                 // Rocket Launcher   (big gun, uses Rocket AP)
+        createObjectWithPID(16),                 // Assault Rifle     (small gun, uses 5mm JHP)
+
+        // --- Testing ammo ---
+        createObjectWithPID(33).setAmount(200),  // 10mm JHP          (SMG / 10mm Pistol)
+        createObjectWithPID(34).setAmount(200),  // 10mm AP           (SMG / 10mm Pistol)
+        createObjectWithPID(42).setAmount(200),  // Small Energy Cell (Laser Pistol)
+        createObjectWithPID(43).setAmount(200),  // Micro Fusion Cell (Laser Rifle, Plasma Pistol/Rifle, Gatling Laser)
+        createObjectWithPID(38).setAmount(200),  // 5mm JHP           (Minigun, Assault Rifle)
+        createObjectWithPID(36).setAmount(200),  // .223 FMJ          (Hunting Rifle, Sniper Rifle)
+        createObjectWithPID(44).setAmount(20),   // Rocket AP         (Rocket Launcher)
+        createObjectWithPID(45).setAmount(20),   // Rocket Explosive  (Rocket Launcher)
     ]
 
     lightRadius = 4

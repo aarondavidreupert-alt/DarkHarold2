@@ -758,7 +758,54 @@ export function initUI() {
         })
     }
 
+    /** Attempt to reload weaponObj from inventory. Returns true if rounds were loaded. */
+    function reloadWeapon(weaponObj: Obj): boolean {
+        const w = weaponObj as any
+        const ammoPID: number | undefined = w.pro?.extra?.ammoPID
+        const maxAmmo: number = w.pro?.extra?.maxAmmo ?? 0
+        const currentRounds: number = w.pro?.extra?.rounds ?? 0
+        if (maxAmmo <= 0 || currentRounds >= maxAmmo) return false
+
+        // Find compatible ammo in inventory by matching pid
+        const inv = globalState.player.inventory as any[]
+        const ammoIdx = inv.findIndex((item) => item.pid === ammoPID)
+        if (ammoIdx === -1) {
+            uiLog("No compatible ammo in inventory.")
+            return false
+        }
+
+        const ammoItem = inv[ammoIdx]
+        const needed = maxAmmo - currentRounds
+        const available: number = ammoItem.amount ?? 1
+        const toLoad = Math.min(needed, available)
+
+        w.pro.extra.rounds = currentRounds + toLoad
+        ammoItem.amount = available - toLoad
+        if (ammoItem.amount <= 0) inv.splice(ammoIdx, 1)
+
+        uiLog(`Reloaded ${toLoad} round${toLoad !== 1 ? 's' : ''}.`)
+        return true
+    }
+
     $id('attackButtonContainer').onclick = () => {
+        // Reload mode: immediately reload from inventory (AP cost in combat)
+        const wep = globalState.player.equippedWeapon
+        if (wep?.weapon?.mode === 'reload') {
+            if (globalState.inCombat && globalState.player.AP) {
+                const reloadAP = 2 // TODO: read from weapon PRO (reloadAP field)
+                if (globalState.player.AP.getAvailableCombatAP() < reloadAP) {
+                    uiLog("You don't have enough action points.")
+                    return
+                }
+                globalState.player.AP.subtractCombatAP(reloadAP)
+                uiUpdateCombatAP()
+            }
+            reloadWeapon(wep)
+            wep.weapon.mode = 'single'
+            uiDrawWeapon()
+            return
+        }
+
         if (!Config.engine.doCombat) {
             return
         }
@@ -994,7 +1041,7 @@ function uiEndCombatAnimationDone(this: HTMLElement) {
     }
 }
 
-function uiDrawWeapon() {
+export function uiDrawWeapon() {
     // draw the active weapon in the interface bar
     const weapon = globalState.player.equippedWeapon
     clearEl($id('attackButton'))
@@ -1027,26 +1074,67 @@ function uiDrawWeapon() {
         $wepImg.src = weapon.invArt + '.png'
     }
 
-    // draw weapon AP
+    // draw weapon AP — reload uses fixed 2 AP; burst uses APCost2; otherwise APCost1
     const CHAR_W = 10
-    const digit = weapon.weapon.getAPCost(1)
+    let digit: number
+    const mode = weapon.weapon.mode
+    if (mode === 'reload') {
+        digit = 2 // TODO: read reload AP from weapon PRO
+    } else {
+        const attackSlot = weapon.weapon.isBurst ? (weapon.weapon.isBurst() ? 2 : 1) : 1
+        digit = weapon.weapon.getAPCost(attackSlot)
+    }
     if (digit === undefined || digit > 9) {
         return
     } // TODO: Weapon AP >9?
     $id('attackButtonAPDigit').style.backgroundPosition = 0 - CHAR_W * digit + 'px'
 
-    // draw weapon type (single, burst, called, punch, ...)
+    // draw weapon type (single, burst, called, punch, reload, ...)
     // TODO: all melee weapons
-    const wepTypes: { [wepType: string]: string } = { melee: 'punch', gun: 'single' }
-    const type = wepTypes[weapon.weapon.type]
+    let type: string
+    if (weapon.weapon.type === 'melee') {
+        type = 'punch'
+    } else if (mode === 'reload') {
+        type = 'reload'
+    } else if (weapon.weapon.isBurst && weapon.weapon.isBurst()) {
+        type = 'burst'
+    } else {
+        type = 'single'
+    }
     $img('attackButtonType').src = `art/intrface/${type}.png`
 
     // hide or show called shot sigil?
-    if (weapon.weapon.mode === 'called') {
+    if (mode === 'called') {
         show($id('attackButtonCalled'))
     } else {
         hide($id('attackButtonCalled'))
     }
+}
+
+/**
+ * Try to load ammoObj into weaponObj.
+ * Compatibility: ammo pid must match weapon.pro.extra.ammoPID (or weapon is unloaded).
+ * Returns true if at least one round was loaded.
+ */
+function tryLoadAmmoIntoWeapon(ammoObj: Obj, weaponObj: Obj): boolean {
+    const w = weaponObj as any
+    const a = ammoObj as any
+    const maxAmmo: number = w.pro?.extra?.maxAmmo ?? 0
+    const currentRounds: number = w.pro?.extra?.rounds ?? 0
+    const weaponAmmoPID: number | undefined = w.pro?.extra?.ammoPID
+    if (maxAmmo <= 0 || currentRounds >= maxAmmo) return false
+    // Compatibility: ammoPID must match (or weapon is empty and has no type yet)
+    if (weaponAmmoPID && weaponAmmoPID !== a.pid) return false
+    const needed = maxAmmo - currentRounds
+    const available: number = a.amount ?? 1
+    const toLoad = Math.min(needed, available)
+    w.pro.extra.rounds = currentRounds + toLoad
+    w.pro.extra.ammoPID = a.pid // record which ammo type is now loaded
+    a.amount = available - toLoad
+    const ammoIdx = globalState.player.inventory.indexOf(ammoObj)
+    if (a.amount <= 0 && ammoIdx !== -1) globalState.player.inventory.splice(ammoIdx, 1)
+    uiLog(`Loaded ${toLoad} round${toLoad !== 1 ? 's' : ''}.`)
+    return true
 }
 
 // TODO: Rewrite this sanely (and not directly modify the player object's properties...)
@@ -1062,6 +1150,16 @@ function uiMoveSlot(data: string, target: string) {
         const idx = parseInt(data.slice(1))
         console.log('idx: ' + idx)
         obj = globalState.player.inventory[idx]
+
+        // Drag-drop reload: ammo from inventory dropped onto a hand slot with a weapon
+        if ((target === 'leftHand' || target === 'rightHand') && playerUnsafe[target]) {
+            if (tryLoadAmmoIntoWeapon(obj, playerUnsafe[target] as Obj)) {
+                uiDrawWeapon()
+                uiInventoryScreen()
+                return
+            }
+        }
+
         globalState.player.inventory.splice(idx, 1) // remove object from inventory
     } else {
         obj = playerUnsafe[data]
@@ -1399,6 +1497,21 @@ export function uiInventoryScreen() {
             makeDraggable(img, 'i' + i, () => {
                 uiInventoryScreen()
             })
+
+            // Allow ammo to be dropped onto a weapon in the inventory list
+            if (invObj.subtype === 'weapon') {
+                const capturedWeapon = invObj
+                makeDropTarget(img, (data: string) => {
+                    if (data[0] !== 'i') return // only inventory items
+                    const srcIdx = parseInt(data.slice(1))
+                    const srcObj = globalState.player.inventory[srcIdx]
+                    if (!srcObj || srcObj === capturedWeapon) return
+                    if (tryLoadAmmoIntoWeapon(srcObj, capturedWeapon)) {
+                        uiDrawWeapon()
+                        uiInventoryScreen()
+                    }
+                })
+            }
         }
     }
 
@@ -1468,14 +1581,20 @@ export function uiInventoryScreen() {
                 uiInventoryScreen()
                 break
             case 'unload': {
-                const ammoPID = obj.pro?.extra?.ammoPID
-                const ammoCurrent = obj.pro?.extra?.rounds
-                if (ammoPID && ammoCurrent > 0) {
-                    const ammoObj = createObjectWithPID(ammoPID)
-                    ammoObj.amount = ammoCurrent
-                    globalState.player.addInventoryItem(ammoObj, ammoCurrent)
+                const ammoPID: number | undefined = obj.pro?.extra?.ammoPID
+                const ammoCurrent: number = obj.pro?.extra?.rounds ?? 0
+                console.log(`[unload] ammoPID=${ammoPID} rounds=${ammoCurrent}`)
+                if (ammoCurrent > 0) {
+                    if (ammoPID) {
+                        // Create an ammo item and return it to inventory
+                        const ammoObj = createObjectWithPID(ammoPID)
+                        ammoObj.amount = ammoCurrent
+                        globalState.player.addInventoryItem(ammoObj, ammoCurrent)
+                    }
                     obj.pro.extra.rounds = 0
+                    if (obj.pro.extra.ammoPID !== undefined) obj.pro.extra.ammoPID = 0
                 }
+                uiDrawWeapon()
                 uiInventoryScreen()
                 break
             }
@@ -1519,9 +1638,10 @@ export function uiInventoryScreen() {
         }
         $menu.appendChild(makeContextButton(obj, slot, 'drop'))
 
-        // Unload option for loaded weapons
-        if (obj.subtype === 'weapon' && obj.pro?.extra?.ammoPID && obj.pro?.extra?.rounds > 0) {
-            $menu.appendChild(makeContextButton(obj, slot, 'unload', 'Unload'))
+        // Unload option: any weapon with non-zero ammo capacity and rounds currently loaded
+        // (matches fallout2-ce ammoGetCapacity != 0 condition — works for all gun types)
+        if (obj.subtype === 'weapon' && obj.pro?.extra?.maxAmmo > 0 && obj.pro?.extra?.rounds > 0) {
+            $menu.appendChild(makeContextButton(obj, slot, 'unload'))
         }
 
         // Equip options for inventory items

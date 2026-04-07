@@ -15,6 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { Config } from './config.js'
 import globalState from './globalState.js'
 import { Critter, WeaponObj } from './object.js'
 import { Scripting } from './scripting.js'
@@ -124,6 +125,7 @@ export class Weapon {
 
     constructor(weapon: WeaponObj) {
         this.weapon = weapon
+        // Default mode list; extended to include 'burst' below for burst-capable guns
         this.modes = ['single', 'called']
 
         if (weapon === null) {
@@ -155,17 +157,39 @@ export class Weapon {
 
             this.weaponSkillType = weaponSkillMap[this.name]
             if (this.weaponSkillType === undefined) console.log('unknown weapon type for ' + this.name)
+
+            // If the secondary attack is burst fire, add 'burst' to the mode cycle.
+            // attackTwo.mode is stored as a string at runtime ('fire burst'), but guard
+            // against the numeric form (7) in case PRO data is read differently.
+            // attackTwo.mode is a string at runtime despite the 'as number' cast in parseAttack.
+            // Check both the string form and the numeric value (7) defensively.
+            const secondaryMode: any = this.attackTwo?.mode
+            if (secondaryMode === 'fire burst' || secondaryMode === 7) {
+                this.modes = ['single', 'called', 'burst']
+            }
         }
 
         this.mode = this.modes[0]
     }
 
     cycleMode(): void {
-        this.mode = this.modes[(this.modes.indexOf(this.mode) + 1) % this.modes.length]
+        // Dynamically append 'reload' when magazine is not full (Fallout 2 cycle order:
+        // single → called/aimed → [burst] → reload → single)
+        const maxAmmo: number = (this.weapon as any).pro?.extra?.maxAmmo ?? 0
+        const currentRounds: number = (this.weapon as any).pro?.extra?.rounds ?? maxAmmo
+        const canReload = maxAmmo > 0 && currentRounds < maxAmmo
+        const effectiveModes = canReload ? [...this.modes, 'reload'] : this.modes
+
+        const idx = effectiveModes.indexOf(this.mode)
+        this.mode = effectiveModes[(idx + 1) % effectiveModes.length]
     }
 
     isCalled(): boolean {
         return this.mode === 'called'
+    }
+
+    isBurst(): boolean {
+        return this.mode === 'burst'
     }
 
     getProjectilePID(): number {
@@ -174,14 +198,18 @@ export class Weapon {
     }
 
     // TODO: enum
-    getMaximumRange(attackType: number): number {
-        if (attackType === 1) return this.weapon.pro.extra.maxRange1
-        if (attackType === 2) return this.weapon.pro.extra.maxRange2
-        else throw 'invalid attack type ' + attackType
+    // When called without an argument, derives the slot from the current mode.
+    getMaximumRange(attackType?: number): number {
+        const slot = attackType ?? (this.mode === 'burst' ? 2 : 1)
+        if (slot === 1) return this.weapon.pro.extra.maxRange1
+        if (slot === 2) return this.weapon.pro.extra.maxRange2
+        throw 'invalid attack type ' + slot
     }
 
-    getAPCost(attackMode: number): number {
-        return this.weapon.pro.extra['APCost' + attackMode]
+    // When called without an argument, derives the slot from the current mode.
+    getAPCost(attackSlot?: number): number {
+        const slot = attackSlot ?? (this.mode === 'burst' ? 2 : 1)
+        return this.weapon.pro.extra['APCost' + slot]
     }
 
     getSkin(): string | null {
@@ -217,9 +245,12 @@ export class Weapon {
             flame: 'l',
         }
 
-        // TODO: mode equipped
-        if (this.attackOne.mode !== attackMode.none) {
-            return modeSkinMap[this.attackOne.mode]
+        // Burst uses the secondary attack skin; everything else uses the primary.
+        if (this.mode === 'burst') {
+            return modeSkinMap['fire burst'] // 'k'
+        }
+        if (this.attackOne && this.attackOne.mode !== attackMode.none) {
+            return modeSkinMap[this.attackOne.mode] ?? null
         }
 
         throw 'TODO'
@@ -261,11 +292,29 @@ export class Weapon {
     }
 }
 
+/**
+ * Map a weapon damage type string to the best available death animation name.
+ * Returns the most specific variant first; callers should fall back to 'death'
+ * via hasAnimation() if the variant isn't exported for this critter's FRM set.
+ */
+export function deathAnimForDamageType(damageType: string): string {
+    switch (damageType) {
+        case 'Fire':        return 'death-fire'
+        case 'Plasma':      return 'death-plasma'
+        case 'Laser':       return 'death-laser'
+        case 'Electrical':
+        case 'EMP':         return 'death-electro'
+        case 'Explosive':   return 'death-explode'
+        default:            return 'death'
+    }
+}
+
 export function critterKill(
     obj: Critter,
     source?: Critter,
     useScript?: boolean,
     animName?: string,
+    damageType?: string,
     callback?: () => void
 ) {
     obj.dead = true
@@ -275,18 +324,78 @@ export function critterKill(
         Scripting.destroy(obj, source)
     }
 
-    if (!animName || !obj.hasAnimation(animName)) animName = 'death'
-
-    obj.staticAnimation(
+    // Resolve the death animation in priority order:
+    //   1. Explicit animName passed by caller (e.g. scripted death)
+    //   2. obj.deathAnim set by a critical-hit 'death' effect
+    //   3. Derived from the killing weapon's damage type
+    //   4. Generic 'death' as final fallback
+    const candidates: (string | undefined)[] = [
         animName,
-        function () {
-            // todo: corpse-ify
-            obj.frame-- // go to last frame
-            obj.anim = undefined
-            if (callback) callback()
-        },
-        true
-    )
+        obj.deathAnim,
+        damageType ? deathAnimForDamageType(damageType) : undefined,
+        'death',
+    ]
+    let resolvedAnim = 'death'
+    for (const c of candidates) {
+        if (c && obj.hasAnimation(c)) {
+            resolvedAnim = c
+            break
+        }
+    }
+    // Clear the one-shot override so it doesn't bleed into a second death call
+    obj.deathAnim = undefined
+
+    const finalizeCallback = function () {
+        obj.frame-- // freeze on the last frame of the death animation
+        // Use 'dead' sentinel: updateAnim() returns immediately for this value,
+        // keeping the corpse frozen on its last frame indefinitely.
+        obj.anim = 'dead'
+        if (callback) callback()
+
+        // Player death: show game-over overlay after the death animation completes
+        if (obj.isPlayer && typeof document !== 'undefined') {
+            const overlay = document.createElement('div')
+            overlay.id = 'playerDeadOverlay'
+            Object.assign(overlay.style, {
+                position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
+                background: 'rgba(0,0,0,0.75)', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', zIndex: '9999',
+                cursor: 'default',
+            })
+            const msg = document.createElement('div')
+            Object.assign(msg.style, {
+                color: '#cc0000', fontSize: '48px', fontFamily: 'monospace',
+                textShadow: '2px 2px 8px #000', letterSpacing: '4px',
+            })
+            msg.textContent = 'YOU ARE DEAD'
+            overlay.appendChild(msg)
+            document.body.appendChild(overlay)
+        }
+
+        // Corpse auto-cleanup: remove empty corpses after a configurable timeout.
+        // Corpses with loot are left on the map so the player can still loot them.
+        const timeout = (Config.engine as any).corpseTimeout as number | undefined
+        if (timeout && timeout > 0 && globalState.gMap) {
+            const map = globalState.gMap
+            setTimeout(() => {
+                if (obj.inventory.length === 0 && globalState.gMap === map) {
+                    globalState.gMap.destroyObject(obj)
+                }
+            }, timeout * 1000)
+        }
+    }
+
+    // Knockdown → death transition:
+    // If the critter is mid-knockdown, let that animation finish first, then
+    // transition directly to the death animation.  This avoids an ugly pop
+    // where the critter snaps from falling to dying.
+    if (obj.anim === 'knockdownFront' || obj.anim === 'knockdownBack') {
+        obj.animCallback = () => {
+            obj.staticAnimation(resolvedAnim, finalizeCallback, true)
+        }
+    } else {
+        obj.staticAnimation(resolvedAnim, finalizeCallback, true)
+    }
 }
 
 export function critterDamage(
@@ -299,15 +408,15 @@ export function critterDamage(
     callback?: () => void
 ) {
     obj.stats.modifyBase('HP', -damage)
-    if (obj.getStat('HP') <= 0) return critterKill(obj, source, useScript)
+    if (obj.getStat('HP') <= 0) return critterKill(obj, source, useScript, undefined, damageType)
 
     if (useScript) {
         // TODO: Call damage_p_proc
     }
 
-    // Pick the most appropriate hit reaction: dodge (30% when available),
-    // then hitFront (default), then hitBack as fallback.
-    if (useAnim) {
+    // Play a hit reaction if the critter isn't already mid-animation (race-condition guard).
+    // Picks dodge (30% chance), hitFront, or hitBack depending on availability.
+    if (useAnim && !obj.inAnim()) {
         const hitAnim =
             (obj.hasAnimation('dodge') && Math.random() < 0.3) ? 'dodge' :
             obj.hasAnimation('hitFront') ? 'hitFront' :

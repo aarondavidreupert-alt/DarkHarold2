@@ -19,12 +19,13 @@ import { AudioEngine } from './audio.js'
 import { Config } from './config.js'
 import { CriticalEffects } from './criticalEffects.js'
 import { critterDamage, critterKill } from './critter.js'
-import { hexDistance, hexNearestNeighbor, hexNeighbors, Point } from './geometry.js'
+import { hexDirectionTo, hexDistance, hexInDirectionDistance, hexLine, hexNearestNeighbor, hexNeighbors, Point } from './geometry.js'
 import globalState from './globalState.js'
 import { Critter, Obj } from './object.js'
 import { Player } from './player.js'
+import { loadPRO } from './pro.js'
 import { Scripting } from './scripting.js'
-import { drawAP, drawHP, uiEndCombat, uiLog, uiStartCombat } from './ui.js'
+import { drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiLog, uiStartCombat } from './ui.js'
 import { getFileText, getMessage, getRandomInt, parseIni, rollSkillCheck } from './util.js'
 
 // Turn-based combat system
@@ -199,9 +200,48 @@ export class Combat {
         console.log(msg)
     }
 
+    /** Load ammo stats for a loaded weapon. Returns defaults (X=2,Y=1,RM=0,ACmod=0) if no ammo. */
+    getAmmoStats(weaponObj: Obj): { X: number; Y: number; RM: number; ACmod: number } {
+        const defaults = { X: 2, Y: 1, RM: 0, ACmod: 0 }
+        const ammoPID: number | undefined = (weaponObj as any).pro?.extra?.ammoPID
+        if (ammoPID === undefined || ammoPID < 0) return defaults
+
+        const ammoPro = loadPRO(ammoPID, ammoPID & 0xffff)
+        if (!ammoPro || !ammoPro.extra) return defaults
+
+        return {
+            X: ammoPro.extra.damMult ?? 2,
+            Y: ammoPro.extra.damDiv ?? 1,
+            RM: ammoPro.extra['DR modifier'] ?? 0,
+            ACmod: ammoPro.extra['AC modifier'] ?? 0,
+        }
+    }
+
     accountForPartialCover(obj: Critter, target: Critter): number {
-        // TODO: get list of intervening critters. Substract 10 for each one in the way
-        return 0
+        // Count living critters on the hex line between obj and target
+        // (excluding the endpoints). Subtract 10 per intervening critter.
+        if (!globalState.gMap) return 0
+
+        const line = hexLine(obj.position, target.position)
+        if (!line || line.length <= 2) return 0
+
+        const interior = line.slice(1, -1)
+        let count = 0
+        for (const hex of interior) {
+            for (const o of globalState.gMap.getObjects()) {
+                if (
+                    o instanceof Critter &&
+                    !o.dead &&
+                    o !== obj &&
+                    o !== target &&
+                    o.position.x === hex.x &&
+                    o.position.y === hex.y
+                ) {
+                    count++
+                }
+            }
+        }
+        return count * 10
     }
 
     getHitDistanceModifier(obj: Critter, target: Critter, weapon: Obj): number {
@@ -229,8 +269,8 @@ export class Combat {
         // If anyone can tell me why it exists or what it's for I'd be grateful.
         if (-2 * perception > distance) distance = -2 * perception
 
-        // TODO: needs to add sharpshooter perk bonuses on top
-        // distance -= 2*sharpshooterRank
+        // Sharpshooter perk: each rank reduces the effective distance by 2 hexes
+        if (obj.hasPerk('Sharpshooter')) distance -= 2
 
         // then we multiply a magic number on top. More if there is eye damage involved by the attacker
         // this means for each field distance after PER modification we lose 4 points of hitchance
@@ -263,10 +303,13 @@ export class Combat {
         } else weaponSkill = obj.getSkill(weapon.weaponSkillType)
 
         var hitDistanceModifier = this.getHitDistanceModifier(obj, target, weaponObj)
-        var AC = target.getStat('AC') + target.getArmorAC() + target.bonusAC
+        var ammoStats = this.getAmmoStats(weaponObj)
+        // Ammo AC modifier reduces effective AC (negative value = easier to hit, e.g. AP rounds)
+        var AC = target.getStat('AC') + target.getArmorAC() + target.bonusAC + ammoStats.ACmod
+        var partialCoverPenalty = this.accountForPartialCover(obj, target)
         var bonusCrit = 0 // TODO: perk bonuses, other crit influencing things
         var baseCrit = obj.getStat('Critical Chance') + bonusCrit
-        var hitChance = weaponSkill - AC - CriticalEffects.regionHitChanceDecTable[region] - hitDistanceModifier
+        var hitChance = weaponSkill - AC - CriticalEffects.regionHitChanceDecTable[region] - hitDistanceModifier - partialCoverPenalty
         var critChance = baseCrit + CriticalEffects.regionHitChanceDecTable[region]
 
         if (isNaN(hitChance)) throw 'something went wrong with hit chance calculation'
@@ -277,9 +320,10 @@ export class Combat {
         return { hit: hitChance, crit: critChance }
     }
 
-    rollHit(obj: Critter, target: Critter, region: string): any {
+    rollHit(obj: Critter, target: Critter, region: string, hitBonus: number = 0): any {
         var critModifer = obj.getStat('Better Criticals')
         var hitChance = this.getHitChance(obj, target, region)
+        hitChance = { ...hitChance, hit: hitChance.hit + hitBonus }
 
         // hey kids! Did you know FO only rolls the dice once here and uses the results two times?
         var roll = getRandomInt(1, 101)
@@ -303,7 +347,7 @@ export class Combat {
             if (isCrit === true) {
                 var critLevel = Math.floor(Math.max(0, getRandomInt(critModifer, 100 + critModifer)) / 20)
                 this.log('crit level: ' + critLevel)
-                var crit = CriticalEffects.getCritical(target.killType, region, critLevel)
+                var crit = CriticalEffects.getCritical(target.killType ?? 0, region, critLevel)
                 var critStatus = crit.doEffectsOn(target)
 
                 return { hit: true, crit: true, DM: critStatus.DM, msgID: critStatus.msgID } // crit
@@ -315,7 +359,12 @@ export class Combat {
         // in reverse because miss -> roll > hitchance.hit
         var isCrit = false
         if (rollSkillCheck(Math.floor(roll - hitChance.hit) / 10, 0, false)) isCrit = true
-        // TODO: jinxed/pariah dog give (nonstacking) 50% chance for critical miss upon miss
+
+        // Jinxed trait / Pariah Dog perk: 50% chance to upgrade any miss to a critical miss (non-stacking)
+        if (!isCrit && (obj.hasPerk('Jinxed') || target.hasPerk('Jinxed') ||
+                         obj.hasPerk('Pariah Dog') || target.hasPerk('Pariah Dog'))) {
+            if (getRandomInt(1, 100) <= 50) isCrit = true
+        }
 
         return { hit: false, crit: isCrit } // miss
     }
@@ -332,10 +381,11 @@ export class Combat {
         var CM = critModifer // critical hit damage multiplier
         var ADR = target.getStat('DR ' + damageType) + target.getArmorDR(damageType) // damage resistance (base + armor)
         var ADT = target.getStat('DT ' + damageType) + target.getArmorDT(damageType) // damage threshold (base + armor)
-        var X = 2 // ammo dividend
-        var Y = 1 // ammo divisor
-        var RM = 0 // ammo resistance modifier
-        var CD = 100 // combat difficulty modifier (easy = 75%, normal = 100%, hard = 125%)
+        var ammoStats = this.getAmmoStats(weapon)
+        var X = ammoStats.X // ammo damage multiplier (from ammo PRO damMult)
+        var Y = ammoStats.Y // ammo damage divisor (from ammo PRO damDiv)
+        var RM = ammoStats.RM // ammo DR modifier (from ammo PRO "DR modifier")
+        var CD = Config.combat.difficultyModifier // combat difficulty: easy=75, normal=100, hard=125
 
         var ammoDamageMult = X / Y
 
@@ -372,8 +422,69 @@ export class Combat {
 
         var who = obj.isPlayer ? 'You' : obj.name
         var targetName = target.isPlayer ? 'you' : target.name
+
+        // Out-of-ammo check — abort before roll so AP is still spent (matching FO2 behavior)
+        var weapon = weaponObj?.weapon
+        if (weapon && weapon.type !== 'melee') {
+            var ammoNow: number = (weaponObj as any)?.pro?.extra?.rounds ?? -1
+            if (ammoNow === 0) {
+                uiLog(who + ' is out of ammo!')
+                uiDrawWeapon()
+                return
+            }
+        }
+
+        var attackDmgType = weaponObj?.weapon?.getDamageType() ?? 'Normal'
+
+        // ── BURST MODE ────────────────────────────────────────────────────────
+        if (weapon && weapon.isBurst && weapon.isBurst()) {
+            const burstCount: number = (weaponObj as any)?.pro?.extra?.burstCount ?? 10
+            console.log(`[burst] burstCount=${burstCount} weapon=${weapon.name}`)
+
+            let hits = 0
+            let totalDamage = 0
+            for (let b = 0; b < burstCount; b++) {
+                const bRoll = this.rollHit(obj, target, region, -20) // burst penalty
+                if (bRoll.hit) {
+                    hits++
+                    totalDamage += this.getDamageDone(obj, target, bRoll.crit ? bRoll.DM : 2)
+                }
+            }
+
+            uiLog(`${who} burst-fired at ${targetName}: ${hits}/${burstCount} hit for ${totalDamage} damage`)
+
+            if (hits > 0) {
+                if (soundIdChar) audio.playWeaponSfx(soundIdChar, 'impact')
+                else audio.playActionSfx('hit_flesh')
+                critterDamage(target, totalDamage, obj, true, true, attackDmgType)
+                if (target.isPlayer) drawHP(target.getStat('HP'))
+                if (target.dead) this.perish(target, obj, attackDmgType)
+            } else {
+                audio.playActionSfx('miss')
+                if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
+                    target.staticAnimation('dodge', () => target.clearAnim())
+                }
+            }
+
+            // Deduct burst ammo
+            const curRounds: number = (weaponObj as any)?.pro?.extra?.rounds ?? 0
+            ;(weaponObj as any).pro.extra.rounds = Math.max(0, curRounds - burstCount)
+            uiDrawWeapon()
+            return
+        }
+
+        // ── SINGLE SHOT ───────────────────────────────────────────────────────
         var hitRoll = this.rollHit(obj, target, region)
         this.log('hit% is ' + this.getHitChance(obj, target, region).hit)
+
+        // Deduct one round after the roll
+        if (weapon && weapon.type !== 'melee') {
+            var roundsBefore: number = (weaponObj as any)?.pro?.extra?.rounds
+            if (roundsBefore !== undefined && roundsBefore > 0) {
+                ;(weaponObj as any).pro.extra.rounds = roundsBefore - 1
+                uiDrawWeapon()
+            }
+        }
 
         if (hitRoll.hit === true) {
             var critModifier = hitRoll.crit ? hitRoll.DM : 2
@@ -388,13 +499,19 @@ export class Combat {
                 audio.playActionSfx('hit_flesh')
             }
 
-            critterDamage(target, damage, obj)
+            critterDamage(target, damage, obj, true, true, attackDmgType)
             if (target.isPlayer) drawHP(target.getStat('HP'))
 
-            if (target.dead) this.perish(target, obj)
+            if (target.dead) this.perish(target, obj, attackDmgType)
         } else {
             audio.playActionSfx('miss')
             uiLog(who + ' missed ' + targetName + (hitRoll.crit === true ? ' critically' : ''))
+
+            // Play a dodge/flinch on the target if they aren't already animating
+            if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
+                target.staticAnimation('dodge', () => target.clearAnim())
+            }
+
             if (hitRoll.crit === true) {
                 var critFailMod = (obj.getStat('LUK') - 5) * -5
                 var critFailRoll = Math.floor(getRandomInt(1, 100) - critFailMod)
@@ -414,7 +531,70 @@ export class Combat {
         }
     }
 
-    perish(obj: Critter, attacker?: Critter) {
+    attackBurst(obj: Critter, target: Critter, callback?: () => void) {
+        // Face the target
+        const hex = hexNearestNeighbor(obj.position, target.position)
+        if (hex !== null) obj.orientation = hex.direction
+
+        // Play attack animation
+        obj.staticAnimation('attack', callback)
+
+        const weaponObj = obj.equippedWeapon
+        const weapon = weaponObj?.weapon
+        const attackDmgType = weaponObj?.weapon?.getDamageType() ?? 'Normal'
+
+        // Consume ammo: min(burstRounds, currentRounds)
+        const burstRounds: number = (weaponObj as any)?.pro?.extra?.burstRounds ?? 6
+        const currentRounds: number = (weaponObj as any)?.pro?.extra?.rounds ?? burstRounds
+        const consumed = Math.min(burstRounds, currentRounds)
+        if (weaponObj && (weaponObj as any).pro?.extra) {
+            ;(weaponObj as any).pro.extra.rounds = Math.max(0, currentRounds - consumed)
+        }
+
+        // Play weapon sound
+        const rawSoundID = (weaponObj as any)?.pro?.extra?.soundID
+        const soundIdChar = typeof rawSoundID === 'number' ? String.fromCharCode(rawSoundID) : null
+        if (soundIdChar) globalState.audioEngine.playWeaponSfx(soundIdChar, 'attack')
+
+        // Build burst cone: hexLine from obj toward a point 2 steps beyond target in same direction
+        const dir = hexDirectionTo(obj.position, target.position)
+        const coneEnd = hexInDirectionDistance(target.position, dir, 2)
+        const line = hexLine(obj.position, coneEnd) ?? []
+
+        // Gather all living critters on the line (excluding the attacker)
+        const mapObjects = globalState.gMap?.getObjects() ?? []
+        const hit: Critter[] = []
+        for (const pos of line) {
+            for (const o of mapObjects) {
+                if (o instanceof Critter && !o.dead && o !== obj) {
+                    if (o.position.x === pos.x && o.position.y === pos.y) {
+                        if (!hit.includes(o)) hit.push(o)
+                    }
+                }
+            }
+        }
+
+        const who = obj.isPlayer ? 'You' : obj.name
+        for (const victim of hit) {
+            const victimName = victim.isPlayer ? 'you' : victim.name
+            // Burst fire: -20 hit chance penalty
+            const hitRoll = this.rollHit(obj, victim, 'torso', -20)
+            if (hitRoll.hit) {
+                const critMod = hitRoll.crit ? hitRoll.DM : 2
+                const damage = this.getDamageDone(obj, victim, critMod)
+                uiLog(`${who} burst-hit ${victimName} for ${damage} damage`)
+                if (soundIdChar) globalState.audioEngine.playWeaponSfx(soundIdChar, 'impact')
+                else globalState.audioEngine.playActionSfx('hit_flesh')
+                critterDamage(victim, damage, obj, true, true, attackDmgType)
+                if (victim.isPlayer) drawHP(victim.getStat('HP'))
+                if (victim.dead) this.perish(victim, obj, attackDmgType)
+            } else {
+                uiLog(`${who} burst-missed ${victimName}`)
+            }
+        }
+    }
+
+    perish(obj: Critter, attacker?: Critter, damageType?: string) {
         uiLog('...And killed them.')
         globalState.audioEngine.playActionSfx('critter_die')
 
@@ -426,7 +606,7 @@ export class Combat {
         // Only run critterKill if critterDamage didn't already do it
         // (critterDamage calls critterKill when HP <= 0, which plays the death anim)
         if (!obj.anim || obj.anim === 'idle') {
-            critterKill(obj, attacker)
+            critterKill(obj, attacker, undefined, undefined, damageType)
         }
 
         // Inventory stays on the critter — the player loots it via the context menu,
@@ -633,14 +813,40 @@ export class Combat {
             // if we are in range, do we have enough AP to attack?
             this.log('[ATTACKING]')
             this.maybeTaunt(obj, 'attack', messageRoll)
-            AP.subtractCombatAP(4)
 
             if (obj.equippedWeapon === null) throw 'combatant has no equipped weapon'
 
-            this.attack(obj, target, 'torso', function () {
-                obj.clearAnim()
-                that.doAITurn(obj, idx, depth + 1) // if we can, do another turn
-            })
+            // Prefer burst fire if: weapon has burst mode, ≥2 enemies in burst range, and enough AP
+            const burstAPCost = weapon.getAPCost(2)
+            const hasBurstMode = weapon.isBurst !== undefined && weapon.isBurst()
+            const burstRange = weapon.getMaximumRange(2)
+            const targetsInBurstRange = this.combatants.filter(
+                (c) => c !== obj && !c.dead && hexDistance(obj.position, c.position) <= burstRange
+            ).length
+
+            const useBurst =
+                !hasBurstMode && // weapon hasn't been switched to burst mode by AI yet
+                String((weapon as any).attackTwo?.mode) === 'fire burst' &&
+                AP.getAvailableCombatAP() >= burstAPCost &&
+                targetsInBurstRange >= 2
+
+            if (useBurst) {
+                AP.subtractCombatAP(burstAPCost)
+                // Temporarily set mode to 'burst' so attack() detects it, then restore
+                const prevMode = weapon!.mode
+                weapon!.mode = 'burst'
+                this.attack(obj, target, 'torso', function () {
+                    weapon!.mode = prevMode
+                    obj.clearAnim()
+                    that.doAITurn(obj, idx, depth + 1)
+                })
+            } else {
+                AP.subtractCombatAP(4)
+                this.attack(obj, target, 'torso', function () {
+                    obj.clearAnim()
+                    that.doAITurn(obj, idx, depth + 1) // if we can, do another turn
+                })
+            }
         } else {
             console.log('[AI IS STUMPED]')
             this.nextTurn()
@@ -749,6 +955,16 @@ export class Combat {
             this.inPlayerTurn = false
             var critter = this.combatants[this.whoseTurn]
             if (critter.dead === true || critter.hostile !== true) return this.nextTurn()
+
+            // Knockdown / loseNextTurn: skip this critter's turn and count down
+            if (critter.skipTurns > 0) {
+                critter.skipTurns--
+                // If the critter is getting up this turn, play the recovery anim
+                if (critter.skipTurns === 0 && critter.hasAnimation('getUpFront')) {
+                    critter.staticAnimation('getUpFront', () => critter.clearAnim())
+                }
+                return this.nextTurn()
+            }
 
             critter.bonusAC = 0 // reset bonus AC at start of this critter's turn
             critter.AP!.resetAP()

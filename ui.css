@@ -546,6 +546,9 @@ body {
   z-index: 10;
   line-height: 0;
   font-size: 0;
+  border: 0;
+  outline: 0;
+  box-shadow: none;
 }
 
 .itemContextMenuButton {
@@ -624,6 +627,14 @@ body {
 
 #context_talk:hover {
   background-image: url("art/intrface/talkh.png");
+}
+
+#context_unload {
+  background-image: url("art/intrface/unloadn.png");
+}
+
+#context_unload:hover {
+  background-image: url("art/intrface/unloadh.png");
 }
 
 /* Inventory button in context menu */
