@@ -41,6 +41,75 @@ export function zoomIn(): void { setAutomapZoom(zoomLevel + ZOOM_STEP) }
 export function zoomOut(): void { setAutomapZoom(zoomLevel - ZOOM_STEP) }
 export { ZOOM_MIN, ZOOM_MAX, ZOOM_STEP }
 
+// --- Pan state, keyed per (mapName, elevation). Resets when the player
+// switches to a different map so each map remembers its own offset for the
+// session.
+const panState: Map<string, { x: number; y: number }> = new Map()
+
+function panKey(mapName: string, elevation: number): string {
+    return `${mapName}:${elevation}`
+}
+
+export function getAutomapPan(mapName: string, elevation: number): { x: number; y: number } {
+    return panState.get(panKey(mapName, elevation)) ?? { x: 0, y: 0 }
+}
+
+export function setAutomapPan(mapName: string, elevation: number, x: number, y: number): void {
+    panState.set(panKey(mapName, elevation), { x, y })
+}
+
+export function resetAutomapPan(mapName: string, elevation: number): void {
+    panState.delete(panKey(mapName, elevation))
+}
+
+// Wire mousedown/move/up panning on a canvas. `getMap` returns the (mapName,
+// elevation) the canvas is currently displaying — pan offset is stored
+// per-map. `onPanned` is called whenever the pan changes so the caller can
+// re-render.
+export function attachAutomapDragPan(
+    canvas: HTMLCanvasElement,
+    getMap: () => { mapName: string; elevation: number } | null,
+    onPanned: () => void
+): void {
+    let dragging = false
+    let lastX = 0, lastY = 0
+    let startPanX = 0, startPanY = 0
+
+    canvas.style.cursor = 'grab'
+
+    canvas.addEventListener('mousedown', (e: MouseEvent) => {
+        const m = getMap()
+        if (!m) return
+        dragging = true
+        lastX = e.clientX
+        lastY = e.clientY
+        const cur = getAutomapPan(m.mapName, m.elevation)
+        startPanX = cur.x
+        startPanY = cur.y
+        canvas.style.cursor = 'grabbing'
+        e.preventDefault()
+    })
+
+    const endDrag = () => {
+        if (!dragging) return
+        dragging = false
+        canvas.style.cursor = 'grab'
+    }
+
+    canvas.addEventListener('mousemove', (e: MouseEvent) => {
+        if (!dragging) return
+        const m = getMap()
+        if (!m) return
+        const dx = e.clientX - lastX
+        const dy = e.clientY - lastY
+        setAutomapPan(m.mapName, m.elevation, startPanX + dx, startPanY + dy)
+        onPanned()
+    })
+
+    canvas.addEventListener('mouseup', endDrag)
+    canvas.addEventListener('mouseleave', endDrag)
+}
+
 export function openAutomap(): void {
     // Remove any stale container
     const existing = document.getElementById('automapContainer')
@@ -76,16 +145,33 @@ export function openAutomap(): void {
         width: ${MAP_INSET_W}px; height: ${MAP_INSET_H}px;
         image-rendering: pixelated;
     `
-    let canvas = renderAutomapCanvas(MAP_INSET_W, MAP_INSET_H, { zoom: zoomLevel })
+    const renderOpts = () => {
+        const map = globalState.gMap
+        const pan = map ? getAutomapPan(map.name, map.currentElevation) : { x: 0, y: 0 }
+        return { zoom: zoomLevel, panX: pan.x, panY: pan.y }
+    }
+
+    let canvas = renderAutomapCanvas(MAP_INSET_W, MAP_INSET_H, renderOpts())
     canvas.style.cssText = canvasStyle
     screen.appendChild(canvas)
 
+    const wireCanvas = (c: HTMLCanvasElement) => {
+        attachAutomapDragPan(c, () => {
+            const map = globalState.gMap
+            if (!map || !map.name) return null
+            return { mapName: map.name, elevation: map.currentElevation }
+        }, refresh)
+    }
+
     const refresh = () => {
-        const newCanvas = renderAutomapCanvas(MAP_INSET_W, MAP_INSET_H, { zoom: zoomLevel })
+        const newCanvas = renderAutomapCanvas(MAP_INSET_W, MAP_INSET_H, renderOpts())
         newCanvas.style.cssText = canvasStyle
         screen.replaceChild(newCanvas, canvas)
         canvas = newCanvas
+        wireCanvas(canvas)
     }
+
+    wireCanvas(canvas)
 
     // SCANNER dot button
     const scannerDot = document.createElement('div')

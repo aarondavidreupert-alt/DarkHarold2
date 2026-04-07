@@ -23,16 +23,12 @@ import { hexDistance, Point } from './geometry.js'
 import globalState from './globalState.js'
 
 const STORAGE_KEY = 'darkfo.automap.v1'
-const ARCHIVE_KEY = 'darkfo.automap.archive.v1'
 const REVEAL_RADIUS = 5
 
 // "mapName:elevation" -> Set of "x,y"
 const seenData: Map<string, Set<string>> = new Map()
-// "mapName:elevation" -> snapshot data URL
-const archiveData: Map<string, string> = new Map()
 let loaded = false
 let saveTimer: number | null = null
-let archiveSaveTimer: number | null = null
 
 function key(mapName: string, elevation: number): string {
     return `${mapName}:${elevation}`
@@ -51,15 +47,6 @@ function load(): void {
         }
     } catch (e) {
         console.log('[automapData] failed to load:', e)
-    }
-    try {
-        const raw = localStorage.getItem(ARCHIVE_KEY)
-        if (raw) {
-            const obj = JSON.parse(raw) as Record<string, string>
-            for (const k in obj) archiveData.set(k, obj[k])
-        }
-    } catch (e) {
-        console.log('[automapData] failed to load archive:', e)
     }
 }
 
@@ -83,51 +70,35 @@ function scheduleSave(): void {
     }, 2000)
 }
 
-function saveArchive(): void {
-    try {
-        const obj: Record<string, string> = {}
-        for (const [k, v] of archiveData) obj[k] = v
-        localStorage.setItem(ARCHIVE_KEY, JSON.stringify(obj))
-    } catch (e) {
-        console.log('[automapData] failed to save archive:', e)
+// Force-flush any pending save immediately. Called on map transitions and
+// page unload so the seen-tile data is durable.
+export function flushAutomapSave(): void {
+    if (saveTimer !== null) {
+        clearTimeout(saveTimer)
+        saveTimer = null
     }
+    save()
 }
 
-function scheduleArchiveSave(): void {
-    if (archiveSaveTimer !== null) return
-    archiveSaveTimer = window.setTimeout(() => {
-        saveArchive()
-        archiveSaveTimer = null
-    }, 1000)
-}
-
-export interface ArchiveEntry {
+// Every (mapName, elevation) for which we have seen-tile data. Drives the
+// AUTOMAPS hierarchy.
+export interface ArchivedMap {
     mapName: string
     elevation: number
-    dataURL: string
+    tileCount: number
 }
 
-export function getArchiveEntries(): ArchiveEntry[] {
+export function getArchivedMaps(): ArchivedMap[] {
     load()
-    const out: ArchiveEntry[] = []
-    for (const [k, v] of archiveData) {
-        const [mapName, elevStr] = k.split(':')
-        out.push({ mapName, elevation: parseInt(elevStr, 10), dataURL: v })
+    const out: ArchivedMap[] = []
+    for (const [k, set] of seenData) {
+        const idx = k.lastIndexOf(':')
+        if (idx < 0) continue
+        const mapName = k.substring(0, idx)
+        const elevation = parseInt(k.substring(idx + 1), 10)
+        out.push({ mapName, elevation, tileCount: set.size })
     }
     return out
-}
-
-export function saveMapSnapshot(mapName: string, elevation: number): void {
-    load()
-    try {
-        // Render at a reasonable archive resolution
-        const canvas = renderAutomapCanvas(380, 360, { zoom: 1, forMap: mapName, forElevation: elevation })
-        const dataURL = canvas.toDataURL('image/png')
-        archiveData.set(`${mapName}:${elevation}`, dataURL)
-        scheduleArchiveSave()
-    } catch (e) {
-        console.log('[automapData] failed to snapshot:', e)
-    }
 }
 
 export function getSeenTiles(mapName: string, elevation: number): Set<string> {
@@ -165,24 +136,31 @@ export function initAutomapTracking(): void {
         if (!map || !map.name) return
         markSeenAt(map.name, map.currentElevation, pos)
     })
-    // Save a snapshot of the current map into the archive just before a new
-    // map is loaded.
+    // Mark the initial position and force-save when entering a new map.
+    Events.on('loadMapPost', () => {
+        const map = globalState.gMap
+        const player = globalState.player
+        if (!map || !map.name) return
+        if (player) markSeenAt(map.name, map.currentElevation, player.position)
+        flushAutomapSave()
+    })
+    // Force-save when leaving a map so the data we have so far is durable.
     Events.on('loadMapPre', () => {
         const map = globalState.gMap
         if (!map || !map.name) return
-        saveMapSnapshot(map.name, map.currentElevation)
+        flushAutomapSave()
     })
-    // Flush archive on page unload
-    window.addEventListener('beforeunload', () => {
-        if (archiveSaveTimer !== null) { saveArchive() }
-        if (saveTimer !== null) { save() }
-    })
+    // Flush on page unload
+    window.addEventListener('beforeunload', () => { flushAutomapSave() })
 }
 
 export interface RenderOptions {
     zoom?: number
     forMap?: string
     forElevation?: number
+    // Pan offset in canvas pixels, applied after auto-centering
+    panX?: number
+    panY?: number
 }
 
 export function renderAutomapCanvas(width: number, height: number, opts: RenderOptions = {}): HTMLCanvasElement {
@@ -229,14 +207,21 @@ export function renderAutomapCanvas(width: number, height: number, opts: RenderO
     if (zoom > 1 && isCurrentMap && player) {
         ox = width / 2 - player.position.x * scale
         oy = height / 2 - player.position.y * scale
-        // Clamp so we don't reveal huge empty borders
-        const gridW = HEX_RANGE * scale
-        const gridH = HEX_RANGE * scale
-        ox = Math.min(margin, Math.max(width - margin - gridW, ox))
-        oy = Math.min(margin, Math.max(height - margin - gridH, oy))
     } else {
         ox = (width - HEX_RANGE * scale) / 2
         oy = (height - HEX_RANGE * scale) / 2
+    }
+
+    // Apply user pan offset (drag), then clamp so the grid stays in view.
+    ox += opts.panX ?? 0
+    oy += opts.panY ?? 0
+    const gridW = HEX_RANGE * scale
+    const gridH = HEX_RANGE * scale
+    if (gridW > width - margin * 2) {
+        ox = Math.min(margin, Math.max(width - margin - gridW, ox))
+    }
+    if (gridH > height - margin * 2) {
+        oy = Math.min(margin, Math.max(height - margin - gridH, oy))
     }
 
     // Clip the grid area so overdraw when zoomed doesn't leak into labels
