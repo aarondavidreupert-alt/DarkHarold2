@@ -15,6 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { Config } from './config.js'
 import globalState from './globalState.js'
 import { Critter, WeaponObj } from './object.js'
 import { Scripting } from './scripting.js'
@@ -261,11 +262,29 @@ export class Weapon {
     }
 }
 
+/**
+ * Map a weapon damage type string to the best available death animation name.
+ * Returns the most specific variant first; callers should fall back to 'death'
+ * via hasAnimation() if the variant isn't exported for this critter's FRM set.
+ */
+export function deathAnimForDamageType(damageType: string): string {
+    switch (damageType) {
+        case 'Fire':        return 'death-fire'
+        case 'Plasma':      return 'death-plasma'
+        case 'Laser':       return 'death-laser'
+        case 'Electrical':
+        case 'EMP':         return 'death-electro'
+        case 'Explosive':   return 'death-explode'
+        default:            return 'death'
+    }
+}
+
 export function critterKill(
     obj: Critter,
     source?: Critter,
     useScript?: boolean,
     animName?: string,
+    damageType?: string,
     callback?: () => void
 ) {
     obj.dead = true
@@ -275,18 +294,56 @@ export function critterKill(
         Scripting.destroy(obj, source)
     }
 
-    if (!animName || !obj.hasAnimation(animName)) animName = 'death'
-
-    obj.staticAnimation(
+    // Resolve the death animation in priority order:
+    //   1. Explicit animName passed by caller (e.g. scripted death)
+    //   2. obj.deathAnim set by a critical-hit 'death' effect
+    //   3. Derived from the killing weapon's damage type
+    //   4. Generic 'death' as final fallback
+    const candidates: (string | undefined)[] = [
         animName,
-        function () {
-            // todo: corpse-ify
-            obj.frame-- // go to last frame
-            obj.anim = undefined
-            if (callback) callback()
-        },
-        true
-    )
+        obj.deathAnim,
+        damageType ? deathAnimForDamageType(damageType) : undefined,
+        'death',
+    ]
+    let resolvedAnim = 'death'
+    for (const c of candidates) {
+        if (c && obj.hasAnimation(c)) {
+            resolvedAnim = c
+            break
+        }
+    }
+    // Clear the one-shot override so it doesn't bleed into a second death call
+    obj.deathAnim = undefined
+
+    const finalizeCallback = function () {
+        obj.frame-- // freeze on the last frame of the death animation
+        obj.anim = undefined
+        if (callback) callback()
+
+        // Corpse auto-cleanup: remove empty corpses after a configurable timeout.
+        // Corpses with loot are left on the map so the player can still loot them.
+        const timeout = (Config.engine as any).corpseTimeout as number | undefined
+        if (timeout && timeout > 0 && globalState.gMap) {
+            const map = globalState.gMap
+            setTimeout(() => {
+                if (obj.inventory.length === 0 && globalState.gMap === map) {
+                    globalState.gMap.destroyObject(obj)
+                }
+            }, timeout * 1000)
+        }
+    }
+
+    // Knockdown → death transition:
+    // If the critter is mid-knockdown, let that animation finish first, then
+    // transition directly to the death animation.  This avoids an ugly pop
+    // where the critter snaps from falling to dying.
+    if (obj.anim === 'knockdownFront' || obj.anim === 'knockdownBack') {
+        obj.animCallback = () => {
+            obj.staticAnimation(resolvedAnim, finalizeCallback, true)
+        }
+    } else {
+        obj.staticAnimation(resolvedAnim, finalizeCallback, true)
+    }
 }
 
 export function critterDamage(
@@ -299,7 +356,7 @@ export function critterDamage(
     callback?: () => void
 ) {
     obj.stats.modifyBase('HP', -damage)
-    if (obj.getStat('HP') <= 0) return critterKill(obj, source, useScript)
+    if (obj.getStat('HP') <= 0) return critterKill(obj, source, useScript, undefined, damageType)
 
     if (useScript) {
         // TODO: Call damage_p_proc

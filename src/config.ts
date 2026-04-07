@@ -42,6 +42,9 @@ export const Config = {
         doLogLazyLoads: false, // Log lazy-loading of images? (Noisy)
         doLogScriptLoads: false, // Log script loads? (Noisy)
         doDisasmOnUnimplOp: true, // Disassemble script upon reaching unimplemented opcode?
+        // Seconds after which an empty corpse (no loot) is removed from the map.
+        // Set to 0 to disable auto-cleanup (corpses persist until map change).
+        corpseTimeout: 0,
     },
 
     combat: {

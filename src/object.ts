@@ -1062,6 +1062,7 @@ export class Critter extends Obj {
     perks: string[] = [] // List of acquired perks
     nextIdleAnimTime = 0 // performance.now() after which the next idle cycle begins; 0 = uninitialised
     skipTurns = 0 // Number of combat turns to skip (set by knockdown/loseNextTurn effects)
+    deathAnim?: string // Override death animation (set by critical 'death' effects, e.g. 'death-explode')
 
     static fromPID(pid: number, sid?: number): Critter {
         return Obj.fromPID_(new Critter(), pid, sid)
@@ -1471,9 +1472,19 @@ export class Critter extends Obj {
                     console.log('Boss death...')
                     return base + 'bl'
                 }
-                return base + 'bo' // TODO: choose death animation better
+                return base + 'bo' // normal crumple death
             case 'death-explode':
-                return base + 'bl'
+                return base + 'bl' // sliced in half / blown apart
+            case 'death-fire':
+                return base + 'be' // burning death dance
+            case 'death-plasma':
+                return base + 'bm' // burned to nothing
+            case 'death-electro':
+                return base + 'bk' // electrified
+            case 'death-laser':
+                return base + 'bg' // big hole / vaporised
+            case 'death-burst':
+                return base + 'bj' // dancing autofire
             default:
                 throw 'Unknown animation: ' + anim
         }

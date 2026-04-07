@@ -128,7 +128,9 @@ export module CriticalEffects {
         },
 
         death: function (target: Critter) {
-            console.log(target.name + ' has met the reaperpony. This does not do anything yet')
+            // Mark the critter for an explosive death animation if this hit kills them.
+            // critterKill() reads target.deathAnim before choosing the animation.
+            target.deathAnim = 'death-explode'
         },
 
         onFire: function (target: Critter) {

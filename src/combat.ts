@@ -437,10 +437,12 @@ export class Combat {
                 audio.playActionSfx('hit_flesh')
             }
 
-            critterDamage(target, damage, obj)
+            // Pass the weapon's damage type so critterKill can pick the right death anim
+            var attackDmgType = weaponObj?.weapon?.getDamageType() ?? 'Normal'
+            critterDamage(target, damage, obj, true, true, attackDmgType)
             if (target.isPlayer) drawHP(target.getStat('HP'))
 
-            if (target.dead) this.perish(target, obj)
+            if (target.dead) this.perish(target, obj, attackDmgType)
         } else {
             audio.playActionSfx('miss')
             uiLog(who + ' missed ' + targetName + (hitRoll.crit === true ? ' critically' : ''))
@@ -463,7 +465,7 @@ export class Combat {
         }
     }
 
-    perish(obj: Critter, attacker?: Critter) {
+    perish(obj: Critter, attacker?: Critter, damageType?: string) {
         uiLog('...And killed them.')
         globalState.audioEngine.playActionSfx('critter_die')
 
@@ -475,7 +477,7 @@ export class Combat {
         // Only run critterKill if critterDamage didn't already do it
         // (critterDamage calls critterKill when HP <= 0, which plays the death anim)
         if (!obj.anim || obj.anim === 'idle') {
-            critterKill(obj, attacker)
+            critterKill(obj, attacker, undefined, undefined, damageType)
         }
 
         // Inventory stays on the critter — the player loots it via the context menu,
