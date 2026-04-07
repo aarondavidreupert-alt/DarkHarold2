@@ -152,6 +152,42 @@ export function renderAutomapCanvas(width: number, height: number): HTMLCanvasEl
         ctx.fillRect(ox + x * scale, oy + y * scale, tileSize, tileSize)
     }
 
+    // Overlay objects (walls, doors, scenery, items, critters) that lie on
+    // already-seen tiles. Colored by type so the player can distinguish them.
+    const objSize = Math.max(2, Math.ceil(scale * 1.6))
+    for (const obj of map.getObjects()) {
+        if (!obj || !obj.position) continue
+        const tileKey = `${obj.position.x},${obj.position.y}`
+        if (!seen.has(tileKey)) continue
+
+        let color: string | null = null
+        if (obj.type === 'wall') {
+            color = '#888888' // gray
+        } else if (obj.type === 'scenery') {
+            // Doors are scenery subType 0
+            if (obj.pro && obj.pro.extra && obj.pro.extra.subType === 0) {
+                color = '#FF8800' // orange — doors
+            } else {
+                color = '#3388FF' // blue — other scenery
+            }
+        } else if (obj.type === 'item') {
+            color = '#FFCC00' // yellow — items
+        } else if (obj.type === 'critter') {
+            if ((obj as any).isPlayer) continue // player drawn separately
+            color = '#FF3333' // red — critters
+        }
+
+        if (color) {
+            ctx.fillStyle = color
+            ctx.fillRect(
+                ox + obj.position.x * scale - 1,
+                oy + obj.position.y * scale - 1,
+                objSize,
+                objSize
+            )
+        }
+    }
+
     // Outline of explored area frame
     ctx.strokeStyle = '#00AA00'
     ctx.lineWidth = 1
@@ -174,6 +210,24 @@ export function renderAutomapCanvas(width: number, height: number): HTMLCanvasEl
     // Tile count
     ctx.font = '11px monospace'
     ctx.fillText(`${seen.size} tiles seen`, 8, height - 8)
+
+    // Legend (small color swatches with labels along the right edge)
+    const legend: { color: string; label: string }[] = [
+        { color: '#888888', label: 'WALL' },
+        { color: '#FF8800', label: 'DOOR' },
+        { color: '#3388FF', label: 'SCEN' },
+        { color: '#FFCC00', label: 'ITEM' },
+        { color: '#FF3333', label: 'CRTR' },
+    ]
+    ctx.font = '9px monospace'
+    let ly = height - 8 - legend.length * 11
+    for (const e of legend) {
+        ctx.fillStyle = e.color
+        ctx.fillRect(width - 56, ly - 8, 8, 8)
+        ctx.fillStyle = '#00FF00'
+        ctx.fillText(e.label, width - 44, ly)
+        ly += 11
+    }
 
     return canvas
 }
