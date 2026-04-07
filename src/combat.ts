@@ -407,11 +407,22 @@ export class Combat {
         var hex = hexNearestNeighbor(obj.position, target.position)
         if (hex !== null) obj.orientation = hex.direction
 
+        var weaponObj = obj.equippedWeapon
+        var who = obj.isPlayer ? 'You' : obj.name
+
+        // Early ammo guard — no animation, no AP loss for any attacker
+        const maxAmmo: number = (weaponObj as any)?.pro?.extra?.maxAmmo ?? 0
+        const rounds: number = (weaponObj as any)?.pro?.extra?.rounds ?? -1
+        if (maxAmmo > 0 && rounds === 0) {
+            uiLog(`${who}: out of ammo!`)
+            if (callback) callback()
+            return
+        }
+
         // attack!
         obj.staticAnimation('attack', callback)
 
         var audio: AudioEngine = globalState.audioEngine
-        var weaponObj = obj.equippedWeapon
         var rawSoundID = weaponObj?.pro?.extra?.soundID
         var soundIdChar = typeof rawSoundID === 'number' ? String.fromCharCode(rawSoundID) : null
 
@@ -420,20 +431,8 @@ export class Combat {
             audio.playWeaponSfx(soundIdChar, 'attack')
         }
 
-        var who = obj.isPlayer ? 'You' : obj.name
         var targetName = target.isPlayer ? 'you' : target.name
-
-        // Out-of-ammo check — abort before roll so AP is still spent (matching FO2 behavior)
         var weapon = weaponObj?.weapon
-        if (weapon && weapon.type !== 'melee') {
-            var ammoNow: number = (weaponObj as any)?.pro?.extra?.rounds ?? -1
-            if (ammoNow === 0) {
-                uiLog(who + ' is out of ammo!')
-                uiDrawWeapon()
-                return
-            }
-        }
-
         var attackDmgType = weaponObj?.weapon?.getDamageType() ?? 'Normal'
 
         // ── BURST MODE ────────────────────────────────────────────────────────
@@ -811,6 +810,49 @@ export class Combat {
             }
         } else if (AP.getAvailableCombatAP() >= 4) {
             // if we are in range, do we have enough AP to attack?
+
+            // ── AI AMMO CHECK ────────────────────────────────────────────────────
+            const aiWeapAny = weaponObj as any
+            const aiMaxAmmo: number = aiWeapAny?.pro?.extra?.maxAmmo ?? 0
+            const aiRounds: number = aiWeapAny?.pro?.extra?.rounds ?? -1
+            if (weapon.type !== 'melee' && aiMaxAmmo > 0 && aiRounds === 0) {
+                const aiAmmoPID: number | undefined = aiWeapAny?.pro?.extra?.ammoPID
+                const aiInv = (obj as any).inventory as any[] | undefined
+                const ammoItem = aiInv?.find((item: any) => item.pid === aiAmmoPID)
+                if (ammoItem) {
+                    // Reload from own inventory
+                    const needed = aiMaxAmmo
+                    const available: number = ammoItem.amount ?? 1
+                    const toLoad = Math.min(needed, available)
+                    aiWeapAny.pro.extra.rounds = toLoad
+                    ammoItem.amount = available - toLoad
+                    if (ammoItem.amount <= 0) {
+                        const ammoIdx2 = aiInv!.indexOf(ammoItem)
+                        if (ammoIdx2 !== -1) aiInv!.splice(ammoIdx2, 1)
+                    }
+                    console.log(`[AI] ${obj.name}: reloaded ${toLoad} rounds, continuing turn`)
+                    that.doAITurn(obj, idx, depth + 1)
+                    return
+                }
+                // No matching ammo — try the other hand
+                const objAnyAmmo = obj as any
+                const otherHandAmmo: 'leftHand' | 'rightHand' =
+                    (objAnyAmmo.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
+                const otherWeaponAmmo = objAnyAmmo[otherHandAmmo]
+                const otherMaxAmmo: number = (otherWeaponAmmo as any)?.pro?.extra?.maxAmmo ?? 0
+                const otherRounds: number = (otherWeaponAmmo as any)?.pro?.extra?.rounds ?? -1
+                if (otherWeaponAmmo?.weapon && (otherMaxAmmo === 0 || otherRounds > 0)) {
+                    obj.playWeaponSwapAnim(
+                        () => { objAnyAmmo.activeHand = otherHandAmmo },
+                        () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1) }
+                    )
+                    return
+                }
+                console.log(`[AI] ${obj.name}: weapon empty, falling back to unarmed`)
+                return this.nextTurn()
+            }
+            // ─────────────────────────────────────────────────────────────────────
+
             this.log('[ATTACKING]')
             this.maybeTaunt(obj, 'attack', messageRoll)
 

@@ -191,6 +191,14 @@ export function playerUse(obj: Obj | null) {
                 return
             }
 
+            // Block attack (and AP deduction) if ranged weapon has no ammo
+            const playerMaxAmmo: number = (weapon as any)?.pro?.extra?.maxAmmo ?? 0
+            const playerRounds: number = (weapon as any)?.pro?.extra?.rounds ?? -1
+            if (playerMaxAmmo > 0 && playerRounds === 0) {
+                uiLog('You: out of ammo!')
+                return
+            }
+
             if (weapon.weapon!.isCalled()) {
                 let art = 'art/critters/hmjmpsna' // default art
                 if (who.hasAnimation('called-shot')) {
