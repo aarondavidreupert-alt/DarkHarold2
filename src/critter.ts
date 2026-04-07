@@ -158,10 +158,13 @@ export class Weapon {
             this.weaponSkillType = weaponSkillMap[this.name]
             if (this.weaponSkillType === undefined) console.log('unknown weapon type for ' + this.name)
 
-            // If the secondary attack is burst fire, insert 'burst' after 'called' (correct Fallout 2 cycle order):
-            // single → called(aimed) → burst → [reload if not full]
-            // Note: attackTwo.mode is stored as string at runtime despite being typed as number
-            if (this.attackTwo && String(this.attackTwo.mode) === 'fire burst') {
+            // If the secondary attack is burst fire, add 'burst' to the mode cycle.
+            // attackTwo.mode is stored as a string at runtime ('fire burst'), but guard
+            // against the numeric form (7) in case PRO data is read differently.
+            // attackTwo.mode is a string at runtime despite the 'as number' cast in parseAttack.
+            // Check both the string form and the numeric value (7) defensively.
+            const secondaryMode: any = this.attackTwo?.mode
+            if (secondaryMode === 'fire burst' || secondaryMode === 7) {
                 this.modes = ['single', 'called', 'burst']
             }
         }
@@ -195,14 +198,18 @@ export class Weapon {
     }
 
     // TODO: enum
-    getMaximumRange(attackType: number): number {
-        if (attackType === 1) return this.weapon.pro.extra.maxRange1
-        if (attackType === 2) return this.weapon.pro.extra.maxRange2
-        else throw 'invalid attack type ' + attackType
+    // When called without an argument, derives the slot from the current mode.
+    getMaximumRange(attackType?: number): number {
+        const slot = attackType ?? (this.mode === 'burst' ? 2 : 1)
+        if (slot === 1) return this.weapon.pro.extra.maxRange1
+        if (slot === 2) return this.weapon.pro.extra.maxRange2
+        throw 'invalid attack type ' + slot
     }
 
-    getAPCost(attackMode: number): number {
-        return this.weapon.pro.extra['APCost' + attackMode]
+    // When called without an argument, derives the slot from the current mode.
+    getAPCost(attackSlot?: number): number {
+        const slot = attackSlot ?? (this.mode === 'burst' ? 2 : 1)
+        return this.weapon.pro.extra['APCost' + slot]
     }
 
     getSkin(): string | null {
@@ -238,11 +245,12 @@ export class Weapon {
             flame: 'l',
         }
 
-        // TODO: mode equipped
-        // Use the active attack mode — burst uses attackTwo, everything else uses attackOne
-        const activeAttack = (this.mode === 'burst') ? this.attackTwo : this.attackOne
-        if (activeAttack && activeAttack.mode !== attackMode.none) {
-            return modeSkinMap[activeAttack.mode] ?? null
+        // Burst uses the secondary attack skin; everything else uses the primary.
+        if (this.mode === 'burst') {
+            return modeSkinMap['fire burst'] // 'k'
+        }
+        if (this.attackOne && this.attackOne.mode !== attackMode.none) {
+            return modeSkinMap[this.attackOne.mode] ?? null
         }
 
         throw 'TODO'
@@ -406,9 +414,9 @@ export function critterDamage(
         // TODO: Call damage_p_proc
     }
 
-    // Pick the most appropriate hit reaction: dodge (30% when available),
-    // then hitFront (default), then hitBack as fallback.
-    if (useAnim) {
+    // Play a hit reaction if the critter isn't already mid-animation (race-condition guard).
+    // Picks dodge (30% chance), hitFront, or hitBack depending on availability.
+    if (useAnim && !obj.inAnim()) {
         const hitAnim =
             (obj.hasAnimation('dodge') && Math.random() < 0.3) ? 'dodge' :
             obj.hasAnimation('hitFront') ? 'hitFront' :

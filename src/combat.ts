@@ -25,7 +25,7 @@ import { Critter, Obj } from './object.js'
 import { Player } from './player.js'
 import { loadPRO } from './pro.js'
 import { Scripting } from './scripting.js'
-import { drawAP, drawHP, uiEndCombat, uiLog, uiStartCombat } from './ui.js'
+import { drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiLog, uiStartCombat } from './ui.js'
 import { getFileText, getMessage, getRandomInt, parseIni, rollSkillCheck } from './util.js'
 
 // Turn-based combat system
@@ -422,8 +422,69 @@ export class Combat {
 
         var who = obj.isPlayer ? 'You' : obj.name
         var targetName = target.isPlayer ? 'you' : target.name
+
+        // Out-of-ammo check — abort before roll so AP is still spent (matching FO2 behavior)
+        var weapon = weaponObj?.weapon
+        if (weapon && weapon.type !== 'melee') {
+            var ammoNow: number = (weaponObj as any)?.pro?.extra?.rounds ?? -1
+            if (ammoNow === 0) {
+                uiLog(who + ' is out of ammo!')
+                uiDrawWeapon()
+                return
+            }
+        }
+
+        var attackDmgType = weaponObj?.weapon?.getDamageType() ?? 'Normal'
+
+        // ── BURST MODE ────────────────────────────────────────────────────────
+        if (weapon && weapon.isBurst && weapon.isBurst()) {
+            const burstCount: number = (weaponObj as any)?.pro?.extra?.burstCount ?? 10
+            console.log(`[burst] burstCount=${burstCount} weapon=${weapon.name}`)
+
+            let hits = 0
+            let totalDamage = 0
+            for (let b = 0; b < burstCount; b++) {
+                const bRoll = this.rollHit(obj, target, region, -20) // burst penalty
+                if (bRoll.hit) {
+                    hits++
+                    totalDamage += this.getDamageDone(obj, target, bRoll.crit ? bRoll.DM : 2)
+                }
+            }
+
+            uiLog(`${who} burst-fired at ${targetName}: ${hits}/${burstCount} hit for ${totalDamage} damage`)
+
+            if (hits > 0) {
+                if (soundIdChar) audio.playWeaponSfx(soundIdChar, 'impact')
+                else audio.playActionSfx('hit_flesh')
+                critterDamage(target, totalDamage, obj, true, true, attackDmgType)
+                if (target.isPlayer) drawHP(target.getStat('HP'))
+                if (target.dead) this.perish(target, obj, attackDmgType)
+            } else {
+                audio.playActionSfx('miss')
+                if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
+                    target.staticAnimation('dodge', () => target.clearAnim())
+                }
+            }
+
+            // Deduct burst ammo
+            const curRounds: number = (weaponObj as any)?.pro?.extra?.rounds ?? 0
+            ;(weaponObj as any).pro.extra.rounds = Math.max(0, curRounds - burstCount)
+            uiDrawWeapon()
+            return
+        }
+
+        // ── SINGLE SHOT ───────────────────────────────────────────────────────
         var hitRoll = this.rollHit(obj, target, region)
         this.log('hit% is ' + this.getHitChance(obj, target, region).hit)
+
+        // Deduct one round after the roll
+        if (weapon && weapon.type !== 'melee') {
+            var roundsBefore: number = (weaponObj as any)?.pro?.extra?.rounds
+            if (roundsBefore !== undefined && roundsBefore > 0) {
+                ;(weaponObj as any).pro.extra.rounds = roundsBefore - 1
+                uiDrawWeapon()
+            }
+        }
 
         if (hitRoll.hit === true) {
             var critModifier = hitRoll.crit ? hitRoll.DM : 2
@@ -438,8 +499,6 @@ export class Combat {
                 audio.playActionSfx('hit_flesh')
             }
 
-            // Pass the weapon's damage type so critterKill can pick the right death anim
-            var attackDmgType = weaponObj?.weapon?.getDamageType() ?? 'Normal'
             critterDamage(target, damage, obj, true, true, attackDmgType)
             if (target.isPlayer) drawHP(target.getStat('HP'))
 
@@ -447,6 +506,12 @@ export class Combat {
         } else {
             audio.playActionSfx('miss')
             uiLog(who + ' missed ' + targetName + (hitRoll.crit === true ? ' critically' : ''))
+
+            // Play a dodge/flinch on the target if they aren't already animating
+            if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
+                target.staticAnimation('dodge', () => target.clearAnim())
+            }
+
             if (hitRoll.crit === true) {
                 var critFailMod = (obj.getStat('LUK') - 5) * -5
                 var critFailRoll = Math.floor(getRandomInt(1, 100) - critFailMod)
@@ -767,7 +832,11 @@ export class Combat {
 
             if (useBurst) {
                 AP.subtractCombatAP(burstAPCost)
-                this.attackBurst(obj, target, function () {
+                // Temporarily set mode to 'burst' so attack() detects it, then restore
+                const prevMode = weapon!.mode
+                weapon!.mode = 'burst'
+                this.attack(obj, target, 'torso', function () {
+                    weapon!.mode = prevMode
                     obj.clearAnim()
                     that.doAITurn(obj, idx, depth + 1)
                 })

@@ -218,7 +218,8 @@ export function playerUse(obj: Obj | null) {
                 const maxAP = globalState.player.AP!.getMaxAP()
                 drawAP(globalState.player.AP!.getAvailableMoveAP() + globalState.player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
                 console.log('Burst fire at %s...', who.name)
-                globalState.combat!.attackBurst(globalState.player, <Critter>obj)
+                // Route through attack() which detects isBurst() and does the multi-roll loop
+                globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
                 uiUpdateCombatAP()
             } else {
                 globalState.player.AP!.subtractCombatAP(4)

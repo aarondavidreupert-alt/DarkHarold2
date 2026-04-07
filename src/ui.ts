@@ -1029,7 +1029,7 @@ function uiEndCombatAnimationDone(this: HTMLElement) {
     }
 }
 
-function uiDrawWeapon() {
+export function uiDrawWeapon() {
     // draw the active weapon in the interface bar
     const weapon = globalState.player.equippedWeapon
     clearEl($id('attackButton'))
@@ -1569,14 +1569,20 @@ export function uiInventoryScreen() {
                 uiInventoryScreen()
                 break
             case 'unload': {
-                const ammoPID = obj.pro?.extra?.ammoPID
-                const ammoCurrent = obj.pro?.extra?.rounds
-                if (ammoPID && ammoCurrent > 0) {
-                    const ammoObj = createObjectWithPID(ammoPID)
-                    ammoObj.amount = ammoCurrent
-                    globalState.player.addInventoryItem(ammoObj, ammoCurrent)
+                const ammoPID: number | undefined = obj.pro?.extra?.ammoPID
+                const ammoCurrent: number = obj.pro?.extra?.rounds ?? 0
+                console.log(`[unload] ammoPID=${ammoPID} rounds=${ammoCurrent}`)
+                if (ammoCurrent > 0) {
+                    if (ammoPID) {
+                        // Create an ammo item and return it to inventory
+                        const ammoObj = createObjectWithPID(ammoPID)
+                        ammoObj.amount = ammoCurrent
+                        globalState.player.addInventoryItem(ammoObj, ammoCurrent)
+                    }
                     obj.pro.extra.rounds = 0
+                    if (obj.pro.extra.ammoPID !== undefined) obj.pro.extra.ammoPID = 0
                 }
+                uiDrawWeapon()
                 uiInventoryScreen()
                 break
             }
