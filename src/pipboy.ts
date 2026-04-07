@@ -89,7 +89,7 @@ function renderDateTimeBar(): void {
 
     const bar = document.createElement('div')
     bar.id = 'pipboyDateTimeBar'
-    bar.style.cssText = 'position: absolute; left: 0; top: 240px; width: 240px; height: 20px;'
+    bar.style.cssText = 'position: absolute; left: 0; top: 18px; width: 240px; height: 20px;'
 
     const { day, month, year, hours, minutes } = getGameDate(globalState.gameTickTime)
 
@@ -103,7 +103,7 @@ function renderDateTimeBar(): void {
     const monthEl = document.createElement('div')
     monthEl.style.cssText = `
         position: absolute;
-        left: 40px; top: 2px;
+        left: 48px; top: 2px;
         width: 38px; height: 18px;
         background-image: url('art/intrface/months.png');
         background-position-y: -${month * 18}px;
@@ -116,16 +116,16 @@ function renderDateTimeBar(): void {
     const y2 = Math.floor((year % 1000) / 100)
     const y3 = Math.floor((year % 100) / 10)
     const y4 = year % 10
-    bar.appendChild(makeDigit(y1, 82, 0))
-    bar.appendChild(makeDigit(y2, 82 + DIGIT_W, 0))
-    bar.appendChild(makeDigit(y3, 82 + DIGIT_W * 2, 0))
-    bar.appendChild(makeDigit(y4, 82 + DIGIT_W * 3, 0))
+    bar.appendChild(makeDigit(y1, 86, 0))
+    bar.appendChild(makeDigit(y2, 86 + DIGIT_W, 0))
+    bar.appendChild(makeDigit(y3, 86 + DIGIT_W * 2, 0))
+    bar.appendChild(makeDigit(y4, 86 + DIGIT_W * 3, 0))
 
     // 4. BELL button at left:130
     const bell = document.createElement('div')
     bell.style.cssText = `
         position: absolute;
-        left: 130px; top: 0px;
+        left: 126px; top: -4px;
         width: 22px; height: 20px;
         background-image: url('art/intrface/${alarmOn ? 'alarmin' : 'alarmout'}.png');
         cursor: pointer;
@@ -141,9 +141,9 @@ function renderDateTimeBar(): void {
     bar.appendChild(makeDigit(h1, 158, 0))
     bar.appendChild(makeDigit(h2, 158 + DIGIT_W, 0))
     // Colon at index 12
-    bar.appendChild(makeDigit(12, 158 + DIGIT_W * 2, 0))
-    bar.appendChild(makeDigit(m1, 158 + DIGIT_W * 3, 0))
-    bar.appendChild(makeDigit(m2, 158 + DIGIT_W * 4, 0))
+    //bar.appendChild(makeDigit(12, 158 + DIGIT_W * 2, 0))
+    bar.appendChild(makeDigit(m1, 158 + DIGIT_W * 2, 0))
+    bar.appendChild(makeDigit(m2, 158 + DIGIT_W * 3, 0))
 
     pipBoyContainer.appendChild(bar)
 }
