@@ -336,8 +336,8 @@ export class Obj {
 
         // TODO: Subclasses
         if (pidType == 0) {
-            // item
-            obj.subtype = getPROSubTypeName(pro.extra.subtype)
+            // item — PRO JSON uses camelCase 'subType' (from proto.py), not 'subtype'
+            obj.subtype = getPROSubTypeName(pro.extra.subType ?? pro.extra.subtype)
             obj.name = getMessage('pro_item', pro.textID)
 
             const invPID = pro.extra.invFRM & 0xffff

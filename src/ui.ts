@@ -1015,9 +1015,10 @@ function uiDrawWeapon() {
         $wepImg.src = weapon.invArt + '.png'
     }
 
-    // draw weapon AP
+    // draw weapon AP — use burst AP cost (attack 2) when in burst mode, otherwise attack 1
     const CHAR_W = 10
-    const digit = weapon.weapon.getAPCost(1)
+    const attackSlot = weapon.weapon.isBurst ? (weapon.weapon.isBurst() ? 2 : 1) : 1
+    const digit = weapon.weapon.getAPCost(attackSlot)
     if (digit === undefined || digit > 9) {
         return
     } // TODO: Weapon AP >9?
@@ -1025,8 +1026,14 @@ function uiDrawWeapon() {
 
     // draw weapon type (single, burst, called, punch, ...)
     // TODO: all melee weapons
-    const wepTypes: { [wepType: string]: string } = { melee: 'punch', gun: 'single' }
-    const type = wepTypes[weapon.weapon.type]
+    let type: string
+    if (weapon.weapon.type === 'melee') {
+        type = 'punch'
+    } else if (weapon.weapon.isBurst && weapon.weapon.isBurst()) {
+        type = 'burst'
+    } else {
+        type = 'single'
+    }
     $img('attackButtonType').src = `art/intrface/${type}.png`
 
     // hide or show called shot sigil?

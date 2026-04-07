@@ -125,6 +125,7 @@ export class Weapon {
 
     constructor(weapon: WeaponObj) {
         this.weapon = weapon
+        // Default mode list; extended to include 'burst' below for burst-capable guns
         this.modes = ['single', 'called']
 
         if (weapon === null) {
@@ -156,6 +157,12 @@ export class Weapon {
 
             this.weaponSkillType = weaponSkillMap[this.name]
             if (this.weaponSkillType === undefined) console.log('unknown weapon type for ' + this.name)
+
+            // If the secondary attack is burst fire, insert 'burst' between single and called
+            // Note: attackTwo.mode is stored as string at runtime despite being typed as number
+            if (this.attackTwo && String(this.attackTwo.mode) === 'fire burst') {
+                this.modes = ['single', 'burst', 'called']
+            }
         }
 
         this.mode = this.modes[0]
@@ -167,6 +174,10 @@ export class Weapon {
 
     isCalled(): boolean {
         return this.mode === 'called'
+    }
+
+    isBurst(): boolean {
+        return this.mode === 'burst'
     }
 
     getProjectilePID(): number {

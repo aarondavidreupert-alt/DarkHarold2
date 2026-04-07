@@ -208,6 +208,18 @@ export function playerUse(obj: Obj | null) {
                     uiCloseCalledShot()
                     uiUpdateCombatAP()
                 })
+            } else if (weapon.weapon!.isBurst()) {
+                const burstAPCost = weapon.weapon!.getAPCost(2)
+                if (globalState.player.AP!.getAvailableCombatAP() < burstAPCost) {
+                    uiLog(getProtoMsg(700)!) // "You don't have enough action points."
+                    return
+                }
+                globalState.player.AP!.subtractCombatAP(burstAPCost)
+                const maxAP = globalState.player.AP!.getMaxAP()
+                drawAP(globalState.player.AP!.getAvailableMoveAP() + globalState.player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
+                console.log('Burst fire at %s...', who.name)
+                globalState.combat!.attackBurst(globalState.player, <Critter>obj)
+                uiUpdateCombatAP()
             } else {
                 globalState.player.AP!.subtractCombatAP(4)
                 const maxAP = globalState.player.AP!.getMaxAP()
