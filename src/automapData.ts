@@ -167,6 +167,16 @@ export function renderAutomapCanvas(width: number, height: number, opts: RenderO
     const canvas = document.createElement('canvas')
     canvas.width = width
     canvas.height = height
+    drawAutomapInto(canvas, opts)
+    return canvas
+}
+
+// Draw the automap onto an existing canvas, in place. Used by the drag/zoom
+// refresh paths so the canvas DOM element is never replaced — that would
+// detach any in-flight mouse listeners and break dragging mid-gesture.
+export function drawAutomapInto(canvas: HTMLCanvasElement, opts: RenderOptions = {}): void {
+    const width = canvas.width
+    const height = canvas.height
     const ctx = canvas.getContext('2d')!
 
     // Transparent background — let whatever is behind the canvas (pip.png or
@@ -183,7 +193,7 @@ export function renderAutomapCanvas(width: number, height: number, opts: RenderO
         ctx.fillStyle = '#00FF00'
         ctx.font = '14px monospace'
         ctx.fillText('No map loaded', 20, 30)
-        return canvas
+        return
     }
 
     // Mark current player position so the map immediately shows where you are
@@ -322,6 +332,4 @@ export function renderAutomapCanvas(width: number, height: number, opts: RenderO
         ctx.fillText(e.label, width - 44, ly)
         ly += 11
     }
-
-    return canvas
 }

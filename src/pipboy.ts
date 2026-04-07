@@ -17,7 +17,7 @@ limitations under the License.
 import globalState from './globalState.js'
 import { Scripting } from './scripting.js'
 import { UIMode } from './ui.js'
-import { renderAutomapCanvas, getArchivedMaps } from './automapData.js'
+import { renderAutomapCanvas, drawAutomapInto, getArchivedMaps, getSeenTiles } from './automapData.js'
 import { getAutomapZoom, zoomIn, zoomOut, getAutomapPan, attachAutomapDragPan } from './automap.js'
 
 type PipBoyTab = 'STATUS' | 'AUTOMAPS' | 'ARCHIVES' | 'CLOSE'
@@ -426,21 +426,15 @@ function renderAutomapsTab(screen: HTMLDivElement): void {
             return opts
         }
 
-        let canvas = renderAutomapCanvas(AUTOMAP_CANVAS_W, AUTOMAP_CANVAS_H, renderOpts())
+        const canvas = renderAutomapCanvas(AUTOMAP_CANVAS_W, AUTOMAP_CANVAS_H, renderOpts())
         styleAutomapCanvas(canvas)
         screen.appendChild(canvas)
 
-        const refresh = () => {
-            const newCanvas = renderAutomapCanvas(AUTOMAP_CANVAS_W, AUTOMAP_CANVAS_H, renderOpts())
-            styleAutomapCanvas(newCanvas)
-            screen.replaceChild(newCanvas, canvas)
-            canvas = newCanvas
-            wireCanvas(canvas)
-        }
-        const wireCanvas = (c: HTMLCanvasElement) => {
-            attachAutomapDragPan(c, () => ({ mapName: v.mapName, elevation: v.elevation }), refresh)
-        }
-        wireCanvas(canvas)
+        // In-place redraw on the same canvas element so drag listeners
+        // attached below stay alive across refreshes (zoom, drag, etc.)
+        const refresh = () => drawAutomapInto(canvas, renderOpts())
+
+        attachAutomapDragPan(canvas, () => ({ mapName: v.mapName, elevation: v.elevation }), refresh)
 
         // Zoom bar sits just below the canvas within the CRT area
         const zoomBar = document.createElement('div')
@@ -492,6 +486,11 @@ function renderAutomapsTab(screen: HTMLDivElement): void {
             for (const e of entries) {
                 const label = `${e.mapName}  L${e.elevation + 1}${e.isCurrent ? '  (CURRENT)' : ''}`
                 list.appendChild(makeListItem(label, () => {
+                    const tiles = getSeenTiles(e.mapName, e.elevation)
+                    console.log(
+                        `[automap] level-3 click: mapName=${e.mapName} elevation=${e.elevation} ` +
+                        `isCurrent=${e.isCurrent} seenTiles=${tiles.size}`
+                    )
                     automapViewing = e
                     renderAutomapsTab(screen)
                 }))
