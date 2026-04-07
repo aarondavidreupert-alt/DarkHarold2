@@ -17,6 +17,7 @@ limitations under the License.
 import globalState from './globalState.js'
 import { Scripting } from './scripting.js'
 import { UIMode } from './ui.js'
+import { renderAutomapCanvas } from './automapData.js'
 
 type PipBoyTab = 'STATUS' | 'AUTOMAPS' | 'ARCHIVES' | 'CLOSE'
 
@@ -243,57 +244,17 @@ function renderStatusTab(screen: HTMLDivElement): void {
 }
 
 function renderAutomapsTab(screen: HTMLDivElement): void {
-    const map = globalState.gMap
     screen.innerHTML = ''
 
     const header = document.createElement('div')
-    header.style.cssText = 'padding: 10px; color: #00FF00; font-family: monospace; font-size: 18px; border-bottom: 1px solid #00AA00; margin-bottom: 8px;'
+    header.style.cssText = 'padding: 8px 12px; color: #00FF00; font-family: monospace; font-size: 16px; border-bottom: 1px solid #00AA00;'
     header.textContent = 'AUTOMAPS'
     screen.appendChild(header)
 
-    if (!map || !map.floorMap) {
-        const noMap = document.createElement('div')
-        noMap.style.cssText = 'padding: 20px; color: #00FF00; font-family: monospace;'
-        noMap.textContent = 'No map data available.'
-        screen.appendChild(noMap)
-        return
-    }
-
-    const canvas = document.createElement('canvas')
-    const tileRows = map.floorMap.length
-    const tileCols = tileRows > 0 ? map.floorMap[0].length : 0
-
-    // Fit into the screen area
-    const maxW = SCREEN_W - 20
-    const maxH = SCREEN_H - 60
-    const scale = Math.min(maxW / tileCols, maxH / tileRows, 4)
-    canvas.width = Math.floor(tileCols * scale)
-    canvas.height = Math.floor(tileRows * scale)
-    canvas.style.cssText = `display: block; margin: 0 auto;`
-
-    const ctx = canvas.getContext('2d')!
-    for (let row = 0; row < tileRows; row++) {
-        for (let col = 0; col < tileCols; col++) {
-            const tile = map.floorMap[row][col]
-            // Render tiles as colored blocks — blank/null tiles are dark, others green
-            if (tile && tile !== 'art/tiles/blank.png') {
-                ctx.fillStyle = '#004400'
-            } else {
-                ctx.fillStyle = '#001100'
-            }
-            ctx.fillRect(col * scale, row * scale, scale, scale)
-        }
-    }
-
-    // Draw player position indicator
-    const playerPos = globalState.player!.position
-    if (playerPos) {
-        const px = (playerPos.x / 200) * canvas.width  // rough mapping
-        const py = (playerPos.y / 200) * canvas.height
-        ctx.fillStyle = '#00FF00'
-        ctx.fillRect(px - 2, py - 2, 5, 5)
-    }
-
+    const canvasW = SCREEN_W - 20
+    const canvasH = SCREEN_H - 50
+    const canvas = renderAutomapCanvas(canvasW, canvasH)
+    canvas.style.cssText = `display: block; margin: 8px auto; image-rendering: pixelated;`
     screen.appendChild(canvas)
 }
 

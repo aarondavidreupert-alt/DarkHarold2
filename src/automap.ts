@@ -16,8 +16,15 @@ limitations under the License.
 
 import globalState from './globalState.js'
 import { UIMode } from './ui.js'
+import { renderAutomapCanvas } from './automapData.js'
 
 let automapContainer: HTMLDivElement | null = null
+
+// Inset of the dark map area within automap.png (516x460 image)
+const MAP_INSET_X = 24
+const MAP_INSET_Y = 38
+const MAP_INSET_W = 472
+const MAP_INSET_H = 376
 
 export function openAutomap(): void {
     // Remove any stale container
@@ -47,6 +54,17 @@ export function openAutomap(): void {
     `
     automapContainer.appendChild(screen)
 
+    // Rendered map canvas, positioned inside the dark area of automap.png
+    const canvasStyle = `
+        position: absolute;
+        left: ${MAP_INSET_X}px; top: ${MAP_INSET_Y}px;
+        width: ${MAP_INSET_W}px; height: ${MAP_INSET_H}px;
+        image-rendering: pixelated;
+    `
+    let canvas = renderAutomapCanvas(MAP_INSET_W, MAP_INSET_H)
+    canvas.style.cssText = canvasStyle
+    screen.appendChild(canvas)
+
     // SCANNER dot button
     const scannerDot = document.createElement('div')
     scannerDot.style.cssText = `
@@ -57,7 +75,11 @@ export function openAutomap(): void {
         cursor: pointer;
     `
     scannerDot.onclick = () => {
-        console.log('scanner')
+        // Refresh the rendered canvas (re-marks current player position)
+        const newCanvas = renderAutomapCanvas(MAP_INSET_W, MAP_INSET_H)
+        newCanvas.style.cssText = canvasStyle
+        screen.replaceChild(newCanvas, canvas)
+        canvas = newCanvas
     }
     screen.appendChild(scannerDot)
 
