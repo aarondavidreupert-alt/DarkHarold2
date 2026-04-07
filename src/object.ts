@@ -143,10 +143,14 @@ function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent = true)
     // Open/closable doors/containers
     // TODO: Door/Container subclasses
     if (obj.locked) {
+        globalState.audioEngine.playActionSfx('door_locked')
         return false
     }
 
     obj.open = open
+    if (obj.isDoor) {
+        globalState.audioEngine.playActionSfx(open ? 'door_open' : 'door_close')
+    }
 
     if (signalEvent) {
         Events.emit('objSetOpen', { obj, open })
@@ -813,6 +817,7 @@ export class Obj {
             }
         }
         const doPickup = () => {
+            globalState.audioEngine.playActionSfx('item_pickup')
             source.addInventoryItem(this, this.amount)
             globalState.gMap.destroyObject(this)
             source.clearAnim()
@@ -842,6 +847,7 @@ export class Obj {
             throw "dropObject: couldn't find object"
         }
 
+        globalState.audioEngine.playActionSfx('item_drop')
         globalState.gMap.addObject(this) // add to objects
         const idx = globalState.gMap.getObjects().length - 1 // our new index
         this.move({ x: source.position.x, y: source.position.y }, idx)
@@ -1052,6 +1058,8 @@ export class Critter extends Obj {
 
     isPlayer = false // Is this critter the player character?
     dead = false // Is this critter dead?
+    bonusAC = 0 // Temporary AC bonus from unused AP at end of turn
+    perks: string[] = [] // List of acquired perks
     nextIdleAnimTime = 0 // performance.now() after which the next idle cycle begins; 0 = uninitialised
 
     static fromPID(pid: number, sid?: number): Critter {
@@ -1330,6 +1338,38 @@ export class Critter extends Obj {
 
     getStat(stat: string) {
         return this.stats.get(stat)
+    }
+
+    getEquippedArmor(): Obj | null {
+        // Player stores armor in a dedicated slot; NPCs check inventory
+        const self = this as any
+        if (self.armor !== undefined) return self.armor
+        for (const item of this.inventory) {
+            if (item.subtype === 'armor') return item
+        }
+        return null
+    }
+
+    getArmorDR(damageType: string): number {
+        const armor = this.getEquippedArmor()
+        if (!armor?.pro?.extra?.stats) return 0
+        return armor.pro.extra.stats['DR ' + damageType] ?? 0
+    }
+
+    getArmorDT(damageType: string): number {
+        const armor = this.getEquippedArmor()
+        if (!armor?.pro?.extra?.stats) return 0
+        return armor.pro.extra.stats['DT ' + damageType] ?? 0
+    }
+
+    getArmorAC(): number {
+        const armor = this.getEquippedArmor()
+        if (!armor?.pro?.extra) return 0
+        return armor.pro.extra.AC ?? 0
+    }
+
+    hasPerk(perk: string): boolean {
+        return this.perks.indexOf(perk) !== -1
     }
 
     getBase(): string {

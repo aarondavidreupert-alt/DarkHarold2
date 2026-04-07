@@ -166,7 +166,8 @@ body {
   height: 54px;
   color: #00FF00;
   font-size: 8pt;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 #attackButtonContainer {
@@ -267,7 +268,7 @@ body {
 
 #inventoryButton {
   position: absolute;
-  left: 213px;
+  left: 211px;
   top: 40px;
   width: 32px;
   height: 21px;
@@ -289,6 +290,32 @@ body {
 
 #chrButton:active {
   background-image: url("art/intrface/chadn.png");
+}
+
+#pipBoyButton {
+  position: absolute;
+  left: 526px;
+  top: 78px;
+  width: 41px;
+  height: 19px;
+  background-image: url("art/intrface/pipup.png");
+}
+
+#pipBoyButton:active {
+  background-image: url("art/intrface/pipdn.png");
+}
+
+#mapButton {
+  position: absolute;
+  left: 526px;
+  top: 40px;
+  width: 41px;
+  height: 19px;
+  background-image: url("art/intrface/mapup.png");
+}
+
+#mapButton:active {
+  background-image: url("art/intrface/mapdn.png");
 }
 
 /* inventory box */
@@ -961,6 +988,17 @@ body {
   background-image: url("art/intrface/hotspot2.png");
 }
 
+#pipBoyContainer {
+  position: absolute;
+  left: 80px;
+  top: 60px;
+  width: 640px;
+  height: 480px;
+  background-image: url("art/intrface/pip.png");
+  background-size: 640px 480px;
+  z-index: 100;
+}
+
 #elevatorBox {
   position: absolute;
   width: 230px;
@@ -1261,6 +1299,15 @@ body {
   cursor: none !important;
 }
 
+#textOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 800px;
+  height: 600px;
+  pointer-events: none;
+}
+
 /* HUD and UI overlays use Fallout custom cursor */
 #bar,
 #dialogueContainer,
@@ -1270,12 +1317,16 @@ body {
 #worldMapContainer,
 #elevatorBox,
 #calledShotBox,
-#itemContextMenu {
+#itemContextMenu,
+#pipBoyContainer,
+#automapContainer {
   cursor: url('art/intrface/stdarrow.png'), none !important;
 }
 
 #bar *, #dialogueContainer *, #inventoryBox *, #lootBox *,
 #barterBox *, #worldMapContainer *, #elevatorBox *,
-#calledShotBox *, #itemContextMenu * {
+#calledShotBox *, #itemContextMenu *,
+#pipBoyContainer *,
+#automapContainer * {
   cursor: url('art/intrface/stdarrow.png'), none !important;
 }

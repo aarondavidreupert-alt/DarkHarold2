@@ -16,6 +16,7 @@ limitations under the License.
 
 import { getCurrentMapInfo } from './data.js'
 import { getRandomInt } from './util.js'
+import { ACTION_SOUNDS, getWeaponSounds, resolveSound } from './soundMap.js'
 
 // Audio engine for handling music and sound effects
 
@@ -23,6 +24,8 @@ export interface AudioEngine {
     playSfx(sfx: string): void
     playMusic(music: string): void
     playSound(soundName: string): HTMLAudioElement | null
+    playActionSfx(action: string): void
+    playWeaponSfx(soundId: string, type: 'attack' | 'impact' | 'reload' | 'empty'): void
     stopMusic(): void
     stopAll(): void
     tick(): void
@@ -34,6 +37,8 @@ export class NullAudioEngine implements AudioEngine {
     playSound(soundName: string): HTMLAudioElement | null {
         return null
     }
+    playActionSfx(action: string): void {}
+    playWeaponSfx(soundId: string, type: 'attack' | 'impact' | 'reload' | 'empty'): void {}
     stopMusic(): void {}
     stopAll(): void {}
     tick(): void {}
@@ -64,6 +69,19 @@ export class HTMLAudioEngine implements AudioEngine {
 		sound.src = 'audio/' + soundName + '.wav'
 		return sound
 	}
+    playActionSfx(action: string): void {
+        const entry = ACTION_SOUNDS[action]
+        if (!entry) return
+        this.playSfx(resolveSound(entry))
+    }
+
+    playWeaponSfx(soundId: string, type: 'attack' | 'impact' | 'reload' | 'empty'): void {
+        if (!soundId) return
+        const sounds = getWeaponSounds(soundId)
+        const file = sounds[type]
+        if (file) this.playSfx(file)
+    }
+
     stopMusic(): void {
         if (this.musicAudio) this.musicAudio.pause()
     }

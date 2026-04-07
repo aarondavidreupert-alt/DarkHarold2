@@ -26,16 +26,21 @@ import { getObjectUnderCursor, SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js
 import { Scripting } from './scripting.js'
 import { Skills } from './skills.js'
 import {
+    drawAP,
+    drawHP,
     uiCalledShot,
     uiCloseCalledShot,
     uiContextMenu,
     uiElevator,
+    uiHideCombatHover,
     uiHideContextMenu,
     uiInventoryScreen,
     uiLog,
     uiLoot,
     UIMode,
     uiSaveLoad,
+    uiShowCombatHover,
+    uiUpdateCombatAP,
     uiWorldMap,
 } from './ui.js'
 import { getFileJSON, getProtoMsg } from './util.js'
@@ -43,6 +48,7 @@ import { WebGLRenderer } from './webglrenderer.js'
 import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
 import { Lightmap } from './lightmap.js'
+import { togglePipBoy } from './pipboy.js'
 
 // Return the skill ID used by the Fallout 2 engine
 function getSkillID(skill: Skills): number {
@@ -97,19 +103,16 @@ function playerUseSkill(skill: Skills, obj: Obj): void {
     }
 }
 
-export function playerUse() {
-    // TODO: playerUse should take an object
+export function playerUse(obj: Obj | null) {
     const mousePos = heart.mouse.getPosition()
     const mouseHex = hexFromScreen(
         mousePos[0] + globalState.cameraPosition.x,
         mousePos[1] + globalState.cameraPosition.y
     )
-    let obj = getObjectUnderCursor((obj) => obj.isSelectable)
     const who = <Critter>obj
 
     if (globalState.uiMode === UIMode.useSkill) {
         // using a skill on object
-        obj = getObjectUnderCursor((_: Obj) => true) // obj might not be usable, so select non-usable ones too
         if (!obj) {
             return
         }
@@ -151,6 +154,8 @@ export function playerUse() {
                         maxWalkingDist
                     )
                 }
+                const maxAP = globalState.player.AP.getMaxAP()
+                drawAP(globalState.player.AP.getAvailableMoveAP() + globalState.player.AP.getAvailableCombatAP(), maxAP.combat + maxAP.move)
             }
         }
 
@@ -197,14 +202,20 @@ export function playerUse() {
 
                 uiCalledShot(art, who, (region: string) => {
                     globalState.player.AP!.subtractCombatAP(4)
+                    const maxAP = globalState.player.AP!.getMaxAP()
+                    drawAP(globalState.player.AP!.getAvailableMoveAP() + globalState.player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
                     console.log('Attacking %s...', region)
                     globalState.combat!.attack(globalState.player, <Critter>obj, region)
                     uiCloseCalledShot()
+                    uiUpdateCombatAP()
                 })
             } else {
                 globalState.player.AP!.subtractCombatAP(4)
+                const maxAP = globalState.player.AP!.getMaxAP()
+                drawAP(globalState.player.AP!.getAvailableMoveAP() + globalState.player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
                 console.log('Attacking the torso...')
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
+                uiUpdateCombatAP()
             }
 
             return
@@ -346,10 +357,10 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
             // only attack if there's a valid target — no walking fallthrough
             const target = getObjectUnderCursor((_: Obj) => true)
             if (target && target !== globalState.player) {
-                playerUse()
+                playerUse(target)
             }
         } else {
-            playerUse()
+            playerUse(getObjectUnderCursor((obj) => obj.isSelectable))
         }
     } else if (btn === 'r') {
         if (globalState.cursorMode === 'move') {
@@ -547,6 +558,8 @@ heart.keydown = (k: string) => {
                 !globalState.combat.combatants[i].dead
             ) {
                 globalState.player.AP.subtractCombatAP(4)
+                const maxAP = globalState.player.AP.getMaxAP()
+                drawAP(globalState.player.AP.getAvailableMoveAP() + globalState.player.AP.getAvailableCombatAP(), maxAP.combat + maxAP.move)
                 console.log('Attacking...')
                 globalState.combat.attack(globalState.player, globalState.combat.combatants[i])
                 break
@@ -611,6 +624,10 @@ heart.keydown = (k: string) => {
 
     if (k === Config.controls.worldmap) {
         uiWorldMap()
+    }
+
+    if (k === Config.controls.pipboy) {
+        togglePipBoy()
     }
 
     if (k === Config.controls.saveKey) {
@@ -697,16 +714,25 @@ heart.update = function () {
             const obj = getObjectUnderCursor((obj) => obj.isSelectable)
             if (obj !== null) {
                 changeCursor('pointer')
+                // Show combat hover info for critters during combat
+                if (globalState.inCombat && obj instanceof Critter && !obj.dead) {
+                    uiShowCombatHover(obj as Critter, globalState.cursorPos.x, globalState.cursorPos.y)
+                } else {
+                    uiHideCombatHover()
+                }
             } else {
                 changeCursor('auto')
+                uiHideCombatHover()
             }
         }
 
-        for (let i = 0; i < globalState.floatMessages.length; i++) {
-            if (time >= globalState.floatMessages[i].startTime + 1000 * Config.ui.floatMessageDuration) {
-                globalState.floatMessages.splice(i--, 1)
-                continue
-            }
+    }
+
+    // Expire old float messages regardless of focus state
+    for (let i = 0; i < globalState.floatMessages.length; i++) {
+        if (time >= globalState.floatMessages[i].startTime + 1000 * Config.ui.floatMessageDuration) {
+            globalState.floatMessages.splice(i--, 1)
+            continue
         }
     }
 

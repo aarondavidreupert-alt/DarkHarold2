@@ -15,15 +15,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { AudioEngine } from './audio.js'
 import { Config } from './config.js'
 import { CriticalEffects } from './criticalEffects.js'
-import { critterDamage } from './critter.js'
+import { critterDamage, critterKill } from './critter.js'
 import { hexDistance, hexNearestNeighbor, hexNeighbors, Point } from './geometry.js'
 import globalState from './globalState.js'
 import { Critter, Obj } from './object.js'
 import { Player } from './player.js'
 import { Scripting } from './scripting.js'
-import { uiEndCombat, uiStartCombat } from './ui.js'
+import { drawAP, drawHP, uiEndCombat, uiLog, uiStartCombat } from './ui.js'
 import { getFileText, getMessage, getRandomInt, parseIni, rollSkillCheck } from './util.js'
 
 // Turn-based combat system
@@ -44,11 +45,27 @@ export class ActionPoints {
         this.move = AP.move
     }
 
-    getMaxAP(): { combat: number; move: number } {
-        var bonusCombatAP = 0 // TODO: replace with get function
-        var bonusMoveAP = 0 // TODO: replace with get function
+    getBonusCombatAP(): number {
+        var bonus = 0
+        // Bonus HtH Attacks: +1 combat AP per rank (melee only, but applied globally for simplicity)
+        if (this.attachedCritter.hasPerk('Bonus HtH Attacks')) bonus += 1
+        // Bonus Rate of Fire: +1 combat AP per rank
+        if (this.attachedCritter.hasPerk('Bonus Rate of Fire')) bonus += 1
+        return bonus
+    }
 
-        return { combat: 5 + Math.floor(this.attachedCritter.getStat('AGI') / 2) + bonusCombatAP, move: bonusMoveAP }
+    getBonusMoveAP(): number {
+        var bonus = 0
+        // Bonus Move: +2 move AP per rank
+        if (this.attachedCritter.hasPerk('Bonus Move')) bonus += 2
+        return bonus
+    }
+
+    getMaxAP(): { combat: number; move: number } {
+        return {
+            combat: 5 + Math.floor(this.attachedCritter.getStat('AGI') / 2) + this.getBonusCombatAP(),
+            move: this.getBonusMoveAP(),
+        }
     }
 
     getAvailableMoveAP(): number {
@@ -87,6 +104,18 @@ export class AI {
     combatant: Critter
     info: any
 
+    // Fields in AI.TXT that should be parsed as integers
+    static readonly numericFields = [
+        'packet_num', 'max_dist', 'min_hp', 'min_to_hit', 'area_attack_mode',
+        'run_start', 'run_end', 'move_start', 'move_end',
+        'attack_start', 'attack_end', 'miss_start', 'miss_end',
+        'hit_head_start', 'hit_head_end', 'hit_left_arm_start', 'hit_left_arm_end',
+        'hit_right_arm_start', 'hit_right_arm_end', 'hit_torso_start', 'hit_torso_end',
+        'hit_right_leg_start', 'hit_right_leg_end', 'hit_left_leg_start', 'hit_left_leg_end',
+        'hit_eyes_start', 'hit_eyes_end', 'hit_groin_start', 'hit_groin_end',
+        'chance',
+    ]
+
     static init(): void {
         // load and parse AI.TXT
         if (AI.aiTxt !== null)
@@ -97,8 +126,15 @@ export class AI {
         var ini = parseIni(getFileText('data/data/ai.txt'))
         if (ini === null) throw "couldn't load AI.TXT"
         for (var key in ini) {
-            ini[key].keyName = key
-            AI.aiTxt[ini[key].packet_num] = ini[key]
+            var packet = ini[key]
+            // Convert numeric fields from strings to numbers
+            for (var field of AI.numericFields) {
+                if (packet[field] !== undefined) {
+                    packet[field] = parseInt(packet[field]) || 0
+                }
+            }
+            packet.keyName = key
+            AI.aiTxt[packet.packet_num] = packet
         }
     }
 
@@ -227,8 +263,7 @@ export class Combat {
         } else weaponSkill = obj.getSkill(weapon.weaponSkillType)
 
         var hitDistanceModifier = this.getHitDistanceModifier(obj, target, weaponObj)
-        var bonusAC = 0 // TODO: AP at end of turn bonus
-        var AC = target.getStat('AC') + bonusAC
+        var AC = target.getStat('AC') + target.getArmorAC() + target.bonusAC
         var bonusCrit = 0 // TODO: perk bonuses, other crit influencing things
         var baseCrit = obj.getStat('Critical Chance') + bonusCrit
         var hitChance = weaponSkill - AC - CriticalEffects.regionHitChanceDecTable[region] - hitDistanceModifier
@@ -253,7 +288,18 @@ export class Combat {
             var isCrit = false
             if (rollSkillCheck(Math.floor(hitChance.hit - roll) / 10, hitChance.crit, false) === true) isCrit = true
 
-            // TODO: if Slayer/Sniper perk -> second chance to crit
+            // Slayer perk: every melee hit is automatically a critical
+            // Sniper perk: on a ranged hit, roll d100 — if ≤ LUK, upgrade to critical
+            if (!isCrit) {
+                var wep = obj.equippedWeapon?.weapon
+                if (wep && wep.type === 'melee' && obj.hasPerk('Slayer')) {
+                    isCrit = true
+                } else if (wep && wep.type === 'gun' && obj.hasPerk('Sniper')) {
+                    if (getRandomInt(1, 100) <= obj.getStat('LUK')) {
+                        isCrit = true
+                    }
+                }
+            }
             if (isCrit === true) {
                 var critLevel = Math.floor(Math.max(0, getRandomInt(critModifer, 100 + critModifer)) / 20)
                 this.log('crit level: ' + critLevel)
@@ -284,8 +330,8 @@ export class Combat {
         var RD = getRandomInt(wep.minDmg, wep.maxDmg) // rand damage min..max
         var RB = 0 // ranged bonus (via perk)
         var CM = critModifer // critical hit damage multiplier
-        var ADR = target.getStat('DR ' + damageType) // damage resistance (TODO: armor)
-        var ADT = target.getStat('DT ' + damageType) // damage threshold (TODO: armor)
+        var ADR = target.getStat('DR ' + damageType) + target.getArmorDR(damageType) // damage resistance (base + armor)
+        var ADT = target.getStat('DT ' + damageType) + target.getArmorDT(damageType) // damage threshold (base + armor)
         var X = 2 // ammo dividend
         var Y = 1 // ammo divisor
         var RM = 0 // ammo resistance modifier
@@ -314,6 +360,16 @@ export class Combat {
         // attack!
         obj.staticAnimation('attack', callback)
 
+        var audio: AudioEngine = globalState.audioEngine
+        var weaponObj = obj.equippedWeapon
+        var rawSoundID = weaponObj?.pro?.extra?.soundID
+        var soundIdChar = typeof rawSoundID === 'number' ? String.fromCharCode(rawSoundID) : null
+
+        // Play attack sound
+        if (soundIdChar) {
+            audio.playWeaponSfx(soundIdChar, 'attack')
+        }
+
         var who = obj.isPlayer ? 'You' : obj.name
         var targetName = target.isPlayer ? 'you' : target.name
         var hitRoll = this.rollHit(obj, target, region)
@@ -323,13 +379,22 @@ export class Combat {
             var critModifier = hitRoll.crit ? hitRoll.DM : 2
             var damage = this.getDamageDone(obj, target, critModifier)
             var extraMsg = hitRoll.crit === true ? this.getCombatMsg(hitRoll.msgID) || '' : ''
-            this.log(who + ' hit ' + targetName + ' for ' + damage + ' damage' + extraMsg)
+            uiLog(who + ' hit ' + targetName + ' for ' + damage + ' damage' + extraMsg)
+
+            // Play impact sound
+            if (soundIdChar) {
+                audio.playWeaponSfx(soundIdChar, 'impact')
+            } else {
+                audio.playActionSfx('hit_flesh')
+            }
 
             critterDamage(target, damage, obj)
+            if (target.isPlayer) drawHP(target.getStat('HP'))
 
-            if (target.dead) this.perish(target)
+            if (target.dead) this.perish(target, obj)
         } else {
-            this.log(who + ' missed ' + targetName + (hitRoll.crit === true ? ' critically' : ''))
+            audio.playActionSfx('miss')
+            uiLog(who + ' missed ' + targetName + (hitRoll.crit === true ? ' critically' : ''))
             if (hitRoll.crit === true) {
                 var critFailMod = (obj.getStat('LUK') - 5) * -5
                 var critFailRoll = Math.floor(getRandomInt(1, 100) - critFailMod)
@@ -340,7 +405,7 @@ export class Combat {
                 else if (critFailRoll <= 95) critFailLevel = 4
                 else critFailLevel = 5
 
-                this.log(who + ' failed at fail level ' + critFailLevel)
+                uiLog(who + ' critically failed! (level ' + critFailLevel + ')')
 
                 // TODO: map weapon type to crit fail table types
                 var critFailEffect = CriticalEffects.criticalFailTable.unarmed[critFailLevel]
@@ -349,8 +414,31 @@ export class Combat {
         }
     }
 
-    perish(obj: Critter) {
-        this.log('...And killed them.')
+    perish(obj: Critter, attacker?: Critter) {
+        uiLog('...And killed them.')
+        globalState.audioEngine.playActionSfx('critter_die')
+
+        // Defensively ensure dead flag is set — critterKill (called by critterDamage
+        // when HP <= 0) should have already set this, but guard against edge cases.
+        obj.dead = true
+        obj.outline = null
+
+        // Only run critterKill if critterDamage didn't already do it
+        // (critterDamage calls critterKill when HP <= 0, which plays the death anim)
+        if (!obj.anim || obj.anim === 'idle') {
+            critterKill(obj, attacker)
+        }
+
+        // Inventory stays on the critter — the player loots it via the context menu,
+        // just like a container.
+
+        // Award XP to the player if the attacker is the player (or a party member)
+        if (attacker?.isPlayer) {
+            // Fallout 2 XP formula: base XP from critter's pro or a default based on level
+            const killXP = obj.pro?.extra?.killExp ?? 50
+            Scripting.give_exp_points(killXP)
+            uiLog(`Gained ${killXP} experience points.`)
+        }
     }
 
     getCombatAIMessage(id: number) {
@@ -359,8 +447,19 @@ export class Combat {
 
     maybeTaunt(obj: Critter, type: string, roll: boolean) {
         if (roll === false) return
-        var msgID = getRandomInt(parseInt(obj.ai!.info[type + '_start']), parseInt(obj.ai!.info[type + '_end']))
-        this.log('[TAUNT ' + obj.name + ': ' + this.getCombatAIMessage(msgID) + ']')
+        var start = obj.ai!.info[type + '_start']
+        var end = obj.ai!.info[type + '_end']
+        if (isNaN(start) || isNaN(end)) return
+        var msgID = getRandomInt(start, end)
+        var msg = this.getCombatAIMessage(msgID)
+        if (msg) {
+            globalState.floatMessages.push({
+                msg: msg,
+                obj: obj,
+                startTime: window.performance.now(),
+                color: 'white',
+            })
+        }
     }
 
     findTarget(obj: Critter): Critter | null {
@@ -406,7 +505,7 @@ export class Combat {
         }
         var distance = hexDistance(obj.position, target.position)
         var AP = obj.AP!
-        var messageRoll = rollSkillCheck(obj.ai!.info.chance, 0, false)
+        var messageRoll = rollSkillCheck(obj.ai!.info.chance || 85, 0, false)
 
         if (Config.engine.doLoadScripts === true && obj._script !== undefined) {
             // notify the critter script of a combat event
@@ -442,10 +541,42 @@ export class Combat {
         if (!weaponObj) throw Error('AI has no weapon')
         var weapon = weaponObj.weapon
         if (!weapon) throw Error('AI weapon has no weapon data')
-        // TODO: When AI weapon-switching is implemented (e.g., swapping to a closer-range weapon),
-        // use obj.playWeaponSwapAnim(() => { obj.activeHand = newHand }, callback) to play the
-        // holster → draw sequence before proceeding with the attack turn.
+
+        // AI weapon switching: check if current weapon range is appropriate for distance
+        var objAny = obj as any
         var fireDistance = weapon.getMaximumRange(1)
+        if (distance > fireDistance && weapon.type === 'melee') {
+            // Melee weapon but target is far — check for a ranged weapon in the other hand
+            var otherHand: 'leftHand' | 'rightHand' = (objAny.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
+            var otherWeapon = objAny[otherHand]
+            if (otherWeapon?.weapon && otherWeapon.weapon.type === 'gun') {
+                var newHand = otherHand
+                obj.playWeaponSwapAnim(() => { objAny.activeHand = newHand }, () => {
+                    obj.clearAnim()
+                    that.doAITurn(obj, idx, depth + 1)
+                })
+                return
+            }
+        } else if (distance <= 1 && weapon.type === 'gun') {
+            // Ranged weapon but adjacent — check for a melee weapon in the other hand
+            var otherHand2: 'leftHand' | 'rightHand' = (objAny.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
+            var otherWeapon2 = objAny[otherHand2]
+            if (otherWeapon2?.weapon && otherWeapon2.weapon.type === 'melee') {
+                var newHand2 = otherHand2
+                obj.playWeaponSwapAnim(() => { objAny.activeHand = newHand2 }, () => {
+                    obj.clearAnim()
+                    that.doAITurn(obj, idx, depth + 1)
+                })
+                return
+            }
+        }
+
+        // Re-read weapon after potential swap
+        weaponObj = obj.equippedWeapon
+        if (!weaponObj) throw Error('AI has no weapon after swap check')
+        weapon = weaponObj.weapon
+        if (!weapon) throw Error('AI weapon has no weapon data after swap check')
+        fireDistance = weapon.getMaximumRange(1)
         this.log(
             'DEBUG: weapon: ' +
                 weapon +
@@ -501,6 +632,7 @@ export class Combat {
         } else if (AP.getAvailableCombatAP() >= 4) {
             // if we are in range, do we have enough AP to attack?
             this.log('[ATTACKING]')
+            this.maybeTaunt(obj, 'attack', messageRoll)
             AP.subtractCombatAP(4)
 
             if (obj.equippedWeapon === null) throw 'combatant has no equipped weapon'
@@ -527,7 +659,23 @@ export class Combat {
     }
 
     end() {
-        // TODO: check number of active combatants to see if we can end
+        // Check number of active combatants to see if we can end
+        var numActive = 0
+        for (var i = 0; i < this.combatants.length; i++) {
+            var obj = this.combatants[i]
+            if (obj.dead || obj.isPlayer) continue
+            if (!obj.ai || !obj.ai.info) {
+                console.warn(`[COMBAT] Critter ${obj.name || obj.art} has no AI info, skipping range check`)
+                continue
+            }
+            var inRange = hexDistance(obj.position, this.player.position) <= obj.ai.info.max_dist
+
+            if (inRange || obj.hostile) {
+                numActive++
+            }
+        }
+
+        if (numActive > 0) return
 
         // Set all combatants to non-hostile and remove their outline
         for (const combatant of this.combatants) {
@@ -559,7 +707,11 @@ export class Combat {
         for (var i = 0; i < this.combatants.length; i++) {
             var obj = this.combatants[i]
             if (obj.dead || obj.isPlayer) continue
-            var inRange = hexDistance(obj.position, this.player.position) <= obj.ai!.info.max_dist
+            if (!obj.ai || !obj.ai.info) {
+                console.warn(`[COMBAT] Critter ${obj.name || obj.art} has no AI info, skipping range check`)
+                continue
+            }
+            var inRange = hexDistance(obj.position, this.player.position) <= obj.ai.info.max_dist
 
             if (inRange || obj.hostile) {
                 obj.hostile = true
@@ -575,16 +727,30 @@ export class Combat {
 
         if (this.whoseTurn >= this.combatants.length) this.whoseTurn = 0
 
+        // Convert unused AP to bonus AC for the critter whose turn just ended
+        if (this.whoseTurn > 0 || this.turnNum > 2) {
+            var prevIdx = this.whoseTurn - 1
+            if (prevIdx < 0) prevIdx = this.combatants.length - 1
+            var prev = this.combatants[prevIdx]
+            if (!prev.dead && prev.AP) {
+                prev.bonusAC = prev.AP.getAvailableMoveAP()
+            }
+        }
+
         if (this.combatants[this.whoseTurn].isPlayer) {
-            // player turn
+            // player turn — reset bonus AC from last turn, then reset AP
+            this.player.bonusAC = 0
             this.inPlayerTurn = true
             this.player.AP!.resetAP()
+            const maxAP = this.player.AP!.getMaxAP()
+            drawAP(this.player.AP!.getAvailableMoveAP() + this.player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
+            drawHP(this.player.getStat('HP'))
         } else {
             this.inPlayerTurn = false
             var critter = this.combatants[this.whoseTurn]
             if (critter.dead === true || critter.hostile !== true) return this.nextTurn()
 
-            // TODO: convert unused AP into AC
+            critter.bonusAC = 0 // reset bonus AC at start of this critter's turn
             critter.AP!.resetAP()
             this.doAITurn(critter, this.whoseTurn, 1)
         }

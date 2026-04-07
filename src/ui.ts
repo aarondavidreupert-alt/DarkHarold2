@@ -25,12 +25,13 @@ import { formatSaveDate, load, save, SaveGame, saveList } from './saveload.js'
 import { Scripting } from './scripting.js'
 import { Skills } from './skills.js'
 import { fromTileNum } from './tile.js'
-import { playerUse } from './main.js'
 import { pad } from './util.js'
 import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
+import { openAutomap } from './automap.js'
+import { openPipBoy } from './pipboy.js'
 
 // UI system
 
@@ -316,6 +317,14 @@ function uiInit() {
         characterWindow && characterWindow.close()
         initCharacterScreen()
     }
+
+    document.getElementById('pipBoyButton')!.onclick = () => {
+        openPipBoy()
+    }
+
+    document.getElementById('mapButton')!.onclick = () => {
+        openAutomap()
+    }
 }
 
 let skilldexWindow: WindowFrame
@@ -587,6 +596,8 @@ export enum UIMode {
     contextMenu = 10,
     saveLoad = 11,
     char = 12,
+    pipBoy = 13,
+    automap = 14,
 }
 
 // XXX: Should this throw if the element doesn't exist?
@@ -817,6 +828,7 @@ export function initUI() {
     makeScrollable($id('dialogueBoxReply'), 30)
 
     drawHP(globalState.player.getStat('HP'))
+    drawAC(globalState.player.getStat('AC'))
     uiDrawWeapon()
 }
 
@@ -873,6 +885,7 @@ export function uiContextMenu(obj: Obj, evt: any) {
 
     const isCritter = obj.type === 'critter'
     const isDead = isCritter && (obj as Critter).dead
+    console.log(`[CTX] ${obj.name} isCritter=${isCritter} dead=${(obj as Critter).dead} hp=${(obj as Critter).getStat?.('HP')}`)
     const hasTalk = obj._script && obj._script.talk_p_proc !== undefined
 
     if (isCritter && !isDead) {
@@ -881,9 +894,10 @@ export function uiContextMenu(obj: Obj, evt: any) {
         if (obj.canUse) $menu.appendChild(useBtn)
         $menu.appendChild(lookBtn)
     } else if (isCritter && isDead) {
-        // Dead critter: Look → Pickup (loot) → Cancel
+        // Dead critter: Look → Loot → Cancel
+        const lootBtn = button(obj, 'pickup', () => uiLoot(obj))
         $menu.appendChild(lookBtn)
-        $menu.appendChild(pickupBtn)
+        $menu.appendChild(lootBtn)
     } else if ((obj.type === 'scenery' || obj.type === 'misc') && obj.canUse) {
         // Container/Scenery with canUse: Use → Look → Cancel
         $menu.appendChild(useBtn)
@@ -909,6 +923,13 @@ export function uiStartCombat() {
     globalState.cursorMode = 'attack'
     // play end container animation
     Object.assign($id('endContainer').style, { animationPlayState: 'running', webkitAnimationPlayState: 'running' })
+    uiUpdateCombatAP()
+
+    const player = globalState.player
+    drawHP(player.getStat('HP'))
+    drawAC(player.getStat('AC'))
+    const maxAP = player.AP!.getMaxAP()
+    drawAP(player.AP!.getAvailableMoveAP() + player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
 }
 
 export function uiEndCombat() {
@@ -920,6 +941,47 @@ export function uiEndCombat() {
     hidev($id('endCombatButton'))
     // reset cursor back to move mode
     globalState.cursorMode = 'move'
+
+    // hide combat-specific UI
+    const $ap = document.getElementById('combatAPDisplay')
+    if ($ap) $ap.style.display = 'none'
+    const $hover = document.getElementById('combatHoverInfo')
+    if ($hover) $hover.style.display = 'none'
+}
+
+export function uiUpdateCombatAP() {
+    const $ap = document.getElementById('combatAPDisplay')
+    if (!$ap) return
+    if (!globalState.inCombat || !globalState.player.AP) {
+        $ap.style.display = 'none'
+        return
+    }
+    const ap = globalState.player.AP
+    $ap.style.display = 'block'
+    $ap.textContent = `AP: ${ap.getAvailableCombatAP()} combat / ${ap.move} move`
+}
+
+export function uiShowCombatHover(target: Critter, screenX: number, screenY: number) {
+    const $hover = document.getElementById('combatHoverInfo')
+    if (!$hover) return
+
+    let info = `${target.name || 'Unknown'}\nHP: ${target.getStat('HP')}/${target.getStat('Max HP')}`
+
+    if (globalState.inCombat && globalState.combat && globalState.player.equippedWeapon?.weapon) {
+        const hitChance = globalState.combat.getHitChance(globalState.player, target, 'torso')
+        info += `\nHit: ${Math.max(0, hitChance.hit)}%`
+    }
+
+    $hover.style.display = 'block'
+    $hover.style.left = (screenX + 16) + 'px'
+    $hover.style.top = (screenY - 10) + 'px'
+    $hover.textContent = info
+    $hover.style.whiteSpace = 'pre'
+}
+
+export function uiHideCombatHover() {
+    const $hover = document.getElementById('combatHoverInfo')
+    if ($hover) $hover.style.display = 'none'
 }
 
 function uiEndCombatAnimationDone(this: HTMLElement) {
@@ -1027,6 +1089,8 @@ function uiMoveSlot(data: string, target: string) {
     // Update armor appearance if armor slot changed
     if (target === 'armor' || data === 'armor') {
         applyArmorArt(target === 'armor' ? obj : null)
+        const armorAC = (globalState.player as any).armor?.pro?.extra?.AC ?? 0
+        drawAC(globalState.player.getStat('AC') + armorAC)
     }
 
     uiDrawWeapon()
@@ -1387,6 +1451,8 @@ export function uiInventoryScreen() {
                     playerAny.armor = obj
                 }
                 applyArmorArt(obj)
+                const armorAC = obj?.pro?.extra?.AC ?? 0
+                drawAC(globalState.player.getStat('AC') + armorAC)
                 uiInventoryScreen()
                 break
             }
@@ -1395,6 +1461,7 @@ export function uiInventoryScreen() {
                 playerAny[slot] = null
                 if (slot === 'armor') {
                     applyArmorArt(null)
+                    drawAC(globalState.player.getStat('AC'))
                 }
                 globalState.player.clearAnim()
                 uiDrawWeapon()
@@ -1511,8 +1578,21 @@ export function uiInventoryScreen() {
     }
 }
 
-function drawHP(hp: number) {
+export function drawHP(hp: number) {
     drawDigits('#hpDigit', hp, 4, true)
+}
+
+export function drawAC(ac: number) {
+    drawDigits('#acDigit', ac, 4, true)
+}
+
+export function drawAP(current: number, max: number) {
+    for (let i = 1; i <= 10; i++) {
+        const el = document.getElementById('apLight' + i)
+        if (el) {
+            el.style.visibility = i <= current ? 'visible' : 'hidden'
+        }
+    }
 }
 
 function drawDigits(idPrefix: string, amount: number, maxDigits: number, hasSign: boolean) {

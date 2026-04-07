@@ -32,6 +32,7 @@ limitations under the License.
 <body>
 	<div id="game-container">
 		<canvas id="cnv" width="800" height="600">your browser doesn't support &lt;canvas&gt;</canvas>
+		<canvas id="textOverlay" width="800" height="600"></canvas>
 		<div id="overlay-container">
 			<div id="overlay">
 				<div id="fpsOverlay"></div>
@@ -90,6 +91,8 @@ limitations under the License.
 			</div>
 			<div id="inventoryButton"></div>
 			<div id="chrButton"></div>
+			<div id="pipBoyButton"></div>
+			<div id="mapButton"></div>
 
 			<div id="hpNumber">
 				<div id="hpDigit1" class="number"></div>
@@ -105,13 +108,29 @@ limitations under the License.
 				<div id="acDigit4" class="number"></div>
 			</div>
 
+			<div id="apBar">
+				<div id="apLight1" class="apLight"></div>
+				<div id="apLight2" class="apLight"></div>
+				<div id="apLight3" class="apLight"></div>
+				<div id="apLight4" class="apLight"></div>
+				<div id="apLight5" class="apLight"></div>
+				<div id="apLight6" class="apLight"></div>
+				<div id="apLight7" class="apLight"></div>
+				<div id="apLight8" class="apLight"></div>
+				<div id="apLight9" class="apLight"></div>
+				<div id="apLight10" class="apLight"></div>
+			</div>
+
 			<div id="skilldexButton"></div>
 
 			<div id="endContainer">
 				<div id="endTurnButton"></div>
 				<div id="endCombatButton"></div>
 			</div>
+
+			<div id="combatAPDisplay" style="display:none; position:absolute; right:10px; bottom:48px; color:#00FF00; font-family:monospace; font-size:10px; text-shadow:1px 1px #000;"></div>
 		</div>
+		<div id="combatHoverInfo" style="display:none; position:absolute; pointer-events:none; background:rgba(0,0,0,0.8); border:1px solid #00FF00; color:#00FF00; font-family:monospace; font-size:10px; padding:4px 8px; z-index:200;"></div>
 		<div id="worldMapContainer">
 			<div id="worldMapBox">
 				<div id="worldMapLabels"></div>

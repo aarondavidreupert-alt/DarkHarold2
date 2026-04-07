@@ -25,6 +25,7 @@ import { SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 import { saveLoadInit } from './saveload.js'
 import { initUI, uiLog } from './ui.js'
 import { Worldmap } from './worldmap.js'
+import { initAutomapTracking } from './automapData.js'
 
 export function initGame() {
     // initialize player
@@ -70,6 +71,7 @@ export function initGame() {
     Worldmap.init()
 
     initUI()
+    initAutomapTracking()
 
     if (Config.ui.hideRoofWhenUnder) {
         // Only show roofs if the player is not under them

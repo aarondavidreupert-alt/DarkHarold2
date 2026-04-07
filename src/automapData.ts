@@ -1,0 +1,179 @@
+/*
+Copyright 2014 darkf
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Automap data: tracks which hex tiles the player has seen, persisted per
+// map+elevation in localStorage. Provides a shared canvas renderer used by
+// both the standalone automap overlay and the PipBoy AUTOMAPS tab.
+
+import { Events } from './events.js'
+import { hexDistance, Point } from './geometry.js'
+import globalState from './globalState.js'
+
+const STORAGE_KEY = 'darkfo.automap.v1'
+const REVEAL_RADIUS = 5
+
+// "mapName:elevation" -> Set of "x,y"
+const seenData: Map<string, Set<string>> = new Map()
+let loaded = false
+let saveTimer: number | null = null
+
+function key(mapName: string, elevation: number): string {
+    return `${mapName}:${elevation}`
+}
+
+function load(): void {
+    if (loaded) return
+    loaded = true
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY)
+        if (!raw) return
+        const obj = JSON.parse(raw) as Record<string, string[]>
+        for (const k in obj) {
+            seenData.set(k, new Set(obj[k]))
+        }
+    } catch (e) {
+        console.log('[automapData] failed to load:', e)
+    }
+}
+
+function save(): void {
+    try {
+        const obj: Record<string, string[]> = {}
+        for (const [k, set] of seenData) {
+            obj[k] = Array.from(set)
+        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(obj))
+    } catch (e) {
+        console.log('[automapData] failed to save:', e)
+    }
+}
+
+function scheduleSave(): void {
+    if (saveTimer !== null) return
+    saveTimer = window.setTimeout(() => {
+        save()
+        saveTimer = null
+    }, 2000)
+}
+
+export function getSeenTiles(mapName: string, elevation: number): Set<string> {
+    load()
+    return seenData.get(key(mapName, elevation)) ?? new Set()
+}
+
+export function markSeenAt(mapName: string, elevation: number, position: Point, radius = REVEAL_RADIUS): void {
+    load()
+    const k = key(mapName, elevation)
+    let set = seenData.get(k)
+    if (!set) {
+        set = new Set()
+        seenData.set(k, set)
+    }
+    // Iterate a small bounding box around the player and check hex distance
+    const minX = Math.max(0, position.x - radius)
+    const maxX = Math.min(199, position.x + radius)
+    const minY = Math.max(0, position.y - radius)
+    const maxY = Math.min(199, position.y + radius)
+    for (let x = minX; x <= maxX; x++) {
+        for (let y = minY; y <= maxY; y++) {
+            if (hexDistance(position, { x, y }) <= radius) {
+                set.add(`${x},${y}`)
+            }
+        }
+    }
+    scheduleSave()
+}
+
+export function initAutomapTracking(): void {
+    load()
+    Events.on('playerMoved', (pos: Point) => {
+        const map = globalState.gMap
+        if (!map || !map.name) return
+        markSeenAt(map.name, map.currentElevation, pos)
+    })
+}
+
+export function renderAutomapCanvas(width: number, height: number): HTMLCanvasElement {
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')!
+
+    // Background
+    ctx.fillStyle = '#000000'
+    ctx.fillRect(0, 0, width, height)
+
+    const map = globalState.gMap
+    const player = globalState.player
+
+    if (!map || !map.name) {
+        ctx.fillStyle = '#00FF00'
+        ctx.font = '14px monospace'
+        ctx.fillText('No map loaded', 20, 30)
+        return canvas
+    }
+
+    // Mark current player position so the map immediately shows where you are
+    if (player) {
+        markSeenAt(map.name, map.currentElevation, player.position)
+    }
+
+    const seen = getSeenTiles(map.name, map.currentElevation)
+
+    // Hex grid is 200x200; fit it into the canvas with a small margin
+    const HEX_RANGE = 200
+    const margin = 24
+    const drawW = width - margin * 2
+    const drawH = height - margin * 2
+    const scale = Math.min(drawW / HEX_RANGE, drawH / HEX_RANGE)
+    const ox = margin
+    const oy = margin
+
+    // Draw seen tiles
+    ctx.fillStyle = '#006600'
+    const tileSize = Math.max(1, Math.ceil(scale * 1.2))
+    for (const tileKey of seen) {
+        const [xs, ys] = tileKey.split(',')
+        const x = parseInt(xs, 10)
+        const y = parseInt(ys, 10)
+        ctx.fillRect(ox + x * scale, oy + y * scale, tileSize, tileSize)
+    }
+
+    // Outline of explored area frame
+    ctx.strokeStyle = '#00AA00'
+    ctx.lineWidth = 1
+    ctx.strokeRect(ox - 2, oy - 2, HEX_RANGE * scale + 4, HEX_RANGE * scale + 4)
+
+    // Player marker (yellow cross)
+    if (player) {
+        const px = ox + player.position.x * scale
+        const py = oy + player.position.y * scale
+        ctx.fillStyle = '#FFFF00'
+        ctx.fillRect(px - 3, py - 1, 7, 3)
+        ctx.fillRect(px - 1, py - 3, 3, 7)
+    }
+
+    // Map label
+    ctx.fillStyle = '#00FF00'
+    ctx.font = 'bold 13px monospace'
+    ctx.fillText(`${map.name.toUpperCase()}  L${map.currentElevation + 1}`, 8, 16)
+
+    // Tile count
+    ctx.font = '11px monospace'
+    ctx.fillText(`${seen.size} tiles seen`, 8, height - 8)
+
+    return canvas
+}

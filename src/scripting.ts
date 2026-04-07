@@ -36,7 +36,7 @@ import { makePID } from './pro.js'
 import { centerCamera, objectOnScreen } from './renderer.js'
 import { fromTileNum, toTileNum } from './tile.js'
 import { uiAddDialogueOption, uiBarterMode, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, UIMode } from './ui.js'
-import { assert, BinaryReader, getFileBinarySync, getFileText, getRandomInt } from './util.js'
+import { assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getRandomInt } from './util.js'
 import { ScriptVM } from './vm.js'
 import { ScriptVMBridge } from './vm_bridge.js'
 import { Config } from './config.js'
@@ -44,17 +44,8 @@ import { Config } from './config.js'
 export module Scripting {
     var gameObjects: Obj[] | null = null
     var mapVars: any = null
-    var globalVars: any = {
-        0: 50, // GVAR_PLAYER_REPUTATION
-        //10: 1, // GVAR_START_ARROYO_TRIAL (1 = TRIAL_FIGHT)
-        531: 1, // GVAR_TALKED_TO_ELDER
-        452: 2, // GVAR_DEN_VIC_KNOWN
-        88: 0, // GVAR_VAULT_RAIDERS
-        83: 2, // GVAR_VAULT_PLANT_STATUS (9 = PLANT_REPAIRED, 2 = PLANT_ACCEPTED_QUEST)
-        616: 0, // GVAR_GECKO_FIND_WOODY (0 = WOODY_UNKNOWN)
-        345: 16, // GVAR_NEW_RENO_FLAG_2 (16 = know_mordino_bit)
-        357: 2, // GVAR_NEW_RENO_LIL_JESUS_REFERS (lil_jesus_refers_yes)
-    }
+    var globalVars: any = {}
+    var globalVarsLoaded = false
     var currentMapID: number | null = null
     var currentMapObject: Script | null = null
     var mapFirstRun = true
@@ -136,6 +127,40 @@ export module Scripting {
 
     export function getGlobalVars(): any {
         return globalVars
+    }
+
+    export function loadGlobalVars(): void {
+        if (globalVarsLoaded) return
+        try {
+            const data = getFileJSON('data/gvars.json')
+            for (const key of Object.keys(data)) {
+                const idx = Number(key)
+                if (globalVars[idx] === undefined) {
+                    globalVars[idx] = data[key]
+                }
+            }
+            globalVarsLoaded = true
+            info('loadGlobalVars: loaded ' + Object.keys(data).length + ' global vars from gvars.json')
+        } catch (e: any) {
+            console.log('loadGlobalVars: gvars.json not found, using defaults (' + e.message + ')')
+        }
+    }
+
+    export function loadMapVars(mapName: string): void {
+        const scriptName = mapName.toLowerCase()
+        try {
+            const data = getFileJSON('data/maps/' + scriptName + '.mvars.json')
+            if (mapVars[scriptName] === undefined) mapVars[scriptName] = {}
+            for (const key of Object.keys(data)) {
+                const idx = Number(key)
+                if (mapVars[scriptName][idx] === undefined) {
+                    mapVars[scriptName][idx] = data[key]
+                }
+            }
+            info('loadMapVars: loaded ' + Object.keys(data).length + ' map vars for ' + scriptName)
+        } catch (e: any) {
+            // No mvars file for this map is normal - many maps have no MVARs
+        }
     }
 
     function isGameObject(obj: any) {
@@ -483,7 +508,9 @@ export module Scripting {
 
         // player
         give_exp_points(xp: number) {
-            stub('give_exp_points', arguments)
+            if (!globalState.player) return
+            globalState.player.addExperience(xp)
+            uiLog(`You gain ${xp} experience points.`)
         }
 
         // critters
@@ -1693,10 +1720,17 @@ export module Scripting {
         currentMapObject = null
         currentMapID = mapID !== undefined ? mapID : null
         mapVars = {}
+        loadMapVars(mapName)
     }
 
     export function init(mapName: string, mapID?: number) {
         seed(123)
+        loadGlobalVars()
         reset(mapName, mapID)
+    }
+
+    export function give_exp_points(xp: number) {
+        if (!globalState.player) return
+        globalState.player.addExperience(xp)
     }
 }
