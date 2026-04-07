@@ -191,9 +191,9 @@ export function renderAutomapCanvas(width: number, height: number, opts: RenderO
     canvas.height = height
     const ctx = canvas.getContext('2d')!
 
-    // Background
-    ctx.fillStyle = '#000000'
-    ctx.fillRect(0, 0, width, height)
+    // Transparent background — let whatever is behind the canvas (pip.png or
+    // automap.png) show through.
+    ctx.clearRect(0, 0, width, height)
 
     const map = globalState.gMap
     const player = globalState.player
