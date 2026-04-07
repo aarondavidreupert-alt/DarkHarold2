@@ -1064,6 +1064,13 @@ export class Critter extends Obj {
     skipTurns = 0 // Number of combat turns to skip (set by knockdown/loseNextTurn effects)
     deathAnim?: string // Override death animation (set by critical 'death' effects, e.g. 'death-explode')
 
+    // Dead critters must never have their art or anim reset — they stay frozen on the
+    // last death frame.  Any code that calls clearAnim() on a dead critter is a no-op.
+    clearAnim(): void {
+        if (this.dead) return
+        super.clearAnim()
+    }
+
     static fromPID(pid: number, sid?: number): Critter {
         return Obj.fromPID_(new Critter(), pid, sid)
     }
@@ -1201,6 +1208,10 @@ export class Critter extends Obj {
     }
 
     updateAnim(): void {
+        // 'dead' is a permanent sentinel set by critterKill after the death animation
+        // completes — do nothing so the corpse stays frozen on its last frame.
+        if (this.anim === 'dead') return
+
         if (!this.anim || this.anim === 'idle') {
             this.updateLoopingAnim()
             return
@@ -1689,6 +1700,14 @@ const animInfo: { [anim: string]: { type: string } } = {
     hitFront: { type: 'static' },
     death: { type: 'static' },
     'death-explode': { type: 'static' },
+    'death-fire': { type: 'static' },
+    'death-plasma': { type: 'static' },
+    'death-electro': { type: 'static' },
+    'death-laser': { type: 'static' },
+    'death-burst': { type: 'static' },
+    // Sentinel for a finished death animation — updateAnim() returns immediately,
+    // freezing the critter on its last death frame permanently.
+    dead: { type: 'static' },
     'weapon-draw': { type: 'static' },
     'weapon-holster': { type: 'static' },
     reverse: { type: 'static' },

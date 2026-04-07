@@ -172,9 +172,9 @@ export class Weapon {
     cycleMode(): void {
         // Dynamically append 'reload' when magazine is not full (Fallout 2 cycle order:
         // single → called/aimed → [burst] → reload → single)
-        const maxRounds: number = (this.weapon as any).pro?.extra?.maxRounds ?? 0
-        const currentRounds: number = (this.weapon as any).pro?.extra?.rounds ?? maxRounds
-        const canReload = maxRounds > 0 && currentRounds < maxRounds
+        const maxAmmo: number = (this.weapon as any).pro?.extra?.maxAmmo ?? 0
+        const currentRounds: number = (this.weapon as any).pro?.extra?.rounds ?? maxAmmo
+        const canReload = maxAmmo > 0 && currentRounds < maxAmmo
         const effectiveModes = canReload ? [...this.modes, 'reload'] : this.modes
 
         const idx = effectiveModes.indexOf(this.mode)
@@ -239,8 +239,10 @@ export class Weapon {
         }
 
         // TODO: mode equipped
-        if (this.attackOne.mode !== attackMode.none) {
-            return modeSkinMap[this.attackOne.mode]
+        // Use the active attack mode — burst uses attackTwo, everything else uses attackOne
+        const activeAttack = (this.mode === 'burst') ? this.attackTwo : this.attackOne
+        if (activeAttack && activeAttack.mode !== attackMode.none) {
+            return modeSkinMap[activeAttack.mode] ?? null
         }
 
         throw 'TODO'
@@ -337,8 +339,30 @@ export function critterKill(
 
     const finalizeCallback = function () {
         obj.frame-- // freeze on the last frame of the death animation
-        obj.anim = undefined
+        // Use 'dead' sentinel: updateAnim() returns immediately for this value,
+        // keeping the corpse frozen on its last frame indefinitely.
+        obj.anim = 'dead'
         if (callback) callback()
+
+        // Player death: show game-over overlay after the death animation completes
+        if (obj.isPlayer && typeof document !== 'undefined') {
+            const overlay = document.createElement('div')
+            overlay.id = 'playerDeadOverlay'
+            Object.assign(overlay.style, {
+                position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
+                background: 'rgba(0,0,0,0.75)', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', zIndex: '9999',
+                cursor: 'default',
+            })
+            const msg = document.createElement('div')
+            Object.assign(msg.style, {
+                color: '#cc0000', fontSize: '48px', fontFamily: 'monospace',
+                textShadow: '2px 2px 8px #000', letterSpacing: '4px',
+            })
+            msg.textContent = 'YOU ARE DEAD'
+            overlay.appendChild(msg)
+            document.body.appendChild(overlay)
+        }
 
         // Corpse auto-cleanup: remove empty corpses after a configurable timeout.
         // Corpses with loot are left on the map so the player can still loot them.

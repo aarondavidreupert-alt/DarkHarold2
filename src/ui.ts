@@ -750,9 +750,9 @@ export function initUI() {
     function reloadWeapon(weaponObj: Obj): boolean {
         const w = weaponObj as any
         const ammoPID: number | undefined = w.pro?.extra?.ammoPID
-        const maxRounds: number = w.pro?.extra?.maxRounds ?? 0
+        const maxAmmo: number = w.pro?.extra?.maxAmmo ?? 0
         const currentRounds: number = w.pro?.extra?.rounds ?? 0
-        if (!ammoPID || maxRounds <= 0 || currentRounds >= maxRounds) return false
+        if (maxAmmo <= 0 || currentRounds >= maxAmmo) return false
 
         // Find compatible ammo in inventory by matching pid
         const inv = globalState.player.inventory as any[]
@@ -763,7 +763,7 @@ export function initUI() {
         }
 
         const ammoItem = inv[ammoIdx]
-        const needed = maxRounds - currentRounds
+        const needed = maxAmmo - currentRounds
         const available: number = ammoItem.amount ?? 1
         const toLoad = Math.min(needed, available)
 
@@ -1099,6 +1099,32 @@ function uiDrawWeapon() {
     }
 }
 
+/**
+ * Try to load ammoObj into weaponObj.
+ * Compatibility: ammo pid must match weapon.pro.extra.ammoPID (or weapon is unloaded).
+ * Returns true if at least one round was loaded.
+ */
+function tryLoadAmmoIntoWeapon(ammoObj: Obj, weaponObj: Obj): boolean {
+    const w = weaponObj as any
+    const a = ammoObj as any
+    const maxAmmo: number = w.pro?.extra?.maxAmmo ?? 0
+    const currentRounds: number = w.pro?.extra?.rounds ?? 0
+    const weaponAmmoPID: number | undefined = w.pro?.extra?.ammoPID
+    if (maxAmmo <= 0 || currentRounds >= maxAmmo) return false
+    // Compatibility: ammoPID must match (or weapon is empty and has no type yet)
+    if (weaponAmmoPID && weaponAmmoPID !== a.pid) return false
+    const needed = maxAmmo - currentRounds
+    const available: number = a.amount ?? 1
+    const toLoad = Math.min(needed, available)
+    w.pro.extra.rounds = currentRounds + toLoad
+    w.pro.extra.ammoPID = a.pid // record which ammo type is now loaded
+    a.amount = available - toLoad
+    const ammoIdx = globalState.player.inventory.indexOf(ammoObj)
+    if (a.amount <= 0 && ammoIdx !== -1) globalState.player.inventory.splice(ammoIdx, 1)
+    uiLog(`Loaded ${toLoad} round${toLoad !== 1 ? 's' : ''}.`)
+    return true
+}
+
 // TODO: Rewrite this sanely (and not directly modify the player object's properties...)
 function uiMoveSlot(data: string, target: string) {
     const playerUnsafe = globalState.player as any
@@ -1113,26 +1139,12 @@ function uiMoveSlot(data: string, target: string) {
         console.log('idx: ' + idx)
         obj = globalState.player.inventory[idx]
 
-        // Drag-drop reload: ammo dropped onto a hand slot with a compatible weapon
+        // Drag-drop reload: ammo from inventory dropped onto a hand slot with a weapon
         if ((target === 'leftHand' || target === 'rightHand') && playerUnsafe[target]) {
-            const slotWeapon = playerUnsafe[target] as any
-            const ammoPID: number | undefined = slotWeapon.pro?.extra?.ammoPID
-            if (ammoPID && obj.pid === ammoPID) {
-                // Compatible ammo → perform reload rather than swap
-                const maxRounds: number = slotWeapon.pro?.extra?.maxRounds ?? 0
-                const currentRounds: number = slotWeapon.pro?.extra?.rounds ?? 0
-                if (maxRounds > 0 && currentRounds < maxRounds) {
-                    const needed = maxRounds - currentRounds
-                    const available: number = (obj as any).amount ?? 1
-                    const toLoad = Math.min(needed, available)
-                    slotWeapon.pro.extra.rounds = currentRounds + toLoad
-                    ;(obj as any).amount = available - toLoad
-                    if ((obj as any).amount <= 0) globalState.player.inventory.splice(idx, 1)
-                    uiLog(`Reloaded ${toLoad} round${toLoad !== 1 ? 's' : ''}.`)
-                    uiDrawWeapon()
-                    uiInventoryScreen()
-                    return
-                }
+            if (tryLoadAmmoIntoWeapon(obj, playerUnsafe[target] as Obj)) {
+                uiDrawWeapon()
+                uiInventoryScreen()
+                return
             }
         }
 
@@ -1473,6 +1485,21 @@ export function uiInventoryScreen() {
             makeDraggable(img, 'i' + i, () => {
                 uiInventoryScreen()
             })
+
+            // Allow ammo to be dropped onto a weapon in the inventory list
+            if (invObj.subtype === 'weapon') {
+                const capturedWeapon = invObj
+                makeDropTarget(img, (data: string) => {
+                    if (data[0] !== 'i') return // only inventory items
+                    const srcIdx = parseInt(data.slice(1))
+                    const srcObj = globalState.player.inventory[srcIdx]
+                    if (!srcObj || srcObj === capturedWeapon) return
+                    if (tryLoadAmmoIntoWeapon(srcObj, capturedWeapon)) {
+                        uiDrawWeapon()
+                        uiInventoryScreen()
+                    }
+                })
+            }
         }
     }
 
@@ -1593,8 +1620,9 @@ export function uiInventoryScreen() {
         }
         $menu.appendChild(makeContextButton(obj, slot, 'drop'))
 
-        // Unload option for loaded weapons — use image button (unloadn/h.png)
-        if (obj.subtype === 'weapon' && obj.pro?.extra?.ammoPID && obj.pro?.extra?.rounds > 0) {
+        // Unload option: any weapon with non-zero ammo capacity and rounds currently loaded
+        // (matches fallout2-ce ammoGetCapacity != 0 condition — works for all gun types)
+        if (obj.subtype === 'weapon' && obj.pro?.extra?.maxAmmo > 0 && obj.pro?.extra?.rounds > 0) {
             $menu.appendChild(makeContextButton(obj, slot, 'unload'))
         }
 
