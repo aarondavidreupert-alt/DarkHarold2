@@ -23,10 +23,25 @@ import { hexDistance, Point } from './geometry.js'
 import globalState from './globalState.js'
 
 const STORAGE_KEY = 'darkfo.automap.v1'
+const OBJECTS_KEY = 'darkfo.automap.objects.v1'
 const REVEAL_RADIUS = 5
 
 // "mapName:elevation" -> Set of "x,y"
 const seenData: Map<string, Set<string>> = new Map()
+
+// "mapName:elevation" -> compact object snapshot.
+// Each object: [x, y, typeCode, subType?]
+//   typeCode: 'w' = wall, 'd' = door (scenery subType 0), 's' = scenery,
+//             'i' = item
+// We deliberately omit critters (they move; an archived snapshot would lie).
+type ObjType = 'w' | 'd' | 's' | 'i'
+interface ObjectSnapshotEntry {
+    x: number
+    y: number
+    t: ObjType
+}
+const objectSnapshots: Map<string, ObjectSnapshotEntry[]> = new Map()
+
 let loaded = false
 let saveTimer: number | null = null
 
@@ -48,6 +63,15 @@ function load(): void {
     } catch (e) {
         console.log('[automapData] failed to load:', e)
     }
+    try {
+        const raw = localStorage.getItem(OBJECTS_KEY)
+        if (raw) {
+            const obj = JSON.parse(raw) as Record<string, ObjectSnapshotEntry[]>
+            for (const k in obj) objectSnapshots.set(k, obj[k])
+        }
+    } catch (e) {
+        console.log('[automapData] failed to load object snapshots:', e)
+    }
 }
 
 function save(): void {
@@ -60,6 +84,45 @@ function save(): void {
     } catch (e) {
         console.log('[automapData] failed to save:', e)
     }
+    try {
+        const obj: Record<string, ObjectSnapshotEntry[]> = {}
+        for (const [k, list] of objectSnapshots) obj[k] = list
+        localStorage.setItem(OBJECTS_KEY, JSON.stringify(obj))
+    } catch (e) {
+        console.log('[automapData] failed to save object snapshots:', e)
+    }
+}
+
+// Capture every wall/door/scenery/item from every elevation of the currently
+// loaded map and store it as a snapshot, so the AUTOMAPS tab can render the
+// same overlay (the HUD render path uses) for an archived map. Critters are
+// intentionally skipped — they move, so a saved snapshot would be a lie.
+export function snapshotCurrentMapObjects(): void {
+    load()
+    const map = globalState.gMap
+    if (!map || !map.name) return
+    const numLevels: number = (map as any).numLevels ?? 1
+    for (let level = 0; level < numLevels; level++) {
+        let objs: any[] = []
+        try { objs = map.getObjects(level) || [] } catch (_e) { objs = [] }
+        const out: ObjectSnapshotEntry[] = []
+        for (const obj of objs) {
+            if (!obj || !obj.position) continue
+            let t: ObjType | null = null
+            if (obj.type === 'wall') t = 'w'
+            else if (obj.type === 'scenery') {
+                t = (obj.pro && obj.pro.extra && obj.pro.extra.subType === 0) ? 'd' : 's'
+            } else if (obj.type === 'item') t = 'i'
+            if (!t) continue
+            out.push({ x: obj.position.x, y: obj.position.y, t })
+        }
+        objectSnapshots.set(key(map.name, level), out)
+    }
+}
+
+export function getObjectSnapshot(mapName: string, elevation: number): ObjectSnapshotEntry[] {
+    load()
+    return objectSnapshots.get(key(mapName, elevation)) ?? []
 }
 
 function scheduleSave(): void {
@@ -136,18 +199,22 @@ export function initAutomapTracking(): void {
         if (!map || !map.name) return
         markSeenAt(map.name, map.currentElevation, pos)
     })
-    // Mark the initial position and force-save when entering a new map.
+    // When a fresh map finishes loading, mark the player's start tile, take
+    // an initial object snapshot (so even maps the player only briefly enters
+    // get walls/scenery captured), and flush.
     Events.on('loadMapPost', () => {
         const map = globalState.gMap
         const player = globalState.player
         if (!map || !map.name) return
         if (player) markSeenAt(map.name, map.currentElevation, player.position)
+        snapshotCurrentMapObjects()
         flushAutomapSave()
     })
-    // Force-save when leaving a map so the data we have so far is durable.
+    // Snapshot + flush when leaving a map so the most recent state is durable.
     Events.on('loadMapPre', () => {
         const map = globalState.gMap
         if (!map || !map.name) return
+        snapshotCurrentMapObjects()
         flushAutomapSave()
     })
     // Flush on page unload
@@ -252,39 +319,56 @@ export function drawAutomapInto(canvas: HTMLCanvasElement, opts: RenderOptions =
 
     // Overlay objects (walls, doors, scenery, items, critters) that lie on
     // already-seen tiles. Colored by type so the player can distinguish them.
+    //
+    // Live view (current map) reads objects directly from globalState.gMap,
+    // exactly the way the HUD does. The archived view reads from the saved
+    // object snapshot taken on the last map transition, so the SAME render
+    // pipeline produces walls/doors/scenery for any map the player has
+    // visited — not just the one currently loaded.
     const objSize = Math.max(2, Math.ceil(scale * 1.6))
-    const objects = (isCurrentMap && map) ? map.getObjects() : []
-    for (const obj of objects) {
-        if (!obj || !obj.position) continue
-        const tileKey = `${obj.position.x},${obj.position.y}`
+
+    interface RenderObj { x: number; y: number; color: string }
+    const renderObjects: RenderObj[] = []
+
+    const colorForLive = (obj: any): string | null => {
+        if (obj.type === 'wall') return '#888888'
+        if (obj.type === 'scenery') {
+            return (obj.pro && obj.pro.extra && obj.pro.extra.subType === 0)
+                ? '#FF8800' // door
+                : '#3388FF' // other scenery
+        }
+        if (obj.type === 'item') return '#FFCC00'
+        if (obj.type === 'critter') {
+            if ((obj as any).isPlayer) return null
+            return '#FF3333'
+        }
+        return null
+    }
+    const colorForSnapshot = (t: ObjType): string => {
+        if (t === 'w') return '#888888'
+        if (t === 'd') return '#FF8800'
+        if (t === 's') return '#3388FF'
+        return '#FFCC00' // 'i'
+    }
+
+    if (isCurrentMap && map) {
+        for (const obj of map.getObjects()) {
+            if (!obj || !obj.position) continue
+            const c = colorForLive(obj)
+            if (!c) continue
+            renderObjects.push({ x: obj.position.x, y: obj.position.y, color: c })
+        }
+    } else {
+        for (const e of getObjectSnapshot(mapName, elevation)) {
+            renderObjects.push({ x: e.x, y: e.y, color: colorForSnapshot(e.t) })
+        }
+    }
+
+    for (const o of renderObjects) {
+        const tileKey = `${o.x},${o.y}`
         if (!seen.has(tileKey)) continue
-
-        let color: string | null = null
-        if (obj.type === 'wall') {
-            color = '#888888' // gray
-        } else if (obj.type === 'scenery') {
-            // Doors are scenery subType 0
-            if (obj.pro && obj.pro.extra && obj.pro.extra.subType === 0) {
-                color = '#FF8800' // orange — doors
-            } else {
-                color = '#3388FF' // blue — other scenery
-            }
-        } else if (obj.type === 'item') {
-            color = '#FFCC00' // yellow — items
-        } else if (obj.type === 'critter') {
-            if ((obj as any).isPlayer) continue // player drawn separately
-            color = '#FF3333' // red — critters
-        }
-
-        if (color) {
-            ctx.fillStyle = color
-            ctx.fillRect(
-                ox + obj.position.x * scale - 1,
-                oy + obj.position.y * scale - 1,
-                objSize,
-                objSize
-            )
-        }
+        ctx.fillStyle = o.color
+        ctx.fillRect(ox + o.x * scale - 1, oy + o.y * scale - 1, objSize, objSize)
     }
 
     // Outline of explored area frame
