@@ -746,7 +746,54 @@ export function initUI() {
         })
     }
 
+    /** Attempt to reload weaponObj from inventory. Returns true if rounds were loaded. */
+    function reloadWeapon(weaponObj: Obj): boolean {
+        const w = weaponObj as any
+        const ammoPID: number | undefined = w.pro?.extra?.ammoPID
+        const maxRounds: number = w.pro?.extra?.maxRounds ?? 0
+        const currentRounds: number = w.pro?.extra?.rounds ?? 0
+        if (!ammoPID || maxRounds <= 0 || currentRounds >= maxRounds) return false
+
+        // Find compatible ammo in inventory by matching pid
+        const inv = globalState.player.inventory as any[]
+        const ammoIdx = inv.findIndex((item) => item.pid === ammoPID)
+        if (ammoIdx === -1) {
+            uiLog("No compatible ammo in inventory.")
+            return false
+        }
+
+        const ammoItem = inv[ammoIdx]
+        const needed = maxRounds - currentRounds
+        const available: number = ammoItem.amount ?? 1
+        const toLoad = Math.min(needed, available)
+
+        w.pro.extra.rounds = currentRounds + toLoad
+        ammoItem.amount = available - toLoad
+        if (ammoItem.amount <= 0) inv.splice(ammoIdx, 1)
+
+        uiLog(`Reloaded ${toLoad} round${toLoad !== 1 ? 's' : ''}.`)
+        return true
+    }
+
     $id('attackButtonContainer').onclick = () => {
+        // Reload mode: immediately reload from inventory (AP cost in combat)
+        const wep = globalState.player.equippedWeapon
+        if (wep?.weapon?.mode === 'reload') {
+            if (globalState.inCombat && globalState.player.AP) {
+                const reloadAP = 2 // TODO: read from weapon PRO (reloadAP field)
+                if (globalState.player.AP.getAvailableCombatAP() < reloadAP) {
+                    uiLog("You don't have enough action points.")
+                    return
+                }
+                globalState.player.AP.subtractCombatAP(reloadAP)
+                uiUpdateCombatAP()
+            }
+            reloadWeapon(wep)
+            wep.weapon.mode = 'single'
+            uiDrawWeapon()
+            return
+        }
+
         if (!Config.engine.doCombat) {
             return
         }
@@ -1015,20 +1062,28 @@ function uiDrawWeapon() {
         $wepImg.src = weapon.invArt + '.png'
     }
 
-    // draw weapon AP — use burst AP cost (attack 2) when in burst mode, otherwise attack 1
+    // draw weapon AP — reload uses fixed 2 AP; burst uses APCost2; otherwise APCost1
     const CHAR_W = 10
-    const attackSlot = weapon.weapon.isBurst ? (weapon.weapon.isBurst() ? 2 : 1) : 1
-    const digit = weapon.weapon.getAPCost(attackSlot)
+    let digit: number
+    const mode = weapon.weapon.mode
+    if (mode === 'reload') {
+        digit = 2 // TODO: read reload AP from weapon PRO
+    } else {
+        const attackSlot = weapon.weapon.isBurst ? (weapon.weapon.isBurst() ? 2 : 1) : 1
+        digit = weapon.weapon.getAPCost(attackSlot)
+    }
     if (digit === undefined || digit > 9) {
         return
     } // TODO: Weapon AP >9?
     $id('attackButtonAPDigit').style.backgroundPosition = 0 - CHAR_W * digit + 'px'
 
-    // draw weapon type (single, burst, called, punch, ...)
+    // draw weapon type (single, burst, called, punch, reload, ...)
     // TODO: all melee weapons
     let type: string
     if (weapon.weapon.type === 'melee') {
         type = 'punch'
+    } else if (mode === 'reload') {
+        type = 'reload'
     } else if (weapon.weapon.isBurst && weapon.weapon.isBurst()) {
         type = 'burst'
     } else {
@@ -1037,7 +1092,7 @@ function uiDrawWeapon() {
     $img('attackButtonType').src = `art/intrface/${type}.png`
 
     // hide or show called shot sigil?
-    if (weapon.weapon.mode === 'called') {
+    if (mode === 'called') {
         show($id('attackButtonCalled'))
     } else {
         hide($id('attackButtonCalled'))
@@ -1057,6 +1112,30 @@ function uiMoveSlot(data: string, target: string) {
         const idx = parseInt(data.slice(1))
         console.log('idx: ' + idx)
         obj = globalState.player.inventory[idx]
+
+        // Drag-drop reload: ammo dropped onto a hand slot with a compatible weapon
+        if ((target === 'leftHand' || target === 'rightHand') && playerUnsafe[target]) {
+            const slotWeapon = playerUnsafe[target] as any
+            const ammoPID: number | undefined = slotWeapon.pro?.extra?.ammoPID
+            if (ammoPID && obj.pid === ammoPID) {
+                // Compatible ammo → perform reload rather than swap
+                const maxRounds: number = slotWeapon.pro?.extra?.maxRounds ?? 0
+                const currentRounds: number = slotWeapon.pro?.extra?.rounds ?? 0
+                if (maxRounds > 0 && currentRounds < maxRounds) {
+                    const needed = maxRounds - currentRounds
+                    const available: number = (obj as any).amount ?? 1
+                    const toLoad = Math.min(needed, available)
+                    slotWeapon.pro.extra.rounds = currentRounds + toLoad
+                    ;(obj as any).amount = available - toLoad
+                    if ((obj as any).amount <= 0) globalState.player.inventory.splice(idx, 1)
+                    uiLog(`Reloaded ${toLoad} round${toLoad !== 1 ? 's' : ''}.`)
+                    uiDrawWeapon()
+                    uiInventoryScreen()
+                    return
+                }
+            }
+        }
+
         globalState.player.inventory.splice(idx, 1) // remove object from inventory
     } else {
         obj = playerUnsafe[data]
@@ -1514,9 +1593,9 @@ export function uiInventoryScreen() {
         }
         $menu.appendChild(makeContextButton(obj, slot, 'drop'))
 
-        // Unload option for loaded weapons
+        // Unload option for loaded weapons — use image button (unloadn/h.png)
         if (obj.subtype === 'weapon' && obj.pro?.extra?.ammoPID && obj.pro?.extra?.rounds > 0) {
-            $menu.appendChild(makeContextButton(obj, slot, 'unload', 'Unload'))
+            $menu.appendChild(makeContextButton(obj, slot, 'unload'))
         }
 
         // Equip options for inventory items

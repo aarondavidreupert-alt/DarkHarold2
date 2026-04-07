@@ -158,10 +158,11 @@ export class Weapon {
             this.weaponSkillType = weaponSkillMap[this.name]
             if (this.weaponSkillType === undefined) console.log('unknown weapon type for ' + this.name)
 
-            // If the secondary attack is burst fire, insert 'burst' between single and called
+            // If the secondary attack is burst fire, insert 'burst' after 'called' (correct Fallout 2 cycle order):
+            // single → called(aimed) → burst → [reload if not full]
             // Note: attackTwo.mode is stored as string at runtime despite being typed as number
             if (this.attackTwo && String(this.attackTwo.mode) === 'fire burst') {
-                this.modes = ['single', 'burst', 'called']
+                this.modes = ['single', 'called', 'burst']
             }
         }
 
@@ -169,7 +170,15 @@ export class Weapon {
     }
 
     cycleMode(): void {
-        this.mode = this.modes[(this.modes.indexOf(this.mode) + 1) % this.modes.length]
+        // Dynamically append 'reload' when magazine is not full (Fallout 2 cycle order:
+        // single → called/aimed → [burst] → reload → single)
+        const maxRounds: number = (this.weapon as any).pro?.extra?.maxRounds ?? 0
+        const currentRounds: number = (this.weapon as any).pro?.extra?.rounds ?? maxRounds
+        const canReload = maxRounds > 0 && currentRounds < maxRounds
+        const effectiveModes = canReload ? [...this.modes, 'reload'] : this.modes
+
+        const idx = effectiveModes.indexOf(this.mode)
+        this.mode = effectiveModes[(idx + 1) % effectiveModes.length]
     }
 
     isCalled(): boolean {
