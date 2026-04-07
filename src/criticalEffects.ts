@@ -88,11 +88,23 @@ export module CriticalEffects {
 
     const critterEffects: Dict<(target: Critter) => void> = {
         knockout: function (target: Critter) {
-            console.log(target.name + ' has been knocked out. This does not do anything yet')
+            // Play knockdown animation; critter stays down for 2 extra turns
+            target.skipTurns = Math.max(target.skipTurns, 2)
+            if (target.hasAnimation('knockdownFront')) {
+                target.staticAnimation('knockdownFront', () => {
+                    // Stay on ground — getUpFront will play when skipTurns expires (see Combat.nextTurn)
+                })
+            }
         },
 
         knockdown: function (target: Critter) {
-            console.log(target.name + ' has been knocked down. This does not do anything yet')
+            // Play knockdown then get-up animation; critter loses 1 turn
+            target.skipTurns = Math.max(target.skipTurns, 1)
+            if (target.hasAnimation('knockdownFront')) {
+                target.staticAnimation('knockdownFront', () => {
+                    // Stay on ground until turn is restored; getUpFront plays in nextTurn
+                })
+            }
         },
 
         crippledLeftLeg: function (target: Critter) {
@@ -138,7 +150,7 @@ export module CriticalEffects {
         },
 
         loseNextTurn: function (target: Critter) {
-            console.log(target.name + ' lost their next turn. This does not do anything yet')
+            target.skipTurns = Math.max(target.skipTurns, 1)
         },
 
         random: function (target: Critter) {

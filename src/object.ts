@@ -1061,6 +1061,7 @@ export class Critter extends Obj {
     bonusAC = 0 // Temporary AC bonus from unused AP at end of turn
     perks: string[] = [] // List of acquired perks
     nextIdleAnimTime = 0 // performance.now() after which the next idle cycle begins; 0 = uninitialised
+    skipTurns = 0 // Number of combat turns to skip (set by knockdown/loseNextTurn effects)
 
     static fromPID(pid: number, sid?: number): Critter {
         return Obj.fromPID_(new Critter(), pid, sid)
