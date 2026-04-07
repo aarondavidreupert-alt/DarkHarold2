@@ -23,12 +23,16 @@ import { hexDistance, Point } from './geometry.js'
 import globalState from './globalState.js'
 
 const STORAGE_KEY = 'darkfo.automap.v1'
+const ARCHIVE_KEY = 'darkfo.automap.archive.v1'
 const REVEAL_RADIUS = 5
 
 // "mapName:elevation" -> Set of "x,y"
 const seenData: Map<string, Set<string>> = new Map()
+// "mapName:elevation" -> snapshot data URL
+const archiveData: Map<string, string> = new Map()
 let loaded = false
 let saveTimer: number | null = null
+let archiveSaveTimer: number | null = null
 
 function key(mapName: string, elevation: number): string {
     return `${mapName}:${elevation}`
@@ -39,13 +43,23 @@ function load(): void {
     loaded = true
     try {
         const raw = localStorage.getItem(STORAGE_KEY)
-        if (!raw) return
-        const obj = JSON.parse(raw) as Record<string, string[]>
-        for (const k in obj) {
-            seenData.set(k, new Set(obj[k]))
+        if (raw) {
+            const obj = JSON.parse(raw) as Record<string, string[]>
+            for (const k in obj) {
+                seenData.set(k, new Set(obj[k]))
+            }
         }
     } catch (e) {
         console.log('[automapData] failed to load:', e)
+    }
+    try {
+        const raw = localStorage.getItem(ARCHIVE_KEY)
+        if (raw) {
+            const obj = JSON.parse(raw) as Record<string, string>
+            for (const k in obj) archiveData.set(k, obj[k])
+        }
+    } catch (e) {
+        console.log('[automapData] failed to load archive:', e)
     }
 }
 
@@ -67,6 +81,53 @@ function scheduleSave(): void {
         save()
         saveTimer = null
     }, 2000)
+}
+
+function saveArchive(): void {
+    try {
+        const obj: Record<string, string> = {}
+        for (const [k, v] of archiveData) obj[k] = v
+        localStorage.setItem(ARCHIVE_KEY, JSON.stringify(obj))
+    } catch (e) {
+        console.log('[automapData] failed to save archive:', e)
+    }
+}
+
+function scheduleArchiveSave(): void {
+    if (archiveSaveTimer !== null) return
+    archiveSaveTimer = window.setTimeout(() => {
+        saveArchive()
+        archiveSaveTimer = null
+    }, 1000)
+}
+
+export interface ArchiveEntry {
+    mapName: string
+    elevation: number
+    dataURL: string
+}
+
+export function getArchiveEntries(): ArchiveEntry[] {
+    load()
+    const out: ArchiveEntry[] = []
+    for (const [k, v] of archiveData) {
+        const [mapName, elevStr] = k.split(':')
+        out.push({ mapName, elevation: parseInt(elevStr, 10), dataURL: v })
+    }
+    return out
+}
+
+export function saveMapSnapshot(mapName: string, elevation: number): void {
+    load()
+    try {
+        // Render at a reasonable archive resolution
+        const canvas = renderAutomapCanvas(380, 360, { zoom: 1, forMap: mapName, forElevation: elevation })
+        const dataURL = canvas.toDataURL('image/png')
+        archiveData.set(`${mapName}:${elevation}`, dataURL)
+        scheduleArchiveSave()
+    } catch (e) {
+        console.log('[automapData] failed to snapshot:', e)
+    }
 }
 
 export function getSeenTiles(mapName: string, elevation: number): Set<string> {
@@ -104,9 +165,27 @@ export function initAutomapTracking(): void {
         if (!map || !map.name) return
         markSeenAt(map.name, map.currentElevation, pos)
     })
+    // Save a snapshot of the current map into the archive just before a new
+    // map is loaded.
+    Events.on('loadMapPre', () => {
+        const map = globalState.gMap
+        if (!map || !map.name) return
+        saveMapSnapshot(map.name, map.currentElevation)
+    })
+    // Flush archive on page unload
+    window.addEventListener('beforeunload', () => {
+        if (archiveSaveTimer !== null) { saveArchive() }
+        if (saveTimer !== null) { save() }
+    })
 }
 
-export function renderAutomapCanvas(width: number, height: number): HTMLCanvasElement {
+export interface RenderOptions {
+    zoom?: number
+    forMap?: string
+    forElevation?: number
+}
+
+export function renderAutomapCanvas(width: number, height: number, opts: RenderOptions = {}): HTMLCanvasElement {
     const canvas = document.createElement('canvas')
     canvas.width = width
     canvas.height = height
@@ -118,8 +197,11 @@ export function renderAutomapCanvas(width: number, height: number): HTMLCanvasEl
 
     const map = globalState.gMap
     const player = globalState.player
+    const mapName = opts.forMap ?? (map ? map.name : '')
+    const elevation = opts.forElevation ?? (map ? map.currentElevation : 0)
+    const isCurrentMap = !opts.forMap && map && map.name
 
-    if (!map || !map.name) {
+    if (!mapName) {
         ctx.fillStyle = '#00FF00'
         ctx.font = '14px monospace'
         ctx.fillText('No map loaded', 20, 30)
@@ -127,20 +209,41 @@ export function renderAutomapCanvas(width: number, height: number): HTMLCanvasEl
     }
 
     // Mark current player position so the map immediately shows where you are
-    if (player) {
-        markSeenAt(map.name, map.currentElevation, player.position)
+    if (isCurrentMap && player) {
+        markSeenAt(mapName, elevation, player.position)
     }
 
-    const seen = getSeenTiles(map.name, map.currentElevation)
+    const seen = getSeenTiles(mapName, elevation)
 
     // Hex grid is 200x200; fit it into the canvas with a small margin
     const HEX_RANGE = 200
     const margin = 24
     const drawW = width - margin * 2
     const drawH = height - margin * 2
-    const scale = Math.min(drawW / HEX_RANGE, drawH / HEX_RANGE)
-    const ox = margin
-    const oy = margin
+    const baseScale = Math.min(drawW / HEX_RANGE, drawH / HEX_RANGE)
+    const zoom = Math.max(1, opts.zoom ?? 1)
+    const scale = baseScale * zoom
+
+    // Center on player when zoomed in, otherwise fit the grid
+    let ox: number, oy: number
+    if (zoom > 1 && isCurrentMap && player) {
+        ox = width / 2 - player.position.x * scale
+        oy = height / 2 - player.position.y * scale
+        // Clamp so we don't reveal huge empty borders
+        const gridW = HEX_RANGE * scale
+        const gridH = HEX_RANGE * scale
+        ox = Math.min(margin, Math.max(width - margin - gridW, ox))
+        oy = Math.min(margin, Math.max(height - margin - gridH, oy))
+    } else {
+        ox = (width - HEX_RANGE * scale) / 2
+        oy = (height - HEX_RANGE * scale) / 2
+    }
+
+    // Clip the grid area so overdraw when zoomed doesn't leak into labels
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(margin - 2, margin - 2, width - margin * 2 + 4, height - margin * 2 + 4)
+    ctx.clip()
 
     // Draw seen tiles
     ctx.fillStyle = '#006600'
@@ -155,7 +258,8 @@ export function renderAutomapCanvas(width: number, height: number): HTMLCanvasEl
     // Overlay objects (walls, doors, scenery, items, critters) that lie on
     // already-seen tiles. Colored by type so the player can distinguish them.
     const objSize = Math.max(2, Math.ceil(scale * 1.6))
-    for (const obj of map.getObjects()) {
+    const objects = (isCurrentMap && map) ? map.getObjects() : []
+    for (const obj of objects) {
         if (!obj || !obj.position) continue
         const tileKey = `${obj.position.x},${obj.position.y}`
         if (!seen.has(tileKey)) continue
@@ -193,8 +297,8 @@ export function renderAutomapCanvas(width: number, height: number): HTMLCanvasEl
     ctx.lineWidth = 1
     ctx.strokeRect(ox - 2, oy - 2, HEX_RANGE * scale + 4, HEX_RANGE * scale + 4)
 
-    // Player marker (yellow cross)
-    if (player) {
+    // Player marker (yellow cross) — only when rendering the current map
+    if (isCurrentMap && player) {
         const px = ox + player.position.x * scale
         const py = oy + player.position.y * scale
         ctx.fillStyle = '#FFFF00'
@@ -202,10 +306,15 @@ export function renderAutomapCanvas(width: number, height: number): HTMLCanvasEl
         ctx.fillRect(px - 1, py - 3, 3, 7)
     }
 
+    ctx.restore()
+
     // Map label
     ctx.fillStyle = '#00FF00'
     ctx.font = 'bold 13px monospace'
-    ctx.fillText(`${map.name.toUpperCase()}  L${map.currentElevation + 1}`, 8, 16)
+    ctx.fillText(`${mapName.toUpperCase()}  L${elevation + 1}`, 8, 16)
+    if (zoom > 1) {
+        ctx.fillText(`${zoom.toFixed(1)}x`, width - 36, 16)
+    }
 
     // Tile count
     ctx.font = '11px monospace'

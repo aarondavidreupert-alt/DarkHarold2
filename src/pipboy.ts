@@ -17,15 +17,17 @@ limitations under the License.
 import globalState from './globalState.js'
 import { Scripting } from './scripting.js'
 import { UIMode } from './ui.js'
-import { renderAutomapCanvas } from './automapData.js'
+import { renderAutomapCanvas, getArchiveEntries, ArchiveEntry } from './automapData.js'
+import { getAutomapZoom, zoomIn, zoomOut } from './automap.js'
 
 type PipBoyTab = 'STATUS' | 'AUTOMAPS' | 'ARCHIVES' | 'CLOSE'
 
-// Screen content area within pip.png (640x480 base)
-const SCREEN_X = 256
-const SCREEN_Y = 12
-const SCREEN_W = 350
-const SCREEN_H = 430
+// Renderable area inside the PipBoy HUD screen — authoritative.
+// Do NOT override via CSS.
+const SCREEN_X = 44
+const SCREEN_Y = 38
+const SCREEN_W = 380
+const SCREEN_H = 360
 
 // Clickable tab dot positions (left of each label in pip.png)
 const TABS: { tab: PipBoyTab; x: number; y: number }[] = [
@@ -40,6 +42,10 @@ let currentTab: PipBoyTab = 'STATUS'
 const dotElements: Map<string, HTMLDivElement> = new Map()
 let alarmOn = false
 let waitMenuDiv: HTMLDivElement | null = null
+
+// Archive navigation state (2-level hierarchy: location → sub-location)
+let archiveSelectedLocation: string | null = null
+let archiveViewing: ArchiveEntry | null = null
 
 // numbers.png sprite: each digit is 9x17, laid out horizontally 0-9 then extra glyphs
 // Index 12 = colon character
@@ -222,7 +228,59 @@ function formatGameTime(ticks: number): string {
     return `${MONTH_NAMES[month]} ${day}, ${year} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 }
 
+// --- Shared primitives so every tab is built the same way ---
+
+// Base text style used throughout the PipBoy screen. All tabs use the same
+// transparent DOM approach (no dark canvas background), letting pip.png show
+// through.
+const TEXT_STYLE = 'color: #00FF00; font-family: monospace;'
+
+function makeHeader(title: string): HTMLDivElement {
+    const h = document.createElement('div')
+    h.style.cssText = TEXT_STYLE + 'font-size: 16px; padding: 2px 6px 4px 6px; border-bottom: 1px solid #00AA00; margin-bottom: 6px;'
+    h.textContent = title
+    return h
+}
+
+function makeRow(label: string, value: string, highlighted = false): HTMLDivElement {
+    const row = document.createElement('div')
+    row.style.cssText = TEXT_STYLE + 'font-size: 13px; line-height: 1.6; padding: 0 6px;'
+    const v = document.createElement('span')
+    v.style.color = highlighted ? '#FF4444' : '#FFFF00'
+    v.textContent = value
+    row.appendChild(document.createTextNode(label + ': '))
+    row.appendChild(v)
+    return row
+}
+
+function makeListItem(label: string, onClick: () => void): HTMLDivElement {
+    const el = document.createElement('div')
+    el.style.cssText = TEXT_STYLE + 'font-size: 13px; padding: 3px 8px; cursor: pointer; border-bottom: 1px solid #003300;'
+    el.textContent = label
+    el.onmouseenter = () => { el.style.backgroundColor = 'rgba(0,80,0,0.35)' }
+    el.onmouseleave = () => { el.style.backgroundColor = 'transparent' }
+    el.onclick = onClick
+    return el
+}
+
+function makeButton(label: string, onClick: () => void): HTMLDivElement {
+    const b = document.createElement('div')
+    b.textContent = label
+    b.style.cssText = TEXT_STYLE + `
+        font-size: 12px; padding: 2px 8px;
+        border: 1px solid #00AA00; background: rgba(0,20,0,0.6);
+        cursor: pointer; display: inline-block; margin-right: 4px;
+    `
+    b.onclick = onClick
+    return b
+}
+
+function clearScreen(screen: HTMLDivElement): void {
+    while (screen.firstChild) screen.removeChild(screen.firstChild)
+}
+
 function renderStatusTab(screen: HTMLDivElement): void {
+    clearScreen(screen)
     const player = globalState.player!
     const hp = player.getStat('HP')
     const maxHP = player.getStat('Max HP')
@@ -230,65 +288,172 @@ function renderStatusTab(screen: HTMLDivElement): void {
     const radiation = player.getStat('Radiation Level') || 0
     const gameTime = formatGameTime(globalState.gameTickTime)
 
-    screen.innerHTML = `
-        <div style="padding: 20px; color: #00FF00; font-family: monospace; font-size: 14px; line-height: 2;">
-            <div style="font-size: 18px; margin-bottom: 16px; border-bottom: 1px solid #00AA00; padding-bottom: 8px;">STATUS</div>
-            <div>Hit Points: <span style="color: #FFFF00;">${hp} / ${maxHP}</span></div>
-            <div>Poisoned: <span style="color: ${poison > 0 ? '#FF4444' : '#00FF00'};">${poison}</span></div>
-            <div>Radiated: <span style="color: ${radiation > 0 ? '#FF4444' : '#00FF00'};">${radiation}</span></div>
-            <div style="margin-top: 16px; border-top: 1px solid #00AA00; padding-top: 8px;">
-                Game Time: <span style="color: #FFFF00;">${gameTime}</span>
-            </div>
-        </div>
-    `
+    screen.appendChild(makeHeader('STATUS'))
+    screen.appendChild(makeRow('Hit Points', `${hp} / ${maxHP}`))
+    screen.appendChild(makeRow('Poisoned', String(poison), poison > 0))
+    screen.appendChild(makeRow('Radiated', String(radiation), radiation > 0))
+
+    const sep = document.createElement('div')
+    sep.style.cssText = 'border-top: 1px solid #00AA00; margin: 8px 6px 4px 6px;'
+    screen.appendChild(sep)
+    screen.appendChild(makeRow('Game Time', gameTime))
+
+    // Also show active quest variables here (was the old ARCHIVES tab contents)
+    const gvars = Scripting.getGlobalVars()
+    const active: string[] = []
+    for (const k in gvars) { if (gvars[k] !== 0) active.push(`GVAR ${k}: ${gvars[k]}`) }
+    if (active.length > 0) {
+        const sep2 = document.createElement('div')
+        sep2.style.cssText = 'border-top: 1px solid #00AA00; margin: 10px 6px 4px 6px;'
+        screen.appendChild(sep2)
+        const sub = document.createElement('div')
+        sub.style.cssText = TEXT_STYLE + 'font-size: 13px; padding: 2px 6px 4px 6px;'
+        sub.textContent = 'QUEST LOG'
+        screen.appendChild(sub)
+        const list = document.createElement('div')
+        list.style.cssText = TEXT_STYLE + 'font-size: 11px; padding: 0 8px; overflow-y: auto;'
+        list.style.maxHeight = `${SCREEN_H - 180}px`
+        for (const entry of active) {
+            const row = document.createElement('div')
+            row.textContent = entry
+            row.style.padding = '1px 0'
+            list.appendChild(row)
+        }
+        screen.appendChild(list)
+    }
+}
+
+// Helpers for the automap canvas embedded in a tab
+
+function automapCanvasSize(): { w: number; h: number } {
+    // Reserve space for the header + zoom bar
+    return { w: SCREEN_W - 4, h: SCREEN_H - 48 }
 }
 
 function renderAutomapsTab(screen: HTMLDivElement): void {
-    screen.innerHTML = ''
+    clearScreen(screen)
+    screen.appendChild(makeHeader('AUTOMAPS'))
 
-    const header = document.createElement('div')
-    header.style.cssText = 'padding: 8px 12px; color: #00FF00; font-family: monospace; font-size: 16px; border-bottom: 1px solid #00AA00;'
-    header.textContent = 'AUTOMAPS'
-    screen.appendChild(header)
+    // Zoom control bar
+    const bar = document.createElement('div')
+    bar.style.cssText = 'padding: 2px 6px 4px 6px; display: flex; align-items: center; gap: 4px;'
+    const zoomLabel = document.createElement('span')
+    zoomLabel.style.cssText = TEXT_STYLE + 'font-size: 11px; margin-right: 6px;'
+    zoomLabel.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x`
 
-    const canvasW = SCREEN_W - 20
-    const canvasH = SCREEN_H - 50
-    const canvas = renderAutomapCanvas(canvasW, canvasH)
-    canvas.style.cssText = `display: block; margin: 8px auto; image-rendering: pixelated;`
+    const refresh = () => renderAutomapsTab(screen)
+    bar.appendChild(makeButton('-', () => { zoomOut(); refresh() }))
+    bar.appendChild(makeButton('+', () => { zoomIn(); refresh() }))
+    bar.appendChild(zoomLabel)
+    screen.appendChild(bar)
+
+    const { w, h } = automapCanvasSize()
+    const canvas = renderAutomapCanvas(w, h, { zoom: getAutomapZoom() })
+    canvas.style.cssText = 'display: block; margin: 2px auto; image-rendering: pixelated;'
     screen.appendChild(canvas)
 }
 
-function renderArchivesTab(screen: HTMLDivElement): void {
-    const gvars = Scripting.getGlobalVars()
+// --- Archive tab: 2-level hierarchy (location → sub-location → rendered map)
 
-    screen.innerHTML = ''
-
-    const header = document.createElement('div')
-    header.style.cssText = 'padding: 10px; color: #00FF00; font-family: monospace; font-size: 18px; border-bottom: 1px solid #00AA00; margin-bottom: 8px;'
-    header.textContent = 'ARCHIVES'
-    screen.appendChild(header)
-
-    const list = document.createElement('div')
-    list.style.cssText = 'padding: 10px; color: #00FF00; font-family: monospace; font-size: 12px; overflow-y: auto; max-height: ' + (SCREEN_H - 60) + 'px;'
-
-    const keys = Object.keys(gvars)
-    if (keys.length === 0) {
-        list.textContent = 'No quest variables recorded.'
-    } else {
-        for (const key of keys) {
-            const val = gvars[key]
-            if (val !== 0) { // Only show non-zero (active) quest vars
-                const entry = document.createElement('div')
-                entry.style.cssText = 'margin-bottom: 4px; padding: 2px 0; border-bottom: 1px solid #003300;'
-                entry.textContent = `GVAR ${key}: ${val}`
-                list.appendChild(entry)
+function locationForMap(mapName: string): string {
+    const areas = globalState.mapAreas
+    if (areas) {
+        for (const id in areas) {
+            const area = areas[id]
+            for (const e of area.entrances) {
+                if (e.mapName === mapName) return area.name
             }
         }
-        if (list.children.length === 1) { // only the header
-            list.textContent = 'No active quest variables.'
-        }
+    }
+    return 'Unknown'
+}
+
+function renderArchivesTab(screen: HTMLDivElement): void {
+    clearScreen(screen)
+
+    // Level 3: rendered map view
+    if (archiveViewing) {
+        const header = makeHeader(`ARCHIVE — ${archiveViewing.mapName.toUpperCase()} L${archiveViewing.elevation + 1}`)
+        screen.appendChild(header)
+
+        const backBar = document.createElement('div')
+        backBar.style.cssText = 'padding: 2px 6px 4px 6px;'
+        backBar.appendChild(makeButton('< BACK', () => {
+            archiveViewing = null
+            renderArchivesTab(screen)
+        }))
+        screen.appendChild(backBar)
+
+        const img = document.createElement('img')
+        img.src = archiveViewing.dataURL
+        img.style.cssText = 'display: block; margin: 2px auto; image-rendering: pixelated; max-width: 100%;'
+        screen.appendChild(img)
+        return
     }
 
+    // Level 2: list of sub-locations (maps) in the selected area
+    if (archiveSelectedLocation) {
+        screen.appendChild(makeHeader(`ARCHIVE — ${archiveSelectedLocation.toUpperCase()}`))
+
+        const backBar = document.createElement('div')
+        backBar.style.cssText = 'padding: 2px 6px 4px 6px;'
+        backBar.appendChild(makeButton('< BACK', () => {
+            archiveSelectedLocation = null
+            renderArchivesTab(screen)
+        }))
+        screen.appendChild(backBar)
+
+        const list = document.createElement('div')
+        list.style.cssText = 'overflow-y: auto;'
+        list.style.maxHeight = `${SCREEN_H - 80}px`
+
+        const entries = getArchiveEntries().filter(e => locationForMap(e.mapName) === archiveSelectedLocation)
+        entries.sort((a, b) => a.mapName === b.mapName ? a.elevation - b.elevation : a.mapName.localeCompare(b.mapName))
+        if (entries.length === 0) {
+            const empty = document.createElement('div')
+            empty.style.cssText = TEXT_STYLE + 'font-size: 12px; padding: 6px 8px;'
+            empty.textContent = '(no saved maps)'
+            list.appendChild(empty)
+        } else {
+            for (const e of entries) {
+                list.appendChild(makeListItem(`${e.mapName}  L${e.elevation + 1}`, () => {
+                    archiveViewing = e
+                    renderArchivesTab(screen)
+                }))
+            }
+        }
+        screen.appendChild(list)
+        return
+    }
+
+    // Level 1: list of locations that have saved maps
+    screen.appendChild(makeHeader('ARCHIVES'))
+
+    const list = document.createElement('div')
+    list.style.cssText = 'overflow-y: auto;'
+    list.style.maxHeight = `${SCREEN_H - 50}px`
+
+    const entries = getArchiveEntries()
+    const locationMapCount: Map<string, number> = new Map()
+    for (const e of entries) {
+        const loc = locationForMap(e.mapName)
+        locationMapCount.set(loc, (locationMapCount.get(loc) || 0) + 1)
+    }
+    if (locationMapCount.size === 0) {
+        const empty = document.createElement('div')
+        empty.style.cssText = TEXT_STYLE + 'font-size: 12px; padding: 6px 8px;'
+        empty.textContent = '(no automap archives yet — explore the wastes)'
+        list.appendChild(empty)
+    } else {
+        const sorted = Array.from(locationMapCount.keys()).sort()
+        for (const loc of sorted) {
+            const count = locationMapCount.get(loc)!
+            list.appendChild(makeListItem(`${loc}  (${count})`, () => {
+                archiveSelectedLocation = loc
+                renderArchivesTab(screen)
+            }))
+        }
+    }
     screen.appendChild(list)
 }
 
@@ -349,8 +514,8 @@ export function openPipBoy(): void {
         position: absolute;
         left: ${SCREEN_X}px; top: ${SCREEN_Y}px;
         width: ${SCREEN_W}px; height: ${SCREEN_H}px;
-        overflow-y: auto; overflow-x: hidden;
-        background-color: rgba(0, 20, 0, 0.85);
+        overflow: hidden;
+        background: transparent;
     `
     pipBoyContainer.appendChild(screen)
 
@@ -372,6 +537,10 @@ export function openPipBoy(): void {
 
     const gameContainer = document.getElementById('game-container')!
     gameContainer.appendChild(pipBoyContainer)
+
+    // Reset archive navigation each time PipBoy opens
+    archiveSelectedLocation = null
+    archiveViewing = null
 
     renderDateTimeBar()
     renderTab('STATUS')

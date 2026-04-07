@@ -20,11 +20,26 @@ import { renderAutomapCanvas } from './automapData.js'
 
 let automapContainer: HTMLDivElement | null = null
 
-// Inset of the dark map area within automap.png (516x460 image)
-const MAP_INSET_X = 24
+// Inset of the dark map area within automap.png (516x460 image).
+// These dimensions are authoritative — do not override via CSS.
+const MAP_INSET_X = 44
 const MAP_INSET_Y = 38
-const MAP_INSET_W = 472
-const MAP_INSET_H = 376
+const MAP_INSET_W = 380
+const MAP_INSET_H = 360
+
+// Per-session zoom state (shared with PipBoy AUTOMAPS tab)
+let zoomLevel = 1
+const ZOOM_MIN = 1
+const ZOOM_MAX = 4
+const ZOOM_STEP = 0.5
+
+export function getAutomapZoom(): number { return zoomLevel }
+export function setAutomapZoom(z: number): void {
+    zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z))
+}
+export function zoomIn(): void { setAutomapZoom(zoomLevel + ZOOM_STEP) }
+export function zoomOut(): void { setAutomapZoom(zoomLevel - ZOOM_STEP) }
+export { ZOOM_MIN, ZOOM_MAX, ZOOM_STEP }
 
 export function openAutomap(): void {
     // Remove any stale container
@@ -61,9 +76,16 @@ export function openAutomap(): void {
         width: ${MAP_INSET_W}px; height: ${MAP_INSET_H}px;
         image-rendering: pixelated;
     `
-    let canvas = renderAutomapCanvas(MAP_INSET_W, MAP_INSET_H)
+    let canvas = renderAutomapCanvas(MAP_INSET_W, MAP_INSET_H, { zoom: zoomLevel })
     canvas.style.cssText = canvasStyle
     screen.appendChild(canvas)
+
+    const refresh = () => {
+        const newCanvas = renderAutomapCanvas(MAP_INSET_W, MAP_INSET_H, { zoom: zoomLevel })
+        newCanvas.style.cssText = canvasStyle
+        screen.replaceChild(newCanvas, canvas)
+        canvas = newCanvas
+    }
 
     // SCANNER dot button
     const scannerDot = document.createElement('div')
@@ -74,14 +96,27 @@ export function openAutomap(): void {
         background-image: url('art/intrface/lilredup.png');
         cursor: pointer;
     `
-    scannerDot.onclick = () => {
-        // Refresh the rendered canvas (re-marks current player position)
-        const newCanvas = renderAutomapCanvas(MAP_INSET_W, MAP_INSET_H)
-        newCanvas.style.cssText = canvasStyle
-        screen.replaceChild(newCanvas, canvas)
-        canvas = newCanvas
-    }
+    scannerDot.onclick = refresh
     screen.appendChild(scannerDot)
+
+    // Zoom controls (top-right of the inner screen)
+    const mkZoomBtn = (label: string, x: number, onClick: () => void) => {
+        const btn = document.createElement('div')
+        btn.textContent = label
+        btn.style.cssText = `
+            position: absolute;
+            left: ${x}px; top: ${MAP_INSET_Y - 22}px;
+            width: 22px; height: 18px;
+            color: #00FF00; font-family: monospace; font-size: 14px;
+            text-align: center; line-height: 18px;
+            border: 1px solid #00AA00; background: rgba(0,20,0,0.7);
+            cursor: pointer; user-select: none;
+        `
+        btn.onclick = onClick
+        return btn
+    }
+    screen.appendChild(mkZoomBtn('-', MAP_INSET_X + MAP_INSET_W - 50, () => { zoomOut(); refresh() }))
+    screen.appendChild(mkZoomBtn('+', MAP_INSET_X + MAP_INSET_W - 24, () => { zoomIn(); refresh() }))
 
     // CANCEL dot button
     const cancelDot = document.createElement('div')
