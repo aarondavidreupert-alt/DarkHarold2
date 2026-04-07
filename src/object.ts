@@ -1064,13 +1064,6 @@ export class Critter extends Obj {
     skipTurns = 0 // Number of combat turns to skip (set by knockdown/loseNextTurn effects)
     deathAnim?: string // Override death animation (set by critical 'death' effects, e.g. 'death-explode')
 
-    // Dead critters must never have their art or anim reset — they stay frozen on the
-    // last death frame.  Any code that calls clearAnim() on a dead critter is a no-op.
-    clearAnim(): void {
-        if (this.dead) return
-        super.clearAnim()
-    }
-
     static fromPID(pid: number, sid?: number): Critter {
         return Obj.fromPID_(new Critter(), pid, sid)
     }
@@ -1575,6 +1568,8 @@ export class Critter extends Obj {
     }
 
     clearAnim(): void {
+        // Dead critters stay frozen on their last death frame — never reset to idle.
+        if (this.dead) return
         super.clearAnim()
         this.path = null
 
