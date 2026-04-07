@@ -17,8 +17,8 @@ limitations under the License.
 import globalState from './globalState.js'
 import { Scripting } from './scripting.js'
 import { UIMode } from './ui.js'
-import { renderAutomapCanvas, getArchiveEntries } from './automapData.js'
-import { getAutomapZoom, zoomIn, zoomOut } from './automap.js'
+import { renderAutomapCanvas, drawAutomapInto, getArchivedMaps, getSeenTiles } from './automapData.js'
+import { getAutomapZoom, zoomIn, zoomOut, getAutomapPan, attachAutomapDragPan } from './automap.js'
 
 type PipBoyTab = 'STATUS' | 'AUTOMAPS' | 'ARCHIVES' | 'CLOSE'
 
@@ -60,7 +60,7 @@ let waitMenuDiv: HTMLDivElement | null = null
 // Automap tab navigation state (3 levels: Location → Map → Rendered canvas).
 // Persists across tab switches in a single PipBoy session.
 let automapSelectedLocation: string | null = null
-let automapViewing: { mapName: string; elevation: number; isCurrent: boolean; dataURL?: string } | null = null
+let automapViewing: { mapName: string; elevation: number; isCurrent: boolean } | null = null
 
 // numbers.png sprite: each digit is 9x17, laid out horizontally 0-9 then extra glyphs
 // Index 12 = colon character
@@ -349,25 +349,27 @@ interface AutomapMapEntry {
     mapName: string
     elevation: number
     isCurrent: boolean
-    dataURL?: string
 }
 
-// All known maps: archived entries + (if on a map) the currently-loaded one.
+// All known maps: every (mapName, elevation) for which we have seen-tile
+// data, plus the currently-loaded map (marked CURRENT). Driven by the
+// persistent seenData store, so the list shows EVERY visited location, not
+// just the current one.
 function collectAutomapEntries(): AutomapMapEntry[] {
     const out: AutomapMapEntry[] = []
     const seen = new Set<string>()
 
     const current = globalState.gMap
     if (current && current.name) {
-        const key = `${current.name}:${current.currentElevation}`
-        seen.add(key)
+        const k = `${current.name}:${current.currentElevation}`
+        seen.add(k)
         out.push({ mapName: current.name, elevation: current.currentElevation, isCurrent: true })
     }
-    for (const e of getArchiveEntries()) {
-        const key = `${e.mapName}:${e.elevation}`
-        if (seen.has(key)) continue
-        seen.add(key)
-        out.push({ mapName: e.mapName, elevation: e.elevation, isCurrent: false, dataURL: e.dataURL })
+    for (const e of getArchivedMaps()) {
+        const k = `${e.mapName}:${e.elevation}`
+        if (seen.has(k)) continue
+        seen.add(k)
+        out.push({ mapName: e.mapName, elevation: e.elevation, isCurrent: false })
     }
     return out
 }
@@ -389,7 +391,8 @@ function styleAutomapCanvas(canvas: HTMLCanvasElement): void {
 function renderAutomapsTab(screen: HTMLDivElement): void {
     clearScreen(screen)
 
-    // Level 3 — rendered map view (either current live or archived)
+    // Level 3 — rendered map view (current map render live; archived maps
+    // render from the saved seen-tile data via the same renderer)
     if (automapViewing) {
         const v = automapViewing
         const header = document.createElement('div')
@@ -409,40 +412,44 @@ function renderAutomapsTab(screen: HTMLDivElement): void {
         back.style.top = `${CONTENT_Y - 22}px`
         screen.appendChild(back)
 
-        if (v.isCurrent) {
-            // Live render with zoom controls
-            const canvas = renderAutomapCanvas(AUTOMAP_CANVAS_W, AUTOMAP_CANVAS_H, { zoom: getAutomapZoom() })
-            styleAutomapCanvas(canvas)
-            screen.appendChild(canvas)
-
-            // Zoom bar sits just below the canvas within the CRT area
-            const zoomBar = document.createElement('div')
-            zoomBar.style.cssText =
-                `position: absolute; ` +
-                `left: ${AUTOMAP_CANVAS_LEFT}px; ` +
-                `top: ${AUTOMAP_CANVAS_TOP + AUTOMAP_CANVAS_H + 2}px;` +
-                `display: flex; align-items: center; gap: 4px;`
-            const zl = document.createElement('span')
-            zl.style.cssText = TEXT_STYLE + 'font-size: 11px; margin-left: 6px;'
-            zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x`
-            zoomBar.appendChild(makeButton('-', () => { zoomOut(); renderAutomapsTab(screen) }))
-            zoomBar.appendChild(makeButton('+', () => { zoomIn(); renderAutomapsTab(screen) }))
-            zoomBar.appendChild(zl)
-            screen.appendChild(zoomBar)
-        } else if (v.dataURL) {
-            // Archived snapshot — render as <canvas> for style parity with live
-            const canvas = document.createElement('canvas')
-            styleAutomapCanvas(canvas)
-            const ctx = canvas.getContext('2d')!
-            ctx.clearRect(0, 0, AUTOMAP_CANVAS_W, AUTOMAP_CANVAS_H)
-            const img = new Image()
-            img.onload = () => {
-                ctx.clearRect(0, 0, AUTOMAP_CANVAS_W, AUTOMAP_CANVAS_H)
-                ctx.drawImage(img, 0, 0, AUTOMAP_CANVAS_W, AUTOMAP_CANVAS_H)
+        // Build render options. Archived maps pass forMap/forElevation so the
+        // renderer pulls their saved seen-tile set instead of the live map.
+        const renderOpts = () => {
+            const pan = getAutomapPan(v.mapName, v.elevation)
+            const opts: { zoom: number; panX: number; panY: number; forMap?: string; forElevation?: number } = {
+                zoom: getAutomapZoom(), panX: pan.x, panY: pan.y,
             }
-            img.src = v.dataURL
-            screen.appendChild(canvas)
+            if (!v.isCurrent) {
+                opts.forMap = v.mapName
+                opts.forElevation = v.elevation
+            }
+            return opts
         }
+
+        const canvas = renderAutomapCanvas(AUTOMAP_CANVAS_W, AUTOMAP_CANVAS_H, renderOpts())
+        styleAutomapCanvas(canvas)
+        screen.appendChild(canvas)
+
+        // In-place redraw on the same canvas element so drag listeners
+        // attached below stay alive across refreshes (zoom, drag, etc.)
+        const refresh = () => drawAutomapInto(canvas, renderOpts())
+
+        attachAutomapDragPan(canvas, () => ({ mapName: v.mapName, elevation: v.elevation }), refresh)
+
+        // Zoom bar sits just below the canvas within the CRT area
+        const zoomBar = document.createElement('div')
+        zoomBar.style.cssText =
+            `position: absolute; ` +
+            `left: ${AUTOMAP_CANVAS_LEFT}px; ` +
+            `top: ${AUTOMAP_CANVAS_TOP + AUTOMAP_CANVAS_H + 2}px;` +
+            `display: flex; align-items: center; gap: 4px;`
+        const zl = document.createElement('span')
+        zl.style.cssText = TEXT_STYLE + 'font-size: 11px; margin-left: 6px;'
+        zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x`
+        zoomBar.appendChild(makeButton('-', () => { zoomOut(); refresh(); zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x` }))
+        zoomBar.appendChild(makeButton('+', () => { zoomIn(); refresh(); zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x` }))
+        zoomBar.appendChild(zl)
+        screen.appendChild(zoomBar)
         return
     }
 
@@ -479,6 +486,11 @@ function renderAutomapsTab(screen: HTMLDivElement): void {
             for (const e of entries) {
                 const label = `${e.mapName}  L${e.elevation + 1}${e.isCurrent ? '  (CURRENT)' : ''}`
                 list.appendChild(makeListItem(label, () => {
+                    const tiles = getSeenTiles(e.mapName, e.elevation)
+                    console.log(
+                        `[automap] level-3 click: mapName=${e.mapName} elevation=${e.elevation} ` +
+                        `isCurrent=${e.isCurrent} seenTiles=${tiles.size}`
+                    )
                     automapViewing = e
                     renderAutomapsTab(screen)
                 }))
