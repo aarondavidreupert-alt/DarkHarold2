@@ -154,6 +154,14 @@ export class AI {
     }
 }
 
+// Returns true when the weapon can be fired (melee/unarmed always ok; ranged ok if rounds > 0)
+function aiHaveAmmo(weaponObj: Obj | null): boolean {
+    if (!weaponObj) return true // unarmed — always valid
+    const maxAmmo: number = (weaponObj as any)?.pro?.extra?.maxAmmo ?? 0
+    if (maxAmmo === 0) return true // melee/unarmed — no ammo needed
+    return ((weaponObj as any)?.pro?.extra?.rounds ?? 0) > 0
+}
+
 // A combat encounter
 export class Combat {
     combatants: Critter[]
@@ -411,9 +419,7 @@ export class Combat {
         var who = obj.isPlayer ? 'You' : obj.name
 
         // Early ammo guard — no animation, no AP loss for any attacker
-        const maxAmmo: number = (weaponObj as any)?.pro?.extra?.maxAmmo ?? 0
-        const rounds: number = (weaponObj as any)?.pro?.extra?.rounds ?? -1
-        if (maxAmmo > 0 && rounds === 0) {
+        if (!aiHaveAmmo(weaponObj)) {
             uiLog(`${who}: out of ammo!`)
             if (callback) callback()
             return
@@ -670,7 +676,7 @@ export class Combat {
         return false
     }
 
-    doAITurn(obj: Critter, idx: number, depth: number): void {
+    doAITurn(obj: Critter, idx: number, depth: number, weaponSwitchDone = false): void {
         if (depth > Config.combat.maxAIDepth) {
             console.warn(`Bailing out of ${depth}-deep AI turn recursion`)
             return this.nextTurn()
@@ -721,30 +727,31 @@ export class Combat {
         var weapon = weaponObj.weapon
         if (!weapon) throw Error('AI weapon has no weapon data')
 
-        // AI weapon switching: check if current weapon range is appropriate for distance
+        // AI weapon switching: check if current weapon range is appropriate for distance.
+        // Guard with weaponSwitchDone so we never oscillate between hands more than once per turn.
         var objAny = obj as any
         var fireDistance = weapon.getMaximumRange(1)
-        if (distance > fireDistance && weapon.type === 'melee') {
-            // Melee weapon but target is far — check for a ranged weapon in the other hand
+        if (!weaponSwitchDone && distance > fireDistance && weapon.type === 'melee') {
+            // Melee weapon but target is far — switch to ranged if it has ammo
             var otherHand: 'leftHand' | 'rightHand' = (objAny.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
             var otherWeapon = objAny[otherHand]
-            if (otherWeapon?.weapon && otherWeapon.weapon.type === 'gun') {
+            if (otherWeapon?.weapon && otherWeapon.weapon.type === 'gun' && aiHaveAmmo(otherWeapon)) {
                 var newHand = otherHand
                 obj.playWeaponSwapAnim(() => { objAny.activeHand = newHand }, () => {
                     obj.clearAnim()
-                    that.doAITurn(obj, idx, depth + 1)
+                    that.doAITurn(obj, idx, depth + 1, true)
                 })
                 return
             }
-        } else if (distance <= 1 && weapon.type === 'gun') {
-            // Ranged weapon but adjacent — check for a melee weapon in the other hand
+        } else if (!weaponSwitchDone && distance <= 1 && weapon.type === 'gun') {
+            // Ranged weapon but adjacent — switch to melee
             var otherHand2: 'leftHand' | 'rightHand' = (objAny.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
             var otherWeapon2 = objAny[otherHand2]
             if (otherWeapon2?.weapon && otherWeapon2.weapon.type === 'melee') {
                 var newHand2 = otherHand2
                 obj.playWeaponSwapAnim(() => { objAny.activeHand = newHand2 }, () => {
                     obj.clearAnim()
-                    that.doAITurn(obj, idx, depth + 1)
+                    that.doAITurn(obj, idx, depth + 1, true)
                 })
                 return
             }
@@ -812,41 +819,39 @@ export class Combat {
             // if we are in range, do we have enough AP to attack?
 
             // ── AI AMMO CHECK ────────────────────────────────────────────────────
-            const aiWeapAny = weaponObj as any
-            const aiMaxAmmo: number = aiWeapAny?.pro?.extra?.maxAmmo ?? 0
-            const aiRounds: number = aiWeapAny?.pro?.extra?.rounds ?? -1
-            if (weapon.type !== 'melee' && aiMaxAmmo > 0 && aiRounds === 0) {
+            if (!aiHaveAmmo(weaponObj)) {
+                const aiWeapAny = weaponObj as any
                 const aiAmmoPID: number | undefined = aiWeapAny?.pro?.extra?.ammoPID
+                const aiMaxAmmo: number = aiWeapAny?.pro?.extra?.maxAmmo ?? 0
                 const aiInv = (obj as any).inventory as any[] | undefined
                 const ammoItem = aiInv?.find((item: any) => item.pid === aiAmmoPID)
                 if (ammoItem) {
-                    // Reload from own inventory
-                    const needed = aiMaxAmmo
+                    // Reload from own inventory and continue turn
                     const available: number = ammoItem.amount ?? 1
-                    const toLoad = Math.min(needed, available)
+                    const toLoad = Math.min(aiMaxAmmo, available)
                     aiWeapAny.pro.extra.rounds = toLoad
                     ammoItem.amount = available - toLoad
                     if (ammoItem.amount <= 0) {
                         const ammoIdx2 = aiInv!.indexOf(ammoItem)
                         if (ammoIdx2 !== -1) aiInv!.splice(ammoIdx2, 1)
                     }
-                    console.log(`[AI] ${obj.name}: reloaded ${toLoad} rounds, continuing turn`)
-                    that.doAITurn(obj, idx, depth + 1)
+                    console.log(`[AI] ${obj.name}: reloaded ${toLoad} rounds`)
+                    that.doAITurn(obj, idx, depth + 1, weaponSwitchDone)
                     return
                 }
-                // No matching ammo — try the other hand
-                const objAnyAmmo = obj as any
-                const otherHandAmmo: 'leftHand' | 'rightHand' =
-                    (objAnyAmmo.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
-                const otherWeaponAmmo = objAnyAmmo[otherHandAmmo]
-                const otherMaxAmmo: number = (otherWeaponAmmo as any)?.pro?.extra?.maxAmmo ?? 0
-                const otherRounds: number = (otherWeaponAmmo as any)?.pro?.extra?.rounds ?? -1
-                if (otherWeaponAmmo?.weapon && (otherMaxAmmo === 0 || otherRounds > 0)) {
-                    obj.playWeaponSwapAnim(
-                        () => { objAnyAmmo.activeHand = otherHandAmmo },
-                        () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1) }
-                    )
-                    return
+                // No matching ammo — try the other hand (only once per turn)
+                if (!weaponSwitchDone) {
+                    const objAnyA = obj as any
+                    const otherHandA: 'leftHand' | 'rightHand' =
+                        (objAnyA.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
+                    const otherWeaponA = objAnyA[otherHandA]
+                    if (otherWeaponA?.weapon && aiHaveAmmo(otherWeaponA)) {
+                        obj.playWeaponSwapAnim(
+                            () => { objAnyA.activeHand = otherHandA },
+                            () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1, true) }
+                        )
+                        return
+                    }
                 }
                 console.log(`[AI] ${obj.name}: weapon empty, falling back to unarmed`)
                 return this.nextTurn()
