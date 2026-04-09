@@ -17,8 +17,8 @@ limitations under the License.
 import globalState from './globalState.js'
 import { Scripting } from './scripting.js'
 import { UIMode } from './ui.js'
-import { renderAutomapCanvas, drawAutomapInto, getArchivedMaps, getSeenTiles } from './automapData.js'
-import { getAutomapZoom, zoomIn, zoomOut, getAutomapPan, attachAutomapDragPan } from './automap.js'
+import { drawAutomapInto, getArchivedMaps, getSeenTiles } from './automapData.js'
+import { getAutomapZoom, zoomIn, zoomOut, getAutomapPan, attachAutomapDragPan, attachAutomapWheelZoom } from './automap.js'
 
 type PipBoyTab = 'STATUS' | 'AUTOMAPS' | 'ARCHIVES' | 'CLOSE'
 
@@ -374,10 +374,10 @@ function collectAutomapEntries(): AutomapMapEntry[] {
     return out
 }
 
-// Apply the exact canvas style/size requested — authoritative.
+// Apply the exact CSS placement requested — authoritative. Does NOT touch
+// canvas.width/height (setting those clears the bitmap, which would erase any
+// drawing that already happened).
 function styleAutomapCanvas(canvas: HTMLCanvasElement): void {
-    canvas.width = AUTOMAP_CANVAS_W
-    canvas.height = AUTOMAP_CANVAS_H
     canvas.style.cssText =
         `position: absolute; ` +
         `left: ${AUTOMAP_CANVAS_LEFT}px; ` +
@@ -386,6 +386,17 @@ function styleAutomapCanvas(canvas: HTMLCanvasElement): void {
         `height: ${AUTOMAP_CANVAS_H}px; ` +
         `overflow: hidden; ` +
         `background: transparent;`
+}
+
+// Create + size + style + draw an automap canvas in the correct order so the
+// pixels survive into the DOM (see styleAutomapCanvas comment).
+function createAutomapCanvas(opts: { zoom: number; panX: number; panY: number; forMap?: string; forElevation?: number }): HTMLCanvasElement {
+    const canvas = document.createElement('canvas')
+    canvas.width = AUTOMAP_CANVAS_W
+    canvas.height = AUTOMAP_CANVAS_H
+    styleAutomapCanvas(canvas)
+    drawAutomapInto(canvas, opts)
+    return canvas
 }
 
 function renderAutomapsTab(screen: HTMLDivElement): void {
@@ -426,8 +437,7 @@ function renderAutomapsTab(screen: HTMLDivElement): void {
             return opts
         }
 
-        const canvas = renderAutomapCanvas(AUTOMAP_CANVAS_W, AUTOMAP_CANVAS_H, renderOpts())
-        styleAutomapCanvas(canvas)
+        const canvas = createAutomapCanvas(renderOpts())
         screen.appendChild(canvas)
 
         // In-place redraw on the same canvas element so drag listeners
@@ -450,6 +460,10 @@ function renderAutomapsTab(screen: HTMLDivElement): void {
         zoomBar.appendChild(makeButton('+', () => { zoomIn(); refresh(); zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x` }))
         zoomBar.appendChild(zl)
         screen.appendChild(zoomBar)
+
+        // Mouse wheel zoom — scroll up = in, scroll down = out. Hooked after
+        // the zoom label exists so its text can update in sync.
+        attachAutomapWheelZoom(canvas, () => { refresh(); zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x` })
         return
     }
 
