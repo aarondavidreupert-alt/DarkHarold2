@@ -18,7 +18,7 @@ import globalState from './globalState.js'
 import { Scripting } from './scripting.js'
 import { UIMode } from './ui.js'
 import { drawAutomapInto, getArchivedMaps, getSeenTiles } from './automapData.js'
-import { getAutomapZoom, zoomIn, zoomOut, getAutomapPan, attachAutomapDragPan } from './automap.js'
+import { getAutomapZoom, zoomIn, zoomOut, getAutomapPan, attachAutomapDragPan, attachAutomapWheelZoom } from './automap.js'
 
 type PipBoyTab = 'STATUS' | 'AUTOMAPS' | 'ARCHIVES' | 'CLOSE'
 
@@ -460,6 +460,10 @@ function renderAutomapsTab(screen: HTMLDivElement): void {
         zoomBar.appendChild(makeButton('+', () => { zoomIn(); refresh(); zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x` }))
         zoomBar.appendChild(zl)
         screen.appendChild(zoomBar)
+
+        // Mouse wheel zoom — scroll up = in, scroll down = out. Hooked after
+        // the zoom label exists so its text can update in sync.
+        attachAutomapWheelZoom(canvas, () => { refresh(); zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x` })
         return
     }
 

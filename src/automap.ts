@@ -119,6 +119,26 @@ export function attachAutomapDragPan(
     document.addEventListener('mouseup', onMouseUp)
 }
 
+// Wire mouse wheel zoom on a canvas. Scroll up zooms in, scroll down zooms
+// out, using the same shared zoom state and limits as the +/- buttons. The
+// refresh callback redraws in-place on the same canvas element so the drag
+// listeners stay attached.
+export function attachAutomapWheelZoom(
+    canvas: HTMLCanvasElement,
+    onZoomed: () => void
+): void {
+    const onWheel = (e: WheelEvent) => {
+        if (!canvas.isConnected) return
+        e.preventDefault()
+        if (e.deltaY < 0) zoomIn()
+        else if (e.deltaY > 0) zoomOut()
+        else return
+        onZoomed()
+    }
+    // passive: false so preventDefault() actually blocks page scroll
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+}
+
 export function openAutomap(): void {
     // Remove any stale container
     const existing = document.getElementById('automapContainer')
@@ -173,6 +193,7 @@ export function openAutomap(): void {
         if (!map || !map.name) return null
         return { mapName: map.name, elevation: map.currentElevation }
     }, refresh)
+    attachAutomapWheelZoom(canvas, refresh)
 
     // SCANNER dot button
     const scannerDot = document.createElement('div')
