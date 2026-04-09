@@ -311,9 +311,12 @@ function uiInit() {
     initSkilldex()
     // initCharacterScreen();
 
-    document.getElementById('chrButton')!.onclick = () => {
-        characterWindow && characterWindow.close()
-        initCharacterScreen()
+    const chrBtn = document.getElementById('chrButton')
+    if (chrBtn) {
+        chrBtn.onclick = () => {
+            characterWindow && characterWindow.close()
+            initCharacterScreen()
+        }
     }
 }
 
