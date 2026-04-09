@@ -51,11 +51,11 @@ export module CriticalEffects {
         torso: 0,
         leftLeg: 20,
         rightLeg: 20,
-        groin: 30,
         leftArm: 30,
         rightArm: 30,
         head: 40,
-        eyes: 60,
+        eyes: 30,   // FO2 reference: -30 penalty (less than head; eyes are small but close)
+        groin: 60,  // FO2 reference: -60 penalty (hardest targeted shot)
     }
 
     let critterTable: Dict<CritType[]>[]

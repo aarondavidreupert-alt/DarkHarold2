@@ -78,6 +78,11 @@ export class ActionPoints {
     }
 
     subtractMoveAP(value: number): boolean {
+        // Crippled legs increase the AP cost of movement (FO2 reference: 4× one leg, 8× both legs)
+        const critter = this.attachedCritter
+        if (critter.crippledLeftLeg && critter.crippledRightLeg) value *= 8
+        else if (critter.crippledLeftLeg || critter.crippledRightLeg) value *= 4
+
         if (this.getAvailableMoveAP() < value) return false
 
         this.move -= value
@@ -280,10 +285,8 @@ export class Combat {
         // Sharpshooter perk: each rank reduces the effective distance by 2 hexes
         if (obj.hasPerk('Sharpshooter')) distance -= 2
 
-        // then we multiply a magic number on top. More if there is eye damage involved by the attacker
-        // this means for each field distance after PER modification we lose 4 points of hitchance
-        // 12 if we have eyedamage
-        var objHasEyeDamage = false
+        // then we multiply a magic number on top. More if the attacker is blinded (FO2: 12× vs 4×)
+        var objHasEyeDamage = obj.isBlinded
         if (distance >= 0 && objHasEyeDamage) distance *= 12
         else distance *= 4
 
@@ -318,13 +321,12 @@ export class Combat {
         var bonusCrit = 0 // TODO: perk bonuses, other crit influencing things
         var baseCrit = obj.getStat('Critical Chance') + bonusCrit
 
-        // Crippled-limb penalties for the attacker
-        // Each crippled arm: -20 to hit (FO2: -40, halved for single-arm; we apply -20 per arm)
+        // Crippled-limb penalties for the attacker (FO2: -40 per arm, halved here per arm for simplicity)
         var crippledArmPenalty = 0
         if (obj.crippledLeftArm) crippledArmPenalty += 20
         if (obj.crippledRightArm) crippledArmPenalty += 20
 
-        // Blinded attacker: -25 to hit (perception effectively becomes 1, severe accuracy penalty)
+        // Blinded attacker: additional -25 flat penalty on top of the 12× distance modifier wired above
         var blindPenalty = obj.isBlinded ? 25 : 0
 
         var hitChance = weaponSkill - AC - CriticalEffects.regionHitChanceDecTable[region] - hitDistanceModifier - partialCoverPenalty - crippledArmPenalty - blindPenalty
@@ -400,10 +402,10 @@ export class Combat {
         var ADR = target.getStat('DR ' + damageType) + target.getArmorDR(damageType) // damage resistance (base + armor)
         var ADT = target.getStat('DT ' + damageType) + target.getArmorDT(damageType) // damage threshold (base + armor)
 
-        // Bypass Armor critical effect: zero out DR and DT for this hit, then consume the flag
+        // Bypass Armor critical effect: reduce DR/DT to 20% for this hit (FO2 reference), then consume the flag
         if (target.bypassArmorNextHit) {
-            ADR = 0
-            ADT = 0
+            ADR = Math.floor(ADR * 0.2)
+            ADT = Math.floor(ADT * 0.2)
             target.bypassArmorNextHit = false
         }
 
