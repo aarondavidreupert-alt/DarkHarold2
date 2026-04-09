@@ -317,7 +317,17 @@ export class Combat {
         var partialCoverPenalty = this.accountForPartialCover(obj, target)
         var bonusCrit = 0 // TODO: perk bonuses, other crit influencing things
         var baseCrit = obj.getStat('Critical Chance') + bonusCrit
-        var hitChance = weaponSkill - AC - CriticalEffects.regionHitChanceDecTable[region] - hitDistanceModifier - partialCoverPenalty
+
+        // Crippled-limb penalties for the attacker
+        // Each crippled arm: -20 to hit (FO2: -40, halved for single-arm; we apply -20 per arm)
+        var crippledArmPenalty = 0
+        if (obj.crippledLeftArm) crippledArmPenalty += 20
+        if (obj.crippledRightArm) crippledArmPenalty += 20
+
+        // Blinded attacker: -25 to hit (perception effectively becomes 1, severe accuracy penalty)
+        var blindPenalty = obj.isBlinded ? 25 : 0
+
+        var hitChance = weaponSkill - AC - CriticalEffects.regionHitChanceDecTable[region] - hitDistanceModifier - partialCoverPenalty - crippledArmPenalty - blindPenalty
         var critChance = baseCrit + CriticalEffects.regionHitChanceDecTable[region]
 
         if (isNaN(hitChance)) throw 'something went wrong with hit chance calculation'
@@ -389,6 +399,14 @@ export class Combat {
         var CM = critModifer // critical hit damage multiplier
         var ADR = target.getStat('DR ' + damageType) + target.getArmorDR(damageType) // damage resistance (base + armor)
         var ADT = target.getStat('DT ' + damageType) + target.getArmorDT(damageType) // damage threshold (base + armor)
+
+        // Bypass Armor critical effect: zero out DR and DT for this hit, then consume the flag
+        if (target.bypassArmorNextHit) {
+            ADR = 0
+            ADT = 0
+            target.bypassArmorNextHit = false
+        }
+
         var ammoStats = this.getAmmoStats(weapon)
         var X = ammoStats.X // ammo damage multiplier (from ammo PRO damMult)
         var Y = ammoStats.Y // ammo damage divisor (from ammo PRO damDiv)
@@ -421,6 +439,13 @@ export class Combat {
         // Early ammo guard — no animation, no AP loss for any attacker
         if (!aiHaveAmmo(weaponObj)) {
             uiLog(`${who}: out of ammo!`)
+            if (callback) callback()
+            return
+        }
+
+        // Both arms crippled: can't attack at all
+        if (obj.crippledLeftArm && obj.crippledRightArm) {
+            uiLog(`${who} can't attack — both arms are crippled!`)
             if (callback) callback()
             return
         }
@@ -1002,6 +1027,15 @@ export class Combat {
             this.inPlayerTurn = false
             var critter = this.combatants[this.whoseTurn]
             if (critter.dead === true || critter.hostile !== true) return this.nextTurn()
+
+            // Fire DoT: apply at the start of each critter's turn
+            if (critter.onFireTurns > 0) {
+                critter.onFireTurns--
+                const fireDmg = getRandomInt(3, 6)
+                uiLog(`${critter.name} burns for ${fireDmg} fire damage (${critter.onFireTurns} turns left)`)
+                critterDamage(critter, fireDmg, critter, false, false, 'Fire')
+                if (critter.dead) return this.nextTurn() // fire killed them; skip to next
+            }
 
             // Knockdown / loseNextTurn: skip this critter's turn and count down
             if (critter.skipTurns > 0) {

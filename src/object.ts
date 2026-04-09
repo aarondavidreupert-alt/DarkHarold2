@@ -1065,6 +1065,17 @@ export class Critter extends Obj {
     isKnockedDown = false // Set by knockdown/knockout crit effects; consumed by critterDamage() to play the animation
     deathAnim?: string // Override death animation (set by critical 'death' effects, e.g. 'death-explode')
 
+    // Crippled-limb flags (set by critical effects; persist for the fight)
+    crippledLeftArm = false
+    crippledRightArm = false
+    crippledLeftLeg = false
+    crippledRightLeg = false
+    isBlinded = false        // Blinded: heavy hit-chance penalty, Perception effectively 1
+
+    // Combat status effect counters / flags
+    onFireTurns = 0          // Turns of fire DoT remaining; decremented in nextTurn
+    bypassArmorNextHit = false // Set by bypassArmor crit effect; zeroes DR/DT for the hit that triggered it
+
     static fromPID(pid: number, sid?: number): Critter {
         return Obj.fromPID_(new Critter(), pid, sid)
     }
