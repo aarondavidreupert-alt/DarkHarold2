@@ -88,23 +88,15 @@ export module CriticalEffects {
 
     const critterEffects: Dict<(target: Critter) => void> = {
         knockout: function (target: Critter) {
-            // Play knockdown animation; critter stays down for 2 extra turns
+            // Skip 2 turns; critterDamage() reads isKnockedDown and plays the animation
             target.skipTurns = Math.max(target.skipTurns, 2)
-            if (target.hasAnimation('knockdownFront')) {
-                target.staticAnimation('knockdownFront', () => {
-                    // Stay on ground — getUpFront will play when skipTurns expires (see Combat.nextTurn)
-                })
-            }
+            target.isKnockedDown = true
         },
 
         knockdown: function (target: Critter) {
-            // Play knockdown then get-up animation; critter loses 1 turn
+            // Skip 1 turn; critterDamage() reads isKnockedDown and plays the animation
             target.skipTurns = Math.max(target.skipTurns, 1)
-            if (target.hasAnimation('knockdownFront')) {
-                target.staticAnimation('knockdownFront', () => {
-                    // Stay on ground until turn is restored; getUpFront plays in nextTurn
-                })
-            }
+            target.isKnockedDown = true
         },
 
         crippledLeftLeg: function (target: Critter) {

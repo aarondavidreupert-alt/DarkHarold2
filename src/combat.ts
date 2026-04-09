@@ -1006,9 +1006,11 @@ export class Combat {
             // Knockdown / loseNextTurn: skip this critter's turn and count down
             if (critter.skipTurns > 0) {
                 critter.skipTurns--
-                // If the critter is getting up this turn, play the recovery anim
-                if (critter.skipTurns === 0 && critter.hasAnimation('getUpFront')) {
-                    critter.staticAnimation('getUpFront', () => critter.clearAnim())
+                if (critter.skipTurns === 0) {
+                    critter.isKnockedDown = false // clear flag now that they're getting up
+                    if (critter.hasAnimation('getUpFront')) {
+                        critter.staticAnimation('getUpFront', () => critter.clearAnim())
+                    }
                 }
                 return this.nextTurn()
             }

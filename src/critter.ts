@@ -414,19 +414,28 @@ export function critterDamage(
         // TODO: Call damage_p_proc
     }
 
-    // Play a hit reaction if the critter isn't already mid-animation (race-condition guard).
-    // Picks dodge (30% chance), hitFront, or hitBack depending on availability.
+    // Play a hit reaction if the critter isn't already mid-animation.
+    // If a knockdown/knockout crit was applied this hit, play knockdownFront and stay down;
+    // otherwise pick the normal hit reaction (dodge/hitFront/hitBack).
     if (useAnim && !obj.inAnim()) {
-        const hitAnim =
-            (obj.hasAnimation('dodge') && Math.random() < 0.3) ? 'dodge' :
-            obj.hasAnimation('hitFront') ? 'hitFront' :
-            obj.hasAnimation('hitBack') ? 'hitBack' : null
-
-        if (hitAnim !== null) {
-            obj.staticAnimation(hitAnim, () => {
-                obj.clearAnim()
-                if (callback) callback()
+        if (obj.isKnockedDown && obj.hasAnimation('knockdownFront')) {
+            obj.isKnockedDown = false
+            obj.staticAnimation('knockdownFront', () => {
+                // Stay on last frame — Combat.nextTurn() plays getUpFront when skipTurns reaches 0
             })
+        } else {
+            obj.isKnockedDown = false // consume flag even if no knockdown animation available
+            const hitAnim =
+                (obj.hasAnimation('dodge') && Math.random() < 0.3) ? 'dodge' :
+                obj.hasAnimation('hitFront') ? 'hitFront' :
+                obj.hasAnimation('hitBack') ? 'hitBack' : null
+
+            if (hitAnim !== null) {
+                obj.staticAnimation(hitAnim, () => {
+                    obj.clearAnim()
+                    if (callback) callback()
+                })
+            }
         }
     }
 }

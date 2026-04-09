@@ -1062,6 +1062,7 @@ export class Critter extends Obj {
     perks: string[] = [] // List of acquired perks
     nextIdleAnimTime = 0 // performance.now() after which the next idle cycle begins; 0 = uninitialised
     skipTurns = 0 // Number of combat turns to skip (set by knockdown/loseNextTurn effects)
+    isKnockedDown = false // Set by knockdown/knockout crit effects; consumed by critterDamage() to play the animation
     deathAnim?: string // Override death animation (set by critical 'death' effects, e.g. 'death-explode')
 
     static fromPID(pid: number, sid?: number): Critter {
