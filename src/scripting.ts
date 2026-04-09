@@ -1525,35 +1525,12 @@ export module Scripting {
     }
 
     export function talk(script: Script, obj: Obj): boolean {
-        // Night-time sleep gate: non-hostile, non-party critters are
-        // "asleep" between 22:00 and 06:00 and won't engage in dialogue.
-        // Hostile critters (who would attack) and party members (who
-        // travel with the player) are exempt.
-        if (obj.type === 'critter' && GameTime.isNightTime()) {
-            const critter = obj as Critter
-            const inParty = globalState.gParty.isPartyMember(critter)
-            if (!critter.hostile && !inParty) {
-                floatMessageTo(obj, 'Zzzz...')
-                return false
-            }
-        }
         script.self_obj = obj as ScriptableObj
         script.game_time = Math.max(1, globalState.gameTickTime)
         script.cur_map_index = currentMapID
         script._didOverride = false
         script.talk_p_proc()
         return script._didOverride
-    }
-
-    // Push a transient floating message above an object. Used by the NPC
-    // sleep / shop-closed gates so the player gets visual feedback.
-    function floatMessageTo(obj: Obj, msg: string): void {
-        globalState.floatMessages.push({
-            msg,
-            obj,
-            startTime: window.performance.now(),
-            color: 'white',
-        })
     }
 
     export function updateCritter(script: Script, obj: Critter): boolean {
