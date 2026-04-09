@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import globalState from './globalState.js'
+import * as GameTime from './gametime.js'
 import { Scripting } from './scripting.js'
 import { UIMode } from './ui.js'
 import { drawAutomapInto, getArchivedMaps, getSeenTiles } from './automapData.js'
@@ -80,25 +81,11 @@ function makeDigit(digit: number, left: number, top: number): HTMLDivElement {
     return el
 }
 
-function getGameDate(ticks: number): { day: number; month: number; year: number; hours: number; minutes: number } {
-    const totalMinutes = Math.floor(ticks / 600)
-    const hours = Math.floor(totalMinutes / 60) % 24
-    const minutes = totalMinutes % 60
-    const totalDays = Math.floor(ticks / 864000)
-    const daysInMonths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    // Start: Day 25, Month 7 (August, 0-indexed=7), Year 2241
-    let year = 2241
-    let month = 7 // August (0-indexed)
-    let day = 25 + totalDays
-    while (day > daysInMonths[month]) {
-        day -= daysInMonths[month]
-        month++
-        if (month >= 12) {
-            month = 0
-            year++
-        }
-    }
-    return { day, month, year, hours, minutes }
+// Thin wrapper so the existing PipBoy rendering code can still destructure
+// a `{day, month, year, hours, minutes}` object. The actual math lives in
+// src/gametime.ts.
+function getGameDate(_ticks: number): { day: number; month: number; year: number; hours: number; minutes: number } {
+    return GameTime.getDate()
 }
 
 function renderDateTimeBar(): void {
@@ -231,16 +218,11 @@ function toggleWaitMenu(): void {
 }
 
 function advanceTime(minutes: number): void {
-    // 1 minute = 600 ticks (1 tick = 0.1 seconds, 600 ticks = 60 seconds)
-    globalState.gameTickTime += minutes * 600
+    GameTime.advanceMinutes(minutes)
 }
 
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-function formatGameTime(ticks: number): string {
-    const { day, month, year, hours, minutes } = getGameDate(ticks)
-    return `${MONTH_NAMES[month]} ${day}, ${year} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+function formatGameTime(_ticks: number): string {
+    return `${GameTime.getDateString()}  ${GameTime.getTimeString()}`
 }
 
 // --- Shared primitives so every tab is built the same way ---
@@ -317,7 +299,6 @@ function renderStatusTab(screen: HTMLDivElement): void {
     const maxHP = player.getStat('Max HP')
     const poison = player.getStat('Poison Level') || 0
     const radiation = player.getStat('Radiation Level') || 0
-    const gameTime = formatGameTime(globalState.gameTickTime)
 
     content.appendChild(makeHeader('STATUS'))
     content.appendChild(makeRow('Hit Points', `${hp} / ${maxHP}`))
@@ -327,7 +308,11 @@ function renderStatusTab(screen: HTMLDivElement): void {
     const sep = document.createElement('div')
     sep.style.cssText = 'border-top: 1px solid #00AA00; margin: 8px 6px 4px 6px;'
     content.appendChild(sep)
-    content.appendChild(makeRow('Game Time', gameTime))
+    // Fallout-2-style clock: DAY N, HH:MM AM/PM, Mon DD, YYYY.
+    content.appendChild(makeRow('Day', `${GameTime.getDay()}  ${GameTime.getTimeString()}`))
+    content.appendChild(makeRow('Date', GameTime.getDateString()))
+    const nightLabel = GameTime.isNightTime() ? 'NIGHT' : 'DAY'
+    content.appendChild(makeRow('Cycle', nightLabel))
 }
 
 // --- AUTOMAPS tab: 3-level hierarchy (location → map → rendered canvas)

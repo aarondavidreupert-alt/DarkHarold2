@@ -1,6 +1,7 @@
 import { heart } from './heart.js'
 import { hexFromScreen } from './geometry.js'
 import globalState from './globalState.js'
+import * as GameTime from './gametime.js'
 import { Lighting } from './lighting.js'
 import { Lightmap } from './lightmap.js'
 import { Obj } from './object.js'
@@ -402,7 +403,7 @@ export class WebGLRenderer extends Renderer {
         // use floor light shader
         gl.useProgram(this.floorLightShader)
         gl.uniform1i(this.uUseGPULighting, 0)
-        gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
+        gl.uniform1f(this.uAmbient, GameTime.getAmbientLightNormalized())
 
         // bind buffers
         gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
@@ -619,7 +620,7 @@ export class WebGLRenderer extends Renderer {
 
         // Set uniforms for fullscreen quad composite
         gl.uniform1i(this.uUseGPULighting, 1)
-        gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
+        gl.uniform1f(this.uAmbient, GameTime.getAmbientLightNormalized())
         gl.uniform2f(this.litScaleLocation, SCREEN_WIDTH, SCREEN_HEIGHT)
         gl.uniform2f(this.uCamera, globalState.cameraPosition.x, globalState.cameraPosition.y)
         gl.uniform2f(this.litOffsetLocation, 0, 0)

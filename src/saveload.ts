@@ -32,6 +32,10 @@ export interface SaveGame {
     currentMap: string
     currentElevation: number
 
+    // In-game tick counter (Fallout 2 ticks, 10 per second). Missing on
+    // older saves, so the loader tolerates `undefined`.
+    gameTickTime?: number
+
     player: { position: Point; orientation: number; inventory: SerializedObj[] }
     party: SerializedObj[]
     savedMaps: { [mapName: string]: SerializedMap }
@@ -48,6 +52,7 @@ function gatherSaveData(name: string): SaveGame {
         timestamp: Date.now(),
         currentElevation: globalState.currentElevation,
         currentMap: curMap.name,
+        gameTickTime: globalState.gameTickTime,
         player: {
             position: globalState.player.position,
             orientation: globalState.player.orientation,
@@ -144,6 +149,11 @@ export function load(id: number): void {
 
             globalState.gMap.deserialize(savedMap)
             console.log('[SaveLoad] Finished map deserialization')
+
+            // Restore game clock (older saves omit this field).
+            if (typeof save.gameTickTime === 'number') {
+                globalState.gameTickTime = save.gameTickTime
+            }
 
             // TODO: Properly (de)serialize the player!
             globalState.player.position = save.player.position
