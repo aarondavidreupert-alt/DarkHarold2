@@ -1090,8 +1090,6 @@ export function uiDrawWeapon() {
         type = 'punch'
     } else if (mode === 'reload') {
         type = 'reload'
-    } else if (mode === 'called') {
-        type = 'bullseye'
     } else if (weapon.weapon.isBurst && weapon.weapon.isBurst()) {
         type = 'burst'
     } else {
