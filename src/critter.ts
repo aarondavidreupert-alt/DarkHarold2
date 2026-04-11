@@ -109,6 +109,41 @@ function parseAttack(weapon: WeaponObj): { first: AttackInfo; second: AttackInfo
     return { first: attackOne, second: attackTwo }
 }
 
+/** One unarmed combat move (Fallout 2 unarmed progression). */
+export interface UnarmedMove {
+    name: string
+    levelReq: number   // minimum character level
+    skillReq: number   // minimum Unarmed skill
+    minDmg: number
+    maxDmg: number
+    apCost: number
+    critBonus: number
+    penetrate: boolean // reduces target DR/DT to 20%
+}
+
+/** 14 unarmed moves from Fallout 2, ordered by unlock requirements (FO2 reference: unarmedFindBestAttack). */
+export const UNARMED_MOVES: UnarmedMove[] = [
+    { name: 'punch',          levelReq: 1,  skillReq: 55, minDmg: 1, maxDmg: 2,  apCost: 3, critBonus: 0,  penetrate: false },
+    { name: 'kick',           levelReq: 1,  skillReq: 40, minDmg: 1, maxDmg: 2,  apCost: 3, critBonus: 0,  penetrate: false },
+    { name: 'strong punch',   levelReq: 6,  skillReq: 55, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 0,  penetrate: false },
+    { name: 'haymaker',       levelReq: 6,  skillReq: 60, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 5,  penetrate: false },
+    { name: 'jab',            levelReq: 6,  skillReq: 60, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 10, penetrate: false },
+    { name: 'hammer punch',   levelReq: 9,  skillReq: 60, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 5,  penetrate: false },
+    { name: 'groin kick',     levelReq: 9,  skillReq: 50, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 10, penetrate: false },
+    { name: 'palm strike',    levelReq: 12, skillReq: 70, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 20, penetrate: false },
+    { name: 'lightning punch',levelReq: 12, skillReq: 75, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 30, penetrate: false },
+    { name: 'powerkick',      levelReq: 12, skillReq: 60, minDmg: 5, maxDmg: 10, apCost: 4, critBonus: 5,  penetrate: false },
+    { name: 'piercing strike',levelReq: 16, skillReq: 75, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 15, penetrate: true  },
+    { name: 'hip kick',       levelReq: 16, skillReq: 60, minDmg: 5, maxDmg: 10, apCost: 4, critBonus: 10, penetrate: false },
+    { name: 'hook kick',      levelReq: 18, skillReq: 75, minDmg: 5, maxDmg: 10, apCost: 5, critBonus: 10, penetrate: false },
+    { name: 'piercing kick',  levelReq: 20, skillReq: 80, minDmg: 5, maxDmg: 10, apCost: 5, critBonus: 15, penetrate: true  },
+]
+
+/** Returns the subset of unarmed moves available at the given Unarmed skill and character level. */
+export function getAvailableUnarmedMoves(unarmedSkill: number, charLevel: number): UnarmedMove[] {
+    return UNARMED_MOVES.filter(m => unarmedSkill >= m.skillReq && charLevel >= m.levelReq)
+}
+
 // TODO: improve handling of melee
 export class Weapon {
     weapon: any // TODO: any (because of melee)
@@ -119,6 +154,7 @@ export class Weapon {
     minDmg: number
     maxDmg: number
     weaponSkillType: string
+    unarmedMove: UnarmedMove | null = null // currently selected unarmed move (null for non-unarmed)
 
     attackOne!: { mode: number; APCost: number; maxRange: number }
     attackTwo!: { mode: number; APCost: number; maxRange: number }
@@ -129,9 +165,7 @@ export class Weapon {
         this.modes = ['single', 'called']
 
         if (weapon === null) {
-            // default punch
-            // todo: use character stats...
-            // todo: fully turn this into a real weapon
+            // default punch — call initUnarmedMoves(skill, level) after construction to unlock progression
             this.type = 'melee'
             this.minDmg = 1
             this.maxDmg = 2
@@ -141,8 +175,8 @@ export class Weapon {
             this.weapon.pro = { extra: {} }
             this.weapon.pro.extra.maxRange1 = 1
             this.weapon.pro.extra.maxRange2 = 1
-            this.weapon.pro.extra.APCost1 = 4
-            this.weapon.pro.extra.APCost2 = 4
+            this.weapon.pro.extra.APCost1 = 3 // base punch AP cost
+            this.weapon.pro.extra.APCost2 = 3
         } else {
             // todo: spears, etc
             this.type = 'gun'
@@ -182,6 +216,43 @@ export class Weapon {
 
         const idx = effectiveModes.indexOf(this.mode)
         this.mode = effectiveModes[(idx + 1) % effectiveModes.length]
+
+        // For unarmed: update stats from the newly selected move (skip 'called' targeting mode)
+        if (this.weaponSkillType === 'Unarmed' && this.mode !== 'called') {
+            const move = UNARMED_MOVES.find(m => m.name === this.mode)
+            if (move) {
+                this.unarmedMove = move
+                this.name = move.name
+                this.minDmg = move.minDmg
+                this.maxDmg = move.maxDmg
+                this.weapon.pro.extra.APCost1 = move.apCost
+            }
+        }
+    }
+
+    /**
+     * Initialise unarmed move progression from critter stats.
+     * Call this after constructing Weapon(null) when you have the critter's skills/level.
+     * Filters UNARMED_MOVES by skillReq/levelReq, sets modes to available move names,
+     * and updates damage/AP to the first (weakest) available move.
+     */
+    initUnarmedMoves(unarmedSkill: number, charLevel: number): void {
+        const available = getAvailableUnarmedMoves(unarmedSkill, charLevel)
+        if (available.length === 0) return // nothing unlocked yet; keep base punch defaults
+        // Modes: move names + 'called' for targeted attacks
+        this.modes = [...available.map(m => m.name), 'called']
+        this.unarmedMove = available[0]
+        this.mode = available[0].name
+        this.name = available[0].name
+        this.minDmg = available[0].minDmg
+        this.maxDmg = available[0].maxDmg
+        this.weapon.pro.extra.APCost1 = available[0].apCost
+        this.weapon.pro.extra.APCost2 = available[0].apCost
+    }
+
+    /** True if the currently selected unarmed move penetrates armor (DR/DT reduced to 20%). */
+    isPenetrating(): boolean {
+        return this.unarmedMove?.penetrate ?? false
     }
 
     isCalled(): boolean {

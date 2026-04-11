@@ -154,6 +154,29 @@ export class AI {
     }
 }
 
+/**
+ * Map a Weapon to the correct criticalFailTable key.
+ * Rules (FO2 reference: item_w_compute_crit_fail_critter_to_weapon_type):
+ *   unarmed → 'unarmed'
+ *   melee   → 'melee'
+ *   energy (Laser/Plasma/Electrical/EMP) → 'energy'
+ *   flame   (Fire damage type) → 'flamers'
+ *   explosive (Explosive damage type) → 'grenades'
+ *   big-gun animCode 10 (Rocket Launcher) → 'rocketlauncher'
+ *   everything else → 'firearms'
+ */
+function getCritFailTableType(weapon: any): string {
+    if (!weapon || weapon.weaponSkillType === 'Unarmed') return 'unarmed'
+    if (weapon.type === 'melee') return 'melee'
+    const dmgType: string = weapon.getDamageType?.() ?? 'Normal'
+    if (dmgType === 'Explosive') return 'grenades'
+    if (dmgType === 'Fire') return 'flamers'
+    if (['Laser', 'Plasma', 'Electrical', 'EMP'].includes(dmgType)) return 'energy'
+    const animCode: number | undefined = weapon.weapon?.pro?.extra?.animCode
+    if (animCode === 10) return 'rocketlauncher'
+    return 'firearms'
+}
+
 // Returns true when the weapon can be fired (melee/unarmed always ok; ranged ok if rounds > 0)
 function aiHaveAmmo(weaponObj: Obj | null): boolean {
     if (!weaponObj) return true // unarmed — always valid
@@ -188,6 +211,17 @@ export class Combat {
 
             return false
         }) as Critter[]
+
+        // Sort combatants by Sequence stat descending (FO2: _combat_sequence).
+        // Sequence = 10 + 2*PER.  Ties: player goes first, then by original array order.
+        this.combatants.sort((a, b) => {
+            const seqA = 10 + 2 * a.getStat('PER')
+            const seqB = 10 + 2 * b.getStat('PER')
+            if (seqA !== seqB) return seqB - seqA
+            if (a.isPlayer) return -1
+            if (b.isPlayer) return 1
+            return 0
+        })
 
         this.playerIdx = this.combatants.findIndex((x) => x.isPlayer)
         if (this.playerIdx === -1) throw "combat: couldn't find player?"
@@ -402,6 +436,10 @@ export class Combat {
             ADR = Math.floor(ADR * 0.2)
             ADT = Math.floor(ADT * 0.2)
             target.bypassArmorNextHit = false
+        } else if (wep.isPenetrating?.()) {
+            // Unarmed penetrating strike (Piercing Strike/Kick): reduce armor to 20%
+            ADR = Math.floor(ADR * 0.2)
+            ADT = Math.floor(ADT * 0.2)
         }
 
         var ammoStats = this.getAmmoStats(weapon)
@@ -464,28 +502,61 @@ export class Combat {
         var attackDmgType = weaponObj?.weapon?.getDamageType() ?? 'Normal'
 
         // ── BURST MODE ────────────────────────────────────────────────────────
+        // 3-line cone spread (FO2: _compute_spray + _shoot_along_path).
+        // Rounds split: center≈½, left≈¼, right≈¼.  All critters on each line are eligible.
         if (weapon && weapon.isBurst && weapon.isBurst()) {
             const burstCount: number = (weaponObj as any)?.pro?.extra?.burstCount ?? 10
             console.log(`[burst] burstCount=${burstCount} weapon=${weapon.name}`)
 
-            let hits = 0
-            let totalDamage = 0
-            for (let b = 0; b < burstCount; b++) {
-                const bRoll = this.rollHit(obj, target, region, -20) // burst penalty
-                if (bRoll.hit) {
-                    hits++
-                    totalDamage += this.getDamageDone(obj, target, bRoll.crit ? bRoll.DM : 2)
+            const centerCount = Math.floor(burstCount / 2)
+            const remaining = burstCount - centerCount
+            const leftCount = Math.floor(remaining / 2)
+            const rightCount = remaining - leftCount
+
+            const dir = hexDirectionTo(obj.position, target.position)
+            const cones = [
+                { dir,              count: centerCount },
+                { dir: (dir+1) % 6, count: leftCount   }, // left cone
+                { dir: (dir+5) % 6, count: rightCount  }, // right cone
+            ]
+
+            // Accumulate damage per critter across all cone lines
+            const damageMap = new Map<Critter, number>()
+            let totalBulletHits = 0
+            const mapObjects = globalState.gMap?.getObjects() ?? []
+
+            for (const cone of cones) {
+                if (cone.count === 0) continue
+                const coneEnd = hexInDirectionDistance(target.position, cone.dir, 2)
+                const line = hexLine(obj.position, coneEnd) ?? []
+                for (const pos of line) {
+                    for (const o of mapObjects) {
+                        if (!(o instanceof Critter) || o.dead || o === obj) continue
+                        if (o.position.x !== pos.x || o.position.y !== pos.y) continue
+                        for (let b = 0; b < cone.count; b++) {
+                            const bRoll = this.rollHit(obj, o, 'torso', -20)
+                            if (bRoll.hit) {
+                                totalBulletHits++
+                                const dmg = this.getDamageDone(obj, o, bRoll.crit ? bRoll.DM : 2)
+                                damageMap.set(o, (damageMap.get(o) ?? 0) + dmg)
+                            }
+                        }
+                    }
                 }
             }
 
-            uiLog(`${who} burst-fired at ${targetName}: ${hits}/${burstCount} hit for ${totalDamage} damage`)
+            uiLog(`${who} burst-fired at ${targetName}: ${totalBulletHits}/${burstCount} hits`)
 
-            if (hits > 0) {
-                if (soundIdChar) audio.playWeaponSfx(soundIdChar, 'impact')
-                else audio.playActionSfx('hit_flesh')
-                critterDamage(target, totalDamage, obj, true, true, attackDmgType)
-                if (target.isPlayer) drawHP(target.getStat('HP'))
-                if (target.dead) this.perish(target, obj, attackDmgType)
+            if (damageMap.size > 0) {
+                for (const [victim, dmg] of damageMap) {
+                    const victimName = victim.isPlayer ? 'you' : victim.name
+                    uiLog(`  ${victimName} took ${dmg} damage`)
+                    if (soundIdChar) audio.playWeaponSfx(soundIdChar, 'impact')
+                    else audio.playActionSfx('hit_flesh')
+                    critterDamage(victim, dmg, obj, true, true, attackDmgType)
+                    if (victim.isPlayer) drawHP(victim.getStat('HP'))
+                    if (victim.dead) this.perish(victim, obj, attackDmgType)
+                }
             } else {
                 audio.playActionSfx('miss')
                 if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
@@ -539,6 +610,11 @@ export class Combat {
                 target.staticAnimation('dodge', () => target.clearAnim())
             }
 
+            // Ranged miss scatter: stray shot may hit other critters behind the target (Feature 3)
+            if (weapon && weapon.type !== 'melee') {
+                this.checkRangedMiss(obj, target, attackDmgType)
+            }
+
             if (hitRoll.crit === true) {
                 var critFailMod = (obj.getStat('LUK') - 5) * -5
                 var critFailRoll = Math.floor(getRandomInt(1, 100) - critFailMod)
@@ -551,9 +627,51 @@ export class Combat {
 
                 uiLog(who + ' critically failed! (level ' + critFailLevel + ')')
 
-                // TODO: map weapon type to crit fail table types
-                var critFailEffect = CriticalEffects.criticalFailTable.unarmed[critFailLevel]
+                var critFailTableType = getCritFailTableType(weapon)
+                var critFailEffect = CriticalEffects.criticalFailTable[critFailTableType]?.[critFailLevel]
+                    ?? CriticalEffects.criticalFailTable.unarmed[critFailLevel]
                 CriticalEffects.temporaryDoCritFail(critFailEffect, obj)
+            }
+        }
+    }
+
+    /**
+     * Ranged miss scatter (FO2: _check_ranged_miss / _shoot_along_path).
+     * Extends the shot path 5 hexes past the original target and checks every critter
+     * along that extension for an accidental hit at -70 hit-chance penalty.
+     */
+    checkRangedMiss(attacker: Critter, missedTarget: Critter, dmgType: string): void {
+        if (!globalState.gMap) return
+        const dir = hexDirectionTo(attacker.position, missedTarget.position)
+        const lineEnd = hexInDirectionDistance(missedTarget.position, dir, 5)
+        const line = hexLine(attacker.position, lineEnd) ?? []
+        const mapObjects = globalState.gMap.getObjects()
+
+        let pastTarget = false
+        for (const pos of line) {
+            if (pos.x === missedTarget.position.x && pos.y === missedTarget.position.y) {
+                pastTarget = true
+                continue
+            }
+            if (!pastTarget) continue
+
+            for (const o of mapObjects) {
+                if (!(o instanceof Critter) || o.dead || o === attacker) continue
+                if (o.position.x !== pos.x || o.position.y !== pos.y) continue
+
+                // Accidental hit check with -70 penalty (FO2: _shoot_along_path)
+                const roll = this.rollHit(attacker, o, 'torso', -70)
+                if (roll.hit) {
+                    const critMod = roll.crit ? roll.DM : 2
+                    const dmg = this.getDamageDone(attacker, o, critMod)
+                    const who = attacker.isPlayer ? 'You' : attacker.name
+                    const victimName = o.isPlayer ? 'you' : o.name
+                    uiLog(`${who}'s stray shot hit ${victimName} for ${dmg} damage!`)
+                    critterDamage(o, dmg, attacker, true, true, dmgType)
+                    if (o.isPlayer) drawHP(o.getStat('HP'))
+                    if (o.dead) this.perish(o, attacker, dmgType)
+                }
+                // Projectile continues through critters (all on-path critters are checked)
             }
         }
     }

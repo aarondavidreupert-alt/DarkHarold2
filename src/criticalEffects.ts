@@ -18,7 +18,7 @@ import { Critter, WeaponObj } from './object.js'
 import { StatType } from './skills.js'
 import { getFileJSON, rollSkillCheck } from './util.js'
 import globalState from './globalState.js'
-import { critterDamage, Weapon } from './critter.js'
+import { critterDamage, Weapon, getAvailableUnarmedMoves } from './critter.js'
 
 // Critical Effects system
 
@@ -209,11 +209,14 @@ export module CriticalEffects {
                 globalState.gMap.addObject(weaponObj)
             }
 
-            // Replace hand slot with default unarmed punch
+            // Replace hand slot with unarmed punch (with progression if critter has skill)
             const fist = new WeaponObj()
             fist.type = 'item'
             fist.subtype = 'weapon'
             fist.weapon = new Weapon(null as any)
+            const unarmedSkill = (target as any).getSkill?.('Unarmed') ?? 55
+            const charLevel = (target as any).getStat?.('Level') ?? 1
+            fist.weapon.initUnarmedMoves(unarmedSkill, charLevel)
             self[activeHand] = fist
 
             console.log(target.name + ' dropped their weapon')
