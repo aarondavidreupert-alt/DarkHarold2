@@ -978,8 +978,7 @@ export function uiStartCombat() {
     const player = globalState.player
     drawHP(player.getStat('HP'))
     drawAC(player.getStat('AC'))
-    const maxAP = player.AP!.getMaxAP()
-    drawAP(player.AP!.getAvailableMoveAP() + player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
+    drawAP(player.AP!.getAvailableMoveAP(), player.AP!.getTotalMaxAP())
 }
 
 export function uiEndCombat() {
@@ -1008,7 +1007,7 @@ export function uiUpdateCombatAP() {
     }
     const ap = globalState.player.AP
     $ap.style.display = 'block'
-    $ap.textContent = `AP: ${ap.getAvailableCombatAP()} combat / ${ap.move} move`
+    $ap.textContent = `AP: ${ap.getAvailableCombatAP()} / ${ap.getTotalMaxAP()}`
 }
 
 export function uiShowCombatHover(target: Critter, screenX: number, screenY: number) {
@@ -1077,15 +1076,19 @@ export function uiDrawWeapon() {
         $wepImg.src = weapon.invArt + '.png'
     }
 
-    // draw weapon AP — reload uses fixed 2 AP; burst uses APCost2; otherwise APCost1
+    // draw weapon AP cost digit
+    // reload=2, called=APCost1+1 (aiming surcharge), burst=APCost2, otherwise APCost1
     const CHAR_W = 10
     let digit: number
     const mode = weapon.weapon.mode
     if (mode === 'reload') {
         digit = 2 // TODO: read reload AP from weapon PRO
+    } else if (mode === 'called') {
+        digit = weapon.weapon.getAPCost(1) + 1 // base weapon cost + 1 for aiming (FO2: weaponGetActionPointCost)
+    } else if (weapon.weapon.isBurst && weapon.weapon.isBurst()) {
+        digit = weapon.weapon.getAPCost(2)
     } else {
-        const attackSlot = weapon.weapon.isBurst ? (weapon.weapon.isBurst() ? 2 : 1) : 1
-        digit = weapon.weapon.getAPCost(attackSlot)
+        digit = weapon.weapon.getAPCost(1)
     }
     if (digit === undefined || digit > 9) {
         return
