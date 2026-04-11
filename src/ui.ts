@@ -1065,12 +1065,14 @@ export function uiDrawWeapon() {
         $wepImg.src = weapon.invArt + '.png'
     }
 
-    // draw weapon AP — reload uses fixed 2 AP; burst uses APCost2; otherwise APCost1
+    // draw weapon AP — reload uses fixed 2 AP; called shot uses 6 AP; burst uses APCost2; otherwise APCost1
     const CHAR_W = 10
     let digit: number
     const mode = weapon.weapon.mode
     if (mode === 'reload') {
         digit = 2 // TODO: read reload AP from weapon PRO
+    } else if (mode === 'called') {
+        digit = 6 // Called shot costs 6 AP (same as burst fire in FO2)
     } else {
         const attackSlot = weapon.weapon.isBurst ? (weapon.weapon.isBurst() ? 2 : 1) : 1
         digit = weapon.weapon.getAPCost(attackSlot)
@@ -1087,6 +1089,8 @@ export function uiDrawWeapon() {
         type = 'punch'
     } else if (mode === 'reload') {
         type = 'reload'
+    } else if (mode === 'called') {
+        type = 'bullseye'
     } else if (weapon.weapon.isBurst && weapon.weapon.isBurst()) {
         type = 'burst'
     } else {

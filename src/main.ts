@@ -208,7 +208,13 @@ export function playerUse(obj: Obj | null) {
                 console.log('art: %s', art)
 
                 uiCalledShot(art, who, (region: string) => {
-                    globalState.player.AP!.subtractCombatAP(4)
+                    const calledAPCost = 6 // Called shot costs 6 AP (more than single, same as burst)
+                    if (globalState.player.AP!.getAvailableCombatAP() < calledAPCost) {
+                        uiLog(getProtoMsg(700)!) // "You don't have enough action points."
+                        uiCloseCalledShot()
+                        return
+                    }
+                    globalState.player.AP!.subtractCombatAP(calledAPCost)
                     const maxAP = globalState.player.AP!.getMaxAP()
                     drawAP(globalState.player.AP!.getAvailableMoveAP() + globalState.player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
                     console.log('Attacking %s...', region)
