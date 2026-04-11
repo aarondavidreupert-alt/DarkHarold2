@@ -219,7 +219,19 @@ export function getAmbientLightNormalized(): number {
 
 // Called by the scripting intrinsic `set_light_level(level)`. Fallout 2
 // passes 0..100; we map that across the min..max intensity range.
+//
+// On outdoor maps we ignore the call entirely. Many outdoor / town
+// map_enter_p_proc scripts pin the ambient to ~40% for atmosphere, which
+// pre-empts the time-of-day curve and leaves noon looking like dusk.
+// Indoor maps (caves, vaults, interiors) still honor the override so a
+// blacked-out room stays dark.
 export function setLightLevelOverride(level0to100: number): void {
+    if (globalState.gMap && typeof globalState.gMap.isOutdoor === 'function' && globalState.gMap.isOutdoor()) {
+        console.log(
+            `[lighting] script set_light_level(${level0to100}) → ignored (outdoor map)`
+        )
+        return
+    }
     const clamped = Math.max(0, Math.min(100, level0to100))
     const t = clamped / 100
     lightLevelOverride = LIGHT_INTENSITY_MIN + t * (LIGHT_INTENSITY_MAX - LIGHT_INTENSITY_MIN)
