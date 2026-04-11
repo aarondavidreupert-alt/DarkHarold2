@@ -676,69 +676,6 @@ export class Combat {
         }
     }
 
-    attackBurst(obj: Critter, target: Critter, callback?: () => void) {
-        // Face the target
-        const hex = hexNearestNeighbor(obj.position, target.position)
-        if (hex !== null) obj.orientation = hex.direction
-
-        // Play attack animation
-        obj.staticAnimation('attack', callback)
-
-        const weaponObj = obj.equippedWeapon
-        const weapon = weaponObj?.weapon
-        const attackDmgType = weaponObj?.weapon?.getDamageType() ?? 'Normal'
-
-        // Consume ammo: min(burstRounds, currentRounds)
-        const burstRounds: number = (weaponObj as any)?.pro?.extra?.burstRounds ?? 6
-        const currentRounds: number = (weaponObj as any)?.pro?.extra?.rounds ?? burstRounds
-        const consumed = Math.min(burstRounds, currentRounds)
-        if (weaponObj && (weaponObj as any).pro?.extra) {
-            ;(weaponObj as any).pro.extra.rounds = Math.max(0, currentRounds - consumed)
-        }
-
-        // Play weapon sound
-        const rawSoundID = (weaponObj as any)?.pro?.extra?.soundID
-        const soundIdChar = typeof rawSoundID === 'number' ? String.fromCharCode(rawSoundID) : null
-        if (soundIdChar) globalState.audioEngine.playWeaponSfx(soundIdChar, 'attack')
-
-        // Build burst cone: hexLine from obj toward a point 2 steps beyond target in same direction
-        const dir = hexDirectionTo(obj.position, target.position)
-        const coneEnd = hexInDirectionDistance(target.position, dir, 2)
-        const line = hexLine(obj.position, coneEnd) ?? []
-
-        // Gather all living critters on the line (excluding the attacker)
-        const mapObjects = globalState.gMap?.getObjects() ?? []
-        const hit: Critter[] = []
-        for (const pos of line) {
-            for (const o of mapObjects) {
-                if (o instanceof Critter && !o.dead && o !== obj) {
-                    if (o.position.x === pos.x && o.position.y === pos.y) {
-                        if (!hit.includes(o)) hit.push(o)
-                    }
-                }
-            }
-        }
-
-        const who = obj.isPlayer ? 'You' : obj.name
-        for (const victim of hit) {
-            const victimName = victim.isPlayer ? 'you' : victim.name
-            // Burst fire: -20 hit chance penalty
-            const hitRoll = this.rollHit(obj, victim, 'torso', -20)
-            if (hitRoll.hit) {
-                const critMod = hitRoll.crit ? hitRoll.DM : 2
-                const damage = this.getDamageDone(obj, victim, critMod)
-                uiLog(`${who} burst-hit ${victimName} for ${damage} damage`)
-                if (soundIdChar) globalState.audioEngine.playWeaponSfx(soundIdChar, 'impact')
-                else globalState.audioEngine.playActionSfx('hit_flesh')
-                critterDamage(victim, damage, obj, true, true, attackDmgType)
-                if (victim.isPlayer) drawHP(victim.getStat('HP'))
-                if (victim.dead) this.perish(victim, obj, attackDmgType)
-            } else {
-                uiLog(`${who} burst-missed ${victimName}`)
-            }
-        }
-    }
-
     perish(obj: Critter, attacker?: Critter, damageType?: string) {
         uiLog('...And killed them.')
         globalState.audioEngine.playActionSfx('critter_die')
