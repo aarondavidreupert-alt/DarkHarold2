@@ -195,10 +195,21 @@ function curveAt(hourFloat: number): number {
 
 // Ambient light intensity in the same 0..65536 range Fallout 2 uses. Takes
 // the script override into account.
+//
+// Semantics: the time-of-day curve is the primary driver. If a script has
+// called set_light_level (e.g. a dim cave, a blacked-out room), the returned
+// value is the MINIMUM of the curve and the override — i.e. the script sets
+// a brightness CEILING for the area, and the curve can still darken below
+// it at night. This diverges from vanilla F2 (where set_light_level always
+// wins) but it's the only way day/night is visible on maps whose scripts
+// pin a fixed ambient in map_enter_p_proc and never touch it again.
 export function getAmbientLight(): number {
-    if (lightLevelOverride !== null) return lightLevelOverride
     const hourFloat = getHour() + getMinute() / 60
-    return curveAt(hourFloat)
+    const curveValue = curveAt(hourFloat)
+    if (lightLevelOverride !== null) {
+        return Math.min(curveValue, lightLevelOverride)
+    }
+    return curveValue
 }
 
 // 0..1 for the GL fragment shader.
@@ -212,9 +223,15 @@ export function setLightLevelOverride(level0to100: number): void {
     const clamped = Math.max(0, Math.min(100, level0to100))
     const t = clamped / 100
     lightLevelOverride = LIGHT_INTENSITY_MIN + t * (LIGHT_INTENSITY_MAX - LIGHT_INTENSITY_MIN)
+    console.log(
+        `[lighting] script set_light_level(${level0to100}) → override=${(lightLevelOverride / LIGHT_INTENSITY_MAX).toFixed(3)}`
+    )
 }
 
 export function clearLightLevelOverride(): void {
+    if (lightLevelOverride !== null) {
+        console.log('[lighting] override cleared')
+    }
     lightLevelOverride = null
 }
 
