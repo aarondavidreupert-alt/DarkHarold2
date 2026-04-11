@@ -218,7 +218,15 @@ function toggleWaitMenu(): void {
 }
 
 function advanceTime(minutes: number): void {
+    const beforeTicks = GameTime.getTime()
+    const beforeAmbient = GameTime.getAmbientLightNormalized()
     GameTime.advanceMinutes(minutes)
+    const afterTicks = GameTime.getTime()
+    const afterAmbient = GameTime.getAmbientLightNormalized()
+    console.log(
+        `[PipBoy wait] +${minutes}m  ticks ${beforeTicks} → ${afterTicks}  ` +
+        `time ${GameTime.getTimeString()}  ambient ${beforeAmbient.toFixed(3)} → ${afterAmbient.toFixed(3)}`
+    )
 }
 
 function formatGameTime(_ticks: number): string {
