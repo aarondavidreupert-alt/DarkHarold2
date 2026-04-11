@@ -78,6 +78,11 @@ export class ActionPoints {
     }
 
     subtractMoveAP(value: number): boolean {
+        // Crippled legs increase the AP cost of movement (FO2 reference: 4× one leg, 8× both legs)
+        const critter = this.attachedCritter
+        if (critter.crippledLeftLeg && critter.crippledRightLeg) value *= 8
+        else if (critter.crippledLeftLeg || critter.crippledRightLeg) value *= 4
+
         if (this.getAvailableMoveAP() < value) return false
 
         this.move -= value
@@ -280,10 +285,8 @@ export class Combat {
         // Sharpshooter perk: each rank reduces the effective distance by 2 hexes
         if (obj.hasPerk('Sharpshooter')) distance -= 2
 
-        // then we multiply a magic number on top. More if there is eye damage involved by the attacker
-        // this means for each field distance after PER modification we lose 4 points of hitchance
-        // 12 if we have eyedamage
-        var objHasEyeDamage = false
+        // then we multiply a magic number on top. More if the attacker is blinded (FO2: 12× vs 4×)
+        var objHasEyeDamage = obj.isBlinded
         if (distance >= 0 && objHasEyeDamage) distance *= 12
         else distance *= 4
 
@@ -317,7 +320,16 @@ export class Combat {
         var partialCoverPenalty = this.accountForPartialCover(obj, target)
         var bonusCrit = 0 // TODO: perk bonuses, other crit influencing things
         var baseCrit = obj.getStat('Critical Chance') + bonusCrit
-        var hitChance = weaponSkill - AC - CriticalEffects.regionHitChanceDecTable[region] - hitDistanceModifier - partialCoverPenalty
+
+        // Crippled-limb penalties for the attacker (FO2: -40 per arm, halved here per arm for simplicity)
+        var crippledArmPenalty = 0
+        if (obj.crippledLeftArm) crippledArmPenalty += 20
+        if (obj.crippledRightArm) crippledArmPenalty += 20
+
+        // Blinded attacker: additional -25 flat penalty on top of the 12× distance modifier wired above
+        var blindPenalty = obj.isBlinded ? 25 : 0
+
+        var hitChance = weaponSkill - AC - CriticalEffects.regionHitChanceDecTable[region] - hitDistanceModifier - partialCoverPenalty - crippledArmPenalty - blindPenalty
         var critChance = baseCrit + CriticalEffects.regionHitChanceDecTable[region]
 
         if (isNaN(hitChance)) throw 'something went wrong with hit chance calculation'
@@ -389,6 +401,14 @@ export class Combat {
         var CM = critModifer // critical hit damage multiplier
         var ADR = target.getStat('DR ' + damageType) + target.getArmorDR(damageType) // damage resistance (base + armor)
         var ADT = target.getStat('DT ' + damageType) + target.getArmorDT(damageType) // damage threshold (base + armor)
+
+        // Bypass Armor critical effect: reduce DR/DT to 20% for this hit (FO2 reference), then consume the flag
+        if (target.bypassArmorNextHit) {
+            ADR = Math.floor(ADR * 0.2)
+            ADT = Math.floor(ADT * 0.2)
+            target.bypassArmorNextHit = false
+        }
+
         var ammoStats = this.getAmmoStats(weapon)
         var X = ammoStats.X // ammo damage multiplier (from ammo PRO damMult)
         var Y = ammoStats.Y // ammo damage divisor (from ammo PRO damDiv)
@@ -421,6 +441,13 @@ export class Combat {
         // Early ammo guard — no animation, no AP loss for any attacker
         if (!aiHaveAmmo(weaponObj)) {
             uiLog(`${who}: out of ammo!`)
+            if (callback) callback()
+            return
+        }
+
+        // Both arms crippled: can't attack at all
+        if (obj.crippledLeftArm && obj.crippledRightArm) {
+            uiLog(`${who} can't attack — both arms are crippled!`)
             if (callback) callback()
             return
         }
@@ -1003,12 +1030,23 @@ export class Combat {
             var critter = this.combatants[this.whoseTurn]
             if (critter.dead === true || critter.hostile !== true) return this.nextTurn()
 
+            // Fire DoT: apply at the start of each critter's turn
+            if (critter.onFireTurns > 0) {
+                critter.onFireTurns--
+                const fireDmg = getRandomInt(3, 6)
+                uiLog(`${critter.name} burns for ${fireDmg} fire damage (${critter.onFireTurns} turns left)`)
+                critterDamage(critter, fireDmg, critter, false, false, 'Fire')
+                if (critter.dead) return this.nextTurn() // fire killed them; skip to next
+            }
+
             // Knockdown / loseNextTurn: skip this critter's turn and count down
             if (critter.skipTurns > 0) {
                 critter.skipTurns--
-                // If the critter is getting up this turn, play the recovery anim
-                if (critter.skipTurns === 0 && critter.hasAnimation('getUpFront')) {
-                    critter.staticAnimation('getUpFront', () => critter.clearAnim())
+                if (critter.skipTurns === 0) {
+                    critter.isKnockedDown = false // clear flag now that they're getting up
+                    if (critter.hasAnimation('getUpFront')) {
+                        critter.staticAnimation('getUpFront', () => critter.clearAnim())
+                    }
                 }
                 return this.nextTurn()
             }

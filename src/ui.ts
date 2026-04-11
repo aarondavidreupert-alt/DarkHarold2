@@ -313,9 +313,12 @@ function uiInit() {
     initSkilldex()
     // initCharacterScreen();
 
-    document.getElementById('chrButton')!.onclick = () => {
-        characterWindow && characterWindow.close()
-        initCharacterScreen()
+    const chrBtn = document.getElementById('chrButton')
+    if (chrBtn) {
+        chrBtn.onclick = () => {
+            characterWindow && characterWindow.close()
+            initCharacterScreen()
+        }
     }
 
     document.getElementById('pipBoyButton')!.onclick = () => {
@@ -2457,13 +2460,44 @@ export function uiCalledShot(art: string, target: Critter, callback?: (regionHit
 
     $id('calledShotBackground').style.backgroundImage = `url('${art}.png')`
 
+    // Map region name to the Critter's crippled flag
+    const crippledFlags: { [region: string]: keyof Critter } = {
+        leftArm:  'crippledLeftArm',
+        rightArm: 'crippledRightArm',
+        leftLeg:  'crippledLeftLeg',
+        rightLeg: 'crippledRightLeg',
+    }
+
     for (const $label of $qa('.calledShotLabel')) {
-        $label.onclick = (evt: MouseEvent) => {
-            const id = (evt.target as HTMLElement).id
-            const regionHit = id.split('-')[1]
-            console.log('clicked a called location (%s)', regionHit)
-            if (callback) {
-                callback(regionHit)
+        const id = ($label as HTMLElement).id
+        const regionHit = id.split('-')[1]
+        const crippledKey = crippledFlags[regionHit]
+        const isCrippled = crippledKey ? !!(target as any)[crippledKey] : false
+
+        if (isCrippled) {
+            // Gray out crippled parts so the player knows they're already damaged
+            Object.assign(($label as HTMLElement).style, {
+                color: '#666666',
+                textDecoration: 'line-through',
+                cursor: 'default',
+                pointerEvents: 'none',
+            })
+            const $chance = $id('calledShot-' + regionHit + '-chance')
+            if ($chance) Object.assign(($chance as HTMLElement).style, { opacity: '0.4' })
+        } else {
+            // Reset styles (in case uiCalledShot is called multiple times)
+            Object.assign(($label as HTMLElement).style, {
+                color: '',
+                textDecoration: '',
+                cursor: '',
+                pointerEvents: '',
+            })
+            $label.onclick = (evt: MouseEvent) => {
+                const clickedRegion = (evt.target as HTMLElement).id.split('-')[1]
+                console.log('clicked a called location (%s)', clickedRegion)
+                if (callback) {
+                    callback(clickedRegion)
+                }
             }
         }
     }
