@@ -44,6 +44,12 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
 export const LIGHT_INTENSITY_MIN = 65536 / 4  // 16384
 export const LIGHT_INTENSITY_MAX = 65536
 
+// Night floor used by the day/night curve. Decoupled from LIGHT_INTENSITY_MIN
+// (which is the engine-wide floor fallout2-ce uses for set_light_level
+// mapping) so we can keep nights visible without affecting the script
+// intrinsic's 0..100 range. 0.35 * MAX ≈ 22937.
+const LIGHT_CURVE_NIGHT_FLOOR = Math.round(0.35 * LIGHT_INTENSITY_MAX)
+
 // Script-controlled override. Scripts (set_light_level opcode) can force
 // darkness or full brightness regardless of the time-of-day curve.
 // null = no override, use the hour-of-day curve.
@@ -152,19 +158,20 @@ export function advanceHours(hours: number): void { advanceTicks(hours * TICKS_P
 // Fallout 2 doesn't ship an automatic day/night cycle — maps load at
 // LIGHT_INTENSITY_MAX and scripts manually call set_light_level when they
 // want darkness. For DarkHarold2 we derive a continuous light curve from
-// the hour of day using a piecewise-linear ramp between the reference
-// implementation's LIGHT_INTENSITY_MIN and LIGHT_INTENSITY_MAX:
+// the hour of day using a piecewise-linear ramp between a night floor
+// (LIGHT_CURVE_NIGHT_FLOOR ≈ 0.35) and LIGHT_INTENSITY_MAX. The ramps are
+// deliberately wide so dawn and dusk are gradual rather than abrupt:
 //
 //   00:00 ─┐
-//          │  night (min)
-//   05:00 ─┤
-//            \_ dawn ramp
-//   07:00 ─┐
-//          │  day (max)
+//          │  night (0.35)
+//   04:00 ─┤
+//            \_ dawn ramp (4h)
+//   08:00 ─┐
+//          │  day (1.00)
 //   18:00 ─┤
-//            \_ dusk ramp
-//   20:00 ─┐
-//          │  night (min)
+//            \_ dusk ramp (4h)
+//   22:00 ─┐
+//          │  night (0.35)
 //   24:00 ─┘
 //
 // Scripts can call set_light_level to force a fixed value, which overrides
@@ -172,12 +179,12 @@ export function advanceHours(hours: number): void { advanceTicks(hours * TICKS_P
 
 interface LightStop { hour: number; intensity: number }
 const LIGHT_CURVE: LightStop[] = [
-    { hour: 0,  intensity: LIGHT_INTENSITY_MIN },
-    { hour: 5,  intensity: LIGHT_INTENSITY_MIN },
-    { hour: 7,  intensity: LIGHT_INTENSITY_MAX },
+    { hour: 0,  intensity: LIGHT_CURVE_NIGHT_FLOOR },
+    { hour: 4,  intensity: LIGHT_CURVE_NIGHT_FLOOR },
+    { hour: 8,  intensity: LIGHT_INTENSITY_MAX },
     { hour: 18, intensity: LIGHT_INTENSITY_MAX },
-    { hour: 20, intensity: LIGHT_INTENSITY_MIN },
-    { hour: 24, intensity: LIGHT_INTENSITY_MIN },
+    { hour: 22, intensity: LIGHT_CURVE_NIGHT_FLOOR },
+    { hour: 24, intensity: LIGHT_CURVE_NIGHT_FLOOR },
 ]
 
 function curveAt(hourFloat: number): number {
