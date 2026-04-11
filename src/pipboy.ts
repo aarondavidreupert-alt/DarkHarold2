@@ -20,6 +20,7 @@ import { Scripting } from './scripting.js'
 import { UIMode } from './ui.js'
 import { drawAutomapInto, getArchivedMaps, getSeenTiles } from './automapData.js'
 import { getAutomapZoom, zoomIn, zoomOut, getAutomapPan, attachAutomapDragPan, attachAutomapWheelZoom } from './automap.js'
+import { Config } from './config.js'
 
 type PipBoyTab = 'STATUS' | 'AUTOMAPS' | 'ARCHIVES' | 'CLOSE'
 
@@ -226,6 +227,10 @@ function advanceTime(minutes: number): void {
     console.log(
         `[PipBoy wait] +${minutes}m  ticks ${beforeTicks} → ${afterTicks}  ` +
         `time ${GameTime.getTimeString()}  ambient ${beforeAmbient.toFixed(3)} → ${afterAmbient.toFixed(3)}`
+    )
+    console.log(
+        `[lighting] after wait — doFloorLighting=${Config.engine.doFloorLighting}, ` +
+        `floorLightingMode=${Config.engine.floorLightingMode}`
     )
 }
 

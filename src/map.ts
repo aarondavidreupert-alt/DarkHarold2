@@ -456,6 +456,11 @@ export class GameMap {
         // clear audio and use the map music
 		this.playMapMusic()
 
+        console.log(
+            `[lighting] map '${mapName}' loaded — doFloorLighting=${Config.engine.doFloorLighting}, ` +
+            `floorLightingMode=${Config.engine.floorLightingMode}`
+        )
+
         Events.emit('loadMapPost')
     }
 
