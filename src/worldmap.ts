@@ -17,6 +17,7 @@ limitations under the License.
 import { Combat } from './combat.js'
 import { loadAreas, lookupMapFromLookup } from './data.js'
 import { Encounters } from './encounters.js'
+import * as GameTime from './gametime.js'
 import { Point, pointIntersectsCircle } from './geometry.js'
 import globalState from './globalState.js'
 import { createObjectWithPID } from './object.js'
@@ -640,6 +641,13 @@ export module Worldmap {
                 worldmapPlayer.x += dx * speed
                 worldmapPlayer.y += dy * speed
             }
+
+            // Travel time: each worldmap update tick (75ms wall time)
+            // represents ~2 in-game minutes of overland travel, scaled by
+            // terrain difficulty. Rough units with no precedent in the
+            // original, chosen so crossing the map takes a day or two.
+            const travelScale = 1 / worldmap.terrainSpeed[currentSquare.terrainType]
+            GameTime.advanceMinutes(Math.max(1, Math.round(2 * travelScale)))
 
             // center the worldmap to the player
             const width = $worldmap.offsetWidth

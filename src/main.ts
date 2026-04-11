@@ -50,6 +50,12 @@ import { fonUnpack } from './formats/fon.js'
 import { Lightmap } from './lightmap.js'
 import { togglePipBoy } from './pipboy.js'
 
+// Next gameTickTime at which map_update_p_proc should fire across all map
+// scripts. Fallout 2 schedules this via a 600-tick queue event, so we mirror
+// the cadence here and reschedule from a local counter rather than a
+// persisted field (map entry resets the cadence anyway).
+let nextMapUpdateTick = 600
+
 // Return the skill ID used by the Fallout 2 engine
 function getSkillID(skill: Skills): number {
     switch (skill) {
@@ -786,6 +792,22 @@ heart.update = function () {
                     timedEvents.splice(i--, 1)
                     numEvents--
                 }
+            }
+        }
+
+        // Fallout 2 fires map_update_p_proc for every script on the map
+        // every 600 ticks (60 game seconds) via an EVENT_TYPE_MAP_UPDATE_EVENT
+        // queued by mapUpdateEventProcess. Mirror that cadence here so
+        // scripts can check `game_time_hour` and drive NPC behavior (shop
+        // hours, sleep schedules, etc.) without any engine-level gates.
+        if (!globalState.inCombat && globalState.gMap) {
+            if (nextMapUpdateTick < globalState.gameTickTime) {
+                // Catch up after a save load or fresh start where gameTickTime
+                // has jumped forward past the initial sentinel.
+                nextMapUpdateTick = globalState.gameTickTime + 600
+            } else if (globalState.gameTickTime >= nextMapUpdateTick) {
+                nextMapUpdateTick = globalState.gameTickTime + 600
+                globalState.gMap.updateMap()
             }
         }
 

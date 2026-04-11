@@ -19,6 +19,7 @@ import { AudioEngine } from './audio.js'
 import { Config } from './config.js'
 import { CriticalEffects } from './criticalEffects.js'
 import { critterDamage, critterKill } from './critter.js'
+import * as GameTime from './gametime.js'
 import { hexDirectionTo, hexDistance, hexInDirectionDistance, hexLine, hexNearestNeighbor, hexNeighbors, Point } from './geometry.js'
 import globalState from './globalState.js'
 import { Critter, Obj } from './object.js'
@@ -996,6 +997,11 @@ export class Combat {
         }
 
         if (numActive === 0 && this.turnNum !== 1) return this.end()
+
+        // Fallout 2 combat rounds represent ~5 seconds of in-world time
+        // per combatant. Advance the clock so long fights still age the
+        // world (critters healing over time, scheduled events firing).
+        GameTime.advanceSeconds(5)
 
         this.turnNum++
         this.whoseTurn++
