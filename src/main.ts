@@ -153,8 +153,7 @@ export function playerUse(obj: Obj | null) {
                         maxWalkingDist
                     )
                 }
-                const maxAP = globalState.player.AP.getMaxAP()
-                drawAP(globalState.player.AP.getAvailableMoveAP() + globalState.player.AP.getAvailableCombatAP(), maxAP.combat + maxAP.move)
+                drawAP(globalState.player.AP.getAvailableMoveAP(), globalState.player.AP.getTotalMaxAP())
             }
         }
 
@@ -208,15 +207,14 @@ export function playerUse(obj: Obj | null) {
                 console.log('art: %s', art)
 
                 uiCalledShot(art, who, (region: string) => {
-                    const calledAPCost = 6 // Called shot costs 6 AP (more than single, same as burst)
+                    const calledAPCost = weapon.weapon!.getAPCost(1) + 1 // base weapon cost + 1 aiming surcharge
                     if (globalState.player.AP!.getAvailableCombatAP() < calledAPCost) {
                         uiLog(getProtoMsg(700)!) // "You don't have enough action points."
                         uiCloseCalledShot()
                         return
                     }
                     globalState.player.AP!.subtractCombatAP(calledAPCost)
-                    const maxAP = globalState.player.AP!.getMaxAP()
-                    drawAP(globalState.player.AP!.getAvailableMoveAP() + globalState.player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
+                    drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
                     console.log('Attacking %s...', region)
                     globalState.combat!.attack(globalState.player, <Critter>obj, region)
                     uiCloseCalledShot()
@@ -229,16 +227,14 @@ export function playerUse(obj: Obj | null) {
                     return
                 }
                 globalState.player.AP!.subtractCombatAP(burstAPCost)
-                const maxAP = globalState.player.AP!.getMaxAP()
-                drawAP(globalState.player.AP!.getAvailableMoveAP() + globalState.player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
+                drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
                 console.log('Burst fire at %s...', who.name)
                 // Route through attack() which detects isBurst() and does the multi-roll loop
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
                 uiUpdateCombatAP()
             } else {
                 globalState.player.AP!.subtractCombatAP(4)
-                const maxAP = globalState.player.AP!.getMaxAP()
-                drawAP(globalState.player.AP!.getAvailableMoveAP() + globalState.player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
+                drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
                 console.log('Attacking the torso...')
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
                 uiUpdateCombatAP()
@@ -584,8 +580,7 @@ heart.keydown = (k: string) => {
                 !globalState.combat.combatants[i].dead
             ) {
                 globalState.player.AP.subtractCombatAP(4)
-                const maxAP = globalState.player.AP.getMaxAP()
-                drawAP(globalState.player.AP.getAvailableMoveAP() + globalState.player.AP.getAvailableCombatAP(), maxAP.combat + maxAP.move)
+                drawAP(globalState.player.AP.getAvailableMoveAP(), globalState.player.AP.getTotalMaxAP())
                 console.log('Attacking...')
                 globalState.combat.attack(globalState.player, globalState.combat.combatants[i])
                 break

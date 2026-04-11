@@ -41,9 +41,9 @@ export class ActionPoints {
     }
 
     resetAP() {
-        var AP = this.getMaxAP()
-        this.combat = AP.combat
-        this.move = AP.move
+        // Unified AP pool: base + all perk bonuses collected into combat; move is always 0
+        this.combat = this.getMaxAP() + this.getBonusCombatAP() + this.getBonusMoveAP()
+        this.move = 0
     }
 
     getBonusCombatAP(): number {
@@ -57,20 +57,24 @@ export class ActionPoints {
 
     getBonusMoveAP(): number {
         var bonus = 0
-        // Bonus Move: +2 move AP per rank
+        // Bonus Move: +2 free move AP per rank added to the unified pool
         if (this.attachedCritter.hasPerk('Bonus Move')) bonus += 2
         return bonus
     }
 
-    getMaxAP(): { combat: number; move: number } {
-        return {
-            combat: 5 + Math.floor(this.attachedCritter.getStat('AGI') / 2) + this.getBonusCombatAP(),
-            move: this.getBonusMoveAP(),
-        }
+    /** Base AP = 5 + floor(AGI / 2), without perk bonuses. */
+    getMaxAP(): number {
+        return 5 + Math.floor(this.attachedCritter.getStat('AGI') / 2)
     }
 
+    /** Full AP at turn start: base + all perk bonuses. Use this for the display max. */
+    getTotalMaxAP(): number {
+        return this.getMaxAP() + this.getBonusCombatAP() + this.getBonusMoveAP()
+    }
+
+    /** Total AP remaining (unified pool — movement and attacks share the same bucket). */
     getAvailableMoveAP(): number {
-        return this.combat + this.move
+        return this.combat
     }
 
     getAvailableCombatAP() {
@@ -83,17 +87,8 @@ export class ActionPoints {
         if (critter.crippledLeftLeg && critter.crippledRightLeg) value *= 8
         else if (critter.crippledLeftLeg || critter.crippledRightLeg) value *= 4
 
-        if (this.getAvailableMoveAP() < value) return false
-
-        this.move -= value
-        if (this.move < 0) {
-            if (this.subtractCombatAP(-this.move)) {
-                this.move = 0
-                return true
-            }
-            return false
-        }
-
+        if (this.combat < value) return false
+        this.combat -= value
         return true
     }
 
@@ -1022,8 +1017,7 @@ export class Combat {
             this.player.bonusAC = 0
             this.inPlayerTurn = true
             this.player.AP!.resetAP()
-            const maxAP = this.player.AP!.getMaxAP()
-            drawAP(this.player.AP!.getAvailableMoveAP() + this.player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
+            drawAP(this.player.AP!.getAvailableMoveAP(), this.player.AP!.getTotalMaxAP())
             drawHP(this.player.getStat('HP'))
         } else {
             this.inPlayerTurn = false
