@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { Point } from './geometry.js'
+import * as GameTime from './gametime.js'
 import { Lightmap } from './lightmap.js'
 import { toTileNum } from './tile.js'
 
@@ -135,7 +136,10 @@ export module Lighting {
     // zero array
     for (var i = 0; i < intensity_map.length; i++) intensity_map[i] = 0
 
-    var ambient = 0xa000 // ambient light level
+    // Ambient light level. Defers to the time-of-day curve in gametime.ts
+    // (honors any script `set_light_level` override). Kept as a getter so
+    // the triangle-lighting path samples a fresh value each frame.
+    function getAmbient(): number { return GameTime.getAmbientLight() }
 
     // Color look-up table by light intensity
     export const intensityColorTable = (globalThis as unknown as { intensityColorTable: number[] }).intensityColorTable
@@ -149,6 +153,7 @@ export module Lighting {
 
     function init(tilenum: number): boolean {
         var start = tilenum & 1 // even/odd
+        var ambient = getAmbient()
 
         for (var i = 0, j = start; i <= 36; i += 4, j += 4) {
             var offset = vertices[1 + j]

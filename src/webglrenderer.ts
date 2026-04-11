@@ -1,6 +1,7 @@
 import { heart } from './heart.js'
 import { hexFromScreen } from './geometry.js'
 import globalState from './globalState.js'
+import * as GameTime from './gametime.js'
 import { Lighting } from './lighting.js'
 import { Lightmap } from './lightmap.js'
 import { Obj } from './object.js'
@@ -42,6 +43,11 @@ export class WebGLRenderer extends Renderer {
     private tileIntensityTexture: WebGLTexture | null = null // 200x200 R8 texture for GPU path
     private floorLightingMode: 'gpu' | 'cpu' = 'cpu'
     private uUseGPULighting: WebGLUniformLocation | null = null
+
+    // Last ambient value pushed to u_ambient; used to log transitions so we
+    // can verify day/night changes are actually reaching the shader without
+    // spamming one line per frame.
+    private lastLoggedAmbient = -1
 
     // FBO for cached unlit floor rendering (GPU lighting mode)
     private floorFBO: WebGLFramebuffer | null = null
@@ -402,7 +408,12 @@ export class WebGLRenderer extends Renderer {
         // use floor light shader
         gl.useProgram(this.floorLightShader)
         gl.uniform1i(this.uUseGPULighting, 0)
-        gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
+        const ambientCPU = GameTime.getAmbientLightNormalized()
+        gl.uniform1f(this.uAmbient, ambientCPU)
+        if (ambientCPU !== this.lastLoggedAmbient) {
+            console.log(`[lighting/cpu] u_ambient = ${ambientCPU.toFixed(3)} (hour ${GameTime.getHour()}:${String(GameTime.getMinute()).padStart(2,'0')})`)
+            this.lastLoggedAmbient = ambientCPU
+        }
 
         // bind buffers
         gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
@@ -619,7 +630,12 @@ export class WebGLRenderer extends Renderer {
 
         // Set uniforms for fullscreen quad composite
         gl.uniform1i(this.uUseGPULighting, 1)
-        gl.uniform1f(this.uAmbient, 40960.0 / 65536.0)
+        const ambientGPU = GameTime.getAmbientLightNormalized()
+        gl.uniform1f(this.uAmbient, ambientGPU)
+        if (ambientGPU !== this.lastLoggedAmbient) {
+            console.log(`[lighting/gpu] u_ambient = ${ambientGPU.toFixed(3)} (hour ${GameTime.getHour()}:${String(GameTime.getMinute()).padStart(2,'0')})`)
+            this.lastLoggedAmbient = ambientGPU
+        }
         gl.uniform2f(this.litScaleLocation, SCREEN_WIDTH, SCREEN_HEIGHT)
         gl.uniform2f(this.uCamera, globalState.cameraPosition.x, globalState.cameraPosition.y)
         gl.uniform2f(this.litOffsetLocation, 0, 0)
