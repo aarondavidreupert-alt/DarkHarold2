@@ -24,7 +24,8 @@ import { initGame } from './init.js'
 import { Critter, Obj } from './object.js'
 import { getObjectUnderCursor, SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 import { Scripting } from './scripting.js'
-import { Skills } from './skills.js'
+import { Skills, SKILL_NAMES } from './skills.js'
+import { skillUse } from './skillUse.js'
 import {
     drawAP,
     drawHP,
@@ -101,11 +102,38 @@ function playerUseSkill(skill: Skills, obj: Obj): void {
         throw 'trying to use non-passive skill without a target'
     }
 
-    if (!isPassiveSkill(skill)) {
-        // use the skill on the object
-        Scripting.useSkillOn(globalState.player, getSkillID(skill), obj)
-    } else {
-        console.log('passive skills are not implemented')
+    // FO2-CE ref: skill.cc skillUse() — engine handles the skill effect first
+    // Map enum to string name for the engine skillUse function
+    const skillName = SKILL_NAMES[skill - 1] // Skills enum starts at 1 (SmallGuns=1)
+
+    if (isPassiveSkill(skill)) {
+        // Passive skills (Sneak, First Aid on self, Doctor on self) — engine handles directly
+        const result = skillUse(globalState.player as Critter, globalState.player as Critter, skillName)
+        uiLog(result.message)
+        if (result.hpHealed > 0) {
+            drawHP(globalState.player!.getStat('HP'))
+        }
+        return
+    }
+
+    // Non-passive: try script override first, then engine fallback
+    const target = obj as Critter
+    let scriptHandled = false
+    if (obj._script) {
+        try {
+            scriptHandled = Scripting.useSkillOn(globalState.player as Critter, getSkillID(skill), obj)
+        } catch (e) {
+            console.warn('useSkillOn script error:', e)
+        }
+    }
+
+    if (!scriptHandled) {
+        // Engine fallback: use the skill directly
+        const result = skillUse(globalState.player as Critter, target, skillName)
+        uiLog(result.message)
+        if (result.hpHealed > 0) {
+            drawHP(globalState.player!.getStat('HP'))
+        }
     }
 }
 

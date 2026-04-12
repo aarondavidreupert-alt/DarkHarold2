@@ -333,7 +333,12 @@ function uiInit() {
 let skilldexWindow: WindowFrame
 let characterWindow: WindowFrame
 
+// FO2-CE ref: skilldex.cc — skilldexOpen() / skilldexWindowInit()
+// Skilldex window showing 8 usable skills with current values and keyboard shortcuts
 function initSkilldex() {
+    // Skill value labels — updated each time the skilldex is opened/shown
+    const skillValueLabels: Label[] = []
+
     function useSkill(skill: Skills) {
         return () => {
             skilldexWindow.close()
@@ -354,6 +359,7 @@ function initSkilldex() {
     )
         .add(new Label(65, 15, 'SKILLDEX'))
 
+    // FO2-CE ref: skilldex.cc SkilldexSkill enum — 8 skills in order
     const skilldexSkills: [string, Skills][] = [
         ['Sneak',     Skills.Sneak],
         ['Lockpick',  Skills.Lockpick],
@@ -366,12 +372,22 @@ function initSkilldex() {
     ]
 
     let yPos = 49
-    for (const [name, skill] of skilldexSkills) {
+    for (let i = 0; i < skilldexSkills.length; i++) {
+        const [name, skill] = skilldexSkills[i]
+
+        // Skill name + hotkey number
         skilldexWindow.add(
-            new Label(25, yPos, name)
-                .css({ width: '135px', height: '24px', cursor: 'pointer', lineHeight: '24px' })
+            new Label(25, yPos, `${i + 1}. ${name}`)
+                .css({ width: '110px', height: '24px', cursor: 'pointer', lineHeight: '24px' })
                 .onClick(useSkill(skill))
         )
+
+        // FO2-CE ref: skilldex.cc — 3-digit skill value display next to each button
+        const valLabel = new Label(140, yPos, '---')
+            .css({ width: '40px', height: '24px', lineHeight: '24px', textAlign: 'right' })
+        skillValueLabels.push(valLabel)
+        skilldexWindow.add(valLabel)
+
         yPos += 36
     }
 
@@ -386,12 +402,56 @@ function initSkilldex() {
         zIndex: '20',
         cursor: 'default',
     })
+
+    // FO2-CE ref: skilldex.cc — update skill values when the skilldex is shown
+    const origShow = skilldexWindow.show.bind(skilldexWindow)
+    skilldexWindow.show = function() {
+        const result = origShow()
+        // Update displayed skill values from current player stats
+        const player = globalState.player
+        if (player) {
+            for (let i = 0; i < skilldexSkills.length; i++) {
+                const skillName = skilldexSkills[i][0]
+                const val = player.getSkill(skillName)
+                // FO2-CE: negative values (from Hard difficulty) shown in red
+                skillValueLabels[i].setText(`${val}%`)
+                skillValueLabels[i].elem.style.color = val < 0 ? '#FF0000' : '#00FF00'
+            }
+        }
+        return result
+    }
+
+    // FO2-CE ref: skilldex.cc — keyboard shortcuts: 1-8 for skills, ESC to close
+    const skilldexKeyHandler = (e: KeyboardEvent) => {
+        if (!skilldexWindow.showing) return
+
+        if (e.key === 'Escape') {
+            skilldexWindow.close()
+            e.preventDefault()
+            return
+        }
+
+        const num = parseInt(e.key)
+        if (num >= 1 && num <= 8) {
+            useSkill(skilldexSkills[num - 1][1])()
+            e.preventDefault()
+        }
+    }
+    document.addEventListener('keydown', skilldexKeyHandler)
 }
 
 function initCharacterScreen() {
+    const player = globalState.player!
     const skillList = new List({ x: 380, y: 27, w: 'auto', h: 'auto' })
 
     skillList.css({ fontSize: '0.75em' })
+
+    // FO2-CE ref: stat.cc pcGetExperienceForLevel() — XP needed for next level
+    const currentLevel = player.getStat('Level')
+    const nextLevelXP = Math.floor((currentLevel + 1) * currentLevel / 2) * 1000
+
+    // Derived stats labels (updated in redraw)
+    const derivedStatsLabel = new Label(194, 57, '').css({ fontSize: '0.7em', color: '#00FF00', whiteSpace: 'pre' })
 
     characterWindow = new WindowFrame(
         'art/intrface/edtredt.png',
@@ -402,7 +462,8 @@ function initCharacterScreen() {
         640,
         480
     )
-        .add(new SmallButton(455, 454))
+        // FO2-CE ref: editor.cc — Done button saves changes, Cancel discards
+        .add(new SmallButton(455, 454)) // Done button (onClick set below)
         .add(new Label(455 + 18, 454, 'Done'))
         .add(
             new SmallButton(552, 454).onClick(() => {
@@ -414,13 +475,19 @@ function initCharacterScreen() {
         .add(new Label(160, 6, 'Age'))
         .add(new Label(242, 6, 'Gender'))
         .add(
-            new Label(33, 280, `Level: ${globalState.player.getStat('Level')}`).css({
+            new Label(33, 280, `Level: ${currentLevel}`).css({
                 fontSize: '0.75em',
                 color: '#00FF00',
             })
         )
         .add(
-            new Label(33, 292, `Exp: ${globalState.player.getStat('Experience')}`).css({
+            new Label(33, 292, `Exp: ${player.getStat('Experience')}`).css({
+                fontSize: '0.75em',
+                color: '#00FF00',
+            })
+        )
+        .add(
+            new Label(33, 304, `Next: ${nextLevelXP}`).css({
                 fontSize: '0.75em',
                 color: '#00FF00',
             })
@@ -431,38 +498,21 @@ function initCharacterScreen() {
             new Label(
                 194,
                 45,
-                `Hit Points ${globalState.player.getStat('HP')}/${globalState.player.getStat('Max HP')}`
+                `Hit Points ${player.getStat('HP')}/${player.getStat('Max HP')}`
             ).css({ fontSize: '0.75em', color: '#00FF00' })
         )
+        .add(derivedStatsLabel)
         .add(skillList)
         .show()
 
-    // TODO: Move these constants to their proper place
-
     const skills = [
-        'Small Guns',
-        'Big Guns',
-        'Energy Weapons',
-        'Unarmed',
-        'Melee Weapons',
-        'Throwing',
-        'First Aid',
-        'Doctor',
-        'Sneak',
-        'Lockpick',
-        'Steal',
-        'Traps',
-        'Science',
-        'Repair',
-        'Speech',
-        'Barter',
-        'Gambling',
-        'Outdoorsman',
+        'Small Guns', 'Big Guns', 'Energy Weapons', 'Unarmed', 'Melee Weapons',
+        'Throwing', 'First Aid', 'Doctor', 'Sneak', 'Lockpick', 'Steal', 'Traps',
+        'Science', 'Repair', 'Speech', 'Barter', 'Gambling', 'Outdoorsman',
     ]
 
     const stats = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK']
 
-    // TODO: Use a list of widgets or something for stats instead of this hack
     const statWidgets: Label[] = []
 
     let selectedStat = stats[0]
@@ -478,9 +528,10 @@ function initCharacterScreen() {
         n += 33
     }
 
-    // TODO: (Re-)run this after window is shown / a level-up is invoked
-    const newStatSet = globalState.player.stats.clone()
-    const newSkillSet = globalState.player.skills.clone()
+    const newStatSet = player.stats.clone()
+    const newSkillSet = player.skills.clone()
+    // FO2-CE ref: skill.cc — player-only options for skill value calculation
+    const playerSkillOpts = { isPlayer: true, perks: player.perks }
 
     // Skill Points / Tag Skills counter
     const skillPointCounter = new Label(522, 230, '').css({ background: 'black', padding: '5px' })
@@ -488,10 +539,12 @@ function initCharacterScreen() {
 
     const redrawStatsSkills = () => {
         // Draw skills
-        skillList.clear() // TODO: setItemText or something
+        skillList.clear()
 
         for (const skill of skills) {
-            skillList.addItem({ text: `${skill} ${newSkillSet.get(skill, newStatSet)}%`, id: skill })
+            const val = newSkillSet.get(skill, newStatSet, playerSkillOpts)
+            const tag = newSkillSet.isTagged(skill) ? ' *' : ''
+            skillList.addItem({ text: `${skill} ${val}%${tag}`, id: skill })
         }
 
         // Draw stats
@@ -502,37 +555,63 @@ function initCharacterScreen() {
 
         // Update skill point counter
         skillPointCounter.setText(pad(newSkillSet.skillPoints, 2))
+
+        // FO2-CE ref: stat.cc critterUpdateDerivedStats() — display derived stats
+        const agi = newStatSet.get('AGI')
+        const end = newStatSet.get('END')
+        const str = newStatSet.get('STR')
+        const per = newStatSet.get('PER')
+        const luk = newStatSet.get('LUK')
+
+        const derivedLines = [
+            `AC: ${agi}`,
+            `AP: ${5 + Math.floor(agi / 2)}`,
+            `Melee Dmg: ${Math.max(1, str - 5)}`,
+            `Carry: ${25 + 25 * str} lbs`,
+            `Sequence: ${2 * per}`,
+            `Heal Rate: ${Math.max(1, Math.floor(end / 3))}`,
+            `Crit Chance: ${luk}%`,
+        ]
+        derivedStatsLabel.setText(derivedLines.join('\n'))
     }
 
     redrawStatsSkills()
 
-    const isLevelUp = true // TODO
-    const canChangeStats = true // TODO
+    // FO2-CE ref: editor.cc — skill modification is available when the player has skill points
+    // Stat changes are never allowed during normal gameplay (only char creation).
+    const hasSkillPoints = newSkillSet.skillPoints > 0
+    const canChangeStats = false // FO2: stats only changeable at char creation
 
-    if (isLevelUp) {
+    if (hasSkillPoints) {
         const modifySkill = (inc: boolean) => {
-            const skill = skillList.getSelection()!.id
-            console.log('skill: %s currently: %d', skill, newSkillSet.get(skill, newStatSet))
+            const sel = skillList.getSelection()
+            if (!sel) return
+            const skill = sel.id
+            console.log('skill: %s currently: %d', skill, newSkillSet.get(skill, newStatSet, playerSkillOpts))
 
             if (inc) {
-                const changed = newSkillSet.incBase(skill)
+                const changed = newSkillSet.incBase(skill, newStatSet, playerSkillOpts)
                 if (!changed) {
                     console.warn('Not enough skill points!')
                 }
             } else {
-                newSkillSet.decBase(skill)
+                newSkillSet.decBase(skill, newStatSet, playerSkillOpts)
             }
 
             redrawStatsSkills()
         }
 
         const toggleTagSkill = () => {
-            const skill = skillList.getSelection()!.id
+            const sel = skillList.getSelection()
+            if (!sel) return
+            const skill = sel.id
             const tagged = newSkillSet.isTagged(skill)
-            console.log('skill: %s currently: %d tagged: %s', skill, newSkillSet.get(skill, newStatSet), tagged)
+            console.log('skill: %s currently: %d tagged: %s', skill, newSkillSet.get(skill, newStatSet, playerSkillOpts), tagged)
 
             if (!tagged) {
-                newSkillSet.tag(skill)
+                if (!newSkillSet.tag(skill)) {
+                    console.warn('Maximum tagged skills reached!')
+                }
             } else {
                 newSkillSet.untag(skill)
             }
@@ -540,49 +619,55 @@ function initCharacterScreen() {
             redrawStatsSkills()
         }
 
-        const modifyStat = (change: number) => {
-            console.log('stat: %s currently: %d', selectedStat, newStatSet.get(selectedStat))
-
-            newStatSet.modifyBase(selectedStat, change)
-            redrawStatsSkills()
-        }
-
         // Skill level up buttons
         characterWindow.add(
             new Label(580, 236, '-').onClick(() => {
-                console.log('-')
                 modifySkill(false)
             })
         )
         characterWindow.add(
             new Label(600, 236, '+').onClick(() => {
-                console.log('+')
                 modifySkill(true)
             })
         )
         characterWindow.add(
             new Label(620, 236, 'Tag').onClick(() => {
-                console.log('Tag')
                 toggleTagSkill()
             })
         )
-
-        // Stat level up buttons
-        if (canChangeStats) {
-            characterWindow.add(
-                new Label(115, 260, '-').onClick(() => {
-                    console.log('-')
-                    modifyStat(-1)
-                })
-            )
-            characterWindow.add(
-                new Label(135, 260, '+').onClick(() => {
-                    console.log('+')
-                    modifyStat(+1)
-                })
-            )
-        }
     }
+
+    // Stat level up buttons (char creation only)
+    if (canChangeStats) {
+        const modifyStat = (change: number) => {
+            newStatSet.modifyBase(selectedStat, change)
+            redrawStatsSkills()
+        }
+
+        characterWindow.add(
+            new Label(115, 260, '-').onClick(() => { modifyStat(-1) })
+        )
+        characterWindow.add(
+            new Label(135, 260, '+').onClick(() => { modifyStat(+1) })
+        )
+    }
+
+    // FO2-CE ref: editor.cc — Done button: write cloned stats/skills back to player
+    characterWindow.children[0].onClick(() => {
+        // Apply skill changes to the player
+        player.skills.baseSkills = Object.assign({}, newSkillSet.baseSkills)
+        player.skills.tagged = newSkillSet.tagged.slice()
+        player.skills.skillPoints = newSkillSet.skillPoints
+        player.skills.hasTagPerk = newSkillSet.hasTagPerk
+
+        // Apply stat changes (if any were allowed)
+        if (canChangeStats) {
+            player.stats.baseStats = Object.assign({}, newStatSet.baseStats)
+        }
+
+        console.log('[CharScreen] Changes saved.')
+        characterWindow.close()
+    })
 }
 
 export enum UIMode {

@@ -78,20 +78,54 @@ export class Player extends Critter {
         return 'The Dude'
     }
 
+    // FO2-CE ref: stat.cc pcGetExperienceForLevel()
+    // XP required to *reach* a given level: level * (level - 1) / 2 * 1000
+    static xpForLevel(level: number): number {
+        return Math.floor(level * (level - 1) / 2) * 1000
+    }
+
     addExperience(xp: number) {
         this.stats.modifyBase('Experience', xp)
 
-        // Fallout 2 XP thresholds: level N requires N*(N-1)/2 * 1000 XP
+        // FO2-CE ref: stat.cc — loop handles gaining multiple levels at once
         const totalXP = this.stats.get('Experience')
-        const currentLevel = this.stats.get('Level')
-        const xpForNextLevel = currentLevel * (currentLevel + 1) / 2 * 1000
-        if (totalXP >= xpForNextLevel) {
+        let currentLevel = this.stats.get('Level')
+
+        while (currentLevel < 99) {
+            const xpForNextLevel = Player.xpForLevel(currentLevel + 1)
+            if (totalXP < xpForNextLevel) break
+
             this.stats.modifyBase('Level', 1)
-            const intBonus = 5 + this.getStat('INT') * 2
-            this.skills.skillPoints += intBonus
-            console.log(`Level up! Now level ${currentLevel + 1}. Gained ${intBonus} skill points.`)
+            currentLevel++
+
+            // FO2-CE ref: stat.cc — Skill points: 5 + 2*INT per level
+            // Educated perk: +2 per rank
+            let skillPointGain = 5 + this.getStat('INT') * 2
+            if (this.hasPerk('Educated')) skillPointGain += 2
+            this.skills.skillPoints += skillPointGain
+
+            // FO2-CE ref: stat.cc — HP per level: floor(END / 2) + 2
+            // Lifegiver perk: +4 per rank
+            let hpGain = Math.floor(this.getStat('END') / 2) + 2
+            if (this.hasPerk('Lifegiver')) hpGain += 4
+            this.stats.modifyBase('Max HP', hpGain)
+            this.stats.modifyBase('HP', hpGain)
+
+            // FO2-CE ref: editor.cc — perk every 3 levels (Skilled trait: every 4)
+            const perkRate = this.hasPerk('Skilled') ? 4 : 3
+            if (currentLevel % perkRate === 0) {
+                this.pendingPerkPick = true
+            }
+
+            console.log(
+                `Level up! Now level ${currentLevel}. `
+                + `Gained ${skillPointGain} skill points, ${hpGain} HP.`
+            )
         }
     }
+
+    // Set to true when a perk pick is available (at character screen)
+    pendingPerkPick = false
 
     /*
     var obj = {position: {x: 94, y: 109}, orientation: 2, frame: 0, type: "critter",
