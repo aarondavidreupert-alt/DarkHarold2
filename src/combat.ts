@@ -201,7 +201,7 @@ export class Combat {
             if (obj instanceof Critter) {
                 if (obj.dead || !obj.visible) return false
 
-                // TODO: should we initialize AI elsewhere, like in Critter?
+                // NOTE: AI is initialized here for simplicity; could be moved to Critter later
                 if (!obj.isPlayer && !obj.ai) obj.ai = new AI(obj)
 
                 if (obj.stats === undefined) throw 'no stats'
@@ -327,7 +327,7 @@ export class Combat {
     }
 
     getHitChance(obj: Critter, target: Critter, region: string) {
-        // TODO: visibility (= light conditions) and distance
+        // NOTE: distance modifier is implemented; light conditions not yet factored in
         var weaponObj = obj.equippedWeapon
         if (weaponObj === null)
             // no weapon equipped (not even melee)
@@ -727,6 +727,7 @@ export class Combat {
 
     findTarget(obj: Critter): Critter | null {
         // TODO: find target according to AI rules
+        // Currently: nearest enemy. FO2 uses threat level + weapon range preference.
         // Find the closest living combatant on a different team
 
         const targets = this.combatants.filter((x) => !x.dead && x.teamNum !== obj.teamNum)
@@ -860,6 +861,7 @@ export class Combat {
             this.maybeTaunt(obj, 'move', messageRoll)
 
             // TODO: check nearest direction first
+            // Currently: iterates hexNeighbors in default order (not distance-sorted)
             var didCreep = false
             for (var i = 0; i < neighbors.length; i++) {
                 if (
@@ -893,7 +895,7 @@ export class Combat {
                 this.log('[NO PATH]')
                 return this.nextTurn()
             }
-        } else if (AP.getAvailableCombatAP() >= 4) {
+        } else if (AP.getAvailableCombatAP() >= weapon.getAPCost(1)) {
             // if we are in range, do we have enough AP to attack?
 
             // ── AI AMMO CHECK ────────────────────────────────────────────────────
@@ -966,7 +968,8 @@ export class Combat {
                     that.doAITurn(obj, idx, depth + 1)
                 })
             } else {
-                AP.subtractCombatAP(4)
+                const singleAPCost = weapon.getAPCost(1)
+                AP.subtractCombatAP(singleAPCost)
                 this.attack(obj, target, 'torso', function () {
                     obj.clearAnim()
                     that.doAITurn(obj, idx, depth + 1) // if we can, do another turn

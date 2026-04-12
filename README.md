@@ -28,13 +28,19 @@ Here is a very rough list of what is known to work:
 -   Some quests (a lot of the scripting works, majors quests can be completed)
 -   Some party members
 -   Some skills (lockpicking and repair, and some passive skills)
--   Sound (scripted sound effects, music; not hardcoded sound effects, yet)
+-   Sound (scripted and hardcoded sound effects, music)
 
 Some features are more middle ground:
 
--   Fonts are rendered within HTML elements, which makes it impossible to use native Fallout bitmap fonts. The UI system needs to use the WebGL renderer instead of HTML and DOM for bitmap font rendering to work well.
--   Combat works at an extremely basic level but not to a great degree (only the SMG and spear is really tested, you cannot swap ammo, etc.)
--   No equippable armor
+-   WebGL text rendering via 2D canvas overlay is implemented, but native Fallout bitmap fonts are not yet used everywhere.
+-   Combat is substantially implemented: hit chance formula, ammo system (X/Y/DR/AC modifiers),
+    burst fire (3-cone spread), called shots (8 body regions), critical hits (6 levels),
+    critical failures (weapon-type-specific), armor DR/DT, crippled limbs, knockdown/knockout,
+    fire DoT, ranged miss scatter, partial cover, AI weapon switching and ammo reloading,
+    and most combat perks (Slayer, Sniper, Sharpshooter, Bonus HtH Attacks, etc.).
+    Known gaps: unarmed hit modes (Haymaker etc.), DAM_DROP (weapon drop on crit), AI AP cost
+    is hardcoded to 4 instead of using weapon AP cost.
+-   Equippable armor is implemented (DR/DT applied to damage calculations)
 -   The world map is rough and buggy, and on the area screens entrances are misplaced
 -   Random encounters work, but not all of the setups are implemented
 -   Lighting works, but has some minor bugs and inaccuracies. It is also particularly slow, especially outside of the WebGL backend.
@@ -44,7 +50,7 @@ Some features are more middle ground:
 
 Some features are not implemented at all:
 
--   The PipBoy map
+-   The PipBoy map (in progress on the pipboy branch)
 
 and other minor features here and there.
 
