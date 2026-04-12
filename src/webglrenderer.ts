@@ -51,6 +51,7 @@ export class WebGLRenderer extends Renderer {
     // draws bypass lighting by pushing u_ambient = 1.0.
     private uTileAmbient: WebGLUniformLocation | null = null
     private uTileCamera: WebGLUniformLocation | null = null
+    private roofDummyTexture: WebGLTexture | null = null // 1x1 R8 = 0, used for roof draws
 
     // Last ambient value pushed to u_ambient; used to log transitions so we
     // can verify day/night changes are actually reaching the shader without
@@ -296,6 +297,20 @@ export class WebGLRenderer extends Renderer {
         // multiply at init time.
         gl.uniform1f(this.uTileAmbient, 1.0)
         gl.uniform2f(this.uTileCamera, 0.0, 0.0)
+
+        // 1×1 R8 dummy texture (value 0) for roof draws — roofs are
+        // sky-facing and should be lit by ambient only, not by floor
+        // spotlights below them. Binding this on unit 5 during roof
+        // draws makes the shader return max(0, u_ambient) = ambient.
+        this.roofDummyTexture = gl.createTexture()
+        gl.activeTexture(gl.TEXTURE6) // use a scratch unit to avoid disturbing unit 5
+        gl.bindTexture(gl.TEXTURE_2D, this.roofDummyTexture)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array([0]))
+
         gl.activeTexture(gl.TEXTURE0)
 
         // set up floor light shader
@@ -791,8 +806,64 @@ export class WebGLRenderer extends Renderer {
         }
     }
 
+    // Roofs are sky-facing — lit by ambient sky light only, not by
+    // floor-level spotlights. Bind the zeroed roofDummyTexture on unit 5
+    // so the shader computes max(0, ambient) = ambient for every pixel.
+    private setRoofLighting(): void {
+        const gl = this.gl
+        gl.uniform1f(this.uTileAmbient, GameTime.getAmbientLightNormalized())
+        gl.uniform2f(this.uTileCamera, globalState.cameraPosition.x, globalState.cameraPosition.y)
+        gl.activeTexture(gl.TEXTURE5)
+        gl.bindTexture(gl.TEXTURE_2D, this.roofDummyTexture)
+        gl.activeTexture(gl.TEXTURE0)
+    }
+
     renderRoof(roof: TileMap): void {
-        this.drawTileMap(roof, -96)
+        const gl = this.gl
+        gl.useProgram(this.tileShader)
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
+        gl.uniform1f(this.uNumFramesLocation, 1)
+        gl.uniform1f(this.uFrameLocation, 0)
+        gl.uniform2f(this.uScaleLocation, 80, 36)
+
+        // Use ambient-only lighting for sky-facing roof tiles.
+        this.setRoofLighting()
+
+        for (let i = 0; i < roof.length; i++) {
+            for (let j = 0; j < roof[0].length; j++) {
+                const tile = roof[j][i]
+                if (tile === 'grid000') {
+                    continue
+                }
+                const img = 'art/tiles/' + tile
+
+                const scr = tileToScreen(i, j)
+                scr.y += -96
+                if (
+                    scr.x + TILE_WIDTH < globalState.cameraPosition.x ||
+                    scr.y + TILE_HEIGHT < globalState.cameraPosition.y ||
+                    scr.x >= globalState.cameraPosition.x + SCREEN_WIDTH ||
+                    scr.y >= globalState.cameraPosition.y + SCREEN_HEIGHT
+                ) {
+                    continue
+                }
+
+                const texture = this.getTextureFromHack(img)
+                if (!texture) {
+                    console.log('skipping roof tile without a texture: ' + img)
+                    continue
+                }
+                gl.activeTexture(gl.TEXTURE0)
+                gl.bindTexture(gl.TEXTURE_2D, texture)
+
+                gl.uniform2f(
+                    this.offsetLocation,
+                    scr.x - globalState.cameraPosition.x,
+                    scr.y - globalState.cameraPosition.y
+                )
+                gl.drawArrays(gl.TRIANGLES, 0, 6)
+            }
+        }
     }
 
     renderFloor(floor: TileMap): void {

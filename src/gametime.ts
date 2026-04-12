@@ -204,17 +204,16 @@ function curveAt(hourFloat: number): number {
 // the script override into account.
 //
 // Semantics: the time-of-day curve is the primary driver. If a script has
-// called set_light_level (e.g. a dim cave, a blacked-out room), the returned
-// value is the MINIMUM of the curve and the override — i.e. the script sets
-// a brightness CEILING for the area, and the curve can still darken below
-// it at night. This diverges from vanilla F2 (where set_light_level always
-// wins) but it's the only way day/night is visible on maps whose scripts
-// pin a fixed ambient in map_enter_p_proc and never touch it again.
+// called set_light_level (e.g. a vault with fluorescent lighting, a tavern
+// with lamps), the returned value is the MAXIMUM of the curve and the
+// override — i.e. the script sets a brightness FLOOR for the area.
+// Indoor areas never drop below the scripted level even at night (the
+// "lights" are on), but daytime can still brighten them (e.g. windows).
 export function getAmbientLight(): number {
     const hourFloat = getHour() + getMinute() / 60
     const curveValue = curveAt(hourFloat)
     if (lightLevelOverride !== null) {
-        return Math.min(curveValue, lightLevelOverride)
+        return Math.max(curveValue, lightLevelOverride)
     }
     return curveValue
 }
