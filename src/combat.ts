@@ -501,11 +501,11 @@ export class Combat {
             ADT = Math.floor(ADT * 0.2)
         }
 
-        const baseDamage = (CM / 2) * RD
-        const adjustedDamage = Math.max(0, baseDamage - ADT)
-        const finalDamage = Math.ceil(adjustedDamage * (1 - ADR / 100))
+        const baseDamage = RD + CM                           // dice roll + crit multiplier
+        const afterDR    = baseDamage * (1 - ADR / 100)     // apply DR% first
+        const finalDamage = Math.max(0, afterDR - ADT)      // then subtract DT
         const result = Math.max(0, Math.ceil(finalDamage * (CD / 100)))
-        uiLog(`Unarmed [${mode.name}]: RD=${RD} CM=${CM} ADR=${ADR} ADT=${ADT} → ${result} damage`)
+        uiLog(`Unarmed [${mode.name}]: RD=${RD} CM=${CM} ADR=${ADR}% ADT=${ADT} → afterDR=${afterDR.toFixed(1)} → final=${result} damage`)
         return result
     }
 
@@ -893,7 +893,34 @@ export class Combat {
         }
 
         var weaponObj = obj.equippedWeapon
-        if (!weaponObj) throw Error('AI has no weapon')
+        // Handle unarmed AI (no weapon equipped) — punch at melee range
+        if (!weaponObj) {
+            const unarmedAPCost = 3
+            console.log('[AI] unarmed critter', obj.name, '— AP:', AP.getAvailableCombatAP(), 'distance:', distance)
+            if (distance <= 1 && AP.getAvailableCombatAP() >= unarmedAPCost) {
+                AP.subtractCombatAP(unarmedAPCost)
+                this.attack(obj, target, 'torso', function () {
+                    obj.clearAnim()
+                    that.doAITurn(obj, idx, depth + 1)
+                })
+            } else if (distance > 1 && AP.getAvailableMoveAP() > 0) {
+                // Walk towards target
+                const neighbors = hexNeighbors(target.position)
+                const maxSteps = AP.getAvailableMoveAP()
+                for (const nb of neighbors) {
+                    if (obj.walkTo(nb, false, () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1) }, maxSteps) !== false) {
+                        if (AP.subtractMoveAP(obj.path.path.length - 1) === false) break
+                        return
+                    }
+                }
+                console.log('[AI IS STUMPED] unarmed, no path to target')
+                return this.nextTurn()
+            } else {
+                console.log('[AI IS STUMPED] unarmed, not enough AP (AP:', AP.getAvailableCombatAP(), 'dist:', distance, ')')
+                return this.nextTurn()
+            }
+            return
+        }
         var weapon = weaponObj.weapon
         if (!weapon) throw Error('AI weapon has no weapon data')
 
@@ -929,7 +956,11 @@ export class Combat {
 
         // Re-read weapon after potential swap
         weaponObj = obj.equippedWeapon
-        if (!weaponObj) throw Error('AI has no weapon after swap check')
+        if (!weaponObj) {
+            // Weapon was dropped/removed during swap — end turn gracefully
+            console.log('[AI IS STUMPED] no weapon after swap check')
+            return this.nextTurn()
+        }
         weapon = weaponObj.weapon
         if (!weapon) throw Error('AI weapon has no weapon data after swap check')
         fireDistance = weapon.getMaximumRange(1)
@@ -1067,7 +1098,8 @@ export class Combat {
                 })
             }
         } else {
-            console.log('[AI IS STUMPED]')
+            console.log('[AI IS STUMPED] target:', target?.name, 'AP:', AP.getAvailableCombatAP(),
+                'weapon:', weapon?.name, 'weaponAPCost:', weapon?.getAPCost(1), 'distance:', distance)
             this.nextTurn()
         }
     }
