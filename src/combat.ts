@@ -382,10 +382,13 @@ export class Combat {
         return { hit: hitChance, crit: critChance }
     }
 
-    rollHit(obj: Critter, target: Critter, region: string, hitBonus: number = 0): any {
+    rollHit(obj: Critter, target: Critter, region: string, hitBonus: number = 0,
+            attackerName?: string, defenderName?: string): any {
         var critModifer = obj.getStat('Better Criticals')
         var hitChance = this.getHitChance(obj, target, region)
         hitChance = { ...hitChance, hit: hitChance.hit + hitBonus }
+
+        if (attackerName) uiLog(`${attackerName} attacks ${defenderName} — hit chance: ${hitChance.hit}%`)
 
         // hey kids! Did you know FO only rolls the dice once here and uses the results two times?
         var roll = getRandomInt(1, 101)
@@ -409,12 +412,14 @@ export class Combat {
             if (isCrit === true) {
                 var critLevel = Math.floor(Math.max(0, getRandomInt(critModifer, 100 + critModifer)) / 20)
                 this.log('crit level: ' + critLevel)
+                if (attackerName) uiLog(`${attackerName} scores a CRITICAL HIT on ${defenderName}! (level ${critLevel})`)
                 var crit = CriticalEffects.getCritical(target.killType ?? 0, region, critLevel)
                 var critStatus = crit.doEffectsOn(target)
 
                 return { hit: true, crit: true, DM: critStatus.DM, msgID: critStatus.msgID } // crit
             }
 
+            if (attackerName) uiLog(`${attackerName} hits ${defenderName}! (roll: ${roll})`)
             return { hit: true, crit: false } // hit
         }
 
@@ -428,6 +433,7 @@ export class Combat {
             if (getRandomInt(1, 100) <= 50) isCrit = true
         }
 
+        if (attackerName) uiLog(`${attackerName} misses ${defenderName}. (roll: ${roll})`)
         return { hit: false, crit: isCrit } // miss
     }
 
@@ -465,9 +471,9 @@ export class Combat {
 
         var baseDamage = (CM / 2) * ammoDamageMult * (RD + RB)
         var adjustedDamage = Math.max(0, baseDamage - ADT)
-        console.log(
-            `RD: ${RD} | CM: ${CM} | ADR: ${ADR} | ADT: ${ADT} | Base Dmg: ${baseDamage} Adj Dmg: ${adjustedDamage} | Type: ${damageType}`
-        )
+        const dmgLog = `RD: ${RD} | CM: ${CM} | ADR: ${ADR} | ADT: ${ADT} | Base: ${baseDamage} Adj: ${adjustedDamage} | Type: ${damageType}`
+        console.log(dmgLog)
+        uiLog(dmgLog)
 
         // CD is a post-formula difficulty scale, not part of the base roll (FO2: _compute_damage)
         var finalDamage = Math.ceil(adjustedDamage * (1 - (ADR + RM) / 100))
@@ -498,7 +504,9 @@ export class Combat {
         const baseDamage = (CM / 2) * RD
         const adjustedDamage = Math.max(0, baseDamage - ADT)
         const finalDamage = Math.ceil(adjustedDamage * (1 - ADR / 100))
-        return Math.max(0, Math.ceil(finalDamage * (CD / 100)))
+        const result = Math.max(0, Math.ceil(finalDamage * (CD / 100)))
+        uiLog(`Unarmed [${mode.name}]: RD=${RD} CM=${CM} ADR=${ADR} ADT=${ADT} → ${result} damage`)
+        return result
     }
 
     getCombatMsg(id: number) {
@@ -545,21 +553,24 @@ export class Combat {
 
         // ── UNARMED (no weapon equipped) ──────────────────────────────────────
         if (weaponObj === null) {
-            var unarmedHit = this.rollHit(obj, target, region)
-            this.log('hit% is ' + this.getHitChance(obj, target, region).hit)
+            var unarmedSkill = obj.getSkill('Unarmed')
+            var unarmedModeIdx = obj.isPlayer ? globalState.unarmedModeIdx : 0
+            var unarmedModeName = getActiveUnarmedMode(unarmedSkill, unarmedModeIdx).name
+
+            var unarmedHit = this.rollHit(obj, target, region, 0, who, targetName)
 
             if (unarmedHit.hit === true) {
                 var unarmedCritMod = unarmedHit.crit ? unarmedHit.DM : 2
                 var unarmedDmg = this.getUnarmedDamageDone(obj, target, unarmedCritMod)
                 var unarmedExtraMsg = unarmedHit.crit ? this.getCombatMsg(unarmedHit.msgID) || '' : ''
-                uiLog(`${who} hit ${targetName} for ${unarmedDmg} damage (unarmed)${unarmedExtraMsg}`)
+                uiLog(`${who} hits ${targetName} for ${unarmedDmg} damage (${unarmedModeName})${unarmedExtraMsg}`)
                 audio.playActionSfx('hit_flesh')
                 critterDamage(target, unarmedDmg, obj, true, true, 'Normal')
                 if (target.isPlayer) drawHP(target.getStat('HP'))
                 if (target.dead) this.perish(target, obj, 'Normal')
             } else {
                 audio.playActionSfx('miss')
-                uiLog(`${who} missed ${targetName} (unarmed)${unarmedHit.crit ? ' critically' : ''}`)
+                uiLog(`${who} misses ${targetName} (${unarmedModeName})`)
                 if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
                     target.staticAnimation('dodge', () => target.clearAnim())
                 }
@@ -572,7 +583,7 @@ export class Combat {
                     else if (unarmedCritFailRoll <= 75) unarmedCritFailLevel = 3
                     else if (unarmedCritFailRoll <= 95) unarmedCritFailLevel = 4
                     else unarmedCritFailLevel = 5
-                    uiLog(`${who} critically failed! (level ${unarmedCritFailLevel})`)
+                    uiLog(`${who} CRITICALLY FAILS! (level ${unarmedCritFailLevel})`)
                     var unarmedCritFailEffect = CriticalEffects.criticalFailTable['unarmed']?.[unarmedCritFailLevel]
                         ?? CriticalEffects.criticalFailTable['unarmed'][1]
                     CriticalEffects.temporaryDoCritFail(unarmedCritFailEffect, obj)
@@ -652,8 +663,7 @@ export class Combat {
         }
 
         // ── SINGLE SHOT ───────────────────────────────────────────────────────
-        var hitRoll = this.rollHit(obj, target, region)
-        this.log('hit% is ' + this.getHitChance(obj, target, region).hit)
+        var hitRoll = this.rollHit(obj, target, region, 0, who, targetName)
 
         // Deduct one round after the roll
         if (weapon && weapon.type !== 'melee') {
@@ -757,7 +767,9 @@ export class Combat {
     }
 
     perish(obj: Critter, attacker?: Critter, damageType?: string) {
-        uiLog('...And killed them.')
+        const victimDisplay = obj.isPlayer ? 'You' : obj.name
+        const attackerDisplay = attacker ? (attacker.isPlayer ? 'you' : attacker.name) : 'something'
+        uiLog(`${victimDisplay} is killed by ${attackerDisplay}!`)
         globalState.audioEngine.playActionSfx('critter_die')
 
         // Defensively ensure dead flag is set — critterKill (called by critterDamage
