@@ -577,6 +577,9 @@ export class WebGLRenderer extends Renderer {
 
         // use normal shader
         gl.useProgram(this.tileShader)
+        // Push live ambient so subsequent object / roof draws are correct
+        // even if no objects are on screen to trigger setTileLighting.
+        this.setTileLighting(true)
     }
 
     renderLitFloorGPU(tileMap: TileMap) {
@@ -725,6 +728,12 @@ export class WebGLRenderer extends Renderer {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
         gl.enableVertexAttribArray(this.positionLocation)
         gl.vertexAttribPointer(this.positionLocation, 2, gl.FLOAT, false, 0, 0)
+
+        // Push live ambient into the tile shader now — subsequent
+        // renderObject / drawTileMap calls may or may not happen (empty
+        // map, roofs hidden), so the tile shader must already have the
+        // correct ambient before any of them fire.
+        this.setTileLighting(true)
     }
 
     invalidateFloorFBO(): void {
