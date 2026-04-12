@@ -450,13 +450,15 @@ export class Combat {
 
         var ammoDamageMult = X / Y
 
-        var baseDamage = (CM / 2) * ammoDamageMult * (RD + RB) * (CD / 100)
+        var baseDamage = (CM / 2) * ammoDamageMult * (RD + RB)
         var adjustedDamage = Math.max(0, baseDamage - ADT)
         console.log(
             `RD: ${RD} | CM: ${CM} | ADR: ${ADR} | ADT: ${ADT} | Base Dmg: ${baseDamage} Adj Dmg: ${adjustedDamage} | Type: ${damageType}`
         )
 
-        return Math.ceil(adjustedDamage * (1 - (ADR + RM) / 100))
+        // CD is a post-formula difficulty scale, not part of the base roll (FO2: _compute_damage)
+        var finalDamage = Math.ceil(adjustedDamage * (1 - (ADR + RM) / 100))
+        return Math.max(0, Math.ceil(finalDamage * (CD / 100)))
     }
 
     getCombatMsg(id: number) {
@@ -1034,6 +1036,28 @@ export class Combat {
         }
     }
 
+    /**
+     * Simple line-of-sight check (FO2: _combat_update_critters_in_los).
+     * Returns false when any wall-type object lies on the interior hex-line between `from` and `to`.
+     */
+    hasLineOfSight(from: Point, to: Point): boolean {
+        if (!globalState.gMap) return true
+        const line = hexLine(from, to) ?? []
+        if (line.length <= 2) return true // adjacent — always visible
+        const interior = line.slice(1, -1)
+        const mapObjects = globalState.gMap.getObjects()
+        for (const pos of interior) {
+            for (const o of mapObjects) {
+                if ((o as any).type === 'wall' &&
+                    (o as any).position?.x === pos.x &&
+                    (o as any).position?.y === pos.y) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
     nextTurn(): void {
         // update range checks
         var numActive = 0
@@ -1045,8 +1069,9 @@ export class Combat {
                 continue
             }
             var inRange = hexDistance(obj.position, this.player.position) <= obj.ai.info.max_dist
+            var hasLOS = inRange && this.hasLineOfSight(obj.position, this.player.position)
 
-            if (inRange || obj.hostile) {
+            if (hasLOS || obj.hostile) {
                 obj.hostile = true
                 obj.outline = obj.teamNum !== globalState.player.teamNum ? 'red' : 'green'
                 numActive++

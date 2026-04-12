@@ -121,22 +121,22 @@ export interface UnarmedMove {
     penetrate: boolean // reduces target DR/DT to 20%
 }
 
-/** 14 unarmed moves from Fallout 2, ordered by unlock requirements (FO2 reference: unarmedFindBestAttack). */
+/** 14 unarmed moves from Fallout 2, ordered by unlock requirements (FO2 reference: unarmedFindBestAttack / item.cc). */
 export const UNARMED_MOVES: UnarmedMove[] = [
     { name: 'punch',          levelReq: 1,  skillReq: 55, minDmg: 1, maxDmg: 2,  apCost: 3, critBonus: 0,  penetrate: false },
-    { name: 'kick',           levelReq: 1,  skillReq: 40, minDmg: 1, maxDmg: 2,  apCost: 3, critBonus: 0,  penetrate: false },
+    { name: 'kick',           levelReq: 1,  skillReq: 40, minDmg: 1, maxDmg: 3,  apCost: 3, critBonus: 0,  penetrate: false },
     { name: 'strong punch',   levelReq: 6,  skillReq: 55, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 0,  penetrate: false },
-    { name: 'haymaker',       levelReq: 6,  skillReq: 60, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 5,  penetrate: false },
-    { name: 'jab',            levelReq: 6,  skillReq: 60, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 10, penetrate: false },
+    { name: 'haymaker',       levelReq: 6,  skillReq: 60, minDmg: 3, maxDmg: 6,  apCost: 5, critBonus: 5,  penetrate: false },
+    { name: 'jab',            levelReq: 6,  skillReq: 60, minDmg: 3, maxDmg: 6,  apCost: 5, critBonus: 10, penetrate: false },
     { name: 'hammer punch',   levelReq: 9,  skillReq: 60, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 5,  penetrate: false },
     { name: 'groin kick',     levelReq: 9,  skillReq: 50, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 10, penetrate: false },
-    { name: 'palm strike',    levelReq: 12, skillReq: 70, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 20, penetrate: false },
+    { name: 'palm strike',    levelReq: 12, skillReq: 70, minDmg: 3, maxDmg: 6,  apCost: 5, critBonus: 20, penetrate: false },
     { name: 'lightning punch',levelReq: 12, skillReq: 75, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 30, penetrate: false },
     { name: 'powerkick',      levelReq: 12, skillReq: 60, minDmg: 5, maxDmg: 10, apCost: 4, critBonus: 5,  penetrate: false },
-    { name: 'piercing strike',levelReq: 16, skillReq: 75, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 15, penetrate: true  },
-    { name: 'hip kick',       levelReq: 16, skillReq: 60, minDmg: 5, maxDmg: 10, apCost: 4, critBonus: 10, penetrate: false },
-    { name: 'hook kick',      levelReq: 18, skillReq: 75, minDmg: 5, maxDmg: 10, apCost: 5, critBonus: 10, penetrate: false },
-    { name: 'piercing kick',  levelReq: 20, skillReq: 80, minDmg: 5, maxDmg: 10, apCost: 5, critBonus: 15, penetrate: true  },
+    { name: 'piercing strike',levelReq: 16, skillReq: 75, minDmg: 3, maxDmg: 6,  apCost: 5, critBonus: 15, penetrate: true  },
+    { name: 'hip kick',       levelReq: 16, skillReq: 60, minDmg: 5, maxDmg: 10, apCost: 5, critBonus: 10, penetrate: false },
+    { name: 'hook kick',      levelReq: 18, skillReq: 75, minDmg: 5, maxDmg: 10, apCost: 6, critBonus: 10, penetrate: false },
+    { name: 'piercing kick',  levelReq: 20, skillReq: 80, minDmg: 5, maxDmg: 10, apCost: 7, critBonus: 15, penetrate: true  },
 ]
 
 /** Returns the subset of unarmed moves available at the given Unarmed skill and character level. */

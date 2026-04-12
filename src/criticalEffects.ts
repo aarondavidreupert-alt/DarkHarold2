@@ -19,6 +19,7 @@ import { StatType } from './skills.js'
 import { getFileJSON, rollSkillCheck } from './util.js'
 import globalState from './globalState.js'
 import { critterDamage, Weapon, getAvailableUnarmedMoves } from './critter.js'
+import { uiLog } from './ui.js'
 
 // Critical Effects system
 
@@ -219,7 +220,7 @@ export module CriticalEffects {
             fist.weapon.initUnarmedMoves(unarmedSkill, charLevel)
             self[activeHand] = fist
 
-            console.log(target.name + ' dropped their weapon')
+            uiLog(`${target.name} dropped their weapon!`)
         },
 
         loseNextTurn: function (target: Critter) {
