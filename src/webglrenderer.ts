@@ -825,6 +825,12 @@ export class WebGLRenderer extends Renderer {
         if (lit) {
             gl.uniform1f(this.uTileAmbient, GameTime.getAmbientLightNormalized())
             gl.uniform2f(this.uTileCamera, globalState.cameraPosition.x, globalState.cameraPosition.y)
+            // Re-bind tileIntensityTexture to unit 5 — other draw calls
+            // (compositeFloorWithLighting, renderFloorToFBO, etc.) may have
+            // disturbed the binding on that unit.
+            gl.activeTexture(gl.TEXTURE5)
+            gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
+            gl.activeTexture(gl.TEXTURE0) // restore default unit
         } else {
             gl.uniform1f(this.uTileAmbient, 1.0)
         }
