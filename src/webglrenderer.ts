@@ -56,6 +56,7 @@ export class WebGLRenderer extends Renderer {
     // can verify day/night changes are actually reaching the shader without
     // spamming one line per frame.
     private lastLoggedAmbient = -1
+    private tileLightingLoggedOnce = false
 
     // FBO for cached unlit floor rendering (GPU lighting mode)
     private floorFBO: WebGLFramebuffer | null = null
@@ -830,9 +831,14 @@ export class WebGLRenderer extends Renderer {
         const gl = this.gl
         if (lit) {
             const ambient = GameTime.getAmbientLightNormalized()
-            if (this.lastLoggedAmbient !== ambient) {
-                console.log(`[setTileLighting] ambient=${ambient.toFixed(3)}, hour=${GameTime.getHour()}, camera=(${globalState.cameraPosition.x.toFixed(0)},${globalState.cameraPosition.y.toFixed(0)}), tileIntensityTex=${this.tileIntensityTexture !== null}, program=${gl.getParameter(gl.CURRENT_PROGRAM) === this.tileShader ? 'tileShader' : 'OTHER'}`)
-                this.lastLoggedAmbient = ambient
+            if (!this.tileLightingLoggedOnce) {
+                this.tileLightingLoggedOnce = true
+                console.log(
+                    `[setTileLighting] FIRST CALL — ambient=${ambient.toFixed(3)}, ` +
+                    `uTileAmbient=${this.uTileAmbient}, uTileCamera=${this.uTileCamera}, ` +
+                    `tileIntensityTex=${this.tileIntensityTexture}, ` +
+                    `program=${gl.getParameter(gl.CURRENT_PROGRAM) === this.tileShader ? 'tileShader' : 'OTHER'}`
+                )
             }
             gl.uniform1f(this.uTileAmbient, ambient)
             gl.uniform2f(this.uTileCamera, globalState.cameraPosition.x, globalState.cameraPosition.y)
