@@ -282,6 +282,12 @@ export class WebGLRenderer extends Renderer {
         this.uTileCamera = gl.getUniformLocation(this.tileShader, 'u_camera')
         const uTileTileIntensity = gl.getUniformLocation(this.tileShader, 'u_tileIntensity')
         const uTileScreenResolution = gl.getUniformLocation(this.tileShader, 'u_screenResolution')
+        console.log(
+            `[lighting/init] tileShader uniforms — u_ambient=${this.uTileAmbient !== null}, ` +
+            `u_camera=${this.uTileCamera !== null}, u_tileIntensity=${uTileTileIntensity !== null}, ` +
+            `u_screenResolution=${uTileScreenResolution !== null}, ` +
+            `canvasSize=${this.canvas.width}x${this.canvas.height}`
+        )
         gl.uniform1i(uTileTileIntensity, 5)
         gl.uniform2f(uTileScreenResolution, this.canvas.width, this.canvas.height)
         // Seed: any UI draw that happens before the first lit draw must NOT
@@ -823,7 +829,12 @@ export class WebGLRenderer extends Renderer {
     private setTileLighting(lit: boolean): void {
         const gl = this.gl
         if (lit) {
-            gl.uniform1f(this.uTileAmbient, GameTime.getAmbientLightNormalized())
+            const ambient = GameTime.getAmbientLightNormalized()
+            if (this.lastLoggedAmbient !== ambient) {
+                console.log(`[setTileLighting] ambient=${ambient.toFixed(3)}, hour=${GameTime.getHour()}, camera=(${globalState.cameraPosition.x.toFixed(0)},${globalState.cameraPosition.y.toFixed(0)}), tileIntensityTex=${this.tileIntensityTexture !== null}, program=${gl.getParameter(gl.CURRENT_PROGRAM) === this.tileShader ? 'tileShader' : 'OTHER'}`)
+                this.lastLoggedAmbient = ambient
+            }
+            gl.uniform1f(this.uTileAmbient, ambient)
             gl.uniform2f(this.uTileCamera, globalState.cameraPosition.x, globalState.cameraPosition.y)
             // Re-bind tileIntensityTexture to unit 5 — other draw calls
             // (compositeFloorWithLighting, renderFloorToFBO, etc.) may have
