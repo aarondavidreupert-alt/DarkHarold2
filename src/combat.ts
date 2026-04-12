@@ -27,6 +27,7 @@ import { loadPRO } from './pro.js'
 import { Scripting } from './scripting.js'
 import { drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiLog, uiStartCombat } from './ui.js'
 import { getFileText, getMessage, getRandomInt, parseIni, rollSkillCheck } from './util.js'
+import { getActiveUnarmedMode } from './unarmed.js'
 
 // Turn-based combat system
 
@@ -328,9 +329,21 @@ export class Combat {
     getHitChance(obj: Critter, target: Critter, region: string) {
         // NOTE: distance modifier is implemented; light conditions not yet factored in
         var weaponObj = obj.equippedWeapon
-        if (weaponObj === null)
-            // no weapon equipped (not even melee)
-            return { hit: -1, crit: -1 }
+        if (weaponObj === null) {
+            // Unarmed (no weapon equipped): use Unarmed skill
+            const unarmedSkill = obj.getSkill('Unarmed')
+            const modeIdx = obj.isPlayer ? globalState.unarmedModeIdx : 0
+            const mode = getActiveUnarmedMode(unarmedSkill, modeIdx)
+            const AC = target.getStat('AC') + target.getArmorAC() + target.bonusAC
+            const partialCoverPenalty = this.accountForPartialCover(obj, target)
+            const crippledArmPenalty = (obj.crippledLeftArm ? 20 : 0) + (obj.crippledRightArm ? 20 : 0)
+            const blindPenalty = obj.isBlinded ? 25 : 0
+            const baseCrit = obj.getStat('Critical Chance') + mode.critBonus
+            var hitChance = unarmedSkill - AC - CriticalEffects.regionHitChanceDecTable[region] - partialCoverPenalty - crippledArmPenalty - blindPenalty
+            var critChance = baseCrit + CriticalEffects.regionHitChanceDecTable[region]
+            hitChance = Math.min(95, hitChance)
+            return { hit: hitChance, crit: critChance }
+        }
 
         var weapon = weaponObj.weapon
         var weaponSkill
@@ -461,6 +474,33 @@ export class Combat {
         return Math.max(0, Math.ceil(finalDamage * (CD / 100)))
     }
 
+    /** Damage calculation for unarmed attacks (no weapon equipped). */
+    getUnarmedDamageDone(obj: Critter, target: Critter, critModifier: number): number {
+        const unarmedSkill = obj.getSkill('Unarmed')
+        const modeIdx = obj.isPlayer ? globalState.unarmedModeIdx : 0
+        const mode = getActiveUnarmedMode(unarmedSkill, modeIdx)
+
+        const RD = getRandomInt(mode.minDmg, mode.maxDmg)
+        const CM = critModifier
+        const CD = Config.combat.difficultyModifier
+        var ADR = target.getStat('DR Normal') + target.getArmorDR('Normal')
+        var ADT = target.getStat('DT Normal') + target.getArmorDT('Normal')
+
+        if (target.bypassArmorNextHit) {
+            ADR = Math.floor(ADR * 0.2)
+            ADT = Math.floor(ADT * 0.2)
+            target.bypassArmorNextHit = false
+        } else if (mode.penetrate) {
+            ADR = Math.floor(ADR * 0.2)
+            ADT = Math.floor(ADT * 0.2)
+        }
+
+        const baseDamage = (CM / 2) * RD
+        const adjustedDamage = Math.max(0, baseDamage - ADT)
+        const finalDamage = Math.ceil(adjustedDamage * (1 - ADR / 100))
+        return Math.max(0, Math.ceil(finalDamage * (CD / 100)))
+    }
+
     getCombatMsg(id: number) {
         return getMessage('combat', id)
     }
@@ -502,6 +542,44 @@ export class Combat {
         var targetName = target.isPlayer ? 'you' : target.name
         var weapon = weaponObj?.weapon
         var attackDmgType = weaponObj?.weapon?.getDamageType() ?? 'Normal'
+
+        // ── UNARMED (no weapon equipped) ──────────────────────────────────────
+        if (weaponObj === null) {
+            var unarmedHit = this.rollHit(obj, target, region)
+            this.log('hit% is ' + this.getHitChance(obj, target, region).hit)
+
+            if (unarmedHit.hit === true) {
+                var unarmedCritMod = unarmedHit.crit ? unarmedHit.DM : 2
+                var unarmedDmg = this.getUnarmedDamageDone(obj, target, unarmedCritMod)
+                var unarmedExtraMsg = unarmedHit.crit ? this.getCombatMsg(unarmedHit.msgID) || '' : ''
+                uiLog(`${who} hit ${targetName} for ${unarmedDmg} damage (unarmed)${unarmedExtraMsg}`)
+                audio.playActionSfx('hit_flesh')
+                critterDamage(target, unarmedDmg, obj, true, true, 'Normal')
+                if (target.isPlayer) drawHP(target.getStat('HP'))
+                if (target.dead) this.perish(target, obj, 'Normal')
+            } else {
+                audio.playActionSfx('miss')
+                uiLog(`${who} missed ${targetName} (unarmed)${unarmedHit.crit ? ' critically' : ''}`)
+                if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
+                    target.staticAnimation('dodge', () => target.clearAnim())
+                }
+                if (unarmedHit.crit === true) {
+                    var unarmedCritFailMod = (obj.getStat('LUK') - 5) * -5
+                    var unarmedCritFailRoll = Math.floor(getRandomInt(1, 100) - unarmedCritFailMod)
+                    var unarmedCritFailLevel = 1
+                    if (unarmedCritFailRoll <= 20) unarmedCritFailLevel = 1
+                    else if (unarmedCritFailRoll <= 50) unarmedCritFailLevel = 2
+                    else if (unarmedCritFailRoll <= 75) unarmedCritFailLevel = 3
+                    else if (unarmedCritFailRoll <= 95) unarmedCritFailLevel = 4
+                    else unarmedCritFailLevel = 5
+                    uiLog(`${who} critically failed! (level ${unarmedCritFailLevel})`)
+                    var unarmedCritFailEffect = CriticalEffects.criticalFailTable['unarmed']?.[unarmedCritFailLevel]
+                        ?? CriticalEffects.criticalFailTable['unarmed'][1]
+                    CriticalEffects.temporaryDoCritFail(unarmedCritFailEffect, obj)
+                }
+            }
+            return
+        }
 
         // ── BURST MODE ────────────────────────────────────────────────────────
         // 3-line cone spread (FO2: _compute_spray + _shoot_along_path).
