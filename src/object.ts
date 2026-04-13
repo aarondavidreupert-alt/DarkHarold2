@@ -1371,14 +1371,25 @@ export class Critter extends Obj {
 
     getArmorDR(damageType: string): number {
         const armor = this.getEquippedArmor()
-        if (!armor?.pro?.extra?.stats) return 0
-        return armor.pro.extra.stats['DR ' + damageType] ?? 0
+        if (armor?.pro?.extra?.stats) return armor.pro.extra.stats['DR ' + damageType] ?? 0
+        // Secondary scan: find armor item by PRO structure (handles NPCs whose
+        // armor subtype may not be set but whose PRO carries the stats block)
+        for (const item of this.inventory) {
+            if (item.pro?.extra?.stats?.['DR ' + damageType] !== undefined)
+                return item.pro.extra.stats['DR ' + damageType]
+        }
+        return 0
     }
 
     getArmorDT(damageType: string): number {
         const armor = this.getEquippedArmor()
-        if (!armor?.pro?.extra?.stats) return 0
-        return armor.pro.extra.stats['DT ' + damageType] ?? 0
+        if (armor?.pro?.extra?.stats) return armor.pro.extra.stats['DT ' + damageType] ?? 0
+        // Secondary scan: find armor item by PRO structure
+        for (const item of this.inventory) {
+            if (item.pro?.extra?.stats?.['DT ' + damageType] !== undefined)
+                return item.pro.extra.stats['DT ' + damageType]
+        }
+        return 0
     }
 
     getArmorAC(): number {

@@ -304,7 +304,7 @@ export class Combat {
             distance += minDistance // yes supposedly += not =, this means 7 grid distance is the worst
         else {
             var tempPER = perception
-            if (obj.isPlayer === true) tempPER -= 2 // supposedly player gets nerfed like this. WTF?
+            if (obj.isPlayer === true) tempPER -= 2 // FO2 reference: player receives a -2 PER penalty in hit chance (hardcoded in _combat_to_hit, combat.c)
             distance -= tempPER * distModifier
         }
 
@@ -342,6 +342,7 @@ export class Combat {
             var hitChance = unarmedSkill - AC - CriticalEffects.regionHitChanceDecTable[region] - partialCoverPenalty - crippledArmPenalty - blindPenalty
             var critChance = baseCrit + CriticalEffects.regionHitChanceDecTable[region]
             hitChance = Math.min(95, hitChance)
+            console.log(`[HitChance] unarmed: skill=${unarmedSkill} AC=${AC} region=${CriticalEffects.regionHitChanceDecTable[region]} cover=${partialCoverPenalty} → ${hitChance}%`)
             return { hit: hitChance, crit: critChance }
         }
 
@@ -500,7 +501,7 @@ export class Combat {
             ADT = Math.floor(ADT * 0.2)
         }
 
-        const baseDamage = RD + CM                           // dice roll + crit multiplier
+        const baseDamage = RD * (CM / 2)                     // FO2 attackComputeDamage: dice roll × (critMult/2)
         const afterDR    = baseDamage * (1 - ADR / 100)     // apply DR% first
         const finalDamage = Math.max(0, afterDR - ADT)      // then subtract DT
         const result = Math.max(0, Math.ceil(finalDamage * (CD / 100)))
