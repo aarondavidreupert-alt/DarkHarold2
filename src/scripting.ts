@@ -37,7 +37,8 @@ import { makePID } from './pro.js'
 import { centerCamera, objectOnScreen } from './renderer.js'
 import { fromTileNum, toTileNum } from './tile.js'
 import { uiAddDialogueOption, uiBarterMode, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, UIMode } from './ui.js'
-import { assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getRandomInt } from './util.js'
+import { SKILL_NAMES } from './skills.js'
+import { assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
 import { ScriptVM } from './vm.js'
 import { ScriptVMBridge } from './vm_bridge.js'
 import { Config } from './config.js'
@@ -692,24 +693,43 @@ export module Scripting {
             return 0
         }
         has_skill(obj: Obj, skill: number) {
-            stub('has_skill', arguments)
-            return 100
+            // FO2-CE ref: skill.cc skillGetValue() — returns the critter's effective skill value
+            const skillName = SKILL_NAMES[skill] ?? `Unknown(${skill})`
+            const critter = obj as Critter
+            const value = (typeof critter.getSkill === 'function') ? critter.getSkill(skillName) : 0
+            console.log(`[SCRIPT] has_skill(${skillName}, id=${skill}) → ${value}`)
+            return value
         }
         roll_vs_skill(obj: Obj, skill: number, bonus: number) {
-            stub('roll_vs_skill', arguments)
-            return 1
+            // FO2-CE ref: skill.cc roll_vs_skill() — performs a skill roll for script checks
+            // skill is a numeric ID (0-17), maps to SKILL_NAMES
+            const skillName = SKILL_NAMES[skill] ?? `Unknown(${skill})`
+            const critter = obj as Critter
+            const skillValue = (typeof critter.getSkill === 'function') ? critter.getSkill(skillName) : 0
+            const critChance = (typeof critter.getStat === 'function') ? critter.getStat('Critical Chance') : 0
+            const { roll, delta } = randomRoll(skillValue + bonus, critChance)
+            console.log(
+                `[SCRIPT] roll_vs_skill: ${skillName} (id=${skill}) — `
+                + `base=${skillValue}, bonus=${bonus}, total=${skillValue + bonus}, `
+                + `critChance=${critChance}, roll=${RollResult[roll]}(${roll}), delta=${delta}`
+            )
+            return roll
         }
         do_check(obj: Obj, check: number, modifier: number) {
             stub('do_check', arguments)
             return 1
         }
         is_success(roll: number) {
-            stub('is_success', arguments)
-            return 1
+            // FO2-CE ref: random.h — Success=2, CriticalSuccess=3
+            const result = rollIsSuccess(roll as RollResult) ? 1 : 0
+            console.log(`[SCRIPT] is_success(${RollResult[roll] ?? roll}) → ${result}`)
+            return result
         }
         is_critical(roll: number) {
-            stub('is_critical', arguments)
-            return 0
+            // FO2-CE ref: random.h — CriticalFailure=0, CriticalSuccess=3
+            const result = rollIsCritical(roll as RollResult) ? 1 : 0
+            console.log(`[SCRIPT] is_critical(${RollResult[roll] ?? roll}) → ${result}`)
+            return result
         }
         critter_inven_obj(obj: Critter, where: number) {
             if (!isGameObject(obj)) throw 'critter_inven_obj: not game object'
@@ -1586,12 +1606,15 @@ export module Scripting {
 
     export function useSkillOn(who: Critter, skillId: number, obj: Obj): boolean {
         if (!obj._script) throw Error('useSkillOn: Object has no script')
+        const skillName = SKILL_NAMES[skillId] ?? `Unknown(${skillId})`
+        console.log(`[SCRIPT] useSkillOn: ${who.name ?? 'unknown'} uses ${skillName} (id=${skillId}) on ${obj.name ?? obj.type ?? 'unknown'}`)
         obj._script.self_obj = obj as ScriptableObj
         obj._script.source_obj = who
         obj._script.cur_map_index = currentMapID
         obj._script._didOverride = false
         obj._script.action_being_used = skillId
         obj._script.use_skill_on_p_proc()
+        console.log(`[SCRIPT] useSkillOn result: _didOverride=${obj._script._didOverride}`)
         return obj._script._didOverride
     }
 
