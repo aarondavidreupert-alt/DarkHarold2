@@ -130,15 +130,16 @@ export function playerUse(obj: Obj | null) {
     const who = <Critter>obj
 
     if (globalState.uiMode === UIMode.useSkill) {
-        // Using a skill on object — clicking empty ground cancels targeting
-        if (!obj) {
-            cancelSkillTargeting()
-            return
-        }
-
-        // Capture skill before resetting UI — walk uses callback
         const skill = globalState.skillMode
         cancelSkillTargeting()
+
+        // FO2-CE ref: skill.cc — First Aid/Doctor: clicking empty ground = apply to self
+        if (!obj) {
+            if (skill === Skills.FirstAid || skill === Skills.Doctor) {
+                playerUseSkill(skill, globalState.player as unknown as Obj)
+            }
+            return
+        }
 
         // FO2-CE ref: skill.cc — player must be adjacent to the target.
         // Use the same walkInFrontOf + callback pattern as normal object use.
