@@ -26,7 +26,7 @@ import { Player } from './player.js'
 import { loadPRO } from './pro.js'
 import { Scripting } from './scripting.js'
 import { drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiLog, uiStartCombat } from './ui.js'
-import { getFileText, getMessage, getRandomInt, parseIni, rollSkillCheck } from './util.js'
+import { clamp, getFileText, getMessage, getRandomInt, parseIni, rollSkillCheck } from './util.js'
 import { getActiveUnarmedMode } from './unarmed.js'
 
 // Turn-based combat system
@@ -243,9 +243,10 @@ export class Combat {
         console.log(msg)
     }
 
-    /** Load ammo stats for a loaded weapon. Returns defaults (X=2,Y=1,RM=0,ACmod=0) if no ammo. */
+    /** Load ammo stats for a loaded weapon. Returns defaults (X=1,Y=1,RM=0,ACmod=0) if no ammo.
+     *  Vanilla: weaponGetAmmoDamageMultiplier / weaponGetAmmoDamageDivisor return 1/1 for no ammo. */
     getAmmoStats(weaponObj: Obj): { X: number; Y: number; RM: number; ACmod: number } {
-        const defaults = { X: 2, Y: 1, RM: 0, ACmod: 0 }
+        const defaults = { X: 1, Y: 1, RM: 0, ACmod: 0 }
         const ammoPID: number | undefined = (weaponObj as any).pro?.extra?.ammoPID
         if (ammoPID === undefined || ammoPID < 0) return defaults
 
@@ -253,7 +254,7 @@ export class Combat {
         if (!ammoPro || !ammoPro.extra) return defaults
 
         return {
-            X: ammoPro.extra.damMult ?? 2,
+            X: ammoPro.extra.damMult ?? 1,
             Y: ammoPro.extra.damDiv ?? 1,
             RM: ammoPro.extra['DR modifier'] ?? 0,
             ACmod: ammoPro.extra['AC modifier'] ?? 0,
@@ -438,75 +439,150 @@ export class Combat {
         return { hit: false, crit: isCrit } // miss
     }
 
-    getDamageDone(obj: Critter, target: Critter, critModifer: number) {
+    /** Vanilla damage calculation (fallout2-ce attackComputeDamage, lines 4578-4615).
+     *  Order: bonus → multiply → divide → halve → difficultyMod → subtract DT → apply DR%.
+     *  All divisions are integer-truncated. */
+    getDamageDone(obj: Critter, target: Critter, critMultiplier: number) {
         var weapon = obj.equippedWeapon
         if (!weapon) throw Error('getDamageDone: No weapon')
         var wep = weapon.weapon
         if (!wep) throw Error('getDamageDone: Weapon has no weapon data')
         var damageType = wep.getDamageType()
 
-        var RD = getRandomInt(wep.minDmg, wep.maxDmg) // rand damage min..max
-        var RB = 0 // ranged bonus (via perk)
-        var CM = critModifer // critical hit damage multiplier
-        var ADR = target.getStat('DR ' + damageType) + target.getArmorDR(damageType) // damage resistance (base + armor)
-        var ADT = target.getStat('DT ' + damageType) + target.getArmorDT(damageType) // damage threshold (base + armor)
+        // DT and DR from critter stat system (base + armor + bonuses, like critterGetStat)
+        var DT = target.getStat('DT ' + damageType) + target.getArmorDT(damageType)
+        var DR = target.getStat('DR ' + damageType) + target.getArmorDR(damageType)
 
-        // Bypass Armor critical effect: reduce DR/DT to 20% for this hit (FO2 reference), then consume the flag
-        if (target.bypassArmorNextHit) {
-            ADR = Math.floor(ADR * 0.2)
-            ADT = Math.floor(ADT * 0.2)
+        // DAM_BYPASS: reduce both DT and DR to 20% (does NOT apply to EMP)
+        if (target.bypassArmorNextHit && damageType !== 'EMP') {
+            DT = Math.trunc(20 * DT / 100)
+            DR = Math.trunc(20 * DR / 100)
             target.bypassArmorNextHit = false
-        } else if (wep.isPenetrating?.()) {
-            // Unarmed penetrating strike (Piercing Strike/Kick): reduce armor to 20%
-            ADR = Math.floor(ADR * 0.2)
-            ADT = Math.floor(ADT * 0.2)
+        } else {
+            if (target.bypassArmorNextHit) target.bypassArmorNextHit = false
+            // PERK_WEAPON_PENETRATE or unarmed penetrating: only DT to 20%, DR unchanged
+            if (wep.isPenetrating?.()) {
+                DT = Math.trunc(20 * DT / 100)
+            }
+            // TRAIT_FINESSE: +30 DR penalty (player only)
+            if (obj.isPlayer && obj.hasPerk('Finesse')) {
+                DR += 30
+            }
         }
 
+        // Bonus Ranged Damage perk (player only, ranged attack types)
+        var damageBonus = 0
+        if (obj.isPlayer && wep.type !== 'melee') {
+            damageBonus = 2 * (obj.hasPerk('Bonus Ranged Damage') ? 1 : 0)
+        }
+
+        // Ammo stats
         var ammoStats = this.getAmmoStats(weapon)
-        var X = ammoStats.X // ammo damage multiplier (from ammo PRO damMult)
-        var Y = ammoStats.Y // ammo damage divisor (from ammo PRO damDiv)
-        var RM = ammoStats.RM // ammo DR modifier (from ammo PRO "DR modifier")
-        var CD = Config.combat.difficultyModifier // combat difficulty: easy=75, normal=100, hard=125
 
-        var ammoDamageMult = X / Y
+        // Ammo DR modifier: added to DR, then clamp 0-100
+        DR += ammoStats.RM
+        DR = clamp(0, 100, DR)
 
-        var baseDamage = (CM / 2) * ammoDamageMult * (RD + RB)
-        var afterDR = baseDamage * (1 - (ADR + RM) / 100)         // DR% applied first
-        var finalDamage = Math.max(0, afterDR - ADT)               // then DT subtracted
-        const result = Math.max(0, Math.ceil(finalDamage * (CD / 100)))
-        const dmgLog = `RD: ${RD} | CM: ${CM} | ADR: ${ADR}% | RM: ${RM} | ADT: ${ADT} | Base: ${baseDamage.toFixed(1)} | afterDR: ${afterDR.toFixed(1)} | final: ${result}`
+        // damageMultiplier = critMult × ammoMult (integer multiply)
+        var damageMultiplier = critMultiplier * ammoStats.X
+        var damageDivisor = ammoStats.Y
+
+        // Combat difficulty modifier (75/100/125)
+        var CD = Config.combat.difficultyModifier
+
+        // --- Vanilla per-round calculation (single round) ---
+        var RD = getRandomInt(wep.minDmg, wep.maxDmg)
+        var damage = RD
+        damage += damageBonus
+        damage = Math.trunc(damage * damageMultiplier)
+        if (damageDivisor !== 0) damage = Math.trunc(damage / damageDivisor)
+        damage = Math.trunc(damage / 2)                  // vanilla halving quirk
+        damage = Math.trunc(damage * CD / 100)            // difficulty modifier
+        damage -= DT                                      // subtract DT first
+        if (damage > 0) {
+            damage -= Math.trunc(damage * DR / 100)       // then apply DR%
+        }
+        if (damage < 0) damage = 0
+
+        // Post-calculation perks (flat bonuses after main formula)
+        if (obj.isPlayer) {
+            if (obj.hasPerk('Living Anatomy')) {
+                var kt = target.killType ?? 0
+                if (kt !== 10 && kt !== 16) { // not KILL_TYPE_ROBOT or KILL_TYPE_ALIEN
+                    damage += 5
+                }
+            }
+            if (obj.hasPerk('Pyromaniac') && damageType === 'Fire') {
+                damage += 5
+            }
+        }
+
+        const dmgLog = `Dmg: RD=${RD} CM=${critMultiplier} ×${ammoStats.X}/${ammoStats.Y} DT=${DT} DR=${DR}% CD=${CD} → ${damage}`
         console.log(dmgLog)
         uiLog(dmgLog)
-        return result
+        return damage
     }
 
-    /** Damage calculation for unarmed attacks (no weapon equipped). */
-    getUnarmedDamageDone(obj: Critter, target: Critter, critModifier: number): number {
+    /** Vanilla unarmed damage calculation (attackComputeDamage with weapon=null).
+     *  Unarmed: ammoMult=1, ammoDiv=1, damageType=Normal.
+     *  Same formula as weapon damage: bonus → multiply → halve → DT → DR%. */
+    getUnarmedDamageDone(obj: Critter, target: Critter, critMultiplier: number): number {
         const unarmedSkill = obj.getSkill('Unarmed')
         const modeIdx = obj.isPlayer ? globalState.unarmedModeIdx : 0
         const mode = getActiveUnarmedMode(unarmedSkill, modeIdx)
 
-        const RD = getRandomInt(mode.minDmg, mode.maxDmg)
-        const CM = critModifier
-        const CD = Config.combat.difficultyModifier
-        var ADR = target.getStat('DR Normal') + target.getArmorDR('Normal')
-        var ADT = target.getStat('DT Normal') + target.getArmorDT('Normal')
+        // Unarmed damage type is always Normal
+        var DT = target.getStat('DT Normal') + target.getArmorDT('Normal')
+        var DR = target.getStat('DR Normal') + target.getArmorDR('Normal')
 
+        // DAM_BYPASS: reduce both DT and DR to 20%
         if (target.bypassArmorNextHit) {
-            ADR = Math.floor(ADR * 0.2)
-            ADT = Math.floor(ADT * 0.2)
+            DT = Math.trunc(20 * DT / 100)
+            DR = Math.trunc(20 * DR / 100)
             target.bypassArmorNextHit = false
-        } else if (mode.penetrate) {
-            ADR = Math.floor(ADR * 0.2)
-            ADT = Math.floor(ADT * 0.2)
+        } else {
+            // unarmedIsPenetrating: only DT to 20%, DR unchanged
+            if (mode.penetrate) {
+                DT = Math.trunc(20 * DT / 100)
+            }
+            // TRAIT_FINESSE: +30 DR penalty (player only)
+            if (obj.isPlayer && obj.hasPerk('Finesse')) {
+                DR += 30
+            }
         }
 
-        const baseDamage = RD * (CM / 2)                     // FO2 attackComputeDamage: dice roll × (critMult/2)
-        const afterDR    = baseDamage * (1 - ADR / 100)     // apply DR% first
-        const finalDamage = Math.max(0, afterDR - ADT)      // then subtract DT
-        const result = Math.max(0, Math.ceil(finalDamage * (CD / 100)))
-        uiLog(`Unarmed [${mode.name}]: RD=${RD} CM=${CM} ADR=${ADR}% ADT=${ADT} → afterDR=${afterDR.toFixed(1)} → final=${result} damage`)
-        return result
+        // Clamp DR to 0-100 (no ammo DR mod for unarmed)
+        DR = clamp(0, 100, DR)
+
+        var CD = Config.combat.difficultyModifier
+
+        // --- Vanilla formula: unarmed has no ammo (ammoMult=1, ammoDiv=1) ---
+        var RD = getRandomInt(mode.minDmg, mode.maxDmg)
+        var damage = RD
+        // damageBonus = 0 (Bonus Ranged Damage doesn't apply to unarmed)
+        damage = Math.trunc(damage * critMultiplier)       // critMult × ammoMult(=1)
+        // damageDivisor = 1 (no-op)
+        damage = Math.trunc(damage / 2)                    // vanilla halving quirk
+        damage = Math.trunc(damage * CD / 100)             // difficulty modifier
+        damage -= DT                                       // subtract DT first
+        if (damage > 0) {
+            damage -= Math.trunc(damage * DR / 100)        // then apply DR%
+        }
+        if (damage < 0) damage = 0
+
+        // Post-calculation perks
+        if (obj.isPlayer) {
+            if (obj.hasPerk('Living Anatomy')) {
+                var kt = target.killType ?? 0
+                if (kt !== 10 && kt !== 16) {
+                    damage += 5
+                }
+            }
+            // Pyromaniac doesn't apply (unarmed is Normal damage, not Fire)
+        }
+
+        uiLog(`Unarmed [${mode.name}]: RD=${RD} CM=${critMultiplier} DT=${DT} DR=${DR}% CD=${CD} → ${damage} damage`)
+        return damage
     }
 
     getCombatMsg(id: number) {
