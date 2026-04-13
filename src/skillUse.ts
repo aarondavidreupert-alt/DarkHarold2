@@ -15,11 +15,14 @@ import * as GameTime from './gametime.js'
 // ---------------------------------------------------------------------------
 // Logging helper — structured [SKILL] output for debugging
 // ---------------------------------------------------------------------------
-const ROLL_NAMES: { [key: number]: string } = {
-    [RollResult.CriticalFailure]: 'CRITICAL FAILURE',
-    [RollResult.Failure]: 'FAILURE',
-    [RollResult.Success]: 'SUCCESS',
-    [RollResult.CriticalSuccess]: 'CRITICAL SUCCESS',
+function rollName(roll: RollResult): string {
+    switch (roll) {
+        case RollResult.CriticalFailure: return 'CRITICAL FAILURE'
+        case RollResult.Failure: return 'FAILURE'
+        case RollResult.Success: return 'SUCCESS'
+        case RollResult.CriticalSuccess: return 'CRITICAL SUCCESS'
+        default: return 'UNKNOWN'
+    }
 }
 
 function logSkillHeader(skill: string, target: Obj | Critter | null, user: Critter): void {
@@ -38,7 +41,7 @@ function logSkillRoll(baseSkill: number, modifiers: [string, number][], finalCha
     // d100 = finalChance - delta  (since delta = finalChance - d100)
     const d100 = finalChance - delta
     console.log(`[SKILL]   Roll: ${d100}`)
-    const resultStr = ROLL_NAMES[roll] ?? 'UNKNOWN'
+    const resultStr = rollName(roll)
     if (rollIsSuccess(roll)) {
         console.log(`[SKILL]   Result: ${resultStr} (roll ${d100} <= chance ${finalChance})`)
     } else {
