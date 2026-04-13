@@ -196,10 +196,18 @@ export class Renderer {
                 const stdarrowImg = globalState.images['art/intrface/stdarrow']
                 this.renderImage('art/intrface/stdarrow', rawX, rawY, stdarrowImg?.naturalWidth ?? 14, stdarrowImg?.naturalHeight ?? 17)
             } else if (globalState.cursorMode === 'useSkill') {
-                // FO2-CE ref: skill targeting cursor — reuse action arrow (actarrow)
-                // since crossuse.frm is not yet extracted
-                const skillImg = globalState.images['art/intrface/actarrow']
-                this.renderImage('art/intrface/actarrow', rawX, rawY, skillImg?.naturalWidth ?? 28, skillImg?.naturalHeight ?? 13)
+                // FO2-CE ref: crossuse.frm — yellow crosshair for skill targeting
+                const crossuseImg = globalState.images['art/intrface/crossuse']
+                if (crossuseImg) {
+                    const w = crossuseImg.naturalWidth
+                    const h = crossuseImg.naturalHeight
+                    // Centered on mouse hotspot
+                    this.renderImage('art/intrface/crossuse', rawX - Math.floor(w / 2), rawY - Math.floor(h / 2), w, h)
+                } else {
+                    // Fallback to actarrow if crossuse not available
+                    const fallbackImg = globalState.images['art/intrface/actarrow']
+                    this.renderImage('art/intrface/actarrow', rawX, rawY, fallbackImg?.naturalWidth ?? 28, fallbackImg?.naturalHeight ?? 13)
+                }
             } else if (globalState.cursorMode === 'scroll') {
                 const goN = rawY <= PAD
                 const goS = rawY >= H - PAD

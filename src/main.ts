@@ -116,6 +116,9 @@ function cancelSkillTargeting(): void {
     globalState.skillMode = Skills.None
     globalState.uiMode = UIMode.none
     globalState.cursorMode = 'move'
+    // Reset CSS cursor fallback on canvas
+    const cnv = document.getElementById('cnv')
+    if (cnv) cnv.style.cursor = ''
 }
 
 export function playerUse(obj: Obj | null) {
@@ -132,10 +135,22 @@ export function playerUse(obj: Obj | null) {
             cancelSkillTargeting()
             return
         }
-        try {
-            playerUseSkill(globalState.skillMode, obj)
-        } finally {
-            cancelSkillTargeting()
+
+        // Capture skill before resetting UI — walk uses callback
+        const skill = globalState.skillMode
+        cancelSkillTargeting()
+
+        // FO2-CE ref: skill.cc — player must be adjacent to the target.
+        // Use the same walkInFrontOf + callback pattern as normal object use.
+        const skillCallback = function () {
+            globalState.player!.clearAnim()
+            playerUseSkill(skill, obj)
+        }
+
+        if (Config.engine.doInfiniteUse === true) {
+            skillCallback()
+        } else {
+            globalState.player!.walkInFrontOf(obj.position, skillCallback)
         }
 
         return

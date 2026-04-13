@@ -368,6 +368,9 @@ function initSkilldex() {
             globalState.uiMode = UIMode.useSkill
             globalState.skillMode = skill
             globalState.cursorMode = 'useSkill'
+            // CSS cursor fallback — crosshair visible even if WebGL crossuse asset is missing
+            const cnv = document.getElementById('cnv')
+            if (cnv) cnv.style.cursor = "url('art/intrface/crossuse.png') 11 11, crosshair"
             console.log('[UI] Skill targeting mode:', SKILL_NAMES[skill - 1])
         }
     }
