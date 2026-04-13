@@ -109,28 +109,55 @@ export function rollSkillCheck(skill: number, modifier: number, isBounded: boole
     return roll < tempSkill
 }
 
-function rollVsSkill(who: Critter, skill: string, modifier: number = 0) {
-    var skillLevel = who.getSkill(skill) + modifier
-    var roll = skillLevel - getRandomInt(1, 100)
+// FO2-CE ref: random.h — Roll enum
+export enum RollResult {
+    CriticalFailure = 0,
+    Failure = 1,
+    Success = 2,
+    CriticalSuccess = 3,
+}
 
-    if (roll <= 0) {
-        // failure
-        if (-roll / 10 > getRandomInt(1, 100)) return 0 // critical failure
-        return 1 // failure
+// FO2-CE ref: random.cc randomRoll() + randomTranslateRoll()
+// difficulty = effective skill value + modifier
+// criticalSuccessModifier = critter's Critical Chance stat
+// Returns: { roll: RollResult, delta: number }
+//   delta = difficulty - d100 (positive = success margin, negative = failure margin)
+export function randomRoll(difficulty: number, criticalSuccessModifier: number): { roll: RollResult, delta: number } {
+    const delta = difficulty - getRandomInt(1, 100)
+
+    let roll: RollResult
+    if (delta < 0) {
+        roll = RollResult.Failure
+        // FO2-CE: critical failure if d100 <= |delta| / 10
+        if (getRandomInt(1, 100) <= Math.floor(-delta / 10)) {
+            roll = RollResult.CriticalFailure
+        }
     } else {
-        // success
-        var critChance = who.getStat('Critical Chance')
-        if (roll / 10 + critChance > getRandomInt(1, 100)) return 3 // critical success
-        return 2 // success
+        roll = RollResult.Success
+        // FO2-CE: critical success if d100 <= delta/10 + critChance
+        if (getRandomInt(1, 100) <= Math.floor(delta / 10) + criticalSuccessModifier) {
+            roll = RollResult.CriticalSuccess
+        }
     }
+
+    return { roll, delta }
 }
 
-function rollIsSuccess(roll: number) {
-    return roll == 2 || roll == 3
+// FO2-CE ref: skill.cc skillRoll() — full skill check with stat lookup
+// Takes a Critter, resolves skill value, applies modifier, and rolls.
+// Returns { roll: RollResult, delta: number }
+export function skillRoll(who: Critter, skill: string, modifier: number = 0): { roll: RollResult, delta: number } {
+    const skillValue = who.getSkill(skill)
+    const critChance = who.getStat('Critical Chance')
+    return randomRoll(skillValue + modifier, critChance)
 }
 
-function rollIsCritical(roll: number) {
-    return roll == 0 || roll == 3
+export function rollIsSuccess(roll: RollResult): boolean {
+    return roll === RollResult.Success || roll === RollResult.CriticalSuccess
+}
+
+export function rollIsCritical(roll: RollResult): boolean {
+    return roll === RollResult.CriticalFailure || roll === RollResult.CriticalSuccess
 }
 
 export function arrayRemove<T>(array: T[], value: T) {

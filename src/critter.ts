@@ -71,7 +71,56 @@ const damageType: { [type: string]: string | number } = {
     6: 'Explosive',
 }
 
-// TODO: Figure out if we can derive the correct info from the game somehow
+// FO2-CE ref: item.cc weaponGetSkillForHitMode() + _attack_skill[]
+// Maps the primary attack mode (from weapon PRO attackMode field) to a base skill.
+// Attack modes: 0=none, 1=punch, 2=kick, 3=swing, 4=thrust, 5=throw,
+//               6=fire single, 7=fire burst, 8=flame
+const attackModeToBaseSkill: { [mode: number]: string } = {
+    0: 'Unarmed',
+    1: 'Unarmed',
+    2: 'Unarmed',
+    3: 'Melee Weapons',
+    4: 'Melee Weapons',
+    5: 'Throwing',
+    6: 'Small Guns',
+    7: 'Small Guns',
+    8: 'Small Guns',
+}
+
+// FO2-CE ref: item.cc — Big Gun animCodes: 8 (Big Gun), 9 (Minigun), 10 (Rocket Launcher)
+const BIG_GUN_ANIM_CODES = new Set([8, 9, 10])
+
+// FO2-CE ref: item.cc — Energy damage types: Laser, Plasma, Electrical
+const ENERGY_DAMAGE_TYPES = new Set(['Laser', 'Plasma', 'Electrical'])
+
+// Derives the correct weapon skill from the weapon's PRO data.
+// Replaces the old hardcoded weaponSkillMap.
+function getWeaponSkillFromPro(weapon: WeaponObj): string {
+    if (!weapon || !weapon.pro || !weapon.pro.extra) return 'Unarmed'
+
+    // Read primary attack mode from PRO
+    const attackModes = weapon.pro.extra['attackMode'] ?? 0
+    const primaryMode = attackModes & 0xf
+
+    let skill = attackModeToBaseSkill[primaryMode] ?? 'Unarmed'
+
+    // FO2-CE refinement: Small Guns can be Energy Weapons or Big Guns
+    if (skill === 'Small Guns') {
+        const dmgType: string | undefined = damageType[weapon.pro.extra.dmgType] as string | undefined
+        if (dmgType && ENERGY_DAMAGE_TYPES.has(dmgType)) {
+            skill = 'Energy Weapons'
+        } else {
+            const animCode = weapon.pro.extra.animCode ?? 0
+            if (BIG_GUN_ANIM_CODES.has(animCode)) {
+                skill = 'Big Guns'
+            }
+        }
+    }
+
+    return skill
+}
+
+// Legacy fallback map for weapons without proper PRO data
 const weaponSkillMap: { [weapon: string]: string } = {
     uzi: 'Small Guns',
     rifle: 'Small Guns',
@@ -189,7 +238,13 @@ export class Weapon {
             this.attackOne = attacks.first
             this.attackTwo = attacks.second
 
-            this.weaponSkillType = weaponSkillMap[this.name]
+            // FO2-CE ref: item.cc weaponGetSkillForHitMode() — derive skill from PRO data
+            this.weaponSkillType = getWeaponSkillFromPro(weapon)
+            // Legacy fallback for weapons without proper PRO attack mode data
+            if (!this.weaponSkillType || this.weaponSkillType === 'Unarmed') {
+                const legacySkill = weaponSkillMap[this.name]
+                if (legacySkill) this.weaponSkillType = legacySkill
+            }
             if (this.weaponSkillType === undefined) console.log('unknown weapon type for ' + this.name)
 
             // If the secondary attack is burst fire, add 'burst' to the mode cycle.
