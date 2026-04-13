@@ -83,73 +83,42 @@ function getSkillID(skill: Skills): number {
     return -1
 }
 
-// Is the skill passive (no target needed), or does it require a targeted object?
-function isPassiveSkill(skill: Skills): boolean {
-    switch (skill) {
-        case Skills.Sneak:
-        case Skills.FirstAid:
-        case Skills.Doctor:
-            return true
-        default:
-            return false
-    }
-}
-
 function playerUseSkill(skill: Skills, obj: Obj): void {
-    console.log('TRACE: playerUseSkill() entered, skill=%d, obj=%o', skill, obj)
     console.log('use skill %o on %o', skill, obj)
 
-    if (!obj && !isPassiveSkill(skill)) {
-        throw 'trying to use non-passive skill without a target'
-    }
-
-    // FO2-CE ref: skill.cc skillUse() — engine handles the skill effect first
+    // FO2-CE ref: skill.cc skillUse() — engine handles the skill effect
     // Map enum to string name for the engine skillUse function
     const skillName = SKILL_NAMES[skill - 1] // Skills enum starts at 1 (SmallGuns=1)
-    console.log('TRACE: playerUseSkill() skillName="%s", isPassive=%s', skillName, isPassiveSkill(skill))
 
-    if (isPassiveSkill(skill)) {
-        console.log('TRACE: playerUseSkill() — passive branch, calling skillUse()')
-        // Passive skills (Sneak, First Aid on self, Doctor on self) — engine handles directly
-        const result = skillUse(globalState.player as Critter, globalState.player as Critter, skillName)
-        console.log('TRACE: playerUseSkill() — skillUse returned:', result)
-        uiLog(result.message)
-        if (result.hpHealed > 0) {
-            drawHP(globalState.player!.getStat('HP'))
-        }
-        console.log('TRACE: playerUseSkill() — passive skill done, returning')
-        return
-    }
-
-    // Non-passive: try script override first, then engine fallback
-    console.log('TRACE: playerUseSkill() — non-passive branch, checking script override')
+    // Non-passive target skills: try script override first, then engine fallback
     const target = obj as Critter
     let scriptHandled = false
     if (obj._script) {
         try {
-            console.log('TRACE: playerUseSkill() — calling Scripting.useSkillOn()')
             scriptHandled = Scripting.useSkillOn(globalState.player as Critter, getSkillID(skill), obj)
-            console.log('TRACE: playerUseSkill() — Scripting.useSkillOn returned:', scriptHandled)
         } catch (e) {
             console.warn('useSkillOn script error:', e)
         }
     }
 
     if (!scriptHandled) {
-        console.log('TRACE: playerUseSkill() — engine fallback, calling skillUse()')
         // Engine fallback: use the skill directly
         const result = skillUse(globalState.player as Critter, target, skillName)
-        console.log('TRACE: playerUseSkill() — skillUse returned:', result)
         uiLog(result.message)
         if (result.hpHealed > 0) {
             drawHP(globalState.player!.getStat('HP'))
         }
     }
-    console.log('TRACE: playerUseSkill() — done')
+}
+
+// Cancel skill targeting mode: resets uiMode, skillMode, and cursor
+function cancelSkillTargeting(): void {
+    globalState.skillMode = Skills.None
+    globalState.uiMode = UIMode.none
+    globalState.cursorMode = 'move'
 }
 
 export function playerUse(obj: Obj | null) {
-    console.log('TRACE: playerUse() entered, obj=%o, uiMode=%d, skillMode=%d', obj, globalState.uiMode, globalState.skillMode)
     const mousePos = heart.mouse.getPosition()
     const mouseHex = hexFromScreen(
         mousePos[0] + globalState.cameraPosition.x,
@@ -158,20 +127,15 @@ export function playerUse(obj: Obj | null) {
     const who = <Critter>obj
 
     if (globalState.uiMode === UIMode.useSkill) {
-        console.log('TRACE: playerUse() — in useSkill branch, skillMode=%d, obj=%o', globalState.skillMode, obj)
-        // using a skill on object
+        // Using a skill on object — clicking empty ground cancels targeting
         if (!obj) {
-            console.log('TRACE: playerUse() — obj is null, returning WITHOUT resetting uiMode!')
+            cancelSkillTargeting()
             return
         }
         try {
-            console.log('TRACE: playerUse() — calling playerUseSkill(%d, obj)', globalState.skillMode)
             playerUseSkill(globalState.skillMode, obj)
-            console.log('TRACE: playerUse() — playerUseSkill returned normally')
         } finally {
-            console.log('TRACE: playerUse() — finally block: resetting skillMode and uiMode to none')
-            globalState.skillMode = Skills.None
-            globalState.uiMode = UIMode.none
+            cancelSkillTargeting()
         }
 
         return
@@ -418,7 +382,6 @@ window.onload = async function () {
 }
 
 heart.mousepressed = (x: number, y: number, btn: string) => {
-    console.log('TRACE: heart.mousepressed btn=%s uiMode=%d cursorMode=%s', btn, globalState.uiMode, globalState.cursorMode)
     if (globalState.isInitializing || globalState.isLoading || globalState.isWaitingOnRemote) {
         return
     } else if (btn === 'l') {
@@ -438,6 +401,11 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
             playerUse(getObjectUnderCursor((obj) => obj.isSelectable))
         }
     } else if (btn === 'r') {
+        // Right-click cancels skill targeting mode
+        if (globalState.uiMode === UIMode.useSkill) {
+            cancelSkillTargeting()
+            return
+        }
         if (globalState.cursorMode === 'move') {
             // move (hex) → command (arrow)
             globalState.cursorMode = 'command'
@@ -509,7 +477,7 @@ heart.mousemoved = (x: number, y: number) => {
     } else if (globalState.cursorMode === 'scroll') {
         // leaving scroll zone — restore whatever was active before (move, command, attack, …)
         globalState.cursorMode = globalState.preScrollCursorMode
-    } else if (globalState.cursorMode !== 'command' && globalState.cursorMode !== 'attack') {
+    } else if (globalState.cursorMode !== 'command' && globalState.cursorMode !== 'attack' && globalState.cursorMode !== 'useSkill') {
         // move / interface: re-evaluate based on HUD / dialogue position
         const barEl = document.getElementById('bar')
         const barRect = barEl?.getBoundingClientRect()
@@ -536,6 +504,11 @@ heart.mousemoved = (x: number, y: number) => {
 
 heart.keydown = (k: string) => {
     if (globalState.isLoading === true) {
+        return
+    }
+    // ESC cancels skill targeting mode
+    if (k === 'Escape' && globalState.uiMode === UIMode.useSkill) {
+        cancelSkillTargeting()
         return
     }
     const mousePos = heart.mouse.getPosition()
@@ -747,8 +720,10 @@ heart.update = function () {
         }
     }
 
-    if (globalState.uiMode !== UIMode.none) {
-        console.log('TRACE: heart.update() bailing — uiMode=%d (UIMode.useSkill=%d)', globalState.uiMode, UIMode.useSkill)
+    // FO2-CE ref: Skill targeting mode keeps the game loop running so the
+    // player can scroll the map and see hover feedback while picking a target.
+    // All other UI modes (dialogue, inventory, etc.) pause the loop.
+    if (globalState.uiMode !== UIMode.none && globalState.uiMode !== UIMode.useSkill) {
         return
     }
     const time = window.performance.now()
@@ -886,9 +861,6 @@ heart.draw = () => {
 
     if (globalState.isWaitingOnRemote) {
         return
-    }
-    if (globalState.uiMode === UIMode.useSkill) {
-        console.log('TRACE: heart.draw() running while uiMode=useSkill (rendering still active)')
     }
     globalState.renderer.render()
 

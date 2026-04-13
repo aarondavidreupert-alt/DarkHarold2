@@ -195,6 +195,11 @@ export class Renderer {
             } else if (globalState.cursorMode === 'interface') {
                 const stdarrowImg = globalState.images['art/intrface/stdarrow']
                 this.renderImage('art/intrface/stdarrow', rawX, rawY, stdarrowImg?.naturalWidth ?? 14, stdarrowImg?.naturalHeight ?? 17)
+            } else if (globalState.cursorMode === 'useSkill') {
+                // FO2-CE ref: skill targeting cursor — reuse action arrow (actarrow)
+                // since crossuse.frm is not yet extracted
+                const skillImg = globalState.images['art/intrface/actarrow']
+                this.renderImage('art/intrface/actarrow', rawX, rawY, skillImg?.naturalWidth ?? 28, skillImg?.naturalHeight ?? 13)
             } else if (globalState.cursorMode === 'scroll') {
                 const goN = rawY <= PAD
                 const goS = rawY >= H - PAD
