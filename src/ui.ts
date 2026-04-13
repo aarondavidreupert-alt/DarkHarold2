@@ -340,10 +340,11 @@ function initSkilldex() {
     // Skill value labels — updated each time the skilldex is opened/shown
     const skillValueLabels: Label[] = []
 
-    // FO2-CE ref: skilldex.cc — passive/self skills execute immediately,
-    // target skills enter targeting mode and wait for an object click.
+    // FO2-CE ref: skilldex.cc — Sneak is the only truly passive skill (toggle).
+    // First Aid and Doctor can target other critters OR self (ground click = self).
+    // All other skills require a target object.
     function isPassiveSkill(skill: Skills): boolean {
-        return skill === Skills.Sneak || skill === Skills.FirstAid || skill === Skills.Doctor
+        return skill === Skills.Sneak
     }
 
     function useSkill(skill: Skills) {
