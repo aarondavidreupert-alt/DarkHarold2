@@ -341,10 +341,14 @@ function initSkilldex() {
 
     function useSkill(skill: Skills) {
         return () => {
+            console.log('TRACE: useSkill() closure entered, skill=', skill)
             skilldexWindow.close()
+            console.log('TRACE: skilldexWindow.close() done')
             globalState.uiMode = UIMode.useSkill
+            console.log('TRACE: uiMode set to UIMode.useSkill (%d)', UIMode.useSkill)
             globalState.skillMode = skill
             console.log('[UI] Using skill:', skill)
+            console.log('TRACE: useSkill() closure returning — game now expects target click or passive execution')
         }
     }
 
