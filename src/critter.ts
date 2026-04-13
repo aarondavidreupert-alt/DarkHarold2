@@ -494,6 +494,7 @@ export function critterDamage(
             obj.staticAnimation('knockdownFront', () => {
                 // Stay on last frame — Combat.nextTurn() plays getUpFront when skipTurns reaches 0
             })
+            obj.skipTurns = 1
         } else {
             obj.isKnockedDown = false // consume flag even if no knockdown animation available
             const hitAnim =

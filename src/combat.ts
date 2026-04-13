@@ -470,14 +470,13 @@ export class Combat {
         var ammoDamageMult = X / Y
 
         var baseDamage = (CM / 2) * ammoDamageMult * (RD + RB)
-        var adjustedDamage = Math.max(0, baseDamage - ADT)
-        const dmgLog = `RD: ${RD} | CM: ${CM} | ADR: ${ADR} | ADT: ${ADT} | Base: ${baseDamage} Adj: ${adjustedDamage} | Type: ${damageType}`
+        var afterDR = baseDamage * (1 - (ADR + RM) / 100)         // DR% applied first
+        var finalDamage = Math.max(0, afterDR - ADT)               // then DT subtracted
+        const result = Math.max(0, Math.ceil(finalDamage * (CD / 100)))
+        const dmgLog = `RD: ${RD} | CM: ${CM} | ADR: ${ADR}% | RM: ${RM} | ADT: ${ADT} | Base: ${baseDamage.toFixed(1)} | afterDR: ${afterDR.toFixed(1)} | final: ${result}`
         console.log(dmgLog)
         uiLog(dmgLog)
-
-        // CD is a post-formula difficulty scale, not part of the base roll (FO2: _compute_damage)
-        var finalDamage = Math.ceil(adjustedDamage * (1 - (ADR + RM) / 100))
-        return Math.max(0, Math.ceil(finalDamage * (CD / 100)))
+        return result
     }
 
     /** Damage calculation for unarmed attacks (no weapon equipped). */
