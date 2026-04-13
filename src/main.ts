@@ -83,40 +83,14 @@ function getSkillID(skill: Skills): number {
     return -1
 }
 
-// Is the skill passive (no target needed), or does it require a targeted object?
-function isPassiveSkill(skill: Skills): boolean {
-    switch (skill) {
-        case Skills.Sneak:
-        case Skills.FirstAid:
-        case Skills.Doctor:
-            return true
-        default:
-            return false
-    }
-}
-
 function playerUseSkill(skill: Skills, obj: Obj): void {
     console.log('use skill %o on %o', skill, obj)
 
-    if (!obj && !isPassiveSkill(skill)) {
-        throw 'trying to use non-passive skill without a target'
-    }
-
-    // FO2-CE ref: skill.cc skillUse() — engine handles the skill effect first
+    // FO2-CE ref: skill.cc skillUse() — engine handles the skill effect
     // Map enum to string name for the engine skillUse function
     const skillName = SKILL_NAMES[skill - 1] // Skills enum starts at 1 (SmallGuns=1)
 
-    if (isPassiveSkill(skill)) {
-        // Passive skills (Sneak, First Aid on self, Doctor on self) — engine handles directly
-        const result = skillUse(globalState.player as Critter, globalState.player as Critter, skillName)
-        uiLog(result.message)
-        if (result.hpHealed > 0) {
-            drawHP(globalState.player!.getStat('HP'))
-        }
-        return
-    }
-
-    // Non-passive: try script override first, then engine fallback
+    // Non-passive target skills: try script override first, then engine fallback
     const target = obj as Critter
     let scriptHandled = false
     if (obj._script) {
@@ -137,6 +111,16 @@ function playerUseSkill(skill: Skills, obj: Obj): void {
     }
 }
 
+// Cancel skill targeting mode: resets uiMode, skillMode, and cursor
+function cancelSkillTargeting(): void {
+    globalState.skillMode = Skills.None
+    globalState.uiMode = UIMode.none
+    globalState.cursorMode = 'move'
+    // Reset CSS cursor fallback on canvas
+    const cnv = document.getElementById('cnv')
+    if (cnv) cnv.style.cursor = ''
+}
+
 export function playerUse(obj: Obj | null) {
     const mousePos = heart.mouse.getPosition()
     const mouseHex = hexFromScreen(
@@ -146,15 +130,27 @@ export function playerUse(obj: Obj | null) {
     const who = <Critter>obj
 
     if (globalState.uiMode === UIMode.useSkill) {
-        // using a skill on object
+        // Using a skill on object — clicking empty ground cancels targeting
         if (!obj) {
+            cancelSkillTargeting()
             return
         }
-        try {
-            playerUseSkill(globalState.skillMode, obj)
-        } finally {
-            globalState.skillMode = Skills.None
-            globalState.uiMode = UIMode.none
+
+        // Capture skill before resetting UI — walk uses callback
+        const skill = globalState.skillMode
+        cancelSkillTargeting()
+
+        // FO2-CE ref: skill.cc — player must be adjacent to the target.
+        // Use the same walkInFrontOf + callback pattern as normal object use.
+        const skillCallback = function () {
+            globalState.player!.clearAnim()
+            playerUseSkill(skill, obj)
+        }
+
+        if (Config.engine.doInfiniteUse === true) {
+            skillCallback()
+        } else {
+            globalState.player!.walkInFrontOf(obj.position, skillCallback)
         }
 
         return
@@ -420,6 +416,11 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
             playerUse(getObjectUnderCursor((obj) => obj.isSelectable))
         }
     } else if (btn === 'r') {
+        // Right-click cancels skill targeting mode
+        if (globalState.uiMode === UIMode.useSkill) {
+            cancelSkillTargeting()
+            return
+        }
         if (globalState.cursorMode === 'move') {
             // move (hex) → command (arrow)
             globalState.cursorMode = 'command'
@@ -491,7 +492,7 @@ heart.mousemoved = (x: number, y: number) => {
     } else if (globalState.cursorMode === 'scroll') {
         // leaving scroll zone — restore whatever was active before (move, command, attack, …)
         globalState.cursorMode = globalState.preScrollCursorMode
-    } else if (globalState.cursorMode !== 'command' && globalState.cursorMode !== 'attack') {
+    } else if (globalState.cursorMode !== 'command' && globalState.cursorMode !== 'attack' && globalState.cursorMode !== 'useSkill') {
         // move / interface: re-evaluate based on HUD / dialogue position
         const barEl = document.getElementById('bar')
         const barRect = barEl?.getBoundingClientRect()
@@ -518,6 +519,11 @@ heart.mousemoved = (x: number, y: number) => {
 
 heart.keydown = (k: string) => {
     if (globalState.isLoading === true) {
+        return
+    }
+    // ESC cancels skill targeting mode
+    if (k === 'Escape' && globalState.uiMode === UIMode.useSkill) {
+        cancelSkillTargeting()
         return
     }
     const mousePos = heart.mouse.getPosition()
@@ -729,7 +735,10 @@ heart.update = function () {
         }
     }
 
-    if (globalState.uiMode !== UIMode.none) {
+    // FO2-CE ref: Skill targeting mode keeps the game loop running so the
+    // player can scroll the map and see hover feedback while picking a target.
+    // All other UI modes (dialogue, inventory, etc.) pause the loop.
+    if (globalState.uiMode !== UIMode.none && globalState.uiMode !== UIMode.useSkill) {
         return
     }
     const time = window.performance.now()

@@ -23,7 +23,8 @@ import { lookupArt, lookupInterfaceArt } from './pro.js'
 import { objectBoundingBox } from './renderer.js'
 import { formatSaveDate, load, save, SaveGame, saveList } from './saveload.js'
 import { Scripting } from './scripting.js'
-import { Skills } from './skills.js'
+import { Skills, SKILL_NAMES } from './skills.js'
+import { skillUse } from './skillUse.js'
 import { fromTileNum } from './tile.js'
 import { pad } from './util.js'
 import { Worldmap } from './worldmap.js'
@@ -339,12 +340,38 @@ function initSkilldex() {
     // Skill value labels — updated each time the skilldex is opened/shown
     const skillValueLabels: Label[] = []
 
+    // FO2-CE ref: skilldex.cc — passive/self skills execute immediately,
+    // target skills enter targeting mode and wait for an object click.
+    function isPassiveSkill(skill: Skills): boolean {
+        return skill === Skills.Sneak || skill === Skills.FirstAid || skill === Skills.Doctor
+    }
+
     function useSkill(skill: Skills) {
         return () => {
             skilldexWindow.close()
+
+            if (isPassiveSkill(skill)) {
+                // Passive/self skills: execute immediately, no target selection needed
+                const skillName = SKILL_NAMES[skill - 1]
+                const player = globalState.player
+                if (!player) return
+                const result = skillUse(player, player, skillName)
+                uiLog(result.message)
+                if (result.hpHealed > 0) {
+                    drawHP(player.getStat('HP'))
+                }
+                console.log('[UI] Passive skill executed:', skillName, result)
+                return
+            }
+
+            // Target skills: enter targeting mode — cursor changes, game loop continues
             globalState.uiMode = UIMode.useSkill
             globalState.skillMode = skill
-            console.log('[UI] Using skill:', skill)
+            globalState.cursorMode = 'useSkill'
+            // CSS cursor fallback — crosshair visible even if WebGL crossuse asset is missing
+            const cnv = document.getElementById('cnv')
+            if (cnv) cnv.style.cursor = "url('art/intrface/crossuse.png') 11 11, crosshair"
+            console.log('[UI] Skill targeting mode:', SKILL_NAMES[skill - 1])
         }
     }
 
