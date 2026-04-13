@@ -14,9 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Critter } from './object.js'
+import { Critter, WeaponObj } from './object.js'
 import { StatType } from './skills.js'
 import { getFileJSON, rollSkillCheck } from './util.js'
+import globalState from './globalState.js'
+import { critterDamage, Weapon, getAvailableUnarmedMoves } from './critter.js'
 
 // Critical Effects system
 
@@ -49,100 +51,186 @@ export module CriticalEffects {
         torso: 0,
         leftLeg: 20,
         rightLeg: 20,
-        groin: 30,
         leftArm: 30,
         rightArm: 30,
         head: 40,
-        eyes: 60,
+        eyes: 30,   // FO2 reference: -30 penalty (less than head; eyes are small but close)
+        groin: 60,  // FO2 reference: -60 penalty (hardest targeted shot)
     }
 
     let critterTable: Dict<CritType[]>[]
 
+    // Helper: compute raw weapon damage for the attacker's current weapon (no armor, no multiplier)
+    function selfWeaponDamage(target: Critter): number {
+        const weaponObj = (target as any).equippedWeapon
+        const weapon = weaponObj?.weapon
+        if (!weapon) return 0
+        const min = weapon.minDmg ?? 1
+        const max = weapon.maxDmg ?? min
+        return Math.floor(Math.random() * (max - min + 1)) + min
+    }
+
     const critFailEffects: Dict<EffectsFunction> = {
         damageSelf: function (target: Critter) {
-            console.log(target.name + ' has damaged themselves. This does not do anything yet')
+            // Attacker injures themselves with their own weapon (no armor bypass, no crit)
+            const dmg = Math.max(1, selfWeaponDamage(target))
+            console.log(target.name + ' damaged themselves for ' + dmg)
+            critterDamage(target, dmg, target, false, true)
         },
 
         crippleRandomAppendage: function (target: Critter) {
-            console.log(target.name + ' has crippled a random appendage. This does not do anything yet')
+            const appendages = ['crippledLeftArm', 'crippledRightArm', 'crippledLeftLeg', 'crippledRightLeg']
+            const choice = appendages[Math.floor(Math.random() * appendages.length)] as keyof Critter
+            ;(target as any)[choice] = true
+            console.log(target.name + ' crippled their own ' + choice)
         },
 
         hitRandomly: function (target: Critter) {
-            console.log(target.name + ' has hit randomly. This does not do anything yet')
+            // Redirect the attack to a random combat participant (excluding the attacker)
+            const combat = globalState.combat
+            if (!combat) return
+            const candidates = (combat as any).combatants?.filter(
+                (c: Critter) => !c.dead && c !== target
+            ) ?? []
+            if (candidates.length === 0) return
+            const victim: Critter = candidates[Math.floor(Math.random() * candidates.length)]
+            const dmg = Math.max(1, selfWeaponDamage(target))
+            console.log(target.name + ' hit randomly — struck ' + victim.name + ' for ' + dmg)
+            critterDamage(victim, dmg, target, false, true)
         },
 
         hitSelf: function (target: Critter) {
-            console.log(target.name + ' has hit themselves. This does not do anything yet')
+            // Attacker turns the weapon on themselves (full damage, no armor)
+            const dmg = Math.max(1, selfWeaponDamage(target))
+            console.log(target.name + ' hit themselves for ' + dmg)
+            critterDamage(target, dmg, target, false, true)
         },
 
         loseAmmo: function (target: Critter) {
-            console.log(target.name + ' has lost their ammo. This does not do anything yet')
+            // Empty the magazine (jam / misfire)
+            const weaponObj = (target as any).equippedWeapon
+            if (weaponObj?.pro?.extra) {
+                weaponObj.pro.extra.rounds = 0
+                console.log(target.name + ' lost their ammo')
+            }
         },
 
         destroyWeapon: function (target: Critter) {
-            console.log(
-                target.name + ' has had their weapon blow up in their face. Ouch. This does not do anything yet'
-            )
+            // Weapon explodes in hand — drop it and deal blast damage to the attacker
+            const dmg = Math.max(1, selfWeaponDamage(target))
+            console.log(target.name + "'s weapon blew up for " + dmg + ' damage')
+            critterEffects.droppedWeapon(target) // remove from hand and place on ground
+            critterDamage(target, dmg, target, false, true)
         },
     }
 
     const critterEffects: Dict<(target: Critter) => void> = {
         knockout: function (target: Critter) {
-            console.log(target.name + ' has been knocked out. This does not do anything yet')
+            // Skip 2 turns; critterDamage() reads isKnockedDown and plays the animation
+            target.skipTurns = Math.max(target.skipTurns, 2)
+            target.isKnockedDown = true
         },
 
         knockdown: function (target: Critter) {
-            console.log(target.name + ' has been knocked down. This does not do anything yet')
+            // Skip 1 turn; critterDamage() reads isKnockedDown and plays the animation
+            target.skipTurns = Math.max(target.skipTurns, 1)
+            target.isKnockedDown = true
         },
 
         crippledLeftLeg: function (target: Critter) {
-            console.log(target.name + ' has been crippled in the left leg. This does not do anything yet')
+            if (!target.crippledLeftLeg) {
+                target.crippledLeftLeg = true
+                console.log(target.name + ' has been crippled in the left leg')
+            }
         },
 
         crippledRightLeg: function (target: Critter) {
-            console.log(target.name + ' has been crippled in the right leg. This does not do anything yet')
+            if (!target.crippledRightLeg) {
+                target.crippledRightLeg = true
+                console.log(target.name + ' has been crippled in the right leg')
+            }
         },
 
         crippledLeftArm: function (target: Critter) {
-            console.log(target.name + ' has been crippled in the left arm. This does not do anything yet')
+            if (!target.crippledLeftArm) {
+                target.crippledLeftArm = true
+                console.log(target.name + ' has been crippled in the left arm')
+            }
         },
 
         crippledRightArm: function (target: Critter) {
-            console.log(target.name + ' has been crippled in the right arm. This does not do anything yet')
+            if (!target.crippledRightArm) {
+                target.crippledRightArm = true
+                console.log(target.name + ' has been crippled in the right arm')
+            }
         },
 
         blinded: function (target: Critter) {
-            console.log(target.name + ' has been blinded by delight. This does not do anything yet')
+            if (!target.isBlinded) {
+                target.isBlinded = true
+                console.log(target.name + ' has been blinded')
+            }
         },
 
         death: function (target: Critter) {
-            console.log(target.name + ' has met the reaperpony. This does not do anything yet')
+            // Mark the critter for an explosive death animation if this hit kills them.
+            // critterKill() reads target.deathAnim before choosing the animation.
+            target.deathAnim = 'death-explode'
         },
 
         onFire: function (target: Critter) {
-            console.log(target.name + ' just got a flame lit in their heart. This does not do anything yet')
+            // 3 turns of fire DoT; stacks by taking the max so double-fire doesn't double-tick
+            target.onFireTurns = Math.max(target.onFireTurns, 3)
+            console.log(target.name + ' is on fire for ' + target.onFireTurns + ' turns')
         },
 
         bypassArmor: function (target: Critter) {
-            console.log(
-                target.name +
-                    ' is being hit by an armor bypassing bullet, blame the Zebras. This does not do anything yet'
-            )
+            // Flag consumed by getDamageDone() to zero out DR/DT for this hit
+            target.bypassArmorNextHit = true
         },
 
         droppedWeapon: function (target: Critter) {
-            console.log(
-                target.name +
-                    " needs to drop their weapon like it's hot. The documentation claims this is broken. This does not do anything yet"
-            )
+            const self = target as any
+            const activeHand: 'leftHand' | 'rightHand' = self.activeHand ?? 'leftHand'
+            const weaponObj: WeaponObj | undefined = self[activeHand]
+
+            if (!weaponObj || !weaponObj.weapon || weaponObj.weapon.type === 'melee') {
+                // No real weapon to drop (unarmed / punch)
+                return
+            }
+
+            // Remove from inventory (weapons in hand are also in inventory)
+            const invIdx = target.inventory.indexOf(weaponObj)
+            if (invIdx !== -1) target.inventory.splice(invIdx, 1)
+
+            // Place weapon on the ground at target's position
+            if (globalState.gMap) {
+                weaponObj.position = { ...target.position }
+                globalState.gMap.addObject(weaponObj)
+            }
+
+            // Replace hand slot with unarmed punch (with progression if critter has skill)
+            const fist = new WeaponObj()
+            fist.type = 'item'
+            fist.subtype = 'weapon'
+            fist.weapon = new Weapon(null as any)
+            const unarmedSkill = (target as any).getSkill?.('Unarmed') ?? 55
+            const charLevel = (target as any).getStat?.('Level') ?? 1
+            fist.weapon.initUnarmedMoves(unarmedSkill, charLevel)
+            self[activeHand] = fist
+
+            console.log(target.name + ' dropped their weapon')
         },
 
         loseNextTurn: function (target: Critter) {
-            console.log(target.name + ' lost their next turn. This does not do anything yet')
+            target.skipTurns = Math.max(target.skipTurns, 1)
         },
 
         random: function (target: Critter) {
-            console.log(target.name + ' is affected by a random effect. How random! This does not do anything yet')
+            // Pick a random non-death effect from the set; avoid infinite recursion
+            const pool = ['knockdown', 'loseNextTurn', 'crippledLeftArm', 'crippledRightArm']
+            const choice = pool[Math.floor(Math.random() * pool.length)]
+            critterEffects[choice](target)
         },
     }
 

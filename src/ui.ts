@@ -313,9 +313,12 @@ function uiInit() {
     initSkilldex()
     // initCharacterScreen();
 
-    document.getElementById('chrButton')!.onclick = () => {
-        characterWindow && characterWindow.close()
-        initCharacterScreen()
+    const chrBtn = document.getElementById('chrButton')
+    if (chrBtn) {
+        chrBtn.onclick = () => {
+            characterWindow && characterWindow.close()
+            initCharacterScreen()
+        }
     }
 
     document.getElementById('pipBoyButton')!.onclick = () => {
@@ -330,7 +333,12 @@ function uiInit() {
 let skilldexWindow: WindowFrame
 let characterWindow: WindowFrame
 
+// FO2-CE ref: skilldex.cc — skilldexOpen() / skilldexWindowInit()
+// Skilldex window showing 8 usable skills with current values and keyboard shortcuts
 function initSkilldex() {
+    // Skill value labels — updated each time the skilldex is opened/shown
+    const skillValueLabels: Label[] = []
+
     function useSkill(skill: Skills) {
         return () => {
             skilldexWindow.close()
@@ -351,6 +359,7 @@ function initSkilldex() {
     )
         .add(new Label(65, 15, 'SKILLDEX'))
 
+    // FO2-CE ref: skilldex.cc SkilldexSkill enum — 8 skills in order
     const skilldexSkills: [string, Skills][] = [
         ['Sneak',     Skills.Sneak],
         ['Lockpick',  Skills.Lockpick],
@@ -363,12 +372,22 @@ function initSkilldex() {
     ]
 
     let yPos = 49
-    for (const [name, skill] of skilldexSkills) {
+    for (let i = 0; i < skilldexSkills.length; i++) {
+        const [name, skill] = skilldexSkills[i]
+
+        // Skill name + hotkey number
         skilldexWindow.add(
-            new Label(25, yPos, name)
-                .css({ width: '135px', height: '24px', cursor: 'pointer', lineHeight: '24px' })
+            new Label(25, yPos, `${i + 1}. ${name}`)
+                .css({ width: '110px', height: '24px', cursor: 'pointer', lineHeight: '24px' })
                 .onClick(useSkill(skill))
         )
+
+        // FO2-CE ref: skilldex.cc — 3-digit skill value display next to each button
+        const valLabel = new Label(140, yPos, '---')
+            .css({ width: '40px', height: '24px', lineHeight: '24px', textAlign: 'right' })
+        skillValueLabels.push(valLabel)
+        skilldexWindow.add(valLabel)
+
         yPos += 36
     }
 
@@ -383,12 +402,56 @@ function initSkilldex() {
         zIndex: '20',
         cursor: 'default',
     })
+
+    // FO2-CE ref: skilldex.cc — update skill values when the skilldex is shown
+    const origShow = skilldexWindow.show.bind(skilldexWindow)
+    skilldexWindow.show = function() {
+        const result = origShow()
+        // Update displayed skill values from current player stats
+        const player = globalState.player
+        if (player) {
+            for (let i = 0; i < skilldexSkills.length; i++) {
+                const skillName = skilldexSkills[i][0]
+                const val = player.getSkill(skillName)
+                // FO2-CE: negative values (from Hard difficulty) shown in red
+                skillValueLabels[i].setText(`${val}%`)
+                skillValueLabels[i].elem.style.color = val < 0 ? '#FF0000' : '#00FF00'
+            }
+        }
+        return result
+    }
+
+    // FO2-CE ref: skilldex.cc — keyboard shortcuts: 1-8 for skills, ESC to close
+    const skilldexKeyHandler = (e: KeyboardEvent) => {
+        if (!skilldexWindow.showing) return
+
+        if (e.key === 'Escape') {
+            skilldexWindow.close()
+            e.preventDefault()
+            return
+        }
+
+        const num = parseInt(e.key)
+        if (num >= 1 && num <= 8) {
+            useSkill(skilldexSkills[num - 1][1])()
+            e.preventDefault()
+        }
+    }
+    document.addEventListener('keydown', skilldexKeyHandler)
 }
 
 function initCharacterScreen() {
+    const player = globalState.player!
     const skillList = new List({ x: 380, y: 27, w: 'auto', h: 'auto' })
 
     skillList.css({ fontSize: '0.75em' })
+
+    // FO2-CE ref: stat.cc pcGetExperienceForLevel() — XP needed for next level
+    const currentLevel = player.getStat('Level')
+    const nextLevelXP = Math.floor((currentLevel + 1) * currentLevel / 2) * 1000
+
+    // Derived stats labels (updated in redraw)
+    const derivedStatsLabel = new Label(194, 57, '').css({ fontSize: '0.7em', color: '#00FF00', whiteSpace: 'pre' })
 
     characterWindow = new WindowFrame(
         'art/intrface/edtredt.png',
@@ -399,7 +462,8 @@ function initCharacterScreen() {
         640,
         480
     )
-        .add(new SmallButton(455, 454))
+        // FO2-CE ref: editor.cc — Done button saves changes, Cancel discards
+        .add(new SmallButton(455, 454)) // Done button (onClick set below)
         .add(new Label(455 + 18, 454, 'Done'))
         .add(
             new SmallButton(552, 454).onClick(() => {
@@ -411,13 +475,19 @@ function initCharacterScreen() {
         .add(new Label(160, 6, 'Age'))
         .add(new Label(242, 6, 'Gender'))
         .add(
-            new Label(33, 280, `Level: ${globalState.player.getStat('Level')}`).css({
+            new Label(33, 280, `Level: ${currentLevel}`).css({
                 fontSize: '0.75em',
                 color: '#00FF00',
             })
         )
         .add(
-            new Label(33, 292, `Exp: ${globalState.player.getStat('Experience')}`).css({
+            new Label(33, 292, `Exp: ${player.getStat('Experience')}`).css({
+                fontSize: '0.75em',
+                color: '#00FF00',
+            })
+        )
+        .add(
+            new Label(33, 304, `Next: ${nextLevelXP}`).css({
                 fontSize: '0.75em',
                 color: '#00FF00',
             })
@@ -428,38 +498,21 @@ function initCharacterScreen() {
             new Label(
                 194,
                 45,
-                `Hit Points ${globalState.player.getStat('HP')}/${globalState.player.getStat('Max HP')}`
+                `Hit Points ${player.getStat('HP')}/${player.getStat('Max HP')}`
             ).css({ fontSize: '0.75em', color: '#00FF00' })
         )
+        .add(derivedStatsLabel)
         .add(skillList)
         .show()
 
-    // TODO: Move these constants to their proper place
-
     const skills = [
-        'Small Guns',
-        'Big Guns',
-        'Energy Weapons',
-        'Unarmed',
-        'Melee Weapons',
-        'Throwing',
-        'First Aid',
-        'Doctor',
-        'Sneak',
-        'Lockpick',
-        'Steal',
-        'Traps',
-        'Science',
-        'Repair',
-        'Speech',
-        'Barter',
-        'Gambling',
-        'Outdoorsman',
+        'Small Guns', 'Big Guns', 'Energy Weapons', 'Unarmed', 'Melee Weapons',
+        'Throwing', 'First Aid', 'Doctor', 'Sneak', 'Lockpick', 'Steal', 'Traps',
+        'Science', 'Repair', 'Speech', 'Barter', 'Gambling', 'Outdoorsman',
     ]
 
     const stats = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK']
 
-    // TODO: Use a list of widgets or something for stats instead of this hack
     const statWidgets: Label[] = []
 
     let selectedStat = stats[0]
@@ -475,9 +528,10 @@ function initCharacterScreen() {
         n += 33
     }
 
-    // TODO: (Re-)run this after window is shown / a level-up is invoked
-    const newStatSet = globalState.player.stats.clone()
-    const newSkillSet = globalState.player.skills.clone()
+    const newStatSet = player.stats.clone()
+    const newSkillSet = player.skills.clone()
+    // FO2-CE ref: skill.cc — player-only options for skill value calculation
+    const playerSkillOpts = { isPlayer: true, perks: player.perks }
 
     // Skill Points / Tag Skills counter
     const skillPointCounter = new Label(522, 230, '').css({ background: 'black', padding: '5px' })
@@ -485,10 +539,12 @@ function initCharacterScreen() {
 
     const redrawStatsSkills = () => {
         // Draw skills
-        skillList.clear() // TODO: setItemText or something
+        skillList.clear()
 
         for (const skill of skills) {
-            skillList.addItem({ text: `${skill} ${newSkillSet.get(skill, newStatSet)}%`, id: skill })
+            const val = newSkillSet.get(skill, newStatSet, playerSkillOpts)
+            const tag = newSkillSet.isTagged(skill) ? ' *' : ''
+            skillList.addItem({ text: `${skill} ${val}%${tag}`, id: skill })
         }
 
         // Draw stats
@@ -499,37 +555,63 @@ function initCharacterScreen() {
 
         // Update skill point counter
         skillPointCounter.setText(pad(newSkillSet.skillPoints, 2))
+
+        // FO2-CE ref: stat.cc critterUpdateDerivedStats() — display derived stats
+        const agi = newStatSet.get('AGI')
+        const end = newStatSet.get('END')
+        const str = newStatSet.get('STR')
+        const per = newStatSet.get('PER')
+        const luk = newStatSet.get('LUK')
+
+        const derivedLines = [
+            `AC: ${agi}`,
+            `AP: ${5 + Math.floor(agi / 2)}`,
+            `Melee Dmg: ${Math.max(1, str - 5)}`,
+            `Carry: ${25 + 25 * str} lbs`,
+            `Sequence: ${2 * per}`,
+            `Heal Rate: ${Math.max(1, Math.floor(end / 3))}`,
+            `Crit Chance: ${luk}%`,
+        ]
+        derivedStatsLabel.setText(derivedLines.join('\n'))
     }
 
     redrawStatsSkills()
 
-    const isLevelUp = true // TODO
-    const canChangeStats = true // TODO
+    // FO2-CE ref: editor.cc — skill modification is available when the player has skill points
+    // Stat changes are never allowed during normal gameplay (only char creation).
+    const hasSkillPoints = newSkillSet.skillPoints > 0
+    const canChangeStats = false // FO2: stats only changeable at char creation
 
-    if (isLevelUp) {
+    if (hasSkillPoints) {
         const modifySkill = (inc: boolean) => {
-            const skill = skillList.getSelection()!.id
-            console.log('skill: %s currently: %d', skill, newSkillSet.get(skill, newStatSet))
+            const sel = skillList.getSelection()
+            if (!sel) return
+            const skill = sel.id
+            console.log('skill: %s currently: %d', skill, newSkillSet.get(skill, newStatSet, playerSkillOpts))
 
             if (inc) {
-                const changed = newSkillSet.incBase(skill)
+                const changed = newSkillSet.incBase(skill, newStatSet, playerSkillOpts)
                 if (!changed) {
                     console.warn('Not enough skill points!')
                 }
             } else {
-                newSkillSet.decBase(skill)
+                newSkillSet.decBase(skill, newStatSet, playerSkillOpts)
             }
 
             redrawStatsSkills()
         }
 
         const toggleTagSkill = () => {
-            const skill = skillList.getSelection()!.id
+            const sel = skillList.getSelection()
+            if (!sel) return
+            const skill = sel.id
             const tagged = newSkillSet.isTagged(skill)
-            console.log('skill: %s currently: %d tagged: %s', skill, newSkillSet.get(skill, newStatSet), tagged)
+            console.log('skill: %s currently: %d tagged: %s', skill, newSkillSet.get(skill, newStatSet, playerSkillOpts), tagged)
 
             if (!tagged) {
-                newSkillSet.tag(skill)
+                if (!newSkillSet.tag(skill)) {
+                    console.warn('Maximum tagged skills reached!')
+                }
             } else {
                 newSkillSet.untag(skill)
             }
@@ -537,49 +619,55 @@ function initCharacterScreen() {
             redrawStatsSkills()
         }
 
-        const modifyStat = (change: number) => {
-            console.log('stat: %s currently: %d', selectedStat, newStatSet.get(selectedStat))
-
-            newStatSet.modifyBase(selectedStat, change)
-            redrawStatsSkills()
-        }
-
         // Skill level up buttons
         characterWindow.add(
             new Label(580, 236, '-').onClick(() => {
-                console.log('-')
                 modifySkill(false)
             })
         )
         characterWindow.add(
             new Label(600, 236, '+').onClick(() => {
-                console.log('+')
                 modifySkill(true)
             })
         )
         characterWindow.add(
             new Label(620, 236, 'Tag').onClick(() => {
-                console.log('Tag')
                 toggleTagSkill()
             })
         )
-
-        // Stat level up buttons
-        if (canChangeStats) {
-            characterWindow.add(
-                new Label(115, 260, '-').onClick(() => {
-                    console.log('-')
-                    modifyStat(-1)
-                })
-            )
-            characterWindow.add(
-                new Label(135, 260, '+').onClick(() => {
-                    console.log('+')
-                    modifyStat(+1)
-                })
-            )
-        }
     }
+
+    // Stat level up buttons (char creation only)
+    if (canChangeStats) {
+        const modifyStat = (change: number) => {
+            newStatSet.modifyBase(selectedStat, change)
+            redrawStatsSkills()
+        }
+
+        characterWindow.add(
+            new Label(115, 260, '-').onClick(() => { modifyStat(-1) })
+        )
+        characterWindow.add(
+            new Label(135, 260, '+').onClick(() => { modifyStat(+1) })
+        )
+    }
+
+    // FO2-CE ref: editor.cc — Done button: write cloned stats/skills back to player
+    characterWindow.children[0].onClick(() => {
+        // Apply skill changes to the player
+        player.skills.baseSkills = Object.assign({}, newSkillSet.baseSkills)
+        player.skills.tagged = newSkillSet.tagged.slice()
+        player.skills.skillPoints = newSkillSet.skillPoints
+        player.skills.hasTagPerk = newSkillSet.hasTagPerk
+
+        // Apply stat changes (if any were allowed)
+        if (canChangeStats) {
+            player.stats.baseStats = Object.assign({}, newStatSet.baseStats)
+        }
+
+        console.log('[CharScreen] Changes saved.')
+        characterWindow.close()
+    })
 }
 
 export enum UIMode {
@@ -758,7 +846,54 @@ export function initUI() {
         })
     }
 
+    /** Attempt to reload weaponObj from inventory. Returns true if rounds were loaded. */
+    function reloadWeapon(weaponObj: Obj): boolean {
+        const w = weaponObj as any
+        const ammoPID: number | undefined = w.pro?.extra?.ammoPID
+        const maxAmmo: number = w.pro?.extra?.maxAmmo ?? 0
+        const currentRounds: number = w.pro?.extra?.rounds ?? 0
+        if (maxAmmo <= 0 || currentRounds >= maxAmmo) return false
+
+        // Find compatible ammo in inventory by matching pid
+        const inv = globalState.player.inventory as any[]
+        const ammoIdx = inv.findIndex((item) => item.pid === ammoPID)
+        if (ammoIdx === -1) {
+            uiLog("No compatible ammo in inventory.")
+            return false
+        }
+
+        const ammoItem = inv[ammoIdx]
+        const needed = maxAmmo - currentRounds
+        const available: number = ammoItem.amount ?? 1
+        const toLoad = Math.min(needed, available)
+
+        w.pro.extra.rounds = currentRounds + toLoad
+        ammoItem.amount = available - toLoad
+        if (ammoItem.amount <= 0) inv.splice(ammoIdx, 1)
+
+        uiLog(`Reloaded ${toLoad} round${toLoad !== 1 ? 's' : ''}.`)
+        return true
+    }
+
     $id('attackButtonContainer').onclick = () => {
+        // Reload mode: immediately reload from inventory (AP cost in combat)
+        const wep = globalState.player.equippedWeapon
+        if (wep?.weapon?.mode === 'reload') {
+            if (globalState.inCombat && globalState.player.AP) {
+                const reloadAP = 2 // TODO: read from weapon PRO (reloadAP field)
+                if (globalState.player.AP.getAvailableCombatAP() < reloadAP) {
+                    uiLog("You don't have enough action points.")
+                    return
+                }
+                globalState.player.AP.subtractCombatAP(reloadAP)
+                uiUpdateCombatAP()
+            }
+            reloadWeapon(wep)
+            wep.weapon.mode = 'single'
+            uiDrawWeapon()
+            return
+        }
+
         if (!Config.engine.doCombat) {
             return
         }
@@ -928,8 +1063,7 @@ export function uiStartCombat() {
     const player = globalState.player
     drawHP(player.getStat('HP'))
     drawAC(player.getStat('AC'))
-    const maxAP = player.AP!.getMaxAP()
-    drawAP(player.AP!.getAvailableMoveAP() + player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
+    drawAP(player.AP!.getAvailableMoveAP(), player.AP!.getTotalMaxAP())
 }
 
 export function uiEndCombat() {
@@ -958,7 +1092,7 @@ export function uiUpdateCombatAP() {
     }
     const ap = globalState.player.AP
     $ap.style.display = 'block'
-    $ap.textContent = `AP: ${ap.getAvailableCombatAP()} combat / ${ap.move} move`
+    $ap.textContent = `AP: ${ap.getAvailableCombatAP()} / ${ap.getTotalMaxAP()}`
 }
 
 export function uiShowCombatHover(target: Critter, screenX: number, screenY: number) {
@@ -994,7 +1128,7 @@ function uiEndCombatAnimationDone(this: HTMLElement) {
     }
 }
 
-function uiDrawWeapon() {
+export function uiDrawWeapon() {
     // draw the active weapon in the interface bar
     const weapon = globalState.player.equippedWeapon
     clearEl($id('attackButton'))
@@ -1027,26 +1161,71 @@ function uiDrawWeapon() {
         $wepImg.src = weapon.invArt + '.png'
     }
 
-    // draw weapon AP
+    // draw weapon AP cost digit
+    // reload=2, called=APCost1+1 (aiming surcharge), burst=APCost2, otherwise APCost1
     const CHAR_W = 10
-    const digit = weapon.weapon.getAPCost(1)
+    let digit: number
+    const mode = weapon.weapon.mode
+    if (mode === 'reload') {
+        digit = 2 // TODO: read reload AP from weapon PRO
+    } else if (mode === 'called') {
+        digit = weapon.weapon.getAPCost(1) + 1 // base weapon cost + 1 for aiming (FO2: weaponGetActionPointCost)
+    } else if (weapon.weapon.isBurst && weapon.weapon.isBurst()) {
+        digit = weapon.weapon.getAPCost(2)
+    } else {
+        digit = weapon.weapon.getAPCost(1)
+    }
     if (digit === undefined || digit > 9) {
         return
     } // TODO: Weapon AP >9?
     $id('attackButtonAPDigit').style.backgroundPosition = 0 - CHAR_W * digit + 'px'
 
-    // draw weapon type (single, burst, called, punch, ...)
+    // draw weapon type (single, burst, called, punch, reload, ...)
     // TODO: all melee weapons
-    const wepTypes: { [wepType: string]: string } = { melee: 'punch', gun: 'single' }
-    const type = wepTypes[weapon.weapon.type]
+    let type: string
+    if (weapon.weapon.type === 'melee') {
+        type = 'punch'
+    } else if (mode === 'reload') {
+        type = 'reload'
+    } else if (weapon.weapon.isBurst && weapon.weapon.isBurst()) {
+        type = 'burst'
+    } else {
+        type = 'single'
+    }
     $img('attackButtonType').src = `art/intrface/${type}.png`
 
     // hide or show called shot sigil?
-    if (weapon.weapon.mode === 'called') {
+    if (mode === 'called') {
         show($id('attackButtonCalled'))
     } else {
         hide($id('attackButtonCalled'))
     }
+}
+
+/**
+ * Try to load ammoObj into weaponObj.
+ * Compatibility: ammo pid must match weapon.pro.extra.ammoPID (or weapon is unloaded).
+ * Returns true if at least one round was loaded.
+ */
+function tryLoadAmmoIntoWeapon(ammoObj: Obj, weaponObj: Obj): boolean {
+    const w = weaponObj as any
+    const a = ammoObj as any
+    const maxAmmo: number = w.pro?.extra?.maxAmmo ?? 0
+    const currentRounds: number = w.pro?.extra?.rounds ?? 0
+    const weaponAmmoPID: number | undefined = w.pro?.extra?.ammoPID
+    if (maxAmmo <= 0 || currentRounds >= maxAmmo) return false
+    // Compatibility: ammoPID must match (or weapon is empty and has no type yet)
+    if (weaponAmmoPID && weaponAmmoPID !== a.pid) return false
+    const needed = maxAmmo - currentRounds
+    const available: number = a.amount ?? 1
+    const toLoad = Math.min(needed, available)
+    w.pro.extra.rounds = currentRounds + toLoad
+    w.pro.extra.ammoPID = a.pid // record which ammo type is now loaded
+    a.amount = available - toLoad
+    const ammoIdx = globalState.player.inventory.indexOf(ammoObj)
+    if (a.amount <= 0 && ammoIdx !== -1) globalState.player.inventory.splice(ammoIdx, 1)
+    uiLog(`Loaded ${toLoad} round${toLoad !== 1 ? 's' : ''}.`)
+    return true
 }
 
 // TODO: Rewrite this sanely (and not directly modify the player object's properties...)
@@ -1062,6 +1241,16 @@ function uiMoveSlot(data: string, target: string) {
         const idx = parseInt(data.slice(1))
         console.log('idx: ' + idx)
         obj = globalState.player.inventory[idx]
+
+        // Drag-drop reload: ammo from inventory dropped onto a hand slot with a weapon
+        if ((target === 'leftHand' || target === 'rightHand') && playerUnsafe[target]) {
+            if (tryLoadAmmoIntoWeapon(obj, playerUnsafe[target] as Obj)) {
+                uiDrawWeapon()
+                uiInventoryScreen()
+                return
+            }
+        }
+
         globalState.player.inventory.splice(idx, 1) // remove object from inventory
     } else {
         obj = playerUnsafe[data]
@@ -1399,6 +1588,21 @@ export function uiInventoryScreen() {
             makeDraggable(img, 'i' + i, () => {
                 uiInventoryScreen()
             })
+
+            // Allow ammo to be dropped onto a weapon in the inventory list
+            if (invObj.subtype === 'weapon') {
+                const capturedWeapon = invObj
+                makeDropTarget(img, (data: string) => {
+                    if (data[0] !== 'i') return // only inventory items
+                    const srcIdx = parseInt(data.slice(1))
+                    const srcObj = globalState.player.inventory[srcIdx]
+                    if (!srcObj || srcObj === capturedWeapon) return
+                    if (tryLoadAmmoIntoWeapon(srcObj, capturedWeapon)) {
+                        uiDrawWeapon()
+                        uiInventoryScreen()
+                    }
+                })
+            }
         }
     }
 
@@ -1468,14 +1672,20 @@ export function uiInventoryScreen() {
                 uiInventoryScreen()
                 break
             case 'unload': {
-                const ammoPID = obj.pro?.extra?.ammoPID
-                const ammoCurrent = obj.pro?.extra?.rounds
-                if (ammoPID && ammoCurrent > 0) {
-                    const ammoObj = createObjectWithPID(ammoPID)
-                    ammoObj.amount = ammoCurrent
-                    globalState.player.addInventoryItem(ammoObj, ammoCurrent)
+                const ammoPID: number | undefined = obj.pro?.extra?.ammoPID
+                const ammoCurrent: number = obj.pro?.extra?.rounds ?? 0
+                console.log(`[unload] ammoPID=${ammoPID} rounds=${ammoCurrent}`)
+                if (ammoCurrent > 0) {
+                    if (ammoPID) {
+                        // Create an ammo item and return it to inventory
+                        const ammoObj = createObjectWithPID(ammoPID)
+                        ammoObj.amount = ammoCurrent
+                        globalState.player.addInventoryItem(ammoObj, ammoCurrent)
+                    }
                     obj.pro.extra.rounds = 0
+                    if (obj.pro.extra.ammoPID !== undefined) obj.pro.extra.ammoPID = 0
                 }
+                uiDrawWeapon()
                 uiInventoryScreen()
                 break
             }
@@ -1519,9 +1729,10 @@ export function uiInventoryScreen() {
         }
         $menu.appendChild(makeContextButton(obj, slot, 'drop'))
 
-        // Unload option for loaded weapons
-        if (obj.subtype === 'weapon' && obj.pro?.extra?.ammoPID && obj.pro?.extra?.rounds > 0) {
-            $menu.appendChild(makeContextButton(obj, slot, 'unload', 'Unload'))
+        // Unload option: any weapon with non-zero ammo capacity and rounds currently loaded
+        // (matches fallout2-ce ammoGetCapacity != 0 condition — works for all gun types)
+        if (obj.subtype === 'weapon' && obj.pro?.extra?.maxAmmo > 0 && obj.pro?.extra?.rounds > 0) {
+            $menu.appendChild(makeContextButton(obj, slot, 'unload'))
         }
 
         // Equip options for inventory items
@@ -2337,13 +2548,44 @@ export function uiCalledShot(art: string, target: Critter, callback?: (regionHit
 
     $id('calledShotBackground').style.backgroundImage = `url('${art}.png')`
 
+    // Map region name to the Critter's crippled flag
+    const crippledFlags: { [region: string]: keyof Critter } = {
+        leftArm:  'crippledLeftArm',
+        rightArm: 'crippledRightArm',
+        leftLeg:  'crippledLeftLeg',
+        rightLeg: 'crippledRightLeg',
+    }
+
     for (const $label of $qa('.calledShotLabel')) {
-        $label.onclick = (evt: MouseEvent) => {
-            const id = (evt.target as HTMLElement).id
-            const regionHit = id.split('-')[1]
-            console.log('clicked a called location (%s)', regionHit)
-            if (callback) {
-                callback(regionHit)
+        const id = ($label as HTMLElement).id
+        const regionHit = id.split('-')[1]
+        const crippledKey = crippledFlags[regionHit]
+        const isCrippled = crippledKey ? !!(target as any)[crippledKey] : false
+
+        if (isCrippled) {
+            // Gray out crippled parts so the player knows they're already damaged
+            Object.assign(($label as HTMLElement).style, {
+                color: '#666666',
+                textDecoration: 'line-through',
+                cursor: 'default',
+                pointerEvents: 'none',
+            })
+            const $chance = $id('calledShot-' + regionHit + '-chance')
+            if ($chance) Object.assign(($chance as HTMLElement).style, { opacity: '0.4' })
+        } else {
+            // Reset styles (in case uiCalledShot is called multiple times)
+            Object.assign(($label as HTMLElement).style, {
+                color: '',
+                textDecoration: '',
+                cursor: '',
+                pointerEvents: '',
+            })
+            $label.onclick = (evt: MouseEvent) => {
+                const clickedRegion = (evt.target as HTMLElement).id.split('-')[1]
+                console.log('clicked a called location (%s)', clickedRegion)
+                if (callback) {
+                    callback(clickedRegion)
+                }
             }
         }
     }

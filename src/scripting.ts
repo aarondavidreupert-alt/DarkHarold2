@@ -19,6 +19,7 @@ Scripting system/engine for DarkFO
 import { Combat } from './combat.js'
 import { critterDamage, critterKill } from './critter.js'
 import { lookupScriptName } from './data.js'
+import * as GameTime from './gametime.js'
 import {
     hexDirectionTo,
     hexDistance,
@@ -965,7 +966,11 @@ export module Scripting {
 
         // environment
         set_light_level(level: number) {
-            stub('set_light_level', arguments)
+            log('set_light_level', arguments)
+            // Fallout 2 passes 0..100. A call with the "default" magic
+            // value releases the override and lets the time-of-day curve
+            // take back over on the next map load.
+            GameTime.setLightLevelOverride(level)
         }
         obj_set_light_level(obj: Obj, intensity: number, distance: number) {
             stub('obj_set_light_level', arguments)
@@ -1347,7 +1352,7 @@ export module Scripting {
         game_time_advance(ticks: number) {
             log('game_time_advance', arguments)
             info('advancing time ' + ticks + ' ticks ' + '(' + ticks / 10 + ' seconds)')
-            globalState.gameTickTime += ticks
+            GameTime.advanceTicks(ticks)
         }
 
         // game
@@ -1660,7 +1665,8 @@ export module Scripting {
                 script.combat_is_initialized = globalState.inCombat ? 1 : 0
                 script.self_obj = gameObjects[i] as ScriptableObj
                 script.game_time = Math.max(1, globalState.gameTickTime)
-                script.game_time_hour = Math.floor((globalState.gameTickTime / 600) % 24)
+                // Fallout 2 style HHMM: "8:24 AM" => 824, "3:00 PM" => 1500
+                script.game_time_hour = GameTime.getHourMilitary()
                 script.cur_map_index = currentMapID
                 script.map_update_p_proc()
                 updated++
@@ -1680,6 +1686,10 @@ export module Scripting {
         gameObjects = objects
         currentMapID = mapID
         mapFirstRun = isFirstRun
+
+        // Fallout 2 resets ambient light to max on every map load; any
+        // script darkness is reapplied by the new map's map_enter_p_proc.
+        GameTime.clearLightLevelOverride()
 
         if (mapScript && mapScript.map_enter_p_proc !== undefined) {
             info('calling map enter')
@@ -1707,7 +1717,7 @@ export module Scripting {
             script.combat_is_initialized = 0
             script.self_obj = obj as ScriptableObj
             script.game_time = Math.max(1, globalState.gameTickTime)
-            script.game_time_hour = 1200 // hour of the day
+            script.game_time_hour = GameTime.getHourMilitary()
             script.cur_map_index = currentMapID
             script.map_enter_p_proc()
         }

@@ -24,7 +24,8 @@ import { initGame } from './init.js'
 import { Critter, Obj } from './object.js'
 import { getObjectUnderCursor, SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 import { Scripting } from './scripting.js'
-import { Skills } from './skills.js'
+import { Skills, SKILL_NAMES } from './skills.js'
+import { skillUse } from './skillUse.js'
 import {
     drawAP,
     drawHP,
@@ -49,6 +50,12 @@ import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
 import { Lightmap } from './lightmap.js'
 import { togglePipBoy } from './pipboy.js'
+
+// Next gameTickTime at which map_update_p_proc should fire across all map
+// scripts. Fallout 2 schedules this via a 600-tick queue event, so we mirror
+// the cadence here and reschedule from a local counter rather than a
+// persisted field (map entry resets the cadence anyway).
+let nextMapUpdateTick = 600
 
 // Return the skill ID used by the Fallout 2 engine
 function getSkillID(skill: Skills): number {
@@ -95,11 +102,38 @@ function playerUseSkill(skill: Skills, obj: Obj): void {
         throw 'trying to use non-passive skill without a target'
     }
 
-    if (!isPassiveSkill(skill)) {
-        // use the skill on the object
-        Scripting.useSkillOn(globalState.player, getSkillID(skill), obj)
-    } else {
-        console.log('passive skills are not implemented')
+    // FO2-CE ref: skill.cc skillUse() — engine handles the skill effect first
+    // Map enum to string name for the engine skillUse function
+    const skillName = SKILL_NAMES[skill - 1] // Skills enum starts at 1 (SmallGuns=1)
+
+    if (isPassiveSkill(skill)) {
+        // Passive skills (Sneak, First Aid on self, Doctor on self) — engine handles directly
+        const result = skillUse(globalState.player as Critter, globalState.player as Critter, skillName)
+        uiLog(result.message)
+        if (result.hpHealed > 0) {
+            drawHP(globalState.player!.getStat('HP'))
+        }
+        return
+    }
+
+    // Non-passive: try script override first, then engine fallback
+    const target = obj as Critter
+    let scriptHandled = false
+    if (obj._script) {
+        try {
+            scriptHandled = Scripting.useSkillOn(globalState.player as Critter, getSkillID(skill), obj)
+        } catch (e) {
+            console.warn('useSkillOn script error:', e)
+        }
+    }
+
+    if (!scriptHandled) {
+        // Engine fallback: use the skill directly
+        const result = skillUse(globalState.player as Critter, target, skillName)
+        uiLog(result.message)
+        if (result.hpHealed > 0) {
+            drawHP(globalState.player!.getStat('HP'))
+        }
     }
 }
 
@@ -154,8 +188,7 @@ export function playerUse(obj: Obj | null) {
                         maxWalkingDist
                     )
                 }
-                const maxAP = globalState.player.AP.getMaxAP()
-                drawAP(globalState.player.AP.getAvailableMoveAP() + globalState.player.AP.getAvailableCombatAP(), maxAP.combat + maxAP.move)
+                drawAP(globalState.player.AP.getAvailableMoveAP(), globalState.player.AP.getTotalMaxAP())
             }
         }
 
@@ -192,6 +225,14 @@ export function playerUse(obj: Obj | null) {
                 return
             }
 
+            // Block attack (and AP deduction) if ranged weapon has no ammo
+            const playerMaxAmmo: number = (weapon as any)?.pro?.extra?.maxAmmo ?? 0
+            const playerRounds: number = (weapon as any)?.pro?.extra?.rounds ?? -1
+            if (playerMaxAmmo > 0 && playerRounds === 0) {
+                uiLog('You: out of ammo!')
+                return
+            }
+
             if (weapon.weapon!.isCalled()) {
                 let art = 'art/critters/hmjmpsna' // default art
                 if (who.hasAnimation('called-shot')) {
@@ -201,18 +242,34 @@ export function playerUse(obj: Obj | null) {
                 console.log('art: %s', art)
 
                 uiCalledShot(art, who, (region: string) => {
-                    globalState.player.AP!.subtractCombatAP(4)
-                    const maxAP = globalState.player.AP!.getMaxAP()
-                    drawAP(globalState.player.AP!.getAvailableMoveAP() + globalState.player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
+                    const calledAPCost = weapon.weapon!.getAPCost(1) + 1 // base weapon cost + 1 aiming surcharge
+                    if (globalState.player.AP!.getAvailableCombatAP() < calledAPCost) {
+                        uiLog(getProtoMsg(700)!) // "You don't have enough action points."
+                        uiCloseCalledShot()
+                        return
+                    }
+                    globalState.player.AP!.subtractCombatAP(calledAPCost)
+                    drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
                     console.log('Attacking %s...', region)
                     globalState.combat!.attack(globalState.player, <Critter>obj, region)
                     uiCloseCalledShot()
                     uiUpdateCombatAP()
                 })
+            } else if (weapon.weapon!.isBurst()) {
+                const burstAPCost = weapon.weapon!.getAPCost(2)
+                if (globalState.player.AP!.getAvailableCombatAP() < burstAPCost) {
+                    uiLog(getProtoMsg(700)!) // "You don't have enough action points."
+                    return
+                }
+                globalState.player.AP!.subtractCombatAP(burstAPCost)
+                drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
+                console.log('Burst fire at %s...', who.name)
+                // Route through attack() which detects isBurst() and does the multi-roll loop
+                globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
+                uiUpdateCombatAP()
             } else {
                 globalState.player.AP!.subtractCombatAP(4)
-                const maxAP = globalState.player.AP!.getMaxAP()
-                drawAP(globalState.player.AP!.getAvailableMoveAP() + globalState.player.AP!.getAvailableCombatAP(), maxAP.combat + maxAP.move)
+                drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
                 console.log('Attacking the torso...')
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
                 uiUpdateCombatAP()
@@ -558,8 +615,7 @@ heart.keydown = (k: string) => {
                 !globalState.combat.combatants[i].dead
             ) {
                 globalState.player.AP.subtractCombatAP(4)
-                const maxAP = globalState.player.AP.getMaxAP()
-                drawAP(globalState.player.AP.getAvailableMoveAP() + globalState.player.AP.getAvailableCombatAP(), maxAP.combat + maxAP.move)
+                drawAP(globalState.player.AP.getAvailableMoveAP(), globalState.player.AP.getTotalMaxAP())
                 console.log('Attacking...')
                 globalState.combat.attack(globalState.player, globalState.combat.combatants[i])
                 break
@@ -764,6 +820,22 @@ heart.update = function () {
                     timedEvents.splice(i--, 1)
                     numEvents--
                 }
+            }
+        }
+
+        // Fallout 2 fires map_update_p_proc for every script on the map
+        // every 600 ticks (60 game seconds) via an EVENT_TYPE_MAP_UPDATE_EVENT
+        // queued by mapUpdateEventProcess. Mirror that cadence here so
+        // scripts can check `game_time_hour` and drive NPC behavior (shop
+        // hours, sleep schedules, etc.) without any engine-level gates.
+        if (!globalState.inCombat && globalState.gMap) {
+            if (nextMapUpdateTick < globalState.gameTickTime) {
+                // Catch up after a save load or fresh start where gameTickTime
+                // has jumped forward past the initial sentinel.
+                nextMapUpdateTick = globalState.gameTickTime + 600
+            } else if (globalState.gameTickTime >= nextMapUpdateTick) {
+                nextMapUpdateTick = globalState.gameTickTime + 600
+                globalState.gMap.updateMap()
             }
         }
 

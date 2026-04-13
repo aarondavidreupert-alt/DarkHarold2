@@ -336,8 +336,8 @@ export class Obj {
 
         // TODO: Subclasses
         if (pidType == 0) {
-            // item
-            obj.subtype = getPROSubTypeName(pro.extra.subtype)
+            // item — PRO JSON uses camelCase 'subType' (from proto.py), not 'subtype'
+            obj.subtype = getPROSubTypeName(pro.extra.subType ?? pro.extra.subtype)
             obj.name = getMessage('pro_item', pro.textID)
 
             const invPID = pro.extra.invFRM & 0xffff
@@ -1061,6 +1061,20 @@ export class Critter extends Obj {
     bonusAC = 0 // Temporary AC bonus from unused AP at end of turn
     perks: string[] = [] // List of acquired perks
     nextIdleAnimTime = 0 // performance.now() after which the next idle cycle begins; 0 = uninitialised
+    skipTurns = 0 // Number of combat turns to skip (set by knockdown/loseNextTurn effects)
+    isKnockedDown = false // Set by knockdown/knockout crit effects; consumed by critterDamage() to play the animation
+    deathAnim?: string // Override death animation (set by critical 'death' effects, e.g. 'death-explode')
+
+    // Crippled-limb flags (set by critical effects; persist for the fight)
+    crippledLeftArm = false
+    crippledRightArm = false
+    crippledLeftLeg = false
+    crippledRightLeg = false
+    isBlinded = false        // Blinded: heavy hit-chance penalty, Perception effectively 1
+
+    // Combat status effect counters / flags
+    onFireTurns = 0          // Turns of fire DoT remaining; decremented in nextTurn
+    bypassArmorNextHit = false // Set by bypassArmor crit effect; zeroes DR/DT for the hit that triggered it
 
     static fromPID(pid: number, sid?: number): Critter {
         return Obj.fromPID_(new Critter(), pid, sid)
@@ -1199,6 +1213,10 @@ export class Critter extends Obj {
     }
 
     updateAnim(): void {
+        // 'dead' is a permanent sentinel set by critterKill after the death animation
+        // completes — do nothing so the corpse stays frozen on its last frame.
+        if (this.anim === 'dead') return
+
         if (!this.anim || this.anim === 'idle') {
             this.updateLoopingAnim()
             return
@@ -1333,7 +1351,11 @@ export class Critter extends Obj {
     }
 
     getSkill(skill: string) {
-        return this.skills.get(skill, this.stats)
+        // FO2-CE ref: skill.cc skillGetValue() — player gets tagged/trait/perk/difficulty bonuses
+        return this.skills.get(skill, this.stats, {
+            isPlayer: this.isPlayer,
+            perks: this.perks,
+        })
     }
 
     getStat(stat: string) {
@@ -1470,9 +1492,19 @@ export class Critter extends Obj {
                     console.log('Boss death...')
                     return base + 'bl'
                 }
-                return base + 'bo' // TODO: choose death animation better
+                return base + 'bo' // normal crumple death
             case 'death-explode':
-                return base + 'bl'
+                return base + 'bl' // sliced in half / blown apart
+            case 'death-fire':
+                return base + 'be' // burning death dance
+            case 'death-plasma':
+                return base + 'bm' // burned to nothing
+            case 'death-electro':
+                return base + 'bk' // electrified
+            case 'death-laser':
+                return base + 'bg' // big hole / vaporised
+            case 'death-burst':
+                return base + 'bj' // dancing autofire
             default:
                 throw 'Unknown animation: ' + anim
         }
@@ -1552,6 +1584,8 @@ export class Critter extends Obj {
     }
 
     clearAnim(): void {
+        // Dead critters stay frozen on their last death frame — never reset to idle.
+        if (this.dead) return
         super.clearAnim()
         this.path = null
 
@@ -1677,6 +1711,14 @@ const animInfo: { [anim: string]: { type: string } } = {
     hitFront: { type: 'static' },
     death: { type: 'static' },
     'death-explode': { type: 'static' },
+    'death-fire': { type: 'static' },
+    'death-plasma': { type: 'static' },
+    'death-electro': { type: 'static' },
+    'death-laser': { type: 'static' },
+    'death-burst': { type: 'static' },
+    // Sentinel for a finished death animation — updateAnim() returns immediately,
+    // freezing the critter on its last death frame permanently.
+    dead: { type: 'static' },
     'weapon-draw': { type: 'static' },
     'weapon-holster': { type: 'static' },
     reverse: { type: 'static' },

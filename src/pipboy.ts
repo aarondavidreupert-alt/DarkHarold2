@@ -15,17 +15,35 @@ limitations under the License.
 */
 
 import globalState from './globalState.js'
+import * as GameTime from './gametime.js'
 import { Scripting } from './scripting.js'
 import { UIMode } from './ui.js'
-import { renderAutomapCanvas } from './automapData.js'
+import { drawAutomapInto, getArchivedMaps, getSeenTiles } from './automapData.js'
+import { getAutomapZoom, zoomIn, zoomOut, getAutomapPan, attachAutomapDragPan, attachAutomapWheelZoom } from './automap.js'
+import { Config } from './config.js'
 
 type PipBoyTab = 'STATUS' | 'AUTOMAPS' | 'ARCHIVES' | 'CLOSE'
 
-// Screen content area within pip.png (640x480 base)
-const SCREEN_X = 256
-const SCREEN_Y = 12
-const SCREEN_W = 350
-const SCREEN_H = 430
+// The screen div covers the entire PipBoy container so children using
+// absolute positioning with pip.png-relative coordinates (e.g. the automap
+// canvas at left:250, top:38) land in the right place without offset math.
+const SCREEN_X = 0
+const SCREEN_Y = 0
+const SCREEN_W = 640
+const SCREEN_H = 480
+
+// Content area for text tabs (STATUS, ARCHIVES/quest log) — matches the
+// green CRT screen region on pip.png.
+const CONTENT_X = 250
+const CONTENT_Y = 38
+const CONTENT_W = 350
+const CONTENT_H = 360
+
+// Exact automap canvas placement requested — do NOT override via CSS.
+const AUTOMAP_CANVAS_LEFT = 250
+const AUTOMAP_CANVAS_TOP = 38
+const AUTOMAP_CANVAS_W = 350
+const AUTOMAP_CANVAS_H = 360
 
 // Clickable tab dot positions (left of each label in pip.png)
 const TABS: { tab: PipBoyTab; x: number; y: number }[] = [
@@ -40,6 +58,11 @@ let currentTab: PipBoyTab = 'STATUS'
 const dotElements: Map<string, HTMLDivElement> = new Map()
 let alarmOn = false
 let waitMenuDiv: HTMLDivElement | null = null
+
+// Automap tab navigation state (3 levels: Location → Map → Rendered canvas).
+// Persists across tab switches in a single PipBoy session.
+let automapSelectedLocation: string | null = null
+let automapViewing: { mapName: string; elevation: number; isCurrent: boolean } | null = null
 
 // numbers.png sprite: each digit is 9x17, laid out horizontally 0-9 then extra glyphs
 // Index 12 = colon character
@@ -59,25 +82,11 @@ function makeDigit(digit: number, left: number, top: number): HTMLDivElement {
     return el
 }
 
-function getGameDate(ticks: number): { day: number; month: number; year: number; hours: number; minutes: number } {
-    const totalMinutes = Math.floor(ticks / 600)
-    const hours = Math.floor(totalMinutes / 60) % 24
-    const minutes = totalMinutes % 60
-    const totalDays = Math.floor(ticks / 864000)
-    const daysInMonths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    // Start: Day 25, Month 7 (August, 0-indexed=7), Year 2241
-    let year = 2241
-    let month = 7 // August (0-indexed)
-    let day = 25 + totalDays
-    while (day > daysInMonths[month]) {
-        day -= daysInMonths[month]
-        month++
-        if (month >= 12) {
-            month = 0
-            year++
-        }
-    }
-    return { day, month, year, hours, minutes }
+// Thin wrapper so the existing PipBoy rendering code can still destructure
+// a `{day, month, year, hours, minutes}` object. The actual math lives in
+// src/gametime.ts.
+function getGameDate(_ticks: number): { day: number; month: number; year: number; hours: number; minutes: number } {
+    return GameTime.getDate()
 }
 
 function renderDateTimeBar(): void {
@@ -210,86 +219,365 @@ function toggleWaitMenu(): void {
 }
 
 function advanceTime(minutes: number): void {
-    // 1 minute = 600 ticks (1 tick = 0.1 seconds, 600 ticks = 60 seconds)
-    globalState.gameTickTime += minutes * 600
+    const beforeTicks = GameTime.getTime()
+    const beforeAmbient = GameTime.getAmbientLightNormalized()
+    GameTime.advanceMinutes(minutes)
+    const afterTicks = GameTime.getTime()
+    const afterAmbient = GameTime.getAmbientLightNormalized()
+    console.log(
+        `[PipBoy wait] +${minutes}m  ticks ${beforeTicks} → ${afterTicks}  ` +
+        `time ${GameTime.getTimeString()}  ambient ${beforeAmbient.toFixed(3)} → ${afterAmbient.toFixed(3)}`
+    )
+    console.log(
+        `[lighting] after wait — doFloorLighting=${Config.engine.doFloorLighting}, ` +
+        `floorLightingMode=${Config.engine.floorLightingMode}`
+    )
 }
 
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+function formatGameTime(_ticks: number): string {
+    return `${GameTime.getDateString()}  ${GameTime.getTimeString()}`
+}
 
-function formatGameTime(ticks: number): string {
-    const { day, month, year, hours, minutes } = getGameDate(ticks)
-    return `${MONTH_NAMES[month]} ${day}, ${year} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+// --- Shared primitives so every tab is built the same way ---
+
+// Base text style used throughout the PipBoy screen. All tabs use the same
+// transparent DOM approach (no dark canvas background), letting pip.png show
+// through.
+const TEXT_STYLE = 'color: #00FF00; font-family: monospace;'
+
+function makeHeader(title: string): HTMLDivElement {
+    const h = document.createElement('div')
+    h.style.cssText = TEXT_STYLE + 'font-size: 16px; padding: 2px 6px 4px 6px; border-bottom: 1px solid #00AA00; margin-bottom: 6px;'
+    h.textContent = title
+    return h
+}
+
+function makeRow(label: string, value: string, highlighted = false): HTMLDivElement {
+    const row = document.createElement('div')
+    row.style.cssText = TEXT_STYLE + 'font-size: 13px; line-height: 1.6; padding: 0 6px;'
+    const v = document.createElement('span')
+    v.style.color = highlighted ? '#FF4444' : '#FFFF00'
+    v.textContent = value
+    row.appendChild(document.createTextNode(label + ': '))
+    row.appendChild(v)
+    return row
+}
+
+function makeListItem(label: string, onClick: () => void): HTMLDivElement {
+    const el = document.createElement('div')
+    el.style.cssText = TEXT_STYLE + 'font-size: 13px; padding: 3px 8px; cursor: pointer; border-bottom: 1px solid #003300;'
+    el.textContent = label
+    el.onmouseenter = () => { el.style.backgroundColor = 'rgba(0,80,0,0.35)' }
+    el.onmouseleave = () => { el.style.backgroundColor = 'transparent' }
+    el.onclick = onClick
+    return el
+}
+
+function makeButton(label: string, onClick: () => void): HTMLDivElement {
+    const b = document.createElement('div')
+    b.textContent = label
+    b.style.cssText = TEXT_STYLE + `
+        font-size: 12px; padding: 2px 8px;
+        border: 1px solid #00AA00; background: rgba(0,20,0,0.6);
+        cursor: pointer; display: inline-block; margin-right: 4px;
+    `
+    b.onclick = onClick
+    return b
+}
+
+function clearScreen(screen: HTMLDivElement): void {
+    while (screen.firstChild) screen.removeChild(screen.firstChild)
+}
+
+// A content area pinned to the green CRT region on pip.png. All text tabs
+// render their DOM children into one of these.
+function makeContentArea(): HTMLDivElement {
+    const c = document.createElement('div')
+    c.style.cssText = `
+        position: absolute;
+        left: ${CONTENT_X}px; top: ${CONTENT_Y}px;
+        width: ${CONTENT_W}px; height: ${CONTENT_H}px;
+        overflow-y: auto; overflow-x: hidden;
+        background: transparent;
+    `
+    return c
 }
 
 function renderStatusTab(screen: HTMLDivElement): void {
+    clearScreen(screen)
+    const content = makeContentArea()
+    screen.appendChild(content)
     const player = globalState.player!
     const hp = player.getStat('HP')
     const maxHP = player.getStat('Max HP')
     const poison = player.getStat('Poison Level') || 0
     const radiation = player.getStat('Radiation Level') || 0
-    const gameTime = formatGameTime(globalState.gameTickTime)
 
-    screen.innerHTML = `
-        <div style="padding: 20px; color: #00FF00; font-family: monospace; font-size: 14px; line-height: 2;">
-            <div style="font-size: 18px; margin-bottom: 16px; border-bottom: 1px solid #00AA00; padding-bottom: 8px;">STATUS</div>
-            <div>Hit Points: <span style="color: #FFFF00;">${hp} / ${maxHP}</span></div>
-            <div>Poisoned: <span style="color: ${poison > 0 ? '#FF4444' : '#00FF00'};">${poison}</span></div>
-            <div>Radiated: <span style="color: ${radiation > 0 ? '#FF4444' : '#00FF00'};">${radiation}</span></div>
-            <div style="margin-top: 16px; border-top: 1px solid #00AA00; padding-top: 8px;">
-                Game Time: <span style="color: #FFFF00;">${gameTime}</span>
-            </div>
-        </div>
-    `
+    content.appendChild(makeHeader('STATUS'))
+    content.appendChild(makeRow('Hit Points', `${hp} / ${maxHP}`))
+    content.appendChild(makeRow('Poisoned', String(poison), poison > 0))
+    content.appendChild(makeRow('Radiated', String(radiation), radiation > 0))
+
+    const sep = document.createElement('div')
+    sep.style.cssText = 'border-top: 1px solid #00AA00; margin: 8px 6px 4px 6px;'
+    content.appendChild(sep)
+    // Fallout-2-style clock: DAY N, HH:MM AM/PM, Mon DD, YYYY.
+    content.appendChild(makeRow('Day', `${GameTime.getDay()}  ${GameTime.getTimeString()}`))
+    content.appendChild(makeRow('Date', GameTime.getDateString()))
+    const nightLabel = GameTime.isNightTime() ? 'NIGHT' : 'DAY'
+    content.appendChild(makeRow('Cycle', nightLabel))
+}
+
+// --- AUTOMAPS tab: 3-level hierarchy (location → map → rendered canvas)
+
+function locationForMap(mapName: string): string {
+    const areas = globalState.mapAreas
+    if (areas) {
+        for (const id in areas) {
+            const area = areas[id]
+            for (const e of area.entrances) {
+                if (e.mapName === mapName) return area.name
+            }
+        }
+    }
+    return 'Unknown'
+}
+
+interface AutomapMapEntry {
+    mapName: string
+    elevation: number
+    isCurrent: boolean
+}
+
+// All known maps: every (mapName, elevation) for which we have seen-tile
+// data, plus the currently-loaded map (marked CURRENT). Driven by the
+// persistent seenData store, so the list shows EVERY visited location, not
+// just the current one.
+function collectAutomapEntries(): AutomapMapEntry[] {
+    const out: AutomapMapEntry[] = []
+    const seen = new Set<string>()
+
+    const current = globalState.gMap
+    if (current && current.name) {
+        const k = `${current.name}:${current.currentElevation}`
+        seen.add(k)
+        out.push({ mapName: current.name, elevation: current.currentElevation, isCurrent: true })
+    }
+    for (const e of getArchivedMaps()) {
+        const k = `${e.mapName}:${e.elevation}`
+        if (seen.has(k)) continue
+        seen.add(k)
+        out.push({ mapName: e.mapName, elevation: e.elevation, isCurrent: false })
+    }
+    return out
+}
+
+// Apply the exact CSS placement requested — authoritative. Does NOT touch
+// canvas.width/height (setting those clears the bitmap, which would erase any
+// drawing that already happened).
+function styleAutomapCanvas(canvas: HTMLCanvasElement): void {
+    canvas.style.cssText =
+        `position: absolute; ` +
+        `left: ${AUTOMAP_CANVAS_LEFT}px; ` +
+        `top: ${AUTOMAP_CANVAS_TOP}px; ` +
+        `width: ${AUTOMAP_CANVAS_W}px; ` +
+        `height: ${AUTOMAP_CANVAS_H}px; ` +
+        `overflow: hidden; ` +
+        `background: transparent;`
+}
+
+// Create + size + style + draw an automap canvas in the correct order so the
+// pixels survive into the DOM (see styleAutomapCanvas comment).
+function createAutomapCanvas(opts: { zoom: number; panX: number; panY: number; forMap?: string; forElevation?: number }): HTMLCanvasElement {
+    const canvas = document.createElement('canvas')
+    canvas.width = AUTOMAP_CANVAS_W
+    canvas.height = AUTOMAP_CANVAS_H
+    styleAutomapCanvas(canvas)
+    drawAutomapInto(canvas, opts)
+    return canvas
 }
 
 function renderAutomapsTab(screen: HTMLDivElement): void {
-    screen.innerHTML = ''
+    clearScreen(screen)
 
-    const header = document.createElement('div')
-    header.style.cssText = 'padding: 8px 12px; color: #00FF00; font-family: monospace; font-size: 16px; border-bottom: 1px solid #00AA00;'
-    header.textContent = 'AUTOMAPS'
-    screen.appendChild(header)
+    // Level 3 — rendered map view (current map render live; archived maps
+    // render from the saved seen-tile data via the same renderer)
+    if (automapViewing) {
+        const v = automapViewing
+        const header = document.createElement('div')
+        header.style.cssText = TEXT_STYLE +
+            `position: absolute; left: ${CONTENT_X}px; top: ${CONTENT_Y - 22}px;` +
+            `width: ${CONTENT_W}px; font-size: 13px;`
+        header.textContent = `${v.mapName.toUpperCase()}  L${v.elevation + 1}${v.isCurrent ? '  (CURRENT)' : ''}`
+        screen.appendChild(header)
 
-    const canvasW = SCREEN_W - 20
-    const canvasH = SCREEN_H - 50
-    const canvas = renderAutomapCanvas(canvasW, canvasH)
-    canvas.style.cssText = `display: block; margin: 8px auto; image-rendering: pixelated;`
-    screen.appendChild(canvas)
-}
+        // Back button above the canvas
+        const back = makeButton('< BACK', () => {
+            automapViewing = null
+            renderAutomapsTab(screen)
+        })
+        back.style.position = 'absolute'
+        back.style.left = `${CONTENT_X + CONTENT_W - 70}px`
+        back.style.top = `${CONTENT_Y - 22}px`
+        screen.appendChild(back)
 
-function renderArchivesTab(screen: HTMLDivElement): void {
-    const gvars = Scripting.getGlobalVars()
-
-    screen.innerHTML = ''
-
-    const header = document.createElement('div')
-    header.style.cssText = 'padding: 10px; color: #00FF00; font-family: monospace; font-size: 18px; border-bottom: 1px solid #00AA00; margin-bottom: 8px;'
-    header.textContent = 'ARCHIVES'
-    screen.appendChild(header)
-
-    const list = document.createElement('div')
-    list.style.cssText = 'padding: 10px; color: #00FF00; font-family: monospace; font-size: 12px; overflow-y: auto; max-height: ' + (SCREEN_H - 60) + 'px;'
-
-    const keys = Object.keys(gvars)
-    if (keys.length === 0) {
-        list.textContent = 'No quest variables recorded.'
-    } else {
-        for (const key of keys) {
-            const val = gvars[key]
-            if (val !== 0) { // Only show non-zero (active) quest vars
-                const entry = document.createElement('div')
-                entry.style.cssText = 'margin-bottom: 4px; padding: 2px 0; border-bottom: 1px solid #003300;'
-                entry.textContent = `GVAR ${key}: ${val}`
-                list.appendChild(entry)
+        // Build render options. Archived maps pass forMap/forElevation so the
+        // renderer pulls their saved seen-tile set instead of the live map.
+        const renderOpts = () => {
+            const pan = getAutomapPan(v.mapName, v.elevation)
+            const opts: { zoom: number; panX: number; panY: number; forMap?: string; forElevation?: number } = {
+                zoom: getAutomapZoom(), panX: pan.x, panY: pan.y,
             }
+            if (!v.isCurrent) {
+                opts.forMap = v.mapName
+                opts.forElevation = v.elevation
+            }
+            return opts
         }
-        if (list.children.length === 1) { // only the header
-            list.textContent = 'No active quest variables.'
-        }
+
+        const canvas = createAutomapCanvas(renderOpts())
+        screen.appendChild(canvas)
+
+        // In-place redraw on the same canvas element so drag listeners
+        // attached below stay alive across refreshes (zoom, drag, etc.)
+        const refresh = () => drawAutomapInto(canvas, renderOpts())
+
+        attachAutomapDragPan(canvas, () => ({ mapName: v.mapName, elevation: v.elevation }), refresh)
+
+        // Zoom bar sits just below the canvas within the CRT area
+        const zoomBar = document.createElement('div')
+        zoomBar.style.cssText =
+            `position: absolute; ` +
+            `left: ${AUTOMAP_CANVAS_LEFT}px; ` +
+            `top: ${AUTOMAP_CANVAS_TOP + AUTOMAP_CANVAS_H + 2}px;` +
+            `display: flex; align-items: center; gap: 4px;`
+        const zl = document.createElement('span')
+        zl.style.cssText = TEXT_STYLE + 'font-size: 11px; margin-left: 6px;'
+        zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x`
+        zoomBar.appendChild(makeButton('-', () => { zoomOut(); refresh(); zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x` }))
+        zoomBar.appendChild(makeButton('+', () => { zoomIn(); refresh(); zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x` }))
+        zoomBar.appendChild(zl)
+        screen.appendChild(zoomBar)
+
+        // Mouse wheel zoom — scroll up = in, scroll down = out. Hooked after
+        // the zoom label exists so its text can update in sync.
+        attachAutomapWheelZoom(canvas, () => { refresh(); zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x` })
+        return
     }
 
-    screen.appendChild(list)
+    // Levels 1 and 2 use the text content area
+    const content = makeContentArea()
+    screen.appendChild(content)
+
+    // Level 2 — list of maps in the selected location
+    if (automapSelectedLocation) {
+        content.appendChild(makeHeader(automapSelectedLocation.toUpperCase()))
+
+        const backBar = document.createElement('div')
+        backBar.style.cssText = 'padding: 2px 6px 4px 6px;'
+        backBar.appendChild(makeButton('< BACK', () => {
+            automapSelectedLocation = null
+            renderAutomapsTab(screen)
+        }))
+        content.appendChild(backBar)
+
+        const list = document.createElement('div')
+        list.style.cssText = 'overflow-y: auto;'
+        list.style.maxHeight = `${CONTENT_H - 80}px`
+
+        const entries = collectAutomapEntries()
+            .filter(e => locationForMap(e.mapName) === automapSelectedLocation)
+            .sort((a, b) => a.mapName === b.mapName ? a.elevation - b.elevation : a.mapName.localeCompare(b.mapName))
+
+        if (entries.length === 0) {
+            const empty = document.createElement('div')
+            empty.style.cssText = TEXT_STYLE + 'font-size: 12px; padding: 6px 8px;'
+            empty.textContent = '(no saved maps)'
+            list.appendChild(empty)
+        } else {
+            for (const e of entries) {
+                const label = `${e.mapName}  L${e.elevation + 1}${e.isCurrent ? '  (CURRENT)' : ''}`
+                list.appendChild(makeListItem(label, () => {
+                    const tiles = getSeenTiles(e.mapName, e.elevation)
+                    console.log(
+                        `[automap] level-3 click: mapName=${e.mapName} elevation=${e.elevation} ` +
+                        `isCurrent=${e.isCurrent} seenTiles=${tiles.size}`
+                    )
+                    automapViewing = e
+                    renderAutomapsTab(screen)
+                }))
+            }
+        }
+        content.appendChild(list)
+        return
+    }
+
+    // Level 1 — list of locations
+    content.appendChild(makeHeader('AUTOMAPS'))
+
+    const list = document.createElement('div')
+    list.style.cssText = 'overflow-y: auto;'
+    list.style.maxHeight = `${CONTENT_H - 50}px`
+
+    const locationMapCount: Map<string, number> = new Map()
+    for (const e of collectAutomapEntries()) {
+        const loc = locationForMap(e.mapName)
+        locationMapCount.set(loc, (locationMapCount.get(loc) || 0) + 1)
+    }
+    if (locationMapCount.size === 0) {
+        const empty = document.createElement('div')
+        empty.style.cssText = TEXT_STYLE + 'font-size: 12px; padding: 6px 8px;'
+        empty.textContent = '(no maps known yet — explore the wastes)'
+        list.appendChild(empty)
+    } else {
+        const sorted = Array.from(locationMapCount.keys()).sort()
+        for (const loc of sorted) {
+            const count = locationMapCount.get(loc)!
+            list.appendChild(makeListItem(`${loc}  (${count})`, () => {
+                automapSelectedLocation = loc
+                renderAutomapsTab(screen)
+            }))
+        }
+    }
+    content.appendChild(list)
+}
+
+// --- ARCHIVES tab: Quest log / journal
+
+function renderArchivesTab(screen: HTMLDivElement): void {
+    clearScreen(screen)
+    const content = makeContentArea()
+    screen.appendChild(content)
+
+    content.appendChild(makeHeader('QUEST LOG'))
+
+    // Pull active (non-zero) global variables from the script VM as the quest
+    // state. This is the same source the game uses for quest progression
+    // flags, so entries here reflect real quest progress.
+    const gvars = Scripting.getGlobalVars()
+    const active: { key: string; value: number }[] = []
+    for (const k in gvars) {
+        if (gvars[k] !== 0) active.push({ key: k, value: gvars[k] })
+    }
+
+    const list = document.createElement('div')
+    list.style.cssText = TEXT_STYLE + 'font-size: 11px; padding: 2px 8px; overflow-y: auto;'
+    list.style.maxHeight = `${CONTENT_H - 50}px`
+
+    if (active.length === 0) {
+        const empty = document.createElement('div')
+        empty.style.cssText = 'padding: 6px 0;'
+        empty.textContent = '(no quests in progress)'
+        list.appendChild(empty)
+    } else {
+        for (const entry of active) {
+            const row = document.createElement('div')
+            row.style.cssText = 'padding: 2px 0; border-bottom: 1px solid #003300;'
+            row.textContent = `GVAR ${entry.key}: ${entry.value}`
+            list.appendChild(row)
+        }
+    }
+    content.appendChild(list)
 }
 
 function renderTab(tab: PipBoyTab): void {
@@ -349,8 +637,8 @@ export function openPipBoy(): void {
         position: absolute;
         left: ${SCREEN_X}px; top: ${SCREEN_Y}px;
         width: ${SCREEN_W}px; height: ${SCREEN_H}px;
-        overflow-y: auto; overflow-x: hidden;
-        background-color: rgba(0, 20, 0, 0.85);
+        overflow: hidden;
+        background: transparent;
     `
     pipBoyContainer.appendChild(screen)
 
@@ -372,6 +660,10 @@ export function openPipBoy(): void {
 
     const gameContainer = document.getElementById('game-container')!
     gameContainer.appendChild(pipBoyContainer)
+
+    // Reset automap navigation each time PipBoy opens
+    automapSelectedLocation = null
+    automapViewing = null
 
     renderDateTimeBar()
     renderTab('STATUS')
