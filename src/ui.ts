@@ -31,8 +31,12 @@ import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
+<<<<<<< HEAD
 import { openAutomap } from './automap.js'
 import { openPipBoy } from './pipboy.js'
+=======
+import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
+>>>>>>> claude/complete-combat-system-JqGQK
 
 // UI system
 
@@ -939,6 +943,12 @@ export function initUI() {
         // right mouse button (cycle weapon modes)
         const wep = globalState.player.equippedWeapon
         if (!wep || !wep.weapon) {
+            // Cycle unarmed mode
+            const skill = globalState.player!.getSkill('Unarmed')
+            globalState.unarmedModeIdx = nextUnarmedModeIdx(skill, globalState.unarmedModeIdx)
+            const mode = getActiveUnarmedMode(skill, globalState.unarmedModeIdx)
+            uiLog(`Unarmed: ${mode.name}`)
+            uiDrawWeapon()
             return false
         }
         wep.weapon.cycleMode()
@@ -1163,9 +1173,17 @@ export function uiDrawWeapon() {
     const $wepImg = $id('attackButtonWeapon') as HTMLImageElement
     const $typeImg = $img('attackButtonType')
     if (!weapon || !weapon.weapon) {
+        // Unarmed HUD: show current punch/kick mode icon and AP cost
+        const unarmedSkill = globalState.player!.getSkill('Unarmed')
+        const mode = getActiveUnarmedMode(unarmedSkill, globalState.unarmedModeIdx)
         $wepImg.style.display = 'none'
-        $typeImg.style.display = 'none'
-        hidev($id('attackButtonCalled'))
+        $typeImg.style.display = ''
+        $img('attackButtonType').src = `art/intrface/${mode.icon}.png`
+        const CHAR_W = 10
+        if (mode.apCost <= 9) {
+            $id('attackButtonAPDigit').style.backgroundPosition = 0 - CHAR_W * mode.apCost + 'px'
+        }
+        hide($id('attackButtonCalled'))
         return
     }
     $wepImg.style.display = ''

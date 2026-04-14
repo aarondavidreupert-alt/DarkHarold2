@@ -48,6 +48,7 @@ import { getFileJSON, getProtoMsg } from './util.js'
 import { WebGLRenderer } from './webglrenderer.js'
 import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
+import { getActiveUnarmedMode } from './unarmed.js'
 import { Lightmap } from './lightmap.js'
 import { togglePipBoy } from './pipboy.js'
 
@@ -215,19 +216,36 @@ export function playerUse(obj: Obj | null) {
                 return
             }
 
-            if (globalState.player.AP!.getAvailableCombatAP() < 4) {
+            // TODO: move within range of target
+
+            const weapon = globalState.player.equippedWeapon
+
+            // Determine AP cost for this attack up-front so we can guard before acting
+            let attackAPCost: number
+            if (weapon === null) {
+                const unarmedSkill = globalState.player.getSkill('Unarmed')
+                attackAPCost = getActiveUnarmedMode(unarmedSkill, globalState.unarmedModeIdx).apCost
+            } else if (weapon.weapon!.isCalled()) {
+                attackAPCost = weapon.weapon!.getAPCost(1) + 1
+            } else if (weapon.weapon!.isBurst()) {
+                attackAPCost = weapon.weapon!.getAPCost(2)
+            } else {
+                attackAPCost = weapon.weapon!.getAPCost(1)
+            }
+
+            if (globalState.player.AP!.getAvailableCombatAP() < attackAPCost) {
                 uiLog(getProtoMsg(700)!) // "You don't have enough action points."
                 return
             }
 
-            // TODO: move within range of target
-
-            const weapon = globalState.player.equippedWeapon
             if (weapon === null) {
-                console.log('You have no weapon equipped!')
-                return
-            }
-
+                // Unarmed attack
+                globalState.player.AP!.subtractCombatAP(attackAPCost)
+                drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
+                console.log('Unarmed attack...')
+                globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
+                uiUpdateCombatAP()
+            } else {
             // Block attack (and AP deduction) if ranged weapon has no ammo
             const playerMaxAmmo: number = (weapon as any)?.pro?.extra?.maxAmmo ?? 0
             const playerRounds: number = (weapon as any)?.pro?.extra?.rounds ?? -1
@@ -271,11 +289,12 @@ export function playerUse(obj: Obj | null) {
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
                 uiUpdateCombatAP()
             } else {
-                globalState.player.AP!.subtractCombatAP(4)
+                globalState.player.AP!.subtractCombatAP(attackAPCost)
                 drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
                 console.log('Attacking the torso...')
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
                 uiUpdateCombatAP()
+            }
             }
 
             return
@@ -616,7 +635,12 @@ heart.keydown = (k: string) => {
             return
         }
 
-        if (globalState.player.AP.getAvailableCombatAP() < 4) {
+        const kbWeapon = globalState.player.equippedWeapon
+        const kbAPCost = kbWeapon === null
+            ? getActiveUnarmedMode(globalState.player.getSkill('Unarmed'), globalState.unarmedModeIdx).apCost
+            : kbWeapon.weapon!.getAPCost(1)
+
+        if (globalState.player.AP.getAvailableCombatAP() < kbAPCost) {
             uiLog(getProtoMsg(700))
             return
         }
@@ -627,7 +651,7 @@ heart.keydown = (k: string) => {
                 globalState.combat.combatants[i].position.y === mouseHex.y &&
                 !globalState.combat.combatants[i].dead
             ) {
-                globalState.player.AP.subtractCombatAP(4)
+                globalState.player.AP.subtractCombatAP(kbAPCost)
                 drawAP(globalState.player.AP.getAvailableMoveAP(), globalState.player.AP.getTotalMaxAP())
                 console.log('Attacking...')
                 globalState.combat.attack(globalState.player, globalState.combat.combatants[i])

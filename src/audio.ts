@@ -66,6 +66,10 @@ export class HTMLAudioEngine implements AudioEngine {
 			console.log('[Audio] playing:', soundName)
 			sound.play().catch(e => console.log('[Audio] play() blocked:', e))
 		}, false)
+		sound.addEventListener('error', () => {
+			// File missing (404) or unsupported format — fail silently to avoid console spam
+			console.warn('[Audio] could not load:', soundName)
+		}, false)
 		sound.src = 'audio/' + soundName + '.wav'
 		return sound
 	}

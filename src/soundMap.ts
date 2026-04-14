@@ -45,10 +45,10 @@ export const ACTION_SOUNDS: Record<string, string | string[]> = {
     'item_use':     'IIUSE',
 
     // Combat generic
-    'miss':         'WHIMPACT',
-    'hit_flesh':    'WHFLESHT',
-    'hit_metal':    'WHMETAL',
-    'critter_die':  ['DTHBODY1', 'DTHBODY2', 'DTHBODY3'],
+    'miss':         'whimpact',
+    'hit_flesh':    'whflesht',
+    'hit_metal':    'whmetal',
+    'critter_die':  ['dthbody1', 'dthbody2', 'dthbody3'],
 
     // UI
     'ui_click':     'IISWTCH1',

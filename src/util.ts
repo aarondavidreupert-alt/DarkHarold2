@@ -32,17 +32,19 @@ export function parseIni(text: string) {
         if (line.trim() === '') {
         } else if (line[0] === '[') category = line.trim().slice(1, -1)
         else {
-            // key=value
-            var kv = line.match(/^(.+?)[-=](.+)$/)
-            if (kv === null) {
+            // key=value (value may be empty)
+            const eqIdx = line.indexOf('=')
+            if (eqIdx === -1) {
                 // MAPS.TXT has one of these, so it's not an exception
                 console.log('warning: parseIni: not a key=value line: ' + line)
                 continue
             }
             if (category === null) throw 'parseIni: key=value not in category: ' + line
 
+            const key = line.slice(0, eqIdx).trim()
+            const val = line.slice(eqIdx + 1).trim() // may be empty string — that's valid
             if (ini[category] === undefined) ini[category] = {}
-            ini[category][kv[1].trim()] = kv[2].trim()
+            ini[category][key] = val
         }
     }
 

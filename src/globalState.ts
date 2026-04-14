@@ -78,6 +78,8 @@ export default {
 
     uiMode: UIMode.none,
 
+    unarmedModeIdx: 0,
+
     mapAreas: null,
 
     // Cursor system
@@ -134,6 +136,8 @@ export default {
     gParty: Party
 
     uiMode: UIMode
+
+    unarmedModeIdx: number
 
     mapAreas: AreaMap | null
 
