@@ -19,6 +19,7 @@ Scripting system/engine for DarkFO
 import { Combat } from './combat.js'
 import { critterDamage, critterKill } from './critter.js'
 import { lookupScriptName } from './data.js'
+import * as GameTime from './gametime.js'
 import {
     hexDirectionTo,
     hexDistance,
@@ -36,7 +37,8 @@ import { makePID } from './pro.js'
 import { centerCamera, objectOnScreen } from './renderer.js'
 import { fromTileNum, toTileNum } from './tile.js'
 import { uiAddDialogueOption, uiBarterMode, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, UIMode } from './ui.js'
-import { assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getRandomInt } from './util.js'
+import { SKILL_NAMES } from './skills.js'
+import { assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
 import { ScriptVM } from './vm.js'
 import { ScriptVMBridge } from './vm_bridge.js'
 import { Config } from './config.js'
@@ -691,24 +693,43 @@ export module Scripting {
             return 0
         }
         has_skill(obj: Obj, skill: number) {
-            stub('has_skill', arguments)
-            return 100
+            // FO2-CE ref: skill.cc skillGetValue() — returns the critter's effective skill value
+            const skillName = SKILL_NAMES[skill] ?? `Unknown(${skill})`
+            const critter = obj as Critter
+            const value = (typeof critter.getSkill === 'function') ? critter.getSkill(skillName) : 0
+            console.log(`[SCRIPT] has_skill(${skillName}, id=${skill}) → ${value}`)
+            return value
         }
         roll_vs_skill(obj: Obj, skill: number, bonus: number) {
-            stub('roll_vs_skill', arguments)
-            return 1
+            // FO2-CE ref: skill.cc roll_vs_skill() — performs a skill roll for script checks
+            // skill is a numeric ID (0-17), maps to SKILL_NAMES
+            const skillName = SKILL_NAMES[skill] ?? `Unknown(${skill})`
+            const critter = obj as Critter
+            const skillValue = (typeof critter.getSkill === 'function') ? critter.getSkill(skillName) : 0
+            const critChance = (typeof critter.getStat === 'function') ? critter.getStat('Critical Chance') : 0
+            const { roll, delta } = randomRoll(skillValue + bonus, critChance)
+            console.log(
+                `[SCRIPT] roll_vs_skill: ${skillName} (id=${skill}) — `
+                + `base=${skillValue}, bonus=${bonus}, total=${skillValue + bonus}, `
+                + `critChance=${critChance}, roll=${RollResult[roll]}(${roll}), delta=${delta}`
+            )
+            return roll
         }
         do_check(obj: Obj, check: number, modifier: number) {
             stub('do_check', arguments)
             return 1
         }
         is_success(roll: number) {
-            stub('is_success', arguments)
-            return 1
+            // FO2-CE ref: random.h — Success=2, CriticalSuccess=3
+            const result = rollIsSuccess(roll as RollResult) ? 1 : 0
+            console.log(`[SCRIPT] is_success(${RollResult[roll] ?? roll}) → ${result}`)
+            return result
         }
         is_critical(roll: number) {
-            stub('is_critical', arguments)
-            return 0
+            // FO2-CE ref: random.h — CriticalFailure=0, CriticalSuccess=3
+            const result = rollIsCritical(roll as RollResult) ? 1 : 0
+            console.log(`[SCRIPT] is_critical(${RollResult[roll] ?? roll}) → ${result}`)
+            return result
         }
         critter_inven_obj(obj: Critter, where: number) {
             if (!isGameObject(obj)) throw 'critter_inven_obj: not game object'
@@ -965,7 +986,11 @@ export module Scripting {
 
         // environment
         set_light_level(level: number) {
-            stub('set_light_level', arguments)
+            log('set_light_level', arguments)
+            // Fallout 2 passes 0..100. A call with the "default" magic
+            // value releases the override and lets the time-of-day curve
+            // take back over on the next map load.
+            GameTime.setLightLevelOverride(level)
         }
         obj_set_light_level(obj: Obj, intensity: number, distance: number) {
             stub('obj_set_light_level', arguments)
@@ -1347,7 +1372,7 @@ export module Scripting {
         game_time_advance(ticks: number) {
             log('game_time_advance', arguments)
             info('advancing time ' + ticks + ' ticks ' + '(' + ticks / 10 + ' seconds)')
-            globalState.gameTickTime += ticks
+            GameTime.advanceTicks(ticks)
         }
 
         // game
@@ -1581,12 +1606,15 @@ export module Scripting {
 
     export function useSkillOn(who: Critter, skillId: number, obj: Obj): boolean {
         if (!obj._script) throw Error('useSkillOn: Object has no script')
+        const skillName = SKILL_NAMES[skillId] ?? `Unknown(${skillId})`
+        console.log(`[SCRIPT] useSkillOn: ${who.name ?? 'unknown'} uses ${skillName} (id=${skillId}) on ${obj.name ?? obj.type ?? 'unknown'}`)
         obj._script.self_obj = obj as ScriptableObj
         obj._script.source_obj = who
         obj._script.cur_map_index = currentMapID
         obj._script._didOverride = false
         obj._script.action_being_used = skillId
         obj._script.use_skill_on_p_proc()
+        console.log(`[SCRIPT] useSkillOn result: _didOverride=${obj._script._didOverride}`)
         return obj._script._didOverride
     }
 
@@ -1660,7 +1688,8 @@ export module Scripting {
                 script.combat_is_initialized = globalState.inCombat ? 1 : 0
                 script.self_obj = gameObjects[i] as ScriptableObj
                 script.game_time = Math.max(1, globalState.gameTickTime)
-                script.game_time_hour = Math.floor((globalState.gameTickTime / 600) % 24)
+                // Fallout 2 style HHMM: "8:24 AM" => 824, "3:00 PM" => 1500
+                script.game_time_hour = GameTime.getHourMilitary()
                 script.cur_map_index = currentMapID
                 script.map_update_p_proc()
                 updated++
@@ -1680,6 +1709,10 @@ export module Scripting {
         gameObjects = objects
         currentMapID = mapID
         mapFirstRun = isFirstRun
+
+        // Fallout 2 resets ambient light to max on every map load; any
+        // script darkness is reapplied by the new map's map_enter_p_proc.
+        GameTime.clearLightLevelOverride()
 
         if (mapScript && mapScript.map_enter_p_proc !== undefined) {
             info('calling map enter')
@@ -1707,7 +1740,7 @@ export module Scripting {
             script.combat_is_initialized = 0
             script.self_obj = obj as ScriptableObj
             script.game_time = Math.max(1, globalState.gameTickTime)
-            script.game_time_hour = 1200 // hour of the day
+            script.game_time_hour = GameTime.getHourMilitary()
             script.cur_map_index = currentMapID
             script.map_enter_p_proc()
         }

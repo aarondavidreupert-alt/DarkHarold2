@@ -67,6 +67,11 @@ export class GameMap {
     mapObj: any = null
     mapID: number
 
+    // Cached isOutdoor() result for the current map+elevation.
+    // Reset whenever we (re)load a map or change elevation.
+    private _isOutdoorCached: boolean | null = null
+    private _isOutdoorCachedElevation: number = -1
+
     getObjects(level?: number): Obj[] {
         return this.objects[level === undefined ? this.currentElevation : level]
     }
@@ -123,6 +128,50 @@ export class GameMap {
         return this.mapObj.levels[elevation].tiles.roof[tilePos.y][tilePos.x] !== 'grid000'
     }
 
+    // Heuristic: is the current elevation an "outdoor" map?
+    //
+    // Fallout 2 map files don't flag indoor vs outdoor, but indoor maps
+    // (buildings, caves, vaults) tile their whole ceiling with roof art,
+    // while outdoor maps (desert, town exteriors, worldmap encounters)
+    // leave the roof layer mostly 'grid000' (no roof). We count the ratio
+    // of non-'grid000' roof tiles on the current elevation: if more than
+    // half the roof tiles are empty, it's outdoor.
+    //
+    // Used by the lighting system to decide whether a script's
+    // set_light_level override should be honored. Indoor maps often dim
+    // themselves to 40% in map_enter_p_proc for atmosphere; that looks
+    // fine in a cave but pins the ambient below noon brightness outside.
+    isOutdoor(): boolean {
+        if (!this.mapObj || !this.mapObj.levels || !this.mapObj.levels[this.currentElevation]) {
+            return false
+        }
+        if (this._isOutdoorCached !== null && this._isOutdoorCachedElevation === this.currentElevation) {
+            return this._isOutdoorCached
+        }
+
+        const roof = this.mapObj.levels[this.currentElevation].tiles.roof
+        let total = 0
+        let empty = 0
+        for (let y = 0; y < roof.length; y++) {
+            const row = roof[y]
+            for (let x = 0; x < row.length; x++) {
+                total++
+                if (row[x] === 'grid000') {
+                    empty++
+                }
+            }
+        }
+
+        const result = total > 0 && empty / total > 0.5
+        this._isOutdoorCached = result
+        this._isOutdoorCachedElevation = this.currentElevation
+        console.log(
+            `[lighting] isOutdoor(${this.name}, elev ${this.currentElevation}) = ${result} ` +
+            `(${empty}/${total} empty roof tiles)`
+        )
+        return result
+    }
+
     updateMap(): void {
         Scripting.updateMap(this.mapScript, this.getObjectsAndSpatials(), this.currentElevation)
     }
@@ -135,6 +184,9 @@ export class GameMap {
         const oldElevation = this.currentElevation
         this.currentElevation = level
         globalState.currentElevation = level // TODO: Get rid of this global
+        // Invalidate outdoor detection cache — roof layer differs per elevation.
+        this._isOutdoorCached = null
+        this._isOutdoorCachedElevation = -1
         this.floorMap = this.mapObj.levels[level].tiles.floor
         this.roofMap = this.mapObj.levels[level].tiles.roof
         //this.spatials = this.mapObj.levels[level]["spatials"]
@@ -333,6 +385,8 @@ export class GameMap {
         // clear any previous objects/events
         this.objects = null
         this.mapScript = null
+        this._isOutdoorCached = null
+        this._isOutdoorCachedElevation = -1
         Scripting.reset(this.name)
 
         // reset player animation status (to idle)
@@ -441,6 +495,7 @@ export class GameMap {
         load('art/intrface/stdarrow')
         load('art/intrface/actarrow')
         load('art/intrface/acrshair')
+        load('art/intrface/crossuse')
         load('art/intrface/lookn')
         load('art/intrface/scrnorth')
         load('art/intrface/scrsouth')
@@ -455,6 +510,11 @@ export class GameMap {
 
         // clear audio and use the map music
 		this.playMapMusic()
+
+        console.log(
+            `[lighting] map '${mapName}' loaded — doFloorLighting=${Config.engine.doFloorLighting}, ` +
+            `floorLightingMode=${Config.engine.floorLightingMode}`
+        )
 
         Events.emit('loadMapPost')
     }

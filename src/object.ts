@@ -1352,7 +1352,11 @@ export class Critter extends Obj {
     }
 
     getSkill(skill: string) {
-        return this.skills.get(skill, this.stats)
+        // FO2-CE ref: skill.cc skillGetValue() — player gets tagged/trait/perk/difficulty bonuses
+        return this.skills.get(skill, this.stats, {
+            isPlayer: this.isPlayer,
+            perks: this.perks,
+        })
     }
 
     getStat(stat: string) {

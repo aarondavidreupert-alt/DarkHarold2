@@ -17,6 +17,7 @@ limitations under the License.
 import { Config } from './config.js'
 import { CriticalEffects } from './criticalEffects.js'
 import { Events } from './events.js'
+import * as GameTime from './gametime.js'
 import { Point } from './geometry.js'
 import globalState from './globalState.js'
 import { GameMap } from './map.js'
@@ -25,6 +26,7 @@ import { SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 import { saveLoadInit } from './saveload.js'
 import { initUI, uiLog } from './ui.js'
 import { Worldmap } from './worldmap.js'
+import { initAutomapTracking } from './automapData.js'
 
 export function initGame() {
     // initialize player
@@ -32,6 +34,9 @@ export function initGame() {
 
     // initialize map
     globalState.gMap = new GameMap()
+
+    // Seed game time to Fallout 2's 8:24 AM start (matches fallout2-ce).
+    GameTime.initGameTime()
 
     uiLog('Welcome to DarkFO')
 
@@ -70,6 +75,7 @@ export function initGame() {
     Worldmap.init()
 
     initUI()
+    initAutomapTracking()
 
     if (Config.ui.hideRoofWhenUnder) {
         // Only show roofs if the player is not under them

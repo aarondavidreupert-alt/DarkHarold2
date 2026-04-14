@@ -24,7 +24,8 @@ import { initGame } from './init.js'
 import { Critter, Obj } from './object.js'
 import { getObjectUnderCursor, SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 import { Scripting } from './scripting.js'
-import { Skills } from './skills.js'
+import { Skills, SKILL_NAMES } from './skills.js'
+import { skillUse } from './skillUse.js'
 import {
     drawAP,
     drawHP,
@@ -49,6 +50,13 @@ import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
 import { getActiveUnarmedMode } from './unarmed.js'
 import { Lightmap } from './lightmap.js'
+import { togglePipBoy } from './pipboy.js'
+
+// Next gameTickTime at which map_update_p_proc should fire across all map
+// scripts. Fallout 2 schedules this via a 600-tick queue event, so we mirror
+// the cadence here and reschedule from a local counter rather than a
+// persisted field (map entry resets the cadence anyway).
+let nextMapUpdateTick = 600
 
 // Return the skill ID used by the Fallout 2 engine
 function getSkillID(skill: Skills): number {
@@ -76,31 +84,48 @@ function getSkillID(skill: Skills): number {
     return -1
 }
 
-// Is the skill passive (no target needed), or does it require a targeted object?
-function isPassiveSkill(skill: Skills): boolean {
-    switch (skill) {
-        case Skills.Sneak:
-        case Skills.FirstAid:
-        case Skills.Doctor:
-            return true
-        default:
-            return false
+function playerUseSkill(skill: Skills, obj: Obj): void {
+    // FO2-CE ref: skill.cc skillUse() — engine handles the skill effect
+    // Map enum to string name for the engine skillUse function
+    const skillName = SKILL_NAMES[skill - 1] // Skills enum starts at 1 (SmallGuns=1)
+    const skillId = getSkillID(skill)
+
+    console.log(`[SKILL] playerUseSkill: ${skillName} (enum=${skill}, scriptId=${skillId}) on ${obj.name || obj.type || 'unknown'}`)
+
+    // Non-passive target skills: try script override first, then engine fallback
+    const target = obj as Critter
+    let scriptHandled = false
+    if (obj._script) {
+        console.log(`[SKILL] Object has script — trying Scripting.useSkillOn(skillId=${skillId})`)
+        try {
+            scriptHandled = Scripting.useSkillOn(globalState.player as Critter, skillId, obj)
+        } catch (e) {
+            console.warn('[SKILL] useSkillOn script error:', e)
+        }
+        console.log(`[SKILL] Script handled: ${scriptHandled}`)
+    } else {
+        console.log('[SKILL] Object has no script — using engine fallback directly')
+    }
+
+    if (!scriptHandled) {
+        console.log(`[SKILL] Engine fallback: skillUse("${skillName}")`)
+        // Engine fallback: use the skill directly
+        const result = skillUse(globalState.player as Critter, target, skillName)
+        uiLog(result.message)
+        if (result.hpHealed > 0) {
+            drawHP(globalState.player!.getStat('HP'))
+        }
     }
 }
 
-function playerUseSkill(skill: Skills, obj: Obj): void {
-    console.log('use skill %o on %o', skill, obj)
-
-    if (!obj && !isPassiveSkill(skill)) {
-        throw 'trying to use non-passive skill without a target'
-    }
-
-    if (!isPassiveSkill(skill)) {
-        // use the skill on the object
-        Scripting.useSkillOn(globalState.player, getSkillID(skill), obj)
-    } else {
-        console.log('passive skills are not implemented')
-    }
+// Cancel skill targeting mode: resets uiMode, skillMode, and cursor
+function cancelSkillTargeting(): void {
+    globalState.skillMode = Skills.None
+    globalState.uiMode = UIMode.none
+    globalState.cursorMode = 'move'
+    // Reset CSS cursor fallback on canvas
+    const cnv = document.getElementById('cnv')
+    if (cnv) cnv.style.cursor = ''
 }
 
 export function playerUse(obj: Obj | null) {
@@ -112,15 +137,28 @@ export function playerUse(obj: Obj | null) {
     const who = <Critter>obj
 
     if (globalState.uiMode === UIMode.useSkill) {
-        // using a skill on object
+        const skill = globalState.skillMode
+        cancelSkillTargeting()
+
+        // FO2-CE ref: skill.cc — First Aid/Doctor: clicking empty ground = apply to self
         if (!obj) {
+            if (skill === Skills.FirstAid || skill === Skills.Doctor) {
+                playerUseSkill(skill, globalState.player as unknown as Obj)
+            }
             return
         }
-        try {
-            playerUseSkill(globalState.skillMode, obj)
-        } finally {
-            globalState.skillMode = Skills.None
-            globalState.uiMode = UIMode.none
+
+        // FO2-CE ref: skill.cc — player must be adjacent to the target.
+        // Use the same walkInFrontOf + callback pattern as normal object use.
+        const skillCallback = function () {
+            globalState.player!.clearAnim()
+            playerUseSkill(skill, obj)
+        }
+
+        if (Config.engine.doInfiniteUse === true) {
+            skillCallback()
+        } else {
+            globalState.player!.walkInFrontOf(obj.position, skillCallback)
         }
 
         return
@@ -404,6 +442,11 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
             playerUse(getObjectUnderCursor((obj) => obj.isSelectable))
         }
     } else if (btn === 'r') {
+        // Right-click cancels skill targeting mode
+        if (globalState.uiMode === UIMode.useSkill) {
+            cancelSkillTargeting()
+            return
+        }
         if (globalState.cursorMode === 'move') {
             // move (hex) → command (arrow)
             globalState.cursorMode = 'command'
@@ -475,7 +518,7 @@ heart.mousemoved = (x: number, y: number) => {
     } else if (globalState.cursorMode === 'scroll') {
         // leaving scroll zone — restore whatever was active before (move, command, attack, …)
         globalState.cursorMode = globalState.preScrollCursorMode
-    } else if (globalState.cursorMode !== 'command' && globalState.cursorMode !== 'attack') {
+    } else if (globalState.cursorMode !== 'command' && globalState.cursorMode !== 'attack' && globalState.cursorMode !== 'useSkill') {
         // move / interface: re-evaluate based on HUD / dialogue position
         const barEl = document.getElementById('bar')
         const barRect = barEl?.getBoundingClientRect()
@@ -502,6 +545,11 @@ heart.mousemoved = (x: number, y: number) => {
 
 heart.keydown = (k: string) => {
     if (globalState.isLoading === true) {
+        return
+    }
+    // ESC cancels skill targeting mode
+    if (k === 'Escape' && globalState.uiMode === UIMode.useSkill) {
+        cancelSkillTargeting()
         return
     }
     const mousePos = heart.mouse.getPosition()
@@ -671,6 +719,10 @@ heart.keydown = (k: string) => {
         uiWorldMap()
     }
 
+    if (k === Config.controls.pipboy) {
+        togglePipBoy()
+    }
+
     if (k === Config.controls.saveKey) {
         uiSaveLoad(true)
     }
@@ -714,7 +766,10 @@ heart.update = function () {
         }
     }
 
-    if (globalState.uiMode !== UIMode.none) {
+    // FO2-CE ref: Skill targeting mode keeps the game loop running so the
+    // player can scroll the map and see hover feedback while picking a target.
+    // All other UI modes (dialogue, inventory, etc.) pause the loop.
+    if (globalState.uiMode !== UIMode.none && globalState.uiMode !== UIMode.useSkill) {
         return
     }
     const time = window.performance.now()
@@ -805,6 +860,22 @@ heart.update = function () {
                     timedEvents.splice(i--, 1)
                     numEvents--
                 }
+            }
+        }
+
+        // Fallout 2 fires map_update_p_proc for every script on the map
+        // every 600 ticks (60 game seconds) via an EVENT_TYPE_MAP_UPDATE_EVENT
+        // queued by mapUpdateEventProcess. Mirror that cadence here so
+        // scripts can check `game_time_hour` and drive NPC behavior (shop
+        // hours, sleep schedules, etc.) without any engine-level gates.
+        if (!globalState.inCombat && globalState.gMap) {
+            if (nextMapUpdateTick < globalState.gameTickTime) {
+                // Catch up after a save load or fresh start where gameTickTime
+                // has jumped forward past the initial sentinel.
+                nextMapUpdateTick = globalState.gameTickTime + 600
+            } else if (globalState.gameTickTime >= nextMapUpdateTick) {
+                nextMapUpdateTick = globalState.gameTickTime + 600
+                globalState.gMap.updateMap()
             }
         }
 

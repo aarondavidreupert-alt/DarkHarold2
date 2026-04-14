@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { Config } from './config.js'
+
 export enum Skills {
     None = 0,
     SmallGuns,
@@ -33,6 +35,19 @@ export enum Skills {
     Gambling,
     Outdoorsman,
 }
+
+// FO2-CE ref: skill_defs.h — NUM_TAGGED_SKILLS / DEFAULT_TAGGED_SKILLS / SKILL_COUNT
+export const SKILL_COUNT = 18
+export const DEFAULT_TAGGED_SKILLS = 3
+export const MAX_TAGGED_SKILLS = 4 // 4th via Tag! perk
+export const SKILL_MAX_VALUE = 300
+
+// Ordered skill names matching the Skills enum (index 0 = SmallGuns = Skills.SmallGuns - 1)
+export const SKILL_NAMES: string[] = [
+    'Small Guns', 'Big Guns', 'Energy Weapons', 'Unarmed', 'Melee Weapons',
+    'Throwing', 'First Aid', 'Doctor', 'Sneak', 'Lockpick', 'Steal', 'Traps',
+    'Science', 'Repair', 'Speech', 'Barter', 'Gambling', 'Outdoorsman',
+]
 
 // Skill Dependencies system
 
@@ -65,7 +80,7 @@ class Stat {
 }
 
 // Skills
-
+// FO2-CE ref: skill.cc gSkillDescriptions[] — defaultValue, stat1, stat2, statModifier
 // Fallout 2 specific, FO1 uses its own, possibly extracting this to an outside file that is loaded in would thus make sense
 export const skillDependencies: { [name: string]: Skill } = {
     'Small Guns': new Skill(5, [new Dependency('AGI', 4)]),
@@ -84,7 +99,8 @@ export const skillDependencies: { [name: string]: Skill } = {
     Repair: new Skill(0, [new Dependency('INT', 3)]),
     Speech: new Skill(0, [new Dependency('CHA', 5)]),
     Barter: new Skill(0, [new Dependency('CHA', 4)]),
-    Gambling: new Skill(5, [new Dependency('LUK', 5)]),
+    // FO2-CE ref: skill.cc — Gambling defaultValue is 0, not 5
+    Gambling: new Skill(0, [new Dependency('LUK', 5)]),
     Outdoorsman: new Skill(0, [new Dependency('END', 2), new Dependency('INT', 2)]),
 }
 
@@ -146,14 +162,86 @@ export const statDependencies: { [name: string]: Stat } = {
 //helper
 statDependencies['One'] = new Stat(1, 1, 1, [])
 
-export function skillImprovementCost(skillPoints: number): number {
+// FO2-CE ref: skill.cc skillsGetCost() — cost based on *effective* (computed) skill value
+export function skillImprovementCost(effectiveSkillValue: number): number {
     // Fallout 2 specific, in FO1 it's always 1
+    if (effectiveSkillValue >= 201) return 6
+    if (effectiveSkillValue >= 176) return 5
+    if (effectiveSkillValue >= 151) return 4
+    if (effectiveSkillValue >= 126) return 3
+    if (effectiveSkillValue >= 101) return 2
+    return 1
+}
 
-    if (skillPoints < 101) return 1
-    if (skillPoints < 126) return 2
-    if (skillPoints < 151) return 3
-    if (skillPoints < 176) return 4
-    if (skillPoints < 201) return 5
-    if (skillPoints < 301) return 6
-    return 999999999
+// FO2-CE ref: skill.cc skillGetGameDifficultyModifier()
+// Skills affected by game difficulty: First Aid, Doctor, Sneak, Lockpick, Steal,
+// Traps, Science, Repair, Outdoorsman
+const DIFFICULTY_AFFECTED_SKILLS: Set<string> = new Set([
+    'First Aid', 'Doctor', 'Sneak', 'Lockpick', 'Steal',
+    'Traps', 'Science', 'Repair', 'Outdoorsman',
+])
+
+export function skillGetGameDifficultyModifier(skill: string): number {
+    if (!DIFFICULTY_AFFECTED_SKILLS.has(skill)) return 0
+    const diff = Config.combat.difficultyModifier
+    // FO2-CE: Easy = +20, Normal = 0, Hard = -10
+    if (diff === 75) return 20
+    if (diff === 125) return -10
+    return 0
+}
+
+// FO2-CE ref: skill.cc skillGetValue() → perkGetSkillModifier()
+// Maps perk names to skill bonuses. Perk ranks multiply the bonus.
+const PERK_SKILL_MODIFIERS: { [perk: string]: { [skill: string]: number } } = {
+    'Thief':        { 'Sneak': 10, 'Lockpick': 10, 'Steal': 10, 'Traps': 10 },
+    'Master Thief': { 'Lockpick': 15, 'Steal': 15 },
+    'Medic':        { 'First Aid': 10, 'Doctor': 10 },
+    'Mr. Fixit':    { 'Science': 10, 'Repair': 10 },
+    'Speaker':      { 'Speech': 20 },
+    'Survivalist':  { 'Outdoorsman': 25 },
+    'Negotiator':   { 'Speech': 10, 'Barter': 10 },
+    'Salesman':     { 'Barter': 20 },
+    'Ranger':       { 'Outdoorsman': 15 },
+    // Ghost: +20 Sneak at night — requires time-of-day check, added as flat for now
+    'Ghost':        { 'Sneak': 20 },
+}
+
+export function perkGetSkillModifier(perks: string[], skill: string): number {
+    let mod = 0
+    for (const perk of perks) {
+        const entry = PERK_SKILL_MODIFIERS[perk]
+        if (entry && entry[skill] !== undefined) {
+            mod += entry[skill]
+        }
+    }
+    return mod
+}
+
+// FO2-CE ref: skill.cc skillGetValue() → traitGetSkillModifier()
+// Trait modifiers applied to skill values.
+const TRAIT_SKILL_MODIFIERS: { [trait: string]: { [skill: string]: number } } = {
+    'Gifted': {
+        'Small Guns': -10, 'Big Guns': -10, 'Energy Weapons': -10,
+        'Unarmed': -10, 'Melee Weapons': -10, 'Throwing': -10,
+        'First Aid': -10, 'Doctor': -10, 'Sneak': -10,
+        'Lockpick': -10, 'Steal': -10, 'Traps': -10,
+        'Science': -10, 'Repair': -10, 'Speech': -10,
+        'Barter': -10, 'Gambling': -10, 'Outdoorsman': -10,
+    },
+    'Good Natured': {
+        'First Aid': 15, 'Doctor': 15, 'Speech': 15, 'Barter': 15,
+        'Small Guns': -10, 'Big Guns': -10, 'Energy Weapons': -10,
+        'Unarmed': -10, 'Melee Weapons': -10, 'Throwing': -10,
+    },
+}
+
+export function traitGetSkillModifier(traits: string[], skill: string): number {
+    let mod = 0
+    for (const trait of traits) {
+        const entry = TRAIT_SKILL_MODIFIERS[trait]
+        if (entry && entry[skill] !== undefined) {
+            mod += entry[skill]
+        }
+    }
+    return mod
 }
