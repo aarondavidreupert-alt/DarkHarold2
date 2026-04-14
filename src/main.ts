@@ -84,24 +84,30 @@ function getSkillID(skill: Skills): number {
 }
 
 function playerUseSkill(skill: Skills, obj: Obj): void {
-    console.log('use skill %o on %o', skill, obj)
-
     // FO2-CE ref: skill.cc skillUse() — engine handles the skill effect
     // Map enum to string name for the engine skillUse function
     const skillName = SKILL_NAMES[skill - 1] // Skills enum starts at 1 (SmallGuns=1)
+    const skillId = getSkillID(skill)
+
+    console.log(`[SKILL] playerUseSkill: ${skillName} (enum=${skill}, scriptId=${skillId}) on ${obj.name || obj.type || 'unknown'}`)
 
     // Non-passive target skills: try script override first, then engine fallback
     const target = obj as Critter
     let scriptHandled = false
     if (obj._script) {
+        console.log(`[SKILL] Object has script — trying Scripting.useSkillOn(skillId=${skillId})`)
         try {
-            scriptHandled = Scripting.useSkillOn(globalState.player as Critter, getSkillID(skill), obj)
+            scriptHandled = Scripting.useSkillOn(globalState.player as Critter, skillId, obj)
         } catch (e) {
-            console.warn('useSkillOn script error:', e)
+            console.warn('[SKILL] useSkillOn script error:', e)
         }
+        console.log(`[SKILL] Script handled: ${scriptHandled}`)
+    } else {
+        console.log('[SKILL] Object has no script — using engine fallback directly')
     }
 
     if (!scriptHandled) {
+        console.log(`[SKILL] Engine fallback: skillUse("${skillName}")`)
         // Engine fallback: use the skill directly
         const result = skillUse(globalState.player as Critter, target, skillName)
         uiLog(result.message)
