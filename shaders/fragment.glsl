@@ -19,14 +19,18 @@ uniform sampler2D u_tileIntensity;   // 200x200 R8 — shared with floor light s
 uniform vec2 u_camera;               // world camera position (cameraX, cameraY)
 uniform vec2 u_screenResolution;     // canvas physical pixels
 uniform highp vec2 u_resolution;     // logical pixels (SCREEN_WIDTH, SCREEN_HEIGHT) — highp to match vertex shader
+uniform float u_zoom;                // world-space zoom factor (1.0 = no zoom); UI draws leave this at 1.0
 
 varying vec2 v_texCoord;
 
 float getWorldTileLight() {
     // Convert physical gl_FragCoord → logical screen pixels → world coord.
+    // Zoom divides the logical screen delta because each on-screen pixel
+    // covers `1/zoom` world units when the view is scaled.
     float dpr = u_screenResolution.x / u_resolution.x;
-    float world_x = u_camera.x + gl_FragCoord.x / dpr;
-    float world_y = u_camera.y + u_resolution.y - gl_FragCoord.y / dpr;
+    float zoom = max(u_zoom, 0.0001);
+    float world_x = u_camera.x + (gl_FragCoord.x / dpr) / zoom;
+    float world_y = u_camera.y + (u_resolution.y - gl_FragCoord.y / dpr) / zoom;
 
     // Continuous hex UV (same math as fragmentLighting.glsl::getGPULightIntensity).
     float cube_x = world_x / 32.0 - world_y / 24.0;

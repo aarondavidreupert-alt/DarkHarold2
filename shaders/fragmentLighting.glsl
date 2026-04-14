@@ -10,15 +10,18 @@ uniform float u_ambient;            // minimum brightness floor (e.g. 40960/6553
 uniform vec2 u_screenResolution;    // vec2(canvas_width, canvas_height) — physical pixels
 uniform vec2 u_camera;              // world camera position (cameraX, cameraY)
 uniform highp vec2 u_resolution;    // vec2(SCREEN_WIDTH, SCREEN_HEIGHT) — logical pixels (highp to match vertex shader)
+uniform float u_zoom;               // world-space zoom factor (1.0 = no zoom)
 
 varying vec2 v_texCoord;
 
 float getGPULightIntensity() {
     // Convert physical gl_FragCoord to logical screen pixels (accounts for high-DPI displays).
-    // Then compute world position from camera + logical screen offset.
+    // Then compute world position from camera + (screen offset / zoom), since every
+    // on-screen pixel maps to `1/zoom` world units when the view is scaled.
     float dpr = u_screenResolution.x / u_resolution.x;
-    float world_x = u_camera.x + gl_FragCoord.x / dpr;
-    float world_y = u_camera.y + u_resolution.y - gl_FragCoord.y / dpr;
+    float zoom = max(u_zoom, 0.0001);
+    float world_x = u_camera.x + (gl_FragCoord.x / dpr) / zoom;
+    float world_y = u_camera.y + (u_resolution.y - gl_FragCoord.y / dpr) / zoom;
 
     // hexFromScreen without rounding (continuous hex UV for smooth GPU interpolation).
     // Derived from geometry.ts pixelToCube + cubeRoundToHex (HEX_WIDTH=32, HEX_HEIGHT=16).

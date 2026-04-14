@@ -58,9 +58,13 @@ export function hexToTile(pos: Point): Point {
 }
 
 function getCenterTile(cameraPosition: Point): Point {
+    // Camera is top-left of the visible world region; when zoomed, the
+    // visible width/height in world units is SCREEN_WIDTH/zoom. Offset
+    // half that to find the middle tile under the viewport.
+    const z = globalState.cameraZoom || 1.0
     return hexFromScreen(
-        cameraPosition.x + ((SCREEN_WIDTH / 2) | 0) - 32,
-        cameraPosition.y + ((SCREEN_HEIGHT / 2) | 0) - 16
+        cameraPosition.x + ((SCREEN_WIDTH / (2 * z)) | 0) - 32,
+        cameraPosition.y + ((SCREEN_HEIGHT / (2 * z)) | 0) - 16
     )
     /*return hexFromScreen(cameraX + Math.floor((SCREEN_WIDTH - 32) / 2),
                        cameraY + Math.floor((SCREEN_HEIGHT - 16) / 2))*/
