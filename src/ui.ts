@@ -31,9 +31,9 @@ import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
-import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
 import { openAutomap } from './automap.js'
 import { openPipBoy } from './pipboy.js'
+import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
 
 // UI system
 
