@@ -1928,8 +1928,12 @@ export function uiStartDialogue(force: boolean, target?: Critter) {
         // alternatively: dc.offset().left - $(heart.canvas).offset().left
         const dx = ((dc.offsetWidth / 2) | 0) + dc.offsetLeft
         const dy = ((dc.offsetHeight / 4) | 0) + dc.offsetTop - ((bbox.h / 2) | 0)
-        globalState.cameraPosition.x = bbox.x - dx
-        globalState.cameraPosition.y = bbox.y - dy
+        // dx/dy are HTML-layout (screen) pixels; divide by zoom so the
+        // resulting camera offset is in world units (which is what
+        // cameraPosition is stored in).
+        const z = globalState.cameraZoom || 1.0
+        globalState.cameraPosition.x = bbox.x - dx / z
+        globalState.cameraPosition.y = bbox.y - dy / z
     }
 }
 

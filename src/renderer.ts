@@ -46,6 +46,48 @@ interface ObjectRenderInfo {
 export const SCREEN_WIDTH: number = Config.ui.screenWidth
 export const SCREEN_HEIGHT: number = Config.ui.screenHeight
 
+// Mouse-wheel zoom bounds. Below 0.5 the world becomes hard to interact with,
+// above 3.0 the sprites get pixelated to the point of uselessness.
+export const ZOOM_MIN = 0.5
+export const ZOOM_MAX = 3.0
+
+// Current zoom factor — always reads from globalState so it stays in sync with
+// whatever wheel handler / debug toggle last touched it. Defaults to 1.0 if
+// somehow unset so the codebase doesn't explode on older saves/loads.
+export function getZoom(): number {
+    return globalState.cameraZoom || 1.0
+}
+
+// Convert a point in screen-pixel space (0..SCREEN_WIDTH, 0..SCREEN_HEIGHT)
+// to world coordinates, honoring the current camera + zoom. Used for mouse
+// picking, hex picking, etc.
+export function screenToWorld(sx: number, sy: number): Point {
+    const z = getZoom()
+    return {
+        x: sx / z + globalState.cameraPosition.x,
+        y: sy / z + globalState.cameraPosition.y,
+    }
+}
+
+// Convert a point in world coordinates to screen-pixel space. Used when
+// drawing world-anchored overlays (hex_outline, float messages, spatials).
+export function worldToScreen(wx: number, wy: number): Point {
+    const z = getZoom()
+    return {
+        x: (wx - globalState.cameraPosition.x) * z,
+        y: (wy - globalState.cameraPosition.y) * z,
+    }
+}
+
+// The visible world-space area in world units. When zoomed out we see
+// more than SCREEN_WIDTH of world; when zoomed in, less.
+export function getWorldViewWidth(): number {
+    return SCREEN_WIDTH / getZoom()
+}
+export function getWorldViewHeight(): number {
+    return SCREEN_HEIGHT / getZoom()
+}
+
 export class Renderer {
     private windows: WindowFrame[] = []
     private objects: Obj[]
@@ -80,29 +122,26 @@ export class Renderer {
         this.color(255, 255, 255)
 
         const mousePos = heart.mouse.getPosition()
-        const mouseHex = hexFromScreen(
-            mousePos[0] + globalState.cameraPosition.x,
-            mousePos[1] + globalState.cameraPosition.y
-        )
-        const mouseSquare = tileFromScreen(
-            mousePos[0] + globalState.cameraPosition.x,
-            mousePos[1] + globalState.cameraPosition.y
-        )
+        // Mouse picking works in world coordinates — undo zoom + camera.
+        const mouseWorld = screenToWorld(mousePos[0], mousePos[1])
+        const mouseHex = hexFromScreen(mouseWorld.x, mouseWorld.y)
+        const mouseSquare = tileFromScreen(mouseWorld.x, mouseWorld.y)
         //var mouseTile = tileFromScreen(mousePos[0] + cameraX, mousePos[1] + cameraY)
 
         if (Config.ui.showFloor) {
             this.renderFloor(this.floorTiles)
         }
         if (Config.ui.showCursor && globalState.cursorMode === 'move') {
-            const scr = hexToScreen(mouseHex.x, mouseHex.y)
+            // hex_outline is a world-anchored overlay — project its world
+            // position through the zoom and scale the image dimensions too
+            // so it lines up with the (zoomed) hex grid underneath.
+            const z = getZoom()
             const hexImg = globalState.images['hex_outline']
-            this.renderImage(
-                'hex_outline',
-                scr.x - 16 - globalState.cameraPosition.x,
-                scr.y - 12 - globalState.cameraPosition.y,
-                hexImg?.naturalWidth ?? 32,
-                hexImg?.naturalHeight ?? 16
-            )
+            const hexW = hexImg?.naturalWidth ?? 32
+            const hexH = hexImg?.naturalHeight ?? 16
+            const scr = hexToScreen(mouseHex.x, mouseHex.y)
+            const screen = worldToScreen(scr.x - 16, scr.y - 12)
+            this.renderImage('hex_outline', screen.x, screen.y, hexW * z, hexH * z)
         }
 
         if (Config.ui.showObjects && this.objects) {
@@ -142,11 +181,8 @@ export class Renderer {
             globalState.gMap.getSpatials().forEach((spatial) => {
                 const scr = hexToScreen(spatial.position.x, spatial.position.y)
                 //heart.graphics.draw(hexOverlay, scr.x - 16 - cameraX, scr.y - 12 - cameraY)
-                this.renderText(
-                    spatial.script,
-                    scr.x - 10 - globalState.cameraPosition.x,
-                    scr.y - 3 - globalState.cameraPosition.y
-                )
+                const s = worldToScreen(scr.x - 10, scr.y - 3)
+                this.renderText(spatial.script, s.x, s.y)
             })
         }
 
@@ -162,8 +198,11 @@ export class Renderer {
             if (bbox === null) {
                 continue
             }
-            const centerX = bbox.x + bbox.w / 2 - globalState.cameraPosition.x
-            this.renderText(globalState.floatMessages[i].msg, centerX, bbox.y - globalState.cameraPosition.y - 16, 'center')
+            // Float messages are anchored to world objects but kept at a
+            // fixed text size. Project their anchor through the zoom then
+            // render with normal screen-space text.
+            const anchor = worldToScreen(bbox.x + bbox.w / 2, bbox.y)
+            this.renderText(globalState.floatMessages[i].msg, anchor.x, anchor.y - 16, 'center')
         }
 
         if (globalState.player.dead) {
@@ -269,11 +308,15 @@ export class Renderer {
         const scrX = scr.x + offsetX,
             scrY = scr.y + offsetY
 
+        // Culling is done in world coordinates against the zoom-expanded
+        // view bounds — zooming out shows more of the map, zooming in less.
+        const viewW = getWorldViewWidth()
+        const viewH = getWorldViewHeight()
         if (
             scrX + frameInfo.w < globalState.cameraPosition.x ||
             scrY + frameInfo.h < globalState.cameraPosition.y ||
-            scrX >= globalState.cameraPosition.x + SCREEN_WIDTH ||
-            scrY >= globalState.cameraPosition.y + SCREEN_HEIGHT
+            scrX >= globalState.cameraPosition.x + viewW ||
+            scrY >= globalState.cameraPosition.y + viewH
         ) {
             visible = false
         } // out of screen bounds, no need to draw
@@ -331,8 +374,12 @@ export class Renderer {
 
 export function centerCamera(around: Point) {
     const scr = hexToScreen(around.x, around.y)
-    globalState.cameraPosition.x = Math.max(0, (scr.x - SCREEN_WIDTH / 2) | 0)
-    globalState.cameraPosition.y = Math.max(0, (scr.y - SCREEN_HEIGHT / 2) | 0)
+    // The visible world region shrinks as zoom grows, so divide by zoom
+    // when offsetting from the target to the top-left camera anchor.
+    const viewW = getWorldViewWidth()
+    const viewH = getWorldViewHeight()
+    globalState.cameraPosition.x = Math.max(0, (scr.x - viewW / 2) | 0)
+    globalState.cameraPosition.y = Math.max(0, (scr.y - viewH / 2) | 0)
 }
 
 export function objectOnScreen(obj: Obj): boolean {
@@ -341,11 +388,13 @@ export function objectOnScreen(obj: Obj): boolean {
         return false
     }
 
+    const viewW = getWorldViewWidth()
+    const viewH = getWorldViewHeight()
     if (
         bbox.x + bbox.w < globalState.cameraPosition.x ||
         bbox.y + bbox.h < globalState.cameraPosition.y ||
-        bbox.x >= globalState.cameraPosition.x + SCREEN_WIDTH ||
-        bbox.y >= globalState.cameraPosition.y + SCREEN_HEIGHT
+        bbox.x >= globalState.cameraPosition.x + viewW ||
+        bbox.y >= globalState.cameraPosition.y + viewH
     ) {
         return false
     }
@@ -402,7 +451,9 @@ export function objectBoundingBox(obj: Obj): BoundingBox | null {
 
 export function getObjectUnderCursor(p: (obj: Obj) => boolean) {
     const mouse = heart.mouse.getPosition()
-    const mousePosition = { x: mouse[0] + globalState.cameraPosition.x, y: mouse[1] + globalState.cameraPosition.y }
+    // Undo zoom before applying camera so that object bboxes (which are
+    // in world coordinates) are hit-tested in the same space.
+    const mousePosition = screenToWorld(mouse[0], mouse[1])
 
     // reverse z-ordered search
     const objects = globalState.gMap.getObjects()

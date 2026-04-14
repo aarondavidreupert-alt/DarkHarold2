@@ -5,7 +5,7 @@ import * as GameTime from './gametime.js'
 import { Lighting } from './lighting.js'
 import { Lightmap } from './lightmap.js'
 import { Obj } from './object.js'
-import { Renderer, SCREEN_HEIGHT, SCREEN_WIDTH, TileMap } from './renderer.js'
+import { getZoom, Renderer, SCREEN_HEIGHT, SCREEN_WIDTH, TileMap } from './renderer.js'
 import { tileToScreen, toTileNum, TILE_HEIGHT, TILE_WIDTH } from './tile.js'
 import { getFileJSON } from './util.js'
 import { Config } from './config.js'
@@ -59,12 +59,20 @@ export class WebGLRenderer extends Renderer {
     private lastLoggedAmbient = -1
     private tileLightingLoggedOnce = false
 
+    // Zoom uniforms on each shader. World draws push the current zoom so
+    // the fragment shaders compute world coords as
+    // `u_camera + gl_FragCoord / (dpr * u_zoom)` for per-pixel tile-light
+    // lookup. UI draws (ambient=1) don't care about the zoom value.
+    private uTileZoom: WebGLUniformLocation | null = null
+    private uFloorLightZoom: WebGLUniformLocation | null = null
+
     // FBO for cached unlit floor rendering (GPU lighting mode)
     private floorFBO: WebGLFramebuffer | null = null
     private floorFBOTexture: WebGLTexture | null = null
     private floorFBOValid = false
     private lastFloorCameraX = -Infinity
     private lastFloorCameraY = -Infinity
+    private lastFloorZoom = -Infinity
     private lastFloorTileMap: TileMap | null = null
     private tileDataBuffer = new Uint8Array(200 * 200)
     private compositeTexCoordBuffer: WebGLBuffer // Y-flipped UVs for FBO composite
@@ -294,6 +302,7 @@ export class WebGLRenderer extends Renderer {
         gl.useProgram(this.tileShader)
         this.uTileAmbient = gl.getUniformLocation(this.tileShader, 'u_ambient')
         this.uTileCamera = gl.getUniformLocation(this.tileShader, 'u_camera')
+        this.uTileZoom = gl.getUniformLocation(this.tileShader, 'u_zoom')
         const uTileTileIntensity = gl.getUniformLocation(this.tileShader, 'u_tileIntensity')
         const uTileScreenResolution = gl.getUniformLocation(this.tileShader, 'u_screenResolution')
         console.log(
@@ -309,6 +318,7 @@ export class WebGLRenderer extends Renderer {
         // multiply at init time.
         gl.uniform1f(this.uTileAmbient, 1.0)
         gl.uniform2f(this.uTileCamera, 0.0, 0.0)
+        if (this.uTileZoom) gl.uniform1f(this.uTileZoom, 1.0)
 
         // 1×1 R8 dummy texture (value 0) for roof draws — roofs are
         // sky-facing and should be lit by ambient only, not by floor
@@ -372,8 +382,10 @@ export class WebGLRenderer extends Renderer {
             this.uUseGPULighting = gl.getUniformLocation(this.floorLightShader, 'u_useGPULighting')
             this.uAmbient = gl.getUniformLocation(this.floorLightShader, 'u_ambient')
             this.uCamera = gl.getUniformLocation(this.floorLightShader, 'u_camera')
+            this.uFloorLightZoom = gl.getUniformLocation(this.floorLightShader, 'u_zoom')
             this.uScreenResolutionLighting = gl.getUniformLocation(this.floorLightShader, 'u_screenResolution')
             gl.uniform2f(this.uScreenResolutionLighting, this.canvas.width, this.canvas.height)
+            if (this.uFloorLightZoom) gl.uniform1f(this.uFloorLightZoom, 1.0)
 
             // Create floor FBO for caching unlit floor tiles (GPU lighting mode)
             this.floorFBO = gl.createFramebuffer()
@@ -504,7 +516,8 @@ export class WebGLRenderer extends Renderer {
 
         // bind buffers
         gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
-        gl.uniform2f(this.litScaleLocation, 80, 36)
+        const zCPU = getZoom()
+        gl.uniform2f(this.litScaleLocation, 80 * zCPU, 36 * zCPU)
 
         // bind light buffer texture in texture unit 0
         gl.activeTexture(gl.TEXTURE1)
@@ -521,6 +534,9 @@ export class WebGLRenderer extends Renderer {
         const lightBuffer = new Float32Array(80 * 36)
         let lastTexture = null
 
+        const viewWCPU = SCREEN_WIDTH / zCPU
+        const viewHCPU = SCREEN_HEIGHT / zCPU
+
         // reverse i to draw in the order Fallout 2 normally does
         // otherwise there will be artifacts in the light rendering
         // due to tile sizes being different and not overlapping properly
@@ -536,8 +552,8 @@ export class WebGLRenderer extends Renderer {
                 if (
                     scr.x + TILE_WIDTH < globalState.cameraPosition.x ||
                     scr.y + TILE_HEIGHT < globalState.cameraPosition.y ||
-                    scr.x >= globalState.cameraPosition.x + SCREEN_WIDTH ||
-                    scr.y >= globalState.cameraPosition.y + SCREEN_HEIGHT
+                    scr.x >= globalState.cameraPosition.x + viewWCPU ||
+                    scr.y >= globalState.cameraPosition.y + viewHCPU
                 ) {
                     continue
                 }
@@ -593,8 +609,8 @@ export class WebGLRenderer extends Renderer {
                 // draw
                 gl.uniform2f(
                     this.litOffsetLocation,
-                    scr.x - globalState.cameraPosition.x,
-                    scr.y - globalState.cameraPosition.y
+                    (scr.x - globalState.cameraPosition.x) * zCPU,
+                    (scr.y - globalState.cameraPosition.y) * zCPU
                 )
                 gl.drawArrays(gl.TRIANGLES, 0, 6)
             }
@@ -634,12 +650,14 @@ export class WebGLRenderer extends Renderer {
         const gl = this.gl
         const cameraX = globalState.cameraPosition.x
         const cameraY = globalState.cameraPosition.y
+        const z = getZoom()
 
-        // Skip re-rendering if FBO is still valid (camera hasn't moved, same tilemap)
+        // Skip re-rendering if FBO is still valid (camera hasn't moved, same tilemap, zoom unchanged)
         if (
             this.floorFBOValid &&
             cameraX === this.lastFloorCameraX &&
             cameraY === this.lastFloorCameraY &&
+            z === this.lastFloorZoom &&
             tileMap === this.lastFloorTileMap
         ) {
             return
@@ -662,12 +680,18 @@ export class WebGLRenderer extends Renderer {
 
         gl.uniform1f(this.uNumFramesLocation, 1)
         gl.uniform1f(this.uFrameLocation, 0)
-        gl.uniform2f(this.uScaleLocation, TILE_WIDTH, TILE_HEIGHT)
+        // Tiles are drawn into the FBO at zoomed size so the cached floor
+        // already reflects the current zoom; the composite pass is a plain
+        // fullscreen quad on top.
+        gl.uniform2f(this.uScaleLocation, TILE_WIDTH * z, TILE_HEIGHT * z)
         // The FBO is the unlit floor cache. compositeFloorWithLighting()
         // applies the real ambient + tile intensity via floorLightShader
         // afterwards, so bake the floor with ambient = 1 here to avoid
         // double-lighting it.
         this.setTileLighting(false)
+
+        const viewW = SCREEN_WIDTH / z
+        const viewH = SCREEN_HEIGHT / z
 
         let lastTexture: string | null = null
         for (let i = tileMap.length - 1; i >= 0; i--) {
@@ -679,8 +703,8 @@ export class WebGLRenderer extends Renderer {
                 if (
                     scr.x + TILE_WIDTH < cameraX ||
                     scr.y + TILE_HEIGHT < cameraY ||
-                    scr.x >= cameraX + SCREEN_WIDTH ||
-                    scr.y >= cameraY + SCREEN_HEIGHT
+                    scr.x >= cameraX + viewW ||
+                    scr.y >= cameraY + viewH
                 ) {
                     continue
                 }
@@ -692,7 +716,7 @@ export class WebGLRenderer extends Renderer {
                     lastTexture = img
                 }
 
-                gl.uniform2f(this.offsetLocation, scr.x - cameraX, scr.y - cameraY)
+                gl.uniform2f(this.offsetLocation, (scr.x - cameraX) * z, (scr.y - cameraY) * z)
                 gl.drawArrays(gl.TRIANGLES, 0, 6)
             }
         }
@@ -704,6 +728,7 @@ export class WebGLRenderer extends Renderer {
 
         this.lastFloorCameraX = cameraX
         this.lastFloorCameraY = cameraY
+        this.lastFloorZoom = z
         this.lastFloorTileMap = tileMap
         this.floorFBOValid = true
     }
@@ -733,6 +758,9 @@ export class WebGLRenderer extends Renderer {
         }
         gl.uniform2f(this.litScaleLocation, SCREEN_WIDTH, SCREEN_HEIGHT)
         gl.uniform2f(this.uCamera, globalState.cameraPosition.x, globalState.cameraPosition.y)
+        // Zoom tells the lighting shader how to recover world coords from
+        // gl_FragCoord — `world = camera + gl_FragCoord / (dpr * zoom)`.
+        if (this.uFloorLightZoom) gl.uniform1f(this.uFloorLightZoom, getZoom())
         gl.uniform2f(this.litOffsetLocation, 0, 0)
         gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_image'), 0)
         gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_tileIntensity'), 5)
@@ -773,11 +801,16 @@ export class WebGLRenderer extends Renderer {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
         gl.uniform1f(this.uNumFramesLocation, 1)
         gl.uniform1f(this.uFrameLocation, 0)
-        gl.uniform2f(this.uScaleLocation, 80, 36)
+        const z = getZoom()
+        gl.uniform2f(this.uScaleLocation, 80 * z, 36 * z)
 
         // Roofs and fallback (unlit) floors are world geometry — react to
         // day/night + per-tile intensity like everything else on the map.
         this.setTileLighting(true)
+
+        // Zoom-aware visible world bounds — zooming out shows more tiles.
+        const viewW = SCREEN_WIDTH / z
+        const viewH = SCREEN_HEIGHT / z
 
         for (let i = 0; i < tilemap.length; i++) {
             for (let j = 0; j < tilemap[0].length; j++) {
@@ -792,8 +825,8 @@ export class WebGLRenderer extends Renderer {
                 if (
                     scr.x + TILE_WIDTH < globalState.cameraPosition.x ||
                     scr.y + TILE_HEIGHT < globalState.cameraPosition.y ||
-                    scr.x >= globalState.cameraPosition.x + SCREEN_WIDTH ||
-                    scr.y >= globalState.cameraPosition.y + SCREEN_HEIGHT
+                    scr.x >= globalState.cameraPosition.x + viewW ||
+                    scr.y >= globalState.cameraPosition.y + viewH
                 ) {
                     continue
                 }
@@ -807,11 +840,11 @@ export class WebGLRenderer extends Renderer {
                 gl.activeTexture(gl.TEXTURE0)
                 gl.bindTexture(gl.TEXTURE_2D, texture)
 
-                // draw
+                // draw — screen offset is zoomed world delta
                 gl.uniform2f(
                     this.offsetLocation,
-                    scr.x - globalState.cameraPosition.x,
-                    scr.y - globalState.cameraPosition.y
+                    (scr.x - globalState.cameraPosition.x) * z,
+                    (scr.y - globalState.cameraPosition.y) * z
                 )
                 gl.drawArrays(gl.TRIANGLES, 0, 6)
             }
@@ -825,6 +858,7 @@ export class WebGLRenderer extends Renderer {
         const gl = this.gl
         gl.uniform1f(this.uTileAmbient, GameTime.getAmbientLightNormalized())
         gl.uniform2f(this.uTileCamera, globalState.cameraPosition.x, globalState.cameraPosition.y)
+        if (this.uTileZoom) gl.uniform1f(this.uTileZoom, getZoom())
         gl.activeTexture(gl.TEXTURE5)
         gl.bindTexture(gl.TEXTURE_2D, this.roofDummyTexture)
         gl.activeTexture(gl.TEXTURE0)
@@ -836,10 +870,14 @@ export class WebGLRenderer extends Renderer {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
         gl.uniform1f(this.uNumFramesLocation, 1)
         gl.uniform1f(this.uFrameLocation, 0)
-        gl.uniform2f(this.uScaleLocation, 80, 36)
+        const z = getZoom()
+        gl.uniform2f(this.uScaleLocation, 80 * z, 36 * z)
 
         // Use ambient-only lighting for sky-facing roof tiles.
         this.setRoofLighting()
+
+        const viewW = SCREEN_WIDTH / z
+        const viewH = SCREEN_HEIGHT / z
 
         for (let i = 0; i < roof.length; i++) {
             for (let j = 0; j < roof[0].length; j++) {
@@ -854,8 +892,8 @@ export class WebGLRenderer extends Renderer {
                 if (
                     scr.x + TILE_WIDTH < globalState.cameraPosition.x ||
                     scr.y + TILE_HEIGHT < globalState.cameraPosition.y ||
-                    scr.x >= globalState.cameraPosition.x + SCREEN_WIDTH ||
-                    scr.y >= globalState.cameraPosition.y + SCREEN_HEIGHT
+                    scr.x >= globalState.cameraPosition.x + viewW ||
+                    scr.y >= globalState.cameraPosition.y + viewH
                 ) {
                     continue
                 }
@@ -870,8 +908,8 @@ export class WebGLRenderer extends Renderer {
 
                 gl.uniform2f(
                     this.offsetLocation,
-                    scr.x - globalState.cameraPosition.x,
-                    scr.y - globalState.cameraPosition.y
+                    (scr.x - globalState.cameraPosition.x) * z,
+                    (scr.y - globalState.cameraPosition.y) * z
                 )
                 gl.drawArrays(gl.TRIANGLES, 0, 6)
             }
@@ -899,12 +937,17 @@ export class WebGLRenderer extends Renderer {
         if (!renderInfo || !renderInfo.visible) {
             return
         }
+        // World-space draw: scale both screen offset and sprite dimensions
+        // by the current zoom so critters, scenery and walls scale along
+        // with the map while the shader u_scale/u_offset interpretation
+        // stays in screen-pixel space.
+        const z = getZoom()
         this.renderFrame(
             obj.art,
-            renderInfo.x - globalState.cameraPosition.x,
-            renderInfo.y - globalState.cameraPosition.y,
-            renderInfo.uniformFrameWidth,
-            renderInfo.uniformFrameHeight,
+            (renderInfo.x - globalState.cameraPosition.x) * z,
+            (renderInfo.y - globalState.cameraPosition.y) * z,
+            renderInfo.uniformFrameWidth * z,
+            renderInfo.uniformFrameHeight * z,
             renderInfo.artInfo.totalFrames,
             renderInfo.spriteFrameNum,
             /*lit*/ true
@@ -934,6 +977,9 @@ export class WebGLRenderer extends Renderer {
             }
             gl.uniform1f(this.uTileAmbient, ambient)
             gl.uniform2f(this.uTileCamera, globalState.cameraPosition.x, globalState.cameraPosition.y)
+            // Zoom lets the fragment shader recover world coords from
+            // gl_FragCoord for per-pixel tile-intensity sampling.
+            if (this.uTileZoom) gl.uniform1f(this.uTileZoom, getZoom())
             // Re-bind tileIntensityTexture to unit 5 — other draw calls
             // (compositeFloorWithLighting, renderFloorToFBO, etc.) may have
             // disturbed the binding on that unit.
@@ -942,6 +988,9 @@ export class WebGLRenderer extends Renderer {
             gl.activeTexture(gl.TEXTURE0) // restore default unit
         } else {
             gl.uniform1f(this.uTileAmbient, 1.0)
+            // UI draws don't sample world lighting (ambient=1 clamps to 1),
+            // but keep u_zoom sane at 1.0 so any stray math stays stable.
+            if (this.uTileZoom) gl.uniform1f(this.uTileZoom, 1.0)
         }
     }
 

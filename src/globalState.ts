@@ -59,6 +59,10 @@ export default {
 
     // position of viewport camera (will be overriden by map starts or scripts)
     cameraPosition: { x: 3580, y: 1020 },
+    // camera zoom factor — 1.0 means 1:1, >1 zoomed in, <1 zoomed out.
+    // Affects all world-space rendering (tiles, objects, critters, walls, roofs)
+    // but NOT UI/HUD elements (renderImage w/ lit=false, renderFont, HTML overlays).
+    cameraZoom: 1.0,
 
     gameTickTime: 0, // in Fallout 2 ticks (elapsed seconds * 10)
     lastGameTick: 0, // real time of the last game tick
@@ -115,6 +119,7 @@ export default {
     tempCanvasCtx: CanvasRenderingContext2D | null // and the context for it
 
     cameraPosition: Point
+    cameraZoom: number
 
     gameTickTime: number
     lastGameTick: number

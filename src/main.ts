@@ -22,7 +22,7 @@ import globalState from './globalState.js'
 import { IDBCache } from './idbcache.js'
 import { initGame } from './init.js'
 import { Critter, Obj } from './object.js'
-import { getObjectUnderCursor, SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
+import { getObjectUnderCursor, getZoom, SCREEN_HEIGHT, SCREEN_WIDTH, ZOOM_MAX, ZOOM_MIN } from './renderer.js'
 import { Scripting } from './scripting.js'
 import { Skills, SKILL_NAMES } from './skills.js'
 import { skillUse } from './skillUse.js'
@@ -130,9 +130,11 @@ function cancelSkillTargeting(): void {
 
 export function playerUse(obj: Obj | null) {
     const mousePos = heart.mouse.getPosition()
+    // Undo zoom when mapping screen pixels to world coordinates, then hex.
+    const z = getZoom()
     const mouseHex = hexFromScreen(
-        mousePos[0] + globalState.cameraPosition.x,
-        mousePos[1] + globalState.cameraPosition.y
+        mousePos[0] / z + globalState.cameraPosition.x,
+        mousePos[1] / z + globalState.cameraPosition.y
     )
     const who = <Critter>obj
 
@@ -365,6 +367,69 @@ window.onload = async function () {
 
     globalState.renderer.init()
 
+    // --- Mouse-wheel zoom ---
+    //
+    // Scrolling the wheel zooms the world in/out centered on the mouse
+    // cursor: the world point currently under the cursor stays pinned to
+    // that screen location across the zoom. UI (HUD, PipBoy, HTML overlays)
+    // is not affected — the renderer only applies zoom to world draws.
+    //
+    // Continuous (non-snapping) zoom feels smoother for map navigation
+    // than stepped levels; each wheel notch multiplies zoom by ~1.1 (or
+    // divides, for zoom-out), clamped to [ZOOM_MIN, ZOOM_MAX].
+    const zoomCanvas = document.getElementById('cnv') as HTMLCanvasElement | null
+    if (zoomCanvas) {
+        zoomCanvas.addEventListener(
+            'wheel',
+            (e: WheelEvent) => {
+                // Prevent the browser from scrolling the page when the
+                // cursor is over the game canvas.
+                e.preventDefault()
+                if (globalState.isInitializing || globalState.isLoading) {
+                    return
+                }
+                // Ignore zoom while a modal UI (dialog, inventory, pipboy)
+                // is up — it'd desync the underlying paused map.
+                if (globalState.uiMode !== UIMode.none && globalState.uiMode !== UIMode.useSkill) {
+                    return
+                }
+
+                const oldZoom = globalState.cameraZoom || 1.0
+                // deltaY > 0 = scroll down = zoom out; < 0 = zoom in.
+                // Use the sign only so high-resolution touchpads don't
+                // make zoom jittery or too sensitive.
+                const step = 1.1
+                const factor = e.deltaY < 0 ? step : 1 / step
+                const newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, oldZoom * factor))
+                if (newZoom === oldZoom) {
+                    return
+                }
+
+                // Anchor the zoom on the cursor: we want the world point
+                // under the mouse before zoom to stay under the mouse
+                // after. With camera as world-space top-left and
+                // screen = (world - cam) * zoom:
+                //     world_under_mouse = cam_old + mouse/zoom_old
+                //                       = cam_new + mouse/zoom_new
+                // ⇒ cam_new = cam_old + mouse*(1/zoom_old − 1/zoom_new).
+                const rect = zoomCanvas.getBoundingClientRect()
+                const mouseX = e.clientX - rect.left
+                const mouseY = e.clientY - rect.top
+                globalState.cameraPosition.x += mouseX * (1 / oldZoom - 1 / newZoom)
+                globalState.cameraPosition.y += mouseY * (1 / oldZoom - 1 / newZoom)
+                globalState.cameraZoom = newZoom
+
+                // The floor FBO caches a pre-zoomed snapshot of the floor;
+                // invalidate it so the next frame re-bakes at the new zoom.
+                const r = globalState.renderer as WebGLRenderer
+                if (r && typeof r.invalidateFloorFBO === 'function') {
+                    r.invalidateFloorFBO()
+                }
+            },
+            { passive: false }
+        )
+    }
+
     // initialize audio engine
     if (Config.engine.doAudio) {
         globalState.audioEngine = new HTMLAudioEngine()
@@ -553,22 +618,26 @@ heart.keydown = (k: string) => {
         return
     }
     const mousePos = heart.mouse.getPosition()
+    const kz = getZoom()
     const mouseHex = hexFromScreen(
-        mousePos[0] + globalState.cameraPosition.x,
-        mousePos[1] + globalState.cameraPosition.y
+        mousePos[0] / kz + globalState.cameraPosition.x,
+        mousePos[1] / kz + globalState.cameraPosition.y
     )
 
+    // Keep keyboard pan speed consistent on-screen regardless of zoom
+    // (see the mouse-edge scroll block in heart.update for the same trick).
+    const kbStep = 15 / kz
     if (k === Config.controls.cameraDown) {
-        globalState.cameraPosition.y += 15
+        globalState.cameraPosition.y += kbStep
     }
     if (k === Config.controls.cameraRight) {
-        globalState.cameraPosition.x += 15
+        globalState.cameraPosition.x += kbStep
     }
     if (k === Config.controls.cameraLeft) {
-        globalState.cameraPosition.x -= 15
+        globalState.cameraPosition.x -= kbStep
     }
     if (k === Config.controls.cameraUp) {
-        globalState.cameraPosition.y -= 15
+        globalState.cameraPosition.y -= kbStep
     }
     if (k === Config.controls.elevationDown) {
         if (globalState.currentElevation - 1 >= 0) {
@@ -789,18 +858,24 @@ heart.update = function () {
 
     if (globalState.gameHasFocus) {
         const mousePos = heart.mouse.getPosition()
+        // Screen-edge scrolling in world units per tick. Dividing the
+        // base step by zoom keeps the *on-screen* scroll rate constant
+        // regardless of how zoomed in or out the player is: zoomed in,
+        // a 15-px-world step would fly across half the screen; zoomed
+        // out, it would barely register.
+        const scrollStep = 15 / (globalState.cameraZoom || 1.0)
         if (mousePos[0] <= Config.ui.scrollPadding) {
-            globalState.cameraPosition.x -= 15
+            globalState.cameraPosition.x -= scrollStep
         }
         if (mousePos[0] >= SCREEN_WIDTH - Config.ui.scrollPadding) {
-            globalState.cameraPosition.x += 15
+            globalState.cameraPosition.x += scrollStep
         }
 
         if (mousePos[1] <= Config.ui.scrollPadding) {
-            globalState.cameraPosition.y -= 15
+            globalState.cameraPosition.y -= scrollStep
         }
         if (mousePos[1] >= SCREEN_HEIGHT - Config.ui.scrollPadding) {
-            globalState.cameraPosition.y += 15
+            globalState.cameraPosition.y += scrollStep
         }
 
         if (time >= globalState.lastMousePickTime + 750) {
