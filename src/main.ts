@@ -48,6 +48,7 @@ import { getFileJSON, getProtoMsg } from './util.js'
 import { WebGLRenderer } from './webglrenderer.js'
 import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
+import { getActiveUnarmedMode } from './unarmed.js'
 import { Lightmap } from './lightmap.js'
 import { togglePipBoy } from './pipboy.js'
 
@@ -83,51 +84,31 @@ function getSkillID(skill: Skills): number {
     return -1
 }
 
-// Is the skill passive (no target needed), or does it require a targeted object?
-function isPassiveSkill(skill: Skills): boolean {
-    switch (skill) {
-        case Skills.Sneak:
-        case Skills.FirstAid:
-        case Skills.Doctor:
-            return true
-        default:
-            return false
-    }
-}
-
 function playerUseSkill(skill: Skills, obj: Obj): void {
-    console.log('use skill %o on %o', skill, obj)
-
-    if (!obj && !isPassiveSkill(skill)) {
-        throw 'trying to use non-passive skill without a target'
-    }
-
-    // FO2-CE ref: skill.cc skillUse() — engine handles the skill effect first
+    // FO2-CE ref: skill.cc skillUse() — engine handles the skill effect
     // Map enum to string name for the engine skillUse function
     const skillName = SKILL_NAMES[skill - 1] // Skills enum starts at 1 (SmallGuns=1)
+    const skillId = getSkillID(skill)
 
-    if (isPassiveSkill(skill)) {
-        // Passive skills (Sneak, First Aid on self, Doctor on self) — engine handles directly
-        const result = skillUse(globalState.player as Critter, globalState.player as Critter, skillName)
-        uiLog(result.message)
-        if (result.hpHealed > 0) {
-            drawHP(globalState.player!.getStat('HP'))
-        }
-        return
-    }
+    console.log(`[SKILL] playerUseSkill: ${skillName} (enum=${skill}, scriptId=${skillId}) on ${obj.name || obj.type || 'unknown'}`)
 
-    // Non-passive: try script override first, then engine fallback
+    // Non-passive target skills: try script override first, then engine fallback
     const target = obj as Critter
     let scriptHandled = false
     if (obj._script) {
+        console.log(`[SKILL] Object has script — trying Scripting.useSkillOn(skillId=${skillId})`)
         try {
-            scriptHandled = Scripting.useSkillOn(globalState.player as Critter, getSkillID(skill), obj)
+            scriptHandled = Scripting.useSkillOn(globalState.player as Critter, skillId, obj)
         } catch (e) {
-            console.warn('useSkillOn script error:', e)
+            console.warn('[SKILL] useSkillOn script error:', e)
         }
+        console.log(`[SKILL] Script handled: ${scriptHandled}`)
+    } else {
+        console.log('[SKILL] Object has no script — using engine fallback directly')
     }
 
     if (!scriptHandled) {
+        console.log(`[SKILL] Engine fallback: skillUse("${skillName}")`)
         // Engine fallback: use the skill directly
         const result = skillUse(globalState.player as Critter, target, skillName)
         uiLog(result.message)
@@ -135,6 +116,16 @@ function playerUseSkill(skill: Skills, obj: Obj): void {
             drawHP(globalState.player!.getStat('HP'))
         }
     }
+}
+
+// Cancel skill targeting mode: resets uiMode, skillMode, and cursor
+function cancelSkillTargeting(): void {
+    globalState.skillMode = Skills.None
+    globalState.uiMode = UIMode.none
+    globalState.cursorMode = 'move'
+    // Reset CSS cursor fallback on canvas
+    const cnv = document.getElementById('cnv')
+    if (cnv) cnv.style.cursor = ''
 }
 
 export function playerUse(obj: Obj | null) {
@@ -146,15 +137,28 @@ export function playerUse(obj: Obj | null) {
     const who = <Critter>obj
 
     if (globalState.uiMode === UIMode.useSkill) {
-        // using a skill on object
+        const skill = globalState.skillMode
+        cancelSkillTargeting()
+
+        // FO2-CE ref: skill.cc — First Aid/Doctor: clicking empty ground = apply to self
         if (!obj) {
+            if (skill === Skills.FirstAid || skill === Skills.Doctor) {
+                playerUseSkill(skill, globalState.player as unknown as Obj)
+            }
             return
         }
-        try {
-            playerUseSkill(globalState.skillMode, obj)
-        } finally {
-            globalState.skillMode = Skills.None
-            globalState.uiMode = UIMode.none
+
+        // FO2-CE ref: skill.cc — player must be adjacent to the target.
+        // Use the same walkInFrontOf + callback pattern as normal object use.
+        const skillCallback = function () {
+            globalState.player!.clearAnim()
+            playerUseSkill(skill, obj)
+        }
+
+        if (Config.engine.doInfiniteUse === true) {
+            skillCallback()
+        } else {
+            globalState.player!.walkInFrontOf(obj.position, skillCallback)
         }
 
         return
@@ -212,19 +216,36 @@ export function playerUse(obj: Obj | null) {
                 return
             }
 
-            if (globalState.player.AP!.getAvailableCombatAP() < 4) {
+            // TODO: move within range of target
+
+            const weapon = globalState.player.equippedWeapon
+
+            // Determine AP cost for this attack up-front so we can guard before acting
+            let attackAPCost: number
+            if (weapon === null) {
+                const unarmedSkill = globalState.player.getSkill('Unarmed')
+                attackAPCost = getActiveUnarmedMode(unarmedSkill, globalState.unarmedModeIdx).apCost
+            } else if (weapon.weapon!.isCalled()) {
+                attackAPCost = weapon.weapon!.getAPCost(1) + 1
+            } else if (weapon.weapon!.isBurst()) {
+                attackAPCost = weapon.weapon!.getAPCost(2)
+            } else {
+                attackAPCost = weapon.weapon!.getAPCost(1)
+            }
+
+            if (globalState.player.AP!.getAvailableCombatAP() < attackAPCost) {
                 uiLog(getProtoMsg(700)!) // "You don't have enough action points."
                 return
             }
 
-            // TODO: move within range of target
-
-            const weapon = globalState.player.equippedWeapon
             if (weapon === null) {
-                console.log('You have no weapon equipped!')
-                return
-            }
-
+                // Unarmed attack
+                globalState.player.AP!.subtractCombatAP(attackAPCost)
+                drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
+                console.log('Unarmed attack...')
+                globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
+                uiUpdateCombatAP()
+            } else {
             // Block attack (and AP deduction) if ranged weapon has no ammo
             const playerMaxAmmo: number = (weapon as any)?.pro?.extra?.maxAmmo ?? 0
             const playerRounds: number = (weapon as any)?.pro?.extra?.rounds ?? -1
@@ -268,11 +289,12 @@ export function playerUse(obj: Obj | null) {
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
                 uiUpdateCombatAP()
             } else {
-                globalState.player.AP!.subtractCombatAP(4)
+                globalState.player.AP!.subtractCombatAP(attackAPCost)
                 drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
                 console.log('Attacking the torso...')
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
                 uiUpdateCombatAP()
+            }
             }
 
             return
@@ -420,6 +442,11 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
             playerUse(getObjectUnderCursor((obj) => obj.isSelectable))
         }
     } else if (btn === 'r') {
+        // Right-click cancels skill targeting mode
+        if (globalState.uiMode === UIMode.useSkill) {
+            cancelSkillTargeting()
+            return
+        }
         if (globalState.cursorMode === 'move') {
             // move (hex) → command (arrow)
             globalState.cursorMode = 'command'
@@ -491,7 +518,7 @@ heart.mousemoved = (x: number, y: number) => {
     } else if (globalState.cursorMode === 'scroll') {
         // leaving scroll zone — restore whatever was active before (move, command, attack, …)
         globalState.cursorMode = globalState.preScrollCursorMode
-    } else if (globalState.cursorMode !== 'command' && globalState.cursorMode !== 'attack') {
+    } else if (globalState.cursorMode !== 'command' && globalState.cursorMode !== 'attack' && globalState.cursorMode !== 'useSkill') {
         // move / interface: re-evaluate based on HUD / dialogue position
         const barEl = document.getElementById('bar')
         const barRect = barEl?.getBoundingClientRect()
@@ -518,6 +545,11 @@ heart.mousemoved = (x: number, y: number) => {
 
 heart.keydown = (k: string) => {
     if (globalState.isLoading === true) {
+        return
+    }
+    // ESC cancels skill targeting mode
+    if (k === 'Escape' && globalState.uiMode === UIMode.useSkill) {
+        cancelSkillTargeting()
         return
     }
     const mousePos = heart.mouse.getPosition()
@@ -603,7 +635,12 @@ heart.keydown = (k: string) => {
             return
         }
 
-        if (globalState.player.AP.getAvailableCombatAP() < 4) {
+        const kbWeapon = globalState.player.equippedWeapon
+        const kbAPCost = kbWeapon === null
+            ? getActiveUnarmedMode(globalState.player.getSkill('Unarmed'), globalState.unarmedModeIdx).apCost
+            : kbWeapon.weapon!.getAPCost(1)
+
+        if (globalState.player.AP.getAvailableCombatAP() < kbAPCost) {
             uiLog(getProtoMsg(700))
             return
         }
@@ -614,7 +651,7 @@ heart.keydown = (k: string) => {
                 globalState.combat.combatants[i].position.y === mouseHex.y &&
                 !globalState.combat.combatants[i].dead
             ) {
-                globalState.player.AP.subtractCombatAP(4)
+                globalState.player.AP.subtractCombatAP(kbAPCost)
                 drawAP(globalState.player.AP.getAvailableMoveAP(), globalState.player.AP.getTotalMaxAP())
                 console.log('Attacking...')
                 globalState.combat.attack(globalState.player, globalState.combat.combatants[i])
@@ -729,7 +766,10 @@ heart.update = function () {
         }
     }
 
-    if (globalState.uiMode !== UIMode.none) {
+    // FO2-CE ref: Skill targeting mode keeps the game loop running so the
+    // player can scroll the map and see hover feedback while picking a target.
+    // All other UI modes (dialogue, inventory, etc.) pause the loop.
+    if (globalState.uiMode !== UIMode.none && globalState.uiMode !== UIMode.useSkill) {
         return
     }
     const time = window.performance.now()

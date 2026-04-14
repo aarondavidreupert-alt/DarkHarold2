@@ -24,6 +24,7 @@ import { Lightmap } from './lightmap.js'
 import { getPROSubTypeName, getPROTypeName, loadPRO, lookupArt, makePID } from './pro.js'
 import { Scripting } from './scripting.js'
 import { fromTileNum } from './tile.js'
+import { getActiveUnarmedMode } from './unarmed.js'
 import { uiLoot } from './ui.js'
 import { deepClone, getMessage } from './util.js'
 import { Config } from './config.js'
@@ -1374,14 +1375,25 @@ export class Critter extends Obj {
 
     getArmorDR(damageType: string): number {
         const armor = this.getEquippedArmor()
-        if (!armor?.pro?.extra?.stats) return 0
-        return armor.pro.extra.stats['DR ' + damageType] ?? 0
+        if (armor?.pro?.extra?.stats) return armor.pro.extra.stats['DR ' + damageType] ?? 0
+        // Secondary scan: find armor item by PRO structure (handles NPCs whose
+        // armor subtype may not be set but whose PRO carries the stats block)
+        for (const item of this.inventory) {
+            if (item.pro?.extra?.stats?.['DR ' + damageType] !== undefined)
+                return item.pro.extra.stats['DR ' + damageType]
+        }
+        return 0
     }
 
     getArmorDT(damageType: string): number {
         const armor = this.getEquippedArmor()
-        if (!armor?.pro?.extra?.stats) return 0
-        return armor.pro.extra.stats['DT ' + damageType] ?? 0
+        if (armor?.pro?.extra?.stats) return armor.pro.extra.stats['DT ' + damageType] ?? 0
+        // Secondary scan: find armor item by PRO structure
+        for (const item of this.inventory) {
+            if (item.pro?.extra?.stats?.['DT ' + damageType] !== undefined)
+                return item.pro.extra.stats['DT ' + damageType]
+        }
+        return 0
     }
 
     getArmorAC(): number {
@@ -1423,6 +1435,15 @@ export class Critter extends Obj {
         const wep = 'a'
         switch (anim) {
             case 'attack':
+                if (weaponObj === null) {
+                    // Unarmed: pick punch ('aq') or kick ('ar') based on active mode
+                    const unarmedSkill = this.getSkill('Unarmed')
+                    const modeIdx = this.isPlayer ? globalState.unarmedModeIdx : 0
+                    const mode = getActiveUnarmedMode(unarmedSkill, modeIdx)
+                    const candidate = base + (mode.icon === 'kick' ? 'ar' : 'aq')
+                    if (globalState.imageInfo[candidate] !== undefined) return candidate
+                    return base + 'aa' // fallback to idle if FRM not present
+                }
                 console.log('default attack animation instead of weapon animation.')
                 return base + wep + 'a'
             case 'idle':

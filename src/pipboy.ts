@@ -16,11 +16,11 @@ limitations under the License.
 
 import globalState from './globalState.js'
 import * as GameTime from './gametime.js'
-import { Scripting } from './scripting.js'
 import { UIMode } from './ui.js'
 import { drawAutomapInto, getArchivedMaps, getSeenTiles } from './automapData.js'
 import { getAutomapZoom, zoomIn, zoomOut, getAutomapPan, attachAutomapDragPan, attachAutomapWheelZoom } from './automap.js'
 import { Config } from './config.js'
+import { getActiveQuests, getUnknownActiveGvars } from './questLog.js'
 
 type PipBoyTab = 'STATUS' | 'AUTOMAPS' | 'ARCHIVES' | 'CLOSE'
 
@@ -551,33 +551,67 @@ function renderArchivesTab(screen: HTMLDivElement): void {
 
     content.appendChild(makeHeader('QUEST LOG'))
 
-    // Pull active (non-zero) global variables from the script VM as the quest
-    // state. This is the same source the game uses for quest progression
-    // flags, so entries here reflect real quest progress.
-    const gvars = Scripting.getGlobalVars()
-    const active: { key: string; value: number }[] = []
-    for (const k in gvars) {
-        if (gvars[k] !== 0) active.push({ key: k, value: gvars[k] })
-    }
+    const quests = getActiveQuests()
 
     const list = document.createElement('div')
     list.style.cssText = TEXT_STYLE + 'font-size: 11px; padding: 2px 8px; overflow-y: auto;'
     list.style.maxHeight = `${CONTENT_H - 50}px`
 
-    if (active.length === 0) {
+    if (quests.length === 0) {
         const empty = document.createElement('div')
         empty.style.cssText = 'padding: 6px 0;'
         empty.textContent = '(no quests in progress)'
         list.appendChild(empty)
     } else {
-        for (const entry of active) {
-            const row = document.createElement('div')
-            row.style.cssText = 'padding: 2px 0; border-bottom: 1px solid #003300;'
-            row.textContent = `GVAR ${entry.key}: ${entry.value}`
-            list.appendChild(row)
+        // Group quests by location, preserving definition order
+        const grouped = new Map<string, typeof quests>()
+        for (const q of quests) {
+            let arr = grouped.get(q.location)
+            if (!arr) { arr = []; grouped.set(q.location, arr) }
+            arr.push(q)
+        }
+
+        for (const [location, locationQuests] of grouped) {
+            // Location header
+            const header = document.createElement('div')
+            header.style.cssText = 'color: #00FF00; font-size: 13px; font-weight: bold; padding: 6px 0 2px 0; border-bottom: 1px solid #005500;'
+            header.textContent = location.toUpperCase()
+            list.appendChild(header)
+
+            for (const q of locationQuests) {
+                const row = document.createElement('div')
+                row.style.cssText = `padding: 2px 0 2px 12px; border-bottom: 1px solid #003300; ` +
+                    (q.isCompleted
+                        ? 'color: #007700; text-decoration: line-through;'
+                        : 'color: #00FF00;')
+                row.textContent = q.description
+                list.appendChild(row)
+            }
         }
     }
     content.appendChild(list)
+
+    // Debug: show non-zero GVARs that don't map to any known quest
+    if (Config.scripting.debugLogShowType.gvars) {
+        const unknown = getUnknownActiveGvars()
+        if (unknown.length > 0) {
+            const sep = document.createElement('div')
+            sep.style.cssText = 'border-top: 1px solid #00AA00; margin: 8px 0 4px 0;'
+            list.appendChild(sep)
+
+            const debugHeader = document.createElement('div')
+            debugHeader.style.cssText = 'color: #AAAA00; font-size: 11px; padding: 2px 0;'
+            debugHeader.textContent = 'DEBUG: Unknown active GVARs'
+            list.appendChild(debugHeader)
+
+            for (const g of unknown) {
+                const row = document.createElement('div')
+                row.style.cssText = 'color: #888800; font-size: 10px; padding: 1px 0 1px 12px;'
+                row.textContent = `GVAR ${g.index}: ${g.value}`
+                list.appendChild(row)
+            }
+        }
+    }
 }
 
 function renderTab(tab: PipBoyTab): void {

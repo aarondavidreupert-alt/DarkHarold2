@@ -495,6 +495,7 @@ export class GameMap {
         load('art/intrface/stdarrow')
         load('art/intrface/actarrow')
         load('art/intrface/acrshair')
+        load('art/intrface/crossuse')
         load('art/intrface/lookn')
         load('art/intrface/scrnorth')
         load('art/intrface/scrsouth')

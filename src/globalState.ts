@@ -24,7 +24,7 @@ import { Renderer } from './renderer.js'
 import { Skills } from './skills.js'
 import { UIMode } from './ui.js'
 
-export type CursorMode = 'move' | 'command' | 'attack' | 'interface' | 'scroll'
+export type CursorMode = 'move' | 'command' | 'attack' | 'interface' | 'scroll' | 'useSkill'
 
 interface FloatMessage {
     msg: string
@@ -77,6 +77,8 @@ export default {
     gParty: new Party(),
 
     uiMode: UIMode.none,
+
+    unarmedModeIdx: 0,
 
     mapAreas: null,
 
@@ -134,6 +136,8 @@ export default {
     gParty: Party
 
     uiMode: UIMode
+
+    unarmedModeIdx: number
 
     mapAreas: AreaMap | null
 

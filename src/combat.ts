@@ -27,7 +27,8 @@ import { Player } from './player.js'
 import { loadPRO } from './pro.js'
 import { Scripting } from './scripting.js'
 import { drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiLog, uiStartCombat } from './ui.js'
-import { getFileText, getMessage, getRandomInt, parseIni, rollSkillCheck } from './util.js'
+import { clamp, getFileText, getMessage, getRandomInt, parseIni, rollSkillCheck } from './util.js'
+import { getActiveUnarmedMode } from './unarmed.js'
 
 // Turn-based combat system
 
@@ -243,9 +244,10 @@ export class Combat {
         console.log(msg)
     }
 
-    /** Load ammo stats for a loaded weapon. Returns defaults (X=2,Y=1,RM=0,ACmod=0) if no ammo. */
+    /** Load ammo stats for a loaded weapon. Returns defaults (X=1,Y=1,RM=0,ACmod=0) if no ammo.
+     *  Vanilla: weaponGetAmmoDamageMultiplier / weaponGetAmmoDamageDivisor return 1/1 for no ammo. */
     getAmmoStats(weaponObj: Obj): { X: number; Y: number; RM: number; ACmod: number } {
-        const defaults = { X: 2, Y: 1, RM: 0, ACmod: 0 }
+        const defaults = { X: 1, Y: 1, RM: 0, ACmod: 0 }
         const ammoPID: number | undefined = (weaponObj as any).pro?.extra?.ammoPID
         if (ammoPID === undefined || ammoPID < 0) return defaults
 
@@ -253,7 +255,7 @@ export class Combat {
         if (!ammoPro || !ammoPro.extra) return defaults
 
         return {
-            X: ammoPro.extra.damMult ?? 2,
+            X: ammoPro.extra.damMult ?? 1,
             Y: ammoPro.extra.damDiv ?? 1,
             RM: ammoPro.extra['DR modifier'] ?? 0,
             ACmod: ammoPro.extra['AC modifier'] ?? 0,
@@ -269,20 +271,25 @@ export class Combat {
         if (!line || line.length <= 2) return 0
 
         const interior = line.slice(1, -1)
+
+        // Pre-index living critters by "x,y" hex key so the interior scan is O(lineLength)
+        // instead of O(lineLength * numObjects).
+        const crittersByHex = new Map<string, number>()
+        for (const o of globalState.gMap.getObjects()) {
+            if (
+                o instanceof Critter &&
+                !o.dead &&
+                o !== obj &&
+                o !== target
+            ) {
+                const key = `${o.position.x},${o.position.y}`
+                crittersByHex.set(key, (crittersByHex.get(key) || 0) + 1)
+            }
+        }
+
         let count = 0
         for (const hex of interior) {
-            for (const o of globalState.gMap.getObjects()) {
-                if (
-                    o instanceof Critter &&
-                    !o.dead &&
-                    o !== obj &&
-                    o !== target &&
-                    o.position.x === hex.x &&
-                    o.position.y === hex.y
-                ) {
-                    count++
-                }
-            }
+            count += crittersByHex.get(`${hex.x},${hex.y}`) || 0
         }
         return count * 10
     }
@@ -304,7 +311,7 @@ export class Combat {
             distance += minDistance // yes supposedly += not =, this means 7 grid distance is the worst
         else {
             var tempPER = perception
-            if (obj.isPlayer === true) tempPER -= 2 // supposedly player gets nerfed like this. WTF?
+            if (obj.isPlayer === true) tempPER -= 2 // FO2 reference: player receives a -2 PER penalty in hit chance (hardcoded in _combat_to_hit, combat.c)
             distance -= tempPER * distModifier
         }
 
@@ -329,9 +336,22 @@ export class Combat {
     getHitChance(obj: Critter, target: Critter, region: string) {
         // NOTE: distance modifier is implemented; light conditions not yet factored in
         var weaponObj = obj.equippedWeapon
-        if (weaponObj === null)
-            // no weapon equipped (not even melee)
-            return { hit: -1, crit: -1 }
+        if (weaponObj === null) {
+            // Unarmed (no weapon equipped): use Unarmed skill
+            const unarmedSkill = obj.getSkill('Unarmed')
+            const modeIdx = obj.isPlayer ? globalState.unarmedModeIdx : 0
+            const mode = getActiveUnarmedMode(unarmedSkill, modeIdx)
+            const AC = target.getStat('AC') + target.getArmorAC() + target.bonusAC
+            const partialCoverPenalty = this.accountForPartialCover(obj, target)
+            const crippledArmPenalty = (obj.crippledLeftArm ? 20 : 0) + (obj.crippledRightArm ? 20 : 0)
+            const blindPenalty = obj.isBlinded ? 25 : 0
+            const baseCrit = obj.getStat('Critical Chance') + mode.critBonus
+            var hitChance = unarmedSkill - AC - CriticalEffects.regionHitChanceDecTable[region] - partialCoverPenalty - crippledArmPenalty - blindPenalty
+            var critChance = baseCrit + CriticalEffects.regionHitChanceDecTable[region]
+            hitChance = Math.min(95, hitChance)
+            console.log(`[HitChance] unarmed: skill=${unarmedSkill} AC=${AC} region=${CriticalEffects.regionHitChanceDecTable[region]} cover=${partialCoverPenalty} → ${hitChance}%`)
+            return { hit: hitChance, crit: critChance }
+        }
 
         var weapon = weaponObj.weapon
         var weaponSkill
@@ -370,10 +390,13 @@ export class Combat {
         return { hit: hitChance, crit: critChance }
     }
 
-    rollHit(obj: Critter, target: Critter, region: string, hitBonus: number = 0): any {
+    rollHit(obj: Critter, target: Critter, region: string, hitBonus: number = 0,
+            attackerName?: string, defenderName?: string): any {
         var critModifer = obj.getStat('Better Criticals')
         var hitChance = this.getHitChance(obj, target, region)
         hitChance = { ...hitChance, hit: hitChance.hit + hitBonus }
+
+        if (attackerName) uiLog(`${attackerName} attacks ${defenderName} — hit chance: ${hitChance.hit}%`)
 
         // hey kids! Did you know FO only rolls the dice once here and uses the results two times?
         var roll = getRandomInt(1, 101)
@@ -397,12 +420,14 @@ export class Combat {
             if (isCrit === true) {
                 var critLevel = Math.floor(Math.max(0, getRandomInt(critModifer, 100 + critModifer)) / 20)
                 this.log('crit level: ' + critLevel)
+                if (attackerName) uiLog(`${attackerName} scores a CRITICAL HIT on ${defenderName}! (level ${critLevel})`)
                 var crit = CriticalEffects.getCritical(target.killType ?? 0, region, critLevel)
                 var critStatus = crit.doEffectsOn(target)
 
                 return { hit: true, crit: true, DM: critStatus.DM, msgID: critStatus.msgID } // crit
             }
 
+            if (attackerName) uiLog(`${attackerName} hits ${defenderName}! (roll: ${roll})`)
             return { hit: true, crit: false } // hit
         }
 
@@ -416,48 +441,154 @@ export class Combat {
             if (getRandomInt(1, 100) <= 50) isCrit = true
         }
 
+        if (attackerName) uiLog(`${attackerName} misses ${defenderName}. (roll: ${roll})`)
         return { hit: false, crit: isCrit } // miss
     }
 
-    getDamageDone(obj: Critter, target: Critter, critModifer: number) {
+    /** Vanilla damage calculation (fallout2-ce attackComputeDamage, lines 4578-4615).
+     *  Order: bonus → multiply → divide → halve → difficultyMod → subtract DT → apply DR%.
+     *  All divisions are integer-truncated. */
+    getDamageDone(obj: Critter, target: Critter, critMultiplier: number) {
         var weapon = obj.equippedWeapon
         if (!weapon) throw Error('getDamageDone: No weapon')
         var wep = weapon.weapon
         if (!wep) throw Error('getDamageDone: Weapon has no weapon data')
         var damageType = wep.getDamageType()
 
-        var RD = getRandomInt(wep.minDmg, wep.maxDmg) // rand damage min..max
-        var RB = 0 // ranged bonus (via perk)
-        var CM = critModifer // critical hit damage multiplier
-        var ADR = target.getStat('DR ' + damageType) + target.getArmorDR(damageType) // damage resistance (base + armor)
-        var ADT = target.getStat('DT ' + damageType) + target.getArmorDT(damageType) // damage threshold (base + armor)
+        // DT and DR from critter stat system (base + armor + bonuses, like critterGetStat)
+        var DT = target.getStat('DT ' + damageType) + target.getArmorDT(damageType)
+        var DR = target.getStat('DR ' + damageType) + target.getArmorDR(damageType)
 
-        // Bypass Armor critical effect: reduce DR/DT to 20% for this hit (FO2 reference), then consume the flag
-        if (target.bypassArmorNextHit) {
-            ADR = Math.floor(ADR * 0.2)
-            ADT = Math.floor(ADT * 0.2)
+        // DAM_BYPASS: reduce both DT and DR to 20% (does NOT apply to EMP)
+        if (target.bypassArmorNextHit && damageType !== 'EMP') {
+            DT = Math.trunc(20 * DT / 100)
+            DR = Math.trunc(20 * DR / 100)
             target.bypassArmorNextHit = false
-        } else if (wep.isPenetrating?.()) {
-            // Unarmed penetrating strike (Piercing Strike/Kick): reduce armor to 20%
-            ADR = Math.floor(ADR * 0.2)
-            ADT = Math.floor(ADT * 0.2)
+        } else {
+            if (target.bypassArmorNextHit) target.bypassArmorNextHit = false
+            // PERK_WEAPON_PENETRATE or unarmed penetrating: only DT to 20%, DR unchanged
+            if (wep.isPenetrating?.()) {
+                DT = Math.trunc(20 * DT / 100)
+            }
+            // TRAIT_FINESSE: +30 DR penalty (player only)
+            if (obj.isPlayer && obj.hasPerk('Finesse')) {
+                DR += 30
+            }
         }
 
+        // Bonus Ranged Damage perk (player only, ranged attack types)
+        var damageBonus = 0
+        if (obj.isPlayer && wep.type !== 'melee') {
+            damageBonus = 2 * (obj.hasPerk('Bonus Ranged Damage') ? 1 : 0)
+        }
+
+        // Ammo stats
         var ammoStats = this.getAmmoStats(weapon)
-        var X = ammoStats.X // ammo damage multiplier (from ammo PRO damMult)
-        var Y = ammoStats.Y // ammo damage divisor (from ammo PRO damDiv)
-        var RM = ammoStats.RM // ammo DR modifier (from ammo PRO "DR modifier")
-        var CD = Config.combat.difficultyModifier // combat difficulty: easy=75, normal=100, hard=125
 
-        var ammoDamageMult = X / Y
+        // Ammo DR modifier: added to DR, then clamp 0-100
+        DR += ammoStats.RM
+        DR = clamp(0, 100, DR)
 
-        var baseDamage = (CM / 2) * ammoDamageMult * (RD + RB) * (CD / 100)
-        var adjustedDamage = Math.max(0, baseDamage - ADT)
-        console.log(
-            `RD: ${RD} | CM: ${CM} | ADR: ${ADR} | ADT: ${ADT} | Base Dmg: ${baseDamage} Adj Dmg: ${adjustedDamage} | Type: ${damageType}`
-        )
+        // damageMultiplier = critMult × ammoMult (integer multiply)
+        var damageMultiplier = critMultiplier * ammoStats.X
+        var damageDivisor = ammoStats.Y
 
-        return Math.ceil(adjustedDamage * (1 - (ADR + RM) / 100))
+        // Combat difficulty modifier (75/100/125)
+        var CD = Config.combat.difficultyModifier
+
+        // --- Vanilla per-round calculation (single round) ---
+        var RD = getRandomInt(wep.minDmg, wep.maxDmg)
+        var damage = RD
+        damage += damageBonus
+        damage = Math.trunc(damage * damageMultiplier)
+        if (damageDivisor !== 0) damage = Math.trunc(damage / damageDivisor)
+        damage = Math.trunc(damage / 2)                  // vanilla halving quirk
+        damage = Math.trunc(damage * CD / 100)            // difficulty modifier
+        damage -= DT                                      // subtract DT first
+        if (damage > 0) {
+            damage -= Math.trunc(damage * DR / 100)       // then apply DR%
+        }
+        if (damage < 0) damage = 0
+
+        // Post-calculation perks (flat bonuses after main formula)
+        if (obj.isPlayer) {
+            if (obj.hasPerk('Living Anatomy')) {
+                var kt = target.killType ?? 0
+                if (kt !== 10 && kt !== 16) { // not KILL_TYPE_ROBOT or KILL_TYPE_ALIEN
+                    damage += 5
+                }
+            }
+            if (obj.hasPerk('Pyromaniac') && damageType === 'Fire') {
+                damage += 5
+            }
+        }
+
+        const dmgLog = `Dmg: RD=${RD} CM=${critMultiplier} ×${ammoStats.X}/${ammoStats.Y} DT=${DT} DR=${DR}% CD=${CD} → ${damage}`
+        console.log(dmgLog)
+        uiLog(dmgLog)
+        return damage
+    }
+
+    /** Vanilla unarmed damage calculation (attackComputeDamage with weapon=null).
+     *  Unarmed: ammoMult=1, ammoDiv=1, damageType=Normal.
+     *  Same formula as weapon damage: bonus → multiply → halve → DT → DR%. */
+    getUnarmedDamageDone(obj: Critter, target: Critter, critMultiplier: number): number {
+        const unarmedSkill = obj.getSkill('Unarmed')
+        const modeIdx = obj.isPlayer ? globalState.unarmedModeIdx : 0
+        const mode = getActiveUnarmedMode(unarmedSkill, modeIdx)
+
+        // Unarmed damage type is always Normal
+        var DT = target.getStat('DT Normal') + target.getArmorDT('Normal')
+        var DR = target.getStat('DR Normal') + target.getArmorDR('Normal')
+
+        // DAM_BYPASS: reduce both DT and DR to 20%
+        if (target.bypassArmorNextHit) {
+            DT = Math.trunc(20 * DT / 100)
+            DR = Math.trunc(20 * DR / 100)
+            target.bypassArmorNextHit = false
+        } else {
+            // unarmedIsPenetrating: only DT to 20%, DR unchanged
+            if (mode.penetrate) {
+                DT = Math.trunc(20 * DT / 100)
+            }
+            // TRAIT_FINESSE: +30 DR penalty (player only)
+            if (obj.isPlayer && obj.hasPerk('Finesse')) {
+                DR += 30
+            }
+        }
+
+        // Clamp DR to 0-100 (no ammo DR mod for unarmed)
+        DR = clamp(0, 100, DR)
+
+        var CD = Config.combat.difficultyModifier
+
+        // --- Vanilla formula: unarmed has no ammo (ammoMult=1, ammoDiv=1) ---
+        var RD = getRandomInt(mode.minDmg, mode.maxDmg)
+        var damage = RD
+        // damageBonus = 0 (Bonus Ranged Damage doesn't apply to unarmed)
+        damage = Math.trunc(damage * critMultiplier)       // critMult × ammoMult(=1)
+        // damageDivisor = 1 (no-op)
+        damage = Math.trunc(damage / 2)                    // vanilla halving quirk
+        damage = Math.trunc(damage * CD / 100)             // difficulty modifier
+        damage -= DT                                       // subtract DT first
+        if (damage > 0) {
+            damage -= Math.trunc(damage * DR / 100)        // then apply DR%
+        }
+        if (damage < 0) damage = 0
+
+        // Post-calculation perks
+        if (obj.isPlayer) {
+            if (obj.hasPerk('Living Anatomy')) {
+                var kt = target.killType ?? 0
+                if (kt !== 10 && kt !== 16) {
+                    damage += 5
+                }
+            }
+            // Pyromaniac doesn't apply (unarmed is Normal damage, not Fire)
+        }
+
+        uiLog(`Unarmed [${mode.name}]: RD=${RD} CM=${critMultiplier} DT=${DT} DR=${DR}% CD=${CD} → ${damage} damage`)
+        return damage
     }
 
     getCombatMsg(id: number) {
@@ -501,6 +632,47 @@ export class Combat {
         var targetName = target.isPlayer ? 'you' : target.name
         var weapon = weaponObj?.weapon
         var attackDmgType = weaponObj?.weapon?.getDamageType() ?? 'Normal'
+
+        // ── UNARMED (no weapon equipped) ──────────────────────────────────────
+        if (weaponObj === null) {
+            var unarmedSkill = obj.getSkill('Unarmed')
+            var unarmedModeIdx = obj.isPlayer ? globalState.unarmedModeIdx : 0
+            var unarmedModeName = getActiveUnarmedMode(unarmedSkill, unarmedModeIdx).name
+
+            var unarmedHit = this.rollHit(obj, target, region, 0, who, targetName)
+
+            if (unarmedHit.hit === true) {
+                var unarmedCritMod = unarmedHit.crit ? unarmedHit.DM : 2
+                var unarmedDmg = this.getUnarmedDamageDone(obj, target, unarmedCritMod)
+                var unarmedExtraMsg = unarmedHit.crit ? this.getCombatMsg(unarmedHit.msgID) || '' : ''
+                uiLog(`${who} hits ${targetName} for ${unarmedDmg} damage (${unarmedModeName})${unarmedExtraMsg}`)
+                audio.playActionSfx('hit_flesh')
+                critterDamage(target, unarmedDmg, obj, true, true, 'Normal')
+                if (target.isPlayer) drawHP(target.getStat('HP'))
+                if (target.dead) this.perish(target, obj, 'Normal')
+            } else {
+                audio.playActionSfx('miss')
+                uiLog(`${who} misses ${targetName} (${unarmedModeName})`)
+                if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
+                    target.staticAnimation('dodge', () => target.clearAnim())
+                }
+                if (unarmedHit.crit === true) {
+                    var unarmedCritFailMod = (obj.getStat('LUK') - 5) * -5
+                    var unarmedCritFailRoll = Math.floor(getRandomInt(1, 100) - unarmedCritFailMod)
+                    var unarmedCritFailLevel = 1
+                    if (unarmedCritFailRoll <= 20) unarmedCritFailLevel = 1
+                    else if (unarmedCritFailRoll <= 50) unarmedCritFailLevel = 2
+                    else if (unarmedCritFailRoll <= 75) unarmedCritFailLevel = 3
+                    else if (unarmedCritFailRoll <= 95) unarmedCritFailLevel = 4
+                    else unarmedCritFailLevel = 5
+                    uiLog(`${who} CRITICALLY FAILS! (level ${unarmedCritFailLevel})`)
+                    var unarmedCritFailEffect = CriticalEffects.criticalFailTable['unarmed']?.[unarmedCritFailLevel]
+                        ?? CriticalEffects.criticalFailTable['unarmed'][1]
+                    CriticalEffects.temporaryDoCritFail(unarmedCritFailEffect, obj)
+                }
+            }
+            return
+        }
 
         // ── BURST MODE ────────────────────────────────────────────────────────
         // 3-line cone spread (FO2: _compute_spray + _shoot_along_path).
@@ -573,8 +745,7 @@ export class Combat {
         }
 
         // ── SINGLE SHOT ───────────────────────────────────────────────────────
-        var hitRoll = this.rollHit(obj, target, region)
-        this.log('hit% is ' + this.getHitChance(obj, target, region).hit)
+        var hitRoll = this.rollHit(obj, target, region, 0, who, targetName)
 
         // Deduct one round after the roll
         if (weapon && weapon.type !== 'melee') {
@@ -678,7 +849,9 @@ export class Combat {
     }
 
     perish(obj: Critter, attacker?: Critter, damageType?: string) {
-        uiLog('...And killed them.')
+        const victimDisplay = obj.isPlayer ? 'You' : obj.name
+        const attackerDisplay = attacker ? (attacker.isPlayer ? 'you' : attacker.name) : 'something'
+        uiLog(`${victimDisplay} is killed by ${attackerDisplay}!`)
         globalState.audioEngine.playActionSfx('critter_die')
 
         // Defensively ensure dead flag is set — critterKill (called by critterDamage
@@ -802,7 +975,34 @@ export class Combat {
         }
 
         var weaponObj = obj.equippedWeapon
-        if (!weaponObj) throw Error('AI has no weapon')
+        // Handle unarmed AI (no weapon equipped) — punch at melee range
+        if (!weaponObj) {
+            const unarmedAPCost = 3
+            console.log('[AI] unarmed critter', obj.name, '— AP:', AP.getAvailableCombatAP(), 'distance:', distance)
+            if (distance <= 1 && AP.getAvailableCombatAP() >= unarmedAPCost) {
+                AP.subtractCombatAP(unarmedAPCost)
+                this.attack(obj, target, 'torso', function () {
+                    obj.clearAnim()
+                    that.doAITurn(obj, idx, depth + 1)
+                })
+            } else if (distance > 1 && AP.getAvailableMoveAP() > 0) {
+                // Walk towards target
+                const neighbors = hexNeighbors(target.position)
+                const maxSteps = AP.getAvailableMoveAP()
+                for (const nb of neighbors) {
+                    if (obj.walkTo(nb, false, () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1) }, maxSteps) !== false) {
+                        if (AP.subtractMoveAP(obj.path.path.length - 1) === false) break
+                        return
+                    }
+                }
+                console.log('[AI IS STUMPED] unarmed, no path to target')
+                return this.nextTurn()
+            } else {
+                console.log('[AI IS STUMPED] unarmed, not enough AP (AP:', AP.getAvailableCombatAP(), 'dist:', distance, ')')
+                return this.nextTurn()
+            }
+            return
+        }
         var weapon = weaponObj.weapon
         if (!weapon) throw Error('AI weapon has no weapon data')
 
@@ -838,7 +1038,11 @@ export class Combat {
 
         // Re-read weapon after potential swap
         weaponObj = obj.equippedWeapon
-        if (!weaponObj) throw Error('AI has no weapon after swap check')
+        if (!weaponObj) {
+            // Weapon was dropped/removed during swap — end turn gracefully
+            console.log('[AI IS STUMPED] no weapon after swap check')
+            return this.nextTurn()
+        }
         weapon = weaponObj.weapon
         if (!weapon) throw Error('AI weapon has no weapon data after swap check')
         fireDistance = weapon.getMaximumRange(1)
@@ -976,7 +1180,8 @@ export class Combat {
                 })
             }
         } else {
-            console.log('[AI IS STUMPED]')
+            console.log('[AI IS STUMPED] target:', target?.name, 'AP:', AP.getAvailableCombatAP(),
+                'weapon:', weapon?.name, 'weaponAPCost:', weapon?.getAPCost(1), 'distance:', distance)
             this.nextTurn()
         }
     }
@@ -1035,6 +1240,28 @@ export class Combat {
         }
     }
 
+    /**
+     * Simple line-of-sight check (FO2: _combat_update_critters_in_los).
+     * Returns false when any wall-type object lies on the interior hex-line between `from` and `to`.
+     */
+    hasLineOfSight(from: Point, to: Point): boolean {
+        if (!globalState.gMap) return true
+        const line = hexLine(from, to) ?? []
+        if (line.length <= 2) return true // adjacent — always visible
+        const interior = line.slice(1, -1)
+        const mapObjects = globalState.gMap.getObjects()
+        for (const pos of interior) {
+            for (const o of mapObjects) {
+                if ((o as any).type === 'wall' &&
+                    (o as any).position?.x === pos.x &&
+                    (o as any).position?.y === pos.y) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
     nextTurn(): void {
         // update range checks
         var numActive = 0
@@ -1046,8 +1273,9 @@ export class Combat {
                 continue
             }
             var inRange = hexDistance(obj.position, this.player.position) <= obj.ai.info.max_dist
+            var hasLOS = inRange && this.hasLineOfSight(obj.position, this.player.position)
 
-            if (inRange || obj.hostile) {
+            if (hasLOS || obj.hostile) {
                 obj.hostile = true
                 obj.outline = obj.teamNum !== globalState.player.teamNum ? 'red' : 'green'
                 numActive++

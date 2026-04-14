@@ -29,6 +29,7 @@ export class Player extends Critter {
     name = 'Player'
 
     isPlayer = true
+    isSneaking = false
     art = 'art/critters/hmjmpsaa'
 
     stats = new StatSet({ AGI: 8, INT: 8, STR: 8, CHA: 8, HP: 100 })

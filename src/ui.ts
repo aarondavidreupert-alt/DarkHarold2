@@ -23,13 +23,15 @@ import { lookupArt, lookupInterfaceArt } from './pro.js'
 import { objectBoundingBox } from './renderer.js'
 import { formatSaveDate, load, save, SaveGame, saveList } from './saveload.js'
 import { Scripting } from './scripting.js'
-import { Skills } from './skills.js'
+import { Skills, SKILL_NAMES } from './skills.js'
+import { skillUse } from './skillUse.js'
 import { fromTileNum } from './tile.js'
 import { pad } from './util.js'
 import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
+import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
 import { openAutomap } from './automap.js'
 import { openPipBoy } from './pipboy.js'
 
@@ -339,12 +341,39 @@ function initSkilldex() {
     // Skill value labels — updated each time the skilldex is opened/shown
     const skillValueLabels: Label[] = []
 
+    // FO2-CE ref: skilldex.cc — Sneak is the only truly passive skill (toggle).
+    // First Aid and Doctor can target other critters OR self (ground click = self).
+    // All other skills require a target object.
+    function isPassiveSkill(skill: Skills): boolean {
+        return skill === Skills.Sneak
+    }
+
     function useSkill(skill: Skills) {
         return () => {
             skilldexWindow.close()
+
+            if (isPassiveSkill(skill)) {
+                // Passive/self skills: execute immediately, no target selection needed
+                const skillName = SKILL_NAMES[skill - 1]
+                const player = globalState.player
+                if (!player) return
+                const result = skillUse(player, player, skillName)
+                uiLog(result.message)
+                if (result.hpHealed > 0) {
+                    drawHP(player.getStat('HP'))
+                }
+                console.log('[UI] Passive skill executed:', skillName, result)
+                return
+            }
+
+            // Target skills: enter targeting mode — cursor changes, game loop continues
             globalState.uiMode = UIMode.useSkill
             globalState.skillMode = skill
-            console.log('[UI] Using skill:', skill)
+            globalState.cursorMode = 'useSkill'
+            // CSS cursor fallback — crosshair visible even if WebGL crossuse asset is missing
+            const cnv = document.getElementById('cnv')
+            if (cnv) cnv.style.cursor = "url('art/intrface/crossuse.png') 11 11, crosshair"
+            console.log('[UI] Skill targeting mode:', SKILL_NAMES[skill - 1])
         }
     }
 
@@ -911,6 +940,12 @@ export function initUI() {
         // right mouse button (cycle weapon modes)
         const wep = globalState.player.equippedWeapon
         if (!wep || !wep.weapon) {
+            // Cycle unarmed mode
+            const skill = globalState.player!.getSkill('Unarmed')
+            globalState.unarmedModeIdx = nextUnarmedModeIdx(skill, globalState.unarmedModeIdx)
+            const mode = getActiveUnarmedMode(skill, globalState.unarmedModeIdx)
+            uiLog(`Unarmed: ${mode.name}`)
+            uiDrawWeapon()
             return false
         }
         wep.weapon.cycleMode()
@@ -1020,7 +1055,6 @@ export function uiContextMenu(obj: Obj, evt: any) {
 
     const isCritter = obj.type === 'critter'
     const isDead = isCritter && (obj as Critter).dead
-    console.log(`[CTX] ${obj.name} isCritter=${isCritter} dead=${(obj as Critter).dead} hp=${(obj as Critter).getStat?.('HP')}`)
     const hasTalk = obj._script && obj._script.talk_p_proc !== undefined
 
     if (isCritter && !isDead) {
@@ -1135,9 +1169,17 @@ export function uiDrawWeapon() {
     const $wepImg = $id('attackButtonWeapon') as HTMLImageElement
     const $typeImg = $img('attackButtonType')
     if (!weapon || !weapon.weapon) {
+        // Unarmed HUD: show current punch/kick mode icon and AP cost
+        const unarmedSkill = globalState.player!.getSkill('Unarmed')
+        const mode = getActiveUnarmedMode(unarmedSkill, globalState.unarmedModeIdx)
         $wepImg.style.display = 'none'
-        $typeImg.style.display = 'none'
-        hidev($id('attackButtonCalled'))
+        $typeImg.style.display = ''
+        $img('attackButtonType').src = `art/intrface/${mode.icon}.png`
+        const CHAR_W = 10
+        if (mode.apCost <= 9) {
+            $id('attackButtonAPDigit').style.backgroundPosition = 0 - CHAR_W * mode.apCost + 'px'
+        }
+        hide($id('attackButtonCalled'))
         return
     }
     $wepImg.style.display = ''
