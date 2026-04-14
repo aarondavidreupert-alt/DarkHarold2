@@ -144,6 +144,7 @@ export module Scripting {
             globalVarsLoaded = true
             info('loadGlobalVars: loaded ' + Object.keys(data).length + ' global vars from gvars.json')
         } catch (e: any) {
+            globalVarsLoaded = true
             console.log('loadGlobalVars: gvars.json not found, using defaults (' + e.message + ')')
         }
     }

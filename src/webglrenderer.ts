@@ -203,6 +203,18 @@ export class WebGLRenderer extends Renderer {
         this.canvas.height = Math.round(cssHeight * dpr)
         gl.viewport(0, 0, this.canvas.width, this.canvas.height)
 
+        // Mirror the DPR scaling on the 2D text overlay so text stays sharp on
+        // HiDPI/Retina displays. The 2D context is scaled by dpr so callers
+        // continue to draw in logical (CSS) coordinates.
+        const textCssWidth = this.textCanvas.width
+        const textCssHeight = this.textCanvas.height
+        this.textCanvas.style.width = textCssWidth + 'px'
+        this.textCanvas.style.height = textCssHeight + 'px'
+        this.textCanvas.width = Math.round(textCssWidth * dpr)
+        this.textCanvas.height = Math.round(textCssHeight * dpr)
+        this.textCtx.setTransform(1, 0, 0, 1, 0, 0)
+        this.textCtx.scale(dpr, dpr)
+
         for (const font of this.fonts) {
             this.textures[font.filepath] = this.textureFromFont(font)
         }
@@ -442,11 +454,11 @@ export class WebGLRenderer extends Renderer {
         this.textCtx.clearRect(0, 0, this.textCanvas.width, this.textCanvas.height)
     }
 
-    renderText(txt: string, x: number, y: number): void {
+    renderText(txt: string, x: number, y: number, align: CanvasTextAlign = 'left'): void {
         const ctx = this.textCtx
         ctx.font = '16px "VT323", monospace'
         ctx.fillStyle = '#00ff00'
-        ctx.textAlign = 'center'
+        ctx.textAlign = align
         ctx.strokeStyle = 'black'
         ctx.lineWidth = 2
         ctx.strokeText(txt, x, y)

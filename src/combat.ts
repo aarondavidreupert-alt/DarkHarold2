@@ -271,20 +271,25 @@ export class Combat {
         if (!line || line.length <= 2) return 0
 
         const interior = line.slice(1, -1)
+
+        // Pre-index living critters by "x,y" hex key so the interior scan is O(lineLength)
+        // instead of O(lineLength * numObjects).
+        const crittersByHex = new Map<string, number>()
+        for (const o of globalState.gMap.getObjects()) {
+            if (
+                o instanceof Critter &&
+                !o.dead &&
+                o !== obj &&
+                o !== target
+            ) {
+                const key = `${o.position.x},${o.position.y}`
+                crittersByHex.set(key, (crittersByHex.get(key) || 0) + 1)
+            }
+        }
+
         let count = 0
         for (const hex of interior) {
-            for (const o of globalState.gMap.getObjects()) {
-                if (
-                    o instanceof Critter &&
-                    !o.dead &&
-                    o !== obj &&
-                    o !== target &&
-                    o.position.x === hex.x &&
-                    o.position.y === hex.y
-                ) {
-                    count++
-                }
-            }
+            count += crittersByHex.get(`${hex.x},${hex.y}`) || 0
         }
         return count * 10
     }

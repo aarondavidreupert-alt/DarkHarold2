@@ -1055,7 +1055,6 @@ export function uiContextMenu(obj: Obj, evt: any) {
 
     const isCritter = obj.type === 'critter'
     const isDead = isCritter && (obj as Critter).dead
-    console.log(`[CTX] ${obj.name} isCritter=${isCritter} dead=${(obj as Critter).dead} hp=${(obj as Critter).getStat?.('HP')}`)
     const hasTalk = obj._script && obj._script.talk_p_proc !== undefined
 
     if (isCritter && !isDead) {

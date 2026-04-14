@@ -37,6 +37,7 @@ import re
 import struct
 import sys
 from pathlib import Path
+from typing import Optional
 
 
 def parse_gam_binary(filepath: str) -> list[int]:
@@ -125,7 +126,7 @@ def parse_gam_file(filepath: str) -> dict[int, int]:
         return parse_gam_text(filepath)
 
 
-def find_case_insensitive(directory: str, filename: str) -> str | None:
+def find_case_insensitive(directory: str, filename: str) -> Optional[str]:
     """Find a file in a directory with case-insensitive matching."""
     target = filename.lower()
     try:

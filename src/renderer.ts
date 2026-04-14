@@ -163,7 +163,7 @@ export class Renderer {
                 continue
             }
             const centerX = bbox.x + bbox.w / 2 - globalState.cameraPosition.x
-            this.renderText(globalState.floatMessages[i].msg, centerX, bbox.y - globalState.cameraPosition.y - 16)
+            this.renderText(globalState.floatMessages[i].msg, centerX, bbox.y - globalState.cameraPosition.y - 16, 'center')
         }
 
         if (globalState.player.dead) {
@@ -314,7 +314,7 @@ export class Renderer {
     clear(r: number, g: number, b: number): void {}
     color(r: number, g: number, b: number, a = 255): void {}
     rectangle(x: number, y: number, w: number, h: number, filled = true): void {}
-    renderText(txt: string, x: number, y: number): void {}
+    renderText(txt: string, x: number, y: number, align: CanvasTextAlign = 'left'): void {}
     renderImage(imgPath: string, x: number, y: number, width: number, height: number): void {}
 
     renderRoof(roof: TileMap): void {}
