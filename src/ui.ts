@@ -31,12 +31,9 @@ import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
-<<<<<<< HEAD
 import { openAutomap } from './automap.js'
 import { openPipBoy } from './pipboy.js'
-=======
 import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
->>>>>>> claude/complete-combat-system-JqGQK
 
 // UI system
 
