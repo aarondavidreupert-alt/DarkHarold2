@@ -31,8 +31,13 @@ import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
+import { CSSBoundingBox, Widget } from './widget.js'
 import { charScreenFont, FontWidget, makeFontLabel, skilldexFont } from './font.js'
 import { openAutomap } from './automap.js'
+
+// Re-export so existing `from './ui.js'` importers still see Widget / CSSBoundingBox.
+export { Widget } from './widget.js'
+export type { CSSBoundingBox } from './widget.js'
 import { openPipBoy } from './pipboy.js'
 import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
 
@@ -45,14 +50,6 @@ import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
 // TODO: fix inventory image size
 // TODO: fix style for inventory image amount
 // TODO: option for scaling the UI
-
-// Bounding box that accepts strings as well as numbers
-export interface CSSBoundingBox {
-    x: number | string
-    y: number | string
-    w: number | string
-    h: number | string
-}
 
 export class WindowFrame {
     children: Widget[] = []
@@ -113,68 +110,6 @@ export class WindowFrame {
         } else {
             this.show()
         }
-        return this
-    }
-}
-export class Widget {
-    elem: HTMLElement
-    hoverBackground: string | null = null
-    mouseDownBackground: string | null = null
-
-    constructor(public background: string | null, public bbox: CSSBoundingBox) {
-        this.elem = document.createElement('div')
-
-        Object.assign(this.elem.style, {
-            position: 'absolute',
-            left: `${bbox.x}px`,
-            top: `${bbox.y}px`,
-            width: `${bbox.w}px`,
-            height: `${bbox.h}px`,
-            backgroundImage: background && `url('${background}')`,
-        })
-    }
-
-    onClick(fn: (widget?: Widget) => void): this {
-        this.elem.onclick = () => {
-            fn(this)
-        }
-        return this
-    }
-
-    hoverBG(background: string): this {
-        this.hoverBackground = background
-
-        if (!this.elem.onmouseenter) {
-            // Set up events for hovering/not hovering
-            this.elem.onmouseenter = () => {
-                this.elem.style.backgroundImage = `url('${this.hoverBackground}')`
-            }
-            this.elem.onmouseleave = () => {
-                this.elem.style.backgroundImage = `url('${this.background}')`
-            }
-        }
-
-        return this
-    }
-
-    mouseDownBG(background: string): this {
-        this.mouseDownBackground = background
-
-        if (!this.elem.onmousedown) {
-            // Set up events for mouse down/up
-            this.elem.onmousedown = () => {
-                this.elem.style.backgroundImage = `url('${this.mouseDownBackground}')`
-            }
-            this.elem.onmouseup = () => {
-                this.elem.style.backgroundImage = `url('${this.background}')`
-            }
-        }
-
-        return this
-    }
-
-    css(props: object): this {
-        Object.assign(this.elem.style, props)
         return this
     }
 }

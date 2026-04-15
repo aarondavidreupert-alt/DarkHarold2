@@ -21,7 +21,7 @@
 // this renders variable-width glyphs from an AAF-derived sprite atlas + JSON
 // symbol info map: { [charCode: number]: { x, y, w, h } }.
 
-import { Widget } from './ui.js'
+import { Widget } from './widget.js'
 import { lazyLoadImage } from './images.js'
 
 export interface SymbolInfo {
