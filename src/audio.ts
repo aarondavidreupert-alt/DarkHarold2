@@ -58,6 +58,9 @@ export class HTMLAudioEngine implements AudioEngine {
     private ctx: AudioContext | null = null
     private sfxCache: Map<string, AudioBuffer> = new Map()
     private sfxPending: Map<string, Promise<AudioBuffer | null>> = new Map()
+    // Negative cache: names that 404'd or failed to decode.  Keeps the console
+    // quiet on repeated plays (e.g. every burst fire for a missing burst wav).
+    private sfxMissing: Set<string> = new Set()
 
     private getCtx(): AudioContext {
         if (!this.ctx) {
@@ -70,6 +73,7 @@ export class HTMLAudioEngine implements AudioEngine {
     private async loadSfx(name: string): Promise<AudioBuffer | null> {
         const cached = this.sfxCache.get(name)
         if (cached) return cached
+        if (this.sfxMissing.has(name)) return null
         const pending = this.sfxPending.get(name)
         if (pending) return pending
 
@@ -79,13 +83,16 @@ export class HTMLAudioEngine implements AudioEngine {
                 const res = await fetch('audio/sfx/' + name + '.wav')
                 if (!res.ok) {
                     console.warn('[Audio] could not load:', name, `(${res.status})`)
+                    this.sfxMissing.add(name)
                     return null
                 }
                 const buf = await ctx.decodeAudioData(await res.arrayBuffer())
                 this.sfxCache.set(name, buf)
+                console.log('[Sound]', name)
                 return buf
             } catch (e) {
                 console.warn('[Audio] decode failed:', name, e)
+                this.sfxMissing.add(name)
                 return null
             } finally {
                 this.sfxPending.delete(name)
@@ -95,11 +102,13 @@ export class HTMLAudioEngine implements AudioEngine {
         return promise
     }
 
-    private playBuffer(buf: AudioBuffer): void {
+    private async playBuffer(buf: AudioBuffer): Promise<void> {
         const ctx = this.getCtx()
-        // Browsers suspend the context until a user gesture — resume on first play.
+        // Browsers suspend the context until the first user gesture.  Awaiting
+        // resume() here ensures source.start() doesn't fire into a suspended
+        // context (which would silently drop the sound).
         if (ctx.state === 'suspended') {
-            ctx.resume().catch(() => { /* will retry on next play */ })
+            try { await ctx.resume() } catch { /* will retry on next play */ }
         }
         const source = ctx.createBufferSource()
         source.buffer = buf
@@ -108,9 +117,10 @@ export class HTMLAudioEngine implements AudioEngine {
     }
 
     playSfx(sfx: string): void {
-        // Fire-and-forget; errors are logged inside loadSfx.
+        // Fire-and-forget; errors are logged inside loadSfx / playBuffer.
         this.loadSfx(sfx).then(buf => {
-            if (buf) this.playBuffer(buf)
+            if (buf) return this.playBuffer(buf)
+            return undefined
         }).catch(e => console.warn('[Audio] playSfx failed:', sfx, e))
     }
 
@@ -144,7 +154,23 @@ export class HTMLAudioEngine implements AudioEngine {
         if (!soundId) return
         const sounds = getWeaponSounds(soundId, material)
         const file = sounds[type]
-        if (file) this.playSfx(file)
+        if (!file) return
+
+        // Many vanilla burst-capable weapons (e.g. Minigun, wa<id>=f) ship
+        // without a dedicated wa<id>2xxx1 burst sample.  Rather than log a
+        // 404, fall back to the single-shot attack sound.
+        if (type === 'attack_burst') {
+            this.loadSfx(file).then(buf => {
+                if (buf) return this.playBuffer(buf)
+                return this.loadSfx(sounds.attack).then(fb => {
+                    if (fb) return this.playBuffer(fb)
+                    return undefined
+                })
+            }).catch(e => console.warn('[Audio] playWeaponSfx burst failed:', file, e))
+            return
+        }
+
+        this.playSfx(file)
     }
 
     stopMusic(): void {

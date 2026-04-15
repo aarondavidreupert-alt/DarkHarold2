@@ -732,11 +732,12 @@ export class Combat {
             uiLog(`${who} burst-fired at ${targetName}: ${totalBulletHits}/${burstCount} hits`)
 
             if (damageMap.size > 0) {
+                // Burst fire: the wa<id>2xxx1 attack sample already covers the
+                // whole volley, so skip per-victim impact sounds (they stacked
+                // into a rapid-fire click train).
                 for (const [victim, dmg] of damageMap) {
                     const victimName = victim.isPlayer ? 'you' : victim.name
                     uiLog(`  ${victimName} took ${dmg} damage`)
-                    if (soundIdChar) audio.playWeaponSfx(soundIdChar, 'impact')
-                    else audio.playActionSfx('hit_flesh')
                     critterDamage(victim, dmg, obj, true, true, attackDmgType)
                     if (victim.isPlayer) drawHP(victim.getStat('HP'))
                     if (victim.dead) this.perish(victim, obj, attackDmgType)
