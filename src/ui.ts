@@ -357,6 +357,10 @@ export function isCharacterOpen(): boolean {
     return !!(characterWindow && characterWindow.showing)
 }
 
+export function isSkilldexOpen(): boolean {
+    return !!(skilldexWindow && skilldexWindow.showing)
+}
+
 function closeInventoryPanel(): void {
     if (!isInventoryOpen()) return
     globalState.uiMode = UIMode.none
@@ -370,6 +374,7 @@ export function closeAllPanels(): void {
     if (isAutomapOpen()) closeAutomap()
     if (isCharacterOpen()) characterWindow.close()
     if (isInventoryOpen()) closeInventoryPanel()
+    if (isSkilldexOpen()) skilldexWindow.close()
 }
 
 let skilldexWindow: WindowFrame
@@ -473,6 +478,10 @@ function initSkilldex() {
         zIndex: '20',
         cursor: 'default',
     })
+
+    // Drag-to-reposition from non-interactive areas of the skilldex frame,
+    // matching the PipBoy / automap / inventory / character panels.
+    makePanelDraggable(skilldexWindow.elem)
 
     // FO2-CE ref: skilldex.cc — update skill values when the skilldex is shown
     const origShow = skilldexWindow.show.bind(skilldexWindow)
@@ -1025,7 +1034,11 @@ export function initUI() {
     $id('endContainer').addEventListener('webkitAnimationIteration', uiEndCombatAnimationDone)
 
     $id('skilldexButton').onclick = () => {
-        skilldexWindow.toggle()
+        // Toggle: pressing while open closes it; otherwise close any other
+        // open panel first and open skilldex.
+        if (isSkilldexOpen()) { skilldexWindow.close(); return }
+        closeAllPanels()
+        skilldexWindow.show()
     }
 
     function makeScrollable($el: HTMLElement, scroll = 60) {
@@ -1079,10 +1092,19 @@ export function uiContextMenu(obj: Obj, evt: any) {
 
     const $menu = $id('itemContextMenu')
     clearEl($menu)
+    // #itemContextMenu lives inside #uiStage, which is centered via
+    // transform: translate(-50%, -50%). Convert viewport-relative click
+    // coords to the stage's local frame so the menu appears under the
+    // cursor regardless of viewport size. (Same transform as
+    // makeItemContextMenu below.)
+    const stage = document.getElementById('uiStage')
+    const rect = stage?.getBoundingClientRect()
+    const lx = rect ? evt.clientX - rect.left : evt.clientX
+    const ly = rect ? evt.clientY - rect.top : evt.clientY
     Object.assign($menu.style, {
         visibility: 'visible',
-        left: `${evt.clientX}px`,
-        top: `${evt.clientY}px`,
+        left: `${lx}px`,
+        top: `${ly}px`,
     })
     const cancelBtn = button(obj, 'cancel')
     const lookBtn = button(obj, 'look', () => uiLog('You see: ' + obj.getLookText()))
@@ -1102,7 +1124,13 @@ export function uiContextMenu(obj: Obj, evt: any) {
     })
     const pickupBtn = button(obj, 'pickup', () => obj.pickup(globalState.player))
     const inventoryBtn = button(obj, 'inventory', () => uiInventoryScreen())
-    const skillBtn = button(obj, 'skill', () => skilldexWindow.toggle())
+    const skillBtn = button(obj, 'skill', () => {
+        // Route through the panel system so skilldex obeys mutual-exclusion
+        // with PipBoy / inventory / character / automap.
+        if (isSkilldexOpen()) { skilldexWindow.close(); return }
+        closeAllPanels()
+        skilldexWindow.show()
+    })
 
     const isCritter = obj.type === 'critter'
     const isDead = isCritter && (obj as Critter).dead
