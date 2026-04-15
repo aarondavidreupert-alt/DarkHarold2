@@ -25,7 +25,7 @@ export interface AudioEngine {
     playMusic(music: string): void
     playSound(soundName: string): HTMLAudioElement | null
     playActionSfx(action: string): void
-    playWeaponSfx(soundId: string, type: 'attack' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial): void
+    playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial): void
     stopMusic(): void
     stopAll(): void
     tick(): void
@@ -38,7 +38,7 @@ export class NullAudioEngine implements AudioEngine {
         return null
     }
     playActionSfx(action: string): void {}
-    playWeaponSfx(soundId: string, type: 'attack' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial): void {}
+    playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial): void {}
     stopMusic(): void {}
     stopAll(): void {}
     tick(): void {}
@@ -140,7 +140,7 @@ export class HTMLAudioEngine implements AudioEngine {
         this.playSfx(resolveSound(entry))
     }
 
-    playWeaponSfx(soundId: string, type: 'attack' | 'impact' | 'reload' | 'empty', material: ImpactMaterial = 'flesh'): void {
+    playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material: ImpactMaterial = 'flesh'): void {
         if (!soundId) return
         const sounds = getWeaponSounds(soundId, material)
         const file = sounds[type]
