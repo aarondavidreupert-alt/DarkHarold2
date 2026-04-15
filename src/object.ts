@@ -121,7 +121,7 @@ function useExplosive(obj: Obj, source: Critter): void {
 
     const ticks = mins * 60 * 10 + secs * 10 // game ticks until detonation
 
-    console.log('arming explosive for ' + ticks + ' ticks')
+    console.log(`[Object] arming explosive for ${ticks} ticks`)
 
     Scripting.timeEventList.push({
         ticks: ticks,
@@ -212,7 +212,7 @@ function objectZCompare(a: Obj, b: Obj): number {
 function objectZOrder(obj: Obj, index: number): void {
     const oldIdx = index !== undefined ? index : objectFindIndex(obj)
     if (oldIdx === -1) {
-        console.log('objectZOrder: no such object...')
+        console.warn('[Object] objectZOrder: no such object')
         return
     }
 
@@ -325,7 +325,7 @@ export class Obj {
     }
 
     static fromPID_<T extends Obj>(obj: T, pid: number, sid?: number): T {
-        console.log(`fromPID: pid=${pid}, sid=${sid}`)
+        console.log(`[Object] fromPID: pid=${pid}, sid=${sid}`)
         const pidType = (pid >> 24) & 0xff
         const pidID = pid & 0xffff
 
@@ -342,7 +342,7 @@ export class Obj {
             obj.name = getMessage('pro_item', pro.textID)
 
             const invPID = pro.extra.invFRM & 0xffff
-            console.log(`invPID: ${invPID}, pid=${pid}`)
+            console.log(`[Object] invPID: ${invPID}, pid=${pid}`)
             if (invPID !== 0xffff) {
                 obj.invArt = 'art/inven/' + getLstId('art/inven/inven', invPID).split('.')[0]
             }
@@ -432,14 +432,14 @@ export class Obj {
             if (this.pro.extra !== undefined && this.pro.extra.scriptID >= 0) {
                 // scriptName = lookupScriptName(this.pro.extra.scriptID & 0xffff)
                 console.warn(
-                    `PRO says sid is ${
+                    `[Script] PRO says sid is ${
                         this.pro.extra.scriptID & 0xffff
                     } (${scriptName}), but we're not ascribing it one (test)`
                 )
             } else if (this.pro.scriptID >= 0) {
                 // scriptName = lookupScriptName(this.pro.scriptID & 0xffff)
                 console.warn(
-                    `PRO says sid is ${
+                    `[Script] PRO says sid is ${
                         this.pro.extra.scriptID & 0xffff
                     } (${scriptName}), but we're not ascribing it one (test)`
                 )
@@ -448,12 +448,12 @@ export class Obj {
 
         if (scriptName != null) {
             if (Config.engine.doLogScriptLoads) {
-                console.log('loadScript: loading %s (sid=%d)', scriptName, sid)
+                console.log('[Script] loadScript: loading %s (sid=%d)', scriptName, sid)
             }
             // console.trace();
             const script = Scripting.loadScript(scriptName)
             if (!script) {
-                console.log('loadScript: load script failed for %s (sid=%d)', scriptName, sid)
+                console.warn('[Script] loadScript: failed for %s (sid=%d)', scriptName, sid)
             } else {
                 this.script = scriptName
                 this._script = script
@@ -586,7 +586,7 @@ export class Obj {
 
     clone(): Obj {
         if (this._script) {
-            console.log('cloning an object with a script: %o', this)
+            console.log('[Object] cloning an object with a script: %o', this)
             const _script = this._script
             this._script = null
             const obj = cloneItem(this)
@@ -698,7 +698,7 @@ export class Obj {
     // Returns whether or not the object was used
     use(source?: Critter, useScript?: boolean): boolean {
         if (this.canUse === false && !this.isContainer) {
-            console.log("can't use object")
+            console.log("[Object] can't use object")
             return false
         }
 
@@ -707,11 +707,11 @@ export class Obj {
                 source = globalState.player
             }
             if (Scripting.use(this, source) === true) {
-                console.log('useObject: overriden')
+                console.log('[Object] useObject: overridden by script')
                 return true // script overrided us
             }
         } else if (this.script !== undefined && !this._script) {
-            console.log('object used has script but is not loaded: ' + this.script)
+            console.warn('[Object] used object has script but is not loaded: ' + this.script)
         }
 
         if (this.isExplosive) {
@@ -734,21 +734,12 @@ export class Obj {
 
             if (this.extra.destinationMap === -1 && this.extra.destination !== -1) {
                 // same map, new destination
-                console.log('stairs: tile: ' + destTile.x + ', ' + destTile.y + ', elev: ' + destElev)
+                console.log(`[Object] stairs: tile=(${destTile.x}, ${destTile.y}), elev=${destElev}`)
 
                 globalState.player.position = destTile
                 globalState.gMap.changeElevation(destElev)
             } else {
-                console.log(
-                    'stairs -> ' +
-                        this.extra.destinationMap +
-                        ' @ ' +
-                        destTile.x +
-                        ', ' +
-                        destTile.y +
-                        ', elev: ' +
-                        destElev
-                )
+                console.log(`[Object] stairs → ${this.extra.destinationMap} @ (${destTile.x}, ${destTile.y}), elev=${destElev}`)
                 globalState.gMap.loadMapByID(this.extra.destinationMap, destTile, destElev)
             }
         } else if (this.isLadder) {
@@ -756,7 +747,7 @@ export class Obj {
             const level = isTop ? globalState.currentElevation + 1 : globalState.currentElevation - 1
             const destTile = fromTileNum(this.extra.destination & 0xffff)
             // TODO: destination also supposedly contains elevation and map
-            console.log('ladder (' + (isTop ? 'top' : 'bottom') + ' -> level ' + level + ')')
+            console.log(`[Object] ladder (${isTop ? 'top' : 'bottom'} → level ${level})`)
             const actor = source ?? globalState.player
             if (actor.hasAnimation('climb')) {
                 actor.staticAnimation('climb', () => {
@@ -787,7 +778,7 @@ export class Obj {
         lazyLoadImage(explosion.art, () => {
             globalState.gMap.addObject(explosion)
 
-            console.log('adding explosion')
+            console.log('[Object] adding explosion')
             explosion.singleAnimation(false, () => {
                 globalState.gMap.destroyObject(explosion)
 
@@ -797,7 +788,7 @@ export class Obj {
                     const objs = globalState.gMap.objectsAtPosition(hexes[i])
                     for (let j = 0; j < objs.length; j++) {
                         if (objs[j].type === 'critter') {
-                            console.log('todo: damage', (<Critter>objs[j]).name)
+                            console.log('[Object] TODO: damage', (<Critter>objs[j]).name)
                         }
 
                         Scripting.damage(objs[j], this, this /*source*/, damage)
@@ -812,7 +803,7 @@ export class Obj {
 
     pickup(source: Critter) {
         if (this._script) {
-            console.log('picking up %o', this)
+            console.log('[Object] picking up %o', this)
             if (Scripting.pickup(this, source)) {
                 return // script handled it
             }
@@ -878,7 +869,7 @@ export class Obj {
             position: { x: this.position.x, y: this.position.y },
             inventory: this.inventory.map((obj) => {
                 if (typeof obj.serialize !== 'function') {
-                    console.warn('serialize: skipping non-serializable object', obj)
+                    console.warn('[Serialize] skipping non-serializable object', obj)
                     return null
                 }
                 return obj.serialize()
@@ -1086,7 +1077,7 @@ export class Critter extends Obj {
 
         if (deserializing) {
             // deserialize critter: copy fields from SerializedCritter
-            console.log('Deserializing critter')
+            console.log('[Deserialize] critter')
             // console.trace();
 
             for (const prop of SERIALIZED_CRITTER_PROPS) {
@@ -1095,11 +1086,11 @@ export class Critter extends Obj {
 
             if (mobj.stats) {
                 obj.stats = new StatSet(mobj.stats.baseStats, mobj.stats.useBonuses)
-                console.warn('Deserializing stat set: %o to: %o', mobj.stats, obj.stats)
+                console.warn('[Deserialize] stat set: %o to: %o', mobj.stats, obj.stats)
             }
             if (mobj.skills) {
                 obj.skills = new SkillSet(mobj.skills.baseSkills, mobj.skills.tagged, mobj.skills.skillPoints)
-                console.warn('Deserializing skill set: %o to: %o', mobj.skills, obj.skills)
+                console.warn('[Deserialize] skill set: %o to: %o', mobj.skills, obj.skills)
             }
         }
 
@@ -1330,16 +1321,7 @@ export class Critter extends Obj {
             const hitSpatials = hitSpatialTrigger(position)
             for (let i = 0; i < hitSpatials.length; i++) {
                 const spatial = hitSpatials[i]
-                console.log(
-                    'triggered spatial ' +
-                        spatial.script +
-                        ' (' +
-                        spatial.range +
-                        ') @ ' +
-                        spatial.position.x +
-                        ', ' +
-                        spatial.position.y
-                )
+                console.log(`[Object] triggered spatial ${spatial.script} (range=${spatial.range}) @ (${spatial.position.x}, ${spatial.position.y})`)
                 Scripting.spatial(spatial, this)
             }
         }
@@ -1444,7 +1426,7 @@ export class Critter extends Obj {
                     if (globalState.imageInfo[candidate] !== undefined) return candidate
                     return base + 'aa' // fallback to idle if FRM not present
                 }
-                console.log('default attack animation instead of weapon animation.')
+                console.log('[Animation] default attack animation instead of weapon animation')
                 return base + wep + 'a'
             case 'idle':
                 return base + wep + 'a'
@@ -1510,7 +1492,7 @@ export class Critter extends Obj {
             case 'death':
                 if (this.pro && this.pro.extra.killType === 18) {
                     // Boss is special-cased
-                    console.log('Boss death...')
+                    console.log('[Combat] boss death')
                     return base + 'bl'
                 }
                 return base + 'bo' // normal crumple death
@@ -1633,7 +1615,7 @@ export class Critter extends Obj {
         }
 
         if (maxLength !== undefined && path.length > maxLength) {
-            console.log('truncating path (to length ' + maxLength + ')')
+            console.debug(`[Pathfinding] truncating path to length ${maxLength}`)
             path = path.slice(0, maxLength + 1)
         }
 

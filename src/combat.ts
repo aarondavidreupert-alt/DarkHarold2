@@ -1005,10 +1005,10 @@ export class Combat {
                         return
                     }
                 }
-                combatDebug('AI stumped: unarmed, no path to target')
+                combatDebug(`AI: no valid action (unarmed, no path to target: ${target?.name})`)
                 return this.nextTurn()
             } else {
-                combatDebug('AI stumped: unarmed, not enough AP (AP:', AP.getAvailableCombatAP(), 'dist:', distance, ')')
+                combatDebug(`AI: no valid action (unarmed, AP: ${AP.getAvailableCombatAP()}, distance: ${distance})`)
                 return this.nextTurn()
             }
             return
@@ -1050,22 +1050,13 @@ export class Combat {
         weaponObj = obj.equippedWeapon
         if (!weaponObj) {
             // Weapon was dropped/removed during swap — end turn gracefully
-            combatDebug('AI stumped: no weapon after swap check')
+            combatDebug('AI: no valid action (no weapon after swap check)')
             return this.nextTurn()
         }
         weapon = weaponObj.weapon
         if (!weapon) throw Error('AI weapon has no weapon data after swap check')
         fireDistance = weapon.getMaximumRange(1)
-        this.log(
-            'DEBUG: weapon: ' +
-                weapon +
-                ' fireDistance: ' +
-                fireDistance +
-                ' obj: ' +
-                obj.art +
-                ' distance: ' +
-                distance
-        )
+        combatDebug(`AI ${obj.art}: weapon=${weapon.name} fireDistance=${fireDistance} distance=${distance}`)
 
         // are we in firing distance?
         if (distance > fireDistance) {
@@ -1190,8 +1181,7 @@ export class Combat {
                 })
             }
         } else {
-            combatDebug('AI stumped: target:', target?.name, 'AP:', AP.getAvailableCombatAP(),
-                'weapon:', weapon?.name, 'weaponAPCost:', weapon?.getAPCost(1), 'distance:', distance)
+            combatDebug(`AI: no valid action (target: ${target?.name}, AP: ${AP.getAvailableCombatAP()}, weapon: ${weapon?.name}, cost: ${weapon?.getAPCost(1)}, distance: ${distance})`)
             this.nextTurn()
         }
     }
