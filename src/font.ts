@@ -1,0 +1,290 @@
+// Copyright 2024-2026 darkf
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Bitmap font rendering for authentic Fallout UI text.
+//
+// Reference: jsFO src/core/rendering.js blitFontString() / symbolInfo and
+// AAF parser (fallout2-ce src/game/message.cc; jsFO src/loader/loader_aaf.py).
+//
+// Unlike pipboy.ts makeDigit() (which targets a fixed-metric numbers.png sheet),
+// this renders variable-width glyphs from an AAF-derived sprite atlas + JSON
+// symbol info map: { [charCode: number]: { x, y, w, h } }.
+
+import { Widget } from './ui.js'
+import { lazyLoadImage } from './images.js'
+
+export interface SymbolInfo {
+    x: number
+    y: number
+    w: number
+    h: number
+}
+
+export type SymbolInfoMap = { [charCode: number]: SymbolInfo }
+
+// Inter-glyph spacing in pixels (fallout2-ce: FONT_SPACE_BETWEEN_SYMBOLS = 1)
+const GLYPH_GAP = 1
+
+export class FontRenderer {
+    /** Public URL of the sprite sheet (suitable for CSS url('...')). */
+    spriteUrl: string
+
+    private spritePath: string
+    private jsonPath: string
+    private symbolInfo: SymbolInfoMap | null = null
+    private imageLoaded = false
+    private loaded = false
+    private loadStarted = false
+    private loadCallbacks: (() => void)[] = []
+
+    /**
+     * @param spritePath  Path without .png extension (e.g. 'art/fonts/font0_aaf').
+     *                    Passed to lazyLoadImage which appends .png.
+     * @param jsonPath    Full path to the symbol info JSON (including .json).
+     */
+    constructor(spritePath: string, jsonPath: string) {
+        this.spritePath = spritePath
+        this.jsonPath = jsonPath
+        this.spriteUrl = spritePath + '.png'
+    }
+
+    /** Kick off asset loading. Safe to call repeatedly. */
+    private ensureLoadStarted(): void {
+        if (this.loadStarted) {
+            return
+        }
+        this.loadStarted = true
+
+        lazyLoadImage(this.spritePath, () => {
+            this.imageLoaded = true
+            this.checkLoaded()
+        })
+
+        fetch(this.jsonPath)
+            .then((r) => r.json())
+            .then((info: SymbolInfoMap) => {
+                this.symbolInfo = info
+                this.checkLoaded()
+            })
+            .catch((err) => {
+                console.error('FontRenderer: failed to load symbol info', this.jsonPath, err)
+            })
+    }
+
+    private checkLoaded(): void {
+        if (this.loaded || !this.imageLoaded || !this.symbolInfo) {
+            return
+        }
+        this.loaded = true
+        const callbacks = this.loadCallbacks.slice()
+        this.loadCallbacks.length = 0
+        for (const cb of callbacks) {
+            cb()
+        }
+    }
+
+    isLoaded(): boolean {
+        return this.loaded
+    }
+
+    /** Register a one-shot callback that fires as soon as the font is ready. */
+    onLoad(cb: () => void): void {
+        this.ensureLoadStarted()
+        if (this.loaded) {
+            cb()
+            return
+        }
+        this.loadCallbacks.push(cb)
+    }
+
+    /** Total pixel width of `text` at this font's metrics, or 0 if not loaded. */
+    measureText(text: string): number {
+        if (!this.symbolInfo) {
+            return 0
+        }
+        let width = 0
+        for (let i = 0; i < text.length; i++) {
+            const code = text.charCodeAt(i)
+            const info = this.symbolInfo[code]
+            if (info) {
+                width += info.w + GLYPH_GAP
+            } else if (text[i] === ' ') {
+                // Fallback space width when ' ' isn't in the atlas
+                width += 4 + GLYPH_GAP
+            }
+        }
+        return Math.max(0, width - GLYPH_GAP)
+    }
+
+    /**
+     * Build a container div with one absolutely-positioned glyph div per
+     * character. If the font isn't loaded yet, the container is returned
+     * empty and filled in once loading completes.
+     *
+     * @param color  Optional tint — applied as a CSS `filter` on the
+     *               container. The sprite is already yellow; pass a value
+     *               here only if you want to recolor it (e.g. green/red
+     *               for skilldex skill values).
+     */
+    renderText(text: string, color?: string): HTMLElement {
+        const container = document.createElement('div')
+        container.style.cssText = 'position: relative; display: inline-block;'
+        if (color) {
+            container.style.filter = FontRenderer.filterForColor(color)
+        }
+
+        let currentText = text
+
+        const renderInto = (): void => {
+            while (container.firstChild) {
+                container.removeChild(container.firstChild)
+            }
+            if (!this.symbolInfo) {
+                return
+            }
+
+            let left = 0
+            let maxH = 0
+            for (let i = 0; i < currentText.length; i++) {
+                const code = currentText.charCodeAt(i)
+                const info = this.symbolInfo[code]
+                if (!info) {
+                    // Unknown glyph: advance like a narrow space
+                    if (currentText[i] === ' ') {
+                        left += 4 + GLYPH_GAP
+                    } else {
+                        left += 4
+                    }
+                    continue
+                }
+
+                const glyph = document.createElement('div')
+                glyph.style.cssText = `
+                    position: absolute;
+                    left: ${left}px; top: 0;
+                    width: ${info.w}px; height: ${info.h}px;
+                    background-image: url('${this.spriteUrl}');
+                    background-position: -${info.x}px -${info.y}px;
+                    background-repeat: no-repeat;
+                `
+                container.appendChild(glyph)
+                left += info.w + GLYPH_GAP
+                if (info.h > maxH) {
+                    maxH = info.h
+                }
+            }
+            container.style.width = `${Math.max(0, left - GLYPH_GAP)}px`
+            container.style.height = `${maxH}px`
+        }
+
+        // Render now if ready, otherwise queue for when the font loads.
+        this.onLoad(renderInto)
+
+        // Attach a re-render handle so FontWidget.setText() can rebuild the
+        // contents without having to throw away the container element.
+        ;(container as any).__fontRerender = (newText: string) => {
+            currentText = newText
+            if (this.loaded) {
+                renderInto()
+            } else {
+                this.onLoad(renderInto)
+            }
+        }
+
+        return container
+    }
+
+    /**
+     * Map a CSS color keyword / hex code to an approximate CSS `filter`
+     * that recolors the yellow sprite. Good enough for the small palette
+     * the UI actually uses (green/red for skill values).
+     */
+    static filterForColor(color: string): string {
+        const c = color.toLowerCase()
+        if (c === 'yellow' || c === '#ffff00' || c === '#ff0') {
+            return ''
+        }
+        if (c === '#00ff00' || c === 'lime' || c === 'green') {
+            // Shift yellow → green
+            return 'hue-rotate(60deg) saturate(2)'
+        }
+        if (c === '#ff0000' || c === 'red') {
+            // Shift yellow → red
+            return 'hue-rotate(-45deg) saturate(3)'
+        }
+        // Generic fallback per task description
+        return 'sepia(1) saturate(5) hue-rotate(5deg)'
+    }
+}
+
+/**
+ * Widget wrapping a FontRenderer-produced element. Subclassing Widget
+ * lets it slot into WindowFrame.add() and inherit .css() / .onClick().
+ */
+export class FontWidget extends Widget {
+    private fontElem: HTMLElement
+
+    constructor(
+        x: number,
+        y: number,
+        public text: string,
+        public renderer: FontRenderer,
+        public textColor?: string
+    ) {
+        super(null, { x, y, w: 'auto', h: 'auto' })
+        this.fontElem = renderer.renderText(text, textColor)
+        this.elem.appendChild(this.fontElem)
+    }
+
+    /** Re-render in place when the underlying text changes. */
+    setText(text: string): void {
+        this.text = text
+        const rerender = (this.fontElem as any).__fontRerender as
+            | ((t: string) => void)
+            | undefined
+        if (rerender) {
+            rerender(text)
+        }
+    }
+
+    /** Recolor by tweaking the CSS filter on the font element. */
+    setColor(color: string): void {
+        this.textColor = color
+        this.fontElem.style.filter = FontRenderer.filterForColor(color)
+    }
+}
+
+/** Build a bitmap-font label widget at the given position. */
+export function makeFontLabel(
+    x: number,
+    y: number,
+    text: string,
+    fontRenderer: FontRenderer
+): FontWidget {
+    return new FontWidget(x, y, text, fontRenderer)
+}
+
+// ---- Singletons (lazy: assets are only fetched on first use) ---------------
+
+/** Small Fallout bitmap font — Skilldex skill names + values. */
+export const skilldexFont = new FontRenderer(
+    'art/fonts/font0_aaf',
+    'art/fonts/font0_aaf.json'
+)
+
+/** Medium Fallout bitmap font — Character Screen headers / buttons. */
+export const charScreenFont = new FontRenderer(
+    'art/fonts/font1_aaf',
+    'art/fonts/font1_aaf.json'
+)

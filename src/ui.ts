@@ -31,6 +31,7 @@ import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
+import { charScreenFont, FontWidget, makeFontLabel, skilldexFont } from './font.js'
 import { openAutomap } from './automap.js'
 import { openPipBoy } from './pipboy.js'
 import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
@@ -339,7 +340,7 @@ let characterWindow: WindowFrame
 // Skilldex window showing 8 usable skills with current values and keyboard shortcuts
 function initSkilldex() {
     // Skill value labels — updated each time the skilldex is opened/shown
-    const skillValueLabels: Label[] = []
+    const skillValueLabels: FontWidget[] = []
 
     // FO2-CE ref: skilldex.cc — Sneak is the only truly passive skill (toggle).
     // First Aid and Doctor can target other critters OR self (ground click = self).
@@ -386,7 +387,7 @@ function initSkilldex() {
         185,
         368
     )
-        .add(new Label(65, 15, 'SKILLDEX'))
+        .add(makeFontLabel(65, 15, 'SKILLDEX', skilldexFont))
 
     // FO2-CE ref: skilldex.cc SkilldexSkill enum — 8 skills in order
     const skilldexSkills: [string, Skills][] = [
@@ -406,14 +407,14 @@ function initSkilldex() {
 
         // Skill name + hotkey number
         skilldexWindow.add(
-            new Label(25, yPos, `${i + 1}. ${name}`)
-                .css({ width: '110px', height: '24px', cursor: 'pointer', lineHeight: '24px' })
+            makeFontLabel(25, yPos, `${i + 1}. ${name}`, skilldexFont)
+                .css({ width: '110px', height: '24px', cursor: 'pointer' })
                 .onClick(useSkill(skill))
         )
 
         // FO2-CE ref: skilldex.cc — 3-digit skill value display next to each button
-        const valLabel = new Label(140, yPos, '---')
-            .css({ width: '40px', height: '24px', lineHeight: '24px', textAlign: 'right' })
+        const valLabel = makeFontLabel(140, yPos, '---', skilldexFont)
+            .css({ width: '40px', height: '24px' })
         skillValueLabels.push(valLabel)
         skilldexWindow.add(valLabel)
 
@@ -444,7 +445,7 @@ function initSkilldex() {
                 const val = player.getSkill(skillName)
                 // FO2-CE: negative values (from Hard difficulty) shown in red
                 skillValueLabels[i].setText(`${val}%`)
-                skillValueLabels[i].elem.style.color = val < 0 ? '#FF0000' : '#00FF00'
+                skillValueLabels[i].setColor(val < 0 ? '#FF0000' : '#00FF00')
             }
         }
         return result
@@ -493,16 +494,16 @@ function initCharacterScreen() {
     )
         // FO2-CE ref: editor.cc — Done button saves changes, Cancel discards
         .add(new SmallButton(455, 454)) // Done button (onClick set below)
-        .add(new Label(455 + 18, 454, 'Done'))
+        .add(makeFontLabel(455 + 18, 454, 'Done', charScreenFont))
         .add(
             new SmallButton(552, 454).onClick(() => {
                 characterWindow.close()
             })
         )
-        .add(new Label(552 + 18, 454, 'Cancel'))
-        .add(new Label(22, 6, 'Name'))
-        .add(new Label(160, 6, 'Age'))
-        .add(new Label(242, 6, 'Gender'))
+        .add(makeFontLabel(552 + 18, 454, 'Cancel', charScreenFont))
+        .add(makeFontLabel(22, 6, 'Name', charScreenFont))
+        .add(makeFontLabel(160, 6, 'Age', charScreenFont))
+        .add(makeFontLabel(242, 6, 'Gender', charScreenFont))
         .add(
             new Label(33, 280, `Level: ${currentLevel}`).css({
                 fontSize: '0.75em',
@@ -521,8 +522,8 @@ function initCharacterScreen() {
                 color: '#00FF00',
             })
         )
-        .add(new Label(380, 5, 'Skill'))
-        .add(new Label(399, 233, 'Skill Points'))
+        .add(makeFontLabel(380, 5, 'Skill', charScreenFont))
+        .add(makeFontLabel(399, 233, 'Skill Points', charScreenFont))
         .add(
             new Label(
                 194,
