@@ -31,9 +31,10 @@ import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
-import { openAutomap } from './automap.js'
-import { openPipBoy } from './pipboy.js'
+import { openAutomap, closeAutomap, isAutomapOpen } from './automap.js'
+import { openPipBoy, closePipBoy, isPipBoyOpen } from './pipboy.js'
 import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
+import { makePanelDraggable } from './dragPanel.js'
 
 // UI system
 
@@ -322,18 +323,53 @@ function uiInit() {
     const chrBtn = document.getElementById('chrButton')
     if (chrBtn) {
         chrBtn.onclick = () => {
-            characterWindow && characterWindow.close()
+            // Toggle: pressing while open closes it.
+            if (isCharacterOpen()) { characterWindow.close(); return }
+            closeAllPanels()
             initCharacterScreen()
         }
     }
 
     document.getElementById('pipBoyButton')!.onclick = () => {
+        if (isPipBoyOpen()) { closePipBoy(); return }
+        closeAllPanels()
         openPipBoy()
     }
 
     document.getElementById('mapButton')!.onclick = () => {
+        if (isAutomapOpen()) { closeAutomap(); return }
+        closeAllPanels()
         openAutomap()
     }
+}
+
+// --- Panel mutual-exclusion helpers -----------------------------------------
+//
+// These let each panel-open path close any other panels that are currently up,
+// so buttons behave like tabs rather than stackable overlays. They are also
+// used by the button handlers to implement toggle-to-close.
+
+export function isInventoryOpen(): boolean {
+    return globalState.uiMode === UIMode.inventory
+}
+
+export function isCharacterOpen(): boolean {
+    return !!(characterWindow && characterWindow.showing)
+}
+
+function closeInventoryPanel(): void {
+    if (!isInventoryOpen()) return
+    globalState.uiMode = UIMode.none
+    $id('inventoryBox').style.visibility = 'hidden'
+    if (globalState.player) globalState.player.clearAnim?.()
+    uiDrawWeapon()
+}
+
+export function closeAllPanels(): void {
+    if (isPipBoyOpen()) closePipBoy()
+    if (isAutomapOpen()) closeAutomap()
+    if (isCharacterOpen()) characterWindow.close()
+    if (isInventoryOpen()) closeInventoryPanel()
 }
 
 let skilldexWindow: WindowFrame
@@ -491,8 +527,10 @@ function initCharacterScreen() {
     characterWindow = new WindowFrame(
         'art/intrface/edtredt.png',
         {
+            // Centered horizontally, bottom-flush with the 99px HUD in the
+            // 800×600 uiStage: x = (800-640)/2, y = 600 - 99 - 480 = 21.
             x: Config.ui.screenWidth / 2 - 640 / 2,
-            y: Config.ui.screenHeight / 2 - 480 / 2,
+            y: Config.ui.screenHeight - 99 - 480,
         },
         640,
         480
@@ -539,6 +577,9 @@ function initCharacterScreen() {
         .add(derivedStatsLabel)
         .add(skillList)
         .show()
+
+    // Drag-to-reposition from non-interactive areas of the frame.
+    makePanelDraggable(characterWindow.elem)
 
     const skills = [
         'Small Guns', 'Big Guns', 'Energy Weapons', 'Unarmed', 'Melee Weapons',
@@ -858,8 +899,12 @@ export function initUI() {
     */
 
     $id('inventoryButton').onclick = () => {
+        if (isInventoryOpen()) { closeInventoryPanel(); return }
+        closeAllPanels()
         uiInventoryScreen()
     }
+    // Inventory panel is a static DOM element — wire drag once at init.
+    makePanelDraggable($id('inventoryBox'))
     $id('inventoryDoneButton').onclick = () => {
         globalState.uiMode = UIMode.none
         $id('inventoryBox').style.visibility = 'hidden'
@@ -1765,10 +1810,18 @@ export function uiInventoryScreen() {
     function makeItemContextMenu(e: MouseEvent, obj: Obj, slot: string) {
         const $menu = $id('itemContextMenu')
         clearEl($menu)
+        // #itemContextMenu lives inside #uiStage, which is centered via
+        // transform: translate(-50%, -50%). Convert viewport-relative click
+        // coords to the stage's local coordinate frame so the menu appears
+        // where the user clicked regardless of window size.
+        const stage = document.getElementById('uiStage')
+        const rect = stage?.getBoundingClientRect()
+        const lx = rect ? e.clientX - rect.left : e.clientX
+        const ly = rect ? e.clientY - rect.top : e.clientY
         Object.assign($menu.style, {
             visibility: 'visible',
-            left: `${e.clientX}px`,
-            top: `${e.clientY}px`,
+            left: `${lx}px`,
+            top: `${ly}px`,
         })
 
         $menu.appendChild(makeContextButton(obj, slot, 'cancel'))

@@ -374,9 +374,10 @@ html, body {
 /* inventory box */
 #inventoryBox {
   position: absolute;
-  /* 800×600-era offset; centered in the viewport via .ui-stage wrapper. */
-  left: 130px;
-  top: 50px;
+  /* Centered horizontally in the 800×600 uiStage, bottom-flush with the
+     99px HUD: left = (800-499)/2 = 150, top = 600 - 99 - 377 = 124. */
+  left: 150px;
+  top: 124px;
   width: 499px;
   height: 377px;
   visibility: hidden;
@@ -1061,8 +1062,10 @@ html, body {
 
 #pipBoyContainer {
   position: absolute;
+  /* Centered horizontally in 800×600 uiStage, bottom-flush with 99px HUD:
+     left = (800-640)/2 = 80, top = 600 - 99 - 480 = 21. */
   left: 80px;
-  top: 60px;
+  top: 21px;
   width: 640px;
   height: 480px;
   background-image: url("art/intrface/pip.png");
