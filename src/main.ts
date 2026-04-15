@@ -22,7 +22,15 @@ import globalState from './globalState.js'
 import { IDBCache } from './idbcache.js'
 import { initGame } from './init.js'
 import { Critter, Obj } from './object.js'
-import { getObjectUnderCursor, getZoom, SCREEN_HEIGHT, SCREEN_WIDTH, ZOOM_MAX, ZOOM_MIN } from './renderer.js'
+import {
+    getObjectUnderCursor,
+    getZoom,
+    SCREEN_HEIGHT,
+    SCREEN_WIDTH,
+    setScreenSize,
+    ZOOM_MAX,
+    ZOOM_MIN,
+} from './renderer.js'
 import { Scripting } from './scripting.js'
 import { Skills, SKILL_NAMES } from './skills.js'
 import { skillUse } from './skillUse.js'
@@ -366,6 +374,81 @@ window.onload = async function () {
     )
 
     globalState.renderer.init()
+
+    // --- Dynamic resolution ---
+    //
+    // Resize the game canvas to fill the browser viewport and re-fit the
+    // world whenever the window changes size (or on fullscreen toggle, or
+    // when CSS layout shifts during a resize). The visible world area
+    // grows with the window since SCREEN_WIDTH/SCREEN_HEIGHT propagate
+    // through the renderer's visibility culling and shader uniforms.
+    //
+    // We debounce the handler (~80ms) because resize fires on every pixel
+    // of a drag in some browsers and reallocating the floor FBO each
+    // event wrecks performance.
+    let resizeTimer: number | null = null
+    const applyViewportSize = () => {
+        const w = Math.max(1, window.innerWidth | 0)
+        const h = Math.max(1, window.innerHeight | 0)
+
+        // 1. Update the logical screen dimensions exported by renderer.ts.
+        //    ES-module `let` exports are live bindings, so every consumer
+        //    (culling, hex picking, UI layout) picks up the new value.
+        setScreenSize(w, h)
+
+        // 2. Tell the WebGL renderer to resize its canvas + FBOs + uniforms.
+        const r = globalState.renderer as WebGLRenderer
+        if (r && typeof r.resize === 'function') {
+            r.resize(w, h)
+        }
+
+        // 3. Keep the temp canvas (used for single-pixel picking) in sync.
+        if (globalState.tempCanvas) {
+            globalState.tempCanvas.width = w
+            globalState.tempCanvas.height = h
+        }
+
+        // 4. Refresh heart.js's cached size + canvas-offset so mouse
+        //    coordinates continue to map to canvas-local pixels.
+        heart._size.w = w
+        heart._size.h = h
+        if (heart.canvas) {
+            const rect = heart.canvas.getBoundingClientRect()
+            heart._canvasOffset.x = rect.left
+            heart._canvasOffset.y = rect.top
+        }
+    }
+    // Apply once immediately so the initial canvas matches the browser
+    // viewport, even if the user loaded the page at a non-default size.
+    applyViewportSize()
+
+    window.addEventListener('resize', () => {
+        if (resizeTimer !== null) {
+            window.clearTimeout(resizeTimer)
+        }
+        resizeTimer = window.setTimeout(() => {
+            resizeTimer = null
+            applyViewportSize()
+        }, 80)
+    })
+
+    // Fullscreen API toggle — delegated from a button in the DOM. We go
+    // fullscreen on the whole document so the canvas (which fills the
+    // viewport) expands to the screen edges. The browser fires a resize
+    // event on entry/exit, so applyViewportSize() runs automatically.
+    const fullscreenBtn = document.getElementById('fullscreenBtn') as HTMLButtonElement | null
+    if (fullscreenBtn) {
+        fullscreenBtn.addEventListener('click', () => {
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {})
+            } else {
+                document.documentElement.requestFullscreen().catch(() => {})
+            }
+        })
+        document.addEventListener('fullscreenchange', () => {
+            fullscreenBtn.textContent = document.fullscreenElement ? 'Exit Fullscreen' : 'Fullscreen'
+        })
+    }
 
     // --- Mouse-wheel zoom ---
     //

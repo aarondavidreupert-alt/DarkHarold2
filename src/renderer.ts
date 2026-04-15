@@ -43,8 +43,17 @@ interface ObjectRenderInfo {
     visible: boolean
 }
 
-export const SCREEN_WIDTH: number = Config.ui.screenWidth
-export const SCREEN_HEIGHT: number = Config.ui.screenHeight
+// Logical screen dimensions. Dynamic — resized at runtime when the browser
+// window resizes so the visible world area grows/shrinks with the viewport.
+// Exposed as `export let` so ES-module consumers pick up the updated value
+// through the live binding; use setScreenSize() to mutate it.
+export let SCREEN_WIDTH: number = Config.ui.screenWidth
+export let SCREEN_HEIGHT: number = Config.ui.screenHeight
+
+export function setScreenSize(w: number, h: number): void {
+    SCREEN_WIDTH = w | 0
+    SCREEN_HEIGHT = h | 0
+}
 
 // Mouse-wheel zoom bounds. Below 0.5 the world becomes hard to interact with,
 // above 3.0 the sprites get pixelated to the point of uselessness.
