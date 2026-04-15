@@ -20,7 +20,7 @@ import globalState from './globalState.js'
 import { Critter, cloneItem, createObjectWithPID, Obj } from './object.js'
 import { Player } from './player.js'
 import { lookupArt, lookupInterfaceArt } from './pro.js'
-import { objectBoundingBox, SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
+import { objectBoundingBox } from './renderer.js'
 import { formatSaveDate, load, save, SaveGame, saveList } from './saveload.js'
 import { Scripting } from './scripting.js'
 import { Skills, SKILL_NAMES } from './skills.js'
@@ -310,7 +310,11 @@ export class List extends Widget {
 let $uiContainer: HTMLElement
 
 function uiInit() {
-    $uiContainer = document.getElementById('game-container')!
+    // WindowFrame.show() appends to $uiContainer; point it at #uiStage so
+    // all skilldex/character/save-load/worldmap windows inherit the 800×600
+    // centered coordinate frame. Fall back to #game-container if the stage
+    // div is missing (e.g. legacy HTML).
+    $uiContainer = (document.getElementById('uiStage') ?? document.getElementById('game-container'))!
 
     initSkilldex()
     // initCharacterScreen();
@@ -380,10 +384,10 @@ function initSkilldex() {
     skilldexWindow = new WindowFrame(
         'art/intrface/skldxbox',
         {
-            // Use live SCREEN_WIDTH/HEIGHT so the window opens relative to
-            // the current browser viewport, not the fixed 800×600 default.
-            x: SCREEN_WIDTH - 185,
-            y: SCREEN_HEIGHT - 368 - 99,
+            // Positions are in the 800×600 layout frame provided by
+            // #uiStage; the stage centers those coordinates on screen.
+            x: Config.ui.screenWidth - 185,
+            y: Config.ui.screenHeight - 368 - 99,
         },
         185,
         368
@@ -487,8 +491,8 @@ function initCharacterScreen() {
     characterWindow = new WindowFrame(
         'art/intrface/edtredt.png',
         {
-            x: SCREEN_WIDTH / 2 - 640 / 2,
-            y: SCREEN_HEIGHT / 2 - 480 / 2,
+            x: Config.ui.screenWidth / 2 - 640 / 2,
+            y: Config.ui.screenHeight / 2 - 480 / 2,
         },
         640,
         480

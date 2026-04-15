@@ -240,8 +240,10 @@ export function openAutomap(): void {
     }
     screen.appendChild(cancelDot)
 
-    const gameContainer = document.getElementById('game-container')!
-    gameContainer.appendChild(automapContainer)
+    // Append to #uiStage so the panel's hardcoded 800×600-era inline offsets
+    // (left: 80px; top: 60px) center in the viewport regardless of size.
+    const stage = document.getElementById('uiStage') ?? document.getElementById('game-container')!
+    stage.appendChild(automapContainer)
 }
 
 export function closeAutomap(): void {

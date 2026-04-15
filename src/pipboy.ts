@@ -692,8 +692,11 @@ export function openPipBoy(): void {
         pipBoyContainer.appendChild(dot)
     }
 
-    const gameContainer = document.getElementById('game-container')!
-    gameContainer.appendChild(pipBoyContainer)
+    // Attach to #uiStage so the 800×600-era `left: 80px; top: 60px` inline
+    // offsets center in the viewport on any screen size. Fall back to
+    // #game-container on the off chance the stage isn't there.
+    const stage = document.getElementById('uiStage') ?? document.getElementById('game-container')!
+    stage.appendChild(pipBoyContainer)
 
     // Reset automap navigation each time PipBoy opens
     automapSelectedLocation = null
