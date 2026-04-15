@@ -246,6 +246,7 @@ export class Combat {
         // Stop the player from walking combat is initiating
         this.player.clearAnim()
 
+        globalState.audioEngine.playActionSfx('combat_start')
         uiStartCombat()
     }
 
@@ -632,9 +633,10 @@ export class Combat {
         var rawSoundID = weaponObj?.pro?.extra?.soundID
         var soundIdChar = typeof rawSoundID === 'number' ? String.fromCharCode(rawSoundID) : null
 
-        // Play attack sound
+        // Play attack sound — burst-fire weapons have their own wa<id>2xxx1 sample.
         if (soundIdChar) {
-            audio.playWeaponSfx(soundIdChar, 'attack')
+            const isBurstAttack = !!(weaponObj?.weapon?.isBurst?.())
+            audio.playWeaponSfx(soundIdChar, isBurstAttack ? 'attack_burst' : 'attack')
         }
 
         var targetName = target.isPlayer ? 'you' : target.name
@@ -1226,6 +1228,7 @@ export class Combat {
         globalState.combat = null // todo: invert control
         globalState.inCombat = false
 
+        globalState.audioEngine.playActionSfx('combat_end')
         globalState.gMap.updateMap()
         uiEndCombat()
     }

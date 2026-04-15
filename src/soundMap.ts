@@ -1,13 +1,28 @@
 // soundMap.ts
 // Fallout 2 Sound ID Mapping
-// Weapon sound filenames follow the pattern:
-//   wa<id>1xxx1.wav (attack)
-//   wh<id>1<material>xx<variant>.wav (impact — material: f=flesh, m=metal, s=stone, w=wood)
-//   wr<id>1xxx1.wav (reload)
-//   wo<id>1xxx1.wav (empty / out of ammo)
-// Sound ID is the ASCII character stored in the weapon_sound_id field of the .pro file.
-// All filenames on disk are lowercase.
+//
+// Weapon sound filenames follow this exact pattern (all lowercase on disk,
+// the game is case-insensitive):
+//
+//   wa<id>1xxx1.wav   single-shot attack, variant 1
+//   wa<id>1xxx2.wav   single-shot attack, variant 2
+//   wa<id>2xxx1.wav   burst attack, variant 1
+//   wh<id>1fxx1.wav   hit — flesh
+//   wh<id>1mxx1.wav   hit — metal
+//   wh<id>1sxx1.wav   hit — stone
+//   wh<id>1wxx1.wav   hit — wood
+//   wr<id>1xxx1.wav   reload
+//   wo<id>1xxx1.wav   empty / misfire click
+//
+// The fixed segments ("xxx", "fxx", "mxx", "sxx", "wxx") are LITERAL — not
+// placeholders.  Only <id> is variable: it's a single ASCII character taken
+// verbatim from the weapon_sound_id byte in the .pro file (see proto.py
+// line 108 — stored as ord() of one byte).  Thus <id> can be any printable
+// ASCII character: letters ('a'..'z'), digits ('0'..'9'), and the special
+// placeholder glyphs '#' and '$' that ship with vanilla.
 
+/** Reference list of known weapon sound-ID characters.  Purely documentary —
+ *  the mapping from id→filename is mechanical (see getWeaponSounds).  */
 export const WEAPON_SOUND_IDS: Record<string, string> = {
     'A': '10mm_pistol',
     'B': '14mm_pistol',
@@ -35,6 +50,8 @@ export const WEAPON_SOUND_IDS: Record<string, string> = {
     'X': 'cattle_prod',
     'Y': 'unarmed',
     'Z': 'throwing_knife',
+    '#': 'generic_placeholder',
+    '$': 'generic_placeholder_2',
 }
 
 /** Material hit by a projectile — drives which impact sample plays. */
@@ -48,7 +65,7 @@ const MATERIAL_CODE: Record<ImpactMaterial, string> = {
 }
 
 export const ACTION_SOUNDS: Record<string, string | string[]> = {
-    // Doors (FO2 format: sodoors + action letter)
+    // Doors (FO2 format: sodoors + action letter; 'o' = "not open"/try-locked)
     'door_open':    'sodoorsa',
     'door_close':   'sodoorsc',
     'door_locked':  'sodoorsl',
@@ -58,6 +75,10 @@ export const ACTION_SOUNDS: Record<string, string | string[]> = {
     'item_pickup':  'ipickup1',
     'item_drop':    'iputdown',
     'item_use':     'icsxxxx1',
+
+    // Combat flow
+    'combat_start': 'icombat1',
+    'combat_end':   'icombat2',
 
     // Combat generic — 'wh#' is the placeholder weapon-sound used for generic impacts
     'miss':         'whu1fxx1',   // unarmed flesh miss-hit (closest to a "swing-through" whoosh)
@@ -74,22 +95,27 @@ export const ACTION_SOUNDS: Record<string, string | string[]> = {
 export interface WeaponSounds {
     attack: string
     attack_alt: string
+    attack_burst: string
     impact: string
     reload: string
     empty: string
 }
 
 /** Returns filenames for all sound variants of a weapon given its sound-ID character.
- *  `material` controls which impact sample is returned (default: flesh, variant 1). */
+ *  `material` controls which impact sample is returned (default: flesh).
+ *  The returned names are lowercase, with no extension — append '.wav' to load. */
 export function getWeaponSounds(soundId: string, material: ImpactMaterial = 'flesh'): WeaponSounds {
+    // Letters come out of the .pro file as uppercase ASCII; non-letters (digits,
+    // '#', '$') pass through unchanged because toLowerCase is a no-op for them.
     const id = soundId.toLowerCase()
     const mat = MATERIAL_CODE[material]
     return {
-        attack:     `wa${id}1xxx1`,
-        attack_alt: `wa${id}1xxx2`,
-        impact:     `wh${id}1${mat}xx1`,
-        reload:     `wr${id}1xxx1`,
-        empty:      `wo${id}1xxx1`,
+        attack:       `wa${id}1xxx1`,
+        attack_alt:   `wa${id}1xxx2`,
+        attack_burst: `wa${id}2xxx1`,
+        impact:       `wh${id}1${mat}xx1`,
+        reload:       `wr${id}1xxx1`,
+        empty:        `wo${id}1xxx1`,
     }
 }
 
