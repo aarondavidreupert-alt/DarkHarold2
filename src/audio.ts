@@ -16,7 +16,7 @@ limitations under the License.
 
 import { getCurrentMapInfo } from './data.js'
 import { getRandomInt } from './util.js'
-import { ACTION_SOUNDS, getWeaponSounds, resolveSound } from './soundMap.js'
+import { ACTION_SOUNDS, getWeaponSounds, ImpactMaterial, resolveSound } from './soundMap.js'
 
 // Audio engine for handling music and sound effects
 
@@ -25,7 +25,7 @@ export interface AudioEngine {
     playMusic(music: string): void
     playSound(soundName: string): HTMLAudioElement | null
     playActionSfx(action: string): void
-    playWeaponSfx(soundId: string, type: 'attack' | 'impact' | 'reload' | 'empty'): void
+    playWeaponSfx(soundId: string, type: 'attack' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial): void
     stopMusic(): void
     stopAll(): void
     tick(): void
@@ -38,7 +38,7 @@ export class NullAudioEngine implements AudioEngine {
         return null
     }
     playActionSfx(action: string): void {}
-    playWeaponSfx(soundId: string, type: 'attack' | 'impact' | 'reload' | 'empty'): void {}
+    playWeaponSfx(soundId: string, type: 'attack' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial): void {}
     stopMusic(): void {}
     stopAll(): void {}
     tick(): void {}
@@ -50,38 +50,99 @@ export class HTMLAudioEngine implements AudioEngine {
     nextSfx: string | null = null
     musicAudio: HTMLAudioElement | null = null
 
+    // Web Audio pipeline for SFX.
+    // FO2 .wav files are 22050 Hz. HTMLAudioElement plays them at the output
+    // device's rate without resampling, so they sound ~2× too fast on modern
+    // 44100/48000 Hz output. AudioContext.decodeAudioData resamples correctly.
+    // Music stays on HTMLAudioElement — loop + streaming are simpler there.
+    private ctx: AudioContext | null = null
+    private sfxCache: Map<string, AudioBuffer> = new Map()
+    private sfxPending: Map<string, Promise<AudioBuffer | null>> = new Map()
+
+    private getCtx(): AudioContext {
+        if (!this.ctx) {
+            const Ctor = (window as any).AudioContext ?? (window as any).webkitAudioContext
+            this.ctx = new Ctor()
+        }
+        return this.ctx!
+    }
+
+    private async loadSfx(name: string): Promise<AudioBuffer | null> {
+        const cached = this.sfxCache.get(name)
+        if (cached) return cached
+        const pending = this.sfxPending.get(name)
+        if (pending) return pending
+
+        const ctx = this.getCtx()
+        const promise = (async () => {
+            try {
+                const res = await fetch('audio/sfx/' + name + '.wav')
+                if (!res.ok) {
+                    console.warn('[Audio] could not load:', name, `(${res.status})`)
+                    return null
+                }
+                const buf = await ctx.decodeAudioData(await res.arrayBuffer())
+                this.sfxCache.set(name, buf)
+                return buf
+            } catch (e) {
+                console.warn('[Audio] decode failed:', name, e)
+                return null
+            } finally {
+                this.sfxPending.delete(name)
+            }
+        })()
+        this.sfxPending.set(name, promise)
+        return promise
+    }
+
+    private playBuffer(buf: AudioBuffer): void {
+        const ctx = this.getCtx()
+        // Browsers suspend the context until a user gesture — resume on first play.
+        if (ctx.state === 'suspended') {
+            ctx.resume().catch(() => { /* will retry on next play */ })
+        }
+        const source = ctx.createBufferSource()
+        source.buffer = buf
+        source.connect(ctx.destination)
+        source.start()
+    }
+
     playSfx(sfx: string): void {
-        this.playSound('sfx/' + sfx)
+        // Fire-and-forget; errors are logged inside loadSfx.
+        this.loadSfx(sfx).then(buf => {
+            if (buf) this.playBuffer(buf)
+        }).catch(e => console.warn('[Audio] playSfx failed:', sfx, e))
     }
 
     playMusic(music: string): void {
         this.stopMusic()
         this.musicAudio = this.playSound('music/' + music)
-		if (this.musicAudio) this.musicAudio.loop = true
+        if (this.musicAudio) this.musicAudio.loop = true
     }
 
-	playSound(soundName: string): HTMLAudioElement | null {
-		var sound = new Audio()
-		sound.addEventListener('canplaythrough', () => {
-			console.log('[Audio] playing:', soundName)
-			sound.play().catch(e => console.log('[Audio] play() blocked:', e))
-		}, false)
-		sound.addEventListener('error', () => {
-			// File missing (404) or unsupported format — fail silently to avoid console spam
-			console.warn('[Audio] could not load:', soundName)
-		}, false)
-		sound.src = 'audio/' + soundName + '.wav'
-		return sound
-	}
+    playSound(soundName: string): HTMLAudioElement | null {
+        var sound = new Audio()
+        sound.addEventListener('canplaythrough', () => {
+            console.log('[Audio] playing:', soundName)
+            sound.play().catch(e => console.log('[Audio] play() blocked:', e))
+        }, false)
+        sound.addEventListener('error', () => {
+            // File missing (404) or unsupported format — fail silently to avoid console spam
+            console.warn('[Audio] could not load:', soundName)
+        }, false)
+        sound.src = 'audio/' + soundName + '.wav'
+        return sound
+    }
+
     playActionSfx(action: string): void {
         const entry = ACTION_SOUNDS[action]
         if (!entry) return
         this.playSfx(resolveSound(entry))
     }
 
-    playWeaponSfx(soundId: string, type: 'attack' | 'impact' | 'reload' | 'empty'): void {
+    playWeaponSfx(soundId: string, type: 'attack' | 'impact' | 'reload' | 'empty', material: ImpactMaterial = 'flesh'): void {
         if (!soundId) return
-        const sounds = getWeaponSounds(soundId)
+        const sounds = getWeaponSounds(soundId, material)
         const file = sounds[type]
         if (file) this.playSfx(file)
     }
@@ -112,10 +173,6 @@ export class HTMLAudioEngine implements AudioEngine {
 		}
 		// fallback statt throw
 		return sfx[0][0]
-
-
-        // XXX: What happens here when none roll?
-        throw Error("shouldn't be here")
     }
 
     tick(): void {

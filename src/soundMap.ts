@@ -1,7 +1,12 @@
 // soundMap.ts
 // Fallout 2 Sound ID Mapping
-// Weapon sounds follow the pattern: WA<ID>1XXX1.wav (attack), WH<ID>1XXX1.wav (impact), WR<ID>1XXX1.wav (reload)
-// Sound ID is the ASCII character stored in weapon_sound_id field of the .pro file
+// Weapon sound filenames follow the pattern:
+//   wa<id>1xxx1.wav (attack)
+//   wh<id>1<material>xx<variant>.wav (impact — material: f=flesh, m=metal, s=stone, w=wood)
+//   wr<id>1xxx1.wav (reload)
+//   wo<id>1xxx1.wav (empty / out of ammo)
+// Sound ID is the ASCII character stored in the weapon_sound_id field of the .pro file.
+// All filenames on disk are lowercase.
 
 export const WEAPON_SOUND_IDS: Record<string, string> = {
     'A': '10mm_pistol',
@@ -32,39 +37,59 @@ export const WEAPON_SOUND_IDS: Record<string, string> = {
     'Z': 'throwing_knife',
 }
 
-export const ACTION_SOUNDS: Record<string, string | string[]> = {
-    // Doors (FO2 format: SO + DOORS + action letter)
-    'door_open':    'SODOORSA',
-    'door_close':   'SODOORSC',
-    'door_locked':  'SODOORSL',
-    'door_try':     'SODOORSO',
+/** Material hit by a projectile — drives which impact sample plays. */
+export type ImpactMaterial = 'flesh' | 'metal' | 'stone' | 'wood'
 
-    // Items
-    'item_pickup':  'IIPICKUP',
-    'item_drop':    'IIDROP',
-    'item_use':     'IIUSE',
-
-    // Combat generic
-    'miss':         'whimpact',
-    'hit_flesh':    'whflesht',
-    'hit_metal':    'whmetal',
-    'critter_die':  ['dthbody1', 'dthbody2', 'dthbody3'],
-
-    // UI
-    'ui_click':     'IISWTCH1',
-    'ui_open_inv':  'IISWTCH2',
-    'levelup':      'LEVELUP',
+const MATERIAL_CODE: Record<ImpactMaterial, string> = {
+    flesh: 'f',
+    metal: 'm',
+    stone: 's',
+    wood:  'w',
 }
 
-// Returns the filenames for all sound variants of a weapon given its sound ID character
-export function getWeaponSounds(soundId: string) {
-    const id = soundId.toUpperCase()
+export const ACTION_SOUNDS: Record<string, string | string[]> = {
+    // Doors (FO2 format: sodoors + action letter)
+    'door_open':    'sodoorsa',
+    'door_close':   'sodoorsc',
+    'door_locked':  'sodoorsl',
+    'door_try':     'sodoorso',
+
+    // Items
+    'item_pickup':  'ipickup1',
+    'item_drop':    'iputdown',
+    'item_use':     'icsxxxx1',
+
+    // Combat generic — 'wh#' is the placeholder weapon-sound used for generic impacts
+    'miss':         'whu1fxx1',   // unarmed flesh miss-hit (closest to a "swing-through" whoosh)
+    'hit_flesh':    'wh#1fxx1',   // generic flesh impact
+    'hit_metal':    'wh#1mxx1',   // generic metal impact
+    'critter_die':  ['hmxxxxba', 'hmxxxxbb', 'hmxxxxbd'], // human male death vocalizations
+
+    // UI
+    'ui_click':     'butin1',
+    'ui_open_inv':  'butin2',
+    'levelup':      'levelup',
+}
+
+export interface WeaponSounds {
+    attack: string
+    attack_alt: string
+    impact: string
+    reload: string
+    empty: string
+}
+
+/** Returns filenames for all sound variants of a weapon given its sound-ID character.
+ *  `material` controls which impact sample is returned (default: flesh, variant 1). */
+export function getWeaponSounds(soundId: string, material: ImpactMaterial = 'flesh'): WeaponSounds {
+    const id = soundId.toLowerCase()
+    const mat = MATERIAL_CODE[material]
     return {
-        attack:     `WA${id}1XXX1`,
-        attack_alt: `WA${id}1XXX2`,
-        impact:     `WH${id}1XXX1`,
-        reload:     `WR${id}1XXX1`,
-        empty:      `WO${id}1XXX1`,
+        attack:     `wa${id}1xxx1`,
+        attack_alt: `wa${id}1xxx2`,
+        impact:     `wh${id}1${mat}xx1`,
+        reload:     `wr${id}1xxx1`,
+        empty:      `wo${id}1xxx1`,
     }
 }
 
