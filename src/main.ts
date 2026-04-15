@@ -244,7 +244,7 @@ export function playerUse(obj: Obj | null) {
                 // Unarmed attack
                 globalState.player.AP!.subtractCombatAP(attackAPCost)
                 drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
-                console.log('Unarmed attack...')
+                console.log('[Combat] player unarmed attack')
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
                 uiUpdateCombatAP()
             } else {
