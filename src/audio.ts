@@ -88,7 +88,6 @@ export class HTMLAudioEngine implements AudioEngine {
                 }
                 const buf = await ctx.decodeAudioData(await res.arrayBuffer())
                 this.sfxCache.set(name, buf)
-                console.log('[Sound]', name)
                 return buf
             } catch (e) {
                 console.warn('[Audio] decode failed:', name, e)
@@ -102,7 +101,7 @@ export class HTMLAudioEngine implements AudioEngine {
         return promise
     }
 
-    private async playBuffer(buf: AudioBuffer): Promise<void> {
+    private async playBuffer(name: string, buf: AudioBuffer): Promise<void> {
         const ctx = this.getCtx()
         // Browsers suspend the context until the first user gesture.  Awaiting
         // resume() here ensures source.start() doesn't fire into a suspended
@@ -114,12 +113,15 @@ export class HTMLAudioEngine implements AudioEngine {
         source.buffer = buf
         source.connect(ctx.destination)
         source.start()
+        // Log every actual play (not just first-load) so the console reflects
+        // sound events 1:1 — including cache hits like repeated door toggles.
+        console.log('[Sound]', name)
     }
 
     playSfx(sfx: string): void {
         // Fire-and-forget; errors are logged inside loadSfx / playBuffer.
         this.loadSfx(sfx).then(buf => {
-            if (buf) return this.playBuffer(buf)
+            if (buf) return this.playBuffer(sfx, buf)
             return undefined
         }).catch(e => console.warn('[Audio] playSfx failed:', sfx, e))
     }
@@ -133,7 +135,7 @@ export class HTMLAudioEngine implements AudioEngine {
     playSound(soundName: string): HTMLAudioElement | null {
         var sound = new Audio()
         sound.addEventListener('canplaythrough', () => {
-            console.log('[Audio] playing:', soundName)
+            console.log('[Sound]', soundName)
             sound.play().catch(e => console.log('[Audio] play() blocked:', e))
         }, false)
         sound.addEventListener('error', () => {
@@ -161,9 +163,9 @@ export class HTMLAudioEngine implements AudioEngine {
         // 404, fall back to the single-shot attack sound.
         if (type === 'attack_burst') {
             this.loadSfx(file).then(buf => {
-                if (buf) return this.playBuffer(buf)
+                if (buf) return this.playBuffer(file, buf)
                 return this.loadSfx(sounds.attack).then(fb => {
-                    if (fb) return this.playBuffer(fb)
+                    if (fb) return this.playBuffer(sounds.attack, fb)
                     return undefined
                 })
             }).catch(e => console.warn('[Audio] playWeaponSfx burst failed:', file, e))
