@@ -373,16 +373,16 @@ html, body {
 
 #optionsButton {
   position: absolute;
-  left: 526px;
-  top: 97px;
-  width: 41px;
-  height: 19px;
-  background-image: url("art/intrface/optup.png");
+  left: 211px;
+  top: 64px;
+  width: 32px;
+  height: 21px;
+  background-image: url("art/intrface/optiup.png");
   cursor: pointer;
 }
 
 #optionsButton:active {
-  background-image: url("art/intrface/optdn.png");
+  background-image: url("art/intrface/optidn.png");
 }
 
 /* inventory box */
