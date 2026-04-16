@@ -32,7 +32,7 @@ import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
 import { CSSBoundingBox, Widget } from './widget.js'
-import { charScreenFont, FontWidget, makeFontLabel, skilldexFont } from './font.js'
+import { charScreenFont, FontWidget, makeFontLabel, renderBitmapText, skilldexFont } from './font.js'
 import { openAutomap } from './automap.js'
 
 // Re-export so existing `from './ui.js'` importers still see Widget / CSSBoundingBox.
@@ -336,16 +336,17 @@ function initSkilldex() {
         ['Repair',    Skills.Repair],
     ]
 
+    const skillNameWidgets: Widget[] = []
+
     let yPos = 49
     for (let i = 0; i < skilldexSkills.length; i++) {
         const [name, skill] = skilldexSkills[i]
 
-        // Skill name + hotkey number
-        skilldexWindow.add(
-            makeFontLabel(25, yPos, `${i + 1}. ${name}`, skilldexFont)
-                .css({ width: '110px', height: '24px', cursor: 'pointer' })
-                .onClick(useSkill(skill))
-        )
+        // Skill name + hotkey number — canvas placeholder, filled once font1_aaf loads
+        const nameWidget = new Widget(null, { x: 25, y: yPos, w: 110, h: 24 })
+        nameWidget.css({ cursor: 'pointer' }).onClick(useSkill(skill))
+        skillNameWidgets.push(nameWidget)
+        skilldexWindow.add(nameWidget)
 
         // FO2-CE ref: skilldex.cc — 3-digit skill value display next to each button
         const valLabel = makeFontLabel(140, yPos, '---', skilldexFont)
@@ -355,6 +356,33 @@ function initSkilldex() {
 
         yPos += 36
     }
+
+    // Load font1_aaf sprite sheet + glyph map, then render skill name canvases
+    let font1Image: HTMLImageElement | null = null
+    let font1GlyphMap: Record<string, { x: number; y: number; w: number; h: number }> | null = null
+
+    function renderSkillNameCanvases(): void {
+        if (!font1Image || !font1GlyphMap) return
+        for (let i = 0; i < skilldexSkills.length; i++) {
+            const [name] = skilldexSkills[i]
+            const canvas = renderBitmapText(`${i + 1}. ${name}`, font1Image!, font1GlyphMap!)
+            canvas.style.cssText = 'pointer-events: none;'
+            skillNameWidgets[i].elem.appendChild(canvas)
+        }
+    }
+
+    lazyLoadImage('art/fonts/font1_aaf', (img) => {
+        font1Image = img
+        renderSkillNameCanvases()
+    })
+
+    fetch('art/fonts/font1_aaf.json')
+        .then((r) => r.json())
+        .then((map) => {
+            font1GlyphMap = map
+            renderSkillNameCanvases()
+        })
+        .catch((err) => console.error('Failed to load font1_aaf.json:', err))
 
     skilldexWindow.add(
         new SmallButton(47, 339).onClick(() => { skilldexWindow.close() })
