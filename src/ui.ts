@@ -344,7 +344,7 @@ function initSkilldex() {
 
         // Skill name + hotkey number — canvas placeholder, filled once font1_aaf loads
         const nameWidget = new Widget(null, { x: 25, y: yPos, w: 110, h: 24 })
-        nameWidget.css({ cursor: 'pointer' }).onClick(useSkill(skill))
+        nameWidget.css({ cursor: 'pointer', display: 'flex', alignItems: 'flex-end' }).onClick(useSkill(skill))
         skillNameWidgets.push(nameWidget)
         skilldexWindow.add(nameWidget)
 
