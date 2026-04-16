@@ -66,6 +66,13 @@ export class WebGLRenderer extends Renderer {
     private uTileZoom: WebGLUniformLocation | null = null
     private uFloorLightZoom: WebGLUniformLocation | null = null
 
+    // Resolution uniforms stashed at init-time so resize() can re-upload them
+    // (they are set once in init() and then re-read by the fragment shader
+    // every frame via uniform state).
+    private uTileResolution: WebGLUniformLocation | null = null
+    private uTileScreenResolutionLoc: WebGLUniformLocation | null = null
+    private uFloorLightResolution: WebGLUniformLocation | null = null
+
     // FBO for cached unlit floor rendering (GPU lighting mode)
     private floorFBO: WebGLFramebuffer | null = null
     private floorFBOTexture: WebGLTexture | null = null
@@ -250,6 +257,7 @@ export class WebGLRenderer extends Renderer {
 
         const resolutionLocation = gl.getUniformLocation(this.tileShader, 'u_resolution')
         gl.uniform2f(resolutionLocation, SCREEN_WIDTH, SCREEN_HEIGHT)
+        this.uTileResolution = resolutionLocation
 
         this.texCoordLocation = gl.getAttribLocation(this.tileShader, 'a_texCoord')
         this.uNumFramesLocation = gl.getUniformLocation(this.tileShader, 'u_numFrames')
@@ -305,6 +313,7 @@ export class WebGLRenderer extends Renderer {
         this.uTileZoom = gl.getUniformLocation(this.tileShader, 'u_zoom')
         const uTileTileIntensity = gl.getUniformLocation(this.tileShader, 'u_tileIntensity')
         const uTileScreenResolution = gl.getUniformLocation(this.tileShader, 'u_screenResolution')
+        this.uTileScreenResolutionLoc = uTileScreenResolution
         console.log(
             `[lighting/init] tileShader uniforms — u_ambient=${this.uTileAmbient !== null}, ` +
             `u_camera=${this.uTileCamera !== null}, u_tileIntensity=${uTileTileIntensity !== null}, ` +
@@ -346,6 +355,7 @@ export class WebGLRenderer extends Renderer {
             const litPositionLocation = gl.getAttribLocation(this.floorLightShader, 'a_position')
 
             gl.uniform2f(litResolutionLocation, SCREEN_WIDTH, SCREEN_HEIGHT)
+            this.uFloorLightResolution = litResolutionLocation
 
             const litTexCoordLocation = gl.getAttribLocation(this.floorLightShader, 'a_texCoord')
             gl.enableVertexAttribArray(litTexCoordLocation)
@@ -793,6 +803,83 @@ export class WebGLRenderer extends Renderer {
 
     invalidateFloorFBO(): void {
         this.floorFBOValid = false
+    }
+
+    // Resize the WebGL canvas (and its companion text overlay) to new logical
+    // dimensions. Called by the window.resize handler in main.ts after it has
+    // updated SCREEN_WIDTH/SCREEN_HEIGHT via setScreenSize(). Uploads the new
+    // resolution/screen-resolution uniforms to every world shader, reallocates
+    // the floor FBO texture at the new physical size, and invalidates the FBO
+    // cache so the next frame paints a fresh floor pass.
+    resize(logicalWidth: number, logicalHeight: number): void {
+        const gl = this.gl
+        if (!gl) return
+
+        const dpr = window.devicePixelRatio || 1
+        const physWidth = Math.max(1, Math.round(logicalWidth * dpr))
+        const physHeight = Math.max(1, Math.round(logicalHeight * dpr))
+
+        // Main WebGL canvas: CSS size in logical pixels, backing store in
+        // physical pixels. Heart's mouse tracking reads getBoundingClientRect
+        // so CSS px is what the event handlers expect.
+        this.canvas.style.width = logicalWidth + 'px'
+        this.canvas.style.height = logicalHeight + 'px'
+        this.canvas.width = physWidth
+        this.canvas.height = physHeight
+        gl.viewport(0, 0, physWidth, physHeight)
+
+        // 2D text overlay — mirror the DPR trick so text stays crisp.
+        if (this.textCanvas) {
+            this.textCanvas.style.width = logicalWidth + 'px'
+            this.textCanvas.style.height = logicalHeight + 'px'
+            this.textCanvas.width = physWidth
+            this.textCanvas.height = physHeight
+            this.textCtx.setTransform(1, 0, 0, 1, 0, 0)
+            this.textCtx.scale(dpr, dpr)
+        }
+
+        // Push new logical + physical resolution into every shader that
+        // uses them. The tile shader's vertex path uses u_resolution to
+        // project logical pixel coords into clip space; the lighting
+        // fragment path uses both to map gl_FragCoord back to world space.
+        gl.useProgram(this.tileShader)
+        if (this.uTileResolution) gl.uniform2f(this.uTileResolution, logicalWidth, logicalHeight)
+        if (this.uTileScreenResolutionLoc) gl.uniform2f(this.uTileScreenResolutionLoc, physWidth, physHeight)
+
+        if (this.floorLightShader) {
+            gl.useProgram(this.floorLightShader)
+            if (this.uFloorLightResolution) gl.uniform2f(this.uFloorLightResolution, logicalWidth, logicalHeight)
+            if (this.uScreenResolutionLighting) gl.uniform2f(this.uScreenResolutionLighting, physWidth, physHeight)
+        }
+
+        // Font shader shares the vertex program with the tile shader, so
+        // u_resolution inside it is a separate uniform — reupload.
+        if (this.fontShader) {
+            gl.useProgram(this.fontShader)
+            const fontRes = gl.getUniformLocation(this.fontShader, 'u_resolution')
+            if (fontRes) gl.uniform2f(fontRes, logicalWidth, logicalHeight)
+        }
+
+        // Reallocate the floor FBO color attachment at the new backing size.
+        // WebGL textures bound to FBOs must match the viewport; otherwise
+        // the next composite draws garbage / nothing.
+        if (this.floorFBOTexture) {
+            gl.bindTexture(gl.TEXTURE_2D, this.floorFBOTexture)
+            gl.texImage2D(
+                gl.TEXTURE_2D,
+                0,
+                gl.RGBA8,
+                physWidth,
+                physHeight,
+                0,
+                gl.RGBA,
+                gl.UNSIGNED_BYTE,
+                null,
+            )
+        }
+        this.floorFBOValid = false
+
+        gl.useProgram(this.tileShader)
     }
 
     drawTileMap(tilemap: TileMap, offsetY: number): void {

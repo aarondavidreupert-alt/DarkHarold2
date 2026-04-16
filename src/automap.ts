@@ -17,6 +17,7 @@ limitations under the License.
 import globalState from './globalState.js'
 import { UIMode } from './ui.js'
 import { renderAutomapCanvas, drawAutomapInto } from './automapData.js'
+import { makePanelDraggable } from './dragPanel.js'
 
 let automapContainer: HTMLDivElement | null = null
 
@@ -149,7 +150,7 @@ export function openAutomap(): void {
     automapContainer = document.createElement('div')
     automapContainer.id = 'automapContainer'
     automapContainer.style.cssText = `
-        position: absolute; left: 80px; top: 60px;
+        position: absolute; left: 80px; top: 21px;
         width: 640px; height: 480px;
         z-index: 100;
     `
@@ -240,8 +241,14 @@ export function openAutomap(): void {
     }
     screen.appendChild(cancelDot)
 
-    const gameContainer = document.getElementById('game-container')!
-    gameContainer.appendChild(automapContainer)
+    // Append to #uiStage so the panel's hardcoded 800×600-era inline offsets
+    // (left: 80px; top: 60px) center in the viewport regardless of size.
+    const stage = document.getElementById('uiStage') ?? document.getElementById('game-container')!
+    stage.appendChild(automapContainer)
+
+    // Drag the automap panel from its frame; canvas drag-to-pan still wins
+    // because makeDraggable skips elements with mousedown handlers.
+    makePanelDraggable(automapContainer)
 }
 
 export function closeAutomap(): void {
@@ -258,4 +265,8 @@ export function toggleAutomap(): void {
     } else {
         openAutomap()
     }
+}
+
+export function isAutomapOpen(): boolean {
+    return automapContainer !== null
 }

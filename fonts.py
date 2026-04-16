@@ -1,132 +1,125 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Apr 15 22:46:34 2026
+Created on Tue Apr 14 23:37:00 2026
 
 @author: aaron
 """
 
-import struct, json, math, os
-from PIL import Image
+import struct
+import json
+from PIL import Image, ImageDraw
 
-YELLOW = (255, 200, 0)
-def parse_aaf(data, color=(255, 200, 0)):
-    height = struct.unpack('>H', data[4:6])[0]
-    _, gap, space_w, vert_gap = struct.unpack('>4H', data[4:12])
-    symbols = []
+def parse_aaf(filepath):
+    with open(filepath, 'rb') as f:
+        data = f.read()
+    
+    # AAF Header
+    signature = data[0:4]  # 'AAFF'
+    max_height = struct.unpack_from('<H', data, 4)[0]
+    horiz_space = struct.unpack_from('<H', data, 6)[0]
+    line_spacing = struct.unpack_from('<H', data, 8)[0]
+    space_width = struct.unpack_from('<H', data, 10)[0]
+    
+    # 256 Glyph-Einträge à 12 Bytes
+    glyphs = []
+    offset = 12
     for i in range(256):
-        off = 12 + i * 8
-        w, h, doff = struct.unpack('>2HL', data[off:off+8])
-        symbols.append({'width': w, 'height': h, 'data_offset': doff})
-    row_widths = [sum(symbols[r*16+c]['width'] for c in range(16) if r*16+c < 256) for r in range(16)]
-    img = Image.new('RGBA', (max(row_widths), 16 * height), (0,0,0,0))
+        width  = struct.unpack_from('<H', data, offset)[0]
+        height = struct.unpack_from('<H', data, offset + 2)[0]
+        data_offset = struct.unpack_from('<I', data, offset + 4)[0]
+        glyphs.append({'width': width, 'height': height, 'data_offset': data_offset})
+        offset += 8
+    
+    # Pixel-Daten lesen
+    pixel_data_start = offset  # nach den 256 Einträgen
+    for g in glyphs:
+        if g['width'] > 0 and g['height'] > 0:
+            size = g['width'] * g['height']
+            start = pixel_data_start + g['data_offset']
+            g['pixels'] = data[start:start + size]
+        else:
+            g['pixels'] = b''
+    
+    return {
+        'max_height': max_height,
+        'horiz_space': horiz_space,
+        'line_spacing': line_spacing,
+        'space_width': space_width,
+        'glyphs': glyphs
+    }
+
+def aaf_to_png(aaf_path, png_path, json_path, color=(255, 200, 0, 255)):
+    font = parse_aaf(aaf_path)
+    glyphs = font['glyphs']
+    
+    # Nur druckbare ASCII-Zeichen (32–126)
+    chars = range(32, 127)
+    
+    cell_w = max((glyphs[i]['width'] for i in chars if glyphs[i]['width'] > 0), default=8)
+    cell_h = font['max_height']
+    
+    cols = len(list(chars))
+    img_w = cell_w * cols
+    img_h = cell_h
+    
+    img = Image.new('RGBA', (img_w, img_h), (0, 0, 0, 0))
     symbol_info = {}
-    cur_x = cur_y = cur_row = 0
-    pixel_base = 12 + 256 * 8
-    for i in range(256):
-        if i % 16 == 0:
-            cur_x = 0; cur_y = cur_row * height; cur_row += 1
-        s = symbols[i]
-        symbol_info[i] = {'x': cur_x, 'y': cur_y, 'w': s['width'], 'h': height}
-        if s['width'] > 0 and s['height'] > 0:
-            start = pixel_base + s['data_offset']
-            px_data = data[start:start + s['width'] * s['height']]
-            glyph = Image.new('RGBA', (s['width'], s['height']), (0,0,0,0))
-            pix = glyph.load()
-            for py in range(s['height']):
-                for px_ in range(s['width']):
-                    v = px_data[py * s['width'] + px_]
-                    if v > 0:
-                        intensity = v / 7.0  # ← DER FIX: 3-bit Palette!
-                        pix[px_, py] = (
-                            int(color[0] * intensity),
-                            int(color[1] * intensity),
-                            int(color[2] * intensity),
-                            int(255 * intensity)
-                        )
-            img.paste(glyph, (cur_x, cur_y), glyph)
-        cur_x += s['width']
-    return img, symbol_info, {'height': height, 'gapSize': gap, 'spaceWidth': space_w}
+    
+    for idx, char_code in enumerate(chars):
+        g = glyphs[char_code]
+        x_offset = idx * cell_w
+        
+        symbol_info[char_code] = {
+            'x': x_offset,
+            'y': 0,
+            'w': g['width'] if g['width'] > 0 else font['space_width'],
+            'h': cell_h
+        }
+        
+        if g['width'] > 0 and g['height'] > 0 and g['pixels']:
+            for py in range(g['height']):
+                for px in range(g['width']):
+                    pixel_val = g['pixels'][py * g['width'] + px]
+                    if pixel_val > 0:
+                        alpha = min(255, pixel_val * 4)  # skalieren falls nötig
+                        r = int(color[0] * pixel_val / 255)
+                        g_val = int(color[1] * pixel_val / 255)
+                        b = int(color[2] * pixel_val / 255)
+                        img.putpixel((x_offset + px, py), (r, g_val, b, alpha))
+    
+    img.save(png_path)
+    with open(json_path, 'w') as f:
+        json.dump(symbol_info, f, indent=2)
+    
+    print(f"✓ {png_path} ({img_w}x{img_h}px, {cols} Zeichen)")
+    print(f"✓ {json_path}")
 
-# def parse_aaf(data, color=YELLOW):
-#     height = struct.unpack('>H', data[4:6])[0]
-#     _, gap, space_w, vert_gap = struct.unpack('>4H', data[4:12])
-#     symbols = []
-#     for i in range(256):
-#         off = 12 + i * 8
-#         w, h, doff = struct.unpack('>2HL', data[off:off+8])
-#         symbols.append({'width': w, 'height': h, 'data_offset': doff})
-#     row_widths = [sum(symbols[r*16+c]['width'] for c in range(16) if r*16+c < 256) for r in range(16)]
-#     img = Image.new('RGBA', (max(row_widths), 16 * height), (0,0,0,0))
-#     symbol_info = {}
-#     cur_x = cur_y = cur_row = 0
-#     pixel_base = 12 + 256 * 8
-#     for i in range(256):
-#         if i % 16 == 0:
-#             cur_x = 0; cur_y = cur_row * height; cur_row += 1
-#         s = symbols[i]
-#         symbol_info[i] = {'x': cur_x, 'y': cur_y, 'w': s['width'], 'h': height}
-#         if s['width'] > 0 and s['height'] > 0:
-#             start = pixel_base + s['data_offset']
-#             px_data = data[start:start + s['width'] * s['height']]
-#             glyph = Image.new('RGBA', (s['width'], s['height']), (0,0,0,0))
-#             pix = glyph.load()
-#             for py in range(s['height']):
-#                 for px_ in range(s['width']):
-#                     v = px_data[py * s['width'] + px_]
-#                     if v > 0:
-#                         pix[px_, py] = (int(color[0]*v/255), int(color[1]*v/255), int(color[2]*v/255), v)
-#             img.paste(glyph, (cur_x, cur_y), glyph)
-#         cur_x += s['width']
-#     return img, symbol_info, {'height': height, 'gapSize': gap, 'spaceWidth': space_w}
+# --- Alle 5 Fonts konvertieren ---
+import os
 
-def parse_fon(data, color=YELLOW):
-    nChars, height, gapSize, _, _ = struct.unpack('5i', data[0:20])
-    symbols = []; offsets = []
-    for i in range(nChars):
-        w, off = struct.unpack('2i', data[20+i*8:28+i*8])
-        symbols.append({'width': w, 'height': height}); offsets.append(off)
-    font_data = data[20 + nChars*8:]
-    row_widths = [sum(symbols[r*16+c]['width'] for c in range(16) if r*16+c < nChars) for r in range(math.ceil(nChars/16))]
-    img = Image.new('RGBA', (max(row_widths), math.ceil(nChars/16) * height), (0,0,0,0))
-    symbol_info = {}
-    cur_x = cur_y = cur_row = 0
-    for i in range(nChars):
-        if i % 16 == 0:
-            cur_x = 0; cur_y = cur_row * height; cur_row += 1
-        s = symbols[i]
-        symbol_info[i] = {'x': cur_x, 'y': cur_y, 'w': s['width'], 'h': height}
-        if s['width'] > 0:
-            bpl = math.floor((s['width'] + 7) / 8)
-            glyph = Image.new('RGBA', (s['width'], height), (0,0,0,0))
-            pix = glyph.load()
-            for h_ in range(height):
-                for j in range(s['width']):
-                    ofs = math.floor(offsets[i] + h_ * bpl + j / 8)
-                    if ofs < len(font_data) and (font_data[ofs] & (1 << (7 - (j % 8)))):
-                        pix[j, h_] = (*color, 255)
-            img.paste(glyph, (cur_x, cur_y), glyph)
-        cur_x += s['width']
-    return img, symbol_info, {'height': height, 'gapSize': gapSize}
-
-# ── Alle konvertieren ──────────────────────────────────────────────────────────
 data_dir = r'C:\Users\aaron\OneDrive\Dokumente\GitHub\DarkHarold2\data'
 out_dir  = r'C:\Users\aaron\OneDrive\Dokumente\GitHub\DarkHarold2\art\fonts'
+
 os.makedirs(out_dir, exist_ok=True)
 
-for i in range(6):
-    for ext, parser in [('aaf', parse_aaf), ('fon', parse_fon)]:
-        path = os.path.join(data_dir, f'font{i}.{ext}')
-        if not os.path.exists(path):
-            continue
-        with open(path, 'rb') as f:
-            raw = f.read()
+# Farben pro Font (Fallout-typisch: gelb/orange)
+colors = {
+    0: (255, 200,   0, 255),  # font0 — kleiner gelber Font
+    1: (255, 200,   0, 255),  # font1 — Skilldex-Font
+    2: (255, 200,   0, 255),  # font2
+    3: (255, 200,   0, 255),  # font3
+    4: (255, 200,   0, 255),  # font4
+}
+
+for i in range(5):
+    aaf_file  = os.path.join(data_dir, f'font{i}.aaf')
+    png_file  = os.path.join(out_dir,  f'font{i}.png')
+    json_file = os.path.join(out_dir,  f'font{i}.json')
+    
+    if os.path.exists(aaf_file):
         try:
-            img, si, meta = parser(raw)
-            png_out  = os.path.join(out_dir, f'font{i}_{ext}.png')
-            json_out = os.path.join(out_dir, f'font{i}_{ext}.json')
-            img.save(png_out)
-            with open(json_out, 'w') as f:
-                json.dump({'meta': meta, 'symbols': si}, f)
-            print(f"✓ font{i}.{ext} → {img.size}px")
+            aaf_to_png(aaf_file, png_file, json_file, color=colors[i])
         except Exception as e:
-            print(f"✗ font{i}.{ext} — {e}")
+            print(f"✗ font{i}.aaf — Fehler: {e}")
+    else:
+        print(f"  font{i}.aaf nicht gefunden, übersprungen")
