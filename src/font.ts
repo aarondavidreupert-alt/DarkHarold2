@@ -275,6 +275,58 @@ export function makeFontLabel(
     return new FontWidget(x, y, text, fontRenderer)
 }
 
+/**
+ * Render a string into an HTMLCanvasElement by blitting glyphs from a sprite
+ * sheet. Unlike FontRenderer.renderText (div-per-glyph), this draws once into
+ * a single canvas — better for static labels that don't need per-glyph DOM.
+ *
+ * @param text          The string to render.
+ * @param spriteSheet   The loaded sprite-sheet image.
+ * @param glyphMap      Char-code (as string key) → {x, y, w, h} in the sheet.
+ * @param letterSpacing Extra pixels between glyphs (default 1, matching
+ *                      fallout2-ce FONT_SPACE_BETWEEN_SYMBOLS).
+ */
+export function renderBitmapText(
+    text: string,
+    spriteSheet: HTMLImageElement,
+    glyphMap: Record<string, { x: number; y: number; w: number; h: number }>,
+    letterSpacing: number = 1
+): HTMLCanvasElement {
+    let totalWidth = 0
+    let maxHeight = 0
+    for (let i = 0; i < text.length; i++) {
+        const glyph = glyphMap[String(text.charCodeAt(i))]
+        if (glyph) {
+            if (i > 0) totalWidth += letterSpacing
+            totalWidth += glyph.w
+            if (glyph.h > maxHeight) maxHeight = glyph.h
+        } else if (text[i] === ' ') {
+            if (i > 0) totalWidth += letterSpacing
+            totalWidth += 4
+        }
+    }
+
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(totalWidth, 1)
+    canvas.height = Math.max(maxHeight, 1)
+    const ctx = canvas.getContext('2d')!
+
+    let x = 0
+    for (let i = 0; i < text.length; i++) {
+        const glyph = glyphMap[String(text.charCodeAt(i))]
+        if (glyph) {
+            if (i > 0) x += letterSpacing
+            ctx.drawImage(spriteSheet, glyph.x, glyph.y, glyph.w, glyph.h, x, 0, glyph.w, glyph.h)
+            x += glyph.w
+        } else if (text[i] === ' ') {
+            if (i > 0) x += letterSpacing
+            x += 4
+        }
+    }
+
+    return canvas
+}
+
 // ---- Singletons (lazy: assets are only fetched on first use) ---------------
 
 /** Small Fallout bitmap font — Skilldex skill names + values. */
