@@ -371,6 +371,20 @@ html, body {
   background-image: url("art/intrface/mapdn.png");
 }
 
+#optionsButton {
+  position: absolute;
+  left: 526px;
+  top: 97px;
+  width: 41px;
+  height: 19px;
+  background-image: url("art/intrface/optup.png");
+  cursor: pointer;
+}
+
+#optionsButton:active {
+  background-image: url("art/intrface/optdn.png");
+}
+
 /* inventory box */
 #inventoryBox {
   position: absolute;

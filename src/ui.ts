@@ -318,6 +318,7 @@ function uiInit() {
     $uiContainer = (document.getElementById('uiStage') ?? document.getElementById('game-container'))!
 
     initSkilldex()
+    initOptionsMenu()
     // initCharacterScreen();
 
     const chrBtn = document.getElementById('chrButton')
@@ -361,6 +362,10 @@ export function isSkilldexOpen(): boolean {
     return !!(skilldexWindow && skilldexWindow.showing)
 }
 
+export function isOptionsOpen(): boolean {
+    return !!(optionsWindow && optionsWindow.showing)
+}
+
 function closeInventoryPanel(): void {
     if (!isInventoryOpen()) return
     globalState.uiMode = UIMode.none
@@ -375,10 +380,12 @@ export function closeAllPanels(): void {
     if (isCharacterOpen()) characterWindow.close()
     if (isInventoryOpen()) closeInventoryPanel()
     if (isSkilldexOpen()) skilldexWindow.close()
+    if (isOptionsOpen()) optionsWindow.close()
 }
 
 let skilldexWindow: WindowFrame
 let characterWindow: WindowFrame
+let optionsWindow: WindowFrame
 
 // FO2-CE ref: skilldex.cc — skilldexOpen() / skilldexWindowInit()
 // Skilldex window showing 8 usable skills with current values and keyboard shortcuts
@@ -518,6 +525,63 @@ function initSkilldex() {
         }
     }
     document.addEventListener('keydown', skilldexKeyHandler)
+}
+
+// FO2-CE ref: options.cc — in-game options panel with Save/Load/Preferences/Quit/Done
+function initOptionsMenu() {
+    optionsWindow = new WindowFrame(
+        'art/intrface/opbase',
+        {
+            x: (Config.ui.screenWidth - 200) / 2,
+            y: (Config.ui.screenHeight - 260) / 2,
+        },
+        200,
+        260
+    )
+        .add(new Label(50, 15, 'OPTIONS'))
+
+    // FO2-CE ref: options.cc — button order matches original: Save, Load, Preferences, Quit, Done
+    const optionButtons: [string, () => void][] = [
+        ['Save Game',   () => { optionsWindow.close(); uiSaveLoad(true) }],
+        ['Load Game',   () => { optionsWindow.close(); uiSaveLoad(false) }],
+        ['Preferences', () => { alert('Preferences not yet implemented.') }],
+        ['Quit Game',   () => { if (confirm('Quit to main menu?')) window.location.reload() }],
+        ['Done',        () => { optionsWindow.close() }],
+    ]
+
+    let yPos = 55
+    for (const [label, handler] of optionButtons) {
+        optionsWindow.add(
+            new Label(25, yPos, label)
+                .css({ width: '150px', height: '28px', cursor: 'pointer', lineHeight: '28px' })
+                .onClick(handler)
+        )
+        yPos += 38
+    }
+
+    Object.assign(optionsWindow.elem.style, {
+        backgroundImage: `url('${optionsWindow.background}.png')`,
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: '100% 100%',
+        zIndex: '20',
+        cursor: 'default',
+    })
+
+    makePanelDraggable(optionsWindow.elem)
+
+    // FO2-CE ref: options.cc — S=Save, L=Load, P=Preferences, ESC/D=Done
+    const optionsKeyHandler = (e: KeyboardEvent) => {
+        if (!optionsWindow.showing) return
+
+        switch (e.key.toLowerCase()) {
+            case 's': optionsWindow.close(); uiSaveLoad(true); e.preventDefault(); break
+            case 'l': optionsWindow.close(); uiSaveLoad(false); e.preventDefault(); break
+            case 'p': alert('Preferences not yet implemented.'); e.preventDefault(); break
+            case 'd':
+            case 'escape': optionsWindow.close(); e.preventDefault(); break
+        }
+    }
+    document.addEventListener('keydown', optionsKeyHandler)
 }
 
 function initCharacterScreen() {
@@ -771,6 +835,7 @@ export enum UIMode {
     char = 12,
     pipBoy = 13,
     automap = 14,
+    options = 15,
 }
 
 // XXX: Should this throw if the element doesn't exist?
@@ -911,6 +976,12 @@ export function initUI() {
         if (isInventoryOpen()) { closeInventoryPanel(); return }
         closeAllPanels()
         uiInventoryScreen()
+    }
+
+    $id('optionsButton').onclick = () => {
+        if (isOptionsOpen()) { optionsWindow.close(); return }
+        closeAllPanels()
+        optionsWindow.show()
     }
     // Inventory panel is a static DOM element — wire drag once at init.
     makePanelDraggable($id('inventoryBox'))
