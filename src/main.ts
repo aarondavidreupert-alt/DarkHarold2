@@ -88,7 +88,7 @@ function getSkillID(skill: Skills): number {
         case Skills.Gambling:      return 16
         case Skills.Outdoorsman:   return 17
     }
-    console.log('unimplemented skill %d', skill)
+    console.warn('[Skill] unimplemented skill %d', skill)
     return -1
 }
 
@@ -98,25 +98,25 @@ function playerUseSkill(skill: Skills, obj: Obj): void {
     const skillName = SKILL_NAMES[skill - 1] // Skills enum starts at 1 (SmallGuns=1)
     const skillId = getSkillID(skill)
 
-    console.log(`[SKILL] playerUseSkill: ${skillName} (enum=${skill}, scriptId=${skillId}) on ${obj.name || obj.type || 'unknown'}`)
+    console.log(`[Skill] playerUseSkill: ${skillName} (enum=${skill}, scriptId=${skillId}) on ${obj.name || obj.type || 'unknown'}`)
 
     // Non-passive target skills: try script override first, then engine fallback
     const target = obj as Critter
     let scriptHandled = false
     if (obj._script) {
-        console.log(`[SKILL] Object has script — trying Scripting.useSkillOn(skillId=${skillId})`)
+        console.log(`[Skill] Object has script — trying Scripting.useSkillOn(skillId=${skillId})`)
         try {
             scriptHandled = Scripting.useSkillOn(globalState.player as Critter, skillId, obj)
         } catch (e) {
-            console.warn('[SKILL] useSkillOn script error:', e)
+            console.warn('[Skill] useSkillOn script error:', e)
         }
-        console.log(`[SKILL] Script handled: ${scriptHandled}`)
+        console.log(`[Skill] Script handled: ${scriptHandled}`)
     } else {
-        console.log('[SKILL] Object has no script — using engine fallback directly')
+        console.log('[Skill] Object has no script — using engine fallback directly')
     }
 
     if (!scriptHandled) {
-        console.log(`[SKILL] Engine fallback: skillUse("${skillName}")`)
+        console.log(`[Skill] Engine fallback: skillUse("${skillName}")`)
         // Engine fallback: use the skill directly
         const result = skillUse(globalState.player as Critter, target, skillName)
         uiLog(result.message)
@@ -179,7 +179,7 @@ export function playerUse(obj: Obj | null) {
         // Walking in combat (TODO: This should probably be in Combat...)
         if (globalState.inCombat) {
             if (!(globalState.combat.inPlayerTurn || Config.combat.allowWalkDuringAnyTurn)) {
-                console.log('Wait your turn.')
+                console.log('[Combat] wait your turn')
                 return
             }
 
@@ -190,7 +190,7 @@ export function playerUse(obj: Obj | null) {
 
             const maxWalkingDist = globalState.player.AP.getAvailableMoveAP()
             if (!globalState.player.walkTo(mouseHex, Config.engine.doAlwaysRun, undefined, maxWalkingDist)) {
-                console.log('Cannot walk there')
+                console.log('[Main] cannot walk there')
             } else {
                 if (!globalState.player.AP.subtractMoveAP(globalState.player.path.path.length - 1)) {
                     throw (
@@ -208,7 +208,7 @@ export function playerUse(obj: Obj | null) {
 
         // Walking out of combat
         if (!globalState.player.walkTo(mouseHex, Config.engine.doAlwaysRun)) {
-            console.log('Cannot walk there')
+            console.log('[Main] cannot walk there')
         }
 
         return
@@ -222,7 +222,7 @@ export function playerUse(obj: Obj | null) {
         if (globalState.inCombat && !who.dead) {
             // attack a critter
             if (!globalState.combat!.inPlayerTurn || globalState.player.inAnim()) {
-                console.log("You can't do that yet.")
+                console.log("[Main] can't do that yet")
                 return
             }
 
@@ -252,7 +252,7 @@ export function playerUse(obj: Obj | null) {
                 // Unarmed attack
                 globalState.player.AP!.subtractCombatAP(attackAPCost)
                 drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
-                console.log('Unarmed attack...')
+                console.log('[Combat] player unarmed attack')
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
                 uiUpdateCombatAP()
             } else {
@@ -270,7 +270,7 @@ export function playerUse(obj: Obj | null) {
                     art = who.getAnimation('called-shot')
                 }
 
-                console.log('art: %s', art)
+                console.log('[Combat] called-shot art: %s', art)
 
                 uiCalledShot(art, who, (region: string) => {
                     const calledAPCost = weapon.weapon!.getAPCost(1) + 1 // base weapon cost + 1 aiming surcharge
@@ -281,7 +281,7 @@ export function playerUse(obj: Obj | null) {
                     }
                     globalState.player.AP!.subtractCombatAP(calledAPCost)
                     drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
-                    console.log('Attacking %s...', region)
+                    console.log('[Combat] player attacks %s', region)
                     globalState.combat!.attack(globalState.player, <Critter>obj, region)
                     uiCloseCalledShot()
                     uiUpdateCombatAP()
@@ -294,14 +294,14 @@ export function playerUse(obj: Obj | null) {
                 }
                 globalState.player.AP!.subtractCombatAP(burstAPCost)
                 drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
-                console.log('Burst fire at %s...', who.name)
+                console.log('[Combat] burst fire at %s', who.name)
                 // Route through attack() which detects isBurst() and does the multi-roll loop
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
                 uiUpdateCombatAP()
             } else {
                 globalState.player.AP!.subtractCombatAP(attackAPCost)
                 drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
-                console.log('Attacking the torso...')
+                console.log('[Combat] player attacks torso')
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
                 uiUpdateCombatAP()
             }
@@ -327,9 +327,9 @@ export function playerUse(obj: Obj | null) {
                 obj._script.talk_p_proc !== undefined
             ) {
                 // talk to a critter
-                console.log('Talking to ' + who.name)
+                console.log('[Dialog] talking to ' + who.name)
                 if (!who._script) {
-                    console.warn('obj has no script')
+                    console.warn('[Dialog] obj has no script')
                     return
                 }
                 Scripting.talk(who._script, who)
@@ -337,7 +337,7 @@ export function playerUse(obj: Obj | null) {
                 // loot a dead body
                 uiLoot(obj)
             } else {
-                console.log('Cannot talk to/loot that critter')
+                console.log('[Main] cannot talk to/loot that critter')
             }
         } else {
             obj.use(globalState.player)
@@ -560,7 +560,7 @@ window.onload = async function () {
 
     ;(window as any).toggleFloorLighting = () => {
         Config.engine.doFloorLighting = !Config.engine.doFloorLighting
-        console.log('Floor lighting:', Config.engine.doFloorLighting)
+        console.log('[Lighting] floor lighting:', Config.engine.doFloorLighting)
     }
 
     ;(window as any).setLightingMode = (mode: 'gpu' | 'cpu') => {
@@ -748,7 +748,7 @@ heart.keydown = (k: string) => {
         const critter = globalState.gMap.critterAtPosition(mouseHex)
         if (critter) {
             if (critter._script && critter._script.talk_p_proc !== undefined) {
-                console.log('talking to ' + critter.name)
+                console.log('[Dialog] talking to ' + critter.name)
                 Scripting.talk(critter._script, critter)
             }
         }
@@ -761,7 +761,7 @@ heart.keydown = (k: string) => {
                     ' ' +
                     (obj._script === undefined ? 'and is NOT loaded' : 'and is loaded')
                 console.log(
-                    'object is at index ' +
+                    '[Main] object is at index ' +
                         idx +
                         ', of type ' +
                         obj.type +
@@ -783,7 +783,7 @@ heart.keydown = (k: string) => {
     }
     if (k === Config.controls.attack) {
         if (!globalState.inCombat || !globalState.combat.inPlayerTurn || globalState.player.anim !== 'idle') {
-            console.log("You can't do that yet.")
+            console.log("[Main] can't do that yet")
             return
         }
 
@@ -805,7 +805,7 @@ heart.keydown = (k: string) => {
             ) {
                 globalState.player.AP.subtractCombatAP(kbAPCost)
                 drawAP(globalState.player.AP.getAvailableMoveAP(), globalState.player.AP.getTotalMaxAP())
-                console.log('Attacking...')
+                console.log('[Combat] attack key pressed')
                 globalState.combat.attack(globalState.player, globalState.combat.combatants[i])
                 break
             }
@@ -817,12 +817,12 @@ heart.keydown = (k: string) => {
             return
         }
         if (globalState.inCombat === true && globalState.combat.inPlayerTurn === true) {
-            console.log('[TURN]')
+            console.log('[Combat] player turn ended')
             globalState.combat.nextTurn()
         } else if (globalState.inCombat === true) {
-            console.log('Wait your turn...')
+            console.log('[Combat] wait your turn')
         } else {
-            console.log('[COMBAT BEGIN]')
+            console.log('[Combat] begin')
             globalState.inCombat = true
             globalState.combat = new Combat(globalState.gMap.getObjects())
             globalState.combat.nextTurn()
@@ -836,15 +836,15 @@ heart.keydown = (k: string) => {
             if (!hit) {
                 return
             }
-            console.log('hit obj: ' + hit.art)
+            console.log('[Main] hit obj: ' + hit.art)
         }
     }
 
     if (k === Config.controls.showTargetInventory) {
         const obj = globalState.gMap.objectsAtPosition(mouseHex)[0]
         if (obj !== undefined) {
-            console.log('PID: ' + obj.pid)
-            console.log('inventory: ' + JSON.stringify(obj.inventory))
+            console.log('[Main] PID: ' + obj.pid)
+            console.log('[Main] inventory: ' + JSON.stringify(obj.inventory))
             uiLoot(obj)
         }
     }
@@ -1005,7 +1005,7 @@ heart.update = function () {
 
                 // remove events for dead objects
                 if (obj && obj instanceof Critter && obj.dead) {
-                    console.log('removing timed event for dead object')
+                    console.log('[Events] removing timed event for dead object')
                     timedEvents.splice(i--, 1)
                     numEvents--
                     continue
@@ -1078,7 +1078,7 @@ export function useElevator(): void {
     // in the range of 11. The original engine uses a square
     // of size 11x11, but we don't do that.
 
-    console.log('[elevator]')
+    console.log('[Elevator] entered')
 
     const center = globalState.player.position
     const hexes = hexesInRadius(center, 11)
@@ -1088,7 +1088,7 @@ export function useElevator(): void {
         for (let j = 0; j < objs.length; j++) {
             const obj = objs[j]
             if (obj.type === 'scenery' && obj.pidID === 1293) {
-                console.log('elevator stub @ ' + hexes[i].x + ', ' + hexes[i].y)
+                console.log(`[Elevator] stub @ (${hexes[i].x}, ${hexes[i].y})`)
                 elevatorStub = obj
                 break
             }
@@ -1099,7 +1099,7 @@ export function useElevator(): void {
         throw "couldn't find elevator stub near " + center.x + ', ' + center.y
     }
 
-    console.log('elevator type: ' + elevatorStub.extra.type + ', ' + 'level: ' + elevatorStub.extra.level)
+    console.log(`[Elevator] type=${elevatorStub.extra.type}, level=${elevatorStub.extra.level}`)
 
     const elevator = getElevator(elevatorStub.extra.type)
     if (!elevator) {

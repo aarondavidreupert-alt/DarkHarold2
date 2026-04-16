@@ -32,6 +32,16 @@ import { getActiveUnarmedMode } from './unarmed.js'
 
 // Turn-based combat system
 
+/** Write a technical/debug combat message to the browser console only.
+ *  Player-visible combat messages go through uiLog() — never mix the two. */
+function combatDebug(...args: any[]): void {
+    console.log('[Combat]', ...args)
+}
+
+function combatWarn(...args: any[]): void {
+    console.warn('[Combat]', ...args)
+}
+
 export class ActionPoints {
     combat: number = 0 // Combat AP
     move: number = 0 // Move AP
@@ -236,12 +246,13 @@ export class Combat {
         // Stop the player from walking combat is initiating
         this.player.clearAnim()
 
+        globalState.audioEngine.playActionSfx('combat_start')
         uiStartCombat()
     }
 
     log(msg: any) {
-        // Combat-related debug log
-        console.log(msg)
+        // Combat-related debug log (browser console only, never game console)
+        combatDebug(msg)
     }
 
     /** Load ammo stats for a loaded weapon. Returns defaults (X=1,Y=1,RM=0,ACmod=0) if no ammo.
@@ -349,7 +360,7 @@ export class Combat {
             var hitChance = unarmedSkill - AC - CriticalEffects.regionHitChanceDecTable[region] - partialCoverPenalty - crippledArmPenalty - blindPenalty
             var critChance = baseCrit + CriticalEffects.regionHitChanceDecTable[region]
             hitChance = Math.min(95, hitChance)
-            console.log(`[HitChance] unarmed: skill=${unarmedSkill} AC=${AC} region=${CriticalEffects.regionHitChanceDecTable[region]} cover=${partialCoverPenalty} → ${hitChance}%`)
+            combatDebug(`hitChance(unarmed): skill=${unarmedSkill} AC=${AC} region=${CriticalEffects.regionHitChanceDecTable[region]} cover=${partialCoverPenalty} → ${hitChance}%`)
             return { hit: hitChance, crit: critChance }
         }
 
@@ -396,7 +407,7 @@ export class Combat {
         var hitChance = this.getHitChance(obj, target, region)
         hitChance = { ...hitChance, hit: hitChance.hit + hitBonus }
 
-        if (attackerName) uiLog(`${attackerName} attacks ${defenderName} — hit chance: ${hitChance.hit}%`)
+        if (attackerName) combatDebug(`${attackerName} → ${defenderName}: hitChance=${hitChance.hit}% critChance=${hitChance.crit}%`)
 
         // hey kids! Did you know FO only rolls the dice once here and uses the results two times?
         var roll = getRandomInt(1, 101)
@@ -419,15 +430,15 @@ export class Combat {
             }
             if (isCrit === true) {
                 var critLevel = Math.floor(Math.max(0, getRandomInt(critModifer, 100 + critModifer)) / 20)
-                this.log('crit level: ' + critLevel)
-                if (attackerName) uiLog(`${attackerName} scores a CRITICAL HIT on ${defenderName}! (level ${critLevel})`)
+                combatDebug(`crit hit: roll=${roll} level=${critLevel}`)
+                if (attackerName) uiLog(`${attackerName} scores a critical hit on ${defenderName}!`)
                 var crit = CriticalEffects.getCritical(target.killType ?? 0, region, critLevel)
                 var critStatus = crit.doEffectsOn(target)
 
                 return { hit: true, crit: true, DM: critStatus.DM, msgID: critStatus.msgID } // crit
             }
 
-            if (attackerName) uiLog(`${attackerName} hits ${defenderName}! (roll: ${roll})`)
+            combatDebug(`hit: roll=${roll} vs ${hitChance.hit}%`)
             return { hit: true, crit: false } // hit
         }
 
@@ -441,7 +452,7 @@ export class Combat {
             if (getRandomInt(1, 100) <= 50) isCrit = true
         }
 
-        if (attackerName) uiLog(`${attackerName} misses ${defenderName}. (roll: ${roll})`)
+        combatDebug(`miss: roll=${roll} vs ${hitChance.hit}%${isCrit ? ' (crit fail)' : ''}`)
         return { hit: false, crit: isCrit } // miss
     }
 
@@ -523,9 +534,7 @@ export class Combat {
             }
         }
 
-        const dmgLog = `Dmg: RD=${RD} CM=${critMultiplier} ×${ammoStats.X}/${ammoStats.Y} DT=${DT} DR=${DR}% CD=${CD} → ${damage}`
-        console.log(dmgLog)
-        uiLog(dmgLog)
+        combatDebug(`damage: RD=${RD} CM=${critMultiplier} ×${ammoStats.X}/${ammoStats.Y} DT=${DT} DR=${DR}% CD=${CD} → ${damage}`)
         return damage
     }
 
@@ -587,7 +596,7 @@ export class Combat {
             // Pyromaniac doesn't apply (unarmed is Normal damage, not Fire)
         }
 
-        uiLog(`Unarmed [${mode.name}]: RD=${RD} CM=${critMultiplier} DT=${DT} DR=${DR}% CD=${CD} → ${damage} damage`)
+        combatDebug(`damage(unarmed [${mode.name}]): RD=${RD} CM=${critMultiplier} DT=${DT} DR=${DR}% CD=${CD} → ${damage}`)
         return damage
     }
 
@@ -624,9 +633,10 @@ export class Combat {
         var rawSoundID = weaponObj?.pro?.extra?.soundID
         var soundIdChar = typeof rawSoundID === 'number' ? String.fromCharCode(rawSoundID) : null
 
-        // Play attack sound
+        // Play attack sound — burst-fire weapons have their own wa<id>2xxx1 sample.
         if (soundIdChar) {
-            audio.playWeaponSfx(soundIdChar, 'attack')
+            const isBurstAttack = !!(weaponObj?.weapon?.isBurst?.())
+            audio.playWeaponSfx(soundIdChar, isBurstAttack ? 'attack_burst' : 'attack')
         }
 
         var targetName = target.isPlayer ? 'you' : target.name
@@ -665,7 +675,8 @@ export class Combat {
                     else if (unarmedCritFailRoll <= 75) unarmedCritFailLevel = 3
                     else if (unarmedCritFailRoll <= 95) unarmedCritFailLevel = 4
                     else unarmedCritFailLevel = 5
-                    uiLog(`${who} CRITICALLY FAILS! (level ${unarmedCritFailLevel})`)
+                    uiLog(`${who} critically fails!`)
+                    combatDebug(`unarmed crit fail: level=${unarmedCritFailLevel} roll=${unarmedCritFailRoll}`)
                     var unarmedCritFailEffect = CriticalEffects.criticalFailTable['unarmed']?.[unarmedCritFailLevel]
                         ?? CriticalEffects.criticalFailTable['unarmed'][1]
                     CriticalEffects.temporaryDoCritFail(unarmedCritFailEffect, obj)
@@ -679,7 +690,7 @@ export class Combat {
         // Rounds split: center≈½, left≈¼, right≈¼.  All critters on each line are eligible.
         if (weapon && weapon.isBurst && weapon.isBurst()) {
             const burstCount: number = (weaponObj as any)?.pro?.extra?.burstCount ?? 10
-            console.log(`[burst] burstCount=${burstCount} weapon=${weapon.name}`)
+            combatDebug(`burst: count=${burstCount} weapon=${weapon.name}`)
 
             const centerCount = Math.floor(burstCount / 2)
             const remaining = burstCount - centerCount
@@ -721,11 +732,12 @@ export class Combat {
             uiLog(`${who} burst-fired at ${targetName}: ${totalBulletHits}/${burstCount} hits`)
 
             if (damageMap.size > 0) {
+                // Burst fire: the wa<id>2xxx1 attack sample already covers the
+                // whole volley, so skip per-victim impact sounds (they stacked
+                // into a rapid-fire click train).
                 for (const [victim, dmg] of damageMap) {
                     const victimName = victim.isPlayer ? 'you' : victim.name
                     uiLog(`  ${victimName} took ${dmg} damage`)
-                    if (soundIdChar) audio.playWeaponSfx(soundIdChar, 'impact')
-                    else audio.playActionSfx('hit_flesh')
                     critterDamage(victim, dmg, obj, true, true, attackDmgType)
                     if (victim.isPlayer) drawHP(victim.getStat('HP'))
                     if (victim.dead) this.perish(victim, obj, attackDmgType)
@@ -797,7 +809,8 @@ export class Combat {
                 else if (critFailRoll <= 95) critFailLevel = 4
                 else critFailLevel = 5
 
-                uiLog(who + ' critically failed! (level ' + critFailLevel + ')')
+                uiLog(`${who} critically fails!`)
+                combatDebug(`crit fail: level=${critFailLevel} roll=${critFailRoll}`)
 
                 var critFailTableType = getCritFailTableType(weapon)
                 var critFailEffect = CriticalEffects.criticalFailTable[critFailTableType]?.[critFailLevel]
@@ -930,14 +943,14 @@ export class Combat {
 
     doAITurn(obj: Critter, idx: number, depth: number, weaponSwitchDone = false): void {
         if (depth > Config.combat.maxAIDepth) {
-            console.warn(`Bailing out of ${depth}-deep AI turn recursion`)
+            combatWarn(`Bailing out of ${depth}-deep AI turn recursion`)
             return this.nextTurn()
         }
 
         var that = this
         var target = this.findTarget(obj)
         if (!target) {
-            console.log('[AI has no target]')
+            combatDebug('AI has no target')
             return this.nextTurn()
         }
         var distance = hexDistance(obj.position, target.position)
@@ -978,7 +991,7 @@ export class Combat {
         // Handle unarmed AI (no weapon equipped) — punch at melee range
         if (!weaponObj) {
             const unarmedAPCost = 3
-            console.log('[AI] unarmed critter', obj.name, '— AP:', AP.getAvailableCombatAP(), 'distance:', distance)
+            combatDebug('unarmed AI:', obj.name, 'AP:', AP.getAvailableCombatAP(), 'distance:', distance)
             if (distance <= 1 && AP.getAvailableCombatAP() >= unarmedAPCost) {
                 AP.subtractCombatAP(unarmedAPCost)
                 this.attack(obj, target, 'torso', function () {
@@ -995,10 +1008,10 @@ export class Combat {
                         return
                     }
                 }
-                console.log('[AI IS STUMPED] unarmed, no path to target')
+                combatDebug(`AI: no valid action (unarmed, no path to target: ${target?.name})`)
                 return this.nextTurn()
             } else {
-                console.log('[AI IS STUMPED] unarmed, not enough AP (AP:', AP.getAvailableCombatAP(), 'dist:', distance, ')')
+                combatDebug(`AI: no valid action (unarmed, AP: ${AP.getAvailableCombatAP()}, distance: ${distance})`)
                 return this.nextTurn()
             }
             return
@@ -1040,22 +1053,13 @@ export class Combat {
         weaponObj = obj.equippedWeapon
         if (!weaponObj) {
             // Weapon was dropped/removed during swap — end turn gracefully
-            console.log('[AI IS STUMPED] no weapon after swap check')
+            combatDebug('AI: no valid action (no weapon after swap check)')
             return this.nextTurn()
         }
         weapon = weaponObj.weapon
         if (!weapon) throw Error('AI weapon has no weapon data after swap check')
         fireDistance = weapon.getMaximumRange(1)
-        this.log(
-            'DEBUG: weapon: ' +
-                weapon +
-                ' fireDistance: ' +
-                fireDistance +
-                ' obj: ' +
-                obj.art +
-                ' distance: ' +
-                distance
-        )
+        combatDebug(`AI ${obj.art}: weapon=${weapon.name} fireDistance=${fireDistance} distance=${distance}`)
 
         // are we in firing distance?
         if (distance > fireDistance) {
@@ -1119,7 +1123,7 @@ export class Combat {
                         const ammoIdx2 = aiInv!.indexOf(ammoItem)
                         if (ammoIdx2 !== -1) aiInv!.splice(ammoIdx2, 1)
                     }
-                    console.log(`[AI] ${obj.name}: reloaded ${toLoad} rounds`)
+                    combatDebug(`AI ${obj.name}: reloaded ${toLoad} rounds`)
                     that.doAITurn(obj, idx, depth + 1, weaponSwitchDone)
                     return
                 }
@@ -1137,7 +1141,7 @@ export class Combat {
                         return
                     }
                 }
-                console.log(`[AI] ${obj.name}: weapon empty, falling back to unarmed`)
+                combatDebug(`AI ${obj.name}: weapon empty, falling back to unarmed`)
                 return this.nextTurn()
             }
             // ─────────────────────────────────────────────────────────────────────
@@ -1180,8 +1184,7 @@ export class Combat {
                 })
             }
         } else {
-            console.log('[AI IS STUMPED] target:', target?.name, 'AP:', AP.getAvailableCombatAP(),
-                'weapon:', weapon?.name, 'weaponAPCost:', weapon?.getAPCost(1), 'distance:', distance)
+            combatDebug(`AI: no valid action (target: ${target?.name}, AP: ${AP.getAvailableCombatAP()}, weapon: ${weapon?.name}, cost: ${weapon?.getAPCost(1)}, distance: ${distance})`)
             this.nextTurn()
         }
     }
@@ -1204,7 +1207,7 @@ export class Combat {
             var obj = this.combatants[i]
             if (obj.dead || obj.isPlayer) continue
             if (!obj.ai || !obj.ai.info) {
-                console.warn(`[COMBAT] Critter ${obj.name || obj.art} has no AI info, skipping range check`)
+                combatWarn(`Critter ${obj.name || obj.art} has no AI info, skipping range check`)
                 continue
             }
             var inRange = hexDistance(obj.position, this.player.position) <= obj.ai.info.max_dist
@@ -1222,10 +1225,11 @@ export class Combat {
             combatant.outline = null
         }
 
-        console.log('[end combat]')
+        combatDebug('end combat')
         globalState.combat = null // todo: invert control
         globalState.inCombat = false
 
+        globalState.audioEngine.playActionSfx('combat_end')
         globalState.gMap.updateMap()
         uiEndCombat()
     }
@@ -1269,7 +1273,7 @@ export class Combat {
             var obj = this.combatants[i]
             if (obj.dead || obj.isPlayer) continue
             if (!obj.ai || !obj.ai.info) {
-                console.warn(`[COMBAT] Critter ${obj.name || obj.art} has no AI info, skipping range check`)
+                combatWarn(`Critter ${obj.name || obj.art} has no AI info, skipping range check`)
                 continue
             }
             var inRange = hexDistance(obj.position, this.player.position) <= obj.ai.info.max_dist
@@ -1320,7 +1324,8 @@ export class Combat {
             if (critter.onFireTurns > 0) {
                 critter.onFireTurns--
                 const fireDmg = getRandomInt(3, 6)
-                uiLog(`${critter.name} burns for ${fireDmg} fire damage (${critter.onFireTurns} turns left)`)
+                uiLog(`${critter.name} burns for ${fireDmg} damage.`)
+                combatDebug(`fire DoT: ${critter.name} took ${fireDmg} (${critter.onFireTurns} turns left)`)
                 critterDamage(critter, fireDmg, critter, false, false, 'Fire')
                 if (critter.dead) return this.nextTurn() // fire killed them; skip to next
             }

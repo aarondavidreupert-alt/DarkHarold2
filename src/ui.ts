@@ -245,7 +245,7 @@ export class List extends Widget {
         }
 
         if (!itemElem) {
-            console.warn(`Can't find item's element for item UID ${item.uid}`)
+            console.warn(`[UI] can't find item's element for item UID ${item.uid}`)
             return false
         }
 
@@ -672,12 +672,12 @@ function initCharacterScreen() {
             const sel = skillList.getSelection()
             if (!sel) return
             const skill = sel.id
-            console.log('skill: %s currently: %d', skill, newSkillSet.get(skill, newStatSet, playerSkillOpts))
+            console.log('[CharScreen] skill: %s currently: %d', skill, newSkillSet.get(skill, newStatSet, playerSkillOpts))
 
             if (inc) {
                 const changed = newSkillSet.incBase(skill, newStatSet, playerSkillOpts)
                 if (!changed) {
-                    console.warn('Not enough skill points!')
+                    console.warn('[CharScreen] not enough skill points')
                 }
             } else {
                 newSkillSet.decBase(skill, newStatSet, playerSkillOpts)
@@ -691,11 +691,11 @@ function initCharacterScreen() {
             if (!sel) return
             const skill = sel.id
             const tagged = newSkillSet.isTagged(skill)
-            console.log('skill: %s currently: %d tagged: %s', skill, newSkillSet.get(skill, newStatSet, playerSkillOpts), tagged)
+            console.log('[CharScreen] skill: %s currently: %d tagged: %s', skill, newSkillSet.get(skill, newStatSet, playerSkillOpts), tagged)
 
             if (!tagged) {
                 if (!newSkillSet.tag(skill)) {
-                    console.warn('Maximum tagged skills reached!')
+                    console.warn('[CharScreen] maximum tagged skills reached')
                 }
             } else {
                 newSkillSet.untag(skill)
@@ -1016,10 +1016,10 @@ export function initUI() {
     $id('endTurnButton').onclick = () => {
         if (globalState.inCombat && globalState.combat!.inPlayerTurn) {
             if (globalState.player.anim !== null && globalState.player.anim !== 'idle') {
-                console.log("Can't end turn while player is in an animation.")
+                console.log("[Combat] can't end turn while player is in an animation")
                 return
             }
-            console.log('[TURN]')
+            console.log('[Combat] player turn ended')
             globalState.combat!.nextTurn()
         }
     }
@@ -1115,9 +1115,9 @@ export function uiContextMenu(obj: Obj, evt: any) {
         })
     })
     const talkBtn = button(obj, 'talk', () => {
-        console.log('talking to ' + obj.name)
+        console.log('[Dialog] talking to ' + obj.name)
         if (!obj._script) {
-            console.warn('obj has no script')
+            console.warn('[Dialog] obj has no script')
             return
         }
         Scripting.talk(obj._script, obj)
@@ -1360,7 +1360,7 @@ function uiMoveSlot(data: string, target: string) {
         } // disallow inventory -> inventory
 
         const idx = parseInt(data.slice(1))
-        console.log('idx: ' + idx)
+        console.log('[UI] inventory idx: ' + idx)
         obj = globalState.player.inventory[idx]
 
         // Drag-drop reload: ammo from inventory dropped onto a hand slot with a weapon
@@ -1378,7 +1378,7 @@ function uiMoveSlot(data: string, target: string) {
         playerUnsafe[data] = null // remove object from slot
     }
 
-    console.log('obj: ' + obj + ' (data: ' + data + ', target: ' + target + ')')
+    console.log(`[UI] drop target: obj=${obj} data=${data} target=${target}`)
 
     if (target === 'inventory') {
         globalState.player.inventory.push(obj)
@@ -1426,7 +1426,7 @@ function applyArmorArt(armor: Obj | null) {
                     return
                 }
             } catch (e) {
-                console.warn('applyArmorArt: lookupArt failed for fid', fid, e)
+                console.warn('[UI] applyArmorArt: lookupArt failed for fid', fid, e)
             }
         }
     }
@@ -1451,7 +1451,7 @@ function makeDraggable($el: HTMLElement, data: string, endCallback?: () => void)
     $el.setAttribute('draggable', 'true')
     $el.ondragstart = (e: DragEvent) => {
         e.dataTransfer.setData('text/plain', data)
-        console.log('start drag')
+        console.log('[UI] start drag')
     }
     $el.ondragend = (e: DragEvent) => {
         if (e.dataTransfer.dropEffect !== 'none') {
@@ -1735,13 +1735,13 @@ export function uiInventoryScreen() {
             case 'cancel':
                 break
             case 'use':
-                console.log('using object: ' + obj.art)
+                console.log('[UI] using object: ' + obj.art)
                 obj.use(globalState.player)
                 break
             case 'drop':
-                console.log('dropping: ' + obj.art + ' with pid ' + obj.pid)
+                console.log('[UI] dropping: ' + obj.art + ' with pid ' + obj.pid)
                 if (slot !== 'inventory') {
-                    console.log('moving into inventory first')
+                    console.log('[UI] moving into inventory first')
                     globalState.player.inventory.push(obj)
                     playerAny[slot] = null
                 }
@@ -1795,7 +1795,7 @@ export function uiInventoryScreen() {
             case 'unload': {
                 const ammoPID: number | undefined = obj.pro?.extra?.ammoPID
                 const ammoCurrent: number = obj.pro?.extra?.rounds ?? 0
-                console.log(`[unload] ammoPID=${ammoPID} rounds=${ammoCurrent}`)
+                console.log(`[UI] unload: ammoPID=${ammoPID} rounds=${ammoCurrent}`)
                 if (ammoCurrent > 0) {
                     if (ammoPID) {
                         // Create an ammo item and return it to inventory
@@ -2232,7 +2232,7 @@ export function uiBarterMode(merchant: Critter) {
     const $dialogueBox = $id('dialogueBox')
     uiAnimateBox($dialogueBox, null, 480, () => {
         $dialogueBox.style.visibility = 'hidden'
-        console.log('going to pop up barter box')
+        console.log('[Barter] popping up barter box')
 
         // Pop up the bartering screen (animate up)
         const $barterBox = $id('barterBox')
@@ -2263,7 +2263,7 @@ export function uiBarterMode(merchant: Critter) {
 
     // TODO: checkOffer() or some-such
     function offer() {
-        console.log('[OFFER]')
+        console.log('[Barter] offer')
 
         const merchantOffered = totalAmount(merchantBarterTable)
         const playerOffered = totalAmount(playerBarterTable)
@@ -2271,7 +2271,7 @@ export function uiBarterMode(merchant: Critter) {
 
         if (diffOffered >= 0) {
             // OK, player offered equal to more more than the value
-            console.log('[OFFER OK]')
+            console.log('[Barter] offer accepted')
 
             // finalize and apply the deal
 
@@ -2296,7 +2296,7 @@ export function uiBarterMode(merchant: Critter) {
 
             redrawBarterInventory()
         } else {
-            console.log('[OFFER REFUSED]')
+            console.log('[Barter] offer refused')
         }
     }
 
@@ -2317,7 +2317,7 @@ export function uiBarterMode(merchant: Critter) {
     }
 
     async function uiBarterMove(data: string, where: 'left' | 'right' | 'leftInv' | 'rightInv') {
-        console.log('barter: move ' + data + ' to ' + where)
+        console.log('[Barter] move ' + data + ' to ' + where)
 
         const from = (
             {
@@ -2415,7 +2415,7 @@ export function uiLoot(object: Obj) {
     globalState.uiMode = UIMode.loot
 
     async function uiLootMove(data: string /* "l"|"r" */, where: 'left' | 'right') {
-        console.log('loot: move ' + data + ' to ' + where)
+        console.log('[Loot] move ' + data + ' to ' + where)
 
         const from = ({ l: globalState.player.inventory, r: object.inventory } as any)[data[0]]
 
@@ -2461,7 +2461,7 @@ export function uiLoot(object: Obj) {
         }
     }
 
-    console.log('looting...')
+    console.log('[Loot] opening loot screen')
 
     showv($id('lootBox'))
 
@@ -2474,7 +2474,7 @@ export function uiLoot(object: Obj) {
     })
 
     $id('lootBoxTakeAllButton').onclick = () => {
-        console.log('take all...')
+        console.log('[Loot] take all')
         const inv = object.inventory.slice(0) // clone inventory
         for (let i = 0; i < inv.length; i++) {
             uiSwapItem(object.inventory, inv[i], globalState.player.inventory, inv[i].amount)
@@ -2544,14 +2544,14 @@ export function uiWorldMapShowArea(area: Area) {
     clearEl($areamap)
 
     for (const entrance of area.entrances) {
-        console.log('Area entrance: ' + entrance.mapLookupName)
+        console.log('[Worldmap] area entrance: ' + entrance.mapLookupName)
         const $entranceEl = makeEl('div', { classes: ['worldmapEntrance'] })
         const $hotspot = makeEl('div', { classes: ['worldmapEntranceHotspot'] })
 
         $hotspot.onclick = () => {
             // hotspot click -- travel to relevant map
             const mapName = lookupMapNameFromLookup(entrance.mapLookupName)
-            console.log('hotspot -> ' + mapName + ' (via ' + entrance.mapLookupName + ')')
+            console.log(`[Worldmap] hotspot → ${mapName} (via ${entrance.mapLookupName})`)
             globalState.gMap.loadMap(mapName, undefined, entrance.elevation)
             uiCloseWorldMap()
         }
@@ -2607,12 +2607,12 @@ function uiElevatorDone() {
 export function uiElevator(elevator: Elevator) {
     globalState.uiMode = UIMode.elevator
     const art = lookupInterfaceArt(elevator.type)
-    console.log('elevator art: ' + art)
-    console.log('buttons: ' + elevator.buttonCount)
+    console.log('[Elevator] art: ' + art)
+    console.log('[Elevator] buttons: ' + elevator.buttonCount)
 
     if (elevator.labels !== -1) {
         const labelArt = lookupInterfaceArt(elevator.labels)
-        console.log('elevator label art: ' + labelArt)
+        console.log('[Elevator] label art: ' + labelArt)
 
         const $elevatorLabel = $id('elevatorLabel')
         showv($elevatorLabel)
@@ -2637,11 +2637,11 @@ export function uiElevator(elevator: Elevator) {
 
             if (mapID !== globalState.gMap.mapID) {
                 // different map
-                console.log('elevator -> map ' + mapID + ', level ' + level + ' @ ' + position.x + ', ' + position.y)
+                console.log(`[Elevator] → map ${mapID}, level ${level} @ (${position.x}, ${position.y})`)
                 globalState.gMap.loadMapByID(mapID, position, level)
             } else if (level !== globalState.currentElevation) {
                 // same map, different elevation
-                console.log('elevator -> level ' + level + ' @ ' + position.x + ', ' + position.y)
+                console.log(`[Elevator] → level ${level} @ (${position.x}, ${position.y})`)
                 globalState.player.move(position)
                 globalState.gMap.changeElevation(level, true)
             }
@@ -2663,7 +2663,7 @@ export function uiCalledShot(art: string, target: Critter, callback?: (regionHit
 
     function drawChance(region: string) {
         let chance: any = Combat.prototype.getHitChance(globalState.player, target, region).hit
-        console.log('id: %s | chance: %d', '#calledShot-' + region + '-chance #digit', chance)
+        console.log('[UI] called shot: id: %s | chance: %d', '#calledShot-' + region + '-chance #digit', chance)
         if (chance <= 0) {
             chance = '--'
         }
@@ -2715,7 +2715,7 @@ export function uiCalledShot(art: string, target: Critter, callback?: (regionHit
             })
             $label.onclick = (evt: MouseEvent) => {
                 const clickedRegion = (evt.target as HTMLElement).id.split('-')[1]
-                console.log('clicked a called location (%s)', clickedRegion)
+                console.log('[UI] called shot: clicked region %s', clickedRegion)
                 if (callback) {
                     callback(clickedRegion)
                 }
