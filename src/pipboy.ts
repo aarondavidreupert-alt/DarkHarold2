@@ -21,6 +21,7 @@ import { drawAutomapInto, getArchivedMaps, getSeenTiles } from './automapData.js
 import { getAutomapZoom, zoomIn, zoomOut, getAutomapPan, attachAutomapDragPan, attachAutomapWheelZoom } from './automap.js'
 import { Config } from './config.js'
 import { getActiveQuests, getUnknownActiveGvars } from './questLog.js'
+import { makePanelDraggable } from './dragPanel.js'
 
 type PipBoyTab = 'STATUS' | 'AUTOMAPS' | 'ARCHIVES' | 'CLOSE'
 
@@ -656,8 +657,10 @@ export function openPipBoy(): void {
     pipBoyContainer.id = 'pipBoyContainer'
 
     // Background image
+    // Centered in the 800×600 uiStage with bottom flush against the HUD:
+    // left = (800-640)/2 = 80, top = 600 - 99 - 480 = 21.
     pipBoyContainer.style.cssText = `
-        position: absolute; left: 80px; top: 60px;
+        position: absolute; left: 80px; top: 21px;
         width: 640px; height: 480px;
         background-image: url('art/intrface/pip.png');
         background-size: 640px 480px;
@@ -692,8 +695,15 @@ export function openPipBoy(): void {
         pipBoyContainer.appendChild(dot)
     }
 
-    const gameContainer = document.getElementById('game-container')!
-    gameContainer.appendChild(pipBoyContainer)
+    // Attach to #uiStage so the 800×600-era `left: 80px; top: 60px` inline
+    // offsets center in the viewport on any screen size. Fall back to
+    // #game-container on the off chance the stage isn't there.
+    const stage = document.getElementById('uiStage') ?? document.getElementById('game-container')!
+    stage.appendChild(pipBoyContainer)
+
+    // Allow the user to drag the panel by clicking non-interactive background
+    // areas (the pip.png frame) — tab dots/buttons are skipped automatically.
+    makePanelDraggable(pipBoyContainer)
 
     // Reset automap navigation each time PipBoy opens
     automapSelectedLocation = null
@@ -719,4 +729,8 @@ export function togglePipBoy(): void {
     } else {
         openPipBoy()
     }
+}
+
+export function isPipBoyOpen(): boolean {
+    return pipBoyContainer !== null
 }

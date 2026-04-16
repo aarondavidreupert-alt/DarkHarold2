@@ -18,9 +18,14 @@ limitations under the License.
 
 /* Main stylesheet for the DarkFO UI */
 
-body {
+html, body {
   font-family: 'VT323', monospace;
   margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: black;
 }
 
 .disable-selection {
@@ -34,9 +39,56 @@ body {
 
 #game-container {
   position: relative;
+  width: 100vw;
+  height: 100vh;
+  background-color: black;
+  overflow: hidden;
+}
+
+#fullscreenBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1000;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #d4c78a;
+  border: 1px solid #6a5a2a;
+  font-family: 'VT323', monospace;
+  font-size: 14pt;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+#fullscreenBtn:hover {
+  background: rgba(50, 40, 20, 0.75);
+}
+
+/* ------------------------------------------------------------------ */
+/* Modal UI stage.                                                     */
+/* An 800×600 logical coordinate frame centered in its parent. All the */
+/* classic Fallout 2 modal panels (dialogue, inventory, loot, world-   */
+/* map, elevator, called-shot, pipboy, automap) are laid out relative  */
+/* to 800×600, so putting them inside this stage lets their existing   */
+/* hardcoded `left` / `top` offsets keep working regardless of the     */
+/* viewport size.                                                      */
+/*                                                                     */
+/* pointer-events: none on the stage (and auto on direct children) so  */
+/* the empty 800×600 area doesn't eat canvas clicks when no panel is   */
+/* open — only visible children receive input.                         */
+/* ------------------------------------------------------------------ */
+.ui-stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
   width: 800px;
   height: 600px;
-  background-color: black;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.ui-stage > * {
+  pointer-events: auto;
 }
 
 /* canvas overlay */
@@ -65,8 +117,9 @@ body {
 
 #bar {
   position: absolute;
-  left: 80px;
-  /* (canvas width - 640) / 2 */
+  /* Center the 640-wide HUD horizontally regardless of viewport width. */
+  left: 50%;
+  transform: translateX(-50%);
   bottom: 0px;
   width: 640px;
   height: 99px;
@@ -321,8 +374,10 @@ body {
 /* inventory box */
 #inventoryBox {
   position: absolute;
-  left: 130px;
-  top: 50px;
+  /* Centered horizontally in the 800×600 uiStage, bottom-flush with the
+     99px HUD: left = (800-499)/2 = 150, top = 600 - 99 - 377 = 124. */
+  left: 150px;
+  top: 124px;
   width: 499px;
   height: 377px;
   visibility: hidden;
@@ -660,6 +715,7 @@ body {
 
 #dialogueContainer {
   position: absolute;
+  /* 800×600-era offset; .ui-stage centers the whole coordinate frame. */
   left: 80px;
   top: 20px;
   width: 640px;
@@ -714,6 +770,7 @@ body {
 
 #barterBox {
   position: absolute;
+  /* Relative to #dialogueContainer, which is itself centered by .ui-stage. */
   left: 0px;
   top: 300px;
   width: 640px;
@@ -824,6 +881,7 @@ body {
 /* loot box */
 #lootBox {
   position: absolute;
+  /* 800×600-era offset; centered by .ui-stage. */
   left: 80px;
   top: 20px;
   width: 537px;
@@ -890,11 +948,14 @@ body {
   position: absolute;
   left: 0px;
   top: 0px;
-  width: 800px;
-  height: 600px;
+  width: 100%;
+  height: 100%;
   background-color: black;
   display: none;
 }
+
+/* worldMapContainer hosts its own .ui-stage wrapper; the 800×600 frame     */
+/* centers its children (#worldMapBox + #worldMapWorld) in the viewport.   */
 
 #worldMapBox {
   position: absolute;
@@ -1001,8 +1062,10 @@ body {
 
 #pipBoyContainer {
   position: absolute;
+  /* Centered horizontally in 800×600 uiStage, bottom-flush with 99px HUD:
+     left = (800-640)/2 = 80, top = 600 - 99 - 480 = 21. */
   left: 80px;
-  top: 60px;
+  top: 21px;
   width: 640px;
   height: 480px;
   background-image: url("art/intrface/pip.png");
@@ -1014,6 +1077,7 @@ body {
   position: absolute;
   width: 230px;
   height: 284px;
+  /* 800×600-era offset; centered by .ui-stage. */
   left: 285px;
   top: 158px;
   /* center */
@@ -1174,6 +1238,7 @@ body {
 
 #calledShotBox {
   position: absolute;
+  /* 800×600-era offset; centered by .ui-stage. */
   left: 135px;
   top: 135px;
   width: 504px;
@@ -1308,14 +1373,23 @@ body {
 /* Hide OS cursor over the game canvas — Fallout renders its own cursor via WebGL */
 #cnv {
   cursor: none !important;
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* Let JS manage the actual width/height (set to innerWidth/innerHeight)
+     but also fill the container by default so there's never a gap before
+     the first resize tick. */
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 #textOverlay {
   position: absolute;
   top: 0;
   left: 0;
-  width: 800px;
-  height: 600px;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
 }
 

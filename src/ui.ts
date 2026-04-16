@@ -31,9 +31,10 @@ import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
-import { openAutomap } from './automap.js'
-import { openPipBoy } from './pipboy.js'
+import { openAutomap, closeAutomap, isAutomapOpen } from './automap.js'
+import { openPipBoy, closePipBoy, isPipBoyOpen } from './pipboy.js'
 import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
+import { makePanelDraggable } from './dragPanel.js'
 
 // UI system
 
@@ -310,7 +311,11 @@ export class List extends Widget {
 let $uiContainer: HTMLElement
 
 function uiInit() {
-    $uiContainer = document.getElementById('game-container')!
+    // WindowFrame.show() appends to $uiContainer; point it at #uiStage so
+    // all skilldex/character/save-load/worldmap windows inherit the 800×600
+    // centered coordinate frame. Fall back to #game-container if the stage
+    // div is missing (e.g. legacy HTML).
+    $uiContainer = (document.getElementById('uiStage') ?? document.getElementById('game-container'))!
 
     initSkilldex()
     // initCharacterScreen();
@@ -318,18 +323,58 @@ function uiInit() {
     const chrBtn = document.getElementById('chrButton')
     if (chrBtn) {
         chrBtn.onclick = () => {
-            characterWindow && characterWindow.close()
+            // Toggle: pressing while open closes it.
+            if (isCharacterOpen()) { characterWindow.close(); return }
+            closeAllPanels()
             initCharacterScreen()
         }
     }
 
     document.getElementById('pipBoyButton')!.onclick = () => {
+        if (isPipBoyOpen()) { closePipBoy(); return }
+        closeAllPanels()
         openPipBoy()
     }
 
     document.getElementById('mapButton')!.onclick = () => {
+        if (isAutomapOpen()) { closeAutomap(); return }
+        closeAllPanels()
         openAutomap()
     }
+}
+
+// --- Panel mutual-exclusion helpers -----------------------------------------
+//
+// These let each panel-open path close any other panels that are currently up,
+// so buttons behave like tabs rather than stackable overlays. They are also
+// used by the button handlers to implement toggle-to-close.
+
+export function isInventoryOpen(): boolean {
+    return globalState.uiMode === UIMode.inventory
+}
+
+export function isCharacterOpen(): boolean {
+    return !!(characterWindow && characterWindow.showing)
+}
+
+export function isSkilldexOpen(): boolean {
+    return !!(skilldexWindow && skilldexWindow.showing)
+}
+
+function closeInventoryPanel(): void {
+    if (!isInventoryOpen()) return
+    globalState.uiMode = UIMode.none
+    $id('inventoryBox').style.visibility = 'hidden'
+    if (globalState.player) globalState.player.clearAnim?.()
+    uiDrawWeapon()
+}
+
+export function closeAllPanels(): void {
+    if (isPipBoyOpen()) closePipBoy()
+    if (isAutomapOpen()) closeAutomap()
+    if (isCharacterOpen()) characterWindow.close()
+    if (isInventoryOpen()) closeInventoryPanel()
+    if (isSkilldexOpen()) skilldexWindow.close()
 }
 
 let skilldexWindow: WindowFrame
@@ -380,6 +425,8 @@ function initSkilldex() {
     skilldexWindow = new WindowFrame(
         'art/intrface/skldxbox',
         {
+            // Positions are in the 800×600 layout frame provided by
+            // #uiStage; the stage centers those coordinates on screen.
             x: Config.ui.screenWidth - 185,
             y: Config.ui.screenHeight - 368 - 99,
         },
@@ -431,6 +478,10 @@ function initSkilldex() {
         zIndex: '20',
         cursor: 'default',
     })
+
+    // Drag-to-reposition from non-interactive areas of the skilldex frame,
+    // matching the PipBoy / automap / inventory / character panels.
+    makePanelDraggable(skilldexWindow.elem)
 
     // FO2-CE ref: skilldex.cc — update skill values when the skilldex is shown
     const origShow = skilldexWindow.show.bind(skilldexWindow)
@@ -485,8 +536,10 @@ function initCharacterScreen() {
     characterWindow = new WindowFrame(
         'art/intrface/edtredt.png',
         {
+            // Centered horizontally, bottom-flush with the 99px HUD in the
+            // 800×600 uiStage: x = (800-640)/2, y = 600 - 99 - 480 = 21.
             x: Config.ui.screenWidth / 2 - 640 / 2,
-            y: Config.ui.screenHeight / 2 - 480 / 2,
+            y: Config.ui.screenHeight - 99 - 480,
         },
         640,
         480
@@ -533,6 +586,9 @@ function initCharacterScreen() {
         .add(derivedStatsLabel)
         .add(skillList)
         .show()
+
+    // Drag-to-reposition from non-interactive areas of the frame.
+    makePanelDraggable(characterWindow.elem)
 
     const skills = [
         'Small Guns', 'Big Guns', 'Energy Weapons', 'Unarmed', 'Melee Weapons',
@@ -852,8 +908,12 @@ export function initUI() {
     */
 
     $id('inventoryButton').onclick = () => {
+        if (isInventoryOpen()) { closeInventoryPanel(); return }
+        closeAllPanels()
         uiInventoryScreen()
     }
+    // Inventory panel is a static DOM element — wire drag once at init.
+    makePanelDraggable($id('inventoryBox'))
     $id('inventoryDoneButton').onclick = () => {
         globalState.uiMode = UIMode.none
         $id('inventoryBox').style.visibility = 'hidden'
@@ -974,7 +1034,11 @@ export function initUI() {
     $id('endContainer').addEventListener('webkitAnimationIteration', uiEndCombatAnimationDone)
 
     $id('skilldexButton').onclick = () => {
-        skilldexWindow.toggle()
+        // Toggle: pressing while open closes it; otherwise close any other
+        // open panel first and open skilldex.
+        if (isSkilldexOpen()) { skilldexWindow.close(); return }
+        closeAllPanels()
+        skilldexWindow.show()
     }
 
     function makeScrollable($el: HTMLElement, scroll = 60) {
@@ -1028,10 +1092,19 @@ export function uiContextMenu(obj: Obj, evt: any) {
 
     const $menu = $id('itemContextMenu')
     clearEl($menu)
+    // #itemContextMenu lives inside #uiStage, which is centered via
+    // transform: translate(-50%, -50%). Convert viewport-relative click
+    // coords to the stage's local frame so the menu appears under the
+    // cursor regardless of viewport size. (Same transform as
+    // makeItemContextMenu below.)
+    const stage = document.getElementById('uiStage')
+    const rect = stage?.getBoundingClientRect()
+    const lx = rect ? evt.clientX - rect.left : evt.clientX
+    const ly = rect ? evt.clientY - rect.top : evt.clientY
     Object.assign($menu.style, {
         visibility: 'visible',
-        left: `${evt.clientX}px`,
-        top: `${evt.clientY}px`,
+        left: `${lx}px`,
+        top: `${ly}px`,
     })
     const cancelBtn = button(obj, 'cancel')
     const lookBtn = button(obj, 'look', () => uiLog('You see: ' + obj.getLookText()))
@@ -1051,7 +1124,13 @@ export function uiContextMenu(obj: Obj, evt: any) {
     })
     const pickupBtn = button(obj, 'pickup', () => obj.pickup(globalState.player))
     const inventoryBtn = button(obj, 'inventory', () => uiInventoryScreen())
-    const skillBtn = button(obj, 'skill', () => skilldexWindow.toggle())
+    const skillBtn = button(obj, 'skill', () => {
+        // Route through the panel system so skilldex obeys mutual-exclusion
+        // with PipBoy / inventory / character / automap.
+        if (isSkilldexOpen()) { skilldexWindow.close(); return }
+        closeAllPanels()
+        skilldexWindow.show()
+    })
 
     const isCritter = obj.type === 'critter'
     const isDead = isCritter && (obj as Critter).dead
@@ -1759,10 +1838,18 @@ export function uiInventoryScreen() {
     function makeItemContextMenu(e: MouseEvent, obj: Obj, slot: string) {
         const $menu = $id('itemContextMenu')
         clearEl($menu)
+        // #itemContextMenu lives inside #uiStage, which is centered via
+        // transform: translate(-50%, -50%). Convert viewport-relative click
+        // coords to the stage's local coordinate frame so the menu appears
+        // where the user clicked regardless of window size.
+        const stage = document.getElementById('uiStage')
+        const rect = stage?.getBoundingClientRect()
+        const lx = rect ? e.clientX - rect.left : e.clientX
+        const ly = rect ? e.clientY - rect.top : e.clientY
         Object.assign($menu.style, {
             visibility: 'visible',
-            left: `${e.clientX}px`,
-            top: `${e.clientY}px`,
+            left: `${lx}px`,
+            top: `${ly}px`,
         })
 
         $menu.appendChild(makeContextButton(obj, slot, 'cancel'))
