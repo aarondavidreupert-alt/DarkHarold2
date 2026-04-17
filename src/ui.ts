@@ -407,7 +407,7 @@ function initSkilldex() {
         })
 
         // FO2-CE ref: skilldex.cc — 3-digit skill value display next to each button
-        const valWidget = new Widget(null, { x: 125, y: yPos, w: 42, h: 28 })
+        const valWidget = new Widget(null, { x: 112, y: yPos - 2, w: 42, h: 28 })
         skillValueElems.push(valWidget.elem)
         skilldexWindow.add(valWidget)
 
