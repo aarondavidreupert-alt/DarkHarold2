@@ -407,7 +407,7 @@ function initSkilldex() {
         })
 
         // FO2-CE ref: skilldex.cc — 3-digit skill value display next to each button
-        const valWidget = new Widget(null, { x: 125, y: yPos, w: 84, h: 12 })
+        const valWidget = new Widget(null, { x: 125, y: yPos, w: 42, h: 28 })
         skillValueElems.push(valWidget.elem)
         skilldexWindow.add(valWidget)
 
@@ -622,7 +622,7 @@ function initCharacterScreen() {
         characterWindow.add(nameW)
 
         // Stat value rendered with bignum digit sprites
-        const valW = new Widget(null, { x: 80, y: 39 + n, w: 56, h: 12 })
+        const valW = new Widget(null, { x: 80, y: 39 + n, w: 28, h: 28 })
         valW.css({ cursor: 'pointer' }).onClick(() => { selectedStat = stat })
         statValueWidgets.push(valW.elem)
         characterWindow.add(valW)

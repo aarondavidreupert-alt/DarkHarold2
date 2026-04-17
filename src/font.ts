@@ -512,11 +512,11 @@ export function setNumberDial(
 
 // ---- Bignum digit sprites (art/intrface/bignum.png) ------------------------
 //
-// 336×24px sheet, two rows of 12 characters (0–9, comma, percent):
-//   Row 0 (y=0):  yellow    Row 1 (y=12): red
-//   Cell size: 28px wide × 12px tall
-const BIG_W = 28
-const BIG_H = 12
+// Two rows of 12 characters (0–9, comma, percent):
+//   Row 0 (y=0):  yellow    Row 1 (y=28): red
+//   Cell size: 14px wide × 28px tall
+const BIG_W = 14
+const BIG_H = 28
 const BIG_SPRITE = 'art/intrface/bignum.png'
 
 export function renderBignum(
