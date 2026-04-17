@@ -32,7 +32,7 @@ import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
 import { CSSBoundingBox, Widget } from './widget.js'
-import { charScreenFont, FontWidget, makeFontLabel, renderBitmapText, setNumberDial, skilldexFont } from './font.js'
+import { charScreenFont, FontWidget, makeFontLabel, setNumberDial, skilldexFont } from './font.js'
 import { openAutomap, closeAutomap, isAutomapOpen } from './automap.js'
 
 // Re-export so existing `from './ui.js'` importers still see Widget / CSSBoundingBox.
@@ -376,7 +376,7 @@ function initSkilldex() {
         185,
         368
     )
-        .add(makeFontLabel(65, 15, 'SKILLDEX', skilldexFont))
+        .add(new FontWidget(65, 15, 'SKILLDEX', skilldexFont, '#FFD700'))
 
     // FO2-CE ref: skilldex.cc SkilldexSkill enum — 8 skills in order
     const skilldexSkills: [string, Skills][] = [
@@ -390,17 +390,21 @@ function initSkilldex() {
         ['Repair',    Skills.Repair],
     ]
 
-    const skillNameWidgets: Widget[] = []
-
     let yPos = 49
     for (let i = 0; i < skilldexSkills.length; i++) {
         const [name, skill] = skilldexSkills[i]
 
-        // Skill name + hotkey number — canvas placeholder, filled once font1_aaf loads
+        // Skill name + hotkey number — div-per-glyph for transparent background
         const nameWidget = new Widget(null, { x: 25, y: yPos, w: 110, h: 24 })
         nameWidget.css({ cursor: 'pointer', display: 'flex', alignItems: 'flex-end' }).onClick(useSkill(skill))
-        skillNameWidgets.push(nameWidget)
         skilldexWindow.add(nameWidget)
+
+        // Render text once font is loaded
+        skilldexFont.onLoad(() => {
+            const rendered = skilldexFont.renderText(`${i + 1}. ${name}`.toUpperCase(), '#FFD700')
+            rendered.style.pointerEvents = 'none'
+            nameWidget.elem.appendChild(rendered)
+        })
 
         // FO2-CE ref: skilldex.cc — 3-digit skill value display next to each button
         const valWidget = new Widget(null, { x: 140, y: yPos, w: 40, h: 24 })
@@ -410,33 +414,6 @@ function initSkilldex() {
 
         yPos += 36
     }
-
-    // Load font1_aaf sprite sheet + glyph map, then render skill name canvases
-    let font1Image: HTMLImageElement | null = null
-    let font1GlyphMap: Record<string, { x: number; y: number; w: number; h: number }> | null = null
-
-    function renderSkillNameCanvases(): void {
-        if (!font1Image || !font1GlyphMap) return
-        for (let i = 0; i < skilldexSkills.length; i++) {
-            const [name] = skilldexSkills[i]
-            const canvas = renderBitmapText(`${i + 1}. ${name}`, font1Image!, font1GlyphMap!, 1, '#806814')
-            canvas.style.cssText = 'pointer-events: none;'
-            skillNameWidgets[i].elem.appendChild(canvas)
-        }
-    }
-
-    lazyLoadImage('art/fonts/font1_aaf', (img) => {
-        font1Image = img
-        renderSkillNameCanvases()
-    })
-
-    fetch('art/fonts/font1_aaf.json')
-        .then((r) => r.json())
-        .then((map) => {
-            font1GlyphMap = map
-            renderSkillNameCanvases()
-        })
-        .catch((err) => console.error('Failed to load font1_aaf.json:', err))
 
     skilldexWindow.add(
         new SmallButton(47, 339).onClick(() => { skilldexWindow.close() })
@@ -492,9 +469,6 @@ function initSkilldex() {
 
 // FO2-CE ref: options.cc — in-game options panel with Save/Load/Preferences/Quit/Done
 function initOptionsMenu() {
-    const optionsHeaderWidget = new Widget(null, { x: 50, y: 15, w: 100, h: 24 })
-    optionsHeaderWidget.css({ display: 'flex', alignItems: 'flex-end' })
-
     optionsWindow = new WindowFrame(
         'art/intrface/opbase',
         {
@@ -504,7 +478,7 @@ function initOptionsMenu() {
         200,
         260
     )
-        .add(optionsHeaderWidget)
+        .add(new FontWidget(50, 15, 'OPTIONS', skilldexFont, '#FFD700'))
 
     // FO2-CE ref: options.cc — button order matches original: Save, Load, Preferences, Quit, Done
     const optionButtons: [string, () => void][] = [
@@ -515,46 +489,20 @@ function initOptionsMenu() {
         ['Done',        () => { optionsWindow.close() }],
     ]
 
-    const optionButtonWidgets: Widget[] = []
     let yPos = 55
-    for (const [, handler] of optionButtons) {
+    for (const [label, handler] of optionButtons) {
         const btnWidget = new Widget(null, { x: 25, y: yPos, w: 150, h: 28 })
         btnWidget.css({ cursor: 'pointer', display: 'flex', alignItems: 'flex-end' }).onClick(handler)
-        optionButtonWidgets.push(btnWidget)
         optionsWindow.add(btnWidget)
+
+        skilldexFont.onLoad(() => {
+            const rendered = skilldexFont.renderText(label.toUpperCase(), '#FFD700')
+            rendered.style.pointerEvents = 'none'
+            btnWidget.elem.appendChild(rendered)
+        })
+
         yPos += 38
     }
-
-    // Render OPTIONS header and button labels using font1_aaf bitmap font
-    let optFont1Image: HTMLImageElement | null = null
-    let optFont1GlyphMap: Record<string, { x: number; y: number; w: number; h: number }> | null = null
-
-    function renderOptionsCanvases(): void {
-        if (!optFont1Image || !optFont1GlyphMap) return
-
-        const headerCanvas = renderBitmapText('OPTIONS', optFont1Image, optFont1GlyphMap, 1, '#806814')
-        headerCanvas.style.cssText = 'pointer-events: none;'
-        optionsHeaderWidget.elem.appendChild(headerCanvas)
-
-        for (let i = 0; i < optionButtons.length; i++) {
-            const canvas = renderBitmapText(optionButtons[i][0], optFont1Image!, optFont1GlyphMap!, 1, '#806814')
-            canvas.style.cssText = 'pointer-events: none;'
-            optionButtonWidgets[i].elem.appendChild(canvas)
-        }
-    }
-
-    lazyLoadImage('art/fonts/font1_aaf', (img) => {
-        optFont1Image = img
-        renderOptionsCanvases()
-    })
-
-    fetch('art/fonts/font1_aaf.json')
-        .then((r) => r.json())
-        .then((map) => {
-            optFont1GlyphMap = map
-            renderOptionsCanvases()
-        })
-        .catch((err) => console.error('Failed to load font1_aaf.json:', err))
 
     Object.assign(optionsWindow.elem.style, {
         backgroundImage: `url('${optionsWindow.background}.png')`,

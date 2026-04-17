@@ -212,7 +212,7 @@ export class FontRenderer {
      */
     static filterForColor(color: string): string {
         const c = color.toLowerCase()
-        if (c === 'yellow' || c === '#ffff00' || c === '#ff0') {
+        if (c === 'yellow' || c === '#ffff00' || c === '#ff0' || c === '#ffd700') {
             return ''
         }
         if (c === '#00ff00' || c === 'lime' || c === 'green') {
@@ -514,8 +514,8 @@ export function setNumberDial(
 
 /** Small Fallout bitmap font — Skilldex skill names + values. */
 export const skilldexFont = new FontRenderer(
-    'art/fonts/font0_aaf',
-    'art/fonts/font0_aaf.json'
+    'art/fonts/font1_aaf',
+    'art/fonts/font1_aaf.json'
 )
 
 /** Medium Fallout bitmap font — Character Screen headers / buttons. */
