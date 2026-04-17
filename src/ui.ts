@@ -32,7 +32,7 @@ import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
 import { CSSBoundingBox, Widget } from './widget.js'
-import { charScreenFont, FontWidget, makeFontLabel, renderBitmapText, skilldexFont } from './font.js'
+import { charScreenFont, FontWidget, makeFontLabel, renderBitmapText, setNumberDial, skilldexFont } from './font.js'
 import { openAutomap, closeAutomap, isAutomapOpen } from './automap.js'
 
 // Re-export so existing `from './ui.js'` importers still see Widget / CSSBoundingBox.
@@ -327,7 +327,7 @@ let optionsWindow: WindowFrame
 // Skilldex window showing 8 usable skills with current values and keyboard shortcuts
 function initSkilldex() {
     // Skill value labels — updated each time the skilldex is opened/shown
-    const skillValueLabels: FontWidget[] = []
+    const skillValueLabels: Widget[] = []
 
     // FO2-CE ref: skilldex.cc — Sneak is the only truly passive skill (toggle).
     // First Aid and Doctor can target other critters OR self (ground click = self).
@@ -403,10 +403,10 @@ function initSkilldex() {
         skilldexWindow.add(nameWidget)
 
         // FO2-CE ref: skilldex.cc — 3-digit skill value display next to each button
-        const valLabel = makeFontLabel(140, yPos, '---', skilldexFont)
-            .css({ width: '40px', height: '24px' })
-        skillValueLabels.push(valLabel)
-        skilldexWindow.add(valLabel)
+        const valWidget = new Widget(null, { x: 140, y: yPos, w: 40, h: 24 })
+        valWidget.css({ display: 'flex', alignItems: 'flex-end' })
+        skillValueLabels.push(valWidget)
+        skilldexWindow.add(valWidget)
 
         yPos += 36
     }
@@ -465,8 +465,7 @@ function initSkilldex() {
                 const skillName = skilldexSkills[i][0]
                 const val = player.getSkill(skillName)
                 // FO2-CE: negative values (from Hard difficulty) shown in red
-                skillValueLabels[i].setText(`${val}%`)
-                skillValueLabels[i].setColor(val < 0 ? '#FF0000' : '#00FF00')
+                setNumberDial(skillValueLabels[i].elem, val, '%')
             }
         }
         return result
@@ -660,18 +659,25 @@ function initCharacterScreen() {
 
     const stats = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK']
 
-    const statWidgets: Label[] = []
+    const statNameWidgets: Widget[] = []
+    const statValueWidgets: Widget[] = []
 
     let selectedStat = stats[0]
 
     let n = 0
     for (const stat of stats) {
-        const widget = new Label(20, 39 + n, '').css({ background: 'black', padding: '5px' })
-        widget.onClick(() => {
-            selectedStat = stat
-        })
-        statWidgets.push(widget)
-        characterWindow.add(widget)
+        // Stat name label (e.g. "STR") rendered with bitmap font
+        const nameW = makeFontLabel(20, 39 + n, stat, charScreenFont)
+        nameW.css({ cursor: 'pointer' }).onClick(() => { selectedStat = stat })
+        statNameWidgets.push(nameW)
+        characterWindow.add(nameW)
+
+        // Stat value rendered with the HUD digit sprite
+        const valW = new Widget(null, { x: 80, y: 39 + n, w: 30, h: 20 })
+        valW.css({ cursor: 'pointer' }).onClick(() => { selectedStat = stat })
+        statValueWidgets.push(valW)
+        characterWindow.add(valW)
+
         n += 33
     }
 
@@ -694,10 +700,10 @@ function initCharacterScreen() {
             skillList.addItem({ text: `${skill} ${val}%${tag}`, id: skill })
         }
 
-        // Draw stats
+        // Draw stat values as digit sprites
         for (let i = 0; i < stats.length; i++) {
             const stat = stats[i]
-            statWidgets[i].setText(`${stat} - ${newStatSet.get(stat)}`)
+            setNumberDial(statValueWidgets[i].elem, newStatSet.get(stat))
         }
 
         // Update skill point counter

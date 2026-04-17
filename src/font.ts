@@ -444,6 +444,72 @@ export function renderBitmapText(
     return canvas
 }
 
+// ---- Sprite-based number dial (matches HUD HP/AC/AP digits) ----------------
+//
+// art/intrface/numbers.png — horizontal strip, 9px wide × 17px tall per glyph.
+// Indices: 0-9 = digits, 12 = minus sign, 13 = dash placeholder.
+const NUM_DIGIT_W = 9
+const NUM_DIGIT_H = 17
+const NUM_SPRITE = 'art/intrface/numbers.png'
+const NUM_MINUS_IDX = 12
+
+/**
+ * Populate a container element with child divs that display `value` as a
+ * sprite-based number dial using numbers.png. Clears existing children first
+ * so it can be called repeatedly to update the display.
+ *
+ * @param container  The element to render into (its children are replaced).
+ * @param value      Integer to display (may be negative).
+ * @param suffix     Optional text to append (e.g. '%').
+ */
+export function setNumberDial(
+    container: HTMLElement,
+    value: number,
+    suffix?: string
+): void {
+    while (container.firstChild) container.removeChild(container.firstChild)
+
+    const negative = value < 0
+    const digits = Math.abs(value).toString()
+
+    let left = 0
+
+    if (negative) {
+        const sign = document.createElement('div')
+        sign.style.cssText = `
+            position: absolute; left: ${left}px; top: 0;
+            width: ${NUM_DIGIT_W}px; height: ${NUM_DIGIT_H}px;
+            background-image: url('${NUM_SPRITE}');
+            background-position: ${-NUM_DIGIT_W * NUM_MINUS_IDX}px 0;
+        `
+        container.appendChild(sign)
+        left += NUM_DIGIT_W
+    }
+
+    for (let i = 0; i < digits.length; i++) {
+        const d = parseInt(digits[i])
+        const el = document.createElement('div')
+        el.style.cssText = `
+            position: absolute; left: ${left}px; top: 0;
+            width: ${NUM_DIGIT_W}px; height: ${NUM_DIGIT_H}px;
+            background-image: url('${NUM_SPRITE}');
+            background-position: ${-NUM_DIGIT_W * d}px 0;
+        `
+        container.appendChild(el)
+        left += NUM_DIGIT_W
+    }
+
+    if (suffix) {
+        const suf = document.createElement('span')
+        suf.textContent = suffix
+        suf.style.cssText = `
+            position: absolute; left: ${left}px; top: 0;
+            color: #907824; font-size: 14px; line-height: ${NUM_DIGIT_H}px;
+        `
+        container.appendChild(suf)
+    }
+}
+
 // ---- Singletons (lazy: assets are only fetched on first use) ---------------
 
 /** Small Fallout bitmap font — Skilldex skill names + values. */
