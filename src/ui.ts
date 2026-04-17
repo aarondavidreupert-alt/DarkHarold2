@@ -33,13 +33,14 @@ import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
 import { CSSBoundingBox, Widget } from './widget.js'
 import { charScreenFont, FontWidget, makeFontLabel, renderBitmapText, skilldexFont } from './font.js'
-import { openAutomap } from './automap.js'
+import { openAutomap, closeAutomap, isAutomapOpen } from './automap.js'
 
 // Re-export so existing `from './ui.js'` importers still see Widget / CSSBoundingBox.
 export { Widget } from './widget.js'
 export type { CSSBoundingBox } from './widget.js'
-import { openPipBoy } from './pipboy.js'
+import { openPipBoy, closePipBoy, isPipBoyOpen } from './pipboy.js'
 import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
+import { makePanelDraggable } from './dragPanel.js'
 
 // UI system
 
@@ -246,30 +247,81 @@ export class List extends Widget {
 let $uiContainer: HTMLElement
 
 function uiInit() {
-    $uiContainer = document.getElementById('game-container')!
+    // WindowFrame.show() appends to $uiContainer; point it at #uiStage so
+    // all skilldex/character/save-load/worldmap windows inherit the 800×600
+    // centered coordinate frame. Fall back to #game-container if the stage
+    // div is missing (e.g. legacy HTML).
+    $uiContainer = (document.getElementById('uiStage') ?? document.getElementById('game-container'))!
 
     initSkilldex()
+    initOptionsMenu()
     // initCharacterScreen();
 
     const chrBtn = document.getElementById('chrButton')
     if (chrBtn) {
         chrBtn.onclick = () => {
-            characterWindow && characterWindow.close()
+            // Toggle: pressing while open closes it.
+            if (isCharacterOpen()) { characterWindow.close(); return }
+            closeAllPanels()
             initCharacterScreen()
         }
     }
 
     document.getElementById('pipBoyButton')!.onclick = () => {
+        if (isPipBoyOpen()) { closePipBoy(); return }
+        closeAllPanels()
         openPipBoy()
     }
 
     document.getElementById('mapButton')!.onclick = () => {
+        if (isAutomapOpen()) { closeAutomap(); return }
+        closeAllPanels()
         openAutomap()
     }
 }
 
+// --- Panel mutual-exclusion helpers -----------------------------------------
+//
+// These let each panel-open path close any other panels that are currently up,
+// so buttons behave like tabs rather than stackable overlays. They are also
+// used by the button handlers to implement toggle-to-close.
+
+export function isInventoryOpen(): boolean {
+    return globalState.uiMode === UIMode.inventory
+}
+
+export function isCharacterOpen(): boolean {
+    return !!(characterWindow && characterWindow.showing)
+}
+
+export function isSkilldexOpen(): boolean {
+    return !!(skilldexWindow && skilldexWindow.showing)
+}
+
+export function isOptionsOpen(): boolean {
+    return !!(optionsWindow && optionsWindow.showing)
+}
+
+function closeInventoryPanel(): void {
+    if (!isInventoryOpen()) return
+    globalState.uiMode = UIMode.none
+    $id('inventoryBox').style.visibility = 'hidden'
+    if (globalState.player) globalState.player.clearAnim?.()
+    uiDrawWeapon()
+}
+
+export function closeAllPanels(): void {
+    if (isPipBoyOpen()) closePipBoy()
+    if (isAutomapOpen()) closeAutomap()
+    if (isCharacterOpen()) characterWindow.close()
+    if (isInventoryOpen()) closeInventoryPanel()
+    if (isSkilldexOpen()) skilldexWindow.close()
+    if (isOptionsOpen()) optionsWindow.close()
+}
+
 let skilldexWindow: WindowFrame
 let characterWindow: WindowFrame
+let optionsWindow: WindowFrame
 
 // FO2-CE ref: skilldex.cc — skilldexOpen() / skilldexWindowInit()
 // Skilldex window showing 8 usable skills with current values and keyboard shortcuts
@@ -316,6 +368,8 @@ function initSkilldex() {
     skilldexWindow = new WindowFrame(
         'art/intrface/skldxbox',
         {
+            // Positions are in the 800×600 layout frame provided by
+            // #uiStage; the stage centers those coordinates on screen.
             x: Config.ui.screenWidth - 185,
             y: Config.ui.screenHeight - 368 - 99,
         },
@@ -396,6 +450,10 @@ function initSkilldex() {
         cursor: 'default',
     })
 
+    // Drag-to-reposition from non-interactive areas of the skilldex frame,
+    // matching the PipBoy / automap / inventory / character panels.
+    makePanelDraggable(skilldexWindow.elem)
+
     // FO2-CE ref: skilldex.cc — update skill values when the skilldex is shown
     const origShow = skilldexWindow.show.bind(skilldexWindow)
     skilldexWindow.show = function() {
@@ -433,6 +491,97 @@ function initSkilldex() {
     document.addEventListener('keydown', skilldexKeyHandler)
 }
 
+// FO2-CE ref: options.cc — in-game options panel with Save/Load/Preferences/Quit/Done
+function initOptionsMenu() {
+    const optionsHeaderWidget = new Widget(null, { x: 50, y: 15, w: 100, h: 24 })
+    optionsHeaderWidget.css({ display: 'flex', alignItems: 'flex-end' })
+
+    optionsWindow = new WindowFrame(
+        'art/intrface/opbase',
+        {
+            x: (Config.ui.screenWidth - 200) / 2,
+            y: (Config.ui.screenHeight - 260) / 2,
+        },
+        200,
+        260
+    )
+        .add(optionsHeaderWidget)
+
+    // FO2-CE ref: options.cc — button order matches original: Save, Load, Preferences, Quit, Done
+    const optionButtons: [string, () => void][] = [
+        ['Save Game',   () => { optionsWindow.close(); uiSaveLoad(true) }],
+        ['Load Game',   () => { optionsWindow.close(); uiSaveLoad(false) }],
+        ['Preferences', () => { alert('Preferences not yet implemented.') }],
+        ['Quit Game',   () => { if (confirm('Quit to main menu?')) window.location.reload() }],
+        ['Done',        () => { optionsWindow.close() }],
+    ]
+
+    const optionButtonWidgets: Widget[] = []
+    let yPos = 55
+    for (const [, handler] of optionButtons) {
+        const btnWidget = new Widget(null, { x: 25, y: yPos, w: 150, h: 28 })
+        btnWidget.css({ cursor: 'pointer', display: 'flex', alignItems: 'flex-end' }).onClick(handler)
+        optionButtonWidgets.push(btnWidget)
+        optionsWindow.add(btnWidget)
+        yPos += 38
+    }
+
+    // Render OPTIONS header and button labels using font1_aaf bitmap font
+    let optFont1Image: HTMLImageElement | null = null
+    let optFont1GlyphMap: Record<string, { x: number; y: number; w: number; h: number }> | null = null
+
+    function renderOptionsCanvases(): void {
+        if (!optFont1Image || !optFont1GlyphMap) return
+
+        const headerCanvas = renderBitmapText('OPTIONS', optFont1Image, optFont1GlyphMap)
+        headerCanvas.style.cssText = 'pointer-events: none;'
+        optionsHeaderWidget.elem.appendChild(headerCanvas)
+
+        for (let i = 0; i < optionButtons.length; i++) {
+            const canvas = renderBitmapText(optionButtons[i][0], optFont1Image!, optFont1GlyphMap!)
+            canvas.style.cssText = 'pointer-events: none;'
+            optionButtonWidgets[i].elem.appendChild(canvas)
+        }
+    }
+
+    lazyLoadImage('art/fonts/font1_aaf', (img) => {
+        optFont1Image = img
+        renderOptionsCanvases()
+    })
+
+    fetch('art/fonts/font1_aaf.json')
+        .then((r) => r.json())
+        .then((map) => {
+            optFont1GlyphMap = map
+            renderOptionsCanvases()
+        })
+        .catch((err) => console.error('Failed to load font1_aaf.json:', err))
+
+    Object.assign(optionsWindow.elem.style, {
+        backgroundImage: `url('${optionsWindow.background}.png')`,
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: '100% 100%',
+        zIndex: '20',
+        cursor: 'default',
+    })
+
+    makePanelDraggable(optionsWindow.elem)
+
+    // FO2-CE ref: options.cc — S=Save, L=Load, P=Preferences, ESC/D=Done
+    const optionsKeyHandler = (e: KeyboardEvent) => {
+        if (!optionsWindow.showing) return
+
+        switch (e.key.toLowerCase()) {
+            case 's': optionsWindow.close(); uiSaveLoad(true); e.preventDefault(); break
+            case 'l': optionsWindow.close(); uiSaveLoad(false); e.preventDefault(); break
+            case 'p': alert('Preferences not yet implemented.'); e.preventDefault(); break
+            case 'd':
+            case 'escape': optionsWindow.close(); e.preventDefault(); break
+        }
+    }
+    document.addEventListener('keydown', optionsKeyHandler)
+}
+
 function initCharacterScreen() {
     const player = globalState.player!
     const skillList = new List({ x: 380, y: 27, w: 'auto', h: 'auto' })
@@ -449,8 +598,10 @@ function initCharacterScreen() {
     characterWindow = new WindowFrame(
         'art/intrface/edtredt.png',
         {
+            // Centered horizontally, bottom-flush with the 99px HUD in the
+            // 800×600 uiStage: x = (800-640)/2, y = 600 - 99 - 480 = 21.
             x: Config.ui.screenWidth / 2 - 640 / 2,
-            y: Config.ui.screenHeight / 2 - 480 / 2,
+            y: Config.ui.screenHeight - 99 - 480,
         },
         640,
         480
@@ -497,6 +648,9 @@ function initCharacterScreen() {
         .add(derivedStatsLabel)
         .add(skillList)
         .show()
+
+    // Drag-to-reposition from non-interactive areas of the frame.
+    makePanelDraggable(characterWindow.elem)
 
     const skills = [
         'Small Guns', 'Big Guns', 'Energy Weapons', 'Unarmed', 'Melee Weapons',
@@ -679,6 +833,7 @@ export enum UIMode {
     char = 12,
     pipBoy = 13,
     automap = 14,
+    options = 15,
 }
 
 // XXX: Should this throw if the element doesn't exist?
@@ -816,8 +971,18 @@ export function initUI() {
     */
 
     $id('inventoryButton').onclick = () => {
+        if (isInventoryOpen()) { closeInventoryPanel(); return }
+        closeAllPanels()
         uiInventoryScreen()
     }
+
+    $id('optionsButton').onclick = () => {
+        if (isOptionsOpen()) { optionsWindow.close(); return }
+        closeAllPanels()
+        optionsWindow.show()
+    }
+    // Inventory panel is a static DOM element — wire drag once at init.
+    makePanelDraggable($id('inventoryBox'))
     $id('inventoryDoneButton').onclick = () => {
         globalState.uiMode = UIMode.none
         $id('inventoryBox').style.visibility = 'hidden'
@@ -938,7 +1103,11 @@ export function initUI() {
     $id('endContainer').addEventListener('webkitAnimationIteration', uiEndCombatAnimationDone)
 
     $id('skilldexButton').onclick = () => {
-        skilldexWindow.toggle()
+        // Toggle: pressing while open closes it; otherwise close any other
+        // open panel first and open skilldex.
+        if (isSkilldexOpen()) { skilldexWindow.close(); return }
+        closeAllPanels()
+        skilldexWindow.show()
     }
 
     function makeScrollable($el: HTMLElement, scroll = 60) {
@@ -992,10 +1161,19 @@ export function uiContextMenu(obj: Obj, evt: any) {
 
     const $menu = $id('itemContextMenu')
     clearEl($menu)
+    // #itemContextMenu lives inside #uiStage, which is centered via
+    // transform: translate(-50%, -50%). Convert viewport-relative click
+    // coords to the stage's local frame so the menu appears under the
+    // cursor regardless of viewport size. (Same transform as
+    // makeItemContextMenu below.)
+    const stage = document.getElementById('uiStage')
+    const rect = stage?.getBoundingClientRect()
+    const lx = rect ? evt.clientX - rect.left : evt.clientX
+    const ly = rect ? evt.clientY - rect.top : evt.clientY
     Object.assign($menu.style, {
         visibility: 'visible',
-        left: `${evt.clientX}px`,
-        top: `${evt.clientY}px`,
+        left: `${lx}px`,
+        top: `${ly}px`,
     })
     const cancelBtn = button(obj, 'cancel')
     const lookBtn = button(obj, 'look', () => uiLog('You see: ' + obj.getLookText()))
@@ -1015,7 +1193,13 @@ export function uiContextMenu(obj: Obj, evt: any) {
     })
     const pickupBtn = button(obj, 'pickup', () => obj.pickup(globalState.player))
     const inventoryBtn = button(obj, 'inventory', () => uiInventoryScreen())
-    const skillBtn = button(obj, 'skill', () => skilldexWindow.toggle())
+    const skillBtn = button(obj, 'skill', () => {
+        // Route through the panel system so skilldex obeys mutual-exclusion
+        // with PipBoy / inventory / character / automap.
+        if (isSkilldexOpen()) { skilldexWindow.close(); return }
+        closeAllPanels()
+        skilldexWindow.show()
+    })
 
     const isCritter = obj.type === 'critter'
     const isDead = isCritter && (obj as Critter).dead
@@ -1723,10 +1907,18 @@ export function uiInventoryScreen() {
     function makeItemContextMenu(e: MouseEvent, obj: Obj, slot: string) {
         const $menu = $id('itemContextMenu')
         clearEl($menu)
+        // #itemContextMenu lives inside #uiStage, which is centered via
+        // transform: translate(-50%, -50%). Convert viewport-relative click
+        // coords to the stage's local coordinate frame so the menu appears
+        // where the user clicked regardless of window size.
+        const stage = document.getElementById('uiStage')
+        const rect = stage?.getBoundingClientRect()
+        const lx = rect ? e.clientX - rect.left : e.clientX
+        const ly = rect ? e.clientY - rect.top : e.clientY
         Object.assign($menu.style, {
             visibility: 'visible',
-            left: `${e.clientX}px`,
-            top: `${e.clientY}px`,
+            left: `${lx}px`,
+            top: `${ly}px`,
         })
 
         $menu.appendChild(makeContextButton(obj, slot, 'cancel'))

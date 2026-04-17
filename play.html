@@ -33,48 +33,86 @@ limitations under the License.
 	<div id="game-container">
 		<canvas id="cnv" width="800" height="600">your browser doesn't support &lt;canvas&gt;</canvas>
 		<canvas id="textOverlay" width="800" height="600"></canvas>
+		<button id="fullscreenBtn" type="button" title="Toggle fullscreen">Fullscreen</button>
 		<div id="overlay-container">
 			<div id="overlay">
 				<div id="fpsOverlay"></div>
 			</div>
 		</div>
-		<div id="lootBox">
-			<div id="lootBoxLeft"></div>
-			<div id="lootBoxRight"></div>
+		<!-- #uiStage: 800×600 centered coordinate frame for modal panels. -->
+		<!-- All panels that used hardcoded 800×600-era positions live in  -->
+		<!-- here so their existing left/top offsets keep working unchanged -->
+		<!-- regardless of viewport size. Panels dynamically created by JS  -->
+		<!-- (pipboy, automap) are also appended here.                      -->
+		<div id="uiStage" class="ui-stage">
+			<div id="lootBox">
+				<div id="lootBoxLeft"></div>
+				<div id="lootBoxRight"></div>
 
-			<div id="lootBoxDoneButton"></div>
-			<div id="lootBoxTakeAllButton"></div>
-		</div>
-		<div id="dialogueContainer">
-			<div id="dialogueBoxReply"></div>
-			<div id="dialogueBox">
-				<div id="dialogueBoxTextArea"></div>
+				<div id="lootBoxDoneButton"></div>
+				<div id="lootBoxTakeAllButton"></div>
 			</div>
-			<div id="barterBox">
-				<div id="barterBoxInventoryLeft"></div>
-				<div id="barterBoxInventoryRight"></div>
+			<div id="dialogueContainer">
+				<div id="dialogueBoxReply"></div>
+				<div id="dialogueBox">
+					<div id="dialogueBoxTextArea"></div>
+				</div>
+				<div id="barterBox">
+					<div id="barterBoxInventoryLeft"></div>
+					<div id="barterBoxInventoryRight"></div>
 
-				<div id="barterBoxLeft"></div>
-				<div id="barterBoxRight"></div>
-				<div id="barterBoxLeftAmount"></div>
-				<div id="barterBoxRightAmount"></div>
+					<div id="barterBoxLeft"></div>
+					<div id="barterBoxRight"></div>
+					<div id="barterBoxLeftAmount"></div>
+					<div id="barterBoxRightAmount"></div>
 
-				<div id="barterTalkButton"></div>
-				<div id="barterOfferButton"></div>
+					<div id="barterTalkButton"></div>
+					<div id="barterOfferButton"></div>
+				</div>
 			</div>
-		</div>
-		<div id="itemContextMenu"></div>
-		<div id="inventoryBox">
-			<div id="inventoryBoxList"></div>
-			<div id="inventoryDoneButton"></div>
-			<div id="inventoryBoxChar"></div>
-			<div id="inventoryBoxInfo"></div>
-			<div id="inventoryBoxWeight"></div>
+			<div id="itemContextMenu"></div>
+			<div id="inventoryBox">
+				<div id="inventoryBoxList"></div>
+				<div id="inventoryDoneButton"></div>
+				<div id="inventoryBoxChar"></div>
+				<div id="inventoryBoxInfo"></div>
+				<div id="inventoryBoxWeight"></div>
 
-			<!-- item1/item2/armor boxes -->
-			<div id="inventoryBoxItem1"></div>
-			<div id="inventoryBoxItem2"></div>
-			<div id="inventoryBoxArmor"></div>
+				<!-- item1/item2/armor boxes -->
+				<div id="inventoryBoxItem1"></div>
+				<div id="inventoryBoxItem2"></div>
+				<div id="inventoryBoxArmor"></div>
+			</div>
+			<div id="elevatorBox">
+				<div id="elevatorLabel"></div>
+				<div id="elevatorButton1" class="elevatorButton"></div>
+				<div id="elevatorButton2" class="elevatorButton"></div>
+				<div id="elevatorButton3" class="elevatorButton"></div>
+				<div id="elevatorButton4" class="elevatorButton"></div>
+				<div id="elevatorPositioner"></div>
+			</div>
+			<div id="calledShotBox">
+				<div id="calledShotBackground"></div>
+				<div id="calledShotCancelBtn"></div>
+
+				<div id="calledShot-head-label" class="calledShotLabel">the head</div>
+				<div id="calledShot-eyes-label" class="calledShotLabel">the eyes</div>
+				<div id="calledShot-leftArm-label" class="calledShotLabel">the left arm</div>
+				<div id="calledShot-rightArm-label" class="calledShotLabel">the right arm</div>
+				<div id="calledShot-leftLeg-label" class="calledShotLabel">the left leg</div>
+				<div id="calledShot-rightLeg-label" class="calledShotLabel">the right leg</div>
+				<div id="calledShot-groin-label" class="calledShotLabel">the groin</div>
+				<div id="calledShot-torso-label" class="calledShotLabel">the torso</div>
+
+				<div id="calledShot-head-chance" class="calledShotChance"></div>
+				<div id="calledShot-eyes-chance" class="calledShotChance"></div>
+				<div id="calledShot-leftArm-chance" class="calledShotChance"></div>
+				<div id="calledShot-rightArm-chance" class="calledShotChance"></div>
+				<div id="calledShot-leftLeg-chance" class="calledShotChance"></div>
+				<div id="calledShot-rightLeg-chance" class="calledShotChance"></div>
+				<div id="calledShot-groin-chance" class="calledShotChance"></div>
+				<div id="calledShot-torso-chance" class="calledShotChance"></div>
+			</div>
 		</div>
 		<div id="bar">
 			<div id="displayLog"></div>
@@ -90,6 +128,7 @@ limitations under the License.
 				</div>
 			</div>
 			<div id="inventoryButton"></div>
+				<div id="optionsButton"></div>
 			<div id="chrButton"></div>
 			<div id="pipBoyButton"></div>
 			<div id="mapButton"></div>
@@ -132,47 +171,21 @@ limitations under the License.
 		</div>
 		<div id="combatHoverInfo" style="display:none; position:absolute; pointer-events:none; background:rgba(0,0,0,0.8); border:1px solid #00FF00; color:#00FF00; font-family:monospace; font-size:10px; padding:4px 8px; z-index:200;"></div>
 		<div id="worldMapContainer">
-			<div id="worldMapBox">
-				<div id="worldMapLabels"></div>
-			</div>
-			<div id="worldMapWorld">
-				<div id="worldmap">
-					<img id="worldmapImage" src="worldmap.png">
-					<div id="worldmapTarget"></div>
-					<div id="worldmapPlayer"></div>
+			<!-- Worldmap is a full-screen black overlay; its own 800×600 stage -->
+			<!-- keeps the #worldMapBox + #worldMapWorld children centered.    -->
+			<div class="ui-stage">
+				<div id="worldMapBox">
+					<div id="worldMapLabels"></div>
 				</div>
-				<div id="areamap"></div>
+				<div id="worldMapWorld">
+					<div id="worldmap">
+						<img id="worldmapImage" src="worldmap.png">
+						<div id="worldmapTarget"></div>
+						<div id="worldmapPlayer"></div>
+					</div>
+					<div id="areamap"></div>
+				</div>
 			</div>
-		</div>
-		<div id="elevatorBox">
-			<div id="elevatorLabel"></div>
-			<div id="elevatorButton1" class="elevatorButton"></div>
-			<div id="elevatorButton2" class="elevatorButton"></div>
-			<div id="elevatorButton3" class="elevatorButton"></div>
-			<div id="elevatorButton4" class="elevatorButton"></div>
-			<div id="elevatorPositioner"></div>
-		</div>
-		<div id="calledShotBox">
-			<div id="calledShotBackground"></div>
-			<div id="calledShotCancelBtn"></div>
-
-			<div id="calledShot-head-label" class="calledShotLabel">the head</div>
-			<div id="calledShot-eyes-label" class="calledShotLabel">the eyes</div>
-			<div id="calledShot-leftArm-label" class="calledShotLabel">the left arm</div>
-			<div id="calledShot-rightArm-label" class="calledShotLabel">the right arm</div>
-			<div id="calledShot-leftLeg-label" class="calledShotLabel">the left leg</div>
-			<div id="calledShot-rightLeg-label" class="calledShotLabel">the right leg</div>
-			<div id="calledShot-groin-label" class="calledShotLabel">the groin</div>
-			<div id="calledShot-torso-label" class="calledShotLabel">the torso</div>
-
-			<div id="calledShot-head-chance" class="calledShotChance"></div>
-			<div id="calledShot-eyes-chance" class="calledShotChance"></div>
-			<div id="calledShot-leftArm-chance" class="calledShotChance"></div>
-			<div id="calledShot-rightArm-chance" class="calledShotChance"></div>
-			<div id="calledShot-leftLeg-chance" class="calledShotChance"></div>
-			<div id="calledShot-rightLeg-chance" class="calledShotChance"></div>
-			<div id="calledShot-groin-chance" class="calledShotChance"></div>
-			<div id="calledShot-torso-chance" class="calledShotChance"></div>
 		</div>
 	</div>
 </body>
