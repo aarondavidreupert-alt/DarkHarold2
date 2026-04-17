@@ -512,82 +512,29 @@ export function setNumberDial(
 
 // ---- Bignum digit sprites (art/intrface/bignum.png) ------------------------
 //
-// Two rows of digits, each cell 14×14:
-//   Row 0 (y=0):  yellow 0-9, comma, percent
-//   Row 1 (y=14): red    0-9, comma, percent
-const BIG_W = 14
-const BIG_H = 14
+// 336×24px sheet, two rows of 12 characters (0–9, comma, percent):
+//   Row 0 (y=0):  yellow    Row 1 (y=12): red
+//   Cell size: 28px wide × 12px tall
+const BIG_W = 28
+const BIG_H = 12
 const BIG_SPRITE = 'art/intrface/bignum.png'
 
-/**
- * Render a zero-padded number using bignum.png digit sprites.
- * Returns a container element holding one div per digit.
- */
 export function renderBignum(
     value: number,
     digits: 2 | 3,
     color: 'yellow' | 'red' = 'yellow'
 ): HTMLElement {
     const container = document.createElement('div')
-    container.style.cssText = `position: relative; display: inline-flex; height: ${BIG_H}px;`
-
-    const rowY = color === 'red' ? -BIG_H : 0
-    const abs = Math.abs(value)
-    const padded = String(abs).padStart(digits, '0').slice(-digits)
-
-    for (let i = 0; i < padded.length; i++) {
-        const d = parseInt(padded[i])
-        const el = document.createElement('div')
-        el.style.cssText = `
-            width: ${BIG_W}px; height: ${BIG_H}px;
-            background-image: url('${BIG_SPRITE}');
-            background-position: ${-BIG_W * d}px ${rowY}px;
-            flex-shrink: 0;
-        `
-        container.appendChild(el)
+    container.style.cssText = `display: inline-flex; height: ${BIG_H}px; flex-shrink: 0;`
+    const yOffset = color === 'red' ? -BIG_H : 0
+    const clamped = Math.max(0, Math.min(value, digits === 3 ? 999 : 99))
+    const str = String(clamped).padStart(digits, '0')
+    for (const ch of str) {
+        const n = parseInt(ch)
+        const div = document.createElement('div')
+        div.style.cssText = `width:${BIG_W}px;height:${BIG_H}px;background-image:url('${BIG_SPRITE}');background-position:${-(n * BIG_W)}px ${yOffset}px;background-repeat:no-repeat;flex-shrink:0;`
+        container.appendChild(div)
     }
-
-    // Percent glyph is at index 11 in each row
-    const pct = document.createElement('div')
-    pct.style.cssText = `
-        width: ${BIG_W}px; height: ${BIG_H}px;
-        background-image: url('${BIG_SPRITE}');
-        background-position: ${-BIG_W * 11}px ${rowY}px;
-        flex-shrink: 0;
-    `
-    container.appendChild(pct)
-
-    return container
-}
-
-/**
- * Same as renderBignum but without the trailing percent glyph.
- * Used for SPECIAL stat values (1–10).
- */
-export function renderBignumPlain(
-    value: number,
-    digits: 2 | 3,
-    color: 'yellow' | 'red' = 'yellow'
-): HTMLElement {
-    const container = document.createElement('div')
-    container.style.cssText = `position: relative; display: inline-flex; height: ${BIG_H}px;`
-
-    const rowY = color === 'red' ? -BIG_H : 0
-    const abs = Math.abs(value)
-    const padded = String(abs).padStart(digits, '0').slice(-digits)
-
-    for (let i = 0; i < padded.length; i++) {
-        const d = parseInt(padded[i])
-        const el = document.createElement('div')
-        el.style.cssText = `
-            width: ${BIG_W}px; height: ${BIG_H}px;
-            background-image: url('${BIG_SPRITE}');
-            background-position: ${-BIG_W * d}px ${rowY}px;
-            flex-shrink: 0;
-        `
-        container.appendChild(el)
-    }
-
     return container
 }
 

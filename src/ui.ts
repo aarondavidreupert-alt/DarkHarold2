@@ -32,7 +32,7 @@ import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
 import { CSSBoundingBox, Widget } from './widget.js'
-import { charScreenFont, FontWidget, makeFontLabel, renderBignum, renderBignumPlain, skilldexFont } from './font.js'
+import { charScreenFont, FontWidget, makeFontLabel, renderBignum, skilldexFont } from './font.js'
 import { openAutomap, closeAutomap, isAutomapOpen } from './automap.js'
 
 // Re-export so existing `from './ui.js'` importers still see Widget / CSSBoundingBox.
@@ -407,8 +407,7 @@ function initSkilldex() {
         })
 
         // FO2-CE ref: skilldex.cc — 3-digit skill value display next to each button
-        const valWidget = new Widget(null, { x: 135, y: yPos, w: 56, h: 24 })
-        valWidget.css({ display: 'flex', alignItems: 'flex-end' })
+        const valWidget = new Widget(null, { x: 125, y: yPos, w: 84, h: 12 })
         skillValueElems.push(valWidget.elem)
         skilldexWindow.add(valWidget)
 
@@ -623,7 +622,7 @@ function initCharacterScreen() {
         characterWindow.add(nameW)
 
         // Stat value rendered with bignum digit sprites
-        const valW = new Widget(null, { x: 80, y: 39 + n, w: 30, h: 20 })
+        const valW = new Widget(null, { x: 80, y: 39 + n, w: 56, h: 12 })
         valW.css({ cursor: 'pointer' }).onClick(() => { selectedStat = stat })
         statValueWidgets.push(valW.elem)
         characterWindow.add(valW)
@@ -654,7 +653,7 @@ function initCharacterScreen() {
         for (let i = 0; i < stats.length; i++) {
             const el = statValueWidgets[i]
             while (el.firstChild) el.removeChild(el.firstChild)
-            el.appendChild(renderBignumPlain(newStatSet.get(stats[i]), 2))
+            el.appendChild(renderBignum(newStatSet.get(stats[i]), 2))
         }
 
         // Update skill point counter
