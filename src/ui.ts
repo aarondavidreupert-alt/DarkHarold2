@@ -419,7 +419,7 @@ function initSkilldex() {
         if (!font1Image || !font1GlyphMap) return
         for (let i = 0; i < skilldexSkills.length; i++) {
             const [name] = skilldexSkills[i]
-            const canvas = renderBitmapText(`${i + 1}. ${name}`, font1Image!, font1GlyphMap!)
+            const canvas = renderBitmapText(`${i + 1}. ${name}`, font1Image!, font1GlyphMap!, 1, '#806814')
             canvas.style.cssText = 'pointer-events: none;'
             skillNameWidgets[i].elem.appendChild(canvas)
         }
@@ -533,12 +533,12 @@ function initOptionsMenu() {
     function renderOptionsCanvases(): void {
         if (!optFont1Image || !optFont1GlyphMap) return
 
-        const headerCanvas = renderBitmapText('OPTIONS', optFont1Image, optFont1GlyphMap)
+        const headerCanvas = renderBitmapText('OPTIONS', optFont1Image, optFont1GlyphMap, 1, '#806814')
         headerCanvas.style.cssText = 'pointer-events: none;'
         optionsHeaderWidget.elem.appendChild(headerCanvas)
 
         for (let i = 0; i < optionButtons.length; i++) {
-            const canvas = renderBitmapText(optionButtons[i][0], optFont1Image!, optFont1GlyphMap!)
+            const canvas = renderBitmapText(optionButtons[i][0], optFont1Image!, optFont1GlyphMap!, 1, '#806814')
             canvas.style.cssText = 'pointer-events: none;'
             optionButtonWidgets[i].elem.appendChild(canvas)
         }

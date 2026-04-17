@@ -276,21 +276,50 @@ export function makeFontLabel(
 }
 
 /**
+ * Parse a CSS hex color (#RRGGBB or #RGB) into [r, g, b].
+ */
+function parseHexColor(hex: string): [number, number, number] {
+    const h = hex.replace('#', '')
+    if (h.length === 3) {
+        return [
+            parseInt(h[0] + h[0], 16),
+            parseInt(h[1] + h[1], 16),
+            parseInt(h[2] + h[2], 16),
+        ]
+    }
+    return [
+        parseInt(h.substring(0, 2), 16),
+        parseInt(h.substring(2, 4), 16),
+        parseInt(h.substring(4, 6), 16),
+    ]
+}
+
+/**
  * Render a string into an HTMLCanvasElement by blitting glyphs from a sprite
  * sheet. Unlike FontRenderer.renderText (div-per-glyph), this draws once into
  * a single canvas — better for static labels that don't need per-glyph DOM.
+ *
+ * Glyphs are baseline-aligned: each glyph is drawn at y = canvasHeight -
+ * glyph.h, matching jsFO's `rF_baseline - symbolInfo[idx].height`.
+ *
+ * The sprite sheet stores white pixels with glyph intensity as alpha (see
+ * fonts.py). When a `color` hex string is provided, each pixel's red channel
+ * is used as the alpha value and the RGB is replaced with the target color —
+ * preserving the soft, worn AAF glyph edges.
  *
  * @param text          The string to render.
  * @param spriteSheet   The loaded sprite-sheet image.
  * @param glyphMap      Char-code (as string key) → {x, y, w, h} in the sheet.
  * @param letterSpacing Extra pixels between glyphs (default 1, matching
  *                      fallout2-ce FONT_SPACE_BETWEEN_SYMBOLS).
+ * @param color         Optional CSS hex color (e.g. '#806814') to tint glyphs.
  */
 export function renderBitmapText(
     text: string,
     spriteSheet: HTMLImageElement,
     glyphMap: Record<string, { x: number; y: number; w: number; h: number }>,
-    letterSpacing: number = 1
+    letterSpacing: number = 1,
+    color?: string
 ): HTMLCanvasElement {
     let totalWidth = 0
     let maxHeight = 0
@@ -316,12 +345,30 @@ export function renderBitmapText(
         const glyph = glyphMap[String(text.charCodeAt(i))]
         if (glyph) {
             if (i > 0) x += letterSpacing
-            ctx.drawImage(spriteSheet, glyph.x, glyph.y, glyph.w, glyph.h, x, 0, glyph.w, glyph.h)
+            // Baseline-align: push shorter glyphs to the bottom
+            const y = maxHeight - glyph.h
+            ctx.drawImage(spriteSheet, glyph.x, glyph.y, glyph.w, glyph.h, x, y, glyph.w, glyph.h)
             x += glyph.w
         } else if (text[i] === ' ') {
             if (i > 0) x += letterSpacing
             x += 4
         }
+    }
+
+    // Apply color via alpha compositing: use the red channel of the white
+    // sprite as alpha, replace RGB with the target color.
+    if (color && canvas.width > 0 && canvas.height > 0) {
+        const [cr, cg, cb] = parseHexColor(color)
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        const d = imgData.data
+        for (let i = 0; i < d.length; i += 4) {
+            const alpha = d[i]  // red channel = intensity
+            d[i]     = cr
+            d[i + 1] = cg
+            d[i + 2] = cb
+            d[i + 3] = alpha
+        }
+        ctx.putImageData(imgData, 0, 0)
     }
 
     return canvas
