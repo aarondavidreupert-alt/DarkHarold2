@@ -394,14 +394,14 @@ function initSkilldex() {
     for (let i = 0; i < skilldexSkills.length; i++) {
         const [name, skill] = skilldexSkills[i]
 
-        // Skill name + hotkey number — div-per-glyph for transparent background
-        const nameWidget = new Widget(null, { x: 25, y: yPos, w: 110, h: 24 })
+        // Skill name — div-per-glyph for transparent background
+        const nameWidget = new Widget(null, { x: 25, y: yPos - 2, w: 110, h: 24 })
         nameWidget.css({ cursor: 'pointer', display: 'flex', alignItems: 'flex-end' }).onClick(useSkill(skill))
         skilldexWindow.add(nameWidget)
 
         // Render text once font is loaded
         skilldexFont.onLoad(() => {
-            const rendered = skilldexFont.renderText(`${i + 1}. ${name}`.toUpperCase(), '#FFD700')
+            const rendered = skilldexFont.renderText(name.toUpperCase(), '#FFD700')
             rendered.style.pointerEvents = 'none'
             nameWidget.elem.appendChild(rendered)
         })

@@ -542,8 +542,8 @@ export function renderBignum(
 
 /** Small Fallout bitmap font — Skilldex skill names + values. */
 export const skilldexFont = new FontRenderer(
-    'art/fonts/font1_aaf',
-    'art/fonts/font1_aaf.json'
+    'art/fonts/font4_aaf',
+    'art/fonts/font4_aaf.json'
 )
 
 /** Medium Fallout bitmap font — Character Screen headers / buttons. */
