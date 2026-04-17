@@ -294,13 +294,72 @@ function parseHexColor(hex: string): [number, number, number] {
     ]
 }
 
+// Cache of "actual glyph height" (distance from top of cell to last
+// non-transparent pixel row) keyed by glyphMap object. Needed because the
+// generated JSONs store `h: cell_h` (max font height) for every glyph —
+// so the JSON alone can't tell us where a glyph's baseline is. We scan the
+// sprite sheet once per font to recover the real heights.
+const actualGlyphHeightCache = new WeakMap<object, Map<string, number>>()
+
+function computeActualGlyphHeights(
+    spriteSheet: HTMLImageElement,
+    glyphMap: Record<string, { x: number; y: number; w: number; h: number }>
+): Map<string, number> {
+    const cached = actualGlyphHeightCache.get(glyphMap)
+    if (cached) return cached
+
+    const off = document.createElement('canvas')
+    off.width = spriteSheet.width
+    off.height = spriteSheet.height
+    const offCtx = off.getContext('2d')!
+    offCtx.drawImage(spriteSheet, 0, 0)
+
+    const result = new Map<string, number>()
+    for (const code of Object.keys(glyphMap)) {
+        const g = glyphMap[code]
+        if (g.w <= 0 || g.h <= 0) {
+            result.set(code, 0)
+            continue
+        }
+        let actualH = 0
+        try {
+            const data = offCtx.getImageData(g.x, g.y, g.w, g.h).data
+            // Scan from bottom row upward for the first non-transparent row.
+            for (let py = g.h - 1; py >= 0; py--) {
+                let rowHasPixel = false
+                for (let px = 0; px < g.w; px++) {
+                    const idx = (py * g.w + px) * 4
+                    // Count either alpha>0 (new format: white+alpha) or any
+                    // color channel>0 (old format: baked-in color, alpha=255).
+                    if (data[idx + 3] > 0 && (data[idx] > 0 || data[idx + 1] > 0 || data[idx + 2] > 0)) {
+                        rowHasPixel = true
+                        break
+                    }
+                }
+                if (rowHasPixel) {
+                    actualH = py + 1
+                    break
+                }
+            }
+        } catch {
+            actualH = g.h
+        }
+        result.set(code, actualH)
+    }
+
+    actualGlyphHeightCache.set(glyphMap, result)
+    return result
+}
+
 /**
  * Render a string into an HTMLCanvasElement by blitting glyphs from a sprite
  * sheet. Unlike FontRenderer.renderText (div-per-glyph), this draws once into
  * a single canvas — better for static labels that don't need per-glyph DOM.
  *
  * Glyphs are baseline-aligned: each glyph is drawn at y = canvasHeight -
- * glyph.h, matching jsFO's `rF_baseline - symbolInfo[idx].height`.
+ * actualHeight, matching jsFO's `rF_baseline - symbolInfo[idx].height`.
+ * Actual glyph heights are measured from the sprite sheet at load time since
+ * the JSON stores `h: cell_h` for every glyph (see fonts.py).
  *
  * The sprite sheet stores white pixels with glyph intensity as alpha (see
  * fonts.py). When a `color` hex string is provided, each pixel's red channel
@@ -321,14 +380,19 @@ export function renderBitmapText(
     letterSpacing: number = 1,
     color?: string
 ): HTMLCanvasElement {
+    const actualHeights = computeActualGlyphHeights(spriteSheet, glyphMap)
+
+    // Pass 1: measure canvas size using actual glyph heights.
     let totalWidth = 0
     let maxHeight = 0
     for (let i = 0; i < text.length; i++) {
-        const glyph = glyphMap[String(text.charCodeAt(i))]
+        const code = String(text.charCodeAt(i))
+        const glyph = glyphMap[code]
         if (glyph) {
             if (i > 0) totalWidth += letterSpacing
             totalWidth += glyph.w
-            if (glyph.h > maxHeight) maxHeight = glyph.h
+            const h = actualHeights.get(code) ?? glyph.h
+            if (h > maxHeight) maxHeight = h
         } else if (text[i] === ' ') {
             if (i > 0) totalWidth += letterSpacing
             totalWidth += 4
@@ -340,14 +404,20 @@ export function renderBitmapText(
     canvas.height = Math.max(maxHeight, 1)
     const ctx = canvas.getContext('2d')!
 
+    // Pass 2: blit each glyph baseline-aligned at y = maxHeight - actualH.
+    // Source rect uses actualH (not glyph.h) so empty rows at the bottom of
+    // each cell in the sprite don't get copied.
     let x = 0
     for (let i = 0; i < text.length; i++) {
-        const glyph = glyphMap[String(text.charCodeAt(i))]
+        const code = String(text.charCodeAt(i))
+        const glyph = glyphMap[code]
         if (glyph) {
             if (i > 0) x += letterSpacing
-            // Baseline-align: push shorter glyphs to the bottom
-            const y = maxHeight - glyph.h
-            ctx.drawImage(spriteSheet, glyph.x, glyph.y, glyph.w, glyph.h, x, y, glyph.w, glyph.h)
+            const h = actualHeights.get(code) ?? glyph.h
+            if (h > 0) {
+                const y = maxHeight - h
+                ctx.drawImage(spriteSheet, glyph.x, glyph.y, glyph.w, h, x, y, glyph.w, h)
+            }
             x += glyph.w
         } else if (text[i] === ' ') {
             if (i > 0) x += letterSpacing
