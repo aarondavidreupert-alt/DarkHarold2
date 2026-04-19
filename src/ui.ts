@@ -395,7 +395,7 @@ function initSkilldex() {
         const [name, skill] = skilldexSkills[i]
 
         // Skill name — div-per-glyph for transparent background
-        const nameWidget = new Widget(null, { x: 25, y: yPos - 2, w: 110, h: 24 })
+        const nameWidget = new Widget(null, { x: 19, y: yPos - 5, w: 110, h: 24 })
         nameWidget.css({ cursor: 'pointer', display: 'flex', alignItems: 'flex-end' }).onClick(useSkill(skill))
         skilldexWindow.add(nameWidget)
 
@@ -554,15 +554,17 @@ function initCharacterScreen() {
         640,
         480
     )
-        // FO2-CE ref: editor.cc — Done button saves changes, Cancel discards
-        .add(new SmallButton(455, 454)) // Done button (onClick set below)
-        .add(makeFontLabel(455 + 18, 454, 'Done', font1))
+        // FO2-CE ref: editor.cc — Print / Done / Cancel buttons
+        .add(new SmallButton(345, 454))
+        .add(makeFontLabel(345 + 18, 454, 'PRINT', font3).css({ pointerEvents: 'none' }))
+        .add(new SmallButton(455, 454))
+        .add(makeFontLabel(455 + 18, 454, 'DONE', font3).css({ pointerEvents: 'none' }))
         .add(
             new SmallButton(552, 454).onClick(() => {
                 characterWindow.close()
             })
         )
-        .add(makeFontLabel(552 + 18, 454, 'Cancel', font1))
+        .add(makeFontLabel(552 + 18, 454, 'CANCEL', font3).css({ pointerEvents: 'none' }))
         .add(makeFontLabel(22, 6, 'Name', font1))
         .add(makeFontLabel(160, 6, 'Age', font1))
         .add(makeFontLabel(242, 6, 'Gender', font1))
@@ -608,19 +610,12 @@ function initCharacterScreen() {
 
     const stats = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK']
 
-    const statNameWidgets: Widget[] = []
     const statValueWidgets: HTMLElement[] = []
 
     let selectedStat = stats[0]
 
     let n = 0
     for (const stat of stats) {
-        // Stat name label (e.g. "STR") rendered with bitmap font
-        const nameW = makeFontLabel(20, 39 + n, stat, font1)
-        nameW.css({ cursor: 'pointer' }).onClick(() => { selectedStat = stat })
-        statNameWidgets.push(nameW)
-        characterWindow.add(nameW)
-
         // Stat value rendered with bignum digit sprites
         const valW = new Widget(null, { x: 80, y: 39 + n, w: 28, h: 28 })
         valW.css({ cursor: 'pointer' }).onClick(() => { selectedStat = stat })
