@@ -32,7 +32,7 @@ import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
 import { CSSBoundingBox, Widget } from './widget.js'
-import { charScreenFont, FontWidget, makeFontLabel, renderBignum, skilldexFont } from './font.js'
+import { charScreenFont, FontRenderer, FontWidget, makeFontLabel, renderBignum, skilldexFont } from './font.js'
 import { openAutomap, closeAutomap, isAutomapOpen } from './automap.js'
 
 // Re-export so existing `from './ui.js'` importers still see Widget / CSSBoundingBox.
@@ -326,6 +326,8 @@ let optionsWindow: WindowFrame
 // FO2-CE ref: skilldex.cc — skilldexOpen() / skilldexWindowInit()
 // Skilldex window showing 8 usable skills with current values and keyboard shortcuts
 function initSkilldex() {
+    const font3 = new FontRenderer('art/fonts/font3_aaf', 'art/fonts/font3_aaf.json')
+
     // Skill value containers — updated each time the skilldex is opened/shown
     const skillValueElems: HTMLElement[] = []
 
@@ -400,8 +402,8 @@ function initSkilldex() {
         skilldexWindow.add(nameWidget)
 
         // Render text once font is loaded
-        skilldexFont.onLoad(() => {
-            const rendered = skilldexFont.renderText(name.toUpperCase(), '#FFD700')
+        font3.onLoad(() => {
+            const rendered = font3.renderText(name.toUpperCase(), '#FFD700')
             rendered.style.pointerEvents = 'none'
             nameWidget.elem.appendChild(rendered)
         })

@@ -212,19 +212,16 @@ export class FontRenderer {
      */
     static filterForColor(color: string): string {
         const c = color.toLowerCase()
-        if (c === 'yellow' || c === '#ffff00' || c === '#ff0' || c === '#ffd700') {
-            return ''
+        if (c === 'yellow' || c === '#ffd700' || c === '#ffff00' || c === '#ff0') {
+            return 'sepia(1) saturate(4) hue-rotate(5deg)'
         }
-        if (c === '#00ff00' || c === 'lime' || c === 'green') {
-            // Shift yellow → green
-            return 'hue-rotate(60deg) saturate(2)'
+        if (c === 'green' || c === '#00ff00' || c === 'lime') {
+            return 'sepia(1) saturate(4) hue-rotate(65deg)'
         }
-        if (c === '#ff0000' || c === 'red') {
-            // Shift yellow → red
-            return 'hue-rotate(-45deg) saturate(3)'
+        if (c === 'red' || c === '#ff0000') {
+            return 'sepia(1) saturate(5) hue-rotate(-40deg)'
         }
-        // Generic fallback per task description
-        return 'sepia(1) saturate(5) hue-rotate(5deg)'
+        return 'sepia(1) saturate(3)'
     }
 }
 
@@ -243,7 +240,7 @@ export class FontWidget extends Widget {
         public textColor?: string
     ) {
         super(null, { x, y, w: 'auto', h: 'auto' })
-        this.fontElem = renderer.renderText(text, textColor)
+        this.fontElem = renderer.renderText(text, textColor ?? 'yellow')
         this.elem.appendChild(this.fontElem)
     }
 
@@ -540,10 +537,10 @@ export function renderBignum(
 
 // ---- Singletons (lazy: assets are only fetched on first use) ---------------
 
-/** Small Fallout bitmap font — Skilldex skill names + values. */
+/** Small Fallout bitmap font — Skilldex header, Options menu labels. */
 export const skilldexFont = new FontRenderer(
-    'art/fonts/font4_aaf',
-    'art/fonts/font4_aaf.json'
+    'art/fonts/font1_aaf',
+    'art/fonts/font1_aaf.json'
 )
 
 /** Medium Fallout bitmap font — Character Screen headers / buttons. */
