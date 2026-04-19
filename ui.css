@@ -373,10 +373,10 @@ html, body {
 
 #optionsButton {
   position: absolute;
-  left: 211px;
-  top: 64px;
+  left: 210px;
+  top: 61px;
   width: 32px;
-  height: 21px;
+  height: 34px;
   background-image: url("art/intrface/optiup.png");
   cursor: pointer;
 }
