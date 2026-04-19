@@ -537,14 +537,5 @@ export function renderBignum(
 
 // ---- Singletons (lazy: assets are only fetched on first use) ---------------
 
-/** Small Fallout bitmap font — Skilldex header, Options menu labels. */
-export const skilldexFont = new FontRenderer(
-    'art/fonts/font1_aaf',
-    'art/fonts/font1_aaf.json'
-)
-
-/** Medium Fallout bitmap font — Character Screen headers / buttons. */
-export const charScreenFont = new FontRenderer(
-    'art/fonts/font1_aaf',
-    'art/fonts/font1_aaf.json'
-)
+export const font1 = new FontRenderer('art/fonts/font1_aaf', 'art/fonts/font1_aaf.json')
+export const font3 = new FontRenderer('art/fonts/font3_aaf', 'art/fonts/font3_aaf.json')

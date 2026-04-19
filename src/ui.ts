@@ -32,7 +32,7 @@ import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
 import { CSSBoundingBox, Widget } from './widget.js'
-import { charScreenFont, FontRenderer, FontWidget, makeFontLabel, renderBignum, skilldexFont } from './font.js'
+import { font1, font3, FontWidget, makeFontLabel, renderBignum } from './font.js'
 import { openAutomap, closeAutomap, isAutomapOpen } from './automap.js'
 
 // Re-export so existing `from './ui.js'` importers still see Widget / CSSBoundingBox.
@@ -326,8 +326,6 @@ let optionsWindow: WindowFrame
 // FO2-CE ref: skilldex.cc — skilldexOpen() / skilldexWindowInit()
 // Skilldex window showing 8 usable skills with current values and keyboard shortcuts
 function initSkilldex() {
-    const font3 = new FontRenderer('art/fonts/font3_aaf', 'art/fonts/font3_aaf.json')
-
     // Skill value containers — updated each time the skilldex is opened/shown
     const skillValueElems: HTMLElement[] = []
 
@@ -378,7 +376,7 @@ function initSkilldex() {
         185,
         368
     )
-        .add(new FontWidget(65, 15, 'SKILLDEX', skilldexFont, '#FFD700'))
+        .add(new FontWidget(65, 15, 'SKILLDEX', font1, '#FFD700'))
 
     // FO2-CE ref: skilldex.cc SkilldexSkill enum — 8 skills in order
     const skilldexSkills: [string, Skills][] = [
@@ -481,7 +479,7 @@ function initOptionsMenu() {
         200,
         260
     )
-        .add(new FontWidget(50, 15, 'OPTIONS', skilldexFont, '#FFD700'))
+        .add(new FontWidget(50, 15, 'OPTIONS', font1, '#FFD700'))
 
     // FO2-CE ref: options.cc — button order matches original: Save, Load, Preferences, Quit, Done
     const optionButtons: [string, () => void][] = [
@@ -498,8 +496,8 @@ function initOptionsMenu() {
         btnWidget.css({ cursor: 'pointer', display: 'flex', alignItems: 'flex-end' }).onClick(handler)
         optionsWindow.add(btnWidget)
 
-        skilldexFont.onLoad(() => {
-            const rendered = skilldexFont.renderText(label.toUpperCase(), '#FFD700')
+        font1.onLoad(() => {
+            const rendered = font1.renderText(label.toUpperCase(), '#FFD700')
             rendered.style.pointerEvents = 'none'
             btnWidget.elem.appendChild(rendered)
         })
@@ -558,16 +556,16 @@ function initCharacterScreen() {
     )
         // FO2-CE ref: editor.cc — Done button saves changes, Cancel discards
         .add(new SmallButton(455, 454)) // Done button (onClick set below)
-        .add(makeFontLabel(455 + 18, 454, 'Done', charScreenFont))
+        .add(makeFontLabel(455 + 18, 454, 'Done', font1))
         .add(
             new SmallButton(552, 454).onClick(() => {
                 characterWindow.close()
             })
         )
-        .add(makeFontLabel(552 + 18, 454, 'Cancel', charScreenFont))
-        .add(makeFontLabel(22, 6, 'Name', charScreenFont))
-        .add(makeFontLabel(160, 6, 'Age', charScreenFont))
-        .add(makeFontLabel(242, 6, 'Gender', charScreenFont))
+        .add(makeFontLabel(552 + 18, 454, 'Cancel', font1))
+        .add(makeFontLabel(22, 6, 'Name', font1))
+        .add(makeFontLabel(160, 6, 'Age', font1))
+        .add(makeFontLabel(242, 6, 'Gender', font1))
         .add(
             new Label(33, 280, `Level: ${currentLevel}`).css({
                 fontSize: '0.75em',
@@ -586,8 +584,8 @@ function initCharacterScreen() {
                 color: '#00FF00',
             })
         )
-        .add(makeFontLabel(380, 5, 'Skill', charScreenFont))
-        .add(makeFontLabel(399, 233, 'Skill Points', charScreenFont))
+        .add(makeFontLabel(380, 5, 'Skill', font1))
+        .add(makeFontLabel(399, 233, 'Skill Points', font1))
         .add(
             new Label(
                 194,
@@ -618,7 +616,7 @@ function initCharacterScreen() {
     let n = 0
     for (const stat of stats) {
         // Stat name label (e.g. "STR") rendered with bitmap font
-        const nameW = makeFontLabel(20, 39 + n, stat, charScreenFont)
+        const nameW = makeFontLabel(20, 39 + n, stat, font1)
         nameW.css({ cursor: 'pointer' }).onClick(() => { selectedStat = stat })
         statNameWidgets.push(nameW)
         characterWindow.add(nameW)
