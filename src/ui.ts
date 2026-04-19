@@ -376,7 +376,7 @@ function initSkilldex() {
         185,
         368
     )
-        .add(new FontWidget(65, 15, 'SKILLDEX', font1, '#FFD700'))
+        .add(new FontWidget(65, 15, 'SKILLDEX', font3, '#FFD700'))
 
     // FO2-CE ref: skilldex.cc SkilldexSkill enum — 8 skills in order
     const skilldexSkills: [string, Skills][] = [
@@ -479,7 +479,7 @@ function initOptionsMenu() {
         200,
         260
     )
-        .add(new FontWidget(50, 15, 'OPTIONS', font1, '#FFD700'))
+        .add(new FontWidget(50, 15, 'OPTIONS', font3, '#FFD700'))
 
     // FO2-CE ref: options.cc — button order matches original: Save, Load, Preferences, Quit, Done
     const optionButtons: [string, () => void][] = [
@@ -496,8 +496,8 @@ function initOptionsMenu() {
         btnWidget.css({ cursor: 'pointer', display: 'flex', alignItems: 'flex-end' }).onClick(handler)
         optionsWindow.add(btnWidget)
 
-        font1.onLoad(() => {
-            const rendered = font1.renderText(label.toUpperCase(), '#FFD700')
+        font3.onLoad(() => {
+            const rendered = font3.renderText(label.toUpperCase(), '#FFD700')
             rendered.style.pointerEvents = 'none'
             btnWidget.elem.appendChild(rendered)
         })
