@@ -541,12 +541,19 @@ function initCharacterScreen() {
     const currentLevel = player.getStat('Level')
     const nextLevelXP = Math.floor((currentLevel + 1) * currentLevel / 2) * 1000
 
-    // Derived stats labels (updated in redraw)
-    const derivedStatsLabel = new Label(194, 57, '').css({ fontSize: '0.7em', color: '#00FF00', whiteSpace: 'pre' })
-
     // Skill point bignum container
     const skillPointBignumW = new Widget(null, { x: 523, y: 228, w: 28, h: 28 })
     const skillPointBignumEl = skillPointBignumW.elem
+
+    // Panel 2: Hit Points + condition flags (upper status box)
+    const panel2 = new Widget(null, { x: 490, y: 40, w: 'auto', h: 'auto' })
+        .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
+    const panel2El = panel2.elem
+
+    // Panel 3: derived stats (lower status box)
+    const panel3 = new Widget(null, { x: 490, y: 136, w: 'auto', h: 'auto' })
+        .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
+    const panel3El = panel3.elem
 
     // Slider widget elements (initially hidden)
     const sliderContainer = document.createElement('div')
@@ -640,16 +647,10 @@ function initCharacterScreen() {
                 color: '#00FF00',
             })
         )
-        .add(makeFontLabel(380, 5, 'Skill', font3))
+        .add(makeFontLabel(380, 5, 'Skills', font3))
         .add(makeFontLabel(399, 233, 'Skill Points', font3))
-        .add(
-            new Label(
-                194,
-                45,
-                `Hit Points ${player.getStat('HP')}/${player.getStat('Max HP')}`
-            ).css({ fontSize: '0.75em', color: '#00FF00' })
-        )
-        .add(derivedStatsLabel)
+        .add(panel2)
+        .add(panel3)
         .add(skillList)
         .add(skillPointBignumW)
         .show()
@@ -668,6 +669,7 @@ function initCharacterScreen() {
     const stats = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK']
 
     const statValueWidgets: HTMLElement[] = []
+    const statCommentLabels: Label[] = []
 
     let selectedStat = stats[0]
 
@@ -677,6 +679,10 @@ function initCharacterScreen() {
         valW.css({ cursor: 'pointer' }).onClick(() => { selectedStat = stat })
         statValueWidgets.push(valW.elem)
         characterWindow.add(valW)
+
+        const commentLbl = new Label(90, 37 + n + 9, '', '#00FF00').css({ fontSize: '0.69em' }) as Label
+        statCommentLabels.push(commentLbl)
+        characterWindow.add(commentLbl)
 
         n += 33
     }
@@ -723,6 +729,60 @@ function initCharacterScreen() {
         skillPointBignumEl.appendChild(renderBignum(newSkillSet.skillPoints, 2))
     }
 
+    // FO2-CE ref: editor.cc gCharacterEditorPrimaryStatDescriptions — value → adjective
+    const STAT_COMMENTS = [
+        '', 'Terrible', 'Bad', 'Poor', 'Fair', 'Average',
+        'Good', 'Very Good', 'Great', 'Excellent', 'Heroic',
+    ]
+
+    // FO2-CE ref: editor.cc EDITOR_* condition flags
+    const CONDITIONS: Array<[string, () => boolean]> = [
+        ['Poisoned',            () => player.getStat('Poison Level') > 0],
+        ['Radiated',            () => player.getStat('Radiation Level') > 0],
+        ['Eye Damage',          () => !!player.isBlinded],
+        ['Crippled Right Arm',  () => !!player.crippledRightArm],
+        ['Crippled Left Arm',   () => !!player.crippledLeftArm],
+        ['Crippled Right Leg',  () => !!player.crippledRightLeg],
+        ['Crippled Left Leg',   () => !!player.crippledLeftLeg],
+    ]
+
+    const renderPanel2 = () => {
+        while (panel2El.firstChild) panel2El.removeChild(panel2El.firstChild)
+
+        const hp = document.createElement('div')
+        hp.textContent = `Hit Points: ${player.getStat('HP')} / ${player.getStat('Max HP')}`
+        panel2El.appendChild(hp)
+
+        for (const [label, active] of CONDITIONS) {
+            const line = document.createElement('div')
+            line.textContent = label
+            line.style.opacity = active() ? '1' : '0.3'
+            panel2El.appendChild(line)
+        }
+    }
+
+    const renderPanel3 = () => {
+        while (panel3El.firstChild) panel3El.removeChild(panel3El.firstChild)
+
+        const rows: Array<[string, string | number]> = [
+            ['Armor Class',          newStatSet.get('AC')],
+            ['Action Points',        newStatSet.get('AP')],
+            ['Carry Weight',         newStatSet.get('Carry')],
+            ['Melee Damage',         newStatSet.get('Melee')],
+            ['Damage Resistance',    `${newStatSet.get('DR Normal')}%`],
+            ['Poison Resistance',    `${newStatSet.get('DR Poison')}%`],
+            ['Radiation Resistance', `${newStatSet.get('DR Radiation')}%`],
+            ['Sequence',             newStatSet.get('Sequence')],
+            ['Healing Rate',         newStatSet.get('Healing Rate')],
+            ['Critical Chance',      `${newStatSet.get('Critical Chance')}%`],
+        ]
+        for (const [label, value] of rows) {
+            const line = document.createElement('div')
+            line.textContent = `${label}: ${value}`
+            panel3El.appendChild(line)
+        }
+    }
+
     const redrawStatsSkills = () => {
         const prevSelected = selectedSkill
         skillList.clear()
@@ -740,27 +800,16 @@ function initCharacterScreen() {
         for (let i = 0; i < stats.length; i++) {
             const el = statValueWidgets[i]
             while (el.firstChild) el.removeChild(el.firstChild)
-            el.appendChild(renderBignum(newStatSet.get(stats[i]), 2))
+            const value = newStatSet.get(stats[i])
+            el.appendChild(renderBignum(value, 2))
+
+            const clamped = Math.max(1, Math.min(10, value))
+            statCommentLabels[i].setText(STAT_COMMENTS[clamped])
         }
 
         updateSkillPointBignum()
-
-        const agi = newStatSet.get('AGI')
-        const end = newStatSet.get('END')
-        const str = newStatSet.get('STR')
-        const per = newStatSet.get('PER')
-        const luk = newStatSet.get('LUK')
-
-        const derivedLines = [
-            `AC: ${agi}`,
-            `AP: ${5 + Math.floor(agi / 2)}`,
-            `Melee Dmg: ${Math.max(1, str - 5)}`,
-            `Carry: ${25 + 25 * str} lbs`,
-            `Sequence: ${2 * per}`,
-            `Heal Rate: ${Math.max(1, Math.floor(end / 3))}`,
-            `Crit Chance: ${luk}%`,
-        ]
-        derivedStatsLabel.setText(derivedLines.join('\n'))
+        renderPanel2()
+        renderPanel3()
 
         positionSlider()
     }
