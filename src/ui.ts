@@ -26,7 +26,6 @@ import { Scripting } from './scripting.js'
 import { Skills, SKILL_NAMES } from './skills.js'
 import { skillUse } from './skillUse.js'
 import { fromTileNum } from './tile.js'
-import { pad } from './util.js'
 import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
@@ -532,9 +531,9 @@ function initOptionsMenu() {
 
 function initCharacterScreen() {
     const player = globalState.player!
-    const skillList = new List({ x: 380, y: 27, w: 'auto', h: 'auto' })
+    const skillList = new List({ x: 380, y: 25, w: 'auto', h: 'auto' })
 
-    skillList.css({ fontSize: '0.75em' })
+    skillList.css({ fontSize: '0.69em', color: 'rgb(0, 255, 0)' })
 
     // FO2-CE ref: stat.cc pcGetExperienceForLevel() — XP needed for next level
     const currentLevel = player.getStat('Level')
@@ -543,11 +542,60 @@ function initCharacterScreen() {
     // Derived stats labels (updated in redraw)
     const derivedStatsLabel = new Label(194, 57, '').css({ fontSize: '0.7em', color: '#00FF00', whiteSpace: 'pre' })
 
+    // Skill point bignum container — positioned where the old label was
+    const skillPointBignumW = new Widget(null, { x: 522, y: 230, w: 42, h: 28 })
+    const skillPointBignumEl = skillPointBignumW.elem
+
+    // Slider widget elements (initially hidden)
+    const sliderContainer = document.createElement('div')
+    Object.assign(sliderContainer.style, {
+        position: 'absolute',
+        display: 'none',
+        zIndex: '10',
+    })
+
+    const plusBtn = document.createElement('div')
+    Object.assign(plusBtn.style, {
+        position: 'absolute',
+        width: '22px',
+        height: '23px',
+        backgroundImage: "url('art/intrface/splsoff.png')",
+        backgroundRepeat: 'no-repeat',
+        cursor: 'pointer',
+        left: '2px',
+        top: '0px',
+    })
+
+    const sliderBody = document.createElement('div')
+    Object.assign(sliderBody.style, {
+        position: 'absolute',
+        width: '22px',
+        height: '24px',
+        backgroundImage: "url('art/intrface/slider.png')",
+        backgroundRepeat: 'no-repeat',
+        top: '23px',
+        left: '0px',
+    })
+
+    const minusBtn = document.createElement('div')
+    Object.assign(minusBtn.style, {
+        position: 'absolute',
+        width: '22px',
+        height: '23px',
+        backgroundImage: "url('art/intrface/snegoff.png')",
+        backgroundRepeat: 'no-repeat',
+        cursor: 'pointer',
+        left: '2px',
+        top: '47px',
+    })
+
+    sliderContainer.appendChild(plusBtn)
+    sliderContainer.appendChild(sliderBody)
+    sliderContainer.appendChild(minusBtn)
+
     characterWindow = new WindowFrame(
         'art/intrface/edtredt.png',
         {
-            // Centered horizontally, bottom-flush with the 99px HUD in the
-            // 800×600 uiStage: x = (800-640)/2, y = 600 - 99 - 480 = 21.
             x: Config.ui.screenWidth / 2 - 640 / 2,
             y: Config.ui.screenHeight - 99 - 480,
         },
@@ -597,7 +645,10 @@ function initCharacterScreen() {
         )
         .add(derivedStatsLabel)
         .add(skillList)
+        .add(skillPointBignumW)
         .show()
+
+    characterWindow.elem.appendChild(sliderContainer)
 
     // Drag-to-reposition from non-interactive areas of the frame.
     makePanelDraggable(characterWindow.elem)
@@ -616,7 +667,6 @@ function initCharacterScreen() {
 
     let n = 0
     for (const stat of stats) {
-        // Stat value rendered with bignum digit sprites
         const valW = new Widget(null, { x: 59, y: 37 + n, w: 28, h: 28 })
         valW.css({ cursor: 'pointer' }).onClick(() => { selectedStat = stat })
         statValueWidgets.push(valW.elem)
@@ -627,34 +677,68 @@ function initCharacterScreen() {
 
     const newStatSet = player.stats.clone()
     const newSkillSet = player.skills.clone()
-    // FO2-CE ref: skill.cc — player-only options for skill value calculation
     const playerSkillOpts = { isPlayer: true, perks: player.perks }
 
-    // Skill Points / Tag Skills counter
-    const skillPointCounter = new Label(522, 230, '').css({ background: 'black', padding: '5px' })
-    characterWindow.add(skillPointCounter)
+    // Snapshot opening base values — cannot decrement below these
+    const openingBaseSkills: { [name: string]: number } = {}
+    for (const skill of skills) {
+        openingBaseSkills[skill] = newSkillSet.getBase(skill)
+    }
+
+    let selectedSkill: string | null = null
+
+    const positionSlider = () => {
+        if (!selectedSkill) {
+            sliderContainer.style.display = 'none'
+            return
+        }
+        const idx = skills.indexOf(selectedSkill)
+        if (idx === -1) {
+            sliderContainer.style.display = 'none'
+            return
+        }
+        const listEl = skillList.elem
+        const itemEl = listEl.children[idx] as HTMLElement | undefined
+        if (!itemEl) {
+            sliderContainer.style.display = 'none'
+            return
+        }
+        const listLeft = parseInt(listEl.style.left || '0')
+        const listTop = parseInt(listEl.style.top || '0')
+        const rowY = listTop + itemEl.offsetTop
+        const rowRight = listLeft + itemEl.offsetWidth + 4
+        sliderContainer.style.left = `${rowRight}px`
+        sliderContainer.style.top = `${rowY - 23}px`
+        sliderContainer.style.display = 'block'
+    }
+
+    const updateSkillPointBignum = () => {
+        while (skillPointBignumEl.firstChild) skillPointBignumEl.removeChild(skillPointBignumEl.firstChild)
+        skillPointBignumEl.appendChild(renderBignum(newSkillSet.skillPoints, 3))
+    }
 
     const redrawStatsSkills = () => {
-        // Draw skills
+        const prevSelected = selectedSkill
         skillList.clear()
 
         for (const skill of skills) {
             const val = newSkillSet.get(skill, newStatSet, playerSkillOpts)
-            const tag = newSkillSet.isTagged(skill) ? ' *' : ''
-            skillList.addItem({ text: `${skill} ${val}%${tag}`, id: skill })
+            skillList.addItem({ text: `${skill} ${val}%`, id: skill })
         }
 
-        // Draw stat values as bignum digit sprites
+        // Re-select previously selected skill
+        if (prevSelected) {
+            skillList.selectId(prevSelected)
+        }
+
         for (let i = 0; i < stats.length; i++) {
             const el = statValueWidgets[i]
             while (el.firstChild) el.removeChild(el.firstChild)
             el.appendChild(renderBignum(newStatSet.get(stats[i]), 2))
         }
 
-        // Update skill point counter
-        skillPointCounter.setText(pad(newSkillSet.skillPoints, 2))
+        updateSkillPointBignum()
 
-        // FO2-CE ref: stat.cc critterUpdateDerivedStats() — display derived stats
         const agi = newStatSet.get('AGI')
         const end = newStatSet.get('END')
         const str = newStatSet.get('STR')
@@ -671,71 +755,58 @@ function initCharacterScreen() {
             `Crit Chance: ${luk}%`,
         ]
         derivedStatsLabel.setText(derivedLines.join('\n'))
+
+        positionSlider()
+    }
+
+    skillList.onItemSelected((item) => {
+        selectedSkill = item.id
+        positionSlider()
+    })
+
+    const modifySkill = (inc: boolean) => {
+        if (!selectedSkill) return
+
+        if (inc) {
+            const changed = newSkillSet.incBase(selectedSkill, newStatSet, playerSkillOpts)
+            if (!changed) {
+                console.warn('Not enough skill points or at skill cap!')
+            }
+        } else {
+            const currentBase = newSkillSet.getBase(selectedSkill)
+            if (currentBase <= openingBaseSkills[selectedSkill]) return
+            newSkillSet.decBase(selectedSkill, newStatSet, playerSkillOpts)
+        }
+
+        redrawStatsSkills()
+    }
+
+    plusBtn.onmousedown = () => {
+        plusBtn.style.backgroundImage = "url('art/intrface/splson.png')"
+        modifySkill(true)
+    }
+    plusBtn.onmouseup = () => {
+        plusBtn.style.backgroundImage = "url('art/intrface/splsoff.png')"
+    }
+    plusBtn.onmouseleave = () => {
+        plusBtn.style.backgroundImage = "url('art/intrface/splsoff.png')"
+    }
+
+    minusBtn.onmousedown = () => {
+        minusBtn.style.backgroundImage = "url('art/intrface/snegon.png')"
+        modifySkill(false)
+    }
+    minusBtn.onmouseup = () => {
+        minusBtn.style.backgroundImage = "url('art/intrface/snegoff.png')"
+    }
+    minusBtn.onmouseleave = () => {
+        minusBtn.style.backgroundImage = "url('art/intrface/snegoff.png')"
     }
 
     redrawStatsSkills()
 
-    // FO2-CE ref: editor.cc — skill modification is available when the player has skill points
-    // Stat changes are never allowed during normal gameplay (only char creation).
-    const hasSkillPoints = newSkillSet.skillPoints > 0
-    const canChangeStats = false // FO2: stats only changeable at char creation
-
-    if (hasSkillPoints) {
-        const modifySkill = (inc: boolean) => {
-            const sel = skillList.getSelection()
-            if (!sel) return
-            const skill = sel.id
-            console.log('skill: %s currently: %d', skill, newSkillSet.get(skill, newStatSet, playerSkillOpts))
-
-            if (inc) {
-                const changed = newSkillSet.incBase(skill, newStatSet, playerSkillOpts)
-                if (!changed) {
-                    console.warn('Not enough skill points!')
-                }
-            } else {
-                newSkillSet.decBase(skill, newStatSet, playerSkillOpts)
-            }
-
-            redrawStatsSkills()
-        }
-
-        const toggleTagSkill = () => {
-            const sel = skillList.getSelection()
-            if (!sel) return
-            const skill = sel.id
-            const tagged = newSkillSet.isTagged(skill)
-            console.log('skill: %s currently: %d tagged: %s', skill, newSkillSet.get(skill, newStatSet, playerSkillOpts), tagged)
-
-            if (!tagged) {
-                if (!newSkillSet.tag(skill)) {
-                    console.warn('Maximum tagged skills reached!')
-                }
-            } else {
-                newSkillSet.untag(skill)
-            }
-
-            redrawStatsSkills()
-        }
-
-        // Skill level up buttons
-        characterWindow.add(
-            new Label(580, 236, '-').onClick(() => {
-                modifySkill(false)
-            })
-        )
-        characterWindow.add(
-            new Label(600, 236, '+').onClick(() => {
-                modifySkill(true)
-            })
-        )
-        characterWindow.add(
-            new Label(620, 236, 'Tag').onClick(() => {
-                toggleTagSkill()
-            })
-        )
-    }
-
     // Stat level up buttons (char creation only)
+    const canChangeStats = false
     if (canChangeStats) {
         const modifyStat = (change: number) => {
             newStatSet.modifyBase(selectedStat, change)
@@ -751,14 +822,12 @@ function initCharacterScreen() {
     }
 
     // FO2-CE ref: editor.cc — Done button: write cloned stats/skills back to player
-    characterWindow.children[0].onClick(() => {
-        // Apply skill changes to the player
+    characterWindow.children[2].onClick(() => {
         player.skills.baseSkills = Object.assign({}, newSkillSet.baseSkills)
         player.skills.tagged = newSkillSet.tagged.slice()
         player.skills.skillPoints = newSkillSet.skillPoints
         player.skills.hasTagPerk = newSkillSet.hasTagPerk
 
-        // Apply stat changes (if any were allowed)
         if (canChangeStats) {
             player.stats.baseStats = Object.assign({}, newStatSet.baseStats)
         }
