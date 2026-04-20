@@ -544,8 +544,8 @@ function initCharacterScreen() {
     // Derived stats labels (updated in redraw)
     const derivedStatsLabel = new Label(194, 57, '').css({ fontSize: '0.7em', color: '#00FF00', whiteSpace: 'pre' })
 
-    // Skill point bignum container — positioned where the old label was
-    const skillPointBignumW = new Widget(null, { x: 522, y: 230, w: 42, h: 28 })
+    // Skill point bignum container
+    const skillPointBignumW = new Widget(null, { x: 228, y: 230, w: 28, h: 28 })
     const skillPointBignumEl = skillPointBignumW.elem
 
     // Slider widget elements (initially hidden)
@@ -556,43 +556,39 @@ function initCharacterScreen() {
         zIndex: '10',
     })
 
-    const plusBtn = document.createElement('div')
-    Object.assign(plusBtn.style, {
-        position: 'absolute',
-        width: '22px',
-        height: '23px',
-        backgroundImage: "url('art/intrface/splsoff.png')",
-        backgroundRepeat: 'no-repeat',
-        cursor: 'pointer',
-        left: '2px',
-        top: '0px',
-    })
-
     const sliderBody = document.createElement('div')
     Object.assign(sliderBody.style, {
         position: 'absolute',
-        width: '22px',
-        height: '24px',
+        width: '43px',
+        height: '30px',
         backgroundImage: "url('art/intrface/slider.png')",
         backgroundRepeat: 'no-repeat',
-        top: '23px',
-        left: '0px',
+        left: '130px',
+        top: '14px',
+    })
+
+    const plusBtn = document.createElement('div')
+    Object.assign(plusBtn.style, {
+        position: 'absolute',
+        backgroundImage: "url('art/intrface/splsoff.png')",
+        backgroundRepeat: 'no-repeat',
+        cursor: 'pointer',
+        left: '152px',
+        top: '17px',
     })
 
     const minusBtn = document.createElement('div')
     Object.assign(minusBtn.style, {
         position: 'absolute',
-        width: '22px',
-        height: '23px',
         backgroundImage: "url('art/intrface/snegoff.png')",
         backgroundRepeat: 'no-repeat',
         cursor: 'pointer',
-        left: '2px',
-        top: '47px',
+        left: '152px',
+        top: '29px',
     })
 
-    sliderContainer.appendChild(plusBtn)
     sliderContainer.appendChild(sliderBody)
+    sliderContainer.appendChild(plusBtn)
     sliderContainer.appendChild(minusBtn)
 
     characterWindow = new WindowFrame(
@@ -615,9 +611,9 @@ function initCharacterScreen() {
             })
         )
         .add(makeFontLabel(552 + 18, 454, 'CANCEL', font3).css({ pointerEvents: 'none' }))
-        .add(makeFontLabel(22, 6, 'Name', font1))
+        .add(makeFontLabel(22, 6, 'Name', font3))
         .add(makeFontLabel(160, 6, 'Age', font1))
-        .add(makeFontLabel(242, 6, 'Gender', font1))
+        .add(makeFontLabel(242, 6, 'Gender', font3))
         .add(
             new Label(33, 280, `Level: ${currentLevel}`).css({
                 fontSize: '0.75em',
@@ -636,8 +632,8 @@ function initCharacterScreen() {
                 color: '#00FF00',
             })
         )
-        .add(makeFontLabel(380, 5, 'Skill', font1))
-        .add(makeFontLabel(399, 233, 'Skill Points', font1))
+        .add(makeFontLabel(380, 5, 'Skill', font3))
+        .add(makeFontLabel(399, 233, 'Skill Points', font3))
         .add(
             new Label(
                 194,
@@ -716,7 +712,7 @@ function initCharacterScreen() {
 
     const updateSkillPointBignum = () => {
         while (skillPointBignumEl.firstChild) skillPointBignumEl.removeChild(skillPointBignumEl.firstChild)
-        skillPointBignumEl.appendChild(renderBignum(newSkillSet.skillPoints, 3))
+        skillPointBignumEl.appendChild(renderBignum(newSkillSet.skillPoints, 2))
     }
 
     const redrawStatsSkills = () => {
