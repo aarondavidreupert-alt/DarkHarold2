@@ -48,44 +48,43 @@ def parse_aaf(filepath):
         'glyphs': glyphs
     }
 
-def aaf_to_png(aaf_path, png_path, json_path, color=(255, 200, 0, 255)):
+def aaf_to_png(aaf_path, png_path, json_path):
     font = parse_aaf(aaf_path)
     glyphs = font['glyphs']
-    
+
     # Nur druckbare ASCII-Zeichen (32–126)
     chars = range(32, 127)
-    
+
     cell_w = max((glyphs[i]['width'] for i in chars if glyphs[i]['width'] > 0), default=8)
     cell_h = font['max_height']
-    
+
     cols = len(list(chars))
     img_w = cell_w * cols
     img_h = cell_h
-    
+
     img = Image.new('RGBA', (img_w, img_h), (0, 0, 0, 0))
     symbol_info = {}
-    
+
     for idx, char_code in enumerate(chars):
         g = glyphs[char_code]
         x_offset = idx * cell_w
-        
+
         symbol_info[char_code] = {
             'x': x_offset,
             'y': 0,
             'w': g['width'] if g['width'] > 0 else font['space_width'],
-            'h': cell_h
+            'h': g['height'] if g['height'] > 0 else cell_h
         }
-        
+
         if g['width'] > 0 and g['height'] > 0 and g['pixels']:
             for py in range(g['height']):
                 for px in range(g['width']):
                     pixel_val = g['pixels'][py * g['width'] + px]
                     if pixel_val > 0:
-                        alpha = min(255, pixel_val * 4)  # skalieren falls nötig
-                        r = int(color[0] * pixel_val / 255)
-                        g_val = int(color[1] * pixel_val / 255)
-                        b = int(color[2] * pixel_val / 255)
-                        img.putpixel((x_offset + px, py), (r, g_val, b, alpha))
+                        # Store intensity as alpha on white pixel (jsFO convention).
+                        # AAF values are 0–9; scale to 0–255.
+                        alpha = int(pixel_val / 9 * 255)
+                        img.putpixel((x_offset + px, py), (255, 255, 255, alpha))
     
     img.save(png_path)
     with open(json_path, 'w') as f:
@@ -102,23 +101,14 @@ out_dir  = r'C:\Users\aaron\OneDrive\Dokumente\GitHub\DarkHarold2\art\fonts'
 
 os.makedirs(out_dir, exist_ok=True)
 
-# Farben pro Font (Fallout-typisch: gelb/orange)
-colors = {
-    0: (255, 200,   0, 255),  # font0 — kleiner gelber Font
-    1: (255, 200,   0, 255),  # font1 — Skilldex-Font
-    2: (255, 200,   0, 255),  # font2
-    3: (255, 200,   0, 255),  # font3
-    4: (255, 200,   0, 255),  # font4
-}
-
 for i in range(5):
     aaf_file  = os.path.join(data_dir, f'font{i}.aaf')
     png_file  = os.path.join(out_dir,  f'font{i}.png')
     json_file = os.path.join(out_dir,  f'font{i}.json')
-    
+
     if os.path.exists(aaf_file):
         try:
-            aaf_to_png(aaf_file, png_file, json_file, color=colors[i])
+            aaf_to_png(aaf_file, png_file, json_file)
         except Exception as e:
             print(f"✗ font{i}.aaf — Fehler: {e}")
     else:

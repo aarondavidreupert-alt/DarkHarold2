@@ -26,12 +26,17 @@ import { Scripting } from './scripting.js'
 import { Skills, SKILL_NAMES } from './skills.js'
 import { skillUse } from './skillUse.js'
 import { fromTileNum } from './tile.js'
-import { pad } from './util.js'
 import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
+import { CSSBoundingBox, Widget } from './widget.js'
+import { font1, font3, FontWidget, makeFontLabel, renderBignum } from './font.js'
 import { openAutomap, closeAutomap, isAutomapOpen } from './automap.js'
+
+// Re-export so existing `from './ui.js'` importers still see Widget / CSSBoundingBox.
+export { Widget } from './widget.js'
+export type { CSSBoundingBox } from './widget.js'
 import { openPipBoy, closePipBoy, isPipBoyOpen } from './pipboy.js'
 import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
 import { makePanelDraggable } from './dragPanel.js'
@@ -45,14 +50,6 @@ import { makePanelDraggable } from './dragPanel.js'
 // TODO: fix inventory image size
 // TODO: fix style for inventory image amount
 // TODO: option for scaling the UI
-
-// Bounding box that accepts strings as well as numbers
-export interface CSSBoundingBox {
-    x: number | string
-    y: number | string
-    w: number | string
-    h: number | string
-}
 
 export class WindowFrame {
     children: Widget[] = []
@@ -113,68 +110,6 @@ export class WindowFrame {
         } else {
             this.show()
         }
-        return this
-    }
-}
-export class Widget {
-    elem: HTMLElement
-    hoverBackground: string | null = null
-    mouseDownBackground: string | null = null
-
-    constructor(public background: string | null, public bbox: CSSBoundingBox) {
-        this.elem = document.createElement('div')
-
-        Object.assign(this.elem.style, {
-            position: 'absolute',
-            left: `${bbox.x}px`,
-            top: `${bbox.y}px`,
-            width: `${bbox.w}px`,
-            height: `${bbox.h}px`,
-            backgroundImage: background && `url('${background}')`,
-        })
-    }
-
-    onClick(fn: (widget?: Widget) => void): this {
-        this.elem.onclick = () => {
-            fn(this)
-        }
-        return this
-    }
-
-    hoverBG(background: string): this {
-        this.hoverBackground = background
-
-        if (!this.elem.onmouseenter) {
-            // Set up events for hovering/not hovering
-            this.elem.onmouseenter = () => {
-                this.elem.style.backgroundImage = `url('${this.hoverBackground}')`
-            }
-            this.elem.onmouseleave = () => {
-                this.elem.style.backgroundImage = `url('${this.background}')`
-            }
-        }
-
-        return this
-    }
-
-    mouseDownBG(background: string): this {
-        this.mouseDownBackground = background
-
-        if (!this.elem.onmousedown) {
-            // Set up events for mouse down/up
-            this.elem.onmousedown = () => {
-                this.elem.style.backgroundImage = `url('${this.mouseDownBackground}')`
-            }
-            this.elem.onmouseup = () => {
-                this.elem.style.backgroundImage = `url('${this.background}')`
-            }
-        }
-
-        return this
-    }
-
-    css(props: object): this {
-        Object.assign(this.elem.style, props)
         return this
     }
 }
@@ -318,6 +253,7 @@ function uiInit() {
     $uiContainer = (document.getElementById('uiStage') ?? document.getElementById('game-container'))!
 
     initSkilldex()
+    initOptionsMenu()
     // initCharacterScreen();
 
     const chrBtn = document.getElementById('chrButton')
@@ -361,6 +297,10 @@ export function isSkilldexOpen(): boolean {
     return !!(skilldexWindow && skilldexWindow.showing)
 }
 
+export function isOptionsOpen(): boolean {
+    return !!(optionsWindow && optionsWindow.showing)
+}
+
 function closeInventoryPanel(): void {
     if (!isInventoryOpen()) return
     globalState.uiMode = UIMode.none
@@ -375,16 +315,18 @@ export function closeAllPanels(): void {
     if (isCharacterOpen()) characterWindow.close()
     if (isInventoryOpen()) closeInventoryPanel()
     if (isSkilldexOpen()) skilldexWindow.close()
+    if (isOptionsOpen()) optionsWindow.close()
 }
 
 let skilldexWindow: WindowFrame
 let characterWindow: WindowFrame
+let optionsWindow: WindowFrame
 
 // FO2-CE ref: skilldex.cc — skilldexOpen() / skilldexWindowInit()
 // Skilldex window showing 8 usable skills with current values and keyboard shortcuts
 function initSkilldex() {
-    // Skill value labels — updated each time the skilldex is opened/shown
-    const skillValueLabels: Label[] = []
+    // Skill value containers — updated each time the skilldex is opened/shown
+    const skillValueElems: HTMLElement[] = []
 
     // FO2-CE ref: skilldex.cc — Sneak is the only truly passive skill (toggle).
     // First Aid and Doctor can target other critters OR self (ground click = self).
@@ -433,7 +375,7 @@ function initSkilldex() {
         185,
         368
     )
-        .add(new Label(65, 15, 'SKILLDEX'))
+        .add(new FontWidget(65, 15, 'SKILLDEX', font3, '#FFD700'))
 
     // FO2-CE ref: skilldex.cc SkilldexSkill enum — 8 skills in order
     const skilldexSkills: [string, Skills][] = [
@@ -451,18 +393,22 @@ function initSkilldex() {
     for (let i = 0; i < skilldexSkills.length; i++) {
         const [name, skill] = skilldexSkills[i]
 
-        // Skill name + hotkey number
-        skilldexWindow.add(
-            new Label(25, yPos, `${i + 1}. ${name}`)
-                .css({ width: '110px', height: '24px', cursor: 'pointer', lineHeight: '24px' })
-                .onClick(useSkill(skill))
-        )
+        // Skill name — div-per-glyph for transparent background
+        const nameWidget = new Widget(null, { x: 19, y: yPos - 5, w: 110, h: 24 })
+        nameWidget.css({ cursor: 'pointer', display: 'flex', alignItems: 'flex-end' }).onClick(useSkill(skill))
+        skilldexWindow.add(nameWidget)
+
+        // Render text once font is loaded
+        font3.onLoad(() => {
+            const rendered = font3.renderText(name.toUpperCase(), '#FFD700')
+            rendered.style.pointerEvents = 'none'
+            nameWidget.elem.appendChild(rendered)
+        })
 
         // FO2-CE ref: skilldex.cc — 3-digit skill value display next to each button
-        const valLabel = new Label(140, yPos, '---')
-            .css({ width: '40px', height: '24px', lineHeight: '24px', textAlign: 'right' })
-        skillValueLabels.push(valLabel)
-        skilldexWindow.add(valLabel)
+        const valWidget = new Widget(null, { x: 112, y: yPos - 2, w: 42, h: 28 })
+        skillValueElems.push(valWidget.elem)
+        skilldexWindow.add(valWidget)
 
         yPos += 36
     }
@@ -494,8 +440,9 @@ function initSkilldex() {
                 const skillName = skilldexSkills[i][0]
                 const val = player.getSkill(skillName)
                 // FO2-CE: negative values (from Hard difficulty) shown in red
-                skillValueLabels[i].setText(`${val}%`)
-                skillValueLabels[i].elem.style.color = val < 0 ? '#FF0000' : '#00FF00'
+                const el = skillValueElems[i]
+                while (el.firstChild) el.removeChild(el.firstChild)
+                el.appendChild(renderBignum(val, 3, val < 0 ? 'red' : 'yellow'))
             }
         }
         return result
@@ -520,11 +467,75 @@ function initSkilldex() {
     document.addEventListener('keydown', skilldexKeyHandler)
 }
 
+// FO2-CE ref: options.cc — in-game options panel with Save/Load/Preferences/Quit/Done
+function initOptionsMenu() {
+    optionsWindow = new WindowFrame(
+        'art/intrface/opbase',
+        {
+            x: (Config.ui.screenWidth - 200) / 2,
+            y: (Config.ui.screenHeight - 260) / 2,
+        },
+        200,
+        260
+    )
+        .add(new FontWidget(50, 15, 'OPTIONS', font3, '#FFD700'))
+
+    // FO2-CE ref: options.cc — button order matches original: Save, Load, Preferences, Quit, Done
+    const optionButtons: [string, () => void][] = [
+        ['Save Game',   () => { optionsWindow.close(); uiSaveLoad(true) }],
+        ['Load Game',   () => { optionsWindow.close(); uiSaveLoad(false) }],
+        ['Preferences', () => { alert('Preferences not yet implemented.') }],
+        ['Quit Game',   () => { if (confirm('Quit to main menu?')) window.location.reload() }],
+        ['Done',        () => { optionsWindow.close() }],
+    ]
+
+    let yPos = 55
+    for (const [label, handler] of optionButtons) {
+        const btnWidget = new Widget('art/intrface/opbtnoff.png', { x: 26, y: yPos, w: 148, h: 18 })
+            .mouseDownBG('art/intrface/opbtnon.png')
+            .css({ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' })
+            .onClick(handler)
+        optionsWindow.add(btnWidget)
+
+        font3.onLoad(() => {
+            const rendered = font3.renderText(label.toUpperCase(), '#FFD700')
+            rendered.style.pointerEvents = 'none'
+            btnWidget.elem.appendChild(rendered)
+        })
+
+        yPos += 28
+    }
+
+    Object.assign(optionsWindow.elem.style, {
+        backgroundImage: `url('${optionsWindow.background}.png')`,
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: '100% 100%',
+        zIndex: '20',
+        cursor: 'default',
+    })
+
+    makePanelDraggable(optionsWindow.elem)
+
+    // FO2-CE ref: options.cc — S=Save, L=Load, P=Preferences, ESC/D=Done
+    const optionsKeyHandler = (e: KeyboardEvent) => {
+        if (!optionsWindow.showing) return
+
+        switch (e.key.toLowerCase()) {
+            case 's': optionsWindow.close(); uiSaveLoad(true); e.preventDefault(); break
+            case 'l': optionsWindow.close(); uiSaveLoad(false); e.preventDefault(); break
+            case 'p': alert('Preferences not yet implemented.'); e.preventDefault(); break
+            case 'd':
+            case 'escape': optionsWindow.close(); e.preventDefault(); break
+        }
+    }
+    document.addEventListener('keydown', optionsKeyHandler)
+}
+
 function initCharacterScreen() {
     const player = globalState.player!
-    const skillList = new List({ x: 380, y: 27, w: 'auto', h: 'auto' })
+    const skillList = new List({ x: 380, y: 25, w: 'auto', h: 'auto' })
 
-    skillList.css({ fontSize: '0.75em' })
+    skillList.css({ fontSize: '0.69em', color: 'rgb(0, 255, 0)' })
 
     // FO2-CE ref: stat.cc pcGetExperienceForLevel() — XP needed for next level
     const currentLevel = player.getStat('Level')
@@ -533,29 +544,82 @@ function initCharacterScreen() {
     // Derived stats labels (updated in redraw)
     const derivedStatsLabel = new Label(194, 57, '').css({ fontSize: '0.7em', color: '#00FF00', whiteSpace: 'pre' })
 
+    // Skill point bignum container
+    const skillPointBignumW = new Widget(null, { x: 523, y: 228, w: 28, h: 28 })
+    const skillPointBignumEl = skillPointBignumW.elem
+
+    // Slider widget elements (initially hidden)
+    const sliderContainer = document.createElement('div')
+    Object.assign(sliderContainer.style, {
+        position: 'absolute',
+        display: 'none',
+        zIndex: '10',
+    })
+
+    const sliderBody = document.createElement('div')
+    Object.assign(sliderBody.style, {
+        position: 'absolute',
+        width: '43px',
+        height: '30px',
+        backgroundImage: "url('art/intrface/slider.png')",
+        backgroundRepeat: 'no-repeat',
+        left: '130px',
+        top: '14px',
+    })
+
+    const plusBtn = document.createElement('div')
+    Object.assign(plusBtn.style, {
+        position: 'absolute',
+        width: '22px',
+        height: '12px',
+        backgroundImage: "url('art/intrface/splsoff.png')",
+        backgroundRepeat: 'no-repeat',
+        cursor: 'pointer',
+        left: '152px',
+        top: '17px',
+        zIndex: '1',
+    })
+
+    const minusBtn = document.createElement('div')
+    Object.assign(minusBtn.style, {
+        position: 'absolute',
+        width: '22px',
+        height: '12px',
+        backgroundImage: "url('art/intrface/snegoff.png')",
+        backgroundRepeat: 'no-repeat',
+        cursor: 'pointer',
+        left: '152px',
+        top: '29px',
+        zIndex: '1',
+    })
+
+    sliderContainer.appendChild(sliderBody)
+    sliderContainer.appendChild(plusBtn)
+    sliderContainer.appendChild(minusBtn)
+
     characterWindow = new WindowFrame(
         'art/intrface/edtredt.png',
         {
-            // Centered horizontally, bottom-flush with the 99px HUD in the
-            // 800×600 uiStage: x = (800-640)/2, y = 600 - 99 - 480 = 21.
             x: Config.ui.screenWidth / 2 - 640 / 2,
             y: Config.ui.screenHeight - 99 - 480,
         },
         640,
         480
     )
-        // FO2-CE ref: editor.cc — Done button saves changes, Cancel discards
-        .add(new SmallButton(455, 454)) // Done button (onClick set below)
-        .add(new Label(455 + 18, 454, 'Done'))
+        // FO2-CE ref: editor.cc — Print / Done / Cancel buttons
+        .add(new SmallButton(345, 454))
+        .add(makeFontLabel(345 + 18, 454, 'PRINT', font3).css({ pointerEvents: 'none' }))
+        .add(new SmallButton(455, 454))
+        .add(makeFontLabel(455 + 18, 454, 'DONE', font3).css({ pointerEvents: 'none' }))
         .add(
             new SmallButton(552, 454).onClick(() => {
                 characterWindow.close()
             })
         )
-        .add(new Label(552 + 18, 454, 'Cancel'))
-        .add(new Label(22, 6, 'Name'))
-        .add(new Label(160, 6, 'Age'))
-        .add(new Label(242, 6, 'Gender'))
+        .add(makeFontLabel(552 + 18, 454, 'CANCEL', font3).css({ pointerEvents: 'none' }))
+        .add(makeFontLabel(22, 6, 'Name', font3))
+        .add(makeFontLabel(160, 6, 'Age', font1))
+        .add(makeFontLabel(242, 6, 'Gender', font3))
         .add(
             new Label(33, 280, `Level: ${currentLevel}`).css({
                 fontSize: '0.75em',
@@ -574,8 +638,8 @@ function initCharacterScreen() {
                 color: '#00FF00',
             })
         )
-        .add(new Label(380, 5, 'Skill'))
-        .add(new Label(399, 233, 'Skill Points'))
+        .add(makeFontLabel(380, 5, 'Skill', font3))
+        .add(makeFontLabel(399, 233, 'Skill Points', font3))
         .add(
             new Label(
                 194,
@@ -585,7 +649,10 @@ function initCharacterScreen() {
         )
         .add(derivedStatsLabel)
         .add(skillList)
+        .add(skillPointBignumW)
         .show()
+
+    characterWindow.elem.appendChild(sliderContainer)
 
     // Drag-to-reposition from non-interactive areas of the frame.
     makePanelDraggable(characterWindow.elem)
@@ -598,50 +665,84 @@ function initCharacterScreen() {
 
     const stats = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK']
 
-    const statWidgets: Label[] = []
+    const statValueWidgets: HTMLElement[] = []
 
     let selectedStat = stats[0]
 
     let n = 0
     for (const stat of stats) {
-        const widget = new Label(20, 39 + n, '').css({ background: 'black', padding: '5px' })
-        widget.onClick(() => {
-            selectedStat = stat
-        })
-        statWidgets.push(widget)
-        characterWindow.add(widget)
+        const valW = new Widget(null, { x: 59, y: 37 + n, w: 28, h: 28 })
+        valW.css({ cursor: 'pointer' }).onClick(() => { selectedStat = stat })
+        statValueWidgets.push(valW.elem)
+        characterWindow.add(valW)
+
         n += 33
     }
 
     const newStatSet = player.stats.clone()
     const newSkillSet = player.skills.clone()
-    // FO2-CE ref: skill.cc — player-only options for skill value calculation
     const playerSkillOpts = { isPlayer: true, perks: player.perks }
 
-    // Skill Points / Tag Skills counter
-    const skillPointCounter = new Label(522, 230, '').css({ background: 'black', padding: '5px' })
-    characterWindow.add(skillPointCounter)
+    // Snapshot opening base values — cannot decrement below these
+    const openingBaseSkills: { [name: string]: number } = {}
+    for (const skill of skills) {
+        openingBaseSkills[skill] = newSkillSet.getBase(skill)
+    }
+
+    let selectedSkill: string | null = null
+
+    const positionSlider = () => {
+        if (!selectedSkill) {
+            sliderContainer.style.display = 'none'
+            return
+        }
+        const idx = skills.indexOf(selectedSkill)
+        if (idx === -1) {
+            sliderContainer.style.display = 'none'
+            return
+        }
+        const listEl = skillList.elem
+        const itemEl = listEl.children[idx] as HTMLElement | undefined
+        if (!itemEl) {
+            sliderContainer.style.display = 'none'
+            return
+        }
+        const listLeft = parseInt(listEl.style.left || '0')
+        const listTop = parseInt(listEl.style.top || '0')
+        const rowY = listTop + itemEl.offsetTop
+        const rowRight = listLeft + itemEl.offsetWidth + 4
+        sliderContainer.style.left = `${rowRight}px`
+        sliderContainer.style.top = `${rowY - 23}px`
+        sliderContainer.style.display = 'block'
+    }
+
+    const updateSkillPointBignum = () => {
+        while (skillPointBignumEl.firstChild) skillPointBignumEl.removeChild(skillPointBignumEl.firstChild)
+        skillPointBignumEl.appendChild(renderBignum(newSkillSet.skillPoints, 2))
+    }
 
     const redrawStatsSkills = () => {
-        // Draw skills
+        const prevSelected = selectedSkill
         skillList.clear()
 
         for (const skill of skills) {
             const val = newSkillSet.get(skill, newStatSet, playerSkillOpts)
-            const tag = newSkillSet.isTagged(skill) ? ' *' : ''
-            skillList.addItem({ text: `${skill} ${val}%${tag}`, id: skill })
+            skillList.addItem({ text: `${skill} ${val}%`, id: skill })
         }
 
-        // Draw stats
+        // Re-select previously selected skill
+        if (prevSelected) {
+            skillList.selectId(prevSelected)
+        }
+
         for (let i = 0; i < stats.length; i++) {
-            const stat = stats[i]
-            statWidgets[i].setText(`${stat} - ${newStatSet.get(stat)}`)
+            const el = statValueWidgets[i]
+            while (el.firstChild) el.removeChild(el.firstChild)
+            el.appendChild(renderBignum(newStatSet.get(stats[i]), 2))
         }
 
-        // Update skill point counter
-        skillPointCounter.setText(pad(newSkillSet.skillPoints, 2))
+        updateSkillPointBignum()
 
-        // FO2-CE ref: stat.cc critterUpdateDerivedStats() — display derived stats
         const agi = newStatSet.get('AGI')
         const end = newStatSet.get('END')
         const str = newStatSet.get('STR')
@@ -658,71 +759,58 @@ function initCharacterScreen() {
             `Crit Chance: ${luk}%`,
         ]
         derivedStatsLabel.setText(derivedLines.join('\n'))
+
+        positionSlider()
+    }
+
+    skillList.onItemSelected((item) => {
+        selectedSkill = item.id
+        positionSlider()
+    })
+
+    const modifySkill = (inc: boolean) => {
+        if (!selectedSkill) return
+
+        if (inc) {
+            const changed = newSkillSet.incBase(selectedSkill, newStatSet, playerSkillOpts)
+            if (!changed) {
+                console.warn('Not enough skill points or at skill cap!')
+            }
+        } else {
+            const currentBase = newSkillSet.getBase(selectedSkill)
+            if (currentBase <= openingBaseSkills[selectedSkill]) return
+            newSkillSet.decBase(selectedSkill, newStatSet, playerSkillOpts)
+        }
+
+        redrawStatsSkills()
+    }
+
+    plusBtn.onmousedown = () => {
+        plusBtn.style.backgroundImage = "url('art/intrface/splson.png')"
+        modifySkill(true)
+    }
+    plusBtn.onmouseup = () => {
+        plusBtn.style.backgroundImage = "url('art/intrface/splsoff.png')"
+    }
+    plusBtn.onmouseleave = () => {
+        plusBtn.style.backgroundImage = "url('art/intrface/splsoff.png')"
+    }
+
+    minusBtn.onmousedown = () => {
+        minusBtn.style.backgroundImage = "url('art/intrface/snegon.png')"
+        modifySkill(false)
+    }
+    minusBtn.onmouseup = () => {
+        minusBtn.style.backgroundImage = "url('art/intrface/snegoff.png')"
+    }
+    minusBtn.onmouseleave = () => {
+        minusBtn.style.backgroundImage = "url('art/intrface/snegoff.png')"
     }
 
     redrawStatsSkills()
 
-    // FO2-CE ref: editor.cc — skill modification is available when the player has skill points
-    // Stat changes are never allowed during normal gameplay (only char creation).
-    const hasSkillPoints = newSkillSet.skillPoints > 0
-    const canChangeStats = false // FO2: stats only changeable at char creation
-
-    if (hasSkillPoints) {
-        const modifySkill = (inc: boolean) => {
-            const sel = skillList.getSelection()
-            if (!sel) return
-            const skill = sel.id
-            console.log('[CharScreen] skill: %s currently: %d', skill, newSkillSet.get(skill, newStatSet, playerSkillOpts))
-
-            if (inc) {
-                const changed = newSkillSet.incBase(skill, newStatSet, playerSkillOpts)
-                if (!changed) {
-                    console.warn('[CharScreen] not enough skill points')
-                }
-            } else {
-                newSkillSet.decBase(skill, newStatSet, playerSkillOpts)
-            }
-
-            redrawStatsSkills()
-        }
-
-        const toggleTagSkill = () => {
-            const sel = skillList.getSelection()
-            if (!sel) return
-            const skill = sel.id
-            const tagged = newSkillSet.isTagged(skill)
-            console.log('[CharScreen] skill: %s currently: %d tagged: %s', skill, newSkillSet.get(skill, newStatSet, playerSkillOpts), tagged)
-
-            if (!tagged) {
-                if (!newSkillSet.tag(skill)) {
-                    console.warn('[CharScreen] maximum tagged skills reached')
-                }
-            } else {
-                newSkillSet.untag(skill)
-            }
-
-            redrawStatsSkills()
-        }
-
-        // Skill level up buttons
-        characterWindow.add(
-            new Label(580, 236, '-').onClick(() => {
-                modifySkill(false)
-            })
-        )
-        characterWindow.add(
-            new Label(600, 236, '+').onClick(() => {
-                modifySkill(true)
-            })
-        )
-        characterWindow.add(
-            new Label(620, 236, 'Tag').onClick(() => {
-                toggleTagSkill()
-            })
-        )
-    }
-
     // Stat level up buttons (char creation only)
+    const canChangeStats = false
     if (canChangeStats) {
         const modifyStat = (change: number) => {
             newStatSet.modifyBase(selectedStat, change)
@@ -738,14 +826,12 @@ function initCharacterScreen() {
     }
 
     // FO2-CE ref: editor.cc — Done button: write cloned stats/skills back to player
-    characterWindow.children[0].onClick(() => {
-        // Apply skill changes to the player
+    characterWindow.children[2].onClick(() => {
         player.skills.baseSkills = Object.assign({}, newSkillSet.baseSkills)
         player.skills.tagged = newSkillSet.tagged.slice()
         player.skills.skillPoints = newSkillSet.skillPoints
         player.skills.hasTagPerk = newSkillSet.hasTagPerk
 
-        // Apply stat changes (if any were allowed)
         if (canChangeStats) {
             player.stats.baseStats = Object.assign({}, newStatSet.baseStats)
         }
@@ -771,6 +857,7 @@ export enum UIMode {
     char = 12,
     pipBoy = 13,
     automap = 14,
+    options = 15,
 }
 
 // XXX: Should this throw if the element doesn't exist?
@@ -911,6 +998,12 @@ export function initUI() {
         if (isInventoryOpen()) { closeInventoryPanel(); return }
         closeAllPanels()
         uiInventoryScreen()
+    }
+
+    $id('optionsButton').onclick = () => {
+        if (isOptionsOpen()) { optionsWindow.close(); return }
+        closeAllPanels()
+        optionsWindow.show()
     }
     // Inventory panel is a static DOM element — wire drag once at init.
     makePanelDraggable($id('inventoryBox'))
