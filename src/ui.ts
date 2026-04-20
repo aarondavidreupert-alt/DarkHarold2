@@ -491,8 +491,10 @@ function initOptionsMenu() {
 
     let yPos = 55
     for (const [label, handler] of optionButtons) {
-        const btnWidget = new Widget(null, { x: 25, y: yPos, w: 150, h: 28 })
-        btnWidget.css({ cursor: 'pointer', display: 'flex', alignItems: 'flex-end' }).onClick(handler)
+        const btnWidget = new Widget('art/intrface/opbtnoff.png', { x: 26, y: yPos, w: 148, h: 18 })
+            .mouseDownBG('art/intrface/opbtnon.png')
+            .css({ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' })
+            .onClick(handler)
         optionsWindow.add(btnWidget)
 
         font3.onLoad(() => {
@@ -501,7 +503,7 @@ function initOptionsMenu() {
             btnWidget.elem.appendChild(rendered)
         })
 
-        yPos += 38
+        yPos += 28
     }
 
     Object.assign(optionsWindow.elem.style, {
