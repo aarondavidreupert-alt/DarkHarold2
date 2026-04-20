@@ -617,7 +617,7 @@ function initCharacterScreen() {
     let n = 0
     for (const stat of stats) {
         // Stat value rendered with bignum digit sprites
-        const valW = new Widget(null, { x: 80, y: 39 + n, w: 28, h: 28 })
+        const valW = new Widget(null, { x: 59, y: 37 + n, w: 28, h: 28 })
         valW.css({ cursor: 'pointer' }).onClick(() => { selectedStat = stat })
         statValueWidgets.push(valW.elem)
         characterWindow.add(valW)
