@@ -597,6 +597,8 @@ function initCharacterScreen() {
     sliderContainer.appendChild(plusBtn)
     sliderContainer.appendChild(minusBtn)
 
+    const doneButton = new SmallButton(455, 454)
+
     characterWindow = new WindowFrame(
         'art/intrface/edtredt.png',
         {
@@ -609,7 +611,7 @@ function initCharacterScreen() {
         // FO2-CE ref: editor.cc — Print / Done / Cancel buttons
         .add(new SmallButton(345, 454))
         .add(makeFontLabel(345 + 18, 454, 'PRINT', font3).css({ pointerEvents: 'none' }))
-        .add(new SmallButton(455, 454))
+        .add(doneButton)
         .add(makeFontLabel(455 + 18, 454, 'DONE', font3).css({ pointerEvents: 'none' }))
         .add(
             new SmallButton(552, 454).onClick(() => {
@@ -785,27 +787,33 @@ function initCharacterScreen() {
         redrawStatsSkills()
     }
 
-    plusBtn.onmousedown = () => {
-        plusBtn.style.backgroundImage = "url('art/intrface/splson.png')"
-        modifySkill(true)
-    }
-    plusBtn.onmouseup = () => {
-        plusBtn.style.backgroundImage = "url('art/intrface/splsoff.png')"
-    }
-    plusBtn.onmouseleave = () => {
-        plusBtn.style.backgroundImage = "url('art/intrface/splsoff.png')"
+    const wireSkillButton = (
+        btn: HTMLElement,
+        onSprite: string,
+        offSprite: string,
+        inc: boolean
+    ) => {
+        let repeatTimer: number | null = null
+        const stopRepeat = () => {
+            if (repeatTimer !== null) { clearInterval(repeatTimer); repeatTimer = null }
+        }
+        btn.onmousedown = () => {
+            btn.style.backgroundImage = `url('${onSprite}')`
+            modifySkill(inc)
+            repeatTimer = window.setInterval(() => modifySkill(inc), 100)
+        }
+        btn.onmouseup = () => {
+            btn.style.backgroundImage = `url('${offSprite}')`
+            stopRepeat()
+        }
+        btn.onmouseleave = () => {
+            btn.style.backgroundImage = `url('${offSprite}')`
+            stopRepeat()
+        }
     }
 
-    minusBtn.onmousedown = () => {
-        minusBtn.style.backgroundImage = "url('art/intrface/snegon.png')"
-        modifySkill(false)
-    }
-    minusBtn.onmouseup = () => {
-        minusBtn.style.backgroundImage = "url('art/intrface/snegoff.png')"
-    }
-    minusBtn.onmouseleave = () => {
-        minusBtn.style.backgroundImage = "url('art/intrface/snegoff.png')"
-    }
+    wireSkillButton(plusBtn, 'art/intrface/splson.png', 'art/intrface/splsoff.png', true)
+    wireSkillButton(minusBtn, 'art/intrface/snegon.png', 'art/intrface/snegoff.png', false)
 
     redrawStatsSkills()
 
@@ -826,7 +834,7 @@ function initCharacterScreen() {
     }
 
     // FO2-CE ref: editor.cc — Done button: write cloned stats/skills back to player
-    characterWindow.children[2].onClick(() => {
+    doneButton.onClick(() => {
         player.skills.baseSkills = Object.assign({}, newSkillSet.baseSkills)
         player.skills.tagged = newSkillSet.tagged.slice()
         player.skills.skillPoints = newSkillSet.skillPoints
