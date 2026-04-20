@@ -545,7 +545,7 @@ function initCharacterScreen() {
     const derivedStatsLabel = new Label(194, 57, '').css({ fontSize: '0.7em', color: '#00FF00', whiteSpace: 'pre' })
 
     // Skill point bignum container
-    const skillPointBignumW = new Widget(null, { x: 228, y: 230, w: 28, h: 28 })
+    const skillPointBignumW = new Widget(null, { x: 523, y: 228, w: 28, h: 28 })
     const skillPointBignumEl = skillPointBignumW.elem
 
     // Slider widget elements (initially hidden)
@@ -570,21 +570,27 @@ function initCharacterScreen() {
     const plusBtn = document.createElement('div')
     Object.assign(plusBtn.style, {
         position: 'absolute',
+        width: '22px',
+        height: '12px',
         backgroundImage: "url('art/intrface/splsoff.png')",
         backgroundRepeat: 'no-repeat',
         cursor: 'pointer',
         left: '152px',
         top: '17px',
+        zIndex: '1',
     })
 
     const minusBtn = document.createElement('div')
     Object.assign(minusBtn.style, {
         position: 'absolute',
+        width: '22px',
+        height: '12px',
         backgroundImage: "url('art/intrface/snegoff.png')",
         backgroundRepeat: 'no-repeat',
         cursor: 'pointer',
         left: '152px',
         top: '29px',
+        zIndex: '1',
     })
 
     sliderContainer.appendChild(sliderBody)
