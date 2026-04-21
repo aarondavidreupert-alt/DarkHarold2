@@ -546,12 +546,12 @@ function initCharacterScreen() {
     const skillPointBignumEl = skillPointBignumW.elem
 
     // Panel 2: Hit Points + condition flags (upper status box)
-    const panel2 = new Widget(null, { x: 490, y: 40, w: 'auto', h: 'auto' })
+    const panel2 = new Widget(null, { x: 196, y: 43, w: 'auto', h: 'auto' })
         .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
     const panel2El = panel2.elem
 
     // Panel 3: derived stats (lower status box)
-    const panel3 = new Widget(null, { x: 490, y: 136, w: 'auto', h: 'auto' })
+    const panel3 = new Widget(null, { x: 196, y: 176, w: 'auto', h: 'auto' })
         .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
     const panel3El = panel3.elem
 
@@ -630,19 +630,19 @@ function initCharacterScreen() {
         .add(makeFontLabel(160, 6, 'Age', font1))
         .add(makeFontLabel(242, 6, 'Gender', font3))
         .add(
-            new Label(33, 280, `Level: ${currentLevel}`).css({
+            new Label(105, 278, `Level: ${currentLevel}`).css({
                 fontSize: '0.75em',
                 color: '#00FF00',
             })
         )
         .add(
-            new Label(33, 292, `Exp: ${player.getStat('Experience')}`).css({
+            new Label(105, 289, `Exp: ${player.getStat('Experience')}`).css({
                 fontSize: '0.75em',
                 color: '#00FF00',
             })
         )
         .add(
-            new Label(33, 304, `Next: ${nextLevelXP}`).css({
+            new Label(105, 300, `Next: ${nextLevelXP}`).css({
                 fontSize: '0.75em',
                 color: '#00FF00',
             })
@@ -680,7 +680,7 @@ function initCharacterScreen() {
         statValueWidgets.push(valW.elem)
         characterWindow.add(valW)
 
-        const commentLbl = new Label(90, 37 + n + 9, '', '#00FF00').css({ fontSize: '0.69em' }) as Label
+        const commentLbl = new Label(105, 43 + n, '', '#00FF00').css({ fontSize: '0.69em' }) as Label
         statCommentLabels.push(commentLbl)
         characterWindow.add(commentLbl)
 
