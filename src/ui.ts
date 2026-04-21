@@ -40,6 +40,31 @@ export type { CSSBoundingBox } from './ui_widget.js'
 import { openPipBoy, closePipBoy, isPipBoyOpen } from './ui_pipboy.js'
 import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
 import { makePanelDraggable } from './ui_drag.js'
+import { WindowFrame, SmallButton, Label, List } from './ui_components.js'
+import {
+    UIMode,
+    initUiContainer,
+    closeAllPanels,
+    isInventoryOpen,
+    isCharacterOpen,
+    isSkilldexOpen,
+    isOptionsOpen,
+    registerCharacterWindow,
+    registerSkilldexWindow,
+    registerOptionsWindow,
+    registerCloseInventoryPanel,
+} from './ui_panels.js'
+
+// Re-export panel helpers so external callers can still import from './ui.js'
+export { WindowFrame, SmallButton, Label, List } from './ui_components.js'
+export {
+    UIMode,
+    closeAllPanels,
+    isInventoryOpen,
+    isCharacterOpen,
+    isSkilldexOpen,
+    isOptionsOpen,
+} from './ui_panels.js'
 
 // UI system
 
@@ -51,206 +76,18 @@ import { makePanelDraggable } from './ui_drag.js'
 // TODO: fix style for inventory image amount
 // TODO: option for scaling the UI
 
-export class WindowFrame {
-    children: Widget[] = []
-    elem: HTMLElement
-    showing = false
-
-    constructor(
-        public background: string,
-        public position: Point,
-        public width: number,
-        public height: number,
-        children?: Widget[]
-    ) {
-        this.elem = document.createElement('div')
-
-        Object.assign(this.elem.style, {
-            position: 'absolute',
-            left: `${position.x}px`,
-            top: `${position.y}px`,
-            width: `${width}px`,
-            height: `${height}px`,
-            backgroundImage: `url('${background}')`,
-        })
-
-        if (children) {
-            for (const child of children) {
-                this.add(child)
-            }
-        }
-    }
-
-    add(widget: Widget): this {
-        this.children.push(widget)
-        this.elem.appendChild(widget.elem)
-        return this
-    }
-
-    show(): this {
-        if (this.showing) {
-            return this
-        }
-        this.showing = true
-        $uiContainer.appendChild(this.elem)
-        return this
-    }
-
-    close(): void {
-        if (!this.showing) {
-            return
-        }
-        this.showing = false
-        this.elem.parentNode!.removeChild(this.elem)
-    }
-
-    toggle(): this {
-        if (this.showing) {
-            this.close()
-        } else {
-            this.show()
-        }
-        return this
-    }
-}
-export class SmallButton extends Widget {
-    constructor(x: number, y: number) {
-        super('art/intrface/lilredup.png', { x, y, w: 15, h: 16 })
-        this.mouseDownBG('art/intrface/lilreddn.png')
-    }
-}
-
-export class Label extends Widget {
-    constructor(x: number, y: number, text: string, public textColor: string = 'yellow') {
-        super(null, { x, y, w: 'auto', h: 'auto' })
-        this.setText(text)
-        this.elem.style.color = this.textColor
-    }
-
-    setText(text: string): void {
-        this.elem.innerHTML = text
-    }
-}
-
-interface ListItem {
-    id?: any // identifier userdata
-    uid?: number // unique identifier (filled in by List)
-    text: string
-    onSelected?: () => void
-}
-
-// TODO: disable-selection class
-export class List extends Widget {
-    items: ListItem[] = []
-    itemSelected?: (item: ListItem) => void
-    currentlySelected: ListItem | null = null
-    currentlySelectedElem: HTMLElement | null = null
-    _lastUID = 0
-
-    constructor(
-        bbox: CSSBoundingBox,
-        items?: ListItem[],
-        public textColor: string = '#00FF00',
-        public selectedTextColor: string = '#FCFC7C'
-    ) {
-        super(null, bbox)
-        this.elem.style.color = this.textColor
-
-        if (items) {
-            for (const item of items) {
-                this.addItem(item)
-            }
-        }
-    }
-
-    onItemSelected(fn: (item: ListItem) => void): this {
-        this.itemSelected = fn
-        return this
-    }
-
-    getSelection(): ListItem | null {
-        return this.currentlySelected
-    }
-
-    // Select the given item (and optionally, give its element for performance reasons)
-    select(item: ListItem, itemElem?: HTMLElement): boolean {
-        if (!itemElem) {
-            // Find element belonging to this item
-            itemElem = this.elem.querySelector(`[data-uid="${item.uid}"]`) as HTMLElement
-        }
-
-        if (!itemElem) {
-            console.warn(`[UI] can't find item's element for item UID ${item.uid}`)
-            return false
-        }
-
-        this.itemSelected && this.itemSelected(item)
-
-        item.onSelected && item.onSelected()
-
-        if (this.currentlySelectedElem) {
-            // Reset text color for old selection
-            this.currentlySelectedElem.style.color = this.textColor
-        }
-
-        // Use selection color for new selection
-        itemElem.style.color = this.selectedTextColor
-
-        this.currentlySelected = item
-        this.currentlySelectedElem = itemElem
-
-        return true
-    }
-
-    // Select item given by its id
-    selectId(id: any): boolean {
-        const item = this.items.filter((item) => item.id === id)[0]
-        if (!item) {
-            return false
-        }
-        this.select(item)
-        return true
-    }
-
-    addItem(item: ListItem): ListItem {
-        item.uid = this._lastUID++
-        this.items.push(item)
-
-        const itemElem = document.createElement('div')
-        itemElem.style.cursor = 'pointer'
-        itemElem.textContent = item.text
-        itemElem.setAttribute('data-uid', item.uid + '')
-        itemElem.onclick = () => {
-            this.select(item, itemElem)
-        }
-        this.elem.appendChild(itemElem)
-
-        // Select first item added
-        if (!this.currentlySelected) {
-            this.select(item)
-        }
-
-        return item
-    }
-
-    clear(): void {
-        this.items.length = 0
-
-        const node = this.elem
-        while (node.firstChild) {
-            node.removeChild(node.firstChild)
-        }
-    }
-}
-// Container that all of the top-level UI elements reside in
-let $uiContainer: HTMLElement
-
 function uiInit() {
     // WindowFrame.show() appends to $uiContainer; point it at #uiStage so
     // all skilldex/character/save-load/worldmap windows inherit the 800×600
     // centered coordinate frame. Fall back to #game-container if the stage
     // div is missing (e.g. legacy HTML).
-    $uiContainer = (document.getElementById('uiStage') ?? document.getElementById('game-container'))!
+    initUiContainer()
+
+    // Wire panel mutual-exclusion helpers to their respective WindowFrames.
+    registerSkilldexWindow(() => skilldexWindow ?? null)
+    registerOptionsWindow(() => optionsWindow ?? null)
+    registerCharacterWindow(() => characterWindow ?? null)
+    registerCloseInventoryPanel(closeInventoryPanel)
 
     initSkilldex()
     initOptionsMenu()
@@ -279,27 +116,9 @@ function uiInit() {
     }
 }
 
-// --- Panel mutual-exclusion helpers -----------------------------------------
-//
-// These let each panel-open path close any other panels that are currently up,
-// so buttons behave like tabs rather than stackable overlays. They are also
-// used by the button handlers to implement toggle-to-close.
-
-export function isInventoryOpen(): boolean {
-    return globalState.uiMode === UIMode.inventory
-}
-
-export function isCharacterOpen(): boolean {
-    return !!(characterWindow && characterWindow.showing)
-}
-
-export function isSkilldexOpen(): boolean {
-    return !!(skilldexWindow && skilldexWindow.showing)
-}
-
-export function isOptionsOpen(): boolean {
-    return !!(optionsWindow && optionsWindow.showing)
-}
+// Panel mutual-exclusion helpers have been moved to ui_panels.ts and are
+// re-exported above. The closeInventoryPanel() function below is the concrete
+// impl, registered with ui_panels in uiInit().
 
 function closeInventoryPanel(): void {
     if (!isInventoryOpen()) return
@@ -307,15 +126,6 @@ function closeInventoryPanel(): void {
     $id('inventoryBox').style.visibility = 'hidden'
     if (globalState.player) globalState.player.clearAnim?.()
     uiDrawWeapon()
-}
-
-export function closeAllPanels(): void {
-    if (isPipBoyOpen()) closePipBoy()
-    if (isAutomapOpen()) closeAutomap()
-    if (isCharacterOpen()) characterWindow.close()
-    if (isInventoryOpen()) closeInventoryPanel()
-    if (isSkilldexOpen()) skilldexWindow.close()
-    if (isOptionsOpen()) optionsWindow.close()
 }
 
 let skilldexWindow: WindowFrame
@@ -1142,25 +952,6 @@ function initCharacterScreen() {
         console.log('[CharScreen] Changes saved.')
         characterWindow.close()
     })
-}
-
-export enum UIMode {
-    none = 0,
-    dialogue = 1,
-    barter = 2,
-    loot = 3,
-    inventory = 4,
-    worldMap = 5,
-    elevator = 6,
-    calledShot = 7,
-    skilldex = 8,
-    useSkill = 9,
-    contextMenu = 10,
-    saveLoad = 11,
-    char = 12,
-    pipBoy = 13,
-    automap = 14,
-    options = 15,
 }
 
 // XXX: Should this throw if the element doesn't exist?

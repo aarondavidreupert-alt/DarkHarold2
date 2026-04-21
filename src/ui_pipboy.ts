@@ -16,7 +16,7 @@ limitations under the License.
 
 import globalState from './globalState.js'
 import * as GameTime from './gametime.js'
-import { UIMode } from './ui.js'
+import { UIMode } from './ui_panels.js'
 import { drawAutomapInto, getArchivedMaps, getSeenTiles } from './automapData.js'
 import { getAutomapZoom, zoomIn, zoomOut, getAutomapPan, attachAutomapDragPan, attachAutomapWheelZoom } from './ui_automap.js'
 import { Config } from './config.js'
