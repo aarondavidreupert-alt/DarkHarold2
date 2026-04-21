@@ -799,31 +799,64 @@ function initCharacterScreen() {
         'Crippled Left Leg':  'Your leg is crippled. Movement is impaired.',
     }
 
+    // FO2-CE ref: character_editor.cc — image paths used in characterEditorDrawCard()
+    // SPECIAL stat images: art/intrface/stgvsn0X.frm exported as stgvsn0X.png
+    const SPECIAL_IMG: Record<string, string> = {
+        STR: 'art/intrface/stgvsn00.png',
+        PER: 'art/intrface/stgvsn01.png',
+        END: 'art/intrface/stgvsn02.png',
+        CHA: 'art/intrface/stgvsn03.png',
+        INT: 'art/intrface/stgvsn04.png',
+        AGI: 'art/intrface/stgvsn05.png',
+        LUK: 'art/intrface/stgvsn06.png',
+    }
+    // Skill images: art/skilldex/ FRM files — same names used by skilldex.cc
+    const SKILL_IMG: Record<string, string> = {
+        'Small Guns':     'art/skilldex/smguns.png',
+        'Big Guns':       'art/skilldex/bigguns.png',
+        'Energy Weapons': 'art/skilldex/enrweap.png',
+        'Unarmed':        'art/skilldex/unarmr.png',
+        'Melee Weapons':  'art/skilldex/melee.png',
+        'Throwing':       'art/skilldex/throw.png',
+        'First Aid':      'art/skilldex/firstaid.png',
+        'Doctor':         'art/skilldex/doctor.png',
+        'Sneak':          'art/skilldex/sneak.png',
+        'Lockpick':       'art/skilldex/lockpck.png',
+        'Steal':          'art/skilldex/steal.png',
+        'Traps':          'art/skilldex/traps.png',
+        'Science':        'art/skilldex/science.png',
+        'Repair':         'art/skilldex/repair.png',
+        'Speech':         'art/skilldex/speech.png',
+        'Barter':         'art/skilldex/barter.png',
+        'Gambling':       'art/skilldex/gamblin.png',
+        'Outdoorsman':    'art/skilldex/outdoors.png',
+    }
+
     const infoCardEl = document.createElement('div')
     Object.assign(infoCardEl.style, {
         position: 'absolute',
-        left: '396px',
-        top: '335px',
-        width: '244px',
-        height: '120px',
-        background: 'rgba(0,0,0,0.75)',
-        border: '1px solid #555',
+        left: '348px',
+        top: '274px',
+        width: '265px',
+        height: '156px',
         display: 'flex',
         flexDirection: 'row',
         overflow: 'hidden',
         pointerEvents: 'none',
     })
 
-    const cardImgEl = document.createElement('div')
+    const cardImgEl = document.createElement('img') as HTMLImageElement
     Object.assign(cardImgEl.style, {
         width: '60px',
+        height: '75px',
         flexShrink: '0',
-        background: '#333',
+        objectFit: 'contain',
         margin: '8px 6px 8px 8px',
-        backgroundSize: 'contain',
-        backgroundRepeat: 'no-repeat',
-        backgroundPosition: 'center',
+        alignSelf: 'flex-start',
+        visibility: 'hidden',
     })
+    cardImgEl.onload = () => { cardImgEl.style.visibility = 'visible' }
+    cardImgEl.onerror = () => { cardImgEl.style.visibility = 'hidden' }
     infoCardEl.appendChild(cardImgEl)
 
     const cardTextEl = document.createElement('div')
@@ -849,10 +882,16 @@ function initCharacterScreen() {
     })
     cardTextEl.appendChild(cardDescEl)
 
-    const showInfoCard = (title: string, desc: string): void => {
+    const showInfoCard = (title: string, desc: string, imgPath?: string): void => {
         while (cardTitleEl.firstChild) cardTitleEl.removeChild(cardTitleEl.firstChild)
         cardTitleEl.appendChild(font3.renderText(title.toUpperCase(), '#FFD700'))
         cardDescEl.textContent = desc
+        if (imgPath) {
+            cardImgEl.src = imgPath
+        } else {
+            cardImgEl.src = ''
+            cardImgEl.style.visibility = 'hidden'
+        }
     }
 
     characterWindow.elem.appendChild(infoCardEl)
@@ -876,7 +915,7 @@ function initCharacterScreen() {
         const valW = new Widget(null, { x: 59, y: 37 + n, w: 28, h: 28 })
         valW.css({ cursor: 'pointer' }).onClick(() => {
             selectedStat = stat
-            showInfoCard(SPECIAL_FULL_NAMES[stat], SPECIAL_DESCRIPTIONS[stat])
+            showInfoCard(SPECIAL_FULL_NAMES[stat], SPECIAL_DESCRIPTIONS[stat], SPECIAL_IMG[stat])
         })
         statValueWidgets.push(valW.elem)
         characterWindow.add(valW)
@@ -1022,7 +1061,7 @@ function initCharacterScreen() {
     skillList.onItemSelected((item) => {
         selectedSkill = item.id
         positionSlider()
-        showInfoCard(item.id, SKILL_DESCRIPTIONS[item.id] ?? item.id)
+        showInfoCard(item.id, SKILL_DESCRIPTIONS[item.id] ?? item.id, SKILL_IMG[item.id])
     })
 
     const modifySkill = (inc: boolean) => {
@@ -1071,7 +1110,7 @@ function initCharacterScreen() {
     wireSkillButton(minusBtn, 'art/intrface/snegon.png', 'art/intrface/snegoff.png', false)
 
     redrawStatsSkills()
-    showInfoCard(SPECIAL_FULL_NAMES['STR'], SPECIAL_DESCRIPTIONS['STR'])
+    showInfoCard(SPECIAL_FULL_NAMES['STR'], SPECIAL_DESCRIPTIONS['STR'], SPECIAL_IMG['STR'])
 
     // Stat level up buttons (char creation only)
     const canChangeStats = false
