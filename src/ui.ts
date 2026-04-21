@@ -22,15 +22,13 @@ import { Player } from './player.js'
 import { lookupArt, lookupInterfaceArt } from './pro.js'
 import { objectBoundingBox } from './renderer.js'
 import { Scripting } from './scripting.js'
-import { Skills, SKILL_NAMES } from './skills.js'
-import { skillUse } from './skillUse.js'
 import { fromTileNum } from './tile.js'
 import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
 import { CSSBoundingBox, Widget } from './ui_widget.js'
-import { font1, font3, FontWidget, makeFontLabel, renderBignum } from './ui_font.js'
+import { font1, font3, makeFontLabel, renderBignum } from './ui_font.js'
 import { openAutomap, closeAutomap, isAutomapOpen } from './ui_automap.js'
 
 // Re-export so existing `from './ui.js'` importers still see Widget / CSSBoundingBox.
@@ -42,6 +40,7 @@ import { makePanelDraggable } from './ui_drag.js'
 import { WindowFrame, SmallButton, Label, List } from './ui_components.js'
 import { uiSaveLoad } from './ui_saveload.js'
 import { initOptionsMenu, getOptionsWindow, showOptionsMenu, closeOptionsMenu } from './ui_options.js'
+import { initSkilldex, getSkilldexWindow, showSkilldex, closeSkilldex } from './ui_skilldex.js'
 import {
     drawHP,
     drawAC,
@@ -112,7 +111,7 @@ function uiInit() {
     initUiContainer()
 
     // Wire panel mutual-exclusion helpers to their respective WindowFrames.
-    registerSkilldexWindow(() => skilldexWindow ?? null)
+    registerSkilldexWindow(getSkilldexWindow)
     registerOptionsWindow(getOptionsWindow)
     registerCharacterWindow(() => characterWindow ?? null)
     registerCloseInventoryPanel(closeInventoryPanel)
@@ -156,154 +155,9 @@ function closeInventoryPanel(): void {
     uiDrawWeapon()
 }
 
-let skilldexWindow: WindowFrame
 let characterWindow: WindowFrame
 
-// FO2-CE ref: skilldex.cc — skilldexOpen() / skilldexWindowInit()
-// Skilldex window showing 8 usable skills with current values and keyboard shortcuts
-function initSkilldex() {
-    // Skill value containers — updated each time the skilldex is opened/shown
-    const skillValueElems: HTMLElement[] = []
-
-    // FO2-CE ref: skilldex.cc — Sneak is the only truly passive skill (toggle).
-    // First Aid and Doctor can target other critters OR self (ground click = self).
-    // All other skills require a target object.
-    function isPassiveSkill(skill: Skills): boolean {
-        return skill === Skills.Sneak
-    }
-
-    function useSkill(skill: Skills) {
-        return () => {
-            skilldexWindow.close()
-
-            if (isPassiveSkill(skill)) {
-                // Passive/self skills: execute immediately, no target selection needed
-                const skillName = SKILL_NAMES[skill - 1]
-                const player = globalState.player
-                if (!player) return
-                const result = skillUse(player, player, skillName)
-                uiLog(result.message)
-                if (result.hpHealed > 0) {
-                    drawHP(player.getStat('HP'))
-                }
-                console.log('[UI] Passive skill executed:', skillName, result)
-                return
-            }
-
-            // Target skills: enter targeting mode — cursor changes, game loop continues
-            globalState.uiMode = UIMode.useSkill
-            globalState.skillMode = skill
-            globalState.cursorMode = 'useSkill'
-            // CSS cursor fallback — crosshair visible even if WebGL crossuse asset is missing
-            const cnv = document.getElementById('cnv')
-            if (cnv) cnv.style.cursor = "url('art/intrface/crossuse.png') 11 11, crosshair"
-            console.log('[UI] Skill targeting mode:', SKILL_NAMES[skill - 1])
-        }
-    }
-
-    skilldexWindow = new WindowFrame(
-        'art/intrface/skldxbox',
-        {
-            // Positions are in the 800×600 layout frame provided by
-            // #uiStage; the stage centers those coordinates on screen.
-            x: Config.ui.screenWidth - 185,
-            y: Config.ui.screenHeight - 368 - 99,
-        },
-        185,
-        368
-    )
-        .add(new FontWidget(65, 15, 'SKILLDEX', font3, '#FFD700'))
-
-    // FO2-CE ref: skilldex.cc SkilldexSkill enum — 8 skills in order
-    const skilldexSkills: [string, Skills][] = [
-        ['Sneak',     Skills.Sneak],
-        ['Lockpick',  Skills.Lockpick],
-        ['Steal',     Skills.Steal],
-        ['Traps',     Skills.Traps],
-        ['First Aid', Skills.FirstAid],
-        ['Doctor',    Skills.Doctor],
-        ['Science',   Skills.Science],
-        ['Repair',    Skills.Repair],
-    ]
-
-    let yPos = 49
-    for (let i = 0; i < skilldexSkills.length; i++) {
-        const [name, skill] = skilldexSkills[i]
-
-        // Skill name — div-per-glyph for transparent background
-        const nameWidget = new Widget(null, { x: 19, y: yPos - 5, w: 110, h: 24 })
-        nameWidget.css({ cursor: 'pointer', display: 'flex', alignItems: 'flex-end' }).onClick(useSkill(skill))
-        skilldexWindow.add(nameWidget)
-
-        // Render text once font is loaded
-        font3.onLoad(() => {
-            const rendered = font3.renderText(name.toUpperCase(), '#FFD700')
-            rendered.style.pointerEvents = 'none'
-            nameWidget.elem.appendChild(rendered)
-        })
-
-        // FO2-CE ref: skilldex.cc — 3-digit skill value display next to each button
-        const valWidget = new Widget(null, { x: 112, y: yPos - 2, w: 42, h: 28 })
-        skillValueElems.push(valWidget.elem)
-        skilldexWindow.add(valWidget)
-
-        yPos += 36
-    }
-
-    skilldexWindow.add(
-        new SmallButton(47, 339).onClick(() => { skilldexWindow.close() })
-    )
-
-    Object.assign(skilldexWindow.elem.style, {
-        backgroundImage: `url('${skilldexWindow.background}.png')`,
-        backgroundRepeat: 'no-repeat',
-        backgroundSize: '100% 100%',
-        zIndex: '20',
-        cursor: 'default',
-    })
-
-    // Drag-to-reposition from non-interactive areas of the skilldex frame,
-    // matching the PipBoy / automap / inventory / character panels.
-    makePanelDraggable(skilldexWindow.elem)
-
-    // FO2-CE ref: skilldex.cc — update skill values when the skilldex is shown
-    const origShow = skilldexWindow.show.bind(skilldexWindow)
-    skilldexWindow.show = function() {
-        const result = origShow()
-        // Update displayed skill values from current player stats
-        const player = globalState.player
-        if (player) {
-            for (let i = 0; i < skilldexSkills.length; i++) {
-                const skillName = skilldexSkills[i][0]
-                const val = player.getSkill(skillName)
-                // FO2-CE: negative values (from Hard difficulty) shown in red
-                const el = skillValueElems[i]
-                while (el.firstChild) el.removeChild(el.firstChild)
-                el.appendChild(renderBignum(val, 3, val < 0 ? 'red' : 'yellow'))
-            }
-        }
-        return result
-    }
-
-    // FO2-CE ref: skilldex.cc — keyboard shortcuts: 1-8 for skills, ESC to close
-    const skilldexKeyHandler = (e: KeyboardEvent) => {
-        if (!skilldexWindow.showing) return
-
-        if (e.key === 'Escape') {
-            skilldexWindow.close()
-            e.preventDefault()
-            return
-        }
-
-        const num = parseInt(e.key)
-        if (num >= 1 && num <= 8) {
-            useSkill(skilldexSkills[num - 1][1])()
-            e.preventDefault()
-        }
-    }
-    document.addEventListener('keydown', skilldexKeyHandler)
-}
-
+// initSkilldex() has moved to ui_skilldex.ts.
 // initOptionsMenu() has moved to ui_options.ts.
 
 function initCharacterScreen() {
@@ -1188,9 +1042,9 @@ export function initUI() {
     $id('skilldexButton').onclick = () => {
         // Toggle: pressing while open closes it; otherwise close any other
         // open panel first and open skilldex.
-        if (isSkilldexOpen()) { skilldexWindow.close(); return }
+        if (isSkilldexOpen()) { closeSkilldex(); return }
         closeAllPanels()
-        skilldexWindow.show()
+        showSkilldex()
     }
 
     function makeScrollable($el: HTMLElement, scroll = 60) {
@@ -1279,9 +1133,9 @@ export function uiContextMenu(obj: Obj, evt: any) {
     const skillBtn = button(obj, 'skill', () => {
         // Route through the panel system so skilldex obeys mutual-exclusion
         // with PipBoy / inventory / character / automap.
-        if (isSkilldexOpen()) { skilldexWindow.close(); return }
+        if (isSkilldexOpen()) { closeSkilldex(); return }
         closeAllPanels()
-        skilldexWindow.show()
+        showSkilldex()
     })
 
     const isCritter = obj.type === 'critter'
