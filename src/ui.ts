@@ -740,6 +740,124 @@ function initCharacterScreen() {
     // Drag-to-reposition from non-interactive areas of the frame.
     makePanelDraggable(characterWindow.elem)
 
+    // ── Info card (FO2-CE ref: editor.cc characterEditorDrawCard) ────────────
+    //  Always-visible panel that updates its content whenever the player clicks
+    //  any interactive element (SPECIAL stats, skills, conditions, derived stats).
+
+    const SPECIAL_FULL_NAMES: Record<string, string> = {
+        STR: 'Strength', PER: 'Perception', END: 'Endurance',
+        CHA: 'Charisma', INT: 'Intelligence', AGI: 'Agility', LUK: 'Luck',
+    }
+    const SPECIAL_DESCRIPTIONS: Record<string, string> = {
+        STR: 'Strength determines how much you can carry and affects melee damage.',
+        PER: 'Perception affects your ranged combat and awareness.',
+        END: 'Endurance determines your health points and resistances.',
+        CHA: 'Charisma affects your ability to deal with people.',
+        INT: 'Intelligence affects your skills and dialogue options.',
+        AGI: 'Agility affects your action points and small arms skill.',
+        LUK: 'Luck affects critical hits and random events.',
+    }
+    const SKILL_DESCRIPTIONS: Record<string, string> = {
+        'Small Guns':     'Small guns skill covers pistols and rifles.',
+        'Big Guns':       'Big guns skill covers heavy weapons.',
+        'Energy Weapons': 'Energy weapons skill covers laser and plasma.',
+        'Unarmed':        'Unarmed skill covers hand-to-hand combat.',
+        'Melee Weapons':  'Melee weapons skill covers blades and clubs.',
+        'Throwing':       'Throwing skill covers grenades and knives.',
+        'First Aid':      'First aid skill allows you to heal minor wounds.',
+        'Doctor':         'Doctor skill heals crippled limbs and serious wounds.',
+        'Sneak':          'Sneak skill lets you move without being detected.',
+        'Lockpick':       'Lockpick skill lets you open locks.',
+        'Steal':          'Steal skill lets you lift items from others.',
+        'Traps':          'Traps skill lets you set and disarm traps.',
+        'Science':        'Science skill covers computers and technology.',
+        'Repair':         'Repair skill lets you fix broken equipment.',
+        'Speech':         'Speech skill improves your dialogue options.',
+        'Barter':         'Barter skill lets you trade for better prices.',
+        'Gambling':       'Gambling skill improves your odds in games of chance.',
+        'Outdoorsman':    'Outdoorsman skill helps you navigate the wasteland.',
+    }
+    const DERIVED_DESCRIPTIONS: Record<string, string> = {
+        'Armor Class':          'Armor Class: reduces chance of being hit.',
+        'Action Points':        'Action Points: how many actions you can take per turn.',
+        'Carry Weight':         'Maximum weight you can carry.',
+        'Melee Damage':         'Bonus damage added to melee attacks.',
+        'Damage Resistance':    'Percentage of damage absorbed.',
+        'Poison Resistance':    'Resistance to poison effects.',
+        'Radiation Resistance': 'Resistance to radiation.',
+        'Sequence':             'Determines order of action in combat.',
+        'Healing Rate':         'HP recovered per rest period.',
+        'Critical Chance':      'Base chance to score a critical hit.',
+    }
+    const CONDITION_DESCRIPTIONS: Record<string, string> = {
+        'Poisoned':           'You are poisoned. Lose HP over time until treated.',
+        'Radiated':           'You have absorbed radiation. High levels are fatal.',
+        'Eye Damage':         'Your eyes are damaged. Perception is reduced.',
+        'Crippled Right Arm': 'Your arm is crippled. Combat effectiveness reduced.',
+        'Crippled Left Arm':  'Your arm is crippled. Combat effectiveness reduced.',
+        'Crippled Right Leg': 'Your leg is crippled. Movement is impaired.',
+        'Crippled Left Leg':  'Your leg is crippled. Movement is impaired.',
+    }
+
+    const infoCardEl = document.createElement('div')
+    Object.assign(infoCardEl.style, {
+        position: 'absolute',
+        left: '396px',
+        top: '335px',
+        width: '244px',
+        height: '120px',
+        background: 'rgba(0,0,0,0.75)',
+        border: '1px solid #555',
+        display: 'flex',
+        flexDirection: 'row',
+        overflow: 'hidden',
+        pointerEvents: 'none',
+    })
+
+    const cardImgEl = document.createElement('div')
+    Object.assign(cardImgEl.style, {
+        width: '60px',
+        flexShrink: '0',
+        background: '#333',
+        margin: '8px 6px 8px 8px',
+        backgroundSize: 'contain',
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'center',
+    })
+    infoCardEl.appendChild(cardImgEl)
+
+    const cardTextEl = document.createElement('div')
+    Object.assign(cardTextEl.style, {
+        flex: '1',
+        padding: '6px 6px 6px 0',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px',
+    })
+    infoCardEl.appendChild(cardTextEl)
+
+    const cardTitleEl = document.createElement('div')
+    cardTextEl.appendChild(cardTitleEl)
+
+    const cardDescEl = document.createElement('div')
+    Object.assign(cardDescEl.style, {
+        fontSize: '0.69em',
+        color: 'rgb(0,255,0)',
+        overflow: 'hidden',
+        lineHeight: '1.3',
+    })
+    cardTextEl.appendChild(cardDescEl)
+
+    const showInfoCard = (title: string, desc: string): void => {
+        while (cardTitleEl.firstChild) cardTitleEl.removeChild(cardTitleEl.firstChild)
+        cardTitleEl.appendChild(font3.renderText(title.toUpperCase(), '#FFD700'))
+        cardDescEl.textContent = desc
+    }
+
+    characterWindow.elem.appendChild(infoCardEl)
+    // ── end info card ─────────────────────────────────────────────────────────
+
     const skills = [
         'Small Guns', 'Big Guns', 'Energy Weapons', 'Unarmed', 'Melee Weapons',
         'Throwing', 'First Aid', 'Doctor', 'Sneak', 'Lockpick', 'Steal', 'Traps',
@@ -756,7 +874,10 @@ function initCharacterScreen() {
     let n = 0
     for (const stat of stats) {
         const valW = new Widget(null, { x: 59, y: 37 + n, w: 28, h: 28 })
-        valW.css({ cursor: 'pointer' }).onClick(() => { selectedStat = stat })
+        valW.css({ cursor: 'pointer' }).onClick(() => {
+            selectedStat = stat
+            showInfoCard(SPECIAL_FULL_NAMES[stat], SPECIAL_DESCRIPTIONS[stat])
+        })
         statValueWidgets.push(valW.elem)
         characterWindow.add(valW)
 
@@ -837,6 +958,8 @@ function initCharacterScreen() {
             const line = document.createElement('div')
             line.textContent = label
             line.style.opacity = active() ? '1' : '0.3'
+            line.style.cursor = 'pointer'
+            line.onclick = () => showInfoCard(label, CONDITION_DESCRIPTIONS[label] ?? label)
             panel2El.appendChild(line)
         }
     }
@@ -859,6 +982,8 @@ function initCharacterScreen() {
         for (const [label, value] of rows) {
             const line = document.createElement('div')
             line.textContent = `${label}: ${value}`
+            line.style.cursor = 'pointer'
+            line.onclick = () => showInfoCard(label, DERIVED_DESCRIPTIONS[label] ?? label)
             panel3El.appendChild(line)
         }
     }
@@ -897,6 +1022,7 @@ function initCharacterScreen() {
     skillList.onItemSelected((item) => {
         selectedSkill = item.id
         positionSlider()
+        showInfoCard(item.id, SKILL_DESCRIPTIONS[item.id] ?? item.id)
     })
 
     const modifySkill = (inc: boolean) => {
@@ -945,6 +1071,7 @@ function initCharacterScreen() {
     wireSkillButton(minusBtn, 'art/intrface/snegon.png', 'art/intrface/snegoff.png', false)
 
     redrawStatsSkills()
+    showInfoCard(SPECIAL_FULL_NAMES['STR'], SPECIAL_DESCRIPTIONS['STR'])
 
     // Stat level up buttons (char creation only)
     const canChangeStats = false
