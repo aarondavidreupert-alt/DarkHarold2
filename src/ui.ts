@@ -630,20 +630,20 @@ function initCharacterScreen() {
         .add(makeFontLabel(160, 6, 'Age', font1))
         .add(makeFontLabel(242, 6, 'Gender', font3))
         .add(
-            new Label(105, 278, `Level: ${currentLevel}`).css({
-                fontSize: '0.75em',
+            new Label(33, 278, `Level: ${currentLevel}`).css({
+                fontSize: '0.69em',
                 color: '#00FF00',
             })
         )
         .add(
-            new Label(105, 289, `Exp: ${player.getStat('Experience')}`).css({
-                fontSize: '0.75em',
+            new Label(33, 289, `Exp: ${player.getStat('Experience')}`).css({
+                fontSize: '0.69em',
                 color: '#00FF00',
             })
         )
         .add(
-            new Label(105, 300, `Next: ${nextLevelXP}`).css({
-                fontSize: '0.75em',
+            new Label(33, 300, `Next Level: ${nextLevelXP}`).css({
+                fontSize: '0.69em',
                 color: '#00FF00',
             })
         )
@@ -656,6 +656,86 @@ function initCharacterScreen() {
         .show()
 
     characterWindow.elem.appendChild(sliderContainer)
+
+    // --- Folder tab strip (Perks / Karma / Kills) ---
+    const FOLDER_TABS = [
+        { label: 'PERKS',  sprite: 'art/intrface/perksfdr.png' },
+        { label: 'KARMA',  sprite: 'art/intrface/karmafdr.png' },
+        { label: 'KILLS',  sprite: 'art/intrface/killsfdr.png' },
+    ]
+
+    const tabStripEl = document.createElement('div')
+    Object.assign(tabStripEl.style, {
+        position: 'absolute',
+        left: '15px',
+        top: '330px',
+    })
+
+    const tabImg = document.createElement('img')
+    tabImg.src = FOLDER_TABS[0].sprite
+    tabImg.style.display = 'block'
+    tabImg.style.pointerEvents = 'none'
+    tabStripEl.appendChild(tabImg)
+
+    // Three equal click regions overlaid on the image
+    const tabOverlayEl = document.createElement('div')
+    Object.assign(tabOverlayEl.style, {
+        position: 'absolute',
+        top: '0',
+        left: '0',
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+    })
+    tabStripEl.appendChild(tabOverlayEl)
+
+    // Content panel below the tab strip (placeholder divs per folder)
+    const tabContentEl = document.createElement('div')
+    Object.assign(tabContentEl.style, {
+        position: 'absolute',
+        left: '15px',
+        top: '395px',
+        fontSize: '0.69em',
+        color: '#00FF00',
+    })
+
+    const folderPanels: HTMLElement[] = FOLDER_TABS.map((t, i) => {
+        const panel = document.createElement('div')
+        panel.textContent = t.label  // placeholder — to be filled in later
+        panel.style.display = i === 0 ? 'block' : 'none'
+        tabContentEl.appendChild(panel)
+        return panel
+    })
+
+    let activeFolder = 0
+    const activateFolder = (idx: number) => {
+        activeFolder = idx
+        tabImg.src = FOLDER_TABS[idx].sprite
+        folderPanels.forEach((p, i) => { p.style.display = i === idx ? 'block' : 'none' })
+    }
+
+    FOLDER_TABS.forEach((tab, idx) => {
+        const region = document.createElement('div')
+        Object.assign(region.style, {
+            flex: '1',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+        })
+        region.onclick = () => activateFolder(idx)
+
+        font3.onLoad(() => {
+            const lbl = font3.renderText(tab.label, '#FFD700')
+            lbl.style.pointerEvents = 'none'
+            region.appendChild(lbl)
+        })
+
+        tabOverlayEl.appendChild(region)
+    })
+
+    characterWindow.elem.appendChild(tabStripEl)
+    characterWindow.elem.appendChild(tabContentEl)
 
     // Drag-to-reposition from non-interactive areas of the frame.
     makePanelDraggable(characterWindow.elem)
