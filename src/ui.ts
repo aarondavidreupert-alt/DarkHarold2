@@ -30,16 +30,16 @@ import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
-import { CSSBoundingBox, Widget } from './widget.js'
-import { font1, font3, FontWidget, makeFontLabel, renderBignum } from './font.js'
-import { openAutomap, closeAutomap, isAutomapOpen } from './automap.js'
+import { CSSBoundingBox, Widget } from './ui_widget.js'
+import { font1, font3, FontWidget, makeFontLabel, renderBignum } from './ui_font.js'
+import { openAutomap, closeAutomap, isAutomapOpen } from './ui_automap.js'
 
 // Re-export so existing `from './ui.js'` importers still see Widget / CSSBoundingBox.
-export { Widget } from './widget.js'
-export type { CSSBoundingBox } from './widget.js'
-import { openPipBoy, closePipBoy, isPipBoyOpen } from './pipboy.js'
+export { Widget } from './ui_widget.js'
+export type { CSSBoundingBox } from './ui_widget.js'
+import { openPipBoy, closePipBoy, isPipBoyOpen } from './ui_pipboy.js'
 import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
-import { makePanelDraggable } from './dragPanel.js'
+import { makePanelDraggable } from './ui_drag.js'
 
 // UI system
 

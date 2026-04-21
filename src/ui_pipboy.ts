@@ -18,10 +18,10 @@ import globalState from './globalState.js'
 import * as GameTime from './gametime.js'
 import { UIMode } from './ui.js'
 import { drawAutomapInto, getArchivedMaps, getSeenTiles } from './automapData.js'
-import { getAutomapZoom, zoomIn, zoomOut, getAutomapPan, attachAutomapDragPan, attachAutomapWheelZoom } from './automap.js'
+import { getAutomapZoom, zoomIn, zoomOut, getAutomapPan, attachAutomapDragPan, attachAutomapWheelZoom } from './ui_automap.js'
 import { Config } from './config.js'
 import { getActiveQuests, getUnknownActiveGvars } from './questLog.js'
-import { makePanelDraggable } from './dragPanel.js'
+import { makePanelDraggable } from './ui_drag.js'
 
 type PipBoyTab = 'STATUS' | 'AUTOMAPS' | 'ARCHIVES' | 'CLOSE'
 

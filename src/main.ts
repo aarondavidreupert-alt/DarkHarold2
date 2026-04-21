@@ -58,7 +58,7 @@ import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
 import { getActiveUnarmedMode } from './unarmed.js'
 import { Lightmap } from './lightmap.js'
-import { togglePipBoy } from './pipboy.js'
+import { togglePipBoy } from './ui_pipboy.js'
 
 // Next gameTickTime at which map_update_p_proc should fire across all map
 // scripts. Fallout 2 schedules this via a 600-tick queue event, so we mirror
