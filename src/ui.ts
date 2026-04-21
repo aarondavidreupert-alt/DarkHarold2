@@ -41,6 +41,7 @@ import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
 import { makePanelDraggable } from './ui_drag.js'
 import { WindowFrame, SmallButton, Label, List } from './ui_components.js'
 import { uiSaveLoad } from './ui_saveload.js'
+import { initOptionsMenu, getOptionsWindow, showOptionsMenu, closeOptionsMenu } from './ui_options.js'
 import {
     UIMode,
     initUiContainer,
@@ -86,7 +87,7 @@ function uiInit() {
 
     // Wire panel mutual-exclusion helpers to their respective WindowFrames.
     registerSkilldexWindow(() => skilldexWindow ?? null)
-    registerOptionsWindow(() => optionsWindow ?? null)
+    registerOptionsWindow(getOptionsWindow)
     registerCharacterWindow(() => characterWindow ?? null)
     registerCloseInventoryPanel(closeInventoryPanel)
 
@@ -131,7 +132,6 @@ function closeInventoryPanel(): void {
 
 let skilldexWindow: WindowFrame
 let characterWindow: WindowFrame
-let optionsWindow: WindowFrame
 
 // FO2-CE ref: skilldex.cc — skilldexOpen() / skilldexWindowInit()
 // Skilldex window showing 8 usable skills with current values and keyboard shortcuts
@@ -278,69 +278,7 @@ function initSkilldex() {
     document.addEventListener('keydown', skilldexKeyHandler)
 }
 
-// FO2-CE ref: options.cc — in-game options panel with Save/Load/Preferences/Quit/Done
-function initOptionsMenu() {
-    optionsWindow = new WindowFrame(
-        'art/intrface/opbase',
-        {
-            x: (Config.ui.screenWidth - 200) / 2,
-            y: (Config.ui.screenHeight - 260) / 2,
-        },
-        200,
-        260
-    )
-        .add(new FontWidget(50, 15, 'OPTIONS', font3, '#FFD700'))
-
-    // FO2-CE ref: options.cc — button order matches original: Save, Load, Preferences, Quit, Done
-    const optionButtons: [string, () => void][] = [
-        ['Save Game',   () => { optionsWindow.close(); uiSaveLoad(true) }],
-        ['Load Game',   () => { optionsWindow.close(); uiSaveLoad(false) }],
-        ['Preferences', () => { alert('Preferences not yet implemented.') }],
-        ['Quit Game',   () => { if (confirm('Quit to main menu?')) window.location.reload() }],
-        ['Done',        () => { optionsWindow.close() }],
-    ]
-
-    let yPos = 55
-    for (const [label, handler] of optionButtons) {
-        const btnWidget = new Widget('art/intrface/opbtnoff.png', { x: 32, y: yPos, w: 137, h: 33 })
-            .mouseDownBG('art/intrface/opbtnon.png')
-            .css({ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' })
-            .onClick(handler)
-        optionsWindow.add(btnWidget)
-
-        font3.onLoad(() => {
-            const rendered = font3.renderText(label.toUpperCase(), '#FFD700')
-            rendered.style.pointerEvents = 'none'
-            btnWidget.elem.appendChild(rendered)
-        })
-
-        yPos += 36
-    }
-
-    Object.assign(optionsWindow.elem.style, {
-        backgroundImage: `url('${optionsWindow.background}.png')`,
-        backgroundRepeat: 'no-repeat',
-        backgroundSize: '100% 100%',
-        zIndex: '20',
-        cursor: 'default',
-    })
-
-    makePanelDraggable(optionsWindow.elem)
-
-    // FO2-CE ref: options.cc — S=Save, L=Load, P=Preferences, ESC/D=Done
-    const optionsKeyHandler = (e: KeyboardEvent) => {
-        if (!optionsWindow.showing) return
-
-        switch (e.key.toLowerCase()) {
-            case 's': optionsWindow.close(); uiSaveLoad(true); e.preventDefault(); break
-            case 'l': optionsWindow.close(); uiSaveLoad(false); e.preventDefault(); break
-            case 'p': alert('Preferences not yet implemented.'); e.preventDefault(); break
-            case 'd':
-            case 'escape': optionsWindow.close(); e.preventDefault(); break
-        }
-    }
-    document.addEventListener('keydown', optionsKeyHandler)
-}
+// initOptionsMenu() has moved to ui_options.ts.
 
 function initCharacterScreen() {
     const player = globalState.player!
@@ -1096,9 +1034,9 @@ export function initUI() {
     }
 
     $id('optionsButton').onclick = () => {
-        if (isOptionsOpen()) { optionsWindow.close(); return }
+        if (isOptionsOpen()) { closeOptionsMenu(); return }
         closeAllPanels()
-        optionsWindow.show()
+        showOptionsMenu()
     }
     // Inventory panel is a static DOM element — wire drag once at init.
     makePanelDraggable($id('inventoryBox'))
