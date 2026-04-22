@@ -125,29 +125,23 @@ def convertAll(palette, dataDir, outDir, mode='both', imageMapMode='yes', nProcs
 	return time.perf_counter() - start_time
 
 def main():
-	if len(sys.argv) < 5:
-		print(f"USAGE: {sys.argv[0]} PALETTE DATA_DIR OUT_DIR MODE [--no-map] [--only-map]")
-		print("MODE is either 'frm' for .FRMs only, 'frx' for .FR[0-5]s only, or 'both' for both.")
-		print("PALETTE is likely data/color.pal, and DATA_DIR is likely data/")
-		print("OUT_DIR is wherever you want the exported images and map to go")
+	# ── Hardcoded paths — just run the script directly ──────────────────────
+	BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
+	palettePath = os.path.join(BASE_DIR, 'data', 'color.pal')
+	dataDir     = os.path.join(BASE_DIR, 'data')
+	outDir      = os.path.join(BASE_DIR, 'art')
+	mode        = 'both'   # 'frm', 'frx', or 'both'
+	# ─────────────────────────────────────────────────────────────────────────
+
+	if not os.path.exists(palettePath):
+		print(f"ERROR: palette not found at {palettePath}")
 		sys.exit(1)
 
-	palettePath = sys.argv[1]
-	dataDir = sys.argv[2]
-	outDir = sys.argv[3]
-	mode = sys.argv[4]
-
 	palette = readPAL(palettePath)
-
-	imageMapMode = 'yes'
-	if '--no-map' in sys.argv:
-		imageMapMode = 'no'
-	if '--only-map' in sys.argv:
-		imageMapMode = 'only'
-
-	elapsedTime = convertAll(palette, dataDir, outDir, mode, imageMapMode, verbose=True)
-	print(f"Took {elapsedTime} seconds")
+	elapsedTime = convertAll(palette, dataDir, outDir, mode, imageMapMode='yes', verbose=True)
+	print(f"Took {elapsedTime:.1f} seconds")
 
 
 if __name__ == '__main__':
+	multiprocessing.freeze_support()  # needed for PyInstaller / Spyder
 	main()
