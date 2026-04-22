@@ -308,36 +308,55 @@ export function showCharacterScreen() {
     }
 
     // FO2-CE ref: character_editor.cc — image paths used in characterEditorDrawCard()
-    // SPECIAL stat images: art/intrface/stgvsn0X.frm exported as stgvsn0X.png
     const SPECIAL_IMG: Record<string, string> = {
-        STR: 'art/intrface/stgvsn00.png',
-        PER: 'art/intrface/stgvsn01.png',
-        END: 'art/intrface/stgvsn02.png',
-        CHA: 'art/intrface/stgvsn03.png',
-        INT: 'art/intrface/stgvsn04.png',
-        AGI: 'art/intrface/stgvsn05.png',
-        LUK: 'art/intrface/stgvsn06.png',
+        STR: 'art/skilldex/strength.png',
+        PER: 'art/skilldex/perceptn.png',
+        END: 'art/skilldex/endur.png',
+        CHA: 'art/skilldex/charisma.png',
+        INT: 'art/skilldex/intel.png',
+        AGI: 'art/skilldex/agility.png',
+        LUK: 'art/skilldex/luck.png',
     }
-    // Skill images: art/skilldex/ FRM files — same names used by skilldex.cc
     const SKILL_IMG: Record<string, string> = {
-        'Small Guns':     'art/skilldex/smguns.png',
-        'Big Guns':       'art/skilldex/bigguns.png',
-        'Energy Weapons': 'art/skilldex/enrweap.png',
-        'Unarmed':        'art/skilldex/unarmr.png',
+        'Small Guns':     'art/skilldex/gunsml.png',
+        'Big Guns':       'art/skilldex/gunbig.png',
+        'Energy Weapons': 'art/skilldex/energywp.png',
+        'Unarmed':        'art/skilldex/hnd2hnd.png',
         'Melee Weapons':  'art/skilldex/melee.png',
-        'Throwing':       'art/skilldex/throw.png',
+        'Throwing':       'art/skilldex/throwing.png',
         'First Aid':      'art/skilldex/firstaid.png',
         'Doctor':         'art/skilldex/doctor.png',
         'Sneak':          'art/skilldex/sneak.png',
-        'Lockpick':       'art/skilldex/lockpck.png',
-        'Steal':          'art/skilldex/steal.png',
+        'Lockpick':       'art/skilldex/lockpick.png',
+        'Steal':          'art/skilldex/pickpock.png',
         'Traps':          'art/skilldex/traps.png',
         'Science':        'art/skilldex/science.png',
         'Repair':         'art/skilldex/repair.png',
         'Speech':         'art/skilldex/speech.png',
         'Barter':         'art/skilldex/barter.png',
-        'Gambling':       'art/skilldex/gamblin.png',
+        'Gambling':       'art/skilldex/gambling.png',
         'Outdoorsman':    'art/skilldex/outdoors.png',
+    }
+    const DERIVED_IMG: Record<string, string> = {
+        'Armor Class':          'art/skilldex/armorcls.png',
+        'Action Points':        'art/skilldex/actionpt.png',
+        'Carry Weight':         'art/skilldex/carryamt.png',
+        'Melee Damage':         'art/skilldex/meleedam.png',
+        'Damage Resistance':    'art/skilldex/damresis.png',
+        'Poison Resistance':    'art/skilldex/poisnres.png',
+        'Radiation Resistance': 'art/skilldex/radresis.png',
+        'Sequence':             'art/skilldex/sequence.png',
+        'Healing Rate':         'art/skilldex/healrate.png',
+        'Critical Chance':      'art/skilldex/critchnc.png',
+    }
+    const CONDITION_IMG: Record<string, string> = {
+        'Poisoned':           'art/skilldex/poisoned.png',
+        'Radiated':           'art/skilldex/radiated.png',
+        'Eye Damage':         'art/skilldex/eyedamag.png',
+        'Crippled Right Arm': 'art/skilldex/armright.png',
+        'Crippled Left Arm':  'art/skilldex/armleft.png',
+        'Crippled Right Leg': 'art/skilldex/legright.png',
+        'Crippled Left Leg':  'art/skilldex/legleft.png',
     }
 
     const infoCardEl = document.createElement('div')
@@ -506,7 +525,7 @@ export function showCharacterScreen() {
             line.textContent = label
             line.style.opacity = active() ? '1' : '0.3'
             line.style.cursor = 'pointer'
-            line.onclick = () => showInfoCard(label, CONDITION_DESCRIPTIONS[label] ?? label)
+            line.onclick = () => showInfoCard(label, CONDITION_DESCRIPTIONS[label] ?? label, CONDITION_IMG[label])
             panel2El.appendChild(line)
         }
     }
@@ -530,7 +549,7 @@ export function showCharacterScreen() {
             const line = document.createElement('div')
             line.textContent = `${label}: ${value}`
             line.style.cursor = 'pointer'
-            line.onclick = () => showInfoCard(label, DERIVED_DESCRIPTIONS[label] ?? label)
+            line.onclick = () => showInfoCard(label, DERIVED_DESCRIPTIONS[label] ?? label, DERIVED_IMG[label])
             panel3El.appendChild(line)
         }
     }
