@@ -38,6 +38,7 @@ import { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from '.
 import { uiBarterMode } from './ui_barter.js'
 import { initLoot, uiLoot } from './ui_loot.js'
 import { uiWorldMap, uiCloseWorldMap, uiWorldMapShowArea } from './ui_worldmap.js'
+import { uiElevator } from './ui_elevator.js'
 import {
     drawHP,
     drawAC,
@@ -91,6 +92,7 @@ export { uiStartDialogue, uiEndDialogue, uiSetDialogueReply, uiAddDialogueOption
 export { uiBarterMode } from './ui_barter.js'
 export { uiLoot } from './ui_loot.js'
 export { uiWorldMap, uiCloseWorldMap, uiWorldMapShowArea } from './ui_worldmap.js'
+export { uiElevator } from './ui_elevator.js'
 
 // UI system
 
@@ -545,66 +547,8 @@ export function uiContextMenu(obj: Obj, evt: any) {
 //
 // World map (uiCloseWorldMap, uiWorldMap, uiWorldMapShowArea, internal
 // area/world view + label-list helpers) has moved to ui_worldmap.ts.
-
-function uiElevatorDone() {
-    globalState.uiMode = UIMode.none
-    hidev($id('elevatorBox'))
-
-    // flip all buttons to hidden
-    for (const $elevatorButton of $qa('.elevatorButton')) {
-        hidev($elevatorButton)
-        $elevatorButton.onclick = null
-    }
-    hidev($id('elevatorLabel'))
-}
-
-export function uiElevator(elevator: Elevator) {
-    globalState.uiMode = UIMode.elevator
-    const art = lookupInterfaceArt(elevator.type)
-    console.log('[Elevator] art: ' + art)
-    console.log('[Elevator] buttons: ' + elevator.buttonCount)
-
-    if (elevator.labels !== -1) {
-        const labelArt = lookupInterfaceArt(elevator.labels)
-        console.log('[Elevator] label art: ' + labelArt)
-
-        const $elevatorLabel = $id('elevatorLabel')
-        showv($elevatorLabel)
-        $elevatorLabel.style.backgroundImage = `url('${labelArt}.png')`
-    }
-
-    const $elevatorBox = $id('elevatorBox')
-    showv($elevatorBox)
-    $elevatorBox.style.backgroundImage = `url('${art}.png')`
-
-    // flip the buttons we need visible
-    for (let i = 1; i <= elevator.buttonCount; i++) {
-        const $elevatorButton = $id('elevatorButton' + i)
-        showv($elevatorButton)
-        $elevatorButton.onclick = () => {
-            // button `i` pushed
-            // todo: animate positioner/spinner (and come up with a better name for that)
-
-            const mapID = elevator.buttons[i - 1].mapID
-            const level = Number(elevator.buttons[i - 1].level) || 0
-            const position = fromTileNum(elevator.buttons[i - 1].tileNum)
-
-            if (mapID !== globalState.gMap.mapID) {
-                // different map
-                console.log(`[Elevator] → map ${mapID}, level ${level} @ (${position.x}, ${position.y})`)
-                globalState.gMap.loadMapByID(mapID, position, level)
-            } else if (level !== globalState.currentElevation) {
-                // same map, different elevation
-                console.log(`[Elevator] → level ${level} @ (${position.x}, ${position.y})`)
-                globalState.player.move(position)
-                globalState.gMap.changeElevation(level, true)
-            }
-
-            // else, same elevation, do nothing
-            uiElevatorDone()
-        }
-    }
-}
+//
+// Elevator (uiElevator + internal uiElevatorDone) has moved to ui_elevator.ts.
 
 export function uiCloseCalledShot() {
     globalState.uiMode = UIMode.none
