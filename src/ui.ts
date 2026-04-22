@@ -37,6 +37,7 @@ import {
 import { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './ui_character.js'
 import { uiBarterMode } from './ui_barter.js'
 import { initLoot, uiLoot } from './ui_loot.js'
+import { uiWorldMap, uiCloseWorldMap, uiWorldMapShowArea } from './ui_worldmap.js'
 import {
     drawHP,
     drawAC,
@@ -89,6 +90,7 @@ export { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from '.
 export { uiStartDialogue, uiEndDialogue, uiSetDialogueReply, uiAddDialogueOption } from './ui_dialogue.js'
 export { uiBarterMode } from './ui_barter.js'
 export { uiLoot } from './ui_loot.js'
+export { uiWorldMap, uiCloseWorldMap, uiWorldMapShowArea } from './ui_worldmap.js'
 
 // UI system
 
@@ -540,102 +542,9 @@ export function uiContextMenu(obj: Obj, evt: any) {
 // its own lootBoxDoneButton handler from initLoot().
 
 // uiLog has moved to ui_hud.ts.
-
-export function uiCloseWorldMap() {
-    globalState.uiMode = UIMode.none
-
-    hide($id('worldMapContainer'))
-    hidev($id('areamap'))
-    hidev($id('worldmap'))
-
-    Worldmap.stop()
-}
-
-export function uiWorldMap(onAreaMap = false) {
-    globalState.uiMode = UIMode.worldMap
-    show($id('worldMapContainer'))
-
-    if (!globalState.mapAreas) {
-        globalState.mapAreas = loadAreas()
-    }
-
-    if (onAreaMap) {
-        uiWorldMapAreaView()
-    } else {
-        uiWorldMapWorldView()
-    }
-    uiWorldMapLabels()
-}
-
-function uiWorldMapAreaView() {
-    hidev($id('worldmap'))
-    showv($id('areamap'))
-
-    Worldmap.stop()
-}
-
-function uiWorldMapWorldView() {
-    showv($id('worldmap'))
-    hidev($id('areamap'))
-
-    Worldmap.start()
-}
-
-export function uiWorldMapShowArea(area: Area) {
-    uiWorldMapAreaView()
-
-    const $areamap = $id('areamap')
-    $areamap.style.backgroundImage = `url('${area.mapArt}.png')`
-    clearEl($areamap)
-
-    for (const entrance of area.entrances) {
-        console.log('[Worldmap] area entrance: ' + entrance.mapLookupName)
-        const $entranceEl = makeEl('div', { classes: ['worldmapEntrance'] })
-        const $hotspot = makeEl('div', { classes: ['worldmapEntranceHotspot'] })
-
-        $hotspot.onclick = () => {
-            // hotspot click -- travel to relevant map
-            const mapName = lookupMapNameFromLookup(entrance.mapLookupName)
-            console.log(`[Worldmap] hotspot → ${mapName} (via ${entrance.mapLookupName})`)
-            globalState.gMap.loadMap(mapName, undefined, entrance.elevation)
-            uiCloseWorldMap()
-        }
-
-        $entranceEl.appendChild($hotspot)
-        appendHTML($entranceEl, entrance.mapLookupName)
-        $entranceEl.style.left = entrance.x + 'px'
-        $entranceEl.style.top = entrance.y + 'px'
-        $id('areamap').appendChild($entranceEl)
-    }
-}
-
-function uiWorldMapLabels() {
-    $id('worldMapLabels').innerHTML = "<div id='worldMapLabelsBackground'></div>"
-
-    let i = 0
-    for (const areaID in globalState.mapAreas) {
-        const area = globalState.mapAreas[areaID]
-        if (!area.labelArt) {
-            continue
-        }
-
-        const label = makeEl('img', { classes: ['worldMapLabelImage'], src: area.labelArt + '.png' })
-        const labelButton = makeEl('div', {
-            classes: ['worldMapLabelButton'],
-            click: () => {
-                uiWorldMapShowArea(globalState.mapAreas[areaID])
-            },
-        })
-
-        const areaLabel = makeEl('div', {
-            classes: ['worldMapLabel'],
-            style: { top: 1 + i * 27 + 'px' },
-            children: [label, labelButton],
-        })
-        $id('worldMapLabels').appendChild(areaLabel)
-        i++
-    }
-}
+//
+// World map (uiCloseWorldMap, uiWorldMap, uiWorldMapShowArea, internal
+// area/world view + label-list helpers) has moved to ui_worldmap.ts.
 
 function uiElevatorDone() {
     globalState.uiMode = UIMode.none
