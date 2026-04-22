@@ -17,9 +17,8 @@ limitations under the License.
 import { Combat } from './combat.js'
 import { Area, Elevator, loadAreas, lookupMapNameFromLookup } from './data.js'
 import globalState from './globalState.js'
-import { Critter, cloneItem, Obj } from './object.js'
+import { Critter, Obj } from './object.js'
 import { lookupInterfaceArt } from './pro.js'
-import { objectBoundingBox } from './renderer.js'
 import { Scripting } from './scripting.js'
 import { fromTileNum } from './tile.js'
 import { Worldmap } from './worldmap.js'
@@ -36,8 +35,8 @@ import {
     makeDraggable,
 } from './ui_inventory.js'
 import { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './ui_character.js'
-import { uiAnimateBox } from './ui_dialogue.js'
-import { uiBarterMode, uiGetAmount, uiSwapItem } from './ui_barter.js'
+import { uiBarterMode } from './ui_barter.js'
+import { initLoot, uiLoot } from './ui_loot.js'
 import {
     drawHP,
     drawAC,
@@ -89,6 +88,7 @@ export { showInventory as uiInventoryScreen } from './ui_inventory.js'
 export { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './ui_character.js'
 export { uiStartDialogue, uiEndDialogue, uiSetDialogueReply, uiAddDialogueOption } from './ui_dialogue.js'
 export { uiBarterMode } from './ui_barter.js'
+export { uiLoot } from './ui_loot.js'
 
 // UI system
 
@@ -115,6 +115,7 @@ function uiInit() {
     initSkilldex()
     initOptionsMenu()
     initInventory()
+    initLoot()
 
     const chrBtn = document.getElementById('chrButton')
     if (chrBtn) {
@@ -275,9 +276,7 @@ export function initUI() {
         showOptionsMenu()
     }
 
-    $id('lootBoxDoneButton').onclick = () => {
-        uiEndLoot()
-    }
+    // lootBoxDoneButton wiring lives in ui_loot.ts → initLoot()
 
     $id('handSwapButton').onclick = () => {
         const p = globalState.player as any
@@ -526,106 +525,19 @@ export function uiContextMenu(obj: Obj, evt: any) {
 
 // Inventory panel (uiInventoryScreen, uiMoveSlot, applyArmorArt,
 // makeDropTarget, makeDraggable, tryLoadAmmoIntoWeapon) has moved to
-// ui_inventory.ts. makeDropTarget / makeDraggable are re-imported above for
-// barter and loot.
+// ui_inventory.ts; ui_barter and ui_loot pull the dnd helpers from there.
 
 // drawHP / drawAC / drawAP / drawDigits have moved to ui_hud.ts.
 
 // Dialogue panel (uiStartDialogue / uiEndDialogue / uiSetDialogueReply /
 // uiAddDialogueOption) and the uiAnimateBox slide-up helper have moved to
-// ui_dialogue.ts. uiAnimateBox is re-imported above for the barter pop-up.
+// ui_dialogue.ts; ui_barter pulls the slide-up animation from there.
 //
 // Barter screen (uiBarterMode + uiEndBarterMode) has moved to ui_barter.ts,
-// along with the cross-list move helpers uiGetAmount / uiSwapItem (still
-// used by uiLoot below).
-
-function uiEndLoot() {
-    globalState.uiMode = UIMode.none
-
-    hidev($id('lootBox'))
-    off($id('lootBoxLeft'), 'drop dragenter dragover')
-    off($id('lootBoxRight'), 'drop dragenter dragover')
-    off($id('lootBoxTakeAllButton'), 'click')
-}
-
-export function uiLoot(object: Obj) {
-    globalState.uiMode = UIMode.loot
-
-    async function uiLootMove(data: string /* "l"|"r" */, where: 'left' | 'right') {
-        console.log('[Loot] move ' + data + ' to ' + where)
-
-        const from = ({ l: globalState.player.inventory, r: object.inventory } as any)[data[0]]
-
-        if (from === undefined) {
-            throw 'uiLootMove: wrong data: ' + data
-        }
-
-        const idx = parseInt(data.slice(1))
-        const obj = from[idx]
-        if (obj === undefined) {
-            throw 'uiLootMove: obj not found in list (' + idx + ')'
-        }
-
-        const to = { left: globalState.player.inventory, right: object.inventory }[where]
-
-        if (to === undefined) {
-            throw 'uiLootMove: invalid location: ' + where
-        } else if (to === from) {
-            // object -> same location
-            return
-        } else if (obj.amount > 1) {
-            uiSwapItem(from, obj, to, await uiGetAmount(obj))
-        } else {
-            uiSwapItem(from, obj, to, 1)
-        }
-
-        drawLoot()
-    }
-
-    function drawInventory($el: HTMLElement, who: 'p' | 'm' | 'l' | 'r', objects: Obj[]) {
-        clearEl($el)
-
-        for (let i = 0; i < objects.length; i++) {
-            const inventoryImage = objects[i].invArt
-            const img = makeEl('img', {
-                src: inventoryImage + '.png',
-                attrs: { title: objects[i].name },
-                style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
-            })
-            $el.appendChild(img)
-            $el.insertAdjacentHTML('beforeend', 'x' + objects[i].amount)
-            makeDraggable(img, who + i)
-        }
-    }
-
-    console.log('[Loot] opening loot screen')
-
-    showv($id('lootBox'))
-
-    // loot drop targets
-    makeDropTarget($id('lootBoxLeft'), (data: string) => {
-        uiLootMove(data, 'left')
-    })
-    makeDropTarget($id('lootBoxRight'), (data: string) => {
-        uiLootMove(data, 'right')
-    })
-
-    $id('lootBoxTakeAllButton').onclick = () => {
-        console.log('[Loot] take all')
-        const inv = object.inventory.slice(0) // clone inventory
-        for (let i = 0; i < inv.length; i++) {
-            uiSwapItem(object.inventory, inv[i], globalState.player.inventory, inv[i].amount)
-        }
-        drawLoot()
-    }
-
-    function drawLoot() {
-        drawInventory($id('lootBoxLeft'), 'l', globalState.player.inventory)
-        drawInventory($id('lootBoxRight'), 'r', object.inventory)
-    }
-
-    drawLoot()
-}
+// along with the cross-list move helpers uiGetAmount / uiSwapItem.
+//
+// Loot screen (uiLoot + uiEndLoot) has moved to ui_loot.ts; ui_loot wires
+// its own lootBoxDoneButton handler from initLoot().
 
 // uiLog has moved to ui_hud.ts.
 
