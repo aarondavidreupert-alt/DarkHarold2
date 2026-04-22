@@ -39,6 +39,7 @@ import { uiBarterMode } from './ui_barter.js'
 import { initLoot, uiLoot } from './ui_loot.js'
 import { uiWorldMap, uiCloseWorldMap, uiWorldMapShowArea } from './ui_worldmap.js'
 import { uiElevator } from './ui_elevator.js'
+import { initCalledShot, uiCalledShot, uiCloseCalledShot } from './ui_calledshot.js'
 import {
     drawHP,
     drawAC,
@@ -93,6 +94,7 @@ export { uiBarterMode } from './ui_barter.js'
 export { uiLoot } from './ui_loot.js'
 export { uiWorldMap, uiCloseWorldMap, uiWorldMapShowArea } from './ui_worldmap.js'
 export { uiElevator } from './ui_elevator.js'
+export { uiCalledShot, uiCloseCalledShot } from './ui_calledshot.js'
 
 // UI system
 
@@ -120,6 +122,7 @@ function uiInit() {
     initOptionsMenu()
     initInventory()
     initLoot()
+    initCalledShot()
 
     const chrBtn = document.getElementById('chrButton')
     if (chrBtn) {
@@ -247,17 +250,7 @@ export function makeEl(tag: string, options: ElementOptions): HTMLElement {
 export function initUI() {
     uiInit()
 
-    for (let i = 0; i < 2; i++) {
-        for (const $chance of Array.from(document.querySelectorAll('#calledShotBox .calledShotChance'))) {
-            $chance.appendChild(
-                makeEl('div', { classes: ['number'], style: { left: i * 9 + 'px' }, id: 'digit' + (i + 1) })
-            )
-        }
-    }
-
-    $id('calledShotCancelBtn').onclick = () => {
-        uiCloseCalledShot()
-    }
+    // calledShot digit divs + cancel button live in ui_calledshot.ts → initCalledShot()
 
     /*
     $id("worldmapViewButton").onclick = () => {
@@ -549,77 +542,9 @@ export function uiContextMenu(obj: Obj, evt: any) {
 // area/world view + label-list helpers) has moved to ui_worldmap.ts.
 //
 // Elevator (uiElevator + internal uiElevatorDone) has moved to ui_elevator.ts.
-
-export function uiCloseCalledShot() {
-    globalState.uiMode = UIMode.none
-    hide($id('calledShotBox'))
-}
-
-export function uiCalledShot(art: string, target: Critter, callback?: (regionHit: string) => void) {
-    globalState.uiMode = UIMode.calledShot
-    show($id('calledShotBox'))
-
-    function drawChance(region: string) {
-        let chance: any = Combat.prototype.getHitChance(globalState.player, target, region).hit
-        console.log('[UI] called shot: id: %s | chance: %d', '#calledShot-' + region + '-chance #digit', chance)
-        if (chance <= 0) {
-            chance = '--'
-        }
-        drawDigits('#calledShot-' + region + '-chance #digit', chance, 2, false)
-    }
-
-    drawChance('torso')
-    drawChance('head')
-    drawChance('eyes')
-    drawChance('groin')
-    drawChance('leftArm')
-    drawChance('rightArm')
-    drawChance('leftLeg')
-    drawChance('rightLeg')
-
-    $id('calledShotBackground').style.backgroundImage = `url('${art}.png')`
-
-    // Map region name to the Critter's crippled flag
-    const crippledFlags: { [region: string]: keyof Critter } = {
-        leftArm:  'crippledLeftArm',
-        rightArm: 'crippledRightArm',
-        leftLeg:  'crippledLeftLeg',
-        rightLeg: 'crippledRightLeg',
-    }
-
-    for (const $label of $qa('.calledShotLabel')) {
-        const id = ($label as HTMLElement).id
-        const regionHit = id.split('-')[1]
-        const crippledKey = crippledFlags[regionHit]
-        const isCrippled = crippledKey ? !!(target as any)[crippledKey] : false
-
-        if (isCrippled) {
-            // Gray out crippled parts so the player knows they're already damaged
-            Object.assign(($label as HTMLElement).style, {
-                color: '#666666',
-                textDecoration: 'line-through',
-                cursor: 'default',
-                pointerEvents: 'none',
-            })
-            const $chance = $id('calledShot-' + regionHit + '-chance')
-            if ($chance) Object.assign(($chance as HTMLElement).style, { opacity: '0.4' })
-        } else {
-            // Reset styles (in case uiCalledShot is called multiple times)
-            Object.assign(($label as HTMLElement).style, {
-                color: '',
-                textDecoration: '',
-                cursor: '',
-                pointerEvents: '',
-            })
-            $label.onclick = (evt: MouseEvent) => {
-                const clickedRegion = (evt.target as HTMLElement).id.split('-')[1]
-                console.log('[UI] called shot: clicked region %s', clickedRegion)
-                if (callback) {
-                    callback(clickedRegion)
-                }
-            }
-        }
-    }
-}
+//
+// Called-shot screen (uiCalledShot + uiCloseCalledShot) has moved to
+// ui_calledshot.ts; the static digit-divs and cancel button live in
+// initCalledShot() called from uiInit.
 
 // uiSaveLoad has moved to ui_saveload.ts — re-exported below.
