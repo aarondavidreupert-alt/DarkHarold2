@@ -36,6 +36,7 @@ import {
     makeDraggable,
 } from './ui_inventory.js'
 import { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './ui_character.js'
+import { uiAnimateBox } from './ui_dialogue.js'
 import {
     drawHP,
     drawAC,
@@ -85,6 +86,7 @@ export {
 } from './ui_panels.js'
 export { showInventory as uiInventoryScreen } from './ui_inventory.js'
 export { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './ui_character.js'
+export { uiStartDialogue, uiEndDialogue, uiSetDialogueReply, uiAddDialogueOption } from './ui_dialogue.js'
 
 // UI system
 
@@ -527,88 +529,9 @@ export function uiContextMenu(obj: Obj, evt: any) {
 
 // drawHP / drawAC / drawAP / drawDigits have moved to ui_hud.ts.
 
-// Smoothly transition an element's top property from an origin to a target position over a duration
-function uiAnimateBox($el: HTMLElement, origin: number | null, target: number, callback?: () => void): void {
-    const style = $el.style
-
-    // Reset to origin, instantly
-    if (origin !== null) {
-        style.transition = 'none'
-        style.top = `${origin}px`
-    }
-
-    // We need to wait for the browser to process the updated CSS position, so we need to wait here
-    setTimeout(() => {
-        // Set up our transition finished callback if necessary
-        if (callback) {
-            let listener = () => {
-                callback()
-                $el.removeEventListener('transitionend', listener)
-                ;(listener as any) = null // Allow listener to be GC'd
-            }
-
-            $el.addEventListener('transitionend', listener)
-        }
-
-        // Ease into the target position over 1 second
-        $el.style.transition = 'top 1s ease'
-        $el.style.top = `${target}px`
-    }, 1)
-}
-
-export function uiStartDialogue(force: boolean, target?: Critter) {
-    if (globalState.uiMode === UIMode.barter && force !== true) {
-        return
-    }
-
-    globalState.uiMode = UIMode.dialogue
-    $id('dialogueContainer').style.visibility = 'visible'
-    $id('dialogueBox').style.visibility = 'visible'
-    uiAnimateBox($id('dialogueBox'), 480, 290)
-
-    // center around the dialogue target
-    if (!target) {
-        return
-    }
-    const bbox = objectBoundingBox(target)
-    if (bbox !== null) {
-        const dc = $id('dialogueContainer')
-        // alternatively: dc.offset().left - $(heart.canvas).offset().left
-        const dx = ((dc.offsetWidth / 2) | 0) + dc.offsetLeft
-        const dy = ((dc.offsetHeight / 4) | 0) + dc.offsetTop - ((bbox.h / 2) | 0)
-        // dx/dy are HTML-layout (screen) pixels; divide by zoom so the
-        // resulting camera offset is in world units (which is what
-        // cameraPosition is stored in).
-        const z = globalState.cameraZoom || 1.0
-        globalState.cameraPosition.x = bbox.x - dx / z
-        globalState.cameraPosition.y = bbox.y - dy / z
-    }
-}
-
-export function uiEndDialogue() {
-    // TODO: Transition the dialogue box down?
-    globalState.uiMode = UIMode.none
-
-    $id('dialogueContainer').style.visibility = 'hidden'
-    $id('dialogueBox').style.visibility = 'hidden'
-    $id('dialogueBoxReply').innerHTML = ''
-}
-
-export function uiSetDialogueReply(reply: string) {
-    const $dialogueBoxReply = $id('dialogueBoxReply')
-    $dialogueBoxReply.innerHTML = reply
-    $dialogueBoxReply.scrollTop = 0
-
-    $id('dialogueBoxTextArea').innerHTML = ''
-}
-
-export function uiAddDialogueOption(msg: string, optionID: number) {
-    const item = document.createElement('div')
-    item.textContent = `- ${msg}`
-    item.style.cursor = 'pointer'
-    item.onclick = () => Scripting.dialogueReply(optionID)
-    $id('dialogueBoxTextArea').appendChild(item)
-}
+// Dialogue panel (uiStartDialogue / uiEndDialogue / uiSetDialogueReply /
+// uiAddDialogueOption) and the uiAnimateBox slide-up helper have moved to
+// ui_dialogue.ts. uiAnimateBox is re-imported above for the barter pop-up.
 
 function uiGetAmount(item: Obj): Promise<number> {
     // Fallout 2 "Move Items" dialog using movemult.png as background
