@@ -15,13 +15,8 @@ limitations under the License.
 */
 
 import { Combat } from './combat.js'
-import { Area, Elevator, loadAreas, lookupMapNameFromLookup } from './data.js'
 import globalState from './globalState.js'
-import { Critter, Obj } from './object.js'
-import { lookupInterfaceArt } from './pro.js'
-import { Scripting } from './scripting.js'
-import { fromTileNum } from './tile.js'
-import { Worldmap } from './worldmap.js'
+import { Obj } from './object.js'
 import { Config } from './config.js'
 import { openAutomap, closeAutomap, isAutomapOpen } from './ui_automap.js'
 import { openPipBoy, closePipBoy, isPipBoyOpen } from './ui_pipboy.js'
@@ -40,6 +35,7 @@ import { initLoot, uiLoot } from './ui_loot.js'
 import { uiWorldMap, uiCloseWorldMap, uiWorldMapShowArea } from './ui_worldmap.js'
 import { uiElevator } from './ui_elevator.js'
 import { initCalledShot, uiCalledShot, uiCloseCalledShot } from './ui_calledshot.js'
+import { uiContextMenu, uiHideContextMenu } from './ui_contextmenu.js'
 import {
     drawHP,
     drawAC,
@@ -95,6 +91,7 @@ export { uiLoot } from './ui_loot.js'
 export { uiWorldMap, uiCloseWorldMap, uiWorldMapShowArea } from './ui_worldmap.js'
 export { uiElevator } from './ui_elevator.js'
 export { uiCalledShot, uiCloseCalledShot } from './ui_calledshot.js'
+export { uiContextMenu, uiHideContextMenu } from './ui_contextmenu.js'
 
 // UI system
 
@@ -416,107 +413,9 @@ export function initUI() {
     uiDrawWeapon()
 }
 
-function uiHideContextMenu() {
-    globalState.uiMode = UIMode.none
-    globalState.cursorMode = 'move'
-    $id('itemContextMenu').style.visibility = 'hidden'
-}
-
-export { uiHideContextMenu }
-
-export function uiContextMenu(obj: Obj, evt: any) {
-    globalState.uiMode = UIMode.contextMenu
-
-    function button(obj: Obj, action: string, onclick: (() => void) | undefined = undefined) {
-        return makeEl('div', {
-            id: 'context_' + action,
-            classes: ['itemContextMenuButton'],
-            click: () => {
-                if (onclick) {
-                    onclick()
-                }
-                uiHideContextMenu()
-            },
-        })
-    }
-
-    const $menu = $id('itemContextMenu')
-    clearEl($menu)
-    // #itemContextMenu lives inside #uiStage, which is centered via
-    // transform: translate(-50%, -50%). Convert viewport-relative click
-    // coords to the stage's local frame so the menu appears under the
-    // cursor regardless of viewport size. (Same transform as
-    // makeItemContextMenu below.)
-    const stage = document.getElementById('uiStage')
-    const rect = stage?.getBoundingClientRect()
-    const lx = rect ? evt.clientX - rect.left : evt.clientX
-    const ly = rect ? evt.clientY - rect.top : evt.clientY
-    Object.assign($menu.style, {
-        visibility: 'visible',
-        left: `${lx}px`,
-        top: `${ly}px`,
-    })
-    const cancelBtn = button(obj, 'cancel')
-    const lookBtn = button(obj, 'look', () => uiLog('You see: ' + obj.getLookText()))
-    const useBtn = button(obj, 'use', () => {
-        globalState.player.walkInFrontOf(obj.position, () => {
-            globalState.player.clearAnim()
-            obj.use(globalState.player)
-        })
-    })
-    const talkBtn = button(obj, 'talk', () => {
-        console.log('[Dialog] talking to ' + obj.name)
-        if (!obj._script) {
-            console.warn('[Dialog] obj has no script')
-            return
-        }
-        Scripting.talk(obj._script, obj)
-    })
-    const pickupBtn = button(obj, 'pickup', () => obj.pickup(globalState.player))
-    const inventoryBtn = button(obj, 'inventory', () => showInventory())
-    const skillBtn = button(obj, 'skill', () => {
-        // Route through the panel system so skilldex obeys mutual-exclusion
-        // with PipBoy / inventory / character / automap.
-        if (isSkilldexOpen()) { closeSkilldex(); return }
-        closeAllPanels()
-        showSkilldex()
-    })
-
-    const isCritter = obj.type === 'critter'
-    const isDead = isCritter && (obj as Critter).dead
-    const hasTalk = obj._script && obj._script.talk_p_proc !== undefined
-
-    if (isCritter && !isDead) {
-        // Living critter: Talk (if available) → Use (if available) → Look → Cancel
-        if (hasTalk) $menu.appendChild(talkBtn)
-        if (obj.canUse) $menu.appendChild(useBtn)
-        $menu.appendChild(lookBtn)
-    } else if (isCritter && isDead) {
-        // Dead critter: Look → Loot → Cancel
-        const lootBtn = button(obj, 'pickup', () => uiLoot(obj))
-        $menu.appendChild(lookBtn)
-        $menu.appendChild(lootBtn)
-    } else if ((obj.type === 'scenery' || obj.type === 'misc') && obj.canUse) {
-        // Container/Scenery with canUse: Use → Look → Cancel
-        $menu.appendChild(useBtn)
-        $menu.appendChild(lookBtn)
-    } else if (obj.isContainer) {
-        // Container (type=item, subType=container): always show Use → Look → Cancel
-        $menu.appendChild(useBtn)
-        $menu.appendChild(lookBtn)
-    } else if (obj.type === 'item') {
-        // Item on the ground: Pickup → Look → Cancel
-        $menu.appendChild(pickupBtn)
-        $menu.appendChild(lookBtn)
-    } else {
-        // Fallback: Look → Cancel
-        $menu.appendChild(lookBtn)
-    }
-    $menu.appendChild(inventoryBtn)
-    $menu.appendChild(skillBtn)
-    $menu.appendChild(cancelBtn)
-}
-
+// Right-click context menu (uiContextMenu / uiHideContextMenu) has moved to
+// ui_contextmenu.ts.
+//
 // HUD bar (HP/AC/AP/weapon/combat-buttons/hover/log) has moved to ui_hud.ts
 // and is re-exported from ui.ts above.
 
