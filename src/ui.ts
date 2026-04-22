@@ -42,6 +42,13 @@ import { uiSaveLoad } from './ui_saveload.js'
 import { initOptionsMenu, getOptionsWindow, showOptionsMenu, closeOptionsMenu } from './ui_options.js'
 import { initSkilldex, getSkilldexWindow, showSkilldex, closeSkilldex } from './ui_skilldex.js'
 import {
+    initInventory,
+    showInventory,
+    closeInventory,
+    makeDropTarget,
+    makeDraggable,
+} from './ui_inventory.js'
+import {
     drawHP,
     drawAC,
     drawAP,
@@ -92,6 +99,7 @@ export {
     isSkilldexOpen,
     isOptionsOpen,
 } from './ui_panels.js'
+export { showInventory as uiInventoryScreen } from './ui_inventory.js'
 
 // UI system
 
@@ -114,10 +122,10 @@ function uiInit() {
     registerSkilldexWindow(getSkilldexWindow)
     registerOptionsWindow(getOptionsWindow)
     registerCharacterWindow(() => characterWindow ?? null)
-    registerCloseInventoryPanel(closeInventoryPanel)
 
     initSkilldex()
     initOptionsMenu()
+    initInventory()
     // initCharacterScreen();
 
     const chrBtn = document.getElementById('chrButton')
@@ -144,16 +152,9 @@ function uiInit() {
 }
 
 // Panel mutual-exclusion helpers have been moved to ui_panels.ts and are
-// re-exported above. The closeInventoryPanel() function below is the concrete
-// impl, registered with ui_panels in uiInit().
-
-function closeInventoryPanel(): void {
-    if (!isInventoryOpen()) return
-    globalState.uiMode = UIMode.none
-    $id('inventoryBox').style.visibility = 'hidden'
-    if (globalState.player) globalState.player.clearAnim?.()
-    uiDrawWeapon()
-}
+// re-exported above. closeInventoryPanel/uiInventoryScreen now live in
+// ui_inventory.ts; ui_inventory wires its own registerCloseInventoryPanel()
+// during initInventory().
 
 let characterWindow: WindowFrame
 
@@ -867,19 +868,6 @@ export function makeEl(tag: string, options: ElementOptions): HTMLElement {
 export function initUI() {
     uiInit()
 
-    makeDropTarget($id('inventoryBoxList'), (data: string) => {
-        uiMoveSlot(data, 'inventory')
-    })
-    makeDropTarget($id('inventoryBoxItem1'), (data: string) => {
-        uiMoveSlot(data, 'leftHand')
-    })
-    makeDropTarget($id('inventoryBoxItem2'), (data: string) => {
-        uiMoveSlot(data, 'rightHand')
-    })
-    makeDropTarget($id('inventoryBoxArmor'), (data: string) => {
-        uiMoveSlot(data, 'armor')
-    })
-
     for (let i = 0; i < 2; i++) {
         for (const $chance of Array.from(document.querySelectorAll('#calledShotBox .calledShotChance'))) {
             $chance.appendChild(
@@ -907,24 +895,10 @@ export function initUI() {
     }
     */
 
-    $id('inventoryButton').onclick = () => {
-        if (isInventoryOpen()) { closeInventoryPanel(); return }
-        closeAllPanels()
-        uiInventoryScreen()
-    }
-
     $id('optionsButton').onclick = () => {
         if (isOptionsOpen()) { closeOptionsMenu(); return }
         closeAllPanels()
         showOptionsMenu()
-    }
-    // Inventory panel is a static DOM element — wire drag once at init.
-    makePanelDraggable($id('inventoryBox'))
-    $id('inventoryDoneButton').onclick = () => {
-        globalState.uiMode = UIMode.none
-        $id('inventoryBox').style.visibility = 'hidden'
-        globalState.player.clearAnim()
-        uiDrawWeapon()
     }
 
     $id('lootBoxDoneButton').onclick = () => {
@@ -1055,7 +1029,7 @@ export function initUI() {
         }
     }
 
-    makeScrollable($id('inventoryBoxList'))
+    // inventoryBoxList scroll wiring lives in ui_inventory.ts → initInventory()
 
     makeScrollable($id('barterBoxInventoryLeft'))
     makeScrollable($id('barterBoxInventoryRight'))
@@ -1129,7 +1103,7 @@ export function uiContextMenu(obj: Obj, evt: any) {
         Scripting.talk(obj._script, obj)
     })
     const pickupBtn = button(obj, 'pickup', () => obj.pickup(globalState.player))
-    const inventoryBtn = button(obj, 'inventory', () => uiInventoryScreen())
+    const inventoryBtn = button(obj, 'inventory', () => showInventory())
     const skillBtn = button(obj, 'skill', () => {
         // Route through the panel system so skilldex obeys mutual-exclusion
         // with PipBoy / inventory / character / automap.
@@ -1176,600 +1150,10 @@ export function uiContextMenu(obj: Obj, evt: any) {
 // HUD bar (HP/AC/AP/weapon/combat-buttons/hover/log) has moved to ui_hud.ts
 // and is re-exported from ui.ts above.
 
-/**
- * Try to load ammoObj into weaponObj.
- * Compatibility: ammo pid must match weapon.pro.extra.ammoPID (or weapon is unloaded).
- * Returns true if at least one round was loaded.
- */
-function tryLoadAmmoIntoWeapon(ammoObj: Obj, weaponObj: Obj): boolean {
-    const w = weaponObj as any
-    const a = ammoObj as any
-    const maxAmmo: number = w.pro?.extra?.maxAmmo ?? 0
-    const currentRounds: number = w.pro?.extra?.rounds ?? 0
-    const weaponAmmoPID: number | undefined = w.pro?.extra?.ammoPID
-    if (maxAmmo <= 0 || currentRounds >= maxAmmo) return false
-    // Compatibility: ammoPID must match (or weapon is empty and has no type yet)
-    if (weaponAmmoPID && weaponAmmoPID !== a.pid) return false
-    const needed = maxAmmo - currentRounds
-    const available: number = a.amount ?? 1
-    const toLoad = Math.min(needed, available)
-    w.pro.extra.rounds = currentRounds + toLoad
-    w.pro.extra.ammoPID = a.pid // record which ammo type is now loaded
-    a.amount = available - toLoad
-    const ammoIdx = globalState.player.inventory.indexOf(ammoObj)
-    if (a.amount <= 0 && ammoIdx !== -1) globalState.player.inventory.splice(ammoIdx, 1)
-    uiLog(`Loaded ${toLoad} round${toLoad !== 1 ? 's' : ''}.`)
-    return true
-}
-
-// TODO: Rewrite this sanely (and not directly modify the player object's properties...)
-function uiMoveSlot(data: string, target: string) {
-    const playerUnsafe = globalState.player as any
-    let obj = null
-
-    if (data[0] === 'i') {
-        if (target === 'inventory') {
-            return
-        } // disallow inventory -> inventory
-
-        const idx = parseInt(data.slice(1))
-        console.log('[UI] inventory idx: ' + idx)
-        obj = globalState.player.inventory[idx]
-
-        // Drag-drop reload: ammo from inventory dropped onto a hand slot with a weapon
-        if ((target === 'leftHand' || target === 'rightHand') && playerUnsafe[target]) {
-            if (tryLoadAmmoIntoWeapon(obj, playerUnsafe[target] as Obj)) {
-                uiDrawWeapon()
-                uiInventoryScreen()
-                return
-            }
-        }
-
-        globalState.player.inventory.splice(idx, 1) // remove object from inventory
-    } else {
-        obj = playerUnsafe[data]
-        playerUnsafe[data] = null // remove object from slot
-    }
-
-    console.log(`[UI] drop target: obj=${obj} data=${data} target=${target}`)
-
-    if (target === 'inventory') {
-        globalState.player.inventory.push(obj)
-    } else {
-        if (playerUnsafe[target] !== undefined && playerUnsafe[target] !== null) {
-            // perform a swap
-            if (data[0] === 'i') {
-                globalState.player.inventory.push(playerUnsafe[target])
-            } // inventory -> slot
-            else {
-                playerUnsafe[data] = playerUnsafe[target]
-            } // slot -> slot
-        }
-
-        playerUnsafe[target] = obj // move the object over
-    }
-
-    // Update armor appearance if armor slot changed
-    if (target === 'armor' || data === 'armor') {
-        applyArmorArt(target === 'armor' ? obj : null)
-        const armorAC = (globalState.player as any).armor?.pro?.extra?.AC ?? 0
-        drawAC(globalState.player.getStat('AC') + armorAC)
-    }
-
-    uiDrawWeapon()
-    uiInventoryScreen()
-}
-
-// Apply or remove armor appearance — updates player.art to the armor's critter base art
-function applyArmorArt(armor: Obj | null) {
-    const playerAny = globalState.player as any
-    if (armor?.pro?.extra) {
-        const fid: number =
-            globalState.player.gender === 'female'
-                ? armor.pro.extra.femaleFID
-                : armor.pro.extra.maleFID
-        if (fid && fid !== 0) {
-            try {
-                const armorArt = lookupArt(fid)
-                if (armorArt) {
-                    if (!playerAny._baseArt) {
-                        playerAny._baseArt = globalState.player.art
-                    }
-                    globalState.player.art = armorArt
-                    return
-                }
-            } catch (e) {
-                console.warn('[UI] applyArmorArt: lookupArt failed for fid', fid, e)
-            }
-        }
-    }
-    // No armor or no valid FID — restore original art
-    if (playerAny._baseArt) {
-        globalState.player.art = playerAny._baseArt
-        playerAny._baseArt = null
-    }
-}
-
-function makeDropTarget($el: HTMLElement, dropCallback: (data: string, e?: DragEvent) => void) {
-    $el.ondrop = (e: DragEvent) => {
-        const data = e.dataTransfer.getData('text/plain')
-        dropCallback(data, e)
-        return false
-    }
-    $el.ondragenter = () => false
-    $el.ondragover = () => false
-}
-
-function makeDraggable($el: HTMLElement, data: string, endCallback?: () => void) {
-    $el.setAttribute('draggable', 'true')
-    $el.ondragstart = (e: DragEvent) => {
-        e.dataTransfer.setData('text/plain', data)
-        console.log('[UI] start drag')
-    }
-    $el.ondragend = (e: DragEvent) => {
-        if (e.dataTransfer.dropEffect !== 'none') {
-            //$(this).remove()
-            endCallback && endCallback()
-        }
-    }
-}
-
-export function uiInventoryScreen() {
-    globalState.uiMode = UIMode.inventory
-
-    showv($id('inventoryBox'))
-
-    function showItemInfo(obj: Obj) {
-        const $info = $id('inventoryBoxInfo')
-        clearEl($info)
-        const nameEl = document.createElement('div')
-        nameEl.className = 'invItemName'
-        nameEl.textContent = obj.name || ''
-        $info.appendChild(nameEl)
-        const desc = obj.getDescription ? obj.getDescription() : null
-        if (desc) {
-            const descEl = document.createElement('div')
-            descEl.className = 'invItemDesc'
-            descEl.textContent = desc
-            $info.appendChild(descEl)
-        }
-    }
-
-    function showStats() {
-        const $info = $id('inventoryBoxInfo')
-        clearEl($info)
-        const p = globalState.player
-        const playerAny = p as any
-        const armor = playerAny.armor ?? null
-        const armorExtra = armor?.pro?.extra ?? null
-
-        const addHR = () => {
-            const hr = document.createElement('hr')
-            hr.className = 'invStatHr'
-            $info.appendChild(hr)
-        }
-
-        const addRow = (left: string, right: string) => {
-            const row = document.createElement('div')
-            row.className = 'invStatRow'
-            const lbl = document.createElement('span')
-            lbl.className = 'invStatLabel'
-            lbl.textContent = left
-            const val = document.createElement('span')
-            val.className = 'invStatValue'
-            val.textContent = right
-            row.appendChild(lbl)
-            row.appendChild(val)
-            $info.appendChild(row)
-        }
-
-        const addWeaponSection = (weapon: any, label: string) => {
-            addHR()
-            if (!weapon) {
-                addRow(label, 'None')
-                return
-            }
-            const name = weapon.name ?? label
-            addRow(name, '')
-            const pro = weapon.pro?.extra
-            if (pro) {
-                const minD = pro.minDmg ?? '?'
-                const maxD = pro.maxDmg ?? '?'
-                const rng = pro.maxRange1 ?? '?'
-                addRow(`  Dmg: ${minD}-${maxD}`, `Rng: ${rng}`)
-            }
-        }
-
-        // Player name
-        const nameEl = document.createElement('div')
-        nameEl.className = 'invStatName'
-        nameEl.textContent = (p as any).name ?? 'Character'
-        $info.appendChild(nameEl)
-
-        addHR()
-
-        // SPECIAL (left) + derived stats (right) in a two-column layout
-        const twoCol = document.createElement('div')
-        twoCol.className = 'invStatTwoCol'
-
-        const leftCol = document.createElement('div')
-        leftCol.className = 'invStatColLeft'
-
-        const rightCol = document.createElement('div')
-        rightCol.className = 'invStatColRight'
-
-        const specialStats: [string, number][] = [
-            ['ST', p.getStat('STR')],
-            ['PE', p.getStat('PER')],
-            ['EN', p.getStat('END')],
-            ['CH', p.getStat('CHA')],
-            ['IN', p.getStat('INT')],
-            ['AG', p.getStat('AGI')],
-            ['LK', p.getStat('LUK')],
-        ]
-
-        for (const [lbl, val] of specialStats) {
-            const row = document.createElement('div')
-            row.className = 'invStatRow'
-            const l = document.createElement('span')
-            l.className = 'invStatLabel'
-            l.textContent = lbl
-            const v = document.createElement('span')
-            v.className = 'invStatValue'
-            v.textContent = String(val)
-            row.appendChild(l)
-            row.appendChild(v)
-            leftCol.appendChild(row)
-        }
-
-        const armorAC: number = armorExtra?.AC ?? 0
-        const baseAC: number = p.getStat('AGI')
-        const dr = (key: string) => armorExtra?.stats?.[key] ?? 0
-
-        const derivedStats: [string, string][] = [
-            ['HP', `${p.getStat('HP')}/${p.getStat('Max HP')}`],
-            ['AC', String(baseAC + armorAC)],
-            ['Normal', `${dr('DR Normal')}%`],
-            ['Laser', `${dr('DR Laser')}%`],
-            ['Fire', `${dr('DR Fire')}%`],
-            ['Plasma', `${dr('DR Plasma')}%`],
-            ['Explode', `${dr('DR Electrical')}%`],
-        ]
-
-        for (const [lbl, val] of derivedStats) {
-            const row = document.createElement('div')
-            row.className = 'invStatRow'
-            const l = document.createElement('span')
-            l.className = 'invStatLabel'
-            l.textContent = lbl
-            const v = document.createElement('span')
-            v.className = 'invStatValue'
-            v.textContent = val
-            row.appendChild(l)
-            row.appendChild(v)
-            rightCol.appendChild(row)
-        }
-
-        twoCol.appendChild(leftCol)
-        twoCol.appendChild(rightCol)
-        $info.appendChild(twoCol)
-
-        // Weapon sections
-        addWeaponSection(playerAny.leftHand ?? null, 'Left Hand')
-        addWeaponSection(playerAny.rightHand ?? null, 'Right Hand')
-
-        // Total weight
-        addHR()
-        let current = 0
-        for (const item of p.inventory) {
-            current += ((item.pro?.extra?.weight ?? 0) as number) * item.amount
-        }
-        if (playerAny.leftHand?.pro?.extra?.weight) current += playerAny.leftHand.pro.extra.weight
-        if (playerAny.rightHand?.pro?.extra?.weight) current += playerAny.rightHand.pro.extra.weight
-        if (armorExtra?.weight) current += armorExtra.weight
-        const max = 25 + p.getStat('STR') * 25
-        addRow('Total Wt:', `${current}/${max}`)
-    }
-
-    let _portraitInterval: ReturnType<typeof setInterval> | null = null
-
-    function drawCharacterPortrait() {
-        const $char = $id('inventoryBoxChar')
-        clearEl($char)
-
-        if (_portraitInterval !== null) {
-            clearInterval(_portraitInterval)
-            _portraitInterval = null
-        }
-
-        const art = globalState.player.getAnimation('idle')
-        let currentOrientation = 0
-
-        const canvas = document.createElement('canvas')
-        $char.appendChild(canvas)
-
-        const renderOrientation = (img: HTMLImageElement, orientation: number) => {
-            const info = globalState.imageInfo?.[art]
-            if (!info) return
-            const numOrientations = Object.keys(info.frameOffsets).length
-            if (numOrientations === 0) return
-            const ori = orientation % numOrientations
-            const frameInfo = info.frameOffsets[ori]?.[0]
-            if (!frameInfo) return
-            canvas.width = frameInfo.w
-            canvas.height = frameInfo.h
-            const ctx = canvas.getContext('2d')!
-            ctx.clearRect(0, 0, canvas.width, canvas.height)
-            ctx.drawImage(img, frameInfo.sx, 0, frameInfo.w, frameInfo.h, 0, 0, frameInfo.w, frameInfo.h)
-        }
-
-        lazyLoadImage(art, (img: HTMLImageElement) => {
-            renderOrientation(img, currentOrientation)
-            _portraitInterval = setInterval(() => {
-                const $box = document.getElementById('inventoryBox')
-                if (!$box || $box.style.visibility === 'hidden') {
-                    clearInterval(_portraitInterval!)
-                    _portraitInterval = null
-                    return
-                }
-                currentOrientation = (currentOrientation + 1) % 6
-                renderOrientation(img, currentOrientation)
-            }, 250)
-        })
-    }
-
-    function updateWeightDisplay() {
-        const $weight = document.getElementById('inventoryBoxWeight')
-        if (!$weight) return
-        let current = 0
-        for (const item of globalState.player.inventory) {
-            current += ((item.pro?.extra?.weight ?? 0) as number) * item.amount
-        }
-        const playerAny = globalState.player as any
-        if (playerAny.leftHand?.pro?.extra?.weight) current += playerAny.leftHand.pro.extra.weight
-        if (playerAny.rightHand?.pro?.extra?.weight) current += playerAny.rightHand.pro.extra.weight
-        if (playerAny.armor?.pro?.extra?.weight) current += playerAny.armor.pro.extra.weight
-        const max = 25 + globalState.player.getStat('STR') * 25
-        $weight.textContent = `Wt: ${current}/${max}`
-    }
-
-    function drawInventory($el: HTMLElement, objects: Obj[]) {
-        clearEl($el)
-        clearEl($id('inventoryBoxItem1'))
-        clearEl($id('inventoryBoxItem2'))
-        clearEl($id('inventoryBoxArmor'))
-
-        for (let i = 0; i < objects.length; i++) {
-            const invObj = objects[i]
-            const img = makeEl('img', {
-                src: invObj.invArt + '.png',
-                attrs: { title: invObj.name },
-                style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
-                click: () => {
-                    showItemInfo(invObj)
-                },
-            })
-            img.oncontextmenu = (e: MouseEvent) => {
-                e.preventDefault()
-                makeItemContextMenu(e, invObj, 'inventory')
-                return false
-            }
-            $el.appendChild(img)
-            const amtSpan = document.createElement('span')
-            amtSpan.className = 'invItemAmount'
-            amtSpan.textContent = 'x' + invObj.amount
-            $el.appendChild(amtSpan)
-            makeDraggable(img, 'i' + i, () => {
-                uiInventoryScreen()
-            })
-
-            // Allow ammo to be dropped onto a weapon in the inventory list
-            if (invObj.subtype === 'weapon') {
-                const capturedWeapon = invObj
-                makeDropTarget(img, (data: string) => {
-                    if (data[0] !== 'i') return // only inventory items
-                    const srcIdx = parseInt(data.slice(1))
-                    const srcObj = globalState.player.inventory[srcIdx]
-                    if (!srcObj || srcObj === capturedWeapon) return
-                    if (tryLoadAmmoIntoWeapon(srcObj, capturedWeapon)) {
-                        uiDrawWeapon()
-                        uiInventoryScreen()
-                    }
-                })
-            }
-        }
-    }
-
-    type ItemAction = 'cancel' | 'use' | 'drop' | 'equip_left' | 'equip_right' | 'equip_armor' | 'unequip' | 'unload'
-
-    function itemAction(obj: Obj, slot: string, action: ItemAction) {
-        const playerAny = globalState.player as any
-        switch (action) {
-            case 'cancel':
-                break
-            case 'use':
-                console.log('[UI] using object: ' + obj.art)
-                obj.use(globalState.player)
-                break
-            case 'drop':
-                console.log('[UI] dropping: ' + obj.art + ' with pid ' + obj.pid)
-                if (slot !== 'inventory') {
-                    console.log('[UI] moving into inventory first')
-                    globalState.player.inventory.push(obj)
-                    playerAny[slot] = null
-                }
-                obj.drop(globalState.player)
-                globalState.player.clearAnim()
-                uiDrawWeapon()
-                uiInventoryScreen()
-                break
-            case 'equip_left':
-            case 'equip_right': {
-                const targetSlot = action === 'equip_left' ? 'leftHand' : 'rightHand'
-                const idx = globalState.player.inventory.indexOf(obj)
-                if (idx !== -1) {
-                    globalState.player.inventory.splice(idx, 1)
-                    if (playerAny[targetSlot]) {
-                        globalState.player.inventory.push(playerAny[targetSlot])
-                    }
-                    playerAny[targetSlot] = obj
-                }
-                globalState.player.clearAnim()
-                uiDrawWeapon()
-                uiInventoryScreen()
-                break
-            }
-            case 'equip_armor': {
-                const idx = globalState.player.inventory.indexOf(obj)
-                if (idx !== -1) {
-                    globalState.player.inventory.splice(idx, 1)
-                    if (playerAny.armor) {
-                        globalState.player.inventory.push(playerAny.armor)
-                    }
-                    playerAny.armor = obj
-                }
-                applyArmorArt(obj)
-                const armorAC = obj?.pro?.extra?.AC ?? 0
-                drawAC(globalState.player.getStat('AC') + armorAC)
-                uiInventoryScreen()
-                break
-            }
-            case 'unequip':
-                globalState.player.inventory.push(obj)
-                playerAny[slot] = null
-                if (slot === 'armor') {
-                    applyArmorArt(null)
-                    drawAC(globalState.player.getStat('AC'))
-                }
-                globalState.player.clearAnim()
-                uiDrawWeapon()
-                uiInventoryScreen()
-                break
-            case 'unload': {
-                const ammoPID: number | undefined = obj.pro?.extra?.ammoPID
-                const ammoCurrent: number = obj.pro?.extra?.rounds ?? 0
-                console.log(`[UI] unload: ammoPID=${ammoPID} rounds=${ammoCurrent}`)
-                if (ammoCurrent > 0) {
-                    if (ammoPID) {
-                        // Create an ammo item and return it to inventory
-                        const ammoObj = createObjectWithPID(ammoPID)
-                        ammoObj.amount = ammoCurrent
-                        globalState.player.addInventoryItem(ammoObj, ammoCurrent)
-                    }
-                    obj.pro.extra.rounds = 0
-                    if (obj.pro.extra.ammoPID !== undefined) obj.pro.extra.ammoPID = 0
-                }
-                uiDrawWeapon()
-                uiInventoryScreen()
-                break
-            }
-        }
-    }
-
-    function makeContextButton(obj: Obj, slot: string, action: ItemAction, label?: string) {
-        if (label) {
-            // text-based button for equip actions (no dedicated art asset)
-            const btn = document.createElement('div')
-            btn.className = 'itemContextMenuButton itemContextMenuText'
-            btn.textContent = label
-            btn.onclick = () => {
-                itemAction(obj, slot, action)
-                hidev($id('itemContextMenu'))
-            }
-            return btn
-        }
-        return makeEl('img', {
-            id: 'context_' + action,
-            classes: ['itemContextMenuButton'],
-            click: () => {
-                itemAction(obj, slot, action)
-                hidev($id('itemContextMenu'))
-            },
-        })
-    }
-
-    function makeItemContextMenu(e: MouseEvent, obj: Obj, slot: string) {
-        const $menu = $id('itemContextMenu')
-        clearEl($menu)
-        // #itemContextMenu lives inside #uiStage, which is centered via
-        // transform: translate(-50%, -50%). Convert viewport-relative click
-        // coords to the stage's local coordinate frame so the menu appears
-        // where the user clicked regardless of window size.
-        const stage = document.getElementById('uiStage')
-        const rect = stage?.getBoundingClientRect()
-        const lx = rect ? e.clientX - rect.left : e.clientX
-        const ly = rect ? e.clientY - rect.top : e.clientY
-        Object.assign($menu.style, {
-            visibility: 'visible',
-            left: `${lx}px`,
-            top: `${ly}px`,
-        })
-
-        $menu.appendChild(makeContextButton(obj, slot, 'cancel'))
-        if (obj.canUse) {
-            $menu.appendChild(makeContextButton(obj, slot, 'use'))
-        }
-        $menu.appendChild(makeContextButton(obj, slot, 'drop'))
-
-        // Unload option: any weapon with non-zero ammo capacity and rounds currently loaded
-        // (matches fallout2-ce ammoGetCapacity != 0 condition — works for all gun types)
-        if (obj.subtype === 'weapon' && obj.pro?.extra?.maxAmmo > 0 && obj.pro?.extra?.rounds > 0) {
-            $menu.appendChild(makeContextButton(obj, slot, 'unload'))
-        }
-
-        // Equip options for inventory items
-        if (slot === 'inventory') {
-            if (obj.subtype === 'weapon' || obj.subtype === 'misc') {
-                $menu.appendChild(makeContextButton(obj, slot, 'equip_left', 'Eq. Left'))
-                $menu.appendChild(makeContextButton(obj, slot, 'equip_right', 'Eq. Right'))
-            } else if (obj.subtype === 'armor') {
-                $menu.appendChild(makeContextButton(obj, slot, 'equip_armor', 'Equip'))
-            }
-        } else {
-            // Unequip from hand/armor slot
-            $menu.appendChild(makeContextButton(obj, slot, 'unequip', 'Unequip'))
-        }
-    }
-
-    function drawSlot(slot: string, slotID: string) {
-        const item = (globalState.player as any)[slot] as Obj | null
-        if (!item || !item.invArt) return
-        const img = makeEl('img', {
-            src: item.invArt + '.png',
-            attrs: { title: item.name },
-            style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
-            click: () => {
-                showItemInfo(item)
-            },
-        })
-        img.oncontextmenu = (e: MouseEvent) => {
-            e.preventDefault()
-            makeItemContextMenu(e, item, slot)
-            return false
-        }
-        makeDraggable(img, slot)
-
-        const $slotEl = $id(slotID)
-        clearEl($slotEl)
-        $slotEl.appendChild(img)
-    }
-
-    drawInventory($id('inventoryBoxList'), globalState.player.inventory)
-    showStats()
-    drawCharacterPortrait()
-    updateWeightDisplay()
-
-    if (globalState.player.leftHand) {
-        drawSlot('leftHand', 'inventoryBoxItem1')
-    }
-    if (globalState.player.rightHand) {
-        drawSlot('rightHand', 'inventoryBoxItem2')
-    }
-    const playerAny = globalState.player as any
-    if (playerAny.armor) {
-        drawSlot('armor', 'inventoryBoxArmor')
-    }
-}
+// Inventory panel (uiInventoryScreen, uiMoveSlot, applyArmorArt,
+// makeDropTarget, makeDraggable, tryLoadAmmoIntoWeapon) has moved to
+// ui_inventory.ts. makeDropTarget / makeDraggable are re-imported above for
+// barter and loot.
 
 // drawHP / drawAC / drawAP / drawDigits have moved to ui_hud.ts.
 
