@@ -30,7 +30,6 @@ import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
-import { getMessage } from './util.js'
 import { CSSBoundingBox, Widget } from './widget.js'
 import { font1, font3, FontWidget, makeFontLabel, renderBignum } from './font.js'
 import { openAutomap, closeAutomap, isAutomapOpen } from './automap.js'
@@ -749,22 +748,15 @@ function initCharacterScreen() {
         STR: 'Strength', PER: 'Perception', END: 'Endurance',
         CHA: 'Charisma', INT: 'Intelligence', AGI: 'Agility', LUK: 'Luck',
     }
-    // FO2-CE ref: stat.msg IDs 102-108 — full canonical SPECIAL descriptions.
-    // Read at runtime from the game data; fall back to inline strings if not available.
-    const SPECIAL_DESC_FALLBACK: Record<string, string> = {
-        STR: "Strength is the measure of your character's physical power. It affects how much you can carry, and determines the effectiveness of melee attacks. Modifies: Hit Points, Melee Damage, Carry Weight.",
-        PER: 'Perception is the ability to see, hear, taste and notice unusual things. A high Perception is important for a sharpshooter. Modifies: Sequence, Ranged Attack Distance.',
-        END: 'Endurance is a measure of your overall physical condition. A high Endurance means your character will be healthier and physically tough. Modifies: Hit Points, Healing Rate, Poison & Radiation Resistance.',
-        CHA: 'Charisma is a combination of appearance and charm. A high Charisma is important for characters that want to influence people with words. Modifies: NPC reactions, Barter prices.',
-        INT: 'Intelligence is a measure of your overall mental acuity. A high Intelligence is important for any character. Modifies: Skill Points/level, dialogue options.',
-        AGI: 'Agility is a measure of your character\'s overall finesse and reflexes. A high Agility is important for any active character. Modifies: Action Points, Armor Class, Small Guns, Sneak.',
-        LUK: 'Luck is a combination of fate and fortune. A high Luck will help you in many ways. Modifies: Critical Chance, random encounters.',
+    const SPECIAL_DESCRIPTIONS: Record<string, string> = {
+        STR: 'Strength determines how much you can carry and affects melee damage.',
+        PER: 'Perception affects your ranged combat and awareness.',
+        END: 'Endurance determines your health points and resistances.',
+        CHA: 'Charisma affects your ability to deal with people.',
+        INT: 'Intelligence affects your skills and dialogue options.',
+        AGI: 'Agility affects your action points and small arms skill.',
+        LUK: 'Luck affects critical hits and random events.',
     }
-    const SPECIAL_MSG_IDS: Record<string, number> = {
-        STR: 102, PER: 103, END: 104, CHA: 105, INT: 106, AGI: 107, LUK: 108,
-    }
-    const getSpecialDesc = (abbr: string): string =>
-        getMessage('stat', SPECIAL_MSG_IDS[abbr]) ?? SPECIAL_DESC_FALLBACK[abbr]
     const SKILL_DESCRIPTIONS: Record<string, string> = {
         'Small Guns':     'Small guns skill covers pistols and rifles.',
         'Big Guns':       'Big guns skill covers heavy weapons.',
@@ -858,96 +850,6 @@ function initCharacterScreen() {
         'Crippled Right Leg': 'art/skilldex/legright.png',
         'Crippled Left Leg':  'art/skilldex/legleft.png',
     }
-    const TRAIT_IMG: Record<string, string> = {
-        'Gifted':               'art/skilldex/gifted.png',
-        'Bruiser':              'art/skilldex/bruiser.png',
-        'Small Frame':          'art/skilldex/smlframe.png',
-        'One Hander':           'art/skilldex/onehand.png',
-        'Finesse':              'art/skilldex/finesse.png',
-        'Kamikaze':             'art/skilldex/kamikaze.png',
-        'Heavy Handed':         'art/skilldex/heavyhnd.png',
-        'Fast Shot':            'art/skilldex/fastshot.png',
-        'Bloody Mess':          'art/skilldex/bldmess.png',
-        'Jinxed':               'art/skilldex/jinxed.png',
-        'Good Natured':         'art/skilldex/goodnatr.png',
-        'Cult of Personality':  'art/skilldex/cultoper.png',
-        'Skilled':              'art/skilldex/skilled.png',
-        'Fast Metabolism':      'art/skilldex/fastmeta.png',
-        'Night Person':         'art/skilldex/nightper.png',
-    }
-    const PERK_IMG: Record<string, string> = {
-        'Action Boy':             'art/skilldex/action.png',
-        'Bonus Move':             'art/skilldex/bonusmve.png',
-        'Bonus Rate of Attack':   'art/skilldex/bonusrat.png',
-        'Bonus Ranged Damage':    'art/skilldex/bonusrng.png',
-        'Healer':                 'art/skilldex/healer.png',
-        'Medic':                  'art/skilldex/medic.png',
-        'Mr. Fixit':              'art/skilldex/mrfixit.png',
-        'Ranger':                 'art/skilldex/ranger.png',
-        'Scout':                  'art/skilldex/scout.png',
-        'Sniper':                 'art/skilldex/sniper.png',
-        'Slayer':                 'art/skilldex/slayer.png',
-        'Toughness':              'art/skilldex/toughnes.png',
-        'Dodger':                 'art/skilldex/dodger.png',
-        'Heave Ho!':              'art/skilldex/heaveho.png',
-        'Pathfinder':             'art/skilldex/pathfndr.png',
-        'Explorer':               'art/skilldex/explorer.png',
-        'Pack Rat':               'art/skilldex/packrat.png',
-        'Life Giver':             'art/skilldex/lifegivr.png',
-        'Quick Recovery':         'art/skilldex/qwkrecov.png',
-        'Quick Pockets':          'art/skilldex/quikpock.png',
-        'More Criticals':         'art/skilldex/morecrit.png',
-        'Better Criticals':       'art/skilldex/betrcrit.png',
-        'Sharpshooter':           'art/skilldex/sharpsht.png',
-        'Awareness':              'art/skilldex/awarenes.png',
-        'Empathy':                'art/skilldex/empathy.png',
-        'Speaker':                'art/skilldex/speaker.png',
-        'Fighter':                'art/skilldex/fighter.png',
-        'Hand to Hand Evade':     'art/skilldex/h2hevade.png',
-        'Light Step':             'art/skilldex/litestep.png',
-        'Silent Death':           'art/skilldex/silentd.png',
-        'Silent Running':         'art/skilldex/silntrun.png',
-        'Pyromaniac':             'art/skilldex/pyromnac.png',
-        'Snake Eater':            'art/skilldex/snakeeat.png',
-        'Gecko Skinning':         'art/skilldex/geckoskn.png',
-        'Stonewall':              'art/skilldex/stonwall.png',
-        'Living Anatomy':         'art/skilldex/lvnganat.png',
-        'Weapon Handling':        'art/skilldex/wepnhand.png',
-        'Dermal Armor':           'art/skilldex/drmlarmr.png',
-        'Phoenix Armor':          'art/skilldex/phnxarmr.png',
-        'Mutate!':                'art/skilldex/mutate.png',
-    }
-    const KARMA_IMG: Record<string, string> = {
-        'Karma':        'art/skilldex/karma.png',
-        'Karma Beacon': 'art/skilldex/karmabcn.png',
-        'Reputation':   'art/skilldex/rep.png',
-        'Idolized':     'art/skilldex/idolized.png',
-        'Liked':        'art/skilldex/liked.png',
-        'Neutral':      'art/skilldex/neutral.png',
-        'Hated':        'art/skilldex/hated.png',
-        'Vilified':     'art/skilldex/villfied.png',
-    }
-    const MISC_IMG: Record<string, string> = {
-        'Kills':          'art/skilldex/kills.png',
-        'Level':          'art/skilldex/level.png',
-        'Next Level XP':  'art/skilldex/levelnxt.png',
-        'Experience':     'art/skilldex/exper.png',
-        'Hit Points':     'art/skilldex/hitpoint.png',
-        'Skills':         'art/skilldex/skills.png',
-        'Tag skill':      'art/skilldex/tag.png',
-        'Traits':         'art/skilldex/traits.png',
-        'Perks':          'art/skilldex/perks.png',
-    }
-    const ADDICTION_IMG: Record<string, string> = {
-        'Addiction':  'art/skilldex/addict.png',
-        'Alcohol':    'art/skilldex/alchohol.png',
-        'Jet':        'art/skilldex/jetadict.png',
-        'Mentats':    'art/skilldex/mentats.png',
-        'Buffout':    'art/skilldex/buffouts.png',
-        'Psycho':     'art/skilldex/psycho.png',
-        'RadAway':    'art/skilldex/radaway.png',
-        'Nuka Cola':  'art/skilldex/nukacola.png',
-    }
 
     const infoCardEl = document.createElement('div')
     Object.assign(infoCardEl.style, {
@@ -1029,16 +931,15 @@ function initCharacterScreen() {
 
     let n = 0
     for (const stat of stats) {
-        // Full-row click overlay: covers abbreviation, bignum value, and comment area
-        const rowW = new Widget(null, { x: 20, y: 37 + n, w: 310, h: 30 })
-        rowW.css({ cursor: 'pointer', zIndex: '1' }).onClick(() => {
+        const valW = new Widget(null, { x: 59, y: 37 + n, w: 28, h: 28 })
+        valW.css({ cursor: 'pointer' }).onClick(() => {
             selectedStat = stat
-            showInfoCard(SPECIAL_FULL_NAMES[stat], getSpecialDesc(stat), SPECIAL_IMG[stat])
+            showInfoCard(SPECIAL_FULL_NAMES[stat], SPECIAL_DESCRIPTIONS[stat], SPECIAL_IMG[stat])
         })
-        statValueWidgets.push(rowW.elem)
-        characterWindow.add(rowW)
+        statValueWidgets.push(valW.elem)
+        characterWindow.add(valW)
 
-        const commentLbl = new Label(105, 43 + n, '', '#00FF00').css({ fontSize: '0.69em', zIndex: '0' }) as Label
+        const commentLbl = new Label(105, 43 + n, '', '#00FF00').css({ fontSize: '0.69em' }) as Label
         statCommentLabels.push(commentLbl)
         characterWindow.add(commentLbl)
 
@@ -1228,7 +1129,7 @@ function initCharacterScreen() {
     wireSkillButton(minusBtn, 'art/intrface/snegon.png', 'art/intrface/snegoff.png', false)
 
     redrawStatsSkills()
-    showInfoCard(SPECIAL_FULL_NAMES['STR'], getSpecialDesc('STR'), SPECIAL_IMG['STR'])
+    showInfoCard(SPECIAL_FULL_NAMES['STR'], SPECIAL_DESCRIPTIONS['STR'], SPECIAL_IMG['STR'])
 
     // Stat level up buttons (char creation only)
     const canChangeStats = false
