@@ -17,34 +17,21 @@ limitations under the License.
 import { Combat } from './combat.js'
 import { Area, Elevator, loadAreas, lookupMapNameFromLookup } from './data.js'
 import globalState from './globalState.js'
-import { Critter, cloneItem, createObjectWithPID, Obj } from './object.js'
-import { Player } from './player.js'
-import { lookupArt, lookupInterfaceArt } from './pro.js'
+import { Critter, cloneItem, Obj } from './object.js'
+import { lookupInterfaceArt } from './pro.js'
 import { objectBoundingBox } from './renderer.js'
 import { Scripting } from './scripting.js'
 import { fromTileNum } from './tile.js'
 import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
-import { Point } from './geometry.js'
-import { lazyLoadImage } from './images.js'
-import { CSSBoundingBox, Widget } from './ui_widget.js'
-import { font1, font3, makeFontLabel, renderBignum } from './ui_font.js'
 import { openAutomap, closeAutomap, isAutomapOpen } from './ui_automap.js'
-
-// Re-export so existing `from './ui.js'` importers still see Widget / CSSBoundingBox.
-export { Widget } from './ui_widget.js'
-export type { CSSBoundingBox } from './ui_widget.js'
 import { openPipBoy, closePipBoy, isPipBoyOpen } from './ui_pipboy.js'
 import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
-import { makePanelDraggable } from './ui_drag.js'
-import { WindowFrame, SmallButton, Label, List } from './ui_components.js'
-import { uiSaveLoad } from './ui_saveload.js'
 import { initOptionsMenu, getOptionsWindow, showOptionsMenu, closeOptionsMenu } from './ui_options.js'
 import { initSkilldex, getSkilldexWindow, showSkilldex, closeSkilldex } from './ui_skilldex.js'
 import {
     initInventory,
     showInventory,
-    closeInventory,
     makeDropTarget,
     makeDraggable,
 } from './ui_inventory.js'
@@ -52,32 +39,28 @@ import { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from '.
 import {
     drawHP,
     drawAC,
-    drawAP,
     drawDigits,
     uiLog,
     uiDrawWeapon,
-    uiStartCombat,
-    uiEndCombat,
     uiUpdateCombatAP,
-    uiShowCombatHover,
-    uiHideCombatHover,
     uiEndCombatAnimationDone,
 } from './ui_hud.js'
 import {
     UIMode,
     initUiContainer,
     closeAllPanels,
-    isInventoryOpen,
     isCharacterOpen,
     isSkilldexOpen,
     isOptionsOpen,
     registerCharacterWindow,
     registerSkilldexWindow,
     registerOptionsWindow,
-    registerCloseInventoryPanel,
 } from './ui_panels.js'
 
-// Re-export panel helpers so external callers can still import from './ui.js'
+// --- Re-exports for external callers (keep `from './ui.js'` import sites
+// working after individual panels were extracted into ui_*.ts modules) -----
+export { Widget } from './ui_widget.js'
+export type { CSSBoundingBox } from './ui_widget.js'
 export { WindowFrame, SmallButton, Label, List } from './ui_components.js'
 export { uiSaveLoad } from './ui_saveload.js'
 export {
