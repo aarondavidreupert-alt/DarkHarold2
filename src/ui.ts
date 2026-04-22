@@ -21,25 +21,77 @@ import { Critter, cloneItem, createObjectWithPID, Obj } from './object.js'
 import { Player } from './player.js'
 import { lookupArt, lookupInterfaceArt } from './pro.js'
 import { objectBoundingBox } from './renderer.js'
-import { formatSaveDate, load, save, SaveGame, saveList } from './saveload.js'
 import { Scripting } from './scripting.js'
-import { Skills, SKILL_NAMES } from './skills.js'
-import { skillUse } from './skillUse.js'
 import { fromTileNum } from './tile.js'
 import { Worldmap } from './worldmap.js'
 import { Config } from './config.js'
 import { Point } from './geometry.js'
 import { lazyLoadImage } from './images.js'
-import { CSSBoundingBox, Widget } from './widget.js'
-import { font1, font3, FontWidget, makeFontLabel, renderBignum } from './font.js'
-import { openAutomap, closeAutomap, isAutomapOpen } from './automap.js'
+import { CSSBoundingBox, Widget } from './ui_widget.js'
+import { font1, font3, makeFontLabel, renderBignum } from './ui_font.js'
+import { openAutomap, closeAutomap, isAutomapOpen } from './ui_automap.js'
 
 // Re-export so existing `from './ui.js'` importers still see Widget / CSSBoundingBox.
-export { Widget } from './widget.js'
-export type { CSSBoundingBox } from './widget.js'
-import { openPipBoy, closePipBoy, isPipBoyOpen } from './pipboy.js'
+export { Widget } from './ui_widget.js'
+export type { CSSBoundingBox } from './ui_widget.js'
+import { openPipBoy, closePipBoy, isPipBoyOpen } from './ui_pipboy.js'
 import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
-import { makePanelDraggable } from './dragPanel.js'
+import { makePanelDraggable } from './ui_drag.js'
+import { WindowFrame, SmallButton, Label, List } from './ui_components.js'
+import { uiSaveLoad } from './ui_saveload.js'
+import { initOptionsMenu, getOptionsWindow, showOptionsMenu, closeOptionsMenu } from './ui_options.js'
+import { initSkilldex, getSkilldexWindow, showSkilldex, closeSkilldex } from './ui_skilldex.js'
+import {
+    drawHP,
+    drawAC,
+    drawAP,
+    drawDigits,
+    uiLog,
+    uiDrawWeapon,
+    uiStartCombat,
+    uiEndCombat,
+    uiUpdateCombatAP,
+    uiShowCombatHover,
+    uiHideCombatHover,
+    uiEndCombatAnimationDone,
+} from './ui_hud.js'
+import {
+    UIMode,
+    initUiContainer,
+    closeAllPanels,
+    isInventoryOpen,
+    isCharacterOpen,
+    isSkilldexOpen,
+    isOptionsOpen,
+    registerCharacterWindow,
+    registerSkilldexWindow,
+    registerOptionsWindow,
+    registerCloseInventoryPanel,
+} from './ui_panels.js'
+
+// Re-export panel helpers so external callers can still import from './ui.js'
+export { WindowFrame, SmallButton, Label, List } from './ui_components.js'
+export { uiSaveLoad } from './ui_saveload.js'
+export {
+    drawHP,
+    drawAC,
+    drawAP,
+    uiLog,
+    uiDrawWeapon,
+    uiStartCombat,
+    uiEndCombat,
+    uiUpdateCombatAP,
+    uiShowCombatHover,
+    uiHideCombatHover,
+} from './ui_hud.js'
+export {
+    UIMode,
+    closeAllPanels,
+    isInventoryOpen,
+    isCharacterOpen,
+    isSkilldexOpen,
+    isOptionsOpen,
+} from './ui_panels.js'
 
 // UI system
 
@@ -51,206 +103,18 @@ import { makePanelDraggable } from './dragPanel.js'
 // TODO: fix style for inventory image amount
 // TODO: option for scaling the UI
 
-export class WindowFrame {
-    children: Widget[] = []
-    elem: HTMLElement
-    showing = false
-
-    constructor(
-        public background: string,
-        public position: Point,
-        public width: number,
-        public height: number,
-        children?: Widget[]
-    ) {
-        this.elem = document.createElement('div')
-
-        Object.assign(this.elem.style, {
-            position: 'absolute',
-            left: `${position.x}px`,
-            top: `${position.y}px`,
-            width: `${width}px`,
-            height: `${height}px`,
-            backgroundImage: `url('${background}')`,
-        })
-
-        if (children) {
-            for (const child of children) {
-                this.add(child)
-            }
-        }
-    }
-
-    add(widget: Widget): this {
-        this.children.push(widget)
-        this.elem.appendChild(widget.elem)
-        return this
-    }
-
-    show(): this {
-        if (this.showing) {
-            return this
-        }
-        this.showing = true
-        $uiContainer.appendChild(this.elem)
-        return this
-    }
-
-    close(): void {
-        if (!this.showing) {
-            return
-        }
-        this.showing = false
-        this.elem.parentNode!.removeChild(this.elem)
-    }
-
-    toggle(): this {
-        if (this.showing) {
-            this.close()
-        } else {
-            this.show()
-        }
-        return this
-    }
-}
-export class SmallButton extends Widget {
-    constructor(x: number, y: number) {
-        super('art/intrface/lilredup.png', { x, y, w: 15, h: 16 })
-        this.mouseDownBG('art/intrface/lilreddn.png')
-    }
-}
-
-export class Label extends Widget {
-    constructor(x: number, y: number, text: string, public textColor: string = 'yellow') {
-        super(null, { x, y, w: 'auto', h: 'auto' })
-        this.setText(text)
-        this.elem.style.color = this.textColor
-    }
-
-    setText(text: string): void {
-        this.elem.innerHTML = text
-    }
-}
-
-interface ListItem {
-    id?: any // identifier userdata
-    uid?: number // unique identifier (filled in by List)
-    text: string
-    onSelected?: () => void
-}
-
-// TODO: disable-selection class
-export class List extends Widget {
-    items: ListItem[] = []
-    itemSelected?: (item: ListItem) => void
-    currentlySelected: ListItem | null = null
-    currentlySelectedElem: HTMLElement | null = null
-    _lastUID = 0
-
-    constructor(
-        bbox: CSSBoundingBox,
-        items?: ListItem[],
-        public textColor: string = '#00FF00',
-        public selectedTextColor: string = '#FCFC7C'
-    ) {
-        super(null, bbox)
-        this.elem.style.color = this.textColor
-
-        if (items) {
-            for (const item of items) {
-                this.addItem(item)
-            }
-        }
-    }
-
-    onItemSelected(fn: (item: ListItem) => void): this {
-        this.itemSelected = fn
-        return this
-    }
-
-    getSelection(): ListItem | null {
-        return this.currentlySelected
-    }
-
-    // Select the given item (and optionally, give its element for performance reasons)
-    select(item: ListItem, itemElem?: HTMLElement): boolean {
-        if (!itemElem) {
-            // Find element belonging to this item
-            itemElem = this.elem.querySelector(`[data-uid="${item.uid}"]`) as HTMLElement
-        }
-
-        if (!itemElem) {
-            console.warn(`[UI] can't find item's element for item UID ${item.uid}`)
-            return false
-        }
-
-        this.itemSelected && this.itemSelected(item)
-
-        item.onSelected && item.onSelected()
-
-        if (this.currentlySelectedElem) {
-            // Reset text color for old selection
-            this.currentlySelectedElem.style.color = this.textColor
-        }
-
-        // Use selection color for new selection
-        itemElem.style.color = this.selectedTextColor
-
-        this.currentlySelected = item
-        this.currentlySelectedElem = itemElem
-
-        return true
-    }
-
-    // Select item given by its id
-    selectId(id: any): boolean {
-        const item = this.items.filter((item) => item.id === id)[0]
-        if (!item) {
-            return false
-        }
-        this.select(item)
-        return true
-    }
-
-    addItem(item: ListItem): ListItem {
-        item.uid = this._lastUID++
-        this.items.push(item)
-
-        const itemElem = document.createElement('div')
-        itemElem.style.cursor = 'pointer'
-        itemElem.textContent = item.text
-        itemElem.setAttribute('data-uid', item.uid + '')
-        itemElem.onclick = () => {
-            this.select(item, itemElem)
-        }
-        this.elem.appendChild(itemElem)
-
-        // Select first item added
-        if (!this.currentlySelected) {
-            this.select(item)
-        }
-
-        return item
-    }
-
-    clear(): void {
-        this.items.length = 0
-
-        const node = this.elem
-        while (node.firstChild) {
-            node.removeChild(node.firstChild)
-        }
-    }
-}
-// Container that all of the top-level UI elements reside in
-let $uiContainer: HTMLElement
-
 function uiInit() {
     // WindowFrame.show() appends to $uiContainer; point it at #uiStage so
     // all skilldex/character/save-load/worldmap windows inherit the 800×600
     // centered coordinate frame. Fall back to #game-container if the stage
     // div is missing (e.g. legacy HTML).
-    $uiContainer = (document.getElementById('uiStage') ?? document.getElementById('game-container'))!
+    initUiContainer()
+
+    // Wire panel mutual-exclusion helpers to their respective WindowFrames.
+    registerSkilldexWindow(getSkilldexWindow)
+    registerOptionsWindow(getOptionsWindow)
+    registerCharacterWindow(() => characterWindow ?? null)
+    registerCloseInventoryPanel(closeInventoryPanel)
 
     initSkilldex()
     initOptionsMenu()
@@ -279,27 +143,9 @@ function uiInit() {
     }
 }
 
-// --- Panel mutual-exclusion helpers -----------------------------------------
-//
-// These let each panel-open path close any other panels that are currently up,
-// so buttons behave like tabs rather than stackable overlays. They are also
-// used by the button handlers to implement toggle-to-close.
-
-export function isInventoryOpen(): boolean {
-    return globalState.uiMode === UIMode.inventory
-}
-
-export function isCharacterOpen(): boolean {
-    return !!(characterWindow && characterWindow.showing)
-}
-
-export function isSkilldexOpen(): boolean {
-    return !!(skilldexWindow && skilldexWindow.showing)
-}
-
-export function isOptionsOpen(): boolean {
-    return !!(optionsWindow && optionsWindow.showing)
-}
+// Panel mutual-exclusion helpers have been moved to ui_panels.ts and are
+// re-exported above. The closeInventoryPanel() function below is the concrete
+// impl, registered with ui_panels in uiInit().
 
 function closeInventoryPanel(): void {
     if (!isInventoryOpen()) return
@@ -309,227 +155,10 @@ function closeInventoryPanel(): void {
     uiDrawWeapon()
 }
 
-export function closeAllPanels(): void {
-    if (isPipBoyOpen()) closePipBoy()
-    if (isAutomapOpen()) closeAutomap()
-    if (isCharacterOpen()) characterWindow.close()
-    if (isInventoryOpen()) closeInventoryPanel()
-    if (isSkilldexOpen()) skilldexWindow.close()
-    if (isOptionsOpen()) optionsWindow.close()
-}
-
-let skilldexWindow: WindowFrame
 let characterWindow: WindowFrame
-let optionsWindow: WindowFrame
 
-// FO2-CE ref: skilldex.cc — skilldexOpen() / skilldexWindowInit()
-// Skilldex window showing 8 usable skills with current values and keyboard shortcuts
-function initSkilldex() {
-    // Skill value containers — updated each time the skilldex is opened/shown
-    const skillValueElems: HTMLElement[] = []
-
-    // FO2-CE ref: skilldex.cc — Sneak is the only truly passive skill (toggle).
-    // First Aid and Doctor can target other critters OR self (ground click = self).
-    // All other skills require a target object.
-    function isPassiveSkill(skill: Skills): boolean {
-        return skill === Skills.Sneak
-    }
-
-    function useSkill(skill: Skills) {
-        return () => {
-            skilldexWindow.close()
-
-            if (isPassiveSkill(skill)) {
-                // Passive/self skills: execute immediately, no target selection needed
-                const skillName = SKILL_NAMES[skill - 1]
-                const player = globalState.player
-                if (!player) return
-                const result = skillUse(player, player, skillName)
-                uiLog(result.message)
-                if (result.hpHealed > 0) {
-                    drawHP(player.getStat('HP'))
-                }
-                console.log('[UI] Passive skill executed:', skillName, result)
-                return
-            }
-
-            // Target skills: enter targeting mode — cursor changes, game loop continues
-            globalState.uiMode = UIMode.useSkill
-            globalState.skillMode = skill
-            globalState.cursorMode = 'useSkill'
-            // CSS cursor fallback — crosshair visible even if WebGL crossuse asset is missing
-            const cnv = document.getElementById('cnv')
-            if (cnv) cnv.style.cursor = "url('art/intrface/crossuse.png') 11 11, crosshair"
-            console.log('[UI] Skill targeting mode:', SKILL_NAMES[skill - 1])
-        }
-    }
-
-    skilldexWindow = new WindowFrame(
-        'art/intrface/skldxbox',
-        {
-            // Positions are in the 800×600 layout frame provided by
-            // #uiStage; the stage centers those coordinates on screen.
-            x: Config.ui.screenWidth - 185,
-            y: Config.ui.screenHeight - 368 - 99,
-        },
-        185,
-        368
-    )
-        .add(new FontWidget(65, 15, 'SKILLDEX', font3, '#FFD700'))
-
-    // FO2-CE ref: skilldex.cc SkilldexSkill enum — 8 skills in order
-    const skilldexSkills: [string, Skills][] = [
-        ['Sneak',     Skills.Sneak],
-        ['Lockpick',  Skills.Lockpick],
-        ['Steal',     Skills.Steal],
-        ['Traps',     Skills.Traps],
-        ['First Aid', Skills.FirstAid],
-        ['Doctor',    Skills.Doctor],
-        ['Science',   Skills.Science],
-        ['Repair',    Skills.Repair],
-    ]
-
-    let yPos = 49
-    for (let i = 0; i < skilldexSkills.length; i++) {
-        const [name, skill] = skilldexSkills[i]
-
-        // Skill name — div-per-glyph for transparent background
-        const nameWidget = new Widget(null, { x: 19, y: yPos - 5, w: 110, h: 24 })
-        nameWidget.css({ cursor: 'pointer', display: 'flex', alignItems: 'flex-end' }).onClick(useSkill(skill))
-        skilldexWindow.add(nameWidget)
-
-        // Render text once font is loaded
-        font3.onLoad(() => {
-            const rendered = font3.renderText(name.toUpperCase(), '#FFD700')
-            rendered.style.pointerEvents = 'none'
-            nameWidget.elem.appendChild(rendered)
-        })
-
-        // FO2-CE ref: skilldex.cc — 3-digit skill value display next to each button
-        const valWidget = new Widget(null, { x: 112, y: yPos - 2, w: 42, h: 28 })
-        skillValueElems.push(valWidget.elem)
-        skilldexWindow.add(valWidget)
-
-        yPos += 36
-    }
-
-    skilldexWindow.add(
-        new SmallButton(47, 339).onClick(() => { skilldexWindow.close() })
-    )
-
-    Object.assign(skilldexWindow.elem.style, {
-        backgroundImage: `url('${skilldexWindow.background}.png')`,
-        backgroundRepeat: 'no-repeat',
-        backgroundSize: '100% 100%',
-        zIndex: '20',
-        cursor: 'default',
-    })
-
-    // Drag-to-reposition from non-interactive areas of the skilldex frame,
-    // matching the PipBoy / automap / inventory / character panels.
-    makePanelDraggable(skilldexWindow.elem)
-
-    // FO2-CE ref: skilldex.cc — update skill values when the skilldex is shown
-    const origShow = skilldexWindow.show.bind(skilldexWindow)
-    skilldexWindow.show = function() {
-        const result = origShow()
-        // Update displayed skill values from current player stats
-        const player = globalState.player
-        if (player) {
-            for (let i = 0; i < skilldexSkills.length; i++) {
-                const skillName = skilldexSkills[i][0]
-                const val = player.getSkill(skillName)
-                // FO2-CE: negative values (from Hard difficulty) shown in red
-                const el = skillValueElems[i]
-                while (el.firstChild) el.removeChild(el.firstChild)
-                el.appendChild(renderBignum(val, 3, val < 0 ? 'red' : 'yellow'))
-            }
-        }
-        return result
-    }
-
-    // FO2-CE ref: skilldex.cc — keyboard shortcuts: 1-8 for skills, ESC to close
-    const skilldexKeyHandler = (e: KeyboardEvent) => {
-        if (!skilldexWindow.showing) return
-
-        if (e.key === 'Escape') {
-            skilldexWindow.close()
-            e.preventDefault()
-            return
-        }
-
-        const num = parseInt(e.key)
-        if (num >= 1 && num <= 8) {
-            useSkill(skilldexSkills[num - 1][1])()
-            e.preventDefault()
-        }
-    }
-    document.addEventListener('keydown', skilldexKeyHandler)
-}
-
-// FO2-CE ref: options.cc — in-game options panel with Save/Load/Preferences/Quit/Done
-function initOptionsMenu() {
-    optionsWindow = new WindowFrame(
-        'art/intrface/opbase',
-        {
-            x: (Config.ui.screenWidth - 200) / 2,
-            y: (Config.ui.screenHeight - 260) / 2,
-        },
-        200,
-        260
-    )
-        .add(new FontWidget(50, 15, 'OPTIONS', font3, '#FFD700'))
-
-    // FO2-CE ref: options.cc — button order matches original: Save, Load, Preferences, Quit, Done
-    const optionButtons: [string, () => void][] = [
-        ['Save Game',   () => { optionsWindow.close(); uiSaveLoad(true) }],
-        ['Load Game',   () => { optionsWindow.close(); uiSaveLoad(false) }],
-        ['Preferences', () => { alert('Preferences not yet implemented.') }],
-        ['Quit Game',   () => { if (confirm('Quit to main menu?')) window.location.reload() }],
-        ['Done',        () => { optionsWindow.close() }],
-    ]
-
-    let yPos = 55
-    for (const [label, handler] of optionButtons) {
-        const btnWidget = new Widget('art/intrface/opbtnoff.png', { x: 32, y: yPos, w: 137, h: 33 })
-            .mouseDownBG('art/intrface/opbtnon.png')
-            .css({ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' })
-            .onClick(handler)
-        optionsWindow.add(btnWidget)
-
-        font3.onLoad(() => {
-            const rendered = font3.renderText(label.toUpperCase(), '#FFD700')
-            rendered.style.pointerEvents = 'none'
-            btnWidget.elem.appendChild(rendered)
-        })
-
-        yPos += 36
-    }
-
-    Object.assign(optionsWindow.elem.style, {
-        backgroundImage: `url('${optionsWindow.background}.png')`,
-        backgroundRepeat: 'no-repeat',
-        backgroundSize: '100% 100%',
-        zIndex: '20',
-        cursor: 'default',
-    })
-
-    makePanelDraggable(optionsWindow.elem)
-
-    // FO2-CE ref: options.cc — S=Save, L=Load, P=Preferences, ESC/D=Done
-    const optionsKeyHandler = (e: KeyboardEvent) => {
-        if (!optionsWindow.showing) return
-
-        switch (e.key.toLowerCase()) {
-            case 's': optionsWindow.close(); uiSaveLoad(true); e.preventDefault(); break
-            case 'l': optionsWindow.close(); uiSaveLoad(false); e.preventDefault(); break
-            case 'p': alert('Preferences not yet implemented.'); e.preventDefault(); break
-            case 'd':
-            case 'escape': optionsWindow.close(); e.preventDefault(); break
-        }
-    }
-    document.addEventListener('keydown', optionsKeyHandler)
-}
+// initSkilldex() has moved to ui_skilldex.ts.
+// initOptionsMenu() has moved to ui_options.ts.
 
 function initCharacterScreen() {
     const player = globalState.player!
@@ -1144,25 +773,6 @@ function initCharacterScreen() {
     })
 }
 
-export enum UIMode {
-    none = 0,
-    dialogue = 1,
-    barter = 2,
-    loot = 3,
-    inventory = 4,
-    worldMap = 5,
-    elevator = 6,
-    calledShot = 7,
-    skilldex = 8,
-    useSkill = 9,
-    contextMenu = 10,
-    saveLoad = 11,
-    char = 12,
-    pipBoy = 13,
-    automap = 14,
-    options = 15,
-}
-
 // XXX: Should this throw if the element doesn't exist?
 function $id(id: string): HTMLElement {
     return document.getElementById(id)!
@@ -1304,9 +914,9 @@ export function initUI() {
     }
 
     $id('optionsButton').onclick = () => {
-        if (isOptionsOpen()) { optionsWindow.close(); return }
+        if (isOptionsOpen()) { closeOptionsMenu(); return }
         closeAllPanels()
-        optionsWindow.show()
+        showOptionsMenu()
     }
     // Inventory panel is a static DOM element — wire drag once at init.
     makePanelDraggable($id('inventoryBox'))
@@ -1432,9 +1042,9 @@ export function initUI() {
     $id('skilldexButton').onclick = () => {
         // Toggle: pressing while open closes it; otherwise close any other
         // open panel first and open skilldex.
-        if (isSkilldexOpen()) { skilldexWindow.close(); return }
+        if (isSkilldexOpen()) { closeSkilldex(); return }
         closeAllPanels()
-        skilldexWindow.show()
+        showSkilldex()
     }
 
     function makeScrollable($el: HTMLElement, scroll = 60) {
@@ -1523,9 +1133,9 @@ export function uiContextMenu(obj: Obj, evt: any) {
     const skillBtn = button(obj, 'skill', () => {
         // Route through the panel system so skilldex obeys mutual-exclusion
         // with PipBoy / inventory / character / automap.
-        if (isSkilldexOpen()) { skilldexWindow.close(); return }
+        if (isSkilldexOpen()) { closeSkilldex(); return }
         closeAllPanels()
-        skilldexWindow.show()
+        showSkilldex()
     })
 
     const isCritter = obj.type === 'critter'
@@ -1563,161 +1173,8 @@ export function uiContextMenu(obj: Obj, evt: any) {
     $menu.appendChild(cancelBtn)
 }
 
-export function uiStartCombat() {
-    globalState.cursorMode = 'attack'
-    // play end container animation
-    Object.assign($id('endContainer').style, { animationPlayState: 'running', webkitAnimationPlayState: 'running' })
-    uiUpdateCombatAP()
-
-    const player = globalState.player
-    drawHP(player.getStat('HP'))
-    drawAC(player.getStat('AC'))
-    drawAP(player.AP!.getAvailableMoveAP(), player.AP!.getTotalMaxAP())
-}
-
-export function uiEndCombat() {
-    // play end container animation
-    Object.assign($id('endContainer').style, { animationPlayState: 'running', webkitAnimationPlayState: 'running' })
-
-    // disable buttons
-    hidev($id('endTurnButton'))
-    hidev($id('endCombatButton'))
-    // reset cursor back to move mode
-    globalState.cursorMode = 'move'
-
-    // hide combat-specific UI
-    const $ap = document.getElementById('combatAPDisplay')
-    if ($ap) $ap.style.display = 'none'
-    const $hover = document.getElementById('combatHoverInfo')
-    if ($hover) $hover.style.display = 'none'
-}
-
-export function uiUpdateCombatAP() {
-    const $ap = document.getElementById('combatAPDisplay')
-    if (!$ap) return
-    if (!globalState.inCombat || !globalState.player.AP) {
-        $ap.style.display = 'none'
-        return
-    }
-    const ap = globalState.player.AP
-    $ap.style.display = 'block'
-    $ap.textContent = `AP: ${ap.getAvailableCombatAP()} / ${ap.getTotalMaxAP()}`
-}
-
-export function uiShowCombatHover(target: Critter, screenX: number, screenY: number) {
-    const $hover = document.getElementById('combatHoverInfo')
-    if (!$hover) return
-
-    let info = `${target.name || 'Unknown'}\nHP: ${target.getStat('HP')}/${target.getStat('Max HP')}`
-
-    if (globalState.inCombat && globalState.combat && globalState.player.equippedWeapon?.weapon) {
-        const hitChance = globalState.combat.getHitChance(globalState.player, target, 'torso')
-        info += `\nHit: ${Math.max(0, hitChance.hit)}%`
-    }
-
-    $hover.style.display = 'block'
-    $hover.style.left = (screenX + 16) + 'px'
-    $hover.style.top = (screenY - 10) + 'px'
-    $hover.textContent = info
-    $hover.style.whiteSpace = 'pre'
-}
-
-export function uiHideCombatHover() {
-    const $hover = document.getElementById('combatHoverInfo')
-    if ($hover) $hover.style.display = 'none'
-}
-
-function uiEndCombatAnimationDone(this: HTMLElement) {
-    Object.assign(this.style, { animationPlayState: 'paused', webkitAnimationPlayState: 'paused' })
-
-    if (globalState.inCombat) {
-        // enable buttons
-        showv($id('endTurnButton'))
-        showv($id('endCombatButton'))
-    }
-}
-
-export function uiDrawWeapon() {
-    // draw the active weapon in the interface bar
-    const weapon = globalState.player.equippedWeapon
-    clearEl($id('attackButton'))
-    const $wepImg = $id('attackButtonWeapon') as HTMLImageElement
-    const $typeImg = $img('attackButtonType')
-    if (!weapon || !weapon.weapon) {
-        // Unarmed HUD: show current punch/kick mode icon and AP cost
-        const unarmedSkill = globalState.player!.getSkill('Unarmed')
-        const mode = getActiveUnarmedMode(unarmedSkill, globalState.unarmedModeIdx)
-        $wepImg.style.display = 'none'
-        $typeImg.style.display = ''
-        $img('attackButtonType').src = `art/intrface/${mode.icon}.png`
-        const CHAR_W = 10
-        if (mode.apCost <= 9) {
-            $id('attackButtonAPDigit').style.backgroundPosition = 0 - CHAR_W * mode.apCost + 'px'
-        }
-        hide($id('attackButtonCalled'))
-        return
-    }
-    $wepImg.style.display = ''
-    $typeImg.style.display = ''
-
-    if (weapon.weapon.type !== 'melee') {
-        $wepImg.onload = null
-        $wepImg.onload = function (this: HTMLImageElement) {
-            if (!this.complete) {
-                return
-            }
-            Object.assign(this.style, {
-                position: 'absolute',
-                top: '5px',
-                left: $id('attackButton').offsetWidth / 2 - this.width / 2 + 'px',
-                maxHeight: $id('attackButton').offsetHeight - 10 + 'px',
-                display: '',
-            })
-            this.setAttribute('draggable', 'false')
-        }
-        $wepImg.src = weapon.invArt + '.png'
-    }
-
-    // draw weapon AP cost digit
-    // reload=2, called=APCost1+1 (aiming surcharge), burst=APCost2, otherwise APCost1
-    const CHAR_W = 10
-    let digit: number
-    const mode = weapon.weapon.mode
-    if (mode === 'reload') {
-        digit = 2 // TODO: read reload AP from weapon PRO
-    } else if (mode === 'called') {
-        digit = weapon.weapon.getAPCost(1) + 1 // base weapon cost + 1 for aiming (FO2: weaponGetActionPointCost)
-    } else if (weapon.weapon.isBurst && weapon.weapon.isBurst()) {
-        digit = weapon.weapon.getAPCost(2)
-    } else {
-        digit = weapon.weapon.getAPCost(1)
-    }
-    if (digit === undefined || digit > 9) {
-        return
-    } // TODO: Weapon AP >9?
-    $id('attackButtonAPDigit').style.backgroundPosition = 0 - CHAR_W * digit + 'px'
-
-    // draw weapon type (single, burst, called, punch, reload, ...)
-    // TODO: all melee weapons
-    let type: string
-    if (weapon.weapon.type === 'melee') {
-        type = 'punch'
-    } else if (mode === 'reload') {
-        type = 'reload'
-    } else if (weapon.weapon.isBurst && weapon.weapon.isBurst()) {
-        type = 'burst'
-    } else {
-        type = 'single'
-    }
-    $img('attackButtonType').src = `art/intrface/${type}.png`
-
-    // hide or show called shot sigil?
-    if (mode === 'called') {
-        show($id('attackButtonCalled'))
-    } else {
-        hide($id('attackButtonCalled'))
-    }
-}
+// HUD bar (HP/AC/AP/weapon/combat-buttons/hover/log) has moved to ui_hud.ts
+// and is re-exported from ui.ts above.
 
 /**
  * Try to load ammoObj into weaponObj.
@@ -2314,53 +1771,7 @@ export function uiInventoryScreen() {
     }
 }
 
-export function drawHP(hp: number) {
-    drawDigits('#hpDigit', hp, 4, true)
-}
-
-export function drawAC(ac: number) {
-    drawDigits('#acDigit', ac, 4, true)
-}
-
-export function drawAP(current: number, max: number) {
-    for (let i = 1; i <= 10; i++) {
-        const el = document.getElementById('apLight' + i)
-        if (el) {
-            el.style.visibility = i <= current ? 'visible' : 'hidden'
-        }
-    }
-}
-
-function drawDigits(idPrefix: string, amount: number, maxDigits: number, hasSign: boolean) {
-    const CHAR_W = 9,
-        CHAR_NEG = 12
-    const sign = amount < 0 ? CHAR_NEG : 0
-    if (amount < 0) {
-        amount = -amount
-    }
-    const digits = amount.toString()
-    const firstDigitIdx = hasSign ? 2 : 1
-    if (hasSign) {
-        $q(idPrefix + '1').style.backgroundPosition = 0 - CHAR_W * sign + 'px'
-    } // sign
-    for (
-        let i = firstDigitIdx;
-        i <= maxDigits - digits.length;
-        i++ // left-fill with zeroes
-    ) {
-        $q(idPrefix + i).style.backgroundPosition = '0px'
-    }
-    for (let i = 0; i < digits.length; i++) {
-        const idx = digits.length - 1 - i
-        let digit
-        if (digits[idx] === '-') {
-            digit = 12
-        } else {
-            digit = parseInt(digits[idx])
-        }
-        $q(idPrefix + (maxDigits - i)).style.backgroundPosition = 0 - CHAR_W * digit + 'px'
-    }
-}
+// drawHP / drawAC / drawAP / drawDigits have moved to ui_hud.ts.
 
 // Smoothly transition an element's top property from an origin to a target position over a duration
 function uiAnimateBox($el: HTMLElement, origin: number | null, target: number, callback?: () => void): void {
@@ -2886,11 +2297,7 @@ export function uiLoot(object: Obj) {
     drawLoot()
 }
 
-export function uiLog(msg: string) {
-    const $log = $id('displayLog')
-    $log.insertAdjacentHTML('beforeend', `<li>${msg}</li>`)
-    $log.scrollTop = $log.scrollHeight
-}
+// uiLog has moved to ui_hud.ts.
 
 export function uiCloseWorldMap() {
     globalState.uiMode = UIMode.none
@@ -3120,84 +2527,4 @@ export function uiCalledShot(art: string, target: Critter, callback?: (regionHit
     }
 }
 
-export function uiSaveLoad(isSave: boolean): void {
-    globalState.uiMode = UIMode.saveLoad
-
-    const listOfSaves = new List({ x: 55, y: 50, w: 'auto', h: 'auto' })
-    const saveInfo = new Label(404, 262, '', '#00FF00')
-    // TODO: CSSBoundingBox's width and height should be optional (and default to `auto`), then Label can accept one
-    Object.assign(saveInfo.elem.style, {
-        width: '154px',
-        height: '33px',
-        fontSize: '8pt',
-        overflow: 'hidden',
-    })
-
-    const saveLoadWindow = new WindowFrame('art/intrface/lsgame.png', { x: 80, y: 20 }, 640, 480)
-        .add(new Widget('art/intrface/lscover.png', { x: 340, y: 40, w: 275, h: 173 }))
-        .add(new Label(50, 26, isSave ? 'Save Game' : 'Load Game'))
-        .add(new SmallButton(391, 349).onClick(selected))
-        .add(new Label(391 + 18, 349, 'Done'))
-        .add(new SmallButton(495, 349).onClick(done))
-        .add(new Label(495 + 18, 349, 'Cancel'))
-        .add(saveInfo)
-        .add(listOfSaves)
-        .show()
-
-    if (isSave) {
-        listOfSaves.select(
-            listOfSaves.addItem({
-                text: '<New Slot>',
-                id: -1,
-                onSelected: () => {
-                    saveInfo.setText('New save')
-                },
-            })
-        )
-    }
-
-    // List saves, and write them to the UI list
-    saveList((saves: SaveGame[]) => {
-        for (const save of saves) {
-            listOfSaves.addItem({
-                text: save.name,
-                id: save.id,
-                onSelected: () => {
-                    saveInfo.setText(formatSaveDate(save) + '<br>' + save.currentMap)
-                },
-            })
-        }
-    })
-
-    function done() {
-        globalState.uiMode = UIMode.none
-        saveLoadWindow.close()
-    }
-
-    function selected() {
-        // Done was clicked, so save/load the slot
-        const item = listOfSaves.getSelection()
-        if (!item) {
-            return
-        } // No slot selected
-
-        const saveID = item.id
-
-        console.log('[UI] %s save #%d.', isSave ? 'Saving' : 'Loading', saveID)
-
-        if (isSave) {
-            const name = prompt('Save Name?')
-
-            if (saveID !== -1) {
-                if (!confirm('Are you sure you want to overwrite that save slot?')) {
-                    return
-                }
-            }
-
-            save(name, saveID === -1 ? undefined : saveID, done)
-        } else {
-            load(saveID)
-            done()
-        }
-    }
-}
+// uiSaveLoad has moved to ui_saveload.ts — re-exported below.

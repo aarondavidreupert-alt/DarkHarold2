@@ -15,9 +15,9 @@ limitations under the License.
 */
 
 import globalState from './globalState.js'
-import { UIMode } from './ui.js'
+import { UIMode } from './ui_panels.js'
 import { renderAutomapCanvas, drawAutomapInto } from './automapData.js'
-import { makePanelDraggable } from './dragPanel.js'
+import { makePanelDraggable } from './ui_drag.js'
 
 let automapContainer: HTMLDivElement | null = null
 
