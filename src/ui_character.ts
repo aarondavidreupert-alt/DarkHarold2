@@ -760,7 +760,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const cancelBtn = new SmallButton(552, 454)
 
     characterWindow = new WindowFrame(
-        'art/intrface/edtredt.png',
+        'art/intrface/edtrcrte.png',
         {
             x: Config.ui.screenWidth / 2 - 640 / 2,
             y: Config.ui.screenHeight - 99 - 480,
@@ -887,8 +887,14 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     }
     updatePoolLabel()
 
-    // ── SPECIAL ± buttons (lilredup / lilreddn) ───────────────────────────────
-    // FO2-CE ref: editor.cc — stat +/- buttons at x≈86, stacked per row
+    // ── SPECIAL ± buttons (ebut_out / ebut_in) ───────────────────────────────
+    // FO2-CE ref: editor.cc — stat +/- buttons at x≈88, stacked per row
+    const wireEbut = (btn: HTMLElement, onPress: () => void) => {
+        btn.onmousedown = () => { btn.style.backgroundImage = "url('art/intrface/ebut_in.png')"; onPress() }
+        btn.onmouseup   = () => { btn.style.backgroundImage = "url('art/intrface/ebut_out.png')" }
+        btn.onmouseleave = () => { btn.style.backgroundImage = "url('art/intrface/ebut_out.png')" }
+    }
+
     let si = 0
     for (const stat of STATS) {
         const statY = 37 + si * 33
@@ -898,10 +904,11 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
             position: 'absolute',
             left: '88px',
             top: `${statY + 2}px`,
-            width: '14px',
-            height: '11px',
-            backgroundImage: "url('art/intrface/lilredup.png')",
+            width: '16px',
+            height: '12px',
+            backgroundImage: "url('art/intrface/ebut_out.png')",
             backgroundRepeat: 'no-repeat',
+            backgroundSize: '16px 12px',
             cursor: 'pointer',
             zIndex: '2',
         })
@@ -910,17 +917,18 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         Object.assign(dnBtn.style, {
             position: 'absolute',
             left: '88px',
-            top: `${statY + 14}px`,
-            width: '14px',
-            height: '11px',
-            backgroundImage: "url('art/intrface/lilreddn.png')",
+            top: `${statY + 16}px`,
+            width: '16px',
+            height: '12px',
+            backgroundImage: "url('art/intrface/ebut_out.png')",
             backgroundRepeat: 'no-repeat',
+            backgroundSize: '16px 12px',
             cursor: 'pointer',
             zIndex: '2',
         })
 
         const capturedStat = stat
-        upBtn.onclick = () => {
+        wireEbut(upBtn, () => {
             if (pool <= 0) return
             const cur = newStatSet.getBase(capturedStat)
             if (cur >= 10) return
@@ -928,15 +936,15 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
             pool--
             updatePoolLabel()
             redrawStatsSkills()
-        }
-        dnBtn.onclick = () => {
+        })
+        wireEbut(dnBtn, () => {
             const cur = newStatSet.getBase(capturedStat)
             if (cur <= statMin[capturedStat]) return
             newStatSet.setBase(capturedStat, cur - 1)
             pool++
             updatePoolLabel()
             redrawStatsSkills()
-        }
+        })
 
         characterWindow.elem.appendChild(upBtn)
         characterWindow.elem.appendChild(dnBtn)
@@ -981,32 +989,30 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         position: 'absolute',
         left: '155px',
         top: '6px',
-        width: '11px',
-        height: '11px',
-        backgroundImage: "url('art/intrface/lilreddn.png')",
+        width: '16px',
+        height: '12px',
+        backgroundImage: "url('art/intrface/ebut_out.png')",
         backgroundRepeat: 'no-repeat',
+        backgroundSize: '16px 12px',
         cursor: 'pointer',
         zIndex: '2',
     })
-    ageDecBtn.onclick = () => {
-        if (playerAge > 16) { playerAge--; updateAgeLabel() }
-    }
+    wireEbut(ageDecBtn, () => { if (playerAge > 16) { playerAge--; updateAgeLabel() } })
 
     const ageIncBtn = document.createElement('div')
     Object.assign(ageIncBtn.style, {
         position: 'absolute',
         left: '182px',
         top: '6px',
-        width: '11px',
-        height: '11px',
-        backgroundImage: "url('art/intrface/lilredup.png')",
+        width: '16px',
+        height: '12px',
+        backgroundImage: "url('art/intrface/ebut_out.png')",
         backgroundRepeat: 'no-repeat',
+        backgroundSize: '16px 12px',
         cursor: 'pointer',
         zIndex: '2',
     })
-    ageIncBtn.onclick = () => {
-        if (playerAge < 35) { playerAge++; updateAgeLabel() }
-    }
+    wireEbut(ageIncBtn, () => { if (playerAge < 35) { playerAge++; updateAgeLabel() } })
 
     characterWindow.elem.appendChild(ageDecBtn)
     characterWindow.elem.appendChild(ageIncBtn)
