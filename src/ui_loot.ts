@@ -20,7 +20,8 @@ limitations under the License.
 import globalState from './globalState.js'
 import { Obj } from './object.js'
 import { UIMode } from './ui_panels.js'
-import { uiGetAmount, uiSwapItem } from './ui_barter.js'
+import { uiSwapItem } from './ui_barter.js'
+import { uiGetAmount } from './ui_movemult.js'
 import { makeDropTarget, makeDraggable } from './ui_inventory.js'
 
 // --- DOM helpers (mirrors the ones in ui.ts) -------------------------------
