@@ -15,10 +15,10 @@ limitations under the License.
 */
 
 // movemult.png quantity-selection dialog — shared by barter, loot, and
-// inventory drop. Renders using bignum sprites and up/down hold-to-repeat
-// buttons matching the character screen skill buttons.
+// inventory drop. Renders using bignum sprites, up/down hold-to-repeat
+// buttons, and native FO2 font3 labels.
 
-import { renderBignum } from './ui_font.js'
+import { renderBignum, font3 } from './ui_font.js'
 import { Obj } from './object.js'
 
 const DIALOG_W = 259
@@ -27,9 +27,9 @@ const DIALOG_H = 162
 export function uiGetAmount(item: Obj): Promise<number> {
     return new Promise((resolve) => {
         let currentValue = item.amount
-        // Raw digit buffer for keyboard entry
         let keyBuffer = String(item.amount)
 
+        // --- Full-screen flex overlay centered on #game-container ---
         const overlay = document.createElement('div')
         Object.assign(overlay.style, {
             position: 'absolute',
@@ -40,6 +40,7 @@ export function uiGetAmount(item: Obj): Promise<number> {
             justifyContent: 'center',
         })
 
+        // --- Modal: exact 259×162 movemult.png, no stretching ---
         const modal = document.createElement('div')
         Object.assign(modal.style, {
             position: 'relative',
@@ -50,12 +51,13 @@ export function uiGetAmount(item: Obj): Promise<number> {
             backgroundRepeat: 'no-repeat',
         })
 
-        // Bignum display
+        // --- Bignum display: left 125px, top 45px ---
         const bignumContainer = document.createElement('div')
         Object.assign(bignumContainer.style, {
             position: 'absolute',
-            left: '148px',
-            top: '18px',
+            left: '125px',
+            top: '45px',
+            pointerEvents: 'none',
         })
 
         function renderValue() {
@@ -63,32 +65,7 @@ export function uiGetAmount(item: Obj): Promise<number> {
             bignumContainer.appendChild(renderBignum(currentValue, 5))
         }
 
-        // Up button — increment with hold-to-repeat
-        const upBtn = document.createElement('div')
-        Object.assign(upBtn.style, {
-            position: 'absolute',
-            left: '228px',
-            top: '18px',
-            width: '15px',
-            height: '14px',
-            backgroundImage: "url('art/intrface/splsoff.png')",
-            backgroundRepeat: 'no-repeat',
-            cursor: 'pointer',
-        })
-
-        // Down button — decrement with hold-to-repeat
-        const downBtn = document.createElement('div')
-        Object.assign(downBtn.style, {
-            position: 'absolute',
-            left: '228px',
-            top: '32px',
-            width: '15px',
-            height: '14px',
-            backgroundImage: "url('art/intrface/snegoff.png')",
-            backgroundRepeat: 'no-repeat',
-            cursor: 'pointer',
-        })
-
+        // --- Hold-to-repeat button wiring ---
         function wireButton(btn: HTMLElement, onSprite: string, offSprite: string, inc: boolean) {
             let repeatTimer: number | null = null
             const stopRepeat = () => {
@@ -111,37 +88,84 @@ export function uiGetAmount(item: Obj): Promise<number> {
             btn.onmouseleave = () => stopRepeat()
         }
 
-        wireButton(upBtn, 'art/intrface/splson.png', 'art/intrface/splsoff.png', true)
-        wireButton(downBtn, 'art/intrface/snegon.png', 'art/intrface/snegoff.png', false)
-
-        // DONE click region
-        const doneBtn = document.createElement('div')
-        Object.assign(doneBtn.style, {
+        // Plus button: left 200px, top 45px, 16×12px
+        const upBtn = document.createElement('div')
+        Object.assign(upBtn.style, {
             position: 'absolute',
-            left: '10px',
-            bottom: '8px',
-            width: '90px',
-            height: '20px',
+            left: '200px',
+            top: '45px',
+            width: '16px',
+            height: '12px',
+            backgroundImage: "url('art/intrface/stplsoff.png')",
+            backgroundRepeat: 'no-repeat',
             cursor: 'pointer',
         })
+        wireButton(upBtn, 'art/intrface/stplson.png', 'art/intrface/stplsoff.png', true)
 
-        // CANCEL click region
-        const cancelBtn = document.createElement('div')
-        Object.assign(cancelBtn.style, {
+        // Minus button: left 201px, top 57px, 16×12px
+        const downBtn = document.createElement('div')
+        Object.assign(downBtn.style, {
             position: 'absolute',
-            left: '140px',
-            bottom: '8px',
-            width: '100px',
-            height: '20px',
+            left: '201px',
+            top: '57px',
+            width: '16px',
+            height: '12px',
+            backgroundImage: "url('art/intrface/stnegoff.png')",
+            backgroundRepeat: 'no-repeat',
             cursor: 'pointer',
         })
+        wireButton(downBtn, 'art/intrface/stnegon.png', 'art/intrface/stnegoff.png', false)
 
+        // --- Resolve / cleanup ---
         function cleanup(amount: number) {
             overlay.remove()
             window.removeEventListener('keydown', onKeyDown)
             resolve(amount)
         }
 
+        // --- Helper: button with a font3 label centered inside ---
+        function makeTextBtn(
+            left: string,
+            bottom: string,
+            width: string,
+            height: string,
+            label: string,
+            onClick: () => void
+        ): HTMLElement {
+            const btn = document.createElement('div')
+            Object.assign(btn.style, {
+                position: 'absolute',
+                left,
+                bottom,
+                width,
+                height,
+                cursor: 'pointer',
+                pointerEvents: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+            })
+            const lbl = font3.renderText(label)
+            lbl.style.pointerEvents = 'none'
+            btn.appendChild(lbl)
+            btn.onclick = onClick
+            return btn
+        }
+
+        // DONE — left 10px, bottom 8px, 90×20px, resolves with currentValue
+        const doneBtn = makeTextBtn('10px', '8px', '90px', '20px', 'DONE', () => cleanup(currentValue))
+
+        // ALL — left 130px, bottom 8px, sets currentValue = item.amount without closing
+        const allBtn = makeTextBtn('130px', '8px', '40px', '20px', 'ALL', () => {
+            currentValue = item.amount
+            keyBuffer = String(item.amount)
+            renderValue()
+        })
+
+        // CANCEL — left 175px, bottom 8px, resolves with 0
+        const cancelBtn = makeTextBtn('175px', '8px', '74px', '20px', 'CANCEL', () => cleanup(0))
+
+        // --- Keyboard handler ---
         function onKeyDown(e: KeyboardEvent) {
             if (e.key >= '0' && e.key <= '9') {
                 keyBuffer += e.key
@@ -170,13 +194,11 @@ export function uiGetAmount(item: Obj): Promise<number> {
 
         window.addEventListener('keydown', onKeyDown)
 
-        doneBtn.onclick = () => cleanup(currentValue)
-        cancelBtn.onclick = () => cleanup(0)
-
         modal.appendChild(bignumContainer)
         modal.appendChild(upBtn)
         modal.appendChild(downBtn)
         modal.appendChild(doneBtn)
+        modal.appendChild(allBtn)
         modal.appendChild(cancelBtn)
         overlay.appendChild(modal)
 
