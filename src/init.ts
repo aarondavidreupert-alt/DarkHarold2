@@ -25,6 +25,8 @@ import { Player } from './player.js'
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 import { saveLoadInit } from './saveload.js'
 import { initUI, uiLog } from './ui.js'
+import { initMainMenu, showMainMenu } from './ui_mainmenu.js'
+import { initCharacterCreator, showCharacterCreator } from './ui_charactercreator.js'
 import { Worldmap } from './worldmap.js'
 import { initAutomapTracking } from './automapData.js'
 
@@ -40,17 +42,7 @@ export function initGame() {
 
     uiLog('Welcome to DarkFO')
 
-    if (location.search !== '') {
-        // load map from query string (e.g. URL ending in ?modmain)
-        // also check if it's trying to connect to a remote server
-
-        const query = location.search.slice(1)
-
-        globalState.gMap.loadMap(location.search.slice(1))
-    } // load starting map
-    else {
-        globalState.gMap.loadMap('artemple')
-    }
+    const mapFromQuery = location.search !== '' ? location.search.slice(1) : null
 
     if (Config.engine.doCombat === true) {
         CriticalEffects.loadTable()
@@ -76,6 +68,23 @@ export function initGame() {
 
     initUI()
     initAutomapTracking()
+
+    // Wire main menu + character creator after UI is ready. Callbacks break the
+    // potential circular import: ui_mainmenu ↔ ui_charactercreator.
+    const startNewGame = () => globalState.gMap.loadMap('artemple')
+    initCharacterCreator(startNewGame, showMainMenu)
+    initMainMenu(showCharacterCreator)
+
+    if (mapFromQuery !== null) {
+        // Debug: map specified in URL query → skip main menu and load directly.
+        globalState.gMap.loadMap(mapFromQuery)
+    } else {
+        // Default startup: load the starting map in the background (the main menu
+        // overlay covers the canvas so the player never sees it during menu).
+        // This avoids potential game-loop crashes from a completely unloaded map.
+        globalState.gMap.loadMap('artemple')
+        showMainMenu()
+    }
 
     if (Config.ui.hideRoofWhenUnder) {
         // Only show roofs if the player is not under them

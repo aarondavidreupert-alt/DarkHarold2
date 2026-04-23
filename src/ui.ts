@@ -63,6 +63,8 @@ export { Widget } from './ui_widget.js'
 export type { CSSBoundingBox } from './ui_widget.js'
 export { WindowFrame, SmallButton, Label, List } from './ui_components.js'
 export { uiSaveLoad } from './ui_saveload.js'
+export { showMainMenu, hideMainMenu, isMainMenuVisible, initMainMenu } from './ui_mainmenu.js'
+export { initCharacterCreator } from './ui_charactercreator.js'
 export {
     drawHP,
     drawAC,

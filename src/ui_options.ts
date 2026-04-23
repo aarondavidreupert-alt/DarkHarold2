@@ -43,13 +43,19 @@ export function initOptionsMenu(): void {
     )
         .add(new FontWidget(50, 15, 'OPTIONS', font3, '#FFD700'))
 
-    // FO2-CE ref: options.cc — button order matches original: Save, Load, Preferences, Quit, Done
+    // FO2-CE ref: options.cc — button order matches original FO2: Save, Load, Preferences, Exit to Main, Done
     const optionButtons: [string, () => void][] = [
-        ['Save Game',   () => { optionsWindow.close(); uiSaveLoad(true) }],
-        ['Load Game',   () => { optionsWindow.close(); uiSaveLoad(false) }],
-        ['Preferences', () => { alert('Preferences not yet implemented.') }],
-        ['Quit Game',   () => { if (confirm('Quit to main menu?')) window.location.reload() }],
-        ['Done',        () => { optionsWindow.close() }],
+        ['Save Game',         () => { optionsWindow.close(); uiSaveLoad(true) }],
+        ['Load Game',         () => { optionsWindow.close(); uiSaveLoad(false) }],
+        ['Preferences',       () => { alert('Preferences not yet implemented.') }],
+        ['Exit to Main Menu', () => {
+            if (confirm('Return to the main menu?\nUnsaved progress will be lost.')) {
+                optionsWindow.close()
+                // Reload brings up the main menu (default startup path).
+                window.location.reload()
+            }
+        }],
+        ['Done',              () => { optionsWindow.close() }],
     ]
 
     let yPos = 55
@@ -87,6 +93,11 @@ export function initOptionsMenu(): void {
             case 's': optionsWindow.close(); uiSaveLoad(true); e.preventDefault(); break
             case 'l': optionsWindow.close(); uiSaveLoad(false); e.preventDefault(); break
             case 'p': alert('Preferences not yet implemented.'); e.preventDefault(); break
+            case 'x':
+                if (confirm('Return to the main menu?\nUnsaved progress will be lost.')) {
+                    optionsWindow.close(); window.location.reload()
+                }
+                e.preventDefault(); break
             case 'd':
             case 'escape': optionsWindow.close(); e.preventDefault(); break
         }

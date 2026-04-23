@@ -539,3 +539,4 @@ export function renderBignum(
 
 export const font1 = new FontRenderer('art/fonts/font1_aaf', 'art/fonts/font1_aaf.json')
 export const font3 = new FontRenderer('art/fonts/font3_aaf', 'art/fonts/font3_aaf.json')
+export const font4 = new FontRenderer('art/fonts/font4_aaf', 'art/fonts/font4_aaf.json')

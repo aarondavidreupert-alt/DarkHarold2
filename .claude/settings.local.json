@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(ui_charactercreator)",
+      "Bash(ui_options)",
+      "Bash(init\" | head -10)"
+    ]
+  }
+}

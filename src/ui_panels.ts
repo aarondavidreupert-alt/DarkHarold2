@@ -45,6 +45,8 @@ export enum UIMode {
     pipBoy = 13,
     automap = 14,
     options = 15,
+    mainMenu = 16,
+    characterCreator = 17,
 }
 
 // --- $uiContainer ownership -------------------------------------------------
