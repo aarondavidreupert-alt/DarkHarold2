@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { SkillSet, StatSet } from './char.js'
+import { clamp } from './util.js'
 import { Events } from './events.js'
 import { Point } from './geometry.js'
 import globalState from './globalState.js'
@@ -75,6 +76,8 @@ export class Player extends Critter {
     lightRadius = 4
     lightIntensity = 65536
 
+    traits: string[] = []
+
     toString() {
         return 'The Dude'
     }
@@ -100,9 +103,11 @@ export class Player extends Critter {
             currentLevel++
 
             // FO2-CE ref: stat.cc — Skill points: 5 + 2*INT per level
-            // Educated perk: +2 per rank
+            // Educated perk +2; Skilled trait +5; Gifted trait -5
             let skillPointGain = 5 + this.getStat('INT') * 2
-            if (this.hasPerk('Educated')) skillPointGain += 2
+            if (this.hasPerk('Educated'))          skillPointGain += 2
+            if (this.traits.includes('Skilled'))   skillPointGain += 5
+            if (this.traits.includes('Gifted'))    skillPointGain -= 5
             this.skills.skillPoints += skillPointGain
 
             // FO2-CE ref: stat.cc — HP per level: floor(END / 2) + 2
@@ -113,7 +118,7 @@ export class Player extends Critter {
             this.stats.modifyBase('HP', hpGain)
 
             // FO2-CE ref: editor.cc — perk every 3 levels (Skilled trait: every 4)
-            const perkRate = this.hasPerk('Skilled') ? 4 : 3
+            const perkRate = this.traits.includes('Skilled') ? 4 : 3
             if (currentLevel % perkRate === 0) {
                 this.pendingPerkPick = true
             }
@@ -127,6 +132,71 @@ export class Player extends Critter {
 
     // Set to true when a perk pick is available (at character screen)
     pendingPerkPick = false
+
+    // FO2-CE ref: editor.cc editorRun() — apply character-creation choices to player.
+    // Called by showCharacterCreator() DONE handler after validation passes.
+    applyCreationStats(
+        stats: StatSet,
+        skills: SkillSet,
+        name: string,
+        age: number,
+        sex: 'Male' | 'Female',
+        traits: string[]
+    ): void {
+        const SPECIALS = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK']
+
+        // Apply chosen SPECIAL bases
+        for (const s of SPECIALS) {
+            this.stats.setBase(s, stats.getBase(s))
+        }
+
+        // Apply trait SPECIAL modifiers (FO2-CE ref: trait.cc)
+        this.traits = traits
+        if (traits.includes('Gifted')) {
+            for (const s of SPECIALS) this.stats.modifyBase(s, 1)
+        }
+        if (traits.includes('Bruiser')) {
+            this.stats.modifyBase('STR', 2)
+        }
+        if (traits.includes('Small Frame')) {
+            this.stats.modifyBase('AGI', 1)
+        }
+
+        // Clamp all SPECIAL to [1, 10] after trait modifications
+        for (const s of SPECIALS) {
+            this.stats.setBase(s, clamp(1, 10, this.stats.getBase(s)))
+        }
+
+        // Derive Max HP from final END/STR (FO2: 15 + 2×END + STR)
+        const end = this.stats.getBase('END')
+        const str = this.stats.getBase('STR')
+        const maxHp = 15 + 2 * end + str
+        this.stats.setBase('Max HP', maxHp)
+        this.stats.setBase('HP', maxHp)
+
+        // Derive initial skill points for level 1 (FO2: 5 + 2×INT; Gifted -5; Skilled +5)
+        const int = this.stats.getBase('INT')
+        let sp = 5 + 2 * int
+        if (traits.includes('Gifted'))  sp -= 5
+        if (traits.includes('Skilled')) sp += 5
+        skills.skillPoints = Math.max(0, sp)
+
+        // Apply skills and tags
+        this.skills.baseSkills  = Object.assign({}, skills.baseSkills)
+        this.skills.tagged      = skills.tagged.slice()
+        this.skills.skillPoints = skills.skillPoints
+        this.skills.hasTagPerk  = skills.hasTagPerk
+
+        // Identity
+        this.name = name
+        this.stats.setBase('Age', age)
+        this.gender = sex.toLowerCase()
+
+        console.log(
+            `[CharCreator] Applied: ${name}, ${sex}, age ${age}, `
+            + `traits [${traits.join(', ')}], HP ${maxHp}, SP ${skills.skillPoints}`
+        )
+    }
 
     /*
     var obj = {position: {x: 94, y: 109}, orientation: 2, frame: 0, type: "critter",

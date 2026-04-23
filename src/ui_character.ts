@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// FO2-CE ref: editor.cc — Character screen.
-// SPECIAL stats with descriptive comments, HP / condition flags panel,
-// derived stats panel, skill list with bignum point totals, +/- buttons
-// (hold-to-repeat) and slider, info card (FO2 stgvsn / skilldex assets),
-// folder tab strip (perks / karma / kills), drag-to-reposition.
+// FO2-CE ref: editor.cc — Character screen (view) + character creator (creation).
+// showCharacterScreen()  — in-game read-only view (unchanged from before refactor).
+// showCharacterCreator() — NEW GAME creation mode: allocate SPECIAL, pick traits/tags.
+//
+// Common data (descriptions, images, arrays) lives at module level so both
+// functions share it without duplication.
 
 import { Config } from './config.js'
 import globalState from './globalState.js'
@@ -26,6 +27,174 @@ import { Widget } from './ui_widget.js'
 import { font1, font3, makeFontLabel, renderBignum } from './ui_font.js'
 import { WindowFrame, SmallButton, Label, List } from './ui_components.js'
 import { makePanelDraggable } from './ui_drag.js'
+import { StatSet, SkillSet, SkillCalcOptions } from './char.js'
+
+// ── Module-level constants ────────────────────────────────────────────────────
+
+const SPECIAL_FULL_NAMES: Record<string, string> = {
+    STR: 'Strength', PER: 'Perception', END: 'Endurance',
+    CHA: 'Charisma', INT: 'Intelligence', AGI: 'Agility', LUK: 'Luck',
+}
+const SPECIAL_DESCRIPTIONS: Record<string, string> = {
+    STR: 'Raw physical strength. A high Strength is good for physical characters. Modifies: Hit Points, Melee Damage, and Carry Weight.',
+    PER: 'The ability to see, hear, taste and notice unusual things. A high Perception is important for a sharpshooter.  Modifies: Sequence and ranged combat distance modifiers.',
+    END: 'Stamina and physical toughness. A character with a high Endurance will survive where others may not. Modifies: Hit Points, Poison & Radiation Resistance, Healing Rate, and the additional hit points per level.',
+    CHA: 'A combination of appearance and charm. A high Charisma is important for characters that want to influence people with words. Modifies: NPC reactions, and barter prices.',
+    INT: 'Knowledge, wisdom and the ability to think quickly. A high Intelligence is important for any character. Modifies: the number of new skill points per level, dialogue options, and many skills.',
+    AGI: 'Coordination and the ability to move well. A high Agility is important for any active character. Modifies: Action Points, Armor Class, Sequence, and many skills.',
+    LUK: 'Fate. Karma. An extremely high or low Luck will affect the character - somehow. Events and situations will be changed by how lucky (or unlucky) your character is.',
+}
+const SKILL_DESCRIPTIONS: Record<string, string> = {
+    'Small Guns':     'The use, care and general knowledge of small firearms - pistols, SMGs and rifles.',
+    'Big Guns':       'The operation and maintenance of really big guns - miniguns, rocket launchers, flamethrowers and such.',
+    'Energy Weapons': 'The care and feeding of energy-based weapons.  How to arm and operate weapons that use laser or plasma technology.',
+    'Unarmed':        'A combination of martial arts, boxing and other hand-to-hand martial arts.  Combat with your hands and feet.',
+    'Melee Weapons':  'Using non-ranged weapons in hand-to-hand, or melee combat - knives, sledgehammers, spears, clubs and so on.',
+    'Throwing':       'The skill of muscle-propelled ranged weapons, such as throwing knives, spears and grenades.',
+    'First Aid':      'General healing skill.  Used to heal small cuts, abrasions and other minor ills.  In game terms, the use of first aid can heal more hit points over time than just rest.',
+    'Doctor':         'The healing of major wounds and crippled limbs.  Without this skill, it will take a much longer period of time to restore crippled limbs to use.',
+    'Sneak':          'Quiet movement, and the ability to remain unnoticed. If successful, you will be much harder to locate. You cannot run and sneak at the same time.',
+    'Lockpick':       'The skill of opening locks without the proper key. The use of lockpicks or electronic lockpicks will greatly enhance this skill.',
+    'Steal':          'The ability to make the things of others your own.  Can be used to steal from people or places.',
+    'Traps':          'The finding and removal of traps.  Also the setting of explosives for demolition purposes.',
+    'Science':        'Covers a variety of high technology skills, such as computers, biology, physics and geology.',
+    'Repair':         'The practical application of the Science skill for fixing broken equipment, machinery and electronics.',
+    'Speech':         'The ability to communicate in a practical and efficient manner. The skill of convincing others that your position is correct. The ability to lie and not get caught.',
+    'Barter':         'Trading and trade-related tasks. The ability to get better prices for items you sell, and lower prices for items you buy.',
+    'Gambling':       'The knowledge and practical skills related to wagering. The skill at cards, dice and other games.',
+    'Outdoorsman':    'Practical knowledge of the outdoors, and the ability to live off the land. The knowledge of plants and animals.',
+}
+const DERIVED_DESCRIPTIONS: Record<string, string> = {
+    'Armor Class':          'Armor Class: reduces chance of being hit.',
+    'Action Points':        'Action Points: how many actions you can take per turn.',
+    'Carry Weight':         'Maximum weight you can carry.',
+    'Melee Damage':         'Bonus damage added to melee attacks.',
+    'Damage Resistance':    'Percentage of damage absorbed.',
+    'Poison Resistance':    'Resistance to poison effects.',
+    'Radiation Resistance': 'Resistance to radiation.',
+    'Sequence':             'Determines order of action in combat.',
+    'Healing Rate':         'HP recovered per rest period.',
+    'Critical Chance':      'Base chance to score a critical hit.',
+}
+const CONDITION_DESCRIPTIONS: Record<string, string> = {
+    'Poisoned':           'You are poisoned. Lose HP over time until treated.',
+    'Radiated':           'You have absorbed radiation. High levels are fatal.',
+    'Eye Damage':         'Your eyes are damaged. Perception is reduced.',
+    'Crippled Right Arm': 'Your arm is crippled. Combat effectiveness reduced.',
+    'Crippled Left Arm':  'Your arm is crippled. Combat effectiveness reduced.',
+    'Crippled Right Leg': 'Your leg is crippled. Movement is impaired.',
+    'Crippled Left Leg':  'Your leg is crippled. Movement is impaired.',
+}
+const TRAIT_DESCRIPTIONS: Record<string, string> = {
+    'Fast Metabolism': 'Your metabolic rate is twice normal.  This means that you are much less resistant to radiation and poison, but your body heals faster.',
+    'Bruiser':         'A little slower, but a little bigger.  You may not hit as often, but they will feel it when you do!  Your total action points are lowered, but your Strength is increased.',
+    'Small Frame':     "You are not quite as big as the other villagers, but that never slowed you down.  You can't carry as much, but you are more agile.",
+    'One Hander':      'One of your hands is very dominant.  You excel with single-handed weapons, but two-handed weapons cause a problem.',
+    'Finesse':         'Your attacks show a lot of finesse.  You don\'t do as much damage, but you cause more critical hits.',
+    'Kamikaze':        'By not paying attention to any threats, you can act a lot faster in a turn.  This lowers your armor class to just what you are wearing, but you sequence much faster in a combat turn.',
+    'Heavy Handed':    'You swing harder, not better.  Your attacks are very brutal, but lack finesse.  You rarely cause a good critical, but you always do more melee damage.',
+    'Fast Shot':       'You don\'t have time to aim for a targeted attack, because you attack faster than normal people.  It costs you one less action point for guns and thrown weapons.',
+    'Bloody Mess':     'By some strange twist of fate, people around you die violently.  You always see the worst way a person can die.',
+    'Jinxed':          'The good thing is that everyone around you has more critical failures in combat, the bad thing is so do you!',
+    'Good Natured':    'You studied less-combative skills as you were growing up.  Your combat skills start at a lower level, but First Aid, Doctor, Speech and Barter are substantially improved.',
+    'Chem Reliant':    'You are more easily influenced by chems.  Your chance to be reliant by chem use is twice normal, but you recover faster from their ill effects.',
+    'Chem Resistant':  'Chems only affect you half as long as normal, but your chance to be reliant is also only 50% of normal.',
+    'Sex Appeal':      'You\'ve got the "right" stuff.  Members of the opposite sex are attracted to you, but those of the same sex tend to become quite jealous.',
+    'Skilled':         'Since you spent more time improving your skills than a normal person, you gain 5 additional skill points per experience level. The tradeoff is that you do not gain as many extra abilities. You gain a perk every four levels.',
+    'Gifted':          'You have more innate abilities than most, so you have not spent as much time honing your skills.  Your primary statistics are each +1, but you lose -10% on all skills to start, and receive 5 less skill points per level.',
+}
+
+// FO2-CE ref: character_editor.cc — image paths used in characterEditorDrawCard()
+const SPECIAL_IMG: Record<string, string> = {
+    STR: 'art/skilldex/strength.png',
+    PER: 'art/skilldex/perceptn.png',
+    END: 'art/skilldex/endur.png',
+    CHA: 'art/skilldex/charisma.png',
+    INT: 'art/skilldex/intel.png',
+    AGI: 'art/skilldex/agility.png',
+    LUK: 'art/skilldex/luck.png',
+}
+const SKILL_IMG: Record<string, string> = {
+    'Small Guns':     'art/skilldex/gunsml.png',
+    'Big Guns':       'art/skilldex/gunbig.png',
+    'Energy Weapons': 'art/skilldex/energywp.png',
+    'Unarmed':        'art/skilldex/hnd2hnd.png',
+    'Melee Weapons':  'art/skilldex/melee.png',
+    'Throwing':       'art/skilldex/throwing.png',
+    'First Aid':      'art/skilldex/firstaid.png',
+    'Doctor':         'art/skilldex/doctor.png',
+    'Sneak':          'art/skilldex/sneak.png',
+    'Lockpick':       'art/skilldex/lockpick.png',
+    'Steal':          'art/skilldex/pickpock.png',
+    'Traps':          'art/skilldex/traps.png',
+    'Science':        'art/skilldex/science.png',
+    'Repair':         'art/skilldex/repair.png',
+    'Speech':         'art/skilldex/speech.png',
+    'Barter':         'art/skilldex/barter.png',
+    'Gambling':       'art/skilldex/gambling.png',
+    'Outdoorsman':    'art/skilldex/outdoors.png',
+}
+const DERIVED_IMG: Record<string, string> = {
+    'Armor Class':          'art/skilldex/armorcls.png',
+    'Action Points':        'art/skilldex/actionpt.png',
+    'Carry Weight':         'art/skilldex/carryamt.png',
+    'Melee Damage':         'art/skilldex/meleedam.png',
+    'Damage Resistance':    'art/skilldex/damresis.png',
+    'Poison Resistance':    'art/skilldex/poisnres.png',
+    'Radiation Resistance': 'art/skilldex/radresis.png',
+    'Sequence':             'art/skilldex/sequence.png',
+    'Healing Rate':         'art/skilldex/healrate.png',
+    'Critical Chance':      'art/skilldex/critchnc.png',
+}
+const CONDITION_IMG: Record<string, string> = {
+    'Poisoned':           'art/skilldex/poisoned.png',
+    'Radiated':           'art/skilldex/radiated.png',
+    'Eye Damage':         'art/skilldex/eyedamag.png',
+    'Crippled Right Arm': 'art/skilldex/armright.png',
+    'Crippled Left Arm':  'art/skilldex/armleft.png',
+    'Crippled Right Leg': 'art/skilldex/legright.png',
+    'Crippled Left Leg':  'art/skilldex/legleft.png',
+}
+const TRAIT_IMG: Record<string, string> = {
+    'Fast Metabolism': 'art/skilldex/fastmeta.png',
+    'Bruiser':         'art/skilldex/bruiser.png',
+    'Small Frame':     'art/skilldex/smlframe.png',
+    'One Hander':      'art/skilldex/onehand.png',
+    'Finesse':         'art/skilldex/finesse.png',
+    'Kamikaze':        'art/skilldex/kamikaze.png',
+    'Heavy Handed':    'art/skilldex/heavyhnd.png',
+    'Fast Shot':       'art/skilldex/fastshot.png',
+    'Bloody Mess':     'art/skilldex/bldmess.png',
+    'Jinxed':          'art/skilldex/jinxed.png',
+    'Good Natured':    'art/skilldex/goodnatr.png',
+    'Chem Reliant':    'art/skilldex/chemrely.png',
+    'Chem Resistant':  'art/skilldex/chemrst.png',
+    'Sex Appeal':      'art/skilldex/sexappel.png',
+    'Skilled':         'art/skilldex/skilled.png',
+    'Gifted':          'art/skilldex/gifted.png',
+}
+
+// FO2-CE ref: editor.cc gCharacterEditorPrimaryStatDescriptions — value → adjective
+const STAT_COMMENTS = [
+    '', 'Terrible', 'Bad', 'Poor', 'Fair', 'Average',
+    'Good', 'Very Good', 'Great', 'Excellent', 'Heroic',
+]
+
+const FOLDER_TABS = [
+    { label: 'PERKS',  sprite: 'art/intrface/perksfdr.png' },
+    { label: 'KARMA',  sprite: 'art/intrface/karmafdr.png' },
+    { label: 'KILLS',  sprite: 'art/intrface/killsfdr.png' },
+]
+
+const STATS  = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK']
+const SKILLS = [
+    'Small Guns', 'Big Guns', 'Energy Weapons', 'Unarmed', 'Melee Weapons',
+    'Throwing', 'First Aid', 'Doctor', 'Sneak', 'Lockpick', 'Steal', 'Traps',
+    'Science', 'Repair', 'Speech', 'Barter', 'Gambling', 'Outdoorsman',
+]
+const TRAITS = Object.keys(TRAIT_DESCRIPTIONS)
+
+// ── Window singleton ──────────────────────────────────────────────────────────
 
 let characterWindow: WindowFrame
 
@@ -38,6 +207,9 @@ export function closeCharacterScreen(): void {
         characterWindow.close()
     }
 }
+
+// ── showCharacterScreen() ─────────────────────────────────────────────────────
+// In-game read-only view — behavior identical to original.
 
 export function showCharacterScreen() {
     const player = globalState.player!
@@ -166,12 +338,6 @@ export function showCharacterScreen() {
     characterWindow.elem.appendChild(sliderContainer)
 
     // --- Folder tab strip (Perks / Karma / Kills) ---
-    const FOLDER_TABS = [
-        { label: 'PERKS',  sprite: 'art/intrface/perksfdr.png' },
-        { label: 'KARMA',  sprite: 'art/intrface/karmafdr.png' },
-        { label: 'KILLS',  sprite: 'art/intrface/killsfdr.png' },
-    ]
-
     const tabStripEl = document.createElement('div')
     Object.assign(tabStripEl.style, {
         position: 'absolute',
@@ -185,7 +351,6 @@ export function showCharacterScreen() {
     tabImg.style.pointerEvents = 'none'
     tabStripEl.appendChild(tabImg)
 
-    // Three equal click regions overlaid on the image
     const tabOverlayEl = document.createElement('div')
     Object.assign(tabOverlayEl.style, {
         position: 'absolute',
@@ -197,7 +362,6 @@ export function showCharacterScreen() {
     })
     tabStripEl.appendChild(tabOverlayEl)
 
-    // Content panel below the tab strip (placeholder divs per folder)
     const tabContentEl = document.createElement('div')
     Object.assign(tabContentEl.style, {
         position: 'absolute',
@@ -209,7 +373,7 @@ export function showCharacterScreen() {
 
     const folderPanels: HTMLElement[] = FOLDER_TABS.map((t, i) => {
         const panel = document.createElement('div')
-        panel.textContent = t.label  // placeholder — to be filled in later
+        panel.textContent = t.label
         panel.style.display = i === 0 ? 'block' : 'none'
         tabContentEl.appendChild(panel)
         return panel
@@ -245,156 +409,9 @@ export function showCharacterScreen() {
     characterWindow.elem.appendChild(tabStripEl)
     characterWindow.elem.appendChild(tabContentEl)
 
-    // Drag-to-reposition from non-interactive areas of the frame.
     makePanelDraggable(characterWindow.elem)
 
-    // ── Info card (FO2-CE ref: editor.cc characterEditorDrawCard) ────────────
-    //  Always-visible panel that updates its content whenever the player clicks
-    //  any interactive element (SPECIAL stats, skills, conditions, derived stats).
-
-    const SPECIAL_FULL_NAMES: Record<string, string> = {
-        STR: 'Strength', PER: 'Perception', END: 'Endurance',
-        CHA: 'Charisma', INT: 'Intelligence', AGI: 'Agility', LUK: 'Luck',
-    }
-    const SPECIAL_DESCRIPTIONS: Record<string, string> = {
-        STR: 'Raw physical strength. A high Strength is good for physical characters. Modifies: Hit Points, Melee Damage, and Carry Weight.',
-        PER: 'The ability to see, hear, taste and notice unusual things. A high Perception is important for a sharpshooter.  Modifies: Sequence and ranged combat distance modifiers.',
-        END: 'Stamina and physical toughness. A character with a high Endurance will survive where others may not. Modifies: Hit Points, Poison & Radiation Resistance, Healing Rate, and the additional hit points per level.',
-        CHA: 'A combination of appearance and charm. A high Charisma is important for characters that want to influence people with words. Modifies: NPC reactions, and barter prices.',
-        INT: 'Knowledge, wisdom and the ability to think quickly. A high Intelligence is important for any character. Modifies: the number of new skill points per level, dialogue options, and many skills.',
-        AGI: 'Coordination and the ability to move well. A high Agility is important for any active character. Modifies: Action Points, Armor Class, Sequence, and many skills.',
-        LUK: 'Fate. Karma. An extremely high or low Luck will affect the character - somehow. Events and situations will be changed by how lucky (or unlucky) your character is.',
-    }
-    const SKILL_DESCRIPTIONS: Record<string, string> = {
-        'Small Guns':     'The use, care and general knowledge of small firearms - pistols, SMGs and rifles.',
-        'Big Guns':       'The operation and maintenance of really big guns - miniguns, rocket launchers, flamethrowers and such.',
-        'Energy Weapons': 'The care and feeding of energy-based weapons.  How to arm and operate weapons that use laser or plasma technology.',
-        'Unarmed':        'A combination of martial arts, boxing and other hand-to-hand martial arts.  Combat with your hands and feet.',
-        'Melee Weapons':  'Using non-ranged weapons in hand-to-hand, or melee combat - knives, sledgehammers, spears, clubs and so on.',
-        'Throwing':       'The skill of muscle-propelled ranged weapons, such as throwing knives, spears and grenades.',
-        'First Aid':      'General healing skill.  Used to heal small cuts, abrasions and other minor ills.  In game terms, the use of first aid can heal more hit points over time than just rest.',
-        'Doctor':         'The healing of major wounds and crippled limbs.  Without this skill, it will take a much longer period of time to restore crippled limbs to use.',
-        'Sneak':          'Quiet movement, and the ability to remain unnoticed. If successful, you will be much harder to locate. You cannot run and sneak at the same time.',
-        'Lockpick':       'The skill of opening locks without the proper key. The use of lockpicks or electronic lockpicks will greatly enhance this skill.',
-        'Steal':          'The ability to make the things of others your own.  Can be used to steal from people or places.',
-        'Traps':          'The finding and removal of traps.  Also the setting of explosives for demolition purposes.',
-        'Science':        'Covers a variety of high technology skills, such as computers, biology, physics and geology.',
-        'Repair':         'The practical application of the Science skill for fixing broken equipment, machinery and electronics.',
-        'Speech':         'The ability to communicate in a practical and efficient manner. The skill of convincing others that your position is correct. The ability to lie and not get caught.',
-        'Barter':         'Trading and trade-related tasks. The ability to get better prices for items you sell, and lower prices for items you buy.',
-        'Gambling':       'The knowledge and practical skills related to wagering. The skill at cards, dice and other games.',
-        'Outdoorsman':    'Practical knowledge of the outdoors, and the ability to live off the land. The knowledge of plants and animals.',
-    }
-    const DERIVED_DESCRIPTIONS: Record<string, string> = {
-        'Armor Class':          'Armor Class: reduces chance of being hit.',
-        'Action Points':        'Action Points: how many actions you can take per turn.',
-        'Carry Weight':         'Maximum weight you can carry.',
-        'Melee Damage':         'Bonus damage added to melee attacks.',
-        'Damage Resistance':    'Percentage of damage absorbed.',
-        'Poison Resistance':    'Resistance to poison effects.',
-        'Radiation Resistance': 'Resistance to radiation.',
-        'Sequence':             'Determines order of action in combat.',
-        'Healing Rate':         'HP recovered per rest period.',
-        'Critical Chance':      'Base chance to score a critical hit.',
-    }
-    const CONDITION_DESCRIPTIONS: Record<string, string> = {
-        'Poisoned':           'You are poisoned. Lose HP over time until treated.',
-        'Radiated':           'You have absorbed radiation. High levels are fatal.',
-        'Eye Damage':         'Your eyes are damaged. Perception is reduced.',
-        'Crippled Right Arm': 'Your arm is crippled. Combat effectiveness reduced.',
-        'Crippled Left Arm':  'Your arm is crippled. Combat effectiveness reduced.',
-        'Crippled Right Leg': 'Your leg is crippled. Movement is impaired.',
-        'Crippled Left Leg':  'Your leg is crippled. Movement is impaired.',
-    }
-
-    // FO2-CE ref: character_editor.cc — image paths used in characterEditorDrawCard()
-    const SPECIAL_IMG: Record<string, string> = {
-        STR: 'art/skilldex/strength.png',
-        PER: 'art/skilldex/perceptn.png',
-        END: 'art/skilldex/endur.png',
-        CHA: 'art/skilldex/charisma.png',
-        INT: 'art/skilldex/intel.png',
-        AGI: 'art/skilldex/agility.png',
-        LUK: 'art/skilldex/luck.png',
-    }
-    const SKILL_IMG: Record<string, string> = {
-        'Small Guns':     'art/skilldex/gunsml.png',
-        'Big Guns':       'art/skilldex/gunbig.png',
-        'Energy Weapons': 'art/skilldex/energywp.png',
-        'Unarmed':        'art/skilldex/hnd2hnd.png',
-        'Melee Weapons':  'art/skilldex/melee.png',
-        'Throwing':       'art/skilldex/throwing.png',
-        'First Aid':      'art/skilldex/firstaid.png',
-        'Doctor':         'art/skilldex/doctor.png',
-        'Sneak':          'art/skilldex/sneak.png',
-        'Lockpick':       'art/skilldex/lockpick.png',
-        'Steal':          'art/skilldex/pickpock.png',
-        'Traps':          'art/skilldex/traps.png',
-        'Science':        'art/skilldex/science.png',
-        'Repair':         'art/skilldex/repair.png',
-        'Speech':         'art/skilldex/speech.png',
-        'Barter':         'art/skilldex/barter.png',
-        'Gambling':       'art/skilldex/gambling.png',
-        'Outdoorsman':    'art/skilldex/outdoors.png',
-    }
-    const DERIVED_IMG: Record<string, string> = {
-        'Armor Class':          'art/skilldex/armorcls.png',
-        'Action Points':        'art/skilldex/actionpt.png',
-        'Carry Weight':         'art/skilldex/carryamt.png',
-        'Melee Damage':         'art/skilldex/meleedam.png',
-        'Damage Resistance':    'art/skilldex/damresis.png',
-        'Poison Resistance':    'art/skilldex/poisnres.png',
-        'Radiation Resistance': 'art/skilldex/radresis.png',
-        'Sequence':             'art/skilldex/sequence.png',
-        'Healing Rate':         'art/skilldex/healrate.png',
-        'Critical Chance':      'art/skilldex/critchnc.png',
-    }
-    const CONDITION_IMG: Record<string, string> = {
-        'Poisoned':           'art/skilldex/poisoned.png',
-        'Radiated':           'art/skilldex/radiated.png',
-        'Eye Damage':         'art/skilldex/eyedamag.png',
-        'Crippled Right Arm': 'art/skilldex/armright.png',
-        'Crippled Left Arm':  'art/skilldex/armleft.png',
-        'Crippled Right Leg': 'art/skilldex/legright.png',
-        'Crippled Left Leg':  'art/skilldex/legleft.png',
-    }
-    const TRAIT_DESCRIPTIONS: Record<string, string> = {
-        'Fast Metabolism': 'Your metabolic rate is twice normal.  This means that you are much less resistant to radiation and poison, but your body heals faster.',
-        'Bruiser':         'A little slower, but a little bigger.  You may not hit as often, but they will feel it when you do!  Your total action points are lowered, but your Strength is increased.',
-        'Small Frame':     "You are not quite as big as the other villagers, but that never slowed you down.  You can't carry as much, but you are more agile.",
-        'One Hander':      'One of your hands is very dominant.  You excel with single-handed weapons, but two-handed weapons cause a problem.',
-        'Finesse':         'Your attacks show a lot of finesse.  You don\'t do as much damage, but you cause more critical hits.',
-        'Kamikaze':        'By not paying attention to any threats, you can act a lot faster in a turn.  This lowers your armor class to just what you are wearing, but you sequence much faster in a combat turn.',
-        'Heavy Handed':    'You swing harder, not better.  Your attacks are very brutal, but lack finesse.  You rarely cause a good critical, but you always do more melee damage.',
-        'Fast Shot':       'You don\'t have time to aim for a targeted attack, because you attack faster than normal people.  It costs you one less action point for guns and thrown weapons.',
-        'Bloody Mess':     'By some strange twist of fate, people around you die violently.  You always see the worst way a person can die.',
-        'Jinxed':          'The good thing is that everyone around you has more critical failures in combat, the bad thing is so do you!',
-        'Good Natured':    'You studied less-combative skills as you were growing up.  Your combat skills start at a lower level, but First Aid, Doctor, Speech and Barter are substantially improved.',
-        'Chem Reliant':    'You are more easily influenced by chems.  Your chance to be reliant by chem use is twice normal, but you recover faster from their ill effects.',
-        'Chem Resistant':  'Chems only affect you half as long as normal, but your chance to be reliant is also only 50% of normal.',
-        'Sex Appeal':      'You\'ve got the "right" stuff.  Members of the opposite sex are attracted to you, but those of the same sex tend to become quite jealous.',
-        'Skilled':         'Since you spent more time improving your skills than a normal person, you gain 5 additional skill points per experience level. The tradeoff is that you do not gain as many extra abilities. You gain a perk every four levels.',
-        'Gifted':          'You have more innate abilities than most, so you have not spent as much time honing your skills.  Your primary statistics are each +1, but you lose -10% on all skills to start, and receive 5 less skill points per level.',
-    }
-    const TRAIT_IMG: Record<string, string> = {
-        'Fast Metabolism': 'art/skilldex/fastmeta.png',
-        'Bruiser':         'art/skilldex/bruiser.png',
-        'Small Frame':     'art/skilldex/smlframe.png',
-        'One Hander':      'art/skilldex/onehand.png',
-        'Finesse':         'art/skilldex/finesse.png',
-        'Kamikaze':        'art/skilldex/kamikaze.png',
-        'Heavy Handed':    'art/skilldex/heavyhnd.png',
-        'Fast Shot':       'art/skilldex/fastshot.png',
-        'Bloody Mess':     'art/skilldex/bldmess.png',
-        'Jinxed':          'art/skilldex/jinxed.png',
-        'Good Natured':    'art/skilldex/goodnatr.png',
-        'Chem Reliant':    'art/skilldex/chemrely.png',
-        'Chem Resistant':  'art/skilldex/chemrst.png',
-        'Sex Appeal':      'art/skilldex/sexappel.png',
-        'Skilled':         'art/skilldex/skilled.png',
-        'Gifted':          'art/skilldex/gifted.png',
-    }
-
+    // ── Info card ─────────────────────────────────────────────────────────────
     const infoCardEl = document.createElement('div')
     Object.assign(infoCardEl.style, {
         position: 'absolute',
@@ -458,23 +475,15 @@ export function showCharacterScreen() {
     }
 
     characterWindow.elem.appendChild(infoCardEl)
-    // ── end info card ─────────────────────────────────────────────────────────
-
-    const skills = [
-        'Small Guns', 'Big Guns', 'Energy Weapons', 'Unarmed', 'Melee Weapons',
-        'Throwing', 'First Aid', 'Doctor', 'Sneak', 'Lockpick', 'Steal', 'Traps',
-        'Science', 'Repair', 'Speech', 'Barter', 'Gambling', 'Outdoorsman',
-    ]
-
-    const stats = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK']
+    // ── end info card ──────────────────────────────────────────────────────────
 
     const statValueWidgets: HTMLElement[] = []
     const statCommentLabels: Label[] = []
 
-    let selectedStat = stats[0]
+    let selectedStat = STATS[0]
 
     let n = 0
-    for (const stat of stats) {
+    for (const stat of STATS) {
         const valW = new Widget(null, { x: 59, y: 37 + n, w: 28, h: 28 })
         valW.css({ cursor: 'pointer' }).onClick(() => {
             selectedStat = stat
@@ -490,13 +499,12 @@ export function showCharacterScreen() {
         n += 33
     }
 
-    const newStatSet = player.stats.clone()
-    const newSkillSet = player.skills.clone()
-    const playerSkillOpts = { isPlayer: true, perks: player.perks }
+    const newStatSet = globalState.player!.stats.clone()
+    const newSkillSet = globalState.player!.skills.clone()
+    const playerSkillOpts = { isPlayer: true, perks: globalState.player!.perks }
 
-    // Snapshot opening base values — cannot decrement below these
     const openingBaseSkills: { [name: string]: number } = {}
-    for (const skill of skills) {
+    for (const skill of SKILLS) {
         openingBaseSkills[skill] = newSkillSet.getBase(skill)
     }
 
@@ -507,7 +515,7 @@ export function showCharacterScreen() {
             sliderContainer.style.display = 'none'
             return
         }
-        const idx = skills.indexOf(selectedSkill)
+        const idx = SKILLS.indexOf(selectedSkill)
         if (idx === -1) {
             sliderContainer.style.display = 'none'
             return
@@ -531,12 +539,6 @@ export function showCharacterScreen() {
         while (skillPointBignumEl.firstChild) skillPointBignumEl.removeChild(skillPointBignumEl.firstChild)
         skillPointBignumEl.appendChild(renderBignum(newSkillSet.skillPoints, 2))
     }
-
-    // FO2-CE ref: editor.cc gCharacterEditorPrimaryStatDescriptions — value → adjective
-    const STAT_COMMENTS = [
-        '', 'Terrible', 'Bad', 'Poor', 'Fair', 'Average',
-        'Good', 'Very Good', 'Great', 'Excellent', 'Heroic',
-    ]
 
     // FO2-CE ref: editor.cc EDITOR_* condition flags
     const CONDITIONS: Array<[string, () => boolean]> = [
@@ -594,20 +596,19 @@ export function showCharacterScreen() {
         const prevSelected = selectedSkill
         skillList.clear()
 
-        for (const skill of skills) {
+        for (const skill of SKILLS) {
             const val = newSkillSet.get(skill, newStatSet, playerSkillOpts)
             skillList.addItem({ text: `${skill} ${val}%`, id: skill })
         }
 
-        // Re-select previously selected skill
         if (prevSelected) {
             skillList.selectId(prevSelected)
         }
 
-        for (let i = 0; i < stats.length; i++) {
+        for (let i = 0; i < STATS.length; i++) {
             const el = statValueWidgets[i]
             while (el.firstChild) el.removeChild(el.firstChild)
-            const value = newStatSet.get(stats[i])
+            const value = newStatSet.get(STATS[i])
             el.appendChild(renderBignum(value, 2))
 
             const clamped = Math.max(1, Math.min(10, value))
@@ -705,4 +706,599 @@ export function showCharacterScreen() {
         console.log('[CharScreen] Changes saved.')
         characterWindow.close()
     })
+}
+
+// ── showCharacterCreator() ────────────────────────────────────────────────────
+// FO2-CE ref: editor.cc editorRun() — character creation mode.
+// Called from the main menu NEW GAME path via ui_charactercreator.ts.
+//
+// onDone   — called after valid DONE (player stats applied, start the game)
+// onCancel — called when CANCEL is clicked (returns to main menu)
+
+export function showCharacterCreator(onDone: () => void, onCancel: () => void): void {
+    const player = globalState.player!
+
+    // Fresh stat/skill sets — all SPECIAL at default (5); no invested points
+    const newStatSet = new StatSet()
+    const newSkillSet = new SkillSet()
+
+    // Snapshot minimum per SPECIAL — can never go below starting base
+    const statMin: Record<string, number> = {}
+    for (const s of STATS) statMin[s] = newStatSet.getBase(s)  // all 5
+
+    // Creation-mode state
+    let pool = 5                                   // bonus SPECIAL points to allocate
+    let selectedTraits: string[] = []
+    let playerName = 'Vault Dweller'
+    let playerAge = 25
+    let playerSex: 'Male' | 'Female' = 'Male'
+
+    // SkillCalcOptions — traits array updated live so skill list reflects Good Natured etc.
+    const skillOpts: SkillCalcOptions = { isPlayer: true, perks: [], traits: selectedTraits }
+
+    // ── Skill point pool bignum (not used in creation — tags only) ────────────
+    const skillPointBignumW = new Widget(null, { x: 523, y: 228, w: 28, h: 28 })
+    // In creation mode we show a pool label instead of skill points
+    skillPointBignumW.css({ display: 'none' })
+
+    // ── Panel 2: HP display (conditions all inactive for new character) ────────
+    const panel2 = new Widget(null, { x: 196, y: 43, w: 'auto', h: 'auto' })
+        .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
+    const panel2El = panel2.elem
+
+    // ── Panel 3: derived stats ────────────────────────────────────────────────
+    const panel3 = new Widget(null, { x: 196, y: 176, w: 'auto', h: 'auto' })
+        .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
+    const panel3El = panel3.elem
+
+    // ── Skill list ────────────────────────────────────────────────────────────
+    const skillList = new List({ x: 380, y: 25, w: 'auto', h: 'auto' })
+    skillList.css({ fontSize: '0.69em', color: 'rgb(0, 255, 0)' })
+
+    // ── Build WindowFrame ─────────────────────────────────────────────────────
+    const doneBtn = new SmallButton(455, 454)
+    const cancelBtn = new SmallButton(552, 454)
+
+    characterWindow = new WindowFrame(
+        'art/intrface/edtredt.png',
+        {
+            x: Config.ui.screenWidth / 2 - 640 / 2,
+            y: Config.ui.screenHeight - 99 - 480,
+        },
+        640,
+        480
+    )
+        .add(doneBtn)
+        .add(makeFontLabel(455 + 18, 454, 'DONE', font3).css({ pointerEvents: 'none' }))
+        .add(cancelBtn)
+        .add(makeFontLabel(552 + 18, 454, 'CANCEL', font3).css({ pointerEvents: 'none' }))
+        .add(makeFontLabel(380, 5, 'Skills', font3))
+        .add(panel2)
+        .add(panel3)
+        .add(skillList)
+        .add(skillPointBignumW)
+        .show()
+
+    makePanelDraggable(characterWindow.elem)
+
+    // ── Info card ─────────────────────────────────────────────────────────────
+    const infoCardEl = document.createElement('div')
+    Object.assign(infoCardEl.style, {
+        position: 'absolute',
+        left: '348px',
+        top: '274px',
+        width: '265px',
+        height: '156px',
+        display: 'flex',
+        flexDirection: 'row',
+        overflow: 'hidden',
+        pointerEvents: 'none',
+    })
+
+    const cardImgEl = document.createElement('img') as HTMLImageElement
+    Object.assign(cardImgEl.style, {
+        width: '60px',
+        height: '75px',
+        flexShrink: '0',
+        objectFit: 'contain',
+        margin: '8px 6px 8px 8px',
+        alignSelf: 'flex-start',
+        visibility: 'hidden',
+    })
+    cardImgEl.onload = () => { cardImgEl.style.visibility = 'visible' }
+    cardImgEl.onerror = () => { cardImgEl.style.visibility = 'hidden' }
+    infoCardEl.appendChild(cardImgEl)
+
+    const cardTextEl = document.createElement('div')
+    Object.assign(cardTextEl.style, {
+        flex: '1',
+        padding: '6px 6px 6px 0',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px',
+    })
+    infoCardEl.appendChild(cardTextEl)
+
+    const cardTitleEl = document.createElement('div')
+    cardTextEl.appendChild(cardTitleEl)
+
+    const cardDescEl = document.createElement('div')
+    Object.assign(cardDescEl.style, {
+        fontSize: '0.69em',
+        color: 'rgb(0,255,0)',
+        overflow: 'hidden',
+        lineHeight: '1.3',
+    })
+    cardTextEl.appendChild(cardDescEl)
+
+    const showInfoCard = (title: string, desc: string, imgPath?: string): void => {
+        while (cardTitleEl.firstChild) cardTitleEl.removeChild(cardTitleEl.firstChild)
+        cardTitleEl.appendChild(font3.renderText(title.toUpperCase(), '#FFD700'))
+        cardDescEl.textContent = desc
+        if (imgPath) {
+            cardImgEl.src = imgPath
+        } else {
+            cardImgEl.src = ''
+            cardImgEl.style.visibility = 'hidden'
+        }
+    }
+
+    characterWindow.elem.appendChild(infoCardEl)
+
+    // ── Stat value widgets (bignum displays) ──────────────────────────────────
+    const statValueWidgets: HTMLElement[] = []
+    const statCommentLabels: Label[] = []
+
+    let n = 0
+    for (const stat of STATS) {
+        const valW = new Widget(null, { x: 59, y: 37 + n, w: 28, h: 28 })
+        valW.css({ cursor: 'pointer' }).onClick(() => {
+            showInfoCard(SPECIAL_FULL_NAMES[stat], SPECIAL_DESCRIPTIONS[stat], SPECIAL_IMG[stat])
+        })
+        statValueWidgets.push(valW.elem)
+        characterWindow.add(valW)
+
+        const commentLbl = new Label(105, 43 + n, '', '#00FF00').css({ fontSize: '0.69em' }) as Label
+        statCommentLabels.push(commentLbl)
+        characterWindow.add(commentLbl)
+
+        n += 33
+    }
+
+    // ── Pool display: remaining SPECIAL points ────────────────────────────────
+    const poolContainer = document.createElement('div')
+    Object.assign(poolContainer.style, {
+        position: 'absolute',
+        left: '86px',
+        top: '10px',
+        pointerEvents: 'none',
+    })
+    const poolLabelEl = document.createElement('div')
+    Object.assign(poolLabelEl.style, {
+        fontSize: '0.69em',
+        color: '#FFD700',
+    })
+    poolContainer.appendChild(poolLabelEl)
+    characterWindow.elem.appendChild(poolContainer)
+
+    const updatePoolLabel = () => {
+        poolLabelEl.textContent = `Points: ${pool}`
+    }
+    updatePoolLabel()
+
+    // ── SPECIAL ± buttons (lilredup / lilreddn) ───────────────────────────────
+    // FO2-CE ref: editor.cc — stat +/- buttons at x≈86, stacked per row
+    let si = 0
+    for (const stat of STATS) {
+        const statY = 37 + si * 33
+
+        const upBtn = document.createElement('div')
+        Object.assign(upBtn.style, {
+            position: 'absolute',
+            left: '88px',
+            top: `${statY + 2}px`,
+            width: '14px',
+            height: '11px',
+            backgroundImage: "url('art/intrface/lilredup.png')",
+            backgroundRepeat: 'no-repeat',
+            cursor: 'pointer',
+            zIndex: '2',
+        })
+
+        const dnBtn = document.createElement('div')
+        Object.assign(dnBtn.style, {
+            position: 'absolute',
+            left: '88px',
+            top: `${statY + 14}px`,
+            width: '14px',
+            height: '11px',
+            backgroundImage: "url('art/intrface/lilreddn.png')",
+            backgroundRepeat: 'no-repeat',
+            cursor: 'pointer',
+            zIndex: '2',
+        })
+
+        const capturedStat = stat
+        upBtn.onclick = () => {
+            if (pool <= 0) return
+            const cur = newStatSet.getBase(capturedStat)
+            if (cur >= 10) return
+            newStatSet.setBase(capturedStat, cur + 1)
+            pool--
+            updatePoolLabel()
+            redrawStatsSkills()
+        }
+        dnBtn.onclick = () => {
+            const cur = newStatSet.getBase(capturedStat)
+            if (cur <= statMin[capturedStat]) return
+            newStatSet.setBase(capturedStat, cur - 1)
+            pool++
+            updatePoolLabel()
+            redrawStatsSkills()
+        }
+
+        characterWindow.elem.appendChild(upBtn)
+        characterWindow.elem.appendChild(dnBtn)
+        si++
+    }
+
+    // ── Name input ────────────────────────────────────────────────────────────
+    const nameInput = document.createElement('input')
+    Object.assign(nameInput, { type: 'text', maxLength: 11, value: playerName })
+    Object.assign(nameInput.style, {
+        position: 'absolute',
+        left: '33px',
+        top: '6px',
+        width: '115px',
+        fontSize: '0.69em',
+        color: '#FFD700',
+        background: 'transparent',
+        border: 'none',
+        borderBottom: '1px solid #806814',
+        fontFamily: 'monospace',
+        outline: 'none',
+    })
+    nameInput.oninput = () => { playerName = nameInput.value }
+    characterWindow.elem.appendChild(nameInput)
+
+    // ── Age ± (range 16–35) ───────────────────────────────────────────────────
+    const ageLabelEl = document.createElement('div')
+    Object.assign(ageLabelEl.style, {
+        position: 'absolute',
+        left: '168px',
+        top: '7px',
+        fontSize: '0.69em',
+        color: '#FFD700',
+        pointerEvents: 'none',
+    })
+    const updateAgeLabel = () => { ageLabelEl.textContent = String(playerAge) }
+    updateAgeLabel()
+    characterWindow.elem.appendChild(ageLabelEl)
+
+    const ageDecBtn = document.createElement('div')
+    Object.assign(ageDecBtn.style, {
+        position: 'absolute',
+        left: '155px',
+        top: '6px',
+        width: '11px',
+        height: '11px',
+        backgroundImage: "url('art/intrface/lilreddn.png')",
+        backgroundRepeat: 'no-repeat',
+        cursor: 'pointer',
+        zIndex: '2',
+    })
+    ageDecBtn.onclick = () => {
+        if (playerAge > 16) { playerAge--; updateAgeLabel() }
+    }
+
+    const ageIncBtn = document.createElement('div')
+    Object.assign(ageIncBtn.style, {
+        position: 'absolute',
+        left: '182px',
+        top: '6px',
+        width: '11px',
+        height: '11px',
+        backgroundImage: "url('art/intrface/lilredup.png')",
+        backgroundRepeat: 'no-repeat',
+        cursor: 'pointer',
+        zIndex: '2',
+    })
+    ageIncBtn.onclick = () => {
+        if (playerAge < 35) { playerAge++; updateAgeLabel() }
+    }
+
+    characterWindow.elem.appendChild(ageDecBtn)
+    characterWindow.elem.appendChild(ageIncBtn)
+
+    // ── Sex toggle ────────────────────────────────────────────────────────────
+    const sexToggleEl = document.createElement('div')
+    Object.assign(sexToggleEl.style, {
+        position: 'absolute',
+        left: '240px',
+        top: '6px',
+        fontSize: '0.69em',
+        color: '#FFD700',
+        cursor: 'pointer',
+        userSelect: 'none',
+    })
+    const updateSexLabel = () => { sexToggleEl.textContent = playerSex }
+    updateSexLabel()
+    sexToggleEl.onclick = () => {
+        playerSex = playerSex === 'Male' ? 'Female' : 'Male'
+        updateSexLabel()
+    }
+    characterWindow.elem.appendChild(sexToggleEl)
+
+    // ── Folder tab strip ──────────────────────────────────────────────────────
+    const tabStripEl = document.createElement('div')
+    Object.assign(tabStripEl.style, {
+        position: 'absolute',
+        left: '15px',
+        top: '330px',
+    })
+
+    const tabImg = document.createElement('img')
+    tabImg.src = FOLDER_TABS[0].sprite
+    tabImg.style.display = 'block'
+    tabImg.style.pointerEvents = 'none'
+    tabStripEl.appendChild(tabImg)
+
+    const tabOverlayEl = document.createElement('div')
+    Object.assign(tabOverlayEl.style, {
+        position: 'absolute',
+        top: '0',
+        left: '0',
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+    })
+    tabStripEl.appendChild(tabOverlayEl)
+
+    const tabContentEl = document.createElement('div')
+    Object.assign(tabContentEl.style, {
+        position: 'absolute',
+        left: '15px',
+        top: '395px',
+        fontSize: '0.69em',
+        color: '#00FF00',
+    })
+
+    // ── Trait panel (replaces "PERKS" placeholder) ────────────────────────────
+    // Two columns × 8 rows. Clicking shows info card; max 2 selectable.
+    const traitPanelEl = document.createElement('div')
+    Object.assign(traitPanelEl.style, {
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        columnGap: '6px',
+        rowGap: '2px',
+        width: '340px',
+    })
+
+    const traitRowEls: HTMLElement[] = []
+
+    const refreshTraitPanel = () => {
+        for (let i = 0; i < TRAITS.length; i++) {
+            const trait = TRAITS[i]
+            const el = traitRowEls[i]
+            const selected = selectedTraits.includes(trait)
+            el.style.color = selected ? '#FFD700' : '#00FF00'
+            el.style.fontWeight = selected ? 'bold' : 'normal'
+        }
+    }
+
+    for (const trait of TRAITS) {
+        const row = document.createElement('div')
+        Object.assign(row.style, {
+            cursor: 'pointer',
+            fontSize: '0.69em',
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+            textOverflow: 'ellipsis',
+            padding: '1px 2px',
+        })
+        row.textContent = trait
+
+        const capturedTrait = trait
+        row.onclick = () => {
+            if (selectedTraits.includes(capturedTrait)) {
+                selectedTraits.splice(selectedTraits.indexOf(capturedTrait), 1)
+                skillOpts.traits = selectedTraits
+                refreshTraitPanel()
+                redrawStatsSkills()
+            } else if (selectedTraits.length < 2) {
+                selectedTraits.push(capturedTrait)
+                skillOpts.traits = selectedTraits
+                refreshTraitPanel()
+                redrawStatsSkills()
+            } else {
+                showInfoCard('Traits', 'You may only pick 2 traits.')
+                return
+            }
+            showInfoCard(capturedTrait, TRAIT_DESCRIPTIONS[capturedTrait], TRAIT_IMG[capturedTrait])
+        }
+        row.onmouseenter = () => {
+            showInfoCard(capturedTrait, TRAIT_DESCRIPTIONS[capturedTrait], TRAIT_IMG[capturedTrait])
+        }
+
+        traitPanelEl.appendChild(row)
+        traitRowEls.push(row)
+    }
+    refreshTraitPanel()
+
+    // Karma / Kills panels (empty placeholders in creation mode)
+    const karmaPanel = document.createElement('div')
+    karmaPanel.textContent = 'KARMA'
+    const killsPanel = document.createElement('div')
+    killsPanel.textContent = 'KILLS'
+
+    const folderPanels: HTMLElement[] = [traitPanelEl, karmaPanel, killsPanel]
+    folderPanels.forEach((p, i) => {
+        p.style.display = i === 0 ? 'block' : 'none'
+        tabContentEl.appendChild(p)
+    })
+
+    const activateFolder = (idx: number) => {
+        tabImg.src = FOLDER_TABS[idx].sprite
+        folderPanels.forEach((p, i) => { p.style.display = i === idx ? 'block' : 'none' })
+    }
+
+    FOLDER_TABS.forEach((tab, idx) => {
+        const region = document.createElement('div')
+        Object.assign(region.style, {
+            flex: '1',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+        })
+        region.onclick = () => activateFolder(idx)
+
+        font3.onLoad(() => {
+            const lbl = font3.renderText(tab.label, '#FFD700')
+            lbl.style.pointerEvents = 'none'
+            region.appendChild(lbl)
+        })
+        tabOverlayEl.appendChild(region)
+    })
+
+    characterWindow.elem.appendChild(tabStripEl)
+    characterWindow.elem.appendChild(tabContentEl)
+
+    // ── Render helpers ────────────────────────────────────────────────────────
+    const CONDITION_LABELS = [
+        'Poisoned', 'Radiated', 'Eye Damage',
+        'Crippled Right Arm', 'Crippled Left Arm',
+        'Crippled Right Leg', 'Crippled Left Leg',
+    ]
+
+    const renderPanel2 = () => {
+        while (panel2El.firstChild) panel2El.removeChild(panel2El.firstChild)
+
+        const computedMaxHP = newStatSet.get('Max HP')
+        const hp = document.createElement('div')
+        hp.textContent = `Hit Points: ${computedMaxHP} / ${computedMaxHP}`
+        panel2El.appendChild(hp)
+
+        for (const label of CONDITION_LABELS) {
+            const line = document.createElement('div')
+            line.textContent = label
+            line.style.opacity = '0.3'  // new character: no conditions
+            line.style.cursor = 'pointer'
+            line.onclick = () => showInfoCard(label, CONDITION_DESCRIPTIONS[label] ?? label, CONDITION_IMG[label])
+            panel2El.appendChild(line)
+        }
+    }
+
+    const renderPanel3 = () => {
+        while (panel3El.firstChild) panel3El.removeChild(panel3El.firstChild)
+
+        const rows: Array<[string, string | number]> = [
+            ['Armor Class',          newStatSet.get('AC')],
+            ['Action Points',        newStatSet.get('AP')],
+            ['Carry Weight',         newStatSet.get('Carry')],
+            ['Melee Damage',         newStatSet.get('Melee')],
+            ['Damage Resistance',    `${newStatSet.get('DR Normal')}%`],
+            ['Poison Resistance',    `${newStatSet.get('DR Poison')}%`],
+            ['Radiation Resistance', `${newStatSet.get('DR Radiation')}%`],
+            ['Sequence',             newStatSet.get('Sequence')],
+            ['Healing Rate',         newStatSet.get('Healing Rate')],
+            ['Critical Chance',      `${newStatSet.get('Critical Chance')}%`],
+        ]
+        for (const [label, value] of rows) {
+            const line = document.createElement('div')
+            line.textContent = `${label}: ${value}`
+            line.style.cursor = 'pointer'
+            line.onclick = () => showInfoCard(label, DERIVED_DESCRIPTIONS[label] ?? label, DERIVED_IMG[label])
+            panel3El.appendChild(line)
+        }
+    }
+
+    const redrawStatsSkills = () => {
+        skillList.clear()
+        for (const skill of SKILLS) {
+            const val = newSkillSet.get(skill, newStatSet, skillOpts)
+            const tagged = newSkillSet.isTagged(skill)
+            // Tagged skills shown with a ▶ prefix and brighter color
+            skillList.addItem({
+                text: `${tagged ? '▶ ' : '  '}${skill} ${val}%`,
+                id: skill,
+            })
+        }
+
+        for (let i = 0; i < STATS.length; i++) {
+            const el = statValueWidgets[i]
+            while (el.firstChild) el.removeChild(el.firstChild)
+            const value = newStatSet.get(STATS[i])
+            el.appendChild(renderBignum(value, 2))
+
+            const clamped = Math.max(1, Math.min(10, value))
+            statCommentLabels[i].setText(STAT_COMMENTS[clamped])
+        }
+
+        renderPanel2()
+        renderPanel3()
+    }
+
+    // ── Skill tag toggle on click ─────────────────────────────────────────────
+    skillList.onItemSelected((item) => {
+        showInfoCard(item.id, SKILL_DESCRIPTIONS[item.id] ?? item.id, SKILL_IMG[item.id])
+        if (newSkillSet.isTagged(item.id)) {
+            newSkillSet.untag(item.id)
+        } else {
+            const tagged = newSkillSet.tag(item.id)
+            if (!tagged) {
+                showInfoCard('Skills', 'You may only tag 3 skills.')
+                return
+            }
+        }
+        redrawStatsSkills()
+    })
+
+    // ── DONE button ───────────────────────────────────────────────────────────
+    doneBtn.onClick(() => {
+        if (pool > 0) {
+            showInfoCard('SPECIAL', `You have ${pool} unspent SPECIAL point${pool !== 1 ? 's' : ''}. Spend them all before continuing.`)
+            return
+        }
+        if (newSkillSet.tagged.length !== 3) {
+            const need = 3 - newSkillSet.tagged.length
+            showInfoCard('Skills', `Tag ${need} more skill${need !== 1 ? 's' : ''} before continuing.`)
+            return
+        }
+        if (!playerName.trim()) {
+            showInfoCard('Name', 'Enter a name for your character.')
+            return
+        }
+
+        player.applyCreationStats(newStatSet, newSkillSet, playerName.trim(), playerAge, playerSex, selectedTraits)
+        characterWindow.close()
+        onDone()
+    })
+
+    // ── CANCEL button ─────────────────────────────────────────────────────────
+    cancelBtn.onClick(() => {
+        characterWindow.close()
+        onCancel()
+    })
+
+    // ESC also cancels
+    const escHandler = (e: KeyboardEvent) => {
+        if (e.key === 'Escape' && characterWindow.showing) {
+            characterWindow.close()
+            onCancel()
+            e.preventDefault()
+        }
+    }
+    document.addEventListener('keydown', escHandler)
+    // Clean up ESC handler when window closes
+    const origClose = characterWindow.close.bind(characterWindow)
+    characterWindow.close = () => {
+        document.removeEventListener('keydown', escHandler)
+        origClose()
+    }
+
+    // ── Initial render ────────────────────────────────────────────────────────
+    redrawStatsSkills()
+    showInfoCard(SPECIAL_FULL_NAMES['STR'], SPECIAL_DESCRIPTIONS['STR'], SPECIAL_IMG['STR'])
 }
