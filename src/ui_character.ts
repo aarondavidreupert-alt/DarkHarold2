@@ -1078,22 +1078,12 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     // ── Trait panel (replaces "PERKS" placeholder) ────────────────────────────
     // Two columns × 8 rows. Clicking shows info card; max 2 selectable.
-    const traitPanelEl = document.createElement('div')
-    Object.assign(traitPanelEl.style, {
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        columnGap: '8px',
-        rowGap: '2px',
-        width: '340px',
-    })
-
     const traitRowEls: HTMLElement[] = []
     const traitToggleImgs: HTMLImageElement[] = []
 
     const refreshTraitPanel = () => {
         for (let i = 0; i < TRAITS.length; i++) {
-            const trait = TRAITS[i]
-            const selected = selectedTraits.includes(trait)
+            const selected = selectedTraits.includes(TRAITS[i])
             traitToggleImgs[i].src = selected
                 ? 'art/intrface/tgsklon.png'
                 : 'art/intrface/tgskloff.png'
@@ -1101,15 +1091,43 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         }
     }
 
+    const traitPanelEl = document.createElement('div')
+    Object.assign(traitPanelEl.style, {
+        display: 'flex',
+        flexDirection: 'row',
+        gap: '8px',
+        width: '340px',
+    })
+
+    const leftColEl = document.createElement('div')
+    Object.assign(leftColEl.style, {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px',
+        flex: '1',
+    })
+
+    const rightColEl = document.createElement('div')
+    Object.assign(rightColEl.style, {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px',
+        flex: '1',
+    })
+
+    traitPanelEl.appendChild(leftColEl)
+    traitPanelEl.appendChild(rightColEl)
+
     for (let i = 0; i < TRAITS.length; i++) {
         const trait = TRAITS[i]
-        const isRightCol = i % 2 === 1
+        const isRight = i >= 8
+        const container = isRight ? rightColEl : leftColEl
 
         const row = document.createElement('div')
         Object.assign(row.style, {
             display: 'flex',
             alignItems: 'center',
-            flexDirection: isRightCol ? 'row-reverse' : 'row',
+            flexDirection: isRight ? 'row-reverse' : 'row',
             gap: '3px',
             cursor: 'pointer',
             fontSize: '0.69em',
@@ -1129,10 +1147,10 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         const label = document.createElement('span')
         label.textContent = trait
         Object.assign(label.style, {
+            flex: '1',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            flex: '1',
-            textAlign: isRightCol ? 'right' : 'left',
+            textAlign: isRight ? 'right' : 'left',
         })
 
         row.appendChild(toggleImg)
@@ -1162,7 +1180,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
             showInfoCard(capturedTrait, TRAIT_DESCRIPTIONS[capturedTrait], TRAIT_IMG[capturedTrait])
         }
 
-        traitPanelEl.appendChild(row)
+        container.appendChild(row)
         traitRowEls.push(row)
         traitToggleImgs.push(toggleImg)
     }
