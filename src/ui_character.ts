@@ -872,24 +872,31 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         n += 33
     }
 
-    // ── Pool display: remaining SPECIAL points ────────────────────────────────
-    const poolContainer = document.createElement('div')
-    Object.assign(poolContainer.style, {
+    // ── Pool display: "Skill Points" label + bignum value ────────────────────
+    const poolTextEl = document.createElement('div')
+    Object.assign(poolTextEl.style, {
         position: 'absolute',
-        left: '86px',
-        top: '10px',
+        left: '27px',
+        top: '273px',
         pointerEvents: 'none',
     })
-    const poolLabelEl = document.createElement('div')
-    Object.assign(poolLabelEl.style, {
-        fontSize: '0.69em',
-        color: '#FFD700',
+    font3.onLoad(() => {
+        poolTextEl.appendChild(font3.renderText('Skill Points', '#FFD700'))
     })
-    poolContainer.appendChild(poolLabelEl)
-    characterWindow.elem.appendChild(poolContainer)
+    characterWindow.elem.appendChild(poolTextEl)
+
+    const poolBignumContainer = document.createElement('div')
+    Object.assign(poolBignumContainer.style, {
+        position: 'absolute',
+        left: '100px',
+        top: '270px',
+        pointerEvents: 'none',
+    })
+    characterWindow.elem.appendChild(poolBignumContainer)
 
     const updatePoolLabel = () => {
-        poolLabelEl.textContent = `Points: ${pool}`
+        while (poolBignumContainer.firstChild) poolBignumContainer.removeChild(poolBignumContainer.firstChild)
+        poolBignumContainer.appendChild(renderBignum(pool, 2))
     }
     updatePoolLabel()
 
