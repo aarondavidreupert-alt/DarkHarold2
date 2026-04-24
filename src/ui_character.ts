@@ -1202,6 +1202,34 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         }
     }
 
+    // ── Tag Skills counter ────────────────────────────────────────────────────
+    const tagLabelEl = document.createElement('div')
+    Object.assign(tagLabelEl.style, {
+        position: 'absolute',
+        left: '380px',
+        top: '233px',
+        pointerEvents: 'none',
+    })
+    font3.onLoad(() => {
+        tagLabelEl.appendChild(font3.renderText('Tag Skills', '#FFD700'))
+    })
+    characterWindow.elem.appendChild(tagLabelEl)
+
+    const tagBignumContainer = document.createElement('div')
+    Object.assign(tagBignumContainer.style, {
+        position: 'absolute',
+        left: '480px',
+        top: '228px',
+        pointerEvents: 'none',
+    })
+    characterWindow.elem.appendChild(tagBignumContainer)
+
+    const updateTagBignum = () => {
+        while (tagBignumContainer.firstChild) tagBignumContainer.removeChild(tagBignumContainer.firstChild)
+        tagBignumContainer.appendChild(renderBignum(3 - newSkillSet.tagged.length, 2))
+    }
+    updateTagBignum()
+
     const redrawStatsSkills = () => {
         const prev = selectedSkill
 
@@ -1243,6 +1271,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         renderPanel2()
         renderPanel3()
         updatePoolLabel()
+        updateTagBignum()
     }
 
     // ── Skill tag toggle on click ─────────────────────────────────────────────
