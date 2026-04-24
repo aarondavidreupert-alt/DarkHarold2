@@ -876,8 +876,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const poolTextEl = document.createElement('div')
     Object.assign(poolTextEl.style, {
         position: 'absolute',
-        left: '27px',
-        top: '273px',
+        left: '15px',
+        top: '287px',
         pointerEvents: 'none',
     })
     font3.onLoad(() => {
@@ -888,8 +888,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const poolBignumContainer = document.createElement('div')
     Object.assign(poolBignumContainer.style, {
         position: 'absolute',
-        left: '100px',
-        top: '270px',
+        left: '128px',
+        top: '282px',
         pointerEvents: 'none',
     })
     characterWindow.elem.appendChild(poolBignumContainer)
