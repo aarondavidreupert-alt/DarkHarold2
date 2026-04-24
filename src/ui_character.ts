@@ -1091,32 +1091,27 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         }
     }
 
-    const traitPanelEl = document.createElement('div')
-    Object.assign(traitPanelEl.style, {
-        display: 'flex',
-        flexDirection: 'row',
-        gap: '8px',
-        width: '340px',
-    })
-
     const leftColEl = document.createElement('div')
     Object.assign(leftColEl.style, {
+        position: 'absolute',
+        left: '15px',
+        top: '395px',
         display: 'flex',
         flexDirection: 'column',
         gap: '2px',
-        flex: '1',
+        width: '163px',
     })
 
     const rightColEl = document.createElement('div')
     Object.assign(rightColEl.style, {
+        position: 'absolute',
+        left: '186px',
+        top: '395px',
         display: 'flex',
         flexDirection: 'column',
         gap: '2px',
-        flex: '1',
+        width: '163px',
     })
-
-    traitPanelEl.appendChild(leftColEl)
-    traitPanelEl.appendChild(rightColEl)
 
     for (let i = 0; i < TRAITS.length; i++) {
         const trait = TRAITS[i]
@@ -1185,6 +1180,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         traitToggleImgs.push(toggleImg)
     }
     refreshTraitPanel()
+    characterWindow.elem.appendChild(leftColEl)
+    characterWindow.elem.appendChild(rightColEl)
 
     // Karma / Kills panels (empty placeholders in creation mode)
     const karmaPanel = document.createElement('div')
@@ -1192,7 +1189,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const killsPanel = document.createElement('div')
     killsPanel.textContent = 'KILLS'
 
-    const folderPanels: HTMLElement[] = [traitPanelEl, karmaPanel, killsPanel]
+    const traitTabProxy = document.createElement('div')
+    const folderPanels: HTMLElement[] = [traitTabProxy, karmaPanel, killsPanel]
     folderPanels.forEach((p, i) => {
         p.style.display = i === 0 ? 'block' : 'none'
         tabContentEl.appendChild(p)
@@ -1201,6 +1199,9 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const activateFolder = (idx: number) => {
         tabImg.src = FOLDER_TABS[idx].sprite
         folderPanels.forEach((p, i) => { p.style.display = i === idx ? 'block' : 'none' })
+        const showTraits = idx === 0
+        leftColEl.style.display = showTraits ? 'flex' : 'none'
+        rightColEl.style.display = showTraits ? 'flex' : 'none'
     }
 
     FOLDER_TABS.forEach((tab, idx) => {
