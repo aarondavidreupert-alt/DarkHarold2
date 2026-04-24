@@ -893,26 +893,23 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     }
     updatePoolLabel()
 
-    // ── SPECIAL ± buttons (ebut_out / ebut_in) ───────────────────────────────
-    // FO2-CE ref: editor.cc — stat +/- buttons at x≈88, stacked per row
-    const wireEbut = (btn: HTMLElement, onPress: () => void) => {
-        btn.onmousedown = () => { btn.style.backgroundImage = "url('art/intrface/ebut_in.png')"; onPress() }
-        btn.onmouseup   = () => { btn.style.backgroundImage = "url('art/intrface/ebut_out.png')" }
-        btn.onmouseleave = () => { btn.style.backgroundImage = "url('art/intrface/ebut_out.png')" }
+    // ── SPECIAL ± buttons (stplsoff/stplson · stnegoff/stnegon) ─────────────
+    const wireEbut = (btn: HTMLElement, imgOff: string, imgOn: string, onPress: () => void) => {
+        btn.onmousedown  = () => { btn.style.backgroundImage = `url('${imgOn}')`;  onPress() }
+        btn.onmouseup    = () => { btn.style.backgroundImage = `url('${imgOff}')` }
+        btn.onmouseleave = () => { btn.style.backgroundImage = `url('${imgOff}')` }
     }
 
     let si = 0
     for (const stat of STATS) {
-        const statY = 37 + si * 33
-
         const upBtn = document.createElement('div')
         Object.assign(upBtn.style, {
             position: 'absolute',
-            left: '88px',
-            top: `${statY + 2}px`,
+            left: '149px',
+            top: `${38 + si * 33}px`,
             width: '16px',
             height: '12px',
-            backgroundImage: "url('art/intrface/ebut_out.png')",
+            backgroundImage: "url('art/intrface/stplsoff.png')",
             backgroundRepeat: 'no-repeat',
             backgroundSize: '16px 12px',
             cursor: 'pointer',
@@ -922,11 +919,11 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         const dnBtn = document.createElement('div')
         Object.assign(dnBtn.style, {
             position: 'absolute',
-            left: '88px',
-            top: `${statY + 16}px`,
+            left: '149px',
+            top: `${48 + si * 33}px`,
             width: '16px',
             height: '12px',
-            backgroundImage: "url('art/intrface/ebut_out.png')",
+            backgroundImage: "url('art/intrface/stnegoff.png')",
             backgroundRepeat: 'no-repeat',
             backgroundSize: '16px 12px',
             cursor: 'pointer',
@@ -934,7 +931,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         })
 
         const capturedStat = stat
-        wireEbut(upBtn, () => {
+        wireEbut(upBtn, 'art/intrface/stplsoff.png', 'art/intrface/stplson.png', () => {
             if (pool <= 0) return
             const cur = newStatSet.getBase(capturedStat)
             if (cur >= 10) return
@@ -943,7 +940,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
             updatePoolLabel()
             redrawStatsSkills()
         })
-        wireEbut(dnBtn, () => {
+        wireEbut(dnBtn, 'art/intrface/stnegoff.png', 'art/intrface/stnegon.png', () => {
             const cur = newStatSet.getBase(capturedStat)
             if (cur <= statMin[capturedStat]) return
             newStatSet.setBase(capturedStat, cur - 1)
