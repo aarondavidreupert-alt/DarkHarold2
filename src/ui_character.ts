@@ -1060,8 +1060,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const leftColEl = document.createElement('div')
     Object.assign(leftColEl.style, {
         position: 'absolute',
-        left: '15px',
-        top: '395px',
+        left: '27px',
+        top: '352px',
         display: 'flex',
         flexDirection: 'column',
         gap: '2px',
@@ -1071,8 +1071,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const rightColEl = document.createElement('div')
     Object.assign(rightColEl.style, {
         position: 'absolute',
-        left: '186px',
-        top: '395px',
+        left: '149px',
+        top: '352px',
         display: 'flex',
         flexDirection: 'column',
         gap: '2px',
@@ -1099,8 +1099,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         const toggleImg = document.createElement('img') as HTMLImageElement
         toggleImg.src = 'art/intrface/tgskloff.png'
         Object.assign(toggleImg.style, {
-            width: '10px',
-            height: '10px',
+            width: '17px',
+            height: '11px',
             flexShrink: '0',
             imageRendering: 'pixelated',
         })
