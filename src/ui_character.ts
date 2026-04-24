@@ -1042,41 +1042,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     }
     characterWindow.elem.appendChild(sexToggleEl)
 
-    // ── Folder tab strip ──────────────────────────────────────────────────────
-    const tabStripEl = document.createElement('div')
-    Object.assign(tabStripEl.style, {
-        position: 'absolute',
-        left: '15px',
-        top: '330px',
-    })
-
-    const tabImg = document.createElement('img')
-    tabImg.src = FOLDER_TABS[0].sprite
-    tabImg.style.display = 'block'
-    tabImg.style.pointerEvents = 'none'
-    tabStripEl.appendChild(tabImg)
-
-    const tabOverlayEl = document.createElement('div')
-    Object.assign(tabOverlayEl.style, {
-        position: 'absolute',
-        top: '0',
-        left: '0',
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-    })
-    tabStripEl.appendChild(tabOverlayEl)
-
-    const tabContentEl = document.createElement('div')
-    Object.assign(tabContentEl.style, {
-        position: 'absolute',
-        left: '15px',
-        top: '395px',
-        fontSize: '0.69em',
-        color: '#00FF00',
-    })
-
-    // ── Trait panel (replaces "PERKS" placeholder) ────────────────────────────
+    // ── Trait panel ───────────────────────────────────────────────────────────
     // Two columns × 8 rows. Clicking shows info card; max 2 selectable.
     const traitRowEls: HTMLElement[] = []
     const traitToggleImgs: HTMLImageElement[] = []
@@ -1133,8 +1099,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         const toggleImg = document.createElement('img') as HTMLImageElement
         toggleImg.src = 'art/intrface/tgskloff.png'
         Object.assign(toggleImg.style, {
-            width: '16px',
-            height: '16px',
+            width: '10px',
+            height: '10px',
             flexShrink: '0',
             imageRendering: 'pixelated',
         })
@@ -1182,49 +1148,6 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     refreshTraitPanel()
     characterWindow.elem.appendChild(leftColEl)
     characterWindow.elem.appendChild(rightColEl)
-
-    // Karma / Kills panels (empty placeholders in creation mode)
-    const karmaPanel = document.createElement('div')
-    karmaPanel.textContent = 'KARMA'
-    const killsPanel = document.createElement('div')
-    killsPanel.textContent = 'KILLS'
-
-    const traitTabProxy = document.createElement('div')
-    const folderPanels: HTMLElement[] = [traitTabProxy, karmaPanel, killsPanel]
-    folderPanels.forEach((p, i) => {
-        p.style.display = i === 0 ? 'block' : 'none'
-        tabContentEl.appendChild(p)
-    })
-
-    const activateFolder = (idx: number) => {
-        tabImg.src = FOLDER_TABS[idx].sprite
-        folderPanels.forEach((p, i) => { p.style.display = i === idx ? 'block' : 'none' })
-        const showTraits = idx === 0
-        leftColEl.style.display = showTraits ? 'flex' : 'none'
-        rightColEl.style.display = showTraits ? 'flex' : 'none'
-    }
-
-    FOLDER_TABS.forEach((tab, idx) => {
-        const region = document.createElement('div')
-        Object.assign(region.style, {
-            flex: '1',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-        })
-        region.onclick = () => activateFolder(idx)
-
-        font3.onLoad(() => {
-            const lbl = font3.renderText(tab.label, '#FFD700')
-            lbl.style.pointerEvents = 'none'
-            region.appendChild(lbl)
-        })
-        tabOverlayEl.appendChild(region)
-    })
-
-    characterWindow.elem.appendChild(tabStripEl)
-    characterWindow.elem.appendChild(tabContentEl)
 
     // ── Render helpers ────────────────────────────────────────────────────────
     const CONDITION_LABELS = [
