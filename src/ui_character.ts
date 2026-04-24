@@ -1082,37 +1082,64 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     Object.assign(traitPanelEl.style, {
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
-        columnGap: '6px',
+        columnGap: '8px',
         rowGap: '2px',
         width: '340px',
     })
 
     const traitRowEls: HTMLElement[] = []
+    const traitToggleImgs: HTMLImageElement[] = []
 
     const refreshTraitPanel = () => {
         for (let i = 0; i < TRAITS.length; i++) {
             const trait = TRAITS[i]
-            const el = traitRowEls[i]
             const selected = selectedTraits.includes(trait)
-            el.style.color = selected ? '#FFD700' : '#00FF00'
-            el.style.fontWeight = selected ? 'bold' : 'normal'
+            traitToggleImgs[i].src = selected
+                ? 'art/intrface/tgsklon.png'
+                : 'art/intrface/tgskloff.png'
+            traitRowEls[i].style.color = selected ? '#FFD700' : '#00FF00'
         }
     }
 
-    for (const trait of TRAITS) {
+    for (let i = 0; i < TRAITS.length; i++) {
+        const trait = TRAITS[i]
+        const isRightCol = i % 2 === 1
+
         const row = document.createElement('div')
         Object.assign(row.style, {
+            display: 'flex',
+            alignItems: 'center',
+            flexDirection: isRightCol ? 'row-reverse' : 'row',
+            gap: '3px',
             cursor: 'pointer',
             fontSize: '0.69em',
             overflow: 'hidden',
             whiteSpace: 'nowrap',
-            textOverflow: 'ellipsis',
-            padding: '1px 2px',
         })
-        row.textContent = trait
+
+        const toggleImg = document.createElement('img') as HTMLImageElement
+        toggleImg.src = 'art/intrface/tgskloff.png'
+        Object.assign(toggleImg.style, {
+            width: '16px',
+            height: '16px',
+            flexShrink: '0',
+            imageRendering: 'pixelated',
+        })
+
+        const label = document.createElement('span')
+        label.textContent = trait
+        Object.assign(label.style, {
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            flex: '1',
+            textAlign: isRightCol ? 'right' : 'left',
+        })
+
+        row.appendChild(toggleImg)
+        row.appendChild(label)
 
         const capturedTrait = trait
-        row.onclick = () => {
+        const handleClick = () => {
             if (selectedTraits.includes(capturedTrait)) {
                 selectedTraits.splice(selectedTraits.indexOf(capturedTrait), 1)
                 skillOpts.traits = selectedTraits
@@ -1129,12 +1156,15 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
             }
             showInfoCard(capturedTrait, TRAIT_DESCRIPTIONS[capturedTrait], TRAIT_IMG[capturedTrait])
         }
+
+        row.onclick = handleClick
         row.onmouseenter = () => {
             showInfoCard(capturedTrait, TRAIT_DESCRIPTIONS[capturedTrait], TRAIT_IMG[capturedTrait])
         }
 
         traitPanelEl.appendChild(row)
         traitRowEls.push(row)
+        traitToggleImgs.push(toggleImg)
     }
     refreshTraitPanel()
 
