@@ -1007,7 +1007,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         cursor: 'pointer',
         zIndex: '2',
     })
-    wireEbut(ageDecBtn, () => { if (playerAge > 16) { playerAge--; updateAgeLabel() } })
+    wireEbut(ageDecBtn, 'art/intrface/ebut_out.png', 'art/intrface/ebut_in.png', () => { if (playerAge > 16) { playerAge--; updateAgeLabel() } })
 
     const ageIncBtn = document.createElement('div')
     Object.assign(ageIncBtn.style, {
@@ -1022,7 +1022,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         cursor: 'pointer',
         zIndex: '2',
     })
-    wireEbut(ageIncBtn, () => { if (playerAge < 35) { playerAge++; updateAgeLabel() } })
+    wireEbut(ageIncBtn, 'art/intrface/ebut_out.png', 'art/intrface/ebut_in.png', () => { if (playerAge < 35) { playerAge++; updateAgeLabel() } })
 
     characterWindow.elem.appendChild(ageDecBtn)
     characterWindow.elem.appendChild(ageIncBtn)
