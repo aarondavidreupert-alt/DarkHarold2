@@ -752,6 +752,12 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const panel3El = panel3.elem
 
     // ── Skill list ────────────────────────────────────────────────────────────
+    // isRedrawing / isReselecting: guards prevent List's auto-select-first-item
+    // from firing the tag handler during redraw or re-selection.
+    let isRedrawing = false
+    let isReselecting = false
+    let selectedSkill: string | null = null
+
     const skillList = new List({ x: 380, y: 25, w: 'auto', h: 'auto' })
     skillList.css({ fontSize: '0.69em', color: 'rgb(0, 255, 0)' })
 
@@ -1221,42 +1227,64 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     }
 
     const redrawStatsSkills = () => {
+        const prev = selectedSkill
+
+        isRedrawing = true
         skillList.clear()
         for (const skill of SKILLS) {
             const val = newSkillSet.get(skill, newStatSet, skillOpts)
-            const tagged = newSkillSet.isTagged(skill)
-            // Tagged skills shown with a ▶ prefix and brighter color
+            const isTagged = newSkillSet.isTagged(skill)
             skillList.addItem({
-                text: `${tagged ? '▶ ' : '  '}${skill} ${val}%`,
+                text: `${isTagged ? '★ ' : '   '}${skill} ${val}%`,
                 id: skill,
             })
+        }
+        isRedrawing = false
+
+        // Color tagged items gold; untagged green
+        const itemEls = skillList.elem.children
+        for (let j = 0; j < itemEls.length; j++) {
+            const el = itemEls[j] as HTMLElement
+            const isTagged = newSkillSet.isTagged(SKILLS[j])
+            el.style.color = isTagged ? '#FFD700' : '#00FF00'
+        }
+
+        // Re-select previously selected skill without firing the tag handler
+        if (prev) {
+            isReselecting = true
+            skillList.selectId(prev)
+            isReselecting = false
         }
 
         for (let i = 0; i < STATS.length; i++) {
             const el = statValueWidgets[i]
             while (el.firstChild) el.removeChild(el.firstChild)
-            const value = newStatSet.get(STATS[i])
-            el.appendChild(renderBignum(value, 2))
-
-            const clamped = Math.max(1, Math.min(10, value))
-            statCommentLabels[i].setText(STAT_COMMENTS[clamped])
+            const base = newStatSet.getBase(STATS[i])
+            el.appendChild(renderBignum(base, 2))
+            statCommentLabels[i].setText(STAT_COMMENTS[Math.max(1, Math.min(10, base))])
         }
 
         renderPanel2()
         renderPanel3()
+        updatePoolLabel()
     }
 
     // ── Skill tag toggle on click ─────────────────────────────────────────────
     skillList.onItemSelected((item) => {
+        selectedSkill = item.id
         showInfoCard(item.id, SKILL_DESCRIPTIONS[item.id] ?? item.id, SKILL_IMG[item.id])
+
+        if (isRedrawing || isReselecting) return
+
         if (newSkillSet.isTagged(item.id)) {
             newSkillSet.untag(item.id)
         } else {
-            const tagged = newSkillSet.tag(item.id)
-            if (!tagged) {
-                showInfoCard('Skills', 'You may only tag 3 skills.')
+            const maxTags = newSkillSet.getMaxTaggedSkills()
+            if (newSkillSet.tagged.length >= maxTags) {
+                showInfoCard('Tag Skills', 'You may only tag 3 skills. Untag one first.')
                 return
             }
+            newSkillSet.tag(item.id)
         }
         redrawStatsSkills()
     })
@@ -1264,16 +1292,16 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     // ── DONE button ───────────────────────────────────────────────────────────
     doneBtn.onClick(() => {
         if (pool > 0) {
-            showInfoCard('SPECIAL', `You have ${pool} unspent SPECIAL point${pool !== 1 ? 's' : ''}. Spend them all before continuing.`)
+            showInfoCard('Character', `You have ${pool} unspent attribute point${pool !== 1 ? 's' : ''}.`)
             return
         }
-        if (newSkillSet.tagged.length !== 3) {
+        if (newSkillSet.tagged.length < 3) {
             const need = 3 - newSkillSet.tagged.length
-            showInfoCard('Skills', `Tag ${need} more skill${need !== 1 ? 's' : ''} before continuing.`)
+            showInfoCard('Tag Skills', `Tag ${need} more skill${need !== 1 ? 's' : ''}.`)
             return
         }
         if (!playerName.trim()) {
-            showInfoCard('Name', 'Enter a name for your character.')
+            showInfoCard('Name', 'Please enter a character name.')
             return
         }
 
