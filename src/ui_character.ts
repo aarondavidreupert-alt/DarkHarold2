@@ -980,71 +980,110 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     nameInput.oninput = () => { playerName = nameInput.value }
     characterWindow.elem.appendChild(nameInput)
 
-    // ── Age ± (range 16–35) ───────────────────────────────────────────────────
-    const ageLabelEl = document.createElement('div')
-    Object.assign(ageLabelEl.style, {
+    // ── Age control (agebox + ageoff/ageon buttons + bignum) ─────────────────
+    const ageboxEl = document.createElement('div')
+    Object.assign(ageboxEl.style, {
         position: 'absolute',
-        left: '168px',
-        top: '7px',
-        fontSize: '0.69em',
-        color: '#FFD700',
+        left: '155px',
+        top: '6px',
+        width: '124px',
+        height: '29px',
+        backgroundImage: "url('art/intrface/agebox.png')",
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: '124px 29px',
         pointerEvents: 'none',
     })
-    const updateAgeLabel = () => { ageLabelEl.textContent = String(playerAge) }
+    characterWindow.elem.appendChild(ageboxEl)
+
+    const ageBignumContainer = document.createElement('div')
+    Object.assign(ageBignumContainer.style, {
+        position: 'absolute',
+        left: '185px',
+        top: '9px',
+        pointerEvents: 'none',
+        zIndex: '3',
+    })
+    characterWindow.elem.appendChild(ageBignumContainer)
+
+    const updateAgeLabel = () => {
+        while (ageBignumContainer.firstChild) ageBignumContainer.removeChild(ageBignumContainer.firstChild)
+        ageBignumContainer.appendChild(renderBignum(playerAge, 2))
+    }
     updateAgeLabel()
-    characterWindow.elem.appendChild(ageLabelEl)
 
     const ageDecBtn = document.createElement('div')
     Object.assign(ageDecBtn.style, {
         position: 'absolute',
-        left: '155px',
-        top: '6px',
-        width: '16px',
-        height: '12px',
-        backgroundImage: "url('art/intrface/ebut_out.png')",
+        left: '153px',
+        top: '3px',
+        width: '81px',
+        height: '32px',
+        backgroundImage: "url('art/intrface/ageoff.png')",
         backgroundRepeat: 'no-repeat',
-        backgroundSize: '16px 12px',
+        backgroundSize: '81px 32px',
         cursor: 'pointer',
         zIndex: '2',
     })
-    wireEbut(ageDecBtn, 'art/intrface/ebut_out.png', 'art/intrface/ebut_in.png', () => { if (playerAge > 16) { playerAge--; updateAgeLabel() } })
+    wireEbut(ageDecBtn, 'art/intrface/ageoff.png', 'art/intrface/ageon.png', () => {
+        if (playerAge > 16) { playerAge--; updateAgeLabel() }
+    })
+    characterWindow.elem.appendChild(ageDecBtn)
 
     const ageIncBtn = document.createElement('div')
     Object.assign(ageIncBtn.style, {
         position: 'absolute',
-        left: '182px',
-        top: '6px',
-        width: '16px',
-        height: '12px',
-        backgroundImage: "url('art/intrface/ebut_out.png')",
+        left: '201px',
+        top: '3px',
+        width: '81px',
+        height: '32px',
+        backgroundImage: "url('art/intrface/ageoff.png')",
         backgroundRepeat: 'no-repeat',
-        backgroundSize: '16px 12px',
+        backgroundSize: '81px 32px',
         cursor: 'pointer',
         zIndex: '2',
     })
-    wireEbut(ageIncBtn, 'art/intrface/ebut_out.png', 'art/intrface/ebut_in.png', () => { if (playerAge < 35) { playerAge++; updateAgeLabel() } })
-
-    characterWindow.elem.appendChild(ageDecBtn)
+    wireEbut(ageIncBtn, 'art/intrface/ageoff.png', 'art/intrface/ageon.png', () => {
+        if (playerAge < 35) { playerAge++; updateAgeLabel() }
+    })
     characterWindow.elem.appendChild(ageIncBtn)
 
-    // ── Sex toggle ────────────────────────────────────────────────────────────
-    const sexToggleEl = document.createElement('div')
-    Object.assign(sexToggleEl.style, {
+    // ── Sex toggle (sexoff/sexon button + font3 label) ────────────────────────
+    const sexLabelEl = document.createElement('div')
+    Object.assign(sexLabelEl.style, {
         position: 'absolute',
-        left: '240px',
-        top: '6px',
-        fontSize: '0.69em',
-        color: '#FFD700',
-        cursor: 'pointer',
-        userSelect: 'none',
+        left: '253px',
+        top: '39px',
+        pointerEvents: 'none',
     })
-    const updateSexLabel = () => { sexToggleEl.textContent = playerSex }
+    characterWindow.elem.appendChild(sexLabelEl)
+
+    const updateSexLabel = () => {
+        while (sexLabelEl.firstChild) sexLabelEl.removeChild(sexLabelEl.firstChild)
+        font3.onLoad(() => { sexLabelEl.appendChild(font3.renderText(playerSex, '#FFD700')) })
+    }
     updateSexLabel()
-    sexToggleEl.onclick = () => {
+
+    const sexBtnEl = document.createElement('div')
+    Object.assign(sexBtnEl.style, {
+        position: 'absolute',
+        left: '250px',
+        top: '3px',
+        width: '80px',
+        height: '32px',
+        backgroundImage: "url('art/intrface/sexoff.png')",
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: '80px 32px',
+        cursor: 'pointer',
+        zIndex: '2',
+    })
+    sexBtnEl.onmousedown  = () => { sexBtnEl.style.backgroundImage = "url('art/intrface/sexon.png')" }
+    sexBtnEl.onmouseup    = () => {
+        sexBtnEl.style.backgroundImage = "url('art/intrface/sexoff.png')"
         playerSex = playerSex === 'Male' ? 'Female' : 'Male'
         updateSexLabel()
     }
-    characterWindow.elem.appendChild(sexToggleEl)
+    sexBtnEl.onmouseleave = () => { sexBtnEl.style.backgroundImage = "url('art/intrface/sexoff.png')" }
+    characterWindow.elem.appendChild(sexBtnEl)
 
     // ── Trait panel ───────────────────────────────────────────────────────────
     // Two columns × 8 rows. Clicking shows info card; max 2 selectable.
