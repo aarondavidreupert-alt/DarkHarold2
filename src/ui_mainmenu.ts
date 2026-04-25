@@ -123,7 +123,7 @@ export function initMainMenu(newGameCb: () => void): void {
         const labelDiv = document.createElement('div')
         Object.assign(labelDiv.style, {
             position: 'absolute',
-            left: '126px',
+            left: '65px',
             top: `${y + 1}px`,
             cursor: 'pointer',
             pointerEvents: 'none',
