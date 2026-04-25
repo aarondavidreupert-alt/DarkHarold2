@@ -743,12 +743,10 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     // ── Panel 2: HP display (conditions all inactive for new character) ────────
     const panel2 = new Widget(null, { x: 196, y: 43, w: 'auto', h: 'auto' })
-        .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
     const panel2El = panel2.elem
 
     // ── Panel 3: derived stats ────────────────────────────────────────────────
     const panel3 = new Widget(null, { x: 196, y: 176, w: 'auto', h: 'auto' })
-        .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
     const panel3El = panel3.elem
 
     // ── Skill list ────────────────────────────────────────────────────────────
@@ -775,10 +773,10 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         480
     )
         .add(doneBtn)
-        .add(makeFontLabel(455 + 18, 454, 'DONE', font3).css({ pointerEvents: 'none' }))
+        .add(makeFontLabel(455 + 18, 454, 'DONE', font4).css({ pointerEvents: 'none' }))
         .add(cancelBtn)
-        .add(makeFontLabel(552 + 18, 454, 'CANCEL', font3).css({ pointerEvents: 'none' }))
-        .add(makeFontLabel(380, 5, 'Skills', font3))
+        .add(makeFontLabel(552 + 18, 454, 'CANCEL', font4).css({ pointerEvents: 'none' }))
+        .add(makeFontLabel(380, 5, 'Skills', font4))
         .add(panel2)
         .add(panel3)
         .add(skillList)
@@ -840,7 +838,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     const showInfoCard = (title: string, desc: string, imgPath?: string): void => {
         while (cardTitleEl.firstChild) cardTitleEl.removeChild(cardTitleEl.firstChild)
-        cardTitleEl.appendChild(font3.renderText(title.toUpperCase(), '#FFD700'))
+        cardTitleEl.appendChild(font4.renderText(title.toUpperCase(), '#FFD700'))
         cardDescEl.textContent = desc
         if (imgPath) {
             cardImgEl.src = imgPath
@@ -854,7 +852,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     // ── Stat value widgets (bignum displays) ──────────────────────────────────
     const statValueWidgets: HTMLElement[] = []
-    const statCommentLabels: Label[] = []
+    const statCommentLabels: HTMLElement[] = []
 
     let n = 0
     for (const stat of STATS) {
@@ -865,9 +863,15 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         statValueWidgets.push(valW.elem)
         characterWindow.add(valW)
 
-        const commentLbl = new Label(105, 43 + n, '', '#00FF00').css({ fontSize: '0.69em' }) as Label
-        statCommentLabels.push(commentLbl)
-        characterWindow.add(commentLbl)
+        const commentDiv = document.createElement('div')
+        Object.assign(commentDiv.style, {
+            position: 'absolute',
+            left: '105px',
+            top: `${43 + n}px`,
+            pointerEvents: 'none',
+        })
+        statCommentLabels.push(commentDiv)
+        characterWindow.elem.appendChild(commentDiv)
 
         n += 33
     }
@@ -880,9 +884,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         top: '287px',
         pointerEvents: 'none',
     })
-    font3.onLoad(() => {
-        poolTextEl.appendChild(font3.renderText('Skill Points', '#FFD700'))
-    })
+    poolTextEl.appendChild(font4.renderText('Skill Points', '#FFD700'))
     characterWindow.elem.appendChild(poolTextEl)
 
     const poolBignumContainer = document.createElement('div')
@@ -1132,11 +1134,13 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const nameDisplayEl = document.createElement('div')
     Object.assign(nameDisplayEl.style, {
         position: 'absolute', left: '33px', top: '6px',
-        width: '115px', fontSize: '0.69em', color: '#FFD700',
-        fontFamily: 'monospace', cursor: 'pointer',
+        width: '115px', cursor: 'pointer',
         borderBottom: '1px solid #806814', userSelect: 'none',
     })
-    const updateNameDisplay = () => { nameDisplayEl.textContent = playerName }
+    const updateNameDisplay = () => {
+        while (nameDisplayEl.firstChild) nameDisplayEl.removeChild(nameDisplayEl.firstChild)
+        nameDisplayEl.appendChild(font4.renderText(playerName, '#FFD700'))
+    }
     updateNameDisplay()
     nameDisplayEl.onclick = () => openCreatorPopup('name', updateNameDisplay)
     characterWindow.elem.appendChild(nameDisplayEl)
@@ -1182,7 +1186,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     const updateSexLabel = () => {
         while (sexLabelEl.firstChild) sexLabelEl.removeChild(sexLabelEl.firstChild)
-        font3.onLoad(() => { sexLabelEl.appendChild(font3.renderText(playerSex, '#FFD700')) })
+        sexLabelEl.appendChild(font4.renderText(playerSex, '#FFD700'))
     }
     updateSexLabel()
 
@@ -1201,7 +1205,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     // ── Trait panel ───────────────────────────────────────────────────────────
     // Two columns × 8 rows. Clicking shows info card; max 2 selectable.
-    const traitRowEls: HTMLElement[] = []
+    const traitLabelEls: HTMLElement[] = []
     const traitToggleImgs: HTMLImageElement[] = []
 
     const refreshTraitPanel = () => {
@@ -1210,7 +1214,9 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
             traitToggleImgs[i].src = selected
                 ? 'art/intrface/tgsklon.png'
                 : 'art/intrface/tgskloff.png'
-            traitRowEls[i].style.color = selected ? '#FFD700' : '#00FF00'
+            const lbl = traitLabelEls[i]
+            while (lbl.firstChild) lbl.removeChild(lbl.firstChild)
+            lbl.appendChild(font4.renderText(TRAITS[i], selected ? '#FFD700' : '#00FF00'))
         }
     }
 
@@ -1248,9 +1254,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
             flexDirection: isRight ? 'row-reverse' : 'row',
             gap: '3px',
             cursor: 'pointer',
-            fontSize: '0.69em',
             overflow: 'hidden',
-            whiteSpace: 'nowrap',
         })
 
         const toggleImg = document.createElement('img') as HTMLImageElement
@@ -1262,17 +1266,16 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
             imageRendering: 'pixelated',
         })
 
-        const label = document.createElement('span')
-        label.textContent = trait
-        Object.assign(label.style, {
+        const labelEl = document.createElement('span')
+        Object.assign(labelEl.style, {
             flex: '1',
             overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            textAlign: isRight ? 'right' : 'left',
         })
+        labelEl.appendChild(font4.renderText(trait, '#00FF00'))
 
         row.appendChild(toggleImg)
-        row.appendChild(label)
+        row.appendChild(labelEl)
+        traitLabelEls.push(labelEl)
 
         const capturedTrait = trait
         const handleClick = () => {
@@ -1299,7 +1302,6 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         }
 
         container.appendChild(row)
-        traitRowEls.push(row)
         traitToggleImgs.push(toggleImg)
     }
     refreshTraitPanel()
@@ -1318,12 +1320,12 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
         const computedMaxHP = newStatSet.get('Max HP')
         const hp = document.createElement('div')
-        hp.textContent = `Hit Points: ${computedMaxHP} / ${computedMaxHP}`
+        hp.appendChild(font4.renderText(`Hit Points: ${computedMaxHP} / ${computedMaxHP}`, '#00FF00'))
         panel2El.appendChild(hp)
 
         for (const label of CONDITION_LABELS) {
             const line = document.createElement('div')
-            line.textContent = label
+            line.appendChild(font4.renderText(label, '#00FF00'))
             line.style.opacity = '0.3'  // new character: no conditions
             line.style.cursor = 'pointer'
             line.onclick = () => showInfoCard(label, CONDITION_DESCRIPTIONS[label] ?? label, CONDITION_IMG[label])
@@ -1348,7 +1350,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         ]
         for (const [label, value] of rows) {
             const line = document.createElement('div')
-            line.textContent = `${label}: ${value}`
+            line.appendChild(font4.renderText(`${label}: ${value}`, '#00FF00'))
             line.style.cursor = 'pointer'
             line.onclick = () => showInfoCard(label, DERIVED_DESCRIPTIONS[label] ?? label, DERIVED_IMG[label])
             panel3El.appendChild(line)
@@ -1363,9 +1365,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         top: '233px',
         pointerEvents: 'none',
     })
-    font3.onLoad(() => {
-        tagLabelEl.appendChild(font3.renderText('Tag Skills', '#FFD700'))
-    })
+    tagLabelEl.appendChild(font4.renderText('Tag Skills', '#FFD700'))
     characterWindow.elem.appendChild(tagLabelEl)
 
     const tagBignumContainer = document.createElement('div')
@@ -1418,7 +1418,9 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
             while (el.firstChild) el.removeChild(el.firstChild)
             const base = newStatSet.getBase(STATS[i])
             el.appendChild(renderBignum(base, 2))
-            statCommentLabels[i].setText(STAT_COMMENTS[Math.max(1, Math.min(10, base))])
+            const cmt = statCommentLabels[i]
+            while (cmt.firstChild) cmt.removeChild(cmt.firstChild)
+            cmt.appendChild(font4.renderText(STAT_COMMENTS[Math.max(1, Math.min(10, base))]))
         }
 
         renderPanel2()
