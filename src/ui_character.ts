@@ -1206,7 +1206,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const tagLabelEl = document.createElement('div')
     Object.assign(tagLabelEl.style, {
         position: 'absolute',
-        left: '380px',
+        left: '417px',
         top: '233px',
         pointerEvents: 'none',
     })
@@ -1218,7 +1218,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const tagBignumContainer = document.createElement('div')
     Object.assign(tagBignumContainer.style, {
         position: 'absolute',
-        left: '480px',
+        left: '523px',
         top: '228px',
         pointerEvents: 'none',
     })
