@@ -961,47 +961,190 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         si++
     }
 
-    // ── Name input ────────────────────────────────────────────────────────────
-    const nameInput = document.createElement('input')
-    Object.assign(nameInput, { type: 'text', maxLength: 11, value: playerName })
-    Object.assign(nameInput.style, {
-        position: 'absolute',
-        left: '33px',
-        top: '6px',
-        width: '115px',
-        fontSize: '0.69em',
-        color: '#FFD700',
-        background: 'transparent',
-        border: 'none',
-        borderBottom: '1px solid #806814',
-        fontFamily: 'monospace',
-        outline: 'none',
-    })
-    nameInput.oninput = () => { playerName = nameInput.value }
-    characterWindow.elem.appendChild(nameInput)
+    // ── Popup helper ──────────────────────────────────────────────────────────
+    let popupEscHandler: ((e: KeyboardEvent) => void) | null = null
 
-    // ── Age control (agebox + ageoff/ageon buttons + bignum) ─────────────────
+    const closePopup = () => {
+        const el = document.getElementById('creator-popup-overlay')
+        if (el) el.remove()
+        if (popupEscHandler) {
+            document.removeEventListener('keydown', popupEscHandler)
+            popupEscHandler = null
+        }
+    }
+
+    const showCreatorPopup = (type: 'name' | 'age' | 'sex') => {
+        closePopup()
+
+        const overlay = document.createElement('div')
+        overlay.id = 'creator-popup-overlay'
+        Object.assign(overlay.style, {
+            position: 'fixed', zIndex: '2000',
+            left: '0', top: '0', width: '100%', height: '100%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backgroundColor: 'rgba(0,0,0,0.5)',
+        })
+
+        if (type === 'name') {
+            overlay.onclick = (e) => { if (e.target === overlay) closePopup() }
+
+            const box = document.createElement('div')
+            Object.assign(box.style, {
+                backgroundImage: "url('art/intrface/namebox.png')",
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: 'contain',
+                padding: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '12px',
+            })
+            box.onclick = (e) => e.stopPropagation()
+
+            const inp = document.createElement('input')
+            Object.assign(inp, { type: 'text', maxLength: 11, value: playerName })
+            Object.assign(inp.style, {
+                fontSize: '0.9em', color: '#FFD700',
+                background: 'transparent', border: 'none',
+                borderBottom: '1px solid #806814',
+                fontFamily: 'monospace', outline: 'none',
+                width: '140px', textAlign: 'center',
+            })
+
+            const okBtn = document.createElement('div')
+            Object.assign(okBtn.style, {
+                width: '81px', height: '32px',
+                backgroundImage: "url('art/intrface/nameoff.png')",
+                backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
+                cursor: 'pointer',
+            })
+            okBtn.onmousedown = () => { okBtn.style.backgroundImage = "url('art/intrface/nameon.png')" }
+            okBtn.onmouseup = okBtn.onmouseleave = () => { okBtn.style.backgroundImage = "url('art/intrface/nameoff.png')" }
+            okBtn.onclick = () => {
+                playerName = inp.value.trim() || playerName
+                updateNameDisplay()
+                closePopup()
+            }
+            inp.onkeydown = (e) => { if (e.key === 'Enter') okBtn.click() }
+
+            box.appendChild(inp)
+            box.appendChild(okBtn)
+            overlay.appendChild(box)
+            setTimeout(() => inp.focus(), 0)
+
+        } else if (type === 'age') {
+            let popupAge = playerAge
+            const agePopupBignum = document.createElement('div')
+
+            const refreshPopupAge = () => {
+                while (agePopupBignum.firstChild) agePopupBignum.removeChild(agePopupBignum.firstChild)
+                agePopupBignum.appendChild(renderBignum(popupAge, 2))
+            }
+            refreshPopupAge()
+
+            const ageboxPopup = document.createElement('div')
+            Object.assign(ageboxPopup.style, {
+                width: '124px', height: '29px',
+                backgroundImage: "url('art/intrface/agebox.png')",
+                backgroundRepeat: 'no-repeat', backgroundSize: '124px 29px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+            })
+            ageboxPopup.appendChild(agePopupBignum)
+
+            const makeAgeBtn = (delta: number) => {
+                const btn = document.createElement('div')
+                Object.assign(btn.style, {
+                    width: '81px', height: '32px',
+                    backgroundImage: "url('art/intrface/ageoff.png')",
+                    backgroundRepeat: 'no-repeat', backgroundSize: '81px 32px',
+                    cursor: 'pointer',
+                })
+                btn.onmousedown = () => { btn.style.backgroundImage = "url('art/intrface/ageon.png')" }
+                btn.onmouseup = btn.onmouseleave = () => { btn.style.backgroundImage = "url('art/intrface/ageoff.png')" }
+                btn.onclick = () => {
+                    const next = popupAge + delta
+                    if (next >= 16 && next <= 35) { popupAge = next; refreshPopupAge() }
+                }
+                return btn
+            }
+
+            const box = document.createElement('div')
+            Object.assign(box.style, {
+                display: 'flex', alignItems: 'center', gap: '4px',
+                padding: '16px', backgroundColor: '#1a1a0a', border: '2px solid #806814',
+            })
+            box.onclick = (e) => e.stopPropagation()
+            box.appendChild(makeAgeBtn(-1))
+            box.appendChild(ageboxPopup)
+            box.appendChild(makeAgeBtn(+1))
+
+            overlay.onclick = () => {
+                playerAge = popupAge
+                updateAgeLabel()
+                closePopup()
+            }
+            overlay.appendChild(box)
+
+        } else { // sex
+            overlay.onclick = (e) => { if (e.target === overlay) closePopup() }
+
+            const box = document.createElement('div')
+            Object.assign(box.style, {
+                display: 'flex', gap: '8px',
+                padding: '16px', backgroundColor: '#1a1a0a', border: '2px solid #806814',
+            })
+            box.onclick = (e) => e.stopPropagation()
+
+            const makeSexBtn = (sex: 'Male' | 'Female', imgBase: string) => {
+                const btn = document.createElement('div')
+                Object.assign(btn.style, {
+                    width: '80px', height: '32px',
+                    backgroundImage: `url('art/intrface/${imgBase}${playerSex === sex ? 'on' : 'off'}.png')`,
+                    backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
+                    cursor: 'pointer',
+                })
+                btn.onclick = () => { playerSex = sex; updateSexLabel(); closePopup() }
+                return btn
+            }
+
+            box.appendChild(makeSexBtn('Male', 'male'))
+            box.appendChild(makeSexBtn('Female', 'fem'))
+            overlay.appendChild(box)
+        }
+
+        popupEscHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') closePopup() }
+        document.addEventListener('keydown', popupEscHandler)
+        document.body.appendChild(overlay)
+    }
+
+    // ── Name display ──────────────────────────────────────────────────────────
+    const nameDisplayEl = document.createElement('div')
+    Object.assign(nameDisplayEl.style, {
+        position: 'absolute', left: '33px', top: '6px',
+        width: '115px', fontSize: '0.69em', color: '#FFD700',
+        fontFamily: 'monospace', cursor: 'pointer',
+        borderBottom: '1px solid #806814', userSelect: 'none',
+    })
+    const updateNameDisplay = () => { nameDisplayEl.textContent = playerName }
+    updateNameDisplay()
+    nameDisplayEl.onclick = () => showCreatorPopup('name')
+    characterWindow.elem.appendChild(nameDisplayEl)
+
+    // ── Age display (agebox + bignum; click opens popup) ──────────────────────
     const ageboxEl = document.createElement('div')
     Object.assign(ageboxEl.style, {
-        position: 'absolute',
-        left: '155px',
-        top: '6px',
-        width: '124px',
-        height: '29px',
+        position: 'absolute', left: '155px', top: '6px',
+        width: '124px', height: '29px',
         backgroundImage: "url('art/intrface/agebox.png')",
-        backgroundRepeat: 'no-repeat',
-        backgroundSize: '124px 29px',
+        backgroundRepeat: 'no-repeat', backgroundSize: '124px 29px',
         pointerEvents: 'none',
     })
     characterWindow.elem.appendChild(ageboxEl)
 
     const ageBignumContainer = document.createElement('div')
     Object.assign(ageBignumContainer.style, {
-        position: 'absolute',
-        left: '185px',
-        top: '9px',
-        pointerEvents: 'none',
-        zIndex: '3',
+        position: 'absolute', left: '185px', top: '9px',
+        pointerEvents: 'none', zIndex: '3',
     })
     characterWindow.elem.appendChild(ageBignumContainer)
 
@@ -1011,49 +1154,18 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     }
     updateAgeLabel()
 
-    const ageDecBtn = document.createElement('div')
-    Object.assign(ageDecBtn.style, {
-        position: 'absolute',
-        left: '153px',
-        top: '3px',
-        width: '81px',
-        height: '32px',
-        backgroundImage: "url('art/intrface/ageoff.png')",
-        backgroundRepeat: 'no-repeat',
-        backgroundSize: '81px 32px',
-        cursor: 'pointer',
-        zIndex: '2',
+    const ageClickArea = document.createElement('div')
+    Object.assign(ageClickArea.style, {
+        position: 'absolute', left: '153px', top: '3px',
+        width: '126px', height: '32px', cursor: 'pointer', zIndex: '4',
     })
-    wireEbut(ageDecBtn, 'art/intrface/ageoff.png', 'art/intrface/ageon.png', () => {
-        if (playerAge > 16) { playerAge--; updateAgeLabel() }
-    })
-    characterWindow.elem.appendChild(ageDecBtn)
+    ageClickArea.onclick = () => showCreatorPopup('age')
+    characterWindow.elem.appendChild(ageClickArea)
 
-    const ageIncBtn = document.createElement('div')
-    Object.assign(ageIncBtn.style, {
-        position: 'absolute',
-        left: '201px',
-        top: '3px',
-        width: '81px',
-        height: '32px',
-        backgroundImage: "url('art/intrface/ageoff.png')",
-        backgroundRepeat: 'no-repeat',
-        backgroundSize: '81px 32px',
-        cursor: 'pointer',
-        zIndex: '2',
-    })
-    wireEbut(ageIncBtn, 'art/intrface/ageoff.png', 'art/intrface/ageon.png', () => {
-        if (playerAge < 35) { playerAge++; updateAgeLabel() }
-    })
-    characterWindow.elem.appendChild(ageIncBtn)
-
-    // ── Sex toggle (sexoff/sexon button + font3 label) ────────────────────────
+    // ── Sex display (button + font3 label; click opens popup) ────────────────
     const sexLabelEl = document.createElement('div')
     Object.assign(sexLabelEl.style, {
-        position: 'absolute',
-        left: '253px',
-        top: '39px',
-        pointerEvents: 'none',
+        position: 'absolute', left: '253px', top: '39px', pointerEvents: 'none',
     })
     characterWindow.elem.appendChild(sexLabelEl)
 
@@ -1065,23 +1177,14 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     const sexBtnEl = document.createElement('div')
     Object.assign(sexBtnEl.style, {
-        position: 'absolute',
-        left: '250px',
-        top: '3px',
-        width: '80px',
-        height: '32px',
+        position: 'absolute', left: '250px', top: '3px',
+        width: '80px', height: '32px',
         backgroundImage: "url('art/intrface/sexoff.png')",
-        backgroundRepeat: 'no-repeat',
-        backgroundSize: '80px 32px',
-        cursor: 'pointer',
-        zIndex: '2',
+        backgroundRepeat: 'no-repeat', backgroundSize: '80px 32px',
+        cursor: 'pointer', zIndex: '2',
     })
     sexBtnEl.onmousedown  = () => { sexBtnEl.style.backgroundImage = "url('art/intrface/sexon.png')" }
-    sexBtnEl.onmouseup    = () => {
-        sexBtnEl.style.backgroundImage = "url('art/intrface/sexoff.png')"
-        playerSex = playerSex === 'Male' ? 'Female' : 'Male'
-        updateSexLabel()
-    }
+    sexBtnEl.onmouseup    = () => { sexBtnEl.style.backgroundImage = "url('art/intrface/sexoff.png')"; showCreatorPopup('sex') }
     sexBtnEl.onmouseleave = () => { sexBtnEl.style.backgroundImage = "url('art/intrface/sexoff.png')" }
     characterWindow.elem.appendChild(sexBtnEl)
 
