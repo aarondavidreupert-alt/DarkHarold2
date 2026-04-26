@@ -1109,14 +1109,14 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
                 backgroundImage: `url('art/intrface/male${playerSex === 'Male' ? 'on' : 'off'}.png')`,
                 backgroundRepeat: 'no-repeat', backgroundSize: 'contain', cursor: 'pointer',
             })
-            malEl.onclick = () => { playerSex = 'Male'; updateSexLabel(); refreshSexBtns() }
+            malEl.onclick = () => { playerSex = 'Male'; updateSexDisplay(); refreshSexBtns() }
 
             Object.assign(femEl.style, {
                 width: '80px', height: '32px',
                 backgroundImage: `url('art/intrface/fem${playerSex === 'Female' ? 'on' : 'off'}.png')`,
                 backgroundRepeat: 'no-repeat', backgroundSize: 'contain', cursor: 'pointer',
             })
-            femEl.onclick = () => { playerSex = 'Female'; updateSexLabel(); refreshSexBtns() }
+            femEl.onclick = () => { playerSex = 'Female'; updateSexDisplay(); refreshSexBtns() }
 
             contentEl.appendChild(malEl)
             contentEl.appendChild(femEl)
@@ -1128,76 +1128,87 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         document.body.appendChild(overlay)
     }
 
-    // ── Name display ──────────────────────────────────────────────────────────
-    const nameDisplayEl = document.createElement('div')
-    Object.assign(nameDisplayEl.style, {
+    // ── Name button + font4 label ─────────────────────────────────────────────
+    const nameBtn = document.createElement('div')
+    Object.assign(nameBtn.style, {
+        position: 'absolute', left: '9px', top: '0px',
+        width: '186px', height: '25px',
+        backgroundImage: "url('art/intrface/nameoff.png')",
+        backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
+        cursor: 'pointer', zIndex: '1',
+    })
+    nameBtn.onmousedown  = () => { nameBtn.style.backgroundImage = "url('art/intrface/nameon.png')" }
+    nameBtn.onmouseup    = nameBtn.onmouseleave = () => { nameBtn.style.backgroundImage = "url('art/intrface/nameoff.png')" }
+
+    const nameLabelEl = document.createElement('div')
+    Object.assign(nameLabelEl.style, {
         position: 'absolute', left: '33px', top: '6px',
-        width: '115px', fontSize: '0.69em', color: '#FFD700',
-        fontFamily: 'monospace', cursor: 'pointer',
-        borderBottom: '1px solid #806814', userSelect: 'none',
+        pointerEvents: 'none', zIndex: '2',
     })
-    const updateNameDisplay = () => { nameDisplayEl.textContent = playerName }
-    updateNameDisplay()
-    nameDisplayEl.onclick = () => openCreatorPopup('name', updateNameDisplay)
-    characterWindow.elem.appendChild(nameDisplayEl)
 
-    // ── Age display (agebox + bignum; click opens popup) ──────────────────────
-    const ageboxEl = document.createElement('div')
-    Object.assign(ageboxEl.style, {
-        position: 'absolute', left: '155px', top: '6px',
-        width: '124px', height: '29px',
-        backgroundImage: "url('art/intrface/agebox.png')",
-        backgroundRepeat: 'no-repeat', backgroundSize: '124px 29px',
-        pointerEvents: 'none',
-    })
-    characterWindow.elem.appendChild(ageboxEl)
-
-    const ageBignumContainer = document.createElement('div')
-    Object.assign(ageBignumContainer.style, {
-        position: 'absolute', left: '185px', top: '9px',
-        pointerEvents: 'none', zIndex: '3',
-    })
-    characterWindow.elem.appendChild(ageBignumContainer)
-
-    const updateAgeLabel = () => {
-        while (ageBignumContainer.firstChild) ageBignumContainer.removeChild(ageBignumContainer.firstChild)
-        ageBignumContainer.appendChild(renderBignum(playerAge, 2))
+    const updateNameDisplay = () => {
+        while (nameLabelEl.firstChild) nameLabelEl.removeChild(nameLabelEl.firstChild)
+        nameLabelEl.appendChild(font4.renderText(playerName, '#FFD700'))
     }
-    updateAgeLabel()
+    updateNameDisplay()
+    nameBtn.onclick = () => openCreatorPopup('name', updateNameDisplay)
 
-    const ageClickArea = document.createElement('div')
-    Object.assign(ageClickArea.style, {
-        position: 'absolute', left: '153px', top: '3px',
-        width: '126px', height: '32px', cursor: 'pointer', zIndex: '4',
+    characterWindow.elem.appendChild(nameBtn)
+    characterWindow.elem.appendChild(nameLabelEl)
+
+    // ── Age button + font4 label ──────────────────────────────────────────────
+    const ageBtn = document.createElement('div')
+    Object.assign(ageBtn.style, {
+        position: 'absolute', left: '168px', top: '0px',
+        backgroundImage: "url('art/intrface/ageoff.png')",
+        backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
+        cursor: 'pointer', zIndex: '1',
     })
-    ageClickArea.onclick = () => openCreatorPopup('age', updateAgeLabel)
-    characterWindow.elem.appendChild(ageClickArea)
+    ageBtn.onmousedown  = () => { ageBtn.style.backgroundImage = "url('art/intrface/ageon.png')" }
+    ageBtn.onmouseup    = ageBtn.onmouseleave = () => { ageBtn.style.backgroundImage = "url('art/intrface/ageoff.png')" }
 
-    // ── Sex display (button + font3 label; click opens popup) ────────────────
+    const ageLabelEl = document.createElement('div')
+    Object.assign(ageLabelEl.style, {
+        position: 'absolute', left: '185px', top: '6px',
+        pointerEvents: 'none', zIndex: '2',
+    })
+
+    const updateAgeDisplay = () => {
+        while (ageLabelEl.firstChild) ageLabelEl.removeChild(ageLabelEl.firstChild)
+        ageLabelEl.appendChild(font4.renderText(String(playerAge), '#FFD700'))
+    }
+    updateAgeDisplay()
+    ageBtn.onclick = () => openCreatorPopup('age', updateAgeDisplay)
+
+    characterWindow.elem.appendChild(ageBtn)
+    characterWindow.elem.appendChild(ageLabelEl)
+
+    // ── Sex button + font4 label ──────────────────────────────────────────────
+    const sexBtn = document.createElement('div')
+    Object.assign(sexBtn.style, {
+        position: 'absolute', left: '240px', top: '0px',
+        backgroundImage: "url('art/intrface/sexoff.png')",
+        backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
+        cursor: 'pointer', zIndex: '1',
+    })
+    sexBtn.onmousedown  = () => { sexBtn.style.backgroundImage = "url('art/intrface/sexon.png')" }
+    sexBtn.onmouseup    = sexBtn.onmouseleave = () => { sexBtn.style.backgroundImage = "url('art/intrface/sexoff.png')" }
+
     const sexLabelEl = document.createElement('div')
     Object.assign(sexLabelEl.style, {
-        position: 'absolute', left: '253px', top: '39px', pointerEvents: 'none',
+        position: 'absolute', left: '253px', top: '6px',
+        pointerEvents: 'none', zIndex: '2',
     })
-    characterWindow.elem.appendChild(sexLabelEl)
 
-    const updateSexLabel = () => {
+    const updateSexDisplay = () => {
         while (sexLabelEl.firstChild) sexLabelEl.removeChild(sexLabelEl.firstChild)
-        font3.onLoad(() => { sexLabelEl.appendChild(font3.renderText(playerSex, '#FFD700')) })
+        sexLabelEl.appendChild(font4.renderText(playerSex, '#FFD700'))
     }
-    updateSexLabel()
+    updateSexDisplay()
+    sexBtn.onclick = () => openCreatorPopup('sex', updateSexDisplay)
 
-    const sexBtnEl = document.createElement('div')
-    Object.assign(sexBtnEl.style, {
-        position: 'absolute', left: '250px', top: '3px',
-        width: '80px', height: '32px',
-        backgroundImage: "url('art/intrface/sexoff.png')",
-        backgroundRepeat: 'no-repeat', backgroundSize: '80px 32px',
-        cursor: 'pointer', zIndex: '2',
-    })
-    sexBtnEl.onmousedown  = () => { sexBtnEl.style.backgroundImage = "url('art/intrface/sexon.png')" }
-    sexBtnEl.onmouseup    = () => { sexBtnEl.style.backgroundImage = "url('art/intrface/sexoff.png')"; openCreatorPopup('sex', updateSexLabel) }
-    sexBtnEl.onmouseleave = () => { sexBtnEl.style.backgroundImage = "url('art/intrface/sexoff.png')" }
-    characterWindow.elem.appendChild(sexBtnEl)
+    characterWindow.elem.appendChild(sexBtn)
+    characterWindow.elem.appendChild(sexLabelEl)
 
     // ── Trait panel ───────────────────────────────────────────────────────────
     // Two columns × 8 rows. Clicking shows info card; max 2 selectable.
