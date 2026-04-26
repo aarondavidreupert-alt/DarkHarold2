@@ -1017,20 +1017,31 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         // ── DONE button row ──────────────────────────────────────────────────
         const doneRow = document.createElement('div')
         Object.assign(doneRow.style, {
+            position: 'relative',
             display: 'flex', alignItems: 'center',
             justifyContent: 'flex-end', width: '100%', gap: '4px',
         })
 
+        const doneBoxEl = document.createElement('div')
+        Object.assign(doneBoxEl.style, {
+            position: 'absolute', left: '0', top: '0',
+            width: '108px', height: '24px',
+            backgroundImage: "url('art/intrface/donebox.png')",
+            backgroundRepeat: 'no-repeat', backgroundSize: '108px 24px',
+            pointerEvents: 'none', zIndex: '0',
+        })
+        doneRow.appendChild(doneBoxEl)
+
         const doneLblEl = document.createElement('div')
-        Object.assign(doneLblEl.style, { pointerEvents: 'none' })
-        font4.onLoad(() => { doneLblEl.appendChild(font4.renderText('DONE')) })
+        Object.assign(doneLblEl.style, { pointerEvents: 'none', zIndex: '1', position: 'relative' })
+        font3.onLoad(() => { doneLblEl.appendChild(font3.renderText('DONE')) })
 
         const doneBtn = document.createElement('div')
         Object.assign(doneBtn.style, {
             width: '15px', height: '16px',
             backgroundImage: "url('art/intrface/lilredup.png')",
             backgroundRepeat: 'no-repeat', backgroundSize: '15px 16px',
-            cursor: 'pointer',
+            cursor: 'pointer', zIndex: '1', position: 'relative',
         })
         doneBtn.onmousedown  = () => { doneBtn.style.backgroundImage = "url('art/intrface/lilreddn.png')" }
         doneBtn.onmouseup    = doneBtn.onmouseleave = () => { doneBtn.style.backgroundImage = "url('art/intrface/lilredup.png')" }
@@ -1042,9 +1053,21 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
         // ── Per-type content ─────────────────────────────────────────────────
         if (type === 'name') {
+            const nameBoxBg = document.createElement('div')
+            Object.assign(nameBoxBg.style, {
+                position: 'absolute',
+                width: '145px', height: '17px',
+                backgroundImage: "url('art/intrface/namebox.png')",
+                backgroundRepeat: 'no-repeat', backgroundSize: '145px 17px',
+                pointerEvents: 'none', zIndex: '1',
+            })
+            contentEl.style.position = 'relative'
+            contentEl.appendChild(nameBoxBg)
+
             const inp = document.createElement('input')
             Object.assign(inp, { type: 'text', maxLength: 11, value: playerName })
             Object.assign(inp.style, {
+                position: 'relative', zIndex: '2',
                 fontSize: '0.9em', color: '#FFD700',
                 background: 'transparent', border: 'none',
                 borderBottom: '1px solid #806814',
@@ -1090,6 +1113,17 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
                 return btn
             }
 
+            const ageBoxBg = document.createElement('div')
+            Object.assign(ageBoxBg.style, {
+                backgroundImage: "url('art/intrface/agebox.png')",
+                backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
+                pointerEvents: 'none', zIndex: '0',
+                position: 'absolute',
+                width: '124px', height: '29px',
+            })
+            contentEl.style.position = 'relative'
+            contentEl.appendChild(ageBoxBg)
+
             applyFn = () => { playerAge = popupAge }
             contentEl.appendChild(makeArrow('slu.png', 'sld.png', -1))
             contentEl.appendChild(bignumEl)
@@ -1105,16 +1139,16 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
             }
 
             Object.assign(malEl.style, {
-                width: '80px', height: '32px',
+                width: '34px', height: '32px',
                 backgroundImage: `url('art/intrface/male${playerSex === 'Male' ? 'on' : 'off'}.png')`,
-                backgroundRepeat: 'no-repeat', backgroundSize: 'contain', cursor: 'pointer',
+                backgroundRepeat: 'no-repeat', cursor: 'pointer',
             })
             malEl.onclick = () => { playerSex = 'Male'; updateSexDisplay(); refreshSexBtns() }
 
             Object.assign(femEl.style, {
-                width: '80px', height: '32px',
+                width: '34px', height: '32px',
                 backgroundImage: `url('art/intrface/fem${playerSex === 'Female' ? 'on' : 'off'}.png')`,
-                backgroundRepeat: 'no-repeat', backgroundSize: 'contain', cursor: 'pointer',
+                backgroundRepeat: 'no-repeat', cursor: 'pointer',
             })
             femEl.onclick = () => { playerSex = 'Female'; updateSexDisplay(); refreshSexBtns() }
 
@@ -1142,7 +1176,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     const nameLabelEl = document.createElement('div')
     Object.assign(nameLabelEl.style, {
-        position: 'absolute', left: '33px', top: '4px',
+        position: 'absolute', left: '33px', top: '6px',
         pointerEvents: 'none', zIndex: '2',
     })
 
@@ -1170,7 +1204,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     const ageLabelEl = document.createElement('div')
     Object.assign(ageLabelEl.style, {
-        position: 'absolute', left: '167px', top: '4px',
+        position: 'absolute', left: '184px', top: '6px',
         pointerEvents: 'none', zIndex: '2',
     })
 
@@ -1198,7 +1232,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     const sexLabelEl = document.createElement('div')
     Object.assign(sexLabelEl.style, {
-        position: 'absolute', left: '248px', top: '4px',
+        position: 'absolute', left: '248px', top: '6px',
         pointerEvents: 'none', zIndex: '2',
     })
 
