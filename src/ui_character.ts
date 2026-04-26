@@ -1160,6 +1160,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const ageBtn = document.createElement('div')
     Object.assign(ageBtn.style, {
         position: 'absolute', left: '168px', top: '0px',
+        width: '81px', height: '32px',
         backgroundImage: "url('art/intrface/ageoff.png')",
         backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
         cursor: 'pointer', zIndex: '1',
@@ -1187,6 +1188,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const sexBtn = document.createElement('div')
     Object.assign(sexBtn.style, {
         position: 'absolute', left: '240px', top: '0px',
+        width: '80px', height: '32px',
         backgroundImage: "url('art/intrface/sexoff.png')",
         backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
         cursor: 'pointer', zIndex: '1',
