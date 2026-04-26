@@ -729,7 +729,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     // Creation-mode state
     let pool = 5                                   // bonus SPECIAL points to allocate
     let selectedTraits: string[] = []
-    let playerName = ''
+    let playerName = 'Vault Dweller'
     let playerAge = 25
     let playerSex: 'Male' | 'Female' = 'Male'
 
@@ -1059,7 +1059,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
             inp.addEventListener('keyup',    (e) => e.stopPropagation())
             inp.addEventListener('keypress', (e) => e.stopPropagation())
 
-            applyFn = () => { playerName = inp.value.trim() }
+            applyFn = () => { playerName = inp.value.trim() || playerName }
             contentEl.appendChild(inp)
             setTimeout(() => inp.focus(), 0)
 
