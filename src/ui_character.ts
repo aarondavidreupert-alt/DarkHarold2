@@ -1131,8 +1131,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     // ── Name button + font4 label ─────────────────────────────────────────────
     const nameBtn = document.createElement('div')
     Object.assign(nameBtn.style, {
-        position: 'absolute', left: '9px', top: '0px',
-        width: '186px', height: '25px',
+        position: 'absolute', left: '11px', top: '0px',
+        width: '145px', height: '35px',
         backgroundImage: "url('art/intrface/nameoff.png')",
         backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
         cursor: 'pointer', zIndex: '1',
@@ -1142,7 +1142,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     const nameLabelEl = document.createElement('div')
     Object.assign(nameLabelEl.style, {
-        position: 'absolute', left: '33px', top: '6px',
+        position: 'absolute', left: '33px', top: '10px',
         pointerEvents: 'none', zIndex: '2',
     })
 
@@ -1159,8 +1159,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     // ── Age button + font4 label ──────────────────────────────────────────────
     const ageBtn = document.createElement('div')
     Object.assign(ageBtn.style, {
-        position: 'absolute', left: '168px', top: '0px',
-        width: '81px', height: '32px',
+        position: 'absolute', left: '156px', top: '0px',
+        width: '81px', height: '35px',
         backgroundImage: "url('art/intrface/ageoff.png')",
         backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
         cursor: 'pointer', zIndex: '1',
@@ -1170,7 +1170,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     const ageLabelEl = document.createElement('div')
     Object.assign(ageLabelEl.style, {
-        position: 'absolute', left: '185px', top: '6px',
+        position: 'absolute', left: '167px', top: '10px',
         pointerEvents: 'none', zIndex: '2',
     })
 
@@ -1187,8 +1187,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     // ── Sex button + font4 label ──────────────────────────────────────────────
     const sexBtn = document.createElement('div')
     Object.assign(sexBtn.style, {
-        position: 'absolute', left: '240px', top: '0px',
-        width: '80px', height: '32px',
+        position: 'absolute', left: '237px', top: '0px',
+        width: '80px', height: '35px',
         backgroundImage: "url('art/intrface/sexoff.png')",
         backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
         cursor: 'pointer', zIndex: '1',
@@ -1198,7 +1198,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     const sexLabelEl = document.createElement('div')
     Object.assign(sexLabelEl.style, {
-        position: 'absolute', left: '253px', top: '6px',
+        position: 'absolute', left: '248px', top: '10px',
         pointerEvents: 'none', zIndex: '2',
     })
 
