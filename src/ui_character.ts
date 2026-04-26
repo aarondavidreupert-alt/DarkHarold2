@@ -1142,13 +1142,13 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     const nameLabelEl = document.createElement('div')
     Object.assign(nameLabelEl.style, {
-        position: 'absolute', left: '33px', top: '10px',
+        position: 'absolute', left: '33px', top: '4px',
         pointerEvents: 'none', zIndex: '2',
     })
 
     const updateNameDisplay = () => {
         while (nameLabelEl.firstChild) nameLabelEl.removeChild(nameLabelEl.firstChild)
-        nameLabelEl.appendChild(font4.renderText(playerName, '#FFD700'))
+        nameLabelEl.appendChild(font3.renderText(playerName, '#FFD700'))
     }
     updateNameDisplay()
     nameBtn.onclick = () => openCreatorPopup('name', updateNameDisplay)
@@ -1170,13 +1170,13 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     const ageLabelEl = document.createElement('div')
     Object.assign(ageLabelEl.style, {
-        position: 'absolute', left: '167px', top: '10px',
+        position: 'absolute', left: '167px', top: '4px',
         pointerEvents: 'none', zIndex: '2',
     })
 
     const updateAgeDisplay = () => {
         while (ageLabelEl.firstChild) ageLabelEl.removeChild(ageLabelEl.firstChild)
-        ageLabelEl.appendChild(font4.renderText(String(playerAge), '#FFD700'))
+        ageLabelEl.appendChild(font3.renderText(String(playerAge), '#FFD700'))
     }
     updateAgeDisplay()
     ageBtn.onclick = () => openCreatorPopup('age', updateAgeDisplay)
@@ -1198,13 +1198,13 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     const sexLabelEl = document.createElement('div')
     Object.assign(sexLabelEl.style, {
-        position: 'absolute', left: '248px', top: '10px',
+        position: 'absolute', left: '248px', top: '4px',
         pointerEvents: 'none', zIndex: '2',
     })
 
     const updateSexDisplay = () => {
         while (sexLabelEl.firstChild) sexLabelEl.removeChild(sexLabelEl.firstChild)
-        sexLabelEl.appendChild(font4.renderText(playerSex, '#FFD700'))
+        sexLabelEl.appendChild(font3.renderText(playerSex, '#FFD700'))
     }
     updateSexDisplay()
     sexBtn.onclick = () => openCreatorPopup('sex', updateSexDisplay)
