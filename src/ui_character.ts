@@ -337,6 +337,36 @@ export function showCharacterScreen() {
 
     characterWindow.elem.appendChild(sliderContainer)
 
+    // ── Identity display: name / age / sex (non-interactive) ─────────────────
+    const screenNameEl = document.createElement('div')
+    Object.assign(screenNameEl.style, {
+        position: 'absolute', left: '33px', top: '6px',
+        pointerEvents: 'none',
+    })
+    font3.onLoad(() => {
+        screenNameEl.appendChild(font3.renderText(player.name || 'none', '#FFD700'))
+    })
+    characterWindow.elem.appendChild(screenNameEl)
+
+    const screenAgeEl = document.createElement('div')
+    Object.assign(screenAgeEl.style, {
+        position: 'absolute', left: '184px', top: '6px',
+        pointerEvents: 'none',
+    })
+    screenAgeEl.appendChild(renderBignum(player.getStat('Age'), 2))
+    characterWindow.elem.appendChild(screenAgeEl)
+
+    const screenSexEl = document.createElement('div')
+    const isFemale = player.gender === 'female'
+    Object.assign(screenSexEl.style, {
+        position: 'absolute', left: '237px', top: '0px',
+        width: '45px', height: '43px',
+        backgroundImage: `url('art/intrface/${isFemale ? 'fem' : 'male'}on.png')`,
+        backgroundRepeat: 'no-repeat',
+        pointerEvents: 'none',
+    })
+    characterWindow.elem.appendChild(screenSexEl)
+
     // --- Folder tab strip (Perks / Karma / Kills) ---
     const tabStripEl = document.createElement('div')
     Object.assign(tabStripEl.style, {
@@ -1025,7 +1055,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
         const doneBoxEl = document.createElement('div')
         Object.assign(doneBoxEl.style, {
-            position: 'absolute', left: '3px', top: '-3px',
+            position: 'absolute', left: '18px', top: '-3px',
             width: '108px', height: '24px',
             backgroundImage: "url('art/intrface/donebox.png')",
             backgroundRepeat: 'no-repeat', backgroundSize: '108px 24px',
@@ -1126,6 +1156,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
                 width: '124px', height: '29px',
             })
             contentEl.style.position = 'relative'
+            contentEl.style.gap = '17px'
             contentEl.appendChild(ageBoxBg)
 
             applyFn = () => { playerAge = popupAge }
