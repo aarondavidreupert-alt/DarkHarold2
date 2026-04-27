@@ -1018,13 +1018,14 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         const doneRow = document.createElement('div')
         Object.assign(doneRow.style, {
             position: 'relative',
+            left: '-13px', top: '-1px',
             display: 'flex', alignItems: 'center',
             justifyContent: 'flex-end', width: '100%', gap: '4px',
         })
 
         const doneBoxEl = document.createElement('div')
         Object.assign(doneBoxEl.style, {
-            position: 'absolute', left: '0', top: '0',
+            position: 'absolute', left: '3px', top: '-3px',
             width: '108px', height: '24px',
             backgroundImage: "url('art/intrface/donebox.png')",
             backgroundRepeat: 'no-repeat', backgroundSize: '108px 24px',
@@ -1056,9 +1057,9 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
             const nameBoxBg = document.createElement('div')
             Object.assign(nameBoxBg.style, {
                 position: 'absolute',
-                width: '145px', height: '17px',
+                width: '111px', height: '20px',
                 backgroundImage: "url('art/intrface/namebox.png')",
-                backgroundRepeat: 'no-repeat', backgroundSize: '145px 17px',
+                backgroundRepeat: 'no-repeat', backgroundSize: '111px 20px',
                 pointerEvents: 'none', zIndex: '1',
             })
             contentEl.style.position = 'relative'
@@ -1103,6 +1104,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
                     backgroundImage: `url('art/intrface/${upSrc}')`,
                     backgroundRepeat: 'no-repeat', backgroundSize: '20px 18px',
                     cursor: 'pointer',
+                    position: 'relative', zIndex: '3',
                 })
                 btn.onmousedown = () => { btn.style.backgroundImage = `url('art/intrface/${dnSrc}')` }
                 btn.onmouseup = btn.onmouseleave = () => { btn.style.backgroundImage = `url('art/intrface/${upSrc}')` }
@@ -1113,11 +1115,13 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
                 return btn
             }
 
+            Object.assign(bignumEl.style, { position: 'relative', zIndex: '3' })
+
             const ageBoxBg = document.createElement('div')
             Object.assign(ageBoxBg.style, {
                 backgroundImage: "url('art/intrface/agebox.png')",
                 backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
-                pointerEvents: 'none', zIndex: '0',
+                pointerEvents: 'none', zIndex: '1',
                 position: 'absolute',
                 width: '124px', height: '29px',
             })
@@ -1139,14 +1143,14 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
             }
 
             Object.assign(malEl.style, {
-                width: '34px', height: '32px',
+                width: '45px', height: '43px',
                 backgroundImage: `url('art/intrface/male${playerSex === 'Male' ? 'on' : 'off'}.png')`,
                 backgroundRepeat: 'no-repeat', cursor: 'pointer',
             })
             malEl.onclick = () => { playerSex = 'Male'; updateSexDisplay(); refreshSexBtns() }
 
             Object.assign(femEl.style, {
-                width: '34px', height: '32px',
+                width: '45px', height: '43px',
                 backgroundImage: `url('art/intrface/fem${playerSex === 'Female' ? 'on' : 'off'}.png')`,
                 backgroundRepeat: 'no-repeat', cursor: 'pointer',
             })
