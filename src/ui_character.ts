@@ -492,7 +492,7 @@ export function showCharacterScreen() {
         height: '117px',
         flexShrink: '0',
         objectFit: 'contain',
-        margin: '8px 8px 8px 6px',
+        margin: '34px -10px 8px 6px',
         visibility: 'hidden',
     })
     cardImgEl.onload = () => { cardImgEl.style.visibility = 'visible' }
@@ -867,7 +867,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         height: '117px',
         flexShrink: '0',
         objectFit: 'contain',
-        margin: '8px 8px 8px 6px',
+        margin: '34px -10px 8px 6px',
         visibility: 'hidden',
     })
     cardImgEl.onload = () => { cardImgEl.style.visibility = 'visible' }
