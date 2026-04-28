@@ -356,7 +356,7 @@ export function showCharacterScreen() {
     })
     characterWindow.elem.appendChild(screenNameLbl)
 
-    // Age — ageoff.png sprite + bignum on top
+    // Age — ageoff.png sprite + font3 age text on top
     const screenAgeBtn = document.createElement('div')
     Object.assign(screenAgeBtn.style, {
         position: 'absolute', left: '156px', top: '0px',
@@ -372,19 +372,31 @@ export function showCharacterScreen() {
         position: 'absolute', left: '184px', top: '6px',
         pointerEvents: 'none', zIndex: '2',
     })
-    screenAgeLbl.appendChild(renderBignum(player.getStat('Age'), 2))
+    font3.onLoad(() => {
+        screenAgeLbl.appendChild(font3.renderText(String(player.getStat('Age')), '#FFD700'))
+    })
     characterWindow.elem.appendChild(screenAgeLbl)
 
-    // Sex — maleon/femon at sexBtn position, no text label
+    // Sex — sexoff.png sprite + font3 gender text on top
     const screenSexBtn = document.createElement('div')
     Object.assign(screenSexBtn.style, {
         position: 'absolute', left: '237px', top: '0px',
         width: '80px', height: '35px',
-        backgroundImage: `url('art/intrface/${player.gender === 'female' ? 'fem' : 'male'}on.png')`,
+        backgroundImage: "url('art/intrface/sexoff.png')",
         backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
         pointerEvents: 'none',
     })
     characterWindow.elem.appendChild(screenSexBtn)
+
+    const screenSexLbl = document.createElement('div')
+    Object.assign(screenSexLbl.style, {
+        position: 'absolute', left: '248px', top: '6px',
+        pointerEvents: 'none', zIndex: '2',
+    })
+    font3.onLoad(() => {
+        screenSexLbl.appendChild(font3.renderText(player.gender === 'female' ? 'Female' : 'Male', '#FFD700'))
+    })
+    characterWindow.elem.appendChild(screenSexLbl)
 
     // --- Folder tab strip (Perks / Karma / Kills) ---
     const tabStripEl = document.createElement('div')
