@@ -513,10 +513,19 @@ export function showCharacterScreen() {
     const cardTitleEl = document.createElement('div')
     cardTextEl.appendChild(cardTitleEl)
 
+    const cardDividerEl = document.createElement('hr')
+    Object.assign(cardDividerEl.style, {
+        border: 'none',
+        borderTop: '1px solid #555',
+        margin: '2px 0',
+        width: '100%',
+    })
+    cardTextEl.appendChild(cardDividerEl)
+
     const cardDescEl = document.createElement('div')
     Object.assign(cardDescEl.style, {
         fontSize: '0.69em',
-        color: 'rgb(0,255,0)',
+        color: '#000000',
         overflow: 'hidden',
         lineHeight: '1.3',
     })
@@ -888,10 +897,19 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const cardTitleEl = document.createElement('div')
     cardTextEl.appendChild(cardTitleEl)
 
+    const cardDividerEl = document.createElement('hr')
+    Object.assign(cardDividerEl.style, {
+        border: 'none',
+        borderTop: '1px solid #555',
+        margin: '2px 0',
+        width: '100%',
+    })
+    cardTextEl.appendChild(cardDividerEl)
+
     const cardDescEl = document.createElement('div')
     Object.assign(cardDescEl.style, {
         fontSize: '0.69em',
-        color: 'rgb(0,255,0)',
+        color: '#000000',
         overflow: 'hidden',
         lineHeight: '1.3',
     })
