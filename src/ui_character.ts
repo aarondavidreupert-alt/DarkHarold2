@@ -488,17 +488,15 @@ export function showCharacterScreen() {
 
     const cardImgEl = document.createElement('img') as HTMLImageElement
     Object.assign(cardImgEl.style, {
-        width: '60px',
-        height: '75px',
+        width: '140px',
+        height: '117px',
         flexShrink: '0',
         objectFit: 'contain',
-        margin: '8px 6px 8px 8px',
-        alignSelf: 'flex-start',
+        margin: '8px 8px 8px 6px',
         visibility: 'hidden',
     })
     cardImgEl.onload = () => { cardImgEl.style.visibility = 'visible' }
     cardImgEl.onerror = () => { cardImgEl.style.visibility = 'hidden' }
-    infoCardEl.appendChild(cardImgEl)
 
     const cardTextEl = document.createElement('div')
     Object.assign(cardTextEl.style, {
@@ -510,6 +508,7 @@ export function showCharacterScreen() {
         gap: '4px',
     })
     infoCardEl.appendChild(cardTextEl)
+    infoCardEl.appendChild(cardImgEl)
 
     const cardTitleEl = document.createElement('div')
     cardTextEl.appendChild(cardTitleEl)
@@ -864,17 +863,15 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     const cardImgEl = document.createElement('img') as HTMLImageElement
     Object.assign(cardImgEl.style, {
-        width: '60px',
-        height: '75px',
+        width: '140px',
+        height: '117px',
         flexShrink: '0',
         objectFit: 'contain',
-        margin: '8px 6px 8px 8px',
-        alignSelf: 'flex-start',
+        margin: '8px 8px 8px 6px',
         visibility: 'hidden',
     })
     cardImgEl.onload = () => { cardImgEl.style.visibility = 'visible' }
     cardImgEl.onerror = () => { cardImgEl.style.visibility = 'hidden' }
-    infoCardEl.appendChild(cardImgEl)
 
     const cardTextEl = document.createElement('div')
     Object.assign(cardTextEl.style, {
@@ -886,6 +883,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         gap: '4px',
     })
     infoCardEl.appendChild(cardTextEl)
+    infoCardEl.appendChild(cardImgEl)
 
     const cardTitleEl = document.createElement('div')
     cardTextEl.appendChild(cardTitleEl)
