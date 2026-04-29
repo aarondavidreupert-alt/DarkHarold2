@@ -1434,8 +1434,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const optionalTraitsLabelEl = document.createElement('div')
     Object.assign(optionalTraitsLabelEl.style, {
         position: 'absolute',
-        left: '23px',
-        top: '340px',
+        left: '48px',
+        top: '327px',
         pointerEvents: 'none',
     })
     font3.onLoad(() => {
