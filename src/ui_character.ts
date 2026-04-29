@@ -24,7 +24,7 @@ limitations under the License.
 import { Config } from './config.js'
 import globalState from './globalState.js'
 import { Widget } from './ui_widget.js'
-import { font1, font3, font4, makeFontLabel, renderBignum } from './ui_font.js'
+import { font1, font2, font3, font4, makeFontLabel, renderBignum } from './ui_font.js'
 import { WindowFrame, SmallButton, Label, List } from './ui_components.js'
 import { makePanelDraggable } from './ui_drag.js'
 import { StatSet, SkillSet, SkillCalcOptions } from './char.js'
@@ -488,11 +488,11 @@ export function showCharacterScreen() {
 
     const cardImgEl = document.createElement('img') as HTMLImageElement
     Object.assign(cardImgEl.style, {
-        width: '140px',
+        width: '165px',
         height: '117px',
         flexShrink: '0',
         objectFit: 'contain',
-        margin: '34px -10px 8px 6px',
+        margin: '34px -18px 21px 6px',
         visibility: 'hidden',
     })
     cardImgEl.onload = () => { cardImgEl.style.visibility = 'visible' }
@@ -516,7 +516,7 @@ export function showCharacterScreen() {
     const cardDividerEl = document.createElement('hr')
     Object.assign(cardDividerEl.style, {
         border: 'none',
-        borderTop: '1px solid #555',
+        borderTop: '1px solid #000000',
         margin: '2px 0',
         width: '100%',
     })
@@ -533,7 +533,7 @@ export function showCharacterScreen() {
 
     const showInfoCard = (title: string, desc: string, imgPath?: string): void => {
         while (cardTitleEl.firstChild) cardTitleEl.removeChild(cardTitleEl.firstChild)
-        cardTitleEl.appendChild(font3.renderText(title.toUpperCase(), '#FFD700'))
+        cardTitleEl.appendChild(font2.renderText(title.toUpperCase(), '#000000'))
         cardDescEl.textContent = desc
         if (imgPath) {
             cardImgEl.src = imgPath
@@ -872,11 +872,11 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     const cardImgEl = document.createElement('img') as HTMLImageElement
     Object.assign(cardImgEl.style, {
-        width: '140px',
+        width: '165px',
         height: '117px',
         flexShrink: '0',
         objectFit: 'contain',
-        margin: '34px -10px 8px 6px',
+        margin: '34px -18px 21px 6px',
         visibility: 'hidden',
     })
     cardImgEl.onload = () => { cardImgEl.style.visibility = 'visible' }
@@ -900,7 +900,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const cardDividerEl = document.createElement('hr')
     Object.assign(cardDividerEl.style, {
         border: 'none',
-        borderTop: '1px solid #555',
+        borderTop: '1px solid #000000',
         margin: '2px 0',
         width: '100%',
     })
@@ -917,7 +917,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
     const showInfoCard = (title: string, desc: string, imgPath?: string): void => {
         while (cardTitleEl.firstChild) cardTitleEl.removeChild(cardTitleEl.firstChild)
-        cardTitleEl.appendChild(font3.renderText(title.toUpperCase(), '#FFD700'))
+        cardTitleEl.appendChild(font2.renderText(title.toUpperCase(), '#000000'))
         cardDescEl.textContent = desc
         if (imgPath) {
             cardImgEl.src = imgPath
