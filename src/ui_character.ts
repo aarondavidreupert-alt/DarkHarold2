@@ -1346,7 +1346,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const leftColEl = document.createElement('div')
     Object.assign(leftColEl.style, {
         position: 'absolute',
-        left: '27px',
+        left: '23px',
         top: '352px',
         display: 'flex',
         flexDirection: 'column',
@@ -1357,7 +1357,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const rightColEl = document.createElement('div')
     Object.assign(rightColEl.style, {
         position: 'absolute',
-        left: '149px',
+        left: '152px',
         top: '352px',
         display: 'flex',
         flexDirection: 'column',
@@ -1375,7 +1375,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
             display: 'flex',
             alignItems: 'center',
             flexDirection: isRight ? 'row-reverse' : 'row',
-            gap: '3px',
+            gap: '8px',
             cursor: 'pointer',
             fontSize: '0.69em',
             overflow: 'hidden',
