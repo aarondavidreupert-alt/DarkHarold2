@@ -791,9 +791,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const newStatSet = new StatSet()
     const newSkillSet = new SkillSet()
 
-    // Snapshot minimum per SPECIAL — can never go below starting base
-    const statMin: Record<string, number> = {}
-    for (const s of STATS) statMin[s] = newStatSet.getBase(s)  // all 5
+
 
     // Creation-mode state
     let pool = 5                                   // bonus SPECIAL points to allocate
@@ -1026,7 +1024,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         })
         wireEbut(dnBtn, 'art/intrface/stnegoff.png', 'art/intrface/stnegon.png', () => {
             const cur = newStatSet.getBase(capturedStat)
-            if (cur <= statMin[capturedStat]) return
+            if (cur <= 1) return
             newStatSet.setBase(capturedStat, cur - 1)
             pool++
             updatePoolLabel()
