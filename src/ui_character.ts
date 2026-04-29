@@ -958,7 +958,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         pointerEvents: 'none',
     })
     font3.onLoad(() => {
-        poolTextEl.appendChild(font3.renderText('Skill Points', '#FFD700'))
+        poolTextEl.appendChild(font3.renderText('Char Points', '#FFD700'))
     })
     characterWindow.elem.appendChild(poolTextEl)
 
@@ -1432,6 +1432,18 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         traitToggleImgs.push(toggleImg)
     }
     refreshTraitPanel()
+
+    const optionalTraitsLabelEl = document.createElement('div')
+    Object.assign(optionalTraitsLabelEl.style, {
+        position: 'absolute',
+        left: '23px',
+        top: '340px',
+        pointerEvents: 'none',
+    })
+    font3.onLoad(() => {
+        optionalTraitsLabelEl.appendChild(font3.renderText('Optional Traits', '#FFD700'))
+    })
+    characterWindow.elem.appendChild(optionalTraitsLabelEl)
     characterWindow.elem.appendChild(leftColEl)
     characterWindow.elem.appendChild(rightColEl)
 
