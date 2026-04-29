@@ -824,9 +824,9 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const skillRowsEl = document.createElement('div')
     Object.assign(skillRowsEl.style, {
         position: 'absolute',
-        left: '380px',
+        left: '356px',
         top: '25px',
-        width: '200px',
+        width: '240px',
         fontSize: '0.69em',
     })
 
@@ -1528,9 +1528,9 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
             const toggleBtn = document.createElement('div')
             Object.assign(toggleBtn.style, {
-                width: '16px', height: '12px',
+                width: '17px', height: '11px',
                 backgroundImage: `url('art/intrface/${isTagged ? 'tgsklon' : 'tgskloff'}.png')`,
-                backgroundRepeat: 'no-repeat', backgroundSize: '16px 12px',
+                backgroundRepeat: 'no-repeat', backgroundSize: '17px 11px',
                 flexShrink: '0',
             })
             toggleBtn.onmousedown  = () => { toggleBtn.style.backgroundImage = "url('art/intrface/tgsklon.png')" }
