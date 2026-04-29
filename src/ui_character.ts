@@ -820,15 +820,15 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
     const panel3El = panel3.elem
 
-    // ── Skill list ────────────────────────────────────────────────────────────
-    // isRedrawing / isReselecting: guards prevent List's auto-select-first-item
-    // from firing the tag handler during redraw or re-selection.
-    let isRedrawing = false
-    let isReselecting = false
-    let selectedSkill: string | null = null
-
-    const skillList = new List({ x: 380, y: 25, w: 'auto', h: 'auto' })
-    skillList.css({ fontSize: '0.69em', color: 'rgb(0, 255, 0)' })
+    // ── Skill rows container (replaces List widget) ───────────────────────────
+    const skillRowsEl = document.createElement('div')
+    Object.assign(skillRowsEl.style, {
+        position: 'absolute',
+        left: '380px',
+        top: '25px',
+        width: '200px',
+        fontSize: '0.69em',
+    })
 
     // ── Build WindowFrame ─────────────────────────────────────────────────────
     const doneBtn = new SmallButton(455, 454)
@@ -850,10 +850,10 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         .add(makeFontLabel(380, 5, 'Skills', font3))
         .add(panel2)
         .add(panel3)
-        .add(skillList)
         .add(skillPointBignumW)
         .show()
 
+    characterWindow.elem.appendChild(skillRowsEl)
     makePanelDraggable(characterWindow.elem)
 
     // ── Info card ─────────────────────────────────────────────────────────────
@@ -1513,33 +1513,62 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     updateTagBignum()
 
     const redrawStatsSkills = () => {
-        const prev = selectedSkill
-
-        isRedrawing = true
-        skillList.clear()
+        // Rebuild skill rows
+        while (skillRowsEl.firstChild) skillRowsEl.removeChild(skillRowsEl.firstChild)
         for (const skill of SKILLS) {
-            const val = newSkillSet.get(skill, newStatSet, skillOpts)
             const isTagged = newSkillSet.isTagged(skill)
-            skillList.addItem({
-                text: `${isTagged ? '★ ' : '   '}${skill} ${val}%`,
-                id: skill,
+            const val = newSkillSet.get(skill, newStatSet, skillOpts)
+            const color = isTagged ? '#FFB000' : 'rgb(0,255,0)'
+
+            const row = document.createElement('div')
+            Object.assign(row.style, {
+                display: 'flex', alignItems: 'center', gap: '3px',
+                cursor: 'pointer', color,
             })
-        }
-        isRedrawing = false
 
-        // Color tagged items gold; untagged green
-        const itemEls = skillList.elem.children
-        for (let j = 0; j < itemEls.length; j++) {
-            const el = itemEls[j] as HTMLElement
-            const isTagged = newSkillSet.isTagged(SKILLS[j])
-            el.style.color = isTagged ? '#FFD700' : '#00FF00'
-        }
+            const toggleBtn = document.createElement('div')
+            Object.assign(toggleBtn.style, {
+                width: '16px', height: '12px',
+                backgroundImage: `url('art/intrface/${isTagged ? 'tgsklon' : 'tgskloff'}.png')`,
+                backgroundRepeat: 'no-repeat', backgroundSize: '16px 12px',
+                flexShrink: '0',
+            })
+            toggleBtn.onmousedown  = () => { toggleBtn.style.backgroundImage = "url('art/intrface/tgsklon.png')" }
+            toggleBtn.onmouseup    = () => { toggleBtn.style.backgroundImage = `url('art/intrface/${isTagged ? 'tgsklon' : 'tgskloff'}.png')` }
+            toggleBtn.onmouseleave = () => { toggleBtn.style.backgroundImage = `url('art/intrface/${isTagged ? 'tgsklon' : 'tgskloff'}.png')` }
 
-        // Re-select previously selected skill without firing the tag handler
-        if (prev) {
-            isReselecting = true
-            skillList.selectId(prev)
-            isReselecting = false
+            const capturedSkill = skill
+            toggleBtn.onclick = (e) => {
+                e.stopPropagation()
+                if (newSkillSet.isTagged(capturedSkill)) {
+                    newSkillSet.untag(capturedSkill)
+                } else {
+                    if (newSkillSet.tagged.length >= newSkillSet.getMaxTaggedSkills()) return
+                    newSkillSet.tag(capturedSkill)
+                }
+                redrawStatsSkills()
+            }
+
+            const nameSpan = document.createElement('span')
+            nameSpan.textContent = skill
+            Object.assign(nameSpan.style, {
+                flex: '1', textAlign: 'left',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            })
+
+            const pctSpan = document.createElement('span')
+            pctSpan.textContent = `${val}%`
+            Object.assign(pctSpan.style, { textAlign: 'right', minWidth: '36px' })
+
+            row.appendChild(toggleBtn)
+            row.appendChild(nameSpan)
+            row.appendChild(pctSpan)
+
+            row.onmouseenter = () => {
+                showInfoCard(capturedSkill, SKILL_DESCRIPTIONS[capturedSkill] ?? capturedSkill, SKILL_IMG[capturedSkill])
+            }
+
+            skillRowsEl.appendChild(row)
         }
 
         for (let i = 0; i < STATS.length; i++) {
@@ -1555,26 +1584,6 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         updatePoolLabel()
         updateTagBignum()
     }
-
-    // ── Skill tag toggle on click ─────────────────────────────────────────────
-    skillList.onItemSelected((item) => {
-        selectedSkill = item.id
-        showInfoCard(item.id, SKILL_DESCRIPTIONS[item.id] ?? item.id, SKILL_IMG[item.id])
-
-        if (isRedrawing || isReselecting) return
-
-        if (newSkillSet.isTagged(item.id)) {
-            newSkillSet.untag(item.id)
-        } else {
-            const maxTags = newSkillSet.getMaxTaggedSkills()
-            if (newSkillSet.tagged.length >= maxTags) {
-                showInfoCard('Tag Skills', 'You may only tag 3 skills. Untag one first.')
-                return
-            }
-            newSkillSet.tag(item.id)
-        }
-        redrawStatsSkills()
-    })
 
     // ── DONE button ───────────────────────────────────────────────────────────
     doneBtn.onClick(() => {
