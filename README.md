@@ -1,4 +1,4 @@
-# Harold
+# DarkHarold2
 
 A post-nuclear RPG remake
 
@@ -11,50 +11,76 @@ It is written primarily in TypeScript and Python, and targets recent browsers wi
 
 ## Status
 
-Harold is not a complete remake at this time.
-A lot of core functionality works, but major parts are missing or need work.
+DarkHarold2 is not a complete remake at this time. Estimated overall completion: **~50%**.
+The core technical foundation (rendering, combat math, scripting VM, map loading, dialogue runtime) is
+solid. What remains is mostly connecting gameplay systems end-to-end rather than solving hard research problems.
 
-If you're looking for documentation on how Fallout 2 works, or documentation on certain file formats, or
-just want some tools to work with them, this project will be useful to you as well.
+If you're looking for documentation on how Fallout 2 works, documentation on certain file formats, or
+tools to work with them, this project will be useful to you as well.
 
 <img src="screenshot.png" width="640" height="480">
 
-Here is a very rough list of what is known to work:
+---
 
--   Map loading
--   Walking, running
--   Talking to NPCs
--   Bartering
--   Some quests (a lot of the scripting works, majors quests can be completed)
--   Some party members
--   Some skills (lockpicking and repair, and some passive skills)
--   Sound (scripted and hardcoded sound effects, music)
+### ✅ Substantially implemented (~70–90%)
 
-Some features are more middle ground:
+- **Map loading & rendering** — tile maps, multi-elevation, WebGL 2.0 renderer, lightmap, real-time lighting
+- **Walking & running** — pathfinding, door interaction, exit grids (map-to-map and worldmap transitions)
+- **Combat core** — hit chance formula, ammo system (X/Y/DR/AC modifiers), burst fire (3-cone spread), called shots (8 body regions), critical hits (6 levels), critical failures (weapon-type-specific), armor DR/DT per damage type, crippled limbs, knockdown/knockout, fire DoT, ranged miss scatter, partial cover, AI weapon switching and ammo reloading, most combat perks (Slayer, Sniper, Sharpshooter, Bonus HtH Attacks, Bonus Rate of Fire, etc.)
+- **Talking to NPCs** — `start_gdialog` / `giq_option` / reply callback chain, floating text messages
+- **Bartering** — item exchange UI, value calculation with Barter skill modifier
+- **Inventory UI** — drag-and-drop, equip slots (armor, two weapon slots), weight display, reload, stacking
+- **Skill math** — all 18 skills enumerated, FO2 cost curve, tag skill doubling, trait/perk/difficulty modifiers
+- **Scripting VM** — INT file parser, ~100+ opcodes dispatched, transpiler/disassembler
+- **Worldmap travel** — 28×30 grid, per-tile encounter tables, time passage, area transitions
+- **Random encounters** — encounter group generation, placement on encounter map
+- **Audio engine** — music looping, weapon/action sound mapping, ambient SFX from map data
+- **Pip-Boy** — clock display, alarm, STATUS tab, QUESTS/ARCHIVES tab, AUTOMAP tab with per-location map view, zoom/pan, IndexedDB persistence (~90% complete)
+- **Character screen** — full SPECIAL/skill view, stat display, trait/perk lists
 
--   WebGL text rendering via 2D canvas overlay is implemented, but native Fallout bitmap fonts are not yet used everywhere.
--   Combat is substantially implemented: hit chance formula, ammo system (X/Y/DR/AC modifiers),
-    burst fire (3-cone spread), called shots (8 body regions), critical hits (6 levels),
-    critical failures (weapon-type-specific), armor DR/DT, crippled limbs, knockdown/knockout,
-    fire DoT, ranged miss scatter, partial cover, AI weapon switching and ammo reloading,
-    and most combat perks (Slayer, Sniper, Sharpshooter, Bonus HtH Attacks, etc.).
-    Known gaps: unarmed hit modes (Haymaker etc.), DAM_DROP (weapon drop on crit), AI AP cost
-    is hardcoded to 4 instead of using weapon AP cost.
--   Equippable armor is implemented (DR/DT applied to damage calculations)
--   The world map is rough and buggy, and on the area screens entrances are misplaced
--   Random encounters work, but not all of the setups are implemented
--   Lighting works, but has some minor bugs and inaccuracies. It is also particularly slow, especially outside of the WebGL backend.
--   Saving and loading is at an alpha stage: it works to a basic degree, but is missing some features and is not tested. As such, consider it experimental.
--   Some animations are off, particularly related to combat
--   Leveling up (including XP, leveling stats/skills, etc) partially works
+---
 
-Some features are not implemented at all:
+### 🔶 Partially implemented (~30–69%)
 
--   The PipBoy map (in progress on the pipboy branch)
+- **Active skill use** — First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair (8 of 9 active skills; Gambling and Outdoorsman have no interactive handler). 3-use/day limit and XP awards in place. Known gaps: Healer perk not applied, Expanded Lockpick set not modelled, no electronic lockpick distinction, no facing check on Steal.
+- **Level-up flow** — XP thresholds, skill point calculation (5 + 2×INT, +2 if Educated), HP per level (END/2 + 2, +4 if Lifegiver), perk every 3 levels (every 4 if Skilled). `pendingPerkPick` flag is set but **no perk selection UI exists** — picked perks never get applied.
+- **Perks** — ~15 perks wired into combat and skill calculations; no rank tracking; no prerequisite checks; no selection screen.
+- **Traits** — 2 of 16 traits (Gifted, Good Natured) affect skill calculations; no trait selection at character creation; no 2-trait slot limit enforced.
+- **Dialogue** — runtime is functional; `giq_option`, `gsay_reply`, float messages work. `end_dialogue` is a stub in scripting. Some `gsay_message` UI integration is incomplete.
+- **Character creation** — SPECIAL point-buy, tag skill selection present. Trait selection and name/age/sex entry incomplete.
+- **Worldmap** — functional but rough: area entrances are misplaced on area screens, no difficulty adjustment on encounter rate, encounter items/equipping not implemented.
+- **Lighting** — works but has minor inaccuracies and is slow outside the WebGL backend.
+- **Time & date system** — `gametime.ts` implements ticks, day/night ambient light, script bridges for `game_time` and `game_time_hour`. `get_month` and `get_day` opcodes are hardcoded to return 1 and 0 respectively.
+- **Save / load** — IndexedDB-backed; saves/restores position, orientation, inventory, and current map. **Critical gap:** player stats, skills, perks, traits, level/XP, karma, conditions, and GVARs are not fully serialized (`// TODO: Properly (de)serialize the player!` at saveload.ts:158). No save slot screenshots. Consider experimental.
+- **Quest system** — `questData.ts` covers all major Fallout 2 quests with GVAR-based state tracking; Pip-Boy ARCHIVES tab surfaces them. No completion rewards or XP awards wired through the engine. Quest descriptions are inlined in TS rather than loaded from `quests.msg`.
+- **Animations** — FRM sprite rendering works; some animations are off, particularly related to combat.
 
-and other minor features here and there.
+---
 
-If you'd like to contribute, those might be major parts to look into.
+### ❌ Not implemented or near-absent (<30%)
+
+- **Karma & reputation** — stat fields are defined in `skills.ts`; `get_pc_stat` for karma/reputation falls through to a stub in scripting; no increment/decrement logic, no karma title computation, no town or faction reputation tracking.
+- **Party / NPC followers** — `party.ts` is a 61-line shell: add/remove/enumerate only. No CHA-based party size cap, no follow/formation logic, no companion inventory access, no companion level-up, no dismissal dialogue.
+- **Poison, radiation, addictions, withdrawal** — stats are defined; scripting intrinsics (`get_poison`, `radiation_dec`, `poison`) are stubs. No per-tick decay or damage loop exists anywhere in the engine.
+- **Drug & chem system** — no effect timers, stat modification, or addiction rolls.
+- **NPC schedules / day-night behaviour** — not implemented.
+- **Perk selection UI** — `pendingPerkPick` flag is set on level-up but no screen exists to pick a perk.
+- **Endgame slides / game over screen** — not implemented.
+- **Subtitles / speech file playback** — audio engine has no speech hooks; no subtitle overlay.
+- **DAM_DROP** (weapon drop on critical failure), unarmed hit modes (Haymaker, etc.) — not implemented in combat.
+- **AI faction/team targeting** — AI selects the nearest critter regardless of team; `teamNum` is marked TODO in `object.ts`.
+
+---
+
+### Known scripting gaps (scripting.ts)
+
+`~61` script intrinsics are currently stubs (log-and-return with no effect), including:
+`critter_mod_skill`, `critter_injure`, `critter_is_fleeing`, `wield_obj_critter`, `critter_heal`,
+`poison`, `radiation_dec`, `play_sfx`, `play_gmovie`, `mark_area_known`, `gfade_out/in`,
+`reg_anim_func/animate`, `obj_art_fid`, `proto_data`, `gdialog_set_barter_mod`, and others.
+`METARULE_CURRENT_TOWN`, area-known flags, and drug-influence checks are also unimplemented.
+
+---
 
 ## Installation
 
@@ -81,7 +107,7 @@ Otherwise you can install the dependencies manually:
 
 Once you've got all that, you can start trying it out.
 
-Open a command prompt inside the Harold directory, and then run:
+Open a command prompt inside the DarkHarold2 directory, and then run:
 
 ```
 pipenv install
@@ -89,7 +115,7 @@ pipenv shell
 python setup.py path/to/Fallout2/installation/directory
 ```
 
-This will take a few minutes, it's unpacking the game archives and converting relevant game data into a format Harold can use.
+This will take a few minutes, it's unpacking the game archives and converting relevant game data into a format DarkHarold2 can use.
 
 You'll need an HTTP server to run (despite being all static content) due to the way browsers sandbox requests.
 If you're comfortable with setting up nginx, lighttpd, or Apache, go for that. If not, a simple way is to use Python:
@@ -109,7 +135,7 @@ OPTIONAL: If you want sound, run `python convertAudio.py`. You'll need the `acm2
 ## FAQ
 
 **Note**: This section has been copied from `README.md` of DarkFO, the answers don't represent opinions of the current maintainer
-of Harold and are only given to explain the status quo. The technical direction of Harold may change in the future.
+of DarkHarold2 and are only given to explain the status quo. The technical direction of DarkHarold2 may change in the future.
 
 -   **Q:** Why TypeScript? Why a browser?
 
@@ -142,13 +168,13 @@ of Harold and are only given to explain the status quo. The technical direction 
 
 ## License
 
-Harold is licensed under the terms of the Apache 2 license. See `LICENSE.txt` for the full license text.
+DarkHarold2 is licensed under the terms of the Apache 2 license. See `LICENSE.txt` for the full license text.
 
 ## Contributing
 
 Contributions are welcome!
 
-Testing is more than welcome: if you have issues running Harold, or if you find bugs, glitches, or other inaccuracies, please don't hesitate to file an issue on GitHub and/or contact the developers!
+Testing is more than welcome: if you have issues running DarkHarold2, or if you find bugs, glitches, or other inaccuracies, please don't hesitate to file an issue on GitHub and/or contact the developers!
 
 To contribute code, simply submit a pull request with your changes. Take care to write sensible commit messages, and if you want to change major parts of the code, please discuss it with other developers first (see the Contact section below).
 I apologize in advance for any injury sustained while reading the code. :)
