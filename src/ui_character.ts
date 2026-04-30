@@ -236,7 +236,6 @@ export function showCharacterScreen() {
     const sliderContainer = document.createElement('div')
     Object.assign(sliderContainer.style, {
         position: 'absolute',
-        display: 'none',
         zIndex: '10',
     })
 
@@ -259,8 +258,8 @@ export function showCharacterScreen() {
         backgroundImage: "url('art/intrface/splsoff.png')",
         backgroundRepeat: 'no-repeat',
         cursor: 'pointer',
-        left: '0px',
-        top: '-10px',
+        left: '14px',
+        top: '-7px',
         zIndex: '1',
     })
 
@@ -272,8 +271,8 @@ export function showCharacterScreen() {
         backgroundImage: "url('art/intrface/snegoff.png')",
         backgroundRepeat: 'no-repeat',
         cursor: 'pointer',
-        left: '0px',
-        top: '2px',
+        left: '14px',
+        top: '4px',
         zIndex: '1',
     })
 
@@ -606,7 +605,7 @@ export function showCharacterScreen() {
         openingBaseSkills[skill] = newSkillSet.getBase(skill)
     }
 
-    let selectedSkill: string | null = null
+    let selectedSkill: string | null = SKILLS[0]
 
     const positionSlider = () => {
         if (!selectedSkill) {
