@@ -97,18 +97,23 @@ export function drawAC(ac: number): void {
 }
 
 export function drawAP(current: number, max: number, freeMove: number = 0, isPlayerTurn: boolean = true): void {
-    for (let i = 1; i <= 10; i++) {
-        const el = document.getElementById('apLight' + i)
+    for (let i = 0; i < 10; i++) {
+        const el = document.getElementById('apLight' + (i + 1)) as HTMLImageElement | null
         if (!el) continue
-        el.classList.remove('apLight--green', 'apLight--yellow', 'apLight--red')
+        let src: string | null = null
         if (!isPlayerTurn) {
-            el.classList.add('apLight--red')
-        } else if (i <= current) {
-            el.classList.add('apLight--green')
-        } else if (i <= current + freeMove) {
-            el.classList.add('apLight--yellow')
+            src = 'art/intrfce/hlred.png'
+        } else if (i < current) {
+            src = 'art/intrfce/hlgrn.png'
+        } else if (i < current + freeMove) {
+            src = 'art/intrfce/hlyel.png'
         }
-        // off: no class — transparent, shows HUD background
+        if (src) {
+            el.src = src
+            el.style.visibility = 'visible'
+        } else {
+            el.style.visibility = 'hidden'
+        }
     }
 }
 
@@ -231,7 +236,7 @@ export function uiEndCombat(): void {
     // reset AP dots to off
     for (let i = 1; i <= 10; i++) {
         const el = document.getElementById('apLight' + i)
-        if (el) el.classList.remove('apLight--green', 'apLight--yellow', 'apLight--red')
+        if (el) (el as HTMLElement).style.visibility = 'hidden'
     }
 
     // hide combat-specific UI
