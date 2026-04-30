@@ -259,8 +259,8 @@ export function showCharacterScreen() {
         backgroundImage: "url('art/intrface/splsoff.png')",
         backgroundRepeat: 'no-repeat',
         cursor: 'pointer',
-        left: '152px',
-        top: '17px',
+        left: '0px',
+        top: '-10px',
         zIndex: '1',
     })
 
@@ -272,8 +272,8 @@ export function showCharacterScreen() {
         backgroundImage: "url('art/intrface/snegoff.png')",
         backgroundRepeat: 'no-repeat',
         cursor: 'pointer',
-        left: '152px',
-        top: '29px',
+        left: '0px',
+        top: '2px',
         zIndex: '1',
     })
 
