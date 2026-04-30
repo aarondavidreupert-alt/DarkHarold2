@@ -508,8 +508,8 @@ export function showCharacterScreen() {
     Object.assign(cardBodyEl.style, {
         position: 'absolute',
         left: '348px',
-        top: '288px',
-        width: '265px',
+        top: '313px',
+        width: '130px',
         background: 'transparent',
         border: 'none',
         padding: '0',
@@ -894,8 +894,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     Object.assign(cardBodyEl.style, {
         position: 'absolute',
         left: '348px',
-        top: '288px',
-        width: '265px',
+        top: '313px',
+        width: '130px',
         background: 'transparent',
         border: 'none',
         padding: '0',
