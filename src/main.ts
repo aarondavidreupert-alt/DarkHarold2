@@ -44,6 +44,7 @@ import {
     uiHideCombatHover,
     uiHideContextMenu,
     uiInventoryScreen,
+    initLogScrollZones,
     uiLog,
     uiLoot,
     UIMode,
@@ -347,6 +348,7 @@ window.onload = async function () {
     globalState.isInitializing = true
 
     globalState.$fpsOverlay = document.getElementById('fpsOverlay')
+    initLogScrollZones()
 
     const _v = '?v=' + Date.now()
     const fragment = await fetch('shaders/fragment.glsl' + _v)

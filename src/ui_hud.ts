@@ -119,10 +119,21 @@ export function drawAP(current: number, max: number, freeMove: number = 0, isPla
 
 // --- Scrolling log ---------------------------------------------------------
 
+const LOG_LINE_HEIGHT = 13 // approx px per line for 8pt font
+
 export function uiLog(msg: string): void {
     const $log = $id('displayLog')
     $log.insertAdjacentHTML('beforeend', `<li>${msg}</li>`)
     $log.scrollTop = $log.scrollHeight
+}
+
+export function initLogScrollZones(): void {
+    const log = document.getElementById('displayLog')
+    const up = document.getElementById('logScrollUp')
+    const down = document.getElementById('logScrollDown')
+    if (!log || !up || !down) return
+    up.addEventListener('click', () => { log.scrollTop -= LOG_LINE_HEIGHT })
+    down.addEventListener('click', () => { log.scrollTop += LOG_LINE_HEIGHT })
 }
 
 // --- Weapon bar ------------------------------------------------------------

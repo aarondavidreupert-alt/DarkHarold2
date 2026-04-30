@@ -43,6 +43,7 @@ import {
     uiLog,
     uiDrawWeapon,
     uiEndCombatAnimationDone,
+    initLogScrollZones,
 } from './ui_hud.js'
 import {
     UIMode,
@@ -74,6 +75,7 @@ export {
     uiEndCombat,
     uiShowCombatHover,
     uiHideCombatHover,
+    initLogScrollZones,
 } from './ui_hud.js'
 export {
     UIMode,

@@ -219,8 +219,36 @@ html, body {
   height: 54px;
   color: #00FF00;
   font-size: 8pt;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
+}
+
+#logScrollUp {
+  position: absolute;
+  left: 26px;
+  top: 30px;
+  width: 158px;
+  height: 20px;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+#logScrollDown {
+  position: absolute;
+  left: 26px;
+  top: 64px;
+  width: 158px;
+  height: 20px;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+/* Override the blanket #bar * cursor rule for the scroll zones */
+#bar #logScrollUp {
+  cursor: url('art/intrface/suparrow.png') 5 5, n-resize !important;
+}
+
+#bar #logScrollDown {
+  cursor: url('art/intrface/sdnarrow.png') 5 5, s-resize !important;
 }
 
 #attackButtonContainer {
