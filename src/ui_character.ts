@@ -430,8 +430,8 @@ export function showCharacterScreen() {
     const tabContentEl = document.createElement('div')
     Object.assign(tabContentEl.style, {
         position: 'absolute',
-        left: '15px',
-        top: '395px',
+        left: '30px',
+        top: '370px',
         fontSize: '0.69em',
         color: '#00FF00',
     })
