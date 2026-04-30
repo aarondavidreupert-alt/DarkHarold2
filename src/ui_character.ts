@@ -499,6 +499,7 @@ export function showCharacterScreen() {
         padding: '0',
         cursor: 'grab',
         pointerEvents: 'auto',
+        width: '265px',
     })
     characterWindow.elem.appendChild(cardTitleEl)
     makePanelDraggable(cardTitleEl)
@@ -521,11 +522,11 @@ export function showCharacterScreen() {
     const cardDividerEl = document.createElement('hr')
     Object.assign(cardDividerEl.style, {
         border: 'none',
-        borderTop: '1px solid #000000',
+        borderTop: '2px solid #000000',
         margin: '2px 0',
         width: '100%',
     })
-    cardBodyEl.appendChild(cardDividerEl)
+    cardTitleEl.appendChild(cardDividerEl)
 
     const cardDescEl = document.createElement('div')
     Object.assign(cardDescEl.style, {
@@ -537,8 +538,8 @@ export function showCharacterScreen() {
     cardBodyEl.appendChild(cardDescEl)
 
     const showInfoCard = (title: string, desc: string, imgPath?: string): void => {
-        while (cardTitleEl.firstChild) cardTitleEl.removeChild(cardTitleEl.firstChild)
-        cardTitleEl.appendChild(font2.renderText(title.toUpperCase(), '#000000'))
+        if (cardTitleEl.firstChild && cardTitleEl.firstChild !== cardDividerEl) cardTitleEl.removeChild(cardTitleEl.firstChild)
+        cardTitleEl.insertBefore(font2.renderText(title.toUpperCase(), '#000000'), cardDividerEl)
         cardDescEl.textContent = desc
         if (imgPath) {
             cardImgEl.src = imgPath
@@ -884,6 +885,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         padding: '0',
         cursor: 'grab',
         pointerEvents: 'auto',
+        width: '265px',
     })
     characterWindow.elem.appendChild(cardTitleEl)
     makePanelDraggable(cardTitleEl)
@@ -906,11 +908,11 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const cardDividerEl = document.createElement('hr')
     Object.assign(cardDividerEl.style, {
         border: 'none',
-        borderTop: '1px solid #000000',
+        borderTop: '2px solid #000000',
         margin: '2px 0',
         width: '100%',
     })
-    cardBodyEl.appendChild(cardDividerEl)
+    cardTitleEl.appendChild(cardDividerEl)
 
     const cardDescEl = document.createElement('div')
     Object.assign(cardDescEl.style, {
@@ -922,8 +924,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     cardBodyEl.appendChild(cardDescEl)
 
     const showInfoCard = (title: string, desc: string, imgPath?: string): void => {
-        while (cardTitleEl.firstChild) cardTitleEl.removeChild(cardTitleEl.firstChild)
-        cardTitleEl.appendChild(font2.renderText(title.toUpperCase(), '#000000'))
+        if (cardTitleEl.firstChild && cardTitleEl.firstChild !== cardDividerEl) cardTitleEl.removeChild(cardTitleEl.firstChild)
+        cardTitleEl.insertBefore(font2.renderText(title.toUpperCase(), '#000000'), cardDividerEl)
         cardDescEl.textContent = desc
         if (imgPath) {
             cardImgEl.src = imgPath
