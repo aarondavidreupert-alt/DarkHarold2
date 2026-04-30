@@ -102,11 +102,11 @@ export function drawAP(current: number, max: number, freeMove: number = 0, isPla
         if (!el) continue
         let src: string | null = null
         if (!isPlayerTurn) {
-            src = 'art/intrfce/hlred.png'
+            src = 'art/intrface/hlred.png'
         } else if (i < current) {
-            src = 'art/intrfce/hlgrn.png'
+            src = 'art/intrface/hlgrn.png'
         } else if (i < current + freeMove) {
-            src = 'art/intrfce/hlyel.png'
+            src = 'art/intrface/hlyel.png'
         }
         if (src) {
             el.src = src
