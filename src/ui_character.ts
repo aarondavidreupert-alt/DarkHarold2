@@ -244,11 +244,11 @@ export function showCharacterScreen() {
     Object.assign(sliderBody.style, {
         position: 'absolute',
         width: '43px',
-        height: '30px',
+        height: '29px',
         backgroundImage: "url('art/intrface/slider.png')",
         backgroundRepeat: 'no-repeat',
         left: '-8px',
-        top: '14px',
+        top: '-10px',
     })
 
     const plusBtn = document.createElement('div')
