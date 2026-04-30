@@ -42,7 +42,6 @@ import {
     drawDigits,
     uiLog,
     uiDrawWeapon,
-    uiUpdateCombatAP,
     uiEndCombatAnimationDone,
 } from './ui_hud.js'
 import {
@@ -73,7 +72,6 @@ export {
     uiDrawWeapon,
     uiStartCombat,
     uiEndCombat,
-    uiUpdateCombatAP,
     uiShowCombatHover,
     uiHideCombatHover,
 } from './ui_hud.js'
@@ -324,7 +322,6 @@ export function initUI() {
                     return
                 }
                 globalState.player.AP.subtractCombatAP(reloadAP)
-                uiUpdateCombatAP()
             }
             reloadWeapon(wep)
             wep.weapon.mode = 'single'

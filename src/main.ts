@@ -49,7 +49,6 @@ import {
     UIMode,
     uiSaveLoad,
     uiShowCombatHover,
-    uiUpdateCombatAP,
     uiWorldMap,
 } from './ui.js'
 import { getFileJSON, getProtoMsg } from './util.js'
@@ -253,9 +252,7 @@ export function playerUse(obj: Obj | null) {
                 globalState.player.AP!.subtractCombatAP(attackAPCost)
                 drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
                 console.log('[Combat] player unarmed attack')
-                globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
-                uiUpdateCombatAP()
-            } else {
+                globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')            } else {
             // Block attack (and AP deduction) if ranged weapon has no ammo
             const playerMaxAmmo: number = (weapon as any)?.pro?.extra?.maxAmmo ?? 0
             const playerRounds: number = (weapon as any)?.pro?.extra?.rounds ?? -1
@@ -284,7 +281,6 @@ export function playerUse(obj: Obj | null) {
                     console.log('[Combat] player attacks %s', region)
                     globalState.combat!.attack(globalState.player, <Critter>obj, region)
                     uiCloseCalledShot()
-                    uiUpdateCombatAP()
                 })
             } else if (weapon.weapon!.isBurst()) {
                 const burstAPCost = weapon.weapon!.getAPCost(2)
@@ -296,15 +292,11 @@ export function playerUse(obj: Obj | null) {
                 drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
                 console.log('[Combat] burst fire at %s', who.name)
                 // Route through attack() which detects isBurst() and does the multi-roll loop
-                globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
-                uiUpdateCombatAP()
-            } else {
+                globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')            } else {
                 globalState.player.AP!.subtractCombatAP(attackAPCost)
                 drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
                 console.log('[Combat] player attacks torso')
-                globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
-                uiUpdateCombatAP()
-            }
+                globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')            }
             }
 
             return

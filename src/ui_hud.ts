@@ -215,8 +215,6 @@ export function uiStartCombat(): void {
     globalState.cursorMode = 'attack'
     // play end container animation
     Object.assign($id('endContainer').style, { animationPlayState: 'running', webkitAnimationPlayState: 'running' })
-    uiUpdateCombatAP()
-
     const player = globalState.player!
     drawHP(player.getStat('HP'))
     drawAC(player.getStat('AC'))
@@ -240,22 +238,8 @@ export function uiEndCombat(): void {
     }
 
     // hide combat-specific UI
-    const $ap = document.getElementById('combatAPDisplay')
-    if ($ap) $ap.style.display = 'none'
     const $hover = document.getElementById('combatHoverInfo')
     if ($hover) $hover.style.display = 'none'
-}
-
-export function uiUpdateCombatAP(): void {
-    const $ap = document.getElementById('combatAPDisplay')
-    if (!$ap) return
-    if (!globalState.inCombat || !globalState.player!.AP) {
-        $ap.style.display = 'none'
-        return
-    }
-    const ap = globalState.player!.AP
-    $ap.style.display = 'block'
-    $ap.textContent = `AP: ${ap.getAvailableCombatAP()} / ${ap.getTotalMaxAP()}`
 }
 
 export function uiShowCombatHover(target: Critter, screenX: number, screenY: number): void {
