@@ -213,9 +213,6 @@ export function closeCharacterScreen(): void {
 
 export function showCharacterScreen() {
     const player = globalState.player!
-    const skillList = new List({ x: 380, y: 25, w: 'auto', h: 'auto' })
-
-    skillList.css({ fontSize: '0.69em', color: 'rgb(0, 255, 0)' })
 
     // FO2-CE ref: stat.cc pcGetExperienceForLevel() — XP needed for next level
     const currentLevel = player.getStat('Level')
@@ -328,9 +325,18 @@ export function showCharacterScreen() {
         .add(makeFontLabel(399, 233, 'Skill Points', font3))
         .add(panel2)
         .add(panel3)
-        .add(skillList)
         .add(skillPointBignumW)
         .show()
+
+    const skillRowsEl = document.createElement('div')
+    Object.assign(skillRowsEl.style, {
+        position: 'absolute',
+        left: '356px',
+        top: '25px',
+        width: '240px',
+        fontSize: '0.69em',
+    })
+    characterWindow.elem.appendChild(skillRowsEl)
 
     characterWindow.elem.appendChild(sliderContainer)
 
@@ -434,7 +440,27 @@ export function showCharacterScreen() {
 
     const folderPanels: HTMLElement[] = FOLDER_TABS.map((t, i) => {
         const panel = document.createElement('div')
-        panel.textContent = t.label
+        if (i === 0) {
+            const traits = player.traits ?? []
+            if (traits.length === 0) {
+                const none = document.createElement('div')
+                none.textContent = 'No traits.'
+                none.style.color = '#00FF00'
+                panel.appendChild(none)
+            } else {
+                for (const trait of traits) {
+                    const line = document.createElement('div')
+                    line.textContent = trait
+                    line.style.color = '#FFD700'
+                    line.style.cursor = 'pointer'
+                    line.onclick = () =>
+                        showInfoCard(trait, TRAIT_DESCRIPTIONS[trait] ?? trait, TRAIT_IMG[trait])
+                    panel.appendChild(line)
+                }
+            }
+        } else {
+            panel.textContent = t.label
+        }
         panel.style.display = i === 0 ? 'block' : 'none'
         tabContentEl.appendChild(panel)
         return panel
@@ -593,14 +619,13 @@ export function showCharacterScreen() {
             sliderContainer.style.display = 'none'
             return
         }
-        const listEl = skillList.elem
-        const itemEl = listEl.children[idx] as HTMLElement | undefined
+        const itemEl = skillRowsEl.children[idx] as HTMLElement | undefined
         if (!itemEl) {
             sliderContainer.style.display = 'none'
             return
         }
-        const listLeft = parseInt(listEl.style.left || '0')
-        const listTop = parseInt(listEl.style.top || '0')
+        const listLeft = 356
+        const listTop = 25
         const rowY = listTop + itemEl.offsetTop
         const rowRight = listLeft + itemEl.offsetWidth + 4
         sliderContainer.style.left = `${rowRight}px`
@@ -666,16 +691,34 @@ export function showCharacterScreen() {
     }
 
     const redrawStatsSkills = () => {
-        const prevSelected = selectedSkill
-        skillList.clear()
+        while (skillRowsEl.firstChild) skillRowsEl.removeChild(skillRowsEl.firstChild)
 
         for (const skill of SKILLS) {
             const val = newSkillSet.get(skill, newStatSet, playerSkillOpts)
-            skillList.addItem({ text: `${skill} ${val}%`, id: skill })
-        }
-
-        if (prevSelected) {
-            skillList.selectId(prevSelected)
+            const isTagged = newSkillSet.tagged.includes(skill)
+            const row = document.createElement('div')
+            Object.assign(row.style, {
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                width: '100%',
+                cursor: 'pointer',
+                padding: '1px 0',
+                color: isTagged ? '#FFD700' : '#00FF00',
+            })
+            const nameSpan = document.createElement('span')
+            nameSpan.textContent = skill
+            const valSpan = document.createElement('span')
+            valSpan.textContent = `${val}%`
+            row.appendChild(nameSpan)
+            row.appendChild(valSpan)
+            const capturedSkill = skill
+            row.onclick = () => {
+                selectedSkill = capturedSkill
+                positionSlider()
+                showInfoCard(capturedSkill, SKILL_DESCRIPTIONS[capturedSkill] ?? capturedSkill, SKILL_IMG[capturedSkill])
+            }
+            skillRowsEl.appendChild(row)
         }
 
         for (let i = 0; i < STATS.length; i++) {
@@ -694,12 +737,6 @@ export function showCharacterScreen() {
 
         positionSlider()
     }
-
-    skillList.onItemSelected((item) => {
-        selectedSkill = item.id
-        positionSlider()
-        showInfoCard(item.id, SKILL_DESCRIPTIONS[item.id] ?? item.id, SKILL_IMG[item.id])
-    })
 
     const modifySkill = (inc: boolean) => {
         if (!selectedSkill) return
