@@ -228,11 +228,11 @@ export function uiUpdateAmmoBar(weapon: WeaponObj | null): void {
     let ratio = 0
     const extra = (weapon as any)?.pro?.extra
     if (extra?.maxAmmo > 0) {
-        ratio = Math.floor(((extra.rounds ?? 0) / extra.maxAmmo) * 70)
+        ratio = Math.floor(((extra.rounds ?? 0) / extra.maxAmmo) * 55)
     } else if (extra?.maxCharges > 0) {
-        ratio = Math.floor(((extra.charges ?? 0) / extra.maxCharges) * 70)
+        ratio = Math.floor(((extra.charges ?? 0) / extra.maxCharges) * 55)
     }
-    fill.style.width = Math.max(0, Math.min(70, ratio)) + 'px'
+    fill.style.width = Math.max(0, Math.min(55, ratio)) + 'px'
 }
 
 // --- Combat bar ------------------------------------------------------------
