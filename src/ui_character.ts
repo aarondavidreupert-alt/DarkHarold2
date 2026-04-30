@@ -476,10 +476,10 @@ export function showCharacterScreen() {
     const cardImgEl = document.createElement('img') as HTMLImageElement
     Object.assign(cardImgEl.style, {
         position: 'absolute',
-        left: '460px',
+        left: '483px',
         top: '308px',
-        width: '100px',
-        height: '100px',
+        width: '140px',
+        height: '117px',
         objectFit: 'contain',
         visibility: 'hidden',
         cursor: 'grab',
@@ -489,25 +489,34 @@ export function showCharacterScreen() {
     characterWindow.elem.appendChild(cardImgEl)
     makePanelDraggable(cardImgEl)
 
-    const cardTextEl = document.createElement('div')
-    Object.assign(cardTextEl.style, {
+    const cardTitleEl = document.createElement('div')
+    Object.assign(cardTitleEl.style, {
         position: 'absolute',
         left: '348px',
         top: '274px',
-        width: '200px',
         background: 'transparent',
         border: 'none',
         padding: '0',
         cursor: 'grab',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '4px',
+        pointerEvents: 'auto',
     })
-    characterWindow.elem.appendChild(cardTextEl)
-    makePanelDraggable(cardTextEl)
+    characterWindow.elem.appendChild(cardTitleEl)
+    makePanelDraggable(cardTitleEl)
 
-    const cardTitleEl = document.createElement('div')
-    cardTextEl.appendChild(cardTitleEl)
+    const cardBodyEl = document.createElement('div')
+    Object.assign(cardBodyEl.style, {
+        position: 'absolute',
+        left: '348px',
+        top: '288px',
+        width: '265px',
+        background: 'transparent',
+        border: 'none',
+        padding: '0',
+        cursor: 'grab',
+        pointerEvents: 'auto',
+    })
+    characterWindow.elem.appendChild(cardBodyEl)
+    makePanelDraggable(cardBodyEl)
 
     const cardDividerEl = document.createElement('hr')
     Object.assign(cardDividerEl.style, {
@@ -516,7 +525,7 @@ export function showCharacterScreen() {
         margin: '2px 0',
         width: '100%',
     })
-    cardTextEl.appendChild(cardDividerEl)
+    cardBodyEl.appendChild(cardDividerEl)
 
     const cardDescEl = document.createElement('div')
     Object.assign(cardDescEl.style, {
@@ -525,7 +534,7 @@ export function showCharacterScreen() {
         overflow: 'hidden',
         lineHeight: '1.3',
     })
-    cardTextEl.appendChild(cardDescEl)
+    cardBodyEl.appendChild(cardDescEl)
 
     const showInfoCard = (title: string, desc: string, imgPath?: string): void => {
         while (cardTitleEl.firstChild) cardTitleEl.removeChild(cardTitleEl.firstChild)
@@ -852,10 +861,10 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     const cardImgEl = document.createElement('img') as HTMLImageElement
     Object.assign(cardImgEl.style, {
         position: 'absolute',
-        left: '460px',
+        left: '483px',
         top: '308px',
-        width: '100px',
-        height: '100px',
+        width: '140px',
+        height: '117px',
         objectFit: 'contain',
         visibility: 'hidden',
         cursor: 'grab',
@@ -865,25 +874,34 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     characterWindow.elem.appendChild(cardImgEl)
     makePanelDraggable(cardImgEl)
 
-    const cardTextEl = document.createElement('div')
-    Object.assign(cardTextEl.style, {
+    const cardTitleEl = document.createElement('div')
+    Object.assign(cardTitleEl.style, {
         position: 'absolute',
         left: '348px',
         top: '274px',
-        width: '200px',
         background: 'transparent',
         border: 'none',
         padding: '0',
         cursor: 'grab',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '4px',
+        pointerEvents: 'auto',
     })
-    characterWindow.elem.appendChild(cardTextEl)
-    makePanelDraggable(cardTextEl)
+    characterWindow.elem.appendChild(cardTitleEl)
+    makePanelDraggable(cardTitleEl)
 
-    const cardTitleEl = document.createElement('div')
-    cardTextEl.appendChild(cardTitleEl)
+    const cardBodyEl = document.createElement('div')
+    Object.assign(cardBodyEl.style, {
+        position: 'absolute',
+        left: '348px',
+        top: '288px',
+        width: '265px',
+        background: 'transparent',
+        border: 'none',
+        padding: '0',
+        cursor: 'grab',
+        pointerEvents: 'auto',
+    })
+    characterWindow.elem.appendChild(cardBodyEl)
+    makePanelDraggable(cardBodyEl)
 
     const cardDividerEl = document.createElement('hr')
     Object.assign(cardDividerEl.style, {
@@ -892,7 +910,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         margin: '2px 0',
         width: '100%',
     })
-    cardTextEl.appendChild(cardDividerEl)
+    cardBodyEl.appendChild(cardDividerEl)
 
     const cardDescEl = document.createElement('div')
     Object.assign(cardDescEl.style, {
@@ -901,7 +919,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
         overflow: 'hidden',
         lineHeight: '1.3',
     })
-    cardTextEl.appendChild(cardDescEl)
+    cardBodyEl.appendChild(cardDescEl)
 
     const showInfoCard = (title: string, desc: string, imgPath?: string): void => {
         while (cardTitleEl.firstChild) cardTitleEl.removeChild(cardTitleEl.firstChild)
