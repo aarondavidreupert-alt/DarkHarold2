@@ -298,6 +298,22 @@ html, body {
 
 #attackButtonWeapon {}
 
+#ammoBar {
+  position: absolute;
+  bottom: 20px;
+  left: 7px;
+  width: 70px;
+  height: 5px;
+  background: #111;
+  overflow: hidden;
+}
+
+#ammoBarFill {
+  height: 100%;
+  width: 0;
+  background: #00ff00;
+}
+
 #attackButtonContainer:active #attackButtonWeapon {
   /* move weapon image up */
   transform: translateY(-2px);

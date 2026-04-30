@@ -18,7 +18,7 @@ limitations under the License.
 // combat hover info, and the scrolling message log.
 
 import globalState from './globalState.js'
-import { Critter } from './object.js'
+import { Critter, WeaponObj } from './object.js'
 import { getActiveUnarmedMode } from './unarmed.js'
 
 // --- DOM helpers (mirrors the ones in ui.ts) -------------------------------
@@ -218,6 +218,21 @@ export function uiDrawWeapon(): void {
     } else {
         hide($id('attackButtonCalled'))
     }
+
+    uiUpdateAmmoBar(weapon)
+}
+
+export function uiUpdateAmmoBar(weapon: WeaponObj | null): void {
+    const fill = document.getElementById('ammoBarFill')
+    if (!fill) return
+    let ratio = 0
+    const extra = (weapon as any)?.pro?.extra
+    if (extra?.maxAmmo > 0) {
+        ratio = Math.floor(((extra.rounds ?? 0) / extra.maxAmmo) * 70)
+    } else if (extra?.maxCharges > 0) {
+        ratio = Math.floor(((extra.charges ?? 0) / extra.maxCharges) * 70)
+    }
+    fill.style.width = Math.max(0, Math.min(70, ratio)) + 'px'
 }
 
 // --- Combat bar ------------------------------------------------------------

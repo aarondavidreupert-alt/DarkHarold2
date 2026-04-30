@@ -71,6 +71,7 @@ export {
     drawAP,
     uiLog,
     uiDrawWeapon,
+    uiUpdateAmmoBar,
     uiStartCombat,
     uiEndCombat,
     uiShowCombatHover,
