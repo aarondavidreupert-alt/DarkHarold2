@@ -96,12 +96,19 @@ export function drawAC(ac: number): void {
     drawDigits('#acDigit', ac, 4, true)
 }
 
-export function drawAP(current: number, max: number): void {
+export function drawAP(current: number, max: number, freeMove: number = 0, isPlayerTurn: boolean = true): void {
     for (let i = 1; i <= 10; i++) {
         const el = document.getElementById('apLight' + i)
-        if (el) {
-            el.style.visibility = i <= current ? 'visible' : 'hidden'
+        if (!el) continue
+        el.classList.remove('apLight--green', 'apLight--yellow', 'apLight--red')
+        if (!isPlayerTurn) {
+            el.classList.add('apLight--red')
+        } else if (i <= current) {
+            el.classList.add('apLight--green')
+        } else if (i <= current + freeMove) {
+            el.classList.add('apLight--yellow')
         }
+        // off: no class — transparent, shows HUD background
     }
 }
 
@@ -220,6 +227,12 @@ export function uiEndCombat(): void {
     hidev($id('endCombatButton'))
     // reset cursor back to move mode
     globalState.cursorMode = 'move'
+
+    // reset AP dots to off
+    for (let i = 1; i <= 10; i++) {
+        const el = document.getElementById('apLight' + i)
+        if (el) el.classList.remove('apLight--green', 'apLight--yellow', 'apLight--red')
+    }
 
     // hide combat-specific UI
     const $ap = document.getElementById('combatAPDisplay')

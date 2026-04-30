@@ -561,6 +561,33 @@ html, body {
   height: 17px;
 }
 
+#apBar {
+  position: absolute;
+  left: 316px;
+  top: 79px;
+  display: flex;
+  gap: 4px;
+  line-height: 0;
+}
+
+.apLight {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.apLight--green {
+  background-color: #29de17;
+}
+
+.apLight--yellow {
+  background-color: #f4cb51;
+}
+
+.apLight--red {
+  background-color: #cc1414;
+}
+
 #hpNumber {
   position: absolute;
   left: 472px;

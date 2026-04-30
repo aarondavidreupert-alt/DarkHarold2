@@ -1317,6 +1317,7 @@ export class Combat {
             drawHP(this.player.getStat('HP'))
         } else {
             this.inPlayerTurn = false
+            drawAP(0, this.player.AP!.getTotalMaxAP(), 0, false)
             var critter = this.combatants[this.whoseTurn]
             if (critter.dead === true || critter.hostile !== true) return this.nextTurn()
 
