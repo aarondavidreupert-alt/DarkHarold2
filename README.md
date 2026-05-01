@@ -37,6 +37,7 @@ tools to work with them, this project will be useful to you as well.
 - **Audio engine** — music looping, weapon/action sound mapping, ambient SFX from map data
 - **Pip-Boy** — clock display, alarm, STATUS tab, QUESTS/ARCHIVES tab, AUTOMAP tab with per-location map view, zoom/pan, IndexedDB persistence (~90% complete)
 - **Character screen** — full SPECIAL/skill view, stat display, trait/perk lists
+- **Save / load** — IndexedDB-backed save/load with full player state serialization: position, orientation, inventory, stats, skills, traits, perks, level/XP, equipped items, and GVARs. HUD refreshes correctly on load. Texture cache is invalidated on cross-location load, preventing missing tiles. No save slot screenshots.
 
 ---
 
@@ -51,7 +52,6 @@ tools to work with them, this project will be useful to you as well.
 - **Worldmap** — functional but rough: area entrances are misplaced on area screens, no difficulty adjustment on encounter rate, encounter items/equipping not implemented.
 - **Lighting** — works but has minor inaccuracies and is slow outside the WebGL backend.
 - **Time & date system** — `gametime.ts` implements ticks, day/night ambient light, script bridges for `game_time` and `game_time_hour`. `get_month` and `get_day` opcodes are hardcoded to return 1 and 0 respectively.
-- **Save / load** — IndexedDB-backed; saves/restores position, orientation, inventory, and current map. **Critical gap:** player stats, skills, perks, traits, level/XP, karma, conditions, and GVARs are not fully serialized (`// TODO: Properly (de)serialize the player!` at saveload.ts:158). No save slot screenshots. Consider experimental.
 - **Quest system** — `questData.ts` covers all major Fallout 2 quests with GVAR-based state tracking; Pip-Boy ARCHIVES tab surfaces them. No completion rewards or XP awards wired through the engine. Quest descriptions are inlined in TS rather than loaded from `quests.msg`.
 - **Animations** — FRM sprite rendering works; some animations are off, particularly related to combat.
 
@@ -84,26 +84,20 @@ tools to work with them, this project will be useful to you as well.
 
 ## Roadmap — next priorities
 
-The goal is a playable end-to-end run. These four pieces, in order, move the needle most:
+The goal is a playable end-to-end run. These three pieces, in order, move the needle most:
 
-**1. Save/Load serialization** (`saveload.ts`)
-Player position and inventory are saved, but stats, skills, perks, level/XP, karma, and GVARs are not
-(`// TODO: Properly (de)serialize the player!` at saveload.ts:158). Without this, every session starts
-from scratch and nothing is testable long-term. The `SaveGame` interface and IndexedDB plumbing already
-exist — it's a matter of wiring `StatSet`/`SkillSet`/`player` into them.
-
-**2. Scripting stub coverage** (`scripting.ts`)
+**1. Scripting stub coverage** (`scripting.ts`)
 ~61 script intrinsics are currently no-ops that silently log and return. This means quest scripts fail
 invisibly — items don't spawn, animations don't play, characters don't react. Priority targets:
 `critter_heal`, `critter_injure`, `play_sfx`, `mark_area_known`, `gfade_out/gfade_in`, `play_gmovie`.
 Even rough implementations of these would unlock large chunks of scripted content.
 
-**3. Perk selection UI** (`ui_character.ts`, `player.ts`)
+**2. Perk selection UI** (`ui_character.ts`, `player.ts`)
 The level-up math is done, `pendingPerkPick` is already set on level-up, and perks are listed in the
 character screen. This just needs a selection screen wired to that flag. Low effort relative to the
 visible impact on every playthrough.
 
-**4. Karma & reputation** (`scripting.ts`, `globalState.ts`)
+**3. Karma & reputation** (`scripting.ts`, `globalState.ts`)
 The stats are defined and `get_pc_stat` has stubs for karma/reputation, but nothing ever increments or
 reads them. Adding basic increment/decrement logic and connecting it to dialogue condition checks would
 make a large number of scripted NPC interactions start working correctly, since most FO2 scripts branch
