@@ -17,10 +17,12 @@ limitations under the License.
 import { StatSet, SkillSet } from './char.js'
 import { Point } from './geometry.js'
 import globalState from './globalState.js'
+import { heart } from './heart.js'
 import { SerializedMap } from './map.js'
 import { deserializeObj, SerializedObj } from './object.js'
 import { Scripting } from './scripting.js'
 import { drawHP, drawAC, uiDrawWeapon } from './ui_hud.js'
+import { getFileJSON } from './util.js'
 
 // Saving and loading support
 
@@ -182,54 +184,93 @@ export function load(id: number): void {
 
             console.log("[SaveLoad] Loading save #%d ('%s') from %s", id, save.name, formatSaveDate(save))
 
-            if (globalState.gMap?.name !== save.currentMap) {
-                globalState.renderer.clearTileCache()
+            // Apply the save state. Called directly (same-location) or after
+            // images finish loading (cross-location) via the isLoading gate.
+            const applyState = () => {
+                globalState.gMap.deserialize(savedMap)
+                console.log('[SaveLoad] Finished map deserialization')
+
+                // Restore game clock (older saves omit this field).
+                if (typeof save.gameTickTime === 'number') {
+                    globalState.gameTickTime = save.gameTickTime
+                }
+
+                globalState.player.position = save.player.position
+                globalState.player.orientation = save.player.orientation
+                globalState.player.inventory = save.player.inventory.map((obj) => deserializeObj(obj))
+
+                if (save.playerState) {
+                    const ps = save.playerState
+                    const p = globalState.player
+                    p.stats = StatSet.deserialize(ps.stats)
+                    p.skills = SkillSet.deserialize(ps.skills)
+                    p.traits = ps.traits.slice()
+                    p.perks = ps.perks.slice()
+                    p.pendingPerkPick = ps.pendingPerkPick
+                    p.name = ps.name
+                    p.gender = ps.gender
+                    p.activeHand = ps.activeHand as 'leftHand' | 'rightHand'
+                    p.isSneaking = ps.isSneaking
+                    p.leftHand = ps.leftHand ? deserializeObj(ps.leftHand) as any : undefined
+                    p.rightHand = ps.rightHand ? deserializeObj(ps.rightHand) as any : undefined
+                    p.armor = ps.armor ? deserializeObj(ps.armor) : null
+                    Scripting.setGlobalVars(ps.gvars)
+                }
+
+                globalState.gParty.deserialize(save.party)
+
+                globalState.gMap.changeElevation(save.currentElevation, false)
+
+                // populate dirty map cache out of non-current saved maps
+                globalState.dirtyMapCache = { ...save.savedMaps }
+                delete globalState.dirtyMapCache[savedMap.name]
+
+                const p = globalState.player!
+                drawHP(p.getStat('HP'))
+                drawAC(p.getStat('AC'))
+                uiDrawWeapon()
+
+                console.log('[SaveLoad] Finished loading map %s', savedMap.name)
             }
 
-            globalState.gMap.deserialize(savedMap)
-            console.log('[SaveLoad] Finished map deserialization')
-
-            // Restore game clock (older saves omit this field).
-            if (typeof save.gameTickTime === 'number') {
-                globalState.gameTickTime = save.gameTickTime
+            const changingMap = globalState.gMap?.name !== save.currentMap
+            if (!changingMap) {
+                applyState()
+                return
             }
 
-            globalState.player.position = save.player.position
-            globalState.player.orientation = save.player.orientation
-            globalState.player.inventory = save.player.inventory.map((obj) => deserializeObj(obj))
+            // Cross-location load: clear stale WebGL textures so getTextureFromHack
+            // re-uploads from globalState.images instead of serving old map's textures.
+            globalState.renderer.clearTileCache()
 
-            if (save.playerState) {
-                const ps = save.playerState
-                const p = globalState.player
-                p.stats = StatSet.deserialize(ps.stats)
-                p.skills = SkillSet.deserialize(ps.skills)
-                p.traits = ps.traits.slice()
-                p.perks = ps.perks.slice()
-                p.pendingPerkPick = ps.pendingPerkPick
-                p.name = ps.name
-                p.gender = ps.gender
-                p.activeHand = ps.activeHand as 'leftHand' | 'rightHand'
-                p.isSneaking = ps.isSneaking
-                p.leftHand = ps.leftHand ? deserializeObj(ps.leftHand) as any : undefined
-                p.rightHand = ps.rightHand ? deserializeObj(ps.rightHand) as any : undefined
-                p.armor = ps.armor ? deserializeObj(ps.armor) : null
-                Scripting.setGlobalVars(ps.gvars)
+            // Load the new map's images into globalState.images before the first
+            // render frame, using the same isLoading gate as loadNewMap. This
+            // prevents the floor FBO from being baked with null (missing) tiles
+            // when images haven't been loaded in this session yet.
+            let mapImages: string[]
+            try {
+                mapImages = getFileJSON('maps/' + save.currentMap + '.images.json') ?? []
+            } catch {
+                mapImages = []
+            }
+            const toLoad = mapImages.filter((img) => globalState.images[img] === undefined)
+
+            if (toLoad.length === 0) {
+                applyState()
+                return
             }
 
-            globalState.gParty.deserialize(save.party)
+            globalState.isLoading = true
+            globalState.loadingAssetsTotal = toLoad.length
+            globalState.loadingAssetsLoaded = 0
+            globalState.loadingLoadedCallback = applyState
 
-            globalState.gMap.changeElevation(save.currentElevation, false)
-
-            // populate dirty map cache out of non-current saved maps
-            globalState.dirtyMapCache = { ...save.savedMaps }
-            delete globalState.dirtyMapCache[savedMap.name]
-
-            const p = globalState.player!
-            drawHP(p.getStat('HP'))
-            drawAC(p.getStat('AC'))
-            uiDrawWeapon()
-
-            console.log('[SaveLoad] Finished loading map %s', savedMap.name)
+            for (const img of toLoad) {
+                heart.graphics.newImage(img + '.png', (r: HTMLImageElement) => {
+                    globalState.images[img] = r
+                    globalState.loadingAssetsLoaded++
+                })
+            }
         }
     })
 }
