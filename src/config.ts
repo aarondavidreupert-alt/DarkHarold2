@@ -53,6 +53,9 @@ export const Config = {
         // Combat difficulty modifier: 75 = easy (player deals more), 100 = normal, 125 = hard (enemies deal more)
         // Mirrors FO2's preference_level: VIOLENCE_LEVEL 0=easy 1=normal 2=hard
         difficultyModifier: 100 as 75 | 100 | 125,
+        // Damage calculation ruleset: 0=Vanilla, 1=Glovz, 2=Glovz+MultTweak, 5=YAAM
+        // Matches fallout2-ce DamageCalculationType enum values exactly.
+        damageCalculationType: 0 as 0 | 1 | 2 | 5,
     },
 
     controls: {

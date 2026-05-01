@@ -197,6 +197,81 @@ function aiHaveAmmo(weaponObj: Obj | null): boolean {
     return ((weaponObj as any)?.pro?.extra?.rounds ?? 0) > 0
 }
 
+/** Context for a single damage calculation roll, fed to the active damage ruleset. */
+interface DamageCalculationContext {
+    RD: number        // raw die roll
+    bonus: number     // flat damage bonus before multipliers
+    critMult: number  // critical hit multiplier (1 = normal hit)
+    ammoX: number     // ammo damage multiplier
+    ammoY: number     // ammo damage divisor (≥1; vanilla adds a separate /2)
+    DT: number        // damage threshold (post bypass/penetrate adjustments)
+    DR: number        // damage resistance 0–100 (clamped, ammo RM already applied)
+    CD: number        // combat difficulty modifier (75/100/125)
+}
+
+/** Round-half-up integer division — matches fallout2-ce damageModGlovzDivRound. */
+function glovzRound(a: number, b: number): number {
+    return Math.trunc((a + Math.trunc(b / 2)) / b)
+}
+
+function computeDamageVanilla(ctx: DamageCalculationContext): number {
+    let d = ctx.RD + ctx.bonus
+    d = Math.trunc(d * ctx.critMult * ctx.ammoX)
+    if (ctx.ammoY !== 0) d = Math.trunc(d / ctx.ammoY)
+    d = Math.trunc(d / 2)
+    d = Math.trunc(d * ctx.CD / 100)
+    d -= ctx.DT
+    if (d > 0) d -= Math.trunc(d * ctx.DR / 100)
+    if (d < 0) d = 0
+    return d
+}
+
+function computeDamageGlovz(ctx: DamageCalculationContext): number {
+    let d = ctx.RD + ctx.bonus
+    d = d * ctx.critMult * ctx.ammoX
+    if (ctx.ammoY !== 0) d = glovzRound(d, ctx.ammoY * 2)
+    d = Math.trunc(d * ctx.CD / 100)
+    // DR applied before DT (key Glovz difference); uses round-half-up
+    d -= glovzRound(d * ctx.DR, 100)
+    d -= ctx.DT
+    if (d < 0) d = 0
+    return d
+}
+
+function computeDamageGlovzTweak(ctx: DamageCalculationContext): number {
+    // critMult applied after the ammo divide rather than before
+    let d = ctx.RD + ctx.bonus
+    if (ctx.ammoY !== 0) d = glovzRound(d * ctx.ammoX, ctx.ammoY * 2)
+    d = d * ctx.critMult
+    d = Math.trunc(d * ctx.CD / 100)
+    d -= glovzRound(d * ctx.DR, 100)
+    d -= ctx.DT
+    if (d < 0) d = 0
+    return d
+}
+
+function computeDamageYaam(ctx: DamageCalculationContext): number {
+    let d = ctx.RD + ctx.bonus
+    d = Math.trunc(d * ctx.critMult * ctx.ammoX)
+    if (ctx.ammoY !== 0) d = Math.trunc(d / ctx.ammoY)
+    // no /2 halving step; DT then DR (same order as vanilla)
+    d = Math.trunc(d * ctx.CD / 100)
+    d -= ctx.DT
+    if (d > 0) d -= Math.trunc(d * ctx.DR / 100)
+    if (d < 0) d = 0
+    return d
+}
+
+/** Dispatch to the configured damage ruleset (Config.combat.damageCalculationType). */
+function computeDamage(ctx: DamageCalculationContext): number {
+    switch (Config.combat.damageCalculationType) {
+        case 1: return computeDamageGlovz(ctx)
+        case 2: return computeDamageGlovzTweak(ctx)
+        case 5: return computeDamageYaam(ctx)
+        default: return computeDamageVanilla(ctx)
+    }
+}
+
 // A combat encounter
 export class Combat {
     combatants: Critter[]
@@ -354,7 +429,7 @@ export class Combat {
             const mode = getActiveUnarmedMode(unarmedSkill, modeIdx)
             const AC = target.getStat('AC') + target.getArmorAC() + target.bonusAC
             const partialCoverPenalty = this.accountForPartialCover(obj, target)
-            const crippledArmPenalty = (obj.crippledLeftArm ? 20 : 0) + (obj.crippledRightArm ? 20 : 0)
+            const crippledArmPenalty = (obj.crippledLeftArm ? 40 : 0) + (obj.crippledRightArm ? 40 : 0)
             const blindPenalty = obj.isBlinded ? 25 : 0
             const baseCrit = obj.getStat('Critical Chance') + mode.critBonus
             var hitChance = unarmedSkill - AC - CriticalEffects.regionHitChanceDecTable[region] - partialCoverPenalty - crippledArmPenalty - blindPenalty
@@ -382,10 +457,10 @@ export class Combat {
         var bonusCrit = 0 // TODO: perk bonuses, other crit influencing things
         var baseCrit = obj.getStat('Critical Chance') + bonusCrit
 
-        // Crippled-limb penalties for the attacker (FO2: -40 per arm, halved here per arm for simplicity)
+        // Crippled-limb penalties for the attacker (FO2: -40 per arm)
         var crippledArmPenalty = 0
-        if (obj.crippledLeftArm) crippledArmPenalty += 20
-        if (obj.crippledRightArm) crippledArmPenalty += 20
+        if (obj.crippledLeftArm) crippledArmPenalty += 40
+        if (obj.crippledRightArm) crippledArmPenalty += 40
 
         // Blinded attacker: additional -25 flat penalty on top of the 12× distance modifier wired above
         var blindPenalty = obj.isBlinded ? 25 : 0
@@ -487,10 +562,11 @@ export class Combat {
             }
         }
 
-        // Bonus Ranged Damage perk (player only, ranged attack types)
+        // Bonus Ranged Damage perk: +2 per rank (player only, ranged attack types)
         var damageBonus = 0
         if (obj.isPlayer && wep.type !== 'melee') {
-            damageBonus = 2 * (obj.hasPerk('Bonus Ranged Damage') ? 1 : 0)
+            const brdRank = obj.perks.filter(p => p === 'Bonus Ranged Damage').length
+            damageBonus = 2 * brdRank
         }
 
         // Ammo stats
@@ -500,26 +576,11 @@ export class Combat {
         DR += ammoStats.RM
         DR = clamp(0, 100, DR)
 
-        // damageMultiplier = critMult × ammoMult (integer multiply)
-        var damageMultiplier = critMultiplier * ammoStats.X
-        var damageDivisor = ammoStats.Y
-
         // Combat difficulty modifier (75/100/125)
         var CD = Config.combat.difficultyModifier
 
-        // --- Vanilla per-round calculation (single round) ---
         var RD = getRandomInt(wep.minDmg, wep.maxDmg)
-        var damage = RD
-        damage += damageBonus
-        damage = Math.trunc(damage * damageMultiplier)
-        if (damageDivisor !== 0) damage = Math.trunc(damage / damageDivisor)
-        damage = Math.trunc(damage / 2)                  // vanilla halving quirk
-        damage = Math.trunc(damage * CD / 100)            // difficulty modifier
-        damage -= DT                                      // subtract DT first
-        if (damage > 0) {
-            damage -= Math.trunc(damage * DR / 100)       // then apply DR%
-        }
-        if (damage < 0) damage = 0
+        var damage = computeDamage({ RD, bonus: damageBonus, critMult: critMultiplier, ammoX: ammoStats.X, ammoY: ammoStats.Y, DT, DR, CD })
 
         // Post-calculation perks (flat bonuses after main formula)
         if (obj.isPlayer) {
@@ -571,19 +632,8 @@ export class Combat {
 
         var CD = Config.combat.difficultyModifier
 
-        // --- Vanilla formula: unarmed has no ammo (ammoMult=1, ammoDiv=1) ---
         var RD = getRandomInt(mode.minDmg, mode.maxDmg)
-        var damage = RD
-        // damageBonus = 0 (Bonus Ranged Damage doesn't apply to unarmed)
-        damage = Math.trunc(damage * critMultiplier)       // critMult × ammoMult(=1)
-        // damageDivisor = 1 (no-op)
-        damage = Math.trunc(damage / 2)                    // vanilla halving quirk
-        damage = Math.trunc(damage * CD / 100)             // difficulty modifier
-        damage -= DT                                       // subtract DT first
-        if (damage > 0) {
-            damage -= Math.trunc(damage * DR / 100)        // then apply DR%
-        }
-        if (damage < 0) damage = 0
+        var damage = computeDamage({ RD, bonus: 0, critMult: critMultiplier, ammoX: 1, ammoY: 1, DT, DR, CD })
 
         // Post-calculation perks
         if (obj.isPlayer) {
