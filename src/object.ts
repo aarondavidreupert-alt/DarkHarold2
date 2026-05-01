@@ -1064,6 +1064,8 @@ export class Critter extends Obj {
     crippledRightLeg = false
     isBlinded = false        // Blinded: heavy hit-chance penalty, Perception effectively 1
 
+    injuryFlags?: number     // DAM_* bitmask from critter_injure (0x01=knocked down, 0x80=dead, etc.)
+
     // Combat status effect counters / flags
     onFireTurns = 0          // Turns of fire DoT remaining; decremented in nextTurn
     bypassArmorNextHit = false // Set by bypassArmor crit effect; zeroes DR/DT for the hit that triggered it

@@ -56,6 +56,7 @@ export module Scripting {
     var currentDialogueObject: Obj | null = null
     export var timeEventList: TimedEvent[] = []
     let overrideStartPos: StartPos | null = null
+    let fadeOverlay: HTMLDivElement | null = null
 
     export interface StartPos {
         position: Point
@@ -456,15 +457,23 @@ export module Scripting {
                     if (target !== -1) throw 'elevator given explicit type'
                     useElevator()
                     break
-                case 17:
-                    stub('metarule', arguments)
-                    return 0 // is area known? (TODO)
+                case 17: // is area known?
+                    return globalState.knownAreas.has(target) ? 1 : 0
                 case 18:
                     return 0 // is the critter under the influence of drugs? (TODO)
                 case 22:
                     return 0 // is_game_loading
-                case 46:
-                    return 0 // METARULE_CURRENT_TOWN (TODO: return current city ID)
+                case 46: { // METARULE_CURRENT_TOWN
+                    const mapName = globalState.gMap?.name
+                    if (mapName && globalState.mapAreas) {
+                        for (const key of Object.keys(globalState.mapAreas)) {
+                            const area = globalState.mapAreas[key]
+                            if (area.entrances.some(e => e.mapName === mapName))
+                                return area.id
+                        }
+                    }
+                    return 0
+                }
                 case 48:
                     return 2 // METARULE_VIOLENCE_FILTER (2 = VLNCLVL_NORMAL)
                 case 49: // METARULE_W_DAMAGE_TYPE
@@ -795,7 +804,13 @@ export module Scripting {
             }
         }
         critter_injure(obj: Obj, how: number) {
-            stub('critter_injure', arguments)
+            if (!isGameObject(obj)) {
+                warn('critter_injure: not game object: ' + obj)
+                return
+            }
+            ;(obj as Critter).injuryFlags = ((obj as Critter).injuryFlags ?? 0) | how
+            if (how & 0x80) critterKill(obj as Critter)
+            info('critter_injure: ' + obj.name + ' flags=0x' + how.toString(16))
         }
         critter_is_fleeing(obj: Obj) {
             stub('critter_is_fleeing', arguments)
@@ -812,7 +827,15 @@ export module Scripting {
             critterDamage(obj, damage, this.self_obj as Critter, true, true, damageType)
         }
         critter_heal(obj: Obj, amount: number) {
-            stub('critter_heal', arguments)
+            if (!isGameObject(obj)) {
+                warn('critter_heal: not game object: ' + obj)
+                return
+            }
+            const hp = (obj as Critter).getStat('HP')
+            const maxHp = (obj as Critter).getStat('Max HP')
+            const healed = Math.min(amount, maxHp - hp)
+            ;(obj as Critter).stats.modifyBase('HP', healed)
+            info('critter_heal: ' + obj.name + ' healed ' + healed + ' HP')
         }
         poison(obj: Obj, amount: number) {
             stub('poison', arguments)
@@ -1334,10 +1357,33 @@ export module Scripting {
         }
 
         gfade_out(time: number) {
-            stub('gfade_out', arguments)
+            log('gfade_out', arguments)
+            if (!fadeOverlay) {
+                fadeOverlay = document.createElement('div')
+                Object.assign(fadeOverlay.style, {
+                    position: 'fixed', top: '0', left: '0',
+                    width: '100%', height: '100%',
+                    background: 'black', opacity: '0',
+                    pointerEvents: 'none', zIndex: '8000',
+                    transition: `opacity ${time}ms linear`,
+                })
+                document.body.appendChild(fadeOverlay)
+            }
+            // Force reflow so the transition fires from 0
+            void fadeOverlay.offsetWidth
+            fadeOverlay.style.opacity = '1'
         }
         gfade_in(time: number) {
-            stub('gfade_in', arguments)
+            log('gfade_in', arguments)
+            if (!fadeOverlay) return
+            fadeOverlay.style.transition = `opacity ${time}ms linear`
+            fadeOverlay.style.opacity = '0'
+            fadeOverlay.addEventListener('transitionend', () => {
+                if (fadeOverlay) {
+                    fadeOverlay.remove()
+                    fadeOverlay = null
+                }
+            }, { once: true })
         }
 
         // timing
@@ -1388,28 +1434,18 @@ export module Scripting {
             else globalState.gMap.loadMapByID(map)
         }
         play_gmovie(movieID: number) {
-            stub('play_gmovie', arguments)
+            // FO2 .mve movies are not converted/supported yet.
+            // Log and skip gracefully so scripts don't hang.
+            info('play_gmovie: movie ' + movieID + ' (not implemented — skipping)')
+            uiLog('[Movie ' + movieID + ' skipped]')
         }
-        mark_area_known(areaType: number, area: number, markState: number) {
-            if (areaType === 0) {
-                // MARK_TYPE_TOWN
-                switch (markState) {
-                    case 0:
-                        break // MARK_STATE_UNKNOWN
-                    case 1: // MARK_STATE_KNOWN
-                        info('TODO: Mark area ' + area + ' on map')
-                        return
-                    case 2:
-                        break // MARK_STATE_VISITED
-                    case -66:
-                        break // MARK_STATE_INVISIBLE
-                }
-
-                stub('mark_area_known', arguments)
-            } else if (areaType === 1) {
-                // MARK_TYPE_MAP
-                stub('mark_area_known', arguments)
-            } else throw 'mark_area_known: invalid area type ' + areaType
+        mark_area_known(areaType: number, areaID: number, state: number) {
+            // areaType: 0 = AREATYPE_KNOWN, 1 = AREATYPE_ENTRANCE_KNOWN
+            // state: 1 = mark known, 0 = mark unknown
+            log('mark_area_known', arguments)
+            if (state === 1) globalState.knownAreas.add(areaID)
+            else globalState.knownAreas.delete(areaID)
+            info('mark_area_known: area ' + areaID + ' → ' + (state ? 'known' : 'unknown'))
         }
         wm_area_set_pos(area: number, x: number, y: number) {
             stub('wm_area_set_pos', arguments)
@@ -1423,7 +1459,8 @@ export module Scripting {
 
         // sound
         play_sfx(sfx: string) {
-            stub('play_sfx', arguments)
+            if (!globalState.audioEngine) return
+            globalState.audioEngine.playSfx(sfx.toLowerCase())
         }
 
         // party

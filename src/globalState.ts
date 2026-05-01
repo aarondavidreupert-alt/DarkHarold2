@@ -86,6 +86,8 @@ export default {
 
     mapAreas: null,
 
+    knownAreas: new Set<number>(),
+
     // Cursor system
     cursorMode: 'move' as CursorMode,
     preScrollCursorMode: 'move' as CursorMode,
@@ -145,6 +147,8 @@ export default {
     unarmedModeIdx: number
 
     mapAreas: AreaMap | null
+
+    knownAreas: Set<number>
 
     // Cursor system
     cursorMode: CursorMode
