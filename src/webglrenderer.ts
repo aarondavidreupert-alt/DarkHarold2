@@ -805,6 +805,16 @@ export class WebGLRenderer extends Renderer {
         this.floorFBOValid = false
     }
 
+    clearTileCache(): void {
+        const fontKeys = new Set(this.fonts.map((f) => f.filepath))
+        for (const key of Object.keys(this.textures)) {
+            if (!fontKeys.has(key)) {
+                delete this.textures[key]
+            }
+        }
+        this.invalidateFloorFBO()
+    }
+
     // Resize the WebGL canvas (and its companion text overlay) to new logical
     // dimensions. Called by the window.resize handler in main.ts after it has
     // updated SCREEN_WIDTH/SCREEN_HEIGHT via setScreenSize(). Uploads the new

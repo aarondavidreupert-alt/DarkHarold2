@@ -110,6 +110,8 @@ export class Renderer {
         this.objects = objects
     }
 
+    clearTileCache(): void {}
+
     addWindow(window: WindowFrame) {
         this.windows.push(window)
     }

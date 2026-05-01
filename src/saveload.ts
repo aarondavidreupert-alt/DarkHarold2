@@ -20,6 +20,7 @@ import globalState from './globalState.js'
 import { SerializedMap } from './map.js'
 import { deserializeObj, SerializedObj } from './object.js'
 import { Scripting } from './scripting.js'
+import { drawHP, drawAC, uiDrawWeapon } from './ui_hud.js'
 
 // Saving and loading support
 
@@ -181,6 +182,10 @@ export function load(id: number): void {
 
             console.log("[SaveLoad] Loading save #%d ('%s') from %s", id, save.name, formatSaveDate(save))
 
+            if (globalState.gMap?.name !== save.currentMap) {
+                globalState.renderer.clearTileCache()
+            }
+
             globalState.gMap.deserialize(savedMap)
             console.log('[SaveLoad] Finished map deserialization')
 
@@ -218,6 +223,11 @@ export function load(id: number): void {
             // populate dirty map cache out of non-current saved maps
             globalState.dirtyMapCache = { ...save.savedMaps }
             delete globalState.dirtyMapCache[savedMap.name]
+
+            const p = globalState.player!
+            drawHP(p.getStat('HP'))
+            drawAC(p.getStat('AC'))
+            uiDrawWeapon()
 
             console.log('[SaveLoad] Finished loading map %s', savedMap.name)
         }
