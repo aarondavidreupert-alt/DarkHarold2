@@ -131,6 +131,10 @@ export module Scripting {
         return globalVars
     }
 
+    export function setGlobalVars(vars: { [k: string]: number }): void {
+        globalVars = Object.assign({}, vars)
+    }
+
     export function loadGlobalVars(): void {
         if (globalVarsLoaded) return
         try {

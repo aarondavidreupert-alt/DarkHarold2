@@ -184,6 +184,21 @@ export class SkillSet {
         }
     }
 
+    serialize() {
+        return {
+            baseSkills: Object.assign({}, this.baseSkills),
+            tagged: this.tagged.slice(),
+            skillPoints: this.skillPoints,
+            hasTagPerk: this.hasTagPerk,
+        }
+    }
+
+    static deserialize(data: ReturnType<SkillSet['serialize']>): SkillSet {
+        const s = new SkillSet(data.baseSkills, data.tagged, data.skillPoints)
+        s.hasTagPerk = data.hasTagPerk
+        return s
+    }
+
     isTagged(skill: string): boolean {
         return this.tagged.indexOf(skill) !== -1;
     }
@@ -279,5 +294,16 @@ export class StatSet {
 
     modifyBase(stat: string, change: number) {
         this.setBase(stat, this.getBase(stat) + change);
+    }
+
+    serialize() {
+        return {
+            baseStats: Object.assign({}, this.baseStats),
+            useBonuses: this.useBonuses,
+        }
+    }
+
+    static deserialize(data: ReturnType<StatSet['serialize']>): StatSet {
+        return new StatSet(data.baseStats, data.useBonuses)
     }
 }

@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { StatSet, SkillSet } from './char.js'
 import { Point } from './geometry.js'
 import globalState from './globalState.js'
 import { SerializedMap } from './map.js'
 import { deserializeObj, SerializedObj } from './object.js'
+import { Scripting } from './scripting.js'
 
 // Saving and loading support
 
@@ -39,6 +41,22 @@ export interface SaveGame {
     player: { position: Point; orientation: number; inventory: SerializedObj[] }
     party: SerializedObj[]
     savedMaps: { [mapName: string]: SerializedMap }
+
+    playerState?: {
+        stats: ReturnType<StatSet['serialize']>
+        skills: ReturnType<SkillSet['serialize']>
+        traits: string[]
+        perks: string[]
+        pendingPerkPick: boolean
+        name: string
+        gender: string
+        activeHand: string
+        isSneaking: boolean
+        leftHand: SerializedObj | null
+        rightHand: SerializedObj | null
+        armor: SerializedObj | null
+        gvars: { [k: string]: number }
+    }
 }
 
 function gatherSaveData(name: string): SaveGame {
@@ -46,6 +64,7 @@ function gatherSaveData(name: string): SaveGame {
 
     const curMap = globalState.gMap.serialize()
 
+    const p = globalState.player
     return {
         version: 1,
         name,
@@ -54,12 +73,27 @@ function gatherSaveData(name: string): SaveGame {
         currentMap: curMap.name,
         gameTickTime: globalState.gameTickTime,
         player: {
-            position: globalState.player.position,
-            orientation: globalState.player.orientation,
-            inventory: globalState.player.inventory.map((obj) => obj.serialize()),
+            position: p.position,
+            orientation: p.orientation,
+            inventory: p.inventory.map((obj) => obj.serialize()),
         },
         party: globalState.gParty.serialize(),
         savedMaps: { [curMap.name]: curMap, ...globalState.dirtyMapCache },
+        playerState: {
+            stats: p.stats.serialize(),
+            skills: p.skills.serialize(),
+            traits: p.traits.slice(),
+            perks: p.perks.slice(),
+            pendingPerkPick: p.pendingPerkPick,
+            name: p.name,
+            gender: p.gender,
+            activeHand: p.activeHand,
+            isSneaking: p.isSneaking,
+            leftHand: p.leftHand ? p.leftHand.serialize() : null,
+            rightHand: p.rightHand ? p.rightHand.serialize() : null,
+            armor: p.armor ? p.armor.serialize() : null,
+            gvars: Object.assign({}, Scripting.getGlobalVars()),
+        },
     }
 }
 
@@ -155,10 +189,27 @@ export function load(id: number): void {
                 globalState.gameTickTime = save.gameTickTime
             }
 
-            // TODO: Properly (de)serialize the player!
             globalState.player.position = save.player.position
             globalState.player.orientation = save.player.orientation
             globalState.player.inventory = save.player.inventory.map((obj) => deserializeObj(obj))
+
+            if (save.playerState) {
+                const ps = save.playerState
+                const p = globalState.player
+                p.stats = StatSet.deserialize(ps.stats)
+                p.skills = SkillSet.deserialize(ps.skills)
+                p.traits = ps.traits.slice()
+                p.perks = ps.perks.slice()
+                p.pendingPerkPick = ps.pendingPerkPick
+                p.name = ps.name
+                p.gender = ps.gender
+                p.activeHand = ps.activeHand as 'leftHand' | 'rightHand'
+                p.isSneaking = ps.isSneaking
+                p.leftHand = ps.leftHand ? deserializeObj(ps.leftHand) as any : undefined
+                p.rightHand = ps.rightHand ? deserializeObj(ps.rightHand) as any : undefined
+                p.armor = ps.armor ? deserializeObj(ps.armor) : null
+                Scripting.setGlobalVars(ps.gvars)
+            }
 
             globalState.gParty.deserialize(save.party)
 
