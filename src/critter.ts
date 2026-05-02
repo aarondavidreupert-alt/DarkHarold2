@@ -17,7 +17,8 @@ limitations under the License.
 
 import { Config } from './config.js'
 import globalState from './globalState.js'
-import { Critter, WeaponObj } from './object.js'
+import { lazyLoadImage } from './images.js'
+import { Critter, Obj, WeaponObj } from './object.js'
 import { Scripting } from './scripting.js'
 
 const weaponSkins: { [weapon: string]: string } = {
@@ -443,6 +444,9 @@ export function critterKill(
     damageType?: string,
     callback?: () => void
 ) {
+    // Prevent re-triggering the death sequence on an already-dying critter.
+    // critterDamage (e.g. burst fire overkill) or scripts can call this twice.
+    if (obj.dead) return
     obj.dead = true
     obj.outline = null
 
@@ -477,6 +481,22 @@ export function critterKill(
         // keeping the corpse frozen on its last frame indefinitely.
         obj.anim = 'dead'
         if (callback) callback()
+
+        // Blood pool: spawn a permanent floor decal for biological death types.
+        // Explosion, Electrical and EMP deaths don't produce a blood pool.
+        // Silently skipped when the FRM art is absent from the asset set.
+        const noBloodTypes = ['Explosion', 'Electrical', 'EMP']
+        if (!noBloodTypes.includes(damageType ?? '') && globalState.gMap) {
+            const bloodArt = 'art/misc/rdatblud'
+            lazyLoadImage(bloodArt, () => {
+                if (!globalState.gMap || !globalState.imageInfo[bloodArt]) return
+                const pool = new Obj()
+                pool.type = 'misc'
+                pool.art = bloodArt
+                pool.position = { x: obj.position.x, y: obj.position.y }
+                globalState.gMap.addObject(pool)
+            })
+        }
 
         // Player death: show game-over overlay after the death animation completes
         if (obj.isPlayer && typeof document !== 'undefined') {
