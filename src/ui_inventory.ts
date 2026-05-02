@@ -639,10 +639,20 @@ export function showInventory() {
         }
     }
 
+    // Actions that have dedicated CSS icon art (id="context_ACTION" → background-image).
+    const ICON_ACTIONS = new Set(['look', 'use', 'drop', 'cancel', 'unload'])
+
     function makeContextButton(obj: Obj, slot: string, action: ItemAction, label: string, closeOnClick = true) {
         const btn = document.createElement('div')
-        btn.className = 'itemContextMenuButton itemContextMenuText'
-        btn.textContent = label
+        if (ICON_ACTIONS.has(action)) {
+            // Icon button: background-image supplied by #context_ACTION CSS rule.
+            btn.id = 'context_' + action
+            btn.className = 'itemContextMenuButton'
+        } else {
+            // Text button: used for actions without dedicated icon art (e.g. Unequip).
+            btn.className = 'itemContextMenuButton itemContextMenuText'
+            btn.textContent = label
+        }
         btn.onclick = () => {
             itemAction(obj, slot, action)
             if (closeOnClick) hidev($id('itemContextMenu'))
