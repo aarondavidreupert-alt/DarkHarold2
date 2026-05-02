@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Weapon } from './critter.js'
+import { Weapon, critterDamage } from './critter.js'
 import { getLstId, lookupScriptName } from './data.js'
-import { Events } from './events.js'
+import { Events, scheduleExplosion } from './events.js'
 import { directionOfDelta, hexDistance, hexesInRadius, hexToScreen, Point } from './geometry.js'
 import globalState from './globalState.js'
 import { lazyLoadImage } from './images.js'
@@ -25,8 +25,9 @@ import { getPROSubTypeName, getPROTypeName, loadPRO, lookupArt, makePID } from '
 import { Scripting } from './scripting.js'
 import { fromTileNum } from './tile.js'
 import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from './unarmed.js'
-import { uiLoot } from './ui.js'
-import { deepClone, getMessage } from './util.js'
+import { uiLoot, uiLog } from './ui.js'
+import { deepClone, getMessage, getRandomInt, skillRoll, RollResult } from './util.js'
+import { showTimerDialog } from './ui_timer.js'
 import { Config } from './config.js'
 import { SkillSet, StatSet } from './char.js'
 import { ActionPoints, AI } from './combat.js'
@@ -90,49 +91,56 @@ export function objectGetDamageType(obj: any): string {
     throw 'no damage type for obj: ' + obj
 }
 
-function useExplosive(obj: Obj, source: Critter): void {
-    if (source.isPlayer !== true) {
-        return
-    } // ?
-    let mins, secs
+async function useExplosive(obj: Obj, source: Critter): Promise<void> {
+    if (!source.isPlayer) return
 
-    const forever = true
+    const isDynamite = obj.pid === 51
+    const minDmg = isDynamite ? 30 : 40
+    const maxDmg = isDynamite ? 50 : 80
+    const radius  = isDynamite ? 2  : 3
 
-    while (forever) {
-        const time = prompt('Time to detonate?', '1:00')
-        if (time === null) {
+    const chosenTurns = await showTimerDialog(obj)
+    if (chosenTurns === null) return // player cancelled
+
+    // Traps skill roll — skipped for Demolition Expert
+    let delayTurns = chosenTurns
+    if (source.hasPerk('Demolition Expert')) {
+        uiLog(`Armed! Timer set to ${delayTurns} turn(s).`)
+    } else {
+        const { roll } = skillRoll(source, 'Traps')
+        console.log(`[Object] Traps roll: ${RollResult[roll]}`)
+        if (roll === RollResult.CriticalFailure) {
+            uiLog('The explosive detonates in your hands!')
+            obj.explode(source, minDmg, maxDmg, radius)
             return
-        } // cancel
-        const s = time.split(':')
-        if (s.length !== 2) {
-            continue
+        } else if (roll === RollResult.Failure) {
+            delayTurns = Math.max(1, Math.floor(chosenTurns / 2))
+            uiLog(`You fumble the timer. Detonation in ${delayTurns} turn(s).`)
+        } else {
+            uiLog(`Armed! Detonation in ${delayTurns} turn(s).`)
         }
-
-        mins = parseInt(s[0])
-        secs = parseInt(s[1])
-
-        if (isNaN(mins) || isNaN(secs)) {
-            continue
-        }
-        break
     }
 
-    // TODO: skill rolls
+    // Remove obj from player's inventory or hand slot
+    const playerAny = source as any
+    const invIdx = source.inventory.indexOf(obj)
+    if (invIdx !== -1) {
+        source.inventory.splice(invIdx, 1)
+    } else {
+        for (const slot of ['leftHand', 'rightHand'] as const) {
+            if (playerAny[slot] === obj) {
+                playerAny[slot] = undefined
+                break
+            }
+        }
+    }
 
-    const ticks = mins * 60 * 10 + secs * 10 // game ticks until detonation
+    // Place on the player's current tile
+    obj.position = { x: source.position.x, y: source.position.y }
+    globalState.gMap!.addObject(obj)
 
-    console.log(`[Object] arming explosive for ${ticks} ticks`)
-
-    Scripting.timeEventList.push({
-        ticks: ticks,
-        obj: null,
-        userdata: null,
-        fn: function () {
-            // explode!
-            // TODO: explosion damage calculations
-            obj.explode(source, 10 /* min dmg */, 25 /* max dmg */)
-        },
-    })
+    scheduleExplosion(obj, minDmg, maxDmg, radius, delayTurns)
+    console.log(`[Object] ${isDynamite ? 'Dynamite' : 'Plastic Explosive'} armed: delay=${delayTurns}t dmg=${minDmg}-${maxDmg} r=${radius}`)
 }
 
 // Set the object (door/container) open/closed; returns true if possible, false if not (e.g. locked)
@@ -771,35 +779,33 @@ export class Obj {
         return true
     }
 
-    explode(source: Obj, minDmg: number, maxDmg: number): void {
-        const damage = maxDmg
+    explode(source: Obj | null, minDmg: number, maxDmg: number, radius: number = 8): void {
+        const damage = getRandomInt(minDmg, maxDmg)
+        const killer = (source ?? this) as Critter // explosive itself as killer when source is null
         const explosion = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
-        explosion.position.x = this.position.x
-        explosion.position.y = this.position.y
-        ;(<any>this).dmgType = 'explosion' // TODO: any (WeaponObj?)
+        explosion.position = { x: this.position.x, y: this.position.y }
 
         lazyLoadImage(explosion.art, () => {
+            if (!globalState.gMap) return
             globalState.gMap.addObject(explosion)
+            console.log(`[Object] explosion: dmg=${damage} radius=${radius}`)
 
-            console.log('[Object] adding explosion')
             explosion.singleAnimation(false, () => {
-                globalState.gMap.destroyObject(explosion)
+                globalState.gMap?.destroyObject(explosion)
 
-                // damage critters in a radius
-                const hexes = hexesInRadius(this.position, 8 /* explosion radius */) // TODO: radius
-                for (let i = 0; i < hexes.length; i++) {
-                    const objs = globalState.gMap.objectsAtPosition(hexes[i])
-                    for (let j = 0; j < objs.length; j++) {
-                        if (objs[j].type === 'critter') {
-                            console.log('[Object] TODO: damage', (<Critter>objs[j]).name)
+                // Apply damage to all critters within the blast radius
+                const hexes = hexesInRadius(this.position, radius)
+                for (const hex of hexes) {
+                    const objs = globalState.gMap?.objectsAtPosition(hex) ?? []
+                    for (const target of objs) {
+                        if (target.type === 'critter' && !(target as Critter).dead) {
+                            console.log(`[Object] explosion hits ${(target as Critter).name} for ${damage}`)
+                            critterDamage(target as Critter, damage, killer, true, true, 'Explosive')
                         }
-
-                        Scripting.damage(objs[j], this, this /*source*/, damage)
                     }
                 }
 
-                // remove explosive
-                globalState.gMap.destroyObject(this)
+                globalState.gMap?.destroyObject(this)
             })
         })
     }
