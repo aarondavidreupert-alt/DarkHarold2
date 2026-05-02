@@ -1228,6 +1228,12 @@ export class Critter extends Obj {
             return this.updateStaticAnim()
         }
 
+        // Move animation (walk/run) but path was not serialized — recover to idle.
+        if (!this.path) {
+            this.clearAnim()
+            return
+        }
+
         const time = window.performance.now()
         const fps = globalState.imageInfo[this.art].fps
         const targetScreen = hexToScreen(this.path.target.x, this.path.target.y)
