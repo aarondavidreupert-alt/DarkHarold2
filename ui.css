@@ -1483,6 +1483,53 @@ html, body {
   cursor: url('art/intrface/stdarrow.png'), none !important;
 }
 
+/* Unarmed mode picker panel */
+#unarmedModePanel {
+  position: absolute;
+  /* Bottom-flush with the 99px HUD bar, horizontally aligned over the attack button. */
+  /* #bar is 640px wide centered in 800px uiStage → left offset = (800-640)/2 + 265 = 345px */
+  left: 345px;
+  bottom: 99px;
+  width: 160px;
+  background: #1a1408;
+  border: 1px solid #6b5a00;
+  padding: 2px;
+  z-index: 50;
+}
+
+.unarmedModeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px;
+  cursor: url('art/intrface/stdarrow.png'), auto;
+  border: 1px solid transparent;
+}
+
+.unarmedModeRow:hover {
+  background: #2a2200;
+  border-color: #6b5a00;
+}
+
+.unarmedModeRow-active {
+  background: #2a2200;
+  border-color: #b38600;
+}
+
+.unarmedModeLabel {
+  height: 12px;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+
+.unarmedModeAP {
+  color: #b38600;
+  font-size: 11px;
+  line-height: 1;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
 #bar *, #dialogueContainer *, #inventoryBox *, #lootBox *,
 #barterBox *, #worldMapContainer *, #elevatorBox *,
 #calledShotBox *, #itemContextMenu *,

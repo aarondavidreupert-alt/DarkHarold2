@@ -36,6 +36,7 @@ import { uiWorldMap, uiCloseWorldMap, uiWorldMapShowArea } from './ui_worldmap.j
 import { uiElevator } from './ui_elevator.js'
 import { initCalledShot, uiCalledShot, uiCloseCalledShot } from './ui_calledshot.js'
 import { uiContextMenu, uiHideContextMenu } from './ui_contextmenu.js'
+import { openUnarmedModePanel, closeUnarmedModePanel } from './ui_unarmed.js'
 import {
     drawHP,
     drawAC,
@@ -332,6 +333,16 @@ export function initUI() {
             return
         }
 
+        if (!wep || !wep.weapon) {
+            // Unarmed: left-click cycles to next mode
+            const skill = globalState.player!.getSkill('Unarmed')
+            globalState.unarmedModeIdx = nextUnarmedModeIdx(skill, globalState.unarmedModeIdx)
+            const mode = getActiveUnarmedMode(skill, globalState.unarmedModeIdx)
+            uiLog(`Unarmed: ${mode.name}`)
+            uiDrawWeapon()
+            return
+        }
+
         if (!Config.engine.doCombat) {
             return
         }
@@ -346,15 +357,11 @@ export function initUI() {
     }
 
     $id('attackButtonContainer').oncontextmenu = () => {
-        // right mouse button (cycle weapon modes)
+        // right mouse button: open unarmed mode picker, or cycle weapon modes
         const wep = globalState.player.equippedWeapon
         if (!wep || !wep.weapon) {
-            // Cycle unarmed mode
-            const skill = globalState.player!.getSkill('Unarmed')
-            globalState.unarmedModeIdx = nextUnarmedModeIdx(skill, globalState.unarmedModeIdx)
-            const mode = getActiveUnarmedMode(skill, globalState.unarmedModeIdx)
-            uiLog(`Unarmed: ${mode.name}`)
-            uiDrawWeapon()
+            // Unarmed: right-click opens the mode picker panel
+            openUnarmedModePanel()
             return false
         }
         wep.weapon.cycleMode()
