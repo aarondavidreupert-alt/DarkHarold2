@@ -501,11 +501,14 @@ export class Obj {
     }
 
     updateAnim(): void {
-        if (!this.anim) {
-            return
-        }
+        if (!this.anim) return
+        if (this.anim === 'dead') return  // corpse is frozen, never step frames
+
+        const imageInfo = globalState.imageInfo[this.art]
+        if (!imageInfo) return  // image metadata not yet loaded, skip this tick
+
         const time = window.performance.now()
-        let fps = globalState.imageInfo[this.art].fps
+        let fps = imageInfo.fps
         if (fps === 0) {
             fps = 10
         } // XXX: ?
@@ -518,7 +521,7 @@ export class Obj {
             }
             this.lastFrameTime = time
 
-            if (this.frame === -1 || this.frame === globalState.imageInfo[this.art].numFrames) {
+            if (this.frame === -1 || this.frame === imageInfo.numFrames) {
                 // animation is done
                 if (this.anim === 'reverse') {
                     this.frame++
