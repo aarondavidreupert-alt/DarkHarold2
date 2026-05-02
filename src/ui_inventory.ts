@@ -550,11 +550,14 @@ export function showInventory() {
         }
     }
 
-    type ItemAction = 'cancel' | 'use' | 'drop' | 'equip_left' | 'equip_right' | 'equip_armor' | 'unequip' | 'unload'
+    type ItemAction = 'cancel' | 'look' | 'use' | 'drop' | 'equip_left' | 'equip_right' | 'equip_armor' | 'unequip' | 'unload'
 
     function itemAction(obj: Obj, slot: string, action: ItemAction) {
         const playerAny = globalState.player as any
         switch (action) {
+            case 'look':
+                showItemInfo(obj)
+                break
             case 'cancel':
                 break
             case 'use':
@@ -636,26 +639,15 @@ export function showInventory() {
         }
     }
 
-    function makeContextButton(obj: Obj, slot: string, action: ItemAction, label?: string) {
-        if (label) {
-            // text-based button for equip actions (no dedicated art asset)
-            const btn = document.createElement('div')
-            btn.className = 'itemContextMenuButton itemContextMenuText'
-            btn.textContent = label
-            btn.onclick = () => {
-                itemAction(obj, slot, action)
-                hidev($id('itemContextMenu'))
-            }
-            return btn
+    function makeContextButton(obj: Obj, slot: string, action: ItemAction, label: string, closeOnClick = true) {
+        const btn = document.createElement('div')
+        btn.className = 'itemContextMenuButton itemContextMenuText'
+        btn.textContent = label
+        btn.onclick = () => {
+            itemAction(obj, slot, action)
+            if (closeOnClick) hidev($id('itemContextMenu'))
         }
-        return makeEl('div', {
-            id: 'context_' + action,
-            classes: ['itemContextMenuButton'],
-            click: () => {
-                itemAction(obj, slot, action)
-                hidev($id('itemContextMenu'))
-            },
-        })
+        return btn
     }
 
     function makeItemContextMenu(e: MouseEvent, obj: Obj, slot: string) {
@@ -675,29 +667,37 @@ export function showInventory() {
             top: `${ly}px`,
         })
 
-        $menu.appendChild(makeContextButton(obj, slot, 'cancel'))
-        if (obj.canUse) {
-            $menu.appendChild(makeContextButton(obj, slot, 'use'))
-        }
-        $menu.appendChild(makeContextButton(obj, slot, 'drop'))
+        const isWeaponWithAmmo = obj.subtype === 'weapon' && (obj.pro?.extra?.maxAmmo ?? 0) > 0
+        const fromInventory = slot === 'inventory'
 
-        // Unload option: any weapon with non-zero ammo capacity and rounds currently loaded
-        // (matches fallout2-ce ammoGetCapacity != 0 condition — works for all gun types)
-        if (obj.subtype === 'weapon' && obj.pro?.extra?.maxAmmo > 0 && obj.pro?.extra?.rounds > 0) {
-            $menu.appendChild(makeContextButton(obj, slot, 'unload'))
-        }
+        // Determine action set — mirrors fallout2-ce _act_weap/_act_use/_act_no_use etc.
+        type Action = { action: ItemAction; label: string; closeOnClick?: boolean }
+        let actions: Action[]
 
-        // Equip options for inventory items
-        if (slot === 'inventory') {
-            if (obj.subtype === 'weapon' || obj.subtype === 'misc') {
-                $menu.appendChild(makeContextButton(obj, slot, 'equip_left', 'Eq. Left'))
-                $menu.appendChild(makeContextButton(obj, slot, 'equip_right', 'Eq. Right'))
-            } else if (obj.subtype === 'armor') {
-                $menu.appendChild(makeContextButton(obj, slot, 'equip_armor', 'Equip'))
-            }
+        if (isWeaponWithAmmo) {
+            // _act_weap / _act_weap2
+            actions = fromInventory
+                ? [{ action: 'look', label: 'Look', closeOnClick: false }, { action: 'unload', label: 'Unload' }, { action: 'drop', label: 'Drop' }, { action: 'cancel', label: 'Cancel' }]
+                : [{ action: 'look', label: 'Look', closeOnClick: false }, { action: 'unload', label: 'Unload' }, { action: 'cancel', label: 'Cancel' }]
+        } else if (obj.canUse) {
+            // _act_use / _act_just_use
+            actions = fromInventory
+                ? [{ action: 'look', label: 'Look', closeOnClick: false }, { action: 'use', label: 'Use' }, { action: 'drop', label: 'Drop' }, { action: 'cancel', label: 'Cancel' }]
+                : [{ action: 'look', label: 'Look', closeOnClick: false }, { action: 'use', label: 'Use' }, { action: 'cancel', label: 'Cancel' }]
         } else {
-            // Unequip from hand/armor slot
-            $menu.appendChild(makeContextButton(obj, slot, 'unequip', 'Unequip'))
+            // _act_no_use / _act_nothing
+            actions = fromInventory
+                ? [{ action: 'look', label: 'Look', closeOnClick: false }, { action: 'drop', label: 'Drop' }, { action: 'cancel', label: 'Cancel' }]
+                : [{ action: 'look', label: 'Look', closeOnClick: false }, { action: 'cancel', label: 'Cancel' }]
+        }
+
+        // DarkHarold2 addition: unequip button for equipped slots
+        if (!fromInventory) {
+            actions.push({ action: 'unequip', label: 'Unequip' })
+        }
+
+        for (const { action, label, closeOnClick } of actions) {
+            $menu.appendChild(makeContextButton(obj, slot, action, label, closeOnClick ?? true))
         }
     }
 
