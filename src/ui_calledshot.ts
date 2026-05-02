@@ -110,7 +110,7 @@ export function uiCalledShot(art: string, target: Critter, callback?: (regionHit
     show($id('calledShotBox'))
 
     function drawChance(region: string) {
-        let chance: any = Combat.prototype.getHitChance(globalState.player, target, region).hit
+        let chance: any = (globalState.combat ?? new Combat([])).getHitChance(globalState.player, target, region).hit
         console.log('[UI] called shot: id: %s | chance: %d', '#calledShot-' + region + '-chance #digit', chance)
         if (chance <= 0) {
             chance = '--'
