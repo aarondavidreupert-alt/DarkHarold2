@@ -56,7 +56,7 @@ import { getFileJSON, getProtoMsg } from './util.js'
 import { WebGLRenderer } from './webglrenderer.js'
 import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
-import { getActiveUnarmedMode } from './unarmed.js'
+import { getActiveUnarmedModeForHand } from './unarmed.js'
 import { Lightmap } from './lightmap.js'
 import { togglePipBoy } from './ui_pipboy.js'
 
@@ -233,8 +233,9 @@ export function playerUse(obj: Obj | null) {
             // Determine AP cost for this attack up-front so we can guard before acting
             let attackAPCost: number
             if (weapon === null) {
-                const unarmedSkill = globalState.player.getSkill('Unarmed')
-                attackAPCost = getActiveUnarmedMode(unarmedSkill, globalState.unarmedModeIdx).apCost
+                const p = globalState.player
+                const unarmedSkill = p.getSkill('Unarmed')
+                attackAPCost = getActiveUnarmedModeForHand(unarmedSkill, (p as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(p as any).leftHand?.weapon && !(p as any).rightHand?.weapon).apCost
             } else if (weapon.weapon!.isCalled()) {
                 attackAPCost = weapon.weapon!.getAPCost(1) + 1
             } else if (weapon.weapon!.isBurst()) {
@@ -782,8 +783,9 @@ heart.keydown = (k: string) => {
         }
 
         const kbWeapon = globalState.player.equippedWeapon
+        const kbP = globalState.player
         const kbAPCost = kbWeapon === null
-            ? getActiveUnarmedMode(globalState.player.getSkill('Unarmed'), globalState.unarmedModeIdx).apCost
+            ? getActiveUnarmedModeForHand(kbP.getSkill('Unarmed'), (kbP as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(kbP as any).leftHand?.weapon && !(kbP as any).rightHand?.weapon).apCost
             : kbWeapon.weapon!.getAPCost(1)
 
         if (globalState.player.AP.getAvailableCombatAP() < kbAPCost) {

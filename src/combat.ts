@@ -28,7 +28,7 @@ import { loadPRO } from './pro.js'
 import { Scripting } from './scripting.js'
 import { drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiLog, uiStartCombat } from './ui.js'
 import { clamp, getFileText, getMessage, getRandomInt, parseIni, rollSkillCheck } from './util.js'
-import { getActiveUnarmedMode } from './unarmed.js'
+import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from './unarmed.js'
 
 // Turn-based combat system
 
@@ -425,8 +425,9 @@ export class Combat {
         if (weaponObj === null) {
             // Unarmed (no weapon equipped): use Unarmed skill
             const unarmedSkill = obj.getSkill('Unarmed')
-            const modeIdx = obj.isPlayer ? globalState.unarmedModeIdx : 0
-            const mode = getActiveUnarmedMode(unarmedSkill, modeIdx)
+            const mode = obj.isPlayer
+                ? getActiveUnarmedModeForHand(unarmedSkill, (obj as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(obj as any).leftHand?.weapon && !(obj as any).rightHand?.weapon)
+                : getActiveUnarmedMode(unarmedSkill, 0)
             const AC = target.getStat('AC') + target.getArmorAC() + target.bonusAC
             const partialCoverPenalty = this.accountForPartialCover(obj, target)
             const crippledArmPenalty = (obj.crippledLeftArm ? 40 : 0) + (obj.crippledRightArm ? 40 : 0)
@@ -604,8 +605,9 @@ export class Combat {
      *  Same formula as weapon damage: bonus → multiply → halve → DT → DR%. */
     getUnarmedDamageDone(obj: Critter, target: Critter, critMultiplier: number): number {
         const unarmedSkill = obj.getSkill('Unarmed')
-        const modeIdx = obj.isPlayer ? globalState.unarmedModeIdx : 0
-        const mode = getActiveUnarmedMode(unarmedSkill, modeIdx)
+        const mode = obj.isPlayer
+            ? getActiveUnarmedModeForHand(unarmedSkill, (obj as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(obj as any).leftHand?.weapon && !(obj as any).rightHand?.weapon)
+            : getActiveUnarmedMode(unarmedSkill, 0)
 
         // Unarmed damage type is always Normal
         var DT = target.getStat('DT Normal') + target.getArmorDT('Normal')
@@ -696,8 +698,9 @@ export class Combat {
         // ── UNARMED (no weapon equipped) ──────────────────────────────────────
         if (weaponObj === null) {
             var unarmedSkill = obj.getSkill('Unarmed')
-            var unarmedModeIdx = obj.isPlayer ? globalState.unarmedModeIdx : 0
-            var unarmedModeName = getActiveUnarmedMode(unarmedSkill, unarmedModeIdx).name
+            var unarmedModeName = (obj.isPlayer
+                ? getActiveUnarmedModeForHand(unarmedSkill, (obj as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(obj as any).leftHand?.weapon && !(obj as any).rightHand?.weapon)
+                : getActiveUnarmedMode(unarmedSkill, 0)).name
 
             var unarmedHit = this.rollHit(obj, target, region, 0, who, targetName)
 

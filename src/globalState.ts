@@ -82,7 +82,8 @@ const globalState = {
 
     uiMode: UIMode.none,
 
-    unarmedModeIdx: 0,
+    punchModeIdx: 0,
+    kickModeIdx: 0,
 
     mapAreas: null,
 
@@ -144,7 +145,8 @@ const globalState = {
 
     uiMode: UIMode
 
-    unarmedModeIdx: number
+    punchModeIdx: number
+    kickModeIdx: number
 
     mapAreas: AreaMap | null
 

@@ -1,5 +1,5 @@
 import globalState from './globalState.js'
-import { getActiveUnarmedMode, getAvailableUnarmedModes } from './unarmed.js'
+import { getPunchModes, getKickModes, getActivePunchMode, getActiveKickMode } from './unarmed.js'
 import { uiDrawWeapon } from './ui_hud.js'
 
 // Fallout 2 interface label images for each unarmed mode name.
@@ -24,9 +24,18 @@ let outsideClickListener: ((e: MouseEvent) => void) | null = null
 export function openUnarmedModePanel(): void {
     if (!globalState.player) return
     const panel = $id('unarmedModePanel')
-    const unarmedSkill = globalState.player.getSkill('Unarmed')
-    const available = getAvailableUnarmedModes(unarmedSkill)
-    const activeMode = getActiveUnarmedMode(unarmedSkill, globalState.unarmedModeIdx)
+    const player = globalState.player
+    const unarmedSkill = player.getSkill('Unarmed')
+    const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
+    const leftWeapon = (player as any).leftHand?.weapon ?? null
+    const rightWeapon = (player as any).rightHand?.weapon ?? null
+    const bothHandsEmpty = !leftWeapon && !rightWeapon
+
+    const isKickHand = activeHand === 'rightHand' && bothHandsEmpty
+    const available = isKickHand ? getKickModes(unarmedSkill) : getPunchModes(unarmedSkill)
+    const activeMode = isKickHand
+        ? getActiveKickMode(unarmedSkill, globalState.kickModeIdx)
+        : getActivePunchMode(unarmedSkill, globalState.punchModeIdx)
 
     panel.innerHTML = ''
     available.forEach((mode, idx) => {
@@ -49,7 +58,11 @@ export function openUnarmedModePanel(): void {
         row.appendChild(ap)
         row.addEventListener('click', (e) => {
             e.stopPropagation()
-            globalState.unarmedModeIdx = idx
+            if (isKickHand) {
+                globalState.kickModeIdx = idx
+            } else {
+                globalState.punchModeIdx = idx
+            }
             uiDrawWeapon()
             closeUnarmedModePanel()
         })

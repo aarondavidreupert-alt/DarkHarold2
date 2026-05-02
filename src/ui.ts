@@ -20,7 +20,7 @@ import { Obj } from './object.js'
 import { Config } from './config.js'
 import { openAutomap, closeAutomap, isAutomapOpen } from './ui_automap.js'
 import { openPipBoy, closePipBoy, isPipBoyOpen } from './ui_pipboy.js'
-import { getActiveUnarmedMode, nextUnarmedModeIdx } from './unarmed.js'
+import { getActivePunchMode, getActiveKickMode, nextPunchModeIdx, nextKickModeIdx } from './unarmed.js'
 import { initOptionsMenu, getOptionsWindow, showOptionsMenu, closeOptionsMenu } from './ui_options.js'
 import { initSkilldex, getSkilldexWindow, showSkilldex, closeSkilldex } from './ui_skilldex.js'
 import {
@@ -334,10 +334,21 @@ export function initUI() {
         }
 
         if (!wep || !wep.weapon) {
-            // Unarmed: left-click cycles to next mode
-            const skill = globalState.player!.getSkill('Unarmed')
-            globalState.unarmedModeIdx = nextUnarmedModeIdx(skill, globalState.unarmedModeIdx)
-            const mode = getActiveUnarmedMode(skill, globalState.unarmedModeIdx)
+            // Unarmed: left-click cycles the active hand's mode family
+            const player = globalState.player!
+            const skill = player.getSkill('Unarmed')
+            const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
+            const leftWeapon = (player as any).leftHand?.weapon ?? null
+            const rightWeapon = (player as any).rightHand?.weapon ?? null
+            const bothHandsEmpty = !leftWeapon && !rightWeapon
+            let mode
+            if (activeHand === 'rightHand' && bothHandsEmpty) {
+                globalState.kickModeIdx = nextKickModeIdx(skill, globalState.kickModeIdx)
+                mode = getActiveKickMode(skill, globalState.kickModeIdx)
+            } else {
+                globalState.punchModeIdx = nextPunchModeIdx(skill, globalState.punchModeIdx)
+                mode = getActivePunchMode(skill, globalState.punchModeIdx)
+            }
             uiLog(`Unarmed: ${mode.name}`)
             uiDrawWeapon()
             return

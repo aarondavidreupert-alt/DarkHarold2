@@ -4,6 +4,7 @@
 
 export interface UnarmedMode {
     name: string
+    family: 'punch' | 'kick'  // punch = left-hand moves, kick = right-hand moves
     icon: 'punch' | 'kick'    // icon file inside art/intrface/ (without .png)
     skillThreshold: number     // minimum Unarmed skill required to unlock
     apCost: number
@@ -15,21 +16,74 @@ export interface UnarmedMode {
 
 // Modes in skill-threshold order.  Punch and kick are always available.
 export const UNARMED_MODES: UnarmedMode[] = [
-    { name: 'punch',           icon: 'punch', skillThreshold:   0, apCost: 3, minDmg: 1, maxDmg:  2, penetrate: false, critBonus:  0 },
-    { name: 'kick',            icon: 'kick',  skillThreshold:   0, apCost: 3, minDmg: 1, maxDmg:  3, penetrate: false, critBonus:  0 },
-    { name: 'strong punch',    icon: 'punch', skillThreshold:  55, apCost: 4, minDmg: 3, maxDmg:  6, penetrate: false, critBonus:  0 },
-    { name: 'strong kick',     icon: 'kick',  skillThreshold:  60, apCost: 4, minDmg: 3, maxDmg:  6, penetrate: false, critBonus:  0 },
-    { name: 'palm strike',     icon: 'punch', skillThreshold:  70, apCost: 5, minDmg: 3, maxDmg:  6, penetrate: false, critBonus: 20 },
-    { name: 'haymaker',        icon: 'punch', skillThreshold:  80, apCost: 5, minDmg: 3, maxDmg:  6, penetrate: false, critBonus:  5 },
-    { name: 'piercing strike', icon: 'punch', skillThreshold:  90, apCost: 5, minDmg: 3, maxDmg:  6, penetrate: true,  critBonus: 15 },
-    { name: 'hook kick',       icon: 'kick',  skillThreshold: 100, apCost: 6, minDmg: 5, maxDmg: 10, penetrate: false, critBonus: 10 },
-    { name: 'piercing kick',   icon: 'kick',  skillThreshold: 110, apCost: 7, minDmg: 5, maxDmg: 10, penetrate: true,  critBonus: 15 },
+    { name: 'punch',           family: 'punch', icon: 'punch', skillThreshold:   0, apCost: 3, minDmg: 1, maxDmg:  2, penetrate: false, critBonus:  0 },
+    { name: 'kick',            family: 'kick',  icon: 'kick',  skillThreshold:   0, apCost: 3, minDmg: 1, maxDmg:  3, penetrate: false, critBonus:  0 },
+    { name: 'strong punch',    family: 'punch', icon: 'punch', skillThreshold:  55, apCost: 4, minDmg: 3, maxDmg:  6, penetrate: false, critBonus:  0 },
+    { name: 'strong kick',     family: 'kick',  icon: 'kick',  skillThreshold:  60, apCost: 4, minDmg: 3, maxDmg:  6, penetrate: false, critBonus:  0 },
+    { name: 'palm strike',     family: 'punch', icon: 'punch', skillThreshold:  70, apCost: 5, minDmg: 3, maxDmg:  6, penetrate: false, critBonus: 20 },
+    { name: 'haymaker',        family: 'punch', icon: 'punch', skillThreshold:  80, apCost: 5, minDmg: 3, maxDmg:  6, penetrate: false, critBonus:  5 },
+    { name: 'piercing strike', family: 'punch', icon: 'punch', skillThreshold:  90, apCost: 5, minDmg: 3, maxDmg:  6, penetrate: true,  critBonus: 15 },
+    { name: 'hook kick',       family: 'kick',  icon: 'kick',  skillThreshold: 100, apCost: 6, minDmg: 5, maxDmg: 10, penetrate: false, critBonus: 10 },
+    { name: 'piercing kick',   family: 'kick',  icon: 'kick',  skillThreshold: 110, apCost: 7, minDmg: 5, maxDmg: 10, penetrate: true,  critBonus: 15 },
 ]
 
-/** Returns all modes available at the given Unarmed skill level. */
+/** All modes available at the given skill level regardless of family. */
 export function getAvailableUnarmedModes(skill: number): UnarmedMode[] {
     return UNARMED_MODES.filter(m => skill >= m.skillThreshold)
 }
+
+/** Punch-family modes available at the given skill level. */
+export function getPunchModes(skill: number): UnarmedMode[] {
+    return UNARMED_MODES.filter(m => m.family === 'punch' && skill >= m.skillThreshold)
+}
+
+/** Kick-family modes available at the given skill level. */
+export function getKickModes(skill: number): UnarmedMode[] {
+    return UNARMED_MODES.filter(m => m.family === 'kick' && skill >= m.skillThreshold)
+}
+
+export function getActivePunchMode(skill: number, punchModeIdx: number): UnarmedMode {
+    const available = getPunchModes(skill)
+    if (available.length === 0) return UNARMED_MODES[0] // punch always available
+    return available[Math.min(punchModeIdx, available.length - 1)]
+}
+
+export function getActiveKickMode(skill: number, kickModeIdx: number): UnarmedMode {
+    const available = getKickModes(skill)
+    if (available.length === 0) return UNARMED_MODES[1] // kick always available
+    return available[Math.min(kickModeIdx, available.length - 1)]
+}
+
+export function nextPunchModeIdx(skill: number, punchModeIdx: number): number {
+    const available = getPunchModes(skill)
+    if (available.length <= 1) return 0
+    return (punchModeIdx + 1) % available.length
+}
+
+export function nextKickModeIdx(skill: number, kickModeIdx: number): number {
+    const available = getKickModes(skill)
+    if (available.length <= 1) return 0
+    return (kickModeIdx + 1) % available.length
+}
+
+/**
+ * Returns the active UnarmedMode for the player based on which hand is active
+ * and whether both hands are empty (required for kick access).
+ */
+export function getActiveUnarmedModeForHand(
+    skill: number,
+    activeHand: 'leftHand' | 'rightHand',
+    punchModeIdx: number,
+    kickModeIdx: number,
+    bothHandsEmpty: boolean
+): UnarmedMode {
+    if (activeHand === 'rightHand' && bothHandsEmpty) {
+        return getActiveKickMode(skill, kickModeIdx)
+    }
+    return getActivePunchMode(skill, punchModeIdx)
+}
+
+// ── Legacy API kept for NPC call sites (modeIdx=0 → first available mode) ──
 
 /**
  * Returns the active UnarmedMode for the given skill level and mode index.

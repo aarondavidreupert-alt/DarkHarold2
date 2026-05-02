@@ -19,7 +19,7 @@ limitations under the License.
 
 import globalState from './globalState.js'
 import { Critter, WeaponObj } from './object.js'
-import { getActiveUnarmedMode } from './unarmed.js'
+import { getActivePunchMode, getActiveKickMode } from './unarmed.js'
 
 // --- DOM helpers (mirrors the ones in ui.ts) -------------------------------
 
@@ -145,9 +145,16 @@ export function uiDrawWeapon(): void {
     const $wepImg = $id('attackButtonWeapon') as HTMLImageElement
     const $typeImg = $img('attackButtonType')
     if (!weapon || !weapon.weapon) {
-        // Unarmed HUD: show current punch/kick mode icon and AP cost
-        const unarmedSkill = globalState.player!.getSkill('Unarmed')
-        const mode = getActiveUnarmedMode(unarmedSkill, globalState.unarmedModeIdx)
+        // Unarmed HUD: left hand → punch family, right hand → kick family (both empty only)
+        const player = globalState.player!
+        const unarmedSkill = player.getSkill('Unarmed')
+        const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
+        const leftWeapon = (player as any).leftHand?.weapon ?? null
+        const rightWeapon = (player as any).rightHand?.weapon ?? null
+        const bothHandsEmpty = !leftWeapon && !rightWeapon
+        const mode = activeHand === 'rightHand' && bothHandsEmpty
+            ? getActiveKickMode(unarmedSkill, globalState.kickModeIdx)
+            : getActivePunchMode(unarmedSkill, globalState.punchModeIdx)
         $wepImg.style.display = 'none'
         $typeImg.style.display = ''
         $img('attackButtonType').src = `art/intrface/${mode.icon}.png`

@@ -293,7 +293,7 @@ html, body {
   top: 5px;
   right: 5px;
   width: 64px;
-  height: 12px;
+  height: auto;
 }
 
 #attackButtonWeapon {}
