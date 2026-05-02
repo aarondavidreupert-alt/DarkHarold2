@@ -1086,6 +1086,12 @@ export class Critter extends Obj {
                 ;(obj as any)[prop] = mobj[prop]
             }
 
+            // Critter.init() overwrites art with the idle animation art and leaves
+            // frame at 0. Restore the serialized values so dead critters keep their
+            // death-animation art and last frame instead of snapping back to idle.
+            obj.art = mobj.art
+            obj.frame = mobj.frame ?? 0
+
             if (mobj.stats) {
                 obj.stats = new StatSet(mobj.stats.baseStats, mobj.stats.useBonuses)
                 console.warn('[Deserialize] stat set: %o to: %o', mobj.stats, obj.stats)
@@ -1697,9 +1703,18 @@ interface SerializedCritter extends SerializedObj {
 
     isPlayer: boolean
     dead: boolean
+
+    anim?: string
+    crippledLeftArm?: boolean
+    crippledRightArm?: boolean
+    crippledLeftLeg?: boolean
+    crippledRightLeg?: boolean
 }
 
-const SERIALIZED_CRITTER_PROPS = ['stats', 'skills', 'aiNum', 'teamNum', 'hostile', 'isPlayer', 'dead']
+const SERIALIZED_CRITTER_PROPS = [
+    'stats', 'skills', 'aiNum', 'teamNum', 'hostile', 'isPlayer', 'dead',
+    'anim', 'crippledLeftArm', 'crippledRightArm', 'crippledLeftLeg', 'crippledRightLeg',
+]
 
 // Collection of functions for dealing with critters
 
