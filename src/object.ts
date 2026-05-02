@@ -46,7 +46,7 @@ export function objectIsWeapon(obj: any): boolean {
 
 function objectFindItemIndex(obj: Obj, item: Obj): number {
     for (let i = 0; i < obj.inventory.length; i++) {
-        if (obj.inventory[i].pid === item.pid) {
+        if (obj.inventory[i] === item) {
             return i
         }
     }
@@ -840,7 +840,7 @@ export class Obj {
         // drop inventory object obj from source
         let removed = false
         for (let i = 0; i < source.inventory.length; i++) {
-            if (source.inventory[i].pid === this.pid) {
+            if (source.inventory[i] === this) {
                 removed = true
                 source.inventory.splice(i, 1) // remove from source
                 break
