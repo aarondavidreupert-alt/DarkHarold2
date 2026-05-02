@@ -696,6 +696,8 @@ export class Obj {
     get canUse(): boolean {
         if (this._script !== undefined && this._script.use_p_proc !== undefined) {
             return true
+        } else if (this.isExplosive) {
+            return true
         } else if (this.type === 'item' || this.type === 'scenery') {
             if (this.isDoor || this.isStairs || this.isLadder) {
                 return true
