@@ -33,7 +33,7 @@ interface FloatMessage {
     color: string
 }
 
-export default {
+const globalState = {
     combat: null,
     inCombat: false,
     gMap: null,
@@ -156,4 +156,10 @@ export default {
     cursorPos: Point
     showLookCursor: boolean
     commandModeTimer: number | null
+}
+
+export default globalState
+
+if (typeof window !== 'undefined') {
+    ;(window as any).globalState = globalState
 }

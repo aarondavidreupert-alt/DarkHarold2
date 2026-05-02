@@ -108,3 +108,7 @@ export const Config = {
         },
     },
 }
+
+if (typeof window !== 'undefined') {
+    ;(window as any).Config = Config
+}

@@ -1809,3 +1809,7 @@ export module Scripting {
         globalState.player.addExperience(xp)
     }
 }
+
+if (typeof window !== 'undefined') {
+    ;(window as any).Scripting = Scripting
+}
