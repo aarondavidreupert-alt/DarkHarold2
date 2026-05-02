@@ -648,7 +648,7 @@ export function showInventory() {
             }
             return btn
         }
-        return makeEl('img', {
+        return makeEl('div', {
             id: 'context_' + action,
             classes: ['itemContextMenuButton'],
             click: () => {
