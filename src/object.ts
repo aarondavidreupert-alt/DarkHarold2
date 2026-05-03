@@ -845,15 +845,44 @@ export class Obj {
                     // script->sp.radius default set in _obj_new_sid.
                     const SPATIAL_RADIUS_DEFAULT = 3
                     const blastPos = this.position
-                    for (const obj of globalState.gMap.getObjects()) {
-                        if (!obj._script?.spatial_p_proc) continue
-                        if (hexDistance(obj.position, blastPos) > SPATIAL_RADIUS_DEFAULT) continue
-                        console.log(`[Object] explosion fires spatial_p_proc on ${obj.script} @ (${obj.position.x}, ${obj.position.y})`)
+                    const allObjs = globalState.gMap.getObjects()
+                    const scripted = allObjs.filter(o => o._script)
+                    const spatialCapable = scripted.filter(o => o._script?.spatial_p_proc)
+                    console.log(
+                        `[Object] explosion @ (${blastPos.x},${blastPos.y}) — ` +
+                        `objects=${allObjs.length} scripted=${scripted.length} ` +
+                        `spatial-capable=${spatialCapable.length}`
+                    )
+                    for (const obj of spatialCapable) {
+                        const dist = hexDistance(obj.position, blastPos)
+                        if (dist > SPATIAL_RADIUS_DEFAULT) {
+                            console.log(
+                                `[Object]   spatial candidate ${obj.script} pid=${obj.pid} ` +
+                                `@ (${obj.position.x},${obj.position.y}) dist=${dist} — out of range`
+                            )
+                            continue
+                        }
+                        console.log(
+                            `[Object] explosion fires spatial_p_proc on ${obj.script} ` +
+                            `pid=${obj.pid} @ (${obj.position.x},${obj.position.y}) dist=${dist}`
+                        )
                         try {
                             Scripting.spatial(obj, this)
                         } catch (e) {
                             console.warn(`[Object] spatial_p_proc error for ${obj.script}:`, e)
                         }
+                    }
+                    // Diagnostic: nearby scripted objects without spatial_p_proc
+                    for (const obj of scripted) {
+                        if (obj._script?.spatial_p_proc) continue
+                        const dist = hexDistance(obj.position, blastPos)
+                        if (dist > SPATIAL_RADIUS_DEFAULT) continue
+                        const procs = obj._script ? Object.keys(obj._script).filter(k => k.endsWith('_p_proc')) : []
+                        console.log(
+                            `[Object]   nearby scripted (no spatial_p_proc) ${obj.script} ` +
+                            `pid=${obj.pid} @ (${obj.position.x},${obj.position.y}) dist=${dist} ` +
+                            `procs=[${procs.join(',')}]`
+                        )
                     }
                 }
 
