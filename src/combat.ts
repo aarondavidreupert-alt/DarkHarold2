@@ -281,11 +281,12 @@ export class Combat {
     whoseTurn: number
     inPlayerTurn: boolean
 
-    constructor(objects: Obj[]) {
+    constructor(objects: Obj[], triggerTeams: Set<number>) {
         // Gather a list of combatants (critters meeting a certain criteria)
         this.combatants = objects.filter((obj) => {
             if (obj instanceof Critter) {
                 if (obj.dead || !obj.visible) return false
+                if (!obj.isPlayer && !triggerTeams.has(obj.teamNum)) return false
 
                 // NOTE: AI is initialized here for simplicity; could be moved to Critter later
                 if (!obj.isPlayer && !obj.ai) obj.ai = new AI(obj)
@@ -1256,7 +1257,22 @@ export class Combat {
     static start(forceTurn?: Critter): void {
         // begin combat
         globalState.inCombat = true
-        globalState.combat = new Combat(globalState.gMap.getObjects())
+        const player = globalState.player!
+        const triggerTeams = new Set([player.teamNum])
+        if (forceTurn && forceTurn.teamNum >= 0) {
+            // NPC-initiated: enroll only the player's team and the attacker's team.
+            triggerTeams.add(forceTurn.teamNum)
+        } else {
+            // Player-initiated (attack button / encounter): collect all NPC teams on
+            // the map so enemy critters can participate. nextTurn() gates actual
+            // activity via the hostile flag, so neutral critters still do nothing.
+            for (const obj of globalState.gMap!.getObjects()) {
+                if (obj instanceof Critter && !obj.dead && !obj.isPlayer && obj.teamNum >= 0)
+                    triggerTeams.add(obj.teamNum)
+            }
+        }
+        combatDebug(`start: triggerTeams=[${[...triggerTeams].join(',')}]`)
+        globalState.combat = new Combat(globalState.gMap.getObjects(), triggerTeams)
 
         if (forceTurn) globalState.combat.forceTurn(forceTurn)
 

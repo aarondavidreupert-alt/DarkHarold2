@@ -838,9 +838,7 @@ heart.keydown = (k: string) => {
             console.log('[Combat] wait your turn')
         } else {
             console.log('[Combat] begin')
-            globalState.inCombat = true
-            globalState.combat = new Combat(globalState.gMap.getObjects())
-            globalState.combat.nextTurn()
+            Combat.start()
         }
     }
 
