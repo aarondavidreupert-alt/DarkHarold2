@@ -1713,7 +1713,7 @@ export module Scripting {
         return obj._script._didOverride
     }
 
-    export function combatEvent(obj: Obj, event: 'turnBegin'): boolean {
+    export function combatEvent(obj: Obj, event: 'turnBegin' | 'damage'): boolean {
         if (!obj._script) throw Error('combatEvent: Object has no script')
 
         let fixed_param: number | null = null
@@ -1721,6 +1721,9 @@ export module Scripting {
             case 'turnBegin':
                 fixed_param = 4
                 break // COMBAT_SUBTYPE_TURN
+            case 'damage':
+                fixed_param = 2
+                break // COMBAT_SUBTYPE_DAMAGE_TAKE
             default:
                 throw 'combatEvent: unknown event ' + event
         }

@@ -712,6 +712,9 @@ export class Combat {
                 audio.playActionSfx('hit_flesh')
                 critterDamage(target, unarmedDmg, obj, true, true, 'Normal')
                 if (target.isPlayer) drawHP(target.getStat('HP'))
+                if (!target.dead && target._script?.combat_p_proc) {
+                    if (Scripting.combatEvent(target, 'damage')) return
+                }
                 if (target.dead) this.perish(target, obj, 'Normal')
             } else {
                 audio.playActionSfx('miss')
@@ -793,6 +796,9 @@ export class Combat {
                     uiLog(`  ${victimName} took ${dmg} damage`)
                     critterDamage(victim, dmg, obj, true, true, attackDmgType)
                     if (victim.isPlayer) drawHP(victim.getStat('HP'))
+                    if (!victim.dead && victim._script?.combat_p_proc) {
+                        Scripting.combatEvent(victim, 'damage')
+                    }
                     if (victim.dead) this.perish(victim, obj, attackDmgType)
                 }
             } else {
@@ -836,7 +842,9 @@ export class Combat {
 
             critterDamage(target, damage, obj, true, true, attackDmgType)
             if (target.isPlayer) drawHP(target.getStat('HP'))
-
+            if (!target.dead && target._script?.combat_p_proc) {
+                if (Scripting.combatEvent(target, 'damage')) return
+            }
             if (target.dead) this.perish(target, obj, attackDmgType)
         } else {
             audio.playActionSfx('miss')
