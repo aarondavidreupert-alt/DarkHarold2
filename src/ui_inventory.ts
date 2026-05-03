@@ -512,7 +512,7 @@ export function showInventory() {
         for (let i = 0; i < objects.length; i++) {
             const invObj = objects[i]
             const img = makeEl('img', {
-                src: invObj.invArt + '.png',
+                src: invObj.invArt ? invObj.invArt + '.png' : '',
                 attrs: { title: invObj.name },
                 style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
                 click: () => {
