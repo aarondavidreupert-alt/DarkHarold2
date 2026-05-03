@@ -281,7 +281,7 @@ export class Combat {
     whoseTurn: number
     inPlayerTurn: boolean
 
-    constructor(objects: Obj[], triggerTeams: Set<number>) {
+    constructor(objects: Obj[], triggerTeams: Set<number> = new Set()) {
         // Gather a list of combatants (critters meeting a certain criteria)
         this.combatants = objects.filter((obj) => {
             if (obj instanceof Critter) {
