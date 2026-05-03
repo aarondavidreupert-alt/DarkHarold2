@@ -121,23 +121,9 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
         }
     }
 
-    // Remove obj from player's inventory or hand slot
-    const playerAny = source as any
-    const invIdx = source.inventory.indexOf(obj)
-    if (invIdx !== -1) {
-        source.inventory.splice(invIdx, 1)
-    } else {
-        for (const slot of ['leftHand', 'rightHand'] as const) {
-            if (playerAny[slot] === obj) {
-                playerAny[slot] = undefined
-                break
-            }
-        }
-    }
-
-    // Place on the player's current tile
-    obj.position = { x: source.position.x, y: source.position.y }
-    globalState.gMap!.addObject(obj)
+    // Mark as armed so the UI and drop handler know the state.
+    // The item stays in inventory — the player drops it manually.
+    ;(obj as any).armed = true
 
     scheduleExplosion(obj, minDmg, maxDmg, radius, delayTurns)
     console.log(`[Object] ${isDynamite ? 'Dynamite' : 'Plastic Explosive'} armed: delay=${delayTurns}t dmg=${minDmg}-${maxDmg} r=${radius}`)
@@ -697,7 +683,7 @@ export class Obj {
         if (this._script !== undefined && this._script.use_p_proc !== undefined) {
             return true
         } else if (this.isExplosive) {
-            return true
+            return !(this as any).armed // already armed → only Drop is shown
         } else if (this.type === 'item' || this.type === 'scenery') {
             if (this.isDoor || this.isStairs || this.isLadder) {
                 return true
