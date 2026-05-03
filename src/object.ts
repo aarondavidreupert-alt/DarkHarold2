@@ -833,8 +833,20 @@ export class Obj {
                             })
                         } else if (target.type === 'item') {
                             globalState.gMap?.destroyObject(target)
+                        } else if (target.type === 'wall' && /\/temple\d/.test(target.art ?? '')) {
+                            // Temple of Trials walls. Vanilla attaches ACTemDor
+                            // (proto SID 203) to specific tiles, whose
+                            // spatial_p_proc calls obj_destroy(self_obj). Wall
+                            // protos in this engine have no `extra` block
+                            // (proto.py:274 falls through to "unhandled type"),
+                            // so there's no scriptPID to load the stub from.
+                            // Approximate by destroying any art/walls/temple*
+                            // wall caught in the blast — this matches the
+                            // user-visible behaviour ACTemDor would produce.
+                            console.log(`[Object] explosion destroys temple wall: ${target.art} pid=${target.pid}`)
+                            globalState.gMap?.destroyObject(target)
                         }
-                        // walls: leave intact — vanilla walls are indestructible
+                        // other walls: leave intact — vanilla walls are indestructible
                     }
                 }
 
