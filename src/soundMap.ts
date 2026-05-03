@@ -90,6 +90,9 @@ export const ACTION_SOUNDS: Record<string, string | string[]> = {
     'ui_click':     'butin1',
     'ui_open_inv':  'butin2',
     'levelup':      'levelup',
+
+    // Explosives
+    'explosion':    'explo1',
 }
 
 export interface WeaponSounds {

@@ -121,9 +121,12 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
         }
     }
 
-    // Mark as armed so the UI and drop handler know the state.
+    // Mark as armed and swap to lit-fuse art (explosiveActivate() equivalent).
     // The item stays in inventory — the player drops it manually.
     ;(obj as any).armed = true
+    const armedArt = isDynamite ? 'art/items/dynamit' : 'art/items/plstcx'
+    obj.art    = armedArt
+    obj.invArt = armedArt
 
     scheduleExplosion(obj, minDmg, maxDmg, radius, delayTurns)
     console.log(`[Object] ${isDynamite ? 'Dynamite' : 'Plastic Explosive'} armed: delay=${delayTurns}t dmg=${minDmg}-${maxDmg} r=${radius}`)
@@ -776,20 +779,40 @@ export class Obj {
         lazyLoadImage(explosion.art, () => {
             if (!globalState.gMap) return
             globalState.gMap.addObject(explosion)
+            globalState.audioEngine?.playActionSfx('explosion')
             console.log(`[Object] explosion: dmg=${damage} radius=${radius}`)
 
             explosion.singleAnimation(false, () => {
                 globalState.gMap?.destroyObject(explosion)
 
-                // Apply damage to all critters within the blast radius
                 const hexes = hexesInRadius(this.position, radius)
                 for (const hex of hexes) {
-                    const objs = globalState.gMap?.objectsAtPosition(hex) ?? []
+                    // Snapshot — destroyObject() splices the live array mid-loop
+                    const objs = [...(globalState.gMap?.objectsAtPosition(hex) ?? [])]
                     for (const target of objs) {
+                        if (target === explosion || target === this) continue
+
                         if (target.type === 'critter' && !(target as Critter).dead) {
                             console.log(`[Object] explosion hits ${(target as Critter).name} for ${damage}`)
                             critterDamage(target as Critter, damage, killer, true, true, 'Explosive')
+                        } else if (target.isDoor) {
+                            // Vanilla: door destroy_p_proc swaps to destroyed-open FRM.
+                            // No destroy scripts yet — open the door and mark NoBlock
+                            // as a best-effort interim. Replace with destroyObject() +
+                            // script call once door destroy scripts are implemented.
+                            target.open = true
+                            target.locked = false
+                            target.singleAnimation(false, () => {
+                                target.anim = null
+                                if (target.pro?.flags !== undefined) {
+                                    target.pro.flags |= 0x00000010 // NoBlock
+                                }
+                                globalState.gMap?.updateMap()
+                            })
+                        } else if (target.type === 'item') {
+                            globalState.gMap?.destroyObject(target)
                         }
+                        // walls: leave intact — vanilla walls are indestructible
                     }
                 }
 
