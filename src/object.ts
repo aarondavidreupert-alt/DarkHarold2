@@ -121,12 +121,12 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
         }
     }
 
-    // Mark as armed and swap to lit-fuse art (explosiveActivate() equivalent).
+    // Mark as armed and swap art (explosiveActivate() equivalent).
+    // invArt is the in-inventory image; art is the on-map/dropped image.
     // The item stays in inventory — the player drops it manually.
     ;(obj as any).armed = true
-    const armedArt = isDynamite ? 'art/items/dynamit' : 'art/items/plstcx'
-    obj.art    = armedArt
-    obj.invArt = armedArt
+    obj.invArt = isDynamite ? 'art/inven/dynon'    : 'art/inven/plastion'
+    obj.art    = isDynamite ? 'art/items/dynamite'  : 'art/items/plstic'
 
     scheduleExplosion(obj, minDmg, maxDmg, radius, delayTurns)
     console.log(`[Object] ${isDynamite ? 'Dynamite' : 'Plastic Explosive'} armed: delay=${delayTurns}t dmg=${minDmg}-${maxDmg} r=${radius}`)
