@@ -1527,7 +1527,30 @@ export module Scripting {
         currentMapObject = script
     }
 
+    // --- Stub script registry ---
+    // When a .int file is absent, JS-defined stubs let the engine preserve
+    // expected spatial/destroy behaviour. Keyed by lowercase script name.
+    const _stubRegistry = new Map<string, Partial<Script>>()
+
+    export function registerStub(name: string, procs: Partial<Script>): void {
+        _stubRegistry.set(name.toLowerCase(), procs)
+    }
+
     export function loadScript(name: string): Script {
+        const key = name.toLowerCase()
+
+        // Return a stub if one is registered and the .int file is absent.
+        // The stub is an instance of Script so it has all the engine API methods.
+        if (_stubRegistry.has(key)) {
+            info('loading stub script ' + key, 'load')
+            const stub = Object.create(Script.prototype) as Script
+            stub.scriptName = key
+            stub.lvars = {}
+            stub._mapScript = currentMapObject ?? stub
+            Object.assign(stub, _stubRegistry.get(key)!)
+            return stub
+        }
+
         info('loading script ' + name, 'load')
 
         var path = 'data/scripts/' + name.toLowerCase() + '.int'
@@ -1808,6 +1831,21 @@ export module Scripting {
         if (!globalState.player) return
         globalState.player.addExperience(xp)
     }
+
+    // --- Built-in stubs for scripts whose .int files are not shipped ---
+
+    // ACTemDor: Temple of Trials wall/floor scenery script.
+    // spatial_p_proc fires when an explosion blast hits the object's tile,
+    // and the vanilla implementation calls obj_destroy(self_obj) to remove
+    // the wall tile and open the passage.
+    registerStub('actemdor', {
+        spatial_p_proc(this: Script) {
+            const self = this.self_obj as unknown as Obj
+            if (!self) return
+            console.log(`[Script] actemdor stub: destroying ${self.type} pid=${self.pid}`)
+            globalState.gMap?.destroyObject(self)
+        },
+    })
 }
 
 if (typeof window !== 'undefined') {
