@@ -829,6 +829,24 @@ export class Obj {
                             console.warn(`[Object] spatial_p_proc error for ${spatialObj.script}:`, e)
                         }
                     }
+
+                    // Also fire on map objects carrying a spatial-type script
+                    // (e.g. temple wall scenery with ACTemDor). Vanilla's
+                    // scriptsExecSpatialProcs iterates all objects, not just the
+                    // invisible spatial list. Default radius 3 matches vanilla's
+                    // script->sp.radius default set in _obj_new_sid.
+                    const SPATIAL_RADIUS_DEFAULT = 3
+                    const blastPos = this.position
+                    for (const obj of globalState.gMap.getObjects()) {
+                        if (!obj._script?.spatial_p_proc) continue
+                        if (hexDistance(obj.position, blastPos) > SPATIAL_RADIUS_DEFAULT) continue
+                        console.log(`[Object] explosion fires spatial_p_proc on ${obj.script} @ (${obj.position.x}, ${obj.position.y})`)
+                        try {
+                            Scripting.spatial(obj, this)
+                        } catch (e) {
+                            console.warn(`[Object] spatial_p_proc error for ${obj.script}:`, e)
+                        }
+                    }
                 }
 
                 globalState.gMap?.destroyObject(this)
