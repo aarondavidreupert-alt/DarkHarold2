@@ -17,7 +17,7 @@ import { Combat } from './combat.js'
 import { critterKill } from './critter.js'
 import { getElevator } from './data.js'
 import { heart } from './heart.js'
-import { hexesInRadius, hexFromScreen } from './geometry.js'
+import { hexesInRadius, hexFromScreen, hexNeighbors, hexDistance } from './geometry.js'
 import globalState from './globalState.js'
 import { IDBCache } from './idbcache.js'
 import { initGame } from './init.js'
@@ -158,17 +158,34 @@ export function playerUse(obj: Obj | null) {
             return
         }
 
-        // FO2-CE ref: skill.cc — player must be adjacent to the target.
-        // Use the same walkInFrontOf + callback pattern as normal object use.
         const skillCallback = function () {
             globalState.player!.clearAnim()
             playerUseSkill(skill, obj)
         }
 
-        if (Config.engine.doInfiniteUse === true) {
+        if (Config.engine.doInfiniteUse === true || hexDistance(globalState.player!.position, obj.position) <= 1) {
             skillCallback()
+            return
+        }
+
+        // Walk to the nearest reachable hex adjacent to the target (not the
+        // target tile itself, which may be blocked by the scenery object).
+        const neighbors = hexNeighbors(obj.position)
+        const map = globalState.gMap!
+        const playerPos = globalState.player!.position
+        let dest: { x: number; y: number } | null = null
+        let bestDist = Infinity
+        for (const n of neighbors) {
+            const path = map.recalcPath(playerPos, n)
+            if (path.length > 0) {
+                const d = hexDistance(playerPos, n)
+                if (d < bestDist) { bestDist = d; dest = n }
+            }
+        }
+        if (dest) {
+            globalState.player!.walkTo(dest, Config.engine.doAlwaysRun, skillCallback)
         } else {
-            globalState.player!.walkInFrontOf(obj.position, skillCallback)
+            uiLog("Can't reach that.")
         }
 
         return
@@ -581,6 +598,8 @@ heart.mousepressed = (x: number, y: number, btn: string) => {
             if (target && target !== globalState.player) {
                 playerUse(target)
             }
+        } else if (globalState.uiMode === UIMode.useSkill) {
+            playerUse(getObjectUnderCursor((_: Obj) => true))
         } else {
             playerUse(getObjectUnderCursor((obj) => obj.isSelectable))
         }

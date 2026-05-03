@@ -1698,6 +1698,7 @@ export module Scripting {
         obj._script.cur_map_index = currentMapID
         obj._script._didOverride = false
         obj._script.action_being_used = skillId
+        if (!obj._script.use_skill_on_p_proc) return false
         obj._script.use_skill_on_p_proc()
         console.log(`[SCRIPT] useSkillOn result: _didOverride=${obj._script._didOverride}`)
         return obj._script._didOverride
