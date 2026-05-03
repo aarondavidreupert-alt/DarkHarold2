@@ -715,6 +715,7 @@ export class Combat {
                 if (!target.dead && target._script?.combat_p_proc) {
                     if (Scripting.combatEvent(target, 'damage')) return
                 }
+                if (!globalState.combat) return
                 if (target.dead) this.perish(target, obj, 'Normal')
             } else {
                 audio.playActionSfx('miss')
@@ -799,6 +800,7 @@ export class Combat {
                     if (!victim.dead && victim._script?.combat_p_proc) {
                         Scripting.combatEvent(victim, 'damage')
                     }
+                    if (!globalState.combat) return
                     if (victim.dead) this.perish(victim, obj, attackDmgType)
                 }
             } else {
@@ -845,6 +847,7 @@ export class Combat {
             if (!target.dead && target._script?.combat_p_proc) {
                 if (Scripting.combatEvent(target, 'damage')) return
             }
+            if (!globalState.combat) return
             if (target.dead) this.perish(target, obj, attackDmgType)
         } else {
             audio.playActionSfx('miss')
@@ -1292,6 +1295,19 @@ export class Combat {
 
         globalState.audioEngine.playActionSfx('combat_end')
         globalState.gMap.updateMap()
+        uiEndCombat()
+    }
+
+    forceEnd() {
+        for (const combatant of this.combatants) {
+            combatant.hostile = false
+            combatant.outline = null
+        }
+        combatDebug('end combat (forced by script)')
+        globalState.combat = null
+        globalState.inCombat = false
+        globalState.audioEngine.playActionSfx('combat_end')
+        globalState.gMap?.updateMap()
         uiEndCombat()
     }
 

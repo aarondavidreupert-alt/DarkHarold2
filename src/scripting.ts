@@ -865,7 +865,7 @@ export module Scripting {
         }
         terminate_combat() {
             info('[terminate_combat]')
-            if (globalState.combat) globalState.combat.end()
+            if (globalState.combat) globalState.combat.forceEnd()
         }
         critter_set_flee_state(obj: Obj, isFleeing: number) {
             stub('critter_set_flee_state', arguments)
