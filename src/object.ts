@@ -795,11 +795,11 @@ export class Obj {
                         if (target.type === 'critter' && !(target as Critter).dead) {
                             console.log(`[Object] explosion hits ${(target as Critter).name} for ${damage}`)
                             critterDamage(target as Critter, damage, killer, true, true, 'Explosive')
-                        } else if (target.isDoor) {
-                            // Vanilla: door destroy_p_proc swaps to destroyed-open FRM.
-                            // No destroy scripts yet — open the door and mark NoBlock
+                        } else if (target.isDoor || target.isContainer) {
+                            // Vanilla: door/container destroy_p_proc swaps to destroyed-open FRM.
+                            // No destroy scripts yet — open the object and mark NoBlock
                             // as a best-effort interim. Replace with destroyObject() +
-                            // script call once door destroy scripts are implemented.
+                            // script call once destroy scripts are implemented.
                             target.open = true
                             target.locked = false
                             target.singleAnimation(false, () => {
@@ -807,6 +807,7 @@ export class Obj {
                                 if (target.pro?.flags !== undefined) {
                                     target.pro.flags |= 0x00000010 // NoBlock
                                 }
+                                Events.emit('objOpen', { obj: target })
                                 globalState.gMap?.updateMap()
                             })
                         } else if (target.type === 'item') {
