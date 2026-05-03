@@ -1868,6 +1868,33 @@ export module Scripting {
             globalState.gMap?.destroyObject(self)
         },
     })
+
+    // AIBkDor: cave door script on acavedr2 (pid=33555364) in the Temple of
+    // Trials. Vanilla spatial_p_proc removes the intact door and places the
+    // destroyed rubble variant (acavedr3, pid=33555365) at the same tile with
+    // NoBlock flags so pathfinding allows movement through it.
+    // AIBkDor.int does not export spatial_p_proc, so we stub it here.
+    registerStub('aibkdor', {
+        spatial_p_proc(this: Script) {
+            const self = this.self_obj as unknown as Obj
+            if (!self) return
+            const pos = { ...self.position }
+            console.log(`[Script] AIBkDor stub: removing acavedr2 pid=${self.pid} @ (${pos.x},${pos.y})`)
+            globalState.gMap?.destroyObject(self)
+
+            // Spawn acavedr3 (destroyed rubble) at the same tile.
+            // pid 33555365 = (2 << 24) | 933 = scenery, pidID 933.
+            // flags 0xA0008010 = 2684387344, includes NoBlock (bit 4).
+            const rubble = createObjectWithPID(33555365, -1)
+            if (rubble && globalState.gMap) {
+                rubble.position = pos
+                rubble.flags = 2684387344
+                if (rubble.pro) rubble.pro.flags = 2684387344
+                globalState.gMap.addObject(rubble)
+                globalState.gMap.updateMap()
+            }
+        },
+    })
 }
 
 if (typeof window !== 'undefined') {
