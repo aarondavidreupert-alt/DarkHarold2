@@ -432,8 +432,21 @@ export class Obj {
             const protoSid = this.pro.extra.scriptPID ?? this.pro.extra.scriptID ?? -1
             if (protoSid >= 0) {
                 const lstIndex = protoSid & 0xffff
+                // SID-keyed stub takes priority — works even if scripts.lst
+                // resolution returns an unexpected name or throws.
+                const sidStub = Scripting.loadScriptBySid(lstIndex)
+                if (sidStub) {
+                    console.log(`[Script] PRO sid=${lstIndex} → applying SID stub for pid=${this.pid}`)
+                    this.script = sidStub.scriptName
+                    this._script = sidStub
+                    try { Scripting.initScript(this._script, this) } catch (e) {
+                        console.warn(`[Script] initScript stub error for sid=${lstIndex}:`, e)
+                    }
+                    return
+                }
                 try {
                     scriptName = lookupScriptName(lstIndex)
+                    console.log(`[Script] PRO sid=${lstIndex} → name='${scriptName}' (pid=${this.pid})`)
                 } catch (e) {
                     console.warn(`[Script] PRO sid=${lstIndex} lookup failed for pid=${this.pid}:`, e)
                 }

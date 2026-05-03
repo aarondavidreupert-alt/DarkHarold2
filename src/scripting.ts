@@ -1529,11 +1529,35 @@ export module Scripting {
 
     // --- Stub script registry ---
     // When a .int file is absent, JS-defined stubs let the engine preserve
-    // expected spatial/destroy behaviour. Keyed by lowercase script name.
+    // expected spatial/destroy behaviour. Keyed by lowercase script name and,
+    // independently, by proto SID number (avoids depending on scripts.lst
+    // resolution to find the canonical name).
     const _stubRegistry = new Map<string, Partial<Script>>()
+    const _stubBySid = new Map<number, Partial<Script>>()
 
     export function registerStub(name: string, procs: Partial<Script>): void {
         _stubRegistry.set(name.toLowerCase(), procs)
+    }
+
+    export function registerStubBySid(sid: number, name: string, procs: Partial<Script>): void {
+        _stubBySid.set(sid, procs)
+        _stubRegistry.set(name.toLowerCase(), procs)
+    }
+
+    function _buildStub(name: string, procs: Partial<Script>): Script {
+        const stub = Object.create(Script.prototype) as Script
+        stub.scriptName = name
+        stub.lvars = {}
+        stub._mapScript = currentMapObject ?? stub
+        Object.assign(stub, procs)
+        return stub
+    }
+
+    export function loadScriptBySid(sid: number): Script | null {
+        const procs = _stubBySid.get(sid)
+        if (!procs) return null
+        info('loading stub script for sid=' + sid, 'load')
+        return _buildStub(`stub:sid${sid}`, procs)
     }
 
     export function loadScript(name: string): Script {
@@ -1541,14 +1565,10 @@ export module Scripting {
 
         // Return a stub if one is registered and the .int file is absent.
         // The stub is an instance of Script so it has all the engine API methods.
-        if (_stubRegistry.has(key)) {
+        const stubProcs = _stubRegistry.get(key)
+        if (stubProcs) {
             info('loading stub script ' + key, 'load')
-            const stub = Object.create(Script.prototype) as Script
-            stub.scriptName = key
-            stub.lvars = {}
-            stub._mapScript = currentMapObject ?? stub
-            Object.assign(stub, _stubRegistry.get(key)!)
-            return stub
+            return _buildStub(key, stubProcs)
         }
 
         info('loading script ' + name, 'load')
@@ -1834,11 +1854,13 @@ export module Scripting {
 
     // --- Built-in stubs for scripts whose .int files are not shipped ---
 
-    // ACTemDor: Temple of Trials wall/floor scenery script.
+    // ACTemDor: Temple of Trials wall/floor scenery script (proto SID 203).
     // spatial_p_proc fires when an explosion blast hits the object's tile,
     // and the vanilla implementation calls obj_destroy(self_obj) to remove
-    // the wall tile and open the passage.
-    registerStub('actemdor', {
+    // the wall tile and open the passage. Registered by both name and SID
+    // so it works even when scripts.lst is missing or resolves to a name
+    // other than 'ACTemDor.int'.
+    registerStubBySid(203, 'actemdor', {
         spatial_p_proc(this: Script) {
             const self = this.self_obj as unknown as Obj
             if (!self) return
