@@ -897,6 +897,21 @@ export class Obj {
                             `procs=[${procs.join(',')}]`
                         )
                     }
+                    // Diagnostic: dump every object within blast range so we can
+                    // identify the temple walls by art / PID / type. This lets us
+                    // register a stub keyed on whatever distinguishes them.
+                    console.log(`[Object]   --- all objects within ${SPATIAL_RADIUS_DEFAULT} tiles of blast ---`)
+                    for (const obj of allObjs) {
+                        const dist = hexDistance(obj.position, blastPos)
+                        if (dist > SPATIAL_RADIUS_DEFAULT) continue
+                        const proExtra = (obj.pro?.extra as any) ?? {}
+                        const protoSid = proExtra.scriptPID ?? proExtra.scriptID ?? 'n/a'
+                        console.log(
+                            `[Object]     type=${obj.type} pid=${obj.pid} art=${obj.art} ` +
+                            `pos=(${obj.position.x},${obj.position.y}) dist=${dist} ` +
+                            `protoSid=${protoSid} hasScript=${!!obj._script}`
+                        )
+                    }
                 }
 
                 globalState.gMap?.destroyObject(this)
