@@ -425,21 +425,18 @@ export class Obj {
             scriptName = lookupScriptName(sid)
         } else if (this.script) {
             scriptName = this.script
-        } else if (this.pro) {
-            if (this.pro.extra !== undefined && this.pro.extra.scriptID >= 0) {
-                // scriptName = lookupScriptName(this.pro.extra.scriptID & 0xffff)
-                console.warn(
-                    `[Script] PRO says sid is ${
-                        this.pro.extra.scriptID & 0xffff
-                    } (${scriptName}), but we're not ascribing it one (test)`
-                )
-            } else if (this.pro.scriptID >= 0) {
-                // scriptName = lookupScriptName(this.pro.scriptID & 0xffff)
-                console.warn(
-                    `[Script] PRO says sid is ${
-                        this.pro.extra.scriptID & 0xffff
-                    } (${scriptName}), but we're not ascribing it one (test)`
-                )
+        } else if (this.pro?.extra) {
+            // Resolve from proto. Scenery protos store the script id under
+            // `scriptPID` (proto.py:65); items/critters use `scriptID`
+            // (proto.py:101, 212). -1 means no script.
+            const protoSid = this.pro.extra.scriptPID ?? this.pro.extra.scriptID ?? -1
+            if (protoSid >= 0) {
+                const lstIndex = protoSid & 0xffff
+                try {
+                    scriptName = lookupScriptName(lstIndex)
+                } catch (e) {
+                    console.warn(`[Script] PRO sid=${lstIndex} lookup failed for pid=${this.pid}:`, e)
+                }
             }
         }
 
@@ -447,14 +444,25 @@ export class Obj {
             if (Config.engine.doLogScriptLoads) {
                 console.log('[Script] loadScript: loading %s (sid=%d)', scriptName, sid)
             }
-            // console.trace();
-            const script = Scripting.loadScript(scriptName)
+            // Guarded: many proto-derived script names point at .int files that
+            // may not be present in this build. A missing file must not crash
+            // the whole map load.
+            let script: Scripting.Script | null = null
+            try {
+                script = Scripting.loadScript(scriptName)
+            } catch (e) {
+                console.warn('[Script] loadScript: error loading %s (sid=%d):', scriptName, sid, e)
+            }
             if (!script) {
                 console.warn('[Script] loadScript: failed for %s (sid=%d)', scriptName, sid)
             } else {
                 this.script = scriptName
                 this._script = script
-                Scripting.initScript(this._script, this)
+                try {
+                    Scripting.initScript(this._script, this)
+                } catch (e) {
+                    console.warn('[Script] initScript error for %s:', scriptName, e)
+                }
             }
         }
     }
