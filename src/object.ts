@@ -817,6 +817,20 @@ export class Obj {
                     }
                 }
 
+                // Fire spatial_p_proc on any spatials whose radius covers the blast center.
+                // Vanilla sets scriptsRequestedExplosionTile to the explosion tile and
+                // then triggers spatials within their range — that is what hitSpatialTrigger does.
+                if (Config.engine.doSpatials !== false && globalState.gMap) {
+                    for (const spatialObj of hitSpatialTrigger(this.position)) {
+                        if (!spatialObj._script?.spatial_p_proc) continue
+                        try {
+                            Scripting.spatial(spatialObj, this)
+                        } catch (e) {
+                            console.warn(`[Object] spatial_p_proc error for ${spatialObj.script}:`, e)
+                        }
+                    }
+                }
+
                 globalState.gMap?.destroyObject(this)
             })
         })
