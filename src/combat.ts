@@ -32,6 +32,11 @@ import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from './unarmed.js'
 
 // Turn-based combat system
 
+// Re-entry guard: prevents Combat.start() from firing while a combat instance
+// is still tearing down (e.g. map-script callbacks during end() can otherwise
+// immediately restart combat).
+let combatActive = false
+
 /** Write a technical/debug combat message to the browser console only.
  *  Player-visible combat messages go through uiLog() — never mix the two. */
 function combatDebug(...args: any[]): void {
@@ -286,7 +291,9 @@ export class Combat {
         this.combatants = objects.filter((obj) => {
             if (obj instanceof Critter) {
                 if (obj.dead || !obj.visible) return false
-                if (!obj.isPlayer && !triggerTeams.has(obj.teamNum)) return false
+                // Enroll if: player, on a trigger team, or already actively hostile
+                // (a critter marked hostile before combat started is a participant).
+                if (!obj.isPlayer && !triggerTeams.has(obj.teamNum) && !obj.hostile) return false
 
                 // NOTE: AI is initialized here for simplicity; could be moved to Critter later
                 if (!obj.isPlayer && !obj.ai) obj.ai = new AI(obj)
@@ -1255,6 +1262,11 @@ export class Combat {
     }
 
     static start(forceTurn?: Critter): void {
+        if (combatActive) {
+            combatDebug('ignoring Combat.start(): already active')
+            return
+        }
+        combatActive = true
         // begin combat
         globalState.inCombat = true
         const player = globalState.player!
@@ -1308,6 +1320,7 @@ export class Combat {
         combatDebug('end combat')
         globalState.combat = null // todo: invert control
         globalState.inCombat = false
+        combatActive = false
 
         globalState.audioEngine.playActionSfx('combat_end')
         globalState.gMap.updateMap()
@@ -1322,6 +1335,7 @@ export class Combat {
         combatDebug('end combat (forced by script)')
         globalState.combat = null
         globalState.inCombat = false
+        combatActive = false
         globalState.audioEngine.playActionSfx('combat_end')
         globalState.gMap?.updateMap()
         uiEndCombat()
