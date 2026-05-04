@@ -1306,7 +1306,7 @@ export class Combat {
             }
             var inRange = hexDistance(obj.position, this.player.position) <= obj.ai.info.max_dist
 
-            if (inRange || obj.hostile) {
+            if (obj.hostile) {
                 numActive++
             }
         }
@@ -1401,7 +1401,10 @@ export class Combat {
             }
         }
 
-        if (numActive === 0 && this.turnNum !== 1) return this.end()
+        if (numActive === 0 && this.turnNum !== 1) {
+            this.forceEnd()
+            return
+        }
 
         // Fallout 2 combat rounds represent ~5 seconds of in-world time
         // per combatant. Advance the clock so long fights still age the
