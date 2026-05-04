@@ -36,6 +36,7 @@ import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from './unarmed.js'
 // is still tearing down (e.g. map-script callbacks during end() can otherwise
 // immediately restart combat).
 let combatActive = false
+export function isCombatActive(): boolean { return combatActive }
 
 /** Write a technical/debug combat message to the browser console only.
  *  Player-visible combat messages go through uiLog() — never mix the two. */

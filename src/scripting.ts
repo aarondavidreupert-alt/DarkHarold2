@@ -16,7 +16,7 @@ limitations under the License.
 Scripting system/engine for DarkFO
 */
 
-import { Combat } from './combat.js'
+import { Combat, isCombatActive } from './combat.js'
 import { critterDamage, critterKill } from './critter.js'
 import { lookupScriptName } from './data.js'
 import * as GameTime from './gametime.js'
@@ -862,7 +862,7 @@ export module Scripting {
 
             // begin combat, turn starting with us
             if (Config.engine.doCombat) {
-                if (globalState.combat) return // already in combat — ignore re-entry from script
+                if (isCombatActive() || globalState.combat) return // already in combat — ignore re-entry from script
                 Combat.start(this.self_obj as Critter)
             }
         }
