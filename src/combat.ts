@@ -1331,6 +1331,7 @@ export class Combat {
     }
 
     forceEnd() {
+        console.warn(`[forceEnd] stack: ${new Error().stack?.split('\n').slice(1, 4).join(' | ')}`)
         for (const combatant of this.combatants) {
             combatant.hostile = false
             combatant.outline = null
