@@ -1337,10 +1337,13 @@ export class Combat {
         combatDebug('end combat (forced by script)')
         globalState.combat = null
         globalState.inCombat = false
-        combatActive = false
         globalState.audioEngine.playActionSfx('combat_end')
         globalState.gMap?.updateMap()
         uiEndCombat()
+        // Defer flag reset so the current script execution frame finishes
+        // before a new combat can be started (prevents the map_update_p_proc
+        // → attack_complex → Combat.start() re-entry loop).
+        Promise.resolve().then(() => { combatActive = false })
     }
 
     forceTurn(obj: Critter) {

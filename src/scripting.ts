@@ -861,7 +861,10 @@ export module Scripting {
             // implementing all of it
 
             // begin combat, turn starting with us
-            if (Config.engine.doCombat) Combat.start(this.self_obj as Critter)
+            if (Config.engine.doCombat) {
+                if (globalState.combat) return // already in combat — ignore re-entry from script
+                Combat.start(this.self_obj as Critter)
+            }
         }
         terminate_combat() {
             info('[terminate_combat]')
