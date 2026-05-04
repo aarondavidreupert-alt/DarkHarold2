@@ -287,6 +287,7 @@ export class Combat {
     whoseTurn: number
     inPlayerTurn: boolean
     private hasAttacked = false // set true when the first attack fires this combat session
+    private playerHadTurn = false // set true the first time the player's turn starts
 
     constructor(objects: Obj[], triggerTeams: Set<number> = new Set()) {
         // Gather a list of combatants (critters meeting a certain criteria)
@@ -1406,7 +1407,11 @@ export class Combat {
             }
         }
 
-        if (numActive === 0 && this.turnNum !== 1) {
+        if (numActive === 0 && this.turnNum !== 1 && this.playerHadTurn) {
+            // Only auto-end after the player has had at least one turn. Prevents
+            // the start → nextTurn → recursive-nextTurn → forceEnd cascade when
+            // an NPC initiates combat via attack_complex but no critter is
+            // marked hostile yet (because hasAttacked is still false).
             this.forceEnd()
             return
         }
@@ -1433,6 +1438,7 @@ export class Combat {
 
         if (this.combatants[this.whoseTurn].isPlayer) {
             // player turn — reset bonus AC from last turn, then reset AP
+            this.playerHadTurn = true
             this.player.bonusAC = 0
             this.inPlayerTurn = true
             this.player.AP!.resetAP()

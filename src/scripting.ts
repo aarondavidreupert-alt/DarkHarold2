@@ -855,11 +855,7 @@ export module Scripting {
             attackerResults: number,
             targetResults: number
         ) {
-            console.warn(
-                `[attack_complex] script=${this.scriptName ?? '?'} self=${(this.self_obj as any)?.name ?? (this.self_obj as any)?.type ?? '?'}` +
-                ` inCombat=${globalState.inCombat} combatActive=${isCombatActive()} combat=${!!globalState.combat}` +
-                `\n  stack: ${new Error().stack?.split('\n').slice(1, 5).join(' | ')}`
-            )
+            info('[enter combat via attack_complex]')
             //stub("attack_complex", arguments)
             // since this isn't actually used beyond its basic form, we're not going to bother
             // implementing all of it
