@@ -285,6 +285,7 @@ export class Combat {
     turnNum: number
     whoseTurn: number
     inPlayerTurn: boolean
+    private hasAttacked = false // set true when the first attack fires this combat session
 
     constructor(objects: Obj[], triggerTeams: Set<number> = new Set()) {
         // Gather a list of combatants (critters meeting a certain criteria)
@@ -665,6 +666,7 @@ export class Combat {
     }
 
     attack(obj: Critter, target: Critter, region = 'torso', callback?: () => void) {
+        this.hasAttacked = true
         // turn to face the target
         var hex = hexNearestNeighbor(obj.position, target.position)
         if (hex !== null) obj.orientation = hex.direction
@@ -1387,9 +1389,15 @@ export class Combat {
             var hasLOS = inRange && this.hasLineOfSight(obj.position, this.player.position)
 
             if (hasLOS || obj.hostile) {
-                obj.hostile = true
-                obj.outline = obj.teamNum !== globalState.player.teamNum ? 'red' : 'green'
-                numActive++
+                // Only aggro via LOS if an attack has already been made this
+                // combat session, or the critter was already flagged hostile
+                // before combat started. Entering combat mode alone (weapon drawn,
+                // movement AP spent) must not flip bystanders to hostile.
+                if (this.hasAttacked || obj.hostile) {
+                    obj.hostile = true
+                    obj.outline = obj.teamNum !== globalState.player.teamNum ? 'red' : 'green'
+                    numActive++
+                }
             }
         }
 
