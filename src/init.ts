@@ -40,7 +40,7 @@ export function initGame() {
     // Seed game time to Fallout 2's 8:24 AM start (matches fallout2-ce).
     GameTime.initGameTime()
 
-    uiLog('Welcome to DarkFO')
+    uiLog('Welcome to DarkHarold2')
 
     const mapFromQuery = location.search !== '' ? location.search.slice(1) : null
 
