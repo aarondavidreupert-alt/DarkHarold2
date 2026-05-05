@@ -31,6 +31,7 @@ import { showTimerDialog } from './ui_timer.js'
 import { Config } from './config.js'
 import { SkillSet, StatSet } from './char.js'
 import { ActionPoints, AI } from './combat.js'
+import type { AiPacket } from './aiPackets.js'
 
 // Collection of functions for working with game objects
 
@@ -1163,7 +1164,9 @@ export class Critter extends Obj {
 
     aiNum = -1 // AI packet number
     teamNum = -1 // AI team number (TODO: implement this)
-    ai: AI | null = null // AI packet
+    ai: AI | null = null // AI packet (legacy raw-info handle)
+    aiPacket: AiPacket | null = null // typed AI packet (set at combat start)
+    lastAttacker: Critter | null = null // last critter that hit this one (for attackWho=whomever_attacking_me)
     hostile = false // Currently engaging an enemy?
 
     isPlayer = false // Is this critter the player character?

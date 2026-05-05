@@ -20,7 +20,7 @@ import { Config } from './config.js'
 import { CriticalEffects } from './criticalEffects.js'
 import { critterDamage, critterKill } from './critter.js'
 import * as GameTime from './gametime.js'
-import { hexDirectionTo, hexDistance, hexInDirectionDistance, hexLine, hexNearestNeighbor, hexNeighbors, Point } from './geometry.js'
+import { hexDirectionTo, hexDistance, hexInDirectionDistance, hexLine, hexNearestNeighbor, hexNeighbors, HEX_GRID_SIZE, Point } from './geometry.js'
 import globalState from './globalState.js'
 import { Critter, Obj } from './object.js'
 import { Player } from './player.js'
@@ -29,6 +29,7 @@ import { Scripting } from './scripting.js'
 import { drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiLog, uiStartCombat } from './ui.js'
 import { clamp, getFileText, getMessage, getRandomInt, parseIni, rollSkillCheck } from './util.js'
 import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from './unarmed.js'
+import { getAiPacket, AiPacket, AreaAttackMode, BestWeapon } from './aiPackets.js'
 
 // Turn-based combat system
 
@@ -278,6 +279,19 @@ function computeDamage(ctx: DamageCalculationContext): number {
     }
 }
 
+// ── AI helper: should the critter prefer a ranged weapon given its packet? ─────
+function aiPreferRanged(pkt: AiPacket, distance: number): boolean {
+    switch (pkt.bestWeapon) {
+        case 'ranged':            return true
+        case 'melee':             return false
+        case 'unarmed':           return false
+        case 'melee_over_ranged': return distance > 1
+        case 'random':            return Math.random() < 0.5
+        case 'never':             return false
+        default:                  return distance > 1
+    }
+}
+
 // A combat encounter
 export class Combat {
     combatants: Critter[]
@@ -300,6 +314,7 @@ export class Combat {
 
                 // NOTE: AI is initialized here for simplicity; could be moved to Critter later
                 if (!obj.isPlayer && !obj.ai) obj.ai = new AI(obj)
+                if (!obj.isPlayer) obj.aiPacket = getAiPacket(obj.aiNum ?? 0)
 
                 if (obj.stats === undefined) throw 'no stats'
                 obj.dead = false
@@ -669,6 +684,8 @@ export class Combat {
 
     attack(obj: Critter, target: Critter, region = 'torso', callback?: () => void) {
         this.hasAttacked = true
+        // track who last attacked this target (used by attackWho=whomever_attacking_me)
+        target.lastAttacker = obj
         // turn to face the target
         var hex = hexNearestNeighbor(obj.position, target.position)
         if (hex !== null) obj.orientation = hex.direction
@@ -988,14 +1005,40 @@ export class Combat {
     }
 
     findTarget(obj: Critter): Critter | null {
-        // TODO: find target according to AI rules
-        // Currently: nearest enemy. FO2 uses threat level + weapon range preference.
-        // Find the closest living combatant on a different team
-
         const targets = this.combatants.filter((x) => !x.dead && x.teamNum !== obj.teamNum)
         if (targets.length === 0) return null
         targets.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
         return targets[0]
+    }
+
+    findTargetForCritter(obj: Critter): Critter | null {
+        const targets = this.combatants.filter(x => !x.dead && x.teamNum !== obj.teamNum)
+        if (targets.length === 0) return null
+        const pkt = obj.aiPacket
+        if (!pkt) {
+            targets.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
+            return targets[0]
+        }
+        switch (pkt.attackWho) {
+            case 'closest':
+                targets.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
+                return targets[0]
+            case 'weakest':
+                targets.sort((a, b) => a.getStat('HP') - b.getStat('HP'))
+                return targets[0]
+            case 'strongest':
+                targets.sort((a, b) => b.getStat('HP') - a.getStat('HP'))
+                return targets[0]
+            case 'whomever':
+                return targets[Math.floor(Math.random() * targets.length)]
+            case 'whomever_attacking_me': {
+                const last = obj.lastAttacker
+                if (last && !last.dead && targets.includes(last)) return last
+                // fall back to closest
+                targets.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
+                return targets[0]
+            }
+        }
     }
 
     walkUpTo(obj: Critter, idx: number, target: Point, maxDistance: number, callback: () => void): boolean {
@@ -1017,65 +1060,132 @@ export class Combat {
         return false
     }
 
+    /** Returns true if the AI is allowed to use burst fire given its areaAttackMode. */
+    private canUseBurst(obj: Critter, target: Critter, mode: AreaAttackMode): boolean {
+        if (mode === 'sometimes') return Math.random() < 0.5
+        const thresholds: Partial<Record<AreaAttackMode, number>> = {
+            'be_careful':        3,
+            'be_sure':           2,
+            'be_absolutely_sure': 1,
+        }
+        const threshold = thresholds[mode]
+        if (threshold === undefined) return true  // 'no_pref': always allow
+        return !this.combatants.some(c =>
+            c !== obj && !c.dead && c.teamNum === obj.teamNum &&
+            hexDistance(target.position, c.position) <= threshold
+        )
+    }
+
     doAITurn(obj: Critter, idx: number, depth: number, weaponSwitchDone = false): void {
         if (depth > Config.combat.maxAIDepth) {
             combatWarn(`Bailing out of ${depth}-deep AI turn recursion`)
             return this.nextTurn()
         }
 
-        var that = this
-        var target = this.findTarget(obj)
+        const that = this
+        const AP = obj.AP!
+        const pkt = obj.aiPacket!
+
+        // Script turn-begin event (before any AI action so scripts can override)
+        if (Config.engine.doLoadScripts === true && obj._script !== undefined) {
+            if (Scripting.combatEvent(obj, 'turnBegin') === true) return
+        }
+
+        if (AP.getAvailableMoveAP() <= 0) return this.nextTurn()
+
+        const messageRoll = rollSkillCheck(pkt.chance || 85, 0, false)
+
+        // ── FLEE CHECK ────────────────────────────────────────────────────────
+        if (pkt.runAwayMode !== 'never') {
+            const maxHp = Math.max(1, obj.getStat('Max HP'))
+            const hpPct = (obj.getStat('HP') / maxHp) * 100
+            let shouldFlee = hpPct <= pkt.minHp
+
+            if (!shouldFlee && pkt.runAwayMode !== 'none' && pkt.hurtTooMuch.length > 0) {
+                for (const cond of pkt.hurtTooMuch) {
+                    switch (cond) {
+                        case 'crippled':
+                            if (obj.crippledLeftArm || obj.crippledRightArm || obj.crippledLeftLeg || obj.crippledRightLeg)
+                                shouldFlee = true
+                            break
+                        case 'crippled_arms':
+                            if (obj.crippledLeftArm || obj.crippledRightArm) shouldFlee = true
+                            break
+                        case 'crippled_legs':
+                            if (obj.crippledLeftLeg || obj.crippledRightLeg) shouldFlee = true
+                            break
+                        case 'blind':
+                            if (obj.isBlinded) shouldFlee = true
+                            break
+                    }
+                    if (shouldFlee) break
+                }
+            }
+
+            if (shouldFlee) {
+                this.log('[AI FLEES]')
+                this.maybeTaunt(obj, 'run', messageRoll)
+
+                // Nearest map edge by Manhattan distance
+                const pos = obj.position
+                const edgeCandidates = [
+                    { x: 0,                 y: pos.y },
+                    { x: HEX_GRID_SIZE - 1, y: pos.y },
+                    { x: pos.x,             y: 0 },
+                    { x: pos.x,             y: HEX_GRID_SIZE - 1 },
+                ]
+                edgeCandidates.sort((a, b) => hexDistance(a, pos) - hexDistance(b, pos))
+                const fleeTarget = edgeCandidates[0]
+
+                const fleeCallback = () => {
+                    obj.clearAnim()
+                    if (hexDistance(obj.position, fleeTarget) <= 1) {
+                        // Reached the edge — remove from active combat
+                        obj.hostile = false
+                        return that.nextTurn()
+                    }
+                    that.doAITurn(obj, idx, depth + 1)
+                }
+
+                if (!this.walkUpTo(obj, idx, fleeTarget, AP.getAvailableMoveAP(), fleeCallback)) {
+                    // No path to edge — give up, drop out of combat
+                    obj.hostile = false
+                    return this.nextTurn()
+                }
+                return
+            }
+        }
+
+        // ── TARGET SELECTION ─────────────────────────────────────────────────
+        const target = this.findTargetForCritter(obj)
         if (!target) {
             combatDebug('AI has no target')
             return this.nextTurn()
         }
-        var distance = hexDistance(obj.position, target.position)
-        var AP = obj.AP!
-        var messageRoll = rollSkillCheck(obj.ai!.info.chance || 85, 0, false)
+        let distance = hexDistance(obj.position, target.position)
 
-        if (Config.engine.doLoadScripts === true && obj._script !== undefined) {
-            // notify the critter script of a combat event
-            if (Scripting.combatEvent(obj, 'turnBegin') === true) return // end of combat (script override)
-        }
-
-        if (AP.getAvailableMoveAP() <= 0)
-            // out of AP
+        // ── PURSUIT RANGE CHECK ───────────────────────────────────────────────
+        if (distance > pkt.maxDist) {
+            combatDebug(`AI: target too far (${distance} > maxDist ${pkt.maxDist}), ending turn`)
             return this.nextTurn()
-
-        // behaviors
-
-        if (obj.getStat('HP') <= obj.ai!.info.min_hp) {
-            // hp <= min fleeing hp, so flee
-            this.log('[AI FLEES]')
-
-            // todo: pick the closest edge of the map
-            this.maybeTaunt(obj, 'run', messageRoll)
-            const targetPos = { x: 128, y: obj.position.y } // left edge
-            const callback = () => {
-                obj.clearAnim()
-                that.doAITurn(obj, idx, depth + 1) // if we can, do another turn
-            }
-
-            if (!this.walkUpTo(obj, idx, targetPos, AP.getAvailableMoveAP(), callback)) {
-                return this.nextTurn() // not a valid path, just move on
-            }
-
-            return
         }
+
+        const objAny = obj as any
+
+        // ── WEAPON CHOICE: respect bestWeapon preference ──────────────────────
+        // Determine preferred weapon type; weapon switching below honours this.
+        const preferRanged = aiPreferRanged(pkt, distance)
+        const willAttack = pkt.bestWeapon !== 'never'
 
         var weaponObj = obj.equippedWeapon
-        // Handle unarmed AI (no weapon equipped) — punch at melee range
+        // Handle unarmed (fist) critters — weapon.weaponSkillType will be 'Unarmed'
         if (!weaponObj) {
             const unarmedAPCost = 3
             combatDebug('unarmed AI:', obj.name, 'AP:', AP.getAvailableCombatAP(), 'distance:', distance)
-            if (distance <= 1 && AP.getAvailableCombatAP() >= unarmedAPCost) {
+            if (distance <= 1 && AP.getAvailableCombatAP() >= unarmedAPCost && willAttack) {
                 AP.subtractCombatAP(unarmedAPCost)
-                this.attack(obj, target, 'torso', function () {
-                    obj.clearAnim()
-                    that.doAITurn(obj, idx, depth + 1)
-                })
+                this.attack(obj, target, 'torso', () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1) })
             } else if (distance > 1 && AP.getAvailableMoveAP() > 0) {
-                // Walk towards target
                 const neighbors = hexNeighbors(target.position)
                 const maxSteps = AP.getAvailableMoveAP()
                 for (const nb of neighbors) {
@@ -1084,169 +1194,233 @@ export class Combat {
                         return
                     }
                 }
-                combatDebug(`AI: no valid action (unarmed, no path to target: ${target?.name})`)
+                combatDebug(`AI: no path to target (unarmed): ${target?.name}`)
                 return this.nextTurn()
             } else {
-                combatDebug(`AI: no valid action (unarmed, AP: ${AP.getAvailableCombatAP()}, distance: ${distance})`)
+                combatDebug(`AI: no valid action (unarmed, AP: ${AP.getAvailableCombatAP()}, dist: ${distance})`)
                 return this.nextTurn()
             }
             return
         }
+
         var weapon = weaponObj.weapon
         if (!weapon) throw Error('AI weapon has no weapon data')
 
-        // AI weapon switching: check if current weapon range is appropriate for distance.
-        // Guard with weaponSwitchDone so we never oscillate between hands more than once per turn.
-        var objAny = obj as any
-        var fireDistance = weapon.getMaximumRange(1)
-        if (!weaponSwitchDone && distance > fireDistance && weapon.type === 'melee') {
-            // Melee weapon but target is far — switch to ranged if it has ammo
-            var otherHand: 'leftHand' | 'rightHand' = (objAny.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
-            var otherWeapon = objAny[otherHand]
-            if (otherWeapon?.weapon && otherWeapon.weapon.type === 'gun' && aiHaveAmmo(otherWeapon)) {
-                var newHand = otherHand
-                obj.playWeaponSwapAnim(() => { objAny.activeHand = newHand }, () => {
-                    obj.clearAnim()
-                    that.doAITurn(obj, idx, depth + 1, true)
-                })
-                return
-            }
-        } else if (!weaponSwitchDone && distance <= 1 && weapon.type === 'gun') {
-            // Ranged weapon but adjacent — switch to melee
-            var otherHand2: 'leftHand' | 'rightHand' = (objAny.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
-            var otherWeapon2 = objAny[otherHand2]
-            if (otherWeapon2?.weapon && otherWeapon2.weapon.type === 'melee') {
-                var newHand2 = otherHand2
-                obj.playWeaponSwapAnim(() => { objAny.activeHand = newHand2 }, () => {
-                    obj.clearAnim()
-                    that.doAITurn(obj, idx, depth + 1, true)
-                })
-                return
+        // ── WEAPON SWITCHING ──────────────────────────────────────────────────
+        // Guard with weaponSwitchDone to prevent oscillation.
+        if (!weaponSwitchDone) {
+            const otherHand: 'leftHand' | 'rightHand' =
+                (objAny.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
+            const otherWeapon = objAny[otherHand]
+
+            if (preferRanged && weapon.type === 'melee') {
+                // Prefer ranged — try the other hand
+                if (otherWeapon?.weapon && otherWeapon.weapon.type === 'gun' && aiHaveAmmo(otherWeapon)) {
+                    const newHand = otherHand
+                    obj.playWeaponSwapAnim(() => { objAny.activeHand = newHand }, () => {
+                        obj.clearAnim()
+                        that.doAITurn(obj, idx, depth + 1, true)
+                    })
+                    return
+                }
+            } else if (!preferRanged && weapon.type === 'gun') {
+                // Prefer melee — try the other hand
+                if (otherWeapon?.weapon && otherWeapon.weapon.type === 'melee') {
+                    const newHand = otherHand
+                    obj.playWeaponSwapAnim(() => { objAny.activeHand = newHand }, () => {
+                        obj.clearAnim()
+                        that.doAITurn(obj, idx, depth + 1, true)
+                    })
+                    return
+                }
             }
         }
 
         // Re-read weapon after potential swap
         weaponObj = obj.equippedWeapon
         if (!weaponObj) {
-            // Weapon was dropped/removed during swap — end turn gracefully
-            combatDebug('AI: no valid action (no weapon after swap check)')
+            combatDebug('AI: no weapon after swap check')
             return this.nextTurn()
         }
         weapon = weaponObj.weapon
         if (!weapon) throw Error('AI weapon has no weapon data after swap check')
-        fireDistance = weapon.getMaximumRange(1)
-        combatDebug(`AI ${obj.art}: weapon=${weapon.name} fireDistance=${fireDistance} distance=${distance}`)
+        let fireDistance = weapon.getMaximumRange(1)
+        combatDebug(`AI ${obj.art}: weapon=${weapon.name} fireRange=${fireDistance} dist=${distance} distMode=${pkt.distance}`)
 
-        // are we in firing distance?
-        if (distance > fireDistance) {
-            this.log('[AI CREEPS]')
-            var neighbors = hexNeighbors(target.position)
-            var maxDistance = Math.min(AP.getAvailableMoveAP(), distance - fireDistance)
-            this.maybeTaunt(obj, 'move', messageRoll)
-
-            // TODO: check nearest direction first
-            // Currently: iterates hexNeighbors in default order (not distance-sorted)
-            var didCreep = false
-            for (var i = 0; i < neighbors.length; i++) {
-                if (
-                    obj.walkTo(
-                        neighbors[i],
-                        false,
-                        function () {
-                            obj.clearAnim()
-                            that.doAITurn(obj, idx, depth + 1) // if we can, do another turn
-                        },
-                        maxDistance
-                    ) !== false
-                ) {
-                    // OK
-                    didCreep = true
-                    if (AP.subtractMoveAP(obj.path.path.length - 1) === false)
-                        throw (
-                            'subtraction issue: has AP: ' +
-                            AP.getAvailableMoveAP() +
-                            ' needs AP:' +
-                            obj.path.path.length +
-                            ' and maxDist was:' +
-                            maxDistance
-                        )
-                    break
+        // ── AMMO CHECK (before movement so we don't waste AP) ────────────────
+        if (!aiHaveAmmo(weaponObj) && weapon.type !== 'melee') {
+            const aiWeapAny = weaponObj as any
+            const aiAmmoPID: number | undefined = aiWeapAny?.pro?.extra?.ammoPID
+            const aiMaxAmmo: number = aiWeapAny?.pro?.extra?.maxAmmo ?? 0
+            const aiInv = (obj as any).inventory as any[] | undefined
+            const ammoItem = aiInv?.find((item: any) => item.pid === aiAmmoPID)
+            if (ammoItem) {
+                const available: number = ammoItem.amount ?? 1
+                const toLoad = Math.min(aiMaxAmmo, available)
+                aiWeapAny.pro.extra.rounds = toLoad
+                ammoItem.amount = available - toLoad
+                if (ammoItem.amount <= 0) {
+                    const ammoIdx2 = aiInv!.indexOf(ammoItem)
+                    if (ammoIdx2 !== -1) aiInv!.splice(ammoIdx2, 1)
                 }
+                combatDebug(`AI ${obj.name}: reloaded ${toLoad} rounds`)
+                that.doAITurn(obj, idx, depth + 1, weaponSwitchDone)
+                return
             }
-
-            if (!didCreep) {
-                // no path — end this AI's turn rather than recursing infinitely
-                this.log('[NO PATH]')
-                return this.nextTurn()
-            }
-        } else if (AP.getAvailableCombatAP() >= weapon.getAPCost(1)) {
-            // if we are in range, do we have enough AP to attack?
-
-            // ── AI AMMO CHECK ────────────────────────────────────────────────────
-            if (!aiHaveAmmo(weaponObj)) {
-                const aiWeapAny = weaponObj as any
-                const aiAmmoPID: number | undefined = aiWeapAny?.pro?.extra?.ammoPID
-                const aiMaxAmmo: number = aiWeapAny?.pro?.extra?.maxAmmo ?? 0
-                const aiInv = (obj as any).inventory as any[] | undefined
-                const ammoItem = aiInv?.find((item: any) => item.pid === aiAmmoPID)
-                if (ammoItem) {
-                    // Reload from own inventory and continue turn
-                    const available: number = ammoItem.amount ?? 1
-                    const toLoad = Math.min(aiMaxAmmo, available)
-                    aiWeapAny.pro.extra.rounds = toLoad
-                    ammoItem.amount = available - toLoad
-                    if (ammoItem.amount <= 0) {
-                        const ammoIdx2 = aiInv!.indexOf(ammoItem)
-                        if (ammoIdx2 !== -1) aiInv!.splice(ammoIdx2, 1)
-                    }
-                    combatDebug(`AI ${obj.name}: reloaded ${toLoad} rounds`)
-                    that.doAITurn(obj, idx, depth + 1, weaponSwitchDone)
+            if (!weaponSwitchDone) {
+                const otherHandA: 'leftHand' | 'rightHand' =
+                    (objAny.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
+                const otherWeaponA = objAny[otherHandA]
+                if (otherWeaponA?.weapon && aiHaveAmmo(otherWeaponA)) {
+                    obj.playWeaponSwapAnim(
+                        () => { objAny.activeHand = otherHandA },
+                        () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1, true) }
+                    )
                     return
                 }
-                // No matching ammo — try the other hand (only once per turn)
-                if (!weaponSwitchDone) {
-                    const objAnyA = obj as any
-                    const otherHandA: 'leftHand' | 'rightHand' =
-                        (objAnyA.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
-                    const otherWeaponA = objAnyA[otherHandA]
-                    if (otherWeaponA?.weapon && aiHaveAmmo(otherWeaponA)) {
-                        obj.playWeaponSwapAnim(
-                            () => { objAnyA.activeHand = otherHandA },
-                            () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1, true) }
-                        )
+            }
+            combatDebug(`AI ${obj.name}: out of ammo, ending turn`)
+            return this.nextTurn()
+        }
+
+        // ── MOVEMENT STANCE ───────────────────────────────────────────────────
+        const distMode = pkt.distance
+
+        if (distMode === 'stay') {
+            // Never move; fall through to attack section
+
+        } else if (distMode === 'charge') {
+            // Always close to melee range (1 hex)
+            if (distance > 1) {
+                this.log('[AI CHARGES]')
+                this.maybeTaunt(obj, 'move', messageRoll)
+                const neighbors = hexNeighbors(target.position)
+                const maxMove = AP.getAvailableMoveAP()
+                let charged = false
+                for (const nb of neighbors) {
+                    if (obj.walkTo(nb, false, () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1) }, maxMove) !== false) {
+                        if (AP.subtractMoveAP(obj.path.path.length - 1) === false) break
+                        charged = true
+                        break
+                    }
+                }
+                if (!charged) { this.log('[NO PATH]'); return this.nextTurn() }
+                return
+            }
+
+        } else if (distMode === 'snipe') {
+            const backAwayThreshold = Math.max(2, Math.floor(fireDistance / 3))
+            if (distance > fireDistance) {
+                // Close to fire range (normal creep)
+                this.log('[AI CREEPS (snipe)]')
+                this.maybeTaunt(obj, 'move', messageRoll)
+                const neighbors = hexNeighbors(target.position)
+                const maxMove = Math.min(AP.getAvailableMoveAP(), distance - fireDistance)
+                let crept = false
+                for (const nb of neighbors) {
+                    if (obj.walkTo(nb, false, () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1) }, maxMove) !== false) {
+                        if (AP.subtractMoveAP(obj.path.path.length - 1) === false) break
+                        crept = true; break
+                    }
+                }
+                if (!crept) { this.log('[NO PATH]'); return this.nextTurn() }
+                return
+            } else if (distance < backAwayThreshold) {
+                // Back away — find a neighbour that is farther from target
+                this.log('[AI BACKS AWAY (snipe)]')
+                const myNeighbors = hexNeighbors(obj.position)
+                const farNeighbors = myNeighbors
+                    .map(nb => ({ pos: nb, d: hexDistance(nb, target.position) }))
+                    .filter(n => n.d > distance)
+                    .sort((a, b) => b.d - a.d)
+                let backedAway = false
+                for (const nb of farNeighbors) {
+                    if (obj.walkTo(nb.pos, false, () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1) }, 1) !== false) {
+                        if (AP.subtractMoveAP(1) === false) break
+                        backedAway = true; break
+                    }
+                }
+                if (backedAway) return
+                // Can't back away — fall through and attack anyway
+            }
+            // else: in ideal snipe range — fall through to attack
+
+        } else if (distMode === 'random') {
+            // Each turn randomly choose to charge to melee range or stay put
+            if (Math.random() < 0.5 && distance > 1) {
+                this.log('[AI CHARGES (random)]')
+                const neighbors = hexNeighbors(target.position)
+                const maxMove = AP.getAvailableMoveAP()
+                for (const nb of neighbors) {
+                    if (obj.walkTo(nb, false, () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1) }, maxMove) !== false) {
+                        if (AP.subtractMoveAP(obj.path.path.length - 1) === false) break
                         return
                     }
                 }
-                combatDebug(`AI ${obj.name}: weapon empty, falling back to unarmed`)
+            }
+            // fall through to attack
+
+        } else {
+            // 'on_your_own' — existing behaviour: close to fire range
+            if (distance > fireDistance) {
+                this.log('[AI CREEPS]')
+                this.maybeTaunt(obj, 'move', messageRoll)
+                const neighbors = hexNeighbors(target.position)
+                const maxMove = Math.min(AP.getAvailableMoveAP(), distance - fireDistance)
+                let didCreep = false
+                for (let i = 0; i < neighbors.length; i++) {
+                    if (obj.walkTo(neighbors[i], false, () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1) }, maxMove) !== false) {
+                        didCreep = true
+                        if (AP.subtractMoveAP(obj.path.path.length - 1) === false)
+                            throw `AP subtraction issue: has ${AP.getAvailableMoveAP()} needs ${obj.path.path.length}`
+                        break
+                    }
+                }
+                if (!didCreep) { this.log('[NO PATH]'); return this.nextTurn() }
+                return
+            }
+        }
+
+        // ── ATTACK ────────────────────────────────────────────────────────────
+        if (!willAttack) {
+            combatDebug(`AI: bestWeapon=never, skipping attack`)
+            return this.nextTurn()
+        }
+
+        if (AP.getAvailableCombatAP() >= weapon.getAPCost(1)) {
+            // HIT CHANCE FLOOR — skip attack if we can't reliably hit
+            const hitChance = this.getHitChance(obj, target, 'torso').hit
+            if (hitChance < pkt.minToHit) {
+                combatDebug(`AI: hitChance ${hitChance}% < minToHit ${pkt.minToHit}%, skipping attack`)
                 return this.nextTurn()
             }
-            // ─────────────────────────────────────────────────────────────────────
 
             this.log('[ATTACKING]')
             this.maybeTaunt(obj, 'attack', messageRoll)
 
             if (obj.equippedWeapon === null) throw 'combatant has no equipped weapon'
 
-            // Prefer burst fire if: weapon has burst mode, ≥2 enemies in burst range, and enough AP
+            // ── BURST GATING based on areaAttackMode ─────────────────────────
             const burstAPCost = weapon.getAPCost(2)
-            const hasBurstMode = weapon.isBurst !== undefined && weapon.isBurst()
-            const burstRange = weapon.getMaximumRange(2)
-            const targetsInBurstRange = this.combatants.filter(
-                (c) => c !== obj && !c.dead && hexDistance(obj.position, c.position) <= burstRange
-            ).length
-
-            const useBurst =
-                !hasBurstMode && // weapon hasn't been switched to burst mode by AI yet
-                String((weapon as any).attackTwo?.mode) === 'fire burst' &&
-                AP.getAvailableCombatAP() >= burstAPCost &&
-                targetsInBurstRange >= 2
+            const secondaryMode: any = (weapon as any).attackTwo?.mode
+            const canBurst = (secondaryMode === 'fire burst' || secondaryMode === 7) &&
+                             AP.getAvailableCombatAP() >= burstAPCost
+            let useBurst = false
+            if (canBurst) {
+                const burstRange = weapon.getMaximumRange(2)
+                const targetsInBurstRange = this.combatants.filter(
+                    c => c !== obj && !c.dead && hexDistance(obj.position, c.position) <= burstRange
+                ).length
+                if (targetsInBurstRange >= 2) {
+                    useBurst = this.canUseBurst(obj, target, pkt.areaAttackMode)
+                }
+            }
 
             if (useBurst) {
                 AP.subtractCombatAP(burstAPCost)
-                // Temporarily set mode to 'burst' so attack() detects it, then restore
                 const prevMode = weapon!.mode
                 weapon!.mode = 'burst'
-                this.attack(obj, target, 'torso', function () {
+                this.attack(obj, target, 'torso', () => {
                     weapon!.mode = prevMode
                     obj.clearAnim()
                     that.doAITurn(obj, idx, depth + 1)
@@ -1254,13 +1428,13 @@ export class Combat {
             } else {
                 const singleAPCost = weapon.getAPCost(1)
                 AP.subtractCombatAP(singleAPCost)
-                this.attack(obj, target, 'torso', function () {
+                this.attack(obj, target, 'torso', () => {
                     obj.clearAnim()
-                    that.doAITurn(obj, idx, depth + 1) // if we can, do another turn
+                    that.doAITurn(obj, idx, depth + 1)
                 })
             }
         } else {
-            combatDebug(`AI: no valid action (target: ${target?.name}, AP: ${AP.getAvailableCombatAP()}, weapon: ${weapon?.name}, cost: ${weapon?.getAPCost(1)}, distance: ${distance})`)
+            combatDebug(`AI: no AP to attack (target: ${target?.name}, AP: ${AP.getAvailableCombatAP()}, cost: ${weapon?.getAPCost(1)})`)
             this.nextTurn()
         }
     }
