@@ -863,7 +863,11 @@ export module Scripting {
             // begin combat, turn starting with us
             if (Config.engine.doCombat) {
                 if (isCombatActive() || globalState.combat) return // already in combat — ignore re-entry from script
-                Combat.start(this.self_obj as Critter)
+                const initiator = this.self_obj as Critter
+                // Mark the initiating critter hostile before combat starts so the LOS
+                // scan in nextTurn() counts it as active and doesn't skip its turn.
+                if (initiator && !initiator.isPlayer) initiator.hostile = true
+                Combat.start(initiator)
             }
         }
         terminate_combat() {
