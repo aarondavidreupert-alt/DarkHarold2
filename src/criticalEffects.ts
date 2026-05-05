@@ -200,9 +200,15 @@ export module CriticalEffects {
                 return
             }
 
-            // Remove from inventory (weapons in hand are also in inventory)
+            // Natural weapons (Spore Plant plntspik, claws, etc.) live only in
+            // the hand slot — never in inventory. fallout2-ce's
+            // attackComputeCriticalFailure() masks DAM_DROP for these
+            // (weapon == nullptr || weapon == attacker). Mirror that here:
+            // if the hand weapon isn't an inventory item, it's a natural attack
+            // and can't be dropped.
             const invIdx = target.inventory.indexOf(weaponObj)
-            if (invIdx !== -1) target.inventory.splice(invIdx, 1)
+            if (invIdx === -1) return
+            target.inventory.splice(invIdx, 1)
 
             // Place weapon on the ground at target's position
             if (globalState.gMap) {
