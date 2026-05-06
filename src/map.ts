@@ -26,6 +26,7 @@ import { centerCamera } from './renderer.js'
 import { Scripting } from './scripting.js'
 import { fromTileNum, hexToTile } from './tile.js'
 import { arrayRemove, arrayWithout, getFileJSON } from './util.js'
+import { resetCombatState } from './combat.js'
 
 declare let PF: any
 
@@ -308,6 +309,12 @@ export class GameMap {
 	}
 	
     loadMap(mapName: string, startingPosition?: Point, startingElevation = 0, loadedCallback?: () => void): void {
+        // Always clear the combat re-entry guard before loading a new map so the
+        // next combat on the fresh map can start normally (no callbacks/scripts here).
+        resetCombatState()
+        globalState.combat = null
+        globalState.inCombat = false
+
         if (Config.engine.doSaveDirtyMaps && this.name !== null) {
             // if a map is already loaded, save it to the dirty map cache before loading
             console.log(`[Main] Serializing map ${this.name} and committing to dirty map cache`)

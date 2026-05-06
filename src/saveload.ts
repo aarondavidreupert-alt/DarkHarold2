@@ -23,6 +23,7 @@ import { deserializeObj, SerializedObj } from './object.js'
 import { Scripting } from './scripting.js'
 import { drawHP, drawAC, uiDrawWeapon } from './ui_hud.js'
 import { getFileJSON } from './util.js'
+import { resetCombatState } from './combat.js'
 
 // Saving and loading support
 
@@ -187,6 +188,12 @@ export function load(id: number): void {
             // Apply the save state. Called directly (same-location) or after
             // images finish loading (cross-location) via the isLoading gate.
             const applyState = () => {
+                // Clear combat state before deserializing so the re-entry guard
+                // doesn't block the next combat on the loaded map.
+                resetCombatState()
+                globalState.combat = null
+                globalState.inCombat = false
+
                 globalState.gMap.deserialize(savedMap)
                 console.log('[SaveLoad] Finished map deserialization')
 

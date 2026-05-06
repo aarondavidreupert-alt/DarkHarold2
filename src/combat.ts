@@ -39,6 +39,15 @@ import { getAiPacket, AiPacket, AreaAttackMode, BestWeapon } from './aiPackets.j
 let combatActive = false
 export function isCombatActive(): boolean { return combatActive }
 
+/**
+ * Hard-reset the combat-active flag without running any teardown callbacks.
+ * Call this before globalState.combat is replaced during map/game loads so
+ * the re-entry guard in Combat.start() doesn't permanently block new combats.
+ */
+export function resetCombatState(): void {
+    combatActive = false
+}
+
 /** Write a technical/debug combat message to the browser console only.
  *  Player-visible combat messages go through uiLog() — never mix the two. */
 function combatDebug(...args: any[]): void {
@@ -1517,10 +1526,7 @@ export class Combat {
         globalState.audioEngine.playActionSfx('combat_end')
         globalState.gMap?.updateMap()
         uiEndCombat()
-        // Defer flag reset so the current script execution frame finishes
-        // before a new combat can be started (prevents the map_update_p_proc
-        // → attack_complex → Combat.start() re-entry loop).
-        Promise.resolve().then(() => { combatActive = false })
+        combatActive = false
     }
 
     forceTurn(obj: Critter) {
