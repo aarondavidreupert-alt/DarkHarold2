@@ -18,7 +18,7 @@ limitations under the License.
 import { AudioEngine } from './audio.js'
 import { Config } from './config.js'
 import { CriticalEffects } from './criticalEffects.js'
-import { critterDamage, critterKill } from './critter.js'
+import { critterDamage, critterKill, Weapon } from './critter.js'
 import * as GameTime from './gametime.js'
 import { hexDirectionTo, hexDistance, hexInDirectionDistance, hexLine, hexNearestNeighbor, hexNeighbors, HEX_GRID_SIZE, Point } from './geometry.js'
 import globalState from './globalState.js'
@@ -1181,8 +1181,69 @@ export class Combat {
         const willAttack = pkt.bestWeapon !== 'never'
 
         var weaponObj = obj.equippedWeapon
-        // Handle unarmed (fist) critters — weapon.weaponSkillType will be 'Unarmed'
+        // ── NO INVENTORY WEAPON ───────────────────────────────────────────────────
+        // Critters like Spore Plants carry no item weapon but may have a ranged
+        // secondary attack encoded in their critter PRO (primary=punch, secondary=fire single).
         if (!weaponObj) {
+            const proExtra: any = (obj as any).pro?.extra
+            const attackModes: number = proExtra?.attackMode ?? 0
+            const secondaryMode = (attackModes >> 4) & 0xf  // e.g. 6 = fire single
+            const naturalRange: number = proExtra?.maxRange2 ?? 1
+            const hasNaturalRanged = (secondaryMode === 6 || secondaryMode === 7)
+                                     && naturalRange > 1 && willAttack
+
+            if (hasNaturalRanged && distance > 1) {
+                if (distance > naturalRange) {
+                    // Out of natural weapon range — can't move (handled by distance mode above)
+                    combatDebug(`AI: out of natural weapon range (dist=${distance} range=${naturalRange})`)
+                    return this.nextTurn()
+                }
+                // Synthesize a pseudo-WeaponObj from the critter's PRO ranged attack data.
+                // Temporarily mount it on leftHand so equippedWeapon / attack() / getDamageDone()
+                // all see a real weapon without giving the critter a permanent inventory item.
+                const pseudoExtra = {
+                    attackMode: secondaryMode | (secondaryMode << 4),
+                    APCost1:   proExtra.APCost2  ?? 5,
+                    APCost2:   proExtra.APCost2  ?? 5,
+                    maxRange1: naturalRange,
+                    maxRange2: naturalRange,
+                    minDmg:    proExtra.minDmg   ?? 1,
+                    maxDmg:    proExtra.maxDmg   ?? 6,
+                    dmgType:   proExtra.dmgType  ?? 0,
+                    projPID:   proExtra.projPID  ?? -1,
+                    soundID:   proExtra.soundID,
+                    maxAmmo:   0,   // no ammo limit — aiHaveAmmo returns true when maxAmmo=0
+                    ammoPID:   -1,  // no ammo PRO — getAmmoStats returns neutral defaults
+                }
+                const pseudoWeaponObj: any = { art: obj.art, pro: { extra: pseudoExtra } }
+                const naturalWeapon = new Weapon(pseudoWeaponObj)
+                naturalWeapon.weaponSkillType = 'Unarmed'  // critters use Unarmed for natural attacks
+                pseudoWeaponObj.weapon = naturalWeapon
+
+                const savedHand   = objAny.leftHand
+                const savedActive = objAny.activeHand
+                objAny.leftHand   = pseudoWeaponObj
+                objAny.activeHand = 'leftHand'
+
+                const naturalAPCost = naturalWeapon.getAPCost(1)
+                if (AP.getAvailableCombatAP() >= naturalAPCost) {
+                    AP.subtractCombatAP(naturalAPCost)
+                    this.attack(obj, target, 'torso', () => {
+                        objAny.leftHand   = savedHand
+                        objAny.activeHand = savedActive
+                        obj.clearAnim()
+                        that.doAITurn(obj, idx, depth + 1)
+                    })
+                } else {
+                    objAny.leftHand   = savedHand
+                    objAny.activeHand = savedActive
+                    combatDebug(`AI: no AP for natural ranged attack (AP: ${AP.getAvailableCombatAP()}, cost: ${naturalAPCost})`)
+                    return this.nextTurn()
+                }
+                return
+            }
+
+            // ── UNARMED (punch/kick at melee range or approaching) ────────────────
             const unarmedAPCost = 3
             combatDebug('unarmed AI:', obj.name, 'AP:', AP.getAvailableCombatAP(), 'distance:', distance)
             if (distance <= 1 && AP.getAvailableCombatAP() >= unarmedAPCost && willAttack) {
