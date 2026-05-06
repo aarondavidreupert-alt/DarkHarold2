@@ -1173,12 +1173,6 @@ export class Combat {
         }
         let distance = hexDistance(obj.position, target.position)
 
-        // ── PURSUIT RANGE CHECK ───────────────────────────────────────────────
-        if (distance > pkt.maxDist) {
-            combatDebug(`AI: target too far (${distance} > maxDist ${pkt.maxDist}), ending turn`)
-            return this.nextTurn()
-        }
-
         const objAny = obj as any
 
         // ── WEAPON CHOICE: respect bestWeapon preference ──────────────────────
@@ -1255,6 +1249,15 @@ export class Combat {
         if (!weapon) throw Error('AI weapon has no weapon data after swap check')
         let fireDistance = weapon.getMaximumRange(1)
         combatDebug(`AI ${obj.art}: weapon=${weapon.name} fireRange=${fireDistance} dist=${distance} distMode=${pkt.distance}`)
+
+        // ── PURSUIT RANGE CHECK ───────────────────────────────────────────────
+        // maxDist gates movement/pursuit only. If the critter is already in weapon
+        // range it attacks regardless; if it's stationary ('stay') it always attacks.
+        // Only bail early when out of weapon range AND beyond pursuit range.
+        if (pkt.distance !== 'stay' && distance > fireDistance && distance > pkt.maxDist) {
+            combatDebug(`AI: target out of weapon and pursuit range (dist=${distance} fireRange=${fireDistance} maxDist=${pkt.maxDist}), ending turn`)
+            return this.nextTurn()
+        }
 
         // ── AMMO CHECK (before movement so we don't waste AP) ────────────────
         if (!aiHaveAmmo(weaponObj) && weapon.type !== 'melee') {

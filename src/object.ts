@@ -1234,9 +1234,12 @@ export class Critter extends Obj {
         // console.log("Loaded stats/skills from PRO: HP=%d Speech=%d", this.stats.get("HP"), this.skills.get("Speech", this.stats))
         this.name = getMessage('pro_crit', this.pro.textID) || ''
 
-        // initialize AI packet / team number
-        this.aiNum = this.pro.extra.AI
-        this.teamNum = this.pro.extra.team
+        // initialize AI packet / team number from PRO, then apply per-instance
+        // map overrides (fomap.py exports AInum and groupID per critter instance).
+        this.aiNum = this.pro.extra.AI ?? -1
+        this.teamNum = this.pro.extra.team ?? -1
+        if (this.extra?.AInum !== undefined && this.extra.AInum >= 0) this.aiNum = this.extra.AInum
+        if (this.extra?.groupID !== undefined && this.extra.groupID >= 0) this.teamNum = this.extra.groupID
 
         // initialize weapons
         this.inventory.forEach((inv) => {
