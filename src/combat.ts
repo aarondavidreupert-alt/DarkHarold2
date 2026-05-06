@@ -1184,7 +1184,11 @@ export class Combat {
         // ── NO INVENTORY WEAPON ───────────────────────────────────────────────────
         // Critters like Spore Plants carry no item weapon but may have a ranged
         // secondary attack encoded in their critter PRO (primary=punch, secondary=fire single).
-        if (!weaponObj) {
+        //
+        // Critter.init() always assigns a synthetic Weapon(null) fist to leftHand and
+        // rightHand (pro=null), so equippedWeapon is never null. The fist has no PRO
+        // (weaponObj.pro === null), which distinguishes it from a real inventory weapon.
+        if (!weaponObj || !weaponObj.pro) {
             const proExtra: any = (obj as any).pro?.extra
             const attackModes: number = proExtra?.attackMode ?? 0
             const secondaryMode = (attackModes >> 4) & 0xf  // e.g. 6 = fire single
