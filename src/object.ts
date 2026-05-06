@@ -1291,9 +1291,11 @@ export class Critter extends Obj {
             }
             this.lastFrameTime = time
 
+            const artInfo = globalState.imageInfo[this.art]
+            if (!artInfo) return  // art not loaded yet (e.g., death FRM being lazy-loaded)
             const done = reversed
                 ? this.frame === -1
-                : this.frame === globalState.imageInfo[this.art].numFrames
+                : this.frame === artInfo.numFrames
             if (done) {
                 if (reversed) this.frame++ // clamp back to frame 0
                 // animation is done
@@ -1354,6 +1356,11 @@ export class Critter extends Obj {
             this.clearAnim()
             return
         }
+
+        // If the critter died mid-walk the art is immediately changed to the death
+        // FRM (which may not be loaded yet). Guard here rather than blocking the
+        // entire updateAnim so death animations (type='static') still play normally.
+        if (this.dead || !globalState.imageInfo[this.art]) return
 
         const time = window.performance.now()
         const fps = globalState.imageInfo[this.art].fps
