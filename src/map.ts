@@ -309,8 +309,11 @@ export class GameMap {
 	}
 	
     loadMap(mapName: string, startingPosition?: Point, startingElevation = 0, loadedCallback?: () => void): void {
-        // Always clear the combat re-entry guard before loading a new map so the
-        // next combat on the fresh map can start normally (no callbacks/scripts here).
+        // End any active combat before loading a new map — fires UI cleanup and
+        // clears the combatant list so the re-entry guard resets cleanly.
+        if (globalState.combat) {
+            globalState.combat.forceEnd()
+        }
         resetCombatState()
         globalState.combat = null
         globalState.inCombat = false

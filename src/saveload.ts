@@ -188,8 +188,12 @@ export function load(id: number): void {
             // Apply the save state. Called directly (same-location) or after
             // images finish loading (cross-location) via the isLoading gate.
             const applyState = () => {
-                // Clear combat state before deserializing so the re-entry guard
-                // doesn't block the next combat on the loaded map.
+                // End any active combat before loading — fires UI cleanup, script
+                // TERMINATE procs, and clears the combatant list on the old map.
+                if (globalState.combat) {
+                    globalState.combat.forceEnd()
+                }
+                // resetCombatState clears the re-entry guard even when combat was null.
                 resetCombatState()
                 globalState.combat = null
                 globalState.inCombat = false
