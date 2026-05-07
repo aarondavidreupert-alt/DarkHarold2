@@ -373,6 +373,105 @@ function aiBestWeapon(obj: Critter, pkt: AiPacket): WeaponChoice | null {
     return null
 }
 
+// ── Drug usage constants (FO2 _ai_check_drugs thresholds) ───────────────────
+const CHEM_HP_RATIO_HURT_LITTLE = 75   // STIMS_WHEN_HURT_LITTLE — heal below 75% HP
+const CHEM_HP_RATIO_HURT_LOTS   = 50   // STIMS_WHEN_HURT_LOTS   — heal below 50% HP
+const CHEM_CHANCE_SOMETIMES     = 25
+const CHEM_CHANCE_ANYTIME       = 50
+const CHEM_USE_AP_COST          = 2
+
+// FO2 healing-item PIDs. Drug PRO data isn't parsed in our engine, so we
+// hardcode known healing PIDs and their average heal amounts here.
+const STIMPAK_PID        = 47
+const SUPER_STIMPAK_PID  = 144
+const HEALING_POWDER_PID = 145
+const STIMPAK_HEAL: { [pid: number]: number } = {
+    [STIMPAK_PID]:        12,  // 8-18 avg
+    [SUPER_STIMPAK_PID]:  75,  // ignores delayed -9 HP penalty
+    [HEALING_POWDER_PID]: 10,
+}
+
+/** Apply a healing item: clamp to Max HP, decrement count, deduct AP. */
+function aiUseDrug(obj: Critter, item: any, inv: any[]): boolean {
+    const heal = STIMPAK_HEAL[item.pid] ?? 0
+    if (heal <= 0) return false
+    const stats: any = (obj as any).stats
+    if (!stats?.modifyBase) return false
+    const maxHp = obj.getStat('Max HP')
+    const curHp = obj.getStat('HP')
+    const applied = Math.min(maxHp - curHp, heal)
+    if (applied > 0) stats.modifyBase('HP', applied)
+
+    item.amount = (item.amount ?? 1) - 1
+    if (item.amount <= 0) {
+        const idx = inv.indexOf(item)
+        if (idx !== -1) inv.splice(idx, 1)
+    }
+    obj.AP!.subtractCombatAP(CHEM_USE_AP_COST)
+    combatDebug(`AI ${obj.name}: used drug pid=${item.pid} (+${applied} HP → ${curHp + applied}/${maxHp})`)
+    return true
+}
+
+/** Port of fallout2-ce _ai_check_drugs. Returns true if the AI consumed a drug
+ *  (caller should yield turn control or re-enter doAITurn). The full FO2 logic
+ *  walks _inven_find_type for ITEM_TYPE_DRUG; we approximate by pid match
+ *  against the STIMPAK_HEAL table since drug PRO data isn't parsed yet. */
+function aiCheckDrugs(obj: Critter, pkt: AiPacket, turnNum: number): boolean {
+    if (pkt.chemUse === 'clean') return false
+    if (obj.AP!.getAvailableCombatAP() < CHEM_USE_AP_COST) return false
+    const inv = (obj as any).inventory as any[] | undefined
+    if (!inv?.length) return false
+
+    const maxHp = Math.max(1, obj.getStat('Max HP'))
+    const curHp = obj.getStat('HP')
+
+    let hpThresholdPct = 0
+    let chanceRoll = 0
+    switch (pkt.chemUse) {
+        case 'stims_when_hurt_little': hpThresholdPct = CHEM_HP_RATIO_HURT_LITTLE; break
+        case 'stims_when_hurt_lots':   hpThresholdPct = CHEM_HP_RATIO_HURT_LOTS;   break
+        case 'sometimes': if (turnNum % 3 === 0) chanceRoll = CHEM_CHANCE_SOMETIMES; break
+        case 'anytime':   if (turnNum % 3 === 0) chanceRoll = CHEM_CHANCE_ANYTIME;   break
+    }
+
+    // Healing path — gated by HP threshold; runs first per FO2 logic.
+    if (hpThresholdPct > 0 && curHp < Math.floor(maxHp * hpThresholdPct / 100)) {
+        for (const item of inv) {
+            if (STIMPAK_HEAL[item.pid] !== undefined) {
+                return aiUseDrug(obj, item, inv)
+            }
+        }
+    }
+
+    // Random chem path — primary_desire prefers, fall through to any healing item.
+    if (chanceRoll > 0 && getRandomInt(0, 100) < chanceRoll) {
+        const desired = pkt.chemPrimaryDesire ?? []
+        for (const item of inv) {
+            if (STIMPAK_HEAL[item.pid] !== undefined && desired.includes(item.pid)) {
+                return aiUseDrug(obj, item, inv)
+            }
+        }
+        for (const item of inv) {
+            if (STIMPAK_HEAL[item.pid] !== undefined) {
+                return aiUseDrug(obj, item, inv)
+            }
+        }
+    }
+    return false
+}
+
+// ── Called-shot constants (FO2 _ai_called_shot) ─────────────────────────────
+const CALLED_SHOT_INT_REQUIRED = 5  // Normal difficulty (Easy=7, Hard=3)
+const CALLED_SHOT_REGIONS = ['head', 'leftArm', 'rightArm', 'leftLeg', 'rightLeg', 'eyes', 'groin']
+
+// ── Pick-hit-mode constants (FO2 _ai_pick_hit_mode) ─────────────────────────
+const HIT_MODE_INT_THRESHOLD     = 6   // below this, roll secondary_freq
+const HIT_MODE_DISTANCE_THRESHOLD = 10 // below this, roll secondary_freq
+const BURST_BE_SURE_TOHIT        = 85
+const BURST_BE_CAREFUL_TOHIT     = 50
+const BURST_BE_ABS_SURE_TOHIT    = 95
+
+
 // A combat encounter
 export class Combat {
     combatants: Critter[]
@@ -1093,6 +1192,7 @@ export class Combat {
     }
 
     findTargetForCritter(obj: Critter): Critter | null {
+        // Port of fallout2-ce _ai_danger_source target-selection.
         const targets = this.combatants.filter(x => !x.dead && x.teamNum !== obj.teamNum)
         if (targets.length === 0) return null
         const pkt = obj.aiPacket
@@ -1100,6 +1200,8 @@ export class Combat {
             targets.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
             return targets[0]
         }
+        const last = obj.lastAttacker
+
         switch (pkt.attackWho) {
             case 'closest':
                 targets.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
@@ -1111,11 +1213,19 @@ export class Combat {
                 targets.sort((a, b) => b.getStat('HP') - a.getStat('HP'))
                 return targets[0]
             case 'whomever':
+                // FO2 _ai_danger_source: prefer whoHitMe (lastAttacker) when valid;
+                // fall through to a random pick to introduce target variety.
+                if (last && !last.dead && targets.includes(last)) return last
                 return targets[Math.floor(Math.random() * targets.length)]
             case 'whomever_attacking_me': {
-                const last = obj.lastAttacker
+                // Strict version of "whomever": always prefer lastAttacker over distance.
                 if (last && !last.dead && targets.includes(last)) return last
-                // fall back to closest
+                // Then prefer anyone whose own lastAttacker is us (they're shooting us).
+                const reciprocal = targets.filter(t => t.lastAttacker === obj)
+                if (reciprocal.length > 0) {
+                    reciprocal.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
+                    return reciprocal[0]
+                }
                 targets.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
                 return targets[0]
             }
@@ -1157,6 +1267,111 @@ export class Combat {
         )
     }
 
+    /** Port of _cai_attackWouldIntersect: walk the projectile hex line; if any
+     *  same-team critter sits on the line between attacker and target, reject. */
+    attackPathClear(attacker: Critter, target: Critter): boolean {
+        const line = hexLine(attacker.position, target.position) ?? []
+        for (const pt of line) {
+            for (const c of this.combatants) {
+                if (c === attacker || c === target || c.dead) continue
+                if (c.position.x !== pt.x || c.position.y !== pt.y) continue
+                if (c.teamNum === attacker.teamNum) return false
+            }
+        }
+        return true
+    }
+
+    /** Port of _ai_called_shot. Roll 1/calledFreq; if passing and INT permits,
+     *  pick a random body part. Fall back to torso when hit chance < minToHit. */
+    aiCalledShot(obj: Critter, target: Critter, pkt: AiPacket): string {
+        if ((pkt.calledFreq ?? 0) <= 0) return 'torso'
+        if (getRandomInt(1, pkt.calledFreq) !== 1) return 'torso'
+        if (obj.getStat('INT') < CALLED_SHOT_INT_REQUIRED) return 'torso'
+        const region = CALLED_SHOT_REGIONS[Math.floor(Math.random() * CALLED_SHOT_REGIONS.length)]
+        const hit = this.getHitChance(obj, target, region).hit
+        if (hit < pkt.minToHit) return 'torso'
+        return region
+    }
+
+    /** Port of _ai_pick_hit_mode: choose between 'single' and 'burst' (we
+     *  collapse the FO2 primary/secondary distinction onto single-vs-burst,
+     *  which is the only secondary-mode our engine supports today). */
+    aiPickHitMode(obj: Critter, target: Critter, weapon: any, pkt: AiPacket): 'single' | 'burst' {
+        const secondaryMode: any = weapon?.attackTwo?.mode
+        const isBurstWeapon = (secondaryMode === 'fire burst' || secondaryMode === 7)
+        if (!isBurstWeapon) return 'single'
+
+        const burstAPCost = weapon.getAPCost(2)
+        if (obj.AP!.getAvailableCombatAP() < burstAPCost) return 'single'
+
+        const distance = hexDistance(obj.position, target.position)
+        const burstRange = weapon.getMaximumRange(2)
+        if (distance > burstRange) return 'single'
+
+        // Friendly-fire safety: refuse burst if a teammate is on the projectile path.
+        if (!this.attackPathClear(obj, target)) return 'single'
+
+        const intelligence = obj.getStat('INT')
+        const secFreq = Math.max(1, pkt.secondaryFreq || 1)
+
+        let useSecondary = false
+        switch (pkt.areaAttackMode) {
+            case 'be_sure':
+                useSecondary = this.getHitChance(obj, target, 'torso').hit >= BURST_BE_SURE_TOHIT
+                            && this.canUseBurst(obj, target, pkt.areaAttackMode)
+                break
+            case 'be_careful':
+                useSecondary = this.getHitChance(obj, target, 'torso').hit >= BURST_BE_CAREFUL_TOHIT
+                            && this.canUseBurst(obj, target, pkt.areaAttackMode)
+                break
+            case 'be_absolutely_sure':
+                useSecondary = this.getHitChance(obj, target, 'torso').hit >= BURST_BE_ABS_SURE_TOHIT
+                            && this.canUseBurst(obj, target, pkt.areaAttackMode)
+                break
+            case 'sometimes':
+                useSecondary = (getRandomInt(1, secFreq) === 1) && this.canUseBurst(obj, target, pkt.areaAttackMode)
+                break
+            case 'no_pref':
+            default:
+                // FO2 fallback: if INT < 6 OR distance < 10, roll secondary_freq.
+                if (intelligence < HIT_MODE_INT_THRESHOLD || distance < HIT_MODE_DISTANCE_THRESHOLD) {
+                    useSecondary = (getRandomInt(1, secFreq) === 1)
+                }
+                break
+        }
+        // Sanity: still need ≥2 enemies in the spread for burst to be worth it.
+        if (useSecondary) {
+            const targetsInBurstRange = this.combatants.filter(c =>
+                c !== obj && !c.dead && hexDistance(obj.position, c.position) <= burstRange
+            ).length
+            if (targetsInBurstRange < 2) useSecondary = false
+        }
+        return useSecondary ? 'burst' : 'single'
+    }
+
+    /** Port of _ai_run_away direction logic: pick the rotation away from the
+     *  threat, try direct/+60°/-60° offsets, walk as many AP as possible. */
+    aiRunAwayDirectional(obj: Critter, threat: Critter, idx: number, depth: number): boolean {
+        const that = this
+        const AP = obj.AP!
+        // Direction FROM threat TO obj is "away from threat".
+        const awayDir = hexDirectionTo(threat.position, obj.position)
+        const offsets = [0, 1, 5]   // direct, +60°, -60° (FO2 ROTATION_COUNT=6)
+
+        for (let attemptAP = AP.getAvailableMoveAP(); attemptAP > 0; attemptAP--) {
+            for (const off of offsets) {
+                const dir = (awayDir + off + 6) % 6
+                const dest = hexInDirectionDistance(obj.position, dir, attemptAP)
+                if (!dest) continue
+                if (obj.walkTo(dest, false, () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1) }, attemptAP)) {
+                    if (AP.subtractMoveAP(obj.path.path.length - 1) === false) break
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     doAITurn(obj: Critter, idx: number, depth: number, weaponSwitchDone = false): void {
         if (depth > Config.combat.maxAIDepth) {
             combatWarn(`Bailing out of ${depth}-deep AI turn recursion`)
@@ -1173,6 +1388,15 @@ export class Combat {
         }
 
         if (AP.getAvailableMoveAP() <= 0) return this.nextTurn()
+
+        // ── DRUG / CHEM USE (FO2 _ai_check_drugs) ────────────────────────────
+        // Runs before flee/target/attack so an injured AI heals instead of fleeing.
+        // Single drug per turn keeps the action visible; further drugs would be
+        // possible per FO2 but loop-y in our async model.
+        if (aiCheckDrugs(obj, pkt, this.turnNum)) {
+            // Drug consumed an action; recurse to spend remaining AP on combat.
+            return that.doAITurn(obj, idx, depth + 1, weaponSwitchDone)
+        }
 
         const messageRoll = rollSkillCheck(pkt.chance || 85, 0, false)
 
@@ -1207,7 +1431,15 @@ export class Combat {
                 this.log('[AI FLEES]')
                 this.maybeTaunt(obj, 'run', messageRoll)
 
-                // Nearest map edge by Manhattan distance
+                // FO2 _ai_run_away: pick a tile in the direction away from the
+                // most recent threat, falling back to map edge if directional
+                // flee fails. lastAttacker is set whenever this critter gets hit.
+                const threat = obj.lastAttacker ?? this.findTargetForCritter(obj)
+                if (threat && this.aiRunAwayDirectional(obj, threat, idx, depth)) {
+                    return
+                }
+
+                // Fallback — head for the nearest map edge.
                 const pos = obj.position
                 const edgeCandidates = [
                     { x: 0,                 y: pos.y },
@@ -1526,12 +1758,28 @@ export class Combat {
             // fall through to attack
 
         } else {
-            // 'on_your_own' — existing behaviour: close to fire range
-            if (distance > fireDistance) {
+            // 'on_your_own' — close to fire range AND, when in range but accuracy
+            // is below minToHit, take additional steps to improve hit chance.
+            // Port of FO2 _ai_try_attack OUT_OF_RANGE + OK-below-minToHit branches:
+            // FO2's distance hit modifier subtracts ~1 hit chance per hex once
+            // distance > 2×PER, so each step ≈ +1% to-hit (an approximation for
+            // perks / scope / multihex which we currently ignore).
+            let stepsNeeded = Math.max(0, distance - fireDistance)
+            if (stepsNeeded === 0 && willAttack) {
+                const currentHit = this.getHitChance(obj, target, 'torso').hit
+                if (currentHit < pkt.minToHit) {
+                    const deficit = pkt.minToHit - currentHit
+                    stepsNeeded = Math.min(deficit, distance - 1)
+                    if (stepsNeeded > 0) {
+                        combatDebug(`AI: stepping ${stepsNeeded} hex closer for minToHit (current=${currentHit}% need=${pkt.minToHit}%)`)
+                    }
+                }
+            }
+            if (stepsNeeded > 0) {
                 this.log('[AI CREEPS]')
                 this.maybeTaunt(obj, 'move', messageRoll)
                 const neighbors = hexNeighbors(target.position)
-                const maxMove = Math.min(AP.getAvailableMoveAP(), distance - fireDistance)
+                const maxMove = Math.min(AP.getAvailableMoveAP(), stepsNeeded)
                 let didCreep = false
                 for (let i = 0; i < neighbors.length; i++) {
                     if (obj.walkTo(neighbors[i], false, () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1) }, maxMove) !== false) {
@@ -1566,7 +1814,7 @@ export class Combat {
                 }
             }
 
-            // HIT CHANCE FLOOR — skip attack if we can't reliably hit
+            // HIT CHANCE FLOOR — skip attack if we can't reliably hit (torso baseline)
             const hitChance = this.getHitChance(obj, target, 'torso').hit
             if (hitChance < pkt.minToHit) {
                 combatDebug(`AI: hitChance ${hitChance}% < minToHit ${pkt.minToHit}%, skipping attack`)
@@ -1578,27 +1826,19 @@ export class Combat {
 
             if (obj.equippedWeapon === null) throw 'combatant has no equipped weapon'
 
-            // ── BURST GATING based on areaAttackMode ─────────────────────────
-            const burstAPCost = weapon.getAPCost(2)
-            const secondaryMode: any = (weapon as any).attackTwo?.mode
-            const canBurst = (secondaryMode === 'fire burst' || secondaryMode === 7) &&
-                             AP.getAvailableCombatAP() >= burstAPCost
-            let useBurst = false
-            if (canBurst) {
-                const burstRange = weapon.getMaximumRange(2)
-                const targetsInBurstRange = this.combatants.filter(
-                    c => c !== obj && !c.dead && hexDistance(obj.position, c.position) <= burstRange
-                ).length
-                if (targetsInBurstRange >= 2) {
-                    useBurst = this.canUseBurst(obj, target, pkt.areaAttackMode)
-                }
-            }
+            // FO2 _ai_called_shot — random body-part roll gated by called_freq + INT
+            const region = this.aiCalledShot(obj, target, pkt)
+            if (region !== 'torso') combatDebug(`AI: called shot to ${region}`)
 
-            if (useBurst) {
+            // FO2 _ai_pick_hit_mode — single vs burst with friendly-fire safety
+            const hitMode = this.aiPickHitMode(obj, target, weapon, pkt)
+
+            if (hitMode === 'burst') {
+                const burstAPCost = weapon.getAPCost(2)
                 AP.subtractCombatAP(burstAPCost)
                 const prevMode = weapon!.mode
                 weapon!.mode = 'burst'
-                this.attack(obj, target, 'torso', () => {
+                this.attack(obj, target, region, () => {
                     weapon!.mode = prevMode
                     obj.clearAnim()
                     that.doAITurn(obj, idx, depth + 1)
@@ -1606,7 +1846,7 @@ export class Combat {
             } else {
                 const singleAPCost = weapon.getAPCost(1)
                 AP.subtractCombatAP(singleAPCost)
-                this.attack(obj, target, 'torso', () => {
+                this.attack(obj, target, region, () => {
                     obj.clearAnim()
                     that.doAITurn(obj, idx, depth + 1)
                 })
