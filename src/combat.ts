@@ -1324,6 +1324,27 @@ export class Combat {
             return this.nextTurn()
         }
 
+        // Switch to the other hand if it carries a longer-range weapon.
+        // Used when melee can't reach, AP is insufficient, or armor negates the hit.
+        const tryRangedFallback = (reason: string): boolean => {
+            if (weaponSwitchDone) return false
+            const fbOtherHand: 'leftHand' | 'rightHand' =
+                (objAny.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
+            const fbOther = objAny[fbOtherHand]
+            if (fbOther?.weapon && fbOther.pro && aiHaveAmmo(fbOther)) {
+                const fbRange: number = fbOther.weapon.getMaximumRange?.(1) ?? 0
+                if (fbRange > fireDistance) {
+                    combatDebug(`AI: ${reason} — switching to longer-range weapon ${fbOther.weapon.name} (range ${fbRange} > ${fireDistance})`)
+                    obj.playWeaponSwapAnim(() => { objAny.activeHand = fbOtherHand }, () => {
+                        obj.clearAnim()
+                        that.doAITurn(obj, idx, depth + 1, true)
+                    })
+                    return true
+                }
+            }
+            return false
+        }
+
         // ── AMMO CHECK (before movement so we don't waste AP) ────────────────
         if (!aiHaveAmmo(weaponObj) && weapon.type !== 'melee') {
             const aiWeapAny = weaponObj as any
@@ -1381,7 +1402,11 @@ export class Combat {
                         break
                     }
                 }
-                if (!charged) { this.log('[NO PATH]'); return this.nextTurn() }
+                if (!charged) {
+                    this.log('[NO PATH]')
+                    if (tryRangedFallback('can\'t reach (charge)')) return
+                    return this.nextTurn()
+                }
                 return
             }
 
@@ -1400,7 +1425,11 @@ export class Combat {
                         crept = true; break
                     }
                 }
-                if (!crept) { this.log('[NO PATH]'); return this.nextTurn() }
+                if (!crept) {
+                    this.log('[NO PATH]')
+                    if (tryRangedFallback('can\'t reach (snipe)')) return
+                    return this.nextTurn()
+                }
                 return
             } else if (distance < backAwayThreshold) {
                 // Back away — find a neighbour that is farther from target
@@ -1453,7 +1482,11 @@ export class Combat {
                         break
                     }
                 }
-                if (!didCreep) { this.log('[NO PATH]'); return this.nextTurn() }
+                if (!didCreep) {
+                    this.log('[NO PATH]')
+                    if (tryRangedFallback('can\'t reach')) return
+                    return this.nextTurn()
+                }
                 return
             }
         }
@@ -1465,6 +1498,15 @@ export class Combat {
         }
 
         if (AP.getAvailableCombatAP() >= weapon.getAPCost(1)) {
+            // ARMOR CHECK — if the weapon's max damage can't pierce the target's DT, try ranged
+            if (fireDistance <= 1) {
+                const meleeTargetDT = (target as any).getStat('DT Normal') + (target as any).getArmorDT('Normal')
+                if (weapon.maxDmg <= meleeTargetDT) {
+                    combatDebug(`AI: melee damage negated by armor (maxDmg=${weapon.maxDmg} ≤ DT=${meleeTargetDT})`)
+                    if (tryRangedFallback('armor')) return
+                }
+            }
+
             // HIT CHANCE FLOOR — skip attack if we can't reliably hit
             const hitChance = this.getHitChance(obj, target, 'torso').hit
             if (hitChance < pkt.minToHit) {
@@ -1512,6 +1554,7 @@ export class Combat {
             }
         } else {
             combatDebug(`AI: no AP to attack (target: ${target?.name}, AP: ${AP.getAvailableCombatAP()}, cost: ${weapon?.getAPCost(1)})`)
+            if (tryRangedFallback('insufficient AP')) return
             this.nextTurn()
         }
     }
