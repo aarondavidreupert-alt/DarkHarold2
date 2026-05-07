@@ -20,11 +20,12 @@ import { Config } from './config.js'
 import { CriticalEffects } from './criticalEffects.js'
 import { critterDamage, critterKill, Weapon } from './critter.js'
 import * as GameTime from './gametime.js'
-import { hexDirectionTo, hexDistance, hexInDirectionDistance, hexLine, hexNearestNeighbor, hexNeighbors, HEX_GRID_SIZE, Point } from './geometry.js'
+import { hexDirectionTo, hexDistance, hexInDirectionDistance, hexLine, hexNearestNeighbor, hexNeighbors, hexToScreen, HEX_GRID_SIZE, Point } from './geometry.js'
 import globalState from './globalState.js'
+import { lazyLoadImage } from './images.js'
 import { Critter, Obj } from './object.js'
 import { Player } from './player.js'
-import { loadPRO } from './pro.js'
+import { loadPRO, lookupArt } from './pro.js'
 import { Scripting } from './scripting.js'
 import { drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiLog, uiStartCombat } from './ui.js'
 import { clamp, getFileText, getMessage, getRandomInt, parseIni, rollSkillCheck } from './util.js'
@@ -470,6 +471,137 @@ const HIT_MODE_DISTANCE_THRESHOLD = 10 // below this, roll secondary_freq
 const BURST_BE_SURE_TOHIT        = 85
 const BURST_BE_CAREFUL_TOHIT     = 50
 const BURST_BE_ABS_SURE_TOHIT    = 95
+
+// ── Weapon visual effects ─────────────────────────────────────────────────────
+
+const PROJ_SPEED_PX_PER_S = 600  // projectile travel speed, pixels/second
+
+/** Fallback projectile art by damage type (used when weapon has no projPID). */
+const PROJ_ART_BY_DMGTYPE: Record<string, string> = {
+    Normal:     'art/misc/bullet_m',
+    Laser:      'art/misc/laser0',
+    Plasma:     'art/misc/plazm000',
+    Fire:       '',                    // flamer: no linear projectile
+    Explosive:  'art/misc/rocket',
+    Electrical: 'art/misc/elec_sml',
+    EMP:        'art/misc/elec_sml',
+}
+
+/** Impact/explosion art spawned at the target hex after the projectile arrives. */
+const IMPACT_ART_BY_DMGTYPE: Record<string, string> = {
+    Laser:      'art/misc/laserflr',
+    Plasma:     'art/misc/plazm001',
+    Fire:       'art/misc/fireburt',
+    Explosive:  'art/misc/expload',
+    Electrical: 'art/misc/sparks',
+    EMP:        'art/misc/sparks',
+}
+
+/**
+ * Spawn a travelling projectile Obj from attacker → target, then on arrival
+ * spawn a one-shot impact effect.  Both are purely cosmetic (damage has already
+ * been applied synchronously before this is called).
+ *
+ * @param projPID  weapon's projPID from PRO extras; -1 to derive art from dmgType
+ */
+function spawnWeaponEffect(attacker: Critter, target: Critter, dmgType: string, projPID: number): void {
+    const map = globalState.gMap
+    if (!map) return
+
+    let projArt: string
+    if (projPID >= 0) {
+        projArt = lookupArt(projPID)
+    } else {
+        projArt = PROJ_ART_BY_DMGTYPE[dmgType] ?? 'art/misc/bullet_m'
+    }
+    const impactArt = IMPACT_ART_BY_DMGTYPE[dmgType] ?? ''
+
+    function spawnImpact(): void {
+        if (!impactArt) return
+        lazyLoadImage(impactArt, () => {
+            const map2 = globalState.gMap
+            if (!map2 || !globalState.imageInfo[impactArt]) return
+            const fx = new Obj()
+            fx.type = 'misc'
+            fx.art  = impactArt
+            fx.position = { ...target.position }
+            map2.addObject(fx)
+            fx.singleAnimation(false, () => map2.removeObject(fx))
+        })
+    }
+
+    if (!projArt) {
+        spawnImpact()
+        return
+    }
+
+    lazyLoadImage(projArt, () => {
+        const map2 = globalState.gMap
+        if (!map2 || !globalState.imageInfo[projArt]) {
+            spawnImpact()
+            return
+        }
+
+        const fromScr = hexToScreen(attacker.position.x, attacker.position.y)
+        const toScr   = hexToScreen(target.position.x,   target.position.y)
+
+        const proj = new Obj()
+        proj.type        = 'misc'
+        proj.art         = projArt
+        proj.position    = { ...target.position }
+        proj.orientation = hexDirectionTo(attacker.position, target.position)
+        proj.shift       = { x: fromScr.x - toScr.x, y: fromScr.y - toScr.y }
+
+        map2.addObject(proj)
+
+        let lastTime = performance.now()
+
+        function step(): void {
+            const map3 = globalState.gMap
+            if (!map3) return
+            const now  = performance.now()
+            const dt   = (now - lastTime) / 1000
+            lastTime   = now
+
+            const sx   = proj.shift?.x ?? 0
+            const sy   = proj.shift?.y ?? 0
+            const dist = Math.sqrt(sx * sx + sy * sy)
+
+            if (dist < 3) {
+                map3.removeObject(proj)
+                spawnImpact()
+                return
+            }
+
+            const move  = Math.min(dist, PROJ_SPEED_PX_PER_S * dt)
+            const ratio = move / dist
+            proj.shift  = { x: sx - sx * ratio, y: sy - sy * ratio }
+
+            requestAnimationFrame(step)
+        }
+
+        requestAnimationFrame(step)
+    })
+}
+
+/**
+ * Spawn only the impact/explosion visual at a target position (used for burst fire,
+ * where individual bullet projectiles would be too noisy).
+ */
+function spawnImpactOnly(target: Critter, dmgType: string): void {
+    const impactArt = IMPACT_ART_BY_DMGTYPE[dmgType]
+    if (!impactArt) return
+    lazyLoadImage(impactArt, () => {
+        const map = globalState.gMap
+        if (!map || !globalState.imageInfo[impactArt]) return
+        const fx = new Obj()
+        fx.type     = 'misc'
+        fx.art      = impactArt
+        fx.position = { ...target.position }
+        map.addObject(fx)
+        fx.singleAnimation(false, () => map.removeObject(fx))
+    })
+}
 
 
 // A combat encounter
@@ -997,6 +1129,9 @@ export class Combat {
 
             uiLog(`${who} burst-fired at ${targetName}: ${totalBulletHits}/${burstCount} hits`)
 
+            // Burst impact effect — one explosion/flash at the primary target
+            spawnImpactOnly(target, attackDmgType)
+
             if (damageMap.size > 0) {
                 // Burst fire: the wa<id>2xxx1 attack sample already covers the
                 // whole volley, so skip per-victim impact sounds (they stacked
@@ -1027,6 +1162,12 @@ export class Combat {
         }
 
         // ── SINGLE SHOT ───────────────────────────────────────────────────────
+        // Ranged weapons: spawn a travelling projectile + impact effect (pure cosmetic)
+        if (weapon && weapon.type !== 'melee') {
+            const projPID: number = (weaponObj as any)?.pro?.extra?.projPID ?? -1
+            spawnWeaponEffect(obj, target, attackDmgType, projPID)
+        }
+
         var hitRoll = this.rollHit(obj, target, region, 0, who, targetName)
 
         // Deduct one round after the roll
