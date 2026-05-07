@@ -1293,7 +1293,7 @@ export class Combat {
                 }
             } else if (!preferRanged && weapon.type === 'gun') {
                 // Prefer melee — try the other hand
-                if (otherWeapon?.weapon && otherWeapon.weapon.type === 'melee') {
+                if (otherWeapon?.weapon && otherWeapon.weapon.type === 'melee' && otherWeapon.pro) {
                     const newHand = otherHand
                     obj.playWeaponSwapAnim(() => { objAny.activeHand = newHand }, () => {
                         obj.clearAnim()
