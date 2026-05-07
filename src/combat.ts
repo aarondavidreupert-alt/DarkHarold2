@@ -288,17 +288,89 @@ function computeDamage(ctx: DamageCalculationContext): number {
     }
 }
 
-// ── AI helper: should the critter prefer a ranged weapon given its packet? ─────
-function aiPreferRanged(pkt: AiPacket, distance: number): boolean {
-    switch (pkt.bestWeapon) {
-        case 'ranged':            return true
-        case 'melee':             return false
-        case 'unarmed':           return false
-        case 'melee_over_ranged': return distance > 1
-        case 'random':            return Math.random() < 0.5
-        case 'never':             return false
-        default:                  return distance > 1
+// ── Attack-type constants (FO2 item.h ATTACK_TYPE_*) ─────────────────────────
+// Used by _weapPrefOrderings and getAttackTypeForWeapon — port of fallout2-ce.
+const ATTACK_TYPE_UNARMED = 1
+const ATTACK_TYPE_MELEE   = 2
+const ATTACK_TYPE_THROW   = 3
+const ATTACK_TYPE_RANGED  = 4
+
+// _weapPrefOrderings[best_weapon + 1] — direct port of fallout2-ce combat_ai.cc.
+// Row 0: best_weapon = -1 (unset, same ordering as NO_PREF).
+// Rows 1-8: NO_PREF(0) through RANDOM(7). Zeros terminate the priority list.
+const WEAP_PREF_ORDERINGS: ReadonlyArray<ReadonlyArray<number>> = [
+    [ATTACK_TYPE_RANGED, ATTACK_TYPE_THROW, ATTACK_TYPE_MELEE, ATTACK_TYPE_UNARMED, 0], // -1 unset
+    [ATTACK_TYPE_RANGED, ATTACK_TYPE_THROW, ATTACK_TYPE_MELEE, ATTACK_TYPE_UNARMED, 0], // no_pref (0)
+    [ATTACK_TYPE_MELEE,  0, 0, 0, 0],                                                   // melee (1)
+    [ATTACK_TYPE_MELEE,  ATTACK_TYPE_RANGED, 0, 0, 0],                                  // melee_over_ranged (2)
+    [ATTACK_TYPE_RANGED, ATTACK_TYPE_MELEE,  0, 0, 0],                                  // ranged_over_melee (3)
+    [ATTACK_TYPE_RANGED, 0, 0, 0, 0],                                                   // ranged (4)
+    [ATTACK_TYPE_UNARMED, 0, 0, 0, 0],                                                  // unarmed (5)
+    [ATTACK_TYPE_UNARMED, ATTACK_TYPE_THROW, 0, 0, 0],                                  // unarmed_over_throw (6)
+    [0, 0, 0, 0, 0],                                                                    // random (7)
+]
+
+/** Map a BestWeapon string to the WEAP_PREF_ORDERINGS row index. */
+function weapPrefRow(bw: BestWeapon): number {
+    switch (bw) {
+        case 'no_pref':            return 1
+        case 'melee':              return 2
+        case 'melee_over_ranged':  return 3
+        case 'ranged_over_melee':  return 4
+        case 'ranged':             return 5
+        case 'unarmed':            return 6
+        case 'unarmed_over_throw': return 7
+        case 'random':             return 8
+        default:                   return 1  // 'never' or unknown → no_pref row
     }
+}
+
+/** Classify a WeaponObj into one of the ATTACK_TYPE_* constants.
+ *  Port of fallout2-ce weaponGetAttackTypeForHitMode() for our weapon model. */
+function getAttackTypeForWeapon(weaponObj: any): number {
+    if (!weaponObj?.pro) return ATTACK_TYPE_UNARMED
+    const weapon = weaponObj.weapon
+    if (!weapon) return ATTACK_TYPE_UNARMED
+    const skill: string = weapon.weaponSkillType ?? ''
+    if (skill === 'Melee Weapons') return ATTACK_TYPE_MELEE
+    if (skill === 'Throwing')      return ATTACK_TYPE_THROW
+    // Unarmed or gun: use range to distinguish unarmed (range=1) from ranged (range>1)
+    const range: number = weapon.getMaximumRange?.(1) ?? 1
+    return range > 1 ? ATTACK_TYPE_RANGED : ATTACK_TYPE_UNARMED
+}
+
+interface WeaponChoice { weaponObj: any; hand: 'leftHand' | 'rightHand' }
+
+/** Select the best weapon from both hands per _weapPrefOrderings.
+ *  Port of fallout2-ce _ai_best_weapon() — walks the preference table in
+ *  priority order and returns the first hand that matches. Returns null
+ *  when bestWeapon='never' or no suitable weapon exists. */
+function aiBestWeapon(obj: Critter, pkt: AiPacket): WeaponChoice | null {
+    if (pkt.bestWeapon === 'never') return null
+    const objAny = obj as any
+    const hands: ReadonlyArray<'leftHand' | 'rightHand'> = ['rightHand', 'leftHand']
+
+    if (pkt.bestWeapon === 'random') {
+        for (const hand of hands) {
+            const w = objAny[hand]
+            if (w?.pro) return { weaponObj: w, hand }
+        }
+        return null
+    }
+
+    const ordering = WEAP_PREF_ORDERINGS[weapPrefRow(pkt.bestWeapon)]
+    for (const attackType of ordering) {
+        if (attackType === 0) break
+        for (const hand of hands) {
+            const w = objAny[hand]
+            if (!w?.pro) continue
+            if (getAttackTypeForWeapon(w) !== attackType) continue
+            // For ranged weapons require ammo — skip if dry, let the loop try next type
+            if (attackType === ATTACK_TYPE_RANGED && !aiHaveAmmo(w)) continue
+            return { weaponObj: w, hand }
+        }
+    }
+    return null
 }
 
 // A combat encounter
@@ -1175,10 +1247,23 @@ export class Combat {
 
         const objAny = obj as any
 
-        // ── WEAPON CHOICE: respect bestWeapon preference ──────────────────────
-        // Determine preferred weapon type; weapon switching below honours this.
-        const preferRanged = aiPreferRanged(pkt, distance)
         const willAttack = pkt.bestWeapon !== 'never'
+
+        // ── WEAPON SELECTION (_ai_best_weapon + _ai_switch_weapons port) ─────────
+        // Walk _weapPrefOrderings for this packet's best_weapon field and switch
+        // to whichever hand holds the highest-priority attack type.
+        // weaponSwitchDone prevents oscillation across recursive doAITurn calls.
+        if (!weaponSwitchDone) {
+            const choice = aiBestWeapon(obj, pkt)
+            if (choice !== null && objAny.activeHand !== choice.hand) {
+                combatDebug(`AI: switching to ${choice.weaponObj.weapon?.name ?? choice.hand} (bestWeapon=${pkt.bestWeapon})`)
+                obj.playWeaponSwapAnim(() => { objAny.activeHand = choice.hand }, () => {
+                    obj.clearAnim()
+                    that.doAITurn(obj, idx, depth + 1, true)
+                })
+                return
+            }
+        }
 
         var weaponObj = obj.equippedWeapon
         // ── NO INVENTORY WEAPON ───────────────────────────────────────────────────
@@ -1274,37 +1359,7 @@ export class Combat {
         var weapon = weaponObj.weapon
         if (!weapon) throw Error('AI weapon has no weapon data')
 
-        // ── WEAPON SWITCHING ──────────────────────────────────────────────────
-        // Guard with weaponSwitchDone to prevent oscillation.
-        if (!weaponSwitchDone) {
-            const otherHand: 'leftHand' | 'rightHand' =
-                (objAny.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
-            const otherWeapon = objAny[otherHand]
-
-            if (preferRanged && weapon.type === 'melee') {
-                // Prefer ranged — try the other hand
-                if (otherWeapon?.weapon && otherWeapon.weapon.type === 'gun' && aiHaveAmmo(otherWeapon)) {
-                    const newHand = otherHand
-                    obj.playWeaponSwapAnim(() => { objAny.activeHand = newHand }, () => {
-                        obj.clearAnim()
-                        that.doAITurn(obj, idx, depth + 1, true)
-                    })
-                    return
-                }
-            } else if (!preferRanged && weapon.type === 'gun') {
-                // Prefer melee — try the other hand
-                if (otherWeapon?.weapon && otherWeapon.weapon.type === 'melee' && otherWeapon.pro) {
-                    const newHand = otherHand
-                    obj.playWeaponSwapAnim(() => { objAny.activeHand = newHand }, () => {
-                        obj.clearAnim()
-                        that.doAITurn(obj, idx, depth + 1, true)
-                    })
-                    return
-                }
-            }
-        }
-
-        // Re-read weapon after potential swap
+        // Re-read weapon (no-op unless an earlier aiBestWeapon swap changed activeHand)
         weaponObj = obj.equippedWeapon
         if (!weaponObj) {
             combatDebug('AI: no weapon after swap check')
@@ -1361,7 +1416,11 @@ export class Combat {
                     const ammoIdx2 = aiInv!.indexOf(ammoItem)
                     if (ammoIdx2 !== -1) aiInv!.splice(ammoIdx2, 1)
                 }
-                combatDebug(`AI ${obj.name}: reloaded ${toLoad} rounds`)
+                // TODO: read PROTO_WP_RELOAD_AP from weapon PRO when that field is parsed.
+                // FO2 default reload cost is 2 AP (WEAPON_SOUND_EFFECT_READY path in _ai_try_attack).
+                const reloadAP = aiWeapAny?.pro?.extra?.reloadAP ?? 2
+                AP.subtractCombatAP(reloadAP)
+                combatDebug(`AI ${obj.name}: reloaded ${toLoad} rounds (cost ${reloadAP} AP)`)
                 that.doAITurn(obj, idx, depth + 1, weaponSwitchDone)
                 return
             }

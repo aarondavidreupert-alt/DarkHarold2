@@ -9,7 +9,16 @@ dependency chains (util → object → combat → aiPackets → util).
 
 export type Disposition = 'aggressive' | 'berserk' | 'coward' | 'none' | 'custom'
 export type AttackWho = 'closest' | 'strongest' | 'weakest' | 'whomever' | 'whomever_attacking_me'
-export type BestWeapon = 'melee' | 'ranged' | 'unarmed' | 'melee_over_ranged' | 'random' | 'never'
+export type BestWeapon =
+    | 'no_pref'           // 0 — same ordering as -1 unset: RANGED > THROW > MELEE > UNARMED
+    | 'melee'             // 1
+    | 'melee_over_ranged' // 2
+    | 'ranged_over_melee' // 3
+    | 'ranged'            // 4
+    | 'unarmed'           // 5
+    | 'unarmed_over_throw'// 6
+    | 'random'            // 7
+    | 'never'             // 8
 export type AreaAttackMode = 'no_pref' | 'be_careful' | 'be_sure' | 'be_absolutely_sure' | 'sometimes'
 export type DistanceMode = 'charge' | 'snipe' | 'stay' | 'on_your_own' | 'random'
 export type RunAwayMode = 'never' | 'none' | 'bleeding' | 'finger_hurts' | 'not_feeling_good' | 'coward'
@@ -43,8 +52,13 @@ export interface AiPacket {
 const DISPOSITION_MAP: Disposition[]      = ['none', 'custom', 'berserk', 'aggressive', 'coward']
 // FO2: 0=whomever 1=closest 2=weakest 3=strongest 4=which_side_most_hurt 5=whoever_attacking_me
 const ATTACK_WHO_MAP: AttackWho[]         = ['whomever', 'closest', 'weakest', 'strongest', 'closest', 'whomever_attacking_me']
-// FO2: 0=no_pref 1=melee 2=melee_over_ranged 3=ranged 4=ranged_over_melee 5=unarmed 6=random 7=never
-const BEST_WEAPON_MAP: BestWeapon[]       = ['melee', 'melee', 'melee_over_ranged', 'ranged', 'ranged', 'unarmed', 'random', 'never']
+// FO2-CE enum: -1=unset→no_pref, 0=no_pref, 1=melee, 2=melee_over_ranged, 3=ranged_over_melee,
+//              4=ranged, 5=unarmed, 6=unarmed_over_throw, 7=random, 8=never
+// parseEnum maps -1 → index 0 ('no_pref'), matching _weapPrefOrderings[best_weapon+1] row 0.
+const BEST_WEAPON_MAP: BestWeapon[] = [
+    'no_pref', 'melee', 'melee_over_ranged', 'ranged_over_melee',
+    'ranged', 'unarmed', 'unarmed_over_throw', 'random', 'never',
+]
 const AREA_ATTACK_MODE_MAP: AreaAttackMode[] = ['no_pref', 'be_careful', 'be_sure', 'be_absolutely_sure', 'sometimes']
 // FO2: 0=on_your_own 1=charge 2=snipe 3=stay 4=random
 const DISTANCE_MAP: DistanceMode[]        = ['on_your_own', 'charge', 'snipe', 'stay', 'random']
@@ -57,7 +71,10 @@ const CHEM_USE_MAP: ChemUse[]             = ['clean', 'stims_when_hurt_little', 
 
 const DISPOSITIONS: ReadonlySet<string>      = new Set<Disposition>(['aggressive', 'berserk', 'coward', 'none', 'custom'])
 const ATTACK_WHOS: ReadonlySet<string>       = new Set<AttackWho>(['closest', 'strongest', 'weakest', 'whomever', 'whomever_attacking_me'])
-const BEST_WEAPONS: ReadonlySet<string>      = new Set<BestWeapon>(['melee', 'ranged', 'unarmed', 'melee_over_ranged', 'random', 'never'])
+const BEST_WEAPONS: ReadonlySet<string>      = new Set<BestWeapon>([
+    'no_pref', 'melee', 'melee_over_ranged', 'ranged_over_melee',
+    'ranged', 'unarmed', 'unarmed_over_throw', 'random', 'never',
+])
 const AREA_ATTACK_MODES: ReadonlySet<string> = new Set<AreaAttackMode>(['no_pref', 'be_careful', 'be_sure', 'be_absolutely_sure', 'sometimes'])
 const DISTANCE_MODES: ReadonlySet<string>    = new Set<DistanceMode>(['charge', 'snipe', 'stay', 'on_your_own', 'random'])
 const RUN_AWAY_MODES: ReadonlySet<string>    = new Set<RunAwayMode>(['never', 'none', 'bleeding', 'finger_hurts', 'not_feeling_good', 'coward'])
@@ -138,7 +155,7 @@ function buildPacket(sectionName: string, raw: Record<string, string>): AiPacket
         aggression:       parseIntField(raw['aggression'], 0),
         disposition:      parseEnum(raw['disposition'],      DISPOSITIONS,      DISPOSITION_MAP,       'none'),
         attackWho:        parseEnum(raw['attack_who'],       ATTACK_WHOS,       ATTACK_WHO_MAP,        'closest'),
-        bestWeapon:       parseEnum(raw['best_weapon'],      BEST_WEAPONS,      BEST_WEAPON_MAP,       'melee'),
+        bestWeapon:       parseEnum(raw['best_weapon'],      BEST_WEAPONS,      BEST_WEAPON_MAP,       'no_pref'),
         areaAttackMode:   parseEnum(raw['area_attack_mode'], AREA_ATTACK_MODES, AREA_ATTACK_MODE_MAP,  'no_pref'),
         distance:         parseEnum(raw['distance'],         DISTANCE_MODES,    DISTANCE_MAP,          'on_your_own'),
         runAwayMode:      parseEnum(raw['run_away_mode'],    RUN_AWAY_MODES,    RUN_AWAY_MODE_MAP,     'none'),
@@ -169,6 +186,7 @@ function ensureInit(): void {
         for (const section in ini) {
             const packet = buildPacket(section, ini[section])
             aiPackets.set(packet.packetNum, packet)
+            if (_firstPacket === null) _firstPacket = packet
         }
         console.log(`[aiPackets] Loaded ${aiPackets.size} AI packets`)
     } catch (e) {
@@ -176,14 +194,20 @@ function ensureInit(): void {
     }
 }
 
-/** Safe fallback used when a packet number is not found and packet 0 is also absent. */
+// First packet parsed from ai.txt — returned by aiGetPacketByNum() when the
+// requested packet_num is not found, matching fallout2-ce aiGetPacketByNum()
+// which returns gAiPackets[0] (the first entry in the file).
+let _firstPacket: AiPacket | null = null
+
+/** Hard-coded last-resort fallback used only when ai.txt could not be loaded at all.
+ *  All enum fields initialise to -1 semantics ('no_pref') as per aiPacketInit(). */
 const FALLBACK_PACKET: AiPacket = {
     packetNum: 0,
     name: '_fallback',
     aggression: 0,
     disposition: 'none',
     attackWho: 'closest',
-    bestWeapon: 'melee',
+    bestWeapon: 'no_pref',   // -1 in FO2 → RANGED > THROW > MELEE > UNARMED
     areaAttackMode: 'no_pref',
     distance: 'on_your_own',
     runAwayMode: 'none',
@@ -198,7 +222,10 @@ const FALLBACK_PACKET: AiPacket = {
     chemPrimaryDesire: [],
 }
 
+/** Return packet with packet_num === num, or the first packet in the file
+ *  (matching fallout2-ce aiGetPacketByNum), or the hard FALLBACK_PACKET if
+ *  ai.txt was not loaded. */
 export function getAiPacket(num: number): AiPacket {
     ensureInit()
-    return aiPackets.get(num) ?? aiPackets.get(0) ?? FALLBACK_PACKET
+    return aiPackets.get(num) ?? _firstPacket ?? FALLBACK_PACKET
 }
