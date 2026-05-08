@@ -17,7 +17,7 @@ limitations under the License.
 
 import { Config } from './config.js'
 import globalState from './globalState.js'
-import { lazyLoadImage } from './images.js'
+import { artExists, lazyLoadImage } from './images.js'
 import { Critter, Obj, WeaponObj } from './object.js'
 import { Scripting } from './scripting.js'
 
@@ -254,12 +254,24 @@ export class Weapon {
             // attackTwo.mode is a string at runtime despite the 'as number' cast in parseAttack.
             // Check both the string form and the numeric value (7) defensively.
             const secondaryMode: any = this.attackTwo?.mode
+            const primaryMode: any = this.attackOne?.mode
             if (secondaryMode === 'fire burst' || secondaryMode === 7) {
                 this.modes = ['single', 'called', 'burst']
+            }
+            // If either mode is throw (5), expose 'throw' in the cycle. For
+            // melee weapons that can also be thrown (knife, spear, rock) this
+            // gives the player a way to switch from melee to throw.
+            if (primaryMode === 'throw' || primaryMode === 5 ||
+                secondaryMode === 'throw' || secondaryMode === 5) {
+                if (!this.modes.includes('throw')) this.modes.push('throw')
             }
         }
 
         this.mode = this.modes[0]
+    }
+
+    isThrow(): boolean {
+        return this.mode === 'throw'
     }
 
     cycleMode(): void {
@@ -324,10 +336,22 @@ export class Weapon {
         return this.weapon.pro.extra.projPID
     }
 
+    /** Pick the PRO slot (1 or 2) that matches the active mode. Throw mode
+     *  resolves to whichever slot has attackMode==='throw'. */
+    private slotForMode(): number {
+        if (this.mode === 'burst') return 2
+        if (this.mode === 'throw') {
+            if ((this.attackTwo as any)?.mode === 'throw' || (this.attackTwo as any)?.mode === 5) return 2
+            // primary or unknown: default to slot 1
+            return 1
+        }
+        return 1
+    }
+
     // TODO: enum
     // When called without an argument, derives the slot from the current mode.
     getMaximumRange(attackType?: number): number {
-        const slot = attackType ?? (this.mode === 'burst' ? 2 : 1)
+        const slot = attackType ?? this.slotForMode()
         if (slot === 1) return this.weapon.pro.extra.maxRange1
         if (slot === 2) return this.weapon.pro.extra.maxRange2
         throw 'invalid attack type ' + slot
@@ -335,7 +359,7 @@ export class Weapon {
 
     // When called without an argument, derives the slot from the current mode.
     getAPCost(attackSlot?: number): number {
-        const slot = attackSlot ?? (this.mode === 'burst' ? 2 : 1)
+        const slot = attackSlot ?? this.slotForMode()
         return this.weapon.pro.extra['APCost' + slot]
     }
 
@@ -375,6 +399,9 @@ export class Weapon {
         // Burst uses the secondary attack skin; everything else uses the primary.
         if (this.mode === 'burst') {
             return modeSkinMap['fire burst'] // 'k'
+        }
+        if (this.mode === 'throw') {
+            return modeSkinMap['throw'] // 's' = throw animation
         }
         if (this.attackOne && this.attackOne.mode !== attackMode.none) {
             return modeSkinMap[this.attackOne.mode] ?? null
@@ -459,19 +486,18 @@ export function critterKill(
     //   2. obj.deathAnim set by a critical-hit 'death' effect
     //   3. Derived from the killing weapon's damage type
     //   4. Generic 'death' as final fallback
+    //
+    // Probe each candidate via artExists() so we attempt to LOAD the FRM —
+    // hasAnimation() only returns true for already-cached imageInfo entries,
+    // which causes it to falsely reject damage-type death anims that exist
+    // on the server but haven't been requested before. The async probe
+    // populates imageInfo via the lazy loader, then resolves true/false.
     const candidates: (string | undefined)[] = [
         animName,
         obj.deathAnim,
         damageType ? deathAnimForDamageType(damageType) : undefined,
         'death',
     ]
-    let resolvedAnim = 'death'
-    for (const c of candidates) {
-        if (c && obj.hasAnimation(c)) {
-            resolvedAnim = c
-            break
-        }
-    }
     // Clear the one-shot override so it doesn't bleed into a second death call
     obj.deathAnim = undefined
 
@@ -531,17 +557,32 @@ export function critterKill(
         }
     }
 
-    // Knockdown → death transition:
-    // If the critter is mid-knockdown, let that animation finish first, then
-    // transition directly to the death animation.  This avoids an ugly pop
-    // where the critter snaps from falling to dying.
-    if (obj.anim === 'knockdownFront' || obj.anim === 'knockdownBack') {
-        obj.animCallback = () => {
+    // Asynchronously probe each candidate's FRM existence on the server.
+    // Use the first one whose PNG resolves; fall back to 'death' (which
+    // always maps to <base>+'bo' and is universally exported for critters).
+    const pickAnim = async (): Promise<string> => {
+        for (const c of candidates) {
+            if (!c) continue
+            let path: string
+            try { path = obj.getAnimation(c) } catch { continue }
+            if (await artExists(path)) return c
+        }
+        return 'death'
+    }
+
+    pickAnim().then(resolvedAnim => {
+        // Knockdown → death transition:
+        // If the critter is mid-knockdown, let that animation finish first, then
+        // transition directly to the death animation.  This avoids an ugly pop
+        // where the critter snaps from falling to dying.
+        if (obj.anim === 'knockdownFront' || obj.anim === 'knockdownBack') {
+            obj.animCallback = () => {
+                obj.staticAnimation(resolvedAnim, finalizeCallback, true)
+            }
+        } else {
             obj.staticAnimation(resolvedAnim, finalizeCallback, true)
         }
-    } else {
-        obj.staticAnimation(resolvedAnim, finalizeCallback, true)
-    }
+    })
 }
 
 export function critterDamage(

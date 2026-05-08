@@ -1674,11 +1674,21 @@ export class Critter extends Obj {
     }
 
     staticAnimation(anim: string, callback?: () => void, waitForLoad = true, reversed = false): void {
-        this.art = this.getAnimation(anim)
+        const targetArt = this.getAnimation(anim)
+        const previousArt = this.art
+        this.art = targetArt
         this.frame = 0
         this.lastFrameTime = 0
 
-        const startAnim = () => {
+        const startAnim = (loaded?: HTMLImageElement | null) => {
+            // If the FRM failed to load (404), don't switch the critter onto a
+            // missing sprite — it would render as invisible.  Revert this.art
+            // and fire the callback so the rest of the attack flow proceeds.
+            if (loaded === null || globalState.imageInfo[targetArt] === undefined) {
+                this.art = previousArt
+                if (callback) callback()
+                return
+            }
             if (reversed) {
                 // Start from the last frame and play backwards ('reverse' is handled by updateStaticAnim)
                 this.frame = globalState.imageInfo[this.art].numFrames - 1

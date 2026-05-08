@@ -22,7 +22,7 @@ import { critterDamage, critterKill, Weapon } from './critter.js'
 import * as GameTime from './gametime.js'
 import { hexDirectionTo, hexDistance, hexInDirectionDistance, hexLine, hexNearestNeighbor, hexNeighbors, hexToScreen, HEX_GRID_SIZE, Point } from './geometry.js'
 import globalState from './globalState.js'
-import { lazyLoadImage } from './images.js'
+import { artExists, lazyLoadImage } from './images.js'
 import { Critter, Obj } from './object.js'
 import { Player } from './player.js'
 import { loadPRO, lookupArt } from './pro.js'
@@ -498,29 +498,54 @@ const IMPACT_ART_BY_DMGTYPE: Record<string, string> = {
 }
 
 /**
+ * Resolve the projectile art path with strict priority:
+ *   1. throwArt parameter (weapon's own sprite, used for thrown attacks)
+ *   2. weapon's projPID from PRO extras → lookupArt(projPID).png exists
+ *   3. PROJ_ART_BY_DMGTYPE[dmgType] fallback
+ * Returns the resolved art path, or '' if none of the candidates exist.
+ */
+async function resolveProjectileArt(projPID: number, dmgType: string, throwArt?: string): Promise<string> {
+    if (throwArt) {
+        if (await artExists(throwArt)) return throwArt
+        // Throw with missing weapon sprite — give up cleanly, no projectile flies.
+        return ''
+    }
+    if (projPID >= 0) {
+        const fromPID = lookupArt(projPID)
+        if (fromPID && await artExists(fromPID)) return fromPID
+    }
+    const fromDmg = PROJ_ART_BY_DMGTYPE[dmgType] ?? ''
+    if (fromDmg && await artExists(fromDmg)) return fromDmg
+    return ''
+}
+
+/**
  * Spawn a travelling projectile Obj from attacker → target, then on arrival
  * spawn a one-shot impact effect.  Both are purely cosmetic (damage has already
  * been applied synchronously before this is called).
  *
- * @param projPID  weapon's projPID from PRO extras; -1 to derive art from dmgType
+ * @param projPID   weapon's projPID from PRO extras; -1 to derive art from dmgType
+ * @param throwArt  optional override: when set (thrown weapons), use this art
+ *                  instead of projPID/dmgType resolution. The weapon's own sprite
+ *                  flies to the target.
  */
-function spawnWeaponEffect(attacker: Critter, target: Critter, dmgType: string, projPID: number): void {
+function spawnWeaponEffect(
+    attacker: Critter,
+    target: Critter,
+    dmgType: string,
+    projPID: number,
+    throwArt?: string,
+): void {
     const map = globalState.gMap
     if (!map) return
 
-    let projArt: string
-    if (projPID >= 0) {
-        projArt = lookupArt(projPID)
-    } else {
-        projArt = PROJ_ART_BY_DMGTYPE[dmgType] ?? 'art/misc/bullet_m'
-    }
     const impactArt = IMPACT_ART_BY_DMGTYPE[dmgType] ?? ''
 
     function spawnImpact(): void {
         if (!impactArt) return
-        lazyLoadImage(impactArt, () => {
+        lazyLoadImage(impactArt, (img) => {
             const map2 = globalState.gMap
-            if (!map2 || !globalState.imageInfo[impactArt]) return
+            if (!map2 || !img || !globalState.imageInfo[impactArt]) return
             const fx = new Obj()
             fx.type = 'misc'
             fx.art  = impactArt
@@ -530,14 +555,11 @@ function spawnWeaponEffect(attacker: Critter, target: Critter, dmgType: string, 
         })
     }
 
-    if (!projArt) {
-        spawnImpact()
-        return
-    }
-
-    lazyLoadImage(projArt, () => {
+    resolveProjectileArt(projPID, dmgType, throwArt).then(projArt => {
         const map2 = globalState.gMap
-        if (!map2 || !globalState.imageInfo[projArt]) {
+        if (!map2) return
+        if (!projArt) {
+            // No projectile sprite available — at least play impact effect.
             spawnImpact()
             return
         }
@@ -1162,16 +1184,25 @@ export class Combat {
         }
 
         // ── SINGLE SHOT ───────────────────────────────────────────────────────
-        // Ranged weapons: spawn a travelling projectile + impact effect (pure cosmetic)
-        if (weapon && weapon.type !== 'melee') {
+        // Visual effects:
+        //   * Thrown weapons: weapon's own art flies to the target (no ammo).
+        //   * Ranged weapons: projectile FRM (projPID) flies; impact at target.
+        //   * Pure melee: no projectile.
+        const isThrowAttack = !!(weapon && (weapon as any).isThrow?.())
+        if (isThrowAttack) {
+            const wepArt: string | undefined = (weaponObj as any)?.art
+            spawnWeaponEffect(obj, target, attackDmgType, -1, wepArt)
+        } else if (weapon && weapon.type !== 'melee') {
             const projPID: number = (weaponObj as any)?.pro?.extra?.projPID ?? -1
             spawnWeaponEffect(obj, target, attackDmgType, projPID)
         }
 
         var hitRoll = this.rollHit(obj, target, region, 0, who, targetName)
 
-        // Deduct one round after the roll
-        if (weapon && weapon.type !== 'melee') {
+        // Deduct one round after the roll. Thrown weapons skip ammo deduction
+        // (the weapon itself is the "ammo"; FO2 leaves the thrown item on the
+        // ground at the target hex, but we don't model that yet).
+        if (weapon && weapon.type !== 'melee' && !isThrowAttack) {
             var roundsBefore: number = (weaponObj as any)?.pro?.extra?.rounds
             if (roundsBefore !== undefined && roundsBefore > 0) {
                 ;(weaponObj as any).pro.extra.rounds = roundsBefore - 1
