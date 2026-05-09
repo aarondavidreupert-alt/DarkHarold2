@@ -22,6 +22,7 @@ import { critterDamage, critterKill } from './critter.js'
 import * as GameTime from './gametime.js'
 import { hexDirectionTo, hexDistance, hexInDirectionDistance, hexLine, hexNearestNeighbor, hexNeighbors, Point } from './geometry.js'
 import globalState from './globalState.js'
+import { combatLogPush, dbg, dbgWarn } from './logger.js'
 import { Critter, Obj } from './object.js'
 import { Player } from './player.js'
 import { loadPRO } from './pro.js'
@@ -38,14 +39,19 @@ import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from './unarmed.js'
 let combatActive = false
 export function isCombatActive(): boolean { return combatActive }
 
-/** Write a technical/debug combat message to the browser console only.
- *  Player-visible combat messages go through uiLog() — never mix the two. */
+/** Free-form combat trace, gated by Config.scripting.debugLogShowType.combat.
+ *  Player-visible combat messages go through uiLog() — never mix the two.
+ *  Structured events go through combatLogPush() so they survive into the save. */
 function combatDebug(...args: any[]): void {
-    console.log('[Combat]', ...args)
+    dbg('combat', ...args)
 }
 
 function combatWarn(...args: any[]): void {
-    console.warn('[Combat]', ...args)
+    dbgWarn('combat', ...args)
+}
+
+function actorName(c: Critter): string {
+    return c.isPlayer ? 'you' : (c.name ?? c.art ?? 'unknown')
 }
 
 export class ActionPoints {
@@ -494,6 +500,8 @@ export class Combat {
         var hitChance = this.getHitChance(obj, target, region)
         hitChance = { ...hitChance, hit: hitChance.hit + hitBonus }
 
+        const aName = attackerName ?? actorName(obj)
+        const dName = defenderName ?? actorName(target)
         if (attackerName) combatDebug(`${attackerName} → ${defenderName}: hitChance=${hitChance.hit}% critChance=${hitChance.crit}%`)
 
         // hey kids! Did you know FO only rolls the dice once here and uses the results two times?
@@ -522,10 +530,20 @@ export class Combat {
                 var crit = CriticalEffects.getCritical(target.killType ?? 0, region, critLevel)
                 var critStatus = crit.doEffectsOn(target)
 
+                combatLogPush({
+                    actor: aName, action: 'attack-roll', target: dName, result: 'crit',
+                    region, roll, hitChance: hitChance.hit, critChance: hitChance.crit,
+                    critLevel, message: `${aName} → ${dName}: critical hit (${region})`,
+                })
                 return { hit: true, crit: true, DM: critStatus.DM, msgID: critStatus.msgID } // crit
             }
 
             combatDebug(`hit: roll=${roll} vs ${hitChance.hit}%`)
+            combatLogPush({
+                actor: aName, action: 'attack-roll', target: dName, result: 'hit',
+                region, roll, hitChance: hitChance.hit, critChance: hitChance.crit,
+                message: `${aName} → ${dName}: hit (${region})`,
+            })
             return { hit: true, crit: false } // hit
         }
 
@@ -540,6 +558,12 @@ export class Combat {
         }
 
         combatDebug(`miss: roll=${roll} vs ${hitChance.hit}%${isCrit ? ' (crit fail)' : ''}`)
+        combatLogPush({
+            actor: aName, action: 'attack-roll', target: dName,
+            result: isCrit ? 'crit-miss' : 'miss',
+            region, roll, hitChance: hitChance.hit, critChance: hitChance.crit,
+            message: `${aName} → ${dName}: ${isCrit ? 'critical miss' : 'miss'} (${region})`,
+        })
         return { hit: false, crit: isCrit } // miss
     }
 
@@ -608,6 +632,13 @@ export class Combat {
         }
 
         combatDebug(`damage: RD=${RD} CM=${critMultiplier} ×${ammoStats.X}/${ammoStats.Y} DT=${DT} DR=${DR}% CD=${CD} → ${damage}`)
+        combatLogPush({
+            actor: actorName(obj), action: 'damage', target: actorName(target), result: 'computed',
+            damage, RD, critMultiplier, ammoX: ammoStats.X, ammoY: ammoStats.Y,
+            DT, DR, CD, damageType,
+            weapon: weapon?.name ?? null,
+            message: `${actorName(obj)} → ${actorName(target)}: ${damage} ${damageType} dmg`,
+        })
         return damage
     }
 
@@ -660,6 +691,12 @@ export class Combat {
         }
 
         combatDebug(`damage(unarmed [${mode.name}]): RD=${RD} CM=${critMultiplier} DT=${DT} DR=${DR}% CD=${CD} → ${damage}`)
+        combatLogPush({
+            actor: actorName(obj), action: 'damage', target: actorName(target), result: 'computed',
+            damage, RD, critMultiplier, ammoX: 1, ammoY: 1, DT, DR, CD,
+            damageType: 'Normal', weapon: `unarmed:${mode.name}`,
+            message: `${actorName(obj)} → ${actorName(target)}: ${damage} dmg (unarmed ${mode.name})`,
+        })
         return damage
     }
 
@@ -941,6 +978,12 @@ export class Combat {
         const victimDisplay = obj.isPlayer ? 'You' : obj.name
         const attackerDisplay = attacker ? (attacker.isPlayer ? 'you' : attacker.name) : 'something'
         uiLog(`${victimDisplay} is killed by ${attackerDisplay}!`)
+        combatLogPush({
+            actor: attacker ? actorName(attacker) : null,
+            action: 'death', target: actorName(obj), result: 'dead',
+            damageType: damageType ?? null,
+            message: `${victimDisplay} killed by ${attackerDisplay}`,
+        })
         globalState.audioEngine.playActionSfx('critter_die')
 
         // Defensively ensure dead flag is set — critterKill (called by critterDamage
@@ -1020,6 +1063,7 @@ export class Combat {
     doAITurn(obj: Critter, idx: number, depth: number, weaponSwitchDone = false): void {
         if (depth > Config.combat.maxAIDepth) {
             combatWarn(`Bailing out of ${depth}-deep AI turn recursion`)
+            combatLogPush({ actor: actorName(obj), action: 'ai-bailout', depth, message: 'AI recursion bail-out' })
             return this.nextTurn()
         }
 
@@ -1027,6 +1071,7 @@ export class Combat {
         var target = this.findTarget(obj)
         if (!target) {
             combatDebug('AI has no target')
+            combatLogPush({ actor: actorName(obj), action: 'ai-decision', result: 'no-target', message: 'AI has no target' })
             return this.nextTurn()
         }
         var distance = hexDistance(obj.position, target.position)
@@ -1047,6 +1092,11 @@ export class Combat {
         if (obj.getStat('HP') <= obj.ai!.info.min_hp) {
             // hp <= min fleeing hp, so flee
             this.log('[AI FLEES]')
+            combatLogPush({
+                actor: actorName(obj), action: 'ai-decision', result: 'flee',
+                target: actorName(target), hp: obj.getStat('HP'), minHp: obj.ai!.info.min_hp,
+                message: `${actorName(obj)} flees`,
+            })
 
             // todo: pick the closest edge of the map
             this.maybeTaunt(obj, 'run', messageRoll)
@@ -1140,6 +1190,12 @@ export class Combat {
         // are we in firing distance?
         if (distance > fireDistance) {
             this.log('[AI CREEPS]')
+            combatLogPush({
+                actor: actorName(obj), action: 'ai-decision', result: 'creep',
+                target: actorName(target), distance, fireDistance,
+                AP: AP.getAvailableMoveAP(),
+                message: `${actorName(obj)} creeps toward ${actorName(target)}`,
+            })
             var neighbors = hexNeighbors(target.position)
             var maxDistance = Math.min(AP.getAvailableMoveAP(), distance - fireDistance)
             this.maybeTaunt(obj, 'move', messageRoll)
@@ -1223,6 +1279,12 @@ export class Combat {
             // ─────────────────────────────────────────────────────────────────────
 
             this.log('[ATTACKING]')
+            combatLogPush({
+                actor: actorName(obj), action: 'ai-decision', result: 'attack',
+                target: actorName(target), distance, AP: AP.getAvailableCombatAP(),
+                weapon: weapon.name ?? null,
+                message: `${actorName(obj)} attacks ${actorName(target)}`,
+            })
             this.maybeTaunt(obj, 'attack', messageRoll)
 
             if (obj.equippedWeapon === null) throw 'combatant has no equipped weapon'
@@ -1292,6 +1354,13 @@ export class Combat {
 
         if (forceTurn) globalState.combat.forceTurn(forceTurn)
 
+        combatLogPush({
+            actor: null, action: 'combat-start',
+            triggerTeams: [...triggerTeams],
+            combatants: globalState.combat.combatants.map((c) => actorName(c)),
+            message: 'Combat started',
+        })
+
         globalState.combat.nextTurn()
         globalState.gMap.updateMap()
     }
@@ -1322,6 +1391,7 @@ export class Combat {
         }
 
         combatDebug('end combat')
+        combatLogPush({ actor: null, action: 'combat-end', result: 'normal', message: 'Combat ended' })
         globalState.combat = null // todo: invert control
         globalState.inCombat = false
         combatActive = false
@@ -1338,6 +1408,7 @@ export class Combat {
             combatant.outline = null
         }
         combatDebug('end combat (forced by script)')
+        combatLogPush({ actor: null, action: 'combat-end', result: 'forced', message: 'Combat ended (forced)' })
         globalState.combat = null
         globalState.inCombat = false
         globalState.audioEngine.playActionSfx('combat_end')
@@ -1444,6 +1515,11 @@ export class Combat {
             this.player.AP!.resetAP()
             drawAP(this.player.AP!.getAvailableMoveAP(), this.player.AP!.getTotalMaxAP())
             drawHP(this.player.getStat('HP'))
+            combatLogPush({
+                actor: actorName(this.player), action: 'turn-begin',
+                AP: this.player.AP!.getAvailableMoveAP(), HP: this.player.getStat('HP'),
+                message: `${actorName(this.player)}: turn begins`,
+            })
         } else {
             this.inPlayerTurn = false
             drawAP(0, this.player.AP!.getTotalMaxAP(), 0, false)
@@ -1456,6 +1532,11 @@ export class Combat {
                 const fireDmg = getRandomInt(3, 6)
                 uiLog(`${critter.name} burns for ${fireDmg} damage.`)
                 combatDebug(`fire DoT: ${critter.name} took ${fireDmg} (${critter.onFireTurns} turns left)`)
+                combatLogPush({
+                    actor: actorName(critter), action: 'fire-dot', target: actorName(critter),
+                    damage: fireDmg, turnsLeft: critter.onFireTurns, damageType: 'Fire',
+                    message: `${actorName(critter)} burns for ${fireDmg}`,
+                })
                 critterDamage(critter, fireDmg, critter, false, false, 'Fire')
                 if (critter.dead) return this.nextTurn() // fire killed them; skip to next
             }
@@ -1474,6 +1555,11 @@ export class Combat {
 
             critter.bonusAC = 0 // reset bonus AC at start of this critter's turn
             critter.AP!.resetAP()
+            combatLogPush({
+                actor: actorName(critter), action: 'turn-begin',
+                AP: critter.AP!.getAvailableMoveAP(), HP: critter.getStat('HP'),
+                message: `${actorName(critter)}: turn begins`,
+            })
             this.doAITurn(critter, this.whoseTurn, 1)
         }
     }

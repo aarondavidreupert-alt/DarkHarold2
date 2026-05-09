@@ -105,6 +105,11 @@ export const Config = {
             inventory: true,
             party: false,
             dialogue: false,
+            // Unified debug logger categories. Default to false — flip in DevTools
+            // (e.g. Config.scripting.debugLogShowType.combat = true) to surface output.
+            combat: false,
+            ai: false,
+            script: false,
         },
     },
 }

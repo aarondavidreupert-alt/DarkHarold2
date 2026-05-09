@@ -18,6 +18,7 @@ import { StatSet, SkillSet } from './char.js'
 import { Point } from './geometry.js'
 import globalState from './globalState.js'
 import { heart } from './heart.js'
+import type { CombatLogEntry } from './logger.js'
 import { SerializedMap } from './map.js'
 import { deserializeObj, SerializedObj } from './object.js'
 import { Scripting } from './scripting.js'
@@ -60,6 +61,10 @@ export interface SaveGame {
         armor: SerializedObj | null
         gvars: { [k: string]: number }
     }
+
+    // Structured combat log accumulated by logger.combatLogPush. Optional so
+    // older saves (without the field) continue to load cleanly.
+    combatLog?: CombatLogEntry[]
 }
 
 function gatherSaveData(name: string): SaveGame {
@@ -97,6 +102,7 @@ function gatherSaveData(name: string): SaveGame {
             armor: p.armor ? p.armor.serialize() : null,
             gvars: Object.assign({}, Scripting.getGlobalVars()),
         },
+        combatLog: globalState.combatLog.slice(),
     }
 }
 
@@ -218,6 +224,11 @@ export function load(id: number): void {
                 }
 
                 globalState.gParty.deserialize(save.party)
+
+                // Restore the structured combat log. Older saves omit this field —
+                // start with an empty list rather than carrying entries from the
+                // previous session.
+                globalState.combatLog = Array.isArray(save.combatLog) ? save.combatLog.slice() : []
 
                 globalState.gMap.changeElevation(save.currentElevation, false)
 

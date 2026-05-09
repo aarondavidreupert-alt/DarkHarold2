@@ -30,6 +30,7 @@ import {
 } from './geometry.js'
 import globalState from './globalState.js'
 import { parseIntFile } from './intfile.js'
+import { dbg } from './logger.js'
 import { useElevator } from './main.js'
 import { Critter, createObjectWithPID, Obj, objectGetDamageType } from './object.js'
 import { Player } from './player.js'
@@ -186,7 +187,7 @@ export module Scripting {
             return true
 
         //warn("is NOT GO: " + obj.toString())
-        console.log('is NOT GO: %o', obj)
+        dbg('script', 'is NOT GO: %o', obj)
         return false
     }
 
@@ -231,14 +232,14 @@ export module Scripting {
         if (currentDialogueObject !== null && dialogueOptionProcs.length === 0) {
             // after running the option procedure we have no options...
             // so close the dialogue
-            console.log('[dialogue exit via dialogueReply (no replies)]')
+            dbg('dialogue', '[dialogue exit via dialogueReply (no replies)]')
             dialogueExit()
         }
     }
 
     export function dialogueEnd() {
         // dialogue exited from [Done] or the UI
-        console.log('[dialogue exit via dialogueExit]')
+        dbg('dialogue', '[dialogue exit via dialogueExit]')
         dialogueExit()
     }
 
@@ -655,7 +656,7 @@ export module Scripting {
             }
 
             //info("add_mult_objs_to_inven: " + count + " counts of " + item.toString(), "inventory")
-            console.log('add_mult_objs_to_inven: %d counts of %o to %o', count, item, obj)
+            dbg('inventory', 'add_mult_objs_to_inven: %d counts of %o to %o', count, item, obj)
             obj.addInventoryItem(item, count)
         }
         rm_mult_objs_from_inven(obj: Obj, item: Obj, count: number) {
@@ -711,7 +712,7 @@ export module Scripting {
             const skillName = SKILL_NAMES[skill] ?? `Unknown(${skill})`
             const critter = obj as Critter
             const value = (typeof critter.getSkill === 'function') ? critter.getSkill(skillName) : 0
-            console.log(`[SCRIPT] has_skill(${skillName}, id=${skill}) → ${value}`)
+            dbg('script', `has_skill(${skillName}, id=${skill}) → ${value}`)
             return value
         }
         roll_vs_skill(obj: Obj, skill: number, bonus: number) {
@@ -722,8 +723,9 @@ export module Scripting {
             const skillValue = (typeof critter.getSkill === 'function') ? critter.getSkill(skillName) : 0
             const critChance = (typeof critter.getStat === 'function') ? critter.getStat('Critical Chance') : 0
             const { roll, delta } = randomRoll(skillValue + bonus, critChance)
-            console.log(
-                `[SCRIPT] roll_vs_skill: ${skillName} (id=${skill}) — `
+            dbg(
+                'script',
+                `roll_vs_skill: ${skillName} (id=${skill}) — `
                 + `base=${skillValue}, bonus=${bonus}, total=${skillValue + bonus}, `
                 + `critChance=${critChance}, roll=${RollResult[roll]}(${roll}), delta=${delta}`
             )
@@ -736,13 +738,13 @@ export module Scripting {
         is_success(roll: number) {
             // FO2-CE ref: random.h — Success=2, CriticalSuccess=3
             const result = rollIsSuccess(roll as RollResult) ? 1 : 0
-            console.log(`[SCRIPT] is_success(${RollResult[roll] ?? roll}) → ${result}`)
+            dbg('script', `is_success(${RollResult[roll] ?? roll}) → ${result}`)
             return result
         }
         is_critical(roll: number) {
             // FO2-CE ref: random.h — CriticalFailure=0, CriticalSuccess=3
             const result = rollIsCritical(roll as RollResult) ? 1 : 0
-            console.log(`[SCRIPT] is_critical(${RollResult[roll] ?? roll}) → ${result}`)
+            dbg('script', `is_critical(${RollResult[roll] ?? roll}) → ${result}`)
             return result
         }
         critter_inven_obj(obj: Critter, where: number) {
@@ -1176,7 +1178,7 @@ export module Scripting {
         // combat
         node998() {
             // enter combat
-            console.log('[enter combat]')
+            dbg('script', '[enter combat]')
         }
 
         // dialogue
@@ -1191,7 +1193,7 @@ export module Scripting {
         gdialog_mod_barter(mod: number) {
             // switch to barter mode
             log('gdialog_mod_barter', arguments)
-            console.log('--> barter mode')
+            dbg('dialogue', '--> barter mode')
             if (!this.self_obj) throw 'need self_obj'
             uiBarterMode(this.self_obj as Critter)
         }
@@ -1589,7 +1591,7 @@ export module Scripting {
         //console.log("%s int file: %o", name, intfile)
 
         if (!currentMapObject)
-            console.log('note: using current script (%s) as map script for this object', intfile.name)
+            dbg('load', 'note: using current script (%s) as map script for this object', intfile.name)
 
         reader.seek(0)
         var vm = new ScriptVMBridge.GameScriptVM(reader, intfile)
@@ -1699,7 +1701,7 @@ export module Scripting {
     export function useSkillOn(who: Critter, skillId: number, obj: Obj): boolean {
         if (!obj._script) throw Error('useSkillOn: Object has no script')
         const skillName = SKILL_NAMES[skillId] ?? `Unknown(${skillId})`
-        console.log(`[SCRIPT] useSkillOn: ${who.name ?? 'unknown'} uses ${skillName} (id=${skillId}) on ${obj.name ?? obj.type ?? 'unknown'}`)
+        dbg('script', `useSkillOn: ${who.name ?? 'unknown'} uses ${skillName} (id=${skillId}) on ${obj.name ?? obj.type ?? 'unknown'}`)
         obj._script.self_obj = obj as ScriptableObj
         obj._script.source_obj = who
         obj._script.cur_map_index = currentMapID
@@ -1707,7 +1709,7 @@ export module Scripting {
         obj._script.action_being_used = skillId
         if (!obj._script.use_skill_on_p_proc) return false
         obj._script.use_skill_on_p_proc()
-        console.log(`[SCRIPT] useSkillOn result: _didOverride=${obj._script._didOverride}`)
+        dbg('script', `useSkillOn result: _didOverride=${obj._script._didOverride}`)
         return obj._script._didOverride
     }
 
@@ -1758,7 +1760,7 @@ export module Scripting {
         obj._script.combat_p_proc()
 
         if (doTerminate) {
-            console.log('DUH DUH TERMINATE!')
+            dbg('script', 'terminate_combat invoked from combat_p_proc')
             Script.prototype.terminate_combat.call(obj._script) // call original
         }
 
@@ -1875,7 +1877,7 @@ export module Scripting {
         spatial_p_proc(this: Script) {
             const self = this.self_obj as unknown as Obj
             if (!self) return
-            console.log(`[Script] actemdor stub: destroying ${self.type} pid=${self.pid}`)
+            dbg('script', `actemdor stub: destroying ${self.type} pid=${self.pid}`)
             globalState.gMap?.destroyObject(self)
         },
     })
@@ -1890,7 +1892,7 @@ export module Scripting {
             const self = this.self_obj as unknown as Obj
             if (!self) return
             const pos = { ...self.position }
-            console.log(`[Script] AIBkDor stub: removing acavedr2 pid=${self.pid} @ (${pos.x},${pos.y})`)
+            dbg('script', `AIBkDor stub: removing acavedr2 pid=${self.pid} @ (${pos.x},${pos.y})`)
             globalState.gMap?.destroyObject(self)
 
             // Spawn acavedr3 (destroyed rubble) at the same tile.

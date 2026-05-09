@@ -16,6 +16,7 @@ import { AudioEngine } from './audio.js'
 import { Combat } from './combat.js'
 import { AreaMap } from './data.js'
 import { Point } from './geometry.js'
+import type { CombatLogEntry } from './logger.js'
 import { GameMap, SerializedMap } from './map.js'
 import { Obj } from './object.js'
 import { Party } from './party.js'
@@ -89,6 +90,10 @@ const globalState = {
 
     knownAreas: new Set<number>(),
 
+    // Structured combat log — populated by logger.combatLogPush().
+    // Survives across map changes and is persisted with the save game.
+    combatLog: [] as CombatLogEntry[],
+
     // Cursor system
     cursorMode: 'move' as CursorMode,
     preScrollCursorMode: 'move' as CursorMode,
@@ -152,6 +157,8 @@ const globalState = {
 
     knownAreas: Set<number>
 
+    combatLog: CombatLogEntry[]
+
     // Cursor system
     cursorMode: CursorMode
     preScrollCursorMode: CursorMode
@@ -164,4 +171,10 @@ export default globalState
 
 if (typeof window !== 'undefined') {
     ;(window as any).globalState = globalState
+    // Convenience alias so DevTools users can grab the structured combat log
+    // without typing globalState.combatLog every time.
+    Object.defineProperty(window, '__combatLog', {
+        get: () => globalState.combatLog,
+        configurable: true,
+    })
 }
