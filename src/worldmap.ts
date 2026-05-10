@@ -24,6 +24,7 @@ import { createObjectWithPID } from './object.js'
 import { hidev, makeEl, showv, uiCloseWorldMap, uiWorldMapShowArea } from './ui.js'
 import { clamp, getFileText, getRandomInt, isNumeric, parseIni } from './util.js'
 import { Config } from './config.js'
+import { dbg } from './logger.js'
 
 // World Map system
 
@@ -392,7 +393,7 @@ export module Worldmap {
 
     function execEncounter(encTable: EncounterTable): void {
         const enc = Encounters.evalEncounter(encTable)
-        console.log('final: map %s, groups %o', enc.mapName, enc.groups)
+        dbg('worldmap', 'final: map %s, groups %o', enc.mapName, enc.groups)
 
         // load map
         globalState.gMap.loadMap(enc.mapName, undefined, undefined, function () {
@@ -421,7 +422,7 @@ export module Worldmap {
         const square = worldmap.squares[squarePos.x][squarePos.y]
         const encTable = worldmap.encounterTables[square.encounterType]
 
-        console.log('enc table: %s -> %o', square.encounterType, encTable)
+        dbg('worldmap', 'enc table: %s -> %o', square.encounterType, encTable)
         execEncounter(encTable)
     }
 
@@ -445,7 +446,7 @@ export module Worldmap {
             // If hard difficulty, encRate += encRate / 15
 
             const roll = getRandomInt(0, 100)
-            console.log('encounter: rolled %d vs %d', roll, encRate)
+            dbg('worldmap', 'encounter: rolled %d vs %d', roll, encRate)
 
             if (roll < encRate) {
                 // We rolled an encounter!
@@ -505,7 +506,7 @@ export module Worldmap {
                 left: ax + 'px',
                 top: ay + 'px',
             })
-            console.log('targeting: ' + ax + ', ' + ay)
+            dbg('worldmap', 'targeting: ' + ax + ', ' + ay)
         }
 
         $worldmapTarget.onclick = function (e: MouseEvent) {
@@ -603,7 +604,7 @@ export module Worldmap {
             const radius = area.size === 'large' ? 32 : 16 // guessing for now
 
             if (pointIntersectsCircle(area.worldPosition, radius, position)) {
-                console.log('intersects ' + area.name)
+                dbg('worldmap', 'intersects ' + area.name)
                 return area
             }
         }

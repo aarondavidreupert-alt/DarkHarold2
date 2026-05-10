@@ -21,6 +21,7 @@ import { Scripting } from "./scripting.js";
 import { fromTileNum } from "./tile.js";
 import { getRandomInt } from "./util.js";
 import { Worldmap } from "./worldmap.js";
+import { dbg } from "./logger.js";
 
 // Random Encounter system
 
@@ -160,23 +161,23 @@ export module Encounters {
     function printTree(node: Node, s: string) {
         switch(node.type) {
             case "if":
-                console.log(s + "if")
+                dbg('encounters', s + "if")
                 printTree(node.cond, s + "  ")
                 break
             case "op":
-                console.log(s + "op " + node.op + "")
+                dbg('encounters', s + "op " + node.op + "")
                 printTree(node.lhs, s + "  ")
                 printTree(node.rhs, s + "  ")
                 break
             case "call":
-                console.log(s + "call " + node.name + "")
+                dbg('encounters', s + "call " + node.name + "")
                 printTree(node.arg, s + "  ")
                 break
             case "var":
-                console.log(s + "var " + node.name)
+                dbg('encounters', s + "var " + node.name)
                 break
             case "int":
-                console.log(s + "int " + node.value)
+                dbg('encounters', s + "int " + node.value)
                 break
         }
     }
@@ -258,11 +259,11 @@ export module Encounters {
 
             if(critter.cond) {
                 if(!evalConds(critter.cond)) {
-                    console.log("critter cond false: %o", critter.cond)
+                    dbg('encounters', "critter cond false: %o", critter.cond)
                     continue
                 }
                 else
-                    console.log("critter cond true: %o", critter.cond)
+                    dbg('encounters', "critter cond true: %o", critter.cond)
             }
 
             if(critter.ratio === undefined)
@@ -270,7 +271,7 @@ export module Encounters {
             else {
                 var num = Math.ceil(critter.ratio/100 * count)
                 // TODO: better distribution (might be +1 now)
-                console.log("critter nums: %d (%d% of %d)", num, critter.ratio, count)
+                dbg('encounters', "critter nums: %d (%d% of %d)", num, critter.ratio, count)
                 for(var j = 0; j < num; j++)
                     critters.push(evalEncounterCritter(critter))
             }
@@ -291,7 +292,7 @@ export module Encounters {
         if(numEncounters === 0)
             throw "pickEncounter: There were no successfully-conditioned encounters"
 
-        console.log("pickEncounter: num: %d, chance: %d, encounters: %o", numEncounters, totalChance, succEncounters)
+        dbg('encounters', "pickEncounter: num: %d, chance: %d, encounters: %o", numEncounters, totalChance, succEncounters)
 
         var luck = globalState.player.getStat("LUK")
         var roll = getRandomInt(0, totalChance) + (luck - 5)
@@ -313,7 +314,7 @@ export module Encounters {
             acc -= chance
         }
 
-        console.log("idx: %d", idx)
+        dbg('encounters', "idx: %d", idx)
         return succEncounters[idx]
     }
 
@@ -333,7 +334,7 @@ export module Encounters {
                 pos = fromTileNum(randomPoint.tileNum)
             }
 
-            console.log("positionCritters: map %o, dir %d, formation %s, pos %o", map, dir, formation, pos)
+            dbg('encounters', "positionCritters: map %o, dir %d, formation %s, pos %o", map, dir, formation, pos)
 
             group.critters.forEach(function(critter) {
                 switch(formation) {
@@ -368,7 +369,7 @@ export module Encounters {
                     case "wedge":
                     case "cone":
                     default:
-                        console.log("UNHANDLED FORMATION %s", formation)
+                        dbg('encounters', "UNHANDLED FORMATION %s", formation)
 
                         // use some arbitrary formation
                         critter.position = {x: pos.x, y: pos.y}
@@ -391,24 +392,24 @@ export module Encounters {
             // special encounter: use specific map
             mapLookupName = encounter.special
             mapName = lookupMapNameFromLookup(mapLookupName)
-            console.log("special encounter: %s", mapName)
+            dbg('encounters', "special encounter: %s", mapName)
         }
 
-        console.log("map: %s (from %s)", mapName, mapLookupName)
-        console.log("encounter: %o", encounter)
+        dbg('encounters', "map: %s (from %s)", mapName, mapLookupName)
+        dbg('encounters', "encounter: %o", encounter)
 
         // TODO: maybe unify these and just have a `.groups` in the encounter, along with a target.
         if(encounter.enc.type === "ambush") {
             // player ambush
-            console.log("(player ambush)")
+            dbg('encounters', "(player ambush)")
 
             var party = encounter.enc.party
             var group = Worldmap.getEncounterGroup(party.name)
             var position = group.position
 
-            console.log("party: %d-%d of %s", party.start, party.end, party.name)
-            console.log("encounter group: %o", group)
-            console.log("position:", position)
+            dbg('encounters', "party: %d-%d of %s", party.start, party.end, party.name)
+            dbg('encounters', "encounter group: %o", group)
+            dbg('encounters', "position:", position)
 
             var critterCount = getRandomInt(party.start, party.end)
             var critters = evalEncounterCritters(critterCount, group)
@@ -418,7 +419,7 @@ export module Encounters {
             // two factions fighting
             var firstParty = encounter.enc.firstParty
             var secondParty = encounter.enc.secondParty
-            console.log("two factions: %o vs %o", firstParty, secondParty)
+            dbg('encounters', "two factions: %o vs %o", firstParty, secondParty)
 
             if(!firstParty) throw Error();
 
@@ -438,7 +439,7 @@ export module Encounters {
         }
         else throw "unknown encounter type: " + encounter.enc.type
 
-        console.log("groups: %o", groups)
+        dbg('encounters', "groups: %o", groups)
 
         return {mapName: mapName,
                 mapLookupName: mapLookupName,

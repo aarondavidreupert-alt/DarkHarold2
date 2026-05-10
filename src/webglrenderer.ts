@@ -10,6 +10,7 @@ import { tileToScreen, toTileNum, TILE_HEIGHT, TILE_WIDTH } from './tile.js'
 import { getFileJSON } from './util.js'
 import { Config } from './config.js'
 import { Font } from './formats/fon.js'
+import { dbg } from './logger.js'
 
 export interface ShaderSources {
     fragment: string
@@ -314,7 +315,7 @@ export class WebGLRenderer extends Renderer {
         const uTileTileIntensity = gl.getUniformLocation(this.tileShader, 'u_tileIntensity')
         const uTileScreenResolution = gl.getUniformLocation(this.tileShader, 'u_screenResolution')
         this.uTileScreenResolutionLoc = uTileScreenResolution
-        console.log(
+        dbg('renderer',
             `[lighting/init] tileShader uniforms — u_ambient=${this.uTileAmbient !== null}, ` +
             `u_camera=${this.uTileCamera !== null}, u_tileIntensity=${uTileTileIntensity !== null}, ` +
             `u_screenResolution=${uTileScreenResolution !== null}, ` +
@@ -381,7 +382,7 @@ export class WebGLRenderer extends Renderer {
             } else {
                 this.floorLightingMode = Config.engine.floorLightingMode as 'gpu' | 'cpu'
             }
-            console.log('[Lighting] mode:', this.floorLightingMode)
+            dbg('renderer', '[Lighting] mode:', this.floorLightingMode)
 
             // Floor shader samples the same 200×200 tile intensity texture
             // (already created above and bound to unit 5 for the tile shader).
@@ -447,7 +448,7 @@ export class WebGLRenderer extends Renderer {
         gl.compileShader(shader)
 
         if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-            console.log('An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader))
+            dbg('renderer', 'An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader))
             return null
         }
 
@@ -463,7 +464,7 @@ export class WebGLRenderer extends Renderer {
         gl.linkProgram(program)
 
         if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-            console.log('Unable to initialize the shader program.')
+            dbg('renderer', 'Unable to initialize the shader program.')
             return null
         }
 
@@ -520,7 +521,7 @@ export class WebGLRenderer extends Renderer {
         const ambientCPU = GameTime.getAmbientLightNormalized()
         gl.uniform1f(this.uAmbient, ambientCPU)
         if (ambientCPU !== this.lastLoggedAmbient) {
-            console.log(`[lighting/cpu] u_ambient = ${ambientCPU.toFixed(3)} (hour ${GameTime.getHour()}:${String(GameTime.getMinute()).padStart(2,'0')})`)
+            dbg('renderer', `[lighting/cpu] u_ambient = ${ambientCPU.toFixed(3)} (hour ${GameTime.getHour()}:${String(GameTime.getMinute()).padStart(2,'0')})`)
             this.lastLoggedAmbient = ambientCPU
         }
 
@@ -574,7 +575,7 @@ export class WebGLRenderer extends Renderer {
                     // TODO: uses hack
                     const texture = this.getTextureFromHack(img)
                     if (!texture) {
-                        console.log('skipping tile without a texture: ' + img)
+                        dbg('renderer', 'skipping tile without a texture: ' + img)
                         continue
                     }
 
@@ -763,7 +764,7 @@ export class WebGLRenderer extends Renderer {
         const ambientGPU = GameTime.getAmbientLightNormalized()
         gl.uniform1f(this.uAmbient, ambientGPU)
         if (ambientGPU !== this.lastLoggedAmbient) {
-            console.log(`[lighting/gpu] u_ambient = ${ambientGPU.toFixed(3)} (hour ${GameTime.getHour()}:${String(GameTime.getMinute()).padStart(2,'0')})`)
+            dbg('renderer', `[lighting/gpu] u_ambient = ${ambientGPU.toFixed(3)} (hour ${GameTime.getHour()}:${String(GameTime.getMinute()).padStart(2,'0')})`)
             this.lastLoggedAmbient = ambientGPU
         }
         gl.uniform2f(this.litScaleLocation, SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -931,7 +932,7 @@ export class WebGLRenderer extends Renderer {
                 // TODO: uses hack
                 const texture = this.getTextureFromHack(img)
                 if (!texture) {
-                    console.log('skipping tile without a texture: ' + img)
+                    dbg('renderer', 'skipping tile without a texture: ' + img)
                     continue
                 }
                 gl.activeTexture(gl.TEXTURE0)
@@ -997,7 +998,7 @@ export class WebGLRenderer extends Renderer {
 
                 const texture = this.getTextureFromHack(img)
                 if (!texture) {
-                    console.log('skipping roof tile without a texture: ' + img)
+                    dbg('renderer', 'skipping roof tile without a texture: ' + img)
                     continue
                 }
                 gl.activeTexture(gl.TEXTURE0)
@@ -1065,7 +1066,7 @@ export class WebGLRenderer extends Renderer {
             const ambient = GameTime.getAmbientLightNormalized()
             if (!this.tileLightingLoggedOnce) {
                 this.tileLightingLoggedOnce = true
-                console.log(
+                dbg('renderer',
                     `[setTileLighting] FIRST CALL — ambient=${ambient.toFixed(3)}, ` +
                     `uTileAmbient=${this.uTileAmbient}, uTileCamera=${this.uTileCamera}, ` +
                     `tileIntensityTex=${this.tileIntensityTexture}, ` +
@@ -1104,7 +1105,7 @@ export class WebGLRenderer extends Renderer {
         // TODO: uses hack
         const texture = this.getTextureFromHack(imgPath)
         if (!texture) {
-            console.log('no texture for object')
+            dbg('renderer', 'no texture for object')
             return
         }
 

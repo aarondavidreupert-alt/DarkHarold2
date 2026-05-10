@@ -17,6 +17,7 @@ limitations under the License.
 import { getCurrentMapInfo } from './data.js'
 import { getRandomInt } from './util.js'
 import { ACTION_SOUNDS, getWeaponSounds, ImpactMaterial, resolveSound } from './soundMap.js'
+import { dbg, dbgWarn } from './logger.js'
 
 // Audio engine for handling music and sound effects
 
@@ -82,7 +83,7 @@ export class HTMLAudioEngine implements AudioEngine {
             try {
                 const res = await fetch('audio/sfx/' + name + '.wav')
                 if (!res.ok) {
-                    console.warn('[Audio] could not load:', name, `(${res.status})`)
+                    dbgWarn('audio', '[Audio] could not load:', name, `(${res.status})`)
                     this.sfxMissing.add(name)
                     return null
                 }
@@ -90,7 +91,7 @@ export class HTMLAudioEngine implements AudioEngine {
                 this.sfxCache.set(name, buf)
                 return buf
             } catch (e) {
-                console.warn('[Audio] decode failed:', name, e)
+                dbgWarn('audio', '[Audio] decode failed:', name, e)
                 this.sfxMissing.add(name)
                 return null
             } finally {
@@ -115,7 +116,7 @@ export class HTMLAudioEngine implements AudioEngine {
         source.start()
         // Log every actual play (not just first-load) so the console reflects
         // sound events 1:1 — including cache hits like repeated door toggles.
-        console.log('[Sound]', name)
+        dbg('audio', '[Sound]', name)
     }
 
     playSfx(sfx: string): void {
@@ -123,7 +124,7 @@ export class HTMLAudioEngine implements AudioEngine {
         this.loadSfx(sfx).then(buf => {
             if (buf) return this.playBuffer(sfx, buf)
             return undefined
-        }).catch(e => console.warn('[Audio] playSfx failed:', sfx, e))
+        }).catch(e => dbgWarn('audio', '[Audio] playSfx failed:', sfx, e))
     }
 
     playMusic(music: string): void {
@@ -135,12 +136,12 @@ export class HTMLAudioEngine implements AudioEngine {
     playSound(soundName: string): HTMLAudioElement | null {
         var sound = new Audio()
         sound.addEventListener('canplaythrough', () => {
-            console.log('[Sound]', soundName)
-            sound.play().catch(e => console.log('[Audio] play() blocked:', e))
+            dbg('audio', '[Sound]', soundName)
+            sound.play().catch(e => dbg('audio', '[Audio] play() blocked:', e))
         }, false)
         sound.addEventListener('error', () => {
             // File missing (404) or unsupported format — fail silently to avoid console spam
-            console.warn('[Audio] could not load:', soundName)
+            dbgWarn('audio', '[Audio] could not load:', soundName)
         }, false)
         sound.src = 'audio/' + soundName + '.wav'
         return sound
@@ -168,7 +169,7 @@ export class HTMLAudioEngine implements AudioEngine {
                     if (fb) return this.playBuffer(sounds.attack, fb)
                     return undefined
                 })
-            }).catch(e => console.warn('[Audio] playWeaponSfx burst failed:', file, e))
+            }).catch(e => dbgWarn('audio', '[Audio] playWeaponSfx burst failed:', file, e))
             return
         }
 

@@ -113,6 +113,11 @@ export const Config = {
             map: false,
             object: false,
             audio: false,
+            renderer: false,
+            lighting: false,
+            worldmap: false,
+            encounters: false,
+            saveload: false,
         },
     },
 }

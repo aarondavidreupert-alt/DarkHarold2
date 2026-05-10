@@ -18,6 +18,7 @@ import { hexInDirectionDistance } from "./geometry.js"
 import globalState from "./globalState.js"
 import { Obj } from "./object.js"
 import { fromTileNum, setCenterTile, toTileNum } from "./tile.js"
+import { dbg } from "./logger.js"
 
 // Generates a lightmap for floor lighting
 
@@ -74,7 +75,7 @@ export module Lightmap {
 
         if(!isInit) {
             // init
-            console.log("initializing light tables")
+            dbg('lighting', "initializing light tables")
             obj_light_table_init()
             isInit = true
         }
@@ -298,7 +299,7 @@ export module Lightmap {
 
                                 // if(curObj+24h & 1 === 0) { continue }
                                 if((curObj.flags & 1) !== 0) { // internal flag?
-                                    console.log("continue (%s)", curObj.flags.toString(16))
+                                    dbg('lighting', "continue (%s)", curObj.flags.toString(16))
                                     continue
                                 }
 
@@ -533,7 +534,7 @@ export module Lightmap {
 
         var hex = hexInDirectionDistance(fromTileNum(tileNum), dir, distance)
         if(!hex) {
-            console.log("hex (input tile is %s) is %o; dir=%d distance=%d", tileNum.toString(16), hex, dir, distance)
+            dbg('lighting', "hex (input tile is %s) is %o; dir=%d distance=%d", tileNum.toString(16), hex, dir, distance)
             return -1
         }
 

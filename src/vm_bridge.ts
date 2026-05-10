@@ -18,6 +18,7 @@ import globalState from "./globalState.js"
 import { IntFile } from "./intfile.js"
 import { Scripting } from "./scripting.js"
 import { BinaryReader } from "./util.js"
+import { dbg } from "./logger.js"
 import { opMap, ScriptVM } from "./vm.js"
 
 // Bridge between Scripting API and the Scripting VM
@@ -180,7 +181,7 @@ export module ScriptVMBridge {
             // halt where we are, saving our return address.
             // we will resume when the dialogue system resumes us on dialogue exit
             // usually to run cleanup code.
-            console.log("halting in gsay_end (pc=0x%s)", this.pc.toString(16))
+            dbg('script', "halting in gsay_end (pc=0x%s)", this.pc.toString(16))
             this.retStack.push(this.pc + 2)
             this.halted = true
             this.scriptObj.gsay_end()

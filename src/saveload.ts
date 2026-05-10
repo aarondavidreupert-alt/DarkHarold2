@@ -18,6 +18,7 @@ import { StatSet, SkillSet } from './char.js'
 import { Point } from './geometry.js'
 import globalState from './globalState.js'
 import { heart } from './heart.js'
+import { dbg, dbgWarn } from './logger.js'
 import type { CombatLogEntry } from './logger.js'
 import { SerializedMap } from './map.js'
 import { deserializeObj, SerializedObj } from './object.js'
@@ -119,7 +120,7 @@ function withTransaction(f: (trans: IDBTransaction) => void, finished?: () => vo
         trans.oncomplete = finished
     }
     trans.onerror = (e: any) => {
-        console.error('Database error: ' + (<any>e.target).errorCode)
+        dbgWarn('saveload', 'Database error: ' + (<any>e.target).errorCode)
     }
     f(trans)
 }
@@ -146,16 +147,16 @@ export function saveList(callback: (saves: SaveGame[]) => void): void {
 
 export function debugSaveList(): void {
     saveList((saves: SaveGame[]) => {
-        console.log('Save List:')
+        dbg('saveload', 'Save List:')
         for (const savegame of saves) {
-            console.log('  -', savegame.name, formatSaveDate(savegame), savegame)
+            dbg('saveload', '  -', savegame.name, formatSaveDate(savegame), savegame)
         }
     })
 }
 
 export function debugSave(): void {
     save('debug', undefined, () => {
-        console.log('[SaveLoad] Done')
+        dbg('saveload', '[SaveLoad] Done')
     })
 }
 
@@ -163,7 +164,7 @@ export function save(name: string, slot = -1, callback?: () => void): void {
     const save = gatherSaveData(name)
 
     const dirtyMapNames = Object.keys(globalState.dirtyMapCache)
-    console.log(
+    dbg('saveload',
         `[SaveLoad] Saving ${1 + dirtyMapNames.length} maps (current: ${
             globalState.gMap.name
         } plus dirty maps: ${dirtyMapNames.join(', ')})`
@@ -176,7 +177,7 @@ export function save(name: string, slot = -1, callback?: () => void): void {
     withTransaction((trans) => {
         trans.objectStore('saves').put(save)
 
-        console.log("[SaveLoad] Saving game data as '%s'", name)
+        dbg('saveload', "[SaveLoad] Saving game data as '%s'", name)
     }, callback)
 }
 
@@ -188,13 +189,13 @@ export function load(id: number): void {
             const save: SaveGame = (<any>e.target).result
             const savedMap = save.savedMaps[save.currentMap]
 
-            console.log("[SaveLoad] Loading save #%d ('%s') from %s", id, save.name, formatSaveDate(save))
+            dbg('saveload', "[SaveLoad] Loading save #%d ('%s') from %s", id, save.name, formatSaveDate(save))
 
             // Apply the save state. Called directly (same-location) or after
             // images finish loading (cross-location) via the isLoading gate.
             const applyState = () => {
                 globalState.gMap.deserialize(savedMap)
-                console.log('[SaveLoad] Finished map deserialization')
+                dbg('saveload', '[SaveLoad] Finished map deserialization')
 
                 // Restore game clock (older saves omit this field).
                 if (typeof save.gameTickTime === 'number') {
@@ -241,7 +242,7 @@ export function load(id: number): void {
                 drawAC(p.getStat('AC'))
                 uiDrawWeapon()
 
-                console.log('[SaveLoad] Finished loading map %s', savedMap.name)
+                dbg('saveload', '[SaveLoad] Finished loading map %s', savedMap.name)
             }
 
             const changingMap = globalState.gMap?.name !== save.currentMap
@@ -298,9 +299,9 @@ export function saveLoadInit(): void {
         db = request.result
 
         db.onerror = function (e) {
-            console.error('Database error: ' + (<any>e.target).errorCode)
+            dbgWarn('saveload', 'Database error: ' + (<any>e.target).errorCode)
         }
 
-        console.log('Established DB connection')
+        dbg('saveload', 'Established DB connection')
     }
 }

@@ -18,6 +18,7 @@ import { transpile } from './transpiler.js'
 import { IntFile } from './intfile.js'
 import { arrayIncludes, BinaryReader } from './util.js'
 import { Config } from './config.js'
+import { dbg, dbgWarn } from './logger.js'
 
 // Scripting VM for .INT files
 
@@ -127,7 +128,7 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
         var argc = this.pop()
         var procIdx = this.pop()
         var proc = this.intfile.proceduresTable[procIdx]
-        console.log('CHECK ARGS: argc=%d procIdx=%d, proc=%o', argc, procIdx, proc)
+        dbg('script', 'CHECK ARGS: argc=%d procIdx=%d, proc=%o', argc, procIdx, proc)
         if (argc !== proc.argc) throw `vm error: expected ${proc.argc} args, got ${argc} args when calling ${proc.name}`
     },
 
@@ -292,15 +293,15 @@ export class ScriptVM {
         // dispatch based on opMap
         if (opMap[opcode] !== undefined) opMap[opcode].call(this)
         else {
-            console.warn(
+            dbgWarn('script',
                 'unimplemented opcode %s (pc=%s) in %s',
                 opcode.toString(16),
                 this.pc.toString(16),
                 this.intfile.name
             )
             if (Config.engine.doDisasmOnUnimplOp) {
-                console.log('disassembly:')
-                console.log(transpile(this.intfile, this.script))
+                dbg('script', 'disassembly:')
+                dbg('script', transpile(this.intfile, this.script))
             }
             return false
         }
