@@ -21,6 +21,7 @@ import { hexInDirectionDistance, hexLine, HEX_GRID_SIZE, Point, pointInBoundingB
 import globalState from './globalState.js'
 import { heart } from './heart.js'
 import { Lightmap } from './lightmap.js'
+import { dbg, dbgWarn } from './logger.js'
 import { Critter, deserializeObj, Obj, objFromMapObject } from './object.js'
 import { centerCamera } from './renderer.js'
 import { Scripting } from './scripting.js'
@@ -102,14 +103,14 @@ export class GameMap {
             const objects = this.objects[level]
             for (let i = 0; i < objects.length; i++) {
                 if (objects[i] === obj) {
-                    console.log('removeObject: destroying index %d (%o/%o)', i, obj, objects[i])
+                    dbg('object', 'removeObject: destroying index %d (%o/%o)', i, obj, objects[i])
                     this.objects[level].splice(i, 1)
                     return
                 }
             }
         }
 
-        console.log("removeObject: couldn't find object on map")
+        dbgWarn('object', "removeObject: couldn't find object on map")
         console.trace()
     }
 
@@ -165,7 +166,8 @@ export class GameMap {
         const result = total > 0 && empty / total > 0.5
         this._isOutdoorCached = result
         this._isOutdoorCachedElevation = this.currentElevation
-        console.log(
+        dbg(
+            'map',
             `[lighting] isOutdoor(${this.name}, elev ${this.currentElevation}) = ${result} ` +
             `(${empty}/${total} empty roof tiles)`
         )
@@ -178,7 +180,7 @@ export class GameMap {
 
     changeElevation(level: number, updateScripts = false, isMapLoading = false) {
         if (!this.mapObj.levels[level]) {
-            console.warn(`changeElevation: elevation ${level} does not exist`)
+            dbgWarn('map', `changeElevation: elevation ${level} does not exist`)
             return
         }
         const oldElevation = this.currentElevation
@@ -244,7 +246,7 @@ export class GameMap {
                     const pos = hexInDirectionDistance(globalState.player.position, dir, dist)
                     if (this.objectsAtPosition(pos).length === 0) {
                         obj.position = pos
-                        console.log('placed %o @ %o', obj, pos)
+                        dbg('object', 'placed %o @ %o', obj, pos)
                         placed = true
                         break
                     }
@@ -256,7 +258,7 @@ export class GameMap {
             }
 
             if (!placed) {
-                console.log("couldn't place %o (player position: %o)", obj, globalState.player.position)
+                dbg('object', "couldn't place %o (player position: %o)", obj, globalState.player.position)
             }
         })
     }
@@ -275,7 +277,7 @@ export class GameMap {
 
         if (overridenStartPos) {
             // Starting position was overridden by map_enter_p_proc -- use the new one
-            console.log('Starting position overriden to %o', overridenStartPos)
+            dbg('map', 'Starting position overriden to %o', overridenStartPos)
             globalState.player.position = overridenStartPos.position
             globalState.player.orientation = overridenStartPos.orientation
             this.currentElevation = globalState.currentElevation = overridenStartPos.elevation
@@ -296,27 +298,27 @@ export class GameMap {
 	
 	private playMapMusic(): void {
 		const curMapInfo = getCurrentMapInfo()
-		console.log('[Music] curMapInfo:', curMapInfo)
-		console.log('[Music] music field:', curMapInfo?.music)
+		dbg('audio', '[Music] curMapInfo:', curMapInfo)
+		dbg('audio', '[Music] music field:', curMapInfo?.music)
 		globalState.audioEngine.stopAll()
 		if (curMapInfo && curMapInfo.music) {
-			console.log('[Music] calling playMusic with:', curMapInfo.music)
+			dbg('audio', '[Music] calling playMusic with:', curMapInfo.music)
 			globalState.audioEngine.playMusic(curMapInfo.music)
 		} else {
-			console.log('[Music] no music to play')
+			dbg('audio', '[Music] no music to play')
 		}
 	}
 	
     loadMap(mapName: string, startingPosition?: Point, startingElevation = 0, loadedCallback?: () => void): void {
         if (Config.engine.doSaveDirtyMaps && this.name !== null) {
             // if a map is already loaded, save it to the dirty map cache before loading
-            console.log(`[Main] Serializing map ${this.name} and committing to dirty map cache`)
+            dbg('map', `[Main] Serializing map ${this.name} and committing to dirty map cache`)
             globalState.dirtyMapCache[this.name] = this.serialize()
         }
 
         if (mapName in globalState.dirtyMapCache) {
             // Previously loaded; load from dirty map cache
-            console.log(`[Main] Loading map ${mapName} from dirty map cache`)
+            dbg('map', `[Main] Loading map ${mapName} from dirty map cache`)
 
             Events.emit('loadMapPre')
 
@@ -348,12 +350,12 @@ export class GameMap {
 
             // Done
 			this.playMapMusic()
-            console.log(`[Main] Loaded from dirty map cache`)
+            dbg('map', `[Main] Loaded from dirty map cache`)
             loadedCallback && loadedCallback()
 
             Events.emit('loadMapPost')
         } else {
-            console.log(`[Main] Loading map ${mapName} from clean load`)
+            dbg('map', `[Main] Loading map ${mapName} from clean load`)
             this.loadNewMap(mapName, startingPosition, startingElevation, loadedCallback)
         }
     }
@@ -392,13 +394,13 @@ export class GameMap {
         // reset player animation status (to idle)
         globalState.player.clearAnim()
 
-        console.log('loading map ' + mapName)
+        dbg('map', 'loading map ' + mapName)
 
         const mapImages = getFileJSON('maps/' + mapName + '.images.json')
         for (let i = 0; i < mapImages.length; i++) {
             load(mapImages[i])
         }
-        console.log('loading ' + mapImages.length + ' images')
+        dbg('map', 'loading ' + mapImages.length + ' images')
 
         const map = getFileJSON('maps/' + mapName + '.json')
         this.mapObj = map
@@ -414,7 +416,7 @@ export class GameMap {
                 Scripting.setMapScript(this.mapScript)
             } catch (e) {
                 this.mapScript = null
-                console.log('ERROR LOADING MAP SCRIPT:', e.message)
+                dbgWarn('map', 'ERROR LOADING MAP SCRIPT:', e.message)
             }
         } else {
             this.mapScript = null
@@ -433,7 +435,7 @@ export class GameMap {
                     level.forEach((spatial: Spatial) => {
                         const script = Scripting.loadScript(spatial.script)
                         if (script === null) {
-                            console.log('load script failed for spatial ' + spatial.script)
+                            dbgWarn('map', 'load script failed for spatial ' + spatial.script)
                         } else {
                             spatial._script = script
                             // no need to initialize here because spatials only use spatial_p_proc
@@ -477,7 +479,8 @@ export class GameMap {
         }
 
         // TODO: is map_enter_p_proc called on elevation change?
-        console.log(
+        dbg(
+            'map',
             'loaded (' +
                 map.levels.length +
                 ' levels, ' +
@@ -511,7 +514,8 @@ export class GameMap {
         // clear audio and use the map music
 		this.playMapMusic()
 
-        console.log(
+        dbg(
+            'map',
             `[lighting] map '${mapName}' loaded — doFloorLighting=${Config.engine.doFloorLighting}, ` +
             `floorLightingMode=${Config.engine.floorLightingMode}`
         )
@@ -524,7 +528,7 @@ export class GameMap {
         if (mapName !== null) {
             this.loadMap(mapName, startingPosition, startingElevation)
         } else {
-            console.log("couldn't lookup map name for map ID " + mapID)
+            dbgWarn('map', "couldn't lookup map name for map ID " + mapID)
         }
     }
 

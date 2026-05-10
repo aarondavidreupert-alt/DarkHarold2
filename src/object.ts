@@ -21,6 +21,7 @@ import { directionOfDelta, hexDistance, hexesInRadius, hexToScreen, Point } from
 import globalState from './globalState.js'
 import { lazyLoadImage } from './images.js'
 import { Lightmap } from './lightmap.js'
+import { dbg, dbgWarn } from './logger.js'
 import { getPROSubTypeName, getPROTypeName, loadPRO, lookupArt, makePID } from './pro.js'
 import { Scripting } from './scripting.js'
 import { fromTileNum } from './tile.js'
@@ -108,7 +109,7 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
         uiLog(`Armed! Timer set to ${delayTurns} turn(s).`)
     } else {
         const { roll } = skillRoll(source, 'Traps')
-        console.log(`[Object] Traps roll: ${RollResult[roll]}`)
+        dbg('object', `[Object] Traps roll: ${RollResult[roll]}`)
         if (roll === RollResult.CriticalFailure) {
             uiLog('The explosive detonates in your hands!')
             obj.explode(source, minDmg, maxDmg, radius)
@@ -129,7 +130,7 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
     obj.art    = isDynamite ? 'art/items/dynamite'  : 'art/items/plstic'
 
     scheduleExplosion(obj, minDmg, maxDmg, radius, delayTurns)
-    console.log(`[Object] ${isDynamite ? 'Dynamite' : 'Plastic Explosive'} armed: delay=${delayTurns}t dmg=${minDmg}-${maxDmg} r=${radius}`)
+    dbg('object', `[Object] ${isDynamite ? 'Dynamite' : 'Plastic Explosive'} armed: delay=${delayTurns}t dmg=${minDmg}-${maxDmg} r=${radius}`)
 }
 
 // Set the object (door/container) open/closed; returns true if possible, false if not (e.g. locked)
@@ -209,7 +210,7 @@ function objectZCompare(a: Obj, b: Obj): number {
 function objectZOrder(obj: Obj, index: number): void {
     const oldIdx = index !== undefined ? index : objectFindIndex(obj)
     if (oldIdx === -1) {
-        console.warn('[Object] objectZOrder: no such object')
+        dbgWarn('object', '[Object] objectZOrder: no such object')
         return
     }
 
@@ -322,7 +323,7 @@ export class Obj {
     }
 
     static fromPID_<T extends Obj>(obj: T, pid: number, sid?: number): T {
-        console.log(`[Object] fromPID: pid=${pid}, sid=${sid}`)
+        dbg('object', `[Object] fromPID: pid=${pid}, sid=${sid}`)
         const pidType = (pid >> 24) & 0xff
         const pidID = pid & 0xffff
 
@@ -339,7 +340,7 @@ export class Obj {
             obj.name = getMessage('pro_item', pro.textID)
 
             const invPID = pro.extra.invFRM & 0xffff
-            console.log(`[Object] invPID: ${invPID}, pid=${pid}`)
+            dbg('object', `[Object] invPID: ${invPID}, pid=${pid}`)
             if (invPID !== 0xffff) {
                 obj.invArt = 'art/inven/' + getLstId('art/inven/inven', invPID).split('.')[0]
             }
@@ -436,26 +437,26 @@ export class Obj {
                 // resolution returns an unexpected name or throws.
                 const sidStub = Scripting.loadScriptBySid(lstIndex)
                 if (sidStub) {
-                    console.log(`[Script] PRO sid=${lstIndex} → applying SID stub for pid=${this.pid}`)
+                    dbg('object', `[Script] PRO sid=${lstIndex} → applying SID stub for pid=${this.pid}`)
                     this.script = sidStub.scriptName
                     this._script = sidStub
                     try { Scripting.initScript(this._script, this) } catch (e) {
-                        console.warn(`[Script] initScript stub error for sid=${lstIndex}:`, e)
+                        dbgWarn('object', `[Script] initScript stub error for sid=${lstIndex}:`, e)
                     }
                     return
                 }
                 try {
                     scriptName = lookupScriptName(lstIndex)
-                    console.log(`[Script] PRO sid=${lstIndex} → name='${scriptName}' (pid=${this.pid})`)
+                    dbg('object', `[Script] PRO sid=${lstIndex} → name='${scriptName}' (pid=${this.pid})`)
                 } catch (e) {
-                    console.warn(`[Script] PRO sid=${lstIndex} lookup failed for pid=${this.pid}:`, e)
+                    dbgWarn('object', `[Script] PRO sid=${lstIndex} lookup failed for pid=${this.pid}:`, e)
                 }
             }
         }
 
         if (scriptName != null) {
             if (Config.engine.doLogScriptLoads) {
-                console.log('[Script] loadScript: loading %s (sid=%d)', scriptName, sid)
+                dbg('object', '[Script] loadScript: loading %s (sid=%d)', scriptName, sid)
             }
             // Guarded: many proto-derived script names point at .int files that
             // may not be present in this build. A missing file must not crash
@@ -464,17 +465,17 @@ export class Obj {
             try {
                 script = Scripting.loadScript(scriptName)
             } catch (e) {
-                console.warn('[Script] loadScript: error loading %s (sid=%d):', scriptName, sid, e)
+                dbgWarn('object', '[Script] loadScript: error loading %s (sid=%d):', scriptName, sid, e)
             }
             if (!script) {
-                console.warn('[Script] loadScript: failed for %s (sid=%d)', scriptName, sid)
+                dbgWarn('object', '[Script] loadScript: failed for %s (sid=%d)', scriptName, sid)
             } else {
                 this.script = scriptName
                 this._script = script
                 try {
                     Scripting.initScript(this._script, this)
                 } catch (e) {
-                    console.warn('[Script] initScript error for %s:', scriptName, e)
+                    dbgWarn('object', '[Script] initScript error for %s:', scriptName, e)
                 }
             }
         }
@@ -607,7 +608,7 @@ export class Obj {
 
     clone(): Obj {
         if (this._script) {
-            console.log('[Object] cloning an object with a script: %o', this)
+            dbg('object', '[Object] cloning an object with a script: %o', this)
             const _script = this._script
             this._script = null
             const obj = cloneItem(this)
@@ -721,7 +722,7 @@ export class Obj {
     // Returns whether or not the object was used
     use(source?: Critter, useScript?: boolean): boolean {
         if (this.canUse === false && !this.isContainer) {
-            console.log("[Object] can't use object")
+            dbg('object', "[Object] can't use object")
             return false
         }
 
@@ -730,11 +731,11 @@ export class Obj {
                 source = globalState.player
             }
             if (Scripting.use(this, source) === true) {
-                console.log('[Object] useObject: overridden by script')
+                dbg('object', '[Object] useObject: overridden by script')
                 return true // script overrided us
             }
         } else if (this.script !== undefined && !this._script) {
-            console.warn('[Object] used object has script but is not loaded: ' + this.script)
+            dbgWarn('object', '[Object] used object has script but is not loaded: ' + this.script)
         }
 
         if (this.isExplosive) {
@@ -757,12 +758,12 @@ export class Obj {
 
             if (this.extra.destinationMap === -1 && this.extra.destination !== -1) {
                 // same map, new destination
-                console.log(`[Object] stairs: tile=(${destTile.x}, ${destTile.y}), elev=${destElev}`)
+                dbg('object', `[Object] stairs: tile=(${destTile.x}, ${destTile.y}), elev=${destElev}`)
 
                 globalState.player.position = destTile
                 globalState.gMap.changeElevation(destElev)
             } else {
-                console.log(`[Object] stairs → ${this.extra.destinationMap} @ (${destTile.x}, ${destTile.y}), elev=${destElev}`)
+                dbg('object', `[Object] stairs → ${this.extra.destinationMap} @ (${destTile.x}, ${destTile.y}), elev=${destElev}`)
                 globalState.gMap.loadMapByID(this.extra.destinationMap, destTile, destElev)
             }
         } else if (this.isLadder) {
@@ -770,7 +771,7 @@ export class Obj {
             const level = isTop ? globalState.currentElevation + 1 : globalState.currentElevation - 1
             const destTile = fromTileNum(this.extra.destination & 0xffff)
             // TODO: destination also supposedly contains elevation and map
-            console.log(`[Object] ladder (${isTop ? 'top' : 'bottom'} → level ${level})`)
+            dbg('object', `[Object] ladder (${isTop ? 'top' : 'bottom'} → level ${level})`)
             const actor = source ?? globalState.player
             if (actor.hasAnimation('climb')) {
                 actor.staticAnimation('climb', () => {
@@ -801,7 +802,7 @@ export class Obj {
             if (!globalState.gMap) return
             globalState.gMap.addObject(explosion)
             globalState.audioEngine?.playActionSfx('explosion')
-            console.log(`[Object] explosion: dmg=${damage} radius=${radius}`)
+            dbg('object', `[Object] explosion: dmg=${damage} radius=${radius}`)
 
             explosion.singleAnimation(false, () => {
                 globalState.gMap?.destroyObject(explosion)
@@ -814,7 +815,7 @@ export class Obj {
                         if (target === explosion || target === this) continue
 
                         if (target.type === 'critter' && !(target as Critter).dead) {
-                            console.log(`[Object] explosion hits ${(target as Critter).name} for ${damage}`)
+                            dbg('object', `[Object] explosion hits ${(target as Critter).name} for ${damage}`)
                             critterDamage(target as Critter, damage, killer, true, true, 'Explosive')
                         } else if (target.isDoor || target.isContainer) {
                             // Vanilla: door/container destroy_p_proc swaps to destroyed-open FRM.
@@ -847,7 +848,7 @@ export class Obj {
                         try {
                             Scripting.spatial(spatialObj, this)
                         } catch (e) {
-                            console.warn(`[Object] spatial_p_proc error for ${spatialObj.script}:`, e)
+                            dbgWarn('object', `[Object] spatial_p_proc error for ${spatialObj.script}:`, e)
                         }
                     }
 
@@ -861,7 +862,8 @@ export class Obj {
                     const allObjs = globalState.gMap.getObjects()
                     const scripted = allObjs.filter(o => o._script)
                     const spatialCapable = scripted.filter(o => o._script?.spatial_p_proc)
-                    console.log(
+                    dbg(
+                        'object',
                         `[Object] explosion @ (${blastPos.x},${blastPos.y}) — ` +
                         `objects=${allObjs.length} scripted=${scripted.length} ` +
                         `spatial-capable=${spatialCapable.length}`
@@ -869,20 +871,22 @@ export class Obj {
                     for (const obj of spatialCapable) {
                         const dist = hexDistance(obj.position, blastPos)
                         if (dist > SPATIAL_RADIUS_DEFAULT) {
-                            console.log(
+                            dbg(
+                                'object',
                                 `[Object]   spatial candidate ${obj.script} pid=${obj.pid} ` +
                                 `@ (${obj.position.x},${obj.position.y}) dist=${dist} — out of range`
                             )
                             continue
                         }
-                        console.log(
+                        dbg(
+                            'object',
                             `[Object] explosion fires spatial_p_proc on ${obj.script} ` +
                             `pid=${obj.pid} @ (${obj.position.x},${obj.position.y}) dist=${dist}`
                         )
                         try {
                             Scripting.spatial(obj, this)
                         } catch (e) {
-                            console.warn(`[Object] spatial_p_proc error for ${obj.script}:`, e)
+                            dbgWarn('object', `[Object] spatial_p_proc error for ${obj.script}:`, e)
                         }
                     }
                     // Diagnostic: nearby scripted objects without spatial_p_proc
@@ -891,7 +895,8 @@ export class Obj {
                         const dist = hexDistance(obj.position, blastPos)
                         if (dist > SPATIAL_RADIUS_DEFAULT) continue
                         const procs = obj._script ? Object.keys(obj._script).filter(k => k.endsWith('_p_proc')) : []
-                        console.log(
+                        dbg(
+                            'object',
                             `[Object]   nearby scripted (no spatial_p_proc) ${obj.script} ` +
                             `pid=${obj.pid} @ (${obj.position.x},${obj.position.y}) dist=${dist} ` +
                             `procs=[${procs.join(',')}]`
@@ -900,13 +905,14 @@ export class Obj {
                     // Diagnostic: dump every object within blast range so we can
                     // identify the temple walls by art / PID / type. This lets us
                     // register a stub keyed on whatever distinguishes them.
-                    console.log(`[Object]   --- all objects within ${SPATIAL_RADIUS_DEFAULT} tiles of blast ---`)
+                    dbg('object', `[Object]   --- all objects within ${SPATIAL_RADIUS_DEFAULT} tiles of blast ---`)
                     for (const obj of allObjs) {
                         const dist = hexDistance(obj.position, blastPos)
                         if (dist > SPATIAL_RADIUS_DEFAULT) continue
                         const proExtra = (obj.pro?.extra as any) ?? {}
                         const protoSid = proExtra.scriptPID ?? proExtra.scriptID ?? 'n/a'
-                        console.log(
+                        dbg(
+                            'object',
                             `[Object]     type=${obj.type} pid=${obj.pid} art=${obj.art} ` +
                             `pos=(${obj.position.x},${obj.position.y}) dist=${dist} ` +
                             `protoSid=${protoSid} hasScript=${!!obj._script}`
@@ -921,7 +927,7 @@ export class Obj {
 
     pickup(source: Critter) {
         if (this._script) {
-            console.log('[Object] picking up %o', this)
+            dbg('object', '[Object] picking up %o', this)
             if (Scripting.pickup(this, source)) {
                 return // script handled it
             }
@@ -987,7 +993,7 @@ export class Obj {
             position: { x: this.position.x, y: this.position.y },
             inventory: this.inventory.map((obj) => {
                 if (typeof obj.serialize !== 'function') {
-                    console.warn('[Serialize] skipping non-serializable object', obj)
+                    dbgWarn('object', '[Serialize] skipping non-serializable object', obj)
                     return null
                 }
                 return obj.serialize()
@@ -1197,7 +1203,7 @@ export class Critter extends Obj {
 
         if (deserializing) {
             // deserialize critter: copy fields from SerializedCritter
-            console.log('[Deserialize] critter')
+            dbg('object', '[Deserialize] critter')
             // console.trace();
 
             for (const prop of SERIALIZED_CRITTER_PROPS) {
@@ -1212,11 +1218,11 @@ export class Critter extends Obj {
 
             if (mobj.stats) {
                 obj.stats = new StatSet(mobj.stats.baseStats, mobj.stats.useBonuses)
-                console.warn('[Deserialize] stat set: %o to: %o', mobj.stats, obj.stats)
+                dbgWarn('object', '[Deserialize] stat set: %o to: %o', mobj.stats, obj.stats)
             }
             if (mobj.skills) {
                 obj.skills = new SkillSet(mobj.skills.baseSkills, mobj.skills.tagged, mobj.skills.skillPoints)
-                console.warn('[Deserialize] skill set: %o to: %o', mobj.skills, obj.skills)
+                dbgWarn('object', '[Deserialize] skill set: %o to: %o', mobj.skills, obj.skills)
             }
         }
 
@@ -1453,7 +1459,7 @@ export class Critter extends Obj {
             const hitSpatials = hitSpatialTrigger(position)
             for (let i = 0; i < hitSpatials.length; i++) {
                 const spatial = hitSpatials[i]
-                console.log(`[Object] triggered spatial ${spatial.script} (range=${spatial.range}) @ (${spatial.position.x}, ${spatial.position.y})`)
+                dbg('object', `[Object] triggered spatial ${spatial.script} (range=${spatial.range}) @ (${spatial.position.x}, ${spatial.position.y})`)
                 Scripting.spatial(spatial, this)
             }
         }
@@ -1559,7 +1565,7 @@ export class Critter extends Obj {
                     if (globalState.imageInfo[candidate] !== undefined) return candidate
                     return base + 'aa' // fallback to idle if FRM not present
                 }
-                console.log('[Animation] default attack animation instead of weapon animation')
+                dbg('animation', '[Animation] default attack animation instead of weapon animation')
                 return base + wep + 'a'
             case 'idle':
                 return base + wep + 'a'
@@ -1625,7 +1631,7 @@ export class Critter extends Obj {
             case 'death':
                 if (this.pro && this.pro.extra.killType === 18) {
                     // Boss is special-cased
-                    console.log('[Combat] boss death')
+                    dbg('combat', '[Combat] boss death')
                     return base + 'bl'
                 }
                 return base + 'bo' // normal crumple death

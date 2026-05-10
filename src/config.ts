@@ -110,6 +110,9 @@ export const Config = {
             combat: false,
             ai: false,
             script: false,
+            map: false,
+            object: false,
+            audio: false,
         },
     },
 }
