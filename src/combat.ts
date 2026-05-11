@@ -503,6 +503,7 @@ export class Combat {
         const aName = attackerName ?? actorName(obj)
         const dName = defenderName ?? actorName(target)
         if (attackerName) combatDebug(`${attackerName} → ${defenderName}: hitChance=${hitChance.hit}% critChance=${hitChance.crit}%`)
+        dbg('rolls', `${aName} attacks ${dName} — hit chance: ${hitChance.hit}%`)
 
         // hey kids! Did you know FO only rolls the dice once here and uses the results two times?
         var roll = getRandomInt(1, 101)
@@ -526,7 +527,8 @@ export class Combat {
             if (isCrit === true) {
                 var critLevel = Math.floor(Math.max(0, getRandomInt(critModifer, 100 + critModifer)) / 20)
                 combatDebug(`crit hit: roll=${roll} level=${critLevel}`)
-                if (attackerName) uiLog(`${attackerName} scores a critical hit on ${defenderName}!`)
+                dbg('rolls', `${aName} scores a CRITICAL HIT on ${dName}! (level ${critLevel})`)
+                if (attackerName) uiLog(`${attackerName} scores a CRITICAL HIT on ${defenderName}! (level ${critLevel})`)
                 var crit = CriticalEffects.getCritical(target.killType ?? 0, region, critLevel)
                 var critStatus = crit.doEffectsOn(target)
 
@@ -539,6 +541,7 @@ export class Combat {
             }
 
             combatDebug(`hit: roll=${roll} vs ${hitChance.hit}%`)
+            dbg('rolls', `${aName} hits ${dName}! (roll: ${roll} vs target: ${hitChance.hit})`)
             combatLogPush({
                 actor: aName, action: 'attack-roll', target: dName, result: 'hit',
                 region, roll, hitChance: hitChance.hit, critChance: hitChance.crit,
@@ -558,6 +561,11 @@ export class Combat {
         }
 
         combatDebug(`miss: roll=${roll} vs ${hitChance.hit}%${isCrit ? ' (crit fail)' : ''}`)
+        if (isCrit) {
+            dbg('rolls', `${aName} CRITICALLY FAILS! (roll: ${roll})`)
+        } else {
+            dbg('rolls', `${aName} misses ${dName}. (roll: ${roll} vs target: ${hitChance.hit})`)
+        }
         combatLogPush({
             actor: aName, action: 'attack-roll', target: dName,
             result: isCrit ? 'crit-miss' : 'miss',
@@ -631,6 +639,10 @@ export class Combat {
             }
         }
 
+        // Vanilla-formula intermediates for the damage log (approximated when a non-vanilla ruleset is active)
+        const _dmgBase = Math.trunc(Math.trunc(Math.trunc(Math.trunc((RD + damageBonus) * critMultiplier * ammoStats.X) / (ammoStats.Y || 1)) / 2) * CD / 100)
+        const _dmgAdj = Math.max(0, _dmgBase - DT)
+        dbg('damage', `RD: ${RD} | CM: ${critMultiplier} | ADR: ${DR} | ADT: ${DT} | Base: ${_dmgBase} | Adj: ${_dmgAdj} | Type: ${damageType} | Final: ${damage} (formula: max(RD*CM/2 - ADT, 0) * (1 - (ADR+RM)/100) * CD/100)`)
         combatDebug(`damage: RD=${RD} CM=${critMultiplier} ×${ammoStats.X}/${ammoStats.Y} DT=${DT} DR=${DR}% CD=${CD} → ${damage}`)
         combatLogPush({
             actor: actorName(obj), action: 'damage', target: actorName(target), result: 'computed',
@@ -690,6 +702,7 @@ export class Combat {
             // Pyromaniac doesn't apply (unarmed is Normal damage, not Fire)
         }
 
+        dbg('damage', `Unarmed [${mode.name}]: RD=${RD} CM=${critMultiplier} ADR=${DR} ADT=${DT} → ${damage}`)
         combatDebug(`damage(unarmed [${mode.name}]): RD=${RD} CM=${critMultiplier} DT=${DT} DR=${DR}% CD=${CD} → ${damage}`)
         combatLogPush({
             actor: actorName(obj), action: 'damage', target: actorName(target), result: 'computed',
@@ -1067,9 +1080,13 @@ export class Combat {
             return this.nextTurn()
         }
 
+        if (depth === 1) {
+            dbg('ai', `[AI] ${actorName(obj)} turn start — AP: ${obj.AP?.getAvailableMoveAP() ?? 0}, packet: ${obj.ai?.info?.keyName ?? '?'}`)
+        }
         var that = this
         var target = this.findTarget(obj)
         if (!target) {
+            dbg('ai', `[AI] ${actorName(obj)} → no valid target, ending turn`)
             combatDebug('AI has no target')
             combatLogPush({ actor: actorName(obj), action: 'ai-decision', result: 'no-target', message: 'AI has no target' })
             return this.nextTurn()
@@ -1278,6 +1295,7 @@ export class Combat {
             }
             // ─────────────────────────────────────────────────────────────────────
 
+            dbg('ai', `[AI] ${actorName(obj)} → attack on ${actorName(target)} (AP cost: ${weapon.getAPCost(1)})`)
             this.log('[ATTACKING]')
             combatLogPush({
                 actor: actorName(obj), action: 'ai-decision', result: 'attack',
@@ -1322,6 +1340,7 @@ export class Combat {
                 })
             }
         } else {
+            dbg('ai', `[AI] ${actorName(obj)} → no valid action, ending turn`)
             combatDebug(`AI: no valid action (target: ${target?.name}, AP: ${AP.getAvailableCombatAP()}, weapon: ${weapon?.name}, cost: ${weapon?.getAPCost(1)}, distance: ${distance})`)
             this.nextTurn()
         }

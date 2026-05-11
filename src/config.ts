@@ -109,6 +109,8 @@ export const Config = {
             // (e.g. Config.scripting.debugLogShowType.combat = true) to surface output.
             combat: false,
             ai: false,
+            rolls: false,
+            damage: false,
             script: false,
             map: false,
             object: false,
