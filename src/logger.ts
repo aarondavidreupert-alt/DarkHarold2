@@ -1,12 +1,12 @@
-// Unified debug logging + structured combat log.
+// Unified debug logging + structured event log.
 //
 // Two layers:
 //   1. dbg(category, ...args) / dbgWarn(category, ...args)
 //        — flag-gated console output. Categories live in
 //          Config.scripting.debugLogShowType. Replace ad-hoc console.log
 //          calls in engine code with these so output can be toggled at runtime.
-//   2. combatLogPush(entry)
-//        — pushes a structured CombatLogEntry into globalState.combatLog.
+//   2. eventLogPush(entry)
+//        — pushes a structured EventLogEntry into globalState.eventLog.
 //          Always recorded (so saves capture the fight history); the console
 //          mirror is only emitted when Config.scripting.debugLogShowType.combat
 //          is true. Entries are plain objects so DevTools can filter them.
@@ -28,7 +28,7 @@ export function dbgWarn(category: DebugCategory, ...args: any[]): void {
     console.warn(`[${category}]`, ...args)
 }
 
-export interface CombatLogEntry {
+export interface EventLogEntry {
     /** Combat round number (full cycle through combatants); 0 outside combat. */
     round: number
     /** Sequential turn counter inside the active Combat instance. */
@@ -49,8 +49,8 @@ export interface CombatLogEntry {
     [k: string]: any
 }
 
-type CombatLogInput = Omit<CombatLogEntry, 'round' | 'turn' | 'timestamp'> &
-    Partial<Pick<CombatLogEntry, 'round' | 'turn' | 'timestamp'>>
+type EventLogInput = Omit<EventLogEntry, 'round' | 'turn' | 'timestamp'> &
+    Partial<Pick<EventLogEntry, 'round' | 'turn' | 'timestamp'>>
 
 function deriveRoundTurn(): { round: number; turn: number } {
     const c = globalState.combat
@@ -61,9 +61,9 @@ function deriveRoundTurn(): { round: number; turn: number } {
     return { round, turn }
 }
 
-export function combatLogPush(entry: CombatLogInput): CombatLogEntry {
+export function eventLogPush(entry: EventLogInput): EventLogEntry {
     const derived = deriveRoundTurn()
-    const full: CombatLogEntry = {
+    const full: EventLogEntry = {
         round: entry.round ?? derived.round,
         turn: entry.turn ?? derived.turn,
         timestamp: entry.timestamp ?? Date.now(),
@@ -71,13 +71,13 @@ export function combatLogPush(entry: CombatLogInput): CombatLogEntry {
         action: entry.action,
         ...entry,
     }
-    globalState.combatLog.push(full)
+    globalState.eventLog.push(full)
     if (Config.scripting.debugLogShowType.combat === true) {
         console.log('[combat]', full)
     }
     return full
 }
 
-export function combatLogClear(): void {
-    globalState.combatLog.length = 0
+export function eventLogClear(): void {
+    globalState.eventLog.length = 0
 }

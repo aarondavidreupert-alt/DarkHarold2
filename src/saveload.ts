@@ -19,7 +19,7 @@ import { Point } from './geometry.js'
 import globalState from './globalState.js'
 import { heart } from './heart.js'
 import { dbg, dbgWarn } from './logger.js'
-import type { CombatLogEntry } from './logger.js'
+import type { EventLogEntry } from './logger.js'
 import { SerializedMap } from './map.js'
 import { deserializeObj, SerializedObj } from './object.js'
 import { Scripting } from './scripting.js'
@@ -63,9 +63,9 @@ export interface SaveGame {
         gvars: { [k: string]: number }
     }
 
-    // Structured combat log accumulated by logger.combatLogPush. Optional so
+    // Structured event log accumulated by logger.eventLogPush. Optional so
     // older saves (without the field) continue to load cleanly.
-    combatLog?: CombatLogEntry[]
+    eventLog?: EventLogEntry[]
 }
 
 function gatherSaveData(name: string): SaveGame {
@@ -103,7 +103,7 @@ function gatherSaveData(name: string): SaveGame {
             armor: p.armor ? p.armor.serialize() : null,
             gvars: Object.assign({}, Scripting.getGlobalVars()),
         },
-        combatLog: globalState.combatLog.slice(),
+        eventLog: globalState.eventLog.slice(),
     }
 }
 
@@ -226,10 +226,11 @@ export function load(id: number): void {
 
                 globalState.gParty.deserialize(save.party)
 
-                // Restore the structured combat log. Older saves omit this field —
-                // start with an empty list rather than carrying entries from the
-                // previous session.
-                globalState.combatLog = Array.isArray(save.combatLog) ? save.combatLog.slice() : []
+                // Restore the structured event log. Older saves may have the field
+                // under the old name (combatLog) — accept either; fall back to empty.
+                globalState.eventLog = Array.isArray(save.eventLog ?? (save as any).combatLog)
+                    ? ((save.eventLog ?? (save as any).combatLog) as EventLogEntry[]).slice()
+                    : []
 
                 globalState.gMap.changeElevation(save.currentElevation, false)
 

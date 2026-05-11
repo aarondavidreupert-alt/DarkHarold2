@@ -16,7 +16,7 @@ import { AudioEngine } from './audio.js'
 import { Combat } from './combat.js'
 import { AreaMap } from './data.js'
 import { Point } from './geometry.js'
-import type { CombatLogEntry } from './logger.js'
+import type { EventLogEntry } from './logger.js'
 import { GameMap, SerializedMap } from './map.js'
 import { Obj } from './object.js'
 import { Party } from './party.js'
@@ -90,9 +90,9 @@ const globalState = {
 
     knownAreas: new Set<number>(),
 
-    // Structured combat log — populated by logger.combatLogPush().
+    // Structured event log — populated by logger.eventLogPush().
     // Survives across map changes and is persisted with the save game.
-    combatLog: [] as CombatLogEntry[],
+    eventLog: [] as EventLogEntry[],
 
     // Cursor system
     cursorMode: 'move' as CursorMode,
@@ -157,7 +157,7 @@ const globalState = {
 
     knownAreas: Set<number>
 
-    combatLog: CombatLogEntry[]
+    eventLog: EventLogEntry[]
 
     // Cursor system
     cursorMode: CursorMode
@@ -171,20 +171,20 @@ export default globalState
 
 if (typeof window !== 'undefined') {
     ;(window as any).globalState = globalState
-    // Convenience alias so DevTools users can grab the structured combat log
-    // without typing globalState.combatLog every time.
-    Object.defineProperty(window, '__combatLog', {
-        get: () => globalState.combatLog,
+    // Convenience alias so DevTools users can grab the structured event log
+    // without typing globalState.eventLog every time.
+    Object.defineProperty(window, '__eventLog', {
+        get: () => globalState.eventLog,
         configurable: true,
     })
-    // Download globalState.combatLog as a timestamped JSON file.
-    ;(window as any).exportCombatLog = () => {
-        const json = JSON.stringify(globalState.combatLog, null, 2)
+    // Download globalState.eventLog as a timestamped JSON file.
+    ;(window as any).exportEventLog = () => {
+        const json = JSON.stringify(globalState.eventLog, null, 2)
         const blob = new Blob([json], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `combatLog-${Date.now()}.json`
+        a.download = `eventLog-${Date.now()}.json`
         a.click()
         URL.revokeObjectURL(url)
     }
