@@ -235,6 +235,41 @@ Object.assign(Config.scripting.debugLogShowType, { combat: true, ai: true, damag
 
 Player-visible results (hits, damage, kills) still appear in the in-game console regardless of these flags.
 
+## Combat Log
+
+Every combat event (turn start/end, attack rolls, damage, AI decisions, kills) is appended to a structured in-memory log as `EventLogEntry` objects. The log persists across map changes and is saved with the save game, so you can review a full fight's history even after it ends.
+
+### Exporting
+
+Open the browser console during or after combat and call:
+
+```js
+exportEventLog()             // defaults to "full" tier
+exportEventLog("summary")
+exportEventLog("diagnostic")
+```
+
+This downloads a JSON file named `eventLog_<tier>_<timestamp>.json`.
+
+You can also inspect the live log without downloading:
+
+```js
+__eventLog              // the full array
+__eventLog.length       // number of entries recorded so far
+```
+
+### Tiers
+
+| Tier         | Fields included                                                                 | Use case                          |
+|--------------|---------------------------------------------------------------------------------|-----------------------------------|
+| `summary`    | `round`, `turn`, `actor`, `action`, `result`, `damage` (only when > 0)         | Quick sanity check, who did what  |
+| `full`       | All fields except `RD`, `DT`, `DR`, `CD`, `ammoX`, `ammoY`, `critMultiplier`, `critChance` | Normal debugging session |
+| `diagnostic` | Every field, unfiltered                                                         | Chasing damage formula bugs       |
+
+### Persistence
+
+The event log is serialised into the save game. When a save is loaded, `globalState.eventLog` is restored from the file, so the full fight history is available even after a page reload. Saves written before the `eventLog` field was introduced are loaded cleanly (the log starts empty).
+
 ## FAQ
 
 **Note**: This section has been copied from `README.md` of DarkFO, the answers don't represent opinions of the current maintainer
