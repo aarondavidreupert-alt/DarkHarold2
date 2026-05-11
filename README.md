@@ -161,6 +161,80 @@ Review `src/config.ts` for engine options. Be sure to re-compile if you change t
 
 OPTIONAL: If you want sound, run `python convertAudio.py`. You'll need the `acm2wav` tool (you can get it from No Mutants Allowed).
 
+## Debug Logging
+
+All debug output is off by default and toggled at runtime via `Config.scripting.debugLogShowType`.
+Flags are plain booleans on the global `Config` object — no rebuild needed.
+
+### Enabling flags at runtime
+
+Enable a single category in the browser DevTools console:
+
+```js
+Config.scripting.debugLogShowType.rolls = true
+```
+
+Enable multiple categories at once:
+
+```js
+Object.assign(Config.scripting.debugLogShowType, { combat: true, ai: true, damage: true })
+```
+
+### Flag reference
+
+| Flag | Default | What it logs |
+|------|---------|--------------|
+| `stub` | `true` | Unimplemented script opcodes |
+| `log` | `false` | `script log()` calls |
+| `timer` | `false` | Timed event fire/cancel |
+| `load` | `false` | Script file loads |
+| `debugMessage` | `true` | `debug_message()` from scripts |
+| `displayMessage` | `true` | `display_message()` (in-game console) |
+| `floatMessage` | `false` | Floating critter messages |
+| `gvars` | `false` | Global variable reads/writes |
+| `lvars` | `false` | Local variable reads/writes |
+| `mvars` | `false` | Map variable reads/writes |
+| `tiles` | `true` | Tile/elevation changes |
+| `animation` | `false` | Animation state transitions |
+| `movement` | `false` | Pathfinding steps |
+| `inventory` | `true` | Inventory add/remove |
+| `party` | `false` | Party member status |
+| `dialogue` | `false` | Dialogue node entry/exit |
+| `combat` | `false` | Turn flow, enrollment, forceEnd |
+| `ai` | `false` | AI packet lookup, action chosen, AP spent |
+| `rolls` | `false` | Hit chance, roll result, hit/miss/crit |
+| `damage` | `false` | Full damage formula: RD/CM/ADR/ADT/Base/Adj/Final |
+| `script` | `false` | Script execution tracing (verbose) |
+| `map` | `false` | Map load, exit grid, elevation |
+| `object` | `false` | Object create/destroy/flags |
+| `audio` | `false` | Audio load/play/stop |
+| `renderer` | `false` | WebGL draw calls |
+| `lighting` | `false` | Lightmap recalculation |
+| `worldmap` | `false` | Worldmap travel and transitions |
+| `encounters` | `false` | Random encounter rolls |
+| `saveload` | `false` | Save/load slot operations |
+
+### Example: auditing a combat encounter
+
+1. Load `play.html?artemple`
+2. In DevTools console:
+   ```js
+   Config.scripting.debugLogShowType.rolls = true
+   Config.scripting.debugLogShowType.damage = true
+   Config.scripting.debugLogShowType.ai = true
+   ```
+3. Trigger combat with a Giant Ant
+4. Expected DevTools output:
+   ```
+   [ai]    [AI] Giant Ant turn start — AP: 10, packet: Giant Ant
+   [ai]    [AI] Giant Ant → attack on you (AP cost: 4)
+   [rolls] Giant Ant attacks you — hit chance: 45%
+   [rolls] Giant Ant misses you. (roll: 67 vs target: 45)
+   [damage] RD: 3 | CM: 2 | ADR: 30 | ADT: 4 | Base: 3 | Adj: 0 | Final: 0
+   ```
+
+Player-visible results (hits, damage, kills) still appear in the in-game console regardless of these flags.
+
 ## FAQ
 
 **Note**: This section has been copied from `README.md` of DarkFO, the answers don't represent opinions of the current maintainer

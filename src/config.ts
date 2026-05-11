@@ -89,37 +89,39 @@ export const Config = {
 
     scripting: {
         debugLogShowType: {
-            stub: true,
-            log: false,
-            timer: false,
-            load: false,
-            debugMessage: true,
-            displayMessage: true,
-            floatMessage: false,
-            gvars: false,
-            lvars: false,
-            mvars: false,
-            tiles: true,
-            animation: false,
-            movement: false,
-            inventory: true,
-            party: false,
-            dialogue: false,
-            // Unified debug logger categories. Default to false — flip in DevTools
-            // (e.g. Config.scripting.debugLogShowType.combat = true) to surface output.
-            combat: false,
-            ai: false,
-            rolls: false,
-            damage: false,
-            script: false,
-            map: false,
-            object: false,
-            audio: false,
-            renderer: false,
-            lighting: false,
-            worldmap: false,
-            encounters: false,
-            saveload: false,
+            // ── Scripting VM ──────────────────────────────────────────────────────
+            stub: true,           // log unimplemented script opcodes (always-on recommended)
+            log: false,           // script-level log() calls
+            timer: false,         // registered timed events (fire/cancel)
+            load: false,          // script file loads and resets
+            debugMessage: true,   // debug_message() calls from scripts
+            displayMessage: true, // display_message() calls (in-game console output)
+            floatMessage: false,  // floating messages above critters
+            gvars: false,         // global variable reads/writes
+            lvars: false,         // local variable reads/writes
+            mvars: false,         // map variable reads/writes
+            tiles: true,          // tile/elevation changes
+            animation: false,     // animation state transitions
+            movement: false,      // critter movement and pathfinding steps
+            inventory: true,      // inventory add/remove operations
+            party: false,         // party member join/leave/status
+            dialogue: false,      // dialogue node entry and exit
+
+            // ── Engine debug categories — flip in DevTools to surface output ──────
+            // e.g. Config.scripting.debugLogShowType.combat = true
+            combat: false,        // combat flow: turn start/end, enrollment, forceEnd
+            ai: false,            // AI turn decisions: packet lookup, action chosen, AP spent
+            rolls: false,         // every dice roll: hit chance, roll result, hit/miss/crit
+            damage: false,        // damage formula breakdown: RD/CM/ADR/ADT/Base/Adj/Final
+            script: false,        // script execution tracing (verbose)
+            map: false,           // map load, elevation change, exit grid transitions
+            object: false,        // object creation, destruction, flag changes
+            audio: false,         // audio load, play, stop events
+            renderer: false,      // WebGL draw calls and render state changes
+            lighting: false,      // lightmap recalculation and light source updates
+            worldmap: false,      // worldmap travel, encounter checks, location transitions
+            encounters: false,    // random encounter rolls and table lookups
+            saveload: false,      // save/load operations and slot management
         },
     },
 }
