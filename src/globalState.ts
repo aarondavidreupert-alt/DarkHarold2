@@ -177,4 +177,15 @@ if (typeof window !== 'undefined') {
         get: () => globalState.combatLog,
         configurable: true,
     })
+    // Download globalState.combatLog as a timestamped JSON file.
+    ;(window as any).exportCombatLog = () => {
+        const json = JSON.stringify(globalState.combatLog, null, 2)
+        const blob = new Blob([json], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `combatLog-${Date.now()}.json`
+        a.click()
+        URL.revokeObjectURL(url)
+    }
 }
