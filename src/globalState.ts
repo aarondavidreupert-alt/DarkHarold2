@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import { AudioEngine } from './audio.js'
-import { Combat } from './combat.js'
+import type { Combat } from './combat.js'
 import { AreaMap } from './data.js'
 import { Point } from './geometry.js'
-import type { EventLogEntry } from './logger.js'
+import type { EventLogEntry } from './eventlog.types.js'
 import { GameMap, SerializedMap } from './map.js'
 import { Obj } from './object.js'
 import { Party } from './party.js'
