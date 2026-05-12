@@ -203,6 +203,7 @@ Object.assign(Config.scripting.debugLogShowType, { combat: true, ai: true, damag
 | `combat` | `false` | Turn flow, enrollment, forceEnd |
 | `ai` | `false` | AI packet lookup, action chosen, AP spent |
 | `rolls` | `false` | Hit chance, roll result, hit/miss/crit |
+| `skills` | `false` | Skill check rolls and outcomes (Lockpick, Doctor, Steal, …) |
 | `damage` | `false` | Full damage formula: RD/CM/ADR/ADT/Base/Adj/Final |
 | `script` | `false` | Script execution tracing (verbose) |
 | `map` | `false` | Map load, exit grid, elevation |

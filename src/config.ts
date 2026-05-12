@@ -112,6 +112,7 @@ export const Config = {
             combat: false,        // combat flow: turn start/end, enrollment, forceEnd
             ai: false,            // AI turn decisions: packet lookup, action chosen, AP spent
             rolls: false,         // every dice roll: hit chance, roll result, hit/miss/crit
+            skills: false,        // skill check rolls and outcomes
             damage: false,        // damage formula breakdown: RD/CM/ADR/ADT/Base/Adj/Final
             script: false,        // script execution tracing (verbose)
             map: false,           // map load, elevation change, exit grid transitions

@@ -9,6 +9,7 @@
 
 import { Critter, Obj } from './object.js'
 import globalState from './globalState.js'
+import { dbg, eventLogPush } from './logger.js'
 import { RollResult, randomRoll, rollIsSuccess, getRandomInt } from './util.js'
 import * as GameTime from './gametime.js'
 
@@ -51,6 +52,31 @@ function logSkillRoll(baseSkill: number, modifiers: [string, number][], finalCha
 
 function logSkillXP(xp: number): void {
     if (xp > 0) console.log(`[SKILL]   XP awarded: ${xp}`)
+}
+
+function rollResultKey(roll: RollResult): 'critical-success' | 'success' | 'failure' | 'critical-failure' {
+    switch (roll) {
+        case RollResult.CriticalSuccess: return 'critical-success'
+        case RollResult.Success: return 'success'
+        case RollResult.Failure: return 'failure'
+        case RollResult.CriticalFailure: return 'critical-failure'
+        default: return 'failure'
+    }
+}
+
+function emitSkillRoll(skillName: string, user: Critter, chance: number, roll: RollResult, d100: number): void {
+    const actorName: string = (user as any).name ?? (user.isPlayer ? 'you' : 'critter')
+    const result = rollResultKey(roll)
+    dbg('skills', `[skill:${skillName}] ${actorName} — chance: ${chance}%  roll: ${d100}  → ${result}`)
+    eventLogPush({
+        actor: actorName,
+        action: 'skill-roll',
+        skill: skillName,
+        chance,
+        roll: d100,
+        result,
+        message: `${actorName} ${skillName}: roll ${d100} vs ${chance}% → ${result}`,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -187,6 +213,7 @@ function useFirstAid(user: Critter, target: Critter): SkillUseResult {
     const { roll, delta } = randomRoll(skillValue, critChance)
 
     logSkillRoll(skillValue, [], skillValue, roll, delta)
+    emitSkillRoll('First Aid', user, skillValue, roll, skillValue - delta)
 
     // Advance game time: +30 minutes
     GameTime.advanceMinutes(30)
@@ -260,6 +287,7 @@ function useDoctor(user: Critter, target: Critter): SkillUseResult {
         // Individual roll per limb/condition
         const limbRoll = randomRoll(skillValue, critChance)
         const limbD100 = skillValue - limbRoll.delta
+        emitSkillRoll('Doctor', user, skillValue, limbRoll.roll, limbD100)
         if (rollIsSuccess(limbRoll.roll)) {
             ;(target as any)[flag] = false
             limbsHealed++
@@ -274,6 +302,7 @@ function useDoctor(user: Critter, target: Critter): SkillUseResult {
     const { roll, delta } = randomRoll(skillValue, critChance)
 
     logSkillRoll(skillValue, [], skillValue, roll, delta)
+    emitSkillRoll('Doctor', user, skillValue, roll, skillValue - delta)
 
     // Advance game time
     GameTime.advanceHours(Math.min(timeHours, 3))
@@ -367,6 +396,7 @@ function useLockpick(user: Critter, target: Critter | null): SkillUseResult {
     const { roll, delta } = randomRoll(finalChance, critChance)
 
     logSkillRoll(skillValue, [['lock difficulty', modifier]], finalChance, roll, delta)
+    emitSkillRoll('Lockpick', user, finalChance, roll, finalChance - delta)
 
     if (rollIsSuccess(roll)) {
         const xp = SKILL_XP['Lockpick']
@@ -426,6 +456,7 @@ function useSteal(user: Critter, target: Critter | null): SkillUseResult {
 
     if (stealRoll <= chance) {
         console.log(`[SKILL]   Result: SUCCESS (roll ${stealRoll} <= chance ${chance})`)
+        emitSkillRoll('Steal', user, chance, RollResult.Success, stealRoll)
         const xp = SKILL_XP['Steal']
         if (user.isPlayer && xp > 0) {
             (globalState.player as any)?.addExperience?.(xp)
@@ -440,10 +471,12 @@ function useSteal(user: Critter, target: Critter | null): SkillUseResult {
     console.log(`[SKILL]   Steal failed. Catch check: roll ${catchRoll} vs ${catchChance}% chance`)
     if (catchRoll <= catchChance) {
         console.log(`[SKILL]   Result: CRITICAL FAILURE — caught stealing!`)
+        emitSkillRoll('Steal', user, chance, RollResult.CriticalFailure, stealRoll)
         return makeResult(false, RollResult.CriticalFailure, 'You are caught stealing!')
     }
 
     console.log(`[SKILL]   Result: FAILURE (roll ${stealRoll} > chance ${chance})`)
+    emitSkillRoll('Steal', user, chance, RollResult.Failure, stealRoll)
     return makeResult(false, RollResult.Failure, 'You fail to steal anything.')
 }
 
@@ -468,6 +501,7 @@ function useTraps(user: Critter, target: Critter | null): SkillUseResult {
     const { roll, delta } = randomRoll(finalChance, critChance)
 
     logSkillRoll(skillValue, [['trap difficulty', modifier]], finalChance, roll, delta)
+    emitSkillRoll('Traps', user, finalChance, roll, finalChance - delta)
 
     if (rollIsSuccess(roll)) {
         const xp = SKILL_XP['Traps']
@@ -502,6 +536,7 @@ function useScience(user: Critter, target: Critter | null): SkillUseResult {
     const { roll, delta } = randomRoll(skillValue, critChance)
 
     logSkillRoll(skillValue, [], skillValue, roll, delta)
+    emitSkillRoll('Science', user, skillValue, roll, skillValue - delta)
 
     if (rollIsSuccess(roll)) {
         const xp = SKILL_XP['Science']
@@ -538,6 +573,7 @@ function useRepair(user: Critter, target: Critter | null): SkillUseResult {
     const { roll, delta } = randomRoll(skillValue, critChance)
 
     logSkillRoll(skillValue, [], skillValue, roll, delta)
+    emitSkillRoll('Repair', user, skillValue, roll, skillValue - delta)
 
     // Advance game time: +30 minutes minimum
     GameTime.advanceMinutes(30)
