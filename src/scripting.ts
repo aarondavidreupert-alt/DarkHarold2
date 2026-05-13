@@ -34,7 +34,7 @@ import { dbg } from './logger.js'
 import { useElevator } from './main.js'
 import { Critter, createObjectWithPID, Obj, objectGetDamageType } from './object.js'
 import { Player } from './player.js'
-import { makePID } from './pro.js'
+import { loadPRO, makePID } from './pro.js'
 import { centerCamera, objectOnScreen } from './renderer.js'
 import { fromTileNum, toTileNum } from './tile.js'
 import { uiAddDialogueOption, uiBarterMode, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, UIMode } from './ui.js'
@@ -478,11 +478,16 @@ export module Scripting {
                 case 48:
                     return 2 // METARULE_VIOLENCE_FILTER (2 = VLNCLVL_NORMAL)
                 case 49: // METARULE_W_DAMAGE_TYPE
+                    // FO2-CE ref: combat_defs.h DMG_* constants
                     switch (objectGetDamageType(target)) {
-                        case 'explosion':
-                            return 6 // DMG_explosion
-                        default:
-                            throw 'unknown damage type'
+                        case 'normal':     return 0
+                        case 'laser':      return 1
+                        case 'fire':       return 2
+                        case 'plasma':     return 3
+                        case 'electrical': return 4
+                        case 'emp':        return 5
+                        case 'explosion':  return 6
+                        default:           return 0 // safe fallback instead of throw
                     }
                 default:
                     stub('metarule', arguments)
@@ -552,9 +557,9 @@ export module Scripting {
                 // TRAIT_OBJECT
                 switch (trait) {
                     case 5:
-                        break // OBJECT_AI_PACKET (TODO)
+                        return (<Critter>obj).aiNum ?? 0 // OBJECT_AI_PACKET
                     case 6:
-                        break // OBJECT_TEAM_NUM (TODO)
+                        return (<Critter>obj).teamNum ?? 0 // OBJECT_TEAM_NUM
                     case 10:
                         return obj.orientation // OBJECT_CUR_ROT
                     case 666: // OBJECT_VISIBILITY
@@ -607,7 +612,23 @@ export module Scripting {
             return obj.money
         }
         item_caps_adjust(obj: Obj, amount: number) {
-            stub('item_caps_adjust', arguments)
+            if (!isGameObject(obj)) {
+                warn('item_caps_adjust: not game object: ' + obj)
+                return
+            }
+            const MONEY_PID = 41
+            for (let i = 0; i < obj.inventory.length; i++) {
+                if (obj.inventory[i].pid === MONEY_PID) {
+                    obj.inventory[i].amount = Math.max(0, obj.inventory[i].amount + amount)
+                    info('item_caps_adjust: ' + obj.name + ' caps ' + (amount >= 0 ? '+' : '') + amount)
+                    return
+                }
+            }
+            if (amount > 0) {
+                const money = createObjectWithPID(MONEY_PID)
+                this.add_mult_objs_to_inven(obj, money, amount)
+                info('item_caps_adjust: ' + obj.name + ' caps +' + amount + ' (new)')
+            }
         }
         move_obj_inven_to_obj(obj: Obj, other: Obj) {
             if (obj === null || other === null) {
@@ -660,8 +681,25 @@ export module Scripting {
             obj.addInventoryItem(item, count)
         }
         rm_mult_objs_from_inven(obj: Obj, item: Obj, count: number) {
-            // Remove count copies of item from obj's inventory
-            stub('rm_mult_objs_from_inven', arguments)
+            if (!isGameObject(obj)) {
+                warn('rm_mult_objs_from_inven: not a game object')
+                return
+            } else if (!isGameObject(item)) {
+                warn('rm_mult_objs_from_inven: item not a game object: ' + item)
+                return
+            } else if (obj.inventory === undefined) {
+                warn('rm_mult_objs_from_inven: object has no inventory!')
+                return
+            }
+            dbg('inventory', 'rm_mult_objs_from_inven: %d counts of %o from %o', count, item, obj)
+            for (let i = 0; i < obj.inventory.length; i++) {
+                if (obj.inventory[i].approxEq(item)) {
+                    obj.inventory[i].amount -= count
+                    if (obj.inventory[i].amount <= 0) obj.inventory.splice(i, 1)
+                    return
+                }
+            }
+            warn('rm_mult_objs_from_inven: item not found in inventory')
         }
         add_obj_to_inven(obj: Obj, item: Obj) {
             this.add_mult_objs_to_inven(obj, item, 1)
@@ -700,7 +738,23 @@ export module Scripting {
             /*stub("obj_can_hear_obj", arguments);*/ return 0
         }
         critter_mod_skill(obj: Obj, skill: number, amount: number) {
-            stub('critter_mod_skill', arguments)
+            if (!isGameObject(obj) || obj.type !== 'critter') {
+                warn('critter_mod_skill: not a critter: ' + obj)
+                return 0
+            }
+            const skillName = SKILL_NAMES[skill]
+            if (!skillName) {
+                warn('critter_mod_skill: unknown skill id ' + skill)
+                return 0
+            }
+            const critter = obj as Critter
+            try {
+                const current = critter.skills.getBase(skillName)
+                critter.skills.setBase(skillName, current + amount)
+                info('critter_mod_skill: ' + obj.name + ' ' + skillName + (amount >= 0 ? '+' : '') + amount)
+            } catch (e) {
+                warn('critter_mod_skill: error: ' + e)
+            }
             return 0
         }
         using_skill(obj: Obj, skill: number) {
@@ -749,15 +803,14 @@ export module Scripting {
         }
         critter_inven_obj(obj: Critter, where: number) {
             if (!isGameObject(obj)) throw 'critter_inven_obj: not game object'
-            if (where === 0) {
-            } // INVEN_TYPE_WORN
+            if (where === 0) return (obj as Critter).getEquippedArmor() ?? null // INVEN_TYPE_WORN
             else if (where === 1) return obj.rightHand // INVEN_TYPE_RIGHT_HAND
             else if (where === 2) return obj.leftHand // INVEN_TYPE_LEFT_HAND
             else if (where === -2) {
                 warn('INVEN_TYPE_INV_COUNT', 'inventory', this)
                 return 0 /*throw "INVEN_TYPE_INV_COUNT"*/
             }
-            stub('critter_inven_obj', arguments)
+            warn('critter_inven_obj: unknown where=' + where)
             return null
         }
         inven_cmds(obj: Critter, invenCmd: number, itemIndex: number): Obj | null {
@@ -792,15 +845,20 @@ export module Scripting {
             return 0
         }
         get_pc_stat(pcstat: number) {
+            // FO2-CE ref: stat.cc pcGetStat() — PCSTAT constants from stat_defs.h
             switch (pcstat) {
                 case 0: // PCSTAT_unspent_skill_points
+                    return globalState.player?.skills?.skillPoints ?? 0
                 case 1: // PCSTAT_level
+                    return globalState.player?.getStat('Level') ?? 1
                 case 2: // PCSTAT_experience
+                    return globalState.player?.getStat('Experience') ?? 0
                 case 3: // PCSTAT_reputation
+                    return 0 // not tracked
                 case 4: // PCSTAT_karma
-                case 5: // PCSTAT_max_pc_stat
-                    stub('get_pc_stat', arguments)
-                    return 0
+                    return 0 // not tracked
+                case 5: // PCSTAT_max_pc_stat (sentinel, always 5)
+                    return 5
                 default:
                     throw `get_pc_stat: unhandled ${pcstat}`
             }
@@ -815,11 +873,20 @@ export module Scripting {
             info('critter_injure: ' + obj.name + ' flags=0x' + how.toString(16))
         }
         critter_is_fleeing(obj: Obj) {
-            stub('critter_is_fleeing', arguments)
-            return 0
+            if (!isGameObject(obj)) return 0
+            return (obj as any).fleeing ? 1 : 0
         }
         wield_obj_critter(obj: Obj, item: Obj) {
-            stub('wield_obj_critter', arguments)
+            if (!isGameObject(obj) || obj.type !== 'critter') {
+                warn('wield_obj_critter: not a critter: ' + obj)
+                return
+            }
+            if (!isGameObject(item)) {
+                warn('wield_obj_critter: item not a game object: ' + item)
+                return
+            }
+            info('wield_obj_critter: ' + obj.name + ' wields ' + (item.name ?? item.pid))
+            ;(obj as Critter).rightHand = item as any
         }
         critter_dmg(obj: Critter, damage: number, damageType: string) {
             if (!isGameObject(obj)) {
@@ -877,7 +944,12 @@ export module Scripting {
             if (globalState.combat) globalState.combat.forceEnd()
         }
         critter_set_flee_state(obj: Obj, isFleeing: number) {
-            stub('critter_set_flee_state', arguments)
+            if (!isGameObject(obj)) {
+                warn('critter_set_flee_state: not game object: ' + obj)
+                return
+            }
+            info('critter_set_flee_state: ' + obj.name + ' fleeing=' + isFleeing)
+            ;(obj as any).fleeing = !!isFleeing
         }
 
         // objects
@@ -934,8 +1006,58 @@ export module Scripting {
             //stub("obj_open", arguments)
         }
         proto_data(pid: number, data_member: number): any {
-            stub('proto_data', arguments)
-            return null
+            // FO2-CE ref: intrinsics.cc proto_data_pointer() — maps data_member IDs to PRO fields
+            const pidID = pid & 0xffff
+            const pro = loadPRO(pid, pidID)
+            if (!pro) {
+                warn('proto_data: no PRO for pid=0x' + pid.toString(16))
+                return 0
+            }
+            const objType = (pid >> 24) & 0xff
+            const extra = pro.extra ?? {}
+            if (objType === 0 /* OBJ_TYPE_ITEM */) {
+                // item.h DATA_MEMBER constants (fallout2-ce)
+                switch (data_member) {
+                    case 0: return extra.subType ?? 0       // ITEM_TYPE
+                    case 1: return extra.materialID ?? 0    // ITEM_MATERIAL
+                    case 2: return extra.size ?? 0          // ITEM_SIZE
+                    case 3: return extra.weight ?? 0        // ITEM_WEIGHT
+                    case 4: return extra.cost ?? 0          // ITEM_COST
+                    case 5: return extra.invFRM ?? 0        // ITEM_INV_FID
+                    case 6: return extra.itemFlags ?? 0     // ITEM_FLAGS
+                    case 7: return extra.attackMode ?? 0    // ITEM_FIREMODE
+                    // Weapon/Ammo/Armor subtype-specific fields start at 8
+                    case 8:  return extra.animCode ?? extra.caliber ?? extra.AC ?? 0
+                    case 9:  return extra.minDmg ?? extra.quantity ?? 0
+                    case 10: return extra.maxDmg ?? extra['AC modifier'] ?? 0
+                    case 11: return extra.dmgType ?? extra['DR modifier'] ?? 0
+                    case 12: return extra.maxRange1 ?? extra.damMult ?? 0
+                    case 13: return extra.maxRange2 ?? extra.damDiv ?? 0
+                    case 14: return extra.projPID ?? 0
+                    case 15: return extra.minST ?? 0
+                    case 16: return extra.APCost1 ?? 0
+                    case 17: return extra.APCost2 ?? 0
+                    case 18: return extra.critFail ?? 0
+                    case 19: return extra.perk ?? 0
+                    case 20: return extra.rounds ?? 0
+                    case 21: return extra.caliber ?? 0
+                    case 22: return extra.ammoPID ?? 0
+                    case 23: return extra.maxAmmo ?? 0
+                    default:
+                        warn('proto_data: unknown item data_member=' + data_member + ' pid=0x' + pid.toString(16))
+                        return 0
+                }
+            } else if (objType === 1 /* OBJ_TYPE_CRITTER */) {
+                // Critter proto fields — limited support; add more as scripts require them
+                switch (data_member) {
+                    case 0: return pro.pid ?? 0     // CRITTER_KILL_TYPE (proto pid id)
+                    default:
+                        warn('proto_data: critter data_member=' + data_member + ' not implemented')
+                        return 0
+                }
+            }
+            warn('proto_data: unsupported objType=' + objType + ' data_member=' + data_member)
+            return 0
         }
         create_object_sid(pid: number, tile: number, elev: number, sid: number) {
             // Create object of pid and possibly script
@@ -1001,24 +1123,36 @@ export module Scripting {
             obj.visible = !visibility
         }
         use_obj_on_obj(obj: Obj, who: Obj) {
-            stub('use_obj_on_obj', arguments)
+            if (!isGameObject(obj) || !isGameObject(who)) {
+                warn('use_obj_on_obj: not game objects')
+                return
+            }
+            info('use_obj_on_obj: ' + (obj.name ?? obj.pid) + ' on ' + (who.name ?? who.pid))
+            obj.use(who as Critter, true)
         }
         use_obj(obj: Obj) {
-            stub('use_obj', arguments)
+            if (!isGameObject(obj)) {
+                warn('use_obj: not a game object: ' + obj)
+                return
+            }
+            info('use_obj: ' + (obj.name ?? obj.pid))
+            obj.use(this.self_obj as Critter, true)
         }
         anim(obj: Obj, anim: number, param: number) {
             if (!isGameObject(obj)) {
                 warn('anim: not a game object: ' + obj)
                 return
             }
-            stub('anim', arguments)
             if (anim === 1000)
                 // set rotation
                 obj.orientation = param
             else if (anim === 1010)
                 // set frame
                 obj.frame = param
-            else warn('anim: unknown anim request: ' + anim)
+            else {
+                stub('anim', arguments)
+                warn('anim: unknown anim request: ' + anim)
+            }
         }
 
         // environment
@@ -1030,7 +1164,12 @@ export module Scripting {
             GameTime.setLightLevelOverride(level)
         }
         obj_set_light_level(obj: Obj, intensity: number, distance: number) {
-            stub('obj_set_light_level', arguments)
+            if (!isGameObject(obj)) {
+                warn('obj_set_light_level: not game object: ' + obj)
+                return
+            }
+            obj.lightRadius = distance
+            obj.lightIntensity = intensity
         }
         override_map_start(x: number, y: number, elevation: number, rotation: number) {
             log('override_map_start', arguments)
@@ -1231,10 +1370,14 @@ export module Scripting {
             // appendHTML($id("dialogue"), `&nbsp;&nbsp;"${msg}"<br><a href="javascript:dialogueEnd()">[Done]</a><br>`);
         }
         gsay_end() {
-            stub('gSay_End', arguments)
+            // Halt the VM so the player can interact with dialogue options.
+            // dialogueExit() resumes via vm.pc = vm.popAddr(); vm.run().
+            info('[gsay_end: halting VM for dialogue]', 'dialogue')
+            if (this._vm) this._vm.halted = true
         }
         end_dialogue() {
-            stub('end_dialogue', arguments)
+            info('[end_dialogue]', 'dialogue')
+            dialogueExit()
         }
         giq_option(iqTest: number, msgList: number, msgID: string | number, target: any, reaction: number) {
             log('giQ_Option', arguments)
@@ -1300,7 +1443,12 @@ export module Scripting {
             stub('reg_anim_func', arguments, 'animation')
         }
         reg_anim_animate(obj: Obj, anim: number, delay: number) {
-            stub('reg_anim_animate', arguments, 'animation')
+            if (!isGameObject(obj)) {
+                warn('reg_anim_animate: not a game object')
+                return
+            }
+            // Queue a single animation cycle; full playback timing via delay not yet implemented
+            obj.singleAnimation(true, () => obj.clearAnim())
         }
         reg_anim_animate_forever(obj: Obj, anim: number) {
             log('reg_anim_animate_forever', arguments, 'animation')
@@ -1345,12 +1493,27 @@ export module Scripting {
             }
         }
         reg_anim_obj_move_to_tile(obj: Obj, tileNum: number, delay: number) {
-            stub('reg_anim_obj_move_to_tile', arguments, 'movement')
+            if (!isGameObject(obj)) {
+                warn('reg_anim_obj_move_to_tile: not a game object', 'movement', this)
+                return
+            }
+            if (isNaN(tileNum)) {
+                warn('reg_anim_obj_move_to_tile: invalid tile num', 'movement', this)
+                return
+            }
+            const tile = fromTileNum(tileNum)
+            const critter = obj as Critter
+            if (typeof critter.walkTo === 'function') {
+                if (!critter.walkTo(tile, false))
+                    warn('reg_anim_obj_move_to_tile: no path to tile ' + tileNum, 'movement', this)
+            } else {
+                obj.position = tile
+            }
         }
 
         animate_stand_obj(obj: Critter) {
-            stub('animate_stand_obj', arguments, 'animation')
-            // TODO: Play idle animation (animation 0)
+            if (!isGameObject(obj)) return
+            if (typeof obj.clearAnim === 'function') obj.clearAnim()
         }
 
         explosion(tile: number, elevation: number, damage: number) {
