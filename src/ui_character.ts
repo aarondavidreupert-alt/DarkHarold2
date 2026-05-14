@@ -1795,8 +1795,8 @@ function showPerkModal(player: any): void {
     const listEl = document.createElement('div')
     Object.assign(listEl.style, {
         position: 'absolute',
-        left: '8px', top: '15px',
-        width: '260px', height: '165px',
+        left: '40px', top: '38px',
+        width: '200px', height: '150px',
         overflowY: 'auto',
         backgroundColor: 'transparent',
     })
