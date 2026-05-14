@@ -1758,10 +1758,10 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 // Blocking: CANCEL closes the overlay but does NOT clear pendingPerkPick —
 // the player must eventually pick a perk.
 // Layout: 573×230px perkwin.png background; button sprites baked into the PNG.
-//   Left panel (list):  x 0–280, y 0–182 (above button row)
+//   Left panel (list):  left 8px, top 15px, 260×165px
 //   Right panel (card): title left 282 top 27; body left 282 top 60; img left 410 top 41
-//   DONE button:        lilredup at left 155 top 188; label at left 176 top 185
-//   CANCEL button:      lilredup at left 252 top 188; label at left 271 top 185
+//   CANCEL button:      lilredup at left 47  top 187; label at left 64  top 186
+//   DONE button:        lilredup at left 159 top 187; label at left 176 top 185
 
 function showPerkModal(player: any): void {
     if (document.getElementById('perk-modal-overlay')) return
@@ -1791,12 +1791,12 @@ function showPerkModal(player: any): void {
     })
     box.onclick = (e) => e.stopPropagation()
 
-    // ── Left panel: scrollable perk list (x 0–280, y 0–182) ─────────────────
+    // ── Left panel: scrollable perk list ─────────────────────────────────────
     const listEl = document.createElement('div')
     Object.assign(listEl.style, {
         position: 'absolute',
-        left: '0', top: '0',
-        width: '280px', height: '182px',
+        left: '8px', top: '15px',
+        width: '260px', height: '165px',
         overflowY: 'auto',
         backgroundColor: 'transparent',
     })
@@ -1869,7 +1869,7 @@ function showPerkModal(player: any): void {
     const doneBtn = document.createElement('div')
     Object.assign(doneBtn.style, {
         position: 'absolute',
-        left: '155px', top: '188px',
+        left: '159px', top: '187px',
         width: '15px', height: '16px',
         backgroundImage: "url('art/intrface/lilredup.png')",
         backgroundRepeat: 'no-repeat', backgroundSize: '15px 16px',
@@ -1898,7 +1898,7 @@ function showPerkModal(player: any): void {
     const cancelBtn = document.createElement('div')
     Object.assign(cancelBtn.style, {
         position: 'absolute',
-        left: '252px', top: '188px',
+        left: '47px', top: '187px',
         width: '15px', height: '16px',
         backgroundImage: "url('art/intrface/lilredup.png')",
         backgroundRepeat: 'no-repeat', backgroundSize: '15px 16px',
@@ -1912,7 +1912,7 @@ function showPerkModal(player: any): void {
 
     const cancelLblEl = document.createElement('div')
     Object.assign(cancelLblEl.style, {
-        position: 'absolute', left: '271px', top: '185px',
+        position: 'absolute', left: '64px', top: '186px',
         pointerEvents: 'none', zIndex: '1',
     })
     font3.onLoad(() => { cancelLblEl.appendChild(font3.renderText('CANCEL')) })
