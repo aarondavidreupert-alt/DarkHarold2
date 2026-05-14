@@ -1755,11 +1755,13 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 
 // ── Perk Selection Modal ──────────────────────────────────────────────────────
 // Shown when player.pendingPerkPick is true after level-up.
-// Blocking: no Escape, no click-outside dismiss until a perk is confirmed.
-// Layout follows character_editor.cc perk window: 573×230px perkwin.png background.
-//   Left panel (list):  x=45, y=43, 192×129px
-//   Right panel (card): title at x=282, y=16; desc below; image at x=413, y=12
-//   DONE button:        x=69, y=183
+// Blocking: CANCEL closes the overlay but does NOT clear pendingPerkPick —
+// the player must eventually pick a perk.
+// Layout: 573×230px perkwin.png background; button sprites baked into the PNG.
+//   Left panel (list):  x 0–280, y 0–182 (above button row)
+//   Right panel (card): title left 282 top 27; body left 282 top 60; img left 410 top 41
+//   DONE button:        lilredup at left 155 top 188; label at left 176 top 185
+//   CANCEL button:      lilredup at left 252 top 188; label at left 271 top 185
 
 function showPerkModal(player: any): void {
     if (document.getElementById('perk-modal-overlay')) return
@@ -1774,7 +1776,7 @@ function showPerkModal(player: any): void {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         backgroundColor: 'rgba(0,0,0,0.75)',
     })
-    // No click-outside-to-close handler
+    // No click-outside-to-close
 
     // ── Main window box: perkwin.png background, 573×230px ───────────────────
     const box = document.createElement('div')
@@ -1789,23 +1791,23 @@ function showPerkModal(player: any): void {
     })
     box.onclick = (e) => e.stopPropagation()
 
-    // ── Left panel: scrollable perk list ─────────────────────────────────────
+    // ── Left panel: scrollable perk list (x 0–280, y 0–182) ─────────────────
     const listEl = document.createElement('div')
     Object.assign(listEl.style, {
         position: 'absolute',
-        left: '45px', top: '43px',
-        width: '192px', height: '129px',
+        left: '0', top: '0',
+        width: '280px', height: '182px',
         overflowY: 'auto',
         backgroundColor: 'transparent',
     })
     box.appendChild(listEl)
 
     // ── Right panel: info card ────────────────────────────────────────────────
-    // Title element (font2, black — identical to showCharacterScreen cardTitleEl)
+    // Title (font2, black — mirrors showCharacterScreen cardTitleEl exactly)
     const cardTitleEl = document.createElement('div')
     Object.assign(cardTitleEl.style, {
         position: 'absolute',
-        left: '282px', top: '16px',
+        left: '282px', top: '27px',
         width: '128px',
         background: 'transparent',
         padding: '0',
@@ -1818,11 +1820,11 @@ function showPerkModal(player: any): void {
     cardTitleEl.appendChild(cardDividerEl)
     box.appendChild(cardTitleEl)
 
-    // Description text (plain CSS, black — identical to showCharacterScreen cardDescEl)
+    // Body text (mirrors showCharacterScreen cardDescEl exactly)
     const cardDescEl = document.createElement('div')
     Object.assign(cardDescEl.style, {
         position: 'absolute',
-        left: '282px', top: '42px',
+        left: '282px', top: '60px',
         width: '128px', height: '140px',
         fontSize: '0.60em',
         color: '#000000',
@@ -1831,11 +1833,11 @@ function showPerkModal(player: any): void {
     })
     box.appendChild(cardDescEl)
 
-    // Perk image (same pattern as showCharacterScreen cardImgEl)
+    // Perk image (mirrors showCharacterScreen cardImgEl exactly)
     const cardImgEl = document.createElement('img') as HTMLImageElement
     Object.assign(cardImgEl.style, {
         position: 'absolute',
-        left: '413px', top: '12px',
+        left: '410px', top: '41px',
         width: '145px', height: '165px',
         objectFit: 'contain',
         visibility: 'hidden',
@@ -1844,51 +1846,16 @@ function showPerkModal(player: any): void {
     cardImgEl.onerror = () => { cardImgEl.style.visibility = 'hidden' }
     box.appendChild(cardImgEl)
 
-    // ── DONE button (openCreatorPopup pattern, absolutely positioned) ─────────
-    const doneBtn = document.createElement('div')
-    Object.assign(doneBtn.style, {
-        position: 'absolute',
-        left: '155px', top: '186px',
-        width: '15px', height: '16px',
-        backgroundImage: "url('art/intrface/lilredup.png')",
-        backgroundRepeat: 'no-repeat', backgroundSize: '15px 16px',
-        opacity: '0.4',
-        cursor: 'default',
-        zIndex: '1',
-    })
-
-    const doneBoxEl = document.createElement('div')
-    Object.assign(doneBoxEl.style, {
-        position: 'absolute',
-        left: '45px', top: '183px',
-        width: '108px', height: '24px',
-        backgroundImage: "url('art/intrface/donebox.png')",
-        backgroundRepeat: 'no-repeat', backgroundSize: '108px 24px',
-        pointerEvents: 'none', zIndex: '0',
-    })
-    box.appendChild(doneBoxEl)
-
-    const doneLblEl = document.createElement('div')
-    Object.assign(doneLblEl.style, {
-        position: 'absolute',
-        left: '63px', top: '187px',
-        pointerEvents: 'none', zIndex: '1',
-    })
-    font3.onLoad(() => { doneLblEl.appendChild(font3.renderText('DONE')) })
-    box.appendChild(doneLblEl)
-
     // ── State and helpers ─────────────────────────────────────────────────────
     let selectedPerk: string | null = validPerks.length > 0 ? validPerks[0].name : null
 
     const updateDoneBtn = () => {
         const enabled = !!selectedPerk
         doneBtn.style.opacity = enabled ? '1' : '0.4'
-        doneBtn.style.cursor = enabled ? 'pointer' : 'default'
+        doneBtn.style.pointerEvents = enabled ? 'auto' : 'none'
     }
-    updateDoneBtn()
 
     const showCard = (def: typeof validPerks[0]) => {
-        // Clear title text node (keep divider)
         while (cardTitleEl.firstChild && cardTitleEl.firstChild !== cardDividerEl) {
             cardTitleEl.removeChild(cardTitleEl.firstChild)
         }
@@ -1898,18 +1865,60 @@ function showPerkModal(player: any): void {
         cardImgEl.src = imgPath
     }
 
-    doneBtn.onmousedown = () => {
-        if (selectedPerk) doneBtn.style.backgroundImage = "url('art/intrface/lilreddn.png')"
-    }
-    doneBtn.onmouseup = doneBtn.onmouseleave = () => {
-        doneBtn.style.backgroundImage = "url('art/intrface/lilredup.png')"
-    }
+    // ── DONE button — sprite baked into perkwin.png, just the click region ───
+    const doneBtn = document.createElement('div')
+    Object.assign(doneBtn.style, {
+        position: 'absolute',
+        left: '155px', top: '188px',
+        width: '15px', height: '16px',
+        backgroundImage: "url('art/intrface/lilredup.png')",
+        backgroundRepeat: 'no-repeat', backgroundSize: '15px 16px',
+        opacity: '0.4',
+        pointerEvents: 'none',
+        zIndex: '1',
+    })
+    doneBtn.onmousedown = () => { doneBtn.style.backgroundImage = "url('art/intrface/lilreddn.png')" }
+    doneBtn.onmouseup = doneBtn.onmouseleave = () => { doneBtn.style.backgroundImage = "url('art/intrface/lilredup.png')" }
     doneBtn.onclick = () => {
         if (!selectedPerk) return
         applyPerk(player, selectedPerk)
         overlay.remove()
     }
     box.appendChild(doneBtn)
+
+    const doneLblEl = document.createElement('div')
+    Object.assign(doneLblEl.style, {
+        position: 'absolute', left: '176px', top: '185px',
+        pointerEvents: 'none', zIndex: '1',
+    })
+    font3.onLoad(() => { doneLblEl.appendChild(font3.renderText('DONE')) })
+    box.appendChild(doneLblEl)
+
+    // ── CANCEL button — always enabled; closes overlay without applying perk ──
+    const cancelBtn = document.createElement('div')
+    Object.assign(cancelBtn.style, {
+        position: 'absolute',
+        left: '252px', top: '188px',
+        width: '15px', height: '16px',
+        backgroundImage: "url('art/intrface/lilredup.png')",
+        backgroundRepeat: 'no-repeat', backgroundSize: '15px 16px',
+        cursor: 'pointer',
+        zIndex: '1',
+    })
+    cancelBtn.onmousedown = () => { cancelBtn.style.backgroundImage = "url('art/intrface/lilreddn.png')" }
+    cancelBtn.onmouseup = cancelBtn.onmouseleave = () => { cancelBtn.style.backgroundImage = "url('art/intrface/lilredup.png')" }
+    cancelBtn.onclick = () => { overlay.remove() }
+    box.appendChild(cancelBtn)
+
+    const cancelLblEl = document.createElement('div')
+    Object.assign(cancelLblEl.style, {
+        position: 'absolute', left: '271px', top: '185px',
+        pointerEvents: 'none', zIndex: '1',
+    })
+    font3.onLoad(() => { cancelLblEl.appendChild(font3.renderText('CANCEL')) })
+    box.appendChild(cancelLblEl)
+
+    updateDoneBtn()
 
     // ── Build list rows ───────────────────────────────────────────────────────
     if (validPerks.length === 0) {
@@ -1963,7 +1972,7 @@ function showPerkModal(player: any): void {
         listEl.appendChild(row)
     }
 
-    // Show the first perk's info by default
+    // Show first perk's info by default
     if (validPerks.length > 0) showCard(validPerks[0])
 
     overlay.appendChild(box)
