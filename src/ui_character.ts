@@ -28,6 +28,8 @@ import { font1, font2, font3, font4, makeFontLabel, renderBignum } from './ui_fo
 import { WindowFrame, SmallButton, Label, List } from './ui_components.js'
 import { makePanelDraggable } from './ui_drag.js'
 import { StatSet, SkillSet, SkillCalcOptions } from './char.js'
+import { Events } from './events.js'
+import { getValidPerks, getPerkRank, applyPerk, PERKS } from './perks.js'
 
 // ── Module-level constants ────────────────────────────────────────────────────
 
@@ -439,20 +441,22 @@ export function showCharacterScreen() {
     const folderPanels: HTMLElement[] = FOLDER_TABS.map((t, i) => {
         const panel = document.createElement('div')
         if (i === 0) {
-            const traits = player.traits ?? []
-            if (traits.length === 0) {
+            const perks = player.perks ?? []
+            if (perks.length === 0) {
                 const none = document.createElement('div')
-                none.textContent = 'No traits.'
+                none.textContent = 'No perks.'
                 none.style.color = '#00FF00'
                 panel.appendChild(none)
             } else {
-                for (const trait of traits) {
+                const counts: Record<string, number> = {}
+                for (const p of perks) counts[p] = (counts[p] ?? 0) + 1
+                for (const [perkName, rank] of Object.entries(counts)) {
+                    const def = PERKS.find(d => d.name === perkName)
                     const line = document.createElement('div')
-                    line.textContent = trait
+                    line.textContent = rank > 1 ? `${perkName} (${rank})` : perkName
                     line.style.color = '#FFD700'
                     line.style.cursor = 'pointer'
-                    line.onclick = () =>
-                        showInfoCard(trait, TRAIT_DESCRIPTIONS[trait] ?? trait, TRAIT_IMG[trait])
+                    line.onclick = () => showInfoCard(perkName, def?.description ?? perkName, undefined)
                     panel.appendChild(line)
                 }
             }
@@ -1680,3 +1684,174 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     redrawStatsSkills()
     showInfoCard(SPECIAL_FULL_NAMES['STR'], SPECIAL_DESCRIPTIONS['STR'], SPECIAL_IMG['STR'])
 }
+
+// ── Perk Selection Modal ──────────────────────────────────────────────────────
+// Shown when player.pendingPerkPick is true after level-up.
+// Blocking: no Escape, no click-outside dismiss until a perk is confirmed.
+
+function showPerkModal(player: any): void {
+    // Don't double-stack
+    if (document.getElementById('perk-modal-overlay')) return
+
+    const validPerks = getValidPerks(player)
+
+    const overlay = document.createElement('div')
+    overlay.id = 'perk-modal-overlay'
+    Object.assign(overlay.style, {
+        position: 'fixed', zIndex: '3000',
+        left: '0', top: '0', width: '100%', height: '100%',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.75)',
+    })
+    // No click-outside-to-close
+
+    const box = document.createElement('div')
+    Object.assign(box.style, {
+        position: 'relative',
+        backgroundImage: "url('art/intrface/charwin.png')",
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: '100% 100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '6px',
+        padding: '12px 14px 10px',
+        minWidth: '260px',
+        minHeight: '180px',
+        boxSizing: 'border-box',
+    })
+    box.onclick = (e) => e.stopPropagation()
+
+    // Title
+    const titleEl = document.createElement('div')
+    font3.onLoad(() => {
+        titleEl.appendChild(font3.renderText('CHOOSE A PERK', '#FFD700'))
+    })
+    box.appendChild(titleEl)
+
+    // Description area
+    const descEl = document.createElement('div')
+    Object.assign(descEl.style, {
+        fontSize: '0.65em',
+        color: '#00FF00',
+        maxWidth: '240px',
+        minHeight: '40px',
+        textAlign: 'center',
+        padding: '4px 0',
+    })
+    box.appendChild(descEl)
+
+    // Perk list
+    const listEl = document.createElement('div')
+    Object.assign(listEl.style, {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px',
+        maxHeight: '220px',
+        overflowY: 'auto',
+        width: '100%',
+    })
+
+    let selectedPerk: string | null = null
+
+    const updateDoneBtn = () => {
+        doneBtn.style.opacity = selectedPerk ? '1' : '0.4'
+        doneBtn.style.cursor = selectedPerk ? 'pointer' : 'default'
+    }
+
+    for (const def of validPerks) {
+        const rank = getPerkRank(player, def.name)
+        const row = document.createElement('div')
+        Object.assign(row.style, {
+            padding: '2px 4px',
+            cursor: 'pointer',
+            fontSize: '0.7em',
+            color: '#FFD700',
+            borderRadius: '2px',
+        })
+        row.textContent = rank > 0 ? `${def.name} (${rank + 1})` : def.name
+        row.onmouseenter = () => {
+            if (selectedPerk !== def.name) row.style.backgroundColor = 'rgba(255,215,0,0.15)'
+            descEl.textContent = def.description
+        }
+        row.onmouseleave = () => {
+            if (selectedPerk !== def.name) row.style.backgroundColor = ''
+        }
+        row.onclick = () => {
+            selectedPerk = def.name
+            descEl.textContent = def.description
+            listEl.querySelectorAll<HTMLElement>('[data-perk]').forEach(el => {
+                el.style.backgroundColor = el.dataset.perk === def.name
+                    ? 'rgba(255,215,0,0.3)'
+                    : ''
+            })
+            updateDoneBtn()
+        }
+        row.dataset.perk = def.name
+        listEl.appendChild(row)
+    }
+
+    if (validPerks.length === 0) {
+        const none = document.createElement('div')
+        none.textContent = 'No perks available at this level.'
+        none.style.color = '#00FF00'
+        none.style.fontSize = '0.7em'
+        listEl.appendChild(none)
+    }
+
+    box.appendChild(listEl)
+
+    // DONE button row (matches openCreatorPopup pattern)
+    const doneRow = document.createElement('div')
+    Object.assign(doneRow.style, {
+        position: 'relative',
+        left: '-13px', top: '-1px',
+        display: 'flex', alignItems: 'center',
+        justifyContent: 'flex-end', width: '100%', gap: '4px',
+        marginTop: '6px',
+    })
+
+    const doneBoxEl = document.createElement('div')
+    Object.assign(doneBoxEl.style, {
+        position: 'absolute', left: '18px', top: '-3px',
+        width: '108px', height: '24px',
+        backgroundImage: "url('art/intrface/donebox.png')",
+        backgroundRepeat: 'no-repeat', backgroundSize: '108px 24px',
+        pointerEvents: 'none', zIndex: '0',
+    })
+    doneRow.appendChild(doneBoxEl)
+
+    const doneLblEl = document.createElement('div')
+    Object.assign(doneLblEl.style, { pointerEvents: 'none', zIndex: '1', position: 'relative' })
+    font3.onLoad(() => { doneLblEl.appendChild(font3.renderText('DONE')) })
+
+    const doneBtn = document.createElement('div')
+    Object.assign(doneBtn.style, {
+        width: '15px', height: '16px',
+        backgroundImage: "url('art/intrface/lilredup.png')",
+        backgroundRepeat: 'no-repeat', backgroundSize: '15px 16px',
+        opacity: '0.4',
+        cursor: 'default',
+        zIndex: '1', position: 'relative',
+    })
+    doneBtn.onmousedown = () => {
+        if (selectedPerk) doneBtn.style.backgroundImage = "url('art/intrface/lilreddn.png')"
+    }
+    doneBtn.onmouseup = doneBtn.onmouseleave = () => {
+        doneBtn.style.backgroundImage = "url('art/intrface/lilredup.png')"
+    }
+    doneBtn.onclick = () => {
+        if (!selectedPerk) return
+        applyPerk(player, selectedPerk)
+        overlay.remove()
+    }
+
+    doneRow.appendChild(doneLblEl)
+    doneRow.appendChild(doneBtn)
+    box.appendChild(doneRow)
+
+    overlay.appendChild(box)
+    document.body.appendChild(overlay)
+}
+
+Events.on('pendingPerkPick', (player: any) => showPerkModal(player))

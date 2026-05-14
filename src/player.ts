@@ -121,6 +121,7 @@ export class Player extends Critter {
             const perkRate = this.traits.includes('Skilled') ? 4 : 3
             if (currentLevel % perkRate === 0) {
                 this.pendingPerkPick = true
+                Events.emit('pendingPerkPick', this)
             }
 
             console.log(
