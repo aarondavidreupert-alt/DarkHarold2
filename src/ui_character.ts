@@ -175,6 +175,74 @@ const TRAIT_IMG: Record<string, string> = {
     'Skilled':         'art/skilldex/skilled.png',
     'Gifted':          'art/skilldex/gifted.png',
 }
+// FO2-CE ref: character_editor.cc — perk FRM IDs in SKILLDEX.LST start at index 72.
+// Filenames are lowercased 8.3 FRM names as produced by exportImages.py.
+const PERK_IMG: Record<string, string> = {
+    'Awareness':           'art/skilldex/awarenes.png',
+    'Bonus HtH Attacks':   'art/skilldex/bhthatck.png',
+    'Bonus HtH Damage':    'art/skilldex/bhthdam.png',
+    'Bonus Move':          'art/skilldex/bhmove.png',
+    'Bonus Ranged Damage': 'art/skilldex/bhrnddam.png',
+    'Bonus Rate of Fire':  'art/skilldex/bhrof.png',
+    'Earlier Sequence':    'art/skilldex/earlseq.png',
+    'Faster Healing':      'art/skilldex/fastheal.png',
+    'More Criticals':      'art/skilldex/morecrit.png',
+    'Night Vision':        'art/skilldex/nightvis.png',
+    'Presence':            'art/skilldex/presence.png',
+    'Rad Resistance':      'art/skilldex/radresit.png',
+    'Toughness':           'art/skilldex/toughnes.png',
+    'Strong Back':         'art/skilldex/strgback.png',
+    'Sharpshooter':        'art/skilldex/sharpsh.png',
+    'Silent Running':      'art/skilldex/slntrun.png',
+    'Survivalist':         'art/skilldex/survivl.png',
+    'Master Trader':       'art/skilldex/mastrtrd.png',
+    'Educated':            'art/skilldex/educatd.png',
+    'Healer':              'art/skilldex/healer.png',
+    'Fortune Finder':      'art/skilldex/fortune.png',
+    'Better Criticals':    'art/skilldex/bttrcrit.png',
+    'Empathy':             'art/skilldex/empathy.png',
+    'Slayer':              'art/skilldex/slayer.png',
+    'Sniper':              'art/skilldex/sniper.png',
+    'Silent Death':        'art/skilldex/slntdth.png',
+    'Action Boy':          'art/skilldex/actionboy.png',
+    'Mental Block':        'art/skilldex/mntlblck.png',
+    'Lifegiver':           'art/skilldex/lifegvr.png',
+    'Dodger':              'art/skilldex/dodger.png',
+    'Snakeater':           'art/skilldex/snakeatr.png',
+    'Mr. Fixit':           'art/skilldex/mrfixit.png',
+    'Medic':               'art/skilldex/medic.png',
+    'Master Medic':        'art/skilldex/mstrmdic.png',
+    'Ghost':               'art/skilldex/ghost.png',
+    'Cult of Personality': 'art/skilldex/cultpers.png',
+    'Scrounger':           'art/skilldex/scrounger.png',
+    'Explorer':            'art/skilldex/explorer.png',
+    'Flower Child':        'art/skilldex/flwrchld.png',
+    'Pathfinder':          'art/skilldex/pathfndr.png',
+    'Animal Friend':       'art/skilldex/anmfrnd.png',
+    'Scout':               'art/skilldex/scout.png',
+    'Mysterious Stranger': 'art/skilldex/myststrn.png',
+    'Ranger':              'art/skilldex/ranger.png',
+    'Quick Pockets':       'art/skilldex/qckpktc.png',
+    'Smooth Talker':       'art/skilldex/smthtalr.png',
+    'Swift Learner':       'art/skilldex/swftlrn.png',
+    'Tag!':                'art/skilldex/taggerr.png',
+    'Mutate!':             'art/skilldex/mutater.png',
+    'Adrenaline Rush':     'art/skilldex/adrenlrs.png',
+    'Chem Reliant':        'art/skilldex/chemrely.png',
+    'Chem Resistant':      'art/skilldex/chemrst.png',
+    'Demolition Expert':   'art/skilldex/demolexp.png',
+    'Heave Ho!':           'art/skilldex/heaveho.png',
+    'Friendly Foe':        'art/skilldex/frndlyfo.png',
+    'Light Step':          'art/skilldex/lgtstep.png',
+    'Quick Recovery':      'art/skilldex/qckrecvr.png',
+    'Paralyzing Palm':     'art/skilldex/parlzplm.png',
+    'Pyromaniac':          'art/skilldex/pyromanc.png',
+    'Negotiator':          'art/skilldex/negotiat.png',
+    'Master Thief':        'art/skilldex/mastrtft.png',
+    'Speaker':             'art/skilldex/speaker.png',
+    'Thief':               'art/skilldex/thief.png',
+    'Salesman':            'art/skilldex/salesman.png',
+}
 
 // FO2-CE ref: editor.cc gCharacterEditorPrimaryStatDescriptions — value → adjective
 const STAT_COMMENTS = [
@@ -1688,9 +1756,12 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
 // ── Perk Selection Modal ──────────────────────────────────────────────────────
 // Shown when player.pendingPerkPick is true after level-up.
 // Blocking: no Escape, no click-outside dismiss until a perk is confirmed.
+// Layout follows character_editor.cc perk window: 573×230px perkwin.png background.
+//   Left panel (list):  x=45, y=43, 192×129px
+//   Right panel (card): title at x=282, y=16; desc below; image at x=413, y=12
+//   DONE button:        x=69, y=183
 
 function showPerkModal(player: any): void {
-    // Don't double-stack
     if (document.getElementById('perk-modal-overlay')) return
 
     const validPerks = getValidPerks(player)
@@ -1703,137 +1774,130 @@ function showPerkModal(player: any): void {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         backgroundColor: 'rgba(0,0,0,0.75)',
     })
-    // No click-outside-to-close
+    // No click-outside-to-close handler
 
+    // ── Main window box: perkwin.png background, 573×230px ───────────────────
     const box = document.createElement('div')
     Object.assign(box.style, {
         position: 'relative',
-        backgroundImage: "url('art/intrface/charwin.png')",
+        backgroundImage: "url('art/intrface/perkwin.png')",
         backgroundRepeat: 'no-repeat',
-        backgroundSize: '100% 100%',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '12px 14px 10px',
-        minWidth: '260px',
-        minHeight: '180px',
+        backgroundSize: '573px 230px',
+        width: '573px',
+        height: '230px',
         boxSizing: 'border-box',
     })
     box.onclick = (e) => e.stopPropagation()
 
-    // Title
-    const titleEl = document.createElement('div')
-    font3.onLoad(() => {
-        titleEl.appendChild(font3.renderText('CHOOSE A PERK', '#FFD700'))
-    })
-    box.appendChild(titleEl)
-
-    // Description area
-    const descEl = document.createElement('div')
-    Object.assign(descEl.style, {
-        fontSize: '0.65em',
-        color: '#00FF00',
-        maxWidth: '240px',
-        minHeight: '40px',
-        textAlign: 'center',
-        padding: '4px 0',
-    })
-    box.appendChild(descEl)
-
-    // Perk list
+    // ── Left panel: scrollable perk list ─────────────────────────────────────
     const listEl = document.createElement('div')
     Object.assign(listEl.style, {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '2px',
-        maxHeight: '220px',
+        position: 'absolute',
+        left: '45px', top: '43px',
+        width: '192px', height: '129px',
         overflowY: 'auto',
-        width: '100%',
+        backgroundColor: 'transparent',
     })
-
-    let selectedPerk: string | null = null
-
-    const updateDoneBtn = () => {
-        doneBtn.style.opacity = selectedPerk ? '1' : '0.4'
-        doneBtn.style.cursor = selectedPerk ? 'pointer' : 'default'
-    }
-
-    for (const def of validPerks) {
-        const rank = getPerkRank(player, def.name)
-        const row = document.createElement('div')
-        Object.assign(row.style, {
-            padding: '2px 4px',
-            cursor: 'pointer',
-            fontSize: '0.7em',
-            color: '#FFD700',
-            borderRadius: '2px',
-        })
-        row.textContent = rank > 0 ? `${def.name} (${rank + 1})` : def.name
-        row.onmouseenter = () => {
-            if (selectedPerk !== def.name) row.style.backgroundColor = 'rgba(255,215,0,0.15)'
-            descEl.textContent = def.description
-        }
-        row.onmouseleave = () => {
-            if (selectedPerk !== def.name) row.style.backgroundColor = ''
-        }
-        row.onclick = () => {
-            selectedPerk = def.name
-            descEl.textContent = def.description
-            listEl.querySelectorAll<HTMLElement>('[data-perk]').forEach(el => {
-                el.style.backgroundColor = el.dataset.perk === def.name
-                    ? 'rgba(255,215,0,0.3)'
-                    : ''
-            })
-            updateDoneBtn()
-        }
-        row.dataset.perk = def.name
-        listEl.appendChild(row)
-    }
-
-    if (validPerks.length === 0) {
-        const none = document.createElement('div')
-        none.textContent = 'No perks available at this level.'
-        none.style.color = '#00FF00'
-        none.style.fontSize = '0.7em'
-        listEl.appendChild(none)
-    }
-
     box.appendChild(listEl)
 
-    // DONE button row (matches openCreatorPopup pattern)
-    const doneRow = document.createElement('div')
-    Object.assign(doneRow.style, {
-        position: 'relative',
-        left: '-13px', top: '-1px',
-        display: 'flex', alignItems: 'center',
-        justifyContent: 'flex-end', width: '100%', gap: '4px',
-        marginTop: '6px',
+    // ── Right panel: info card ────────────────────────────────────────────────
+    // Title element (font2, black — identical to showCharacterScreen cardTitleEl)
+    const cardTitleEl = document.createElement('div')
+    Object.assign(cardTitleEl.style, {
+        position: 'absolute',
+        left: '282px', top: '16px',
+        width: '128px',
+        background: 'transparent',
+        padding: '0',
     })
-
-    const doneBoxEl = document.createElement('div')
-    Object.assign(doneBoxEl.style, {
-        position: 'absolute', left: '18px', top: '-3px',
-        width: '108px', height: '24px',
-        backgroundImage: "url('art/intrface/donebox.png')",
-        backgroundRepeat: 'no-repeat', backgroundSize: '108px 24px',
-        pointerEvents: 'none', zIndex: '0',
+    const cardDividerEl = document.createElement('hr')
+    Object.assign(cardDividerEl.style, {
+        border: 'none', borderTop: '2px solid #000000',
+        margin: '2px 0', width: '100%',
     })
-    doneRow.appendChild(doneBoxEl)
+    cardTitleEl.appendChild(cardDividerEl)
+    box.appendChild(cardTitleEl)
 
-    const doneLblEl = document.createElement('div')
-    Object.assign(doneLblEl.style, { pointerEvents: 'none', zIndex: '1', position: 'relative' })
-    font3.onLoad(() => { doneLblEl.appendChild(font3.renderText('DONE')) })
+    // Description text (plain CSS, black — identical to showCharacterScreen cardDescEl)
+    const cardDescEl = document.createElement('div')
+    Object.assign(cardDescEl.style, {
+        position: 'absolute',
+        left: '282px', top: '42px',
+        width: '128px', height: '140px',
+        fontSize: '0.60em',
+        color: '#000000',
+        lineHeight: '1.2',
+        overflow: 'hidden',
+    })
+    box.appendChild(cardDescEl)
 
+    // Perk image (same pattern as showCharacterScreen cardImgEl)
+    const cardImgEl = document.createElement('img') as HTMLImageElement
+    Object.assign(cardImgEl.style, {
+        position: 'absolute',
+        left: '413px', top: '12px',
+        width: '145px', height: '165px',
+        objectFit: 'contain',
+        visibility: 'hidden',
+    })
+    cardImgEl.onload = () => { cardImgEl.style.visibility = 'visible' }
+    cardImgEl.onerror = () => { cardImgEl.style.visibility = 'hidden' }
+    box.appendChild(cardImgEl)
+
+    // ── DONE button (openCreatorPopup pattern, absolutely positioned) ─────────
     const doneBtn = document.createElement('div')
     Object.assign(doneBtn.style, {
+        position: 'absolute',
+        left: '155px', top: '186px',
         width: '15px', height: '16px',
         backgroundImage: "url('art/intrface/lilredup.png')",
         backgroundRepeat: 'no-repeat', backgroundSize: '15px 16px',
         opacity: '0.4',
         cursor: 'default',
-        zIndex: '1', position: 'relative',
+        zIndex: '1',
     })
+
+    const doneBoxEl = document.createElement('div')
+    Object.assign(doneBoxEl.style, {
+        position: 'absolute',
+        left: '45px', top: '183px',
+        width: '108px', height: '24px',
+        backgroundImage: "url('art/intrface/donebox.png')",
+        backgroundRepeat: 'no-repeat', backgroundSize: '108px 24px',
+        pointerEvents: 'none', zIndex: '0',
+    })
+    box.appendChild(doneBoxEl)
+
+    const doneLblEl = document.createElement('div')
+    Object.assign(doneLblEl.style, {
+        position: 'absolute',
+        left: '63px', top: '187px',
+        pointerEvents: 'none', zIndex: '1',
+    })
+    font3.onLoad(() => { doneLblEl.appendChild(font3.renderText('DONE')) })
+    box.appendChild(doneLblEl)
+
+    // ── State and helpers ─────────────────────────────────────────────────────
+    let selectedPerk: string | null = validPerks.length > 0 ? validPerks[0].name : null
+
+    const updateDoneBtn = () => {
+        const enabled = !!selectedPerk
+        doneBtn.style.opacity = enabled ? '1' : '0.4'
+        doneBtn.style.cursor = enabled ? 'pointer' : 'default'
+    }
+    updateDoneBtn()
+
+    const showCard = (def: typeof validPerks[0]) => {
+        // Clear title text node (keep divider)
+        while (cardTitleEl.firstChild && cardTitleEl.firstChild !== cardDividerEl) {
+            cardTitleEl.removeChild(cardTitleEl.firstChild)
+        }
+        cardTitleEl.insertBefore(font2.renderText(def.name.toUpperCase(), '#000000'), cardDividerEl)
+        cardDescEl.textContent = def.description
+        const imgPath = PERK_IMG[def.name] ?? `art/skilldex/${def.id}.png`
+        cardImgEl.src = imgPath
+    }
+
     doneBtn.onmousedown = () => {
         if (selectedPerk) doneBtn.style.backgroundImage = "url('art/intrface/lilreddn.png')"
     }
@@ -1845,10 +1909,62 @@ function showPerkModal(player: any): void {
         applyPerk(player, selectedPerk)
         overlay.remove()
     }
+    box.appendChild(doneBtn)
 
-    doneRow.appendChild(doneLblEl)
-    doneRow.appendChild(doneBtn)
-    box.appendChild(doneRow)
+    // ── Build list rows ───────────────────────────────────────────────────────
+    if (validPerks.length === 0) {
+        const none = document.createElement('div')
+        none.textContent = 'No eligible perks.'
+        Object.assign(none.style, { color: '#00FF00', fontSize: '0.68em', padding: '4px 3px' })
+        listEl.appendChild(none)
+    }
+
+    for (const def of validPerks) {
+        const rank = getPerkRank(player, def.name)
+
+        const row = document.createElement('div')
+        Object.assign(row.style, {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '1px 3px',
+            cursor: 'pointer',
+            fontSize: '0.68em',
+            color: '#00FF00',
+            backgroundColor: def.name === selectedPerk ? 'rgba(0,255,0,0.2)' : 'transparent',
+        })
+
+        const nameSpan = document.createElement('span')
+        nameSpan.textContent = def.name
+
+        const rankSpan = document.createElement('span')
+        rankSpan.textContent = `${rank + 1}/${def.maxRanks}`
+        Object.assign(rankSpan.style, { color: '#70A070', fontSize: '0.9em' })
+
+        row.appendChild(nameSpan)
+        row.appendChild(rankSpan)
+
+        row.onmouseenter = () => {
+            if (selectedPerk !== def.name) row.style.backgroundColor = 'rgba(0,255,0,0.1)'
+        }
+        row.onmouseleave = () => {
+            row.style.backgroundColor = selectedPerk === def.name ? 'rgba(0,255,0,0.2)' : 'transparent'
+        }
+        row.onclick = () => {
+            selectedPerk = def.name
+            listEl.querySelectorAll<HTMLElement>('[data-perk]').forEach(el => {
+                el.style.backgroundColor = el.dataset.perk === def.name
+                    ? 'rgba(0,255,0,0.2)' : 'transparent'
+            })
+            showCard(def)
+            updateDoneBtn()
+        }
+        row.dataset.perk = def.name
+        listEl.appendChild(row)
+    }
+
+    // Show the first perk's info by default
+    if (validPerks.length > 0) showCard(validPerks[0])
 
     overlay.appendChild(box)
     document.body.appendChild(overlay)
