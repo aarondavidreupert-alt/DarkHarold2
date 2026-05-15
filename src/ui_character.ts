@@ -509,11 +509,46 @@ export function showCharacterScreen() {
     const folderPanels: HTMLElement[] = FOLDER_TABS.map((t, i) => {
         const panel = document.createElement('div')
         if (i === 0) {
+            // ── TRAITS section ────────────────────────────────────────────────
+            const mkSectionHeader = (text: string) => {
+                const hdr = document.createElement('div')
+                hdr.textContent = text
+                Object.assign(hdr.style, {
+                    color: '#70A070',
+                    fontSize: '0.85em',
+                    margin: '2px 0 1px',
+                    pointerEvents: 'none',
+                    userSelect: 'none',
+                })
+                return hdr
+            }
+
+            panel.appendChild(mkSectionHeader('── TRAITS ──'))
+
+            const activeTraits: string[] = player.traits ?? []
+            if (activeTraits.length === 0) {
+                const none = document.createElement('div')
+                none.textContent = 'No traits selected.'
+                Object.assign(none.style, { color: '#70A070', fontSize: '0.9em' })
+                panel.appendChild(none)
+            } else {
+                for (const traitName of activeTraits) {
+                    const line = document.createElement('div')
+                    line.textContent = traitName
+                    Object.assign(line.style, { color: '#FFD700', cursor: 'pointer' })
+                    line.onclick = () => showInfoCard(traitName, TRAIT_DESCRIPTIONS[traitName] ?? traitName, TRAIT_IMG[traitName])
+                    panel.appendChild(line)
+                }
+            }
+
+            // ── PERKS section ─────────────────────────────────────────────────
+            panel.appendChild(mkSectionHeader('── PERKS ──'))
+
             const perks = player.perks ?? []
             if (perks.length === 0) {
                 const none = document.createElement('div')
                 none.textContent = 'No perks.'
-                none.style.color = '#00FF00'
+                Object.assign(none.style, { color: '#00FF00', fontSize: '0.9em' })
                 panel.appendChild(none)
             } else {
                 const counts: Record<string, number> = {}
@@ -528,6 +563,9 @@ export function showCharacterScreen() {
                     panel.appendChild(line)
                 }
             }
+        } else if (i === 1) {
+            // KARMA panel — populated fresh each time the tab is activated
+            panel.dataset.karmaPanel = '1'
         } else {
             panel.textContent = t.label
         }
@@ -536,12 +574,25 @@ export function showCharacterScreen() {
         return panel
     })
 
+    const refreshKarmaPanel = (panel: HTMLElement) => {
+        while (panel.firstChild) panel.removeChild(panel.firstChild)
+        const karmaVal = player.stats.getBase('Karma')
+        const kRow = document.createElement('div')
+        kRow.textContent = `Karma: ${karmaVal}`
+        Object.assign(kRow.style, { color: '#00FF00' })
+        panel.appendChild(kRow)
+    }
+
     let activeFolder = 0
     const activateFolder = (idx: number) => {
         activeFolder = idx
         tabImg.src = FOLDER_TABS[idx].sprite
         folderPanels.forEach((p, i) => { p.style.display = i === idx ? 'block' : 'none' })
+        if (idx === 1) refreshKarmaPanel(folderPanels[1])
     }
+
+    // Populate karma panel for initial display if it starts active
+    refreshKarmaPanel(folderPanels[1])
 
     FOLDER_TABS.forEach((tab, idx) => {
         const region = document.createElement('div')
