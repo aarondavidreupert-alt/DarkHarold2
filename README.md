@@ -305,6 +305,65 @@ of DarkHarold2 and are only given to explain the status quo. The technical direc
 
     A: Why not? It's a fun project, and I love Fallout. Fallout 1 and 2 do not run particularly well on modern machines, even with engine hacks. They're also hard to mod -- I'd like to change that.
 
+## Development / Debug
+
+`src/debug.ts` exports a typed `debug` object with cheat/testing utilities.
+It is a **no-op in production** — all methods return immediately unless
+`Config.engine.debug` is `true`.
+
+### Enabling
+
+Open `src/config.ts` and flip the flag:
+
+```ts
+engine: {
+    debug: true,   // ← change this
+    ...
+}
+```
+
+Rebuild (`npx tsc`) and reload the page.
+
+### Using from the Browser DevTools
+
+Because the game uses ES modules you cannot call `debug.*` directly in the
+DevTools console. Use a dynamic import snippet instead:
+
+```js
+const { debug } = await import('./src/debug.js')
+debug.addXP(2000)
+```
+
+Or wire it once per session at the top of a console snippet:
+
+```js
+window._debug = (await import('./src/debug.js')).debug
+_debug.addXP(2000)
+```
+
+### Available methods
+
+| Method | Description | Example |
+|---|---|---|
+| `addXP(n)` | Add `n` experience points. Fires level-up and opens the perk picker if the XP threshold is crossed. | `debug.addXP(2000)` |
+| `setHP(n)` | Set player current HP to `n`. | `debug.setHP(1)` |
+| `setKarma(n)` | Set player karma/reputation to `n`. Logs a warning if the field is not yet implemented. | `debug.setKarma(500)` |
+| `combatLog()` | Returns the current `eventLog` array (same data exported by the Combat Log tools). | `debug.combatLog()` |
+| `teleport(map)` | Load a map by name. | `debug.teleport('artemple')` |
+| `giveItem(pid)` | Add an item with the given prototype ID to the player's inventory. | `debug.giveItem(41)` (caps) |
+
+### Quick level-up test (no debug flag needed)
+
+The classic one-liner works in any DevTools console without enabling debug
+mode, because `globalState` is already exposed on `window`:
+
+```js
+globalState.player.addExperience(2000)
+```
+
+This triggers a level-up and opens the perk selection modal, useful for
+testing the perk picker during development.
+
 ## License
 
 DarkHarold2 is licensed under the terms of the Apache 2 license. See `LICENSE.txt` for the full license text.

@@ -23,6 +23,7 @@ export const Config = {
     },
 
     engine: {
+        debug: false, // set true to enable debug/cheat utilities in src/debug.ts
         doSaveDirtyMaps: true, // save dirty maps to in-memory cache?
         doLoadScripts: true, // should we load scripts?
         doUpdateCritters: true, // should we give critters heartbeats?
