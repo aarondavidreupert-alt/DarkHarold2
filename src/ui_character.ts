@@ -1861,8 +1861,13 @@ function showPerkModal(player: any): void {
         }
         cardTitleEl.insertBefore(font2.renderText(def.name.toUpperCase(), '#000000'), cardDividerEl)
         cardDescEl.textContent = def.description
-        const imgPath = PERK_IMG[def.name] ?? `art/skilldex/${def.id}.png`
-        cardImgEl.src = imgPath
+        cardImgEl.style.visibility = 'hidden'
+        const imgPath = def.img ?? PERK_IMG[def.name]
+        if (imgPath) {
+            cardImgEl.src = imgPath
+        } else {
+            cardImgEl.src = ''
+        }
     }
 
     // ── DONE button — sprite baked into perkwin.png, just the click region ───
