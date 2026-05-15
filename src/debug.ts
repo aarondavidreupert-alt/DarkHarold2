@@ -37,16 +37,13 @@ export const debug = {
         console.log(`[debug] HP set to ${n}`)
     },
 
-    /** Set player karma (reputation). No-op with a warning if the field is absent. */
+    /** Set player karma. Clamped to the Karma stat's ±99999999 bounds. */
     setKarma(n: number): void {
         const p = guardPlayer('setKarma')
         if (!p) return
-        if (!('karma' in p)) {
-            console.warn('[debug.setKarma] Player has no karma field — not yet implemented.')
-            return
-        }
-        ;(p as any).karma = n
-        console.log(`[debug] Karma set to ${n}`)
+        const clamped = Math.max(-99999999, Math.min(99999999, n))
+        p.stats.setBase('Karma', clamped)
+        console.log(`[debug] Karma set to ${clamped}`)
     },
 
     /** Returns the current event log array (same data shown in the UI event log). */

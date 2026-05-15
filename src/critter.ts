@@ -450,6 +450,13 @@ export function critterKill(
     obj.dead = true
     obj.outline = null
 
+    // Karma award for player kills. Simple placeholder: +1 per hostile kill.
+    // FO2-CE awards via proto karma_vars; that lookup is not wired yet.
+    if (source?.isPlayer && !obj.isPlayer) {
+        const cur = source.stats.getBase('Karma')
+        source.stats.setBase('Karma', Math.max(-99999999, Math.min(99999999, cur + 1)))
+    }
+
     if (useScript === undefined || useScript === true) {
         Scripting.destroy(obj, source)
     }

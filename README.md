@@ -54,12 +54,12 @@ tools to work with them, this project will be useful to you as well.
 - **Time & date system** — `gametime.ts` implements ticks, day/night ambient light, script bridges for `game_time` and `game_time_hour`. `get_month` and `get_day` opcodes are hardcoded to return 1 and 0 respectively.
 - **Quest system** — `questData.ts` covers all major Fallout 2 quests with GVAR-based state tracking; Pip-Boy ARCHIVES tab surfaces them. No completion rewards or XP awards wired through the engine. Quest descriptions are inlined in TS rather than loaded from `quests.msg`.
 - **Animations** — FRM sprite rendering works; some animations are off, particularly related to combat.
+- **Karma & reputation** — `get_pc_stat` / `mod_pc_stat` / `set_pc_stat` wired to the `Karma` and `Reputation` stats; basic +1 karma increment on player kills; STATUS panel of the character screen displays both. No karma title computation, no town reputation, no faction tracking, no proto-based karma table.
 
 ---
 
 ### ❌ Not implemented or near-absent (<30%)
 
-- **Karma & reputation** — stat fields are defined in `skills.ts`; `get_pc_stat` for karma/reputation falls through to a stub in scripting; no increment/decrement logic, no karma title computation, no town or faction reputation tracking.
 - **Party / NPC followers** — `party.ts` is a 61-line shell: add/remove/enumerate only. No CHA-based party size cap, no follow/formation logic, no companion inventory access, no companion level-up, no dismissal dialogue.
 - **Poison, radiation, addictions, withdrawal** — stats are defined; scripting intrinsics (`get_poison`, `radiation_dec`, `poison`) are stubs. No per-tick decay or damage loop exists anywhere in the engine.
 - **Drug & chem system** — no effect timers, stat modification, or addiction rolls.
@@ -96,12 +96,6 @@ Even rough implementations of these would unlock large chunks of scripted conten
 The level-up math is done, `pendingPerkPick` is already set on level-up, and perks are listed in the
 character screen. This just needs a selection screen wired to that flag. Low effort relative to the
 visible impact on every playthrough.
-
-**3. Karma & reputation** (`scripting.ts`, `globalState.ts`)
-The stats are defined and `get_pc_stat` has stubs for karma/reputation, but nothing ever increments or
-reads them. Adding basic increment/decrement logic and connecting it to dialogue condition checks would
-make a large number of scripted NPC interactions start working correctly, since most FO2 scripts branch
-on karma or town rep.
 
 ---
 
@@ -347,7 +341,7 @@ _debug.addXP(2000)
 |---|---|---|
 | `addXP(n)` | Add `n` experience points. Fires level-up and opens the perk picker if the XP threshold is crossed. | `debug.addXP(2000)` |
 | `setHP(n)` | Set player current HP to `n`. | `debug.setHP(1)` |
-| `setKarma(n)` | Set player karma/reputation to `n`. Logs a warning if the field is not yet implemented. | `debug.setKarma(500)` |
+| `setKarma(n)` | Set player karma to `n`. Clamped to ±99999999. | `debug.setKarma(500)` |
 | `combatLog()` | Returns the current `eventLog` array (same data exported by the Combat Log tools). | `debug.combatLog()` |
 | `teleport(map)` | Load a map by name. | `debug.teleport('artemple')` |
 | `giveItem(pid)` | Add an item with the given prototype ID to the player's inventory. | `debug.giveItem(41)` (caps) |

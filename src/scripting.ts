@@ -854,13 +854,49 @@ export module Scripting {
                 case 2: // PCSTAT_experience
                     return globalState.player?.getStat('Experience') ?? 0
                 case 3: // PCSTAT_reputation
-                    return 0 // not tracked
+                    return globalState.player?.stats.getBase('Reputation') ?? 0
                 case 4: // PCSTAT_karma
-                    return 0 // not tracked
+                    return globalState.player?.stats.getBase('Karma') ?? 0
                 case 5: // PCSTAT_max_pc_stat (sentinel, always 5)
                     return 5
                 default:
                     throw `get_pc_stat: unhandled ${pcstat}`
+            }
+        }
+        set_pc_stat(pcstat: number, value: number) {
+            // FO2-CE ref: stat.cc pcSetStat()
+            const p = globalState.player
+            if (!p) return -1
+            switch (pcstat) {
+                case 3: // PCSTAT_reputation
+                    p.stats.setBase('Reputation', Math.max(-20, Math.min(20, value)))
+                    return 0
+                case 4: // PCSTAT_karma
+                    p.stats.setBase('Karma', Math.max(-99999999, Math.min(99999999, value)))
+                    return 0
+                default:
+                    stub('set_pc_stat', arguments)
+                    return -1
+            }
+        }
+        mod_pc_stat(pcstat: number, delta: number) {
+            // FO2-CE ref: scripts.cc opModifyPcStat() — additive on top of current base
+            const p = globalState.player
+            if (!p) return -1
+            switch (pcstat) {
+                case 3: { // PCSTAT_reputation
+                    const cur = p.stats.getBase('Reputation')
+                    p.stats.setBase('Reputation', Math.max(-20, Math.min(20, cur + delta)))
+                    return 0
+                }
+                case 4: { // PCSTAT_karma
+                    const cur = p.stats.getBase('Karma')
+                    p.stats.setBase('Karma', Math.max(-99999999, Math.min(99999999, cur + delta)))
+                    return 0
+                }
+                default:
+                    stub('mod_pc_stat', arguments)
+                    return -1
             }
         }
         critter_injure(obj: Obj, how: number) {
