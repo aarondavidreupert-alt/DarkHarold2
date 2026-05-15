@@ -179,7 +179,7 @@ const TRAIT_IMG: Record<string, string> = {
 // Filenames are lowercased 8.3 FRM names as produced by exportImages.py.
 const PERK_IMG: Record<string, string> = {
     'Awareness':           'art/skilldex/awarenes.png',
-    'Bonus HtH Attacks':   'art/skilldex/bhthatck.png',
+    'Bonus HtH Attacks':   'art/skilldex/bthtatck.png',
     'Bonus HtH Damage':    'art/skilldex/bhthdam.png',
     'Bonus Move':          'art/skilldex/bhmove.png',
     'Bonus Ranged Damage': 'art/skilldex/bhrnddam.png',
@@ -204,7 +204,7 @@ const PERK_IMG: Record<string, string> = {
     'Slayer':              'art/skilldex/slayer.png',
     'Sniper':              'art/skilldex/sniper.png',
     'Silent Death':        'art/skilldex/slntdth.png',
-    'Action Boy':          'art/skilldex/actionboy.png',
+    'Action Boy':          'art/skilldex/actnboy.png',
     'Mental Block':        'art/skilldex/mntlblck.png',
     'Lifegiver':           'art/skilldex/lifegvr.png',
     'Dodger':              'art/skilldex/dodger.png',
@@ -214,7 +214,7 @@ const PERK_IMG: Record<string, string> = {
     'Master Medic':        'art/skilldex/mstrmdic.png',
     'Ghost':               'art/skilldex/ghost.png',
     'Cult of Personality': 'art/skilldex/cultpers.png',
-    'Scrounger':           'art/skilldex/scrounger.png',
+    'Scrounger':           'art/skilldex/scrnger.png',
     'Explorer':            'art/skilldex/explorer.png',
     'Flower Child':        'art/skilldex/flwrchld.png',
     'Pathfinder':          'art/skilldex/pathfndr.png',

@@ -3,7 +3,7 @@
 // Import this module in main.ts so it initialises on load. Do NOT attach to window.
 //
 // Usage (browser DevTools, module-aware snippet):
-//   const { debug } = await import('./src/debug.js')
+//   const { debug } = await import('./js/debug.js')
 //   debug.addXP(2000)
 
 import { Config } from './config.js'

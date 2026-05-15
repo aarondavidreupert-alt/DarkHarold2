@@ -330,14 +330,14 @@ Because the game uses ES modules you cannot call `debug.*` directly in the
 DevTools console. Use a dynamic import snippet instead:
 
 ```js
-const { debug } = await import('./src/debug.js')
+const { debug } = await import('./js/debug.js')
 debug.addXP(2000)
 ```
 
 Or wire it once per session at the top of a console snippet:
 
 ```js
-window._debug = (await import('./src/debug.js')).debug
+window._debug = (await import('./js/debug.js')).debug
 _debug.addXP(2000)
 ```
 
