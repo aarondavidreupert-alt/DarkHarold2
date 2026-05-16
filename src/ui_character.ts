@@ -506,24 +506,24 @@ export function showCharacterScreen() {
         color: '#00FF00',
     })
 
+    const mkSectionHeader = (text: string) => {
+        const hdr = document.createElement('div')
+        hdr.textContent = text
+        Object.assign(hdr.style, {
+            color: '#00FF00',
+            fontSize: '0.85em',
+            margin: '2px 0 1px',
+            pointerEvents: 'none',
+            userSelect: 'none',
+        })
+        return hdr
+    }
+
     const folderPanels: HTMLElement[] = FOLDER_TABS.map((t, i) => {
         const panel = document.createElement('div')
         if (i === 0) {
             // ── TRAITS section ────────────────────────────────────────────────
-            const mkSectionHeader = (text: string) => {
-                const hdr = document.createElement('div')
-                hdr.textContent = text
-                Object.assign(hdr.style, {
-                    color: '#70A070',
-                    fontSize: '0.85em',
-                    margin: '2px 0 1px',
-                    pointerEvents: 'none',
-                    userSelect: 'none',
-                })
-                return hdr
-            }
-
-            panel.appendChild(mkSectionHeader('── TRAITS ──'))
+            panel.appendChild(mkSectionHeader('────── TRAITS ──────'))
 
             const activeTraits: string[] = player.traits ?? []
             if (activeTraits.length === 0) {
@@ -542,7 +542,7 @@ export function showCharacterScreen() {
             }
 
             // ── PERKS section ─────────────────────────────────────────────────
-            panel.appendChild(mkSectionHeader('── PERKS ──'))
+            panel.appendChild(mkSectionHeader('────── PERKS ──────'))
 
             const perks = player.perks ?? []
             if (perks.length === 0) {
@@ -574,13 +574,61 @@ export function showCharacterScreen() {
         return panel
     })
 
+    const KARMA_TITLES: Array<[number, string]> = [
+        [750, 'Savior of the Damned'],
+        [500, 'Guardian of the Wastes'],
+        [250, 'Shield of Hope'],
+        [100, 'Defender'],
+        [0,   'Wanderer'],
+        [-99, 'Betrayer'],
+        [-249, 'Sword of Despair'],
+        [-499, 'Scourge of the Wastes'],
+        [-Infinity, 'Demon Spawn'],
+    ]
+
+    const TOWN_NAMES = [
+        'Arroyo', 'Klamath', 'The Den', 'Vault City', 'Gecko', 'Modoc',
+        'Sierra Base', 'Broken Hills', 'New Reno', 'Redding', 'NCR',
+        'Vault 13', 'San Francisco', 'Abbey', 'EPA', 'Primitive Tribe',
+        'Raiders', 'Vault 15', 'Ghost Farm',
+    ]
+
+    const townStanding = (val: number): string => {
+        if (val >= 30)  return 'Idolized'
+        if (val >= 15)  return 'Liked'
+        if (val >= 1)   return 'Accepted'
+        if (val === 0)  return 'Neutral'
+        if (val >= -14) return 'Antipathy'
+        if (val >= -29) return 'Hated'
+        return 'Vilified'
+    }
+
+    const addLine = (parent: HTMLElement, text: string) => {
+        const el = document.createElement('div')
+        el.textContent = text
+        Object.assign(el.style, { color: '#00FF00' })
+        parent.appendChild(el)
+    }
+
     const refreshKarmaPanel = (panel: HTMLElement) => {
         while (panel.firstChild) panel.removeChild(panel.firstChild)
+
+        // ── Global Karma ──────────────────────────────────────────────────────
+        panel.appendChild(mkSectionHeader('────── KARMA ──────'))
         const karmaVal = player.stats.getBase('Karma')
-        const kRow = document.createElement('div')
-        kRow.textContent = `Karma: ${karmaVal}`
-        Object.assign(kRow.style, { color: '#00FF00' })
-        panel.appendChild(kRow)
+        addLine(panel, `Karma: ${karmaVal}`)
+        const title = (KARMA_TITLES.find(([threshold]) => karmaVal >= threshold) ?? KARMA_TITLES[KARMA_TITLES.length - 1])[1]
+        addLine(panel, title)
+
+        // ── Town Reputation ───────────────────────────────────────────────────
+        panel.appendChild(mkSectionHeader('────── REPUTATION ──────'))
+        for (const town of TOWN_NAMES) {
+            const key = `Rep_${town}`
+            const repStats = player.stats as any
+            if (!(key in (repStats.baseStats ?? {}))) continue
+            const val: number = player.stats.getBase(key)
+            addLine(panel, `${town}: ${townStanding(val)}`)
+        }
     }
 
     let activeFolder = 0
