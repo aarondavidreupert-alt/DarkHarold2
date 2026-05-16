@@ -175,73 +175,67 @@ const TRAIT_IMG: Record<string, string> = {
     'Skilled':         'art/skilldex/skilled.png',
     'Gifted':          'art/skilldex/gifted.png',
 }
-// FO2-CE ref: character_editor.cc — perk FRM IDs in SKILLDEX.LST start at index 72.
+// FO2-CE ref: character_editor.cc — perk FRM IDs from SKILLDEX.LST (0-indexed).
 // Filenames are lowercased 8.3 FRM names as produced by exportImages.py.
+// Keyed by the exact perk name strings in src/perks.ts PERKS[].
+// Perks with no LST entry (Master Medic, Chem Reliant, etc.) fall back to
+// def.img in showCard(); they are intentionally omitted here.
 const PERK_IMG: Record<string, string> = {
-    'Awareness':           'art/skilldex/awarenes.png',
-    'Bonus HtH Attacks':   'art/skilldex/bthtatck.png',
-    'Bonus HtH Damage':    'art/skilldex/bhthdam.png',
-    'Bonus Move':          'art/skilldex/bhmove.png',
-    'Bonus Ranged Damage': 'art/skilldex/bhrnddam.png',
-    'Bonus Rate of Fire':  'art/skilldex/bhrof.png',
-    'Earlier Sequence':    'art/skilldex/earlseq.png',
-    'Faster Healing':      'art/skilldex/fastheal.png',
-    'More Criticals':      'art/skilldex/morecrit.png',
-    'Night Vision':        'art/skilldex/nightvis.png',
-    'Presence':            'art/skilldex/presence.png',
-    'Rad Resistance':      'art/skilldex/radresit.png',
-    'Toughness':           'art/skilldex/toughnes.png',
-    'Strong Back':         'art/skilldex/strgback.png',
-    'Sharpshooter':        'art/skilldex/sharpsh.png',
-    'Silent Running':      'art/skilldex/slntrun.png',
-    'Survivalist':         'art/skilldex/survivl.png',
-    'Master Trader':       'art/skilldex/mastrtrd.png',
-    'Educated':            'art/skilldex/educatd.png',
-    'Healer':              'art/skilldex/healer.png',
-    'Fortune Finder':      'art/skilldex/fortune.png',
-    'Better Criticals':    'art/skilldex/bttrcrit.png',
-    'Empathy':             'art/skilldex/empathy.png',
-    'Slayer':              'art/skilldex/slayer.png',
-    'Sniper':              'art/skilldex/sniper.png',
-    'Silent Death':        'art/skilldex/slntdth.png',
-    'Action Boy':          'art/skilldex/actnboy.png',
-    'Mental Block':        'art/skilldex/mntlblck.png',
-    'Lifegiver':           'art/skilldex/lifegvr.png',
-    'Dodger':              'art/skilldex/dodger.png',
-    'Snakeater':           'art/skilldex/snakeatr.png',
-    'Mr. Fixit':           'art/skilldex/mrfixit.png',
-    'Medic':               'art/skilldex/medic.png',
-    'Master Medic':        'art/skilldex/mstrmdic.png',
-    'Ghost':               'art/skilldex/ghost.png',
-    'Cult of Personality': 'art/skilldex/cultpers.png',
-    'Scrounger':           'art/skilldex/scrnger.png',
-    'Explorer':            'art/skilldex/explorer.png',
-    'Flower Child':        'art/skilldex/flwrchld.png',
-    'Pathfinder':          'art/skilldex/pathfndr.png',
-    'Animal Friend':       'art/skilldex/anmfrnd.png',
-    'Scout':               'art/skilldex/scout.png',
-    'Mysterious Stranger': 'art/skilldex/myststrn.png',
-    'Ranger':              'art/skilldex/ranger.png',
-    'Quick Pockets':       'art/skilldex/qckpktc.png',
-    'Smooth Talker':       'art/skilldex/smthtalr.png',
-    'Swift Learner':       'art/skilldex/swftlrn.png',
-    'Tag!':                'art/skilldex/taggerr.png',
-    'Mutate!':             'art/skilldex/mutater.png',
-    'Adrenaline Rush':     'art/skilldex/adrenlrs.png',
-    'Chem Reliant':        'art/skilldex/chemrely.png',
-    'Chem Resistant':      'art/skilldex/chemrst.png',
-    'Demolition Expert':   'art/skilldex/demolexp.png',
-    'Heave Ho!':           'art/skilldex/heaveho.png',
-    'Friendly Foe':        'art/skilldex/frndlyfo.png',
-    'Light Step':          'art/skilldex/lgtstep.png',
-    'Quick Recovery':      'art/skilldex/qckrecvr.png',
-    'Paralyzing Palm':     'art/skilldex/parlzplm.png',
-    'Pyromaniac':          'art/skilldex/pyromanc.png',
-    'Negotiator':          'art/skilldex/negotiat.png',
-    'Master Thief':        'art/skilldex/mastrtft.png',
-    'Speaker':             'art/skilldex/speaker.png',
-    'Thief':               'art/skilldex/thief.png',
-    'Salesman':            'art/skilldex/salesman.png',
+    'Awareness':           'art/skilldex/awarenes.png',  // LST 72
+    'Bonus HtH Attacks':   'art/skilldex/hnd2hnd.png',  // LST 73
+    'Bonus HtH Damage':    'art/skilldex/damage.png',   // LST 74
+    'Bonus Move':          'art/skilldex/bonusmve.png', // LST 75
+    'Bonus Ranged Damage': 'art/skilldex/bonusrng.png', // LST 76
+    'Bonus Rate of Fire':  'art/skilldex/bonusrat.png', // LST 77
+    'Earlier Sequence':    'art/skilldex/earlyseq.png', // LST 78
+    'Faster Healing':      'art/skilldex/healrate.png', // LST 79
+    'More Criticals':      'art/skilldex/morecrit.png', // LST 80
+    'Night Vision':        'art/skilldex/nightviz.png', // LST 81
+    'Presence':            'art/skilldex/presence.png', // LST 82
+    'Rad Resistance':      'art/skilldex/radresis.png', // LST 83
+    'Toughness':           'art/skilldex/toughnes.png', // LST 84
+    'Sharpshooter':        'art/skilldex/sharpsht.png', // LST 86
+    'Silent Running':      'art/skilldex/silntrun.png', // LST 87
+    'Survivalist':         'art/skilldex/survival.png', // LST 88
+    'Master Trader':       'art/skilldex/mstrtrad.png', // LST 89
+    'Educated':            'art/skilldex/educated.png', // LST 90
+    'Healer':              'art/skilldex/healer.png',   // LST 91
+    'Fortune Finder':      'art/skilldex/fortunfd.png', // LST 92
+    'Better Criticals':    'art/skilldex/betrcrit.png', // LST 93
+    'Empathy':             'art/skilldex/empathy.png',  // LST 94
+    'Slayer':              'art/skilldex/slayer.png',   // LST 95
+    'Sniper':              'art/skilldex/sniper.png',   // LST 96
+    'Silent Death':        'art/skilldex/silentd.png',  // LST 97
+    'Action Boy':          'art/skilldex/action.png',   // LST 98
+    'Mental Block':        'art/skilldex/mentalbk.png', // LST 99
+    'Lifegiver':           'art/skilldex/lifegivr.png', // LST 100
+    'Dodger':              'art/skilldex/dodger.png',   // LST 101
+    'Snakeater':           'art/skilldex/snakeeat.png', // LST 102
+    'Mr. Fixit':           'art/skilldex/mrfixit.png',  // LST 103
+    'Medic':               'art/skilldex/medic.png',    // LST 104
+    'Master Thief':        'art/skilldex/mtrthief.png', // LST 105
+    'Speaker':             'art/skilldex/speaker.png',  // LST 106
+    'Heave Ho!':           'art/skilldex/heaveho.png',  // LST 107
+    'Friendly Foe':        'art/skilldex/frienfoe.png', // LST 108
+    'Ghost':               'art/skilldex/ghost.png',    // LST 110
+    'Cult of Personality': 'art/skilldex/cultoper.png', // LST 111
+    'Scrounger':           'art/skilldex/scroungr.png', // LST 112
+    'Explorer':            'art/skilldex/explorer.png', // LST 113
+    'Flower Child':        'art/skilldex/flower.png',   // LST 114
+    'Pathfinder':          'art/skilldex/pathfndr.png', // LST 115
+    'Animal Friend':       'art/skilldex/animalfr.png', // LST 116
+    'Scout':               'art/skilldex/scout.png',    // LST 117
+    'Mysterious Stranger': 'art/skilldex/stranger.png', // LST 118
+    'Ranger':              'art/skilldex/ranger.png',   // LST 119
+    'Quick Pockets':       'art/skilldex/quikpock.png', // LST 120
+    'Smooth Talker':       'art/skilldex/smoothtk.png', // LST 121
+    'Swift Learner':       'art/skilldex/swftlern.png', // LST 122
+    'Tag!':                'art/skilldex/tag.png',      // LST 123
+    'Mutate!':             'art/skilldex/mutate.png',   // LST 124
+    'Adrenaline Rush':     'art/skilldex/adrnrush.png', // LST 125
+    'Light Step':          'art/skilldex/litestep.png', // LST 134
+    'Pyromaniac':          'art/skilldex/pyromnac.png', // LST 139
+    'Quick Recovery':      'art/skilldex/qwkrecov.png', // LST 140
 }
 
 // FO2-CE ref: editor.cc gCharacterEditorPrimaryStatDescriptions — value → adjective
@@ -1961,7 +1955,7 @@ function showPerkModal(player: any): void {
         cardTitleEl.insertBefore(font2.renderText(def.name.toUpperCase(), '#000000'), cardDividerEl)
         cardDescEl.textContent = def.description
         cardImgEl.style.visibility = 'hidden'
-        const imgPath = def.img ?? PERK_IMG[def.name]
+        const imgPath = PERK_IMG[def.name] ?? def.img
         if (imgPath) {
             cardImgEl.src = imgPath
         } else {
