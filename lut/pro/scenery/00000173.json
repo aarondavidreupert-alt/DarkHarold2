@@ -1,0 +1,18 @@
+{
+  "pid": 33554604,
+  "messageId": 17200,
+  "fid": 33554560,
+  "lightDistance": 5,
+  "lightIntensity": 65536,
+  "flags": 32768,
+  "extendedFlags": 0,
+  "sid": -1,
+  "type": 5,
+  "typeName": "generic",
+  "data": {
+    "field_0": 1,
+    "field_4": 818728140
+  },
+  "soundId": 204,
+  "soundIdChar": "?"
+}

@@ -1,0 +1,42 @@
+{
+  "pid": 74,
+  "messageId": 7400,
+  "fid": 30,
+  "lightDistance": 0,
+  "lightIntensity": 0,
+  "flags": -1610612728,
+  "extendedFlags": 0,
+  "sid": -1,
+  "type": 0,
+  "typeName": "armor",
+  "data": {
+    "armorClass": 7,
+    "damageResistance": [
+      7,
+      5,
+      250,
+      117440589,
+      805306368,
+      134217728,
+      335544320
+    ],
+    "damageThreshold": [
+      335544320,
+      167772160,
+      167772160,
+      503316481,
+      -201326592,
+      335544320,
+      0
+    ],
+    "perk": 0,
+    "maleFid": 0,
+    "femaleFid": 0
+  },
+  "material": 0,
+  "size": 0,
+  "weight": 16777215,
+  "cost": -16711680,
+  "inventoryFid": 218169344,
+  "soundCode": 6
+}

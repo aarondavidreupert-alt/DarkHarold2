@@ -1,0 +1,19 @@
+{
+  "pid": 33554500,
+  "messageId": 6800,
+  "fid": 33554732,
+  "lightDistance": 0,
+  "lightIntensity": 0,
+  "flags": 0,
+  "extendedFlags": 10240,
+  "sid": -1,
+  "type": 1,
+  "typeName": "stairs",
+  "data": {
+    "lowerTile": 1,
+    "upperTile": 822083583,
+    "field_44": -1
+  },
+  "soundId": 255,
+  "soundIdChar": "?"
+}

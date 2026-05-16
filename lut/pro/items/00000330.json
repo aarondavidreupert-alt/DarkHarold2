@@ -1,0 +1,22 @@
+{
+  "pid": 330,
+  "messageId": 33000,
+  "fid": 147,
+  "lightDistance": 0,
+  "lightIntensity": 0,
+  "flags": -1610608640,
+  "extendedFlags": 8192,
+  "sid": -1,
+  "type": 1,
+  "typeName": "container",
+  "data": {
+    "maxSize": 1,
+    "openFlags": 5
+  },
+  "material": 500,
+  "size": 0,
+  "weight": -1,
+  "cost": 805306368,
+  "inventoryFid": -100663296,
+  "soundCode": 0
+}

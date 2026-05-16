@@ -1,0 +1,23 @@
+{
+  "pid": 470,
+  "messageId": 47000,
+  "fid": 41,
+  "lightDistance": 0,
+  "lightIntensity": 0,
+  "flags": -1610612728,
+  "extendedFlags": 40960,
+  "sid": -1,
+  "type": 5,
+  "typeName": "misc",
+  "data": {
+    "powerTypePid": 1,
+    "powerType": 1,
+    "charges": 2
+  },
+  "material": 20,
+  "size": 117440834,
+  "weight": 822083583,
+  "cost": -16777216,
+  "inventoryFid": 335544320,
+  "soundCode": 0
+}

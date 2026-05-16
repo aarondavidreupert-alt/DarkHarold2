@@ -1,0 +1,18 @@
+{
+  "pid": 33555392,
+  "messageId": 96000,
+  "fid": 33555403,
+  "lightDistance": 0,
+  "lightIntensity": 0,
+  "flags": 0,
+  "extendedFlags": 134227968,
+  "sid": -1,
+  "type": 0,
+  "typeName": "door",
+  "data": {
+    "openFlags": 3,
+    "keyCode": 1124073472
+  },
+  "soundId": 204,
+  "soundIdChar": "?"
+}

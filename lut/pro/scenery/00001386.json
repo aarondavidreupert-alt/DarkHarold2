@@ -1,0 +1,18 @@
+{
+  "pid": 33555817,
+  "messageId": 138500,
+  "fid": 33555831,
+  "lightDistance": 0,
+  "lightIntensity": 0,
+  "flags": 16,
+  "extendedFlags": 1073750016,
+  "sid": -1,
+  "type": 5,
+  "typeName": "generic",
+  "data": {
+    "field_0": 1,
+    "field_4": 818694990
+  },
+  "soundId": 78,
+  "soundIdChar": "N"
+}

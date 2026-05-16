@@ -1,0 +1,18 @@
+{
+  "pid": 33556147,
+  "messageId": 171500,
+  "fid": 33556160,
+  "lightDistance": 0,
+  "lightIntensity": 0,
+  "flags": -1610612720,
+  "extendedFlags": 134225920,
+  "sid": -1,
+  "type": 5,
+  "typeName": "generic",
+  "data": {
+    "field_0": 1,
+    "field_4": 805306489
+  },
+  "soundId": 86,
+  "soundIdChar": "V"
+}

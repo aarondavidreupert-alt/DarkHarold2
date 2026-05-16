@@ -1,0 +1,18 @@
+{
+  "pid": 33555409,
+  "messageId": 97700,
+  "fid": 33555420,
+  "lightDistance": 0,
+  "lightIntensity": 0,
+  "flags": -1610579960,
+  "extendedFlags": 10241,
+  "sid": -1,
+  "type": 4,
+  "typeName": "ladder_down",
+  "data": {
+    "destination": 5,
+    "field_40": 822083583
+  },
+  "soundId": 255,
+  "soundIdChar": "?"
+}

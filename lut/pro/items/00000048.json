@@ -1,0 +1,45 @@
+{
+  "pid": 48,
+  "messageId": 4800,
+  "fid": 15,
+  "lightDistance": 0,
+  "lightIntensity": 0,
+  "flags": -1610612728,
+  "extendedFlags": 4096,
+  "sid": -1,
+  "type": 2,
+  "typeName": "drug",
+  "data": {
+    "stat": [
+      2,
+      0,
+      0
+    ],
+    "amount": [
+      500,
+      117440560,
+      805306368
+    ],
+    "duration1": 637534207,
+    "amount1": [
+      -1,
+      -1,
+      -419430400
+    ],
+    "duration2": 0,
+    "amount2": [
+      0,
+      2030043135,
+      -838860800
+    ],
+    "addictionChance": 0,
+    "withdrawalEffect": 0,
+    "withdrawalOnset": -251658241
+  },
+  "material": -1258291200,
+  "size": 0,
+  "weight": 0,
+  "cost": 167772160,
+  "inventoryFid": 956301368,
+  "soundCode": 64
+}

@@ -1,0 +1,21 @@
+{
+  "pid": 96,
+  "messageId": 9600,
+  "fid": 41,
+  "lightDistance": 0,
+  "lightIntensity": 0,
+  "flags": -1610612728,
+  "extendedFlags": 4096,
+  "sid": -1,
+  "type": 6,
+  "typeName": "key",
+  "data": {
+    "keyCode": 2
+  },
+  "material": 1,
+  "size": 1,
+  "weight": 10,
+  "cost": 117440591,
+  "inventoryFid": 822083583,
+  "soundCode": 255
+}

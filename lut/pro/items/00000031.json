@@ -1,0 +1,26 @@
+{
+  "pid": 31,
+  "messageId": 3100,
+  "fid": 1,
+  "lightDistance": 0,
+  "lightIntensity": 0,
+  "flags": -4097,
+  "extendedFlags": 0,
+  "sid": -1,
+  "type": 4,
+  "typeName": "ammo",
+  "data": {
+    "caliber": 1,
+    "quantity": 0,
+    "armorClassModifier": 1,
+    "damageResistanceModifier": 50,
+    "damageMultiplier": 117440546,
+    "damageDivisor": 805306368
+  },
+  "material": 150994944,
+  "size": 335544320,
+  "weight": 0,
+  "cost": 838860800,
+  "inventoryFid": 33554432,
+  "soundCode": 1
+}
