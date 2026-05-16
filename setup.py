@@ -41,12 +41,16 @@ except ImportError:
 	error("Pillow not found. Please see https://pillow.readthedocs.io/en/4.0.x for installation instructions. Make sure the version matches your installed version of Python (%d.%d)." % (sys.version_info.major, sys.version_info.minor))
 
 # import local modules
+import sys as _sys
+_sys.path.insert(0, 'tools')
+
 import dat2
 import parseCritTable
 import parseElevatorTable
 import exportImagesPar
 import exportPRO
 import fomap
+import convertLST
 
 # global paths/flags
 SRC_DIR = None
@@ -160,6 +164,15 @@ def export_pros():
 
 # TODO: extract audio using convertAudio
 
+def convert_lsts():
+	info("Converting LST files to pre-baked JSON arrays...")
+	try:
+		convertLST.convert_lsts()
+	except Exception:
+		traceback.print_exc()
+		warn("Error converting LST files (see traceback above). Will continue setup.")
+	return True
+
 def export_maps():
 	# Export MAPs
 
@@ -206,6 +219,7 @@ def main():
 		export_images()
 	export_pros()
 	export_maps()
+	convert_lsts()
 
 	info("")
 	info("Setup complete. Please review the messages above, looking for any warnings.")

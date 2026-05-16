@@ -20,6 +20,7 @@ import { Point } from './geometry.js'
 import { lookupInterfaceArt } from './pro.js'
 
 var lstFiles: { [lsgFile: string]: string[] } = {}
+var lstJsonFiles: { [lstFile: string]: string[] } = {}
 var mapInfo: { [mapID: number]: MapInfo } | null = null
 var elevatorInfo: { elevators: Elevator[] } | null = null
 
@@ -201,6 +202,22 @@ export function getLstId(lst: string, id: number): string | null {
     if (lstFiles[lst] === undefined) return null
 
     return lstFiles[lst][id]
+}
+
+// Collapse consecutive duplicate path components: art/critters/critters → art_critters
+function lstToJsonName(lst: string): string {
+    const parts = lst.split('/')
+    const deduped: string[] = []
+    for (const part of parts) {
+        if (deduped.length === 0 || deduped[deduped.length - 1] !== part) deduped.push(part)
+    }
+    return deduped.join('_')
+}
+
+export function getLstJson(lst: string, id: number): string | null {
+    if (lstJsonFiles[lst] === undefined) lstJsonFiles[lst] = getFileJSON('lut/lst/' + lstToJsonName(lst) + '.json')
+    if (lstJsonFiles[lst] === undefined) return null
+    return lstJsonFiles[lst][id] ?? null
 }
 
 export function lookupScriptName(scriptID: number): string {

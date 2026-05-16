@@ -105,6 +105,52 @@ playthrough.
 
 ---
 
+## Data Pipeline
+
+### Philosophy
+The long-term goal is for the engine to own all its data in clean, typed, pre-baked JSON — no runtime parsing of original Fallout 2 file formats. Every conversion step that moves data out of `.lst`, `.pro`, `.ini`, or `.msg` files and into `lut/` is a step toward a fully self-contained engine that doesn't depend on the original file layout at runtime.
+
+The existing `lut/` directory already follows this pattern:
+- `lut/criticalTables.json` — crit tables extracted from the EXE
+- `lut/elevators.json` — elevator data extracted from the EXE
+- `lut/color_lut.json`, `lut/color_rgb.json` — palette data
+
+LST files are next.
+
+### LST → JSON pre-bake (`tools/convertLST.py`)
+All Fallout 2 `.lst` files are converted to JSON arrays at setup time by `tools/convertLST.py` and written to `lut/lst/`. Each file is a plain JSON array indexed by line number, preserving exact indices.
+
+**Naming convention:** consecutive duplicate path components are collapsed.
+
+| Source | Output |
+|---|---|
+| `data/art/critters/critters.lst` | `lut/lst/art_critters.json` |
+| `data/proto/critters/critters.lst` | `lut/lst/proto_critters.json` |
+| `data/art/items/items.lst` | `lut/lst/art_items.json` |
+| `data/art/scenery/scenery.lst` | `lut/lst/art_scenery.json` |
+| `data/art/misc/misc.lst` | `lut/lst/art_misc.json` |
+| `data/art/intrface/intrface.lst` | `lut/lst/art_intrface.json` |
+| `data/scripts/scripts.lst` | `lut/lst/scripts.json` |
+
+**Critical:** the converter splits on `'\n'` exactly — not `splitlines()` — to match the behaviour of `data.ts::loadLst()`. Any deviation will cause silent index drift in FRM resolution.
+
+### Migration strategy
+The runtime LST path (`data.ts::getLstId()`) is **not removed** — it stays intact as a fallback while call sites are migrated one at a time.
+
+A parallel helper `getLstJson(lst, id)` reads from `lut/lst/` instead. Call sites in `pro.ts` are the primary migration target:
+
+| Call site | LST | Status |
+|---|---|---|
+| `pro.ts::getCritterArtPath()` | `art/critters/critters` | 🔜 next |
+| `pro.ts::lookupInterfaceArt()` | `art/intrface/intrface` | 🔜 next |
+| `pro.ts::lookupArt()` | `art/items/items`, `art/scenery/scenery`, `art/misc/misc` | 🔜 next |
+| `pro.ts::loadPRO()` | `proto/critters/critters` + 4 others | 🔜 next |
+| `data.ts::lookupScriptName()` | `scripts/scripts` | later |
+
+Skilldex and audio do **not** use LSTs and are not part of this migration.
+
+When all call sites in a file are migrated, `getLstId()` calls in that file are removed. Once all files are migrated, `getLstId()` and `loadLst()` in `data.ts` are deleted.
+
 ## Installation
 
 To use this, you'll need a few things:
