@@ -1,12 +1,8 @@
-"""
-Convert all Fallout 2 .lst files under data/ to pre-baked JSON arrays in lut/lst/.
-
-Split behaviour matches data.ts::loadLst() exactly: split on '\n', not splitlines().
-Indices in the output arrays are therefore identical to what getLstId() returns.
-"""
-
 import os
 import json
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def lst_path_to_json_name(rel_no_ext: str) -> str:
@@ -27,33 +23,35 @@ def lst_path_to_json_name(rel_no_ext: str) -> str:
     return '_'.join(deduped)
 
 
-def convert_lsts(data_dir: str = 'data', out_dir: str = 'lut/lst') -> None:
-    os.makedirs(out_dir, exist_ok=True)
+def convert_lsts(
+    data_dir: str | Path = _REPO_ROOT / 'data',
+    out_dir: str | Path = _REPO_ROOT / 'lut/lst',
+) -> None:
+    data_dir, out_dir = Path(data_dir), Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
+    seen: dict[str, Path] = {}
     converted = 0
-    for root, _dirs, files in os.walk(data_dir):
-        for fname in files:
-            if not fname.lower().endswith('.lst'):
-                continue
 
-            lst_path = os.path.join(root, fname)
-            rel = os.path.relpath(lst_path, data_dir)
-            rel_no_ext = os.path.splitext(rel)[0]
+    for lst_path in data_dir.rglob('*.lst'):
+        rel_no_ext = lst_path.relative_to(data_dir).with_suffix('')
+        json_name = lst_path_to_json_name(str(rel_no_ext))
+        out_path = out_dir / (json_name + '.json')
 
-            json_name = lst_path_to_json_name(rel_no_ext)
-            out_path = os.path.join(out_dir, json_name + '.json')
+        if json_name in seen:
+            print(f"WARNING: name collision — {lst_path} and {seen[json_name]} both → {json_name}.json")
+        seen[json_name] = lst_path
 
-            with open(lst_path, 'r', encoding='latin-1') as f:
-                content = f.read()
+        content = lst_path.read_text(encoding='latin-1')
 
-            # Split on '\n' exactly — must match data.ts::loadLst() index-for-index.
-            # Strip '\r' from each entry so Windows line endings don't corrupt values.
-            lines = [line.rstrip('\r') for line in content.split('\n')]
+        # Split on '\n' exactly — must match data.ts::loadLst() index-for-index.
+        # Strip '\r' per entry so CRLF files don't corrupt values.
+        # NOTE: a trailing newline intentionally produces a final "" entry,
+        # preserving the index contract with getLstId().
+        lines = [line.rstrip('\r') for line in content.split('\n')]
 
-            with open(out_path, 'w', encoding='utf-8') as f:
-                json.dump(lines, f)
-
-            converted += 1
+        out_path.write_text(json.dumps(lines, ensure_ascii=False), encoding='utf-8')
+        converted += 1
 
     print(f"Converted {converted} LST files → {out_dir}/")
 
