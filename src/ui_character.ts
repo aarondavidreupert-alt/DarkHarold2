@@ -797,8 +797,6 @@ export function showCharacterScreen() {
             ['Sequence',             newStatSet.get('Sequence')],
             ['Healing Rate',         newStatSet.get('Healing Rate')],
             ['Critical Chance',      `${newStatSet.get('Critical Chance')}%`],
-            ['Karma',                newStatSet.get('Karma')],
-            ['Reputation',           newStatSet.get('Reputation')],
         ]
         for (const [label, value] of rows) {
             const line = document.createElement('div')
@@ -1647,8 +1645,6 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
             ['Sequence',             newStatSet.get('Sequence')],
             ['Healing Rate',         newStatSet.get('Healing Rate')],
             ['Critical Chance',      `${newStatSet.get('Critical Chance')}%`],
-            ['Karma',                newStatSet.get('Karma')],
-            ['Reputation',           newStatSet.get('Reputation')],
         ]
         for (const [label, value] of rows) {
             const line = document.createElement('div')
