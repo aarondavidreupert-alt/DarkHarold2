@@ -46,9 +46,9 @@ def convert_lsts(data_dir: str = 'data', out_dir: str = 'lut/lst') -> None:
             with open(lst_path, 'r', encoding='latin-1') as f:
                 content = f.read()
 
-            # Split on '\n' exactly — must match data.ts::loadLst() character-for-character.
-            # Using splitlines() would silently drop a trailing newline, shifting indices.
-            lines = content.split('\n')
+            # Split on '\n' exactly — must match data.ts::loadLst() index-for-index.
+            # Strip '\r' from each entry so Windows line endings don't corrupt values.
+            lines = [line.rstrip('\r') for line in content.split('\n')]
 
             with open(out_path, 'w', encoding='utf-8') as f:
                 json.dump(lines, f)
