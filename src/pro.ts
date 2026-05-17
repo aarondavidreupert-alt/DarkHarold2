@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { getLstId } from "./data.js"
+import { getLstJson } from "./data.js"
 import globalState from "./globalState.js"
 
 // Functions handling FO2 prototypes and lookups performed on them
@@ -34,7 +34,7 @@ export function loadPRO(pid: number, pidID: number) {
                 "items": "proto/items/items", "critters": "proto/critters/critters",
                 "scenery": "proto/scenery/scenery", "misc": "proto/misc/misc",
                 "walls": "proto/walls/walls"}
-    const id = lsts[type] ? parseInt(getLstId(lsts[type], pidID - 1).split(".")[0], 10) : pidID
+    const id = lsts[type] ? parseInt(getLstJson(lsts[type], pidID - 1)!.split(".")[0], 10) : pidID
 
     return globalState.proMap[type][id]
 }
@@ -68,7 +68,7 @@ function getCritterArtPath(frmPID: number) {
         throw "reindex(?)"
     }
 
-    var path = "art/critters/" + getLstId("art/critters/critters", idx).split(',')[0].toLowerCase()
+    var path = "art/critters/" + getLstJson("art/critters/critters", idx)!.split(',')[0].toLowerCase()
 
     if(id1 >= 0x0b)
         throw "?"
@@ -108,7 +108,7 @@ function getCritterArtPath(frmPID: number) {
 }
 
 export function lookupInterfaceArt(idx: number) {
-    return "art/intrface/" + getLstId("art/intrface/intrface", idx).split('.')[0].toLowerCase()
+    return "art/intrface/" + getLstJson("art/intrface/intrface", idx)!.split('.')[0].toLowerCase()
 }
 
 export function lookupArt(frmPID: number) {
@@ -121,7 +121,7 @@ export function lookupArt(frmPID: number) {
     var lsts: { [lst: string]: string } = {
                 "items": "art/items/items",
                 "scenery": "art/scenery/scenery", "misc": "art/misc/misc"}
-    var path = "art/" + type + "/" + getLstId(lsts[type], pidID).split('.')[0]
+    var path = "art/" + type + "/" + getLstJson(lsts[type], pidID)!.split('.')[0]
 
     // console.log("LOOKUP ART: " + path)
     return path.toLowerCase()
