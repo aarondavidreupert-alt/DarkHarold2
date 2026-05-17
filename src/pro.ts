@@ -68,7 +68,7 @@ function getCritterArtPath(frmPID: number) {
         throw "reindex(?)"
     }
 
-    var path = "art/critters/" + getLstJson("art/critters/critters", idx)!.split(',')[0].toLowerCase()
+    var path = "art/critters/" + getLstJson("art/critters/critters", idx)!.frm.toLowerCase()
 
     if(id1 >= 0x0b)
         throw "?"
@@ -108,7 +108,7 @@ function getCritterArtPath(frmPID: number) {
 }
 
 export function lookupInterfaceArt(idx: number) {
-    return "art/intrface/" + getLstJson("art/intrface/intrface", idx)!.split('.')[0].toLowerCase()
+    return "art/intrface/" + getLstJson("art/intrface/intrface", idx)!.toLowerCase()
 }
 
 export function lookupArt(frmPID: number) {
@@ -121,7 +121,7 @@ export function lookupArt(frmPID: number) {
     var lsts: { [lst: string]: string } = {
                 "items": "art/items/items",
                 "scenery": "art/scenery/scenery", "misc": "art/misc/misc"}
-    var path = "art/" + type + "/" + getLstJson(lsts[type], pidID)!.split('.')[0]
+    var path = "art/" + type + "/" + getLstJson(lsts[type], pidID)!
 
     // console.log("LOOKUP ART: " + path)
     return path.toLowerCase()

@@ -20,7 +20,7 @@ import { Point } from './geometry.js'
 import { lookupInterfaceArt } from './pro.js'
 
 var lstFiles: { [lsgFile: string]: string[] } = {}
-var lstJsonFiles: { [lstFile: string]: string[] | null } = {}
+var lstJsonFiles: { [lstFile: string]: any[] | null } = {}
 var mapInfo: { [mapID: number]: MapInfo } | null = null
 var elevatorInfo: { elevators: Elevator[] } | null = null
 
@@ -214,7 +214,7 @@ function lstToJsonName(lst: string): string {
     return deduped.join('_')
 }
 
-export function getLstJson(lst: string, id: number): string | null {
+export function getLstJson(lst: string, id: number): any {
     if (!(lst in lstJsonFiles)) lstJsonFiles[lst] = getFileJSON('lut/lst/' + lstToJsonName(lst) + '.json') ?? null
     if (lstJsonFiles[lst] == null) return null
     return lstJsonFiles[lst]![id] ?? null
