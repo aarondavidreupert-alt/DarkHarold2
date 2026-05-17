@@ -120,7 +120,10 @@ export function lookupArt(frmPID: number) {
 
     var lsts: { [lst: string]: string } = {
                 "items": "art/items/items",
-                "scenery": "art/scenery/scenery", "misc": "art/misc/misc"}
+                "scenery": "art/scenery/scenery",
+                "walls": "art/walls/walls",
+                "tiles": "art/tiles/tiles",
+                "misc": "art/misc/misc"}
     var path = "art/" + type + "/" + getLstJson(lsts[type], pidID)!
 
     // console.log("LOOKUP ART: " + path)

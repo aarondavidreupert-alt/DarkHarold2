@@ -99,6 +99,8 @@ _POST_PROCESSORS: dict[str, object] = {
     'art_inven':    _post_art_name,
     'art_items':    _post_art_name,
     'art_scenery':  _post_art_name,
+    'art_walls':    _post_art_name,
+    'art_tiles':    _post_art_name,
     'art_misc':     _post_art_name,
     'art_backgrnd': _post_art_name,
     'art_skilldex': _post_art_name,
