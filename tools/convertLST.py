@@ -168,15 +168,14 @@ def convert_lsts(
         # preserving the index contract with getLstId().
         lines = [line.rstrip('\r') for line in content.split('\n')]
 
-        output = _POST_PROCESSORS[json_name](lines) if json_name in _POST_PROCESSORS else lines
+        if json_name == 'sound_sfx_sndlist':
+            output = _build_sfx_lookup(lines)
+        elif json_name in _POST_PROCESSORS:
+            output = _POST_PROCESSORS[json_name](lines)
+        else:
+            output = lines
         out_path.write_text(json.dumps(output, ensure_ascii=False), encoding='utf-8')
         converted += 1
-
-        if json_name == 'sound_sfx_sndlist':
-            sfx_lookup = _build_sfx_lookup(lines)
-            sfx_path = _REPO_ROOT / 'lut' / 'sfx_lookup.json'
-            sfx_path.write_text(json.dumps(sfx_lookup, ensure_ascii=False), encoding='utf-8')
-            print(f"Wrote sfx_lookup.json ({len(sfx_lookup)} entries)")
 
     print(f"Converted {converted} LST files → {out_dir}/")
     return converted
@@ -193,21 +192,23 @@ def reprocess_lut(
     """Apply post-processors to existing raw-string JSON files in lut_dir.
 
     Skips any file whose array already contains non-string elements (already
-    processed).  Also regenerates lut/sfx_lookup.json from
-    lut/lst/sound_sfx_sndlist.json if present.
+    processed).  Converts sound_sfx_sndlist.json from raw list to the
+    {stem: {file, filesize, samples}} lookup dict if not already done.
     """
     lut_dir = Path(lut_dir)
 
     for json_path in sorted(lut_dir.glob('*.json')):
         json_name = json_path.stem
 
-        # sfx_lookup side-output
         if json_name == 'sound_sfx_sndlist':
-            lines = json.loads(json_path.read_text(encoding='utf-8'))
-            sfx_lookup = _build_sfx_lookup(lines)
-            sfx_path = _REPO_ROOT / 'lut' / 'sfx_lookup.json'
-            sfx_path.write_text(json.dumps(sfx_lookup, ensure_ascii=False), encoding='utf-8')
-            print(f"Wrote sfx_lookup.json ({len(sfx_lookup)} entries)")
+            data = json.loads(json_path.read_text(encoding='utf-8'))
+            if isinstance(data, list):
+                sfx_lookup = _build_sfx_lookup(data)
+                json_path.write_text(json.dumps(sfx_lookup, ensure_ascii=False), encoding='utf-8')
+                print(f"Reprocessed {json_name}.json ({len(sfx_lookup)} entries)")
+            else:
+                print(f"Skipping {json_name}.json (already processed)")
+            continue
 
         if json_name not in _POST_PROCESSORS:
             continue
