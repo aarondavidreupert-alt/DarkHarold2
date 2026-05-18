@@ -124,6 +124,7 @@ export function closeInventory(): void {
     globalState.uiMode = UIMode.none
     $id('inventoryBox').style.visibility = 'hidden'
     if (globalState.player) globalState.player.clearAnim?.()
+    globalState.audioEngine.playSfxByName('isdxxxx1')
     uiDrawWeapon()
 }
 
@@ -153,6 +154,7 @@ export function initInventory(): void {
         globalState.uiMode = UIMode.none
         $id('inventoryBox').style.visibility = 'hidden'
         globalState.player.clearAnim()
+        globalState.audioEngine.playSfxByName('isdxxxx1')
         uiDrawWeapon()
     }
 
@@ -245,6 +247,21 @@ function uiMoveSlot(data: string, target: string) {
 
     // Update armor appearance if armor slot changed
     if (target === 'armor' || data === 'armor') {
+        if (target === 'armor' && obj) {
+            const fid: number = globalState.player.gender === 'female'
+                ? (obj as any).pro?.extra?.femaleFID
+                : (obj as any).pro?.extra?.maleFID
+            let armorSound = 'ltharmor'
+            if (fid) {
+                try {
+                    const armorArt = lookupArt(fid) ?? ''
+                    if (armorArt.includes('pwr')) armorSound = 'pwrarmor'
+                    else if (armorArt.includes('mtl')) armorSound = 'mtlarmor'
+                    else if (armorArt.includes('robe')) armorSound = 'robe'
+                } catch {}
+            }
+            globalState.audioEngine.playSfxByName(armorSound)
+        }
         applyArmorArt(target === 'armor' ? obj : null)
         const armorAC = (globalState.player as any).armor?.pro?.extra?.AC ?? 0
         drawAC(globalState.player.getStat('AC') + armorAC)
@@ -285,7 +302,9 @@ function applyArmorArt(armor: Obj | null) {
 }
 
 export function showInventory() {
+    const wasOpen = isInventoryOpen()
     globalState.uiMode = UIMode.inventory
+    if (!wasOpen) globalState.audioEngine.playSfxByName('iisxxxx1')
 
     showv($id('inventoryBox'))
 

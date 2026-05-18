@@ -385,6 +385,8 @@ function useLockpick(user: Critter, target: Critter | null): SkillUseResult {
         return makeResult(false, RollResult.Failure, 'Nothing to pick.')
     }
 
+    globalState.audioEngine.playSfxByName('pickkeys')
+
     // Lock difficulty is stored in the object's script/pro data.
     // If the object has a lock difficulty, use it; otherwise default to 50.
     const lockDifficulty: number = (target as any).pro?.extra?.lockDifficulty ?? 50

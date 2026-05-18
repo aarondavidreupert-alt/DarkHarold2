@@ -148,6 +148,9 @@ function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent = true)
     obj.open = open
     if (obj.isDoor) {
         globalState.audioEngine.playSfxByName(open ? 'sndoorsa' : 'sndoorsc')
+    } else if (obj.isContainer) {
+        const variant = String.fromCharCode(97 + getRandomInt(0, 4)) // 'a'..'e'
+        globalState.audioEngine.playSfxByName((open ? 'iocntnr' : 'iccntnr') + variant)
     }
 
     if (signalEvent) {

@@ -87,10 +87,14 @@ export function uiElevator(elevator: Elevator) {
             if (mapID !== globalState.gMap.mapID) {
                 // different map
                 console.log(`[Elevator] → map ${mapID}, level ${level} @ (${position.x}, ${position.y})`)
+                globalState.audioEngine.playSfxByName('selevdx1')
                 globalState.gMap.loadMapByID(mapID, position, level)
             } else if (level !== globalState.currentElevation) {
                 // same map, different elevation
                 console.log(`[Elevator] → level ${level} @ (${position.x}, ${position.y})`)
+                globalState.audioEngine.playSfxByName(
+                    level > globalState.currentElevation ? 'selevdx1' : 'selevux1'
+                )
                 globalState.player.move(position)
                 globalState.gMap.changeElevation(level, true)
             }

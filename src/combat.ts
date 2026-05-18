@@ -781,6 +781,7 @@ export class Combat {
                 if (target.dead) this.perish(target, obj, 'Normal')
             } else {
                 uiLog(`${who} misses ${targetName} (${unarmedModeName})`)
+                audio.playSfxByName('cmbtflx')
                 if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
                     target.staticAnimation('dodge', () => target.clearAnim())
                 }
@@ -865,6 +866,7 @@ export class Combat {
                     if (victim.dead) this.perish(victim, obj, attackDmgType)
                 }
             } else {
+                audio.playSfxByName('cmbtflx')
                 if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
                     target.staticAnimation('dodge', () => target.clearAnim())
                 }
@@ -907,6 +909,7 @@ export class Combat {
             if (target.dead) this.perish(target, obj, attackDmgType)
         } else {
             uiLog(who + ' missed ' + targetName + (hitRoll.crit === true ? ' critically' : ''))
+            audio.playSfxByName('cmbtflx')
 
             // Play a dodge/flinch on the target if they aren't already animating
             if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
