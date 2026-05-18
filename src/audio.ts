@@ -179,6 +179,22 @@ export class HTMLAudioEngine implements AudioEngine {
             return
         }
 
+        // Some weapons (e.g. assault rifle, sniper, plasma/laser rifle) ship only
+        // with a material-neutral wh<id>1xxx1 impact sound, not per-material variants.
+        // Check the sfx_lookup; if the material-specific file is absent, try xxx.
+        if (type === 'impact') {
+            if (!this.sfxLookup) {
+                this.sfxLookup = getFileJSON('lut/lst/sound_sfx_sndlist.json') ?? {}
+            }
+            if (!(file.toUpperCase() in this.sfxLookup!)) {
+                const xxxImpact = `wh${soundId.toLowerCase()}1xxx1`
+                if (xxxImpact.toUpperCase() in this.sfxLookup!) {
+                    this.playSfx(xxxImpact)
+                }
+                return
+            }
+        }
+
         this.playSfx(file)
     }
 
