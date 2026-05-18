@@ -232,10 +232,20 @@ const PERK_IMG: Record<string, string> = {
     'Swift Learner':       'art/skilldex/swftlern.png', // LST 122
     'Tag!':                'art/skilldex/tag.png',      // LST 123
     'Mutate!':             'art/skilldex/mutate.png',   // LST 124
-    'Adrenaline Rush':     'art/skilldex/adrnrush.png', // LST 125
-    'Light Step':          'art/skilldex/litestep.png', // LST 134
-    'Pyromaniac':          'art/skilldex/pyromnac.png', // LST 139
-    'Quick Recovery':      'art/skilldex/qwkrecov.png', // LST 140
+    'Adrenaline Rush':     'art/skilldex/adrnrush.png', // LST 155
+    'Light Step':          'art/skilldex/litestep.png', // LST 164
+    'Pyromaniac':          'art/skilldex/pyromnac.png', // LST 169
+    'Quick Recovery':      'art/skilldex/qwkrecov.png', // LST 170
+    // Perks with no dedicated SKILLDEX.LST entry — use closest thematic image
+    'Strong Back':         'art/skilldex/packanim.png', // LST 85  (Pack Animal)
+    'Master Medic':        'art/skilldex/medic.png',    // LST 104
+    'Chem Reliant':        'art/skilldex/addict.png',   // LST 53
+    'Chem Resistant':      'art/skilldex/addict.png',   // LST 53
+    'Demolition Expert':   'art/skilldex/traps.png',    // LST 39  (FO2-CE frmId=39)
+    'Paralyzing Palm':     'art/skilldex/hnd2hnd.png',  // LST 73  (unarmed perk)
+    'Negotiator':          'art/skilldex/barter.png',   // LST 43  (FO2-CE frmId=43)
+    'Thief':               'art/skilldex/steal.png',    // LST 38
+    'Salesman':            'art/skilldex/barter.png',   // LST 43
 }
 
 // FO2-CE ref: editor.cc gCharacterEditorPrimaryStatDescriptions — value → adjective
