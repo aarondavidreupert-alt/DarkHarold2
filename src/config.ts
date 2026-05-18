@@ -118,7 +118,7 @@ export const Config = {
             script: false,        // script execution tracing (verbose)
             map: false,           // map load, elevation change, exit grid transitions
             object: false,        // object creation, destruction, flag changes
-            audio: false,         // audio load, play, stop events
+            audio: true,         // audio load, play, stop events
             renderer: false,      // WebGL draw calls and render state changes
             lighting: false,      // lightmap recalculation and light source updates
             worldmap: false,      // worldmap travel, encounter checks, location transitions
