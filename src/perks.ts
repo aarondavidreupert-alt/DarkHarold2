@@ -166,7 +166,6 @@ export const PERKS: PerkDef[] = [
     {
         id: 'strong_back',
         name: 'Strong Back',
-        img: 'art/skilldex/strgback.png',
         description: '+50 lbs. to your Carry Weight for each rank of this perk.',
         maxRanks: 3,
         minLevel: 3,
@@ -373,7 +372,6 @@ export const PERKS: PerkDef[] = [
     {
         id: 'master_medic',
         name: 'Master Medic',
-        img: 'art/skilldex/mstrmdic.png',
         description: '+10% to the Doctor skill, plus you heal 4 more hit points when using the Doctor skill.',
         maxRanks: 1,
         minLevel: 15,
@@ -547,7 +545,6 @@ export const PERKS: PerkDef[] = [
     {
         id: 'chem_reliant',
         name: 'Chem Reliant',
-        img: 'art/skilldex/chemrely.png',
         description: 'You are more easily addicted to chems but recover twice as fast from withdrawal.',
         maxRanks: 1,
         minLevel: 9,
@@ -556,7 +553,6 @@ export const PERKS: PerkDef[] = [
     {
         id: 'chem_resistant',
         name: 'Chem Resistant',
-        img: 'art/skilldex/chemrst.png',
         description: 'You are 50% less likely to be addicted to any chem.',
         maxRanks: 1,
         minLevel: 9,
@@ -566,7 +562,6 @@ export const PERKS: PerkDef[] = [
     {
         id: 'demolition_expert',
         name: 'Demolition Expert',
-        img: 'art/skilldex/demolexp.png',
         description: 'You are an expert with explosives. All thrown explosives deal +25% more damage.',
         maxRanks: 1,
         minLevel: 9,
@@ -616,7 +611,6 @@ export const PERKS: PerkDef[] = [
     {
         id: 'paralyzing_palm',
         name: 'Paralyzing Palm',
-        img: 'art/skilldex/parlzplm.png',
         description: 'With Paralyzing Palm, you can paralyze any target when you make a successful hit in hand-to-hand combat.',
         maxRanks: 1,
         minLevel: 18,
@@ -636,7 +630,6 @@ export const PERKS: PerkDef[] = [
     {
         id: 'negotiator',
         name: 'Negotiator',
-        img: 'art/skilldex/negotiat.png',
         description: '+10% to the Speech and Barter skills.',
         maxRanks: 1,
         minLevel: 6,
@@ -666,7 +659,6 @@ export const PERKS: PerkDef[] = [
     {
         id: 'thief',
         name: 'Thief',
-        img: 'art/skilldex/thief.png',
         description: '+10% to the Sneak, Lockpick, Steal, and Traps skills.',
         maxRanks: 1,
         minLevel: 3,
@@ -675,7 +667,6 @@ export const PERKS: PerkDef[] = [
     {
         id: 'salesman',
         name: 'Salesman',
-        img: 'art/skilldex/salesman.png',
         description: '+20% to the Barter skill.',
         maxRanks: 1,
         minLevel: 6,
