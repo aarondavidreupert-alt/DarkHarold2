@@ -64,37 +64,6 @@ const MATERIAL_CODE: Record<ImpactMaterial, string> = {
     wood:  'w',
 }
 
-export const ACTION_SOUNDS: Record<string, string | string[]> = {
-    // Doors (FO2 format: sodoors + action letter; 'o' = "not open"/try-locked)
-    'door_open':    'sodoorsa',
-    'door_close':   'sodoorsc',
-    'door_locked':  'sodoorsl',
-    'door_try':     'sodoorso',
-
-    // Items
-    'item_pickup':  'ipickup1',
-    'item_drop':    'iputdown',
-    'item_use':     'icsxxxx1',
-
-    // Combat flow
-    'combat_start': 'icombat1',
-    'combat_end':   'icombat2',
-
-    // Combat generic — 'wh#' is the placeholder weapon-sound used for generic impacts
-    'miss':         'whu1fxx1',   // unarmed flesh miss-hit (closest to a "swing-through" whoosh)
-    'hit_flesh':    'wh#1fxx1',   // generic flesh impact
-    'hit_metal':    'wh#1mxx1',   // generic metal impact
-    'critter_die':  ['hmxxxxba', 'hmxxxxbb', 'hmxxxxbd'], // human male death vocalizations
-
-    // UI
-    'ui_click':     'butin1',
-    'ui_open_inv':  'butin2',
-    'levelup':      'levelup',
-
-    // Explosives
-    'explosion':    'explo1',
-}
-
 export interface WeaponSounds {
     attack: string
     attack_alt: string

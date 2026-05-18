@@ -142,13 +142,12 @@ function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent = true)
     // Open/closable doors/containers
     // TODO: Door/Container subclasses
     if (obj.locked) {
-        globalState.audioEngine.playActionSfx('door_locked')
         return false
     }
 
     obj.open = open
     if (obj.isDoor) {
-        globalState.audioEngine.playActionSfx(open ? 'door_open' : 'door_close')
+        globalState.audioEngine.playSfxByName(open ? 'sndoorsa' : 'sndoorsc')
     }
 
     if (signalEvent) {
@@ -801,7 +800,7 @@ export class Obj {
         lazyLoadImage(explosion.art, () => {
             if (!globalState.gMap) return
             globalState.gMap.addObject(explosion)
-            globalState.audioEngine?.playActionSfx('explosion')
+            globalState.audioEngine?.playSfxByName('dynamite')
             dbg('object', `[Object] explosion: dmg=${damage} radius=${radius}`)
 
             explosion.singleAnimation(false, () => {
@@ -933,7 +932,7 @@ export class Obj {
             }
         }
         const doPickup = () => {
-            globalState.audioEngine.playActionSfx('item_pickup')
+            globalState.audioEngine.playSfxByName('ipickup1')
             source.addInventoryItem(this, this.amount)
             globalState.gMap.destroyObject(this)
             source.clearAnim()
@@ -963,7 +962,7 @@ export class Obj {
             throw "dropObject: couldn't find object"
         }
 
-        globalState.audioEngine.playActionSfx('item_drop')
+        globalState.audioEngine.playSfxByName('iputdown')
         globalState.gMap.addObject(this) // add to objects
         const idx = globalState.gMap.getObjects().length - 1 // our new index
         this.move({ x: source.position.x, y: source.position.y }, idx)

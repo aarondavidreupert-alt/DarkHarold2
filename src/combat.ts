@@ -338,7 +338,7 @@ export class Combat {
         // Stop the player from walking combat is initiating
         this.player.clearAnim()
 
-        globalState.audioEngine.playActionSfx('combat_start')
+        globalState.audioEngine.playSfxByName('icombat1')
         uiStartCombat()
     }
 
@@ -771,7 +771,7 @@ export class Combat {
                 var unarmedDmg = this.getUnarmedDamageDone(obj, target, unarmedCritMod)
                 var unarmedExtraMsg = unarmedHit.crit ? this.getCombatMsg(unarmedHit.msgID) || '' : ''
                 uiLog(`${who} hits ${targetName} for ${unarmedDmg} damage (${unarmedModeName})${unarmedExtraMsg}`)
-                audio.playActionSfx('hit_flesh')
+                audio.playWeaponSfx('Y', 'impact')
                 critterDamage(target, unarmedDmg, obj, true, true, 'Normal')
                 if (target.isPlayer) drawHP(target.getStat('HP'))
                 if (!target.dead && target._script?.combat_p_proc) {
@@ -780,7 +780,6 @@ export class Combat {
                 if (!globalState.combat) return
                 if (target.dead) this.perish(target, obj, 'Normal')
             } else {
-                audio.playActionSfx('miss')
                 uiLog(`${who} misses ${targetName} (${unarmedModeName})`)
                 if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
                     target.staticAnimation('dodge', () => target.clearAnim())
@@ -866,7 +865,6 @@ export class Combat {
                     if (victim.dead) this.perish(victim, obj, attackDmgType)
                 }
             } else {
-                audio.playActionSfx('miss')
                 if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
                     target.staticAnimation('dodge', () => target.clearAnim())
                 }
@@ -898,11 +896,7 @@ export class Combat {
             uiLog(who + ' hit ' + targetName + ' for ' + damage + ' damage' + extraMsg)
 
             // Play impact sound
-            if (soundIdChar) {
-                audio.playWeaponSfx(soundIdChar, 'impact')
-            } else {
-                audio.playActionSfx('hit_flesh')
-            }
+            audio.playWeaponSfx(soundIdChar || '#', 'impact')
 
             critterDamage(target, damage, obj, true, true, attackDmgType)
             if (target.isPlayer) drawHP(target.getStat('HP'))
@@ -912,7 +906,6 @@ export class Combat {
             if (!globalState.combat) return
             if (target.dead) this.perish(target, obj, attackDmgType)
         } else {
-            audio.playActionSfx('miss')
             uiLog(who + ' missed ' + targetName + (hitRoll.crit === true ? ' critically' : ''))
 
             // Play a dodge/flinch on the target if they aren't already animating
@@ -997,7 +990,8 @@ export class Combat {
             damageType: damageType ?? null,
             message: `${victimDisplay} killed by ${attackerDisplay}`,
         })
-        globalState.audioEngine.playActionSfx('critter_die')
+        const dieStem = ['hmxxxxba', 'hmxxxxbb', 'hmxxxxbd'][Math.floor(Math.random() * 3)]
+        globalState.audioEngine.playSfxByName(dieStem)
 
         // Defensively ensure dead flag is set — critterKill (called by critterDamage
         // when HP <= 0) should have already set this, but guard against edge cases.
@@ -1415,7 +1409,7 @@ export class Combat {
         globalState.inCombat = false
         combatActive = false
 
-        globalState.audioEngine.playActionSfx('combat_end')
+        globalState.audioEngine.playSfxByName('icombat2')
         globalState.gMap.updateMap()
         uiEndCombat()
     }
@@ -1430,7 +1424,7 @@ export class Combat {
         eventLogPush({ actor: null, action: 'combat-end', result: 'forced', message: 'Combat ended (forced)' })
         globalState.combat = null
         globalState.inCombat = false
-        globalState.audioEngine.playActionSfx('combat_end')
+        globalState.audioEngine.playSfxByName('icombat2')
         globalState.gMap?.updateMap()
         uiEndCombat()
         // Defer flag reset so the current script execution frame finishes

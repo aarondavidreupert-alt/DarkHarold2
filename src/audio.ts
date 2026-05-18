@@ -15,17 +15,17 @@ limitations under the License.
 */
 
 import { getCurrentMapInfo } from './data.js'
-import { getRandomInt } from './util.js'
-import { ACTION_SOUNDS, getWeaponSounds, ImpactMaterial, resolveSound } from './soundMap.js'
+import { getFileJSON, getRandomInt } from './util.js'
+import { getWeaponSounds, ImpactMaterial } from './soundMap.js'
 import { dbg, dbgWarn } from './logger.js'
 
 // Audio engine for handling music and sound effects
 
 export interface AudioEngine {
     playSfx(sfx: string): void
+    playSfxByName(stem: string): void
     playMusic(music: string): void
     playSound(soundName: string): HTMLAudioElement | null
-    playActionSfx(action: string): void
     playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial): void
     stopMusic(): void
     stopAll(): void
@@ -34,11 +34,11 @@ export interface AudioEngine {
 
 export class NullAudioEngine implements AudioEngine {
     playSfx(sfx: string): void {}
+    playSfxByName(stem: string): void {}
     playMusic(music: string): void {}
     playSound(soundName: string): HTMLAudioElement | null {
         return null
     }
-    playActionSfx(action: string): void {}
     playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial): void {}
     stopMusic(): void {}
     stopAll(): void {}
@@ -62,6 +62,7 @@ export class HTMLAudioEngine implements AudioEngine {
     // Negative cache: names that 404'd or failed to decode.  Keeps the console
     // quiet on repeated plays (e.g. every burst fire for a missing burst wav).
     private sfxMissing: Set<string> = new Set()
+    private sfxLookup: Record<string, unknown> | null = null
 
     private getCtx(): AudioContext {
         if (!this.ctx) {
@@ -147,10 +148,15 @@ export class HTMLAudioEngine implements AudioEngine {
         return sound
     }
 
-    playActionSfx(action: string): void {
-        const entry = ACTION_SOUNDS[action]
-        if (!entry) return
-        this.playSfx(resolveSound(entry))
+    playSfxByName(stem: string): void {
+        if (!this.sfxLookup) {
+            this.sfxLookup = getFileJSON('lut/lst/sound_sfx_sndlist.json') ?? {}
+        }
+        if (!(stem.toUpperCase() in this.sfxLookup!)) {
+            console.warn('[Audio] SFX stem not found:', stem)
+            return
+        }
+        this.playSfx(stem)
     }
 
     playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material: ImpactMaterial = 'flesh'): void {
