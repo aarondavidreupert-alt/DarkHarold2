@@ -195,6 +195,8 @@ function tryLoadAmmoIntoWeapon(ammoObj: Obj, weaponObj: Obj): boolean {
     const ammoIdx = globalState.player.inventory.indexOf(ammoObj)
     if (a.amount <= 0 && ammoIdx !== -1) globalState.player.inventory.splice(ammoIdx, 1)
     uiLog(`Loaded ${toLoad} round${toLoad !== 1 ? 's' : ''}.`)
+    const soundId: string = w.pro?.extra?.soundId ?? ''
+    if (soundId) globalState.audioEngine.playWeaponSfx(soundId, 'reload')
     return true
 }
 
