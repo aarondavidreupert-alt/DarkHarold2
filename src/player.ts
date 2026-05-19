@@ -123,7 +123,8 @@ export class Player extends Critter {
             const perkRate = this.traits.includes('Skilled') ? 4 : 3
             if (currentLevel % perkRate === 0) {
                 this.pendingPerkPick = true
-                Events.emit('pendingPerkPick', this)
+                // Do NOT open the selector here — editorRun() checks the flag
+                // when the character screen is opened (FO2-CE ref: editor.cc).
             }
 
             console.log(

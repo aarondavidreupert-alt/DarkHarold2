@@ -984,6 +984,12 @@ export function showCharacterScreen() {
         console.log('[CharScreen] Changes saved.')
         characterWindow.close()
     })
+
+    // FO2-CE ref: editor.cc editorRun() — perk selector is triggered inside the
+    // editor, not at XP gain. Show it now if a pick is pending.
+    if (player.pendingPerkPick) {
+        showPerkModal(player)
+    }
 }
 
 // ── showCharacterCreator() ────────────────────────────────────────────────────
@@ -2087,4 +2093,3 @@ function showPerkModal(player: any): void {
     document.body.appendChild(overlay)
 }
 
-Events.on('pendingPerkPick', (player: any) => showPerkModal(player))
