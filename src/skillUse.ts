@@ -494,6 +494,9 @@ function useTraps(user: Critter, target: Critter | null): SkillUseResult {
         return makeResult(false, RollResult.Failure, 'No trap to disarm.')
     }
 
+    // FO2-CE ref: skill.cc — spring-trap disarm attempt sound
+    globalState.audioEngine.playSfxByName('sprtrap')
+
     const trapDifficulty: number = (target as any).pro?.extra?.trapDifficulty ?? 50
     const skillValue = user.getSkill('Traps')
     const modifier = -trapDifficulty

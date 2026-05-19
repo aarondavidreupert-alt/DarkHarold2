@@ -91,10 +91,12 @@ export function uiElevator(elevator: Elevator) {
                 globalState.gMap.loadMapByID(mapID, position, level)
             } else if (level !== globalState.currentElevation) {
                 // same map, different elevation
+                // FO2-CE ref: elevator.cc — distance-based travel sound
+                // 1 floor = elv1_1, 2 floors = elv1_2, 3+ floors = elv1_3
+                const dist = Math.abs(level - globalState.currentElevation)
+                const elvSfx = dist === 1 ? 'elv1_1' : dist === 2 ? 'elv1_2' : 'elv1_3'
                 console.log(`[Elevator] → level ${level} @ (${position.x}, ${position.y})`)
-                globalState.audioEngine.playSfxByName(
-                    level > globalState.currentElevation ? 'selevdx1' : 'selevux1'
-                )
+                globalState.audioEngine.playSfxByName(elvSfx)
                 globalState.player.move(position)
                 globalState.gMap.changeElevation(level, true)
             }

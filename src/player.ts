@@ -102,6 +102,8 @@ export class Player extends Critter {
             this.stats.modifyBase('Level', 1)
             currentLevel++
 
+            globalState.audioEngine.playSfxByName('levelup')
+
             // FO2-CE ref: stat.cc — Skill points: 5 + 2*INT per level
             // Educated perk +2; Skilled trait +5; Gifted trait -5
             let skillPointGain = 5 + this.getStat('INT') * 2
