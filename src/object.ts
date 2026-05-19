@@ -147,12 +147,7 @@ function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent = true)
 
     obj.open = open
     if (obj.isDoor) {
-        // FO2-CE ref: game_sound.cc sfxBuildOpenName() → S[O|C]DOORS[soundIdChar]
-        // 'O' = open action, 'C' = close action; soundIdChar from proto last byte.
-        // Fall back to 'a' for doors whose soundIdChar is not in the a–t range.
-        const rawChar: string = (obj.pro as any)?.soundIdChar ?? ''
-        const variant = /^[A-Ta-t]$/.test(rawChar) ? rawChar.toLowerCase() : 'a'
-        globalState.audioEngine.playSfxByName(open ? 'sodoors' + variant : 'scdoors' + variant)
+        globalState.audioEngine.playSfxByName(open ? 'sndoorsa' : 'sndoorsc')
     } else if (obj.isContainer) {
         const variant = String.fromCharCode(97 + getRandomInt(0, 4)) // 'a'..'e'
         globalState.audioEngine.playSfxByName((open ? 'iocntnr' : 'iccntnr') + variant)
