@@ -110,7 +110,7 @@ export const Config = {
 
             // ── Engine debug categories — flip in DevTools to surface output ──────
             // e.g. Config.scripting.debugLogShowType.combat = true
-            combat: false,        // combat flow: turn start/end, enrollment, forceEnd
+            combat: true,        // combat flow: turn start/end, enrollment, forceEnd
             ai: false,            // AI turn decisions: packet lookup, action chosen, AP spent
             rolls: false,         // every dice roll: hit chance, roll result, hit/miss/crit
             skills: false,        // skill check rolls and outcomes

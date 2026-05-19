@@ -20,9 +20,13 @@ def convertDir(inDir, outDir):
             if FFMPEG and os.path.exists(FFMPEG) or shutil.which("ffmpeg"):
                 tmp = result + ".tmp.wav"
                 ret = subprocess.call(
-                    [FFMPEG, "-y", "-i", result, "-ar", "22050", tmp],
+                    [FFMPEG, "-y", "-i", result, "-ar", "22050", "-ac", "1", tmp],
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-                )
+                    )
+                # ret = subprocess.call(
+                #     [FFMPEG, "-y", "-i", result, "-ar", "22050", tmp],
+                #     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                # )
                 if ret == 0:
                     os.replace(tmp, result)
                 else:
