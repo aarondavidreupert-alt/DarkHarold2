@@ -169,9 +169,9 @@ const TRAIT_IMG: Record<string, string> = {
     'Bloody Mess':     'art/skilldex/bldmess.png',
     'Jinxed':          'art/skilldex/jinxed.png',
     'Good Natured':    'art/skilldex/goodnatr.png',
-    'Chem Reliant':    'art/skilldex/chemrely.png',
-    'Chem Resistant':  'art/skilldex/chemrst.png',
-    'Sex Appeal':      'art/skilldex/sexappel.png',
+    'Chem Reliant':    'art/skilldex/addict.png',    // LST 53 (no dedicated entry)
+    'Chem Resistant':  'art/skilldex/drugrest.png',  // LST 67
+    'Sex Appeal':      'art/skilldex/charisma.png',  // LST 3  (no dedicated entry)
     'Skilled':         'art/skilldex/skilled.png',
     'Gifted':          'art/skilldex/gifted.png',
 }

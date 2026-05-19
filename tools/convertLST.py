@@ -124,7 +124,7 @@ def _build_sfx_lookup(lines: list[str]) -> dict:
     lookup: dict = {}
     for i in range(0, len(entries), 4):
         filename = entries[i]
-        key = Path(filename).stem
+        key = Path(filename).stem.upper()
         lookup[key] = {
             'file': filename,
             'filesize': int(entries[i + 1]),
