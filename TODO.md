@@ -126,6 +126,18 @@ Low priority but accumulating:
 
 ---
 
+## Options menu (`ui_options.ts`)
+
+- **[P2] Preferences screen** — currently `alert('not yet implemented')` for both the button and the `P` keyboard shortcut
+  - Build a panel using the existing `WindowFrame`/`Widget` pattern from `ui_options.ts`
+  - Wire to existing `Config` fields: `combat.difficultyModifier` (Easy/Normal/Hard), `engine.doAlwaysRun`, `engine.doAudio`
+  - Add new `Config` fields for: violence level, target highlight, combat speed, subtitles toggle, combat messages toggle
+  - Volume sliders (master / music / SFX) — `audio.ts` has play/stop infra but no volume API yet; needs `GainNode` on the `AudioContext`
+  - Persist preferences: write to `localStorage` on close so settings survive page reload
+  - Ref: fallout2-ce `options.cc`, `preferences.cc`
+
+---
+
 ## Misc
 
 - **[P2] Worldmap area entrance positions** — misplaced on area screens (README note)

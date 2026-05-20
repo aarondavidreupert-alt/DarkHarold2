@@ -164,6 +164,15 @@ not exhaustive.
 - `get_month`/`get_day` wired in Phase 1; verify against actual save/load round-trip
 - Type annotations: `Obj.type`, `Obj.pro`, `Obj.art`, `Obj.extra`, `Obj.anim`,
   `globalState.proMap`, `Critter.weapon` — all `any`
+- **Preferences screen** (`ui_options.ts:50`, `ui_options.ts:95`) — currently `alert('not yet implemented')` stub
+  - Build panel with `WindowFrame`/`Widget` (same pattern as the rest of `ui_options.ts`)
+  - Difficulty slider → `Config.combat.difficultyModifier` (75/100/125)
+  - Running toggle → `Config.engine.doAlwaysRun`
+  - Audio toggle → `Config.engine.doAudio`
+  - Add new `Config` entries for violence level, target highlight, combat speed, subtitles, combat messages
+  - Volume sliders (master/music/SFX): add a `GainNode` to the `AudioContext` in `audio.ts`; expose `setVolume()` on `AudioEngine`
+  - Persist to `localStorage` on close; read back in `initOptionsMenu()`
+  - Ref: fallout2-ce `options.cc`, `preferences.cc`
 - Healer perk in First Aid/Doctor (`skillUse.ts:227`)
 - Perk crit bonuses in `bonusCrit` (covered in Phase 4b)
 - Encounter difficulty roll adjustments (`encounters.ts:300`, `349`)
