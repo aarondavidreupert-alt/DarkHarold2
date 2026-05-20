@@ -1192,6 +1192,12 @@ export class Critter extends Obj {
 
     injuryFlags?: number     // DAM_* bitmask from critter_injure (0x01=knocked down, 0x80=dead, etc.)
 
+    // Status-effect levels (FO2-CE ref: stat.h STAT_poison_level / STAT_radiation_level)
+    poisonLevel = 0
+    radiationLevel = 0
+    // Radiation-induced SPECIAL penalties currently applied (tracked so they can be reversed on level change)
+    _radPenalties = { END: 0, AGI: 0, STR: 0 }
+
     // Combat status effect counters / flags
     onFireTurns = 0          // Turns of fire DoT remaining; decremented in nextTurn
     bypassArmorNextHit = false // Set by bypassArmor crit effect; zeroes DR/DT for the hit that triggered it

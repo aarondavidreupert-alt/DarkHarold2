@@ -274,3 +274,8 @@ export function isShopOpen(): boolean {
     const h = getHour()
     return h >= SHOP_OPEN_HOUR && h < SHOP_CLOSE_HOUR
 }
+
+// --- Status-effect tick intervals ---
+// FO2-CE ref: stat.cc poisonEventCallback / radiationEventCallback
+// Poison tick fires every 10 in-game minutes; used by Scripting.schedulePoisonTick().
+export const POISON_TICK_INTERVAL = TICKS_PER_MINUTE   // 600 ticks = 10 in-game minutes

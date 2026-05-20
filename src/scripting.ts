@@ -196,6 +196,70 @@ export module Scripting {
         return obj.isSpatial === true
     }
 
+    // Sentinel userdata value for engine-managed poison tick events
+    const UD_POISON = '__eng_poison__'
+
+    // FO2-CE ref: stat.cc poisonEventCallback()
+    // Fires every POISON_TICK_INTERVAL ticks; deals 1 HP, decrements poison level, re-queues if > 0.
+    function poisonTick(critter: Critter): void {
+        if (critter.dead || critter.poisonLevel <= 0) return
+        critter.stats.modifyBase('HP', -1)
+        critter.poisonLevel = Math.max(0, critter.poisonLevel - 1)
+        if (critter.isPlayer) {
+            const msg = critter.poisonLevel >= 15 ? 'You feel extremely ill from the poison.' :
+                        critter.poisonLevel >= 8  ? 'You feel sick from the poison.' :
+                                                    'You feel a little sick.'
+            uiLog(msg)
+        }
+        info(`poisonTick: ${critter.name} HP−1, poison→${critter.poisonLevel}`)
+        if (critter.getStat('HP') <= 0) critterKill(critter)
+        if (!critter.dead && critter.poisonLevel > 0) schedulePoisonTick(critter)
+    }
+
+    function schedulePoisonTick(critter: Critter): void {
+        if (timeEventList.some(e => e.obj === critter && e.userdata === UD_POISON)) return
+        timeEventList.push({ obj: critter, ticks: GameTime.POISON_TICK_INTERVAL, userdata: UD_POISON, fn: () => poisonTick(critter) })
+    }
+
+    // FO2-CE ref: stat.cc radiationEventCallback(), proto_types.h RadiationLevel enum
+    // Radiation thresholds: 0-99 none, 100-199 Minor (−1 END), 200-399 Advanced (−2 END −1 AGI),
+    //   400-599 Critical (−4 END −2 AGI −2 STR), 600+ Lethal (death).
+    // Undoes the previously applied penalties before applying the new ones so changes are idempotent.
+    function applyRadiationPenalties(critter: Critter): void {
+        // Undo previous radiation penalties
+        critter.stats.modifyBase('END', critter._radPenalties.END)
+        critter.stats.modifyBase('AGI', critter._radPenalties.AGI)
+        critter.stats.modifyBase('STR', critter._radPenalties.STR)
+
+        const level = critter.radiationLevel
+        if (level >= 600) {
+            if (!critter.dead) {
+                if (critter.isPlayer) uiLog('Your body can no longer withstand the radiation. You are dead.')
+                critterKill(critter)
+            }
+            critter._radPenalties = { END: 0, AGI: 0, STR: 0 }
+            return
+        }
+
+        let endPen = 0, agiPen = 0, strPen = 0
+        if (level >= 400)      { endPen = 4; agiPen = 2; strPen = 2 }
+        else if (level >= 200) { endPen = 2; agiPen = 1 }
+        else if (level >= 100) { endPen = 1 }
+
+        critter.stats.modifyBase('END', -endPen)
+        critter.stats.modifyBase('AGI', -agiPen)
+        critter.stats.modifyBase('STR', -strPen)
+        critter._radPenalties = { END: endPen, AGI: agiPen, STR: strPen }
+
+        if (critter.isPlayer && (endPen || agiPen || strPen)) {
+            const msg = level >= 400 ? 'You are suffering from critical radiation poisoning!' :
+                        level >= 200 ? 'You feel the effects of advanced radiation poisoning.' :
+                                       'You feel slightly nauseous from radiation exposure.'
+            uiLog(msg)
+        }
+        info(`radiation penalties: ${critter.name} level=${level} END-${endPen} AGI-${agiPen} STR-${strPen}`)
+    }
+
     function getScriptName(id: number): string {
         // return getLstId("scripts/scripts", id - 1).split(".")[0].toLowerCase()
         return lookupScriptName(id)
@@ -841,8 +905,8 @@ export module Scripting {
             critterKill(obj)
         }
         get_poison(obj: Obj) {
-            stub('get_poison', arguments)
-            return 0
+            // FO2-CE ref: stat.cc stat_get_base(obj, STAT_poison_level)
+            return (obj as Critter).poisonLevel ?? 0
         }
         get_pc_stat(pcstat: number) {
             // FO2-CE ref: stat.cc pcGetStat() — PCSTAT constants from stat_defs.h
@@ -943,10 +1007,20 @@ export module Scripting {
             info('critter_heal: ' + obj.name + ' healed ' + healed + ' HP')
         }
         poison(obj: Obj, amount: number) {
-            stub('poison', arguments)
+            // FO2-CE ref: stat.cc critterAdjustPoison()
+            if (!isGameObject(obj)) return
+            const critter = obj as Critter
+            critter.poisonLevel = Math.max(0, (critter.poisonLevel ?? 0) + amount)
+            info(`poison: ${critter.name} → level ${critter.poisonLevel}`)
+            if (critter.poisonLevel > 0) schedulePoisonTick(critter)
         }
         radiation_dec(obj: Obj, amount: number) {
-            stub('radiation_dec', arguments)
+            // FO2-CE ref: stat.cc critterAdjustRadiation() — negative delta decreases level
+            if (!isGameObject(obj)) return
+            const critter = obj as Critter
+            critter.radiationLevel = Math.max(0, (critter.radiationLevel ?? 0) - amount)
+            info(`radiation_dec: ${critter.name} → level ${critter.radiationLevel}`)
+            applyRadiationPenalties(critter)
         }
 
         // combat
