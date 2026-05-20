@@ -109,8 +109,6 @@ export function parseIntFile(reader: BinaryReader, name: string=""): IntFile {
     var stringEnd = reader.read32()
     var strings: { [offset: number]: string } = {}
 
-    //assertEq(stringEnd, 0xFFFFFFFF, "TODO: string table")
-
     if(stringEnd !== 0xFFFFFFFF) {
         // read string table
         var baseOffset = reader.offset

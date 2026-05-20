@@ -1431,7 +1431,6 @@ export class Critter extends Obj {
 
             if (this.position.x === this.path.target.x && this.position.y === this.path.target.y) {
                 // reached target position
-                // TODO: better logging system
                 //console.log("target reached")
 
                 const callback = this.animCallback
