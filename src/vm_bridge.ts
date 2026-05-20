@@ -20,6 +20,7 @@ import { Scripting } from "./scripting.js"
 import { BinaryReader } from "./util.js"
 import { dbg } from "./logger.js"
 import { opMap, ScriptVM } from "./vm.js"
+import * as GameTime from "./gametime.js"
 
 // Bridge between Scripting API and the Scripting VM
 
@@ -48,11 +49,11 @@ export module ScriptVMBridge {
         0x80BF: function() { this.push(globalState.player) } // dude_obj
        ,0x80BC: function() { this.push(this.scriptObj.self_obj) } // self_obj
        ,0x8128: function() { this.push(this.scriptObj.combat_is_initialized) } // combat_is_initialized
-       ,0x8118: function() { this.push(1) } // get_month // TODO
+       ,0x8118: function() { this.push(GameTime.getDate().month + 1) } // get_month (1-indexed)
        ,0x80F6: function() { this.push(Math.floor((globalState.gameTickTime / 600) % 24)) } // game_time_hour
        ,0x80a8: function() { this.push(Math.floor((globalState.gameTickTime / 600) % 24)) } // game_time_hour (alt)
        ,0x80EA: function() { this.push(this.scriptObj.game_time) } // game_time
-       ,0x8119: function() { this.push(0) } // get_day // TODO
+       ,0x8119: function() { this.push(GameTime.getDate().day) } // get_day (day of month)
        ,0x8101: function() { this.push(this.scriptObj.cur_map_index) } // cur_map_index
        ,0x80BD: function() { this.push(this.scriptObj.source_obj) } // source_obj
        ,0x80FA: function() { this.push(this.scriptObj.action_being_used) } // action_being_used
@@ -69,7 +70,17 @@ export module ScriptVMBridge {
        ,0x80CA: bridged("get_critter_stat", 2)
        ,0x8105: bridged("message_str", 2)
        ,0x80B8: bridged("display_msg", 1, false)
-       ,0x810E: bridged("reg_anim_func", 2, false)
+       ,0x8111: bridged("reg_anim_begin", 1, false)
+       ,0x8112: bridged("reg_anim_end", 0, false)
+       ,0x8113: bridged("reg_anim_clear", 0, false)
+       ,0x810E: function() { // reg_anim_func — wraps proc addr into a callable (ref: giq_option pattern)
+            const procAddr = this.pop()
+            const obj = this.pop()
+            const procEntry = this.intfile.proceduresTable[procAddr]
+            const fn = procEntry ? () => { this.call(procEntry.name) } : null
+            this.scriptObj.reg_anim_func(obj, fn)
+       }
+       ,0x8110: bridged("reg_anim_obj_move_to_tile", 3, false)
        ,0x8126: bridged("reg_anim_animate_forever", 2, false)
        ,0x810F: bridged("reg_anim_animate", 3, false)
        ,0x810C: bridged("anim", 3, false)

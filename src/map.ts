@@ -65,6 +65,8 @@ export class GameMap {
     objects: Obj[][] = null // Map objects on all levels
     spatials: any[][] = null // Spatials on all levels
 
+    private _removalQueue: Obj[] = []
+
     mapObj: any = null
     mapID: number
 
@@ -90,34 +92,37 @@ export class GameMap {
     }
 
     removeObject(obj: Obj): void {
-        // remove `obj` from the map
-        // it would be pretty hard to remove it anywhere else without either
-        // a walk of the object graph or a `parent` reference.
-        //
-        // so we're only going to remove it from the global object list, if present.
+        this._removalQueue.push(obj)
+    }
 
-        // TODO: use a removal queue instead of removing directory (indexing problems)
-
-        // TODO: better object equality testing
-        for (let level = 0; level < this.numLevels; level++) {
-            const objects = this.objects[level]
-            for (let i = 0; i < objects.length; i++) {
-                if (objects[i] === obj) {
-                    dbg('object', 'removeObject: destroying index %d (%o/%o)', i, obj, objects[i])
-                    this.objects[level].splice(i, 1)
-                    return
+    // Drain the deferred removal queue. Called once per heartbeat tick from main.ts
+    // after all per-frame script/animation updates have run. Draining at the end of
+    // the tick prevents index drift when a script removes objects during iteration.
+    drainRemovalQueue(): void {
+        if (this._removalQueue.length === 0) return
+        const toRemove = this._removalQueue
+        this._removalQueue = []
+        for (const obj of toRemove) {
+            let found = false
+            for (let level = 0; level < this.numLevels; level++) {
+                const objects = this.objects[level]
+                for (let i = 0; i < objects.length; i++) {
+                    if (objects[i] === obj) {
+                        dbg('object', 'drainRemovalQueue: removing index %d (%o)', i, obj)
+                        objects.splice(i, 1)
+                        found = true
+                        break
+                    }
                 }
+                if (found) break
             }
+            if (!found) dbgWarn('object', "drainRemovalQueue: object not found on map")
         }
-
-        dbgWarn('object', "removeObject: couldn't find object on map")
-        console.trace()
     }
 
     destroyObject(obj: Obj): void {
+        Scripting.destroy(obj)
         this.removeObject(obj)
-
-        // TODO: notify scripts with destroy_p_proc
     }
 
     hasRoofAt(pos: Point, elevation?: number): boolean {

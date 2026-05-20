@@ -1073,6 +1073,8 @@ heart.update = function () {
         obj.updateAnim()
     }
 
+    globalState.gMap?.drainRemovalQueue()
+
     globalState.lastUpdateTime = Math.floor(window.performance.now() - time)
 }
 

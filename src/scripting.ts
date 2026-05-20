@@ -59,6 +59,13 @@ export module Scripting {
     let overrideStartPos: StartPos | null = null
     let fadeOverlay: HTMLDivElement | null = null
 
+    // Animation batch (reg_anim_begin / reg_anim_end queue)
+    // ref: fallout2-ce animation.cc animationRegAnimFunc / animationRegAnimAnimate
+    interface AnimStep { kind: 'animate'; obj: Obj; anim: number; delay: number }
+    interface AnimFunc  { kind: 'func';    fn: (() => void) | null }
+    type AnimEntry = AnimStep | AnimFunc
+    let animBatch: AnimEntry[] | null = null
+
     export interface StartPos {
         position: Point
         orientation: number
@@ -1476,18 +1483,70 @@ export module Scripting {
             })
         }
 
-        // animation
-        reg_anim_func(_1: any, _2: any) {
-            stub('reg_anim_func', arguments, 'animation')
+        // animation — ref: fallout2-ce animation.cc animationRegAnimFunc/animationRegAnimAnimate/animationBegin/End
+        reg_anim_begin(_flags: number) {
+            animBatch = []
         }
-        reg_anim_animate(obj: Obj, anim: number, delay: number) {
-            if (!isGameObject(obj)) {
-                warn('reg_anim_animate: not a game object')
+
+        reg_anim_clear() {
+            animBatch = null
+        }
+
+        reg_anim_func(obj: Obj, fn: (() => void) | null) {
+            if (animBatch === null) {
+                warn('reg_anim_func: called outside reg_anim_begin', 'animation')
                 return
             }
-            // Queue a single animation cycle; full playback timing via delay not yet implemented
-            obj.singleAnimation(true, () => obj.clearAnim())
+            animBatch.push({ kind: 'func', fn })
         }
+
+        reg_anim_animate(obj: Obj, anim: number, delay: number) {
+            if (!isGameObject(obj)) {
+                warn('reg_anim_animate: not a game object', 'animation')
+                return
+            }
+            if (animBatch === null) {
+                // Outside a batch — play immediately (legacy path)
+                obj.singleAnimation(false, () => obj.clearAnim())
+                return
+            }
+            animBatch.push({ kind: 'animate', obj, anim, delay })
+        }
+
+        reg_anim_end() {
+            if (animBatch === null) {
+                warn('reg_anim_end: no active batch', 'animation')
+                return
+            }
+            const batch = animBatch
+            animBatch = null
+
+            const steps = batch.filter(e => e.kind === 'animate') as AnimStep[]
+            const callbacks = (batch.filter(e => e.kind === 'func') as AnimFunc[])
+                .map(e => e.fn)
+                .filter((fn): fn is () => void => fn !== null)
+
+            function doStep(i: number) {
+                if (i >= steps.length) {
+                    for (const cb of callbacks) cb()
+                    return
+                }
+                const step = steps[i]
+                const obj = step.obj
+                const next = () => { obj.clearAnim(); doStep(i + 1) }
+                // anim=0 is ANIM_STAND — snap to idle rather than playing a cycle
+                if (step.anim === 0) {
+                    if (step.delay > 0) setTimeout(next, step.delay * 100)
+                    else next()
+                } else {
+                    const play = () => obj.singleAnimation(false, next)
+                    if (step.delay > 0) setTimeout(play, step.delay * 100)
+                    else play()
+                }
+            }
+            doStep(0)
+        }
+
         reg_anim_animate_forever(obj: Obj, anim: number) {
             log('reg_anim_animate_forever', arguments, 'animation')
             if (!isGameObject(obj)) {
