@@ -178,6 +178,21 @@ export class GameMap {
         Scripting.updateMap(this.mapScript, this.getObjectsAndSpatials(), this.currentElevation)
     }
 
+    doEnterElevation(): void {
+        if (!Config.engine.doLoadScripts) return
+        const elev = this.currentElevation
+        const mapID = this.mapID
+
+        if (this.mapScript && this.mapScript.map_enter_p_proc !== undefined) {
+            this.mapScript.self_obj = { _script: this.mapScript }
+            this.mapScript.map_enter_p_proc()
+        }
+
+        for (const obj of this.getObjectsAndSpatials()) {
+            Scripting.objectEnterMap(obj, elev, mapID)
+        }
+    }
+
     changeElevation(level: number, updateScripts = false, isMapLoading = false) {
         if (!this.mapObj.levels[level]) {
             dbgWarn('map', `changeElevation: elevation ${level} does not exist`)

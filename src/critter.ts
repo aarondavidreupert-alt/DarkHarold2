@@ -563,8 +563,8 @@ export function critterDamage(
     obj.stats.modifyBase('HP', -damage)
     if (obj.getStat('HP') <= 0) return critterKill(obj, source, useScript, undefined, damageType)
 
-    if (useScript) {
-        // TODO: Call damage_p_proc
+    if (useScript && obj._script) {
+        Scripting.damage(obj, obj, source, damage)
     }
 
     // Play a hit reaction if the critter isn't already mid-animation.
