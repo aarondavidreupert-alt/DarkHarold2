@@ -354,14 +354,18 @@ export function uiBarterMode(merchant: Critter) {
         clearEl($el)
 
         for (let i = 0; i < objects.length; i++) {
-            const inventoryImage = objects[i].invArt
+            const obj = objects[i]
+            const inventoryImage = obj.invArt
+            if (!inventoryImage) {
+                console.warn('[Barter] item has no invArt, skipping image:', obj.name ?? obj.pid)
+            }
             const img = makeEl('img', {
-                src: inventoryImage + '.png',
-                attrs: { title: objects[i].name },
+                src: inventoryImage ? inventoryImage + '.png' : '',
+                attrs: { title: obj.name },
                 style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
             })
             $el.appendChild(img)
-            $el.insertAdjacentHTML('beforeend', 'x' + objects[i].amount)
+            $el.insertAdjacentHTML('beforeend', 'x' + obj.amount)
             makeDraggable(img, who + i)
         }
     }
