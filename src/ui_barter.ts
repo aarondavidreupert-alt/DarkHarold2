@@ -91,90 +91,117 @@ function makeEl(tag: string, options: ElementOptions): HTMLElement {
 // --- Cross-list move helpers (also used by ui_loot) ------------------------
 
 /**
- * "How many?" counter dialog — arrow buttons + numeric display, same visual
- * pattern as the bomb timer (timerDialog* CSS classes, mounted on #uiStage).
- * Resolves with the chosen count, or 0 on cancel.
- * ref: fallout2-ce inv.cc::inventoryQuantityDialog()
+ * Movemult.png slider modal — asks the player how many of `item` to move
+ * when the stack has more than one. Resolves to 0 on cancel.
  */
 export function uiGetAmount(item: Obj): Promise<number> {
+    // Fallout 2 "Move Items" dialog using movemult.png as background
+    // movemult.png is 169×60 in the original game
+    const DIALOG_W = 169
+    const DIALOG_H = 60
+
     return new Promise((resolve) => {
-        const uiStage = document.getElementById('uiStage')
-        if (!uiStage) { resolve(0); return }
-
-        let count = item.amount
-
         const overlay = document.createElement('div')
-        overlay.className = 'timerDialogOverlay'
-
-        const dialog = document.createElement('div')
-        dialog.className = 'timerDialog'
-
-        const title = document.createElement('div')
-        title.className = 'timerDialogTitle'
-        title.textContent = 'How many?'
-
-        // Counter row: – [n] +
-        const counterRow = document.createElement('div')
-        counterRow.className = 'timerDialogCounterRow'
-
-        const minusBtn = document.createElement('button')
-        minusBtn.className = 'timerDialogBtn timerDialogStepBtn'
-        minusBtn.textContent = '–'
-
-        const counter = document.createElement('div')
-        counter.className = 'timerDialogCounter'
-        counter.textContent = String(count)
-
-        const plusBtn = document.createElement('button')
-        plusBtn.className = 'timerDialogBtn timerDialogStepBtn'
-        plusBtn.textContent = '+'
-
-        minusBtn.addEventListener('click', () => {
-            if (count > 1) { count--; counter.textContent = String(count) }
-        })
-        plusBtn.addEventListener('click', () => {
-            if (count < item.amount) { count++; counter.textContent = String(count) }
+        Object.assign(overlay.style, {
+            position: 'absolute',
+            left: '0', top: '0', width: '100%', height: '100%',
+            zIndex: '50',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
         })
 
-        counterRow.appendChild(minusBtn)
-        counterRow.appendChild(counter)
-        counterRow.appendChild(plusBtn)
+        const modal = document.createElement('div')
+        Object.assign(modal.style, {
+            position: 'relative',
+            width: `${DIALOG_W}px`,
+            height: `${DIALOG_H}px`,
+            backgroundImage: "url('art/intrface/movemult.png')",
+            backgroundSize: `${DIALOG_W}px ${DIALOG_H}px`,
+            backgroundRepeat: 'no-repeat',
+            fontFamily: "'VT323', monospace",
+        })
 
-        // Action buttons
-        const btnRow = document.createElement('div')
-        btnRow.className = 'timerDialogBtnRow'
+        // Number display — centered near the top of the dialog
+        const numDisplay = document.createElement('div')
+        Object.assign(numDisplay.style, {
+            position: 'absolute',
+            left: '0', top: '5px', width: '100%',
+            textAlign: 'center',
+            color: '#00FF00',
+            fontSize: '14px',
+            pointerEvents: 'none',
+        })
+        numDisplay.textContent = String(item.amount)
 
-        const okBtn = document.createElement('button')
-        okBtn.className = 'timerDialogBtn'
-        okBtn.textContent = 'OK'
-
-        const cancelBtn = document.createElement('button')
-        cancelBtn.className = 'timerDialogBtn'
-        cancelBtn.textContent = 'CANCEL'
-
-        const close = (value: number) => {
-            uiStage.removeChild(overlay)
-            resolve(value)
+        // Slider — positioned across the middle of the dialog
+        const slider = document.createElement('input')
+        slider.type = 'range'
+        slider.min = '1'
+        slider.max = String(item.amount)
+        slider.value = String(item.amount)
+        Object.assign(slider.style, {
+            position: 'absolute',
+            left: '12px', top: '22px',
+            width: `${DIALOG_W - 24}px`,
+            accentColor: '#00AA00',
+            cursor: 'pointer',
+        })
+        slider.oninput = () => {
+            numDisplay.textContent = slider.value
         }
 
-        okBtn.addEventListener('click', () => close(count))
-        cancelBtn.addEventListener('click', () => close(0))
+        function cleanup(amount: number) {
+            overlay.remove()
+            resolve(amount)
+        }
 
-        overlay.addEventListener('keydown', (e: KeyboardEvent) => {
-            if (e.key === 'Enter') close(count)
-            if (e.key === 'Escape') close(0)
+        // OK button — bottom left
+        const okBtn = document.createElement('div')
+        okBtn.textContent = 'OK'
+        Object.assign(okBtn.style, {
+            position: 'absolute',
+            left: '20px', bottom: '4px',
+            color: '#00FF00',
+            fontSize: '12px',
+            cursor: 'pointer',
+            padding: '0 6px',
         })
+        okBtn.onmouseenter = () => { okBtn.style.color = '#FCFC7C' }
+        okBtn.onmouseleave = () => { okBtn.style.color = '#00FF00' }
+        okBtn.onclick = () => {
+            const val = parseInt(slider.value)
+            if (isNaN(val) || val < 1 || val > item.amount) return
+            cleanup(val)
+        }
 
-        btnRow.appendChild(okBtn)
-        btnRow.appendChild(cancelBtn)
+        // Cancel button — bottom right
+        const cancelBtn = document.createElement('div')
+        cancelBtn.textContent = 'Cancel'
+        Object.assign(cancelBtn.style, {
+            position: 'absolute',
+            right: '20px', bottom: '4px',
+            color: '#00FF00',
+            fontSize: '12px',
+            cursor: 'pointer',
+            padding: '0 6px',
+        })
+        cancelBtn.onmouseenter = () => { cancelBtn.style.color = '#FF4444' }
+        cancelBtn.onmouseleave = () => { cancelBtn.style.color = '#00FF00' }
+        cancelBtn.onclick = () => cleanup(0)
 
-        dialog.appendChild(title)
-        dialog.appendChild(counterRow)
-        dialog.appendChild(btnRow)
-        overlay.appendChild(dialog)
-        uiStage.appendChild(overlay)
+        slider.onkeydown = (e: KeyboardEvent) => {
+            if (e.key === 'Enter') okBtn.click()
+            if (e.key === 'Escape') cancelBtn.click()
+        }
 
-        okBtn.focus()
+        modal.appendChild(numDisplay)
+        modal.appendChild(slider)
+        modal.appendChild(okBtn)
+        modal.appendChild(cancelBtn)
+        overlay.appendChild(modal)
+        $id('game-container').appendChild(overlay)
+        slider.focus()
     })
 }
 
