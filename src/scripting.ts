@@ -28,6 +28,7 @@ import {
     Point,
     tile_in_tile_rect,
 } from './geometry.js'
+import { Lightmap } from './lightmap.js'
 import globalState from './globalState.js'
 import { parseIntFile } from './intfile.js'
 import { dbg } from './logger.js'
@@ -836,9 +837,23 @@ export module Scripting {
             return null
         }
         critter_attempt_placement(obj: Obj, tileNum: number, elevation: number) {
-            stub('critter_attempt_placement', arguments)
-            // TODO: it should find a place around tileNum if it's occupied
-            return this.move_to(obj, tileNum, elevation)
+            // FO2-CE ref: critter.cc critterAttemptPlacement() — tries target tile, then all 6 neighbors
+            let targetTile = tileNum
+            if (globalState.gMap) {
+                const targetPos = fromTileNum(tileNum)
+                const objects = globalState.gMap.getObjects(elevation)
+                const occupied = (p: Point) => objects.some(o => o !== obj && o.position.x === p.x && o.position.y === p.y)
+                if (occupied(targetPos)) {
+                    for (let dir = 0; dir < 6; dir++) {
+                        const neighborPos = hexInDirection(targetPos, dir)
+                        if (!occupied(neighborPos)) {
+                            targetTile = toTileNum(neighborPos)
+                            break
+                        }
+                    }
+                }
+            }
+            return this.move_to(obj, targetTile, elevation)
         }
         critter_state(obj: Critter) {
             /*stub("critter_state", arguments);*/
@@ -1101,11 +1116,18 @@ export module Scripting {
                         return 0
                 }
             } else if (objType === 1 /* OBJ_TYPE_CRITTER */) {
-                // Critter proto fields — limited support; add more as scripts require them
+                // FO2-CE ref: critter.h DATA_MEMBER constants
                 switch (data_member) {
-                    case 0: return pro.pid ?? 0     // CRITTER_KILL_TYPE (proto pid id)
+                    case 0:  return extra.killType ?? 0          // CRITTER_KILL_TYPE
+                    case 1:  return extra.headFRM ?? 0           // CRITTER_HEAD_FID (dialog portrait)
+                    case 2:  return extra.aiPacket ?? extra.AI ?? 0 // CRITTER_AI_PACKET
+                    case 3:  return extra.team ?? 0              // CRITTER_TEAM_NUM
+                    case 4:  return extra.flags ?? 0             // CRITTER_FLAGS
+                    case 9:  return extra.baseHP ?? extra.HP ?? 0  // CRITTER_BASE_HP
+                    case 10: return extra.baseAP ?? extra.AP ?? 0  // CRITTER_BASE_AP
+                    case 11: return extra.baseAC ?? extra.AC ?? 0  // CRITTER_BASE_AC
                     default:
-                        warn('proto_data: critter data_member=' + data_member + ' not implemented')
+                        warn('proto_data: critter data_member=' + data_member + ' not implemented pid=0x' + pid.toString(16))
                         return 0
                 }
             }
@@ -1147,8 +1169,11 @@ export module Scripting {
                 return null
             }
 
-            if (obj.type === 'item' && obj.pro != null) return obj.pro.extra.subtype
-            stub('obj_item_subtype', arguments)
+            if (obj.type === 'item' && obj.pro != null) {
+                // pro.py serializes as 'subType' (capital T)
+                return obj.pro.extra.subType ?? obj.pro.extra.subtype ?? null
+            }
+            warn('obj_item_subtype: not an item: ' + obj)
             return null
         }
         anim_busy(obj: Obj) {
@@ -1160,12 +1185,16 @@ export module Scripting {
             return obj.inAnim()
         }
         obj_art_fid(obj: Obj) {
-            stub('obj_art_fid', arguments)
-            return 0
+            // FO2-CE ref: art.cc obj_art_fid() — returns the object's current FID
+            if (!isGameObject(obj)) {
+                warn('obj_art_fid: not game object: ' + obj)
+                return 0
+            }
+            return obj.frmPID ?? 0
         }
         art_anim(fid: number): number {
-            stub('art_anim', arguments)
-            return 0
+            // FO2-CE ref: art.cc artAlias() — anim field is bits 23-16 of the FID
+            return (fid >>> 16) & 0xFF
         }
         set_obj_visibility(obj: Obj, visibility: number) {
             if (!isGameObject(obj)) {
@@ -1261,7 +1290,7 @@ export module Scripting {
             globalState.gMap.destroyObject(obj)
         }
         set_exit_grids(onElev: number, mapID: number, elevation: number, tileNum: number, rotation: number) {
-            stub('set_exit_grids', arguments)
+            // FO2-CE ref: scripts.cc — updates misc exit-grid objects on onElev with new destination
             for (var i = 0; i < gameObjects!.length; i++) {
                 var obj = gameObjects![i]
                 if (obj.type === 'misc' && obj.extra && obj.extra.exitMapID !== undefined) {
@@ -1292,7 +1321,6 @@ export module Scripting {
             return toTileNum(obj.position)
         }
         tile_contains_pid_obj(tile: number, elevation: number, pid: number): any {
-            stub('tile_contains_pid_obj', arguments, 'tiles')
             var pos = fromTileNum(tile)
             var objects = globalState.gMap.getObjects(elevation)
             for (var i = 0; i < objects.length; i++) {
@@ -1303,8 +1331,9 @@ export module Scripting {
             return 0 // it's not there
         }
         tile_is_visible(tile: number) {
-            stub('tile_is_visible', arguments, 'tiles')
-            return 1
+            // FO2-CE ref: scripts.cc — checks tile light intensity > 0
+            if (tile < 0 || tile >= Lightmap.tile_intensity.length) return 0
+            return Lightmap.tile_intensity[tile] > 0 ? 1 : 0
         }
         tile_num_in_direction(tile: number, direction: number, distance: number) {
             if (distance === 0) {
@@ -1737,13 +1766,18 @@ export module Scripting {
             info('mark_area_known: area ' + areaID + ' → ' + (state ? 'known' : 'unknown'))
         }
         wm_area_set_pos(area: number, x: number, y: number) {
-            stub('wm_area_set_pos', arguments)
+            // FO2-CE ref: worldmap.cc wmAreaSetPos() — updates world-map marker position
+            if (!globalState.mapAreas) { warn('wm_area_set_pos: mapAreas not loaded'); return }
+            const areaKey = String(area)
+            if (!globalState.mapAreas[areaKey]) { warn('wm_area_set_pos: unknown area ' + area); return }
+            globalState.mapAreas[areaKey].worldPosition = { x, y }
         }
         game_ui_disable() {
-            stub('game_ui_disable', arguments)
+            // FO2-CE ref: interface.cc gameUiDisable() — blocks in-world player input
+            globalState.gameUIDisabled = true
         }
         game_ui_enable() {
-            stub('game_ui_enable', arguments)
+            globalState.gameUIDisabled = false
         }
 
         // sound

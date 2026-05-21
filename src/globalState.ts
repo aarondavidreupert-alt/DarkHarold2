@@ -100,6 +100,8 @@ const globalState = {
     cursorPos: { x: 0, y: 0 },
     showLookCursor: false,
     commandModeTimer: null as number | null,
+
+    gameUIDisabled: false,
 } as {
     gMap: GameMap | null
     combat: Combat | null
@@ -165,6 +167,8 @@ const globalState = {
     cursorPos: Point
     showLookCursor: boolean
     commandModeTimer: number | null
+
+    gameUIDisabled: boolean
 }
 
 export default globalState

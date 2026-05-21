@@ -587,6 +587,8 @@ window.onload = async function () {
 heart.mousepressed = (x: number, y: number, btn: string) => {
     if (globalState.isInitializing || globalState.isLoading || globalState.isWaitingOnRemote) {
         return
+    } else if (globalState.gameUIDisabled) {
+        return
     } else if (btn === 'l') {
         if (globalState.cursorMode === 'command') {
             // open context menu immediately on any object under cursor

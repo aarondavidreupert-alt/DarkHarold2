@@ -324,3 +324,122 @@ if (playerOffered >= merchantNeed) { ... }
 `merchantNeed` replaces the raw `merchantOffered` in the comparison. At `barterMod=0` behaviour is identical to before.
 
 **Ref:** `fallout2-ce barter.cc, dialog.cc::gDialogSetBarterMod()`
+
+---
+
+## Phase 3 — Scripting Stubs (P2 batch)
+
+### 3a. `obj_art_fid` — return FID from object
+
+**File:** `src/scripting.ts`
+
+Returns `obj.frmPID ?? 0`. Added `isGameObject` guard with warn. Previously stubbed.
+
+**Ref:** `fallout2-ce art.cc::obj_art_fid()`
+
+---
+
+### 3b. `art_anim` — extract anim field from FID
+
+**File:** `src/scripting.ts`
+
+```typescript
+return (fid >>> 16) & 0xFF
+```
+
+FID layout: bits 28–24 = art type, bits 23–16 = anim index, bits 15–0 = frame ID.
+
+**Ref:** `fallout2-ce art.cc::artAlias()`
+
+---
+
+### 3c. `obj_item_subtype` — fix subType casing, remove stub
+
+**File:** `src/scripting.ts`
+
+The proto.py serializer uses `subType` (capital T) in proto JSON. The old code referenced `subtype` (lowercase), which missed the value. Now returns `pro.extra.subType ?? pro.extra.subtype ?? null` to handle both. Removed the stub fallthrough.
+
+---
+
+### 3d. `tile_contains_pid_obj` — remove stub
+
+**File:** `src/scripting.ts`
+
+Logic was already correct. Removed the `stub()` call.
+
+---
+
+### 3e. `tile_is_visible` — real lightmap check
+
+**File:** `src/scripting.ts`
+
+Added `import { Lightmap } from './lightmap.js'`. Returns `Lightmap.tile_intensity[tile] > 0 ? 1 : 0`. Base ambient is 655, so all normally-lit tiles are visible; a tile is dark (0) only if scripts have removed all light from it.
+
+**Ref:** `fallout2-ce scripts.cc::tileIsVisible()`
+
+---
+
+### 3f. `set_exit_grids` — remove stub
+
+**File:** `src/scripting.ts`
+
+Logic was already correct (iterates misc exit-grid objects, updates exitMapID/startingPosition/startingElevation). Removed the `stub()` call.
+
+**Ref:** `fallout2-ce scripts.cc`
+
+---
+
+### 3g. `game_ui_disable` / `game_ui_enable`
+
+**Files:** `src/scripting.ts`, `src/globalState.ts`, `src/main.ts`
+
+Added `gameUIDisabled: boolean` (default `false`) to globalState. `game_ui_disable` sets it `true`; `game_ui_enable` clears it.
+
+In `main.ts` the `heart.mousepressed` handler returns early when `globalState.gameUIDisabled` is set, blocking all in-world player input.
+
+**Ref:** `fallout2-ce interface.cc::gameUiDisable()`
+
+---
+
+### 3h. `wm_area_set_pos`
+
+**File:** `src/scripting.ts`
+
+```typescript
+globalState.mapAreas[String(area)].worldPosition = { x, y }
+```
+
+Guards for null mapAreas and missing area key. Previously stubbed.
+
+**Ref:** `fallout2-ce worldmap.cc::wmAreaSetPos()`
+
+---
+
+### 3i. `critter_attempt_placement` — neighbor hex search
+
+**File:** `src/scripting.ts`
+
+When the target tile is occupied, iterates all 6 hex directions and picks the first unoccupied neighbor. Falls back to the original tile if all neighbors are blocked (matches FO2-CE behavior of moving to best available).
+
+**Ref:** `fallout2-ce critter.cc::critterAttemptPlacement()`
+
+---
+
+### 3j. `proto_data` critter fields
+
+**File:** `src/scripting.ts`
+
+Fixed case 0 (was returning `pro.pid` instead of `pro.extra.killType`). Added:
+
+| data_member | Field | Meaning |
+|---|---|---|
+| 0 | `extra.killType` | CRITTER_KILL_TYPE |
+| 1 | `extra.headFRM` | CRITTER_HEAD_FID (dialog portrait) |
+| 2 | `extra.aiPacket ?? extra.AI` | CRITTER_AI_PACKET |
+| 3 | `extra.team` | CRITTER_TEAM_NUM |
+| 4 | `extra.flags` | CRITTER_FLAGS |
+| 9 | `extra.baseHP ?? extra.HP` | CRITTER_BASE_HP |
+| 10 | `extra.baseAP ?? extra.AP` | CRITTER_BASE_AP |
+| 11 | `extra.baseAC ?? extra.AC` | CRITTER_BASE_AC |
+
+**Ref:** `fallout2-ce critter.h DATA_MEMBER constants`
