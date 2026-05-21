@@ -138,7 +138,7 @@ export class AI {
         'hit_right_arm_start', 'hit_right_arm_end', 'hit_torso_start', 'hit_torso_end',
         'hit_right_leg_start', 'hit_right_leg_end', 'hit_left_leg_start', 'hit_left_leg_end',
         'hit_eyes_start', 'hit_eyes_end', 'hit_groin_start', 'hit_groin_end',
-        'chance',
+        'chance', 'team_num',
     ]
 
     static init(): void {
@@ -472,7 +472,8 @@ export class Combat {
         // Ammo AC modifier reduces effective AC (negative value = easier to hit, e.g. AP rounds)
         var AC = target.getStat('AC') + target.getArmorAC() + target.bonusAC + ammoStats.ACmod
         var partialCoverPenalty = this.accountForPartialCover(obj, target)
-        var bonusCrit = 0 // TODO: perk bonuses, other crit influencing things
+        // FO2-CE ref: combat.cc rollCriticalHit() — Finesse trait adds +10 to critical chance
+        var bonusCrit = ((obj as any).traits?.includes('Finesse')) ? 10 : 0
         var baseCrit = obj.getStat('Critical Chance') + bonusCrit
 
         // Crippled-limb penalties for the attacker (FO2: -40 per arm)
@@ -496,7 +497,9 @@ export class Combat {
 
     rollHit(obj: Critter, target: Critter, region: string, hitBonus: number = 0,
             attackerName?: string, defenderName?: string): any {
-        var critModifer = obj.getStat('Better Criticals')
+        // FO2-CE ref: combat.cc rollCriticalHit() — Better Criticals perk: +30 per rank
+        const bcRanks = obj.perks.filter(p => p === 'Better Criticals').length
+        var critModifer = obj.getStat('Better Criticals') + bcRanks * 30
         var hitChance = this.getHitChance(obj, target, region)
         hitChance = { ...hitChance, hit: hitChance.hit + hitBonus }
 
@@ -531,13 +534,19 @@ export class Combat {
                 if (attackerName) uiLog(`${attackerName} scores a CRITICAL HIT on ${defenderName}! (level ${critLevel})`)
                 var crit = CriticalEffects.getCritical(target.killType ?? 0, region, critLevel)
                 var critStatus = crit.doEffectsOn(target)
+                // FO2-CE ref: combat.cc — melee crits use a separate table with half DM
+                var critDM = critStatus.DM
+                const atkWep = obj.equippedWeapon?.weapon
+                if (atkWep && atkWep.type === 'melee' && atkWep.weaponSkillType !== 'Unarmed') {
+                    critDM = Math.max(2, Math.floor(critDM / 2))
+                }
 
                 eventLogPush({
                     actor: aName, action: 'attack-roll', target: dName, result: 'crit',
                     region, roll, hitChance: hitChance.hit, critChance: hitChance.crit,
                     critLevel, message: `${aName} → ${dName}: critical hit (${region})`,
                 })
-                return { hit: true, crit: true, DM: critStatus.DM, msgID: critStatus.msgID } // crit
+                return { hit: true, crit: true, DM: critDM, msgID: critStatus.msgID } // crit
             }
 
             combatDebug(`hit: roll=${roll} vs ${hitChance.hit}%`)

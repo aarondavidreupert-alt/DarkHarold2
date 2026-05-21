@@ -443,3 +443,87 @@ Fixed case 0 (was returning `pro.pid` instead of `pro.extra.killType`). Added:
 | 11 | `extra.baseAC ?? extra.AC` | CRITTER_BASE_AC |
 
 **Ref:** `fallout2-ce critter.h DATA_MEMBER constants`
+
+---
+
+## Phase 4 — Combat Correctness
+
+### 4a. AI team targeting
+
+**Files:** `src/combat.ts` (`AI.numericFields`), `src/object.ts` (`Critter.init()`)
+
+Added `'team_num'` to `AI.numericFields` so ai.txt `team_num` entries are parsed as integers.
+
+In `Critter.init()`, replaced the unconditional `this.teamNum = this.pro.extra.team` with:
+
+```typescript
+const protoTeam = this.pro.extra.team
+if (protoTeam !== undefined && protoTeam !== null && protoTeam >= 0) {
+    this.teamNum = protoTeam
+} else {
+    if (AI.aiTxt === null) AI.init()
+    this.teamNum = AI.getPacketInfo(this.aiNum)?.team_num ?? -1
+}
+```
+
+`AI` is already imported in `object.ts` from `combat.ts`. `findTarget()` already correctly filters by `x.teamNum !== obj.teamNum`; the bug was that all NPCs got teamNum = -1 when their proto lacked a `team` field.
+
+**Ref:** `fallout2-ce ai.cc::aiGetAttackTarget()`
+
+---
+
+### 4b. Perk crit bonuses
+
+**File:** `src/combat.ts` — `getHitChance()` and `rollHit()`
+
+**Finesse trait** (`getHitChance`): `bonusCrit` was 0; now adds +10 if attacker has `Finesse` trait.
+
+**Better Criticals perk** (`rollHit`): `critModifer = obj.getStat('Better Criticals')` always returned 0 for the player because the stat isn't updated by the perk. Now adds `bcRanks * 30` on top of the base stat.
+
+Slayer and Sniper perks were already wired.
+
+**Ref:** `fallout2-ce combat.cc::rollCriticalHit()`
+
+---
+
+### 4c. Melee critical table
+
+**Files:** `src/critter.ts` (`Weapon` constructor), `src/combat.ts` (`rollHit`)
+
+`Weapon.type` was always `'gun'` for real melee weapons (knives, clubs, spears), breaking both crit table selection and crit-fail table selection.
+
+In `Weapon` constructor, after resolving `weaponSkillType`:
+```typescript
+if (this.weaponSkillType === 'Melee Weapons') this.type = 'melee'
+```
+
+In `rollHit`, after the crit effect roll: melee weapon crits halve the damage multiplier (FO2 CE uses a separate melee table at index 1 that yields half DM):
+```typescript
+if (atkWep && atkWep.type === 'melee' && atkWep.weaponSkillType !== 'Unarmed') {
+    critDM = Math.max(2, Math.floor(critDM / 2))
+}
+```
+
+**Ref:** `fallout2-ce combat.cc` critical hit table indices
+
+---
+
+### 4d. `damage_p_proc` timing
+
+**File:** `src/critter.ts` — `critterDamage()`
+
+Moved `Scripting.damage()` call to fire AFTER HP reduction but BEFORE the `critterKill()` death check. Previously, `damage_p_proc` was never called on a killing blow because the `return critterKill(...)` fired first.
+
+**Ref:** `fallout2-ce combat.cc::attackComputeDamage()`
+
+---
+
+### 4e. DAM_DROP
+
+**Files:** `src/criticalEffects.ts`
+
+`droppedWeapon` effect already drops the weapon from the active hand and places it on the ground. Added the missing `uiDrawWeapon()` call after the weapon is dropped, so the player HUD reflects the change immediately.
+
+`weapon.type === 'melee'` now correctly classifies melee weapons (fixed in 4c), so `getCritFailTableType` returns `'melee'` (not `'firearms'`) for melee weapons, applying the correct level-3 `droppedWeapon` critical failure effect.
+
+**Ref:** `fallout2-ce combat.cc DAM_DROP`

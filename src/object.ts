@@ -1247,8 +1247,15 @@ export class Critter extends Obj {
         this.name = getMessage('pro_crit', this.pro.textID) || ''
 
         // initialize AI packet / team number
+        // FO2-CE ref: ai.cc — team_num comes from the proto field; fall back to AI packet if absent
         this.aiNum = this.pro.extra.AI
-        this.teamNum = this.pro.extra.team
+        const protoTeam: number | undefined = this.pro.extra.team
+        if (protoTeam !== undefined && protoTeam !== null && protoTeam >= 0) {
+            this.teamNum = protoTeam
+        } else {
+            if (AI.aiTxt === null) AI.init()
+            this.teamNum = AI.getPacketInfo(this.aiNum)?.team_num ?? -1
+        }
 
         // initialize weapons
         this.inventory.forEach((inv) => {

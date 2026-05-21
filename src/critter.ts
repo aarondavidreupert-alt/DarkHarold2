@@ -247,6 +247,8 @@ export class Weapon {
                 if (legacySkill) this.weaponSkillType = legacySkill
             }
             if (this.weaponSkillType === undefined) console.log('unknown weapon type for ' + this.name)
+            // FO2-CE ref: item.cc — melee weapons use the melee damage/crit tables, not the gun tables
+            if (this.weaponSkillType === 'Melee Weapons') this.type = 'melee'
 
             // If the secondary attack is burst fire, add 'burst' to the mode cycle.
             // attackTwo.mode is stored as a string at runtime ('fire burst'), but guard
@@ -561,11 +563,11 @@ export function critterDamage(
     callback?: () => void
 ) {
     obj.stats.modifyBase('HP', -damage)
-    if (obj.getStat('HP') <= 0) return critterKill(obj, source, useScript, undefined, damageType)
-
+    // FO2-CE ref: combat.cc attackComputeDamage() — damage_p_proc fires after HP reduction, before death check
     if (useScript && obj._script) {
         Scripting.damage(obj, obj, source, damage)
     }
+    if (obj.getStat('HP') <= 0) return critterKill(obj, source, useScript, undefined, damageType)
 
     // Play a hit reaction if the critter isn't already mid-animation.
     // If a knockdown/knockout crit was applied this hit, play knockdownFront and stay down;

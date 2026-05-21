@@ -19,7 +19,7 @@ import { StatType } from './skills.js'
 import { getFileJSON, rollSkillCheck } from './util.js'
 import globalState from './globalState.js'
 import { critterDamage, Weapon, getAvailableUnarmedMoves } from './critter.js'
-import { uiLog } from './ui.js'
+import { uiDrawWeapon, uiLog } from './ui.js'
 
 // Critical Effects system
 
@@ -227,6 +227,8 @@ export module CriticalEffects {
             self[activeHand] = fist
 
             uiLog(`${target.name} dropped their weapon!`)
+            // FO2-CE ref: combat.cc DAM_DROP — update HUD weapon display if this is the player
+            if (target.isPlayer) uiDrawWeapon()
         },
 
         loseNextTurn: function (target: Critter) {
