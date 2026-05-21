@@ -247,3 +247,80 @@ globalState.gMap?.drainRemovalQueue()
 ```
 
 **Why:** Scripts commonly remove objects from the map (destroying spawned creatures, removing used quest items, spawning explosions that self-remove). If `splice()` fires mid-iteration of `gMap.getObjects()`, subsequent objects shift indices and get skipped or double-processed. Deferring to the tick boundary eliminates that class of bug without requiring a snapshot copy of the object list.
+
+---
+
+## Phase 2 — Dialogue Completeness
+
+### 2a. `gsay_message` rebuilt
+
+**File:** `src/scripting.ts` — `Script.gsay_message()`
+
+**Before:** Entire implementation commented out; method was a no-op (dead code from the jQuery era).
+
+**After:**
+```typescript
+gsay_message(msgList, msgID, reaction) {
+    const msg = getScriptMessage(msgList, msgID)
+    uiSetDialogueReply(msg)
+    dialogueOptionProcs.push(() => { /* no-op */ })
+    uiAddDialogueOption('[Done]', dialogueOptionProcs.length - 1)
+    if (this._vm) {
+        this._vm.retStack.push(this._vm.script.offset)
+        this._vm.halted = true
+    }
+}
+```
+
+Pattern mirrors `gsay_end` (which is a vm_bridge raw handler that pushes `pc+2` to `retStack`). `gsay_message` is called through the normal `bridged()` path, so at the time the method runs `this._vm.script.offset` already equals `opcode_pc + 2` — the address of the next instruction. When [Done] is clicked, `dialogueReply(id)` fires the no-op proc, finds `dialogueOptionProcs` empty, and calls `dialogueExit()`, which pops the saved address and calls `vm.run()`.
+
+**Ref:** `fallout2-ce dialog.cc::gDialogSayMessage()`
+
+---
+
+### 2b. `gsay_start` wired
+
+**File:** `src/scripting.ts` — `Script.gsay_start()`
+
+**Before:** `stub('gSay_Start', arguments)` — silent no-op.
+
+**After:**
+```typescript
+gsay_start() {
+    dialogueOptionProcs = []
+    if (globalState.uiMode !== UIMode.dialogue && this.self_obj) {
+        uiStartDialogue(false, this.self_obj as Critter)
+    }
+}
+```
+
+Clears `dialogueOptionProcs` so stale options from a previous round don't leak into the next node. Opens the dialogue UI if it's not already open (covers scripts that call `gsay_start` before `start_gdialog`, which is rare but legal).
+
+Note: `uiSetDialogueReply` (called by `gsay_reply` next) already clears the `dialogueBoxTextArea` DOM node, so we don't need to touch the DOM here.
+
+**Ref:** `fallout2-ce dialog.cc::gDialogSayStart()`
+
+---
+
+### 2c. `gdialog_set_barter_mod` implemented
+
+**Files:** `src/scripting.ts`, `src/ui_barter.ts`
+
+`gdialog_set_barter_mod(mod)` is called by NPC scripts to apply a per-session price modifier. Positive = merchant charges more; negative = discount.
+
+**scripting.ts:**
+- Added `let dialogueBarterMod = 0` (module-level, in the `Scripting` namespace)
+- Added `export function getDialogueBarterMod()` — read by ui_barter.ts
+- `gdialog_set_barter_mod(mod)` stores the value (was a `stub()` no-op)
+- `dialogueExit()` resets `dialogueBarterMod = 0` so modifier doesn't leak across sessions
+
+**ui_barter.ts** — `offer()`:
+```typescript
+const barterMod = Scripting.getDialogueBarterMod()
+const merchantNeed = Math.ceil(merchantOffered * (100 + barterMod) / 100)
+if (playerOffered >= merchantNeed) { ... }
+```
+
+`merchantNeed` replaces the raw `merchantOffered` in the comparison. At `barterMod=0` behaviour is identical to before.
+
+**Ref:** `fallout2-ce barter.cc, dialog.cc::gDialogSetBarterMod()`

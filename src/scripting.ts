@@ -59,6 +59,13 @@ export module Scripting {
     let overrideStartPos: StartPos | null = null
     let fadeOverlay: HTMLDivElement | null = null
 
+    // Per-dialogue barter modifier set by gdialog_set_barter_mod.
+    // Reset to 0 on dialogue exit. Applied as a percentage markup in ui_barter.ts.
+    // ref: fallout2-ce barter.cc, dialog.cc gDialogSetBarterMod
+    let dialogueBarterMod = 0
+
+    export function getDialogueBarterMod(): number { return dialogueBarterMod }
+
     // Animation batch (reg_anim_begin / reg_anim_end queue)
     // ref: fallout2-ce animation.cc animationRegAnimFunc / animationRegAnimAnimate
     interface AnimStep { kind: 'animate'; obj: Obj; anim: number; delay: number }
@@ -252,13 +259,14 @@ export module Scripting {
 
     function dialogueExit() {
         uiEndDialogue()
+        dialogueBarterMod = 0
         info('[dialogue exit]')
 
         if (currentDialogueObject) {
-            // resume from when we halted in gsay_end
+            // resume from when we halted in gsay_end or gsay_message
             var vm = currentDialogueObject._script!._vm!
             vm.pc = vm.popAddr()
-            info(`[resuming from gsay_end (pc=0x${vm.pc.toString(16)})]`)
+            info(`[resuming from gsay_end/gsay_message (pc=0x${vm.pc.toString(16)})]`)
             vm.run()
         }
 
@@ -1372,7 +1380,9 @@ export module Scripting {
             dialogueExit()
         }
         gdialog_set_barter_mod(mod: number) {
-            stub('gdialog_set_barter_mod', arguments)
+            // ref: fallout2-ce barter.cc, dialog.cc gDialogSetBarterMod
+            log('gdialog_set_barter_mod', arguments)
+            dialogueBarterMod = mod
         }
         gdialog_mod_barter(mod: number) {
             // switch to barter mode
@@ -1390,7 +1400,12 @@ export module Scripting {
             //stub("start_gdialog", arguments)
         }
         gsay_start() {
-            stub('gSay_Start', arguments)
+            log('gsay_start', arguments)
+            dialogueOptionProcs = []
+            // ensure dialogue UI is open (may already be open from start_gdialog)
+            if (globalState.uiMode !== UIMode.dialogue && this.self_obj) {
+                uiStartDialogue(false, this.self_obj as Critter)
+            }
         }
         //gSay_Option(msgList, msgID, target, reaction) { stub("gSay_Option", arguments) },
         gsay_reply(msgList: number, msgID: string | number) {
@@ -1401,18 +1416,23 @@ export module Scripting {
             uiSetDialogueReply(msg)
         }
         gsay_message(msgList: number, msgID: string | number, reaction: number) {
-            // TODO: update this for ui
+            // ref: fallout2-ce dialog.cc gDialogSayMessage
             log('gsay_message', arguments)
-            /*
-            // message with [Done] option
-            var msg = msgID
-            if(typeof msgID !== "string")
-                msg = getScriptMessage(msgList, msgID)
-            */
-
-            // TODO: XXX: This has bitrotted, #dialogue no longer exists. [Done] needs testing.
-            // $("#dialogue").append("&nbsp;&nbsp;\"" + msg + "\"<br><a href=\"javascript:dialogueEnd()\">[Done]</a><br>")
-            // appendHTML($id("dialogue"), `&nbsp;&nbsp;"${msg}"<br><a href="javascript:dialogueEnd()">[Done]</a><br>`);
+            const msg = getScriptMessage(msgList, msgID)
+            if (msg === null) {
+                warn('gsay_message: msg is null')
+                return
+            }
+            uiSetDialogueReply(msg)
+            // single synthesised [Done] option; dialogueReply will call dialogueExit
+            // because dialogueOptionProcs will be empty after the no-op proc fires
+            dialogueOptionProcs.push(() => { /* no-op: dialogueReply checks length after */ })
+            uiAddDialogueOption('[Done]', dialogueOptionProcs.length - 1)
+            // save resume address and halt VM, mirroring the gsay_end convention
+            if (this._vm) {
+                this._vm.retStack.push(this._vm.script.offset)
+                this._vm.halted = true
+            }
         }
         gsay_end() {
             // Halt the VM so the player can interact with dialogue options.

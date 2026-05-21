@@ -314,9 +314,12 @@ export function uiBarterMode(merchant: Critter) {
 
         const merchantOffered = totalAmount(merchantBarterTable)
         const playerOffered = totalAmount(playerBarterTable)
-        const diffOffered = playerOffered - merchantOffered
+        // apply per-dialogue barter markup set by gdialog_set_barter_mod
+        // ref: fallout2-ce barter.cc — mod shifts the effective price the merchant accepts
+        const barterMod = Scripting.getDialogueBarterMod()
+        const merchantNeed = Math.ceil(merchantOffered * (100 + barterMod) / 100)
 
-        if (diffOffered >= 0) {
+        if (playerOffered >= merchantNeed) {
             // OK, player offered equal to more more than the value
             console.log('[Barter] offer accepted')
 
