@@ -527,3 +527,96 @@ Moved `Scripting.damage()` call to fire AFTER HP reduction but BEFORE the `critt
 `weapon.type === 'melee'` now correctly classifies melee weapons (fixed in 4c), so `getCritFailTableType` returns `'melee'` (not `'firearms'`) for melee weapons, applying the correct level-3 `droppedWeapon` critical failure effect.
 
 **Ref:** `fallout2-ce combat.cc DAM_DROP`
+
+---
+
+# Edit History — Phase 5: Minimal Deferred Systems
+
+**Branch:** `claude/fix-script-hooks-8LwjT`  
+**Date:** 2026-05-22
+
+---
+
+## Goal
+
+Implement the four systems deferred from earlier phases that are required for a believable playthrough: drug/chem effects, poison/radiation decay, party follow, and NPC wander.
+
+---
+
+## Changes Made
+
+### 5a. Drug / Chem Effects and Addiction
+
+**New file:** `src/drugs.ts`
+
+Drug effect table keyed by pidID covering: Stimpak (24), Super Stimpak (75), Psycho (28), Buffout (27), Jet (119), Nuka-Cola (164), Rad-Away (29), Antidote (51).
+
+`useDrug(item, user)`: applies immediate HP heal, timed stat bonuses (scheduled reversal via `Scripting.timeEventList`), delayed HP damage (Super Stimpak), special effects (Rad-Away reduces radiation, Antidote reduces poison, Jet grants Jet Addict perk). Checks Chem Resistant / Chem Reliant perks for addiction chance.
+
+`tickAddictions(critter)`: called every 600 ticks; applies withdrawal stat penalties for each addiction where no active drug event exists.
+
+**File:** `src/object.ts` — `Obj.use()`
+
+Drug items (subtype `'drug'`) now route through `globalState.drugHandler` before the existing item-use path. Avoids circular import (`object.ts → scripting.ts → object.ts`).
+
+**File:** `src/object.ts` — `Critter`
+
+Added `poisonLevel: number = 0`, `radiationLevel: number = 0`, `addictions: string[] = []` fields. Added to `SERIALIZED_CRITTER_PROPS` for save/load persistence.
+
+**File:** `src/globalState.ts`
+
+Added `drugHandler: ((item: Obj, user: any) => boolean) | null` field (set from `main.ts` after importing `drugs.ts`).
+
+**File:** `src/main.ts`
+
+Set `globalState.drugHandler = useDrug` after `initGame()`.
+
+**Ref:** `fallout2-ce proto.cc`, `addiction.cc addictionProcess`
+
+---
+
+### 5b. Poison and Radiation
+
+**File:** `src/scripting.ts`
+
+- `get_poison(obj)`: returns `(obj as Critter).poisonLevel ?? 0` (was `stub()`).
+- `poison(obj, amount)`: adjusts `poisonLevel` by `amount` clamped to ≥ 0 (was `stub()`).
+- `radiation_dec(obj, amount)`: decrements `radiationLevel` clamped to ≥ 0 (was `stub()`).
+- `metarule` case 18 (is critter under influence of drugs?): checks `timeEventList` for active `drug:*` events on `this.self`.
+
+**File:** `src/main.ts` — 600-tick block
+
+Poison tick: `-floor(poisonLevel / 10)` HP per cycle, poisonLevel decremented by 1.  
+Addiction withdrawal tick: `tickAddictions(player)` called each cycle.
+
+**Ref:** `fallout2-ce critter.cc critterPoisonCheck`, `radiation.cc radiationEventProcess`
+
+---
+
+### 5c. Party / Companion Follow
+
+**File:** `src/party.ts`
+
+- `maxSize(player)`: returns `1 + floor(CHA / 2)` (FO2 formula).
+- `addPartyMember(obj)`: respects `maxSize` cap before adding.
+- `followPlayer()`: walks each living, non-animating party member toward the player if more than 5 hexes away.
+
+**File:** `src/main.ts`
+
+Calls `globalState.gParty.followPlayer()` each tick outside combat when party is non-empty.
+
+**Ref:** `fallout2-ce party.cc partyMemberGetMaxMembersToFollow`, `partyMemberFollowMoveHandler`
+
+---
+
+### 5d. NPC Wander
+
+**File:** `src/combat.ts` — `AI.numericFields`
+
+Added `'wander_start'`, `'wander_end'`, `'wander_type'` so they are parsed as integers from `ai.txt`.
+
+**File:** `src/main.ts` — critter loop
+
+Each tick outside combat: critters without a script and with `wander_type > 0` in their AI packet have a 5% chance to walk to a random neighboring hex.
+
+**Ref:** `fallout2-ce ai.cc critterAttemptWander`

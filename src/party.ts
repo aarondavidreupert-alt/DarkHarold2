@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import globalState from './globalState.js'
+import { hexDistance } from './geometry.js'
 import { Critter, deserializeObj, SerializedObj } from './object.js'
 import { arrayIncludes, arrayRemove } from './util.js'
 
@@ -24,9 +25,29 @@ export class Party {
     // party members
     party: Critter[] = []
 
+    // FO2-CE ref: party.cc partyMemberGetMaxMembersToFollow — base 1 + floor(CHA/2)
+    maxSize(player: Critter): number {
+        return 1 + Math.floor(player.getStat('CHA') / 2)
+    }
+
     addPartyMember(obj: Critter) {
+        const player = globalState.player as Critter
+        if (this.party.length >= this.maxSize(player)) return
         console.log('party member %o added', obj)
         this.party.push(obj)
+    }
+
+    // Walk each living party member toward the player if more than 5 hexes away.
+    // FO2-CE ref: party.cc partyMemberFollowMoveHandler
+    followPlayer(): void {
+        const player = globalState.player as Critter | null
+        if (!player) return
+        for (const member of this.party) {
+            if (member.dead || member.inAnim()) continue
+            if (hexDistance(member.position, player.position) > 5) {
+                member.walkTo(player.position, false)
+            }
+        }
     }
 
     removePartyMember(obj: Critter) {

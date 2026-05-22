@@ -478,8 +478,20 @@ export module Scripting {
                     break
                 case 17: // is area known?
                     return globalState.knownAreas.has(target) ? 1 : 0
-                case 18:
-                    return 0 // is the critter under the influence of drugs? (TODO)
+                case 18: {
+                    // FO2-CE ref: proto.cc drugEffect — is critter under influence of drugs?
+                    const checkObj = (this as any).self ?? null
+                    if (checkObj) {
+                        const hasDrug = timeEventList.some(
+                            (e: any) => e.obj === checkObj &&
+                            typeof e.userdata === 'string' &&
+                            (e.userdata as string).startsWith('drug:') &&
+                            !(e.userdata as string).startsWith('drug:delayed:')
+                        )
+                        return hasDrug ? 1 : 0
+                    }
+                    return 0
+                }
                 case 22:
                     return 0 // is_game_loading
                 case 46: { // METARULE_CURRENT_TOWN
@@ -873,8 +885,8 @@ export module Scripting {
             critterKill(obj)
         }
         get_poison(obj: Obj) {
-            stub('get_poison', arguments)
-            return 0
+            // FO2-CE ref: critter.cc critterGetPoison
+            return (obj as Critter).poisonLevel ?? 0
         }
         get_pc_stat(pcstat: number) {
             // FO2-CE ref: stat.cc pcGetStat() — PCSTAT constants from stat_defs.h
@@ -975,10 +987,12 @@ export module Scripting {
             info('critter_heal: ' + obj.name + ' healed ' + healed + ' HP')
         }
         poison(obj: Obj, amount: number) {
-            stub('poison', arguments)
+            // FO2-CE ref: critter.cc critterPoisonAdj
+            ;(obj as Critter).poisonLevel = Math.max(0, ((obj as Critter).poisonLevel ?? 0) + amount)
         }
         radiation_dec(obj: Obj, amount: number) {
-            stub('radiation_dec', arguments)
+            // FO2-CE ref: radiation.cc radiationAddAmount
+            ;(obj as Critter).radiationLevel = Math.max(0, ((obj as Critter).radiationLevel ?? 0) - amount)
         }
 
         // combat

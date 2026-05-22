@@ -102,6 +102,8 @@ const globalState = {
     commandModeTimer: null as number | null,
 
     gameUIDisabled: false,
+
+    drugHandler: null,
 } as {
     gMap: GameMap | null
     combat: Combat | null
@@ -169,6 +171,10 @@ const globalState = {
     commandModeTimer: number | null
 
     gameUIDisabled: boolean
+
+    // Drug use handler — set from main.ts after importing drugs.ts
+    // to avoid circular import (object.ts -> scripting.ts -> object.ts)
+    drugHandler: ((item: Obj, user: any) => boolean) | null
 }
 
 export default globalState

@@ -740,6 +740,14 @@ export class Obj {
             dbgWarn('object', '[Object] used object has script but is not loaded: ' + this.script)
         }
 
+        if (this.subtype === 'drug') {
+            if (source === undefined) source = globalState.player as Critter
+            if (globalState.drugHandler) {
+                globalState.drugHandler(this, source)
+                return true
+            }
+        }
+
         if (this.isExplosive) {
             useExplosive(this, source)
             return true
@@ -1198,6 +1206,11 @@ export class Critter extends Obj {
     isBlinded = false        // Blinded: heavy hit-chance penalty, Perception effectively 1
 
     injuryFlags?: number     // DAM_* bitmask from critter_injure (0x01=knocked down, 0x80=dead, etc.)
+
+    // Poison / radiation / addiction (FO2-CE ref: critter.cc, radiation.cc)
+    poisonLevel: number = 0
+    radiationLevel: number = 0
+    addictions: string[] = []   // drug names this critter is addicted to
 
     // Combat status effect counters / flags
     onFireTurns = 0          // Turns of fire DoT remaining; decremented in nextTurn
@@ -1860,6 +1873,7 @@ interface SerializedCritter extends SerializedObj {
 const SERIALIZED_CRITTER_PROPS = [
     'stats', 'skills', 'aiNum', 'teamNum', 'hostile', 'isPlayer', 'dead',
     'anim', 'crippledLeftArm', 'crippledRightArm', 'crippledLeftLeg', 'crippledRightLeg',
+    'poisonLevel', 'radiationLevel', 'addictions',
 ]
 
 // Collection of functions for dealing with critters

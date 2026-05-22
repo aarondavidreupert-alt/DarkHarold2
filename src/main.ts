@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import { HTMLAudioEngine, NullAudioEngine } from './audio.js'
-import { Combat } from './combat.js'
+import { AI, Combat } from './combat.js'
+import { useDrug, tickAddictions } from './drugs.js'
 import { critterKill } from './critter.js'
 import { getElevator } from './data.js'
 import { heart } from './heart.js'
@@ -560,6 +561,7 @@ window.onload = async function () {
 
                 // continue initialization
                 initGame()
+                globalState.drugHandler = useDrug
                 globalState.isInitializing = false
 
                 // debug exposure for console inspection
@@ -1052,6 +1054,23 @@ heart.update = function () {
             } else if (globalState.gameTickTime >= nextMapUpdateTick) {
                 nextMapUpdateTick = globalState.gameTickTime + 600
                 globalState.gMap.updateMap()
+
+                // Poison tick: -1 HP per 600-tick cycle for each 10 points of poison.
+                // FO2-CE ref: critter.cc critterPoisonCheck
+                const player = globalState.player as Critter | null
+                if (player && !player.dead && player.poisonLevel > 0) {
+                    const dmg = Math.floor(player.poisonLevel / 10)
+                    if (dmg > 0) player.stats.modifyBase('HP', -dmg)
+                    player.poisonLevel = Math.max(0, player.poisonLevel - 1)
+                }
+
+                // Addiction withdrawal tick for the player.
+                if (player && !player.dead) tickAddictions(player)
+
+                // Radiation symptom tick (FO2-CE ref: radiation.cc radiationEventProcess)
+                if (player && !player.dead && player.radiationLevel > 0) {
+                    applyRadiationSymptoms(player)
+                }
             }
         }
 
@@ -1060,19 +1079,44 @@ heart.update = function () {
 
     for (const obj of globalState.gMap.getObjects()) {
         if (obj.type === 'critter') {
+            const critter = obj as Critter
             if (
                 didTick &&
                 Config.engine.doUpdateCritters &&
                 !globalState.inCombat &&
-                !(<Critter>obj).dead &&
+                !critter.dead &&
                 !obj.inAnim() &&
                 obj._script
             ) {
-                Scripting.updateCritter(obj._script, obj as Critter)
+                Scripting.updateCritter(obj._script, critter)
+            }
+
+            // Wander: move to a random neighbor every tick when not in combat
+            // and the critter has a wander_type > 0 in its AI packet.
+            // FO2-CE ref: ai.cc critterAttemptWander
+            if (
+                didTick &&
+                !globalState.inCombat &&
+                !critter.dead &&
+                !critter.inAnim() &&
+                !obj._script
+            ) {
+                if (AI.aiTxt === null) AI.init()
+                const pkt = AI.getPacketInfo(critter.aiNum)
+                if (pkt && pkt.wander_type > 0 && Math.random() < 0.05) {
+                    const neighbors = hexNeighbors(critter.position)
+                    const dest = neighbors[Math.floor(Math.random() * neighbors.length)]
+                    if (dest) critter.walkTo(dest, false)
+                }
             }
         }
 
         obj.updateAnim()
+    }
+
+    // Party follow: move companions toward the player each tick
+    if (didTick && !globalState.inCombat && globalState.gParty.party.length > 0) {
+        globalState.gParty.followPlayer()
     }
 
     globalState.gMap?.drainRemovalQueue()
@@ -1089,6 +1133,23 @@ heart.draw = () => {
     globalState.renderer.render()
 
     globalState.lastDrawTime = Math.floor(window.performance.now() - time)
+}
+
+// FO2-CE ref: radiation.cc radiationGetLevel
+function applyRadiationSymptoms(player: Critter): void {
+    const rads = player.radiationLevel
+    if (rads >= 1000) {
+        uiLog('Radiation: You are dying!')
+        player.stats.modifyBase('HP', -10)
+    } else if (rads >= 600) {
+        uiLog('Radiation: Critical!')
+        player.stats.modifyBase('HP', -4)
+    } else if (rads >= 450) {
+        uiLog('Radiation: Acute sickness')
+    } else if (rads >= 300) {
+        uiLog('Radiation: Nausea')
+    }
+    // Below 150 rads is safe — no symptoms
 }
 
 export function useElevator(): void {

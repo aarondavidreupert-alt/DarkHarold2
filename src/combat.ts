@@ -139,6 +139,7 @@ export class AI {
         'hit_right_leg_start', 'hit_right_leg_end', 'hit_left_leg_start', 'hit_left_leg_end',
         'hit_eyes_start', 'hit_eyes_end', 'hit_groin_start', 'hit_groin_end',
         'chance', 'team_num',
+        'wander_start', 'wander_end', 'wander_type',
     ]
 
     static init(): void {
