@@ -1246,6 +1246,29 @@ export class Critter extends Obj {
                 obj.skills = new SkillSet(mobj.skills.baseSkills, mobj.skills.tagged, mobj.skills.skillPoints)
                 dbgWarn('object', '[Deserialize] skill set: %o to: %o', mobj.skills, obj.skills)
             }
+
+            // Re-equip weapons from the deserialized inventory.
+            // init() ran before inventory was deserialized, so leftHand/rightHand
+            // may point at stale raw objects. Redo the equip pass now.
+            // FO2-CE ref: critter.cc critterUnequipAll / critterEquipCurrent
+            obj.leftHand = undefined
+            obj.rightHand = undefined
+            for (const inv of obj.inventory) {
+                if (inv.subtype === 'weapon') {
+                    const w = inv as WeaponObj
+                    if (obj.leftHand === undefined && w.weapon?.canEquip(obj)) {
+                        obj.leftHand = w
+                    } else if (obj.rightHand === undefined && w.weapon?.canEquip(obj)) {
+                        obj.rightHand = w
+                    }
+                }
+            }
+            const makeFist = () => {
+                const f = new WeaponObj(); f.type = 'item'; f.subtype = 'weapon'
+                f.weapon = new Weapon(null as unknown as WeaponObj); return f
+            }
+            if (!obj.leftHand)  obj.leftHand  = makeFist()
+            if (!obj.rightHand) obj.rightHand = makeFist()
         }
 
         return obj

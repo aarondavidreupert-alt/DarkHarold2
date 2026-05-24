@@ -223,10 +223,11 @@ function useFirstAid(user: Critter, target: Critter): SkillUseResult {
         return makeResult(false, roll, 'First Aid was unsuccessful.')
     }
 
-    // FO2-CE: heal randomBetween(minimumHpToHeal + 1, maximumHpToHeal + 5)
-    // Healer perk: +4 min, +10 max per rank. Not implemented yet — base values only.
-    const healMin = 1
-    const healMax = 5
+    // FO2-CE ref: skill.cc skillUse() SKILL_FIRST_AID — heal randomBetween(1 + ranks*4, 5 + ranks*10)
+    // Healer perk: +4 min and +10 max per rank.
+    const healerRanks = user.perks.filter(p => p === 'Healer').length
+    const healMin = 1 + healerRanks * 4
+    const healMax = 5 + healerRanks * 10
     let hpToHeal = getRandomInt(healMin, healMax)
 
     // Critical success: double healing
@@ -313,9 +314,10 @@ function useDoctor(user: Critter, target: Critter): SkillUseResult {
     let hpHealed = 0
 
     if (rollIsSuccess(roll) && targetHP < targetMaxHP) {
-        // FO2-CE: heal randomBetween(minimumHpToHeal + 4, maximumHpToHeal + 10)
-        const healMin = 4
-        const healMax = 10
+        // FO2-CE ref: skill.cc skillUse() SKILL_DOCTOR — heal randomBetween(4 + ranks*4, 10 + ranks*10)
+        const healerRanks = user.perks.filter(p => p === 'Healer').length
+        const healMin = 4 + healerRanks * 4
+        const healMax = 10 + healerRanks * 10
         let hpToHeal = getRandomInt(healMin, healMax)
 
         if (roll === RollResult.CriticalSuccess) {

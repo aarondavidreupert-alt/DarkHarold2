@@ -59,6 +59,11 @@ export class SkillSet {
     }
 
     static fromPro(skills: any): SkillSet {
+        // proto.py serializes "Melee Weapons" as "Melee" — remap before constructing.
+        if (skills && 'Melee' in skills && !('Melee Weapons' in skills)) {
+            skills = { ...skills, 'Melee Weapons': skills['Melee'] }
+            delete skills['Melee']
+        }
         return new SkillSet(skills);
     }
 

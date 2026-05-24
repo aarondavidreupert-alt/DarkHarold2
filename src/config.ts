@@ -20,6 +20,12 @@ export const Config = {
         showBoundingBox: false, // show bounding boxes around objects?
         showSpatials: true, // show spatial script triggers?
         showFonts: false, // show all fonts for debugging?
+        // FO2-CE ref: preferences.cc — target highlight toggle
+        targetHighlight: true,
+        // FO2-CE ref: preferences.cc — combat message verbosity
+        combatMessages: 'verbose' as 'brief' | 'verbose',
+        // FO2-CE ref: preferences.cc — subtitles toggle
+        subtitles: false,
     },
 
     engine: {
@@ -57,6 +63,10 @@ export const Config = {
         // Damage calculation ruleset: 0=Vanilla, 1=Glovz, 2=Glovz+MultTweak, 5=YAAM
         // Matches fallout2-ce DamageCalculationType enum values exactly.
         damageCalculationType: 0 as 0 | 1 | 2 | 5,
+        // FO2-CE ref: preferences.cc — combat speed: ms-per-frame wait multiplier (1=slow, 2=normal, 4=fast)
+        combatSpeed: 2 as 1 | 2 | 4,
+        // FO2-CE ref: preferences.cc — VIOLENCE_LEVEL: 0=none, 1=minimum, 2=normal, 3=maximum
+        violenceLevel: 2 as 0 | 1 | 2 | 3,
     },
 
     controls: {

@@ -35,6 +35,13 @@ declare let PF: any
 // TODO: Spatial type
 type Spatial = any
 
+interface SerializedSpatial {
+    script: string
+    tileNum: number
+    radius: number
+    lvars?: { [lvar: number]: any }
+}
+
 export interface SerializedMap {
     name: string
     mapID: number
@@ -42,7 +49,7 @@ export interface SerializedMap {
 
     mapScript: /* SerializedScript */ any
     objects: /* SerializedObj */ any[][]
-    spatials: /* SerializedSpatial */ any[][]
+    spatials: SerializedSpatial[][]
 
     floorMap: string[][]
     roofMap: string[][]
@@ -618,7 +625,15 @@ export class GameMap {
             objects: this.objects.map((level: Obj[]) =>
                 arrayWithout(level, globalState.player).map((obj) => obj.serialize())
             ), // TODO: Should be without entire party?
-            spatials: null, //this.spatials.map(level => level.map(spatial:> spatial.serialize()))
+            // FO2-CE ref: map.cc mapSave — spatials persist their LVARs across saves
+            spatials: this.spatials
+                ? this.spatials.map(level => level.map((s: Spatial): SerializedSpatial => ({
+                      script: s.script,
+                      tileNum: s.tileNum,
+                      radius: s.radius ?? 0,
+                      lvars: s._script ? Object.assign({}, s._script.lvars) : undefined,
+                  })))
+                : [[], [], []],
         }
     }
 
@@ -629,7 +644,29 @@ export class GameMap {
         this.mapObj = obj.mapObj
         this.mapScript = obj.mapScript ? Scripting.deserializeScript(obj.mapScript) : null
         this.objects = obj.objects.map((level) => level.map((obj) => deserializeObj(obj)))
-        this.spatials = [[], [], []] //obj.spatials // TODO: deserialize
+        // Restore spatials: re-load scripts from names, then reapply saved LVARs.
+        // FO2-CE ref: map.cc mapLoad — spatials are always re-initialized from map data
+        if (Array.isArray(obj.spatials)) {
+            this.spatials = obj.spatials.map(level =>
+                level.map((s: SerializedSpatial) => {
+                    const spatial: Spatial = {
+                        script: s.script,
+                        tileNum: s.tileNum,
+                        radius: s.radius,
+                        isSpatial: true,
+                        position: fromTileNum(s.tileNum),
+                    }
+                    const scr = Scripting.loadScript(s.script)
+                    if (scr) {
+                        if (s.lvars) scr.lvars = s.lvars
+                        spatial._script = scr
+                    }
+                    return spatial
+                })
+            )
+        } else {
+            this.spatials = [[], [], []]
+        }
         this.roofMap = obj.roofMap
         this.floorMap = obj.floorMap
         this.currentElevation = 0 // TODO

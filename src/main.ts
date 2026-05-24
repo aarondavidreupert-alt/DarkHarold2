@@ -54,6 +54,7 @@ import {
     uiShowCombatHover,
     uiWorldMap,
 } from './ui.js'
+import { loadPreferences } from './ui_options.js'
 import { getFileJSON, getProtoMsg } from './util.js'
 import { WebGLRenderer } from './webglrenderer.js'
 import { Config } from './config.js'
@@ -534,6 +535,10 @@ window.onload = async function () {
     } else {
         globalState.audioEngine = new NullAudioEngine()
     }
+
+    // Apply persisted user preferences (volume, difficulty, etc.) after audioEngine is ready.
+    // FO2-CE ref: preferences.cc — preferenceLoad()
+    loadPreferences()
 
     // initialize cached data
 

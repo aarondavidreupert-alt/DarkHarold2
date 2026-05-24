@@ -30,6 +30,7 @@ export interface AudioEngine {
     stopMusic(): void
     stopAll(): void
     tick(): void
+    setVolume(channel: 'master' | 'music' | 'sfx', value: number): void
 }
 
 export class NullAudioEngine implements AudioEngine {
@@ -43,6 +44,7 @@ export class NullAudioEngine implements AudioEngine {
     stopMusic(): void {}
     stopAll(): void {}
     tick(): void {}
+    setVolume(_channel: 'master' | 'music' | 'sfx', _value: number): void {}
 }
 
 export class HTMLAudioEngine implements AudioEngine {
@@ -50,6 +52,11 @@ export class HTMLAudioEngine implements AudioEngine {
     nextSfxTime: number = 0
     nextSfx: string | null = null
     musicAudio: HTMLAudioElement | null = null
+
+    // Volume levels (0.0–1.0 internally; Preferences UI uses 0–100)
+    masterVolume: number = 1
+    musicVolume: number = 1
+    sfxVolume: number = 1
 
     // Web Audio pipeline for SFX.
     // FO2 .wav files are 22050 Hz. HTMLAudioElement plays them at the output
@@ -64,10 +71,21 @@ export class HTMLAudioEngine implements AudioEngine {
     private sfxMissing: Set<string> = new Set()
     private sfxLookup: Record<string, unknown> | null = null
 
+    // GainNodes for the Web Audio SFX chain.  Created lazily on first getCtx().
+    private sfxGainNode: GainNode | null = null
+    private masterGainNode: GainNode | null = null
+
     private getCtx(): AudioContext {
         if (!this.ctx) {
             const Ctor = (window as any).AudioContext ?? (window as any).webkitAudioContext
-            this.ctx = new Ctor()
+            this.ctx = new Ctor() as AudioContext
+            // Build gain chain: source → sfxGainNode → masterGainNode → destination
+            this.sfxGainNode = this.ctx.createGain()
+            this.masterGainNode = this.ctx.createGain()
+            this.sfxGainNode.gain.value = this.sfxVolume
+            this.masterGainNode.gain.value = this.masterVolume
+            this.sfxGainNode.connect(this.masterGainNode)
+            this.masterGainNode.connect(this.ctx.destination)
         }
         return this.ctx!
     }
@@ -113,7 +131,8 @@ export class HTMLAudioEngine implements AudioEngine {
         }
         const source = ctx.createBufferSource()
         source.buffer = buf
-        source.connect(ctx.destination)
+        // Route through sfxGainNode → masterGainNode → destination for volume control
+        source.connect(this.sfxGainNode!)
         source.start()
         // Log every actual play (not just first-load) so the console reflects
         // sound events 1:1 — including cache hits like repeated door toggles.
@@ -131,7 +150,10 @@ export class HTMLAudioEngine implements AudioEngine {
     playMusic(music: string): void {
         this.stopMusic()
         this.musicAudio = this.playSound('music/' + music)
-        if (this.musicAudio) this.musicAudio.loop = true
+        if (this.musicAudio) {
+            this.musicAudio.loop = true
+            this.musicAudio.volume = this.musicVolume * this.masterVolume
+        }
     }
 
     playSound(soundName: string): HTMLAudioElement | null {
@@ -196,6 +218,23 @@ export class HTMLAudioEngine implements AudioEngine {
         }
 
         this.playSfx(file)
+    }
+
+    setVolume(channel: 'master' | 'music' | 'sfx', value: number): void {
+        // value is 0–100 from the UI; normalise to 0.0–1.0
+        const v = Math.max(0, Math.min(100, value)) / 100
+        if (channel === 'master') {
+            this.masterVolume = v
+            if (this.masterGainNode) this.masterGainNode.gain.value = v
+            // Music uses HTMLAudioElement so update its volume directly.
+            if (this.musicAudio) this.musicAudio.volume = this.musicVolume * v
+        } else if (channel === 'music') {
+            this.musicVolume = v
+            if (this.musicAudio) this.musicAudio.volume = v * this.masterVolume
+        } else {
+            this.sfxVolume = v
+            if (this.sfxGainNode) this.sfxGainNode.gain.value = v
+        }
     }
 
     stopMusic(): void {

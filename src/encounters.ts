@@ -17,6 +17,7 @@ limitations under the License.
 import { lookupMapNameFromLookup, MapInfo } from "./data.js";
 import { hexInDirectionDistance, Point } from "./geometry.js";
 import globalState from "./globalState.js";
+import { Config } from "./config.js";
 import { Scripting } from "./scripting.js";
 import { fromTileNum } from "./tile.js";
 import { getRandomInt } from "./util.js";
@@ -297,8 +298,13 @@ export module Encounters {
         var luck = globalState.player.getStat("LUK")
         var roll = getRandomInt(0, totalChance) + (luck - 5)
 
-        // TODO: Adjust roll for difficulty (easy +5, hard -5),
-        // perks (Scout +1, Ranger +1, Explorer +2)
+        // FO2-CE ref: worldmap.cc pickEncounterTable — difficulty and perk modifiers
+        const diff = Config.combat.difficultyModifier
+        roll += diff === 75 ? 5 : diff === 125 ? -5 : 0
+        const player = globalState.player as any
+        if (player.perks?.includes('Scout'))    roll += 1
+        if (player.perks?.includes('Ranger'))   roll += 1
+        if (player.perks?.includes('Explorer')) roll += 2
 
         // Remove chances from roll until either we reach the end of the list or the roll runs out.
         // If our roll does *not* run out (i.e., its value exceeds totalChance), then
@@ -346,7 +352,8 @@ export module Encounters {
                         break
                     case "surrounding":
                         var roll = globalState.player.getStat("PER") + getRandomInt(-2, 2)
-                        // TODO: if have Cautious Nature perk, roll += 3
+                        // FO2-CE ref: worldmap.cc — Cautious Nature perk adds +3
+                        if ((globalState.player as any).perks?.includes('Cautious Nature')) roll += 3
 
                         if(roll < 0)
                             roll = 0
