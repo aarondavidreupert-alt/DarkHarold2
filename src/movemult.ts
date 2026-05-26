@@ -1,8 +1,12 @@
 // Fallout 2 "Move Items" quantity picker dialog (move_mult / inven_hold).
-// Reference: fallout2-ce inv.cc::inventoryQuantityDialog()
-// Uses art/intrface/movemult.png (259×162) as the dialog background sprite.
+// Reference: fallout2-ce inventory.cc — inventoryQuantitySelect(), _draw_amount()
+// Uses art/intrface/movemult.png (259×162) as the dialog background sprite,
+// renderBignum() for the drum counter, splsoff/snegoff for +/−, SmallButton
+// for DONE/CANCEL.
 
 import { Obj } from './object.js'
+import { renderBignum, font3, makeFontLabel } from './ui_font.js'
+import { SmallButton } from './ui_components.js'
 
 /**
  * Show the canonical FO2 quantity picker.
@@ -18,84 +22,166 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
         const uiStage = document.getElementById('uiStage')
         if (!uiStage) { resolve(null); return }
 
+        // Semi-transparent overlay to dim the game world
         const overlay = document.createElement('div')
-        overlay.className = 'moveMultOverlay'
+        Object.assign(overlay.style, {
+            position: 'absolute',
+            left: '0', top: '0', width: '100%', height: '100%',
+            background: 'rgba(0, 0, 0, 0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: '200',
+        })
+        overlay.tabIndex = 0
 
-        // Dialog container — sized exactly to the sprite
+        // Dialog container — sprite background
         const dialog = document.createElement('div')
-        dialog.className = 'moveMultDialog'
+        Object.assign(dialog.style, {
+            position: 'relative',
+            width: '259px',
+            height: '162px',
+            backgroundImage: "url('art/intrface/movemult.png')",
+            backgroundRepeat: 'no-repeat',
+            imageRendering: 'pixelated',
+        })
 
-        // Item art preview — positioned over the left region of the sprite
+        // Item art preview
         const img = document.createElement('img')
-        img.className = 'moveMultItemImg'
+        Object.assign(img.style, {
+            position: 'absolute',
+            left: '8px', top: '8px',
+            width: '100px', height: '100px',
+            objectFit: 'contain',
+            imageRendering: 'pixelated',
+        })
         img.src = item.invArt ? item.invArt + '.png' : ''
         img.setAttribute('draggable', 'false')
         img.onerror = () => { img.style.display = 'none' }
         dialog.appendChild(img)
 
-        // Drum counter display — over the top-right region
-        const padLen = String(maxQty).length
-        const drumDisplay = document.createElement('div')
-        drumDisplay.className = 'moveMultDrum'
-        drumDisplay.textContent = String(qty).padStart(padLen, '0')
-        dialog.appendChild(drumDisplay)
+        // Drum counter container — populated by renderBignum
+        const drumContainer = document.createElement('div')
+        Object.assign(drumContainer.style, {
+            position: 'absolute',
+            left: '118px', top: '10px',
+            width: '106px', height: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+        })
+        dialog.appendChild(drumContainer)
 
-        // [+] increment button — right edge of counter area
-        const plusBtn = document.createElement('button')
-        plusBtn.className = 'moveMultStepBtn'
-        plusBtn.textContent = '+'
+        const updateDrum = () => {
+            drumContainer.innerHTML = ''
+            drumContainer.appendChild(renderBignum(qty, 5, 'yellow'))
+        }
+        updateDrum()
+
+        // [+] button — splsoff/splson sprites
+        const plusBtn = document.createElement('div')
+        Object.assign(plusBtn.style, {
+            position: 'absolute',
+            left: '230px', top: '10px',
+            width: '22px', height: '12px',
+            backgroundImage: "url('art/intrface/splsoff.png')",
+            backgroundRepeat: 'no-repeat',
+            cursor: 'pointer',
+        })
+        let plusRepeat: number | null = null
+        const incrementQty = () => { if (qty < maxQty) { qty++; updateDrum() } }
+        plusBtn.onmousedown = () => {
+            plusBtn.style.backgroundImage = "url('art/intrface/splson.png')"
+            incrementQty()
+            plusRepeat = window.setInterval(incrementQty, 100)
+        }
+        plusBtn.onmouseup = () => {
+            plusBtn.style.backgroundImage = "url('art/intrface/splsoff.png')"
+            if (plusRepeat !== null) { clearInterval(plusRepeat); plusRepeat = null }
+        }
+        plusBtn.onmouseleave = () => {
+            plusBtn.style.backgroundImage = "url('art/intrface/splsoff.png')"
+            if (plusRepeat !== null) { clearInterval(plusRepeat); plusRepeat = null }
+        }
         dialog.appendChild(plusBtn)
 
-        // Slider — below the counter
-        const slider = document.createElement('input')
-        slider.type = 'range'
-        slider.className = 'moveMultSlider'
-        slider.min = '1'
-        slider.max = String(maxQty)
-        slider.value = String(qty)
-        dialog.appendChild(slider)
-
-        const updateDisplay = () => {
-            drumDisplay.textContent = String(qty).padStart(padLen, '0')
-            slider.value = String(qty)
-        }
-
-        slider.oninput = () => {
-            qty = parseInt(slider.value)
-            drumDisplay.textContent = String(qty).padStart(padLen, '0')
-        }
-
-        plusBtn.addEventListener('click', () => {
-            if (qty < maxQty) { qty++; updateDisplay() }
+        // [−] button — snegoff/snegon sprites
+        const minusBtn = document.createElement('div')
+        Object.assign(minusBtn.style, {
+            position: 'absolute',
+            left: '230px', top: '26px',
+            width: '22px', height: '12px',
+            backgroundImage: "url('art/intrface/snegoff.png')",
+            backgroundRepeat: 'no-repeat',
+            cursor: 'pointer',
         })
-
-        // DONE button — bottom-left of sprite
-        const doneBtn = document.createElement('button')
-        doneBtn.className = 'moveMultBtn moveMultBtnDone'
-        doneBtn.textContent = 'DONE'
-        dialog.appendChild(doneBtn)
-
-        // CANCEL button — bottom-right of sprite
-        const cancelBtn = document.createElement('button')
-        cancelBtn.className = 'moveMultBtn moveMultBtnCancel'
-        cancelBtn.textContent = 'CANCEL'
-        dialog.appendChild(cancelBtn)
+        let minusRepeat: number | null = null
+        const decrementQty = () => { if (qty > 1) { qty--; updateDrum() } }
+        minusBtn.onmousedown = () => {
+            minusBtn.style.backgroundImage = "url('art/intrface/snegon.png')"
+            decrementQty()
+            minusRepeat = window.setInterval(decrementQty, 100)
+        }
+        minusBtn.onmouseup = () => {
+            minusBtn.style.backgroundImage = "url('art/intrface/snegoff.png')"
+            if (minusRepeat !== null) { clearInterval(minusRepeat); minusRepeat = null }
+        }
+        minusBtn.onmouseleave = () => {
+            minusBtn.style.backgroundImage = "url('art/intrface/snegoff.png')"
+            if (minusRepeat !== null) { clearInterval(minusRepeat); minusRepeat = null }
+        }
+        dialog.appendChild(minusBtn)
 
         const close = (value: number | null) => {
+            if (plusRepeat !== null) clearInterval(plusRepeat)
+            if (minusRepeat !== null) clearInterval(minusRepeat)
             uiStage.removeChild(overlay)
             resolve(value)
         }
 
-        doneBtn.addEventListener('click', () => close(qty))
-        cancelBtn.addEventListener('click', () => close(null))
+        // DONE button — SmallButton (lilredup/lilreddn) + font3 label
+        const doneBtn = new SmallButton(8, 136)
+        doneBtn.onClick(() => close(qty))
+        dialog.appendChild(doneBtn.elem)
+        const doneLabel = makeFontLabel(8 + 18, 136, 'DONE', font3)
+        doneLabel.css({ pointerEvents: 'none' })
+        dialog.appendChild(doneLabel.elem)
 
+        // CANCEL button
+        const cancelBtn = new SmallButton(138, 136)
+        cancelBtn.onClick(() => close(null))
+        dialog.appendChild(cancelBtn.elem)
+        const cancelLabel = makeFontLabel(138 + 18, 136, 'CANCEL', font3)
+        cancelLabel.css({ pointerEvents: 'none' })
+        dialog.appendChild(cancelLabel.elem)
+
+        // Keyboard: arrows to adjust, Enter to confirm, Escape to cancel
         overlay.addEventListener('keydown', (e: KeyboardEvent) => {
-            if (e.key === 'Enter') { e.preventDefault(); close(qty) }
-            if (e.key === 'Escape') { e.preventDefault(); close(null) }
+            switch (e.key) {
+                case 'ArrowRight':
+                case 'ArrowUp':
+                    e.preventDefault()
+                    incrementQty()
+                    break
+                case 'ArrowLeft':
+                case 'ArrowDown':
+                    e.preventDefault()
+                    decrementQty()
+                    break
+                case 'Enter':
+                    e.preventDefault()
+                    close(qty)
+                    break
+                case 'Escape':
+                    e.preventDefault()
+                    close(null)
+                    break
+            }
         })
 
         overlay.appendChild(dialog)
         uiStage.appendChild(overlay)
-        slider.focus()
+        overlay.focus()
     })
 }

@@ -518,13 +518,14 @@ const BIG_SPRITE = 'art/intrface/bignum.png'
 
 export function renderBignum(
     value: number,
-    digits: 2 | 3,
+    digits: 2 | 3 | 4 | 5,
     color: 'yellow' | 'red' = 'yellow'
 ): HTMLElement {
     const container = document.createElement('div')
     container.style.cssText = `display: inline-flex; height: ${BIG_H}px; flex-shrink: 0;`
     const yOffset = color === 'red' ? -BIG_H : 0
-    const clamped = Math.max(0, Math.min(value, digits === 3 ? 999 : 99))
+    const maxVal = Math.pow(10, digits) - 1
+    const clamped = Math.max(0, Math.min(value, maxVal))
     const str = String(clamped).padStart(digits, '0')
     for (const ch of str) {
         const n = parseInt(ch)
