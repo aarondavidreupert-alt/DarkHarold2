@@ -28,6 +28,7 @@ import { Scripting } from './scripting.js'
 import { UIMode } from './ui_panels.js'
 import { uiAnimateBox } from './ui_dialogue.js'
 import { makeDropTarget, makeDraggable } from './ui_inventory.js'
+import { showMoveMultDialog } from './movemult.js'
 
 // --- DOM helpers (mirrors the ones in ui.ts) -------------------------------
 
@@ -91,118 +92,12 @@ function makeEl(tag: string, options: ElementOptions): HTMLElement {
 // --- Cross-list move helpers (also used by ui_loot) ------------------------
 
 /**
- * Movemult.png slider modal — asks the player how many of `item` to move
- * when the stack has more than one. Resolves to 0 on cancel.
+ * Quantity picker — delegates to the shared movemult dialog.
+ * Returns 0 on cancel (preserving the legacy contract used by barter/loot).
  */
-export function uiGetAmount(item: Obj): Promise<number> {
-    // Fallout 2 "Move Items" dialog using movemult.png as background
-    // movemult.png is 169×60 in the original game
-    const DIALOG_W = 169
-    const DIALOG_H = 60
-
-    return new Promise((resolve) => {
-        const overlay = document.createElement('div')
-        Object.assign(overlay.style, {
-            position: 'absolute',
-            left: '0', top: '0', width: '100%', height: '100%',
-            zIndex: '50',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-        })
-
-        const modal = document.createElement('div')
-        Object.assign(modal.style, {
-            position: 'relative',
-            width: `${DIALOG_W}px`,
-            height: `${DIALOG_H}px`,
-            backgroundImage: "url('art/intrface/movemult.png')",
-            backgroundSize: `${DIALOG_W}px ${DIALOG_H}px`,
-            backgroundRepeat: 'no-repeat',
-            fontFamily: "'VT323', monospace",
-        })
-
-        // Number display — centered near the top of the dialog
-        const numDisplay = document.createElement('div')
-        Object.assign(numDisplay.style, {
-            position: 'absolute',
-            left: '0', top: '5px', width: '100%',
-            textAlign: 'center',
-            color: '#00FF00',
-            fontSize: '14px',
-            pointerEvents: 'none',
-        })
-        numDisplay.textContent = String(item.amount)
-
-        // Slider — positioned across the middle of the dialog
-        const slider = document.createElement('input')
-        slider.type = 'range'
-        slider.min = '1'
-        slider.max = String(item.amount)
-        slider.value = String(item.amount)
-        Object.assign(slider.style, {
-            position: 'absolute',
-            left: '12px', top: '22px',
-            width: `${DIALOG_W - 24}px`,
-            accentColor: '#00AA00',
-            cursor: 'pointer',
-        })
-        slider.oninput = () => {
-            numDisplay.textContent = slider.value
-        }
-
-        function cleanup(amount: number) {
-            overlay.remove()
-            resolve(amount)
-        }
-
-        // OK button — bottom left
-        const okBtn = document.createElement('div')
-        okBtn.textContent = 'OK'
-        Object.assign(okBtn.style, {
-            position: 'absolute',
-            left: '20px', bottom: '4px',
-            color: '#00FF00',
-            fontSize: '12px',
-            cursor: 'pointer',
-            padding: '0 6px',
-        })
-        okBtn.onmouseenter = () => { okBtn.style.color = '#FCFC7C' }
-        okBtn.onmouseleave = () => { okBtn.style.color = '#00FF00' }
-        okBtn.onclick = () => {
-            const val = parseInt(slider.value)
-            if (isNaN(val) || val < 1 || val > item.amount) return
-            cleanup(val)
-        }
-
-        // Cancel button — bottom right
-        const cancelBtn = document.createElement('div')
-        cancelBtn.textContent = 'Cancel'
-        Object.assign(cancelBtn.style, {
-            position: 'absolute',
-            right: '20px', bottom: '4px',
-            color: '#00FF00',
-            fontSize: '12px',
-            cursor: 'pointer',
-            padding: '0 6px',
-        })
-        cancelBtn.onmouseenter = () => { cancelBtn.style.color = '#FF4444' }
-        cancelBtn.onmouseleave = () => { cancelBtn.style.color = '#00FF00' }
-        cancelBtn.onclick = () => cleanup(0)
-
-        slider.onkeydown = (e: KeyboardEvent) => {
-            if (e.key === 'Enter') okBtn.click()
-            if (e.key === 'Escape') cancelBtn.click()
-        }
-
-        modal.appendChild(numDisplay)
-        modal.appendChild(slider)
-        modal.appendChild(okBtn)
-        modal.appendChild(cancelBtn)
-        overlay.appendChild(modal)
-        $id('game-container').appendChild(overlay)
-        slider.focus()
-    })
+export async function uiGetAmount(item: Obj): Promise<number> {
+    const result = await showMoveMultDialog(item, item.amount)
+    return result ?? 0
 }
 
 function _uiAddItem(items: Obj[], item: Obj, count: number) {

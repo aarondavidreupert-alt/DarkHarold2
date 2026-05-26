@@ -1615,6 +1615,115 @@ html, body {
   padding: 0;
 }
 
+/* --- Move-Multiple (quantity picker) dialog --- */
+
+.moveMultOverlay {
+  position: absolute;
+  left: 0; top: 0;
+  width: 100%; height: 100%;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.moveMultDialog {
+  background: #1a1408;
+  border: 2px solid #6b5a00;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  min-width: 220px;
+}
+
+.moveMultArtPanel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  min-height: 60px;
+  background: #0a0a00;
+  border: 1px solid #333;
+}
+
+.moveMultItemImg {
+  max-width: 64px;
+  max-height: 56px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.moveMultRightPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.moveMultCounterRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.moveMultDrum {
+  color: #00ff00;
+  font-family: 'VT323', monospace;
+  font-size: 28px;
+  background: #000;
+  border: 1px solid #333;
+  padding: 2px 8px;
+  min-width: 48px;
+  text-align: center;
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+.moveMultStepBtn {
+  background: #2a2200;
+  border: 1px solid #6b5a00;
+  color: #b38600;
+  font-family: 'VT323', monospace;
+  font-size: 18px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  cursor: url('art/intrface/stdarrow.png'), auto;
+  line-height: 1;
+}
+.moveMultStepBtn:hover {
+  background: #3a3000;
+  border-color: #b38600;
+}
+
+.moveMultSlider {
+  width: 100%;
+  accent-color: #6b5a00;
+  cursor: url('art/intrface/stdarrow.png'), auto;
+}
+
+.moveMultBtnRow {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.moveMultBtn {
+  background: #2a2200;
+  border: 1px solid #6b5a00;
+  color: #b38600;
+  font-family: 'VT323', monospace;
+  font-size: 14px;
+  padding: 2px 12px;
+  cursor: url('art/intrface/stdarrow.png'), auto;
+}
+.moveMultBtn:hover {
+  background: #3a3000;
+  border-color: #b38600;
+}
+
 #bar *, #dialogueContainer *, #inventoryBox *, #lootBox *,
 #barterBox *, #worldMapContainer *, #elevatorBox *,
 #calledShotBox *, #itemContextMenu *,

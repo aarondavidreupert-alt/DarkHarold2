@@ -27,6 +27,7 @@ import { lookupArt } from './pro.js'
 import { drawAC, uiDrawWeapon, uiLog } from './ui_hud.js'
 import { makePanelDraggable } from './ui_drag.js'
 import { UIMode, closeAllPanels, isInventoryOpen, registerCloseInventoryPanel } from './ui_panels.js'
+import { showMoveMultDialog } from './movemult.js'
 
 // --- DOM helpers (mirrors the ones in ui.ts) -------------------------------
 
@@ -573,7 +574,7 @@ export function showInventory() {
 
     type ItemAction = 'cancel' | 'look' | 'use' | 'drop' | 'equip_left' | 'equip_right' | 'equip_armor' | 'unequip' | 'unload'
 
-    function itemAction(obj: Obj, slot: string, action: ItemAction) {
+    async function itemAction(obj: Obj, slot: string, action: ItemAction) {
         const playerAny = globalState.player as any
         switch (action) {
             case 'look':
@@ -585,18 +586,30 @@ export function showInventory() {
                 console.log('[UI] using object: ' + obj.art)
                 obj.use(globalState.player)
                 break
-            case 'drop':
+            case 'drop': {
                 console.log('[UI] dropping: ' + obj.art + ' with pid ' + obj.pid)
                 if (slot !== 'inventory') {
                     console.log('[UI] moving into inventory first')
                     globalState.player.inventory.push(obj)
                     playerAny[slot] = null
                 }
-                obj.drop(globalState.player)
+                const dropQty = await showMoveMultDialog(obj, obj.amount)
+                if (dropQty === null) {
+                    showInventory()
+                    break
+                }
+                if (dropQty < obj.amount) {
+                    const dropped = obj.clone().setAmount(dropQty)
+                    obj.amount -= dropQty
+                    dropped.drop(globalState.player)
+                } else {
+                    obj.drop(globalState.player)
+                }
                 globalState.player.clearAnim()
                 uiDrawWeapon()
                 showInventory()
                 break
+            }
             case 'equip_left':
             case 'equip_right': {
                 const targetSlot = action === 'equip_left' ? 'leftHand' : 'rightHand'
