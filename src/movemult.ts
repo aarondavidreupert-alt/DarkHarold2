@@ -64,7 +64,7 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
         const drumContainer = document.createElement('div')
         Object.assign(drumContainer.style, {
             position: 'absolute',
-            left: '118px', top: '10px',
+            left: '107px', top: '39px',
             width: '106px', height: '40px',
             display: 'flex',
             alignItems: 'center',
@@ -83,7 +83,7 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
         const plusBtn = document.createElement('div')
         Object.assign(plusBtn.style, {
             position: 'absolute',
-            left: '230px', top: '10px',
+            left: '200px', top: '46px',
             width: '22px', height: '12px',
             backgroundImage: "url('art/intrface/splsoff.png')",
             backgroundRepeat: 'no-repeat',
@@ -110,7 +110,7 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
         const minusBtn = document.createElement('div')
         Object.assign(minusBtn.style, {
             position: 'absolute',
-            left: '230px', top: '26px',
+            left: '200px', top: '57px',
             width: '22px', height: '12px',
             backgroundImage: "url('art/intrface/snegoff.png')",
             backgroundRepeat: 'no-repeat',
@@ -141,7 +141,7 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
         }
 
         // DONE button — SmallButton (lilredup/lilreddn) + font3 label
-        const doneBtn = new SmallButton(8, 136)
+        const doneBtn = new SmallButton(99, 129)
         doneBtn.onClick(() => close(qty))
         dialog.appendChild(doneBtn.elem)
         const doneLabel = makeFontLabel(8 + 18, 136, 'DONE', font3)
@@ -149,7 +149,7 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
         dialog.appendChild(doneLabel.elem)
 
         // CANCEL button
-        const cancelBtn = new SmallButton(138, 136)
+        const cancelBtn = new SmallButton(148, 129)
         cancelBtn.onClick(() => close(null))
         dialog.appendChild(cancelBtn.elem)
         const cancelLabel = makeFontLabel(138 + 18, 136, 'CANCEL', font3)
