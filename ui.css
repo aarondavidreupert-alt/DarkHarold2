@@ -1616,6 +1616,7 @@ html, body {
 }
 
 /* --- Move-Multiple (quantity picker) dialog --- */
+/* Background: art/intrface/movemult.png  259×162 */
 
 .moveMultOverlay {
   position: absolute;
@@ -1629,99 +1630,86 @@ html, body {
 }
 
 .moveMultDialog {
-  background: #1a1408;
-  border: 2px solid #6b5a00;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: row;
-  gap: 12px;
-  min-width: 220px;
-}
-
-.moveMultArtPanel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 72px;
-  min-height: 60px;
-  background: #0a0a00;
-  border: 1px solid #333;
+  position: relative;
+  width: 259px;
+  height: 162px;
+  background-image: url("art/intrface/movemult.png");
+  background-size: 259px 162px;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
 }
 
 .moveMultItemImg {
-  max-width: 64px;
-  max-height: 56px;
+  position: absolute;
+  left: 8px; top: 8px;
+  width: 100px; height: 100px;
   object-fit: contain;
   image-rendering: pixelated;
 }
 
-.moveMultRightPanel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1;
-}
-
-.moveMultCounterRow {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .moveMultDrum {
+  position: absolute;
+  left: 118px; top: 10px;
+  width: 120px; height: 40px;
   color: #00ff00;
   font-family: 'VT323', monospace;
   font-size: 28px;
-  background: #000;
-  border: 1px solid #333;
-  padding: 2px 8px;
-  min-width: 48px;
+  background: transparent;
+  border: none;
   text-align: center;
   letter-spacing: 2px;
-  line-height: 1;
+  line-height: 40px;
+  overflow: hidden;
 }
 
 .moveMultStepBtn {
-  background: #2a2200;
-  border: 1px solid #6b5a00;
+  position: absolute;
+  left: 240px; top: 10px;
+  width: 14px; height: 40px;
+  background: transparent;
+  border: none;
   color: #b38600;
   font-family: 'VT323', monospace;
-  font-size: 18px;
-  width: 24px;
-  height: 24px;
+  font-size: 16px;
   padding: 0;
   cursor: url('art/intrface/stdarrow.png'), auto;
-  line-height: 1;
+  line-height: 40px;
 }
 .moveMultStepBtn:hover {
-  background: #3a3000;
-  border-color: #b38600;
+  color: #ffcc00;
 }
 
 .moveMultSlider {
-  width: 100%;
+  position: absolute;
+  left: 118px; top: 58px;
+  width: 134px; height: 24px;
   accent-color: #6b5a00;
   cursor: url('art/intrface/stdarrow.png'), auto;
-}
-
-.moveMultBtnRow {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
+  margin: 0;
 }
 
 .moveMultBtn {
-  background: #2a2200;
-  border: 1px solid #6b5a00;
+  position: absolute;
+  height: 24px;
+  background: transparent;
+  border: none;
   color: #b38600;
   font-family: 'VT323', monospace;
   font-size: 14px;
-  padding: 2px 12px;
   cursor: url('art/intrface/stdarrow.png'), auto;
+  line-height: 24px;
+  padding: 0;
 }
 .moveMultBtn:hover {
-  background: #3a3000;
-  border-color: #b38600;
+  color: #ffcc00;
+}
+.moveMultBtnDone {
+  left: 8px; top: 134px;
+  width: 110px;
+}
+.moveMultBtnCancel {
+  left: 138px; top: 134px;
+  width: 110px;
 }
 
 #bar *, #dialogueContainer *, #inventoryBox *, #lootBox *,

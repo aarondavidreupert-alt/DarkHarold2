@@ -1,5 +1,6 @@
 // Fallout 2 "Move Items" quantity picker dialog (move_mult / inven_hold).
 // Reference: fallout2-ce inv.cc::inventoryQuantityDialog()
+// Uses art/intrface/movemult.png (259×162) as the dialog background sprite.
 
 import { Obj } from './object.js'
 
@@ -20,46 +21,39 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
         const overlay = document.createElement('div')
         overlay.className = 'moveMultOverlay'
 
+        // Dialog container — sized exactly to the sprite
         const dialog = document.createElement('div')
         dialog.className = 'moveMultDialog'
 
-        // Left panel: item art preview
-        const artPanel = document.createElement('div')
-        artPanel.className = 'moveMultArtPanel'
+        // Item art preview — positioned over the left region of the sprite
         const img = document.createElement('img')
         img.className = 'moveMultItemImg'
         img.src = item.invArt ? item.invArt + '.png' : ''
         img.setAttribute('draggable', 'false')
         img.onerror = () => { img.style.display = 'none' }
-        artPanel.appendChild(img)
+        dialog.appendChild(img)
 
-        // Right panel: counter + slider + buttons
-        const rightPanel = document.createElement('div')
-        rightPanel.className = 'moveMultRightPanel'
-
-        // Counter row: drum display + [+] button
-        const counterRow = document.createElement('div')
-        counterRow.className = 'moveMultCounterRow'
-
+        // Drum counter display — over the top-right region
+        const padLen = String(maxQty).length
         const drumDisplay = document.createElement('div')
         drumDisplay.className = 'moveMultDrum'
-        const padLen = String(maxQty).length
         drumDisplay.textContent = String(qty).padStart(padLen, '0')
+        dialog.appendChild(drumDisplay)
 
+        // [+] increment button — right edge of counter area
         const plusBtn = document.createElement('button')
         plusBtn.className = 'moveMultStepBtn'
         plusBtn.textContent = '+'
+        dialog.appendChild(plusBtn)
 
-        counterRow.appendChild(drumDisplay)
-        counterRow.appendChild(plusBtn)
-
-        // Slider
+        // Slider — below the counter
         const slider = document.createElement('input')
         slider.type = 'range'
         slider.className = 'moveMultSlider'
         slider.min = '1'
         slider.max = String(maxQty)
         slider.value = String(qty)
+        dialog.appendChild(slider)
 
         const updateDisplay = () => {
             drumDisplay.textContent = String(qty).padStart(padLen, '0')
@@ -75,17 +69,17 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
             if (qty < maxQty) { qty++; updateDisplay() }
         })
 
-        // Button row: DONE and CANCEL with decorative dots
-        const btnRow = document.createElement('div')
-        btnRow.className = 'moveMultBtnRow'
-
+        // DONE button — bottom-left of sprite
         const doneBtn = document.createElement('button')
-        doneBtn.className = 'moveMultBtn'
+        doneBtn.className = 'moveMultBtn moveMultBtnDone'
         doneBtn.textContent = 'DONE'
+        dialog.appendChild(doneBtn)
 
+        // CANCEL button — bottom-right of sprite
         const cancelBtn = document.createElement('button')
-        cancelBtn.className = 'moveMultBtn'
+        cancelBtn.className = 'moveMultBtn moveMultBtnCancel'
         cancelBtn.textContent = 'CANCEL'
+        dialog.appendChild(cancelBtn)
 
         const close = (value: number | null) => {
             uiStage.removeChild(overlay)
@@ -95,22 +89,11 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
         doneBtn.addEventListener('click', () => close(qty))
         cancelBtn.addEventListener('click', () => close(null))
 
-        // Keyboard support
-        const onKey = (e: KeyboardEvent) => {
+        overlay.addEventListener('keydown', (e: KeyboardEvent) => {
             if (e.key === 'Enter') { e.preventDefault(); close(qty) }
             if (e.key === 'Escape') { e.preventDefault(); close(null) }
-        }
-        overlay.addEventListener('keydown', onKey)
+        })
 
-        btnRow.appendChild(doneBtn)
-        btnRow.appendChild(cancelBtn)
-
-        rightPanel.appendChild(counterRow)
-        rightPanel.appendChild(slider)
-        rightPanel.appendChild(btnRow)
-
-        dialog.appendChild(artPanel)
-        dialog.appendChild(rightPanel)
         overlay.appendChild(dialog)
         uiStage.appendChild(overlay)
         slider.focus()
