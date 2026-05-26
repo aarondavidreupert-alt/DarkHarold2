@@ -6,7 +6,7 @@
 
 import { Obj } from './object.js'
 import { renderBignum, font3, makeFontLabel } from './ui_font.js'
-import { SmallButton } from './ui_components.js'
+import { SmallButton, AllButton } from './ui_components.js'
 
 /**
  * Show the canonical FO2 quantity picker.
@@ -140,21 +140,23 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
             resolve(value)
         }
 
-        // DONE button — SmallButton (lilredup/lilreddn) + font3 label
+        // ALL button — below drum counter, sets qty to max
+        const allBtn = new AllButton(107, 80)
+        allBtn.onClick(() => { qty = maxQty; updateDrum() })
+        dialog.appendChild(allBtn.elem)
+        const allLabel = makeFontLabel(107 + 30, 80 + 8, 'ALL', font3)
+        allLabel.css({ pointerEvents: 'none' })
+        dialog.appendChild(allLabel.elem)
+
+        // DONE button (text baked into movemult.png)
         const doneBtn = new SmallButton(99, 129)
         doneBtn.onClick(() => close(qty))
         dialog.appendChild(doneBtn.elem)
-        const doneLabel = makeFontLabel(8 + 18, 136, 'DONE', font3)
-        doneLabel.css({ pointerEvents: 'none' })
-        dialog.appendChild(doneLabel.elem)
 
-        // CANCEL button
+        // CANCEL button (text baked into movemult.png)
         const cancelBtn = new SmallButton(148, 129)
         cancelBtn.onClick(() => close(null))
         dialog.appendChild(cancelBtn.elem)
-        const cancelLabel = makeFontLabel(138 + 18, 136, 'CANCEL', font3)
-        cancelLabel.css({ pointerEvents: 'none' })
-        dialog.appendChild(cancelLabel.elem)
 
         // Keyboard: arrows to adjust, Enter to confirm, Escape to cancel
         overlay.addEventListener('keydown', (e: KeyboardEvent) => {

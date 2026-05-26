@@ -91,6 +91,13 @@ export class SmallButton extends Widget {
     }
 }
 
+export class AllButton extends Widget {
+    constructor(x: number, y: number) {
+        super('art/intrface/allboff.png', { x, y, w: 94, h: 33 })
+        this.mouseDownBG('art/intrface/allbon.png')
+    }
+}
+
 export class Label extends Widget {
     constructor(x: number, y: number, text: string, public textColor: string = 'yellow') {
         super(null, { x, y, w: 'auto', h: 'auto' })
