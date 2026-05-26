@@ -22,29 +22,20 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
         const uiStage = document.getElementById('uiStage')
         if (!uiStage) { resolve(null); return }
 
-        // Semi-transparent overlay to dim the game world
-        const overlay = document.createElement('div')
-        Object.assign(overlay.style, {
-            position: 'absolute',
-            left: '0', top: '0', width: '100%', height: '100%',
-            background: 'rgba(0, 0, 0, 0.65)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: '200',
-        })
-        overlay.tabIndex = 0
-
         // Dialog container — sprite background
         const dialog = document.createElement('div')
         Object.assign(dialog.style, {
-            position: 'relative',
+            position: 'absolute',
+            left: '50%', top: '50%',
+            marginLeft: '-130px', marginTop: '-81px',
             width: '259px',
             height: '162px',
             backgroundImage: "url('art/intrface/movemult.png')",
             backgroundRepeat: 'no-repeat',
             imageRendering: 'pixelated',
+            zIndex: '200',
         })
+        dialog.tabIndex = 0
 
         // Item art preview
         const img = document.createElement('img')
@@ -136,7 +127,7 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
         const close = (value: number | null) => {
             if (plusRepeat !== null) clearInterval(plusRepeat)
             if (minusRepeat !== null) clearInterval(minusRepeat)
-            uiStage.removeChild(overlay)
+            uiStage.removeChild(dialog)
             resolve(value)
         }
 
@@ -159,7 +150,7 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
         dialog.appendChild(cancelBtn.elem)
 
         // Keyboard: arrows to adjust, Enter to confirm, Escape to cancel
-        overlay.addEventListener('keydown', (e: KeyboardEvent) => {
+        dialog.addEventListener('keydown', (e: KeyboardEvent) => {
             switch (e.key) {
                 case 'ArrowRight':
                 case 'ArrowUp':
@@ -182,8 +173,7 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
             }
         })
 
-        overlay.appendChild(dialog)
-        uiStage.appendChild(overlay)
-        overlay.focus()
+        uiStage.appendChild(dialog)
+        dialog.focus()
     })
 }
