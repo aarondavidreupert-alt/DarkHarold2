@@ -50,8 +50,8 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
         const img = document.createElement('img')
         Object.assign(img.style, {
             position: 'absolute',
-            left: '8px', top: '8px',
-            width: '100px', height: '100px',
+            left: '19px', top: '15px',
+            width: '85px', height: '100px',
             objectFit: 'contain',
             imageRendering: 'pixelated',
         })
@@ -141,7 +141,7 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
         }
 
         // ALL button — below drum counter, sets qty to max
-        const allBtn = new AllButton(107, 80)
+        const allBtn = new AllButton(120, 81)
         allBtn.onClick(() => { qty = maxQty; updateDrum() })
         dialog.appendChild(allBtn.elem)
         const allLabel = makeFontLabel(107 + 30, 80 + 8, 'ALL', font3)
