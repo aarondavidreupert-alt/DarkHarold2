@@ -4,7 +4,9 @@
 //   autoCrawler.runDialogueCrawler()           // crawl current map
 //   autoCrawler.runDialogueCrawler('artemple') // load map then crawl
 //   autoCrawler.runCombatCrawler()
-//   autoCrawler.downloadReport(report)         // save JSON file
+//   autoCrawler.downloadReport()               // download lastReport (no arg needed)
+//   autoCrawler.downloadReport(report)         // download a specific report
+//   autoCrawler.lastReport                     // access last completed report
 //
 // Design: see AutoCrawler.md in the project root.
 
@@ -26,7 +28,8 @@ export type DialogueStatus =
     | 'no-talk-proc'
     | 'no-adjacent-tile'
     | 'exception-on-talk'
-    | 'stuck-no-dialogue'
+    | 'no-dialogue'          // talk proc ran; UIMode confirmed none within polling window
+    | 'stuck-no-dialogue'    // hit 5 s cap with UIMode never reaching none or dialogue
     | 'combat-triggered'
     | 'stuck-no-options'
     | 'exception-on-click'
@@ -74,6 +77,7 @@ export interface CrawlerSummary {
     stuck: number
     exceptions: number
     combatTriggered?: number
+    noDialogue?: number
 }
 
 export interface CrawlerReport {
@@ -86,13 +90,17 @@ export interface CrawlerReport {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const DIALOGUE_OPEN_TIMEOUT_MS = 5000
+const DIALOGUE_OPEN_TIMEOUT_MS = 5000   // hard cap for dialogue-open wait
+const DIALOGUE_POLL_MS = 200            // polling interval; UIMode.none after first poll → no-dialogue
 const COMBAT_ACTIVE_TIMEOUT_MS = 2000
 const PLAYER_TURN_TIMEOUT_MS = 10000
 const AI_TURN_TIMEOUT_MS = 10000
 const MAX_DIALOGUE_CLICKS = 50
 // High HP value set on the player before each combat encounter to prevent death.
 const CRAWLER_HP = 9999
+
+// Last completed report — accessible as autoCrawler.lastReport in DevTools.
+let lastReport: CrawlerReport | null = null
 
 // ─── Engine-speed stepping ────────────────────────────────────────────────────
 
@@ -225,15 +233,30 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
         return result
     }
 
-    // For most NPCs the VM halts synchronously at gsay_end, so uiMode is already
-    // UIMode.dialogue here. Wait a short time anyway to cover async-initiating scripts.
-    const dialogueOpened = await waitFor(
-        () => globalState.uiMode === UIMode.dialogue || globalState.inCombat,
-        DIALOGUE_OPEN_TIMEOUT_MS
-    )
+    // Dialogue opens synchronously for most NPCs (VM halts at gsay_end before
+    // Scripting.talk() returns). Poll every DIALOGUE_POLL_MS ms: if UIMode is
+    // still UIMode.none we know no dialogue proc fired — bail with 'no-dialogue'
+    // rather than burning the full 5 s cap. Keep the hard cap for scripts that
+    // open dialogue asynchronously or that stall mid-transition.
+    let dialogueOpened = false
+    let openStatus: DialogueStatus = 'stuck-no-dialogue'
+    const openDeadline = performance.now() + DIALOGUE_OPEN_TIMEOUT_MS
+    while (performance.now() < openDeadline) {
+        stepEngine()
+        await new Promise<void>(r => setTimeout(r, DIALOGUE_POLL_MS))
+        const mode = globalState.uiMode
+        if (mode === UIMode.dialogue || globalState.inCombat) {
+            dialogueOpened = true
+            break
+        }
+        if (mode === UIMode.none) {
+            openStatus = 'no-dialogue'
+            break
+        }
+        // Any other UIMode (e.g. a brief transition): keep polling until deadline.
+    }
     if (!dialogueOpened) {
-        // talk_p_proc ran but neither dialogue nor combat opened within the timeout.
-        result.status = 'stuck-no-dialogue'
+        result.status = openStatus
         result.durationMs = performance.now() - t0
         return result
     }
@@ -365,6 +388,7 @@ export async function runDialogueCrawler(mapName?: string): Promise<CrawlerRepor
 
     const report = buildReport('dialogue', mapLabel, results)
     printSummary(report)
+    lastReport = report
     return report
 }
 
@@ -549,6 +573,7 @@ export async function runCombatCrawler(mapName?: string): Promise<CrawlerReport 
 
     const report = buildReport('combat', mapLabel, results)
     printSummary(report)
+    lastReport = report
     return report
 }
 
@@ -568,33 +593,46 @@ function buildReport(
         type === 'dialogue'
             ? (results as DialogueNpcResult[]).filter(r => r.status === 'combat-triggered').length
             : undefined
+    const noDialogue =
+        type === 'dialogue'
+            ? (results as DialogueNpcResult[]).filter(r => r.status === 'no-dialogue').length
+            : undefined
 
     return {
         map: mapLabel,
         type,
         timestamp: Date.now(),
         results,
-        summary: { total: results.length, ok, stuck, exceptions, combatTriggered },
+        summary: { total: results.length, ok, stuck, exceptions, combatTriggered, noDialogue },
     }
 }
 
 function printSummary(report: CrawlerReport): void {
     const s = report.summary
-    const extra = s.combatTriggered !== undefined ? `  combat-triggered=${s.combatTriggered}` : ''
+    const extras: string[] = []
+    if (s.combatTriggered !== undefined) extras.push(`combat-triggered=${s.combatTriggered}`)
+    if (s.noDialogue !== undefined) extras.push(`no-dialogue=${s.noDialogue}`)
+    const extra = extras.map(e => `  ${e}`).join('')
     console.log(
         `[AutoCrawler] ── ${report.type.toUpperCase()} DONE on "${report.map}" ──\n` +
         `  total=${s.total}  ok=${s.ok}  stuck=${s.stuck}  exceptions=${s.exceptions}${extra}`
     )
 }
 
-/** Download the report as a timestamped JSON file. */
-export function downloadReport(report: CrawlerReport): void {
-    const json = JSON.stringify(report, null, 2)
+/** Download a report as a timestamped JSON file.
+ *  If called with no argument, downloads the most recent completed report. */
+export function downloadReport(report?: CrawlerReport | null): void {
+    const r = report ?? lastReport
+    if (!r) {
+        console.warn('[AutoCrawler] No report to download — run a crawl first.')
+        return
+    }
+    const json = JSON.stringify(r, null, 2)
     const blob = new Blob([json], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `crawler_${report.type}_${report.map}_${report.timestamp}.json`
+    a.download = `crawler_${r.type}_${r.map}_${r.timestamp}.json`
     a.click()
     URL.revokeObjectURL(url)
 }
@@ -608,5 +646,6 @@ if (typeof window !== 'undefined' && Config.engine.debug) {
         listTalkableNPCs,
         listHostileCritters,
         downloadReport,
+        get lastReport(): CrawlerReport | null { return lastReport },
     }
 }
