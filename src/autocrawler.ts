@@ -47,6 +47,15 @@ export type CombatStatus =
     | 'stuck-ai-turn-timeout'
     | 'exception-in-combat'
 
+export type MapStatus = 'ok' | 'load-timeout' | 'exception' | 'player-missing'
+
+export interface MapResult {
+    map: string
+    status: MapStatus
+    durationMs: number
+    error?: string
+}
+
 export interface DialogueNpcResult {
     uid: number
     name: string
@@ -78,13 +87,15 @@ export interface CrawlerSummary {
     exceptions: number
     combatTriggered?: number
     noDialogue?: number
+    timeout?: number
+    playerMissing?: number
 }
 
 export interface CrawlerReport {
     map: string
-    type: 'dialogue' | 'combat'
+    type: 'dialogue' | 'combat' | 'maps'
     timestamp: number
-    results: DialogueNpcResult[] | CombatCritterResult[]
+    results: DialogueNpcResult[] | CombatCritterResult[] | MapResult[]
     summary: CrawlerSummary
 }
 
@@ -96,6 +107,7 @@ const COMBAT_ACTIVE_TIMEOUT_MS = 2000
 const PLAYER_TURN_TIMEOUT_MS = 10000
 const AI_TURN_TIMEOUT_MS = 10000
 const MAX_DIALOGUE_CLICKS = 50
+const MAP_LOAD_TIMEOUT_MS = 10000
 // High HP value set on the player before each combat encounter to prevent death.
 const CRAWLER_HP = 9999
 
@@ -627,17 +639,113 @@ export async function runCombatCrawler(mapName?: string): Promise<CrawlerReport 
     return report
 }
 
-// ─── Phase 4: report ─────────────────────────────────────────────────────────
+// ─── Phase 4: map smoke-test crawler ─────────────────────────────────────────
+
+// Fetch the maps/ directory listing and return all base map names.
+// Relies on the dev server serving directory listings (standard for local dev).
+async function discoverMapNames(): Promise<string[]> {
+    try {
+        const res = await fetch('maps/')
+        if (!res.ok) return []
+        const html = await res.text()
+        const names = new Set<string>()
+        for (const m of html.matchAll(/href="([^"]+\.json)"/g)) {
+            const filename = (m[1].split('/').pop() ?? '').replace(/^.*\//, '')
+            if (!filename.endsWith('.images.json')) {
+                names.add(filename.replace(/\.json$/, ''))
+            }
+        }
+        return [...names].sort()
+    } catch (e) {
+        console.warn('[AutoCrawler] discoverMapNames failed:', e)
+        return []
+    }
+}
+
+async function crawlOneMap(mapName: string): Promise<MapResult> {
+    const t0 = performance.now()
+    const result: MapResult = { map: mapName, status: 'ok', durationMs: 0 }
+
+    // Reset leftover state from the previous map before loading the next one.
+    if (globalState.inCombat) {
+        globalState.combat?.forceEnd()
+        await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
+    }
+    if (globalState.uiMode !== UIMode.none) {
+        try { Scripting.dialogueEnd() } catch { /* ignore */ }
+        await new Promise<void>(r => setTimeout(r, 0))
+    }
+
+    try {
+        globalState.gMap!.loadMap(mapName)
+    } catch (e) {
+        result.status = 'exception'
+        result.error = String(e)
+        result.durationMs = performance.now() - t0
+        return result
+    }
+
+    const loaded = await waitFor(() => !globalState.isLoading, MAP_LOAD_TIMEOUT_MS)
+    if (!loaded) {
+        result.status = 'load-timeout'
+        result.durationMs = performance.now() - t0
+        return result
+    }
+
+    const pos = globalState.player?.position
+    if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') {
+        result.status = 'player-missing'
+    }
+
+    result.durationMs = performance.now() - t0
+    return result
+}
+
+export async function runMapCrawler(): Promise<CrawlerReport | null> {
+    if (!Config.engine.debug) {
+        console.error('[AutoCrawler] Config.engine.debug must be true')
+        return null
+    }
+    if (!globalState.gMap || !globalState.player) {
+        console.error('[AutoCrawler] No active map/player — start a game first')
+        return null
+    }
+
+    const mapNames = await discoverMapNames()
+    if (mapNames.length === 0) {
+        console.error('[AutoCrawler] No maps discovered — ensure maps/ serves a directory listing')
+        return null
+    }
+    console.log(`[AutoCrawler] Map smoke test: ${mapNames.length} map(s) discovered`)
+
+    const results: MapResult[] = []
+    for (const mapName of mapNames) {
+        const r = await crawlOneMap(mapName)
+        results.push(r)
+        console.log(
+            `[AutoCrawler] MAP "${mapName}" → status=${r.status}  ${r.durationMs.toFixed(0)}ms` +
+            (r.error ? '  ' + r.error : '')
+        )
+        await new Promise<void>(r2 => setTimeout(r2, 20))
+    }
+
+    const report = buildReport('maps', '*', results)
+    printSummary(report)
+    lastReport = report
+    return report
+}
+
+// ─── Phase 5: report ─────────────────────────────────────────────────────────
 
 function buildReport(
-    type: 'dialogue' | 'combat',
+    type: 'dialogue' | 'combat' | 'maps',
     mapLabel: string,
-    results: DialogueNpcResult[] | CombatCritterResult[]
+    results: DialogueNpcResult[] | CombatCritterResult[] | MapResult[]
 ): CrawlerReport {
     // Cast to a shared base so TypeScript can unify the union for counting.
     const any = results as Array<{ status: string }>
     const ok = any.filter(r => r.status === 'ok').length
-    const exceptions = any.filter(r => r.status.startsWith('exception')).length
+    const exceptions = any.filter(r => r.status === 'exception' || r.status.startsWith('exception-')).length
     const stuck = any.filter(r => r.status.startsWith('stuck')).length
     const combatTriggered =
         type === 'dialogue'
@@ -647,13 +755,21 @@ function buildReport(
         type === 'dialogue'
             ? (results as DialogueNpcResult[]).filter(r => r.status === 'no-dialogue').length
             : undefined
+    const timeout =
+        type === 'maps'
+            ? (results as MapResult[]).filter(r => r.status === 'load-timeout').length
+            : undefined
+    const playerMissing =
+        type === 'maps'
+            ? (results as MapResult[]).filter(r => r.status === 'player-missing').length
+            : undefined
 
     return {
         map: mapLabel,
         type,
         timestamp: Date.now(),
         results,
-        summary: { total: results.length, ok, stuck, exceptions, combatTriggered, noDialogue },
+        summary: { total: results.length, ok, stuck, exceptions, combatTriggered, noDialogue, timeout, playerMissing },
     }
 }
 
@@ -662,6 +778,8 @@ function printSummary(report: CrawlerReport): void {
     const extras: string[] = []
     if (s.combatTriggered !== undefined) extras.push(`combat-triggered=${s.combatTriggered}`)
     if (s.noDialogue !== undefined) extras.push(`no-dialogue=${s.noDialogue}`)
+    if (s.timeout !== undefined) extras.push(`timeout=${s.timeout}`)
+    if (s.playerMissing !== undefined) extras.push(`player-missing=${s.playerMissing}`)
     const extra = extras.map(e => `  ${e}`).join('')
     console.log(
         `[AutoCrawler] ── ${report.type.toUpperCase()} DONE on "${report.map}" ──\n` +
@@ -693,9 +811,24 @@ if (typeof window !== 'undefined' && Config.engine.debug) {
     ;(window as any).autoCrawler = {
         runDialogueCrawler,
         runCombatCrawler,
+        runMapCrawler,
         listTalkableNPCs,
         listHostileCritters,
         downloadReport,
         get lastReport(): CrawlerReport | null { return lastReport },
+    }
+
+    // URL auto-start: play.html?crawl=maps
+    // init.ts skips the map-from-query load when ?crawl= is present, so the
+    // default map (artemple) loads normally. We wait for it to finish then run.
+    const _crawlParam = new URLSearchParams(location.search).get('crawl')
+    if (_crawlParam === 'maps') {
+        waitFor(
+            () => globalState.gMap !== null && globalState.player !== null && !globalState.isLoading,
+            30000
+        ).then(ready => {
+            if (ready) runMapCrawler()
+            else console.error('[AutoCrawler] Timed out waiting for game to initialise for map crawl')
+        })
     }
 }
