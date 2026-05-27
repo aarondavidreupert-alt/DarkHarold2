@@ -34,6 +34,7 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
             backgroundRepeat: 'no-repeat',
             imageRendering: 'pixelated',
             zIndex: '200',
+            outline: 'none',
         })
         dialog.tabIndex = 0
 
