@@ -42,8 +42,8 @@ export function showMoveMultDialog(item: Obj, maxQty: number): Promise<number | 
         const img = document.createElement('img')
         Object.assign(img.style, {
             position: 'absolute',
-            left: '19px', top: '15px',
-            width: '85px', height: '100px',
+            left: '20px', top: '49px',
+            width: '85px', height: '54px',
             objectFit: 'contain',
             imageRendering: 'pixelated',
         })
