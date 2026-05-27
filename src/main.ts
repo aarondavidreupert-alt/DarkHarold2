@@ -63,9 +63,7 @@ import { getActiveUnarmedModeForHand } from './unarmed.js'
 import { Lightmap } from './lightmap.js'
 import { togglePipBoy } from './ui_pipboy.js'
 import './debug.js'
-if (Config.engine.debug) {
-    void import('./autocrawler.js')
-}
+import './autocrawler.js'
 
 // Next gameTickTime at which map_update_p_proc should fire across all map
 // scripts. Fallout 2 schedules this via a 600-tick queue event, so we mirror

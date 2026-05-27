@@ -514,7 +514,8 @@ For combat reports, each result entry has `uid`, `name`, `tileNum`, `status`, `t
 | `ok` | Dialogue completed and `UIMode` returned to `none`. |
 | `no-talk-proc` | NPC has no `talk_p_proc` script procedure. |
 | `no-adjacent-tile` | Could not place the player adjacent to the NPC. |
-| `stuck-no-dialogue` | `talk_p_proc` ran but `UIMode.dialogue` never became active within the timeout. |
+| `no-dialogue` | `talk_p_proc` ran and `UIMode` returned to `none` — NPC has no dialogue tree (e.g. Brahmin, silent guard). Fast exit (~200 ms). |
+| `stuck-no-dialogue` | `talk_p_proc` ran but `UIMode` never reached `none` or `dialogue` before the 5 s hard cap. Likely a stuck script. |
 | `combat-triggered` | Talking to the NPC triggered combat; combat was force-ended and crawl continued. |
 | `stuck-no-options` | Dialogue UI opened but no option buttons appeared. |
 | `stuck-max-clicks` | Reached the click limit (`MAX_DIALOGUE_CLICKS`) without dialogue closing. |

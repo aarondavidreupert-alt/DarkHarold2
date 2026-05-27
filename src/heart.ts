@@ -239,7 +239,7 @@ class Heart {
     }
 
     _tick(time: number) {
-        this._stepOnly(time)
+        heart._stepOnly(time)
         window.requestAnimationFrame(heart._tick)
     }
 

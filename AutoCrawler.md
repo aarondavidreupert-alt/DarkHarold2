@@ -1,8 +1,8 @@
 # AutoCrawler — Design Document
 
-**Status:** Pre-implementation research  
+**Status:** Implemented (`src/autocrawler.ts`)  
 **Scope:** Automated testing harness for dialogue and combat systems  
-**Author:** Claude (research pass, 2026-05-27)
+**Author:** Claude (research pass + implementation, 2026-05-27)
 
 ---
 
@@ -72,11 +72,12 @@ _tick(time: number) {
 **Key observations:**
 - `heart._tick` is a plain method — it can be called directly with a synthetic
   timestamp.
-- It always appends a new rAF at the end, so a direct call does not break the
-  real loop; it just means two frames will fire (the direct one now + the rAF
-  one later). That is acceptable for the crawler because we do not care about
-  smooth rendering.
-- There is **no exported `step()` function**. One must be added.
+- It always appends a new rAF at the end, so repeated direct calls accumulate
+  parallel rAF loops. **Implemented fix:** `heart._stepOnly(time)` was added;
+  it runs the same update/draw logic without re-scheduling rAF. `debug.step()`
+  and `autocrawler.stepEngine()` both call `_stepOnly` — not `_tick`.
+- `debug.step()` is exported from `src/debug.ts` and available in DevTools via
+  `const { debug } = await import('./js/debug.js')`.
 
 ### 2.2 `src/globalState.ts` — Queryable State
 

@@ -357,7 +357,8 @@ export async function runDialogueCrawler(mapName?: string): Promise<CrawlerRepor
         console.log(`[AutoCrawler] Loading map: ${mapName}`)
         globalState.gMap.loadMap(mapName)
         if (!await waitFor(() => !globalState.isLoading, 30000)) {
-            console.error('[AutoCrawler] Map load timed out')
+            console.error('[AutoCrawler] Map load timed out — aborting')
+            return null
         }
     }
 
@@ -419,9 +420,11 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
         return result
     }
 
-    // Snapshot hostile flags on every other critter before clearing them.
-    // This prevents the crawl from permanently mutating the map state.
-    const hostileSnapshots: Array<{ c: Critter; was: boolean }> = []
+    // Snapshot hostile flags — include the target critter so its original value
+    // is restored in finally even if it was naturally hostile before the crawl.
+    const hostileSnapshots: Array<{ c: Critter; was: boolean }> = [
+        { c: critter, was: critter.hostile },
+    ]
     for (const obj of globalState.gMap!.getObjects()) {
         if (obj instanceof Critter && !obj.isPlayer && obj !== critter) {
             hostileSnapshots.push({ c: obj, was: obj.hostile })
@@ -542,7 +545,8 @@ export async function runCombatCrawler(mapName?: string): Promise<CrawlerReport 
         console.log(`[AutoCrawler] Loading map: ${mapName}`)
         globalState.gMap.loadMap(mapName)
         if (!await waitFor(() => !globalState.isLoading, 30000)) {
-            console.error('[AutoCrawler] Map load timed out')
+            console.error('[AutoCrawler] Map load timed out — aborting')
+            return null
         }
     }
 
