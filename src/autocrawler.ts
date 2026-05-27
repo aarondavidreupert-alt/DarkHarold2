@@ -554,9 +554,11 @@ function buildReport(
     mapLabel: string,
     results: DialogueNpcResult[] | CombatCritterResult[]
 ): CrawlerReport {
-    const ok = results.filter(r => r.status === 'ok').length
-    const exceptions = results.filter(r => r.status.startsWith('exception')).length
-    const stuck = results.filter(r => r.status.startsWith('stuck')).length
+    // Cast to a shared base so TypeScript can unify the union for counting.
+    const any = results as Array<{ status: string }>
+    const ok = any.filter(r => r.status === 'ok').length
+    const exceptions = any.filter(r => r.status.startsWith('exception')).length
+    const stuck = any.filter(r => r.status.startsWith('stuck')).length
     const combatTriggered =
         type === 'dialogue'
             ? (results as DialogueNpcResult[]).filter(r => r.status === 'combat-triggered').length
