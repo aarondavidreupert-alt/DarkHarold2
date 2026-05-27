@@ -239,6 +239,14 @@ class Heart {
     }
 
     _tick(time: number) {
+        this._stepOnly(time)
+        window.requestAnimationFrame(heart._tick)
+    }
+
+    // Run one logical frame without re-scheduling requestAnimationFrame.
+    // Used by debug.step() and the AutoCrawler so that repeated synthetic
+    // ticks do not accumulate parallel rAF loops.
+    _stepOnly(time: number) {
         heart._dt = time - heart._lastTick
         heart._lastTick = time
         heart._frameAccum += heart._dt
@@ -268,8 +276,6 @@ class Heart {
                 heart.draw()
             }
         }
-
-        window.requestAnimationFrame(heart._tick)
     }
 
     attach(canvas: string) {
