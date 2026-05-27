@@ -1,97 +1,195 @@
 // Timer-setting dialog for arming timed explosives (Dynamite, Plastic Explosive).
-// Reuses the FO2 Move Items window visual language: dark panel, +/– arrows,
-// odometer-style counter.  Appended to #uiStage so it participates in the
-// 800×600 centered coordinate frame.
+// Reference: fallout2-ce src/game/intface.cc — timer/bomb arming dialog
+// Reuses the movemult.png frame, bignum drum counter (MM:SS with colon glyph),
+// splsoff/snegoff +/− buttons, SmallButton for DONE/CANCEL.
 
 import { Obj } from './object.js'
+import { renderBignum, renderBignumColon, font3, makeFontLabel } from './ui_font.js'
+import { SmallButton } from './ui_components.js'
 
-const DYNAMITE_PID = 51
-const PLASTIC_EXPLOSIVE_PID = 85
-
-/** Show the timer dialog for an explosive item.
- *  Resolves with the chosen turn count, or null if the player cancels. */
+/**
+ * Show the bomb timer dialog.
+ * Resolves with the chosen time in total seconds (1..5999), or null if cancelled.
+ * Counter displays MM:SS — max 99:59.
+ */
 export function showTimerDialog(item: Obj): Promise<number | null> {
     return new Promise((resolve) => {
-        const isDynamite = item.pid === DYNAMITE_PID
-        const maxTurns = isDynamite ? 10 : 15
-        let turns = 1
+        let minutes = 0
+        let seconds = 10
 
         const uiStage = document.getElementById('uiStage')
         if (!uiStage) { resolve(null); return }
 
-        // Backdrop dims the game world behind the dialog.
-        const overlay = document.createElement('div')
-        overlay.className = 'timerDialogOverlay'
-
+        // Dialog container — reuses movemult.png frame
         const dialog = document.createElement('div')
-        dialog.className = 'timerDialog'
+        Object.assign(dialog.style, {
+            position: 'absolute',
+            left: '50%', top: '50%',
+            marginLeft: '-130px', marginTop: '-81px',
+            width: '259px',
+            height: '162px',
+            backgroundImage: "url('art/intrface/movemult.png')",
+            backgroundRepeat: 'no-repeat',
+            imageRendering: 'pixelated',
+            zIndex: '200',
+            outline: 'none',
+        })
+        dialog.tabIndex = 0
 
-        const title = document.createElement('div')
-        title.className = 'timerDialogTitle'
-        title.textContent = isDynamite ? 'Arm Dynamite' : 'Arm Plastic Explosive'
-
-        // Inventory art image (left side)
+        // Item art preview
         const img = document.createElement('img')
-        img.src = item.invArt + '.png'
-        img.className = 'timerDialogItemImg'
+        Object.assign(img.style, {
+            position: 'absolute',
+            left: '8px', top: '8px',
+            width: '108px', height: '108px',
+            objectFit: 'contain',
+            imageRendering: 'pixelated',
+        })
+        img.src = item.invArt ? item.invArt + '.png' : ''
         img.setAttribute('draggable', 'false')
         img.onerror = () => { img.style.display = 'none' }
+        dialog.appendChild(img)
 
-        // Counter row: – [n] +
-        const counterRow = document.createElement('div')
-        counterRow.className = 'timerDialogCounterRow'
-
-        const minusBtn = document.createElement('button')
-        minusBtn.className = 'timerDialogBtn timerDialogStepBtn'
-        minusBtn.textContent = '–'
-
-        const counter = document.createElement('div')
-        counter.className = 'timerDialogCounter'
-        counter.textContent = String(turns)
-
-        const plusBtn = document.createElement('button')
-        plusBtn.className = 'timerDialogBtn timerDialogStepBtn'
-        plusBtn.textContent = '+'
-
-        minusBtn.addEventListener('click', () => {
-            if (turns > 1) { turns--; counter.textContent = String(turns) }
+        // MM:SS drum counter container
+        const drumContainer = document.createElement('div')
+        Object.assign(drumContainer.style, {
+            position: 'absolute',
+            left: '107px', top: '39px',
+            width: '106px', height: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
         })
-        plusBtn.addEventListener('click', () => {
-            if (turns < maxTurns) { turns++; counter.textContent = String(turns) }
+        dialog.appendChild(drumContainer)
+
+        const updateDrum = () => {
+            drumContainer.innerHTML = ''
+            const mmEl = renderBignum(minutes, 2, 'yellow')
+            const colonEl = renderBignumColon('yellow')
+            const ssEl = renderBignum(seconds, 2, 'yellow')
+            drumContainer.appendChild(mmEl)
+            drumContainer.appendChild(colonEl)
+            drumContainer.appendChild(ssEl)
+        }
+        updateDrum()
+
+        const incrementTime = () => {
+            seconds++
+            if (seconds > 59) {
+                seconds = 0
+                if (minutes < 99) minutes++
+                else seconds = 59
+            }
+            updateDrum()
+        }
+
+        const decrementTime = () => {
+            seconds--
+            if (seconds < 0) {
+                if (minutes > 0) { minutes--; seconds = 59 }
+                else seconds = 0
+            }
+            updateDrum()
+        }
+
+        // [+] button — splsoff/splson sprites
+        const plusBtn = document.createElement('div')
+        Object.assign(plusBtn.style, {
+            position: 'absolute',
+            left: '200px', top: '46px',
+            width: '22px', height: '12px',
+            backgroundImage: "url('art/intrface/splsoff.png')",
+            backgroundRepeat: 'no-repeat',
+            cursor: 'pointer',
         })
+        let plusRepeat: number | null = null
+        plusBtn.onmousedown = () => {
+            plusBtn.style.backgroundImage = "url('art/intrface/splson.png')"
+            incrementTime()
+            plusRepeat = window.setInterval(incrementTime, 100)
+        }
+        plusBtn.onmouseup = () => {
+            plusBtn.style.backgroundImage = "url('art/intrface/splsoff.png')"
+            if (plusRepeat !== null) { clearInterval(plusRepeat); plusRepeat = null }
+        }
+        plusBtn.onmouseleave = () => {
+            plusBtn.style.backgroundImage = "url('art/intrface/splsoff.png')"
+            if (plusRepeat !== null) { clearInterval(plusRepeat); plusRepeat = null }
+        }
+        dialog.appendChild(plusBtn)
 
-        counterRow.appendChild(minusBtn)
-        counterRow.appendChild(counter)
-        counterRow.appendChild(plusBtn)
-
-        // Action buttons
-        const btnRow = document.createElement('div')
-        btnRow.className = 'timerDialogBtnRow'
-
-        const doneBtn = document.createElement('button')
-        doneBtn.className = 'timerDialogBtn'
-        doneBtn.textContent = 'DONE'
-
-        const cancelBtn = document.createElement('button')
-        cancelBtn.className = 'timerDialogBtn'
-        cancelBtn.textContent = 'CANCEL'
+        // [−] button — snegoff/snegon sprites
+        const minusBtn = document.createElement('div')
+        Object.assign(minusBtn.style, {
+            position: 'absolute',
+            left: '200px', top: '57px',
+            width: '22px', height: '12px',
+            backgroundImage: "url('art/intrface/snegoff.png')",
+            backgroundRepeat: 'no-repeat',
+            cursor: 'pointer',
+        })
+        let minusRepeat: number | null = null
+        minusBtn.onmousedown = () => {
+            minusBtn.style.backgroundImage = "url('art/intrface/snegon.png')"
+            decrementTime()
+            minusRepeat = window.setInterval(decrementTime, 100)
+        }
+        minusBtn.onmouseup = () => {
+            minusBtn.style.backgroundImage = "url('art/intrface/snegoff.png')"
+            if (minusRepeat !== null) { clearInterval(minusRepeat); minusRepeat = null }
+        }
+        minusBtn.onmouseleave = () => {
+            minusBtn.style.backgroundImage = "url('art/intrface/snegoff.png')"
+            if (minusRepeat !== null) { clearInterval(minusRepeat); minusRepeat = null }
+        }
+        dialog.appendChild(minusBtn)
 
         const close = (value: number | null) => {
-            uiStage.removeChild(overlay)
+            if (plusRepeat !== null) clearInterval(plusRepeat)
+            if (minusRepeat !== null) clearInterval(minusRepeat)
+            uiStage.removeChild(dialog)
             resolve(value)
         }
 
-        doneBtn.addEventListener('click', () => close(turns))
-        cancelBtn.addEventListener('click', () => close(null))
+        // DONE button (text baked into movemult.png)
+        const doneBtn = new SmallButton(99, 129)
+        doneBtn.onClick(() => {
+            const totalSeconds = minutes * 60 + seconds
+            close(totalSeconds > 0 ? totalSeconds : null)
+        })
+        dialog.appendChild(doneBtn.elem)
 
-        btnRow.appendChild(doneBtn)
-        btnRow.appendChild(cancelBtn)
+        // CANCEL button (text baked into movemult.png)
+        const cancelBtn = new SmallButton(148, 129)
+        cancelBtn.onClick(() => close(null))
+        dialog.appendChild(cancelBtn.elem)
 
-        dialog.appendChild(title)
-        dialog.appendChild(img)
-        dialog.appendChild(counterRow)
-        dialog.appendChild(btnRow)
-        overlay.appendChild(dialog)
-        uiStage.appendChild(overlay)
+        // Keyboard: arrows to adjust, Enter to confirm, Escape to cancel
+        dialog.addEventListener('keydown', (e: KeyboardEvent) => {
+            switch (e.key) {
+                case 'ArrowRight':
+                case 'ArrowUp':
+                    e.preventDefault()
+                    incrementTime()
+                    break
+                case 'ArrowLeft':
+                case 'ArrowDown':
+                    e.preventDefault()
+                    decrementTime()
+                    break
+                case 'Enter':
+                    e.preventDefault()
+                    doneBtn.elem.click()
+                    break
+                case 'Escape':
+                    e.preventDefault()
+                    close(null)
+                    break
+            }
+        })
+
+        uiStage.appendChild(dialog)
+        dialog.focus()
     })
 }

@@ -100,13 +100,17 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
     const maxDmg = isDynamite ? 50 : 80
     const radius  = isDynamite ? 2  : 3
 
-    const chosenTurns = await showTimerDialog(obj)
-    if (chosenTurns === null) return // player cancelled
+    const chosenSeconds = await showTimerDialog(obj)
+    if (chosenSeconds === null) return // player cancelled
 
-    // Traps skill roll — skipped for Demolition Expert
-    let delayTurns = chosenTurns
+    // Convert seconds to 5-second turns for the explosion scheduler
+    let delayTurns = Math.max(1, Math.round(chosenSeconds / 5))
+    const mm = Math.floor(chosenSeconds / 60)
+    const ss = chosenSeconds % 60
+    const timeStr = `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+
     if (source.hasPerk('Demolition Expert')) {
-        uiLog(`Armed! Timer set to ${delayTurns} turn(s).`)
+        uiLog(`Armed! Timer set to ${timeStr}.`)
     } else {
         const { roll } = skillRoll(source, 'Traps')
         dbg('object', `[Object] Traps roll: ${RollResult[roll]}`)
@@ -115,10 +119,10 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
             obj.explode(source, minDmg, maxDmg, radius)
             return
         } else if (roll === RollResult.Failure) {
-            delayTurns = Math.max(1, Math.floor(chosenTurns / 2))
+            delayTurns = Math.max(1, Math.floor(delayTurns / 2))
             uiLog(`You fumble the timer. Detonation in ${delayTurns} turn(s).`)
         } else {
-            uiLog(`Armed! Detonation in ${delayTurns} turn(s).`)
+            uiLog(`Armed! Timer set to ${timeStr}.`)
         }
     }
 
