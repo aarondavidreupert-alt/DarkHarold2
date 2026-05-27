@@ -189,6 +189,19 @@ function getReplyText(): string {
 
 // ─── Phase 2: NPC dialogue crawler ───────────────────────────────────────────
 
+// Substrings that identify "exit" dialogue options (case-insensitive).
+// These are clicked last so all substantive branches are explored first.
+const EXIT_OPTION_PATTERNS = [
+    'goodbye', 'farewell', 'never mind', 'nevermind',
+    "i'll be going", "i'm going", "i've got to go",
+    "that's all", 'nothing else', 'forget it',
+]
+
+function isExitOption(label: string): boolean {
+    const lower = label.toLowerCase()
+    return EXIT_OPTION_PATTERNS.some(p => lower.includes(p))
+}
+
 async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
     const t0 = performance.now()
     const result: DialogueNpcResult = {
@@ -269,12 +282,13 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
         return result
     }
 
-    // ── Drain all dialogue options ─────────────────────────────────────────────
-    // Read uiMode into a local variable each iteration to avoid TypeScript
-    // narrowing globalState.uiMode to UIMode.dialogue inside the loop body
-    // (which would make the UIMode.barter branch unreachable according to the
-    // type-checker, even though the engine can freely mutate globalState.uiMode).
+    // ── Exhaustive dialogue traversal ─────────────────────────────────────────
+    // State = sorted option labels joined with NUL → per-state Set of clicked labels.
+    // Non-exit options are always explored before exit options so every branch
+    // is exercised. When all options in a state have been visited the loop
+    // exits cleanly instead of cycling until MAX_DIALOGUE_CLICKS.
     let clicks = 0
+    const visitedPerState = new Map<string, Set<string>>()
     let loopMode: UIMode = globalState.uiMode
     while (loopMode === UIMode.dialogue && clicks < MAX_DIALOGUE_CLICKS) {
         const reply = getReplyText()
@@ -282,30 +296,49 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
 
         const optEls = getOptionElements()
         if (optEls.length === 0) {
-            // VM halted but no options were added — stuck state.
             result.status = 'stuck-no-options'
             break
         }
 
+        // Accumulate unique labels for the report.
         for (const el of optEls) {
             const label = el.textContent?.trim() ?? ''
             if (label && !result.optionLabels.includes(label)) result.optionLabels.push(label)
         }
-        result.optionsSeen += optEls.length
 
-        // Click the first option. The onclick fires Scripting.dialogueReply() which
-        // runs synchronously until the VM halts again or exits dialogue.
+        // Per-state visited tracking.
+        const hash = optEls
+            .map(el => el.textContent?.trim() ?? '').filter(Boolean).sort().join('\x00')
+        if (!visitedPerState.has(hash)) visitedPerState.set(hash, new Set())
+        const visitedInState = visitedPerState.get(hash)!
+
+        const optLabels = optEls.map(el => el.textContent?.trim() ?? '')
+        const nonExitEls = optEls.filter((_, i) => !isExitOption(optLabels[i]))
+        const exitEls    = optEls.filter((_, i) =>  isExitOption(optLabels[i]))
+
+        // Pick: first unvisited non-exit, then first unvisited exit.
+        const toClick =
+            nonExitEls.find(el => !visitedInState.has(el.textContent?.trim() ?? '')) ??
+            exitEls.find(el => !visitedInState.has(el.textContent?.trim() ?? ''))
+
+        if (!toClick) {
+            // Every option in this state has been visited — tree fully explored.
+            break
+        }
+
+        visitedInState.add(toClick.textContent?.trim() ?? '')
+
         try {
-            optEls[0].click()
+            toClick.click()
         } catch (e) {
             result.status = 'exception-on-click'
             result.error = String(e)
             break
         }
         clicks++
+        result.optionsSeen++
 
-        // Yield once so that any deferred async work (1 ms CSS transitions, animation
-        // callbacks, etc.) can settle before we inspect uiMode again.
+        // Yield so deferred async work (transitions, animation callbacks) can settle.
         await new Promise<void>(r => setTimeout(r, 0))
 
         if (globalState.inCombat) {
@@ -315,7 +348,7 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
             break
         }
 
-        // Re-read after awaiting so TypeScript doesn't narrow on the old value.
+        // Re-read after yielding — TypeScript would narrow the old variable.
         loopMode = globalState.uiMode
 
         // Barter mode is a valid terminal state — dismiss and stop.
