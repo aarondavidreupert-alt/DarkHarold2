@@ -476,42 +476,65 @@ The downloaded JSON has the following shape:
 {
   "type": "dialogue",
   "map": "artemple",
-  "startedAt": "2026-05-27T10:00:00.000Z",
-  "durationMs": 1420,
-  "summary": { "total": 5, "ok": 4, "exceptions": 0, "stuck": 1 },
+  "timestamp": 1748344800000,
+  "summary": { "total": 2, "ok": 1, "exceptions": 0, "stuck": 1, "combatTriggered": 0 },
   "results": [
     {
-      "npcName": "Hakunin",
+      "uid": 42,
+      "name": "Hakunin",
       "tileNum": 18040,
       "status": "ok",
-      "clicks": 7,
+      "optionsSeen": 7,
+      "optionLabels": ["Tell me about...", "Farewell"],
+      "replies": ["You are the Chosen One..."],
       "durationMs": 210
     },
     {
-      "npcName": "Tribal Guard",
+      "uid": 57,
+      "name": "Tribal Guard",
       "tileNum": 18200,
-      "status": "stuck:dialogue-never-opened",
-      "clicks": 0,
+      "status": "stuck-no-dialogue",
+      "optionsSeen": 0,
+      "optionLabels": [],
+      "replies": [],
       "durationMs": 5002
     }
   ]
 }
 ```
 
-For combat reports, each entry replaces `clicks` with `rounds` and includes `aiBailout: boolean`.
+For combat reports, each result entry has `uid`, `name`, `tileNum`, `status`, `turnsObserved`, `aiBailout`, `durationMs`, and an optional `notes` string.
 
 ### Status codes
 
+**Dialogue (`DialogueStatus`)**
+
 | Status | Meaning |
 |---|---|
-| `ok` | Completed cleanly — dialogue exited to `UIMode.none`, or combat ended normally. |
-| `stuck:dialogue-never-opened` | The talk proc was called but `UIMode.dialogue` never became active within the timeout. |
-| `stuck:dialogue-never-closed` | Dialogue opened but never returned to `UIMode.none` within `MAX_DIALOGUE_CLICKS` clicks. |
-| `stuck:combat-never-started` | `Combat.start()` was called but `combatActive` never became `true`. |
-| `stuck:player-turn-timeout` | Combat started but the player's turn was never signalled as active. |
-| `stuck:ai-turn-timeout` | Player passed its turn but the AI phase never completed. |
-| `stuck:combat-never-ended` | `forceEnd()` was called but `combatActive` never cleared. |
-| `exception:<message>` | An unhandled JS exception was thrown during the crawl step. |
+| `ok` | Dialogue completed and `UIMode` returned to `none`. |
+| `no-talk-proc` | NPC has no `talk_p_proc` script procedure. |
+| `no-adjacent-tile` | Could not place the player adjacent to the NPC. |
+| `stuck-no-dialogue` | `talk_p_proc` ran but `UIMode.dialogue` never became active within the timeout. |
+| `combat-triggered` | Talking to the NPC triggered combat; combat was force-ended and crawl continued. |
+| `stuck-no-options` | Dialogue UI opened but no option buttons appeared. |
+| `stuck-max-clicks` | Reached the click limit (`MAX_DIALOGUE_CLICKS`) without dialogue closing. |
+| `stuck-no-exit` | Dialogue appeared to finish but `UIMode` did not return to `none`. |
+| `exception-on-talk` | Exception thrown calling `Scripting.talk()`. |
+| `exception-on-click` | Exception thrown clicking a dialogue option. |
+
+**Combat (`CombatStatus`)**
+
+| Status | Meaning |
+|---|---|
+| `ok` | Combat completed normally. |
+| `no-valid-ai` | Critter has no valid AI packet and cannot fight. |
+| `no-adjacent-tile` | Could not place the player adjacent to the critter. |
+| `stuck-combat-active` | A previous combat was still active when this encounter started. |
+| `stuck-no-combat` | `Combat.start()` returned but `combatActive` never became `true`. |
+| `stuck-player-turn-timeout` | Combat started but the player's turn was never signalled within the timeout. |
+| `stuck-ai-turn-timeout` | Player passed its turn but the AI phase never completed within the timeout. |
+| `exception-on-start` | Exception thrown calling `Combat.start()`. |
+| `exception-in-combat` | Exception thrown calling `combat.nextTurn()`. |
 
 ---
 

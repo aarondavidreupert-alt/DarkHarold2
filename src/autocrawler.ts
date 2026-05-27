@@ -97,12 +97,13 @@ const CRAWLER_HP = 9999
 // ─── Engine-speed stepping ────────────────────────────────────────────────────
 
 // Advance the engine one logical frame without waiting for rAF.
+// Uses _stepOnly (not _tick) so each call does not enqueue a new rAF loop.
 // We add 1 ms over the target tick time so the frame-rate accumulator
 // is guaranteed to cross the target threshold on every call.
 function stepEngine(): void {
     if (heart._lastTick === undefined) return
     const dt = (heart._targetTickTime ?? 33) + 1
-    heart._tick(heart._lastTick + dt)
+    heart._stepOnly(heart._lastTick + dt)
 }
 
 // Poll pred() until it returns true, advancing the engine each iteration.
@@ -231,10 +232,8 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
         DIALOGUE_OPEN_TIMEOUT_MS
     )
     if (!dialogueOpened) {
-        // talk_p_proc ran but opened neither dialogue nor combat
-        if (globalState.uiMode !== UIMode.none) {
-            result.status = 'stuck-no-dialogue'
-        }
+        // talk_p_proc ran but neither dialogue nor combat opened within the timeout.
+        result.status = 'stuck-no-dialogue'
         result.durationMs = performance.now() - t0
         return result
     }
@@ -321,14 +320,14 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
     return result
 }
 
-export async function runDialogueCrawler(mapName?: string): Promise<CrawlerReport> {
+export async function runDialogueCrawler(mapName?: string): Promise<CrawlerReport | null> {
     if (!Config.engine.debug) {
         console.error('[AutoCrawler] Config.engine.debug must be true')
-        return null as unknown as CrawlerReport
+        return null
     }
     if (!globalState.gMap || !globalState.player) {
         console.error('[AutoCrawler] No active map/player — start a game first')
-        return null as unknown as CrawlerReport
+        return null
     }
 
     if (mapName) {
@@ -385,128 +384,134 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
 
     const player = globalState.player!
 
-    // Keep the player alive through the encounter.
+    // Snapshot HP before boosting so we can restore it after the encounter.
+    const prevHP = player.stats.getBase('HP')
     player.stats.setBase('HP', CRAWLER_HP)
 
     if (!movePlayerAdjacent(critter)) {
+        player.stats.setBase('HP', prevHP)
         result.status = 'no-adjacent-tile'
         result.durationMs = performance.now() - t0
         return result
     }
 
-    // Clear hostile flags on every other critter so that Combat.start(critter)
-    // (NPC-initiated mode) only enrolls the player's team + the target's team.
+    // Snapshot hostile flags on every other critter before clearing them.
+    // This prevents the crawl from permanently mutating the map state.
+    const hostileSnapshots: Array<{ c: Critter; was: boolean }> = []
     for (const obj of globalState.gMap!.getObjects()) {
         if (obj instanceof Critter && !obj.isPlayer && obj !== critter) {
+            hostileSnapshots.push({ c: obj, was: obj.hostile })
             obj.hostile = false
         }
     }
-
     critter.hostile = true
 
-    // Wait for any previous forceEnd() to fully settle.
-    // forceEnd() defers combatActive=false via Promise.resolve().then(), so we
-    // need at least one microtask tick here.
-    if (!await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)) {
-        result.status = 'stuck-combat-active'
-        critter.hostile = false
-        result.durationMs = performance.now() - t0
-        return result
-    }
-
-    // Snapshot the event log so we can detect AI bail-outs introduced by this encounter.
-    const logLenBefore = globalState.eventLog.length
-
-    // Start combat in NPC-initiated mode (forceTurn = critter).
-    // This limits team enrollment to: player's team + critter's team.
+    // Restore HP and hostile flags no matter which return path is taken.
     try {
-        Combat.start(critter)
-    } catch (e) {
-        result.status = 'exception-on-start'
-        result.error = String(e)
-        critter.hostile = false
-        result.durationMs = performance.now() - t0
-        return result
-    }
+        // Wait for any previous forceEnd() to fully settle.
+        // forceEnd() defers combatActive=false via Promise.resolve().then(), so we
+        // need at least one microtask tick here.
+        if (!await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)) {
+            result.status = 'stuck-combat-active'
+            result.durationMs = performance.now() - t0
+            return result
+        }
 
-    if (!await waitFor(() => globalState.inCombat === true, COMBAT_ACTIVE_TIMEOUT_MS)) {
-        result.status = 'stuck-no-combat'
-        critter.hostile = false
-        result.durationMs = performance.now() - t0
-        return result
-    }
+        // Snapshot the event log so we can detect AI bail-outs introduced by this encounter.
+        const logLenBefore = globalState.eventLog.length
 
-    // With forceTurn = critter, the NPC acts first. Wait for the player's first turn.
-    const gotPlayerTurn = await waitFor(
-        () => (globalState.combat?.inPlayerTurn === true) || !globalState.inCombat,
-        PLAYER_TURN_TIMEOUT_MS
-    )
-    if (!gotPlayerTurn) {
-        result.status = 'stuck-player-turn-timeout'
-        if (globalState.combat) globalState.combat.forceEnd()
-        await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
-        result.durationMs = performance.now() - t0
-        return result
-    }
+        // Start combat in NPC-initiated mode (forceTurn = critter).
+        // This limits team enrollment to: player's team + critter's team.
+        try {
+            Combat.start(critter)
+        } catch (e) {
+            result.status = 'exception-on-start'
+            result.error = String(e)
+            result.durationMs = performance.now() - t0
+            return result
+        }
 
-    if (!globalState.inCombat) {
-        // Combat ended naturally (critter fled or died before player's turn).
-        result.notes = 'combat ended before player turn'
-        result.durationMs = performance.now() - t0
-        return result
-    }
+        if (!await waitFor(() => globalState.inCombat === true, COMBAT_ACTIVE_TIMEOUT_MS)) {
+            result.status = 'stuck-no-combat'
+            result.durationMs = performance.now() - t0
+            return result
+        }
 
-    result.turnsObserved++
+        // With forceTurn = critter, the NPC acts first. Wait for the player's first turn.
+        const gotPlayerTurn = await waitFor(
+            () => (globalState.combat?.inPlayerTurn === true) || !globalState.inCombat,
+            PLAYER_TURN_TIMEOUT_MS
+        )
+        if (!gotPlayerTurn) {
+            result.status = 'stuck-player-turn-timeout'
+            if (globalState.combat) globalState.combat.forceEnd()
+            await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
+            result.durationMs = performance.now() - t0
+            return result
+        }
 
-    // End the player's turn — equivalent to pressing "End Turn".
-    try {
-        globalState.combat!.nextTurn()
-    } catch (e) {
-        result.status = 'exception-in-combat'
-        result.error = String(e)
-        if (globalState.combat) globalState.combat.forceEnd()
-        await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
-        result.durationMs = performance.now() - t0
-        return result
-    }
+        if (!globalState.inCombat) {
+            // Combat ended naturally (critter fled or died before player's turn).
+            result.notes = 'combat ended before player turn'
+            result.durationMs = performance.now() - t0
+            return result
+        }
 
-    // Wait for AI turns to complete and the player's next turn to start,
-    // or for combat to end naturally (all enemies dead / fled).
-    const aiDone = await waitFor(
-        () => (globalState.combat?.inPlayerTurn === true) || !globalState.inCombat,
-        AI_TURN_TIMEOUT_MS
-    )
-    if (!aiDone) {
-        result.status = 'stuck-ai-turn-timeout'
-    } else if (globalState.inCombat) {
         result.turnsObserved++
-    }
 
-    // Check for AI recursion bail-outs in the entries added during this encounter.
-    const newEntries = globalState.eventLog.slice(logLenBefore)
-    result.aiBailout = newEntries.some(e => (e as any).action === 'ai-bailout')
-    if (result.aiBailout) {
-        result.notes = (result.notes ? result.notes + '; ' : '') + 'AI recursion bail-out detected'
-    }
+        // End the player's turn — equivalent to pressing "End Turn".
+        try {
+            globalState.combat!.nextTurn()
+        } catch (e) {
+            result.status = 'exception-in-combat'
+            result.error = String(e)
+            if (globalState.combat) globalState.combat.forceEnd()
+            await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
+            result.durationMs = performance.now() - t0
+            return result
+        }
 
-    // Force-end combat regardless of state.
-    if (globalState.inCombat) {
-        try { globalState.combat!.forceEnd() } catch { /* ignore */ }
-        await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
-    }
+        // Wait for AI turns to complete and the player's next turn to start,
+        // or for combat to end naturally (all enemies dead / fled).
+        const aiDone = await waitFor(
+            () => (globalState.combat?.inPlayerTurn === true) || !globalState.inCombat,
+            AI_TURN_TIMEOUT_MS
+        )
+        if (!aiDone) {
+            result.status = 'stuck-ai-turn-timeout'
+        } else if (globalState.inCombat) {
+            result.turnsObserved++
+        }
 
-    result.durationMs = performance.now() - t0
-    return result
+        // Check for AI recursion bail-outs in the entries added during this encounter.
+        const newEntries = globalState.eventLog.slice(logLenBefore)
+        result.aiBailout = newEntries.some(e => (e as any).action === 'ai-bailout')
+        if (result.aiBailout) {
+            result.notes = (result.notes ? result.notes + '; ' : '') + 'AI recursion bail-out detected'
+        }
+
+        // Force-end combat regardless of state.
+        if (globalState.inCombat) {
+            try { globalState.combat!.forceEnd() } catch { /* ignore */ }
+            await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
+        }
+
+        result.durationMs = performance.now() - t0
+        return result
+    } finally {
+        player.stats.setBase('HP', prevHP)
+        for (const snap of hostileSnapshots) snap.c.hostile = snap.was
+    }
 }
 
-export async function runCombatCrawler(mapName?: string): Promise<CrawlerReport> {
+export async function runCombatCrawler(mapName?: string): Promise<CrawlerReport | null> {
     if (!Config.engine.debug) {
         console.error('[AutoCrawler] Config.engine.debug must be true')
-        return null as unknown as CrawlerReport
+        return null
     }
     if (!globalState.gMap || !globalState.player) {
         console.error('[AutoCrawler] No active map/player — start a game first')
-        return null as unknown as CrawlerReport
+        return null
     }
 
     if (mapName) {
@@ -596,7 +601,7 @@ export function downloadReport(report: CrawlerReport): void {
 
 // ─── Window exposure ──────────────────────────────────────────────────────────
 
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && Config.engine.debug) {
     ;(window as any).autoCrawler = {
         runDialogueCrawler,
         runCombatCrawler,
