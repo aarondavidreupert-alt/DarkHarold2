@@ -9,6 +9,9 @@
 import { Config } from './config.js'
 import globalState from './globalState.js'
 import { createObjectWithPID } from './object.js'
+import { heart } from './heart.js'
+import { fromTileNum } from './tile.js'
+import { centerCamera } from './renderer.js'
 
 function guardPlayer(method: string): import('./player.js').Player | null {
     if (!Config.engine.debug) return null
@@ -75,5 +78,34 @@ export const debug = {
         }
         p.inventory.push(item)
         console.log(`[debug] Added PID ${pid} to inventory. Inventory size: ${p.inventory.length}`)
+    },
+
+    /** Drive one engine tick without waiting for requestAnimationFrame.
+     *  Used by the AutoCrawler to advance game state at engine speed. */
+    step(dtMs: number = (heart._targetTickTime ?? 33) + 1): void {
+        if (!Config.engine.debug) return
+        if (heart._lastTick === undefined) return
+        heart._tick(heart._lastTick + dtMs)
+    },
+
+    /** Teleport player to a tile by tile number without changing maps. */
+    movePlayer(tileNum: number): void {
+        const p = guardPlayer('movePlayer')
+        if (!p) return
+        p.position = fromTileNum(tileNum)
+        centerCamera(p.position)
+        console.log(`[debug] Player moved to tile ${tileNum}`)
+    },
+
+    /** Toggle crawler mode: silences noisy logs and sets neutral combat difficulty.
+     *  Call before and after a crawler run to keep the DevTools console readable. */
+    crawlerMode(on: boolean): void {
+        if (!Config.engine.debug) return
+        Config.scripting.debugLogShowType.stub = !on
+        Config.scripting.debugLogShowType.dialogue = !on
+        Config.scripting.debugLogShowType.combat = !on
+        Config.scripting.debugLogShowType.ai = !on
+        if (on) Config.combat.difficultyModifier = 100
+        console.log(`[debug] Crawler mode: ${on ? 'ON' : 'OFF'}`)
     },
 }
