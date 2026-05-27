@@ -536,6 +536,13 @@ export function renderBignum(
     return container
 }
 
+export function renderBignumColon(color: 'yellow' | 'red' = 'yellow'): HTMLElement {
+    const yOffset = color === 'red' ? -BIG_H : 0
+    const div = document.createElement('div')
+    div.style.cssText = `width:${BIG_W}px;height:${BIG_H}px;background-image:url('${BIG_SPRITE}');background-position:${-(10 * BIG_W)}px ${yOffset}px;background-repeat:no-repeat;flex-shrink:0;`
+    return div
+}
+
 // ---- Singletons (lazy: assets are only fetched on first use) ---------------
 
 export const font1 = new FontRenderer('art/fonts/font1_aaf', 'art/fonts/font1_aaf.json')
