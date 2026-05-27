@@ -339,7 +339,7 @@ export class Combat {
         // Stop the player from walking combat is initiating
         this.player.clearAnim()
 
-        globalState.audioEngine.playSfxByName('icombat1')
+        if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat1')
         uiStartCombat()
     }
 
@@ -758,7 +758,7 @@ export class Combat {
         var soundIdChar = typeof rawSoundID === 'number' ? String.fromCharCode(rawSoundID) : null
 
         // Play attack sound — burst-fire weapons have their own wa<id>2xxx1 sample.
-        if (soundIdChar) {
+        if (soundIdChar && !(window as any).__test?.fastMode) {
             const isBurstAttack = !!(weaponObj?.weapon?.isBurst?.())
             audio.playWeaponSfx(soundIdChar, isBurstAttack ? 'attack_burst' : 'attack')
         }
@@ -781,7 +781,7 @@ export class Combat {
                 var unarmedDmg = this.getUnarmedDamageDone(obj, target, unarmedCritMod)
                 var unarmedExtraMsg = unarmedHit.crit ? this.getCombatMsg(unarmedHit.msgID) || '' : ''
                 uiLog(`${who} hits ${targetName} for ${unarmedDmg} damage (${unarmedModeName})${unarmedExtraMsg}`)
-                audio.playWeaponSfx('Y', 'impact')
+                if (!(window as any).__test?.fastMode) audio.playWeaponSfx('Y', 'impact')
                 critterDamage(target, unarmedDmg, obj, true, true, 'Normal')
                 if (target.isPlayer) drawHP(target.getStat('HP'))
                 if (!target.dead && target._script?.combat_p_proc) {
@@ -791,7 +791,7 @@ export class Combat {
                 if (target.dead) this.perish(target, obj, 'Normal')
             } else {
                 uiLog(`${who} misses ${targetName} (${unarmedModeName})`)
-                audio.playSfxByName('cmbtflx')
+                if (!(window as any).__test?.fastMode) audio.playSfxByName('cmbtflx')
                 if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
                     target.staticAnimation('dodge', () => target.clearAnim())
                 }
@@ -876,7 +876,7 @@ export class Combat {
                     if (victim.dead) this.perish(victim, obj, attackDmgType)
                 }
             } else {
-                audio.playSfxByName('cmbtflx')
+                if (!(window as any).__test?.fastMode) audio.playSfxByName('cmbtflx')
                 if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
                     target.staticAnimation('dodge', () => target.clearAnim())
                 }
@@ -908,7 +908,7 @@ export class Combat {
             uiLog(who + ' hit ' + targetName + ' for ' + damage + ' damage' + extraMsg)
 
             // Play impact sound
-            audio.playWeaponSfx(soundIdChar || '#', 'impact')
+            if (!(window as any).__test?.fastMode) audio.playWeaponSfx(soundIdChar || '#', 'impact')
 
             critterDamage(target, damage, obj, true, true, attackDmgType)
             if (target.isPlayer) drawHP(target.getStat('HP'))
@@ -919,7 +919,7 @@ export class Combat {
             if (target.dead) this.perish(target, obj, attackDmgType)
         } else {
             uiLog(who + ' missed ' + targetName + (hitRoll.crit === true ? ' critically' : ''))
-            audio.playSfxByName('cmbtflx')
+            if (!(window as any).__test?.fastMode) audio.playSfxByName('cmbtflx')
 
             // Play a dodge/flinch on the target if they aren't already animating
             if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
@@ -1004,7 +1004,7 @@ export class Combat {
             message: `${victimDisplay} killed by ${attackerDisplay}`,
         })
         const dieStem = ['hmxxxxba', 'hmxxxxbb', 'hmxxxxbd'][Math.floor(Math.random() * 3)]
-        globalState.audioEngine.playSfxByName(dieStem)
+        if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName(dieStem)
 
         // Defensively ensure dead flag is set — critterKill (called by critterDamage
         // when HP <= 0) should have already set this, but guard against edge cases.
@@ -1422,7 +1422,7 @@ export class Combat {
         globalState.inCombat = false
         combatActive = false
 
-        globalState.audioEngine.playSfxByName('icombat2')
+        if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat2')
         globalState.gMap.updateMap()
         uiEndCombat()
     }
@@ -1437,7 +1437,7 @@ export class Combat {
         eventLogPush({ actor: null, action: 'combat-end', result: 'forced', message: 'Combat ended (forced)' })
         globalState.combat = null
         globalState.inCombat = false
-        globalState.audioEngine.playSfxByName('icombat2')
+        if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat2')
         globalState.gMap?.updateMap()
         uiEndCombat()
         // Defer flag reset so the current script execution frame finishes

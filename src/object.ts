@@ -1331,6 +1331,11 @@ export class Critter extends Obj {
     }
 
     updateStaticAnim(): void {
+        if ((window as any).__test?.fastMode) {
+            if (this.animCallback) this.animCallback()
+            return
+        }
+
         const time = window.performance.now()
         const fps = 8 // todo: get FPS from image info
 
@@ -1404,6 +1409,14 @@ export class Critter extends Obj {
         // Move animation (walk/run) but path was not serialized — recover to idle.
         if (!this.path) {
             this.clearAnim()
+            return
+        }
+
+        if ((window as any).__test?.fastMode) {
+            this.position = { x: this.path.target.x, y: this.path.target.y }
+            const callback = this.animCallback
+            this.clearAnim()
+            if (callback) callback()
             return
         }
 

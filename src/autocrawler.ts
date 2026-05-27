@@ -480,6 +480,10 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
         // Snapshot the event log so we can detect AI bail-outs introduced by this encounter.
         const logLenBefore = globalState.eventLog.length
 
+        // Enable fastMode so animations complete in zero real time during the crawl.
+        ;(window as any).__test = (window as any).__test ?? {}
+        ;(window as any).__test.fastMode = true
+
         // Start combat in NPC-initiated mode (forceTurn = critter).
         // This limits team enrollment to: player's team + critter's team.
         try {
@@ -504,6 +508,10 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
         )
         if (!gotPlayerTurn) {
             result.status = 'stuck-player-turn-timeout'
+            const _ptActive = (globalState.combat as any)?.combatants?.[(globalState.combat as any)?.whoseTurn]
+            if (_ptActive) {
+                console.warn(`[AutoCrawler] stuck-player-turn-timeout: active uid=${_ptActive.uid} name="${_ptActive.name}" inAnim=${_ptActive.inAnim?.()}`)
+            }
             if (globalState.combat) globalState.combat.forceEnd()
             await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
             result.durationMs = performance.now() - t0
@@ -539,6 +547,10 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
         )
         if (!aiDone) {
             result.status = 'stuck-ai-turn-timeout'
+            const _aiActive = (globalState.combat as any)?.combatants?.[(globalState.combat as any)?.whoseTurn]
+            if (_aiActive) {
+                console.warn(`[AutoCrawler] stuck-ai-turn-timeout: active uid=${_aiActive.uid} name="${_aiActive.name}" inAnim=${_aiActive.inAnim?.()}`)
+            }
         } else if (globalState.inCombat) {
             result.turnsObserved++
         }
@@ -559,6 +571,7 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
         result.durationMs = performance.now() - t0
         return result
     } finally {
+        if ((window as any).__test) (window as any).__test.fastMode = false
         player.stats.setBase('HP', prevHP)
         for (const snap of hostileSnapshots) snap.c.hostile = snap.was
     }
