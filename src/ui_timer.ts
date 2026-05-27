@@ -40,8 +40,8 @@ export function showTimerDialog(item: Obj): Promise<number | null> {
         const img = document.createElement('img')
         Object.assign(img.style, {
             position: 'absolute',
-            left: '8px', top: '8px',
-            width: '108px', height: '108px',
+            left: '20px', top: '49px',
+            width: '85px', height: '54px',
             objectFit: 'contain',
             imageRendering: 'pixelated',
         })
