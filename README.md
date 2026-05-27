@@ -391,6 +391,9 @@ _debug.addXP(2000)
 | `combatLog()` | Returns the current `eventLog` array (same data exported by the Combat Log tools). | `debug.combatLog()` |
 | `teleport(map)` | Load a map by name. | `debug.teleport('artemple')` |
 | `giveItem(pid)` | Add an item with the given prototype ID to the player's inventory. | `debug.giveItem(41)` (caps) |
+| `step(dtMs?)` | Advance the engine one logical frame without waiting for `requestAnimationFrame`. Used internally by the AutoCrawler; also useful for stepping through scripted sequences manually. | `debug.step()` |
+| `movePlayer(tileNum)` | Teleport the player to a tile by number within the current map (no map reload). | `debug.movePlayer(18040)` |
+| `crawlerMode(on)` | Silence noisy log categories (`stub`, `dialogue`, `combat`, `ai`) and set difficulty to neutral for a clean crawler run. | `debug.crawlerMode(true)` |
 
 ### Quick level-up test (no debug flag needed)
 
@@ -403,6 +406,114 @@ globalState.player.addExperience(2000)
 
 This triggers a level-up and opens the perk selection modal, useful for
 testing the perk picker during development.
+
+## AutoCrawler
+
+The AutoCrawler is an automated testing tool that exercises dialogue trees and combat encounters
+without manual intervention. It runs entirely at engine speed (no `requestAnimationFrame` delays)
+and is exposed on `window.autoCrawler` when `Config.engine.debug` is `true`.
+
+### Prerequisites
+
+Enable debug mode in `src/config.ts`, rebuild (`npx tsc`), and load the game in the browser.
+The crawler is imported automatically — no extra steps needed.
+
+### Usage
+
+All commands run from the browser DevTools console. Commands that start a crawl return a
+`CrawlerReport` object. Pass it to `autoCrawler.downloadReport()` to save the result as JSON.
+
+**Crawl all talkable NPCs on the current map:**
+
+```js
+const report = await autoCrawler.runDialogueCrawler()
+autoCrawler.downloadReport(report)
+```
+
+**Crawl all talkable NPCs on a named map (loads the map first):**
+
+```js
+const report = await autoCrawler.runDialogueCrawler('artemple')
+autoCrawler.downloadReport(report)
+```
+
+**Crawl all hostile critters on the current map:**
+
+```js
+const report = await autoCrawler.runCombatCrawler()
+autoCrawler.downloadReport(report)
+```
+
+**Crawl all hostile critters on a named map:**
+
+```js
+const report = await autoCrawler.runCombatCrawler('modmeeting')
+autoCrawler.downloadReport(report)
+```
+
+**Inspect targets before crawling:**
+
+```js
+autoCrawler.listTalkableNPCs()      // returns Critter[] — NPCs with a talk proc
+autoCrawler.listHostileCritters()   // returns Critter[] — critters flagged hostile
+```
+
+### Command reference
+
+| Command | Description |
+|---|---|
+| `runDialogueCrawler(mapName?)` | Walk every talkable NPC: call its talk proc, click through all dialogue options, assert `UIMode.none` on exit. Optionally loads `mapName` before crawling. Returns a `CrawlerReport`. |
+| `runCombatCrawler(mapName?)` | Engage every hostile critter one-on-one: enter combat, pass the player turn (End Turn), wait for the AI, then force-end. Optionally loads `mapName` before crawling. Returns a `CrawlerReport`. |
+| `listTalkableNPCs()` | Lists all critters on the current map that have a `talk` script procedure wired up. Useful for a quick pre-flight check before running the dialogue crawler. |
+| `listHostileCritters()` | Lists all critters on the current map flagged as hostile. Useful for a quick pre-flight check before running the combat crawler. |
+| `downloadReport(report)` | Downloads the `CrawlerReport` as a JSON file named `crawler_<type>_<map>_<timestamp>.json`. |
+
+### Report format
+
+The downloaded JSON has the following shape:
+
+```json
+{
+  "type": "dialogue",
+  "map": "artemple",
+  "startedAt": "2026-05-27T10:00:00.000Z",
+  "durationMs": 1420,
+  "summary": { "total": 5, "ok": 4, "exceptions": 0, "stuck": 1 },
+  "results": [
+    {
+      "npcName": "Hakunin",
+      "tileNum": 18040,
+      "status": "ok",
+      "clicks": 7,
+      "durationMs": 210
+    },
+    {
+      "npcName": "Tribal Guard",
+      "tileNum": 18200,
+      "status": "stuck:dialogue-never-opened",
+      "clicks": 0,
+      "durationMs": 5002
+    }
+  ]
+}
+```
+
+For combat reports, each entry replaces `clicks` with `rounds` and includes `aiBailout: boolean`.
+
+### Status codes
+
+| Status | Meaning |
+|---|---|
+| `ok` | Completed cleanly — dialogue exited to `UIMode.none`, or combat ended normally. |
+| `stuck:dialogue-never-opened` | The talk proc was called but `UIMode.dialogue` never became active within the timeout. |
+| `stuck:dialogue-never-closed` | Dialogue opened but never returned to `UIMode.none` within `MAX_DIALOGUE_CLICKS` clicks. |
+| `stuck:combat-never-started` | `Combat.start()` was called but `combatActive` never became `true`. |
+| `stuck:player-turn-timeout` | Combat started but the player's turn was never signalled as active. |
+| `stuck:ai-turn-timeout` | Player passed its turn but the AI phase never completed. |
+| `stuck:combat-never-ended` | `forceEnd()` was called but `combatActive` never cleared. |
+| `exception:<message>` | An unhandled JS exception was thrown during the crawl step. |
+
+---
 
 ## License
 
