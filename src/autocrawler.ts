@@ -425,6 +425,7 @@ export async function runDialogueCrawler(mapName?: string): Promise<CrawlerRepor
             console.log(`[AutoCrawler]   NPC uid=${npc.uid} "${critterDisplayName(npc)}"`)
             const r = await crawlOneNpc(npc)
             results.push(r)
+            lastReport = buildReport('dialogue', mapLabel, results)
             console.log(`[AutoCrawler]     → status=${r.status}  options=${r.optionsSeen}  ${r.durationMs.toFixed(0)}ms`)
             await new Promise<void>(r2 => setTimeout(r2, 20))
         }
@@ -628,6 +629,7 @@ export async function runCombatCrawler(mapName?: string): Promise<CrawlerReport 
             console.log(`[AutoCrawler]   Critter uid=${critter.uid} "${critterDisplayName(critter)}"`)
             const r = await crawlOneCritter(critter)
             results.push(r)
+            lastReport = buildReport('combat', mapLabel, results)
             console.log(
                 `[AutoCrawler]     → status=${r.status}  turns=${r.turnsObserved}` +
                 `  bailout=${r.aiBailout}  ${r.durationMs.toFixed(0)}ms` +
@@ -729,6 +731,7 @@ export async function runMapCrawler(): Promise<CrawlerReport | null> {
     for (const mapName of mapNames) {
         const r = await crawlOneMap(mapName)
         results.push(r)
+        lastReport = buildReport('maps', '*', results)
         console.log(
             `[AutoCrawler] MAP "${mapName}" → status=${r.status}  ${r.durationMs.toFixed(0)}ms` +
             (r.error ? '  ' + r.error : '')
