@@ -1412,17 +1412,29 @@ export class Critter extends Obj {
         }
 
         const time = window.performance.now()
-        const fps = globalState.imageInfo[this.art].fps
+        const imageInfo = globalState.imageInfo[this.art]
+        if (!imageInfo) {
+            console.warn(`[updateAnim] missing imageInfo for art=${this.art} (anim=${this.anim}) — resetting anim`)
+            this.clearAnim()
+            return
+        }
+        const fps = imageInfo.fps
         const targetScreen = hexToScreen(this.path.target.x, this.path.target.y)
 
         const partials = getAnimPartialActions(this.art, this.anim)
         const currentPartial = partials.actions[this.path.partial]
 
+        if (!currentPartial) {
+            console.warn(`[updateAnim] undefined partial action ${this.path.partial} for art=${this.art} anim=${this.anim} — resetting anim`)
+            this.clearAnim()
+            return
+        }
+
         if (time - this.lastFrameTime >= 1000 / fps) {
             // advance frame
             this.lastFrameTime = time
 
-            if (this.frame === currentPartial.endFrame || this.frame + 1 >= globalState.imageInfo[this.art].numFrames) {
+            if (this.frame === currentPartial.endFrame || this.frame + 1 >= imageInfo.numFrames) {
                 // completed an action frame (partial action)
 
                 // do we have another partial action?
