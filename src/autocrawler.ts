@@ -509,6 +509,12 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
         } catch (e) {
             result.status = 'exception-on-start'
             result.error = String(e)
+            // Combat.start may have set combatActive before throwing; clean up so
+            // the next crawl doesn't immediately get stuck-combat-active.
+            if (isCombatActive()) {
+                try { globalState.combat?.forceEnd() } catch { /* ignore */ }
+                await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
+            }
             result.durationMs = performance.now() - t0
             return result
         }

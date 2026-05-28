@@ -116,9 +116,9 @@ asynchronous** — the VM pauses mid-execution and waits for `dialogueReply` or
 triggering talk, not assume synchronous completion.
 
 Dialogue option accumulation: option procs live in the module-private array
-`dialogueOptionProcs`. The DOM (`#dialogueBox`) is the only public surface for
-reading option indices — the crawler reads option buttons by querying
-`#dialogueOptions` children and mapping their `data-id` attributes.
+`dialogueOptionProcs`. The DOM is the only public surface for reading options
+— the crawler queries `#dialogueBoxTextArea` children and calls `.click()` on
+them directly (no `data-id` attributes; each child element is a clickable div).
 
 ### 2.4 `src/debug.ts` — Existing Hooks
 
@@ -167,28 +167,23 @@ synchronously.** The crawler must poll `combat.inPlayerTurn` after calling
 
 Yes, with caveats.
 
-**Proposed `step()` implementation:**
+**Implemented `step()` approach (uses `_stepOnly`, not `_tick`):**
 
 ```typescript
 // In debug.ts
-function step(dtMs: number = heart._targetTickTime ?? 33): void {
+function step(dtMs: number = (heart._targetTickTime ?? 33) + 1): void {
     if (!Config.engine.debug) return
-    const syntheticTime = (heart._lastTick ?? performance.now()) + dtMs
-    heart._tick(syntheticTime)
+    if (heart._lastTick === undefined) return
+    heart._stepOnly(heart._lastTick + dtMs)
 }
 ```
 
-`heart._tick` is called directly with a synthetic timestamp. Because
-`_targetTickTime` is 33 ms (30 FPS), passing that value guarantees the frame-
-rate gate opens. The call will invoke `heart.update(dt)` and `heart.draw()`,
-exactly as a real frame does.
-
-**The catch:** calling `heart._tick` also appends a new rAF. This means after
-a `step()` call, the real rAF loop will also fire on the next browser frame.
-The crawler can suppress this by temporarily monkey-patching
-`window.requestAnimationFrame` to a no-op around the `step()` call, but in
-practice this is optional — the crawler only needs the game state to advance,
-not to suppress rendering.
+`heart._stepOnly` runs update/draw for one logical frame without calling
+`requestAnimationFrame`, so repeated calls never spawn extra rAF loops.
+Adding 1 ms over `_targetTickTime` guarantees the frame-rate accumulator
+crosses the threshold on every call. `_dt` is clamped to `Math.max(0, ...)`
+so synthetic steps that run ahead of real rAF timestamps cannot produce a
+negative frame accumulator.
 
 **The deeper catch — async operations:**  
 Neither dialogue nor combat is synchronous. Walk animations, VM halts, and AI
@@ -243,9 +238,9 @@ faster than real-time and does not depend on visual rendering.
   `if (!obj._script?.talk_p_proc) skip`.
 - **Dead critters** (`critter.dead === true`): skip.
 - **Player object** (`critter.isPlayer`): skip.
-- **Wrong elevation**: `gMap.getObjects()` returns all elevations. Filter by
-  `globalState.currentElevation` or compare the object's position to map
-  objects on the active elevation.
+- **Wrong elevation**: `gMap.getObjects()` without arguments defaults to
+  `this.currentElevation` (see `src/map.ts:85-87`), so only objects on the
+  active elevation are returned — no extra elevation filter needed.
 - **Missing `_script`**: objects without a script cannot talk.
 - **Critters that go hostile on `talk_p_proc`**: some NPCs call
   `attack_complex` from their talk proc (e.g., territorial critters). Detect

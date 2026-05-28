@@ -1334,6 +1334,7 @@ export class Critter extends Obj {
         if ((window as any).__test?.fastMode) {
             const cb = this.animCallback
             ;(this as any).animCallback = null
+            this.frame = 0  // match the normal done-path which resets frame before calling callback
             if (cb) cb()
             return
         }
