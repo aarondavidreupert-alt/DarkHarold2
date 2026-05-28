@@ -1332,7 +1332,9 @@ export class Critter extends Obj {
 
     updateStaticAnim(): void {
         if ((window as any).__test?.fastMode) {
-            if (this.animCallback) this.animCallback()
+            const cb = this.animCallback
+            ;(this as any).animCallback = null
+            if (cb) cb()
             return
         }
 

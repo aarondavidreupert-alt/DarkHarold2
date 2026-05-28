@@ -420,17 +420,19 @@ export async function runDialogueCrawler(mapName?: string): Promise<CrawlerRepor
     Config.scripting.debugLogShowType.combat = false
 
     const results: DialogueNpcResult[] = []
-    for (const npc of npcs) {
-        console.log(`[AutoCrawler]   NPC uid=${npc.uid} "${critterDisplayName(npc)}"`)
-        const r = await crawlOneNpc(npc)
-        results.push(r)
-        console.log(`[AutoCrawler]     → status=${r.status}  options=${r.optionsSeen}  ${r.durationMs.toFixed(0)}ms`)
-        await new Promise<void>(r2 => setTimeout(r2, 20))
+    try {
+        for (const npc of npcs) {
+            console.log(`[AutoCrawler]   NPC uid=${npc.uid} "${critterDisplayName(npc)}"`)
+            const r = await crawlOneNpc(npc)
+            results.push(r)
+            console.log(`[AutoCrawler]     → status=${r.status}  options=${r.optionsSeen}  ${r.durationMs.toFixed(0)}ms`)
+            await new Promise<void>(r2 => setTimeout(r2, 20))
+        }
+    } finally {
+        Config.scripting.debugLogShowType.stub = prevStub
+        Config.scripting.debugLogShowType.dialogue = prevDialogue
+        Config.scripting.debugLogShowType.combat = prevCombat
     }
-
-    Config.scripting.debugLogShowType.stub = prevStub
-    Config.scripting.debugLogShowType.dialogue = prevDialogue
-    Config.scripting.debugLogShowType.combat = prevCombat
 
     const report = buildReport('dialogue', mapLabel, results)
     printSummary(report)
@@ -477,6 +479,9 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
         }
     }
     critter.hostile = true
+
+    // Snapshot fastMode before the try block so the finally clause can restore it.
+    const _prevFastMode: boolean = (window as any).__test?.fastMode ?? false
 
     // Restore HP and hostile flags no matter which return path is taken.
     try {
@@ -583,7 +588,7 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
         result.durationMs = performance.now() - t0
         return result
     } finally {
-        if ((window as any).__test) (window as any).__test.fastMode = false
+        if ((window as any).__test) (window as any).__test.fastMode = _prevFastMode
         player.stats.setBase('HP', prevHP)
         for (const snap of hostileSnapshots) snap.c.hostile = snap.was
     }
@@ -618,20 +623,22 @@ export async function runCombatCrawler(mapName?: string): Promise<CrawlerReport 
     Config.scripting.debugLogShowType.ai = false
 
     const results: CombatCritterResult[] = []
-    for (const critter of critters) {
-        console.log(`[AutoCrawler]   Critter uid=${critter.uid} "${critterDisplayName(critter)}"`)
-        const r = await crawlOneCritter(critter)
-        results.push(r)
-        console.log(
-            `[AutoCrawler]     → status=${r.status}  turns=${r.turnsObserved}` +
-            `  bailout=${r.aiBailout}  ${r.durationMs.toFixed(0)}ms` +
-            (r.notes ? `  (${r.notes})` : '')
-        )
-        await new Promise<void>(r2 => setTimeout(r2, 20))
+    try {
+        for (const critter of critters) {
+            console.log(`[AutoCrawler]   Critter uid=${critter.uid} "${critterDisplayName(critter)}"`)
+            const r = await crawlOneCritter(critter)
+            results.push(r)
+            console.log(
+                `[AutoCrawler]     → status=${r.status}  turns=${r.turnsObserved}` +
+                `  bailout=${r.aiBailout}  ${r.durationMs.toFixed(0)}ms` +
+                (r.notes ? `  (${r.notes})` : '')
+            )
+            await new Promise<void>(r2 => setTimeout(r2, 20))
+        }
+    } finally {
+        Config.scripting.debugLogShowType.combat = prevCombat
+        Config.scripting.debugLogShowType.ai = prevAI
     }
-
-    Config.scripting.debugLogShowType.combat = prevCombat
-    Config.scripting.debugLogShowType.ai = prevAI
 
     const report = buildReport('combat', mapLabel, results)
     printSummary(report)

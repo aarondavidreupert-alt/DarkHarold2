@@ -106,7 +106,7 @@ export const debug = {
      *  Enabling snapshots the current flag values; disabling restores them exactly. */
     crawlerMode(on: boolean): void {
         if (!Config.engine.debug) return
-        if (on) {
+        if (on && _crawlerModeSnapshot === null) {
             _crawlerModeSnapshot = {
                 stub: Config.scripting.debugLogShowType.stub,
                 dialogue: Config.scripting.debugLogShowType.dialogue,
