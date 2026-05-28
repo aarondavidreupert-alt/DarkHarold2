@@ -423,6 +423,21 @@ The crawler is imported automatically — no extra steps needed.
 All commands run from the browser DevTools console. Commands that start a crawl return a
 `CrawlerReport` object. Pass it to `autoCrawler.downloadReport()` to save the result as JSON.
 
+#### URL auto-start
+
+Load the page with a `?crawl=` parameter to start a crawl automatically after the game initialises.
+No DevTools interaction needed.
+
+| URL | Equivalent to |
+|---|---|
+| `play.html?crawl=dialogue` | `autoCrawler.runDialogueCrawler()` on the default map |
+| `play.html?crawl=combat` | `autoCrawler.runCombatCrawler()` on the default map |
+| `play.html?crawl=maps` | `autoCrawler.runMapCrawler()` — smoke-tests all 156 maps |
+
+To run on a specific map, call the function manually from the console after load (see below).
+
+#### Console commands
+
 **Crawl all talkable NPCs on the current map:**
 
 ```js
@@ -451,6 +466,13 @@ const report = await autoCrawler.runCombatCrawler('modmeeting')
 autoCrawler.downloadReport(report)
 ```
 
+**Smoke-test every map (load, check player position, record result):**
+
+```js
+const report = await autoCrawler.runMapCrawler()
+autoCrawler.downloadReport(report)
+```
+
 **Inspect targets before crawling:**
 
 ```js
@@ -464,9 +486,10 @@ autoCrawler.listHostileCritters()   // returns Critter[] — critters flagged ho
 |---|---|
 | `runDialogueCrawler(mapName?)` | Walk every talkable NPC: call its talk proc, click through all dialogue options, assert `UIMode.none` on exit. Optionally loads `mapName` before crawling. Returns a `CrawlerReport`. |
 | `runCombatCrawler(mapName?)` | Engage every hostile critter one-on-one: enter combat, pass the player turn (End Turn), wait for the AI, then force-end. Optionally loads `mapName` before crawling. Returns a `CrawlerReport`. |
+| `runMapCrawler()` | Auto-discovers all maps from the `maps/` directory listing, loads each one in sequence, and records whether it loaded successfully, timed out, threw an exception, or placed the player correctly. Returns a `CrawlerReport`. |
 | `listTalkableNPCs()` | Lists all critters on the current map that have a `talk` script procedure wired up. Useful for a quick pre-flight check before running the dialogue crawler. |
 | `listHostileCritters()` | Lists all critters on the current map flagged as hostile. Useful for a quick pre-flight check before running the combat crawler. |
-| `downloadReport(report)` | Downloads the `CrawlerReport` as a JSON file named `crawler_<type>_<map>_<timestamp>.json`. |
+| `downloadReport(report?)` | Downloads the `CrawlerReport` as a JSON file named `crawler_<type>_<map>_<timestamp>.json`. Omit the argument to download the most recent completed report. |
 
 ### Report format
 
@@ -505,6 +528,22 @@ The downloaded JSON has the following shape:
 
 For combat reports, each result entry has `uid`, `name`, `tileNum`, `status`, `turnsObserved`, `aiBailout`, `durationMs`, and an optional `notes` string.
 
+For map reports (`type: "maps"`, `map: "*"`), each result entry has `map`, `status`, `durationMs`, and an optional `error` string. The summary includes `timeout` and `playerMissing` counts instead of `combatTriggered`/`noDialogue`.
+
+```json
+{
+  "type": "maps",
+  "map": "*",
+  "timestamp": 1748344800000,
+  "summary": { "total": 156, "ok": 151, "stuck": 0, "exceptions": 1, "timeout": 3, "playerMissing": 1 },
+  "results": [
+    { "map": "arbridge", "status": "ok", "durationMs": 187 },
+    { "map": "modgame",  "status": "exception", "durationMs": 12, "error": "ReferenceError: ..." },
+    { "map": "kladwtwn", "status": "load-timeout", "durationMs": 10003 }
+  ]
+}
+```
+
 ### Status codes
 
 **Dialogue (`DialogueStatus`)**
@@ -536,6 +575,15 @@ For combat reports, each result entry has `uid`, `name`, `tileNum`, `status`, `t
 | `stuck-ai-turn-timeout` | Player passed its turn but the AI phase never completed within the timeout. |
 | `exception-on-start` | Exception thrown calling `Combat.start()`. |
 | `exception-in-combat` | Exception thrown calling `combat.nextTurn()`. |
+
+**Map (`MapStatus`)**
+
+| Status | Meaning |
+|---|---|
+| `ok` | Map loaded, player placed at a valid position. |
+| `load-timeout` | Map did not finish loading within 10 s. |
+| `exception` | JS exception thrown by `loadMap()` synchronously. |
+| `player-missing` | Map loaded but player position is undefined or not a valid tile. |
 
 ---
 

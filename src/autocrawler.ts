@@ -818,17 +818,22 @@ if (typeof window !== 'undefined' && Config.engine.debug) {
         get lastReport(): CrawlerReport | null { return lastReport },
     }
 
-    // URL auto-start: play.html?crawl=maps
+    // URL auto-start: play.html?crawl=maps  |  ?crawl=dialogue  |  ?crawl=combat
     // init.ts skips the map-from-query load when ?crawl= is present, so the
     // default map (artemple) loads normally. We wait for it to finish then run.
     const _crawlParam = new URLSearchParams(location.search).get('crawl')
-    if (_crawlParam === 'maps') {
+    if (_crawlParam === 'maps' || _crawlParam === 'dialogue' || _crawlParam === 'combat') {
         waitFor(
             () => globalState.gMap !== null && globalState.player !== null && !globalState.isLoading,
             30000
         ).then(ready => {
-            if (ready) runMapCrawler()
-            else console.error('[AutoCrawler] Timed out waiting for game to initialise for map crawl')
+            if (!ready) {
+                console.error('[AutoCrawler] Timed out waiting for game to initialise')
+                return
+            }
+            if (_crawlParam === 'maps') runMapCrawler()
+            else if (_crawlParam === 'dialogue') runDialogueCrawler()
+            else if (_crawlParam === 'combat') runCombatCrawler()
         })
     }
 }
