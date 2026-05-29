@@ -47,5 +47,19 @@ export function lazyLoadImage(art: string, callback?: (x: HTMLImageElement) => v
             globalState.lazyAssetLoadingQueue[art] = undefined
         }
     }
+    img.onerror = function () {
+        // Without this, missing PNGs leave queued callbacks pending forever —
+        // a critter mid-animation freezes and the renderer leaves a black tile.
+        // Drain the queue with the (broken) image element so callers proceed.
+        console.warn(`[lazyLoadImage] failed to load ${art}.png`)
+        globalState.images[art] = img
+        const callbacks = globalState.lazyAssetLoadingQueue[art]
+        if (callbacks !== undefined) {
+            for (let i = 0; i < callbacks.length; i++) {
+                callbacks[i](img)
+            }
+            globalState.lazyAssetLoadingQueue[art] = undefined
+        }
+    }
     img.src = art + '.png'
 }

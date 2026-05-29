@@ -45,6 +45,32 @@ export function objectIsWeapon(obj: any): boolean {
     return obj.weapon !== undefined
 }
 
+/**
+ * For a critter art base like "art/critters/hmwarrior_", return the path prefix
+ * of the shared FRM set used for fire/electro/burst deaths, or null if the
+ * critter has no shared fallback (most "ma*" creatures are unique).
+ *
+ * ref: fallout2-ce art.cc — humans always render the male jumpsuit base
+ * for violent deaths because the engine doesn't have armor-specific frames
+ * for those death types.
+ */
+function getSharedDeathBase(base: string): string | null {
+    const slash = base.lastIndexOf('/')
+    const name = slash >= 0 ? base.substring(slash + 1) : base
+    const prefix = base.substring(0, slash + 1)
+
+    // Humans (player + named humans) and NPCs both fall back to hmjmps
+    if (name.startsWith('h') || name.startsWith('n')) {
+        return prefix + 'hmjmps_'
+    }
+    // Super mutants share mamtnt
+    if (name.startsWith('mamt') || name.startsWith('mabm')) {
+        return prefix + 'mamtnt_'
+    }
+    // Other creatures have no shared fallback — each is its own art set
+    return null
+}
+
 function objectFindItemIndex(obj: Obj, item: Obj): number {
     for (let i = 0; i < obj.inventory.length; i++) {
         if (obj.inventory[i] === item) {
@@ -1703,20 +1729,51 @@ export class Critter extends Obj {
                 }
                 return base + 'bo' // normal crumple death
             case 'death-explode':
-                return base + 'bl' // sliced in half / blown apart
+                return this.resolveDeathAnim(base, 'bl')
             case 'death-fire':
-                return base + 'be' // burning death dance
+                return this.resolveDeathAnim(base, 'be')
             case 'death-plasma':
-                return base + 'bm' // burned to nothing
+                return this.resolveDeathAnim(base, 'bm')
             case 'death-electro':
-                return base + 'bk' // electrified
+                return this.resolveDeathAnim(base, 'bk')
             case 'death-laser':
-                return base + 'bg' // big hole / vaporised
+                return this.resolveDeathAnim(base, 'bg')
             case 'death-burst':
-                return base + 'bj' // dancing autofire
+                return this.resolveDeathAnim(base, 'bj')
             default:
                 throw 'Unknown animation: ' + anim
         }
+    }
+
+    // Resolve a violent-death FRM path with fallback to the shared category
+    // animation, then to normal crumple death. fallout2-ce behavior: humans
+    // (h-prefix and n-prefix) and mutants share generic animations because
+    // the engine doesn't render armor variants for fire/electro/burst deaths.
+    //
+    // Suffix mapping: bl=explode be=fire bm=plasma bk=electro bg=laser
+    //                 bj=burst bo=normal
+    //
+    // Fallback chain:
+    //   1. <base><suffix>          — critter's own variant if present
+    //   2. shared category sprite  — hmjmps_/mamtnt_ for humans/mutants
+    //   3. <base>bo                — normal crumple death (prevents black tile)
+    private resolveDeathAnim(base: string, suffix: string): string {
+        const primary = base + suffix
+        if (globalState.imageInfo[primary] !== undefined) return primary
+
+        const sharedBase = getSharedDeathBase(base)
+        if (sharedBase) {
+            const shared = sharedBase + suffix
+            if (globalState.imageInfo[shared] !== undefined) return shared
+        }
+
+        // Last resort — normal death so the tile doesn't go black
+        const fallback = base + 'bo'
+        if (globalState.imageInfo[fallback] !== undefined) return fallback
+
+        // Critter has no death anim at all (e.g. mabos2, reserv) — return
+        // primary anyway so the missing-image guard logs it once.
+        return primary
     }
 
     hasAnimation(anim: string): boolean {

@@ -8,29 +8,44 @@ Usage:
 
 Default root is the parent directory of this script.
 
-Outputs a report grouped by critter base name showing:
-    base          regular  explode  fire   plasma  electro  laser   burst
-    hmwarrior_      OK       OK     MISS    OK      OK      OK      MISS
-                                    ^^^^                            ^^^^
-                                    flagged as bug source
+IMPORTANT — MISSes are NOT all bugs:
 
-A critter listed as MISS for a death type means the corresponding FRM PNG
-is absent from art/critters/ and/or its imageMap.json entry. If the in-game
-code requests that animation (e.g. via critterKill with damageType='Fire'),
-the lazyLoadImage callback never fires and the tile renders as a black hole.
+    Fallout 2 does NOT give every critter its own copy of every violent-death
+    animation. Instead, the engine falls back to shared animation sets based
+    on critter category:
+
+      * Humans (h*, n* prefixes) ALWAYS use hmjmps_<suffix> for fire (be),
+        electro (bk), and burst (bj) deaths — these are rendered without
+        armor because the engine "strips" you visually. Expect MISS for
+        be / bk / bj on every human except hmjmps itself.
+
+      * Super mutants share mamtnt_<suffix> for the same fallback.
+
+      * Other creatures (gecko, scorpion, robot, alien, etc.) have unique
+        animation sets — missing entries fall back to plain death (bo).
+
+    The fallback chain is implemented in src/object.ts resolveDeathAnim():
+        1. critter's own <base><suffix>
+        2. shared category sprite (hmjmps_ / mamtnt_)
+        3. normal crumple <base>bo
+
+    A "real" bug is only:
+      * MISS on bo for a critter that ever dies in-game (e.g. mabos2, reserv)
+      * MISS on the shared base itself (hmjmps_be, mamtnt_be, ...)
 
 Suffix mapping (from src/object.ts getAnimation()):
     bo  -> 'death'           (normal crumple)
     bl  -> 'death-explode'   (sliced/blown apart)  + boss override
-    be  -> 'death-fire'      (burning death dance)
+    be  -> 'death-fire'      (burning death dance) [shared for humans/mutants]
     bm  -> 'death-plasma'    (burned to nothing)
-    bk  -> 'death-electro'   (electrified)
+    bk  -> 'death-electro'   (electrified)          [shared for humans/mutants]
     bg  -> 'death-laser'     (vaporised)
-    bj  -> 'death-burst'     (autofire dance)
+    bj  -> 'death-burst'     (autofire dance)       [shared for humans/mutants]
 
 Exit codes:
     0  no missing death anims
     1  at least one critter is missing one or more violent-death FRMs
+       (may still be expected if covered by the shared-fallback chain)
     2  art/critters/ folder not found (assets not extracted)
 """
 
