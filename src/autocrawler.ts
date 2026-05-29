@@ -107,7 +107,7 @@ const COMBAT_ACTIVE_TIMEOUT_MS = 2000
 const PLAYER_TURN_TIMEOUT_MS = 10000
 const AI_TURN_TIMEOUT_MS = 10000
 const MAX_DIALOGUE_CLICKS = 50
-const MAP_LOAD_TIMEOUT_MS = 10000
+const MAP_LOAD_TIMEOUT_MS = 30000
 // High HP value set on the player before each combat encounter to prevent death.
 const CRAWLER_HP = 9999
 

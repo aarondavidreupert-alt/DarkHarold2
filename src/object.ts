@@ -580,6 +580,12 @@ export class Obj {
         return !!this.animCallback // TODO: find a better way
     }
 
+    // Non-critter objects have no animation set — always returns false.
+    // Critter overrides this with the real lookup.
+    hasAnimation(_anim: string): boolean {
+        return false
+    }
+
     // Clear any animation the object has
     clearAnim(): void {
         this.frame = 0
