@@ -15,11 +15,25 @@
 import globalState from './globalState.js'
 import { Config } from './config.js'
 
+// Paths we already tried to load and got a 404 / decode error.
+// Used to skip retries — we DON'T put broken Image objects in
+// globalState.images because the WebGL renderer would then try to
+// upload a 0x0 texture and crash with "INVALID_VALUE: texImage2D".
+const failedImages = new Set<string>()
+
 export function lazyLoadImage(art: string, callback?: (x: HTMLImageElement) => void) {
     if (globalState.images[art] !== undefined) {
         if (callback) {
             callback(globalState.images[art])
         }
+        return
+    }
+
+    // Already known-bad — don't retry, don't call back (mirrors the original
+    // "image not loaded yet" return path; the renderer's own missing-image
+    // guard then leaves the sprite invisible until/unless something else
+    // resolves it).
+    if (failedImages.has(art)) {
         return
     }
 
@@ -48,18 +62,14 @@ export function lazyLoadImage(art: string, callback?: (x: HTMLImageElement) => v
         }
     }
     img.onerror = function () {
-        // Without this, missing PNGs leave queued callbacks pending forever —
-        // a critter mid-animation freezes and the renderer leaves a black tile.
-        // Drain the queue with the (broken) image element so callers proceed.
+        // Without this, missing PNGs leave queued callbacks pending forever
+        // (the image never resolves, the critter stays mid-anim, tile goes
+        // black). Mark as failed and drop pending callbacks — do NOT store
+        // the 0x0 broken image in globalState.images, the renderer would
+        // try to upload it as a texture and crash WebGL.
         console.warn(`[lazyLoadImage] failed to load ${art}.png`)
-        globalState.images[art] = img
-        const callbacks = globalState.lazyAssetLoadingQueue[art]
-        if (callbacks !== undefined) {
-            for (let i = 0; i < callbacks.length; i++) {
-                callbacks[i](img)
-            }
-            globalState.lazyAssetLoadingQueue[art] = undefined
-        }
+        failedImages.add(art)
+        globalState.lazyAssetLoadingQueue[art] = undefined
     }
     img.src = art + '.png'
 }
