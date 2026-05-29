@@ -337,7 +337,7 @@ export class GameMap {
 	}
 	
     loadMap(mapName: string, startingPosition?: Point, startingElevation = 0, loadedCallback?: () => void): void {
-        if (Config.engine.doSaveDirtyMaps && this.name !== null) {
+        if (Config.engine.doSaveDirtyMaps && this.name !== null && this.objects !== null) {
             // if a map is already loaded, save it to the dirty map cache before loading
             dbg('map', `[Main] Serializing map ${this.name} and committing to dirty map cache`)
             globalState.dirtyMapCache[this.name] = this.serialize()
@@ -423,7 +423,13 @@ export class GameMap {
 
         dbg('map', 'loading map ' + mapName)
 
-        const mapImages = getFileJSON('maps/' + mapName + '.images.json')
+        let mapImages: string[]
+        try {
+            mapImages = getFileJSON('maps/' + mapName + '.images.json') ?? []
+        } catch (e) {
+            dbgWarn('map', `[Map] No images file for ${mapName}:`, e)
+            mapImages = []
+        }
         for (let i = 0; i < mapImages.length; i++) {
             load(mapImages[i])
         }
