@@ -700,7 +700,15 @@ async function crawlOneMap(mapName: string): Promise<MapResult> {
         return result
     }
 
-    const loaded = await waitFor(() => !globalState.isLoading, MAP_LOAD_TIMEOUT_MS)
+    let loaded: boolean
+    try {
+        loaded = await waitFor(() => !globalState.isLoading, MAP_LOAD_TIMEOUT_MS)
+    } catch (e) {
+        result.status = 'exception'
+        result.error = String(e)
+        result.durationMs = performance.now() - t0
+        return result
+    }
     if (!loaded) {
         result.status = 'load-timeout'
         result.durationMs = performance.now() - t0
@@ -735,7 +743,12 @@ export async function runMapCrawler(): Promise<CrawlerReport | null> {
 
     const results: MapResult[] = []
     for (const mapName of mapNames) {
-        const r = await crawlOneMap(mapName)
+        let r: MapResult
+        try {
+            r = await crawlOneMap(mapName)
+        } catch (e) {
+            r = { map: mapName, status: 'exception', durationMs: 0, error: String(e) }
+        }
         results.push(r)
         lastReport = buildReport('maps', '*', results)
         console.log(

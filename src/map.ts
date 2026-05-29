@@ -593,8 +593,11 @@ export class GameMap {
         }
 
         for (const obj of this.getObjects()) {
+            const ox = obj.position.x, oy = obj.position.y
+            // Skip objects with out-of-bounds positions (off-map sentinel values).
+            if (ox < 0 || ox >= HEX_GRID_SIZE || oy < 0 || oy >= HEX_GRID_SIZE) continue
             // if there are multiple, any blocking one will block
-            matrix[obj.position.y][obj.position.x] |= <any>obj.blocks()
+            matrix[oy][ox] |= <any>obj.blocks()
         }
 
         if (isGoalBlocking === false) {
