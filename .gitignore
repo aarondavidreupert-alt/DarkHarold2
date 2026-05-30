@@ -1,8 +1,8 @@
 *.images.txt
 *.map
 *.pyc
+*.png
 data/
-art/
 
 proto/
 audio/
