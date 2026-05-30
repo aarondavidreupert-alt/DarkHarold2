@@ -1961,6 +1961,8 @@ const animInfo: { [anim: string]: { type: string } } = {
     dead: { type: 'static' },
     'weapon-draw': { type: 'static' },
     'weapon-holster': { type: 'static' },
+    // FO2-CE ref: animation.cc — single-shot forward play (updateStaticAnim, !reversed branch)
+    single: { type: 'static' },
     reverse: { type: 'static' },
     fidget: { type: 'static' },
     hitBack: { type: 'static' },
