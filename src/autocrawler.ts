@@ -739,10 +739,13 @@ export async function runMapCrawler(): Promise<CrawlerReport | null> {
         console.error('[AutoCrawler] No maps discovered — ensure maps/ serves a directory listing')
         return null
     }
-    console.log(`[AutoCrawler] Map smoke test: ${mapNames.length} map(s) discovered`)
+    console.log(`[AutoCrawler] Starting crawl of ${mapNames.length} maps...`)
 
     const results: MapResult[] = []
-    for (const mapName of mapNames) {
+    for (let i = 0; i < mapNames.length; i++) {
+        const mapName = mapNames[i]
+        const tag = `[${i + 1}/${mapNames.length}]`
+        console.log(`[AutoCrawler] ${tag} Loading map: ${mapName}...`)
         let r: MapResult
         try {
             r = await crawlOneMap(mapName)
@@ -752,8 +755,8 @@ export async function runMapCrawler(): Promise<CrawlerReport | null> {
         results.push(r)
         lastReport = buildReport('maps', '*', results)
         console.log(
-            `[AutoCrawler] MAP "${mapName}" → status=${r.status}  ${r.durationMs.toFixed(0)}ms` +
-            (r.error ? '  ' + r.error : '')
+            `[AutoCrawler] ${tag} ${mapName} → ${r.status} (${Math.round(r.durationMs)}ms)` +
+            (r.error ? ': ' + r.error : '')
         )
         await new Promise<void>(r2 => setTimeout(r2, 20))
     }
@@ -761,6 +764,13 @@ export async function runMapCrawler(): Promise<CrawlerReport | null> {
     const report = buildReport('maps', '*', results)
     printSummary(report)
     lastReport = report
+    const s = report.summary
+    const parts: string[] = [`${s.ok} ok`]
+    if (s.exceptions > 0) parts.push(`${s.exceptions} exception${s.exceptions !== 1 ? 's' : ''}`)
+    if ((s.timeout ?? 0) > 0) parts.push(`${s.timeout} timeout`)
+    if (s.stuck > 0) parts.push(`${s.stuck} stuck`)
+    if ((s.playerMissing ?? 0) > 0) parts.push(`${s.playerMissing} player-missing`)
+    console.log(`[AutoCrawler] Crawl complete. ${parts.join(', ')} of ${s.total} total.`)
     return report
 }
 
