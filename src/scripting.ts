@@ -1673,6 +1673,14 @@ export module Scripting {
                 return
             }
             const tile = fromTileNum(tileNum)
+            if (tile.x < 0 || tile.x >= 200 || tile.y < 0 || tile.y >= 200) {
+                warn(
+                    'reg_anim_obj_move_to_tile: invalid tile: ' + tile.x + ', ' + tile.y + ' (' + tileNum + ')',
+                    'movement',
+                    this
+                )
+                return
+            }
             const critter = obj as Critter
             if (typeof critter.walkTo === 'function') {
                 if (!critter.walkTo(tile, false))

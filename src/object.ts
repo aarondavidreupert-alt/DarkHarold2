@@ -17,7 +17,7 @@ limitations under the License.
 import { Weapon, critterDamage } from './critter.js'
 import { getLstId, lookupScriptName } from './data.js'
 import { Events, scheduleExplosion } from './events.js'
-import { directionOfDelta, hexDistance, hexesInRadius, hexToScreen, Point } from './geometry.js'
+import { directionOfDelta, hexDistance, hexesInRadius, hexToScreen, HEX_GRID_SIZE, Point } from './geometry.js'
 import globalState from './globalState.js'
 import { lazyLoadImage } from './images.js'
 import { Lightmap } from './lightmap.js'
@@ -1817,6 +1817,10 @@ export class Critter extends Obj {
         }
 
         if (path === undefined) {
+            if (target.x < 0 || target.x >= HEX_GRID_SIZE || target.y < 0 || target.y >= HEX_GRID_SIZE) {
+                dbgWarn('movement', '[Pathfinding] walkTo: invalid target tile', target.x, target.y)
+                return false
+            }
             path = globalState.gMap.recalcPath(this.position, target)
         }
 

@@ -592,6 +592,13 @@ export class GameMap {
     }
 
     recalcPath(start: Point, goal: Point, isGoalBlocking?: boolean) {
+        // FO2-CE ref: ai.cc — all pathFind() call sites guard against tile == -1;
+        // tile.cc tileIsValid() checks tile >= 0 && tile < gHexGridSize (200*200).
+        // Equivalent check on x,y coords: each must be in [0, HEX_GRID_SIZE).
+        if (start.x < 0 || start.x >= HEX_GRID_SIZE || start.y < 0 || start.y >= HEX_GRID_SIZE ||
+            goal.x < 0 || goal.x >= HEX_GRID_SIZE || goal.y < 0 || goal.y >= HEX_GRID_SIZE) {
+            return []
+        }
         const matrix = new Array(HEX_GRID_SIZE)
 
         for (let y = 0; y < HEX_GRID_SIZE; y++) {
