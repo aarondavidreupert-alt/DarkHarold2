@@ -307,7 +307,16 @@ export class GameMap {
             dbg('map', 'Starting position overriden to %o', overridenStartPos)
             globalState.player.position = overridenStartPos.position
             globalState.player.orientation = overridenStartPos.orientation
-            this.currentElevation = globalState.currentElevation = overridenStartPos.elevation
+            // FO2-CE ref: map.cc mapSetupEnter() — elevation from override_map_start is validated
+            // against the number of map levels before use. Maps with fewer levels than the script
+            // expects (e.g. modinn exported with 2 levels but script targets elevation 2) must not
+            // corrupt currentElevation — keep the pre-load value instead.
+            const newElev = overridenStartPos.elevation
+            if (this.mapObj.levels[newElev]) {
+                this.currentElevation = globalState.currentElevation = newElev
+            } else {
+                dbgWarn('map', `override_map_start: elevation ${newElev} out of bounds (map has ${this.numLevels} levels), ignoring`)
+            }
         }
 
         // place party again, so if the map script overrided the start position we're in the right place

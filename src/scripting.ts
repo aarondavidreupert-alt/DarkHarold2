@@ -865,6 +865,7 @@ export module Scripting {
             if (globalState.gMap) {
                 const targetPos = fromTileNum(tileNum)
                 const objects = globalState.gMap.getObjects(elevation)
+                if (!objects) return this.move_to(obj, tileNum, elevation)
                 const occupied = (p: Point) => objects.some(o => o !== obj && o.position.x === p.x && o.position.y === p.y)
                 if (occupied(targetPos)) {
                     for (let dir = 0; dir < 6; dir++) {
