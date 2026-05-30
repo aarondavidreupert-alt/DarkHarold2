@@ -15,6 +15,8 @@ import { Config } from './config.js'
 import globalState from './globalState.js'
 import { hexNeighbors } from './geometry.js'
 import { heart } from './heart.js'
+import { eventLogClear } from './logger.js'
+import type { EventLogEntry } from './logger.js'
 import { Critter } from './object.js'
 import { Scripting } from './scripting.js'
 import { toTileNum } from './tile.js'
@@ -54,6 +56,9 @@ export interface MapResult {
     status: MapStatus
     durationMs: number
     error?: string
+    // Populated only for non-ok results to keep ok entries compact.
+    stack?: string
+    eventLog?: EventLogEntry[]
 }
 
 export interface DialogueNpcResult {
@@ -97,6 +102,9 @@ export interface CrawlerReport {
     timestamp: number
     results: DialogueNpcResult[] | CombatCritterResult[] | MapResult[]
     summary: CrawlerSummary
+    // Map crawler only: non-ok results surfaced at the top of the JSON so
+    // an LLM or human can jump to failures without scanning all 150+ results.
+    failures?: MapResult[]
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -691,11 +699,18 @@ async function crawlOneMap(mapName: string): Promise<MapResult> {
         await new Promise<void>(r => setTimeout(r, 0))
     }
 
+    // Clear event log so this map's entries don't bleed into the previous map's
+    // snapshot. eventLogPush() is unconditional (flag-independent), so combat/AI
+    // events are always captured regardless of Config.scripting.debugLogShowType.
+    eventLogClear()
+
     try {
         globalState.gMap!.loadMap(mapName)
     } catch (e) {
         result.status = 'exception'
         result.error = String(e)
+        result.stack = e instanceof Error ? e.stack : undefined
+        result.eventLog = [...globalState.eventLog]
         result.durationMs = performance.now() - t0
         return result
     }
@@ -706,11 +721,14 @@ async function crawlOneMap(mapName: string): Promise<MapResult> {
     } catch (e) {
         result.status = 'exception'
         result.error = String(e)
+        result.stack = e instanceof Error ? e.stack : undefined
+        result.eventLog = [...globalState.eventLog]
         result.durationMs = performance.now() - t0
         return result
     }
     if (!loaded) {
         result.status = 'load-timeout'
+        result.eventLog = [...globalState.eventLog]
         result.durationMs = performance.now() - t0
         return result
     }
@@ -718,6 +736,7 @@ async function crawlOneMap(mapName: string): Promise<MapResult> {
     const pos = globalState.player?.position
     if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') {
         result.status = 'player-missing'
+        result.eventLog = [...globalState.eventLog]
     }
 
     result.durationMs = performance.now() - t0
@@ -750,10 +769,15 @@ export async function runMapCrawler(): Promise<CrawlerReport | null> {
         try {
             r = await crawlOneMap(mapName)
         } catch (e) {
-            r = { map: mapName, status: 'exception', durationMs: 0, error: String(e) }
+            r = { map: mapName, status: 'exception', durationMs: 0, error: String(e),
+                  stack: e instanceof Error ? e.stack : undefined }
         }
         results.push(r)
-        lastReport = buildReport('maps', '*', results)
+        // Attach failures at the top of every incremental snapshot so
+        // downloadReport() during a crawl also produces a navigable file.
+        const partial = buildReport('maps', '*', results)
+        partial.failures = results.filter(r2 => r2.status !== 'ok')
+        lastReport = partial
         console.log(
             `[AutoCrawler] ${tag} ${mapName} → ${r.status} (${Math.round(r.durationMs)}ms)` +
             (r.error ? ': ' + r.error : '')
@@ -762,6 +786,7 @@ export async function runMapCrawler(): Promise<CrawlerReport | null> {
     }
 
     const report = buildReport('maps', '*', results)
+    report.failures = results.filter(r => r.status !== 'ok')
     printSummary(report)
     lastReport = report
     const s = report.summary
