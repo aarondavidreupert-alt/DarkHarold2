@@ -1411,6 +1411,17 @@ export class Critter extends Obj {
             this.updateLoopingAnim()
             return
         }
+        if (animInfo[this.anim] === undefined) {
+            // Unknown anim key — likely stale state from a deserialized save or a script bug.
+            // Log identity for diagnostics, then tombstone so the rAF loop stops hammering it.
+            console.warn(
+                `[updateAnim] unknown anim "${this.anim}" on critter ` +
+                `"${this.name || this.pid}" pid=${this.pid} ` +
+                `tile=(${this.position.x},${this.position.y}) art="${this.art}" — tombstoning`
+            )
+            this.anim = 'dead'
+            return
+        }
         if (animInfo[this.anim].type === 'static') {
             return this.updateStaticAnim()
         }
