@@ -610,6 +610,12 @@ export class Obj {
         return !!this.animCallback // TODO: find a better way
     }
 
+    // Non-critter objects have no animation set — always returns false.
+    // Critter overrides this with the real lookup.
+    hasAnimation(_anim: string): boolean {
+        return false
+    }
+
     // Clear any animation the object has
     clearAnim(): void {
         this.frame = 0
@@ -1361,6 +1367,14 @@ export class Critter extends Obj {
     }
 
     updateStaticAnim(): void {
+        if ((window as any).__test?.fastMode) {
+            const cb = this.animCallback
+            ;(this as any).animCallback = null
+            this.frame = 0  // match the normal done-path which resets frame before calling callback
+            if (cb) cb()
+            return
+        }
+
         const time = window.performance.now()
         const fps = 8 // todo: get FPS from image info
 
@@ -1434,6 +1448,14 @@ export class Critter extends Obj {
         // Move animation (walk/run) but path was not serialized — recover to idle.
         if (!this.path) {
             this.clearAnim()
+            return
+        }
+
+        if ((window as any).__test?.fastMode) {
+            this.position = { x: this.path.target.x, y: this.path.target.y }
+            const callback = this.animCallback
+            this.clearAnim()
+            if (callback) callback()
             return
         }
 

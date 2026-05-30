@@ -283,6 +283,17 @@ export module Scripting {
         talk(currentDialogueObject._script, currentDialogueObject)
     }
 
+    /** Returns the number of currently pending dialogue option procs.
+     *  Used by the AutoCrawler to check whether options are visible without DOM access. */
+    export function getDialogueOptionCount(): number {
+        return dialogueOptionProcs.length
+    }
+
+    /** Seed Math.random for deterministic crawler runs. */
+    export function setSeed(n: number): void {
+        seed(n)
+    }
+
     function canSee(obj: Obj, target: Obj): boolean {
         const dir = Math.abs(obj.orientation - hexDirectionTo(obj.position, target.position))
         return [0, 1, 5].indexOf(dir) !== -1

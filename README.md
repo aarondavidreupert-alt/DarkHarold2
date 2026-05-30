@@ -391,6 +391,9 @@ _debug.addXP(2000)
 | `combatLog()` | Returns the current `eventLog` array (same data exported by the Combat Log tools). | `debug.combatLog()` |
 | `teleport(map)` | Load a map by name. | `debug.teleport('artemple')` |
 | `giveItem(pid)` | Add an item with the given prototype ID to the player's inventory. | `debug.giveItem(41)` (caps) |
+| `step(dtMs?)` | Advance the engine one logical frame without waiting for `requestAnimationFrame`. Used internally by the AutoCrawler; also useful for stepping through scripted sequences manually. | `debug.step()` |
+| `movePlayer(tileNum)` | Teleport the player to a tile by number within the current map (no map reload). | `debug.movePlayer(18040)` |
+| `crawlerMode(on)` | Silence noisy log categories (`stub`, `dialogue`, `combat`, `ai`) and set difficulty to neutral for a clean crawler run. | `debug.crawlerMode(true)` |
 
 ### Quick level-up test (no debug flag needed)
 
@@ -403,6 +406,186 @@ globalState.player.addExperience(2000)
 
 This triggers a level-up and opens the perk selection modal, useful for
 testing the perk picker during development.
+
+## AutoCrawler
+
+The AutoCrawler is an automated testing tool that exercises dialogue trees and combat encounters
+without manual intervention. It runs entirely at engine speed (no `requestAnimationFrame` delays)
+and is exposed on `window.autoCrawler` when `Config.engine.debug` is `true`.
+
+### Prerequisites
+
+Enable debug mode in `src/config.ts`, rebuild (`npx tsc`), and load the game in the browser.
+The crawler is imported automatically — no extra steps needed.
+
+### Usage
+
+All commands run from the browser DevTools console. Commands that start a crawl return a
+`CrawlerReport` object. Pass it to `autoCrawler.downloadReport()` to save the result as JSON.
+
+#### URL auto-start
+
+Load the page with a `?crawl=` parameter to start a crawl automatically after the game initialises.
+No DevTools interaction needed.
+
+| URL | Equivalent to |
+|---|---|
+| `play.html?crawl=dialogue` | `autoCrawler.runDialogueCrawler()` on the default map |
+| `play.html?crawl=combat` | `autoCrawler.runCombatCrawler()` on the default map |
+| `play.html?crawl=maps` | `autoCrawler.runMapCrawler()` — smoke-tests all 156 maps |
+
+To run on a specific map, call the function manually from the console after load (see below).
+
+#### Console commands
+
+**Crawl all talkable NPCs on the current map:**
+
+```js
+const report = await autoCrawler.runDialogueCrawler()
+autoCrawler.downloadReport(report)
+```
+
+**Crawl all talkable NPCs on a named map (loads the map first):**
+
+```js
+const report = await autoCrawler.runDialogueCrawler('artemple')
+autoCrawler.downloadReport(report)
+```
+
+**Crawl all hostile critters on the current map:**
+
+```js
+const report = await autoCrawler.runCombatCrawler()
+autoCrawler.downloadReport(report)
+```
+
+**Crawl all hostile critters on a named map:**
+
+```js
+const report = await autoCrawler.runCombatCrawler('modmeeting')
+autoCrawler.downloadReport(report)
+```
+
+**Smoke-test every map (load, check player position, record result):**
+
+```js
+const report = await autoCrawler.runMapCrawler()
+autoCrawler.downloadReport(report)
+```
+
+**Inspect targets before crawling:**
+
+```js
+autoCrawler.listTalkableNPCs()      // returns Critter[] — NPCs with a talk proc
+autoCrawler.listHostileCritters()   // returns Critter[] — critters flagged hostile
+```
+
+### Command reference
+
+| Command | Description |
+|---|---|
+| `runDialogueCrawler(mapName?)` | Walk every talkable NPC: call its talk proc, click through all dialogue options, assert `UIMode.none` on exit. Optionally loads `mapName` before crawling. Returns a `CrawlerReport`. |
+| `runCombatCrawler(mapName?)` | Engage every hostile critter one-on-one: enter combat, pass the player turn (End Turn), wait for the AI, then force-end. Optionally loads `mapName` before crawling. Returns a `CrawlerReport`. |
+| `runMapCrawler()` | Auto-discovers all maps from the `maps/` directory listing, loads each one in sequence, and records whether it loaded successfully, timed out, threw an exception, or placed the player correctly. Returns a `CrawlerReport`. |
+| `listTalkableNPCs()` | Lists all critters on the current map that have a `talk` script procedure wired up. Useful for a quick pre-flight check before running the dialogue crawler. |
+| `listHostileCritters()` | Lists all living, visible critters on the current map that have a valid AI packet (combat-capable, regardless of their `hostile` flag). Useful for a quick pre-flight check before running the combat crawler. |
+| `downloadReport(report?)` | Downloads the `CrawlerReport` as a JSON file named `crawler_<type>_<map>_<timestamp>.json`. Omit the argument to download the most recent completed report. |
+
+### Report format
+
+The downloaded JSON has the following shape:
+
+```json
+{
+  "type": "dialogue",
+  "map": "artemple",
+  "timestamp": 1748344800000,
+  "summary": { "total": 2, "ok": 1, "exceptions": 0, "stuck": 1, "combatTriggered": 0 },
+  "results": [
+    {
+      "uid": 42,
+      "name": "Hakunin",
+      "tileNum": 18040,
+      "status": "ok",
+      "optionsSeen": 7,
+      "optionLabels": ["Tell me about...", "Farewell"],
+      "replies": ["You are the Chosen One..."],
+      "durationMs": 210
+    },
+    {
+      "uid": 57,
+      "name": "Tribal Guard",
+      "tileNum": 18200,
+      "status": "stuck-no-dialogue",
+      "optionsSeen": 0,
+      "optionLabels": [],
+      "replies": [],
+      "durationMs": 5002
+    }
+  ]
+}
+```
+
+For combat reports, each result entry has `uid`, `name`, `tileNum`, `status`, `turnsObserved`, `aiBailout`, `durationMs`, and an optional `notes` string.
+
+For map reports (`type: "maps"`, `map: "*"`), each result entry has `map`, `status`, `durationMs`, and an optional `error` string. The summary includes `timeout` and `playerMissing` counts instead of `combatTriggered`/`noDialogue`.
+
+```json
+{
+  "type": "maps",
+  "map": "*",
+  "timestamp": 1748344800000,
+  "summary": { "total": 156, "ok": 151, "stuck": 0, "exceptions": 1, "timeout": 3, "playerMissing": 1 },
+  "results": [
+    { "map": "arbridge", "status": "ok", "durationMs": 187 },
+    { "map": "modgame",  "status": "exception", "durationMs": 12, "error": "ReferenceError: ..." },
+    { "map": "kladwtwn", "status": "load-timeout", "durationMs": 10003 }
+  ]
+}
+```
+
+### Status codes
+
+**Dialogue (`DialogueStatus`)**
+
+| Status | Meaning |
+|---|---|
+| `ok` | Dialogue completed and `UIMode` returned to `none`. |
+| `no-talk-proc` | NPC has no `talk_p_proc` script procedure. |
+| `no-adjacent-tile` | Could not place the player adjacent to the NPC. |
+| `no-dialogue` | `talk_p_proc` ran and `UIMode` returned to `none` — NPC has no dialogue tree (e.g. Brahmin, silent guard). Fast exit (~200 ms). |
+| `stuck-no-dialogue` | `talk_p_proc` ran but `UIMode` never reached `none` or `dialogue` before the 5 s hard cap. Likely a stuck script. |
+| `combat-triggered` | Talking to the NPC triggered combat; combat was force-ended and crawl continued. |
+| `stuck-no-options` | Dialogue UI opened but no option buttons appeared. |
+| `stuck-max-clicks` | Reached the click limit (`MAX_DIALOGUE_CLICKS`) without dialogue closing. |
+| `stuck-no-exit` | Dialogue appeared to finish but `UIMode` did not return to `none`. |
+| `exception-on-talk` | Exception thrown calling `Scripting.talk()`. |
+| `exception-on-click` | Exception thrown clicking a dialogue option. |
+
+**Combat (`CombatStatus`)**
+
+| Status | Meaning |
+|---|---|
+| `ok` | Combat completed normally. |
+| `no-valid-ai` | Critter has no valid AI packet and cannot fight. |
+| `no-adjacent-tile` | Could not place the player adjacent to the critter. |
+| `stuck-combat-active` | A previous combat was still active when this encounter started. |
+| `stuck-no-combat` | `Combat.start()` returned but `combatActive` never became `true`. |
+| `stuck-player-turn-timeout` | Combat started but the player's turn was never signalled within the timeout. |
+| `stuck-ai-turn-timeout` | Player passed its turn but the AI phase never completed within the timeout. |
+| `exception-on-start` | Exception thrown calling `Combat.start()`. |
+| `exception-in-combat` | Exception thrown calling `combat.nextTurn()`. |
+
+**Map (`MapStatus`)**
+
+| Status | Meaning |
+|---|---|
+| `ok` | Map loaded, player placed at a valid position. |
+| `load-timeout` | Map did not finish loading within 10 s. |
+| `exception` | JS exception thrown by `loadMap()` synchronously. |
+| `player-missing` | Map loaded but player position is undefined or not a valid tile. |
+
+---
 
 ## License
 
