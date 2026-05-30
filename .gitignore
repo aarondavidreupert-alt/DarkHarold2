@@ -12,9 +12,12 @@
 *.msk
 *.blm
 *.frm
+*.fr*
+*.lip
+*.npy
+*.txt
 
 data/
-
 proto/
 audio/
 /audiotest
