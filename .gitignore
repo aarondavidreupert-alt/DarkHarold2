@@ -2,6 +2,17 @@
 *.map
 *.pyc
 *.png
+*.wav
+*.map
+*.gam
+*.msk
+*.pro
+*.int 
+*.acm
+*.msk
+*.blm
+*.frm
+
 data/
 
 proto/
