@@ -372,8 +372,13 @@ export class GameMap {
 
             globalState.player.orientation = map.mapObj.startOrientation
 
-            // Set elevation
-            this.currentElevation = globalState.currentElevation = Number(startingElevation) || 0
+            // Set elevation — clamp to 0 if out of bounds (same guard as doEnterNewMap)
+            const requestedElev = Number(startingElevation) || 0
+            const safeElev = this.mapObj.levels[requestedElev] ? requestedElev : 0
+            if (safeElev !== requestedElev) {
+                dbgWarn('map', `loadMap (dirty cache): starting elevation ${requestedElev} out of bounds (map has ${this.numLevels} levels), clamping to 0`)
+            }
+            this.currentElevation = globalState.currentElevation = safeElev
 
             // Change to our new elevation (sets up map state)
             this.changeElevation(this.currentElevation, false, true)
