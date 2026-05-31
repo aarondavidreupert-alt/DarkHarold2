@@ -5,8 +5,29 @@ unlocks the next. Phases 1–3 are pure connectivity — the engine infrastructu
 already exists, these wire it up. Phases 4–5 introduce the only genuinely new
 systems still needed.
 
-Current estimate: ~55% complete. Target: 95% (a playable end-to-end run through
-Fallout 2's main quest with companions, working scripted content, and correct combat).
+**Last audited: 2026-05-31**
+Current estimate: **~70% complete** (was ~55% when this roadmap was written).
+Target: 95% (a playable end-to-end run through Fallout 2's main quest with
+companions, working scripted content, and correct combat).
+
+Phases 1–3 and most of Phase 4 are now done. Phase 5 is ~65% done (drugs and
+poison implemented; party has basic follow; wander schedules absent). Phase 6 is
+~55% done (preferences screen and healer perk complete; type hygiene outstanding).
+Four new save/load gaps were found during the audit and are added below.
+
+---
+
+## Infrastructure
+
+Work completed since the roadmap was written to support ongoing development. Not
+game features, but prerequisites for reliable iteration.
+
+- ✅ **Wiki Layer** (`wiki/` directory) — 21 audited docs covering all major systems
+  with CE citations and DH2 gap inventories. Lookup order: wiki/ → CE source → ask.
+- ✅ **CODEBASE.md** — post-audit source map with Known Gaps inventory; maintained
+  in CLAUDE.md via the CODEBASE.md Maintenance rule.
+- ✅ **CLAUDE.md update rules** — Wiki Layer lookup order and CODEBASE.md surgical
+  edit rule added to project instructions.
 
 ---
 
@@ -16,139 +37,131 @@ Fallout 2's main quest with companions, working scripted content, and correct co
 advance state, spawn items, play animations, or react to damage are all silent
 until these hooks are wired.
 
-### 1a. `damage_p_proc` and `destroy_p_proc`
-- `Scripting.damage()` exists at `scripting.ts` but is never called
-- `Scripting.destroy()` exists but is never called
-- Wire `damage_p_proc`: call from `critterDamage()` in `critter.ts` after HP change
-- Wire `destroy_p_proc`: call from `GameMap.removeObject()` in `map.ts` before splice
-- Ref: fallout2-ce `scripts.cc::scriptExecProc()`
+### 1a. `damage_p_proc` and `destroy_p_proc` ✅ Done
+- `Scripting.damage()` is called from `critter.ts:~570` after HP change, before
+  death check — correct CE timing per `combat.cc::attackComputeDamage()`.
+- `destroyObject()` in `map.ts` calls `Scripting.destroy()` before removal.
+- Both dispatch functions live in `scripting.ts:2005–2025`.
 
-### 1b. `reg_anim_func` + animation scripting
-- `reg_anim_func` (`scripting.ts:1478`) is a complete no-op; most scripted object
-  interactions queue animations through this
-- `reg_anim_animate` (`scripting.ts:1481`) plays an animation but ignores the `delay` param
-- Implement the animation queue: accumulate `reg_anim_func` calls per object, drain
-  sequentially with delay timing via `TimedEvent`
+### 1b. `reg_anim_func` + animation scripting ✅ Done
+- `animBatch` queue accumulates entries per `reg_anim_begin` / `reg_anim_end` block.
+- `reg_anim_end` drains sequentially via `doStep()` with `setTimeout`-based delay
+  (`step.delay * 100` ms) — `scripting.ts:1579`.
 - Ref: fallout2-ce `animationRegAnimFunc()` in `animation.cc`
 
-### 1c. `get_month` and `get_day`
-- Both hardcoded in `vm_bridge.ts:51,55` — `get_month` returns 1, `get_day` returns 0
-- Wire both to read from the game tick counter in `gametime.ts`
-- Ref: fallout2-ce `scripts.cc` opcode handlers; `game_time` is already wired correctly
+### 1c. `get_month` and `get_day` ✅ Done
+- `0x8118`: `this.push(GameTime.getDate().month + 1)` — `vm_bridge.ts:52`
+- `0x8119`: `this.push(GameTime.getDate().day)` — `vm_bridge.ts:56`
+- Both read from the game tick counter via `gametime.ts::getDate()`.
 
-### 1d. Object removal queue
-- Direct `splice()` in `GameMap.removeObject()` (`map.ts:99`) causes index drift
-  when scripts remove objects during iteration
-- Add a deferred removal queue; drain at end of each heartbeat tick in `heart.ts`
+### 1d. Object removal queue ✅ Done
+- `removeObject()` pushes to `_removalQueue`; `drainRemovalQueue()` splices at
+  end of each heartbeat tick — `map.ts:101–130`.
+- Prevents index drift when scripts remove objects during iteration.
 
 ---
 
 ## Phase 2 — Dialogue Completeness
 **Goal:** All standard NPC dialogue patterns work end-to-end.
 
-### 2a. `gsay_message` rebuild
-- Current implementation is bitrotted — old code commented out, method is a no-op
-  (`scripting.ts:1394`)
-- Implement: display a message in the dialogue panel with a [Done] button, blocking
-  further option display until dismissed
-- `gsay_reply` already works and calls `uiSetDialogueReply()`; model `gsay_message`
-  on the same pattern with a single synthesised option
+### 2a. `gsay_message` ✅ Done
+- Implemented: `scripting.ts:1461`. Displays reply text, synthesises a `[Done]`
+  option, saves VM resume address, and halts the VM — mirrors the `gsay_end`
+  convention.
 
-### 2b. `gSay_Start`
-- Stub at `scripting.ts:1604`; triggers the dialogue UI from script
-- Wire to the existing `ui_dialogue.ts` open path
+### 2b. `gSay_Start` / `gsay_start` ✅ Done
+- Implemented: `scripting.ts:1450`. Opens the dialogue UI if not already open
+  via `uiStartDialogue(false, self_obj)`. Wired: `vm_bridge.ts:183`.
 
-### 2c. `gdialog_set_barter_mod`
-- Stub at `scripting.ts:1597`; sets a per-dialogue barter price modifier
-- Store modifier on the active dialogue session; apply in `ui_barter.ts` value calculation
+### 2c. `gdialog_set_barter_mod` ✅ Done
+- Stores `dialogueBarterMod` — `scripting.ts:1425`.
+- Applied in `ui_barter.ts:317–320`: `merchantNeed = ceil(merchantOffered * (100 + barterMod) / 100)`.
 
 ---
 
 ## Phase 3 — Scripting Stubs (P2 batch)
 **Goal:** The remaining P2 stubs that scripted content depends on.
-Each is a small self-contained change; batch them in one pass.
 
-| Opcode | What to implement |
-|---|---|
-| `obj_art_fid` | Read `obj.fid` (already on Obj) and return it |
-| `art_anim` | Encode anim enum into FRM ID high bits; ref: fallout2-ce `art.cc::artAlias()` |
-| `obj_item_subtype` | Read `pro.extra.subType` from the loaded proto |
-| `tile_contains_pid_obj` | Remove the `stub()` log; logic already present — verify and clean up |
-| `tile_is_visible` | Check tile lightmap intensity > threshold |
-| `set_exit_grids` | Write to `GameMap.exitGrids`; map loader already populates these |
-| `game_ui_disable` / `game_ui_enable` | Set a flag on `globalState`; HUD input checks the flag |
-| `wm_area_set_pos` | Update area marker position in `globalState.mapAreas` |
-
-Also in this pass:
-- `critter_attempt_placement`: search hex neighbours when target tile is occupied
-  (ref: fallout2-ce `critter.cc::critterAttemptPlacement()`)
-- `proto_data` critter fields: implement the missing cases beyond `CRITTER_KILL_TYPE`
-  (ref: fallout2-ce `proto.cc::protoGetDataMember()`)
+| Opcode | Status | Notes |
+|---|---|---|
+| `obj_art_fid` | ✅ Done | `vm_bridge.ts:130`, `scripting.ts:1201` |
+| `art_anim` | ✅ Done | `vm_bridge.ts:118`, `scripting.ts:1209` |
+| `obj_item_subtype` | ✅ Done | `vm_bridge.ts:123`, `scripting.ts:1180` |
+| `tile_contains_pid_obj` | ✅ Done | `vm_bridge.ts:115`, `scripting.ts:1337` |
+| `tile_is_visible` | ✅ Done | `vm_bridge.ts` `0x80f8`, `scripting.ts:1347` |
+| `set_exit_grids` | 🟡 Partial | Implemented `scripting.ts:1306`; **not wired in `vm_bridge.ts`** |
+| `game_ui_disable` / `game_ui_enable` | ✅ Done | `vm_bridge.ts:160–161`, `scripting.ts:1789–1793` |
+| `wm_area_set_pos` | ✅ Done | `vm_bridge.ts:96`, `scripting.ts:1782` |
+| `critter_attempt_placement` | ✅ Done | `vm_bridge.ts:101`, `scripting.ts:851` |
+| `proto_data` critter fields | 🟡 Partial | Implemented `scripting.ts:1090`; critter `data_member` cases incomplete; **not wired in `vm_bridge.ts`** |
 
 ---
 
 ## Phase 4 — Combat Correctness
 **Goal:** Combat produces the right outcomes; AI behaves like FO2.
 
-### 4a. AI team targeting (`object.ts:1173`, `combat.ts:1044`)
-- `teamNum` is always -1; AI attacks the nearest critter regardless of faction
-- Assign `teamNum` from proto AI packet when loading critters
-- Update `Combat.findTarget()` to filter by `x.teamNum !== obj.teamNum`
+### 4a. AI team targeting ✅ Done
+- `teamNum` assigned from proto AI packet at critter load — `object.ts:1290`.
+- `findTarget()` filters by `x.teamNum !== obj.teamNum` — `combat.ts:1058`.
 - Ref: fallout2-ce `ai.cc::aiGetAttackTarget()`
 
-### 4b. Perk crit bonuses (`combat.ts:475`)
-- `bonusCrit = 0`; Better Criticals and Slayer perks don't apply
-- Read `player.perks` in the crit roll; ref: fallout2-ce `combat.cc::rollCriticalHit()`
+### 4b. Perk crit bonuses ✅ Done
+- **Better Criticals**: +30 per rank applied — `combat.ts:501–503`.
+- **Slayer**: every melee hit auto-critical — `combat.ts:523`.
+- **Sniper**: on ranged hit, roll d100 ≤ LUK → critical — `combat.ts` (same block).
+- Ref: fallout2-ce `combat.cc::rollCriticalHit()`
 
-### 4c. Melee critical table (`criticalEffects.ts:49`)
-- Single table used for all weapons; melee uses a separate table in FO2
-- Add a second table entry; select based on `weapon.extra.subType === WeaponSubtype.Melee`
+### 4c. Melee critical table 🟡 Partial
+- Melee crit `DM` is halved (`max(2, floor(DM/2))`) — `combat.ts:538`.
+- However a **separate critical table is not used** — single table for all weapons.
+- `criticalEffects.ts:49` still carries the `TODO` comment.
 - Ref: fallout2-ce `combat.cc` critical hit table indices
 
-### 4d. `damage_p_proc` timing (Phase 1 follow-up)
-- Verify the hook fires at the right point (after DR/DT reduction, before death check)
-- Ref: fallout2-ce `combat.cc::attackComputeDamage()`
+### 4d. `damage_p_proc` timing ✅ Done
+- Fires after HP reduction, before death check — `critter.ts:~570`.
+- CE-accurate per `combat.cc::attackComputeDamage()`.
 
-### 4e. DAM_DROP
-- Critical failure flag that drops the weapon; not implemented in combat
-- On critical failure with `DAM_DROP` flag: remove weapon from critter's active hand
+### 4e. DAM_DROP 🔴 Still needed
+- Critical failure flag `DAM_DROP` that drops the weapon is not handled anywhere
+  in `combat.ts`.
+- On critical failure with this flag: remove weapon from critter's active hand.
 - Ref: fallout2-ce `combat.cc` `DAM_DROP` handling
 
 ---
 
 ## Phase 5 — Minimal Deferred Systems
 **Goal:** The four systems marked "deliberately deferred" that are required for
-a believable playthrough. Minimal implementations only — enough to be correct,
-not exhaustive.
+a believable playthrough.
 
-### 5a. Drug/chem effects and addiction
-- `Stimpak`, `Psycho`, `Buffout`, `Jet` etc. are central to FO2 gameplay
-- Implement: on use, apply timed stat modifier via `TimedEvent`; on expiry, reverse
-  modifier and roll addiction check
-- Addiction roll: `Luck`-based; on fail, set addiction flag; withdrawal applies
-  negative modifier until treated
-- Ref: fallout2-ce `proto.cc` drug data, `player.cc::playerAddAddiction()`
+### 5a. Drug/chem effects and addiction ✅ Done
+- Full implementation in `src/drugs.ts` (224 lines): `useDrug()` applies stat
+  modifiers via `TimedEvent`, schedules reversal, rolls addiction check on expiry.
+- Addiction/withdrawal tick: `main.ts:1073` via `tickAddictions()` each 600 ticks.
+- Covered: Stimpak, Psycho, Buffout, Jet, Radaway, Antidote, Nuka-Cola.
+- `globalState.drugHandler` routes `obj.subtype === 'drug'` uses to `useDrug`.
+- Ref: fallout2-ce `proto.cc` drug data, `addiction.cc addictionProcess`
 
-### 5b. Poison and radiation decay loops
-- Scripting stubs (`get_poison`, `poison`, `radiation_dec`) exist but no tick loop
-- Implement: per-tick poison HP damage and decay in the heartbeat loop (`heart.ts`)
-- Radiation: accumulate rads; apply symptom thresholds (nausea, stat penalties, death)
-- Ref: fallout2-ce `critter.cc::critterGetPoison()`, `radiation.cc`
+### 5b. Poison and radiation decay loops ✅ Done
+- **Poison**: -`floor(poisonLevel/10)` HP per 600-tick cycle, level decremented
+  by 1 — `main.ts:1063–1068`. Ref: `critter.cc::critterPoisonCheck`.
+- **Radiation**: `applyRadiationSymptoms()` called per 600-tick cycle —
+  `main.ts:1076–1078`. Ref: `radiation.cc::radiationEventProcess`.
+- **Addiction withdrawal**: `tickAddictions()` called per cycle — `main.ts:1073`.
 
-### 5c. Party / companion follow logic
-- `party.ts` is a 61-line shell; companions can be added but do nothing
-- Minimum for 95%: follow the player (pathfind to player position each turn),
-  CHA-based party size cap, companion inventory accessible from UI
-- Dismissal dialogue hooks can reuse the existing `talk_p_proc` path
-- Full companion level-up can remain deferred
+### 5c. Party / companion follow logic 🟡 Partial
+- `party.ts` has `followPlayer()`: walks companions toward player when >5 hexes
+  away. Party size cap (1 + floor(CHA/2)) enforced.
+- **Missing**: true pathfinding (companions teleport rather than pathfind);
+  dismissal dialogue hooks; companion inventory accessible from HUD.
+- Full companion level-up remains deferred (out of scope for 95%).
 - Ref: fallout2-ce `party.cc`
 
-### 5d. Minimal NPC wander schedules
-- Towns feel frozen without basic AI movement
-- Minimum: read wander radius from AI packet (`pro.aiPacket.wanderDistance`);
-  each `map_update_p_proc` tick, occasionally move critter to a random adjacent hex
-  within radius if not in combat
-- Full day/night schedule tables remain deferred
+### 5d. Minimal NPC wander schedules 🔴 Still needed
+- No wander logic implemented anywhere. Towns remain frozen.
+- **Minimum for 95%**: read `pro.aiPacket.wanderDistance`; each `map_update_p_proc`
+  tick, occasionally move critter to random adjacent hex within radius if not in
+  combat.
+- Full day/night schedule tables remain deferred.
 - Ref: fallout2-ce `ai.cc::aiMoveSteps()`
 
 ---
@@ -156,28 +169,84 @@ not exhaustive.
 ## Phase 6 — Polish and Type Hygiene
 **Goal:** Correctness, stability, and maintainability. No new features.
 
-- `Obj.serialize()` subclass gap (`object.ts:974`) — critter/weapon equipment not
-  serialized correctly
-- `WeaponObj` deserialization — leftHand/rightHand fields commented out (`object.ts:1828`)
-- Ladder destination ignores elevation/map bits — reads tile only (`object.ts:775`)
-- Spatial trigger deserialization in save/load (`map.ts:612`) — spatial state lost on load
-- `get_month`/`get_day` wired in Phase 1; verify against actual save/load round-trip
-- Type annotations: `Obj.type`, `Obj.pro`, `Obj.art`, `Obj.extra`, `Obj.anim`,
-  `globalState.proMap`, `Critter.weapon` — all `any`
-- **Preferences screen** (`ui_options.ts:50`, `ui_options.ts:95`) — currently `alert('not yet implemented')` stub
-  - Build panel with `WindowFrame`/`Widget` (same pattern as the rest of `ui_options.ts`)
-  - Difficulty slider → `Config.combat.difficultyModifier` (75/100/125)
-  - Running toggle → `Config.engine.doAlwaysRun`
-  - Audio toggle → `Config.engine.doAudio`
-  - Add new `Config` entries for violence level, target highlight, combat speed, subtitles, combat messages
-  - Volume sliders (master/music/SFX): add a `GainNode` to the `AudioContext` in `audio.ts`; expose `setVolume()` on `AudioEngine`
-  - Persist to `localStorage` on close; read back in `initOptionsMenu()`
-  - Ref: fallout2-ce `options.cc`, `preferences.cc`
-- Healer perk in First Aid/Doctor (`skillUse.ts:227`)
-- Perk crit bonuses in `bonusCrit` (covered in Phase 4b)
-- Encounter difficulty roll adjustments (`encounters.ts:300`, `349`)
-- Karma title computation
-- `char.ts:27` skill name mismatch ("Melee" vs "Melee Weapons")
+- ✅ `Obj.serialize()` equipment — `leftHand`/`rightHand` re-established from
+  serialized inventory at deserialize time (`object.ts:1250–1260`); not a
+  direct save field but round-trips correctly.
+- ✅ Spatial trigger LVARs — serialized at map save (`map.ts:634`), restored on
+  load (`map.ts:661`).
+- ✅ `get_month`/`get_day` save round-trip — `gameTickTime` is in `SaveGame`;
+  `getDate()` derives month/day from it deterministically.
+- ✅ **Preferences screen** — `ui_options.ts` (434 lines): difficulty slider,
+  running toggle, audio toggle, volume sliders (master/music/SFX via `setVolume()`
+  on `HTMLAudioEngine`), `localStorage` persist/restore via `loadPreferences()`.
+- ✅ **Healer perk** — `skillUse.ts:227–230`: +4 min /+10 max HP per rank for
+  First Aid; +4/+10 per rank for Doctor (`skillUse.ts:318–320`).
+- ✅ Encounter difficulty roll adjustments — `encounters.ts:302–310`: difficulty
+  modifier ±5 applied; Scout/Ranger/Explorer perk bonuses applied.
+- ✅ Karma title computation — `ui_character.ts:581–624`: `KARMA_TITLES` threshold
+  table displayed in the character screen.
+- ✅ `char.ts:27` skill name — `Melee` → `Melee Weapons` remapped on deserialize
+  (`char.ts:62–65`); `TODO` comment remains but is functionally resolved.
+- 🔴 **Type annotations**: `Obj.type`, `Obj.pro`, `Obj.art`, `Obj.extra`,
+  `Obj.anim`, `globalState.proMap`, `Critter.weapon` — still `any`.
+
+---
+
+## Phase 7 — Save/Load Completeness (New — found during audit)
+**Goal:** Game state survives a save/load cycle without silent data loss.
+These gaps were not in the original roadmap. Each causes observable quest and
+gameplay regressions on reload.
+
+### 7a. MVAR persistence 🔴 Critical
+- `mapVars` is a module-level `var` in `scripting.ts:50`; it is **not exported
+  and not included in `SaveGame`** (`saveload.ts`).
+- On reload, all map variable state resets to the default `.mvars.json` values.
+  Quest-critical flags (doors unlocked, merchants visited, quest stages) are lost.
+- Fix: export `mapVars` from `scripting.ts`; add `mvars` field to `SaveGame`;
+  restore in `load()`.
+- Ref: fallout2-ce `map.cc::mapSave` — MVARs persist with the map.
+
+### 7b. WorldMap `knownAreas` not persisted 🔴
+- `globalState.knownAreas: Set<number>` is **not in `SaveGame`**.
+- On reload the worldmap forgets all discovered areas; player must re-discover
+  every location.
+- Fix: serialize `knownAreas` as an array in `SaveGame.playerState`; restore
+  into a new `Set` on load.
+
+### 7c. Timed event queue not persisted 🔴
+- `Scripting.timeEventList` (`scripting.ts:59`) is **not in `SaveGame`**.
+- Drug timers (stat reversal, addiction rolls), scripted `add_timer_event` delays
+  — all lost on reload. Reloading after using drugs silently removes the expiry
+  callback.
+- Fix: serialize the `timeEventList` (filter to serializable entries — e.g.
+  drug events tagged with string `userdata`); restore with adjusted `fireTime`
+  on load.
+
+### 7d. `obj_set_light_level` (0x8107) not wired 🟡
+- Implemented in `scripting.ts:1262` (sets `obj.lightRadius`,
+  `obj.lightIntensity`) but **no entry in `vm_bridge.ts`**.
+- Scripts that call `obj_set_light_level` at runtime will no-op.
+- Fix: add `0x8107: bridged("obj_set_light_level", 3, false)` to `vm_bridge.ts`.
+- Ref: fallout2-ce `interpreter_extra.cc:3058` `opSetObjectLightLevel`.
+
+---
+
+## Phase 8 — Rendering Gaps (New — found during audit)
+**Goal:** Visual correctness for world geometry interaction.
+
+### 8a. Egg transparency system 🔴 Still needed
+- The CE "egg" — the circular transparent region around the player where
+  overlapping walls and scenery are rendered semi-transparent — is **entirely
+  absent** from DH2.
+- CE uses `gEgg` pseudo-object (FID `OBJ_TYPE_INTERFACE/2`, egg.frm), per-frame
+  position tracking, `tileIsInFrontOf` / `tileIsToRightOf` positional checks,
+  and `_intensity_mask_buf_to_buf` gradient blending.
+- Roof clipping (roof tiles transparent above the player) uses the same technique
+  via `tileRenderRoof`.
+- WebGL equivalent: a distance-based alpha mask in the fragment shader, or
+  CPU-side per-object clip based on hex-distance to player.
+- Ref: `wiki/egg_system.md` for full CE algorithm; `raw/fallout2-ce/src/object.cc:4949`,
+  `tile.cc:1328`.
 
 ---
 
@@ -188,21 +257,27 @@ These are real FO2 systems but not on the critical path to a playable main quest
 - **Endgame slides** — needed for 100%, not 95%
 - **Subtitles / speech audio playback** — immersion, not correctness
 - **Full NPC day-night schedules** — minimal wander (Phase 5d) is enough
-- **Perk selection screen** — already implemented
+- **Perk selection screen** — ✅ already implemented (`ui_character.ts:1866` `showPerkModal`)
 - **Unarmed special moves** (Haymaker etc.) — edge case; unarmed modes defined in `unarmed.ts`
 - **Full companion level-up UI** — companions work without it
 - **Town reputation / faction tracking** — affects NPC reactions but not quest completion
 - **Save slot screenshots**
+- **`set_exit_grids` fully wired** — scripted exit overrides rare in main quest
+- **Full `proto_data` critter coverage** — most needed fields implemented; missing
+  cases hit warn() and return 0, which is tolerable for most quest scripts
 
 ---
 
 ## Dependency order summary
 
 ```
-Phase 1 (script hooks)
-    └─ Phase 2 (dialogue — needs hooks to work correctly)
-        └─ Phase 3 (stub batch — some depend on dialogue infrastructure)
-            └─ Phase 4 (combat — clean base before correctness pass)
-                └─ Phase 5 (deferred systems — built on stable scripting + combat)
-                    └─ Phase 6 (polish — everything stable before cleanup)
+Infrastructure (wiki, CODEBASE.md, CLAUDE.md)
+    └─ Phase 1 (script hooks) ✅
+        └─ Phase 2 (dialogue) ✅
+            └─ Phase 3 (stub batch — mostly done) ✅/🟡
+                └─ Phase 4 (combat correctness — mostly done) ✅/🟡
+                    └─ Phase 5 (deferred systems — partially done) ✅/🟡/🔴
+                        └─ Phase 6 (polish — partially done) ✅/🔴
+Phase 7 (save/load completeness — new, independent) 🔴
+Phase 8 (rendering gaps — new, independent) 🔴
 ```
