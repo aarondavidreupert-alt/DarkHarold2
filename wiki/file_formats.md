@@ -64,16 +64,20 @@ CE ref: `proto.cc:protoLoad`
 
 Each `.pro` file describes one object archetype. All integers signed 32-bit unless noted.
 
-### Shared Header (24 bytes)
+### Shared Header (12 bytes)
+
+CE ref: `proto.cc:protoRead` lines ~1665–1668. Only three fields are shared across all
+PRO types; subsequent fields diverge immediately per type.
 
 | Offset | Size | Field | Notes |
 |--------|------|-------|-------|
-| 0x00 | 4 | objectTypeAndID | high byte = type; low 16 = PID |
-| 0x04 | 4 | textID | index into `*.msg` for name/description |
-| 0x08 | 4 | frmTypeAndID | high byte = FRM type; low 16 = FRM PID |
-| 0x0C | 4 | lightRadius | |
-| 0x10 | 4 | lightIntensity | |
-| 0x14 | 4 | flags | object flags bitfield |
+| 0x00 | 4 | pid (objectTypeAndID) | high byte = type; low 16 = PID |
+| 0x04 | 4 | messageId (textID) | index into `*.msg` for name/description |
+| 0x08 | 4 | fid (frmTypeAndID) | high byte = FRM type; low 16 = FRM PID |
+
+For ITEM, CRITTER, SCENERY, WALL, and MISC types the next fields are `lightDistance (4B)`,
+`lightIntensity (4B)`, `flags (4B)`, and `extendedFlags (4B)` — but these are type-specific
+reads, not a universal header. TILE type skips them entirely and reads only flags/extendedFlags/sid/material.
 
 **Type encoding** (high byte of `objectTypeAndID`):
 
@@ -86,22 +90,27 @@ Each `.pro` file describes one object archetype. All integers signed 32-bit unle
 | 4 | Tile | `proto/tiles/` |
 | 5 | Misc | `proto/misc/` |
 
-### Item PRO (type 0) — Common Fields (33 bytes after header)
+### Item PRO (type 0) — Fields after shared 12B header
 
-| Field | Size | Notes |
-|-------|------|-------|
-| flagsExt (3B): itemFlags, actionFlags, weaponFlags | 3 | |
-| attackMode | 1 | |
-| scriptID | 4 | |
-| subType | 4 | 0=Armor, 1=Container, 2=Drug, 3=Weapon, 4=Ammo, 5=Misc, 6=Key |
-| materialID | 4 | |
+CE ref: `proto.cc:protoRead` OBJ_TYPE_ITEM branch, lines ~1671–1683.
+
+| Field (CE name) | Size | Notes |
+|-----------------|------|-------|
+| lightDistance | 4 | |
+| lightIntensity | 4 | |
+| flags | 4 | object flags |
+| extendedFlags | 4 | item flags (two-handed, big-gun, hidden, etc.) |
+| sid | 4 | script ID |
+| type | 4 | 0=Armor, 1=Container, 2=Drug, 3=Weapon, 4=Ammo, 5=Misc, 6=Key |
+| material | 4 | material type |
 | size | 4 | |
 | weight | 4 | |
 | cost | 4 | |
-| invFRM | 4 | FRM PID for inventory icon |
-| soundID | 1 | |
+| inventoryFid | 4 | FRM PID for inventory icon |
+| soundCode (field_80) | 1 | |
+| [type-specific extra data] | — | see weapon/ammo/armor sections below |
 
-### Weapon Extra Fields (subType 3, 17 fields × 4B + 1B soundID)
+### Weapon Extra Fields (subType 3, 16 fields × 4B + 1B soundID)
 
 | Field | Notes |
 |-------|-------|
@@ -143,27 +152,30 @@ stat0/1/2 (which stats are modified), amount0/1/2 (immediate values), two delaye
 
 ### Critter PRO (type 1)
 
-| Field | Size |
-|-------|------|
-| actionFlags | 4 |
-| scriptID | 4 |
-| headFID | 4 |
-| AI (AI packet number) | 4 |
-| team | 4 |
-| flags | 4 |
-| baseStats (17 base + 16 resist = 33 × 4B) | 132 |
-| age | 4 |
-| gender | 4 |
-| bonusStats (same layout × 33) | 132 |
-| bonusAge | 4 |
-| bonusGender | 4 |
-| skills (18 × 4B) | 72 |
-| bodyType | 4 |
-| XPValue | 4 |
-| killType | 4 |
-| damageType (FO2 only, not robots/brahmin) | 4 |
+CE ref: `proto.cc:protoRead` (OBJ_TYPE_CRITTER branch, lines ~1687–1696) and `critter.cc:protoCritterDataRead` (~1064).
 
-**Base/bonus stat order**: STR, PER, END, CHR, INT, AGI, LUK, HP, AP, AC, Unarmed, Melee, Carry, Sequence, Healing Rate, Critical Chance, Better Criticals — then DR/DT: Normal/Laser/Fire/Plasma/Electrical/EMP/Explosive, DR Radiation, DR Poison.
+Fields after the 12-byte shared pid/messageId/fid:
+
+| Field (CE name) | Size | Notes |
+|-----------------|------|-------|
+| lightDistance | 4 | |
+| lightIntensity | 4 | |
+| flags | 4 | proto-level flags |
+| extendedFlags | 4 | |
+| sid | 4 | script ID |
+| headFid | 4 | |
+| aiPacket | 4 | AI packet number |
+| team | 4 | |
+| data.flags | 4 | CritterProtoData flags (action flags) |
+| data.baseStats (35 × 4B) | 140 | 17 primary+secondary + 7 DT + 7 DR + RadResist + PoisonResist + Age + Gender |
+| data.bonusStats (35 × 4B) | 140 | same layout |
+| data.skills (18 × 4B) | 72 | |
+| data.bodyType | 4 | |
+| data.experience (XPValue) | 4 | |
+| data.killType | 4 | |
+| data.damageType | 4 | optional; defaults to NORMAL if missing (some protos are 4B shorter) |
+
+**Base/bonus stat order** (35 entries, matching `SAVEABLE_STAT_COUNT` in stat_defs.h): STR, PER, END, CHR, INT, AGI, LUK, HP, AP, AC, Unarmed, Melee, Carry, Sequence, Healing Rate, Critical Chance, Better Criticals — then DT: Normal/Laser/Fire/Plasma/Electrical/EMP/Explosive — then DR: Normal/Laser/Fire/Plasma/Electrical/EMP/Explosive — then Radiation Resistance, Poison Resistance, Age, Gender.
 
 **Skill order**: Small Guns, Big Guns, Energy Weapons, Unarmed, Melee, Throwing, First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair, Speech, Barter, Gambling, Outdoorsman.
 
