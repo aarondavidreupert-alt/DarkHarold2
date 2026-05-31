@@ -188,18 +188,31 @@ Applied to the final `damage` value after the formula (player only):
 
 ## Hit Chance Formula
 
-CE ref: `combat.cc:_combat_to_hit`
+CE ref: `combat.cc:attackDetermineToHit` line ~4440.
+
+The region penalty is **halved for melee weapons** (`toHit += hit_location_penalty[hitLocation] / 2`)
+and applied in full for ranged/unarmed.
 
 ```
+// ranged / unarmed
 hitChance = weaponSkill
           − AC
-          − regionHitChanceDec[region]   // head: 40, eyes: 60, groin: 30, etc.
+          − regionHitChanceDec[region]        // full penalty: head 40, eyes 60, groin 30, …
           − hitDistanceModifier
-          − partialCoverPenalty          // 10 per intervening critter
-          − crippledArmPenalty           // 40 per crippled arm
-          − blindPenalty                 // 25 flat if blinded
+          − partialCoverPenalty               // 10 per intervening critter
+          − crippledArmPenalty               // 40 per crippled arm
+          − blindPenalty                     // 25 flat if blinded
 
-hitChance = min(95, hitChance)           // 5% always-miss preserved
+// melee weapons only: region penalty is halved
+hitChance = weaponSkill
+          − AC
+          − regionHitChanceDec[region] / 2   // ← integer-divided (CE line ~4440)
+          − partialCoverPenalty
+          − crippledArmPenalty
+          − blindPenalty
+          // no distance modifier for melee
+
+hitChance = min(95, hitChance)               // 5% always-miss preserved
 ```
 
 **hitDistanceModifier:**
