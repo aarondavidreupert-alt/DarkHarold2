@@ -109,10 +109,12 @@ the pipeline or the TS compiler.
 
 | File | Purpose | fallout2-ce counterpart |
 |------|---------|------------------------|
-| `src/combat.ts` | Turn-based combat loop, AI, hit chance, damage pipeline, burst fire, ranged scatter, ammo system, called shots (1592 lines) | `combat.cc`, `ai.cc` |
+| `src/combat.ts` | Turn-based combat loop, AI, hit chance, damage pipeline, burst fire, ranged scatter, ammo system, called shots (1592 lines) | `combat.cc`, `combat_ai.cc` |
 | `src/criticalEffects.ts` | Critical hit / failure table lookup and application (478 lines) | `critfail.cc` |
 | `src/unarmed.ts` | Unarmed mode definitions (9 modes, threshold/AP/damage table) | `unarmed.cc` |
 | `src/skillUse.ts` | Active skill use: First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair (622 lines) | `skill.cc::skillUse()` |
+
+Wiki references: [wiki/damage_formula.md](wiki/damage_formula.md) · [wiki/skill_checks.md](wiki/skill_checks.md) · [wiki/ai_behavior.md](wiki/ai_behavior.md)
 
 ### Scripting VM
 
