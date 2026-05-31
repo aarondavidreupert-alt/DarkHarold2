@@ -20,6 +20,14 @@ All game logic, formulas, and data structures must be anchored to:
 - fallout2-ce (https://github.com/alexbatalov/fallout2-ce) — authoritative C++ source. Cite the specific .cc/.h file and function name in every implementation.
 - jsFO (https://github.com/ajxs/jsFO) — JS/browser patterns reference (secondary)
 
+## Wiki Layer
+When researching any system before implementing or documenting:
+1. Check `wiki/` first — these docs are pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust them over raw source reads for formulas and system overviews.
+2. Fall back to `raw/fallout2-ce/src/` only when the wiki is silent, too high-level, or you suspect a discrepancy.
+3. If CE source and the wiki contradict each other, stop and flag the conflict rather than guessing.
+
+Available wiki docs: `ai_behavior.md`, `animation_system.md`, `combat.md`, `critter_stats.md`, `damage_formula.md`, `dialogue_system.md`, `egg_system.md`, `file_formats.md`, `inventory_items.md`, `lighting.md`, `map_rendering.md`, `map_scripting.md`, `opcodes.md`, `perks_traits.md`, `save_load.md`, `skill_checks.md`, `sound_system.md`, `special_derived.md`, `worldmap.md`.
+
 ## File Access Policy
 - ALWAYS pull from the remote branch before reading any file
 - If a file is not found after pulling, STOP and ask — do NOT create it from scratch
@@ -74,6 +82,13 @@ Tile coordinate convention: `tileNum = y * 200 + x` (200-wide grid, 40000 max ti
 - TimedEvent / `timeEventList` in scripting.ts is the hook for all tick-based callbacks
 - Do not add addiction, drug, poison/radiation decay, or NPC schedule logic unless the task explicitly asks for it
 
+## CODEBASE.md Maintenance
+After any feature that adds, removes, or significantly changes a system:
+- Update the relevant row(s) in the Source Modules table, the Known Gaps section, or the Repository Layout — whichever applies.
+- Surgical edits only — do not rewrite sections unrelated to the change.
+- If the Known Gaps section changes, append a one-line audit note: `<!-- audited: YYYY-MM-DD -->` at the end of the changed block.
+- Add new wiki docs to the "Wiki references" line in CODEBASE.md when they are created.
+
 ## Intentionally Incomplete Systems (do not implement unless asked)
 - Party system — add/remove/enumerate stubs only (src/party.ts)
 - Perk selection UI — `pendingPerkPick` flag exists but no selection screen
@@ -82,7 +97,7 @@ Tile coordinate convention: `tileNum = y * 200 + x` (200-wide grid, 40000 max ti
 - Unarmed special moves (Haymaker etc.)
 - Subtitles / speech audio playback
 - Endgame slides
-- ~61 script opcodes are stub() no-ops (e.g. critter_heal, play_sfx, gfade_out, reg_anim_func)
+- ~11 script opcodes remain active `stub()` no-ops (e.g. `metarule`, `has_trait`, `using_skill`, `do_check`, `inven_cmds`)
 
 ## Constraints
 - WebGL 2.0 only — no Three.js, no canvas 2D, no native deps
