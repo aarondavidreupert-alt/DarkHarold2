@@ -114,7 +114,7 @@ the pipeline or the TS compiler.
 | `src/unarmed.ts` | Unarmed mode definitions (9 modes, threshold/AP/damage table) | `unarmed.cc` |
 | `src/skillUse.ts` | Active skill use: First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair (622 lines) | `skill.cc::skillUse()` |
 
-Wiki references: [wiki/damage_formula.md](wiki/damage_formula.md) · [wiki/skill_checks.md](wiki/skill_checks.md) · [wiki/ai_behavior.md](wiki/ai_behavior.md)
+Wiki references: [wiki/damage_formula.md](wiki/damage_formula.md) · [wiki/skill_checks.md](wiki/skill_checks.md) · [wiki/ai_behavior.md](wiki/ai_behavior.md) · [wiki/dialogue_system.md](wiki/dialogue_system.md)
 
 ### Scripting VM
 
