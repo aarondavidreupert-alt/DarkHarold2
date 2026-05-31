@@ -1,6 +1,6 @@
 # World Map System Reference
 
-> Last audited: 2026-05-31  
+> Last audited: 2026-05-31 (rev 2)  
 > Sources: `raw/fallout2-ce/src/worldmap.cc`, `worldmap.h`, `interpreter_extra.cc`  
 > DH2 sources: `src/worldmap.ts`, `src/data.ts`, `src/scripting.ts`, `src/vm_bridge.ts`  
 > Data files: `data/data/worldmap.txt`, `data/data/city.txt`
@@ -67,7 +67,20 @@ type_0=Pid:16,Ratio:3,Item:7(wielded)
 position=Surrounding,5
 ```
 
-DH2 `Square` fields parsed from worldmap.txt (columns 0–5 of each subtile entry):
+DH2 `Square` interface (`worldmap.ts:51`):
+
+```typescript
+interface Square {
+    terrainType: string       // "mountain" | "ocean" | "desert" | "city" | ...
+    fillType: string          // "no_fill" | "fill_w"
+    frequency: string         // "forced" | "frequent" | "uncommon" | "common" | "rare" | "none"
+    encounterType: string     // encounter table lookup name
+    difficulty: number        // tile-level encounter_difficulty modifier (from [Tile N] header)
+    state: number             // fog-of-war: 0=UNDISCOVERED, 1=DISCOVERED, 2=SEEN
+}
+```
+
+Fields parsed from worldmap.txt (columns 0–5 of each subtile entry):
 
 | Index | Field | CE counterpart |
 |-------|-------|----------------|
@@ -77,8 +90,46 @@ DH2 `Square` fields parsed from worldmap.txt (columns 0–5 of each subtile entr
 | 3 | *(unused)* | |
 | 4 | *(unused)* | |
 | 5 | `encounterType` | `SubtileInfo.encounterType` (index into encounter table) |
+| header | `difficulty` | `TileInfo.encounterDifficultyModifier` (from `encounter_difficulty` line) |
 
 CE stores three per-day-part encounter chances (`encounterChance[DAY_PART_COUNT]`) in each subtile. DH2 stores only one (the single `frequency` field from column 2), ignoring morning/afternoon/night splits.
+
+`difficulty` is parsed per-tile from the `encounter_difficulty` value in `[Tile N]` headers, **not** per-subtile. In CE this modifies the Outdoorsman detection window; in DH2 it is stored on the square but **not used** by `didEncounter()` (no Outdoorsman mechanic).
+
+### Square State & Fog of War
+
+Each square tracks a three-state visibility value (`worldmap.ts:40–42`):
+
+| Constant | Value | Meaning | CSS class |
+|----------|-------|---------|-----------|
+| `WORLDMAP_UNDISCOVERED` | 0 | Never entered; rendered as black overlay | `worldmapSquare-undiscovered` |
+| `WORLDMAP_SEEN` | 1 | Adjacent to a visited square; dimmed overlay | `worldmapSquare-seen` |
+| `WORLDMAP_DISCOVERED` | 2 | Player has entered this square; fully visible | `worldmapSquare-discovered` |
+
+`setSquareStateAt(squarePos, newState, seeAdjacent)` (`worldmap.ts:354`):
+- Transitions the square's CSS class
+- **DISCOVERED → SEEN transition is blocked**: if `oldState === DISCOVERED`, upgrading to SEEN is skipped (line 360)
+- When `seeAdjacent = true` (default): marks all 8 neighbors (N, S, E, W + 4 diagonals) as SEEN
+- **`fill_w` stop**: if the current square's `fillType === 'fill_w'`, the eastward neighbor expansion is skipped (line 380). This prevents ocean-fill squares from revealing sea tiles beyond the edge.
+
+On travel: as the player moves, `updateWorldmapPlayer` calls `setSquareStateAt(squarePos, WORLDMAP_DISCOVERED)` each tick (line 662). CE equivalent: `wmSubTileMarkRadiusVisited` with a configurable radius.
+
+All squares start as `WORLDMAP_UNDISCOVERED` on init. The starting square (Arroyo) is immediately set to `WORLDMAP_DISCOVERED`.
+
+### Player Start Position
+
+`worldmapPlayer` is initialized to `globalState.mapAreas[0].worldPosition` (Arroyo, Area 0) on `Worldmap.init()`. This is hardcoded — no CE equivalent exists; CE restores party position from a save.
+
+### worldmap.ts Public API
+
+```typescript
+Worldmap.init()                         // parse worldmap.txt + city.txt, build DOM
+Worldmap.start()                        // begin 75ms travel timer loop
+Worldmap.stop()                         // clearTimeout(worldmapTimer)
+Worldmap.doEncounter()                  // trigger encounter at current square
+Worldmap.didEncounter(): boolean        // roll for encounter at current square
+Worldmap.getEncounterGroup(name)        // return EncounterGroup by lookup name
+```
 
 ### city.txt — Area Metadata
 
@@ -266,10 +317,13 @@ roll = getRandomInt(0, 100)
 return roll < encRate
 ```
 
+**Encounter check timing**: DH2 checks for encounters every `WORLDMAP_ENCOUNTER_CHECK_RATE = 800` ms of real wall time (`worldmap.ts:666`), guarded by `window.performance.now()`. This is decoupled from movement — the check fires on the timer tick regardless of how far the player has moved. CE checks after each discrete pixel-step group.
+
 DH2 `doEncounter()` → `Encounters.evalEncounter(encTable)`:
 - Calls `src/encounters.ts` to evaluate the encounter table
-- Loads the encounter map, spawns critters at formation positions
-- Starts combat if encounter type is `'ambush'`
+- Loads the encounter map, spawns critters at formation positions (`Encounters.positionCritters`)
+- Starts combat if encounter type is `'ambush'` and `Config.engine.doCombat === true`
+- When an encounter is triggered, `worldmapTimer` is cleared (travel stops); `uiCloseWorldMap()` is called after 1 s
 
 Divergences from CE:
 
@@ -355,6 +409,7 @@ DH2 divergences:
 - `areaType=1` (entrance unlock) is silently ignored
 - `CITY_STATE_INVISIBLE (-66)` is not recognized — will add ID −66 to knownAreas
 - `visitedState` progression is not tracked; only known/unknown
+- **DOM circle not created at runtime**: `Worldmap.init()` creates area `<div>` circles only for areas where `area.state === true` at load time. Calling `mark_area_known(0, id, 1)` for an initially-hidden area (`state=false`) updates `globalState.knownAreas` but does not append a DOM element — the area dot will not appear on the map. A full implementation needs a DOM insert in the opcode handler.
 
 #### `wm_area_set_pos` (0x80E5)
 
@@ -438,6 +493,10 @@ DH2 iterates all areas every time instead of caching `currentAreaId`. Returns 0 
 | Walk masks (.msk files) | Block passage over impassable terrain | Not implemented | Player can walk through mountains on the pixel level |
 | Car system | Fuel, refueling, speed upgrades, area tracking | None | Entire vehicle mechanics absent |
 | wmSubTileMarkRadiusVisited | Reveals subtiles around current pos | Partial (seeAdjacent flag) | DH2's reveal radius is always 1 square, not configurable |
+| `mark_area_known` DOM update | CE updates game state only (no DOM) | DH2 `init()` pre-renders circles; runtime reveal has no DOM append | Area dots for initially-hidden areas won't appear after `mark_area_known` |
+| Encounter check timing | Per walking step | Every 800ms wall time | May fire between movement pixels; more or fewer checks on fast/slow machines |
+| Square fog of war | `wmSubTileGetVisitedState` query API | CSS class only; no query API | Scripts cannot read fog state; `setSquareStateAt` is DOM-only |
+| `fill_w` subtiles | CE `fill_w` flag skips east neighbor in flood-fill | `fill_w` stops eastward expansion in `setSquareStateAt` | Functionally similar; CE uses full flood fill, DH2 only stops one neighbor |
 
 ---
 
@@ -482,6 +541,42 @@ scripts_request_world_map() {
 - `worldmap.encounterRates` → the percentage values for each frequency string
 - `worldmap.terrainSpeed` → pixel-speed multipliers per terrain name
 - `worldmap.squares[x][y]` → the `Square` at grid position (x, y); convert pixel pos to square with `positionToSquare(pos) = { x: floor(pos.x/51), y: floor(pos.y/51) }`
+
+**Implementing runtime area reveal (fix `mark_area_known` DOM gap):**
+
+When `mark_area_known(0, id, 1)` is called for an area that was initially hidden,
+a DOM circle must be appended. Extract the circle-creation block from `Worldmap.init()`
+into a helper, then call it from the opcode:
+
+```typescript
+// src/worldmap.ts
+export function revealAreaCircle(area: Area): void {
+    if (!$worldmap) return
+    const $area = makeEl('div', { classes: ['area'] })
+    // ... same logic as init() circle creation
+    $worldmap.appendChild($area)
+}
+
+// src/scripting.ts — mark_area_known
+if (state === 1) {
+    globalState.knownAreas.add(areaID)
+    const area = globalState.mapAreas?.[String(areaID)]
+    if (area && !area.state) Worldmap.revealAreaCircle(area)
+}
+```
+
+**Working with the fog-of-war grid:**
+
+```typescript
+// Convert world pixel position to square grid coordinate
+const squarePos = { x: Math.floor(pos.x / 51), y: Math.floor(pos.y / 51) }
+// Square states: 0=UNDISCOVERED, 1=DISCOVERED, 2=SEEN
+const square = worldmap.squares[squarePos.x][squarePos.y]
+```
+
+`setSquareStateAt` is not exported — fog-of-war can only be mutated from within the
+`Worldmap` module. If scripting ever needs to reveal squares, export `setSquareStateAt`
+and call it from `mark_area_known` or a dedicated opcode.
 
 **Looking up CE function for a worldmap feature:**
 
