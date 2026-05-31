@@ -225,63 +225,83 @@ Key conventions:
 
 ## Scripting VM — Opcode Coverage
 
-`vm_bridge.ts` wires **~118 opcodes** via `bridged()`. Active stubs (wired but
-returning a default / logging a warning) in `scripting.ts`:
+_Last audited: 2026-05-31 against `main` branch._
 
-| Stub | Note |
-|------|------|
-| `metarule` | Partial; some sub-ops implemented |
-| `metarule3` | Most sub-ops stub |
-| `get_critter_stat` | Partial; most stats live in `char.ts` |
-| `has_trait` | Returns false |
-| `critter_add_trait` | No-op |
-| `using_skill` | Returns 0 |
-| `do_check` | Returns fail |
-| `inven_cmds` | Inventory command scripting |
-| `set_pc_stat` / `mod_pc_stat` | Wired for Karma/Reputation only |
-| `anim` | Most animation types unimplemented |
+`vm_bridge.ts` wires **~118 opcodes** — roughly 110 via the `bridged()` factory,
+8 via custom inline handlers (including `gsay_end` and `giq_option`).
 
-Additionally, `giq_option` (branching dialogue option opcode) and `gsay_end`
-are commented out of `vm_bridge.ts` with TODO notes.
+Methods in `scripting.ts` that still call `stub(...)` at runtime:
+
+| Method | Real status | What's missing |
+|--------|-------------|----------------|
+| `metarule` | PARTIAL | Sub-ops 14/15/17/18/22/46/48/49 handled; all other IDs stub |
+| `metarule3` | PARTIAL | Sub-ops 100 (clear fixed timed events) and 106 (tile_get_next_critter) handled; all other IDs stub |
+| `get_critter_stat` | PARTIAL | 7 stat IDs mapped (SPECIAL 0–6, HP/MaxHP); stat ID 34 (gender) handled; any other ID stubs |
+| `has_trait` | PARTIAL | `TRAIT_OBJECT` cases 5/6/10/666 handled (ai_packet, team_num, rotation, visibility); `OBJECT_CUR_WEIGHT` (669) and all non-TRAIT_OBJECT types stub |
+| `critter_add_trait` | PARTIAL | `TRAIT_OBJECT` cases 5 (ai_packet) and 6 (team_num) write through; cases 10/666/669 and all other trait types are silently ignored (no-op after stub log) |
+| `using_skill` | STUB | Always returns 0; FO2-CE `skill.cc::isUsingSkill()` check not implemented |
+| `do_check` | STUB | Always returns 1 (success); FO2-CE `stat.cc::statRoll()` not invoked |
+| `inven_cmds` | STUB | Only `INVEN_CMD_INDEX_PTR` (13) is asserted; all cases return null |
+| `set_pc_stat` | PARTIAL | Cases 3 (Reputation) and 4 (Karma) write through; all other `PCSTAT_*` IDs stub |
+| `mod_pc_stat` | PARTIAL | Cases 3 (Reputation) and 4 (Karma) write through; all other `PCSTAT_*` IDs stub |
+| `anim` | PARTIAL | ID 1000 (set rotation) and 1010 (set frame) implemented; all other anim IDs stub |
+
+**Note on `giq_option` and `gsay_end`:** both are wired — they have custom
+inline handlers in `vm_bridge.ts` (lines 191 and 203) rather than using
+`bridged()`. The `//,0x811D: bridged("gsay_end", 0)` and
+`//,0x8121: bridged("giq_option", 5)` comments above them are leftover
+reminders of the original bridged form, not the live wiring.
 
 ---
 
 ## Known Gaps and Incomplete Systems
 
-These systems have code present but are explicitly not fully implemented.
+_Last audited: 2026-05-31 against `main` branch. Every entry below is
+anchored to an active `stub(...)` call, a confirmed missing wire in
+`vm_bridge.ts`, or documented absent engine behaviour verified in source._
+
 See `ROADMAP.md` for the prioritised plan.
 
-### Stubbed / Placeholder
+### Opcode Stubs (wired in vm_bridge.ts, but method body calls stub())
 
-| System | File(s) | Status |
-|--------|---------|--------|
-| Party system | `src/party.ts` | Basic follow only; no party-member combat AI, no `addPartyMember` cap enforcement |
-| Perk selection UI | `src/ui_character.ts` | `pendingPerkPick` flag set on level-up; no selection screen exists, perks never applied from UI |
-| Trait selection at char creation | `src/ui_charactercreator.ts`, `src/ui_character.ts` | Trait slot UI absent; Good Natured/Gifted affect skill math but no 2-trait limit enforced |
-| Drug decay / addiction tick | `src/drugs.ts` | Drug apply logic exists; periodic withdrawal decay loop is not wired into `heart.ts` |
-| Poison/radiation decay | `src/player.ts`, `src/object.ts` | Stat fields defined; no tick-based decay |
-| NPC schedules / day-night AI | — | Not implemented |
-| Unarmed special moves (Haymaker etc.) | `src/unarmed.ts`, `src/ui_unarmed.ts` | Mode table and UI exist; actual combat integration for advanced moves is partial |
-| Subtitles / speech audio | `src/audio.ts` | `Config.ui.subtitles = false`; no speech playback path |
-| Endgame slides | — | Not present |
-| Karma titles / town reputation | `src/player.ts` | `Karma`/`Reputation` stats tracked; no title table, no faction deltas |
-| Perk prerequisites and ranks | `src/perks.ts` | Definitions include `minStats`/`minSkills`; prerequisite check not called at level-up |
-| `giq_option` (scripted dialogue branching) | `src/vm_bridge.ts` | Commented out with TODO |
+See the table in "Scripting VM — Opcode Coverage" above for the full list
+with per-case detail.
 
-### Partial Implementations
+### Engine Systems — Partial or Missing
 
-| System | File(s) | Gaps |
-|--------|---------|------|
-| Level-up flow | `src/player.ts` | XP/HP/skill point math correct; perk picker UI missing |
-| Active skill use | `src/skillUse.ts` | 8 of 9 active skills; Gambling and Outdoorsman have no handler; no electronic lockpick, no Healer perk |
-| Dialogue | `src/ui_dialogue.ts`, `src/scripting.ts` | `end_dialogue` still stub; some `gsay_message` UI integration incomplete |
-| Character creation | `src/ui_character.ts` | SPECIAL point-buy and tag-skill selection work; name/age/sex entry and trait picker absent |
-| Time system | `src/gametime.ts`, `src/vm_bridge.ts` | `get_month` returns 1, `get_day` returns 0 (hardcoded in `vm_bridge.ts:51,55`) |
-| Worldmap | `src/worldmap.ts` | Functional; area entrances misplaced, no difficulty modifier on encounter rate, no item/equip for encounter spawns |
-| Quest system | `src/questData.ts`, `src/questLog.ts` | GVAR tracking and Pip-Boy display work; no XP rewards, no quest-completion callbacks |
-| Karma / reputation | `src/player.ts`, `src/scripting.ts` | Basic increment on kill wired; no karma title lookup, no per-town reputation table |
-| Animations | `src/object.ts`, `src/scripting.ts` | FRM rendering works; `reg_anim_func` animation queue is not sequenced with delays |
-| Lighting | `src/lighting.ts`, `src/lightmap.ts` | Functional; minor colour inaccuracies; CPU path is slow on large maps |
+| System | File(s) | Real status |
+|--------|---------|-------------|
+| Party member combat AI | `src/party.ts`, `src/combat.ts` | Follow and cap enforcement work. Party members are NOT enrolled in the combat combatants list (`combat.ts:301`) — they wander away while the player fights. No party-member AI turns. |
+| Active skill use | `src/skillUse.ts` | **8 of 10** active skills handled: First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair. **Gambling** and **Outdoorsman** fall through to the default `"cannot be used directly"` error. No Healer perk bonus; no electronic lockpick distinction; no facing check on Steal. |
+| Subtitles / speech audio | `src/audio.ts` | `Config.ui.subtitles = false`; no speech `.acm` playback path exists. |
+| Movie playback / endgame slides | `src/scripting.ts:1768` | `play_gmovie()` logs a skip message and does nothing — `.mve` video playback is not implemented. |
+| Karma titles / town reputation | `src/player.ts` | `Karma` and `Reputation` stats are tracked and displayed. No karma-title string table, no per-town faction deltas. |
+| NPC schedule AI | `src/main.ts` | Scriptless critters with `wander_type > 0` do wander randomly each tick (`main.ts:1099`). FO2-style time-of-day position schedules (critters moving between fixed locations at fixed hours) are not implemented. |
+| Animation interleaving | `src/scripting.ts:1558` | `reg_anim_begin/end` queue animate steps with proper `setTimeout` delays. `reg_anim_func` callbacks are collected and fired **after all animate steps complete**, not interleaved between them in registration order (FO2-CE `animationRegAnimFunc` sequences them together). |
+| Worldmap | `src/worldmap.ts` | Functional but rough: area entrances are misplaced on area screens; no difficulty modifier on encounter rate; encounter-spawned critters have no items or equipment. |
+| Quest system | `src/questData.ts`, `src/questLog.ts` | GVAR-based tracking and Pip-Boy display work. No XP awards for completion; no quest-completion script callbacks wired. Descriptions are inlined in TS, not loaded from `quests.msg`. |
+| Karma / reputation scripting | `src/scripting.ts` | `set_pc_stat` / `mod_pc_stat` handle Karma (4) and Reputation (3); other `PCSTAT_*` IDs stub. No town-reputation table; no faction scripting. |
+| Lighting accuracy | `src/lighting.ts`, `src/lightmap.ts` | Functional; minor colour inaccuracies vs. original engine; CPU path is slow on large maps. |
+
+### Previously Listed as Gaps — Now Confirmed Implemented
+
+The following were flagged as missing in earlier notes but are confirmed
+present and functional in the current source:
+
+| Item | Where it actually lives |
+|------|------------------------|
+| Perk selection UI | `showPerkModal()` in `src/ui_character.ts:1875`; triggered when `player.pendingPerkPick` is true. SPECIAL/skill prerequisites checked via `getValidPerks()` in `src/perks.ts:691`. Perk applied and `pendingPerkPick` cleared via `applyPerk()` in `src/perks.ts:733`. |
+| Trait selection at character creation | Full 2-trait selector in `src/ui_character.ts:1550–1640`; 2-trait limit enforced at `line 1630`; traits live-update skill calculations during creation. |
+| Name / age / sex entry at creation | Text input (name), spinner (age), toggle buttons (sex) all wired in `src/ui_character.ts:1363–1452`; values applied via `player.applyCreationStats()` on DONE. |
+| Drug decay / addiction ticks | `tickAddictions(player)` called every 600-tick cycle in `src/main.ts:1073`, imported from `src/drugs.ts:203`. |
+| Poison tick-based damage | `-1 HP / 10 poison` per 600-tick cycle in `src/main.ts:1063`; `poisonLevel` decays by 1 each cycle. |
+| Radiation symptom ticks | `applyRadiationSymptoms(player)` called every 600-tick cycle in `src/main.ts:1076`. |
+| `get_month` / `get_day` | Both read from `GameTime.getDate()` in `src/vm_bridge.ts:52,56` — not hardcoded. |
+| `end_dialogue` | Implemented: calls `dialogueExit()` in `src/scripting.ts:1486`. |
+| `gsay_end` | Implemented: halts the VM via `this._vm.halted = true` in `src/scripting.ts:1484`; wired in `vm_bridge.ts:191`. |
+| `giq_option` | Implemented: checks INT threshold, pushes option to `dialogueOptionProcs` and calls `uiAddDialogueOption()` in `src/scripting.ts:1490`; wired in `vm_bridge.ts:203`. |
+| `gfade_in` / `gfade_out` | Implemented: CSS `opacity` transitions via a dynamically created overlay div in `src/scripting.ts:1691,1708`. |
+| `play_sfx` | Implemented: delegates to `globalState.audioEngine.playSfx()` in `src/scripting.ts:1798`. |
 
 ### Missing Assets (git-ignored, require pipeline run)
 
