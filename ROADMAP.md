@@ -5,7 +5,7 @@ unlocks the next. Phases 1–3 are pure connectivity — the engine infrastructu
 already exists, these wire it up. Phases 4–5 introduce the only genuinely new
 systems still needed.
 
-**Last audited: 2026-05-31**
+**Last audited: 2026-06-01**
 Current estimate: **~70% complete** (was ~55% when this roadmap was written).
 Target: 95% (a playable end-to-end run through Fallout 2's main quest with
 companions, working scripted content, and correct combat).
@@ -22,7 +22,7 @@ Four new save/load gaps were found during the audit and are added below.
 Work completed since the roadmap was written to support ongoing development. Not
 game features, but prerequisites for reliable iteration.
 
-- ✅ **Wiki Layer** (`wiki/` directory) — 21 audited docs covering all major systems
+- ✅ **Wiki Layer** (`wiki/` directory) — 22 audited docs covering all major systems
   with CE citations and DH2 gap inventories. Lookup order: wiki/ → CE source → ask.
 - ✅ **CODEBASE.md** — post-audit source map with Known Gaps inventory; maintained
   in CLAUDE.md via the CODEBASE.md Maintenance rule.
@@ -155,6 +155,7 @@ until these hooks are wired.
 - Fix: enrol party members into the combatants list with their own team number;
   assign each companion an AI turn using `aiTurn()` with their loaded AI packet.
 - Ref: fallout2-ce `party.cc::partyMemberCombatTurn()`, `ai.cc::aiTurn()`
+- Wiki: `wiki/companion_party.md` — Section 3 (Combat AI for companions)
 
 ---
 
@@ -184,6 +185,7 @@ a believable playthrough.
   dismissal dialogue hooks; companion inventory accessible from HUD.
 - Full companion level-up remains deferred (out of scope for 95%).
 - Ref: fallout2-ce `party.cc`
+- Wiki: `wiki/companion_party.md` — Sections 1, 2, 4, 5
 
 ### 5d. Minimal NPC wander schedules 🔴 Still needed
 - No wander logic implemented anywhere. Towns remain frozen.
