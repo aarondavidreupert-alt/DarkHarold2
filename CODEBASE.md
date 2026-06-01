@@ -337,6 +337,43 @@ autoCrawler.downloadReport()
 
 ---
 
+## 🔶 Pending Branch: `claude/ai-packet-system-3P13i` — AI System
+
+**Not yet merged into main.** Adds a complete `AI.TXT` parser with typed
+enums; wander radius differentiation and full AI-loop integration follow
+after merge.
+
+### What the branch delivers
+
+| File | Purpose |
+|------|---------|
+| `src/aiPackets.ts` | Full `AI.TXT` parser → typed `AiPacket` records. No imports from the game module tree — circular-dependency-safe. `getAiPacket(num)` mirrors CE `aiGetPacketByNum()` fallback behaviour (first packet when `num` not found). |
+
+**Typed fields matched to `fallout2-ce ai.h` enums:**
+
+- `disposition`: `aggressive | berserk | coward | none | custom`
+- `attackWho`: `closest | strongest | weakest | whomever | whomever_attacking_me`
+- `bestWeapon`: `no_pref | melee | melee_over_ranged | ranged_over_melee | ranged | unarmed | unarmed_over_throw | random | never`
+- `distance` (movement mode): `charge | snipe | stay | on_your_own | random`
+- `runAwayMode`: `never | none | bleeding | finger_hurts | not_feeling_good | coward`
+- `chemUse`, `areaAttackMode`, `minHp`, `minToHit`, `maxDist`, `chemPrimaryDesire[]` — all parsed
+
+### Current wander status (🟡 Partial — in `src/combat.ts`)
+
+- Binary wander is live on `main`: `wander_type > 0` → 5% per-tick random-hex move (`combat.ts`).
+- CE (`ai.cc`) maps wander type 1 → short radius, type 2 → larger radius, type 3 → unrestricted. DH2 applies no radius cap regardless of type.
+- Radius differentiation depends on `AiPacket.wander_type` field — **not yet added to the `AiPacket` interface** on the branch; must be added before merge.
+
+### Remaining work after merge
+
+1. Add `wander_type: number` to `AiPacket` interface in `aiPackets.ts`.
+2. Wire `getAiPacket()` into `combat.ts` AI loop — replace the raw numeric `aiPacket` field read with a proper `AiPacket` lookup.
+3. Implement `distance` / `runAwayMode` logic in the AI turn loop (charge vs. snipe vs. stay positioning).
+4. Implement `minHp` flee threshold (replaces the hardcoded `hp < maxHp * 0.2` fallback).
+5. Apply `wander_type` radius cap in the per-tick wander path (resolves 🟡 `wander_type` entry in Engine Systems above).
+
+---
+
 ## Build & Dev
 
 ```bash
