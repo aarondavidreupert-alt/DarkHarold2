@@ -253,7 +253,7 @@ export class HTMLAudioEngine implements AudioEngine {
         if (!curMapInfo) return ''
 
         const sfx = curMapInfo.ambientSfx
-        if (sfx.length === 0) return ''
+        if (!sfx || sfx.length === 0) return ''
         const sumFreqs = sfx.reduce((sum: number, x: [string, number]) => sum + x[1], 0)
         if (sumFreqs === 0) return ''
         let roll = getRandomInt(0, sumFreqs)
