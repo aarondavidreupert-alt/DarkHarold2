@@ -59,6 +59,15 @@ until these hooks are wired.
   end of each heartbeat tick — `map.ts:101–130`.
 - Prevents index drift when scripts remove objects during iteration.
 
+### 1e. `reg_anim_func` callback interleaving 🟡 Partial
+- Callbacks registered via `reg_anim_func` are collected into `animBatch` and
+  fired *after* all animate steps complete — `scripting.ts:1579`.
+- CE fires `reg_anim_func` callbacks interleaved between individual animate
+  steps, allowing scripts to react mid-sequence and branch on the result.
+- Current behaviour is correct for the common case (single callback at end of
+  sequence) but will misfire for scripts that branch mid-sequence.
+- Ref: fallout2-ce `animation.cc::animationRegAnimFunc()`
+
 ---
 
 ## Phase 2 — Dialogue Completeness
@@ -94,6 +103,14 @@ until these hooks are wired.
 | `wm_area_set_pos` | ✅ Done | `vm_bridge.ts:96`, `scripting.ts:1782` |
 | `critter_attempt_placement` | ✅ Done | `vm_bridge.ts:101`, `scripting.ts:851` |
 | `proto_data` critter fields | 🟡 Partial | Implemented `scripting.ts:1090`; critter `data_member` cases incomplete; **not wired in `vm_bridge.ts`** |
+| `metarule` | 🟡 Partial | IDs 14,15,17,18,22,46,48,49 handled; all others `stub()` — `scripting.ts`. Ref: `interpreter_extra.cc::opMetarule` |
+| `metarule3` | 🟡 Partial | IDs 100,106 handled; all others `stub()` — `scripting.ts`. Ref: `interpreter_extra.cc::opMetarule3` |
+| `has_trait` | 🟡 Partial | TRAIT_OBJECT cases 5,6,10,666 handled; case 669 (OBJECT_CUR_WEIGHT) has TODO; all others `stub()` — `scripting.ts`. Ref: `interpreter_extra.cc::opHasTrait` |
+| `critter_add_trait` | 🟡 Partial | TRAIT_OBJECT cases 5,6 handled; all others silently ignored after `stub()` log — `scripting.ts`. Ref: `interpreter_extra.cc::opAddTrait` |
+| `anim` | 🟡 Partial | IDs 1000 (set rotation) and 1010 (set frame) handled; all others `stub()` — `scripting.ts`. Ref: `interpreter_extra.cc::opAnim` |
+| `do_check` | 🔴 Stub | Always returns 1; `statRoll()` never invoked — `scripting.ts:819`. Ref: `interpreter_extra.cc::opDoCheck` |
+| `using_skill` | 🔴 Stub | Always returns 0 — `scripting.ts:791`. Ref: `interpreter_extra.cc::opUsingSkill` |
+| `inven_cmds` | 🟡 Partial | Only INVEN_CMD_INDEX_PTR (13) handled; all other inventory command IDs `stub()` — `scripting.ts:847`. Ref: `interpreter_extra.cc::opInvenCmds` |
 
 ---
 
@@ -126,6 +143,15 @@ until these hooks are wired.
   in `combat.ts`.
 - On critical failure with this flag: remove weapon from critter's active hand.
 - Ref: fallout2-ce `combat.cc` `DAM_DROP` handling
+
+### 4f. Party member combat AI 🔴 Still needed
+- Party members are excluded from the combatants list at `combat.ts:301`:
+  `if (!obj.isPlayer && !triggerTeams.has(obj.teamNum) && !obj.hostile) return false`.
+- Companions stand idle during combat — they receive no AI turns and cannot
+  attack enemies or use items, even when adjacent to a hostile.
+- Fix: enrol party members into the combatants list with their own team number;
+  assign each companion an AI turn using `aiTurn()` with their loaded AI packet.
+- Ref: fallout2-ce `party.cc::partyMemberCombatTurn()`, `ai.cc::aiTurn()`
 
 ---
 
@@ -187,6 +213,11 @@ a believable playthrough.
   table displayed in the character screen.
 - ✅ `char.ts:27` skill name — `Melee` → `Melee Weapons` remapped on deserialize
   (`char.ts:62–65`); `TODO` comment remains but is functionally resolved.
+- 🔴 **Town faction deltas** — `ui_character.ts` has no per-town reputation
+  table. CE tracks faction rep separately from global karma via `GVAR_*_REP_*`
+  GVARs; NPC reaction modifiers based on faction rep are absent. Global karma
+  display (KARMA_TITLES) is ✅; town-level display and NPC reaction modifiers
+  are not. Ref: fallout2-ce `reputation.cc`
 - 🔴 **Type annotations**: `Obj.type`, `Obj.pro`, `Obj.art`, `Obj.extra`,
   `Obj.anim`, `globalState.proMap`, `Critter.weapon` — still `any`.
 
