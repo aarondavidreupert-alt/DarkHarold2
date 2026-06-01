@@ -42,7 +42,9 @@ export function initGame() {
 
     uiLog('Welcome to DarkHarold2')
 
-    const mapFromQuery = location.search !== '' ? location.search.slice(1) : null
+    const _qs = new URLSearchParams(location.search)
+    const crawlParam = _qs.get('crawl')
+    const mapFromQuery = !crawlParam && location.search ? location.search.slice(1) : null
 
     if (Config.engine.doCombat === true) {
         CriticalEffects.loadTable()

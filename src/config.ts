@@ -134,6 +134,7 @@ export const Config = {
             worldmap: false,      // worldmap travel, encounter checks, location transitions
             encounters: false,    // random encounter rolls and table lookups
             saveload: false,      // save/load operations and slot management
+            automap: false,       // automap IDB reads, writes, and migrations
         },
     },
 }

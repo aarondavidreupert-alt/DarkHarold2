@@ -9,6 +9,14 @@
 import { Config } from './config.js'
 import globalState from './globalState.js'
 import { createObjectWithPID } from './object.js'
+import { heart } from './heart.js'
+import { fromTileNum } from './tile.js'
+import { centerCamera } from './renderer.js'
+
+let _crawlerModeSnapshot: {
+    stub: boolean; dialogue: boolean; combat: boolean; ai: boolean
+    difficultyModifier: 100 | 75 | 125
+} | null = null
 
 function guardPlayer(method: string): import('./player.js').Player | null {
     if (!Config.engine.debug) return null
@@ -75,5 +83,50 @@ export const debug = {
         }
         p.inventory.push(item)
         console.log(`[debug] Added PID ${pid} to inventory. Inventory size: ${p.inventory.length}`)
+    },
+
+    /** Drive one engine tick without waiting for requestAnimationFrame.
+     *  Used by the AutoCrawler to advance game state at engine speed. */
+    step(dtMs: number = (heart._targetTickTime ?? 33) + 1): void {
+        if (!Config.engine.debug) return
+        if (heart._lastTick === undefined) return
+        heart._stepOnly(heart._lastTick + dtMs)
+    },
+
+    /** Teleport player to a tile by tile number without changing maps. */
+    movePlayer(tileNum: number): void {
+        const p = guardPlayer('movePlayer')
+        if (!p) return
+        p.position = fromTileNum(tileNum)
+        centerCamera(p.position)
+        console.log(`[debug] Player moved to tile ${tileNum}`)
+    },
+
+    /** Toggle crawler mode: silences noisy logs and sets neutral combat difficulty.
+     *  Enabling snapshots the current flag values; disabling restores them exactly. */
+    crawlerMode(on: boolean): void {
+        if (!Config.engine.debug) return
+        if (on && _crawlerModeSnapshot === null) {
+            _crawlerModeSnapshot = {
+                stub: Config.scripting.debugLogShowType.stub,
+                dialogue: Config.scripting.debugLogShowType.dialogue,
+                combat: Config.scripting.debugLogShowType.combat,
+                ai: Config.scripting.debugLogShowType.ai,
+                difficultyModifier: Config.combat.difficultyModifier,
+            }
+            Config.scripting.debugLogShowType.stub = false
+            Config.scripting.debugLogShowType.dialogue = false
+            Config.scripting.debugLogShowType.combat = false
+            Config.scripting.debugLogShowType.ai = false
+            Config.combat.difficultyModifier = 100
+        } else if (_crawlerModeSnapshot) {
+            Config.scripting.debugLogShowType.stub = _crawlerModeSnapshot.stub
+            Config.scripting.debugLogShowType.dialogue = _crawlerModeSnapshot.dialogue
+            Config.scripting.debugLogShowType.combat = _crawlerModeSnapshot.combat
+            Config.scripting.debugLogShowType.ai = _crawlerModeSnapshot.ai
+            Config.combat.difficultyModifier = _crawlerModeSnapshot.difficultyModifier
+            _crawlerModeSnapshot = null
+        }
+        console.log(`[debug] Crawler mode: ${on ? 'ON' : 'OFF'}`)
     },
 }

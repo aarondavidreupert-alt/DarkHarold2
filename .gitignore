@@ -1,9 +1,23 @@
 *.images.txt
 *.map
 *.pyc
-data/
-art/
+*.png
+*.wav
+*.map
+*.gam
+*.msk
+*.pro
+*.int 
+*.acm
+*.msk
+*.blm
+*.frm
+*.fr*
+*.lip
+*.npy
+*.txt
 
+data/
 proto/
 audio/
 /audiotest

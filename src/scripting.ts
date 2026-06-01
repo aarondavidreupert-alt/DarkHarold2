@@ -283,6 +283,17 @@ export module Scripting {
         talk(currentDialogueObject._script, currentDialogueObject)
     }
 
+    /** Returns the number of currently pending dialogue option procs.
+     *  Used by the AutoCrawler to check whether options are visible without DOM access. */
+    export function getDialogueOptionCount(): number {
+        return dialogueOptionProcs.length
+    }
+
+    /** Seed Math.random for deterministic crawler runs. */
+    export function setSeed(n: number): void {
+        seed(n)
+    }
+
     function canSee(obj: Obj, target: Obj): boolean {
         const dir = Math.abs(obj.orientation - hexDirectionTo(obj.position, target.position))
         return [0, 1, 5].indexOf(dir) !== -1
@@ -854,6 +865,7 @@ export module Scripting {
             if (globalState.gMap) {
                 const targetPos = fromTileNum(tileNum)
                 const objects = globalState.gMap.getObjects(elevation)
+                if (!objects) return this.move_to(obj, tileNum, elevation)
                 const occupied = (p: Point) => objects.some(o => o !== obj && o.position.x === p.x && o.position.y === p.y)
                 if (occupied(targetPos)) {
                     for (let dir = 0; dir < 6; dir++) {
@@ -1662,6 +1674,14 @@ export module Scripting {
                 return
             }
             const tile = fromTileNum(tileNum)
+            if (tile.x < 0 || tile.x >= 200 || tile.y < 0 || tile.y >= 200) {
+                warn(
+                    'reg_anim_obj_move_to_tile: invalid tile: ' + tile.x + ', ' + tile.y + ' (' + tileNum + ')',
+                    'movement',
+                    this
+                )
+                return
+            }
             const critter = obj as Critter
             if (typeof critter.walkTo === 'function') {
                 if (!critter.walkTo(tile, false))

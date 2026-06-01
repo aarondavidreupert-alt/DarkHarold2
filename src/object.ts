@@ -17,7 +17,7 @@ limitations under the License.
 import { Weapon, critterDamage } from './critter.js'
 import { getLstId, lookupScriptName } from './data.js'
 import { Events, scheduleExplosion } from './events.js'
-import { directionOfDelta, hexDistance, hexesInRadius, hexToScreen, Point } from './geometry.js'
+import { directionOfDelta, hexDistance, hexesInRadius, hexToScreen, HEX_GRID_SIZE, Point } from './geometry.js'
 import globalState from './globalState.js'
 import { lazyLoadImage } from './images.js'
 import { Lightmap } from './lightmap.js'
@@ -578,6 +578,12 @@ export class Obj {
 
     inAnim(): boolean {
         return !!this.animCallback // TODO: find a better way
+    }
+
+    // Non-critter objects have no animation set — always returns false.
+    // Critter overrides this with the real lookup.
+    hasAnimation(_anim: string): boolean {
+        return false
     }
 
     // Clear any animation the object has
@@ -1331,6 +1337,14 @@ export class Critter extends Obj {
     }
 
     updateStaticAnim(): void {
+        if ((window as any).__test?.fastMode) {
+            const cb = this.animCallback
+            ;(this as any).animCallback = null
+            this.frame = 0  // match the normal done-path which resets frame before calling callback
+            if (cb) cb()
+            return
+        }
+
         const time = window.performance.now()
         const fps = 8 // todo: get FPS from image info
 
@@ -1397,6 +1411,17 @@ export class Critter extends Obj {
             this.updateLoopingAnim()
             return
         }
+        if (animInfo[this.anim] === undefined) {
+            // Unknown anim key — likely stale state from a deserialized save or a script bug.
+            // Log identity for diagnostics, then tombstone so the rAF loop stops hammering it.
+            console.warn(
+                `[updateAnim] unknown anim "${this.anim}" on critter ` +
+                `"${this.name || this.pid}" pid=${this.pid} ` +
+                `tile=(${this.position.x},${this.position.y}) art="${this.art}" — tombstoning`
+            )
+            this.anim = 'dead'
+            return
+        }
         if (animInfo[this.anim].type === 'static') {
             return this.updateStaticAnim()
         }
@@ -1404,6 +1429,14 @@ export class Critter extends Obj {
         // Move animation (walk/run) but path was not serialized — recover to idle.
         if (!this.path) {
             this.clearAnim()
+            return
+        }
+
+        if ((window as any).__test?.fastMode) {
+            this.position = { x: this.path.target.x, y: this.path.target.y }
+            const callback = this.animCallback
+            this.clearAnim()
+            if (callback) callback()
             return
         }
 
@@ -1795,6 +1828,10 @@ export class Critter extends Obj {
         }
 
         if (path === undefined) {
+            if (target.x < 0 || target.x >= HEX_GRID_SIZE || target.y < 0 || target.y >= HEX_GRID_SIZE) {
+                dbgWarn('movement', '[Pathfinding] walkTo: invalid target tile', target.x, target.y)
+                return false
+            }
             path = globalState.gMap.recalcPath(this.position, target)
         }
 
@@ -1924,6 +1961,8 @@ const animInfo: { [anim: string]: { type: string } } = {
     dead: { type: 'static' },
     'weapon-draw': { type: 'static' },
     'weapon-holster': { type: 'static' },
+    // FO2-CE ref: animation.cc — single-shot forward play (updateStaticAnim, !reversed branch)
+    single: { type: 'static' },
     reverse: { type: 'static' },
     fidget: { type: 'static' },
     hitBack: { type: 'static' },
