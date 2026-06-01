@@ -22,7 +22,7 @@ Four new save/load gaps were found during the audit and are added below.
 Work completed since the roadmap was written to support ongoing development. Not
 game features, but prerequisites for reliable iteration.
 
-- ✅ **Wiki Layer** (`wiki/` directory) — 25 audited docs covering all major systems
+- ✅ **Wiki Layer** (`wiki/` directory) — 26 audited docs covering all major systems
   with CE citations and DH2 gap inventories. Lookup order: wiki/ → CE source → ask.
 - ✅ **CODEBASE.md** — post-audit source map with Known Gaps inventory; maintained
   in CLAUDE.md via the CODEBASE.md Maintenance rule.
