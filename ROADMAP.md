@@ -111,6 +111,9 @@ until these hooks are wired.
 | `do_check` | 🔴 Stub | Always returns 1; `statRoll()` never invoked — `scripting.ts:819`. Ref: `interpreter_extra.cc::opDoCheck` |
 | `using_skill` | 🔴 Stub | Always returns 0 — `scripting.ts:791`. Ref: `interpreter_extra.cc::opUsingSkill` |
 | `inven_cmds` | 🟡 Partial | Only INVEN_CMD_INDEX_PTR (13) handled; all other inventory command IDs `stub()` — `scripting.ts:847`. Ref: `interpreter_extra.cc::opInvenCmds` |
+| `get_critter_stat` | 🟡 Partial | SPECIAL 0–6, HP (35), Max HP (7), gender (34) handled; all other stat IDs (AC, AP, carry weight, sequence, critical chance, damage threshold/resistance, etc.) `stub()` and return 5 — `scripting.ts`. Ref: `interpreter_extra.cc::opGetCritterStat`, `stat.cc::statGetValue` |
+| `set_pc_stat` | 🟡 Partial | PCSTAT_reputation (3) and PCSTAT_karma (4) handled; PCSTAT_unspent_skill_points (0), PCSTAT_level (1), PCSTAT_experience (2) `stub()` — `scripting.ts`. Ref: `stat.cc::pcSetStat` |
+| `mod_pc_stat` | 🟡 Partial | PCSTAT_reputation (3) and PCSTAT_karma (4) handled; PCSTAT_unspent_skill_points (0), PCSTAT_level (1), PCSTAT_experience (2) `stub()` — `scripting.ts`. Ref: `scripts.cc::opModifyPcStat` |
 
 ---
 
@@ -218,6 +221,17 @@ a believable playthrough.
   GVARs; NPC reaction modifiers based on faction rep are absent. Global karma
   display (KARMA_TITLES) is ✅; town-level display and NPC reaction modifiers
   are not. Ref: fallout2-ce `reputation.cc`
+- 🟡 **Active skill use — Gambling and Outdoorsman** — `skillUse.ts` handles 8
+  of 10 active skills. `Gambling` and `Outdoorsman` fall through to the default
+  `"cannot be used directly"` error path. Ref: fallout2-ce `skill.cc::skillUse`
+- 🟡 **Worldmap accuracy gaps** — `worldmap.ts` is functional but: (1) area
+  entrance positions on area screens are misplaced; (2) no difficulty modifier
+  applied to random encounter roll; (3) encounter-spawned critters carry no
+  items or equipment. Ref: fallout2-ce `worldmap.cc`, `encounter.cc`
+- 🟡 **Quest system gaps** — GVAR-based tracking and Pip-Boy display work, but:
+  no XP awarded on quest completion; no quest-completion script callbacks wired;
+  quest descriptions are inlined in `questData.ts` rather than loaded from
+  `quests.msg`. Ref: fallout2-ce `quest.cc`
 - 🔴 **Type annotations**: `Obj.type`, `Obj.pro`, `Obj.art`, `Obj.extra`,
   `Obj.anim`, `globalState.proMap`, `Critter.weapon` — still `any`.
 
