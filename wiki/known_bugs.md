@@ -118,7 +118,8 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
-| D1 | **`gdialog_set_barter_mod` has no effect.** The scripted per-dialogue barter bonus is stored in `this._barterMod` but `ui_barter.ts` does not read this field during the barter calculation. | `scripting.ts:1425`, `ui_barter.ts` | `dialog.cc` | major | partial |
+| D1 | **`gdialog_mod_barter(mod)` ignores its `mod` argument.** The modifier passed to the screen-opener is silently dropped; `gdialog_set_barter_mod` (stored in `dialogueBarterMod` and read by `ui_barter.ts:319`) works correctly. If a script relies on the `gdialog_barter(mod)` argument alone (without a prior `gdialog_set_barter_mod` call) the markup is 0. | `scripting.ts:1430`, `ui_barter.ts:319` | `game_dialog.cc:3163 gameDialogBarter()` | minor | bug |
+| D2 | **Barter formula uses 1× markup not 2×; Barter skill and reaction not consulted.** See `wiki/barter_economy.md §10` for the full comparison table. | `ui_barter.ts:320` | `inventory.cc:4673 _barter_compute_value()` | major | bug |
 
 ---
 
