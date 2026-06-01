@@ -89,6 +89,17 @@ After any feature that adds, removes, or significantly changes a system:
 - If the Known Gaps section changes, append a one-line audit note: `<!-- audited: YYYY-MM-DD -->` at the end of the changed block.
 - Add new wiki docs to the "Wiki references" line in CODEBASE.md when they are created.
 
+## known_bugs.md — Maintenance Rule
+
+`wiki/known_bugs.md` is a living document. Update it when:
+- A stub or gap is resolved → mark as FIXED with date
+- A new stub or TODO is introduced → add entry immediately
+- A sprint touches scripting, combat, or worldmap → re-audit
+  relevant sections and update "Last audited" date
+
+When closing a bug in a feature prompt, include:
+> Also update wiki/known_bugs.md: mark [entry name] as FIXED (date).
+
 ## Intentionally Incomplete Systems (do not implement unless asked)
 - Party system — add/remove/enumerate stubs only (src/party.ts)
 - Perk selection UI — `pendingPerkPick` flag exists but no selection screen
