@@ -53,6 +53,7 @@ export module ScriptVMBridge {
        ,0x80F6: function() { this.push(GameTime.getHourMilitary()) } // game_time_hour — CE: 100*hour+min (scripts.cc:332 gameTimeGetHour)
        ,0x80a8: function() { this.push(GameTime.getHourMilitary()) } // game_time_hour (alt)
        ,0x80EA: function() { this.push(this.scriptObj.game_time) } // game_time
+       ,0x80EB: function() { this.push(GameTime.getTotalSeconds()) } // game_time_in_seconds — CE: interpreter_extra.cc:2277 opGetGameTimeInSeconds → ticks/10
        ,0x8119: function() { this.push(GameTime.getDate().day) } // get_day (day of month)
        ,0x8101: function() { this.push(this.scriptObj.cur_map_index) } // cur_map_index
        ,0x80BD: function() { this.push(this.scriptObj.source_obj) } // source_obj
@@ -66,6 +67,7 @@ export module ScriptVMBridge {
 
        ,0x80B9: bridged("script_overrides", 0, false)
        ,0x80B4: bridged("random", 2)
+       ,0x80B5: function() { this.pop(); this.pop(); this.push(0) } // roll_dice — CE predefined-error stub; pushes 0 per CE interpreter_extra.cc:789 opRollDice
        ,0x80E1: bridged("metarule3", 4)
        ,0x80CA: bridged("get_critter_stat", 2)
        ,0x8105: bridged("message_str", 2)

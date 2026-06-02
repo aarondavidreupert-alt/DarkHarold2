@@ -731,7 +731,10 @@ export module Scripting {
             }
 
             info('move_obj_inven_to_obj: ' + obj.inventory.length + ' to ' + other.inventory.length, 'inventory')
-            other.inventory = obj.inventory
+            // CE ref: item.cc itemAdd() — add per item to merge stacks correctly, not direct reference
+            for (const item of obj.inventory) {
+                other.addInventoryItem(item, item.amount ?? 1)
+            }
             obj.inventory = []
         }
         obj_is_carrying_obj_pid(obj: Obj, pid: number) {
@@ -910,8 +913,8 @@ export module Scripting {
             else if (where === 1) return obj.rightHand // INVEN_TYPE_RIGHT_HAND
             else if (where === 2) return obj.leftHand // INVEN_TYPE_LEFT_HAND
             else if (where === -2) {
-                warn('INVEN_TYPE_INV_COUNT', 'inventory', this)
-                return 0 /*throw "INVEN_TYPE_INV_COUNT"*/
+                // INVEN_TYPE_INV_COUNT — CE ref: inventory.cc critter_inven_obj() returns inventory.length
+                return (obj as Critter).inventory.length
             }
             warn('critter_inven_obj: unknown where=' + where)
             return null
@@ -1837,8 +1840,20 @@ export module Scripting {
         }
         game_time_advance(ticks: number) {
             log('game_time_advance', arguments)
-            info('advancing time ' + ticks + ' ticks ' + '(' + ticks / 10 + ' seconds)')
+            info('advancing time ' + ticks + ' ticks (' + ticks / 10 + ' seconds)')
             GameTime.advanceTicks(ticks)
+            // CE ref: interpreter_extra.cc:2761 opGameTimeAdvance — calls queueProcessEvents() per day advanced.
+            // Process any timed events whose countdown expires in the skipped window.
+            let numEvents = timeEventList.length
+            for (let i = 0; i < numEvents; i++) {
+                timeEventList[i].ticks -= ticks
+                if (timeEventList[i].ticks <= 0) {
+                    info('timed event triggered by time advance', 'timer')
+                    timeEventList[i].fn()
+                    timeEventList.splice(i--, 1)
+                    numEvents--
+                }
+            }
         }
 
         // game
@@ -2301,7 +2316,8 @@ export module Scripting {
     }
 
     export function init(mapName: string, mapID?: number) {
-        seed(123)
+        // CE ref: random.cc:39 randomInit() — seeds from compat_timeGetTime() for different rolls each launch
+        seed(Date.now())
         loadGlobalVars()
         reset(mapName, mapID)
     }
