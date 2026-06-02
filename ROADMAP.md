@@ -109,7 +109,7 @@ until these hooks are wired.
 | `do_check` | ✅ Done | Implements CE `stat.cc::statRoll()` — roll d10 (1–10), success if roll ≤ SPECIAL stat + modifier (indices 0–6 only) — `scripting.ts:839`. Ref: `interpreter_extra.cc::opDoCheck` |
 | `using_skill` | ✅ Done | SKILL_SNEAK (8) on player returns `isSneaking`; all others return 0 per CE (uninitialized result for non-dude/non-sneak) — `scripting.ts:836`. Ref: `interpreter_extra.cc::opUsingSkill` |
 | `inven_cmds` | 🟡 Partial | Only INVEN_CMD_INDEX_PTR (13) handled; all other inventory command IDs `stub()` — `scripting.ts:847`. Ref: `interpreter_extra.cc::opInvenCmds` |
-| `get_critter_stat` | 🟡 Partial | SPECIAL 0–6, MaxHP 7, MaxAP 8 (computed), AC 9, Sequence 13 (computed), CritChance 15, BetterCriticals 16, HP 35, gender 34 handled; DT/DR variants (17–32) and STAT_AGE (33) still `stub()` — `scripting.ts`. Ref: `interpreter_extra.cc::opGetCritterStat`, `stat.cc::statGetValue` |
+| `get_critter_stat` | 🟡 Partial | SPECIAL 0–6, MaxHP 7, MaxAP 8, AC 9, Sequence 13, CritChance 15, BetterCriticals 16, DT 17–23 (+armor), DR 24–32 (+armor for 24–30), HP 35, gender 34 handled; STAT_AGE (33) still `stub()` — `scripting.ts`. Ref: `interpreter_extra.cc::opGetCritterStat`, `stat.cc::statGetValue` |
 | `set_pc_stat` | 🟡 Partial | PCSTAT_reputation (3) and PCSTAT_karma (4) handled; PCSTAT_unspent_skill_points (0), PCSTAT_level (1), PCSTAT_experience (2) `stub()` — `scripting.ts`. Ref: `stat.cc::pcSetStat` |
 | `mod_pc_stat` | 🟡 Partial | PCSTAT_reputation (3) and PCSTAT_karma (4) handled; PCSTAT_unspent_skill_points (0), PCSTAT_level (1), PCSTAT_experience (2) `stub()` — `scripting.ts`. Ref: `scripts.cc::opModifyPcStat` |
 
@@ -205,12 +205,11 @@ a believable playthrough.
 - Ref: fallout2-ce `party.cc`
 - Wiki: `wiki/companion_party.md` — Sections 1, 2, 4, 5
 
-### 5d. Minimal NPC wander schedules 🔴 Still needed
-- No wander logic implemented anywhere. Towns remain frozen.
-- **Minimum for 95%**: read `pro.aiPacket.wanderDistance`; each `map_update_p_proc`
-  tick, occasionally move critter to random adjacent hex within radius if not in
-  combat.
-- Full day/night schedule tables remain deferred.
+### 5d. Minimal NPC wander schedules 🟡 Partial
+- Basic flat-radius wander implemented in `main.ts:1104` for non-scripted critters
+  with `wanderType > 0`: random adjacent hex at 5% probability per tick.
+- Gaps: wanderType 1/2/3 radius not differentiated (C8); scripted critters use
+  `map_update_p_proc` instead; full day/night schedule tables remain deferred.
 - Ref: fallout2-ce `ai.cc::aiMoveSteps()`
 
 ---

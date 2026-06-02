@@ -618,6 +618,19 @@ export module Scripting {
                 // STAT_SEQUENCE — CE ref: stat.cc _critter_sequence = 10 + 2*PER
                 return 10 + 2 * obj.getStat('PER')
             }
+            // STAT_DAMAGE_THRESHOLD (17-23) and STAT_DAMAGE_RESISTANCE (24-30)
+            // CE ref: stat.cc critterGetStat — returns critter base stat + equipped armour contribution
+            const DT_DR_TYPES = ['Normal', 'Laser', 'Fire', 'Plasma', 'Electrical', 'EMP', 'Explosive']
+            if (stat >= 17 && stat <= 23) {
+                const dmgType = DT_DR_TYPES[stat - 17]
+                return obj.getStat('DT ' + dmgType) + obj.getArmorDT(dmgType)
+            }
+            if (stat >= 24 && stat <= 30) {
+                const dmgType = DT_DR_TYPES[stat - 24]
+                return obj.getStat('DR ' + dmgType) + obj.getArmorDR(dmgType)
+            }
+            if (stat === 31) return obj.getStat('DR Radiation') // STAT_RADIATION_RESISTANCE
+            if (stat === 32) return obj.getStat('DR Poison')    // STAT_POISON_RESISTANCE
             var namedStat = statMap[stat]
             if (namedStat !== undefined) return obj.getStat(namedStat)
             stub('get_critter_stat', arguments)
