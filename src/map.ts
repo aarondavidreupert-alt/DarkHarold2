@@ -102,6 +102,9 @@ export class GameMap {
 
     addObject(obj: Obj, level?: number): void {
         this.objects[level === undefined ? this.currentElevation : level].push(obj)
+        // M3: objects added after map load need enterMap() so their scripts fire map_enter_p_proc.
+        // enterMap() is a no-op for objects without scripts, so this is always safe.
+        obj.enterMap()
     }
 
     removeObject(obj: Obj): void {
