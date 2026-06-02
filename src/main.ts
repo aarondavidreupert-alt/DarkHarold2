@@ -722,6 +722,10 @@ heart.keydown = (k: string) => {
     if (globalState.isLoading === true) {
         return
     }
+    // CE ref: interface.cc gameUiDisable() — block all input during cutscenes/movies
+    if (globalState.gameUIDisabled) {
+        return
+    }
     // ESC cancels skill targeting mode
     if (k === 'Escape' && globalState.uiMode === UIMode.useSkill) {
         cancelSkillTargeting()

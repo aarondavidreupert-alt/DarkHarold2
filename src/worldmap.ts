@@ -349,6 +349,12 @@ export module Worldmap {
         return worldmap.encounterGroups[groupName]
     }
 
+    // CE ref: worldmap.cc wmGetPartyWorldPos — returns player pixel position on worldmap
+    export function getPlayerWorldPos(): { x: number; y: number } | null {
+        if (!worldmapPlayer) return null
+        return { x: Math.round(worldmapPlayer.x), y: Math.round(worldmapPlayer.y) }
+    }
+
     function positionToSquare(pos: Point): Point {
         return { x: Math.floor(pos.x / SQUARE_SIZE), y: Math.floor(pos.y / SQUARE_SIZE) }
     }

@@ -510,12 +510,23 @@ export module Scripting {
         }
         metarule(id: number, target: number): any {
             switch (id) {
+                case 13: {
+                    // CE ref: interpreter_extra.cc:3208 METARULE_SIGNAL_END_GAME
+                    // Sets _game_user_wants_to_quit = 2 → triggers endgame sequence
+                    dbg('script', 'metarule(13): signal end game')
+                    // DH2 defers full end-game to Endgame.triggerEnd; fire whatever we have
+                    ;(Endgame as any).triggerEnd?.()
+                    return 0
+                }
                 case 14:
                     return mapFirstRun // map_first_run
                 case 15: // elevator
                     if (target !== -1) throw 'elevator given explicit type'
                     useElevator()
                     break
+                case 16:
+                    // CE ref: interpreter_extra.cc:3219 METARULE_PARTY_COUNT
+                    return globalState.gParty?.party.length ?? 0
                 case 17: // is area known?
                     return globalState.knownAreas.has(target) ? 1 : 0
                 case 18: {
@@ -532,8 +543,36 @@ export module Scripting {
                     }
                     return 0
                 }
+                case 19: {
+                    // CE ref: interpreter_extra.cc:3228 METARULE_MAP_KNOWN
+                    // wmMapIsKnown() — in CE maps have their own known-state; in DH2 we
+                    // approximate using knownAreas: a map is known if its area has been visited
+                    if (!globalState.mapAreas) return 0
+                    for (const key of Object.keys(globalState.mapAreas)) {
+                        const area = globalState.mapAreas[key]
+                        if (area.entrances.some((e: any) => e.mapName === target || (e.mapLookupName ?? '') === target))
+                            return globalState.knownAreas.has(area.id) ? 1 : 0
+                    }
+                    return 0
+                }
                 case 22:
                     return 0 // is_game_loading
+                case 40: {
+                    // CE ref: interpreter_extra.cc:3243 METARULE_SKILL_CHECK_TAG
+                    const skillName = SKILL_NAMES[target as number]
+                    if (!skillName || !globalState.player) return 0
+                    return globalState.player.skills.isTagged(skillName) ? 1 : 0
+                }
+                case 44: {
+                    // CE ref: interpreter_extra.cc:3280 METARULE_GET_WORLDMAP_XPOS
+                    const wpos = Worldmap.getPlayerWorldPos()
+                    return wpos ? wpos.x : 0
+                }
+                case 45: {
+                    // CE ref: interpreter_extra.cc:3283 METARULE_GET_WORLDMAP_YPOS
+                    const wpos = Worldmap.getPlayerWorldPos()
+                    return wpos ? wpos.y : 0
+                }
                 case 46: { // METARULE_CURRENT_TOWN
                     const mapName = globalState.gMap?.name
                     if (mapName && globalState.mapAreas) {
@@ -545,6 +584,8 @@ export module Scripting {
                     }
                     return 0
                 }
+                case 47:
+                    return 0 // METARULE_LANGUAGE_FILTER — always off in DH2
                 case 48:
                     return 2 // METARULE_VIOLENCE_FILTER (2 = VLNCLVL_NORMAL)
                 case 49: // METARULE_W_DAMAGE_TYPE
@@ -559,6 +600,18 @@ export module Scripting {
                         case 'explosion':  return 6
                         default:           return 0 // safe fallback instead of throw
                     }
+                case 50: {
+                    // CE ref: interpreter_extra.cc:3316 METARULE_CRITTER_BARTERS
+                    // CRITTER_BARTER = 0x02 (obj_types.h:93)
+                    if (!isGameObject(target as any)) return 0
+                    const pro = (target as any).pro
+                    return ((pro?.extra?.flags ?? 0) & 0x02) !== 0 ? 1 : 0
+                }
+                case 51: {
+                    // CE ref: interpreter_extra.cc:3328 METARULE_CRITTER_KILL_TYPE
+                    if (!isGameObject(target as any)) return 0
+                    return (target as any).killType ?? 0
+                }
                 default:
                     stub('metarule', arguments)
                     break
