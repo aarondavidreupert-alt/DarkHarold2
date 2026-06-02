@@ -109,6 +109,8 @@ export module ScriptVMBridge {
        ,0x80D8: bridged("add_obj_to_inven", 2, false)
        ,0x80DC: bridged("obj_can_see_obj", 2)
        ,0x80E9: bridged("set_light_level", 1)
+       ,0x8107: bridged("obj_set_light_level", 3, false)
+       ,0x80E6: bridged("set_exit_grids", 5, false)
        ,0x80BB: bridged("tile_contains_obj_pid", 3)
        ,0x80D3: bridged("tile_distance_objs", 2)
        ,0x80D2: bridged("tile_distance", 2)

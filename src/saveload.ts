@@ -63,6 +63,13 @@ export interface SaveGame {
         gvars: { [k: string]: number }
     }
 
+    // CE ref: map.cc::mapSave — MVARs persist with the map.
+    // Structure: { [scriptName: string]: { [idx: string]: any } }
+    mvars?: any
+
+    // Discovered worldmap areas (persists Set<number> across save/load).
+    knownAreas?: number[]
+
     // Structured event log accumulated by logger.eventLogPush. Optional so
     // older saves (without the field) continue to load cleanly.
     eventLog?: EventLogEntry[]
@@ -103,6 +110,8 @@ function gatherSaveData(name: string): SaveGame {
             armor: p.armor ? p.armor.serialize() : null,
             gvars: Object.assign({}, Scripting.getGlobalVars()),
         },
+        mvars: Scripting.getMapVars(),
+        knownAreas: [...globalState.knownAreas],
         eventLog: globalState.eventLog.slice(),
     }
 }
@@ -225,6 +234,13 @@ export function load(id: number): void {
                 }
 
                 globalState.gParty.deserialize(save.party)
+
+                // Restore MVARs (map variables). Older saves lack this field; those
+                // will reset to the default .mvars.json values on first script run.
+                if (save.mvars !== undefined) Scripting.setMapVars(save.mvars)
+
+                // Restore discovered worldmap areas.
+                if (Array.isArray(save.knownAreas)) globalState.knownAreas = new Set(save.knownAreas)
 
                 // Restore the structured event log. Older saves may have the field
                 // under the old name (combatLog) — accept either; fall back to empty.

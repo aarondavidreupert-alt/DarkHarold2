@@ -59,14 +59,12 @@ until these hooks are wired.
   end of each heartbeat tick — `map.ts:101–130`.
 - Prevents index drift when scripts remove objects during iteration.
 
-### 1e. `reg_anim_func` callback interleaving 🟡 Partial
-- Callbacks registered via `reg_anim_func` are collected into `animBatch` and
-  fired *after* all animate steps complete — `scripting.ts:1579`.
-- CE fires `reg_anim_func` callbacks interleaved between individual animate
-  steps, allowing scripts to react mid-sequence and branch on the result.
-- Current behaviour is correct for the common case (single callback at end of
-  sequence) but will misfire for scripts that branch mid-sequence.
-- Ref: fallout2-ce `animation.cc::animationRegAnimFunc()`
+### 1e. `reg_anim_func` callback interleaving ✅ Done
+- `reg_anim_end` now drains the batch in registration order: consecutive `func`
+  entries fire immediately before the next `animate` entry is played.
+- Previous behaviour (all callbacks after all steps) is replaced by a single
+  `doStep(i)` loop that consumes `func` entries inline via a `while` prefix.
+- Ref: fallout2-ce `animation.cc::animationRegAnimFunc()` — `scripting.ts:1592`
 
 ---
 
@@ -98,7 +96,7 @@ until these hooks are wired.
 | `obj_item_subtype` | ✅ Done | `vm_bridge.ts:123`, `scripting.ts:1180` |
 | `tile_contains_pid_obj` | ✅ Done | `vm_bridge.ts:115`, `scripting.ts:1337` |
 | `tile_is_visible` | ✅ Done | `vm_bridge.ts` `0x80f8`, `scripting.ts:1347` |
-| `set_exit_grids` | 🟡 Partial | Implemented `scripting.ts:1306`; **not wired in `vm_bridge.ts`** |
+| `set_exit_grids` | ✅ Done | `vm_bridge.ts:0x80E6`, `scripting.ts:1306` — wired |
 | `game_ui_disable` / `game_ui_enable` | ✅ Done | `vm_bridge.ts:160–161`, `scripting.ts:1789–1793` |
 | `wm_area_set_pos` | ✅ Done | `vm_bridge.ts:96`, `scripting.ts:1782` |
 | `critter_attempt_placement` | ✅ Done | `vm_bridge.ts:101`, `scripting.ts:851` |
@@ -263,21 +261,17 @@ a believable playthrough.
 These gaps were not in the original roadmap. Each causes observable quest and
 gameplay regressions on reload.
 
-### 7a. MVAR persistence 🔴 Critical
-- `mapVars` is a module-level `var` in `scripting.ts:50`; it is **not exported
-  and not included in `SaveGame`** (`saveload.ts`).
-- On reload, all map variable state resets to the default `.mvars.json` values.
-  Quest-critical flags (doors unlocked, merchants visited, quest stages) are lost.
-- Fix: export `mapVars` from `scripting.ts`; add `mvars` field to `SaveGame`;
-  restore in `load()`.
+### 7a. MVAR persistence ✅ Done
+- `Scripting.getMapVars()` / `Scripting.setMapVars()` added to `scripting.ts:152`.
+- `SaveGame.mvars` field added; serialized in `gatherSaveData()`, restored in
+  `load()` via `Scripting.setMapVars(save.mvars)`.
+- Older saves (missing `mvars`) fall back to `.mvars.json` defaults on first run.
 - Ref: fallout2-ce `map.cc::mapSave` — MVARs persist with the map.
 
-### 7b. WorldMap `knownAreas` not persisted 🔴
-- `globalState.knownAreas: Set<number>` is **not in `SaveGame`**.
-- On reload the worldmap forgets all discovered areas; player must re-discover
-  every location.
-- Fix: serialize `knownAreas` as an array in `SaveGame.playerState`; restore
-  into a new `Set` on load.
+### 7b. WorldMap `knownAreas` persisted ✅ Done
+- `SaveGame.knownAreas: number[]` added; serialized as `[...globalState.knownAreas]`
+  in `gatherSaveData()`, restored as `new Set(save.knownAreas)` in `load()`.
+- Older saves (missing `knownAreas`) keep whatever the current session discovered.
 
 ### 7c. Timed event queue not persisted 🔴
 - `Scripting.timeEventList` (`scripting.ts:59`) is **not in `SaveGame`**.
@@ -288,11 +282,8 @@ gameplay regressions on reload.
   drug events tagged with string `userdata`); restore with adjusted `fireTime`
   on load.
 
-### 7d. `obj_set_light_level` (0x8107) not wired 🟡
-- Implemented in `scripting.ts:1262` (sets `obj.lightRadius`,
-  `obj.lightIntensity`) but **no entry in `vm_bridge.ts`**.
-- Scripts that call `obj_set_light_level` at runtime will no-op.
-- Fix: add `0x8107: bridged("obj_set_light_level", 3, false)` to `vm_bridge.ts`.
+### 7d. `obj_set_light_level` (0x8107) ✅ Done
+- Wired: `vm_bridge.ts:0x8107`, `scripting.ts:1275`.
 - Ref: fallout2-ce `interpreter_extra.cc:3058` `opSetObjectLightLevel`.
 
 ---

@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; animation gaps added §14; proto_system added §15; tile_system added §16; items added §17; random_numbers added §18; settings added §19; lighting added §20; rendering added §21; pathfinding added §22; endgame added §23; economy added §24; interface_windows added §25; M4/W10/LD3 corrections 2026-06-02; wiki merged 55→38 docs 2026-06-02; audio §8 added 2026-06-02; sections §9-§29 renumbered; autocrawler merge crash fixes FIXED 2026-06-02; aiPackets.ts wired into combat.ts 2026-06-02: C7 updated, C12/C13 added; AttackWho/RunAwayMode/BestWeapon/DistanceMode:stay wired)
+> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; animation gaps added §14; proto_system added §15; tile_system added §16; items added §17; random_numbers added §18; settings added §19; lighting added §20; rendering added §21; pathfinding added §22; endgame added §23; economy added §24; interface_windows added §25; M4/W10/LD3 corrections 2026-06-02; wiki merged 55→38 docs 2026-06-02; audio §8 added 2026-06-02; sections §9-§29 renumbered; autocrawler merge crash fixes FIXED 2026-06-02; aiPackets.ts wired: C7/C12/C13 2026-06-02; Phase 1/3/7 sprint 2026-06-02: S13 FIXED, S21 wired, LD3 partial→wired, U5/U6 FIXED)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -60,7 +60,7 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 | S10 | `mod_pc_stat` | `scripting.ts:942` | Cases 3 (Reputation) and 4 (Karma) write through; all other `PCSTAT_*` IDs stub | minor | partial |
 | S11 | `anim` | `scripting.ts:1249` | IDs 1000 (set rotation) and 1010 (set frame) handled; all other animation-command IDs stub | major | partial |
 | S12 | `proto_data` (critters) | `scripting.ts:1144` | Item fields (24 cases) fully mapped; critter fields return 0 for all IDs except `CRITTER_KILL_TYPE` | major | partial |
-| S13 | `reg_anim_func` | `scripting.ts:1558`, `vm_bridge.ts:76` | Wired; `reg_anim_func` callbacks are collected and fired **after** all animate steps complete, not interleaved between them in registration order. CE `animationRegAnimFunc` sequences them together. | major | partial |
+| S13 | `reg_anim_func` | `scripting.ts:1592`, `vm_bridge.ts:76` | FIXED 2026-06-02: `reg_anim_end` now drains batch in registration order; `func` entries fire immediately before the next `animate` step (CE `animationRegAnimFunc` behavior). | major | fixed |
 | S14 | `reg_anim_animate` | `scripting.ts:1566` | Plays animation immediately; the `delay` parameter (number of ticks to wait) is ignored — no WAIT/sleep equivalent in the queue. | minor | partial |
 | S15 | `play_gmovie` | `scripting.ts:1768` | Logs a skip message and returns; `.mve` video playback infrastructure does not exist | minor | stub |
 | S16 | `obj_art_fid` | `scripting.ts:1201` | Always returns 0; proto FID data is already loaded | minor | stub |
@@ -68,7 +68,7 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 | S18 | `obj_item_subtype` | `scripting.ts:1180` | Always returns null; proto sub-type data is available | minor | stub |
 | S19 | `tile_contains_pid_obj` | `scripting.ts:1337` | Logic exists and runs but `stub()` still fires — correctness unverified | minor | partial |
 | S20 | `tile_is_visible` | `scripting.ts` | Always returns 1; lightmap data available but not consulted | minor | stub |
-| S21 | `set_exit_grids` | `scripting.ts:1306` | Method body writes to `map.exitGrids`; visual correctness unverified and area-screen re-entry not triggered | minor | partial |
+| S21 | `set_exit_grids` | `scripting.ts:1306`, `vm_bridge.ts:0x80E6` | FIXED 2026-06-02: opcode wired (`vm_bridge.ts`). Method writes to `map.exitGrids`; area-screen re-entry visual correctness still unverified. | minor | partial |
 | S22 | `gdialog_set_barter_mod` | `scripting.ts:1425` | Stores mod in `this._barterMod`; `ui_barter.ts` does not read this field — the dialogue barter bonus has no effect | major | partial |
 | S23 | `game_ui_disable` / `game_ui_enable` | `scripting.ts:1789,1793` | Methods exist and are wired; input locking not implemented — UI remains interactive during cutscenes | minor | stub |
 | S24 | `wm_area_set_pos` | `scripting.ts:1782` | Writes to `globalState.mapAreas`; `ui_worldmap.ts` does not re-render area markers on write | minor | partial |
@@ -167,6 +167,8 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 | U2 | **Volume control absent.** `audio.ts` has play/stop infrastructure but no `GainNode` on the `AudioContext`. Master / music / SFX volume sliders cannot be wired until this is added. | `audio.ts` | `sound.cc` | minor | missing |
 | U3 | **Save slot screenshots not saved.** `saveload.ts` saves game state but does not capture a screenshot for the save slot thumbnail. | `saveload.ts` | `loadsave.cc` | minor | missing |
 | U4 | **HUD reload AP hardcoded to 2.** `ui_hud.ts:195` and `ui.ts:323` both use a literal `2`; CE reads `reloadAP` from the weapon proto field. | `ui_hud.ts:195`, `ui.ts:323` | `proto_types.h ProtoItemWeaponData` | minor | bug |
+| U5 | **MVARs not persisted on save.** FIXED 2026-06-02 — `Scripting.getMapVars()`/`setMapVars()` added; `SaveGame.mvars` serialized in `saveload.ts`. | `saveload.ts`, `scripting.ts` | `map.cc::mapSave` | major | fixed |
+| U6 | **`knownAreas` not persisted on save.** FIXED 2026-06-02 — `SaveGame.knownAreas` serialized as `number[]`; restored as `new Set()` on load. | `saveload.ts` | `worldmap.cc` | major | fixed |
 
 ---
 
@@ -337,7 +339,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 |----|-------------|---------|--------------|-----|--------|
 | LD1 | **Hidden objects still emit light.** `bakeStaticLight()` / `rebuildDynamicLight()` do not check `obj.visible`. CE `_obj_adjust_light` bails on `OBJECT_HIDDEN`. Scripts hiding a torch (e.g. `set_obj_visibility(torch, 1)`) leave the tile lit in DH2. | `src/lightmap.ts:564,576` | `object.cc:3973` | minor | bug |
 | LD2 | **`OBJECT_LIGHTING` flag (0x20) not checked.** CE `_obj_adjust_light` bails when `(flags & OBJECT_LIGHTING) == 0`. DH2 illuminates any object with `lightRadius > 0` regardless of the flag. | `src/lightmap.ts:68` | `object.cc:3977`; `obj_types.h:61` | low | bug |
-| LD3 | **`obj_set_light_level` opcode not wired; method does not update lightmap.** Opcode `0x8107` is absent from `vm_bridge.ts` — scripts calling it silently fail before reaching the handler. Even if wired, `scripting.ts:1267` stores fields but never calls `obj_adjust_light()` or `bakeStaticLight()`; lightmap unchanged until next map reload. CE `opSetObjectLightLevel` calls `objectSetLight()` → full turn-off/turn-on cycle. | `src/scripting.ts:1262`; `src/vm_bridge.ts` | `interpreter_extra.cc:3071`; `object.cc:1721` | major | bug |
+| LD3 | **`obj_set_light_level` method does not update lightmap.** Opcode `0x8107` now wired (FIXED 2026-06-02); `scripting.ts:1275` stores `obj.lightRadius`/`obj.lightIntensity` but never calls `obj_adjust_light()` or `bakeStaticLight()` — lightmap unchanged until next map reload. CE `opSetObjectLightLevel` calls `objectSetLight()` → full turn-off/turn-on cycle. | `src/scripting.ts:1275`; `src/vm_bridge.ts:0x8107` | `interpreter_extra.cc:3071`; `object.cc:1721` | major | partial |
 | LD4 | **`set_obj_visibility` does not update lightmap.** Sets `obj.visible = !visibility` but does not remove or restore the object's light contribution. CE `objectHide`/`objectShow` call `_obj_turn_off_light` / `_obj_turn_on_light`. | `src/scripting.ts:1213` | `interpreter_extra.cc:2096-2119` | minor | bug |
 | LD5 | **`objectGetLightIntensity` self-subtraction absent.** CE subtracts the player's own `lightIntensity` from the tile value before computing effective light level (prevents self-illumination). No DH2 equivalent — moot while night-penalty is absent (lighting.md gap #1). | `src/combat.ts:441` | `object.cc:1748` | low | missing |
 | LD6 | **`obj_set_light_level` intensity not converted from percent.** CE: `(intensity × 65636) / 100`. DH2: stores raw value directly — result is 100× too dim when scripts pass percentage values (0–100 range). | `src/scripting.ts:1267` | `interpreter_extra.cc:3071` | major | bug |

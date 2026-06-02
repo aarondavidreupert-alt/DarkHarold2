@@ -153,6 +153,14 @@ export module Scripting {
         globalVars = Object.assign({}, vars)
     }
 
+    export function getMapVars(): any {
+        return mapVars
+    }
+
+    export function setMapVars(vars: any): void {
+        mapVars = vars ?? {}
+    }
+
     export function loadGlobalVars(): void {
         if (globalVarsLoaded) return
         try {
@@ -1597,17 +1605,18 @@ export module Scripting {
             const batch = animBatch
             animBatch = null
 
-            const steps = batch.filter(e => e.kind === 'animate') as AnimStep[]
-            const callbacks = (batch.filter(e => e.kind === 'func') as AnimFunc[])
-                .map(e => e.fn)
-                .filter((fn): fn is () => void => fn !== null)
-
+            // CE ref: animation.cc::animationRegAnimFunc — callbacks are fired in
+            // registration order, interleaved between animate steps (not batched at end).
             function doStep(i: number) {
-                if (i >= steps.length) {
-                    for (const cb of callbacks) cb()
-                    return
+                // Fire all consecutive func entries at this position before the next animate
+                while (i < batch.length && batch[i].kind === 'func') {
+                    const fn = (batch[i] as AnimFunc).fn
+                    if (fn !== null) fn()
+                    i++
                 }
-                const step = steps[i]
+                if (i >= batch.length) return
+
+                const step = batch[i] as AnimStep
                 const obj = step.obj
                 const next = () => { obj.clearAnim(); doStep(i + 1) }
                 // anim=0 is ANIM_STAND — snap to idle rather than playing a cycle
