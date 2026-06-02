@@ -552,7 +552,7 @@ export class GameMap {
             this.changeElevation(this.currentElevation, true, true)
         }
 
-        // TODO: is map_enter_p_proc called on elevation change?
+        // CE ref: map.cc:362 mapSetElevation — only fires scriptsExecMapUpdateProc, NOT map_enter_p_proc
         dbg(
             'map',
             'loaded (' +
