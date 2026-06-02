@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15; tile_system added §16; item_use added §17; random_numbers added §18; config_ini added §19)
+> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15; tile_system added §16; item_use added §17; random_numbers added §18; config_ini added §19; lighting_deep_dive added §20)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -306,7 +306,26 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 20. Pathfinding
+## 20. Lighting Deep Dive
+
+> Source: `wiki/lighting_deep_dive.md` · CE: `light.cc`, `light.h`, `object.cc`, `interpreter_extra.cc`, `obj_types.h` · DH2: `src/lightmap.ts`, `src/scripting.ts`, `src/object.ts`
+>
+> Supplements the 10 gaps in `wiki/lighting.md §9` with additional implementation-level gaps.
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| LD1 | **Hidden objects still emit light.** `bakeStaticLight()` / `rebuildDynamicLight()` do not check `obj.visible`. CE `_obj_adjust_light` bails on `OBJECT_HIDDEN`. Scripts hiding a torch (e.g. `set_obj_visibility(torch, 1)`) leave the tile lit in DH2. | `src/lightmap.ts:564,576` | `object.cc:3973` | minor | bug |
+| LD2 | **`OBJECT_LIGHTING` flag (0x20) not checked.** CE `_obj_adjust_light` bails when `(flags & OBJECT_LIGHTING) == 0`. DH2 illuminates any object with `lightRadius > 0` regardless of the flag. | `src/lightmap.ts:68` | `object.cc:3977`; `obj_types.h:61` | low | bug |
+| LD3 | **`obj_set_light_level` does not update lightmap.** `scripting.ts:1267` stores fields but never calls `obj_adjust_light()` or `bakeStaticLight()`. Visible lightmap unchanged until next map reload. CE calls `objectSetLight()` → full turn-off/turn-on cycle. | `src/scripting.ts:1262` | `interpreter_extra.cc:3071`; `object.cc:1721` | major | bug |
+| LD4 | **`set_obj_visibility` does not update lightmap.** Sets `obj.visible = !visibility` but does not remove or restore the object's light contribution. CE `objectHide`/`objectShow` call `_obj_turn_off_light` / `_obj_turn_on_light`. | `src/scripting.ts:1213` | `interpreter_extra.cc:2096-2119` | minor | bug |
+| LD5 | **`objectGetLightIntensity` self-subtraction absent.** CE subtracts the player's own `lightIntensity` from the tile value before computing effective light level (prevents self-illumination). No DH2 equivalent — moot while night-penalty is absent (lighting.md gap #1). | `src/combat.ts:441` | `object.cc:1748` | low | missing |
+| LD6 | **`obj_set_light_level` intensity not converted from percent.** CE: `(intensity × 65636) / 100`. DH2: stores raw value directly — result is 100× too dim when scripts pass percentage values (0–100 range). | `src/scripting.ts:1267` | `interpreter_extra.cc:3071` | major | bug |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 21. Pathfinding
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -323,7 +342,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 21. Intentionally Deferred — Do Not Implement Unless Tasked
+## 22. Intentionally Deferred — Do Not Implement Unless Tasked
 
 These systems are out-of-scope and marked deliberately incomplete. They appear in source as stubs only.
 
