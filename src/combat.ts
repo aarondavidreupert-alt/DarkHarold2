@@ -20,7 +20,7 @@ import { Config } from './config.js'
 import { CriticalEffects } from './criticalEffects.js'
 import { critterDamage, critterKill } from './critter.js'
 import * as GameTime from './gametime.js'
-import { hexDirectionTo, hexDistance, hexInDirectionDistance, hexLine, hexNearestNeighbor, hexNeighbors, Point } from './geometry.js'
+import { hexDirectionTo, hexDistance, hexInDirection, hexInDirectionDistance, hexLine, hexNearestNeighbor, hexNeighbors, Point } from './geometry.js'
 import globalState from './globalState.js'
 import { eventLogPush, dbg, dbgWarn } from './logger.js'
 import { Critter, Obj } from './object.js'
@@ -1157,10 +1157,32 @@ export class Combat {
             return
         }
 
-        // CE ref: combat_ai.cc DISTANCE_STAY — AI never moves
-        if (obj.ai!.packet.distance === 'stay') {
+        // CE ref: combat_ai.cc _cai_perform_distance_prefs
+        const distMode = obj.ai!.packet.distance
+        if (distMode === 'stay') {
             if (AP.getAvailableCombatAP() <= 0) return this.nextTurn()
             // Fall through to attack in place (no movement)
+        } else if (distMode === 'snipe' && target && distance < 10) {
+            // SNIPE: back away from target to maintain ≥10-tile standoff
+            const moveAP = AP.getAvailableMoveAP()
+            if (moveAP > 0) {
+                // Walk in the direction away from the target
+                const awayDir = (hexDirectionTo(target.position, obj.position))
+                let backPos = obj.position
+                let steps = 0
+                while (steps < moveAP && hexDistance(backPos, target.position) < 10) {
+                    const next = hexInDirection(backPos, awayDir)
+                    if (!next || next.x < 0 || next.y < 0 || next.x >= 200 || next.y >= 200) break
+                    if (globalState.gMap?.objectsAtPosition(next).some((o: Obj) => o !== obj && o.type !== 'critter' && o.blocks?.())) break
+                    backPos = next
+                    steps++
+                }
+                if (steps > 0 && backPos !== obj.position) {
+                    obj.walkTo(backPos, false, () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1) }, steps)
+                    if (AP.subtractMoveAP(steps) === false) return this.nextTurn()
+                    return
+                }
+            }
         }
 
         var weaponObj = obj.equippedWeapon
