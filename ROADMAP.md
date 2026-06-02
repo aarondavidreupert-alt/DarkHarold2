@@ -271,14 +271,13 @@ gameplay regressions on reload.
   in `gatherSaveData()`, restored as `new Set(save.knownAreas)` in `load()`.
 - Older saves (missing `knownAreas`) keep whatever the current session discovered.
 
-### 7c. Timed event queue not persisted 🔴
-- `Scripting.timeEventList` (`scripting.ts:59`) is **not in `SaveGame`**.
-- Drug timers (stat reversal, addiction rolls), scripted `add_timer_event` delays
-  — all lost on reload. Reloading after using drugs silently removes the expiry
-  callback.
-- Fix: serialize the `timeEventList` (filter to serializable entries — e.g.
-  drug events tagged with string `userdata`); restore with adjusted `fireTime`
-  on load.
+### 7c. Timed event queue persistence ✅ Done (2026-06-02)
+- `SaveGame.timedEvents` now serializes each event as `{ objPid, ticks, userdata }`.
+- On load, script-based events are reconstructed by matching `objPid` to
+  deserialized map objects and calling `Scripting.timedEvent(script, userdata)`.
+- Drug events (`drug:NAME` worn-off, `drug:delayed:NAME`) are reconstructed via
+  `getDrugByName()` and the `DrugEffect` fields (`timedStats`, `delayedHP`).
+- CE ref: `scripts.cc scriptsSaveProcedureNames / scriptsLoadProcedureNames`.
 
 ### 7d. `obj_set_light_level` (0x8107) ✅ Done
 - Wired: `vm_bridge.ts:0x8107`, `scripting.ts:1275`.

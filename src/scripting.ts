@@ -88,6 +88,12 @@ export module Scripting {
         fn: () => void
     }
 
+    export interface SerializedTimedEvent {
+        objPid: number | null
+        ticks: number
+        userdata: any
+    }
+
     var statMap: { [stat: number]: string } = {
         0: 'STR',
         1: 'PER',
@@ -162,6 +168,15 @@ export module Scripting {
 
     export function setMapVars(vars: any): void {
         mapVars = vars ?? {}
+    }
+
+    // CE ref: scripts.cc scriptsSaveProcedureNames — timed events persisted with map save
+    export function getTimedEventsSerialized(): SerializedTimedEvent[] {
+        return timeEventList.map(e => ({
+            objPid: e.obj?.pid ?? null,
+            ticks: e.ticks,
+            userdata: e.userdata,
+        }))
     }
 
     export function loadGlobalVars(): void {

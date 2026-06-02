@@ -21,8 +21,9 @@ import { heart } from './heart.js'
 import { dbg, dbgWarn } from './logger.js'
 import type { EventLogEntry } from './eventlog.types.js'
 import { SerializedMap } from './map.js'
-import { deserializeObj, SerializedObj } from './object.js'
+import { Critter, deserializeObj, SerializedObj } from './object.js'
 import { Scripting } from './scripting.js'
+import { getDrugByName } from './drugs.js'
 import { drawHP, drawAC, uiDrawWeapon } from './ui_hud.js'
 import { getFileJSON } from './util.js'
 
@@ -73,6 +74,11 @@ export interface SaveGame {
     // Structured event log accumulated by logger.eventLogPush. Optional so
     // older saves (without the field) continue to load cleanly.
     eventLog?: EventLogEntry[]
+
+    // Pending timed events (script add_timer_event + drug wear-off timers).
+    // CE ref: scripts.cc scriptsSaveProcedureNames — events keyed by object PID.
+    // Optional so older saves (without the field) load without error.
+    timedEvents?: Scripting.SerializedTimedEvent[]
 }
 
 function gatherSaveData(name: string): SaveGame {
@@ -113,6 +119,7 @@ function gatherSaveData(name: string): SaveGame {
         mvars: Scripting.getMapVars(),
         knownAreas: [...globalState.knownAreas],
         eventLog: globalState.eventLog.slice(),
+        timedEvents: Scripting.getTimedEventsSerialized(),
     }
 }
 
@@ -247,6 +254,45 @@ export function load(id: number): void {
                 globalState.eventLog = Array.isArray(save.eventLog ?? (save as any).combatLog)
                     ? ((save.eventLog ?? (save as any).combatLog) as EventLogEntry[]).slice()
                     : []
+
+                // Restore timed events (script timers + drug wear-off timers).
+                // CE ref: scripts.cc scriptsSaveProcedureNames / scriptsLoadProcedureNames.
+                // Older saves without this field are silently skipped.
+                if (Array.isArray(save.timedEvents)) {
+                    const mapObjects = globalState.gMap.getObjects()
+                    for (const ev of save.timedEvents) {
+                        const obj = ev.objPid !== null
+                            ? mapObjects.find(o => o.pid === ev.objPid) ?? null
+                            : null
+                        const { ticks, userdata } = ev
+                        if (typeof userdata === 'string' && userdata.startsWith('drug:delayed:')) {
+                            const drug = getDrugByName(userdata.slice('drug:delayed:'.length))
+                            const user = obj as Critter | null
+                            if (drug?.delayedHP !== undefined && user) {
+                                const dmg = -(drug.delayedHP)
+                                Scripting.timeEventList.push({ obj, ticks, userdata, fn: () => {
+                                    if (dmg > 0) user.stats.modifyBase('HP', -dmg)
+                                }})
+                            }
+                        } else if (typeof userdata === 'string' && userdata.startsWith('drug:')) {
+                            const drug = getDrugByName(userdata.slice('drug:'.length))
+                            const user = obj as Critter | null
+                            if (drug?.timedStats && user) {
+                                const stats = drug.timedStats
+                                Scripting.timeEventList.push({ obj, ticks, userdata, fn: () => {
+                                    for (const [stat, delta] of Object.entries(stats))
+                                        user.stats.modifyBase(stat, -delta)
+                                }})
+                            }
+                        } else if (obj?._script) {
+                            const script = obj._script
+                            Scripting.timeEventList.push({ obj, ticks, userdata,
+                                fn: () => Scripting.timedEvent(script, userdata)
+                            })
+                        }
+                    }
+                    dbg('saveload', '[SaveLoad] Restored %d timed events', save.timedEvents.length)
+                }
 
                 globalState.gMap.changeElevation(save.currentElevation, false)
 

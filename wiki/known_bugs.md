@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; animation gaps added §14; proto_system added §15; tile_system added §16; items added §17; random_numbers added §18; settings added §19; lighting added §20; rendering added §21; pathfinding added §22; endgame added §23; economy added §24; interface_windows added §25; M4/W10/LD3 corrections 2026-06-02; wiki merged 55→38 docs 2026-06-02; audio §8 added 2026-06-02; sections §9-§29 renumbered; autocrawler merge crash fixes FIXED 2026-06-02; aiPackets.ts wired: C7/C12/C13 2026-06-02; Phase 1/3/7 sprint 2026-06-02: S13 FIXED, S21 wired, LD3 partial→wired, U5/U6 FIXED; Phase combat/scripting sprint 2026-06-02: S7/do_check FIXED, S3/get_critter_stat expanded, C6/P1 party combat AI wired)
+> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; animation gaps added §14; proto_system added §15; tile_system added §16; items added §17; random_numbers added §18; settings added §19; lighting added §20; rendering added §21; pathfinding added §22; endgame added §23; economy added §24; interface_windows added §25; M4/W10/LD3 corrections 2026-06-02; wiki merged 55→38 docs 2026-06-02; audio §8 added 2026-06-02; sections §9-§29 renumbered; autocrawler merge crash fixes FIXED 2026-06-02; aiPackets.ts wired: C7/C12/C13 2026-06-02; Phase 1/3/7 sprint 2026-06-02: S13 FIXED, S21 wired, LD3 partial→wired, U5/U6 FIXED; Phase combat/scripting sprint 2026-06-02: S7/do_check FIXED, S3/get_critter_stat expanded, C6/P1 party combat AI wired; U7 timed event persistence FIXED 2026-06-02)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -169,6 +169,7 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 | U4 | **HUD reload AP hardcoded to 2.** `ui_hud.ts:195` and `ui.ts:323` both use a literal `2`; CE reads `reloadAP` from the weapon proto field. | `ui_hud.ts:195`, `ui.ts:323` | `proto_types.h ProtoItemWeaponData` | minor | bug |
 | U5 | **MVARs not persisted on save.** FIXED 2026-06-02 — `Scripting.getMapVars()`/`setMapVars()` added; `SaveGame.mvars` serialized in `saveload.ts`. | `saveload.ts`, `scripting.ts` | `map.cc::mapSave` | major | fixed |
 | U6 | **`knownAreas` not persisted on save.** FIXED 2026-06-02 — `SaveGame.knownAreas` serialized as `number[]`; restored as `new Set()` on load. | `saveload.ts` | `worldmap.cc` | major | fixed |
+| U7 | **Timed events not persisted on save.** FIXED 2026-06-02 — `SaveGame.timedEvents` serializes each event as `{ objPid, ticks, userdata }`. On load, script events are reconstructed by matching `objPid` to deserialized map objects; drug events (`drug:NAME`, `drug:delayed:NAME`) are reconstructed via `getDrugByName()`. CE ref: `scripts.cc scriptsSaveProcedureNames`. | `saveload.ts`, `scripting.ts`, `drugs.ts` | `scripts.cc` | major | fixed |
 
 ---
 

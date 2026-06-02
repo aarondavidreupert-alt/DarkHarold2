@@ -91,6 +91,12 @@ for (const d of DRUG_TABLE) {
     drugByPID.set(d.pidID, d)
 }
 
+export function getDrugByName(name: string): DrugEffect | undefined {
+    return DRUG_TABLE.find(d => d.name === name)
+}
+
+export type { DrugEffect }
+
 function computeAddictChance(drug: DrugEffect, user: Critter): number {
     let chance = drug.addictChance ?? 0
     // Chem Resistant halves the chance; Chem Reliant doubles it
