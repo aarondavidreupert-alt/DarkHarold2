@@ -126,8 +126,9 @@ until these hooks are wired.
 ### 4b. Perk crit bonuses ✅ Done
 - **Better Criticals**: +30 per rank applied — `combat.ts:501–503`.
 - **Slayer**: every melee hit auto-critical — `combat.ts:523`.
-- **Sniper**: on ranged hit, roll d100 ≤ LUK → critical — `combat.ts` (same block).
-- Ref: fallout2-ce `combat.cc::rollCriticalHit()`
+- **Sniper**: on ranged hit, roll d10 ≤ LUK → critical (FIXED 2026-06-02; was d100) — `combat.ts:499`.
+- **Crit level formula**: CE's non-uniform breakpoints (≤20→0, ≤45→1, ≤70→2, ≤90→3, ≤100→4, >100→5) (FIXED 2026-06-02; was equal `/20` bands) — `combat.ts:505`.
+- Ref: fallout2-ce `combat.cc:3891 rollCriticalHit()`, `combat.cc:4102 attackComputeCriticalHit()`
 
 ### 4c. Melee critical table 🟡 Partial
 - Melee crit `DM` is halved (`max(2, floor(DM/2))`) — `combat.ts:538`.

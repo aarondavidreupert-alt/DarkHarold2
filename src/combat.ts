@@ -491,20 +491,28 @@ export class Combat {
             if (rollSkillCheck(Math.floor(hitChance.hit - roll) / 10, hitChance.crit, false) === true) isCrit = true
 
             // Slayer perk: every melee hit is automatically a critical
-            // Sniper perk: on a ranged hit, roll d100 — if ≤ LUK, upgrade to critical
+            // Sniper perk: on ranged hit roll d10; if ≤ LUK → upgrade to critical
+            // CE ref: combat.cc:3891 — randomBetween(1,10) vs STAT_LUCK
             if (!isCrit) {
                 var wep = obj.equippedWeapon?.weapon
                 if (wep && wep.type === 'melee' && obj.hasPerk('Slayer')) {
                     isCrit = true
                 } else if (wep && wep.type === 'gun' && obj.hasPerk('Sniper')) {
-                    if (getRandomInt(1, 100) <= obj.getStat('LUK')) {
+                    if (getRandomInt(1, 10) <= obj.getStat('LUK')) {
                         isCrit = true
                     }
                 }
             }
             if (isCrit === true) {
-                var critLevel = Math.floor(Math.max(0, getRandomInt(critModifer, 100 + critModifer)) / 20)
-                combatDebug(`crit hit: roll=${roll} level=${critLevel}`)
+                // CE ref: combat.cc:4102 attackComputeCriticalHit — non-uniform effect bands
+                const critRoll = getRandomInt(1, 100) + critModifer
+                const critLevel = critRoll <= 20 ? 0
+                                : critRoll <= 45 ? 1
+                                : critRoll <= 70 ? 2
+                                : critRoll <= 90 ? 3
+                                : critRoll <= 100 ? 4
+                                : 5
+                combatDebug(`crit hit: roll=${roll} critRoll=${critRoll} level=${critLevel}`)
                 dbg('rolls', `${aName} scores a CRITICAL HIT on ${dName}! (level ${critLevel})`)
                 if (attackerName) uiLog(`${attackerName} scores a CRITICAL HIT on ${defenderName}! (level ${critLevel})`)
                 var crit = CriticalEffects.getCritical(target.killType ?? 0, region, critLevel)
