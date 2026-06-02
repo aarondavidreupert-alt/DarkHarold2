@@ -51,10 +51,8 @@ export module Worldmap {
     interface Square {
         terrainType: string //"mountain" | "ocean" | "desert" | "city" | "ocean"
         fillType: string //"no_fill" | "fill_w"
-        // note: there are frequencies for certain times of day (Morning, Afternoon, Night)
-        // but as noted on http://falloutmods.wikia.com/wiki/Worldmap.txt_File_Format
-        // they don't appear to be used
-        frequency: string //"forced" | "frequent" | "uncommon" | "common" | "rare" | "none"
+        // CE ref: worldmap.cc:1956 — three frequency slots: [0]=morning, [1]=afternoon, [2]=night
+        frequencies: string[] // [morning, afternoon, night]
         encounterType: string
         difficulty: number
         state: number // WORLDMAP_UNDISCOVERED etc (TODO: make an enum)
@@ -148,7 +146,8 @@ export module Worldmap {
             return {
                 terrainType: props[0],
                 fillType: props[1],
-                frequency: props[2],
+                // CE ref: worldmap.cc:1956 wmParseSubTileInfo — DAY_PART_COUNT=3 slots
+                frequencies: [props[2], props[3] ?? props[2], props[4] ?? props[2]],
                 encounterType: props[5],
                 difficulty: null,
                 state: null,
@@ -429,7 +428,12 @@ export module Worldmap {
     export function didEncounter(): boolean {
         const squarePos = positionToSquare(worldmapPlayer)
         const square = worldmap.squares[squarePos.x][squarePos.y]
-        const encRate = worldmap.encounterRates[square.frequency]
+        // CE ref: worldmap.cc:3395 — pick frequency by time of day (military hour)
+        const militaryHour = GameTime.getHourMilitary()
+        const dayPart = (militaryHour >= 1800 || militaryHour < 600) ? 2  // night
+                      : militaryHour >= 1200 ? 1                           // afternoon
+                      : 0                                                  // morning
+        const encRate = worldmap.encounterRates[square.frequencies[dayPart]]
 
         //console.log("square: %o, worldmap: %o, encRate: %d", square, worldmap, encRate)
 
