@@ -445,7 +445,7 @@ Sequence for a script-initiated timed event:
 | Feature | CE behavior | DH2 gap |
 |---------|-------------|---------|
 | `set_map_start` | `0x80A8` permanently updates map header start tile/elev/rot | `0x80A8` is wired to `game_time_hour` in DH2 — method does not exist |
-| Map exit proc | `MAP_EXIT` fired on all scripts via `scriptsExecMapUpdateScripts` | `map_exit_p_proc` is declared in Script class but DH2 never fires it |
+| Map exit proc | `MAP_EXIT` fired on all scripts via `scriptsExecMapUpdateScripts` | `map_exit_p_proc` is **not declared** in the `Script` class at all — DH2 has no method for this proc and never fires it |
 | Elevation change MAP_ENTER | CE fires MAP_ENTER for all critters on elevation change | DH2 `changeElevation()` calls `Scripting.updateMap()` (MAP_UPDATE), not `enterMap()` (MAP_ENTER); `doEnterElevation()` fires MAP_ENTER but is only called in some paths |
 | `set_exit_grids` | Updates exit grid destinations | Implemented in scripting.ts:1306 but not wired in vm_bridge.ts |
 | `teleport_to` | Teleport critter to map/tile | Not in CE local repo; not implemented in DH2 |
