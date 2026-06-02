@@ -788,7 +788,8 @@ export class Obj {
 
                 globalState.player.position = destTile
                 globalState.gMap.changeElevation(destElev)
-                globalState.gMap.doEnterElevation()
+                // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc, not map_enter_p_proc
+                globalState.gMap.updateMap()
             } else {
                 dbg('object', `[Object] stairs → ${this.extra.destinationMap} @ (${destTile.x}, ${destTile.y}), elev=${destElev}`)
                 globalState.gMap.loadMapByID(this.extra.destinationMap, destTile, destElev)
@@ -805,14 +806,15 @@ export class Obj {
                     actor.clearAnim()
                     actor.position = destTile
                     globalState.gMap.changeElevation(level)
-                    globalState.gMap.doEnterElevation()
+                    // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc
                     globalState.gMap.updateMap()
                 })
                 return true // updateMap() handled in callback above; skip the one below
             }
             globalState.player.position = destTile
             globalState.gMap.changeElevation(level)
-            globalState.gMap.doEnterElevation()
+            // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc
+            globalState.gMap.updateMap()
         } else {
             this.singleAnimation()
         }
