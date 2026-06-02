@@ -996,6 +996,15 @@ export module Scripting {
             const p = globalState.player
             if (!p) return -1
             switch (pcstat) {
+                case 0: // PCSTAT_unspent_skill_points
+                    p.skills.skillPoints = Math.max(0, value)
+                    return 0
+                case 1: // PCSTAT_level — direct set, no side effects
+                    p.stats.setBase('Level', Math.max(1, Math.min(99, value)))
+                    return 0
+                case 2: // PCSTAT_experience — direct set
+                    p.stats.setBase('Experience', Math.max(0, value))
+                    return 0
                 case 3: // PCSTAT_reputation
                     p.stats.setBase('Reputation', Math.max(-20, Math.min(20, value)))
                     return 0
@@ -1008,10 +1017,21 @@ export module Scripting {
             }
         }
         mod_pc_stat(pcstat: number, delta: number) {
-            // FO2-CE ref: scripts.cc opModifyPcStat() — additive on top of current base
+            // FO2-CE ref: scripts.cc opModifyPcStat()
             const p = globalState.player
             if (!p) return -1
             switch (pcstat) {
+                case 0: // PCSTAT_unspent_skill_points
+                    p.skills.skillPoints = Math.max(0, p.skills.skillPoints + delta)
+                    return 0
+                case 1: { // PCSTAT_level
+                    const cur = p.stats.getBase('Level')
+                    p.stats.setBase('Level', Math.max(1, Math.min(99, cur + delta)))
+                    return 0
+                }
+                case 2: // PCSTAT_experience — addExperience triggers level-up loop
+                    p.addExperience(delta)
+                    return 0
                 case 3: { // PCSTAT_reputation
                     const cur = p.stats.getBase('Reputation')
                     p.stats.setBase('Reputation', Math.max(-20, Math.min(20, cur + delta)))
@@ -1320,15 +1340,22 @@ export module Scripting {
                 warn('anim: not a game object: ' + obj)
                 return
             }
-            if (anim === 1000)
-                // set rotation
-                obj.orientation = param
-            else if (anim === 1010)
-                // set frame
+            if (anim === 1000) {
+                // OBJECT_SET_ROTATION — CE ref: interpreter_extra.cc:3421 opAnim
+                if (param >= 0 && param < 6) obj.orientation = param
+            } else if (anim === 1010) {
+                // OBJECT_SET_FRAME — CE ref: interpreter_extra.cc:3427 opAnim
                 obj.frame = param
-            else {
+            } else if (anim >= 0 && anim < 65) {
+                // Animation type ID — wrap in a one-shot reg_anim batch
+                // CE ref: interpreter_extra.cc:3382 opAnim (anim < ANIM_COUNT branch)
+                const saved = animBatch
+                animBatch = []
+                animBatch.push({ kind: 'animate', obj, anim, delay: 0 })
+                this.reg_anim_end()
+                animBatch = saved
+            } else {
                 stub('anim', arguments)
-                warn('anim: unknown anim request: ' + anim)
             }
         }
 

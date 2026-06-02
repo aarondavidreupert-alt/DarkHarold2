@@ -22,6 +22,7 @@ import { Critter, Obj, WeaponObj } from './object.js'
 import { Scripting } from './scripting.js'
 import * as Endgame from './endgame.js'
 import { hexDirectionTo, hexInDirection, HEX_GRID_SIZE } from './geometry.js'
+import { getRandomInt } from './util.js'
 
 const weaponSkins: { [weapon: string]: string } = {
     uzi: 'i',
@@ -567,11 +568,19 @@ export function critterDamage(
     }
     if (obj.getStat('HP') <= 0) return critterKill(obj, source, useScript, undefined, damageType)
 
-    // CE ref: combat.cc:4633 attackComputeDamage — knockback: distance = damage / 10
-    // Only applies for melee/explosion damage types; skip if NO_KNOCKBACK proto flag set.
+    // CE ref: combat.cc:4633 attackComputeDamage — knockback: damage/10, melee/unarmed/explosion only.
     // CE obj_types.h:103 CRITTER_NO_KNOCKBACK = 0x4000
-    if (source && source !== obj && !((obj.pro?.extra?.flags ?? 0) & 0x4000)) {
-        const kbDist = Math.min(Math.floor(damage / 10), 6)
+    // Stonewall perk (player only): 50% negate entirely; if fails, halve distance.
+    const _srcWep = source?.equippedWeapon
+    const _isMeleeOrExplode = damageType === 'Explosion' ||
+        _srcWep === null || (_srcWep?.weapon?.type === 'melee')
+    if (_isMeleeOrExplode && source && source !== obj && !((obj.pro?.extra?.flags ?? 0) & 0x4000)) {
+        let kbDiv = 10
+        if (obj === (globalState.player as Obj) && (obj as Critter).hasPerk?.('Stonewall')) {
+            if (getRandomInt(0, 100) < 50) kbDiv = 0 // 50% full negation
+            else kbDiv = 20 // remaining 50%: halved distance
+        }
+        const kbDist = kbDiv > 0 ? Math.min(Math.floor(damage / kbDiv), 6) : 0
         if (kbDist > 0 && globalState.gMap) {
             const dir = hexDirectionTo(source.position, obj.position)
             let kbPos = obj.position
