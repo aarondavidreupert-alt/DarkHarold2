@@ -425,7 +425,7 @@ export module Scripting {
         spatial_p_proc!: () => void
 
         use_p_proc!: () => void
-        use_obj_on_me_p_proc!: () => void
+        use_obj_on_p_proc!: () => void
         talk_p_proc!: () => void
         pickup_p_proc!: () => void
         drop_p_proc!: () => void
@@ -2185,12 +2185,12 @@ export module Scripting {
     }
 
     export function useObjOnMe(obj: Obj, item: Obj, source: Obj): boolean {
-        if (!obj._script || obj._script.use_obj_on_me_p_proc === undefined) return false
+        if (!obj._script || obj._script.use_obj_on_p_proc === undefined) return false
         obj._script.self_obj = obj as ScriptableObj
         obj._script.source_obj = source
         obj._script.cur_map_index = currentMapID
         obj._script._didOverride = false
-        obj._script.use_obj_on_me_p_proc()
+        obj._script.use_obj_on_p_proc()
         return obj._script._didOverride
     }
 

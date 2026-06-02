@@ -383,7 +383,7 @@ export class Weapon {
             return modeSkinMap[this.attackOne.mode] ?? null
         }
 
-        throw 'TODO'
+        return null
     }
 
     getAnim(anim: string): string | null {
