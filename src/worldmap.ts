@@ -457,7 +457,24 @@ export module Worldmap {
             dbg('worldmap', 'encounter: rolled %d vs %d (adj %d)', roll, encRate, adjRate)
 
             if (roll < adjRate) {
-                // We rolled an encounter!
+                // Base encounter rolled — run Outdoorsman detection check.
+                // CE ref: worldmap.cc:3450 wmRndEncounterOccurred
+                const player = globalState.player
+                if (player !== null) {
+                    let outdoorsman = player.getSkill('Outdoorsman')
+                    // PROTO_ID_MOTION_SENSOR = 59 (proto_types.h:146); +20 if carried
+                    if (player.inventory.some((item: any) => item.pid === 59)) outdoorsman += 20
+                    if (outdoorsman > 95) outdoorsman = 95
+                    outdoorsman += square.difficulty
+                    if (getRandomInt(1, 100) < outdoorsman) {
+                        // Detected: award XP; avoidance dialog not yet implemented
+                        const xp = 100 - outdoorsman
+                        if (xp > 0) {
+                            player.addExperience(xp)
+                            dbg('worldmap', 'encounter detected: outdoorsman=%d xp=%d', outdoorsman, xp)
+                        }
+                    }
+                }
                 return true
             }
         }
