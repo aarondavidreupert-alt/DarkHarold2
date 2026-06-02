@@ -265,6 +265,60 @@ export function hexLine(a: Point, b: Point): Point[] {
     // throw "unreachable"
 }
 
+/**
+ * CE ref: tile.cc:944 _tile_num_beyond — walks a Bresenham screen-space line from
+ * `from` toward `to` and returns the hex that is `distance` tile-transitions past `from`.
+ * Used for projectile overshoot and shoot_into_the_air.
+ */
+export function hexLineBeyond(from: Point, to: Point, distance: number): Point {
+    if (distance <= 0 || (from.x === to.x && from.y === to.y)) return from
+
+    const fromSc = hexToScreen(from.x, from.y)
+    let tileX = fromSc.x + 16
+    let tileY = fromSc.y + 8
+    const toSc = hexToScreen(to.x, to.y)
+    const toX = toSc.x + 16
+    const toY = toSc.y + 8
+
+    const deltaX = toX - tileX
+    const deltaY = toY - tileY
+    const absX2 = 2 * Math.abs(deltaX)
+    const absY2 = 2 * Math.abs(deltaY)
+    const stepX = deltaX > 0 ? 1 : deltaX < 0 ? -1 : 0
+    const stepY = deltaY > 0 ? 1 : deltaY < 0 ? -1 : 0
+
+    let prevHex = from
+    let count = 0
+
+    if (absX2 > absY2) {
+        let middle = absY2 - absX2 / 2
+        while (true) {
+            const cur = hexFromScreen(tileX, tileY)
+            if (cur.x !== prevHex.x || cur.y !== prevHex.y) {
+                count++
+                if (count === distance || hexIsEdge(cur)) return cur
+                prevHex = cur
+            }
+            if (middle >= 0) { middle -= absX2; tileY += stepY }
+            middle += absY2
+            tileX += stepX
+        }
+    } else {
+        let middle = absX2 - absY2 / 2
+        while (true) {
+            const cur = hexFromScreen(tileX, tileY)
+            if (cur.x !== prevHex.x || cur.y !== prevHex.y) {
+                count++
+                if (count === distance || hexIsEdge(cur)) return cur
+                prevHex = cur
+            }
+            if (middle >= 0) { middle -= absY2; tileX += stepX }
+            middle += absX2
+            tileY += stepY
+        }
+    }
+}
+
 export function hexesInRadius(center: Point, radius: number) {
     var hexes = []
     for (var x = 0; x < 200; x++) {
