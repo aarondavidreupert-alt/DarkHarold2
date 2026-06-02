@@ -21,6 +21,7 @@ import { lazyLoadImage } from './images.js'
 import { Critter, Obj, WeaponObj } from './object.js'
 import { Scripting } from './scripting.js'
 import * as Endgame from './endgame.js'
+import { hexDirectionTo, hexInDirection, HEX_GRID_SIZE } from './geometry.js'
 
 const weaponSkins: { [weapon: string]: string } = {
     uzi: 'i',
@@ -565,6 +566,30 @@ export function critterDamage(
         Scripting.damage(obj, obj, source, damage)
     }
     if (obj.getStat('HP') <= 0) return critterKill(obj, source, useScript, undefined, damageType)
+
+    // CE ref: combat.cc:4633 attackComputeDamage — knockback: distance = damage / 10
+    // Only applies for melee/explosion damage types; skip if NO_KNOCKBACK proto flag set.
+    // CE obj_types.h:103 CRITTER_NO_KNOCKBACK = 0x4000
+    if (source && source !== obj && !((obj.pro?.extra?.flags ?? 0) & 0x4000)) {
+        const kbDist = Math.min(Math.floor(damage / 10), 6)
+        if (kbDist > 0 && globalState.gMap) {
+            const dir = hexDirectionTo(source.position, obj.position)
+            let kbPos = obj.position
+            for (let i = 0; i < kbDist; i++) {
+                const next = hexInDirection(kbPos, dir)
+                if (!next || next.x < 0 || next.y < 0 ||
+                    next.x >= HEX_GRID_SIZE || next.y >= HEX_GRID_SIZE) break
+                // stop if any non-critter blocking object occupies the tile
+                const blocking = globalState.gMap.objectsAtPosition(next)
+                    .some((o: Obj) => o !== obj && o.type !== 'critter' && o.blocks?.())
+                if (blocking) break
+                kbPos = next
+            }
+            if (kbPos !== obj.position) {
+                obj.position = kbPos
+            }
+        }
+    }
 
     // Play a hit reaction if the critter isn't already mid-animation.
     // If a knockdown/knockout crit was applied this hit, play knockdownFront and stay down;
