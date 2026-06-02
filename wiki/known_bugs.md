@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15; tile_system added §16; item_use added §17; random_numbers added §18; config_ini added §19; lighting_deep_dive added §20)
+> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15; tile_system added §16; item_use added §17; random_numbers added §18; config_ini added §19; lighting_deep_dive added §20; rendering_deviations added §21)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -325,7 +325,30 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 21. Pathfinding
+## 21. Rendering Deviations
+
+> Source: `wiki/rendering_deviations.md` · CE: `tile.cc`, `object.cc`, `color.cc` · DH2: `src/webglrenderer.ts`, `src/renderer.ts`, `src/object.ts`, `shaders/`
+>
+> Accepted deviations (RD01–RD05, RD02 high-DPI, RD03 zoom) are not listed here. Scripting-level lighting deviations are in §20 (LD1–LD6). See `wiki/rendering_deviations.md §4` for fix priority ordering.
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| RD06 | **Roof clipping not implemented.** CE `tile_fill_roof` flood-fills connected roof tiles when player walks under a building. DH2 renders all roofs unconditionally. `Config.ui.showRoof` is all-or-nothing. `map.hasRoofAt()` exists but is not wired to per-position rendering. | `src/webglrenderer.ts:965`, `src/map.ts:135` | `object.cc:1445`; `tile.cc tile_fill_roof()` | major | missing |
+| RD07 | **OBJECT_FLAT two-pass rendering absent.** CE renders flat objects (floor decals, blood) in a dedicated first pass before all non-flat objects. DH2 renders all objects in one sorted pass. | `src/renderer.ts:119` | `object.cc:761 _obj_render_pre_roof()` | minor | missing |
+| RD08 | **No post-roof object pass.** CE `_obj_render_post_roof` renders objects that must appear above the roof layer at full intensity (0x10000). DH2 has no post-roof pass. | `src/renderer.ts:119` | `object.cc:862 _obj_render_post_roof()` | minor | missing |
+| RD09 | **Object depth sort approximate.** CE uses a two-phase isometric sort (`_obj_order_comp_func_even/odd`, `tileIsInFrontOf`, `tileIsToRightOf`) correct for all 6 hex directions. DH2 `objectZCompare` sorts by hex-y then hex-x; fails at NE/SW diagonal hex borders. | `src/object.ts:182` | `object.cc:761`; `tile.cc tileIsInFrontOf()` | minor | bug |
+| RD10 | **Color cycling absent.** CE `colorCycleEnable/Disable` drives time-based palette rotation for water and fire. DH2 has no palette cycling; water and fire sprites are static. | — | `color.cc colorCycleEnable()` | minor | missing |
+| RD11 | **Scroll blocking not implemented.** CE respects `OBJECT_SCROLL_BLOCK` flagged scenery to prevent the viewport scrolling through barrier objects. | `src/renderer.ts` | `tile.cc tileSetCenter()`; `gTileScrollBlockingEnabled` | minor | missing |
+| RD12 | **Scroll border limiting absent.** CE clamps viewport to `gTileBorderMin/MaxX/Y`. DH2 camera can scroll to expose grey canvas beyond the map edge. | `src/renderer.ts` | `tile.cc:537` | low | missing |
+| RD13 | **Hex click hit-testing is approximate.** CE uses `_tile_mask[512]` (32 × 16 px, 5 sub-regions) for pixel-precise diamond edges. DH2 uses cube-coordinate rounding (`hexFromScreen`) — imprecise at hex boundaries. | `src/geometry.ts:135` | `tile.cc:718 tileFromScreenXY()` | low | bug |
+| RD14 | **Elevation transition is instant.** CE fades/transitions between elevation levels. DH2 switches immediately. | `src/map.ts:196` | `map.cc mapSetElevation()` | low | missing |
+| RD15 | **Roof tile lighting deviation — ground truth unclear.** CE `tileRenderRoofsInRect` appears to blit roofs at full palette intensity (no `intensityColorTable`). DH2 roofs render at `max(0, ambient) = ambient` via `roofDummyTexture` — dimming at night. See `wiki/rendering_deviations.md §5 Q1`. | `src/webglrenderer.ts:989` | `tile.cc tileRenderRoofsInRect()` | low | bug |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 22. Pathfinding
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -342,7 +365,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 22. Intentionally Deferred — Do Not Implement Unless Tasked
+## 23. Intentionally Deferred — Do Not Implement Unless Tasked
 
 These systems are out-of-scope and marked deliberately incomplete. They appear in source as stubs only.
 
