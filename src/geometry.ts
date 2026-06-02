@@ -208,16 +208,19 @@ export function hexDistance(a: Point, b: Point): number {
 
 // Direction between hexes a and b
 export function hexDirectionTo(a: Point, b: Point): number {
-    // TODO: check correctness
-    const delta = { x: b.x - a.x, y: b.y - a.y }
-
-    if (delta.x) {
-        const angle = (Math.atan2(-delta.y, delta.x) * 180) / Math.PI
+    // CE ref: tile.cc:910 tileGetRotationTo — project both tiles to screen space before atan2;
+    // using grid-space delta was wrong because the grid x-axis inverts relative to screen-x.
+    const sa = hexToScreen(a.x, a.y)
+    const sb = hexToScreen(b.x, b.y)
+    const dx = sb.x - sa.x
+    const dy = sb.y - sa.y
+    if (dx !== 0) {
+        const angle = (Math.atan2(-dy, dx) * 180) / Math.PI
         let temp = (90 - angle) | 0
         if (temp < 0) temp += 360
         return Math.min((temp / 60) | 0, 5)
-    } else if (delta.y < 0) return 0
-    return 2
+    }
+    return dy < 0 ? 0 : 2 // dy<0=up=NE(0), dy>0=down=SE(2)
 }
 
 function hexOppositeDirection(direction: number) {
