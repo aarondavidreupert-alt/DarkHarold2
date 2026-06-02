@@ -15,25 +15,36 @@ limitations under the License.
 */
 
 // Automap data: tracks which hex tiles the player has seen, persisted per
-// map+elevation in localStorage. Provides a shared canvas renderer used by
-// both the standalone automap overlay and the PipBoy AUTOMAPS tab.
+// map+elevation in IndexedDB (one record per map+elevation key). Provides a
+// shared canvas renderer used by the standalone automap overlay and the PipBoy
+// AUTOMAPS tab.
+//
+// Storage is IndexedDB rather than localStorage to avoid the 5 MB quota limit
+// when the crawler visits every map. Legacy localStorage data is migrated on
+// first load and then cleared.
 
+import { dbgWarn } from './logger.js'
 import { Events } from './events.js'
 import { hexDistance, Point } from './geometry.js'
 import globalState from './globalState.js'
 
-const STORAGE_KEY = 'darkfo.automap.v1'
-const OBJECTS_KEY = 'darkfo.automap.objects.v1'
+// Legacy localStorage keys — only used for the one-time migration.
+const LS_TILES_KEY = 'darkfo.automap.v1'
+const LS_OBJECTS_KEY = 'darkfo.automap.objects.v1'
+
+const DB_NAME = 'darkfo-automap'
+const DB_VERSION = 1
+const TILES_STORE = 'tiles'
+const OBJECTS_STORE = 'objects'
+
 const REVEAL_RADIUS = 5
 
-// "mapName:elevation" -> Set of "x,y"
+// "mapName:elevation" → Set of "x,y"
 const seenData: Map<string, Set<string>> = new Map()
 
-// "mapName:elevation" -> compact object snapshot.
-// Each object: [x, y, typeCode, subType?]
-//   typeCode: 'w' = wall, 'd' = door (scenery subType 0), 's' = scenery,
-//             'i' = item
-// We deliberately omit critters (they move; an archived snapshot would lie).
+// "mapName:elevation" → compact object snapshot.
+// typeCode: 'w' = wall, 'd' = door (scenery subType 0), 's' = scenery, 'i' = item.
+// Critters are intentionally omitted — they move, so an archived snapshot would lie.
 type ObjType = 'w' | 'd' | 's' | 'i'
 interface ObjectSnapshotEntry {
     x: number
@@ -42,63 +53,186 @@ interface ObjectSnapshotEntry {
 }
 const objectSnapshots: Map<string, ObjectSnapshotEntry[]> = new Map()
 
-let loaded = false
-let saveTimer: number | null = null
+// Dirty-key sets for deferred IDB writes. Keys are "mapName:elevation" strings.
+const dirtyTiles = new Set<string>()
+const dirtyObjects = new Set<string>()
 
-function key(mapName: string, elevation: number): string {
+let saveTimer: number | null = null
+let _db: IDBDatabase | null = null
+
+function mapKey(mapName: string, elevation: number): string {
     return `${mapName}:${elevation}`
 }
 
-function load(): void {
-    if (loaded) return
-    loaded = true
+// ─── IDB helpers ──────────────────────────────────────────────────────────────
+
+function openDB(): Promise<IDBDatabase> {
+    if (_db) return Promise.resolve(_db)
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION)
+        req.onupgradeneeded = e => {
+            const database = (e.target as IDBOpenDBRequest).result
+            if (!database.objectStoreNames.contains(TILES_STORE)) database.createObjectStore(TILES_STORE)
+            if (!database.objectStoreNames.contains(OBJECTS_STORE)) database.createObjectStore(OBJECTS_STORE)
+        }
+        req.onsuccess = e => {
+            _db = (e.target as IDBOpenDBRequest).result
+            resolve(_db)
+        }
+        req.onerror = () => reject(req.error)
+    })
+}
+
+function idbGetAll<T>(db: IDBDatabase, storeName: string): Promise<Array<{ key: string; value: T }>> {
+    return new Promise((resolve, reject) => {
+        const results: Array<{ key: string; value: T }> = []
+        const tx = db.transaction(storeName, 'readonly')
+        const req = tx.objectStore(storeName).openCursor()
+        req.onsuccess = e => {
+            const cursor = (e.target as IDBRequest<IDBCursorWithValue | null>).result
+            if (cursor) {
+                results.push({ key: cursor.key as string, value: cursor.value as T })
+                cursor.continue()
+            } else {
+                resolve(results)
+            }
+        }
+        req.onerror = () => reject(req.error)
+    })
+}
+
+function idbPutBatch(db: IDBDatabase, storeName: string, entries: Array<{ key: string; value: unknown }>): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite')
+        const store = tx.objectStore(storeName)
+        for (const { key, value } of entries) store.put(value, key)
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+    })
+}
+
+// ─── Init / migration ─────────────────────────────────────────────────────────
+
+async function initStorage(): Promise<void> {
     try {
-        const raw = localStorage.getItem(STORAGE_KEY)
+        const db = await openDB()
+
+        const [tileRecords, objRecords] = await Promise.all([
+            idbGetAll<string[]>(db, TILES_STORE),
+            idbGetAll<ObjectSnapshotEntry[]>(db, OBJECTS_STORE),
+        ])
+
+        for (const { key, value } of tileRecords) seenData.set(key, new Set(value))
+        for (const { key, value } of objRecords) objectSnapshots.set(key, value)
+        dbgWarn('automap', `[automapData] loaded ${tileRecords.length} tile records, ${objRecords.length} object records from IDB`)
+
+        // One-time migration: if IDB was empty and localStorage has data, import it.
+        if (tileRecords.length === 0 && objRecords.length === 0) {
+            await migrateFromLocalStorage(db)
+        }
+    } catch (e) {
+        dbgWarn('automap', '[automapData] IDB unavailable, falling back to localStorage:', e)
+        loadFromLocalStorage()
+    }
+}
+
+async function migrateFromLocalStorage(db: IDBDatabase): Promise<void> {
+    const tileBatch: Array<{ key: string; value: string[] }> = []
+    const objBatch: Array<{ key: string; value: ObjectSnapshotEntry[] }> = []
+
+    try {
+        const raw = localStorage.getItem(LS_TILES_KEY)
         if (raw) {
             const obj = JSON.parse(raw) as Record<string, string[]>
             for (const k in obj) {
                 seenData.set(k, new Set(obj[k]))
+                tileBatch.push({ key: k, value: obj[k] })
             }
         }
-    } catch (e) {
-        console.log('[automapData] failed to load:', e)
-    }
+    } catch (e) { dbgWarn('automap', '[automapData] migration: failed to read tiles:', e) }
+
     try {
-        const raw = localStorage.getItem(OBJECTS_KEY)
+        const raw = localStorage.getItem(LS_OBJECTS_KEY)
+        if (raw) {
+            const obj = JSON.parse(raw) as Record<string, ObjectSnapshotEntry[]>
+            for (const k in obj) {
+                objectSnapshots.set(k, obj[k])
+                objBatch.push({ key: k, value: obj[k] })
+            }
+        }
+    } catch (e) { dbgWarn('automap', '[automapData] migration: failed to read objects:', e) }
+
+    if (tileBatch.length === 0 && objBatch.length === 0) return
+
+    try {
+        await Promise.all([
+            tileBatch.length > 0 ? idbPutBatch(db, TILES_STORE, tileBatch) : Promise.resolve(),
+            objBatch.length > 0 ? idbPutBatch(db, OBJECTS_STORE, objBatch) : Promise.resolve(),
+        ])
+        localStorage.removeItem(LS_TILES_KEY)
+        localStorage.removeItem(LS_OBJECTS_KEY)
+        console.log(`[automapData] migrated ${tileBatch.length} tile records, ${objBatch.length} object records from localStorage → IDB`)
+    } catch (e) {
+        dbgWarn('automap', '[automapData] migration: IDB write failed:', e)
+    }
+}
+
+function loadFromLocalStorage(): void {
+    try {
+        const raw = localStorage.getItem(LS_TILES_KEY)
+        if (raw) {
+            const obj = JSON.parse(raw) as Record<string, string[]>
+            for (const k in obj) seenData.set(k, new Set(obj[k]))
+        }
+    } catch (e) { dbgWarn('automap', '[automapData] failed to load from localStorage:', e) }
+    try {
+        const raw = localStorage.getItem(LS_OBJECTS_KEY)
         if (raw) {
             const obj = JSON.parse(raw) as Record<string, ObjectSnapshotEntry[]>
             for (const k in obj) objectSnapshots.set(k, obj[k])
         }
-    } catch (e) {
-        console.log('[automapData] failed to load object snapshots:', e)
-    }
+    } catch (e) { dbgWarn('automap', '[automapData] failed to load objects from localStorage:', e) }
 }
 
-function save(): void {
-    try {
-        const obj: Record<string, string[]> = {}
-        for (const [k, set] of seenData) {
-            obj[k] = Array.from(set)
-        }
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(obj))
-    } catch (e) {
-        console.log('[automapData] failed to save:', e)
-    }
-    try {
-        const obj: Record<string, ObjectSnapshotEntry[]> = {}
-        for (const [k, list] of objectSnapshots) obj[k] = list
-        localStorage.setItem(OBJECTS_KEY, JSON.stringify(obj))
-    } catch (e) {
-        console.log('[automapData] failed to save object snapshots:', e)
-    }
+// ─── Write helpers ────────────────────────────────────────────────────────────
+
+function scheduleSave(k: string, which: 'tiles' | 'objects'): void {
+    if (which === 'tiles') dirtyTiles.add(k)
+    else dirtyObjects.add(k)
+    if (saveTimer !== null) return
+    saveTimer = window.setTimeout(() => {
+        flushPendingWrites()
+        saveTimer = null
+    }, 2000)
 }
+
+function flushPendingWrites(): void {
+    const tiles = [...dirtyTiles]
+    const objects = [...dirtyObjects]
+    dirtyTiles.clear()
+    dirtyObjects.clear()
+    if (tiles.length === 0 && objects.length === 0) return
+
+    openDB().then(db => {
+        const ops: Promise<void>[] = []
+        if (tiles.length > 0) {
+            const batch = tiles.map(k => ({ key: k, value: Array.from(seenData.get(k) ?? []) }))
+            ops.push(idbPutBatch(db, TILES_STORE, batch))
+        }
+        if (objects.length > 0) {
+            const batch = objects.map(k => ({ key: k, value: objectSnapshots.get(k) ?? [] }))
+            ops.push(idbPutBatch(db, OBJECTS_STORE, batch))
+        }
+        return Promise.all(ops)
+    }).catch(e => dbgWarn('automap', '[automapData] failed to flush pending writes:', e))
+}
+
+// ─── Public API ──────────────────────────────────────────────────────────────
 
 // Capture every wall/door/scenery/item from every elevation of the currently
 // loaded map and store it as a snapshot, so the AUTOMAPS tab can render the
-// same overlay (the HUD render path uses) for an archived map. Critters are
-// intentionally skipped — they move, so a saved snapshot would be a lie.
+// same overlay for an archived map. Critters are intentionally skipped.
 export function snapshotCurrentMapObjects(): void {
-    load()
     const map = globalState.gMap
     if (!map || !map.name) return
     const numLevels: number = (map as any).numLevels ?? 1
@@ -116,31 +250,14 @@ export function snapshotCurrentMapObjects(): void {
             if (!t) continue
             out.push({ x: obj.position.x, y: obj.position.y, t })
         }
-        objectSnapshots.set(key(map.name, level), out)
+        const k = mapKey(map.name, level)
+        objectSnapshots.set(k, out)
+        scheduleSave(k, 'objects')
     }
 }
 
 export function getObjectSnapshot(mapName: string, elevation: number): ObjectSnapshotEntry[] {
-    load()
-    return objectSnapshots.get(key(mapName, elevation)) ?? []
-}
-
-function scheduleSave(): void {
-    if (saveTimer !== null) return
-    saveTimer = window.setTimeout(() => {
-        save()
-        saveTimer = null
-    }, 2000)
-}
-
-// Force-flush any pending save immediately. Called on map transitions and
-// page unload so the seen-tile data is durable.
-export function flushAutomapSave(): void {
-    if (saveTimer !== null) {
-        clearTimeout(saveTimer)
-        saveTimer = null
-    }
-    save()
+    return objectSnapshots.get(mapKey(mapName, elevation)) ?? []
 }
 
 // Every (mapName, elevation) for which we have seen-tile data. Drives the
@@ -152,7 +269,6 @@ export interface ArchivedMap {
 }
 
 export function getArchivedMaps(): ArchivedMap[] {
-    load()
     const out: ArchivedMap[] = []
     for (const [k, set] of seenData) {
         const idx = k.lastIndexOf(':')
@@ -165,19 +281,16 @@ export function getArchivedMaps(): ArchivedMap[] {
 }
 
 export function getSeenTiles(mapName: string, elevation: number): Set<string> {
-    load()
-    return seenData.get(key(mapName, elevation)) ?? new Set()
+    return seenData.get(mapKey(mapName, elevation)) ?? new Set()
 }
 
 export function markSeenAt(mapName: string, elevation: number, position: Point, radius = REVEAL_RADIUS): void {
-    load()
-    const k = key(mapName, elevation)
+    const k = mapKey(mapName, elevation)
     let set = seenData.get(k)
     if (!set) {
         set = new Set()
         seenData.set(k, set)
     }
-    // Iterate a small bounding box around the player and check hex distance
     const minX = Math.max(0, position.x - radius)
     const maxX = Math.min(199, position.x + radius)
     const minY = Math.max(0, position.y - radius)
@@ -189,19 +302,30 @@ export function markSeenAt(mapName: string, elevation: number, position: Point, 
             }
         }
     }
-    scheduleSave()
+    scheduleSave(k, 'tiles')
+}
+
+// Force-flush any pending writes immediately. Called on map transitions and
+// page unload so the seen-tile data is durable.
+export function flushAutomapSave(): void {
+    if (saveTimer !== null) {
+        clearTimeout(saveTimer)
+        saveTimer = null
+    }
+    flushPendingWrites()
 }
 
 export function initAutomapTracking(): void {
-    load()
+    // Start the IDB load in the background. By the time any map finishes loading
+    // and fires loadMapPost (which involves synchronous XHR + async image loads),
+    // initStorage will have completed.
+    initStorage().catch(e => dbgWarn('automap', '[automapData] initStorage failed:', e))
+
     Events.on('playerMoved', (pos: Point) => {
         const map = globalState.gMap
         if (!map || !map.name) return
         markSeenAt(map.name, map.currentElevation, pos)
     })
-    // When a fresh map finishes loading, mark the player's start tile, take
-    // an initial object snapshot (so even maps the player only briefly enters
-    // get walls/scenery captured), and flush.
     Events.on('loadMapPost', () => {
         const map = globalState.gMap
         const player = globalState.player
@@ -210,16 +334,16 @@ export function initAutomapTracking(): void {
         snapshotCurrentMapObjects()
         flushAutomapSave()
     })
-    // Snapshot + flush when leaving a map so the most recent state is durable.
     Events.on('loadMapPre', () => {
         const map = globalState.gMap
         if (!map || !map.name) return
         snapshotCurrentMapObjects()
         flushAutomapSave()
     })
-    // Flush on page unload
     window.addEventListener('beforeunload', () => { flushAutomapSave() })
 }
+
+// ─── Canvas rendering (unchanged) ─────────────────────────────────────────────
 
 export interface RenderOptions {
     zoom?: number

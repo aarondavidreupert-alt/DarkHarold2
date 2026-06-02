@@ -135,6 +135,7 @@ export const Config = {
             encounters: false,    // random encounter rolls and table lookups
             saveload: false,      // save/load operations and slot management
             endgame: false,       // endgame slideshow and death ending selection
+            automap: false,       // automap IDB reads, writes, and migrations
         },
     },
 }

@@ -307,7 +307,16 @@ export class GameMap {
             dbg('map', 'Starting position overriden to %o', overridenStartPos)
             globalState.player.position = overridenStartPos.position
             globalState.player.orientation = overridenStartPos.orientation
-            this.currentElevation = globalState.currentElevation = overridenStartPos.elevation
+            // FO2-CE ref: map.cc mapSetupEnter() — elevation from override_map_start is validated
+            // against the number of map levels before use. Maps with fewer levels than the script
+            // expects (e.g. modinn exported with 2 levels but script targets elevation 2) must not
+            // corrupt currentElevation — keep the pre-load value instead.
+            const newElev = overridenStartPos.elevation
+            if (this.mapObj.levels[newElev]) {
+                this.currentElevation = globalState.currentElevation = newElev
+            } else {
+                dbgWarn('map', `override_map_start: elevation ${newElev} out of bounds (map has ${this.numLevels} levels), ignoring`)
+            }
         }
 
         // place party again, so if the map script overrided the start position we're in the right place
@@ -337,7 +346,7 @@ export class GameMap {
 	}
 	
     loadMap(mapName: string, startingPosition?: Point, startingElevation = 0, loadedCallback?: () => void): void {
-        if (Config.engine.doSaveDirtyMaps && this.name !== null) {
+        if (Config.engine.doSaveDirtyMaps && this.name !== null && this.objects !== null) {
             // if a map is already loaded, save it to the dirty map cache before loading
             dbg('map', `[Main] Serializing map ${this.name} and committing to dirty map cache`)
             globalState.dirtyMapCache[this.name] = this.serialize()
@@ -363,8 +372,13 @@ export class GameMap {
 
             globalState.player.orientation = map.mapObj.startOrientation
 
-            // Set elevation
-            this.currentElevation = globalState.currentElevation = Number(startingElevation) || 0
+            // Set elevation — clamp to 0 if out of bounds (same guard as doEnterNewMap)
+            const requestedElev = Number(startingElevation) || 0
+            const safeElev = this.mapObj.levels[requestedElev] ? requestedElev : 0
+            if (safeElev !== requestedElev) {
+                dbgWarn('map', `loadMap (dirty cache): starting elevation ${requestedElev} out of bounds (map has ${this.numLevels} levels), clamping to 0`)
+            }
+            this.currentElevation = globalState.currentElevation = safeElev
 
             // Change to our new elevation (sets up map state)
             this.changeElevation(this.currentElevation, false, true)
@@ -423,7 +437,13 @@ export class GameMap {
 
         dbg('map', 'loading map ' + mapName)
 
-        const mapImages = getFileJSON('maps/' + mapName + '.images.json')
+        let mapImages: string[]
+        try {
+            mapImages = getFileJSON('maps/' + mapName + '.images.json') ?? []
+        } catch (e) {
+            dbgWarn('map', `[Map] No images file for ${mapName}:`, e)
+            mapImages = []
+        }
         for (let i = 0; i < mapImages.length; i++) {
             load(mapImages[i])
         }
@@ -586,6 +606,13 @@ export class GameMap {
     }
 
     recalcPath(start: Point, goal: Point, isGoalBlocking?: boolean) {
+        // FO2-CE ref: ai.cc — all pathFind() call sites guard against tile == -1;
+        // tile.cc tileIsValid() checks tile >= 0 && tile < gHexGridSize (200*200).
+        // Equivalent check on x,y coords: each must be in [0, HEX_GRID_SIZE).
+        if (start.x < 0 || start.x >= HEX_GRID_SIZE || start.y < 0 || start.y >= HEX_GRID_SIZE ||
+            goal.x < 0 || goal.x >= HEX_GRID_SIZE || goal.y < 0 || goal.y >= HEX_GRID_SIZE) {
+            return []
+        }
         const matrix = new Array(HEX_GRID_SIZE)
 
         for (let y = 0; y < HEX_GRID_SIZE; y++) {
@@ -593,8 +620,11 @@ export class GameMap {
         }
 
         for (const obj of this.getObjects()) {
+            const ox = obj.position.x, oy = obj.position.y
+            // Skip objects with out-of-bounds positions (off-map sentinel values).
+            if (ox < 0 || ox >= HEX_GRID_SIZE || oy < 0 || oy >= HEX_GRID_SIZE) continue
             // if there are multiple, any blocking one will block
-            matrix[obj.position.y][obj.position.x] |= <any>obj.blocks()
+            matrix[oy][ox] |= <any>obj.blocks()
         }
 
         if (isGoalBlocking === false) {
