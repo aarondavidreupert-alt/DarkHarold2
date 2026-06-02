@@ -442,6 +442,24 @@ function useSteal(user: Critter, target: Critter | null): SkillUseResult {
         modifiers.push(['sneaking bonus', 30])
     }
 
+    const hasPickpocket = user.hasPerk?.('Pickpocket') ?? false
+    if (!hasPickpocket) {
+        // CE ref: skill.cc:1043 skillsPerformStealing — facing check: -25 if face to face
+        // _is_hit_from_front: abs(a.rotation - b.rotation) not in {0,1,5}
+        const rotDiff = Math.abs(user.orientation - target.orientation) % 6
+        const faceToFace = rotDiff !== 0 && rotDiff !== 1 && rotDiff !== 5
+        if (faceToFace) {
+            stealSkill -= 25
+            modifiers.push(['facing penalty', -25])
+        }
+    }
+
+    // CE ref: skill.cc:1049 — +20 if target is knocked out or down
+    if ((target as any).isKnockedDown) {
+        stealSkill += 20
+        modifiers.push(['knocked down/out', 20])
+    }
+
     // Cap at 95%
     const chance = Math.min(95, stealSkill)
     if (stealSkill > 95) {
