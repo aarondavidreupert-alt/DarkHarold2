@@ -1043,8 +1043,16 @@ export class Combat {
     }
 
     findTarget(obj: Critter): Critter | null {
-        // CE ref: combat_ai.cc — AttackWho policy from ai packet
-        const targets = this.combatants.filter((x) => !x.dead && x.teamNum !== obj.teamNum)
+        // CE ref: combat_ai.cc _ai_danger_source / isWithinPerception
+        // Target must be within PER*5 tiles with LOS, or PER*2 tiles without.
+        const per = obj.getStat('PER')
+        const targets = this.combatants.filter((x) => {
+            if (x.dead || x.teamNum === obj.teamNum) return false
+            const dist = hexDistance(obj.position, x.position)
+            if (dist > per * 5) return false               // beyond max perception range
+            if (dist > per * 2 && !this.hasLineOfSight(obj.position, x.position)) return false
+            return true
+        })
         if (targets.length === 0) return null
         const attackWho = obj.ai?.packet.attackWho ?? 'closest'
         switch (attackWho) {
