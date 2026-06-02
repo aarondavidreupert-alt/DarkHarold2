@@ -812,7 +812,8 @@ export module Scripting {
             return 0
         }
         elevation(obj: Obj) {
-            if (isSpatial(obj) || isGameObject(obj)) return globalState.currentElevation
+            // CE ref: interpreter_extra.cc:2285 opGetObjectElevation — returns obj->elevation
+            if (isSpatial(obj) || isGameObject(obj)) return obj.elevation
             else {
                 warn('elevation: not an object: ' + obj)
                 return -1
@@ -1337,12 +1338,14 @@ export module Scripting {
             GameTime.setLightLevelOverride(level)
         }
         obj_set_light_level(obj: Obj, intensity: number, distance: number) {
+            // CE ref: interpreter_extra.cc:3071 opSetObjectLightLevel
+            // intensity arrives as 0–100 percent; CE converts: (intensity * 65636) / 100
             if (!isGameObject(obj)) {
                 warn('obj_set_light_level: not game object: ' + obj)
                 return
             }
             obj.lightRadius = distance
-            obj.lightIntensity = intensity
+            obj.lightIntensity = Math.round(intensity * 65536 / 100)
         }
         override_map_start(x: number, y: number, elevation: number, rotation: number) {
             log('override_map_start', arguments)

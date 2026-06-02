@@ -244,6 +244,7 @@ export class GameMap {
             if (this.objects[level].indexOf(obj) === -1) {
                 this.objects[level].push(obj)
             }
+            obj.elevation = level
         }
 
         this.placeParty()
@@ -508,7 +509,11 @@ export class GameMap {
         // have access to the map script object.
         this.objects = new Array(map.levels.length)
         for (let level = 0; level < map.levels.length; level++) {
-            this.objects[level] = (map.levels[level].objects ?? []).map((obj: any) => objFromMapObject(obj))
+            this.objects[level] = (map.levels[level].objects ?? []).map((obj: any) => {
+                const o = objFromMapObject(obj)
+                o.elevation = level
+                return o
+            })
         }
 
         // change to our new elevation (sets up map state)
@@ -681,7 +686,11 @@ export class GameMap {
         this.numLevels = obj.numLevels
         this.mapObj = obj.mapObj
         this.mapScript = obj.mapScript ? Scripting.deserializeScript(obj.mapScript) : null
-        this.objects = obj.objects.map((level) => level.map((obj) => deserializeObj(obj)))
+        this.objects = obj.objects.map((level, levelIdx) => level.map((o) => {
+            const deserialized = deserializeObj(o)
+            deserialized.elevation = levelIdx
+            return deserialized
+        }))
         this.lastVisitTime = obj.lastVisitTime ?? 0
         // Restore spatials: re-load scripts from names, then reapply saved LVARs.
         // FO2-CE ref: map.cc mapLoad — spatials are always re-initialized from map data

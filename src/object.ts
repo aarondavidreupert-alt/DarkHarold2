@@ -315,6 +315,7 @@ export class Obj {
 
     amount = 1 // TODO: Where does this belong? Items and misc seem to have it, or is Money an Item?
     position: Point = { x: -1, y: -1 }
+    elevation: number = 0 // CE ref: obj_types.h Object.elevation — which map level this object is on
     inventory: Obj[] = []
 
     // TODO: verify
