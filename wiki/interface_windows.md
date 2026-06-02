@@ -128,7 +128,7 @@ uiLog(msg: string): void       // appends line to #displayLog
 initLogScrollZones()           // sets up wheel-scroll handlers on the log element
 ```
 
-### 4.5 HUD Button Wiring (`ui.ts:251`)
+### 4.5 HUD Button Wiring (`ui.ts:110`)
 
 Buttons are wired in `uiInit()` / `initUI()`:
 

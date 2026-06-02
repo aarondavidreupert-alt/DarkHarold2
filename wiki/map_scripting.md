@@ -79,7 +79,7 @@ CE periodic update (scripts.cc:509): calls `scriptsExecMapUpdateScripts(SCRIPT_P
 2. `Scripting.init(mapName, mapID)` — clears `timeEventList`, reloads GVARs and MVARs
 3. Load map JSON, parse all elevations
 4. `changeElevation(startElev, false, true)` — set up renderer, no script update
-5. `Scripting.enterMap(mapScript, objectsAndSpatials, elevation, mapID, isFirstRun)` (scripting.ts:2148)
+5. `Scripting.enterMap(mapScript, objectsAndSpatials, elevation, mapID, isFirstRun)` (scripting.ts:2164)
    - Clears `GameTime` light override
    - Calls `mapScript.map_enter_p_proc()` if present
    - Each object in `objectsAndSpatials` gets `objectEnterMap()` → `map_enter_p_proc()`

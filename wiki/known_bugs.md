@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15; tile_system added §16; item_use added §17; random_numbers added §18; config_ini added §19; lighting_deep_dive added §20; rendering_deviations added §21; endgame added §23)
+> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15; tile_system added §16; item_use added §17; random_numbers added §18; config_ini added §19; lighting_deep_dive added §20; rendering_deviations added §21; pathfinding added §22; endgame added §23; loot_economy added §24; interface_windows added §25; M4/W10/LD3 corrections 2026-06-02)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -83,6 +83,7 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 | M1 | **Spatial triggers lost on save/load.** `spatial_p_proc` fires correctly during play. But `map.ts` resets `this.spatials = [[], [], []]` on load, so all spatial triggers in the loaded save are gone. | `map.ts:612` | `map.cc spatialLoad()` | major | bug |
 | M2 | **`map_enter_p_proc` on elevation change unclear.** `map.ts:508` has a TODO comment — it is unknown if the procedure should fire when the player changes elevation, and it currently does not. | `map.ts:508` | `map.cc` | minor | partial |
 | M3 | **Scripting engine not notified when `objectsAndSpatials` updates.** `map.ts:491–492` — objects added after map load may not get their scripts initialised or run. | `map.ts:491–492` | — | minor | bug |
+| M4 | **`map_exit_p_proc` not declared in Script class.** CE fires `SCRIPT_PROC_MAP_EXIT` (id 16) on all scripts via `scriptsExecMapUpdateScripts` when a map is unloaded. DH2's `Script` class has no `map_exit_p_proc` method and no call site for it. | `src/scripting.ts` | `scripts.cc:2673 scriptsExecMapUpdateScripts()`; `scripts.h:65 SCRIPT_PROC_MAP_EXIT` | minor | missing |
 
 ---
 
@@ -99,6 +100,7 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 | W7 | **Outdoorsman detection check absent.** CE's two-stage encounter: (1) base occurrence roll, (2) separate Outdoorsman-skill check for whether the player can detect and avoid the encounter. DH2 has no detection phase — every rolled encounter is forced. | `worldmap.ts` | `worldmap.cc:3322 wmRndEncounterOccurred()` | major | missing |
 | W8 | **Car travel system absent.** No car fuel, no car-speed multipliers, no car encounter-rate reduction. | `worldmap.ts` | `worldmap.cc:5984 wmCarUseGas()` | major | missing |
 | W9 | **Area entrance positions misplaced on area screens.** Documented in README; world map area click positions do not align with the rendered overlay markers. | `ui_worldmap.ts`, `worldmap.ts` | — | minor | bug |
+| W10 | **Walk masks not loaded.** Each world-map tile can specify a `walk_mask_name` (`.msk` file, 300×44 bytes) marking impassable terrain pixels. DH2 never loads `.msk` files. Player can walk through mountains and other impassable-terrain pixels on the world map. | `src/worldmap.ts` | `worldmap.cc:1337 wmGrabTileWalkMask()`; `worldmap.txt walk_mask_name` | minor | missing |
 
 ---
 
@@ -317,7 +319,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 |----|-------------|---------|--------------|-----|--------|
 | LD1 | **Hidden objects still emit light.** `bakeStaticLight()` / `rebuildDynamicLight()` do not check `obj.visible`. CE `_obj_adjust_light` bails on `OBJECT_HIDDEN`. Scripts hiding a torch (e.g. `set_obj_visibility(torch, 1)`) leave the tile lit in DH2. | `src/lightmap.ts:564,576` | `object.cc:3973` | minor | bug |
 | LD2 | **`OBJECT_LIGHTING` flag (0x20) not checked.** CE `_obj_adjust_light` bails when `(flags & OBJECT_LIGHTING) == 0`. DH2 illuminates any object with `lightRadius > 0` regardless of the flag. | `src/lightmap.ts:68` | `object.cc:3977`; `obj_types.h:61` | low | bug |
-| LD3 | **`obj_set_light_level` does not update lightmap.** `scripting.ts:1267` stores fields but never calls `obj_adjust_light()` or `bakeStaticLight()`. Visible lightmap unchanged until next map reload. CE calls `objectSetLight()` → full turn-off/turn-on cycle. | `src/scripting.ts:1262` | `interpreter_extra.cc:3071`; `object.cc:1721` | major | bug |
+| LD3 | **`obj_set_light_level` opcode not wired; method does not update lightmap.** Opcode `0x8107` is absent from `vm_bridge.ts` — scripts calling it silently fail before reaching the handler. Even if wired, `scripting.ts:1267` stores fields but never calls `obj_adjust_light()` or `bakeStaticLight()`; lightmap unchanged until next map reload. CE `opSetObjectLightLevel` calls `objectSetLight()` → full turn-off/turn-on cycle. | `src/scripting.ts:1262`; `src/vm_bridge.ts` | `interpreter_extra.cc:3071`; `object.cc:1721` | major | bug |
 | LD4 | **`set_obj_visibility` does not update lightmap.** Sets `obj.visible = !visibility` but does not remove or restore the object's light contribution. CE `objectHide`/`objectShow` call `_obj_turn_off_light` / `_obj_turn_on_light`. | `src/scripting.ts:1213` | `interpreter_extra.cc:2096-2119` | minor | bug |
 | LD5 | **`objectGetLightIntensity` self-subtraction absent.** CE subtracts the player's own `lightIntensity` from the tile value before computing effective light level (prevents self-illumination). No DH2 equivalent — moot while night-penalty is absent (lighting.md gap #1). | `src/combat.ts:441` | `object.cc:1748` | low | missing |
 | LD6 | **`obj_set_light_level` intensity not converted from percent.** CE: `(intensity × 65636) / 100`. DH2: stores raw value directly — result is 100× too dim when scripts pass percentage values (0–100 range). | `src/scripting.ts:1267` | `interpreter_extra.cc:3071` | major | bug |
@@ -381,7 +383,48 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 24. Intentionally Deferred — Do Not Implement Unless Tasked
+## 24. Loot Economy
+
+> Source: `wiki/loot_economy.md` · CE: `proto_instance.cc`, `item.cc`, `inventory.cc` · DH2: `src/object.ts`, `src/scripting.ts`, `src/ui_loot.ts`
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| LE1 | **No carry-weight limit enforcement.** `addInventoryItem` and the loot UI have no weight check. Player can carry unlimited items. CE `itemAttemptAdd` refuses pickup when critter exceeds carry weight and shows a message. | `src/object.ts:625` | `item.cc:322 itemAttemptAdd()` | major | missing |
+| LE2 | **`CRITTER_NO_DROP` flag never checked.** `critterKill()` does not inspect `pro.extra.flags`. All critters drop their inventory on death regardless. Quest-critical "no-drop" critters expose loot that should be invisible. | `src/critter.ts` | `proto_instance.cc critterKill()`; `proto_types.h CRITTER_NO_DROP` | major | missing |
+| LE3 | **`move_obj_inven_to_obj` overwrites destination inventory.** DH2 does `dst.inventory = src.inventory` — direct array reference. CE calls `itemAdd` per item, stack-merging. Scripts calling this opcode when `dst` already has items will lose them. | `src/scripting.ts:640` | `item.cc:322 itemAdd()` | major | bug |
+| LE4 | **`approxEq` stacks by PID only.** `addInventoryItem` merges items that share a PID regardless of charges, condition, or damage. Loaded and unloaded guns (same PID) merge into one stack incorrectly. CE `_item_identical` compares full object state. | `src/object.ts:625` | `item.cc:357 _item_identical()` | minor | bug |
+| LE5 | **Ammo stack merge ignores magazine capacity.** `addInventoryItem` adds quantities without a capacity ceiling. CE fills magazines to capacity and splits remainder. | `src/object.ts:625` | `item.cc:322 itemAdd()` | minor | partial |
+| LE6 | **`pickup_p_proc` not fired from inventory UI equip path.** CE fires `SCRIPT_PROC_PICKUP` at two sites in `inventory.cc` — tile pickup AND inventory-screen equip. DH2 fires it only on tile pickup. Scripts tracking equip events via `pickup_p_proc` won't trigger from the inventory screen. | `src/ui_inventory.ts`; `src/scripting.ts:2060` | `inventory.cc:4102,4494` | minor | missing |
+| LE7 | **`item_caps_total` may return stale value.** DH2 returns `obj.money` — a cached field whose full update path is not audited. CE iterates all `ITEM_TYPE_MONEY` inventory items and sums quantities live. | `src/scripting.ts` | `item.cc item_caps_total()` | minor | bug |
+| LE8 | **`critter_inven_obj` slot −2 returns 0.** CE `INVEN_TYPE_INV_COUNT` returns `inventory.length`. DH2 returns 0 and logs a warning. Scripts querying inventory count always get 0. | `src/scripting.ts:833` | `inventory.cc critter_inven_obj()` | minor | bug |
+| LE9 | **Loot UI bypasses `use_p_proc` for containers.** `uiLoot()` is called directly without running `use_p_proc` on the container. CE runs the proc and checks `scriptOverrides` before opening. Container scripts that guard opening via `use_p_proc` are bypassed. | `src/ui_loot.ts`; `src/main.ts:353` | `proto_instance.cc _obj_use_container()` | minor | missing |
+| LE10 | **STEALTH_BOY II auto-stealth not implemented.** CE `itemAdd` checks `PROTO_ID_STEALTH_BOY_II` and activates stealth if the item is in-hand at add time. DH2 `addInventoryItem` has no such check. | `src/object.ts:625` | `item.cc:322 itemAdd()` | low | missing |
+| LE11 | **Multi-pile caps tile undercount.** CE's `PROTO_ID_MONEY` path calls `itemGetMoney(item)` which sums all money objects at the tile. DH2 `pickup` passes `this.amount` directly — tiles with multiple separate caps objects may not be fully collected. | `src/object.ts:941` | `proto_instance.cc:571 _obj_pickup()` | low | bug |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 25. Interface Windows & HUD
+
+> Source: `wiki/interface_windows.md` · CE: `interface.cc`, `interface.h`, `game_dialog.cc` · DH2: `src/ui_hud.ts`, `src/ui.ts`, `src/ui_panels.ts`, `src/ui_components.ts`
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| IW1 | **No indicator bar.** CE renders up to 6 status badges (ADDICT, SNEAK, LEVEL, POISONED, RADIATED) in `gIndicatorBarWindow` above the HUD. DH2 has no indicator bar element or rendering — player gets no HUD feedback for these states. | `src/ui_hud.ts` | `interface.cc indicatorBarInit()`; `interface.h INDICATOR_*` | major | missing |
+| IW2 | **Attack button not greyed at low AP.** CE `InterfaceItemState.isDisabled` greys weapon buttons when the player has insufficient AP. DH2 does not check AP before rendering the button. Player can click attack with 0 AP; engine silently rejects the action. | `src/ui.ts`; `src/ui_hud.ts` | `interface.cc InterfaceItemState.isDisabled` | minor | missing |
+| IW3 | **Weapon action cycling missing aiming states.** CE right-click cycles through 7 states (DEFAULT→USE→PRIMARY→PRIMARY_AIMING→SECONDARY→SECONDARY_AIMING→RELOAD); aiming states auto-open called shot. DH2 cycles only `single`/`burst`/`reload`. Called shot is a separate hotkey. | `src/ui.ts`; `src/weapon.ts` | `interface.cc InterfaceItemAction`; `interface.h INTERFACE_ITEM_ACTION_*` | minor | partial |
+| IW4 | **HUD bar not hide/showable from scripts.** CE `interfaceBarHide/Show` + `gInterfaceBarMode` allow scripts to toggle the HUD (used in cutscenes and transitions). DH2 has no hide/show path for the HUD element. | `src/ui_hud.ts` | `interface.cc interfaceBarHide()`; `interfaceBarShow()` | minor | missing |
+| IW5 | **Active hand not persisted in save.** CE `interfaceSave` serializes `gInterfaceCurrentHand`. DH2 save/load does not persist `player.activeHand`; active hand resets to default on load. | `src/saveload.ts` | `interface.cc interfaceSave()` | minor | missing |
+| IW6 | **Reload AP cost hardcoded to 2.** `ui.ts:323` and `ui_hud.ts:195` both hardcode `reloadAP = 2`. CE reads the value from the weapon proto `reloadAP` field. Also tracked as U4. | `src/ui.ts:323`; `src/ui_hud.ts:195` | `proto_types.h ProtoItemWeaponData.reloadAP` | minor | bug |
+| IW7 | **AP readout has no frame-by-frame animation.** CE `interfaceRenderActionPoints(animate=true)` plays a frame-by-frame AP loss/gain animation. DH2 `drawAP` updates immediately with no animation. | `src/ui_hud.ts` | `interface.cc interfaceRenderActionPoints()` | low | missing |
+| IW8 | **Dialogue sub-mode state machine partial.** CE `game_dialog.cc` runs a multi-state machine for dialogue/barter/trade sub-modes. DH2 only transitions `UIMode.dialogue → UIMode.barter`; other CE sub-mode paths are not replicated. | `src/ui_dialogue.ts`; `src/ui_barter.ts` | `game_dialog.cc gameDialogEnter()`; `_dialogue_state` | minor | partial |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 26. Intentionally Deferred — Do Not Implement Unless Tasked
 
 These systems are out-of-scope and marked deliberately incomplete. They appear in source as stubs only.
 
