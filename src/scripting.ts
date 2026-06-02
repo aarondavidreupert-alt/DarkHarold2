@@ -41,7 +41,7 @@ import { centerCamera, objectOnScreen } from './renderer.js'
 import { fromTileNum, toTileNum } from './tile.js'
 import { uiAddDialogueOption, uiBarterMode, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, UIMode } from './ui.js'
 import { SKILL_NAMES } from './skills.js'
-import { assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
+import { assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
 import { ScriptVM } from './vm.js'
 import { ScriptVMBridge } from './vm_bridge.js'
 import { Config } from './config.js'
@@ -1227,6 +1227,8 @@ export module Scripting {
                 // are NOT accessible via proto_data() in the original engine.
                 switch (data_member) {
                     case 0:   return pid                            // ITEM_DATA_MEMBER_PID
+                    case 1:   return getMessage('pro_item', pro.textID) ?? ''      // ITEM_DATA_MEMBER_NAME
+                    case 2:   return getMessage('pro_item', pro.textID + 1) ?? ''  // ITEM_DATA_MEMBER_DESCRIPTION
                     case 3:   return pro.frmPID ?? 0               // ITEM_DATA_MEMBER_FID
                     case 4:   return pro.lightDistance ?? 0        // ITEM_DATA_MEMBER_LIGHT_DISTANCE
                     case 5:   return pro.lightIntensity ?? 0       // ITEM_DATA_MEMBER_LIGHT_INTENSITY
@@ -1246,6 +1248,8 @@ export module Scripting {
                 // CE ref: proto.h CritterDataMember enum / proto.cc:1166 protoGetDataMember
                 switch (data_member) {
                     case 0:   return pid                            // CRITTER_DATA_MEMBER_PID
+                    case 1:   return getMessage('pro_crit', pro.textID) ?? ''      // CRITTER_DATA_MEMBER_NAME
+                    case 2:   return getMessage('pro_crit', pro.textID + 1) ?? ''  // CRITTER_DATA_MEMBER_DESCRIPTION
                     case 3:   return pro.frmPID ?? 0               // CRITTER_DATA_MEMBER_FID
                     case 4:   return pro.lightDistance ?? 0        // CRITTER_DATA_MEMBER_LIGHT_DISTANCE
                     case 5:   return pro.lightIntensity ?? 0       // CRITTER_DATA_MEMBER_LIGHT_INTENSITY
