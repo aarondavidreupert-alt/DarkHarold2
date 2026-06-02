@@ -432,6 +432,13 @@ export class GameMap {
         globalState.loadingAssetsLoaded = 0
         globalState.loadingLoadedCallback = loadedCallback || null
 
+        // CE ref: map.cc:1440 scriptsExecMapExitProc() — run map_exit_p_proc on the
+        // current map script before tearing down state.
+        if (Config.engine.doLoadScripts && this.mapScript?.map_exit_p_proc !== undefined) {
+            this.mapScript.self_obj = { _script: this.mapScript }
+            this.mapScript.map_exit_p_proc()
+        }
+
         // clear any previous objects/events
         this.objects = null
         this.mapScript = null

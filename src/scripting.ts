@@ -417,6 +417,7 @@ export module Scripting {
         start!: () => void
 
         map_enter_p_proc!: () => void
+        map_exit_p_proc!: () => void
         map_update_p_proc!: () => void
 
         timed_event_p_proc!: () => void

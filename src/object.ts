@@ -2016,8 +2016,9 @@ function getAnimDistance(art: string): number {
         throw 'no image info for ' + art
     }
 
+    // CE ref: art.cc artGetFrameOffset — both anchors use direction 0
     const firstShift = info.frameOffsets[0][0].ox
-    const lastShift = info.frameOffsets[1][info.numFrames - 1].ox
+    const lastShift = info.frameOffsets[0][info.numFrames - 1].ox
 
     // distance = (shift x of last frame) - (shift x of first frame(?) + 16) / 32
     return Math.floor((lastShift - firstShift + 16) / 32)

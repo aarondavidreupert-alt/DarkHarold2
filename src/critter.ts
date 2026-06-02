@@ -492,6 +492,13 @@ export function critterKill(
         obj.anim = 'dead'
         if (callback) callback()
 
+        // CE ref: critter.cc _critter_flag_check(pid, CRITTER_NO_DROP=0x40)
+        // If the critter's proto sets CRITTER_NO_DROP, wipe inventory so it
+        // cannot be looted — quest-critical critters must not expose items.
+        if ((obj.pro?.extra?.flags ?? 0) & 0x40) {
+            obj.inventory = []
+        }
+
         // Blood pool: spawn a permanent floor decal for biological death types.
         // Explosion, Electrical and EMP deaths don't produce a blood pool.
         // Silently skipped when the FRM art is absent from the asset set.
