@@ -147,6 +147,25 @@ until these hooks are wired.
 - On critical failure with this flag: remove weapon from critter's active hand.
 - Ref: fallout2-ce `combat.cc` `DAM_DROP` handling
 
+### 4g. AI packet system wired ✅ Done
+- `src/aiPackets.ts`: standalone `ai.txt` parser with typed `AiPacket` interface
+  (18 fields, 7 enum types). `getAiPacket(num)` used everywhere; old raw `AI.init()` /
+  `AI.aiTxt` dead code removed.
+- **AttackWho**: `findTarget()` dispatches on `packet.attackWho` — closest (hex distance
+  sort), strongest/weakest (`combataiRating = HP + AC`), whomever (prefer live `whoHitMe`).
+- **RunAwayMode**: `fleeHpThreshold()` applies percentage formula — none=0%, coward=25%,
+  finger_hurts=40%, bleeding=60%, not_feeling_good=75% of maxHp.
+- **BestWeapon**: `prefersMelee` / `prefersRanged` guards suppress wrong-direction
+  hand switches. `melee` / `unarmed` packets won't switch to ranged; `ranged` packets
+  won't switch to melee.
+- **DistanceMode**: `DISTANCE_STAY` implemented — critter skips movement and attacks
+  in place. `CHARGE` / `SNIPE` / `STAY_CLOSE` remain always-charge (gap C13).
+- **teamNum**: `Critter` teamNum now reads from `getAiPacket().teamNum` (`team_num`
+  in ai.txt) instead of always defaulting to -1.
+- Remaining gaps: perception check (C12), DistanceMode CHARGE/SNIPE/STAY_CLOSE (C13),
+  hurt_too_much flee, `_combatai_rating` weapon damage, drug use, friendly-fire.
+- Ref: `wiki/ai_behavior.md` §9 DH2 Status Table
+
 ### 4f. Party member combat AI 🔴 Still needed
 - Party members are excluded from the combatants list at `combat.ts:301`:
   `if (!obj.isPlayer && !triggerTeams.has(obj.teamNum) && !obj.hostile) return false`.

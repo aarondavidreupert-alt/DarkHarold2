@@ -109,7 +109,7 @@ the pipeline or the TS compiler.
 
 | File | Purpose | fallout2-ce counterpart |
 |------|---------|------------------------|
-| `src/combat.ts` | Turn-based combat loop, AI, hit chance, damage pipeline, burst fire, ranged scatter, ammo system, called shots (1592 lines) | `combat.cc`, `combat_ai.cc` |
+| `src/combat.ts` | Turn-based combat loop, AI, hit chance, damage pipeline, burst fire, ranged scatter, ammo system, called shots. AI class uses `getAiPacket()` from `aiPackets.ts`; `findTarget()` dispatches `AttackWho` (closest/strongest/weakest/whomever); `fleeHpThreshold()` applies `RunAwayMode` percentage; `BestWeapon` guards hand-switch; `DistanceMode:stay` implemented. | `combat.cc`, `combat_ai.cc` |
 | `src/criticalEffects.ts` | Critical hit / failure table lookup and application (478 lines) | `critfail.cc` |
 | `src/unarmed.ts` | Unarmed mode definitions (9 modes, threshold/AP/damage table) | `unarmed.cc` |
 | `src/skillUse.ts` | Active skill use: First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair (622 lines) | `skill.cc::skillUse()` |

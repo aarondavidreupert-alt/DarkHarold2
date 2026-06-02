@@ -614,34 +614,37 @@ These functions do not affect the AI loop itself — they only gate what the pla
 ## 9. DH2 Status Table
 
 CE ref: `combat_ai.cc` / `combat_ai_defs.h`  
-DH2 ref: `src/combat.ts` (class `AI`, class `Combat::doAITurn`)
+DH2 ref: `src/aiPackets.ts` (packet parser), `src/combat.ts` (`class AI`, `Combat::doAITurn`, `findTarget`, `fleeHpThreshold`, `combataiRating`)
+
+<!-- audited: 2026-06-02 -->
 
 | System | DH2 Status | Notes |
 |--------|-----------|-------|
-| AiPacket loading (ai.txt) | PARTIAL | `src/aiPackets.ts` parser added (typed `AiPacket` interface, all 18 fields); not yet imported by `combat.ts` — wire-up pending |
-| `run_away_mode` / HP flee threshold | PARTIAL | DH2 compares `critter.HP <= ai.info.min_hp` (absolute), but `min_hp` is read directly from ai.txt — the `_hp_run_away_value[]` percentage conversion is not applied; `run_away_mode` field is not read |
+| AiPacket loading (ai.txt) | WIRED | `getAiPacket()` from `src/aiPackets.ts` used in `AI` class constructor (`combat.ts:134`) and `Critter` teamNum init (`object.ts:1299`); all 18 fields typed |
+| `run_away_mode` / HP flee threshold | PARTIAL | `fleeHpThreshold()` in `combat.ts` applies RunAwayMode percentage (none=0%, coward=25%, finger_hurts=40%, bleeding=60%, not_feeling_good=75% of maxHp); falls back to raw `packet.minHp` for `runAwayMode === 'never'` |
 | `hurt_too_much` bitmask flee | MISSING | No check for damage-flag-triggered flee |
 | `CRITTER_MANUEVER_FLEEING` flag persistence | MISSING | No persistent maneuver flag; flee is computed fresh each turn |
 | Flee movement (`_ai_run_away`) | PARTIAL | DH2 flees to map left edge `{x:128, y:obj.y}` instead of computing rotation-based hex direction |
-| Target selection (`_ai_danger_source`) | PARTIAL | DH2 `findTarget()` picks nearest enemy only (distance sort); no `AttackWho` policy, no `whoHitMe` priority, no perception check |
-| `AttackWho` enum | MISSING | Field not read; field present in ai.txt packet but ignored |
-| `Disposition` enum | MISSING | Field not read |
+| Target selection (`_ai_danger_source`) | PARTIAL | `findTarget()` dispatches on `packet.attackWho` (closest/strongest/weakest/whomever); Disposition branch, perception range check, and pathfinder reachability check still missing |
+| `AttackWho` enum | PARTIAL | `closest`, `strongest`, `weakest`, `whomever`, `whomever_attacking_me` all implemented in `findTarget()` (`combat.ts:1031`); Disposition-filtered party-member branch not implemented; no perception range check |
+| `Disposition` enum | MISSING | Field present in `AiPacket`; `ignoreFleeingCritters` logic absent |
 | `isWithinPerception` | MISSING | No perception range check during target selection |
-| Distance mode (`_cai_perform_distance_prefs`) | MISSING | No distance stance logic; critter always charges |
-| Weapon selection (`_ai_search_inven_weap`) | PARTIAL | DH2 switches between left/right hand once per turn based on range vs. melee/gun heuristic; no `BestWeapon` preference, no inventory scan beyond two hands |
+| Distance mode (`_cai_perform_distance_prefs`) | PARTIAL | `DISTANCE_STAY` implemented: critter skips movement and attacks in place (`combat.ts:1139`); `CHARGE`, `SNIPE`, `STAY_CLOSE` remain always-charge |
+| Weapon selection (`_ai_search_inven_weap`) | PARTIAL | `BestWeapon` preference guards melee↔ranged hand switches (`prefersMelee` / `prefersRanged`, `combat.ts:1180`); no inventory scan beyond two hands; no damage-score comparison |
 | `_ai_can_use_weapon` preconditions | MISSING | No crippled-arm check, no animation-FID check, no min_to_hit skill filter for weapons |
 | `_ai_pick_hit_mode` (primary vs. secondary) | PARTIAL | DH2 selects burst fire when ≥ 2 targets in burst range and enough AP; `AreaAttackMode` enum and `secondary_freq` not consulted |
-| `area_attack_mode` / `secondary_freq` | MISSING | Fields exist in ai.txt packet but not used |
+| `area_attack_mode` / `secondary_freq` | MISSING | Fields present in `AiPacket` but not used in `_ai_pick_hit_mode` equivalent |
 | Ammo reload during turn | PARTIAL | DH2 reloads from inventory if matching `ammoPID` found; no `_ai_search_environ` for ground ammo |
 | Drug/healing use (`_ai_check_drugs`) | MISSING | No implementation |
-| `ChemUse` enum | MISSING | Field not read |
-| `_ai_best_weapon` damage comparison | MISSING | No damage-scoring of inventory weapons |
+| `ChemUse` enum | MISSING | Field present in `AiPacket` but not read |
+| `_ai_best_weapon` damage comparison | MISSING | No damage-scoring of inventory weapons; `BestWeapon` only guards hand-switch direction |
+| Combat taunts / `messageRanges` | WIRED | `maybeTaunt()` reads `packet.messageRanges[type]` typed tuple; run/move/attack/miss ranges parsed from ai.txt |
 | Friendly-fire avoidance (`_cai_retargetTileFromFriendlyFire`) | MISSING | No friendly-fire tile retargeting |
 | `min_to_hit` accuracy flee | MISSING | DH2 never flees because to-hit is too low |
 | `max_dist` disengage | MISSING | No disengage at `max_dist` tiles |
 | Party-member vs. hostile NPC distinction | MISSING | No `objectIsPartyMember` distinction in DH2 AI loop |
 | Party-member armor upgrade | MISSING | `_ai_search_inven_armor` not implemented |
-| `_combatai_rating` | MISSING | No critter threat-rating function |
+| `_combatai_rating` | PARTIAL | Implemented as `HP + AC` proxy in `combat.ts:combataiRating()`; CE uses `max(STAT_MELEE_DAMAGE, weapon.damage_max) + STAT_ARMOR_CLASS` |
 | `_combatai_check_retaliation` | MISSING | Not implemented |
 | `_combatai_notify_onlookers` / `_combatai_notify_friends` | MISSING | Not implemented |
 | `_combatai_want_to_join` / `_combatai_want_to_stop` | MISSING | Not implemented; DH2 uses `hostile` flag for participation |
@@ -654,18 +657,18 @@ DH2 vs. fallout2-ce
 
 | Area | fallout2-ce | DarkHarold2 |
 |------|------------|-------------|
-| Flee threshold formula | `minHp = maxHp − (maxHp × _hp_run_away_value[run_away_mode] / 100)` from `RunAwayMode` enum | `critter.HP <= ai.min_hp` read directly as integer from ai.txt; `run_away_mode` enum not used |
+| Flee threshold formula | `minHp = maxHp − (maxHp × _hp_run_away_value[run_away_mode] / 100)` from `RunAwayMode` enum | `fleeHpThreshold()` applies percentage: none=0%, coward=25%, finger_hurts=40%, bleeding=60%, not_feeling_good=75% of maxHp; falls back to raw `packet.minHp` for `runAwayMode === 'never'` |
 | Flee-flag persistence | `CRITTER_MANUEVER_FLEEING` flag set and checked across turns | No flag; flee condition recalculated from scratch each turn |
 | Hurt-too-much flee | Immediate flee on `DAM_BLIND` or crippled-limb flags (bitmask) | Not implemented |
 | Flee movement direction | Away from target in one of three rotation candidates, up to full AP | Hard-coded left edge `x=128` |
-| Target selection | `_ai_danger_source`: respect `AttackWho`, `whoHitMe`, `disposition`, perception check, pathfinder reachability | Nearest enemy by tile distance, no policy, no perception, no path check |
-| `ATTACK_WHO_WHOMEVER_ATTACKING_ME` | Prefer last valid target before scanning; avoid fleeing critters if disposition says so | Not implemented |
-| STRONGEST / WEAKEST targeting | `_combatai_rating()` = max weapon damage + AC | Not implemented |
-| Weapon preference (`BestWeapon`) | Full `_weapPrefOrderings` matrix; damage comparison with ≤5 tie-breaker, cost tie-breaker | Binary melee-vs-gun check based only on range vs. distance |
+| Target selection | `_ai_danger_source`: respect `AttackWho`, `whoHitMe`, `disposition`, perception check, pathfinder reachability | `findTarget()` dispatches on `packet.attackWho`; Disposition filter and perception check still missing |
+| `ATTACK_WHO_WHOMEVER_ATTACKING_ME` | Prefer last valid target before scanning; avoid fleeing critters if disposition says so | `whomever_attacking_me` maps to `whomever` path (prefer live `whoHitMe`); no last-target persistence, no fleeing-critter filter |
+| STRONGEST / WEAKEST targeting | `_combatai_rating()` = max weapon damage + AC | Implemented as `HP + AC` proxy in `combataiRating()` (`combat.ts:1027`) |
+| Weapon preference (`BestWeapon`) | Full `_weapPrefOrderings` matrix; damage comparison with ≤5 tie-breaker, cost tie-breaker | `prefersMelee` / `prefersRanged` guards hand-switch direction; no damage scoring |
 | Secondary attack mode | `_ai_pick_hit_mode`: `area_attack_mode`, `secondary_freq`, intelligence, range, AP checks | Burst fire used when ≥ 2 targets and enough AP; `area_attack_mode`/`secondary_freq` ignored |
 | Drug use | `_ai_check_drugs`: HP-ratio checks, `ChemUse` enum, primary/secondary desire buckets, ground search | Not implemented |
 | Perception range | `STAT_PERCEPTION × 5` (LOS) / `STAT_PERCEPTION × 2` (non-LOS); halved for sneak | No perception range check; all combatants always visible |
-| Distance stance | `DISTANCE_STAY_CLOSE`, `CHARGE`, `SNIPE`, `ON_YOUR_OWN`, `STAY` | Always charges (no DistanceMode logic) |
+| Distance stance | `DISTANCE_STAY_CLOSE`, `CHARGE`, `SNIPE`, `ON_YOUR_OWN`, `STAY` | `STAY` implemented (`combat.ts:1139`); all others always-charge |
 | `max_dist` disengage | AI sets `CRITTER_MANEUVER_DISENGAGING` when target exceeds `max_dist` | Not implemented |
 | `min_to_hit` flee | Flee if to-hit even at point-blank < `min_to_hit` | Not implemented |
 | Party member distinction | Separate targeting branch (`disposition`, `attack_who`), armor upgrade, distance-to-gDude enforcement | No `objectIsPartyMember` distinction in combat loop |
