@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import { HTMLAudioEngine, NullAudioEngine } from './audio.js'
-import { AI, Combat } from './combat.js'
+import { Combat } from './combat.js'
+import { getAiPacket } from './aiPackets.js'
 import { useDrug, tickAddictions } from './drugs.js'
 import { critterKill } from './critter.js'
 import { getElevator } from './data.js'
@@ -1107,9 +1108,8 @@ heart.update = function () {
                 !critter.inAnim() &&
                 !obj._script
             ) {
-                if (AI.aiTxt === null) AI.init()
-                const pkt = AI.getPacketInfo(critter.aiNum)
-                if (pkt && pkt.wander_type > 0 && Math.random() < 0.05) {
+                const pkt = getAiPacket(critter.aiNum)
+                if (pkt.wanderType > 0 && Math.random() < 0.05) {
                     const neighbors = hexNeighbors(critter.position)
                     const dest = neighbors[Math.floor(Math.random() * neighbors.length)]
                     if (dest) critter.walkTo(dest, false)

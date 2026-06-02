@@ -10,7 +10,8 @@
 //
 // Design: see AutoCrawler.md in the project root.
 
-import { AI, Combat, isCombatActive } from './combat.js'
+import { Combat, isCombatActive } from './combat.js'
+import { aiPackets, getAiPacket } from './aiPackets.js'
 import { Config } from './config.js'
 import globalState from './globalState.js'
 import { hexNeighbors } from './geometry.js'
@@ -167,13 +168,12 @@ export function listTalkableNPCs(): Critter[] {
 export function listHostileCritters(): Critter[] {
     const map = globalState.gMap
     if (!map) return []
-    // Ensure AI.TXT is loaded before checking packet info
-    try { AI.init() } catch { /* already loaded or no ai.txt */ }
+    getAiPacket(0) // trigger lazy init of ai.txt before checking the map
     return map.getObjects().filter((obj): obj is Critter => {
         if (!(obj instanceof Critter)) return false
         if (obj.isPlayer || obj.dead || obj.visible === false) return false
         if (obj.aiNum < 0) return false
-        try { return AI.getPacketInfo(obj.aiNum) !== null } catch { return false }
+        return aiPackets.has(obj.aiNum)
     })
 }
 

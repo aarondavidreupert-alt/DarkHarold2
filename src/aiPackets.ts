@@ -46,6 +46,7 @@ export interface AiPacket {
     chemUse: ChemUse
     chemPrimaryDesire: number[] // PIDs; -1 entries filtered out
     teamNum: number             // team_num from ai.txt; -1 if absent
+    wanderType: number          // 0=none, 1=small radius, 2=large radius, 3=unrestricted
     messageRanges: Partial<Record<string, [number, number]>> // combat taunt message ID ranges
 }
 
@@ -184,6 +185,7 @@ function buildPacket(sectionName: string, raw: Record<string, string>): AiPacket
         chemUse:          parseEnum(raw['chem_use'],         CHEM_USES,         CHEM_USE_MAP,          'clean'),
         chemPrimaryDesire: parseIntList(raw['chem_primary_desire']),
         teamNum:          parseIntField(raw['team_num'], -1),
+        wanderType:       parseIntField(raw['wander_type'], 0),
         messageRanges:    buildMessageRanges(raw),
     }
 }
@@ -238,6 +240,7 @@ const FALLBACK_PACKET: AiPacket = {
     chemUse: 'clean',
     chemPrimaryDesire: [],
     teamNum: -1,
+    wanderType: 0,
     messageRanges: {},
 }
 
