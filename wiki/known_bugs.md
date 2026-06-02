@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15)
+> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15; tile_system added §16)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -239,7 +239,22 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 16. Pathfinding
+## 16. Tile System
+
+> Source: `wiki/tile_system.md` · CE: `tile.cc`, `tile.h`, `obj_types.h` · DH2: `src/tile.ts`, `src/geometry.ts`
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| TS1 | **No edge-check in `hexInDirectionDistance`.** CE `tileGetTileInDirection` calls `tileIsEdge` before each step and breaks at the grid boundary. DH2 `hexInDirectionDistance` has no equivalent guard; walking off the 200×200 grid returns out-of-bounds `{x, y}` coordinates, potentially causing out-of-bounds lookups in object lists or spatial arrays. | `src/geometry.ts:171` | `tile.cc:893 tileIsEdge()` | minor | bug |
+| TS2 | **`hexDirectionTo` uses grid-space delta instead of screen-space delta.** CE `tileGetRotationTo` projects both tiles to screen coordinates before applying atan2. DH2 applies atan2 to the raw grid delta `(b.x−a.x, b.y−a.y)`. Because DH2's x-axis runs opposite to screen-x, the direction is systematically wrong (e.g., returns 4/W instead of 0/NE for the NE neighbour). The function itself carries a "TODO: check correctness" comment. | `src/geometry.ts:210` | `tile.cc:910 tileGetRotationTo()` | major | bug |
+| TS3 | **No `_tile_num_beyond` equivalent.** CE uses this Bresenham-based function to walk a straight screen-space line and return the tile `distance` steps past a target — used for projectile overshoot and `shoot_into_the_air`. DH2's `hexLine(a, b)` only walks to `b`, not past it. | `src/geometry.ts` | `tile.cc:944 _tile_num_beyond()` | minor | missing |
+| TS4 | **`tile_coord()` in `tile.ts` is unused and broken.** An incomplete CE-compatible `tile_coord(tileNum)` function (tile.ts:81) uses hardcoded screen offsets and contains an active `console.log`. It is never called from anywhere in the codebase. | `src/tile.ts:81` | `tile.cc:674 tileToScreenXY()` | low | bug |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 17. Pathfinding
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -256,7 +271,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 17. Intentionally Deferred — Do Not Implement Unless Tasked
+## 18. Intentionally Deferred — Do Not Implement Unless Tasked
 
 These systems are out-of-scope and marked deliberately incomplete. They appear in source as stubs only.
 
