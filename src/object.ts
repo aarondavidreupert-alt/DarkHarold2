@@ -796,23 +796,30 @@ export class Obj {
             }
         } else if (this.isLadder) {
             const isTop = this.pro.extra.subType === 4
-            const level = isTop ? globalState.currentElevation + 1 : globalState.currentElevation - 1
+            // CE ref: proto_instance.cc:1512 useLadderDown/useLadderUp — reads tile and
+            // elevation from the packed destinationBuiltTile field (same format as stairs).
             const destTile = fromTileNum(this.extra.destination & 0xffff)
-            // TODO: destination also supposedly contains elevation and map
-            dbg('object', `[Object] ladder (${isTop ? 'top' : 'bottom'} → level ${level})`)
+            const destElev = ((this.extra.destination >> 28) & 0xf) >> 1
+            dbg('object', `[Object] ladder (${isTop ? 'top' : 'bottom'} → tile=${destTile.x},${destTile.y} elev=${destElev})`)
+
+            if (this.extra.destinationMap !== -1 && this.extra.destinationMap != null) {
+                globalState.gMap.loadMapByID(this.extra.destinationMap, destTile, destElev)
+                return true
+            }
+
             const actor = source ?? globalState.player
             if (actor.hasAnimation('climb')) {
                 actor.staticAnimation('climb', () => {
                     actor.clearAnim()
                     actor.position = destTile
-                    globalState.gMap.changeElevation(level)
+                    globalState.gMap.changeElevation(destElev)
                     // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc
                     globalState.gMap.updateMap()
                 })
                 return true // updateMap() handled in callback above; skip the one below
             }
             globalState.player.position = destTile
-            globalState.gMap.changeElevation(level)
+            globalState.gMap.changeElevation(destElev)
             // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc
             globalState.gMap.updateMap()
         } else {
