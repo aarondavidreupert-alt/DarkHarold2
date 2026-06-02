@@ -1417,8 +1417,10 @@ export module Scripting {
                 warn('set_obj_visibility: not a game object: ' + obj)
                 return
             }
-
+            // CE ref: interpreter_extra.cc:2096 objectHide/objectShow call
+            // _obj_turn_off_light/_obj_turn_on_light → triggers lightmap rebuild.
             obj.visible = !visibility
+            if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
         }
         use_obj_on_obj(obj: Obj, who: Obj) {
             if (!isGameObject(obj) || !isGameObject(who)) {
@@ -1483,7 +1485,8 @@ export module Scripting {
             GameTime.setLightLevelOverride(level)
         }
         obj_set_light_level(obj: Obj, intensity: number, distance: number) {
-            // CE ref: interpreter_extra.cc:3071 opSetObjectLightLevel
+            // CE ref: interpreter_extra.cc:3071 opSetObjectLightLevel calls objectSetLight()
+            // which does a full turn-off/turn-on cycle and triggers a lightmap rebuild.
             // intensity arrives as 0–100 percent; CE converts: (intensity * 65636) / 100
             if (!isGameObject(obj)) {
                 warn('obj_set_light_level: not game object: ' + obj)
@@ -1491,6 +1494,7 @@ export module Scripting {
             }
             obj.lightRadius = distance
             obj.lightIntensity = Math.round(intensity * 65536 / 100)
+            if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
         }
         override_map_start(x: number, y: number, elevation: number, rotation: number) {
             log('override_map_start', arguments)
