@@ -654,8 +654,15 @@ export module Scripting {
                         return obj.orientation // OBJECT_CUR_ROT
                     case 666: // OBJECT_VISIBILITY
                         return obj.visible === false ? 0 : 1 // 1 = visible, 0 = invisible
-                    case 669:
-                        break // OBJECT_CUR_WEIGHT (TODO)
+                    case 669: {
+                        // CE ref: interpreter_extra.cc:2595 CRITTER_TRAIT_OBJECT_GET_INVENTORY_WEIGHT
+                        // objectGetInventoryWeight sums pro.extra.weight for each inventory item
+                        let totalWeight = 0
+                        for (const item of obj.inventory) {
+                            totalWeight += (item.pro?.extra?.weight ?? 0) * (item.amount ?? 1)
+                        }
+                        return totalWeight
+                    }
                 }
             }
 
@@ -663,8 +670,6 @@ export module Scripting {
             return 0
         }
         critter_add_trait(obj: Obj, traitType: number, trait: number, amount: number) {
-            stub('critter_add_trait', arguments)
-
             if (!isGameObject(obj)) {
                 warn('critter_add_trait: not game object: ' + obj, undefined, this)
                 return
@@ -676,26 +681,26 @@ export module Scripting {
             }
 
             if (traitType === 1) {
-                // TRAIT_OBJECT
+                // TRAIT_OBJECT — CE ref: interpreter_extra.cc opCritterAddTrait
                 switch (trait) {
                     case 5: // OBJECT_AI_PACKET
-                        // Set critter's AI packet number
-                        info('Setting critter AI packet to ' + amount, undefined, this)
                         ;(<Critter>obj).aiNum = amount
-                        break
+                        return
                     case 6: // OBJECT_TEAM_NUM
-                        // Set critter's team number
-                        info('Setting critter team to ' + amount, undefined, this)
                         ;(<Critter>obj).teamNum = amount
-                        break
-                    case 10:
-                        break // OBJECT_CUR_ROT (TODO)
-                    case 666:
-                        break // OBJECT_VISIBILITY (TODO)
-                    case 669:
-                        break // OBJECT_CUR_WEIGHT (TODO)
+                        return
+                    case 10: // OBJECT_CUR_ROT
+                        obj.orientation = Math.max(0, Math.min(5, amount))
+                        return
+                    case 666: // OBJECT_VISIBILITY — 0=invisible, 1=visible
+                        obj.visible = amount !== 0
+                        return
+                    case 669: // OBJECT_CUR_WEIGHT — read-only (computed), no-op
+                        return
                 }
             }
+
+            stub('critter_add_trait', arguments)
         }
         item_caps_total(obj: Obj) {
             if (!isGameObject(obj)) throw 'item_caps_total: not game object'
