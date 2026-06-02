@@ -354,6 +354,15 @@ export module Encounters {
 
             dbg('encounters', "positionCritters: map %o, dir %d, formation %s, pos %o", map, dir, formation, pos)
 
+            // Two-cursor state for line/wedge/cone formations.
+            // CE ref: worldmap.cc:3906-3915 wmSetupRndNextTileNumInit
+            // rotOffsets[0]=1 (veer right), rotOffsets[1]=5 (veer left = -1 mod 6)
+            const rotOffsets = [1, 5]
+            const centers: [Point, Point] = [{ ...pos }, { ...pos }]
+            const fmtDirs = [dir, dir]
+            let fmtIdx = 0
+            let fmtCallCount = 0
+
             group.critters.forEach(function(critter) {
                 switch(formation) {
                     case "huddle":
@@ -384,16 +393,57 @@ export module Encounters {
                         break
 
                     case "straight_line":
-                    case "double_line":
-                    case "wedge":
-                    case "cone":
+                    case "double_line": {
+                        // CE ref: worldmap.cc:4008-4026 wmSetupRndNextTileNum
+                        // First critter at center; then alternate two arms extending
+                        // in (rotOffset+dir)%6 with a double-step per arm.
+                        critter.position = { ...centers[fmtIdx] }
+                        if (fmtCallCount !== 0) {
+                            const rot = (rotOffsets[fmtIdx] + fmtDirs[fmtIdx]) % 6
+                            const origin = hexInDirectionDistance(centers[fmtIdx], rot, group.position.spacing)
+                            const next = hexInDirectionDistance(origin, (rot + rotOffsets[fmtIdx]) % 6, group.position.spacing)
+                            centers[fmtIdx] = next
+                            fmtIdx = 1 - fmtIdx
+                            critter.position = { ...next }
+                        }
+                        fmtCallCount++
+                        break
+                    }
+
+                    case "wedge": {
+                        // CE ref: worldmap.cc:4028-4034
+                        // V-formation: two arms extend from center in (rotOffset+dir)%6
+                        critter.position = { ...centers[fmtIdx] }
+                        if (fmtCallCount !== 0) {
+                            const rot = (rotOffsets[fmtIdx] + fmtDirs[fmtIdx]) % 6
+                            const next = hexInDirectionDistance(centers[fmtIdx], rot, group.position.spacing)
+                            centers[fmtIdx] = next
+                            fmtIdx = 1 - fmtIdx
+                            critter.position = { ...next }
+                        }
+                        fmtCallCount++
+                        break
+                    }
+
+                    case "cone": {
+                        // CE ref: worldmap.cc:4036-4042
+                        // Fan expanding away from player (+3 reverses direction)
+                        critter.position = { ...centers[fmtIdx] }
+                        if (fmtCallCount !== 0) {
+                            const rot = (fmtDirs[fmtIdx] + 3 + rotOffsets[fmtIdx]) % 6
+                            const next = hexInDirectionDistance(centers[fmtIdx], rot, group.position.spacing)
+                            centers[fmtIdx] = next
+                            fmtIdx = 1 - fmtIdx
+                            critter.position = { ...next }
+                        }
+                        fmtCallCount++
+                        break
+                    }
+
                     default:
                         dbg('encounters', "UNHANDLED FORMATION %s", formation)
-
-                        // use some arbitrary formation
                         critter.position = {x: pos.x, y: pos.y}
                         pos.x--
-                        
                         break
                 }
             })
