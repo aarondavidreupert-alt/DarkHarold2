@@ -388,7 +388,7 @@ All animation-related script opcodes, their hex values, CE counterparts, and DH2
 | `reg_anim_obj_run_to_obj` — run to another object's tile | `animation.cc`, ANIM_KIND_RUN_TO_OBJECT | not wired |
 | `anim()` param dispatch | CE handles all AnimationType values | only 1000 (rotation) and 1010 (frame) implemented; all other param values are stub |
 | `animate_move_obj_to_tile` (0x80CE) | CE animate + move combo | wired in vm_bridge but no implementation body |
-| Weapon-code-aware STAND/WALK paths | CE selects armed/unarmed FRM based on equipped weapon | DH2 `getAnimation()` uses a static `skin` field; runtime weapon-swap updates `skin` manually via `playWeaponSwapAnim` |
+| Weapon-code-aware STAND/WALK paths | CE selects armed/unarmed FRM based on equipped weapon | DH2 `getAnimation()` uses a static `skin` field; runtime weapon-swap updates `skin` manually via `playWeaponSwapAnim`. NPC critters placed on a map never have their skin recalculated from the held weapon — they display unarmed animations regardless of inventory. See gap FA6 in `wiki/frm_animation.md §7`. |
 | Rotation field in FID | CE stores facing in bits 29-28 for death anims | DH2 stores facing on `obj.orientation`; FID rotation bits not used at render time |
 | CE animation sequence capacity | 32 concurrent sequences, 55 descriptions each | DH2 supports one active batch at a time (single `animBatch` array) |
 | Direction-indexed FRM lookup | CE selects one of 6 direction strips based on `obj.rotation` | DH2 WebGL renderer selects the strip based on `obj.orientation` using `directionOffsets` from imageMap |

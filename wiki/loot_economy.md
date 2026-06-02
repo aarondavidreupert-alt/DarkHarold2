@@ -160,8 +160,8 @@ All implemented in `src/scripting.ts` inside the `Script` class.
 | `move_obj_inven_to_obj` | `(src, dst)` | `dst.inventory = src.inventory; src.inventory = []` — direct array reassignment, no stack-merge |
 | `add_mult_objs_to_inven` | `(obj, item, count)` | Calls `obj.addInventoryItem(item, count)` — stack-merges by PID |
 | `add_obj_to_inven` | `(obj, item)` | Delegates to `add_mult_objs_to_inven(obj, item, 1)` |
-| `rm_mult_objs_from_inven` | `(obj, item, count)` | Finds item by `approxEq` (PID match), subtracts count; splices if amount ≤ 0 |
-| `rm_obj_from_inven` | `(obj, item)` | Delegates to `rm_mult_objs_from_inven(obj, item, 1)` |
+| `rm_mult_objs_from_inven` | `(obj, item, count)` | Finds item by `approxEq` (PID match), subtracts count; splices if amount ≤ 0. Wired at `0x8117`. |
+| `rm_obj_from_inven` | `(obj, item)` | Method exists at `scripting.ts:738` and delegates to `rm_mult_objs_from_inven(obj, item, 1)`, but **opcode `0x80D9` is absent from `vm_bridge.ts`** — scripts calling this opcode silently fail. See `wiki/scripting_opcodes_index.md §7`. |
 
 ### 4.2 Query
 
