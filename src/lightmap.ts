@@ -66,8 +66,12 @@ export module Lightmap {
     // edx controls whether light is added or subtracted
 
     function obj_adjust_light(obj: Obj, isSub: boolean=false) {
-        // CE ref: object.cc:3973 _obj_adjust_light bails on OBJECT_HIDDEN flag
+        // CE ref: object.cc:3969 bails if lightIntensity <= 0; 3973 bails if OBJECT_HIDDEN;
+        // 3977 bails if OBJECT_LIGHTING flag absent. DH2 uses 655 as ambient baseline and
+        // visible===false as the hidden-flag equivalent; OBJECT_LIGHTING is modelled as
+        // lightRadius > 0 && lightIntensity > 655.
         if (obj.visible === false) return
+        if (obj.lightRadius <= 0 || obj.lightIntensity <= 655) return
 
         var pos = obj.position
         var lightModifier = isSub ? light_subtract_from_tile : light_add_to_tile
