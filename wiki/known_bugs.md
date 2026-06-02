@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02**
+> **Last audited: 2026-06-02** (time_clock audit added §12)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -176,7 +176,26 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 12. Pathfinding
+## 12. Time & Game Clock
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| GTC1 | **`game_time_hour` opcode returns wrong value.** Opcodes 0x80F6 and 0x80a8 use `floor((ticks/600)%24)` instead of the military format `100*hour+minute` (0-2359). Scripts checking `game_time_hour >= 800` will never match. | `vm_bridge.ts:53-54` | `scripts.cc:332 gameTimeGetHour()` | major | bug |
+| GTC2 | **`game_time_advance` skips queue processing.** CE fires `queueProcessEvents()` per day advanced, triggering midnight events (door unjam, story timers, radiation). DH2 directly adds ticks. | `scripting.ts:1755` | `interpreter_extra.cc:2761` | minor | missing |
+| GTC3 | **`set_light_level` uses linear mapping, not CE piecewise.** CE maps 0-50 and 51-100 as two separate linear segments (midpoint = 40960); DH2 uses a single linear segment. Also: DH2 silently ignores the call on outdoor maps; CE does not. | `gametime.ts:234`, `scripting.ts:1255` | `interpreter_extra.cc:2233` | minor | bug |
+| GTC4 | **`days_since_visited` (0x811B) not wired in `vm_bridge.ts`.** Any script calling `days_since_visited` will fault. | `vm_bridge.ts` | `interpreter_extra.cc:3734` | minor | missing |
+| GTC5 | **No midnight queue event.** CE fires `gameTimeEventProcess` each in-game midnight: unjams all doors, checks ARTIMER story movies, runs radiation on player. | `main.ts` | `scripts.cc:405 gameTimeEventProcess` | minor | missing |
+| GTC6 | **Starting month is August (DH2) vs July (CE).** `START_MONTH = 7` (0-indexed) vs CE `gStartMonth = 6`. `get_month` returns 8 where CE returns 7. | `gametime.ts:36` | `sfall_config.cc:31` | minor | bug |
+| GTC7 | **No 13-year endgame timeout.** CE ends the game when ticks exceed 13 × TICKS_PER_YEAR. | `gametime.ts` | `scripts.cc:368` | minor | missing |
+| GTC8 | **Pathfinder perk does not reduce worldmap travel time.** CE reduces per-step ticks by 25% per rank. | `worldmap.ts:651` | `worldmap.cc:4178` | minor | missing |
+| GTC9 | **`game_time_in_seconds` (0x80EB) not wired.** | `vm_bridge.ts` | `interpreter_extra.cc:2277` | low | missing |
+| GTC10 | **Day/night ambient light curve is a DH2 invention.** CE has no clock-driven ambient curve; only script-controlled `set_light_level`. | `gametime.ts:181` | `light.cc`, `map.cc:927` | low | deviation |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 13. Pathfinding
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -193,7 +212,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 13. Intentionally Deferred — Do Not Implement Unless Tasked
+## 14. Intentionally Deferred — Do Not Implement Unless Tasked
 
 These systems are out-of-scope and marked deliberately incomplete. They appear in source as stubs only.
 
