@@ -43,6 +43,7 @@ import { uiAddDialogueOption, uiBarterMode, uiEndDialogue, uiLog, uiSetDialogueR
 import { SKILL_NAMES } from './skills.js'
 import { assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
 import { ScriptVM } from './vm.js'
+import { Worldmap } from './worldmap.js'
 import { ScriptVMBridge } from './vm_bridge.js'
 import { Config } from './config.js'
 
@@ -1957,11 +1958,12 @@ export module Scripting {
             info('mark_area_known: area ' + areaID + ' → ' + (state ? 'known' : 'unknown'))
         }
         wm_area_set_pos(area: number, x: number, y: number) {
-            // FO2-CE ref: worldmap.cc wmAreaSetPos() — updates world-map marker position
+            // CE ref: worldmap.cc wmAreaSetPos() — updates world-map marker position
             if (!globalState.mapAreas) { warn('wm_area_set_pos: mapAreas not loaded'); return }
             const areaKey = String(area)
             if (!globalState.mapAreas[areaKey]) { warn('wm_area_set_pos: unknown area ' + area); return }
             globalState.mapAreas[areaKey].worldPosition = { x, y }
+            Worldmap.updateAreaMarkerPos(areaKey, x, y)
         }
         game_ui_disable() {
             // FO2-CE ref: interface.cc gameUiDisable() — blocks in-world player input

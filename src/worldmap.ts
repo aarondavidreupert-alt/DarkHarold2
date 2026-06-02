@@ -428,6 +428,19 @@ export module Worldmap {
         execEncounter(encTable)
     }
 
+    // CE ref: worldmap.cc wmAreaSetPos() — moves a town-marker DOM element to match
+    // updated worldPosition after a script calls wm_area_set_pos.
+    export function updateAreaMarkerPos(areaKey: string, x: number, y: number): void {
+        if (!$worldmap) return
+        const $area = $worldmap.querySelector<HTMLElement>(`[data-area-key="${areaKey}"]`)
+        if (!$area) return
+        const $circle = $area.querySelector<HTMLElement>('.areaCircle')
+        const halfW = $circle ? $circle.offsetWidth / 2 : 0
+        const halfH = $circle ? $circle.offsetHeight / 2 : 0
+        $area.style.left = (x - halfW) + 'px'
+        $area.style.top  = (y - halfH) + 'px'
+    }
+
     export function didEncounter(): boolean {
         const squarePos = positionToSquare(worldmapPlayer)
         const square = worldmap.squares[squarePos.x][squarePos.y]
@@ -549,7 +562,7 @@ export module Worldmap {
             const area = globalState.mapAreas[key]
             if (area.state !== true) continue
 
-            const $area = makeEl('div', { classes: ['area'] })
+            const $area = makeEl('div', { classes: ['area'], attrs: { 'data-area-key': key } })
             $worldmap.appendChild($area)
 
             //console.log("adding one @ " + area.worldPosition.x + ", " + area.worldPosition.y)
