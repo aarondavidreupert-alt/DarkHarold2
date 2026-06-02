@@ -189,7 +189,7 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/events.ts` | Pub/sub `Events` module + `scheduleExplosion` helper (52 lines) |
 | `src/logger.ts` | `dbg` / `dbgWarn` category-gated console logging; `eventLogPush` for structured combat log (63 lines) |
 | `src/eventlog.types.ts` | `EventLogEntry` / `EventLogInput` types (27 lines) |
-| `src/images.ts` | `lazyLoadImage`: async image cache (51 lines) |
+| `src/images.ts` | `lazyLoadImage`: async image cache; `artExists()`: Promise-based existence check |
 | `src/util.ts` | General helpers: file fetch, dice rolls, `BinaryReader`, `parseIni`, skill roll, etc. (261 lines) |
 | `src/geometry.ts` | Hex/isometric geometry utilities (328 lines) |
 | `src/debug.ts` | Dev/cheat console utilities: `debug.addXP`, `debug.teleport`, etc. — active when `Config.engine.debug = true` (79 lines) |

@@ -3,7 +3,7 @@
 See also [damage_formula.md](damage_formula.md), [skill_checks.md](skill_checks.md)
 
 CE refs: `combat_ai.cc`, `combat_ai.h`, `combat_ai_defs.h`, `party_member.cc`  
-DH2 refs: `src/combat.ts` (`class AI`, `class Combat::doAITurn`), `src/object.ts` (Critter fields)
+DH2 refs: `src/aiPackets.ts` (packet parser), `src/combat.ts` (`class AI`, `class Combat::doAITurn`), `src/object.ts` (Critter fields)
 
 ---
 
@@ -618,7 +618,7 @@ DH2 ref: `src/combat.ts` (class `AI`, class `Combat::doAITurn`)
 
 | System | DH2 Status | Notes |
 |--------|-----------|-------|
-| AiPacket loading (ai.txt) | WIRED | `AI.init()` parses ai.txt, stores per-packet info; numeric fields converted |
+| AiPacket loading (ai.txt) | PARTIAL | `src/aiPackets.ts` parser added (typed `AiPacket` interface, all 18 fields); not yet imported by `combat.ts` — wire-up pending |
 | `run_away_mode` / HP flee threshold | PARTIAL | DH2 compares `critter.HP <= ai.info.min_hp` (absolute), but `min_hp` is read directly from ai.txt — the `_hp_run_away_value[]` percentage conversion is not applied; `run_away_mode` field is not read |
 | `hurt_too_much` bitmask flee | MISSING | No check for damage-flag-triggered flee |
 | `CRITTER_MANUEVER_FLEEING` flag persistence | MISSING | No persistent maneuver flag; flee is computed fresh each turn |

@@ -49,3 +49,15 @@ export function lazyLoadImage(art: string, callback?: (x: HTMLImageElement) => v
     }
     img.src = art + '.png'
 }
+
+/**
+ * Promise-returning variant of lazyLoadImage. Resolves to true if the image
+ * loaded successfully (and imageInfo is populated), false on 404/error.
+ */
+export function artExists(art: string): Promise<boolean> {
+    return new Promise(resolve => {
+        lazyLoadImage(art, (img) => {
+            resolve(img !== null && globalState.imageInfo[art] !== undefined)
+        })
+    })
+}
