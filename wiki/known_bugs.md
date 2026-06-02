@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14)
+> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -223,7 +223,23 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 15. Pathfinding
+## 15. Proto System
+
+> Source: `wiki/proto_system.md` · CE: `proto.cc`, `proto.h`, `proto_types.h` · DH2: `src/pro.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `proto.py`
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| PS1 | **`proto_data` opcode (0x8104) not wired in `vm_bridge.ts`.** `scripting.ts` has a `proto_data` method but `vm_bridge.ts` has no entry for 0x8104. Any script calling `proto_data()` falls through to the unknown-opcode error handler, breaking item stat queries. | `vm_bridge.ts`, `scripting.ts:1090` | `interpreter_extra.cc opGetProtoData()` | major | bug |
+| PS2 | **`proto.py` sets `FO1 = True`, suppressing critter `damageType` extraction.** The `FO1` flag is a Fallout 1 compat guard; the pipeline is targeting Fallout 2 data. `damageType` is never written to the JSON, so critters always use the fallback value (0 = normal) instead of their CE-defined damage type. | `proto.py:34` | `proto_types.h CritterProtoData.damageType` | major | bug |
+| PS3 | **Tile PROs not extracted by pipeline.** `exportPRO.py` only processes types 0–3 (items, critters, scenery, walls). Type 4 (tiles) is silently skipped. DH2 never reads tile prototype data — terrain movement cost and special tile flags come entirely from hardcoded heuristics. | `exportPRO.py`, `proto.py` | `proto_types.h TileProto` | low | missing |
+| PS4 | **Wall and misc `extra` fields not parsed.** CE `WallProto` has an `extra` sub-struct with 4 fields (materialType, etc.); `MiscProto.extra` similarly. `proto.py` writes no `extra` key for these types, and `pro.ts` has no wall/misc field accessors. | `proto.py`, `src/pro.ts` | `proto_types.h WallProto.extra`, `MiscProto.extra` | low | missing |
+| PS5 | **`proto_data` item `data_member` IDs don't match CE.** DH2's `proto_data` handler in `scripting.ts` counts DataMember fields from 0 (subType=0, material=1, size=2 …); CE defines `ITEM_DATA_MEMBER_TYPE=9`, `MATERIAL=11`, `SIZE=12` etc. Scripts using CE-standard member IDs receive incorrect field values or undefined. | `scripting.ts:1090-1150` | `proto.h ItemDataMember enum` | major | bug |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 16. Pathfinding
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -240,7 +256,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 16. Intentionally Deferred — Do Not Implement Unless Tasked
+## 17. Intentionally Deferred — Do Not Implement Unless Tasked
 
 These systems are out-of-scope and marked deliberately incomplete. They appear in source as stubs only.
 
