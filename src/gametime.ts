@@ -28,12 +28,10 @@ export const TICKS_PER_YEAR = 315360000     // 365 * 864000
 
 // --- Starting date ---
 // Fallout 2 starts 302400 ticks in (= 8 hours 24 minutes), on July 25, 2241.
-// DarkHarold2 previously treated month index 7 as the start month in
-// pipboy.ts (0-indexed => August). We keep that convention so existing
-// saves / display code don't shift a month.
+// CE ref: sfall_config.cc:31 gStartMonth = 6 (0-indexed = July).
 export const START_TICKS = 302400            // 8:24 AM
 export const START_DAY = 25
-export const START_MONTH = 7                 // 0-indexed (August)
+export const START_MONTH = 6                 // 0-indexed (July); CE sfall_config.cc:31
 export const START_YEAR = 2241
 
 const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]

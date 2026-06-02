@@ -168,14 +168,20 @@ export function hexInDirection(position: Point, dir: number): Point {
     return hexNeighbors(position)[dir]
 }
 
+// CE ref: tile.cc:893 tileGetTileInDirection — stops at grid edge via tileIsEdge()
+function hexIsEdge(p: Point): boolean {
+    return p.x <= 0 || p.y <= 0 || p.x >= HEX_GRID_SIZE - 1 || p.y >= HEX_GRID_SIZE - 1
+}
+
 export function hexInDirectionDistance(position: Point, dir: number, distance: number): Point {
     if (distance === 0) {
         return position
     }
 
     let tile = hexInDirection(position, dir)
-    // repeat for each further distance
+    // repeat for each further distance, stopping at grid edge
     for (var i = 0; i < distance - 1; i++) {
+        if (hexIsEdge(tile)) break
         tile = hexInDirection(tile, dir)
     }
     return tile
