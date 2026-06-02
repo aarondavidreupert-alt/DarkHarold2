@@ -1064,13 +1064,22 @@ export class WeaponObj extends Item {
     }
 
     static fromMapObject(mobj: any, deserializing = false): WeaponObj {
-        return Obj.fromMapObject_(new WeaponObj(), mobj, deserializing)
+        const obj = Obj.fromMapObject_(new WeaponObj(), mobj, deserializing)
+        if (deserializing && mobj.weaponMode && obj.weapon) {
+            obj.weapon.mode = mobj.weaponMode
+        }
+        return obj
+    }
+
+    serialize(): SerializedObj {
+        const obj = super.serialize() as any
+        // CE ref: item.cc — persist firing mode so reload state survives save/load
+        if (this.weapon) obj.weaponMode = this.weapon.mode
+        return obj
     }
 
     init() {
         super.init()
-        // TODO: Weapon initialization
-        //console.log("Weapon init")
         this.weapon = new Weapon(this)
     }
 }
