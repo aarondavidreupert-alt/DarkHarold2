@@ -444,15 +444,16 @@ export module Worldmap {
             // 100% encounter rate (forced)
             return true
         else {
-            // roll for it
-            // TODO: adjust for difficulty:
-            // If easy difficulty, encRate -= encRate / 15
-            // If hard difficulty, encRate += encRate / 15
+            // Adjust for game difficulty — CE ref: worldmap.cc:3322 wmRndEncounterOccurred
+            let adjRate = encRate
+            const diff = Config.combat.difficultyModifier
+            if (diff < 100) adjRate -= Math.floor(encRate / 15)       // Easy
+            else if (diff > 100) adjRate += Math.floor(encRate / 15)  // Hard
 
             const roll = getRandomInt(0, 100)
-            dbg('worldmap', 'encounter: rolled %d vs %d', roll, encRate)
+            dbg('worldmap', 'encounter: rolled %d vs %d (adj %d)', roll, encRate, adjRate)
 
-            if (roll < encRate) {
+            if (roll < adjRate) {
                 // We rolled an encounter!
                 return true
             }

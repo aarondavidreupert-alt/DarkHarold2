@@ -70,6 +70,7 @@ export module ScriptVMBridge {
        ,0x80B5: function() { this.pop(); this.pop(); this.push(0) } // roll_dice — CE predefined-error stub; pushes 0 per CE interpreter_extra.cc:789 opRollDice
        ,0x80E1: bridged("metarule3", 4)
        ,0x80CA: bridged("get_critter_stat", 2)
+       ,0x80CB: bridged("set_critter_stat", 3)
        ,0x8105: bridged("message_str", 2)
        ,0x80B8: bridged("display_msg", 1, false)
        ,0x8111: bridged("reg_anim_begin", 1, false)

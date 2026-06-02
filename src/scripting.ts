@@ -637,6 +637,26 @@ export module Scripting {
             stub('get_critter_stat', arguments)
             return 5
         }
+        set_critter_stat(obj: Obj, stat: number, value: number) {
+            // CE ref: interpreter_extra.cc:1313 opSetCritterStat — player only, additive
+            // Adds `value` to base+trait-modified stat and stores as new base.
+            if (!isGameObject(obj) || obj.type !== 'critter') {
+                warn('set_critter_stat: not a critter')
+                return -1
+            }
+            if (!(obj as Critter).isPlayer) {
+                warn('set_critter_stat: can only modify obj_dude')
+                return -1
+            }
+            const statName = statMap[stat]
+            if (!statName) {
+                warn('set_critter_stat: unknown stat ' + stat)
+                return -1
+            }
+            const current = (obj as Critter).getStat(statName)
+            ;(obj as Critter).stats.setBase(statName, current + value)
+            return 0
+        }
         has_trait(traitType: number, obj: Obj, trait: number) {
             if (!isGameObject(obj)) {
                 warn('has_trait: not game object: ' + obj, undefined, this)

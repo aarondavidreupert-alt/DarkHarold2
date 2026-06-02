@@ -23,6 +23,7 @@ import { fromTileNum } from "./tile.js";
 import { getRandomInt } from "./util.js";
 import { Worldmap } from "./worldmap.js";
 import { dbg } from "./logger.js";
+import { getHourMilitary } from "./gametime.js";
 
 // Random Encounter system
 
@@ -197,7 +198,7 @@ export module Encounters {
                         if(node.arg.type !== "var") throw "evalCond: player arg not a var";
                         if(node.arg.name !== "level")
                             throw "player( " + node.arg.name + ")"
-                        return 0 // player level
+                        return globalState.player?.getStat('Level') ?? 1
                     case "rand": // random percentage
                         if(node.arg.type !== "int") throw "evalCond: rand arg not a number";
                         return getRandomInt(0, 100) <= node.arg.value
@@ -206,22 +207,28 @@ export module Encounters {
             case "var":
                 switch(node.name) {
                     case "time_of_day":
-                        return 12 // hour of the day
+                        // CE ref: worldmap.cc wmParseEncounterTableIndex — returns 24h hour (0-23)
+                        return Math.floor(getHourMilitary() / 100)
                     default: throw "unhandled var: " + node.name
                 }
             case "int": return node.value
-            case "op":
-                var lhs = evalCond(node.lhs)
-                var rhs = evalCond(node.rhs)
-                var op: { [op: string]: (l: boolean|number, r: boolean|number) => boolean|number } =  {
-                    "<": (l, r) => l < r,
-                    ">": (l, r) => l > r,
-                    "and": (l, r) => l && r
+            case "op": {
+                const lhs = evalCond(node.lhs)
+                const rhs = evalCond(node.rhs)
+                const op: { [op: string]: (l: boolean|number, r: boolean|number) => boolean|number } = {
+                    "<":   (l, r) => +l < +r,
+                    ">":   (l, r) => +l > +r,
+                    "<=":  (l, r) => +l <= +r,
+                    ">=":  (l, r) => +l >= +r,
+                    "==":  (l, r) => +l === +r,
+                    "!=":  (l, r) => +l !== +r,
+                    "and": (l, r) => (l as boolean) && (r as boolean),
+                    "or":  (l, r) => (l as boolean) || (r as boolean),
                 }
-
                 if(op[node.op] === undefined)
                     throw "unhandled op: " + node.op
                 return op[node.op](lhs, rhs)
+            }
             default: throw "unhandled node: " + node
         }
     }
