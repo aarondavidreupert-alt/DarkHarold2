@@ -45,6 +45,8 @@ export interface AiPacket {
     chance: number              // taunt roll %
     chemUse: ChemUse
     chemPrimaryDesire: number[] // PIDs; -1 entries filtered out
+    teamNum: number             // team_num from ai.txt; -1 if absent
+    messageRanges: Partial<Record<string, [number, number]>> // combat taunt message ID ranges
 }
 
 // ── Numeric → string maps (fallout2-ce ai.h enum order) ──────────────────────
@@ -148,6 +150,19 @@ function parseIniText(text: string): Record<string, Record<string, string>> {
 
 // ── Packet construction ───────────────────────────────────────────────────────
 
+function buildMessageRanges(raw: Record<string, string>): Partial<Record<string, [number, number]>> {
+    const ranges: Partial<Record<string, [number, number]>> = {}
+    const keys = ['run', 'move', 'attack', 'miss']
+    for (const key of keys) {
+        const start = parseIntField(raw[key + '_start'], 0)
+        const end   = parseIntField(raw[key + '_end'],   0)
+        if (start > 0 && end > 0) {
+            ranges[key] = [start, end]
+        }
+    }
+    return ranges
+}
+
 function buildPacket(sectionName: string, raw: Record<string, string>): AiPacket {
     return {
         packetNum:        parseIntField(raw['packet_num'], 0),
@@ -168,6 +183,8 @@ function buildPacket(sectionName: string, raw: Record<string, string>): AiPacket
         chance:           parseIntField(raw['chance'],            85),
         chemUse:          parseEnum(raw['chem_use'],         CHEM_USES,         CHEM_USE_MAP,          'clean'),
         chemPrimaryDesire: parseIntList(raw['chem_primary_desire']),
+        teamNum:          parseIntField(raw['team_num'], -1),
+        messageRanges:    buildMessageRanges(raw),
     }
 }
 
@@ -220,6 +237,8 @@ const FALLBACK_PACKET: AiPacket = {
     chance: 85,
     chemUse: 'clean',
     chemPrimaryDesire: [],
+    teamNum: -1,
+    messageRanges: {},
 }
 
 /** Return packet with packet_num === num, or the first packet in the file

@@ -32,6 +32,7 @@ import { showTimerDialog } from './ui_timer.js'
 import { Config } from './config.js'
 import { SkillSet, StatSet } from './char.js'
 import { ActionPoints, AI } from './combat.js'
+import { getAiPacket } from './aiPackets.js'
 
 // Collection of functions for working with game objects
 
@@ -1295,8 +1296,7 @@ export class Critter extends Obj {
         if (protoTeam !== undefined && protoTeam !== null && protoTeam >= 0) {
             this.teamNum = protoTeam
         } else {
-            if (AI.aiTxt === null) AI.init()
-            this.teamNum = AI.getPacketInfo(this.aiNum)?.team_num ?? -1
+            this.teamNum = getAiPacket(this.aiNum).teamNum
         }
 
         // initialize weapons

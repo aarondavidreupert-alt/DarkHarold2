@@ -30,6 +30,7 @@ import { Scripting } from './scripting.js'
 import { drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiLog, uiStartCombat } from './ui.js'
 import { clamp, getFileText, getMessage, getRandomInt, parseIni, rollSkillCheck } from './util.js'
 import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from './unarmed.js'
+import { getAiPacket, AiPacket } from './aiPackets.js'
 
 // Turn-based combat system
 
@@ -125,57 +126,12 @@ export class ActionPoints {
 }
 
 export class AI {
-    static aiTxt: any = null // AI.TXT: packet num -> key/value
     combatant: Critter
-    info: any
-
-    // Fields in AI.TXT that should be parsed as integers
-    static readonly numericFields = [
-        'packet_num', 'max_dist', 'min_hp', 'min_to_hit', 'area_attack_mode',
-        'run_start', 'run_end', 'move_start', 'move_end',
-        'attack_start', 'attack_end', 'miss_start', 'miss_end',
-        'hit_head_start', 'hit_head_end', 'hit_left_arm_start', 'hit_left_arm_end',
-        'hit_right_arm_start', 'hit_right_arm_end', 'hit_torso_start', 'hit_torso_end',
-        'hit_right_leg_start', 'hit_right_leg_end', 'hit_left_leg_start', 'hit_left_leg_end',
-        'hit_eyes_start', 'hit_eyes_end', 'hit_groin_start', 'hit_groin_end',
-        'chance', 'team_num',
-        'wander_start', 'wander_end', 'wander_type',
-    ]
-
-    static init(): void {
-        // load and parse AI.TXT
-        if (AI.aiTxt !== null)
-            // already loaded
-            return
-
-        AI.aiTxt = {}
-        var ini = parseIni(getFileText('data/data/ai.txt'))
-        if (ini === null) throw "couldn't load AI.TXT"
-        for (var key in ini) {
-            var packet = ini[key]
-            // Convert numeric fields from strings to numbers
-            for (var field of AI.numericFields) {
-                if (packet[field] !== undefined) {
-                    packet[field] = parseInt(packet[field]) || 0
-                }
-            }
-            packet.keyName = key
-            AI.aiTxt[packet.packet_num] = packet
-        }
-    }
-
-    static getPacketInfo(aiNum: number): any {
-        return AI.aiTxt[aiNum] || null
-    }
+    packet: AiPacket
 
     constructor(combatant: Critter) {
         this.combatant = combatant
-
-        // load if necessary
-        if (AI.aiTxt === null) AI.init()
-
-        this.info = AI.getPacketInfo(this.combatant.aiNum)
-        if (!this.info) throw 'no AI packet for ' + combatant.toString() + ' (packet ' + this.combatant.aiNum + ')'
+        this.packet = getAiPacket(combatant.aiNum)
     }
 }
 
@@ -283,6 +239,24 @@ function computeDamage(ctx: DamageCalculationContext): number {
         case 5: return computeDamageYaam(ctx)
         default: return computeDamageVanilla(ctx)
     }
+}
+
+// ── AI helpers ────────────────────────────────────────────────────────────────
+
+/** CE ref: combat_ai.cc — RunAwayMode percentage thresholds.
+ *  'never' falls through to raw packet.minHp as an absolute HP value. */
+const HP_FLEE_PCT: Partial<Record<string, number>> = {
+    none: 0,
+    coward: 25,
+    finger_hurts: 40,
+    bleeding: 60,
+    not_feeling_good: 75,
+}
+
+function fleeHpThreshold(packet: AiPacket, maxHp: number): number {
+    const pct = HP_FLEE_PCT[packet.runAwayMode]
+    if (pct === undefined) return packet.minHp  // 'never' → use raw minHp from ai.txt
+    return Math.floor(maxHp * pct / 100)
 }
 
 // A combat encounter
@@ -1035,9 +1009,9 @@ export class Combat {
 
     maybeTaunt(obj: Critter, type: string, roll: boolean) {
         if (roll === false) return
-        var start = obj.ai!.info[type + '_start']
-        var end = obj.ai!.info[type + '_end']
-        if (isNaN(start) || isNaN(end)) return
+        const range = obj.ai!.packet.messageRanges[type]
+        if (!range) return
+        const [start, end] = range
         var msgID = getRandomInt(start, end)
         var msg = this.getCombatAIMessage(msgID)
         if (msg) {
@@ -1050,15 +1024,37 @@ export class Combat {
         }
     }
 
-    findTarget(obj: Critter): Critter | null {
-        // TODO: find target according to AI rules
-        // Currently: nearest enemy. FO2 uses threat level + weapon range preference.
-        // Find the closest living combatant on a different team
+    private combataiRating(c: Critter): number {
+        return c.getStat('HP') + c.getStat('AC')
+    }
 
+    findTarget(obj: Critter): Critter | null {
+        // CE ref: combat_ai.cc — AttackWho policy from ai packet
         const targets = this.combatants.filter((x) => !x.dead && x.teamNum !== obj.teamNum)
         if (targets.length === 0) return null
-        targets.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
-        return targets[0]
+        const attackWho = obj.ai?.packet.attackWho ?? 'closest'
+        switch (attackWho) {
+            case 'strongest':
+                targets.sort((a, b) => this.combataiRating(b) - this.combataiRating(a))
+                return targets[0]
+            case 'weakest':
+                targets.sort((a, b) => this.combataiRating(a) - this.combataiRating(b))
+                return targets[0]
+            case 'whomever':
+            case 'whomever_attacking_me': {
+                const whoHitMe = (obj as any).whoHitMe
+                if (whoHitMe instanceof Critter && !whoHitMe.dead && targets.includes(whoHitMe)) {
+                    return whoHitMe
+                }
+                // Fall through to 'closest'
+                targets.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
+                return targets[0]
+            }
+            case 'closest':
+            default:
+                targets.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
+                return targets[0]
+        }
     }
 
     walkUpTo(obj: Critter, idx: number, target: Point, maxDistance: number, callback: () => void): boolean {
@@ -1088,7 +1084,7 @@ export class Combat {
         }
 
         if (depth === 1) {
-            dbg('ai', `[AI] ${actorName(obj)} turn start — AP: ${obj.AP?.getAvailableMoveAP() ?? 0}, packet: ${obj.ai?.info?.keyName ?? '?'}`)
+            dbg('ai', `[AI] ${actorName(obj)} turn start — AP: ${obj.AP?.getAvailableMoveAP() ?? 0}, packet: ${obj.ai?.packet.name ?? '?'}`)
         }
         var that = this
         var target = this.findTarget(obj)
@@ -1100,7 +1096,7 @@ export class Combat {
         }
         var distance = hexDistance(obj.position, target.position)
         var AP = obj.AP!
-        var messageRoll = rollSkillCheck(obj.ai!.info.chance || 85, 0, false)
+        var messageRoll = rollSkillCheck(obj.ai!.packet.chance || 85, 0, false)
 
         if (Config.engine.doLoadScripts === true && obj._script !== undefined) {
             // notify the critter script of a combat event
@@ -1113,12 +1109,14 @@ export class Combat {
 
         // behaviors
 
-        if (obj.getStat('HP') <= obj.ai!.info.min_hp) {
+        const maxHp = obj.getStat('maxHP') ?? obj.getStat('HP')
+        const fleeThreshold = fleeHpThreshold(obj.ai!.packet, maxHp)
+        if (obj.getStat('HP') <= fleeThreshold) {
             // hp <= min fleeing hp, so flee
             this.log('[AI FLEES]')
             eventLogPush({
                 actor: actorName(obj), action: 'ai-decision', result: 'flee',
-                target: actorName(target), hp: obj.getStat('HP'), minHp: obj.ai!.info.min_hp,
+                target: actorName(target), hp: obj.getStat('HP'), minHp: fleeThreshold,
                 message: `${actorName(obj)} flees`,
             })
 
@@ -1135,6 +1133,12 @@ export class Combat {
             }
 
             return
+        }
+
+        // CE ref: combat_ai.cc DISTANCE_STAY — AI never moves
+        if (obj.ai!.packet.distance === 'stay') {
+            if (AP.getAvailableCombatAP() <= 0) return this.nextTurn()
+            // Fall through to attack in place (no movement)
         }
 
         var weaponObj = obj.equippedWeapon
@@ -1173,7 +1177,10 @@ export class Combat {
         // Guard with weaponSwitchDone so we never oscillate between hands more than once per turn.
         var objAny = obj as any
         var fireDistance = weapon.getMaximumRange(1)
-        if (!weaponSwitchDone && distance > fireDistance && weapon.type === 'melee') {
+        const bestWeapon = obj.ai!.packet.bestWeapon
+        const prefersMelee = bestWeapon === 'melee' || bestWeapon === 'unarmed' || bestWeapon === 'unarmed_over_throw'
+        const prefersRanged = bestWeapon === 'ranged'
+        if (!weaponSwitchDone && distance > fireDistance && weapon.type === 'melee' && !prefersMelee) {
             // Melee weapon but target is far — switch to ranged if it has ammo
             var otherHand: 'leftHand' | 'rightHand' = (objAny.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
             var otherWeapon = objAny[otherHand]
@@ -1185,7 +1192,7 @@ export class Combat {
                 })
                 return
             }
-        } else if (!weaponSwitchDone && distance <= 1 && weapon.type === 'gun') {
+        } else if (!weaponSwitchDone && distance <= 1 && weapon.type === 'gun' && !prefersRanged) {
             // Ranged weapon but adjacent — switch to melee
             var otherHand2: 'leftHand' | 'rightHand' = (objAny.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
             var otherWeapon2 = objAny[otherHand2]
@@ -1397,11 +1404,11 @@ export class Combat {
         for (var i = 0; i < this.combatants.length; i++) {
             var obj = this.combatants[i]
             if (obj.dead || obj.isPlayer) continue
-            if (!obj.ai || !obj.ai.info) {
+            if (!obj.ai || !obj.ai.packet) {
                 combatWarn(`Critter ${obj.name || obj.art} has no AI info, skipping range check`)
                 continue
             }
-            var inRange = hexDistance(obj.position, this.player.position) <= obj.ai.info.max_dist
+            var inRange = hexDistance(obj.position, this.player.position) <= obj.ai.packet.maxDist
 
             if (obj.hostile) {
                 numActive++
@@ -1484,11 +1491,11 @@ export class Combat {
         for (var i = 0; i < this.combatants.length; i++) {
             var obj = this.combatants[i]
             if (obj.dead || obj.isPlayer) continue
-            if (!obj.ai || !obj.ai.info) {
+            if (!obj.ai || !obj.ai.packet) {
                 combatWarn(`Critter ${obj.name || obj.art} has no AI info, skipping range check`)
                 continue
             }
-            var inRange = hexDistance(obj.position, this.player.position) <= obj.ai.info.max_dist
+            var inRange = hexDistance(obj.position, this.player.position) <= obj.ai.packet.maxDist
             var hasLOS = inRange && this.hasLineOfSight(obj.position, this.player.position)
 
             if (hasLOS || obj.hostile) {
