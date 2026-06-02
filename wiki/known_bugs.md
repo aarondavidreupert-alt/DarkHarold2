@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02** (time_clock audit added §12)
+> **Last audited: 2026-06-02** (time_clock audit added §12; frm_animation audit added §13)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -195,7 +195,21 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 13. Pathfinding
+## 13. FRM Animation Pipeline
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| FA1 | **`updateStaticAnim` hardcodes fps = 8.** Comment reads `// todo: get FPS from image info`. Should read `info.fps \|\| 10`. Flowing water, fire, and other looping scenery animations play at the wrong speed. | `object.ts:1335` | `art.cc:713 artGetFramesPerSecond()` | minor | bug |
+| FA2 | **`getAnimDistance` reads direction 1 for the last frame.** Uses `frameOffsets[1][numFrames-1].ox` (direction E) instead of `frameOffsets[0][numFrames-1].ox` (direction NE). Returns wrong hex-steps-per-cycle, causing walk partial-action boundaries to be off and producing hitching. | `object.ts:1980` | `animation.cc:1716 pathfinderFindPath()` | major | bug |
+| FA3 | **`actionFrame` discarded by the extraction pipeline.** `frmpixels.py:40` reads the header field into `_actionFrame` (not saved to output dict). Absent from `imageMap.json`. DH2 cannot synchronise hit-detection or sounds to the correct animation frame for weapon attacks. | `frmpixels.py:40` | `art.h ArtFrame.actionFrame` | major | missing |
+| FA4 | **No combat walk speed bonus.** CE `animationComputeTicksPerFrame` (`animation.cc:3287`) applies a `combat_speed` preference bonus to ANIM_WALK tick rate during combat. DH2 uses a fixed `1000/fps` for all animations. | `object.ts:1395` | `animation.cc:3287` | minor | missing |
+| FA5 | **Walk start: `obj.shift={x:0,y:0}` is truthy; frame 0's static ox/oy is skipped.** Renderer takes the shift branch (+0) instead of the static branch (`frameInfo.ox`) for the first frame of a walk cycle. Most walk FRMs have frame-0 ox=0 so it is invisible in practice, but FRMs with a non-zero initial delta will display one frame off-anchor. | `renderer.ts:311`, `object.ts:1417` | `object.cc _obj_offset()` | low | bug |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 14. Pathfinding
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -212,7 +226,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 14. Intentionally Deferred — Do Not Implement Unless Tasked
+## 15. Intentionally Deferred — Do Not Implement Unless Tasked
 
 These systems are out-of-scope and marked deliberately incomplete. They appear in source as stubs only.
 
