@@ -1707,6 +1707,16 @@ export module Scripting {
             // Halt the VM so the player can interact with dialogue options.
             // dialogueExit() resumes via vm.pc = vm.popAddr(); vm.run().
             info('[gsay_end: halting VM for dialogue]', 'dialogue')
+            // CE ref: game_dialog.cc:3662 _gdCanBarter — permanent Barter button when
+            // CRITTER_BARTER flag (0x02) is set on the NPC proto.extra.flags
+            if (currentDialogueObject) {
+                const proFlags = (currentDialogueObject as any).pro?.extra?.flags ?? 0
+                if ((proFlags & 0x02) !== 0) {
+                    const npc = currentDialogueObject as Critter
+                    dialogueOptionProcs.push(() => uiBarterMode(npc))
+                    uiAddDialogueOption('[Barter]', dialogueOptionProcs.length - 1)
+                }
+            }
             if (this._vm) this._vm.halted = true
         }
         end_dialogue() {

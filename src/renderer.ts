@@ -308,7 +308,9 @@ export class Renderer {
         let offsetX = -((frameInfo.w / 2) | 0) + dirOffset.x
         let offsetY = -frameInfo.h + dirOffset.y
 
-        if (obj.shift) {
+        // CE ref: object.cc _obj_offset() — use accumulated per-frame delta when walking,
+        // fall back to the FRM header anchor (ox/oy) for static or walk-start (shift=null) frames.
+        if (obj.shift !== null) {
             offsetX += obj.shift.x
             offsetY += obj.shift.y
         } else {
