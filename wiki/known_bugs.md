@@ -302,8 +302,8 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 |----|-------------|---------|--------------|-----|--------|
 | RN1 | **Fixed seed 123.** FIXED 2026-06-02 — `Scripting.init()` now calls `seed(Date.now())`, matching CE's `compat_timeGetTime()` seeding. `setSeed(n)` export preserved for deterministic crawler runs. | `src/scripting.ts:init` | `random.cc:39 randomInit()` | minor | fixed |
 | RN2 | **`roll_dice` opcode (0x80B5) wired.** FIXED 2026-06-02 — pops 2 args and pushes 0 (CE predefined-error stub; `interpreter_extra.cc:789 opRollDice()` returns 0). | `src/vm_bridge.ts:0x80B5` | `interpreter_extra.cc:789` | low | fixed |
-| RN3 | **Sniper perk rolls d100 instead of d10.** `combat.ts:526` uses `getRandomInt(1, 100)` vs CE's `randomBetween(1, 10)`. Makes the perk ~10× harder to trigger. Direct cause of §C1. | `src/combat.ts:526` | `combat.cc:3892` | major | bug |
-| RN4 | **`rollSkillCheck` uses 101 outcomes ([0–100]) vs CE's 100 ([1–100]).** Makes combat hit rolls very slightly easier at all skill values. | `src/util.ts:110` | `random.cc:134 randomBetween()` | low | bug |
+| RN3 | **Sniper perk rolls d100 instead of d10.** VERIFIED FIXED (C1 sprint) — `combat.ts:519` uses `getRandomInt(1, 10)` vs LUK. CE ref: `combat.cc:3892 randomBetween(1,10)`. | `src/combat.ts:519` | `combat.cc:3892` | major | fixed |
+| RN4 | **`rollSkillCheck` uses 101 outcomes ([0–100]) vs CE's 100 ([1–100]).** FIXED 2026-06-02 — changed to `getRandomInt(1, 100)` with `roll <= tempSkill`, matching CE's `randomBetween(1,100)` / `delta >= 0` semantics. | `src/util.ts:111` | `random.cc:87 randomRoll()` | low | fixed |
 | RN5 | **No statistical validation of DH2 sin-PRNG.** CE runs a 100,000-sample chi-squared test at startup. Sin-PRNG has known non-uniform bit patterns that are unmonitored. | `src/util.ts:102` | `random.cc:224 randomValidatePrerandom()` | low | missing |
 
 <!-- audited: 2026-06-02 -->

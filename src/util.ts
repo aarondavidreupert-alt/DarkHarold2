@@ -107,8 +107,9 @@ export function rollSkillCheck(skill: number, modifier: number, isBounded: boole
     const tempSkill = skill + modifier
     if (isBounded) clamp(0, 95, tempSkill)
 
-    const roll = getRandomInt(0, 100)
-    return roll < tempSkill
+    // CE ref: random.cc:87 randomBetween(1, 100) — range is [1,100], not [0,100]
+    const roll = getRandomInt(1, 100)
+    return roll <= tempSkill
 }
 
 // FO2-CE ref: random.h — Roll enum
