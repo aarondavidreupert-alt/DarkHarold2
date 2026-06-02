@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15; tile_system added §16)
+> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15; tile_system added §16; item_use added §17)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -254,7 +254,23 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 17. Pathfinding
+## 17. Item Use & Scenery Interaction
+
+> Source: `wiki/item_use.md` · CE: `proto_instance.cc`, `scripts.cc`, `obj_types.h` · DH2: `src/object.ts`, `src/scripting.ts`, `src/skillUse.ts`
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| IU1 | **`use_obj_on_obj` fires `use_p_proc` instead of `use_obj_on_p_proc`.** `scripting.ts:1227` calls `obj.use(who, true)` which dispatches `use_p_proc` on the target. CE `_protinst_use_item_on` fires `SCRIPT_PROC_USE_OBJ_ON` — the two-step item/target chain. Quest-item interactions (e.g. Wrench on car engine) will invoke the wrong proc and silently do nothing. | `src/scripting.ts:1227` | `proto_instance.cc:1245 _protinst_use_item_on()` | major | bug |
+| IU2 | **Proc name mismatch: DH2 uses `use_obj_on_me_p_proc` / `use_skill_on_me_p_proc`; CE scripts export `use_obj_on_p_proc` / `use_skill_on_p_proc`.** Any CE-compiled script that defines these procs will never be called. | `src/scripting.ts:390–391` | `scripts.h:61–62` | major | bug |
+| IU3 | **No jammed state on `Obj`; `jam_lock` / `unjam_lock` opcodes unimplemented; midnight unjam never fires.** CE sets `DOOR_FLAG_JAMMGED` on lockpick critical failure and clears all jam bits at midnight via `objectUnjamAll()`. DH2 `Obj` has no `jammed` field; doors remain perpetually unjammed. Cross-reference GTC5 in known_bugs.md. | `src/scripting.ts` (missing opcodes) | `proto_instance.cc:2131 objectJamLock()`; `scripts.cc:418 gameTimeEventProcess()` | minor | missing |
+| IU4 | **No locked-door SFX or "That door is locked." message.** CE `_obj_use_door` plays the locked sound and prints the message before firing `use_p_proc`. DH2 `setObjectOpen()` returns `false` silently when `obj.locked === true`. | `src/object.ts:136` | `proto_instance.cc:1710–1722 _obj_use_door()` | minor | bug |
+| IU5 | **Container loot UI opens immediately instead of after animation.** `setObjectOpen()` calls `uiLoot(obj)` before any animation plays. CE separates the loot screen from the `objectOpenClose()` animation completion. | `src/object.ts:152` | `proto_instance.cc:1825–1840 _obj_use_container()` | minor | bug |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 18. Pathfinding
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -271,7 +287,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 18. Intentionally Deferred — Do Not Implement Unless Tasked
+## 19. Intentionally Deferred — Do Not Implement Unless Tasked
 
 These systems are out-of-scope and marked deliberately incomplete. They appear in source as stubs only.
 
