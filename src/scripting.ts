@@ -1426,7 +1426,21 @@ export module Scripting {
                 return
             }
             info('use_obj_on_obj: ' + (obj.name ?? obj.pid) + ' on ' + (who.name ?? who.pid))
-            obj.use(who as Critter, true)
+            // CE ref: interpreter_extra.cc:4564 opUseObjectOnObject; proto_instance.cc:1296
+            // obj=item, who=target, this.self_obj=critter doing the using
+            const source = this.self_obj as unknown as Obj
+            // Step 1: if item has use_obj_on_p_proc, fire it with target_obj=who
+            if (obj._script && obj._script.use_obj_on_p_proc !== undefined) {
+                obj._script.self_obj = obj as ScriptableObj
+                obj._script.source_obj = source
+                obj._script.target_obj = who
+                obj._script.cur_map_index = currentMapID
+                obj._script._didOverride = false
+                obj._script.use_obj_on_p_proc()
+                if (obj._script._didOverride) return
+            }
+            // Step 2: fire use_obj_on_p_proc on target with source=critter, target_obj=item
+            Scripting.useObjOnMe(who, obj, source)
         }
         use_obj(obj: Obj) {
             if (!isGameObject(obj)) {
@@ -2318,8 +2332,10 @@ export module Scripting {
 
     export function useObjOnMe(obj: Obj, item: Obj, source: Obj): boolean {
         if (!obj._script || obj._script.use_obj_on_p_proc === undefined) return false
+        // CE ref: proto_instance.cc:1286 scriptSetObjects(targetObj->sid, critter, item)
         obj._script.self_obj = obj as ScriptableObj
         obj._script.source_obj = source
+        obj._script.target_obj = item
         obj._script.cur_map_index = currentMapID
         obj._script._didOverride = false
         obj._script.use_obj_on_p_proc()
