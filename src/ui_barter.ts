@@ -28,6 +28,7 @@ import { Scripting } from './scripting.js'
 import { UIMode } from './ui_panels.js'
 import { uiAnimateBox } from './ui_dialogue.js'
 import { makeDropTarget, makeDraggable } from './ui_inventory.js'
+import { Config } from './config.js'
 
 // --- DOM helpers (mirrors the ones in ui.ts) -------------------------------
 
@@ -303,21 +304,49 @@ export function uiBarterMode(merchant: Critter) {
     function totalAmount(objects: Obj[]): number {
         let total = 0
         for (let i = 0; i < objects.length; i++) {
-            total += objects[i].pro.extra.cost * objects[i].amount
+            total += (objects[i].pro?.extra?.cost ?? 0) * objects[i].amount
         }
         return total
+    }
+
+    // CE ref: inventory.cc:4673 _barter_compute_value — minimum player-offer for a fair deal.
+    // balancedCost = (160 + npcBarter) / (160 + playerBarter) * costWithoutCaps * 2
+    // result = trunc(barterModMult * balancedCost) + caps
+    function barterMinPlayerOffer(merchantTable: Obj[]): number {
+        const player = globalState.player
+        const CAPS_PID = 41
+
+        const totalCost = totalAmount(merchantTable)
+        const capsInTable = merchantTable
+            .filter(o => o.pid === CAPS_PID)
+            .reduce((s, o) => s + o.amount, 0)
+        const costWithoutCaps = totalCost - capsInTable
+
+        // Barter skill: player's effective value + difficulty modifier
+        const diff = Config.combat.difficultyModifier
+        const diffBonus = diff < 100 ? 20 : diff > 100 ? -10 : 0
+        const playerBarter = Math.max(0, (player.getSkill?.('Barter') ?? 0) + diffBonus)
+        const npcBarter = (merchant as any).getSkill?.('Barter') ?? 0
+
+        // Reaction modifier from merchant LVAR 0 (CE ref: reaction.cc:18)
+        const reactionVal = (merchant as any)._script?.lvars?.[0] ?? 0
+        const reactionMod = reactionVal > 10 ? -15 : reactionVal < -10 ? 25 : 0
+
+        // Combined barterMod: script mod + reaction mod
+        const scriptMod = Scripting.getDialogueBarterMod()
+        const perkBonus = player.hasPerk?.('Master Trader') ? 25 : 0
+        const barterModMult = Math.max(0.01, (scriptMod + reactionMod + 100 - perkBonus) * 0.01)
+
+        const balancedCost = ((160 + npcBarter) / (160 + playerBarter)) * (costWithoutCaps * 2)
+        return Math.trunc(barterModMult * balancedCost) + capsInTable
     }
 
     // TODO: checkOffer() or some-such
     function offer() {
         console.log('[Barter] offer')
 
-        const merchantOffered = totalAmount(merchantBarterTable)
         const playerOffered = totalAmount(playerBarterTable)
-        // apply per-dialogue barter markup set by gdialog_set_barter_mod
-        // ref: fallout2-ce barter.cc — mod shifts the effective price the merchant accepts
-        const barterMod = Scripting.getDialogueBarterMod()
-        const merchantNeed = Math.ceil(merchantOffered * (100 + barterMod) / 100)
+        const merchantNeed = barterMinPlayerOffer(merchantBarterTable)
 
         if (playerOffered >= merchantNeed) {
             // OK, player offered equal to more more than the value
