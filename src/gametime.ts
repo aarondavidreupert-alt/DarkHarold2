@@ -238,9 +238,22 @@ export function setLightLevelOverride(level0to100: number): void {
         )
         return
     }
-    const clamped = Math.max(0, Math.min(100, level0to100))
-    const t = clamped / 100
-    lightLevelOverride = LIGHT_INTENSITY_MIN + t * (LIGHT_INTENSITY_MAX - LIGHT_INTENSITY_MIN)
+    // CE ref: interpreter_extra.cc:2233 opSetLightLevel — piecewise mapping
+    // intensities = [MIN, (MIN+MAX)/2, MAX]  i.e. [16384, 40960, 65536]
+    // level > 50: 40960 + level * (65536-40960) / 100
+    // level = 50: 40960
+    // level < 50: 16384 + level * (40960-16384) / 100
+    const mid = (LIGHT_INTENSITY_MIN + LIGHT_INTENSITY_MAX) / 2 // 40960
+    const data = Math.max(0, Math.min(100, level0to100))
+    let intensity: number
+    if (data === 50) {
+        intensity = mid
+    } else if (data > 50) {
+        intensity = Math.trunc(mid + data * (LIGHT_INTENSITY_MAX - mid) / 100)
+    } else {
+        intensity = Math.trunc(LIGHT_INTENSITY_MIN + data * (mid - LIGHT_INTENSITY_MIN) / 100)
+    }
+    lightLevelOverride = intensity
     console.log(
         `[lighting] script set_light_level(${level0to100}) → override=${(lightLevelOverride / LIGHT_INTENSITY_MAX).toFixed(3)}`
     )

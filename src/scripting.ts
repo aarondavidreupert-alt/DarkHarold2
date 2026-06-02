@@ -616,8 +616,8 @@ export module Scripting {
                 return 5 + Math.floor(obj.getStat('AGI') / 2)
             }
             if (stat === 13) {
-                // STAT_SEQUENCE — CE ref: stat.cc _critter_sequence = 10 + 2*PER
-                return 10 + 2 * obj.getStat('PER')
+                // STAT_SEQUENCE — CE ref: stat.cc:572 baseStats[STAT_SEQUENCE] = 2 * perception
+                return obj.getStat('Sequence')
             }
             // STAT_DAMAGE_THRESHOLD (17-23) and STAT_DAMAGE_RESISTANCE (24-30)
             // CE ref: stat.cc critterGetStat — returns critter base stat + equipped armour contribution
