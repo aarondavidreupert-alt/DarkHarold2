@@ -173,8 +173,9 @@ interface DamageCalculationContext {
     critMult: number  // critical hit multiplier (1 = normal hit)
     ammoX: number     // ammo damage multiplier
     ammoY: number     // ammo damage divisor (≥1; vanilla adds a separate /2)
-    DT: number        // damage threshold (post bypass/penetrate adjustments)
-    DR: number        // damage resistance 0–100 (clamped, ammo RM already applied)
+    ammoRM: number    // ammo damage resistance modifier (used differently by vanilla vs YAAM)
+    DT: number        // damage threshold (post bypass/penetrate adjustments; ammo RM NOT applied here for vanilla)
+    DR: number        // damage resistance 0–100 (clamped; ammo RM already applied for vanilla/Glovz)
     CD: number        // combat difficulty modifier (75/100/125)
 }
 
@@ -220,13 +221,24 @@ function computeDamageGlovzTweak(ctx: DamageCalculationContext): number {
 }
 
 function computeDamageYaam(ctx: DamageCalculationContext): number {
+    // CE ref: combat.cc:6767 damageModCalculateYaam
+    // (a) DT subtracted BEFORE multiply; (b) /2 halving step present;
+    // (c) ammoRM adjusts DT (not DR): calculatedDT = DT - ammoRM; if <0 → extra DR penalty
+    let calcDT = ctx.DT - ctx.ammoRM
+    let extraDR = 0
+    if (calcDT < 0) {
+        extraDR = -calcDT * 10
+        calcDT = 0
+    }
+    const calcDR = Math.min(99, ctx.DR + extraDR)
     let d = ctx.RD + ctx.bonus
+    d -= calcDT
+    if (d <= 0) return 0
     d = Math.trunc(d * ctx.critMult * ctx.ammoX)
     if (ctx.ammoY !== 0) d = Math.trunc(d / ctx.ammoY)
-    // no /2 halving step; DT then DR (same order as vanilla)
+    d = Math.trunc(d / 2)
     d = Math.trunc(d * ctx.CD / 100)
-    d -= ctx.DT
-    if (d > 0) d -= Math.trunc(d * ctx.DR / 100)
+    if (d > 0) d -= Math.trunc(d * calcDR / 100)
     if (d < 0) d = 0
     return d
 }
@@ -622,7 +634,7 @@ export class Combat {
         var CD = Config.combat.difficultyModifier
 
         var RD = getRandomInt(wep.minDmg, wep.maxDmg)
-        var damage = computeDamage({ RD, bonus: damageBonus, critMult: critMultiplier, ammoX: ammoStats.X, ammoY: ammoStats.Y, DT, DR, CD })
+        var damage = computeDamage({ RD, bonus: damageBonus, critMult: critMultiplier, ammoX: ammoStats.X, ammoY: ammoStats.Y, ammoRM: ammoStats.RM, DT, DR, CD })
 
         // Post-calculation perks (flat bonuses after main formula)
         if (obj.isPlayer) {
@@ -687,7 +699,7 @@ export class Combat {
         var CD = Config.combat.difficultyModifier
 
         var RD = getRandomInt(mode.minDmg, mode.maxDmg)
-        var damage = computeDamage({ RD, bonus: 0, critMult: critMultiplier, ammoX: 1, ammoY: 1, DT, DR, CD })
+        var damage = computeDamage({ RD, bonus: 0, critMult: critMultiplier, ammoX: 1, ammoY: 1, ammoRM: 0, DT, DR, CD })
 
         // Post-calculation perks
         if (obj.isPlayer) {
