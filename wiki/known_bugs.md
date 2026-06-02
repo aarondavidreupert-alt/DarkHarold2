@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02** (time_clock audit added §12; frm_animation audit added §13)
+> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -195,7 +195,21 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 13. FRM Animation Pipeline
+## 13. Elevation System
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| EL1 | **`elevation(obj)` always returns player's current elevation.** `scripting.ts:753` returns `globalState.currentElevation` for all objects. CE returns `obj->elevation`. Scripts querying another object's floor get the wrong answer. | `scripting.ts:753`, `vm_bridge.ts:158` | `interpreter_extra.cc:2285 opGetObjectElevation()` | major | bug |
+| EL2 | **`doEnterElevation()` fires `map_enter_p_proc` on stair/ladder elevation change.** CE `mapSetElevation` fires only `map_update_p_proc`. DH2 calls `doEnterElevation()` on every stair/ladder use, triggering map-entry side-effects (light resets, NPC repositions, first-visit flags) on every floor change. | `map.ts:193-205`, `object.ts:775,792,799` | `map.cc:362 mapSetElevation()` | major | bug |
+| EL3 | **No elevator opcode handler.** CE `scriptsHandleRequests` has a dedicated elevator branch with door animation and same-map/cross-map split. DH2 routes elevator objects through the generic stair/ladder path. | `object.ts:765` | `scripts.cc:926 scriptsHandleRequests SCRIPT_REQUEST_ELEVATOR` | minor | missing |
+| EL4 | **`_map_data_elev_flags` bitmask not in DH2 map format.** CE stores per-elevation empty/present state in `MapHeader.flags`. DH2 uses `levels` array length only; empty elevations cannot be represented. | `map.ts:435` | `map.cc:81 _map_data_elev_flags` | low | missing |
+| EL5 | **`map_update_p_proc` fires only on current-elevation objects.** `getObjectsAndSpatials()` (map.ts:93) returns only current-elevation objects. CE runs `map_update_p_proc` on all loaded scripts regardless of elevation, so critters on other floors keep ticking. | `map.ts:93`, `scripting.ts:2118` | `scripts.cc:2601 scriptsExecMapUpdateScripts()` | minor | bug |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 14. FRM Animation Pipeline
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -209,7 +223,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 14. Pathfinding
+## 15. Pathfinding
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -226,7 +240,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 15. Intentionally Deferred — Do Not Implement Unless Tasked
+## 16. Intentionally Deferred — Do Not Implement Unless Tasked
 
 These systems are out-of-scope and marked deliberately incomplete. They appear in source as stubs only.
 
