@@ -1176,51 +1176,48 @@ export module Scripting {
             const objType = (pid >> 24) & 0xff
             const extra = pro.extra ?? {}
             if (objType === 0 /* OBJ_TYPE_ITEM */) {
-                // item.h DATA_MEMBER constants (fallout2-ce)
+                // CE ref: proto.h ItemDataMember enum / proto.cc:1107 protoGetDataMember
+                // Only these IDs exist in CE — subtype-specific weapon/ammo/armor fields
+                // are NOT accessible via proto_data() in the original engine.
                 switch (data_member) {
-                    case 0: return extra.subType ?? 0       // ITEM_TYPE
-                    case 1: return extra.materialID ?? 0    // ITEM_MATERIAL
-                    case 2: return extra.size ?? 0          // ITEM_SIZE
-                    case 3: return extra.weight ?? 0        // ITEM_WEIGHT
-                    case 4: return extra.cost ?? 0          // ITEM_COST
-                    case 5: return extra.invFRM ?? 0        // ITEM_INV_FID
-                    case 6: return extra.itemFlags ?? 0     // ITEM_FLAGS
-                    case 7: return extra.attackMode ?? 0    // ITEM_FIREMODE
-                    // Weapon/Ammo/Armor subtype-specific fields start at 8
-                    case 8:  return extra.animCode ?? extra.caliber ?? extra.AC ?? 0
-                    case 9:  return extra.minDmg ?? extra.quantity ?? 0
-                    case 10: return extra.maxDmg ?? extra['AC modifier'] ?? 0
-                    case 11: return extra.dmgType ?? extra['DR modifier'] ?? 0
-                    case 12: return extra.maxRange1 ?? extra.damMult ?? 0
-                    case 13: return extra.maxRange2 ?? extra.damDiv ?? 0
-                    case 14: return extra.projPID ?? 0
-                    case 15: return extra.minST ?? 0
-                    case 16: return extra.APCost1 ?? 0
-                    case 17: return extra.APCost2 ?? 0
-                    case 18: return extra.critFail ?? 0
-                    case 19: return extra.perk ?? 0
-                    case 20: return extra.rounds ?? 0
-                    case 21: return extra.caliber ?? 0
-                    case 22: return extra.ammoPID ?? 0
-                    case 23: return extra.maxAmmo ?? 0
-                    default:
-                        warn('proto_data: unknown item data_member=' + data_member + ' pid=0x' + pid.toString(16))
-                        return 0
+                    case 0:   return pid                            // ITEM_DATA_MEMBER_PID
+                    case 3:   return pro.frmPID ?? 0               // ITEM_DATA_MEMBER_FID
+                    case 4:   return pro.lightDistance ?? 0        // ITEM_DATA_MEMBER_LIGHT_DISTANCE
+                    case 5:   return pro.lightIntensity ?? 0       // ITEM_DATA_MEMBER_LIGHT_INTENSITY
+                    case 6:   return extra.itemFlags ?? 0          // ITEM_DATA_MEMBER_FLAGS
+                    case 7:   return extra.attackMode ?? 0         // ITEM_DATA_MEMBER_EXTENDED_FLAGS
+                    case 8:   return 0                             // ITEM_DATA_MEMBER_SID (not persisted)
+                    case 9:   return extra.subType ?? 0            // ITEM_DATA_MEMBER_TYPE
+                    case 11:  return extra.materialID ?? 0         // ITEM_DATA_MEMBER_MATERIAL
+                    case 12:  return extra.size ?? 0               // ITEM_DATA_MEMBER_SIZE
+                    case 13:  return extra.weight ?? 0             // ITEM_DATA_MEMBER_WEIGHT
+                    case 14:  return extra.cost ?? 0               // ITEM_DATA_MEMBER_COST
+                    case 15:  return extra.invFRM ?? 0             // ITEM_DATA_MEMBER_INVENTORY_FID
+                    case 555: return extra.maxRange1 ?? 0          // ITEM_DATA_MEMBER_WEAPON_RANGE (weapon only)
+                    default:  return 0
                 }
             } else if (objType === 1 /* OBJ_TYPE_CRITTER */) {
-                // FO2-CE ref: critter.h DATA_MEMBER constants
+                // CE ref: proto.h CritterDataMember enum / proto.cc:1166 protoGetDataMember
                 switch (data_member) {
-                    case 0:  return extra.killType ?? 0          // CRITTER_KILL_TYPE
-                    case 1:  return extra.headFRM ?? 0           // CRITTER_HEAD_FID (dialog portrait)
-                    case 2:  return extra.aiPacket ?? extra.AI ?? 0 // CRITTER_AI_PACKET
-                    case 3:  return extra.team ?? 0              // CRITTER_TEAM_NUM
-                    case 4:  return extra.flags ?? 0             // CRITTER_FLAGS
-                    case 9:  return extra.baseHP ?? extra.HP ?? 0  // CRITTER_BASE_HP
-                    case 10: return extra.baseAP ?? extra.AP ?? 0  // CRITTER_BASE_AP
-                    case 11: return extra.baseAC ?? extra.AC ?? 0  // CRITTER_BASE_AC
-                    default:
-                        warn('proto_data: critter data_member=' + data_member + ' not implemented pid=0x' + pid.toString(16))
-                        return 0
+                    case 0:   return pid                            // CRITTER_DATA_MEMBER_PID
+                    case 3:   return pro.frmPID ?? 0               // CRITTER_DATA_MEMBER_FID
+                    case 4:   return pro.lightDistance ?? 0        // CRITTER_DATA_MEMBER_LIGHT_DISTANCE
+                    case 5:   return pro.lightIntensity ?? 0       // CRITTER_DATA_MEMBER_LIGHT_INTENSITY
+                    case 6:   return extra.flags ?? 0              // CRITTER_DATA_MEMBER_FLAGS
+                    case 7:   return extra.extendedFlags ?? 0      // CRITTER_DATA_MEMBER_EXTENDED_FLAGS
+                    case 8:   return 0                             // CRITTER_DATA_MEMBER_SID
+                    case 10:  return extra.headFRM ?? extra.head ?? 0 // CRITTER_DATA_MEMBER_HEAD_FID
+                    case 11:  return extra.bodyType ?? 0           // CRITTER_DATA_MEMBER_BODY_TYPE
+                    default:  return 0
+                }
+            } else if (objType === 2 /* OBJ_TYPE_SCENERY */) {
+                // CE ref: proto.h SceneryDataMember enum / proto.cc protoGetDataMember
+                switch (data_member) {
+                    case 6:  return extra.flags ?? 0               // SCENERY_DATA_MEMBER_FLAGS
+                    case 7:  return extra.extendedFlags ?? 0       // SCENERY_DATA_MEMBER_EXTENDED_FLAGS
+                    case 9:  return extra.subType ?? 0             // SCENERY_DATA_MEMBER_TYPE
+                    case 11: return extra.materialID ?? 0          // SCENERY_DATA_MEMBER_MATERIAL
+                    default: return 0
                 }
             }
             warn('proto_data: unsupported objType=' + objType + ' data_member=' + data_member)
