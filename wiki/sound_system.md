@@ -2,7 +2,7 @@
 
 Documents the Fallout 2 sound system: ACM audio format, SFX naming conventions, ambient sound, music, and DH2's Web Audio API implementation.
 
-**Ground-truth source:** `raw/fallout2-ce/src/sound_decoder.cc`, `sound_effects_list.cc`, `game_sound.cc`, `game_sound.h`, `audio_file.cc`, `interpreter_extra.cc`
+**Ground-truth source:** `raw/fallout2-ce/src/sound_decoder.cc`, `sound_effects_list.cc`, `game_sound.cc`, `game_sound.h`, `audio_file.cc`, `audio.cc`, `audio_engine.cc`, `interpreter_extra.cc`
 **DH2 implementation:** `src/audio.ts`, `src/soundMap.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/data.ts`, `src/map.ts`
 
 ---

@@ -494,3 +494,64 @@ if (metarule(14, 0)) {
 ```
 
 DH2: `mapFirstRun` is `true` in `enterMap()` when `isFirstRun=true`, then set to `false` after the first `updateMap()` call.
+
+---
+
+## 12. Named Events System — NEVS (`nevs.cc`)
+
+> **Source anchor:** `raw/fallout2-ce/src/nevs.cc` (`_nevs_addevent`, `_nevs_signal`, `_nevs_update`, `_nevs_clearevent`)
+
+### 12.1 Overview
+
+CE provides an internal engine subsystem for named asynchronous events called NEVS (Named EVent System). It allows C-side engine code to register named event slots, signal them asynchronously, and flush pending signals each tick by executing the registered script procedure. NEVS is not directly accessible from `.int` script opcodes — it is called exclusively from C engine code.
+
+### 12.2 Data Structure
+
+```c
+// nevs.cc
+#define NEVS_SIZE 40   // maximum concurrent named event slots
+
+typedef struct Nevs {
+    char     name[32];    // unique event name (null-terminated)
+    Program* program;     // pointer to the owning script program
+    int      proc;        // procedure index within that program
+    int      type;        // NEVS_TYPE_EVENT (0) or NEVS_TYPE_HANDLER (1)
+    int      hits;        // pending signal counter (incremented by _nevs_signal)
+    int      busy;        // non-zero while the handler is executing (re-entrancy guard)
+} Nevs;
+```
+
+### 12.3 Event Types
+
+| Constant | Value | Behaviour |
+|----------|-------|-----------|
+| `NEVS_TYPE_EVENT` | 0 | One-shot: slot is reset (cleared) after the procedure fires once. |
+| `NEVS_TYPE_HANDLER` | 1 | Persistent: slot remains registered after firing; can be signalled repeatedly. |
+
+### 12.4 Core Functions
+
+**`_nevs_addevent(name, program, proc, type)`**  
+Registers a named event in the 40-slot array. If a slot with the same `name` already exists it is replaced. Returns `0` on success, `-1` if the array is full.
+
+**`_nevs_signal(name)`**  
+Increments the `hits` counter for the slot matching `name`. The signal is deferred — the procedure is not executed immediately.
+
+**`_nevs_update()`**  
+Called once per game tick by the CE engine. Iterates the 40 slots; for each slot where `hits > 0` and `busy == 0`, calls `_executeProc(program, proc)` and decrements `hits`. For `NEVS_TYPE_EVENT` slots, resets the slot to empty after the call. Re-entrancy is guarded by the `busy` flag.
+
+**`_nevs_clearevent(name)`**  
+Clears and resets the named slot without firing it.
+
+### 12.5 DH2 Status — NOT IMPLEMENTED
+
+No `_nevs_addevent`, `_nevs_signal`, or `_nevs_update` equivalent exists anywhere in DH2 source. Because NEVS is not script-opcode-accessible, its absence is invisible to `.int` script code. However, any CE engine behaviour that internally fires named events (e.g. certain map-level C callbacks) is silently absent in DH2.
+
+| Item | Status |
+|------|--------|
+| `_nevs_addevent` | No DH2 equivalent |
+| `_nevs_signal` | No DH2 equivalent |
+| `_nevs_update` per-tick flush | No DH2 equivalent |
+| `_nevs_clearevent` | No DH2 equivalent |
+| Script opcode exposure | None in CE; not applicable in DH2 |
+
+<!-- audited: 2026-06-02 -->

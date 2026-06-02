@@ -270,7 +270,56 @@ Up to 6 indicators per `INDICATOR_SLOTS_COUNT`. Rendered in its own `gIndicatorB
 
 ---
 
-## 10. Known Gaps vs CE
+## 10. Skilldex (`skilldex.cc` / `src/ui_skilldex.ts`)
+
+> **Source anchor:** `raw/fallout2-ce/src/skilldex.cc` (`skilldexOpen`, `skilldexClose`, `gSkilldexSkills`)  
+> **DH2 impl:** `src/ui_skilldex.ts` (`showSkilldex`, `closeSkilldex`); `UIMode.skilldex = 8`
+
+### 10.1 CE Implementation
+
+`skilldexOpen()` — disables ISO mode, creates the Skilldex window using FRM art from the `intrface/` directory, and renders 10 skill buttons. Each button is labelled with the skill name and shows the player's current percentage for that skill.
+
+The 10 skills shown, in order, are a fixed subset of CE's `Skill` enum:
+
+| Index | CE Skill constant | Skill name |
+|-------|------------------|------------|
+| 0 | `SKILL_SMALL_GUNS` | Small Guns |
+| 1 | `SKILL_BIG_GUNS` | Big Guns |
+| 2 | `SKILL_ENERGY_WEAPONS` | Energy Weapons |
+| 3 | `SKILL_MELEE_WEAPONS` | Melee Weapons |
+| 4 | `SKILL_THROWING` | Throwing |
+| 5 | `SKILL_FIRST_AID` | First Aid |
+| 6 | `SKILL_DOCTOR` | Doctor |
+| 7 | `SKILL_SNEAK` | Sneak |
+| 8 | `SKILL_LOCKPICK` | Lockpick |
+| 9 | `SKILL_STEAL` | Steal |
+
+This intentionally omits the 8 remaining CE skills (Traps, Science, Repair, Speech, Barter, Gambling, Outdoorsman, and the combat-only unarmed skills). Clicking a skill button calls `actionUseSkill(gDude, target, skillId)` via a callback chain.
+
+### 10.2 DH2 Implementation (`src/ui_skilldex.ts`)
+
+`showSkilldex()` sets `globalState.uiMode = UIMode.skilldex` and renders the same 10-skill list as a `WindowFrame` overlay. Each skill entry is a clickable button. On click, `useSkill(skill, target)` is called, which defers to `main.ts:useSkill` for the actual skill-use logic.
+
+`closeSkilldex()` closes the `WindowFrame` and resets `uiMode`.
+
+The Skilldex is opened from:
+- The `skilldexButton` HUD button (see §4.5)
+- The `[Skill]` entry in the context menu (`ui_contextmenu.ts`)
+
+### 10.3 Known Gaps vs CE
+
+No functional gap in the skill list itself — DH2 shows the same 10 skills as CE. Gaps exist in the downstream skill-use system documented in `wiki/skill_checks.md`, not in the Skilldex window itself.
+
+| Item | CE | DH2 | Status |
+|------|-----|-----|--------|
+| Skill percentage display | Each button shows current skill % | Shown | ✅ |
+| 10-skill subset | Fixed `gSkilldexSkills[10]` | Same fixed list | ✅ |
+| `actionUseSkill` callback chain | CE routes through `actions.cc` | DH2 calls `main.ts:useSkill` | Functional; detail gaps in skill_checks.md |
+| Window FRM art | `intrface/skldxbox.frm` etc. | DH2 uses equivalent PNG art | ✅ |
+
+---
+
+## 11. Known Gaps vs CE
 
 | # | Feature | CE Behavior | DH2 Status | Impact |
 |---|---------|-------------|------------|--------|

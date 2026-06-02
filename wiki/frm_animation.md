@@ -264,4 +264,62 @@ For idle animations the practical result is equivalent; hitching is more likely 
 | FA5 | **`obj.shift = {x:0, y:0}` is truthy at walk start; frame 0's static ox/oy is skipped.** At the beginning of a walk cycle, `shift` is set to `{x:0,y:0}` — a truthy object. The renderer therefore takes the shift path and adds `+0`, while the correct static offset for frame 0 would be `frameInfo.ox`. For most walk FRMs `ox` at frame 0 is zero so the effect is invisible, but any FRM where frame 0 has a non-zero initial delta will display one frame off-anchor. | `renderer.ts:311`, `object.ts:1417` | `object.cc _obj_offset()` | low | bug |
 | FA6 | **FID composition / weapon stance animation not implemented for NPC critters.** CE builds a Frame Identifier via `buildFid(objectType, animType, weaponAnimCode, direction, rotation)` (`art.cc`), where `weaponAnimCode` selects the critter's armed-pose FRM set (0=unarmed, 1=pistol, 3=rifle, 4=big gun, etc.). DH2 has no `buildFid` equivalent — critter FRM paths come from a static `skin` string. The player's `skin` is updated at weapon-swap time via `playWeaponSwapAnim`, but NPC critters on a map never have their skin recalculated from their held weapon; they always display unarmed animations. Full detail: `wiki/animation_system.md §8` (weapon-code-aware STAND/WALK gap). | `src/object.ts`; `src/renderer.ts` | `art.cc buildFid()`; `art.h ART_TYPE_CRITTER`; `proto_types.h ItemWeaponData.animCode` | medium | missing |
 
+---
+
+## 8. Palette Cycling (`cycle.cc`)
+
+> **Source anchor:** `raw/fallout2-ce/src/cycle.cc` (`colorCycleTicker`, `cycleSetSpeedFactor`, `cycleInit`)
+
+### 8.1 Overview
+
+CE animates certain palette regions at runtime by rotating a block of palette entries each tick. This produces the distinctive animated water, fire, and terminal-monitor effects without any per-object animation data — the palette itself changes, and every pixel referencing those indices appears to move.
+
+Palette cycling is gated by `settings.system.color_cycling` in `fallout2.cfg`. If disabled, all cycling groups remain static.
+
+### 8.2 Color Groups
+
+Five named groups are cycled independently:
+
+| Group | Palette entries | Byte span | Update tier |
+|-------|----------------|-----------|-------------|
+| `slime` | 4 entries | 12 bytes | slow (5 Hz) |
+| `shoreline` | 6 entries | 18 bytes | medium (7 Hz) |
+| `fire_slow` | 5 entries | 15 bytes | slow (5 Hz) |
+| `fire_fast` | 5 entries | 15 bytes | fast (10 Hz) |
+| `monitors` | 5 entries | 15 bytes | very_fast (30 Hz) |
+
+Each group advances in round-robin fashion: the first entry rotates to the last position (or vice versa) at each update interval.
+
+### 8.3 Speed Tiers
+
+| Tier | Frequency | Period (ms) |
+|------|-----------|-------------|
+| slow | 5 Hz | 200 |
+| medium | 7 Hz | ~143 |
+| fast | 10 Hz | 100 |
+| very_fast | 30 Hz | ~33 |
+
+`cycleSetSpeedFactor(n)` multiplies all period lengths by `n`, stored in `settings.system.cycle_speed_factor`. A value of 1 is normal speed; higher values slow all cycling groups proportionally.
+
+### 8.4 CE Ticker Integration
+
+CE calls `tickersAdd(colorCycleTicker)` during init (`cycle.cc:cycleInit`). The ticker is invoked every frame by the main loop's ticker dispatch. Each call checks elapsed time per group and rotates its palette slice if the period has elapsed.
+
+Because the effect is palette-level, it applies to every FRM sprite on screen simultaneously — a single palette write animates all water tiles, all fire tiles, and all active terminal monitors at once.
+
+### 8.5 DH2 Status — NOT IMPLEMENTED
+
+DH2 uses pre-baked PNG sprites extracted from FRM data via the Python pipeline. Palette indices are resolved to RGBA at extraction time; there is no runtime palette table. Palette cycling therefore has no equivalent mechanism in DH2.
+
+| Item | Status |
+|------|--------|
+| `color_cycling` ini flag | Not read by DH2 |
+| `cycle_speed_factor` ini flag | Not read by DH2 |
+| `colorCycleTicker` | No DH2 equivalent; no `tickersAdd` system |
+| Animated water (shoreline/slime groups) | Shows static frame only |
+| Animated fire (fire_slow / fire_fast groups) | Shows static frame only |
+| Animated terminals (monitors group) | Shows static frame only |
+
+Implementing palette cycling in DH2 would require either (a) baking multiple pre-rotated PNG frames for each cycling group and animating them as a texture sequence in the WebGL renderer, or (b) passing palette-index textures to the GPU and performing the rotation in the fragment shader each frame. Neither approach is currently planned.
+
 <!-- audited: 2026-06-02 -->

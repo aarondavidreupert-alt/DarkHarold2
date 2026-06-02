@@ -424,7 +424,41 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 26. Intentionally Deferred — Do Not Implement Unless Tasked
+## 26. Action Dispatch System (`actions.cc`)
+
+See [wiki/actions.md](actions.md) for full documentation.
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| AC1 | **Knockback not implemented.** `actionKnockdown` slides critters along the tile grid after high-damage hits. DH2 applies HP loss only; `defenderKnockback` is computed but never used. | `src/combat.ts` | `actions.cc:102 actionKnockdown` | major | missing |
+| AC2 | **Death animation not selected by damage type or violence level.** `_pick_death` selects from 7 death FRMs based on damage type, violence_level preference, and per-critter art availability. DH2 `critterKill` always plays the generic `'dead'` animation. | `src/combat.ts:critterKill` | `actions.cc:183 _pick_death` | major | missing |
+| AC3 | **`CRITTER_SPECIAL_DEATH` flag not checked.** CE checks `critter_flag_check(CRITTER_SPECIAL_DEATH)` in `_pick_death` and forces `ANIM_EXPLODED_TO_NOTHING`. DH2 never reads this flag. | — | `actions.cc:209` | minor | missing |
+| AC4 | **Hit-from-front vs hit-from-back not tracked for death direction.** `_is_hit_from_front` picks `FALL_FRONT` vs `FALL_BACK` based on attacker/defender facing. DH2 always uses the same fall direction. | — | `actions.cc:1512` | low | missing |
+| AC5 | **AI combat taunts not queued.** `_combatai_msg` fires critter voice-line float text at attack/hit/miss events. DH2 never calls this. | — | `actions.cc:667,689` | minor | missing |
+| AC6 | **`actionUseSkill` party-member delegation absent.** CE delegates skill use to the party member best at the skill and shows their response text. DH2 always uses the player. | `src/main.ts:useSkill` | `actions.cc:1374` | minor | missing |
+| AC7 | **`actionExplode` is a stub.** `scripting.ts:1680` has `explosion()` with hardcoded min/max damage (0, 100), no radius calc, no per-target damage, and no `SCRIPT_PROC_DAMAGE` callbacks. | `src/scripting.ts:1680` | `actions.cc:1582` | major | partial |
+| AC8 | **Damage floating text uses different system.** CE calls `textObjectAdd` per hit for palette-rendered numeric labels with outline color and collision avoidance. DH2 uses `globalState.floatMessages[]` — plain WebGL text, no collision avoidance, no outline. | `src/combat.ts:1044`, `src/renderer.ts:207` | `actions.cc:_show_damage_to_object` | low | partial |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 27. Elevator System (`elevator.cc`)
+
+See [wiki/elevator.md](elevator.md) for full documentation.
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| EV1 | **No gauge animation.** CE smoothly scrolls a gauge pointer as the player travels between floors. DH2 loads the destination immediately with no travel animation. | `src/ui_elevator.ts:79` | `elevator.cc:405 gauge interpolation loop` | low | missing |
+| EV2 | **Sierra-2 / Military Base elevation remapping absent.** CE applies hardcoded offsets for specific elevator IDs. DH2 uses raw `level` from JSON. | `src/ui_elevator.ts:84` | `elevator.cc:354–375` | low | missing |
+| EV3 | **`use_elevator` opcode (0x80FD) not wired.** Scripts cannot trigger elevators programmatically. | — | `elevator.cc` | minor | missing |
+| EV4 | **`console.log` in production path.** `ui_elevator.ts:59–64` uses `console.log` instead of `dbg()`/`dbgWarn()`. | `src/ui_elevator.ts:59` | — | low | bug |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 28. Intentionally Deferred — Do Not Implement Unless Tasked
 
 These systems are out-of-scope and marked deliberately incomplete. They appear in source as stubs only.
 

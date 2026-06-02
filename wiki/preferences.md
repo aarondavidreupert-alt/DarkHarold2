@@ -248,4 +248,91 @@ These `Config` fields appear in `config.ts` with no CE preference panel equivale
 | `Config.controls.*` | Full keyboard binding map; CE uses hardcoded keys + its own key binding system. |
 | `Config.scripting.debugLogShowType.*` | Per-category engine/script debug logging flags. |
 | `Config.engine.debug` | Enables `src/debug.ts` cheat console. |
-<!-- audited: 2026-06-01 -->
+---
+
+## 7. CE In-Game Options Menu (`options.cc`)
+
+> **Source anchor:** `raw/fallout2-ce/src/options.cc`
+
+CE `options.cc` implements the in-game pause/options overlay — a separate window from the Preferences window in `preferences.cc`. It is opened when the player presses Escape or clicks the Menu button on the HUD.
+
+The Options window presents a row of 6 action buttons plus the same 5 audio sliders that appear in the Preferences window:
+
+| Button | Action |
+|--------|--------|
+| Done | Close the overlay and resume play |
+| Save Game | Open the save-game screen |
+| Load Game | Open the load-game screen |
+| Preferences | Open the Preferences window (launches `doPreferences()`) |
+| Credits | Play the credits sequence |
+| Exit to DOS | Quit the game entirely |
+
+Audio sliders (Master, Music, SFX, Speech, Brightness) are inline copies of the Preferences sliders, sharing the same `settings.sound.*` / `settings.preferences.brightness` storage.
+
+### 7.1 DH2 Equivalent
+
+`UIMode.options` (= 15) panel in `src/ui_options.ts`, opened via the "Menu" HUD button (wired in `src/ui.ts`). The panel is a `WindowFrame` overlay built by `buildPrefsPanel()`.
+
+**DH2 gaps vs CE `options.cc`:**
+- No CANCEL button: changes to sliders are applied immediately; CE reverts on Cancel via `_RestoreSettings()`.
+- No DEFAULT / reset-to-defaults button: CE's Preferences sub-window has a DEFAULT button that calls `preferencesSetDefaults(true)`.
+- No Credits button: credits sequence not implemented.
+- No Exit to DOS equivalent beyond the browser tab.
+- DH2 collapses the Options overlay and Preferences window into a single panel; CE keeps them as separate windows.
+
+---
+
+## 8. Floating Text Objects (`text_object.cc`)
+
+> **Source anchor:** `raw/fallout2-ce/src/text_object.cc` (`textObjectAdd`, `textObjectsRenderInRect`, `textObjectFindPlacement`, `textObjectsSetBaseDelay`)
+
+### 8.1 CE Architecture
+
+CE maintains a fixed pool of up to `TEXT_OBJECTS_MAX_COUNT = 20` `TextObject` instances:
+
+```c
+typedef struct TextObject {
+    Object*  owner;          // object the text floats above
+    int      created_time;   // game time at creation
+    int      tile;           // anchor tile number
+    int      x, y;           // pixel offset within tile
+    Buffer*  buffer;         // pre-rendered pixel data
+    int      flags;          // MARKED_FOR_REMOVAL (0x01), UNBOUNDED (0x02)
+} TextObject;
+```
+
+`textObjectAdd(obj, string, font, color, outlineColor, rect*)` — the main entry point called from `actions.cc` (e.g. `_show_damage_to_object` to display damage numbers in combat).
+
+`textObjectFindPlacement` positions each new text object above the owner's tile and runs a collision check against all currently active text objects to prevent overlap.
+
+Duration is computed from:
+```
+duration = gTextObjectsBaseDelay + (lineCount - 1) × gTextObjectsLineDelay
+```
+- `gTextObjectsBaseDelay` defaults to 3500 ms; configurable via `textObjectsSetBaseDelay(value)` which reads `settings.preferences.text_base_delay` (range 1.0–6.0 seconds).
+- `gTextObjectsLineDelay = 1399 ms` per additional line beyond the first.
+
+`textObjectsRenderInRect` is called each frame to blit active text objects into the main window buffer.
+
+### 8.2 DH2 Equivalent
+
+| CE component | DH2 equivalent | Location |
+|---|---|---|
+| `TextObject` pool (max 20) | `globalState.floatMessages[]` array | `src/globalState.ts:74` |
+| `textObjectsRenderInRect` | Float message render loop | `src/renderer.ts:207–216` |
+| Duration / expiry check | `main.ts:1011–1013` | Compared against `Config.ui.floatMessageDuration` |
+| `float_msg` opcode (0x810A) | `Script.float_msg()` | `src/scripting.ts`; wired in `src/vm_bridge.ts` |
+
+`Config.ui.floatMessageDuration` is fixed at 3 seconds (equivalent to CE's base delay default of 3.5 s, but not configurable at runtime).
+
+### 8.3 DH2 Gaps vs CE
+
+| Gap | CE behaviour | DH2 behaviour |
+|-----|-------------|---------------|
+| Configurable duration | `text_base_delay` preference (1–6 s) fed into `textObjectsSetBaseDelay()` | Fixed 3 s (`Config.ui.floatMessageDuration`); preference not wired |
+| Per-line delay | `gTextObjectsLineDelay = 1399 ms` × extra lines | Not implemented; all messages use the flat duration |
+| Collision avoidance | `textObjectFindPlacement` checks active objects and shifts upward to avoid overlap | No placement logic; messages may stack on the same pixel |
+| Font / color / outline | `textObjectAdd` accepts font, foreground color, and outline color; each message can differ | Font/color/outline ignored; DH2 renders plain HTML text |
+| Maximum concurrent | Hard cap of 20 via `TEXT_OBJECTS_MAX_COUNT` | No cap; array grows unbounded (small in practice) |
+
+<!-- audited: 2026-06-02 -->

@@ -371,6 +371,84 @@ This is a Script method, not a VM opcode — it is invoked when the INT script c
 
 ---
 
+## MessageList Format (`message.cc`)
+
+> **Source anchor:** `raw/fallout2-ce/src/message.cc` (`messageListLoad`, `messageListGetItem`, `_message_make_path`, `_message_find`, `badwordsInit`)
+
+### MessageList Data Structures
+
+```c
+typedef struct MessageListItem {
+    int  num;          // message ID (used as lookup key)
+    int  flags;        // typically 0; reserved for future use
+    char text[512];    // display string
+    char sound[512];   // optional ACM speech file stem (e.g. "HV11AR1C")
+} MessageListItem;
+
+typedef struct MessageList {
+    int              size;    // number of entries loaded
+    MessageListItem* items;   // dynamically allocated array
+} MessageList;
+```
+
+### `.msg` File Format
+
+Each non-comment line in a `.msg` file uses one of two forms:
+
+```
+{<number>}{<flags>}{<text>}
+{<number>}{<flags>}{<text>}{<sound>}
+```
+
+- Lines beginning with `#` are comments and are ignored.
+- `<number>` is the integer message ID.
+- `<flags>` is typically `0`; the field is parsed but unused in CE gameplay.
+- `<text>` is the display string (up to 511 characters).
+- `<sound>` (optional) specifies an `.ACM` speech file stem. When present, CE resolves `<sound>.acm` from the speech directory for voice-over playback.
+
+### Loading and Lookup
+
+**`messageListLoad(list, path)`** — loads a `.msg` file from disk. Path is resolved via `_message_make_path`, which prepends the data directory and the current language subdirectory (e.g. `data/text/english/dialog/<name>.msg`).
+
+**`messageListGetItem(list, item)`** — looks up a `MessageListItem` by `item->num` via `_message_find`, which performs a linear scan through `list->items`. Returns a pointer to the matching entry, or `NULL` if not found.
+
+### Message ID Ranges
+
+| Range | Purpose |
+|-------|---------|
+| 0 – 0x0FFF | Standard per-script or per-dialog messages |
+| 0x1000 – 0x1FFF | Proto-description messages (item/critter examine text) |
+| 0x2000 – 0x2FFF | Persistent messages (survive across map transitions) |
+| 0x3000 – 0x3FFF | Temporary messages (discarded on map unload) |
+
+### Language Filter (`badwordsInit`)
+
+When `settings.preferences.language_filter` is enabled, CE loads `data/text/english/game/badwords.msg` on startup. Any word appearing in that list is replaced with characters drawn from:
+
+```c
+const char* gBadwordsReplacements = "!@#$%&*@#*!&$%#&%#*%!$&%@*$@&"
+```
+
+The filter is applied post-lookup via `_message_censor` before the text is displayed.
+
+### DH2 Equivalent
+
+DH2 message loading lives in `src/data.ts`:
+
+- `loadMsgFile(path)` — loads a `.msg` file and returns a `{[id: number]: string}` map. The asset pipeline pre-converts `.msg` files to JSON during extraction; at runtime DH2 fetches the JSON rather than parsing the raw `.msg` format.
+- `getMsgStr(list, id)` — looks up message ID `id` in the pre-loaded map.
+
+**DH2 gaps vs CE `message.cc`:**
+
+| Gap | CE behaviour | DH2 behaviour |
+|-----|-------------|---------------|
+| Language filter | `badwordsInit()` + `_message_censor()` applied to all looked-up strings when `language_filter=1` | No filter; `Config.ui.languageFilter` is not declared or wired |
+| Speech sound field | `sound` field in `.msg` entries resolved to `.acm` file for voice-over | Sound field not extracted or consumed; no speech audio path in DH2 |
+| Persistent / temporary ID ranges | Engine tracks 0x2000–0x2FFF (persistent) and 0x3000–0x3FFF (temporary) lists separately | Not tracked; all message IDs treated uniformly |
+| Path resolution | `_message_make_path` inserts language subdir automatically | Pipeline bakes messages at extraction time; runtime path is fixed |
+
+---
+
 ## Known Gaps vs. CE
 
 | Feature | CE | DH2 | Notes |
