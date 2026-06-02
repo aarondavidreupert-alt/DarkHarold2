@@ -20,6 +20,7 @@ import globalState from './globalState.js'
 import { lazyLoadImage } from './images.js'
 import { Critter, Obj, WeaponObj } from './object.js'
 import { Scripting } from './scripting.js'
+import * as Endgame from './endgame.js'
 
 const weaponSkins: { [weapon: string]: string } = {
     uzi: 'i',
@@ -507,24 +508,13 @@ export function critterKill(
             })
         }
 
-        // Player death: show game-over overlay after the death animation completes
+        // Player death: CE ref: critter.cc:912 — calls endgameSetupDeathEnding(REASON_DEATH)
+        // then the death ending scene plays (narrator slide with voiceover).
         if (obj.isPlayer && typeof document !== 'undefined') {
-            const overlay = document.createElement('div')
-            overlay.id = 'playerDeadOverlay'
-            Object.assign(overlay.style, {
-                position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
-                background: 'rgba(0,0,0,0.75)', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', zIndex: '9999',
-                cursor: 'default',
+            Endgame.setupDeathEnding(Endgame.DEATH_REASON_DEATH)
+            Endgame.playDeathEnding().catch((e: unknown) => {
+                console.error('[death] playDeathEnding error:', e)
             })
-            const msg = document.createElement('div')
-            Object.assign(msg.style, {
-                color: '#cc0000', fontSize: '48px', fontFamily: 'monospace',
-                textShadow: '2px 2px 8px #000', letterSpacing: '4px',
-            })
-            msg.textContent = 'YOU ARE DEAD'
-            overlay.appendChild(msg)
-            document.body.appendChild(overlay)
         }
 
         // Corpse auto-cleanup: remove empty corpses after a configurable timeout.

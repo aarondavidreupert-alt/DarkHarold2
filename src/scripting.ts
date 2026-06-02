@@ -1838,6 +1838,13 @@ export module Scripting {
         game_ticks(seconds: number) {
             return seconds * 10
         }
+        days_since_visited() {
+            // CE ref: interpreter_extra.cc:3734 opGetDaysSinceLastVisit
+            // Returns floor((currentTick - lastVisitTime) / TICKS_PER_DAY), or -1 if never visited.
+            const lastVisit = globalState.gMap?.lastVisitTime ?? 0
+            if (lastVisit === 0) return -1
+            return Math.floor((GameTime.getTime() - lastVisit) / GameTime.TICKS_PER_DAY)
+        }
         game_time_advance(ticks: number) {
             log('game_time_advance', arguments)
             info('advancing time ' + ticks + ' ticks (' + ticks / 10 + ' seconds)')

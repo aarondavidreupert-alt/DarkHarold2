@@ -55,6 +55,9 @@ export interface SerializedMap {
     roofMap: string[][]
 
     mapObj: any // required?
+
+    // CE ref: map.cc gMapHeader.lastVisitTime — ticks when player last left this map (0 = never)
+    lastVisitTime?: number
 }
 
 export class GameMap {
@@ -71,6 +74,9 @@ export class GameMap {
     mapScript: any = null // Current map script object
     objects: Obj[][] = null // Map objects on all levels
     spatials: any[][] = null // Spatials on all levels
+
+    // CE ref: map.cc gMapHeader.lastVisitTime — ticks when player last left this map (0 = never)
+    lastVisitTime: number = 0
 
     private _removalQueue: Obj[] = []
 
@@ -664,6 +670,8 @@ export class GameMap {
                       lvars: s._script ? Object.assign({}, s._script.lvars) : undefined,
                   })))
                 : [[], [], []],
+            // CE ref: map.cc gMapHeader.lastVisitTime — record exit tick so days_since_visited works
+            lastVisitTime: globalState.gameTickTime,
         }
     }
 
@@ -674,6 +682,7 @@ export class GameMap {
         this.mapObj = obj.mapObj
         this.mapScript = obj.mapScript ? Scripting.deserializeScript(obj.mapScript) : null
         this.objects = obj.objects.map((level) => level.map((obj) => deserializeObj(obj)))
+        this.lastVisitTime = obj.lastVisitTime ?? 0
         // Restore spatials: re-load scripts from names, then reapply saved LVARs.
         // FO2-CE ref: map.cc mapLoad — spatials are always re-initialized from map data
         if (Array.isArray(obj.spatials)) {

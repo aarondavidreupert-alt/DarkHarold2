@@ -130,6 +130,7 @@ export module ScriptVMBridge {
        ,0x80B6: bridged("move_to", 3)
        ,0x8147: bridged("move_obj_inven_to_obj", 2, false)
        ,0x8100: bridged("obj_pid", 1)
+       ,0x8104: bridged("proto_data", 2) // proto_data(pid, data_member) — CE: interpreter_extra.cc opGetProtoData (PS1)
        ,0x80A4: bridged("obj_name", 1)
        ,0x8149: bridged("obj_art_fid", 1)
        ,0x8150: bridged("obj_on_screen", 1)
@@ -161,6 +162,7 @@ export module ScriptVMBridge {
        ,0x814B: bridged("party_member_obj", 1)
        ,0x80EC: bridged("elevation", 1)
        ,0x80F2: bridged("game_ticks", 1)
+       ,0x811B: bridged("days_since_visited", 0) // CE: interpreter_extra.cc:3734 opGetDaysSinceLastVisit
        ,0x8133: bridged("game_ui_disable", 0, false)
        ,0x8134: bridged("game_ui_enable", 0, false)
        ,0x80f8: bridged("tile_is_visible", 1)
