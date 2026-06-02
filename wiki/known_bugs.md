@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15; tile_system added §16; item_use added §17)
+> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15; tile_system added §16; item_use added §17; random_numbers added §18)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -270,7 +270,23 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 18. Pathfinding
+## 18. Random Number System
+
+> Source: `wiki/random_numbers.md` · CE: `random.cc`, `random.h`, `interpreter_extra.cc` · DH2: `src/util.ts`, `src/scripting.ts`, `src/combat.ts`
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| RN1 | **Fixed seed 123 makes every session deterministic.** `Scripting.init()` always calls `seed(123)`, resetting the sin-based PRNG. CE seeds from `compat_timeGetTime()` — different rolls every launch. Every DH2 player gets the same sequence of crits, misses, and drops. | `src/scripting.ts:2206` | `random.cc:39 randomInit()` | minor | bug |
+| RN2 | **`roll_dice` opcode (0x80B5) not registered in `vm_bridge.ts`.** Any script calling `roll_dice` hits an unknown-opcode trap. CE also never implemented the body (predefined error), but CE pushes 0 gracefully. | `src/vm_bridge.ts` | `interpreter_extra.cc:789 opRollDice()` | low | missing |
+| RN3 | **Sniper perk rolls d100 instead of d10.** `combat.ts:526` uses `getRandomInt(1, 100)` vs CE's `randomBetween(1, 10)`. Makes the perk ~10× harder to trigger. Direct cause of §C1. | `src/combat.ts:526` | `combat.cc:3892` | major | bug |
+| RN4 | **`rollSkillCheck` uses 101 outcomes ([0–100]) vs CE's 100 ([1–100]).** Makes combat hit rolls very slightly easier at all skill values. | `src/util.ts:110` | `random.cc:134 randomBetween()` | low | bug |
+| RN5 | **No statistical validation of DH2 sin-PRNG.** CE runs a 100,000-sample chi-squared test at startup. Sin-PRNG has known non-uniform bit patterns that are unmonitored. | `src/util.ts:102` | `random.cc:224 randomValidatePrerandom()` | low | missing |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 19. Pathfinding
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -287,7 +303,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 19. Intentionally Deferred — Do Not Implement Unless Tasked
+## 20. Intentionally Deferred — Do Not Implement Unless Tasked
 
 These systems are out-of-scope and marked deliberately incomplete. They appear in source as stubs only.
 
