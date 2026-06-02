@@ -20,7 +20,7 @@ import { Encounters } from './encounters.js'
 import * as GameTime from './gametime.js'
 import { Point, pointIntersectsCircle } from './geometry.js'
 import globalState from './globalState.js'
-import { createObjectWithPID } from './object.js'
+import { Critter, WeaponObj, createObjectWithPID } from './object.js'
 import { hidev, makeEl, showv, uiCloseWorldMap, uiWorldMapShowArea } from './ui.js'
 import { clamp, getFileText, getRandomInt, isNumeric, parseIni } from './util.js'
 import { Config } from './config.js'
@@ -412,9 +412,22 @@ export module Worldmap {
                 group.critters.forEach(function (critter) {
                     //console.log("critter: %o", critter)
                     const obj = createObjectWithPID(critter.pid, critter.script ? critter.script : undefined)
-                    //console.log("obj: %o", obj)
 
-                    // TODO: items & equipping
+                    // CE ref: encounter.cc — add encounter items to critter inventory,
+                    // then equip wielded weapon into leftHand slot (overrides fist default).
+                    if (obj instanceof Critter && critter.items.length > 0) {
+                        for (const encItem of critter.items) {
+                            const itemObj = createObjectWithPID(encItem.pid)
+                            obj.addInventoryItem(itemObj, encItem.amount ?? 1)
+                            if (encItem.wielded && itemObj instanceof WeaponObj && itemObj.weapon !== null) {
+                                // addInventoryItem clones into inventory; get that reference
+                                const invRef = obj.inventory[obj.inventory.length - 1] as WeaponObj
+                                if (invRef instanceof WeaponObj) obj.leftHand = invRef
+                            }
+                        }
+                        obj.art = obj.getAnimation('idle')
+                    }
+
                     globalState.gMap.addObject(obj)
                     obj.move(critter.position)
                 })
