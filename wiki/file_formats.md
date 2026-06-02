@@ -357,7 +357,7 @@ Opcode stream; each opcode is `U16`. Some opcodes read a following U32 argument:
 - `0x8004` — `op_jmp` (absolute target offset, U32)
 - `0x8005` — `op_call` (procedure name index, U32)
 
-All other opcodes are nullary (no trailing data). See [`wiki/opcodes.md`](opcodes.md) for the full table.
+All other opcodes are nullary (no trailing data). See [`wiki/scripting_reference.md`](scripting_reference.md) for the full table.
 
 ### Script Procedure Hooks
 

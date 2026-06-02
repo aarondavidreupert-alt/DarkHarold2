@@ -3,7 +3,7 @@
 Documents the Fallout 2 lighting system — intensity scale, ambient light,
 per-object light sources, propagation/blockers, night penalty, time-of-day
 transitions, scripting opcodes, visibility interactions, and render integration.
-Cross-reference with [wiki/map_rendering.md §9 (Lighting Integration)](map_rendering.md)
+Cross-reference with [wiki/rendering.md §3 (Tile Drawing & Object Order)](rendering.md)
 for how tile intensity feeds into the WebGL render pipeline.
 See also [wiki/known_bugs.md §LD](known_bugs.md) for open lighting bugs.
 
@@ -608,7 +608,7 @@ The tile-intensity texture is uploaded once per frame in
 `renderLitFloorCPU()` / `renderLitFloorGPU()` after
 `Lightmap.rebuildDynamicLight()` has run (`webglrenderer.ts:504-514`).
 
-Cross-reference: [wiki/map_rendering.md §9 (Lighting Integration)](map_rendering.md)
+Cross-reference: [wiki/rendering.md §3 (Tile Drawing & Object Order)](rendering.md)
 documents the GPU floor-lighting FBO path and `floorLightingMode` flag.
 
 ---

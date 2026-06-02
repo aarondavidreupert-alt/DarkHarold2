@@ -266,7 +266,7 @@ These use `document.addEventListener('keydown')` directly and have full modifier
 | `Enter` | combatAttemptEnd() | — | ❌ `'return'` not bound in DH2 |
 | `1`–`8` | Direct skill shortcuts | `1`–`8` in Skilldex panel | ⚠️ Only works when Skilldex is open |
 | `Home` | Center on player | — | ❌ Not implemented (`Home` produces garbage in heart.ts) |
-| `-` / `_` | Brightness decrease | — | ❌ No brightness control (gap #5 in preferences.md) |
+| `-` / `_` | Brightness decrease | — | ❌ No brightness control (gap #5 in settings.md) |
 | `=` / `+` | Brightness increase | — | ❌ No brightness control |
 | `F2` | Volume down | — | ❌ F2 collides with `q` (elevation down) in heart.ts |
 | `F3` | Volume up | — | ❌ F3 collides with `r` (toggle roof) |

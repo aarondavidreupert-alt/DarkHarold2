@@ -2,7 +2,7 @@
 
 > Ground-truth: `raw/fallout2-ce/src/item.cc`, `item.h`, `proto_types.h`, `combat.cc`  
 > DH2 impl: `src/critter.ts` (`Weapon` class, attack-mode tables), `src/combat.ts` (`getHitChance`, `getDamageDone`, `getAmmoStats`, `rollHit`), `src/object.ts` (`WeaponObj`)  
-> Cross-reference: [damage_formula.md](damage_formula.md) (full damage math), [combat.md](combat.md) (combat lifecycle, burst, AP pool), [animation_system.md](animation_system.md) (weapon anim codes)
+> Cross-reference: [damage_formula.md](damage_formula.md) (full damage math), [combat.md](combat.md) (combat lifecycle, burst, AP pool), [animation.md](animation.md) (weapon anim codes)
 
 ---
 
@@ -230,7 +230,7 @@ and the **attack FRM suffix** (via `Weapon.getAttackSkin()`).
 | 9 | `WEAPON_ANIMATION_MINIGUN` | `l` | `mahla*` |
 | 10 | `WEAPON_ANIMATION_LAUNCHER` | `m` | `mahma*` |
 
-Note: `animation_system.md §4` lists these under the `WeaponAnimation` enum name; here they
+Note: `animation.md §4` lists these under the `WeaponAnimation` enum name; here they
 are tied to their source PRO field.
 
 ### 6.2 Attack Skin (`getAttackSkin()`) — `critter.ts:362`
@@ -250,7 +250,7 @@ The attack suffix is derived from the **current attack mode string**, not from `
 
 The burst attack always uses the `'fire burst'` skin (`k`) regardless of weapon slot.
 CE uses `_art_get_code` with `ANIM_FIRE_SINGLE` / `ANIM_FIRE_BURST` to compute the same
-suffix (see `animation_system.md §4`).
+suffix (see `animation.md §4`).
 
 ---
 

@@ -38,7 +38,7 @@ DH2 refs:
 - `src/renderer.ts` (`objectRenderInfo`)
 
 Cross-references: `wiki/critter_stats.md`, `wiki/combat.md`,
-`wiki/map_rendering.md` §6 (roof clipping), `wiki/lighting.md` §4 and §8
+`wiki/rendering.md` §3 (roof clipping), `wiki/lighting.md` §4 and §8
 (wall orientation flags, draw order)
 
 <!-- audited: 2026-06-02 -->
@@ -628,7 +628,7 @@ roof tile's flag nibble is set (`(frmId & 0xF000) >> 12) & 0x01 != 0`), the
 tile is skipped entirely regardless of the egg. The flag is cleared when the
 player enters a building's square and set when the player leaves
 (`object.cc:1447-1463` — the `_obj_last_roof_x/y` system). See
-`wiki/map_rendering.md` §6 for the full roof-clipping system.
+`wiki/rendering.md` §3 for the full roof-clipping system.
 
 CE therefore has two separate mechanisms for roofs above the player:
 - **`tile_fill_roof` skip** — hides the entire roof tile so the room interior
@@ -749,7 +749,7 @@ implemented.
 | Egg screen-rect intersection test | Not implemented |
 | `_intensity_mask_buf_to_buf` equivalent (WebGL) | Not implemented |
 | `OBJECT_TRANS_*` flag rendering (glass, steam, etc.) | Not implemented (all objects drawn opaque) |
-| `tile_fill_roof` roof skip | Not implemented (see `wiki/map_rendering.md` §6) |
+| `tile_fill_roof` roof skip | Not implemented (see `wiki/rendering.md` §3) |
 | Egg masking on roof tiles | Not implemented |
 | `set_obj_visibility` opcode | **Implemented** — `scripting.ts:1213`, `vm_bridge.ts:133` |
 
@@ -781,7 +781,7 @@ with no transparency to indicate their position.
 |---|---|---|
 | E1 | Walls/scenery in front of player fade using egg FRM gradient mask | **Not implemented** — walls always opaque |
 | E2 | Roof tiles at player's square rendered with egg circle cutout | **Not implemented** — roofs drawn fully opaque |
-| E3 | `tile_fill_roof` skips interior roof tiles when player enters building | **Not implemented** (see `wiki/map_rendering.md` §6) |
+| E3 | `tile_fill_roof` skips interior roof tiles when player enters building | **Not implemented** (see `wiki/rendering.md` §3) |
 | E4 | `OBJECT_TRANS_GLASS` objects render with glass blend table (~50% alpha) | **Not implemented** — no blend table; all objects render with standard `SRC_ALPHA` |
 | E5 | `OBJECT_TRANS_STEAM`, `_ENERGY`, `_RED`, `_WALL` — each uses its own palette blend table | **Not implemented** |
 | E6 | `OBJECT_TRANS_NONE` objects respect palette-index-0 transparency but are otherwise opaque | Partial — PNG alpha channel handles this correctly, but `OBJECT_TRANS_NONE` flag is never read |

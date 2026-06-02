@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15; tile_system added §16; item_use added §17; random_numbers added §18; config_ini added §19; lighting_deep_dive added §20; rendering_deviations added §21; pathfinding added §22; endgame added §23; loot_economy added §24; interface_windows added §25; M4/W10/LD3 corrections 2026-06-02)
+> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; animation gaps added §14; proto_system added §15; tile_system added §16; items added §17; random_numbers added §18; settings added §19; lighting added §20; rendering added §21; pathfinding added §22; endgame added §23; economy added §24; interface_windows added §25; M4/W10/LD3 corrections 2026-06-02; wiki merged 55→38 docs 2026-06-02)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -121,7 +121,7 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
 | D1 | **`gdialog_mod_barter(mod)` ignores its `mod` argument.** The modifier passed to the screen-opener is silently dropped; `gdialog_set_barter_mod` (stored in `dialogueBarterMod` and read by `ui_barter.ts:319`) works correctly. If a script relies on the `gdialog_barter(mod)` argument alone (without a prior `gdialog_set_barter_mod` call) the markup is 0. | `scripting.ts:1430`, `ui_barter.ts:319` | `game_dialog.cc:3163 gameDialogBarter()` | minor | bug |
-| D2 | **Barter formula uses 1× markup not 2×; Barter skill and reaction not consulted.** See `wiki/barter_economy.md §11` for the full comparison table. | `ui_barter.ts:320` | `inventory.cc:4673 _barter_compute_value()` | major | bug |
+| D2 | **Barter formula uses 1× markup not 2×; Barter skill and reaction not consulted.** See `wiki/economy.md §6` for the full comparison table. | `ui_barter.ts:320` | `inventory.cc:4673 _barter_compute_value()` | major | bug |
 | D3 | **No dedicated Barter button in dialogue UI.** CE renders a permanent BARTER button gated by `CRITTER_BARTER` proto flag (0x02). DH2 has no such button — barter only accessible if the NPC script adds a dialogue option calling `gdialog_mod_barter`. NPCs with the flag set but no scripted barter option can't trade. | `play.html:57–59`, `scripting.ts:1430` | `game_dialog.cc:3662 _gdCanBarter()`, `obj_types.h:93` | major | missing |
 
 ---
@@ -259,7 +259,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ## 17. Item Use & Scenery Interaction
 
-> Source: `wiki/item_use.md` · CE: `proto_instance.cc`, `scripts.cc`, `obj_types.h` · DH2: `src/object.ts`, `src/scripting.ts`, `src/skillUse.ts`
+> Source: `wiki/items.md` · CE: `proto_instance.cc`, `scripts.cc`, `obj_types.h` · DH2: `src/object.ts`, `src/scripting.ts`, `src/skillUse.ts`
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -291,7 +291,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ## 19. Config & INI System
 
-> Source: `wiki/config_ini.md` · CE: `config.cc`, `game_config.h`, `settings.h`, `settings.cc` · DH2: `src/config.ts`, `src/ui_options.ts`, `src/init.ts`
+> Source: `wiki/settings.md` · CE: `config.cc`, `game_config.h`, `settings.h`, `settings.cc` · DH2: `src/config.ts`, `src/ui_options.ts`, `src/init.ts`
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -311,9 +311,9 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ## 20. Lighting Deep Dive
 
-> Source: `wiki/lighting_deep_dive.md` · CE: `light.cc`, `light.h`, `object.cc`, `interpreter_extra.cc`, `obj_types.h` · DH2: `src/lightmap.ts`, `src/scripting.ts`, `src/object.ts`
+> Source: `wiki/lighting.md` · CE: `light.cc`, `light.h`, `object.cc`, `interpreter_extra.cc`, `obj_types.h` · DH2: `src/lightmap.ts`, `src/scripting.ts`, `src/object.ts`
 >
-> Supplements the 10 gaps in `wiki/lighting.md §9` with additional implementation-level gaps.
+> Supplements the open gaps in `wiki/lighting.md §13` with additional implementation-level gaps.
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -330,9 +330,9 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ## 21. Rendering Deviations
 
-> Source: `wiki/rendering_deviations.md` · CE: `tile.cc`, `object.cc`, `color.cc` · DH2: `src/webglrenderer.ts`, `src/renderer.ts`, `src/object.ts`, `shaders/`
+> Source: `wiki/rendering.md` · CE: `tile.cc`, `object.cc`, `color.cc` · DH2: `src/webglrenderer.ts`, `src/renderer.ts`, `src/object.ts`, `shaders/`
 >
-> Accepted deviations (RD01–RD05, RD02 high-DPI, RD03 zoom) are not listed here. Scripting-level lighting deviations are in §20 (LD1–LD6). See `wiki/rendering_deviations.md §4` for fix priority ordering.
+> Accepted deviations (RD01–RD05, RD02 high-DPI, RD03 zoom) are not listed here. Scripting-level lighting deviations are in §20 (LD1–LD6). See `wiki/rendering.md §5` for fix priority ordering.
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -345,7 +345,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 | RD12 | **Scroll border limiting absent.** CE clamps viewport to `gTileBorderMin/MaxX/Y`. DH2 camera can scroll to expose grey canvas beyond the map edge. | `src/renderer.ts` | `tile.cc:537` | low | missing |
 | RD13 | **Hex click hit-testing is approximate.** CE uses `_tile_mask[512]` (32 × 16 px, 5 sub-regions) for pixel-precise diamond edges. DH2 uses cube-coordinate rounding (`hexFromScreen`) — imprecise at hex boundaries. | `src/geometry.ts:135` | `tile.cc:718 tileFromScreenXY()` | low | bug |
 | RD14 | **Elevation transition is instant.** CE fades/transitions between elevation levels. DH2 switches immediately. | `src/map.ts:196` | `map.cc mapSetElevation()` | low | missing |
-| RD15 | **Roof tile lighting deviation — ground truth unclear.** CE `tileRenderRoofsInRect` appears to blit roofs at full palette intensity (no `intensityColorTable`). DH2 roofs render at `max(0, ambient) = ambient` via `roofDummyTexture` — dimming at night. See `wiki/rendering_deviations.md §5 Q1`. | `src/webglrenderer.ts:989` | `tile.cc tileRenderRoofsInRect()` | low | bug |
+| RD15 | **Roof tile lighting deviation — ground truth unclear.** CE `tileRenderRoofsInRect` appears to blit roofs at full palette intensity (no `intensityColorTable`). DH2 roofs render at `max(0, ambient) = ambient` via `roofDummyTexture` — dimming at night. See `wiki/rendering.md §6`. | `src/webglrenderer.ts:989` | `tile.cc tileRenderRoofsInRect()` | low | bug |
 
 <!-- audited: 2026-06-02 -->
 
@@ -385,7 +385,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ## 24. Loot Economy
 
-> Source: `wiki/loot_economy.md` · CE: `proto_instance.cc`, `item.cc`, `inventory.cc` · DH2: `src/object.ts`, `src/scripting.ts`, `src/ui_loot.ts`
+> Source: `wiki/economy.md` · CE: `proto_instance.cc`, `item.cc`, `inventory.cc` · DH2: `src/object.ts`, `src/scripting.ts`, `src/ui_loot.ts`
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -445,7 +445,7 @@ See [wiki/actions.md](actions.md) for full documentation.
 
 ## 27. Elevator System (`elevator.cc`)
 
-See [wiki/elevator.md](elevator.md) for full documentation.
+See [wiki/interface_windows.md §11](interface_windows.md) for full documentation.
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|

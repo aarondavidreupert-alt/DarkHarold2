@@ -2,7 +2,7 @@
 
 Merged reference for item types, data structures, inventory management, equip/unequip, carry weight, drug items, item use mechanics, scenery interaction, container opening, and all item-related scripting opcodes.
 
-Cross-references: `wiki/map_scripting.md` (script proc list), `wiki/skill_checks.md` (lockpick/traps formula), `wiki/known_bugs.md` §IU, `wiki/barter_economy.md`.
+Cross-references: `wiki/map_scripting.md` (script proc list), `wiki/skill_checks.md` (lockpick/traps formula), `wiki/known_bugs.md` §IU, `wiki/economy.md`.
 
 Ground truth: `raw/fallout2-ce/src/item.cc`, `item.h`, `inventory.cc`, `inventory.h`, `proto_instance.cc`, `scripts.cc`, `scripts.h`, `proto_types.h`, `obj_types.h`. DH2 sources: `src/object.ts`, `src/ui_inventory.ts`, `src/drugs.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/skillUse.ts`.
 

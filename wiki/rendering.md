@@ -5,7 +5,7 @@ Reference doc for the Fallout 2 isometric rendering pipeline, DH2's WebGL 2.0 im
 Ground truth: `raw/fallout2-ce/src/tile.cc`, `tile.h`, `object.cc`, `color.cc`  
 DH2 implementation: `src/webglrenderer.ts`, `src/renderer.ts`, `src/tile.ts`, `src/geometry.ts`, `src/map.ts`, `src/object.ts`
 
-Cross-references: `wiki/lighting.md` (lighting overview), `wiki/lighting_deep_dive.md` §7 (scripting-level lighting gaps LD1–LD6), `wiki/tile_system.md`, `wiki/known_bugs.md §21` (bug registry)
+Cross-references: `wiki/lighting.md` (lighting overview and scripting-level gaps LD1–LD6 in §13), `wiki/tile_system.md`, `wiki/known_bugs.md §21` (bug registry)
 
 Last audited: 2026-06-02
 
@@ -423,7 +423,7 @@ High-DPI displays: canvas physical size = `logicalSize * devicePixelRatio`; CSS 
 
 Single authoritative catalogue of every known deviation between DH2's WebGL 2.0 renderer and CE's software renderer. Documentation only — no source changes.
 
-For scripting-level lighting deviations see `wiki/lighting_deep_dive.md` §7 (LD1–LD6) and `wiki/known_bugs.md §21`.
+For scripting-level lighting deviations see `wiki/lighting.md §13` (LD1–LD6) and `wiki/known_bugs.md §21`.
 
 ### Why Deviations Exist — Context for Contributors
 

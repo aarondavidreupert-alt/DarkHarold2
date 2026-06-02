@@ -8,7 +8,7 @@
 `gameSetGlobalVar`)  
 **DH2 ref:** `src/questData.ts`, `src/questLog.ts`, `src/ui_pipboy.ts`, `src/scripting.ts`,
 `src/saveload.ts`  
-**See also:** `wiki/karma_reputation.md` (GVAR 0 = player karma), `wiki/save_load.md` (full save format)
+**See also:** `wiki/faction_reputation.md` (GVAR 0 = player karma), `wiki/save_load.md` (full save format)
 
 ---
 

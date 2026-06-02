@@ -11,11 +11,11 @@
 This document covers the **coordinate layer** of Fallout 2's tile system — the two-grid architecture, square-tile projection and hit-testing, direction numbering, and the tile navigation functions (`tileGetTileInDirection`, `tileGetRotationTo`, `_tile_num_beyond`) — plus the **elevation system**: every object has a tile number AND an elevation, and the two axes are inseparable.
 
 **Not duplicated here — see linked docs:**
-- Isometric projection formulas and hex grid coordinate encoding → [`wiki/map_rendering.md`](map_rendering.md) §1–2
-- Viewport, camera centering, scroll borders → [`wiki/map_rendering.md`](map_rendering.md) §5
+- Isometric projection formulas and hex grid coordinate encoding → [`wiki/rendering.md`](rendering.md) §1–2
+- Viewport, camera centering, scroll borders → [`wiki/rendering.md`](rendering.md) §5
 - MAP binary header, variable arrays, tile data section, script section → [`wiki/file_formats.md`](file_formats.md) §MAP
-- Render order, object depth sort, roof clipping → [`wiki/map_rendering.md`](map_rendering.md) §3–6
-- Elevator UI and LST data → [`wiki/elevator.md`](elevator.md)
+- Render order, object depth sort, roof clipping → [`wiki/rendering.md`](rendering.md) §3–6
+- Elevator UI and LST data → [`wiki/interface_windows.md §11`](interface_windows.md)
 - Spatial trigger lifecycle → [`wiki/map_scripting.md`](map_scripting.md)
 
 ---
@@ -53,7 +53,7 @@ export const TILE_HEIGHT = 36   // square tile pixel height
 
 ## 3. tileNum Encoding (Summary)
 
-Full detail is in `wiki/map_rendering.md` §2. Short form:
+Full detail is in `wiki/rendering.md` §2. Short form:
 
 | System | Formula | x-direction |
 |--------|---------|-------------|
@@ -278,7 +278,7 @@ bool tileIsEdge(int tile) {
 }
 ```
 
-`_dir_tile[parity][rotation]` is the tileNum delta for one step in the given direction at the given column parity. See `wiki/map_rendering.md` §2 for the full delta table.
+`_dir_tile[parity][rotation]` is the tileNum delta for one step in the given direction at the given column parity. See `wiki/rendering.md` §2 for the full delta table.
 
 ### 6.2 DH2: hexInDirection / hexInDirectionDistance (geometry.ts:167)
 

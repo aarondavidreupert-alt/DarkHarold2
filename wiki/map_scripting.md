@@ -5,7 +5,7 @@
 **CE ref:** `raw/fallout2-ce/src/scripts.h`, `scripts.cc`, `map.cc`, `interpreter_extra.cc`  
 **DH2 ref:** `src/scripting.ts`, `src/vm_bridge.ts`, `src/map.ts`, `src/object.ts`
 
-Do not duplicate content from `wiki/dialogue_system.md` or `wiki/inventory_items.md`.
+Do not duplicate content from `wiki/dialogue_system.md` or `wiki/items.md`.
 
 ---
 
