@@ -17,7 +17,7 @@ Scripting system/engine for DarkFO
 */
 
 import { Combat, isCombatActive } from './combat.js'
-import { critterDamage, critterKill } from './critter.js'
+import { critterDamage, critterKill, killCounts } from './critter.js'
 import { lookupScriptName } from './data.js'
 import * as GameTime from './gametime.js'
 import {
@@ -618,19 +618,24 @@ export module Scripting {
             }
         }
         metarule3(id: number, obj: any, userdata: any, radius: number): any {
-            if (id === 100) {
+            switch (id) {
+            case 100: {
                 // METARULE3_CLR_FIXED_TIMED_EVENTS
                 for (var i = 0; i < timeEventList.length; i++) {
                     if (timeEventList[i].obj === obj && timeEventList[i].userdata === userdata) {
-                        // todo: game object equals
                         info('removing timed event (userdata ' + userdata + ')', 'timer')
                         timeEventList.splice(i, 1)
                         return
                     }
                 }
-            } else if (id === 106) {
+                return
+            }
+            case 103:
+                // CE ref: interpreter_extra.cc:1989 METARULE3_GET_KILL_COUNT
+                // Returns how many critters of killType `obj` have been killed.
+                return killCounts.get(obj as number) ?? 0
+            case 106: {
                 // METARULE3_TILE_GET_NEXT_CRITTER
-                // As far as I know, with lastCritter == 0, it just grabs the critter that is not the player at the tile. TODO: Test this!
                 // TODO: use elevation
                 var tile = obj,
                     elevation = userdata,
@@ -640,10 +645,17 @@ export module Scripting {
                 for (var i = 0; i < objs.length; i++) {
                     if (objs[i].type === 'critter' && !(<Critter>objs[i]).isPlayer) return objs[i]
                 }
-                return 0 // no critter found at that position (TODO: test)
+                return 0
             }
-
-            stub('metarule3', arguments)
+            case 108: {
+                // CE ref: interpreter_extra.cc:2045 METARULE3_TILE_SET_CENTER
+                // Centers the game camera on the given tile number.
+                centerCamera(fromTileNum(obj as number))
+                return 0
+            }
+            default:
+                stub('metarule3', arguments)
+            }
         }
         script_overrides() {
             log('script_overrides', arguments)

@@ -29,6 +29,10 @@ const weaponSkins: { [weapon: string]: string } = {
     rifle: 'j',
 }
 
+// CE ref: kills.cc killsGetByType() — per-type kill counters, persisted in save
+// Key = killType number (proto.extra.killType), value = count
+export const killCounts: Map<number, number> = new Map()
+
 const weaponAnims: { [weapon: string]: { [anim: string]: string } } = {
     punch: { idle: 'aa', attack: 'aq' },
 }
@@ -460,6 +464,12 @@ export function critterKill(
     if (source?.isPlayer && !obj.isPlayer) {
         const cur = source.stats.getBase('Karma')
         source.stats.setBase('Karma', Math.max(-99999999, Math.min(99999999, cur + 1)))
+    }
+
+    // CE ref: kills.cc killsAdd() — increment per-type kill counter
+    if (!obj.isPlayer) {
+        const kt = obj.killType ?? 0
+        killCounts.set(kt, (killCounts.get(kt) ?? 0) + 1)
     }
 
     if (useScript === undefined || useScript === true) {
