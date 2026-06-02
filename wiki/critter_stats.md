@@ -67,10 +67,21 @@ pid high byte → type name:  0=items, 1=critters, 2=scenery, 3=walls, 4=tiles, 
 | `pro.extra.AI` | `CritterProto.aiPacket` | `critter.aiNum` (`object.ts:1287`) |
 | `pro.extra.team` | `CritterProto.team` | `critter.teamNum` (`object.ts:1290`) |
 | `pro.extra.bodyType` | `CritterProtoData.bodyType` | Stored on critter; not used in combat logic |
-| `pro.extra.experience` | `CritterProtoData.experience` | Not used (XP grant on kill not implemented) |
-| `pro.extra.killType` | `CritterProtoData.killType` | Not used (kill count tracking not implemented) |
+| `pro.extra.experience` | `CritterProtoData.experience` | **Not used** — XP grant on kill not implemented |
+| `pro.extra.killType` | `CritterProtoData.killType` | **Not used** — kill count tracking not implemented |
+| `pro.extra.flags` | `CritterProtoData.flags` (CritterFlags bitmask) | **Not used** — INVULNERABLE/NO_LIMBS/NO_DROP/BARTER/etc. flags never read at runtime (see §1.3) |
 
 **`StatSet.fromPro()` (`char.ts:243`):** merges `baseStats + bonusStats` into a single flat `baseStats` object. DH2 does not maintain a separate live bonus layer for critters — all modifiers are baked in at load time. This means perk/radiation/drug runtime bonuses on NPCs cannot be applied without modifying `baseStats` directly.
+
+**Explicitly dropped proto fields** (present in JSON but never consumed after load):
+
+| Field | Dropped because |
+|---|---|
+| `pro.extra.bonusStats` | Merged into `baseStats` at load; live bonus layer lost |
+| `pro.extra.bodyType` | Stored on critter object; no combat or movement path reads it |
+| `pro.extra.experience` | No `pcAddExperience` call in `critterKill()` |
+| `pro.extra.killType` | No `gKillsByType` counter; `kill_type_count` always returns 0 |
+| `pro.extra.flags` | `CritterFlags` bitmask; `critterKill()` / combat code never checks it |
 
 ### 1.3 CritterProtoData Flags (`CritterFlags` enum, `obj_types.h:92`)
 

@@ -395,3 +395,4 @@ All animation-related script opcodes, their hex values, CE counterparts, and DH2
 | SF death animations (IDs 48–63) | Full set mapped to unique FRM suffixes `ra`–`rp` | DH2 only maps `death-laser` → `bg` (one SF variant); others fall back to regular death or are absent |
 | All 28 `AnimationKind` values | Full batch kind set in CE | DH2 batch only handles `animate` and `func` kinds |
 | `AnimationRequestOptions` flags | UNRESERVED/RESERVED/NO_STAND/PING/INSIGNIFICANT | all flags silently ignored in `reg_anim_begin` |
+| `actionFrame` — hit/sound synchronisation (FA3) | `art.h ArtFrame.actionFrame`; used in `animation.cc` to fire hit-detection and sound at the correct frame | `frmpixels.py:40` reads the field into `_actionFrame` (leading underscore = not saved to JSON); absent from `imageMap.json`; DH2 cannot synchronise hit-detection or sound to the action frame — see `wiki/frm_animation.md §6` (gap FA3) |

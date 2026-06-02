@@ -168,23 +168,23 @@ Non-selectable perks (addiction, armor implants — `maxRank == -1`) are listed 
 | 33 | `PERK_MASTER_THIEF` | Master Thief | 1 | 12 | — | — | Lockpick/Steal +15 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
 | 34 | `PERK_SPEAKER` | Speaker | 1 | 9 | CH≥7 | Speech≥50 | Speech +20 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
 | 35 | `PERK_GHOST` | Ghost | 1 | 6 | AG≥6 | Sneak≥60 | Sneak +20 in dim light | WIRED — `perkGetSkillModifier` (dim-light check stub in DH2) |
-| 36 | `PERK_FRIENDLY_FOE` | Friendly Foe | 1 | 3 | PE≥7 | — | — (ID friend vs foe at distance) | STUB — non-selectable in CE (maxRank=−1) |
-| 37 | `PERK_EXPLORER` | Explorer | 1 | 9 | — | — | More special encounters | STUB — non-selectable in CE (maxRank=−1) |
-| 38 | `PERK_FLOWER_CHILD` | Flower Child | 1 | 3 | EN≥5 | — | ÷2 addiction withdrawal | STUB — non-selectable in CE (maxRank=−1) |
+| 36 | `PERK_FRIENDLY_FOE` | Friendly Foe | 1 | 3 | PE≥7 | — | — (ID friend vs foe at distance) | N/A — non-selectable in CE; add_perk missing |
+| 37 | `PERK_EXPLORER` | Explorer | 1 | 9 | — | — | More special encounters | N/A — non-selectable in CE; add_perk missing |
+| 38 | `PERK_FLOWER_CHILD` | Flower Child | 1 | 3 | EN≥5 | — | ÷2 addiction withdrawal | N/A — non-selectable in CE; add_perk missing |
 | 39 | `PERK_PATHFINDER` | Pathfinder | 2 | 6 | EN≥6 | Outdoorsman≥40 | World-map travel time −25%/rank | STUB — no travel time modifier |
-| 40 | `PERK_ANIMAL_FRIEND` | Animal Friend | 1 | 3 | IN≥5, PE≥7 | — | Animals won't attack | STUB — non-selectable in CE (maxRank=−1) |
-| 41 | `PERK_SCROUNGER` | Scrounger | 1 | 9 | LK≥8 | — | More ammo in random encounters | STUB — non-selectable in CE (maxRank=−1) |
-| 42 | `PERK_MYSTERIOUS_STRANGER` | Mysterious Stranger | 1 | 9 | LK≥8 | — | Random combat ally | STUB — non-selectable in CE (maxRank=−1) |
+| 40 | `PERK_ANIMAL_FRIEND` | Animal Friend | 1 | 3 | IN≥5, PE≥7 | — | Animals won't attack | N/A — non-selectable in CE; add_perk missing |
+| 41 | `PERK_SCROUNGER` | Scrounger | 1 | 9 | LK≥8 | — | More ammo in random encounters | N/A — non-selectable in CE; add_perk missing |
+| 42 | `PERK_MYSTERIOUS_STRANGER` | Mysterious Stranger | 1 | 9 | LK≥8 | — | Random combat ally | N/A — non-selectable in CE; add_perk missing |
 | 43 | `PERK_RANGER` | Ranger | 1 | 6 | PE≥6 | — | Outdoorsman +15 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
 | 44 | `PERK_QUICK_POCKETS` | Quick Pockets | 1 | 3 | AG≥5 | — | Inventory access costs 2 AP | STUB — no AP cost for inventory |
 | 45 | `PERK_SMOOTH_TALKER` | Smooth Talker | 3 | 3 | IN≥4 | — | +1 IN for dialogue checks/rank | STUB — no temp IN boost in dialogue |
 | 46 | `PERK_SWIFT_LEARNER` | Swift Learner | 3 | 3 | IN≥4 | — | XP gained +5%/rank | STUB — no XP multiplier |
 | 47 | `PERK_TAG` | Tag! | 1 | 12 | — | — | Tag a 4th skill (no +20 bonus) | WIRED — `applyPerk` sets `player.skills.hasTagPerk = true` |
 | 48 | `PERK_MUTATE` | Mutate! | 1 | 9 | — | — | Change one trait | STUB — no trait-swap UI |
-| 49 | `PERK_ADD_NUKA_COLA` | (Nuka-Cola) | — | — | — | — | Script-granted item grant | STUB — non-selectable |
-| 50 | `PERK_ADD_MENTATS` | (Mentats) | — | — | — | — | Script-granted item grant | STUB — non-selectable |
-| 51 | `PERK_ADD_BUFFOUT` | (Buffout) | — | — | — | — | Script-granted item grant | STUB — non-selectable |
-| 52 | `PERK_ADD_PSYCHO` | (Psycho) | — | — | — | — | Script-granted item grant | STUB — non-selectable |
+| 49 | `PERK_ADD_NUKA_COLA` | (Nuka-Cola) | — | — | — | — | Script-granted item grant | N/A — non-selectable in CE |
+| 50 | `PERK_ADD_MENTATS` | (Mentats) | — | — | — | — | Script-granted item grant | N/A — non-selectable in CE |
+| 51 | `PERK_ADD_BUFFOUT` | (Buffout) | — | — | — | — | Script-granted item grant | N/A — non-selectable in CE |
+| 52 | `PERK_ADD_PSYCHO` | (Psycho) | — | — | — | — | Script-granted item grant | N/A — non-selectable in CE |
 | 79 | `PERK_THIEF` | Thief | 1 | 3 | — | — | Sneak/Steal/Lockpick/Traps +10 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
 | 80 | `PERK_GAIN_STRENGTH` | Gain Strength | 1 | 12 | ST<10 | — | ST +1 | PARTIAL — defined; SPECIAL boost applied |
 | 81 | `PERK_GAIN_PERCEPTION` | Gain Perception | 1 | 12 | PE<10 | — | PE +1 | PARTIAL — defined |
@@ -193,27 +193,27 @@ Non-selectable perks (addiction, armor implants — `maxRank == -1`) are listed 
 | 84 | `PERK_GAIN_INTELLIGENCE` | Gain Intelligence | 1 | 12 | IN<10 | — | IN +1 | PARTIAL — defined |
 | 85 | `PERK_GAIN_AGILITY` | Gain Agility | 1 | 12 | AG<10 | — | AG +1 | PARTIAL — defined |
 | 86 | `PERK_GAIN_LUCK` | Gain Luck | 1 | 12 | LK<10 | — | LK +1 | PARTIAL — defined |
-| 87 | `PERK_HARMLESS` | Harmless | 1 | 3 | CH≥8 | — | Steal +20 | STUB — non-selectable in CE (maxRank=−1) |
-| 88 | `PERK_HERE_AND_NOW` | Here and Now | 1 | 3 | — | — | Immediate level-up | STUB — non-selectable in CE (maxRank=−1); special case in `perkAddEffect` |
+| 87 | `PERK_HARMLESS` | Harmless | 1 | 3 | CH≥8 | — | Steal +20 | N/A — non-selectable in CE; add_perk missing |
+| 88 | `PERK_HERE_AND_NOW` | Here and Now | 1 | 3 | — | — | Immediate level-up | N/A — non-selectable in CE; add_perk missing; special case in `perkAddEffect` |
 | 89 | `PERK_EVEN_TOUGHER` | Even Tougher | — | — | — | — | (unused/variant Toughness) | STUB — not in DH2 PERKS |
-| 90 | `PERK_KARMA_BEACON` | Karma Beacon | 1 | 9 | CH≥6 | — | Karma effects ×2 | STUB — non-selectable in CE |
+| 90 | `PERK_KARMA_BEACON` | Karma Beacon | 1 | 9 | CH≥6 | — | Karma effects ×2 | N/A — non-selectable in CE |
 | 91 | `PERK_LIVING_ANATOMY` | Living Anatomy | 1 | 12 | — | Doctor≥60 | +10 damage vs critters; Doctor +10 | WIRED — `hasPerk('Living Anatomy')` in `combat.ts:641,706`; `perkGetSkillModifier` for Doctor |
 | 92 | `PERK_DEMOLITIONS_EXPERT` | Demolition Expert | 1 | 9 | — | Traps≥90 | Explosive damage +25% | WIRED — `hasPerk('Demolition Expert')` in `object.ts:108` |
 | 93 | `PERK_GAMBLER` | Gambler | 1 | 6 | — | Gambling≥50 | Gambling +20 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
 | 94 | `PERK_CULT_OF_PERSONALITY` | Cult of Personality | 1 | 12 | CH≥10 | — | Karma never affects reaction | STUB — no reaction system |
 | 95 | `PERK_NEGOTIATOR` | Negotiator | 1 | 6 | CH≥6 | Barter≥50, Speech≥50 | Barter/Speech +10 | WIRED — `perkGetSkillModifier` (Barter); Speech portion stub |
 | 96 | `PERK_DRUG_ADDICT` | (Drug Addict) | — | — | — | — | Withdrawal penalty | STUB — non-selectable; addiction system stub |
-| 97 | `PERK_DRUG_RESISTANT` | (Drug Resistant) | — | — | — | — | Resist withdrawal | STUB — non-selectable |
+| 97 | `PERK_DRUG_RESISTANT` | (Drug Resistant) | — | — | — | — | Resist withdrawal | N/A — non-selectable in CE |
 | 98 | `PERK_PYROMANIAC` | Pyromaniac | 1 | 9 | — | — | Fire damage +5 | WIRED — `hasPerk('Pyromaniac')` in `combat.ts:647` |
 | 99 | `PERK_ADRENALINE_RUSH` | Adrenaline Rush | 1 | 6 | ST≥4 | — | ST +1 when HP < 50% | STUB — no conditional ST modifier |
-| 100 | `PERK_CAUSE_OF_DEATH` | Cause of Death | 1 | 9 | — | — | More detail on kills | STUB — non-selectable |
-| 101 | `PERK_DIVINE_FAVOR` | (Divine Favor) | — | — | — | — | (special encounter) | STUB — non-selectable |
+| 100 | `PERK_CAUSE_OF_DEATH` | Cause of Death | 1 | 9 | — | — | More detail on kills | N/A — non-selectable in CE |
+| 101 | `PERK_DIVINE_FAVOR` | (Divine Favor) | — | — | — | — | (special encounter) | N/A — non-selectable in CE |
 | 102 | `PERK_VAULT_CITY_TRAINING` | Vault City Training | 1 | 3 | — | — | First Aid/Doctor +5 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
 | 103–107 | various | (Weapon Perk family) | — | — | — | — | Weapon type bonuses | STUB — not in DH2 PERKS |
-| 108 | `PERK_WEAPON_LONG_RANGE` | (Long Range) | — | — | — | — | Weapon range bonus | STUB — non-selectable |
-| 109–112 | various | (Weapon enhanced family) | — | — | — | — | Weapon accuracy bonuses | STUB — non-selectable |
-| 113 | `PERK_EXPERT_EXCREMENT_EXPEDITOR` | Expert Excrement Expeditor | 1 | — | — | — | Speech +5 | STUB — non-selectable in CE (maxRank=−1) |
-| 114 | `PERK_WEAPON_ENHANCED_KNOCKOUT` | (Enhanced Knockout) | — | — | — | — | Knockout chance | STUB — non-selectable |
+| 108 | `PERK_WEAPON_LONG_RANGE` | (Long Range) | — | — | — | — | Weapon range bonus | N/A — non-selectable in CE |
+| 109–112 | various | (Weapon enhanced family) | — | — | — | — | Weapon accuracy bonuses | N/A — non-selectable in CE |
+| 113 | `PERK_EXPERT_EXCREMENT_EXPEDITOR` | Expert Excrement Expeditor | 1 | — | — | — | Speech +5 | N/A — non-selectable in CE; add_perk missing |
+| 114 | `PERK_WEAPON_ENHANCED_KNOCKOUT` | (Enhanced Knockout) | — | — | — | — | Knockout chance | N/A — non-selectable in CE |
 | 115 | `PERK_JINXED` | Jinxed (perk) | 1 | — | — | — | Enemies crit-fail 1-in-4 | WIRED — `hasPerk('Jinxed')` in `combat.ts:568`; also Pariah Dog |
 | 116 | `PERK_SALESMAN` | Salesman | 1 | 6 | CH≥5 | Barter≥50 | Barter +20 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
 | 117 | `PERK_WEATHERED` | (Weathered) | — | — | — | — | (unused) | STUB — not in DH2 |
@@ -244,10 +244,10 @@ These perks are granted by scripts, in-game events, or special conditions. They 
 |---|---|---|---|---|---|
 | `0x80F3` | `has_trait` | 3 | `bridged("has_trait", 3)` | `has_trait(traitType, obj, trait)` | PARTIAL (see §3.2) |
 | `0x8102` | `critter_add_trait` | 4 | `bridged("critter_add_trait", 4)` | `critter_add_trait(...)` | PARTIAL (stub body) |
-| — | `has_perk` | 2 | **NOT WIRED** | **NOT IMPLEMENTED** | MISSING |
-| — | `add_perk` | 2 | **NOT WIRED** | **NOT IMPLEMENTED** | MISSING |
-| — | `remove_perk` | 2 | **NOT WIRED** | **NOT IMPLEMENTED** | MISSING |
-| — | `perk_level` | 2 | **NOT WIRED** | **NOT IMPLEMENTED** | MISSING |
+| — | `has_perk` | 2 | **NOT WIRED** | **NOT IMPL** | MISSING |
+| — | `add_perk` | 2 | **NOT WIRED** | **NOT IMPL** | MISSING |
+| — | `remove_perk` | 2 | **NOT WIRED** | **NOT IMPL** | MISSING |
+| — | `perk_level` | 2 | **NOT WIRED** | **NOT IMPL** | MISSING |
 
 ### 3.2 `has_trait` Implementation Detail
 
