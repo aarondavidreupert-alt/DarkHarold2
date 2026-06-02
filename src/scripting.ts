@@ -834,7 +834,10 @@ export module Scripting {
             return 0
         }
         using_skill(obj: Obj, skill: number) {
-            stub('using_skill', arguments)
+            // FO2-CE ref: interpreter_extra.cc opUsingSkill — only SKILL_SNEAK(8) on gDude returns meaningful data
+            if (skill === 8 /* SKILL_SNEAK */ && (obj as any).isPlayer) {
+                return (obj as Player).isSneaking ? 1 : 0
+            }
             return 0
         }
         has_skill(obj: Obj, skill: number) {

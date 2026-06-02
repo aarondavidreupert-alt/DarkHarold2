@@ -107,7 +107,7 @@ until these hooks are wired.
 | `critter_add_trait` | 🟡 Partial | TRAIT_OBJECT cases 5,6 handled; all others silently ignored after `stub()` log — `scripting.ts`. Ref: `interpreter_extra.cc::opAddTrait` |
 | `anim` | 🟡 Partial | IDs 1000 (set rotation) and 1010 (set frame) handled; all others `stub()` — `scripting.ts`. Ref: `interpreter_extra.cc::opAnim` |
 | `do_check` | ✅ Done | Implements CE `stat.cc::statRoll()` — roll d10 (1–10), success if roll ≤ SPECIAL stat + modifier (indices 0–6 only) — `scripting.ts:839`. Ref: `interpreter_extra.cc::opDoCheck` |
-| `using_skill` | 🔴 Stub | Always returns 0 — `scripting.ts:791`. Ref: `interpreter_extra.cc::opUsingSkill` |
+| `using_skill` | ✅ Done | SKILL_SNEAK (8) on player returns `isSneaking`; all others return 0 per CE (uninitialized result for non-dude/non-sneak) — `scripting.ts:836`. Ref: `interpreter_extra.cc::opUsingSkill` |
 | `inven_cmds` | 🟡 Partial | Only INVEN_CMD_INDEX_PTR (13) handled; all other inventory command IDs `stub()` — `scripting.ts:847`. Ref: `interpreter_extra.cc::opInvenCmds` |
 | `get_critter_stat` | 🟡 Partial | SPECIAL 0–6, MaxHP 7, MaxAP 8 (computed), AC 9, Sequence 13 (computed), CritChance 15, BetterCriticals 16, HP 35, gender 34 handled; DT/DR variants (17–32) and STAT_AGE (33) still `stub()` — `scripting.ts`. Ref: `interpreter_extra.cc::opGetCritterStat`, `stat.cc::statGetValue` |
 | `set_pc_stat` | 🟡 Partial | PCSTAT_reputation (3) and PCSTAT_karma (4) handled; PCSTAT_unspent_skill_points (0), PCSTAT_level (1), PCSTAT_experience (2) `stub()` — `scripting.ts`. Ref: `stat.cc::pcSetStat` |
@@ -140,10 +140,12 @@ until these hooks are wired.
 - Fires after HP reduction, before death check — `critter.ts:~570`.
 - CE-accurate per `combat.cc::attackComputeDamage()`.
 
-### 4e. DAM_DROP 🔴 Still needed
-- Critical failure flag `DAM_DROP` that drops the weapon is not handled anywhere
-  in `combat.ts`.
-- On critical failure with this flag: remove weapon from critter's active hand.
+### 4e. DAM_DROP ✅ Done (verified 2026-06-02)
+- `critterEffects.droppedWeapon()` in `criticalEffects.ts:193` removes weapon from
+  hand slot and places it at the critter's tile.
+- Wired into `criticalFailTable` for melee (level 3), firearms (level 3), energy
+  (level 3), grenades (levels 2-3), and called from `temporaryDoCritFail()`.
+- `combat.ts` calls `temporaryDoCritFail(critFailEffect, obj)` on critical miss.
 - Ref: fallout2-ce `combat.cc` `DAM_DROP` handling
 
 ### 4g. AI packet system wired ✅ Done
