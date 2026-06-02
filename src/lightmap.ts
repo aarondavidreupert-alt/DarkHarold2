@@ -66,6 +66,9 @@ export module Lightmap {
     // edx controls whether light is added or subtracted
 
     function obj_adjust_light(obj: Obj, isSub: boolean=false) {
+        // CE ref: object.cc:3973 _obj_adjust_light bails on OBJECT_HIDDEN flag
+        if (obj.visible === false) return
+
         var pos = obj.position
         var lightModifier = isSub ? light_subtract_from_tile : light_add_to_tile
 
