@@ -317,24 +317,27 @@ present and functional in the current source:
 
 ---
 
-## Pending Branch: `claude/autocrawler-design-doc-Id9a8`
+## AutoCrawler — Automated Map/Dialogue/Combat Test Harness
 
-**Not yet merged into main.** Adds an automated test harness for dialogue and
-combat regression testing. Key additions:
+**Merged into `claude/codebase-map-docs-xW0xV` 2026-06-02.** Loads all 156 maps, walks every NPC/critter on a map, triggers talk/combat, and reports failures with stack + eventLog for targeted fixes. See `AutoCrawler.md` for full usage.
 
 | File | Purpose |
 |------|---------|
-| `src/autocrawler.ts` | `runDialogueCrawler()` / `runCombatCrawler()`: walks every NPC/critter on a map, triggers talk/combat, records results as a typed `MapResult[]` report |
-| `AutoCrawler.md` | Design document for the crawler |
-| Modifications to `src/automapData.ts` | Migrates persistence from `localStorage` to IndexedDB (avoids 5 MB quota during full-map crawl) |
-| Changes to `src/heart.ts`, `src/init.ts`, etc. | `heart._stepOnly()` shim for engine-speed headless operation; elevation bounds guards |
+| `src/autocrawler.ts` | `runMapCrawler()`, `runDialogueCrawler()`, `runCombatCrawler()` — smoke-test all maps; download JSON report of failures |
+| `src/automapData.ts` | IndexedDB persistence for automap (replaces 5 MB localStorage limit) |
+| `AutoCrawler.md` | Usage docs, URL auto-start (`?crawl=maps\|dialogue\|combat`), report JSON schema |
 
 Usage from DevTools:
 ```js
 const { autoCrawler } = await import('./js/autocrawler.js')
+await autoCrawler.runMapCrawler()        // smoke-test all 156 maps
+autoCrawler.downloadReport()            // download failures JSON
+// or single-map crawls:
 await autoCrawler.runDialogueCrawler('artemple')
-autoCrawler.downloadReport()
+await autoCrawler.runCombatCrawler('artemple')
 ```
+
+Also available via URL: `?crawl=maps`, `?crawl=dialogue`, `?crawl=combat`.
 
 ---
 

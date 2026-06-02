@@ -5,7 +5,7 @@ Reference doc for the Fallout 2 isometric rendering pipeline, DH2's WebGL 2.0 im
 Ground truth: `raw/fallout2-ce/src/tile.cc`, `tile.h`, `object.cc`, `color.cc`  
 DH2 implementation: `src/webglrenderer.ts`, `src/renderer.ts`, `src/tile.ts`, `src/geometry.ts`, `src/map.ts`, `src/object.ts`
 
-Cross-references: `wiki/lighting.md` (lighting overview and scripting-level gaps LD1–LD6 in §13), `wiki/tile_system.md`, `wiki/known_bugs.md §21` (bug registry)
+Cross-references: `wiki/lighting.md` (lighting overview and scripting-level gaps LD1–LD6 in §13), `wiki/tile_system.md`, `wiki/known_bugs.md §22` (bug registry)
 
 Last audited: 2026-06-02
 

@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; animation gaps added §14; proto_system added §15; tile_system added §16; items added §17; random_numbers added §18; settings added §19; lighting added §20; rendering added §21; pathfinding added §22; endgame added §23; economy added §24; interface_windows added §25; M4/W10/LD3 corrections 2026-06-02; wiki merged 55→38 docs 2026-06-02)
+> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; animation gaps added §14; proto_system added §15; tile_system added §16; items added §17; random_numbers added §18; settings added §19; lighting added §20; rendering added §21; pathfinding added §22; endgame added §23; economy added §24; interface_windows added §25; M4/W10/LD3 corrections 2026-06-02; wiki merged 55→38 docs 2026-06-02; audio §8 added 2026-06-02; sections §9-§29 renumbered; autocrawler merge crash fixes FIXED 2026-06-02)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -80,6 +80,8 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
+| M0 | **Missing `.images.json` threw fatally, corrupting all subsequent map loads.** `loadNewMap` propagated a 404 exception synchronously, leaving `this.objects = null` and `isLoading = true` permanently. Any following map load then crashed on `serialize()` calling `.map()` on null. | `src/map.ts` | — | major | **FIXED 2026-06-02** |
+| M0b | **`serialize()` called when `objects === null` after a failed previous load.** Guard at `loadMap` dirty-cache branch now checks `this.objects !== null` before serializing. | `src/map.ts` | — | major | **FIXED 2026-06-02** |
 | M1 | **Spatial triggers lost on save/load.** `spatial_p_proc` fires correctly during play. But `map.ts` resets `this.spatials = [[], [], []]` on load, so all spatial triggers in the loaded save are gone. | `map.ts:612` | `map.cc spatialLoad()` | major | bug |
 | M2 | **`map_enter_p_proc` on elevation change unclear.** `map.ts:508` has a TODO comment — it is unknown if the procedure should fire when the player changes elevation, and it currently does not. | `map.ts:508` | `map.cc` | minor | partial |
 | M3 | **Scripting engine not notified when `objectsAndSpatials` updates.** `map.ts:491–492` — objects added after map load may not get their scripts initialised or run. | `map.ts:491–492` | — | minor | bug |
@@ -137,7 +139,17 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 
 ---
 
-## 8. Time System
+## 8. Audio System
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| AU1 | **`rollNextSfx` crashed on null/undefined/empty `ambientSfx`.** Maps without ambient SFX entries return `ambientSfx: null` or `[]`; the old guard only checked `sfx.length` (throws on null), and `sfx[0][0]` would crash on empty arrays. Two guards added: early return on `!sfx` or `sfx.length === 0`, and early return when `sumFreqs === 0`. | `src/audio.ts` | `game_sound.cc` | major | **FIXED 2026-06-02** |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 9. Time System
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -145,7 +157,7 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 
 ---
 
-## 9. UI / Options
+## 10. UI / Options
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -156,7 +168,7 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 
 ---
 
-## 10. Karma & Reputation
+## 11. Karma & Reputation
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -165,7 +177,7 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 
 ---
 
-## 11. Type Hygiene (low-priority but tracked)
+## 12. Type Hygiene (low-priority but tracked)
 
 These are `any`-typed fields and `throw 'TODO'` sites that do not produce visible bugs today but represent technical debt that can mask future bugs.
 
@@ -178,7 +190,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 12. Time & Game Clock
+## 13. Time & Game Clock
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -197,10 +209,11 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 13. Elevation System
+## 14. Elevation System
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
+| EL0 | **`override_map_start` wrote out-of-bounds elevation before bounds check.** Script calls `override_map_start(pos, elev)` with `elev=2` on a 2-level map (indices 0–1) — value was blindly assigned to `currentElevation`, causing `getObjects()` to return `undefined` and crash on `.length`. Also guards `loadMap` dirty-cache path. | `src/map.ts` | `map.cc mapSetupEnter()` | major | **FIXED 2026-06-02** |
 | EL1 | **`elevation(obj)` always returns player's current elevation.** `scripting.ts:753` returns `globalState.currentElevation` for all objects. CE returns `obj->elevation`. Scripts querying another object's floor get the wrong answer. | `scripting.ts:753`, `vm_bridge.ts:158` | `interpreter_extra.cc:2285 opGetObjectElevation()` | major | bug |
 | EL2 | **`doEnterElevation()` fires `map_enter_p_proc` on stair/ladder elevation change.** CE `mapSetElevation` fires only `map_update_p_proc`. DH2 calls `doEnterElevation()` on every stair/ladder use, triggering map-entry side-effects (light resets, NPC repositions, first-visit flags) on every floor change. | `map.ts:193-205`, `object.ts:775,792,799` | `map.cc:362 mapSetElevation()` | major | bug |
 | EL3 | **No elevator opcode handler.** CE `scriptsHandleRequests` has a dedicated elevator branch with door animation and same-map/cross-map split. DH2 routes elevator objects through the generic stair/ladder path. | `object.ts:765` | `scripts.cc:926 scriptsHandleRequests SCRIPT_REQUEST_ELEVATOR` | minor | missing |
@@ -211,10 +224,13 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 14. FRM Animation Pipeline
+## 15. FRM Animation Pipeline
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
+| FA0 | **`animInfo` missing `'single'` key — `singleAnimation()` critters froze.** `singleAnimation()` sets `this.anim = 'single'` for one-shot forward playback, but `'single'` was absent from `animInfo`, causing the tombstone guard to fire and freeze critters (e.g. nachldaa/nachldba on Klamath). Fixed: `'single': { type: 'static' }` added. | `src/object.ts` | `animation.cc anim_run_sequence()` | minor | **FIXED 2026-06-02** |
+| FA0b | **Unknown `anim` key caused `TypeError` on every rAF frame.** When `animInfo[this.anim]` was `undefined` (stale save state or script bug), accessing `.type` threw on every animation frame, hammering the console and locking the critter. Fixed: tombstone guard sets `anim='dead'`. | `src/object.ts` | — | minor | **FIXED 2026-06-02** |
+| FA0c | **`Obj` base class had no `hasAnimation()` method.** `scripting.ts:use_obj_on_obj` passes any `Obj` as source (via `as Critter` cast); non-Critter objects (encdet, encfite, encpres) crashed with `source.hasAnimation is not a function`. Fixed: `Obj.hasAnimation()` stub added returning `false`. | `src/object.ts` | — | minor | **FIXED 2026-06-02** |
 | FA1 | **`updateStaticAnim` hardcodes fps = 8.** Comment reads `// todo: get FPS from image info`. Should read `info.fps \|\| 10`. Flowing water, fire, and other looping scenery animations play at the wrong speed. | `object.ts:1335` | `art.cc:713 artGetFramesPerSecond()` | minor | bug |
 | FA2 | **`getAnimDistance` reads direction 1 for the last frame.** Uses `frameOffsets[1][numFrames-1].ox` (direction E) instead of `frameOffsets[0][numFrames-1].ox` (direction NE). Returns wrong hex-steps-per-cycle, causing walk partial-action boundaries to be off and producing hitching. | `object.ts:1980` | `animation.cc:1716 pathfinderFindPath()` | major | bug |
 | FA3 | **`actionFrame` discarded by the extraction pipeline.** `frmpixels.py:40` reads the header field into `_actionFrame` (not saved to output dict). Absent from `imageMap.json`. DH2 cannot synchronise hit-detection or sounds to the correct animation frame for weapon attacks. | `frmpixels.py:40` | `art.h ArtFrame.actionFrame` | major | missing |
@@ -226,7 +242,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 15. Proto System
+## 16. Proto System
 
 > Source: `wiki/proto_system.md` · CE: `proto.cc`, `proto.h`, `proto_types.h` · DH2: `src/pro.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `proto.py`
 
@@ -242,7 +258,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 16. Tile System
+## 17. Tile System
 
 > Source: `wiki/tile_system.md` · CE: `tile.cc`, `tile.h`, `obj_types.h` · DH2: `src/tile.ts`, `src/geometry.ts`
 
@@ -257,7 +273,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 17. Item Use & Scenery Interaction
+## 18. Item Use & Scenery Interaction
 
 > Source: `wiki/items.md` · CE: `proto_instance.cc`, `scripts.cc`, `obj_types.h` · DH2: `src/object.ts`, `src/scripting.ts`, `src/skillUse.ts`
 
@@ -273,7 +289,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 18. Random Number System
+## 19. Random Number System
 
 > Source: `wiki/random_numbers.md` · CE: `random.cc`, `random.h`, `interpreter_extra.cc` · DH2: `src/util.ts`, `src/scripting.ts`, `src/combat.ts`
 
@@ -289,7 +305,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 19. Config & INI System
+## 20. Config & INI System
 
 > Source: `wiki/settings.md` · CE: `config.cc`, `game_config.h`, `settings.h`, `settings.cc` · DH2: `src/config.ts`, `src/ui_options.ts`, `src/init.ts`
 
@@ -309,7 +325,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 20. Lighting Deep Dive
+## 21. Lighting Deep Dive
 
 > Source: `wiki/lighting.md` · CE: `light.cc`, `light.h`, `object.cc`, `interpreter_extra.cc`, `obj_types.h` · DH2: `src/lightmap.ts`, `src/scripting.ts`, `src/object.ts`
 >
@@ -328,7 +344,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 21. Rendering Deviations
+## 22. Rendering Deviations
 
 > Source: `wiki/rendering.md` · CE: `tile.cc`, `object.cc`, `color.cc` · DH2: `src/webglrenderer.ts`, `src/renderer.ts`, `src/object.ts`, `shaders/`
 >
@@ -351,7 +367,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 22. Pathfinding
+## 23. Pathfinding
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -363,12 +379,14 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 | P6 | **No shoot-blocking type.** `_obj_shoot_blocking_at` excludes dead critters and `OBJECT_SHOOT_THRU` objects. DH2 uses the same `blocks()` predicate for pathfinding and LoF alike. | `map.ts:596` | `object.cc:2440` | minor | missing |
 | P7 | **`hasLineOfSight` checks only `type === 'wall'`.** CE `_obj_sight_blocking_at` blocks on scenery objects without `OBJECT_LIGHT_THRU`; DH2 ignores scenery for combat LoS. | `combat.ts:1471` | `object.cc:2583` | minor | bug |
 | P8 | **Script opcodes `make_path` / `obj_blocking_at` / `make_straight_path` are stubs.** | `scripting.ts` | `sfall_opcodes.cc:937,951` | low | stub |
+| P9 | **`recalcPath` crashed on off-map object positions.** Objects with position sentinel `(-1,-1)` caused `matrix[y]` → `undefined`, then `.x` access threw TypeError. Also: start/goal coords not bounds-checked, so out-of-range tile arguments crashed the A* finder. Both guards added. | `src/map.ts` | `tile.cc tileIsValid()` | major | **FIXED 2026-06-02** |
+| P10 | **`walkTo` accepted invalid target tiles without guard.** Out-of-bounds `target.x/y` passed directly to `recalcPath`, crashing the pathfinder. Guard added: returns false with `dbgWarn`. `reg_anim_obj_move_to_tile` in `scripting.ts` also lacked the tile-validity guard — `-1` sentinel passed through. Both fixed. | `src/object.ts`, `src/scripting.ts` | `ai.cc pathFind()` | major | **FIXED 2026-06-02** |
 
 <!-- audited: 2026-06-02 -->
 
 ---
 
-## 23. Endgame System
+## 24. Endgame System
 
 > Source: `wiki/endgame.md` · CE: `src/endgame.cc`, `endgame.h` · DH2: `src/endgame.ts`, `tools/convertEndgame.py`
 
@@ -383,7 +401,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 24. Loot Economy
+## 25. Loot Economy
 
 > Source: `wiki/economy.md` · CE: `proto_instance.cc`, `item.cc`, `inventory.cc` · DH2: `src/object.ts`, `src/scripting.ts`, `src/ui_loot.ts`
 
@@ -405,7 +423,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 25. Interface Windows & HUD
+## 26. Interface Windows & HUD
 
 > Source: `wiki/interface_windows.md` · CE: `interface.cc`, `interface.h`, `game_dialog.cc` · DH2: `src/ui_hud.ts`, `src/ui.ts`, `src/ui_panels.ts`, `src/ui_components.ts`
 
@@ -424,7 +442,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 26. Action Dispatch System (`actions.cc`)
+## 27. Action Dispatch System (`actions.cc`)
 
 See [wiki/actions.md](actions.md) for full documentation.
 
@@ -443,7 +461,7 @@ See [wiki/actions.md](actions.md) for full documentation.
 
 ---
 
-## 27. Elevator System (`elevator.cc`)
+## 28. Elevator System (`elevator.cc`)
 
 See [wiki/interface_windows.md §11](interface_windows.md) for full documentation.
 
@@ -458,7 +476,7 @@ See [wiki/interface_windows.md §11](interface_windows.md) for full documentatio
 
 ---
 
-## 28. Intentionally Deferred — Do Not Implement Unless Tasked
+## 29. Intentionally Deferred — Do Not Implement Unless Tasked
 
 These systems are out-of-scope and marked deliberately incomplete. They appear in source as stubs only.
 
