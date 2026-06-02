@@ -444,6 +444,11 @@ export module Scripting {
             globalVars[gvar] = value
             info('set_global_var: ' + gvar + ' = ' + value, 'gvars')
             log('set_global_var', arguments, 'gvars')
+            // CE ref: game.cc:995 gameSetGlobalVar — GVAR 0 is the main karma score
+            // Sync to player stat so the character-sheet title display stays current.
+            if (gvar === 0 && globalState.player) {
+                globalState.player.stats.setBase('Karma', typeof value === 'number' ? value : parseInt(value))
+            }
         }
         set_local_var(lvar: number, value: any) {
             this.lvars[lvar] = value
@@ -1013,9 +1018,15 @@ export module Scripting {
             return null
         }
         inven_cmds(obj: Critter, invenCmd: number, itemIndex: number): Obj | null {
-            stub('inven_cmds', arguments, 'inventory')
-            assert(invenCmd === 13 /* INVEN_CMD_INDEX_PTR */, 'Invalid invenCmd')
-            return null
+            // CE ref: interpreter_extra.cc:3088 _op_inven_cmds
+            // Only cmd=13 exists in CE: _inven_index_ptr(obj, index) → inventory[index]
+            if (invenCmd !== 13) {
+                stub('inven_cmds', arguments, 'inventory')
+                return null
+            }
+            if (!isGameObject(obj as any) || !obj.inventory) return null
+            if (itemIndex < 0 || itemIndex >= obj.inventory.length) return null
+            return obj.inventory[itemIndex]
         }
         critter_attempt_placement(obj: Obj, tileNum: number, elevation: number) {
             // FO2-CE ref: critter.cc critterAttemptPlacement() — tries target tile, then all 6 neighbors
