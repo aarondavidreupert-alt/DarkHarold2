@@ -409,6 +409,10 @@ export module Worldmap {
             Encounters.positionCritters(enc.groups, globalState.player.position, lookupMapFromLookup(enc.mapLookupName))
 
             enc.groups.forEach(function (group) {
+                // CE ref: worldmap.cc wmSetupCritterObjs — group.target='player' means
+                // these critters are hostile to the player (enemies in the encounter).
+                const isHostileToPlayer = group.target === 'player'
+
                 group.critters.forEach(function (critter) {
                     //console.log("critter: %o", critter)
                     const obj = createObjectWithPID(critter.pid, critter.script ? critter.script : undefined)
@@ -426,6 +430,10 @@ export module Worldmap {
                             }
                         }
                         obj.art = obj.getAnimation('idle')
+                    }
+
+                    if (obj instanceof Critter && isHostileToPlayer) {
+                        obj.hostile = true
                     }
 
                     globalState.gMap.addObject(obj)
