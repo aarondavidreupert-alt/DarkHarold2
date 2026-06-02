@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-01**
+> **Last audited: 2026-06-02**
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -176,7 +176,24 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 12. Intentionally Deferred — Do Not Implement Unless Tasked
+## 12. Pathfinding
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| P1 | **PathFinding.js treats the hex grid as orthogonal.** CE's A* iterates all 6 hex rotations per node (`animation.cc:1795`). PathFinding.js uses 4/8-connected grid movement; hex topology mismatches may produce sub-optimal or visually odd paths near angled walls. | `map.ts:604` | `animation.cc:1795` | minor | bug |
+| P2 | **No rotation-change step cost.** CE adds +10 to a node's cost when the direction changes from its parent (outside combat). | `map.ts:605` | `animation.cc:1838` | low | missing |
+| P3 | **No radioactive goo tile penalty.** CE adds +100 (gecko) or +400 (others) to step cost when the tile contains radioactive goo PID objects. | `map.ts:596` | `animation.cc:1852` | low | missing |
+| P4 | **Closed doors are hard path blocks; no door-opening during pathing.** CE's A* allows traversal through unlocked/openable doors via `canUseDoor`; the critter then opens the door mid-walk. | `map.ts:596` | `animation.cc:1805` | minor | missing |
+| P5 | **No `OBJECT_MULTIHEX` neighbor check in `blocks()`.** CE `_obj_blocking_at` also scans all 6 adjacent tiles for MULTIHEX-flagged objects. DH2's `Obj.blocks()` only tests the object's own tile. | `object.ts:559` | `object.cc:2413` | low | missing |
+| P6 | **No shoot-blocking type.** `_obj_shoot_blocking_at` excludes dead critters and `OBJECT_SHOOT_THRU` objects. DH2 uses the same `blocks()` predicate for pathfinding and LoF alike. | `map.ts:596` | `object.cc:2440` | minor | missing |
+| P7 | **`hasLineOfSight` checks only `type === 'wall'`.** CE `_obj_sight_blocking_at` blocks on scenery objects without `OBJECT_LIGHT_THRU`; DH2 ignores scenery for combat LoS. | `combat.ts:1471` | `object.cc:2583` | minor | bug |
+| P8 | **Script opcodes `make_path` / `obj_blocking_at` / `make_straight_path` are stubs.** | `scripting.ts` | `sfall_opcodes.cc:937,951` | low | stub |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 13. Intentionally Deferred — Do Not Implement Unless Tasked
 
 These systems are out-of-scope and marked deliberately incomplete. They appear in source as stubs only.
 
