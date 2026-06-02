@@ -424,10 +424,12 @@ export class Combat {
             const crippledArmPenalty = (obj.crippledLeftArm ? 40 : 0) + (obj.crippledRightArm ? 40 : 0)
             const blindPenalty = obj.isBlinded ? 25 : 0
             const baseCrit = obj.getStat('Critical Chance') + mode.critBonus
-            var hitChance = unarmedSkill - AC - CriticalEffects.regionHitChanceDecTable[region] - partialCoverPenalty - crippledArmPenalty - blindPenalty
+            // CE ref: combat.cc:4440 — melee/unarmed use half the hit-location penalty
+            const regionPenalty = Math.floor(CriticalEffects.regionHitChanceDecTable[region] / 2)
+            var hitChance = unarmedSkill - AC - regionPenalty - partialCoverPenalty - crippledArmPenalty - blindPenalty
             var critChance = baseCrit + CriticalEffects.regionHitChanceDecTable[region]
             hitChance = Math.min(95, hitChance)
-            combatDebug(`hitChance(unarmed): skill=${unarmedSkill} AC=${AC} region=${CriticalEffects.regionHitChanceDecTable[region]} cover=${partialCoverPenalty} → ${hitChance}%`)
+            combatDebug(`hitChance(unarmed): skill=${unarmedSkill} AC=${AC} region=${regionPenalty} cover=${partialCoverPenalty} → ${hitChance}%`)
             return { hit: hitChance, crit: critChance }
         }
 
@@ -458,8 +460,13 @@ export class Combat {
         // Blinded attacker: additional -25 flat penalty on top of the 12× distance modifier wired above
         var blindPenalty = obj.isBlinded ? 25 : 0
 
-        var hitChance = weaponSkill - AC - CriticalEffects.regionHitChanceDecTable[region] - hitDistanceModifier - partialCoverPenalty - crippledArmPenalty - blindPenalty
-        var critChance = baseCrit + CriticalEffects.regionHitChanceDecTable[region]
+        // CE ref: combat.cc:4437-4440 — ranged weapons use full penalty; melee/thrown use half
+        const isRanged = weapon.weaponSkillType === 'Small Guns' || weapon.weaponSkillType === 'Big Guns' ||
+                         weapon.weaponSkillType === 'Energy Weapons' || weapon.weaponSkillType === 'Throwing'
+        const regionPenaltyFull = CriticalEffects.regionHitChanceDecTable[region]
+        const regionPenalty = isRanged ? regionPenaltyFull : Math.floor(regionPenaltyFull / 2)
+        var hitChance = weaponSkill - AC - regionPenalty - hitDistanceModifier - partialCoverPenalty - crippledArmPenalty - blindPenalty
+        var critChance = baseCrit + regionPenaltyFull
 
         if (isNaN(hitChance)) throw 'something went wrong with hit chance calculation'
 
