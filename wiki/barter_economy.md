@@ -255,7 +255,107 @@ refresh their caps supply on each map reset.
 
 ---
 
-## 9. DH2 Implementation
+## 9. Barter Trigger Chain
+
+### CE — `game_dialog.cc`
+
+CE has two independent paths into the barter screen:
+
+**Path A — Dedicated Barter button (player-initiated)**
+
+The dialogue window includes a permanent "BARTER" button rendered as part of the
+dialogue UI. When clicked (or key `D` pressed), the handler at `game_dialog.cc:3758`
+calls `_gdCanBarter()` which checks the `CRITTER_BARTER` flag (`= 0x02`) in the
+critter's proto (`obj_types.h:93`, `game_dialog.cc:3673`). If the flag is set, the
+barter window opens regardless of what the NPC script has said. If the flag is clear
+("This person will not barter with you." — msg 903), the button silently rejects and
+the dialogue continues.
+
+```
+Player clicks BARTER button
+  → _gdCanBarter()                  // game_dialog.cc:3662
+      → proto->critter.data.flags & CRITTER_BARTER
+  → _dialogue_switch_mode = 2, _dialogue_state = 4
+  → inventoryOpenTrade(...)         // inventory.cc:5031
+```
+
+**Path B — Script-initiated via `gdialog_barter(mod)` (`0x8129`)**
+
+NPC scripts may call `gdialog_barter(mod)` at any point in their `talk_p_proc` (or
+from a dialogue option handler) to open barter directly without the player pressing
+the button. This is common for merchants where Barter is a scripted dialogue choice.
+
+```
+talk_p_proc: ... → gSay_Reply(...)  → giq_option(..., barter_proc, reaction)
+                                    → gsay_end()   [halts VM]
+Player clicks "[Barter]" option
+  → dialogueReply(id)               // scripting.ts:239
+  → barter_proc() runs
+      → gdialog_barter(0)           // 0x8129 opcode
+          → gameDialogBarter(0)     // game_dialog.cc:3163
+              → gGameDialogBarterModifier = 0
+              → gameDialogBarterButtonUpMouseUp(-1,-1)
+              → inventoryOpenTrade(...)
+```
+
+**`metarule(METARULE_CRITTER_BARTERS, obj)` = 50** — scripts can query the proto
+flag at runtime (`interpreter_extra.cc:3316`).
+
+---
+
+### DH2 — Complete Trigger Chain
+
+DH2 has **only one path** into barter — the script-option path. There is no
+dedicated Barter button in the dialogue DOM (`play.html:57–59` shows `dialogueBox`
+contains only `dialogueBoxTextArea`).
+
+```
+Player right-clicks critter → [Talk] context menu item
+  → main.ts / ui_contextmenu.ts calls Scripting.talk(script, obj)  // scripting.ts:1969
+  → script.talk_p_proc() runs in the VM
+
+    Inside talk_p_proc:
+    → start_gdialog(...)       // scripting.ts:1437 → uiStartDialogue() → dialogueBox slides up
+    → gsay_start()             // scripting.ts:1445 → clears dialogueOptionProcs[]
+    → gsay_reply(list, id)     // scripting.ts:1454 → uiSetDialogueReply(text)
+    → giq_option(iq, list, id, barter_proc, reaction)
+        // scripting.ts:1490 → dialogueOptionProcs.push(barter_proc.bind(this))
+        //                   → uiAddDialogueOption("[Barter]", idx)
+        //                       → appends <div onclick=dialogueReply(idx)> to dialogueBoxTextArea
+    → gsay_end()               // scripting.ts:1480 → vm.halted = true
+
+Player clicks "[Barter]" <div> in dialogueBoxTextArea
+  → Scripting.dialogueReply(idx)   // scripting.ts:238
+  → dialogueOptionProcs[idx]() = barter_proc.bind(script)()
+  → gdialog_mod_barter(0)          // scripting.ts:1430 (0x8129 in vm_bridge.ts:181)
+  → uiBarterMode(this.self_obj as Critter)   // ui_barter.ts:272
+      → dialogueBox slides down (uiAnimateBox)
+      → barterBox slides up (uiAnimateBox)
+      → working inventory copies created
+      → offer/talk button handlers wired
+```
+
+**Gap: no standalone Barter button.** If an NPC script does not call
+`gdialog_mod_barter` (or add a dialogue option that calls it), there is no way for
+the player to enter barter with that NPC in DH2, even if the NPC's proto has
+`CRITTER_BARTER = 0x02`. The `CRITTER_BARTER` flag is not read anywhere in DH2.
+
+**Gap: `gdialog_mod_barter` modifier ignored.** At `scripting.ts:1430`, the `mod`
+argument is received but not stored or passed anywhere:
+```typescript
+gdialog_mod_barter(mod: number) {
+    log('gdialog_mod_barter', arguments)
+    dbg('dialogue', '--> barter mode')
+    uiBarterMode(this.self_obj as Critter)   // mod is never used
+}
+```
+In CE, this `mod` is stored in `gGameDialogBarterModifier` and feeds `_barter_mod`
+in the price formula (see §3). DH2's only active modifier path is
+`gdialog_set_barter_mod` → `dialogueBarterMod` → `ui_barter.ts:319`.
+
+---
+
+## 10. DH2 Implementation
 
 ### Barter Screen — `src/ui_barter.ts`
 
@@ -293,7 +393,7 @@ function offer() {
 
 ---
 
-## 10. DH2 vs CE — Formula Comparison
+## 11. DH2 vs CE — Formula Comparison
 
 | Feature | CE (`inventory.cc:4673`) | DH2 (`ui_barter.ts:315`) | Status |
 |---------|--------------------------|--------------------------|--------|
@@ -316,7 +416,7 @@ function offer() {
 
 ---
 
-## 11. Known Gaps
+## 12. Known Gaps
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -330,5 +430,7 @@ function offer() {
 | B8 | **Carry weight not checked.** DH2 completes trades regardless of whether the player can carry the acquired items. | `ui_barter.ts` | `inventory.cc:4710–4718` | minor | missing |
 | B9 | **Party member trade uses value check instead of weight check.** Trading with a companion should be free (weight-limited only). DH2 applies the same formula as NPC merchants. | `ui_barter.ts` | `inventory.cc:4720–4729` | minor | bug |
 | B10 | **`item_caps_total`/`item_caps_adjust` do not recurse into containers.** CE's versions search nested containers; DH2's scan only the top-level inventory. | `scripting.ts:640,644`, `object.ts:670` | `item.cc:3153,3177` | minor | partial |
+| B11 | **No dedicated Barter button in dialogue UI.** CE renders a permanent BARTER button in the dialogue window gated by `CRITTER_BARTER` proto flag. DH2 has no such button — barter is only accessible if the NPC script adds a dialogue option that calls `gdialog_mod_barter`. NPCs with `CRITTER_BARTER` set but no scripted barter option are unreachable in DH2. | `play.html:57–59`, `scripting.ts:1430` | `game_dialog.cc:3662 _gdCanBarter()`, `obj_types.h:93` | major | missing |
+| B12 | **`CRITTER_BARTER` proto flag not read.** DH2 never checks `proto.critter.data.flags & 0x02` anywhere. | `scripting.ts`, `ui_barter.ts` | `obj_types.h:93`, `game_dialog.cc:3673` | minor | missing |
 
 <!-- audited: 2026-06-01 -->

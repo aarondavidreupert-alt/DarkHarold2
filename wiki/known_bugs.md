@@ -119,7 +119,8 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
 | D1 | **`gdialog_mod_barter(mod)` ignores its `mod` argument.** The modifier passed to the screen-opener is silently dropped; `gdialog_set_barter_mod` (stored in `dialogueBarterMod` and read by `ui_barter.ts:319`) works correctly. If a script relies on the `gdialog_barter(mod)` argument alone (without a prior `gdialog_set_barter_mod` call) the markup is 0. | `scripting.ts:1430`, `ui_barter.ts:319` | `game_dialog.cc:3163 gameDialogBarter()` | minor | bug |
-| D2 | **Barter formula uses 1× markup not 2×; Barter skill and reaction not consulted.** See `wiki/barter_economy.md §10` for the full comparison table. | `ui_barter.ts:320` | `inventory.cc:4673 _barter_compute_value()` | major | bug |
+| D2 | **Barter formula uses 1× markup not 2×; Barter skill and reaction not consulted.** See `wiki/barter_economy.md §11` for the full comparison table. | `ui_barter.ts:320` | `inventory.cc:4673 _barter_compute_value()` | major | bug |
+| D3 | **No dedicated Barter button in dialogue UI.** CE renders a permanent BARTER button gated by `CRITTER_BARTER` proto flag (0x02). DH2 has no such button — barter only accessible if the NPC script adds a dialogue option calling `gdialog_mod_barter`. NPCs with the flag set but no scripted barter option can't trade. | `play.html:57–59`, `scripting.ts:1430` | `game_dialog.cc:3662 _gdCanBarter()`, `obj_types.h:93` | major | missing |
 
 ---
 
