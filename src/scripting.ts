@@ -1765,13 +1765,12 @@ export module Scripting {
 
         explosion(tile: number, elevation: number, damage: number) {
             log('explosion', arguments)
-
-            // TODO: objectExplode should defer to an auxillary tile explode function, which we should use
-            // Make dummy object so we can explode at the tile
-            var explosives = createObjectWithPID(makePID(0 /* items */, 85 /* Plastic Explosives */), -1)
+            // CE ref: actions.cc:1582 actionExplode — tile, elevation, minDamage, maxDamage
+            // Script opcode passes a single damage value; treat as fixed damage (min=max).
+            const explosives = createObjectWithPID(makePID(0 /* items */, 85 /* Plastic Explosives */), -1)
             explosives.position = fromTileNum(tile)
             globalState.gMap.addObject(explosives)
-            explosives.explode(explosives, 0, 100) // TODO: min/max dmg?
+            explosives.explode(explosives, damage, damage)
             globalState.gMap.removeObject(explosives)
         }
 
