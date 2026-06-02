@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15; tile_system added §16; item_use added §17; random_numbers added §18)
+> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15; tile_system added §16; item_use added §17; random_numbers added §18; config_ini added §19)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -286,7 +286,27 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 19. Pathfinding
+## 19. Config & INI System
+
+> Source: `wiki/config_ini.md` · CE: `config.cc`, `game_config.h`, `settings.h`, `settings.cc` · DH2: `src/config.ts`, `src/ui_options.ts`, `src/init.ts`
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| CI1 | **No fallout2.cfg — all config is hardcoded.** DH2 has no file-based config; all defaults are baked into `Config` in `src/config.ts`. Users cannot edit settings between sessions via a file. | `src/config.ts` | `config.cc:273 configRead()`; `game_config.h:8` | minor | missing |
+| CI2 | **`game_difficulty` and `combat_difficulty` conflated.** CE has separate keys affecting skill checks/loot/XP vs enemy stats. DH2 maps both to `difficultyModifier` which only scales combat damage. | `src/config.ts:62`; `src/ui_options.ts:205` | `settings.h:29-31`; `preferences.cc:371-372` | minor | missing |
+| CI3 | **`combat_speed` uses inverse/incompatible scale.** CE: 0–50 integer where 0=slowest. DH2: discrete values 1/2/4 where 4=fastest. Inverse and non-equivalent. | `src/config.ts:67` | `preferences.cc:382`; `game_config.h:44` | low | bug |
+| CI4 | **`running` defaults differ.** CE default is false (walk by default); DH2 `doAlwaysRun` defaults to true (always run). | `src/config.ts:41` | `settings.h:38` | low | bug |
+| CI5 | **Preferences stored in localStorage, not fallout2.cfg.** CE writes back to fallout2.cfg on exit. localStorage is lost in private browsing or on cache clear. | `src/ui_options.ts:332` | `settings.cc:118 settingsToConfig()`; `config.cc:313` | minor | missing |
+| CI6 | **`speech_volume` not persisted in DH2 preferences.** CE saves it to fallout2.cfg on every exit. | `src/ui_options.ts:315` | `settings.cc:93` | low | bug |
+| CI7 | **`item_highlight` setting absent.** CE allows toggling item-highlighting on cursor hover. DH2 has no Config field or UI toggle for this. | `src/config.ts` | `game_config.h:37`; `settings.h:33` | low | missing |
+| CI8 | **`target_highlight` loses "targeting only" mode.** CE has three states (0=Off/1=On/2=Targeting-only). DH2 collapses to a boolean. | `src/ui_options.ts:232-237` | `game_config.h:111-115 TargetHighlight enum` | low | bug |
+| CI9 | **No `text_base_delay` / `text_line_delay`.** CE auto-advances dialogue text after a configurable per-line delay. DH2 has no auto-advance. | `src/config.ts` | `settings.h:42-43` | low | missing |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 20. Pathfinding
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
@@ -303,7 +323,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 20. Intentionally Deferred — Do Not Implement Unless Tasked
+## 21. Intentionally Deferred — Do Not Implement Unless Tasked
 
 These systems are out-of-scope and marked deliberately incomplete. They appear in source as stubs only.
 
