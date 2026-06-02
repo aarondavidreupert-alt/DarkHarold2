@@ -291,11 +291,10 @@ export class Combat {
             return false
         }) as Critter[]
 
-        // Sort combatants by Sequence stat descending (FO2: _combat_sequence).
-        // Sequence = 10 + 2*PER.  Ties: player goes first, then by original array order.
+        // CE ref: stat.cc:572 — Sequence = 2*PER. Ties: player goes first, then by original array order.
         this.combatants.sort((a, b) => {
-            const seqA = 10 + 2 * a.getStat('PER')
-            const seqB = 10 + 2 * b.getStat('PER')
+            const seqA = a.getStat('Sequence')
+            const seqB = b.getStat('Sequence')
             if (seqA !== seqB) return seqB - seqA
             if (a.isPlayer) return -1
             if (b.isPlayer) return 1
