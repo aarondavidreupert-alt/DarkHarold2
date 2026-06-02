@@ -1558,10 +1558,11 @@ export module Scripting {
             dialogueBarterMod = mod
         }
         gdialog_mod_barter(mod: number) {
-            // switch to barter mode
+            // CE ref: game_dialog.cc:3163 gameDialogBarter — sets _dialogBarterMod then opens barter
             log('gdialog_mod_barter', arguments)
             dbg('dialogue', '--> barter mode')
             if (!this.self_obj) throw 'need self_obj'
+            dialogueBarterMod = mod
             uiBarterMode(this.self_obj as Critter)
         }
         start_gdialog(msgFileID: number, obj: Obj, mood: number, headNum: number, backgroundID: number) {

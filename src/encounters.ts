@@ -290,8 +290,10 @@ export module Encounters {
 
     function pickEncounter(encounters: Worldmap.Encounter[]) {
         // Pick an encounter from an encounter list based on a roll
+        // CE ref: worldmap.cc:3579 — skip depleted (counter==0) encounters
 
         var succEncounters = encounters.filter(function(enc) {
+            if (enc.counter === 0) return false
             return (enc.cond !== null) ? evalConds(enc.cond) : true
         })
         var numEncounters = succEncounters.length
@@ -328,7 +330,10 @@ export module Encounters {
         }
 
         dbg('encounters', "idx: %d", idx)
-        return succEncounters[idx]
+        const chosen = succEncounters[idx]
+        // CE ref: worldmap.cc:3636 — decrement counter if > 0
+        if (chosen.counter > 0) chosen.counter--
+        return chosen
     }
 
     export function positionCritters(groups: Worldmap.EncounterGroup[], playerPos: Point, map: MapInfo) {

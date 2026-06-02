@@ -84,6 +84,7 @@ export module Worldmap {
         cond: any // TODO: condition type
         condOrig: string | null // Original condition string
         special: string | null
+        counter: number // remaining fires: -1=unlimited, 0=depleted, >0=limited
     }
 
     export interface EncounterRef {
@@ -205,6 +206,8 @@ export module Worldmap {
                 cond: cond ? Encounters.parseConds(cond) : null,
                 special: isSpecial ? enc.map : null,
                 condOrig: cond,
+                // CE ref: worldmap.cc:1438 — counter:-1=unlimited, 0=depleted, >0=limited
+                counter: enc.counter !== undefined ? parseInt(enc.counter) : -1,
             }
         }
 
