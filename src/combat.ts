@@ -1491,6 +1491,8 @@ export class Combat {
         for (var i = 0; i < this.combatants.length; i++) {
             var obj = this.combatants[i]
             if (obj.dead || obj.isPlayer) continue
+            // Party members (same team as player) never count as active enemies.
+            if (obj.teamNum === globalState.player.teamNum) continue
             if (!obj.ai || !obj.ai.packet) {
                 combatWarn(`Critter ${obj.name || obj.art} has no AI info, skipping range check`)
                 continue
@@ -1505,7 +1507,7 @@ export class Combat {
                 // movement AP spent) must not flip bystanders to hostile.
                 if (this.hasAttacked || obj.hostile) {
                     obj.hostile = true
-                    obj.outline = obj.teamNum !== globalState.player.teamNum ? 'red' : 'green'
+                    obj.outline = 'red'
                     numActive++
                 }
             }
@@ -1557,7 +1559,10 @@ export class Combat {
             this.inPlayerTurn = false
             drawAP(0, this.player.AP!.getTotalMaxAP(), 0, false)
             var critter = this.combatants[this.whoseTurn]
-            if (critter.dead === true || critter.hostile !== true) return this.nextTurn()
+            // Party members (same team as player) take AI turns even without hostile flag.
+            // CE ref: party.cc — party members participate fully in combat on the player's side.
+            const isFriendly = critter.teamNum === globalState.player.teamNum
+            if (critter.dead === true || (!critter.hostile && !isFriendly)) return this.nextTurn()
 
             // Fire DoT: apply at the start of each critter's turn
             if (critter.onFireTurns > 0) {

@@ -96,8 +96,11 @@ export module Scripting {
         4: 'INT',
         5: 'AGI',
         6: 'LUK',
-        35: 'HP',
         7: 'Max HP',
+        9: 'AC',
+        15: 'Critical Chance',
+        16: 'Better Criticals',
+        35: 'HP',
     }
 
     type DebugLogShowType = keyof typeof Config.scripting.debugLogShowType
@@ -588,9 +591,17 @@ export module Scripting {
         // critters
         get_critter_stat(obj: Critter, stat: number) {
             if (stat === 34) {
-                // STAT_gender
+                // STAT_GENDER
                 if (obj.isPlayer) return (<Player>obj).gender === 'female' ? 1 : 0
-                return 0 // Default to male
+                return 0
+            }
+            if (stat === 8) {
+                // STAT_MAXIMUM_ACTION_POINTS — CE ref: stat.cc critterGetStat, formula: 5 + AGI/2
+                return 5 + Math.floor(obj.getStat('AGI') / 2)
+            }
+            if (stat === 13) {
+                // STAT_SEQUENCE — CE ref: stat.cc _critter_sequence = 10 + 2*PER
+                return 10 + 2 * obj.getStat('PER')
             }
             var namedStat = statMap[stat]
             if (namedStat !== undefined) return obj.getStat(namedStat)
@@ -836,8 +847,19 @@ export module Scripting {
             return roll
         }
         do_check(obj: Obj, check: number, modifier: number) {
-            stub('do_check', arguments)
-            return 1
+            // FO2-CE ref: interpreter_extra.cc opDoCheck + stat.cc statRoll
+            // Only SPECIAL stats (0=STR…6=LUK) are valid; CE treats others as script errors.
+            if (check < 0 || check > 6) {
+                dbg('script', `do_check: stat index ${check} out of range (0–6); returning failure`)
+                return RollResult.Failure
+            }
+            const critter = obj as Critter
+            const statName = statMap[check]!
+            const value = (typeof critter.getStat === 'function') ? critter.getStat(statName) : 0
+            const chance = getRandomInt(1, 10)
+            const roll = chance <= value + modifier ? RollResult.Success : RollResult.Failure
+            dbg('script', `do_check: stat=${statName} base=${value} mod=${modifier} roll=${chance} → ${RollResult[roll]}`)
+            return roll
         }
         is_success(roll: number) {
             // FO2-CE ref: random.h — Success=2, CriticalSuccess=3

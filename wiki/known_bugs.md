@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; animation gaps added §14; proto_system added §15; tile_system added §16; items added §17; random_numbers added §18; settings added §19; lighting added §20; rendering added §21; pathfinding added §22; endgame added §23; economy added §24; interface_windows added §25; M4/W10/LD3 corrections 2026-06-02; wiki merged 55→38 docs 2026-06-02; audio §8 added 2026-06-02; sections §9-§29 renumbered; autocrawler merge crash fixes FIXED 2026-06-02; aiPackets.ts wired: C7/C12/C13 2026-06-02; Phase 1/3/7 sprint 2026-06-02: S13 FIXED, S21 wired, LD3 partial→wired, U5/U6 FIXED)
+> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; animation gaps added §14; proto_system added §15; tile_system added §16; items added §17; random_numbers added §18; settings added §19; lighting added §20; rendering added §21; pathfinding added §22; endgame added §23; economy added §24; interface_windows added §25; M4/W10/LD3 corrections 2026-06-02; wiki merged 55→38 docs 2026-06-02; audio §8 added 2026-06-02; sections §9-§29 renumbered; autocrawler merge crash fixes FIXED 2026-06-02; aiPackets.ts wired: C7/C12/C13 2026-06-02; Phase 1/3/7 sprint 2026-06-02: S13 FIXED, S21 wired, LD3 partial→wired, U5/U6 FIXED; Phase combat/scripting sprint 2026-06-02: S7/do_check FIXED, S3/get_critter_stat expanded, C6/P1 party combat AI wired)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -31,7 +31,7 @@ Items marked 🔶 are addressed on an unmerged branch.
 | C3 | **YAAM damage formula has three divergences from CE.** (a) DH2 omits the `/2` halving step. (b) DH2 applies DT *after* multiply; CE subtracts DT *before* multiply at line 6795. (c) DH2 adjusts DR with ammo RM; CE adjusts DT instead. | `combat.ts:266–275` | `combat.cc:6767–6813 damageModCalculateYaam()` | minor | bug |
 | C4 | **Melee/unarmed hit-location penalty not halved.** CE halves `hit_location_penalty[region]` for melee weapons in `attackDetermineToHit`. DH2 applies full `regionHitChanceDecTable[region]` to both unarmed and ranged paths identically. | `combat.ts:454,488` | `combat.cc:4440 attackDetermineToHit()` | minor | bug |
 | C5 | **Melee weapons use the ranged critical effects table.** CE has a separate critical effects table for melee weapons. DH2's `criticalEffects.ts` uses one table for all weapon types. | `criticalEffects.ts:49` | `combat.cc rollCriticalHit()` | minor | partial |
-| C6 | **Party members are not enrolled in the combatants list.** At `combat.ts:301`, `combatants` is filtered from `objects` but party members are not included. They wander freely while the player fights; no party AI turn is executed. | `combat.ts:301`, `party.ts` | `combat.cc`, `party.cc` | major | partial |
+| C6 | **Party member combat AI now wired (2026-06-02).** Friendly-team critters (teamNum = player.teamNum) are enrolled in combat, skipped from the enemy `numActive` count, and get full AI turns via `doAITurn()`. They target the nearest enemy via `findTarget()`. CE ref: `party.cc partyMemberGetCombatants`. Outstanding: no CHA-based squad-cap enforcement, no companion level-up, no formation pathfinding. | `combat.ts:1493,1560` | `combat.cc`, `party.cc` | major | partial |
 | C7 | **AI team targeting still partially broken.** `teamNum` now reads from `getAiPacket(aiNum).teamNum` (`object.ts:1299`) so critters with a `team_num` in `ai.txt` get correct teams. Critters whose packet has no `team_num` still default to -1, making them all targets of each other. | `object.ts:1299`, `combat.ts:1033` | `ai.cc aiGetAttackTarget()` | major | partial |
 | C8 | **Wander-type radius not differentiated.** CE maps wander\_type 1 → short radius, 2 → large radius, 3 → unrestricted. DH2 applies a flat 5%/tick random-hex move with no radius cap for any non-zero wander\_type. `aiPackets.ts` parser is wired; `wander_type` field still not consulted in combat.ts movement. | `combat.ts`, `aiPackets.ts` | `ai.cc` | minor | partial |
 | C9 | **DAM\_DROP not implemented.** Weapons are never dropped on a critical failure that rolls the DROP effect. | `combat.ts`, `criticalEffects.ts` | `combat.cc` | minor | missing |
@@ -50,11 +50,11 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 |----|-----------------|---------|----------------|-----|--------|
 | S1 | `metarule` | `scripting.ts:523` | Sub-ops 14/15/17/18/22/46/48/49 handled; all other IDs call `stub()` | major | partial |
 | S2 | `metarule3` | `scripting.ts:553` | Sub-ops 100 and 106 handled; all other IDs call `stub()` | minor | partial |
-| S3 | `get_critter_stat` | `scripting.ts:577` | 8 stat IDs mapped (SPECIAL 0–6, HP/MaxHP, gender 34); all other stat IDs stub | major | partial |
+| S3 | `get_critter_stat` | `scripting.ts:577` | 12 stat IDs now mapped (SPECIAL 0–6, MaxHP 7, AC 9, MaxAP 8 computed, Sequence 13 computed, CritChance 15, BetterCriticals 16, HP 35, gender 34); remaining DT/DR variants (17–32) and STAT_AGE (33) still stub | major | partial |
 | S4 | `has_trait` | `scripting.ts:602` | `TRAIT_OBJECT` cases 5/6/10/666 handled; `OBJECT_CUR_WEIGHT` (669) and all non-`TRAIT_OBJECT` types stub | major | partial |
 | S5 | `critter_add_trait` | `scripting.ts:606` | Cases 5 (ai\_packet) and 6 (team\_num) write through; cases 10/666/669 and all other trait types silently ignored | minor | partial |
 | S6 | `using_skill` | `scripting.ts:791` | Always returns 0; CE `skill.cc::isUsingSkill()` check not implemented | minor | stub |
-| S7 | `do_check` | `scripting.ts:819` | Always returns 1 (pass); CE `stat.cc::statRoll()` not invoked | major | stub |
+| S7 | `do_check` | `scripting.ts:819` | **FIXED 2026-06-02** — implements CE `stat.cc::statRoll()`: roll d10 (1–10), success if roll ≤ SPECIAL stat + modifier. Only stat indices 0–6 (SPECIAL) accepted; others return failure. | major | fixed |
 | S8 | `inven_cmds` | `scripting.ts:847` | All cases return null; only `INVEN_CMD_INDEX_PTR` (13) is asserted | minor | stub |
 | S9 | `set_pc_stat` | `scripting.ts:922` | Cases 3 (Reputation) and 4 (Karma) write through; all other `PCSTAT_*` IDs stub | minor | partial |
 | S10 | `mod_pc_stat` | `scripting.ts:942` | Cases 3 (Reputation) and 4 (Karma) write through; all other `PCSTAT_*` IDs stub | minor | partial |
@@ -134,7 +134,7 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
-| P1 | **Party members absent from combat.** No party-member AI turns. Party follows the player but is not part of the combat sequence. See C6. | `combat.ts:301`, `party.ts` | `combat.cc`, `party.cc` | major | partial |
+| P1 | **Party member combat AI wired (2026-06-02).** Party members on the player's team now participate in combat: they receive AI turns via `doAITurn()`, skip enemy counters, and target enemies via `findTarget()`. See C6 for remaining gaps. | `combat.ts:1493,1560` | `combat.cc`, `party.cc` | major | partial |
 | P2 | **NPC time-of-day schedules not implemented.** Critters with `wander_type > 0` do a simple random-hex wander. CE assigns each NPC a fixed schedule (home/work/sleep positions keyed by hour). | `main.ts:1099` | `scripts.cc`, `ai.cc` | major | missing |
 | P3 | **Party companion full AI deferred.** No CHA-based size cap, no formation pathfinding, no companion level-up, no dismissal dialogue hooks. Deliberately out of scope for the current sprint. | `party.ts` | `party.cc` | major | missing |
 | P4 | **Speech audio / subtitles not implemented.** `Config.ui.subtitles = false`. No `.acm` speech playback path; `audio.ts` handles music/SFX only. | `audio.ts`, `config.ts` | `sound.cc` | minor | missing |

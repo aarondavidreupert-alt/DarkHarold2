@@ -106,10 +106,10 @@ until these hooks are wired.
 | `has_trait` | 🟡 Partial | TRAIT_OBJECT cases 5,6,10,666 handled; case 669 (OBJECT_CUR_WEIGHT) has TODO; all others `stub()` — `scripting.ts`. Ref: `interpreter_extra.cc::opHasTrait` |
 | `critter_add_trait` | 🟡 Partial | TRAIT_OBJECT cases 5,6 handled; all others silently ignored after `stub()` log — `scripting.ts`. Ref: `interpreter_extra.cc::opAddTrait` |
 | `anim` | 🟡 Partial | IDs 1000 (set rotation) and 1010 (set frame) handled; all others `stub()` — `scripting.ts`. Ref: `interpreter_extra.cc::opAnim` |
-| `do_check` | 🔴 Stub | Always returns 1; `statRoll()` never invoked — `scripting.ts:819`. Ref: `interpreter_extra.cc::opDoCheck` |
+| `do_check` | ✅ Done | Implements CE `stat.cc::statRoll()` — roll d10 (1–10), success if roll ≤ SPECIAL stat + modifier (indices 0–6 only) — `scripting.ts:839`. Ref: `interpreter_extra.cc::opDoCheck` |
 | `using_skill` | 🔴 Stub | Always returns 0 — `scripting.ts:791`. Ref: `interpreter_extra.cc::opUsingSkill` |
 | `inven_cmds` | 🟡 Partial | Only INVEN_CMD_INDEX_PTR (13) handled; all other inventory command IDs `stub()` — `scripting.ts:847`. Ref: `interpreter_extra.cc::opInvenCmds` |
-| `get_critter_stat` | 🟡 Partial | SPECIAL 0–6, HP (35), Max HP (7), gender (34) handled; all other stat IDs (AC, AP, carry weight, sequence, critical chance, damage threshold/resistance, etc.) `stub()` and return 5 — `scripting.ts`. Ref: `interpreter_extra.cc::opGetCritterStat`, `stat.cc::statGetValue` |
+| `get_critter_stat` | 🟡 Partial | SPECIAL 0–6, MaxHP 7, MaxAP 8 (computed), AC 9, Sequence 13 (computed), CritChance 15, BetterCriticals 16, HP 35, gender 34 handled; DT/DR variants (17–32) and STAT_AGE (33) still `stub()` — `scripting.ts`. Ref: `interpreter_extra.cc::opGetCritterStat`, `stat.cc::statGetValue` |
 | `set_pc_stat` | 🟡 Partial | PCSTAT_reputation (3) and PCSTAT_karma (4) handled; PCSTAT_unspent_skill_points (0), PCSTAT_level (1), PCSTAT_experience (2) `stub()` — `scripting.ts`. Ref: `stat.cc::pcSetStat` |
 | `mod_pc_stat` | 🟡 Partial | PCSTAT_reputation (3) and PCSTAT_karma (4) handled; PCSTAT_unspent_skill_points (0), PCSTAT_level (1), PCSTAT_experience (2) `stub()` — `scripting.ts`. Ref: `scripts.cc::opModifyPcStat` |
 
@@ -164,15 +164,13 @@ until these hooks are wired.
   hurt_too_much flee, `_combatai_rating` weapon damage, drug use, friendly-fire.
 - Ref: `wiki/ai_behavior.md` §9 DH2 Status Table
 
-### 4f. Party member combat AI 🔴 Still needed
-- Party members are excluded from the combatants list at `combat.ts:301`:
-  `if (!obj.isPlayer && !triggerTeams.has(obj.teamNum) && !obj.hostile) return false`.
-- Companions stand idle during combat — they receive no AI turns and cannot
-  attack enemies or use items, even when adjacent to a hostile.
-- Fix: enrol party members into the combatants list with their own team number;
-  assign each companion an AI turn using `aiTurn()` with their loaded AI packet.
+### 4f. Party member combat AI ✅ Done (2026-06-02)
+- Friendly-team critters (`teamNum === player.teamNum`) now receive full AI turns via
+  `doAITurn()` in `combat.ts:1560` — same path as enemies.
+- Excluded from the enemy `numActive` count so combat ends correctly when all enemies die.
+- `findTarget()` already filters by `teamNum !== obj.teamNum`, so companions attack only enemies.
+- Outstanding: no CHA squad-cap, no formation pathfinding, no companion-level-up.
 - Ref: fallout2-ce `party.cc::partyMemberCombatTurn()`, `ai.cc::aiTurn()`
-- Wiki: `wiki/companion_party.md` — Section 3 (Combat AI for companions)
 
 ---
 
