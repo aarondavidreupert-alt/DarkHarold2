@@ -74,6 +74,9 @@ import './autocrawler.js'
 // persisted field (map entry resets the cadence anyway).
 let nextMapUpdateTick = 600
 
+// Tracks the last elapsed-day count for midnight event detection (GTC5)
+let lastMidnightDay = -1
+
 // Return the skill ID used by the Fallout 2 engine
 function getSkillID(skill: Skills): number {
     switch (skill) {
@@ -1032,6 +1035,19 @@ heart.update = function () {
         if (globalState.gameTickTime >= 13 * GameTime.TICKS_PER_YEAR) {
             Endgame.setupDeathEnding(Endgame.DEATH_REASON_TIMEOUT)
             Endgame.playDeathEnding().catch((e: unknown) => dbgWarn('endgame', 'GTC7 timeout ending error: ' + String(e)))
+        }
+
+        // CE ref: scripts.cc:405 gameTimeEventProcess — midnight queue event.
+        // Fires once per in-game day: unjams all doors and checks story-movie triggers.
+        const currentDay = GameTime.getTotalDays()
+        if (lastMidnightDay === -1) {
+            lastMidnightDay = currentDay // initialize on first tick
+        } else if (currentDay !== lastMidnightDay) {
+            lastMidnightDay = currentDay
+            dbg('map', 'QUEUE PROCESS: Midnight!')
+            // objectUnjamAll() — deferred until IU3 (jammed state) is implemented
+            // _scriptsCheckGameEvents() — ARTIMER movie triggers, not yet implemented
+            // _critter_check_rads() — radiation decay, intentionally deferred
         }
 
         if (Config.engine.doTimedEvents && !globalState.inCombat) {
