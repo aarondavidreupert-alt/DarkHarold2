@@ -56,6 +56,8 @@ import {
     uiWorldMap,
 } from './ui.js'
 import { loadPreferences } from './ui_options.js'
+import * as Endgame from './endgame.js'
+import * as GameTime from './gametime.js'
 import { getFileJSON, getProtoMsg } from './util.js'
 import { WebGLRenderer } from './webglrenderer.js'
 import { Config } from './config.js'
@@ -1025,6 +1027,12 @@ heart.update = function () {
     if (didTick) {
         globalState.lastGameTick = time
         globalState.gameTickTime++
+
+        // CE ref: scripts.cc:368 gameTimeAddTicks — end game after 13 elapsed years
+        if (globalState.gameTickTime >= 13 * GameTime.TICKS_PER_YEAR) {
+            Endgame.setupDeathEnding(Endgame.DEATH_REASON_TIMEOUT)
+            Endgame.playDeathEnding().catch((e: unknown) => dbgWarn('endgame', 'GTC7 timeout ending error: ' + String(e)))
+        }
 
         if (Config.engine.doTimedEvents && !globalState.inCombat) {
             // check and update timed events
