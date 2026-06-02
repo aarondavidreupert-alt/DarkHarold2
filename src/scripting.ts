@@ -36,6 +36,7 @@ import { useElevator } from './main.js'
 import { Critter, createObjectWithPID, Obj, objectGetDamageType } from './object.js'
 import { Player } from './player.js'
 import { loadPRO, makePID } from './pro.js'
+import * as Endgame from './endgame.js'
 import { centerCamera, objectOnScreen } from './renderer.js'
 import { fromTileNum, toTileNum } from './tile.js'
 import { uiAddDialogueOption, uiBarterMode, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, UIMode } from './ui.js'
@@ -1766,10 +1767,25 @@ export module Scripting {
             else globalState.gMap.loadMapByID(map)
         }
         play_gmovie(movieID: number) {
-            // FO2 .mve movies are not converted/supported yet.
-            // Log and skip gracefully so scripts don't hang.
-            info('play_gmovie: movie ' + movieID + ' (not implemented — skipping)')
+            // CE: interpreter_extra.cc:opPlayGameMovie (0x45A14C)
+            // FO2 .mve movies are not converted/supported. Log and skip.
+            info('play_gmovie: movie ' + movieID + ' (no .mve support — skipping)')
             uiLog('[Movie ' + movieID + ' skipped]')
+        }
+        endgame_slideshow() {
+            // CE: interpreter_extra.cc:opEndgameSlideshow (0x8146)
+            // CE defers via scriptsRequestEndgame() flag; DH2 fires async directly.
+            info('endgame_slideshow: starting')
+            Endgame.playSlideshow().catch((e: unknown) => {
+                info('endgame_slideshow error: ' + String(e))
+            })
+        }
+        endgame_movie() {
+            // CE: interpreter_extra.cc:opEndgameMovie (0x8148)
+            info('endgame_movie: starting')
+            Endgame.playMovie().catch((e: unknown) => {
+                info('endgame_movie error: ' + String(e))
+            })
         }
         mark_area_known(areaType: number, areaID: number, state: number) {
             // areaType: 0 = AREATYPE_KNOWN, 1 = AREATYPE_ENTRANCE_KNOWN

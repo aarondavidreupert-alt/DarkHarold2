@@ -51,6 +51,7 @@ import exportImagesPar
 import exportPRO
 import fomap
 import convertLST
+import convertEndgame
 
 # global paths/flags
 SRC_DIR = None
@@ -173,6 +174,15 @@ def convert_lsts():
 		warn("Error converting LST files (see traceback above). Will continue setup.")
 	return True
 
+def convert_endgame_data():
+	info("Converting endgame.txt and enddeath.txt to JSON...")
+	try:
+		convertEndgame.convert_endgame("data", "lut")
+	except Exception:
+		traceback.print_exc()
+		warn("Error converting endgame data (see traceback above). Will continue setup.")
+	return True
+
 def export_maps():
 	# Export MAPs
 
@@ -220,6 +230,7 @@ def main():
 	export_pros()
 	export_maps()
 	convert_lsts()
+	convert_endgame_data()
 
 	info("")
 	info("Setup complete. Please review the messages above, looking for any warnings.")

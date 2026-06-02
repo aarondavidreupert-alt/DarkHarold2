@@ -170,6 +170,8 @@ export module ScriptVMBridge {
        ,0x8145: bridged("use_obj_on_obj", 2, false)
        ,0x80E4: bridged("load_map", 2, false)
        ,0x8115: bridged("play_gmovie", 1, false)
+       ,0x8146: bridged("endgame_slideshow", 0, false)
+       ,0x8148: bridged("endgame_movie", 0, false)
        ,0x80A3: bridged("play_sfx", 1, false)
        ,0x80FC: bridged("game_time_advance", 1, false)
        ,0x8137: bridged("gfade_in", 1, false)

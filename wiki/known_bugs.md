@@ -1,6 +1,6 @@
 # DarkHarold2 — Known Bugs & Gaps Registry
 
-> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15; tile_system added §16; item_use added §17; random_numbers added §18; config_ini added §19; lighting_deep_dive added §20; rendering_deviations added §21)
+> **Last audited: 2026-06-02** (time_clock audit added §12; elevation audit added §13; frm_animation added §14; proto_system added §15; tile_system added §16; item_use added §17; random_numbers added §18; config_ini added §19; lighting_deep_dive added §20; rendering_deviations added §21; endgame added §23)
 >
 > Update this file when: closing a bug, adding a stub, or after any sprint
 > that touches scripting, combat, or worldmap.
@@ -365,7 +365,22 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 
 ---
 
-## 23. Intentionally Deferred — Do Not Implement Unless Tasked
+## 23. Endgame System
+
+> Source: `wiki/endgame.md` · CE: `src/endgame.cc`, `endgame.h` · DH2: `src/endgame.ts`, `tools/convertEndgame.py`
+
+| ID | Description | File(s) | CE Reference | Sev | Status |
+|----|-------------|---------|--------------|-----|--------|
+| EG3 | **Panning slide uses linear timing instead of CE's per-pixel formula.** CE computes `v9` (ms per pixel step) from image width and speech duration. DH2 uses a simple linear pan over `max(speechDuration, 5s)`. | `src/endgame.ts:showPanningSlide` | `endgame.cc:337-345` | low | bug |
+| EG4 | **`endgame_movie` skips credits music and text.** CE plays `akiss.acm`, calls `creditsOpen("credits.txt")`, then loads `10labone.acm`. DH2 shows only the "continue playing?" dialog. | `src/endgame.ts:playMovie` | `endgame.cc:234`; `credits.cc` | minor | missing |
+| EG5 | **Death ending slide is a black screen.** CE plays the narrator over the death scene. DH2 `playDeathEnding()` shows a blank canvas. | `src/endgame.ts:playDeathEnding` | `critter.cc:912` | low | missing |
+| EG6 | **`setupDeathEnding` not wired to player death.** CE calls it immediately when the player dies (`critter.cc:912`). The DH2 export exists but is not called from `critter.ts`. | `src/critter.ts` | `critter.cc:912` | major | missing |
+
+<!-- audited: 2026-06-02 -->
+
+---
+
+## 24. Intentionally Deferred — Do Not Implement Unless Tasked
 
 These systems are out-of-scope and marked deliberately incomplete. They appear in source as stubs only.
 
