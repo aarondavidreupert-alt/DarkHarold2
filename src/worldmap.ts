@@ -692,7 +692,10 @@ export module Worldmap {
             // terrain difficulty. Rough units with no precedent in the
             // original, chosen so crossing the map takes a day or two.
             const travelScale = 1 / worldmap.terrainSpeed[currentSquare.terrainType]
-            GameTime.advanceMinutes(Math.max(1, Math.round(2 * travelScale)))
+            // CE ref: worldmap.cc:4180 — Pathfinder perk reduces ticks by 25% per rank
+            const pathfinderRank = globalState.player?.perks.filter((p: string) => p === 'Pathfinder').length ?? 0
+            const pathfinderMult = Math.max(0, 1 - pathfinderRank * 0.25)
+            GameTime.advanceMinutes(Math.max(1, Math.round(2 * travelScale * pathfinderMult)))
 
             // center the worldmap to the player
             const width = $worldmap.offsetWidth

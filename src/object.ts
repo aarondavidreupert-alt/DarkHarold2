@@ -143,6 +143,14 @@ function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent = true)
     // Open/closable doors/containers
     // TODO: Door/Container subclasses
     if (obj.locked) {
+        // CE ref: proto_instance.cc:1712 _obj_use_door — plays SLDOORSx for locked doors
+        //         proto_instance.cc:1804 — plays ILCNTNRx + msg 487 for locked containers
+        if (obj.isDoor) {
+            globalState.audioEngine.playSfxByName('sldoorsa')
+        } else if (obj.isContainer) {
+            globalState.audioEngine.playSfxByName('silcntna')
+            uiLog('It is locked.')
+        }
         return false
     }
 
@@ -1356,7 +1364,7 @@ export class Critter extends Obj {
         }
 
         const time = window.performance.now()
-        const fps = 8 // todo: get FPS from image info
+        const fps = globalState.imageInfo[this.art]?.fps || 8
 
         if (time - this.lastFrameTime >= 1000 / fps) {
             const reversed = this.anim === 'reverse'
