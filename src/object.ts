@@ -2052,12 +2052,12 @@ function getAnimDistance(art: string): number {
         throw 'no image info for ' + art
     }
 
-    // CE ref: art.cc artGetFrameOffset — both anchors use direction 0
-    const firstShift = info.frameOffsets[0][0].ox
-    const lastShift = info.frameOffsets[0][info.numFrames - 1].ox
-
-    // distance = (shift x of last frame) - (shift x of first frame(?) + 16) / 32
-    return Math.floor((lastShift - firstShift + 16) / 32)
+    // Direction E (index 1) gives purely horizontal screen displacement of +32px per hex.
+    // Direction NE (index 0) is oblique with a smaller, sometimes-negative x component
+    // that makes the /32 formula produce wrong (too-low) step counts.
+    // CE ref: Art.xOffsets[rotation] — rotation 1 (E) is the correct anchor.
+    const lastShift = info.frameOffsets[1][info.numFrames - 1].ox
+    return Math.max(1, Math.floor((lastShift + 16) / 32))
 }
 
 interface PartialAction {
