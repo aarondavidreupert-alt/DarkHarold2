@@ -1887,42 +1887,19 @@ export class Critter extends Obj {
         // Dead critters stay frozen on their last death frame — never reset to idle.
         if (this.dead) return
 
-        // Capture old state BEFORE super.clearAnim() resets frame/shift.
-        const wasWalking = this.shift !== null
-        const oldArt = this.art
-        const oldFrame = this.frame
-        const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
-
         super.clearAnim()
         this.path = null
 
         const newArt = this.getAnimation('idle')
-        if (wasWalking) {
-            // CE ref: objectSetLocation (object.cc) resets obj->x/y on every tile change during walk,
-            // so artOffset is always 0 when the critter arrives at idle after walking.
-            this.artOffset = { x: 0, y: 0 }
-        } else {
-            // Same exact zero-jump formula as staticAnimation but for the → idle transition.
-            // oldFrame may equal numFrames (animCallback fires one tick after the last frame);
-            // clamp to the last valid frame so we use the final displayed frame's geometry.
-            const oldInfo = globalState.imageInfo[oldArt]
-            const newInfo = globalState.imageInfo[newArt]
-            if (oldInfo && newInfo) {
-                const orient = this.orientation ?? 0
-                const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-                const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-                const oldFrames = oldInfo.frameOffsets[orient]
-                const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
-                const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-                const newF0 = newInfo.frameOffsets[orient]?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-                this.artOffset = {
-                    x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x,
-                    y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y,
-                }
-            } else {
-                this.artOffset = { x: 0, y: 0 }
-            }
-        }
+
+        // CE ref: objectSetLocation (object.cc) resets obj->x/y on every tile change, and
+        // FRM one-shot animations (draw/holster/hit/walk) are designed with zero net
+        // displacement per complete cycle so the critter returns to its canonical
+        // tile-anchored position. Resetting unconditionally eliminates cross-cycle
+        // artOffset drift — the worst-case snap at animation-end is |K_net| ≤ 2 px
+        // (determined by the draw FRM's left-edge-consistency), which is imperceptible
+        // compared to the multi-pixel tile jumps caused by accumulating drift.
+        this.artOffset = { x: 0, y: 0 }
 
         // reset to idle pose
         this.anim = 'idle'
