@@ -1260,6 +1260,15 @@ export module Scripting {
             }
             obj.locked = false
         }
+        // CE ref: interpreter_extra.cc:4688 opJamLock — sets jammed flag on lockable objects
+        jam_lock(obj: Obj) {
+            log('jam_lock', arguments)
+            if (!isGameObject(obj)) {
+                warn('jam_lock: not game object: ' + obj, undefined, this)
+                return
+            }
+            if (obj.isDoor || obj.isContainer) obj.jammed = true
+        }
         obj_is_open(obj: Obj) {
             log('obj_is_open', arguments)
             if (!isGameObject(obj)) {

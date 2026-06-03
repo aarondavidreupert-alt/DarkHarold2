@@ -24,7 +24,7 @@ import globalState from './globalState.js'
 import { IDBCache } from './idbcache.js'
 import { initGame } from './init.js'
 import { dbg, dbgWarn } from './logger.js'
-import { Critter, Obj } from './object.js'
+import { Critter, Obj, objectUnjamAll } from './object.js'
 import {
     getObjectUnderCursor,
     getZoom,
@@ -1045,7 +1045,8 @@ heart.update = function () {
         } else if (currentDay !== lastMidnightDay) {
             lastMidnightDay = currentDay
             dbg('map', 'QUEUE PROCESS: Midnight!')
-            // objectUnjamAll() — deferred until IU3 (jammed state) is implemented
+            // CE ref: scripts.cc:418 gameTimeEventProcess — unjam all locks at midnight
+            objectUnjamAll()
             // _scriptsCheckGameEvents() — ARTIMER movie triggers, not yet implemented
             // _critter_check_rads() — radiation decay, intentionally deferred
         }

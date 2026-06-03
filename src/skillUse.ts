@@ -387,6 +387,11 @@ function useLockpick(user: Critter, target: Critter | null): SkillUseResult {
         return makeResult(false, RollResult.Failure, 'Nothing to pick.')
     }
 
+    // CE ref: proto_instance.cc:1874 _obj_use_skill_on — bail if jammed (msg 2001: "It's jammed")
+    if ((target as any).jammed) {
+        return makeResult(false, RollResult.Failure, "It's jammed.")
+    }
+
     globalState.audioEngine.playSfxByName('pickkeys')
 
     // Lock difficulty is stored in the object's script/pro data.

@@ -119,6 +119,7 @@ export module ScriptVMBridge {
        ,0x80D2: bridged("tile_distance", 2)
        ,0x80A7: bridged("tile_contains_pid_obj", 3)
        ,0x814C: bridged("rotation_to_tile", 2)
+       ,0x814D: bridged("jam_lock", 1, false) // CE ref: interpreter_extra.cc:5046 opJamLock
        ,0x80AE: bridged("do_check", 3)
        ,0x814a: bridged("art_anim", 1)
        ,0x80F4: bridged("destroy_object", 1, false)

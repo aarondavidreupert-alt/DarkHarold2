@@ -188,6 +188,15 @@ function objectFindIndex(obj: Obj): number {
     return globalState.gMap.getObjects().findIndex((object) => object === obj)
 }
 
+// CE ref: proto_instance.cc:2171 objectUnjamAll — clears jammed flag on all map objects.
+// Called by the midnight queue event (GTC5).
+export function objectUnjamAll(): void {
+    if (!globalState.gMap) return
+    for (const obj of globalState.gMap.getObjects()) {
+        if (obj.jammed) obj.jammed = false
+    }
+}
+
 function objectZCompare(a: Obj, b: Obj): number {
     const aY = a.position.y
     const bY = b.position.y
@@ -296,6 +305,7 @@ export class Obj {
     visible = true // Is the object visible?
     open = false // Is the object open? (Mainly for doors)
     locked = false // Is the object locked? (Mainly for doors)
+    jammed = false // Is the lock jammed? (CE DOOR_FLAG_JAMMGED / OBJ_JAMMED)
 
     extra: any // TODO
 
