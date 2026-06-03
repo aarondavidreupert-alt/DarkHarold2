@@ -310,14 +310,12 @@ export class Renderer {
 
         // CE ref: object.cc _obj_offset() — use accumulated per-frame delta when walking,
         // fall back to the FRM header anchor (ox/oy) for static or walk-start (shift=null) frames.
-        // artOffset carries the directionOffset delta accumulated across art transitions so that
-        // switching FRMs (e.g. idle → weapon-draw) never causes a visual jump.
         if (obj.shift !== null) {
             offsetX += obj.shift.x
             offsetY += obj.shift.y
         } else {
-            offsetX += frameInfo.ox + obj.artOffset.x
-            offsetY += frameInfo.oy + obj.artOffset.y
+            offsetX += frameInfo.ox
+            offsetY += frameInfo.oy
         }
 
         const scrX = scr.x + offsetX,
@@ -458,8 +456,8 @@ export function objectBoundingBox(obj: Obj): BoundingBox | null {
         return null
     }
     const dirOffset = info.directionOffsets[obj.orientation]
-    const offsetX = Math.floor(frameInfo.w / 2) - dirOffset.x - frameInfo.ox - obj.artOffset.x
-    const offsetY = frameInfo.h - dirOffset.y - frameInfo.oy - obj.artOffset.y
+    const offsetX = Math.floor(frameInfo.w / 2) - dirOffset.x - frameInfo.ox
+    const offsetY = frameInfo.h - dirOffset.y - frameInfo.oy
 
     return { x: scr.x - offsetX, y: scr.y - offsetY, w: frameInfo.w, h: frameInfo.h }
 }
