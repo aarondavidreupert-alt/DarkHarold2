@@ -65,7 +65,7 @@ export module Lightmap {
     // obj_adjust_light(eax=obj_ptr, ebx=0, edx=0)
     // edx controls whether light is added or subtracted
 
-    function obj_adjust_light(obj: Obj, isSub: boolean=false) {
+    function obj_adjust_light(obj: Obj, isSub: boolean=false): void {
         // CE ref: object.cc:3969 bails if lightIntensity <= 0; 3973 bails if OBJECT_HIDDEN;
         // 3977 bails if OBJECT_LIGHTING flag absent. DH2 uses 655 as ambient baseline and
         // visible===false as the hidden-flag equivalent; OBJECT_LIGHTING is modelled as
