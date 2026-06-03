@@ -113,6 +113,7 @@ export const Config = {
             mvars: false,         // map variable reads/writes
             tiles: true,          // tile/elevation changes
             animation: false,     // animation state transitions
+            animOffset: true,     // artOffset zero-jump formula inputs/outputs at every FRM switch
             movement: false,      // critter movement and pathfinding steps
             inventory: true,      // inventory add/remove operations
             party: false,         // party member join/leave/status

@@ -1836,6 +1836,14 @@ export class Critter extends Obj {
                     y: oldF.oy - idleF0.oy,
                 }
             }
+            dbg('animOffset', '[ArtOffset] staticAnimation',
+                `${oldArt}@f${clampedOld}(w=${oldF.w},ox=${oldF.ox},oy=${oldF.oy})`,
+                `→ ${newArt}@f${newStartFrame}(w=${newF0.w},ox=${newF0.ox},oy=${newF0.oy})`,
+                `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
+                `prev(${prevArtOffset.x},${prevArtOffset.y})`,
+                `→ artOffset(${pendingArtOffset.x},${pendingArtOffset.y})`,
+                this._idleContamination ? `contamination(${this._idleContamination.x},${this._idleContamination.y})` : '',
+            )
         }
 
         const startAnim = () => {
@@ -1938,6 +1946,14 @@ export class Critter extends Obj {
                     x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x - (contamination?.x ?? 0),
                     y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y - (contamination?.y ?? 0),
                 }
+                dbg('animOffset', '[ArtOffset] clearAnim',
+                    `${oldArt}@f${clampedOld}(w=${oldF.w},ox=${oldF.ox},oy=${oldF.oy})`,
+                    `→ ${newArt}@f0(w=${newF0.w},ox=${newF0.ox},oy=${newF0.oy})`,
+                    `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
+                    `prev(${prevArtOffset.x},${prevArtOffset.y})`,
+                    contamination ? `contamination(${contamination.x},${contamination.y})` : 'no-contamination',
+                    `→ artOffset(${this.artOffset.x},${this.artOffset.y})`,
+                )
             } else {
                 this.artOffset = { x: 0, y: 0 }
             }
