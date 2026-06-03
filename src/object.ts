@@ -1244,10 +1244,6 @@ export class Critter extends Obj {
     bonusAC = 0 // Temporary AC bonus from unused AP at end of turn
     perks: string[] = [] // List of acquired perks
     nextIdleAnimTime = 0 // performance.now() after which the next idle cycle begins; 0 = uninitialised
-    // Idle-frame-specific term baked into artOffset_draw when staticAnimation fires mid-idle-cycle:
-    // floor(iW0/2) - floor(iWF/2) + iOxF.  Stored at idle→oneshot, preserved through oneshot chains
-    // (e.g. holster→draw), subtracted in clearAnim so it never accumulates across weapon-draw cycles.
-    _idleContamination: { x: number, y: number } | null = null
     skipTurns = 0 // Number of combat turns to skip (set by knockdown/loseNextTurn effects)
     isKnockedDown = false // Set by knockdown/knockout crit effects; consumed by critterDamage() to play the animation
     deathAnim?: string // Override death animation (set by critical 'death' effects, e.g. 'death-explode')
@@ -1822,27 +1818,23 @@ export class Critter extends Obj {
             const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
             const newStartFrame = reversed ? (newInfo.numFrames - 1) : 0
             const newF0 = newInfo.frameOffsets[orient]?.[newStartFrame] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+            // For looping animations (idle), anchor on frame 0 geometry regardless of which frame
+            // is currently playing. Using the mid-cycle frame's ox would bake iOxF into artOffset,
+            // displacing the critter throughout the entire subsequent one-shot animation.
+            // CE ref: art.cc artGetFrameOffsets — frame deltas are independent of playback position;
+            // CE never carries a mid-animation ox into the object reference point.
+            const srcF = (this.anim === 'idle') ? (oldFrames?.[0] ?? oldF) : oldF
             pendingArtOffset = {
-                x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x,
-                y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y,
-            }
-            // When leaving idle mid-cycle, record the idle-frame-specific contribution so
-            // clearAnim can cancel it. For oneshot→oneshot chains (holster→draw) the field is
-            // left untouched so the contamination set at idle→holster carries through to clearAnim.
-            if (this.anim === 'idle') {
-                const idleF0 = oldFrames?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-                this._idleContamination = {
-                    x: Math.floor(idleF0.w / 2) - Math.floor(oldF.w / 2) + oldF.ox - idleF0.ox,
-                    y: oldF.oy - idleF0.oy,
-                }
+                x: Math.floor(newF0.w / 2) - Math.floor(srcF.w / 2) + oldDirOff.x - newDirOff.x + srcF.ox - newF0.ox + prevArtOffset.x,
+                y: oldDirOff.y - newDirOff.y + srcF.oy - newF0.oy + prevArtOffset.y,
             }
             dbg('animOffset', '[ArtOffset] staticAnimation',
                 `${oldArt}@f${clampedOld}(w=${oldF.w},ox=${oldF.ox},oy=${oldF.oy})`,
+                srcF !== oldF ? `[anchor:f0(w=${srcF.w},ox=${srcF.ox})]` : '',
                 `→ ${newArt}@f${newStartFrame}(w=${newF0.w},ox=${newF0.ox},oy=${newF0.oy})`,
                 `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
                 `prev(${prevArtOffset.x},${prevArtOffset.y})`,
                 `→ artOffset(${pendingArtOffset.x},${pendingArtOffset.y})`,
-                this._idleContamination ? `contamination(${this._idleContamination.x},${this._idleContamination.y})` : '',
             )
         }
 
@@ -1914,9 +1906,6 @@ export class Critter extends Obj {
         const oldArt = this.art
         const oldFrame = this.frame
         const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
-        // Consume the contamination that staticAnimation stored when leaving idle mid-cycle.
-        const contamination = this._idleContamination
-        this._idleContamination = null
 
         super.clearAnim()
         this.path = null
@@ -1930,8 +1919,6 @@ export class Critter extends Obj {
             // Zero-jump formula (same as staticAnimation) for the → idle transition.
             // oldFrame may equal numFrames (animCallback fires one tick after the last frame);
             // clamp to the last valid frame so we use the final displayed frame's geometry.
-            // Then subtract the idle contamination so that iOxF (the idle ox at the frame where
-            // draw was triggered) never accumulates across weapon-draw cycles.
             const oldInfo = globalState.imageInfo[oldArt]
             const newInfo = globalState.imageInfo[newArt]
             if (oldInfo && newInfo) {
@@ -1943,15 +1930,14 @@ export class Critter extends Obj {
                 const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
                 const newF0 = newInfo.frameOffsets[orient]?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
                 this.artOffset = {
-                    x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x - (contamination?.x ?? 0),
-                    y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y - (contamination?.y ?? 0),
+                    x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x,
+                    y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y,
                 }
                 dbg('animOffset', '[ArtOffset] clearAnim',
                     `${oldArt}@f${clampedOld}(w=${oldF.w},ox=${oldF.ox},oy=${oldF.oy})`,
                     `→ ${newArt}@f0(w=${newF0.w},ox=${newF0.ox},oy=${newF0.oy})`,
                     `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
                     `prev(${prevArtOffset.x},${prevArtOffset.y})`,
-                    contamination ? `contamination(${contamination.x},${contamination.y})` : 'no-contamination',
                     `→ artOffset(${this.artOffset.x},${this.artOffset.y})`,
                 )
             } else {
