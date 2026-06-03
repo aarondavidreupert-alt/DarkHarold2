@@ -5,7 +5,7 @@ Covers FRM binary format, FID/animation ID encoding, the `reg_anim_*` batch syst
 
 > **Source anchor:** `raw/fallout2-ce/src/art.cc`, `art.h`, `animation.cc`, `animation.h`, `obj_types.h`, `cycle.cc`, `object.cc`  
 > **DH2 files:** `src/object.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/renderer.ts`, `frmpixels.py` (pipeline)  
-> **Last audited:** 2026-06-03
+> **Last audited:** 2026-06-02
 
 ---
 
@@ -167,107 +167,21 @@ const frameInfo = info.frameOffsets[obj.orientation][obj.frame]
 let offsetX = -(frameInfo.w / 2) + dirOffset.x
 let offsetY = -frameInfo.h + dirOffset.y
 
-if (obj.shift !== null) {
-    // Walk mode: shift accumulates per-frame deltas at runtime.
+if (obj.shift) {
+    // Walk mode: per-frame deltas accumulated at runtime by Critter.updateAnim()
     offsetX += obj.shift.x
     offsetY += obj.shift.y
 } else {
-    // Static / one-shot: pre-baked cumulative ox/oy plus artOffset carry from art transitions.
-    offsetX += frameInfo.ox + obj.artOffset.x
-    offsetY += frameInfo.oy + obj.artOffset.y
+    // Static / one-shot: use the pre-baked cumulative offset for the current frame
+    offsetX += frameInfo.ox
+    offsetY += frameInfo.oy
 }
 ```
 
-Three render contributions for static animations:
+Two code paths:
 
-- **`dirOffset`** — FRM header `xOffsets[direction]` / `yOffsets[direction]`: positions the sprite's art-specific anchor within the hex cell. Changes whenever the active FRM changes.
-- **`frameInfo.ox` / `frameInfo.oy`** — pre-baked cumulative per-frame deltas (sum of `ArtFrame.x` from frame 0 to frame N). Zero for frame 0, non-zero during multi-frame static animations that have in-place motion baked in.
-- **`obj.artOffset`** — carry-offset accumulated across FRM art transitions (see §4.2).
-
-### 4.2 Art Transition Offset Model — CE vs DH2
-
-#### The Problem
-
-Each FRM file has per-direction `xOffsets[6]` / `yOffsets[6]` header values (the `directionOffsets` in `imageMap.json`). These values differ between FRM files. When a critter switches FRMs (e.g. idle `hanpwraa` → weapon-draw `hanpwrjc`), the renderer immediately starts using the new FRM's `dirOffset`, which can differ by several pixels from the old one. Without compensation this causes a visible sprite jump on the first rendered frame after the switch.
-
-Example (direction 0, player with rifle skin):
-- `hanpwraa` (unarmed idle): `directionOffsets[0] = { x: -1, y: 5 }`
-- `hanpwrjc` (rifle draw): `directionOffsets[0] = { x: 0, y: 0 }`
-
-Without compensation, switching to weapon-draw drops the sprite 5 pixels in Y instantaneously.
-
-#### CE's Mechanism
-
-CE (`animation.cc ~2886`) calls at every art transition:
-
-```c
-artGetRotationOffsets(OLD_art, rotation, &x, &y);   // OLD directionOffsets
-artGetFrameOffsets(NEW_art, frame=0, rotation, &dx, &dy); // NEW frame-0 RAW delta
-_obj_offset(object, x + dx, y + dy, &rect);         // ADDITIVE to obj->x/y
-```
-
-`artGetFrameOffsets` (`art.cc:790`) returns the **raw per-frame delta** (`ArtFrame.x`), not the cumulative. `_obj_offset` adds to `obj->x/y` (sub-tile pixel offsets). The renderer then draws at:
-
-```
-screenX = tileX + NEW_art->xOffsets[rotation] + obj->x
-```
-
-So at frame N of the new animation:
-
-```
-screenX = tileX + NEW_xOffsets + (prev_obj_x + OLD_xOffsets + ox_new[N])
-```
-
-Where `ox_new[N]` = cumulative sum of raw deltas 0..N. For static animations following a walk, `prev_obj_x = 0` (reset by `objectSetLocation` at each tile crossing during walk). The old FRM's header offset is folded into `obj->x` at transition time and persists until the next tile crossing.
-
-#### DH2's artOffset Carry-Field
-
-DH2 pre-bakes cumulative `ox`/`oy` into `imageMap.json` rather than accumulating raw deltas at runtime. To replicate CE's carry-over without storing per-animation accumulated state, `Obj` holds:
-
-```typescript
-artOffset: Point = { x: 0, y: 0 }
-```
-
-At every art transition (`Critter.staticAnimation` and `Critter.clearAnim`), both using `globalState.imageInfo` which is always populated synchronously at startup:
-
-```typescript
-const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-this.artOffset = {
-    x: oldDirOff.x + this.artOffset.x - newDirOff.x,
-    y: oldDirOff.y + this.artOffset.y - newDirOff.y,
-}
-```
-
-DH2 rendering at frame N: `tileX + NEW_xOffsets + ox_new[N] + artOffset`
-
-Matching CE's formula `tileX + NEW_xOffsets + OLD_xOffsets + ox_new[N]` requires:
-
-```
-artOffset = OLD_xOffsets + prevArtOffset − NEW_xOffsets
-          = oldDirOff + oldArtOffset − newDirOff
-```
-
-**Key invariant:** `artOffset` does **not** include per-frame `ox`/`oy` terms. The renderer's `frameInfo.ox` already covers those; adding them to `artOffset` would double-count and cause 1 px errors per raw-delta unit.
-
-#### Full Cycle Verification (direction 0)
-
-| State | art | dirOffset.y | ox[0] | artOffset.y | Rendered anchor Y |
-|-------|-----|-------------|-------|-------------|------------------|
-| Idle (post-walk) | `hanpwraa` | 5 | 0 | 0 | +5 |
-| → rifle draw (frame 0) | `hanpwrjc` | 0 | 0 | 5 | +0+0+5 = +5 ✓ |
-| → rifle draw (frame 5, oy=−2) | `hanpwrjc` | 0 | −2 | 5 | +0−2+5 = +3 |
-| → idle (post-draw) | `hanpwraa` | 5 | 0 | 0+5−5=0 | +5+0+0 = +5 ✓ |
-
-`artOffset` resets to `{0, 0}` after a complete draw-then-return cycle (since `oldDirOff = newDirOff` when returning to the same idle art).
-
-#### Why "DH2 Used to Work" / The Pre-FA7 Gap
-
-Before FA7 (commit `b7fcd37` and corrected follow-up), DH2 had **no `artOffset` field**. The renderer used only `dirOffset + ox` for static poses. This meant:
-
-- Any art transition with differing `directionOffsets` caused an immediate sprite jump (the 5 px Y example above).
-- DH2 "used to work" refers to times when the active FRM pair happened to have matching `directionOffsets`, or when the jump was small enough not to be noticed.
-- With `artOffset` correctly computed **before** `lazyLoadImage` (so the carry is set even when the GL texture is not yet cached), the position is stable from the very first rendered frame after the FRM switch.
+- **`obj.shift` present** — critter walk: shift accumulates `frameInfo.x` each frame and resets to `{0,0}` at each hex-step boundary.
+- **`obj.shift` absent** — all other objects (idle, one-shot, scenery): use the pre-baked `ox`/`oy` for the requested frame directly.
 
 ---
 
