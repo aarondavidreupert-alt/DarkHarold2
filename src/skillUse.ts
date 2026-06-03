@@ -177,6 +177,12 @@ export function skillUse(user: Critter, target: Critter | null, skill: string): 
             return useScience(user, target)
         case 'Repair':
             return useRepair(user, target)
+        case 'Gambling':
+            // CE: Gambling is only usable at gambling tables via NPC interaction, not directly.
+            return makeResult(false, RollResult.Failure, 'You need to find somewhere to gamble.')
+        case 'Outdoorsman':
+            // CE: Outdoorsman is only relevant on the world map for encounter avoidance.
+            return makeResult(false, RollResult.Failure, 'Outdoorsman skill applies when traveling.')
         default:
             return makeResult(false, RollResult.Failure, `Skill ${skill} cannot be used directly.`)
     }
