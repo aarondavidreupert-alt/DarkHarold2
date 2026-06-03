@@ -1427,9 +1427,11 @@ export class Critter extends Obj {
         }
 
         if (time < this.nextIdleAnimTime) {
-            // Holding the pause between cycles — sit on frame 0
+            // Holding the pause between cycles — sit on frame 0.
+            // Track lastFrameTime as nextIdleAnimTime so that when the wait expires the first
+            // frame advance fires after exactly one fps interval (avoids a double-interval gap).
             this.frame = 0
-            this.lastFrameTime = time // reset so the animation starts at the correct fps
+            this.lastFrameTime = this.nextIdleAnimTime
             return
         }
 
@@ -1494,7 +1496,7 @@ export class Critter extends Obj {
             // advance frame
             this.lastFrameTime = time
 
-            if (this.frame === currentPartial.endFrame || this.frame + 1 >= globalState.imageInfo[this.art].numFrames) {
+            if (this.frame + 1 >= currentPartial.endFrame) {
                 // completed an action frame (partial action)
 
                 // do we have another partial action?
@@ -1507,14 +1509,7 @@ export class Critter extends Obj {
                 }
 
                 // move to the start of the next partial action
-                // we're already on its startFrame which coincides with the current endFrame,
-                // so we add one to get to the next frame.
-                // unless we're the first one, in which case just 0.
-                let nextFrame = partials.actions[this.path.partial].startFrame + 1
-                if (this.path.partial === 0) {
-                    nextFrame = 0
-                }
-                this.frame = nextFrame
+                this.frame = partials.actions[this.path.partial].startFrame
 
                 // reset shift
                 this.shift = { x: 0, y: 0 }
@@ -1794,26 +1789,26 @@ export class Critter extends Obj {
     }
 
     staticAnimation(anim: string, callback?: () => void, waitForLoad = true, reversed = false): void {
-        // Capture old state before switching art.
+        // Capture current state synchronously — these are the old-art values we need for the
+        // offset formula. We do NOT switch this.art/this.frame here so the renderer keeps
+        // showing the old sprite until the new texture is confirmed loaded.
         const oldArt = this.art
         const oldFrame = this.frame
         const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
+        const newArt = this.getAnimation(anim)
 
-        this.art = this.getAnimation(anim)
-        this.frame = 0
-        this.lastFrameTime = 0
-
-        // Compute artOffset synchronously using imageInfo (always populated at startup from
-        // imageMap.json — only GL textures are lazy-loaded). Must happen BEFORE lazyLoadImage
-        // so the position is correct on the very first rendered frame even on a cold texture cache.
+        // Compute the transition offset now using imageInfo (always available at startup).
+        // Deferred to startAnim only as artOffset assignment so old art stays visible while
+        // the GL texture for newArt is being loaded asynchronously.
         //
-        // Exact zero-jump formula (CE ref: animation.cc ~2886 artGetRotationOffsets + artGetFrameOffsets):
+        // Exact zero-jump formula (CE ref: animation.cc artGetRotationOffsets + artGetFrameOffsets):
         //   artOffset.x = floor(newW0/2) - floor(oldWF/2) + oldDirOff.x - newDirOff.x + oldOx[F] - newOx[0]
         //   artOffset.y = oldDirOff.y - newDirOff.y + oldOy[F] - newOy[0]
         // x needs the half-width correction because DH2 anchors sprites at the horizontal center.
         // y uses the bottom edge anchor so height changes do not move the reference point.
+        let pendingArtOffset = prevArtOffset
         const oldInfo = globalState.imageInfo[oldArt]
-        const newInfo = globalState.imageInfo[this.art]
+        const newInfo = globalState.imageInfo[newArt]
         if (oldInfo && newInfo) {
             const orient = this.orientation ?? 0
             const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
@@ -1823,24 +1818,30 @@ export class Critter extends Obj {
             const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
             const newStartFrame = reversed ? (newInfo.numFrames - 1) : 0
             const newF0 = newInfo.frameOffsets[orient]?.[newStartFrame] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-            this.artOffset = {
+            pendingArtOffset = {
                 x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x,
                 y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y,
             }
         }
 
         const startAnim = () => {
+            // Atomically switch art state so the renderer never sees newArt with a stale offset,
+            // and frame 0 is held for a full fps interval (lastFrameTime = now, not 0).
+            this.artOffset = pendingArtOffset
+            this.art = newArt
+            this.lastFrameTime = window.performance.now()
             if (reversed) {
-                this.frame = globalState.imageInfo[this.art].numFrames - 1
+                this.frame = globalState.imageInfo[newArt].numFrames - 1
                 this.anim = 'reverse'
             } else {
+                this.frame = 0
                 this.anim = anim
             }
             this.animCallback = callback || (() => this.clearAnim())
         }
 
         if (waitForLoad) {
-            lazyLoadImage(this.art, startAnim)
+            lazyLoadImage(newArt, startAnim)
         } else {
             startAnim()
         }
