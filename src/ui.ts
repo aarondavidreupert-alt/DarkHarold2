@@ -320,7 +320,7 @@ export function initUI() {
         const wep = globalState.player.equippedWeapon
         if (wep?.weapon?.mode === 'reload') {
             if (globalState.inCombat && globalState.player.AP) {
-                const reloadAP = 2 // TODO: read from weapon PRO (reloadAP field)
+                const reloadAP = wep.weapon.getReloadAPCost() // CE ref: item.cc:1640
                 if (globalState.player.AP.getAvailableCombatAP() < reloadAP) {
                     uiLog("You don't have enough action points.")
                     return

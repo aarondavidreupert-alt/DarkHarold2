@@ -348,6 +348,15 @@ export class Weapon {
         return this.weapon.pro.extra['APCost' + slot]
     }
 
+    // CE ref: item.cc:1640 weaponGetActionPointCost HIT_MODE_*_WEAPON_RELOAD branch
+    getReloadAPCost(): number {
+        if (this.weapon && this.weapon.pro && this.weapon.pro.extra) {
+            if (this.weapon.pro.extra.perk === 65) return 1 // PERK_WEAPON_FAST_RELOAD
+            if (this.weapon.pid === 390) return 0 // PROTO_ID_SOLAR_SCORCHER
+        }
+        return 2
+    }
+
     getSkin(): string | null {
         if (this.weapon.pro === undefined || this.weapon.pro.extra === undefined) return null
         const animCodeMap: { [animCode: number]: string } = {

@@ -187,12 +187,12 @@ export function uiDrawWeapon(): void {
     }
 
     // draw weapon AP cost digit
-    // reload=2, called=APCost1+1 (aiming surcharge), burst=APCost2, otherwise APCost1
+    // reload=CE item.cc:1640, called=APCost1+1 (aiming surcharge), burst=APCost2, otherwise APCost1
     const CHAR_W = 10
     let digit: number
     const mode = weapon.weapon.mode
     if (mode === 'reload') {
-        digit = 2 // TODO: read reload AP from weapon PRO
+        digit = weapon.weapon.getReloadAPCost() // CE ref: item.cc:1640
     } else if (mode === 'called') {
         digit = weapon.weapon.getAPCost(1) + 1 // base weapon cost + 1 for aiming (FO2: weaponGetActionPointCost)
     } else if (weapon.weapon.isBurst && weapon.weapon.isBurst()) {
