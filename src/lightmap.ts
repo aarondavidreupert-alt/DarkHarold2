@@ -366,7 +366,6 @@ export module Lightmap {
             }
         }
 
-        return tile_intensity
     }
 
     export function obj_light_table_init(): void {
