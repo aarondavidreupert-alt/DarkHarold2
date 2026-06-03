@@ -1244,6 +1244,10 @@ export class Critter extends Obj {
     bonusAC = 0 // Temporary AC bonus from unused AP at end of turn
     perks: string[] = [] // List of acquired perks
     nextIdleAnimTime = 0 // performance.now() after which the next idle cycle begins; 0 = uninitialised
+    // Idle-frame-specific term baked into artOffset_draw when staticAnimation fires mid-idle-cycle:
+    // floor(iW0/2) - floor(iWF/2) + iOxF.  Stored at idle→oneshot, preserved through oneshot chains
+    // (e.g. holster→draw), subtracted in clearAnim so it never accumulates across weapon-draw cycles.
+    _idleContamination: { x: number, y: number } | null = null
     skipTurns = 0 // Number of combat turns to skip (set by knockdown/loseNextTurn effects)
     isKnockedDown = false // Set by knockdown/knockout crit effects; consumed by critterDamage() to play the animation
     deathAnim?: string // Override death animation (set by critical 'death' effects, e.g. 'death-explode')
@@ -1822,6 +1826,16 @@ export class Critter extends Obj {
                 x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x,
                 y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y,
             }
+            // When leaving idle mid-cycle, record the idle-frame-specific contribution so
+            // clearAnim can cancel it. For oneshot→oneshot chains (holster→draw) the field is
+            // left untouched so the contamination set at idle→holster carries through to clearAnim.
+            if (this.anim === 'idle') {
+                const idleF0 = oldFrames?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+                this._idleContamination = {
+                    x: Math.floor(idleF0.w / 2) - Math.floor(oldF.w / 2) + oldF.ox - idleF0.ox,
+                    y: oldF.oy - idleF0.oy,
+                }
+            }
         }
 
         const startAnim = () => {
@@ -1887,19 +1901,47 @@ export class Critter extends Obj {
         // Dead critters stay frozen on their last death frame — never reset to idle.
         if (this.dead) return
 
+        // Capture old state BEFORE super.clearAnim() resets frame/shift.
+        const wasWalking = this.shift !== null
+        const oldArt = this.art
+        const oldFrame = this.frame
+        const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
+        // Consume the contamination that staticAnimation stored when leaving idle mid-cycle.
+        const contamination = this._idleContamination
+        this._idleContamination = null
+
         super.clearAnim()
         this.path = null
 
         const newArt = this.getAnimation('idle')
-
-        // CE ref: objectSetLocation (object.cc) resets obj->x/y on every tile change, and
-        // FRM one-shot animations (draw/holster/hit/walk) are designed with zero net
-        // displacement per complete cycle so the critter returns to its canonical
-        // tile-anchored position. Resetting unconditionally eliminates cross-cycle
-        // artOffset drift — the worst-case snap at animation-end is |K_net| ≤ 2 px
-        // (determined by the draw FRM's left-edge-consistency), which is imperceptible
-        // compared to the multi-pixel tile jumps caused by accumulating drift.
-        this.artOffset = { x: 0, y: 0 }
+        if (wasWalking) {
+            // CE ref: objectSetLocation (object.cc) resets obj->x/y on every tile change during walk,
+            // so artOffset is always 0 when the critter arrives at idle after walking.
+            this.artOffset = { x: 0, y: 0 }
+        } else {
+            // Zero-jump formula (same as staticAnimation) for the → idle transition.
+            // oldFrame may equal numFrames (animCallback fires one tick after the last frame);
+            // clamp to the last valid frame so we use the final displayed frame's geometry.
+            // Then subtract the idle contamination so that iOxF (the idle ox at the frame where
+            // draw was triggered) never accumulates across weapon-draw cycles.
+            const oldInfo = globalState.imageInfo[oldArt]
+            const newInfo = globalState.imageInfo[newArt]
+            if (oldInfo && newInfo) {
+                const orient = this.orientation ?? 0
+                const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+                const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+                const oldFrames = oldInfo.frameOffsets[orient]
+                const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
+                const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+                const newF0 = newInfo.frameOffsets[orient]?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+                this.artOffset = {
+                    x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x - (contamination?.x ?? 0),
+                    y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y - (contamination?.y ?? 0),
+                }
+            } else {
+                this.artOffset = { x: 0, y: 0 }
+            }
+        }
 
         // reset to idle pose
         this.anim = 'idle'
