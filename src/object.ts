@@ -1793,42 +1793,34 @@ export class Critter extends Obj {
     }
 
     staticAnimation(anim: string, callback?: () => void, waitForLoad = true, reversed = false): void {
-        // Capture old art state BEFORE switching so we can compute a carry-offset correction.
-        // CE ref: animation.cc ~2862 — _obj_offset(OLD_art->xOffsets + newFrame0.x, ...) at
-        // animation start carries the old FRM header offsets into obj->x for visual continuity.
+        // Capture old art and artOffset BEFORE switching art.
         const oldArt = this.art
-        const oldFrame = this.frame
-        const oldShift = this.shift
         const oldArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
 
         this.art = this.getAnimation(anim)
         this.frame = 0
         this.lastFrameTime = 0
 
-        const startAnim = () => {
-            // Compute carry correction: (old visual anchor) − (new visual anchor at frame 0).
-            // Frame 0 of any FRM always has ox = oy = 0 (cumulative starts fresh).
-            const oldInfo = globalState.imageInfo[oldArt]
-            const newInfo = globalState.imageInfo[this.art]
-            if (oldInfo && newInfo) {
-                const orient = this.orientation ?? 0
-                const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-                // walking uses shift for visual displacement; static uses cumulative frameOffset
-                const oldOx = oldShift !== null ? oldShift.x : (oldInfo.frameOffsets[orient]?.[oldFrame]?.ox ?? 0)
-                const oldOy = oldShift !== null ? oldShift.y : (oldInfo.frameOffsets[orient]?.[oldFrame]?.oy ?? 0)
-                const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-                // for reversed animations the first displayed frame is the last frame, not frame 0
-                const newStartFrame = reversed ? newInfo.numFrames - 1 : 0
-                const newOx = newInfo.frameOffsets[orient]?.[newStartFrame]?.ox ?? 0
-                const newOy = newInfo.frameOffsets[orient]?.[newStartFrame]?.oy ?? 0
-                this.artOffset = {
-                    x: oldDirOff.x + oldOx + oldArtOffset.x - newDirOff.x - newOx,
-                    y: oldDirOff.y + oldOy + oldArtOffset.y - newDirOff.y - newOy,
-                }
+        // Compute artOffset synchronously using imageInfo (always populated at startup from
+        // imageMap.json — only GL textures are lazy-loaded). Computing here, before lazyLoadImage,
+        // guarantees the offset is correct on the very first rendered frame even when the texture
+        // cache is cold. CE ref: animation.cc ~2886 — artGetRotationOffsets(OLD_art) is added to
+        // obj->x at transition start; renderer subtracts NEW_art->xOffsets back out at draw time.
+        // Net formula matching CE: artOffset = oldDirOff + oldArtOffset − newDirOff.
+        const oldInfo = globalState.imageInfo[oldArt]
+        const newInfo = globalState.imageInfo[this.art]
+        if (oldInfo && newInfo) {
+            const orient = this.orientation ?? 0
+            const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+            const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+            this.artOffset = {
+                x: oldDirOff.x + oldArtOffset.x - newDirOff.x,
+                y: oldDirOff.y + oldArtOffset.y - newDirOff.y,
             }
+        }
 
+        const startAnim = () => {
             if (reversed) {
-                // Start from the last frame and play backwards ('reverse' is handled by updateStaticAnim)
                 this.frame = globalState.imageInfo[this.art].numFrames - 1
                 this.anim = 'reverse'
             } else {
@@ -1887,7 +1879,6 @@ export class Critter extends Obj {
         // Capture old state BEFORE super.clearAnim() resets frame/shift.
         const wasWalking = this.shift !== null
         const oldArt = this.art
-        const oldFrame = this.frame
         const oldArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
 
         super.clearAnim()
@@ -1899,18 +1890,16 @@ export class Critter extends Obj {
             // a walk, so artOffset is always 0 when the critter returns to idle from walking.
             this.artOffset = { x: 0, y: 0 }
         } else {
-            // Carry directionOffset across non-walk art → idle transition.
+            // Carry directionOffset across non-walk art → idle transition (same formula as staticAnimation).
             const oldInfo = globalState.imageInfo[oldArt]
             const newInfo = globalState.imageInfo[newArt]
             if (oldInfo && newInfo) {
                 const orient = this.orientation ?? 0
                 const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-                const oldOx = oldInfo.frameOffsets[orient]?.[oldFrame]?.ox ?? 0
-                const oldOy = oldInfo.frameOffsets[orient]?.[oldFrame]?.oy ?? 0
                 const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
                 this.artOffset = {
-                    x: oldDirOff.x + oldOx + oldArtOffset.x - newDirOff.x,
-                    y: oldDirOff.y + oldOy + oldArtOffset.y - newDirOff.y,
+                    x: oldDirOff.x + oldArtOffset.x - newDirOff.x,
+                    y: oldDirOff.y + oldArtOffset.y - newDirOff.y,
                 }
             } else {
                 this.artOffset = { x: 0, y: 0 }
