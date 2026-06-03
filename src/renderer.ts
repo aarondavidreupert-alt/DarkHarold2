@@ -310,12 +310,14 @@ export class Renderer {
 
         // CE ref: object.cc _obj_offset() — use accumulated per-frame delta when walking,
         // fall back to the FRM header anchor (ox/oy) for static or walk-start (shift=null) frames.
+        // artOffset carries the visual continuity correction across FRM art transitions (see
+        // Critter.staticAnimation / clearAnim for the formula; resets to {0,0} on walk end).
         if (obj.shift !== null) {
             offsetX += obj.shift.x
             offsetY += obj.shift.y
         } else {
-            offsetX += frameInfo.ox
-            offsetY += frameInfo.oy
+            offsetX += frameInfo.ox + obj.artOffset.x
+            offsetY += frameInfo.oy + obj.artOffset.y
         }
 
         const scrX = scr.x + offsetX,
@@ -456,8 +458,8 @@ export function objectBoundingBox(obj: Obj): BoundingBox | null {
         return null
     }
     const dirOffset = info.directionOffsets[obj.orientation]
-    const offsetX = Math.floor(frameInfo.w / 2) - dirOffset.x - frameInfo.ox
-    const offsetY = frameInfo.h - dirOffset.y - frameInfo.oy
+    const offsetX = Math.floor(frameInfo.w / 2) - dirOffset.x - frameInfo.ox - obj.artOffset.x
+    const offsetY = frameInfo.h - dirOffset.y - frameInfo.oy - obj.artOffset.y
 
     return { x: scr.x - offsetX, y: scr.y - offsetY, w: frameInfo.w, h: frameInfo.h }
 }

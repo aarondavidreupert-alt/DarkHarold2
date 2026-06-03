@@ -328,6 +328,12 @@ export class Obj {
     // and the current frame.
     shift: Point = null
 
+    // Carry-offset accumulated across FRM art transitions so that switching FRMs never causes a
+    // visual jump. Mirrors CE's obj->x/y (object.cc) which is reset on objectSetLocation (tile
+    // change during walk) and otherwise carries forward. Reset to {0,0} on walk end; updated at
+    // every art switch via the exact zero-jump formula (see Critter.staticAnimation / clearAnim).
+    artOffset: Point = { x: 0, y: 0 }
+
     // Outline color, if outlined
     outline: string | null = null
 
@@ -1788,13 +1794,43 @@ export class Critter extends Obj {
     }
 
     staticAnimation(anim: string, callback?: () => void, waitForLoad = true, reversed = false): void {
+        // Capture old state before switching art.
+        const oldArt = this.art
+        const oldFrame = this.frame
+        const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
+
         this.art = this.getAnimation(anim)
         this.frame = 0
         this.lastFrameTime = 0
 
+        // Compute artOffset synchronously using imageInfo (always populated at startup from
+        // imageMap.json — only GL textures are lazy-loaded). Must happen BEFORE lazyLoadImage
+        // so the position is correct on the very first rendered frame even on a cold texture cache.
+        //
+        // Exact zero-jump formula (CE ref: animation.cc ~2886 artGetRotationOffsets + artGetFrameOffsets):
+        //   artOffset.x = floor(newW0/2) - floor(oldWF/2) + oldDirOff.x - newDirOff.x + oldOx[F] - newOx[0]
+        //   artOffset.y = oldDirOff.y - newDirOff.y + oldOy[F] - newOy[0]
+        // x needs the half-width correction because DH2 anchors sprites at the horizontal center.
+        // y uses the bottom edge anchor so height changes do not move the reference point.
+        const oldInfo = globalState.imageInfo[oldArt]
+        const newInfo = globalState.imageInfo[this.art]
+        if (oldInfo && newInfo) {
+            const orient = this.orientation ?? 0
+            const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+            const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+            const oldFrames = oldInfo.frameOffsets[orient]
+            const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
+            const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+            const newStartFrame = reversed ? (newInfo.numFrames - 1) : 0
+            const newF0 = newInfo.frameOffsets[orient]?.[newStartFrame] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+            this.artOffset = {
+                x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x,
+                y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y,
+            }
+        }
+
         const startAnim = () => {
             if (reversed) {
-                // Start from the last frame and play backwards ('reverse' is handled by updateStaticAnim)
                 this.frame = globalState.imageInfo[this.art].numFrames - 1
                 this.anim = 'reverse'
             } else {
@@ -1849,12 +1885,47 @@ export class Critter extends Obj {
     clearAnim(): void {
         // Dead critters stay frozen on their last death frame — never reset to idle.
         if (this.dead) return
+
+        // Capture old state BEFORE super.clearAnim() resets frame/shift.
+        const wasWalking = this.shift !== null
+        const oldArt = this.art
+        const oldFrame = this.frame
+        const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
+
         super.clearAnim()
         this.path = null
 
+        const newArt = this.getAnimation('idle')
+        if (wasWalking) {
+            // CE ref: objectSetLocation (object.cc) resets obj->x/y on every tile change during walk,
+            // so artOffset is always 0 when the critter arrives at idle after walking.
+            this.artOffset = { x: 0, y: 0 }
+        } else {
+            // Same exact zero-jump formula as staticAnimation but for the → idle transition.
+            // oldFrame may equal numFrames (animCallback fires one tick after the last frame);
+            // clamp to the last valid frame so we use the final displayed frame's geometry.
+            const oldInfo = globalState.imageInfo[oldArt]
+            const newInfo = globalState.imageInfo[newArt]
+            if (oldInfo && newInfo) {
+                const orient = this.orientation ?? 0
+                const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+                const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+                const oldFrames = oldInfo.frameOffsets[orient]
+                const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
+                const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+                const newF0 = newInfo.frameOffsets[orient]?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+                this.artOffset = {
+                    x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x,
+                    y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y,
+                }
+            } else {
+                this.artOffset = { x: 0, y: 0 }
+            }
+        }
+
         // reset to idle pose
         this.anim = 'idle'
-        this.art = this.getAnimation('idle')
+        this.art = newArt
     }
 
     walkTo(target: Point, running?: boolean, callback?: () => void, maxLength?: number, path?: any): boolean {
