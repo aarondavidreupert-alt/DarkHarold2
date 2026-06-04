@@ -140,17 +140,48 @@ this.art = this.getAnimation('idle')
 // no artOffset computation
 ```
 
-**Failure mode:** FRM transitions produce visible sprite jumps whenever
-`floor(w/2)`, `dirOffset`, or `ox[0]` differ between the outgoing and incoming
-FRM. For example, switching from armed-idle to holster where the widths differ
-by several pixels causes the sprite to snap horizontally. On main this jump is
-present but accepted; the feature branch introduced `artOffset` specifically to
-eliminate it.
+**What actually happens on main — measured from imageMap.json:**
 
-**Why it was not fixed on main:** The weapon draw animation (`Xc` FRM) and its
-corresponding idle did not yet have significant visible drift on the critters
-tested before feature development began. The jump is most visible when FRMs
-have materially different widths or dirOffsets.
+Main has no hidden correction mechanism. Frame-0 screen offset = `-floor(w/2) + dirOffset.x + ox[0]`.
+For the `hmjmps` weapon-swap FRM set, the offsets and per-transition jumps at
+frame 0 are:
+
+```
+FRM screen offset at frame 0 per direction:
+        ia(armed-idle)  id(holster)  aa(unarmed-idle)  ic(draw)
+dir0:        -15            -15            -15             -14   ← max 1px
+dir1:        -12             -4             -7              -7   ← max 8px
+dir2:        -17            -12            -15             -14   ← max 5px
+dir3:        -15            -18            -14             -14   ← max 4px
+dir4:         -7            -17             -5              -7   ← max 12px
+dir5:        -14            -14            -13             -13   ← max 1px
+
+Per-transition jump (absolute pixels):
+        ia→id   id→aa   aa→ic   ic→ia
+dir0:     0       0       1       1    ← nearly seamless
+dir1:     8       3       0       5    ← visible snaps
+dir2:     5       3       1       3    ← visible snaps
+dir3:     3       4       0       1    ← moderate
+dir4:    10      12       2       0    ← large, clearly visible
+dir5:     0       1       0       1    ← nearly seamless
+```
+
+Dir0 and dir5 happen to have well-matched FRM data (the original artist chose
+`ox[0]` and `dirOffset` values that cancel out width differences). Dir1 and dir4
+have up to 8–12px snaps that are clearly visible. Dir2 and dir3 have 3–5px snaps.
+
+Main relies entirely on FRM design consistency at frame 0. For critters or
+directions where the FRM set is consistent (dir0/dir5), main looks fine. For
+critters or directions where the FRM set is inconsistent (dir1/dir4), main
+produces clearly visible snaps on every weapon swap. There is no other
+correction mechanism in main — shift, tile position, and frameInfo.ox are the
+only inputs; no correction field exists on the Obj class.
+
+**Why main was not fixed before feature branch work:** The critters and
+directions most commonly seen in early testing (facing SE = dir0, NW = dir5)
+happen to be the ones where the FRM data is consistent. The 8–12px snaps on
+NE (dir1) and SW-ish (dir4) were not caught until systematic per-direction
+testing was done.
 
 ---
 
