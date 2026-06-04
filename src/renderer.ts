@@ -307,11 +307,8 @@ export class Renderer {
         }
         const dirOffset = info.directionOffsets[obj.orientation]
 
-        // CE ref: art.cc artGetFrameWidth() returns the series max width (uniform slot width in the
-        // atlas), not the per-frame width. Using series max here keeps the anchor stable across all
-        // frames of an animation (frames narrower than maxW are left-aligned within the slot, so the
-        // visual foot/center drifts by ox[], not by frame-width variance).
-        let offsetX = -((info.frameWidth / 2) | 0) + dirOffset.x
+        // Anchored from the bottom center
+        let offsetX = -((frameInfo.w / 2) | 0) + dirOffset.x
         let offsetY = -frameInfo.h + dirOffset.y
 
         // CE ref: object.cc _obj_offset() — use accumulated per-frame delta when walking,
