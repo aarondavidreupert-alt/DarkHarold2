@@ -19,6 +19,7 @@ import { AudioEngine } from './audio.js'
 import { Config } from './config.js'
 import { CriticalEffects } from './criticalEffects.js'
 import { critterDamage, critterKill } from './critter.js'
+import { tickCombatTurn } from './events.js'
 import * as GameTime from './gametime.js'
 import { hexDirectionTo, hexDistance, hexInDirection, hexInDirectionDistance, hexLine, hexNearestNeighbor, hexNeighbors, Point } from './geometry.js'
 import globalState from './globalState.js'
@@ -1566,6 +1567,9 @@ export class Combat {
     }
 
     nextTurn(): void {
+        // Tick turn-driven scheduled events (e.g. armed grenades).
+        // CE ref: combat.cc combatTurnLoop — turn-driven event queue.
+        tickCombatTurn()
         // update range checks
         var numActive = 0
         for (var i = 0; i < this.combatants.length; i++) {

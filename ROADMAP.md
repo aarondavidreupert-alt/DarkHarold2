@@ -6,7 +6,7 @@ already exists, these wire it up. Phases 4–5 introduce the only genuinely new
 systems still needed.
 
 **Last audited: 2026-06-04**
-Current estimate: **~86% complete** (was ~83% at 2026-06-03; 16 Phase 3/4/5/9
+Current estimate: **~87% complete** (was ~83% at 2026-06-03; 20 Phase 3/4/5/9
 items fixed across the June 4 sprint).
 Target: 95% (a playable end-to-end run through Fallout 2's main quest with
 companions, working scripted content, and correct combat).
@@ -265,6 +265,7 @@ covered by Phases 1–8.
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
 | IW1 | **No HP/AC indicator bars in the character window.** CE renders colour-coded indicator bars on the HUD. | `interface.cc` | minor |
+| IW1 | ✅ FIXED 2026-06-04 — `#indicatorBar` shows SNEAK/POISONED/RADIATED/ADDICT badges above HUD. | `interface.cc indicatorBarRefresh` | major |
 | IW2 | ✅ FIXED 2026-06-04 — `drawAP` dims `#attackButton` (opacity+grayscale) when AP < cost or not player turn. | `interface.cc interfaceRenderActionPoints()` | minor |
 | IW3 | **Weapon action cycling missing aiming states.** Mode cycle doesn't include aimed-shot states. | `interface.cc` | minor |
 | IW4 | ✅ FIXED 2026-06-04 — `game_ui_disable/enable` toggle `#bar` visibility in addition to input block. | `interface.cc` | minor |

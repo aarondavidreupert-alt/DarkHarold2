@@ -90,6 +90,7 @@ export function drawDigits(idPrefix: string, amount: number, maxDigits: number, 
 
 export function drawHP(hp: number): void {
     drawDigits('#hpDigit', hp, 4, true)
+    updateIndicatorBar()
 }
 
 export function drawAC(ac: number): void {
@@ -116,6 +117,47 @@ export function drawAP(current: number, max: number, freeMove: number = 0, isPla
         }
     }
     updateAttackButtonAvailability(current + freeMove, isPlayerTurn)
+    updateIndicatorBar()
+}
+
+// CE ref: interface.cc indicatorBarInit / indicatorBarRefresh — renders up to
+// 6 status badges (ADDICT, SNEAK, LEVEL, POISONED, RADIATED, etc.) above the
+// HUD. DH2 renders a compact textual indicator strip — created lazily and
+// updated on each AP redraw and at end of turn.
+let indicatorBarEl: HTMLElement | null = null
+export function updateIndicatorBar(): void {
+    const player = globalState.player
+    if (!player) return
+    if (!indicatorBarEl) {
+        const bar = document.getElementById('bar')
+        if (!bar) return
+        indicatorBarEl = document.createElement('div')
+        indicatorBarEl.id = 'indicatorBar'
+        Object.assign(indicatorBarEl.style, {
+            position: 'absolute', left: '0', right: '0',
+            // Pin just above the HUD bar; bar's top is set by layout, so we
+            // anchor to the bar element via a translate trick by parenting to
+            // game-container and matching bar's left edge.
+            bottom: (bar.offsetHeight + 4) + 'px',
+            display: 'flex', justifyContent: 'center', gap: '6px',
+            pointerEvents: 'none',
+            fontFamily: 'monospace', fontSize: '10px', color: '#0F0',
+            textShadow: '1px 1px 0 #000', zIndex: '15',
+        })
+        bar.parentElement?.appendChild(indicatorBarEl)
+    }
+    const indicators: string[] = []
+    if ((player as any).isSneaking) indicators.push('SNEAK')
+    const poison = (player as any).poisonLevel ?? 0
+    if (poison > 0) indicators.push('POISONED')
+    const rads = (player as any).radiationLevel ?? 0
+    if (rads >= 150) indicators.push('RADIATED')
+    const addicts: string[] = (player as any).addictions ?? []
+    if (addicts.length > 0) indicators.push('ADDICT')
+    indicatorBarEl.innerHTML = indicators.map(t =>
+        `<span style="background:rgba(0,0,0,0.7); padding:1px 6px; border:1px solid #0F0;">${t}</span>`
+    ).join('')
+    indicatorBarEl.style.visibility = indicators.length > 0 ? 'visible' : 'hidden'
 }
 
 // Dim the attack button when the player can't afford the current weapon mode's
