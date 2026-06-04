@@ -1535,7 +1535,14 @@ export class Critter extends Obj {
         }
 
         const time = window.performance.now()
-        const fps = globalState.imageInfo[this.art].fps
+        let fps = globalState.imageInfo[this.art].fps
+        // CE ref: animation.cc:3287 animationComputeTicksPerFrame — ANIM_WALK
+        // gets `+combat_speed` fps boost while in combat (skipped for the
+        // player if player_speedup is false; DH2 has no such pref, so always
+        // applied). DH2's combatSpeed is 1/2/4 — small additive boost.
+        if (globalState.inCombat && (this.anim === 'walk' || this.anim === 'run')) {
+            fps += Config.combat.combatSpeed
+        }
         const targetScreen = hexToScreen(this.path.target.x, this.path.target.y)
 
         const partials = getAnimPartialActions(this.art, this.anim)
