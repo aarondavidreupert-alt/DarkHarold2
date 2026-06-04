@@ -29,6 +29,8 @@ import { Font } from './formats/fon.js'
 
 // Abstract game renderer
 
+let _animLogLast = { art: '', frame: -1 }
+
 export type TileMap = string[][]
 
 interface ObjectRenderInfo {
@@ -321,7 +323,10 @@ export class Renderer {
             offsetY += frameInfo.oy + obj.artOffset.y
         }
 
-        if (obj === globalState.player) {
+        if (obj === globalState.player &&
+                (obj.art !== _animLogLast.art || obj.frame !== _animLogLast.frame)) {
+            _animLogLast.art = obj.art
+            _animLogLast.frame = obj.frame
             dbg('animation',
                 `[Render] t=${performance.now().toFixed(1)}`,
                 `art=${obj.art} f=${obj.frame}`,
