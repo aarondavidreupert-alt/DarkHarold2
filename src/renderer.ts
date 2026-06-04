@@ -20,6 +20,7 @@ import { heart } from './heart.js'
 import { BoundingBox, hexFromScreen, hexToScreen, Point, pointInBoundingBox } from './geometry.js'
 import globalState from './globalState.js'
 import { lazyLoadImage } from './images.js'
+import { dbg } from './logger.js'
 import { Obj } from './object.js'
 import { tileFromScreen } from './tile.js'
 import { Config } from './config.js'
@@ -319,6 +320,15 @@ export class Renderer {
             offsetX += frameInfo.ox + obj.artOffset.x
             offsetY += frameInfo.oy + obj.artOffset.y
         }
+
+        dbg('animation',
+            `[Render] t=${performance.now().toFixed(1)}`,
+            `art=${obj.art} f=${obj.frame}`,
+            `frameOx=${frameInfo.ox} frameOy=${frameInfo.oy}`,
+            `artOffset=(${obj.artOffset.x},${obj.artOffset.y})`,
+            `offsetXY=(${offsetX},${offsetY})`,
+            `wh=(${frameInfo.w},${frameInfo.h})`,
+        )
 
         const scrX = scr.x + offsetX,
             scrY = scr.y + offsetY
