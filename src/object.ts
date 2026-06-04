@@ -1802,9 +1802,11 @@ export class Critter extends Obj {
         // the GL texture for newArt is being loaded asynchronously.
         //
         // Exact zero-jump formula (CE ref: animation.cc artGetRotationOffsets + artGetFrameOffsets):
-        //   artOffset.x = floor(newW0/2) - floor(oldWF/2) + oldDirOff.x - newDirOff.x + oldOx[F] - newOx[0]
+        //   artOffset.x = floor(newMaxW/2) - floor(oldMaxW/2) + oldDirOff.x - newDirOff.x + oldOx[F] - newOx[0]
         //   artOffset.y = (newH0 - oldHF) + oldDirOff.y - newDirOff.y + oldOy[F] - newOy[0]
-        // x: half-width term compensates for the horizontal-center anchor (floor(w/2) from tile x).
+        // x: uses info.frameWidth (series max width = uniform atlas slot width), matching CE's
+        //    artGetFrameWidth(). This keeps the width terms telescoping to zero over a full weapon-swap
+        //    cycle (idle→holster→clearAnim→idle→draw→clearAnim→idle), eliminating accumulated drift.
         // y: height term compensates for the bottom-edge anchor (tileY - h); a taller sprite
         //    pushes the bottom edge down, so a height decrease shifts the sprite up without correction.
         let pendingArtOffset = prevArtOffset
@@ -1825,14 +1827,16 @@ export class Critter extends Obj {
             // CE ref: art.cc artGetFrameOffsets — frame deltas are independent of playback position;
             // CE never carries a mid-animation ox into the object reference point.
             const srcF = (this.anim === 'idle') ? (oldFrames?.[0] ?? oldF) : oldF
+            const oldMaxW = oldInfo.frameWidth ?? srcF.w
+            const newMaxW = newInfo.frameWidth ?? newF0.w
             pendingArtOffset = {
-                x: Math.floor(newF0.w / 2) - Math.floor(srcF.w / 2) + oldDirOff.x - newDirOff.x + srcF.ox - newF0.ox + prevArtOffset.x,
+                x: Math.floor(newMaxW / 2) - Math.floor(oldMaxW / 2) + oldDirOff.x - newDirOff.x + srcF.ox - newF0.ox + prevArtOffset.x,
                 y: (newF0.h - srcF.h) + oldDirOff.y - newDirOff.y + srcF.oy - newF0.oy + prevArtOffset.y,
             }
             dbg('animOffset', '[ArtOffset] staticAnimation',
-                `${oldArt}@f${clampedOld}(w=${oldF.w},ox=${oldF.ox},oy=${oldF.oy})`,
-                srcF !== oldF ? `[anchor:f0(w=${srcF.w},ox=${srcF.ox})]` : '',
-                `→ ${newArt}@f${newStartFrame}(w=${newF0.w},ox=${newF0.ox},oy=${newF0.oy})`,
+                `${oldArt}@f${clampedOld}(maxW=${oldMaxW},ox=${oldF.ox},oy=${oldF.oy})`,
+                srcF !== oldF ? `[anchor:f0(ox=${srcF.ox},h=${srcF.h})]` : '',
+                `→ ${newArt}@f${newStartFrame}(maxW=${newMaxW},h=${newF0.h},ox=${newF0.ox},oy=${newF0.oy})`,
                 `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
                 `prev(${prevArtOffset.x},${prevArtOffset.y})`,
                 `→ artOffset(${pendingArtOffset.x},${pendingArtOffset.y})`,
@@ -1933,13 +1937,15 @@ export class Critter extends Obj {
                 const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
                 const newF0 = newInfo.frameOffsets[orient]?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
                 const prev = this.artOffset
+                const oldMaxW = oldInfo.frameWidth ?? oldF.w
+                const newMaxW = newInfo.frameWidth ?? newF0.w
                 newArtOffset = {
-                    x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prev.x,
+                    x: Math.floor(newMaxW / 2) - Math.floor(oldMaxW / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prev.x,
                     y: (newF0.h - oldF.h) + oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prev.y,
                 }
                 dbg('animOffset', '[ArtOffset] clearAnim',
-                    `${oldArt}@f${clampedOld}(w=${oldF.w},h=${oldF.h},ox=${oldF.ox},oy=${oldF.oy})`,
-                    `→ ${newArt}@f0(w=${newF0.w},h=${newF0.h},ox=${newF0.ox},oy=${newF0.oy})`,
+                    `${oldArt}@f${clampedOld}(maxW=${oldMaxW},h=${oldF.h},ox=${oldF.ox},oy=${oldF.oy})`,
+                    `→ ${newArt}@f0(maxW=${newMaxW},h=${newF0.h},ox=${newF0.ox},oy=${newF0.oy})`,
                     `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
                     `prev(${prev.x},${prev.y})`,
                     `→ artOffset(${newArtOffset.x},${newArtOffset.y})`,

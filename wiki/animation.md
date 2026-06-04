@@ -164,7 +164,9 @@ Key fields:
 
 ```typescript
 const frameInfo = info.frameOffsets[obj.orientation][obj.frame]
-let offsetX = -(frameInfo.w / 2 | 0) + dirOffset.x
+// info.frameWidth = maxW across all frames (uniform atlas slot width)
+// CE: artGetFrameWidth(art, dir) — series max, not per-frame
+let offsetX = -(info.frameWidth / 2 | 0) + dirOffset.x
 let offsetY = -frameInfo.h + dirOffset.y
 
 if (obj.shift !== null) {
@@ -220,41 +222,52 @@ At every art transition (`Critter.staticAnimation` and `Critter.clearAnim`), com
 
 ```typescript
 // Exact zero-jump formula
-const oldF  = oldInfo.frameOffsets[orient][oldFrame]   // clamped to valid range
-const newF0 = newInfo.frameOffsets[orient][newStartFrame]
+const oldF    = oldInfo.frameOffsets[orient][oldFrame]   // clamped to valid range
+const newF0   = newInfo.frameOffsets[orient][newStartFrame]
+const oldMaxW = oldInfo.frameWidth   // series max width (uniform atlas slot)
+const newMaxW = newInfo.frameWidth
 this.artOffset = {
-    x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2)
+    x: Math.floor(newMaxW / 2) - Math.floor(oldMaxW / 2)
        + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x,
-    y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y,
+    y: (newF0.h - oldF.h) + oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y,
 }
 ```
 
-The x formula includes `floor(newW/2) − floor(oldW/2)` to cancel the frame-width anchor change. The y formula omits it because y is bottom-anchored (height changes don't shift the visual reference point). Both include the per-frame `ox`/`oy` at the exact frame where the transition fires.
+The x formula uses **series max width** (`info.frameWidth`) for both old and new, matching CE's `artGetFrameWidth()`. This is critical for K_cycle stability: the width terms telescope to exactly zero over a full weapon-swap cycle regardless of which frames happen to be active at each transition. Using per-frame width (`f0.w`) breaks the telescoping when frame-0 and last-frame widths differ within an animation.
 
-#### Correctness Proof (dir0, idle frame 0 → rifle draw)
+The y formula uses per-frame height (`newF0.h - srcF.h`) because the bottom-edge anchor (`tileY - h`) means height differences directly shift the visual foot position; a matching correction is needed.
+
+#### Correctness Proof (dir0, idle frame 0 → rifle draw, hanpwr)
 
 | Quantity | Value |
 |----------|-------|
 | `hanpwraa` dir0 `dirOffset` | `{x:-1, y:5}` |
 | `hanpwrjc` dir0 `dirOffset` | `{x:0, y:0}` |
-| idle f0: w=40, ox=0, oy=0 | |
-| draw f0: w=42, ox=1, oy=0 | |
+| `hanpwraa.frameWidth` (series max) | 42 |
+| `hanpwrjc.frameWidth` (series max) | 42 |
+| idle f0: h=60, ox=0, oy=0 | |
+| draw f0: h=60, ox=1, oy=0 | |
 
-`artOffset.x = floor(42/2) − floor(40/2) + (−1) − 0 + 0 − 1 = 21−20−1−1 = **−1**`  
-`artOffset.y = 5 − 0 + 0 − 0 = **5**`
+`artOffset.x = floor(42/2) − floor(42/2) + (−1) − 0 + 0 − 1 = 0−0−1−1 = **−2**`  
+`artOffset.y = (60−60) + 5 − 0 + 0 − 0 = **5**`
 
-Pre-transition (idle f0): `−(40/2) + (−1) + 0 + 0 = −21`  
-Post-transition (draw f0): `−(42/2) + 0 + 1 + (−1) = −21` ✓ **Zero jump**
+Pre-transition renderer: `−(42/2) + (−1) + 0 + 0 = −22`  
+Post-transition renderer: `−(42/2) + 0 + 1 + (−2) = −22` ✓ **Zero jump**
 
-The same formula gives zero jump for mid-cycle idle frames (ox=1) and for all 6 directions including dir4 where the frame-width difference alone would cause a 12 px jump with a simpler formula.
+(If both FRMs share the same series max width, the width term is 0 and artOffset.x is purely driven by dirOff + ox differences.)
 
 #### artOffset After Walk
 
 `Critter.clearAnim()` resets `artOffset = {0,0}` when the previous animation was a walk (`shift !== null`). This matches CE's `objectSetLocation` reset in `object.cc:3940`. After any walk, the carry state is clean.
 
-#### Minor Residual Drift
+#### K_cycle Stability
 
-After a complete draw-then-return cycle the artOffset may be ±1 px from zero (the draw animation's net `ox` drift). This matches CE's own accumulation (CE never resets `obj->x` between static animations). In practice this is imperceptible and is reset by any walk.
+With series-max widths, the width terms telescope over a full weapon-swap cycle:
+```
+(floor(newMaxW₂/2) − floor(oldMaxW₁/2)) + … + (floor(oldMaxW₁/2) − floor(newMaxW₄/2)) = 0
+```
+
+Any remaining K_cycle drift comes only from `ox + dirOff` residuals in the FRM data (a property of how the original FO2 artists drew each FRM set). This residual matches CE's own accumulation and is reset by any subsequent walk.
 
 ---
 

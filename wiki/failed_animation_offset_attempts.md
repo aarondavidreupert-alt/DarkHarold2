@@ -40,11 +40,18 @@ must not jump. Setting `screenX_before = screenX_after` and solving for
 `artOffset_new`:
 
 ```
-artOffset_new.x = floor(newF0.w/2) − floor(srcF.w/2)
+artOffset_new.x = floor(newMaxW/2) − floor(oldMaxW/2)
                 + srcDirOff.x − destDirOff.x
                 + srcF.ox    − destF0.ox
                 + artOffset_old.x          ← "prev"
+
+where oldMaxW = oldInfo.frameWidth  (series max width, uniform atlas slot)
+      newMaxW = newInfo.frameWidth
 ```
+
+**Important:** the x half-width term must use the **series max width** (`info.frameWidth`), not the per-frame width. This matches CE's `artGetFrameWidth()` and ensures the width terms telescope to zero over a full weapon-swap cycle. Early attempts used per-frame `f0.w`/`lastFrame.w`, which broke the telescoping property when frame-0 and last-frame widths differed within an animation.
+
+The renderer must also use `info.frameWidth` for the X anchor (changed 2026-06-04). Changing the formula without the renderer — or vice versa — introduces visible jump at every FRM transition.
 
 The y formula requires a height correction term because DH2 uses a
 bottom-edge anchor (`screenY = tileY − h`). If the new FRM's frame-0
@@ -425,12 +432,24 @@ correction term. Additionally, the hard-reset `clearAnim` caused a similar
 Y snap at the draw→idle boundary. Both were fixed by applying the complete
 zero-jump formula everywhere.
 
+**Part 4 (series-max width for X term, 2026-06-04):** The X half-width term
+used per-frame `f0.w` / `lastFrame.w`. Over a full cycle the four width terms
+are `floor(holsterF0.w/2) − floor(holsterLast.w/2) + floor(drawF0.w/2) − floor(drawLast.w/2)`, which is non-zero whenever frame-0 and last-frame have
+different widths in either the holster or draw FRM. Fix: use `info.frameWidth`
+(series max width = uniform atlas slot width) for both old and new sides.
+CE reference: `art.cc artGetFrameWidth()`. The renderer's X anchor was also
+changed from `floor(frameInfo.w/2)` to `floor(info.frameWidth/2)` — both must
+be changed together; otherwise the formula and renderer disagree and every
+FRM transition has a visible jump.
+
 **`staticAnimation` (final):**
 
 ```
 srcF = (this.anim === 'idle') ? oldFrames[0] : oldFrames[currentFrame]
+oldMaxW = oldInfo.frameWidth   // series max width
+newMaxW = newInfo.frameWidth
 
-artOffset_new.x = floor(newF0.w/2) − floor(srcF.w/2)
+artOffset_new.x = floor(newMaxW/2) − floor(oldMaxW/2)
                 + oldDirOff.x − newDirOff.x
                 + srcF.ox    − newF0.ox
                 + prev.x
@@ -448,7 +467,10 @@ is non-zero and must be carried for continuity.
 **`clearAnim` (final):**
 
 ```
-artOffset_new.x = floor(newF0.w/2) − floor(oldF.w/2)
+oldMaxW = oldInfo.frameWidth
+newMaxW = newInfo.frameWidth
+
+artOffset_new.x = floor(newMaxW/2) − floor(oldMaxW/2)
                 + oldDirOff.x − newDirOff.x
                 + oldF.ox    − newF0.ox
                 + prev.x                         ← prev = this.artOffset at settle time
@@ -460,11 +482,9 @@ artOffset_new.y = (newF0.h − oldF.h)
 ```
 
 Using the current `artOffset` as `prev` in `clearAnim` gives a true
-zero-jump at the settle boundary. For FRM directions where `K_cycle ≠ 0`,
-`artOffset` will be non-zero after each full swap cycle; a subsequent walk
-resets it to `{0,0}` via CE's `objectSetLocation` semantics. Since players
-virtually always walk between weapon swaps, accumulated K_cycle error is
-bounded in practice.
+zero-jump at the settle boundary. Width terms telescope to zero over every
+full cycle. Any remaining K_cycle drift comes only from `ox + dirOff`
+residuals in the FRM data (same as CE). This residual is reset by any walk.
 
 Walk-end `clearAnim` still hard-resets to `{0,0}` (unchanged), matching CE
 `objectSetLocation` on tile change.
@@ -473,16 +493,17 @@ Walk-end `clearAnim` still hard-resets to `{0,0}` (unchanged), matching CE
 
 ## Summary table
 
-| Attempt | staticAnimation src frame | clearAnim formula | Y height term | Failure |
-|---------|--------------------------|-------------------|---------------|---------|
-| **0 (main branch)** | no formula — raw art switch | no formula — raw idle switch | — | FRM-transition jumps proportional to width/dirOffset/ox differences |
-| 1 | `oldFrames[currentFrame]` | reset to 0 | missing | Random ±9px X jump at draw start (iOxF contamination) |
-| 2 | `oldFrames[currentFrame]` | zero-jump − contamination | missing | Critter displaced throughout holster animation |
-| 3 / Part 1 | `oldFrames[0]` (anchor) | zero-jump + prev | missing | −2px/cycle X drift for dir2 (K_cycle accumulation) |
-| No-prev (rejected) | `oldFrames[0]` | no prev, no floor(w/2) | missing | Up to 9px X jump at width-mismatched transitions |
-| No-prev + floor(w/2) (rejected) | `oldFrames[0]` | no prev, with floor(w/2) | missing | 5px X jump at holster-end for dir2 |
-| Parts 1+2 (interim) | `oldFrames[0]` (anchor) | **reset to 0** | missing | 2 px Y jump at every staticAnimation transition |
-| **Final (Parts 1+2+3)** | `oldFrames[0]` (anchor) | **zero-jump + prev** | `(newF0.h − srcF.h)` present | ✅ Stable; K_cycle bounded by walk resets |
+| Attempt | staticAnimation src frame | clearAnim formula | Y height term | X width term | Failure |
+|---------|--------------------------|-------------------|---------------|--------------|---------|
+| **0 (main branch)** | no formula — raw art switch | no formula — raw idle switch | — | — | FRM-transition jumps proportional to width/dirOffset/ox differences |
+| 1 | `oldFrames[currentFrame]` | reset to 0 | missing | per-frame | Random ±9px X jump at draw start (iOxF contamination) |
+| 2 | `oldFrames[currentFrame]` | zero-jump − contamination | missing | per-frame | Critter displaced throughout holster animation |
+| 3 / Part 1 | `oldFrames[0]` (anchor) | zero-jump + prev | missing | per-frame | −2px/cycle X drift for dir2 (K_cycle accumulation) |
+| No-prev (rejected) | `oldFrames[0]` | no prev, no floor(w/2) | missing | — | Up to 9px X jump at width-mismatched transitions |
+| No-prev + floor(w/2) (rejected) | `oldFrames[0]` | no prev, with floor(w/2) | missing | per-frame | 5px X jump at holster-end for dir2 |
+| Parts 1+2 (interim) | `oldFrames[0]` (anchor) | **reset to 0** | missing | per-frame | 2 px Y jump at every staticAnimation transition |
+| Parts 1+2+3 (interim) | `oldFrames[0]` (anchor) | zero-jump + prev | `(newF0.h − srcF.h)` | per-frame | X K_cycle non-zero when f0.w ≠ lastFrame.w |
+| **Final (Parts 1+2+3+4)** | `oldFrames[0]` (anchor) | **zero-jump + prev** | `(newF0.h − srcF.h)` | **series max (`info.frameWidth`)** | ✅ Width terms telescope; remaining K_cycle from ox+dirOff only (CE-equivalent) |
 
 ---
 
