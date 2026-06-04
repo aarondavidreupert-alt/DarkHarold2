@@ -1174,6 +1174,25 @@ export class Combat {
         if (distMode === 'stay') {
             if (AP.getAvailableCombatAP() <= 0) return this.nextTurn()
             // Fall through to attack in place (no movement)
+        } else if (distMode === 'stay_close' && globalState.player) {
+            // STAY_CLOSE: companion stays within 5 tiles of player when not attacked by player.
+            // CE ref: combat_ai.cc:2985 _cai_perform_distance_prefs DISTANCE_STAY_CLOSE.
+            const player = globalState.player
+            const distToPlayer = hexDistance(obj.position, player.position)
+            if (distToPlayer > 5) {
+                const moveAP = AP.getAvailableMoveAP()
+                if (moveAP > 0) {
+                    const stepsToTake = Math.min(distToPlayer - 5, moveAP)
+                    const neighbors = hexNeighbors(player.position)
+                    for (const nb of neighbors) {
+                        if (obj.walkTo(nb, false, () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1) }, stepsToTake) !== false) {
+                            if (AP.subtractMoveAP(obj.path.path.length - 1) === false) return this.nextTurn()
+                            return
+                        }
+                    }
+                }
+            }
+            // else fall through to normal attack logic
         } else if (distMode === 'snipe' && target && distance < 10) {
             // SNIPE: back away from target to maintain ≥10-tile standoff
             const moveAP = AP.getAvailableMoveAP()

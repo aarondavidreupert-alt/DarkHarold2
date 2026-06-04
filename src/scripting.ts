@@ -34,8 +34,9 @@ import { parseIntFile } from './intfile.js'
 import { dbg } from './logger.js'
 import { useElevator } from './main.js'
 import { Critter, createObjectWithPID, Obj, objectGetDamageType } from './object.js'
+import { applyPerk, getPerkRank, PERKS } from './perks.js'
 import { Player } from './player.js'
-import { loadPRO, makePID } from './pro.js'
+import { loadPRO, lookupArt, makePID } from './pro.js'
 import * as Endgame from './endgame.js'
 import { centerCamera, objectOnScreen } from './renderer.js'
 import { fromTileNum, toTileNum } from './tile.js'
@@ -71,7 +72,7 @@ export module Scripting {
 
     // Animation batch (reg_anim_begin / reg_anim_end queue)
     // ref: fallout2-ce animation.cc animationRegAnimFunc / animationRegAnimAnimate
-    interface AnimStep { kind: 'animate'; obj: Obj; anim: number; delay: number }
+    interface AnimStep { kind: 'animate'; obj: Obj; anim: number; delay: number; reversed?: boolean }
     interface AnimFunc  { kind: 'func';    fn: (() => void) | null }
     type AnimEntry = AnimStep | AnimFunc
     let animBatch: AnimEntry[] | null = null
@@ -652,6 +653,18 @@ export module Scripting {
                 }
                 return 0
             }
+            case 107: {
+                // METARULE3_ART_SET_BASE_FID_NUM — CE ref: interpreter_extra.cc:2029
+                // Rebuilds the object's FID with a new frmId, keeping type/animType/rotation.
+                // DH2 stores `art` as a path; resolve via lookupArt(makePID(frmType, frmId)).
+                if (!isGameObject(obj) || !obj.pro) {
+                    warn('metarule3 107: not a game object or no proto')
+                    return 0
+                }
+                const newArt = lookupArt(makePID(obj.pro.frmType, userdata as number))
+                if (newArt) obj.art = newArt
+                return 0
+            }
             case 108: {
                 // CE ref: interpreter_extra.cc:2045 METARULE3_TILE_SET_CENTER
                 // Centers the game camera on the given tile number.
@@ -703,6 +716,12 @@ export module Scripting {
             }
             if (stat === 31) return obj.getStat('DR Radiation') // STAT_RADIATION_RESISTANCE
             if (stat === 32) return obj.getStat('DR Poison')    // STAT_POISON_RESISTANCE
+            if (stat === 33) {
+                // STAT_AGE — CE ref: stat.cc:244 critterGetStat — base age (default 25)
+                // + gameTime / GAME_TIME_TICKS_PER_YEAR. DH2 has no per-critter base,
+                // so use the default of 25 (gStatDescriptions[STAT_AGE].defaultValue).
+                return 25 + Math.floor(globalState.gameTickTime / GameTime.TICKS_PER_YEAR)
+            }
             var namedStat = statMap[stat]
             if (namedStat !== undefined) return obj.getStat(namedStat)
             stub('get_critter_stat', arguments)
@@ -789,6 +808,28 @@ export module Scripting {
                     case 669: // OBJECT_CUR_WEIGHT — read-only (computed), no-op
                         return
                 }
+            } else if (traitType === 0) {
+                // CRITTER_TRAIT_PERK — CE ref: interpreter_extra.cc:2869 opCritterAddTrait
+                // amount > 0 → perkAddForce (no requirement check); amount <= 0 → perkRemove
+                // CE applies to any critter, but DH2's perk system is player-only.
+                const player = (<Critter>obj).isPlayer ? (<Player>obj) : null
+                if (!player) {
+                    dbg('script', 'critter_add_trait: PERK on non-player critter ignored (trait=%d)', trait)
+                    return
+                }
+                const def = PERKS[trait]
+                if (!def) {
+                    warn(`critter_add_trait: unknown perk index ${trait}`)
+                    return
+                }
+                if (amount > 0) {
+                    const rank = getPerkRank(player, def.name)
+                    if (rank < def.maxRanks) applyPerk(player, def.name)
+                } else {
+                    const idx = player.perks.indexOf(def.name)
+                    if (idx >= 0) player.perks.splice(idx, 1)
+                }
+                return
             }
 
             stub('critter_add_trait', arguments)
@@ -1475,9 +1516,10 @@ export module Scripting {
             } else if (anim >= 0 && anim < 65) {
                 // Animation type ID — wrap in a one-shot reg_anim batch
                 // CE ref: interpreter_extra.cc:3382 opAnim (anim < ANIM_COUNT branch)
+                // param == 0 → forward; param != 0 → reversed (animationRegisterAnimateReversed).
                 const saved = animBatch
                 animBatch = []
-                animBatch.push({ kind: 'animate', obj, anim, delay: 0 })
+                animBatch.push({ kind: 'animate', obj, anim, delay: 0, reversed: param !== 0 })
                 this.reg_anim_end()
                 animBatch = saved
             } else {
@@ -1852,7 +1894,7 @@ export module Scripting {
                     if (step.delay > 0) setTimeout(next, step.delay * 100)
                     else next()
                 } else {
-                    const play = () => obj.singleAnimation(false, next)
+                    const play = () => obj.singleAnimation(step.reversed === true, next)
                     if (step.delay > 0) setTimeout(play, step.delay * 100)
                     else play()
                 }

@@ -1238,6 +1238,9 @@ export class Critter extends Obj {
     teamNum = -1 // AI team number (TODO: implement this)
     ai: AI | null = null // AI packet
     hostile = false // Currently engaging an enemy?
+    // Wander origin (lazily captured on first wander tick) — used to enforce
+    // per-type radius caps. CE ref: ai.cc wander_type 1/2/3 short/large/unrestricted.
+    wanderOrigin: { x: number; y: number } | null = null
 
     isPlayer = false // Is this critter the player character?
     dead = false // Is this critter dead?

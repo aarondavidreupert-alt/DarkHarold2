@@ -20,7 +20,7 @@ export type BestWeapon =
     | 'random'            // 7
     | 'never'             // 8
 export type AreaAttackMode = 'no_pref' | 'be_careful' | 'be_sure' | 'be_absolutely_sure' | 'sometimes'
-export type DistanceMode = 'charge' | 'snipe' | 'stay' | 'on_your_own' | 'random'
+export type DistanceMode = 'charge' | 'snipe' | 'stay' | 'on_your_own' | 'random' | 'stay_close'
 export type RunAwayMode = 'never' | 'none' | 'bleeding' | 'finger_hurts' | 'not_feeling_good' | 'coward'
 export type ChemUse = 'clean' | 'anytime' | 'stims_when_hurt_little' | 'stims_when_hurt_lots' | 'sometimes'
 
@@ -79,7 +79,7 @@ const BEST_WEAPONS: ReadonlySet<string>      = new Set<BestWeapon>([
     'ranged', 'unarmed', 'unarmed_over_throw', 'random', 'never',
 ])
 const AREA_ATTACK_MODES: ReadonlySet<string> = new Set<AreaAttackMode>(['no_pref', 'be_careful', 'be_sure', 'be_absolutely_sure', 'sometimes'])
-const DISTANCE_MODES: ReadonlySet<string>    = new Set<DistanceMode>(['charge', 'snipe', 'stay', 'on_your_own', 'random'])
+const DISTANCE_MODES: ReadonlySet<string>    = new Set<DistanceMode>(['charge', 'snipe', 'stay', 'on_your_own', 'random', 'stay_close'])
 const RUN_AWAY_MODES: ReadonlySet<string>    = new Set<RunAwayMode>(['never', 'none', 'bleeding', 'finger_hurts', 'not_feeling_good', 'coward'])
 const CHEM_USES: ReadonlySet<string>         = new Set<ChemUse>(['clean', 'anytime', 'stims_when_hurt_little', 'stims_when_hurt_lots', 'sometimes'])
 

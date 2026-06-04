@@ -1139,8 +1139,19 @@ heart.update = function () {
             ) {
                 const pkt = getAiPacket(critter.aiNum)
                 if (pkt.wanderType > 0 && Math.random() < 0.05) {
+                    // CE ref: ai.cc wander_type — 1=short, 2=large, 3=unrestricted.
+                    // DH2 caps wander to a radius around the spawn position (captured lazily).
+                    if (!critter.wanderOrigin) {
+                        critter.wanderOrigin = { x: critter.position.x, y: critter.position.y }
+                    }
+                    const radius = pkt.wanderType === 1 ? 5 : pkt.wanderType === 2 ? 15 : Infinity
                     const neighbors = hexNeighbors(critter.position)
-                    const dest = neighbors[Math.floor(Math.random() * neighbors.length)]
+                    // Prefer neighbours inside the radius
+                    const validNeighbors = radius === Infinity
+                        ? neighbors
+                        : neighbors.filter(n => hexDistance(n, critter.wanderOrigin!) <= radius)
+                    const pool = validNeighbors.length > 0 ? validNeighbors : neighbors
+                    const dest = pool[Math.floor(Math.random() * pool.length)]
                     if (dest) critter.walkTo(dest, false)
                 }
             }
