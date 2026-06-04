@@ -164,9 +164,9 @@ Key fields:
 
 ```typescript
 const frameInfo = info.frameOffsets[obj.orientation][obj.frame]
-// info.frameWidth = maxW across all frames (uniform atlas slot width)
-// CE: artGetFrameWidth(art, dir) — series max, not per-frame
-let offsetX = -(info.frameWidth / 2 | 0) + dirOffset.x
+// Per-frame width for horizontal center anchor — matches CE artGetWidth(art, frame, rotation)
+// object.cc:2347: rect->left = tileScreenX - width/2  (width = artGetSize current frame)
+let offsetX = -((frameInfo.w / 2) | 0) + dirOffset.x
 let offsetY = -frameInfo.h + dirOffset.y
 
 if (obj.shift !== null) {
@@ -185,6 +185,11 @@ Three render contributions for static animations:
 - **`dirOffset`** — FRM header `xOffsets[direction]`/`yOffsets[direction]`.
 - **`frameInfo.ox` / `frameInfo.oy`** — pre-baked cumulative per-frame deltas (sum of `ArtFrame.x`/`y` from frame 0 to N).
 - **`obj.artOffset`** — carry-offset accumulated across FRM art transitions (see §4.2).
+
+**Note (FA13):** The renderer uses per-frame `frameInfo.w/2`, but the artOffset formula in
+§4.2 uses `info.frameWidth` (series-max, atlas-packing artifact). CE has no `artGetFrameWidth`;
+it uses `artGetWidth(art, frame, rotation)` (per-frame) everywhere. The two are inconsistent for
+variable-width FRMs. See `wiki/known_bugs.md FA13`.
 
 ### 4.2 Art Transition Offset Model — CE vs DH2
 
@@ -233,7 +238,7 @@ this.artOffset = {
 }
 ```
 
-The x formula uses **series max width** (`info.frameWidth`) for both old and new, matching CE's `artGetFrameWidth()`. This is critical for K_cycle stability: the width terms telescope to exactly zero over a full weapon-swap cycle regardless of which frames happen to be active at each transition. Using per-frame width (`f0.w`) breaks the telescoping when frame-0 and last-frame widths differ within an animation.
+The x formula uses **series max width** (`info.frameWidth`) for both old and new, which ensures the width terms telescope to exactly zero over a full weapon-swap cycle regardless of which frames happen to be active at each transition. Using per-frame width (`f0.w`) breaks the telescoping when frame-0 and last-frame widths differ within an animation. Note: this diverges from CE, which uses per-frame `artGetWidth(art, frame, rotation)` — CE has no series-max width function. The `info.frameWidth` field is a `frmpixels.py` atlas-packing artifact. See FA13.
 
 The y formula uses per-frame height (`newF0.h - srcF.h`) because the bottom-edge anchor (`tileY - h`) means height differences directly shift the visual foot position; a matching correction is needed.
 

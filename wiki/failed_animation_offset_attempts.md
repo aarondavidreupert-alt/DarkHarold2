@@ -513,3 +513,88 @@ Walk-end `clearAnim` still hard-resets to `{0,0}` (unchanged), matching CE
 - `src/renderer.ts` — `objectRenderInfo` (renderer formula; `animation` log)
 - `src/config.ts` — `animOffset` and `animation` log flags
 - `wiki/known_bugs.md` — FA12 entry
+
+---
+
+## Hypothesis: Pipeline-level fix — CE verification 2026-06-04
+
+**Hypothesis (proposed 2026-06-04):** The root cause of all animation transition offset bugs is in
+the asset pipeline, not the renderer or object.ts formula. The FRM format defines x/y as
+continuous per-frame deltas across the entire animation sequence — including an implicit delta
+from the last frame of one animation to the first frame of the next. DH2's imageMap.json breaks
+this continuity by accumulating ox/oy per-animation and resetting to 0 at each FRM start. The
+cross-animation delta (last frame of A → f0 of B) is never stored. Additionally, each animation
+has its own `maxW` (series-max frame width) that shifts the render anchor (`-floor(maxW/2)`)
+independently per animation. The correct fix may be to compute and store cross-animation
+transition deltas in imageMap.json.
+
+**CE verification (art.cc, animation.cc, object.cc):**
+
+**Claim 1: "FRM x/y are continuous cross-animation deltas."**
+INCORRECT. Each FRM file is independent. `ArtFrame.x/y` are intra-FRM-only deltas. Frame 0's
+delta is relative to the tile anchor (`obj->x = 0` after `objectSetLocation`), not to the last
+frame of a previous animation. CE `artReadFrameData()` (`art.cc:1034`) reads each frame's
+`x`/`y` as purely per-FRM deltas. There is no cross-animation delta in the FRM binary format.
+
+**Claim 2: "imageMap.json breaks continuity by resetting ox/oy at FRM start."**
+MISLEADING. `ox[0]` correctly stores frame 0's raw delta (`ArtFrame.x[0]`). There is nothing
+to "reset" — the FRM format never had cross-animation continuity to break.
+
+**Claim 3: "The cross-animation delta is never stored."**
+TRUE, but not a gap. CE computes this transition at runtime (`animation.cc:2862-2889`):
+
+```c
+artGetRotationOffsets(OLD_art, rotation, &x, &y);        // oldDirOff
+objectSetFid(object, sad->fid, ...);                     // switch FID
+artGetFrameOffsets(NEW_art, 0, rotation, &frameX, &frameY); // newF0.rawDelta
+_obj_offset(object, x + frameX, y + frameY, ...);        // obj->x += oldDirOff + newF0.ox
+```
+
+The runtime transition is `oldDirOff + newFrame0.ox`. Both components are already in
+imageMap.json as `directionOffsets[d]` and `frameOffsets[d][0].ox`. No new pipeline data
+is required.
+
+**Claim 4: "CE guarantees zero-jump via the transition formula."**
+INCORRECT. CE's renderer (`object.cc:2327,2347`) uses per-frame width for centering:
+
+```c
+artGetSize(art, obj->frame, obj->rotation, &width, &height);  // per-frame
+rect->left = tileScreenX - width / 2;
+```
+
+Setting `screenX_before = screenX_after` at a CE art transition yields:
+
+```
+newFrame0.w/2 − oldFrame_K.w/2 = newDirOff + newFrame0.ox
+```
+
+This is NOT a general identity. CE relies on FRM artists designing sets where this approximately
+holds. CE does not guarantee pixel-perfect zero-jump at transitions.
+
+**Claim 5: "maxW shifts the render anchor independently per-animation."**
+CONFIRMED as a real observation — but `info.frameWidth` (series-max) is a frmpixels.py atlas-
+packing artifact (`frmpixels.py:83`: `maxW = max(fo['w'] for fo in offset)`). CE has no
+`artGetFrameWidth` function; searching `art.cc`/`art.h` finds only `artGetWidth(art, frame,
+direction)` which returns the per-frame width. The wiki §4.2 claim "CE: artGetFrameWidth(art,
+dir) — series max, not per-frame" is INCORRECT — this function does not exist in CE.
+
+**Conclusion:**
+
+The pipeline hypothesis is REJECTED as a root-cause diagnosis. All data needed for correct art
+transitions is already in imageMap.json. The FA7/FA12 bugs were formula logic errors:
+1. Missing `(newF0.h − srcF.h)` height term
+2. Using mid-cycle idle frame instead of frame 0 as anchor
+3. `clearAnim` hard reset vs full zero-jump formula
+4. Inconsistency introduced by Part 4: artOffset formula uses series-max `info.frameWidth` but
+   renderer (after revert) uses per-frame `frameInfo.w` — these only agree when all frames in
+   an FRM have equal width (which is not always true, e.g. `hmjmpsia` maxW=90 but typical
+   frames ~30px)
+
+Item 4 is a real remaining issue: see FA13 in `wiki/known_bugs.md §15`.
+
+**Valid observation retained:** A CE-faithful approach uses per-frame width everywhere (both
+artOffset formula and renderer). The Part 4 renderer change was correct in principle but applied
+only to the renderer without updating the formula to also use per-frame, creating the mismatch
+that caused the regression. The still-open question is whether to bring the formula in line with
+the per-frame renderer, or find a different approach that avoids the `hmjmpsia` wide-frame
+problem.
