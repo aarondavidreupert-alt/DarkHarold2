@@ -107,6 +107,53 @@ step; players virtually always walk between weapon swaps.
 
 ---
 
+## Attempt 0 — Main branch baseline (no artOffset at all)
+
+**This is the formula currently on `main`.** There is no `artOffset` field on
+`Obj`. `staticAnimation` simply switches `this.art` and resets `this.frame = 0`
+with no position correction. `clearAnim` resets to idle with no correction.
+
+**Renderer formula (main branch):**
+```
+offsetX = -floor(w/2) + dirOffset.x + frameInfo.ox
+offsetY = -h          + dirOffset.y + frameInfo.oy
+
+screenX = tileToScreenX(tile) + offsetX
+screenY = tileToScreenY(tile) + offsetY
+```
+
+Walking uses `shift` instead of `frameInfo.ox/oy` (same as feature branch).
+
+**`staticAnimation` (main):**
+```typescript
+this.art = this.getAnimation(anim)
+this.frame = 0
+this.lastFrameTime = 0
+// no artOffset computation
+```
+
+**`clearAnim` (main):**
+```typescript
+super.clearAnim()
+this.anim = 'idle'
+this.art = this.getAnimation('idle')
+// no artOffset computation
+```
+
+**Failure mode:** FRM transitions produce visible sprite jumps whenever
+`floor(w/2)`, `dirOffset`, or `ox[0]` differ between the outgoing and incoming
+FRM. For example, switching from armed-idle to holster where the widths differ
+by several pixels causes the sprite to snap horizontally. On main this jump is
+present but accepted; the feature branch introduced `artOffset` specifically to
+eliminate it.
+
+**Why it was not fixed on main:** The weapon draw animation (`Xc` FRM) and its
+corresponding idle did not yet have significant visible drift on the critters
+tested before feature development began. The jump is most visible when FRMs
+have materially different widths or dirOffsets.
+
+---
+
 ## Attempt 1 — Hard reset in clearAnim (FA12 first try)
 
 **Formula — `clearAnim`:**
@@ -349,6 +396,7 @@ snap because FRM designers target frame-0 alignment but are off by at most
 
 | Attempt | staticAnimation src frame | clearAnim formula | Failure |
 |---------|--------------------------|-------------------|---------|
+| **0 (main branch)** | no formula — raw art switch | no formula — raw idle switch | FRM-transition jumps proportional to width/dirOffset/ox differences |
 | 1 | `oldFrames[currentFrame]` | reset to 0 | Random ±9px jump at draw start (iOxF contamination) |
 | 2 | `oldFrames[currentFrame]` | zero-jump − contamination | Critter displaced throughout holster animation |
 | 3 / Part 1 | `oldFrames[0]` (anchor) | zero-jump + prev | −2px/cycle drift for dir2 (K_cycle accumulation) |
