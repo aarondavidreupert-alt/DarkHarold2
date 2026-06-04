@@ -269,7 +269,7 @@ covered by Phases 1–8.
 | IW2 | ✅ FIXED 2026-06-04 — `drawAP` dims `#attackButton` (opacity+grayscale) when AP < cost or not player turn. | `interface.cc interfaceRenderActionPoints()` | minor |
 | IW3 | **Weapon action cycling missing aiming states.** Mode cycle doesn't include aimed-shot states. | `interface.cc` | minor |
 | IW4 | ✅ FIXED 2026-06-04 — `game_ui_disable/enable` toggle `#bar` visibility in addition to input block. | `interface.cc` | minor |
-| IW7 | **AP readout has no frame animation.** CE animates AP digit changes per-frame. | `interface.cc interfaceRenderActionPoints()` | low |
+| IW7 | ✅ FIXED 2026-06-04 — `drawAP` opacity-fade transitions for `apLight` slots. | `interface.cc interfaceRenderActionPoints()` | low |
 | U3 | **Save slot screenshots not saved.** | `loadsave.cc` | minor |
 
 ### 9e. Config / Preferences

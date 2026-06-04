@@ -98,9 +98,25 @@ export function drawAC(ac: number): void {
 }
 
 export function drawAP(current: number, max: number, freeMove: number = 0, isPlayerTurn: boolean = true): void {
-    for (let i = 0; i < 10; i++) {
+    // CE ref: interface.cc interfaceRenderActionPoints animates point changes
+    // per-frame; when AP drops we briefly flash the deactivated lights before
+    // hiding them, so the player sees which slots are being spent.
+    const apply = (i: number, src: string | null) => {
         const el = document.getElementById('apLight' + (i + 1)) as HTMLImageElement | null
-        if (!el) continue
+        if (!el) return
+        if (src) {
+            el.src = src
+            el.style.visibility = 'visible'
+            el.style.transition = 'opacity 120ms ease'
+            el.style.opacity = '1'
+        } else {
+            el.style.transition = 'opacity 120ms ease'
+            el.style.opacity = '0'
+            // Hide after the fade-out completes so click hit-tests stay clean.
+            setTimeout(() => { if (el.style.opacity === '0') el.style.visibility = 'hidden' }, 130)
+        }
+    }
+    for (let i = 0; i < 10; i++) {
         let src: string | null = null
         if (!isPlayerTurn) {
             src = 'art/intrface/hlred.png'
@@ -109,12 +125,7 @@ export function drawAP(current: number, max: number, freeMove: number = 0, isPla
         } else if (i < current + freeMove) {
             src = 'art/intrface/hlyel.png'
         }
-        if (src) {
-            el.src = src
-            el.style.visibility = 'visible'
-        } else {
-            el.style.visibility = 'hidden'
-        }
+        apply(i, src)
     }
     updateAttackButtonAvailability(current + freeMove, isPlayerTurn)
     updateIndicatorBar()
