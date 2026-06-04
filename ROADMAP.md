@@ -5,9 +5,9 @@ unlocks the next. Phases 1–3 are pure connectivity — the engine infrastructu
 already exists, these wire it up. Phases 4–5 introduce the only genuinely new
 systems still needed.
 
-**Last audited: 2026-06-03**
-Current estimate: **~83% complete** (was ~70% at the 2026-06-01 audit; 92 items
-fixed across the June 2–3 sprint).
+**Last audited: 2026-06-04**
+Current estimate: **~85% complete** (was ~83% at 2026-06-03; 12 Phase 3/4/5/9
+items fixed across the June 4 sprint).
 Target: 95% (a playable end-to-end run through Fallout 2's main quest with
 companions, working scripted content, and correct combat).
 
@@ -73,10 +73,10 @@ game features, but prerequisites for reliable iteration.
 | `set_pc_stat` | ✅ Done | All PCSTAT IDs (0–4) handled 2026-06-02. Ref: `stat.cc pcSetStat` |
 | `mod_pc_stat` | ✅ Done | All PCSTAT IDs (0–4) handled 2026-06-02. Ref: `scripts.cc opModifyPcStat` |
 | `metarule` | 🟡 Partial | IDs 9,13,14,15,16,17,18,19,22,40,44,45,46,47,48,49,50,51 handled; car-related IDs 30/31/32/52/53 still stub (car system absent). Ref: `interpreter_extra.cc opMetarule` |
-| `metarule3` | 🟡 Partial | IDs 100,103,106,108 handled; others stub. Ref: `interpreter_extra.cc opMetarule3` |
-| `critter_add_trait` | 🟡 Partial | TRAIT_OBJECT cases 5,6,10,666,669 handled 2026-06-02; all others silently ignored after `stub()` log. Ref: `interpreter_extra.cc opAddTrait` |
-| `anim` | 🟡 Partial | IDs 1000 (rotation), 1010 (frame), and type IDs 0–64 (one-shot reg_anim batch) all handled 2026-06-02. Reverse-anim direction plays forward (S11). Ref: `interpreter_extra.cc opAnim` |
-| `get_critter_stat` | 🟡 Partial | SPECIAL 0–6, MaxHP 7, MaxAP 8, AC 9, Sequence 13, CritChance 15, BetterCriticals 16, DT 17–23, DR 24–32, HP 35, gender 34 handled; STAT_AGE (33) still stub. Ref: `interpreter_extra.cc opGetCritterStat` |
+| `metarule3` | 🟡 Partial | IDs 100,103,106,107,108 handled (107 added 2026-06-04 — ART_SET_BASE_FID_NUM via lookupArt); others stub. Ref: `interpreter_extra.cc opMetarule3` |
+| `critter_add_trait` | ✅ Done | TRAIT_PERK (kind=0) added 2026-06-04 — player-only via applyPerk/perks.splice; TRAIT_OBJECT cases handled 2026-06-02. Ref: `interpreter_extra.cc opAddTrait` |
+| `anim` | ✅ Done | Reverse direction (param ≠ 0) wired through animBatch 2026-06-04 — passed to `singleAnimation(reversed)`. IDs 1000/1010 + types 0–64 handled 2026-06-02. Ref: `interpreter_extra.cc opAnim` |
+| `get_critter_stat` | ✅ Done | STAT_AGE (33) added 2026-06-04 — `25 + gameTime / TICKS_PER_YEAR`. SPECIAL 0–6, MaxHP/MaxAP/AC, Sequence, CritChance, BetterCriticals, DT/DR ranges all handled. Ref: `interpreter_extra.cc opGetCritterStat` |
 
 ---
 
@@ -109,10 +109,11 @@ game features, but prerequisites for reliable iteration.
 - **AttackWho**, **RunAwayMode**, **BestWeapon**, **DistanceMode=STAY** all implemented.
 - **Perception gate (C12)**: critters check LoS before attacking (FIXED 2026-06-02).
 - **SNIPE distance (C13)**: sniper critters maintain optimal range (FIXED 2026-06-02).
+- **STAY_CLOSE distance**: companion stays within 5 tiles of player (FIXED 2026-06-04).
 - **YAAM formula (C3)**: armour-penetration capped per CE (FIXED 2026-06-02).
 - **Sequence formula (C11)**: `2 * PER + Fast Shot bonus` (FIXED 2026-06-02).
 - **Melee location penalty (C4)**: halved per CE (FIXED 2026-06-02).
-- Remaining gaps: DISTANCE_CHARGE/STAY_CLOSE (C13 partial), friendly-fire.
+- Remaining gaps: friendly-fire / line-of-fire blockers for AoE.
 - Ref: `wiki/ai_behavior.md §9`
 
 ---
@@ -126,13 +127,16 @@ a believable playthrough.
 
 ### 5c. Party / companion follow logic 🟡 Partial
 - `party.ts` has `followPlayer()` (CHA size cap enforced).
-- **Missing**: true pathfinding, dismissal dialogue hooks, companion inventory from HUD.
-- Full companion level-up remains deferred.
+- ✅ followPlayer now pathfinds to nearest free hex adjacent to player (2026-06-04).
+- ✅ `dismissPartyMember` helper added; `party_remove` opcode silently no-ops on
+  non-party objects per CE (2026-06-04).
+- **Missing**: companion inventory from HUD, level-up, formation pathfinding.
 - Ref: `wiki/companion_party.md §1,2,4,5`
 
 ### 5d. Minimal NPC wander schedules 🟡 Partial
-- Basic flat-radius wander for non-scripted critters with `wanderType > 0`.
-- Gaps: wander radius not differentiated by type 1/2/3 (C8); day-night schedules deferred.
+- ✅ Wander radius now differentiated (2026-06-04): type 1=radius 5, type 2=15,
+  type 3=unrestricted, around lazily captured spawn position.
+- Day-night schedules deferred.
 - Ref: `ai.cc aiMoveSteps()`
 
 ---
@@ -228,16 +232,16 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| LE1 | **Carry-weight limit not enforced.** `addInventoryItem` / loot UI ignore weight. | `item.cc:322 itemAttemptAdd()` | major |
-| LE4 | **Stack merge uses PID only.** Loaded and unloaded guns (same PID) wrongly merge. CE uses `_item_identical` (full state compare). | `item.cc:357 _item_identical()` | minor |
+| LE1 | ✅ FIXED 2026-06-04 — `Obj.canCarry` enforced at loot drag/Take All and ground pickup. | `item.cc:322 itemAttemptAdd()` | major |
+| LE4 | ✅ FIXED 2026-06-04 — `WeaponObj.approxEq` compares ammoPID+rounds; loaded≠unloaded stacks. | `item.cc:357 _item_identical()` | minor |
 | LE5 | **Ammo stack merge ignores magazine capacity ceiling.** CE fills to capacity and splits remainder. | `item.cc:322 itemAdd()` | minor |
-| LE6 | **`pickup_p_proc` not fired from inventory equip path.** CE fires `SCRIPT_PROC_PICKUP` at both tile pickup and inventory-screen equip. | `inventory.cc:4102,4494` | minor |
+| LE6 | ✅ FIXED 2026-06-04 — `Scripting.pickup` now fires when an item is dropped into a hand slot. | `inventory.cc:4102,4494` | minor |
 
 ### 9b. Pathfinding
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| P7 | **`hasLineOfSight` checks only `type==='wall'`.** CE `_obj_sight_blocking_at` also blocks on scenery without `OBJECT_LIGHT_THRU`. | `object.cc:2583` | minor |
+| P7 | ✅ FIXED 2026-06-04 — `hasLineOfSight` blocks on walls+scenery lacking `OBJECT_LIGHT_THRU`; skips hidden. | `object.cc:2583` | minor |
 | P5 | **No `OBJECT_MULTIHEX` neighbor scan in `blocks()`.** CE scans all 6 adjacent tiles for MULTIHEX-flagged objects. | `object.cc:2413` | low |
 | P6 | **Shoot-blocking ignores dead critters and `OBJECT_SHOOT_THRU`.** DH2 uses same `blocks()` predicate for pathfinding and LoF alike. | `object.cc:2440` | minor |
 | P2 | **No rotation-change step cost.** CE adds +10 to node cost on direction change (outside combat). | `animation.cc:1838` | low |
@@ -249,7 +253,7 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| S11 | **`anim` reverse-direction plays forward.** `singleAnimation` doesn't distinguish direction. | `interpreter_extra.cc:3355` | minor |
+| S11 | ✅ FIXED 2026-06-04 — reverse direction wired through animBatch → `singleAnimation(reversed)`. | `interpreter_extra.cc:3355` | minor |
 | S14 | **`reg_anim_animate` delay ignored in non-batch path.** Batch path works; legacy non-batch path ignores delay. | `animation.cc:1374` | minor |
 | S26 | **`get_poison`/`poison` script read/write work; no CE-accurate decay loop.** (`main.ts` decrements 1/cycle, CE is more complex.) | `critter.cc critterPoisonCheck` | minor |
 | S15 | **`play_gmovie` is a no-op.** `.mve` video playback infrastructure absent. | `movie.cc` | minor |
@@ -261,9 +265,9 @@ covered by Phases 1–8.
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
 | IW1 | **No HP/AC indicator bars in the character window.** CE renders colour-coded indicator bars on the HUD. | `interface.cc` | minor |
-| IW2 | **Attack button not greyed when AP is insufficient.** | `interface.cc interfaceRenderActionPoints()` | minor |
+| IW2 | ✅ FIXED 2026-06-04 — `drawAP` dims `#attackButton` (opacity+grayscale) when AP < cost or not player turn. | `interface.cc interfaceRenderActionPoints()` | minor |
 | IW3 | **Weapon action cycling missing aiming states.** Mode cycle doesn't include aimed-shot states. | `interface.cc` | minor |
-| IW4 | **HUD bar cannot be hidden/shown from scripts** (`game_ui_disable` hides keydown but not bar). | `interface.cc` | minor |
+| IW4 | ✅ FIXED 2026-06-04 — `game_ui_disable/enable` toggle `#bar` visibility in addition to input block. | `interface.cc` | minor |
 | IW7 | **AP readout has no frame animation.** CE animates AP digit changes per-frame. | `interface.cc interfaceRenderActionPoints()` | low |
 | U3 | **Save slot screenshots not saved.** | `loadsave.cc` | minor |
 
@@ -272,7 +276,7 @@ covered by Phases 1–8.
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
 | CI3 | **`combat_speed` scale inverted.** CE: 0–50 where 0=slowest. DH2: 1/2/4 where 4=fastest. | `game_config.h:44` | low |
-| CI4 | **`doAlwaysRun` defaults `true`.** CE default is false (walk by default). | `settings.h:38` | low |
+| CI4 | ✅ FIXED 2026-06-04 — `doAlwaysRun` default = false, matching CE. | `settings.h:38` | low |
 | CI5 | **Preferences in localStorage, not fallout2.cfg.** Lost in private browsing. | `settings.cc:118` | minor |
 | CI6 | **`speech_volume` not persisted.** | `settings.cc:93` | low |
 | CI7 | **`item_highlight` setting absent.** CE allows toggling item-highlight on hover. | `game_config.h:37` | low |
@@ -284,8 +288,8 @@ covered by Phases 1–8.
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
 | C10 | **Unarmed special moves have no combat logic.** `unarmed.ts` defines 9 modes; hit/damage bonuses not applied. | `unarmed.cc` | minor |
-| C8 | **Wander radius not differentiated by type.** Types 1/2/3 all use flat-radius wander. | `ai.cc aiMoveSteps()` | minor |
-| C13 | **DISTANCE_STAY_CLOSE / DISTANCE_CHARGE not modelled.** Always-charge fallback. | `combat_ai.cc` | minor |
+| C8 | ✅ FIXED 2026-06-04 — wander caps by type (5/15/∞ hex) around spawn origin. | `ai.cc aiMoveSteps()` | minor |
+| C13 | ✅ FIXED 2026-06-04 (STAY_CLOSE wired); CHARGE remains the default. | `combat_ai.cc` | minor |
 
 ### 9g. Worldmap
 
