@@ -1803,9 +1803,10 @@ export class Critter extends Obj {
         //
         // Exact zero-jump formula (CE ref: animation.cc artGetRotationOffsets + artGetFrameOffsets):
         //   artOffset.x = floor(newW0/2) - floor(oldWF/2) + oldDirOff.x - newDirOff.x + oldOx[F] - newOx[0]
-        //   artOffset.y = oldDirOff.y - newDirOff.y + oldOy[F] - newOy[0]
-        // x needs the half-width correction because DH2 anchors sprites at the horizontal center.
-        // y uses the bottom edge anchor so height changes do not move the reference point.
+        //   artOffset.y = (newH0 - oldHF) + oldDirOff.y - newDirOff.y + oldOy[F] - newOy[0]
+        // x: half-width term compensates for the horizontal-center anchor (floor(w/2) from tile x).
+        // y: height term compensates for the bottom-edge anchor (tileY - h); a taller sprite
+        //    pushes the bottom edge down, so a height decrease shifts the sprite up without correction.
         let pendingArtOffset = prevArtOffset
         const oldInfo = globalState.imageInfo[oldArt]
         const newInfo = globalState.imageInfo[newArt]
@@ -1826,7 +1827,7 @@ export class Critter extends Obj {
             const srcF = (this.anim === 'idle') ? (oldFrames?.[0] ?? oldF) : oldF
             pendingArtOffset = {
                 x: Math.floor(newF0.w / 2) - Math.floor(srcF.w / 2) + oldDirOff.x - newDirOff.x + srcF.ox - newF0.ox + prevArtOffset.x,
-                y: oldDirOff.y - newDirOff.y + srcF.oy - newF0.oy + prevArtOffset.y,
+                y: (newF0.h - srcF.h) + oldDirOff.y - newDirOff.y + srcF.oy - newF0.oy + prevArtOffset.y,
             }
             dbg('animOffset', '[ArtOffset] staticAnimation',
                 `${oldArt}@f${clampedOld}(w=${oldF.w},ox=${oldF.ox},oy=${oldF.oy})`,
@@ -1915,20 +1916,36 @@ export class Critter extends Obj {
             // so artOffset is always 0 when the critter arrives at idle after walking.
             this.artOffset = { x: 0, y: 0 }
         } else {
-            // Reset artOffset to zero when settling to idle.
-            // CE ref: objectSetLocation (object.cc) resets obj->x/y to tile screen coords on every
-            // settle, so accumulated frame-delta carry never persists across animation boundaries.
-            // Carrying prev through the zero-jump formula here would make artOffset a running sum
-            // that grows by K_cycle per swap pair — K_cycle is non-zero for some FRM directions
-            // (e.g. dir2 hmjmps = -2px/cycle) because the FRM set is not a perfect closed loop.
-            // Resetting mirrors CE and keeps artOffset bounded. At most 1px visual snap at the
-            // last-frame → idle-f0 boundary (same snap CE has).
-            this.artOffset = { x: 0, y: 0 }
+            // Apply the same zero-jump formula as staticAnimation so the settle to idle is
+            // visually seamless. Using current artOffset as prev preserves the exact screen
+            // position at the last draw frame. Note: for FRM sets that are not a perfect closed
+            // loop (K_cycle ≠ 0), artOffset may be non-zero after each full draw/holster cycle;
+            // a walk resets it to {0,0} via objectSetLocation (CE ref: object.cc).
             const orient = this.orientation ?? 0
-            dbg('animOffset', '[ArtOffset] clearAnim',
-                `${oldArt}@f${oldFrame} → ${newArt}@f0`,
-                `dir${orient} → artOffset(0,0) [reset]`,
-            )
+            const oldInfo = globalState.imageInfo[oldArt]
+            const newInfo = globalState.imageInfo[newArt]
+            let newArtOffset: Point = { x: 0, y: 0 }
+            if (oldInfo && newInfo) {
+                const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+                const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+                const oldFrames = oldInfo.frameOffsets[orient]
+                const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
+                const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+                const newF0 = newInfo.frameOffsets[orient]?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+                const prev = this.artOffset
+                newArtOffset = {
+                    x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prev.x,
+                    y: (newF0.h - oldF.h) + oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prev.y,
+                }
+                dbg('animOffset', '[ArtOffset] clearAnim',
+                    `${oldArt}@f${clampedOld}(w=${oldF.w},h=${oldF.h},ox=${oldF.ox},oy=${oldF.oy})`,
+                    `→ ${newArt}@f0(w=${newF0.w},h=${newF0.h},ox=${newF0.ox},oy=${newF0.oy})`,
+                    `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
+                    `prev(${prev.x},${prev.y})`,
+                    `→ artOffset(${newArtOffset.x},${newArtOffset.y})`,
+                )
+            }
+            this.artOffset = newArtOffset
         }
 
         // reset to idle pose

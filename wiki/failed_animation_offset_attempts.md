@@ -46,16 +46,27 @@ artOffset_new.x = floor(newF0.w/2) − floor(srcF.w/2)
                 + artOffset_old.x          ← "prev"
 ```
 
-The y formula omits the `floor(h)` term because DH2 anchors on the bottom edge:
+The y formula requires a height correction term because DH2 uses a
+bottom-edge anchor (`screenY = tileY − h`). If the new FRM's frame-0
+height differs from the source height, the bottom edge shifts without
+correction. Setting `screenY_before = screenY_after` and solving:
 
 ```
-artOffset_new.y = srcDirOff.y − destDirOff.y
+artOffset_new.y = (destF0.h − srcF.h)
+                + srcDirOff.y − destDirOff.y
                 + srcF.oy    − destF0.oy
                 + artOffset_old.y
 ```
 
 This formula is mathematically exact — position is **continuous** at the
 transition point regardless of frame geometry differences.
+
+**Historical note:** Early DH2 implementations omitted `(destF0.h − srcF.h)`,
+leaving a residual Y jump proportional to the height difference between
+successive FRM frames. This was confirmed by log evidence showing a 2 px Y
+snap on every `staticAnimation` transition for the `hmjmps` weapon-swap set
+(hmjmpsia h=65 → hmjmpsid h=63 → net error of 2 px with the old formula).
+The missing term was added 2026-06-04.
 
 ---
 
@@ -279,6 +290,10 @@ artOffset_new.x = floor(newF0.w/2) − floor(srcF.w/2)
                 + oldDirOff.x − newDirOff.x
                 + srcF.ox    − newF0.ox
                 + prev.x
+
+artOffset_new.y = oldDirOff.y − newDirOff.y   ← height term still missing
+                + srcF.oy    − newF0.oy
+                + prev.y
 ```
 
 By anchoring on `oldFrames[0]` (frame 0 of the idle), `iOxF` is never included.
@@ -298,6 +313,10 @@ artOffset_new.x = floor(newF0.w/2) − floor(oldF.w/2)
                 + oldDirOff.x − newDirOff.x
                 + oldF.ox    − newF0.ox
                 + prev.x
+
+artOffset_new.y = oldDirOff.y − newDirOff.y   ← height term still missing
+                + oldF.oy    − newF0.oy
+                + prev.y
 ```
 
 **Failure mode:** Per-orientation drift on repeated weapon swaps. Dir5 was
@@ -387,9 +406,26 @@ a non-zero artOffset set by the preceding `staticAnimation`.
 
 ---
 
-## Final solution — Part 1 + Part 2 combined
+## Final solution — Parts 1 + 2 + 3
 
-**`staticAnimation` (final):** zero-jump formula with frame-0 anchor and prev.
+**Part 1 (frame-0 anchor, 2026-06-03):** `staticAnimation` uses `srcF =
+oldFrames[0]` when the current animation is idle, preventing `iOxF` from
+contaminating `artOffset_draw`.
+
+**Part 2 (K_cycle bounded, 2026-06-03):** `clearAnim` was given the zero-jump
+formula with `prev` from Part 1; K_cycle drift was discovered for dir2
+(−2px/cycle). The clearAnim formula was initially reverted to a hard reset
+`artOffset = {0,0}` to break the accumulation chain.
+
+**Part 3 (Y height correction + clearAnim formula, 2026-06-04):** Gameplay
+log evidence showed a 2 px Y jump at every `staticAnimation` transition
+(confirmed: hmjmpsia h=65 → hmjmpsid h=63, artOffset.y=4 instead of 2).
+Root cause: the Y formula was missing the `(newF0.h − srcF.h)` height
+correction term. Additionally, the hard-reset `clearAnim` caused a similar
+Y snap at the draw→idle boundary. Both were fixed by applying the complete
+zero-jump formula everywhere.
+
+**`staticAnimation` (final):**
 
 ```
 srcF = (this.anim === 'idle') ? oldFrames[0] : oldFrames[currentFrame]
@@ -398,42 +434,55 @@ artOffset_new.x = floor(newF0.w/2) − floor(srcF.w/2)
                 + oldDirOff.x − newDirOff.x
                 + srcF.ox    − newF0.ox
                 + prev.x
+
+artOffset_new.y = (newF0.h − srcF.h)
+                + oldDirOff.y − newDirOff.y
+                + srcF.oy    − newF0.oy
+                + prev.y
 ```
 
 `prev` is kept because `staticAnimation` can be called to interrupt an
 in-progress one-shot animation (e.g. attack interrupted). In such cases prev
-is non-zero and must be carried for continuity. In the normal weapon-swap flow,
-`clearAnim` always resets first so prev is effectively 0.
+is non-zero and must be carried for continuity.
 
-**`clearAnim` (final):** unconditional reset.
+**`clearAnim` (final):**
 
 ```
-artOffset = {0, 0}
+artOffset_new.x = floor(newF0.w/2) − floor(oldF.w/2)
+                + oldDirOff.x − newDirOff.x
+                + oldF.ox    − newF0.ox
+                + prev.x                         ← prev = this.artOffset at settle time
+
+artOffset_new.y = (newF0.h − oldF.h)
+                + oldDirOff.y − newDirOff.y
+                + oldF.oy    − newF0.oy
+                + prev.y
 ```
 
-Mirrors CE's `objectSetLocation` (object.cc): CE resets `obj->x/y` to the
-tile's screen coordinates on every settle. Any accumulated K_cycle drift is
-discarded, keeping artOffset bounded for all FRM sets regardless of whether
-the FRM pair forms a perfect closed loop.
+Using the current `artOffset` as `prev` in `clearAnim` gives a true
+zero-jump at the settle boundary. For FRM directions where `K_cycle ≠ 0`,
+`artOffset` will be non-zero after each full swap cycle; a subsequent walk
+resets it to `{0,0}` via CE's `objectSetLocation` semantics. Since players
+virtually always walk between weapon swaps, accumulated K_cycle error is
+bounded in practice.
 
-The visual consequence: 0–1px snap at the very last frame of any one-shot
-animation transitioning to idle. This is identical to CE — CE has the same
-snap because FRM designers target frame-0 alignment but are off by at most
-1px in some directions (e.g. dir5 of hmjmps draw animation).
+Walk-end `clearAnim` still hard-resets to `{0,0}` (unchanged), matching CE
+`objectSetLocation` on tile change.
 
 ---
 
 ## Summary table
 
-| Attempt | staticAnimation src frame | clearAnim formula | Failure |
-|---------|--------------------------|-------------------|---------|
-| **0 (main branch)** | no formula — raw art switch | no formula — raw idle switch | FRM-transition jumps proportional to width/dirOffset/ox differences |
-| 1 | `oldFrames[currentFrame]` | reset to 0 | Random ±9px jump at draw start (iOxF contamination) |
-| 2 | `oldFrames[currentFrame]` | zero-jump − contamination | Critter displaced throughout holster animation |
-| 3 / Part 1 | `oldFrames[0]` (anchor) | zero-jump + prev | −2px/cycle drift for dir2 (K_cycle accumulation) |
-| No-prev (rejected) | `oldFrames[0]` | no prev, no floor(w/2) | Up to 9px jump at width-mismatched transitions |
-| No-prev + floor(w/2) (rejected) | `oldFrames[0]` | no prev, with floor(w/2) | 5px jump at holster-end for dir2 |
-| **Final** | `oldFrames[0]` (anchor) | **reset to 0** | ✅ Stable; 0–1px snap matches CE |
+| Attempt | staticAnimation src frame | clearAnim formula | Y height term | Failure |
+|---------|--------------------------|-------------------|---------------|---------|
+| **0 (main branch)** | no formula — raw art switch | no formula — raw idle switch | — | FRM-transition jumps proportional to width/dirOffset/ox differences |
+| 1 | `oldFrames[currentFrame]` | reset to 0 | missing | Random ±9px X jump at draw start (iOxF contamination) |
+| 2 | `oldFrames[currentFrame]` | zero-jump − contamination | missing | Critter displaced throughout holster animation |
+| 3 / Part 1 | `oldFrames[0]` (anchor) | zero-jump + prev | missing | −2px/cycle X drift for dir2 (K_cycle accumulation) |
+| No-prev (rejected) | `oldFrames[0]` | no prev, no floor(w/2) | missing | Up to 9px X jump at width-mismatched transitions |
+| No-prev + floor(w/2) (rejected) | `oldFrames[0]` | no prev, with floor(w/2) | missing | 5px X jump at holster-end for dir2 |
+| Parts 1+2 (interim) | `oldFrames[0]` (anchor) | **reset to 0** | missing | 2 px Y jump at every staticAnimation transition |
+| **Final (Parts 1+2+3)** | `oldFrames[0]` (anchor) | **zero-jump + prev** | `(newF0.h − srcF.h)` present | ✅ Stable; K_cycle bounded by walk resets |
 
 ---
 
