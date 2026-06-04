@@ -2144,8 +2144,10 @@ export module Scripting {
             globalState.gParty.addPartyMember(obj)
         }
         party_remove(obj: Critter) {
+            // CE ref: interpreter_extra.cc:3956 — silently no-ops when obj isn't a
+            // party member (dismissal dialogue hook).
             log('party_remove', arguments)
-            globalState.gParty.removePartyMember(obj)
+            globalState.gParty.dismissPartyMember(obj)
         }
 
         _serialize(): SerializedScript {

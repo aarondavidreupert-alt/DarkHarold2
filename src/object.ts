@@ -667,6 +667,23 @@ export class Obj {
         this.inventory.push(clone.setAmount(count))
     }
 
+    // CE ref: item.cc objectGetInventoryWeight — sums pro.extra.weight per item.
+    getInventoryWeight(): number {
+        let w = 0
+        for (const item of this.inventory) w += (item.pro?.extra?.weight ?? 0) * (item.amount ?? 1)
+        return w
+    }
+
+    // CE ref: item.cc itemAttemptAdd — for critters: rejects if adding the item
+    // would exceed STAT_CARRY_WEIGHT. Non-critters always pass (containers have
+    // their own size logic which isn't modelled here).
+    canCarry(item: Obj, count = 1): boolean {
+        if (this.type !== 'critter') return true
+        const max = (this as unknown as Critter).getStat?.('Carry') ?? Infinity
+        const addWeight = (item.pro?.extra?.weight ?? 0) * count
+        return this.getInventoryWeight() + addWeight <= max
+    }
+
     getMessageCategory(): string {
         const categories: { [category: string]: string } = {
             item: 'pro_item',
@@ -985,6 +1002,15 @@ export class Obj {
             if (Scripting.pickup(this, source)) {
                 return // script handled it
             }
+        }
+        // CE ref: item.cc itemAttemptAdd — refuse pickup if the player is over
+        // their carry weight. Floats the standard "you can't carry any more" message.
+        if (!source.canCarry(this, this.amount ?? 1)) {
+            globalState.floatMessages.push({
+                msg: "You can't carry any more.",
+                obj: source, color: 'white', startTime: window.performance.now(),
+            })
+            return
         }
         const doPickup = () => {
             globalState.audioEngine.playSfxByName('ipickup1')

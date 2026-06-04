@@ -38,7 +38,7 @@ export const Config = {
         doCombat: true, // allow combat?
         doUseWeaponModel: true, // use weapon model for NPC models?
         doLoadItemInfo: true, // load item information (such as inventory images)?
-        doAlwaysRun: true, // always run instead of walk?
+        doAlwaysRun: false, // always run instead of walk? CE default = false (settings.h:38)
         doZOrder: true, // Z-order objects?
         doEncounters: true, // allow random encounters?
         doInfiniteUse: false, // allow infinite-range object usage?

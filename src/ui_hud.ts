@@ -115,6 +115,29 @@ export function drawAP(current: number, max: number, freeMove: number = 0, isPla
             el.style.visibility = 'hidden'
         }
     }
+    updateAttackButtonAvailability(current + freeMove, isPlayerTurn)
+}
+
+// Dim the attack button when the player can't afford the current weapon mode's
+// AP cost (or when it isn't the player's turn). CE ref: interface.cc
+// interfaceRenderActionPoints — attack-button colour follows AP availability.
+function updateAttackButtonAvailability(availableAP: number, isPlayerTurn: boolean): void {
+    const $btn = document.getElementById('attackButton') as HTMLElement | null
+    if (!$btn) return
+    const weapon = globalState.player?.equippedWeapon
+    let cost = 0
+    if (weapon && weapon.weapon) {
+        const mode = (weapon.weapon as any).mode
+        if (mode === 'reload') cost = (weapon.weapon as any).getReloadAPCost?.() ?? 2
+        else if (mode === 'called') cost = (weapon.weapon as any).getAPCost(1) + 1
+        else if (weapon.weapon.isBurst?.()) cost = (weapon.weapon as any).getAPCost(2)
+        else cost = (weapon.weapon as any).getAPCost(1)
+    } else {
+        cost = 3 // unarmed default
+    }
+    const affordable = isPlayerTurn && availableAP >= cost
+    $btn.style.opacity = affordable ? '1' : '0.4'
+    $btn.style.filter = affordable ? '' : 'grayscale(80%)'
 }
 
 // --- Scrolling log ---------------------------------------------------------

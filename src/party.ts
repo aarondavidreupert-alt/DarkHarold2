@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import globalState from './globalState.js'
-import { hexDistance } from './geometry.js'
+import { hexDistance, hexNeighbors } from './geometry.js'
 import { Critter, deserializeObj, SerializedObj } from './object.js'
 import { arrayIncludes, arrayRemove } from './util.js'
 
@@ -38,16 +38,34 @@ export class Party {
     }
 
     // Walk each living party member toward the player if more than 5 hexes away.
-    // FO2-CE ref: party.cc partyMemberFollowMoveHandler
+    // CE ref: party.cc partyMemberFollowMoveHandler.
+    // Pathfinds to the nearest free hex adjacent to the player rather than the
+    // player tile itself (which is blocked), then falls back to other neighbours.
     followPlayer(): void {
         const player = globalState.player as Critter | null
-        if (!player) return
+        if (!player || !globalState.gMap) return
+        const map = globalState.gMap
         for (const member of this.party) {
             if (member.dead || member.inAnim()) continue
-            if (hexDistance(member.position, player.position) > 5) {
-                member.walkTo(player.position, false)
+            if (hexDistance(member.position, player.position) <= 5) continue
+
+            const neighbors = hexNeighbors(player.position)
+                .filter(n => !map.objectsAtPosition(n).some(o => o !== member && o.blocks?.()))
+                .sort((a, b) => hexDistance(a, member.position) - hexDistance(b, member.position))
+
+            for (const dest of neighbors) {
+                if (member.walkTo(dest, false) !== false) break
             }
         }
+    }
+
+    // Remove a party member without destroying them — they remain on the map as
+    // a normal NPC. CE ref: party.cc partyMemberRemove. Use this for dialogue
+    // "leave my party" hooks.
+    dismissPartyMember(obj: Critter): boolean {
+        if (!arrayIncludes(this.party, obj)) return false
+        arrayRemove(this.party, obj)
+        return true
     }
 
     removePartyMember(obj: Critter) {

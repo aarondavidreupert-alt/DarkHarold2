@@ -21,6 +21,7 @@ import globalState from './globalState.js'
 import { Obj } from './object.js'
 import { UIMode } from './ui_panels.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter.js'
+import { uiLog } from './ui_hud.js'
 import { makeDropTarget, makeDraggable } from './ui_inventory.js'
 
 // --- DOM helpers (mirrors the ones in ui.ts) -------------------------------
@@ -136,12 +137,16 @@ export function uiLoot(object: Obj) {
         } else if (to === from) {
             // object -> same location
             return
-        } else if (obj.amount > 1) {
-            uiSwapItem(from, obj, to, await uiGetAmount(obj))
-        } else {
-            uiSwapItem(from, obj, to, 1)
         }
 
+        const wantedAmount = obj.amount > 1 ? await uiGetAmount(obj) : 1
+        // CE ref: item.cc itemAttemptAdd — enforce STAT_CARRY_WEIGHT on the receiving critter.
+        const toOwner: any = where === 'left' ? globalState.player! : object
+        if (wantedAmount > 0 && !toOwner.canCarry?.(obj, wantedAmount)) {
+            uiLog("You can't carry any more.")
+            return
+        }
+        uiSwapItem(from, obj, to, wantedAmount)
         drawLoot()
     }
 
@@ -176,9 +181,17 @@ export function uiLoot(object: Obj) {
     $id('lootBoxTakeAllButton').onclick = () => {
         console.log('[Loot] take all')
         const inv = object.inventory.slice(0) // clone inventory
+        let blocked = false
+        const player = globalState.player!
         for (let i = 0; i < inv.length; i++) {
-            uiSwapItem(object.inventory, inv[i], globalState.player.inventory, inv[i].amount)
+            // CE ref: item.cc itemAttemptAdd — skip items that would overweigh the player.
+            if (!player.canCarry(inv[i], inv[i].amount)) {
+                blocked = true
+                continue
+            }
+            uiSwapItem(object.inventory, inv[i], player.inventory, inv[i].amount)
         }
+        if (blocked) uiLog("You can't carry any more.")
         drawLoot()
     }
 
