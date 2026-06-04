@@ -404,14 +404,40 @@ export class Renderer {
     renderFont(font: Font, x: number, y: number) {}
 }
 
+// CE ref: tile.cc:537 gTileBorderMinX/MaxX/MinY/MaxY. The world is laid out by
+// hexToScreen so we derive the bounds from the four corner hexes of the 200×200
+// grid. Without these clamps the viewport can scroll past the map edge and
+// expose grey canvas.
+const MAP_WORLD_BOUNDS = (() => {
+    const corners = [hexToScreen(0, 0), hexToScreen(199, 0), hexToScreen(0, 199), hexToScreen(199, 199)]
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+    for (const c of corners) {
+        if (c.x < minX) minX = c.x
+        if (c.x > maxX) maxX = c.x
+        if (c.y < minY) minY = c.y
+        if (c.y > maxY) maxY = c.y
+    }
+    return { minX, maxX, minY, maxY }
+})()
+
+export function clampCameraPosition(): void {
+    const viewW = getWorldViewWidth()
+    const viewH = getWorldViewHeight()
+    const maxCamX = Math.max(0, MAP_WORLD_BOUNDS.maxX - viewW)
+    const maxCamY = Math.max(0, MAP_WORLD_BOUNDS.maxY - viewH)
+    globalState.cameraPosition.x = Math.max(MAP_WORLD_BOUNDS.minX, Math.min(maxCamX, globalState.cameraPosition.x))
+    globalState.cameraPosition.y = Math.max(MAP_WORLD_BOUNDS.minY, Math.min(maxCamY, globalState.cameraPosition.y))
+}
+
 export function centerCamera(around: Point) {
     const scr = hexToScreen(around.x, around.y)
     // The visible world region shrinks as zoom grows, so divide by zoom
     // when offsetting from the target to the top-left camera anchor.
     const viewW = getWorldViewWidth()
     const viewH = getWorldViewHeight()
-    globalState.cameraPosition.x = Math.max(0, (scr.x - viewW / 2) | 0)
-    globalState.cameraPosition.y = Math.max(0, (scr.y - viewH / 2) | 0)
+    globalState.cameraPosition.x = (scr.x - viewW / 2) | 0
+    globalState.cameraPosition.y = (scr.y - viewH / 2) | 0
+    clampCameraPosition()
 }
 
 export function objectOnScreen(obj: Obj): boolean {

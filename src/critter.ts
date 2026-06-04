@@ -486,11 +486,16 @@ export function critterKill(
     }
 
     // Resolve the death animation in priority order:
+    //   0. CRITTER_SPECIAL_DEATH flag (0x1000) — forces explode-to-nothing
     //   1. Explicit animName passed by caller (e.g. scripted death)
     //   2. obj.deathAnim set by a critical-hit 'death' effect
     //   3. Derived from the killing weapon's damage type
     //   4. Generic 'death' as final fallback
+    // CE ref: actions.cc:209 _pick_death.
+    const critterFlags = (obj as any).pro?.extra?.flags ?? 0
+    const specialDeath = (critterFlags & 0x1000) !== 0
     const candidates: (string | undefined)[] = [
+        specialDeath ? 'death-explode' : undefined,
         animName,
         obj.deathAnim,
         damageType ? deathAnimForDamageType(damageType) : undefined,

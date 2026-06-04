@@ -26,6 +26,7 @@ import { initGame } from './init.js'
 import { dbg, dbgWarn } from './logger.js'
 import { Critter, Obj, objectUnjamAll } from './object.js'
 import {
+    clampCameraPosition,
     getObjectUnderCursor,
     getZoom,
     SCREEN_HEIGHT,
@@ -748,15 +749,19 @@ heart.keydown = (k: string) => {
     const kbStep = 15 / kz
     if (k === Config.controls.cameraDown) {
         globalState.cameraPosition.y += kbStep
+        clampCameraPosition()
     }
     if (k === Config.controls.cameraRight) {
         globalState.cameraPosition.x += kbStep
+        clampCameraPosition()
     }
     if (k === Config.controls.cameraLeft) {
         globalState.cameraPosition.x -= kbStep
+        clampCameraPosition()
     }
     if (k === Config.controls.cameraUp) {
         globalState.cameraPosition.y -= kbStep
+        clampCameraPosition()
     }
     if (k === Config.controls.elevationDown) {
         if (globalState.currentElevation - 1 >= 0) {
@@ -1002,6 +1007,9 @@ heart.update = function () {
         if (mousePos[1] >= SCREEN_HEIGHT - Config.ui.scrollPadding) {
             globalState.cameraPosition.y += scrollStep
         }
+        // Clamp to map bounds so we never scroll past the world edge.
+        // CE ref: tile.cc:537 gTileBorderMin/MaxX/Y.
+        clampCameraPosition()
 
         if (time >= globalState.lastMousePickTime + 750) {
             // every .75 seconds, check the object under the cursor
