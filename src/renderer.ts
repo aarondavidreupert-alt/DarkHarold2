@@ -321,14 +321,16 @@ export class Renderer {
             offsetY += frameInfo.oy + obj.artOffset.y
         }
 
-        dbg('animation',
-            `[Render] t=${performance.now().toFixed(1)}`,
-            `art=${obj.art} f=${obj.frame}`,
-            `frameOx=${frameInfo.ox} frameOy=${frameInfo.oy}`,
-            `artOffset=(${obj.artOffset.x},${obj.artOffset.y})`,
-            `offsetXY=(${offsetX},${offsetY})`,
-            `wh=(${frameInfo.w},${frameInfo.h})`,
-        )
+        if (obj === globalState.player) {
+            dbg('animation',
+                `[Render] t=${performance.now().toFixed(1)}`,
+                `art=${obj.art} f=${obj.frame}`,
+                `frameOx=${frameInfo.ox} frameOy=${frameInfo.oy}`,
+                `artOffset=(${obj.artOffset.x},${obj.artOffset.y})`,
+                `offsetXY=(${offsetX},${offsetY})`,
+                `wh=(${frameInfo.w},${frameInfo.h})`,
+            )
+        }
 
         const scrX = scr.x + offsetX,
             scrY = scr.y + offsetY
