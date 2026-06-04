@@ -356,7 +356,7 @@ export function playerUse(obj: Obj | null) {
                 }
                 Scripting.talk(who._script, who)
             } else if (who.dead === true) {
-                // loot a dead body
+                // loot a dead body — dead critters have no use_p_proc gate
                 uiLoot(obj)
             } else {
                 dbg('map', '[Main] cannot talk to/loot that critter')
@@ -881,6 +881,12 @@ heart.keydown = (k: string) => {
         if (obj !== undefined) {
             dbg('object', '[Main] PID: ' + obj.pid)
             dbg('object', '[Main] inventory: ' + JSON.stringify(obj.inventory))
+            // CE ref: proto_instance.cc _obj_use_container — run use_p_proc on
+            // the container; only open loot if the script did not override.
+            if ((obj as any).isContainer && obj._script) {
+                const overrode = Scripting.use(obj, globalState.player!)
+                if (overrode === true) return
+            }
             uiLoot(obj)
         }
     }
