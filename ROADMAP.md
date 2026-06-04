@@ -6,7 +6,7 @@ already exists, these wire it up. Phases 4–5 introduce the only genuinely new
 systems still needed.
 
 **Last audited: 2026-06-04**
-Current estimate: **~85% complete** (was ~83% at 2026-06-03; 12 Phase 3/4/5/9
+Current estimate: **~86% complete** (was ~83% at 2026-06-03; 16 Phase 3/4/5/9
 items fixed across the June 4 sprint).
 Target: 95% (a playable end-to-end run through Fallout 2's main quest with
 companions, working scripted content, and correct combat).
@@ -242,10 +242,10 @@ covered by Phases 1–8.
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
 | P7 | ✅ FIXED 2026-06-04 — `hasLineOfSight` blocks on walls+scenery lacking `OBJECT_LIGHT_THRU`; skips hidden. | `object.cc:2583` | minor |
-| P5 | **No `OBJECT_MULTIHEX` neighbor scan in `blocks()`.** CE scans all 6 adjacent tiles for MULTIHEX-flagged objects. | `object.cc:2413` | low |
-| P6 | **Shoot-blocking ignores dead critters and `OBJECT_SHOOT_THRU`.** DH2 uses same `blocks()` predicate for pathfinding and LoF alike. | `object.cc:2440` | minor |
+| P5 | ✅ FIXED 2026-06-04 — `recalcPath` marks all 6 neighbours blocked for MULTIHEX (0x800) objects. | `object.cc:2413` | low |
+| P6 | ✅ FIXED 2026-06-04 — `hexLinecast` skips dead critters, `OBJECT_SHOOT_THRU`, hidden, non-blocking. | `object.cc:2440` | minor |
 | P2 | **No rotation-change step cost.** CE adds +10 to node cost on direction change (outside combat). | `animation.cc:1838` | low |
-| P4 | **Closed doors are hard path blocks.** CE A\* allows traversal through unlocked doors; critter opens them mid-walk. | `animation.cc:1805` | minor |
+| P4 | ✅ FIXED 2026-06-04 — `pathBlocks()` allows closed-unlocked doors; LoF still blocks (`blocks()`). | `animation.cc:1805` | minor |
 | P3 | **No radioactive goo tile penalty.** CE adds +100 (gecko) / +400 (others) on goo PID tiles. | `animation.cc:1852` | low |
 | P8 | **`make_path` / `obj_blocking_at` / `make_straight_path` are stubs.** | `sfall_opcodes.cc:937,951` | low |
 

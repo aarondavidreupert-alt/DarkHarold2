@@ -17,7 +17,7 @@ limitations under the License.
 import { Config } from './config.js'
 import { getCurrentMapInfo, lookupMapName } from './data.js'
 import { Events } from './events.js'
-import { hexInDirectionDistance, hexLine, HEX_GRID_SIZE, Point, pointInBoundingBox } from './geometry.js'
+import { hexInDirectionDistance, hexLine, hexNeighbors, HEX_GRID_SIZE, Point, pointInBoundingBox } from './geometry.js'
 import globalState from './globalState.js'
 import { heart } from './heart.js'
 import { Lightmap } from './lightmap.js'
@@ -616,17 +616,24 @@ export class GameMap {
 
     /// Draws a line between a and b, returning the first object hit
     hexLinecast(a: Point, b: Point): Obj | null {
+        // CE ref: object.cc:2440 _obj_shoot_blocking_at — skips OBJECT_SHOOT_THRU
+        // (0x80000000), OBJECT_HIDDEN, dead critters, and non-blocking objects.
         let line = hexLine(a, b)
         if (line === null) {
             return null
         }
         line = line.slice(1, -1)
+        const SHOOT_THRU = 0x80000000
+        const HIDDEN = 0x01000000
         for (let i = 0; i < line.length; i++) {
-            // todo: we could optimize this by only
-            // checking in a certain radius of `a`
-            const obj = this.objectsAtPosition(line[i])
-            if (obj.length !== 0) {
-                return obj[0]
+            const objs = this.objectsAtPosition(line[i])
+            for (const o of objs) {
+                const flags = (o as any).flags ?? 0
+                if ((flags & HIDDEN) !== 0) continue
+                if ((flags & SHOOT_THRU) !== 0) continue
+                if ((o as any).type === 'critter' && (o as any).dead) continue
+                if (!o.blocks()) continue
+                return o
             }
         }
         return null
@@ -651,7 +658,17 @@ export class GameMap {
             // Skip objects with out-of-bounds positions (off-map sentinel values).
             if (ox < 0 || ox >= HEX_GRID_SIZE || oy < 0 || oy >= HEX_GRID_SIZE) continue
             // if there are multiple, any blocking one will block
-            matrix[oy][ox] |= <any>obj.blocks()
+            const blocks = obj.pathBlocks()
+            matrix[oy][ox] |= <any>blocks
+            // CE ref: object.cc:2413 _obj_blocking_at — OBJECT_MULTIHEX (0x800)
+            // objects also block all 6 adjacent hexes.
+            if (blocks && (((obj as any).flags ?? 0) & 0x800) !== 0) {
+                for (const nb of hexNeighbors({ x: ox, y: oy })) {
+                    if (nb.x >= 0 && nb.x < HEX_GRID_SIZE && nb.y >= 0 && nb.y < HEX_GRID_SIZE) {
+                        matrix[nb.y][nb.x] = 1
+                    }
+                }
+            }
         }
 
         if (isGoalBlocking === false) {
