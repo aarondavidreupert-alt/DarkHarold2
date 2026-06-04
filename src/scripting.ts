@@ -835,8 +835,15 @@ export module Scripting {
             stub('critter_add_trait', arguments)
         }
         item_caps_total(obj: Obj) {
+            // CE ref: item.cc item_caps_total — iterates ITEM_TYPE_MONEY inventory
+            // and sums quantities live, so it cannot drift from `obj.money`.
             if (!isGameObject(obj)) throw 'item_caps_total: not game object'
-            return obj.money
+            const MONEY_PID = 41
+            let total = 0
+            for (const item of obj.inventory) {
+                if (item.pid === MONEY_PID) total += item.amount ?? 1
+            }
+            return total
         }
         item_caps_adjust(obj: Obj, amount: number) {
             if (!isGameObject(obj)) {

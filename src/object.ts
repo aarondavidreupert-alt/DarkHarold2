@@ -726,14 +726,14 @@ export class Obj {
     }
 
     get money(): number {
+        // CE ref: item.cc itemGetMoney — sums all ITEM_TYPE_MONEY entries; a
+        // critter or container can hold multiple money piles that all count.
         const MONEY_PID = 41
-        for (let i = 0; i < this.inventory.length; i++) {
-            if (this.inventory[i].pid === MONEY_PID) {
-                return this.inventory[i].amount
-            }
+        let total = 0
+        for (const item of this.inventory) {
+            if (item.pid === MONEY_PID) total += item.amount ?? 0
         }
-
-        return 0
+        return total
     }
 
     get isDoor(): boolean {
