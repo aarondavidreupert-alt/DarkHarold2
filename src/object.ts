@@ -1118,6 +1118,17 @@ class Item extends Obj {
 export class WeaponObj extends Item {
     weapon?: Weapon = null
 
+    // CE ref: item.cc:357 _item_identical — two weapons stack only if their loaded
+    // state (ammo PID + remaining rounds) matches. Prevents loaded and unloaded
+    // copies of the same weapon PID from merging into one stack.
+    approxEq(obj: Obj): boolean {
+        if (this.pid !== obj.pid) return false
+        const a = this.pro?.extra
+        const b = obj.pro?.extra
+        return (a?.ammoPID ?? 0) === (b?.ammoPID ?? 0)
+            && (a?.rounds ?? 0) === (b?.rounds ?? 0)
+    }
+
     static fromPID(pid: number, sid?: number): WeaponObj {
         return Obj.fromPID_(new WeaponObj(), pid, sid)
     }

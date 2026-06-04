@@ -2121,11 +2121,16 @@ export module Scripting {
             Worldmap.updateAreaMarkerPos(areaKey, x, y)
         }
         game_ui_disable() {
-            // FO2-CE ref: interface.cc gameUiDisable() — blocks in-world player input
+            // CE ref: interface.cc gameUiDisable() — blocks in-world player input
+            // AND hides the bottom HUD bar (interface windows are torn down).
             globalState.gameUIDisabled = true
+            const $bar = document.getElementById('bar')
+            if ($bar) $bar.style.visibility = 'hidden'
         }
         game_ui_enable() {
             globalState.gameUIDisabled = false
+            const $bar = document.getElementById('bar')
+            if ($bar) $bar.style.visibility = 'visible'
         }
 
         // sound

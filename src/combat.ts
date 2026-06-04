@@ -1539,8 +1539,9 @@ export class Combat {
     }
 
     /**
-     * Simple line-of-sight check (FO2: _combat_update_critters_in_los).
-     * Returns false when any wall-type object lies on the interior hex-line between `from` and `to`.
+     * Line-of-sight check (CE ref: object.cc:2583 _obj_sight_blocking_at).
+     * Blocks on any wall- or scenery-type object lacking OBJECT_LIGHT_THRU
+     * (0x20000000) along the interior hex-line. Hidden objects are ignored.
      */
     hasLineOfSight(from: Point, to: Point): boolean {
         if (!globalState.gMap) return true
@@ -1548,13 +1549,17 @@ export class Combat {
         if (line.length <= 2) return true // adjacent — always visible
         const interior = line.slice(1, -1)
         const mapObjects = globalState.gMap.getObjects()
+        const LIGHT_THRU = 0x20000000
+        const HIDDEN = 0x01000000
         for (const pos of interior) {
             for (const o of mapObjects) {
-                if ((o as any).type === 'wall' &&
-                    (o as any).position?.x === pos.x &&
-                    (o as any).position?.y === pos.y) {
-                    return false
-                }
+                const t = (o as any).type
+                if (t !== 'wall' && t !== 'scenery') continue
+                if ((o as any).position?.x !== pos.x || (o as any).position?.y !== pos.y) continue
+                const flags = (o as any).flags ?? 0
+                if ((flags & HIDDEN) !== 0) continue
+                if ((flags & LIGHT_THRU) !== 0) continue
+                return false
             }
         }
         return true

@@ -24,6 +24,7 @@ import globalState from './globalState.js'
 import { lazyLoadImage } from './images.js'
 import { Obj, createObjectWithPID } from './object.js'
 import { lookupArt } from './pro.js'
+import { Scripting } from './scripting.js'
 import { drawAC, uiDrawWeapon, uiLog } from './ui_hud.js'
 import { makePanelDraggable } from './ui_drag.js'
 import { UIMode, closeAllPanels, isInventoryOpen, registerCloseInventoryPanel } from './ui_panels.js'
@@ -245,6 +246,12 @@ function uiMoveSlot(data: string, target: string) {
         }
 
         playerUnsafe[target] = obj // move the object over
+
+        // CE ref: inventory.cc:4494 — SCRIPT_PROC_PICKUP fires when the player
+        // equips an item from the inventory screen (in addition to ground pickup).
+        if ((target === 'leftHand' || target === 'rightHand') && obj?._script && globalState.player) {
+            try { Scripting.pickup(obj, globalState.player) } catch (_e) { /* ignore */ }
+        }
     }
 
     // Update armor appearance if armor slot changed
