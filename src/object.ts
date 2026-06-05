@@ -1902,51 +1902,21 @@ export class Critter extends Obj {
         // Dead critters stay frozen on their last death frame — never reset to idle.
         if (this.dead) return
 
-        // Capture old state BEFORE super.clearAnim() resets frame/shift.
-        const wasWalking = this.shift !== null
-        const oldArt = this.art
-        const oldFrame = this.frame
+        const prev = this.artOffset
 
         super.clearAnim()
         this.path = null
 
         const newArt = this.getAnimation('idle')
-        if (wasWalking) {
-            // CE ref: objectSetLocation (object.cc) resets obj->x/y on every tile change during walk,
-            // so artOffset is always 0 when the critter arrives at idle after walking.
-            this.artOffset = { x: 0, y: 0 }
-        } else {
-            // Apply the same zero-jump formula as staticAnimation so the settle to idle is
-            // visually seamless. Using current artOffset as prev preserves the exact screen
-            // position at the last draw frame. Note: for FRM sets that are not a perfect closed
-            // loop (K_cycle ≠ 0), artOffset may be non-zero after each full draw/holster cycle;
-            // a walk resets it to {0,0} via objectSetLocation (CE ref: object.cc).
-            const orient = this.orientation ?? 0
-            const oldInfo = globalState.imageInfo[oldArt]
-            const newInfo = globalState.imageInfo[newArt]
-            let newArtOffset: Point = { x: 0, y: 0 }
-            if (oldInfo && newInfo) {
-                const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-                const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-                const oldFrames = oldInfo.frameOffsets[orient]
-                const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
-                const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-                const newF0 = newInfo.frameOffsets[orient]?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-                const prev = this.artOffset
-                newArtOffset = {
-                    x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prev.x,
-                    y: (newF0.h - oldF.h) + oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prev.y,
-                }
-                dbg('animOffset', '[ArtOffset] clearAnim',
-                    `${oldArt}@f${clampedOld}(w=${oldF.w},h=${oldF.h},ox=${oldF.ox},oy=${oldF.oy})`,
-                    `→ ${newArt}@f0(w=${newF0.w},h=${newF0.h},ox=${newF0.ox},oy=${newF0.oy})`,
-                    `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
-                    `prev(${prev.x},${prev.y})`,
-                    `→ artOffset(${newArtOffset.x},${newArtOffset.y})`,
-                )
-            }
-            this.artOffset = newArtOffset
-        }
+
+        // Settling to idle always resets artOffset to {0,0}, mirroring CE's behavior of
+        // recomputing offsets fresh at each FID change rather than accumulating across the
+        // full anim cycle (animation.cc:2889 _obj_offset). The staticAnimation entry uses
+        // anchor:f0 (ox=0) while exit uses the current frame's ox, so the round-trip
+        // doesn't cancel without this reset. Idle f0 typically has ox=0 and dirOff is
+        // unchanged at the settle, so the visual delta from the reset is (0,0).
+        this.artOffset = { x: 0, y: 0 }
+        dbg('animOffset', `[ArtOffset] clearAnim → ${newArt} prev(${prev.x},${prev.y}) → artOffset(0,0)`)
 
         // reset to idle pose
         this.anim = 'idle'
