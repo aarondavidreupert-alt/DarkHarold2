@@ -430,8 +430,25 @@ export function clampCameraPosition(): void {
     const viewH = getWorldViewHeight()
     const maxCamX = Math.max(0, MAP_WORLD_BOUNDS.maxX - viewW)
     const maxCamY = Math.max(0, MAP_WORLD_BOUNDS.maxY - viewH)
-    globalState.cameraPosition.x = Math.max(MAP_WORLD_BOUNDS.minX, Math.min(maxCamX, globalState.cameraPosition.x))
-    globalState.cameraPosition.y = Math.max(MAP_WORLD_BOUNDS.minY, Math.min(maxCamY, globalState.cameraPosition.y))
+    const prevX = globalState.cameraPosition.x
+    const prevY = globalState.cameraPosition.y
+    let nextX = Math.max(MAP_WORLD_BOUNDS.minX, Math.min(maxCamX, prevX))
+    let nextY = Math.max(MAP_WORLD_BOUNDS.minY, Math.min(maxCamY, prevY))
+    // CE ref: object.cc:2559 _obj_scroll_blocking_at — misc PID 0x500000C
+    // (type=5, pidID=12) flags a tile as scroll-blocking. Reject the move
+    // when the new viewport center sits on such a tile.
+    const centerHex = hexFromScreen(nextX + viewW / 2, nextY + viewH / 2)
+    const gMap = globalState.gMap
+    if (gMap) {
+        const blockers = gMap.objectsAtPosition(centerHex).some((o: Obj) =>
+            (o as any).type === 'misc' && (o as any).pidID === 12)
+        if (blockers) {
+            nextX = prevX
+            nextY = prevY
+        }
+    }
+    globalState.cameraPosition.x = nextX
+    globalState.cameraPosition.y = nextY
 }
 
 export function centerCamera(around: Point) {

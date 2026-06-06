@@ -203,9 +203,11 @@ a believable playthrough.
 - CE `colorCycleEnable/Disable` drives palette rotation for water and fire.
 - Ref: `color.cc colorCycleEnable()`
 
-### 8e. Scroll blocking / border limiting absent 🔴 (RD11/RD12)
-- `OBJECT_SCROLL_BLOCK` not respected; viewport can scroll past map edge.
-- Ref: `tile.cc tileSetCenter()`; `tile.cc:537`
+### 8e. Scroll blocking / border limiting ✅ FIXED 2026-06-04
+- `clampCameraPosition` enforces map-edge bounds (RD12) and reverts any
+  scroll that would put a misc PID 12 marker (CE OBJECT_SCROLL_BLOCK,
+  `0x500000C`) under the viewport center (RD11).
+- Ref: `tile.cc tileSetCenter()`; `object.cc:2559 _obj_scroll_blocking_at`
 
 ### 8f. Hex click hit-testing approximate 🔴 (RD13)
 - CE uses `_tile_mask[512]` (32×16 px, 5 sub-regions) for pixel-precise edges.
