@@ -5,7 +5,7 @@ Covers FRM binary format, FID/animation ID encoding, the `reg_anim_*` batch syst
 
 > **Source anchor:** `raw/fallout2-ce/src/art.cc`, `art.h`, `animation.cc`, `animation.h`, `obj_types.h`, `cycle.cc`, `object.cc`  
 > **DH2 files:** `src/object.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/renderer.ts`, `frmpixels.py` (pipeline)  
-> **Last audited:** 2026-06-06 (Attempt 5 — dirOff-only carry)
+> **Last audited:** 2026-06-06 (FA12 final restored — Attempt 5 reverted; see failed_animation_offset_attempts.md)
 
 ---
 
@@ -172,7 +172,7 @@ if (obj.shift !== null) {
     offsetX += obj.shift.x
     offsetY += obj.shift.y
 } else {
-    // Static / one-shot: pre-baked cumulative ox/oy plus dirOff carry.
+    // Static / one-shot: pre-baked cumulative ox/oy plus FA12 zero-jump carry.
     offsetX += frameInfo.ox + obj.artOffset.x
     offsetY += frameInfo.oy + obj.artOffset.y
 }
@@ -182,44 +182,58 @@ Three render contributions for static animations:
 
 - **`dirOffset`** — FRM header `xOffsets[direction]`/`yOffsets[direction]`.
 - **`frameInfo.ox` / `frameInfo.oy`** — pre-baked cumulative per-frame deltas (sum of `ArtFrame.x`/`y` from frame 0 to N).
-- **`obj.artOffset`** — running carry of cross-FRM `dirOffset` differences (see §4.2).
+- **`obj.artOffset`** — carry-offset accumulated across FRM art transitions (see §4.2).
 
-### 4.2 Art Transition Model — dirOff-only carry (current DH2 behaviour)
+### 4.2 Art Transition Offset Model — CE vs DH2
 
-When an art transition fires (`Critter.staticAnimation` or non-walk `Critter.clearAnim`), DH2 adjusts a single carry field:
+#### The Problem
+
+Each FRM file has per-direction `xOffsets[6]`/`yOffsets[6]` header values (the `directionOffsets` in `imageMap.json`). These values differ between FRM files. When a critter switches FRMs (e.g. idle `hanpwraa` → weapon-draw `hanpwrjc`), the renderer immediately uses the new FRM's `dirOffset`, which differs from the old one. Without compensation this causes a visible sprite jump on the first rendered frame after the switch.
+
+However `dirOffset` alone is not the only source of jump — three factors contribute:
+
+1. **`directionOffset` change** — e.g. `hanpwraa` dir0 y=5, `hanpwrjc` dir0 y=0.
+2. **Per-frame ox state at the transition moment** — the idle animation's `ox` is non-zero for many frames; ignoring this causes a 2 px x jump if the player triggers a weapon draw mid-idle-cycle.
+3. **Frame-width center-anchor change** — x is anchored at `-(w/2 | 0)`. Different FRMs have different frame widths; for dir4 (West), `hanpwraa` f0 w=23 vs `hanpwrjc` f0 w=34 — a 6 px anchor shift.
+
+#### DH2's artOffset Carry-Field (FA12 final formula)
+
+DH2 pre-bakes cumulative `ox`/`oy` into `imageMap.json`. To achieve zero per-transition jump, `Obj` holds:
 
 ```typescript
 artOffset: Point = { x: 0, y: 0 }
 ```
 
-The carry is updated at every transition with **only the directionOffset delta**:
+At every art transition (`Critter.staticAnimation` and `Critter.clearAnim`), computed synchronously before `lazyLoadImage`:
 
 ```typescript
-artOffset.x = oldDirOff.x − newDirOff.x + prevArtOffset.x
-artOffset.y = oldDirOff.y − newDirOff.y + prevArtOffset.y
+// Exact zero-jump formula
+const oldF  = oldInfo.frameOffsets[orient][oldFrame]      // clamped to valid range; f0 for idle
+const newF0 = newInfo.frameOffsets[orient][newStartFrame]
+this.artOffset = {
+    x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2)
+       + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x,
+    y: (newF0.h - oldF.h) + oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y,
+}
 ```
 
-No frame-width term, no per-frame `ox/oy` term. Each FRM's per-frame `ox/oy` and the `−w/2` bottom-center anchor are applied raw by the renderer; only the FRM-header `dirOffset` jump is bridged.
+The x formula includes `floor(newW/2) − floor(oldW/2)` to cancel the frame-width anchor change. The y formula includes `(newH − oldH)` because y is bottom-anchored. Both include the per-frame `ox`/`oy` at the exact frame where the transition fires.
 
-#### Why dirOff-only
-
-The FA7/FA12 generation of the carry formula included three terms — `floor(w/2)` width-anchor compensation, `ox/oy` per-frame compensation, and `dirOff` header compensation — each derived to give exact zero jump at the transition. For most FRM transitions the formula worked, but `wiki/failed_animation_offset_attempts.md` Attempt 3 documents that asymmetric FRM data (`K_cycle ≠ 0` for the SMG↔laser swap chain in particular) caused the accumulated carry to grow by ~+4 px per round-trip cycle. Visibility was bounded only by walk-end resets.
-
-Empirical measurement of the failure case that finally prompted Attempt 4 (DarkFO direct-swap) and then Attempt 5 (current) showed that for `hmjmpskd → hmjmpsaa` ("jump-end → idle") all six directions had matching `w` and matching `ox` at the boundary frames — the entire visible jump came from `dirOff` alone. Stripping the formula down to the dirOff term gives:
-
-- ✅ Zero jump for transitions where `w` and `ox` already match (`kick→idle`, common animation completions).
-- ✅ **Structurally K_cycle = 0** — the carry sum over any closed FRM cycle `a→b→c→a` telescopes to `(dirOff_a − dirOff_b) + (dirOff_b − dirOff_c) + (dirOff_c − dirOff_a) = 0`. Drift cannot accumulate, regardless of FRM asymmetry.
-- ⚠️ Small residual jump where `w` or `ox` also differ at the transition (typical for weapon swap `idle → holster`). Measured at ~3–4 px for hmjmps `ia → id` dir3.
-
-The trade-off is explicit: trade a small residue at width-mismatched transitions for zero drift over arbitrary sequences and zero jump at the more common animation-end settlings.
+For looping animations (idle), `srcF = oldFrames[0]` anchors on frame 0 geometry regardless of which frame is currently playing — using the mid-cycle `ox` would contaminate the next animation's render position (FA12 Part 1).
 
 #### Walk-end reset
 
-`Critter.clearAnim()` hard-resets `artOffset = {0,0}` when the previous animation was a walk (`shift !== null`). This matches CE's `objectSetLocation` reset in `object.cc:3940`, which zeroes `obj->x/y` on every tile change during walk.
+`Critter.clearAnim()` resets `artOffset = {0,0}` when the previous animation was a walk (`shift !== null`). This matches CE's `objectSetLocation` reset in `object.cc:3940`. After any walk, the carry state is clean.
+
+#### Drift trade-off
+
+For FRM sets where the cumulative `(dirOff + ox)` does not perfectly close over a full swap cycle (e.g. hmjmps `i↔k` chain leaks +4 px per cycle), `artOffset` accumulates a small drift. CE has identical residuals on the same data (CE's `obj->x` is the equivalent accumulator with the same telescoping property). In normal gameplay any walk step resets the carry to `{0,0}`, so drift is invisible. The visible failure case is "stand still and swap repeatedly" — a test-only pathology.
+
+The alternative (`dirOff`-only carry) traded zero drift for visible per-transition jumps (~2 px residue at every weapon swap, every combat hit, every pick-up). The full FA12 formula prioritises the common case: zero jump on every animation transition during real play.
 
 #### Full attempt history
 
-`wiki/failed_animation_offset_attempts.md` records every formula tried, the failure mode of each, and the math derivation. Refer to it before re-introducing or modifying any term in the carry.
+`wiki/failed_animation_offset_attempts.md` records every formula tried, the failure mode of each, and the math derivation.
 
 ---
 

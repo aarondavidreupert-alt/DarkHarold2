@@ -328,14 +328,12 @@ export class Obj {
     // and the current frame.
     shift: Point = null
 
-    // Cross-FRM dirOffset carry. At every art transition we add
-    // (oldDirOff - newDirOff) so the new FRM's bare dirOffset doesn't snap
-    // the sprite when the headers differ between FRMs. ox/oy and w/2 anchor
-    // differences are NOT compensated — those are FRM-data artefacts we
-    // accept (see wiki/failed_animation_offset_attempts.md Attempt 5). The
-    // sum of dirOff diffs over a closed FRM cycle (a→b→c→a) telescopes to
-    // 0 so no drift accumulates. Reset to {0,0} on walk end (CE
-    // objectSetLocation, object.cc:3940).
+    // Carry-offset accumulated across FRM art transitions so that switching FRMs never causes a
+    // visual jump. Updated at every art switch via the FA12 final zero-jump formula (see
+    // Critter.staticAnimation / clearAnim and wiki/failed_animation_offset_attempts.md
+    // "Final solution Parts 1+2+3"). Mirrors CE's obj->x/y (object.cc) which is reset on
+    // objectSetLocation (tile change during walk) and otherwise carries forward. Reset to
+    // {0,0} on walk end (CE objectSetLocation, object.cc:3940).
     artOffset: Point = { x: 0, y: 0 }
 
     // Outline color, if outlined
@@ -1793,16 +1791,20 @@ export class Critter extends Obj {
     }
 
     staticAnimation(anim: string, callback?: () => void, waitForLoad = true, reversed = false): void {
+        // Capture current state synchronously — these are the old-art values we need for the
+        // offset formula. We do NOT switch this.art/this.frame here so the renderer keeps
+        // showing the old sprite until the new texture is confirmed loaded.
         const oldArt = this.art
+        const oldFrame = this.frame
         const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
         const newArt = this.getAnimation(anim)
 
-        // dirOff-only cross-FRM carry. The renderer's per-frame contributions
-        // (-w/2, ox, oy) are taken raw from the new FRM — only the dirOffset
-        // delta is compensated here. Width/ox/oy mismatches between FRMs
-        // remain as small per-transition jumps (FRM-data artefact), but
-        // dirOff jumps (up to 10 px for hmjmps kick→idle dir5) are gone.
-        // Telescopes to 0 over closed cycles → no drift.
+        // Exact zero-jump formula (CE ref: animation.cc artGetRotationOffsets + artGetFrameOffsets):
+        //   artOffset.x = floor(newW0/2) - floor(srcW/2) + oldDirOff.x - newDirOff.x + srcOx - newOx[0]
+        //   artOffset.y = (newH0 - srcH)   + oldDirOff.y - newDirOff.y + srcOy - newOy[0]
+        // x: half-width term compensates for the horizontal-center anchor (floor(w/2) from tile x).
+        // y: height term compensates for the bottom-edge anchor (tileY - h); a taller sprite
+        //    pushes the bottom edge down, so a height decrease shifts the sprite up without correction.
         let pendingArtOffset = prevArtOffset
         const oldInfo = globalState.imageInfo[oldArt]
         const newInfo = globalState.imageInfo[newArt]
@@ -1810,12 +1812,24 @@ export class Critter extends Obj {
             const orient = this.orientation ?? 0
             const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
             const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+            const oldFrames = oldInfo.frameOffsets[orient]
+            const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
+            const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+            const newStartFrame = reversed ? (newInfo.numFrames - 1) : 0
+            const newF0 = newInfo.frameOffsets[orient]?.[newStartFrame] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+            // For looping animations (idle), anchor on frame 0 geometry regardless of which frame
+            // is currently playing. Using the mid-cycle frame's ox would bake iOxF into artOffset,
+            // displacing the critter throughout the entire subsequent one-shot animation.
+            // CE ref: art.cc artGetFrameOffsets — frame deltas are independent of playback position.
+            const srcF = (this.anim === 'idle') ? (oldFrames?.[0] ?? oldF) : oldF
             pendingArtOffset = {
-                x: oldDirOff.x - newDirOff.x + prevArtOffset.x,
-                y: oldDirOff.y - newDirOff.y + prevArtOffset.y,
+                x: Math.floor(newF0.w / 2) - Math.floor(srcF.w / 2) + oldDirOff.x - newDirOff.x + srcF.ox - newF0.ox + prevArtOffset.x,
+                y: (newF0.h - srcF.h) + oldDirOff.y - newDirOff.y + srcF.oy - newF0.oy + prevArtOffset.y,
             }
             dbg('animOffset', '[ArtOffset] staticAnimation',
-                `${oldArt} → ${newArt}`,
+                `${oldArt}@f${clampedOld}(w=${oldF.w},ox=${oldF.ox},oy=${oldF.oy})`,
+                srcF !== oldF ? `[anchor:f0(w=${srcF.w},ox=${srcF.ox})]` : '',
+                `→ ${newArt}@f${newStartFrame}(w=${newF0.w},ox=${newF0.ox},oy=${newF0.oy})`,
                 `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
                 `prev(${prevArtOffset.x},${prevArtOffset.y})`,
                 `→ artOffset(${pendingArtOffset.x},${pendingArtOffset.y})`,
@@ -1823,6 +1837,8 @@ export class Critter extends Obj {
         }
 
         const startAnim = () => {
+            // Atomically switch art state so the renderer never sees newArt with a stale offset,
+            // and frame 0 is held for a full fps interval (lastFrameTime = now, not 0).
             this.artOffset = pendingArtOffset
             this.art = newArt
             this.lastFrameTime = window.performance.now()
@@ -1883,9 +1899,10 @@ export class Critter extends Obj {
         // Dead critters stay frozen on their last death frame — never reset to idle.
         if (this.dead) return
 
+        // Capture old state BEFORE super.clearAnim() resets frame/shift.
         const wasWalking = this.shift !== null
         const oldArt = this.art
-        const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
+        const oldFrame = this.frame
 
         super.clearAnim()
         this.path = null
@@ -1897,31 +1914,38 @@ export class Critter extends Obj {
             // settle-after-walk always starts clean.
             this.artOffset = { x: 0, y: 0 }
         } else {
-            // Same dirOff-only carry as staticAnimation. Keeps body position
-            // stable across the kick/jump/attack→idle settle for FRMs where
-            // dirOff differs (e.g. hmjmpskd dir5 dirOff=+10 → hmjmpsaa dir5
-            // dirOff=0 would otherwise snap −10 px).
+            // Apply the same zero-jump formula as staticAnimation so the settle to idle is
+            // visually seamless. Using current artOffset as prev preserves the exact screen
+            // position at the last draw frame. Residual drift on K_cycle ≠ 0 FRMs is bounded
+            // by the next walk reset (CE objectSetLocation semantics).
+            const orient = this.orientation ?? 0
             const oldInfo = globalState.imageInfo[oldArt]
             const newInfo = globalState.imageInfo[newArt]
-            let newArtOffset: Point = prevArtOffset
+            let newArtOffset: Point = { x: 0, y: 0 }
             if (oldInfo && newInfo) {
-                const orient = this.orientation ?? 0
                 const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
                 const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+                const oldFrames = oldInfo.frameOffsets[orient]
+                const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
+                const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+                const newF0 = newInfo.frameOffsets[orient]?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+                const prev = this.artOffset
                 newArtOffset = {
-                    x: oldDirOff.x - newDirOff.x + prevArtOffset.x,
-                    y: oldDirOff.y - newDirOff.y + prevArtOffset.y,
+                    x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prev.x,
+                    y: (newF0.h - oldF.h) + oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prev.y,
                 }
                 dbg('animOffset', '[ArtOffset] clearAnim',
-                    `${oldArt} → ${newArt}`,
+                    `${oldArt}@f${clampedOld}(w=${oldF.w},h=${oldF.h},ox=${oldF.ox},oy=${oldF.oy})`,
+                    `→ ${newArt}@f0(w=${newF0.w},h=${newF0.h},ox=${newF0.ox},oy=${newF0.oy})`,
                     `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
-                    `prev(${prevArtOffset.x},${prevArtOffset.y})`,
+                    `prev(${prev.x},${prev.y})`,
                     `→ artOffset(${newArtOffset.x},${newArtOffset.y})`,
                 )
             }
             this.artOffset = newArtOffset
         }
 
+        // reset to idle pose
         this.anim = 'idle'
         this.art = newArt
     }

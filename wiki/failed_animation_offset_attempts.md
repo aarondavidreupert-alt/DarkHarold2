@@ -569,7 +569,20 @@ compound across cycles.
 | Parts 1+2 (interim) | `oldFrames[0]` (anchor) | **reset to 0** | missing | 2 px Y jump at every staticAnimation transition |
 | Parts 1+2+3 (FA12 final) | `oldFrames[0]` (anchor) | zero-jump + prev | `(newF0.h − srcF.h)` present | +4 px / cycle drift on hmjmps i↔k chain (K_cycle ≠ 0 for asymmetric direction) |
 | 4 (DarkFO) | no formula | no formula | — | −10 px X / +3 px Y snap on hmjmps kick→idle dir5 (uncompensated dirOff jump) |
-| **5 (current)** | **dirOff-only carry** | **dirOff-only carry (or {0,0} if was walking)** | — | ✅ kick→idle clean; small per-transition residue when w/ox also differ; structurally K_cycle = 0 |
+| 5 | dirOff-only carry | dirOff-only carry (or {0,0} if was walking) | — | Telescoping K_cycle = 0 ✓ but 2–4 px residue at every w/ox-mismatched transition (visible at every weapon swap, combat hit, pick-up) |
+| **Restored: FA12 final** | `oldFrames[0]` (anchor) | zero-jump + prev | `(newF0.h − srcF.h)` present | ✅ Zero per-transition jump in all directions; bounded drift on K_cycle ≠ 0 FRMs is invisible in normal play (every walk step resets via CE objectSetLocation) |
+
+---
+
+## Re-evaluation 2026-06-06 — back to FA12 final
+
+After living with Attempt 5 in real play we observed:
+
+- **Zero drift was confirmed** (telescoping property held — `(1,2)→(1,4)→(2,1)→(1,3)→(1,2)` over the full hmjmps swap cycle, logged from the game).
+- **But the 2–4 px residual jumps fire at every animation transition** — every weapon swap, every combat hit, every door open, every pick-up. The artefact is visually constant and irritating because it happens on every player action.
+- **The K_cycle drift that Attempt 5 was designed to avoid only manifests in a "stand still + spam-swap weapons" test pathology.** In normal gameplay, walking between swaps resets `artOffset` to `{0,0}` (CE `objectSetLocation` semantics, `object.cc:3940`), so accumulated drift never grows beyond what one swap cycle adds.
+
+The right trade-off is **FA12 final with walk reset**: pay the bounded drift cost only in the test pathology, get pixel-perfect transitions in every real-play interaction. Restored.
 
 ---
 
