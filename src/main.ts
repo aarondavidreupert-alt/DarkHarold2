@@ -737,6 +737,10 @@ heart.keydown = (k: string) => {
         cancelSkillTargeting()
         return
     }
+    // CE ref: game_config.h:37 item_highlight — outline all items while held.
+    if (k === Config.controls.highlightItems) {
+        Config.ui.itemHighlight = true
+    }
     const mousePos = heart.mouse.getPosition()
     const kz = getZoom()
     const mouseHex = hexFromScreen(
@@ -949,6 +953,13 @@ heart.keydown = (k: string) => {
 
 function changeCursor(_image: string) {
     // No-op: cursor is now rendered via WebGL based on cursorMode
+}
+
+heart.keyup = (k: string) => {
+    // CE ref: game_config.h:37 item_highlight — release clears the outline.
+    if (k === Config.controls.highlightItems) {
+        Config.ui.itemHighlight = false
+    }
 }
 
 heart.update = function () {

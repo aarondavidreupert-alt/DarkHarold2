@@ -23,6 +23,10 @@ export const Config = {
         // FO2-CE ref: preferences.cc TargetHighlight enum (game_config.h:111)
         //   0=off, 1=on (always), 2=targeting-only (only while attack cursor)
         targetHighlight: 'on' as 'off' | 'on' | 'targeting-only',
+        // FO2-CE ref: game_config.h:37 — outline all items while
+        // `controls.highlightItems` is held (default: Spacebar). Updated by
+        // main.ts keydown/keyup handlers.
+        itemHighlight: false,
         // FO2-CE ref: preferences.cc — combat message verbosity
         combatMessages: 'verbose' as 'brief' | 'verbose',
         // FO2-CE ref: preferences.cc — subtitles toggle
@@ -97,6 +101,8 @@ export const Config = {
         saveKey: 'n',
         loadKey: 'm',
         inventory: 'b',
+        // CE: KEYBIND_KEY_HIGHLIGHT_ITEMS — outlines all items while held.
+        highlightItems: ' ',
     },
 
     scripting: {

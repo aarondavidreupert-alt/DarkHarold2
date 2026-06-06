@@ -376,11 +376,21 @@ export class Renderer {
     }
 
     renderObjects(objs: Obj[]) {
+        // CE ref: game_config.h:37 item_highlight — when held, all ground
+        // items get a temporary outline so players can see what's pickable.
+        const hi: any = Config.ui as any
+        const highlightItems = hi.itemHighlight === true
         for (const obj of objs) {
             if (!Config.ui.showWalls && obj.type === 'wall') {
                 continue
             }
-            if (obj.outline) {
+            const wantTempOutline = highlightItems && obj.type === 'item' && !obj.outline
+            if (wantTempOutline) {
+                const prev = obj.outline
+                obj.outline = 'yellow'
+                this.renderObjectOutlined(obj)
+                obj.outline = prev
+            } else if (obj.outline) {
                 this.renderObjectOutlined(obj)
             } else {
                 this.renderObject(obj)
