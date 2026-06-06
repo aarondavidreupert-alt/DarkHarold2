@@ -328,6 +328,16 @@ export class Obj {
     // and the current frame.
     shift: Point = null
 
+    // Cross-FRM dirOffset carry. At every art transition we add
+    // (oldDirOff - newDirOff) so the new FRM's bare dirOffset doesn't snap
+    // the sprite when the headers differ between FRMs. ox/oy and w/2 anchor
+    // differences are NOT compensated — those are FRM-data artefacts we
+    // accept (see wiki/failed_animation_offset_attempts.md Attempt 5). The
+    // sum of dirOff diffs over a closed FRM cycle (a→b→c→a) telescopes to
+    // 0 so no drift accumulates. Reset to {0,0} on walk end (CE
+    // objectSetLocation, object.cc:3940).
+    artOffset: Point = { x: 0, y: 0 }
+
     // Outline color, if outlined
     outline: string | null = null
 
@@ -1783,14 +1793,37 @@ export class Critter extends Obj {
     }
 
     staticAnimation(anim: string, callback?: () => void, waitForLoad = true, reversed = false): void {
-        // DarkFO-style direct FRM swap: the new sprite is rendered with its own
-        // ox/oy/dirOff straight from the FRM data. No carry / no compensation —
-        // the FRM authors already chose values that look right at frame 0, and
-        // accumulating a runtime correction across transitions just reintroduces
-        // drift (see wiki/failed_animation_offset_attempts.md).
+        const oldArt = this.art
+        const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
         const newArt = this.getAnimation(anim)
 
+        // dirOff-only cross-FRM carry. The renderer's per-frame contributions
+        // (-w/2, ox, oy) are taken raw from the new FRM — only the dirOffset
+        // delta is compensated here. Width/ox/oy mismatches between FRMs
+        // remain as small per-transition jumps (FRM-data artefact), but
+        // dirOff jumps (up to 10 px for hmjmps kick→idle dir5) are gone.
+        // Telescopes to 0 over closed cycles → no drift.
+        let pendingArtOffset = prevArtOffset
+        const oldInfo = globalState.imageInfo[oldArt]
+        const newInfo = globalState.imageInfo[newArt]
+        if (oldInfo && newInfo) {
+            const orient = this.orientation ?? 0
+            const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+            const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+            pendingArtOffset = {
+                x: oldDirOff.x - newDirOff.x + prevArtOffset.x,
+                y: oldDirOff.y - newDirOff.y + prevArtOffset.y,
+            }
+            dbg('animOffset', '[ArtOffset] staticAnimation',
+                `${oldArt} → ${newArt}`,
+                `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
+                `prev(${prevArtOffset.x},${prevArtOffset.y})`,
+                `→ artOffset(${pendingArtOffset.x},${pendingArtOffset.y})`,
+            )
+        }
+
         const startAnim = () => {
+            this.artOffset = pendingArtOffset
             this.art = newArt
             this.lastFrameTime = window.performance.now()
             if (reversed) {
@@ -1850,13 +1883,47 @@ export class Critter extends Obj {
         // Dead critters stay frozen on their last death frame — never reset to idle.
         if (this.dead) return
 
+        const wasWalking = this.shift !== null
+        const oldArt = this.art
+        const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
+
         super.clearAnim()
         this.path = null
 
-        // DarkFO-style direct swap to idle FRM. The idle's own ox/oy/dirOff
-        // place the sprite correctly — no transition correction needed.
+        const newArt = this.getAnimation('idle')
+        if (wasWalking) {
+            // CE objectSetLocation reset on tile change (object.cc:3940) —
+            // every walk hex transition zeroes the sub-tile offset, so
+            // settle-after-walk always starts clean.
+            this.artOffset = { x: 0, y: 0 }
+        } else {
+            // Same dirOff-only carry as staticAnimation. Keeps body position
+            // stable across the kick/jump/attack→idle settle for FRMs where
+            // dirOff differs (e.g. hmjmpskd dir5 dirOff=+10 → hmjmpsaa dir5
+            // dirOff=0 would otherwise snap −10 px).
+            const oldInfo = globalState.imageInfo[oldArt]
+            const newInfo = globalState.imageInfo[newArt]
+            let newArtOffset: Point = prevArtOffset
+            if (oldInfo && newInfo) {
+                const orient = this.orientation ?? 0
+                const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+                const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+                newArtOffset = {
+                    x: oldDirOff.x - newDirOff.x + prevArtOffset.x,
+                    y: oldDirOff.y - newDirOff.y + prevArtOffset.y,
+                }
+                dbg('animOffset', '[ArtOffset] clearAnim',
+                    `${oldArt} → ${newArt}`,
+                    `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
+                    `prev(${prevArtOffset.x},${prevArtOffset.y})`,
+                    `→ artOffset(${newArtOffset.x},${newArtOffset.y})`,
+                )
+            }
+            this.artOffset = newArtOffset
+        }
+
         this.anim = 'idle'
-        this.art = this.getAnimation('idle')
+        this.art = newArt
     }
 
     walkTo(target: Point, running?: boolean, callback?: () => void, maxLength?: number, path?: any): boolean {

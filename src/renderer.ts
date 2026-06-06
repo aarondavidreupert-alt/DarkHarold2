@@ -307,10 +307,9 @@ export class Renderer {
         }
         const dirOffset = info.directionOffsets[obj.orientation]
 
-        // Anchored from the bottom center. DarkFO model: each frame's own
-        // ox/oy from the FRM data is applied directly — no carry across FRM
-        // transitions. The FRM authors chose ox/oy values that already place
-        // each sprite correctly; runtime compensation just adds drift.
+        // Anchored from the bottom center. ox/oy come straight from FRM data;
+        // obj.artOffset carries only the cross-FRM dirOff diff (see
+        // Critter.staticAnimation / clearAnim).
         let offsetX = -((frameInfo.w / 2) | 0) + dirOffset.x
         let offsetY = -frameInfo.h + dirOffset.y
 
@@ -320,8 +319,8 @@ export class Renderer {
             offsetX += obj.shift.x
             offsetY += obj.shift.y
         } else {
-            offsetX += frameInfo.ox
-            offsetY += frameInfo.oy
+            offsetX += frameInfo.ox + obj.artOffset.x
+            offsetY += frameInfo.oy + obj.artOffset.y
         }
 
         if (obj === globalState.player &&
@@ -332,6 +331,7 @@ export class Renderer {
                 `[Render] t=${performance.now().toFixed(1)}`,
                 `art=${obj.art} f=${obj.frame}`,
                 `frameOx=${frameInfo.ox} frameOy=${frameInfo.oy}`,
+                `artOffset=(${obj.artOffset.x},${obj.artOffset.y})`,
                 `offsetXY=(${offsetX},${offsetY})`,
                 `wh=(${frameInfo.w},${frameInfo.h})`,
             )
@@ -475,8 +475,8 @@ export function objectBoundingBox(obj: Obj): BoundingBox | null {
         return null
     }
     const dirOffset = info.directionOffsets[obj.orientation]
-    const offsetX = Math.floor(frameInfo.w / 2) - dirOffset.x - frameInfo.ox
-    const offsetY = frameInfo.h - dirOffset.y - frameInfo.oy
+    const offsetX = Math.floor(frameInfo.w / 2) - dirOffset.x - frameInfo.ox - obj.artOffset.x
+    const offsetY = frameInfo.h - dirOffset.y - frameInfo.oy - obj.artOffset.y
 
     return { x: scr.x - offsetX, y: scr.y - offsetY, w: frameInfo.w, h: frameInfo.h }
 }

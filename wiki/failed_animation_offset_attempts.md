@@ -471,6 +471,91 @@ Walk-end `clearAnim` still hard-resets to `{0,0}` (unchanged), matching CE
 
 ---
 
+## Attempt 4 — Remove artOffset entirely (DarkFO direct-swap, 2026-06-06)
+
+After the FA12 final solution shipped, real-play testing of the SMG↔laser
+weapon-swap chain showed visible drift accumulation: artOffset went
+`(0,0) → (4,0) → (8,0) → (12,0)` over three i→k cycles (k→i direction
+closed cleanly at 0). Confirmed K_cycle ≠ 0 for the asymmetric direction.
+The drift is bounded by walk-end reset, but in a "stand still and swap
+repeatedly" test the critter visibly slides across the screen.
+
+**Decision:** remove `artOffset` and the formula entirely. Render each
+frame from its own `ox/oy/dirOff` directly (DarkFO behaviour).
+
+**Failure mode:** uncompensated `dirOff` differences between FRMs cause
+visible per-transition jumps. Worst case observed: hmjmpskd dir5
+(`dirOff=+10`) → hmjmpsaa dir5 (`dirOff=0`) produces an instantaneous
+−10 px X snap and +3 px foot drop at the kick-end → idle settle. Less
+extreme jumps in other directions and other FRM pairs.
+
+**Key lesson:** zero compensation is no more correct than full
+compensation — both expose a real visible artefact. The asymmetry in
+FRM data needs *some* runtime bridge; the question is which terms.
+
+---
+
+## Attempt 5 — dirOff-only carry (current, 2026-06-06)
+
+**Diagnosis after Attempt 4:** the `kd→aa` jump in dir5 came entirely
+from the `directionOffsets[5]` header difference between the two FRMs
+(`+10` → `0`). At that transition both FRMs have matching `w` (27) and
+matching frame ox (0), so width and ox-cumulative terms contribute
+nothing — `dirOff` is the sole source of the snap. Cross-checked all
+six directions of `hmjmpskd → hmjmpsaa`:
+
+| Direction | dirOff_kd | dirOff_aa | X-jump | Y-jump |
+|-----------|-----------|-----------|--------|--------|
+| dir0 NE   | (3, 0)    | (−1, 3)   | −4     | +3 |
+| dir1 E    | (−4, 0)   | (−1, 5)   | +3     | +5 |
+| dir2 SE   | (−9, 0)   | (−1, 4)   | +8     | +4 |
+| dir3 SW   | (0, −5)   | (0, 3)    | 0      | +8 |
+| dir4 W    | (5, −5)   | (2, 5)    | −3     | +10 |
+| dir5 NW   | (+10, 0)  | (0, 3)    | −10    | +3 |
+
+All jumps line up exactly with `oldDirOff − newDirOff`. w and ox at the
+boundary frames happen to match across the pair.
+
+**Formula — `staticAnimation` and non-walk `clearAnim`:**
+
+```
+artOffset_new.x = oldDirOff.x − newDirOff.x + prev.x
+artOffset_new.y = oldDirOff.y − newDirOff.y + prev.y
+```
+
+No frame-width term. No ox/oy term. No `anchor:f0` distinction. The
+carry only encodes the running sum of `dirOff` differences across the
+FRM chain.
+
+**Walk-end `clearAnim`:** hard reset to `{0,0}` (CE `objectSetLocation`
+on tile change, `object.cc:3940`). Unchanged from Attempts 3 and 4.
+
+**Why this doesn't drift like Attempt 3:** in a closed FRM cycle
+`a → b → c → a`, the carry sum telescopes:
+
+```
+artOffset_after = (dirOff_a − dirOff_b) + (dirOff_b − dirOff_c) + (dirOff_c − dirOff_a) = 0
+```
+
+K_cycle = 0 is now a structural property of the formula, independent of
+whether the FRM data is asymmetric. The accumulation observed under
+Attempt 3 (which carried `oldF.ox − newF0.ox` whose sum over a cycle was
+non-zero for asymmetric FRMs) does not arise.
+
+**Trade-off accepted:** transitions where `w` or `ox` differ between
+boundary frames (typical weapon-swap chains like `hmjmpsia f0` w=29 →
+`hmjmpsid f0` w=33 ox=−2) still show a small jump — measured ~4 px in
+the worst observed direction. That is less than half the worst
+Attempt 0 jump (12 px on hmjmps dir4) and unlike Attempt 0 it does not
+compound across cycles.
+
+**Files modified for Attempt 5:**
+- `src/object.ts` — `Obj.artOffset` field reinstated; `Critter.staticAnimation` and `Critter.clearAnim` apply the dirOff-only carry; walk-end branch unchanged.
+- `src/renderer.ts` — static branch in `objectRenderInfo` adds `obj.artOffset.x/y`; same in `objectBoundingBox`.
+- `src/config.ts` — `animOffset` debug flag re-enabled.
+
+---
+
 ## Summary table
 
 | Attempt | staticAnimation src frame | clearAnim formula | Y height term | Failure |
@@ -482,7 +567,9 @@ Walk-end `clearAnim` still hard-resets to `{0,0}` (unchanged), matching CE
 | No-prev (rejected) | `oldFrames[0]` | no prev, no floor(w/2) | missing | Up to 9px X jump at width-mismatched transitions |
 | No-prev + floor(w/2) (rejected) | `oldFrames[0]` | no prev, with floor(w/2) | missing | 5px X jump at holster-end for dir2 |
 | Parts 1+2 (interim) | `oldFrames[0]` (anchor) | **reset to 0** | missing | 2 px Y jump at every staticAnimation transition |
-| **Final (Parts 1+2+3)** | `oldFrames[0]` (anchor) | **zero-jump + prev** | `(newF0.h − srcF.h)` present | ✅ Stable; K_cycle bounded by walk resets |
+| Parts 1+2+3 (FA12 final) | `oldFrames[0]` (anchor) | zero-jump + prev | `(newF0.h − srcF.h)` present | +4 px / cycle drift on hmjmps i↔k chain (K_cycle ≠ 0 for asymmetric direction) |
+| 4 (DarkFO) | no formula | no formula | — | −10 px X / +3 px Y snap on hmjmps kick→idle dir5 (uncompensated dirOff jump) |
+| **5 (current)** | **dirOff-only carry** | **dirOff-only carry (or {0,0} if was walking)** | — | ✅ kick→idle clean; small per-transition residue when w/ox also differ; structurally K_cycle = 0 |
 
 ---
 
