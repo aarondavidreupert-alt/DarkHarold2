@@ -328,12 +328,6 @@ export class Obj {
     // and the current frame.
     shift: Point = null
 
-    // Carry-offset accumulated across FRM art transitions so that switching FRMs never causes a
-    // visual jump. Mirrors CE's obj->x/y (object.cc) which is reset on objectSetLocation (tile
-    // change during walk) and otherwise carries forward. Reset to {0,0} on walk end; updated at
-    // every art switch via the exact zero-jump formula (see Critter.staticAnimation / clearAnim).
-    artOffset: Point = { x: 0, y: 0 }
-
     // Outline color, if outlined
     outline: string | null = null
 
@@ -1789,60 +1783,14 @@ export class Critter extends Obj {
     }
 
     staticAnimation(anim: string, callback?: () => void, waitForLoad = true, reversed = false): void {
-        // Capture current state synchronously — these are the old-art values we need for the
-        // offset formula. We do NOT switch this.art/this.frame here so the renderer keeps
-        // showing the old sprite until the new texture is confirmed loaded.
-        const oldArt = this.art
-        const oldFrame = this.frame
-        const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
+        // DarkFO-style direct FRM swap: the new sprite is rendered with its own
+        // ox/oy/dirOff straight from the FRM data. No carry / no compensation —
+        // the FRM authors already chose values that look right at frame 0, and
+        // accumulating a runtime correction across transitions just reintroduces
+        // drift (see wiki/failed_animation_offset_attempts.md).
         const newArt = this.getAnimation(anim)
 
-        // Compute the transition offset now using imageInfo (always available at startup).
-        // Deferred to startAnim only as artOffset assignment so old art stays visible while
-        // the GL texture for newArt is being loaded asynchronously.
-        //
-        // Exact zero-jump formula (CE ref: animation.cc artGetRotationOffsets + artGetFrameOffsets):
-        //   artOffset.x = floor(newW0/2) - floor(oldWF/2) + oldDirOff.x - newDirOff.x + oldOx[F] - newOx[0]
-        //   artOffset.y = (newH0 - oldHF) + oldDirOff.y - newDirOff.y + oldOy[F] - newOy[0]
-        // x: half-width term compensates for the horizontal-center anchor (floor(w/2) from tile x).
-        // y: height term compensates for the bottom-edge anchor (tileY - h); a taller sprite
-        //    pushes the bottom edge down, so a height decrease shifts the sprite up without correction.
-        let pendingArtOffset = prevArtOffset
-        const oldInfo = globalState.imageInfo[oldArt]
-        const newInfo = globalState.imageInfo[newArt]
-        if (oldInfo && newInfo) {
-            const orient = this.orientation ?? 0
-            const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-            const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-            const oldFrames = oldInfo.frameOffsets[orient]
-            const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
-            const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-            const newStartFrame = reversed ? (newInfo.numFrames - 1) : 0
-            const newF0 = newInfo.frameOffsets[orient]?.[newStartFrame] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-            // For looping animations (idle), anchor on frame 0 geometry regardless of which frame
-            // is currently playing. Using the mid-cycle frame's ox would bake iOxF into artOffset,
-            // displacing the critter throughout the entire subsequent one-shot animation.
-            // CE ref: art.cc artGetFrameOffsets — frame deltas are independent of playback position;
-            // CE never carries a mid-animation ox into the object reference point.
-            const srcF = (this.anim === 'idle') ? (oldFrames?.[0] ?? oldF) : oldF
-            pendingArtOffset = {
-                x: Math.floor(newF0.w / 2) - Math.floor(srcF.w / 2) + oldDirOff.x - newDirOff.x + srcF.ox - newF0.ox + prevArtOffset.x,
-                y: (newF0.h - srcF.h) + oldDirOff.y - newDirOff.y + srcF.oy - newF0.oy + prevArtOffset.y,
-            }
-            dbg('animOffset', '[ArtOffset] staticAnimation',
-                `${oldArt}@f${clampedOld}(w=${oldF.w},ox=${oldF.ox},oy=${oldF.oy})`,
-                srcF !== oldF ? `[anchor:f0(w=${srcF.w},ox=${srcF.ox})]` : '',
-                `→ ${newArt}@f${newStartFrame}(w=${newF0.w},ox=${newF0.ox},oy=${newF0.oy})`,
-                `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
-                `prev(${prevArtOffset.x},${prevArtOffset.y})`,
-                `→ artOffset(${pendingArtOffset.x},${pendingArtOffset.y})`,
-            )
-        }
-
         const startAnim = () => {
-            // Atomically switch art state so the renderer never sees newArt with a stale offset,
-            // and frame 0 is held for a full fps interval (lastFrameTime = now, not 0).
-            this.artOffset = pendingArtOffset
             this.art = newArt
             this.lastFrameTime = window.performance.now()
             if (reversed) {
@@ -1902,59 +1850,13 @@ export class Critter extends Obj {
         // Dead critters stay frozen on their last death frame — never reset to idle.
         if (this.dead) return
 
-        // Capture old state BEFORE super.clearAnim() resets frame/shift.
-        const wasWalking = this.shift !== null
-        const oldArt = this.art
-        const oldFrame = this.frame
-
         super.clearAnim()
         this.path = null
 
-        const newArt = this.getAnimation('idle')
-        if (wasWalking) {
-            // CE ref: objectSetLocation (object.cc:3940) resets obj->x/y on every tile
-            // change during walk, so artOffset is always 0 when the critter arrives at
-            // idle after walking.
-            this.artOffset = { x: 0, y: 0 }
-        } else {
-            // Compute the settle delta with the same zero-jump formula as staticAnimation,
-            // including the prev (current artOffset) carry. Forcing {0,0} here was wrong:
-            // when the outgoing FRM's last frame and the incoming idle f0 differ in
-            // w / h / dirOff / ox / oy, a hard reset produces a visible ~5 px snap
-            // (observed: hmjmpsk* dir4). Computing the delta keeps position continuous.
-            // For FRM sets where K_cycle = 0 the formula self-cancels across the swap
-            // chain so no drift accumulates; for K_cycle ≠ 0 sets, the residual is
-            // bounded by the next walk reset (CE objectSetLocation semantics).
-            const orient = this.orientation ?? 0
-            const oldInfo = globalState.imageInfo[oldArt]
-            const newInfo = globalState.imageInfo[newArt]
-            let newArtOffset: Point = { x: 0, y: 0 }
-            if (oldInfo && newInfo) {
-                const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-                const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-                const oldFrames = oldInfo.frameOffsets[orient]
-                const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
-                const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-                const newF0 = newInfo.frameOffsets[orient]?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-                const prev = this.artOffset
-                newArtOffset = {
-                    x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prev.x,
-                    y: (newF0.h - oldF.h) + oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prev.y,
-                }
-                dbg('animOffset', '[ArtOffset] clearAnim',
-                    `${oldArt}@f${clampedOld}(w=${oldF.w},h=${oldF.h},ox=${oldF.ox},oy=${oldF.oy})`,
-                    `→ ${newArt}@f0(w=${newF0.w},h=${newF0.h},ox=${newF0.ox},oy=${newF0.oy})`,
-                    `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
-                    `prev(${prev.x},${prev.y})`,
-                    `→ artOffset(${newArtOffset.x},${newArtOffset.y})`,
-                )
-            }
-            this.artOffset = newArtOffset
-        }
-
-        // reset to idle pose
+        // DarkFO-style direct swap to idle FRM. The idle's own ox/oy/dirOff
+        // place the sprite correctly — no transition correction needed.
         this.anim = 'idle'
-        this.art = newArt
+        this.art = this.getAnimation('idle')
     }
 
     walkTo(target: Point, running?: boolean, callback?: () => void, maxLength?: number, path?: any): boolean {

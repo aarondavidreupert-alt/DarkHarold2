@@ -307,20 +307,21 @@ export class Renderer {
         }
         const dirOffset = info.directionOffsets[obj.orientation]
 
-        // Anchored from the bottom center
+        // Anchored from the bottom center. DarkFO model: each frame's own
+        // ox/oy from the FRM data is applied directly — no carry across FRM
+        // transitions. The FRM authors chose ox/oy values that already place
+        // each sprite correctly; runtime compensation just adds drift.
         let offsetX = -((frameInfo.w / 2) | 0) + dirOffset.x
         let offsetY = -frameInfo.h + dirOffset.y
 
-        // CE ref: object.cc _obj_offset() — use accumulated per-frame delta when walking,
-        // fall back to the FRM header anchor (ox/oy) for static or walk-start (shift=null) frames.
-        // artOffset carries the visual continuity correction across FRM art transitions (see
-        // Critter.staticAnimation / clearAnim for the formula; resets to {0,0} on walk end).
         if (obj.shift !== null) {
+            // Walk path uses accumulated per-frame raw deltas (shift) instead
+            // of cumulative ox/oy. CE ref: object.cc _obj_offset() during walk.
             offsetX += obj.shift.x
             offsetY += obj.shift.y
         } else {
-            offsetX += frameInfo.ox + obj.artOffset.x
-            offsetY += frameInfo.oy + obj.artOffset.y
+            offsetX += frameInfo.ox
+            offsetY += frameInfo.oy
         }
 
         if (obj === globalState.player &&
@@ -331,7 +332,6 @@ export class Renderer {
                 `[Render] t=${performance.now().toFixed(1)}`,
                 `art=${obj.art} f=${obj.frame}`,
                 `frameOx=${frameInfo.ox} frameOy=${frameInfo.oy}`,
-                `artOffset=(${obj.artOffset.x},${obj.artOffset.y})`,
                 `offsetXY=(${offsetX},${offsetY})`,
                 `wh=(${frameInfo.w},${frameInfo.h})`,
             )
@@ -475,8 +475,8 @@ export function objectBoundingBox(obj: Obj): BoundingBox | null {
         return null
     }
     const dirOffset = info.directionOffsets[obj.orientation]
-    const offsetX = Math.floor(frameInfo.w / 2) - dirOffset.x - frameInfo.ox - obj.artOffset.x
-    const offsetY = frameInfo.h - dirOffset.y - frameInfo.oy - obj.artOffset.y
+    const offsetX = Math.floor(frameInfo.w / 2) - dirOffset.x - frameInfo.ox
+    const offsetY = frameInfo.h - dirOffset.y - frameInfo.oy
 
     return { x: scr.x - offsetX, y: scr.y - offsetY, w: frameInfo.w, h: frameInfo.h }
 }

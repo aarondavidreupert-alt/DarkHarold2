@@ -5,7 +5,7 @@ Covers FRM binary format, FID/animation ID encoding, the `reg_anim_*` batch syst
 
 > **Source anchor:** `raw/fallout2-ce/src/art.cc`, `art.h`, `animation.cc`, `animation.h`, `obj_types.h`, `cycle.cc`, `object.cc`  
 > **DH2 files:** `src/object.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/renderer.ts`, `frmpixels.py` (pipeline)  
-> **Last audited:** 2026-06-03
+> **Last audited:** 2026-06-06
 
 ---
 
@@ -168,93 +168,51 @@ let offsetX = -(frameInfo.w / 2 | 0) + dirOffset.x
 let offsetY = -frameInfo.h + dirOffset.y
 
 if (obj.shift !== null) {
-    // Walk mode: shift accumulates per-frame deltas at runtime.
+    // Walk mode: shift accumulates per-frame raw deltas at runtime.
     offsetX += obj.shift.x
     offsetY += obj.shift.y
 } else {
-    // Static / one-shot: pre-baked cumulative ox/oy plus artOffset carry from art transitions.
-    offsetX += frameInfo.ox + obj.artOffset.x
-    offsetY += frameInfo.oy + obj.artOffset.y
+    // Static / one-shot: pre-baked cumulative ox/oy applied directly.
+    offsetX += frameInfo.ox
+    offsetY += frameInfo.oy
 }
 ```
 
-Three render contributions for static animations:
+Two render contributions for static animations:
 
 - **`dirOffset`** — FRM header `xOffsets[direction]`/`yOffsets[direction]`.
 - **`frameInfo.ox` / `frameInfo.oy`** — pre-baked cumulative per-frame deltas (sum of `ArtFrame.x`/`y` from frame 0 to N).
-- **`obj.artOffset`** — carry-offset accumulated across FRM art transitions (see §4.2).
 
-### 4.2 Art Transition Offset Model — CE vs DH2
+### 4.2 Art Transition Model — DarkFO direct swap (current DH2 behaviour)
 
-#### The Problem
+DH2 follows DarkFO's model: when the FRM changes (e.g. idle `hanpwraa` → weapon-draw `hanpwrjc`), the renderer immediately uses the new FRM's `dirOffset` + frame-0 `ox`/`oy` without any cross-FRM compensation. The Fallout 2 artists chose those frame-0 values so that the sprite sits correctly on its tile in the new pose; the engine trusts that authoring and does no runtime correction.
 
-Each FRM file has per-direction `xOffsets[6]`/`yOffsets[6]` header values (the `directionOffsets` in `imageMap.json`). These values differ between FRM files. When a critter switches FRMs (e.g. idle `hanpwraa` → weapon-draw `hanpwrjc`), the renderer immediately uses the new FRM's `dirOffset`, which differs from the old one. Without compensation this causes a visible sprite jump on the first rendered frame after the switch.
+There is **no carry field** on `Obj`. `Critter.staticAnimation` and `Critter.clearAnim` just swap `this.art` / `this.frame` / `this.anim` atomically (after `lazyLoadImage` confirms the new texture is loaded, so the old sprite stays visible during async loads — see FA8).
 
-However `dirOffset` alone is not the only source of jump — there are three contributing factors:
+#### Trade-off vs CE
 
-1. **`directionOffset` change** — e.g. `hanpwraa` dir0 y=5, `hanpwrjc` dir0 y=0.
-2. **Per-frame ox state at the transition moment** — the idle animation's `ox` is non-zero for many frames (e.g. `hanpwraa` dir0 frames 2–10 have `ox=1`). Ignoring this causes a 2 px x jump if the player triggers a weapon draw mid-idle-cycle.
-3. **Frame-width center-anchor change** — x is anchored at `-(w/2 | 0)`. Different FRMs have different frame widths; for dir4 (West), `hanpwraa` f0 w=23 vs `hanpwrjc` f0 w=34 — a 6 px anchor shift.
+CE does have a transition accumulator (`animation.cc:2886` calls `_obj_offset(obj, OLD_xOffsets + NEW_frame0.rawDelta)` at every FID change). With this additive bump plus the new FRM's `dirOffset`, the rendered position is continuous at the FID change.
 
-#### CE's Mechanism
+DH2 omits this mechanism. Consequence: at FID changes there may be a small position discontinuity proportional to the differences in `floor(w/2)`, `dirOffset`, and `ox` between the outgoing and incoming FRMs. Measured per-direction jumps for the `hmjmps` weapon-swap set:
 
-CE (`animation.cc ~2886`) does at every art transition:
+| Direction | Worst per-transition jump |
+|-----------|---------------------------|
+| dir0 (NE) | 0–1 px |
+| dir1 (E)  | up to 8 px |
+| dir2 (SE) | 3–5 px |
+| dir3 (SW) | 3–4 px |
+| dir4 (W)  | up to 12 px |
+| dir5 (NW) | 0–1 px |
 
-```c
-artGetRotationOffsets(OLD_art, rotation, &x, &y);       // OLD directionOffsets
-artGetFrameOffsets(NEW_art, frame=0, rotation, &dx, &dy); // NEW frame-0 RAW delta
-_obj_offset(object, x + dx, y + dy, &rect);              // ADDITIVE to obj->x/y
-```
+Most weapon swaps from typical play-camera angles fall in the small-jump directions.
 
-`_obj_offset` is additive: `obj->x += OLD_xOffsets + NEW_frame0.rawDelta`. The renderer then draws at `screenX = tileX + NEW_xOffsets + obj->x - frameW/2`. The raw delta at frame 0 equals the cumulative `ox[0]`, so CE's transition naturally encodes all three corrections into a single running accumulator.
+#### Why a compensation field was tried and removed
 
-#### DH2's artOffset Carry-Field
+DH2 previously carried an `artOffset` carry-field with an "exact zero-jump" formula at every transition (FA7, FA12). This produced zero per-transition jump, but for FRM sets whose deltas do not sum to a closed loop (`K_cycle ≠ 0`) it accumulated drift across repeated swap cycles — visibly shifting the critter several pixels per cycle when the player swapped weapons without walking. The full forensic record is in `wiki/failed_animation_offset_attempts.md`.
 
-DH2 pre-bakes cumulative `ox`/`oy` into `imageMap.json`. To achieve the same visual result, `Obj` holds:
+Resetting the carry to `{0,0}` on `clearAnim` bounded the drift but reintroduced a visible snap at every settle of size equal to the accumulated offset. There is no carry strategy that simultaneously gives zero per-transition jump AND zero accumulated drift when the FRM data itself is asymmetric — the choice is which artefact to expose.
 
-```typescript
-artOffset: Point = { x: 0, y: 0 }
-```
-
-At every art transition (`Critter.staticAnimation` and `Critter.clearAnim`), computed **synchronously before `lazyLoadImage`** (imageInfo is always available at startup):
-
-```typescript
-// Exact zero-jump formula
-const oldF  = oldInfo.frameOffsets[orient][oldFrame]   // clamped to valid range
-const newF0 = newInfo.frameOffsets[orient][newStartFrame]
-this.artOffset = {
-    x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2)
-       + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x,
-    y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y,
-}
-```
-
-The x formula includes `floor(newW/2) − floor(oldW/2)` to cancel the frame-width anchor change. The y formula omits it because y is bottom-anchored (height changes don't shift the visual reference point). Both include the per-frame `ox`/`oy` at the exact frame where the transition fires.
-
-#### Correctness Proof (dir0, idle frame 0 → rifle draw)
-
-| Quantity | Value |
-|----------|-------|
-| `hanpwraa` dir0 `dirOffset` | `{x:-1, y:5}` |
-| `hanpwrjc` dir0 `dirOffset` | `{x:0, y:0}` |
-| idle f0: w=40, ox=0, oy=0 | |
-| draw f0: w=42, ox=1, oy=0 | |
-
-`artOffset.x = floor(42/2) − floor(40/2) + (−1) − 0 + 0 − 1 = 21−20−1−1 = **−1**`  
-`artOffset.y = 5 − 0 + 0 − 0 = **5**`
-
-Pre-transition (idle f0): `−(40/2) + (−1) + 0 + 0 = −21`  
-Post-transition (draw f0): `−(42/2) + 0 + 1 + (−1) = −21` ✓ **Zero jump**
-
-The same formula gives zero jump for mid-cycle idle frames (ox=1) and for all 6 directions including dir4 where the frame-width difference alone would cause a 12 px jump with a simpler formula.
-
-#### artOffset After Walk
-
-`Critter.clearAnim()` resets `artOffset = {0,0}` when the previous animation was a walk (`shift !== null`). This matches CE's `objectSetLocation` reset in `object.cc:3940`. After any walk, the carry state is clean.
-
-#### Minor Residual Drift
-
-After a complete draw-then-return cycle the artOffset may be ±1 px from zero (the draw animation's net `ox` drift). This matches CE's own accumulation (CE never resets `obj->x` between static animations). In practice this is imperceptible and is reset by any walk.
+DH2 picked the DarkFO trade-off: small per-transition jumps for the few worst directions, zero drift, simplest code path.
 
 ---
 
