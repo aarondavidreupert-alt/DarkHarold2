@@ -5,7 +5,7 @@ Covers FRM binary format, FID/animation ID encoding, the `reg_anim_*` batch syst
 
 > **Source anchor:** `raw/fallout2-ce/src/art.cc`, `art.h`, `animation.cc`, `animation.h`, `obj_types.h`, `cycle.cc`, `object.cc`  
 > **DH2 files:** `src/object.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/renderer.ts`, `frmpixels.py` (pipeline)  
-> **Last audited:** 2026-06-03
+> **Last audited:** 2026-06-06 (Attempt 6 — body-anchored carry; see failed_animation_offset_attempts.md)
 
 ---
 
@@ -168,11 +168,11 @@ let offsetX = -(frameInfo.w / 2 | 0) + dirOffset.x
 let offsetY = -frameInfo.h + dirOffset.y
 
 if (obj.shift !== null) {
-    // Walk mode: shift accumulates per-frame deltas at runtime.
+    // Walk mode: shift accumulates per-frame raw deltas at runtime.
     offsetX += obj.shift.x
     offsetY += obj.shift.y
 } else {
-    // Static / one-shot: pre-baked cumulative ox/oy plus artOffset carry from art transitions.
+    // Static / one-shot: pre-baked cumulative ox/oy plus FA12 zero-jump carry.
     offsetX += frameInfo.ox + obj.artOffset.x
     offsetY += frameInfo.oy + obj.artOffset.y
 }
@@ -190,71 +190,46 @@ Three render contributions for static animations:
 
 Each FRM file has per-direction `xOffsets[6]`/`yOffsets[6]` header values (the `directionOffsets` in `imageMap.json`). These values differ between FRM files. When a critter switches FRMs (e.g. idle `hanpwraa` → weapon-draw `hanpwrjc`), the renderer immediately uses the new FRM's `dirOffset`, which differs from the old one. Without compensation this causes a visible sprite jump on the first rendered frame after the switch.
 
-However `dirOffset` alone is not the only source of jump — there are three contributing factors:
+However `dirOffset` alone is not the only source of jump — three factors contribute:
 
 1. **`directionOffset` change** — e.g. `hanpwraa` dir0 y=5, `hanpwrjc` dir0 y=0.
-2. **Per-frame ox state at the transition moment** — the idle animation's `ox` is non-zero for many frames (e.g. `hanpwraa` dir0 frames 2–10 have `ox=1`). Ignoring this causes a 2 px x jump if the player triggers a weapon draw mid-idle-cycle.
+2. **Per-frame ox state at the transition moment** — the idle animation's `ox` is non-zero for many frames; ignoring this causes a 2 px x jump if the player triggers a weapon draw mid-idle-cycle.
 3. **Frame-width center-anchor change** — x is anchored at `-(w/2 | 0)`. Different FRMs have different frame widths; for dir4 (West), `hanpwraa` f0 w=23 vs `hanpwrjc` f0 w=34 — a 6 px anchor shift.
 
-#### CE's Mechanism
+#### DH2's artOffset Carry-Field (body-anchored zero-jump formula)
 
-CE (`animation.cc ~2886`) does at every art transition:
-
-```c
-artGetRotationOffsets(OLD_art, rotation, &x, &y);       // OLD directionOffsets
-artGetFrameOffsets(NEW_art, frame=0, rotation, &dx, &dy); // NEW frame-0 RAW delta
-_obj_offset(object, x + dx, y + dy, &rect);              // ADDITIVE to obj->x/y
-```
-
-`_obj_offset` is additive: `obj->x += OLD_xOffsets + NEW_frame0.rawDelta`. The renderer then draws at `screenX = tileX + NEW_xOffsets + obj->x - frameW/2`. The raw delta at frame 0 equals the cumulative `ox[0]`, so CE's transition naturally encodes all three corrections into a single running accumulator.
-
-#### DH2's artOffset Carry-Field
-
-DH2 pre-bakes cumulative `ox`/`oy` into `imageMap.json`. To achieve the same visual result, `Obj` holds:
+DH2 pre-bakes cumulative `ox`/`oy` into `imageMap.json`. To achieve zero per-transition jump at the **body anchor** (horizontal centre + foot), `Obj` holds:
 
 ```typescript
 artOffset: Point = { x: 0, y: 0 }
 ```
 
-At every art transition (`Critter.staticAnimation` and `Critter.clearAnim`), computed **synchronously before `lazyLoadImage`** (imageInfo is always available at startup):
+At every art transition (`Critter.staticAnimation` and non-walk `Critter.clearAnim`), computed synchronously before `lazyLoadImage`:
 
 ```typescript
-// Exact zero-jump formula
-const oldF  = oldInfo.frameOffsets[orient][oldFrame]   // clamped to valid range
+const oldF  = oldInfo.frameOffsets[orient][clamp(oldFrame, 0, len-1)]
 const newF0 = newInfo.frameOffsets[orient][newStartFrame]
 this.artOffset = {
-    x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2)
-       + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x,
+    x: oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x,
     y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y,
 }
 ```
 
-The x formula includes `floor(newW/2) − floor(oldW/2)` to cancel the frame-width anchor change. The y formula omits it because y is bottom-anchored (height changes don't shift the visual reference point). Both include the per-frame `ox`/`oy` at the exact frame where the transition fires.
+**No `floor(w/2)` term. No `(newH − oldH)` term.** The renderer's per-frame `-(w/2|0)` and `-h` already centre the box horizontally on the body anchor and rest its bottom edge on the foot anchor; these positioning offsets vary per frame within an animation but do not need cross-FRM compensation. Adding them to the carry (as earlier FA7/FA12 attempts did) instead anchors the box top-left and snaps the body by `(Δw/2, Δh)` whenever FRM dimensions differ.
 
-#### Correctness Proof (dir0, idle frame 0 → rifle draw)
+The formula derives directly from `screenX_body_pre = screenX_body_post` where `screenX_body = scr.x + dirOff.x + ox + artOffset.x` (the `-w/2` cancels out of the body-centre position).
 
-| Quantity | Value |
-|----------|-------|
-| `hanpwraa` dir0 `dirOffset` | `{x:-1, y:5}` |
-| `hanpwrjc` dir0 `dirOffset` | `{x:0, y:0}` |
-| idle f0: w=40, ox=0, oy=0 | |
-| draw f0: w=42, ox=1, oy=0 | |
-
-`artOffset.x = floor(42/2) − floor(40/2) + (−1) − 0 + 0 − 1 = 21−20−1−1 = **−1**`  
-`artOffset.y = 5 − 0 + 0 − 0 = **5**`
-
-Pre-transition (idle f0): `−(40/2) + (−1) + 0 + 0 = −21`  
-Post-transition (draw f0): `−(42/2) + 0 + 1 + (−1) = −21` ✓ **Zero jump**
-
-The same formula gives zero jump for mid-cycle idle frames (ox=1) and for all 6 directions including dir4 where the frame-width difference alone would cause a 12 px jump with a simpler formula.
-
-#### artOffset After Walk
+#### Walk-end reset
 
 `Critter.clearAnim()` resets `artOffset = {0,0}` when the previous animation was a walk (`shift !== null`). This matches CE's `objectSetLocation` reset in `object.cc:3940`. After any walk, the carry state is clean.
 
-#### Minor Residual Drift
+#### Drift trade-off
 
-After a complete draw-then-return cycle the artOffset may be ±1 px from zero (the draw animation's net `ox` drift). This matches CE's own accumulation (CE never resets `obj->x` between static animations). In practice this is imperceptible and is reset by any walk.
+For FRM sets whose cumulative `(dirOff + ox)` does not close perfectly over a full swap cycle, `artOffset` accumulates a small drift. Measured K_cycle for the hmjmps weapon-swap chain dir5 is `(-1, 0)` per round-trip — about 5–10× less than the (now-superseded) FA12 final formula's `(-4, +11)`. CE has identical residuals on the same data (CE's `obj->x` is the equivalent accumulator with the same telescoping property). In normal gameplay any walk step resets the carry to `{0,0}`, so drift is invisible.
+
+#### Full attempt history
+
+`wiki/failed_animation_offset_attempts.md` records every formula tried, the failure mode of each, and the math derivation.
 
 ---
 

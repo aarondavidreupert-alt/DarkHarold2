@@ -307,15 +307,15 @@ export class Renderer {
         }
         const dirOffset = info.directionOffsets[obj.orientation]
 
-        // Anchored from the bottom center
+        // Anchored from the bottom center. ox/oy come straight from FRM data;
+        // obj.artOffset carries only the cross-FRM dirOff diff (see
+        // Critter.staticAnimation / clearAnim).
         let offsetX = -((frameInfo.w / 2) | 0) + dirOffset.x
         let offsetY = -frameInfo.h + dirOffset.y
 
-        // CE ref: object.cc _obj_offset() — use accumulated per-frame delta when walking,
-        // fall back to the FRM header anchor (ox/oy) for static or walk-start (shift=null) frames.
-        // artOffset carries the visual continuity correction across FRM art transitions (see
-        // Critter.staticAnimation / clearAnim for the formula; resets to {0,0} on walk end).
         if (obj.shift !== null) {
+            // Walk path uses accumulated per-frame raw deltas (shift) instead
+            // of cumulative ox/oy. CE ref: object.cc _obj_offset() during walk.
             offsetX += obj.shift.x
             offsetY += obj.shift.y
         } else {

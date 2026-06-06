@@ -329,9 +329,11 @@ export class Obj {
     shift: Point = null
 
     // Carry-offset accumulated across FRM art transitions so that switching FRMs never causes a
-    // visual jump. Mirrors CE's obj->x/y (object.cc) which is reset on objectSetLocation (tile
-    // change during walk) and otherwise carries forward. Reset to {0,0} on walk end; updated at
-    // every art switch via the exact zero-jump formula (see Critter.staticAnimation / clearAnim).
+    // visual jump. Updated at every art switch via the FA12 final zero-jump formula (see
+    // Critter.staticAnimation / clearAnim and wiki/failed_animation_offset_attempts.md
+    // "Final solution Parts 1+2+3"). Mirrors CE's obj->x/y (object.cc) which is reset on
+    // objectSetLocation (tile change during walk) and otherwise carries forward. Reset to
+    // {0,0} on walk end (CE objectSetLocation, object.cc:3940).
     artOffset: Point = { x: 0, y: 0 }
 
     // Outline color, if outlined
@@ -1797,16 +1799,21 @@ export class Critter extends Obj {
         const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
         const newArt = this.getAnimation(anim)
 
-        // Compute the transition offset now using imageInfo (always available at startup).
-        // Deferred to startAnim only as artOffset assignment so old art stays visible while
-        // the GL texture for newArt is being loaded asynchronously.
+        // Body-center / foot continuity zero-jump formula. Mirrors CE's obj->x
+        // accumulator semantics (object.cc:2347 — rect->left = tileScreenX - width/2
+        // anchors the body center, not the box edge). The renderer's -(w/2|0) and -h
+        // terms position the box around the body anchor; they vary per-frame within
+        // an animation without any artOffset help, and they cancel out cleanly at
+        // FRM transitions when we DON'T include (w_new/2 - w_old/2) or
+        // (h_new - h_old) in the carry.
         //
-        // Exact zero-jump formula (CE ref: animation.cc artGetRotationOffsets + artGetFrameOffsets):
-        //   artOffset.x = floor(newW0/2) - floor(oldWF/2) + oldDirOff.x - newDirOff.x + oldOx[F] - newOx[0]
-        //   artOffset.y = (newH0 - oldHF) + oldDirOff.y - newDirOff.y + oldOy[F] - newOy[0]
-        // x: half-width term compensates for the horizontal-center anchor (floor(w/2) from tile x).
-        // y: height term compensates for the bottom-edge anchor (tileY - h); a taller sprite
-        //    pushes the bottom edge down, so a height decrease shifts the sprite up without correction.
+        //   artOffset.x = oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prev.x
+        //   artOffset.y = oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prev.y
+        //
+        // Earlier FA12 versions added width/height terms thinking they were needed
+        // for zero-jump, but those terms anchor the box top-left instead — when
+        // FRM dimensions differ between FRMs, the body center / foot then snap by
+        // (Δw/2, Δh). See wiki/failed_animation_offset_attempts.md "Attempt 6".
         let pendingArtOffset = prevArtOffset
         const oldInfo = globalState.imageInfo[oldArt]
         const newInfo = globalState.imageInfo[newArt]
@@ -1819,19 +1826,12 @@ export class Critter extends Obj {
             const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
             const newStartFrame = reversed ? (newInfo.numFrames - 1) : 0
             const newF0 = newInfo.frameOffsets[orient]?.[newStartFrame] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-            // For looping animations (idle), anchor on frame 0 geometry regardless of which frame
-            // is currently playing. Using the mid-cycle frame's ox would bake iOxF into artOffset,
-            // displacing the critter throughout the entire subsequent one-shot animation.
-            // CE ref: art.cc artGetFrameOffsets — frame deltas are independent of playback position;
-            // CE never carries a mid-animation ox into the object reference point.
-            const srcF = (this.anim === 'idle') ? (oldFrames?.[0] ?? oldF) : oldF
             pendingArtOffset = {
-                x: Math.floor(newF0.w / 2) - Math.floor(srcF.w / 2) + oldDirOff.x - newDirOff.x + srcF.ox - newF0.ox + prevArtOffset.x,
-                y: (newF0.h - srcF.h) + oldDirOff.y - newDirOff.y + srcF.oy - newF0.oy + prevArtOffset.y,
+                x: oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x,
+                y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y,
             }
             dbg('animOffset', '[ArtOffset] staticAnimation',
                 `${oldArt}@f${clampedOld}(w=${oldF.w},ox=${oldF.ox},oy=${oldF.oy})`,
-                srcF !== oldF ? `[anchor:f0(w=${srcF.w},ox=${srcF.ox})]` : '',
                 `→ ${newArt}@f${newStartFrame}(w=${newF0.w},ox=${newF0.ox},oy=${newF0.oy})`,
                 `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
                 `prev(${prevArtOffset.x},${prevArtOffset.y})`,
@@ -1912,15 +1912,14 @@ export class Critter extends Obj {
 
         const newArt = this.getAnimation('idle')
         if (wasWalking) {
-            // CE ref: objectSetLocation (object.cc) resets obj->x/y on every tile change during walk,
-            // so artOffset is always 0 when the critter arrives at idle after walking.
+            // CE objectSetLocation reset on tile change (object.cc:3940) —
+            // every walk hex transition zeroes the sub-tile offset, so
+            // settle-after-walk always starts clean.
             this.artOffset = { x: 0, y: 0 }
         } else {
-            // Apply the same zero-jump formula as staticAnimation so the settle to idle is
-            // visually seamless. Using current artOffset as prev preserves the exact screen
-            // position at the last draw frame. Note: for FRM sets that are not a perfect closed
-            // loop (K_cycle ≠ 0), artOffset may be non-zero after each full draw/holster cycle;
-            // a walk resets it to {0,0} via objectSetLocation (CE ref: object.cc).
+            // Same body-center / foot zero-jump formula as staticAnimation. No
+            // width or height terms — those anchor the wrong reference point
+            // (box top-left) and snap the body when FRM dimensions differ.
             const orient = this.orientation ?? 0
             const oldInfo = globalState.imageInfo[oldArt]
             const newInfo = globalState.imageInfo[newArt]
@@ -1934,8 +1933,8 @@ export class Critter extends Obj {
                 const newF0 = newInfo.frameOffsets[orient]?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
                 const prev = this.artOffset
                 newArtOffset = {
-                    x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prev.x,
-                    y: (newF0.h - oldF.h) + oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prev.y,
+                    x: oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prev.x,
+                    y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prev.y,
                 }
                 dbg('animOffset', '[ArtOffset] clearAnim',
                     `${oldArt}@f${clampedOld}(w=${oldF.w},h=${oldF.h},ox=${oldF.ox},oy=${oldF.oy})`,
