@@ -17,7 +17,7 @@ limitations under the License.
 import { Weapon, critterDamage } from './critter.js'
 import { getLstId, lookupScriptName } from './data.js'
 import { Events, scheduleExplosion } from './events.js'
-import { directionOfDelta, hexDistance, hexesInRadius, hexToScreen, HEX_GRID_SIZE, Point } from './geometry.js'
+import { directionOfDelta, hexDistance, hexesInRadius, hexIsInFrontOf, hexToScreen, HEX_GRID_SIZE, Point } from './geometry.js'
 import globalState from './globalState.js'
 import { lazyLoadImage } from './images.js'
 import { Lightmap } from './lightmap.js'
@@ -198,33 +198,22 @@ export function objectUnjamAll(): void {
 }
 
 function objectZCompare(a: Obj, b: Obj): number {
-    const aY = a.position.y
-    const bY = b.position.y
-
-    const aX = a.position.x
-    const bX = b.position.x
-
-    if (aY === bY) {
-        if (aX < bX) {
-            return -1
-        } else if (aX > bX) {
-            return 1
-        } else if (aX === bX) {
-            if (a.type === 'wall') {
-                return -1
-            } else if (b.type === 'wall') {
-                return 1
-            } else {
-                return 0
-            }
-        }
-    } else if (aY < bY) {
-        return -1
-    } else if (aY > bY) {
-        return 1
+    // CE ref: tile.cc tileIsInFrontOf — screen-space hex test correct for all
+    // 6 hex directions. Falls back to hex-y / hex-x ordering only when both
+    // tiles project to identical screen coordinates (shared tile), with walls
+    // sorted underneath so they render first.
+    if (a.position.x === b.position.x && a.position.y === b.position.y) {
+        if (a.type === 'wall' && b.type !== 'wall') return -1
+        if (b.type === 'wall' && a.type !== 'wall') return 1
+        return 0
     }
-
-    throw 'unreachable'
+    const aInFront = hexIsInFrontOf(a.position, b.position)
+    const bInFront = hexIsInFrontOf(b.position, a.position)
+    if (aInFront && !bInFront) return 1   // a renders later → drawn on top
+    if (bInFront && !aInFront) return -1
+    // Ambiguous (neither strictly in front) — fall back to a stable ordering.
+    if (a.position.y !== b.position.y) return a.position.y - b.position.y
+    return a.position.x - b.position.x
 }
 
 function objectZOrder(obj: Obj, index: number): void {

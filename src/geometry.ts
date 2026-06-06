@@ -47,6 +47,26 @@ export function hexToScreen(x: number, y: number): Point {
     return { x: sx, y: sy }
 }
 
+// CE ref: tile.cc:854 tileIsInFrontOf — tile a is rendered in front of
+// (above in z order) tile b if `dx <= dy * -4` in screen coords.
+export function hexIsInFrontOf(a: Point, b: Point): boolean {
+    const sa = hexToScreen(a.x, a.y)
+    const sb = hexToScreen(b.x, b.y)
+    const dx = sb.x - sa.x
+    const dy = sb.y - sa.y
+    return dx <= dy * -4
+}
+
+// CE ref: tile.cc:871 tileIsToRightOf — tile a is to the right of tile b
+// if `dx <= dy * 4/3` in screen coords.
+export function hexIsToRightOf(a: Point, b: Point): boolean {
+    const sa = hexToScreen(a.x, a.y)
+    const sb = hexToScreen(b.x, b.y)
+    const dx = sb.x - sa.x
+    const dy = sb.y - sa.y
+    return dx <= dy * 1.3333333333333335
+}
+
 /**
  * Conversion mouse pointer pixel coordinates to float cube https://www.redblobgames.com/grids/hexagons/#coordinates-cube
  * Useful for standard vector operations and existing algorithms like distances, rotation, reflection, 

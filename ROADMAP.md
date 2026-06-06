@@ -193,9 +193,10 @@ a believable playthrough.
 - Also missing: post-roof object pass (`_obj_render_post_roof` at full intensity).
 - Ref: `object.cc:761 _obj_render_pre_roof()`; `object.cc:862 _obj_render_post_roof()`
 
-### 8c. Object depth sort 🔴 Approximate (RD09)
-- CE uses `_obj_order_comp_func_even/odd`, `tileIsInFrontOf`, `tileIsToRightOf`.
-- DH2 `objectZCompare` sorts by hex-y then hex-x; fails at NE/SW diagonals.
+### 8c. Object depth sort ✅ FIXED 2026-06-04
+- `objectZCompare` now uses `hexIsInFrontOf` (CE `tile.cc:854 tileIsInFrontOf`)
+  on tile screen coords. Wall-priority preserved when tiles coincide; hex-y/x
+  fallback only on ambiguous cases. NE/SW diagonals no longer mis-sort.
 - Ref: `object.cc:761`; `tile.cc tileIsInFrontOf()`
 
 ### 8d. Color cycling absent 🔴 (RD10)
