@@ -20,8 +20,9 @@ export const Config = {
         showBoundingBox: false, // show bounding boxes around objects?
         showSpatials: true, // show spatial script triggers?
         showFonts: false, // show all fonts for debugging?
-        // FO2-CE ref: preferences.cc — target highlight toggle
-        targetHighlight: true,
+        // FO2-CE ref: preferences.cc TargetHighlight enum (game_config.h:111)
+        //   0=off, 1=on (always), 2=targeting-only (only while attack cursor)
+        targetHighlight: 'on' as 'off' | 'on' | 'targeting-only',
         // FO2-CE ref: preferences.cc — combat message verbosity
         combatMessages: 'verbose' as 'brief' | 'verbose',
         // FO2-CE ref: preferences.cc — subtitles toggle

@@ -207,16 +207,21 @@ export class Renderer {
 
         //this.text("fps: " + heart.timer.getFPS(), SCREEN_WIDTH - 50, 15)
 
+        // Group float messages by anchor object so stacked messages don't
+        // overlap. CE ref: actions.cc _show_damage_to_object — textObjectAdd
+        // queues vertically with collision avoidance.
+        const stackIndex = new Map<any, number>()
         for (let i = 0; i < globalState.floatMessages.length; i++) {
-            const bbox = objectBoundingBox(globalState.floatMessages[i].obj)
-            if (bbox === null) {
-                continue
-            }
+            const fm = globalState.floatMessages[i]
+            const bbox = objectBoundingBox(fm.obj)
+            if (bbox === null) continue
             // Float messages are anchored to world objects but kept at a
             // fixed text size. Project their anchor through the zoom then
             // render with normal screen-space text.
             const anchor = worldToScreen(bbox.x + bbox.w / 2, bbox.y)
-            this.renderText(globalState.floatMessages[i].msg, anchor.x, anchor.y - 16, 'center')
+            const stack = stackIndex.get(fm.obj) ?? 0
+            stackIndex.set(fm.obj, stack + 1)
+            this.renderText(fm.msg, anchor.x, anchor.y - 16 - stack * 16, 'center', fm.color)
         }
 
         if (globalState.player.dead) {
@@ -389,7 +394,7 @@ export class Renderer {
     clear(r: number, g: number, b: number): void {}
     color(r: number, g: number, b: number, a = 255): void {}
     rectangle(x: number, y: number, w: number, h: number, filled = true): void {}
-    renderText(txt: string, x: number, y: number, align: CanvasTextAlign = 'left'): void {}
+    renderText(txt: string, x: number, y: number, align: CanvasTextAlign = 'left', color?: string): void {}
     renderImage(imgPath: string, x: number, y: number, width: number, height: number): void {}
 
     renderRoof(roof: TileMap): void {}

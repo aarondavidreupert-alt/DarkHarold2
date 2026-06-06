@@ -1591,7 +1591,13 @@ export class Combat {
                 // movement AP spent) must not flip bystanders to hostile.
                 if (this.hasAttacked || obj.hostile) {
                     obj.hostile = true
-                    obj.outline = 'red'
+                    // CE ref: game_config.h:111 TargetHighlight — off=never,
+                    // on=always (default), targeting-only=only while the player
+                    // has the attack cursor active.
+                    const th: any = Config.ui.targetHighlight
+                    const wantHighlight = th === 'on' || th === true ||
+                        (th === 'targeting-only' && globalState.cursorMode === 'attack')
+                    obj.outline = wantHighlight ? 'red' : null
                     numActive++
                 }
             }

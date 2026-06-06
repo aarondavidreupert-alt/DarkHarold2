@@ -40,7 +40,7 @@ interface SavedPreferences {
     difficultyModifier?: 75 | 100 | 125
     combatSpeed?: 1 | 2 | 4
     violenceLevel?: 0 | 1 | 2 | 3
-    targetHighlight?: boolean
+    targetHighlight?: 'off' | 'on' | 'targeting-only' | boolean // boolean kept for legacy saves
     combatMessages?: 'brief' | 'verbose'
     doAlwaysRun?: boolean
     subtitles?: boolean
@@ -65,7 +65,11 @@ export function loadPreferences(): void {
     if (prefs.difficultyModifier !== undefined) Config.combat.difficultyModifier = prefs.difficultyModifier
     if (prefs.combatSpeed !== undefined) Config.combat.combatSpeed = prefs.combatSpeed
     if (prefs.violenceLevel !== undefined) Config.combat.violenceLevel = prefs.violenceLevel
-    if (prefs.targetHighlight !== undefined) Config.ui.targetHighlight = prefs.targetHighlight
+    if (prefs.targetHighlight !== undefined) {
+        // Migrate legacy boolean → 3-state string. CE: game_config.h:111 TargetHighlight.
+        const v = prefs.targetHighlight
+        Config.ui.targetHighlight = v === true ? 'on' : v === false ? 'off' : v
+    }
     if (prefs.combatMessages !== undefined) Config.ui.combatMessages = prefs.combatMessages
     if (prefs.doAlwaysRun !== undefined) Config.engine.doAlwaysRun = prefs.doAlwaysRun
     if (prefs.subtitles !== undefined) Config.ui.subtitles = prefs.subtitles
@@ -229,9 +233,9 @@ function buildPrefsPanel(): HTMLElement {
 
     // ── 4. Target Highlight ───────────────────────────────────────────────
     addLabel('Target Highlight')
-    addCycleButton<boolean>(
-        [false, true],
-        ['Off', 'On'],
+    addCycleButton<'off' | 'on' | 'targeting-only'>(
+        ['off', 'on', 'targeting-only'],
+        ['Off', 'On', 'Targeting Only'],
         () => Config.ui.targetHighlight,
         v => { Config.ui.targetHighlight = v }
     )

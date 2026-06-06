@@ -477,10 +477,15 @@ export class WebGLRenderer extends Renderer {
         this.textCtx.clearRect(0, 0, this.textCanvas.width, this.textCanvas.height)
     }
 
-    renderText(txt: string, x: number, y: number, align: CanvasTextAlign = 'left'): void {
+    renderText(txt: string, x: number, y: number, align: CanvasTextAlign = 'left', color?: string): void {
         const ctx = this.textCtx
         ctx.font = '16px "VT323", monospace'
-        ctx.fillStyle = '#00ff00'
+        // Map common float-message palette names to CSS colors per CE:
+        // white = normal damage, red = critter death, yellow = warnings.
+        const colorMap: { [k: string]: string } = {
+            white: '#FFFFFF', red: '#FF4444', yellow: '#FFFF44', green: '#00ff00',
+        }
+        ctx.fillStyle = color ? (colorMap[color] ?? color) : '#00ff00'
         ctx.textAlign = align
         ctx.strokeStyle = 'black'
         ctx.lineWidth = 2
