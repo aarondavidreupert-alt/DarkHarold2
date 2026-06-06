@@ -21,6 +21,7 @@ limitations under the License.
 
 import globalState from './globalState.js'
 import { Elevator } from './data.js'
+import { hexesInRadius } from './geometry.js'
 import { lookupInterfaceArt } from './pro.js'
 import { fromTileNum } from './tile.js'
 import { UIMode } from './ui_panels.js'
@@ -99,6 +100,20 @@ export function uiElevator(elevator: Elevator) {
                 globalState.audioEngine.playSfxByName(elvSfx)
                 globalState.player.move(position)
                 globalState.gMap.changeElevation(level, true)
+            }
+
+            // CE ref: scripts.cc:926 scriptsHandleRequests SCRIPT_REQUEST_ELEVATOR
+            // reseats nearby elevator-door scenery to closed-frame on arrival.
+            // Door scenery PIDs (CE): 0x99 = 153, 0x1A5 = 421, 0x1D6 = 470.
+            const DOOR_PIDS = new Set([153, 421, 470])
+            const arrivalHexes = hexesInRadius(position, 5)
+            for (const h of arrivalHexes) {
+                for (const obj of globalState.gMap!.objectsAtPosition(h)) {
+                    if (obj.type === 'scenery' && DOOR_PIDS.has(obj.pidID as number)) {
+                        obj.frame = 0
+                        obj.open = false
+                    }
+                }
             }
 
             // else, same elevation, do nothing
