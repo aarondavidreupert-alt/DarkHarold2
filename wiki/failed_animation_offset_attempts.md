@@ -570,7 +570,8 @@ compound across cycles.
 | Parts 1+2+3 (FA12 final) | `oldFrames[0]` (anchor) | zero-jump + prev | `(newF0.h − srcF.h)` present | +4 px / cycle drift on hmjmps i↔k chain (K_cycle ≠ 0 for asymmetric direction) |
 | 4 (DarkFO) | no formula | no formula | — | −10 px X / +3 px Y snap on hmjmps kick→idle dir5 (uncompensated dirOff jump) |
 | 5 | dirOff-only carry | dirOff-only carry (or {0,0} if was walking) | — | Telescoping K_cycle = 0 ✓ but 2–4 px residue at every w/ox-mismatched transition (visible at every weapon swap, combat hit, pick-up) |
-| **Restored: FA12 final** | `oldFrames[0]` (anchor) | zero-jump + prev | `(newF0.h − srcF.h)` present | ✅ Zero per-transition jump in all directions; bounded drift on K_cycle ≠ 0 FRMs is invisible in normal play (every walk step resets via CE objectSetLocation) |
+| Restored: FA12 final | `oldFrames[0]` (anchor) | zero-jump + prev | `(newF0.h − srcF.h)` present | Anchored box top-left, not body — caused −5 px X / +12 px Y snap on hmjmps ja→jd dir5 because dimensions differ between FRMs |
+| **6 (current): body anchor** | `oldFrames[currentFrame]` | zero-jump + prev | no width/height terms | ✅ Zero body-center X jump and zero foot Y jump in all directions; K_cycle ≈ (-1, 0) per swap cycle (5–10× less than FA12), walk-bounded |
 
 ---
 
@@ -583,6 +584,84 @@ After living with Attempt 5 in real play we observed:
 - **The K_cycle drift that Attempt 5 was designed to avoid only manifests in a "stand still + spam-swap weapons" test pathology.** In normal gameplay, walking between swaps resets `artOffset` to `{0,0}` (CE `objectSetLocation` semantics, `object.cc:3940`), so accumulated drift never grows beyond what one swap cycle adds.
 
 The right trade-off is **FA12 final with walk reset**: pay the bounded drift cost only in the test pathology, get pixel-perfect transitions in every real-play interaction. Restored.
+
+---
+
+## Attempt 6 — Body-center / foot anchor (current, 2026-06-06)
+
+After restoring FA12 final, live testing showed it was **not actually zero-jump
+in the visual sense**. Specifically, the hmjmps `ja → jd` dir5 transition
+(shotgun-idle → shotgun-holster, w 39→28, h 62→? Δh=+12) produced an
+`artOffset(-15, 11)` carry with the FA12 formula. Plugging back into the
+renderer:
+
+```
+Pre  ja@f0 (w=39, dirOff=(-6,0), ox=0, oy=0, prev=(-2,-1)):
+  centerX = scr + (-6) + 0 + (-2)  = scr - 8
+  footY   = scr +  0   + 0 + (-1)  = scr - 1
+
+Post jd@f0 (w=28, dirOff=(6,0), ox=-4, oy=0, artOffset=(-15,11)):
+  centerX = scr +  6   + (-4) + (-15) = scr - 13   →  Δ = -5 px ❌
+  footY   = scr +  0   +  0   + 11    = scr + 11   →  Δ = +12 px ❌
+```
+
+The FA12 formula keeps the **bounding-box top-left** continuous, not the
+**body center / foot**. When source and destination FRMs have different `w`
+or `h`, the box morphs around the anchor — and FA12's choice of anchor is
+the upper-left corner. The body of the character (which is roughly centered
+horizontally and stands at the bottom of the box) therefore snaps by
+`(Δw/2, Δh)` at every dimension-mismatched transition.
+
+CE anchors on the body center (`object.cc:2347` —
+`rect->left = tileScreenX - width / 2` defines `tileScreenX` as the body's
+horizontal centre, then offsets by `width/2` to place the box). The box
+left edge moves with `w` changes; the body stays put.
+
+#### Formula (final)
+
+```
+artOffset.x = oldDirOff.x − newDirOff.x + oldF.ox − newF0.ox + prev.x
+artOffset.y = oldDirOff.y − newDirOff.y + oldF.oy − newF0.oy + prev.y
+```
+
+**No `floor(w/2)` term. No `(h_new − h_old)` term.** The renderer's per-frame
+`-(w/2|0)` and `-h` are part of the box-around-anchor math; they don't need
+runtime compensation across FRM swaps. They only need it WITHIN one
+animation, which the per-frame `ox/oy` already provide.
+
+#### `srcF` choice
+
+Attempt 6 also drops the `anchor:f0 for idle` special case from FA12 Part 1.
+With the corrected (body-center) formula, using the actual current frame
+gives zero body-center jump at the transition moment (derivation:
+`screenX_pre = scr + dirOff_old + oldF.ox + prev`, the formula sets
+`new = dirOff_old − dirOff_new + oldF.ox − newF0.ox + prev`,
+`screenX_post = scr + dirOff_new + newF0.ox + new = scr + dirOff_old + oldF.ox + prev`).
+The Part 1 "mid-idle iOxF contamination" symptom was actually caused by
+Attempt 1's `reset to 0` in clearAnim — not by `staticAnimation`'s frame
+choice. FA12 Final fixed the underlying reset, making the anchor:f0 rule
+unnecessary.
+
+#### Verification on user's logged dir5 cycle
+
+```
+Step             prev          formula contribution      new artOffset
+ka→kd (static)   (0, 0)        +(-20, 0) + (0-(-9))      (-11,  0)
+kd→jc (static)   (-11, 0)      +(16, 0) + (0-7)          ( -2,  0)
+jc→ja (clearAn)  ( -2, 0)      +(0, 0) + (0-0)           ( -2,  0)
+ja→jd (static)   ( -2, 0)      +(-12, 0) + (0-(-4))      (-10,  0)
+jd→kc (static)   (-10, 0)      +(16, 0) + (0-7)          ( -1,  0)
+kc→ka (clearAn)  ( -1, 0)      +(0, 0) + (0-0)           ( -1,  0)
+```
+
+K_cycle = (-1, 0) per full swap cycle. Compare FA12 Final on the same chain:
+(-4, +11) per cycle. Attempt 6 is 5–10× less drift, AND every per-transition
+jump is geometrically zero at the body center and foot.
+
+#### Files
+
+- `src/object.ts` — `Critter.staticAnimation`, `Critter.clearAnim` (formula
+  simplified; anchor:f0 rule removed; logging cleaned up).
 
 ---
 
