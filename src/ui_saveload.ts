@@ -65,7 +65,12 @@ export function uiSaveLoad(isSave: boolean): void {
                 text: save.name,
                 id: save.id,
                 onSelected: () => {
-                    saveInfo.setText(formatSaveDate(save) + '<br>' + save.currentMap)
+                    // CE ref: loadsave.cc — show the saved thumbnail alongside
+                    // the date/map metadata so the player can preview each slot.
+                    const thumb = save.screenshot
+                        ? `<img src="${save.screenshot}" style="display:block;margin-top:4px;width:160px;height:100px;object-fit:cover;border:1px solid #555;">`
+                        : ''
+                    saveInfo.setText(formatSaveDate(save) + '<br>' + save.currentMap + thumb)
                 },
             })
         }

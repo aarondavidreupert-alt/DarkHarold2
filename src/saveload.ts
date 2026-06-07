@@ -40,6 +40,10 @@ export interface SaveGame {
     currentMap: string
     currentElevation: number
 
+    // CE ref: loadsave.cc — save thumbnail captured at save time. Stored
+    // as a data URL of a downscaled snapshot of the WebGL canvas.
+    screenshot?: string
+
     // In-game tick counter (Fallout 2 ticks, 10 per second). Missing on
     // older saves, so the loader tolerates `undefined`.
     gameTickTime?: number
@@ -81,6 +85,25 @@ export interface SaveGame {
     timedEvents?: Scripting.SerializedTimedEvent[]
 }
 
+function captureScreenshot(): string | undefined {
+    // CE ref: loadsave.cc — save slot thumbnail. Capture the WebGL canvas
+    // at a small size to keep saves compact. Returns undefined if the canvas
+    // is missing or toDataURL throws (cross-origin, oversize).
+    try {
+        const cnv = document.getElementById('cnv') as HTMLCanvasElement | null
+        if (!cnv) return undefined
+        const thumb = document.createElement('canvas')
+        thumb.width = 160
+        thumb.height = 100
+        const ctx = thumb.getContext('2d')
+        if (!ctx) return undefined
+        ctx.drawImage(cnv, 0, 0, thumb.width, thumb.height)
+        return thumb.toDataURL('image/jpeg', 0.6)
+    } catch {
+        return undefined
+    }
+}
+
 function gatherSaveData(name: string): SaveGame {
     // Saves the game and returns the savegame
 
@@ -93,6 +116,7 @@ function gatherSaveData(name: string): SaveGame {
         timestamp: Date.now(),
         currentElevation: globalState.currentElevation,
         currentMap: curMap.name,
+        screenshot: captureScreenshot(),
         gameTickTime: globalState.gameTickTime,
         player: {
             position: p.position,
