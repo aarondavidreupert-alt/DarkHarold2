@@ -1366,6 +1366,229 @@ independently.
 
 ---
 
+## Alternative directions (if architectural rules were relaxed)
+
+The proposal above respects every rule in `CLAUDE.md`. With more freedom,
+two additional changes are worth considering — one big and one small.
+These are **not** part of the recommended execution order; they're
+captured here for future discussion.
+
+### Alt-A. Bundle opcodes by FO2 category (relaxes CLAUDE.md "Conventions")
+
+`CLAUDE.md` → "Conventions" today reads:
+> All new scripting opcodes go in src/scripting.ts inside the Script class
+
+That rule keeps `scripting/Script.ts` over 1700 lines even after the
+mainline refactor. **If the rule were rewritten** to "all opcodes go on
+the `Script` class, organised in `src/scripting/opcodes/<category>.ts`",
+the file would split along the same seams CE uses in
+`interpreter_extra.cc`:
+
+| Proposed sub-file | Owns (FO2 opcode category) | Approx. lines |
+|-------------------|---------------------------|---------------|
+| `scripting/opcodes/vars.ts` | `set_global_var`, `global_var`, `set_local_var`, `local_var`, `set_map_var`, `map_var`, `random` | ~80 |
+| `scripting/opcodes/messages.ts` | `debug_msg`, `display_msg`, `message_str`, `script_overrides`, `node998`, `node999`, `float_msg` | ~80 |
+| `scripting/opcodes/metarule.ts` | `metarule`, `metarule3` (~250 lines together — both giant switch tables) | ~260 |
+| `scripting/opcodes/critter.ts` | `get_critter_stat`, `set_critter_stat`, `has_trait`, `critter_add_trait`, `critter_mod_skill`, `critter_dmg`, `critter_heal`, `critter_injure`, `critter_is_fleeing`, `wield_obj_critter`, `critter_set_flee_state`, `give_exp_points` | ~280 |
+| `scripting/opcodes/inventory.ts` | `item_caps_total`, `item_caps_adjust`, `move_obj_inven_to_obj`, `obj_is_carrying_obj_pid`, `add_mult_objs_to_inven`, `rm_mult_objs_from_inven`, `add_obj_to_inven`, `rm_obj_from_inven`, `obj_carrying_pid_obj`, `critter_inven_obj`, `inven_cmds`, `wield_obj_critter` | ~230 |
+| `scripting/opcodes/anim.ts` | `anim`, `reg_anim_begin/end/clear`, `reg_anim_func`, `reg_anim_animate`, `reg_anim_animate_forever`, `animate_move_obj_to_tile`, `reg_anim_obj_move_to_tile`, `animate_stand_obj`, `anim_busy`, `art_anim`, `obj_art_fid` | ~260 |
+| `scripting/opcodes/objects.ts` | `proto_data`, `create_object_sid`, `obj_name`, `obj_item_subtype`, `set_obj_visibility`, `use_obj_on_obj`, `use_obj`, `obj_pid`, `obj_on_screen`, `obj_type`, `destroy_object`, `set_exit_grids` | ~230 |
+| `scripting/opcodes/tile.ts` | `tile_distance_objs`, `tile_distance`, `tile_num`, `tile_contains_pid_obj`, `tile_is_visible`, `tile_num_in_direction`, `tile_in_tile_rect`, `tile_contains_obj_pid`, `rotation_to_tile`, `move_to`, `elevation` | ~150 |
+| `scripting/opcodes/locks.ts` | `obj_is_locked`, `obj_lock`, `obj_unlock`, `jam_lock`, `obj_is_open`, `obj_close`, `obj_open` | ~80 |
+| `scripting/opcodes/perception.ts` | `obj_can_see_obj`, `obj_can_hear_obj`, `using_skill`, `has_skill`, `roll_vs_skill`, `do_check`, `is_success`, `is_critical` | ~100 |
+| `scripting/opcodes/dialogue.ts` | `gdialog_set_barter_mod`, `gdialog_mod_barter`, `start_gdialog`, `gsay_start`, `gsay_reply`, `gsay_message`, `gsay_end`, `end_dialogue`, `giq_option`, `dialogue_system_enter` | ~140 |
+| `scripting/opcodes/lighting.ts` | `set_light_level`, `obj_set_light_level`, `override_map_start` | ~50 |
+| `scripting/opcodes/timer.ts` | `add_timer_event`, `rm_timer_event`, `game_ticks`, `days_since_visited`, `game_time_advance` | ~80 |
+| `scripting/opcodes/loadout.ts` | `load_map`, `play_gmovie`, `endgame_slideshow`, `endgame_movie`, `mark_area_known`, `wm_area_set_pos`, `game_ui_disable`, `game_ui_enable` | ~80 |
+| `scripting/opcodes/audio.ts` | `play_sfx`, `gfade_out`, `gfade_in` | ~60 |
+| `scripting/opcodes/party.ts` | `party_member_obj`, `party_add`, `party_remove` | ~30 |
+| `scripting/opcodes/combat.ts` | `attack_complex`, `terminate_combat`, `explosion` | ~60 |
+
+#### How the class stays one class
+
+TypeScript supports **prototype-merged classes** via interface declaration
+merging plus assignment. Pattern:
+
+```ts
+// scripting/Script.ts — declares the class shell
+export class Script {
+    // shared state (LVARs, GVAR accessors, self/source/target_obj)
+    lvars: Record<number, any> = {}
+    self_obj: ScriptableObj | null = null
+    // …
+}
+
+// Module-augmented interface so call sites see all the methods.
+export interface Script {
+    metarule(id: number, target: number): any
+    metarule3(id: number, obj: any, userdata: any, radius: number): any
+    // …one signature per opcode (or generated via a code-gen step)
+}
+
+// scripting/opcodes/metarule.ts
+import { Script } from '../Script.js'
+Script.prototype.metarule = function (id, target) { /* … */ }
+Script.prototype.metarule3 = function (id, obj, userdata, radius) { /* … */ }
+
+// scripting/opcodes/index.ts — side-effect-only barrel
+import './vars.js'
+import './messages.js'
+import './metarule.js'
+// …registers every category onto Script.prototype at import time.
+```
+
+`scripting/Script.ts` keeps the class declaration plus shared state and
+the `_serialize` method. Every opcode body lives in a category file.
+`scripting.ts` (the public barrel) adds `import './scripting/opcodes/index.js'`
+as a side-effect import so the methods are wired before any caller
+constructs a `Script`.
+
+#### Trade-offs
+
+**Pros**
+
+- `scripting/Script.ts` drops from ~1700 lines to ~120 (class shell only).
+- Every category file is 30–280 lines, easy to navigate.
+- Mirrors CE's `interpreter_extra.cc` opcode grouping line-for-line; a
+  reader cross-referencing CE finds the same boundaries.
+- Adding a new opcode becomes "drop a method onto `Script.prototype` in
+  the matching category file" — same one-line cognitive cost as today,
+  just in a different physical file.
+- Per-category test coverage becomes feasible (no current test runner,
+  but a future addition).
+
+**Cons**
+
+- **Breaks the CLAUDE.md "Conventions" rule** as currently written. That
+  rule was added so contributors know exactly where opcodes go; the new
+  rule "go to `src/scripting/opcodes/<category>.ts`" requires a
+  category-lookup table for non-obvious opcodes (where does `metarule`
+  go? where does `wield_obj_critter` go — `critter.ts` or
+  `inventory.ts`?). Mitigation: a short index table at the top of
+  `scripting/opcodes/README.md` mapping every opcode → file.
+- **Prototype-merging is less discoverable in IDEs** than class-method
+  declarations. "Go to definition" on `script.metarule(13)` jumps to the
+  declaration in `Script.ts` (the interface), then needs a second hop
+  to the implementation in `metarule.ts`. Modern TS+VSCode handle this
+  but it's friction.
+- **Initialization order matters.** The `opcodes/index.ts` barrel must
+  run before any `Script` is constructed. A single missed import means
+  silent runtime breakage. Mitigation: bake the side-effect import into
+  `Script`'s constructor as a one-time guard, or use a static block.
+- **`git log --follow`** on individual opcode methods works less cleanly
+  because they're moving from one giant class to scattered prototype
+  assignments. Acceptable cost if we do the split in one commit per
+  category.
+
+#### Recommendation
+
+Defer until after the mainline refactor lands. Once the barrel pattern
+is proven and the 5 follow-up oversized files (Script.ts, creator.ts,
+critterAnimation.ts, Combat.ts, playerUse.ts) are causing friction,
+revisit. The opcode split should only land as a deliberate CLAUDE.md
+rule change, not as a quiet refactor — the rule exists for contributor
+clarity and the change has to be advertised.
+
+---
+
+### Alt-B. Lift shared DOM helpers into `src/ui_dom.ts` (no rule change needed)
+
+The current UI files each redefine the same DOM micro-helpers. Audit of
+`function $id(`, `clearEl`, `showv`, `hidev`, `show`, `hide`, `off`,
+`makeEl`, `$img`, `$q`, `$qa`, `appendHTML`:
+
+| File | Duplicated helpers |
+|------|-------------------:|
+| `ui.ts` | 9 |
+| `ui_worldmap.ts` | 8 |
+| `ui_hud.ts` | 8 |
+| `ui_loot.ts` | 6 |
+| `ui_inventory.ts` | 5 |
+| `ui_calledshot.ts` | 5 |
+| `ui_elevator.ts` | 4 |
+| `ui_barter.ts` | 4 |
+| `ui_contextmenu.ts` | 3 |
+| `ui_dialogue.ts` | 1 |
+| `ui_unarmed.ts` | 1 |
+
+Roughly **54 duplicated helper bodies** across 11 files. Many bodies are
+identical one-liners (`function $id(id: string): HTMLElement { return
+document.getElementById(id)! }`). Some have subtle drift (e.g. `showv`
+in `ui.ts` clears `visibility` while in `ui_loot.ts` it clears both
+`visibility` and `display`).
+
+#### Proposed file
+
+`src/ui_dom.ts` — a single ~100-line module exporting:
+
+| Export | Body |
+|--------|------|
+| `$id(id)` | `document.getElementById(id)!` (non-null assertion preserved; matches current behaviour) |
+| `$img(id)` | `document.getElementById(id) as HTMLImageElement` |
+| `$q(selector)` | `document.querySelector(selector) as HTMLElement` |
+| `$qa(selector)` | `Array.from(document.querySelectorAll(selector))` |
+| `clearEl(el)` | `el.innerHTML = ''` |
+| `show(el)` | `el.style.display = ''` |
+| `hide(el)` | `el.style.display = 'none'` |
+| `showv(el)` | `el.style.visibility = 'visible'` |
+| `hidev(el)` | `el.style.visibility = 'hidden'` |
+| `off(el, events)` | jQuery-style multi-event detach (already identical across files) |
+| `appendHTML(el, html)` | `el.insertAdjacentHTML('beforeend', html)` |
+| `makeEl(tag, opts)` | The shared element-factory currently duplicated across `ui.ts`, `ui_inventory.ts`, `ui_barter.ts`, `ui_loot.ts` |
+
+#### Reconciliation of drifted variants
+
+Before consolidating, pick one canonical body for each helper. The two
+known drift cases are:
+
+- **`showv`/`hidev`**: `ui_loot.ts` and `ui_barter.ts` reset both
+  `display` and `visibility`; `ui.ts` and the rest only touch `visibility`.
+  Recommend: `showv` / `hidev` touch `visibility` only; callers that
+  want both behaviours use `show`/`hide` which touch `display`. This
+  matches `ui.ts` (the oldest variant) and the export names already
+  hint at it (`v` = visibility).
+- **`makeEl`**: at least four variants exist with slightly different
+  option shapes (`classes` vs `className`, `attrs` vs `attributes`).
+  Pick the `ui_inventory.ts` shape (`{ classes, attrs, style, text }`)
+  since it has the most callers, and migrate the rest.
+
+#### Trade-offs
+
+**Pros**
+
+- ~120 lines of duplication removed.
+- Drift bugs become impossible (the two variants of `showv` cannot
+  diverge again).
+- New UI panels just import what they need rather than copying
+  boilerplate.
+- No rule change needed — `CLAUDE.md` is silent on DOM helpers.
+
+**Cons**
+
+- 11 UI files change in one commit (or one per file across a small
+  series). Touches a lot of git blame but is a mechanical search-replace.
+- One canonical body has to be chosen for each helper, which means
+  callers expecting the "other" behaviour break silently if not
+  caught. Mitigation: type-check post-migration, and visually QA the
+  three biggest panels (inventory, character, pip-boy).
+
+#### Recommendation
+
+Land **before** the per-file UI splits in Phase 3. Consolidating first
+means each split inherits the de-duplicated baseline rather than
+carrying duplicates into the new subfolder structure.
+
+---
+
+### Summary of alternatives
+
+| Alt | Scope | Rule change required? | Recommendation |
+|-----|-------|-----------------------|----------------|
+| **A. Opcode-category split** | `scripting/Script.ts` (~1700 → ~120) + 17 category files | Yes — `CLAUDE.md` "Conventions" line | Defer to a follow-up; needs explicit rule-change discussion |
+| **B. Shared DOM helpers in `ui_dom.ts`** | 11 UI files lose ~120 lines of duplication | No | Do it; ideally before Phase 3 of the mainline refactor |
+
+---
+
 ## Summary
 
 | Phase | Files touched | New files | Cumulative new modules | Net lines moved |
