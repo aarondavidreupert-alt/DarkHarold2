@@ -11,9 +11,12 @@ It is written primarily in TypeScript and Python, and targets recent browsers wi
 
 ## Status
 
-DarkHarold2 is not a complete remake at this time. Estimated overall completion: **~50%**.
+DarkHarold2 is not a complete remake at this time. Estimated overall completion: **~88%**.
 The core technical foundation (rendering, combat math, scripting VM, map loading, dialogue runtime) is
-solid. What remains is mostly connecting gameplay systems end-to-end rather than solving hard research problems.
+solid, and most gameplay systems are now wired end-to-end. The remaining gaps are concentrated in
+asset-pipeline extractions, speech/movie infrastructure, and a handful of larger systems (car travel,
+per-town reputation, NPC daily schedules). See [`ROADMAP.md`](ROADMAP.md) and
+[`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
 
 If you're looking for documentation on how Fallout 2 works, documentation on certain file formats, or
 tools to work with them, this project will be useful to you as well.
@@ -22,86 +25,187 @@ tools to work with them, this project will be useful to you as well.
 
 ---
 
-### ✅ Substantially implemented (~70–90%)
+## Project Index / New Contributor Readthrough Guide
 
-- **Map loading & rendering** — tile maps, multi-elevation, WebGL 2.0 renderer, lightmap, real-time lighting
-- **Walking & running** — pathfinding, door interaction, exit grids (map-to-map and worldmap transitions)
-- **Combat core** — hit chance formula, ammo system (X/Y/DR/AC modifiers), burst fire (3-cone spread), called shots (8 body regions), critical hits (6 levels), critical failures (weapon-type-specific), armor DR/DT per damage type, crippled limbs, knockdown/knockout, fire DoT, ranged miss scatter, partial cover, AI weapon switching and ammo reloading, most combat perks (Slayer, Sniper, Sharpshooter, Bonus HtH Attacks, Bonus Rate of Fire, etc.)
-- **Talking to NPCs** — `start_gdialog` / `giq_option` / reply callback chain, floating text messages
-- **Bartering** — item exchange UI, value calculation with Barter skill modifier
-- **Inventory UI** — drag-and-drop, equip slots (armor, two weapon slots), weight display, reload, stacking
-- **Skill math** — all 18 skills enumerated, FO2 cost curve, tag skill doubling, trait/perk/difficulty modifiers
-- **Scripting VM** — INT file parser, ~100+ opcodes dispatched, transpiler/disassembler
-- **Worldmap travel** — 28×30 grid, per-tile encounter tables, time passage, area transitions
-- **Random encounters** — encounter group generation, placement on encounter map
-- **Audio engine** — music looping, weapon/action sound mapping, ambient SFX from map data
-- **Pip-Boy** — clock display, alarm, STATUS tab, QUESTS/ARCHIVES tab, AUTOMAP tab with per-location map view, zoom/pan, IndexedDB persistence (~90% complete)
-- **Character screen** — full SPECIAL/skill view, stat display, trait/perk lists
-- **Save / load** — IndexedDB-backed save/load with full player state serialization: position, orientation, inventory, stats, skills, traits, perks, level/XP, equipped items, and GVARs. HUD refreshes correctly on load. Texture cache is invalidated on cross-location load, preventing missing tiles. No save slot screenshots.
+If you're new to the codebase, read these files in the order below. The list mirrors how
+existing maintainers stay oriented; each section builds on the previous.
+
+### 🗺️ Start here
+
+| File | Purpose |
+|---|---|
+| [`README.md`](README.md) | This file — project overview, completion status, build commands |
+| [`CLAUDE.md`](CLAUDE.md) | AI-assistant instructions, research workflow, architecture rules, what NOT to implement |
+| [`ROADMAP.md`](ROADMAP.md) | Phased plan toward 95%; canonical completion estimate |
+
+### 📐 Architecture & codebase
+
+| File / dir | Purpose |
+|---|---|
+| [`CODEBASE.md`](CODEBASE.md) | Full module map, repository layout, file responsibilities, key data flows |
+| `src/` | TypeScript engine (renderer, object, critter, vm, scripting, combat, party, …) |
+| `src/main.ts` | Main game loop, input handling, map-load entry |
+| `src/heart.ts` | 60 Hz heartbeat loop |
+| `src/globalState.ts` | Central game-state singleton (`gMap`, `player`, `combatActive`, …) |
+| `src/config.ts` | Engine / UI / scripting / combat flags |
+| `shaders/` | GLSL shaders (vertex, fragment, lighting, font) |
+| `lut/` | Pre-baked JSON lookup tables (LST indexes, crit tables, palette data) |
+
+### 📚 Wiki (read in this order)
+
+Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust these over raw CE source reads.
+
+| Order | File | Topic |
+|---|---|---|
+| 1 | [`wiki/README.md`](wiki/README.md) | Wiki index and lookup-order rules |
+| 2 | [`wiki/CODEBASE_FOCE.md`](wiki/CODEBASE_FOCE.md) / [`wiki/CODEBASE_jsFO.md`](wiki/CODEBASE_jsFO.md) | Reference-source orientation |
+| 3 | [`wiki/CROSS_CHECK_NOTES.md`](wiki/CROSS_CHECK_NOTES.md) | Where DH2 disagrees with CE/jsFO and why |
+| 4 | [`wiki/known_bugs.md`](wiki/known_bugs.md) | **Canonical bug/feature tracker** — S/C/P/U/FA/RD/LE/IW/CI categories with fix status |
+| 5 | [`wiki/animation.md`](wiki/animation.md) | FRM format, atlas system, `artOffset` zero-jump model, FA-series known gaps |
+| 6 | [`wiki/failed_animation_offset_attempts.md`](wiki/failed_animation_offset_attempts.md) | Full post-mortem of pixel-drift fix attempts (Attempts 0–7) |
+| 7 | [`wiki/rendering.md`](wiki/rendering.md) | WebGL pipeline, z-sort, lighting passes, accepted deviations |
+| 8 | [`wiki/combat.md`](wiki/combat.md) | Combat loop, hit/damage formulas, crit tables, AI turns |
+| 9 | [`wiki/weapon_combat.md`](wiki/weapon_combat.md) | Weapon AP costs, burst spread, called shots, reload |
+| 10 | [`wiki/damage_formula.md`](wiki/damage_formula.md) | Per-step damage math (RD → DT → DR → CM → final) |
+| 11 | [`wiki/ai_behavior.md`](wiki/ai_behavior.md) | AI packets, distance modes, perception, taunts |
+| 12 | [`wiki/scripting_vm.md`](wiki/scripting_vm.md) | VM architecture, three-file split (`vm.ts`/`vm_bridge.ts`/`scripting.ts`) |
+| 13 | [`wiki/scripting_reference.md`](wiki/scripting_reference.md) | Opcode reference and coverage table |
+| 14 | [`wiki/dialogue_system.md`](wiki/dialogue_system.md) | Dialogue runtime, MSG files, `gsay`/`giq` chain |
+| 15 | [`wiki/worldmap.md`](wiki/worldmap.md) | Worldmap travel, encounter tables, area entrances |
+| 16 | [`wiki/map_scripting.md`](wiki/map_scripting.md) | Map-level script hooks (`map_enter_p_proc`, etc.) |
+| 17 | [`wiki/items.md`](wiki/items.md) | Item system, weights, stacking rules |
+| 18 | [`wiki/proto_system.md`](wiki/proto_system.md) | Proto binary layout (types 0–5) and JSON schema |
+| 19 | [`wiki/file_formats.md`](wiki/file_formats.md) | DAT2/FRM/PRO/MSG binary layouts |
+| 20 | [`wiki/character_stats.md`](wiki/character_stats.md) / [`wiki/critter_stats.md`](wiki/critter_stats.md) | SPECIAL stats, derived stats, base ranges |
+| 21 | [`wiki/perks_traits.md`](wiki/perks_traits.md) | Perk and trait registries, effects |
+| 22 | [`wiki/skill_checks.md`](wiki/skill_checks.md) | Skill-use rolls, modifiers, XP awards |
+| 23 | [`wiki/companion_party.md`](wiki/companion_party.md) | Party system, CHA cap, follow logic |
+| 24 | [`wiki/quest_system.md`](wiki/quest_system.md) | Quest GVAR tracking, Pip-Boy ARCHIVES |
+| 25 | [`wiki/pipboy.md`](wiki/pipboy.md) | Pip-Boy panels, AUTOMAP, clock/alarm |
+| 26 | [`wiki/interface_windows.md`](wiki/interface_windows.md) | HUD, character/inventory windows, indicator bar |
+| 27 | [`wiki/hotkeys.md`](wiki/hotkeys.md) | Default keybindings |
+| 28 | [`wiki/save_load.md`](wiki/save_load.md) | Save/load format, IndexedDB slots, thumbnails |
+| 29 | [`wiki/time_clock.md`](wiki/time_clock.md) | In-game time, day/night cycle, midnight queue |
+| 30 | [`wiki/spatial_triggers.md`](wiki/spatial_triggers.md) | Spatial trigger system |
+| 31 | [`wiki/tile_system.md`](wiki/tile_system.md) | Tile grid, hex math, screen projection |
+| 32 | [`wiki/pathfinding.md`](wiki/pathfinding.md) | A\* path-blocking vs shoot-blocking, MULTIHEX |
+| 33 | [`wiki/lighting.md`](wiki/lighting.md) | Lightmap, ambient curve, object light emission |
+| 34 | [`wiki/sound_system.md`](wiki/sound_system.md) | Audio engine, GainNode chain, ambient SFX |
+| 35 | [`wiki/economy.md`](wiki/economy.md) | Caps, barter formula, vendor stock |
+| 36 | [`wiki/faction_reputation.md`](wiki/faction_reputation.md) | Karma, town reputation, title tiers |
+| 37 | [`wiki/status_effects.md`](wiki/status_effects.md) | Poison, radiation, addictions, drug effects |
+| 38 | [`wiki/random_numbers.md`](wiki/random_numbers.md) | PRNG seeding, `rollSkillCheck` ranges |
+| 39 | [`wiki/settings.md`](wiki/settings.md) | Config/preferences system |
+| 40 | [`wiki/actions.md`](wiki/actions.md) | `actions.cc` dispatch, death animations, float text |
+| 41 | [`wiki/endgame.md`](wiki/endgame.md) | Endgame slides, death narrator |
+
+### 🐛 Known issues & roadmap
+
+| File | Purpose |
+|---|---|
+| [`wiki/known_bugs.md`](wiki/known_bugs.md) | Primary tracker — fix status per ID across all subsystems |
+| [`ROADMAP.md`](ROADMAP.md) | Phased plan (Phases 1–9) toward 95% with audit dates |
+| [`TODO.md`](TODO.md) | Older free-form TODO list — superseded by `wiki/known_bugs.md` |
+| Inline `// TODO` / `// FIXME` in `src/` | Source-level annotations |
+| [`CLAUDE.md`](CLAUDE.md) → "Intentionally Incomplete Systems" | Explicit out-of-scope / "do not implement unless asked" |
+
+### 🔧 Asset pipeline (Python 3.9+)
+
+The asset pipeline lives at the repository root (no dedicated `pipeline/` folder). `setup.py`
+orchestrates the full extraction; the rest are reusable converters.
+
+| File | Purpose |
+|---|---|
+| [`setup.py`](setup.py) | Full extraction pipeline — runs every other converter in order |
+| [`exportImages.py`](exportImages.py) / [`exportImagesPar.py`](exportImagesPar.py) | FRM → PNG sprite exporters |
+| [`frmpixels.py`](frmpixels.py) | FRM pixel helpers and atlas generation |
+| [`exportPRO.py`](exportPRO.py) / [`proto.py`](proto.py) | PRO binary → JSON |
+| [`fomap.py`](fomap.py) | MAP → JSON (tiles, objects, spatials, lights) |
+| [`convertMaps.py`](convertMaps.py) | Map-level conversions |
+| [`convertAudio.py`](convertAudio.py) | ACM → WAV (uses `acm2wav`) |
+| [`dat2.py`](dat2.py) | DAT2 archive extractor |
+| [`pal.py`](pal.py) | PAL palette loading |
+| [`fonts.py`](fonts.py) | FON font extraction |
+| [`tools/convertLST.py`](tools/convertLST.py) | LST → JSON pre-bake (`lut/lst/`) |
+| [`tools/convertPRO.py`](tools/convertPRO.py) | Standalone PRO converter (debug) |
+| [`tools/convertEndgame.py`](tools/convertEndgame.py) | Endgame slide extraction |
+| [`parseCritTable.py`](parseCritTable.py) / [`parseElevatorTable.py`](parseElevatorTable.py) | EXE table extractors → `lut/` |
+| [`wiki/animation.md`](wiki/animation.md) → "imageMap.json" | Atlas/imageMap.json schema reference |
+
+---
+
+## Feature completion
+
+The buckets below are sourced from [`wiki/known_bugs.md`](wiki/known_bugs.md) (current
+audit: 2026-06-04). Items marked FIXED there roll up here. If you spot a contradiction,
+the wiki tracker is the source of truth.
+
+### ✅ Substantially implemented (~85–95%)
+
+- **Map loading & rendering** — tile maps, multi-elevation, WebGL 2.0 renderer, lightmap, real-time lighting, screen-space hex z-sort (RD09), camera clamp + `OBJECT_SCROLL_BLOCK` (RD11/RD12)
+- **Walking & running** — A\* pathfinding with separate path-blocking / shoot-blocking predicates (P4/P5/P6), `OBJECT_MULTIHEX` neighbour scan, scenery LoS via `OBJECT_LIGHT_THRU` (P7), door interaction, exit grids
+- **Combat core** — hit/damage formulas (YAAM), ammo X/Y/DR/AC modifiers, burst fire, called shots, 6-level criticals + Better Criticals, critical failures, armor DR/DT per damage type, crippled limbs, knockdown/knockout, DAM_DROP, fire DoT, partial cover, AI team targeting + perception gate + LoS, AI distance modes (charge / snipe / stay / stay_close), combat-turn explosion timer (T1), combat walk-speed bonus (FA4), per-damage-type death animations + `CRITTER_SPECIAL_DEATH`, float-text colour + stacking (AC8)
+- **Combat perks** — Slayer, Sniper, Sharpshooter, Bonus HtH Attacks, Bonus Rate of Fire, Better Criticals, Stonewall, Fast Reload, Finesse, Healer, Pathfinder, Pickpocket, and more
+- **Dialogue** — `start_gdialog` / `gSay_Start` / `giq_option` / `gsay_message` / `gsay_reply` / barter-button injection (D3), `gdialog_set_barter_mod`, float messages, reenter-dialogue on barter exit
+- **Bartering** — CE-accurate `_barter_compute_value`, reaction LVAR, Master Trader perk, difficulty bonus
+- **Inventory UI** — drag-and-drop, equip slots, weight display + carry-weight enforcement (LE1), reload + ammo state-aware stacking (LE4), `pickup_p_proc` on inventory equip (LE6), container `use_p_proc` gate (LE9), multi-pile caps sum (LE11)
+- **Active skill use** — First Aid, Doctor, Sneak, Lockpick, Steal (with facing + knockdown), Traps, Science, Repair, Gambling/Outdoorsman messages; Healer perk applied; party-member delegation for First Aid/Doctor (AC6)
+- **Level-up & perks** — XP thresholds, skill points (5 + 2×INT, +2 Educated), HP per level (END/2 + 2, +4 Lifegiver), perk every 3 levels (every 4 Skilled), **perk selection modal** (`ui_character.ts:1866 showPerkModal`), Tag! 4th slot
+- **Karma & reputation** — `get_pc_stat` / `mod_pc_stat` / `set_pc_stat` wired, +1 karma per hostile kill, **karma title computation** (`ui_character.ts:581–624`), STATUS panel surfaces both stats; per-town reputation still absent (R2)
+- **Worldmap travel** — 28×30 grid, per-tile encounter tables, time-of-day frequency (W1), difficulty modifier (W2), encounter formations (straight_line/double_line/wedge/cone) (W6), encounter critters carry items + equipped weapons (W3), Outdoorsman detection XP (W7), Pathfinder travel-time reduction
+- **Random encounters** — encounter group generation, level/time_of_day conditions, encounter counter (W4)
+- **Scripting VM** — INT file parser, **~150+ opcodes wired**, transpiler/disassembler; remaining stubs are largely car-system or movie/credits sub-ops (see [`wiki/known_bugs.md §2`](wiki/known_bugs.md))
+- **Audio engine** — music looping, weapon/action sound mapping, ambient SFX from map data, master/music/sfx GainNode chain with persisted volume sliders
+- **Pip-Boy** — clock display, alarm, STATUS tab, QUESTS/ARCHIVES tab, AUTOMAP tab with per-location map view, zoom/pan, IndexedDB persistence
+- **Character screen / HUD** — full SPECIAL/skill view, stat display, trait/perk lists, indicator bar (SNEAK/POISONED/RADIATED/ADDICT) (IW1), AP-light fade animation (IW7), attack button greyed when AP insufficient (IW2), `game_ui_disable` hides HUD bar (IW4)
+- **Save / load** — IndexedDB-backed; player state, inventory + ammo state, stats/skills/traits/perks, level/XP, equipped items, GVARs, MVARs (U5), knownAreas (U6), timed-event queue (U7), 160×100 JPEG save-slot thumbnails (U3)
+- **Status effects** — drug / chem effect timers with addiction rolls (5a), poison + radiation decay loops (5b)
+- **Animations** — FRM sprite rendering with `artOffset` zero-jump model (FA7), correct frame-0 timing (FA9), symmetric walk-cycle partials (FA10), weapon-draw drift fix (FA12)
+- **Preferences** — full options panel (difficulty, combat speed, violence level, target-highlight 3-state (CI8), item highlight (CI7), run-by-default (CI4), subtitles, volume sliders) persisted via localStorage
 
 ---
 
 ### 🔶 Partially implemented (~30–69%)
 
-- **Active skill use** — First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair (8 of 9 active skills; Gambling and Outdoorsman have no interactive handler). 3-use/day limit and XP awards in place. Known gaps: Healer perk not applied, Expanded Lockpick set not modelled, no electronic lockpick distinction, no facing check on Steal.
-- **Level-up flow** — XP thresholds, skill point calculation (5 + 2×INT, +2 if Educated), HP per level (END/2 + 2, +4 if Lifegiver), perk every 3 levels (every 4 if Skilled). `pendingPerkPick` flag is set but **no perk selection UI exists** — picked perks never get applied.
-- **Perks** — ~15 perks wired into combat and skill calculations; no rank tracking; no prerequisite checks; no selection screen.
 - **Traits** — 2 of 16 traits (Gifted, Good Natured) affect skill calculations; no trait selection at character creation; no 2-trait slot limit enforced.
-- **Dialogue** — runtime is functional; `giq_option`, `gsay_reply`, float messages work. `end_dialogue` is a stub in scripting. Some `gsay_message` UI integration is incomplete.
-- **Character creation** — SPECIAL point-buy, tag skill selection present. Trait selection and name/age/sex entry incomplete.
-- **Worldmap** — functional but rough: area entrances are misplaced on area screens, no difficulty adjustment on encounter rate, encounter items/equipping not implemented.
-- **Lighting** — works but has minor inaccuracies and is slow outside the WebGL backend.
-- **Time & date system** — `gametime.ts` implements ticks, day/night ambient light, script bridges for `game_time` and `game_time_hour`. `get_month` and `get_day` opcodes are hardcoded to return 1 and 0 respectively.
-- **Quest system** — `questData.ts` covers all major Fallout 2 quests with GVAR-based state tracking; Pip-Boy ARCHIVES tab surfaces them. No completion rewards or XP awards wired through the engine. Quest descriptions are inlined in TS rather than loaded from `quests.msg`.
-- **Animations** — FRM sprite rendering works; some animations are off, particularly related to combat.
-- **Karma & reputation** — `get_pc_stat` / `mod_pc_stat` / `set_pc_stat` wired to the `Karma` and `Reputation` stats; basic +1 karma increment on player kills; STATUS panel of the character screen displays both. No karma title computation, no town reputation, no faction tracking, no proto-based karma table.
+- **Character creation** — SPECIAL point-buy and tag-skill selection present. Trait selection and name/age/sex entry incomplete.
+- **Party / companions** — `addPartyMember` (CHA cap), `followPlayer` pathfinds to a free hex adjacent to the player, `dismissPartyMember` and silent `party_remove`, combat AI for friendly-team members. **Missing:** companion level-up, formation pathfinding, HUD inventory access (P3).
+- **Lighting** — `obj_set_light_level` + `set_obj_visibility` correctly rebuild the lightmap (LD3/LD4), hidden objects no longer emit light (LD1). Day/night ambient curve is a DH2 invention rather than CE-matched (GTC10); `objectGetLightIntensity` self-subtraction absent (LD5).
+- **Time & date system** — `gametime.ts` ticks, day/night ambient curve, midnight queue fires `objectUnjamAll` (IU3/GTC5); `get_month` / `get_day` wired; ARTIMER midnight movie events still not implemented.
+- **Quest system** — `questData.ts` covers all major Fallout 2 quests with GVAR-based state tracking; Pip-Boy ARCHIVES tab surfaces them. Per-quest completion rewards/XP route through scripts but not engine-side. Quest descriptions inlined in TS rather than loaded from `quests.msg`.
+- **Combat AI** — friendly-fire gate for AoE attacks (line-of-fire blockers between attacker and target) still absent; otherwise distance modes, perception, taunts, and team targeting are wired.
+- **Worldmap** — area entrance positions are misplaced on area screens (W9); walk masks not loaded so the player can walk through mountains (W10).
+- **Endgame** — death-narrator slide wired (EG6); credits music / `creditsOpen("credits.txt")` (EG4) and panning-slide ms/pixel timing (EG3) still absent.
 
 ---
 
-### ❌ Not implemented or near-absent (<30%)
+### ❌ Not implemented or deliberately deferred
 
-- **Party / NPC followers** — `party.ts` is a 61-line shell: add/remove/enumerate only. No CHA-based party size cap, no follow/formation logic, no companion inventory access, no companion level-up, no dismissal dialogue.
-- **Poison, radiation, addictions, withdrawal** — stats are defined; scripting intrinsics (`get_poison`, `radiation_dec`, `poison`) are stubs. No per-tick decay or damage loop exists anywhere in the engine.
-- **Drug & chem system** — no effect timers, stat modification, or addiction rolls.
-- **NPC schedules / day-night behaviour** — not implemented.
-- **Perk selection UI** — `pendingPerkPick` flag is set on level-up but no screen exists to pick a perk.
-- **Endgame slides / game over screen** — not implemented.
-- **Subtitles / speech file playback** — audio engine has no speech hooks; no subtitle overlay.
-- **DAM_DROP** (weapon drop on critical failure), unarmed hit modes (Haymaker, etc.) — not implemented in combat.
-- **AI faction/team targeting** — AI selects the nearest critter regardless of team; `teamNum` is marked TODO in `object.ts`.
+- **NPC schedules / day-night behaviour** — non-scripted critters do radius-capped wander (C8) only; full home/work/sleep schedules deferred (P2).
+- **Per-town reputation tracking** — global karma + title work; per-town faction deltas and reaction modifiers absent (R2).
+- **Car travel system** — no car fuel, no car-speed multipliers, no encounter-rate reduction (W8).
+- **Subtitles / speech file playback** — audio engine has no `.acm` speech hooks; no subtitle overlay (P4).
+- **Movie / FMV playback** — `play_gmovie` is a no-op (S15); ARTIMER midnight movies (GTC5).
+- **`actionFrame` from FRM headers** — discarded by `frmpixels.py:40`; hit/sound sync absent for weapon attacks (FA3, asset-pipeline change).
+- **FID weapon-stance composition** — partially wired via `Weapon.getAnim` skin codes; CE `buildFid` parity not verified (FA6).
+- **Roof clipping per-position** — `Config.ui.showRoof` is all-or-nothing; CE `tile_fill_roof` flood-fill not wired (RD06).
+- **Two-pass flat / post-roof object rendering** (RD07/RD08), **palette colour cycling** for water/fire (RD10), **pixel-precise hex hit-testing** via `_tile_mask` (RD13), **elevation transition fade** (RD14).
 
----
-
-### Known scripting gaps (scripting.ts)
-
-`~61` script intrinsics are currently stubs (log-and-return with no effect), including:
-`critter_mod_skill`, `critter_injure`, `critter_is_fleeing`, `wield_obj_critter`, `critter_heal`,
-`poison`, `radiation_dec`, `play_sfx`, `play_gmovie`, `mark_area_known`, `gfade_out/in`,
-`reg_anim_func/animate`, `obj_art_fid`, `proto_data`, `gdialog_set_barter_mod`, and others.
-`METARULE_CURRENT_TOWN`, area-known flags, and drug-influence checks are also unimplemented.
+See [`wiki/known_bugs.md`](wiki/known_bugs.md) for the complete tracker with CE references and fix
+status per ID.
 
 ---
 
-## Roadmap — next priorities
+## Roadmap
 
-The goal is a playable end-to-end run. These three pieces, in order, move the needle most:
+[`ROADMAP.md`](ROADMAP.md) is the canonical phased plan (Phases 1–9) toward a 95%-complete
+playthrough. The most recent audit (2026-06-04) closes 36 items across scripting stubs (Phase 3),
+combat AI (Phase 4), companion follow (Phase 5), pathfinding + LoS (Phase 9b), inventory mechanics
+(Phase 9a), HUD widgets (Phase 9d), and rendering (Phase 8c/e). See the file header for the
+per-phase breakdown.
 
-**1. Scripting stub coverage** (`scripting.ts`)
-~61 script intrinsics are currently no-ops that silently log and return. This means quest scripts fail
-invisibly — items don't spawn, animations don't play, characters don't react. Priority targets:
-`critter_heal`, `critter_injure`, `play_sfx`, `mark_area_known`, `gfade_out/gfade_in`, `play_gmovie`.
-Even rough implementations of these would unlock large chunks of scripted content.
-
-**2. Perk selection UI** (`ui_character.ts`, `player.ts`)
-The level-up math is done, `pendingPerkPick` is already set on level-up, and perks are listed in the
-character screen. This just needs a selection screen wired to that flag. Low effort relative to the
-visible impact on every playthrough.
-
----
-
-Things deliberately left for later: party/companion system, poison/radiation/addiction loops, NPC
-schedules, endgame slides. These are real gaps but not on the critical path to a believable first
-playthrough.
+[`CLAUDE.md`](CLAUDE.md) → "Intentionally Incomplete Systems" lists features that are deliberately
+out of scope unless explicitly requested.
 
 ---
 

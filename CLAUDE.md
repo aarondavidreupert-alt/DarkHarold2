@@ -102,6 +102,25 @@ After any feature that adds, removes, or significantly changes a system:
 When closing a bug in a feature prompt, include:
 > Also update wiki/known_bugs.md: mark [entry name] as FIXED (date).
 
+## README.md — Auto-Update Rule
+
+`README.md` is the public-facing summary and must stay in sync with the canonical
+trackers (`wiki/known_bugs.md` and `ROADMAP.md`). Update it whenever those change
+substantively. Specifically:
+
+- After any sprint that closes or opens entries in `wiki/known_bugs.md`, refresh the
+  bullets under "Substantially implemented", "Partially implemented", and "Not
+  implemented" so the public summary matches the tracker.
+- When `ROADMAP.md`'s top-of-file completion estimate changes, mirror the new
+  percentage in `README.md`'s "Status" section in the same commit.
+- Keep the "Project Index / New Contributor Readthrough Guide" section accurate:
+  if a wiki doc is renamed, added, or removed, update the corresponding row in the
+  index table. Never list a wiki file that does not exist in `wiki/`.
+- Surgical edits only — do not rewrite unrelated README sections (build commands,
+  AutoCrawler, Debug Logging, FAQ) when refreshing the status content.
+- The wiki tracker is the source of truth when README and the tracker disagree;
+  the README must be updated to match, not the other way around.
+
 ## Intentionally Incomplete Systems (do not implement unless asked)
 - Party system — add/remove/enumerate stubs only (src/party.ts)
 - Perk selection UI — `pendingPerkPick` flag exists but no selection screen
