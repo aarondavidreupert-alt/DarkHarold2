@@ -128,9 +128,26 @@ function playerUseSkill(skill: Skills, obj: Obj): void {
     }
 
     if (!scriptHandled) {
-        dbg('script', `[Skill] Engine fallback: skillUse("${skillName}")`)
-        // Engine fallback: use the skill directly
-        const result = skillUse(globalState.player as Critter, target, skillName)
+        // CE ref: actions.cc:1374 actionUseSkill — for First Aid and Doctor,
+        // delegates to the party member with the highest skill if one beats
+        // the player. Other skills always use the player.
+        let user: Critter = globalState.player as Critter
+        if (skillName === 'First Aid' || skillName === 'Doctor') {
+            const playerSkill = user.getSkill(skillName)
+            let best = user
+            let bestSkill = playerSkill
+            for (const member of globalState.gParty.party) {
+                if (member.dead) continue
+                const s = member.getSkill(skillName)
+                if (s > bestSkill) { best = member; bestSkill = s }
+            }
+            if (best !== user) {
+                uiLog(`${best.name} steps in to help.`)
+                user = best
+            }
+        }
+        dbg('script', `[Skill] Engine fallback: skillUse("${skillName}") via ${user.name ?? 'player'}`)
+        const result = skillUse(user, target, skillName)
         uiLog(result.message)
         if (result.hpHealed > 0) {
             drawHP(globalState.player!.getStat('HP'))
