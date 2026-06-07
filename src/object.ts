@@ -1917,19 +1917,43 @@ export class Critter extends Obj {
             // settle-after-walk always starts clean.
             this.artOffset = { x: 0, y: 0 }
         } else {
-            // Settle-to-idle: skip the CE additive bump and preserve artOffset.
-            // CE itself bumps here too (animation.cc:2889), which produces a
-            // visible body shift at clearAnim when OLD and NEW dirOff happen to
-            // match (e.g. kc→ka dir5 both have dirOff=-10 → -10 px LEFT snap).
-            // CE players never see it because every walk step clears the carry.
-            // Skipping the bump on clearAnim gives a seamless settle-to-idle
-            // while keeping the CE-faithful bump for every static→static
-            // transition inside the swap chain.
-            dbg('animOffset', '[ArtOffset/CE] clearAnim — no bump',
-                `${oldArt}@f${oldFrame} → ${newArt}@f0`,
-                `dir${this.orientation ?? 0}`,
-                `artOffset preserved=(${this.artOffset.x},${this.artOffset.y})`,
-            )
+            // Settle-to-idle: body-center-stable formula (Attempt 6) instead of
+            // the CE additive bump or no-op. Reason: most clearAnims happen at
+            // the end of a weapon-swap chain where playWeaponSwapAnim played
+            // both holster and draw — both contribute CE bumps, and the final
+            // FRMs (e.g. jc draw + ja idle) are designed with matching dirOff
+            // values so this formula reduces to identity (no change). But when
+            // the chain skips a step (armed→unarmed: no draw plays for fists;
+            // unarmed→armed: no holster plays) one of the CE bumps is missing
+            // and the dirOff mismatch between holster-end and idle-start
+            // (especially hmjmpsaa's dirOff.y = +3..+5 vs the armed holster's
+            // dirOff.y = 0) leaves a visible body shift. This formula closes
+            // both cases: zero body-center jump when dirOffs match, exact
+            // compensation when they don't.
+            const orient = this.orientation ?? 0
+            const oldInfo = globalState.imageInfo[oldArt]
+            const newInfo = globalState.imageInfo[newArt]
+            if (oldInfo && newInfo) {
+                const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+                const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+                const oldFrames = oldInfo.frameOffsets[orient]
+                const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
+                const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+                const newF0 = newInfo.frameOffsets[orient]?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+                const prev = this.artOffset
+                const newArtOffset = {
+                    x: oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prev.x,
+                    y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prev.y,
+                }
+                dbg('animOffset', '[ArtOffset/CE] clearAnim',
+                    `${oldArt}@f${clampedOld}(ox=${oldF.ox},oy=${oldF.oy})`,
+                    `→ ${newArt}@f0(ox=${newF0.ox},oy=${newF0.oy})`,
+                    `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
+                    `prev(${prev.x},${prev.y})`,
+                    `→ artOffset(${newArtOffset.x},${newArtOffset.y})`,
+                )
+                this.artOffset = newArtOffset
+            }
         }
 
         // reset to idle pose
