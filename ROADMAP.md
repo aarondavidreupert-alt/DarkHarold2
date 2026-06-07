@@ -6,8 +6,8 @@ already exists, these wire it up. Phases 4–5 introduce the only genuinely new
 systems still needed.
 
 **Last audited: 2026-06-04**
-Current estimate: **~88% complete** (was ~83% at 2026-06-03; 27 Phase 3/4/5/9
-items fixed across the June 4 sprint, plus 4 stale wiki entries verified-fixed).
+Current estimate: **~90% complete** (was ~83% at 2026-06-03; 36 Phase 3/4/5/8/9
+items fixed across the June 4 sprint, plus 5 stale wiki entries verified-fixed).
 Target: 95% (a playable end-to-end run through Fallout 2's main quest with
 companions, working scripted content, and correct combat).
 
