@@ -1,0 +1,1115 @@
+# TypeScript Split Refactor — Audit & Strategy
+
+> **Status:** proposal only. No code has been changed.
+> **Audit date:** 2026-06-04
+> **Scope:** every file under `src/` exceeding 400 lines.
+
+This document audits the largest TypeScript modules in DarkHarold2 and proposes a
+concrete plan to split them into focused sub-modules of roughly ≤ 400 lines each.
+It is intentionally conservative — every proposed split preserves the existing
+public import surface so call sites that read `from './scripting.js'` or
+`from './object.js'` keep working via re-exports.
+
+The proposals respect the three-file Scripting VM split documented in
+[`CLAUDE.md` → "Scripting System Architecture"][claude-scripting] and the
+"Source Modules" table in [`CODEBASE.md`][codebase]. No proposal introduces a
+new architectural seam that contradicts those documents; in particular, no
+opcode bodies move out of `Script` (CLAUDE.md "Conventions" forbids it).
+
+[claude-scripting]: ../CLAUDE.md
+[codebase]: ../CODEBASE.md
+
+---
+
+## Overview — files over 400 lines
+
+| # | File | Lines | Proposed split count | Subsystem |
+|---|------|------:|---------------------:|-----------|
+| 1 | `src/scripting.ts` | 2614 | 6 | Scripting |
+| 2 | `src/object.ts` | 2208 | 5 | Objects / characters |
+| 3 | `src/ui_character.ts` | 2095 | 4 | UI panels |
+| 4 | `src/combat.ts` | 1694 | 5 | Combat |
+| 5 | `src/main.ts` | 1279 | 4 | Engine core |
+| 6 | `src/webglrenderer.ts` | 1161 | 3 | Rendering |
+| 7 | `src/autocrawler.ts` | 903 | 4 | Testing / tooling |
+| 8 | `src/ui_inventory.ts` | 780 | 2 | UI panels |
+| 9 | `src/map.ts` | 759 | 2 | World / map |
+| 10 | `src/worldmap.ts` | 757 | 3 | World / map |
+| 11 | `src/perks.ts` | 747 | 2 | Objects / characters |
+| 12 | `src/ui_pipboy.ts` | 736 | 4 | UI panels |
+| 13 | `src/critter.ts` | 670 | 2 | Objects / characters |
+| 14 | `src/skillUse.ts` | 651 | 2 | Skills |
+| 15 | `src/lightmap.ts` | 589 | 2 | Rendering |
+| 16 | `src/renderer.ts` | 566 | 2 | Rendering |
+| 17 | `src/ui_font.ts` | 543 | 2 | UI panels |
+| 18 | `src/automapData.ts` | 543 | 3 | Persistence |
+| 19 | `src/endgame.ts` | 536 | 3 | Endgame |
+| 20 | `src/encounters.ts` | 519 | 2 | World / map |
+| 21 | `src/ui_barter.ts` | 486 | 2 | UI panels |
+| 22 | `src/criticalEffects.ts` | 478 | 2 | Combat |
+| 23 | `src/ui.ts` | 469 | leave; already barrel | UI panels |
+| 24 | `src/ui_options.ts` | 438 | 2 | UI panels |
+| 25 | `src/geometry.ts` | 411 | 2 | Math utilities |
+
+**Net result if all splits land:** roughly **62 new modules**, each well under
+400 lines, with the existing 25 files either deleted, slimmed to a barrel
+re-export, or split into focused responsibilities. See the per-file sections
+below for full detail.
+
+---
+
+## General architectural observations
+
+1. **`Scripting` is by far the most concentrated single namespace.** ~2600 lines
+   in one `export module Scripting { ... }` block. The `Script` class alone
+   contains all ~160 FO2 opcodes. CLAUDE.md explicitly forbids moving opcode
+   bodies out of `Script`, so the split must add module-level helpers and
+   sibling files inside the `Scripting` namespace via TypeScript's
+   "namespace can be augmented across files" feature.
+
+2. **`object.ts` is a god-class file.** `Obj`, `Item`, `WeaponObj`, `Scenery`,
+   `Door`, `Critter` (≈ 720 lines on its own) and the factory functions all
+   live here. The class hierarchy itself is fine; the problem is the **animation
+   state machine** inside `Critter` — over half of `Critter` is the FRM
+   animation pipeline (`updateStaticAnim`, `updateLoopingAnim`, `updateAnim`,
+   `staticAnimation`, `getAnimation`, `clearAnim`, `walkTo`, the artOffset
+   formulas).
+
+3. **`combat.ts` mixes data structures (`ActionPoints`, `AI`), formula helpers
+   (4 `computeDamage*` variants), and the giant `Combat` class** with its 25+
+   methods. The class itself owns turn flow, AI dispatch, hit-chance, damage
+   calculation, perish handling, and LoS — each of those is a candidate to
+   become a focused sibling module that exposes pure functions consumed by
+   `Combat`'s thin shell.
+
+4. **UI files are mostly self-contained — the worst offenders are
+   `ui_character.ts` (2095 lines) and `ui_pipboy.ts` (736 lines).**
+   `ui_character.ts` interleaves the character-screen viewer and the
+   character creator (two distinct flows sharing nothing except styles and
+   shared widgets). `ui_pipboy.ts` has STATUS, AUTOMAPS, ARCHIVES tabs each
+   ~150 lines, plus a date/time bar and a "wait" menu — each tab is its own
+   sub-module candidate.
+
+5. **`main.ts` mixes module-level state (`nextMapUpdateTick`,
+   `lastMidnightDay`), input handlers (mouse/keyboard), the per-tick game
+   loop (`heart.update`), the draw loop (`heart.draw`), and the elevator
+   helper.** Splitting input handling and the tick loop into focused files is
+   low-risk and leaves `main.ts` as the engine bootstrap.
+
+6. **`perks.ts` is data + 3 functions.** ~660 lines is a literal `PERKS: PerkDef[]`
+   array; the remaining ~80 lines is the `getValidPerks` / `getPerkRank` /
+   `applyPerk` logic. Splitting data into `perks.data.ts` (or even per-category
+   data files) is mechanical with zero risk of circular deps.
+
+7. **Circular dependency risks are concentrated in two clusters:**
+   - **`scripting.ts` ↔ everything game-state** (it already imports
+     `combat`, `critter`, `object`, `worldmap`, `endgame`, `main`, `renderer`,
+     `ui`). Splitting `scripting.ts` must keep the **module namespace
+     augmentation pattern** so the existing import sites continue working.
+   - **`object.ts` ↔ `critter.ts` ↔ `combat.ts`** (`object.ts` re-imports
+     `critterDamage` and `Weapon` from `critter.ts`; `combat.ts` imports
+     `Critter` from `object.ts`). The split must avoid re-importing
+     `Critter` symbols across the new files in this cluster.
+
+8. **Several files are barrels masquerading as modules.** `ui.ts` (469 lines)
+   is already mostly re-exports plus `uiInit`. It does **not** need splitting —
+   it's actually the model the other UI splits should follow. Same goes for
+   the lighter-weight UI files (`ui_panels.ts`, `ui_drag.ts`, `ui_components.ts`).
+
+---
+
+## Per-file split proposals
+
+### 1. `src/scripting.ts` — 2614 lines → 6 modules
+
+**Current responsibilities (single `export module Scripting`):**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| Imports, debug helpers (`stub`/`log`/`warn`/`info`), seed | 1–155 |
+| GVAR/MVAR storage + (de)serialization | 156–220 |
+| Object/spatial type guards, message-file loader | 220–270 |
+| Dialogue runtime: `dialogueReply`, `dialogueEnd`, `reenterDialogue`, `getDialogueOptionCount` | 270–325 |
+| Perception helpers (`canSee`, `isWithinPerception`, `objCanSeeObj`) | 325–390 |
+| `Script` class — ~160 opcode methods + dialogue opcodes (`metarule`, `metarule3`, `has_trait`, `obj_*`, `tile_*`, `gsay_*`, `reg_anim_*`, etc.) | 396–2168 |
+| Module-level "lifecycle" exports (`loadScript`, `loadScriptBySid`, `initScript`, `enterMap`, `updateMap`, `timedEvent`, `use`, `talk`, `spatial`, `destroy`, `damage`, `useSkillOn`, `pickup`, `drop`, `useObjOnMe`, `combatEvent`, `objectEnterMap`, `reset`, `init`, `give_exp_points`) | 2170–2614 |
+
+**Constraint from CLAUDE.md:** _"All new scripting opcodes go in src/scripting.ts
+inside the Script class."_ → opcode bodies must stay on `Script`. The split
+therefore moves **only**: helpers, dialogue runtime, perception helpers,
+lifecycle entry points, and module state — **never** the `Script` methods
+themselves.
+
+**Proposed split (all under `src/scripting/` directory; `src/scripting.ts`
+becomes a barrel re-export):**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/scripting/Script.ts` | The `Script` class — every opcode intrinsic stays here verbatim. | `Script`, `ScriptableObj`, `SerializedScript` (re-exported by the barrel) |
+| `src/scripting/runtime.ts` | Module state: `globalVars`, `mapVars`, `timeEventList`, `currentDialogueObject`, `mapFirstRun`, `currentMapID`, `currentMapObject`, `scriptMessages`, plus the `loadMessageFile` helper and `getScriptMessage`. | Internal-only globals plus accessors. |
+| `src/scripting/dialogue.ts` | Dialogue runtime: `dialogueReply`, `dialogueEnd`, `dialogueExit`, `reenterDialogue`, `getDialogueOptionCount`, `dialogueBarterMod`, `getDialogueBarterMod`. | Dialogue lifecycle functions. |
+| `src/scripting/perception.ts` | `canSee`, `isWithinPerception`, `objCanSeeObj` — pure helpers consumed by `obj_can_see_obj`/`obj_can_hear_obj` opcode methods on `Script` (which keep their bodies but call these helpers). | Three pure functions. |
+| `src/scripting/lifecycle.ts` | Module entry points used by the engine loop: `loadScript`, `loadScriptBySid`, `registerStub`, `registerStubBySid`, `initScript`, `enterMap`, `objectEnterMap`, `updateMap`, `timedEvent`, `use`, `talk`, `spatial`, `destroy`, `damage`, `useSkillOn`, `pickup`, `drop`, `useObjOnMe`, `combatEvent`, `setMapScript`, `reset`, `init`, `give_exp_points`. | All current `export function`s that aren't dialogue-specific. |
+| `src/scripting/animBatch.ts` | The `reg_anim_*` batch infrastructure: `AnimStep` / `AnimFunc` / `AnimEntry` types, `animBatch` module state, and the `reg_anim_end` queue drain logic. Opcode bodies on `Script` (`reg_anim_begin/end/animate/func/animate_forever`) keep their bodies but call this module for storage / drain. | `animBatch` accessor, `enqueueAnimStep`, `enqueueAnimFunc`, `drainAnimBatch`. |
+
+`src/scripting.ts` becomes a thin barrel:
+
+```ts
+// Augments the Scripting namespace by re-exporting from sub-files.
+export { Scripting } from './scripting/Script.js'
+// (re-exports of public functions from runtime/dialogue/perception/lifecycle)
+```
+
+**Sizes after split (estimate):**
+`Script.ts` ≈ 1700 lines (still over 400, but mandated by CLAUDE.md);
+`runtime.ts` ≈ 130; `dialogue.ts` ≈ 90; `perception.ts` ≈ 80;
+`lifecycle.ts` ≈ 420; `animBatch.ts` ≈ 60.
+
+**Note on `Script.ts`:** even after every helper move, the opcode body file
+stays large because every FO2 intrinsic lives there per CLAUDE.md. It is the
+**only** intentional > 400-line file in the proposal. A future follow-up
+could organise the opcode methods by category (dialogue, inventory, anim,
+tile, metarule) using `///` region markers without moving them.
+
+**Circular-dependency risks:**
+- `scripting/Script.ts` already imports `combat`, `endgame`, `worldmap`,
+  `main` — splitting changes nothing at the import-graph level because
+  internal sub-files import from each other via the `./scripting/` prefix
+  rather than touching siblings outside the namespace.
+- `dialogue.ts` calls `uiEndDialogue` / `uiStartDialogue` from `./ui.js`;
+  same module set as today.
+- The barrel keeps `Scripting.*` references working for every existing
+  import site.
+
+---
+
+### 2. `src/object.ts` — 2208 lines → 5 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| Helpers + free functions (`cloneItem`, `objectSwapItem`, `objectGetDamageType`, dynamite arming, `setObjectOpen`, `toggleObjectOpen`, `objectUnjamAll`, `objectFindIndex`, `objectZCompare`, `objectZOrder`, `zsort`) | 41–250 |
+| `SerializedObj` interface | 251–283 |
+| `Obj` base class (lifecycle, inventory, `blocks`/`pathBlocks`, `use`, `explode`, `pickup`, `drop`, `serialize`) | 283–1088 |
+| `Item` / `WeaponObj` / `Scenery` / `Door` subclasses | 1089–1200 |
+| Factory functions (`createObjectWithPID`, `objFromMapObject`, `deserializeObj`) | 1202–1259 |
+| `Critter` class (≈ 720 lines) — animation state machine, FRM frame lookup, equipped armor/skill accessors, walking, weapon-swap anim, art-offset zero-jump model, serialize | 1260–2110 |
+| `animInfo` table, FRM lookup helpers (`hitSpatialTrigger`, `getAnimPartialActions`, `getAnimDistance`, `PartialAction`) | 2111–2208 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/object/Obj.ts` | The `Obj` base class — lifecycle, inventory math, blocking predicates, explode/use/drop/pickup, serialize, `SerializedObj`. | `Obj`, `SerializedObj` |
+| `src/object/items.ts` | `Item` (already private), `WeaponObj` (incl. `approxEq` ammo-state comparison), `Scenery`, `Door` subclasses. | `WeaponObj` |
+| `src/object/factories.ts` | `createObjectWithPID`, `objFromMapObject`, `deserializeObj`, `cloneItem`. | Factory functions. |
+| `src/object/Critter.ts` | The `Critter` class **excluding** the animation state machine — combat/skill/armor accessors (`getStat`, `getSkill`, `getArmorDR`, `getArmorAC`, `hasPerk`, etc.), `walkTo` / `walkInFrontOf`, `move`, `serialize`. | `Critter`, `SerializedCritter` |
+| `src/object/critterAnimation.ts` | The FRM animation state machine carved out of `Critter` — `getAnimation`, `getBase`, `staticAnimation`, `singleAnimation`, `playWeaponSwapAnim`, `clearAnim`, `updateStaticAnim`, `updateLoopingAnim`, `updateAnim`, plus the `animInfo` table, `getAnimPartialActions`, `getAnimDistance`, `hitSpatialTrigger`, `PartialAction`. Methods stay on `Critter` via TypeScript's "declaration merging" — each is implemented as a free function that takes a `Critter` and is then assigned to `Critter.prototype` from the barrel. | Free functions plus prototype patches. |
+
+`src/object.ts` becomes a barrel re-exporting `Obj`, `Critter`, `WeaponObj`,
+`createObjectWithPID`, `objFromMapObject`, `deserializeObj`,
+`objectGetDamageType`, `objectUnjamAll`, and the (currently private) zsort
+helpers needed by `renderer.ts`.
+
+**Sizes after split (estimate):**
+`Obj.ts` ≈ 380; `items.ts` ≈ 110; `factories.ts` ≈ 80;
+`Critter.ts` ≈ 380; `critterAnimation.ts` ≈ 480 (still over 400; could be
+further split into `critterAnimation/static.ts` + `critterAnimation/walk.ts`
+in a follow-up).
+
+**Circular-dependency risks (high):**
+- `object.ts` and `critter.ts` currently form a two-cycle (each imports
+  from the other). The split must keep all the `Critter`-internal helper
+  classes (`Weapon` for example) in their current home. Specifically,
+  `Weapon` continues to live in `src/critter.ts` (not `object/Critter.ts`).
+- `critterAnimation.ts` accesses `Obj` properties — it should import
+  `Obj` from `./Obj.js` directly, not from `../object.js`, to avoid a cycle
+  through the barrel.
+- The `walkTo` method calls `globalState.gMap.recalcPath`, which is fine.
+- `Critter.serialize` references `SERIALIZED_CRITTER_PROPS` — keep that
+  table next to `Critter.ts`.
+
+---
+
+### 3. `src/ui_character.ts` — 2095 lines → 4 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| Description tables (SPECIAL/SKILL/DERIVED/CONDITION/TRAIT/PERK descriptions, image paths, karma titles) | 36–250 |
+| `getCharacterWindow`, `closeCharacterScreen` | 275–287 |
+| `showCharacterScreen` — in-game character screen viewer | 288–1000 |
+| `showCharacterCreator` — character creation flow (name/age/sex, SPECIAL point-buy, traits, tag skills) | 1002–1870 |
+| `showPerkModal` — perk-selection modal triggered on level-up | 1875–2095 |
+
+**Proposed split (all under `src/ui_character/`):**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/ui_character/descriptions.ts` | All description / image / karma-title lookup tables. Pure data. | Named constants. |
+| `src/ui_character/viewer.ts` | `showCharacterScreen` and helpers it uniquely needs (the in-game character screen viewer). | `showCharacterScreen`, `closeCharacterScreen`, `getCharacterWindow`. |
+| `src/ui_character/creator.ts` | `showCharacterCreator` and creation-flow helpers (name/age/sex panels, trait picker, tag skill picker, point-buy). | `showCharacterCreator`. |
+| `src/ui_character/perkModal.ts` | `showPerkModal` and its filtering / requirement-check helpers. | `showPerkModal`. |
+
+`src/ui_character.ts` becomes a barrel.
+
+**Sizes after split (estimate):**
+`descriptions.ts` ≈ 230; `viewer.ts` ≈ 720 (still over but mostly DOM layout);
+`creator.ts` ≈ 870; `perkModal.ts` ≈ 220.
+
+**Follow-up note:** `viewer.ts` and `creator.ts` share considerable widget
+plumbing (info-card panel, stat sliders, skilldex tabs). A future second pass
+could lift `infoCard.ts` / `statSliderRow.ts` shared widgets, dropping both
+viewer and creator under 400. Out of scope for this first pass — the goal here
+is the major seam split, not the long tail.
+
+**Circular-dependency risks (low):** all imports are downstream (Widget,
+WindowFrame, fonts, perks, char, events). No risk.
+
+---
+
+### 4. `src/combat.ts` — 1694 lines → 5 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| Debug helpers, `actorName`, `isCombatActive` | 42–58 |
+| `ActionPoints` class (AP accounting) | 59–127 |
+| `AI` class (combat-time AI state for a critter) | 129–148 |
+| Critical-fail table-type dispatch (`getCritFailTableType`, `aiHaveAmmo`) | 150–169 |
+| `DamageCalculationContext` + 4 damage-formula variants (`computeDamageVanilla`, `computeDamageGlovz`, `computeDamageGlovzTweak`, `computeDamageYaam`, `computeDamage`) | 171–259 |
+| `fleeHpThreshold`, `HP_FLEE_PCT` | 261–274 |
+| `Combat` class — turn flow, hit chance, damage pipeline, attack execution, AI turn dispatch (`doAITurn`), `perish`, taunts, target selection, LoS, range checks | 276–1694 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/combat/actionPoints.ts` | `ActionPoints` class. | `ActionPoints`. |
+| `src/combat/AI.ts` | `AI` class plus AI helpers `findTarget`, `fleeHpThreshold`, `HP_FLEE_PCT`, `maybeTaunt`, `getCombatAIMessage` (currently on `Combat`). `Combat.doAITurn` stays on `Combat` but calls these helpers. | `AI`, plus a small `AITargetingContext` interface. |
+| `src/combat/damage.ts` | All four damage-formula variants plus `DamageCalculationContext` and the dispatcher `computeDamage`. Pure functions. | `computeDamage`, the variants for unit testing. |
+| `src/combat/hitChance.ts` | The hit-chance & to-hit pipeline: `getHitChance`, `getHitDistanceModifier`, `getAmmoStats`, `accountForPartialCover`. Lifted to free functions taking `(attacker, target, ...)`. `Combat` keeps wrapper methods that delegate. | `getHitChance`, helpers. |
+| `src/combat/Combat.ts` | The `Combat` class itself — constructor, `nextTurn`, `attack`, `rollHit`, `getDamageDone`, `getUnarmedDamageDone`, `perish`, `end`, `forceEnd`, `forceTurn`, `walkUpTo`, `doAITurn`, `hasLineOfSight`, `checkRangedMiss`. | `Combat`, `combatDebug`, `combatWarn`, `isCombatActive`. |
+
+`src/combat.ts` becomes a barrel.
+
+**Sizes after split (estimate):**
+`actionPoints.ts` ≈ 90; `AI.ts` ≈ 220; `damage.ts` ≈ 100;
+`hitChance.ts` ≈ 200; `Combat.ts` ≈ 950 (still > 400; see note).
+
+**Note on `Combat.ts`:** even after the carve-out it remains large because
+`doAITurn` alone is ~360 lines (distance-mode dispatch, weapon-mode loop,
+range-charge logic). A follow-up could lift `doAITurn` into `combat/aiTurn.ts`
+operating on a `Combat` context object. Out of scope for the first pass.
+
+**Circular-dependency risks (medium):**
+- `Combat.ts` will keep importing `Critter`, `Player`, `Obj` from `object.js`
+  and `critterDamage` / `critterKill` from `critter.js`. Sibling files
+  (`damage.ts`, `hitChance.ts`) should import `Critter` from `../object.js`
+  directly to avoid a cycle through `Combat.ts`.
+- `AI.ts` imports `aiPackets.ts` — already isolated, no cycle risk.
+
+---
+
+### 5. `src/main.ts` — 1279 lines → 4 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| Imports, module state (`nextMapUpdateTick`, `lastMidnightDay`) | 1–80 |
+| Skill ID mapping (`getSkillID`), skill-use dispatch (`playerUseSkill`), skill-target cancel (`cancelSkillTargeting`) | 82–166 |
+| `playerUse` — the giant unified "use that object" router (≈ 800 lines, includes context-menu walk-up, combat AP checks, container loot, dialogue triggers, every interaction path) | 168–970 |
+| `changeCursor` (no-op stub) | 971–977 |
+| Heart hook attachments: `heart.mousepressed` (≈ 60 lines), `heart.mousereleased`, `heart.mousemoved` (≈ 55 lines), `heart.keydown` (≈ 230 lines), `heart.keyup` | 619–981 |
+| Per-tick game loop (`heart.update`, ~230 lines): mouse-edge scroll, midnight queue, poison/radiation/addiction ticks, map_update_p_proc cadence, wander | 982–1213 |
+| Per-frame draw loop (`heart.draw`, ~13 lines): renderer.render() wrapper | 1215–1226 |
+| Status helpers (`applyRadiationSymptoms`), `useElevator` | 1227–1278 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/main.ts` | Boot path only: imports, `initGame` wiring, `useElevator`, the module-level `nextMapUpdateTick` / `lastMidnightDay` state, and the `heart.update` / `heart.draw` assignments. Becomes ≈ 250 lines. | `playerUse`, `useElevator` (kept for the existing import site in `scripting.ts`). |
+| `src/playerUse.ts` | `playerUse(obj)` plus `playerUseSkill`, `cancelSkillTargeting`, `getSkillID`. The router for object/critter interactions, lifted whole. | `playerUse`, `playerUseSkill`, `cancelSkillTargeting`. |
+| `src/input.ts` | Mouse + keyboard handlers: the bodies of `heart.mousepressed`, `heart.mousereleased`, `heart.mousemoved`, `heart.keydown`, `heart.keyup`. Imports of `playerUse` and `globalState`. Side-effect module: importing it attaches handlers to `heart`. | Side-effect `installInputHandlers()` invoked once from `main.ts`. |
+| `src/gameTick.ts` | The `heart.update` body — float-message expiry, mouse-edge scroll, FPS overlay, midnight queue, timed events, `map_update_p_proc` cadence, poison/radiation ticks, party follow, wander. Plus `applyRadiationSymptoms` helper. | `tickGame()` invoked from `heart.update`. |
+
+`src/main.ts` becomes the thin orchestrator that calls `installInputHandlers()`
+and assigns `heart.update = tickGame`, `heart.draw = drawFrame` (which could
+in turn live in a tiny `src/drawFrame.ts` but isn't worth splitting at
+13 lines).
+
+**Sizes after split (estimate):**
+`main.ts` ≈ 100; `playerUse.ts` ≈ 810 (still > 400 — see note);
+`input.ts` ≈ 270; `gameTick.ts` ≈ 230.
+
+**Note on `playerUse.ts`:** the unified router is intrinsically a switch on
+object type, cursor mode, and UI mode. A follow-up could split it into
+`playerUseCritter.ts` / `playerUseItem.ts` / `playerUseScenery.ts` after
+mapping the per-branch behaviour, but that's a deeper refactor not warranted
+by a first pass.
+
+**Circular-dependency risks (medium):**
+- `playerUse.ts` currently imports `Skills`, `skillUse`, `Combat`,
+  `Scripting`, `Critter`, `uiLog`, `getProtoMsg`, `hexFromScreen`,
+  `getZoom` — all downstream, no cycle.
+- `input.ts` will need `playerUse` and `cancelSkillTargeting` from
+  `playerUse.ts` — straight downstream. No cycle.
+- `gameTick.ts` calls `Scripting.timeEventList` and `Lightmap.rebuildLight`
+  — fine.
+- `useElevator` keeps living in `main.ts` because `scripting.ts` already
+  imports it from `./main.js`. Moving it would force a hop in `scripting.ts`'s
+  imports.
+
+---
+
+### 6. `src/webglrenderer.ts` — 1161 lines → 3 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| `ShaderSources` interface | 15–21 |
+| `WebGLRenderer` constructor + texture/program/shader plumbing (`newTexture`, `getTexture`, `textureFromArray`, `textureFromColorArray`, `textureFromFont`, `init`, `rectangleBuffer`, `getShader`, `getProgram`, `clear`, `resize`) | 22–840 |
+| `renderText`, `renderImage`, `renderFont` — text/image drawing | 480–495, 1135–1160 |
+| Floor lighting: `renderLitFloorCPU`, `renderLitFloorGPU`, `invalidateFloorFBO`, `clearTileCache`, `setLightingMode` | 496–1037 |
+| Object/tile/roof drawing: `drawTileMap`, `renderRoof`, `renderFloor`, `renderObject`, `renderObjectOutlined`, `renderFrame` | 901–1135 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/render/webglContext.ts` | `WebGLRenderer` core: constructor, `init`, shader/program/texture plumbing, `clear`, `resize`, `rectangleBuffer`, `setLightingMode`, `invalidateFloorFBO`, `clearTileCache`. | The `WebGLRenderer` class shell (no draw methods). |
+| `src/render/webglLighting.ts` | `renderLitFloorCPU`, `renderLitFloorGPU` as free functions taking a `WebGLRenderer` context plus `TileMap`. | Pure floor-lighting functions. |
+| `src/render/webglDraw.ts` | `drawTileMap`, `renderRoof`, `renderFloor`, `renderObject`, `renderObjectOutlined`, `renderFrame`, `renderImage`, `renderText`, `renderFont`. | Pure draw functions taking a `WebGLRenderer` context. |
+
+`src/webglrenderer.ts` becomes a barrel + a `WebGLRenderer` class declaration
+that imports the draw / lighting / context functions and assigns them onto
+the prototype.
+
+**Sizes after split (estimate):**
+`webglContext.ts` ≈ 360; `webglLighting.ts` ≈ 360; `webglDraw.ts` ≈ 360.
+
+**Circular-dependency risks (low):**
+- All three new files import `Renderer` from `./renderer.js` — no cycle.
+- `webglDraw.ts` imports `Obj` from `./object.js`; same as today.
+- `webglLighting.ts` imports `Lightmap` and `Lighting` — same as today.
+
+---
+
+### 7. `src/autocrawler.ts` — 903 lines → 4 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| Status enums + result interfaces (`DialogueStatus`, `CombatStatus`, `MapStatus`, `MapResult`, `DialogueNpcResult`, `CombatCritterResult`, `CrawlerSummary`, `CrawlerReport`) | 29–110 |
+| Timeouts, polling constants, `CRAWLER_HP` | 113–122 |
+| Shared helpers (`stepEngine`, `critterDisplayName`, `movePlayerAdjacent`, `getOptionElements`, `getReplyText`, `isExitOption`, `EXIT_OPTION_PATTERNS`, `listTalkableNPCs`, `listHostileCritters`) | 132–224 |
+| Dialogue crawler (`crawlOneNpc`, `runDialogueCrawler`) | 225–453 |
+| Combat crawler (`crawlOneCritter`, `runCombatCrawler`) | 454–668 |
+| Map crawler (`discoverMapNames`, `crawlOneMap`, `runMapCrawler`) | 669–803 |
+| Report builder, summary printer, `downloadReport` | 804–903 |
+
+**Proposed split (all under `src/autocrawler/`):**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/autocrawler/types.ts` | All status enums and result interfaces. Pure types. | Type-only exports. |
+| `src/autocrawler/shared.ts` | Constants, `stepEngine`, `critterDisplayName`, `movePlayerAdjacent`, dialogue DOM helpers, `listTalkableNPCs`, `listHostileCritters`. | Shared helpers. |
+| `src/autocrawler/dialogue.ts` | `crawlOneNpc`, `runDialogueCrawler`. | Crawler entry point. |
+| `src/autocrawler/combat.ts` | `crawlOneCritter`, `runCombatCrawler`. | Crawler entry point. |
+| `src/autocrawler/maps.ts` | `discoverMapNames`, `crawlOneMap`, `runMapCrawler`. | Crawler entry point. |
+| `src/autocrawler/report.ts` | `buildReport`, `printSummary`, `downloadReport`. | Report serialisation. |
+
+That's 6 sub-files; per the overview table I scored this "4" because dialogue
++ combat + maps + (shared/report/types as one) is the minimum count, but
+6 finer-grained files keeps each under 200 lines.
+
+**Sizes after split (estimate):** all sub-files ≈ 100–230 lines.
+
+`src/autocrawler.ts` becomes a barrel re-exporting `runDialogueCrawler`,
+`runCombatCrawler`, `runMapCrawler`, `listTalkableNPCs`, `listHostileCritters`,
+`downloadReport`. Currently `main.ts` does `import './autocrawler.js'` as a
+side-effect import — that path keeps working through the barrel.
+
+**Circular-dependency risks (low):** crawlers depend on `Scripting`, `Combat`,
+`globalState`, `UIMode` — all downstream.
+
+---
+
+### 8. `src/ui_inventory.ts` — 780 lines → 2 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| DOM helpers (`$id`, `clearEl`, `showv`, `hidev`, `makeEl`), drag/drop helpers (`makeDropTarget`, `makeDraggable`) | 34–122 |
+| `closeInventory`, `initInventory` (panel setup) | 123–180 |
+| `tryLoadAmmoIntoWeapon` — ammo-state-aware reload | 181–204 |
+| `uiMoveSlot` — drag-to-equip / inventory-to-slot transfers with `pickup_p_proc` firing | 205–283 |
+| `applyArmorArt` — armor sprite swap | 284–312 |
+| `showInventory` — main panel render (≈ 470 lines): inventory list, weapon section, weight bar, sort dropdown, armor section | 313–780 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/ui_inventory/dragdrop.ts` | DOM/drag helpers + `uiMoveSlot` + `tryLoadAmmoIntoWeapon` + `applyArmorArt`. Inventory transfer mechanics. | `makeDropTarget`, `makeDraggable`, `uiMoveSlot`, `applyArmorArt`. |
+| `src/ui_inventory/panel.ts` | `closeInventory`, `initInventory`, `showInventory`. The panel itself. | `closeInventory`, `initInventory`, `showInventory`. |
+
+`src/ui_inventory.ts` becomes a barrel.
+
+**Sizes after split (estimate):** `dragdrop.ts` ≈ 300; `panel.ts` ≈ 480.
+
+**Note:** `panel.ts` remains slightly over 400 — `showInventory` is a single
+~470-line DOM build that doesn't decompose cleanly without a deeper refactor
+to per-section helpers. Out of scope.
+
+**Circular-dependency risks (low):** `dragdrop.ts` imports `Scripting` for
+`pickup`, `panel.ts` imports from `dragdrop.ts`. No cycle.
+
+---
+
+### 9. `src/map.ts` — 759 lines → 2 modules
+
+**Current responsibilities (single `GameMap` class):**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| `SerializedMap`, `SerializedSpatial` interfaces | 36–62 |
+| Object-list accessors, addObject/removeObject, removal queue (`drainRemovalQueue`), destroyObject | 63–144 |
+| `hasRoofAt`, `isOutdoor`, `updateMap`, `doEnterElevation`, `changeElevation`, `placeParty`, `doEnterNewMap` | 144–363 |
+| `loadMap`, `loadNewMap`, `loadMapByID` — map IO + cache | 364–608 |
+| Tile-level helpers (`objectsAtPosition`, `critterAtPosition`, `hexLinecast`, `recalcPath`) | 609–681 |
+| `serialize` / `deserialize` | 683–759 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/map/GameMap.ts` | The `GameMap` class **minus** the loaders. Object lists, elevation switch, party placement, removal queue, tile helpers, serialize/deserialize, `SerializedMap`, `SerializedSpatial`. | `GameMap`, `SerializedMap`, `SerializedSpatial`. |
+| `src/map/mapLoader.ts` | `loadMap`, `loadNewMap`, `loadMapByID`, plus the JSON fetch path, dirty-cache handling, and the `doEnterNewMap` callout. Either becomes a free function `loadMapInto(gameMap, …)` or a `GameMap.prototype` extension via declaration merging. | `loadMap`, `loadMapByID`. |
+
+`src/map.ts` becomes a barrel.
+
+**Sizes after split (estimate):**
+`GameMap.ts` ≈ 380; `mapLoader.ts` ≈ 380.
+
+**Circular-dependency risks (low):** the loader needs `Scripting.enterMap` and
+`Critter` — both already imported by `map.ts` today.
+
+---
+
+### 10. `src/worldmap.ts` — 757 lines → 3 modules
+
+**Current responsibilities (single `export module Worldmap`):**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| Square / Worldmap / EncounterTable / Encounter / EncounterRef / EncounterParty / EncounterGroup / Range / EncounterItem / EncounterCritter / EncounterPosition interfaces | 51–138 |
+| `parseWorldmap` — `worldmap.txt` parser | 139–347 |
+| `getEncounterGroup`, `getPlayerWorldPos`, `positionToSquare`, `setSquareStateAt`, `execEncounter`, `doEncounter`, `didEncounter`, `updateAreaMarkerPos`, `centerWorldmapTarget` | 348–528 |
+| `init`, `start`, `stop`, `withinArea`, `updateWorldmapPlayer` — DOM lifecycle + travel loop | 530–757 |
+
+**Proposed split (all augmenting the same `Worldmap` namespace):**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/worldmap/types.ts` | All interfaces (Encounter*, Square, Range, etc.) | Types only. |
+| `src/worldmap/parser.ts` | `parseWorldmap` — the line-by-line `worldmap.txt` parser. | `parseWorldmap`. |
+| `src/worldmap/Worldmap.ts` | Travel loop + DOM lifecycle: `init`, `start`, `stop`, `updateWorldmapPlayer`, `withinArea`, `centerWorldmapTarget`, `getPlayerWorldPos`, `setSquareStateAt`, `updateAreaMarkerPos`. | Public surface used by `ui.ts`. |
+| `src/worldmap/encounters.ts` | Worldmap-side encounter dispatch: `getEncounterGroup`, `execEncounter`, `doEncounter`, `didEncounter`. (Not to be confused with `encounters.ts` which handles encounter table evaluation.) | Encounter dispatch. |
+
+`src/worldmap.ts` becomes a barrel that augments the `Worldmap` namespace
+across the four files (TypeScript supports merging a `namespace`/`module`
+across files via re-export).
+
+**Sizes after split (estimate):** all under 250.
+
+**Circular-dependency risks (medium):**
+- `Worldmap.encounters` imports `encounters.ts` (table eval) → no cycle.
+- `Worldmap.encounters` also calls `Combat.start` and `globalState.gMap` —
+  same imports as today.
+- `parser.ts` is pure-string-in / typed-records-out, no game-state dep.
+
+---
+
+### 11. `src/perks.ts` — 747 lines → 2 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| `PerkDef` interface | 9–29 |
+| `PERKS: PerkDef[]` — 60+ perk records | 34–688 |
+| `getValidPerks`, `getPerkRank`, `applyPerk` | 691–747 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/perks/perks.data.ts` | `PerkDef` interface + the `PERKS` array. Pure data. | `PerkDef`, `PERKS`. |
+| `src/perks/perks.ts` | `getValidPerks`, `getPerkRank`, `applyPerk`. | The three functions. |
+
+`src/perks.ts` becomes a barrel.
+
+**Sizes after split (estimate):** `perks.data.ts` ≈ 660 (data, kept as a single
+file because it tracks `perk.cc gPerkDescription[]` order; splitting would
+make the FO2-CE comparison harder); `perks.ts` ≈ 90.
+
+**Note:** `perks.data.ts` stays over 400 — but it is **data**, not logic, and
+no other proposal here splits a literal data table for size's sake. Mention
+it as a known intentional outlier.
+
+**Circular-dependency risks:** none — `perks.data.ts` has no imports;
+`perks.ts` imports it plus `Player`. Same as today.
+
+---
+
+### 12. `src/ui_pipboy.ts` — 736 lines → 4 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| Tab type, screen constants, content-area constants, automap canvas constants, tab layout | 26–57 |
+| Date/time bar with digit sprites (`makeDigit`, `getGameDate`, `renderDateTimeBar`) | 70–160 |
+| Wait menu (`toggleWaitMenu`, `advanceTime`, `formatGameTime`) | 161–246 |
+| Shared widget helpers (`makeHeader`, `makeRow`, `makeListItem`, `makeButton`, `clearScreen`, `makeContentArea`) | 247–306 |
+| STATUS tab (`renderStatusTab`) | 307–346 |
+| AUTOMAPS tab (`locationForMap`, `collectAutomapEntries`, `styleAutomapCanvas`, `createAutomapCanvas`, `renderAutomapsTab`) | 347–547 |
+| ARCHIVES tab (`renderArchivesTab`) | 548–617 |
+| Tab dispatch + public open/close/toggle (`renderTab`, `openPipBoy`, `closePipBoy`, `togglePipBoy`, `isPipBoyOpen`) | 618–736 |
+
+**Proposed split (all under `src/ui_pipboy/`):**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/ui_pipboy/shell.ts` | Constants, tab dispatcher, public open/close/toggle, date/time bar, wait menu, shared widget helpers. | `openPipBoy`, `closePipBoy`, `togglePipBoy`, `isPipBoyOpen`. |
+| `src/ui_pipboy/tabs/status.ts` | `renderStatusTab`. | `renderStatusTab`. |
+| `src/ui_pipboy/tabs/automaps.ts` | AUTOMAPS tab (`renderAutomapsTab` + automap canvas helpers). | `renderAutomapsTab`. |
+| `src/ui_pipboy/tabs/archives.ts` | `renderArchivesTab`. | `renderArchivesTab`. |
+
+`src/ui_pipboy.ts` becomes a barrel re-exporting `openPipBoy`, `closePipBoy`,
+`togglePipBoy`, `isPipBoyOpen`.
+
+**Sizes after split (estimate):** `shell.ts` ≈ 280; `status.ts` ≈ 60;
+`automaps.ts` ≈ 230; `archives.ts` ≈ 90.
+
+**Circular-dependency risks (low):** tab files import `shell.ts` for the
+shared widget helpers; shell imports no tab file (it dispatches via a
+plain `switch` after lazy-importing the tab functions).
+
+---
+
+### 13. `src/critter.ts` — 670 lines → 2 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| Constants (`weaponSkins`, `weaponAnims`, `attackMode`, `damageType`, `attackModeToBaseSkill`, `BIG_GUN_ANIM_CODES`, `ENERGY_DAMAGE_TYPES`, `weaponSkillMap`) | 27–145 |
+| `Weapon` class — proto data accessor, mode cycle, unarmed move progression, attack skins | 205–438 |
+| `deathAnimForDamageType` | 445–455 |
+| `critterKill` (death pipeline incl. karma, kill counts, animation selection) | 457–578 |
+| `critterDamage` (damage application, knockback, status effects, hit animation) | 579–652 |
+| `critterGetRawStat`/`critterSetRawStat`/`critterGetRawSkill`/`critterSetRawSkill` — dead code (only used inside file) | 654–670 |
+| `killCounts: Map<number, number>` | 34 |
+| `UnarmedMove` interface + `UNARMED_MOVES` table + `getAvailableUnarmedMoves` | 170–204 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/critter/Weapon.ts` | Weapon class, constants (`weaponSkins`, `weaponAnims`, `attackMode`, `damageType`, `attackModeToBaseSkill`, `BIG_GUN_ANIM_CODES`, `ENERGY_DAMAGE_TYPES`, `weaponSkillMap`, `parseAttack`, `getWeaponSkillFromPro`), `UnarmedMove`, `UNARMED_MOVES`, `getAvailableUnarmedMoves`. | `Weapon`, `UnarmedMove`, `UNARMED_MOVES`, `getAvailableUnarmedMoves`. |
+| `src/critter/lifecycle.ts` | `critterKill`, `critterDamage`, `deathAnimForDamageType`, `killCounts`. | Public lifecycle helpers. |
+
+Delete the dead `critterGetRawStat` / `critterSetRawSkill` quartet (only
+referenced internally with `TODO` warnings).
+
+`src/critter.ts` becomes a barrel.
+
+**Sizes after split (estimate):** `Weapon.ts` ≈ 360; `lifecycle.ts` ≈ 220.
+
+**Circular-dependency risks (medium):**
+- `Weapon.ts` references the `Critter` and `WeaponObj` types — import them
+  directly from `./object/Critter.js` / `./object/items.js` rather than from
+  the `object.js` barrel to avoid a cycle through the barrel.
+- `lifecycle.ts` calls `Scripting.destroy` + `endgame.setupDeathEnding` —
+  same as today.
+
+---
+
+### 14. `src/skillUse.ts` — 651 lines → 2 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| Logging helpers (`rollName`, `logSkillHeader`, `logSkillRoll`, `logSkillXP`, `rollResultKey`, `emitSkillRoll`) | 19–84 |
+| Usage limiter (3-use/day) — `SKILLS_MAX_USES_PER_DAY`, `usageSlots`, `getUsageSlots`, `hasFreeUsageSlot`, `recordUsage`, `resetSkillUsage` | 86–130 |
+| `SKILL_XP` table, `SkillUseResult`, `makeResult` | 132–160 |
+| `skillUse` dispatcher | 162–195 |
+| Per-skill implementations: `useFirstAid`, `useDoctor`, `useSneak`, `useLockpick`, `useSteal`, `useTraps`, `useScience`, `useRepair` | 196–651 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/skills/skillUseShared.ts` | Logging helpers, usage limiter, `SKILL_XP`, `SkillUseResult`, `makeResult`. | Shared internals + the public types. |
+| `src/skills/skillUse.ts` | `skillUse` dispatcher and the 8 per-skill implementations. | `skillUse`, `resetSkillUsage`, `SkillUseResult`. |
+
+`src/skillUse.ts` becomes a barrel.
+
+**Sizes after split (estimate):** `skillUseShared.ts` ≈ 150;
+`skillUse.ts` ≈ 510 (still > 400, but each of the 8 skill bodies is small
+enough that further splitting would add boilerplate without reducing complexity).
+
+**Follow-up:** if needed, the 8 skill bodies could be moved into
+`src/skills/firstAid.ts`, `src/skills/doctor.ts`, etc. The shape of each is
+identical (function taking `(user, target?)` returning `SkillUseResult`), so
+the file-per-skill split is mechanical. Out of scope for first pass.
+
+**Circular-dependency risks:** none — all imports downstream.
+
+---
+
+### 15. `src/lightmap.ts` — 589 lines → 2 modules
+
+**Current responsibilities (single `export module Lightmap`):**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| `tile_intensity`, `staticTileIntensity` Int32Arrays | 37–42 |
+| `light_offsets`, `light_distance` tables + `obj_adjust_light` (the big per-tile light propagation function, ~300 lines) | 43–370 |
+| `obj_light_table_init` (the table generator, ~165 lines) | 371–533 |
+| Public surface: `resetLight`, `rebuildLight`, `bakeStaticLight`, `rebuildDynamicLight`, `obj_rebuild_all_light`, `tile_num_in_direction` | 534–589 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/lightmap/lightTable.ts` | `light_offsets`, `light_distance`, `obj_light_table_init`, `tile_num_in_direction`, `isInit` flag — the static table-generation part. | Internal accessors for tables. |
+| `src/lightmap.ts` | The remaining public Lightmap module: `tile_intensity`, `staticTileIntensity`, `obj_adjust_light`, `light_subtract_from_tile`, `light_add_to_tile`, `zeroArray`, `light_reset`, `obj_rebuild_all_light`, `resetLight`, `rebuildLight`, `bakeStaticLight`, `rebuildDynamicLight`. | Public Lightmap namespace. |
+
+**Sizes after split (estimate):** `lightTable.ts` ≈ 200;
+`lightmap.ts` (after carve) ≈ 380.
+
+**Circular-dependency risks (low):** `lightTable.ts` is leaf — no game-state
+deps.
+
+---
+
+### 16. `src/renderer.ts` — 566 lines → 2 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| `TileMap`, `ObjectRenderInfo` types | 34–55 |
+| Screen-size + zoom + camera coord helpers (`setScreenSize`, `getZoom`, `screenToWorld`, `worldToScreen`, `getWorldViewWidth/Height`, `MAP_WORLD_BOUNDS`, `clampCameraPosition`, `centerCamera`) | 56–474 |
+| `Renderer` abstract class (init/render shell, `addWindow`, `render`, `objectRenderInfo`, `renderObjects` with itemHighlight outline, draw method stubs) | 103–425 |
+| Object screen-test / picking helpers (`objectOnScreen`, `objectTransparentAt`, `objectBoundingBox`, `getObjectUnderCursor`) | 475–566 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/render/camera.ts` | All camera/zoom/screen-coord helpers: `setScreenSize`, `getZoom`, `screenToWorld`, `worldToScreen`, `getWorldViewWidth/Height`, `MAP_WORLD_BOUNDS`, `clampCameraPosition`, `centerCamera`, `SCREEN_WIDTH`, `SCREEN_HEIGHT`, `ZOOM_MIN`, `ZOOM_MAX`. | Camera helpers. |
+| `src/renderer.ts` | The remaining `Renderer` abstract class + object picking helpers (`objectOnScreen`, `objectTransparentAt`, `objectBoundingBox`, `getObjectUnderCursor`, `TileMap`, `ObjectRenderInfo`). | `Renderer`, picking helpers, types. |
+
+**Sizes after split (estimate):** `camera.ts` ≈ 200;
+`renderer.ts` (after carve) ≈ 380.
+
+**Circular-dependency risks (low):** `camera.ts` is pure utility, no
+game-state imports beyond `globalState` and `geometry`.
+
+---
+
+### 17. `src/ui_font.ts` — 543 lines → 2 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| `SymbolInfo` interface, `FontRenderer` class (font loading + glyph metrics) | 27–230 |
+| `FontWidget` widget + `makeFontLabel` | 231–298 |
+| `parseHexColor`, glyph-height cache, `renderBitmapText` — actual bitmap drawing | 277–447 |
+| `setNumberDial`, `renderBignum` — number-sprite helpers (separate widget genres) | 448–540 |
+| Default fonts (`font1` … `font4`) instantiation | 540–543 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/ui/fontCore.ts` | `SymbolInfo`, `SymbolInfoMap`, `FontRenderer`, `FontWidget`, `makeFontLabel`, `renderBitmapText`, `parseHexColor`, glyph-height cache. | Core font classes + the bitmap renderer. |
+| `src/ui/numberDials.ts` | `setNumberDial`, `renderBignum`, the sprite-dimension constants. | Number-dial helpers (used by HUD HP/AC/AP and Pip-Boy clock). |
+
+`src/ui_font.ts` keeps the default-font instantiations (`font1`–`font4`) and
+becomes a barrel.
+
+**Sizes after split (estimate):** `fontCore.ts` ≈ 410 (just over);
+`numberDials.ts` ≈ 100; `ui_font.ts` ≈ 30.
+
+**Circular-dependency risks:** none.
+
+---
+
+### 18. `src/automapData.ts` — 543 lines → 3 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| Constants (`LS_*`, `DB_*`, `REVEAL_RADIUS`) | 32–41 |
+| `seenData`, `objectSnapshots` maps, `dirtyTiles`/`dirtyObjects` sets, `mapKey` helper | 43–67 |
+| IndexedDB layer (`openDB`, `idbGetAll`, `idbPutBatch`, `loadFromLocalStorage`, `scheduleSave`, `flushPendingWrites`, `flushAutomapSave`) | 69–234 |
+| Snapshot + query API (`snapshotCurrentMapObjects`, `getObjectSnapshot`, `getArchivedMaps`, `getSeenTiles`, `markSeenAt`, `initAutomapTracking`) | 235–346 |
+| Canvas rendering (`renderAutomapCanvas`, `drawAutomapInto`, `RenderOptions`) | 347–543 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/automap/storage.ts` | IndexedDB layer + the legacy localStorage migration: `openDB`, `idbGetAll`, `idbPutBatch`, `loadFromLocalStorage`, `scheduleSave`, `flushPendingWrites`, `flushAutomapSave`, constants. | Storage primitives. |
+| `src/automap/tracking.ts` | Map state: `seenData`, `objectSnapshots`, `dirtyTiles`/`dirtyObjects`, plus the query/mutation API (`snapshotCurrentMapObjects`, `getObjectSnapshot`, `getArchivedMaps`, `getSeenTiles`, `markSeenAt`, `initAutomapTracking`). | Public state API used by `ui_pipboy.ts` and `automapData.ts`. |
+| `src/automap/render.ts` | `renderAutomapCanvas`, `drawAutomapInto`, `RenderOptions`. | Canvas renderer. |
+
+`src/automapData.ts` becomes a barrel that re-exports the public surface
+existing call sites use (`drawAutomapInto`, `getArchivedMaps`, `getSeenTiles`,
+`getObjectSnapshot`, `flushAutomapSave`, `initAutomapTracking`, `markSeenAt`,
+`snapshotCurrentMapObjects`, `ArchivedMap`, `RenderOptions`).
+
+**Sizes after split (estimate):** `storage.ts` ≈ 180; `tracking.ts` ≈ 180;
+`render.ts` ≈ 200.
+
+**Circular-dependency risks (low):** all three new files are leaf w.r.t. game
+state (no `Critter`/`Combat` deps).
+
+---
+
+### 19. `src/endgame.ts` — 536 lines → 3 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| Types + constants (`EndgameEnding`, `EndgameDeathEnding`, `PANNING_ART_NUM`, `SLIDE_W`/`SLIDE_H`, `DEATH_REASON_*`, `GVAR_MODOC_SHITTY_DEATH`) | 26–60 |
+| Death-ending data loader (`loadDeathEndings`, `validateDeathEndings`, `setupDeathEnding`, `getDeathEndingFileName`) | 68–151 |
+| Slide rendering primitives (`loadSubtitleLines`, `buildSubtitleTimings`, `playNarratorAudio`, `waitAudioDurationMs`, `createOverlay`, `removeOverlay`, `createSlideCanvas`, `createSubtitleDiv`, `fadeIn`, `fadeOut`, `scheduleSubtitles`, `loadImageToCanvas`, `showStaticSlide`, `showPanningSlide`) | 152–443 |
+| Continue dialog (`showContinueDialog`) | 444–479 |
+| Public sequences: `playSlideshow`, `playMovie`, `playDeathEnding` | 480–536 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/endgame/deathEndings.ts` | `EndgameDeathEnding`, `DEATH_REASON_*`, `GVAR_MODOC_SHITTY_DEATH`, `loadDeathEndings`, `validateDeathEndings`, `setupDeathEnding`, `getDeathEndingFileName`, state for the chosen death ending. | Death-ending API. |
+| `src/endgame/slideRender.ts` | Slide rendering primitives (DOM overlay creation, narrator audio, subtitle scheduling, image load, fade in/out, static/panning slide play). | `showStaticSlide`, `showPanningSlide`, `createOverlay`, plus helpers. |
+| `src/endgame.ts` | Public sequences (`playSlideshow`, `playMovie`, `playDeathEnding`), `EndgameEnding` interface, `showContinueDialog`, `PANNING_ART_NUM`, `SLIDE_W`/`SLIDE_H`. | Public surface used by `scripting.ts`. |
+
+**Sizes after split (estimate):** `deathEndings.ts` ≈ 130;
+`slideRender.ts` ≈ 240; `endgame.ts` ≈ 170.
+
+**Circular-dependency risks (low):** `scripting.ts` already imports
+`endgame.ts`; split doesn't change that.
+
+---
+
+### 20. `src/encounters.ts` — 519 lines → 2 modules
+
+**Current responsibilities (single `export module Encounters`):**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| AST node types + `tokenizeCond`, `parseCond`, `parseConds`, `printTree`, `evalCond`, `evalConds` — `worldmap.txt` encounter-condition expression parser | 42–243 |
+| `evalEncounterCritter`, `evalEncounterCritters`, `pickEncounter`, `positionCritters`, `evalEncounter` — encounter resolution | 245–519 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/encounters/conditionLang.ts` | The expression parser + evaluator (`tokenizeCond`, `parseCond`, `parseConds`, `printTree`, `evalCond`, `evalConds` + AST types). | Parser/eval. |
+| `src/encounters/resolver.ts` | Encounter resolution: `evalEncounterCritter`, `evalEncounterCritters`, `pickEncounter`, `positionCritters`, `evalEncounter`. | Resolution API. |
+
+`src/encounters.ts` becomes a barrel augmenting the `Encounters` namespace.
+
+**Sizes after split (estimate):** `conditionLang.ts` ≈ 220;
+`resolver.ts` ≈ 280.
+
+**Circular-dependency risks (low):** `conditionLang.ts` reads `globalState`
+for `player(level)` / `time_of_day` — no cycle.
+
+---
+
+### 21. `src/ui_barter.ts` — 486 lines → 2 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| DOM helpers ($id, clearEl, off, makeEl) | 35–95 |
+| `uiGetAmount` — count-picker modal | 98–207 |
+| `_uiAddItem`, `uiSwapItem` — shared item-transfer primitives | 209–249 |
+| `uiEndBarterMode`, `uiBarterMode` — main barter screen with CE-accurate value calculation | 253–486 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/ui_barter/swap.ts` | `_uiAddItem`, `uiSwapItem`, `uiGetAmount`, DOM helpers. The cross-list transfer primitives shared with `ui_loot.ts`. | `uiSwapItem`, `uiGetAmount`. |
+| `src/ui_barter/screen.ts` | `uiBarterMode`, `uiEndBarterMode`. The barter screen itself. | `uiBarterMode`. |
+
+`src/ui_barter.ts` becomes a barrel.
+
+**Sizes after split (estimate):** `swap.ts` ≈ 240; `screen.ts` ≈ 250.
+
+**Circular-dependency risks (low):** `screen.ts` imports `swap.ts` —
+straight downstream.
+
+---
+
+### 22. `src/criticalEffects.ts` — 478 lines → 2 modules
+
+**Current responsibilities (single `export module CriticalEffects`):**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| Types + region-name lookup + `regionHitChanceDecTable` + `critterTable` | 27–64 |
+| `selfWeaponDamage`, `critFailEffects`, `critterEffects` — the actual effect appliers (`droppedWeapon`, `knockdown`, `lostNextTurn`, `blinded`, `crippledLeft/RightLeg`, etc.) | 65–245 |
+| `Effects`, `StatCheck`, `CritType`, `CritLevelData` classes — table-row representations | 246–344 |
+| `parseCritLevel`, `parseEffects` — JSON parser | 325–351 |
+| `getCritical`, `defaultCritType`, `getCriticalFail` | 352–391 |
+| `loadTable`, `criticalFailTable`, `temporaryDoCritFail` | 393–478 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/criticalEffects/effects.ts` | The effect appliers: `critterEffects` map (knockdown, blinded, crippledLeftLeg, etc.), `critFailEffects` map (`droppedWeapon`, etc.), `selfWeaponDamage`, `regionHitChanceDecTable`, region-name lookup. The actual game-state mutations. | The effect maps + the public hit-chance table. |
+| `src/criticalEffects/table.ts` | Table-row classes (`Effects`, `StatCheck`, `CritType`, `CritLevelData`) + parsers + accessors (`getCritical`, `defaultCritType`, `getCriticalFail`, `loadTable`, `criticalFailTable`, `temporaryDoCritFail`). | Table API. |
+
+`src/criticalEffects.ts` becomes a barrel augmenting `CriticalEffects`.
+
+**Sizes after split (estimate):** `effects.ts` ≈ 230; `table.ts` ≈ 250.
+
+**Circular-dependency risks (low):** `effects.ts` imports `Critter`,
+`Weapon`, `critterDamage` — same as today.
+
+---
+
+### 23. `src/ui.ts` — 469 lines → **leave as-is**
+
+This file is **already a barrel**: ~410 of its 469 lines are `export { … }`
+re-exports plus the one-off `uiInit()` function (which is just `initOptionsMenu`,
+`initLoot`, `initCalledShot`, `initLogScrollZones`, `initInventory`,
+`registerCloseInventoryPanel`, etc. wired together at boot). No content split
+would reduce coupling. Recommendation: **do not split**; let the per-panel
+file splits (sections 12, 21, etc.) leave their re-exports here.
+
+If anything, after the other UI splits land, `ui.ts` will grow more re-export
+lines but its real code shrinks; that's the intended outcome.
+
+---
+
+### 24. `src/ui_options.ts` — 438 lines → 2 modules
+
+**Current responsibilities:**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| `getOptionsWindow` accessor | 31–37 |
+| `SavedPreferences` interface, `PREFS_KEY` | 39–53 |
+| `loadPreferences` — apply persisted prefs to Config + audioEngine | 55–90 |
+| `getVolumeValue` | 92–101 |
+| `buildPrefsPanel` — DOM panel build (≈ 220 lines) | 102–318 |
+| `savePreferences`, `openPrefsPanel`, `closePrefsPanel` | 319–354 |
+| `initOptionsMenu`, `showOptionsMenu`, `closeOptionsMenu` — main-menu integration | 356–438 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/ui_options/preferences.ts` | `SavedPreferences`, `PREFS_KEY`, `loadPreferences`, `savePreferences`, `getVolumeValue`. The Config/localStorage layer with no DOM. | Pref I/O. |
+| `src/ui_options.ts` | `buildPrefsPanel`, `openPrefsPanel`, `closePrefsPanel`, `initOptionsMenu`, `showOptionsMenu`, `closeOptionsMenu`, `getOptionsWindow`. The DOM-bearing panel. | Public surface. |
+
+**Sizes after split (estimate):** `preferences.ts` ≈ 70;
+`ui_options.ts` (after carve) ≈ 370.
+
+**Circular-dependency risks (low):** none — `preferences.ts` only touches
+`Config` and `globalState`.
+
+---
+
+### 25. `src/geometry.ts` — 411 lines → 2 modules
+
+**Current responsibilities (no imports — pure):**
+
+| Concern | Approx. line range |
+|---------|--------------------|
+| Hex screen projection (`hexToScreen`, `hexFromScreen`, `hexIsInFrontOf`, `hexIsToRightOf`, `pixelToCube`, `cubeRound`, `сubeRoundToHex`, `hexGridToCube`) + screen/grid constants (`HEX_WIDTH`, `HEX_HEIGHT`, `HEX_GRID_SIZE`) + `Point`, `BoundingBox` types | 20–155 |
+| Hex grid topology (`hexNeighbors`, `hexInDirection`, `hexIsEdge`, `hexInDirectionDistance`, `directionOfDelta`, `hexDistance`, `hexDirectionTo`, `hexOppositeDirection`, `hexNearestNeighbor`) | 159–271 |
+| Lines and ranges (`hexLine`, `hexLineBeyond`, `hexesInRadius`) | 273–353 |
+| Bounding-box predicates (`pointInBoundingBox`, `tile_in_tile_rect`, `tile_in_tile_rect2`, `pointIntersectsCircle`) | 354–411 |
+
+**Proposed split:**
+
+| New file | Owns | Exports |
+|----------|------|---------|
+| `src/geometry/hexScreen.ts` | Projection helpers + types + constants. | `Point`, `BoundingBox`, `HEX_WIDTH`, `HEX_HEIGHT`, `HEX_GRID_SIZE`, `hexToScreen`, `hexFromScreen`, `hexIsInFrontOf`, `hexIsToRightOf`, plus the cube-rounding helpers. |
+| `src/geometry/hexGrid.ts` | Topology + lines + bbox predicates (everything that operates on hex coords without touching screen pixels). | `hexNeighbors`, `hexInDirection`, `hexInDirectionDistance`, `directionOfDelta`, `hexDistance`, `hexDirectionTo`, `hexNearestNeighbor`, `hexLine`, `hexLineBeyond`, `hexesInRadius`, `pointInBoundingBox`, `tile_in_tile_rect`, `pointIntersectsCircle`. |
+
+`src/geometry.ts` becomes a barrel re-exporting everything.
+
+**Sizes after split (estimate):** `hexScreen.ts` ≈ 180; `hexGrid.ts` ≈ 240.
+
+**Circular-dependency risks:** none — `geometry.ts` has zero imports today.
+
+---
+
+## Recommended execution order
+
+The splits below are ordered to **minimise merge conflicts** (each step touches
+files that downstream steps don't yet revisit) and **eliminate broken imports**
+at every checkpoint (each step keeps the original file as a barrel re-export so
+existing import sites compile until the next step).
+
+**Phase 1 — leaf-level, zero-risk splits (no game-state coupling).**
+These can land in any order, and almost certainly without test failures.
+
+1. **`src/geometry.ts`** → `geometry/hexScreen.ts` + `geometry/hexGrid.ts`
+   (no imports, no cycles possible).
+2. **`src/perks.ts`** → `perks/perks.data.ts` + `perks/perks.ts`
+   (data extraction, single downstream `Player` import).
+3. **`src/criticalEffects.ts`** → `criticalEffects/effects.ts` + `criticalEffects/table.ts`
+   (already inside a `module CriticalEffects` namespace; sibling files
+   augment naturally).
+4. **`src/ui_font.ts`** → `ui/fontCore.ts` + `ui/numberDials.ts` + barrel.
+5. **`src/automapData.ts`** → `automap/storage.ts` + `automap/tracking.ts` + `automap/render.ts` + barrel.
+6. **`src/lightmap.ts`** → `lightmap/lightTable.ts` carve-out.
+
+**Phase 2 — render layer (depends on Phase 1's `geometry`).**
+
+7. **`src/renderer.ts`** → `render/camera.ts` + slim `renderer.ts`.
+8. **`src/webglrenderer.ts`** → `render/webglContext.ts` + `render/webglLighting.ts` + `render/webglDraw.ts`.
+
+**Phase 3 — UI panels (independent of objects/combat changes).**
+
+9.  **`src/ui_options.ts`** → `ui_options/preferences.ts` carve-out.
+10. **`src/ui_barter.ts`** → `ui_barter/swap.ts` + `ui_barter/screen.ts`.
+11. **`src/ui_inventory.ts`** → `ui_inventory/dragdrop.ts` + `ui_inventory/panel.ts`.
+12. **`src/ui_pipboy.ts`** → `ui_pipboy/shell.ts` + 3 per-tab files.
+13. **`src/ui_character.ts`** → `ui_character/{descriptions,viewer,creator,perkModal}.ts`.
+
+**Phase 4 — world / map / encounter triplet (somewhat coupled).**
+
+14. **`src/encounters.ts`** → `encounters/{conditionLang,resolver}.ts`.
+15. **`src/worldmap.ts`** → `worldmap/{types,parser,Worldmap,encounters}.ts`.
+16. **`src/map.ts`** → `map/{GameMap,mapLoader}.ts`.
+17. **`src/endgame.ts`** → `endgame/{deathEndings,slideRender}.ts` + slim `endgame.ts`.
+
+**Phase 5 — the high-risk cluster (objects / critter / combat).**
+Land these together in a single review, because Phase 5's three splits share a
+mutual import surface (`Critter` types) that's easy to get wrong if they land
+independently.
+
+18. **`src/object.ts`** → `object/{Obj,items,factories,Critter,critterAnimation}.ts`.
+19. **`src/critter.ts`** → `critter/{Weapon,lifecycle}.ts`. Drop the dead
+    `critterGetRawStat` / `critterSetRawSkill` quartet.
+20. **`src/combat.ts`** → `combat/{actionPoints,AI,damage,hitChance,Combat}.ts`.
+
+**Phase 6 — scripting (touches everyone) — go last.**
+
+21. **`src/scripting.ts`** → `scripting/{Script,runtime,dialogue,perception,
+    lifecycle,animBatch}.ts`. Keep the public `Scripting.*` namespace shape
+    via barrel re-exports; verify every `Scripting.X` call site still resolves.
+
+**Phase 7 — main / engine core.**
+
+22. **`src/main.ts`** → `playerUse.ts` + `input.ts` + `gameTick.ts`.
+    Land last because it imports from nearly every other module.
+
+**Phase 8 — testing tooling (no game-runtime risk).**
+
+23. **`src/autocrawler.ts`** → `autocrawler/{types,shared,dialogue,combat,
+    maps,report}.ts`. Side-effect import in `main.ts` continues to work
+    through the barrel.
+
+---
+
+## Conventions for every split
+
+1. **Always leave a barrel.** Existing import sites (`from './scripting.js'`,
+   `from './object.js'`, …) must keep working. The original file becomes
+   `export { … } from './<split>/…'`. No call site is updated as part of the
+   split itself; that's a follow-up.
+2. **Namespace-augmenting splits use the `module`/`namespace` declaration in
+   every sibling file**, then a single re-export aggregator in the barrel.
+   This is the same pattern CE uses for its `interpreter_extra.cc` opcode
+   registrations.
+3. **No new logic in any split.** Every commit is "move file A's lines X–Y
+   into file B verbatim, add necessary imports". `git mv -- A B` plus
+   surgical adjustments preserves blame.
+4. **Run `npx tsc` after every split.** TypeScript strict-mode will flag
+   missing imports immediately, so the surface stays compileable at every
+   checkpoint.
+5. **Update `CODEBASE.md`'s Source Modules table** in the same commit that
+   lands each split — per CLAUDE.md "CODEBASE.md Maintenance".
+6. **Do not change `wiki/known_bugs.md` line counts** as part of a split;
+   they reflect logical not physical organisation.
+
+---
+
+## What this proposal deliberately does **not** do
+
+- **Does not move opcode bodies out of `Script`** — CLAUDE.md "Conventions"
+  forbids it.
+- **Does not introduce a new runtime layer.** No DI container, no event bus
+  beyond the existing `events.ts`, no class hierarchy changes. Pure file
+  decomposition with re-exports.
+- **Does not rename anything publicly exported.** The visible names that other
+  files import stay unchanged.
+- **Does not touch `formats/`, `vm.ts`, `vm_bridge.ts`, `player.ts`,
+  `char.ts`, `skills.ts`, `aiPackets.ts`, `gametime.ts`, `audio.ts`,
+  `data.ts`, `pro.ts`, `tile.ts`, `lighting.ts`, `globalState.ts`,
+  `config.ts`, `events.ts`, `logger.ts`, `util.ts`, `images.ts`,
+  `saveload.ts`, `idbcache.ts`, `debug.ts`, `intfile.ts`, `transpiler.ts`,
+  `questData.ts`, `questLog.ts`, `drugs.ts`, `eventlog.types.ts`,
+  `unarmed.ts`, `soundMap.ts`, `heart.ts`, `init.ts`, `ui_hud.ts`,
+  `ui_dialogue.ts`, `ui_panels.ts`, `ui_widget.ts`, `ui_components.ts`,
+  `ui_drag.ts`, `ui_calledshot.ts`, `ui_contextmenu.ts`, `ui_elevator.ts`,
+  `ui_loot.ts`, `ui_mainmenu.ts`, `ui_saveload.ts`, `ui_skilldex.ts`,
+  `ui_timer.ts`, `ui_unarmed.ts`, `ui_charactercreator.ts`,
+  `ui_worldmap.ts`, `ui_automap.ts`, `party.ts`** — all already at or
+  below ~400 lines.
+- **Does not collapse the `Scripting` / `Worldmap` / `Encounters` /
+  `Lightmap` / `CriticalEffects` namespaces.** Each retains its existing
+  `module X { … }` surface; the splits augment, they do not flatten.
+
+---
+
+## Summary
+
+| Phase | Files touched | New files | Cumulative new modules | Net lines moved |
+|-------|---------------|-----------|------------------------|-----------------|
+| 1 | 6 | 14 | 14 | ~2400 |
+| 2 | 2 | 5 | 19 | ~1300 |
+| 3 | 5 | 11 | 30 | ~3700 |
+| 4 | 4 | 9 | 39 | ~2400 |
+| 5 | 3 | 12 | 51 | ~4400 |
+| 6 | 1 | 6 | 57 | ~2600 |
+| 7 | 1 | 3 | 60 | ~1100 |
+| 8 | 1 | 6 | 66 | ~900 |
+| **Total** | **23** | **66** | **66 new files** | **~19 000 lines repositioned** |
+
+After execution every newly created file is ≤ 400 lines except:
+`scripting/Script.ts` (~ 1700, mandated by CLAUDE.md), `object/critterAnimation.ts`
+(~ 480, follow-up candidate), `combat/Combat.ts` (~ 950, follow-up candidate),
+`playerUse.ts` (~ 810, follow-up candidate), `ui_character/creator.ts` (~ 870,
+follow-up candidate), and the `perks/perks.data.ts` data table (~ 660,
+intentional). Five files remain above 400; everything else fits.
