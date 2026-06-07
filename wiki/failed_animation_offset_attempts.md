@@ -571,7 +571,8 @@ compound across cycles.
 | 4 (DarkFO) | no formula | no formula | — | −10 px X / +3 px Y snap on hmjmps kick→idle dir5 (uncompensated dirOff jump) |
 | 5 | dirOff-only carry | dirOff-only carry (or {0,0} if was walking) | — | Telescoping K_cycle = 0 ✓ but 2–4 px residue at every w/ox-mismatched transition (visible at every weapon swap, combat hit, pick-up) |
 | Restored: FA12 final | `oldFrames[0]` (anchor) | zero-jump + prev | `(newF0.h − srcF.h)` present | Anchored box top-left, not body — caused −5 px X / +12 px Y snap on hmjmps ja→jd dir5 because dimensions differ between FRMs |
-| **6 (current): body anchor** | `oldFrames[currentFrame]` | zero-jump + prev | no width/height terms | ✅ Zero body-center X jump and zero foot Y jump in all directions; K_cycle ≈ (-1, 0) per swap cycle (5–10× less than FA12), walk-bounded |
+| 6 (PR #38): body anchor | `oldFrames[currentFrame]` | zero-jump + prev | no width/height terms | ✅ Zero body-center X jump and zero foot Y jump in all directions; K_cycle ≈ (-1, 0) per swap cycle (5–10× less than FA12), walk-bounded |
+| **7 (branch `ce-faithful-experiment`)** | additive: `prev + oldDirOff + oldF.ox` | same additive (walk: `{0,0}`) | — | CE-byte-faithful (animation.cc:2889 + object.cc:1134). Body-centre jumps `≈ −(NEW_dirOff + NEW_cumOx[0])` per transition (typical ±1–2 px). Mid-idle still bakes as in CE. |
 
 ---
 
@@ -662,6 +663,95 @@ jump is geometrically zero at the body center and foot.
 
 - `src/object.ts` — `Critter.staticAnimation`, `Critter.clearAnim` (formula
   simplified; anchor:f0 rule removed; logging cleaned up).
+
+---
+
+## Attempt 7 — CE-faithful additive accumulator (branch `claude/ce-faithful-experiment`, 2026-06-06)
+
+Branched off `claude/sweet-hopper-n5VXw` after Attempt 6. Replicates Fallout 2 CE's
+exact `obj->x/y` bookkeeping for FRM transitions, for empirical side-by-side
+comparison with Attempt 6's body-anchored formula.
+
+### CE's exact model (verified in `raw/fallout2-ce/src/`)
+
+- `object.cc:1134` — `_obj_offset(obj, x, y)` adds `(x, y)` to `obj->x/y`.
+- `object.cc:3940` — `_obj_connect_to_tile` zeroes `obj->x/y` on tile placement.
+- `object.cc:3663` — `objectSetLocation` calls `_obj_connect_to_tile` (tile change).
+- `object.cc:2347` — renderer: `rect->left = tileScreenX + dirOff.x + obj->x − width/2`.
+- `animation.cc:2820` — per-frame: `artGetFrameOffsets(art, obj->frame, …, &frameX, &frameY); _obj_offset(obj, frameX, frameY, …)` after `objectSetNextFrame`.
+- `animation.cc:2889` — FID change:
+
+  ```c
+  artGetRotationOffsets(OLD_art, rotation, &x, &y);           // OLD dirOff
+  objectSetFid(object, sad->fid, …);
+  objectSetFrame(object, 0, …);
+  artGetFrameOffsets(NEW_art, 0, rotation, &frameX, &frameY); // NEW frame-0 raw delta
+  _obj_offset(object, x + frameX, y + frameY, …);             // ADDITIVE
+  ```
+
+### Translation to DH2
+
+DH2's `imageMap.json` already stores cumulative `ox/oy` per frame (`frmpixels.py`
+accumulates raw deltas at pipeline time). The renderer adds `frameInfo.ox` per
+frame, which equals CE's "obj->x growing during one animation". So CE's per-frame
+`_obj_offset` calls during a single animation are **already baked into the JSON** —
+no runtime accumulator needed for them.
+
+The only runtime carry needed is the FID-change bump. CE's bump adds
+`OLD_dirOff + NEW_frame0_raw`. In DH2 the renderer also adds `NEW_cumOx[0]`
+(= `NEW_frame0_raw`) per frame, so the `NEW` half of the bump is implicit. What
+remains as a runtime carry is just the `OLD` half plus the cumOx at the moment
+of transition:
+
+```typescript
+artOffset.x = prev.x + oldDirOff.x + oldF.ox
+artOffset.y = prev.y + oldDirOff.y + oldF.oy
+```
+
+where `oldF = oldInfo.frameOffsets[orient][clamp(oldFrame, 0, len−1)]`.
+
+Walk-end `clearAnim` resets to `{0,0}` (CE `objectSetLocation` →
+`_obj_connect_to_tile`, unchanged).
+
+### How CE-faithful diverges from Attempt 6
+
+Body-centre continuity at FID change:
+
+```
+Attempt 6: post − pre = 0           (exact, by derivation)
+CE:        post − pre = −(NEW_dirOff + NEW_cumOx[0])   ≈ ±1–2 px
+```
+
+Verified on the user's logged `hmjmpsia@f11 → hmjmpsid@f0` dir5 trace: CE gives
+`A_new.x = −14`, Attempt 6 gives `A_new.x = −13`. Rendered body-centre under CE
+moves by −1 px in X (Attempt 6: zero). For other transitions the residual ranges
+typically 0–2 px.
+
+Both models bake the current frame's cumulative `ox/oy` into the carry at the
+moment of transition, so neither solves the "swap mid-idle wind-up → body stays
+displaced" symptom. Walk reset is the only mechanism that clears accumulated
+drift in either model.
+
+### Reason for the experiment branch
+
+Attempt 6 is mathematically more precise than CE for body-centre continuity.
+However, "more precise than CE" can feel wrong to players accustomed to the
+original game's exact pixel behaviour. This branch lets you A/B test:
+
+- `claude/sweet-hopper-n5VXw` (PR #38): Attempt 6 — zero body-centre jump per
+  transition, mid-idle wind-up still bakes into carry.
+- `claude/ce-faithful-experiment`: Attempt 7 (CE-faithful) — small per-transition
+  body-centre jumps, mid-idle wind-up still bakes (same as CE).
+
+If you want to eliminate the mid-idle bake symptom, you need `anchor:f0 for idle`
+in `staticAnimation` (FA12 Part 1), which is NOT CE-faithful — CE has the bake.
+That's a separate hybrid option, not implemented on either branch.
+
+### Files
+
+- `src/object.ts` — `Critter.staticAnimation`, `Critter.clearAnim` (formula reduced
+  to pure additive bump; `newDirOff`, `newF0.ox`, w/2, and h terms from Attempt 6
+  removed).
 
 ---
 
