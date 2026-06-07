@@ -1589,6 +1589,78 @@ carrying duplicates into the new subfolder structure.
 
 ---
 
+### Integrated execution order (mainline + Alt-A + Alt-B)
+
+If both alternatives land, the recommended sequence is below. Two new
+phases bracket the existing 8-phase plan: **Phase 0** lands the CLAUDE.md
+rule change Alt-A depends on (must come first because it advertises the
+new convention to contributors), and **Phase 1.5** consolidates the DOM
+helpers before any UI split runs (so the dedup applies to both the 5 UI
+files that get split in Phase 3 and the 6 UI files that don't).
+
+Phase 6 (scripting) absorbs Alt-A by splitting into two commits — **6a**
+delivers the mainline scripting layout with `Script.ts` containing every
+opcode, **6b** carves opcodes out into category files. The two-commit
+split keeps each diff reviewable, lets the engine compile and run after
+6a (bisect-friendly), and means a botched Alt-A rolls back to a working
+intermediate state instead of the pre-refactor monolith.
+
+| # | Phase | What lands | Why this order |
+|---|-------|------------|----------------|
+| 0 | **CLAUDE.md rule change** | Rewrite "Conventions" → opcodes live in `src/scripting/opcodes/<category>.ts` on `Script.prototype`. Add subfolder convention. | Must come **first** so contributors are aware before the structure changes. One small commit. |
+| 1 | Leaf-level splits (unchanged) | `geometry`, `perks`, `criticalEffects`, `ui_font`, `automapData`, `lightmap` | Zero-risk; ships the subfolder convention introduced in Phase 0 on safe files. |
+| **1.5** | **Alt-B: `src/ui_dom.ts` consolidation** | Create `ui_dom.ts` with canonical `$id`/`clearEl`/`showv`/`hidev`/`makeEl`/`off`/`$img`/`$q`/`$qa`/`appendHTML`. Migrate 11 UI files to import from it. | Before Phase 3 so UI splits inherit deduplicated baseline. Files that don't get split (`ui_hud`, `ui_loot`, etc.) still benefit. One commit per file or one bulk commit — reviewer's call. |
+| 2 | Render (unchanged) | `renderer`, `webglrenderer` | No UI dependency on Phase 1.5. Could run in parallel with Phase 1.5 in practice. |
+| 3 | UI panels (unchanged) | `ui_options`, `ui_barter`, `ui_inventory`, `ui_pipboy`, `ui_character` | Each panel's split now starts from the deduplicated baseline. |
+| 4 | World/map (unchanged) | `encounters`, `worldmap`, `map`, `endgame` | Independent of UI changes. |
+| 5 | Objects/critter/combat (unchanged) | `object`, `critter`, `combat` | High-risk cluster lands together as planned. |
+| **6a** | **Scripting mainline split** | `scripting/{Script,runtime,dialogue,perception,lifecycle,animBatch}.ts` per the original Phase 6 proposal. `Script.ts` still ~1700 lines (carries every opcode). | Validates the barrel pattern on the most-imported file in the engine before Alt-A piles on. |
+| **6b** | **Alt-A: opcode category extraction** | Create `scripting/opcodes/{vars,messages,metarule,critter,inventory,anim,objects,tile,locks,perception,dialogue,lighting,timer,loadout,audio,party,combat}.ts` + `scripting/opcodes/index.ts`. Move each opcode body out of `Script.ts` onto `Script.prototype` in its category file. `Script.ts` drops from ~1700 to ~120 lines. Add `import './opcodes/index.js'` to `scripting.ts` barrel. | After 6a is proven; one PR per category (or one bulk PR with one category per commit) keeps diffs reviewable. Bisect lands at "all opcodes still on Script" if 6b breaks. |
+| 7 | `main.ts` split (unchanged) | `playerUse.ts`, `input.ts`, `gameTick.ts` | Last because it imports from almost every other module. |
+| 8 | `autocrawler.ts` split (unchanged) | `autocrawler/{types,shared,dialogue,combat,maps,report}.ts` | Side-effect import in `main.ts` keeps working through the barrel. |
+
+#### Why this order works
+
+- **Phase 0 first** advertises the rule change. No surprise restructuring.
+- **Alt-B before Phase 3** is the only ordering that avoids carrying
+  duplicated DOM helpers into the new subfolder structure. Doing it
+  after Phase 3 means the 5 split panels each ship with their old
+  duplicates and we have to do another sweep — wasted churn.
+- **Phase 6a / 6b separation** means we get the mainline scripting
+  refactor (a meaningful improvement on its own) without depending on
+  Alt-A's prototype-merging pattern proving out. If 6b is botched it
+  rolls back to a working 6a state, not the pre-refactor monolith.
+- **Everything else stays as planned** — Phases 1, 2, 4, 5, 7, 8 are
+  unchanged because neither alternative interacts with them.
+
+#### Per-phase risk and rollback
+
+| Phase | Risk if it goes wrong | Rollback |
+|-------|----------------------|----------|
+| 0 | Contributors miss the rule change | Re-advertise; no code rollback needed |
+| 1 | Type / import error in a leaf file | Revert the single split commit |
+| 1.5 | Drifted DOM helper body breaks a UI panel | Revert per-file migration commits |
+| 2 | WebGL draw regression | Revert per-renderer commit; renderer.ts and webglrenderer.ts still work via their barrels |
+| 3 | UI panel render regression | Revert per-panel commits; each is independent |
+| 4 | Map load failure | Revert map.ts split; loader and GameMap are split in one phase |
+| 5 | Combat behaviour regression | High risk — three coupled files. Stage in a single PR and bisect within. |
+| 6a | `Scripting.X` import resolves to wrong sub-file | Revert the scripting/ folder add; the barrel re-exports keep call sites working |
+| 6b | Prototype merging missed an opcode | Revert per-category commits; the affected opcode falls back to its body on `Script.ts` from 6a |
+| 7 | `playerUse` router behaviour regression | Revert per-extracted-function commits |
+| 8 | Crawler doesn't auto-start | Revert single barrel commit |
+
+#### Total scope when both alternatives land
+
+| Metric | Mainline only | Mainline + Alt-A + Alt-B |
+|--------|--------------:|--------------------------:|
+| New files | 66 | 66 + 17 (Alt-A) + 1 (Alt-B) = **84** |
+| Files modified that aren't split | 0 | 11 (Alt-B migrations) |
+| CLAUDE.md edits | 0 | 1 (Phase 0) |
+| Files left above 400 lines after all phases | 5 (`scripting/Script.ts` mandated; `creator.ts`, `critterAnimation.ts`, `Combat.ts`, `playerUse.ts` are follow-up candidates; `perks.data.ts` is intentional data) | 4 (`scripting/Script.ts` drops to ~120; the other 4 are unchanged) |
+| Phases | 8 | 10 (Phase 0 + Phase 1.5 added) |
+
+---
+
 ## Summary
 
 | Phase | Files touched | New files | Cumulative new modules | Net lines moved |
