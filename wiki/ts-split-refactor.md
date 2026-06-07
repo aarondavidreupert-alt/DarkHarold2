@@ -118,6 +118,279 @@ below for full detail.
 
 ---
 
+## Subfolder layout
+
+The current `src/` is flat: ~70 files at the top level. The refactor proposals
+below add ~66 more — without grouping that's ~135 files in one directory.
+A subfolder layout is therefore part of this proposal, mirroring the
+"Source Modules" grouping in [`CODEBASE.md`][codebase].
+
+### Folder convention
+
+| Rule | Detail |
+|------|--------|
+| **When a file gets split, its parts land in a sibling subfolder named after the original file.** | `src/scripting.ts` → `src/scripting/Script.ts` + siblings. The original filename becomes a **barrel** at the same path. |
+| **Barrels stay at the old path.** | Existing import sites (`from './scripting.js'`, `from './object.js'`) keep working. No call-site updates as part of a split. |
+| **The barrel file is the public surface.** | If a downstream module imports a sub-file directly (`from './scripting/dialogue.js'`), that's a deliberate decision to depend on an internal — flag it in review. |
+| **Files that aren't split stay where they are.** | `src/heart.ts`, `src/config.ts`, `src/util.ts`, `src/aiPackets.ts`, etc. all keep their current path. No churn for files under 400 lines. |
+| **No nested subfolders inside a subfolder unless the file count justifies it.** | `src/ui_pipboy/tabs/` is the one exception (4 tab files share a common parent shell). Everything else is one level deep. |
+
+### Target folder structure (after every split lands)
+
+```
+src/
+├── audio.ts
+├── aiPackets.ts
+├── automap/                  ← split from automapData.ts
+│   ├── render.ts
+│   ├── storage.ts
+│   └── tracking.ts
+├── automapData.ts            ← barrel
+├── autocrawler/              ← split from autocrawler.ts
+│   ├── combat.ts
+│   ├── dialogue.ts
+│   ├── maps.ts
+│   ├── report.ts
+│   ├── shared.ts
+│   └── types.ts
+├── autocrawler.ts            ← barrel
+├── char.ts
+├── combat/                   ← split from combat.ts
+│   ├── actionPoints.ts
+│   ├── AI.ts
+│   ├── Combat.ts
+│   ├── damage.ts
+│   └── hitChance.ts
+├── combat.ts                 ← barrel
+├── config.ts
+├── criticalEffects/          ← split from criticalEffects.ts
+│   ├── effects.ts
+│   └── table.ts
+├── criticalEffects.ts        ← barrel
+├── data.ts
+├── debug.ts
+├── drugs.ts
+├── encounters/               ← split from encounters.ts
+│   ├── conditionLang.ts
+│   └── resolver.ts
+├── encounters.ts             ← barrel
+├── endgame/                  ← split from endgame.ts
+│   ├── deathEndings.ts
+│   └── slideRender.ts
+├── endgame.ts                ← public sequences + barrel
+├── eventlog.types.ts
+├── events.ts
+├── formats/                  ← already a subfolder today
+│   ├── fon.ts
+│   └── struct.js
+├── gameTick.ts               ← split from main.ts
+├── gametime.ts
+├── geometry/                 ← split from geometry.ts
+│   ├── hexGrid.ts
+│   └── hexScreen.ts
+├── geometry.ts               ← barrel
+├── globalState.ts
+├── heart.ts
+├── idbcache.ts
+├── images.ts
+├── init.ts
+├── input.ts                  ← split from main.ts
+├── intfile.ts
+├── lighting.ts
+├── lightmap/                 ← split from lightmap.ts
+│   └── lightTable.ts
+├── lightmap.ts               ← public namespace + barrel
+├── logger.ts
+├── main.ts                   ← bootstrap only
+├── map/                      ← split from map.ts
+│   ├── GameMap.ts
+│   └── mapLoader.ts
+├── map.ts                    ← barrel
+├── object/                   ← split from object.ts
+│   ├── Critter.ts
+│   ├── critterAnimation.ts
+│   ├── factories.ts
+│   ├── items.ts
+│   └── Obj.ts
+├── object.ts                 ← barrel
+├── party.ts
+├── perks/                    ← split from perks.ts
+│   ├── perks.data.ts
+│   └── perks.ts
+├── perks.ts                  ← barrel
+├── player.ts
+├── playerUse.ts              ← split from main.ts
+├── pro.ts
+├── questData.ts
+├── questLog.ts
+├── render/                   ← split from renderer.ts + webglrenderer.ts
+│   ├── camera.ts
+│   ├── webglContext.ts
+│   ├── webglDraw.ts
+│   └── webglLighting.ts
+├── renderer.ts               ← slim Renderer base class + barrel
+├── saveload.ts
+├── scripting/                ← split from scripting.ts
+│   ├── animBatch.ts
+│   ├── dialogue.ts
+│   ├── lifecycle.ts
+│   ├── perception.ts
+│   ├── runtime.ts
+│   └── Script.ts
+├── scripting.ts              ← barrel
+├── skills.ts
+├── skills/                   ← split from skillUse.ts
+│   ├── skillUse.ts
+│   └── skillUseShared.ts
+├── skillUse.ts               ← barrel
+├── soundMap.ts
+├── tile.ts
+├── transpiler.ts
+├── ui/                       ← split from ui_font.ts (font primitives)
+│   ├── fontCore.ts
+│   └── numberDials.ts
+├── ui.ts                     ← unchanged barrel
+├── ui_automap.ts
+├── ui_barter/                ← split from ui_barter.ts
+│   ├── screen.ts
+│   └── swap.ts
+├── ui_barter.ts              ← barrel
+├── ui_calledshot.ts
+├── ui_character/             ← split from ui_character.ts
+│   ├── creator.ts
+│   ├── descriptions.ts
+│   ├── perkModal.ts
+│   └── viewer.ts
+├── ui_character.ts           ← barrel
+├── ui_charactercreator.ts
+├── ui_components.ts
+├── ui_contextmenu.ts
+├── ui_dialogue.ts
+├── ui_drag.ts
+├── ui_elevator.ts
+├── ui_font.ts                ← thin barrel + default Font instances
+├── ui_hud.ts
+├── ui_inventory/             ← split from ui_inventory.ts
+│   ├── dragdrop.ts
+│   └── panel.ts
+├── ui_inventory.ts           ← barrel
+├── ui_loot.ts
+├── ui_mainmenu.ts
+├── ui_options/               ← split from ui_options.ts
+│   └── preferences.ts
+├── ui_options.ts             ← panel + barrel
+├── ui_panels.ts
+├── ui_pipboy/                ← split from ui_pipboy.ts
+│   ├── shell.ts
+│   └── tabs/                 ← only nested subfolder in the proposal
+│       ├── archives.ts
+│       ├── automaps.ts
+│       └── status.ts
+├── ui_pipboy.ts              ← barrel
+├── ui_saveload.ts
+├── ui_skilldex.ts
+├── ui_timer.ts
+├── ui_unarmed.ts
+├── ui_widget.ts
+├── ui_worldmap.ts
+├── unarmed.ts
+├── util.ts
+├── vm.ts
+├── vm_bridge.ts
+├── webglrenderer.ts          ← slim WebGLRenderer class + barrel
+├── worldmap/                 ← split from worldmap.ts
+│   ├── encounters.ts
+│   ├── parser.ts
+│   ├── types.ts
+│   └── Worldmap.ts
+└── worldmap.ts               ← barrel
+```
+
+### Cross-folder import rules
+
+- Inside a subfolder, siblings import each other with relative paths:
+  `import { foo } from './otherSibling.js'`.
+- Sub-files reaching **outside** their folder go up one level:
+  `import { Obj } from '../object.js'` (the barrel) — **not**
+  `'../object/Obj.js'`, unless there's a documented reason to bypass the
+  barrel.
+- Bypassing the barrel is a code-smell warranting a review note. The two
+  expected cases are (a) inside the `object/` cluster (`Critter.ts` imports
+  `Obj.ts` directly to avoid a self-cycle through the barrel), and
+  (b) inside `combat/` (`damage.ts` imports `Critter` from
+  `'../object/Critter.js'` rather than the barrel to dodge the
+  `combat → object → critter → combat` cycle).
+- The barrel file itself never imports from outside its own folder
+  besides type-only imports needed for re-exports.
+
+### Pros / cons of subfolders (rationale)
+
+**Pros**
+
+- **Tree-view navigation.** ~135 files flat is unworkable; grouped is
+  immediately scannable.
+- **Mirror CODEBASE.md grouping.** Readers can move between the wiki map
+  and the source tree without translation.
+- **Encodes ownership.** Files inside `scripting/` are clearly part of the
+  scripting subsystem; no need to memorise prefixes.
+- **Makes "do not bypass the barrel" a structural cue,** not a stylistic
+  rule. A relative `../object/Critter.js` import visibly reaches across a
+  seam.
+- **Easier to apply patterns like `index.ts` later** if we ever want them
+  (we don't propose them yet — the barrel-at-the-old-path scheme avoids
+  needing them).
+
+**Cons (and mitigations)**
+
+- **Import-path churn.** Every existing site that imports a *sub-file*
+  would need updating. Mitigation: the barrel-at-the-old-path scheme means
+  **no existing import site changes**. Only new code or deliberate
+  internal-access sites use the subfolder paths.
+- **Two-level depth in the tree.** Mitigated by the "no nested subfolders
+  unless justified" rule. The only nested case is
+  `src/ui_pipboy/tabs/`, where it's natural (the three tabs share a
+  shell.ts parent).
+- **`git mv` history is messier than a flat layout.** Mitigated by
+  splitting **exactly** along whole-block boundaries inside a single
+  commit per file (so `git log --follow` works for any sub-file).
+- **TypeScript module-resolution latency** for deep paths is theoretical;
+  the project compiles with strict mode and a flat `outDir: js/`. No
+  measurable impact expected.
+
+### Files that **don't** get a subfolder
+
+Files that aren't being split keep their current top-level path. Specifically:
+`audio.ts`, `aiPackets.ts`, `char.ts`, `config.ts`, `data.ts`, `debug.ts`,
+`drugs.ts`, `eventlog.types.ts`, `events.ts`, `gametime.ts`,
+`globalState.ts`, `heart.ts`, `idbcache.ts`, `images.ts`, `init.ts`,
+`intfile.ts`, `lighting.ts`, `logger.ts`, `party.ts`, `player.ts`,
+`pro.ts`, `questData.ts`, `questLog.ts`, `saveload.ts`, `skills.ts`,
+`soundMap.ts`, `tile.ts`, `transpiler.ts`, `ui_automap.ts`,
+`ui_calledshot.ts`, `ui_charactercreator.ts`, `ui_components.ts`,
+`ui_contextmenu.ts`, `ui_dialogue.ts`, `ui_drag.ts`, `ui_elevator.ts`,
+`ui_hud.ts`, `ui_loot.ts`, `ui_mainmenu.ts`, `ui_panels.ts`,
+`ui_saveload.ts`, `ui_skilldex.ts`, `ui_timer.ts`, `ui_unarmed.ts`,
+`ui_widget.ts`, `ui_worldmap.ts`, `unarmed.ts`, `util.ts`, `vm.ts`,
+`vm_bridge.ts`. The `formats/` subfolder is pre-existing and untouched.
+
+### Migration impact at every phase checkpoint
+
+After each phase in the execution order, the import surface is:
+
+- Phase 1 done → 6 barrels exist; everything still imports from the old
+  flat path.
+- Phase 2 done → render layer barrels exist; `from './renderer.js'` and
+  `from './webglrenderer.js'` still work.
+- Phase 3 done → UI barrels exist; no panel call site needs updating.
+- … and so on through Phase 8.
+
+At **no point** during the rollout do the existing import sites compile
+because a file moved. Every import is shielded by a barrel until a
+deliberate later cleanup pass (out of scope for this refactor) decides
+to inline the sub-file paths at call sites.
+
+---
+
 ## Per-file split proposals
 
 ### 1. `src/scripting.ts` — 2614 lines → 6 modules
