@@ -1917,31 +1917,19 @@ export class Critter extends Obj {
             // settle-after-walk always starts clean.
             this.artOffset = { x: 0, y: 0 }
         } else {
-            // CE-faithful additive accumulator. Same formula as staticAnimation:
-            // artOffset += oldDirOff + oldF.ox  (CE _obj_offset, animation.cc:2889).
-            const orient = this.orientation ?? 0
-            const oldInfo = globalState.imageInfo[oldArt]
-            const newInfo = globalState.imageInfo[newArt]
-            let newArtOffset: Point = { x: 0, y: 0 }
-            if (oldInfo && newInfo) {
-                const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-                const oldFrames = oldInfo.frameOffsets[orient]
-                const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
-                const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-                const prev = this.artOffset
-                newArtOffset = {
-                    x: prev.x + oldDirOff.x + oldF.ox,
-                    y: prev.y + oldDirOff.y + oldF.oy,
-                }
-                dbg('animOffset', '[ArtOffset/CE] clearAnim',
-                    `${oldArt}@f${clampedOld}(ox=${oldF.ox},oy=${oldF.oy})`,
-                    `→ ${newArt}@f0`,
-                    `dir${orient} oldDirOff=(${oldDirOff.x},${oldDirOff.y})`,
-                    `prev(${prev.x},${prev.y})`,
-                    `→ artOffset(${newArtOffset.x},${newArtOffset.y})`,
-                )
-            }
-            this.artOffset = newArtOffset
+            // Settle-to-idle: skip the CE additive bump and preserve artOffset.
+            // CE itself bumps here too (animation.cc:2889), which produces a
+            // visible body shift at clearAnim when OLD and NEW dirOff happen to
+            // match (e.g. kc→ka dir5 both have dirOff=-10 → -10 px LEFT snap).
+            // CE players never see it because every walk step clears the carry.
+            // Skipping the bump on clearAnim gives a seamless settle-to-idle
+            // while keeping the CE-faithful bump for every static→static
+            // transition inside the swap chain.
+            dbg('animOffset', '[ArtOffset/CE] clearAnim — no bump',
+                `${oldArt}@f${oldFrame} → ${newArt}@f0`,
+                `dir${this.orientation ?? 0}`,
+                `artOffset preserved=(${this.artOffset.x},${this.artOffset.y})`,
+            )
         }
 
         // reset to idle pose
