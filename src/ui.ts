@@ -157,96 +157,10 @@ function uiInit() {
 // initOptionsMenu() has moved to ui_options.ts.
 // initCharacterScreen() has moved to ui_character.ts as showCharacterScreen().
 
-// XXX: Should this throw if the element doesn't exist?
-function $id(id: string): HTMLElement {
-    return document.getElementById(id)!
-}
-
-function $img(id: string): HTMLImageElement {
-    return document.getElementById(id) as HTMLImageElement
-}
-
-function $q(selector: string): HTMLElement {
-    return document.querySelector(selector) as HTMLElement
-}
-
-function $qa(selector: string): HTMLElement[] {
-    return Array.from(document.querySelectorAll(selector))
-}
-
-function clearEl($el: HTMLElement): void {
-    $el.innerHTML = ''
-}
-
-function show($el: HTMLElement): void {
-    $el.style.display = 'block'
-}
-
-function hide($el: HTMLElement): void {
-    $el.style.display = 'none'
-}
-
-// TODO: Examine if we actually need visibility or we can replace them all with show/hide
-export function showv($el: HTMLElement): void {
-    $el.style.visibility = 'visible'
-}
-
-export function hidev($el: HTMLElement): void {
-    $el.style.visibility = 'hidden'
-}
-
-function off($el: HTMLElement, events: string): void {
-    const eventList = events.split(' ')
-    for (const event of eventList) {
-        ;(<any>$el)['on' + event] = null
-    }
-}
-
-function appendHTML($el: HTMLElement, html: string): void {
-    $el.insertAdjacentHTML('beforeend', html)
-}
-
-interface ElementOptions {
-    id?: string
-    src?: string
-    classes?: string[]
-    click?: (e: MouseEvent) => void
-    style?: { [key in keyof CSSStyleDeclaration]?: string }
-    children?: HTMLElement[]
-    attrs?: { [key: string]: string | number }
-}
-
-export function makeEl(tag: string, options: ElementOptions): HTMLElement {
-    const $el = document.createElement(tag)
-
-    if (options.id !== undefined) {
-        $el.id = options.id
-    }
-    if (options.src !== undefined) {
-        ;($el as HTMLImageElement).src = options.src
-    }
-    if (options.classes !== undefined) {
-        $el.className = options.classes.join(' ')
-    }
-    if (options.click !== undefined) {
-        $el.onclick = options.click
-    }
-    if (options.style !== undefined) {
-        Object.assign($el.style, options.style)
-    }
-    if (options.children !== undefined) {
-        for (const child of options.children) {
-            $el.appendChild(child)
-        }
-    }
-    if (options.attrs !== undefined) {
-        for (const prop in options.attrs) {
-            $el.setAttribute(prop, options.attrs[prop] + '')
-        }
-    }
-
-    return $el
-}
+import { $id, $img, $q, $qa, clearEl, show, hide, showv, hidev, off, appendHTML, makeEl } from './ui_dom.js'
+// Preserve the existing public surface (worldmap.ts and ui_options.ts read
+// these via `from './ui.js'`).
+export { showv, hidev, makeEl } from './ui_dom.js'
 
 export function initUI() {
     uiInit()
