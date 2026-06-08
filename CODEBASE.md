@@ -62,7 +62,7 @@ the pipeline or the TS compiler.
 
 | File | Purpose | fallout2-ce counterpart |
 |------|---------|------------------------|
-| `src/main.ts` | Entry point: map loading, input dispatch, game loop wiring (1196 lines) | `main.cc` |
+| `src/main.ts` | Boot orchestrator: `initGame` wiring, `useElevator`, `heart.update`/`heart.draw` assignments. Split into `playerUse.ts` (object/critter interaction router), `input.ts` (mouse + keyboard handlers via `installInputHandlers()`), `gameTick.ts` (per-tick game loop) | `main.cc` |
 | `src/heart.ts` | 60 Hz rAF game loop (`heart.update` / `heart.draw`); exposes `_stepOnly` for headless testing | `main.cc` (game loop) |
 | `src/init.ts` | Engine boot sequence: asset loading, renderer init, scripting setup | `main.cc` init path |
 | `src/globalState.ts` | Central singleton: `gMap`, `player`, `combat`, `images`, `proMap`, camera, tick, eventLog | Spread across `game.cc`, `proto.cc` |
