@@ -27,56 +27,7 @@ import { showInventory } from './ui_inventory.js'
 import { uiLoot } from './ui_loot.js'
 import { closeSkilldex, showSkilldex } from './ui_skilldex.js'
 import { UIMode, closeAllPanels, isSkilldexOpen } from './ui_panels.js'
-
-function $id(id: string): HTMLElement {
-    return document.getElementById(id)!
-}
-
-function clearEl($el: HTMLElement): void {
-    $el.innerHTML = ''
-}
-
-interface ElementOptions {
-    id?: string
-    src?: string
-    classes?: string[]
-    click?: (e: MouseEvent) => void
-    style?: { [key in keyof CSSStyleDeclaration]?: string }
-    children?: HTMLElement[]
-    attrs?: { [key: string]: string | number }
-}
-
-function makeEl(tag: string, options: ElementOptions): HTMLElement {
-    const $el = document.createElement(tag)
-
-    if (options.id !== undefined) {
-        $el.id = options.id
-    }
-    if (options.src !== undefined) {
-        ;($el as HTMLImageElement).src = options.src
-    }
-    if (options.classes !== undefined) {
-        $el.className = options.classes.join(' ')
-    }
-    if (options.click !== undefined) {
-        $el.onclick = options.click
-    }
-    if (options.style !== undefined) {
-        Object.assign($el.style, options.style)
-    }
-    if (options.children !== undefined) {
-        for (const child of options.children) {
-            $el.appendChild(child)
-        }
-    }
-    if (options.attrs !== undefined) {
-        for (const prop in options.attrs) {
-            $el.setAttribute(prop, options.attrs[prop] + '')
-        }
-    }
-
-    return $el
-}
+import { $id, clearEl, makeEl } from './ui_dom.js'
 
 export function uiHideContextMenu() {
     globalState.uiMode = UIMode.none
