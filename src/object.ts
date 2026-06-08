@@ -1811,28 +1811,31 @@ export class Critter extends Obj {
         const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
         const newArt = this.getAnimation(anim)
 
-        // CE-faithful additive accumulator: at every FID change, shift the new
-        // frame by (oldDirOff + oldF.ox/oy) so the body sits visually
-        // continuous with the previous FRM. artOffset stores the running total
-        // ("Gesamtdelta"). Body inside the chain stays bündig. clearAnim
-        // resets to {0,0} at the end so the figure snaps back to canonical.
+        // Body-center zero-jump formula: figure stays exactly where it is at
+        // every transition. No snap, no visible movement. artOffset value is
+        // a bookkeeping number that compensates the renderer's coordinate
+        // shift so the body's screen position is unchanged across the FID
+        // change. Per-transition body jump = 0 by construction.
         let pendingArtOffset = prevArtOffset
         const oldInfo = globalState.imageInfo[oldArt]
         const newInfo = globalState.imageInfo[newArt]
         if (oldInfo && newInfo) {
             const orient = this.orientation ?? 0
             const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+            const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
             const oldFrames = oldInfo.frameOffsets[orient]
             const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
             const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+            const newStartFrame = reversed ? (newInfo.numFrames - 1) : 0
+            const newF0 = newInfo.frameOffsets[orient]?.[newStartFrame] ?? { w: 0, h: 0, ox: 0, oy: 0 }
             pendingArtOffset = {
-                x: prevArtOffset.x + oldDirOff.x + oldF.ox,
-                y: prevArtOffset.y + oldDirOff.y + oldF.oy,
+                x: oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x,
+                y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y,
             }
-            dbg('animOffset', '[ArtOffset/CE] staticAnimation',
+            dbg('animOffset', '[ArtOffset] staticAnimation',
                 `${oldArt}@f${clampedOld}(ox=${oldF.ox},oy=${oldF.oy})`,
-                `→ ${newArt}@f0`,
-                `dir${orient} oldDirOff=(${oldDirOff.x},${oldDirOff.y})`,
+                `→ ${newArt}@f${newStartFrame}(ox=${newF0.ox},oy=${newF0.oy})`,
+                `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
                 `prev(${prevArtOffset.x},${prevArtOffset.y})`,
                 `→ artOffset(${pendingArtOffset.x},${pendingArtOffset.y})`,
             )
@@ -1899,23 +1902,42 @@ export class Critter extends Obj {
         // Dead critters stay frozen on their last death frame — never reset to idle.
         if (this.dead) return
 
-        const prev = { x: this.artOffset.x, y: this.artOffset.y }
+        const oldArt = this.art
+        const oldFrame = this.frame
 
         super.clearAnim()
         this.path = null
 
-        // Hard reset of the accumulated "Gesamtdelta". Snaps the figure back to
-        // its canonical idle position. Same path is taken for normal
-        // chain-end (settle to idle) and for interruptions (walk-end already
-        // hits this via wasWalking-equivalent flow; staticAnimation overwrites
-        // artOffset directly so re-interruption sets it cleanly from prev=0).
-        this.artOffset = { x: 0, y: 0 }
-        if (prev.x !== 0 || prev.y !== 0) {
-            dbg('animOffset', `[ArtOffset/CE] clearAnim — reset prev(${prev.x},${prev.y}) → (0,0)`)
+        const newArt = this.getAnimation('idle')
+
+        // Same body-center zero-jump formula as staticAnimation: figure stays
+        // exactly where it is at the settle-to-idle transition. No snap.
+        const orient = this.orientation ?? 0
+        const oldInfo = globalState.imageInfo[oldArt]
+        const newInfo = globalState.imageInfo[newArt]
+        if (oldInfo && newInfo) {
+            const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+            const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+            const oldFrames = oldInfo.frameOffsets[orient]
+            const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
+            const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+            const newF0 = newInfo.frameOffsets[orient]?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+            const prev = this.artOffset
+            this.artOffset = {
+                x: oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prev.x,
+                y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prev.y,
+            }
+            dbg('animOffset', '[ArtOffset] clearAnim',
+                `${oldArt}@f${clampedOld}(ox=${oldF.ox},oy=${oldF.oy})`,
+                `→ ${newArt}@f0(ox=${newF0.ox},oy=${newF0.oy})`,
+                `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
+                `prev(${prev.x},${prev.y})`,
+                `→ artOffset(${this.artOffset.x},${this.artOffset.y})`,
+            )
         }
 
         this.anim = 'idle'
-        this.art = this.getAnimation('idle')
+        this.art = newArt
     }
 
     walkTo(target: Point, running?: boolean, callback?: () => void, maxLength?: number, path?: any): boolean {
