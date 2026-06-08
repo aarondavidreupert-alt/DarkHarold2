@@ -20,40 +20,7 @@ limitations under the License.
 import globalState from './globalState.js'
 import { Critter, WeaponObj } from './object.js'
 import { getActivePunchMode, getActiveKickMode } from './unarmed.js'
-
-// --- DOM helpers (mirrors the ones in ui.ts) -------------------------------
-
-function $id(id: string): HTMLElement {
-    return document.getElementById(id)!
-}
-
-function $img(id: string): HTMLImageElement {
-    return document.getElementById(id) as HTMLImageElement
-}
-
-function $q(selector: string): HTMLElement {
-    return document.querySelector(selector) as HTMLElement
-}
-
-function clearEl($el: HTMLElement): void {
-    $el.innerHTML = ''
-}
-
-function show($el: HTMLElement): void {
-    $el.style.display = 'block'
-}
-
-function hide($el: HTMLElement): void {
-    $el.style.display = 'none'
-}
-
-function showv($el: HTMLElement): void {
-    $el.style.visibility = 'visible'
-}
-
-function hidev($el: HTMLElement): void {
-    $el.style.visibility = 'hidden'
-}
+import { $id, $img, $q, clearEl, show, hide, showv, hidev } from './ui_dom.js'
 
 // --- Digit readouts (shared by HP / AC / called-shot chance) ---------------
 
