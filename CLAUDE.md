@@ -78,11 +78,30 @@ Proto type encoding (pid high byte): 0=items, 1=critters, 2=scenery, 3=walls, 4=
 Tile coordinate convention: `tileNum = y * 200 + x` (200-wide grid, 40000 max tiles per elevation)
 
 ## Conventions
-- All new scripting opcodes go in src/scripting.ts inside the Script class
+- Scripting opcodes live on the `Script` class. The class declaration is in
+  `src/scripting/Script.ts`; opcode bodies are organised by FO2 category in
+  `src/scripting/opcodes/<category>.ts` and assigned onto `Script.prototype`.
+  To add a new opcode: pick the matching category file (see the index in
+  `src/scripting/opcodes/README.md`), declare the method on the `Script`
+  interface in `Script.ts`, and implement it as a
+  `Script.prototype.foo = function (...) { ... }` in the category file.
 - Use the existing `stub()` helper for unimplemented opcodes — never silent no-ops
 - Use `dbg()` / `dbgWarn()` from src/logger.ts for logging — never raw console.log in new code
 - TimedEvent / `timeEventList` in scripting.ts is the hook for all tick-based callbacks
 - Do not add addiction, drug, poison/radiation decay, or NPC schedule logic unless the task explicitly asks for it
+
+### Subfolder layout convention
+When a file gets split, its parts land in a sibling subfolder named after
+the original file (e.g. `src/scripting.ts` → `src/scripting/Script.ts` +
+siblings), and the original filename becomes a **barrel** at the same path
+that re-exports the sub-files. Existing import sites that read
+`from './scripting.js'` or `from './object.js'` keep working through the
+barrel — no call site updates as part of a split. Bypassing the barrel
+from outside the subfolder (`from './scripting/dialogue.js'`) is a code
+smell warranting a review note; inside the subfolder, siblings import each
+other directly. Files that aren't split keep their current top-level path.
+See `wiki/ts-split-refactor.md` → "Subfolder layout" for the full rule
+table and rationale.
 
 ## CODEBASE.md Maintenance
 After any feature that adds, removes, or significantly changes a system:
