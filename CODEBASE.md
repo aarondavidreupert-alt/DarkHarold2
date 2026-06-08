@@ -109,7 +109,7 @@ the pipeline or the TS compiler.
 
 | File | Purpose | fallout2-ce counterpart |
 |------|---------|------------------------|
-| `src/combat.ts` | Turn-based combat loop, AI, hit chance, damage pipeline, burst fire, ranged scatter, ammo system, called shots. AI class uses `getAiPacket()` from `aiPackets.ts`; `findTarget()` dispatches `AttackWho` (closest/strongest/weakest/whomever); `fleeHpThreshold()` applies `RunAwayMode` percentage; `BestWeapon` guards hand-switch; `DistanceMode:stay` implemented. | `combat.cc`, `combat_ai.cc` |
+| `src/combat.ts` | Barrel — combat system; split into `combat/actionPoints.ts` (ActionPoints class), `combat/damage.ts` (4 damage-formula variants + dispatcher), `combat/AI.ts` (AI class + helpers), `combat/hitChance.ts` (getHitChance + to-hit pipeline as free functions), `combat/Combat.ts` (Combat class — turn flow, attack, AI dispatch, LoS). | `combat.cc`, `combat_ai.cc` |
 | `src/criticalEffects.ts` | Barrel — critical hit / failure system; split into `criticalEffects/effects.ts` (effect appliers + region table) + `criticalEffects/table.ts` (lookup + parsers + crit-fail table) | `critfail.cc` |
 | `src/unarmed.ts` | Unarmed mode definitions (9 modes, threshold/AP/damage table) | `unarmed.cc` |
 | `src/skillUse.ts` | Active skill use: First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair (622 lines) | `skill.cc::skillUse()` |
