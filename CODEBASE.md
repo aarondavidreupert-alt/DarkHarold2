@@ -152,7 +152,7 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/ui_pipboy.ts` | Pip-Boy overlay: STATUS, QUESTS/ARCHIVES, AUTOMAP tabs (736 lines) |
 | `src/ui_inventory.ts` | Inventory panel: drag-and-drop, equip slots, weight, reload, stacking (773 lines) |
 | `src/ui_dialogue.ts` | Dialogue panel: NPC reply text + selectable options, pop-up animation (113 lines) |
-| `src/ui_barter.ts` | Barter screen: item exchange, Barter-skill value calculation (457 lines) |
+| `src/ui_barter.ts` | Barrel — barter screen; split into `ui_barter/swap.ts` (uiGetAmount + uiSwapItem cross-list primitives) + `ui_barter/screen.ts` (uiBarterMode) |
 | `src/ui_loot.ts` | Loot panel: container/corpse inventory transfer (191 lines) |
 | `src/ui_worldmap.ts` | World map travel screen overlay (193 lines) |
 | `src/ui_calledshot.ts` | Called-shot body region selector (173 lines) |
