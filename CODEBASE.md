@@ -150,7 +150,7 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/ui_character.ts` | Character screen (in-game view) + character creator (new game) (2095 lines) |
 | `src/ui_charactercreator.ts` | Entry-point shim into the character creator section of ui_character.ts (46 lines) |
 | `src/ui_pipboy.ts` | Pip-Boy overlay: STATUS, QUESTS/ARCHIVES, AUTOMAP tabs (736 lines) |
-| `src/ui_inventory.ts` | Inventory panel: drag-and-drop, equip slots, weight, reload, stacking (773 lines) |
+| `src/ui_inventory.ts` | Barrel — inventory panel; split into `ui_inventory/dragdrop.ts` (drag/drop primitives, uiMoveSlot, applyArmorArt, tryLoadAmmoIntoWeapon) + `ui_inventory/panel.ts` (closeInventory, initInventory, showInventory) |
 | `src/ui_dialogue.ts` | Dialogue panel: NPC reply text + selectable options, pop-up animation (113 lines) |
 | `src/ui_barter.ts` | Barrel — barter screen; split into `ui_barter/swap.ts` (uiGetAmount + uiSwapItem cross-list primitives) + `ui_barter/screen.ts` (uiBarterMode) |
 | `src/ui_loot.ts` | Loot panel: container/corpse inventory transfer (191 lines) |
