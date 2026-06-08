@@ -25,22 +25,7 @@ import { hexesInRadius } from './geometry.js'
 import { lookupInterfaceArt } from './pro.js'
 import { fromTileNum } from './tile.js'
 import { UIMode } from './ui_panels.js'
-
-function $id(id: string): HTMLElement {
-    return document.getElementById(id)!
-}
-
-function $qa(selector: string): HTMLElement[] {
-    return Array.from(document.querySelectorAll(selector))
-}
-
-function showv($el: HTMLElement): void {
-    $el.style.visibility = 'visible'
-}
-
-function hidev($el: HTMLElement): void {
-    $el.style.visibility = 'hidden'
-}
+import { $id, $qa, showv, hidev } from './ui_dom.js'
 
 function uiElevatorDone() {
     globalState.uiMode = UIMode.none
