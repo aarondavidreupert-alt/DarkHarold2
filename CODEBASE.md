@@ -165,7 +165,7 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/ui_timer.ts` | In-game countdown timer panel (97 lines) |
 | `src/ui_unarmed.ts` | Unarmed mode selector (93 lines) |
 | `src/ui_contextmenu.ts` | Right-click context menu (178 lines) |
-| `src/ui_font.ts` | Bitmap font renderer (AAF/FON), text layout, Unicode fallback (543 lines) |
+| `src/ui_font.ts` | Barrel — bitmap font renderer; split into `ui/fontCore.ts` (FontRenderer/FontWidget/renderBitmapText) + `ui/numberDials.ts` (setNumberDial/renderBignum); keeps font1–font4 singletons |
 | `src/ui_components.ts` | Shared UI components: buttons, sliders, scroll containers (215 lines) |
 | `src/ui_widget.ts` | Generic widget helpers (88 lines) |
 | `src/ui_drag.ts` | Drag-and-drop support for panels (76 lines) |
