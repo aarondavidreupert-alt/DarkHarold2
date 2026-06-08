@@ -23,10 +23,7 @@ import { Critter } from './object.js'
 import { objectBoundingBox } from './renderer.js'
 import { Scripting } from './scripting.js'
 import { UIMode } from './ui_panels.js'
-
-function $id(id: string): HTMLElement {
-    return document.getElementById(id)!
-}
+import { $id } from './ui_dom.js'
 
 // Smoothly transition an element's top property from an origin to a target
 // position over a duration. Used for the dialogue / barter slide-up animation.
