@@ -334,6 +334,11 @@ export class Obj {
     // "Final solution Parts 1+2+3"). Mirrors CE's obj->x/y (object.cc) which is reset on
     // objectSetLocation (tile change during walk) and otherwise carries forward. Reset to
     // {0,0} on walk end (CE objectSetLocation, object.cc:3940).
+    // DarkFO model: no artOffset carry. Each FRM renders at its intended
+    // anchor (scr + dirOff + cumOx). Per-FRM-transition jumps are inherent
+    // to the FRM data (different artists used different anchor conventions
+    // for different weapon classes). No computation, no drift. Kept on Obj
+    // for back-compat with renderer/objectBoundingBox; always {0,0}.
     artOffset: Point = { x: 0, y: 0 }
 
     // Outline color, if outlined
@@ -1801,58 +1806,14 @@ export class Critter extends Obj {
     }
 
     staticAnimation(anim: string, callback?: () => void, waitForLoad = true, reversed = false): void {
-        // Capture current state synchronously — these are the old-art values we need for the
-        // offset formula. We do NOT switch this.art/this.frame here so the renderer keeps
-        // showing the old sprite until the new texture is confirmed loaded.
-        const oldArt = this.art
-        const oldFrame = this.frame
-        const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
+        // DarkFO model: pure art swap, no artOffset computation. Each FRM renders
+        // at its FRM-intended anchor (scr + dirOff + cumOx). Per-FRM-transition
+        // jumps come from the FRM data (different anchor conventions per weapon
+        // class). No drift because no accumulator. No "phantom offset" being
+        // corrected by moving the figure around.
         const newArt = this.getAnimation(anim)
 
-        // CE-faithful additive accumulator (Attempt 7, branch ce-faithful-experiment).
-        // Mirrors `_obj_offset(obj, OLD_dirOff + NEW_frame0_raw, ...)` from
-        // animation.cc:2889. NEW_frame0_raw equals NEW_cumOx[0] in our pre-baked
-        // JSON, and the renderer already adds NEW_cumOx[N] per frame, so the bump
-        // in DH2 reduces to:
-        //
-        //   artOffset.x = prev.x + oldDirOff.x + oldF.ox
-        //   artOffset.y = prev.y + oldDirOff.y + oldF.oy
-        //
-        // No newDirOff term. No newF0.ox term. No w/2 term. No h term. Just
-        // additive accumulation of (oldDirOff + the old frame's cumulative ox/oy
-        // at the moment of transition). Walk-end clearAnim still resets to {0,0}.
-        //
-        // Consequence: per-transition body-center jumps are NOT zero in general
-        // (CE has the same residuals — typically ±1–2 px, FRM-data-dependent).
-        // Mid-animation transitions bake the current frame's cumOx/oy into the
-        // carry — same as CE, e.g. swapping mid-idle-wind-up holds the body at
-        // the wound-up position through the subsequent chain until the next walk.
-        let pendingArtOffset = prevArtOffset
-        const oldInfo = globalState.imageInfo[oldArt]
-        const newInfo = globalState.imageInfo[newArt]
-        if (oldInfo && newInfo) {
-            const orient = this.orientation ?? 0
-            const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-            const oldFrames = oldInfo.frameOffsets[orient]
-            const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
-            const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-            pendingArtOffset = {
-                x: prevArtOffset.x + oldDirOff.x + oldF.ox,
-                y: prevArtOffset.y + oldDirOff.y + oldF.oy,
-            }
-            dbg('animOffset', '[ArtOffset/CE] staticAnimation',
-                `${oldArt}@f${clampedOld}(ox=${oldF.ox},oy=${oldF.oy})`,
-                `→ ${newArt}@f0`,
-                `dir${orient} oldDirOff=(${oldDirOff.x},${oldDirOff.y})`,
-                `prev(${prevArtOffset.x},${prevArtOffset.y})`,
-                `→ artOffset(${pendingArtOffset.x},${pendingArtOffset.y})`,
-            )
-        }
-
         const startAnim = () => {
-            // Atomically switch art state so the renderer never sees newArt with a stale offset,
-            // and frame 0 is held for a full fps interval (lastFrameTime = now, not 0).
-            this.artOffset = pendingArtOffset
             this.art = newArt
             this.lastFrameTime = window.performance.now()
             if (reversed) {
@@ -1912,63 +1873,12 @@ export class Critter extends Obj {
         // Dead critters stay frozen on their last death frame — never reset to idle.
         if (this.dead) return
 
-        // Capture old state BEFORE super.clearAnim() resets frame/shift.
-        const wasWalking = this.shift !== null
-        const oldArt = this.art
-        const oldFrame = this.frame
-
         super.clearAnim()
         this.path = null
 
-        const newArt = this.getAnimation('idle')
-        if (wasWalking) {
-            // CE objectSetLocation reset on tile change (object.cc:3940) —
-            // every walk hex transition zeroes the sub-tile offset, so
-            // settle-after-walk always starts clean.
-            this.artOffset = { x: 0, y: 0 }
-        } else {
-            // Settle-to-idle: body-center-stable formula (Attempt 6) instead of
-            // the CE additive bump or no-op. Reason: most clearAnims happen at
-            // the end of a weapon-swap chain where playWeaponSwapAnim played
-            // both holster and draw — both contribute CE bumps, and the final
-            // FRMs (e.g. jc draw + ja idle) are designed with matching dirOff
-            // values so this formula reduces to identity (no change). But when
-            // the chain skips a step (armed→unarmed: no draw plays for fists;
-            // unarmed→armed: no holster plays) one of the CE bumps is missing
-            // and the dirOff mismatch between holster-end and idle-start
-            // (especially hmjmpsaa's dirOff.y = +3..+5 vs the armed holster's
-            // dirOff.y = 0) leaves a visible body shift. This formula closes
-            // both cases: zero body-center jump when dirOffs match, exact
-            // compensation when they don't.
-            const orient = this.orientation ?? 0
-            const oldInfo = globalState.imageInfo[oldArt]
-            const newInfo = globalState.imageInfo[newArt]
-            if (oldInfo && newInfo) {
-                const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-                const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-                const oldFrames = oldInfo.frameOffsets[orient]
-                const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
-                const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-                const newF0 = newInfo.frameOffsets[orient]?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-                const prev = this.artOffset
-                const newArtOffset = {
-                    x: oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prev.x,
-                    y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prev.y,
-                }
-                dbg('animOffset', '[ArtOffset/CE] clearAnim',
-                    `${oldArt}@f${clampedOld}(ox=${oldF.ox},oy=${oldF.oy})`,
-                    `→ ${newArt}@f0(ox=${newF0.ox},oy=${newF0.oy})`,
-                    `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
-                    `prev(${prev.x},${prev.y})`,
-                    `→ artOffset(${newArtOffset.x},${newArtOffset.y})`,
-                )
-                this.artOffset = newArtOffset
-            }
-        }
-
-        // reset to idle pose
+        // DarkFO model: pure art swap to idle. No artOffset computation.
         this.anim = 'idle'
-        this.art = newArt
+        this.art = this.getAnimation('idle')
     }
 
     walkTo(target: Point, running?: boolean, callback?: () => void, maxLength?: number, path?: any): boolean {

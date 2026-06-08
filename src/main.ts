@@ -566,28 +566,6 @@ window.onload = async function () {
 
     IDBCache.init(() => {
         cachedJSON('imageMap', 'art/imageMap.json', (value) => {
-            // Cycle-closure normalization: for each animation's direction,
-            // clip the last frame's cumulative ox/oy to match frame 0.
-            // This makes K_cycle = 0 across weapon-swap cycles where a FRM
-            // would otherwise leak internal drift (e.g. hmjmpsic dir0: f0.oy=-1,
-            // fL.oy=0 → +1 per cycle drift). Walks are exempted because
-            // getAnimDistance relies on the last frame's cumulative ox to
-            // compute hex-step count (~32 px), which a clip would zero out.
-            // Skipped if |Δox| or |Δoy| > 5 (heuristic separating animation
-            // drift from intentional locomotion).
-            for (const artKey in value) {
-                const frmInfo = (value as any)[artKey]
-                if (!frmInfo || !frmInfo.frameOffsets) continue
-                for (let dir = 0; dir < frmInfo.frameOffsets.length; dir++) {
-                    const frames = frmInfo.frameOffsets[dir]
-                    if (!frames || frames.length < 2) continue
-                    const f0 = frames[0]
-                    const fL = frames[frames.length - 1]
-                    if (Math.abs(fL.ox - f0.ox) > 5 || Math.abs(fL.oy - f0.oy) > 5) continue
-                    fL.ox = f0.ox
-                    fL.oy = f0.oy
-                }
-            }
             globalState.imageInfo = value
 
             cachedJSON('proMap', 'proto/pro.json', (value) => {
