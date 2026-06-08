@@ -77,7 +77,7 @@ the pipeline or the TS compiler.
 | `src/lighting.ts` | CPU floor-lighting: triangle-mesh light propagation (`Lighting` module) | `light.cc` |
 | `src/lightmap.ts` | Per-tile intensity map: `obj_light_table_init`, `obj_rebuild_all_light`, GPU upload (583 lines) | `light.cc` |
 | `src/tile.ts` | Tile coordinate math: `toTileNum`, `fromTileNum`, `hexToTile`, tile pixel positions | `tile.cc` |
-| `src/geometry.ts` | Hex/isometric geometry: `hexDistance`, `hexToScreen`, `hexFromScreen`, `hexLine`, pathfinding helpers | `map.cc`, `tile.cc` |
+| `src/geometry.ts` | Barrel — hex/isometric geometry; split into `geometry/hexScreen.ts` + `geometry/hexGrid.ts` | `map.cc`, `tile.cc` |
 | `shaders/vertex.glsl` | Vertex shader: world-space position + UV transform | — |
 | `shaders/fragment.glsl` | Fragment shader: sprite sampling + world/ambient lighting blend | — |
 | `shaders/fragmentLighting.glsl` | Floor lighting shader (GPU path) | — |
@@ -191,7 +191,7 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/eventlog.types.ts` | `EventLogEntry` / `EventLogInput` types (27 lines) |
 | `src/images.ts` | `lazyLoadImage`: async image cache; `artExists()`: Promise-based existence check |
 | `src/util.ts` | General helpers: file fetch, dice rolls, `BinaryReader`, `parseIni`, skill roll, etc. (261 lines) |
-| `src/geometry.ts` | Hex/isometric geometry utilities (328 lines) |
+| `src/geometry.ts` | Barrel — hex/isometric geometry utilities; split into `geometry/hexScreen.ts` (projection + cube/round helpers) and `geometry/hexGrid.ts` (topology, lines, bbox predicates) |
 | `src/debug.ts` | Dev/cheat console utilities: `debug.addXP`, `debug.teleport`, etc. — active when `Config.engine.debug = true` (79 lines) |
 | `src/formats/fon.ts` | FON bitmap font binary parser |
 | `src/formats/struct.js` | Binary struct unpacker (Python-style format strings) |
