@@ -21,78 +21,7 @@ import globalState from './globalState.js'
 import { Area, loadAreas, lookupMapNameFromLookup } from './data.js'
 import { Worldmap } from './worldmap.js'
 import { UIMode } from './ui_panels.js'
-
-// --- DOM helpers (mirrors the ones in ui.ts) -------------------------------
-
-function $id(id: string): HTMLElement {
-    return document.getElementById(id)!
-}
-
-function clearEl($el: HTMLElement): void {
-    $el.innerHTML = ''
-}
-
-function show($el: HTMLElement): void {
-    $el.style.display = 'block'
-}
-
-function hide($el: HTMLElement): void {
-    $el.style.display = 'none'
-}
-
-function showv($el: HTMLElement): void {
-    $el.style.visibility = 'visible'
-}
-
-function hidev($el: HTMLElement): void {
-    $el.style.visibility = 'hidden'
-}
-
-function appendHTML($el: HTMLElement, html: string): void {
-    $el.insertAdjacentHTML('beforeend', html)
-}
-
-interface ElementOptions {
-    id?: string
-    src?: string
-    classes?: string[]
-    click?: (e: MouseEvent) => void
-    style?: { [key in keyof CSSStyleDeclaration]?: string }
-    children?: HTMLElement[]
-    attrs?: { [key: string]: string | number }
-}
-
-function makeEl(tag: string, options: ElementOptions): HTMLElement {
-    const $el = document.createElement(tag)
-
-    if (options.id !== undefined) {
-        $el.id = options.id
-    }
-    if (options.src !== undefined) {
-        ;($el as HTMLImageElement).src = options.src
-    }
-    if (options.classes !== undefined) {
-        $el.className = options.classes.join(' ')
-    }
-    if (options.click !== undefined) {
-        $el.onclick = options.click
-    }
-    if (options.style !== undefined) {
-        Object.assign($el.style, options.style)
-    }
-    if (options.children !== undefined) {
-        for (const child of options.children) {
-            $el.appendChild(child)
-        }
-    }
-    if (options.attrs !== undefined) {
-        for (const prop in options.attrs) {
-            $el.setAttribute(prop, options.attrs[prop] + '')
-        }
-    }
-
-    return $el
-}
+import { $id, clearEl, show, hide, showv, hidev, appendHTML, makeEl } from './ui_dom.js'
 
 // --- World map -------------------------------------------------------------
 
