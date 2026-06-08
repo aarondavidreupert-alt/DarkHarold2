@@ -159,7 +159,7 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/ui_elevator.ts` | Elevator floor selection dialog (108 lines) |
 | `src/ui_skilldex.ts` | Skilldex panel: active skill picker (190 lines) |
 | `src/ui_mainmenu.ts` | Main menu (New Game / Load / Options / Quit) (221 lines) |
-| `src/ui_options.ts` | Options/preferences screen (434 lines) |
+| `src/ui_options.ts` | Options/preferences screen; pref I/O (SavedPreferences, loadPreferences, savePreferences, getVolumeValue) carved into `ui_options/preferences.ts` |
 | `src/ui_saveload.ts` | Save/load slot UI (105 lines) |
 | `src/ui_automap.ts` | Standalone automap overlay (272 lines) |
 | `src/ui_timer.ts` | In-game countdown timer panel (97 lines) |
