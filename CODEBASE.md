@@ -98,7 +98,7 @@ the pipeline or the TS compiler.
 | File | Purpose | fallout2-ce counterpart |
 |------|---------|------------------------|
 | `src/object.ts` | `Obj` / `Critter` / `WeaponObj` base types; animation state, FRM frame lookup, object lifecycle (1990 lines) | `object.cc`, `critter.cc` |
-| `src/critter.ts` | Damage/kill/heal helpers, `Weapon` interface, available unarmed moves (615 lines) | `critter.cc` |
+| `src/critter.ts` | Barrel — critter module; split into `critter/Weapon.ts` (Weapon class + attack-mode/skin/damage-type constants + UnarmedMove table) + `critter/lifecycle.ts` (critterKill, critterDamage, deathAnimForDamageType, killCounts) | `critter.cc` |
 | `src/player.ts` | `Player extends Critter`: level-up, XP thresholds, HP-per-level formula, skill points | `player.cc` |
 | `src/char.ts` | `StatSet` / `SkillSet` value objects and calculation helpers | `stat.cc`, `skill.cc` |
 | `src/skills.ts` | Skill enum, cost curves, tagged-skill doubling, trait/perk/difficulty modifiers | `skill.cc` |
