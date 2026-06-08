@@ -48,6 +48,7 @@ export const Config = {
         doAudio: true, // enable audio?
         doLogLazyLoads: false, // Log lazy-loading of images? (Noisy)
         doLogScriptLoads: false, // Log script loads? (Noisy)
+        disableCritterIdleAnim: false, // Freeze all critter idle animations on frame 0 (debug: rule out idle as source of jumps). Console: window.Config.engine.disableCritterIdleAnim = true
         doDisasmOnUnimplOp: true, // Disassemble script upon reaching unimplemented opcode?
         // Seconds after which an empty corpse (no loot) is removed from the map.
         // Set to 0 to disable auto-cleanup (corpses persist until map change).

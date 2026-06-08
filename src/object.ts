@@ -1421,6 +1421,16 @@ export class Critter extends Obj {
     updateLoopingAnim(): void {
         const info = globalState.imageInfo[this.art]
         if (!info || !info.numFrames) return
+
+        // Debug toggle: freeze the idle animation on frame 0 for all critters.
+        // Lets you rule out the idle-cycle motion (e.g. hmjmpsia f8–f11 wind-up
+        // baking iOyF into artOffset on weapon-swap) as a source of visible jumps.
+        // Console: window.Config.engine.disableCritterIdleAnim = true
+        if (Config.engine.disableCritterIdleAnim) {
+            this.frame = 0
+            return
+        }
+
         const time = window.performance.now()
 
         if (this.nextIdleAnimTime === 0) {
