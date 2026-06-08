@@ -175,7 +175,7 @@ All UI files render to DOM elements over the WebGL canvas.
 | File | Purpose |
 |------|---------|
 | `src/saveload.ts` | Save/load: IndexedDB-backed, serialises player state, GVARs, map dirty cache (308 lines) |
-| `src/automapData.ts` | Automap tile tracking: seen-tile sets per map+elevation, IndexedDB persistence, canvas renderer (419 lines) |
+| `src/automapData.ts` | Barrel — automap tile tracking; split into `automap/tracking.ts` (state + public API), `automap/storage.ts` (IDB + legacy localStorage migration), `automap/render.ts` (canvas renderer) |
 | `src/idbcache.ts` | Generic IndexedDB key-value cache helper (61 lines) |
 
 ### Ancillary Modules
