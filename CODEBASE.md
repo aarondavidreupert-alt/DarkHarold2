@@ -87,7 +87,7 @@ the pipeline or the TS compiler.
 
 | File | Purpose | fallout2-ce counterpart |
 |------|---------|------------------------|
-| `src/map.ts` | `GameMap`: load/unload maps, object lists per elevation, scripting hooks, exit grids, removal queue (678 lines) | `map.cc` |
+| `src/map.ts` | Barrel — `GameMap`; split into `map/GameMap.ts` (class core: object lists, elevation, party, tile helpers, serialize) + `map/mapLoader.ts` (loadMap, loadNewMap, loadMapByID on GameMap.prototype via declaration merging) | `map.cc` |
 | `src/data.ts` | Area/map index lookups, message file loading, LST/script name resolution | `map.cc`, `scripts.cc` |
 | `src/pro.ts` | PRO (prototype) loading: `loadPRO`, PID encoding helpers, art path lookups | `proto.cc` |
 | `src/worldmap.ts` | Barrel — world-map travel screen; split into `worldmap/types.ts` (interfaces), `worldmap/parser.ts` (worldmap.txt parser), `worldmap/Worldmap.ts` (DOM + travel loop), `worldmap/encounters.ts` (encounter dispatch) | `worldmap.cc` |
