@@ -29,65 +29,7 @@ import { UIMode } from './ui_panels.js'
 import { uiAnimateBox } from './ui_dialogue.js'
 import { makeDropTarget, makeDraggable } from './ui_inventory.js'
 import { Config } from './config.js'
-
-// --- DOM helpers (mirrors the ones in ui.ts) -------------------------------
-
-function $id(id: string): HTMLElement {
-    return document.getElementById(id)!
-}
-
-function clearEl($el: HTMLElement): void {
-    $el.innerHTML = ''
-}
-
-function off($el: HTMLElement, events: string): void {
-    const eventList = events.split(' ')
-    for (const event of eventList) {
-        ;(<any>$el)['on' + event] = null
-    }
-}
-
-interface ElementOptions {
-    id?: string
-    src?: string
-    classes?: string[]
-    click?: (e: MouseEvent) => void
-    style?: { [key in keyof CSSStyleDeclaration]?: string }
-    children?: HTMLElement[]
-    attrs?: { [key: string]: string | number }
-}
-
-function makeEl(tag: string, options: ElementOptions): HTMLElement {
-    const $el = document.createElement(tag)
-
-    if (options.id !== undefined) {
-        $el.id = options.id
-    }
-    if (options.src !== undefined) {
-        ;($el as HTMLImageElement).src = options.src
-    }
-    if (options.classes !== undefined) {
-        $el.className = options.classes.join(' ')
-    }
-    if (options.click !== undefined) {
-        $el.onclick = options.click
-    }
-    if (options.style !== undefined) {
-        Object.assign($el.style, options.style)
-    }
-    if (options.children !== undefined) {
-        for (const child of options.children) {
-            $el.appendChild(child)
-        }
-    }
-    if (options.attrs !== undefined) {
-        for (const prop in options.attrs) {
-            $el.setAttribute(prop, options.attrs[prop] + '')
-        }
-    }
-
-    return $el
-}
+import { $id, clearEl, off, makeEl } from './ui_dom.js'
 
 // --- Cross-list move helpers (also used by ui_loot) ------------------------
 
