@@ -1,6 +1,7 @@
 import globalState from './globalState.js'
 import { getPunchModes, getKickModes, getActivePunchMode, getActiveKickMode } from './unarmed.js'
 import { uiDrawWeapon } from './ui_hud.js'
+import { $id } from './ui_dom.js'
 
 // Fallout 2 interface label images for each unarmed mode name.
 const MODE_LABEL_IMAGES: Record<string, string> = {
@@ -13,10 +14,6 @@ const MODE_LABEL_IMAGES: Record<string, string> = {
     'piercing strike': 'cm_pstrk',
     'hook kick':       'cm_hookk',
     'piercing kick':   'cm_prckk',
-}
-
-function $id(id: string): HTMLElement {
-    return document.getElementById(id)!
 }
 
 let outsideClickListener: ((e: MouseEvent) => void) | null = null
