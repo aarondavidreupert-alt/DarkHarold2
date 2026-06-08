@@ -91,7 +91,7 @@ the pipeline or the TS compiler.
 | `src/data.ts` | Area/map index lookups, message file loading, LST/script name resolution | `map.cc`, `scripts.cc` |
 | `src/pro.ts` | PRO (prototype) loading: `loadPRO`, PID encoding helpers, art path lookups | `proto.cc` |
 | `src/worldmap.ts` | World-map travel screen: 28×30 grid, per-tile time cost, area transitions (689 lines) | `worldmap.cc` |
-| `src/encounters.ts` | Random encounter group generation and placement (457 lines) | `encounter.cc` |
+| `src/encounters.ts` | Barrel — random encounter system; split into `encounters/conditionLang.ts` (`worldmap.txt` condition mini-language: tokenizer/parser/eval) and `encounters/resolver.ts` (pickEncounter, positionCritters, evalEncounter) | `encounter.cc` |
 
 ### Objects & Characters
 
