@@ -1806,14 +1806,40 @@ export class Critter extends Obj {
     }
 
     staticAnimation(anim: string, callback?: () => void, waitForLoad = true, reversed = false): void {
-        // DarkFO model: pure art swap, no artOffset computation. Each FRM renders
-        // at its FRM-intended anchor (scr + dirOff + cumOx). Per-FRM-transition
-        // jumps come from the FRM data (different anchor conventions per weapon
-        // class). No drift because no accumulator. No "phantom offset" being
-        // corrected by moving the figure around.
+        const oldArt = this.art
+        const oldFrame = this.frame
+        const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
         const newArt = this.getAnimation(anim)
 
+        // CE-faithful additive accumulator: at every FID change, shift the new
+        // frame by (oldDirOff + oldF.ox/oy) so the body sits visually
+        // continuous with the previous FRM. artOffset stores the running total
+        // ("Gesamtdelta"). Body inside the chain stays bündig. clearAnim
+        // resets to {0,0} at the end so the figure snaps back to canonical.
+        let pendingArtOffset = prevArtOffset
+        const oldInfo = globalState.imageInfo[oldArt]
+        const newInfo = globalState.imageInfo[newArt]
+        if (oldInfo && newInfo) {
+            const orient = this.orientation ?? 0
+            const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
+            const oldFrames = oldInfo.frameOffsets[orient]
+            const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
+            const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
+            pendingArtOffset = {
+                x: prevArtOffset.x + oldDirOff.x + oldF.ox,
+                y: prevArtOffset.y + oldDirOff.y + oldF.oy,
+            }
+            dbg('animOffset', '[ArtOffset/CE] staticAnimation',
+                `${oldArt}@f${clampedOld}(ox=${oldF.ox},oy=${oldF.oy})`,
+                `→ ${newArt}@f0`,
+                `dir${orient} oldDirOff=(${oldDirOff.x},${oldDirOff.y})`,
+                `prev(${prevArtOffset.x},${prevArtOffset.y})`,
+                `→ artOffset(${pendingArtOffset.x},${pendingArtOffset.y})`,
+            )
+        }
+
         const startAnim = () => {
+            this.artOffset = pendingArtOffset
             this.art = newArt
             this.lastFrameTime = window.performance.now()
             if (reversed) {
@@ -1873,10 +1899,21 @@ export class Critter extends Obj {
         // Dead critters stay frozen on their last death frame — never reset to idle.
         if (this.dead) return
 
+        const prev = { x: this.artOffset.x, y: this.artOffset.y }
+
         super.clearAnim()
         this.path = null
 
-        // DarkFO model: pure art swap to idle. No artOffset computation.
+        // Hard reset of the accumulated "Gesamtdelta". Snaps the figure back to
+        // its canonical idle position. Same path is taken for normal
+        // chain-end (settle to idle) and for interruptions (walk-end already
+        // hits this via wasWalking-equivalent flow; staticAnimation overwrites
+        // artOffset directly so re-interruption sets it cleanly from prev=0).
+        this.artOffset = { x: 0, y: 0 }
+        if (prev.x !== 0 || prev.y !== 0) {
+            dbg('animOffset', `[ArtOffset/CE] clearAnim — reset prev(${prev.x},${prev.y}) → (0,0)`)
+        }
+
         this.anim = 'idle'
         this.art = this.getAnimation('idle')
     }
