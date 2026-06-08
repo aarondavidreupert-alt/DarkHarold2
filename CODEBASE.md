@@ -90,7 +90,7 @@ the pipeline or the TS compiler.
 | `src/map.ts` | `GameMap`: load/unload maps, object lists per elevation, scripting hooks, exit grids, removal queue (678 lines) | `map.cc` |
 | `src/data.ts` | Area/map index lookups, message file loading, LST/script name resolution | `map.cc`, `scripts.cc` |
 | `src/pro.ts` | PRO (prototype) loading: `loadPRO`, PID encoding helpers, art path lookups | `proto.cc` |
-| `src/worldmap.ts` | World-map travel screen: 28×30 grid, per-tile time cost, area transitions (689 lines) | `worldmap.cc` |
+| `src/worldmap.ts` | Barrel — world-map travel screen; split into `worldmap/types.ts` (interfaces), `worldmap/parser.ts` (worldmap.txt parser), `worldmap/Worldmap.ts` (DOM + travel loop), `worldmap/encounters.ts` (encounter dispatch) | `worldmap.cc` |
 | `src/encounters.ts` | Barrel — random encounter system; split into `encounters/conditionLang.ts` (`worldmap.txt` condition mini-language: tokenizer/parser/eval) and `encounters/resolver.ts` (pickEncounter, positionCritters, evalEncounter) | `encounter.cc` |
 
 ### Objects & Characters
@@ -323,7 +323,7 @@ present and functional in the current source:
 
 | File | Purpose |
 |------|---------|
-| `src/autocrawler.ts` | `runMapCrawler()`, `runDialogueCrawler()`, `runCombatCrawler()` — smoke-test all maps; download JSON report of failures |
+| `src/autocrawler.ts` | Barrel — automated test harness; split into `autocrawler/{types,shared,dialogue,combat,maps,report}.ts`. `runMapCrawler()`, `runDialogueCrawler()`, `runCombatCrawler()` — smoke-test all maps; download JSON report of failures |
 | `src/automapData.ts` | IndexedDB persistence for automap (replaces 5 MB localStorage limit) |
 | `AutoCrawler.md` | Usage docs, URL auto-start (`?crawl=maps\|dialogue\|combat`), report JSON schema |
 
