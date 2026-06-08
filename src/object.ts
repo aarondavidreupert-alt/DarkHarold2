@@ -1811,31 +1811,25 @@ export class Critter extends Obj {
         const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
         const newArt = this.getAnimation(anim)
 
-        // Body-center zero-jump formula: figure stays exactly where it is at
-        // every transition. No snap, no visible movement. artOffset value is
-        // a bookkeeping number that compensates the renderer's coordinate
-        // shift so the body's screen position is unchanged across the FID
-        // change. Per-transition body jump = 0 by construction.
+        // CE-faithful: shift the new frame by oldDirOff + oldF.ox/oy.
+        // Pure additive accumulation, nothing else.
         let pendingArtOffset = prevArtOffset
         const oldInfo = globalState.imageInfo[oldArt]
         const newInfo = globalState.imageInfo[newArt]
         if (oldInfo && newInfo) {
             const orient = this.orientation ?? 0
             const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-            const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
             const oldFrames = oldInfo.frameOffsets[orient]
             const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
             const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-            const newStartFrame = reversed ? (newInfo.numFrames - 1) : 0
-            const newF0 = newInfo.frameOffsets[orient]?.[newStartFrame] ?? { w: 0, h: 0, ox: 0, oy: 0 }
             pendingArtOffset = {
-                x: oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prevArtOffset.x,
-                y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prevArtOffset.y,
+                x: prevArtOffset.x + oldDirOff.x + oldF.ox,
+                y: prevArtOffset.y + oldDirOff.y + oldF.oy,
             }
-            dbg('animOffset', '[ArtOffset] staticAnimation',
+            dbg('animOffset', '[ArtOffset/CE] staticAnimation',
                 `${oldArt}@f${clampedOld}(ox=${oldF.ox},oy=${oldF.oy})`,
-                `→ ${newArt}@f${newStartFrame}(ox=${newF0.ox},oy=${newF0.oy})`,
-                `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
+                `→ ${newArt}@f0`,
+                `dir${orient} oldDirOff=(${oldDirOff.x},${oldDirOff.y})`,
                 `prev(${prevArtOffset.x},${prevArtOffset.y})`,
                 `→ artOffset(${pendingArtOffset.x},${pendingArtOffset.y})`,
             )
@@ -1904,34 +1898,32 @@ export class Critter extends Obj {
 
         const oldArt = this.art
         const oldFrame = this.frame
+        const prevArtOffset = { x: this.artOffset.x, y: this.artOffset.y }
 
         super.clearAnim()
         this.path = null
 
         const newArt = this.getAnimation('idle')
 
-        // Same body-center zero-jump formula as staticAnimation: figure stays
-        // exactly where it is at the settle-to-idle transition. No snap.
+        // CE-faithful: same additive bump as staticAnimation. No reset, no
+        // body-center math. Pure CE behavior.
         const orient = this.orientation ?? 0
         const oldInfo = globalState.imageInfo[oldArt]
         const newInfo = globalState.imageInfo[newArt]
         if (oldInfo && newInfo) {
             const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
-            const newDirOff = newInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
             const oldFrames = oldInfo.frameOffsets[orient]
             const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
             const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-            const newF0 = newInfo.frameOffsets[orient]?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-            const prev = this.artOffset
             this.artOffset = {
-                x: oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prev.x,
-                y: oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prev.y,
+                x: prevArtOffset.x + oldDirOff.x + oldF.ox,
+                y: prevArtOffset.y + oldDirOff.y + oldF.oy,
             }
-            dbg('animOffset', '[ArtOffset] clearAnim',
+            dbg('animOffset', '[ArtOffset/CE] clearAnim',
                 `${oldArt}@f${clampedOld}(ox=${oldF.ox},oy=${oldF.oy})`,
-                `→ ${newArt}@f0(ox=${newF0.ox},oy=${newF0.oy})`,
-                `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
-                `prev(${prev.x},${prev.y})`,
+                `→ ${newArt}@f0`,
+                `dir${orient} oldDirOff=(${oldDirOff.x},${oldDirOff.y})`,
+                `prev(${prevArtOffset.x},${prevArtOffset.y})`,
                 `→ artOffset(${this.artOffset.x},${this.artOffset.y})`,
             )
         }
