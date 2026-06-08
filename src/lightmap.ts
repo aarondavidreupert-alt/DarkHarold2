@@ -14,11 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { hexInDirectionDistance } from "./geometry.js"
 import globalState from "./globalState.js"
 import { Obj } from "./object.js"
-import { fromTileNum, setCenterTile, toTileNum } from "./tile.js"
+import { fromTileNum, toTileNum } from "./tile.js"
 import { dbg } from "./logger.js"
+import {
+    light_offsets,
+    light_distance,
+    obj_light_table_init,
+    ensureLightTableInit,
+} from "./lightmap/lightTable.js"
 
 // Generates a lightmap for floor lighting
 
@@ -27,6 +32,10 @@ import { dbg } from "./logger.js"
 //
 // obj_rebuild_all_light should be called whenever an object
 // moves or the tilemap changes.
+//
+// Per wiki/ts-split-refactor.md §15, the static table generation
+// (light_offsets, light_distance, obj_light_table_init,
+// tile_num_in_direction, the isInit flag) lives in lightmap/lightTable.ts.
 
 export module Lightmap {
     function light_reset(): void {
@@ -39,15 +48,6 @@ export module Lightmap {
 
     // Static (non-critter) light bake — populated by bakeStaticLight()
     export var staticTileIntensity = new Int32Array(40000)
-
-    var light_offsets = new Array(532)
-    zeroArray(light_offsets)
-
-    // length 36
-    var light_distance = [1, 2, 3, 4, 5, 6, 7, 8, 2, 3, 4, 5, 6, 7, 8, 3, 4, 5,
-                          6, 7, 8, 4, 5, 6, 7, 8, 5, 6, 7, 8, 6, 7, 8, 7, 8, 8]
-
-    var isInit = false
 
     function light_subtract_from_tile(tileNum: number, intensity: number) {
         tile_intensity[tileNum] -= intensity
@@ -80,12 +80,7 @@ export module Lightmap {
 
         obj.lightIntensity = Math.min(obj.lightIntensity, 65536)
 
-        if(!isInit) {
-            // init
-            dbg('lighting', "initializing light tables")
-            obj_light_table_init()
-            isInit = true
-        }
+        ensureLightTableInit()
 
         var edx: any, eax
         edx = (pos.x%2)*3 * 32
@@ -255,7 +250,7 @@ export module Lightmap {
                           break;
                         case 26:
                           isLightBlocked = light_blocked(36 * nextDir + 3) & light_blocked(36 * dir + 21) | light_blocked(36 * dir + 8) & light_blocked(36 * nextDir + 1) | light_blocked(36 * nextDir + 2) & light_blocked(36 * dir + 15);
-                          break;
+                          break
                         case 27:
                           isLightBlocked = light_blocked(36 * dir + 21) & (light_blocked(36 * dir + 16) | light_blocked(36 * dir + 8)) | light_blocked(36 * dir + 15) | light_blocked(36 * nextDir + 1) & light_blocked(36 * dir + 8) | (light_blocked(36 * dir + 26) | light_blocked(36 * dir + 21) | light_blocked(36 * dir + 15) | light_blocked(36 * nextDir)) & light_blocked(36 * dir + 22);
                           break;
@@ -366,186 +361,6 @@ export module Lightmap {
             }
         }
 
-    }
-
-    export function obj_light_table_init(): void {
-        setCenterTile()
-        //var centerTile_: Point = getCenterTile()
-
-        // should we use the center tile at all?
-        var edi = toTileNum(globalState.centerTile)
-        var edx = edi & 1
-        var eax = edx*4
-        eax -= edx
-        eax <<= 5
-        edx = eax
-        eax <<= 3
-        var ecx = 0
-        eax += edx
-
-        var v2c = ecx
-        var v54 = eax
-        var v48
-        var ebx, ebp, esi, v3c, v40, v50, v20, v24, lightOffsetsStart, v58
-        var v44, v4c, v38, v34, v28, v1c, v28
-
-        do {
-            eax = v54
-            edx = v2c
-            edx++
-            v48 = eax
-            eax = edx
-            edx = eax % 6
-            //eax = eax / 6 | 0
-            ebp = 0
-            esi = 8
-
-            v3c = ebp
-            v40 = esi
-            v50 = edx
-
-            do {
-                ebx = v3c
-                edx = v50
-                eax = edi
-                eax = tile_num_in_direction(eax, edx, ebx) // ?
-
-                esi = ebp*4
-                v24 = eax
-                eax = v40
-                ecx = 0
-                v20 = eax
-                eax = v48
-                edx = v40
-                esi += eax
-
-                if(edx > 0) {
-                    do {
-                        edx = v2c
-                        eax = v24
-                        ecx++
-                        esi += 4
-                        ebx = ecx
-                        ebp++
-                        eax = tile_num_in_direction(eax, edx, ebx)
-                        eax -= edi
-                        ebx = v20
-                        //console.log("light_offsets[%d] = %d", (esi-4)/4|0, eax)
-                        light_offsets[(esi-4)/4|0] = eax
-                    }
-                    while(ecx < ebx)
-                }
-
-                eax = v3c
-                esi = v40
-                eax++
-                esi--
-                v3c = eax
-                v40 = esi
-            }
-            while(eax < 8)
-
-            ebx = v2c
-            ecx = v54
-            ebx++
-            ecx += 144
-            v2c = ebx
-            v54 = ecx
-        }
-        while(ebx < 6)
-
-        // second part
-        edi++
-        edx = edi
-        edx &= 1
-        eax = edx*4
-        eax -= edx
-        eax <<= 5
-        edx = eax
-        eax <<= 3
-        ebp = 0
-        eax += edx
-        lightOffsetsStart = ebp
-        v58 = eax
-
-        do {
-            eax = v58
-            edx = lightOffsetsStart
-            edx++
-            v44 = eax
-            eax = edx
-            edx = eax % 6
-            ebp = 0
-            v4c = edx
-            edx = 8
-            v38 = ebp
-            v34 = edx
-
-            do {
-                ebx = v38
-                edx = v4c
-                eax = edi
-                eax = tile_num_in_direction(eax, edx, ebx)
-                esi = ebp*4
-                ecx = 0
-                ebx = v44
-                v28 = eax
-                eax = v34
-                esi += ebx
-                v1c = eax
-
-                if(eax > 0) {
-                    do {
-                        edx = lightOffsetsStart
-                        eax = v28
-                        ecx++
-                        esi += 4
-                        ebx = ecx
-                        ebp++
-                        eax = tile_num_in_direction(eax, edx, ebx)
-                        eax -= edi
-                        edx = v1c
-                        //console.log("light_offsets[%d] = %d", (esi-4)/4|0, eax)
-                        light_offsets[(esi-4)/4|0] = eax
-                    }
-                    while(ecx < edx)
-                }
-
-                ebx = v38
-                ecx = v34
-                ebx++
-                ecx--
-                v38 = ebx
-                v34 = ecx
-            }
-            while(ebx < 8)
-
-            eax = lightOffsetsStart
-            ebp = v58
-            eax++
-            ebp += 144
-            lightOffsetsStart = eax
-            v58 = ebp
-        }
-        while(eax < 6)
-    }
-
-    // eax = tile, edx = direction, ebx = distance
-    function tile_num_in_direction(tileNum: number, dir: number, distance: number): number {
-        //console.log("tileNum: " + tileNum + " (" + tileNum.toString(16) + ")")
-        if(dir < 0 || dir > 5)
-            throw "tile_num_in_direction: dir = " + dir
-        if(distance === 0)
-            return tileNum
-
-        var hex = hexInDirectionDistance(fromTileNum(tileNum), dir, distance)
-        if(!hex) {
-            dbg('lighting', "hex (input tile is %s) is %o; dir=%d distance=%d", tileNum.toString(16), hex, dir, distance)
-            return -1
-        }
-
-        //console.log("tile: %d,%d -> %d,%d", fromTileNum(tileNum).x, fromTileNum(tileNum).y, hex.x, hex.y)
-        return toTileNum(hex)
     }
 
     function obj_rebuild_all_light(): void {

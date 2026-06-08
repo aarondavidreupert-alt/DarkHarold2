@@ -75,7 +75,7 @@ the pipeline or the TS compiler.
 | `src/renderer.ts` | Abstract `Renderer` base class: coordinate math, object render helpers, camera control (487 lines) | `draw.cc` |
 | `src/webglrenderer.ts` | `WebGLRenderer extends Renderer`: WebGL 2.0 implementation; tile/object/font draw calls, shader management, texture atlas (1156 lines) | `draw.cc` |
 | `src/lighting.ts` | CPU floor-lighting: triangle-mesh light propagation (`Lighting` module) | `light.cc` |
-| `src/lightmap.ts` | Per-tile intensity map: `obj_light_table_init`, `obj_rebuild_all_light`, GPU upload (583 lines) | `light.cc` |
+| `src/lightmap.ts` | Per-tile intensity map: `obj_adjust_light`, `obj_rebuild_all_light`, GPU upload. Static table-generation (`light_offsets`, `obj_light_table_init`, `tile_num_in_direction`) carved into `lightmap/lightTable.ts` via `ensureLightTableInit()` | `light.cc` |
 | `src/tile.ts` | Tile coordinate math: `toTileNum`, `fromTileNum`, `hexToTile`, tile pixel positions | `tile.cc` |
 | `src/geometry.ts` | Barrel — hex/isometric geometry; split into `geometry/hexScreen.ts` + `geometry/hexGrid.ts` | `map.cc`, `tile.cc` |
 | `shaders/vertex.glsl` | Vertex shader: world-space position + UV transform | — |
