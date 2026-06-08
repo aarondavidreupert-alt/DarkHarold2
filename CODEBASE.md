@@ -147,7 +147,7 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/ui.ts` | Legacy UI root: `UIMode` enum, modal helpers, shared panel open/close (469 lines) |
 | `src/ui_panels.ts` | `UIMode` re-export + panel registration helpers (138 lines) |
 | `src/ui_hud.ts` | Main HUD bar: HP/AC/AP readouts, weapon display, combat buttons, message log (309 lines) |
-| `src/ui_character.ts` | Character screen (in-game view) + character creator (new game) (2095 lines) |
+| `src/ui_character.ts` | Barrel — character screen + creator; split into `ui_character/descriptions.ts` (lookup tables), `ui_character/viewer.ts` (in-game character screen), `ui_character/creator.ts` (new-game creator flow), `ui_character/perkModal.ts` (level-up perk selection) |
 | `src/ui_charactercreator.ts` | Entry-point shim into the character creator section of ui_character.ts (46 lines) |
 | `src/ui_pipboy.ts` | Barrel — Pip-Boy overlay; split into `ui_pipboy/shell.ts` (container + date/time bar + wait menu + tab dispatcher + shared widget helpers) and `ui_pipboy/tabs/{status,automaps,archives}.ts` |
 | `src/ui_inventory.ts` | Barrel — inventory panel; split into `ui_inventory/dragdrop.ts` (drag/drop primitives, uiMoveSlot, applyArmorArt, tryLoadAmmoIntoWeapon) + `ui_inventory/panel.ts` (closeInventory, initInventory, showInventory) |
