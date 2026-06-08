@@ -102,7 +102,7 @@ the pipeline or the TS compiler.
 | `src/player.ts` | `Player extends Critter`: level-up, XP thresholds, HP-per-level formula, skill points | `player.cc` |
 | `src/char.ts` | `StatSet` / `SkillSet` value objects and calculation helpers | `stat.cc`, `skill.cc` |
 | `src/skills.ts` | Skill enum, cost curves, tagged-skill doubling, trait/perk/difficulty modifiers | `skill.cc` |
-| `src/perks.ts` | `PerkDef` registry: ~60 perk definitions, requirement checking, application hooks (747 lines) | `perk.cc` |
+| `src/perks.ts` | Barrel — `PerkDef` registry; split into `perks/perks.data.ts` (PERKS array) + `perks/perks.ts` (getValidPerks/getPerkRank/applyPerk) | `perk.cc` |
 | `src/party.ts` | `Party` class: add/remove/follow logic; only basic follow is wired (82 lines) | `party.cc` |
 
 ### Combat
