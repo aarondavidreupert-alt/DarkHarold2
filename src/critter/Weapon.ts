@@ -19,7 +19,8 @@ limitations under the License.
 // Split out of critter.ts. See wiki/ts-split-refactor.md → §13.
 
 import globalState from '../globalState.js'
-import { Critter, WeaponObj } from '../object.js'
+import type { Critter } from '../object/Critter.js'
+import type { WeaponObj } from '../object/items.js'
 
 const weaponSkins: { [weapon: string]: string } = {
     uzi: 'i',
