@@ -184,6 +184,14 @@ export function initLogScrollZones(): void {
 export function uiDrawWeapon(): void {
     // draw the active weapon in the interface bar
     const weapon = globalState.player!.equippedWeapon
+    const p = globalState.player as any
+    console.log('[uiDrawWeapon]', {
+        activeHand: p?.activeHand,
+        leftPid: p?.leftHand?.pid,
+        rightPid: p?.rightHand?.pid,
+        equippedPid: weapon?.pid,
+        invArt: weapon?.invArt,
+    })
     clearEl($id('attackButton'))
     const $wepImg = $id('attackButtonWeapon') as HTMLImageElement
     const $typeImg = $img('attackButtonType')
