@@ -1361,6 +1361,10 @@ export class Combat {
                     critter.isKnockedDown = false // clear flag now that they're getting up
                     if (critter.hasAnimation('getUpFront')) {
                         critter.staticAnimation('getUpFront', () => critter.clearAnim())
+                    } else {
+                        // Critter has no getUpFront FRM — clear the anim sentinel directly so
+                        // they don't stay frozen on the last knockdownFront frame.
+                        critter.clearAnim()
                     }
                 }
                 return this.nextTurn()
