@@ -829,7 +829,7 @@ export class Combat {
 
         // behaviors
 
-        const maxHp = obj.getStat('maxHP') ?? obj.getStat('HP')
+        const maxHp = obj.getStat('Max HP') ?? obj.getStat('HP')
         const fleeThreshold = fleeHpThreshold(obj.ai!.packet, maxHp)
         if (obj.getStat('HP') <= fleeThreshold) {
             // hp <= min fleeing hp, so flee
