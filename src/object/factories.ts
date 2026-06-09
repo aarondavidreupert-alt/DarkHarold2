@@ -18,7 +18,7 @@ limitations under the License.
 // See wiki/ts-split-refactor.md §2.
 
 import { loadPRO } from '../pro.js'
-import { Obj, SerializedObj } from './Obj.js'
+import { Obj, SerializedObj, _registerObjectFactories } from './Obj.js'
 import { Critter } from './Critter.js'
 import { Door, Item, Scenery, WeaponObj } from './items.js'
 
@@ -80,3 +80,8 @@ export function objFromMapObject(mobj: any, deserializing = false) {
 export function deserializeObj(mobj: SerializedObj) {
     return objFromMapObject(mobj, true)
 }
+
+// Wire the factory hooks back onto Obj so its methods (explode, deserialize,
+// inventory mapping) can reach into the PID dispatcher without a static
+// circular import. See Obj.ts header for the cycle this breaks.
+_registerObjectFactories({ createObjectWithPID, objFromMapObject, deserializeObj })

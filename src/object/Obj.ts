@@ -33,7 +33,27 @@ import { getMessage, getRandomInt, skillRoll, RollResult } from '../util.js'
 import { showTimerDialog } from '../ui_timer.js'
 import { Config } from '../config.js'
 import type { Critter } from './Critter.js'
-import { createObjectWithPID, objFromMapObject, deserializeObj } from './factories.js'
+// Late-bound factory hooks — set by factories.ts at module-init time.
+// Direct static import would create a cycle: Obj.ts → factories.ts → items.ts
+// → (extends Obj at module init) → TDZ on Obj. See wiki/ts-split-refactor.md
+// §2 "Circular-dependency risks" — factories.ts is required to depend on
+// Obj.ts and items.ts requires Obj.ts at module init, so the edge that has
+// to be lazy is Obj.ts → factories.ts.
+let _createObjectWithPID: ((pid: number, sid?: number) => Obj) | null = null
+let _objFromMapObject: ((mobj: any, deserializing?: boolean) => Obj) | null = null
+let _deserializeObj: ((mobj: SerializedObj) => Obj) | null = null
+export function _registerObjectFactories(fns: {
+    createObjectWithPID: typeof _createObjectWithPID
+    objFromMapObject: typeof _objFromMapObject
+    deserializeObj: typeof _deserializeObj
+}): void {
+    _createObjectWithPID = fns.createObjectWithPID
+    _objFromMapObject = fns.objFromMapObject
+    _deserializeObj = fns.deserializeObj
+}
+const createObjectWithPID = (pid: number, sid?: number): Obj => _createObjectWithPID!(pid, sid)
+const objFromMapObject = (mobj: any, deserializing?: boolean): Obj => _objFromMapObject!(mobj, deserializing)
+const deserializeObj = (mobj: SerializedObj): Obj => _deserializeObj!(mobj)
 
 // Collection of functions for working with game objects
 
