@@ -98,10 +98,19 @@ export function drawAP(current: number, max: number, freeMove: number = 0, isPla
     updateIndicatorBar()
 }
 
-// CE ref: interface.cc indicatorBarInit / indicatorBarRefresh — renders up to
-// 6 status badges (ADDICT, SNEAK, LEVEL, POISONED, RADIATED, etc.) above the
-// HUD. DH2 renders a compact textual indicator strip — created lazily and
-// updated on each AP redraw and at end of turn.
+// CE ref: interface.cc indicatorBarInit / indicatorBarRefresh
+// INDICATOR_SLOTS_COUNT = 6 (CE allocates 6 fixed slots; only 5 badge types exist).
+// Badge order: ADDICT, SNEAK, LEVEL, POISONED, RADIATED.
+// Thresholds: POISON_INDICATOR_THRESHOLD = 0; RADIATION_INDICATOR_THRESHOLD = 65.
+const INDICATOR_SLOTS: ReadonlyArray<{ label: string; bad: boolean } | null> = [
+    { label: 'ADDICT',   bad: true  },
+    { label: 'SNEAK',    bad: false },
+    { label: 'LEVEL',    bad: false },
+    { label: 'POISONED', bad: true  },
+    { label: 'RADIATED', bad: true  },
+    null, // 6th slot always empty per CE INDICATOR_SLOTS_COUNT=6
+]
+
 let indicatorBarEl: HTMLElement | null = null
 export function updateIndicatorBar(): void {
     const player = globalState.player
@@ -111,38 +120,47 @@ export function updateIndicatorBar(): void {
         if (!bar) return
         indicatorBarEl = document.createElement('div')
         indicatorBarEl.id = 'indicatorBar'
+        // Parent inside #bar and anchor above it via bottom:100%.
+        // CSS default overflow:visible lets the element render outside bar's box.
         Object.assign(indicatorBarEl.style, {
-            position: 'absolute', left: '0', right: '0',
-            // Pin just above the HUD bar; bar's top is set by layout, so we
-            // anchor to the bar element via a translate trick by parenting to
-            // game-container and matching bar's left edge.
-            bottom: (bar.offsetHeight + 4) + 'px',
-            display: 'flex', justifyContent: 'center', gap: '6px',
+            position: 'absolute',
+            bottom: '100%',
+            left: '0',
+            right: '0',
+            marginBottom: '3px',
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '2px',
             pointerEvents: 'none',
-            fontFamily: 'monospace', fontSize: '10px', color: '#0F0',
-            textShadow: '1px 1px 0 #000', zIndex: '15',
+            fontFamily: 'monospace',
+            fontSize: '10px',
+            textShadow: '1px 1px 0 #000',
+            zIndex: '15',
         })
-        bar.parentElement?.appendChild(indicatorBarEl)
+        bar.appendChild(indicatorBarEl)
     }
-    // CE ref: interface.cc indicatorBarRefresh — badge order: ADDICT, SNEAK, LEVEL, POISONED, RADIATED.
-    // INDICATOR_SLOTS_COUNT = 6 (CE allocates 6 slots for 5 badge types).
-    // Thresholds: POISON_INDICATOR_THRESHOLD = 0 (any poison shows badge);
-    //             RADIATION_INDICATOR_THRESHOLD = 65 (CE: interface.cc ~line 946).
-    const indicators: Array<{ label: string; bad: boolean }> = []
+
+    // Determine which badge slots are active.
+    const active = new Set<string>()
     const addicts: string[] = (player as any).addictions ?? []
-    if (addicts.length > 0) indicators.push({ label: 'ADDICT', bad: true })
-    if ((player as any).isSneaking) indicators.push({ label: 'SNEAK', bad: false })
-    // INDICATOR_LEVEL: show when player has unspent skill points from levelling up.
+    if (addicts.length > 0) active.add('ADDICT')
+    if ((player as any).isSneaking) active.add('SNEAK')
     const skillPoints: number = (player as any).skills?.skillPoints ?? 0
-    if (skillPoints > 0) indicators.push({ label: 'LEVEL', bad: false })
-    const poison = (player as any).poisonLevel ?? 0
-    if (poison > 0) indicators.push({ label: 'POISONED', bad: true })
-    const rads = (player as any).radiationLevel ?? 0
-    if (rads >= 65) indicators.push({ label: 'RADIATED', bad: true })
-    indicatorBarEl.innerHTML = indicators.map(({ label, bad }) =>
-        `<span style="background:rgba(0,0,0,0.7); padding:1px 6px; border:1px solid ${bad ? '#F00' : '#0F0'}; color:${bad ? '#F00' : '#0F0'};">${label}</span>`
-    ).join('')
-    indicatorBarEl.style.visibility = indicators.length > 0 ? 'visible' : 'hidden'
+    if (skillPoints > 0) active.add('LEVEL')
+    if (((player as any).poisonLevel ?? 0) > 0) active.add('POISONED')
+    if (((player as any).radiationLevel ?? 0) >= 65) active.add('RADIATED')
+
+    // Render exactly 6 fixed-width slots. Empty slots are transparent spacers.
+    indicatorBarEl.innerHTML = INDICATOR_SLOTS.map(slot => {
+        if (!slot || !active.has(slot.label)) {
+            return `<span style="display:inline-block;width:58px;height:14px;"></span>`
+        }
+        const c = slot.bad ? '#F00' : '#0F0'
+        return `<span style="display:inline-block;width:58px;height:14px;line-height:14px;` +
+            `text-align:center;box-sizing:border-box;background:rgba(0,0,0,0.7);` +
+            `border:1px solid ${c};color:${c};">${slot.label}</span>`
+    }).join('')
+    indicatorBarEl.style.visibility = active.size > 0 ? 'visible' : 'hidden'
 }
 
 // Dim the attack button when the player can't afford the current weapon mode's
@@ -305,6 +323,7 @@ export function uiStartCombat(): void {
     drawHP(player.getStat('HP'))
     drawAC(player.getStat('AC'))
     drawAP(player.AP!.getAvailableMoveAP(), player.AP!.getTotalMaxAP())
+    globalState.combat?.refreshHighlights()
 }
 
 export function uiEndCombat(): void {

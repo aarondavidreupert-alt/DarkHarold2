@@ -274,10 +274,12 @@ export function initUI() {
         if (globalState.inCombat) {
             // clicking gun in combat → switch to attack cursor
             globalState.cursorMode = 'attack'
+            globalState.combat?.refreshHighlights()
         } else {
             // begin combat and switch to attack cursor
             Combat.start()
             globalState.cursorMode = 'attack'
+            globalState.combat?.refreshHighlights()
         }
     }
 

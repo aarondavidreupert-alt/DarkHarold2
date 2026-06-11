@@ -1276,17 +1276,12 @@ export class Combat {
                 // movement AP spent) must not flip bystanders to hostile.
                 if (this.hasAttacked || obj.hostile) {
                     obj.hostile = true
-                    // CE ref: game_config.h:111 TargetHighlightType — 0=off, 1=targeting-only, 2=all-enemies.
-                    // DH2: 'off'=0, 'targeting-only'=1, 'on'=2.
-                    const th: any = Config.ui.targetHighlight
-                    const wantHighlight = th === 'on' || th === true ||
-                        (th === 'targeting-only' && globalState.cursorMode === 'attack') ||
-                        (th === 2)
-                    obj.outline = wantHighlight ? 'red' : null
                     numActive++
                 }
             }
         }
+
+        this.refreshHighlights()
 
         if (numActive === 0 && this.turnNum !== 1 && this.playerHadTurn) {
             // Only auto-end after the player has had at least one turn. Prevents
@@ -1378,6 +1373,22 @@ export class Combat {
                 message: `${actorName(critter)}: turn begins`,
             })
             this.doAITurn(critter, this.whoseTurn, 1)
+        }
+    }
+
+    /** CE ref: interface.cc indicatorBarRefresh-adjacent — update red outlines on all
+     *  hostile combatants to match the current targetHighlight preference and cursorMode.
+     *  Call whenever cursorMode changes or preferences change mid-combat. */
+    refreshHighlights(): void {
+        if (!globalState.player) return
+        const th = Config.ui.targetHighlight as string | boolean
+        for (const obj of this.combatants) {
+            if ((obj as any).dead || obj.isPlayer) continue
+            if (obj.teamNum === globalState.player.teamNum) continue
+            if (!(obj as any).hostile) continue
+            const wantHighlight = th === 'on' || th === true ||
+                (th === 'targeting-only' && globalState.cursorMode === 'attack')
+            ;(obj as any).outline = wantHighlight ? 'red' : null
         }
     }
 }

@@ -94,6 +94,7 @@ export function installInputHandlers(): void {
                     clearTimeout(globalState.commandModeTimer)
                     globalState.commandModeTimer = null
                 }
+                globalState.combat?.refreshHighlights()
             } else if (globalState.cursorMode === 'attack') {
                 // attack (crosshair) → back to move (hex)
                 globalState.cursorMode = 'move'
@@ -102,6 +103,7 @@ export function installInputHandlers(): void {
                     clearTimeout(globalState.commandModeTimer)
                     globalState.commandModeTimer = null
                 }
+                globalState.combat?.refreshHighlights()
             }
         }
     }
