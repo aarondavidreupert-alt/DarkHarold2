@@ -150,7 +150,7 @@ game data.
 
 #### DH2
 
-Hardcoded in `ui_character.ts:581–591`:
+Hardcoded in `ui_character.ts–591`:
 
 ```typescript
 const KARMA_TITLES: Array<[number, string]> = [
@@ -284,7 +284,7 @@ Town reputation is **split across two disconnected storage systems**:
 higher-index ones). Scripts read/write these correctly.
 
 **UI-side** (player stats): `player.stats.getBase('Rep_Arroyo')` etc. The karma
-panel iterates `TOWN_NAMES` (`ui_character.ts:593–597`) and reads `Rep_{town}`:
+panel iterates `TOWN_NAMES` (`ui_character.ts–597`) and reads `Rep_{town}`:
 
 ```typescript
 const TOWN_NAMES = [
@@ -296,11 +296,11 @@ const TOWN_NAMES = [
 ```
 
 The panel only displays a town if the key exists in `player.stats.baseStats`
-(`ui_character.ts:632`). Neither Player initialization nor any script sets these
+(`ui_character.ts`). Neither Player initialization nor any script sets these
 stat keys, so the town section of the karma panel is always empty unless added
 manually.
 
-**Town standing labels** — DH2 uses 7 tiers (`ui_character.ts:600–608`):
+**Town standing labels** — DH2 uses 7 tiers (`ui_character.ts–608`):
 
 | Range | Label |
 |---|---|
@@ -665,14 +665,14 @@ All blending happens in software at 8-bit indexed colour depth.
 
 #### DH2 — WebGL shader
 
-DH2's `renderObject` (`webglrenderer.ts:1033`) calls `renderFrame` for every
+DH2's `renderObject` (`webglrenderer.ts`) calls `renderFrame` for every
 object unconditionally. No egg mask, no `OBJECT_TRANS_*` flag check, no
 positional condition.
 
 WebGL alpha blending is globally enabled at init:
 ```typescript
 gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-gl.enable(gl.BLEND)   // webglrenderer.ts:244-245
+gl.enable(gl.BLEND)   // webglrenderer.ts
 ```
 
 This respects the alpha channel of the sprite PNG (palette-0 pixels become
@@ -717,7 +717,7 @@ set_obj_visibility(obj: Obj, visibility: number) {
 }
 ```
 
-DH2's `visible` field (`object.ts:43`) is checked in `objectRenderInfo`
+DH2's `visible` field (`object.ts`) is checked in `objectRenderInfo`
 (`renderer.ts:286`) and propagates to WebGL via `renderInfo.visible`. The
 semantics match CE's `OBJECT_HIDDEN` behaviour.
 
@@ -788,6 +788,6 @@ with no transparency to indicate their position.
 | E7 | Critters inside the egg zone are still drawn opaque (intentional exclusion) | Correctly excluded by type check (moot since egg itself is missing) |
 | E8 | `set_obj_transparency` as a script opcode | Does not exist in CE — `set_obj_visibility` is the real opcode and **is** implemented in DH2 |
 | E9 | `tileIsInFrontOf` / `tileIsToRightOf` geometry functions | Not present in DH2; needed for egg and also for correct combat sight-line logic |
-| E10 | Egg is reset / repositioned on elevation change synchronously with player | N/A (egg not present), but elevation change is handled in `changeElevation` (`map.ts:196`) |
+| E10 | Egg is reset / repositioned on elevation change synchronously with player | N/A (egg not present), but elevation change is handled in `changeElevation` (`map.ts`) |
 
 <!-- audited: 2026-06-02 -->

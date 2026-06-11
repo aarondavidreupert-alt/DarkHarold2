@@ -157,7 +157,7 @@ preventing the explosion-triggered `spatial_p_proc` from re-triggering more spat
 
 ## 5. DH2 Implementation
 
-### 5.1 Loading (`map.ts:456`)
+### 5.1 Loading (`map.ts`)
 
 ```typescript
 if (Config.engine.doSpatials) {
@@ -193,12 +193,12 @@ Each spatial object at runtime is a plain dict:
 
 `spatial.range` from the JSON is stored as `spatial.radius`; the field name differs
 between the JSON key (`"range"`) and the runtime object key (`radius`). Note:
-`hitSpatialTrigger` reads `spatial.range` directly (`object.ts:1941`) — there is a
+`hitSpatialTrigger` reads `spatial.range` directly (`object.ts`) — there is a
 **field-name inconsistency**: the loaded JSON sets `spatial.range` (from fomap output)
 but the runtime object expects `.radius`. DH2 works because `getSpatials()` returns the
 raw JSON dict, so both `.range` and `.radius` may exist on it.
 
-### 5.2 Movement Trigger (`Critter.move`, `object.ts:1509`)
+### 5.2 Movement Trigger (`Critter.move`, `object.ts`)
 
 ```typescript
 move(position: Point, ...): boolean {
@@ -215,7 +215,7 @@ move(position: Point, ...): boolean {
 }
 ```
 
-`hitSpatialTrigger(position)` (`object.ts:1939`):
+`hitSpatialTrigger(position)` (`object.ts`):
 ```typescript
 function hitSpatialTrigger(position: Point): any {
     return globalState.gMap.getSpatials()
@@ -223,7 +223,7 @@ function hitSpatialTrigger(position: Point): any {
 }
 ```
 
-### 5.3 Explosion Trigger (`Obj.explode`, `object.ts:855`)
+### 5.3 Explosion Trigger (`Obj.explode`, `object.ts`)
 
 DH2 fires spatials from explosion in two passes:
 
@@ -267,7 +267,7 @@ export function spatial(spatialObj: Obj, source: Obj) {
 `self_obj` is set to the spatial dict itself. In CE, `self_obj` is a temporary invisible
 `OBJ_TYPE_INTERFACE` object created on the heap and positioned at the spatial's tile.
 
-### 5.5 Save / Load Persistence (`map.ts:625`, `map.ts:647`)
+### 5.5 Save / Load Persistence (`map.ts`, `map.ts`)
 
 **Save:**
 ```typescript
@@ -281,7 +281,7 @@ spatials: this.spatials.map(level =>
 )
 ```
 
-**Load (`map.ts:647`):**
+**Load (`map.ts`):**
 ```typescript
 // Re-load script from name; reapply saved LVARs
 const scr = Scripting.loadScript(s.script)
@@ -328,7 +328,7 @@ and likely produce wrong results or throw.
 ## 7. Config Flag
 
 `Config.engine.doSpatials` (boolean, default `true`). When `false`:
-- Map loading skips all spatial script initialization (`map.ts:456`)
+- Map loading skips all spatial script initialization (`map.ts`)
 - `Critter.move` does not call `hitSpatialTrigger`
 - Explosion pass 1 is still gated by the flag; pass 2 is not
 
@@ -346,5 +346,5 @@ and likely produce wrong results or throw.
 | 6 | `target_obj` | CE explicitly sets `target_obj = nullptr` before proc | NOT SET in DH2 | Spatials that call `obj_type(target_obj)` or similar get undefined behaviour |
 | 7 | Explosion spatial trigger radius | `_scr_explode_scenery` passes the blast radius to the spatial scan | DH2 pass 2 hardcodes `SPATIAL_RADIUS_DEFAULT = 3` for map-object spatials | Explosions may under-trigger or over-trigger scripted objects depending on blast radius vs 3 |
 | 8 | `spatial.range` vs `spatial.radius` field name | n/a | Runtime object populated from JSON `"range"` key; `hitSpatialTrigger` reads `.range`; save code writes `.radius` — the two names coexist on the same dict | Save/load round-trip may lose range on spatials if `.radius` is written and `.range` is not read back |
-| 9 | `objectEnterMap` on spatials | CE does not call `map_enter_p_proc` on spatials (they have no such proc) | DH2 calls `Scripting.objectEnterMap(spatial, ...)` (`map.ts:319`); spatial scripts don't export `map_enter_p_proc` so it silently does nothing | Harmless no-op; slightly wasteful |
+| 9 | `objectEnterMap` on spatials | CE does not call `map_enter_p_proc` on spatials (they have no such proc) | DH2 calls `Scripting.objectEnterMap(spatial, ...)` (`map.ts`); spatial scripts don't export `map_enter_p_proc` so it silently does nothing | Harmless no-op; slightly wasteful |
 | 10 | Elevation filtering for movement | CE `scriptsExecSpatialProc` is called with the current tile's elevation and only iterates spatials on that elevation | DH2 `getSpatials()` returns the current elevation's list (via `gMap.currentElevation`) — correct only if the elevation never changes mid-move | Elevation changes mid-move (e.g., stairways) could briefly scan the wrong elevation list |

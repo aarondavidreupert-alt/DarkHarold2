@@ -116,14 +116,14 @@ class Critter extends Obj {
 }
 ```
 
-`addInventoryItem(item, count)` (`object.ts:625`): checks for an existing item
+`addInventoryItem(item, count)` (`src/object/Obj.ts`): checks for an existing item
 with `approxEq()` (matching PID and type), increments `.amount` if found,
 otherwise clones the item and pushes it. Stack-safe.
 
-`Obj.money` getter (`object.ts:670`): searches `inventory` for an item with
+`Obj.money` getter (`src/object/Obj.ts`): searches `inventory` for an item with
 `pid === MONEY_PID` (41 = bottle caps).
 
-`getEquippedArmor()` (`object.ts:1537`): checks `self.armor` first (explicit
+`getEquippedArmor()` (`src/object/Critter.ts`): checks `self.armor` first (explicit
 player slot), then scans `inventory` for the first item with
 `subtype === 'armor'`.
 
@@ -218,19 +218,19 @@ Accessors:
 `(obj as Critter).rightHand = item` only. No left-hand support, no equip
 animation, no `_adjust_ac` call.
 
-**UI-driven** (`ui_inventory.ts:204`, `uiMoveSlot`): drag-and-drop slots
+**UI-driven** (`src/ui_inventory/dragdrop.ts`, `uiMoveSlot`): drag-and-drop slots
 `leftHand`, `rightHand`, `armor`. Directly writes to `player.leftHand`,
 `player.rightHand`, `player.armor` via `playerUnsafe[target] = obj`. Triggers
 `applyArmorArt()` on armor slot changes.
 
-`applyArmorArt` (`ui_inventory.ts:277`): updates `player.art` to the armor's
+`applyArmorArt` (`src/ui_inventory/dragdrop.ts`): updates `player.art` to the armor's
 `maleFID` / `femaleFID` sprite path. Saves original art in `player._baseArt`
 for restoration on unequip. Plays armor equip sound (`ltharmor`, `pwrarmor`,
 `mtlarmor`, or `robe`).
 
-**AC calculation** (`ui_inventory.ts:416–422`, `object.ts:1547`): armor AC is
+**AC calculation** (`src/ui_inventory/panel.ts`, `src/object/Critter.ts`): armor AC is
 read directly from `armor.pro.extra.AC` at render/query time — no bonus stat is
-mutated on the critter object. `getArmorDR/DT/AC()` (`object.ts:1547–1573`)
+mutated on the critter object. `getArmorDR/DT/AC()` (`src/object/Critter.ts`)
 similarly reads `pro.extra.stats['DR Type']` directly.
 
 ### 3.3 Script usage patterns
@@ -598,10 +598,10 @@ These CE scripting intrinsics have no entry in `src/vm_bridge.ts`:
 
 | ID   | Area                          | CE behavior                                                       | DH2 behavior                                                         | CE reference                               | DH2 location              |
 |------|-------------------------------|-------------------------------------------------------------------|----------------------------------------------------------------------|--------------------------------------------|---------------------------|
-| —    | Carry weight enforcement      | Blocks pickup; AP penalty when over limit                         | Display only; no enforcement                                         | `stat.cc:571`, `item.cc:919`               | `ui_inventory.ts:461`     |
+| —    | Carry weight enforcement      | Blocks pickup; AP penalty when over limit                         | Display only; no enforcement                                         | `stat.cc:571`, `item.cc:919`               | `src/ui_inventory/panel.ts` |
 | —    | Wield left hand (script)      | `_inven_wield(critter, item, HAND_LEFT)`                          | `wield_obj_critter` only sets `rightHand`                            | `inventory.h`                              | `scripting.ts:959`        |
 | —    | Equip animation               | `ANIM_DRAW_WEAPON` triggered on wield                             | No animation in `wield_obj_critter`                                  | `inventory.h`                              | `scripting.ts:959`        |
-| —    | AC bonus stat mutation        | `_adjust_ac` modifies bonus stats at equip                        | AC/DR read directly from `pro.extra` at query time                   | `inventory.h`                              | `object.ts:1547`          |
+| —    | AC bonus stat mutation        | `_adjust_ac` modifies bonus stats at equip                        | AC/DR read directly from `pro.extra` at query time                   | `inventory.h`                              | `src/object/Critter.ts`   |
 | —    | Drug data source              | All deltas from PRO file; extensible                              | Hardcoded `DRUG_TABLE` for 8 drugs only                              | `item.cc:2776`                             | `drugs.ts`                |
 | —    | Flower Child trait            | Halves addiction chance                                           | Not implemented in `computeAddictChance`                             | `item.cc:2776`                             | `drugs.ts:94`             |
 | —    | Robot drug immunity           | Robots can't use drugs                                            | Not checked in `useDrug()`                                           | `item.cc:2776`                             | `drugs.ts:107`            |
@@ -614,7 +614,7 @@ These CE scripting intrinsics have no entry in `src/vm_bridge.ts`:
 | IU1  | `use_obj_on_obj` wrong proc   | Fires `use_obj_on_p_proc` on target                               | Fires `use_p_proc` — quest-item interactions (e.g. Wrench on car) broken | `proto_instance.cc:1245`               | `scripting.ts:1227`       |
 | IU2  | Proc name mismatch            | `use_obj_on_p_proc` / `use_skill_on_p_proc`                      | DH2 declares `use_obj_on_me_p_proc` / `use_skill_on_me_p_proc`      | `scripts.h:61-62`                          | `scripting.ts:390-391`    |
 | IU3  | No jammed state               | `jam_lock` / `unjam_lock` exist; midnight unjam fires             | No jammed state on `Obj`; opcodes missing; midnight unjam never fires (cross-ref §GTC5 in known_bugs.md) | `proto_instance.cc:2131,2171`; `scripts.cc:418` | `scripting.ts` (missing) |
-| IU4  | No locked-door SFX/message    | Plays locked SFX + "That door is locked." before proc fires       | `setObjectOpen()` returns `false` silently                           | `proto_instance.cc:1710-1722`              | `object.ts:136`           |
-| IU5  | Container loot UI timing      | Loot screen shown only after `objectOpenClose()` animation        | `setObjectOpen()` calls `uiLoot(obj)` immediately                   | `proto_instance.cc:1825-1840`              | `object.ts:152`           |
+| IU4  | No locked-door SFX/message    | Plays locked SFX + "That door is locked." before proc fires       | `setObjectOpen()` returns `false` silently                           | `proto_instance.cc:1710-1722`              | `src/object/Obj.ts`       |
+| IU5  | Container loot UI timing      | Loot screen shown only after `objectOpenClose()` animation        | `setObjectOpen()` calls `uiLoot(obj)` immediately                   | `proto_instance.cc:1825-1840`              | `src/object/Obj.ts`       |
 
 Last audited: 2026-06-02

@@ -29,12 +29,12 @@ Traits are selected during **character creation** only (max 2). They provide tra
 | 1 | `TRAIT_BRUISER` | Bruiser | ST +2; AP −2 | PARTIAL — ST applied at creation; AP delta applied via statDep |
 | 2 | `TRAIT_SMALL_FRAME` | Small Frame | AG +1; Carry Weight −10×STR | PARTIAL — AG applied; Carry Weight formula not separately adjusted |
 | 3 | `TRAIT_ONE_HANDER` | One Hander | +20% one-handed weapons; −40% two-handed weapons | STUB — no weapon-type skill modifier in DH2 |
-| 4 | `TRAIT_FINESSE` | Finesse | Critical Chance +10; all damage −30% from crits (Better Criticals) | WIRED — `critChance += 10` at creation; `Finesse` checked in `combat.ts:614,691` for −30 crit effect roll |
+| 4 | `TRAIT_FINESSE` | Finesse | Critical Chance +10; all damage −30% from crits (Better Criticals) | WIRED — `critChance += 10` at creation; `Finesse` checked in `combat.ts` for −30 crit effect roll |
 | 5 | `TRAIT_KAMIKAZE` | Kamikaze | Sequence +5; AC = base AC (armor AC bonus zeroed) | PARTIAL — Sequence +5 applied at creation; AC zeroing is stub |
 | 6 | `TRAIT_HEAVY_HANDED` | Heavy Handed | Melee Damage +4; Better Criticals −30 | PARTIAL — Melee Damage +4 applied; Better Criticals penalty is stub |
 | 7 | `TRAIT_FAST_SHOT` | Fast Shot | Ranged weapons cost 1 fewer AP; no targeted shots | STUB — no AP cost reduction or targeting restriction |
 | 8 | `TRAIT_BLOODY_MESS` | Bloody Mess | Death animations always gory | STUB — no death animation selection in DH2 |
-| 9 | `TRAIT_JINXED` | Jinxed | Enemies have 1-in-4 chance of critical failure each turn | PARTIAL — CE: also affects player; `'Jinxed'` perk (not trait) checked in `combat.ts:568` |
+| 9 | `TRAIT_JINXED` | Jinxed | Enemies have 1-in-4 chance of critical failure each turn | PARTIAL — CE: also affects player; `'Jinxed'` perk (not trait) checked in `combat.ts` |
 | 10 | `TRAIT_GOOD_NATURED` | Good Natured | Combat skills −10; First Aid/Doctor/Speech/Barter +15 | WIRED — `traitGetSkillModifier` in `src/skills.ts` applies these deltas live |
 | 11 | `TRAIT_CHEM_RELIANT` | Chem Reliant | Addiction chance ×2 | WIRED — `drugs.ts:98` checks `player.traits` includes `'Chem Reliant'` |
 | 12 | `TRAIT_CHEM_RESISTANT` | Chem Resistant | Addiction chance ÷2; drug duration ÷2 | PARTIAL — addiction chance halved (`drugs.ts:97`); duration halving stub |
@@ -136,7 +136,7 @@ Non-selectable perks (addiction, armor implants — `maxRank == -1`) are listed 
 | 1 | `PERK_BONUS_HTH_ATTACKS` | Bonus HtH Attacks | 1 | 15 | AG≥6 | — | +1 AP for HtH attacks | WIRED — `hasPerk('Bonus HtH Attacks')` in `combat.ts` |
 | 2 | `PERK_BONUS_HTH_DAMAGE` | Bonus HtH Damage | 3 | 3 | ST≥6, AG≥6 | — | Melee Damage +2/rank | WIRED — defined in PERKS; Melee Damage stat applied via `perkAddEffect` analog in stat layer |
 | 3 | `PERK_BONUS_MOVE` | Bonus Move | 2 | 6 | AG≥5 | — | +2 free move AP/rank | WIRED — `hasPerk('Bonus Move')` in `combat.ts` |
-| 4 | `PERK_BONUS_RANGED_DAMAGE` | Bonus Ranged Damage | 2 | 6 | AG≥6, LK≥6 | — | Ranged damage +2/rank | WIRED — `hasPerk('Bonus Ranged Damage')` filter in `combat.ts:622` |
+| 4 | `PERK_BONUS_RANGED_DAMAGE` | Bonus Ranged Damage | 2 | 6 | AG≥6, LK≥6 | — | Ranged damage +2/rank | WIRED — `hasPerk('Bonus Ranged Damage')` filter in `combat.ts` |
 | 5 | `PERK_BONUS_RATE_OF_FIRE` | Bonus Rate of Fire | 1 | 15 | PE≥6, IN≥6, AG≥7 | — | +1 AP for ranged attacks | WIRED — `hasPerk('Bonus Rate of Fire')` in `combat.ts` |
 | 6 | `PERK_EARLIER_SEQUENCE` | Earlier Sequence | 3 | 3 | PE≥6 | — | Sequence +2/rank | PARTIAL — defined; stat written at level-up |
 | 7 | `PERK_FASTER_HEALING` | Faster Healing | 3 | 3 | EN≥6 | — | Healing Rate +2/rank | PARTIAL — defined; Healing Rate stub in DH2 |
@@ -153,10 +153,10 @@ Non-selectable perks (addiction, armor implants — `maxRank == -1`) are listed 
 | 18 | `PERK_EDUCATED` | Educated | 3 | 3 | IN≥6 | — | +2 skill points/level/rank | WIRED — `player.ts:110` multiplies by perk rank |
 | 19 | `PERK_HEALER` | Healer | 4 | 3 | PE≥7, IN≥5, AG≥6 | First Aid≥40 | First Aid heals +4..+10 HP | STUB — no HP range bonus on First Aid use |
 | 20 | `PERK_FORTUNE_FINDER` | Fortune Finder | 1 | 6 | LK≥8 | — | More caps in random encounters | STUB — no loot modifier |
-| 21 | `PERK_BETTER_CRITICALS` | Better Criticals | 1 | 9 | PE≥6, AG≥4, LK≥6 | — | Critical effect table +20 | WIRED — `hasPerk('Better Criticals')` filter in `combat.ts:502`, +30/rank |
+| 21 | `PERK_BETTER_CRITICALS` | Better Criticals | 1 | 9 | PE≥6, AG≥4, LK≥6 | — | Critical effect table +20 | WIRED — `hasPerk('Better Criticals')` filter in `combat.ts`, +30/rank |
 | 22 | `PERK_EMPATHY` | Empathy | 1 | 6 | PE≥7, IN≥5 | — | See NPC reaction | STUB — no reaction display |
-| 23 | `PERK_SLAYER` | Slayer | 1 | 18 | ST≥8, AG≥8 | Unarmed≥80 | Melee/Unarmed always critical | WIRED — `hasPerk('Slayer')` in `combat.ts:523` |
-| 24 | `PERK_SNIPER` | Sniper | 1 | 18 | PE≥8, AG≥8 | Small Guns≥80 | Ranged always critical on LK roll | WIRED — `hasPerk('Sniper')` in `combat.ts:525` |
+| 23 | `PERK_SLAYER` | Slayer | 1 | 18 | ST≥8, AG≥8 | Unarmed≥80 | Melee/Unarmed always critical | WIRED — `hasPerk('Slayer')` in `combat.ts` |
+| 24 | `PERK_SNIPER` | Sniper | 1 | 18 | PE≥8, AG≥8 | Small Guns≥80 | Ranged always critical on LK roll | WIRED — `hasPerk('Sniper')` in `combat.ts` |
 | 25 | `PERK_SILENT_DEATH` | Silent Death | 1 | 18 | AG≥10 | Sneak≥80 | ×2 damage when sneaking + HtH | STUB — no sneak attack multiplier |
 | 26 | `PERK_ACTION_BOY` | Action Boy | 2 | 12 | AG≥5 | — | AP +1/rank | WIRED — stat written via bonus stat layer |
 | 27 | `PERK_MENTAL_BLOCK` | Mental Block | 1 | 9 | — | — | Immune to Telepathy (Psyker) | STUB — Psyker encounters not in DH2 |
@@ -197,14 +197,14 @@ Non-selectable perks (addiction, armor implants — `maxRank == -1`) are listed 
 | 88 | `PERK_HERE_AND_NOW` | Here and Now | 1 | 3 | — | — | Immediate level-up | N/A — non-selectable in CE; add_perk missing; special case in `perkAddEffect` |
 | 89 | `PERK_EVEN_TOUGHER` | Even Tougher | — | — | — | — | (unused/variant Toughness) | STUB — not in DH2 PERKS |
 | 90 | `PERK_KARMA_BEACON` | Karma Beacon | 1 | 9 | CH≥6 | — | Karma effects ×2 | N/A — non-selectable in CE |
-| 91 | `PERK_LIVING_ANATOMY` | Living Anatomy | 1 | 12 | — | Doctor≥60 | +10 damage vs critters; Doctor +10 | WIRED — `hasPerk('Living Anatomy')` in `combat.ts:641,706`; `perkGetSkillModifier` for Doctor |
-| 92 | `PERK_DEMOLITIONS_EXPERT` | Demolition Expert | 1 | 9 | — | Traps≥90 | Explosive damage +25% | WIRED — `hasPerk('Demolition Expert')` in `object.ts:108` |
+| 91 | `PERK_LIVING_ANATOMY` | Living Anatomy | 1 | 12 | — | Doctor≥60 | +10 damage vs critters; Doctor +10 | WIRED — `hasPerk('Living Anatomy')` in `combat.ts`; `perkGetSkillModifier` for Doctor |
+| 92 | `PERK_DEMOLITIONS_EXPERT` | Demolition Expert | 1 | 9 | — | Traps≥90 | Explosive damage +25% | WIRED — `hasPerk('Demolition Expert')` in `object.ts` |
 | 93 | `PERK_GAMBLER` | Gambler | 1 | 6 | — | Gambling≥50 | Gambling +20 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
 | 94 | `PERK_CULT_OF_PERSONALITY` | Cult of Personality | 1 | 12 | CH≥10 | — | Karma never affects reaction | STUB — no reaction system |
 | 95 | `PERK_NEGOTIATOR` | Negotiator | 1 | 6 | CH≥6 | Barter≥50, Speech≥50 | Barter/Speech +10 | WIRED — `perkGetSkillModifier` (Barter); Speech portion stub |
 | 96 | `PERK_DRUG_ADDICT` | (Drug Addict) | — | — | — | — | Withdrawal penalty | STUB — non-selectable; addiction system stub |
 | 97 | `PERK_DRUG_RESISTANT` | (Drug Resistant) | — | — | — | — | Resist withdrawal | N/A — non-selectable in CE |
-| 98 | `PERK_PYROMANIAC` | Pyromaniac | 1 | 9 | — | — | Fire damage +5 | WIRED — `hasPerk('Pyromaniac')` in `combat.ts:647` |
+| 98 | `PERK_PYROMANIAC` | Pyromaniac | 1 | 9 | — | — | Fire damage +5 | WIRED — `hasPerk('Pyromaniac')` in `combat.ts` |
 | 99 | `PERK_ADRENALINE_RUSH` | Adrenaline Rush | 1 | 6 | ST≥4 | — | ST +1 when HP < 50% | STUB — no conditional ST modifier |
 | 100 | `PERK_CAUSE_OF_DEATH` | Cause of Death | 1 | 9 | — | — | More detail on kills | N/A — non-selectable in CE |
 | 101 | `PERK_DIVINE_FAVOR` | (Divine Favor) | — | — | — | — | (special encounter) | N/A — non-selectable in CE |
@@ -214,10 +214,10 @@ Non-selectable perks (addiction, armor implants — `maxRank == -1`) are listed 
 | 109–112 | various | (Weapon enhanced family) | — | — | — | — | Weapon accuracy bonuses | N/A — non-selectable in CE |
 | 113 | `PERK_EXPERT_EXCREMENT_EXPEDITOR` | Expert Excrement Expeditor | 1 | — | — | — | Speech +5 | N/A — non-selectable in CE; add_perk missing |
 | 114 | `PERK_WEAPON_ENHANCED_KNOCKOUT` | (Enhanced Knockout) | — | — | — | — | Knockout chance | N/A — non-selectable in CE |
-| 115 | `PERK_JINXED` | Jinxed (perk) | 1 | — | — | — | Enemies crit-fail 1-in-4 | WIRED — `hasPerk('Jinxed')` in `combat.ts:568`; also Pariah Dog |
+| 115 | `PERK_JINXED` | Jinxed (perk) | 1 | — | — | — | Enemies crit-fail 1-in-4 | WIRED — `hasPerk('Jinxed')` in `combat.ts`; also Pariah Dog |
 | 116 | `PERK_SALESMAN` | Salesman | 1 | 6 | CH≥5 | Barter≥50 | Barter +20 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
 | 117 | `PERK_WEATHERED` | (Weathered) | — | — | — | — | (unused) | STUB — not in DH2 |
-| 118 | `PERK_PARIAH` | Pariah (Pariah Dog) | 1 | — | — | — | LK −1; enemy crit-fail | PARTIAL — `hasPerk('Pariah Dog')` in `combat.ts:569` |
+| 118 | `PERK_PARIAH` | Pariah (Pariah Dog) | 1 | — | — | — | LK −1; enemy crit-fail | PARTIAL — `hasPerk('Pariah Dog')` in `combat.ts` |
 | 119 | `PERK_INTENSE_TRAINING` | Intense Training | 10 | 3 | — | — | +1 SPECIAL of choice/rank | STUB — not in DH2 PERKS |
 
 ### 2.5 Non-Selectable Perks (maxRank = −1)
@@ -322,7 +322,7 @@ Writes the perk's `statModifier` to the critter's **bonus stat layer** (`critter
 
 - Max **2 traits** selectable (`TRAITS_MAX_SELECTED_COUNT = 2` in CE; enforced in `ui_character.ts`)
 - Traits cannot be changed after creation (except via the Mutate! perk — stub in DH2)
-- DH2 enforces the 2-trait cap with `showInfoCard('Traits', 'You may only pick 2 traits.')` when a 3rd is attempted (`ui_character.ts:1630–1636`)
+- DH2 enforces the 2-trait cap with `showInfoCard('Traits', 'You may only pick 2 traits.')` when a 3rd is attempted (`ui_character.ts–1636`)
 
 ### 5.2 Perk Availability
 

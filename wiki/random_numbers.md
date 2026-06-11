@@ -282,7 +282,7 @@ export function rollSkillCheck(skill, modifier, isBounded) {
 }
 ```
 
-CE `randomBetween(1, 100)` has 100 possible outcomes. DH2 `getRandomInt(0, 100)` has **101** outcomes (includes 0), making every skill check very slightly easier. `randomRoll` (the skill-check wrapper) uses `getRandomInt(1, 100)` correctly — the deviation only affects the direct `rollSkillCheck` call path (used in combat hit rolls at `combat.ts:517`).
+CE `randomBetween(1, 100)` has 100 possible outcomes. DH2 `getRandomInt(0, 100)` has **101** outcomes (includes 0), making every skill check very slightly easier. `randomRoll` (the skill-check wrapper) uses `getRandomInt(1, 100)` correctly — the deviation only affects the direct `rollSkillCheck` call path (used in combat hit rolls at `combat.ts`).
 
 ---
 

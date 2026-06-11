@@ -133,7 +133,7 @@ for each line:
 
 Each `timing[i]` is the cumulative milliseconds from when the voice-over started at which line `i` should be shown. Lines are updated by polling `getTicksSince(referenceTime) > timings[currentLine]` each render frame.
 
-DH2 (`buildSubtitleTimings`, `endgame.ts:148`): implements identical formula. Uses `window.setTimeout` per line instead of per-frame polling.
+DH2 (`buildSubtitleTimings`, `endgame.ts`): implements identical formula. Uses `window.setTimeout` per line instead of per-frame polling.
 
 ---
 

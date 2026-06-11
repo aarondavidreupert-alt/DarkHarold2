@@ -92,7 +92,7 @@ type_0=Pid:16,Ratio:3,Item:7(wielded)
 position=Surrounding,5
 ```
 
-DH2 `Square` interface (`worldmap.ts:51`):
+DH2 `Square` interface (`worldmap.ts`):
 
 ```typescript
 interface Square {
@@ -123,7 +123,7 @@ CE stores three per-day-part encounter chances (`encounterChance[DAY_PART_COUNT]
 
 ### Square State & Fog of War
 
-Each square tracks a three-state visibility value (`worldmap.ts:40–42`):
+Each square tracks a three-state visibility value (`worldmap.ts–42`):
 
 | Constant | Value | Meaning | CSS class |
 |----------|-------|---------|-----------|
@@ -131,7 +131,7 @@ Each square tracks a three-state visibility value (`worldmap.ts:40–42`):
 | `WORLDMAP_SEEN` | 1 | Adjacent to a visited square; dimmed overlay | `worldmapSquare-seen` |
 | `WORLDMAP_DISCOVERED` | 2 | Player has entered this square; fully visible | `worldmapSquare-discovered` |
 
-`setSquareStateAt(squarePos, newState, seeAdjacent)` (`worldmap.ts:354`):
+`setSquareStateAt(squarePos, newState, seeAdjacent)` (`worldmap.ts`):
 - Transitions the square's CSS class
 - **DISCOVERED → SEEN transition is blocked**: if `oldState === DISCOVERED`, upgrading to SEEN is skipped (line 360)
 - When `seeAdjacent = true` (default): marks all 8 neighbors (N, S, E, W + 4 diagonals) as SEEN
@@ -465,9 +465,9 @@ Each tick while `worldmapPlayer.target !== null`:
 
 1. Compute direction vector toward target.
 2. `speed = WORLDMAP_SPEED / worldmap.terrainSpeed[terrainType]` where
-   `WORLDMAP_SPEED = 2` px/tick. (`worldmap.ts:626`)
+   `WORLDMAP_SPEED = 2` px/tick. (`worldmap.ts`)
 3. Move player by `speed` pixels toward target; snap when within `speed`.
-4. Advance in-game time: `~2 minutes * (1 / terrainSpeed[terrain])`. (`worldmap.ts:651`)
+4. Advance in-game time: `~2 minutes * (1 / terrainSpeed[terrain])`. (`worldmap.ts`)
 5. Update fog-of-war (mark current square as DISCOVERED).
 6. Every 800ms (`WORLDMAP_ENCOUNTER_CHECK_RATE`): call `didEncounter()`.
 
@@ -988,10 +988,10 @@ Multiple conditions are joined by `and` / `or` (`ENCOUNTER_LOGICAL_OPERATOR_*`).
 
 ### 11.1 Data Loading
 
-`Worldmap.init()` (`worldmap.ts:465`) reads `data/data/worldmap.txt` with
+`Worldmap.init()` (`worldmap.ts`) reads `data/data/worldmap.txt` with
 `getFileText()` and passes to `parseWorldmap()`.
 
-`parseWorldmap()` (`worldmap.ts:140`) parses the INI via `parseIni()` from
+`parseWorldmap()` (`worldmap.ts`) parses the INI via `parseIni()` from
 `util.ts`:
 
 - `[Tile N]` sections → `squares[x][y]` grid (28×30 = 840 entries)
@@ -1013,11 +1013,11 @@ interface Square {
 }
 ```
 
-**Gap**: `parseSquare()` (`worldmap.ts:145`) reads props[2] as `frequency` —
+**Gap**: `parseSquare()` (`worldmap.ts`) reads props[2] as `frequency` —
 this is the **morning frequency token only**. The afternoon (props[3]) and night
 (props[4]) frequency tokens are silently discarded. All DH2 encounter rolls use
 the morning rate regardless of in-game time of day.
-(`worldmap.ts:146–155`) See Gap #1 in §17.
+(`worldmap.ts–155`) See Gap #1 in §17.
 
 ### 11.3 Encounter Rate Check (`didEncounter`)
 
@@ -1032,10 +1032,10 @@ function didEncounter(): boolean {
 }
 ```
 
-(`worldmap.ts:429–458`)
+(`worldmap.ts–458`)
 
 **Encounter check timing**: DH2 checks for encounters every
-`WORLDMAP_ENCOUNTER_CHECK_RATE = 800` ms of real wall time (`worldmap.ts:666`),
+`WORLDMAP_ENCOUNTER_CHECK_RATE = 800` ms of real wall time (`worldmap.ts`),
 guarded by `window.performance.now()`. This is decoupled from movement — the check
 fires on the timer tick regardless of how far the player has moved. CE checks after
 each discrete pixel-step group.
@@ -1068,9 +1068,9 @@ function execEncounter(encTable: EncounterTable): void {
 }
 ```
 
-(`worldmap.ts:394–418`)
+(`worldmap.ts–418`)
 
-`Encounters.evalEncounter()` (`encounters.ts:391`):
+`Encounters.evalEncounter()` (`encounters.ts`):
 1. Pick a random map from `encTable.maps`.
 2. Call `pickEncounter(encTable.encounters)` → selected `Encounter`.
 3. If special encounter: override `mapLookupName` with `encounter.special`.
@@ -1105,7 +1105,7 @@ function pickEncounter(encounters: Encounter[]) {
 }
 ```
 
-(`encounters.ts:284–325`)
+(`encounters.ts–325`)
 
 This matches CE's `wmRndEncounterPick()` algorithm exactly for the Luck,
 difficulty, and perk modifiers. ✅
@@ -1124,7 +1124,7 @@ difficulty, and perk modifiers. ✅
 | `wedge` | Stub ❌ |
 | `cone` | Stub ❌ |
 
-(`encounters.ts:327–388`)
+(`encounters.ts–388`)
 
 ### 11.7 Condition Evaluation (`Encounters.evalCond`)
 
@@ -1141,7 +1141,7 @@ difficulty, and perk modifiers. ✅
 | Encounter-level conditions | ✅ `parseEncounter` calls `Encounters.parseConds` |
 | Critter-level conditions (`if` on `type_NN`) | ✅ `parseEncounterCritter` calls `parseConds` |
 
-(`encounters.ts:186–227`)
+(`encounters.ts–227`)
 
 ### 11.8 CE Encounter Groups and Critter Spawning summary (`wmSetupRandomEncounter`)
 
@@ -1214,7 +1214,7 @@ After the encounter map is loaded, `wmSetupRandomEncounter` populates the map:
 
 **Adding a missing formation** (Gap #10): implement `straight_line`,
 `double_line`, `wedge`, or `cone` in `Encounters.positionCritters`
-(`encounters.ts:327–388`), mirroring CE's placement maths in §9.3.
+(`encounters.ts–388`), mirroring CE's placement maths in §9.3.
 
 **Implementing the Outdoorsman detection check** (Gap #7): after `didEncounter()`
 returns true, run a `partyGetBestSkillValue(SKILL_OUTDOORSMAN)` check, add +20 for
@@ -1280,7 +1280,7 @@ annotations used throughout §11 and §13.
 
 #### Gap #1 — Morning-only encounter frequency
 
-`parseSquare()` (`worldmap.ts:152`) reads `props[2]` for `frequency`. The
+`parseSquare()` (`worldmap.ts`) reads `props[2]` for `frequency`. The
 worldmap.txt subtile format is `terrain, fill, morning, afternoon, night, table`.
 Props[2] is morning. Props[3] and [4] are afternoon and night — silently ignored.
 DH2 always uses the morning rate.
@@ -1289,7 +1289,7 @@ DH2 always uses the morning rate.
 
 CE applies `±(frequency / 15)` to the base frequency based on
 `settings.preferences.game_difficulty`. DH2 has a TODO comment at
-`worldmap.ts:447` but the code is not present.
+`worldmap.ts` but the code is not present.
 
 #### Gap #3 — No minimum-movement guard / cooldown
 

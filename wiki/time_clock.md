@@ -291,7 +291,7 @@ Each worldmap step calls `wmGameTimeIncrement(18000)`:
   (`worldmap.cc:4178-4182`): `ticksToAdd -= round(ticksToAdd * rank * 0.25)`.
 - Queued events are processed mid-travel for each day crossed.
 
-### DH2 worldmap travel (`worldmap.ts:651`)
+### DH2 worldmap travel (`src/worldmap/Worldmap.ts`)
 
 ```typescript
 GameTime.advanceMinutes(Math.max(1, Math.round(2 * travelScale)))
@@ -308,7 +308,7 @@ configurable via `terrainSpeed` in the worldmap config.
 
 ### CE combat (`combat.cc`)
 
-CE advances 5 seconds per combat round. In DH2 `combat.ts:1519`:
+CE advances 5 seconds per combat round. In DH2 `src/combat/Combat.ts`:
 `GameTime.advanceSeconds(5)` — matches CE.
 
 ### Rest / Wait (PipBoy)
@@ -316,7 +316,7 @@ CE advances 5 seconds per combat round. In DH2 `combat.ts:1519`:
 CE: the `rest.cc` / `Rest` dialog advances time in fixed increments (1h, 2h, 3h,
 etc.), calls `gameTimeAddTicks` and processes queue events per hour.
 
-DH2 (`ui_pipboy.ts:222`): `advanceTime(minutes)` calls
+DH2 (`src/ui_pipboy/shell.ts`): `advanceTime(minutes)` calls
 `GameTime.advanceMinutes(minutes)` — direct tick add, no queue processing.
 
 ### Skill use (`skillUse.ts:219`)
@@ -421,7 +421,7 @@ Save/load (`saveload.ts:83,202`) persists and restores `gameTickTime` directly.
 | GTC5 | **No midnight queue event.** CE fires `gameTimeEventProcess` at each in-game midnight: unjams all doors/containers, checks story timer movies (ARTIMER1-4), and runs radiation damage on the player. | `main.ts` | `scripts.cc:405 gameTimeEventProcess` | minor | missing |
 | GTC6 | **Starting month is August (DH2) instead of July (CE).** `START_MONTH = 7` (0-indexed August) vs CE `gStartMonth = 6` (0-indexed July). `get_month` returns 8 in DH2 where CE returns 7. | `gametime.ts:36` | `sfall_config.cc:31` | minor | bug |
 | GTC7 | **No 13-year endgame timeout.** CE's `gameTimeAddTicks` ends the game if the year counter reaches 13. | `gametime.ts` / `scripting.ts:1755` | `scripts.cc:368` | minor | missing |
-| GTC8 | **Pathfinder perk does not reduce worldmap travel time.** CE reduces ticks by 25% per Pathfinder perk rank during worldmap travel. | `worldmap.ts:651` | `worldmap.cc:4178` | minor | missing |
+| GTC8 | **Pathfinder perk does not reduce worldmap travel time.** CE reduces ticks by 25% per Pathfinder perk rank during worldmap travel. | `src/worldmap/Worldmap.ts` | `worldmap.cc:4178` | minor | missing |
 | GTC9 | **`game_time_in_seconds` (0x80EB) not wired in `vm_bridge.ts`.** | `vm_bridge.ts` | `interpreter_extra.cc:2277 opGetGameTimeInSeconds` | low | missing |
 | GTC10 | **Day/night ambient light curve is a DH2 invention.** CE has no automatic clock-driven ambient light change; only script-controlled `set_light_level` calls. DH2's piecewise ramp (`gametime.ts:181`) produces a sunrise/sunset effect not present in the original. | `gametime.ts:181` | `light.cc`, `map.cc:927` | low | deviation |
 

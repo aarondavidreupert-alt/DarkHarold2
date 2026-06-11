@@ -354,8 +354,8 @@ How each setting's stored value actually affects gameplay:
 
 | CE preference | DH2 Config field | Consumed in | Effect |
 |--------------|-----------------|-------------|--------|
-| `game_difficulty` + `combat_difficulty` | `Config.combat.difficultyModifier` | `skills.ts:187` (skill modifier), `combat.ts:634,699` (damage), `encounters.ts:302` (encounter rate) | 75=Easy: +20% on difficulty-affected skills, reduced incoming combat damage. 125=Hard: -10% skills, increased damage. Fully wired. |
-| `running` | `Config.engine.doAlwaysRun` | `main.ts:190,213,231`, `object.ts:1853` | Controls whether player walks or runs by default when moving. Fully wired. |
+| `game_difficulty` + `combat_difficulty` | `Config.combat.difficultyModifier` | `skills.ts:187` (skill modifier), `combat.ts` (damage), `encounters.ts` (encounter rate) | 75=Easy: +20% on difficulty-affected skills, reduced incoming combat damage. 125=Hard: -10% skills, increased damage. Fully wired. |
+| `running` | `Config.engine.doAlwaysRun` | `main.ts:190,213,231`, `object.ts` | Controls whether player walks or runs by default when moving. Fully wired. |
 | `violence_level` | `Config.combat.violenceLevel` | *(not consumed)* | Stored in Config; no code reads it for death animation gating. No effect — see §7 gap S-CI2b. |
 | `combat_speed` | `Config.combat.combatSpeed` | *(not consumed)* | Stored in Config; no combat loop reads it for delays. No effect — see §7 gap S-CI3. |
 | `target_highlight` | `Config.ui.targetHighlight` | *(not consumed)* | Stored in Config; nothing reads it to control enemy highlighting. No effect — see §7 gap S-CI9. |

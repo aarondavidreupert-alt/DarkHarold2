@@ -241,7 +241,7 @@ function screenToWorld(sx, sy): Point {
 
 `SCREEN_WIDTH` and `SCREEN_HEIGHT` are dynamic — updated by `setScreenSize()` on browser window resize (`renderer.ts:53`). A `resize` event causes `WebGLRenderer.resize()` to update all shader uniforms and reallocate the floor FBO.
 
-Mouse picking (screen → hex): `hexFromScreen(screenToWorld(mouseX, mouseY))` via cube-coordinate rounding (`geometry.ts:135`).
+Mouse picking (screen → hex): `hexFromScreen(screenToWorld(mouseX, mouseY))` via cube-coordinate rounding (`geometry.ts`).
 
 Mouse picking (screen → square tile): `tileFromScreen(worldX, worldY)` (`tile.ts:38`):
 ```typescript
@@ -252,7 +252,7 @@ ty = (off_y + off_x / 4) / 32
 return { x: 99 - round(tx), y: round(ty) }
 ```
 
-### DH2 Multi-Elevation (`GameMap.changeElevation`, `map.ts:196`)
+### DH2 Multi-Elevation (`GameMap.changeElevation`, `map.ts`)
 
 ```typescript
 changeElevation(level, updateScripts = true) {
@@ -279,13 +279,13 @@ The `floorMap` and `roofMap` properties on `GameMap` are set to the current elev
 
 ### Tile Draw Order
 
-Floor tiles are iterated in reverse row order (`i = tileMap.length-1` down to 0) to match Fallout 2's visual layering and prevent lighting artefacts at tile boundaries. (`webglrenderer.ts:554`, `708`)
+Floor tiles are iterated in reverse row order (`i = tileMap.length-1` down to 0) to match Fallout 2's visual layering and prevent lighting artefacts at tile boundaries. (`webglrenderer.ts`, `708`)
 
-**Roof Y offset**: DH2 shifts roof tiles up by 96 pixels: `scr.y -= 96` (`webglrenderer.ts:989`). This empirically aligns 80×36 roof sprites with the floor tiles beneath them.
+**Roof Y offset**: DH2 shifts roof tiles up by 96 pixels: `scr.y -= 96` (`webglrenderer.ts`). This empirically aligns 80×36 roof sprites with the floor tiles beneath them.
 
-**Roof clipping**: DH2 renders all roof tiles unconditionally in `renderRoof()` (`webglrenderer.ts:965`). There is no equivalent to CE's `tile_fill_roof` or per-square roof hiding. `Config.ui.showRoof` (default `true`) is a debug toggle that hides **all** roofs globally. `map.hasRoofAt(pos)` (`map.ts:135`) returns true if a given hex position has a non-`grid000` roof tile above it, but is not used during rendering. See deviation **RD06** in §5.
+**Roof clipping**: DH2 renders all roof tiles unconditionally in `renderRoof()` (`webglrenderer.ts`). There is no equivalent to CE's `tile_fill_roof` or per-square roof hiding. `Config.ui.showRoof` (default `true`) is a debug toggle that hides **all** roofs globally. `map.hasRoofAt(pos)` (`map.ts`) returns true if a given hex position has a non-`grid000` roof tile above it, but is not used during rendering. See deviation **RD06** in §5.
 
-### Object Sort (`objectZCompare`, `object.ts:182`)
+### Object Sort (`objectZCompare`, `object.ts`)
 
 DH2 sorts objects by a simplified key:
 
@@ -297,7 +297,7 @@ Tertiary:  walls before non-walls at same tile
 
 This is **not** equivalent to CE's isometric-correct sort. CE uses a two-phase algorithm (`_obj_preload_sort` then the per-parity offset table `_obj_order_comp_func_even/odd`) that correctly handles all 6 hex directions. DH2's Y-then-X sort produces correct results for most cases but fails at the north-east / south-west diagonals. See deviation **RD09** in §5.
 
-Object insertion after movement uses `objectZOrder` (`object.ts:212`) which does an in-place insertion-sort into the live objects array.
+Object insertion after movement uses `objectZOrder` (`object.ts`) which does an in-place insertion-sort into the live objects array.
 
 ---
 
@@ -455,16 +455,16 @@ If both yes → fix. If cosmetic/imperceptible → accept. If unsure → mark �
 | RD03 | Camera zoom | Fixed 1× | Configurable `[ZOOM_MIN=0.5, ZOOM_MAX=3.0]` via `cameraZoom`; affects `viewW`, `viewH`, and all shader uniforms | DH2 extension | — | ✅ Accepted |
 | RD04 | Day/night ambient | No automatic curve; ambient is set exclusively by scripts (`set_global_lighting`, `set_ambient_intensity`) | Piecewise-linear 24-hour curve in `gametime.ts`; 35 % floor at midnight, 100 % at noon; drives `u_ambient` | DH2 extension to prevent pitch-black on maps without ambient scripts | low | ✅ Accepted |
 | RD05 | Floor lighting — texture filter | Sharp per-hex boundary: each tile's pixel gets exactly the integer intensity for that hex cell | GPU mode: LINEAR-filtered 200 × 200 tile-intensity texture; bilinear interpolation between adjacent hex centres (`fragmentLighting.glsl:35`) | GPU `LINEAR` filter is unavoidable with texture sampling; creates smooth gradients instead of CE's sharp edges | low | ✅ Accepted |
-| RD06 | Roof clipping | `tile_fill_roof` flood-fills all connected square roof tiles when player walks under a building; re-evaluated each frame (`object.cc:1445`) | All roof tiles rendered unconditionally in `renderRoof()` (`webglrenderer.ts:965`); `Config.ui.showRoof` is all-or-nothing | Not implemented; `map.hasRoofAt()` exists but not wired to per-position clipping | major | ⚠️ Known Bug |
+| RD06 | Roof clipping | `tile_fill_roof` flood-fills all connected square roof tiles when player walks under a building; re-evaluated each frame (`object.cc:1445`) | All roof tiles rendered unconditionally in `renderRoof()` (`webglrenderer.ts`); `Config.ui.showRoof` is all-or-nothing | Not implemented; `map.hasRoofAt()` exists but not wired to per-position clipping | major | ⚠️ Known Bug |
 | RD07 | OBJECT_FLAT — two-pass | `_obj_render_pre_roof` renders OBJECT_FLAT objects (floor decals, blood) in a dedicated first pass before all non-flat objects (`object.cc:761`) | All objects rendered in one sorted pass; OBJECT_FLAT not read by renderer | Not implemented | minor | ⚠️ Known Bug |
 | RD08 | Post-roof object pass | `_obj_render_post_roof` draws any object that must appear above roofs at full intensity (0x10000) after the roof layer (`object.cc:862`) | No post-roof pass; no object can render above the roof layer | Not implemented | minor | ⚠️ Known Bug |
-| RD09 | Object depth sort | Two-phase isometric sort: `_obj_preload_sort` + `_obj_order_comp_func_even/odd` using `tileIsInFrontOf` / `tileIsToRightOf`; correct for all 6 hex directions (`object.cc:761`) | `objectZCompare` (`object.ts:182`): primary hex-y, secondary hex-x, tertiary walls-first; fails on NE/SW diagonal hex borders | Simplification | minor | ⚠️ Known Bug |
+| RD09 | Object depth sort | Two-phase isometric sort: `_obj_preload_sort` + `_obj_order_comp_func_even/odd` using `tileIsInFrontOf` / `tileIsToRightOf`; correct for all 6 hex directions (`object.cc:761`) | `objectZCompare` (`object.ts`): primary hex-y, secondary hex-x, tertiary walls-first; fails on NE/SW diagonal hex borders | Simplification | minor | ⚠️ Known Bug |
 | RD10 | Color cycling | `colorCycleInit` / `colorCycleEnable` drives time-based palette rotation for water surfaces and fire objects (`color.cc`) | Not implemented; water and fire sprites are static colour | Not implemented | minor | ⚠️ Known Bug |
 | RD11 | Scroll blocking | `gTileScrollBlockingEnabled` + `OBJECT_SCROLL_BLOCK` flag prevents viewport scrolling through certain scenery barriers | No scroll-block logic in `renderer.ts` camera update | Not implemented | minor | ⚠️ Known Bug |
 | RD12 | Scroll border limiting | `gTileBorderMin/MaxX/Y` clamps viewport to usable tile area; computed from grid and window size (`tile.cc:537`) | Camera clamps to world min (0, 0) but has no computed max border; can scroll to show grey beyond map edge | Not implemented | low | ⚠️ Known Bug |
-| RD13 | Hex click hit-testing | `_tile_mask[512]` lookup table (32 × 16 px, 5 sub-regions) gives pixel-precise edge detection at hex diamond corners (`tile.cc:718`) | Cube-coordinate rounding in `hexFromScreen` (`geometry.ts:135`); approximation at hex boundaries | Simplification | low | ⚠️ Known Bug |
-| RD14 | Elevation transition | Visual fade effect between elevation levels | Instant switch; no transition (`map.ts:196 changeElevation`) | Not implemented | low | ⚠️ Known Bug |
-| RD15 | Roof tile lighting | `tileRenderRoofsInRect` blits roof tiles at full palette intensity — unaffected by any light source or time of day | Roofs bind `roofDummyTexture` (1 × 1, zeroed) on unit 5 → `max(0, ambient) = ambient`; roofs dim at night (`webglrenderer.ts:989`) | DH2 implementation detail — see §6 Q1 for CE ground-truth question | low | ❓ Unknown |
+| RD13 | Hex click hit-testing | `_tile_mask[512]` lookup table (32 × 16 px, 5 sub-regions) gives pixel-precise edge detection at hex diamond corners (`tile.cc:718`) | Cube-coordinate rounding in `hexFromScreen` (`geometry.ts`); approximation at hex boundaries | Simplification | low | ⚠️ Known Bug |
+| RD14 | Elevation transition | Visual fade effect between elevation levels | Instant switch; no transition (`map.ts changeElevation`) | Not implemented | low | ⚠️ Known Bug |
+| RD15 | Roof tile lighting | `tileRenderRoofsInRect` blits roof tiles at full palette intensity — unaffected by any light source or time of day | Roofs bind `roofDummyTexture` (1 × 1, zeroed) on unit 5 → `max(0, ambient) = ambient`; roofs dim at night (`webglrenderer.ts`) | DH2 implementation detail — see §6 Q1 for CE ground-truth question | low | ❓ Unknown |
 | RD16 | Object-lighting scripting | See `wiki/known_bugs.md §20` entries LD1–LD6 for all scripting-level lighting deviations (hidden objects, OBJECT_LIGHTING flag, `obj_set_light_level`, `set_obj_visibility`) | (cross-reference) | — | — | ⚠️ Known Bug (→ LD1–LD6) |
 
 ### Accepted Deviations — Rationale
@@ -496,13 +496,13 @@ Listed in descending order of gameplay impact.
 
 | Bug | File(s) | Why it matters |
 |-----|---------|----------------|
-| **RD06 Roof clipping** | `webglrenderer.ts:965`, `map.ts:135` | Players can see through roofs of every building on every map. `map.hasRoofAt()` already exists; a per-frame flood-fill from the player's square tile is the missing piece. |
+| **RD06 Roof clipping** | `webglrenderer.ts`, `map.ts` | Players can see through roofs of every building on every map. `map.hasRoofAt()` already exists; a per-frame flood-fill from the player's square tile is the missing piece. |
 
 #### Priority 2 — Visible gameplay deviations
 
 | Bug | File(s) | Why it matters |
 |-----|---------|----------------|
-| **RD09 Object depth sort** | `object.ts:182` | On NE/SW hex diagonals, objects overlap in the wrong order — a critter may appear behind a wall it is actually standing in front of. Affects readability in combat. |
+| **RD09 Object depth sort** | `object.ts` | On NE/SW hex diagonals, objects overlap in the wrong order — a critter may appear behind a wall it is actually standing in front of. Affects readability in combat. |
 | **LD3, LD6** (see `wiki/known_bugs.md §20`) | `scripting.ts:1262,1267` | `obj_set_light_level` does not update the lightmap and mis-scales intensity by 100×. Major scripting correctness issue. |
 
 #### Priority 3 — Visual polish
@@ -519,8 +519,8 @@ Listed in descending order of gameplay impact.
 |-----|---------|----------------|
 | **RD11 Scroll blocking** | `renderer.ts` | Players can scroll the viewport through barriers that are meant to block the camera. |
 | **RD12 Scroll border limiting** | `renderer.ts` | Camera can expose grey canvas beyond the map edge. |
-| **RD13 Hex hit-testing** | `geometry.ts:135` | Click registration is imprecise at hex boundaries; usually imperceptible but affects small/adjacent objects. |
-| **RD14 Elevation transition** | `map.ts:196` | Abrupt elevation switches look jarring. |
+| **RD13 Hex hit-testing** | `geometry.ts` | Click registration is imprecise at hex boundaries; usually imperceptible but affects small/adjacent objects. |
+| **RD14 Elevation transition** | `map.ts` | Abrupt elevation switches look jarring. |
 
 #### Investigate before prioritising
 

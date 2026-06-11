@@ -124,7 +124,7 @@ at 35 lines per page with "MORE" / "DONE" navigation.
 not the STATUS tab. There is no HP bar, level, XP, conditions (poison/rad), addictions,
 or any other character stat visible in the CE Pip-Boy content area.
 
-### 3.2 DH2 (`renderStatusTab`, `ui_pipboy.ts:307–330`)
+### 3.2 DH2 (`renderStatusTab`, `ui_pipboy.ts–330`)
 
 DH2 STATUS shows player conditions and time — a DH2-specific design with no CE equivalent:
 
@@ -181,7 +181,7 @@ screen. The Pip-Boy view always uses a fixed render.
 `automapSaveCurrent()` (`automap.cc:683`) is called when the player leaves a map: writes
 the current map+elevation's tile data to AUTOMAP.DB and updates the header offsets.
 
-### 4.2 DH2 (`renderAutomapsTab`, `ui_pipboy.ts:401–544`; `automapData.ts`)
+### 4.2 DH2 (`renderAutomapsTab`, `ui_pipboy.ts–544`; `automapData.ts`)
 
 DH2 does not have AUTOMAP.DB or the CE FRM-based renderer. Instead it tracks which hex
 tiles the player has seen (`markSeenAt`) and renders them as coloured pixels on a canvas.
@@ -273,7 +273,7 @@ and does nothing. The tab slot is used for the quest log instead.
 
 ### 7.2 DH2
 
-Bell button in the date/time bar → `toggleWaitMenu()` (`ui_pipboy.ts:161`).
+Bell button in the date/time bar → `toggleWaitMenu()` (`ui_pipboy.ts`).
 
 - Shows a popup with 8 fixed durations: 10 MIN, 20 MIN, 30 MIN, 1 HR, 2 HR, 3 HR, 6 HR,
   1 DAY.
@@ -493,7 +493,7 @@ object carries an item with a given PID. This works for holodisk items. ✅
 `set_global_var` (scripting.ts, wired at `0x80C6`) sets GVARs. Scripts that
 call `set_global_var(GVAR_HOLODISK_XXX, 1)` will set the GVAR correctly. ✅
 
-**Misc item use (`object.ts`):** `Obj.use()` (`object.ts:725`) dispatches based on
+**Misc item use (`object.ts`):** `Obj.use()` (`object.ts`) dispatches based on
 `this.subtype`. Misc items (`subtype === 'misc'`) fall through to the default
 `this.singleAnimation()` path — they play their idle animation and do nothing else at
 the engine level. For holodisk items that have a script with `use_p_proc`, the script
@@ -502,7 +502,7 @@ mirrors CE's behaviour (CE holodisk use also goes to the item's script). ✅
 
 **Pip-Boy DATA column (`ui_pipboy.ts`):** Not implemented. `ui_pipboy.ts` has no
 holodisk data, no `holodisk.txt` loading, no GVAR scan for holodisk visibility, and no
-DATA column renderer. The ARCHIVES tab (`renderArchivesTab()`, `ui_pipboy.ts:548`)
+DATA column renderer. The ARCHIVES tab (`renderArchivesTab()`, `ui_pipboy.ts`)
 renders the quest log — it is a remap of CE's VIDEO ARCHIVES tab, not CE's STATUS DATA
 column. There is no equivalent to CE's STATUS tab DATA column in DH2. ❌
 
