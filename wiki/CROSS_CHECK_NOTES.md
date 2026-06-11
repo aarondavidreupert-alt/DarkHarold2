@@ -165,7 +165,7 @@ separate top-level fields outside the stats array, and stated `baseStats (33 × 
   this; manual follow-up verified that CE `damageModCalculateYaam` (combat.cc line 6805)
   definitively includes `damage /= 2`, and its algorithm subtracts DT **before** multiplying
   (line 6795) and applies ammo RM to DT rather than DR. DH2's `computeDamageYaam`
-  (`src/combat.ts:266`) does none of these — it omits `/2`, applies DT after the multiply,
+  (`src/combat/damage.ts`) does none of these — it omits `/2`, applies DT after the multiply,
   and adjusts DR (not DT) with ammo RM. The wiki's YAAM section was rewritten to document
   the CE algorithm correctly, and a row was added to the Divergences table.
 

@@ -6,7 +6,7 @@
 `raw/fallout2-ce/src/interpreter_extra.cc` (`opGetGlobalVar` 0x80C5, `opSetGlobalVar` 0x80C6,
 `opGiveExpPoints` 0x80A1), `raw/fallout2-ce/src/game.cc` (`gGameGlobalVars`, `gGameGlobalVarsLength`,
 `gameSetGlobalVar`)  
-**DH2 ref:** `src/questData.ts`, `src/questLog.ts`, `src/ui_pipboy.ts`, `src/scripting.ts`,
+**DH2 ref:** `src/questData.ts`, `src/questLog.ts`, `src/ui_pipboy/tabs/archives.ts`, `src/scripting.ts`,
 `src/saveload.ts`  
 **See also:** `wiki/faction_reputation.md` (GVAR 0 = player karma), `wiki/save_load.md` (full save format)
 
@@ -212,7 +212,7 @@ render time in `ui_pipboy.ts` rather than via qsort.
 `getUnknownActiveGvars()` returns non-zero GVARs not in `questGvarSet` — a debug aid
 for spotting GVARs that scripts write but no quest definition covers.
 
-### 8.3 Pip-Boy — ARCHIVES Tab (`src/ui_pipboy.ts:550–616`)
+### 8.3 Pip-Boy — ARCHIVES Tab (`src/ui_pipboy/tabs/archives.ts`)
 
 - Calls `getActiveQuests()`.
 - Groups results by location; renders a location header for each group.

@@ -265,7 +265,7 @@ Correctly delegates to `getRandomInt`. Opcode 0x80B4 is wired and functional.
 
 Opcode 0x80B5 is **not registered** in `vm_bridge.ts`. Any script calling `roll_dice` will trigger an unknown-opcode trap in the VM. CE gracefully pushes 0; DH2 does not.
 
-### 5.6 Sniper perk (`src/combat.ts:526`)
+### 5.6 Sniper perk (`src/combat/Combat.ts`)
 
 ```typescript
 if (getRandomInt(1, 100) <= obj.getStat('LUK')) { isCrit = true }
@@ -307,8 +307,8 @@ CE `randomBetween(1, 100)` has 100 possible outcomes. DH2 `getRandomInt(0, 100)`
 |----|-------------|---------|--------------|-----|--------|
 | RN1 | **Fixed seed 123 makes every session deterministic.** `Scripting.init()` always calls `seed(123)`, resetting the sin-based PRNG to the same state. CE seeds from system time — different rolls every session. A new player always gets the same sequence of crits, misses, and drops. | `src/scripting.ts:2206` | `random.cc:39 randomInit()` | minor | bug |
 | RN2 | **`roll_dice` opcode (0x80B5) not registered.** Any script calling `roll_dice` hits an unknown-opcode trap. CE also never implemented the opcode, but it pushes 0 gracefully. | `src/vm_bridge.ts` | `interpreter_extra.cc:789 opRollDice()` | low | missing |
-| RN3 | **Sniper perk rolls d100 instead of d10.** `combat.ts:526` uses `getRandomInt(1, 100)` vs CE's `randomBetween(1, 10)`. Direct cause of known_bugs.md §C1. | `src/combat.ts:526` | `combat.cc:3892` | major | bug |
-| RN4 | **`rollSkillCheck` uses 101 outcomes ([0, 100]) vs CE's 100 ([1, 100]).** Makes hit rolls very slightly easier at all skill levels. Affects combat attack rolls (`combat.ts:517`). | `src/util.ts:110` | `random.cc:134 randomBetween()` | low | bug |
+| RN3 | **Sniper perk rolls d100 instead of d10.** `combat/Combat.ts` uses `getRandomInt(1, 100)` vs CE's `randomBetween(1, 10)`. Direct cause of known_bugs.md §C1. | `src/combat/Combat.ts` | `combat.cc:3892` | major | bug |
+| RN4 | **`rollSkillCheck` uses 101 outcomes ([0, 100]) vs CE's 100 ([1, 100]).** Makes hit rolls very slightly easier at all skill levels. Affects combat attack rolls (`combat/Combat.ts`). | `src/util.ts:110` | `random.cc:134 randomBetween()` | low | bug |
 | RN5 | **No chi-squared validation of DH2 PRNG.** CE runs 100,000-sample chi-squared test at startup. Sin-based PRNG has known non-uniform bit patterns that are not monitored. | `src/util.ts:102` | `random.cc:224 randomValidatePrerandom()` | low | missing |
 
 Last audited: 2026-06-02

@@ -1,7 +1,7 @@
 # Spatial Triggers — DarkHarold2 Reference
 
 > Ground-truth: `raw/fallout2-ce/src/scripts.cc` (`scriptsExecSpatialProc`, `_scr_explode_scenery`), `scripts.h` (`SCRIPT_TYPE_SPATIAL`, `SCRIPT_PROC_SPATIAL`)  
-> DH2 impl: `fomap.py` (extraction), `src/map.ts` (`GameMap.spatials`, deserialization), `src/object.ts` (`hitSpatialTrigger`, `Critter.move`, `Obj.explode`), `src/scripting.ts` (`Scripting.spatial`, `isSpatial`)
+> DH2 impl: `fomap.py` (extraction), `src/map/GameMap.ts` (`GameMap.spatials`, deserialization), `src/object/Obj.ts` (`hitSpatialTrigger`, `Obj.explode`), `src/object/Critter.ts` (`Critter.move`), `src/scripting.ts` (`Scripting.spatial`, `isSpatial`)
 
 ---
 

@@ -1,7 +1,7 @@
 # Proto System
 
 > **Source anchor:** `raw/fallout2-ce/src/proto.cc`, `proto.h`, `proto_types.h`, `obj_types.h`, `art.cc`
-> **DH2 files:** `src/pro.ts`, `src/object.ts`, `src/scripting.ts`, `src/vm_bridge.ts`
+> **DH2 files:** `src/pro.ts`, `src/object.ts` (barrel; `src/object/*.ts`), `src/scripting.ts`, `src/vm_bridge.ts`
 > **DH2 pipeline:** `proto.py`, `exportPRO.py`
 > **Last audited:** 2026-06-02
 

@@ -488,7 +488,7 @@ Walk-end `clearAnim` still hard-resets to `{0,0}` (unchanged), matching CE
 
 ## Files
 
-- `src/object.ts` — `Critter.staticAnimation`, `Critter.clearAnim`
+- `src/object/critterAnimation.ts` — `Critter.staticAnimation`, `Critter.clearAnim`
 - `src/renderer.ts` — `objectRenderInfo` (renderer formula; `animation` log)
 - `src/config.ts` — `animOffset` and `animation` log flags
 - `wiki/known_bugs.md` — FA12 entry

@@ -323,7 +323,7 @@ No functional gap in the skill list itself — DH2 shows the same 10 skills as C
 ## 11. Elevator (`elevator.cc` / `elevator.h` / `src/ui_elevator.ts`)
 
 > **Source anchor:** `raw/fallout2-ce/src/elevator.cc`, `raw/fallout2-ce/src/elevator.h`
-> **DH2 files:** `src/ui_elevator.ts`, `src/data.ts` (`Elevator` interface, `getElevator`), `src/main.ts:1160 useElevator`
+> **DH2 files:** `src/ui_elevator.ts`, `src/data.ts` (`Elevator` interface, `getElevator`), `src/main.ts` (`useElevator`)
 > **Data:** `lut/elevators.json`
 > `UIMode.elevator = 6`
 

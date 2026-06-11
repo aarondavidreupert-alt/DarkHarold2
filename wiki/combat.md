@@ -2,7 +2,7 @@
 
 > Last audited: 2026-05-31  
 > Sources: `raw/fallout2-ce/src/combat.cc`, `combat_ai.cc`, `critter.cc`, `obj_types.h`, `proto_types.h`  
-> DH2 sources: `src/combat.ts`, `src/critter.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/main.ts`  
+> DH2 sources: `src/combat.ts` (barrel; `src/combat/{actionPoints,AI,damage,hitChance,Combat}.ts`), `src/critter.ts` (barrel; `src/critter/{Weapon,lifecycle}.ts`), `src/scripting.ts`, `src/vm_bridge.ts`, `src/main.ts`  
 > Cross-reference: [damage_formula.md](damage_formula.md) for hit chance, damage calculation, critical
 > effects, sequence/initiative, and AP base formula.
 

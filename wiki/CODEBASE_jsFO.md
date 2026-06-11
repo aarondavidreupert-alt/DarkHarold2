@@ -35,7 +35,7 @@ jsFO/
 
 | File | Purpose | DarkHarold2 counterpart |
 |------|---------|------------------------|
-| `src/core/main.js` | Entry point, game loop setup | `src/main.ts`, `src/heart.ts` |
+| `src/core/main.js` | Entry point, game loop setup | `src/main.ts`, `src/input.ts`, `src/gameTick.ts`, `src/heart.ts` |
 | `src/core/GameState.js` | Central game state object | `src/globalState.ts` |
 | `src/core/assets.js` | FRM → canvas image loading | `src/images.ts`, `frmpixels.py` |
 | `src/core/rendering.js` | Canvas 2D sprite/font blitting (`blitFRM`, `blitFontString`) | `src/webglrenderer.ts` (WebGL 2.0) |

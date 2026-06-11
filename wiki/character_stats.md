@@ -7,9 +7,9 @@
 `characterEditorAdjustPrimaryStat`, `characterEditorToggleTaggedSkill`,
 `characterEditorToggleOptionalTrait`, `characterEditorUpdateLevel`, `_is_supper_bonus`),
 `trait.cc` (`traitGetStatModifier`), `skill.cc` (`skillGetValue`), `proto.cc` (`_ResetPlayer`)  
-**DH2 ref:** `src/ui_character.ts` (`showCharacterCreator`), `src/player.ts`
+**DH2 ref:** `src/ui_character/creator.ts` (`showCharacterCreator`), `src/player.ts`
 (`applyCreationStats`, `addExperience`), `src/char.ts` (`SkillSet.get`, `StatSet`),
-`src/skills.ts` (`skillDependencies`, `statDependencies`), `src/object.ts` (`StatSet`),
+`src/skills.ts` (`skillDependencies`, `statDependencies`), `src/object/Critter.ts` (`StatSet` field),
 `src/scripting.ts` (`statMap`, `get_critter_stat`)  
 **See also:** `wiki/skill_checks.md` (skill formulas derived from SPECIAL),
 `wiki/perks_traits.md` (traits and perks detail), `wiki/critter_stats.md` (NPC/critter stat model)

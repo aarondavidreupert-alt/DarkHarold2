@@ -3,7 +3,7 @@
 Covers the victory slideshow, death endings, and the "continue playing?" dialog. Read alongside `wiki/known_bugs.md §23` for active gap entries.
 
 Ground truth: `raw/fallout2-ce/src/endgame.cc`, `endgame.h`  
-DH2 implementation: `src/endgame.ts`, `tools/convertEndgame.py`, `lut/endgame.json`, `lut/enddeath.json`
+DH2 implementation: `src/endgame.ts` (public surface; `src/endgame/{deathEndings,slideRender}.ts`), `tools/convertEndgame.py`, `lut/endgame.json`, `lut/enddeath.json`
 
 ---
 
@@ -202,11 +202,11 @@ CE loads from `text/<lang>/cuts/<baseName>.txt`. DH2 loads synchronously from `d
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
-| EG1 | **No per-slide `.pal` file support.** CE loads `art/intrface/<name>.pal` for each slide to apply a custom palette. DH2 uses PNGs from the export pipeline (already colour-correct) and ignores `.pal` files. Colour appearance may differ from original for slides with custom palettes. | `src/endgame.ts` | `endgame.cc:735–753 endgameEndingLoadPalette()` | low | accepted |
+| EG1 | **No per-slide `.pal` file support.** CE loads `art/intrface/<name>.pal` for each slide to apply a custom palette. DH2 uses PNGs from the export pipeline (already colour-correct) and ignores `.pal` files. Colour appearance may differ from original for slides with custom palettes. | `src/endgame/slideRender.ts` | `endgame.cc:735–753 endgameEndingLoadPalette()` | low | accepted |
 | EG2 | **`endgame_slideshow` fires asynchronously; script continues immediately.** CE defers via `SCRIPT_REQUEST_ENDGAME` flag so the slideshow runs after the triggering script fully exits. DH2 fires `playSlideshow()` as a fire-and-forget Promise from within the script method. In practice this is harmless because the endgame opcode is always the last call in endgame scripts. | `src/scripting.ts:1778` | `scripts.cc:1012`; `interpreter_extra.cc:4573` | low | accepted |
-| EG3 | **Panning slide uses linear timing instead of CE's per-pixel formula.** CE computes `v9` (ms per pixel step) from image width and speech duration with a complex formula (endgame.cc:337-345). DH2 uses linear interpolation over `max(speechDuration, 5s)`. Pan speed may feel different. | `src/endgame.ts:showPanningSlide` | `endgame.cc:337-345` | low | bug |
-| EG4 | **`endgame_movie` shows only the continue dialog; no credits music or text.** CE plays `akiss.acm` background music, calls `creditsOpen("credits.txt")`, and then loads the `10labone.acm` track. DH2 shows the continue dialog immediately. | `src/endgame.ts:playMovie` | `endgame.cc:234`; `credits.cc:creditsOpen()` | minor | missing |
-| EG5 | **Death ending slides are black screens (no art).** CE death endings have only a narrator voiceover played over the death scene (not over a slideshow slide). DH2 `playDeathEnding()` shows a blank black canvas. This is functionally equivalent but visually a black screen rather than the death animation. | `src/endgame.ts:playDeathEnding` | `critter.cc:912`; `main.cc:345` | low | missing |
-| EG6 | **`setupDeathEnding` must be called before death scene is shown.** CE calls `endgameSetupDeathEnding` at the moment the player dies (`critter.cc:912`). DH2 `setupDeathEnding` is exported but not yet wired to the player death event in `critter.ts`. | `src/critter.ts` | `critter.cc:912` | major | missing |
+| EG3 | **Panning slide uses linear timing instead of CE's per-pixel formula.** CE computes `v9` (ms per pixel step) from image width and speech duration with a complex formula (endgame.cc:337-345). DH2 uses linear interpolation over `max(speechDuration, 5s)`. Pan speed may feel different. | `src/endgame/slideRender.ts` (`showPanningSlide`) | `endgame.cc:337-345` | low | bug |
+| EG4 | **`endgame_movie` shows only the continue dialog; no credits music or text.** CE plays `akiss.acm` background music, calls `creditsOpen("credits.txt")`, and then loads the `10labone.acm` track. DH2 shows the continue dialog immediately. | `src/endgame.ts` (`playMovie`) | `endgame.cc:234`; `credits.cc:creditsOpen()` | minor | missing |
+| EG5 | **Death ending slides are black screens (no art).** CE death endings have only a narrator voiceover played over the death scene (not over a slideshow slide). DH2 `playDeathEnding()` shows a blank black canvas. This is functionally equivalent but visually a black screen rather than the death animation. | `src/endgame.ts` (`playDeathEnding`) | `critter.cc:912`; `main.cc:345` | low | missing |
+| EG6 | **`setupDeathEnding` must be called before death scene is shown.** CE calls `endgameSetupDeathEnding` at the moment the player dies (`critter.cc:912`). DH2 `setupDeathEnding` is exported but not yet wired to the player death event in `critter.ts`. | `src/critter/lifecycle.ts` | `critter.cc:912` | major | missing |
 
 Last audited: 2026-06-02

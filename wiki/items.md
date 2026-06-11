@@ -4,7 +4,7 @@ Merged reference for item types, data structures, inventory management, equip/un
 
 Cross-references: `wiki/map_scripting.md` (script proc list), `wiki/skill_checks.md` (lockpick/traps formula), `wiki/known_bugs.md` §IU, `wiki/economy.md`.
 
-Ground truth: `raw/fallout2-ce/src/item.cc`, `item.h`, `inventory.cc`, `inventory.h`, `proto_instance.cc`, `scripts.cc`, `scripts.h`, `proto_types.h`, `obj_types.h`. DH2 sources: `src/object.ts`, `src/ui_inventory.ts`, `src/drugs.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/skillUse.ts`.
+Ground truth: `raw/fallout2-ce/src/item.cc`, `item.h`, `inventory.cc`, `inventory.h`, `proto_instance.cc`, `scripts.cc`, `scripts.h`, `proto_types.h`, `obj_types.h`. DH2 sources: `src/object.ts` (barrel; `src/object/{Obj,items,Critter}.ts`), `src/ui_inventory.ts`, `src/drugs.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/skillUse.ts`.
 
 ---
 
@@ -62,7 +62,7 @@ soundId       sound ID char
 Weapon, armor, drug, ammo, misc, key each have a union sub-struct with type-specific
 fields (damage range, DR/DT values, drug stat deltas, caliber, charge counts, etc.).
 
-### 1.4 DH2 `Obj` / proto data (`src/object.ts`)
+### 1.4 DH2 `Obj` / proto data (`src/object/Obj.ts`, `src/object/items.ts`)
 
 Runtime item data lives in `Obj`:
 - `pid: number` — full 32-bit PID (high byte = category, low 24 bits = proto index)
@@ -101,7 +101,7 @@ OBJECT_WORN           = 0x4000000  (implied — set by _inven_wield for armor)
 already in inventory (not flagged) are added separately via the three hand/armor
 accessor functions.
 
-### 2.2 DH2 inventory model (`src/object.ts`)
+### 2.2 DH2 inventory model (`src/object/Obj.ts`)
 
 ```typescript
 class Obj {
@@ -145,7 +145,7 @@ data->baseStats[STAT_CARRY_WEIGHT] = 25 * strength + 25;
 - Weapon type → adds loaded ammo weight
 - Otherwise → `proto->item.weight`
 
-**DH2 formula** (`src/ui_inventory.ts:461`):
+**DH2 formula** (`src/ui_inventory/panel.ts`):
 ```typescript
 const max = 25 + p.getStat('STR') * 25
 ```
@@ -408,7 +408,7 @@ Jam/unjam lifecycle:
   - At midnight every in-game day: `gameTimeEventProcess()` (`scripts.cc:418`)
   - On map load: `map.cc:1065`
 
-### 4.7 DH2 `Obj.use()` implementation (`src/object.ts:725`)
+### 4.7 DH2 `Obj.use()` implementation (`src/object/Obj.ts`)
 
 ```typescript
 use(source: Obj, isSecondary = false): boolean {
@@ -448,7 +448,7 @@ Lock/open opcodes (`src/scripting.ts`):
 
 All wired in `vm_bridge.ts`.
 
-`setObjectOpen()` (`src/object.ts:136`): when `obj.locked === true`, returns
+`setObjectOpen()` (`src/object/Obj.ts`): when `obj.locked === true`, returns
 `false` immediately with no sound or message. CE plays the locked SFX and "That
 door is locked." message before checking.
 

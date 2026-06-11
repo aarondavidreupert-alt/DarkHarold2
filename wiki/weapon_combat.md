@@ -1,7 +1,7 @@
 # Weapon Combat — DarkHarold2 Reference
 
 > Ground-truth: `raw/fallout2-ce/src/item.cc`, `item.h`, `proto_types.h`, `combat.cc`  
-> DH2 impl: `src/critter.ts` (`Weapon` class, attack-mode tables), `src/combat.ts` (`getHitChance`, `getDamageDone`, `getAmmoStats`, `rollHit`), `src/object.ts` (`WeaponObj`)  
+> DH2 impl: `src/critter/Weapon.ts` (`Weapon` class, attack-mode tables), `src/combat/hitChance.ts` (`getHitChance`), `src/combat/Combat.ts` (`getDamageDone`, `getAmmoStats`, `rollHit`), `src/object/items.ts` (`WeaponObj`)  
 > Cross-reference: [damage_formula.md](damage_formula.md) (full damage math), [combat.md](combat.md) (combat lifecycle, burst, AP pool), [animation.md](animation.md) (weapon anim codes)
 
 ---
@@ -162,7 +162,7 @@ Seven damage types indexed 0–6 in CE (`damageType` enum, `proto_types.h`):
 ### 4.2 Damage Roll
 
 ```typescript
-// src/combat.ts:636 (getDamageDone)
+// src/combat/Combat.ts (getDamageDone)
 const RD = getRandomInt(wep.minDmg, wep.maxDmg)
 ```
 

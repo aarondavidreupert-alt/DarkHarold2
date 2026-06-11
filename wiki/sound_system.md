@@ -3,7 +3,7 @@
 Documents the Fallout 2 sound system: ACM audio format, SFX naming conventions, ambient sound, music, and DH2's Web Audio API implementation.
 
 **Ground-truth source:** `raw/fallout2-ce/src/sound_decoder.cc`, `sound_effects_list.cc`, `game_sound.cc`, `game_sound.h`, `audio_file.cc`, `audio.cc`, `audio_engine.cc`, `interpreter_extra.cc`
-**DH2 implementation:** `src/audio.ts`, `src/soundMap.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/data.ts`, `src/map.ts`
+**DH2 implementation:** `src/audio.ts`, `src/soundMap.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/data.ts`, `src/map/GameMap.ts`
 
 ---
 
@@ -312,7 +312,7 @@ Three channels, each 0–100 (UI) normalised to 0.0–1.0 internally:
 - Creates `new Audio('audio/music/' + music + '.wav')` with `.loop = true`.
 - Volume = `musicVolume × masterVolume`.
 
-Music is started on every map load by `src/map.ts:playMapMusic()`, which reads `curMapInfo.music` — a string parsed from `maps/mapinfo.ini` via `src/data.ts`. Music is **not** driven by the `set_map_music` scripting opcode (which is unwired, see §8).
+Music is started on every map load by `src/map/GameMap.ts:playMapMusic()`, which reads `curMapInfo.music` — a string parsed from `maps/mapinfo.ini` via `src/data.ts`. Music is **not** driven by the `set_map_music` scripting opcode (which is unwired, see §8).
 
 ### Ambient SFX
 
@@ -375,7 +375,7 @@ Scripts that call `set_map_music` at runtime will silently no-op in DH2 (opcode 
 
 These name-builder opcodes return a formatted SFX filename string to the script stack. Scripts use the returned name with `play_sfx`. Since none are wired, any script that tries to build and play a contextual SFX (critter footsteps, door opens, weapon hits) will fail silently.
 
-DH2 instead triggers weapon SFX through the engine's `playWeaponSfx` call in `src/combat.ts` (engine-driven, not script-driven).
+DH2 instead triggers weapon SFX through the engine's `playWeaponSfx` call in `src/combat/Combat.ts` (engine-driven, not script-driven).
 
 ---
 

@@ -416,7 +416,7 @@ AI-controlled attackers are not penalized.
 
 ### DH2 status
 
-**Not implemented.** `src/combat.ts:441` has the comment
+**Not implemented.** `src/combat/hitChance.ts` has the comment
 `"light conditions not yet factored in"`.
 
 ---

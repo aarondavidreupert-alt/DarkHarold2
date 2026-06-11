@@ -273,16 +273,16 @@ with per-case detail.
 
 | System | File(s) | Real status |
 |--------|---------|-------------|
-| Party member combat AI | `src/party.ts`, `src/combat.ts` | Follow and cap enforcement work. Party members are NOT enrolled in the combat combatants list (`combat.ts:301`) — they wander away while the player fights. No party-member AI turns. |
+| Party member combat AI | `src/party.ts`, `src/combat/Combat.ts` | Follow and cap enforcement work. Party members are NOT enrolled in the combat combatants list (`combat/Combat.ts`) — they wander away while the player fights. No party-member AI turns. |
 | Active skill use | `src/skillUse.ts` | **8 of 10** active skills handled: First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair. **Gambling** and **Outdoorsman** fall through to the default `"cannot be used directly"` error. No Healer perk bonus; no electronic lockpick distinction; no facing check on Steal. |
 | Subtitles / speech audio | `src/audio.ts` | `Config.ui.subtitles = false`; no speech `.acm` playback path exists. |
 | Movie playback | `src/scripting.ts:1769` | `play_gmovie()` logs and skips — `.mve` video playback is not implemented. |
 | Endgame slideshow | `src/endgame.ts` | `endgame_slideshow` (0x8146) and `endgame_movie` (0x8148) wired. `playSlideshow()` iterates `lut/endgame.json`, shows static/panning PNG slides in a DOM overlay with narrator audio and subtitle support. `setupDeathEnding()` selects a death ending via weighted random from `lut/enddeath.json`. Split per wiki/ts-split-refactor.md §19: `endgame/deathEndings.ts` (selection) + `endgame/slideRender.ts` (slide rendering). See `wiki/endgame.md` and `wiki/known_bugs.md §23`. |
 | Karma titles / town reputation | `src/player.ts` | `Karma` and `Reputation` stats are tracked and displayed. No karma-title string table, no per-town faction deltas. |
-| NPC schedule AI | `src/main.ts` | Scriptless critters with `wander_type > 0` do wander randomly each tick (`main.ts:1099`). FO2-style time-of-day position schedules (critters moving between fixed locations at fixed hours) are not implemented. |
-| 🟡 `wander_type` | `src/combat.ts` | Binary wander implemented (`wander_type > 0` → 5% per-tick chance). CE differentiates radii by type (small/big/all) — `ai.cc` maps type 1 to a short radius, type 2 to a larger one, type 3 to unrestricted; DH2 applies no radius limit regardless of type. Revisit during AI system merge. |
+| NPC schedule AI | `src/gameTick.ts` | Scriptless critters with `wander_type > 0` do wander randomly each tick. FO2-style time-of-day position schedules (critters moving between fixed locations at fixed hours) are not implemented. |
+| 🟡 `wander_type` | `src/combat/AI.ts` | Binary wander implemented (`wander_type > 0` → 5% per-tick chance). CE differentiates radii by type (small/big/all) — `ai.cc` maps type 1 to a short radius, type 2 to a larger one, type 3 to unrestricted; DH2 applies no radius limit regardless of type. Revisit during AI system merge. |
 | Animation interleaving | `src/scripting.ts:1558` | `reg_anim_begin/end` queue animate steps with proper `setTimeout` delays. `reg_anim_func` callbacks are collected and fired **after all animate steps complete**, not interleaved between them in registration order (FO2-CE `animationRegAnimFunc` sequences them together). |
-| Worldmap | `src/worldmap.ts` | Functional but rough: area entrances are misplaced on area screens; no difficulty modifier on encounter rate; encounter-spawned critters have no items or equipment. |
+| Worldmap | `src/worldmap.ts` (barrel; `src/worldmap/{types,parser,Worldmap,encounters}.ts`) | Functional but rough: area entrances are misplaced on area screens; no difficulty modifier on encounter rate; encounter-spawned critters have no items or equipment. |
 | Quest system | `src/questData.ts`, `src/questLog.ts` | GVAR-based tracking and Pip-Boy display work. No XP awards for completion; no quest-completion script callbacks wired. Descriptions are inlined in TS, not loaded from `quests.msg`. |
 | Karma / reputation scripting | `src/scripting.ts` | `set_pc_stat` / `mod_pc_stat` handle Karma (4) and Reputation (3); other `PCSTAT_*` IDs stub. No town-reputation table; no faction scripting. |
 | Lighting accuracy | `src/lighting.ts`, `src/lightmap.ts` | Functional; minor colour inaccuracies vs. original engine; CPU path is slow on large maps. |
@@ -294,12 +294,12 @@ present and functional in the current source:
 
 | Item | Where it actually lives |
 |------|------------------------|
-| Perk selection UI | `showPerkModal()` in `src/ui_character.ts:1875`; triggered when `player.pendingPerkPick` is true. SPECIAL/skill prerequisites checked via `getValidPerks()` in `src/perks.ts:691`. Perk applied and `pendingPerkPick` cleared via `applyPerk()` in `src/perks.ts:733`. |
-| Trait selection at character creation | Full 2-trait selector in `src/ui_character.ts:1550–1640`; 2-trait limit enforced at `line 1630`; traits live-update skill calculations during creation. |
-| Name / age / sex entry at creation | Text input (name), spinner (age), toggle buttons (sex) all wired in `src/ui_character.ts:1363–1452`; values applied via `player.applyCreationStats()` on DONE. |
-| Drug decay / addiction ticks | `tickAddictions(player)` called every 600-tick cycle in `src/main.ts:1073`, imported from `src/drugs.ts:203`. |
-| Poison tick-based damage | `-1 HP / 10 poison` per 600-tick cycle in `src/main.ts:1063`; `poisonLevel` decays by 1 each cycle. |
-| Radiation symptom ticks | `applyRadiationSymptoms(player)` called every 600-tick cycle in `src/main.ts:1076`. |
+| Perk selection UI | `showPerkModal()` in `src/ui_character/perkModal.ts`; triggered when `player.pendingPerkPick` is true. SPECIAL/skill prerequisites checked via `getValidPerks()` in `src/perks/perks.ts`. Perk applied and `pendingPerkPick` cleared via `applyPerk()` in `src/perks/perks.ts`. |
+| Trait selection at character creation | Full 2-trait selector in `src/ui_character/creator.ts`; 2-trait limit enforced; traits live-update skill calculations during creation. |
+| Name / age / sex entry at creation | Text input (name), spinner (age), toggle buttons (sex) all wired in `src/ui_character/creator.ts`; values applied via `player.applyCreationStats()` on DONE. |
+| Drug decay / addiction ticks | `tickAddictions(player)` called every 600-tick cycle in `src/gameTick.ts`, imported from `src/drugs.ts`. |
+| Poison tick-based damage | `-1 HP / 10 poison` per 600-tick cycle in `src/gameTick.ts`; `poisonLevel` decays by 1 each cycle. |
+| Radiation symptom ticks | `applyRadiationSymptoms(player)` called every 600-tick cycle in `src/gameTick.ts`. |
 | `get_month` / `get_day` | Both read from `GameTime.getDate()` in `src/vm_bridge.ts:52,56` — not hardcoded. |
 | `end_dialogue` | Implemented: calls `dialogueExit()` in `src/scripting.ts:1486`. |
 | `gsay_end` | Implemented: halts the VM via `this._vm.halted = true` in `src/scripting.ts:1484`; wired in `vm_bridge.ts:191`. |
@@ -362,9 +362,9 @@ after merge.
 - `runAwayMode`: `never | none | bleeding | finger_hurts | not_feeling_good | coward`
 - `chemUse`, `areaAttackMode`, `minHp`, `minToHit`, `maxDist`, `chemPrimaryDesire[]` — all parsed
 
-### Current wander status (🟡 Partial — in `src/combat.ts`)
+### Current wander status (🟡 Partial — in `src/combat/AI.ts`)
 
-- Binary wander is live on `main`: `wander_type > 0` → 5% per-tick random-hex move (`combat.ts`).
+- Binary wander is live on `main`: `wander_type > 0` → 5% per-tick random-hex move (`combat/AI.ts`).
 - CE (`ai.cc`) maps wander type 1 → short radius, type 2 → larger radius, type 3 → unrestricted. DH2 applies no radius cap regardless of type.
 - Radius differentiation depends on `AiPacket.wander_type` field — **not yet added to the `AiPacket` interface** on the branch; must be added before merge.
 

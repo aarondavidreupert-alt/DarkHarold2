@@ -9,7 +9,7 @@
 `raw/fallout2-ce/src/preferences.cc` (`brightnessIncrease`, `brightnessDecrease`),
 `raw/fallout2-ce/src/pipboy.cc` (`pipboyOpen` — Pip-Boy window key loop)  
 **DH2 ref:** `src/heart.ts` (`_getKeyChar`, `window.onkeydown`),
-`src/main.ts` (`heart.keydown` handler — all in-game keys),
+`src/input.ts` (`heart.keydown` handler — all in-game keys),
 `src/config.ts` (`Config.controls.*` — full binding map),
 `src/ui_options.ts` (`optionsKeyHandler`),
 `src/ui_skilldex.ts` (`skilldexKeyHandler`)

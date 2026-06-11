@@ -30,11 +30,11 @@ CE refs:
 DH2 refs:
 - `src/scripting.ts` (`global_var`, `set_global_var`, `get_pc_stat`,
   `set_pc_stat`, `mod_pc_stat`, `set_obj_visibility`)
-- `src/ui_character.ts` (`KARMA_TITLES`, `TOWN_NAMES`, `townStanding`)
+- `src/ui_character/viewer.ts` (`KARMA_TITLES`, `TOWN_NAMES`, `townStanding`)
 - `src/skills.ts` (Karma/Reputation stat definitions)
 - `src/debug.ts` (`setKarma`)
 - `src/vm_bridge.ts` (opcode wiring)
-- `src/webglrenderer.ts` (`renderObject`, blend state)
+- `src/render/webglDraw.ts` (`renderObject`), `src/render/webglContext.ts` (blend state)
 - `src/renderer.ts` (`objectRenderInfo`)
 
 Cross-references: `wiki/critter_stats.md`, `wiki/combat.md`,

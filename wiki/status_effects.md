@@ -9,8 +9,8 @@ CE refs: `item.cc` (`_item_d_take_drug`, `_insert_drug_effect`, `_insert_withdra
 `interpreter_extra.cc` (`opPoison`, `opGetPoison`, `opRadiationIncrease`, `opRadiationDecrease`),
 `scripts.cc` (`gameTimeEventProcess`), `stat_defs.h`  
 DH2 refs: `src/drugs.ts`, `src/scripting.ts` (drug/poison/radiation opcode methods,
-metarule case 18), `src/vm_bridge.ts` (wiring), `src/object.ts` (field declarations),
-`src/main.ts` (tick handling), `src/char.ts`
+metarule case 18), `src/vm_bridge.ts` (wiring), `src/object/Critter.ts` (field declarations),
+`src/gameTick.ts` (tick handling), `src/char.ts`
 
 Cross-references: see `wiki/perks_traits.md` for perk/trait effect application; see
 `wiki/critter_stats.md` for stat bonus layer vs base layer distinction.
@@ -465,13 +465,13 @@ get_critter_stat(obj, 36)  // STAT_CURRENT_POISON_LEVEL → critterGetPoison(obj
 
 #### Fields
 
-`src/object.ts:1210–1212`:
+`src/object/Critter.ts`:
 
 ```typescript
 poisonLevel: number = 0
 ```
 
-Serialized in the field list (`object.ts:1899`), so it persists across save/load.
+Serialized in the field list (`object/Critter.ts`), so it persists across save/load.
 
 #### Opcode Wiring
 
@@ -665,13 +665,13 @@ get_critter_stat(obj, 37)  // STAT_CURRENT_RADIATION_LEVEL → critterGetRadiati
 
 #### Fields
 
-`src/object.ts:1210–1212`:
+`src/object/Critter.ts`:
 
 ```typescript
 radiationLevel: number = 0
 ```
 
-Serialized in the field list (`object.ts:1899`), so it persists across save/load.
+Serialized in the field list (`object/Critter.ts`), so it persists across save/load.
 
 #### Opcode Wiring
 

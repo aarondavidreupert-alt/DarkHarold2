@@ -1,7 +1,7 @@
 # Companion & Party System
 
 CE refs: `party_member.cc`, `interpreter_extra.cc`, `combat_ai.cc`, `stat.cc`  
-DH2 refs: `src/party.ts`, `src/scripting.ts`, `src/main.ts`, `src/saveload.ts`
+DH2 refs: `src/party.ts`, `src/scripting.ts`, `src/gameTick.ts`, `src/playerUse.ts`, `src/saveload.ts`
 
 Cross-references: see `wiki/ai_behavior.md` for AI packet details and party-member
 combat distance preferences; see `wiki/combat.md` for the combatant enrolment loop.

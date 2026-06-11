@@ -3,7 +3,7 @@
 **Audited:** 2026-05-31  
 **Branch:** claude/codebase-map-docs-xW0xV  
 **CE ref:** `raw/fallout2-ce/src/scripts.h`, `scripts.cc`, `map.cc`, `interpreter_extra.cc`  
-**DH2 ref:** `src/scripting.ts`, `src/vm_bridge.ts`, `src/map.ts`, `src/object.ts`
+**DH2 ref:** `src/scripting.ts`, `src/vm_bridge.ts`, `src/map/GameMap.ts`, `src/map/mapLoader.ts`, `src/object/Obj.ts`, `src/object/Critter.ts`
 
 Do not duplicate content from `wiki/dialogue_system.md` or `wiki/items.md`.
 
@@ -72,7 +72,7 @@ CE `_map_exit()` (map.cc:309): calls `scriptsExecMapUpdateScripts(SCRIPT_PROC_MA
 
 CE periodic update (scripts.cc:509): calls `scriptsExecMapUpdateScripts(SCRIPT_PROC_MAP_UPDATE)` per tick cycle.
 
-### 3.2 DH2 implementation (`src/map.ts`, `src/scripting.ts`)
+### 3.2 DH2 implementation (`src/map/mapLoader.ts`, `src/scripting.ts`)
 
 `GameMap.loadMap()` (map.ts:339) flow:
 1. `Events.emit('loadMapPre')`
@@ -115,9 +115,9 @@ At runtime, `spatial.position` is set from `fromTileNum(spatial.tileNum)` (map.t
 
 CE iterates `gScriptLists[SCRIPT_TYPE_SPATIAL]` and for each spatial whose tile distance is within its radius, calls `scriptExecProc(script->sid, SCRIPT_PROC_SPATIAL)`.
 
-### 4.3 DH2 triggering (`src/object.ts:1504–1518`, `src/object.ts:1939–1941`)
+### 4.3 DH2 triggering (`src/object/Critter.ts`, `src/object/Obj.ts`)
 
-Spatials fire inside `Critter.move()` (object.ts:1504), called every hex step during movement animation:
+Spatials fire inside `Critter.move()` (`src/object/Critter.ts`), called every hex step during movement animation:
 
 ```typescript
 // object.ts:1509–1515

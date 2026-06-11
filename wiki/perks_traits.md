@@ -1,7 +1,7 @@
 # Perks & Traits — DarkHarold2 Reference
 
 > Ground-truth: `raw/fallout2-ce/src/perk.cc`, `perk_defs.h`, `trait.cc`, `trait_defs.h`  
-> DH2 impl: `src/perks.ts`, `src/ui_character.ts`, `src/combat.ts`, `src/player.ts`, `src/object.ts`, `src/scripting.ts`, `src/vm_bridge.ts`
+> DH2 impl: `src/perks.ts` (barrel; `src/perks/{perks.data,perks}.ts`), `src/ui_character.ts` (barrel; `src/ui_character/*.ts`), `src/combat.ts` (barrel; `src/combat/*.ts`), `src/player.ts`, `src/object.ts` (barrel; `src/object/*.ts`), `src/scripting.ts`, `src/vm_bridge.ts`
 
 ---
 
@@ -17,7 +17,7 @@ Traits are selected during **character creation** only (max 2). They provide tra
 - `traitGetStatModifier(trait)` in `trait.cc` — returns stat delta for each selected trait; called inside `critterGetStat` chain
 - `traitGetSkillModifier(traits[], skill)` in `trait.cc:284` — returns skill delta; called inside `skillGetValue`
 
-**DH2 Storage:** `Player.traits: string[]` — applied once at character creation via `ui_character.ts`; trait names match `TRAIT_DESCRIPTIONS` keys in `src/ui_character.ts:90`.
+**DH2 Storage:** `Player.traits: string[]` — applied once at character creation via `src/ui_character/creator.ts`; trait names match `TRAIT_DESCRIPTIONS` keys in `src/ui_character/descriptions.ts`.
 
 **DH2 Live vs Applied:** DH2 reads `player.traits` at skill calculation time via `traitGetSkillModifier()` in `src/skills.ts` (called from `SkillSet.get()`), but stat modifiers from traits are **not** applied to the StatSet live — they are baked into `baseStats` during character creation.
 
@@ -105,7 +105,7 @@ From `trait.cc::traitGetSkillModifier()`:
 
 **DH2 Storage:** `Critter.perks: string[]` (flat array of name strings, one entry per rank). `hasPerk(name)` = indexOf check. `getPerkRank(player, name)` counts occurrences.
 
-**DH2 Application:** `applyPerk(player, perkName)` in `src/perks.ts` pushes name to `player.perks[]`. Effects are not stored in a stat layer — each system checks `hasPerk` at use time (e.g., `combat.ts`, `player.ts`).
+**DH2 Application:** `applyPerk(player, perkName)` in `src/perks/perks.ts` pushes name to `player.perks[]`. Effects are not stored in a stat layer — each system checks `hasPerk` at use time (e.g., `combat.ts`, `player.ts`).
 
 ### 2.2 Perk Prerequisites
 
@@ -340,7 +340,7 @@ if (this.level % (this.traits.includes('Skilled') ? 4 : 3) === 0) {
 
 ### 5.3 Tag! Perk
 
-The **Tag!** perk (CE index 47) allows tagging a 4th skill. The 4th tagged skill receives the tagging bonus (doubled invested points) but **not** the flat +20. DH2 mirrors this via `SkillSet.hasTagPerk` (set by `applyPerk('Tag!')` in `src/perks.ts`).
+The **Tag!** perk (CE index 47) allows tagging a 4th skill. The 4th tagged skill receives the tagging bonus (doubled invested points) but **not** the flat +20. DH2 mirrors this via `SkillSet.hasTagPerk` (set by `applyPerk('Tag!')` in `src/perks/perks.ts`).
 
 See `src/char.ts:117–122` for the 4th-slot Tag! check:
 ```ts

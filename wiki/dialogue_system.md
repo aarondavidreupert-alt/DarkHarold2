@@ -248,7 +248,7 @@ gdialog_set_barter_mod(mod: number)
 
 CE: `gameDialogSetBarterModifier(modifier)` — sets `gGameDialogBarterModifier` (persists until session end).
 
-DH2: `dialogueBarterMod = mod`. Value is exported via `getDialogueBarterMod()` and consumed by `src/ui_barter.ts` as a percentage markup. Reset to 0 on `dialogueExit()`.
+DH2: `dialogueBarterMod = mod`. Value is exported via `getDialogueBarterMod()` and consumed by `src/ui_barter/screen.ts` as a percentage markup. Reset to 0 on `dialogueExit()`.
 
 ---
 
@@ -350,7 +350,7 @@ Barter modifier and speech checks can shift the raw reaction value up or down; g
 1. Script calls `gdialog_mod_barter(mod)` → `uiBarterMode(self_obj)`.
 2. `uiBarterMode` sets `globalState.uiMode = UIMode.barter` and opens the barter panel.
 3. `dialogueReply` checks `uiMode === UIMode.barter` and returns early instead of closing dialogue.
-4. `gdialog_set_barter_mod` / `dialogueBarterMod` is consumed by `src/ui_barter.ts` via `getDialogueBarterMod()`.
+4. `gdialog_set_barter_mod` / `dialogueBarterMod` is consumed by `src/ui_barter/screen.ts` via `getDialogueBarterMod()`.
 
 ---
 

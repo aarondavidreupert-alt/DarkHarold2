@@ -12,11 +12,14 @@
 `raw/fallout2-ce/src/proto_types.h` (item type enum),
 `raw/fallout2-ce/src/game_vars.h` (GVAR constants),
 `raw/fallout2-ce/src/interpreter_extra.cc` (`opSetGlobalVar`, `opAddObjectToInventory`)  
-**DH2 ref:** `src/ui_pipboy.ts` (`openPipBoy`, `closePipBoy`, `togglePipBoy`, `renderStatusTab`,
-`renderAutomapsTab`, `renderArchivesTab`), `src/automapData.ts` (`markSeenAt`, `getArchivedMaps`,
+**DH2 ref:** `src/ui_pipboy/shell.ts` (`openPipBoy`, `closePipBoy`, `togglePipBoy`),
+`src/ui_pipboy/tabs/status.ts` (`renderStatusTab`),
+`src/ui_pipboy/tabs/automaps.ts` (`renderAutomapsTab`),
+`src/ui_pipboy/tabs/archives.ts` (`renderArchivesTab`),
+`src/automapData.ts` (`markSeenAt`, `getArchivedMaps`,
 `drawAutomapInto`, `snapshotCurrentMapObjects`), `src/ui_automap.ts`,
-`src/main.ts` (keyboard trigger at line 899),
-`src/object.ts` (`Obj.use()` — misc item use path),
+`src/input.ts` (keyboard trigger),
+`src/object/Obj.ts` (`Obj.use()` — misc item use path),
 `src/pro.ts` (`getPROSubTypeName` — misc subtype mapping),
 `src/scripting.ts` (`add_obj_to_inven`, `obj_carrying_pid_obj`, `set_global_var`),
 `src/questData.ts` (two quest entries referencing holodisks as quest items)  
@@ -47,8 +50,8 @@
 
 ### 1.2 DH2
 
-`togglePipBoy()` in `src/ui_pipboy.ts:726`. Triggered by `Config.controls.pipboy` key at
-`src/main.ts:899`. No availability check — the Pip-Boy is always available regardless of
+`togglePipBoy()` in `src/ui_pipboy/shell.ts`. Triggered by `Config.controls.pipboy` key in
+`src/input.ts`. No availability check — the Pip-Boy is always available regardless of
 game progress.
 
 `openPipBoy()`:

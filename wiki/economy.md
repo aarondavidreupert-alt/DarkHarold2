@@ -6,9 +6,9 @@
 > `skill.cc`, `party_member.cc`, `reaction.cc`, `game_dialog.cc`,
 > `interpreter_extra.cc`.
 >
-> DH2 references: `src/object.ts` (`Obj.pickup`, `Obj.drop`, `Obj.addInventoryItem`),
+> DH2 references: `src/object/Obj.ts` (`Obj.pickup`, `Obj.drop`, `Obj.addInventoryItem`),
 > `src/scripting.ts` (inventory & barter opcodes, `Scripting.pickup`),
-> `src/ui_loot.ts` (`uiLoot`), `src/ui_barter.ts` (`uiBarterMode`), `src/main.ts`
+> `src/ui_loot.ts` (`uiLoot`), `src/ui_barter/screen.ts` (`uiBarterMode`), `src/playerUse.ts` / `src/main.ts`
 > (loot entry points).
 >
 > See also: [critter_stats.md](critter_stats.md) §1.3 — `CRITTER_NO_DROP` flag gap.
@@ -112,7 +112,7 @@ export function pickup(obj: Obj, source: Critter): boolean {
 }
 ```
 
-### §1.4 `Obj.addInventoryItem` (`object.ts:625`)
+### §1.4 `Obj.addInventoryItem` (`src/object/Obj.ts`)
 
 ```typescript
 addInventoryItem(item: Obj, count = 1): void {
@@ -190,7 +190,7 @@ export function uiLoot(object: Obj)
 
 Layout: two-column panel (left = player inventory, right = target inventory). Items are rendered as inventory art PNGs with an `×N` quantity label.
 
-**Move (drag-and-drop):** `uiLootMove` resolves source/destination arrays from an encoded string (`"l{idx}"` = player, `"r{idx}"` = target), then delegates to `uiSwapItem(from, item, to, amount)` from `ui_barter.ts`. For stacks > 1, prompts for quantity via `uiGetAmount`.
+**Move (drag-and-drop):** `uiLootMove` resolves source/destination arrays from an encoded string (`"l{idx}"` = player, `"r{idx}"` = target), then delegates to `uiSwapItem(from, item, to, amount)` from `src/ui_barter/swap.ts`. For stacks > 1, prompts for quantity via `uiGetAmount`.
 
 **Take all:**
 ```typescript
@@ -519,7 +519,7 @@ Player clicks "[Barter]" <div> in dialogueBoxTextArea
   → Scripting.dialogueReply(idx)   // scripting.ts:238
   → dialogueOptionProcs[idx]() = barter_proc.bind(script)()
   → gdialog_mod_barter(0)          // scripting.ts:1430 (0x8129 in vm_bridge.ts:181)
-  → uiBarterMode(this.self_obj as Critter)   // ui_barter.ts:272
+  → uiBarterMode(this.self_obj as Critter)   // src/ui_barter/screen.ts
       → dialogueBox slides down (uiAnimateBox)
       → barterBox slides up (uiAnimateBox)
       → working inventory copies created
@@ -542,14 +542,14 @@ gdialog_mod_barter(mod: number) {
 ```
 In CE, this `mod` is stored in `gGameDialogBarterModifier` and feeds `_barter_mod`
 in the price formula (see §5.4). DH2's only active modifier path is
-`gdialog_set_barter_mod` → `dialogueBarterMod` → `ui_barter.ts:319`.
+`gdialog_set_barter_mod` → `dialogueBarterMod` → `src/ui_barter/screen.ts`.
 
-### §6.3 DH2 Barter Screen — `src/ui_barter.ts`
+### §6.3 DH2 Barter Screen — `src/ui_barter/screen.ts`
 
 `uiBarterMode(merchant: Critter)` is the DH2 barter screen entry point,
 called from `scripting.ts:1434` (`gdialog_mod_barter` handler).
 
-The DH2 offer check at `ui_barter.ts:312–351`:
+The DH2 offer check in `src/ui_barter/screen.ts`:
 
 ```typescript
 function totalAmount(objects: Obj[]): number {
@@ -574,13 +574,13 @@ function offer() {
 | Opcode | DH2 method | Status |
 |--------|------------|--------|
 | `0x8129` `gdialog_mod_barter` | `scripting.ts:1430` | **Partial** — opens barter screen correctly; `mod` parameter is ignored (always 0) |
-| `0x814E` `gdialog_set_barter_mod` | `scripting.ts:1425` | **Implemented** — stores modifier in `dialogueBarterMod`; read by `ui_barter.ts:319` |
+| `0x814E` `gdialog_set_barter_mod` | `scripting.ts:1425` | **Implemented** — stores modifier in `dialogueBarterMod`; read by `src/ui_barter/screen.ts` |
 | `0x8138` `item_caps_total` | `scripting.ts:640` | **Implemented** — returns `obj.money` (PID 41 scan); no container recursion |
 | `0x8139` `item_caps_adjust` | `scripting.ts:644` | **Implemented** — PID 41 scan, creates money object if absent; no container recursion |
 
 ### §6.5 DH2 vs CE Formula Comparison
 
-| Feature | CE (`inventory.cc:4673`) | DH2 (`ui_barter.ts:315`) | Status |
+| Feature | CE (`inventory.cc:4673`) | DH2 (`src/ui_barter/screen.ts`) | Status |
 |---------|--------------------------|--------------------------|--------|
 | Default buy markup | 2× proto value | 1× proto value (no markup) | **bug** |
 | Player Barter skill | Modifies ratio via `partyBarter` | Not used | **bug** |
@@ -607,28 +607,28 @@ Unified gap table combining loot/pickup gaps (prefix L) and barter gaps (prefix 
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
-| L1 | **Weight limit not enforced on pickup or loot UI.** `addInventoryItem` has no weight check; loot UI has no weight check. CE's `itemAttemptAdd` refuses pickup if critter exceeds carry weight and shows "at maximum weight" message. Player can carry unlimited items. | `object.ts`, `ui_loot.ts` | `proto_instance.cc:571`, `item.cc:322` | major | missing |
-| L2 | **`CRITTER_NO_DROP` flag not checked on kill.** Critters with `CRITTER_NO_DROP` bit set should not drop items when killed. `critterKill()` never checks `pro.extra.flags`; all critters drop inventory. Quest-critical "no drop" critters will expose loot that should be invisible. | `src/critter.ts` | `proto_instance.cc` | major | missing |
-| L3 | **Ammo stack merge ignores magazine capacity.** CE merges ammo into existing magazines: fills to capacity, splits remainder. `addInventoryItem` stacks by PID but uses simple quantity addition; no magazine-capacity splitting. Ammo always stacks without capacity limit. | `object.ts:625` | `item.cc:322` | minor | partial |
+| L1 | **Weight limit not enforced on pickup or loot UI.** `addInventoryItem` has no weight check; loot UI has no weight check. CE's `itemAttemptAdd` refuses pickup if critter exceeds carry weight and shows "at maximum weight" message. Player can carry unlimited items. | `src/object/Obj.ts`, `src/ui_loot.ts` | `proto_instance.cc:571`, `item.cc:322` | major | missing |
+| L2 | **`CRITTER_NO_DROP` flag not checked on kill.** Critters with `CRITTER_NO_DROP` bit set should not drop items when killed. `critterKill()` never checks `pro.extra.flags`; all critters drop inventory. Quest-critical "no drop" critters will expose loot that should be invisible. | `src/critter/lifecycle.ts` | `proto_instance.cc` | major | missing |
+| L3 | **Ammo stack merge ignores magazine capacity.** CE merges ammo into existing magazines: fills to capacity, splits remainder. `addInventoryItem` stacks by PID but uses simple quantity addition; no magazine-capacity splitting. Ammo always stacks without capacity limit. | `src/object/Obj.ts` | `item.cc:322` | minor | partial |
 | L4 | **`move_obj_inven_to_obj` overwrites destination inventory.** CE iterates items and calls `itemAdd` for each (stack-merging). DH2 bulk-assigns the array reference directly: `dst.inventory = src.inventory` — no merge. Scripts that call `move_obj_inven_to_obj` when `dst` already has items will overwrite dst inventory. | `scripting.ts` | `item.cc` | minor | bug |
-| L5 | **Caps pickup quantity may be wrong for multi-pile tiles.** CE's `PROTO_ID_MONEY` path calls `itemGetMoney(item)` which sums all money objects at the tile. DH2 `pickup` passes `this.amount` directly — correct for items placed as discrete amounts; may be wrong for multi-money-object tiles. | `object.ts:941` | `proto_instance.cc:571` | minor | partial |
-| L6 | **`pickup_p_proc` not fired from inventory UI equip path.** CE fires `SCRIPT_PROC_PICKUP` in `inventory.cc:4102` and `4494` when equipping an item via the inventory screen. Not fired in DH2 inventory screen (`ui_inventory.ts`); only fires on tile pickup. Scripts that use `pickup_p_proc` to track equip events won't trigger from inventory. | `src/ui_inventory.ts` | `inventory.cc:4102,4494` | minor | missing |
-| L7 | **STEALTH_BOY II auto-stealth not implemented.** CE's `itemAdd` checks `PROTO_ID_STEALTH_BOY_II` and activates stealth if the item is in-hand at add time. Not implemented in `addInventoryItem`. Picking up STEALTH_BOY II while holding it won't auto-activate. | `object.ts:625` | `item.cc:322` | minor | missing |
-| L8 | **`approxEq` stacking granularity too coarse.** CE `_item_identical` compares full object state (type, proto ID, flags, charges, condition). DH2 `approxEq` compares only `pid` — items with same PID but different charges (loaded/unloaded guns) or different conditions always stack. Damaged vs. pristine items of same PID merge into one stack incorrectly. | `object.ts` | `item.cc:322` | minor | bug |
-| L9 | **`item_caps_total` may return stale value.** CE iterates all inventory items of type `ITEM_TYPE_MONEY` and sums quantities. DH2 returns `obj.money` — a cached field whose update path is not fully audited. May return stale value if caps are added via `addInventoryItem` without updating `obj.money`. | `scripting.ts:640`, `object.ts` | `item.cc:3153` | minor | partial |
+| L5 | **Caps pickup quantity may be wrong for multi-pile tiles.** CE's `PROTO_ID_MONEY` path calls `itemGetMoney(item)` which sums all money objects at the tile. DH2 `pickup` passes `this.amount` directly — correct for items placed as discrete amounts; may be wrong for multi-money-object tiles. | `src/object/Obj.ts` | `proto_instance.cc:571` | minor | partial |
+| L6 | **`pickup_p_proc` not fired from inventory UI equip path.** CE fires `SCRIPT_PROC_PICKUP` in `inventory.cc:4102` and `4494` when equipping an item via the inventory screen. Not fired in DH2 inventory screen (`ui_inventory.ts`); only fires on tile pickup. Scripts that use `pickup_p_proc` to track equip events won't trigger from inventory. | `src/ui_inventory/dragdrop.ts` | `inventory.cc:4102,4494` | minor | missing |
+| L7 | **STEALTH_BOY II auto-stealth not implemented.** CE's `itemAdd` checks `PROTO_ID_STEALTH_BOY_II` and activates stealth if the item is in-hand at add time. Not implemented in `addInventoryItem`. Picking up STEALTH_BOY II while holding it won't auto-activate. | `src/object/Obj.ts` | `item.cc:322` | minor | missing |
+| L8 | **`approxEq` stacking granularity too coarse.** CE `_item_identical` compares full object state (type, proto ID, flags, charges, condition). DH2 `approxEq` compares only `pid` — items with same PID but different charges (loaded/unloaded guns) or different conditions always stack. Damaged vs. pristine items of same PID merge into one stack incorrectly. | `src/object/Obj.ts` | `item.cc:322` | minor | bug |
+| L9 | **`item_caps_total` may return stale value.** CE iterates all inventory items of type `ITEM_TYPE_MONEY` and sums quantities. DH2 returns `obj.money` — a cached field whose update path is not fully audited. May return stale value if caps are added via `addInventoryItem` without updating `obj.money`. | `scripting.ts:640`, `src/object/Obj.ts` | `item.cc:3153` | minor | partial |
 | L10 | **`critter_inven_obj` slot −2 returns 0 instead of inventory count.** CE `INVEN_TYPE_INV_COUNT` returns `inventory.length`. DH2 returns `0` and warns. Scripts querying `INVEN_TYPE_INV_COUNT` always get 0. | `scripting.ts` | `inventory.cc` | minor | bug |
-| L11 | **Loot UI bypasses `use_p_proc` for containers.** CE opens the container/loot UI only after running `use_p_proc` and checking scripting overrides. DH2 `uiLoot` is called directly with no `use_p_proc` invocation for the container-open case. Container scripts that use `use_p_proc` to control whether the container can be opened are bypassed. | `src/ui_loot.ts`, `src/main.ts` | `inventory.cc` | minor | missing |
-| B1 | **Default buy markup is 1× not 2×.** DH2 requires `merchantOffered` raw cost; CE requires `2 × merchantOffered × Barter-ratio`. A player with no Barter skill can trade at-par, making money trivially easy. | `ui_barter.ts:320` | `inventory.cc:4695` | major | bug |
-| B2 | **Barter skill not consulted.** Neither the player's nor the NPC's Barter skill is read during the offer check. Investing in Barter has no barter-screen effect. | `ui_barter.ts` | `inventory.cc:4690–4691` | major | missing |
-| B3 | **Reaction modifier not applied.** The NPC's current reaction level (LVAR 0) does not affect the price. Friendly NPCs should give a 15% discount; hostile NPCs should add a 25% markup. | `ui_barter.ts` | `inventory.cc:5091–5105`, `reaction.cc:18` | major | missing |
+| L11 | **Loot UI bypasses `use_p_proc` for containers.** CE opens the container/loot UI only after running `use_p_proc` and checking scripting overrides. DH2 `uiLoot` is called directly with no `use_p_proc` invocation for the container-open case. Container scripts that use `use_p_proc` to control whether the container can be opened are bypassed. | `src/ui_loot.ts`, `src/playerUse.ts` | `inventory.cc` | minor | missing |
+| B1 | **Default buy markup is 1× not 2×.** DH2 requires `merchantOffered` raw cost; CE requires `2 × merchantOffered × Barter-ratio`. A player with no Barter skill can trade at-par, making money trivially easy. | `src/ui_barter/screen.ts` | `inventory.cc:4695` | major | bug |
+| B2 | **Barter skill not consulted.** Neither the player's nor the NPC's Barter skill is read during the offer check. Investing in Barter has no barter-screen effect. | `src/ui_barter/screen.ts` | `inventory.cc:4690–4691` | major | missing |
+| B3 | **Reaction modifier not applied.** The NPC's current reaction level (LVAR 0) does not affect the price. Friendly NPCs should give a 15% discount; hostile NPCs should add a 25% markup. | `src/ui_barter/screen.ts` | `inventory.cc:5091–5105`, `reaction.cc:18` | major | missing |
 | B4 | **`gdialog_mod_barter(mod)` ignores `mod` argument.** The modifier passed directly to the screen-opener is silently dropped; only `gdialog_set_barter_mod` works. | `scripting.ts:1430` | `game_dialog.cc:3163` | minor | bug |
-| B5 | **Master Trader perk has no barter effect.** The perk is defined in `perks.ts:209` but not applied as a −25 markup reduction in the offer formula. | `ui_barter.ts` | `inventory.cc:4685` | minor | missing |
-| B6 | **Caps not isolated from barterMod markup.** When the merchant offers caps, DH2 applies `(100 + barterMod) / 100` to cap face value. CE adds caps at 1:1 regardless of all modifiers. | `ui_barter.ts:320` | `inventory.cc:4700–4702` | minor | bug |
-| B7 | **Ammo cost not prorated by remaining charge.** `totalAmount` uses `pro.extra.cost` directly — a half-empty clip is counted the same as a full clip. | `ui_barter.ts:306` | `item.cc:847–854` | minor | bug |
-| B8 | **Carry weight not checked on barter.** DH2 completes trades regardless of whether the player can carry the acquired items. | `ui_barter.ts` | `inventory.cc:4710–4718` | minor | missing |
-| B9 | **Party member trade uses value check instead of weight check.** Trading with a companion should be free (weight-limited only). DH2 applies the same formula as NPC merchants. | `ui_barter.ts` | `inventory.cc:4720–4729` | minor | bug |
+| B5 | **Master Trader perk has no barter effect.** The perk is defined in `perks.ts:209` but not applied as a −25 markup reduction in the offer formula. | `src/ui_barter/screen.ts` | `inventory.cc:4685` | minor | missing |
+| B6 | **Caps not isolated from barterMod markup.** When the merchant offers caps, DH2 applies `(100 + barterMod) / 100` to cap face value. CE adds caps at 1:1 regardless of all modifiers. | `src/ui_barter/screen.ts` | `inventory.cc:4700–4702` | minor | bug |
+| B7 | **Ammo cost not prorated by remaining charge.** `totalAmount` uses `pro.extra.cost` directly — a half-empty clip is counted the same as a full clip. | `src/ui_barter/screen.ts` | `item.cc:847–854` | minor | bug |
+| B8 | **Carry weight not checked on barter.** DH2 completes trades regardless of whether the player can carry the acquired items. | `src/ui_barter/screen.ts` | `inventory.cc:4710–4718` | minor | missing |
+| B9 | **Party member trade uses value check instead of weight check.** Trading with a companion should be free (weight-limited only). DH2 applies the same formula as NPC merchants. | `src/ui_barter/screen.ts` | `inventory.cc:4720–4729` | minor | bug |
 | B10 | **`item_caps_total`/`item_caps_adjust` do not recurse into containers.** CE's versions search nested containers; DH2's scan only the top-level inventory. | `scripting.ts:640,644`, `object.ts:670` | `item.cc:3153,3177` | minor | partial |
 | B11 | **No dedicated Barter button in dialogue UI.** CE renders a permanent BARTER button in the dialogue window gated by `CRITTER_BARTER` proto flag. DH2 has no such button — barter is only accessible if the NPC script adds a dialogue option that calls `gdialog_mod_barter`. NPCs with `CRITTER_BARTER` set but no scripted barter option are unreachable in DH2. | `play.html:57–59`, `scripting.ts:1430` | `game_dialog.cc:3662 _gdCanBarter()`, `obj_types.h:93` | major | missing |
-| B12 | **`CRITTER_BARTER` proto flag not read.** DH2 never checks `proto.critter.data.flags & 0x02` anywhere. | `scripting.ts`, `ui_barter.ts` | `obj_types.h:93`, `game_dialog.cc:3673` | minor | missing |
+| B12 | **`CRITTER_BARTER` proto flag not read.** DH2 never checks `proto.critter.data.flags & 0x02` anywhere. | `scripting.ts`, `src/ui_barter/screen.ts` | `obj_types.h:93`, `game_dialog.cc:3673` | minor | missing |
 
 <!-- audited: 2026-06-02 -->

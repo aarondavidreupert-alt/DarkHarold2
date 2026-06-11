@@ -1,7 +1,7 @@
 # Critter Stats & Combat Attributes — DarkHarold2 Reference
 
 > Ground-truth: `raw/fallout2-ce/src/proto_types.h`, `critter.cc`, `critter.h`, `combat_ai.cc`, `combat_ai_defs.h`, `stat_defs.h`, `obj_types.h`  
-> DH2 impl: `src/object.ts`, `src/critter.ts`, `src/pro.ts`, `src/char.ts`, `src/combat.ts`, `src/scripting.ts`, `src/vm_bridge.ts`
+> DH2 impl: `src/object/Critter.ts`, `src/object/Obj.ts`, `src/critter/Weapon.ts`, `src/critter/lifecycle.ts`, `src/pro.ts`, `src/char.ts`, `src/combat.ts` (barrel; `src/combat/*.ts`), `src/scripting.ts`, `src/vm_bridge.ts`
 
 This document covers non-player critters only. SPECIAL stat formulas are documented in `wiki/character_stats.md`. Skill formulas are in `wiki/skill_checks.md`. Perk/trait system is in `wiki/perks_traits.md`.
 

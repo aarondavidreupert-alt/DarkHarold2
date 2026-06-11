@@ -3,7 +3,7 @@
 See also [damage_formula.md](damage_formula.md), [skill_checks.md](skill_checks.md)
 
 CE refs: `combat_ai.cc`, `combat_ai.h`, `combat_ai_defs.h`, `party_member.cc`  
-DH2 refs: `src/aiPackets.ts` (packet parser), `src/combat.ts` (`class AI`, `class Combat::doAITurn`), `src/object.ts` (Critter fields)
+DH2 refs: `src/aiPackets.ts` (packet parser), `src/combat/AI.ts` (`class AI`), `src/combat/Combat.ts` (`class Combat::doAITurn`), `src/object/Critter.ts` (Critter fields)
 
 ---
 
@@ -614,7 +614,7 @@ These functions do not affect the AI loop itself — they only gate what the pla
 ## 9. DH2 Status Table
 
 CE ref: `combat_ai.cc` / `combat_ai_defs.h`  
-DH2 ref: `src/aiPackets.ts` (packet parser), `src/combat.ts` (`class AI`, `Combat::doAITurn`, `findTarget`, `fleeHpThreshold`, `combataiRating`)
+DH2 ref: `src/aiPackets.ts` (packet parser), `src/combat/AI.ts` (`class AI`, `findTarget`, `fleeHpThreshold`, `combataiRating`), `src/combat/Combat.ts` (`Combat::doAITurn`)
 
 <!-- audited: 2026-06-02 -->
 

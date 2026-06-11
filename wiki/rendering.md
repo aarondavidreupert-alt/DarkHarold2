@@ -3,7 +3,7 @@
 Reference doc for the Fallout 2 isometric rendering pipeline, DH2's WebGL 2.0 implementation, and the authoritative catalogue of every known deviation between DH2's renderer and CE's software renderer.
 
 Ground truth: `raw/fallout2-ce/src/tile.cc`, `tile.h`, `object.cc`, `color.cc`  
-DH2 implementation: `src/webglrenderer.ts`, `src/renderer.ts`, `src/tile.ts`, `src/geometry.ts`, `src/map.ts`, `src/object.ts`
+DH2 implementation: `src/webglrenderer.ts` (barrel; `src/render/{webglContext,webglLighting,webglDraw}.ts`), `src/renderer.ts`, `src/tile.ts`, `src/geometry.ts` (barrel; `src/geometry/{hexScreen,hexGrid}.ts`), `src/map.ts` (barrel; `src/map/{GameMap,mapLoader}.ts`), `src/object.ts` (barrel; `src/object/*.ts`)
 
 Cross-references: `wiki/lighting.md` (lighting overview and scripting-level gaps LD1–LD6 in §13), `wiki/tile_system.md`, `wiki/known_bugs.md §22` (bug registry)
 
@@ -162,7 +162,7 @@ sy = 24 * y + 12 * x
 
 Produces the same stagger as CE: each grid row shifts 32px right and 24px down; each column shifts −48px horizontally and +12px vertically.
 
-**DH2 Hex Object Projection** (`src/geometry.ts:43`):
+**DH2 Hex Object Projection** (`src/geometry/hexScreen.ts`):
 
 ```typescript
 function hexToScreen(x: number, y: number): Point {
@@ -174,7 +174,7 @@ function hexToScreen(x: number, y: number): Point {
 
 Distinct from `tileToScreen` — the hex grid is twice as fine as the square tile grid, and hex coordinates run in the opposite x direction.
 
-**DH2 Hex Neighbour Offsets** (`geometry.ts:139`):
+**DH2 Hex Neighbour Offsets** (`src/geometry/hexGrid.ts`):
 
 ```
 even x:  [(-1,y), (-1,y+1), (x,y+1), (+1,y+1), (+1,y), (x,y-1)]  // dirs 0–5
@@ -183,7 +183,7 @@ odd  x:  [(-1,y-1), (-1,y), (x,y+1), (+1,y), (+1,y-1), (x,y-1)]  // dirs 0–5
 
 Direction 0 = NW (or N on even columns), increasing clockwise.
 
-**DH2 Hex Distance** (`geometry.ts:200`): converts to cube coordinates and uses Chebyshev distance — O(1) vs CE's O(n) walk.
+**DH2 Hex Distance** (`src/geometry/hexGrid.ts`): converts to cube coordinates and uses Chebyshev distance — O(1) vs CE's O(n) walk.
 
 **Constants**:
 
@@ -191,9 +191,9 @@ Direction 0 = NW (or N on even columns), increasing clockwise.
 |----------|-------|----------|
 | `TILE_WIDTH` | 80 | `src/tile.ts:19` |
 | `TILE_HEIGHT` | 36 | `src/tile.ts:20` |
-| `HEX_WIDTH` | 32 | `src/geometry.ts:22` |
-| `HEX_HEIGHT` | 16 | `src/geometry.ts:23` |
-| `HEX_GRID_SIZE` | 200 | `src/geometry.ts:20` |
+| `HEX_WIDTH` | 32 | `src/geometry/hexScreen.ts` |
+| `HEX_HEIGHT` | 16 | `src/geometry/hexScreen.ts` |
+| `HEX_GRID_SIZE` | 200 | `src/geometry/hexScreen.ts` |
 | Grid dimensions | 200 × 200 | both CE and DH2 |
 
 ### DH2 Frame Pipeline (`Renderer.render()`, `renderer.ts:119`)

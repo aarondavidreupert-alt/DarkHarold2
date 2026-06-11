@@ -1,7 +1,7 @@
 # Action Dispatch System — DarkHarold2 Reference
 
 > **Source anchor:** `raw/fallout2-ce/src/actions.cc`, `actions.h`
-> **DH2 files:** `src/combat.ts`, `src/object.ts`, `src/scripting.ts`
+> **DH2 files:** `src/combat.ts` (barrel; `src/combat/*.ts`), `src/object.ts` (barrel; `src/object/*.ts`), `src/scripting.ts`
 > **Last audited:** 2026-06-02
 
 ---
@@ -187,7 +187,7 @@ Script-callable equivalent of `actionExplode` for a single tile:
 
 ## 12. DH2 Status and Known Gaps
 
-DH2 does not have an equivalent of `actions.cc`. Combat attacks are handled inline in `src/combat.ts`; pickup is in `src/object.ts:Obj.pickup`; skill use is in `src/main.ts:useSkill`.
+DH2 does not have an equivalent of `actions.cc`. Combat attacks are handled inline in `src/combat/Combat.ts`; pickup is in `src/object/Obj.ts` (`Obj.pickup`); skill use is in `src/playerUse.ts` (`playerUseSkill`).
 
 | ID | Gap | CE ref | DH2 location | Sev | Status |
 |----|-----|--------|--------------|-----|--------|

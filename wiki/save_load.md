@@ -4,7 +4,7 @@ Reference doc for the Fallout 2 save/load system — CE savegame format, what st
 is persisted, scripting opcodes, and DH2 implementation status.
 
 Ground truth: `raw/fallout2-ce/src/loadsave.cc`, `loadsave.h`, `scripts.cc`, `game.cc`  
-DH2 implementation: `src/saveload.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/map.ts`, `src/object.ts`
+DH2 implementation: `src/saveload.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/map/GameMap.ts`, `src/object/Obj.ts`, `src/object/Critter.ts`
 
 ---
 
@@ -137,7 +137,7 @@ MVARs (map variables) are stored **within the per-map `.SAV` files**, not in `SA
 
 MVARs live in a module-level `mapVars: any` dict in `scripting.ts`, keyed by script name then by var index. Initial defaults are loaded from `data/maps/<scriptName>.mvars.json`.
 
-**MVARs are NOT persisted in DH2 saves.** `mapVars` is not included in `SerializedMap` (`src/map.ts:45–58`) and is not included in `SaveGame` (`src/saveload.ts:34–69`). On reload, `mapVars` is reset to `{}` by `Scripting.init()` (`scripting.ts:2201`) and re-initialized from `.mvars.json` defaults.
+**MVARs are NOT persisted in DH2 saves.** `mapVars` is not included in `SerializedMap` (`src/map/GameMap.ts`) and is not included in `SaveGame` (`src/saveload.ts:34–69`). On reload, `mapVars` is reset to `{}` by `Scripting.init()` (`scripting.ts:2201`) and re-initialized from `.mvars.json` defaults.
 
 **Impact**: Any MVAR changes made during gameplay (quest flags, door states, one-time events tracked by MVARs) are **lost on page reload** and not restored when loading a save.
 
@@ -149,12 +149,12 @@ MVARs live in a module-level `mapVars: any` dict in `scripting.ts`, keyed by scr
 
 CE serializes per-critter fields into `SAVE.DAT` including: current HP, combat flags (DAM_* bitmask), AI package override, team number, script state. Each NPC critter's full stat block is read back on load. If party member protos were patched, the modified `.pro` files are also copied to the slot directory.
 
-### DH2 (`src/object.ts:1862–1900`, `src/saveload.ts:88–91`)
+### DH2 (`src/object/Critter.ts`, `src/saveload.ts:88–91`)
 
 Critters are serialized as part of the map objects within each `SerializedMap.objects` array. The `Critter.serialize()` method extends `Obj.serialize()` via `SERIALIZED_CRITTER_PROPS`:
 
 ```typescript
-// src/object.ts:1896
+// src/object/Critter.ts
 const SERIALIZED_CRITTER_PROPS = [
     'stats', 'skills', 'aiNum', 'teamNum', 'hostile', 'isPlayer', 'dead',
     'anim', 'crippledLeftArm', 'crippledRightArm', 'crippledLeftLeg', 'crippledRightLeg',
@@ -174,12 +174,12 @@ Critters on the **current map** and all **dirty maps** (previously visited maps 
 
 CE serializes item instance data (charges, ammo, condition) into `SAVE.DAT`. Inventory items are stored both as part of the object tree in map `.SAV` files and as player/party member data in `SAVE.DAT`.
 
-### DH2 (`src/object.ts:990–1021`, `src/saveload.ts:86–88`)
+### DH2 (`src/object/Obj.ts`, `src/saveload.ts:86–88`)
 
 Every `Obj` serializes its `inventory` array recursively via `obj.serialize()`:
 
 ```typescript
-// src/object.ts:1011
+// src/object/Obj.ts
 inventory: this.inventory.map((obj) => obj.serialize()).filter(...)
 ```
 
@@ -215,7 +215,7 @@ _serialize(): SerializedScript {
 
 `SerializedScript` (`{ name: string, lvars: { [lvar: number]: any } }`) is embedded in each `SerializedObj._script` field. This means LVARs for objects (critters, items, scenery) on saved maps are fully persisted.
 
-**Spatial scripts** (`src/map.ts:629–635`) also serialize their LVARs:
+**Spatial scripts** (`src/map/GameMap.ts`) also serialize their LVARs:
 ```typescript
 spatials: this.spatials.map(level => level.map((s: Spatial) => ({
     script: s.script,
@@ -225,7 +225,7 @@ spatials: this.spatials.map(level => level.map((s: Spatial) => ({
 })))
 ```
 
-**Map script LVARs** are persisted via `SerializedMap.mapScript` (`src/map.ts:624`).
+**Map script LVARs** are persisted via `SerializedMap.mapScript` (`src/map/GameMap.ts`).
 
 **Status**: LVARs are fully persisted for all object/spatial/map scripts in DH2.
 

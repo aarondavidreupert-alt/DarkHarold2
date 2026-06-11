@@ -1,6 +1,6 @@
 # Damage Formula — DarkHarold2 / Fallout 2
 
-Cross-reference: `src/combat.ts` · fallout2-ce `combat.cc:attackComputeDamage` (lines ~4578–4615)  
+Cross-reference: `src/combat/damage.ts` · fallout2-ce `combat.cc:attackComputeDamage` (lines ~4578–4615)  
 See also [skill_checks.md](skill_checks.md) for the `skillRoll` mechanic used in non-combat skill checks.
 
 ---

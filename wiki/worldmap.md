@@ -2,7 +2,7 @@
 
 > Last audited: 2026-06-02  
 > CE sources: `raw/fallout2-ce/src/worldmap.cc` (`wmWorldMapFunc`, `wmConfigInit`, `wmParseTerrainTypes`, `wmParseSubTileInfo`, `wmParseEncounterTableIndex`, `wmParseEncBaseSubTypeStr`, `wmRndEncounterOccurred`, `wmRndEncounterPick`, `wmSetupRandomEncounter`, `wmSetupCritterObjs`, `wmPartyWalkingStep`, `wmPartyInitWalking`, `wmGameTimeIncrement`, `wmCarUseGas`, `wmEvalConditional`, `wmAreaIsKnown`, `wmAreaVisitedState`, `wmAreaMarkVisited`, `wmAreaMarkVisitedState`, `wmAreaSetVisibleState`, `wmMapIsKnown`, `wmMapMarkVisited`, `wmAreaSetWorldPos`, `wmGetPartyCurArea`, `wmGrabTileWalkMask`, `wmSubTileMarkRadiusVisited`), `raw/fallout2-ce/src/worldmap.h` (`City` enum, `Map` enum, car constants), `raw/fallout2-ce/src/interpreter_extra.cc`  
-> DH2 sources: `src/worldmap.ts` (`parseWorldmap`, `parseSquare`, `updateWorldmapPlayer`, `didEncounter`, `doEncounter`, `setSquareStateAt`, `withinArea`), `src/encounters.ts` (`pickEncounter`, `evalEncounter`, `positionCritters`, `evalCond`), `src/data.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/globalState.ts`  
+> DH2 sources: `src/worldmap/parser.ts` (`parseWorldmap`, `parseSquare`), `src/worldmap/Worldmap.ts` (`updateWorldmapPlayer`, `setSquareStateAt`, `withinArea`), `src/worldmap/encounters.ts` (`didEncounter`, `doEncounter`), `src/encounters/resolver.ts` (`pickEncounter`, `evalEncounter`, `positionCritters`), `src/encounters/conditionLang.ts` (`evalCond`), `src/data.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/globalState.ts`  
 > Data files: `data/data/worldmap.txt`, `data/data/city.txt`
 
 ---
@@ -62,7 +62,7 @@ row    = (x % WM_TILE_WIDTH)  / WM_SUBTILE_SIZE;  // 0–6
 
 ### worldmap.txt Format (Overview)
 
-Parsed by `parseWorldmap()` in `src/worldmap.ts` and `wmConfigInit()` in `worldmap.cc`. (See §2 for the full CE field-by-field format.)
+Parsed by `parseWorldmap()` in `src/worldmap/parser.ts` and `wmConfigInit()` in `worldmap.cc`. (See §2 for the full CE field-by-field format.)
 
 ```
 [Data]
@@ -457,9 +457,9 @@ ticksToAdd -= (int)bonus;
 One rank = 25% less time per frame; two ranks = 50% less.
 (`worldmap.cc:4179–4182`)
 
-### DH2 (`src/worldmap.ts:updateWorldmapPlayer`)
+### DH2 (`src/worldmap/Worldmap.ts:updateWorldmapPlayer`)
 
-Called via `setTimeout(updateWorldmapPlayer, 75)` — ~13 Hz. (`worldmap.ts:687`)
+Called via `setTimeout(updateWorldmapPlayer, 75)` — ~13 Hz. (`src/worldmap/Worldmap.ts`)
 
 Each tick while `worldmapPlayer.target !== null`:
 
@@ -521,7 +521,7 @@ globalState.knownAreas.has(areaID)     // query
 globalState.knownAreas.delete(areaID)  // mark unknown
 ```
 
-The `withinArea()` function in `src/worldmap.ts` uses `pointIntersectsCircle` to detect when the player is within an area's radius (small=16px, large=32px). Town map display is triggered when `$worldmapTarget` is clicked over a known area.
+The `withinArea()` function in `src/worldmap/Worldmap.ts` uses `pointIntersectsCircle` to detect when the player is within an area's radius (small=16px, large=32px). Town map display is triggered when `$worldmapTarget` is clicked over a known area.
 
 ---
 
@@ -681,7 +681,7 @@ a DOM circle must be appended. Extract the circle-creation block from `Worldmap.
 into a helper, then call it from the opcode:
 
 ```typescript
-// src/worldmap.ts
+// src/worldmap/Worldmap.ts
 export function revealAreaCircle(area: Area): void {
     if (!$worldmap) return
     const $area = makeEl('div', { classes: ['area'] })
@@ -1052,7 +1052,7 @@ instead, which is faster than CE's minimum gap). (Gap #3)
 ### 11.4 Encounter Resolution (`doEncounter`, `Encounters.evalEncounter`)
 
 DH2 `doEncounter()` → `Encounters.evalEncounter(encTable)`:
-- Calls `src/encounters.ts` to evaluate the encounter table
+- Calls `src/encounters/resolver.ts` to evaluate the encounter table
 - Loads the encounter map, spawns critters at formation positions (`Encounters.positionCritters`)
 - Starts combat if encounter type is `'ambush'` and `Config.engine.doCombat === true`
 - When an encounter is triggered, `worldmapTimer` is cleared (travel stops); `uiCloseWorldMap()` is called after 1 s

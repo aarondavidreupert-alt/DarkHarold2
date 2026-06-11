@@ -11,11 +11,11 @@ Cross-references: `wiki/sound_system.md` (volume keys), `wiki/save_load.md` (loc
 `raw/fallout2-ce/src/text_object.cc` (`textObjectAdd`, `textObjectsRenderInRect`, `textObjectFindPlacement`, `textObjectsSetBaseDelay`)  
 **DH2 source files:**  
 `src/config.ts` (all Config fields and defaults),  
-`src/ui_options.ts` (`buildPrefsPanel`, `loadPreferences`, `savePreferences`, `SavedPreferences`),  
-`src/main.ts` (consumption of `Config.engine.doAlwaysRun`),  
-`src/combat.ts` (consumption of `Config.combat.difficultyModifier`),  
+`src/ui_options.ts` (`buildPrefsPanel`), `src/ui_options/preferences.ts` (`loadPreferences`, `savePreferences`, `SavedPreferences`),  
+`src/main.ts` / `src/input.ts` (consumption of `Config.engine.doAlwaysRun`),  
+`src/combat.ts` (barrel; `src/combat/*.ts`) (consumption of `Config.combat.difficultyModifier`),  
 `src/skills.ts` (consumption of `Config.combat.difficultyModifier` as game difficulty),  
-`src/encounters.ts` (consumption of `Config.combat.difficultyModifier`)
+`src/encounters.ts` (barrel; `src/encounters/{conditionLang,resolver}.ts`) (consumption of `Config.combat.difficultyModifier`)
 
 ---
 
@@ -470,15 +470,15 @@ Gaps prefixed `S-CI` were originally `CI` in `config_ini.md`; prefixed `S-PR` we
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
 | S-CI1 | **No fallout2.cfg — all config is hardcoded.** DH2 has no file-based config; defaults are baked into `Config` in `src/config.ts`. User cannot change settings by editing a file between sessions. | `src/config.ts` | `config.cc:273 configRead()`; `game_config.h:8` | minor | missing |
-| S-CI2 | **`game_difficulty` and `combat_difficulty` conflated.** CE has separate settings: `game_difficulty` affects skill checks, loot, XP; `combat_difficulty` affects enemy stats. DH2 maps both to a single `difficultyModifier` that affects both. CE allowed mixing (e.g. Hard game difficulty with Easy combat difficulty); DH2 does not. For the default case (both Normal) the results match. | `src/config.ts:62`; `src/ui_options.ts:205` | `settings.h:29-31`; `preferences.cc:371-372` | minor | missing |
+| S-CI2 | **`game_difficulty` and `combat_difficulty` conflated.** CE has separate settings: `game_difficulty` affects skill checks, loot, XP; `combat_difficulty` affects enemy stats. DH2 maps both to a single `difficultyModifier` that affects both. CE allowed mixing (e.g. Hard game difficulty with Easy combat difficulty); DH2 does not. For the default case (both Normal) the results match. | `src/config.ts:62`; `src/ui_options.ts` | `settings.h:29-31`; `preferences.cc:371-372` | minor | missing |
 | S-CI2b | **Violence Level stored but not gated.** `Config.combat.violenceLevel` is set by the panel and persisted, but no code checks it before playing death animations or gore FX. All deaths render with full animation regardless of setting. | `src/combat.ts` | `preferences.cc` violence_level checks | minor | missing |
 | S-CI3 | **`combat_speed` uses inverse/incompatible scale.** CE: integer 0–50 where 0=slowest (maximum ms-per-frame delay) and 50=fastest. DH2: discrete values 1/2/4 where 1=Slow, 4=Fast. Semantics are reversed and not directly translatable. Additionally, `Config.combat.combatSpeed` is not consumed at runtime — no combat loop reads it. | `src/config.ts:67` | `preferences.cc:382`; `game_config.h:44` | low | bug |
 | S-CI4 | **`running` defaults differ.** CE default is `false` (walk by default); DH2 `doAlwaysRun` defaults to `true` (always run). Affects feel for new players. | `src/config.ts:41` | `settings.h:38` | low | bug |
-| S-CI5 | **Preferences stored in localStorage, not fallout2.cfg.** On platforms where localStorage is cleared (private browsing, cache clear), preferences reset. CE writes back to fallout2.cfg on exit. | `src/ui_options.ts:332` | `settings.cc:118 settingsToConfig()`; `config.cc:313 configWrite()` | minor | missing |
-| S-CI6 | **`speech_volume` not persisted.** The CE `speech_volume` key is loaded and saved. DH2 `savePreferences()` omits `sfxVolume`'s speech equivalent entirely. | `src/ui_options.ts:315` | `settings.cc:93` | low | bug |
+| S-CI5 | **Preferences stored in localStorage, not fallout2.cfg.** On platforms where localStorage is cleared (private browsing, cache clear), preferences reset. CE writes back to fallout2.cfg on exit. | `src/ui_options/preferences.ts` | `settings.cc:118 settingsToConfig()`; `config.cc:313 configWrite()` | minor | missing |
+| S-CI6 | **`speech_volume` not persisted.** The CE `speech_volume` key is loaded and saved. DH2 `savePreferences()` omits `sfxVolume`'s speech equivalent entirely. | `src/ui_options/preferences.ts` | `settings.cc:93` | low | bug |
 | S-CI7 | **`item_highlight` setting absent.** CE lets users toggle item-highlighting on cursor hover. DH2 has no `item_highlight` Config field or UI toggle. | `src/config.ts` | `game_config.h:37`; `settings.h:33` | low | missing |
 | S-CI8 | **No `text_base_delay` / `text_line_delay`.** CE auto-expires floating text after a configurable delay (default 3.5s). DH2 uses a fixed `floatMessageDuration = 3s` with no per-line delay and no collision avoidance (see §6.3 for full gap list). | `src/config.ts` | `game_config.h:46-47`; `settings.h:42-43`; `text_object.cc` | low | missing |
-| S-CI9 | **`target_highlight` loses "Targeting Only" mode.** CE has three states (Off/Targeting Only/All). DH2 collapses this to a boolean; the intermediate "Targeting Only" state is unavailable. Also, `Config.ui.targetHighlight` is not consumed at runtime — enemies are never highlighted regardless of setting. | `src/ui_options.ts:232-237` | `game_config.h:36`; `game_config.h:111-115 TargetHighlight enum` | low | bug |
+| S-CI9 | **`target_highlight` loses "Targeting Only" mode.** CE has three states (Off/Targeting Only/All). DH2 collapses this to a boolean; the intermediate "Targeting Only" state is unavailable. Also, `Config.ui.targetHighlight` is not consumed at runtime — enemies are never highlighted regardless of setting. | `src/ui_options.ts` | `game_config.h:36`; `game_config.h:111-115 TargetHighlight enum` | low | bug |
 | S-CI10 | **CE system keys entirely absent.** `master_dat`, `master_patches`, `critter_dat`, `language`, `art_cache_size`, `times_run`, etc. have no DH2 equivalents — assets are pre-baked and paths are hard-coded in the asset pipeline. | `src/config.ts` | `settings.h:10-26` | — | N/A (by design) |
 | S-PR1 | **No CANCEL in preferences panel.** CE `_RestoreSettings()` reverts the session's values on Cancel. DH2 applies all changes immediately with no revert path. | `src/ui_options.ts` | `preferences.cc _RestoreSettings()` | low | missing |
 | S-PR2 | **No DEFAULT button.** CE `preferencesSetDefaults(true)` resets all settings to factory values. DH2 has no equivalent. | `src/ui_options.ts` | `preferences.cc preferencesSetDefaults()` | low | missing |
