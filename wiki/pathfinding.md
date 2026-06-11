@@ -179,9 +179,9 @@ before the critter steps through.
 
 DH2 uses [PathFinding.js](https://github.com/qiao/PathFinding.js) (bundled as
 `lib/pathfinding-browser.js`, exposed as global `PF`; declared `declare let PF: any`
-in `map.ts:31`).
+in `src/map/GameMap.ts`).
 
-### `GameMap.recalcPath` (`map.ts:588`)
+### `GameMap.recalcPath` (`src/map/GameMap.ts`)
 
 ```typescript
 recalcPath(start: Point, goal: Point, isGoalBlocking?: boolean) {
@@ -205,17 +205,17 @@ Returns `[x, y][]` — an array of grid coordinates from start to goal.
 
 ### Blocking predicates
 
-**`Obj.blocks()` (`object.ts:559`):**
+**`Obj.blocks()` (`src/object/Obj.ts`):**
 - Returns `false` for `type === 'misc'`.
 - Returns `true` if `!pro` (no proto — failsafe).
 - Doors: block if `!this.open`.
 - Invisible objects: `this.visible === false` → not blocking.
 - Otherwise: `!(pro.flags & 0x00000010)` — the `NoBlock` proto flag.
 
-**`Critter.blocks()` (`object.ts:1496`):**
+**`Critter.blocks()` (`src/object/Critter.ts`):**
 - `return this.dead !== true && this.visible !== false`
 
-### Movement (`object.ts:1790–1860`)
+### Movement (`src/object/Critter.ts`)
 
 - `Critter.walkTo(target, running?, callback?, maxLength?, path?)` — calls
   `recalcPath` if no path supplied; truncates to `maxLength` if set; sets
@@ -227,16 +227,16 @@ Returns `[x, y][]` — an array of grid coordinates from start to goal.
 
 DH2 has two LoS helpers:
 
-**`GameMap.hexLinecast(a, b)` (`map.ts:571`):**
+**`GameMap.hexLinecast(a, b)` (`src/map/GameMap.ts`):**
 Walks `hexLine(a, b)` (excluding endpoints), returns the first `Obj` found at any
 interior tile regardless of object type. Used for interactable-object targeting in
 `main.ts:860` and script `obj_can_see_obj` at `scripting.ts:341`.
 
-**`Combat.hasLineOfSight(from, to)` (`combat.ts:1463`):**
+**`Combat.hasLineOfSight(from, to)` (`src/combat/Combat.ts`):**
 Walks the interior of `hexLine(from, to)`, blocks only on `type === 'wall'` objects.
 Used for critter aggro/combat LoS checks (FO2 ref: `_combat_update_critters_in_los`).
 
-`hexLine` itself (`geometry.ts:244`) is a greedy nearest-neighbor walk — at each
+`hexLine` itself (`src/geometry/hexGrid.ts`) is a greedy nearest-neighbor walk — at each
 step it picks the adjacent hex closest to the target — not a CE-equivalent
 step-by-direction algorithm.
 
@@ -270,13 +270,13 @@ step-by-direction algorithm.
 
 | ID | Description | DH2 Location | CE Reference | Severity |
 |----|-------------|--------------|--------------|----------|
-| P1 | PathFinding.js models the hex grid as an orthogonal rectangle. Diagonal moves in PathFinding.js are 4-connected or 8-connected (depending on heuristic); CE steps through all 6 hex rotations. Path quality near edges or angled obstacles may differ. | `map.ts:604` | `animation.cc:1795` | Medium |
-| P2 | No rotation-change step cost (+10 in CE, outside combat) | `map.ts:605` | `animation.cc:1838` | Low |
-| P3 | No radioactive goo tile penalty (+100 geckos / +400 others) | `map.ts:596` | `animation.cc:1852` | Low |
-| P4 | Closed doors are hard blocks in pathfinding. CE's `canUseDoor` check routes through unlocked/openable doors and the critter opens them en route. | `map.ts:596` | `animation.cc:1805` | Medium |
-| P5 | No `OBJECT_MULTIHEX` neighbor check in `blocks()`. CE checks all 6 adjacent tiles for multihex objects when computing blocking. | `object.ts:559` | `object.cc:2413` | Low |
-| P6 | No shoot-blocking type: `_obj_shoot_blocking_at` skips dead critters and OBJECT_SHOOT_THRU objects; DH2 uses the same `blocks()` for everything. | `map.ts:596` | `object.cc:2440` | Medium |
-| P7 | `hasLineOfSight` checks only `type === 'wall'`; CE's `_obj_sight_blocking_at` also blocks on scenery objects without `OBJECT_LIGHT_THRU`. Scenery objects currently do not block combat LoS. | `combat.ts:1471` | `object.cc:2583` | Medium |
+| P1 | PathFinding.js models the hex grid as an orthogonal rectangle. Diagonal moves in PathFinding.js are 4-connected or 8-connected (depending on heuristic); CE steps through all 6 hex rotations. Path quality near edges or angled obstacles may differ. | `src/map/GameMap.ts` | `animation.cc:1795` | Medium |
+| P2 | No rotation-change step cost (+10 in CE, outside combat) | `src/map/GameMap.ts` | `animation.cc:1838` | Low |
+| P3 | No radioactive goo tile penalty (+100 geckos / +400 others) | `src/map/GameMap.ts` | `animation.cc:1852` | Low |
+| P4 | Closed doors are hard blocks in pathfinding. CE's `canUseDoor` check routes through unlocked/openable doors and the critter opens them en route. | `src/map/GameMap.ts` | `animation.cc:1805` | Medium |
+| P5 | No `OBJECT_MULTIHEX` neighbor check in `blocks()`. CE checks all 6 adjacent tiles for multihex objects when computing blocking. | `src/object/Obj.ts` | `object.cc:2413` | Low |
+| P6 | No shoot-blocking type: `_obj_shoot_blocking_at` skips dead critters and OBJECT_SHOOT_THRU objects; DH2 uses the same `blocks()` for everything. | `src/map/GameMap.ts` | `object.cc:2440` | Medium |
+| P7 | `hasLineOfSight` checks only `type === 'wall'`; CE's `_obj_sight_blocking_at` also blocks on scenery objects without `OBJECT_LIGHT_THRU`. Scenery objects currently do not block combat LoS. | `src/combat/Combat.ts` | `object.cc:2583` | Medium |
 | P8 | Script opcodes `make_path` and `obj_blocking_at` / `make_straight_path` are stubs. | `scripting.ts` | `sfall_opcodes.cc:937,951` | Low |
 
 <!-- audited: 2026-06-02 -->

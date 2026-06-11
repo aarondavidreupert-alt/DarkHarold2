@@ -107,7 +107,7 @@ So a 10 fps animation advances one frame every 100 ms of wall clock. Combat walk
 
 ### DH2
 
-`Obj.updateAnim()` (`object.ts:524`) mirrors CE:
+`Obj.updateAnim()` (`object.ts`) mirrors CE:
 
 ```typescript
 const fps = imageInfo.fps === 0 ? 10 : imageInfo.fps
@@ -117,7 +117,7 @@ if (time - this.lastFrameTime >= 1000 / fps) {
 }
 ```
 
-`Critter.updateStaticAnim()` (`object.ts:1333`) **hardcodes fps = 8** — see gap AN1 in §9.
+`Critter.updateStaticAnim()` (`object.ts`) **hardcodes fps = 8** — see gap AN1 in §9.
 
 ---
 
@@ -293,7 +293,7 @@ This is called from `objectSetLocation()` (tile-move), **not** from `objectSetNe
 
 ### 5.3 DH2 Frame Advance
 
-`Obj.updateAnim()` (`object.ts:524`) for one-shot (single/reverse) animations:
+`Obj.updateAnim()` (`object.ts`) for one-shot (single/reverse) animations:
 
 ```typescript
 if (this.anim === 'reverse') this.frame--
@@ -303,7 +303,7 @@ if (this.frame === -1 || this.frame === imageInfo.numFrames) {
 }
 ```
 
-`Critter.updateLoopingAnim()` (`object.ts:1362`) for idle loop:
+`Critter.updateLoopingAnim()` (`object.ts`) for idle loop:
 
 ```typescript
 if (this.frame >= numFrames) {
@@ -702,8 +702,8 @@ Implementing palette cycling in DH2 would require either (a) baking multiple pre
 
 | ID  | Description | File(s) | CE Reference | Sev | Status |
 |-----|-------------|---------|--------------|-----|--------|
-| AN1 | **`updateStaticAnim` hardcodes fps = 8.** Comment reads `// todo: get FPS from image info`. Should read `info.fps \|\| 10` like `updateLoopingAnim`. Scenery such as flowing water or fire plays at the wrong speed. | `object.ts:1335` | `art.cc:713 artGetFramesPerSecond()` | minor | bug |
-| AN2 | **`getAnimDistance` reads direction 1 for the last frame.** `frameOffsets[1][numFrames-1].ox` uses direction E instead of direction 0 (NE). Returns wrong hex-steps-per-walk-cycle, causing partial-action boundaries to be off and walk animation to hitch or overshoot. | `object.ts:1980` | `animation.cc:1716` | major | bug |
+| AN1 | **`updateStaticAnim` hardcodes fps = 8.** Comment reads `// todo: get FPS from image info`. Should read `info.fps \|\| 10` like `updateLoopingAnim`. Scenery such as flowing water or fire plays at the wrong speed. | `object.ts` | `art.cc:713 artGetFramesPerSecond()` | minor | bug |
+| AN2 | **`getAnimDistance` reads direction 1 for the last frame.** `frameOffsets[1][numFrames-1].ox` uses direction E instead of direction 0 (NE). Returns wrong hex-steps-per-walk-cycle, causing partial-action boundaries to be off and walk animation to hitch or overshoot. | `object.ts` | `animation.cc:1716` | major | bug |
 | AN3 | **`actionFrame` discarded by the extraction pipeline.** `frmpixels.py:40` reads the field into `_actionFrame` (leading underscore = not saved). It is absent from `imageMap.json`. DH2 cannot synchronise hit-detection or sound to the correct animation frame for weapon attacks. | `frmpixels.py:40` | `art.h ArtFrame.actionFrame`, `animation.cc` | major | missing |
 | AN4 | **No combat walk speed bonus.** CE's `animationComputeTicksPerFrame` adds the `combat_speed` preference to ANIM_WALK in combat. DH2 uses a fixed `1000/fps` for all animations. | `src/object/critterAnimation.ts` | `animation.cc:3287 animationComputeTicksPerFrame()` | minor | missing |
 | AN5 | **`obj.shift = {x:0, y:0}` is truthy at walk start; frame 0's static ox/oy is skipped.** At the beginning of a walk cycle, `shift` is set to `{x:0,y:0}` — a truthy object. The renderer therefore takes the shift path and adds `+0`, while the correct static offset for frame 0 would be `frameInfo.ox`. For most walk FRMs `ox` at frame 0 is zero so the effect is invisible, but any FRM where frame 0 has a non-zero initial delta will display one frame off-anchor. | `renderer.ts:311`, `src/object/critterAnimation.ts` | `object.cc _obj_offset()` | low | bug |

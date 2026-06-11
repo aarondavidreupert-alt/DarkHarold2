@@ -57,15 +57,15 @@ No binary `.PRO` files at runtime — the Python pipeline extracts them to `prot
 pid high byte → type name:  0=items, 1=critters, 2=scenery, 3=walls, 4=tiles, 5=misc
 ```
 
-**JSON fields used by `Critter.initFromPro()` (`object.ts:1280`):**
+**JSON fields used by `Critter.initFromPro()` (`object.ts`):**
 
 | JSON field path | CE source | DH2 consumer |
 |---|---|---|
 | `pro.extra.baseStats` | `CritterProtoData.baseStats` | `StatSet.fromPro()` in `char.ts:243` |
 | `pro.extra.bonusStats` | `CritterProtoData.bonusStats` | `StatSet.fromPro()` — merged into baseStats |
 | `pro.extra.skills` | `CritterProtoData.skills` | `SkillSet.fromPro()` in `char.ts:61` |
-| `pro.extra.AI` | `CritterProto.aiPacket` | `critter.aiNum` (`object.ts:1287`) |
-| `pro.extra.team` | `CritterProto.team` | `critter.teamNum` (`object.ts:1290`) |
+| `pro.extra.AI` | `CritterProto.aiPacket` | `critter.aiNum` (`object.ts`) |
+| `pro.extra.team` | `CritterProto.team` | `critter.teamNum` (`object.ts`) |
 | `pro.extra.bodyType` | `CritterProtoData.bodyType` | Stored on critter; not used in combat logic |
 | `pro.extra.experience` | `CritterProtoData.experience` | **Not used** — XP grant on kill not implemented |
 | `pro.extra.killType` | `CritterProtoData.killType` | **Not used** — kill count tracking not implemented |
@@ -168,13 +168,13 @@ All `STAT_*` enum values from `stat_defs.h` (0–37). The `get_critter_stat` opc
 ### 3.2 DH2 HP Flow
 
 - **Storage:** `Critter.stats.baseStats['HP']` and `Critter.stats.baseStats['Max HP']`
-- **Damage:** `critterDamage(obj, damage, ...)` (`critter.ts:556`):
+- **Damage:** `critterDamage(obj, damage, ...)` (`critter.ts`):
   1. `obj.stats.modifyBase('HP', -damage)`
   2. Fire `damage_p_proc` script procedure if applicable
   3. `obj.getStat('HP') <= 0` → `critterKill(obj, source, ...)`
 - **Healing:** `critterHeal(obj, amount)` in scripting / `critter_heal()` (`scripting.ts:978`):
   - Clamps to `maxHp - hp`, then `obj.stats.modifyBase('HP', healed)`
-- **Death:** `critterKill()` (`critter.ts:441`):
+- **Death:** `critterKill()` (`critter.ts`):
   1. Guards against double-kill with `if (obj.dead) return`
   2. Sets `obj.dead = true`
   3. Awards `+1 Karma` to player for hostile kills
@@ -252,7 +252,7 @@ Each critter's proto references an `aiPacket` integer (index into AI.TXT). CE re
 
 ### 4.2 DH2 AI Implementation
 
-**Loading (`combat.ts:127–165`):** `AI.init()` parses `data/data/ai.txt` via `parseIni()`. Numeric fields are converted; string enum fields are stored as raw strings.
+**Loading (`combat.ts–165`):** `AI.init()` parses `data/data/ai.txt` via `parseIni()`. Numeric fields are converted; string enum fields are stored as raw strings.
 
 **Numeric fields DH2 parses:** `packet_num, max_dist, min_hp, min_to_hit, area_attack_mode, run_start/end, move_start/end, attack_start/end, miss_start/end, hit_*_start/end, chance, team_num, wander_start/end/type`
 
@@ -260,10 +260,10 @@ Each critter's proto references an `aiPacket` integer (index into AI.TXT). CE re
 
 | Field | DH2 Location | Used For |
 |---|---|---|
-| `min_hp` | `combat.ts:1116` | Flee decision: `obj.getStat('HP') <= info.min_hp` |
-| `max_dist` | `combat.ts:1404, 1491` | Engagement range check: `hexDistance <= info.max_dist` |
-| `chance` | `combat.ts:1103` | Combat taunt message roll |
-| `team_num` | `object.ts:1293` | Assigns `critter.teamNum` for friend/foe distinction |
+| `min_hp` | `combat.ts` | Flee decision: `obj.getStat('HP') <= info.min_hp` |
+| `max_dist` | `combat.ts, 1491` | Engagement range check: `hexDistance <= info.max_dist` |
+| `chance` | `combat.ts` | Combat taunt message roll |
+| `team_num` | `object.ts` | Assigns `critter.teamNum` for friend/foe distinction |
 
 **Fields loaded but never read:** `best_weapon`, `attack_who`, `run_away_mode`, `disposition`, `distance`, `chem_use`, `area_attack_mode`, `min_to_hit`, `hurt_too_much` — parsed from AI.TXT but no code path reads them from `AI.info`.
 
@@ -354,7 +354,7 @@ CE `protoGetProto()` uses an LRU cache of proto extents (`ProtoList` / `ProtoLis
 - `_process_rads()` — radiation stat penalties
 - Combat drug effects
 
-DH2 has no equivalent; all proto stats are read-only after initialization. `critterSetRawStat()` in `critter.ts:603` logs a `console.warn` TODO and does nothing.
+DH2 has no equivalent; all proto stats are read-only after initialization. `critterSetRawStat()` in `critter.ts` logs a `console.warn` TODO and does nothing.
 
 ### 6.3 Kill Types
 

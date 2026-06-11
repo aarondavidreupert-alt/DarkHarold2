@@ -180,10 +180,10 @@ objectSetLight(obj, distance, intensity, rect)
 
 | Field | Default | Source |
 |---|---|---|
-| `Obj.lightRadius` | 0 | `object.ts:320`; player=4 (`player.ts:76`) |
-| `Obj.lightIntensity` | 655 | `object.ts:321`; player=65536 (`player.ts:77`) |
+| `Obj.lightRadius` | 0 | `object.ts`; player=4 (`player.ts:76`) |
+| `Obj.lightIntensity` | 655 | `object.ts`; player=65536 (`player.ts:77`) |
 
-Values are read from map JSON at load time (`object.ts:381-382`) via
+Values are read from map JSON at load time (`object.ts`) via
 `mobj.lightRadius` / `mobj.lightIntensity`.
 
 ### Propagation algorithm
@@ -336,7 +336,7 @@ their own torch. Without it, `objectGetLightIntensity(gDude)` would always retur
 near-max regardless of ambient.
 
 DH2 has no equivalent of `objectGetLightIntensity`. The night-penalty path in
-`combat.ts:441` has the comment `"light conditions not yet factored in"` and does
+`combat.ts` has the comment `"light conditions not yet factored in"` and does
 nothing. The self-subtraction is therefore not an issue in practice, but it would be
 needed if the night penalty were ever implemented.
 
@@ -593,8 +593,8 @@ Key uniforms:
 
 | Uniform | Unit | Value | Set by |
 |---------|------|-------|--------|
-| `u_ambient` | — | `GameTime.getAmbientLightNormalized()` (0–1) | `setTileLighting(true)` (`webglrenderer.ts:1063`) |
-| `u_tileIntensity` | 5 | 200×200 R8 texture — `Lightmap.tile_intensity` normalized to 0–255 | uploaded each frame (`webglrenderer.ts:511,647`) |
+| `u_ambient` | — | `GameTime.getAmbientLightNormalized()` (0–1) | `setTileLighting(true)` (`webglrenderer.ts`) |
+| `u_tileIntensity` | 5 | 200×200 R8 texture — `Lightmap.tile_intensity` normalized to 0–255 | uploaded each frame (`webglrenderer.ts`) |
 | `u_camera` | — | `globalState.cameraPosition.{x,y}` | `setTileLighting` |
 | `u_zoom` | — | current zoom factor | `setTileLighting` |
 
@@ -606,7 +606,7 @@ which makes the max always 1.0 — no darkening.
 
 The tile-intensity texture is uploaded once per frame in
 `renderLitFloorCPU()` / `renderLitFloorGPU()` after
-`Lightmap.rebuildDynamicLight()` has run (`webglrenderer.ts:504-514`).
+`Lightmap.rebuildDynamicLight()` has run (`webglrenderer.ts`).
 
 Cross-reference: [wiki/rendering.md §3 (Tile Drawing & Object Order)](rendering.md)
 documents the GPU floor-lighting FBO path and `floorLightingMode` flag.
@@ -617,9 +617,9 @@ documents the GPU floor-lighting FBO path and `floorLightingMode` flag.
 
 | # | CE behaviour | DH2 status | Location |
 |---|---|---|---|
-| 1 | Night to-hit penalty (−10/−25/−40) when attacking in darkness | **Not implemented** | `combat.ts:441` comment |
+| 1 | Night to-hit penalty (−10/−25/−40) when attacking in darkness | **Not implemented** | `combat.ts` comment |
 | 2 | `obj_set_light_level` (0x8107) changes tile intensity at runtime — CE calls `objectSetLight()` which triggers the full turn-off/turn-on cycle and refreshes the screen rect | Opcode **not wired** in `vm_bridge.ts`; even if called, `scripting.ts:1267` stores intensity/distance on object but never calls `obj_adjust_light()` or triggers `bakeStaticLight()` — lightmap is stale until next map reload | `scripting.ts:1262`, `vm_bridge.ts` |
-| 3 | Night Vision perk adds 20 %/rank to ambient (`LIGHT_LEVEL_NIGHT_VISION_BONUS`) | **Not applied** to ambient in DH2 | `light.cc:50`; perk defined in `perks.ts:125` but unused |
+| 3 | Night Vision perk adds 20 %/rank to ambient (`LIGHT_LEVEL_NIGHT_VISION_BONUS`) | **Not applied** to ambient in DH2 | `light.cc:50`; perk defined in `perks.ts` but unused |
 | 4 | No built-in day/night curve — only script-driven ambient | DH2 adds a custom curve (`gametime.ts:181`). This is a DH2 extension beyond CE. | `gametime.ts` |
 | 5 | `set_light_level` always applied (indoor and outdoor) | DH2 **silently ignores** it on outdoor maps | `gametime.ts:235` |
 | 6 | CE `set_light_level` maps 0-100 through piecewise ramp (`intensities[3]`) | DH2 uses simpler linear remap across `[MIN, MAX]` — minor brightness difference | `gametime.ts:241` |
@@ -629,6 +629,6 @@ documents the GPU floor-lighting FBO path and `floorLightingMode` flag.
 | 10 | `obj_set_light_level` intensity argument is 0–100 %; CE converts via `(v * 65636) / 100` (note: CE typo, should be 65536) | DH2 stores the raw integer directly, giving 100× too dim a result when scripts pass percentage values | `scripting.ts:1267` |
 | 11 | **Hidden objects do not emit light** — `_obj_adjust_light` bails when `OBJECT_HIDDEN` is set; CE `objectHide`/`objectShow` call `_obj_turn_off_light`/`_obj_turn_on_light` | `bakeStaticLight()` and `rebuildDynamicLight()` do not check `obj.visible` — hidden objects still illuminate tiles; `set_obj_visibility` does not update the lightmap | `lightmap.ts:564,576`; `scripting.ts:1213` / `object.cc:3973`; `interpreter_extra.cc:2096-2119` |
 | 12 | `OBJECT_LIGHTING` flag (`0x20`) must be set for an object to contribute light | DH2 does not check this flag — any object with `lightRadius > 0` contributes light regardless of PRO data | `lightmap.ts:68` / `object.cc:3977`; `obj_types.h:61` |
-| 13 | `objectGetLightIntensity` self-subtraction: player's own torch is excluded from the tile intensity used for night penalty | No DH2 equivalent — moot while night penalty is absent (gap #1), but needed if it is ever implemented | `combat.ts:441` / `object.cc:1748` |
+| 13 | `objectGetLightIntensity` self-subtraction: player's own torch is excluded from the tile intensity used for night penalty | No DH2 equivalent — moot while night penalty is absent (gap #1), but needed if it is ever implemented | `combat.ts` / `object.cc:1748` |
 
 <!-- audited: 2026-06-02 -->

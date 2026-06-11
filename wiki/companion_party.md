@@ -158,7 +158,7 @@ logic that hostiles use.
 
 ### DH2
 
-The combatants filter in `combat.ts:301`:
+The combatants filter in `combat.ts`:
 
 ```ts
 if (!obj.isPlayer && !triggerTeams.has(obj.teamNum) && !obj.hostile) return false
@@ -262,7 +262,7 @@ calls. Tracked in ROADMAP.md Phase 5c ("dismissal dialogue hooks").
 | Max size enforcement | Script-side: `metarule(16)` vs CHA/2 | ✅ Engine-side `Party.maxSize()` (`party.ts:29`); Magnetic Personality perk missing |
 | Party serialization | `party_member.cc:partyMembersSave` | 🟡 Object state saved via `obj.serialize()`; LVARs, script state, level-up tracking not saved |
 | Follow (out-of-combat) | `party_member.cc:_partyMemberSyncPosition` | 🟡 Per-tick `followPlayer()` works; teleports instead of pathfinds |
-| Combat AI turns | `combat_ai.cc:_combat_ai`, `combat.cc:_combat_sequence_init` | ❌ Not enrolled in combatants list (`combat.ts:301`) |
+| Combat AI turns | `combat_ai.cc:_combat_ai`, `combat.cc:_combat_sequence_init` | ❌ Not enrolled in combatants list (`combat.ts`) |
 | Non-combatant promotion | `combat.cc:_combat_add_noncoms` | ❌ Not implemented |
 | Companion level-up | `party_member.cc:_partyMemberIncLevels` | ❌ Not implemented |
 | Dismissal dialogue flow | NPC scripts + `party_remove` opcode | ❌ No companion dismissal dialogue wired |

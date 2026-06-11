@@ -32,7 +32,7 @@ _combat_over():
 `_combatNumTurns` is a global turn counter. Each call to `_combat_turn`
 increments it. Combat ends when no hostile critter in LOS is alive.
 
-### DH2 (`combat.ts:1356`, `combat.ts:1394`)
+### DH2 (`combat.ts`, `combat.ts`)
 
 ```typescript
 // Entry points
@@ -41,7 +41,7 @@ combat.end()                         // called from nextTurn() when no hostile c
 combat.forceEnd()                    // called by terminate_combat script opcode
 ```
 
-**`Combat.start()`** (combat.ts:1356):
+**`Combat.start()`** (combat.ts):
 1. Re-entry guard: `if (combatActive) return` — the `combatActive` flag is a file-level let, not just `globalState.inCombat`. Both are set together.
 2. Builds `triggerTeams: Set<number>` from player's team (always) + either the attacker's team (NPC-initiated) or all NPC teams on map (player-initiated).
 3. `new Combat(objects, triggerTeams)` — constructor filters `Critter` instances, excludes dead and invisible. Initializes `new ActionPoints(obj)` per combatant.
@@ -50,7 +50,7 @@ combat.forceEnd()                    // called by terminate_combat script opcode
 6. Plays `icombat1` sound, calls `uiStartCombat()`.
 7. `nextTurn()` starts the turn loop.
 
-**`nextTurn()`** (combat.ts:1481):
+**`nextTurn()`** (combat.ts):
 1. Updates hostility/LOS state for all non-player combatants:
    - `hasLOS(obj, player)` — hex-line wall check (non-exported `hasLineOfSight()`)
    - Critter becomes hostile if LOS is clear **and** at least one attack has been made (`hasAttacked` flag), or was already hostile before combat.
@@ -96,7 +96,7 @@ and the movement AP tracked via `_gcsd->freeMovement`. Both are integers.
 
 Base AP formula: `critterGetStat(STAT_MAXIMUM_ACTION_POINTS)` = `5 + floor(AGI/2)`.
 
-### DH2 `ActionPoints` class (`combat.ts:57`)
+### DH2 `ActionPoints` class (`combat.ts`)
 
 DH2 uses a **unified pool** — movement and attacks draw from the same bucket:
 
@@ -126,10 +126,10 @@ getBonusMoveAP()   = +2 (Bonus Move perk)
 | Single-shot attack | `pro.extra.APCost1` | `weapon.getAPCost(1)` → reads from PRO |
 | Burst attack | `pro.extra.APCost2` | `weapon.getAPCost(2)` |
 | Called shot | `pro.extra.APCost1 + 1` | `main.ts:261` (base + 1 surcharge) |
-| Unarmed (AI) | 3 | Hardcoded in `doAITurn` (combat.ts:1143) |
+| Unarmed (AI) | 3 | Hardcoded in `doAITurn` (combat.ts) |
 | Unarmed (player) | `mode.apCost` | From `getActiveUnarmedModeForHand()` |
 
-**Unused AP → Bonus AC**: at the end of each critter's turn, all remaining AP converts 1:1 to `bonusAC` for the next round (`combat.ts:1532`). This is reset to 0 at the start of that critter's own turn. Matches CE: `critter->data.critter.combat.results & DAM_HIT` reduces bonus AC.
+**Unused AP → Bonus AC**: at the end of each critter's turn, all remaining AP converts 1:1 to `bonusAC` for the next round (`combat.ts`). This is reset to 0 at the start of that critter's own turn. Matches CE: `critter->data.critter.combat.results & DAM_HIT` reduces bonus AC.
 
 ---
 
@@ -159,7 +159,7 @@ Hits on the main target are counted in `roundsHitMainTarget`. All critters on al
 three lines (friend or foe) are valid burst targets. Ammo is deducted per
 *spent* round, not per *hit* round.
 
-### DH2 (combat.ts:817)
+### DH2 (combat.ts)
 
 ```typescript
 const centerCount = Math.floor(burstCount / 2)
@@ -247,7 +247,7 @@ distance computation or hex-movement-due-to-damage. `CriticalEffects` can set
 7. Calls `itemDestroyAllHidden(critter)` — destroys hidden inventory items but leaves visible ones on the corpse (player can loot)
 8. Player death: `endgameSetupDeathEnding` + `_game_user_wants_to_quit = 2`
 
-### DH2 `critterKill` (critter.ts:441)
+### DH2 `critterKill` (critter.ts)
 
 1. Re-entry guard: `if (obj.dead) return` — prevents double-kill during overkill
 2. `obj.dead = true`, `obj.outline = null`
@@ -273,11 +273,11 @@ PRO data always give 50 XP.
 Knockdown is triggered by critical effects (not directly by damage). `CriticalEffects`
 sets `critter.isKnockedDown = true` and `critter.skipTurns = N` on the target.
 
-**In `critterDamage`** (critter.ts:573–581): if HP > 0 and `isKnockedDown`:
+**In `critterDamage`** (critter.ts–581): if HP > 0 and `isKnockedDown`:
 - Plays `knockdownFront` animation (stays on last frame)
 - Sets `skipTurns = 1`
 
-**In `nextTurn`** (combat.ts:1571–1580): if `critter.skipTurns > 0`:
+**In `nextTurn`** (combat.ts–1580): if `critter.skipTurns > 0`:
 - Decrements `skipTurns`
 - When 0: clears `isKnockedDown`, plays `getUpFront`, then skips to next turn
 
@@ -325,7 +325,7 @@ CE has no "surrender" mechanic exposed to scripts; the flag
 
 ### DH2 fleeing
 
-**AI-driven flee** (combat.ts:1116):
+**AI-driven flee** (combat.ts):
 ```typescript
 if (obj.getStat('HP') <= obj.ai!.info.min_hp) {
     // flee toward hardcoded left edge

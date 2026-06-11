@@ -764,8 +764,8 @@ Unified gap table covering all four systems (drug use, addiction, poison, radiat
 
 | Mechanic | CE source | DH2 status |
 |---|---|---|
-| `poisonLevel` field | `critter.data.critter.poison` | ✅ `object.ts:1211`; serialized |
-| `radiationLevel` field | `critter.data.critter.radiation` | ✅ `object.ts:1212`; serialized |
+| `poisonLevel` field | `critter.data.critter.poison` | ✅ `src/object/Critter.ts`; serialized |
+| `radiationLevel` field | `critter.data.critter.radiation` | ✅ `src/object/Critter.ts`; serialized |
 | `poison` opcode (0x8122) | `critter.cc:critterAdjustPoison` | 🟡 Method in `scripting.ts:989`; NOT wired in vm_bridge |
 | `get_poison` opcode (0x8123) | `critter.cc:critterGetPoison` | ✅ Wired `vm_bridge.ts:150`; correct |
 | `radiation_inc` opcode (0x80FD) | `interpreter_extra.cc:opRadiationIncrease` | ❌ Not implemented; not wired |

@@ -74,7 +74,7 @@ CE periodic update (scripts.cc:509): calls `scriptsExecMapUpdateScripts(SCRIPT_P
 
 ### 3.2 DH2 implementation (`src/map/mapLoader.ts`, `src/scripting.ts`)
 
-`GameMap.loadMap()` (map.ts:339) flow:
+`GameMap.loadMap()` (map.ts) flow:
 1. `Events.emit('loadMapPre')`
 2. `Scripting.init(mapName, mapID)` — clears `timeEventList`, reloads GVARs and MVARs
 3. Load map JSON, parse all elevations
@@ -85,11 +85,11 @@ CE periodic update (scripts.cc:509): calls `scriptsExecMapUpdateScripts(SCRIPT_P
    - Each object in `objectsAndSpatials` gets `objectEnterMap()` → `map_enter_p_proc()`
 6. `Events.emit('loadMapPost')`
 
-`GameMap.doEnterElevation()` (map.ts:193): called on elevation change, invokes `map_enter_p_proc` on map script and all objects/spatials at the new level.
+`GameMap.doEnterElevation()` (map.ts): called on elevation change, invokes `map_enter_p_proc` on map script and all objects/spatials at the new level.
 
-`GameMap.updateMap()` (map.ts:189): delegates to `Scripting.updateMap()`, which calls `map_update_p_proc` on the map script and every object with that proc.
+`GameMap.updateMap()` (map.ts): delegates to `Scripting.updateMap()`, which calls `map_update_p_proc` on the map script and every object with that proc.
 
-**Known gap:** There is a `TODO` at map.ts:508: "TODO: is map_enter_p_proc called on elevation change?" — `doEnterElevation()` does fire `map_enter_p_proc` but the relationship to `changeElevation()` calling `Scripting.updateMap()` (not `enterMap()`) is ambiguous. CE fires MAP_ENTER on every elevation change; DH2's behavior is partially correct but may miss some per-object enter calls.
+**Known gap:** There is a `TODO` at map.ts: "TODO: is map_enter_p_proc called on elevation change?" — `doEnterElevation()` does fire `map_enter_p_proc` but the relationship to `changeElevation()` calling `Scripting.updateMap()` (not `enterMap()`) is ambiguous. CE fires MAP_ENTER on every elevation change; DH2's behavior is partially correct but may miss some per-object enter calls.
 
 ---
 
@@ -97,7 +97,7 @@ CE periodic update (scripts.cc:509): calls `scriptsExecMapUpdateScripts(SCRIPT_P
 
 ### 4.1 Data structure
 
-`SerializedSpatial` (map.ts:38):
+`SerializedSpatial` (map.ts):
 ```typescript
 interface SerializedSpatial {
     script: string    // .int script base name (e.g. "ECARMRDR")
@@ -107,9 +107,9 @@ interface SerializedSpatial {
 }
 ```
 
-At runtime, `spatial.position` is set from `fromTileNum(spatial.tileNum)` (map.ts:472). Trigger distance uses `spatial.range` (set from `spatial.radius` in saved/loaded data).
+At runtime, `spatial.position` is set from `fromTileNum(spatial.tileNum)` (map.ts). Trigger distance uses `spatial.range` (set from `spatial.radius` in saved/loaded data).
 
-`type Spatial = any` — no TypeScript interface defined (map.ts:36).
+`type Spatial = any` — no TypeScript interface defined (map.ts).
 
 ### 4.2 CE reference (`scripts.cc:2560`)
 
@@ -120,7 +120,7 @@ CE iterates `gScriptLists[SCRIPT_TYPE_SPATIAL]` and for each spatial whose tile 
 Spatials fire inside `Critter.move()` (`src/object/Critter.ts`), called every hex step during movement animation:
 
 ```typescript
-// object.ts:1509–1515
+// object.ts–1515
 if (Config.engine.doSpatials !== false) {
     const hitSpatials = hitSpatialTrigger(position)
     for (let i = 0; i < hitSpatials.length; i++) {
@@ -129,7 +129,7 @@ if (Config.engine.doSpatials !== false) {
 }
 ```
 
-`hitSpatialTrigger(position)` (object.ts:1939):
+`hitSpatialTrigger(position)` (object.ts):
 ```typescript
 return globalState.gMap.getSpatials()
     .filter((spatial) => hexDistance(position, spatial.position) <= spatial.range)
@@ -143,12 +143,12 @@ script.spatial_p_proc()
 
 **Notes:**
 - Only `Critter.move()` triggers spatials — item movement and tile warps do not check.
-- Explosions also scan nearby spatials (object.ts:855–902) using a default radius of 3 if the spatial has no explicit radius.
+- Explosions also scan nearby spatials (object.ts–902) using a default radius of 3 if the spatial has no explicit radius.
 - `Config.engine.doSpatials` (default `true`) gates all spatial processing.
 
 ### 4.4 Script loading and LVARs
 
-Spatial scripts are loaded at `loadMap()` time (map.ts:462–474):
+Spatial scripts are loaded at `loadMap()` time (map.ts–474):
 ```typescript
 this.spatials.forEach((level) =>
     level.forEach((spatial) => {
@@ -160,8 +160,8 @@ this.spatials.forEach((level) =>
 )
 ```
 
-Spatials only use `spatial_p_proc` — no other proc is called on them (map.ts:468 comment).  
-LVARs persist across saves (map.ts:628–634, CE `map.cc mapSave`).
+Spatials only use `spatial_p_proc` — no other proc is called on them (map.ts comment).  
+LVARs persist across saves (map.ts–634, CE `map.cc mapSave`).
 
 ---
 

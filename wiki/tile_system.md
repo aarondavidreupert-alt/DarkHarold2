@@ -124,7 +124,7 @@ Identical formula to `squareTileToScreenXY` except the final Y is decremented by
 *screenY = 24 * dy + *screenY - 96;
 ```
 
-The −96 px offset shifts the roof sprite so it visually aligns above the floor it covers. DH2 replicates this exactly: `webglrenderer.ts:989` passes `−96` as the Y offset when drawing roof tiles (`drawTileMap(roofTiles, -96)`).
+The −96 px offset shifts the roof sprite so it visually aligns above the floor it covers. DH2 replicates this exactly: `webglrenderer.ts` passes `−96` as the Y offset when drawing roof tiles (`drawTileMap(roofTiles, -96)`).
 
 ### 4.4 squareTileFromScreenXY / squareTileScreenToCoord (CE, tile.cc:1161)
 
@@ -221,7 +221,7 @@ Combined as screen-space (Δx, Δy) per direction:
 
 These offsets are used by the FRM animation system to offset sprite frames per direction, and by `tileGetRotationTo` as the reference mapping.
 
-### 5.3 DH2 Direction Numbering (geometry.ts:139)
+### 5.3 DH2 Direction Numbering (geometry.ts)
 
 DH2's `hexNeighbors(position)` for even-x positions returns neighbors in the order:
 
@@ -234,7 +234,7 @@ dir 4: (x+1, y)    → screen (−32, 0)   = W   ← CE ROTATION_W
 dir 5: (x,   y−1)  → screen (−16, −12) = NW  ← CE ROTATION_NW
 ```
 
-The exact mapping is derived from `hexToScreen` (geometry.ts:43). After substituting into the formula, the screen deltas for even-x are:
+The exact mapping is derived from `hexToScreen` (geometry.ts). After substituting into the formula, the screen deltas for even-x are:
 
 | DH2 dir | Grid delta (even x) | Screen Δx | Screen Δy | CE rotation |
 |---------|---------------------|-----------|-----------|-------------|
@@ -280,7 +280,7 @@ bool tileIsEdge(int tile) {
 
 `_dir_tile[parity][rotation]` is the tileNum delta for one step in the given direction at the given column parity. See `wiki/rendering.md` §2 for the full delta table.
 
-### 6.2 DH2: hexInDirection / hexInDirectionDistance (geometry.ts:167)
+### 6.2 DH2: hexInDirection / hexInDirectionDistance (geometry.ts)
 
 ```typescript
 export function hexInDirection(position: Point, dir: number): Point {
@@ -341,7 +341,7 @@ int tileGetRotationTo(int tile1, int tile2)
 
 The formula maps screen-space atan2 to a clockwise bearing starting at NE (direction 0). It works in screen coordinates (y-down), so `-dy` flips to standard math convention. The result is a CE `Rotation` value (0–5).
 
-### 7.2 DH2: hexDirectionTo (geometry.ts:210)
+### 7.2 DH2: hexDirectionTo (geometry.ts)
 
 ```typescript
 export function hexDirectionTo(a: Point, b: Point): number {
@@ -364,7 +364,7 @@ export function hexDirectionTo(a: Point, b: Point): number {
   → `atan2(0, −1) = 180°` → bearing = 270 → returns **4 (W)**  
   → CE `tileGetRotationTo` for the same pair returns **0 (NE)**
 
-The `"TODO: check correctness"` comment (geometry.ts:210) is warranted. See gap TS2.
+The `"TODO: check correctness"` comment (geometry.ts) is warranted. See gap TS2.
 
 ---
 
@@ -387,7 +387,7 @@ int _tile_num_beyond(int from, int to, int distance)
 
 Used by the combat system for projectile over-range and by the `shoot_into_the_air` mechanic. Not exposed as a script opcode directly.
 
-### 8.2 DH2: hexLine (geometry.ts:244)
+### 8.2 DH2: hexLine (geometry.ts)
 
 ```typescript
 export function hexLine(a: Point, b: Point): Point[] {
@@ -450,7 +450,7 @@ Square tile FIDs: art type bits `[27:24] = 4`. The LST index (bits `[11:0]`) loo
 }
 ```
 
-`GameMap.floorMap` and `GameMap.roofMap` hold the 2-D string arrays for the current elevation (`map.ts:219-220`). The renderer iterates `floorMap[y][x]` (100 rows × 100 cols) and calls `tileToScreen(x, y)` for each position.
+`GameMap.floorMap` and `GameMap.roofMap` hold the 2-D string arrays for the current elevation (`map.ts`). The renderer iterates `floorMap[y][x]` (100 rows × 100 cols) and calls `tileToScreen(x, y)` for each position.
 
 ---
 
@@ -638,17 +638,17 @@ Spatial triggers are keyed by `builtTile = (tile | (elevation << N))`. `scriptGe
 ### 16.1 Data Layout
 
 ```typescript
-// map.ts:66-73
+// map.ts
 currentElevation = 0          // active elevation
 objects: Obj[][] = null       // [elevation][objectIndex]
 spatials: any[][] = null      // [elevation][spatialIndex]
 ```
 
-`getObjects(level?)` (map.ts:85) returns `objects[currentElevation]` by default — analogous to CE's elevation filter in rendering and blocking. The renderer only ever sees the current elevation's objects.
+`getObjects(level?)` (map.ts) returns `objects[currentElevation]` by default — analogous to CE's elevation filter in rendering and blocking. The renderer only ever sees the current elevation's objects.
 
 ### 16.2 changeElevation
 
-`GameMap.changeElevation(level, updateScripts, isMapLoading)` (map.ts:208):
+`GameMap.changeElevation(level, updateScripts, isMapLoading)` (map.ts):
 
 1. Updates `currentElevation` and `globalState.currentElevation`.
 2. Swaps `floorMap`/`roofMap` to the new elevation's tile layer.
@@ -661,7 +661,7 @@ spatials: any[][] = null      // [elevation][spatialIndex]
 
 ### 16.3 doEnterElevation
 
-`doEnterElevation()` (map.ts:193) is called from stair and ladder activation (object.ts:775, 792, 799):
+`doEnterElevation()` (map.ts) is called from stair and ladder activation (object.ts, 792, 799):
 
 ```typescript
 doEnterElevation(): void {
@@ -678,7 +678,7 @@ This fires `map_enter_p_proc` and each object's `map_enter_p_proc` on an **in-ma
 
 ### 16.4 Spatial Trigger Filtering
 
-`hitSpatialTrigger(position)` (object.ts:1941):
+`hitSpatialTrigger(position)` (object.ts):
 
 ```typescript
 return globalState.gMap.getSpatials()  // getSpatials() uses currentElevation
@@ -708,7 +708,7 @@ DH2 has no elevator opcode handler. Elevator-type scenery is treated as a stair 
 DH2 derives elevation count directly from the JSON map's `levels` array length, set by the Python pipeline:
 
 ```typescript
-// map.ts:435
+// map.ts
 this.numLevels = (map.levels ?? []).length
 this.objects = new Array(map.levels.length)
 ```
@@ -727,8 +727,8 @@ The CE `_map_data_elev_flags` bitmask is not propagated to the JSON format. Empt
 | TS4 | **`tile_coord()` in tile.ts is unused and broken.** `tile.ts:81` contains a CE-compatible `tile_coord(tileNum)` implementation with hardcoded offsets (`tile_offx=272, tile_offy=182`) and an active `console.log`. It is never called from anywhere in the codebase. | `src/tile.ts:81` | `tile.cc:674 tileToScreenXY()` | low | bug |
 | EL1 | **`elevation(obj)` always returns player's current elevation.** `scripting.ts:753` returns `globalState.currentElevation` for all objects. CE `opGetObjectElevation` returns `obj->elevation`. Scripts that query a different object's elevation (e.g., checking if a party member fell to a lower level) get the wrong answer. | `scripting.ts:753`, `vm_bridge.ts:158` | `interpreter_extra.cc:2285 opGetObjectElevation()` | major | bug |
 | EL2 | **`doEnterElevation()` fires `map_enter_p_proc` on stair/ladder elevation change.** CE `mapSetElevation` fires only `map_update_p_proc`. DH2 calls `doEnterElevation()` which runs `map_enter_p_proc` on every stair/ladder use, causing map-entry side-effects (light resets, NPC repositions, first-visit flags) to run on every floor change. | `src/map/GameMap.ts`, `src/object/Obj.ts` | `map.cc:362 mapSetElevation()` | major | bug |
-| EL3 | **No elevator opcode handler.** CE `scriptsHandleRequests` has a dedicated elevator branch that closes old elevator doors, handles same-map vs. cross-map splits, and calls `mapSetElevation`. DH2 routes elevator-type objects through the generic stair/ladder path, skipping door animations and the same-map-different-elevation optimisation. | `object.ts:765` | `scripts.cc:926 scriptsHandleRequests SCRIPT_REQUEST_ELEVATOR` | minor | missing |
-| EL4 | **`_map_data_elev_flags` bitmask not represented in DH2 map format.** CE saves per-elevation empty/non-empty state in `MapHeader.flags`. DH2's JSON pipeline omits this; all elevations present in the `levels` array are always loaded. Maps that CE would skip (empty elevations) are treated identically to populated ones. | `map.ts:435` | `map.cc:81 _map_data_elev_flags` | low | missing |
-| EL5 | **`getObjectsAndSpatials()` passes no elevation to `getSpatials()`, so `map_update_p_proc` is fired only on current-elevation objects and spatials.** CE `scriptsExecMapUpdateScripts` runs `map_update_p_proc` on all loaded scripts regardless of elevation. Critters on other elevations do not tick their scripts when the player is away. | `map.ts:93`, `scripting.ts:2118` | `scripts.cc:2601 scriptsExecMapUpdateScripts()` | minor | bug |
+| EL3 | **No elevator opcode handler.** CE `scriptsHandleRequests` has a dedicated elevator branch that closes old elevator doors, handles same-map vs. cross-map splits, and calls `mapSetElevation`. DH2 routes elevator-type objects through the generic stair/ladder path, skipping door animations and the same-map-different-elevation optimisation. | `object.ts` | `scripts.cc:926 scriptsHandleRequests SCRIPT_REQUEST_ELEVATOR` | minor | missing |
+| EL4 | **`_map_data_elev_flags` bitmask not represented in DH2 map format.** CE saves per-elevation empty/non-empty state in `MapHeader.flags`. DH2's JSON pipeline omits this; all elevations present in the `levels` array are always loaded. Maps that CE would skip (empty elevations) are treated identically to populated ones. | `map.ts` | `map.cc:81 _map_data_elev_flags` | low | missing |
+| EL5 | **`getObjectsAndSpatials()` passes no elevation to `getSpatials()`, so `map_update_p_proc` is fired only on current-elevation objects and spatials.** CE `scriptsExecMapUpdateScripts` runs `map_update_p_proc` on all loaded scripts regardless of elevation. Critters on other elevations do not tick their scripts when the player is away. | `map.ts`, `scripting.ts:2118` | `scripts.cc:2601 scriptsExecMapUpdateScripts()` | minor | bug |
 
 <!-- audited: 2026-06-02 -->

@@ -74,7 +74,7 @@ Key behaviors:
 
 `itemAttemptAdd` is the weight-checking wrapper; scripts use `item_add_force` (calls `itemAdd` directly, bypassing weight check).
 
-### §1.3 DH2 Pickup Flow (`object.ts:941`)
+### §1.3 DH2 Pickup Flow (`object.ts`)
 
 ```typescript
 pickup(source: Critter) {
@@ -205,7 +205,7 @@ Iterates the snapshot (not the live array) to avoid modification-while-iterating
 
 ---
 
-## §4 Item Drop Flow (`object.ts:965`)
+## §4 Item Drop Flow (`object.ts`)
 
 `Obj.drop(source)` removes the item from `source.inventory`, fires `drop_p_proc` if present, plays `iputdown` sound, and `gMap.addObject(this)` re-adds it to the map at the source's tile.
 
@@ -622,12 +622,12 @@ Unified gap table combining loot/pickup gaps (prefix L) and barter gaps (prefix 
 | B2 | **Barter skill not consulted.** Neither the player's nor the NPC's Barter skill is read during the offer check. Investing in Barter has no barter-screen effect. | `src/ui_barter/screen.ts` | `inventory.cc:4690–4691` | major | missing |
 | B3 | **Reaction modifier not applied.** The NPC's current reaction level (LVAR 0) does not affect the price. Friendly NPCs should give a 15% discount; hostile NPCs should add a 25% markup. | `src/ui_barter/screen.ts` | `inventory.cc:5091–5105`, `reaction.cc:18` | major | missing |
 | B4 | **`gdialog_mod_barter(mod)` ignores `mod` argument.** The modifier passed directly to the screen-opener is silently dropped; only `gdialog_set_barter_mod` works. | `scripting.ts:1430` | `game_dialog.cc:3163` | minor | bug |
-| B5 | **Master Trader perk has no barter effect.** The perk is defined in `perks.ts:209` but not applied as a −25 markup reduction in the offer formula. | `src/ui_barter/screen.ts` | `inventory.cc:4685` | minor | missing |
+| B5 | **Master Trader perk has no barter effect.** The perk is defined in `perks.ts` but not applied as a −25 markup reduction in the offer formula. | `src/ui_barter/screen.ts` | `inventory.cc:4685` | minor | missing |
 | B6 | **Caps not isolated from barterMod markup.** When the merchant offers caps, DH2 applies `(100 + barterMod) / 100` to cap face value. CE adds caps at 1:1 regardless of all modifiers. | `src/ui_barter/screen.ts` | `inventory.cc:4700–4702` | minor | bug |
 | B7 | **Ammo cost not prorated by remaining charge.** `totalAmount` uses `pro.extra.cost` directly — a half-empty clip is counted the same as a full clip. | `src/ui_barter/screen.ts` | `item.cc:847–854` | minor | bug |
 | B8 | **Carry weight not checked on barter.** DH2 completes trades regardless of whether the player can carry the acquired items. | `src/ui_barter/screen.ts` | `inventory.cc:4710–4718` | minor | missing |
 | B9 | **Party member trade uses value check instead of weight check.** Trading with a companion should be free (weight-limited only). DH2 applies the same formula as NPC merchants. | `src/ui_barter/screen.ts` | `inventory.cc:4720–4729` | minor | bug |
-| B10 | **`item_caps_total`/`item_caps_adjust` do not recurse into containers.** CE's versions search nested containers; DH2's scan only the top-level inventory. | `scripting.ts:640,644`, `object.ts:670` | `item.cc:3153,3177` | minor | partial |
+| B10 | **`item_caps_total`/`item_caps_adjust` do not recurse into containers.** CE's versions search nested containers; DH2's scan only the top-level inventory. | `scripting.ts:640,644`, `object.ts` | `item.cc:3153,3177` | minor | partial |
 | B11 | **No dedicated Barter button in dialogue UI.** CE renders a permanent BARTER button in the dialogue window gated by `CRITTER_BARTER` proto flag. DH2 has no such button — barter is only accessible if the NPC script adds a dialogue option that calls `gdialog_mod_barter`. NPCs with `CRITTER_BARTER` set but no scripted barter option are unreachable in DH2. | `play.html:57–59`, `scripting.ts:1430` | `game_dialog.cc:3662 _gdCanBarter()`, `obj_types.h:93` | major | missing |
 | B12 | **`CRITTER_BARTER` proto flag not read.** DH2 never checks `proto.critter.data.flags & 0x02` anywhere. | `scripting.ts`, `src/ui_barter/screen.ts` | `obj_types.h:93`, `game_dialog.cc:3673` | minor | missing |
 

@@ -43,7 +43,7 @@ primaryMode  = 0x67 & 0x0F = 7  (fire burst)
 secondaryMode = (0x67 >> 4) & 0x0F = 6  (fire single)
 ```
 
-CE source: `protoItemDataRead`, `item.cc:1585–1601`. DH2 parsing: `parseAttack()` in `critter.ts:142`.
+CE source: `protoItemDataRead`, `item.cc:1585–1601`. DH2 parsing: `parseAttack()` in `critter.ts`.
 
 ---
 
@@ -52,7 +52,7 @@ CE source: `protoItemDataRead`, `item.cc:1585–1601`. DH2 parsing: `parseAttack
 ### 2.1 Attack Mode Values
 
 The `attackMode` nibble maps to attack behavior. DH2 defines this as a bidirectional lookup
-in `critter.ts:34`:
+in `critter.ts`:
 
 | Value | CE / DH2 Name | Attack Style | Skill Category |
 |-------|--------------|--------------|----------------|
@@ -72,7 +72,7 @@ CE ref: attack mode nibbles read in `item.cc:weaponGetAttackTypeForHitMode` and 
 ### 2.2 Skill Derivation
 
 CE `weaponGetSkillForHitMode` (`item.cc:1168`) maps attack mode → skill. DH2 replicates in
-`getWeaponSkillFromPro()` (`critter.ts:99`) with two override steps:
+`getWeaponSkillFromPro()` (`critter.ts`) with two override steps:
 
 ```
 Step 1: primaryMode → base skill
@@ -87,10 +87,10 @@ Step 2: Small Guns override
   Else                                     → Small Guns (final)
 ```
 
-`BIG_GUN_ANIM_CODES = {8, 9, 10}` — Big Gun, Minigun, Rocket Launcher (`critter.ts:92`).  
-`ENERGY_DAMAGE_TYPES = {'Laser', 'Plasma', 'Electrical'}` (`critter.ts:95`).
+`BIG_GUN_ANIM_CODES = {8, 9, 10}` — Big Gun, Minigun, Rocket Launcher (`critter.ts`).  
+`ENERGY_DAMAGE_TYPES = {'Laser', 'Plasma', 'Electrical'}` (`critter.ts`).
 
-**DH2 legacy fallback:** `weaponSkillMap` (`critter.ts:125`) maps weapon art name → skill for
+**DH2 legacy fallback:** `weaponSkillMap` (`critter.ts`) maps weapon art name → skill for
 weapons with incomplete PRO data. This is only consulted if `getWeaponSkillFromPro` returns
 `undefined` or `'Unarmed'`.
 
@@ -103,12 +103,12 @@ attackTwo: { mode: number; APCost: number; maxRange: number }
 ```
 
 If `attackTwo.mode === 'fire burst'` (or `=== 7`), the weapon's mode cycle includes
-`'burst'` in addition to `['single', 'called']` (`critter.ts:258`).
+`'burst'` in addition to `['single', 'called']` (`critter.ts`).
 
 `Weapon.getAPCost(slot?)` — slot 1 = primary, slot 2 = secondary/burst; inferred from
-`this.mode` if not given (`critter.ts:339`).
+`this.mode` if not given (`critter.ts`).
 
-`Weapon.getMaximumRange(slot?)` — same slot derivation (`critter.ts:331`).
+`Weapon.getMaximumRange(slot?)` — same slot derivation (`critter.ts`).
 
 ---
 
@@ -119,10 +119,10 @@ If `attackTwo.mode === 'fire burst'` (or `=== 7`), the weapon's mode cycle inclu
 | Single-shot (primary) | `pro.extra.APCost1` | per weapon PRO |
 | Burst-fire (secondary) | `pro.extra.APCost2` | per weapon PRO |
 | Called shot surcharge | `main.ts:261` | +1 AP on top of APCost1 |
-| Unarmed AI hardcode | `combat.ts:1143` | 3 AP flat |
+| Unarmed AI hardcode | `combat.ts` | 3 AP flat |
 | Unarmed player (`Weapon(null)`) | `pro.extra.APCost1` on synthetic proto | 3 AP (punch default) |
 
-**Range check for AI attack decision** (`combat.ts:1262`):
+**Range check for AI attack decision** (`combat.ts`):
 ```typescript
 const dist = hexDistance(obj.position, target.position)
 // single-shot
@@ -133,7 +133,7 @@ if (burstEnabled && dist <= weapon.getMaximumRange(2) && dist >= burstMinRange)
     → burst
 ```
 
-`burstMinRange` is hardcoded as `4` in DH2 (`combat.ts:1318`) — CE uses AI packet's
+`burstMinRange` is hardcoded as `4` in DH2 (`combat.ts`) — CE uses AI packet's
 `best_weapon` + distance mode for smarter burst/single choice.
 
 ---
@@ -154,7 +154,7 @@ Seven damage types indexed 0–6 in CE (`damageType` enum, `proto_types.h`):
 | 5 | `DAMAGE_EXPLOSIVE` | `'EMP'` | `'DT EMP'` / `'DR EMP'` | `'death-electro'` |
 | 6 | `DAMAGE_RADIATION` | `'Explosive'` | `'DT Explosion'` / `'DR Explosion'` | `'death-explode'` |
 
-> **Important:** DH2's `damageType` bidirectional map in `critter.ts:57` has the string names
+> **Important:** DH2's `damageType` bidirectional map in `critter.ts` has the string names
 > for CE indices 4 and 5 **swapped**. CE index 4 is `DAMAGE_EMP` but DH2 maps it to `'Electrical'`;
 > CE index 5 is `DAMAGE_EXPLOSIVE` but DH2 maps it to `'EMP'`. This is an existing discrepancy in
 > the source; changing it would require updating all proto JSON data.
@@ -167,8 +167,8 @@ const RD = getRandomInt(wep.minDmg, wep.maxDmg)
 ```
 
 Unarmed moves use their own `mode.minDmg` / `mode.maxDmg` instead of the weapon PRO
-(`combat.ts:701`). For explosives (`Obj.explode`), damage is hardcoded: Dynamite 30–50,
-Plastic Explosive 40–80 (`object.ts:99`).
+(`combat.ts`). For explosives (`Obj.explode`), damage is hardcoded: Dynamite 30–50,
+Plastic Explosive 40–80 (`object.ts`).
 
 ### 4.3 Armor Lookup
 
@@ -190,11 +190,11 @@ the weapon's PRO. It is **different** from the critter-level `Perk` enum.
 
 | CE Constant | DH2 Proto Key | Meaning | DH2 Status |
 |-------------|--------------|---------|------------|
-| `PERK_WEAPON_LONG_RANGE` (1) | `pro.extra.perk == 1` | `distModifier = 4` (doubles range penalty reduction) | PARTIAL — `combat.ts:407` reads it; `distModifier=4` wired |
+| `PERK_WEAPON_LONG_RANGE` (1) | `pro.extra.perk == 1` | `distModifier = 4` (doubles range penalty reduction) | PARTIAL — `combat.ts` reads it; `distModifier=4` wired |
 | `PERK_WEAPON_ACCURATE` (2) | `pro.extra.perk == 2` | +20% hit chance for this weapon | STUB — not read in DH2 |
 | `PERK_WEAPON_PENETRATE` (3) | `pro.extra.perk == 3` | 80% DT/DR bypass on hit | STUB — not read; DH2 penetrate comes from unarmed `mode.penetrate` only |
 | `PERK_WEAPON_KNOCKBACK` (4) | `pro.extra.perk == 4` | Knockback divisor = 5 (not 10) | N/A — knockback not implemented |
-| `PERK_WEAPON_SCOPE_RANGE` (5) | `pro.extra.perk == 5` | `distModifier = 5` | STUB — not read (`distModifier=5` branch is comment in `combat.ts:408`) |
+| `PERK_WEAPON_SCOPE_RANGE` (5) | `pro.extra.perk == 5` | `distModifier = 5` | STUB — not read (`distModifier=5` branch is comment in `combat.ts`) |
 | `PERK_WEAPON_FAST_RELOAD` (6) | `pro.extra.perk == 6` | Reload costs 0 AP | STUB — no AP cost for reload in DH2 |
 | `PERK_WEAPON_NIGHT_SIGHT` (7) | `pro.extra.perk == 7` | No night vision penalty | STUB — no night penalty system |
 | `PERK_WEAPON_FLAMEBOY` (8) | `pro.extra.perk == 8` | Fire damage deals splash | STUB |
@@ -214,7 +214,7 @@ CE ref: `perk_defs.h:65–124`, `item.cc:weaponGetActionPointCost` (Fast Reload,
 `animationCode` drives two things: the critter's **idle/walk FRM prefix** (via `Weapon.getSkin()`)
 and the **attack FRM suffix** (via `Weapon.getAttackSkin()`).
 
-### 6.1 Idle/Walk Skin (`getSkin()`) — `critter.ts:344`
+### 6.1 Idle/Walk Skin (`getSkin()`) — `critter.ts`
 
 | animCode | CE WeaponAnimation constant | Prefix char | Example FRM |
 |----------|-----------------------------|-------------|-------------|
@@ -233,7 +233,7 @@ and the **attack FRM suffix** (via `Weapon.getAttackSkin()`).
 Note: `animation.md §4` lists these under the `WeaponAnimation` enum name; here they
 are tied to their source PRO field.
 
-### 6.2 Attack Skin (`getAttackSkin()`) — `critter.ts:362`
+### 6.2 Attack Skin (`getAttackSkin()`) — `critter.ts`
 
 The attack suffix is derived from the **current attack mode string**, not from `animCode`:
 
@@ -257,7 +257,7 @@ suffix (see `animation.md §4`).
 ## 7. Critical Failure Tables
 
 CE maps each attack to a named critical-fail table based on weapon category.
-DH2 replicates this in `getCritFailTableType()` (`combat.ts:193`):
+DH2 replicates this in `getCritFailTableType()` (`combat.ts`):
 
 | CE / DH2 Table Key | Condition |
 |--------------------|-----------|
@@ -290,7 +290,7 @@ from weapon category.
 | `damageMultiplier` | int | `damMult` | `ammoX` — multiply damage roll |
 | `damageDivisor` | int | `damDiv` | `ammoY` — divide damage roll |
 
-### 8.2 DH2 Ammo Loading (`getAmmoStats()`, `combat.ts:353`)
+### 8.2 DH2 Ammo Loading (`getAmmoStats()`, `combat.ts`)
 
 ```typescript
 const ammoPID = (weaponObj as any).pro?.extra?.ammoPID  // −1 if empty
@@ -318,7 +318,7 @@ caliber matching — any ammo item can be loaded into any weapon in the current 
 |-----------|-----------|---------------|
 | Current rounds read | `pro.extra.rounds` | `proto->item.data.weapon.rounds` |
 | Rounds deducted (single shot) | `combat.ts` — implicit per attack; not explicitly decremented | `weaponDecrAmmo` |
-| Rounds deducted (burst) | `pro.extra.rounds = max(0, curRounds - burstCount)` at `combat.ts:887` | per-round decrement in `_shoot_along_path` |
+| Rounds deducted (burst) | `pro.extra.rounds = max(0, curRounds - burstCount)` at `combat.ts` | per-round decrement in `_shoot_along_path` |
 | Magazine capacity | `pro.extra.maxAmmo` | `proto->item.data.weapon.ammoCapacity` |
 | Reload available check | `maxAmmo > 0 && rounds < maxAmmo` in `cycleMode()` | `itemIsWeapon + ammo count` |
 
@@ -331,7 +331,7 @@ ammo. A rifle will not run dry from single-shot attacks.
 
 ### 9.1 Unarmed Move Progression
 
-DH2 defines 14 unarmed moves in `UNARMED_MOVES` (`critter.ts:175`), unlocked by Unarmed
+DH2 defines 14 unarmed moves in `UNARMED_MOVES` (`critter.ts`), unlocked by Unarmed
 skill and character level. CE equivalent: `unarmedFindBestAttack` in `item.cc`.
 
 | Move | Level Req | Skill Req | Damage | AP | Crit Bonus | Penetrate |
@@ -351,8 +351,8 @@ skill and character level. CE equivalent: `unarmedFindBestAttack` in `item.cc`.
 | Hook Kick | 18 | 75 | 5–10 | 6 | +10 | — |
 | Piercing Kick | 20 | 80 | 5–10 | 7 | +15 | **yes** |
 
-`critBonus` is added to the critter's critical chance for that attack (`combat.ts:499` area).
-Penetrating moves reduce DT to 20% (`Weapon.isPenetrating()`, `critter.ts:312`).
+`critBonus` is added to the critter's critical chance for that attack (`combat.ts` area).
+Penetrating moves reduce DT to 20% (`Weapon.isPenetrating()`, `critter.ts`).
 
 ### 9.2 Mode Cycle for Unarmed
 
@@ -381,7 +381,7 @@ Full formula is in [damage_formula.md](damage_formula.md). Weapon-specific input
 | `crippledArmPenalty` | +40 per crippled arm |
 | `blindPenalty` | +25 if blinded |
 
-`getHitDistanceModifier()` (`combat.ts:400`):
+`getHitDistanceModifier()` (`combat.ts`):
 ```
 dist = hexDistance(attacker, target)
 tempPER = attacker.PER − 2              // FO2 hardcoded penalty (CE: critter_get_stat_with_temp)
@@ -393,7 +393,7 @@ if dist < 0: modifier = 0
 ```
 
 **Not implemented in DH2:**
-- Light-level penalty (noted in `getHitChance` comment: `combat.ts:448`)
+- Light-level penalty (noted in `getHitChance` comment: `combat.ts`)
 - `distModifier = 5` for `PERK_WEAPON_SCOPE_RANGE`
 - Melee region-penalty halving (CE `combat.cc:4440`: `toHit += penalty / 2` for melee;
   DH2 applies full penalty — see `damage_formula.md` Divergences)
@@ -435,7 +435,7 @@ if dist < 0: modifier = 0
 | 8 | Melee region-penalty halving | `regionPenalty / 2` for melee hit chance | MISSING — full penalty applied | Melee hit-chance is slightly harder than CE |
 | 9 | Light-level hit modifier | Night / darkness reduces hit chance | MISSING — noted in `getHitChance` comment | All attacks equally accurate at night |
 | 10 | `criticalFailureType` field | Per-weapon fail table selection | STUB — table selected by weapon category only | All knives use same fail table as all clubs |
-| 11 | `Weapon.canEquip(obj)` | CE checks ST ≥ `minStrength` and animation exists | DH2 checks only animation exists (`critter.ts:412`) | STR-heavy weapons can be equipped by anyone |
+| 11 | `Weapon.canEquip(obj)` | CE checks ST ≥ `minStrength` and animation exists | DH2 checks only animation exists (`critter.ts`) | STR-heavy weapons can be equipped by anyone |
 | 12 | Damage type index swap | CE index 4 = EMP, 5 = Explosive | DH2 `damageType` map: 4 = 'Electrical', 5 = 'EMP' — string names swap EMP/Explosive indices | EMP vs Explosive damage type slightly wrong for edge cases |
 | 13 | Haymaker / special moves unarmed | CE `ANIM_HAYMAKER` etc. as distinct HIT_MODE values | DH2 implements move list but critical bonus (`critBonus`) not applied to `critChance` during roll | Unarmed crit bonuses from Haymaker, Palm Strike etc. are defined but not active in `rollHit` |
 | 14 | AI burst vs single choice | Prefers burst at close range, single at distance, based on AI `best_weapon` | Hardcoded `burstMinRange = 4` hex | AI burst preference is not weapon-specific |
