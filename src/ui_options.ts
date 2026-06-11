@@ -31,6 +31,9 @@ import { uiSaveLoad } from './ui_saveload.js'
 import globalState from './globalState.js'
 import { getVolumeValue, savePreferences } from './ui_options/preferences.js'
 
+// FO2-CE ref: preferences.cc TargetHighlight enum — 0=off, 1=targeting-only, 2=all-enemies.
+type TargetHighlight = 'off' | 'targeting-only' | 'on'
+
 export { SavedPreferences, PREFS_KEY, loadPreferences } from './ui_options/preferences.js'
 
 let optionsWindow: WindowFrame
@@ -124,14 +127,14 @@ function buildPrefsPanel(): HTMLElement {
     }
 
     // Helper: range slider
-    function addSlider(getter: () => number, setter: (v: number) => void): HTMLInputElement {
+    function addSlider(getter: () => number, setter: (v: number) => void, min = 0, max = 100): HTMLInputElement {
         const wrap = document.createElement('div')
         Object.assign(wrap.style, { display: 'flex', alignItems: 'center', gap: '6px' })
 
         const slider = document.createElement('input')
         slider.type = 'range'
-        slider.min = '0'
-        slider.max = '100'
+        slider.min = String(min)
+        slider.max = String(max)
         slider.value = String(getter())
         Object.assign(slider.style, { flex: '1' })
 
@@ -161,12 +164,12 @@ function buildPrefsPanel(): HTMLElement {
     )
 
     // ── 2. Combat Speed ───────────────────────────────────────────────────
+    // CE ref: game_config.h:44 combat_speed — 0=fastest, 50=slowest.
     addLabel('Combat Speed')
-    addCycleButton<1 | 2 | 4>(
-        [1, 2, 4],
-        ['Slow', 'Normal', 'Fast'],
+    addSlider(
         () => Config.combat.combatSpeed,
-        v => { Config.combat.combatSpeed = v }
+        v => { Config.combat.combatSpeed = v },
+        0, 50
     )
 
     // ── 3. Violence Level ─────────────────────────────────────────────────
@@ -179,11 +182,18 @@ function buildPrefsPanel(): HTMLElement {
     )
 
     // ── 4. Target Highlight ───────────────────────────────────────────────
+    // CE ref: game_config.h:111 TargetHighlightType — 0=off, 1=targeting-only, 2=all-enemies.
     addLabel('Target Highlight')
-    addCycleButton<'off' | 'on' | 'targeting-only'>(
-        ['off', 'on', 'targeting-only'],
-        ['Off', 'On', 'Targeting Only'],
-        () => Config.ui.targetHighlight,
+    addCycleButton<TargetHighlight>(
+        ['off', 'targeting-only', 'on'],
+        ['Off', 'Targeting Only', 'All Enemies'],
+        () => {
+            const v = Config.ui.targetHighlight as string | boolean
+            // Normalise legacy boolean → canonical 3-state string.
+            if (v === true) return 'on'
+            if (v === false) return 'off'
+            return v as TargetHighlight
+        },
         v => { Config.ui.targetHighlight = v }
     )
 
@@ -234,6 +244,35 @@ function buildPrefsPanel(): HTMLElement {
         () => getVolumeValue('sfx'),
         v => globalState.audioEngine.setVolume('sfx', v)
     )
+
+    // ── 11. Speech Volume (CI6) ───────────────────────────────────────────
+    // CE ref: settings.cc:93 speech_volume (0–32767). Persisted alongside other volumes.
+    addLabel('Speech Volume')
+    addSlider(
+        () => getVolumeValue('speech'),
+        v => globalState.audioEngine.setVolume('speech', v)
+    )
+
+    // ── 12. Text Base Delay (CI9) ─────────────────────────────────────────
+    // CE ref: preferences.cc text_base_delay — on-screen text linger time, 1.0–6.0 s.
+    addLabel('Text Linger (s)')
+    addSlider(
+        () => Math.round(Config.ui.textBaseDelay * 10),
+        v => { Config.ui.textBaseDelay = v / 10 },
+        10, 60
+    )
+
+    // ── 13. Affect Player Speed ───────────────────────────────────────────
+    // CE ref: preferences.cc player_speedup checkbox (prfxin/prfxout.frm, FRM-ID 244/245).
+    addLabel('Affect Player Speed')
+    const speedupWrap = document.createElement('div')
+    const speedupChk = document.createElement('input')
+    speedupChk.type = 'checkbox'
+    speedupChk.checked = Config.engine.playerSpeedup
+    speedupChk.onchange = (): void => { Config.engine.playerSpeedup = speedupChk.checked }
+    Object.assign(speedupChk.style, { cursor: 'pointer', accentColor: '#FFD700' })
+    speedupWrap.appendChild(speedupChk)
+    grid.appendChild(speedupWrap)
 
     // ── Done button ───────────────────────────────────────────────────────
     const doneRow = document.createElement('div')

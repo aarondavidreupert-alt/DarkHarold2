@@ -1276,12 +1276,12 @@ export class Combat {
                 // movement AP spent) must not flip bystanders to hostile.
                 if (this.hasAttacked || obj.hostile) {
                     obj.hostile = true
-                    // CE ref: game_config.h:111 TargetHighlight — off=never,
-                    // on=always (default), targeting-only=only while the player
-                    // has the attack cursor active.
+                    // CE ref: game_config.h:111 TargetHighlightType — 0=off, 1=targeting-only, 2=all-enemies.
+                    // DH2: 'off'=0, 'targeting-only'=1, 'on'=2.
                     const th: any = Config.ui.targetHighlight
                     const wantHighlight = th === 'on' || th === true ||
-                        (th === 'targeting-only' && globalState.cursorMode === 'attack')
+                        (th === 'targeting-only' && globalState.cursorMode === 'attack') ||
+                        (th === 2)
                     obj.outline = wantHighlight ? 'red' : null
                     numActive++
                 }

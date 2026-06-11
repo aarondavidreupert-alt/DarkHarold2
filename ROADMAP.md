@@ -268,7 +268,7 @@ covered by Phases 1–8.
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
 | IW1 | **No HP/AC indicator bars in the character window.** CE renders colour-coded indicator bars on the HUD. | `interface.cc` | minor |
-| IW1 | ✅ FIXED 2026-06-04 — `#indicatorBar` shows SNEAK/POISONED/RADIATED/ADDICT badges above HUD. | `interface.cc indicatorBarRefresh` | major |
+| IW1 | ✅ FIXED 2026-06-04, updated 2026-06-11 — `#indicatorBar` shows all 5 CE badges in correct order (ADDICT/SNEAK/LEVEL/POISONED/RADIATED); LEVEL badge on unspent skill points; radiation threshold corrected to ≥65; bad/good colour coding (red/green). | `interface.cc indicatorBarRefresh` | major |
 | IW2 | ✅ FIXED 2026-06-04 — `drawAP` dims `#attackButton` (opacity+grayscale) when AP < cost or not player turn. | `interface.cc interfaceRenderActionPoints()` | minor |
 | IW3 | **Weapon action cycling missing aiming states.** Mode cycle doesn't include aimed-shot states. | `interface.cc` | minor |
 | IW4 | ✅ FIXED 2026-06-04 — `game_ui_disable/enable` toggle `#bar` visibility in addition to input block. | `interface.cc` | minor |
@@ -279,13 +279,14 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| CI3 | **`combat_speed` scale inverted.** CE: 0–50 where 0=slowest. DH2: 1/2/4 where 4=fastest. | `game_config.h:44` | low |
+| CI3 | ✅ FIXED 2026-06-11 — `combatSpeed` range changed to 0–50 (CE: 0=fastest, 50=slowest); animation boost now inverted `fps += (50-speed)*0.2`. | `game_config.h:44` | low |
 | CI4 | ✅ FIXED 2026-06-04 — `doAlwaysRun` default = false, matching CE. | `settings.h:38` | low |
 | CI5 | **Preferences in localStorage, not fallout2.cfg.** Lost in private browsing. | `settings.cc:118` | minor |
-| CI6 | **`speech_volume` not persisted.** | `settings.cc:93` | low |
+| CI6 | ✅ FIXED 2026-06-11 — `speechVolume` added to `HTMLAudioEngine`, persisted in `SavedPreferences`, slider in prefs panel. | `settings.cc:93` | low |
 | CI7 | **`item_highlight` setting absent.** CE allows toggling item-highlight on hover. | `game_config.h:37` | low |
-| CI8 | **`target_highlight` loses "targeting only" mode.** CE has 3 states; DH2 collapses to boolean. | `game_config.h:111` | low |
-| CI9 | **No `text_base_delay` / `text_line_delay`.** CE auto-advances dialogue text. | `settings.h:42` | low |
+| CI8 | ✅ FIXED 2026-06-11 — `target_highlight` is now full 3-state enum `'off'|'targeting-only'|'on'` matching CE 0/1/2; prefs cycle order corrected; legacy boolean load migration preserved. | `game_config.h:111` | low |
+| CI9 | ✅ FIXED 2026-06-11 — `textBaseDelay` (1.0–6.0 s) added to `Config.ui`, preferences slider added, persisted in `SavedPreferences`. | `settings.h:42` | low |
+| CI10 | ✅ FIXED 2026-06-11 — `player_speedup` checkbox added to `Config.engine.playerSpeedup`; prefs panel checkbox wired; `critterAnimation.ts` skips player FPS boost when disabled. | `preferences.cc player_speedup` | low |
 
 ### 9f. Combat (remaining)
 
@@ -379,3 +380,35 @@ Phase 7 (save/load completeness) ✅
 Phase 8 (rendering gaps) 🔴
 Phase 9 (remaining tractable gaps) 🟡/🔴
 ```
+
+---
+
+## AUDIT FINDINGS
+*Forensic comparison of CE `src/interface.cc` + `src/preferences.cc` vs DH2 `src/ui_hud.ts` / `src/ui_options.ts`. Audited 2026-06-11.*
+
+### AF-HUD — interface.cc gaps
+
+| ID | What | CE Ref | Sev |
+|----|------|--------|-----|
+| AF1 | **Indicator bar is DOM text, not FRM sprites.** CE renders badge FRMs (e.g. `intrface/idxbadge.frm`) at fixed pixel offsets in the HUD. DH2 uses `<span>` elements above the bar. | `interface.cc indicatorBarDraw()` | low |
+| AF2 | **INDICATOR_SLOTS_COUNT = 6, but DH2 has no slot reservation.** CE allocates 6 fixed pixel slots; badges slide into position 0–5. DH2 has no slot concept — badges just flex. | `interface.cc:2890 INDICATOR_SLOTS_COUNT` | low |
+| AF3 | **HP/AC digit sprites use custom backgroundPosition trick, not CE's `buf_to_buf` blit.** Functionally equivalent but doesn't use pre-baked FRM digit sprites from `numeron.frm`. | `interface.cc interfaceRenderHitPoints()` | low |
+| AF4 | **AP pip sprites hardcode `hlgrn.png`/`hlred.png`; CE picks FRM by AP state per slot.** Missing: "move AP" (yellow) pips correctly matching CE interface — CE uses separate ap_active/ap_move/ap_empty FRMs. DH2 approximates with hlyel. | `interface.cc interfaceRenderActionPoints()` | low |
+| AF5 | **Ammo bar widget renders 55 px fill; CE uses a 4-frame FRM strip for each increment.** Cosmetic difference only. | `interface.cc interfaceRenderAmmoBar()` | low |
+| AF6 | **`interfaceBarEndButtonsEnable/Disable` not fully wired.** CE dims End Turn / End Combat buttons via a separate FRM; DH2 uses CSS opacity. | `interface.cc` | low |
+| AF7 | **`interfaceRenderItemBars` (item condition bars) absent.** CE renders two small bars under equipped weapon for condition. | `interface.cc interfaceRenderItemBars()` | minor |
+| AF8 | **Combat hover info is DOM overlay; CE renders directly into buffer.** Functional parity but no `windowRefresh` integration. | `interface.cc` | low |
+
+### AF-PREFS — preferences.cc gaps
+
+| ID | What | CE Ref | Sev |
+|----|------|--------|-----|
+| AF9 | **`brightness` slider absent.** CE has a gamma/brightness slider (prfsldof/prfsldon FRMs). | `preferences.cc PREF_BRIGHTNESS` | minor |
+| AF10 | **`mouse_sensitivity` slider absent.** CE has a mouse sensitivity knob. | `preferences.cc PREF_MOUSE_SENSITIVITY` | low |
+| AF11 | **`running` toggle cycles boolean; CE uses a 2-way toggle knob FRM (prflknbs.frm).** DH2 uses a cycle button; cosmetic. | `preferences.cc` | low |
+| AF12 | **`game_difficulty` uses CE 3-way knob (prfbknbs.frm); DH2 uses a cycle button.** The 4-way rotary knob FRM is not loaded. | `preferences.cc PREF_GAME_DIFFICULTY` | low |
+| AF13 | **Preferences background (`prefscrn.frm`) not loaded.** DH2 prefs panel uses a raw `<div>` with inline styles; the 640×480 background FRM is never rendered. | `preferences.cc` | low |
+| AF14 | **`combat_messages` uses cycle button; CE uses 2-way toggle knob (prflknbs.frm).** | `preferences.cc PREF_COMBAT_MESSAGES` | low |
+| AF15 | **Preferences screen has no Default button.** CE has a "DEFAULT" button that resets all sliders to CE defaults. | `preferences.cc preferencesSave()` | low |
+| AF16 | **`text_line_delay` absent.** CE has a separate `text_line_delay` (per-line auto-advance speed distinct from `text_base_delay`). | `settings.h:43` | low |
+| AF17 | **`language_filter` checkbox absent.** CE has a profanity filter toggle. | `preferences.cc PREF_LANGUAGE_FILTER` | low |

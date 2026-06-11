@@ -31,6 +31,8 @@ export const Config = {
         combatMessages: 'verbose' as 'brief' | 'verbose',
         // FO2-CE ref: preferences.cc — subtitles toggle
         subtitles: false,
+        // FO2-CE ref: preferences.cc text_base_delay — on-screen text linger time, 1.0–6.0 s
+        textBaseDelay: 3.5,
     },
 
     engine: {
@@ -44,6 +46,8 @@ export const Config = {
         doUseWeaponModel: true, // use weapon model for NPC models?
         doLoadItemInfo: true, // load item information (such as inventory images)?
         doAlwaysRun: false, // always run instead of walk? CE default = false (settings.h:38)
+        // FO2-CE ref: preferences.cc player_speedup — apply combat-speed boost to player walk animation.
+        playerSpeedup: true,
         doZOrder: true, // Z-order objects?
         doEncounters: true, // allow random encounters?
         doInfiniteUse: false, // allow infinite-range object usage?
@@ -68,8 +72,8 @@ export const Config = {
         // Damage calculation ruleset: 0=Vanilla, 1=Glovz, 2=Glovz+MultTweak, 5=YAAM
         // Matches fallout2-ce DamageCalculationType enum values exactly.
         damageCalculationType: 0 as 0 | 1 | 2 | 5,
-        // FO2-CE ref: preferences.cc — combat speed: ms-per-frame wait multiplier (1=slow, 2=normal, 4=fast)
-        combatSpeed: 2 as 1 | 2 | 4,
+        // FO2-CE ref: preferences.cc — combat speed: 0=fastest, 50=slowest (matches CE game_config.h:44 range).
+        combatSpeed: 25,
         // FO2-CE ref: preferences.cc — VIOLENCE_LEVEL: 0=none, 1=minimum, 2=normal, 3=maximum
         violenceLevel: 2 as 0 | 1 | 2 | 3,
     },

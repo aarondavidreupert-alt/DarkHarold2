@@ -30,7 +30,7 @@ export interface AudioEngine {
     stopMusic(): void
     stopAll(): void
     tick(): void
-    setVolume(channel: 'master' | 'music' | 'sfx', value: number): void
+    setVolume(channel: 'master' | 'music' | 'sfx' | 'speech', value: number): void
 }
 
 export class NullAudioEngine implements AudioEngine {
@@ -44,7 +44,7 @@ export class NullAudioEngine implements AudioEngine {
     stopMusic(): void {}
     stopAll(): void {}
     tick(): void {}
-    setVolume(_channel: 'master' | 'music' | 'sfx', _value: number): void {}
+    setVolume(_channel: 'master' | 'music' | 'sfx' | 'speech', _value: number): void {}
 }
 
 export class HTMLAudioEngine implements AudioEngine {
@@ -57,6 +57,8 @@ export class HTMLAudioEngine implements AudioEngine {
     masterVolume: number = 1
     musicVolume: number = 1
     sfxVolume: number = 1
+    // FO2-CE ref: settings.cc:93 speech_volume (0–32767 in CE, normalised to 0.0–1.0 here)
+    speechVolume: number = 1
 
     // Web Audio pipeline for SFX.
     // FO2 .wav files are 22050 Hz. HTMLAudioElement plays them at the output
@@ -220,7 +222,7 @@ export class HTMLAudioEngine implements AudioEngine {
         this.playSfx(file)
     }
 
-    setVolume(channel: 'master' | 'music' | 'sfx', value: number): void {
+    setVolume(channel: 'master' | 'music' | 'sfx' | 'speech', value: number): void {
         // value is 0–100 from the UI; normalise to 0.0–1.0
         const v = Math.max(0, Math.min(100, value)) / 100
         if (channel === 'master') {
@@ -231,6 +233,9 @@ export class HTMLAudioEngine implements AudioEngine {
         } else if (channel === 'music') {
             this.musicVolume = v
             if (this.musicAudio) this.musicAudio.volume = v * this.masterVolume
+        } else if (channel === 'speech') {
+            // FO2-CE ref: settings.cc:93 speech_volume — stored for future speech playback.
+            this.speechVolume = v
         } else {
             this.sfxVolume = v
             if (this.sfxGainNode) this.sfxGainNode.gain.value = v

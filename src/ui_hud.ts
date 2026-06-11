@@ -124,16 +124,23 @@ export function updateIndicatorBar(): void {
         })
         bar.parentElement?.appendChild(indicatorBarEl)
     }
-    const indicators: string[] = []
-    if ((player as any).isSneaking) indicators.push('SNEAK')
-    const poison = (player as any).poisonLevel ?? 0
-    if (poison > 0) indicators.push('POISONED')
-    const rads = (player as any).radiationLevel ?? 0
-    if (rads >= 150) indicators.push('RADIATED')
+    // CE ref: interface.cc indicatorBarRefresh — badge order: ADDICT, SNEAK, LEVEL, POISONED, RADIATED.
+    // INDICATOR_SLOTS_COUNT = 6 (CE allocates 6 slots for 5 badge types).
+    // Thresholds: POISON_INDICATOR_THRESHOLD = 0 (any poison shows badge);
+    //             RADIATION_INDICATOR_THRESHOLD = 65 (CE: interface.cc ~line 946).
+    const indicators: Array<{ label: string; bad: boolean }> = []
     const addicts: string[] = (player as any).addictions ?? []
-    if (addicts.length > 0) indicators.push('ADDICT')
-    indicatorBarEl.innerHTML = indicators.map(t =>
-        `<span style="background:rgba(0,0,0,0.7); padding:1px 6px; border:1px solid #0F0;">${t}</span>`
+    if (addicts.length > 0) indicators.push({ label: 'ADDICT', bad: true })
+    if ((player as any).isSneaking) indicators.push({ label: 'SNEAK', bad: false })
+    // INDICATOR_LEVEL: show when player has unspent skill points from levelling up.
+    const skillPoints: number = (player as any).skills?.skillPoints ?? 0
+    if (skillPoints > 0) indicators.push({ label: 'LEVEL', bad: false })
+    const poison = (player as any).poisonLevel ?? 0
+    if (poison > 0) indicators.push({ label: 'POISONED', bad: true })
+    const rads = (player as any).radiationLevel ?? 0
+    if (rads >= 65) indicators.push({ label: 'RADIATED', bad: true })
+    indicatorBarEl.innerHTML = indicators.map(({ label, bad }) =>
+        `<span style="background:rgba(0,0,0,0.7); padding:1px 6px; border:1px solid ${bad ? '#F00' : '#0F0'}; color:${bad ? '#F00' : '#0F0'};">${label}</span>`
     ).join('')
     indicatorBarEl.style.visibility = indicators.length > 0 ? 'visible' : 'hidden'
 }
