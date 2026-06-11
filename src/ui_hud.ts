@@ -157,9 +157,9 @@ function updateAttackButtonAvailability(availableAP: number, isPlayerTurn: boole
     }
     const affordable = isPlayerTurn && availableAP >= cost
     // CE ref: interface.cc interfaceRenderActionPoints — the unaffordable state
-    // tints the button (red wash) rather than dimming it away. Keep the sprite
-    // clearly visible; grayscale + 40% opacity was unreadable on dark UI bg.
-    $btn.style.opacity = affordable ? '1' : '0.75'
+    // tints the button (red wash). Opacity stays at 1 so the sprite is fully
+    // opaque; the tint alone signals "can't afford".
+    $btn.style.opacity = '1'
     $btn.style.filter = affordable ? '' : 'brightness(0.7) sepia(0.4) hue-rotate(-25deg) saturate(2)'
 }
 
