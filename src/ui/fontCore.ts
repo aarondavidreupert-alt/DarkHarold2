@@ -44,6 +44,7 @@ export class FontRenderer {
     private spritePath: string
     private jsonPath: string
     private symbolInfo: SymbolInfoMap | null = null
+    private spriteImage: HTMLImageElement | null = null
     private imageLoaded = false
     private loaded = false
     private loadStarted = false
@@ -67,7 +68,8 @@ export class FontRenderer {
         }
         this.loadStarted = true
 
-        lazyLoadImage(this.spritePath, () => {
+        lazyLoadImage(this.spritePath, (img) => {
+            this.spriteImage = img
             this.imageLoaded = true
             this.checkLoaded()
         })
@@ -155,8 +157,17 @@ export class FontRenderer {
                 return
             }
 
-            let left = 0
+            // Pass 1: measure line height so every glyph can be bottom-aligned.
+            // Without this, shorter glyphs (e, x) share a top edge with taller ones (t, h),
+            // making ascenders appear to hang below instead of above the x-height.
             let maxH = 0
+            for (let i = 0; i < currentText.length; i++) {
+                const info = this.symbolInfo[currentText.charCodeAt(i)]
+                if (info && info.h > maxH) maxH = info.h
+            }
+
+            // Pass 2: lay out glyphs baseline-aligned (bottom edges flush).
+            let left = 0
             for (let i = 0; i < currentText.length; i++) {
                 const code = currentText.charCodeAt(i)
                 const info = this.symbolInfo[code]
@@ -173,7 +184,7 @@ export class FontRenderer {
                 const glyph = document.createElement('div')
                 glyph.style.cssText = `
                     position: absolute;
-                    left: ${left}px; top: 0;
+                    left: ${left}px; top: ${maxH - info.h}px;
                     width: ${info.w}px; height: ${info.h}px;
                     background-image: url('${this.spriteUrl}');
                     background-position: -${info.x}px -${info.y}px;
@@ -181,9 +192,6 @@ export class FontRenderer {
                 `
                 container.appendChild(glyph)
                 left += info.w + GLYPH_GAP
-                if (info.h > maxH) {
-                    maxH = info.h
-                }
             }
             container.style.width = `${Math.max(0, left - GLYPH_GAP)}px`
             container.style.height = `${maxH}px`
@@ -204,6 +212,28 @@ export class FontRenderer {
         }
 
         return container
+    }
+
+    /**
+     * Render `text` into a canvas using the pixel-accurate `renderBitmapText`
+     * path: actual glyph heights (not JSON cell heights), proper color via
+     * alpha compositing. Requires the font to be loaded; returns an empty
+     * 1×1 canvas if called too early (FoText queues the call via onLoad).
+     */
+    renderCanvas(text: string, color?: string): HTMLCanvasElement {
+        if (!this.spriteImage || !this.symbolInfo) {
+            const blank = document.createElement('canvas')
+            blank.width = 1
+            blank.height = 1
+            return blank
+        }
+        return renderBitmapText(
+            text,
+            this.spriteImage,
+            this.symbolInfo as unknown as Record<string, SymbolInfo>,
+            1,
+            color
+        )
     }
 
     /**

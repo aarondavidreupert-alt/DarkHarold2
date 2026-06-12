@@ -24,6 +24,8 @@ export {
     renderBitmapText,
 } from './ui/fontCore.js'
 
+export { FoText } from './ui/foText.js'
+
 export { setNumberDial, renderBignum } from './ui/numberDials.js'
 
 import { FontRenderer } from './ui/fontCore.js'
