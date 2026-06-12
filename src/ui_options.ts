@@ -24,7 +24,7 @@ limitations under the License.
 
 import { Config } from './config.js'
 import { Widget } from './ui_widget.js'
-import { font3, FontWidget } from './ui_font.js'
+import { font1, font3, font4, FontWidget, FontRenderer } from './ui_font.js'
 import { WindowFrame } from './ui_components.js'
 import { makePanelDraggable } from './ui_drag.js'
 import { uiSaveLoad } from './ui_saveload.js'
@@ -71,6 +71,30 @@ function buildPrefsPanel(): HTMLElement {
 
     // All refresh callbacks — called by Default button to redraw every control.
     const refreshFns: Array<() => void> = []
+
+    // Labels container — appended first so it is BELOW all controls in document stacking order.
+    // CE ref: preferences.cc — text is written into the background buffer before interactive
+    // widgets (knobs, sliders) are placed on top.
+    const labelsContainer = document.createElement('div')
+    Object.assign(labelsContainer.style, { position: 'absolute', inset: '0', pointerEvents: 'none' })
+    panel.appendChild(labelsContainer)
+
+    /** Place a bitmap text label at CE pixel coordinates.
+     *  CE ref: preferences.cc fontDrawText() calls in preferencesWindowInit() / _UpdateThing().
+     *  align: 'left' = anchorX is left edge; 'center' = anchorX is horizontal centre;
+     *         'right' = anchorX is right edge (CE: anchorX - fontGetStringWidth(str)).
+     */
+    function label(renderer: FontRenderer, text: string, anchorX: number, y: number, align: 'left' | 'center' | 'right' = 'left'): void {
+        const el = renderer.renderText(text, '#c8b466')
+        renderer.onLoad(() => {
+            const w = renderer.measureText(text)
+            const x = align === 'right'  ? anchorX - w
+                    : align === 'center' ? anchorX - Math.floor(w / 2)
+                    : anchorX
+            Object.assign(el.style, { position: 'absolute', left: x + 'px', top: y + 'px' })
+            labelsContainer.appendChild(el)
+        })
+    }
 
     /** Position el absolutely within the panel and append it. */
     function abs(el: HTMLElement, x: number, y: number, w: number, h: number): void {
@@ -380,6 +404,167 @@ function buildPrefsPanel(): HTMLElement {
     // CANCEL — close without saving (live Config changes during session remain;
     // full CE cancel-restore would need a snapshot taken at panel open).
     redButton(263, 450, () => { closePrefsPanel() })
+
+    // ── Text labels ───────────────────────────────────────────────────────────
+    // All coordinates sourced from preferences.cc fontDrawText() calls.
+    // Fonts: CE 101→font1 (9px), CE 103→font3 (16px), CE 104→font4 (22px).
+    // Widths used in right/centre formulae measured from art/fonts/font1_aaf.json
+    //   via fontCore.ts measureText() logic (glyph.w + 1px GLYPH_GAP, minus 1 at end).
+
+    // Title: fontSetCurrent(104)→font4; CE buffer offset y=10, x=74. Msg #100.
+    label(font4, 'GAME PREFERENCES', 74, 10)
+
+    // Primary section names: fontSetCurrent(103)→font3; centred at x=99; row1Ytab[].
+    // CE ref: preferences.cc lines 1023-1028. Msg IDs 101-105.
+    label(font3, 'GAME DIFFICULTY',   99, 48,  'center')
+    label(font3, 'COMBAT DIFFICULTY', 99, 125, 'center')
+    label(font3, 'VIOLENCE LEVEL',    99, 203, 'center')
+    label(font3, 'TARGET HIGHLIGHT',  99, 286, 'center')
+    label(font3, 'COMBAT LOOKS',      99, 363, 'center')
+
+    // Secondary section names: fontSetCurrent(103)→font3; left at x=206; row2Ytab[].
+    // CE ref: preferences.cc lines 1030-1033. Msg IDs 106-111.
+    label(font3, 'COMBAT MESSAGES', 206, 49)
+    label(font3, 'COMBAT TAUNTS',   206, 116)
+    label(font3, 'LANGUAGE FILTER', 206, 181)
+    label(font3, 'RUNNING',         206, 247)
+    label(font3, 'SUBTITLES',       206, 313)
+    label(font3, 'ITEM HIGHLIGHT',  206, 380)
+
+    // Range section names: fontSetCurrent(103)→font3; left at x=384; row3Ytab[].
+    // CE ref: preferences.cc lines 1035-1038. Msg IDs 112-119.
+    label(font3, 'COMBAT SPEED',         384, 19)
+    label(font3, 'TEXT DELAY',           384, 94)
+    label(font3, 'MASTER AUDIO VOLUME',  384, 165)
+    label(font3, 'MUSIC/MOVIE VOLUME',   384, 216)
+    label(font3, 'SOUND EFFECTS VOLUME', 384, 268)
+    label(font3, 'SPEECH VOLUME',        384, 319)
+    label(font3, 'BRIGHTNESS LEVEL',     384, 369)
+    label(font3, 'MOUSE SENSITIVITY',    384, 420)
+
+    // Button labels: active font after _UpdateThing loop is 101→font1.
+    // CE ref: preferences.cc lines 1040-1050. Msg #120 DEFAULT, #4 DONE, #121 CANCEL.
+    // Buttons (lilredup) at y=450; text at y=449 (1 px above button top).
+    // Text is to the RIGHT of its red-dot button (decorative bullet + label layout).
+    label(font1, 'DEFAULT', 43,  449)
+    label(font1, 'DONE',    169, 449)
+    label(font1, 'CANCEL',  283, 449)
+
+    // "Affect player speed": fontSetCurrent(101)→font1; CE buffer offset y=72, x=405. Msg #122.
+    label(font1, 'Affect player speed', 405, 72)
+
+    // ── Primary knob value labels (font 101 → font1) ─────────────────────────
+    // CE ref: _UpdateThing() for PRIMARY prefs.
+    // x = knobX + word_48FBF6[i] {2,25,46,46} ± fontWidth adjustments.
+    // y = knobY + word_48FBFE[i] {10,-4,10,31}.
+    // Alignment per index: 0=right-at-(knobX+2), 1=centre-at-(knobX+25), 2/3=left-at-(knobX+46).
+
+    // Game Difficulty (knobX=76, knobY=71). Msg: 203=Easy, 204=Normal, 205=Hard.
+    label(font1, 'Easy',   78,  81, 'right')
+    label(font1, 'Normal', 101, 67, 'center')
+    label(font1, 'Hard',   122, 81)
+
+    // Combat Difficulty (knobX=76, knobY=149). Msg: 206=Wimpy, 204=Normal, 208=Rough.
+    label(font1, 'Wimpy',  78,  159, 'right')
+    label(font1, 'Normal', 101, 145, 'center')
+    label(font1, 'Rough',  122, 159)
+
+    // Violence Level (knobX=76, knobY=226). Msg: 214=None, 215=Minimal, 204=Normal, 216=Maximum Blood.
+    label(font1, 'None',          78,  236, 'right')
+    label(font1, 'Minimal',       101, 222, 'center')
+    label(font1, 'Normal',        122, 236)
+    label(font1, 'Maximum Blood', 122, 257)
+
+    // Target Highlight (knobX=76, knobY=309). Msg: 202=Off, 201=On, 213=Targeting Only.
+    label(font1, 'Off',           78,  319, 'right')
+    label(font1, 'On',            101, 305, 'center')
+    label(font1, 'Targeting Only',122, 319)
+
+    // Combat Looks (knobX=76, knobY=387, valuesCount=2). Msg: 202=Off, 201=On.
+    label(font1, 'Off', 78,  397, 'right')
+    label(font1, 'On',  101, 383, 'center')
+
+    // ── Secondary knob value labels (font 101 → font1) ───────────────────────
+    // CE ref: _UpdateThing() for SECONDARY prefs.
+    // Label 0: right-aligned at knobX+4=303. Label 1: left at knobX+21=320.
+    // y = knobY - 5 for all. knobX=299 for every secondary pref.
+
+    // Combat Messages (knobY=74). Msg: 211=Verbose, 212=Brief.
+    label(font1, 'Verbose', 303, 69, 'right')
+    label(font1, 'Brief',   320, 69)
+
+    // Combat Taunts (knobY=141). Msg: 202=Off, 201=On.
+    label(font1, 'Off', 303, 136, 'right')
+    label(font1, 'On',  320, 136)
+
+    // Language Filter (knobY=207). Msg: 202=Off, 201=On.
+    label(font1, 'Off', 303, 202, 'right')
+    label(font1, 'On',  320, 202)
+
+    // Running (knobY=271). Msg: 209=Normal, 219=Always.
+    label(font1, 'Normal', 303, 266, 'right')
+    label(font1, 'Always', 320, 266)
+
+    // Subtitles (knobY=338). Msg: 202=Off, 201=On.
+    label(font1, 'Off', 303, 333, 'right')
+    label(font1, 'On',  320, 333)
+
+    // Item Highlight (knobY=404). Msg: 202=Off, 201=On.
+    label(font1, 'Off', 303, 399, 'right')
+    label(font1, 'On',  320, 399)
+
+    // ── Range slider value labels (font 101 → font1) ─────────────────────────
+    // CE ref: _UpdateThing() for RANGE prefs. Labels at y = knobY - 12.
+    // Positions per CE formulae (see preferences.cc _UpdateThing switch):
+    //   v0: x=384 (exact).
+    //   v1 (2-way): x = 624 − width.
+    //   v1 (3-way): x = 504 − ⌊width/2⌋ − 2.
+    //   v1 (4-way): x = 444 + ⌊width/2⌋ − 8.
+    //   v2 (3-way): x = 624 − width.
+    //   v2 (4-way): x = 564 − width − 4.
+    //   v3 (4-way): x = 624 − width.
+    // All widths measured from font1_aaf.json using fontCore measureText logic.
+
+    // Combat Speed (knobY=50, 2-way). Msg: 207=Normal(38), 210=Fastest(48).
+    label(font1, 'Normal',  384, 38)
+    label(font1, 'Fastest', 576, 38)  // 624-48
+
+    // Text Delay (knobY=125, 3-way). Msg: 217=Slow(25), 209=Normal(38), 218=Faster(40).
+    label(font1, 'Slow',   384, 113)
+    label(font1, 'Normal', 483, 113)  // 504-19-2  (⌊38/2⌋=19)
+    label(font1, 'Faster', 584, 113)  // 624-40
+
+    // Master Audio Volume (knobY=196, 4-way). Msg: 202=Off(19), 221=Quiet(31), 209=Normal(38), 222=Loud(27).
+    label(font1, 'Off',    384, 184)
+    label(font1, 'Quiet',  451, 184)  // 444+15-8  (⌊31/2⌋=15)
+    label(font1, 'Normal', 522, 184)  // 564-38-4
+    label(font1, 'Loud',   597, 184)  // 624-27
+
+    // Music/Movie Volume (knobY=247, 4-way). Same labels.
+    label(font1, 'Off',    384, 235)
+    label(font1, 'Quiet',  451, 235)
+    label(font1, 'Normal', 522, 235)
+    label(font1, 'Loud',   597, 235)
+
+    // Sound Effects Volume (knobY=298, 4-way). Same labels.
+    label(font1, 'Off',    384, 286)
+    label(font1, 'Quiet',  451, 286)
+    label(font1, 'Normal', 522, 286)
+    label(font1, 'Loud',   597, 286)
+
+    // Speech Volume (knobY=349, 4-way). Same labels.
+    label(font1, 'Off',    384, 337)
+    label(font1, 'Quiet',  451, 337)
+    label(font1, 'Normal', 522, 337)
+    label(font1, 'Loud',   597, 337)
+
+    // Brightness Level (knobY=400, 2-way). Msg: 207=Normal(38), 223=Brighter(50).
+    label(font1, 'Normal',   384, 388)
+    label(font1, 'Brighter', 574, 388)  // 624-50
+
+    // Mouse Sensitivity (knobY=451, 2-way). Msg: 207=Normal(38), 218=Faster(40).
+    label(font1, 'Normal', 384, 439)
+    label(font1, 'Faster', 584, 439)  // 624-40
 
     return panel
 }
