@@ -48,7 +48,10 @@ export function getOptionsWindow(): WindowFrame | null {
 
 let prefsPanel: HTMLElement | null = null
 
-/** Build and attach the preferences panel. Called once; subsequent opens just toggle display. */
+/** Build and attach the preferences panel.
+ * CE ref: preferences.cc preferencesWindowInit() — pixel-accurate layout over prefscrn.png.
+ * Window: 640×480. All coordinates sourced from gPreferenceDescriptions[] in preferences.cc.
+ */
 function buildPrefsPanel(): HTMLElement {
     const panel = document.createElement('div')
     Object.assign(panel.style, {
@@ -56,248 +59,327 @@ function buildPrefsPanel(): HTMLElement {
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
-        background: '#1a1a0e',
-        border: '2px solid #8B7355',
-        padding: '16px 20px',
+        width: '640px',
+        height: '480px',
+        backgroundImage: "url('art/intrface/prefscrn.png')",
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: '640px 480px',
         zIndex: '30',
-        color: '#FFD700',
-        fontFamily: 'monospace',
-        fontSize: '13px',
-        minWidth: '360px',
+        cursor: 'default',
+        userSelect: 'none',
     })
 
-    // Title
-    const title = document.createElement('div')
-    Object.assign(title.style, {
-        textAlign: 'center',
-        fontSize: '15px',
-        fontWeight: 'bold',
-        marginBottom: '12px',
-        letterSpacing: '2px',
-    })
-    title.textContent = 'PREFERENCES'
-    panel.appendChild(title)
+    // All refresh callbacks — called by Default button to redraw every control.
+    const refreshFns: Array<() => void> = []
 
-    // Grid container
-    const grid = document.createElement('div')
-    Object.assign(grid.style, {
-        display: 'grid',
-        gridTemplateColumns: '160px 1fr',
-        rowGap: '8px',
-        columnGap: '8px',
-        alignItems: 'center',
-    })
-    panel.appendChild(grid)
-
-    // Helper: styled label cell
-    function addLabel(text: string): void {
-        const lbl = document.createElement('div')
-        lbl.textContent = text
-        lbl.style.color = '#C8B466'
-        grid.appendChild(lbl)
+    /** Position el absolutely within the panel and append it. */
+    function abs(el: HTMLElement, x: number, y: number, w: number, h: number): void {
+        Object.assign(el.style, {
+            position: 'absolute',
+            left: x + 'px',
+            top: y + 'px',
+            width: w + 'px',
+            height: h + 'px',
+        })
+        panel.appendChild(el)
     }
 
-    // Helper: cycling button
-    function addCycleButton<T>(values: T[], labels: string[], getter: () => T, setter: (v: T) => void): HTMLButtonElement {
-        const btn = document.createElement('button')
-        Object.assign(btn.style, {
-            background: '#111107',
-            color: '#FFD700',
-            border: '1px solid #8B7355',
-            padding: '3px 10px',
+    /** Primary 4-way knob — prfbknbs.png, 4 frames of 46×47 stacked vertically.
+     *  CE ref: preferences.cc PREFERENCES_WINDOW_FRM_PRIMARY_SWITCH, frame = value.
+     */
+    function primaryKnob(x: number, y: number, getFrame: () => number, cycle: () => void): void {
+        const el = document.createElement('div')
+        Object.assign(el.style, {
+            backgroundImage: "url('art/intrface/prfbknbs.png')",
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: '46px 188px',
             cursor: 'pointer',
-            fontFamily: 'monospace',
-            fontSize: '12px',
-            textAlign: 'left',
         })
+        abs(el, x, y, 46, 47)
+        const refresh = (): void => { el.style.backgroundPosition = `0px ${-getFrame() * 47}px` }
+        refresh()
+        el.addEventListener('click', () => { cycle(); refresh() })
+        refreshFns.push(refresh)
+    }
+
+    /** Secondary 2-way knob — prflknbs.png, 2 frames of 22×25 stacked vertically.
+     *  CE ref: preferences.cc PREFERENCES_WINDOW_FRM_SECONDARY_SWITCH.
+     */
+    function secondaryKnob(x: number, y: number, getFrame: () => number, toggle: () => void): void {
+        const el = document.createElement('div')
+        Object.assign(el.style, {
+            backgroundImage: "url('art/intrface/prflknbs.png')",
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: '22px 50px',
+            cursor: 'pointer',
+        })
+        abs(el, x, y, 22, 25)
+        const refresh = (): void => { el.style.backgroundPosition = `0px ${-getFrame() * 25}px` }
+        refresh()
+        el.addEventListener('click', () => { toggle(); refresh() })
+        refreshFns.push(refresh)
+    }
+
+    /** Range slider — track baked into prefscrn.png at x=384 width=219.
+     *  Knob sprite is prfsldof.png (21×12) positioned at computeKnobX(value).
+     *  CE ref: preferences.cc _UpdateThing — knob x = (v-min)*219/(max-min)+384 for most.
+     *
+     *  @param computeKnobX  maps current value → left-edge pixel of knob
+     *  @param valToInput    maps value → range <input> integer value
+     *  @param inputToVal    maps range <input> integer → value (clamped)
+     */
+    function rangeSlider(
+        knobY: number,
+        getValue: () => number,
+        setValue: (v: number) => void,
+        inputMin: number,
+        inputMax: number,
+        computeKnobX: (v: number) => number,
+        valToInput: (v: number) => number,
+        inputToVal: (n: number) => number,
+    ): void {
+        const knobImg = document.createElement('img') as HTMLImageElement
+        knobImg.src = 'art/intrface/prfsldof.png'
+        Object.assign(knobImg.style, {
+            position: 'absolute',
+            top: knobY + 'px',
+            width: '21px',
+            height: '12px',
+            pointerEvents: 'none',
+        })
+        panel.appendChild(knobImg)
+
+        // Invisible <input type=range> covers track area for interaction.
+        // CE ref: preferences.cc button registration x=384, y=knobY-12, w=240, h=23.
+        const rangeEl = document.createElement('input')
+        rangeEl.type = 'range'
+        rangeEl.min = String(inputMin)
+        rangeEl.max = String(inputMax)
+        Object.assign(rangeEl.style, {
+            position: 'absolute',
+            left: '384px',
+            top: (knobY - 12) + 'px',
+            width: '240px',
+            height: '24px',
+            opacity: '0',
+            cursor: 'pointer',
+            margin: '0',
+        })
+        panel.appendChild(rangeEl)
+
         const refresh = (): void => {
-            const idx = values.indexOf(getter())
-            btn.textContent = idx >= 0 ? labels[idx] : labels[0]
+            knobImg.style.left = computeKnobX(getValue()) + 'px'
+            rangeEl.value = String(valToInput(getValue()))
         }
         refresh()
-        btn.onclick = (): void => {
-            const cur = getter()
-            const idx = values.indexOf(cur)
-            const next = values[(idx + 1) % values.length]
-            setter(next)
-            refresh()
-        }
-        grid.appendChild(btn)
-        return btn
+        rangeEl.addEventListener('input', () => {
+            setValue(inputToVal(Number(rangeEl.value)))
+            knobImg.style.left = computeKnobX(getValue()) + 'px'
+        })
+        refreshFns.push(refresh)
     }
 
-    // Helper: range slider
-    function addSlider(getter: () => number, setter: (v: number) => void, min = 0, max = 100): HTMLInputElement {
-        const wrap = document.createElement('div')
-        Object.assign(wrap.style, { display: 'flex', alignItems: 'center', gap: '6px' })
-
-        const slider = document.createElement('input')
-        slider.type = 'range'
-        slider.min = String(min)
-        slider.max = String(max)
-        slider.value = String(getter())
-        Object.assign(slider.style, { flex: '1' })
-
-        const numLbl = document.createElement('span')
-        numLbl.style.minWidth = '28px'
-        numLbl.textContent = String(getter())
-
-        slider.oninput = (): void => {
-            const v = Number(slider.value)
-            numLbl.textContent = String(v)
-            setter(v)
-        }
-
-        wrap.appendChild(slider)
-        wrap.appendChild(numLbl)
-        grid.appendChild(wrap)
-        return slider
+    /** Standard slider where x = (v-min)*219/(max-min)+384. */
+    function stdSlider(
+        knobY: number, min: number, max: number,
+        getValue: () => number, setValue: (v: number) => void,
+    ): void {
+        rangeSlider(
+            knobY, getValue, setValue, min, max,
+            (v: number) => Math.round((v - min) * 219 / (max - min)) + 384,
+            (v: number) => Math.round(v),
+            (n: number) => Math.max(min, Math.min(max, n)),
+        )
     }
 
-    // ── 1. Game Difficulty ────────────────────────────────────────────────
-    addLabel('Game Difficulty')
-    addCycleButton<75 | 100 | 125>(
-        [75, 100, 125],
-        ['Easy', 'Normal', 'Hard'],
-        () => Config.combat.difficultyModifier,
-        v => { Config.combat.difficultyModifier = v }
-    )
+    /** Checkbox — prfxout.png=off, prfxin.png=on.
+     *  CE ref: preferences.cc _plyrspdbid at x=383, y=68 (18×18 px).
+     */
+    function checkboxBtn(x: number, y: number, getValue: () => boolean, setValue: (v: boolean) => void): void {
+        const el = document.createElement('img') as HTMLImageElement
+        abs(el as unknown as HTMLElement, x, y, 18, 18)
+        el.style.cursor = 'pointer'
+        const refresh = (): void => { el.src = getValue() ? 'art/intrface/prfxin.png' : 'art/intrface/prfxout.png' }
+        refresh()
+        el.addEventListener('click', () => { setValue(!getValue()); refresh() })
+        refreshFns.push(refresh)
+    }
 
-    // ── 2. Combat Speed ───────────────────────────────────────────────────
-    // CE ref: game_config.h:44 combat_speed — 0=fastest, 50=slowest.
-    addLabel('Combat Speed')
-    addSlider(
-        () => Config.combat.combatSpeed,
-        v => { Config.combat.combatSpeed = v },
-        0, 50
-    )
+    /** Little red button — lilredup.png at rest, lilreddn.png pressed (15×16 px).
+     *  CE ref: preferences.cc DEFAULT/DONE/CANCEL buttons.
+     */
+    function redButton(x: number, y: number, onClick: () => void): void {
+        const el = document.createElement('div')
+        Object.assign(el.style, {
+            backgroundImage: "url('art/intrface/lilredup.png')",
+            backgroundRepeat: 'no-repeat',
+            cursor: 'pointer',
+        })
+        abs(el, x, y, 15, 16)
+        el.addEventListener('mousedown', () => { el.style.backgroundImage = "url('art/intrface/lilreddn.png')" })
+        el.addEventListener('mouseup', () => { el.style.backgroundImage = "url('art/intrface/lilredup.png')"; onClick() })
+        el.addEventListener('mouseleave', () => { el.style.backgroundImage = "url('art/intrface/lilredup.png')" })
+    }
 
-    // ── 3. Violence Level ─────────────────────────────────────────────────
-    addLabel('Violence Level')
-    addCycleButton<0 | 1 | 2 | 3>(
-        [0, 1, 2, 3],
-        ['None', 'Minimum', 'Normal', 'Maximum'],
-        () => Config.combat.violenceLevel,
-        v => { Config.combat.violenceLevel = v }
-    )
+    // ── Local state for prefs not yet in Config ───────────────────────────────
+    // These are rendered faithfully but not persisted until Config fields are added.
+    let combatDifficulty = 1   // CE COMBAT_DIFFICULTY_NORMAL
+    let combatLooks = 0
+    let combatTaunts = 1
+    let languageFilter = 0
+    let brightness = 1.0       // CE range 1.0–1.18 (preferences.cc dbl_50C168)
+    let mouseSensitivity = 1.0 // CE range 1.0–2.5
 
-    // ── 4. Target Highlight ───────────────────────────────────────────────
-    // CE ref: game_config.h:111 TargetHighlightType — 0=off, 1=targeting-only, 2=all-enemies.
-    addLabel('Target Highlight')
-    addCycleButton<TargetHighlight>(
-        ['off', 'targeting-only', 'on'],
-        ['Off', 'Targeting Only', 'All Enemies'],
-        () => {
-            const v = Config.ui.targetHighlight as string | boolean
-            // Normalise legacy boolean → canonical 3-state string.
-            if (v === true) return 'on'
-            if (v === false) return 'off'
-            return v as TargetHighlight
-        },
-        v => { Config.ui.targetHighlight = v }
-    )
+    // ── Primary knobs (prfbknbs.png) ─────────────────────────────────────────
+    // CE ref: gPreferenceDescriptions[] — knobX=76 for all, varying knobY.
 
-    // ── 5. Combat Messages ────────────────────────────────────────────────
-    addLabel('Combat Messages')
-    addCycleButton<'brief' | 'verbose'>(
-        ['brief', 'verbose'],
-        ['Brief', 'Verbose'],
-        () => Config.ui.combatMessages,
-        v => { Config.ui.combatMessages = v }
-    )
-
-    // ── 6. Running ────────────────────────────────────────────────────────
-    addLabel('Running')
-    addCycleButton<boolean>(
-        [true, false],
-        ['On', 'Off'],
-        () => Config.engine.doAlwaysRun,
-        v => { Config.engine.doAlwaysRun = v }
-    )
-
-    // ── 7. Subtitles ──────────────────────────────────────────────────────
-    addLabel('Subtitles')
-    addCycleButton<boolean>(
-        [false, true],
-        ['Off', 'On'],
-        () => Config.ui.subtitles,
-        v => { Config.ui.subtitles = v }
-    )
-
-    // ── 8. Master Volume ──────────────────────────────────────────────────
-    addLabel('Master Volume')
-    addSlider(
-        () => getVolumeValue('master'),
-        v => globalState.audioEngine.setVolume('master', v)
-    )
-
-    // ── 9. Music Volume ───────────────────────────────────────────────────
-    addLabel('Music Volume')
-    addSlider(
-        () => getVolumeValue('music'),
-        v => globalState.audioEngine.setVolume('music', v)
-    )
-
-    // ── 10. SFX Volume ────────────────────────────────────────────────────
-    addLabel('SFX Volume')
-    addSlider(
-        () => getVolumeValue('sfx'),
-        v => globalState.audioEngine.setVolume('sfx', v)
-    )
-
-    // ── 11. Speech Volume (CI6) ───────────────────────────────────────────
-    // CE ref: settings.cc:93 speech_volume (0–32767). Persisted alongside other volumes.
-    addLabel('Speech Volume')
-    addSlider(
-        () => getVolumeValue('speech'),
-        v => globalState.audioEngine.setVolume('speech', v)
-    )
-
-    // ── 12. Text Base Delay (CI9) ─────────────────────────────────────────
-    // CE ref: preferences.cc text_base_delay — on-screen text linger time, 1.0–6.0 s.
-    addLabel('Text Linger (s)')
-    addSlider(
-        () => Math.round(Config.ui.textBaseDelay * 10),
-        v => { Config.ui.textBaseDelay = v / 10 },
-        10, 60
-    )
-
-    // ── 13. Affect Player Speed ───────────────────────────────────────────
-    // CE ref: preferences.cc player_speedup checkbox (prfxin/prfxout.frm, FRM-ID 244/245).
-    addLabel('Affect Player Speed')
-    const speedupWrap = document.createElement('div')
-    const speedupChk = document.createElement('input')
-    speedupChk.type = 'checkbox'
-    speedupChk.checked = Config.engine.playerSpeedup
-    speedupChk.onchange = (): void => { Config.engine.playerSpeedup = speedupChk.checked }
-    Object.assign(speedupChk.style, { cursor: 'pointer', accentColor: '#FFD700' })
-    speedupWrap.appendChild(speedupChk)
-    grid.appendChild(speedupWrap)
-
-    // ── Done button ───────────────────────────────────────────────────────
-    const doneRow = document.createElement('div')
-    Object.assign(doneRow.style, { textAlign: 'center', marginTop: '14px' })
-
-    const doneBtn = document.createElement('button')
-    doneBtn.textContent = 'DONE'
-    Object.assign(doneBtn.style, {
-        background: '#111107',
-        color: '#FFD700',
-        border: '1px solid #8B7355',
-        padding: '4px 24px',
-        cursor: 'pointer',
-        fontFamily: 'monospace',
-        fontSize: '13px',
-        letterSpacing: '1px',
+    // Game Difficulty: knobY=71, CE 0=Easy/1=Normal/2=Hard → Config 75/100/125.
+    const diffFrame = (): number => Config.combat.difficultyModifier === 75 ? 0 : Config.combat.difficultyModifier === 100 ? 1 : 2
+    primaryKnob(76, 71, diffFrame, () => {
+        const next = (diffFrame() + 1) % 3
+        Config.combat.difficultyModifier = next === 0 ? 75 : next === 1 ? 100 : 125
     })
 
-    doneBtn.onclick = (): void => {
+    // Combat Difficulty: knobY=149 (local state — no Config field yet).
+    primaryKnob(76, 149, () => combatDifficulty, () => { combatDifficulty = (combatDifficulty + 1) % 3 })
+
+    // Violence Level: knobY=226, CE 0=None/1=Min/2=Normal/3=Max.
+    primaryKnob(76, 226,
+        () => Config.combat.violenceLevel,
+        () => { Config.combat.violenceLevel = ((Config.combat.violenceLevel + 1) % 4) as 0 | 1 | 2 | 3 },
+    )
+
+    // Target Highlight: knobY=309, CE 0=off/1=targeting-only/2=all-enemies.
+    const thOrder: Array<'off' | 'targeting-only' | 'on'> = ['off', 'targeting-only', 'on']
+    const thFrame = (): number => {
+        const v = Config.ui.targetHighlight as string | boolean
+        if (v === false || v === 'off') return 0
+        if (v === 'targeting-only') return 1
+        return 2
+    }
+    primaryKnob(76, 309, thFrame, () => { Config.ui.targetHighlight = thOrder[(thFrame() + 1) % 3] })
+
+    // Combat Looks: knobY=387, 2-way (local state).
+    primaryKnob(76, 387, () => combatLooks, () => { combatLooks = (combatLooks + 1) % 2 })
+
+    // ── Secondary knobs (prflknbs.png) ───────────────────────────────────────
+    // CE ref: gPreferenceDescriptions[] — knobX=299 for all, varying knobY.
+
+    // Combat Messages: knobY=74.
+    // CE display is inverted (value^1): brief(1)→frame 0 off, verbose(0)→frame 1 on.
+    secondaryKnob(299, 74,
+        () => Config.ui.combatMessages === 'brief' ? 0 : 1,
+        () => { Config.ui.combatMessages = Config.ui.combatMessages === 'brief' ? 'verbose' : 'brief' },
+    )
+
+    // Combat Taunts: knobY=141 (local).
+    secondaryKnob(299, 141, () => combatTaunts, () => { combatTaunts = 1 - combatTaunts })
+
+    // Language Filter: knobY=207 (local).
+    secondaryKnob(299, 207, () => languageFilter, () => { languageFilter = 1 - languageFilter })
+
+    // Running: knobY=271.
+    secondaryKnob(299, 271,
+        () => Config.engine.doAlwaysRun ? 1 : 0,
+        () => { Config.engine.doAlwaysRun = !Config.engine.doAlwaysRun },
+    )
+
+    // Subtitles: knobY=338.
+    secondaryKnob(299, 338,
+        () => Config.ui.subtitles ? 1 : 0,
+        () => { Config.ui.subtitles = !Config.ui.subtitles },
+    )
+
+    // Item Highlight: knobY=404.
+    secondaryKnob(299, 404,
+        () => Config.ui.itemHighlight ? 1 : 0,
+        () => { Config.ui.itemHighlight = !Config.ui.itemHighlight },
+    )
+
+    // ── Range sliders ─────────────────────────────────────────────────────────
+    // CE ref: preferences.cc _UpdateThing — all track at x=384, width=219.
+
+    // Combat Speed: knobY=50, CE 0–50.
+    stdSlider(50, 0, 50, () => Config.combat.combatSpeed, v => { Config.combat.combatSpeed = v })
+
+    // Text Base Delay: knobY=125, CE 1.0–6.0.
+    // CE formula: x = (6.0 - delay) * 43.8 + 384  (inverted — high delay → knob left).
+    // Range input maps input=10 → delay=6.0 (far left), input=60 → delay=1.0 (far right).
+    rangeSlider(
+        125,
+        () => Config.ui.textBaseDelay,
+        v => { Config.ui.textBaseDelay = v },
+        10, 60,
+        (v: number) => Math.round((6.0 - v) * 43.8) + 384,
+        (v: number) => Math.round((6.0 - v) * 10 + 10),
+        (n: number) => Math.max(1.0, Math.min(6.0, (70 - n) / 10)),
+    )
+
+    // Volumes: CE 0–32767, DH2 stored as 0–100 percent.
+    stdSlider(196, 0, 100, () => getVolumeValue('master'), v => { globalState.audioEngine.setVolume('master', v) })
+    stdSlider(247, 0, 100, () => getVolumeValue('music'),  v => { globalState.audioEngine.setVolume('music',  v) })
+    stdSlider(298, 0, 100, () => getVolumeValue('sfx'),    v => { globalState.audioEngine.setVolume('sfx',    v) })
+    stdSlider(349, 0, 100, () => getVolumeValue('speech'), v => { globalState.audioEngine.setVolume('speech', v) })
+
+    // Brightness: knobY=400, CE 1.0–1.18 (local state).
+    rangeSlider(
+        400,
+        () => brightness,
+        v => { brightness = v },
+        0, 100,
+        (v: number) => Math.round((v - 1.0) * (219 / 0.18)) + 384,
+        (v: number) => Math.round((v - 1.0) * (100 / 0.18)),
+        (n: number) => 1.0 + Math.max(0, Math.min(0.18, n * 0.18 / 100)),
+    )
+
+    // Mouse Sensitivity: knobY=451, CE 1.0–2.5 (local state).
+    rangeSlider(
+        451,
+        () => mouseSensitivity,
+        v => { mouseSensitivity = v },
+        0, 150,
+        (v: number) => Math.round((v - 1.0) * (219 / 1.5)) + 384,
+        (v: number) => Math.round((v - 1.0) * 100),
+        (n: number) => 1.0 + Math.max(0, Math.min(1.5, n / 100)),
+    )
+
+    // ── Checkbox: Affect Player Speed ─────────────────────────────────────────
+    // CE ref: preferences.cc _plyrspdbid at x=383, y=68.
+    checkboxBtn(383, 68, () => Config.engine.playerSpeedup, v => { Config.engine.playerSpeedup = v })
+
+    // ── Buttons ───────────────────────────────────────────────────────────────
+    // CE ref: preferences.cc preferencesWindowInit() — DEFAULT x=23, DONE x=148, CANCEL x=263, all y=450.
+
+    // DEFAULT — restore CE defaults from preferencesSetDefaults() in preferences.cc.
+    redButton(23, 450, () => {
+        Config.combat.difficultyModifier = 100
+        combatDifficulty = 1
+        Config.combat.violenceLevel = 3
+        Config.ui.targetHighlight = 'targeting-only'
+        combatLooks = 0
+        Config.ui.combatMessages = 'brief'
+        combatTaunts = 1
+        languageFilter = 0
+        Config.engine.doAlwaysRun = false
+        Config.ui.subtitles = false
+        Config.ui.itemHighlight = true
+        Config.combat.combatSpeed = 0
+        Config.engine.playerSpeedup = false
+        Config.ui.textBaseDelay = 3.5
+        brightness = 1.0
+        mouseSensitivity = 1.0
+        refreshFns.forEach(f => f())
+    })
+
+    // DONE — persist and close.
+    redButton(148, 450, () => {
         savePreferences()
         closePrefsPanel()
-    }
+    })
 
-    doneRow.appendChild(doneBtn)
-    panel.appendChild(doneRow)
+    // CANCEL — close without saving (live Config changes during session remain;
+    // full CE cancel-restore would need a snapshot taken at panel open).
+    redButton(263, 450, () => { closePrefsPanel() })
 
     return panel
 }

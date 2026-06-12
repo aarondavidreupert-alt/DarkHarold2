@@ -4,7 +4,8 @@
       "Bash(npx tsc *)",
       "Bash(ui_charactercreator)",
       "Bash(ui_options)",
-      "Bash(init\" | head -10)"
+      "Bash(init\" | head -10)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\aaron\\\\OneDrive\\\\Dokumente\\\\GitHub\\\\DarkHarold2\\\\art\\\\intrface\\\\\" | Where-Object { $_.Name -match \"prf|lilred|prefcvr\" } | Select-Object Name)"
     ]
   }
 }
