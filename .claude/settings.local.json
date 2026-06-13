@@ -5,7 +5,11 @@
       "Bash(ui_charactercreator)",
       "Bash(ui_options)",
       "Bash(init\" | head -10)",
-      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\aaron\\\\OneDrive\\\\Dokumente\\\\GitHub\\\\DarkHarold2\\\\art\\\\intrface\\\\\" | Where-Object { $_.Name -match \"prf|lilred|prefcvr\" } | Select-Object Name)"
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\aaron\\\\OneDrive\\\\Dokumente\\\\GitHub\\\\DarkHarold2\\\\art\\\\intrface\\\\\" | Where-Object { $_.Name -match \"prf|lilred|prefcvr\" } | Select-Object Name)",
+      "Bash(python -c ' *)",
+      "Bash(sed -n '125,135p' \"C:\\\\Users\\\\aaron\\\\OneDrive\\\\Dokumente\\\\GitHub\\\\DarkHarold2\\\\raw\\\\fallout2-ce\\\\src\\\\interface.cc\")",
+      "Bash(sed -n '55,115p' \"C:\\\\Users\\\\aaron\\\\OneDrive\\\\Dokumente\\\\GitHub\\\\DarkHarold2\\\\raw\\\\fallout2-ce\\\\src\\\\interface.cc\")",
+      "Bash(node -e ' *)"
     ]
   }
 }

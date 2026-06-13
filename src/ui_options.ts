@@ -24,7 +24,7 @@ limitations under the License.
 
 import { Config } from './config.js'
 import { Widget } from './ui_widget.js'
-import { font1, font3, font4, FontWidget, FontRenderer } from './ui_font.js'
+import { font1, font3, font4, FontWidget, FontRenderer, FoText } from './ui_font.js'
 import { WindowFrame } from './ui_components.js'
 import { makePanelDraggable } from './ui_drag.js'
 import { uiSaveLoad } from './ui_saveload.js'
@@ -85,14 +85,18 @@ function buildPrefsPanel(): HTMLElement {
      *         'right' = anchorX is right edge (CE: anchorX - fontGetStringWidth(str)).
      */
     function label(renderer: FontRenderer, text: string, anchorX: number, y: number, align: 'left' | 'center' | 'right' = 'left'): void {
-        const el = renderer.renderText(text, '#c8b466')
+        // FoText uses renderBitmapText internally: pixel-scanned actual glyph heights
+        // give correct baseline alignment, unlike renderText (div-per-glyph) where all
+        // JSON h values are cell_h so top offsets collapse to 0.
+        const ft = new FoText(renderer, text, '#c8b466')
+        // FoText queues its redraw onLoad first; this callback fires after, so ft.width is set.
         renderer.onLoad(() => {
-            const w = renderer.measureText(text)
+            const w = ft.width
             const x = align === 'right'  ? anchorX - w
                     : align === 'center' ? anchorX - Math.floor(w / 2)
                     : anchorX
-            Object.assign(el.style, { position: 'absolute', left: x + 'px', top: y + 'px' })
-            labelsContainer.appendChild(el)
+            Object.assign(ft.elem.style, { position: 'absolute', left: x + 'px', top: y + 'px' })
+            labelsContainer.appendChild(ft.elem)
         })
     }
 

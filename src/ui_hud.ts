@@ -21,6 +21,7 @@ import globalState from './globalState.js'
 import { Critter, WeaponObj } from './object.js'
 import { getActivePunchMode, getActiveKickMode } from './unarmed.js'
 import { $id, $img, $q, clearEl, show, hide, showv, hidev } from './ui_dom.js'
+import { font1 } from './ui_font.js'
 
 // --- Digit readouts (shared by HP / AC / called-shot chance) ---------------
 
@@ -98,69 +99,148 @@ export function drawAP(current: number, max: number, freeMove: number = 0, isPla
     updateIndicatorBar()
 }
 
-// CE ref: interface.cc indicatorBarInit / indicatorBarRefresh
-// INDICATOR_SLOTS_COUNT = 6 (CE allocates 6 fixed slots; only 5 badge types exist).
-// Badge order: ADDICT, SNEAK, LEVEL, POISONED, RADIATED.
-// Thresholds: POISON_INDICATOR_THRESHOLD = 0; RADIATION_INDICATOR_THRESHOLD = 65.
-const INDICATOR_SLOTS: ReadonlyArray<{ label: string; bad: boolean } | null> = [
-    { label: 'ADDICT',   bad: true  },
-    { label: 'SNEAK',    bad: false },
-    { label: 'LEVEL',    bad: false },
-    { label: 'POISONED', bad: true  },
-    { label: 'RADIATED', bad: true  },
-    null, // 6th slot always empty per CE INDICATOR_SLOTS_COUNT=6
+// ---------------------------------------------------------------------------
+// Indicator badges  —  CE ref: interface.cc indicatorBarInit / indicatorBarRefresh
+// ---------------------------------------------------------------------------
+// CE constants (interface.h):
+//   INDICATOR_BOX_WIDTH = 130, INDICATOR_BOX_HEIGHT = 21
+//   INDICATOR_BOX_CONNECTOR_WIDTH = 3  (left-side connector overlap between badges)
+//   INDICATOR_SLOTS_COUNT = 6          (max slots; only 5 badge types exist)
+//   RADATION_INDICATOR_THRESHOLD = 65  (badge shows when radiationLevel  > 65)
+//   POISON_INDICATOR_THRESHOLD   = 0   (badge shows when poisonLevel     > 0)
+// Badge sprite: FRM 126 = WARNBOX = art/intrface/warnbox.png (130×21 px)
+// Colors: CE _colorTable[31744] = RGB565(31744) = #f80000 (bad/red)
+//         CE _colorTable[992]   = RGB565(992)   = #00f800 (good/green)
+// Badge order matches Indicator enum: ADDICT(0) SNEAK(1) LEVEL(2) POISONED(3) RADIATED(4)
+
+const BADGE_W  = 130
+const BADGE_H  = 21
+const BADGE_CW = 3            // connector overlap width
+const BADGE_COLOR_BAD  = '#f80000'
+const BADGE_COLOR_GOOD = '#00f800'
+
+const INDICATOR_DEFS: ReadonlyArray<{ label: string; isBad: boolean }> = [
+    { label: 'ADDICT',   isBad: true  },
+    { label: 'SNEAK',    isBad: false },
+    { label: 'LEVEL',    isBad: false },
+    { label: 'POISONED', isBad: true  },
+    { label: 'RADIATED', isBad: true  },
 ]
 
+// Pre-rendered source canvases (full 130×21, built once when assets load).
+let badgeSrcCanvases: Map<string, HTMLCanvasElement> | null = null
+let badgeBuildPending = false
+
+// CE: indicatorBarInit — blit warnbox.png background, then fontDrawText centered.
+//   x = (BADGE_W - fontGetStringWidth(text)) / 2
+//   y = (BADGE_H  - fontGetHeight()          + BADGE_CW) / 2
+function buildBadgeSrcCanvases(cb: () => void): void {
+    if (badgeBuildPending) return
+    badgeBuildPending = true
+    const img = new Image()
+    img.src = 'art/intrface/warnbox.png'
+    img.onload = () => {
+        font1.onLoad(() => {
+            const map = new Map<string, HTMLCanvasElement>()
+            for (const def of INDICATOR_DEFS) {
+                const canvas = document.createElement('canvas')
+                canvas.width  = BADGE_W
+                canvas.height = BADGE_H
+                const ctx = canvas.getContext('2d')!
+                ctx.drawImage(img, 0, 0)
+                const color     = def.isBad ? BADGE_COLOR_BAD : BADGE_COLOR_GOOD
+                const textCv    = font1.renderCanvas(def.label, color)
+                const textX     = Math.floor((BADGE_W - textCv.width)  / 2)
+                const textY     = Math.floor((BADGE_H - textCv.height + BADGE_CW) / 2)
+                ctx.drawImage(textCv, textX, textY)
+                map.set(def.label, canvas)
+            }
+            badgeSrcCanvases = map
+            cb()
+        })
+    }
+}
+
 let indicatorBarEl: HTMLElement | null = null
+
 export function updateIndicatorBar(): void {
     const player = globalState.player
     if (!player) return
+
     if (!indicatorBarEl) {
         const bar = document.getElementById('bar')
         if (!bar) return
         indicatorBarEl = document.createElement('div')
         indicatorBarEl.id = 'indicatorBar'
-        // Parent inside #bar and anchor above it via bottom:100%.
-        // CSS default overflow:visible lets the element render outside bar's box.
+        // Anchored above #bar via bottom:100%; overflow:hidden clips the first
+        // badge's left connector exactly at the container edge (CE: connectorWidthCompensation).
         Object.assign(indicatorBarEl.style, {
-            position: 'absolute',
-            bottom: '100%',
-            left: '0',
-            right: '0',
-            marginBottom: '3px',
-            display: 'flex',
-            justifyContent: 'center',
-            gap: '2px',
+            position:      'absolute',
+            bottom:        '100%',
+            left:          '0',
+            height:        BADGE_H + 'px',
+            overflow:      'hidden',
             pointerEvents: 'none',
-            fontFamily: 'monospace',
-            fontSize: '10px',
-            textShadow: '1px 1px 0 #000',
-            zIndex: '15',
+            zIndex:        '15',
         })
         bar.appendChild(indicatorBarEl)
     }
 
-    // Determine which badge slots are active.
+    // Determine active badges in CE enum order.
     const active = new Set<string>()
     const addicts: string[] = (player as any).addictions ?? []
-    if (addicts.length > 0) active.add('ADDICT')
-    if ((player as any).isSneaking) active.add('SNEAK')
-    const skillPoints: number = (player as any).skills?.skillPoints ?? 0
-    if (skillPoints > 0) active.add('LEVEL')
-    if (((player as any).poisonLevel ?? 0) > 0) active.add('POISONED')
-    if (((player as any).radiationLevel ?? 0) >= 65) active.add('RADIATED')
+    if (addicts.length > 0)                              active.add('ADDICT')
+    if ((player as any).isSneaking)                      active.add('SNEAK')
+    if (((player as any).skills?.skillPoints ?? 0) > 0) active.add('LEVEL')
+    if (((player as any).poisonLevel    ?? 0) > 0)      active.add('POISONED')
+    // CE: critterGetRadiation(gDude) > RADATION_INDICATOR_THRESHOLD (65) — strictly greater
+    if (((player as any).radiationLevel ?? 0) > 65)     active.add('RADIATED')
 
-    // Render exactly 6 fixed-width slots. Empty slots are transparent spacers.
-    indicatorBarEl.innerHTML = INDICATOR_SLOTS.map(slot => {
-        if (!slot || !active.has(slot.label)) {
-            return `<span style="display:inline-block;width:58px;height:14px;"></span>`
-        }
-        const c = slot.bad ? '#F00' : '#0F0'
-        return `<span style="display:inline-block;width:58px;height:14px;line-height:14px;` +
-            `text-align:center;box-sizing:border-box;background:rgba(0,0,0,0.7);` +
-            `border:1px solid ${c};color:${c};">${slot.label}</span>`
-    }).join('')
-    indicatorBarEl.style.visibility = active.size > 0 ? 'visible' : 'hidden'
+    if (!badgeSrcCanvases) {
+        buildBadgeSrcCanvases(() => renderIndicatorBadges(active))
+        return
+    }
+    renderIndicatorBadges(active)
+}
+
+// CE: indicatorBarRender — packs active badges left-to-right.
+// First badge: source starts at column BADGE_CW (clips left connector).
+//   → display canvas is (BADGE_W - BADGE_CW) × BADGE_H, positioned at left=0.
+// Badge i≥1: full BADGE_W canvas at left = i*(BADGE_W-BADGE_CW) - BADGE_CW.
+// Container width = (BADGE_W - BADGE_CW) * count; overflow:hidden clips first connector.
+function renderIndicatorBadges(active: Set<string>): void {
+    const el = indicatorBarEl
+    if (!el || !badgeSrcCanvases) return
+
+    while (el.firstChild) el.removeChild(el.firstChild)
+
+    const activeDefs = INDICATOR_DEFS.filter(d => active.has(d.label))
+    if (activeDefs.length === 0) {
+        el.style.visibility = 'hidden'
+        return
+    }
+
+    el.style.visibility = 'visible'
+    // Container is exactly as wide as the packed badges (CE window width formula).
+    el.style.width = (BADGE_W - BADGE_CW) * activeDefs.length + 'px'
+
+    for (let i = 0; i < activeDefs.length; i++) {
+        const src = badgeSrcCanvases.get(activeDefs[i].label)!
+
+        // CE: first badge blits source starting at column BADGE_CW (clips left connector).
+        const srcX     = i === 0 ? BADGE_CW : 0
+        const dispW    = i === 0 ? BADGE_W - BADGE_CW : BADGE_W
+        // CE: x position in indicator window (derived from indicatorBarRender loop):
+        //   i=0 → 0;  i≥1 → i*(BADGE_W-BADGE_CW) - BADGE_CW
+        const leftPx   = i === 0 ? 0 : i * (BADGE_W - BADGE_CW) - BADGE_CW
+
+        const cv = document.createElement('canvas')
+        cv.width  = dispW
+        cv.height = BADGE_H
+        cv.getContext('2d')!.drawImage(src, srcX, 0, dispW, BADGE_H, 0, 0, dispW, BADGE_H)
+        Object.assign(cv.style, { position: 'absolute', left: leftPx + 'px', top: '0' })
+        el.appendChild(cv)
+    }
 }
 
 // Dim the attack button when the player can't afford the current weapon mode's

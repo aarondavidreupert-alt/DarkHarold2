@@ -11,6 +11,7 @@ import { Critter, Obj } from './object.js'
 import globalState from './globalState.js'
 import { dbg, eventLogPush } from './logger.js'
 import { RollResult, randomRoll, rollIsSuccess, getRandomInt } from './util.js'
+import { updateIndicatorBar } from './ui_hud.js'
 import * as GameTime from './gametime.js'
 
 // ---------------------------------------------------------------------------
@@ -368,10 +369,12 @@ function useSneak(user: Critter): SkillUseResult {
         if (player.isSneaking) {
             player.isSneaking = false
             console.log('[SNEAK] Sneak mode DEACTIVATED')
+            updateIndicatorBar()
             return makeResult(true, RollResult.Success, 'You stop sneaking.')
         } else {
             player.isSneaking = true
             console.log('[SNEAK] Sneak mode ACTIVATED')
+            updateIndicatorBar()
             return makeResult(true, RollResult.Success, 'You are now sneaking.')
         }
     }

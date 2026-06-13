@@ -23,6 +23,7 @@ import { Config } from '../config.js'
 import globalState from '../globalState.js'
 import { Widget } from '../ui_widget.js'
 import { font2, font3, makeFontLabel, renderBignum } from '../ui_font.js'
+import { updateIndicatorBar } from '../ui_hud.js'
 import { WindowFrame, SmallButton, Label } from '../ui_components.js'
 import { makePanelDraggable } from '../ui_drag.js'
 import { PERKS } from '../perks.js'
@@ -755,6 +756,7 @@ export function showCharacterScreen() {
         }
 
         console.log('[CharScreen] Changes saved.')
+        updateIndicatorBar()
         characterWindow.close()
     })
 

@@ -412,3 +412,22 @@ Phase 9 (remaining tractable gaps) 🟡/🔴
 | AF15 | **Preferences screen has no Default button.** CE has a "DEFAULT" button that resets all sliders to CE defaults. | `preferences.cc preferencesSave()` | low |
 | AF16 | **`text_line_delay` absent.** CE has a separate `text_line_delay` (per-line auto-advance speed distinct from `text_base_delay`). | `settings.h:43` | low |
 | AF17 | **`language_filter` checkbox absent.** CE has a profanity filter toggle. | `preferences.cc PREF_LANGUAGE_FILTER` | low |
+
+---
+
+## AUDIT FINDINGS — interface.cc (2026-06-13)
+
+Audit scope: `fallout2-ce/src/interface.cc` vs `src/ui_hud.ts`, `src/ui.ts`, `src/ui_options.ts`.
+Items already implemented (indicator bar, AP lights, sneaking/addiction/level flags, radiation/poison thresholds) are omitted.
+
+| ID | Gap | CE reference | severity |
+|----|-----|--------------|----------|
+| IF01 | **HP counter animation absent.** CE `interfaceRenderCounter()` rolls digits frame-by-frame (250ms / delta HP) with intermediate white→yellow→red color transitions. DH2 `drawDigits()` is instant. | `interface.cc interfaceRenderCounter` | med |
+| IF02 | **HP color thresholds not animated.** CE flashes white→yellow at 50% max HP and yellow→red at 25%; transitions are per-frame. DH2 shows the correct final color but skips transition frames. | `interface.cc interfaceRenderHitPoints` | low |
+| IF03 | **End-button lights missing.** CE `interfaceBarEndButtonsRenderGreenLights()` / `RenderRedLights()` blit separate light sprites over the End Turn / End Combat buttons on enter/exit combat. DH2 has no light overlay. | `interface.cc interfaceBarEndButtonsRenderGreenLights` | low |
+| IF04 | **End-button SFX missing.** CE plays `icombat2` (lights on) and `icombat1` (lights off) when combat mode is entered/exited. DH2 does not fire these SFX. | `interface.cc interfaceBarEndButtonsRenderGreenLights` | low |
+| IF05 | **Active hand not persisted in save.** CE `interfaceSave()` writes `gInterfaceCurrentHand` to the save stream. DH2 `saveload.ts` does not save/restore `player.activeHand`. | `interface.cc interfaceSave/Load` | low |
+| IF06 | **Reload AP cost hardcoded to 2.** CE reads `reloadAP` from the weapon PRO data. DH2 `ui.ts` has a TODO and returns 2 unconditionally. | `interface.cc interfaceBarRefreshMainAction / item.cc` | med |
+| IF07 | **Called-shot aiming not reachable via action-cycle.** CE cycles PRIMARY→PRIMARY_AIMING→SECONDARY→SECONDARY_AIMING→RELOAD; entering an AIMING mode auto-opens the called-shot panel. DH2 uses a separate hotkey ('Z'). | `interface.cc interfaceBarRefreshMainAction` | low |
+| IF08 | **Ammo bar fill width deviant.** CE formula: `ratio = currentRounds / maxAmmo * 70` (70 px max). DH2 uses 55 px max. | `interface.cc interfaceBarRefreshMainAction line ~1361` | low |
+| IF09 | **HUD bar hide/show script hooks absent.** CE exposes `gInterfaceBarMode` toggled by `intface_hide` / `intface_show` opcodes; scripts can hide the entire HUD. DH2 stubs these opcodes. | `interface.cc indicatorBarHide/Show, scripting opcodes` | low |
