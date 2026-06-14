@@ -1041,6 +1041,19 @@ html, body {
   background-image: url("art/intrface/wmapbox.png");
 }
 
+/* CE ref: worldmap.cc WM_WINDOW_DIAL_X=532, WM_WINDOW_DIAL_Y=48
+   wmdial.png: 1392×29, 48 frames of 29×29 (horizontal sprite sheet) */
+#worldMapDial {
+  position: absolute;
+  left: 532px;
+  top: 48px;
+  width: 29px;
+  height: 29px;
+  background-image: url("art/intrface/wmdial.png");
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+
 #worldmapViewButton {
   position: absolute;
   left: 519px;
@@ -1172,8 +1185,17 @@ html, body {
   /* background-image varies per elevator type */
 }
 
+/* CE ref: elevator.cc — gauge blitted at x=121, y=41 within elevator background.
+   gaj000.png: 92×715, 13 frames of 92×55 (vertical sprite sheet, frame 0=top floor). */
 #elevatorPositioner {
-  /**/
+  position: absolute;
+  left: 121px;
+  top: 41px;
+  width: 92px;
+  height: 55px;
+  background-image: url("art/intrface/gaj000.png");
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
 }
 
 .elevatorButton {

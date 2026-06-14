@@ -103,9 +103,9 @@ export class GameMap {
 
     addObject(obj: Obj, level?: number): void {
         this.objects[level === undefined ? this.currentElevation : level].push(obj)
-        // M3: objects added after map load need enterMap() so their scripts fire map_enter_p_proc.
-        // enterMap() is a no-op for objects without scripts, so this is always safe.
-        obj.enterMap()
+        // CE ref: objAddToMap (obj.cc) — purely spatial placement; does NOT fire map_enter_p_proc.
+        // map_enter_p_proc is fired once per map load by scriptsExecMapEnterProc, not on every add.
+        // Calling enterMap() here causes infinite recursion when move_to is used inside map_enter_p_proc.
     }
 
     removeObject(obj: Obj): void {

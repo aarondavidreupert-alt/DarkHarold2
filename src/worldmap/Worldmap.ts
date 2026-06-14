@@ -49,6 +49,23 @@ let $worldmapPlayer: HTMLElement | null = null
 let $worldmapTarget: HTMLElement | null = null
 let worldmapTimer: number = -1
 let lastEncounterCheck = 0
+let $worldMapDial: HTMLElement | null = null
+let _lastDialFrame = -1
+
+// CE ref: worldmap.cc WM_WINDOW_DIAL_X=532/Y=48; wmdial.png = 1392×29, 48 frames of 29×29.
+const DIAL_FRAMES = 48
+const DIAL_FRAME_W = 29
+
+function updateDial(): void {
+    if (!$worldMapDial) return
+    // CE ref: worldmap.cc wmInterfaceDialSyncTime — frame = (gameHour/100 + 12) % frameCount
+    // gameHour is military time (e.g. 1330 = 1:30pm), dividing by 100 gives fractional hours.
+    const gameHour = GameTime.getHourMilitary()
+    const frame = Math.floor((gameHour / 100 + 12) % DIAL_FRAMES)
+    if (frame === _lastDialFrame) return
+    _lastDialFrame = frame
+    $worldMapDial.style.backgroundPositionX = -(frame * DIAL_FRAME_W) + 'px'
+}
 
 // Sibling-module accessors (used by encounters.ts).
 export function getWorldmap(): WorldmapData {
@@ -146,6 +163,9 @@ export function init(): void {
     $worldmapPlayer = document.getElementById('worldmapPlayer')
     $worldmapTarget = document.getElementById('worldmapTarget')
     $worldmap = document.getElementById('worldmap')
+    $worldMapDial = document.getElementById('worldMapDial')
+    _lastDialFrame = -1
+    updateDial()
 
     worldmap = parseWorldmap(getFileText('data/data/worldmap.txt'))
 
@@ -316,6 +336,7 @@ export function updateWorldmapPlayer() {
         const pathfinderRank = globalState.player?.perks.filter((p: string) => p === 'Pathfinder').length ?? 0
         const pathfinderMult = Math.max(0, 1 - pathfinderRank * 0.25)
         GameTime.advanceMinutes(Math.max(1, Math.round(2 * travelScale * pathfinderMult)))
+        updateDial()
 
         // center the worldmap to the player
         const width = $worldmap.offsetWidth
