@@ -30,6 +30,7 @@ import { makePanelDraggable } from './ui_drag.js'
 import { uiSaveLoad } from './ui_saveload.js'
 import globalState from './globalState.js'
 import { getVolumeValue, savePreferences } from './ui_options/preferences.js'
+import { showConfirm } from './ui_dialog.js'
 
 // FO2-CE ref: preferences.cc TargetHighlight enum — 0=off, 1=targeting-only, 2=all-enemies.
 type TargetHighlight = 'off' | 'targeting-only' | 'on'
@@ -607,10 +608,10 @@ export function initOptionsMenu(): void {
         ['Save Game',         () => { optionsWindow.close(); uiSaveLoad(true) }],
         ['Load Game',         () => { optionsWindow.close(); uiSaveLoad(false) }],
         ['Preferences',       () => { openPrefsPanel() }],
-        ['Exit to Main Menu', () => {
-            if (confirm('Return to the main menu?\nUnsaved progress will be lost.')) {
+        ['Exit to Main Menu', async () => {
+            // CE ref: game.cc showQuitConfirmationDialog() — message 0 from gMiscMessageList
+            if (await showConfirm('Return to the main menu?\nUnsaved progress will be lost.')) {
                 optionsWindow.close()
-                // Reload brings up the main menu (default startup path).
                 window.location.reload()
             }
         }],
@@ -653,9 +654,11 @@ export function initOptionsMenu(): void {
             case 'l': optionsWindow.close(); uiSaveLoad(false); e.preventDefault(); break
             case 'p': openPrefsPanel(); e.preventDefault(); break
             case 'x':
-                if (confirm('Return to the main menu?\nUnsaved progress will be lost.')) {
-                    optionsWindow.close(); window.location.reload()
-                }
+                void (async () => {
+                    if (await showConfirm('Return to the main menu?\nUnsaved progress will be lost.')) {
+                        optionsWindow.close(); window.location.reload()
+                    }
+                })()
                 e.preventDefault(); break
             case 'd':
             case 'escape': optionsWindow.close(); e.preventDefault(); break

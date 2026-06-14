@@ -21,7 +21,7 @@ import globalState from '../globalState.js'
 import { lazyLoadImage } from '../images.js'
 import { Obj, createObjectWithPID } from '../object.js'
 import { Scripting } from '../scripting.js'
-import { drawAC, uiDrawWeapon } from '../ui_hud.js'
+import { drawAC, drawAP, uiDrawWeapon } from '../ui_hud.js'
 import { makePanelDraggable } from '../ui_drag.js'
 import { UIMode, closeAllPanels, isInventoryOpen, registerCloseInventoryPanel } from '../ui_panels.js'
 import { $id, clearEl, showv, hidev, makeEl } from '../ui_dom.js'
@@ -86,6 +86,18 @@ export function showInventory() {
     const wasOpen = isInventoryOpen()
     globalState.uiMode = UIMode.inventory
     if (!wasOpen) globalState.audioEngine.playSfxByName('iisxxxx1')
+
+    // CE ref: inventory.cc inventoryOpen() — deduct AP on first open during combat
+    // Base cost: 4; Quick Pockets perk reduces by 2 per rank (CE: PERK_QUICK_POCKETS id=35)
+    if (!wasOpen && globalState.inCombat && globalState.player?.AP) {
+        const player = globalState.player
+        const qpRank = player.hasPerk('Quick Pockets') ? 1 : 0
+        const apCost = Math.max(0, 4 - 2 * qpRank)
+        if (apCost > 0) {
+            player.AP.subtractCombatAP(apCost)
+            drawAP(player.AP.getAvailableCombatAP(), player.AP.getTotalMaxAP())
+        }
+    }
 
     showv($id('inventoryBox'))
 

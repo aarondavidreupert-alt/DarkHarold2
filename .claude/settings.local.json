@@ -9,7 +9,9 @@
       "Bash(python -c ' *)",
       "Bash(sed -n '125,135p' \"C:\\\\Users\\\\aaron\\\\OneDrive\\\\Dokumente\\\\GitHub\\\\DarkHarold2\\\\raw\\\\fallout2-ce\\\\src\\\\interface.cc\")",
       "Bash(sed -n '55,115p' \"C:\\\\Users\\\\aaron\\\\OneDrive\\\\Dokumente\\\\GitHub\\\\DarkHarold2\\\\raw\\\\fallout2-ce\\\\src\\\\interface.cc\")",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(i,v\\) for i,v in enumerate\\(d\\) if 200<=i<=220]\")"
     ]
   }
 }

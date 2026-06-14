@@ -47,6 +47,7 @@ export enum UIMode {
     options = 15,
     mainMenu = 16,
     characterCreator = 17,
+    dialog = 18,
 }
 
 // --- $uiContainer ownership -------------------------------------------------

@@ -21,6 +21,7 @@ import { formatSaveDate, load, save, SaveGame, saveList } from './saveload.js'
 import { Widget } from './ui_widget.js'
 import { WindowFrame, SmallButton, Label, List } from './ui_components.js'
 import { UIMode } from './ui_panels.js'
+import { showConfirm, showInput } from './ui_dialog.js'
 
 export function uiSaveLoad(isSave: boolean): void {
     globalState.uiMode = UIMode.saveLoad
@@ -81,26 +82,21 @@ export function uiSaveLoad(isSave: boolean): void {
         saveLoadWindow.close()
     }
 
-    function selected() {
-        // Done was clicked, so save/load the slot
+    async function selected() {
         const item = listOfSaves.getSelection()
-        if (!item) {
-            return
-        } // No slot selected
+        if (!item) return
 
         const saveID = item.id
-
         console.log('[UI] %s save #%d.', isSave ? 'Saving' : 'Loading', saveID)
 
         if (isSave) {
-            const name = prompt('Save Name?')
-
+            // CE ref: loadsave.cc — message 131: "Save game already exists, overwrite?"
             if (saveID !== -1) {
-                if (!confirm('Are you sure you want to overwrite that save slot?')) {
-                    return
-                }
+                const ok = await showConfirm('Save game already exists.\nOverwrite?')
+                if (!ok) return
             }
-
+            const name = await showInput('Save Name?')
+            if (name === null) return
             save(name, saveID === -1 ? undefined : saveID, done)
         } else {
             load(saveID)

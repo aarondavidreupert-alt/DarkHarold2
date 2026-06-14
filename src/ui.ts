@@ -40,6 +40,7 @@ import { openUnarmedModePanel, closeUnarmedModePanel } from './ui_unarmed.js'
 import {
     drawHP,
     drawAC,
+    drawAP,
     drawDigits,
     uiLog,
     uiDrawWeapon,
@@ -240,6 +241,8 @@ export function initUI() {
                     return
                 }
                 globalState.player.AP.subtractCombatAP(reloadAP)
+                const ap = globalState.player.AP
+                drawAP(ap.getAvailableCombatAP(), ap.getTotalMaxAP())
             }
             reloadWeapon(wep)
             wep.weapon.mode = 'single'

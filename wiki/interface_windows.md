@@ -2,7 +2,7 @@
 
 > Ground-truth: `raw/fallout2-ce/src/interface.cc` / `interface.h` (`interfaceInit`, `InterfaceItemState`, `indicatorBar*`), `raw/fallout2-ce/src/game_dialog.cc`, `raw/fallout2-ce/src/elevator.cc`, `raw/fallout2-ce/src/elevator.h`, `raw/fallout2-ce/src/skilldex.cc`
 > DH2 impl: `src/ui_panels.ts` (`UIMode`, mutual exclusion), `src/ui_components.ts` (`WindowFrame`, `SmallButton`, `Label`, `List`), `src/ui_hud.ts` (HUD bar), `src/ui.ts` (init, button wiring), `src/ui_elevator.ts` (elevator panel), and the per-window modules below
-> **Last audited:** 2026-06-02
+> **Last audited:** 2026-06-13
 
 ---
 
@@ -129,7 +129,26 @@ uiLog(msg: string): void       // appends line to #displayLog
 initLogScrollZones()           // sets up wheel-scroll handlers on the log element
 ```
 
-### 4.5 HUD Button Wiring (`ui.ts:110`)
+### 4.5 Bitmap Font Rendering for UI (`src/ui/fontCore.ts`, `src/ui/foText.ts`)
+
+DH2 UI uses AAF bitmap fonts via `FontRenderer` and the `FoText` wrapper. Key architectural facts:
+
+**AAF sprite layout** (confirmed from `data/fonts.py`):
+- JSON `h` field = `cell_h` (the maximum glyph height for the font) for **all** glyphs — not the actual glyph pixel height.
+- All glyphs are **top-aligned** in the sprite sheet: pixel data starts at row 0, empty rows are at the **bottom**.
+- Actual rendered height must be computed by scanning the sprite pixels (`computeGlyphMetrics` in `fontCore.ts`).
+
+**Baseline alignment algorithm** (`renderBitmapText`):
+- `baselineH = actualH('A')` — use uppercase A as the baseline reference.
+- Non-descender glyph (e.g., 'e', 'a'): `canvasY = baselineH - actualH` — pushed down so bottoms align.
+- Descender glyph (e.g., 'g', 'p', where `actualH > baselineH`): `canvasY = 0` — body aligns with 'A', descender extends below.
+- Canvas height = `baselineH + maxDescent` where `maxDescent = max(0, actualH - baselineH)` over all glyphs in the string.
+
+**`FoText` class** (`src/ui/foText.ts`): standalone non-Widget wrapper. Exposes `.elem` (inline-block div), `.text`/`.color` setters, `.appendTo()`, and `.width`/`.height` getters. Use this (not `renderer.renderText()`) for pixel-accurate baseline alignment in positioned UI layouts.
+
+**`FontRenderer.renderCanvas(text, color?)`**: canvas-based path; color applied via red-channel alpha compositing.
+
+### 4.6 HUD Button Wiring (`ui.ts:110`)
 
 Buttons are wired in `uiInit()` / `initUI()`:
 
@@ -147,7 +166,7 @@ Buttons are wired in `uiInit()` / `initUI()`:
 | `endTurnButton` | — | `combat.nextTurn()` | End player combat turn |
 | `endCombatButton` | — | `combat.end()` | End combat entirely |
 
-Reload is handled inside the `attackButtonContainer` click: if `weapon.mode === 'reload'`, loads ammo from inventory (AP cost hardcoded to 2; TODO comment in `ui.ts:323` to read from PRO `reloadAP`).
+Reload is handled inside the `attackButtonContainer` click: if `weapon.mode === 'reload'`, loads ammo from inventory. AP cost is computed by `weapon.getReloadAPCost()` (`src/critter/Weapon.ts:346`): returns 1 if weapon has perk 65 (Fast Reload), 0 for Solar Scorcher (PID 390), otherwise 2 — matching CE's `weaponGetActionPointCost` in `item.cc:1643`. After deducting AP, `drawAP()` is called immediately to sync the indicator lights.
 
 ---
 
@@ -255,19 +274,58 @@ INTERFACE_ITEM_ACTION_RELOAD         =  5
 
 DH2 tracks weapon mode as `weapon.mode` (string: `'single'` / `'burst'` / `'reload'`) and has no `isDisabled` state.
 
-### 9.2 Indicator Bar (CE)
+### 9.2 Indicator Bar (CE → DH2)
 
-CE displays a bar of status badges above the main HUD when relevant conditions are active:
+CE displays a bar of status badges above the main HUD when relevant conditions are active. DH2 implements this via `updateIndicatorBar()` / `buildBadgeSrcCanvases()` in `src/ui_hud.ts`.
 
-| Indicator | CE constant | Threshold |
-|-----------|-------------|-----------|
+#### CE constants (`interface.h`, `interface.cc`)
+
+| Indicator | CE constant | Active when |
+|-----------|-------------|-------------|
 | ADDICT | `INDICATOR_ADDICT` | drug addiction flag set |
 | SNEAK | `INDICATOR_SNEAK` | sneak mode active |
-| LEVEL UP | `INDICATOR_LEVEL` | unspent level-up point |
+| LEVEL UP | `INDICATOR_LEVEL` | unspent perk/level point |
 | POISONED | `INDICATOR_POISONED` | `poisonLevel > 0` |
-| RADIATED | `INDICATOR_RADIATED` | radiation ≥ 65 |
+| RADIATED | `INDICATOR_RADIATED` | `critterGetRadiation(gDude) > 65` (**strictly** greater, not ≥) |
 
-Up to 6 indicators per `INDICATOR_SLOTS_COUNT`. Rendered in its own `gIndicatorBarWindow` above the main HUD. DH2 has no indicator bar.
+Up to `INDICATOR_SLOTS_COUNT = 6` shown simultaneously; CE renders them in `gIndicatorBarWindow`, a separate window above `gInterfaceBarWindow`.
+
+#### CE badge geometry (`interface.cc indicatorBarRefresh`)
+
+```
+BADGE_W  = 130 px   (INDICATOR_BOX_WIDTH)
+BADGE_H  =  21 px   (INDICATOR_BOX_HEIGHT)
+BADGE_CW =   3 px   (connector overlap)
+
+badge 0  : srcX = BADGE_CW (= 3), display width = BADGE_W - BADGE_CW (= 127)
+badge i≥1: srcX = 0,               display width = BADGE_W          (= 130)
+           left = i * (BADGE_W - BADGE_CW) - BADGE_CW  (= i*127 - 3)
+
+container width = (BADGE_W - BADGE_CW) * count  (= 127 * count)
+overflow:hidden clips the left connector on badge 0
+```
+
+CE badge colors from `_colorTable` (RGB565):
+- Bad badges (ADDICT, POISONED, RADIATED): `_colorTable[31744]` = RGB565(31744) = `#f80000`
+- Good badges (SNEAK, LEVEL): `_colorTable[992]` = RGB565(992) = `#00f800`
+
+Text centering (CE `indicatorBarRefresh`):
+```
+textX = (BADGE_W - textWidth) / 2
+textY = (BADGE_H - textHeight + BADGE_CW) / 2
+```
+
+#### DH2 implementation (`src/ui_hud.ts`)
+
+`buildBadgeSrcCanvases()` — runs once on HUD init. Loads `art/intrface/warnbox.png` and `font1`, pre-renders one canvas per indicator type (5 total). Badge text is composited using `FoText`/`renderBitmapText` and color-matched to CE.
+
+`updateIndicatorBar()` — called on any state change that can affect badge visibility:
+- HP draw (`drawHP`)
+- AP draw (`drawAP`) during combat init
+- Sneak toggle (`src/skillUse.ts useSneak`)
+- Character screen Done button (`src/ui_character/viewer.ts`)
+
+`renderIndicatorBadges(activeSet)` — builds the container DOM element with `overflow:hidden`, appends badge `<canvas>` elements using CE geometry above.
 
 ---
 
@@ -454,13 +512,13 @@ Loaded lazily from `lut/elevators.json` via `getElevator(type)`.
 
 | # | Feature | CE Behavior | DH2 Status | Impact |
 |---|---------|-------------|------------|--------|
-| IW1 | Indicator bar | 5 indicator types shown above HUD (ADDICT/SNEAK/LEVEL/POISONED/RADIATED) | MISSING — no indicator bar element or rendering | Player gets no HUD feedback for poison, radiation, sneak, addiction, or level-up pending |
+| IW1 | Indicator bar | 5 indicator types shown above HUD (ADDICT/SNEAK/LEVEL/POISONED/RADIATED) | **FIXED 2026-06-13** — implemented in `src/ui_hud.ts`; see §9.2 for geometry/color details | — |
 | IW2 | `InterfaceItemState.isDisabled` | Weapon buttons grey-out when player has insufficient AP for the attack | MISSING — DH2 does not grey the attack button | Player can click attack with 0 AP; engine silently rejects the attack |
 | IW3 | `InterfaceItemAction` aiming states | Right-click cycles through DEFAULT→USE→PRIMARY→PRIMARY_AIMING→SECONDARY→SECONDARY_AIMING→RELOAD; aiming states open the called-shot panel automatically | PARTIAL — DH2 only cycles `'single'`/`'burst'`/`'reload'`; called shot is opened via separate hotkey (`controls.calledShot = 'z'`) | Aiming modes are not linked to weapon action cycling |
 | IW4 | HUD bar hide/show | `interfaceBarHide/Show` + `gInterfaceBarMode` allow scripts/transitions to toggle the entire bar | MISSING — DH2 has no hide/show for the HUD element | Scripts calling `hide_window(IFACE_WIN)` have no effect |
 | IW5 | Active hand persistence in save | CE `interfaceSave` serializes `gInterfaceCurrentHand` | MISSING — DH2 save/load does not persist `player.activeHand` | Active hand always resets to default on load |
 | IW6 | AP readout animation | `interfaceRenderActionPoints(animate=true)` plays frame-by-frame AP loss/gain anim | MISSING — `drawAP` updates immediately, no animation | Minor visual fidelity gap |
-| IW7 | Reload AP cost from PRO | CE reads `reloadAP` from weapon PRO | STUB — DH2 `ui.ts:323` hardcodes `reloadAP = 2` | Reload AP cost incorrect for weapons with non-standard reload cost |
+| IW7 | Reload AP cost / AP sync | CE: `weaponGetActionPointCost` (`item.cc:1643`) returns 1 (Fast Reload perk), 0 (Solar Scorcher), else 2. CE calls `interfaceRenderActionPoints` after deduction. | **FIXED 2026-06-13** — DH2 `getReloadAPCost()` (`src/critter/Weapon.ts:346`) matches CE logic; `drawAP()` called immediately after deduction in `ui.ts`. Note: CE reload AP is hardcoded logic (not from PRO data), so no PRO field read is needed. | — |
 | IW8 | Dialogue `_dialogue_state` machine | `game_dialog.cc` runs a multi-state machine with barter, trade, and other sub-modes reachable from dialogue | PARTIAL — DH2 transitions `UIMode.dialogue` → `UIMode.barter` manually; complex sub-mode transitions are not replicated | Dialogue-driven barter (`StartTrading`) works; other sub-mode transitions may not |
 | IW9 | Perk selection UI | CE `character_editor.cc` opens a perk-selection screen on level-up | STUB — `pendingPerkPick` flag exists in `player.ts`; no selection screen renders | Player cannot choose a perk on level-up; perk points accumulate silently |
 | IW10 | CE context menu via cursor mode | CE selects verb (look/talk/use/pickup) by cursor icon; right-click re-targets the verb | DH2 uses an inline menu with explicit buttons; no cursor verb system | Functional difference but no gameplay gap |
@@ -470,4 +528,6 @@ Loaded lazily from `lut/elevators.json` via `getElevator(type)`.
 | EV3 | `use_elevator` scripting opcode not wired | CE scripts can trigger an elevator programmatically via the `use_elevator` opcode (`0x80FD`). DH2 has no wiring for this opcode in `vm_bridge.ts`. (`elevator.cc`) | MISSING | minor severity |
 | EV4 | `console.log` in production path | `ui_elevator.ts:59–64` uses raw `console.log` instead of `dbg()`/`dbgWarn()` from `src/logger.ts`. | BUG — `ui_elevator.ts:59` | low severity |
 
-<!-- audited: 2026-06-02 -->
+| IW12 | Inventory AP cost | CE `inventoryOpen()` (`inventory.cc:570`): deducts `4 - 2 * quickPocketsRank` AP on open in combat; calls `interfaceRenderActionPoints()` to sync display. | **FIXED 2026-06-13** — `showInventory()` in `src/ui_inventory/panel.ts` deducts AP and calls `drawAP()` on first open during combat. Quick Pockets perk (`hasPerk('Quick Pockets')`) reduces cost by 2. | — |
+
+<!-- audited: 2026-06-13 -->
