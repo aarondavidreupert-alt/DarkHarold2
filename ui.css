@@ -128,47 +128,14 @@ html, body {
 
 #endContainer {
   position: absolute;
-  /*left: 578px; top: 36px;*/
   bottom: 2px;
   right: 2px;
   width: 57px;
   height: 58px;
   background-image: url("art/intrface/endanim.png");
-  /*background-position: -228px;*/
-
-  /* animation for the end turn/combat button */
-  /* 1 second long, 5 frames, alternates forward/reverse */
-  animation: endAnimation 1s steps(5) infinite;
-  animation-fill-mode: forwards;
-  animation-direction: alternate;
-
-  /* vendor prefixes because the Web sucks */
-  -webkit-animation: endAnimation 1s steps(5) infinite;
-  -webkit-animation-fill-mode: forwards;
-  -webkit-animation-direction: alternate;
-
-  animation-play-state: paused;
-  -webkit-animation-play-state: paused;
-}
-
-@keyframes endAnimation {
-  from {
-    background-position: 0px;
-  }
-
-  to {
-    background-position: -285px;
-  }
-}
-
-@-webkit-keyframes endAnimation {
-  from {
-    background-position: 0px;
-  }
-
-  to {
-    background-position: -285px;
-  }
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  /* frame controlled by JS (same pattern as elevator gauge / wmdial) */
 }
 
 #endTurnButton {
@@ -1042,16 +1009,18 @@ html, body {
 }
 
 /* CE ref: worldmap.cc WM_WINDOW_DIAL_X=532, WM_WINDOW_DIAL_Y=48
-   wmdial.png: 1392×29, 48 frames of 29×29 (horizontal sprite sheet) */
+   wmdial.png: 1392×29, 24 frames of 58×29 (horizontal sprite sheet).
+   frmpixels.py wrote maxW=58 per frame; 24 frames × 58px = 1392px. */
 #worldMapDial {
   position: absolute;
   left: 532px;
   top: 48px;
-  width: 29px;
+  width: 58px;
   height: 29px;
   background-image: url("art/intrface/wmdial.png");
   background-repeat: no-repeat;
   image-rendering: pixelated;
+  overflow: hidden;
 }
 
 #worldmapViewButton {

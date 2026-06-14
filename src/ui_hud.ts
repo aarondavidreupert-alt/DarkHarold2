@@ -467,10 +467,41 @@ export function uiUpdateAmmoBar(weapon: WeaponObj | null): void {
 
 // --- Combat bar ------------------------------------------------------------
 
+// CE ref: interface.cc — endanim.frm: 285×58, 5 frames of 57×58.
+// Frame 0 = panel closed; frame 4 = panel fully open.
+const END_ANIM_FRAMES   = 5
+const END_ANIM_FRAME_W  = 57
+const END_ANIM_DELAY_MS = 66   // ~5 frames in 330ms
+
+let _endAnimTimer: ReturnType<typeof setTimeout> | null = null
+let _endAnimFrame = 0
+
+function setEndAnimFrame(frame: number): void {
+    const el = document.getElementById('endContainer')
+    if (el) el.style.backgroundPositionX = -(frame * END_ANIM_FRAME_W) + 'px'
+    _endAnimFrame = frame
+}
+
+function stepEndAnim(dir: 1 | -1, onDone: () => void): void {
+    if (_endAnimTimer !== null) { clearTimeout(_endAnimTimer); _endAnimTimer = null }
+    const target = dir === 1 ? END_ANIM_FRAMES - 1 : 0
+    if (_endAnimFrame === target) { onDone(); return }
+    function tick(): void {
+        _endAnimFrame += dir
+        setEndAnimFrame(_endAnimFrame)
+        if (_endAnimFrame === target) { onDone(); return }
+        _endAnimTimer = setTimeout(tick, END_ANIM_DELAY_MS)
+    }
+    _endAnimTimer = setTimeout(tick, END_ANIM_DELAY_MS)
+}
+
 export function uiStartCombat(): void {
     globalState.cursorMode = 'attack'
-    // play end container animation
-    Object.assign($id('endContainer').style, { animationPlayState: 'running', webkitAnimationPlayState: 'running' })
+    // CE ref: interface.cc — animate end-turn panel open (frames 0→4), then show buttons
+    stepEndAnim(1, () => {
+        showv($id('endTurnButton'))
+        showv($id('endCombatButton'))
+    })
     const player = globalState.player!
     drawHP(player.getStat('HP'))
     drawAC(player.getStat('AC'))
@@ -479,22 +510,18 @@ export function uiStartCombat(): void {
 }
 
 export function uiEndCombat(): void {
-    // play end container animation
-    Object.assign($id('endContainer').style, { animationPlayState: 'running', webkitAnimationPlayState: 'running' })
-
-    // disable buttons
     hidev($id('endTurnButton'))
     hidev($id('endCombatButton'))
-    // reset cursor back to move mode
+    // CE ref: interface.cc — animate end-turn panel close (frames 4→0)
+    stepEndAnim(-1, () => { /* panel closed */ })
+
     globalState.cursorMode = 'move'
 
-    // reset AP dots to off
     for (let i = 1; i <= 10; i++) {
         const el = document.getElementById('apLight' + i)
         if (el) (el as HTMLElement).style.visibility = 'hidden'
     }
 
-    // hide combat-specific UI
     const $hover = document.getElementById('combatHoverInfo')
     if ($hover) $hover.style.display = 'none'
 }
@@ -522,12 +549,7 @@ export function uiHideCombatHover(): void {
     if ($hover) $hover.style.display = 'none'
 }
 
+/** @deprecated — was the CSS animationend handler; panel animation now driven by JS stepEndAnim */
 export function uiEndCombatAnimationDone(this: HTMLElement): void {
-    Object.assign(this.style, { animationPlayState: 'paused', webkitAnimationPlayState: 'paused' })
-
-    if (globalState.inCombat) {
-        // enable buttons
-        showv($id('endTurnButton'))
-        showv($id('endCombatButton'))
-    }
+    // no-op: JS frame-stepping replaced the CSS animation
 }

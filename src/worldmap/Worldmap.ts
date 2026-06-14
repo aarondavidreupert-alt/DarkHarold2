@@ -52,14 +52,18 @@ let lastEncounterCheck = 0
 let $worldMapDial: HTMLElement | null = null
 let _lastDialFrame = -1
 
-// CE ref: worldmap.cc WM_WINDOW_DIAL_X=532/Y=48; wmdial.png = 1392×29, 48 frames of 29×29.
-const DIAL_FRAMES = 48
-const DIAL_FRAME_W = 29
+// CE ref: worldmap.cc WM_WINDOW_DIAL_X=532/Y=48; wmInterfaceDialSyncTime.
+// wmdial.png: 1392×29 — frmpixels.py writes ALL frames horizontally with maxW stride.
+// wmdial.frm has 24 frames, each 58×29 (maxW=58). 24 × 58 = 1392px.
+// CE artGetFrameCount = 24.  Frame formula: (gameHour/100 + 12) % 24.
+const DIAL_FRAMES   = 24  // CE artGetFrameCount
+const DIAL_FRAME_W  = 58  // each frame is 58px wide in the PNG (frmpixels maxW)
 
 function updateDial(): void {
     if (!$worldMapDial) return
-    // CE ref: worldmap.cc wmInterfaceDialSyncTime — frame = (gameHour/100 + 12) % frameCount
-    // gameHour is military time (e.g. 1330 = 1:30pm), dividing by 100 gives fractional hours.
+    // CE ref: worldmap.cc wmInterfaceDialSyncTime — frame = (gameHour/100 + 12) % artGetFrameCount
+    // gameTimeGetHour() = 100*hour + minute (military time). Dividing by 100 gives fractional hours.
+    // +12 shifts so noon=frame 0; % 24 wraps the full 24-hour cycle.
     const gameHour = GameTime.getHourMilitary()
     const frame = Math.floor((gameHour / 100 + 12) % DIAL_FRAMES)
     if (frame === _lastDialFrame) return
@@ -327,15 +331,16 @@ export function updateWorldmapPlayer() {
             worldmapPlayer.y += dy * speed
         }
 
-        // Travel time: each worldmap update tick (75ms wall time)
-        // represents ~2 in-game minutes of overland travel, scaled by
-        // terrain difficulty. Rough units with no precedent in the
-        // original, chosen so crossing the map takes a day or two.
+        // CE ref: worldmap.cc wmGameTimeIncrement(18000) — 30 game-minutes per 1-pixel step.
+        // DH2 moves WORLDMAP_SPEED=2 px/tick. CE-equivalent rate = 30×2 = 60 min/tick, but
+        // that makes the clock spin every frame. 10 min/tick keeps the dial visibly animated
+        // (~450ms per hour-frame) while crossing the map in ~2 in-game days.
+        // Time per pixel = 10 min/tick ÷ 2 px/tick = 5 min/px — terrain-independent.
         const travelScale = 1 / worldmap.terrainSpeed[currentSquare.terrainType]
         // CE ref: worldmap.cc:4180 — Pathfinder perk reduces ticks by 25% per rank
         const pathfinderRank = globalState.player?.perks.filter((p: string) => p === 'Pathfinder').length ?? 0
         const pathfinderMult = Math.max(0, 1 - pathfinderRank * 0.25)
-        GameTime.advanceMinutes(Math.max(1, Math.round(2 * travelScale * pathfinderMult)))
+        GameTime.advanceMinutes(Math.max(1, Math.round(10 * travelScale * pathfinderMult)))
         updateDial()
 
         // center the worldmap to the player
