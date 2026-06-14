@@ -25,44 +25,116 @@ import { font1 } from './ui_font.js'
 
 // --- Digit readouts (shared by HP / AC / called-shot chance) ---------------
 
-export function drawDigits(idPrefix: string, amount: number, maxDigits: number, hasSign: boolean): void {
-    const CHAR_W = 9,
-        CHAR_NEG = 12
+// CE ref: numbers.frm is a single 360×17 sprite with three horizontal colour bands:
+//   offset   0 = white/grey  (HP ≥ 50% maxHp)
+//   offset 120 = yellow      (25% ≤ HP < 50%)
+//   offset 240 = red         (HP < 25%)
+// 9 px per character; chars 0-9 then down-tick, up-tick, minus, plus.
+const NUM_COLOR_WHITE  = 0
+const NUM_COLOR_YELLOW = 120
+const NUM_COLOR_RED    = 240
+
+export function drawDigits(idPrefix: string, amount: number, maxDigits: number, hasSign: boolean, colorOffset = 0): void {
+    const CHAR_W = 9, CHAR_NEG = 12
     const sign = amount < 0 ? CHAR_NEG : 0
-    if (amount < 0) {
-        amount = -amount
-    }
+    if (amount < 0) amount = -amount
     const digits = amount.toString()
     const firstDigitIdx = hasSign ? 2 : 1
+
+    const xOf = (charCode: number): string => `${-(CHAR_W * charCode + colorOffset)}px`
+
     if (hasSign) {
-        $q(idPrefix + '1').style.backgroundPosition = 0 - CHAR_W * sign + 'px'
-    } // sign
-    for (
-        let i = firstDigitIdx;
-        i <= maxDigits - digits.length;
-        i++ // left-fill with zeroes
-    ) {
-        $q(idPrefix + i).style.backgroundPosition = '0px'
+        const el = $q(idPrefix + '1')
+        if (el) el.style.backgroundPosition = xOf(sign)
+    }
+    for (let i = firstDigitIdx; i <= maxDigits - digits.length; i++) {
+        const el = $q(idPrefix + i)
+        if (el) el.style.backgroundPosition = xOf(0)
     }
     for (let i = 0; i < digits.length; i++) {
         const idx = digits.length - 1 - i
-        let digit
-        if (digits[idx] === '-') {
-            digit = 12
-        } else {
-            digit = parseInt(digits[idx])
-        }
-        $q(idPrefix + (maxDigits - i)).style.backgroundPosition = 0 - CHAR_W * digit + 'px'
+        const char = digits[idx] === '-' ? 12 : parseInt(digits[idx])
+        const el = $q(idPrefix + (maxDigits - i))
+        if (el) el.style.backgroundPosition = xOf(char)
     }
 }
 
+// --- HP / AC animated counter -----------------------------------------------
+//
+// CE ref: interface.cc interfaceRenderCounter / interfaceRenderHitPoints.
+// Steps one unit per tick from the last displayed value toward the new target.
+// Delay between ticks = max(16, 250 / |change|) ms — total ~250 ms for large
+// changes, slower for small ones (1-unit change = 125 ms).
+// CE blocks the main loop synchronously; DH2 uses a non-blocking setInterval.
+
+let _dispHp: number | null = null   // value currently shown on the HUD (null = uninit)
+let _targetHp: number | null = null // target of the active or last animation
+let _hpTimer: ReturnType<typeof setInterval> | null = null
+
+let _dispAc: number | null = null
+let _targetAc: number | null = null
+let _acTimer: ReturnType<typeof setInterval> | null = null
+
+function _hpColorOffset(hp: number): number {
+    // CE ref: interfaceRenderHitPoints — red = maxHp*0.25, yellow = maxHp*0.50
+    const maxHp = globalState.player?.getStat('Max HP') ?? 0
+    if (maxHp <= 0) return NUM_COLOR_WHITE
+    if (hp < Math.floor(maxHp * 0.25)) return NUM_COLOR_RED
+    if (hp < Math.floor(maxHp * 0.50)) return NUM_COLOR_YELLOW
+    return NUM_COLOR_WHITE
+}
+
 export function drawHP(hp: number): void {
-    drawDigits('#hpDigit', hp, 4, true)
     updateIndicatorBar()
+
+    if (_dispHp === null) {
+        // First call — initialise immediately, no animation.
+        _dispHp = hp; _targetHp = hp
+        drawDigits('#hpDigit', hp, 4, true, _hpColorOffset(hp))
+        return
+    }
+    if (_targetHp === hp) return  // already animating to this target
+
+    _targetHp = hp
+
+    // Cancel any in-progress animation and restart from current display position.
+    if (_hpTimer !== null) { clearInterval(_hpTimer); _hpTimer = null }
+    if (_dispHp === hp) return
+
+    const step  = hp > _dispHp ? 1 : -1
+    const delay = Math.max(16, Math.floor(250 / Math.abs(hp - _dispHp)))
+
+    const timerId = setInterval(() => {
+        if (_dispHp === null) { clearInterval(timerId); return }
+        _dispHp += step
+        drawDigits('#hpDigit', _dispHp, 4, true, _hpColorOffset(_dispHp))
+        if (_dispHp === _targetHp) { clearInterval(timerId); _hpTimer = null }
+    }, delay)
+    _hpTimer = timerId
 }
 
 export function drawAC(ac: number): void {
-    drawDigits('#acDigit', ac, 4, true)
+    if (_dispAc === null) {
+        _dispAc = ac; _targetAc = ac
+        drawDigits('#acDigit', ac, 4, true)
+        return
+    }
+    if (_targetAc === ac) return
+
+    _targetAc = ac
+    if (_acTimer !== null) { clearInterval(_acTimer); _acTimer = null }
+    if (_dispAc === ac) return
+
+    const step  = ac > _dispAc ? 1 : -1
+    const delay = Math.max(16, Math.floor(250 / Math.abs(ac - _dispAc)))
+
+    const timerId = setInterval(() => {
+        if (_dispAc === null) { clearInterval(timerId); return }
+        _dispAc += step
+        drawDigits('#acDigit', _dispAc, 4, true)
+        if (_dispAc === _targetAc) { clearInterval(timerId); _acTimer = null }
+    }, delay)
+    _acTimer = timerId
 }
 
 export function drawAP(current: number, max: number, freeMove: number = 0, isPlayerTurn: boolean = true): void {
