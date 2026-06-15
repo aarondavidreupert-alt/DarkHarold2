@@ -16,7 +16,9 @@
       "Bash(findstr /i \"wmap dial clock\")",
       "Bash(python3 -c ' *)",
       "Bash(xargs grep -l \"gameTimeGetHour\")",
-      "Bash(grep -v \"//.*wmInterface\")"
+      "Bash(grep -v \"//.*wmInterface\")",
+      "Bash(pipenv run python -c ' *)",
+      "Bash(py -3 -c ' *)"
     ]
   }
 }

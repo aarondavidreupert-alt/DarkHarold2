@@ -71,6 +71,45 @@ function updateDial(): void {
     $worldMapDial.style.backgroundPositionX = -(frame * DIAL_FRAME_W) + 'px'
 }
 
+// CE ref: worldmap.cc wmInterfaceRefreshDate
+// numbers.png: 360×17, frames packed at 9px stride (same as pipboy shell.ts DIGIT_W=9).
+// Frames 0-9 = digits 0-9 (green). CE worldmap: offset = 9*digit in raw FRM data.
+// months.png: 29×179, 12 entries × 15px stride, 14px visible. Month N (0-indexed) → backgroundPositionY = -(N*15)px.
+const NUM_FRAME_W = 9    // matches pipboy DIGIT_W
+const MON_FRAME_H = 15   // row stride in months.png
+
+function setDigit(id: string, digit: number): void {
+    const el = document.getElementById(id)
+    if (el) el.style.backgroundPositionX = -(digit * NUM_FRAME_W) + 'px'
+}
+
+let _lastDateKey = ''
+
+function updateDate(): void {
+    const d = GameTime.getDate()
+    const key = `${d.day}/${d.month}/${d.year}/${d.hours}/${d.minutes}`
+    if (key === _lastDateKey) return
+    _lastDateKey = key
+
+    setDigit('wmDay1',  Math.floor(d.day / 10))
+    setDigit('wmDay2',  d.day % 10)
+
+    const monthEl = document.getElementById('wmMonth')
+    if (monthEl) monthEl.style.backgroundPositionY = -(d.month * MON_FRAME_H) + 'px'
+
+    const y = d.year
+    setDigit('wmYear1', Math.floor(y / 1000) % 10)
+    setDigit('wmYear2', Math.floor(y / 100) % 10)
+    setDigit('wmYear3', Math.floor(y / 10) % 10)
+    setDigit('wmYear4', y % 10)
+
+    const h = d.hours, m = d.minutes
+    setDigit('wmTime1', Math.floor(h / 10))
+    setDigit('wmTime2', h % 10)
+    setDigit('wmTime3', Math.floor(m / 10))
+    setDigit('wmTime4', m % 10)
+}
+
 // Sibling-module accessors (used by encounters.ts).
 export function getWorldmap(): WorldmapData {
     return worldmap
@@ -169,7 +208,9 @@ export function init(): void {
     $worldmap = document.getElementById('worldmap')
     $worldMapDial = document.getElementById('worldMapDial')
     _lastDialFrame = -1
+    _lastDateKey = ''
     updateDial()
+    updateDate()
 
     worldmap = parseWorldmap(getFileText('data/data/worldmap.txt'))
 
@@ -342,6 +383,7 @@ export function updateWorldmapPlayer() {
         const pathfinderMult = Math.max(0, 1 - pathfinderRank * 0.25)
         GameTime.advanceMinutes(Math.max(1, Math.round(10 * travelScale * pathfinderMult)))
         updateDial()
+        updateDate()
 
         // center the worldmap to the player
         const width = $worldmap.offsetWidth

@@ -1023,6 +1023,46 @@ html, body {
   overflow: hidden;
 }
 
+/* CE ref: worldmap.cc wmInterfaceRefreshDate — date/time display above the dial.
+   numbers.png: 360×17, 10 frames × 36px stride, each 9px of visible content.
+   months.png: 29×179, 12 months stacked vertically, each 15px stride, 14px visible.
+   All positions relative to #worldMapBox (640×480). */
+#wmDateArea {
+  position: absolute;
+  left: 487px;
+  top: 12px;
+}
+.wmDigit {
+  position: absolute;
+  width: 9px;
+  height: 17px;
+  background-image: url("art/intrface/numbers.png");
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+/* Day: two digits at x=0,9 */
+#wmDay1  { left: 0px;   top: 0px; }
+#wmDay2  { left: 9px;   top: 0px; }
+/* Month name: 29×14 from months.png, 1px lower to align baseline */
+#wmMonth {
+  position: absolute;
+  left: 26px; top: 1px;
+  width: 29px; height: 14px;
+  background-image: url("art/intrface/months.png");
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+/* Year: 4 digits right-to-left from x=98; result left-to-right at 62,71,80,89 */
+#wmYear1 { left: 62px;  top: 0px; }
+#wmYear2 { left: 71px;  top: 0px; }
+#wmYear3 { left: 80px;  top: 0px; }
+#wmYear4 { left: 89px;  top: 0px; }
+/* Time (HHMM): hour-tens, hour-ones, min-tens, min-ones at 107,116,125,134 */
+#wmTime1 { left: 107px; top: 0px; }
+#wmTime2 { left: 116px; top: 0px; }
+#wmTime3 { left: 125px; top: 0px; }
+#wmTime4 { left: 134px; top: 0px; }
+
 #worldmapViewButton {
   position: absolute;
   left: 519px;
