@@ -142,7 +142,7 @@ the wiki tracker is the source of truth.
 
 ### ✅ Substantially implemented (~85–95%)
 
-- **Map loading & rendering** — tile maps, multi-elevation, WebGL 2.0 renderer, lightmap, real-time lighting, screen-space hex z-sort (RD09), camera clamp + `OBJECT_SCROLL_BLOCK` (RD11/RD12)
+- **Map loading & rendering** — tile maps, multi-elevation, WebGL 2.0 renderer, lightmap, real-time lighting, screen-space hex z-sort (RD09), camera clamp + `OBJECT_SCROLL_BLOCK` (RD11/RD12), per-building roof flood-fill (RD06)
 - **Walking & running** — A\* pathfinding with separate path-blocking / shoot-blocking predicates (P4/P5/P6), `OBJECT_MULTIHEX` neighbour scan, scenery LoS via `OBJECT_LIGHT_THRU` (P7), door interaction, exit grids
 - **Combat core** — hit/damage formulas (YAAM), ammo X/Y/DR/AC modifiers, burst fire, called shots, 6-level criticals + Better Criticals, critical failures, armor DR/DT per damage type, crippled limbs, knockdown/knockout, DAM_DROP, fire DoT, partial cover, AI team targeting + perception gate + LoS, AI distance modes (charge / snipe / stay / stay_close), combat-turn explosion timer (T1), combat walk-speed bonus (FA4), per-damage-type death animations + `CRITTER_SPECIAL_DEATH`, float-text colour + stacking (AC8)
 - **Combat perks** — Slayer, Sniper, Sharpshooter, Bonus HtH Attacks, Bonus Rate of Fire, Better Criticals, Stonewall, Fast Reload, Finesse, Healer, Pathfinder, Pickpocket, and more
@@ -152,11 +152,11 @@ the wiki tracker is the source of truth.
 - **Active skill use** — First Aid, Doctor, Sneak, Lockpick, Steal (with facing + knockdown), Traps, Science, Repair, Gambling/Outdoorsman messages; Healer perk applied; party-member delegation for First Aid/Doctor (AC6)
 - **Level-up & perks** — XP thresholds, skill points (5 + 2×INT, +2 Educated), HP per level (END/2 + 2, +4 Lifegiver), perk every 3 levels (every 4 Skilled), **perk selection modal** (`ui_character.ts:1866 showPerkModal`), Tag! 4th slot
 - **Karma & reputation** — `get_pc_stat` / `mod_pc_stat` / `set_pc_stat` wired, +1 karma per hostile kill, **karma title computation** (`ui_character.ts:581–624`), STATUS panel surfaces both stats; per-town reputation still absent (R2)
-- **Worldmap travel** — 28×30 grid, per-tile encounter tables, time-of-day frequency (W1), difficulty modifier (W2), encounter formations (straight_line/double_line/wedge/cone) (W6), encounter critters carry items + equipped weapons (W3), Outdoorsman detection XP (W7), Pathfinder travel-time reduction
+- **Worldmap travel** — 28×30 grid, per-tile encounter tables, time-of-day frequency (W1), difficulty modifier (W2), encounter formations (straight_line/double_line/wedge/cone) (W6), encounter critters carry items + equipped weapons (W3), Outdoorsman detection XP (W7), Pathfinder travel-time reduction; keyboard/mouse-edge map pan (W12); label list CE-accurate filter + alphabetic sort (W11)
 - **Random encounters** — encounter group generation, level/time_of_day conditions, encounter counter (W4)
 - **Scripting VM** — INT file parser, **~150+ opcodes wired**, transpiler/disassembler; remaining stubs are largely car-system or movie/credits sub-ops (see [`wiki/known_bugs.md §2`](wiki/known_bugs.md))
 - **Audio engine** — music looping, weapon/action sound mapping, ambient SFX from map data, master/music/sfx GainNode chain with persisted volume sliders
-- **Pip-Boy** — clock display, alarm, STATUS tab, QUESTS/ARCHIVES tab, AUTOMAP tab with per-location map view, zoom/pan, IndexedDB persistence
+- **Pip-Boy** — clock display, alarm button (CE geometry IW10), STATUS tab, QUESTS/ARCHIVES tab, AUTOMAP tab with per-location map view, zoom/pan, IndexedDB persistence; rest/wait menu renders inside the Pip-Boy screen with all 13 CE options including "Until healed" (IW11); month sprite stride/position corrected (IW10)
 - **Character screen / HUD** — full SPECIAL/skill view, stat display, trait/perk lists, indicator bar (SNEAK/POISONED/RADIATED/ADDICT) (IW1), AP-light fade animation (IW7), attack button greyed when AP insufficient (IW2), `game_ui_disable` hides HUD bar (IW4)
 - **Save / load** — IndexedDB-backed; player state, inventory + ammo state, stats/skills/traits/perks, level/XP, equipped items, GVARs, MVARs (U5), knownAreas (U6), timed-event queue (U7), 160×100 JPEG save-slot thumbnails (U3)
 - **Status effects** — drug / chem effect timers with addiction rolls (5a), poison + radiation decay loops (5b)
@@ -188,7 +188,6 @@ the wiki tracker is the source of truth.
 - **Movie / FMV playback** — `play_gmovie` is a no-op (S15); ARTIMER midnight movies (GTC5).
 - **`actionFrame` from FRM headers** — discarded by `frmpixels.py:40`; hit/sound sync absent for weapon attacks (FA3, asset-pipeline change).
 - **FID weapon-stance composition** — partially wired via `Weapon.getAnim` skin codes; CE `buildFid` parity not verified (FA6).
-- **Roof clipping per-position** — `Config.ui.showRoof` is all-or-nothing; CE `tile_fill_roof` flood-fill not wired (RD06).
 - **Two-pass flat / post-roof object rendering** (RD07/RD08), **palette colour cycling** for water/fire (RD10), **pixel-precise hex hit-testing** via `_tile_mask` (RD13), **elevation transition fade** (RD14).
 
 See [`wiki/known_bugs.md`](wiki/known_bugs.md) for the complete tracker with CE references and fix
