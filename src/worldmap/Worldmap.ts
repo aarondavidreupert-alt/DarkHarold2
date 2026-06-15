@@ -55,6 +55,21 @@ let _lastDialFrame = -1
 // Current viewport pan offset (pixels into the 1400×1500 worldmap).
 let _panX = 0
 let _panY = 0
+// Keyboard/mouse-edge scroll state
+const _heldKeys = new Set<string>()
+let _mouseEdge = { left: false, right: false, top: false, bottom: false }
+const PAN_SPEED = 8   // px per 75ms tick for manual scroll
+const VIEW_W = 445    // #worldMapWorld viewport width  (CE WM_VIEW_WIDTH)
+const VIEW_H = 438    // #worldMapWorld viewport height (CE WM_VIEW_HEIGHT)
+const MAP_W = NUM_SQUARES_X * SQUARE_SIZE   // 1400
+const MAP_H = NUM_SQUARES_Y * SQUARE_SIZE   // 1500
+const EDGE_THRESHOLD = 20  // px from edge that triggers mouse-edge scroll
+
+function applyPan(px: number, py: number): void {
+    _panX = clamp(0, MAP_W - VIEW_W, px)
+    _panY = clamp(0, MAP_H - VIEW_H, py)
+    $worldmap.style.transform = `translate(${-_panX}px, ${-_panY}px)`
+}
 
 // CE ref: worldmap.cc WM_WINDOW_DIAL_X=532/Y=48; wmInterfaceDialSyncTime.
 // wmdial.png: 1392×29 — frmpixels.py writes ALL frames horizontally with maxW stride.
@@ -229,8 +244,11 @@ export function init(): void {
         const x = e.pageX - offsetLeft
         const y = e.pageY - offsetTop
 
-        const ax = x + _panX
-        const ay = y + _panY
+        // getBoundingClientRect() returns the visual (post-transform) position of
+        // #worldmap, so x/y already encode the pan offset. Adding _panX again would
+        // double it — use x/y directly as worldmap coordinates.
+        const ax = x
+        const ay = y
 
         worldmapPlayer.target = { x: ax, y: ay }
         showv($worldmapPlayer)
@@ -332,7 +350,36 @@ export function init(): void {
         $worldmapTarget.style.backgroundImage = "url('art/intrface/hotspot1.png')"
     }
 
-    // updateWorldmapPlayer()
+    // Keyboard scroll
+    document.addEventListener('keydown', _onWMKeyDown)
+    document.addEventListener('keyup',   _onWMKeyUp)
+
+    // Mouse-edge scroll — track cursor position relative to #worldMapWorld
+    const $worldMapWorld = document.getElementById('worldMapWorld')
+    if ($worldMapWorld) {
+        $worldMapWorld.addEventListener('mousemove', _onWMMouseMove)
+        $worldMapWorld.addEventListener('mouseleave', _onWMMouseLeave)
+    }
+
+    // Apply initial pan so the map starts centred on the player
+    applyPan(worldmapPlayer.x - VIEW_W / 2, worldmapPlayer.y - VIEW_H / 2)
+}
+
+function _onWMKeyDown(e: KeyboardEvent): void { _heldKeys.add(e.key) }
+function _onWMKeyUp(e: KeyboardEvent): void   { _heldKeys.delete(e.key) }
+function _onWMMouseMove(e: MouseEvent): void {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const mx = e.clientX - r.left
+    const my = e.clientY - r.top
+    _mouseEdge = {
+        left:   mx < EDGE_THRESHOLD,
+        right:  mx > VIEW_W - EDGE_THRESHOLD,
+        top:    my < EDGE_THRESHOLD,
+        bottom: my > VIEW_H - EDGE_THRESHOLD,
+    }
+}
+function _onWMMouseLeave(): void {
+    _mouseEdge = { left: false, right: false, top: false, bottom: false }
 }
 
 export function start() {
@@ -341,6 +388,15 @@ export function start() {
 
 export function stop() {
     clearTimeout(worldmapTimer)
+    _heldKeys.clear()
+    _mouseEdge = { left: false, right: false, top: false, bottom: false }
+    document.removeEventListener('keydown', _onWMKeyDown)
+    document.removeEventListener('keyup',   _onWMKeyUp)
+    const $worldMapWorld = document.getElementById('worldMapWorld')
+    if ($worldMapWorld) {
+        $worldMapWorld.removeEventListener('mousemove', _onWMMouseMove)
+        $worldMapWorld.removeEventListener('mouseleave', _onWMMouseLeave)
+    }
 }
 
 // check if we're inside an area
@@ -403,16 +459,7 @@ export function updateWorldmapPlayer() {
         updateDate()
 
         // CE ref: worldmap.cc wmInterfaceScrollMap — pan viewport to keep player centred.
-        // #worldmap is the full 1400×1500 map; #worldMapWorld (445×438) clips it via
-        // overflow:hidden. We translate #worldmap instead of using scrollLeft/scrollTop
-        // so all absolutely-positioned children (fog squares, markers) move correctly.
-        const MAP_W = NUM_SQUARES_X * SQUARE_SIZE   // 1400
-        const MAP_H = NUM_SQUARES_Y * SQUARE_SIZE   // 1500
-        const VIEW_W = 445  // #worldMapWorld width (CE WM_VIEW_WIDTH)
-        const VIEW_H = 438  // #worldMapWorld height (CE WM_VIEW_HEIGHT)
-        _panX = clamp(0, MAP_W - VIEW_W, Math.floor(worldmapPlayer.x - VIEW_W / 2))
-        _panY = clamp(0, MAP_H - VIEW_H, Math.floor(worldmapPlayer.y - VIEW_H / 2))
-        $worldmap.style.transform = `translate(${-_panX}px, ${-_panY}px)`
+        applyPan(Math.floor(worldmapPlayer.x - VIEW_W / 2), Math.floor(worldmapPlayer.y - VIEW_H / 2))
 
         if (currentSquare.state !== WORLDMAP_DISCOVERED) setSquareStateAt(squarePos, WORLDMAP_DISCOVERED)
 
@@ -439,6 +486,18 @@ export function updateWorldmapPlayer() {
                 return
             }
         }
+    }
+
+    // Keyboard and mouse-edge panning (active even when player is stationary).
+    // CE ref: worldmap.cc WM_SCROLL_* — map can be scrolled independently of travel.
+    if (!worldmapPlayer.target) {
+        let dx = 0
+        let dy = 0
+        if (_heldKeys.has('ArrowLeft')  || _heldKeys.has('a') || _heldKeys.has('A') || _mouseEdge.left)   dx -= PAN_SPEED
+        if (_heldKeys.has('ArrowRight') || _heldKeys.has('d') || _heldKeys.has('D') || _mouseEdge.right)  dx += PAN_SPEED
+        if (_heldKeys.has('ArrowUp')    || _heldKeys.has('w') || _heldKeys.has('W') || _mouseEdge.top)    dy -= PAN_SPEED
+        if (_heldKeys.has('ArrowDown')  || _heldKeys.has('s') || _heldKeys.has('S') || _mouseEdge.bottom) dy += PAN_SPEED
+        if (dx !== 0 || dy !== 0) applyPan(_panX + dx, _panY + dy)
     }
 
     worldmapTimer = setTimeout(updateWorldmapPlayer, 75)
