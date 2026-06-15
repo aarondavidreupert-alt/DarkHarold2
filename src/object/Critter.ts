@@ -30,7 +30,7 @@ import { dbg, dbgWarn } from '../logger.js'
 import { Scripting } from '../scripting.js'
 import { getMessage } from '../util.js'
 import { getAiPacket } from '../aiPackets.js'
-import { hitSpatialTrigger, Obj, objectIsWeapon, SerializedObj } from './Obj.js'
+import { hitSpatialTrigger, Obj, objectIsWeapon, SerializedObj, setObjectOpen } from './Obj.js'
 import { WeaponObj } from './items.js'
 
 export interface SerializedCritter extends SerializedObj {
@@ -231,6 +231,15 @@ export class Critter extends Obj {
     }
 
     move(position: Point, curIdx?: number, signalEvents = true): boolean {
+        // CE ref: animation.cc:1805 — auto-open closed unlocked doors walked through
+        if (globalState.gMap) {
+            for (const obj of globalState.gMap.objectsAtPosition(position)) {
+                if (obj.subtype === 'door' && !obj.open && !obj.locked && !obj.jammed) {
+                    setObjectOpen(obj, true, false, true)
+                }
+            }
+        }
+
         if (!super.move(position, curIdx, signalEvents)) {
             return false
         }

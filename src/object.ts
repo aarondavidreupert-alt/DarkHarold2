@@ -29,7 +29,7 @@ limitations under the License.
 //                                (getAnimation, staticAnimation, updateAnim,
 //                                clearAnim, playWeaponSwapAnim, etc.).
 
-export { Obj, SerializedObj, objectIsWeapon, cloneItem, objectGetDamageType, objectUnjamAll, zsort, hitSpatialTrigger } from './object/Obj.js'
+export { Obj, SerializedObj, objectIsWeapon, cloneItem, objectGetDamageType, objectUnjamAll, zsort, hitSpatialTrigger, setObjectOpen, toggleObjectOpen } from './object/Obj.js'
 export { Item, WeaponObj, Scenery, Door } from './object/items.js'
 export { createObjectWithPID, objFromMapObject, deserializeObj } from './object/factories.js'
 export { Critter, SerializedCritter, SERIALIZED_CRITTER_PROPS } from './object/Critter.js'

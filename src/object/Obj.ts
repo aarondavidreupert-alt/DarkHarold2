@@ -156,7 +156,7 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
 }
 
 // Set the object (door/container) open/closed; returns true if possible, false if not (e.g. locked)
-function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent = true): boolean {
+export function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent = true): boolean {
     if (!obj.isDoor && !obj.isContainer) {
         return false
     }
@@ -201,7 +201,7 @@ function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent = true)
 }
 
 // Toggle the object (door/container) open/closed; returns true if possible, false if not (e.g. locked)
-function toggleObjectOpen(obj: Obj, loot = true, signalEvent = true): boolean {
+export function toggleObjectOpen(obj: Obj, loot = true, signalEvent = true): boolean {
     return setObjectOpen(obj, !obj.open, loot, signalEvent)
 }
 

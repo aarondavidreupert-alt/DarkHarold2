@@ -23,7 +23,8 @@
       "Bash(echo \"1400/28=$\\(python -c 'print\\(1400/28\\)'\\)\")",
       "Bash(python -c 'print\\(1500/30\\)')",
       "Bash(echo \"1500/30=$\\(python -c 'print\\(1500/30\\)'\\)\")",
-      "Bash(python -c 'print\\(4*7\\)')"
+      "Bash(python -c 'print\\(4*7\\)')",
+      "Bash(grep -v \"//\\\\|imgPath\\\\|art\\\\|filepath\\\\|artPath\\\\|\\\\.pathname\\\\|\\\\.basePath\\\\|imagePath\\\\|musicPath\\\\|soundPath\\\\|mapPath\\\\|urlPath\\\\|atPath\\\\|configPath\\\\|savePath\\\\|lstPath\")"
     ]
   }
 }
