@@ -105,15 +105,18 @@ function renderDateTimeBar(): void {
     bar.appendChild(makeDigit(d1, 20, 0))
     bar.appendChild(makeDigit(d2, 20 + DIGIT_W, 0))
 
-    // 2. MONTH sprite at left:40, top:242 (2px offset from bar top)
+    // 2. MONTH sprite — CE ref: pipboy.cc:798, PIPBOY_WINDOW_MONTH_X=46, Y=18.
+    //    months.png: 29×(12×15)px, each month is 29×14px visible at stride 15.
+    //    Bar is at top:18px so month top=0 lands at absolute y=18. month is 0-indexed.
     const monthEl = document.createElement('div')
     monthEl.style.cssText = `
         position: absolute;
-        left: 48px; top: 2px;
-        width: 38px; height: 18px;
+        left: 46px; top: 0px;
+        width: 29px; height: 14px;
         background-image: url('art/intrface/months.png');
-        background-position-y: -${month * 18}px;
+        background-position-y: -${month * 15}px;
         background-repeat: no-repeat;
+        image-rendering: pixelated;
     `
     bar.appendChild(monthEl)
 
@@ -127,13 +130,16 @@ function renderDateTimeBar(): void {
     bar.appendChild(makeDigit(y3, 86 + DIGIT_W * 2, 0))
     bar.appendChild(makeDigit(y4, 86 + DIGIT_W * 3, 0))
 
-    // 4. BELL button at left:130
+    // 4. BELL button — CE ref: pipboy.cc:566 buttonCreate(gPipboyWindow, 124, 13, ...).
+    //    Bar is at top:18px → button top = 13-18 = -5px in bar coords.
     const bell = document.createElement('div')
     bell.style.cssText = `
         position: absolute;
-        left: 126px; top: -4px;
-        width: 22px; height: 20px;
+        left: 125px; top: -5px;
+        width: 28px; height: 24px;
         background-image: url('art/intrface/${alarmOn ? 'alarmin' : 'alarmout'}.png');
+        background-repeat: no-repeat;
+        image-rendering: pixelated;
         cursor: pointer;
     `
     bell.onclick = () => toggleWaitMenu()
@@ -154,81 +160,112 @@ function renderDateTimeBar(): void {
     pipBoyContainer.appendChild(bar)
 }
 
+// CE ref: pipboy.cc _ClacTime — compute hours+minutes until wakeUpHour:00.
+// If already at that exact time, returns 24h (rest a full day).
+function calcTimeUntilHour(wakeUpHour: number): { hours: number; minutes: number } {
+    const curH = GameTime.getHour()
+    const curM = GameTime.getMinute()
+    if (curH === wakeUpHour && curM === 0) return { hours: 24, minutes: 0 }
+    let hours = wakeUpHour - curH
+    let minutes = 0
+    if (curM !== 0) {
+        hours -= 1
+        minutes = 60 - curM
+    }
+    if (hours < 0) hours += 24
+    return { hours, minutes }
+}
+
+// CE ref: pipboy.cc:2105 PIPBOY_REST_DURATION_UNTIL_HEALED —
+// hoursToHeal = floor(hpToHeal / healingRate * 3); healingRate = max(END/3, 1).
+function minutesUntilHealed(): number {
+    const player = globalState.player
+    if (!player) return 0
+    const hp    = player.getStat('HP') as number
+    const maxHp = player.getStat('Max HP') as number
+    if (hp >= maxHp) return 0
+    const end = player.getStat('Endurance') as number
+    const healingRate = Math.max(Math.floor(end / 3), 1)
+    const hoursToHeal = Math.floor((maxHp - hp) / healingRate * 3)
+    return Math.max(hoursToHeal, 1) * 60
+}
+
 function toggleWaitMenu(): void {
     if (!pipBoyContainer) return
 
-    if (waitMenuDiv) {
-        waitMenuDiv.remove()
-        waitMenuDiv = null
+    // Toggle off — restore previous tab
+    if (alarmOn) {
         alarmOn = false
+        waitMenuDiv = null
         renderDateTimeBar()
+        renderTab(currentTab)
         return
     }
 
     alarmOn = true
     renderDateTimeBar()
 
-    waitMenuDiv = document.createElement('div')
-    waitMenuDiv.style.cssText = `
-        position: absolute;
-        left: 340px; top: 80px;
-        z-index: 200;
-        background-color: rgba(0, 20, 0, 0.95);
-        border: 1px solid #00AA00;
-        padding: 8px;
-    `
+    // CE ref: pipboy.cc pipboyWindowRenderRestOptions — rest list renders into
+    // the main content view area, replacing whatever tab is shown.
+    const screen = pipBoyContainer.querySelector('#pipboyScreen') as HTMLDivElement
+    if (!screen) return
+    while (screen.firstChild) screen.removeChild(screen.firstChild)
 
-    const options: { label: string; minutes: number }[] = [
-        { label: '10 MIN',  minutes: 10 },
-        { label: '20 MIN',  minutes: 20 },
-        { label: '30 MIN',  minutes: 30 },
-        { label: '1 HR',    minutes: 60 },
-        { label: '2 HR',    minutes: 120 },
-        { label: '3 HR',    minutes: 180 },
-        { label: '6 HR',    minutes: 360 },
-        { label: '1 DAY',   minutes: 1440 },
+    const content = makeContentArea()
+    content.appendChild(makeHeader('REST'))
+
+    // CE ref: pipboy.cc PIPBOY_REST_DURATION_* — 13 options (UNTIL_PARTY_HEALED
+    // omitted; requires party members which DH2 does not yet implement).
+    type RestOption = { label: string; getMinutes: () => number }
+    const options: RestOption[] = [
+        { label: '10 minutes',     getMinutes: () => 10 },
+        { label: '30 minutes',     getMinutes: () => 30 },
+        { label: '1 hour',         getMinutes: () => 60 },
+        { label: '2 hours',        getMinutes: () => 120 },
+        { label: '3 hours',        getMinutes: () => 180 },
+        { label: '4 hours',        getMinutes: () => 240 },
+        { label: '5 hours',        getMinutes: () => 300 },
+        { label: '6 hours',        getMinutes: () => 360 },
+        { label: 'Until morning',  getMinutes: () => { const t = calcTimeUntilHour(8);  return t.hours * 60 + t.minutes } },
+        { label: 'Until noon',     getMinutes: () => { const t = calcTimeUntilHour(12); return t.hours * 60 + t.minutes } },
+        { label: 'Until evening',  getMinutes: () => { const t = calcTimeUntilHour(18); return t.hours * 60 + t.minutes } },
+        { label: 'Until midnight', getMinutes: () => { const t = calcTimeUntilHour(0);  return t.hours * 60 + t.minutes } },
+        { label: 'Until healed',   getMinutes: () => minutesUntilHealed() },
     ]
 
     for (const opt of options) {
-        const btn = document.createElement('div')
-        btn.style.cssText = `
-            color: #00FF00; font-family: monospace; font-size: 12px;
-            padding: 4px 12px; cursor: pointer;
-        `
-        btn.textContent = opt.label
-        btn.onmouseenter = () => { btn.style.backgroundColor = '#004400' }
-        btn.onmouseleave = () => { btn.style.backgroundColor = 'transparent' }
-        btn.onclick = () => {
-            advanceTime(opt.minutes)
-            if (waitMenuDiv) {
-                waitMenuDiv.remove()
-                waitMenuDiv = null
-            }
+        content.appendChild(makeListItem(opt.label, () => {
+            const mins = opt.getMinutes()
+            if (mins > 0) advanceTime(mins)
             alarmOn = false
+            waitMenuDiv = null
             renderDateTimeBar()
-            // Re-render current tab to update time display
             renderTab(currentTab)
-        }
-        waitMenuDiv.appendChild(btn)
+        }))
     }
 
-    pipBoyContainer.appendChild(waitMenuDiv)
+    screen.appendChild(content)
+    waitMenuDiv = content  // track so toggle-off knows we're in rest mode
 }
 
 function advanceTime(minutes: number): void {
-    const beforeTicks = GameTime.getTime()
-    const beforeAmbient = GameTime.getAmbientLightNormalized()
     GameTime.advanceMinutes(minutes)
-    const afterTicks = GameTime.getTime()
-    const afterAmbient = GameTime.getAmbientLightNormalized()
-    console.log(
-        `[PipBoy wait] +${minutes}m  ticks ${beforeTicks} → ${afterTicks}  ` +
-        `time ${GameTime.getTimeString()}  ambient ${beforeAmbient.toFixed(3)} → ${afterAmbient.toFixed(3)}`
-    )
-    console.log(
-        `[lighting] after wait — doFloorLighting=${Config.engine.doFloorLighting}, ` +
-        `floorLightingMode=${Config.engine.floorLightingMode}`
-    )
+    // Heal player proportionally — CE ref: pipboy.cc:1968 pipboyRest advances
+    // time and triggers critter healing; DH2 approximates by healing at the same
+    // rate (STAT_HEALING_RATE HP per 3h) applied in one step.
+    const player = globalState.player
+    if (player) {
+        const hp    = player.getStat('HP') as number
+        const maxHp = player.getStat('Max HP') as number
+        if (hp < maxHp) {
+            const end = player.getStat('Endurance') as number
+            const healingRate = Math.max(Math.floor(end / 3), 1)
+            const hoursRested = minutes / 60
+            const healed = Math.floor(hoursRested / 3 * healingRate)
+            const newHp = Math.min(hp + healed, maxHp)
+            player.stats.setBase('HP', newHp)
+        }
+    }
 }
 
 function formatGameTime(_ticks: number): string {
