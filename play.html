@@ -178,7 +178,17 @@ limitations under the License.
 			<!-- keeps the #worldMapBox + #worldMapWorld children centered.    -->
 			<div class="ui-stage">
 				<div id="worldMapBox">
-					<div id="worldMapLabels"></div>
+					<!-- CE ref: worldmap.cc wmRefreshTabs — wmtabs.png is a static
+					     decorative background strip behind the scrollable label list. -->
+					<div id="worldMapLabelsBg"></div>
+					<div id="worldMapLabels">
+						<div id="worldMapLabelsInner"></div>
+					</div>
+					<!-- CE ref: worldmap.cc WM_TOWN_LIST_SCROLL_UP/DOWN — scroll label list -->
+					<div id="wmLabelScrollUp"></div>
+					<div id="wmLabelScrollDown"></div>
+					<!-- CE ref: worldmap.cc WM_TOWN_WORLD_SWITCH_X/Y=519/439 — toggle area/world view -->
+					<div id="worldmapViewButton"></div>
 					<div id="worldMapDial"></div>
 					<!-- CE ref: worldmap.cc wmInterfaceRefreshDate — blit at x=487,y=12 -->
 					<div id="wmDateArea">

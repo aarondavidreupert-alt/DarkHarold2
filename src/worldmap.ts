@@ -44,6 +44,8 @@ export module Worldmap {
     export const stop = _WorldmapMod.stop
     export const getPlayerWorldPos = _WorldmapMod.getPlayerWorldPos
     export const updateAreaMarkerPos = _WorldmapMod.updateAreaMarkerPos
+    export const withinArea = _WorldmapMod.withinArea
+    export const getWorldmapPlayer = _WorldmapMod.getWorldmapPlayer
 
     // Encounter dispatch (worldmap/encounters.ts).
     export const getEncounterGroup = _Encounters.getEncounterGroup

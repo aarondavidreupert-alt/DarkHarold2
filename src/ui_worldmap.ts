@@ -23,6 +23,23 @@ import { Worldmap } from './worldmap.js'
 import { UIMode } from './ui_panels.js'
 import { $id, clearEl, show, hide, showv, hidev, appendHTML, makeEl } from './ui_dom.js'
 
+// CE ref: worldmap.cc — label list visible height ~182px, each tab 27px.
+// tabsBackgroundFrmImage.getHeight()=480, max scroll = 480-230=250, but we
+// clamp dynamically to (labelCount*27 - visibleHeight).
+const LABEL_STEP_PX = 27
+const LABEL_VISIBLE_H = 182
+let _labelScrollY = 0
+
+function setLabelScroll(y: number): void {
+    const outer = document.getElementById('worldMapLabels')
+    if (!outer) return
+    const inner = document.getElementById('worldMapLabelsInner')
+    const labelCount = inner ? inner.querySelectorAll('.worldMapLabel').length : 0
+    const maxScroll = Math.max(0, labelCount * LABEL_STEP_PX - LABEL_VISIBLE_H)
+    _labelScrollY = Math.max(0, Math.min(y, maxScroll))
+    outer.scrollTop = _labelScrollY
+}
+
 // --- World map -------------------------------------------------------------
 
 export function uiCloseWorldMap() {
@@ -49,6 +66,28 @@ export function uiWorldMap(onAreaMap = false) {
         uiWorldMapWorldView()
     }
     uiWorldMapLabels()
+
+    // CE ref: worldmap.cc WM_TOWN_WORLD_SWITCH — toggle area/world view
+    const viewBtn = document.getElementById('worldmapViewButton')
+    if (viewBtn) {
+        viewBtn.onclick = () => {
+            const areaSel = document.getElementById('areamap')
+            const onArea = areaSel && areaSel.style.visibility !== 'hidden' && areaSel.style.display !== 'none'
+            if (onArea) {
+                uiWorldMapWorldView()
+            } else {
+                const pos = Worldmap.getWorldmapPlayer()
+                const area = pos ? Worldmap.withinArea(pos) : null
+                if (area) uiWorldMapShowArea(area)
+            }
+        }
+    }
+
+    // CE ref: worldmap.cc WM_TOWN_LIST_SCROLL_UP/DOWN — scroll label list
+    const upBtn = document.getElementById('wmLabelScrollUp')
+    const dnBtn = document.getElementById('wmLabelScrollDown')
+    if (upBtn) upBtn.onclick = () => setLabelScroll(_labelScrollY - LABEL_STEP_PX)
+    if (dnBtn) dnBtn.onclick = () => setLabelScroll(_labelScrollY + LABEL_STEP_PX)
 }
 
 function uiWorldMapAreaView() {
@@ -94,29 +133,28 @@ export function uiWorldMapShowArea(area: Area) {
 }
 
 function uiWorldMapLabels() {
-    $id('worldMapLabels').innerHTML = "<div id='worldMapLabelsBackground'></div>"
+    _labelScrollY = 0
+    const outer = $id('worldMapLabels')
+    outer.scrollTop = 0
+    outer.innerHTML = "<div id='worldMapLabelsInner'></div>"
+    const inner = $id('worldMapLabelsInner')
 
-    let i = 0
-    for (const areaID in globalState.mapAreas) {
-        const area = globalState.mapAreas[areaID]
-        if (!area.labelArt) {
-            continue
-        }
+    // CE ref: worldmap.cc wmMakeTabsLabelList — known areas with labelFid != -1,
+    // sorted alphabetically. Sub-areas and encounter areas (id > 20) are excluded.
+    const areas = Object.values(globalState.mapAreas)
+        .filter(a => a.id <= 20 && a.state === true && !!a.labelArt)
+        .sort((a, b) => a.name.localeCompare(b.name))
 
+    for (const area of areas) {
         const label = makeEl('img', { classes: ['worldMapLabelImage'], src: area.labelArt + '.png' })
         const labelButton = makeEl('div', {
             classes: ['worldMapLabelButton'],
-            click: () => {
-                uiWorldMapShowArea(globalState.mapAreas[areaID])
-            },
+            click: () => { uiWorldMapShowArea(area) },
         })
-
         const areaLabel = makeEl('div', {
             classes: ['worldMapLabel'],
-            style: { top: 1 + i * 27 + 'px' },
             children: [label, labelButton],
         })
-        $id('worldMapLabels').appendChild(areaLabel)
-        i++
+        inner.appendChild(areaLabel)
     }
 }

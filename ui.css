@@ -1094,6 +1094,18 @@ html, body {
   height: 100%;
 }
 
+/* CE ref: worldmap.cc wmRefreshTabs — static decorative tab strip behind labels.
+   Absolute coords in #worldMapBox: left=503-13=490, top=133-27=106. */
+#worldMapLabelsBg {
+  position: absolute;
+  left: 490px;
+  top: 106px;
+  width: 145px;
+  height: 480px;
+  background-image: url("art/intrface/wmtabs.png");
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
 #worldMapLabels {
   position: absolute;
   left: 503px;
@@ -1102,21 +1114,46 @@ html, body {
   height: 182px;
   overflow: hidden;
 }
+#worldMapLabelsInner {
+  /* block container — labels stack naturally, scrolled via scrollTop on parent */
+}
 
-#worldMapLabelsBackground {
+/* CE ref: worldmap.cc WM_TOWN_LIST_SCROLL_UP_X=480,Y=137 / DOWN_Y=152
+   Art: uparwoff/uparwon (FID 199/200), dnarwoff/dnarwon (FID 181/182), 11×14px */
+#wmLabelScrollUp {
   position: absolute;
-  left: -13px;
-  top: -27px;
-  width: 145px;
-  height: 480px;
-  background-image: url("art/intrface/wmtabs.png");
+  left: 480px;
+  top: 137px;
+  width: 11px;
+  height: 14px;
+  background-image: url("art/intrface/uparwoff.png");
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  cursor: pointer;
+}
+#wmLabelScrollUp:active {
+  background-image: url("art/intrface/uparwon.png");
+}
+#wmLabelScrollDown {
+  position: absolute;
+  left: 480px;
+  top: 152px;
+  width: 11px;
+  height: 14px;
+  background-image: url("art/intrface/dnarwoff.png");
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  cursor: pointer;
+}
+#wmLabelScrollDown:active {
+  background-image: url("art/intrface/dnarwon.png");
 }
 
 .worldMapLabel {
-  position: absolute;
+  position: relative;
   left: 3px;
   width: 110px;
-  height: 24px;
+  height: 27px;
 }
 
 .worldMapLabelImage {

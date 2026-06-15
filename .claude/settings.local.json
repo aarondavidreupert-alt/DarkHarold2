@@ -18,7 +18,12 @@
       "Bash(xargs grep -l \"gameTimeGetHour\")",
       "Bash(grep -v \"//.*wmInterface\")",
       "Bash(pipenv run python -c ' *)",
-      "Bash(py -3 -c ' *)"
+      "Bash(py -3 -c ' *)",
+      "Bash(python -c 'print\\(1400/28\\)')",
+      "Bash(echo \"1400/28=$\\(python -c 'print\\(1400/28\\)'\\)\")",
+      "Bash(python -c 'print\\(1500/30\\)')",
+      "Bash(echo \"1500/30=$\\(python -c 'print\\(1500/30\\)'\\)\")",
+      "Bash(python -c 'print\\(4*7\\)')"
     ]
   }
 }

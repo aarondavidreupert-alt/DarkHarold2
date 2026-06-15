@@ -35,7 +35,8 @@ export const WORLDMAP_SEEN = 2
 
 export const NUM_SQUARES_X = 4 * 7
 export const NUM_SQUARES_Y = 5 * 6
-export const SQUARE_SIZE = 51
+// CE ref: worldmap.cc — worldmap.png is 1400×1500, 28×30 tiles → 50×50px per tile.
+export const SQUARE_SIZE = 50
 
 export const WORLDMAP_SPEED = 2 // speed scalar
 export const WORLDMAP_ENCOUNTER_CHECK_RATE = 800 // ms (TODO: find right value)
@@ -238,16 +239,29 @@ export function init(): void {
         dbg('worldmap', 'targeting: ' + ax + ', ' + ay)
     }
 
-    $worldmapTarget.onclick = function (e: MouseEvent) {
+    // CE ref: worldmap.cc:3124-3157 — hotspot shows pressed image while mouse held,
+    // clicking a known area hotspot opens the area map.
+    $worldmapTarget.onmousedown = function () {
         const area = withinArea(worldmapPlayer)
         if (area !== null) {
-            // we're on a hotspot, visit the area map
-            e.stopPropagation()
-            uiWorldMapShowArea(area)
-        } else {
-            // we're in an open area, do nothing
+            $worldmapTarget.style.backgroundImage = "url('art/intrface/hotspot2.png')"
         }
     }
+    $worldmapTarget.onmouseup = function (e: MouseEvent) {
+        const area = withinArea(worldmapPlayer)
+        if (area !== null) {
+            $worldmapTarget.style.backgroundImage = "url('art/intrface/hotspot1.png')"
+            e.stopPropagation()
+            uiWorldMapShowArea(area)
+        }
+    }
+    $worldmapTarget.onmouseleave = function () {
+        // revert to normal if mouse leaves without releasing
+        if ($worldmapTarget.style.backgroundImage.includes('hotspot2')) {
+            $worldmapTarget.style.backgroundImage = "url('art/intrface/hotspot1.png')"
+        }
+    }
+    $worldmapTarget.onclick = null  // handled by mouseup above
 
     for (const key in globalState.mapAreas) {
         const area = globalState.mapAreas[key]
@@ -397,8 +411,10 @@ export function updateWorldmapPlayer() {
         if (currentSquare.state !== WORLDMAP_DISCOVERED) setSquareStateAt(squarePos, WORLDMAP_DISCOVERED)
 
         // check for encounters
+        // CE ref: worldmap.cc wmRndEncounterOccurred:3341 — skip if player is within any town area
         const time = window.performance.now()
-        if (Config.engine.doEncounters === true && time >= lastEncounterCheck + WORLDMAP_ENCOUNTER_CHECK_RATE) {
+        if (Config.engine.doEncounters === true && time >= lastEncounterCheck + WORLDMAP_ENCOUNTER_CHECK_RATE
+                && withinArea(worldmapPlayer) === null) {
             lastEncounterCheck = time
 
             const hadEncounter = didEncounter()
