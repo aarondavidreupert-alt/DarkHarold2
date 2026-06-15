@@ -88,10 +88,8 @@ export function initGame() {
         showMainMenu()
     }
 
-    if (Config.ui.hideRoofWhenUnder) {
-        // Only show roofs if the player is not under them
-        Events.on('playerMoved', (e: Point) => {
-            Config.ui.showRoof = !globalState.gMap.hasRoofAt(e)
-        })
-    }
+    // CE ref: tile.cc tile_fill_roof — roof hiding is now per-building:
+    // renderRoof() flood-fills from the player's tile to hide only the
+    // connected roof section the player is standing under. The global
+    // showRoof toggle is no longer used for this purpose.
 }

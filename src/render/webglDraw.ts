@@ -14,7 +14,7 @@ declare module './webglContext.js' {
         renderImage(imgPath: string, x: number, y: number, width: number, height: number): void
         renderFont(font: Font, x: number, y: number): void
         drawTileMap(tilemap: TileMap, offsetY: number): void
-        renderRoof(roof: TileMap): void
+        renderRoof(roof: TileMap, hideSet?: Set<string> | null): void
         renderFloor(floor: TileMap): void
         renderObject(obj: Obj): void
         renderObjectOutlined(obj: Obj): void
@@ -123,7 +123,7 @@ WebGLRenderer.prototype.setRoofLighting = function (): void {
     gl.activeTexture(gl.TEXTURE0)
 }
 
-WebGLRenderer.prototype.renderRoof = function (roof: TileMap): void {
+WebGLRenderer.prototype.renderRoof = function (roof: TileMap, hideSet?: Set<string> | null): void {
     const gl = this.gl
     gl.useProgram(this.tileShader)
     gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
@@ -141,9 +141,8 @@ WebGLRenderer.prototype.renderRoof = function (roof: TileMap): void {
     for (let i = 0; i < roof.length; i++) {
         for (let j = 0; j < roof[0].length; j++) {
             const tile = roof[j][i]
-            if (tile === 'grid000') {
-                continue
-            }
+            if (tile === 'grid000') continue
+            if (hideSet && hideSet.has(`${i},${j}`)) continue
             const img = 'art/tiles/' + tile
 
             const scr = tileToScreen(i, j)

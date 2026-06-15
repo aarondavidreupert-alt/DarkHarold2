@@ -22,7 +22,7 @@ import globalState from './globalState.js'
 import { lazyLoadImage } from './images.js'
 import { dbg } from './logger.js'
 import { Obj } from './object.js'
-import { tileFromScreen } from './tile.js'
+import { hexToTile, tileFromScreen } from './tile.js'
 import { Config } from './config.js'
 import { WindowFrame } from './ui.js'
 import { Font } from './formats/fon.js'
@@ -56,6 +56,33 @@ export {
 } from './render/camera.js'
 
 // Abstract game renderer
+
+// CE ref: tile.cc tile_fill_roof / roof_fill_off_process_task — flood-fill
+// from the player's roof-grid position, collecting all contiguous non-empty
+// roof tiles that form the same building section. The fill stops at 'grid000'
+// (gap / no roof), isolating each structure exactly as CE does.
+// Returns a Set of "x,y" keys for tiles that should NOT be rendered.
+function roofFloodFill(roof: TileMap, startX: number, startY: number): Set<string> {
+    const hidden = new Set<string>()
+    const H = roof.length
+    const W = roof[0]?.length ?? 0
+    if (startX < 0 || startX >= W || startY < 0 || startY >= H) return hidden
+    if (roof[startY][startX] === 'grid000') return hidden
+
+    const stack: [number, number][] = [[startX, startY]]
+    const visited = new Set<string>()
+    while (stack.length > 0) {
+        const [x, y] = stack.pop()!
+        const key = `${x},${y}`
+        if (visited.has(key)) continue
+        visited.add(key)
+        if (x < 0 || x >= W || y < 0 || y >= H) continue
+        if (roof[y][x] === 'grid000') continue
+        hidden.add(key)
+        stack.push([x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1])
+    }
+    return hidden
+}
 
 let _animLogLast = { art: '', frame: -1 }
 
@@ -136,7 +163,14 @@ export class Renderer {
             this.renderObjects(this.objects)
         }
         if (Config.ui.showRoof) {
-            this.renderRoof(this.roofTiles)
+            // CE ref: object.cc:1462 tile_fill_roof(roofX, roofY, elev, false) —
+            // hide only the connected roof section the player is standing under.
+            let hideSet: Set<string> | null = null
+            if (globalState.player) {
+                const pt = hexToTile(globalState.player.position)
+                hideSet = roofFloodFill(this.roofTiles, pt.x, pt.y)
+            }
+            this.renderRoof(this.roofTiles, hideSet)
         }
 
         for (const window of this.windows.filter((w) => w.showing)) {
@@ -381,7 +415,7 @@ export class Renderer {
     renderText(txt: string, x: number, y: number, align: CanvasTextAlign = 'left', color?: string): void {}
     renderImage(imgPath: string, x: number, y: number, width: number, height: number): void {}
 
-    renderRoof(roof: TileMap): void {}
+    renderRoof(roof: TileMap, hideSet?: Set<string> | null): void {}
     renderFloor(floor: TileMap): void {}
     renderObjectOutlined(obj: Obj): void {
         this.renderObject(obj)
