@@ -38,6 +38,9 @@ function setLabelScroll(y: number): void {
     const maxScroll = Math.max(0, labelCount * LABEL_STEP_PX - LABEL_VISIBLE_H)
     _labelScrollY = Math.max(0, Math.min(y, maxScroll))
     outer.scrollTop = _labelScrollY
+    // Sync background so wmtabs.png slot decorations stay aligned with labels.
+    // CE ref: wmRefreshTabs reblits wmtabs.png starting at tabsScrollOffset.
+    outer.style.backgroundPositionY = (-27 - _labelScrollY) + 'px'
 }
 
 // --- World map -------------------------------------------------------------
@@ -136,13 +139,15 @@ function uiWorldMapLabels() {
     _labelScrollY = 0
     const outer = $id('worldMapLabels')
     outer.scrollTop = 0
+    outer.style.backgroundPositionY = '-27px'
     outer.innerHTML = "<div id='worldMapLabelsInner'></div>"
     const inner = $id('worldMapLabelsInner')
 
-    // CE ref: worldmap.cc wmMakeTabsLabelList — known areas with labelFid != -1,
-    // sorted alphabetically. Sub-areas and encounter areas (id > 20) are excluded.
+    // CE ref: worldmap.cc wmMakeTabsLabelList — areas with labelFid != -1, sorted
+    // alphabetically. Sub-areas and encounter tables (id > 20) are excluded; those
+    // are Destroyed Arroyo (22) and Raiders (25) which share Arroyo's label art.
     const areas = Object.values(globalState.mapAreas)
-        .filter(a => a.id <= 20 && a.state === true && !!a.labelArt)
+        .filter(a => a.id <= 20 && !!a.labelArt)
         .sort((a, b) => a.name.localeCompare(b.name))
 
     for (const area of areas) {

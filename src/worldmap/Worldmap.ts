@@ -52,6 +52,9 @@ let worldmapTimer: number = -1
 let lastEncounterCheck = 0
 let $worldMapDial: HTMLElement | null = null
 let _lastDialFrame = -1
+// Current viewport pan offset (pixels into the 1400×1500 worldmap).
+let _panX = 0
+let _panY = 0
 
 // CE ref: worldmap.cc WM_WINDOW_DIAL_X=532/Y=48; wmInterfaceDialSyncTime.
 // wmdial.png: 1392×29 — frmpixels.py writes ALL frames horizontally with maxW stride.
@@ -226,8 +229,8 @@ export function init(): void {
         const x = e.pageX - offsetLeft
         const y = e.pageY - offsetTop
 
-        const ax = x + this.scrollLeft
-        const ay = y + this.scrollTop
+        const ax = x + _panX
+        const ay = y + _panY
 
         worldmapPlayer.target = { x: ax, y: ay }
         showv($worldmapPlayer)
@@ -399,14 +402,17 @@ export function updateWorldmapPlayer() {
         updateDial()
         updateDate()
 
-        // center the worldmap to the player
-        const width = $worldmap.offsetWidth
-        const height = $worldmap.offsetHeight
-        const sx = clamp(0, width, Math.floor(worldmapPlayer.x - width / 2))
-        const sy = clamp(0, height, Math.floor(worldmapPlayer.y - height / 2))
-
-        $worldmap.scrollLeft = sx
-        $worldmap.scrollTop = sy
+        // CE ref: worldmap.cc wmInterfaceScrollMap — pan viewport to keep player centred.
+        // #worldmap is the full 1400×1500 map; #worldMapWorld (445×438) clips it via
+        // overflow:hidden. We translate #worldmap instead of using scrollLeft/scrollTop
+        // so all absolutely-positioned children (fog squares, markers) move correctly.
+        const MAP_W = NUM_SQUARES_X * SQUARE_SIZE   // 1400
+        const MAP_H = NUM_SQUARES_Y * SQUARE_SIZE   // 1500
+        const VIEW_W = 445  // #worldMapWorld width (CE WM_VIEW_WIDTH)
+        const VIEW_H = 438  // #worldMapWorld height (CE WM_VIEW_HEIGHT)
+        _panX = clamp(0, MAP_W - VIEW_W, Math.floor(worldmapPlayer.x - VIEW_W / 2))
+        _panY = clamp(0, MAP_H - VIEW_H, Math.floor(worldmapPlayer.y - VIEW_H / 2))
+        $worldmap.style.transform = `translate(${-_panX}px, ${-_panY}px)`
 
         if (currentSquare.state !== WORLDMAP_DISCOVERED) setSquareStateAt(squarePos, WORLDMAP_DISCOVERED)
 

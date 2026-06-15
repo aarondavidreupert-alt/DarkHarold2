@@ -1082,6 +1082,7 @@ html, body {
   top: 82px;
   width: 445px;
   height: 438px;
+  overflow: hidden;
 }
 
 #areamap {
@@ -1094,18 +1095,9 @@ html, body {
   height: 100%;
 }
 
-/* CE ref: worldmap.cc wmRefreshTabs — static decorative tab strip behind labels.
-   Absolute coords in #worldMapBox: left=503-13=490, top=133-27=106. */
-#worldMapLabelsBg {
-  position: absolute;
-  left: 490px;
-  top: 106px;
-  width: 145px;
-  height: 480px;
-  background-image: url("art/intrface/wmtabs.png");
-  background-repeat: no-repeat;
-  pointer-events: none;
-}
+/* CE ref: worldmap.cc wmRefreshTabs — wmtabs.png is the decorative tab strip.
+   background-position offsets match CE's blit origin (left=-13, top=-27 relative
+   to the visible label window), clipped naturally to this element's 182px height. */
 #worldMapLabels {
   position: absolute;
   left: 503px;
@@ -1113,6 +1105,9 @@ html, body {
   width: 120px;
   height: 182px;
   overflow: hidden;
+  background-image: url("art/intrface/wmtabs.png");
+  background-position: -13px -27px;
+  background-repeat: no-repeat;
 }
 #worldMapLabelsInner {
   /* block container — labels stack naturally, scrolled via scrollTop on parent */
@@ -1287,11 +1282,10 @@ html, body {
   position: absolute;
   left: 0px;
   top: 0px;
-  /*overflow: auto;*/
-  overflow: hidden;
-  width: 100%;
-  height: 100%;
-  /* */
+  /* Full 1400×1500 map — clipped by #worldMapWorld overflow:hidden.
+     Panned via transform:translate in Worldmap.ts updateWorldmapPlayer(). */
+  width: 1400px;
+  height: 1500px;
 }
 
 #worldmapImage {
