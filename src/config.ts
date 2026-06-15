@@ -15,6 +15,10 @@ export const Config = {
         showFloor: true, // show floor tiles?
         showRoof: true, // show roof tiles?
         hideRoofWhenUnder: true, // hide roof when we walk under it?
+        showEgg: true, // egg transparency: make walls/scenery in front of the player semi-transparent
+        eggMode: 'alpha' as 'alpha' | 'egg', // 'alpha'=flat transparent, 'egg'=CE egg.png mask
+        eggAlpha:  undefined as number | undefined, // outer alpha — undefined = use default 0.4
+        eggRadius: undefined as number | undefined, // hex radius — undefined = use default 8
         showObjects: true, // show objects?
         showWalls: true, // show walls?
         showBoundingBox: false, // show bounding boxes around objects?

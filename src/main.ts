@@ -269,6 +269,28 @@ window.onload = async function () {
         ;(globalState.renderer as WebGLRenderer).setLightingMode(mode)
         dbg('map', '[Lighting] switched to:', mode)
     }
+
+    // Console commands for the egg transparency effect.
+    // setEggMode('alpha') — flat alpha applied to the whole wall sprite (default)
+    // setEggMode('egg')   — CE-faithful egg.png mask: smooth falloff centered on player
+    // setEggAlpha(0.3)    — set the outer/flat alpha (0=invisible, 1=opaque, default 0.4)
+    // setEggRadius(6)     — set max hex distance for egg effect (default 8)
+    ;(window as any).setEggMode = (mode: 'alpha' | 'egg') => {
+        if (mode !== 'alpha' && mode !== 'egg') {
+            console.log("Usage: setEggMode('alpha') or setEggMode('egg')")
+            return
+        }
+        Config.ui.eggMode = mode
+        console.log(`[Egg] mode="${mode}"  alpha=${Config.ui.eggAlpha ?? 0.4}  radius=${Config.ui.eggRadius ?? 8}`)
+    }
+    ;(window as any).setEggAlpha = (a: number) => {
+        Config.ui.eggAlpha = Math.max(0, Math.min(1, a))
+        console.log(`[Egg] alpha=${Config.ui.eggAlpha}`)
+    }
+    ;(window as any).setEggRadius = (r: number) => {
+        Config.ui.eggRadius = Math.max(1, r)
+        console.log(`[Egg] radius=${Config.ui.eggRadius}`)
+    }
 }
 
 installInputHandlers()

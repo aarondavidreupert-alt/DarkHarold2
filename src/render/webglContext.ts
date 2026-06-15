@@ -60,6 +60,13 @@ export class WebGLRenderer extends Renderer {
     // lookup. UI draws (ambient=1) don't care about the zoom value.
     uTileZoom: WebGLUniformLocation | null = null
     uFloorLightZoom: WebGLUniformLocation | null = null
+    uAlpha: WebGLUniformLocation | null = null
+    uEggMode: WebGLUniformLocation | null = null
+    uEggCenter: WebGLUniformLocation | null = null
+    uEggSize: WebGLUniformLocation | null = null
+    eggTexture: WebGLTexture | null = null
+    eggWidth = 0
+    eggHeight = 0
 
     // Resolution uniforms stashed at init-time so resize() can re-upload them
     // (they are set once in init() and then re-read by the fragment shader
@@ -180,6 +187,31 @@ export class WebGLRenderer extends Renderer {
         const defaultAlignment = 4
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, defaultAlignment)
         return texture
+    }
+
+    // CE ref: object.cc:352 — egg FID is OBJ_TYPE_INTERFACE #2 (art/intrface/egg.frm).
+    // Load the egg mask as a WebGL texture on unit 6.
+    _loadEggTexture(): void {
+        const gl = this.gl
+        const img = new Image()
+        img.onload = () => {
+            const tex = gl.createTexture()
+            gl.activeTexture(gl.TEXTURE6)
+            gl.bindTexture(gl.TEXTURE_2D, tex)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img)
+            gl.activeTexture(gl.TEXTURE0)
+            this.eggTexture = tex
+            this.eggWidth = img.naturalWidth
+            this.eggHeight = img.naturalHeight
+            // Set u_eggSize in the tile shader (may have changed since init)
+            gl.useProgram(this.tileShader)
+            if (this.uEggSize) gl.uniform2f(this.uEggSize, img.naturalWidth, img.naturalHeight)
+        }
+        img.src = 'art/intrface/egg.png'
     }
 
     init(): void {
@@ -323,6 +355,15 @@ export class WebGLRenderer extends Renderer {
         gl.uniform1f(this.uTileAmbient, 1.0)
         gl.uniform2f(this.uTileCamera, 0.0, 0.0)
         if (this.uTileZoom) gl.uniform1f(this.uTileZoom, 1.0)
+        this.uAlpha = gl.getUniformLocation(this.tileShader, 'u_alpha')
+        if (this.uAlpha) gl.uniform1f(this.uAlpha, 1.0)
+        this.uEggMode = gl.getUniformLocation(this.tileShader, 'u_eggMode')
+        this.uEggCenter = gl.getUniformLocation(this.tileShader, 'u_eggCenter')
+        this.uEggSize = gl.getUniformLocation(this.tileShader, 'u_eggSize')
+        if (this.uEggMode) gl.uniform1i(this.uEggMode, 0)
+        // Bind egg texture to unit 6 — loaded asynchronously after init
+        gl.uniform1i(gl.getUniformLocation(this.tileShader, 'u_eggTex'), 6)
+        this._loadEggTexture()
 
         // 1×1 R8 dummy texture (value 0) for roof draws — roofs are
         // sky-facing and should be lit by ambient only, not by floor

@@ -377,8 +377,9 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 | RD13 | **Hex click hit-testing is approximate.** CE uses `_tile_mask[512]` (32 × 16 px, 5 sub-regions) for pixel-precise diamond edges. DH2 uses cube-coordinate rounding (`hexFromScreen`) — imprecise at hex boundaries. | `src/geometry/hexScreen.ts` | `tile.cc:718 tileFromScreenXY()` | low | bug |
 | RD14 | **Elevation transition is instant.** CE fades/transitions between elevation levels. DH2 switches immediately. | `src/map/GameMap.ts` | `map.cc mapSetElevation()` | low | missing |
 | RD15 | **Roof tile lighting deviation — ground truth unclear.** CE `tileRenderRoofsInRect` appears to blit roofs at full palette intensity (no `intensityColorTable`). DH2 roofs render at `max(0, ambient) = ambient` via `roofDummyTexture` — dimming at night. See `wiki/rendering.md §6`. | `src/render/webglDraw.ts` | `tile.cc tileRenderRoofsInRect()` | low | bug |
+| RD16 | **Egg transparency implemented.** FIXED 2026-06-15 — Walls and scenery in front of the player become semi-transparent (α=0.5) so the player is visible behind them. Condition matches CE default case: `hexIsToRightOf(player, obj)` within 8 hex radius. Implemented via `u_alpha` uniform in `fragment.glsl`; `isEggObject()` predicate in `webglDraw.ts`. CE uses per-pixel `_intensity_mask_buf_to_buf` with `egg.frm` bitmap; DH2 uses uniform alpha (simpler, visually equivalent). Togglable via `Config.ui.showEgg`. CE ref: `object.cc:4949 _obj_render()`. | `src/render/webglDraw.ts`, `shaders/fragment.glsl`, `src/render/webglContext.ts` | `object.cc:4949 _obj_render()`; `tile.cc tileIsToRightOf()` | major | fixed |
 
-<!-- audited: 2026-06-02 -->
+<!-- audited: 2026-06-15 -->
 
 ---
 

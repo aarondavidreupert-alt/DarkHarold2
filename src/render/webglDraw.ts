@@ -7,6 +7,8 @@ import { Config } from '../config.js'
 import { Font } from '../formats/fon.js'
 import { dbg } from '../logger.js'
 import { WebGLRenderer } from './webglContext.js'
+import { hexDistance } from '../geometry.js'
+import { hexIsInFrontOf, hexIsToRightOf, hexToScreen } from '../geometry/hexScreen.js'
 
 declare module './webglContext.js' {
     interface WebGLRenderer {
@@ -186,16 +188,56 @@ WebGLRenderer.prototype.renderFloor = function (floor: TileMap): void {
     }
 }
 
+// CE ref: object.cc:4949 _obj_render() — walls/scenery that occlude the player
+// are drawn with the "egg" transparency so the player is visible behind them.
+// These are tunable at runtime via setEggAlpha() / setEggRadius() in the browser console.
+let EGG_RADIUS = 8   // hex distance — walls farther than this are never faded
+let EGG_ALPHA  = 0.4 // outer/flat alpha (0 = fully transparent, 1 = fully opaque)
+
+function getEggAlpha(): number  { return Config.ui.eggAlpha  ?? EGG_ALPHA  }
+function getEggRadius(): number { return Config.ui.eggRadius ?? EGG_RADIUS }
+
+function isEggObject(obj: Obj): boolean {
+    if (obj.type !== 'scenery' && obj.type !== 'wall') return false
+    const player = globalState.player
+    if (!player) return false
+    // CE default case: tileIsToRightOf(gDude, object) — player is to the right of the wall.
+    // Also require the wall to be "in front of" the player (closer to camera = higher z-order),
+    // which is the actual occlusion condition CE tests implicitly via rect intersection.
+    return hexIsInFrontOf(obj.position, player.position)
+        && hexIsToRightOf(player.position, obj.position)
+        && hexDistance(player.position, obj.position) <= getEggRadius()
+}
+
 WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     const renderInfo = this.objectRenderInfo(obj)
     if (!renderInfo || !renderInfo.visible) {
         return
     }
-    // World-space draw: scale both screen offset and sprite dimensions
-    // by the current zoom so critters, scenery and walls scale along
-    // with the map while the shader u_scale/u_offset interpretation
-    // stays in screen-pixel space.
     const z = getZoom()
+    const egg = Config.ui.showEgg !== false && isEggObject(obj)
+
+    if (egg) {
+        const gl = this.gl
+        if (this.uAlpha) gl.uniform1f(this.uAlpha, getEggAlpha())
+
+        // Egg-mask mode: set the egg center uniform to the player's screen position.
+        // CE ref: object.cc:4995 — egg centered at player tile + 16px x + 8px y.
+        if (Config.ui.eggMode === 'egg' && this.eggTexture && this.uEggMode && this.uEggCenter) {
+            const p = globalState.player!.position
+            const ps = hexToScreen(p.x, p.y)
+            // Egg center in WORLD SPACE (not viewport/logical pixels) so the
+            // shader can use the same coordinate system as getWorldTileLight().
+            // CE ref: object.cc:4995 — tileToScreenXY + 16x + 8y for egg anchor.
+            gl.uniform1i(this.uEggMode, 1)
+            gl.uniform2f(this.uEggCenter, ps.x + 16, ps.y + 8)
+            // Bind egg texture to unit 6
+            gl.activeTexture(gl.TEXTURE6)
+            gl.bindTexture(gl.TEXTURE_2D, this.eggTexture)
+            gl.activeTexture(gl.TEXTURE0)
+        }
+    }
+
     this.renderFrame(
         obj.art,
         (renderInfo.x - globalState.cameraPosition.x) * z,
@@ -206,6 +248,12 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         renderInfo.spriteFrameNum,
         /*lit*/ true
     )
+
+    if (egg) {
+        const gl = this.gl
+        if (this.uAlpha) gl.uniform1f(this.uAlpha, 1.0)
+        if (Config.ui.eggMode === 'egg' && this.uEggMode) gl.uniform1i(this.uEggMode, 0)
+    }
 }
 
 WebGLRenderer.prototype.renderObjectOutlined = function (obj: Obj): void {
