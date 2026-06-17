@@ -61,8 +61,14 @@ void main() {
 
     float alpha = u_alpha;
 
-    if (u_eggMode == 1 && u_alpha < 1.0) {
-        // Egg-mask mode: sample egg.png to get per-pixel transparency.
+    if (u_eggMode == 1) {
+        // Egg-mask mode: CE only fades the wall inside the small egg
+        // footprint around the player — everywhere else (including the
+        // rest of the same qualifying wall sprite) stays fully opaque.
+        // There is no "flat alpha" fallback in egg mode; u_alpha is only
+        // used by the separate flat-alpha mode.
+        alpha = 1.0;
+
         // All coordinates in world space — zoom-independent.
         // CE ref: object.cc:5006 — eggRect: left=eggX-W/2, top=eggY-(H-1), bottom=eggY.
         float dpr = u_screenResolution.x / u_resolution.x;
@@ -78,10 +84,11 @@ void main() {
         vec2 eggUV = (vec2(world_x, world_y) - eggTopLeft) / u_eggSize;
 
         if (eggUV.x >= 0.0 && eggUV.x <= 1.0 && eggUV.y >= 0.0 && eggUV.y <= 1.0) {
-            // egg.png white center (R≈1) = transparent wall; dark border (R≈0) = opaque.
+            // egg.png white center (R≈1) = transparent wall; dark/transparent
+            // border (R≈0) = opaque wall, matching CE's mask=0 → full intensity.
             // CE ref: object.cc:5047 _intensity_mask_buf_to_buf — mask=255 suppresses wall pixel.
             float mask = texture2D(u_eggTex, eggUV).r;
-            alpha = mix(u_alpha, 0.0, mask);
+            alpha = mix(1.0, 0.0, mask);
         }
     }
 

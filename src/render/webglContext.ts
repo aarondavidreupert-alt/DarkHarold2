@@ -210,6 +210,10 @@ export class WebGLRenderer extends Renderer {
             // Set u_eggSize in the tile shader (may have changed since init)
             gl.useProgram(this.tileShader)
             if (this.uEggSize) gl.uniform2f(this.uEggSize, img.naturalWidth, img.naturalHeight)
+            console.log(`[Egg] texture loaded: ${img.naturalWidth}x${img.naturalHeight}`)
+        }
+        img.onerror = (e) => {
+            console.error('[Egg] FAILED to load art/intrface/egg.png — egg mode will silently fall back to flat alpha.', e)
         }
         img.src = 'art/intrface/egg.png'
     }

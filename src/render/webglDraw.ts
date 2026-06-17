@@ -8,7 +8,7 @@ import { Font } from '../formats/fon.js'
 import { dbg } from '../logger.js'
 import { WebGLRenderer } from './webglContext.js'
 import { hexDistance } from '../geometry.js'
-import { hexIsInFrontOf, hexIsToRightOf, hexToScreen } from '../geometry/hexScreen.js'
+import { hexIsInFrontOf, hexIsToRightOf } from '../geometry/hexScreen.js'
 
 declare module './webglContext.js' {
     interface WebGLRenderer {
@@ -221,20 +221,29 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         const gl = this.gl
         if (this.uAlpha) gl.uniform1f(this.uAlpha, getEggAlpha())
 
-        // Egg-mask mode: set the egg center uniform to the player's screen position.
-        // CE ref: object.cc:4995 — egg centered at player tile + 16px x + 8px y.
-        if (Config.ui.eggMode === 'egg' && this.eggTexture && this.uEggMode && this.uEggCenter) {
-            const p = globalState.player!.position
-            const ps = hexToScreen(p.x, p.y)
-            // Egg center in WORLD SPACE (not viewport/logical pixels) so the
-            // shader can use the same coordinate system as getWorldTileLight().
-            // CE ref: object.cc:4995 — tileToScreenXY + 16x + 8y for egg anchor.
-            gl.uniform1i(this.uEggMode, 1)
-            gl.uniform2f(this.uEggCenter, ps.x + 16, ps.y + 8)
-            // Bind egg texture to unit 6
-            gl.activeTexture(gl.TEXTURE6)
-            gl.bindTexture(gl.TEXTURE_2D, this.eggTexture)
-            gl.activeTexture(gl.TEXTURE0)
+        // Egg-mask mode: anchor the egg to the player's actual rendered foot
+        // point (bottom-center of the sprite), not the raw hex position.
+        // DH2's hexToScreen() already returns the bottom-center anchor (the
+        // same point objectRenderInfo subtracts half-width/full-height from
+        // to get the sprite's top-left draw position) — unlike CE's
+        // tileToScreenXY which returns a tile *corner* and needs a +16/+8
+        // fudge to reach the center. Adding that CE-style fudge here was
+        // shifting the egg by half a hex tile (NW, since hexToScreen's +y
+        // goes down/south and +x goes right/east). Deriving the anchor from
+        // the player's own renderInfo also makes the egg track per-frame
+        // walk-animation shift smoothly, instead of snapping per-hex.
+        if (Config.ui.eggMode === 'egg' && this.eggTexture && this.eggWidth > 0 && this.eggHeight > 0 && this.uEggMode && this.uEggCenter) {
+            const playerInfo = this.objectRenderInfo(globalState.player!)
+            if (playerInfo) {
+                const eggX = playerInfo.x + playerInfo.uniformFrameWidth / 2
+                const eggY = playerInfo.y + playerInfo.uniformFrameHeight
+                gl.uniform1i(this.uEggMode, 1)
+                gl.uniform2f(this.uEggCenter, eggX, eggY)
+                // Bind egg texture to unit 6
+                gl.activeTexture(gl.TEXTURE6)
+                gl.bindTexture(gl.TEXTURE_2D, this.eggTexture)
+                gl.activeTexture(gl.TEXTURE0)
+            }
         }
     }
 

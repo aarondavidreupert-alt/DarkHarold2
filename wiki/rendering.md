@@ -7,7 +7,7 @@ DH2 implementation: `src/webglrenderer.ts` (barrel; `src/render/{webglContext,we
 
 Cross-references: `wiki/lighting.md` (lighting overview and scripting-level gaps LD1–LD6 in §13), `wiki/tile_system.md`, `wiki/known_bugs.md §22` (bug registry)
 
-Last audited: 2026-06-02
+Last audited: 2026-06-16
 
 ---
 
@@ -541,3 +541,107 @@ Quantifying how many floor decals (blood, flat items, certain scenery) exist in 
 
 **Q4 — RD05: Should NEAREST filtering be used for CE-accurate sharp light edges?**  
 The GPU tile-intensity texture currently uses `LINEAR` filter. Switching to `NEAREST` would produce hard per-hex boundaries matching CE's sharp light model at no performance cost. The only trade-off is visual: gradients vs sharp edges. This is a one-line change in `webglrenderer.ts` and the decision is aesthetic, not correctness-critical.
+
+---
+
+## Egg Transparency Effect
+
+### CE implementation (`object.cc:4949–5084`)
+
+When the player walks behind a wall or scenery that occludes them, CE renders those objects with per-pixel alpha blending using an egg-shaped mask image (`art/intrface/egg.frm`).
+
+**Activation condition** (`object.cc:4983`):
+```cpp
+tileIsToRightOf(gDude, object)  // player is to the right of the wall tile
+```
+CE also implicitly requires the object's screen rect to intersect the player rect (occlusion). DH2 replicates this with `hexIsToRightOf(player, obj) && hexIsInFrontOf(obj, player) && hexDistance <= radius`.
+
+**Egg rect** (`object.cc:5006`): bottom-aligned, not center-aligned.
+```cpp
+eggRect.left   = eggScreenX - eggWidth / 2
+eggRect.top    = eggScreenY - (eggHeight - 1)   // bottom of rect = eggScreenY
+eggRect.right  = eggRect.left + eggWidth - 1
+eggRect.bottom = eggScreenY
+```
+Egg anchor = `tileToScreenXY(gEgg->tile)` + `(16, 8)` (tile-center offset).
+
+**Blend function** `_intensity_mask_buf_to_buf` (`object.cc:2815`):
+```cpp
+if (mask == 0) {
+    // outside egg — draw wall at full light intensity, no transparency
+    *dest = intensityColorTable[src][lightIndex];
+} else {
+    // inside egg — blend wall with background
+    v1 = intensityColorTable[*dest][128 - mask];   // background at (128-mask) intensity
+    v2 = intensityColorTable[src][mask];            // wall at mask intensity
+    *dest = colorMixAddTable[v2][v1];               // additive mix ≈ wall*(mask/128) + bg*((128-mask)/128)
+}
+```
+`mask` values in `egg.frm` range 0–128:
+- **0** (outside egg, transparent FRM pixels = palette index 0) → wall fully opaque
+- **128** (center white pixels) → wall at full intensity + background at 0 → wall appears opaque in center
+- **1–127** (border gradient) → wall fades in, background fades out
+
+> Note: The CE egg creates a GRADIENT FADE of wall opacity from border to center — the center is visually clear of obstructions because the wall is blended with the (already-rendered) background at full-background weight at the edges, grading to full-wall weight at the center. Read in conjunction with the jsFO approach below.
+
+**egg.frm dimensions**: 129 × 98 px (working rect; full FRM may be slightly larger).
+
+### jsFO implementation (`src/gamestate/MainState.js:876–1050`)
+
+jsFO uses Canvas 2D compositing rather than per-pixel blending.
+
+**Algorithm**:
+1. Clear `eggBuffer` (300×300 offscreen canvas).
+2. Draw `egg.png` (white oval, transparent outside) onto `eggContext` with `"source-over"`.
+3. Floor tiles intersecting `eggBufferRect` → drawn to `eggContext` with `"source-atop"` (clips to egg oval).
+4. All map objects → drawn to main `_context` normally (full opacity).
+5. For objects intersecting `eggBufferRect`:
+   - Walls where `!(cRow < pRow || cCol < pCol)` (wall "in front" of player) → **skip** eggContext draw.
+   - All other objects → drawn to `eggContext` with `"source-atop"`.
+6. Roofs → main `_context` only.
+7. `_context.drawImage(eggBuffer, eggBufferRect.x, eggBufferRect.y)` — composites egg buffer over main.
+
+**Effect**: In the egg zone, the occluding walls are absent from `eggBuffer`. When `eggBuffer` is composited on top, those pixels get overwritten by floor/objects that were drawn BEHIND the wall. This effectively hides the occluding wall inside the egg oval.
+
+**Wall filter** (opposite of CE):
+- CE: `tileIsToRightOf(gDude, object)` — player RIGHT of wall → egg applies
+- jsFO: `cRow < pRow || cCol < pCol` — wall row/col LESS THAN player → egg applies (wall behind player)
+
+**Egg buffer rect**:
+- Dimensions: 129 × 98 px
+- Position: `x = playerX - 64, y = playerY - 84` (i.e. `playerX - width/2`, `playerY - height/2 - 35`)
+- Player screen anchor: `tileToScreen(hexPos) + (16, 8) + animShift - camera`
+
+### DH2 implementation (`shaders/fragment.glsl`, `src/render/webglDraw.ts`, `src/render/webglContext.ts`)
+
+DH2 approximates the CE blend in the fragment shader using the egg.png R channel as a mask weight.
+
+**Two modes** (toggle: `setEggMode('alpha')` / `setEggMode('egg')`):
+
+| Mode | Behaviour |
+|------|-----------|
+| `'alpha'` (default) | Flat alpha applied to entire qualifying wall sprite. Alpha tunable: `setEggAlpha(0.4)`. |
+| `'egg'` | egg.png R channel modulates per-fragment alpha. White center → `alpha=0` (invisible wall). Border → `alpha=u_alpha`. |
+
+**Shader logic** (fragment.glsl):
+```glsl
+float mask = texture2D(u_eggTex, eggUV).r;
+alpha = mix(u_alpha, 0.0, mask);  // white=fully transparent, dark=flat alpha
+```
+
+**Coordinates**: egg center is passed as world-space `(ps.x + 16, ps.y + 8)`. Fragment world position is computed identically to `getWorldTileLight()` so the egg UV is zoom-independent.
+
+**Qualification** (`isEggObject` in webglDraw.ts):
+```typescript
+hexIsInFrontOf(obj.position, player.position)   // wall renders above player (occludes)
+&& hexIsToRightOf(player.position, obj.position) // CE: tileIsToRightOf(gDude, obj)
+&& hexDistance(player.position, obj.position) <= getEggRadius()
+```
+Radius and alpha tunable at runtime: `setEggRadius(8)`, `setEggAlpha(0.4)`.
+
+**Status**: implemented (RD16, 2026-06-15; refined 2026-06-17). `'egg'` is now the default mode (`Config.ui.eggMode`).
+
+**2026-06-17 fixes**:
+- Egg anchor is derived from the player's actual per-frame `objectRenderInfo` (bottom-center foot point, including walk-animation shift), not the raw hex position plus a CE-style `+16/+8` corner-to-center correction. DH2's `hexToScreen()` already returns a foot/bottom-center anchor — unlike CE's `tileToScreenXY`, which returns a tile *corner* and needs the `+16/+8` fudge to reach center. Applying that fudge on top of DH2's already-centered anchor shifted the egg one half-hex tile to the NW. Deriving the anchor from the live render info also makes the egg track animation smoothly frame-to-frame instead of snapping per-hex.
+- In `'egg'` mode the wall now defaults to **fully opaque** (`alpha = 1.0`) everywhere outside the small egg-texture footprint, fading toward 0 only inside the oval — matching CE, which has no separate flat-alpha fallback layer. Previously the shader used `mix(u_alpha, 0.0, mask)`, which painted the whole qualifying wall at flat 40% alpha with just a clear hole cut in the center — visually "doubled up" with `'alpha'` mode instead of being its own distinct CE-faithful effect.
+- Known limitation (matches CE, not a DH2 bug): the egg's visual footprint is capped at the actual texture size (129×98 px, ~2-3 hex tiles). Immediately-adjacent walls whose sprite happens to land in the transparent PNG corner (outside the oval) may show no fade even though they pass the `isEggObject` qualification — the qualification gate (hex angle + distance) is independent of whether the sampled pixel inside the small footprint is actually inside the oval shape.

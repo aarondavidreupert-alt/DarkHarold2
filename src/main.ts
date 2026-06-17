@@ -291,6 +291,23 @@ window.onload = async function () {
         Config.ui.eggRadius = Math.max(1, r)
         console.log(`[Egg] radius=${Config.ui.eggRadius}`)
     }
+    ;(window as any).debugEgg = () => {
+        const r = globalState.renderer as WebGLRenderer
+        console.log('[Egg] diagnostic:', {
+            mode: Config.ui.eggMode,
+            alpha: Config.ui.eggAlpha ?? 0.4,
+            radius: Config.ui.eggRadius ?? 8,
+            textureLoaded: !!r.eggTexture,
+            eggWidth: r.eggWidth,
+            eggHeight: r.eggHeight,
+            uEggMode: !!r.uEggMode,
+            uEggCenter: !!r.uEggCenter,
+            uEggSize: !!r.uEggSize,
+            playerPosition: globalState.player ? { x: globalState.player.position.x, y: globalState.player.position.y } : null,
+            cameraPosition: globalState.cameraPosition,
+            zoom: globalState.cameraZoom,
+        })
+    }
 }
 
 installInputHandlers()
