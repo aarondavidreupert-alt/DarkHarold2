@@ -42,13 +42,13 @@ const LABEL_Y       = 3     // text label local y inside donebox
 
 // ── Internal DOM builders ─────────────────────────────────────────────────────
 
-function makeOverlay(): HTMLDivElement {
+function makeOverlay(dim = true): HTMLDivElement {
     const el = document.createElement('div')
     Object.assign(el.style, {
         position: 'fixed',
         inset: '0',
         zIndex: '1000',
-        background: 'rgba(0,0,0,0.55)',
+        background: dim ? 'rgba(0,0,0,0.55)' : 'transparent',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -151,12 +151,12 @@ function makeDonebox(label: string, x: number): HTMLDivElement {
  * CE ref: dbox.cc showDialogBox() — DIALOG_TYPE_LARGE layout; font1 body, font3 buttons.
  * Keyboard: Enter/Y = buttons[0], Escape/N = buttons[last].
  */
-export function showDialog(message: string, buttons: string[]): Promise<string> {
+export function showDialog(message: string, buttons: string[], dim = true): Promise<string> {
     return new Promise(resolve => {
         const prevMode = globalState.uiMode
         globalState.uiMode = UIMode.dialog
 
-        const overlay = makeOverlay()
+        const overlay = makeOverlay(dim)
         const box = makeDialogBox()
 
         box.appendChild(makeTextArea(message))
@@ -201,14 +201,21 @@ export function showDialog(message: string, buttons: string[]): Promise<string> 
 
 // ── Convenience wrappers ──────────────────────────────────────────────────────
 
-/** YES/NO confirm. Returns true if YES was chosen. CE ref: DIALOG_BOX_YES_NO flag. */
+/**
+ * YES/NO confirm. Returns true if YES was chosen. CE ref: DIALOG_BOX_YES_NO flag.
+ * No background dimming — used for routine confirmations (quit, overwrite
+ * save, etc.) that shouldn't visually block the game underneath.
+ */
 export async function showConfirm(message: string): Promise<boolean> {
-    return (await showDialog(message, ['YES', 'NO'])) === 'YES'
+    return (await showDialog(message, ['YES', 'NO'], /*dim*/ false)) === 'YES'
 }
 
-/** Single OK acknowledgement. CE ref: DIALOG_BOX_LARGE flag with DONE button. */
+/**
+ * Single OK acknowledgement. CE ref: DIALOG_BOX_LARGE flag with DONE button.
+ * No background dimming — consistent with showConfirm/showInput.
+ */
 export async function showAlert(message: string): Promise<void> {
-    await showDialog(message, ['DONE'])
+    await showDialog(message, ['DONE'], /*dim*/ false)
 }
 
 // ── showInput ─────────────────────────────────────────────────────────────────
@@ -223,7 +230,8 @@ export function showInput(message: string, defaultValue = ''): Promise<string | 
         const prevMode = globalState.uiMode
         globalState.uiMode = UIMode.dialog
 
-        const overlay = makeOverlay()
+        // No background dimming — save-slot naming shouldn't visually block the game.
+        const overlay = makeOverlay(/*dim*/ false)
         const box = makeDialogBox()
 
         // Message text in the upper part of the text area

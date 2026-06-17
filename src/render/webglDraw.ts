@@ -235,8 +235,19 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         if (Config.ui.eggMode === 'egg' && this.eggTexture && this.eggWidth > 0 && this.eggHeight > 0 && this.uEggMode && this.uEggCenter) {
             const playerInfo = this.objectRenderInfo(globalState.player!)
             if (playerInfo) {
-                const eggX = playerInfo.x + playerInfo.uniformFrameWidth / 2
-                const eggY = playerInfo.y + playerInfo.uniformFrameHeight
+                // Use frameWidth/frameHeight (this frame's actual trimmed
+                // bounding box — what offsetX/offsetY were computed against
+                // in objectRenderInfo), NOT uniformFrameWidth/Height (the
+                // sprite-sheet's padded per-slot size). Reconstructing with
+                // the uniform size left a residual offset of half the
+                // padding delta whenever a frame's trimmed box differs from
+                // the sheet's uniform slot size.
+                // Vertical anchor is nudged down by one hex-side (~10px):
+                // anchoring exactly at the feet made the egg's bottom edge
+                // end right at the player's feet instead of extending a
+                // bit below them.
+                const eggX = playerInfo.x + playerInfo.frameWidth / 2
+                const eggY = playerInfo.y + playerInfo.frameHeight + 10
                 gl.uniform1i(this.uEggMode, 1)
                 gl.uniform2f(this.uEggCenter, eggX, eggY)
                 // Bind egg texture to unit 6

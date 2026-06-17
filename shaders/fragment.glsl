@@ -84,10 +84,15 @@ void main() {
         vec2 eggUV = (vec2(world_x, world_y) - eggTopLeft) / u_eggSize;
 
         if (eggUV.x >= 0.0 && eggUV.x <= 1.0 && eggUV.y >= 0.0 && eggUV.y <= 1.0) {
-            // egg.png white center (R≈1) = transparent wall; dark/transparent
-            // border (R≈0) = opaque wall, matching CE's mask=0 → full intensity.
-            // CE ref: object.cc:5047 _intensity_mask_buf_to_buf — mask=255 suppresses wall pixel.
-            float mask = texture2D(u_eggTex, eggUV).r;
+            // egg.png mask shape lives in the ALPHA channel (solid white RGB,
+            // alpha=1 inside the oval / alpha=0 outside) — NOT the red channel.
+            // The original CE-derived egg.png stored its falloff in R, but that
+            // PNG was produced by resolving the FRM's raw mask-intensity bytes
+            // through the normal Fallout palette (correct for sprites, wrong
+            // for mask data), which painted each gradient step a different
+            // hue and showed up as visible colored rings. Sampling alpha from
+            // this clean white-RGB mask avoids that entirely.
+            float mask = texture2D(u_eggTex, eggUV).a;
             alpha = mix(1.0, 0.0, mask);
         }
     }

@@ -215,7 +215,10 @@ export class WebGLRenderer extends Renderer {
         img.onerror = (e) => {
             console.error('[Egg] FAILED to load art/intrface/egg.png — egg mode will silently fall back to flat alpha.', e)
         }
-        img.src = 'art/intrface/egg.png'
+        // Cache-bust like the shader fetches in main.ts — without this the
+        // browser can keep serving a stale cached egg.png across reloads
+        // even after the file on disk changes.
+        img.src = 'art/intrface/egg.png?v=' + Date.now()
     }
 
     init(): void {

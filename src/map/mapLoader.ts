@@ -31,6 +31,7 @@ import { centerCamera } from '../renderer.js'
 import { Scripting } from '../scripting.js'
 import { fromTileNum, hexToTile } from '../tile.js'
 import { arrayWithout, getFileJSON } from '../util.js'
+import { showAlert } from '../ui_dialog.js'
 import { GameMap } from './GameMap.js'
 
 declare let PF: any
@@ -157,7 +158,19 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
         }
         dbg('map', 'loading ' + mapImages.length + ' images')
 
-        const map = getFileJSON('maps/' + mapName + '.json')
+        let map: any
+        try {
+            map = getFileJSON('maps/' + mapName + '.json')
+        } catch (e) {
+            // A missing or empty map JSON (failed/incomplete asset extraction)
+            // must not crash the engine uncaught — that leaves isLoading=true
+            // forever, freezing input (see input.ts:49/176) and the autocrawler
+            // (which waits on isLoading with a timeout instead of failing fast).
+            dbgWarn('map', `[Map] FAILED to load maps/${mapName}.json — aborting map load:`, e)
+            globalState.isLoading = false
+            showAlert(`Could not load map "${mapName}".\nThe map data file may be missing or corrupt.`)
+            return
+        }
         this.mapObj = map
         this.mapID = map.mapID
         this.numLevels = (map.levels ?? []).length
