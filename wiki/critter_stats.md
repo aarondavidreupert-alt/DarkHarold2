@@ -49,7 +49,7 @@ CE stores critter stats in `.PRO` binary files. The relevant C++ types are in `p
 
 ### 1.2 DH2 Proto Layout
 
-No binary `.PRO` files at runtime — the Python pipeline extracts them to `proto/**/*.json` (via `proto.py`). These are loaded into `globalState.proMap` from `proto/pro.json` at startup (`main.ts:564`).
+No binary `.PRO` files at runtime — the Python pipeline extracts them to `proto/**/*.json` (via `tools/proto.py`). These are loaded into `globalState.proMap` from `proto/pro.json` at startup (`main.ts:564`).
 
 **Proto lookup path:** `src/pro.ts:loadPRO(pid, pidID)` → `globalState.proMap[type][id]`
 

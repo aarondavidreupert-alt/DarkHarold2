@@ -60,8 +60,13 @@ SCENERY_GENERIC = 5
 def readScenery(f):
 	obj = {}
 
+	# CE ref: proto.cc protoRead() OBJ_TYPE_SCENERY — these two 16-bit reads
+	# are the upper/lower halves of the single 32-bit `extendedFlags` field
+	# (flags_ext) in SceneryProto. Recombine it for code (e.g. the egg
+	# occlusion test in object.cc:4949) that reads extendedFlags as one int.
 	obj["wallLightTypeFlags"] = read16(f)
 	obj["actionFlags"] = read16(f)
+	obj["extendedFlags"] = ((obj["wallLightTypeFlags"] & 0xffff) << 16) | (obj["actionFlags"] & 0xffff)
 	obj["scriptPID"] = read32(f)
 	obj["subType"] = read32(f)
 	obj["materialID"] = read32(f)
@@ -80,6 +85,18 @@ def readScenery(f):
 		obj["destination"] = read32(f)
 	elif obj["subType"] == SCENERY_GENERIC:
 		pass # only 4-byte unknown
+
+	return obj
+
+def readWall(f):
+	obj = {}
+
+	# CE ref: proto.cc protoRead() OBJ_TYPE_WALL — read immediately after the
+	# common header fields (lightDistance/lightIntensity/flags), which
+	# readPRO() already consumes before dispatching here.
+	obj["extendedFlags"] = read32(f)
+	obj["scriptID"] = read32(f) # sid
+	obj["material"] = read32(f)
 
 	return obj
 
@@ -271,6 +288,8 @@ def readPRO(f: BufferedReader):
 		obj["extra"] = readCritter(f)
 	elif objType == TYPE_SCENERY:
 		obj["extra"] = readScenery(f)
+	elif objType == TYPE_WALL:
+		obj["extra"] = readWall(f)
 	else:
 		print(f"unhandled type {objType}")
 

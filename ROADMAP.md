@@ -337,8 +337,8 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| PS2 | **`proto.py` has `FO1=True`, suppressing critter `damageType` extraction.** One-line fix. | `proto_types.h CritterProtoData.damageType` | major |
-| FA3 | **`actionFrame` discarded by `frmpixels.py`.** Field not saved; hit-frame sync absent. | `art.h ArtFrame.actionFrame` | major |
+| PS2 | **`tools/proto.py` has `FO1=True`, suppressing critter `damageType` extraction.** One-line fix. | `proto_types.h CritterProtoData.damageType` | major |
+| FA3 | **`actionFrame` discarded by `tools/frmpixels.py`.** Field not saved; hit-frame sync absent. | `art.h ArtFrame.actionFrame` | major |
 | PS3 | **Tile PROs not extracted.** Type 4 silently skipped; terrain costs hardcoded. | `proto_types.h TileProto` | low |
 | PS4 | **Wall and misc `extra` fields not parsed.** `WallProto.extra` / `MiscProto.extra` absent. | `proto_types.h` | low |
 

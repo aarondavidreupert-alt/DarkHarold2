@@ -431,7 +431,7 @@ Each pair is 4 bytes (2 × U16). Total tile data: `numLevels × 10000 × 4` byte
 
 ### 9.2 CE Tile FID → FRM File
 
-Square tile FIDs: art type bits `[27:24] = 4`. The LST index (bits `[11:0]`) looks up into `art/tiles/tiles.lst`. The Python pipeline (`fomap.py`) converts this to the FRM filename and stores it as a string in the JSON.
+Square tile FIDs: art type bits `[27:24] = 4`. The LST index (bits `[11:0]`) looks up into `art/tiles/tiles.lst`. The Python pipeline (`tools/fomap.py`) converts this to the FRM filename and stores it as a string in the JSON.
 
 ### 9.3 DH2 Map JSON Format
 

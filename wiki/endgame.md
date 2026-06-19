@@ -182,7 +182,7 @@ When reason = DEATH and `GVAR_MODOC_SHITTY_DEATH` (index 491) ≠ 0, the death e
 
 `tools/convertEndgame.py` reads `data/endgame.txt` and `data/enddeath.txt`. It also reads `data/art/intrface/intrface.lst` to resolve `art_num` values to PNG paths (e.g. `art/intrface/endar101.png`). Output: `lut/endgame.json`, `lut/enddeath.json`.
 
-Called from `setup.py:convert_endgame_data()` after `convert_lsts()`.
+Called from `tools/setup.py:convert_endgame_data()` after `convert_lsts()`.
 
 ### DOM overlay approach
 

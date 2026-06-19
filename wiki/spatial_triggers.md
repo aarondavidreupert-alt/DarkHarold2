@@ -1,7 +1,7 @@
 # Spatial Triggers — DarkHarold2 Reference
 
 > Ground-truth: `raw/fallout2-ce/src/scripts.cc` (`scriptsExecSpatialProc`, `_scr_explode_scenery`), `scripts.h` (`SCRIPT_TYPE_SPATIAL`, `SCRIPT_PROC_SPATIAL`)  
-> DH2 impl: `fomap.py` (extraction), `src/map/GameMap.ts` (`GameMap.spatials`, deserialization), `src/object/Obj.ts` (`hitSpatialTrigger`, `Obj.explode`), `src/object/Critter.ts` (`Critter.move`), `src/scripting.ts` (`Scripting.spatial`, `isSpatial`)
+> DH2 impl: `tools/fomap.py` (extraction), `src/map/GameMap.ts` (`GameMap.spatials`, deserialization), `src/object/Obj.ts` (`hitSpatialTrigger`, `Obj.explode`), `src/object/Critter.ts` (`Critter.move`), `src/scripting.ts` (`Scripting.spatial`, `isSpatial`)
 
 ---
 
@@ -53,7 +53,7 @@ number occupies the low bits; elevation is encoded in the high bits. Inverse fun
 | `builtTileGetTile(built_tile)` | Extract tile number |
 | `builtTileGetElevation(built_tile)` | Extract elevation index |
 
-`fomap.py` decodes this from the map binary:
+`tools/fomap.py` decodes this from the map binary:
 ```python
 tileNum    = tileNum & 0xffff            # low 16 bits = tile index
 elevation  = ((tileNum >> 28) & 0xf) >> 1  # bits 28–31 → right-shifted by 1
@@ -74,12 +74,12 @@ unk3        (4B)
 <11 × 4B>  — unknown fields
 ```
 
-`fomap.py` discards any spatial with `spatialRange > 50` as invalid/garbage data
-(`fomap.py:127`).
+`tools/fomap.py` discards any spatial with `spatialRange > 50` as invalid/garbage data
+(`tools/fomap.py:127`).
 
 ### 2.4 JSON Representation in DH2 Map Files
 
-After `fomap.py` extraction, each spatial appears in `maps/*.json` under
+After `tools/fomap.py` extraction, each spatial appears in `maps/*.json` under
 `levels[n].spatials[]`:
 
 ```json

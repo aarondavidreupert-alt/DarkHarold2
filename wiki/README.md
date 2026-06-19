@@ -47,7 +47,7 @@ entry is one to three sentences. For the live bug registry start with
 |------|---------|
 | [scripting_vm.md](scripting_vm.md) | DH2's three-file scripting architecture (`vm.ts` bytecode decoder, `vm_bridge.ts` opcode wiring, `scripting.ts` Script class), procedure hook lifecycle, stack layout, and the full `opMap` of low-level bytecode handlers. |
 | [scripting_reference.md](scripting_reference.md) | Full reference tables: `SCRIPT_PROC_*` hook IDs, variable scoping (GVAR/LVAR/MVAR), VM bytecodes (0x8000–0x804B), intrinsic opcodes (0x80A0+), `get_pc_stat` constants, `metarule` IDs, and the list of unwired opcodes. |
-| [map_scripting.md](map_scripting.md) | Map-level script lifecycle (load, enter, exit, use, damage, spatial), NEVS named event system (`nevs.cc`), scripted elevation changes, and how `fomap.py` extracts script headers into map JSON. |
+| [map_scripting.md](map_scripting.md) | Map-level script lifecycle (load, enter, exit, use, damage, spatial), NEVS named event system (`nevs.cc`), scripted elevation changes, and how `tools/fomap.py` extracts script headers into map JSON. |
 | [spatial_triggers.md](spatial_triggers.md) | CE `SCRIPT_TYPE_SPATIAL` trigger mechanics: tile/elevation encoding, `scriptsExecSpatialProc` dispatch, radius vs exact-tile matching, and DH2 `hitSpatialTrigger` implementation fidelity. |
 
 ---
@@ -110,7 +110,7 @@ entry is one to three sentences. For the live bug registry start with
 | File | Summary |
 |------|---------|
 | [file_formats.md](file_formats.md) | Binary format specs for every file type DH2 consumes: FRM, PRO, MAP, INT (compiled script), PAL, LST, MSG, and ACM. Big-endian unless noted. |
-| [proto_system.md](proto_system.md) | PRO file type encoding (high-byte 0–5), `pro.ts` ProtoMap cache, `proGet`/`protoGetName` API, object PID construction, and the DH2 JSON baking pipeline (`proto.py`). |
+| [proto_system.md](proto_system.md) | PRO file type encoding (high-byte 0–5), `pro.ts` ProtoMap cache, `proGet`/`protoGetName` API, object PID construction, and the DH2 JSON baking pipeline (`tools/proto.py`). |
 | [save_load.md](save_load.md) | CE savegame format (slot structure, state serialized per system), DH2 localStorage save format, serialization of GVARs/LVARs/MVARs, and known gaps (no critter-state persistence, no timed-event save). |
 | [quest_system.md](quest_system.md) | GVAR-state-driven quest tracking, CE `pipboy.cc` quest display loop, how `quest.ini` maps GVAR thresholds to display text, and DH2 `questLog.ts` implementation. |
 | [endgame.md](endgame.md) | Victory slideshow (`endgame.cc`), death-ending weighted selection from `lut/enddeath.json`, "continue playing?" dialog, and DH2 `src/endgame.ts` implementation status. |

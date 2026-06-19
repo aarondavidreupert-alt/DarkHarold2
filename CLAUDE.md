@@ -6,13 +6,14 @@ DarkHarold2 is a semi-faithful browser recreation of Fallout 2, forked from the 
 - Engine/logic: TypeScript (strict mode: noImplicitAny, noImplicitReturns), compiled with `npx tsc` → `js/`
 - Rendering: WebGL 2.0 (no canvas 2D fallback)
 - Audio: Web Audio API (ACM source files, converted to WAV by pipeline)
-- Asset pipeline: Python 3.9+ / Pipenv (`setup.py` orchestrates full extraction)
+- Asset pipeline: Python 3.9+ / Pipenv, scripts under `tools/` (`tools/setup.py` orchestrates full extraction; `tools/pipeline_gui.py` is a Tkinter GUI front-end)
 - Package management: npm (TS devDeps only — no runtime npm modules), Pipenv (Python)
 - No native dependencies — browser-safe only
 
 ## Build Commands
 - `npx tsc` — compile TypeScript (output to js/)
-- `pipenv run python setup.py /path/to/Fallout2/` — full asset extraction pipeline
+- `pipenv run python tools/setup.py /path/to/Fallout2/` — full asset extraction pipeline (run from project root; `--stages`, `--skip-existing`, `--delete-originals` flags available)
+- `pipenv run python tools/pipeline_gui.py` — graphical front-end for the same pipeline
 - No test runner — manual testing in browser only
 
 ## Ground-Truth References

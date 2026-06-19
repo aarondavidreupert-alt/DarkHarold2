@@ -181,8 +181,8 @@ separate top-level fields outside the stats array, and stated `baseStats (33 × 
 
 - **Item PRO "attackMode" byte**: The wiki mentioned a 1B `attackMode` field. This has no
   match in CE's `protoRead` or `protoItemDataRead`. It may come from the Python pipeline
-  (`proto.py`) parsing an extended flags byte differently. Could not confirm whether
-  `proto.py` packs/unpacks `extendedFlags` into sub-byte fields named this way.
+  (`tools/proto.py`) parsing an extended flags byte differently. Could not confirm whether
+  `tools/proto.py` packs/unpacks `extendedFlags` into sub-byte fields named this way.
 
 - **Critter PRO "actionFlags" mapping**: The wiki's `actionFlags` field appears to correspond
   to `CritterProtoData.flags` (the first field of the data sub-struct). Confirmed by CE

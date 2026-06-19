@@ -2,7 +2,7 @@
 
 > **Source anchor:** `raw/fallout2-ce/src/proto.cc`, `proto.h`, `proto_types.h`, `obj_types.h`, `art.cc`
 > **DH2 files:** `src/pro.ts`, `src/object.ts` (barrel; `src/object/*.ts`), `src/scripting.ts`, `src/vm_bridge.ts`
-> **DH2 pipeline:** `proto.py`, `exportPRO.py`
+> **DH2 pipeline:** `tools/proto.py`, `tools/exportPRO.py`
 > **Last audited:** 2026-06-02
 
 ---
@@ -269,12 +269,12 @@ Cache capacity is 512 prototypes per type (`PROTO_LIST_MAX_ENTRIES`). Eviction i
 
 ```
 data/proto/{type}/*.pro
-    └── proto.py::readPRO(f)         ← parses binary, builds Python dict
-exportPRO.py::extractPROs()          ← iterates all .pro files per subdir
+    └── tools/proto.py::readPRO(f)         ← parses binary, builds Python dict
+tools/exportPRO.py::extractPROs()          ← iterates all .pro files per subdir
     └── proto/pro.json               ← single master JSON, keyed by type then numeric ID
 ```
 
-`exportPRO.py` processes five subdirectories: `items`, `critters`, `scenery`, `walls`, `misc`. **Tiles are excluded** (see gap PS3).
+`tools/exportPRO.py` processes five subdirectories: `items`, `critters`, `scenery`, `walls`, `misc`. **Tiles are excluded** (see gap PS3).
 
 The JSON structure produced:
 
@@ -288,7 +288,7 @@ The JSON structure produced:
 }
 ```
 
-`proto.py::readPRO` splits the FID field into separate `frmPID` (bits 23-0) and `frmType` (bits 27-24) fields. The common header is always written; subtype `extra` data is populated only for items, critters, and scenery. Walls and misc have no `extra` key (see gap PS4).
+`tools/proto.py::readPRO` splits the FID field into separate `frmPID` (bits 23-0) and `frmType` (bits 27-24) fields. The common header is always written; subtype `extra` data is populated only for items, critters, and scenery. Walls and misc have no `extra` key (see gap PS4).
 
 ### 6.2 Runtime Loading
 
@@ -375,9 +375,9 @@ DH2's `proto_data` method (scripting.ts:1090) is implemented but **opcode 0x8104
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
 | PS1 | **`proto_data` opcode (0x8104) not wired in vm_bridge.ts.** The `proto_data` method exists in `scripting.ts:1090` and partially works, but no `bridged("proto_data", 2)` entry exists in `vm_bridge.ts`. Any script calling `proto_data()` will hit an unknown-opcode handler and return 0. | `vm_bridge.ts` (missing), `scripting.ts:1090` | `interpreter_extra.cc:2962 opGetProtoData()` | major | missing |
-| PS2 | **`proto.py` has `FO1 = True`, suppressing critter `damageType`.** Line 234: `if FO1 or obj["killType"] in (5, 10)` — with `FO1=True`, all critters get `damageType=null`. Fallout 2 critters should have a native damage type (e.g. explosion for grenades, fire for flamers). Scripts and combat code reading critter `damageType` always see null. | `proto.py:20,234` | `proto_types.h CritterProtoData.damageType` | minor | bug |
-| PS3 | **Tile PROs not extracted.** `exportPRO.py` iterates only `("items", "critters", "scenery", "walls", "misc")`. Tile prototypes (material type, script index, flags) are absent from `proto/pro.json`. DH2 cannot read tile material for gameplay effects (footstep sounds, terrain damage, etc.). | `exportPRO.py:23` | `proto.cc proto_tile_init()` | minor | missing |
-| PS4 | **Wall and misc `extra` fields not parsed.** `proto.py::readPRO` only calls `readItem`, `readCritter`, or `readScenery`. For wall (type 3) and misc (type 5), it prints "unhandled type" and returns no `extra` key. Scripts querying wall `extendedFlags` or misc `lightDistance` via `proto_data` get 0. | `proto.py:268-275` | `proto.cc protoRead() case OBJ_TYPE_WALL/MISC` | minor | missing |
+| PS2 | **`tools/proto.py` has `FO1 = True`, suppressing critter `damageType`.** Line 234: `if FO1 or obj["killType"] in (5, 10)` — with `FO1=True`, all critters get `damageType=null`. Fallout 2 critters should have a native damage type (e.g. explosion for grenades, fire for flamers). Scripts and combat code reading critter `damageType` always see null. | `tools/proto.py:20,234` | `proto_types.h CritterProtoData.damageType` | minor | bug |
+| PS3 | **Tile PROs not extracted.** `tools/exportPRO.py` iterates only `("items", "critters", "scenery", "walls", "misc")`. Tile prototypes (material type, script index, flags) are absent from `proto/pro.json`. DH2 cannot read tile material for gameplay effects (footstep sounds, terrain damage, etc.). | `tools/exportPRO.py:23` | `proto.cc proto_tile_init()` | minor | missing |
+| PS4 | **Wall and misc `extra` fields not parsed.** `tools/proto.py::readPRO` only calls `readItem`, `readCritter`, or `readScenery`. For wall (type 3) and misc (type 5), it prints "unhandled type" and returns no `extra` key. Scripts querying wall `extendedFlags` or misc `lightDistance` via `proto_data` get 0. | `tools/proto.py:268-275` | `proto.cc protoRead() case OBJ_TYPE_WALL/MISC` | minor | missing |
 | PS5 | **`proto_data` item data_member IDs don't match CE.** DH2 maps `data_member=0` to `ITEM_TYPE`, `data_member=1` to `ITEM_MATERIAL`, etc. CE defines `ITEM_DATA_MEMBER_TYPE=9`, `ITEM_DATA_MEMBER_MATERIAL=11`. Scripts compiled against the CE API will pass CE's IDs (9, 11, 12…) and receive wrong fields. Already noted as `known_bugs.md §S12`. | `scripting.ts:1100-1130` | `proto.h ItemDataMember` enum | major | bug |
 
 <!-- audited: 2026-06-02 -->

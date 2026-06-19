@@ -20,7 +20,7 @@ screenY = tileToScreenY(tile) - h          + dirOffset.y + oy[frame] + artOffset
 Where:
 - `floor(w/2)` — horizontal center anchor (width of current FRM frame)
 - `dirOffset` — per-direction fixed offset baked into the FRM header
-- `ox[frame]` — cumulative x-delta at the current frame (baked by `frmpixels.py`); `ox[0]` is the delta for entering frame 0
+- `ox[frame]` — cumulative x-delta at the current frame (baked by `tools/frmpixels.py`); `ox[0]` is the delta for entering frame 0
 - `artOffset` — a correction field on `Obj`, computed at every FRM transition
 
 CE (`fallout2-ce`) has no equivalent of `artOffset`. Instead it maintains `obj->x/y`

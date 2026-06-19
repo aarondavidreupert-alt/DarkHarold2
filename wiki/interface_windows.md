@@ -133,7 +133,7 @@ initLogScrollZones()           // sets up wheel-scroll handlers on the log eleme
 
 DH2 UI uses AAF bitmap fonts via `FontRenderer` and the `FoText` wrapper. Key architectural facts:
 
-**AAF sprite layout** (confirmed from `data/fonts.py`):
+**AAF sprite layout** (confirmed from `data/tools/fonts.py`):
 - JSON `h` field = `cell_h` (the maximum glyph height for the font) for **all** glyphs — not the actual glyph pixel height.
 - All glyphs are **top-aligned** in the sprite sheet: pixel data starts at row 0, empty rows are at the **bottom**.
 - Actual rendered height must be computed by scanning the sprite pixels (`computeGlyphMetrics` in `fontCore.ts`).

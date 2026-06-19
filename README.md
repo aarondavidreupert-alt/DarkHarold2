@@ -111,25 +111,44 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 
 ### 🔧 Asset pipeline (Python 3.9+)
 
-The asset pipeline lives at the repository root (no dedicated `pipeline/` folder). `setup.py`
-orchestrates the full extraction; the rest are reusable converters.
+All pipeline scripts live under [`tools/`](tools/) (moved from the repository root
+2026-06-18 for a cleaner layout). `tools/setup.py` orchestrates the full extraction; the
+rest are reusable converters. Run everything from the **project root** (output paths
+like `art/`, `proto/`, `maps/`, `lut/` are relative to your current directory, not to
+the scripts' location):
+
+```
+pipenv run python tools/setup.py /path/to/Fallout2/installation/directory
+```
+
+Or use the graphical front-end — lets you pick which stages to run, whether to
+overwrite already-generated output, and whether to delete the raw source files
+(FRM/PRO/MAP/ACM) once converted (not needed for a real install, just for re-running
+the pipeline):
+
+```
+pipenv run python tools/pipeline_gui.py
+```
 
 | File | Purpose |
 |---|---|
-| [`setup.py`](setup.py) | Full extraction pipeline — runs every other converter in order |
-| [`exportImages.py`](exportImages.py) / [`exportImagesPar.py`](exportImagesPar.py) | FRM → PNG sprite exporters |
-| [`frmpixels.py`](frmpixels.py) | FRM pixel helpers and atlas generation |
-| [`exportPRO.py`](exportPRO.py) / [`proto.py`](proto.py) | PRO binary → JSON |
-| [`fomap.py`](fomap.py) | MAP → JSON (tiles, objects, spatials, lights) |
-| [`convertMaps.py`](convertMaps.py) | Map-level conversions |
-| [`convertAudio.py`](convertAudio.py) | ACM → WAV (uses `acm2wav`) |
-| [`dat2.py`](dat2.py) | DAT2 archive extractor |
-| [`pal.py`](pal.py) | PAL palette loading |
-| [`fonts.py`](fonts.py) | FON font extraction |
+| [`tools/setup.py`](tools/setup.py) | Full extraction pipeline — runs every other converter in order; `--stages`, `--skip-existing`, `--delete-originals` flags |
+| [`tools/pipeline_gui.py`](tools/pipeline_gui.py) | Tkinter GUI front-end for `tools/setup.py` |
+| [`tools/exportImagesPar.py`](tools/exportImagesPar.py) | FRM → PNG sprite exporter (parallel) |
+| [`tools/frmpixels.py`](tools/frmpixels.py) | FRM pixel helpers and atlas generation |
+| [`tools/exportPRO.py`](tools/exportPRO.py) / [`tools/proto.py`](tools/proto.py) | PRO binary → JSON |
+| [`tools/fomap.py`](tools/fomap.py) | MAP → JSON (tiles, objects, spatials, lights) |
+| [`tools/convertAudio.py`](tools/convertAudio.py) | ACM → WAV (uses `acm2wav`) |
+| [`tools/dat2.py`](tools/dat2.py) | DAT2 archive extractor |
+| [`tools/pal.py`](tools/pal.py) | PAL palette loading |
+| [`tools/fonts.py`](tools/fonts.py) | FON font extraction |
 | [`tools/convertLST.py`](tools/convertLST.py) | LST → JSON pre-bake (`lut/lst/`) |
 | [`tools/convertPRO.py`](tools/convertPRO.py) | Standalone PRO converter (debug) |
 | [`tools/convertEndgame.py`](tools/convertEndgame.py) | Endgame slide extraction |
-| [`parseCritTable.py`](parseCritTable.py) / [`parseElevatorTable.py`](parseElevatorTable.py) | EXE table extractors → `lut/` |
+| [`tools/parseCritTable.py`](tools/parseCritTable.py) / [`tools/parseElevatorTable.py`](tools/parseElevatorTable.py) | EXE table extractors → `lut/` |
+| [`tools/stitchWorldmap.py`](tools/stitchWorldmap.py) | One-off worldmap.png tile stitcher |
+| [`tools/mpserv.py`](tools/mpserv.py) | Multiplayer WebSocket server (unrelated to asset conversion) |
+| [`tools/oldPy/`](tools/oldPy/) | Superseded/experimental script iterations, kept for reference only |
 | [`wiki/animation.md`](wiki/animation.md) → "imageMap.json" | Atlas/imageMap.json schema reference |
 
 ---
@@ -186,7 +205,7 @@ the wiki tracker is the source of truth.
 - **Car travel system** — no car fuel, no car-speed multipliers, no encounter-rate reduction (W8).
 - **Subtitles / speech file playback** — audio engine has no `.acm` speech hooks; no subtitle overlay (P4).
 - **Movie / FMV playback** — `play_gmovie` is a no-op (S15); ARTIMER midnight movies (GTC5).
-- **`actionFrame` from FRM headers** — discarded by `frmpixels.py:40`; hit/sound sync absent for weapon attacks (FA3, asset-pipeline change).
+- **`actionFrame` from FRM headers** — discarded by `tools/frmpixels.py:40`; hit/sound sync absent for weapon attacks (FA3, asset-pipeline change).
 - **FID weapon-stance composition** — partially wired via `Weapon.getAnim` skin codes; CE `buildFid` parity not verified (FA6).
 - **Two-pass flat / post-roof object rendering** (RD07/RD08), **palette colour cycling** for water/fire (RD10), **pixel-precise hex hit-testing** via `_tile_mask` (RD13), **elevation transition fade** (RD14).
 
@@ -284,8 +303,12 @@ Open a command prompt inside the DarkHarold2 directory, and then run:
 ```
 pipenv install
 pipenv shell
-python setup.py path/to/Fallout2/installation/directory
+python tools/setup.py path/to/Fallout2/installation/directory
 ```
+
+Or use the graphical front-end (`python tools/pipeline_gui.py`) to pick which stages to
+run, whether to overwrite existing output, and whether to delete the raw source files
+once converted.
 
 This will take a few minutes, it's unpacking the game archives and converting relevant game data into a format DarkHarold2 can use.
 
@@ -302,7 +325,7 @@ Alternatively, Firefox can load directly from `file://` by opening `play.html` f
 
 Review `src/config.ts` for engine options. Be sure to re-compile if you change them.
 
-OPTIONAL: If you want sound, run `python convertAudio.py`. You'll need the `acm2wav` tool (you can get it from No Mutants Allowed).
+OPTIONAL: If you want sound, run `python tools/convertAudio.py`. You'll need the `acm2wav` tool (you can get it from No Mutants Allowed), placed in the project root.
 
 ## Debug Logging
 

@@ -388,7 +388,7 @@ DH2 instead triggers weapon SFX through the engine's `playWeaponSfx` call in `sr
 | Speech files | `data/sound/speech/*.ACM` | Not implemented |
 | SFX catalogue | `data/sound/sfx/SNDLIST.LST` | `lut/lst/sound_sfx_sndlist.json` |
 
-DH2 ships pre-converted `.wav` files extracted from the ACM pipeline. The ACM decoder itself is not present in DH2; all decoding happens offline in the asset pipeline (`setup.py`).
+DH2 ships pre-converted `.wav` files extracted from the ACM pipeline. The ACM decoder itself is not present in DH2; all decoding happens offline in the asset pipeline (`tools/setup.py`).
 
 ---
 

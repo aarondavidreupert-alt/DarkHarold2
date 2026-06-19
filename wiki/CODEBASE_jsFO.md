@@ -37,7 +37,7 @@ jsFO/
 |------|---------|------------------------|
 | `src/core/main.js` | Entry point, game loop setup | `src/main.ts`, `src/input.ts`, `src/gameTick.ts`, `src/heart.ts` |
 | `src/core/GameState.js` | Central game state object | `src/globalState.ts` |
-| `src/core/assets.js` | FRM → canvas image loading | `src/images.ts`, `frmpixels.py` |
+| `src/core/assets.js` | FRM → canvas image loading | `src/images.ts`, `tools/frmpixels.py` |
 | `src/core/rendering.js` | Canvas 2D sprite/font blitting (`blitFRM`, `blitFontString`) | `src/webglrenderer.ts` (WebGL 2.0) |
 | `src/core/vm.js` | Script bytecode VM — very primitive | `src/vm.ts`, `src/vm_bridge.ts` |
 | `src/core/geometry.js` | Hex geometry utilities | `src/geometry.ts` |
@@ -69,7 +69,7 @@ Shows how FRM sprite frames map to canvas regions — useful reference for the f
 Uses a plain object literal keyed on hex values (`{ 0x800D: () => {...} }`), the same pattern as DarkHarold2's `opMap` in `src/vm.ts`.
 
 **Asset loading in `assets.js`**
-Converts FRM files to canvas images at load time. DarkHarold2 pre-bakes these to PNG during the asset pipeline (`frmpixels.py`) instead of doing it at runtime.
+Converts FRM files to canvas images at load time. DarkHarold2 pre-bakes these to PNG during the asset pipeline (`tools/frmpixels.py`) instead of doing it at runtime.
 
 ---
 

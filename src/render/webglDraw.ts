@@ -197,16 +197,48 @@ let EGG_ALPHA  = 0.4 // outer/flat alpha (0 = fully transparent, 1 = fully opaqu
 function getEggAlpha(): number  { return Config.ui.eggAlpha  ?? EGG_ALPHA  }
 function getEggRadius(): number { return Config.ui.eggRadius ?? EGG_RADIUS }
 
+// CE ref: obj_types.h:81 — OBJECT_WALL_TRANS_END object flag bit.
+const OBJECT_WALL_TRANS_END = 0x10000000
+
 function isEggObject(obj: Obj): boolean {
     if (obj.type !== 'scenery' && obj.type !== 'wall') return false
     const player = globalState.player
     if (!player) return false
-    // CE default case: tileIsToRightOf(gDude, object) — player is to the right of the wall.
-    // Also require the wall to be "in front of" the player (closer to camera = higher z-order),
-    // which is the actual occlusion condition CE tests implicitly via rect intersection.
-    return hexIsInFrontOf(obj.position, player.position)
-        && hexIsToRightOf(player.position, obj.position)
-        && hexDistance(player.position, obj.position) <= getEggRadius()
+    if (hexDistance(player.position, obj.position) > getEggRadius()) return false
+
+    // CE ref: object.cc:4949 _obj_render() — the occlusion test branches into
+    // 4 different combinations of tileIsInFrontOf/tileIsToRightOf depending
+    // on bits in the wall/scenery's own extendedFlags (flags_ext, read from
+    // the .pro file — see proto.py readWall()/readScenery()). Using a single
+    // fixed combination for every wall (as this function previously did,
+    // unconditionally) makes the egg/alpha transparency grow asymmetrically
+    // as the player approaches certain wall orientations, since only one of
+    // the 4 cases produces a symmetric result for a given wall's facing.
+    //
+    // Argument order matters — tileIsInFrontOf/tileIsToRightOf are NOT
+    // symmetric under swapping their arguments, so each case below mirrors
+    // CE's exact (object, dude) vs (dude, object) ordering.
+    const extendedFlags: number = obj.pro?.extra?.extendedFlags ?? 0
+    const objFlags: number = obj.flags ?? 0
+    const frontObjDude = hexIsInFrontOf(obj.position, player.position)
+    const frontDudeObj = hexIsInFrontOf(player.position, obj.position)
+    const rightObjDude = hexIsToRightOf(obj.position, player.position)
+    const rightDudeObj = hexIsToRightOf(player.position, obj.position)
+
+    if ((extendedFlags & 0x8000000) !== 0 || (extendedFlags & 0x80000000) !== 0) {
+        let v = frontObjDude
+        if (v && rightObjDude && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
+        return v
+    } else if ((extendedFlags & 0x10000000) !== 0) {
+        return frontObjDude || rightDudeObj
+    } else if ((extendedFlags & 0x20000000) !== 0) {
+        return frontObjDude && rightDudeObj
+    } else {
+        // CE default case
+        let v = rightDudeObj
+        if (v && frontDudeObj && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
+        return v
+    }
 }
 
 WebGLRenderer.prototype.renderObject = function (obj: Obj): void {

@@ -1,6 +1,6 @@
 # Binary File Formats — Fallout 2
 
-Sources: `frmpixels.py`, `proto.py`, `fomap.py`, `intfile.ts` · fallout2-ce `art.cc`, `proto.cc`, `map.cc`, `scripts.cc`
+Sources: `tools/frmpixels.py`, `tools/proto.py`, `tools/fomap.py`, `intfile.ts` · fallout2-ce `art.cc`, `proto.cc`, `map.cc`, `scripts.cc`
 
 All multi-byte integers are **big-endian** (network byte order, `struct "!"`) unless noted.
 
@@ -8,10 +8,10 @@ All multi-byte integers are **big-endian** (network byte order, `struct "!"`) un
 
 ## FRM — Sprite Animation
 
-Source: `frmpixels.py:readFRMInfo`  
+Source: `tools/frmpixels.py:readFRMInfo`  
 CE ref: `art.cc:artLoadFrameData`
 
-FRM files hold palette-indexed pixel data for 1–6 directions. The pipeline converts them to PNG sprite sheets via `frmpixels.py` + `pal.py`.
+FRM files hold palette-indexed pixel data for 1–6 directions. The pipeline converts them to PNG sprite sheets via `tools/frmpixels.py` + `tools/pal.py`.
 
 ### Header (62 bytes)
 
@@ -53,13 +53,13 @@ Palette index 0 = transparent.
 `exportFRM` outputs a PNG sprite sheet: all frames (all directions) stitched horizontally at `maxW × maxH` each.  
 A JSON metadata blob is returned describing `frameOffsets[dir][frame].{sx, ox, oy, w, h}` where `sx` is the X pixel position in the sheet and `ox/oy` are cumulative directional offsets.
 
-**Palette**: `pal.py:readPAL` reads `data/color.pal` (768-byte RGB triplets, 256 colours).
+**Palette**: `tools/pal.py:readPAL` reads `data/color.pal` (768-byte RGB triplets, 256 colours).
 
 ---
 
 ## PRO — Prototype Object Data
 
-Source: `proto.py:readPRO`  
+Source: `tools/proto.py:readPRO`  
 CE ref: `proto.cc:protoLoad`
 
 Each `.pro` file describes one object archetype. All integers signed 32-bit unless noted.
@@ -189,7 +189,7 @@ Subtypes: 0=Door (+walkthroughFlag), 1=Stairs (+destination+destinationMap), 2=E
 
 ## MAP — Area Map Data
 
-Source: `fomap.py`  
+Source: `tools/fomap.py`  
 CE ref: `map.cc:mapLoad`
 
 ### Header (200 bytes)

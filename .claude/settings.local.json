@@ -29,7 +29,18 @@
       "Bash(grep -v \"//\\\\|__test\\\\|gameHasFocus\")",
       "Bash(grep -n \"| bug \\\\||missing\\\\| bug$\\\\|partially fixed\" wiki/known_bugs.md)",
       "Bash(grep -rln \"mbase\" data/)",
-      "Bash(find . -iname \"*worldmap*\" -not -path \"*/node_modules/*\" -not -path \"*/raw/*\")"
+      "Bash(find . -iname \"*worldmap*\" -not -path \"*/node_modules/*\" -not -path \"*/raw/*\")",
+      "Bash(cp proto/pro.json proto/pro.json.bak)",
+      "Bash(python exportPRO.py)",
+      "Bash(grep -n \"^import \\\\|^from \" exportImagesPar.py frmpixels.py fonts.py convertAudio.py dat2.py parseCritTable.py parseElevatorTable.py proto.py fomap.py stitchWorldmap.py mpserv.py)",
+      "Bash(grep -rn \"\\\\\"tools/\\\\|'tools/\\\\|tools[\\\\\\\\\\\\\\\\]\" *.py tools/*.py)",
+      "Bash(git mv *)",
+      "Bash(python tools/setup.py)",
+      "Bash(python -m py_compile tools/*.py)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(python tools/setup.py --help)",
+      "Bash(python tools/setup.py /nonexistent/path --stages convert_lsts --skip-existing)",
+      "Bash(echo \"exit code: $?\")"
     ]
   }
 }

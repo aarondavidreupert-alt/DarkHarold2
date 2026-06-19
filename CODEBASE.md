@@ -24,25 +24,32 @@ DarkHarold2/
 ├── audio/           Extracted WAV audio (music/ and sfx/) — git-ignored
 ├── art/             Extracted PNG sprites — git-ignored
 ├── proto/           Extracted proto JSON — git-ignored
-├── tools/           Helper scripts (convertLST.py, convertPRO.py, parse_gam.py)
+├── tools/           Asset pipeline (Python 3) — moved here from repo root 2026-06-18
+│   ├── setup.py           Full extraction pipeline (run once against Fallout2/); --stages/--skip-existing/--delete-originals
+│   ├── pipeline_gui.py    Tkinter GUI front-end for setup.py
+│   ├── fomap.py           Map extractor (MAP → maps/*.json)
+│   ├── exportImagesPar.py FRM → PNG sprite exporter (parallel; the one setup.py actually uses)
+│   ├── exportImages.py    Non-parallel FRM → PNG variant (documented but not setup.py-wired)
+│   ├── exportPRO.py       PRO → proto/**/*.json extractor
+│   ├── frmpixels.py       FRM pixel helpers (used by exporters)
+│   ├── pal.py             PAL palette loading
+│   ├── proto.py           PRO binary parser
+│   ├── dat2.py            DAT2 archive extractor
+│   ├── fonts.py           FON font extraction
+│   ├── convertAudio.py    ACM → WAV (needs acm2wav.exe in project root)
+│   ├── stitchWorldmap.py  One-off worldmap.png tile stitcher
+│   ├── mpserv.py          Multiplayer WebSocket server (unrelated to asset conversion)
+│   ├── convertLST.py      LST → JSON pre-bake (lut/lst/)
+│   ├── convertPRO.py      Standalone PRO converter (debug)
+│   ├── convertEndgame.py  Endgame slide extraction
+│   ├── parseCritTable.py  Extracts criticalTables.json from fallout2.exe
+│   ├── parseElevatorTable.py Extracts elevators.json from fallout2.exe
+│   └── oldPy/             Superseded/experimental script iterations — reference only
 ├── acm2wav/         Pascal source for ACM→WAV converter
 ├── wrappers/        macOS native wrappers
 ├── Modding/         Design documents (.docx, .txt) — not engine code
 ├── play.html        Main entry point (loads js/main.js)
 ├── ui.css           All UI/HUD styling
-├── setup.py         Full asset extraction pipeline (run once against Fallout2/)
-├── fomap.py         Map extractor (MAP → maps/*.json)
-├── exportImages*.py FRM → PNG sprite exporters
-├── exportPRO.py     PRO → proto/**/*.json extractor
-├── frmpixels.py     FRM pixel helpers (used by exporters)
-├── pal.py           PAL palette loading
-├── proto.py         PRO binary parser
-├── dat2.py          DAT2 archive extractor
-├── fonts*.py        AAF/FON font extraction utilities
-├── convertAudio*.py WAV post-processing helpers
-├── stitchWorldmap.py Worldmap image stitcher
-├── parseCritTable.py Extracts criticalTables.json from fallout2.exe
-├── parseElevatorTable.py Extracts elevators.json from fallout2.exe
 ├── tsconfig.json    TypeScript config (target: ES2021, outDir: js/, strict)
 ├── package.json     npm devDeps only: typescript, eslint
 ├── Pipfile          Python deps for asset pipeline
@@ -200,23 +207,23 @@ All UI files render to DOM elements over the WebGL canvas.
 
 ## Asset Pipeline
 
-Run `pipenv run python setup.py /path/to/Fallout2/` once to extract all assets.
+Run `pipenv run python tools/setup.py /path/to/Fallout2/` once to extract all assets.
 The engine consumes only pre-baked JSON/PNG — no runtime DAT parsing.
 
 | Stage | Script | Output |
 |-------|--------|--------|
-| DAT extraction | `dat2.py` | raw files |
-| FRM → PNG | `exportImagesPar.py` / `exportImagesPar_updated.py` | `art/**/*.png` |
-| PRO → JSON | `exportPRO.py` | `proto/**/*.json` |
-| MAP → JSON | `fomap.py` / `convertMaps.py` | `maps/*.json`, `maps/*.images.json` |
+| DAT extraction | `tools/dat2.py` | raw files |
+| FRM → PNG | `tools/exportImagesPar.py` / `exportImagesPar_updated.py` | `art/**/*.png` |
+| PRO → JSON | `tools/exportPRO.py` | `proto/**/*.json` |
+| MAP → JSON | `tools/fomap.py` (`tools/oldPy/convertMaps.py` is an unused parallel variant) | `maps/*.json`, `maps/*.images.json` |
 | LST → JSON | `tools/convertLST.py` | `lut/lst/*.json` |
 | PRO indexes | `tools/convertPRO.py` | `lut/pro/*.json` (proto lookup) |
-| AAF/FON fonts | `fonts.py`, `fonts2.py`, `fonts7alphawhite.py` | `art/fonts/` |
-| ACM → WAV | `acm2wav/` + `convertAudio*.py` | `audio/**/*.wav` |
-| Crit table | `parseCritTable.py` | `lut/criticalTables.json` |
-| Elevator table | `parseElevatorTable.py` | `lut/elevators.json` |
-| Worldmap stitch | `stitchWorldmap.py` | `worldmap.png` |
-| Color tables | `pal.py` (via pipeline) | `lut/colorTable.json`, `lut/color_lut.json`, `lut/color_rgb.json` |
+| AAF/FON fonts | `tools/fonts.py` (`tools/oldPy/fonts2.py`, `fonts7alphawhite.py`, `data_fonts*.py` are superseded iterations) | `art/fonts/` |
+| ACM → WAV | `acm2wav/` + `tools/convertAudio.py` | `audio/**/*.wav` |
+| Crit table | `tools/parseCritTable.py` | `lut/criticalTables.json` |
+| Elevator table | `tools/parseElevatorTable.py` | `lut/elevators.json` |
+| Worldmap stitch | `tools/stitchWorldmap.py` | `worldmap.png` |
+| Color tables | `tools/pal.py` (via pipeline) | `lut/colorTable.json`, `lut/color_lut.json`, `lut/color_rgb.json` |
 
 Key conventions:
 - Tile coordinate: `tileNum = y * 200 + x` (200-wide grid, max 40 000 tiles/elevation)
@@ -313,7 +320,7 @@ present and functional in the current source:
 - `proto/` — PRO binaries as JSON (empty without pipeline)
 - `audio/` — WAV audio (populated but git-ignored; `audio/music/` and `audio/sfx/` present in worktree)
 - `js/` — compiled TypeScript output (run `npx tsc`)
-- `lut/elevators.json` — git-ignored; regenerated by `parseElevatorTable.py`
+- `lut/elevators.json` — git-ignored; regenerated by `tools/parseElevatorTable.py`
 
 ---
 
@@ -385,7 +392,7 @@ after merge.
 npx tsc
 
 # Extract all assets (run once, requires Fallout 2 install)
-pipenv run python setup.py /path/to/Fallout2/
+pipenv run python tools/setup.py /path/to/Fallout2/
 
 # Serve locally (any static HTTP server)
 python3 -m http.server 8080

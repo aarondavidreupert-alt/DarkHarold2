@@ -333,7 +333,7 @@ Script intrinsics (game functions called from scripts) are registered separately
 
 Data is stored in unions: `ItemDataMember`, `CritterDataMember`, `SceneryDataMember`, `WallDataMember`.
 
-**DarkHarold2 counterparts:** `src/pro.ts`, `proto.py`
+**DarkHarold2 counterparts:** `src/pro.ts`, `tools/proto.py`
 
 ---
 
@@ -354,7 +354,7 @@ Data is stored in unions: `ItemDataMember`, `CritterDataMember`, `SceneryDataMem
 | `void mapExit()` | Unload current map |
 | `Object* mapGetObjectAt(int tile, int elevation)` | Object lookup by tile |
 
-**DarkHarold2 counterparts:** `src/map.ts`, `fomap.py`
+**DarkHarold2 counterparts:** `src/map.ts`, `tools/fomap.py`
 
 ---
 
@@ -371,4 +371,4 @@ Data is stored in unions: `ItemDataMember`, `CritterDataMember`, `SceneryDataMem
 | 15–12 | Direction (0–5) |
 | 11–0 | Entry index within LST |
 
-**DarkHarold2 counterparts:** `src/images.ts`, `frmpixels.py`
+**DarkHarold2 counterparts:** `src/images.ts`, `tools/frmpixels.py`
