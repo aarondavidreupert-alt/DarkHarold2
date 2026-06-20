@@ -33,6 +33,18 @@ uniform highp vec2 u_eggCenter;   // highp — world coords can be large
 uniform vec2 u_eggSize;
 uniform sampler2D u_eggTex;        // texture unit 6
 
+// CE ref: object.cc:4629 objectDrawOutline() / object.cc:874 _obj_render_post_roof()
+// — combat target outlines (red=hostile, green=friendly) are drawn as a flat
+// solid-color silhouette, in a separate pass run AFTER walls/roofs, which is
+// why they show through occluding geometry. u_outlineMode bypasses lighting
+// and the egg/alpha logic entirely — when set, this draw is purely a colored
+// silhouette stamp (see webglDraw.ts renderOutlinePass), not a normal sprite.
+// CE also cycles through a few palette shades down the sprite height for a
+// "shimmer" look (5 shades for hostile, 4 for friendly); DH2 uses one flat
+// color per outline type as a deliberate simplification (see wiki/rendering.md).
+uniform int u_outlineMode;
+uniform vec3 u_outlineColor;
+
 varying vec2 v_texCoord;
 
 float getWorldTileLight() {
@@ -58,6 +70,12 @@ void main() {
     coord.x = coord.x / u_numFrames + frameWidth * u_frame;
 
     vec4 texel = texture2D(u_image, coord);
+
+    if (u_outlineMode == 1) {
+        // Flat solid-color silhouette stamp — no lighting, no egg/alpha logic.
+        gl_FragColor = vec4(u_outlineColor, texel.a > 0.5 ? 1.0 : 0.0);
+        return;
+    }
 
     float alpha = u_alpha;
 

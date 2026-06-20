@@ -40,7 +40,9 @@
       "Bash(echo \"exit: $?\")",
       "Bash(python tools/setup.py --help)",
       "Bash(python tools/setup.py /nonexistent/path --stages convert_lsts --skip-existing)",
-      "Bash(echo \"exit code: $?\")"
+      "Bash(echo \"exit code: $?\")",
+      "Bash(grep -iv \"outlinetable\\\\|//\\\\s\")",
+      "Bash(awk -F: '$1 < 4704')"
     ]
   }
 }

@@ -67,6 +67,8 @@ export class WebGLRenderer extends Renderer {
     eggTexture: WebGLTexture | null = null
     eggWidth = 0
     eggHeight = 0
+    uOutlineMode: WebGLUniformLocation | null = null
+    uOutlineColor: WebGLUniformLocation | null = null
 
     // Resolution uniforms stashed at init-time so resize() can re-upload them
     // (they are set once in init() and then re-read by the fragment shader
@@ -215,10 +217,12 @@ export class WebGLRenderer extends Renderer {
         img.onerror = (e) => {
             console.error('[Egg] FAILED to load art/intrface/egg.png — egg mode will silently fall back to flat alpha.', e)
         }
-        // Cache-bust like the shader fetches in main.ts — without this the
-        // browser can keep serving a stale cached egg.png across reloads
-        // even after the file on disk changes.
-        img.src = 'art/intrface/egg.png?v=' + Date.now()
+        // No cache-busting query string here on purpose: that was only
+        // needed transiently while iterating on the egg.png asset itself
+        // (forcing a fresh fetch every reload defeats normal HTTP caching
+        // for this file forever). The asset is finalized now — if it ever
+        // needs replacing again, bump this path or clear the browser cache.
+        img.src = 'art/intrface/egg.png'
     }
 
     init(): void {
@@ -371,6 +375,10 @@ export class WebGLRenderer extends Renderer {
         // Bind egg texture to unit 6 — loaded asynchronously after init
         gl.uniform1i(gl.getUniformLocation(this.tileShader, 'u_eggTex'), 6)
         this._loadEggTexture()
+
+        this.uOutlineMode = gl.getUniformLocation(this.tileShader, 'u_outlineMode')
+        this.uOutlineColor = gl.getUniformLocation(this.tileShader, 'u_outlineColor')
+        if (this.uOutlineMode) gl.uniform1i(this.uOutlineMode, 0)
 
         // 1×1 R8 dummy texture (value 0) for roof draws — roofs are
         // sky-facing and should be lit by ambient only, not by floor

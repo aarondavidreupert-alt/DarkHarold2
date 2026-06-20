@@ -173,6 +173,14 @@ export class Renderer {
             this.renderRoof(this.roofTiles, hideSet)
         }
 
+        // CE ref: object.cc:874 _obj_render_post_roof() — outlined objects
+        // (combat target highlights, item-pickup highlight) are redrawn as a
+        // flat silhouette here, after walls/roofs, so they stay visible
+        // through occluding geometry instead of respecting normal z-order.
+        if (Config.ui.showObjects && this.objects) {
+            this.renderOutlinePass(this.objects)
+        }
+
         for (const window of this.windows.filter((w) => w.showing)) {
             this.renderWindow(window)
         }
@@ -421,6 +429,7 @@ export class Renderer {
         this.renderObject(obj)
     }
     renderObject(obj: Obj): void {}
+    renderOutlinePass(objs: Obj[]): void {}
     renderWindow(window: WindowFrame): void {
         this.renderImage(window.background, window.position.x, window.position.y, window.width, window.height)
     }

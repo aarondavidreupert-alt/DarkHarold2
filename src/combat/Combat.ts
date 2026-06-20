@@ -1376,19 +1376,21 @@ export class Combat {
         }
     }
 
-    /** CE ref: interface.cc indicatorBarRefresh-adjacent — update red outlines on all
-     *  hostile combatants to match the current targetHighlight preference and cursorMode.
+    /** CE ref: combat.cc:2669 _combat_update_critter_outline_for_los() — red
+     *  outline for hostile combatants, green for same-team (including
+     *  companions); CE assigns these purely by team comparison, not a perk.
+     *  Update to match the current targetHighlight preference and cursorMode.
      *  Call whenever cursorMode changes or preferences change mid-combat. */
     refreshHighlights(): void {
         if (!globalState.player) return
         const th = Config.ui.targetHighlight as string | boolean
+        const wantHighlight = th === 'on' || th === true ||
+            (th === 'targeting-only' && globalState.cursorMode === 'attack')
         for (const obj of this.combatants) {
             if ((obj as any).dead || obj.isPlayer) continue
-            if (obj.teamNum === globalState.player.teamNum) continue
-            if (!(obj as any).hostile) continue
-            const wantHighlight = th === 'on' || th === true ||
-                (th === 'targeting-only' && globalState.cursorMode === 'attack')
-            ;(obj as any).outline = wantHighlight ? 'red' : null
+            const sameTeam = obj.teamNum === globalState.player.teamNum
+            if (!sameTeam && !(obj as any).hostile) continue
+            ;(obj as any).outline = wantHighlight ? (sameTeam ? 'green' : 'red') : null
         }
     }
 }

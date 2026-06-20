@@ -20,6 +20,7 @@ declare module './webglContext.js' {
         renderFloor(floor: TileMap): void
         renderObject(obj: Obj): void
         renderObjectOutlined(obj: Obj): void
+        renderOutlinePass(objs: Obj[]): void
         renderFrame(
             imgPath: string,
             x: number,
@@ -200,24 +201,31 @@ function getEggRadius(): number { return Config.ui.eggRadius ?? EGG_RADIUS }
 // CE ref: obj_types.h:81 — OBJECT_WALL_TRANS_END object flag bit.
 const OBJECT_WALL_TRANS_END = 0x10000000
 
-function isEggObject(obj: Obj): boolean {
-    if (obj.type !== 'scenery' && obj.type !== 'wall') return false
-    const player = globalState.player
-    if (!player) return false
-    if (hexDistance(player.position, obj.position) > getEggRadius()) return false
-
-    // CE ref: object.cc:4949 _obj_render() — the occlusion test branches into
-    // 4 different combinations of tileIsInFrontOf/tileIsToRightOf depending
-    // on bits in the wall/scenery's own extendedFlags (flags_ext, read from
-    // the .pro file — see proto.py readWall()/readScenery()). Using a single
-    // fixed combination for every wall (as this function previously did,
-    // unconditionally) makes the egg/alpha transparency grow asymmetrically
-    // as the player approaches certain wall orientations, since only one of
-    // the 4 cases produces a symmetric result for a given wall's facing.
-    //
-    // Argument order matters — tileIsInFrontOf/tileIsToRightOf are NOT
-    // symmetric under swapping their arguments, so each case below mirrors
-    // CE's exact (object, dude) vs (dude, object) ordering.
+// CE ref: object.cc:4949 _obj_render() — the occlusion test branches into
+// 4 different combinations of tileIsInFrontOf/tileIsToRightOf depending on
+// bits in the wall/scenery's own extendedFlags (flags_ext, read from the
+// .pro file — see proto.py readWall()/readScenery()).
+//
+// IMPORTANT: this is NOT a "distance from player" test, and no combination
+// of these 4 cases can ever produce a symmetric circle around the player.
+// tileIsInFrontOf/tileIsToRightOf are literally `dx <= dy * k` line tests in
+// screen space — a fixed half-plane through the player, whose boundary is
+// the NW-SE hex axis. That's deliberate: it's asking "is this wall between
+// the isometric camera (always at a fixed diagonal angle) and the player",
+// which is inherently one-sided. CE's real egg effect is camera-facing-only,
+// not a radial bubble — confirmed correct for 'egg' mode.
+//
+// 'alpha' mode is a DH2 invention (not a CE feature) meant to behave like a
+// symmetric "see-through bubble around me", so it must NOT reuse this
+// directional test as its qualification gate — that's what was producing
+// the NW-SE-axis cutoff and the "affects walls behind me too" complaint
+// (the OR/AND combinations don't map cleanly to "in front of the camera"
+// either). It uses a plain symmetric hexDistance check instead.
+//
+// Argument order matters for the CE cases — tileIsInFrontOf/tileIsToRightOf
+// are NOT symmetric under swapping their arguments, so each case below
+// mirrors CE's exact (object, dude) vs (dude, object) ordering.
+function isCEOccludingWall(obj: Obj, player: Obj): boolean {
     const extendedFlags: number = obj.pro?.extra?.extendedFlags ?? 0
     const objFlags: number = obj.flags ?? 0
     const frontObjDude = hexIsInFrontOf(obj.position, player.position)
@@ -239,6 +247,20 @@ function isEggObject(obj: Obj): boolean {
         if (v && frontDudeObj && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
         return v
     }
+}
+
+function isEggObject(obj: Obj): boolean {
+    if (obj.type !== 'scenery' && obj.type !== 'wall') return false
+    const player = globalState.player
+    if (!player) return false
+    if (hexDistance(player.position, obj.position) > getEggRadius()) return false
+
+    if (Config.ui.eggMode === 'egg') {
+        return isCEOccludingWall(obj, player)
+    }
+
+    // 'alpha' mode: symmetric radius only, no directional gate — see comment above.
+    return true
 }
 
 WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
@@ -310,6 +332,68 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
 
 WebGLRenderer.prototype.renderObjectOutlined = function (obj: Obj): void {
     this.renderObject(obj)
+}
+
+// CE outline colors (object.cc:4704 objectDrawOutline): OUTLINE_TYPE_HOSTILE =
+// palette 243 (red), OUTLINE_TYPE_FRIENDLY = palette 229 (green). CE also
+// cycles a few palette shades down the sprite height for a shimmer effect;
+// DH2 uses one flat color per type as a documented simplification.
+const OUTLINE_COLORS: { [name: string]: [number, number, number] } = {
+    red: [1, 0, 0],
+    green: [0, 1, 0],
+    yellow: [1, 1, 0],
+}
+
+// CE ref: object.cc:874 _obj_render_post_roof() — combat outlines (and the
+// item-pickup highlight) are drawn as a flat solid-color silhouette in a
+// dedicated pass that runs AFTER walls/roofs for the frame, which is why
+// they remain visible through occluding geometry. DH2 reuses the existing
+// painter's-algorithm draw order (every quad is at the same GL depth=0 with
+// depthFunc LEQUAL — see webglContext.ts init() — so later draws always win
+// regardless of depth) by simply calling this after renderRoof() in
+// renderer.ts's render().
+//
+// Implementation: stamp the sprite's silhouette (alpha>0.5 → solid color) at
+// 4 cardinal 1px screen-space offsets around its normal position. The
+// sprite's own normal-lit pixels were already drawn earlier in z-order by
+// renderObjects()/renderObject() — these offset stamps only add color where
+// the silhouette extends 1px beyond what's already there, producing a
+// 1px-thick border without needing per-pixel neighbor sampling in the
+// shader (which would risk bleeding across frames in the sprite atlas).
+WebGLRenderer.prototype.renderOutlinePass = function (objs: Obj[]): void {
+    const gl = this.gl
+    if (!this.uOutlineMode || !this.uOutlineColor) return
+    const z = getZoom()
+
+    for (const obj of objs) {
+        if (!obj.outline) continue
+        const renderInfo = this.objectRenderInfo(obj)
+        if (!renderInfo || !renderInfo.visible) continue
+
+        const color = OUTLINE_COLORS[obj.outline] ?? OUTLINE_COLORS.red
+        gl.uniform1i(this.uOutlineMode, 1)
+        gl.uniform3f(this.uOutlineColor, color[0], color[1], color[2])
+
+        const baseX = (renderInfo.x - globalState.cameraPosition.x) * z
+        const baseY = (renderInfo.y - globalState.cameraPosition.y) * z
+        const w = renderInfo.uniformFrameWidth * z
+        const h = renderInfo.uniformFrameHeight * z
+
+        for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+            this.renderFrame(
+                obj.art,
+                baseX + dx * z,
+                baseY + dy * z,
+                w,
+                h,
+                renderInfo.artInfo.totalFrames,
+                renderInfo.spriteFrameNum,
+                /*lit*/ false
+            )
+        }
+
+        gl.uniform1i(this.uOutlineMode, 0)
+    }
 }
 
 WebGLRenderer.prototype.renderFrame = function (
