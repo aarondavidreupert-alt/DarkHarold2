@@ -293,6 +293,20 @@ window.onload = async function () {
     }
     ;(window as any).debugEgg = () => {
         const r = globalState.renderer as WebGLRenderer
+        // Quick sanity check that proto/pro.json's wall extendedFlags data
+        // actually made it into the cached proMap — if every sampled wall
+        // shows extendedFlags=0, the browser is very likely still serving a
+        // stale proMap cached in IndexedDB from before that field existed.
+        // Run clearAssetCache() and reload if so.
+        let wallsWithFlags = 0
+        let wallsSampled = 0
+        const walls = (globalState.proMap as any)?.walls
+        if (walls) {
+            for (const id of Object.keys(walls).slice(0, 50)) {
+                wallsSampled++
+                if ((walls[id]?.extra?.extendedFlags ?? 0) !== 0) wallsWithFlags++
+            }
+        }
         console.log('[Egg] diagnostic:', {
             mode: Config.ui.eggMode,
             alpha: Config.ui.eggAlpha ?? 0.4,
@@ -306,7 +320,19 @@ window.onload = async function () {
             playerPosition: globalState.player ? { x: globalState.player.position.x, y: globalState.player.position.y } : null,
             cameraPosition: globalState.cameraPosition,
             zoom: globalState.cameraZoom,
+            wallExtendedFlagsSample: `${wallsWithFlags}/${wallsSampled} sampled walls have nonzero extendedFlags`
+                + (wallsSampled > 0 && wallsWithFlags === 0 ? ' — STALE proMap cache? Try clearAssetCache()' : ''),
         })
+    }
+
+    // proMap / imageMap are cached in IndexedDB (see cachedJSON() above) so
+    // repeat loads skip the network fetch — but that means editing
+    // proto/pro.json (or any other cached JSON) on disk has NO EFFECT until
+    // this cache is cleared, since IDBCache has no content-versioning of
+    // its own. Run this after any proto/pro.json regeneration, then reload.
+    ;(window as any).clearAssetCache = () => {
+        IDBCache.nuke()
+        console.log('[Cache] IndexedDB asset cache cleared — reload the page to re-fetch proMap/imageMap from disk.')
     }
 }
 
