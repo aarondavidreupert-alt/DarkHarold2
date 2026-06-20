@@ -101,6 +101,18 @@ const globalState = {
     showLookCursor: false,
     commandModeTimer: null as number | null,
 
+    // CE ref: game_config.h:37 item_highlight — held purely as runtime input
+    // state, NOT a saved preference. This is a DH2-specific QoL sweep (hold
+    // a key to outline every item on screen) with no CE equivalent; kept
+    // separate from Config.ui.itemHighlight, which is the actual CE
+    // preference (a persistent options checkbox controlling whether hovering
+    // the mouse over a single item outlines it — see input.ts mousemoved).
+    highlightItemsKeyHeld: false,
+    // CE ref: game_mouse.cc:680 — the single item currently under the mouse
+    // cursor, outlined while Config.ui.itemHighlight is on. Cleared/updated
+    // on every mousemove in input.ts.
+    hoveredItem: null as Obj | null,
+
     gameUIDisabled: false,
 
     drugHandler: null,
@@ -169,6 +181,9 @@ const globalState = {
     cursorPos: Point
     showLookCursor: boolean
     commandModeTimer: number | null
+
+    highlightItemsKeyHeld: boolean
+    hoveredItem: Obj | null
 
     gameUIDisabled: boolean
 

@@ -42,7 +42,11 @@
       "Bash(python tools/setup.py /nonexistent/path --stages convert_lsts --skip-existing)",
       "Bash(echo \"exit code: $?\")",
       "Bash(grep -iv \"outlinetable\\\\|//\\\\s\")",
-      "Bash(awk -F: '$1 < 4704')"
+      "Bash(awk -F: '$1 < 4704')",
+      "Bash(sed -n '180,200p' src/input.ts)",
+      "Bash(sed -n '395,410p' src/input.ts)",
+      "Bash(sed -n '85,110p' src/input.ts)",
+      "Bash(sed -n '270,290p' src/ui.ts)"
     ]
   }
 }

@@ -338,11 +338,18 @@ WebGLRenderer.prototype.renderObjectOutlined = function (obj: Obj): void {
 // palette 243 (red), OUTLINE_TYPE_FRIENDLY = palette 229 (green). CE also
 // cycles a few palette shades down the sprite height for a shimmer effect;
 // DH2 uses one flat color per type as a documented simplification.
+// 'blue' is a DH2 addition (no CE equivalent) — neutral critters not yet
+// hostile and not on the player's team, so an unprovoked target can be
+// spotted (even through walls) before attacking. See Combat.refreshHighlights().
 const OUTLINE_COLORS: { [name: string]: [number, number, number] } = {
     red: [1, 0, 0],
     green: [0, 1, 0],
     yellow: [1, 1, 0],
+    blue: [0.3, 0.6, 1],
 }
+
+function getOutlineFillAlpha(): number   { return Config.ui.outlineFillAlpha   ?? 0.2 }
+function getOutlineBorderAlpha(): number { return Config.ui.outlineBorderAlpha ?? 0.5 }
 
 // CE ref: object.cc:874 _obj_render_post_roof() — combat outlines (and the
 // item-pickup highlight) are drawn as a flat solid-color silhouette in a
@@ -353,17 +360,37 @@ const OUTLINE_COLORS: { [name: string]: [number, number, number] } = {
 // regardless of depth) by simply calling this after renderRoof() in
 // renderer.ts's render().
 //
-// Implementation: stamp the sprite's silhouette (alpha>0.5 → solid color) at
-// 4 cardinal 1px screen-space offsets around its normal position. The
-// sprite's own normal-lit pixels were already drawn earlier in z-order by
-// renderObjects()/renderObject() — these offset stamps only add color where
-// the silhouette extends 1px beyond what's already there, producing a
-// 1px-thick border without needing per-pixel neighbor sampling in the
-// shader (which would risk bleeding across frames in the sprite atlas).
+// Three steps, giving fillAlpha/borderAlpha genuinely independent control
+// (an earlier version stacked border-then-fill directly, which mathematically
+// makes fillAlpha invisible whenever borderAlpha=1: compositing "outlineColor
+// @ fillAlpha" over an already-fully-opaque same-color layer changes
+// nothing, since alpha-blending a color over itself is a no-op regardless of
+// alpha — see wiki/known_bugs.md CI14):
+//  1. "border": the sprite's silhouette stamped at 4 cardinal 1px
+//     screen-space offsets around its normal position, at borderAlpha. Since
+//     a 1px shift barely changes which pixels are inside the silhouette,
+//     these 4 stamps overlap almost entirely with the sprite's own
+//     footprint — covering nearly the whole sprite, not just a thin edge
+//     (a true 1px-only edge would need per-pixel neighbor sampling in the
+//     shader, risking bleed across frames in the sprite atlas).
+//  2. Punch-out: redraw the object NORMALLY (normal lit shader path, not
+//     outline mode) at its unshifted position. This restores the interior
+//     to the normal sprite, leaving only the border stamps' outermost 1px
+//     sliver visible around the edge — turning step 1 from "near-total fill"
+//     into an actual border.
+//  3. "fill": one more outline-mode stamp at the unshifted position, at
+//     fillAlpha, on top of the now-restored normal sprite. This is what
+//     independently controls how much color washes over the interior,
+//     regardless of what borderAlpha was set to.
+// Net effect: borderAlpha=1, fillAlpha=0 → crisp opaque border only.
+// borderAlpha=0, fillAlpha=0.5 → translucent fill only, no border. Both >0
+// → a fill with a more solid border ring around it.
 WebGLRenderer.prototype.renderOutlinePass = function (objs: Obj[]): void {
     const gl = this.gl
-    if (!this.uOutlineMode || !this.uOutlineColor) return
+    if (!this.uOutlineMode || !this.uOutlineColor || !this.uOutlineAlpha) return
     const z = getZoom()
+    const fillAlpha = getOutlineFillAlpha()
+    const borderAlpha = getOutlineBorderAlpha()
 
     for (const obj of objs) {
         if (!obj.outline) continue
@@ -371,19 +398,51 @@ WebGLRenderer.prototype.renderOutlinePass = function (objs: Obj[]): void {
         if (!renderInfo || !renderInfo.visible) continue
 
         const color = OUTLINE_COLORS[obj.outline] ?? OUTLINE_COLORS.red
-        gl.uniform1i(this.uOutlineMode, 1)
-        gl.uniform3f(this.uOutlineColor, color[0], color[1], color[2])
-
         const baseX = (renderInfo.x - globalState.cameraPosition.x) * z
         const baseY = (renderInfo.y - globalState.cameraPosition.y) * z
         const w = renderInfo.uniformFrameWidth * z
         const h = renderInfo.uniformFrameHeight * z
 
-        for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+        if (borderAlpha > 0) {
+            gl.uniform1i(this.uOutlineMode, 1)
+            gl.uniform3f(this.uOutlineColor, color[0], color[1], color[2])
+            gl.uniform1f(this.uOutlineAlpha, borderAlpha)
+            for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+                this.renderFrame(
+                    obj.art,
+                    baseX + dx * z,
+                    baseY + dy * z,
+                    w,
+                    h,
+                    renderInfo.artInfo.totalFrames,
+                    renderInfo.spriteFrameNum,
+                    /*lit*/ false
+                )
+            }
+
+            // Punch-out: restore the interior to the normal sprite so only
+            // the border stamps' protruding edge remains visible.
+            gl.uniform1i(this.uOutlineMode, 0)
             this.renderFrame(
                 obj.art,
-                baseX + dx * z,
-                baseY + dy * z,
+                baseX,
+                baseY,
+                w,
+                h,
+                renderInfo.artInfo.totalFrames,
+                renderInfo.spriteFrameNum,
+                /*lit*/ true
+            )
+        }
+
+        if (fillAlpha > 0) {
+            gl.uniform1i(this.uOutlineMode, 1)
+            gl.uniform3f(this.uOutlineColor, color[0], color[1], color[2])
+            gl.uniform1f(this.uOutlineAlpha, fillAlpha)
+            this.renderFrame(
+                obj.art,
+                baseX,
+                baseY,
                 w,
                 h,
                 renderInfo.artInfo.totalFrames,
@@ -393,6 +452,7 @@ WebGLRenderer.prototype.renderOutlinePass = function (objs: Obj[]): void {
         }
 
         gl.uniform1i(this.uOutlineMode, 0)
+        gl.uniform1f(this.uOutlineAlpha, 1.0)
     }
 }
 

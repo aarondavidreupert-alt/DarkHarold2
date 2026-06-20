@@ -118,6 +118,24 @@ export function installInputHandlers(): void {
     heart.mousemoved = (x: number, y: number) => {
         globalState.cursorPos = { x, y }
 
+        // CE ref: game_mouse.cc:680 — while the item_highlight preference is
+        // on, outline whatever single item is currently under the mouse
+        // cursor (persists outside the render loop so it also participates
+        // in the post-roof outline pass, matching CE's OUTLINE_TYPE_ITEM
+        // being queued the same way as combat outlines).
+        const hoveredItem = Config.ui.itemHighlight
+            ? getObjectUnderCursor((o: Obj) => o.type === 'item')
+            : null
+        if (globalState.hoveredItem !== hoveredItem) {
+            if (globalState.hoveredItem && globalState.hoveredItem.outline === 'yellow') {
+                globalState.hoveredItem.outline = null
+            }
+            if (hoveredItem && !hoveredItem.outline) {
+                hoveredItem.outline = 'yellow'
+            }
+            globalState.hoveredItem = hoveredItem
+        }
+
         // Reset look-cursor timer on movement in command mode
         if (globalState.cursorMode === 'command') {
             globalState.showLookCursor = false
@@ -185,9 +203,12 @@ export function installInputHandlers(): void {
             cancelSkillTargeting()
             return
         }
-        // CE ref: game_config.h:37 item_highlight — outline all items while held.
+        // DH2-specific QoL sweep (no CE equivalent) — outline every item on
+        // screen while held. Kept separate from Config.ui.itemHighlight,
+        // which is the actual CE preference for hover-highlighting a single
+        // item (see globalState.highlightItemsKeyHeld, mousemoved below).
         if (k === Config.controls.highlightItems) {
-            Config.ui.itemHighlight = true
+            globalState.highlightItemsKeyHeld = true
         }
         const mousePos = heart.mouse.getPosition()
         const kz = getZoom()
@@ -400,9 +421,9 @@ export function installInputHandlers(): void {
     }
 
     heart.keyup = (k: string) => {
-        // CE ref: game_config.h:37 item_highlight — release clears the outline.
+        // DH2-specific QoL sweep — release clears the outline. See note above.
         if (k === Config.controls.highlightItems) {
-            Config.ui.itemHighlight = false
+            globalState.highlightItemsKeyHeld = false
         }
     }
 }

@@ -392,10 +392,11 @@ export class Renderer {
     }
 
     renderObjects(objs: Obj[]) {
-        // CE ref: game_config.h:37 item_highlight — when held, all ground
+        // DH2-specific QoL sweep (no CE equivalent) — when held, all ground
         // items get a temporary outline so players can see what's pickable.
-        const hi: any = Config.ui as any
-        const highlightItems = hi.itemHighlight === true
+        // Distinct from Config.ui.itemHighlight (the real CE preference for
+        // single-item mouse-hover highlighting — see input.ts mousemoved).
+        const highlightItems = globalState.highlightItemsKeyHeld === true
         for (const obj of objs) {
             if (!Config.ui.showWalls && obj.type === 'wall') {
                 continue

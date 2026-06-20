@@ -44,6 +44,7 @@ uniform sampler2D u_eggTex;        // texture unit 6
 // color per outline type as a deliberate simplification (see wiki/rendering.md).
 uniform int u_outlineMode;
 uniform vec3 u_outlineColor;
+uniform float u_outlineAlpha; // separate fill-alpha vs border-alpha draws share this; set per-draw in webglDraw.ts
 
 varying vec2 v_texCoord;
 
@@ -73,7 +74,7 @@ void main() {
 
     if (u_outlineMode == 1) {
         // Flat solid-color silhouette stamp — no lighting, no egg/alpha logic.
-        gl_FragColor = vec4(u_outlineColor, texel.a > 0.5 ? 1.0 : 0.0);
+        gl_FragColor = vec4(u_outlineColor, texel.a > 0.5 ? u_outlineAlpha : 0.0);
         return;
     }
 

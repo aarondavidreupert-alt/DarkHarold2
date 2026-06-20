@@ -94,6 +94,19 @@ function aiHaveAmmo(weaponObj: Obj | null): boolean {
     return ((weaponObj as any)?.pro?.extra?.rounds ?? 0) > 0
 }
 
+// Clears the DH2-only 'blue' neutral-critter outline (see
+// Combat.refreshHighlights()) map-wide. Needed on combat end since neutral
+// critters are never part of `this.combatants` — the normal per-combatant
+// outline-clearing loops never reach them.
+function clearNeutralOutlines(): void {
+    if (!globalState.gMap) return
+    for (const obj of globalState.gMap.getObjects()) {
+        if (obj instanceof Critter && obj.outline === 'blue') {
+            obj.outline = null
+        }
+    }
+}
+
 // A combat encounter
 export class Combat {
     combatants: Critter[]
@@ -1183,6 +1196,7 @@ export class Combat {
             combatant.hostile = false
             combatant.outline = null
         }
+        clearNeutralOutlines()
 
         combatDebug('end combat')
         eventLogPush({ actor: null, action: 'combat-end', result: 'normal', message: 'Combat ended' })
@@ -1201,6 +1215,7 @@ export class Combat {
             combatant.hostile = false
             combatant.outline = null
         }
+        clearNeutralOutlines()
         combatDebug('end combat (forced by script)')
         eventLogPush({ actor: null, action: 'combat-end', result: 'forced', message: 'Combat ended (forced)' })
         globalState.combat = null
@@ -1380,17 +1395,36 @@ export class Combat {
      *  outline for hostile combatants, green for same-team (including
      *  companions); CE assigns these purely by team comparison, not a perk.
      *  Update to match the current targetHighlight preference and cursorMode.
-     *  Call whenever cursorMode changes or preferences change mid-combat. */
+     *  Call whenever cursorMode changes or preferences change mid-combat.
+     *
+     *  DH2 addition (no CE equivalent — CE's outline system only ever covers
+     *  active combatants): also outline neutral critters (not hostile, not
+     *  same team) in a distinct blue, so an unprovoked target can be located
+     *  and attacked even through walls, the same way hostile/friendly
+     *  outlines already show through occluding geometry (CI11).
+     *
+     *  Classifies every live critter on the current elevation in one pass —
+     *  NOT restricted to `this.combatants` — because Combat.start() sweeps
+     *  every team on the map into `triggerTeams` for a player-initiated
+     *  fight (so enemy critters elsewhere can join in), which pulls
+     *  not-yet-hostile, different-team critters into `this.combatants` too.
+     *  An earlier version skipped those here (not yet hostile → no red/green)
+     *  while ALSO excluding them from the neutral pass (already "a
+     *  combatant" → skip), leaving them with no outline at all the moment
+     *  combat started via the attack button before anyone had actually
+     *  been shot. */
     refreshHighlights(): void {
-        if (!globalState.player) return
+        if (!globalState.player || !globalState.gMap) return
         const th = Config.ui.targetHighlight as string | boolean
         const wantHighlight = th === 'on' || th === true ||
             (th === 'targeting-only' && globalState.cursorMode === 'attack')
-        for (const obj of this.combatants) {
-            if ((obj as any).dead || obj.isPlayer) continue
+
+        for (const obj of globalState.gMap.getObjects()) {
+            if (!(obj instanceof Critter)) continue
+            if (obj.dead || obj.isPlayer || !obj.visible) continue
+            if (!wantHighlight) { obj.outline = null; continue }
             const sameTeam = obj.teamNum === globalState.player.teamNum
-            if (!sameTeam && !(obj as any).hostile) continue
-            ;(obj as any).outline = wantHighlight ? (sameTeam ? 'green' : 'red') : null
+            obj.outline = (obj as any).hostile ? 'red' : sameTeam ? 'green' : 'blue'
         }
     }
 }

@@ -31,6 +31,7 @@ export interface SavedPreferences {
     subtitles?: boolean
     textBaseDelay?: number
     playerSpeedup?: boolean
+    itemHighlight?: boolean
     masterVolume?: number
     musicVolume?: number
     sfxVolume?: number
@@ -63,6 +64,7 @@ export function loadPreferences(): void {
     if (prefs.subtitles !== undefined) Config.ui.subtitles = prefs.subtitles
     if (prefs.textBaseDelay !== undefined) Config.ui.textBaseDelay = prefs.textBaseDelay
     if (prefs.playerSpeedup !== undefined) Config.engine.playerSpeedup = prefs.playerSpeedup
+    if (prefs.itemHighlight !== undefined) Config.ui.itemHighlight = prefs.itemHighlight
 
     // Audio volumes — applied after audioEngine may be set
     if (globalState.audioEngine) {
@@ -100,6 +102,7 @@ export function savePreferences(): void {
         subtitles: Config.ui.subtitles,
         textBaseDelay: Config.ui.textBaseDelay,
         playerSpeedup: Config.engine.playerSpeedup,
+        itemHighlight: Config.ui.itemHighlight,
         masterVolume: he ? Math.round(he.masterVolume * 100) : 100,
         musicVolume: he ? Math.round(he.musicVolume * 100) : 100,
         sfxVolume: he ? Math.round(he.sfxVolume * 100) : 100,

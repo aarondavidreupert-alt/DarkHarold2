@@ -334,6 +334,21 @@ window.onload = async function () {
         IDBCache.nuke()
         console.log('[Cache] IndexedDB asset cache cleared — reload the page to re-fetch proMap/imageMap from disk.')
     }
+
+    // Combat/item outline tuning (CI11/CI12, wiki/known_bugs.md). The
+    // "border" layer (4 near-overlapping 1px offset stamps) reads as a near-
+    // total fill in practice, not a thin edge — kept by request as the more
+    // opaque/colorful layer; "fill" is the silhouette at its normal
+    // position, drawn on top, typically more transparent so the border's
+    // outermost sliver still pokes out around the edge.
+    ;(window as any).setOutlineFillAlpha = (a: number) => {
+        Config.ui.outlineFillAlpha = Math.max(0, Math.min(1, a))
+        console.log(`[Outline] fillAlpha=${Config.ui.outlineFillAlpha}`)
+    }
+    ;(window as any).setOutlineBorderAlpha = (a: number) => {
+        Config.ui.outlineBorderAlpha = Math.max(0, Math.min(1, a))
+        console.log(`[Outline] borderAlpha=${Config.ui.outlineBorderAlpha}`)
+    }
 }
 
 installInputHandlers()

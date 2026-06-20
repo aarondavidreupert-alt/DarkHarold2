@@ -27,10 +27,21 @@ export const Config = {
         // FO2-CE ref: preferences.cc TargetHighlight enum (game_config.h:111)
         //   0=off, 1=on (always), 2=targeting-only (only while attack cursor)
         targetHighlight: 'on' as 'off' | 'on' | 'targeting-only',
-        // FO2-CE ref: game_config.h:37 — outline all items while
-        // `controls.highlightItems` is held (default: Spacebar). Updated by
-        // main.ts keydown/keyup handlers.
-        itemHighlight: false,
+        // FO2-CE ref: settings.h:33 item_highlight — persistent preference
+        // (default true), not a held key. While on, whatever single item is
+        // under the mouse cursor gets outlined (see input.ts mousemoved).
+        // The DH2-only "hold a key to highlight every item" sweep is a
+        // separate runtime flag: globalState.highlightItemsKeyHeld.
+        itemHighlight: true,
+        // DH2-specific tunables for the combat/item outline pass (CI11/CI12,
+        // wiki/known_bugs.md). CE draws the outline as a thin silhouette
+        // border only; DH2's offset-stamp technique (4 near-overlapping 1px
+        // copies) renders as a solid fill in practice — kept deliberately,
+        // by request, with separate alpha controls for the fill vs the
+        // protruding border sliver. Tune via setOutlineFillAlpha()/
+        // setOutlineBorderAlpha() in the browser console.
+        outlineFillAlpha: 0.2,
+        outlineBorderAlpha: 0.5,
         // FO2-CE ref: preferences.cc — combat message verbosity
         combatMessages: 'verbose' as 'brief' | 'verbose',
         // FO2-CE ref: preferences.cc — subtitles toggle
