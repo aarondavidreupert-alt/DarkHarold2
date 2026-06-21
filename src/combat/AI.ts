@@ -24,7 +24,15 @@ export class AI {
 
     constructor(combatant: Critter) {
         this.combatant = combatant
-        this.packet = getAiPacket(combatant.aiNum)
+        const base = getAiPacket(combatant.aiNum)
+        // Per-field overrides from the companion "Custom" behavior screen
+        // (see Critter.customAiOverrides / setCompanionCustomSetting in
+        // party.ts) — applied on top of the base packet so individually
+        // chosen settings persist even though they're not a distinct named
+        // ai.txt packet of their own.
+        this.packet = combatant.customAiOverrides
+            ? { ...base, ...combatant.customAiOverrides }
+            : base
     }
 }
 

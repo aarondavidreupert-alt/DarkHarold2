@@ -142,6 +142,20 @@ CE ref: `combat_ai.cc:44` — `kChemUse*` constants.
 If `ignoreFleeingCritters` is true **and** `distance == DISTANCE_CHARGE`, `ignoreFleeingCritters` is reset to false.  
 CE ref: `combat_ai.cc:1542`.
 
+**Bug found & fixed 2026-06-18**: `src/aiPackets.ts`'s `Disposition` string-union type, its
+`DISPOSITIONS` validation set, and its numeric fallback table (`DISPOSITION_MAP`) were all missing
+`'defensive'`, even though this very table above already listed it correctly. Every
+`disposition=defensive` line in `data/data/ai.txt` (used by several companion AI packets, e.g.
+`[PARTY BESS DEFENSIVE]`) silently parsed to the `'none'` fallback instead. Fixed by adding
+`'defensive'` to all three; also corrected `DISPOSITION_MAP`'s order to match
+`combat_ai_defs.h`'s actual enum (`none, custom, coward, defensive, aggressive, berserk`) — the old
+order (`none, custom, berserk, aggressive, coward`) didn't match CE and was presumably guessed,
+though no real `ai.txt` entry uses the numeric encoding so this had no observable effect until
+checked.
+
+See `wiki/companion_party.md` §8 for the player-facing disposition-switching screen
+(`setCompanionDisposition()`/`findCompanionPacketForDisposition()`) that surfaced this bug.
+
 ### `HurtTooMuch` — damage-flag flee trigger
 
 Stored in `ai->hurt_too_much` as a bitmask. Matching any bit in `critter.combat.results` immediately triggers `_ai_run_away`.

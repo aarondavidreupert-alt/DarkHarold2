@@ -7,7 +7,7 @@ dependency chains (util → object → combat → aiPackets → util).
 
 // ── String union types ────────────────────────────────────────────────────────
 
-export type Disposition = 'aggressive' | 'berserk' | 'coward' | 'none' | 'custom'
+export type Disposition = 'aggressive' | 'berserk' | 'coward' | 'defensive' | 'none' | 'custom'
 export type AttackWho = 'closest' | 'strongest' | 'weakest' | 'whomever' | 'whomever_attacking_me'
 export type BestWeapon =
     | 'no_pref'           // 0 — same ordering as -1 unset: RANGED > THROW > MELEE > UNARMED
@@ -52,7 +52,10 @@ export interface AiPacket {
 
 // ── Numeric → string maps (fallout2-ce ai.h enum order) ──────────────────────
 
-const DISPOSITION_MAP: Disposition[]      = ['none', 'custom', 'berserk', 'aggressive', 'coward']
+// CE ref: combat_ai_defs.h Disposition enum order — NONE,CUSTOM,COWARD,DEFENSIVE,AGGRESSIVE,BERKSERK.
+// Numeric encoding isn't used by any real ai.txt entry (all use string keys),
+// kept only as a defensive fallback to match CE's parser exactly.
+const DISPOSITION_MAP: Disposition[]      = ['none', 'custom', 'coward', 'defensive', 'aggressive', 'berserk']
 // FO2: 0=whomever 1=closest 2=weakest 3=strongest 4=which_side_most_hurt 5=whoever_attacking_me
 const ATTACK_WHO_MAP: AttackWho[]         = ['whomever', 'closest', 'weakest', 'strongest', 'closest', 'whomever_attacking_me']
 // FO2-CE enum: -1=unset→no_pref, 0=no_pref, 1=melee, 2=melee_over_ranged, 3=ranged_over_melee,
@@ -72,7 +75,7 @@ const CHEM_USE_MAP: ChemUse[]             = ['clean', 'stims_when_hurt_little', 
 
 // ── Valid string sets ─────────────────────────────────────────────────────────
 
-const DISPOSITIONS: ReadonlySet<string>      = new Set<Disposition>(['aggressive', 'berserk', 'coward', 'none', 'custom'])
+const DISPOSITIONS: ReadonlySet<string>      = new Set<Disposition>(['aggressive', 'berserk', 'coward', 'defensive', 'none', 'custom'])
 const ATTACK_WHOS: ReadonlySet<string>       = new Set<AttackWho>(['closest', 'strongest', 'weakest', 'whomever', 'whomever_attacking_me'])
 const BEST_WEAPONS: ReadonlySet<string>      = new Set<BestWeapon>([
     'no_pref', 'melee', 'melee_over_ranged', 'ranged_over_melee',
@@ -250,4 +253,57 @@ const FALLBACK_PACKET: AiPacket = {
 export function getAiPacket(num: number): AiPacket {
     ensureInit()
     return aiPackets.get(num) ?? _firstPacket ?? FALLBACK_PACKET
+}
+
+// ── Companion disposition switching ───────────────────────────────────────────
+//
+// CE ref: combat_ai.cc:903 aiSetDisposition — switches a critter's active AI
+// packet by *packet_num arithmetic*: `packet_num - (newDisposition -
+// ai->disposition)`. That only works if a companion's 5 disposition-variant
+// packets are laid out in ai.txt with a perfectly consistent relative offset
+// — which, on inspection of data/data/ai.txt, they are NOT (the on-disk block
+// order is AGGRESSIVE, BERSERK, COWARD, CUSTOM, DEFENSIVE, which does not
+// line up with the Disposition enum's numeric deltas). Rather than replicate
+// that arithmetic (and its apparent fragility), DH2 uses the section header
+// names directly: every companion disposition packet is titled
+// "PARTY <NAME> <DISPOSITION>" (e.g. "PARTY BESS AGGRESSIVE", see
+// data/data/ai.txt ~line 2625), so the sibling packet for a different
+// disposition can be found by swapping the trailing word and looking up the
+// exact name — robust regardless of file ordering.
+const DISPOSITION_WORD: Record<Disposition, string> = {
+    aggressive: 'AGGRESSIVE',
+    berserk: 'BERSERK',
+    coward: 'COWARD',
+    defensive: 'DEFENSIVE',
+    custom: 'CUSTOM',
+    none: 'NONE',
+}
+
+let _packetsByName: Map<string, AiPacket> | null = null
+
+function ensureNameIndex(): Map<string, AiPacket> {
+    if (_packetsByName) return _packetsByName
+    ensureInit()
+    _packetsByName = new Map()
+    for (const packet of aiPackets.values()) {
+        _packetsByName.set(packet.name.toUpperCase(), packet)
+    }
+    return _packetsByName
+}
+
+/**
+ * Given a companion's current AI packet, find the sibling packet for a
+ * different disposition by swapping the trailing disposition word in its
+ * section-header name (see comment above). Returns null if the packet's name
+ * doesn't end with its own disposition word (i.e. it's not a companion
+ * disposition-variant packet at all — an ordinary NPC's single packet, for
+ * example) or no sibling packet exists for the requested disposition.
+ */
+export function findCompanionPacketForDisposition(currentPacket: AiPacket, disposition: Disposition): AiPacket | null {
+    const currentWord = DISPOSITION_WORD[currentPacket.disposition]
+    const upperName = currentPacket.name.toUpperCase()
+    if (!upperName.endsWith(currentWord)) return null
+    const prefix = upperName.slice(0, upperName.length - currentWord.length)
+    const targetName = prefix + DISPOSITION_WORD[disposition]
+    return ensureNameIndex().get(targetName) ?? null
 }

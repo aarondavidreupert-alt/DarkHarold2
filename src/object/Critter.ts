@@ -29,7 +29,7 @@ import globalState from '../globalState.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Scripting } from '../scripting.js'
 import { getMessage } from '../util.js'
-import { getAiPacket } from '../aiPackets.js'
+import { getAiPacket, AiPacket } from '../aiPackets.js'
 import { hitSpatialTrigger, Obj, objectIsWeapon, SerializedObj, setObjectOpen } from './Obj.js'
 import { WeaponObj } from './items.js'
 
@@ -59,7 +59,7 @@ export interface SerializedCritter extends SerializedObj {
 export const SERIALIZED_CRITTER_PROPS = [
     'stats', 'skills', 'aiNum', 'teamNum', 'hostile', 'isPlayer', 'dead',
     'anim', 'crippledLeftArm', 'crippledRightArm', 'crippledLeftLeg', 'crippledRightLeg',
-    'poisonLevel', 'radiationLevel', 'addictions',
+    'poisonLevel', 'radiationLevel', 'addictions', 'customAiOverrides',
 ]
 
 export class Critter extends Obj {
@@ -77,6 +77,13 @@ export class Critter extends Obj {
     aiNum = -1 // AI packet number
     teamNum = -1 // AI team number (TODO: implement this)
     ai: AI | null = null // AI packet
+    // Per-field overrides on top of the resolved AI packet, set via the
+    // companion "Custom" behavior screen (ui_companion.ts /
+    // setCompanionCustomSetting). Only meaningful when aiNum currently
+    // points at a disposition='custom' packet — cleared when switching to a
+    // named preset (Berserk/Aggressive/Defensive/Coward). See AI.ts
+    // constructor for where these get merged onto the base packet.
+    customAiOverrides: Partial<AiPacket> | null = null
     hostile = false // Currently engaging an enemy?
     // Wander origin (lazily captured on first wander tick) — used to enforce
     // per-type radius caps. CE ref: ai.cc wander_type 1/2/3 short/large/unrestricted.

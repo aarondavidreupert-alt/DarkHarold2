@@ -46,7 +46,24 @@
       "Bash(sed -n '180,200p' src/input.ts)",
       "Bash(sed -n '395,410p' src/input.ts)",
       "Bash(sed -n '85,110p' src/input.ts)",
-      "Bash(sed -n '270,290p' src/ui.ts)"
+      "Bash(sed -n '270,290p' src/ui.ts)",
+      "Bash(390)",
+      "Bash(391)",
+      "Bash(407)",
+      "Bash(408)",
+      "Bash(409)",
+      "Bash(410)",
+      "Bash(411)",
+      "Bash(412)",
+      "Bash(413)",
+      "Bash(414)",
+      "Bash(415)",
+      "Bash(416)",
+      "Bash(417)",
+      "Bash(418\")",
+      "Bash(grep -n \"_gdCustomUpdateSetting\" \"C:\\\\Users\\\\Aaron\\\\OneDrive\\\\Dokumente\\\\GitHub\\\\DarkHarold2\\\\raw\\\\fallout2-ce\\\\src\\\\game_dialog.cc\")",
+      "Bash(awk -F= '{print $2}')",
+      "Bash(grep -n \"^## \\\\|^---$\" wiki/companion_party.md)"
     ]
   }
 }
