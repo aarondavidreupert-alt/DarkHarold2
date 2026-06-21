@@ -28,6 +28,7 @@ import { uiLoot } from './ui_loot.js'
 import { closeSkilldex, showSkilldex } from './ui_skilldex.js'
 import { UIMode, closeAllPanels, isSkilldexOpen } from './ui_panels.js'
 import { $id, clearEl, makeEl } from './ui_dom.js'
+import { uiCompanionControl } from './ui_companion.js'
 
 export function uiHideContextMenu() {
     globalState.uiMode = UIMode.none
@@ -76,6 +77,16 @@ export function uiContextMenu(obj: Obj, evt: any) {
         })
     })
     const talkBtn = button(obj, 'talk', () => {
+        // CE ref: game_dialog.cc:732 gameDialogEnter sets
+        // gGameDialogSpeakerIsPartyMember — talking to a party member opens
+        // the control screen (disposition/customize/trade) rather than a
+        // normal dialogue tree. Mirrors the same check in input.ts's
+        // keyboard Talk-To handler.
+        if (obj.type === 'critter' && globalState.gParty.isPartyMember(obj as Critter)) {
+            console.log('[Dialog] opening companion control for ' + obj.name)
+            uiCompanionControl(obj as Critter)
+            return
+        }
         console.log('[Dialog] talking to ' + obj.name)
         if (!obj._script) {
             console.warn('[Dialog] obj has no script')
@@ -95,7 +106,8 @@ export function uiContextMenu(obj: Obj, evt: any) {
 
     const isCritter = obj.type === 'critter'
     const isDead = isCritter && (obj as Critter).dead
-    const hasTalk = obj._script && obj._script.talk_p_proc !== undefined
+    const isPartyMember = isCritter && globalState.gParty.isPartyMember(obj as Critter)
+    const hasTalk = isPartyMember || (obj._script && obj._script.talk_p_proc !== undefined)
 
     if (isCritter && !isDead) {
         // Living critter: Talk (if available) → Use (if available) → Look → Cancel
