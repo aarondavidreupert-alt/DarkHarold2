@@ -280,7 +280,8 @@ with per-case detail.
 
 | System | File(s) | Real status |
 |--------|---------|-------------|
-| Party member combat AI | `src/party.ts`, `src/combat/Combat.ts` | Follow and cap enforcement work. Party members are NOT enrolled in the combat combatants list (`combat/Combat.ts`) — they wander away while the player fights. No party-member AI turns. |
+| Party member combat AI | `src/party.ts`, `src/combat/Combat.ts` | Corrected 2026-06-18 (was stale): party members ARE enrolled in the combatants list and take AI turns (`Combat.nextTurn()` bypasses the hostile-flag gate for same-team critters; fixed 2026-06-02). Still missing CE-style non-combatant promotion (companions are enrolled unconditionally at combat start rather than joining mid-fight when attacked/alerted). Control/customization screens for per-companion disposition and AI behavior (Berserk/Aggressive/Defensive/Coward/Custom presets, 6-category overrides, weight-based trade) added in `src/ui_companion.ts`/`src/ui_companion_trade.ts` — see `wiki/companion_party.md` §8. |
+<!-- audited: 2026-06-18 -->
 | Active skill use | `src/skillUse.ts` | **8 of 10** active skills handled: First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair. **Gambling** and **Outdoorsman** fall through to the default `"cannot be used directly"` error. No Healer perk bonus; no electronic lockpick distinction; no facing check on Steal. |
 | Subtitles / speech audio | `src/audio.ts` | `Config.ui.subtitles = false`; no speech `.acm` playback path exists. |
 | Movie playback | `src/scripting.ts:1769` | `play_gmovie()` logs and skips — `.mve` video playback is not implemented. |

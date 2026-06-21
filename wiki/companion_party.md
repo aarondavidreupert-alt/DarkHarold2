@@ -158,18 +158,35 @@ logic that hostiles use.
 
 ### DH2
 
-The combatants filter in `combat.ts`:
+**Corrected 2026-06-18 — this section was stale.** The combatants filter in `combat.ts`:
 
 ```ts
 if (!obj.isPlayer && !triggerTeams.has(obj.teamNum) && !obj.hostile) return false
 ```
 
-Party members have `teamNum = 0` (same as player) and are not marked `hostile`,
-so they are **never enrolled** in the combatants array. They receive no AI turns
-and cannot attack enemies or use items during combat.
+`triggerTeams` always seeds `player.teamNum` (`Combat.start()`: `new Set([player.teamNum])`), and
+party members share `teamNum = 0` with the player — so `triggerTeams.has(obj.teamNum)` is true for
+them, and they **are** enrolled in `this.combatants`.
 
-There is no equivalent of `_combat_add_noncoms`, `_combatai_want_to_join`, or the
-non-combatant promotion mechanism. Full implementation is tracked in ROADMAP.md Phase 4f.
+`Combat.nextTurn()` goes further and explicitly bypasses the hostile-flag gate for them:
+
+```ts
+const isFriendly = critter.teamNum === globalState.player.teamNum
+if (critter.dead === true || (!critter.hostile && !isFriendly)) return this.nextTurn()
+```
+
+So a same-team critter gets `doAITurn()` called every round regardless of its `hostile` flag —
+party members **do** take AI turns, select targets, and attack (fixed 2026-06-02, see
+`wiki/known_bugs.md` P1). This was previously documented here as "never enrolled" / "no AI turns" —
+that was true before the P1 fix and was never updated afterward. Practical effect: the disposition
+and per-field AI settings exposed by the control/customization screens (§8) **do** influence combat
+behavior today, via the same `findTarget()`/`HP_FLEE_PCT`/distance-preference code paths used for
+every other combatant.
+
+There is still no equivalent of `_combat_add_noncoms`, `_combatai_want_to_join`, or the
+CE-style non-combatant promotion mechanism (party members are enrolled unconditionally rather than
+joining mid-fight when attacked or alerted) — tracked in ROADMAP.md Phase 4f as a remaining
+fidelity gap, not a "doesn't work at all" gap.
 
 ---
 
@@ -262,8 +279,8 @@ calls. Tracked in ROADMAP.md Phase 5c ("dismissal dialogue hooks").
 | Max size enforcement | Script-side: `metarule(16)` vs CHA/2 | ✅ Engine-side `Party.maxSize()` (`party.ts:29`); Magnetic Personality perk missing |
 | Party serialization | `party_member.cc:partyMembersSave` | 🟡 Object state saved via `obj.serialize()`; LVARs, script state, level-up tracking not saved |
 | Follow (out-of-combat) | `party_member.cc:_partyMemberSyncPosition` | 🟡 Per-tick `followPlayer()` works; teleports instead of pathfinds |
-| Combat AI turns | `combat_ai.cc:_combat_ai`, `combat.cc:_combat_sequence_init` | ❌ Not enrolled in combatants list (`combat.ts`) |
-| Non-combatant promotion | `combat.cc:_combat_add_noncoms` | ❌ Not implemented |
+| Combat AI turns | `combat_ai.cc:_combat_ai`, `combat.cc:_combat_sequence_init` | ✅ Enrolled and act via `doAITurn()` (fixed 2026-06-02, P1); §3 corrected 2026-06-18 |
+| Non-combatant promotion | `combat.cc:_combat_add_noncoms` | ❌ Enrolled unconditionally at combat start rather than joining mid-fight when alerted |
 | Companion level-up | `party_member.cc:_partyMemberIncLevels` | ❌ Not implemented |
 | Dismissal dialogue flow | NPC scripts + `party_remove` opcode | ❌ No companion dismissal dialogue wired |
 | Control screen (disposition presets) | `game_dialog.cc:3354 partyMemberControlWindowInit` | ✅ `ui_companion.ts:uiCompanionControl` — see §8 |
@@ -283,9 +300,21 @@ calls. Tracked in ROADMAP.md Phase 5c ("dismissal dialogue hooks").
 
 **Level-up tracking not persisted**: Even if `_partyMemberIncLevels` were implemented, the `level`/`numLevelUps`/`isEarly` fields per companion are not in `SaveGame`.
 
-**Companion combat immunity**: Party members take damage from AoE attacks (they are on the map and can receive hits), but they never act — they neither defend nor counterattack.
+**Companion combat immunity — stale, corrected 2026-06-18.** This previously claimed party members
+take damage but never act. That was true before the 2026-06-02 fix (P1) and was left undated after
+it landed — see the corrected §3: companions are enrolled in `this.combatants` and do take AI turns,
+select targets, and attack via the same `doAITurn()`/`findTarget()` path as any other combatant.
+What's still missing is *promotion* (CE-style: companions start passive and join when attacked/
+alerted, `_combat_add_noncoms`) — DH2 enrolls them unconditionally and immediately at combat start
+instead.
 
-**New as of §8 (2026-06-18): disposition/customize settings persist but have no combat effect yet.** The control/customization screens correctly read and write a companion's effective AI packet (disposition presets, area-attack/run-away/best-weapon/distance/attack-who/chem-use), and those settings are saved with the game. But per "Companion combat immunity" above, party members are never enrolled in the combatants list at all (`combat.ts`) — they take no AI turns, so none of these settings currently change anything observable in a fight. They become meaningful the moment Combat AI turns / non-combatant promotion (ROADMAP Phase 4f) is implemented. This is an honest scope boundary, not an oversight: implementing full combat AI enrollment for companions is a separate, substantial undertaking tracked on its own.
+**Disposition/customize settings (§8) have a real combat effect.** Since companions do take AI
+turns, the per-field settings exposed by the control/customization screens (disposition presets,
+area-attack/run-away/best-weapon/distance/attack-who/chem-use) feed directly into that same
+decision-making — e.g. `runAwayMode` into the flee-threshold check, `attackWho`/`distance` into
+target/positioning preference. Not yet cross-checked field-by-field against every CE behavior listed
+in `wiki/ai_behavior.md`'s implementation-status table (some fields there are still marked PARTIAL/
+MISSING independent of this feature) — but the settings are not inert.
 
 ---
 
