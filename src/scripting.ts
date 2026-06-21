@@ -47,6 +47,7 @@ import { ScriptVM } from './vm.js'
 import { Worldmap } from './worldmap.js'
 import { ScriptVMBridge } from './vm_bridge.js'
 import { Config } from './config.js'
+import { uiCompanionControl } from './ui_companion.js'
 
 export module Scripting {
     var gameObjects: Obj[] | null = null
@@ -1777,6 +1778,18 @@ export module Scripting {
                     const npc = currentDialogueObject as Critter
                     dialogueOptionProcs.push(() => uiBarterMode(npc))
                     uiAddDialogueOption('[Barter]', dialogueOptionProcs.length - 1)
+                }
+
+                // CE ref: game_dialog.cc:4380-4388 — when
+                // gGameDialogSpeakerIsPartyMember, the dialogue window gets
+                // an extra "Combat Control" button (gameDialogCombatControlButtonOnMouseUp)
+                // alongside Barter/Trade. DH2 has no dedicated dialogue
+                // window buttons, so this is surfaced as a dialogue option
+                // here instead, same pattern as [Barter] above.
+                if (globalState.gParty.isPartyMember(currentDialogueObject as Critter)) {
+                    const companion = currentDialogueObject as Critter
+                    dialogueOptionProcs.push(() => uiCompanionControl(companion))
+                    uiAddDialogueOption('[Combat Control]', dialogueOptionProcs.length - 1)
                 }
             }
             if (this._vm) this._vm.halted = true

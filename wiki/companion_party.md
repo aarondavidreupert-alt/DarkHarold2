@@ -327,15 +327,33 @@ and actual file dimensions in `art/intrface/` — not inferred from general know
 
 ### 8.1 Triggering the screen
 
-CE opens this screen as a *dialogue state transition*: `gameDialogEnter()` (`game_dialog.cc:732`)
-sets `gGameDialogSpeakerIsPartyMember = objectIsPartyMember(speaker)`, and the companion's own
-dialogue script decides whether to branch into dialogue state 8 (`partyMemberControlWindowInit`)
-instead of a normal conversation node.
+**CORRECTED 2026-06-21** — the original wiki text here was wrong about the trigger mechanism;
+it was based on an incorrect assumption rather than a direct source read. Verified against
+`raw/fallout2-ce/src/game_dialog.cc` directly:
 
-DH2 has no companion dialogue scripts with that branching logic, so the check is done directly:
-pressing the `talkTo` key (default `t`) on a critter for which `globalState.gParty.isPartyMember()`
-is true opens `uiCompanionControl()` instead of the normal `Scripting.talk()` flow
-(`input.ts`, near the existing `Config.controls.talkTo` handler).
+`gameDialogEnter()` (`game_dialog.cc:732`) sets `gGameDialogSpeakerIsPartyMember =
+objectIsPartyMember(speaker)` when talking to *any* NPC — this does **not** skip or replace the
+normal dialogue tree. The normal `talk_p_proc`-driven conversation still opens exactly as for any
+other NPC. The only effect of `gGameDialogSpeakerIsPartyMember` is that `_gdialog_window_create()`
+(`game_dialog.cc:4357-4388`) adds two extra small buttons to that *same* dialogue window, on top of
+the normal portrait/options:
+- **Trade/Barter** — 593,41 (`gameDialogBarterButtonUpMouseUp`)
+- **Combat Control** — 593,116 (`gameDialogCombatControlButtonOnMouseUp`, only present when
+  `gGameDialogSpeakerIsPartyMember`)
+
+Clicking Combat Control sets `_dialogue_switch_mode = 8`, which `gameDialogTicker()`
+(`game_dialog.cc:2825-2830`) turns into a call to `partyMemberControlWindowInit()` — i.e. the
+control screen replaces the dialogue window, it is not reached *instead of* talking.
+
+DH2 has no per-button dialogue-window chrome — NPC interaction is option-list driven via
+`gsay_*`/`uiAddDialogueOption`. So instead of a literal window button, talking to a party member
+(via the normal `Scripting.talk()` flow, same as any NPC with a `talk_p_proc`) gets a synthesized
+`[Combat Control]` dialogue option injected in `scripting.ts`'s `gsay_end()` whenever
+`globalState.gParty.isPartyMember(currentDialogueObject)` is true — the same pattern already used
+for the existing `[Barter]` option (CE ref: `game_dialog.cc:3662 _gdCanBarter`). Picking it calls
+`uiCompanionControl()`. There is no bypass of dialogue on Talk; `input.ts`'s `talkTo` handler and
+the right-click context menu's Talk button both just call `Scripting.talk()` unconditionally, same
+as for non-party NPCs.
 
 ### 8.2 Control window layout (verified against source)
 

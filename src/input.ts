@@ -43,7 +43,6 @@ import { Config } from './config.js'
 import { getActiveUnarmedModeForHand } from './unarmed.js'
 import { togglePipBoy } from './ui_pipboy.js'
 import { playerUse, cancelSkillTargeting } from './playerUse.js'
-import { uiCompanionControl } from './ui_companion.js'
 
 export function installInputHandlers(): void {
     heart.mousepressed = (x: number, y: number, btn: string) => {
@@ -262,16 +261,15 @@ export function installInputHandlers(): void {
         if (k === Config.controls.talkTo) {
             const critter = globalState.gMap.critterAtPosition(mouseHex)
             if (critter) {
-                // CE ref: game_dialog.cc:732 gameDialogEnter sets
-                // gGameDialogSpeakerIsPartyMember — talking to a party member
-                // opens the control screen (disposition/customize/trade)
-                // rather than a normal dialogue tree. DH2 has no companion
-                // dialogue scripts that branch into this themselves, so the
-                // check is done directly here instead.
-                if (globalState.gParty.isPartyMember(critter)) {
-                    dbg('dialogue', '[Dialog] opening companion control for ' + critter.name)
-                    uiCompanionControl(critter)
-                } else if (critter._script && critter._script.talk_p_proc !== undefined) {
+                // CE ref: game_dialog.cc:732 gameDialogEnter — talking to a
+                // party member still enters the normal dialogue tree first;
+                // gGameDialogSpeakerIsPartyMember only adds the extra
+                // Barter/Combat Control buttons to that same dialogue window
+                // (game_dialog.cc:4357-4388 _gdialog_window_create). The
+                // Combat Control option is injected as a dialogue choice in
+                // scripting.ts's gsay_end() instead of being a separate
+                // pre-dialogue screen.
+                if (critter._script && critter._script.talk_p_proc !== undefined) {
                     dbg('dialogue', '[Dialog] talking to ' + critter.name)
                     Scripting.talk(critter._script, critter)
                 }
