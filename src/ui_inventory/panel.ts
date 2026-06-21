@@ -19,7 +19,8 @@ limitations under the License.
 
 import globalState from '../globalState.js'
 import { lazyLoadImage } from '../images.js'
-import { Obj, createObjectWithPID } from '../object.js'
+import { Obj, createObjectWithPID, cloneItem } from '../object.js'
+import { uiGetAmount } from '../ui_barter/swap.js'
 import { Scripting } from '../scripting.js'
 import { drawAC, drawAP, uiDrawWeapon } from '../ui_hud.js'
 import { makePanelDraggable } from '../ui_drag.js'
@@ -364,7 +365,7 @@ export function showInventory() {
 
     type ItemAction = 'cancel' | 'look' | 'use' | 'drop' | 'equip_left' | 'equip_right' | 'equip_armor' | 'unequip' | 'unload'
 
-    function itemAction(obj: Obj, slot: string, action: ItemAction) {
+    async function itemAction(obj: Obj, slot: string, action: ItemAction) {
         const playerAny = globalState.player as any
         switch (action) {
             case 'look':
@@ -376,18 +377,39 @@ export function showInventory() {
                 console.log('[UI] using object: ' + obj.art)
                 obj.use(globalState.player)
                 break
-            case 'drop':
+            case 'drop': {
                 console.log('[UI] dropping: ' + obj.art + ' with pid ' + obj.pid)
+
+                // Stacked items prompt for how many to drop, matching the
+                // "Move Items" dialog used for barter/loot transfers.
+                let dropAmount = obj.amount
+                if (slot === 'inventory' && obj.amount > 1) {
+                    dropAmount = await uiGetAmount(obj)
+                    if (dropAmount === 0) break // player cancelled
+                }
+
                 if (slot !== 'inventory') {
                     console.log('[UI] moving into inventory first')
                     globalState.player.inventory.push(obj)
                     playerAny[slot] = null
                 }
-                obj.drop(globalState.player)
+
+                if (dropAmount < obj.amount) {
+                    // Partial stack: split off a clone holding dropAmount and
+                    // drop that, leaving the remainder in the inventory.
+                    obj.amount -= dropAmount
+                    const dropped = cloneItem(obj)
+                    dropped.amount = dropAmount
+                    globalState.player.inventory.push(dropped)
+                    dropped.drop(globalState.player)
+                } else {
+                    obj.drop(globalState.player)
+                }
                 globalState.player.clearAnim()
                 uiDrawWeapon()
                 showInventory()
                 break
+            }
             case 'equip_left':
             case 'equip_right': {
                 const targetSlot = action === 'equip_left' ? 'leftHand' : 'rightHand'
