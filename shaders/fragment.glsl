@@ -103,14 +103,18 @@ void main() {
         vec2 eggUV = (vec2(world_x, world_y) - eggTopLeft) / u_eggSize;
 
         if (eggUV.x >= 0.0 && eggUV.x <= 1.0 && eggUV.y >= 0.0 && eggUV.y <= 1.0) {
-            // egg.png mask shape lives in the ALPHA channel (solid white RGB,
-            // alpha=1 inside the oval / alpha=0 outside) — NOT the red channel.
-            // The original CE-derived egg.png stored its falloff in R, but that
-            // PNG was produced by resolving the FRM's raw mask-intensity bytes
-            // through the normal Fallout palette (correct for sprites, wrong
-            // for mask data), which painted each gradient step a different
-            // hue and showed up as visible colored rings. Sampling alpha from
-            // this clean white-RGB mask avoids that entirely.
+            // egg.png mask shape lives in the ALPHA channel (solid white RGB) —
+            // NOT the red channel. The original CE-derived egg.png stored its
+            // falloff in R, resolved through the normal Fallout palette
+            // (correct for sprites, wrong for mask data — painted each
+            // gradient step a different hue, visible as colored rings).
+            // 2026-06-23: regenerated via tools/export_mask_frms.py, which
+            // writes the FRM's raw mask-intensity bytes (CE's documented
+            // 0-128 scale) straight into alpha, rescaled to fill 0-255 so
+            // this texture sample already *is* the final 0-1 blend fraction
+            // — true smooth gradient, matching CE's `mask/128` falloff, not
+            // the binary 0/1 cutoff an earlier hand-patched version of this
+            // asset used.
             float mask = texture2D(u_eggTex, eggUV).a;
             alpha = mix(1.0, 0.0, mask);
         }

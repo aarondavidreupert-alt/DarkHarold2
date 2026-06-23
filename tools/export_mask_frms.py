@@ -86,7 +86,7 @@ def exportFRMAsMask(frmFile, outFile, scale=None):
             rgba[:, :, 2] = 255
             rgba[:, :, 3] = alpha
 
-            img = Image.fromarray(rgba, "RGBA")
+            img = Image.fromarray(rgba)
             finalImg.paste(img, (currentX, 0))
             currentX += maxW
 

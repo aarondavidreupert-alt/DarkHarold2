@@ -768,6 +768,41 @@ html, body {
   overflow: hidden;
 }
 
+/* Talking-head "screen curvature" glint/shadow. CE ref: game_dialog.cc:4526-4546
+   gameDialogRenderHighlight, :4637-4657 (positions). Permanent children of
+   #dialogueContainer (not toggled separately) — CE draws these into the
+   same persistent background window that holds the head/portrait display,
+   so they're visible any time that window is, matching how #dialogueContainer
+   itself already stays visible across Talk/Barter/Combat-Control (see P8,
+   wiki/known_bugs.md). hilight1.png/hilight2.png are solid-white RGBA masks
+   (regenerated via tools/export_mask_frms.py to put the real gradient in
+   alpha instead of the palette-mangled colors a normal FRM->PNG conversion
+   produces — see wiki/rendering.md). CSS mix-blend-mode does the lighten/
+   darken-by-weight job the browser's native compositing already solves;
+   this is a simplification of CE's exact per-palette-index gray-table
+   blend, not a pixel-identical port — see wiki/known_bugs.md P22. */
+#dialogueHighlightUpper,
+#dialogueHighlightLower {
+  position: absolute;
+  pointer-events: none;
+}
+
+#dialogueHighlightUpper {
+  left: 426px;
+  top: 15px;
+  width: 89px;
+  height: 81px;
+  mix-blend-mode: screen;
+}
+
+#dialogueHighlightLower {
+  left: 129px;
+  top: 81px;
+  width: 137px;
+  height: 131px;
+  mix-blend-mode: multiply;
+}
+
 #dialogueBox {
   position: absolute;
   left: 0px;
