@@ -693,3 +693,35 @@ CI14 fixed this by inserting a punch-out step between the two layers: (1) draw t
 **Follow-up (2026-06-18) — neutral-critter outline (CI15, DH2 addition, no CE equivalent)**: user wanted to be able to spot an unprovoked target (e.g. a neutral critter standing behind a wall) before attacking. CE's outline system only ever covers active combatants (`this.combatants` — player, trigger-team members, and already-hostile critters); a critter that's simply neutral (not on the player's team, not yet hostile) was never touched by `refreshHighlights()`. Added a new `'blue'` outline color, gated by the same on/off/targeting-only preference logic, so neutral critters now show through walls the same way hostile ones do (CI11's post-roof late pass).
 
 The first attempt kept the existing combatant/non-combatant split — red/green for anyone in `this.combatants`, blue for everyone else not already in that set. User reported zero highlights (not even blue) right after starting combat via the HUD gun button. Root cause: `Combat.start()` for a player-initiated fight sweeps *every team on the current map* into `triggerTeams` so any enemy can join in, meaning `this.combatants` already contains nearly every living critter on the elevation regardless of hostility. Those not-yet-hostile, different-team critters were skipped by the red/green loop (not hostile yet) *and* excluded from the blue loop (already "a combatant") — a gap with no outline at all. Fixed by dropping the split entirely: `refreshHighlights()` now classifies every live, visible critter on `globalState.gMap.getObjects()` (current elevation) in one unified pass — hostile → red, same team → green, else → blue — with no reference to `this.combatants`. `clearNeutralOutlines()` (map-wide scan clearing any `outline === 'blue'`, called from `Combat.end()`/`forceEnd()`) stays as a safety net, since `this.combatants` still doesn't necessarily cover every critter that could be blue-outlined (e.g. an NPC-initiated fight via `forceTurn` only sweeps the player's and attacker's team, leaving uninvolved third parties elsewhere out of `this.combatants` but still blue).
+
+## Dialogue Talking-Head Screen Highlights (researched 2026-06-23, not yet implemented)
+
+User remembered `hilight1.png`/`hilight2.png` should be "overlayed on the screen" to "simulate the screen curvature" of the dialogue head-display area — confirmed against CE source. **Not** a full-screen overlay; it's localized to the talking-head/portrait display rect inside the dialogue window.
+
+**CE source**: `game_dialog.cc:4549 gameDialogRenderTalkingHead()`, `:4526 gameDialogRenderHighlight()`, `:4675 gameDialogHighlightsInit()`.
+
+**What the head-display area actually shows** (`gameDialogRenderTalkingHead`, `:4549-4627`): a 388×200 rect at `(126,14)`–`(514,214)` within the dialogue background window (DH2 equivalent: `#dialogueContainer`, which is conveniently already 640×480 — the exact size of `gGameDialogBackgroundWindow`). If the speaker has talking-head art (`headFrm != nullptr`), CE blits that NPC's background plate (388×200, `gGameDialogBackground` FRM) plus the current head animation frame into the rect. **If the speaker has no head art at all, CE instead crops and blits a live 388×200 slice of the isometric game view (`gIsoWindow`)** as the "screen" content (`:4605-4627`) — i.e. the dialogue "TV" can literally show a window into the game world mid-conversation, not just a portrait. DH2 currently does neither: `#dialogueContainer`'s background is a single static `alltlk.png`, with no head-art rendering and no game-view crop — this is a separate, larger pre-existing gap from the highlight effect itself, noted here since it's the same code path.
+
+**The highlight overlay itself** (`gameDialogRenderHighlight`, `:4526-4546`, called from `:4637` and `:4648` every time the talking head is (re)rendered — i.e. every animation frame during lip-sync, not just once):
+```cpp
+void gameDialogRenderHighlight(src, srcWidth, srcHeight, srcPitch, dest, destX, destY, destPitch, a9 /*blendTable*/, a10 /*grayTable*/)
+{
+    dest += destPitch * destY + destX;
+    for (y = 0; y < srcHeight; y++) {
+        for (x = 0; x < srcWidth; x++) {
+            v1 = *src++;
+            if (v1 != 0) v1 = (256 - v1) >> 4;     // pixel value used as an intensity/weight, NOT a literal color
+            v15 = *dest;
+            *dest++ = a9[256 * v1 + v15];           // blend-table lookup keyed by (intensity, existing background pixel)
+        }
+        ...
+    }
+}
+```
+Two calls, two images, two different blend tables:
+- **Upper highlight** (`hilight1.frm`/`hilight1.png`, confirmed **89×81px**) at `destX=426, destY=15`, using `_light_BlendTable`/`_light_GrayTable` (derived from `_colorTable[17969]`) — a lightening glint, upper-right of the head rect.
+- **Lower highlight** (`hilight2.frm`/`hilight2.png`, confirmed **137×131px**) at `destX=129, destY=214-height-2=81`, using `_dark_BlendTable`/`_dark_GrayTable` (derived from `_colorTable[22187]`) — a darkening shadow, lower-left.
+
+`_light_GrayTable`/`_dark_GrayTable` are precomputed per-palette-index luminance lookup tables (`gameDialogHighlightsInit`, `:4675-4690`: `_light_GrayTable[c] = ((r+2g+2b)/10)>>2`, `_dark_GrayTable[c] = ((r+g+b)/10)>>2` from each palette color's RGB). **Important**: this means `hilight1.png`/`hilight2.png` are not meant to be displayed as literal images at all — every non-zero pixel value is reinterpreted purely as a blend-weight/mask (hence the garish raw palette colors when previewed directly: index values, not real RGB). The net visual effect is a fixed-position soft glint (upper-right) + shadow (lower-left) painted over whatever's currently in the head-display rect, every frame — exactly the "curved glass/CRT screen" look the user described, achieved via palette-index math rather than alpha-blended sprites.
+
+**DH2 status**: not implemented. Faithfully porting this requires: (1) the talking-head/game-view content in the rect to actually exist first (separate gap, see above) for the highlight to overlay *onto* anything meaningful, and (2) a true per-pixel blend pass (canvas `getImageData`/`putImageData`, since the source pixel values are blend weights rather than colors — a CSS `mix-blend-mode` trick on the raw PNG would not reproduce this correctly, as confirmed by visually inspecting the assets). Tracked as a known gap, not yet scheduled — see `wiki/known_bugs.md` P22.

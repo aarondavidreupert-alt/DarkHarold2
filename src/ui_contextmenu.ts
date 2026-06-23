@@ -76,12 +76,17 @@ export function uiContextMenu(obj: Obj, evt: any) {
         })
     })
     const talkBtn = button(obj, 'talk', () => {
-        console.log('[Dialog] talking to ' + obj.name)
         if (!obj._script) {
             console.warn('[Dialog] obj has no script')
             return
         }
-        Scripting.talk(obj._script, obj)
+        // CE ref: actions.cc:1832-1860 actionTalk — walks the player to the
+        // NPC before the dialogue callback fires, unless already close.
+        globalState.player.walkInFrontOf(obj.position, () => {
+            globalState.player.clearAnim()
+            console.log('[Dialog] talking to ' + obj.name)
+            Scripting.talk(obj._script!, obj)
+        })
     })
     const pickupBtn = button(obj, 'pickup', () => obj.pickup(globalState.player))
     const inventoryBtn = button(obj, 'inventory', () => showInventory())

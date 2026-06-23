@@ -42,11 +42,11 @@ import {
     setCompanionDisposition,
 } from './party.js'
 import { uiCompanionTrade } from './ui_companion_trade.js'
+import { getVisibleDialoguePanel, uiSwapDialoguePanel } from './ui_dialogue.js'
+import { $id } from './ui_dom.js'
+import { Scripting } from './scripting.js'
 
 // ── Layout constants (verified against game_dialog.cc) ───────────────────────
-
-const WINDOW_W = 640
-const WINDOW_H = 190
 
 // Disposition buttons — x=438, FRM dims 109x28. CE ref: game_dialog.cc:386-390
 // (gGameDialogDispositionButtonsData), key codes 2098/2103/2102/2111/2099.
@@ -125,8 +125,37 @@ const CUSTOM_OPTIONS: { [K in CustomAiCategory]: { value: AiPacket[K]; label: st
     ],
 }
 
+// ── Shared Escape handling ───────────────────────────────────────────────────
+//
+// Control and Customize both close on Escape, and the user can bounce
+// between them (Custom -> Customize -> back -> Control -> Custom -> ...)
+// without ever pressing Escape. A naive per-open addEventListener would leak
+// one listener per bounce. Instead there's a single document-level listener
+// (installed once) that delegates to whichever close callback is currently
+// "active" — set by whichever of Control/Customize is on top, cleared
+// whenever the player navigates elsewhere (Trade) or the listener fires.
+
+let activeEscapeClose: (() => void) | null = null
+let escapeListenerInstalled = false
+
+function setActiveEscapeClose(close: (() => void) | null): void {
+    activeEscapeClose = close
+    if (escapeListenerInstalled) return
+    escapeListenerInstalled = true
+    document.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key !== 'Escape' || !activeEscapeClose) return
+        e.preventDefault()
+        const fn = activeEscapeClose
+        activeEscapeClose = null
+        fn!()
+    }, true)
+}
+
 // ── DOM helpers ────────────────────────────────────────────────────────────────
 
+// Used only by uiCustomCategoryPicker — a genuine floating modal (not part
+// of the persistent dialogueContainer panel-slot system), since CE has no
+// dedicated window for this either (it reuses the dialogue option list).
 function makeOverlay(): HTMLDivElement {
     const el = document.createElement('div')
     Object.assign(el.style, {
@@ -215,15 +244,17 @@ function makeLabel(x: number, y: number, text: string, color = '#c8b466'): HTMLD
  * CE ref: game_dialog.cc:3354 partyMemberControlWindowInit.
  */
 export function uiCompanionControl(companion: Critter): void {
-    const prevMode = globalState.uiMode
     globalState.uiMode = UIMode.companionControl
 
-    const overlay = makeOverlay()
-    const panel = makePanel('control', WINDOW_W, WINDOW_H)
+    const panel = $id('companionControlBox')
 
+    // CE ref: game_dialog.cc:3741-3744 — the control screen's Talk button
+    // (key Escape) always sets _dialogue_switch_mode=1, returning to the
+    // normal dialogue/Talk window, regardless of how Control was entered.
     function close(): void {
-        overlay.remove()
-        globalState.uiMode = prevMode
+        activeEscapeClose = null
+        globalState.uiMode = UIMode.dialogue
+        uiSwapDialoguePanel(panel, $id('dialogueBox'), () => Scripting.reenterDialogue())
     }
 
     function redraw(): void {
@@ -232,6 +263,8 @@ export function uiCompanionControl(companion: Critter): void {
         // in sync after any action.
         panel.innerHTML = ''
         panel.style.backgroundImage = "url('art/intrface/control.png')"
+        panel.style.backgroundSize = '100% 100%'
+        ;(panel.style as any).imageRendering = 'pixelated'
 
         // Stat readout. CE ref: game_dialog.cc partyMemberControlWindowUpdate
         // (~line 3542) — weapon name y=20, armor name y=49, HP y=96, weight y=131.
@@ -254,14 +287,14 @@ export function uiCompanionControl(companion: Critter): void {
         panel.appendChild(makeLabel(20, 96, 'Disposition: ' + packet.disposition))
 
         // Action buttons — CE ref: game_dialog.cc:3388-3418.
-        panel.appendChild(makeActionButton(593, 41, () => {
-            // CE's TALK button re-enters the companion's normal dialogue node.
-            // DH2 has no dedicated re-entry hook here — just close the screen
-            // and let the player re-initiate dialogue normally.
-            close()
-        }))
+        panel.appendChild(makeActionButton(593, 41, close))
         panel.appendChild(makeActionButton(593, 97, () => {
-            close()
+            // CE ref: game_dialog.cc:3757-3762 — Trade transitions straight
+            // from Control to the barter window, no intermediate return to
+            // dialogue (the barter window itself always exits back to Talk —
+            // _barter_end_to_talk_to, game_dialog.cc:3178-3186 — not back to
+            // Control, even though it was entered from here).
+            activeEscapeClose = null
             uiCompanionTrade(companion)
         }))
         panel.appendChild(makeActionButton(236, 15, () => {
@@ -282,8 +315,11 @@ export function uiCompanionControl(companion: Critter): void {
                 () => {
                     if (btn.disposition === 'custom') {
                         setCompanionDisposition(companion, 'custom')
-                        close()
-                        uiCompanionCustomize(companion, () => uiCompanionControl(companion))
+                        // CE ref: game_dialog.cc:3730-3734 — Custom transitions
+                        // straight from Control to Customize, no return to
+                        // dialogue in between (Customize's own exit returns to
+                        // Control — game_dialog.cc:3968-3971).
+                        uiCompanionCustomize(companion)
                         return
                     }
                     setCompanionDisposition(companion, btn.disposition)
@@ -291,19 +327,11 @@ export function uiCompanionControl(companion: Critter): void {
                 }
             ))
         }
-
-        overlay.appendChild(panel)
     }
 
     redraw()
-    overlay.appendChild(panel)
-
-    const keyHandler = (e: KeyboardEvent): void => {
-        if (e.key === 'Escape') { e.preventDefault(); close(); document.removeEventListener('keydown', keyHandler, true) }
-    }
-    document.addEventListener('keydown', keyHandler, true)
-
-    getUiContainer().appendChild(overlay)
+    uiSwapDialoguePanel(getVisibleDialoguePanel(), panel)
+    setActiveEscapeClose(close)
 }
 
 /** Cheap existence check used only to decide whether to show a disposition
@@ -319,21 +347,24 @@ function findSiblingPreview(companion: Critter, disposition: Disposition): boole
  * Open the 6-category "Custom" behavior screen for `companion`.
  * CE ref: game_dialog.cc:~3780 partyMemberCustomizationWindowInit.
  */
-export function uiCompanionCustomize(companion: Critter, onClose: () => void): void {
-    const prevMode = globalState.uiMode
+export function uiCompanionCustomize(companion: Critter): void {
     globalState.uiMode = UIMode.companionControl
 
-    const overlay = makeOverlay()
-    const panel = makePanel('custom', WINDOW_W, WINDOW_H)
+    const panel = $id('companionCustomizeBox')
 
+    // CE ref: game_dialog.cc:3968-3971 — Customize's Escape/Enter always
+    // returns to Control (_dialogue_switch_mode=8), never straight to dialogue.
     function close(): void {
-        overlay.remove()
-        globalState.uiMode = prevMode
-        onClose()
+        activeEscapeClose = null
+        uiSwapDialoguePanel(panel, $id('companionControlBox'), () => uiCompanionControl(companion))
     }
 
     function redraw(): void {
         panel.innerHTML = ''
+        panel.style.backgroundImage = "url('art/intrface/custom.png')"
+        panel.style.backgroundSize = '100% 100%'
+        ;(panel.style as any).imageRendering = 'pixelated'
+
         const packet = getCompanionEffectivePacket(companion)
 
         panel.appendChild(makeLabel(220, 4, (companion.name ?? 'Companion') + " — Custom behavior", '#ffff80'))
@@ -351,19 +382,11 @@ export function uiCompanionCustomize(companion: Critter, onClose: () => void): v
         }
 
         panel.appendChild(makeActionButton(593, 161, close))
-
-        overlay.appendChild(panel)
     }
 
     redraw()
-    overlay.appendChild(panel)
-
-    const keyHandler = (e: KeyboardEvent): void => {
-        if (e.key === 'Escape') { e.preventDefault(); close(); document.removeEventListener('keydown', keyHandler, true) }
-    }
-    document.addEventListener('keydown', keyHandler, true)
-
-    getUiContainer().appendChild(overlay)
+    uiSwapDialoguePanel(getVisibleDialoguePanel(), panel)
+    setActiveEscapeClose(close)
 }
 
 // ── Per-category value picker (cussel.png) ───────────────────────────────────
@@ -386,8 +409,15 @@ function uiCustomCategoryPicker(
     const W = 444, H = 206
     const panel = makePanel('cussel', W, H)
 
+    // Suspend the shared Customize-screen Escape handler while this modal is
+    // open so a single Escape press doesn't close both at once; restore it
+    // once the modal is gone.
+    const savedEscapeClose = activeEscapeClose
+    activeEscapeClose = null
+
     function close(): void {
         overlay.remove()
+        activeEscapeClose = savedEscapeClose
         onDone()
     }
 

@@ -810,6 +810,68 @@ html, body {
   color: white;
 }
 
+/* Player caps readout in the dialogue window. CE ref: game_dialog.cc:1828-1853
+   gameDialogRenderCaps — rect (5,36)-(70,36+lineHeight), font 101, centered. */
+#dialogueCapsDisplay {
+  position: absolute;
+  left: 5px;
+  top: 36px;
+  width: 65px;
+  height: 16px;
+  color: #00FF00;
+  font-size: .75em;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* Persistent dialogue-window action buttons — CE ref: game_dialog.cc:4357-4388
+   _gdialog_window_create. Barter (593,41) exists on every dialogue; Combat
+   Control (593,116) only when talking to a party member (toggled in
+   uiStartDialogue, ui_dialogue.ts). Both 14x14, same di_rdbt2/di_rdbt1
+   up/down convention as the companion control screen's action buttons. */
+#dialogueBarterButton,
+#dialogueCombatControlButton {
+  position: absolute;
+  left: 593px;
+  width: 14px;
+  height: 14px;
+  background-image: url("art/intrface/di_rdbt2.png");
+  background-size: 100% 100%;
+  cursor: pointer;
+}
+
+#dialogueBarterButton {
+  top: 41px;
+}
+
+#dialogueCombatControlButton {
+  top: 116px;
+  display: none;
+}
+
+#dialogueBarterButton:active,
+#dialogueCombatControlButton:active {
+  background-image: url("art/intrface/di_rdbt1.png");
+}
+
+/* Review button — CE ref: game_dialog.cc:4357-4388 _gdialog_window_create,
+   position (13,154), 51x29, di_rest1.frm (up) / di_rest2.frm (down) — note
+   the up/down FRM suffixes are reversed compared to di_rdbt2(up)/di_rdbt1(down). */
+#dialogueReviewButton {
+  position: absolute;
+  left: 13px;
+  top: 154px;
+  width: 51px;
+  height: 29px;
+  background-image: url("art/intrface/di_rest1.png");
+  background-size: 100% 100%;
+  cursor: pointer;
+}
+
+#dialogueReviewButton:active {
+  background-image: url("art/intrface/di_rest2.png");
+}
+
 #barterBox {
   position: absolute;
   /* Relative to #dialogueContainer, which is itself centered by .ui-stage. */
@@ -819,17 +881,24 @@ html, body {
   height: 190px;
 
   visibility: hidden;
+  /* Default (vendor); swapped to trade.png for party members in JS —
+     CE ref: game_dialog.cc:3194-3200 _gdialog_barter_create_win (FRM 111
+     barter.frm vs FRM 420 trade.frm). */
   background-image: url("art/intrface/barter.png");
 }
 
-/* barter screen "talk" button */
+/* barter screen "talk" button — CE ref: game_dialog.cc:3243
+   _gdialog_barter_create_win, exact position (584,162), 14x14, same
+   di_rdbt2/di_rdbt1 red-button art as every other dialogue/control button —
+   not a distinct "menu" button style. */
 #barterTalkButton {
   position: absolute;
-  left: 580px;
-  top: 160px;
-  width: 26px;
-  height: 26px;
-  background-image: url("art/intrface/menuup.png");
+  left: 584px;
+  top: 162px;
+  width: 14px;
+  height: 14px;
+  background-image: url("art/intrface/di_rdbt2.png");
+  background-size: 100% 100%;
 }
 
 #barterTalkButton:hover {
@@ -837,17 +906,36 @@ html, body {
 }
 
 #barterTalkButton:active {
-  background-image: url("art/intrface/menudown.png");
+  background-image: url("art/intrface/di_rdbt1.png");
 }
 
-/* barter screen "offer" button */
+/* Companion control / customize panels — same slot/size convention as
+   #dialogueBox and #barterBox (640x190, slides in/out via uiAnimateBox),
+   so the persistent #dialogueContainer portrait background stays visible
+   behind them. background-image is set dynamically in JS (control.png /
+   custom.png) since unlike dialogueBox/barterBox the background can change
+   per-companion FRM lookup in theory. */
+#companionControlBox,
+#companionCustomizeBox {
+  position: absolute;
+  left: 0px;
+  top: 300px;
+  width: 640px;
+  height: 190px;
+
+  visibility: hidden;
+}
+
+/* barter screen "trade/offer" button — CE ref: game_dialog.cc:3238
+   _gdialog_barter_create_win, exact position (41,163), 14x14, di_rdbt2/di_rdbt1. */
 #barterOfferButton {
   position: absolute;
-  left: 36px;
-  top: 160px;
-  width: 26px;
-  height: 26px;
-  background-image: url("art/intrface/menuup.png");
+  left: 41px;
+  top: 163px;
+  width: 14px;
+  height: 14px;
+  background-image: url("art/intrface/di_rdbt2.png");
+  background-size: 100% 100%;
 }
 
 #barterOfferButton:hover {
@@ -855,7 +943,7 @@ html, body {
 }
 
 #barterOfferButton:active {
-  background-image: url("art/intrface/menudown.png");
+  background-image: url("art/intrface/di_rdbt1.png");
 }
 
 /* left (player) inventory box */
@@ -878,6 +966,141 @@ html, body {
   height: 130px;
   /*background-color: gray;*/
   overflow: hidden;
+}
+
+/* Player/merchant outer-inventory scroll buttons. CE ref: inventory.cc:1075-1225
+   _setup_inventory(INVENTORY_WINDOW_TYPE_TRADE) — left at LOCAL (109,56)/(109,82),
+   right at LOCAL (342,56)/(342,82) (mirrored via CTRL-modified keys), FRM
+   100/101 (di_up1/di_up2) and 93/94 (di_down1/di_down2).
+   IMPORTANT: these coordinates are relative to `gInventoryWindow`, a SEPARATE
+   480-wide sub-window inset by `INVENTORY_TRADE_WINDOW_X` = 80px within the
+   640-wide background (inventory.cc:54-57,780-784) — not relative to
+   #barterBox (which represents the full 640-wide background) directly. All
+   X coordinates from inventory.cc need +80 added; Y does not (the inset is
+   horizontal only). Originally implemented without this offset, which is
+   why both pairs appeared shifted 80px too far left — see wiki/known_bugs.md.
+   Only the two outer inventory lists scroll this way in CE — the inner
+   offer tables (#barterBoxLeft/#barterBoxRight) have their own, separate
+   smaller scroll buttons (#barterOfferScroll*, below). */
+#barterScrollLeftUp,
+#barterScrollRightUp {
+  position: absolute;
+  width: 23px;
+  height: 24px;
+  top: 56px;
+  background-image: url("art/intrface/di_up1.png");
+  background-size: 100% 100%;
+  cursor: pointer;
+}
+
+#barterScrollLeftDown,
+#barterScrollRightDown {
+  position: absolute;
+  width: 24px;
+  height: 25px;
+  top: 82px;
+  background-image: url("art/intrface/di_down1.png");
+  background-size: 100% 100%;
+  cursor: pointer;
+}
+
+#barterScrollLeftUp,
+#barterScrollLeftDown {
+  left: 189px; /* LOCAL 109 + INVENTORY_TRADE_WINDOW_X (80) */
+}
+
+#barterScrollRightUp,
+#barterScrollRightDown {
+  left: 422px; /* LOCAL 342 + INVENTORY_TRADE_WINDOW_X (80) */
+}
+
+/* Offer-table ("suggested items") scroll buttons — smaller, sit below the
+   outer-inventory scroll buttons. CE ref: inventory.cc:1390-1480 — left at
+   LOCAL (128,113)/(128,136), right at LOCAL (333,113)/(333,136) (mirrored
+   via KEY_PAGE_UP/DOWN vs KEY_CTRL_PAGE_UP/DOWN), both 22x23, FRM 49/50
+   (invupout.frm/invupin.frm) and 51/52 (invdnout.frm/invdnin.frm) — the
+   same "INVUPOUT"-family arrows used by the plain single-player inventory
+   screen, reused here. Same +80 (INVENTORY_TRADE_WINDOW_X) horizontal
+   offset applies as the outer-inventory buttons above. */
+#barterOfferScrollLeftUp,
+#barterOfferScrollRightUp {
+  position: absolute;
+  width: 22px;
+  height: 23px;
+  top: 113px;
+  background-image: url("art/intrface/invupout.png");
+  background-size: 100% 100%;
+  cursor: pointer;
+}
+
+#barterOfferScrollLeftDown,
+#barterOfferScrollRightDown {
+  position: absolute;
+  width: 22px;
+  height: 23px;
+  top: 136px;
+  background-image: url("art/intrface/invdnout.png");
+  background-size: 100% 100%;
+  cursor: pointer;
+}
+
+#barterOfferScrollLeftUp,
+#barterOfferScrollLeftDown {
+  left: 208px; /* LOCAL 128 + 80 */
+}
+
+#barterOfferScrollRightUp,
+#barterOfferScrollRightDown {
+  left: 413px; /* LOCAL 333 + 80 */
+}
+
+#barterOfferScrollLeftUp:active,
+#barterOfferScrollRightUp:active {
+  background-image: url("art/intrface/invupin.png");
+}
+
+#barterOfferScrollLeftDown:active,
+#barterOfferScrollRightDown:active {
+  background-image: url("art/intrface/invdnin.png");
+}
+
+/* Player/barterer body-view portraits ("the two screens"). CE ref:
+   inventory.cc:2039-2052 _display_body — player at (15,25), barterer/NPC at
+   (560,25), both 60x100, drawn directly into the full 640-wide window (no
+   +80 offset — these are NOT inside the inset gInventoryWindow).
+   Known simplification: CE renders the critter's actual standing sprite
+   here (idle pose, player at rotation SW, NPC at its current rotation);
+   DH2 doesn't yet have static-sprite-portrait rendering infrastructure, so
+   this just shows the name as a placeholder — see wiki/known_bugs.md. */
+#barterBoxPlayerPortrait,
+#barterBoxMerchantPortrait {
+  position: absolute;
+  top: 25px;
+  width: 60px;
+  height: 100px;
+  color: #00ff00;
+  font-size: 0.7em;
+  text-align: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+#barterBoxPlayerPortrait {
+  left: 15px;
+}
+
+#barterBoxMerchantPortrait {
+  left: 560px;
+}
+
+#barterScrollLeftUp:active,
+#barterScrollRightUp:active {
+  background-image: url("art/intrface/di_up2.png");
+}
+
+#barterScrollLeftDown:active,
+#barterScrollRightDown:active {
+  background-image: url("art/intrface/di_down2.png");
 }
 
 /* left (player) bartering table */

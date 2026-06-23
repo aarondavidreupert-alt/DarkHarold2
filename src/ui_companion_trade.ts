@@ -36,36 +36,56 @@ limitations under the License.
 import globalState from './globalState.js'
 import { Critter, cloneItem, Obj } from './object.js'
 import { UIMode } from './ui_panels.js'
-import { uiAnimateBox } from './ui_dialogue.js'
+import { getVisibleDialoguePanel, uiSetDialogueReply, uiSwapDialoguePanel } from './ui_dialogue.js'
 import { makeDropTarget, makeDraggable } from './ui_inventory.js'
 import { $id, clearEl, makeEl } from './ui_dom.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter/swap.js'
+import { Scripting } from './scripting.js'
+import { getMessage } from './util.js'
 
+// CE ref: game_dialog.cc:3178-3186 _barter_end_to_talk_to — barter/trade
+// always exits straight back to the normal Talk/dialogue window, even when
+// entered from the companion control screen's own Trade button (not back to
+// Control — game_dialog.cc:3757-3762 confirms Trade-from-Control just sets
+// _dialogue_switch_mode=2, the same state barter-from-dialogue uses).
 function uiEndCompanionTrade(): void {
     const $barterBox = $id('barterBox')
-
-    uiAnimateBox($barterBox, null, 480, () => {
-        $barterBox.style.visibility = 'hidden'
-        $barterBox.style.display = 'none'
-    })
-
-    globalState.uiMode = UIMode.none
+    $barterBox.style.pointerEvents = 'none'
+    globalState.uiMode = UIMode.dialogue
+    uiSwapDialoguePanel($barterBox, $id('dialogueBox'), () => Scripting.reenterDialogue())
 }
 
 export function uiCompanionTrade(companion: Critter): void {
     globalState.uiMode = UIMode.barter
 
     const $barterBox = $id('barterBox')
-    $barterBox.style.display = ''
-    $barterBox.style.visibility = 'visible'
     $barterBox.style.pointerEvents = 'auto'
-    uiAnimateBox($barterBox, 480, 290)
+    // #barterBox is shared with uiBarterMode() (vendor barter, barter.png) —
+    // CE ref: game_dialog.cc:3194-3200 _gdialog_barter_create_win picks FRM
+    // 420 (trade.frm) instead of FRM 111 (barter.frm) for party members.
+    $barterBox.style.backgroundImage = "url('art/intrface/trade.png')"
+    uiSwapDialoguePanel(getVisibleDialoguePanel(), $barterBox)
+    // CE ref: inventory.cc:2039-2052 _display_body — player at (15,25),
+    // barterer at (560,25), both 60x100, drawn straight onto the full
+    // dialogue window. Simplification: DH2 has no static-sprite-portrait
+    // rendering yet, so this shows the name as a placeholder.
+    $id('barterBoxPlayerPortrait').textContent = globalState.player.name ?? 'You'
+    $id('barterBoxMerchantPortrait').textContent = companion.name ?? ''
 
     let workingPlayerInventory = globalState.player.inventory.map(cloneItem)
     let workingCompanionInventory = companion.inventory.map(cloneItem)
 
     let playerBarterTable: Obj[] = []
     let companionBarterTable: Obj[] = []
+
+    // Scroll offsets — CE ref: inventory.cc _ptable_offset/_target_pud
+    // (outer inventories, scroll buttons at inventory.cc:1086-1225) and the
+    // separate, smaller "offered items" scroll buttons for the inner tables
+    // (inventory.cc:1390-1480).
+    let playerInvScroll = 0
+    let companionInvScroll = 0
+    let playerOfferScroll = 0
+    let companionOfferScroll = 0
 
     function totalWeight(objects: Obj[]): number {
         let total = 0
@@ -81,7 +101,11 @@ export function uiCompanionTrade(companion: Critter): void {
         const playerCurrentWeight = workingPlayerInventory.reduce((s, o) => s + (o.pro?.extra?.weight ?? 0) * o.amount, 0)
         const playerWeightAvailable = playerCarry - playerCurrentWeight
         if (totalWeight(companionBarterTable) > playerWeightAvailable) {
-            console.log('[Companion Trade] offer refused — exceeds your carry weight')
+            // CE ref: inventory.cc:4710-4718 — message 31 "Sorry, you cannot
+            // carry that much.", rendered via gameDialogRenderSupplementaryMessage
+            // into the dialogue reply window (DH2: #dialogueBoxReply, which
+            // stays visible behind the trade panel — see uiSetDialogueReply).
+            uiSetDialogueReply(getMessage('inventry', 31) ?? 'Sorry, you cannot carry that much.')
             return
         }
 
@@ -89,7 +113,9 @@ export function uiCompanionTrade(companion: Critter): void {
         const companionCurrentWeight = workingCompanionInventory.reduce((s, o) => s + (o.pro?.extra?.weight ?? 0) * o.amount, 0)
         const companionWeightAvailable = companionCarry - companionCurrentWeight
         if (totalWeight(playerBarterTable) > companionWeightAvailable) {
-            console.log(`[Companion Trade] offer refused — exceeds ${companion.name ?? 'companion'}'s carry weight`)
+            // CE ref: inventory.cc:4720-4728 — message 32 "Sorry, that's too
+            // much to carry." (gGameDialogSpeakerIsPartyMember branch).
+            uiSetDialogueReply(getMessage('inventry', 32) ?? "Sorry, that's too much to carry.")
             return
         }
 
@@ -108,9 +134,9 @@ export function uiCompanionTrade(companion: Critter): void {
         redraw()
     }
 
-    function drawInventory($el: HTMLElement, who: 'p' | 'm' | 'l' | 'r', objects: Obj[]): void {
+    function drawInventory($el: HTMLElement, who: 'p' | 'm' | 'l' | 'r', objects: Obj[], scroll: number = 0): void {
         clearEl($el)
-        for (let i = 0; i < objects.length; i++) {
+        for (let i = scroll; i < objects.length; i++) {
             const obj = objects[i]
             const inventoryImage = obj.invArt
             const img = makeEl('img', {
@@ -120,6 +146,9 @@ export function uiCompanionTrade(companion: Critter): void {
             })
             $el.appendChild(img)
             $el.insertAdjacentHTML('beforeend', 'x' + obj.amount)
+            // drag-data index is the index into the underlying array (`i`),
+            // not the on-screen position, so drops/swaps still target the
+            // right item regardless of scroll offset.
             makeDraggable(img, who + i)
         }
     }
@@ -167,11 +196,55 @@ export function uiCompanionTrade(companion: Critter): void {
     $id('barterTalkButton').onclick = uiEndCompanionTrade
     $id('barterOfferButton').onclick = offer
 
+    // CE ref: inventory.cc:1086-1225 — outer-inventory scroll buttons, one
+    // item per click, clamped so there's always at least one item visible.
+    $id('barterScrollLeftUp').onclick = () => {
+        playerInvScroll = Math.max(0, playerInvScroll - 1)
+        redraw()
+    }
+    $id('barterScrollLeftDown').onclick = () => {
+        playerInvScroll = Math.min(Math.max(0, workingPlayerInventory.length - 1), playerInvScroll + 1)
+        redraw()
+    }
+    $id('barterScrollRightUp').onclick = () => {
+        companionInvScroll = Math.max(0, companionInvScroll - 1)
+        redraw()
+    }
+    $id('barterScrollRightDown').onclick = () => {
+        companionInvScroll = Math.min(Math.max(0, workingCompanionInventory.length - 1), companionInvScroll + 1)
+        redraw()
+    }
+
+    // CE ref: inventory.cc:1390-1480 — offer-table scroll buttons, same
+    // one-item-per-click model as the outer inventories above.
+    $id('barterOfferScrollLeftUp').onclick = () => {
+        playerOfferScroll = Math.max(0, playerOfferScroll - 1)
+        redraw()
+    }
+    $id('barterOfferScrollLeftDown').onclick = () => {
+        playerOfferScroll = Math.min(Math.max(0, playerBarterTable.length - 1), playerOfferScroll + 1)
+        redraw()
+    }
+    $id('barterOfferScrollRightUp').onclick = () => {
+        companionOfferScroll = Math.max(0, companionOfferScroll - 1)
+        redraw()
+    }
+    $id('barterOfferScrollRightDown').onclick = () => {
+        companionOfferScroll = Math.min(Math.max(0, companionBarterTable.length - 1), companionOfferScroll + 1)
+        redraw()
+    }
+
     function redraw(): void {
-        drawInventory($id('barterBoxInventoryLeft'), 'p', workingPlayerInventory)
-        drawInventory($id('barterBoxInventoryRight'), 'm', workingCompanionInventory)
-        drawInventory($id('barterBoxLeft'), 'l', playerBarterTable)
-        drawInventory($id('barterBoxRight'), 'r', companionBarterTable)
+        // Clamp scroll offsets in case items were moved out from under them.
+        playerInvScroll = Math.min(playerInvScroll, Math.max(0, workingPlayerInventory.length - 1))
+        companionInvScroll = Math.min(companionInvScroll, Math.max(0, workingCompanionInventory.length - 1))
+        playerOfferScroll = Math.min(playerOfferScroll, Math.max(0, playerBarterTable.length - 1))
+        companionOfferScroll = Math.min(companionOfferScroll, Math.max(0, companionBarterTable.length - 1))
+
+        drawInventory($id('barterBoxInventoryLeft'), 'p', workingPlayerInventory, playerInvScroll)
+        drawInventory($id('barterBoxInventoryRight'), 'm', workingCompanionInventory, companionInvScroll)
+        drawInventory($id('barterBoxLeft'), 'l', playerBarterTable, playerOfferScroll)
+        drawInventory($id('barterBoxRight'), 'r', companionBarterTable, companionOfferScroll)
 
         // Weight, not money — CE has no price concept in this screen at all.
         $id('barterBoxLeftAmount').innerHTML = totalWeight(playerBarterTable) + ' lbs'

@@ -345,15 +345,28 @@ Clicking Combat Control sets `_dialogue_switch_mode = 8`, which `gameDialogTicke
 (`game_dialog.cc:2825-2830`) turns into a call to `partyMemberControlWindowInit()` — i.e. the
 control screen replaces the dialogue window, it is not reached *instead of* talking.
 
-DH2 has no per-button dialogue-window chrome — NPC interaction is option-list driven via
-`gsay_*`/`uiAddDialogueOption`. So instead of a literal window button, talking to a party member
-(via the normal `Scripting.talk()` flow, same as any NPC with a `talk_p_proc`) gets a synthesized
-`[Combat Control]` dialogue option injected in `scripting.ts`'s `gsay_end()` whenever
-`globalState.gParty.isPartyMember(currentDialogueObject)` is true — the same pattern already used
-for the existing `[Barter]` option (CE ref: `game_dialog.cc:3662 _gdCanBarter`). Picking it calls
-`uiCompanionControl()`. There is no bypass of dialogue on Talk; `input.ts`'s `talkTo` handler and
-the right-click context menu's Talk button both just call `Scripting.talk()` unconditionally, same
-as for non-party NPCs.
+**UPDATED 2026-06-22**: DH2 now has real dialogue-window buttons matching CE, added to
+`#dialogueBox` (`play.html`/`ui.css`: `#dialogueBarterButton` at 593,41, `#dialogueCombatControlButton`
+at 593,116), wired in `setupDialogueActionButtons()` (`ui_dialogue.ts`), called from
+`uiStartDialogue()` every time dialogue opens or re-opens — i.e. genuine persistent window chrome,
+not tied to any one `gsay_end()` node, matching CE's model exactly. `#dialogueBox`'s background also
+swaps between `di_talk.png` (regular NPC) and `di_talkp.png` (party member) here, matching CE's FRM
+390-vs-99 background pick at `_gdialog_window_create()` (`game_dialog.cc:4328-4330`). Combat Control
+is only shown (`display: none` otherwise) when `globalState.gParty.isPartyMember(target)`; clicking
+it calls `uiCompanionControl()`. Barter is always shown; clicking it replicates
+`gameDialogBarterButtonUpMouseUp` (`game_dialog.cc:4272-4311`) exactly — checks `CRITTER_BARTER`
+(proto flag 0x02), then branches `uiCompanionTrade()`/`uiBarterMode()` per party-member status (see
+§8.7/P7), or logs proto.msg 903/913 if barter isn't available. The previous approach (synthesized
+`[Combat Control]`/`[Barter]` dialogue-list options injected from `gsay_end()`) has been removed —
+it only appeared on nodes that actually called `gsay_end()`, which doesn't match CE's always-present
+button. There is no bypass of dialogue on Talk; `input.ts`'s `talkTo` handler and the right-click
+context menu's Talk button both just call `Scripting.talk()` unconditionally, same as for non-party
+NPCs — the buttons are independent UI chrome layered on top, exactly as in CE.
+
+CE's third dialogue-window button, **Review** (dialogue history scrollback, position 13,154,
+`game_dialog.cc:1512 gameDialogReviewButtonOnMouseUp`), was identified during this research and
+**implemented 2026-06-22** — see `wiki/known_bugs.md` P17 for the full citation table (`#dialogueReviewButton`,
+`src/ui_dialogue_review.ts`, `Scripting.getDialogueReviewLog()`).
 
 ### 8.2 Control window layout (verified against source)
 

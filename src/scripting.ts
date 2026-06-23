@@ -47,7 +47,6 @@ import { ScriptVM } from './vm.js'
 import { Worldmap } from './worldmap.js'
 import { ScriptVMBridge } from './vm_bridge.js'
 import { Config } from './config.js'
-import { uiCompanionControl } from './ui_companion.js'
 
 export module Scripting {
     var gameObjects: Obj[] | null = null
@@ -59,7 +58,23 @@ export module Scripting {
     var mapFirstRun = true
     var scriptMessages: { [scriptName: string]: { [msgID: number]: string } } = {}
     var dialogueOptionProcs: (() => void)[] = [] // Maps dialogue options to handler callbacks
+    var dialogueOptionTexts: string[] = [] // parallel to dialogueOptionProcs — display text, for the review log
     var currentDialogueObject: Obj | null = null
+
+    // Conversation review log. CE ref: game_dialog.cc gDialogReviewEntries —
+    // every NPC line (gsay_reply/gsay_message) paired with whichever option
+    // text the player picked in response (set once the player actually
+    // chooses, game_dialog.cc:2040-2044 _gdProcessChoice), shown via the
+    // Review button (game_dialog.cc:1512 gameDialogReviewButtonOnMouseUp).
+    export interface DialogueReviewEntry {
+        reply: string
+        option: string | null
+    }
+    var dialogueReviewLog: DialogueReviewEntry[] = []
+
+    export function getDialogueReviewLog(): readonly DialogueReviewEntry[] {
+        return dialogueReviewLog
+    }
     export var timeEventList: TimedEvent[] = []
     let overrideStartPos: StartPos | null = null
     let fadeOverlay: HTMLDivElement | null = null
@@ -267,11 +282,25 @@ export module Scripting {
 
     export function dialogueReply(id: number): void {
         var f = dialogueOptionProcs[id]
+        // CE ref: game_dialog.cc:2040-2044 _gdProcessChoice — records the
+        // chosen option's text onto the most recent review entry, before
+        // running its callback (which may clear/replace state).
+        const pickedText = dialogueOptionTexts[id]
+        if (dialogueReviewLog.length > 0 && pickedText !== undefined) {
+            dialogueReviewLog[dialogueReviewLog.length - 1].option = pickedText
+        }
         dialogueOptionProcs = []
+        dialogueOptionTexts = []
         f()
-        // by this point we may have already exited dialogue or switched to barter
-        if (globalState.uiMode === UIMode.barter) {
-            // script switched to barter mode — don't close dialogue
+        // by this point the option's callback may have switched to an
+        // entirely different screen (barter, companion control/customize) —
+        // the "no more options, close dialogue" logic below only applies if
+        // we're still actually showing the dialogue UI. Checking only for
+        // UIMode.barter (pre-2026-06-22) missed companionControl, causing
+        // dialogueExit() to fire immediately after opening Combat Control —
+        // hiding the dialogue UI instantly and nulling currentDialogueObject
+        // out from under it.
+        if (globalState.uiMode !== UIMode.dialogue) {
             return
         }
         if (currentDialogueObject !== null && dialogueOptionProcs.length === 0) {
@@ -310,6 +339,7 @@ export module Scripting {
         }
         globalState.uiMode = UIMode.dialogue
         dialogueOptionProcs = []
+        dialogueOptionTexts = []
         talk(currentDialogueObject._script, currentDialogueObject)
     }
 
@@ -318,6 +348,7 @@ export module Scripting {
     export function getDialogueOptionCount(): number {
         return dialogueOptionProcs.length
     }
+
 
     /** Seed Math.random for deterministic crawler runs. */
     export function setSeed(n: number): void {
@@ -1727,6 +1758,15 @@ export module Scripting {
             log('start_gdialog', arguments)
             info('DIALOGUE START', 'dialogue')
             if (!this.self_obj) throw 'no self_obj for start_gdialog'
+            // CE ref: game_dialog.cc:1070-1075 _gdialogStart resets the review
+            // log once per conversation. start_gdialog() fires on every
+            // talk_p_proc run, including Scripting.reenterDialogue()'s
+            // re-entry after Barter/Trade/Combat-Control — only reset on a
+            // genuinely fresh Talk (uiMode isn't already dialogue yet; on a
+            // reenter, reenterDialogue() already set it before calling talk()).
+            if (globalState.uiMode !== UIMode.dialogue) {
+                dialogueReviewLog = []
+            }
             currentDialogueObject = this.self_obj as Critter
             uiStartDialogue(false, this.self_obj as Critter)
             //stub("start_gdialog", arguments)
@@ -1734,6 +1774,7 @@ export module Scripting {
         gsay_start() {
             log('gsay_start', arguments)
             dialogueOptionProcs = []
+            dialogueOptionTexts = []
             // ensure dialogue UI is open (may already be open from start_gdialog)
             if (globalState.uiMode !== UIMode.dialogue && this.self_obj) {
                 uiStartDialogue(false, this.self_obj as Critter)
@@ -1746,6 +1787,9 @@ export module Scripting {
             if (msg === null) throw Error('gsay_reply: msg is null')
             info('REPLY: ' + msg, 'dialogue')
             uiSetDialogueReply(msg)
+            // CE ref: game_dialog.cc:1134-1146 gameDialogSetMessageReply ->
+            // gameDialogAddReviewMessage.
+            dialogueReviewLog.push({ reply: msg, option: null })
         }
         gsay_message(msgList: number, msgID: string | number, reaction: number) {
             // ref: fallout2-ce dialog.cc gDialogSayMessage
@@ -1756,9 +1800,13 @@ export module Scripting {
                 return
             }
             uiSetDialogueReply(msg)
+            // CE ref: game_dialog.cc:1148-1160 gameDialogSetTextReply ->
+            // gameDialogAddReviewText.
+            dialogueReviewLog.push({ reply: msg, option: null })
             // single synthesised [Done] option; dialogueReply will call dialogueExit
             // because dialogueOptionProcs will be empty after the no-op proc fires
             dialogueOptionProcs.push(() => { /* no-op: dialogueReply checks length after */ })
+            dialogueOptionTexts.push('[Done]')
             uiAddDialogueOption('[Done]', dialogueOptionProcs.length - 1)
             // save resume address and halt VM, mirroring the gsay_end convention
             if (this._vm) {
@@ -1769,29 +1817,15 @@ export module Scripting {
         gsay_end() {
             // Halt the VM so the player can interact with dialogue options.
             // dialogueExit() resumes via vm.pc = vm.popAddr(); vm.run().
+            //
+            // CE ref: game_dialog.cc:3662 _gdCanBarter / :4357-4388 — Barter
+            // and (for party members) Combat Control are persistent buttons
+            // on the dialogue window itself, not tied to any one node's
+            // option list. Previously synthesized as dialogue-list options
+            // here; moved to real always-present buttons wired in
+            // uiStartDialogue() (ui_dialogue.ts) to match CE — see
+            // wiki/known_bugs.md P9.
             info('[gsay_end: halting VM for dialogue]', 'dialogue')
-            // CE ref: game_dialog.cc:3662 _gdCanBarter — permanent Barter button when
-            // CRITTER_BARTER flag (0x02) is set on the NPC proto.extra.flags
-            if (currentDialogueObject) {
-                const proFlags = (currentDialogueObject as any).pro?.extra?.flags ?? 0
-                if ((proFlags & 0x02) !== 0) {
-                    const npc = currentDialogueObject as Critter
-                    dialogueOptionProcs.push(() => uiBarterMode(npc))
-                    uiAddDialogueOption('[Barter]', dialogueOptionProcs.length - 1)
-                }
-
-                // CE ref: game_dialog.cc:4380-4388 — when
-                // gGameDialogSpeakerIsPartyMember, the dialogue window gets
-                // an extra "Combat Control" button (gameDialogCombatControlButtonOnMouseUp)
-                // alongside Barter/Trade. DH2 has no dedicated dialogue
-                // window buttons, so this is surfaced as a dialogue option
-                // here instead, same pattern as [Barter] above.
-                if (globalState.gParty.isPartyMember(currentDialogueObject as Critter)) {
-                    const companion = currentDialogueObject as Critter
-                    dialogueOptionProcs.push(() => uiCompanionControl(companion))
-                    uiAddDialogueOption('[Combat Control]', dialogueOptionProcs.length - 1)
-                }
-            }
             if (this._vm) this._vm.halted = true
         }
         end_dialogue() {
@@ -1814,6 +1848,7 @@ export module Scripting {
             if ((iqTest > 0 && INT < iqTest) || (iqTest < 0 && INT > -iqTest)) return // not enough intelligence for this option
 
             dialogueOptionProcs.push(target.bind(this))
+            dialogueOptionTexts.push(msg)
             uiAddDialogueOption(msg, dialogueOptionProcs.length - 1)
         }
         dialogue_system_enter() {
@@ -2558,6 +2593,8 @@ export module Scripting {
     export function reset(mapName: string, mapID?: number) {
         timeEventList.length = 0 // clear timed events
         dialogueOptionProcs.length = 0
+        dialogueOptionTexts.length = 0
+        dialogueReviewLog.length = 0
         gameObjects = null
         currentMapObject = null
         currentMapID = mapID !== undefined ? mapID : null

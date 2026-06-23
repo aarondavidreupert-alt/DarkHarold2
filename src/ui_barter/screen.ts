@@ -21,11 +21,12 @@ import globalState from '../globalState.js'
 import { Critter, cloneItem, Obj } from '../object.js'
 import { Scripting } from '../scripting.js'
 import { UIMode } from '../ui_panels.js'
-import { uiAnimateBox } from '../ui_dialogue.js'
+import { uiAnimateBox, uiSetDialogueReply } from '../ui_dialogue.js'
 import { makeDropTarget, makeDraggable } from '../ui_inventory.js'
 import { Config } from '../config.js'
 import { $id, clearEl, makeEl } from '../ui_dom.js'
 import { uiGetAmount, uiSwapItem } from './swap.js'
+import { getMessage } from '../util.js'
 
 function uiEndBarterMode() {
     const $barterBox = $id('barterBox')
@@ -37,6 +38,11 @@ function uiEndBarterMode() {
         const $dialogueBox = $id('dialogueBox')
         $dialogueBox.style.visibility = 'visible'
         uiAnimateBox($dialogueBox, 480, 290)
+        // P6 fix: dialogueReply() clears dialogueOptionProcs before running
+        // the [Barter] callback, and nothing repopulated it — the dialogue
+        // box reappeared with no working option click-handlers (frozen).
+        // reenterDialogue() re-runs talk_p_proc to rebuild the option list.
+        Scripting.reenterDialogue()
     })
 
     globalState.uiMode = UIMode.dialogue
@@ -56,10 +62,22 @@ export function uiBarterMode(merchant: Critter) {
 
         // Pop up the bartering screen (animate up)
         const $barterBox = $id('barterBox')
+        // #barterBox is shared with uiCompanionTrade(), which uses trade.png —
+        // reset explicitly since this is always the vendor case (party
+        // members are routed to uiCompanionTrade, see P7/scripting.ts).
+        // CE ref: game_dialog.cc:3194-3200 (FRM 111 barter.frm).
+        $barterBox.style.backgroundImage = "url('art/intrface/barter.png')"
         $barterBox.style.display = ''
         $barterBox.style.visibility = 'visible'
         $barterBox.style.pointerEvents = 'auto'
         uiAnimateBox($barterBox, 480, 290)
+        // CE ref: inventory.cc:2039-2052 _display_body — player at (15,25),
+        // barterer at (560,25), both 60x100, drawn straight onto the full
+        // dialogue window (no inset offset, unlike the scroll buttons).
+        // Simplification: DH2 has no static-sprite-portrait rendering yet,
+        // so this shows the name as a placeholder — see wiki/known_bugs.md.
+        $id('barterBoxPlayerPortrait').textContent = globalState.player.name ?? 'You'
+        $id('barterBoxMerchantPortrait').textContent = merchant.name ?? ''
     })
 
     // logic + UI for bartering
@@ -72,6 +90,15 @@ export function uiBarterMode(merchant: Critter) {
     // and our working barter tables
     let playerBarterTable: Obj[] = []
     let merchantBarterTable: Obj[] = []
+
+    // Scroll offsets — CE ref: inventory.cc _ptable_offset/_target_pud
+    // (outer inventories, scroll buttons at inventory.cc:1086-1225) and the
+    // separate, smaller "offered items" scroll buttons for the inner tables
+    // (inventory.cc:1390-1480).
+    let playerInvScroll = 0
+    let merchantInvScroll = 0
+    let playerOfferScroll = 0
+    let merchantOfferScroll = 0
 
     function totalAmount(objects: Obj[]): number {
         let total = 0
@@ -147,14 +174,18 @@ export function uiBarterMode(merchant: Critter) {
 
             redrawBarterInventory()
         } else {
-            console.log('[Barter] offer refused')
+            // CE ref: inventory.cc:4742-4755 _barter_attempt_transaction —
+            // message 28 "No, your offer is not good enough.", rendered via
+            // gameDialogRenderSupplementaryMessage into the dialogue reply
+            // window (DH2: #dialogueBoxReply — see uiSetDialogueReply).
+            uiSetDialogueReply(getMessage('inventry', 28) ?? 'No, your offer is not good enough.')
         }
     }
 
-    function drawInventory($el: HTMLElement, who: 'p' | 'm' | 'l' | 'r', objects: Obj[]) {
+    function drawInventory($el: HTMLElement, who: 'p' | 'm' | 'l' | 'r', objects: Obj[], scroll: number = 0) {
         clearEl($el)
 
-        for (let i = 0; i < objects.length; i++) {
+        for (let i = scroll; i < objects.length; i++) {
             const obj = objects[i]
             const inventoryImage = obj.invArt
             if (!inventoryImage) {
@@ -167,6 +198,9 @@ export function uiBarterMode(merchant: Critter) {
             })
             $el.appendChild(img)
             $el.insertAdjacentHTML('beforeend', 'x' + obj.amount)
+            // drag-data index is the index into the underlying array (`i`),
+            // not the on-screen position, so drops/swaps still target the
+            // right item regardless of scroll offset.
             makeDraggable(img, who + i)
         }
     }
@@ -241,11 +275,56 @@ export function uiBarterMode(merchant: Critter) {
     $id('barterTalkButton').onclick = uiEndBarterMode
     $id('barterOfferButton').onclick = offer
 
+    // CE ref: inventory.cc:1086-1225 — outer-inventory scroll buttons, one
+    // item per click, clamped so there's always at least one item visible.
+    $id('barterScrollLeftUp').onclick = () => {
+        playerInvScroll = Math.max(0, playerInvScroll - 1)
+        redrawBarterInventory()
+    }
+    $id('barterScrollLeftDown').onclick = () => {
+        playerInvScroll = Math.min(Math.max(0, workingPlayerInventory.length - 1), playerInvScroll + 1)
+        redrawBarterInventory()
+    }
+    $id('barterScrollRightUp').onclick = () => {
+        merchantInvScroll = Math.max(0, merchantInvScroll - 1)
+        redrawBarterInventory()
+    }
+    $id('barterScrollRightDown').onclick = () => {
+        merchantInvScroll = Math.min(Math.max(0, workingMerchantInventory.length - 1), merchantInvScroll + 1)
+        redrawBarterInventory()
+    }
+
+    // CE ref: inventory.cc:1390-1480 — offer-table scroll buttons, same
+    // one-item-per-click model as the outer inventories above.
+    $id('barterOfferScrollLeftUp').onclick = () => {
+        playerOfferScroll = Math.max(0, playerOfferScroll - 1)
+        redrawBarterInventory()
+    }
+    $id('barterOfferScrollLeftDown').onclick = () => {
+        playerOfferScroll = Math.min(Math.max(0, playerBarterTable.length - 1), playerOfferScroll + 1)
+        redrawBarterInventory()
+    }
+    $id('barterOfferScrollRightUp').onclick = () => {
+        merchantOfferScroll = Math.max(0, merchantOfferScroll - 1)
+        redrawBarterInventory()
+    }
+    $id('barterOfferScrollRightDown').onclick = () => {
+        merchantOfferScroll = Math.min(Math.max(0, merchantBarterTable.length - 1), merchantOfferScroll + 1)
+        redrawBarterInventory()
+    }
+
     function redrawBarterInventory() {
-        drawInventory($id('barterBoxInventoryLeft'), 'p', workingPlayerInventory)
-        drawInventory($id('barterBoxInventoryRight'), 'm', workingMerchantInventory)
-        drawInventory($id('barterBoxLeft'), 'l', playerBarterTable)
-        drawInventory($id('barterBoxRight'), 'r', merchantBarterTable)
+        // Clamp scroll offsets in case items were moved out from under them
+        // (array shrank since the last scroll click).
+        playerInvScroll = Math.min(playerInvScroll, Math.max(0, workingPlayerInventory.length - 1))
+        merchantInvScroll = Math.min(merchantInvScroll, Math.max(0, workingMerchantInventory.length - 1))
+        playerOfferScroll = Math.min(playerOfferScroll, Math.max(0, playerBarterTable.length - 1))
+        merchantOfferScroll = Math.min(merchantOfferScroll, Math.max(0, merchantBarterTable.length - 1))
+
+        drawInventory($id('barterBoxInventoryLeft'), 'p', workingPlayerInventory, playerInvScroll)
+        drawInventory($id('barterBoxInventoryRight'), 'm', workingMerchantInventory, merchantInvScroll)
+        drawInventory($id('barterBoxLeft'), 'l', playerBarterTable, playerOfferScroll)
+        drawInventory($id('barterBoxRight'), 'r', merchantBarterTable, merchantOfferScroll)
 
         const moneyLeft = totalAmount(playerBarterTable)
         const moneyRight = totalAmount(merchantBarterTable)

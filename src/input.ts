@@ -270,8 +270,14 @@ export function installInputHandlers(): void {
                 // scripting.ts's gsay_end() instead of being a separate
                 // pre-dialogue screen.
                 if (critter._script && critter._script.talk_p_proc !== undefined) {
-                    dbg('dialogue', '[Dialog] talking to ' + critter.name)
-                    Scripting.talk(critter._script, critter)
+                    // CE ref: actions.cc:1832-1860 actionTalk — walks the
+                    // player to the NPC (registers a run-to animation) before
+                    // the dialogue callback fires, unless already close.
+                    globalState.player.walkInFrontOf(critter.position, () => {
+                        globalState.player.clearAnim()
+                        dbg('dialogue', '[Dialog] talking to ' + critter.name)
+                        Scripting.talk(critter._script!, critter)
+                    })
                 }
             }
         }
