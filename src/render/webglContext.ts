@@ -218,12 +218,9 @@ export class WebGLRenderer extends Renderer {
         img.onerror = (e) => {
             console.error('[Egg] FAILED to load art/intrface/egg.png — egg mode will silently fall back to flat alpha.', e)
         }
-        // No cache-busting query string here on purpose: that was only
-        // needed transiently while iterating on the egg.png asset itself
-        // (forcing a fresh fetch every reload defeats normal HTTP caching
-        // for this file forever). The asset is finalized now — if it ever
-        // needs replacing again, bump this path or clear the browser cache.
-        img.src = 'art/intrface/egg.png'
+        // Bump the version string whenever egg.png is regenerated via
+        // tools/export_mask_frms.py so the browser discards the cached copy.
+        img.src = 'art/intrface/egg.png?v=20260623b'
     }
 
     init(): void {

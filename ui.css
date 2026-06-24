@@ -787,12 +787,18 @@ html, body {
   pointer-events: none;
 }
 
+/* Plain alpha compositing — white pixels (hilight1) lighten, amber pixels
+   (hilight2) add warm vacuum-tube glow. PNG alpha encodes the full 0-255
+   shape/falloff; CSS opacity is the ONLY strength control (0-1). Tune via
+   setDialogueHighlights(upper, lower) in the browser console; defaults below
+   are a starting point. Re-bake PNGs if changing HIGHLIGHT_STRENGTH or
+   HILIGHT2_COLOR in tools/export_mask_frms.py. */
 #dialogueHighlightUpper {
   left: 426px;
   top: 15px;
   width: 89px;
   height: 81px;
-  mix-blend-mode: screen;
+  opacity: 1;
 }
 
 #dialogueHighlightLower {
@@ -800,7 +806,7 @@ html, body {
   top: 81px;
   width: 137px;
   height: 131px;
-  mix-blend-mode: multiply;
+  opacity: 1;
 }
 
 #dialogueBox {

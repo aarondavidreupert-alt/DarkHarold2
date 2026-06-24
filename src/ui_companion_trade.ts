@@ -40,6 +40,7 @@ import { getVisibleDialoguePanel, uiSetDialogueReply, uiSwapDialoguePanel } from
 import { makeDropTarget, makeDraggable } from './ui_inventory.js'
 import { $id, clearEl, makeEl } from './ui_dom.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter/swap.js'
+import { renderBarterPortrait } from './ui_barter/screen.js'
 import { Scripting } from './scripting.js'
 import { getMessage } from './util.js'
 
@@ -66,11 +67,10 @@ export function uiCompanionTrade(companion: Critter): void {
     $barterBox.style.backgroundImage = "url('art/intrface/trade.png')"
     uiSwapDialoguePanel(getVisibleDialoguePanel(), $barterBox)
     // CE ref: inventory.cc:2039-2052 _display_body — player at (15,25),
-    // barterer at (560,25), both 60x100, drawn straight onto the full
-    // dialogue window. Simplification: DH2 has no static-sprite-portrait
-    // rendering yet, so this shows the name as a placeholder.
-    $id('barterBoxPlayerPortrait').textContent = globalState.player.name ?? 'You'
-    $id('barterBoxMerchantPortrait').textContent = companion.name ?? ''
+    // barterer at (560,25), both 60x100. Player: ROTATION_SW, frame 0.
+    // Companion: stored orientation, last frame.
+    renderBarterPortrait($id('barterBoxPlayerPortrait'), globalState.player, false)
+    renderBarterPortrait($id('barterBoxMerchantPortrait'), companion, true)
 
     let workingPlayerInventory = globalState.player.inventory.map(cloneItem)
     let workingCompanionInventory = companion.inventory.map(cloneItem)

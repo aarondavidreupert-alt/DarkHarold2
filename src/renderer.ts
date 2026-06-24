@@ -17,7 +17,7 @@ limitations under the License.
 /* eslint-disable @typescript-eslint/no-empty-function */
 
 import { heart } from './heart.js'
-import { BoundingBox, hexFromScreen, hexToScreen, Point, pointInBoundingBox } from './geometry.js'
+import { BoundingBox, hexFromScreen, hexesInRadius, hexToScreen, Point, pointInBoundingBox } from './geometry.js'
 import globalState from './globalState.js'
 import { lazyLoadImage } from './images.js'
 import { dbg } from './logger.js'
@@ -145,6 +145,35 @@ export class Renderer {
 
         if (Config.ui.showFloor) {
             this.renderFloor(this.floorTiles)
+        }
+
+        // Beta egg mode: colored floor-hex overlay — verifies hex radius shape on
+        // the game field without any wall transparency. Drawn on textCtx (the same
+        // 2D canvas used for floating damage text) immediately after the floor so
+        // objects render on top of it. No shader changes needed.
+        if (Config.ui.eggMode === 'beta' && globalState.player) {
+            const z = getZoom()
+            const radius = Config.ui.eggRadius ?? 8
+            const ctx = (this as any).textCtx as CanvasRenderingContext2D | undefined
+            if (ctx) {
+                ctx.save()
+                ctx.fillStyle = 'rgba(0,255,0,0.3)'
+                for (const pos of hexesInRadius(globalState.player.position, radius)) {
+                    const scr = hexToScreen(pos.x, pos.y)
+                    const s = worldToScreen(scr.x - 16, scr.y - 12)
+                    // Flat-topped hex tile in isometric view: draw a simple filled rhombus
+                    // whose corners match the four cardinal points of the 32×16 hex cell.
+                    const w = 32 * z, h = 16 * z
+                    ctx.beginPath()
+                    ctx.moveTo(s.x + w / 2, s.y)          // top
+                    ctx.lineTo(s.x + w,     s.y + h / 2)  // right
+                    ctx.lineTo(s.x + w / 2, s.y + h)      // bottom
+                    ctx.lineTo(s.x,         s.y + h / 2)  // left
+                    ctx.closePath()
+                    ctx.fill()
+                }
+                ctx.restore()
+            }
         }
         if (Config.ui.showCursor && globalState.cursorMode === 'move') {
             // hex_outline is a world-anchored overlay — project its world

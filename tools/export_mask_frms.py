@@ -41,22 +41,54 @@ from PIL import Image
 
 import frmpixels
 
-# scale=None means store the raw byte as-is (0-255 alpha). egg.frm's mask
-# bytes are documented (wiki/rendering.md "Egg Transparency Effect") and
-# confirmed by inspection (observed max ~122) to live on a 0-128 scale, not
-# 0-255 — CE's blend math divides by 128 (`intensityColorTable[...][128-mask]`).
-# Stored raw, a GL/canvas alpha sample (which normalizes by 255) would read
-# as roughly half the intended strength. Rescaling here so the PNG's alpha
-# directly *is* the final 0-1 blend fraction keeps all downstream consumers
-# simple (no magic "divide by 128" constant needed at every call site).
+# Encoding strategy confirmed by spatial pixel inspection (tools/_debug_masks.py):
+#
+# egg.frm: center has LOW raw bytes (~1), perimeter/shell has HIGH raw bytes
+#   (~120). CE's blend math makes low-bytes = opaque wall, high-bytes =
+#   transparent wall — i.e. transparency is a RING at the oval perimeter, not
+#   a simple oval cutout. DH2 wants the simpler "center transparent" oval to
+#   reveal the player. Fix: rescale from 0-128, then INVERT non-zero alpha so
+#   center (low raw) → high alpha → mix(1,0,1)=0 → transparent, perimeter
+#   (high raw) → low alpha → mix(1,0,low)≈opaque.
+#
+# hilight1.frm (upper glint): center has HIGH raw bytes (~247). Goal: lighten
+#   the area proportional to raw byte. Encode as semi-transparent white
+#   (R=G=B=255, A=raw_byte). Plain alpha compositing over any backdrop adds
+#   white at the mask weight — a reliable lighten without needing mix-blend-mode.
+#
+# hilight2.frm (lower shadow): HIGH raw bytes at corners (it's an arc shape).
+#   Goal: darken proportional to raw byte. Encode as semi-transparent black
+#   (R=G=B=0, A=raw_byte). Plain alpha compositing adds black at mask weight
+#   — reliable darken without mix-blend-mode.
+#
+# For hilight1/2: mix-blend-mode: screen/multiply on a solid-white source was
+#   unreliable (white is multiply's identity = no effect; screen(white,x)=white
+#   always; and CSS blend modes can be silently ignored depending on compositing
+#   context). Plain colored alpha compositing is simpler and always works.
+# Opacity scale for hilight1/hilight2. CE's blend-table math gives a max
+# visual change of roughly 10-15% brightness, not a full overlay. Tune this
+# constant if the effect looks too strong or too weak.
+HIGHLIGHT_STRENGTH = 1.0  # full range — CSS opacity on #dialogueHighlightUpper/Lower
+                          # controls displayed strength (see ui.css / setDialogueHighlights() in console)
+
+# hilight2 is the lower-left shadow. CE's _dark_BlendTable is derived from
+# _colorTable[22187] = colorTable[86][171]: the nearest FO2 palette color to
+# the 50/50 blend of palette[86]=[120,148,120] and palette[171]=[212,172,124]
+# ≈ (166,160,122), whose closest palette match is palette[119]=[160,144,124]
+# (a warm tan-gray). That is the color pixels get "shifted toward" at maximum
+# blend weight in CE's darken path — so (160,144,124) is the correct overlay
+# tint to approximate CE's darkening shadow.
+# See wiki/palette_colors.md §3 "hilight2" for the full derivation.
+HILIGHT2_COLOR = (160, 144, 124)  # palette[119] — warm tan-gray, CE-accurate
+
 FILES = [
-    ("data/art/intrface/egg.frm", "art/intrface/egg.png", 128),
-    ("data/art/intrface/hilight1.frm", "art/intrface/hilight1.png", None),
-    ("data/art/intrface/hilight2.frm", "art/intrface/hilight2.png", None),
+    ("data/art/intrface/egg.frm",     "art/intrface/egg.png",     "egg"),
+    ("data/art/intrface/hilight1.frm","art/intrface/hilight1.png","lighten"),
+    ("data/art/intrface/hilight2.frm","art/intrface/hilight2.png","darken"),
 ]
 
 
-def exportFRMAsMask(frmFile, outFile, scale=None):
+def exportFRMAsMask(frmFile, outFile, mode):
     with open(frmFile, "rb") as f:
         frmInfo = frmpixels.readFRMInfo(f, exportImage=True)
     framePixels = frmInfo['framePixels']
@@ -66,7 +98,7 @@ def exportFRMAsMask(frmFile, outFile, scale=None):
     maxH = max(max(fo['h'] for fo in offset) for offset in frameOffsets)
     totalW = maxW * frmInfo['totalFrames']
 
-    finalImg = Image.new("RGBA", (totalW, maxH), (255, 255, 255, 0))
+    finalImg = Image.new("RGBA", (totalW, maxH), (0, 0, 0, 0))
     currentX = 0
 
     for nDir in range(frmInfo['numDirections']):
@@ -75,16 +107,50 @@ def exportFRMAsMask(frmFile, outFile, scale=None):
             w, h = offsets['w'], offsets['h']
             pixels = np.reshape(frame, (h, w))
 
-            alpha = pixels.astype(np.float32)
-            if scale is not None:
-                alpha = np.clip(alpha * (255.0 / scale), 0, 255)
-            alpha = alpha.astype(np.uint8)
-
             rgba = np.zeros((h, w, 4), np.uint8)
-            rgba[:, :, 0] = 255
-            rgba[:, :, 1] = 255
-            rgba[:, :, 2] = 255
-            rgba[:, :, 3] = alpha
+
+            if mode == "egg":
+                # Rescale from 0-128, then invert non-zero alpha so that the
+                # oval CENTER (low raw bytes) becomes high alpha (transparent
+                # wall) and the perimeter (high raw bytes) becomes low alpha
+                # (opaque wall) — producing the "center reveals player" oval.
+                alpha = np.clip(pixels.astype(np.float32) * (255.0 / 128.0), 0, 255).astype(np.uint8)
+                inverted = np.where(alpha > 0, 255 - alpha, 0).astype(np.uint8)
+                rgba[:, :, 0] = 255
+                rgba[:, :, 1] = 255
+                rgba[:, :, 2] = 255
+                rgba[:, :, 3] = inverted
+
+            elif mode == "lighten":
+                # Semi-transparent white: R=G=B=255, alpha encodes blend weight.
+                # CE's formula: (256-v)>>4 — low raw bytes = high effect, high
+                # raw bytes = low/zero effect (direction inverted vs raw value).
+                # Then the blend table applies max ~15% brightness change at
+                # full intensity. HIGHLIGHT_STRENGTH scales to that range.
+                # Plain alpha compositing (no mix-blend-mode) is reliable across
+                # all compositing contexts.
+                raw = pixels.astype(np.float32)
+                alpha = np.where(raw > 0,
+                    np.clip((255.0 - raw) * HIGHLIGHT_STRENGTH, 0, 255),
+                    0).astype(np.uint8)
+                rgba[:, :, 0] = 255
+                rgba[:, :, 1] = 255
+                rgba[:, :, 2] = 255
+                rgba[:, :, 3] = alpha
+
+            elif mode == "darken":
+                # Warm amber glow (vacuum tube warmth from below/behind glass).
+                # Not pure black — the CE blend table for this highlight was
+                # derived from a warm palette color, and the user confirms the
+                # in-game effect had a yellowish/orange tint. Tune HILIGHT2_COLOR.
+                raw = pixels.astype(np.float32)
+                alpha = np.where(raw > 0,
+                    np.clip((255.0 - raw) * HIGHLIGHT_STRENGTH, 0, 255),
+                    0).astype(np.uint8)
+                rgba[:, :, 0] = HILIGHT2_COLOR[0]
+                rgba[:, :, 1] = HILIGHT2_COLOR[1]
+                rgba[:, :, 2] = HILIGHT2_COLOR[2]
+                rgba[:, :, 3] = alpha
 
             img = Image.fromarray(rgba)
             finalImg.paste(img, (currentX, 0))
@@ -95,12 +161,12 @@ def exportFRMAsMask(frmFile, outFile, scale=None):
 
 
 def main():
-    for frmPath, outPath, scale in FILES:
+    for frmPath, outPath, mode in FILES:
         if not os.path.exists(frmPath):
             print(f"SKIP (not found): {frmPath}")
             continue
-        w, h = exportFRMAsMask(frmPath, outPath, scale)
-        print(f"{outPath}: {w}x{h}" + (f" (rescaled from 0-{scale})" if scale else ""))
+        w, h = exportFRMAsMask(frmPath, outPath, mode)
+        print(f"{outPath}: {w}x{h} ({mode})")
 
 
 if __name__ == '__main__':

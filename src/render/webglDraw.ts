@@ -250,6 +250,9 @@ function isCEOccludingWall(obj: Obj, player: Obj): boolean {
 }
 
 function isEggObject(obj: Obj): boolean {
+    // 'beta' mode is a pure floor overlay — no wall transparency at all.
+    if (Config.ui.eggMode === 'beta') return false
+
     if (obj.type !== 'scenery' && obj.type !== 'wall') return false
     const player = globalState.player
     if (!player) return false

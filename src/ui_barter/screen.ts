@@ -28,6 +28,53 @@ import { $id, clearEl, makeEl } from '../ui_dom.js'
 import { uiGetAmount, uiSwapItem } from './swap.js'
 import { getMessage } from '../util.js'
 
+// CE ref: inventory.cc:1982-2070 _display_body — draws a critter's standing
+// FRM sprite into a portrait slot (60×100 box). Player uses ROTATION_SW (3)
+// + frame 0; NPC/barterer uses their stored orientation + last frame.
+// Sprite sheets in art/critters/ are laid out as all-directions-all-frames
+// left to right: frame = numFrames * direction + frameIndex.
+export function renderBarterPortrait(el: HTMLElement, critter: Critter, useLastFrame = false): void {
+    const art = critter.art
+    if (!art) return
+    const info = globalState.imageInfo?.[art]
+    if (!info) return
+    const direction = useLastFrame ? (critter.orientation ?? 0) : 3  // 3 = ROTATION_SW for player
+    const frameIndex = useLastFrame ? (info.numFrames - 1) : 0
+    const spriteCol = info.numFrames * direction + frameIndex
+    const sx = spriteCol * info.frameWidth
+
+    el.textContent = ''
+    let canvas = el.querySelector('canvas') as HTMLCanvasElement | null
+    if (!canvas) {
+        canvas = document.createElement('canvas')
+        canvas.width = 60
+        canvas.height = 100
+        Object.assign(canvas.style, { width: '60px', height: '100px', display: 'block', imageRendering: 'pixelated' })
+        el.appendChild(canvas)
+    }
+    const ctx = canvas.getContext('2d')!
+
+    function draw(img: HTMLImageElement) {
+        ctx.clearRect(0, 0, 60, 100)
+        // Center the frame horizontally, bottom-align vertically (isometric standard)
+        const fw = info.frameWidth, fh = info.frameHeight
+        const scale = Math.min(60 / fw, 100 / fh, 1)
+        const dw = fw * scale, dh = fh * scale
+        const dx = (60 - dw) / 2, dy = 100 - dh
+        ctx.drawImage(img, sx, 0, fw, fh, dx, dy, dw, dh)
+    }
+
+    const img = globalState.images?.[art] as HTMLImageElement | undefined
+    if (img?.complete) {
+        draw(img)
+    } else {
+        // Image not yet in cache — listen for load via a temporary img element
+        const loader = new Image()
+        loader.onload = () => draw(loader)
+        loader.src = art + '.png'
+    }
+}
+
 function uiEndBarterMode() {
     const $barterBox = $id('barterBox')
 
@@ -72,12 +119,10 @@ export function uiBarterMode(merchant: Critter) {
         $barterBox.style.pointerEvents = 'auto'
         uiAnimateBox($barterBox, 480, 290)
         // CE ref: inventory.cc:2039-2052 _display_body — player at (15,25),
-        // barterer at (560,25), both 60x100, drawn straight onto the full
-        // dialogue window (no inset offset, unlike the scroll buttons).
-        // Simplification: DH2 has no static-sprite-portrait rendering yet,
-        // so this shows the name as a placeholder — see wiki/known_bugs.md.
-        $id('barterBoxPlayerPortrait').textContent = globalState.player.name ?? 'You'
-        $id('barterBoxMerchantPortrait').textContent = merchant.name ?? ''
+        // barterer at (560,25), both 60x100. Player: ROTATION_SW, frame 0.
+        // NPC: stored orientation, last frame.
+        renderBarterPortrait($id('barterBoxPlayerPortrait'), globalState.player, false)
+        renderBarterPortrait($id('barterBoxMerchantPortrait'), merchant, true)
     })
 
     // logic + UI for bartering

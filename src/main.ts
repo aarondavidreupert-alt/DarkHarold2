@@ -271,13 +271,15 @@ window.onload = async function () {
     }
 
     // Console commands for the egg transparency effect.
-    // setEggMode('alpha') — flat alpha applied to the whole wall sprite (default)
-    // setEggMode('egg')   — CE-faithful egg.png mask: smooth falloff centered on player
+    // setEggMode('alpha') — flat alpha applied to the whole wall sprite
+    // setEggMode('egg')   — CE-faithful egg.png mask: smooth falloff centered on player (default)
+    // setEggMode('beta')  — floor hex debug overlay: colored quads on every floor tile within
+    //                       eggRadius, no wall transparency — verifies hex radius shape on field
     // setEggAlpha(0.3)    — set the outer/flat alpha (0=invisible, 1=opaque, default 0.4)
     // setEggRadius(6)     — set max hex distance for egg effect (default 8)
-    ;(window as any).setEggMode = (mode: 'alpha' | 'egg') => {
-        if (mode !== 'alpha' && mode !== 'egg') {
-            console.log("Usage: setEggMode('alpha') or setEggMode('egg')")
+    ;(window as any).setEggMode = (mode: 'alpha' | 'egg' | 'beta') => {
+        if (mode !== 'alpha' && mode !== 'egg' && mode !== 'beta') {
+            console.log("Usage: setEggMode('alpha'), setEggMode('egg'), or setEggMode('beta')")
             return
         }
         Config.ui.eggMode = mode
@@ -348,6 +350,19 @@ window.onload = async function () {
     ;(window as any).setOutlineBorderAlpha = (a: number) => {
         Config.ui.outlineBorderAlpha = Math.max(0, Math.min(1, a))
         console.log(`[Outline] borderAlpha=${Config.ui.outlineBorderAlpha}`)
+    }
+    // Dialogue screen-curvature highlight opacity tuning.
+    // CSS opacity multiplies the PNG's own baked-in alpha, so these are
+    // relative to whatever HIGHLIGHT_STRENGTH produced in export_mask_frms.py.
+    // Usage:  setDialogueHighlights(0.5, 1.0)  (upper, lower, both 0.0–1.0)
+    // The PNG bakes the full spatial falloff; CSS opacity is the sole strength
+    // knob. 0=invisible, 1=max (raw PNG alpha). Defaults set in ui.css.
+    ;(window as any).setDialogueHighlights = (upper: number, lower: number) => {
+        const u = document.getElementById('dialogueHighlightUpper') as HTMLElement | null
+        const l = document.getElementById('dialogueHighlightLower') as HTMLElement | null
+        if (u) u.style.opacity = String(upper)
+        if (l) l.style.opacity = String(lower)
+        console.log(`[DialogueHighlight] upper=${upper} lower=${lower}`)
     }
 }
 
