@@ -20,6 +20,7 @@ limitations under the License.
 
 import { Obj } from '../object.js'
 import { $id } from '../ui_dom.js'
+import { SmallButton } from '../ui_components.js'
 
 // CE ref: inventory.cc:5534-5568 _draw_amount — BIGNUM.frm (FRM 170,
 // art/intrface/bignum.png, 336×24) is a 24-glyph sprite strip at 14px/glyph.
@@ -29,12 +30,6 @@ const BIGNUM_DIGIT_H = 24
 const BIGNUM_DIGITS = 5
 const BIGNUM_X = 125  // relative to movemult.png (259×162)
 const BIGNUM_Y = 45
-
-// CE ref: inventory.cc:5800 — item icon at (16, 46), INVENTORY_LARGE_SLOT 56×56.
-const ICON_X = 16
-const ICON_Y = 46
-const ICON_W = 56
-const ICON_H = 56
 
 // CE ref: inventory.cc:5816-5866 — plus at (200,46) 16×12, minus at (200,58) 17×12.
 // Done at (98,128) 15×16, Cancel at (148,128) 15×16 (both baked into background art).
@@ -81,33 +76,21 @@ export function uiGetAmount(item: Obj): Promise<number> {
 
         overlay.style.display = 'flex'
 
-        // Lazy-load BIGNUM strip and item icon; redraw when each arrives.
+        // Lazy-load BIGNUM strip; redraw when it arrives.
         const bignumImg = new Image()
-        const iconImg   = new Image()
         let bignumReady = false
-        let iconReady   = false
+
+        // Set the item icon via <img> element (DevTools-editable, no canvas draw needed).
+        const iconEl = $id('moveMultItemImg') as HTMLImageElement
+        iconEl.src = item.invArt ? item.invArt + '.png' : ''
 
         function redraw() {
             ctx.clearRect(0, 0, DIALOG_W, DIALOG_H)
             if (bignumReady) drawBignumDigits(ctx, bignumImg, count)
-            if (iconReady && item.invArt) {
-                // CE ref: inventory.cc:5800 artRender — item icon at (ICON_X, ICON_Y),
-                // INVENTORY_LARGE_SLOT 56×56. Preserve aspect ratio within the slot.
-                const sw = iconImg.naturalWidth, sh = iconImg.naturalHeight
-                const scale = Math.min(ICON_W / sw, ICON_H / sh)
-                const dw = sw * scale, dh = sh * scale
-                ctx.drawImage(iconImg,
-                    ICON_X + (ICON_W - dw) / 2, ICON_Y + (ICON_H - dh) / 2,
-                    dw, dh)
-            }
         }
 
         bignumImg.onload = () => { bignumReady = true; redraw() }
         bignumImg.src = 'art/intrface/bignum.png'
-        if (item.invArt) {
-            iconImg.onload = () => { iconReady = true; redraw() }
-            iconImg.src = item.invArt + '.png'
-        }
 
         // CE ref: inventory.cc:5816 — plus/minus buttons with click-and-hold acceleration.
         let holdTimer: ReturnType<typeof setTimeout> | null = null
@@ -123,11 +106,15 @@ export function uiGetAmount(item: Obj): Promise<number> {
             if (holdTimer !== null) { clearTimeout(holdTimer); holdTimer = null }
         }
 
-        const plusBtn   = $id('moveMultPlusBtn')
-        const minusBtn  = $id('moveMultMinusBtn')
+        const box       = $id('moveMultBox')
         const allBtn    = $id('moveMultAllBtn')
         const doneBtn   = $id('moveMultDoneBtn')
         const cancelBtn = $id('moveMultCancelBtn')
+
+        const plusWidget  = new SmallButton(PLUS_X, PLUS_Y)
+        const minusWidget = new SmallButton(MINUS_X, MINUS_Y)
+        box.appendChild(plusWidget.elem)
+        box.appendChild(minusWidget.elem)
 
         function onPlusDown(e: Event)  { e.preventDefault(); count = Math.min(max, count + 1); redraw(); startHold(1) }
         function onMinusDown(e: Event) { e.preventDefault(); count = Math.max(1,   count - 1); redraw(); startHold(-1) }
@@ -135,12 +122,12 @@ export function uiGetAmount(item: Obj): Promise<number> {
         function onDoneClick()         { cleanup(count) }
         function onCancelClick()       { cleanup(0) }
 
-        plusBtn.addEventListener('mousedown', onPlusDown)
-        plusBtn.addEventListener('mouseup',   stopHold)
-        plusBtn.addEventListener('mouseleave', stopHold)
-        minusBtn.addEventListener('mousedown', onMinusDown)
-        minusBtn.addEventListener('mouseup',   stopHold)
-        minusBtn.addEventListener('mouseleave', stopHold)
+        plusWidget.elem.addEventListener('mousedown', onPlusDown)
+        plusWidget.elem.addEventListener('mouseup',   stopHold)
+        plusWidget.elem.addEventListener('mouseleave', stopHold)
+        minusWidget.elem.addEventListener('mousedown', onMinusDown)
+        minusWidget.elem.addEventListener('mouseup',   stopHold)
+        minusWidget.elem.addEventListener('mouseleave', stopHold)
         allBtn.addEventListener('click',   onAllClick)
         doneBtn.addEventListener('click',   onDoneClick)
         cancelBtn.addEventListener('click', onCancelClick)
@@ -163,12 +150,8 @@ export function uiGetAmount(item: Obj): Promise<number> {
         function cleanup(amount: number) {
             overlay.style.display = 'none'
             stopHold()
-            plusBtn.removeEventListener('mousedown', onPlusDown)
-            plusBtn.removeEventListener('mouseup',   stopHold)
-            plusBtn.removeEventListener('mouseleave', stopHold)
-            minusBtn.removeEventListener('mousedown', onMinusDown)
-            minusBtn.removeEventListener('mouseup',   stopHold)
-            minusBtn.removeEventListener('mouseleave', stopHold)
+            plusWidget.elem.remove()
+            minusWidget.elem.remove()
             allBtn.removeEventListener('click',   onAllClick)
             doneBtn.removeEventListener('click',   onDoneClick)
             cancelBtn.removeEventListener('click', onCancelClick)

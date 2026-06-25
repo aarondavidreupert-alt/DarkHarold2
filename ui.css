@@ -495,20 +495,14 @@ html, body {
   pointer-events: none;
 }
 
-/* CE ref: inventory.cc:5816 — plus at (200,46) 16×12 */
-#moveMultPlusBtn {
+/* CE ref: inventory.cc:5800 artRender — item icon at (16,46), INVENTORY_LARGE_SLOT 56×56 */
+#moveMultItemImg {
   position: absolute;
-  left: 200px; top: 46px;
-  width: 16px; height: 12px;
-  cursor: pointer;
-}
-
-/* CE ref: inventory.cc:5816 — minus at (200,58) 17×12 */
-#moveMultMinusBtn {
-  position: absolute;
-  left: 200px; top: 58px;
-  width: 17px; height: 12px;
-  cursor: pointer;
+  left: 16px; top: 46px;
+  width: 56px; height: 56px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  pointer-events: none;
 }
 
 /* CE ref: inventory.cc:5912 — ALL button at (120,80) 94×33 */
