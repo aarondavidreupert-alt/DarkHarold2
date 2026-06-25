@@ -142,7 +142,7 @@ export function uiCompanionTrade(companion: Critter): void {
             const img = makeEl('img', {
                 src: inventoryImage ? inventoryImage + '.png' : '',
                 attrs: { title: obj.name },
-                style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
+                style: { maxWidth: '100%', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
             })
             $el.appendChild(img)
             $el.insertAdjacentHTML('beforeend', 'x' + obj.amount)

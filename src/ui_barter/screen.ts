@@ -38,8 +38,23 @@ export function renderBarterPortrait(el: HTMLElement, critter: Critter, useLastF
     if (!art) return
     const info = globalState.imageInfo?.[art]
     if (!info) return
-    const direction = useLastFrame ? (critter.orientation ?? 0) : 3  // 3 = ROTATION_SW for player
+
+    // Clamp direction to the number of directions actually in this FRM (some
+    // FRMs have only 1 direction — accessing index 3 would be undefined).
+    const wantedDir = useLastFrame ? (critter.orientation ?? 0) : 3  // 3 = ROTATION_SW for player
+    const direction = Math.min(wantedDir, info.frameOffsets.length - 1)
     const frameIndex = useLastFrame ? (info.numFrames - 1) : 0
+
+    // info.frameWidth is the MAXIMUM frame slot width across ALL directions/frames
+    // (used for uniform sprite-sheet packing). The standing pose is usually much
+    // narrower — use frameOffsets[d][f].w/h (actual trimmed content) for both the
+    // source crop and the scale, so scale is relative to real content not padding.
+    const frameInfo = info.frameOffsets[direction]?.[frameIndex]
+    if (!frameInfo) return
+    const fw = frameInfo.w, fh = frameInfo.h
+
+    // Source x in the sprite sheet: each slot is info.frameWidth wide,
+    // content is pasted flush to the left edge of its slot (frmpixels.py:99).
     const spriteCol = info.numFrames * direction + frameIndex
     const sx = spriteCol * info.frameWidth
 
@@ -47,20 +62,21 @@ export function renderBarterPortrait(el: HTMLElement, critter: Critter, useLastF
     let canvas = el.querySelector('canvas') as HTMLCanvasElement | null
     if (!canvas) {
         canvas = document.createElement('canvas')
-        canvas.width = 60
-        canvas.height = 100
-        Object.assign(canvas.style, { width: '60px', height: '100px', display: 'block', imageRendering: 'pixelated' })
+        canvas.width = 40
+        canvas.height = 67
+        Object.assign(canvas.style, { width: '40px', height: '67px', display: 'block', imageRendering: 'pixelated' })
         el.appendChild(canvas)
     }
     const ctx = canvas.getContext('2d')!
 
     function draw(img: HTMLImageElement) {
         ctx.clearRect(0, 0, 60, 100)
-        // Center the frame horizontally, bottom-align vertically (isometric standard)
-        const fw = info.frameWidth, fh = info.frameHeight
-        const scale = Math.min(60 / fw, 100 / fh, 1)
+        // No ,1 upscale cap — both portraits always scale to fill the 60×100 slot,
+        // matching CE's _display_body which scales every critter to the fixed box.
+        // Center horizontally, bottom-align vertically (isometric convention).
+        const scale = Math.min(40 / fw, 67 / fh)
         const dw = fw * scale, dh = fh * scale
-        const dx = (60 - dw) / 2, dy = 100 - dh
+        const dx = (40 - dw) / 2, dy = 67 - dh
         ctx.drawImage(img, sx, 0, fw, fh, dx, dy, dw, dh)
     }
 
@@ -239,7 +255,7 @@ export function uiBarterMode(merchant: Critter) {
             const img = makeEl('img', {
                 src: inventoryImage ? inventoryImage + '.png' : '',
                 attrs: { title: obj.name },
-                style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
+                style: { maxWidth: '100%', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
             })
             $el.appendChild(img)
             $el.insertAdjacentHTML('beforeend', 'x' + obj.amount)

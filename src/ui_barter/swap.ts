@@ -77,9 +77,9 @@ export function uiGetAmount(item: Obj): Promise<number> {
 
         const overlay = document.createElement('div')
         Object.assign(overlay.style, {
-            position: 'absolute',
+            position: 'fixed',
             left: '0', top: '0', width: '100%', height: '100%',
-            zIndex: '50',
+            zIndex: '9999',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -119,10 +119,24 @@ export function uiGetAmount(item: Obj): Promise<number> {
             ctx.clearRect(0, 0, DIALOG_W, DIALOG_H)
             if (bignumReady) drawBignumDigits(ctx, bignumImg, count)
             if (iconReady && item.invArt) {
-                // CE ref: inventory.cc:5800 artRender — item icon at (ICON_X, ICON_Y).
-                ctx.drawImage(iconImg, 0, 0, iconImg.naturalWidth, iconImg.naturalHeight,
-                    ICON_X, ICON_Y, ICON_W, ICON_H)
+                // CE ref: inventory.cc:5800 artRender — item icon at (ICON_X, ICON_Y),
+                // INVENTORY_LARGE_SLOT 56×56. Scale to fit while preserving aspect ratio.
+                const sw = iconImg.naturalWidth, sh = iconImg.naturalHeight
+                const scale = Math.min(ICON_W / sw, ICON_H / sh)
+                const dw = sw * scale, dh = sh * scale
+                ctx.drawImage(iconImg,
+                    ICON_X + (ICON_W - dw) / 2, ICON_Y + (ICON_H - dh) / 2,
+                    dw, dh)
             }
+            // CE ref: inventory.cc:5922 — "ALL" text drawn onto FRM 307 at runtime.
+            // DH2's movemult.png has the button outline baked in but no text; draw it here.
+            ctx.font = 'bold 11px serif'
+            ctx.fillStyle = '#FCFC7C'
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            ctx.fillText('ALL', 120 + 47, 80 + 16)
+            ctx.textAlign = 'left'
+            ctx.textBaseline = 'alphabetic'
         }
 
         bignumImg.onload = () => { bignumReady = true; redraw() }
@@ -187,9 +201,15 @@ export function uiGetAmount(item: Obj): Promise<number> {
 
         modal.appendChild(makePlusBtn())
         modal.appendChild(makeMinusBtn())
-        // CE ref: inventory.cc:5876,5894 — done at (98,128), cancel at (148,128).
-        modal.appendChild(makeHitZone(DONE_X, DONE_Y, DONE_W, DONE_H, () => cleanup(count)))
-        modal.appendChild(makeHitZone(CANCEL_X, CANCEL_Y, CANCEL_W, CANCEL_H, () => cleanup(0)))
+        // CE ref: inventory.cc:5876,5894 — done at (98,128) 15×16, cancel at (148,128) 15×16.
+        // These are the small red dot indicators; the "DONE"/"CANCEL" text is baked into
+        // movemult.png to their left. Extend hit zones leftward to cover full text+dot area.
+        modal.appendChild(makeHitZone(5, 124, 120, 22, () => cleanup(count)))
+        modal.appendChild(makeHitZone(133, 124, 122, 22, () => cleanup(0)))
+        // CE ref: inventory.cc:5912-5946 — ALL button at (120,80) 94×33, sets count to
+        // max. The FRM art (307/308) has "ALL" drawn on it at runtime by CE; in DH2's
+        // pre-baked movemult.png the button outline is visible but has no text.
+        modal.appendChild(makeHitZone(120, 80, 94, 33, () => { count = max; redraw() }))
 
         // CE ref: inventory.cc:5707-5717 — direct digit key input (KEY_0-KEY_9).
         const keyHandler = (e: KeyboardEvent) => {
@@ -207,7 +227,7 @@ export function uiGetAmount(item: Obj): Promise<number> {
         document.addEventListener('keydown', keyHandler, true)
 
         overlay.appendChild(modal)
-        $id('game-container').appendChild(overlay)
+        document.body.appendChild(overlay)
         redraw()
     })
 }

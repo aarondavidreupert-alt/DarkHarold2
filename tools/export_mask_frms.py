@@ -71,15 +71,18 @@ import frmpixels
 HIGHLIGHT_STRENGTH = 1.0  # full range — CSS opacity on #dialogueHighlightUpper/Lower
                           # controls displayed strength (see ui.css / setDialogueHighlights() in console)
 
-# hilight2 is the lower-left shadow. CE's _dark_BlendTable is derived from
-# _colorTable[22187] = colorTable[86][171]: the nearest FO2 palette color to
-# the 50/50 blend of palette[86]=[120,148,120] and palette[171]=[212,172,124]
-# ≈ (166,160,122), whose closest palette match is palette[119]=[160,144,124]
-# (a warm tan-gray). That is the color pixels get "shifted toward" at maximum
-# blend weight in CE's darken path — so (160,144,124) is the correct overlay
-# tint to approximate CE's darkening shadow.
-# See wiki/palette_colors.md §3 "hilight2" for the full derivation.
-HILIGHT2_COLOR = (160, 144, 124)  # palette[119] — warm tan-gray, CE-accurate
+# hilight2 is the lower-left shadow/glow at the bottom-left of the dialogue
+# CRT screen. CE's _dark_BlendTable is derived from _colorTable[22187], which
+# is CE's additive colorMixAddTable at indices [86][171] — an additive mix of
+# palette[86]=[120,148,120] and palette[171]=[212,172,124] clamps to near-white,
+# so the "blend base" is bright, not dark. The visual result in-game is a warm
+# amber/orange glow (vacuum-tube cathode warmth bleeding around the glass edge),
+# which the user confirmed matches the original FO2 game at HIGHLIGHT_STRENGTH=1.0.
+# NOTE: a 2026-06-24 attempt to "fix" this to (160,144,124) based on a 50/50
+# averaging interpretation of colorTable was wrong — CE uses additive blending
+# in _colorTable, not averaging. That change made the effect look "white and dim."
+# Empirically validated value restored:
+HILIGHT2_COLOR = (255, 140, 30)  # amber — user-confirmed match for FO2 original
 
 FILES = [
     ("data/art/intrface/egg.frm",     "art/intrface/egg.png",     "egg"),

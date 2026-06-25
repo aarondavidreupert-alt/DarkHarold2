@@ -326,7 +326,7 @@ export function showInventory() {
             const img = makeEl('img', {
                 src: invObj.invArt ? invObj.invArt + '.png' : '',
                 attrs: { title: invObj.name },
-                style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
+                style: { maxWidth: '100%', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
                 click: () => {
                     showItemInfo(invObj)
                 },
@@ -529,7 +529,6 @@ export function showInventory() {
         const img = makeEl('img', {
             src: item.invArt + '.png',
             attrs: { title: item.name },
-            style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
             click: () => {
                 showItemInfo(item)
             },

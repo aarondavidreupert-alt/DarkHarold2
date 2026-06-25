@@ -411,9 +411,9 @@ html, body {
 
 #inventoryBoxList {
   position: absolute;
-  left: 40px;
+  left: 45px;
   top: 40px;
-  width: 70px;
+  width: 65px;
   height: 300px;
   /*background-color: gray;*/
   overflow: hidden;
@@ -438,22 +438,31 @@ html, body {
 
 #inventoryBoxItem1, #inventoryBoxItem2, #inventoryBoxArmor {
   position: absolute;
-  width: 90px;
+  width: 65px;
   height: 64px;
+  overflow: hidden;
+}
+
+#inventoryBoxItem1 img, #inventoryBoxItem2 img, #inventoryBoxArmor img {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
 }
 
 #inventoryBoxItem1 {
-  left: 155px;
+  left: 166px;
   top: 285px;
 }
 
 #inventoryBoxItem2 {
-  left: 245px;
+  left: 259px;
   top: 285px;
 }
 
 #inventoryBoxArmor {
-  left: 155px;
+  left: 165px;
   top: 180px;
 }
 
@@ -992,8 +1001,9 @@ html, body {
   position: absolute;
   left: 110px;
   top: 40px;
-  width: 70px;
+  width: 60px;
   height: 130px;
+  color: white;
   /*background-color: gray;*/
   overflow: hidden;
 }
@@ -1001,10 +1011,11 @@ html, body {
 /* right (merchant) inventory box */
 #barterBoxInventoryRight {
   position: absolute;
-  left: 470px;
+  left: 468px;
   top: 40px;
-  width: 70px;
+  width: 60px;
   height: 130px;
+  color: white;
   /*background-color: gray;*/
   overflow: hidden;
 }
@@ -1116,9 +1127,9 @@ html, body {
 #barterBoxPlayerPortrait,
 #barterBoxMerchantPortrait {
   position: absolute;
-  top: 25px;
-  width: 60px;
-  height: 100px;
+  top: 45px;
+  width: 40px;
+  height: 67px;
   color: #00ff00;
   font-size: 0.7em;
   text-align: center;
@@ -1127,11 +1138,11 @@ html, body {
 }
 
 #barterBoxPlayerPortrait {
-  left: 15px;
+  left: 29px;
 }
 
 #barterBoxMerchantPortrait {
-  left: 560px;
+  left: 574px;
 }
 
 #barterScrollLeftUp:active,
@@ -1147,10 +1158,11 @@ html, body {
 /* left (player) bartering table */
 #barterBoxLeft {
   position: absolute;
-  left: 248px;
+  left: 244px;
   top: 12px;
-  width: 55px;
+  width: 60px;
   height: 155px;
+  color: white;
   /*background-color: gray;*/
   overflow: hidden;
 }
@@ -1158,10 +1170,11 @@ html, body {
 /* right (merchant) bartering table */
 #barterBoxRight {
   position: absolute;
-  left: 330px;
+  left: 334px;
   top: 12px;
-  width: 55px;
+  width: 60px;
   height: 155px;
+  color: white;
   /*background-color: gray;*/
   overflow: hidden;
 }

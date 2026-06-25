@@ -19,13 +19,14 @@ limitations under the License.
 // proposals" §8.
 
 import globalState from '../globalState.js'
-import { Obj } from '../object.js'
+import { Obj, cloneItem } from '../object.js'
 import { lookupArt } from '../pro.js'
 import { Scripting } from '../scripting.js'
+import { uiGetAmount } from '../ui_barter/swap.js'
 import { drawAC, uiDrawWeapon, uiLog } from '../ui_hud.js'
 import { showInventory } from './panel.js'
 
-export function makeDropTarget($el: HTMLElement, dropCallback: (data: string, e?: DragEvent) => void) {
+export function makeDropTarget($el: HTMLElement, dropCallback: (data: string, e?: DragEvent) => void | Promise<void>) {
     $el.ondrop = (e: DragEvent) => {
         const data = e.dataTransfer.getData('text/plain')
         dropCallback(data, e)
@@ -78,7 +79,7 @@ export function tryLoadAmmoIntoWeapon(ammoObj: Obj, weaponObj: Obj): boolean {
 }
 
 // TODO: Rewrite this sanely (and not directly modify the player object's properties...)
-export function uiMoveSlot(data: string, target: string) {
+export async function uiMoveSlot(data: string, target: string) {
     const playerUnsafe = globalState.player as any
     let obj = null
 
@@ -91,6 +92,9 @@ export function uiMoveSlot(data: string, target: string) {
         console.log('[UI] inventory idx: ' + idx)
         obj = globalState.player.inventory[idx]
 
+        // CE ref: inventory.cc — armor slot only accepts armor items
+        if (target === 'armor' && obj.subtype !== 'armor') return
+
         // Drag-drop reload: ammo from inventory dropped onto a hand slot with a weapon
         if ((target === 'leftHand' || target === 'rightHand') && playerUnsafe[target]) {
             if (tryLoadAmmoIntoWeapon(obj, playerUnsafe[target] as Obj)) {
@@ -100,7 +104,22 @@ export function uiMoveSlot(data: string, target: string) {
             }
         }
 
-        globalState.player.inventory.splice(idx, 1) // remove object from inventory
+        if (obj.amount > 1) {
+            const wanted = await uiGetAmount(obj)
+            if (wanted <= 0) return
+            if (wanted < obj.amount) {
+                // Partial split: leave remainder in inventory, equip a clone
+                const split = cloneItem(obj)
+                split.amount = wanted
+                obj.amount -= wanted
+                obj = split
+                // inventory entry stays — only count was reduced above
+            } else {
+                globalState.player.inventory.splice(idx, 1)
+            }
+        } else {
+            globalState.player.inventory.splice(idx, 1)
+        }
     } else {
         obj = playerUnsafe[data]
         playerUnsafe[data] = null // remove object from slot

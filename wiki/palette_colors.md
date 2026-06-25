@@ -97,33 +97,37 @@ is nearly zero — only FRM bytes below ~240 contribute meaningfully).
 **DH2 current**: white `(255, 255, 255)` overlay via `tools/export_mask_frms.py`.  
 **Status**: ✅ Good approximation. No change needed.
 
-#### hilight2 — lower-left shadow (darkening)
+#### hilight2 — lower-left shadow/glow (darkening)
 
-CE generates `_dark_BlendTable` from `_colorTable[22187]` = `colorTable[86][171]`:
-- palette[86] = [120, 148, 120] (muted sage green)
-- palette[171] = [212, 172, 124] (warm peach-tan)
-- 50/50 blend ≈ [166, 160, 122]
-- Nearest palette entry: **palette[119] = [160, 144, 124] (#A0907C)** — a warm tan-gray
+CE generates `_dark_BlendTable` from `_colorTable[22187]`. Flat index 22187 in
+CE's 256×256 `_colorTable` (used as `colorMixAddTable`) = row 86, column 171:
 
-CE's dark blend table at maximum weight shifts destination pixels *toward* this
-warm tan-gray color, producing a subtle cool-warm shadow at the bottom-left of
-the head rect. Using `(160, 144, 124)` as the overlay tint in DH2's alpha
-compositing is the palette-accurate approximation.
+- palette[86] = [120, 148, 120], palette[171] = [212, 172, 124]
+- **Additive** blend (CE's `colorMixAddTable` adds channels, clamps to 255):
+  [min(255,332), min(255,320), min(255,244)] = **[255, 255, 244]** — near-white
 
-**DH2 previous**: amber `(255, 140, 30)` — completely wrong; far too saturated and
-orange. The user's recollection of "yellowish/orange" likely came from observing
-the alltlk.png backdrop's own warm tones through the shadow, not from the blend
-color itself.
+The blend base for CE's dark blend table is therefore near-white, not a medium
+warm-gray. This means the 2026-06-24 "correction" to `(160,144,124)` was wrong —
+it was derived assuming 50/50 *averaging*, but CE's `_colorTable` does *additive*
+mixing. The result of that change was a dim, washed-out shadow.
 
-**DH2 current (corrected 2026-06-24)**: `HILIGHT2_COLOR = (160, 144, 124)` in
-`tools/export_mask_frms.py`. Re-run the script to regenerate `art/intrface/hilight2.png`.
+The actual visual result in the original FO2 game is a **warm amber/orange glow**
+at the bottom-left of the dialogue head rect (simulating vacuum-tube cathode warmth
+leaking around the lower glass edge). This was confirmed by the user against the
+real game with `HIGHLIGHT_STRENGTH = 1.0`.
 
-> **Residual approximation**: CE's blend table is not a plain alpha composite — it
-> maps *each destination pixel individually* through a per-palette-index lookup.
-> A plain alpha composite over a complex background doesn't replicate that exactly,
-> but it is much closer in tint than the old amber. Full fidelity would require
-> porting the 4096-entry `_dark_BlendTable` itself and doing CPU-side per-pixel
-> palette remapping on the head-rect canvas — not worth it for this cosmetic effect.
+**DH2 current**: `HILIGHT2_COLOR = (255, 140, 30)` (amber) — empirically validated
+against the original FO2 game. This is the stable value; do not change it without
+running the original game to compare.
+
+> **Why we can't derive the "true" CE value easily**: `gameDialogHighlightsInit`
+> uses `_colorTable[22187]` as the seed for generating `_dark_BlendTable`, a
+> 4096-entry (16×256) remapping table. The generation algorithm in CE's `color.cc`
+> is complex and depends on both `_dark_GrayTable` (luminance lookup) and this
+> additive mix color. Fully porting the algorithm would require the 65536-entry
+> `colorTable.json`, per-pixel palette remapping on the canvas, and CPU-side
+> blending — well beyond the value of this cosmetic effect. The amber approximation
+> is confirmed close enough.
 
 ---
 
