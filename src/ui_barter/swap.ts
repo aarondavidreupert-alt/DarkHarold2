@@ -61,13 +61,13 @@ function drawBignumDigits(ctx: CanvasRenderingContext2D, bignum: HTMLImageElemen
 
 /**
  * CE-accurate "Move Items" modal — movemult.png (259×162) background, BIGNUM
- * digit display, +/- buttons. CE ref: inventory.cc:5584 inventoryQuantitySelect,
- * :5743 inventoryQuantityWindowInit, :5534 _draw_amount.
+ * digit display, +/- buttons. Uses static #moveMultOverlay DOM declared in
+ * play.html + styled in ui.css (same pattern as all other DH2 UI panels).
+ * CE ref: inventory.cc:5584 inventoryQuantitySelect, :5743
+ * inventoryQuantityWindowInit, :5534 _draw_amount.
  * Resolves to the chosen quantity, or 0 on cancel.
  */
 export function uiGetAmount(item: Obj): Promise<number> {
-    // movemult.png is actually 259×162 (the stale "169×60" comment in the old
-    // code was wrong — verified via `file` command on the actual PNG).
     const DIALOG_W = 259
     const DIALOG_H = 162
 
@@ -75,52 +75,24 @@ export function uiGetAmount(item: Obj): Promise<number> {
         let count = 1
         const max = Math.max(1, item.amount)
 
-        const overlay = document.createElement('div')
-        Object.assign(overlay.style, {
-            position: 'fixed',
-            left: '0', top: '0', width: '100%', height: '100%',
-            zIndex: '9999',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-        })
+        const overlay = $id('moveMultOverlay')
+        const canvas  = $id('moveMultCanvas') as HTMLCanvasElement
+        const ctx     = canvas.getContext('2d')!
 
-        // CE ref: inventory.cc:5748 — 259×162 window centered on screen.
-        const modal = document.createElement('div')
-        Object.assign(modal.style, {
-            position: 'relative',
-            width: `${DIALOG_W}px`,
-            height: `${DIALOG_H}px`,
-            backgroundImage: "url('art/intrface/movemult.png')",
-            backgroundSize: `${DIALOG_W}px ${DIALOG_H}px`,
-            backgroundRepeat: 'no-repeat',
-            imageRendering: 'pixelated',
-        })
+        overlay.style.display = 'flex'
 
-        // Canvas drawn on top of the background for digits + item icon.
-        const canvas = document.createElement('canvas')
-        canvas.width = DIALOG_W
-        canvas.height = DIALOG_H
-        Object.assign(canvas.style, {
-            position: 'absolute', left: '0', top: '0',
-            width: `${DIALOG_W}px`, height: `${DIALOG_H}px`,
-            pointerEvents: 'none',
-        })
-        const ctx = canvas.getContext('2d')!
-        modal.appendChild(canvas)
-
-        // Lazy-load BIGNUM strip and item icon, redraw when ready.
+        // Lazy-load BIGNUM strip and item icon; redraw when each arrives.
         const bignumImg = new Image()
-        const iconImg = new Image()
+        const iconImg   = new Image()
         let bignumReady = false
-        let iconReady = false
+        let iconReady   = false
 
         function redraw() {
             ctx.clearRect(0, 0, DIALOG_W, DIALOG_H)
             if (bignumReady) drawBignumDigits(ctx, bignumImg, count)
             if (iconReady && item.invArt) {
                 // CE ref: inventory.cc:5800 artRender — item icon at (ICON_X, ICON_Y),
-                // INVENTORY_LARGE_SLOT 56×56. Scale to fit while preserving aspect ratio.
+                // INVENTORY_LARGE_SLOT 56×56. Preserve aspect ratio within the slot.
                 const sw = iconImg.naturalWidth, sh = iconImg.naturalHeight
                 const scale = Math.min(ICON_W / sw, ICON_H / sh)
                 const dw = sw * scale, dh = sh * scale
@@ -128,15 +100,6 @@ export function uiGetAmount(item: Obj): Promise<number> {
                     ICON_X + (ICON_W - dw) / 2, ICON_Y + (ICON_H - dh) / 2,
                     dw, dh)
             }
-            // CE ref: inventory.cc:5922 — "ALL" text drawn onto FRM 307 at runtime.
-            // DH2's movemult.png has the button outline baked in but no text; draw it here.
-            ctx.font = 'bold 11px serif'
-            ctx.fillStyle = '#FCFC7C'
-            ctx.textAlign = 'center'
-            ctx.textBaseline = 'middle'
-            ctx.fillText('ALL', 120 + 47, 80 + 16)
-            ctx.textAlign = 'left'
-            ctx.textBaseline = 'alphabetic'
         }
 
         bignumImg.onload = () => { bignumReady = true; redraw() }
@@ -146,26 +109,7 @@ export function uiGetAmount(item: Obj): Promise<number> {
             iconImg.src = item.invArt + '.png'
         }
 
-        function cleanup(amount: number) {
-            overlay.remove()
-            document.removeEventListener('keydown', keyHandler, true)
-            resolve(amount)
-        }
-
-        function makeHitZone(x: number, y: number, w: number, h: number, onClick: () => void): HTMLDivElement {
-            const el = document.createElement('div')
-            Object.assign(el.style, {
-                position: 'absolute',
-                left: `${x}px`, top: `${y}px`,
-                width: `${w}px`, height: `${h}px`,
-                cursor: 'pointer',
-            })
-            el.addEventListener('click', onClick)
-            return el
-        }
-
-        // CE ref: inventory.cc:5816 — plus button at (200,46) increments count,
-        // with click-and-hold acceleration (hold support via mousedown repeat).
+        // CE ref: inventory.cc:5816 — plus/minus buttons with click-and-hold acceleration.
         let holdTimer: ReturnType<typeof setTimeout> | null = null
         function startHold(delta: number) {
             function tick() {
@@ -179,45 +123,35 @@ export function uiGetAmount(item: Obj): Promise<number> {
             if (holdTimer !== null) { clearTimeout(holdTimer); holdTimer = null }
         }
 
-        function makePlusBtn() {
-            const el = makeHitZone(PLUS_X, PLUS_Y, PLUS_W, PLUS_H, () => {})
-            el.addEventListener('mousedown', () => {
-                count = Math.min(max, count + 1); redraw(); startHold(1)
-            })
-            el.addEventListener('mouseup', stopHold)
-            el.addEventListener('mouseleave', stopHold)
-            return el
-        }
+        const plusBtn   = $id('moveMultPlusBtn')
+        const minusBtn  = $id('moveMultMinusBtn')
+        const allBtn    = $id('moveMultAllBtn')
+        const doneBtn   = $id('moveMultDoneBtn')
+        const cancelBtn = $id('moveMultCancelBtn')
 
-        function makeMinusBtn() {
-            const el = makeHitZone(MINUS_X, MINUS_Y, MINUS_W, MINUS_H, () => {})
-            el.addEventListener('mousedown', () => {
-                count = Math.max(1, count - 1); redraw(); startHold(-1)
-            })
-            el.addEventListener('mouseup', stopHold)
-            el.addEventListener('mouseleave', stopHold)
-            return el
-        }
+        function onPlusDown(e: Event)  { e.preventDefault(); count = Math.min(max, count + 1); redraw(); startHold(1) }
+        function onMinusDown(e: Event) { e.preventDefault(); count = Math.max(1,   count - 1); redraw(); startHold(-1) }
+        function onAllClick()          { count = max; redraw() }
+        function onDoneClick()         { cleanup(count) }
+        function onCancelClick()       { cleanup(0) }
 
-        modal.appendChild(makePlusBtn())
-        modal.appendChild(makeMinusBtn())
-        // CE ref: inventory.cc:5876,5894 — done at (98,128) 15×16, cancel at (148,128) 15×16.
-        // These are the small red dot indicators; the "DONE"/"CANCEL" text is baked into
-        // movemult.png to their left. Extend hit zones leftward to cover full text+dot area.
-        modal.appendChild(makeHitZone(5, 124, 120, 22, () => cleanup(count)))
-        modal.appendChild(makeHitZone(133, 124, 122, 22, () => cleanup(0)))
-        // CE ref: inventory.cc:5912-5946 — ALL button at (120,80) 94×33, sets count to
-        // max. The FRM art (307/308) has "ALL" drawn on it at runtime by CE; in DH2's
-        // pre-baked movemult.png the button outline is visible but has no text.
-        modal.appendChild(makeHitZone(120, 80, 94, 33, () => { count = max; redraw() }))
+        plusBtn.addEventListener('mousedown', onPlusDown)
+        plusBtn.addEventListener('mouseup',   stopHold)
+        plusBtn.addEventListener('mouseleave', stopHold)
+        minusBtn.addEventListener('mousedown', onMinusDown)
+        minusBtn.addEventListener('mouseup',   stopHold)
+        minusBtn.addEventListener('mouseleave', stopHold)
+        allBtn.addEventListener('click',   onAllClick)
+        doneBtn.addEventListener('click',   onDoneClick)
+        cancelBtn.addEventListener('click', onCancelClick)
 
         // CE ref: inventory.cc:5707-5717 — direct digit key input (KEY_0-KEY_9).
         const keyHandler = (e: KeyboardEvent) => {
-            if (e.key === 'Enter') { cleanup(count); return }
-            if (e.key === 'Escape') { cleanup(0); return }
+            if (e.key === 'Enter')  { cleanup(count); return }
+            if (e.key === 'Escape') { cleanup(0);     return }
             const d = parseInt(e.key)
             if (!isNaN(d) && d >= 0 && d <= 9) {
-                const typed = (count < 10000) ? count * 10 + d : d
+                const typed = count < 10000 ? count * 10 + d : d
                 count = Math.max(1, Math.min(max, typed))
                 redraw()
             }
@@ -226,8 +160,22 @@ export function uiGetAmount(item: Obj): Promise<number> {
         }
         document.addEventListener('keydown', keyHandler, true)
 
-        overlay.appendChild(modal)
-        document.body.appendChild(overlay)
+        function cleanup(amount: number) {
+            overlay.style.display = 'none'
+            stopHold()
+            plusBtn.removeEventListener('mousedown', onPlusDown)
+            plusBtn.removeEventListener('mouseup',   stopHold)
+            plusBtn.removeEventListener('mouseleave', stopHold)
+            minusBtn.removeEventListener('mousedown', onMinusDown)
+            minusBtn.removeEventListener('mouseup',   stopHold)
+            minusBtn.removeEventListener('mouseleave', stopHold)
+            allBtn.removeEventListener('click',   onAllClick)
+            doneBtn.removeEventListener('click',   onDoneClick)
+            cancelBtn.removeEventListener('click', onCancelClick)
+            document.removeEventListener('keydown', keyHandler, true)
+            resolve(amount)
+        }
+
         redraw()
     })
 }

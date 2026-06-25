@@ -19,7 +19,8 @@ limitations under the License.
 
 import globalState from '../globalState.js'
 import { lazyLoadImage } from '../images.js'
-import { Obj, createObjectWithPID } from '../object.js'
+import { Obj, createObjectWithPID, cloneItem } from '../object.js'
+import { uiGetAmount } from '../ui_barter/swap.js'
 import { Scripting } from '../scripting.js'
 import { drawAC, drawAP, uiDrawWeapon } from '../ui_hud.js'
 import { makePanelDraggable } from '../ui_drag.js'
@@ -465,9 +466,33 @@ export function showInventory() {
             btn.className = 'itemContextMenuButton itemContextMenuText'
             btn.textContent = label
         }
-        btn.onclick = () => {
-            itemAction(obj, slot, action)
+        btn.onclick = async () => {
             if (closeOnClick) hidev($id('itemContextMenu'))
+            // CE ref: inventory.cc:4909 — quantity dialog for drop when amount > 1.
+            if (action === 'drop' && obj.amount > 1) {
+                const wanted = await uiGetAmount(obj)
+                if (wanted <= 0) return
+                const playerAny = globalState.player as any
+                if (wanted < obj.amount) {
+                    const split = cloneItem(obj)
+                    split.amount = wanted
+                    obj.amount -= wanted
+                    split.drop(globalState.player)
+                } else {
+                    if (slot !== 'inventory') {
+                        playerAny[slot] = null
+                    } else {
+                        const idx = globalState.player.inventory.indexOf(obj)
+                        if (idx !== -1) globalState.player.inventory.splice(idx, 1)
+                    }
+                    obj.drop(globalState.player)
+                }
+                globalState.player.clearAnim()
+                uiDrawWeapon()
+                showInventory()
+            } else {
+                itemAction(obj, slot, action)
+            }
         }
         return btn
     }

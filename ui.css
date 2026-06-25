@@ -466,6 +466,86 @@ html, body {
   top: 180px;
 }
 
+/* === Move Items (movemult) modal ===
+   CE ref: inventory.cc:5743 inventoryQuantityWindowInit
+   Background: art/intrface/movemult.png 259×162 */
+#moveMultOverlay {
+  position: fixed;
+  z-index: 9999;
+  top: 0; left: 0; width: 100%; height: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+#moveMultBox {
+  position: relative;
+  width: 259px;
+  height: 162px;
+  background-image: url('art/intrface/movemult.png');
+  background-size: 259px 162px;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+
+#moveMultCanvas {
+  position: absolute;
+  left: 0; top: 0;
+  width: 259px; height: 162px;
+  pointer-events: none;
+}
+
+/* CE ref: inventory.cc:5816 — plus at (200,46) 16×12 */
+#moveMultPlusBtn {
+  position: absolute;
+  left: 200px; top: 46px;
+  width: 16px; height: 12px;
+  cursor: pointer;
+}
+
+/* CE ref: inventory.cc:5816 — minus at (200,58) 17×12 */
+#moveMultMinusBtn {
+  position: absolute;
+  left: 200px; top: 58px;
+  width: 17px; height: 12px;
+  cursor: pointer;
+}
+
+/* CE ref: inventory.cc:5912 — ALL button at (120,80) 94×33 */
+#moveMultAllBtn {
+  position: absolute;
+  left: 120px; top: 80px;
+  width: 94px; height: 33px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#moveMultAllText {
+  font-family: 'VT323', monospace;
+  font-size: 16px;
+  color: #FCFC7C;
+  pointer-events: none;
+  line-height: 1;
+}
+
+/* CE ref: inventory.cc:5876 — DONE text+dot from x=5 to x=125, y=124–146 */
+#moveMultDoneBtn {
+  position: absolute;
+  left: 5px; top: 124px;
+  width: 120px; height: 22px;
+  cursor: pointer;
+}
+
+/* CE ref: inventory.cc:5894 — CANCEL text+dot from x=133 to x=255, y=124–146 */
+#moveMultCancelBtn {
+  position: absolute;
+  left: 133px; top: 124px;
+  width: 122px; height: 22px;
+  cursor: pointer;
+}
+
 #inventoryBoxChar {
   position: absolute;
   left: 128px;
