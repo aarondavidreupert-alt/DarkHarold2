@@ -16,7 +16,7 @@ import { HTMLAudioEngine, NullAudioEngine } from './audio.js'
 import { useDrug } from './drugs.js'
 import { getElevator } from './data.js'
 import { heart } from './heart.js'
-import { hexesInRadius } from './geometry.js'
+import { hexDistance, hexesInRadius, hexIsInFrontOf, hexIsToRightOf } from './geometry.js'
 import globalState from './globalState.js'
 import { IDBCache } from './idbcache.js'
 import { initGame } from './init.js'
@@ -33,7 +33,7 @@ import {
 } from './ui.js'
 import { loadPreferences } from './ui_options.js'
 import { getFileJSON } from './util.js'
-import { WebGLRenderer } from './webglrenderer.js'
+import { isCEOccludingWall, WebGLRenderer } from './webglrenderer.js'
 import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
 import { Lightmap } from './lightmap.js'
@@ -325,6 +325,37 @@ window.onload = async function () {
             wallExtendedFlagsSample: `${wallsWithFlags}/${wallsSampled} sampled walls have nonzero extendedFlags`
                 + (wallsSampled > 0 && wallsWithFlags === 0 ? ' — STALE proMap cache? Try clearAssetCache()' : ''),
         })
+    }
+
+    // eggDebug() — real-time dump of every wall/scenery within egg radius of
+    // the player, with all four isCEOccludingWall predicate components visible.
+    // Example: wall pos=21718 extFlags=0x2000 fOD=false fDO=true rOD=false rDO=true → occluding=true
+    ;(window as any).eggDebug = () => {
+        const player = globalState.player
+        if (!player) { console.log('[EggDebug] no player'); return }
+        const radius = Config.ui.eggRadius ?? 8
+        const playerPos = player.position.y * 200 + player.position.x
+        console.log(`[EggDebug] player pos=${playerPos} (radius=${radius}, mode=${Config.ui.eggMode})`)
+        const objs = globalState.gMap?.getObjects() ?? []
+        const nearby = objs.filter(o =>
+            (o.type === 'wall' || o.type === 'scenery') &&
+            hexDistance(player.position, o.position) <= radius
+        )
+        if (nearby.length === 0) {
+            console.log('[EggDebug] no wall/scenery within radius')
+            return
+        }
+        for (const obj of nearby) {
+            const extFlags: number = (obj as any).pro?.extra?.extendedFlags ?? 0
+            const fOD = hexIsInFrontOf(obj.position, player.position)
+            const fDO = hexIsInFrontOf(player.position, obj.position)
+            const rOD = hexIsToRightOf(obj.position, player.position)
+            const rDO = hexIsToRightOf(player.position, obj.position)
+            const occluding = isCEOccludingWall(obj, player)
+            const pos = obj.position.y * 200 + obj.position.x
+            console.log(`[EggDebug] ${obj.type} pos=${pos} extFlags=0x${extFlags.toString(16)} fOD=${fOD} fDO=${fDO} rOD=${rOD} rDO=${rDO} → occluding=${occluding}`)
+        }
+        console.log(`[EggDebug] ${nearby.length} objects checked`)
     }
 
     // proMap / imageMap are cached in IndexedDB (see cachedJSON() above) so

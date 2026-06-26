@@ -226,11 +226,7 @@ const OBJECT_WALL_TRANS_END = 0x10000000
 // are NOT symmetric under swapping their arguments, so each case below
 // mirrors CE's exact (object, dude) vs (dude, object) ordering.
 
-// RD16 diagnostic: log first 10 wall calls so we can verify extendedFlags
-// reach this function after clearing the IndexedDB cache. Remove once confirmed.
-let _eggDiagCount = 0
-
-function isCEOccludingWall(obj: Obj, player: Obj): boolean {
+export function isCEOccludingWall(obj: Obj, player: Obj): boolean {
     const extendedFlags: number = obj.pro?.extra?.extendedFlags ?? 0
     const objFlags: number = obj.flags ?? 0
     const frontObjDude = hexIsInFrontOf(obj.position, player.position)
@@ -238,33 +234,20 @@ function isCEOccludingWall(obj: Obj, player: Obj): boolean {
     const rightObjDude = hexIsToRightOf(obj.position, player.position)
     const rightDudeObj = hexIsToRightOf(player.position, obj.position)
 
-    let caseLabel: string
-    let result: boolean
     if ((extendedFlags & 0x8000000) !== 0 || (extendedFlags & 0x80000000) !== 0) {
-        caseLabel = 'frontObjDude'
         let v = frontObjDude
         if (v && rightObjDude && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
-        result = v
+        return v
     } else if ((extendedFlags & 0x10000000) !== 0) {
-        caseLabel = 'frontObjDude||rightDudeObj'
-        result = frontObjDude || rightDudeObj
+        return frontObjDude || rightDudeObj
     } else if ((extendedFlags & 0x20000000) !== 0) {
-        caseLabel = 'frontObjDude&&rightDudeObj'
-        result = frontObjDude && rightDudeObj
+        return frontObjDude && rightDudeObj
     } else {
         // CE default case
-        caseLabel = 'rightDudeObj(default)'
         let v = rightDudeObj
         if (v && frontDudeObj && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
-        result = v
+        return v
     }
-
-    if (_eggDiagCount < 10) {
-        _eggDiagCount++
-        console.log(`[EggDiag #${_eggDiagCount}] type=${obj.type} pid=${(obj as any).pid ?? '?'} extendedFlags=0x${extendedFlags.toString(16)} case=${caseLabel} result=${result}`)
-    }
-
-    return result
 }
 
 function isEggObject(obj: Obj): boolean {
