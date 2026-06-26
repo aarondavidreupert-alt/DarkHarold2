@@ -5,9 +5,11 @@ unlocks the next. Phases 1–3 are pure connectivity — the engine infrastructu
 already exists, these wire it up. Phases 4–5 introduce the only genuinely new
 systems still needed.
 
-**Last audited: 2026-06-04**
-Current estimate: **~90% complete** (was ~83% at 2026-06-03; 36 Phase 3/4/5/8/9
-items fixed across the June 4 sprint, plus 5 stale wiki entries verified-fixed).
+**Last audited: 2026-06-25**
+Current estimate: **~93% complete** (was ~90% at 2026-06-04; 60+ items fixed across
+2026-06-11 to 2026-06-25 sprints: companion/dialogue state machine P5–P20, barter
+P14/P19–P24, worldmap W11/W12, Pip-Boy IW10/IW11, roof RD06, egg RD16, outline
+CI11–CI15, and preferences/HUD gaps CI3/CI6/CI8/CI9/CI10/IW3/IW9).
 Target: 95% (a playable end-to-end run through Fallout 2's main quest with
 companions, working scripted content, and correct combat).
 
@@ -182,11 +184,12 @@ a believable playthrough.
 
 ## Phase 8 — Rendering Gaps
 
-### 8a. Egg transparency system 🔴 Still needed
-- Transparent wall/scenery region around player — entirely absent from DH2.
-- CE: `gEgg` pseudo-object, `tileIsInFrontOf`/`tileIsToRightOf`, `_intensity_mask_buf_to_buf`.
-- WebGL equivalent: distance-based alpha mask in fragment shader, or CPU hex-distance clip.
-- Ref: `wiki/rendering.md`; `object.cc:4949`, `tile.cc:1328`.
+### 8a. Egg transparency system ✅ FIXED 2026-06-15/17/18
+- CE 4-case `extendedFlags` branch (`isCEOccludingWall`) wired for `'egg'` mode;
+  `'alpha'` mode uses `hexDistance` radial check. `extendedFlags` now extracted for
+  walls and scenery by `tools/proto.py readWall()`. Cache-busting + `clearAssetCache()`
+  console command added.
+- Ref: `object.cc:4949 _obj_render()`; `proto.cc protoRead() case OBJ_TYPE_WALL`.
 
 ### 8b. Flat object two-pass rendering 🔴 Missing (RD07/RD08)
 - CE renders `OBJECT_FLAT` objects (floor decals, blood) in a dedicated first pass.
@@ -270,10 +273,11 @@ covered by Phases 1–8.
 | IW1 | **No HP/AC indicator bars in the character window.** CE renders colour-coded indicator bars on the HUD. | `interface.cc` | minor |
 | IW1 | ✅ FIXED 2026-06-04, updated 2026-06-11 — `#indicatorBar` shows all 5 CE badges in correct order (ADDICT/SNEAK/LEVEL/POISONED/RADIATED); LEVEL badge on unspent skill points; radiation threshold corrected to ≥65; bad/good colour coding (red/green). | `interface.cc indicatorBarRefresh` | major |
 | IW2 | ✅ FIXED 2026-06-04 — `drawAP` dims `#attackButton` (opacity+grayscale) when AP < cost or not player turn. | `interface.cc interfaceRenderActionPoints()` | minor |
-| IW3 | **Weapon action cycling missing aiming states.** Mode cycle doesn't include aimed-shot states. | `interface.cc` | minor |
+| IW3 | ✅ FIXED 2026-06-11 — mode cycle is `single → called → burst → reload`; called mode auto-opens `uiCalledShot()`. Target-highlight outlines refresh immediately on cycle. | `interface.cc` | minor |
 | IW4 | ✅ FIXED 2026-06-04 — `game_ui_disable/enable` toggle `#bar` visibility in addition to input block. | `interface.cc` | minor |
 | IW7 | ✅ FIXED 2026-06-04 — `drawAP` opacity-fade transitions for `apLight` slots. | `interface.cc interfaceRenderActionPoints()` | low |
-| U3 | **Save slot screenshots not saved.** | `loadsave.cc` | minor |
+| IW9 | ✅ FIXED 2026-06-13 — `showInventory()` deducts `4 - 2×quickPocketsRank` AP on first open during combat. | `inventory.cc:570` | minor |
+| U3 | ✅ FIXED 2026-06-04 — `captureScreenshot()` draws WebGL canvas to 160×100 JPEG; stored on `SaveGame.screenshot`. | `loadsave.cc` | minor |
 
 ### 9e. Config / Preferences
 

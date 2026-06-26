@@ -11,7 +11,7 @@ It is written primarily in TypeScript and Python, and targets recent browsers wi
 
 ## Status
 
-DarkHarold2 is not a complete remake at this time. Estimated overall completion: **~88%**.
+DarkHarold2 is not a complete remake at this time. Estimated overall completion: **~93%**.
 The core technical foundation (rendering, combat math, scripting VM, map loading, dialogue runtime) is
 solid, and most gameplay systems are now wired end-to-end. The remaining gaps are concentrated in
 asset-pipeline extractions, speech/movie infrastructure, and a handful of larger systems (car travel,
@@ -156,7 +156,7 @@ pipenv run python tools/pipeline_gui.py
 ## Feature completion
 
 The buckets below are sourced from [`wiki/known_bugs.md`](wiki/known_bugs.md) (current
-audit: 2026-06-04). Items marked FIXED there roll up here. If you spot a contradiction,
+audit: 2026-06-25). Items marked FIXED there roll up here. If you spot a contradiction,
 the wiki tracker is the source of truth.
 
 ### ✅ Substantially implemented (~85–95%)
@@ -165,8 +165,9 @@ the wiki tracker is the source of truth.
 - **Walking & running** — A\* pathfinding with separate path-blocking / shoot-blocking predicates (P4/P5/P6), `OBJECT_MULTIHEX` neighbour scan, scenery LoS via `OBJECT_LIGHT_THRU` (P7), door interaction, exit grids
 - **Combat core** — hit/damage formulas (YAAM), ammo X/Y/DR/AC modifiers, burst fire, called shots, 6-level criticals + Better Criticals, critical failures, armor DR/DT per damage type, crippled limbs, knockdown/knockout, DAM_DROP, fire DoT, partial cover, AI team targeting + perception gate + LoS, AI distance modes (charge / snipe / stay / stay_close), combat-turn explosion timer (T1), combat walk-speed bonus (FA4), per-damage-type death animations + `CRITTER_SPECIAL_DEATH`, float-text colour + stacking (AC8)
 - **Combat perks** — Slayer, Sniper, Sharpshooter, Bonus HtH Attacks, Bonus Rate of Fire, Better Criticals, Stonewall, Fast Reload, Finesse, Healer, Pathfinder, Pickpocket, and more
-- **Dialogue** — `start_gdialog` / `gSay_Start` / `giq_option` / `gsay_message` / `gsay_reply` / barter-button injection (D3), `gdialog_set_barter_mod`, float messages, reenter-dialogue on barter exit
-- **Bartering** — CE-accurate `_barter_compute_value`, reaction LVAR, Master Trader perk, difficulty bonus
+- **Dialogue** — `start_gdialog` / `gSay_Start` / `giq_option` / `gsay_message` / `gsay_reply` / real fixed-position Barter + Combat Control buttons (P9), `gdialog_set_barter_mod`, float messages, reenter-dialogue on sub-screen return, walk-to-NPC before talk (P15), caps readout in dialogue window (P16), dialogue review log + scrollable modal (P17/P18), screen-curvature highlight overlays (P22)
+- **Bartering** — CE-accurate `_barter_compute_value`, reaction LVAR, Master Trader perk, difficulty bonus; outer-list scroll buttons (P19), offer-table scroll buttons (P20), barter/trade skin selection (P14); movemult quantity picker: BIGNUM 5-digit display, item icon, ALL button, CE-accurate hit zones (P23/P24)
+- **Companion screens** — `partyMemberControlWindowInit`/`partyMemberCustomizationWindowInit` (P5/P8): disposition presets, 6-category custom AI, weight-based trade, `#dialogueContainer`-integrated panel swap via `uiSwapDialoguePanel()`, correct return-path rules (Customize→Control→Talk, Trade→Talk), persistent background window across transitions
 - **Inventory UI** — drag-and-drop, equip slots, weight display + carry-weight enforcement (LE1), reload + ammo state-aware stacking (LE4), `pickup_p_proc` on inventory equip (LE6), container `use_p_proc` gate (LE9), multi-pile caps sum (LE11)
 - **Active skill use** — First Aid, Doctor, Sneak, Lockpick, Steal (with facing + knockdown), Traps, Science, Repair, Gambling/Outdoorsman messages; Healer perk applied; party-member delegation for First Aid/Doctor (AC6)
 - **Level-up & perks** — XP thresholds, skill points (5 + 2×INT, +2 Educated), HP per level (END/2 + 2, +4 Lifegiver), perk every 3 levels (every 4 Skilled), **perk selection modal** (`ui_character.ts:1866 showPerkModal`), Tag! 4th slot
@@ -175,12 +176,13 @@ the wiki tracker is the source of truth.
 - **Random encounters** — encounter group generation, level/time_of_day conditions, encounter counter (W4)
 - **Scripting VM** — INT file parser, **~150+ opcodes wired**, transpiler/disassembler; remaining stubs are largely car-system or movie/credits sub-ops (see [`wiki/known_bugs.md §2`](wiki/known_bugs.md))
 - **Audio engine** — music looping, weapon/action sound mapping, ambient SFX from map data, master/music/sfx GainNode chain with persisted volume sliders
-- **Pip-Boy** — clock display, alarm button (CE geometry IW10), STATUS tab, QUESTS/ARCHIVES tab, AUTOMAP tab with per-location map view, zoom/pan, IndexedDB persistence; rest/wait menu renders inside the Pip-Boy screen with all 13 CE options including "Until healed" (IW11); month sprite stride/position corrected (IW10)
+- **Pip-Boy** — clock display, alarm button (CE geometry IW10), STATUS/QUESTS/ARCHIVES/AUTOMAP tabs with per-location map view + zoom/pan, IndexedDB persistence; rest/wait menu renders inside the Pip-Boy screen with all 13 CE options including "Until healed" (IW11); month sprite stride/position corrected (IW10)
 - **Character screen / HUD** — full SPECIAL/skill view, stat display, trait/perk lists, indicator bar (SNEAK/POISONED/RADIATED/ADDICT) (IW1), AP-light fade animation (IW7), attack button greyed when AP insufficient (IW2), `game_ui_disable` hides HUD bar (IW4)
 - **Save / load** — IndexedDB-backed; player state, inventory + ammo state, stats/skills/traits/perks, level/XP, equipped items, GVARs, MVARs (U5), knownAreas (U6), timed-event queue (U7), 160×100 JPEG save-slot thumbnails (U3)
 - **Status effects** — drug / chem effect timers with addiction rolls (5a), poison + radiation decay loops (5b)
 - **Animations** — FRM sprite rendering with `artOffset` zero-jump model (FA7), correct frame-0 timing (FA9), symmetric walk-cycle partials (FA10), weapon-draw drift fix (FA12)
-- **Preferences** — full options panel (difficulty, combat speed, violence level, target-highlight 3-state (CI8), item highlight (CI7), run-by-default (CI4), subtitles, volume sliders) persisted via localStorage
+- **Rendering** — per-building roof flood-fill clipping (RD06), egg transparency with CE 4-case `extendedFlags` branch + `'alpha'` radial mode (RD16), combat/item/neutral critter outline system with fill/border alpha (CI11–CI15), worldmap pan/scroll with arrow/WASD/mouse-edge input (W12)
+- **Preferences** — full options panel (difficulty, combat speed, violence level, target-highlight 3-state (CI8), item highlight (CI7/CI12), run-by-default (CI4), subtitles, speech/SFX/music volume, brightness slider stub) persisted via localStorage; hover-only item highlight matching CE `gameMouseLoadItemHighlight` (CI12)
 
 ---
 
@@ -188,7 +190,7 @@ the wiki tracker is the source of truth.
 
 - **Traits** — 2 of 16 traits (Gifted, Good Natured) affect skill calculations; no trait selection at character creation; no 2-trait slot limit enforced.
 - **Character creation** — SPECIAL point-buy and tag-skill selection present. Trait selection and name/age/sex entry incomplete.
-- **Party / companions** — `addPartyMember` (CHA cap), `followPlayer` pathfinds to a free hex adjacent to the player, `dismissPartyMember` and silent `party_remove`, combat AI for friendly-team members, party member control screen (disposition presets, 6-category AI customization, weight-based trade — P5). **Missing:** companion level-up, formation pathfinding, CE-style non-combatant promotion (companions join unconditionally rather than when alerted), Use Best Weapon/Armor buttons.
+- **Party / companions** — `addPartyMember` (CHA cap), `followPlayer` pathfinds to a free hex adjacent to the player, `dismissPartyMember` and silent `party_remove`, combat AI for friendly-team members, full companion control/customize/trade screens integrated into persistent dialogue window (P5/P8), correct return-path rules (P8). **Missing:** companion level-up, formation pathfinding, Use Best Weapon/Armor AI heuristics.
 - **Lighting** — `obj_set_light_level` + `set_obj_visibility` correctly rebuild the lightmap (LD3/LD4), hidden objects no longer emit light (LD1). Day/night ambient curve is a DH2 invention rather than CE-matched (GTC10); `objectGetLightIntensity` self-subtraction absent (LD5).
 - **Time & date system** — `gametime.ts` ticks, day/night ambient curve, midnight queue fires `objectUnjamAll` (IU3/GTC5); `get_month` / `get_day` wired; ARTIMER midnight movie events still not implemented.
 - **Quest system** — `questData.ts` covers all major Fallout 2 quests with GVAR-based state tracking; Pip-Boy ARCHIVES tab surfaces them. Per-quest completion rewards/XP route through scripts but not engine-side. Quest descriptions inlined in TS rather than loaded from `quests.msg`.
@@ -217,10 +219,11 @@ status per ID.
 ## Roadmap
 
 [`ROADMAP.md`](ROADMAP.md) is the canonical phased plan (Phases 1–9) toward a 95%-complete
-playthrough. The most recent audit (2026-06-04) closes 36 items across scripting stubs (Phase 3),
-combat AI (Phase 4), companion follow (Phase 5), pathfinding + LoS (Phase 9b), inventory mechanics
-(Phase 9a), HUD widgets (Phase 9d), and rendering (Phase 8c/e). See the file header for the
-per-phase breakdown.
+playthrough. The most recent audit (2026-06-25) closes 60+ items since 2026-06-04: the complete
+companion/dialogue state machine (P5–P20), barter screen CE-accuracy (P14, P19–P21, P23–P24),
+worldmap scroll+labels (W11/W12), Pip-Boy rest+clock (IW10/IW11), per-building roof clipping
+(RD06), egg transparency (RD16), outline system (CI11–CI15), and earlier preference/HUD/scripting
+gaps. See the file header for the per-phase breakdown.
 
 [`CLAUDE.md`](CLAUDE.md) → "Intentionally Incomplete Systems" lists features that are deliberately
 out of scope unless explicitly requested.
