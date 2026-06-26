@@ -225,6 +225,11 @@ const OBJECT_WALL_TRANS_END = 0x10000000
 // Argument order matters for the CE cases — tileIsInFrontOf/tileIsToRightOf
 // are NOT symmetric under swapping their arguments, so each case below
 // mirrors CE's exact (object, dude) vs (dude, object) ordering.
+
+// RD16 diagnostic: log first 10 wall calls so we can verify extendedFlags
+// reach this function after clearing the IndexedDB cache. Remove once confirmed.
+let _eggDiagCount = 0
+
 function isCEOccludingWall(obj: Obj, player: Obj): boolean {
     const extendedFlags: number = obj.pro?.extra?.extendedFlags ?? 0
     const objFlags: number = obj.flags ?? 0
@@ -233,20 +238,33 @@ function isCEOccludingWall(obj: Obj, player: Obj): boolean {
     const rightObjDude = hexIsToRightOf(obj.position, player.position)
     const rightDudeObj = hexIsToRightOf(player.position, obj.position)
 
+    let caseLabel: string
+    let result: boolean
     if ((extendedFlags & 0x8000000) !== 0 || (extendedFlags & 0x80000000) !== 0) {
+        caseLabel = 'frontObjDude'
         let v = frontObjDude
         if (v && rightObjDude && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
-        return v
+        result = v
     } else if ((extendedFlags & 0x10000000) !== 0) {
-        return frontObjDude || rightDudeObj
+        caseLabel = 'frontObjDude||rightDudeObj'
+        result = frontObjDude || rightDudeObj
     } else if ((extendedFlags & 0x20000000) !== 0) {
-        return frontObjDude && rightDudeObj
+        caseLabel = 'frontObjDude&&rightDudeObj'
+        result = frontObjDude && rightDudeObj
     } else {
         // CE default case
+        caseLabel = 'rightDudeObj(default)'
         let v = rightDudeObj
         if (v && frontDudeObj && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
-        return v
+        result = v
     }
+
+    if (_eggDiagCount < 10) {
+        _eggDiagCount++
+        console.log(`[EggDiag #${_eggDiagCount}] type=${obj.type} pid=${(obj as any).pid ?? '?'} extendedFlags=0x${extendedFlags.toString(16)} case=${caseLabel} result=${result}`)
+    }
+
+    return result
 }
 
 function isEggObject(obj: Obj): boolean {
@@ -276,6 +294,11 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
 
     if (egg) {
         const gl = this.gl
+        // Ensure tileShader is active — floor-lighting draws may leave
+        // floorLightShader as the current program, which would cause
+        // uniform1f/uniform1i calls below to target the wrong program and
+        // silently do nothing (WebGL error, no state change).
+        gl.useProgram(this.tileShader)
         if (this.uAlpha) gl.uniform1f(this.uAlpha, getEggAlpha())
 
         // Egg-mask mode: anchor the egg to the player's actual rendered foot

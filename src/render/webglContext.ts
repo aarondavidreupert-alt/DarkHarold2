@@ -194,29 +194,68 @@ export class WebGLRenderer extends Renderer {
 
     // CE ref: object.cc:352 — egg FID is OBJ_TYPE_INTERFACE #2 (art/intrface/egg.frm).
     // Load the egg mask as a WebGL texture on unit 6.
+    //
+    // Step 1 (synchronous): build a procedural elliptical gradient so egg mode
+    // works from the very first frame regardless of whether egg.png has loaded.
+    // Same encoding as export_mask_frms.py: center → alpha≈255 → mix(1,0,1)=0
+    // → transparent; edge → alpha=0 → opaque. CE egg.frm is 129×98 px.
+    //
+    // Step 2 (async): try to upgrade to the CE-accurate FRM-derived gradient
+    // from art/intrface/egg.png. If the file is missing or fails, the
+    // procedural fallback stays active — no flat-alpha regression.
     _loadEggTexture(): void {
         const gl = this.gl
+        const W = 129, H = 98  // CE egg.frm dimensions
+        const cx = (W - 1) / 2, cy = (H - 1) / 2
+        const rx = W / 2, ry = H / 2
+        const data = new Uint8Array(W * H * 4)
+        for (let y = 0; y < H; y++) {
+            for (let x = 0; x < W; x++) {
+                const nx = (x - cx) / rx, ny = (y - cy) / ry
+                const dist = Math.sqrt(nx * nx + ny * ny)
+                // Linear gradient: center=255 (transparent), edge=0 (opaque).
+                const a = dist < 1.0 ? Math.round((1.0 - dist) * 255) : 0
+                const i = (y * W + x) * 4
+                data[i] = 255; data[i + 1] = 255; data[i + 2] = 255; data[i + 3] = a
+            }
+        }
+        const tex = gl.createTexture()
+        gl.activeTexture(gl.TEXTURE6)
+        gl.bindTexture(gl.TEXTURE_2D, tex)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, data)
+        gl.activeTexture(gl.TEXTURE0)
+        this.eggTexture = tex
+        this.eggWidth = W
+        this.eggHeight = H
+        gl.useProgram(this.tileShader)
+        if (this.uEggSize) gl.uniform2f(this.uEggSize, W, H)
+        console.log(`[Egg] procedural ellipse ready ${W}x${H}; loading egg.png for CE-accurate gradient`)
+
+        // Upgrade to CE-accurate FRM-derived gradient asynchronously
         const img = new Image()
         img.onload = () => {
-            const tex = gl.createTexture()
+            const tex2 = gl.createTexture()
             gl.activeTexture(gl.TEXTURE6)
-            gl.bindTexture(gl.TEXTURE_2D, tex)
+            gl.bindTexture(gl.TEXTURE_2D, tex2)
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img)
             gl.activeTexture(gl.TEXTURE0)
-            this.eggTexture = tex
+            this.eggTexture = tex2
             this.eggWidth = img.naturalWidth
             this.eggHeight = img.naturalHeight
-            // Set u_eggSize in the tile shader (may have changed since init)
             gl.useProgram(this.tileShader)
             if (this.uEggSize) gl.uniform2f(this.uEggSize, img.naturalWidth, img.naturalHeight)
-            console.log(`[Egg] texture loaded: ${img.naturalWidth}x${img.naturalHeight}`)
+            console.log(`[Egg] upgraded to CE-accurate egg.png: ${img.naturalWidth}x${img.naturalHeight}`)
         }
-        img.onerror = (e) => {
-            console.error('[Egg] FAILED to load art/intrface/egg.png — egg mode will silently fall back to flat alpha.', e)
+        img.onerror = () => {
+            console.warn('[Egg] egg.png not found — procedural ellipse fallback stays active')
         }
         // Bump the version string whenever egg.png is regenerated via
         // tools/export_mask_frms.py so the browser discards the cached copy.
