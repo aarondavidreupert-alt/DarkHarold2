@@ -358,6 +358,43 @@ window.onload = async function () {
         console.log(`[EggDebug] ${nearby.length} objects checked`)
     }
 
+    // inspectPos(tileNum) — dump every object at a map position with all flag fields.
+    // Example: inspectPos(22925)
+    ;(window as any).inspectPos = (tileNum: number) => {
+        if (!globalState.gMap) { console.log('[inspectPos] no map loaded'); return }
+        const x = tileNum % 200
+        const y = Math.floor(tileNum / 200)
+        const objs = globalState.gMap.objectsAtPosition({ x, y })
+        if (objs.length === 0) {
+            console.log(`[inspectPos] no objects at position ${tileNum}`)
+            return
+        }
+        // Collect every key matching /flag/i with a numeric value from src,
+        // prefixed so caller knows which nesting level it came from.
+        function flagsFrom(src: any, prefix: string): Record<string, string> {
+            const out: Record<string, string> = {}
+            if (!src || typeof src !== 'object') return out
+            for (const k of Object.keys(src)) {
+                if (/flag/i.test(k) && typeof src[k] === 'number') {
+                    const v: number = src[k]
+                    out[prefix + k] = `0x${v.toString(16).padStart(8, '0')} (${v})`
+                }
+            }
+            return out
+        }
+        console.log(`[inspectPos] ${objs.length} object(s) at pos=${tileNum} (x=${x}, y=${y})`)
+        for (const obj of objs) {
+            console.log(`[inspectPos] → ${obj.type}`, {
+                type: obj.type,
+                pos: tileNum,
+                frmPID: (obj as any).frmPID ?? null,
+                ...flagsFrom(obj, ''),
+                ...flagsFrom((obj as any).pro, 'pro.'),
+                ...flagsFrom((obj as any).pro?.extra, 'pro.extra.'),
+            })
+        }
+    }
+
     // proMap / imageMap are cached in IndexedDB (see cachedJSON() above) so
     // repeat loads skip the network fetch — but that means editing
     // proto/pro.json (or any other cached JSON) on disk has NO EFFECT until

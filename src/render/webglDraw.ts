@@ -234,7 +234,11 @@ export function isCEOccludingWall(obj: Obj, player: Obj): boolean {
     const rightObjDude = hexIsToRightOf(obj.position, player.position)
     const rightDudeObj = hexIsToRightOf(player.position, obj.position)
 
-    if ((extendedFlags & 0x8000000) !== 0 || (extendedFlags & 0x80000000) !== 0) {
+    // CE ref: object.cc:4556 — 0x40000000 (bit 30) is grouped with 0x8000000 (bit 27)
+    // for wall orientation in the lighting block (both are the NW-facing type).
+    // The original egg check used 0x80000000 here, but CE itself comments
+    // "// TODO: Probably wrong." at line 4957 on that branch.
+    if ((extendedFlags & 0x8000000) !== 0 || (extendedFlags & 0x40000000) !== 0) {
         let v = frontObjDude
         if (v && rightObjDude && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
         return v

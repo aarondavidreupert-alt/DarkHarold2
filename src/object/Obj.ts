@@ -789,7 +789,7 @@ export class Obj {
             if (this.isDoor || this.isStairs || this.isLadder) {
                 return true
             } else {
-                return (this.pro.extra.actionFlags & 8) != 0
+                return (this.pro.extra.extendedFlags & 8) != 0
             }
         }
         return false
