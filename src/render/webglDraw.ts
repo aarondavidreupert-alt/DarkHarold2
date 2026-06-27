@@ -230,13 +230,12 @@ export function isCEOccludingWall(obj: Obj, player: Obj): boolean {
     const extendedFlags: number = obj.pro?.extra?.extendedFlags ?? 0
     const objFlags: number = obj.flags ?? 0
     const frontObjDude = hexIsInFrontOf(obj.position, player.position)
-    const frontDudeObj = hexIsInFrontOf(player.position, obj.position)
     const rightObjDude = hexIsToRightOf(obj.position, player.position)
     const rightDudeObj = hexIsToRightOf(player.position, obj.position)
 
     // CE ref: object.cc:4556 — 0x40000000 (bit 30) is grouped with 0x8000000 (bit 27)
     // for wall orientation in the lighting block (both are the NW-facing type).
-    // The original egg check used 0x80000000 here, but CE itself comments
+    // The original egg check used 0x80000000 here, but CE itself marks
     // "// TODO: Probably wrong." at line 4957 on that branch.
     if ((extendedFlags & 0x8000000) !== 0 || (extendedFlags & 0x40000000) !== 0) {
         let v = frontObjDude
@@ -247,10 +246,14 @@ export function isCEOccludingWall(obj: Obj, player: Obj): boolean {
     } else if ((extendedFlags & 0x20000000) !== 0) {
         return frontObjDude && rightDudeObj
     } else {
-        // CE default case
-        let v = rightDudeObj
-        if (v && frontDudeObj && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
-        return v
+        // CE ref: object.cc:4973–4979, "TODO: Probably wrong." (line 4957).
+        // The plain rightDudeObj predicate fires at IEEE-754 boundary ties for walls
+        // exactly on the dx/dy=4/3 line (e.g. same column, 4 rows above player) even
+        // when fOD=false — meaning the wall is geometrically behind the player and
+        // cannot occlude it. Walls with no upper orientation bits (extFlags=0x2000)
+        // fall in this case. Use frontObjDude && rightDudeObj (same as 0x20000000)
+        // which correctly returns false when the wall is not in front of the player.
+        return frontObjDude && rightDudeObj
     }
 }
 
