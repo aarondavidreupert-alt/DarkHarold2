@@ -233,15 +233,33 @@ export function isCEOccludingWall(obj: Obj, player: Obj): boolean {
     const rightObjDude = hexIsToRightOf(obj.position, player.position)
     const rightDudeObj = hexIsToRightOf(player.position, obj.position)
 
-    // CE ref: object.cc:4556 — 0x40000000 (bit 30) is grouped with 0x8000000 (bit 27)
-    // for wall orientation in the lighting block (both are the NW-facing type).
-    // The original egg check used 0x80000000 here, but CE itself marks
-    // "// TODO: Probably wrong." at line 4957 on that branch.
-    if ((extendedFlags & 0x8000000) !== 0 || (extendedFlags & 0x40000000) !== 0) {
+    // CE ref: object.cc:4956, "TODO: Probably wrong." — CE groups 0x8000000 (bit 27)
+    // and 0x80000000 (bit 30-ish) together with fOD, but the two orientation types
+    // need different predicates.
+    //
+    // Bit 30 (0x40000000 — DH2's corrected mask, CE used 0x80000000): NE-SW column
+    // type (e.g. extFlags=0x40002000). fOD is FALSE for outside same-column players
+    // (player and wall share hex-x; fOD tie-rounds false via dy>0, dx>0 → never
+    // satisfies dx ≤ dy*−4), correctly suppressing the egg. CE ref: 4556 lighting.
+    if ((extendedFlags & 0x40000000) !== 0) {
         let v = frontObjDude
         if (v && rightObjDude && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
         return v
-    } else if ((extendedFlags & 0x10000000) !== 0) {
+    }
+    // Bit 27 (0x8000000): E-W run type (e.g. extFlags=0x8002000). CE's fOD fires
+    // true when the player is south of an E-W wall in screen depth — geometrically
+    // correct, but the player may be outside the building to the west (same hex-y,
+    // different x) rather than inside. rDO distinguishes the two:
+    //   outside-west player: walls are screen-right of player → rDO=false ✓
+    //   inside-south player: same hex-x as wall → rDO=true via 4/3 tie ✓
+    // Use default-branch logic (rDO with fDO&&WALL_TRANS_END override).
+    if ((extendedFlags & 0x8000000) !== 0) {
+        const frontDudeObj2 = hexIsInFrontOf(player.position, obj.position)
+        let v = rightDudeObj
+        if (v && frontDudeObj2 && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
+        return v
+    }
+    if ((extendedFlags & 0x10000000) !== 0) {
         return frontObjDude || rightDudeObj
     } else if ((extendedFlags & 0x20000000) !== 0) {
         return frontObjDude && rightDudeObj
