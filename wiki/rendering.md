@@ -252,6 +252,20 @@ ty = (off_y + off_x / 4) / 32
 return { x: 99 - round(tx), y: round(ty) }
 ```
 
+### DH2 Debug HUD Overlay (`renderer.ts:248–253`)
+
+A text overlay rendered each frame on the 2D `textCanvas` shows live cursor diagnostics in the upper-left corner:
+
+| Label | Value | Formula |
+|-------|-------|---------|
+| `x:` | Hex column under cursor | `mouseHex.x` |
+| `y:` | Hex row under cursor | `mouseHex.y` |
+| `tile:` | FO2 tile index | `mouseHex.y * 200 + mouseHex.x` |
+| `mt:` | Square tile (80 × 36) coords | `tileFromScreen(mouseWorld)` |
+| `m:` | Raw screen pixels | `heart.mouse.getPosition()` |
+
+`tile:` matches the `tileNum` values printed by `eggDebug()` (`src/main.ts`) — hover over a hex and the displayed number equals the wall/floor index used in `eggDebug()` output. Useful for cross-checking which hex is under the cursor without needing to calculate `y * 200 + x` manually.
+
 ### DH2 Multi-Elevation (`GameMap.changeElevation`, `map.ts`)
 
 ```typescript

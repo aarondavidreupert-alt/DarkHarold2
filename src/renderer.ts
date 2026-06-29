@@ -245,10 +245,12 @@ export class Renderer {
             })
         }
 
-        this.renderText('mh: ' + mouseHex.x + ',' + mouseHex.y, 5, 15)
-        this.renderText('mt: ' + mouseSquare.x + ',' + mouseSquare.y, 75, 15)
+        this.renderText('x: ' + mouseHex.x, 5, 15)
+        this.renderText('y: ' + mouseHex.y, 60, 15)
+        this.renderText('tile: ' + (mouseHex.y * 200 + mouseHex.x), 115, 15)
+        this.renderText('mt: ' + mouseSquare.x + ',' + mouseSquare.y, 225, 15)
         //heart.graphics.print("mt: " + mouseTile.x + "," + mouseTile.y, 100, 15)
-        this.renderText('m: ' + mousePos[0] + ', ' + mousePos[1], 175, 15)
+        this.renderText('m: ' + mousePos[0] + ', ' + mousePos[1], 325, 15)
 
         //this.text("fps: " + heart.timer.getFPS(), SCREEN_WIDTH - 50, 15)
 

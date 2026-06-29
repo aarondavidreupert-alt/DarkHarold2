@@ -247,13 +247,30 @@ export function isCEOccludingWall(obj: Obj, player: Obj): boolean {
         return frontObjDude && rightDudeObj
     } else {
         // CE ref: object.cc:4973–4979, "TODO: Probably wrong." (line 4957).
-        // The plain rightDudeObj predicate fires at IEEE-754 boundary ties for walls
-        // exactly on the dx/dy=4/3 line (e.g. same column, 4 rows above player) even
-        // when fOD=false — meaning the wall is geometrically behind the player and
-        // cannot occlude it. Walls with no upper orientation bits (extFlags=0x2000)
-        // fall in this case. Use frontObjDude && rightDudeObj (same as 0x20000000)
-        // which correctly returns false when the wall is not in front of the player.
-        return frontObjDude && rightDudeObj
+        // extFlags=0x2000 is CE's new-wall/scenery default (proto.cc:952, 1007) and
+        // carries no real orientation data. CE's rule is plain rightDudeObj.
+        //
+        // IEEE-754 caveat: when obj.position.x === player.position.x, the screen
+        // dx/dy ratio between wall and player is ALWAYS exactly 4/3 (Δsx=Δy*16,
+        // Δsy=Δy*12 → 16/12 = 4/3). This lands exactly on hexIsToRightOf's
+        // comparison boundary, and -48*1.3333333333333335 = -64.0 in IEEE-754, so
+        // -64 <= -64 evaluates true — rDO fires for outside-corner walls above the
+        // player even when the player is not inside the building. For different-x
+        // walls the ratio is never 4/3 (the integer x-offset shifts the terms), so
+        // rDO is genuine. Gate the fOD suppression to same-column walls only.
+        //
+        // extFlags=0x0 (no upper bits) uses CE's plain rightDudeObj below — correct
+        // for genuine interior NE-SW panel walls.
+        if (extendedFlags === 0x2000) {
+            if (obj.position.x === player.position.x) {
+                return frontObjDude && rightDudeObj
+            }
+            return rightDudeObj
+        }
+        const frontDudeObj = hexIsInFrontOf(player.position, obj.position)
+        let v = rightDudeObj
+        if (v && frontDudeObj && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
+        return v
     }
 }
 
