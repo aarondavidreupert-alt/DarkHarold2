@@ -246,17 +246,21 @@ export function isCEOccludingWall(obj: Obj, player: Obj): boolean {
         if (v && rightObjDude && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
         return v
     }
-    // Bit 27 (0x8000000): E-W run type (e.g. extFlags=0x8002000). CE's fOD fires
-    // true when the player is south of an E-W wall in screen depth — geometrically
-    // correct, but the player may be outside the building to the west (same hex-y,
-    // different x) rather than inside. rDO distinguishes the two:
-    //   outside-west player: walls are screen-right of player → rDO=false ✓
-    //   inside-south player: same hex-x as wall → rDO=true via 4/3 tie ✓
-    // Use default-branch logic (rDO with fDO&&WALL_TRANS_END override).
+    // Bit 27 (0x8000000): E-W run type (e.g. extFlags=0x8002000). CE used fOD here
+    // ("TODO: Probably wrong"). rDO also fails: the 4/3 tie only fires for walls at
+    // the same hex-x as the player, leaving the east half of the run (smaller hex-x,
+    // larger screen-x) always false regardless of player position.
+    // These are SOUTH-FACE walls: the building interior is to the north (smaller y).
+    // The camera looks from the north, so the wall sprite visually covers the player
+    // whenever player.y < obj.y (player is inside/north of the wall). Verified:
+    //   outside-south (player y > obj.y): false ✓  (wall stays opaque)
+    //   outside-west  (player y = obj.y): false ✓  (same hex-y row)
+    //   inside-north  (player y < obj.y): true  ✓  (wall vanishes to reveal player)
+    // Integer comparison, no IEEE-754 tie. Keep CE's rOD&&WALL_TRANS_END override
+    // for wall-run end tiles.
     if ((extendedFlags & 0x8000000) !== 0) {
-        const frontDudeObj2 = hexIsInFrontOf(player.position, obj.position)
-        let v = rightDudeObj
-        if (v && frontDudeObj2 && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
+        let v = player.position.y < obj.position.y
+        if (v && rightObjDude && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
         return v
     }
     if ((extendedFlags & 0x10000000) !== 0) {
@@ -268,22 +272,28 @@ export function isCEOccludingWall(obj: Obj, player: Obj): boolean {
         // extFlags=0x2000 is CE's new-wall/scenery default (proto.cc:952, 1007) and
         // carries no real orientation data. CE's rule is plain rightDudeObj.
         //
-        // IEEE-754 caveat: when obj.position.x === player.position.x, the screen
-        // dx/dy ratio between wall and player is ALWAYS exactly 4/3 (Δsx=Δy*16,
-        // Δsy=Δy*12 → 16/12 = 4/3). This lands exactly on hexIsToRightOf's
-        // comparison boundary, and -48*1.3333333333333335 = -64.0 in IEEE-754, so
-        // -64 <= -64 evaluates true — rDO fires for outside-corner walls above the
-        // player even when the player is not inside the building. For different-x
-        // walls the ratio is never 4/3 (the integer x-offset shifts the terms), so
-        // rDO is genuine. Gate the fOD suppression to same-column walls only.
+        // Same-hex-x walls (NE-SW column, e.g. extFlags=0x2000, obj.x=player.x):
+        //   IEEE-754 tie — the dx/dy ratio between any two same-x positions is
+        //   ALWAYS exactly 4/3 (Δsx=Δy*16, Δsy=Δy*12 → 16/12 = 4/3), so
+        //   -48*1.3333333333333335 = -64.0 exactly and -64 <= -64 is true.
+        //   rDO fires for outside-corner walls above the player. Gate with fOD
+        //   to suppress: fOD=false for same-column outside-corner players. ✓
         //
-        // extFlags=0x0 (no upper bits) uses CE's plain rightDudeObj below — correct
+        // Different-hex-x walls (NW-SE column, e.g. extFlags=0x2000, obj.x≠player.x):
+        //   rDO fires true for outside players (e.g. outside-east player vs NW-SE
+        //   wall to the northwest) because the wall's dx/dy ratio exceeds 4/3.
+        //   The correct gate is the hex-x axis: these walls run at constant hex-x,
+        //   so "player is inside (west side)" = player.x > obj.x. Verified:
+        //     outside (player x=95, wall x=96): 95 > 96 = false ✓ (wall stays)
+        //     inside  (player x=97, wall x=96): 97 > 96 = true  ✓ (wall vanishes)
+        //
+        // extFlags=0x0 (no upper bits): CE's plain rightDudeObj below — correct
         // for genuine interior NE-SW panel walls.
         if (extendedFlags === 0x2000) {
             if (obj.position.x === player.position.x) {
                 return frontObjDude && rightDudeObj
             }
-            return rightDudeObj
+            return player.position.x > obj.position.x
         }
         const frontDudeObj = hexIsInFrontOf(player.position, obj.position)
         let v = rightDudeObj
