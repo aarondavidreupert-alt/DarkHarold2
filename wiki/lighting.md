@@ -15,7 +15,7 @@ Ground-truth references: `raw/fallout2-ce/src/light.cc`, `light.h`,
 `interpreter_extra.cc` (`set_light_level`, `obj_set_light_level`,
 `opSetObjectVisibility` opcodes), `combat_ai.cc` (Solar Scorcher / flare AI).
 
-Last audited: 2026-06-02
+Last audited: 2026-06-30
 
 ---
 
@@ -471,19 +471,28 @@ When `invisible == 0` (show):
 2. If critter: clears `OBJECT_NO_BLOCK`
 3. `tileWindowRefreshRect`
 
-### DH2 behaviour (`scripting.ts:1213`)
+### DH2 behaviour (`scripting.ts:1504`)
 
 ```typescript
 set_obj_visibility(obj: Obj, visibility: number) {
     obj.visible = !visibility
+    if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
 }
 ```
 
-Differences vs CE:
-- **No light update** — CE calls `_obj_turn_off_light` / `_obj_turn_on_light`
-  through `objectHide`/`objectShow`. DH2 only toggles `obj.visible`. The object's
-  light contribution is not removed from the lightmap, and `bakeStaticLight` is not
-  triggered. Hidden objects still illuminate tiles.
+**FIXED** (`wiki/known_bugs.md` LD4): toggling `obj.visible` now triggers
+`Lightmap.rebuildLight()` → `bakeStaticLight()`, a full re-bake of
+`tile_intensity` from `staticTileIntensity`'s baseline. `obj_adjust_light`
+(§4a) already bails when `obj.visible === false`, so a hidden object is
+excluded from the rebake — its light contribution is correctly removed.
+Hidden critters need no explicit rebake call: `rebuildDynamicLight()` runs
+every frame and re-evaluates `obj.visible` for every critter via the same
+guard. Residual difference from CE: DH2's rebuild re-bakes **every**
+static object's contribution from scratch rather than CE's targeted
+`_obj_turn_off_light`/`_obj_turn_on_light` (subtract/add just the one
+object) — functionally equivalent end state, just more CPU work per call.
+
+Differences vs CE that remain:
 - **No `OBJECT_NO_BLOCK`** — CE removes critters from pathfinding when hidden.
   DH2 leaves the collision flag unchanged.
 - **No `OBJECT_NO_SAVE`** — CE tags hidden objects to skip save serialisation.
@@ -497,8 +506,8 @@ Differences vs CE:
 
 | Opcode | Name | Args | CE handler | DH2 method | DH2 wired |
 |--------|------|------|-----------|-----------|-----------|
-| `0x80E9` | `set_light_level` | `level` (0–100) | `opSetLightLevel` `interpreter_extra.cc:2233` | `Script.set_light_level` `scripting.ts:1255` | Yes — `vm_bridge.ts:111` |
-| `0x8107` | `obj_set_light_level` | `obj, intensity, distance` | `opSetObjectLightLevel` `interpreter_extra.cc:3058` | `Script.obj_set_light_level` `scripting.ts:1262` | **No** — missing from `vm_bridge.ts` |
+| `0x80E9` | `set_light_level` | `level` (0–100) | `opSetLightLevel` `interpreter_extra.cc:2233` | `Script.set_light_level` `scripting.ts:1570` | Yes — `vm_bridge.ts:111` |
+| `0x8107` | `obj_set_light_level` | `obj, intensity, distance` | `opSetObjectLightLevel` `interpreter_extra.cc:3058` | `Script.obj_set_light_level` `scripting.ts:1577` | **FIXED** — `vm_bridge.ts:115` |
 
 There is no `get_light_level`, `ambient_light`, or `get_obj_light_level`
 opcode in CE or DH2.
@@ -516,16 +525,19 @@ level  > 50  →  intensities[1] + level × (MAX − MID) / 100
 level  < 50  →  intensities[0] + level × (MID − MIN) / 100
 ```
 
-DH2 `gametime.ts:241-243`:
+DH2 `gametime.ts:244-253`:
 ```typescript
-const t = clamped / 100  // 0..1
-lightLevelOverride = LIGHT_INTENSITY_MIN + t * (LIGHT_INTENSITY_MAX - LIGHT_INTENSITY_MIN)
+const mid = (LIGHT_INTENSITY_MIN + LIGHT_INTENSITY_MAX) / 2 // 40960
+if (data === 50) intensity = mid
+else if (data > 50) intensity = Math.trunc(mid + data * (LIGHT_INTENSITY_MAX - mid) / 100)
+else intensity = Math.trunc(LIGHT_INTENSITY_MIN + data * (mid - LIGHT_INTENSITY_MIN) / 100)
 ```
 
-DH2 uses a simpler linear remap across the full `[MIN, MAX]` range rather
-than CE's piecewise two-segment ramp. The practical difference is small —
-both yield `LIGHT_INTENSITY_MAX` at `level=100` and `LIGHT_INTENSITY_MIN`
-at `level=0`.
+**FIXED**: DH2 now reproduces CE's exact piecewise two-segment ramp
+(`intensities[0..2]` = MIN/MID/MAX, `Math.trunc` matching C++'s integer
+truncation). The "simpler linear remap" this section previously described
+no longer exists in the code — not separately tracked in
+`wiki/known_bugs.md`'s LD table; recorded here only.
 
 ### `obj_set_light_level` — per-object light
 
@@ -534,16 +546,27 @@ to the raw scale via `(lightIntensity * 65636) / 100` (note: typo `65636`
 rather than `65536` in the original — a known bug, ≈ 0.15 % brightness
 error at max).
 
-DH2 `scripting.ts:1262-1268`: stores `intensity` and `distance` directly on
-the object but **does not call `obj_adjust_light`** to propagate the new
-value into `tile_intensity`. As a result, `obj_set_light_level` calls from
-scripts have no visible effect on floor lighting at runtime until the next
-full `bakeStaticLight()` rebuild, and even then only if the object is
-non-critter.
+DH2 `scripting.ts:1577-1588` (**FIXED**, `wiki/known_bugs.md` LD3/LD6):
 
-Additionally, the opcode is not wired in `vm_bridge.ts` (missing
-`0x8107: bridged("obj_set_light_level", 3)`), so the bytecode never reaches
-the handler.
+```typescript
+obj.lightRadius = distance
+obj.lightIntensity = Math.round(intensity * 65536 / 100)
+if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
+```
+
+Stores `lightRadius`/`lightIntensity` and now calls `Lightmap.rebuildLight()`
+(→ `bakeStaticLight()`) immediately, so the change is visible the same frame
+rather than waiting for the next map load. DH2 deliberately uses `65536`
+(not CE's `65636` typo) — a knowing departure from byte-for-byte CE
+fidelity that fixes CE's own bug rather than reproducing it. If a critter
+is the target, the explicit rebake is redundant but harmless:
+`bakeStaticLight()` skips critters by design, and `rebuildDynamicLight()`
+re-reads the critter's (now-updated) `lightRadius`/`lightIntensity` from
+the object itself on the very next frame regardless.
+
+The opcode is now wired in `vm_bridge.ts:115`
+(`0x8107: bridged("obj_set_light_level", 3, false)`), so the bytecode
+reaches the handler.
 
 ---
 
@@ -618,17 +641,17 @@ documents the GPU floor-lighting FBO path and `floorLightingMode` flag.
 | # | CE behaviour | DH2 status | Location |
 |---|---|---|---|
 | 1 | Night to-hit penalty (−10/−25/−40) when attacking in darkness | **Not implemented** | `combat.ts` comment |
-| 2 | `obj_set_light_level` (0x8107) changes tile intensity at runtime — CE calls `objectSetLight()` which triggers the full turn-off/turn-on cycle and refreshes the screen rect | Opcode **not wired** in `vm_bridge.ts`; even if called, `scripting.ts:1267` stores intensity/distance on object but never calls `obj_adjust_light()` or triggers `bakeStaticLight()` — lightmap is stale until next map reload | `scripting.ts:1262`, `vm_bridge.ts` |
+| 2 | `obj_set_light_level` (0x8107) changes tile intensity at runtime — CE calls `objectSetLight()` which triggers the full turn-off/turn-on cycle and refreshes the screen rect | **FIXED** — wired at `vm_bridge.ts:115`; `scripting.ts:1577-1588` sets `obj.lightRadius`/`obj.lightIntensity` then calls `Lightmap.rebuildLight()`, a full re-bake (`bakeStaticLight()` + `rebuildDynamicLight()`) rather than CE's targeted turn-off/turn-on subtract-add — functionally equivalent for static objects, costs a full rebake instead of an O(36) delta | `scripting.ts:1577`, `vm_bridge.ts:115` |
 | 3 | Night Vision perk adds 20 %/rank to ambient (`LIGHT_LEVEL_NIGHT_VISION_BONUS`) | **Not applied** to ambient in DH2 | `light.cc:50`; perk defined in `perks.ts` but unused |
 | 4 | No built-in day/night curve — only script-driven ambient | DH2 adds a custom curve (`gametime.ts:181`). This is a DH2 extension beyond CE. | `gametime.ts` |
 | 5 | `set_light_level` always applied (indoor and outdoor) | DH2 **silently ignores** it on outdoor maps | `gametime.ts:235` |
-| 6 | CE `set_light_level` maps 0-100 through piecewise ramp (`intensities[3]`) | DH2 uses simpler linear remap across `[MIN, MAX]` — minor brightness difference | `gametime.ts:241` |
+| 6 | CE `set_light_level` maps 0-100 through piecewise ramp (`intensities[3]`) | **FIXED** — DH2 now matches the piecewise ramp exactly (`gametime.ts:244-253`); see `known_bugs.md` LD7 | `gametime.ts:244` |
 | 7 | Non-wall opaque scenery casts light shadow (the `edi=0` path in `_obj_adjust_light`) | **Commented out** in DH2 | `lightmap.ts:335-345` |
 | 8 | Per-elevation tile intensity (`gTileIntensity[ELEVATION_COUNT][HEX_GRID_SIZE]`) | DH2 `tile_intensity` is a flat `40000`-entry array — **no elevation separation** | `lightmap.ts:37` |
 | 9 | Solar Scorcher / flare AI: ambient threshold checks (0.95×MAX / 0.85×MAX) | Not implemented in DH2 AI | `combat_ai.cc:1772,2907` |
-| 10 | `obj_set_light_level` intensity argument is 0–100 %; CE converts via `(v * 65636) / 100` (note: CE typo, should be 65536) | DH2 stores the raw integer directly, giving 100× too dim a result when scripts pass percentage values | `scripting.ts:1267` |
-| 11 | **Hidden objects do not emit light** — `_obj_adjust_light` bails when `OBJECT_HIDDEN` is set; CE `objectHide`/`objectShow` call `_obj_turn_off_light`/`_obj_turn_on_light` | `bakeStaticLight()` and `rebuildDynamicLight()` do not check `obj.visible` — hidden objects still illuminate tiles; `set_obj_visibility` does not update the lightmap | `lightmap.ts:564,576`; `scripting.ts:1213` / `object.cc:3973`; `interpreter_extra.cc:2096-2119` |
-| 12 | `OBJECT_LIGHTING` flag (`0x20`) must be set for an object to contribute light | DH2 does not check this flag — any object with `lightRadius > 0` contributes light regardless of PRO data | `lightmap.ts:68` / `object.cc:3977`; `obj_types.h:61` |
+| 10 | `obj_set_light_level` intensity argument is 0–100 %; CE converts via `(v * 65636) / 100` (note: CE typo, should be 65536) | **FIXED, with a deliberate departure** — DH2 uses the mathematically-correct `(intensity * 65536) / 100` (`scripting.ts:1586`) rather than reproducing CE's off-by-one-bit typo, so DH2 light levels are very slightly brighter (65536/65636 ≈ 0.15% difference) than literal CE output for the same percentage input | `scripting.ts:1586` |
+| 11 | **Hidden objects do not emit light** — `_obj_adjust_light` bails when `OBJECT_HIDDEN` is set; CE `objectHide`/`objectShow` call `_obj_turn_off_light`/`_obj_turn_on_light` | **FIXED** — `obj_adjust_light` bails on `obj.visible === false` (`lightmap.ts:68-74`), and `set_obj_visibility` now calls `Lightmap.rebuildLight()` after flipping `obj.visible` (`scripting.ts:1504-1513`); see `known_bugs.md` LD1/LD4 | `lightmap.ts:68`; `scripting.ts:1504` / `object.cc:3973`; `interpreter_extra.cc:2096-2119` |
+| 12 | `OBJECT_LIGHTING` flag (`0x20`) must be set for an object to contribute light | DH2 does not check a PRO-data flag; instead it approximates the same effect with a magnitude heuristic — `lightRadius > 0 && lightIntensity > 655` (`lightmap.ts:69`) — so any object whose light fields happen to be populated above that threshold contributes light, regardless of whether `OBJECT_LIGHTING` would actually be set on the equivalent CE object | `lightmap.ts:68-74` / `object.cc:3977`; `obj_types.h:61` |
 | 13 | `objectGetLightIntensity` self-subtraction: player's own torch is excluded from the tile intensity used for night penalty | No DH2 equivalent — moot while night penalty is absent (gap #1), but needed if it is ever implemented | `combat.ts` / `object.cc:1748` |
 
 <!-- audited: 2026-06-02 -->
