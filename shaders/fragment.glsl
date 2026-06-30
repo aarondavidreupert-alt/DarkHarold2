@@ -22,6 +22,16 @@ uniform highp vec2 u_resolution;     // logical pixels (SCREEN_WIDTH, SCREEN_HEI
 uniform float u_zoom;                // world-space zoom factor (1.0 = no zoom); UI draws leave this at 1.0
 uniform float u_alpha;               // per-draw alpha multiplier (flat egg fallback = 0.4, normal = 1.0)
 
+// CE ref: object.cc:835 — lighting for objects/critters is sampled once per
+// object at its own tile, not per-fragment. This prevents tall sprites (walls,
+// critters) from sampling dark hexes on their upper pixels while their lower
+// pixels are lit, and also prevents bilinear bleed from the tileIntensity
+// texture leaking light through walls.
+// u_objectLight >= 0: use this pre-sampled value (CE-style per-object path).
+// u_objectLight  < 0: fall back to per-fragment world-position sampling (floor
+//                     tiles, UI draws).
+uniform float u_objectLight;
+
 // CE ref: object.cc:4983 — egg mask texture (art/intrface/egg.frm, unit 6).
 // White center = player-visible area (wall transparent there).
 // u_eggMode: 0=disabled / flat-alpha mode, 1=egg-mask mode.
@@ -120,6 +130,7 @@ void main() {
         }
     }
 
-    float light = max(getWorldTileLight(), u_ambient);
+    float tileLight = (u_objectLight >= 0.0) ? u_objectLight : getWorldTileLight();
+    float light = max(tileLight, u_ambient);
     gl_FragColor = vec4(texel.rgb * light, texel.a * alpha);
 }

@@ -70,6 +70,7 @@ export class WebGLRenderer extends Renderer {
     uOutlineMode: WebGLUniformLocation | null = null
     uOutlineColor: WebGLUniformLocation | null = null
     uOutlineAlpha: WebGLUniformLocation | null = null
+    uObjectLight: WebGLUniformLocation | null = null
 
     // Resolution uniforms stashed at init-time so resize() can re-upload them
     // (they are set once in init() and then re-read by the fragment shader
@@ -368,8 +369,14 @@ export class WebGLRenderer extends Renderer {
         gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+        // NEAREST not LINEAR: per-hex tile intensity must not bleed across hex
+        // boundaries — bilinear filtering would smear lit values into adjacent
+        // dark hexes (behind walls), producing light leak. Object sprites now
+        // use the per-object CE path (u_objectLight) so they never sample this
+        // texture mid-sprite anyway; NEAREST also keeps floor tile sampling
+        // crisp at hex edges.
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
         gl.texImage2D(
             gl.TEXTURE_2D,
             0,
@@ -418,6 +425,9 @@ export class WebGLRenderer extends Renderer {
         this.uOutlineAlpha = gl.getUniformLocation(this.tileShader, 'u_outlineAlpha')
         if (this.uOutlineMode) gl.uniform1i(this.uOutlineMode, 0)
         if (this.uOutlineAlpha) gl.uniform1f(this.uOutlineAlpha, 1.0)
+        this.uObjectLight = gl.getUniformLocation(this.tileShader, 'u_objectLight')
+        // -1.0 = per-fragment world-position fallback (floor tiles, UI draws)
+        if (this.uObjectLight) gl.uniform1f(this.uObjectLight, -1.0)
 
         // 1×1 R8 dummy texture (value 0) for roof draws — roofs are
         // sky-facing and should be lit by ambient only, not by floor
