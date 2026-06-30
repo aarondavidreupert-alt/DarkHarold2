@@ -630,12 +630,12 @@ jsFO uses Canvas 2D compositing rather than per-pixel blending.
 
 DH2 approximates the CE blend in the fragment shader using the egg.png R channel as a mask weight.
 
-**Two modes** (toggle: `setEggMode('alpha')` / `setEggMode('egg')`):
+**Two modes** (toggle: `setEggMode('alpha')` / `setEggMode('dh2-egg')`):
 
 | Mode | Behaviour |
 |------|-----------|
 | `'alpha'` (default) | Flat alpha applied to entire qualifying wall sprite. Alpha tunable: `setEggAlpha(0.4)`. |
-| `'egg'` | egg.png R channel modulates per-fragment alpha. White center → `alpha=0` (invisible wall). Border → `alpha=u_alpha`. |
+| `'dh2-egg'` | egg.png R channel modulates per-fragment alpha. White center → `alpha=0` (invisible wall). Border → `alpha=u_alpha`. |
 
 **Shader logic** (fragment.glsl):
 ```glsl

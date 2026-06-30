@@ -862,7 +862,7 @@ largest known source of divergence from `'dh2'` mode near walls — expect
 
 This mode does **not** close known-gap #7 (non-wall opaque-scenery shadowing,
 §13) by virtue of being more "correct" — it's a different, unverified algorithm,
-not a fix. Gap #7 remains open for the literal `'dh2'`/`'ce-literal'` code path.
+not a fix. Gap #7 remains open for the literal `'dh2'` code path.
 
 ### 14.7 The `'naive'` light-propagation mode — distance-only baseline
 

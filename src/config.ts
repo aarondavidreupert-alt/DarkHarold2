@@ -16,7 +16,7 @@ export const Config = {
         showRoof: true, // show roof tiles?
         hideRoofWhenUnder: true, // hide roof when we walk under it?
         showEgg: true, // egg transparency: make walls/scenery in front of the player semi-transparent
-        eggMode: 'egg' as 'alpha' | 'egg' | 'ce-literal' | 'bbox' | 'beta', // 'alpha'=flat transparent, 'egg'=CE egg.png mask (DH2 hand-tuned occlusion test), 'ce-literal'=CE egg.png mask using the byte-for-byte CE occlusion test (no DH2 deviations), 'bbox'=CE egg.png mask using a screen-space bounding-box overlap + draw-order depth test (DH2-original, not CE-derived), 'beta'=floor hex debug overlay (no wall transparency)
+        eggMode: 'dh2-egg' as 'alpha' | 'dh2-egg' | 'ce-egg' | 'bbox' | 'beta', // 'alpha'=flat transparent, 'dh2-egg'=CE egg.png mask (DH2 hand-tuned occlusion test), 'ce-egg'=CE egg.png mask using the byte-for-byte CE occlusion test (no DH2 deviations), 'bbox'=CE egg.png mask using a screen-space bounding-box overlap + draw-order depth test (DH2-original, not CE-derived), 'beta'=floor hex debug overlay (no wall transparency)
         eggAlpha:  undefined as number | undefined, // outer alpha — undefined = use default 0.4
         eggRadius: undefined as number | undefined, // hex radius — undefined = use default 8
         showObjects: true, // show objects?

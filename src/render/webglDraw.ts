@@ -213,7 +213,7 @@ const OBJECT_WALL_TRANS_END = 0x10000000
 // the NW-SE hex axis. That's deliberate: it's asking "is this wall between
 // the isometric camera (always at a fixed diagonal angle) and the player",
 // which is inherently one-sided. CE's real egg effect is camera-facing-only,
-// not a radial bubble — confirmed correct for 'egg' mode.
+// not a radial bubble — confirmed correct for 'dh2-egg' mode.
 //
 // 'alpha' mode is a DH2 invention (not a CE feature) meant to behave like a
 // symmetric "see-through bubble around me", so it must NOT reuse this
@@ -280,12 +280,25 @@ export function isCEOccludingWall(obj: Obj, player: Obj): boolean {
         //   to suppress: fOD=false for same-column outside-corner players. ✓
         //
         // Different-hex-x walls (NW-SE column, e.g. extFlags=0x2000, obj.x≠player.x):
-        //   rDO fires true for outside players (e.g. outside-east player vs NW-SE
-        //   wall to the northwest) because the wall's dx/dy ratio exceeds 4/3.
-        //   The correct gate is the hex-x axis: these walls run at constant hex-x,
-        //   so "player is inside (west side)" = player.x > obj.x. Verified:
-        //     outside (player x=95, wall x=96): 95 > 96 = false ✓ (wall stays)
-        //     inside  (player x=97, wall x=96): 97 > 96 = true  ✓ (wall vanishes)
+        //   CE uses plain rightDudeObj (rDO) here — "TODO: Probably wrong" (object.cc:4957).
+        //
+        //   The geometric flaw: for any (obj.x, obj.y) where Δx=+1 and Δy < 0 relative to
+        //   the player, the screen-space predicates (fOD, fDO, rOD, rDO) and Z-order are
+        //   IDENTICAL whether the player is inside-east (should occlude) or outside-south
+        //   (should not occlude). No local per-tile predicate can distinguish them. This is
+        //   the root of CE's "TODO: Probably wrong" comment.
+        //
+        //   The available tradeoffs:
+        //   (A) rightDudeObj (CE-authentic): all north-wall tiles in the column vanish,
+        //       matching observed original game behaviour. Over-fires for players outside-south
+        //       of the column (e.g. player y=116, wall y=111-114), but CE does too.
+        //   (B) obj.x > player.x && fOD (Z-order correct): only tiles where wall draws on
+        //       top of player (Z(wall)>Z(player)) vanish. Fixes corner-south firing but
+        //       leaves north tiles (y < player.y) non-vanishing even when sprite overlap
+        //       occurs due to tall NW-SE wall sprites extending southward.
+        //
+        //   Using CE-authentic rDO (option A) to preserve behind-wall transparency across
+        //   the full column. The outside-south false-positive is a CE-known approximation.
         //
         // extFlags=0x0 (no upper bits): CE's plain rightDudeObj below — correct
         // for genuine interior NE-SW panel walls.
@@ -293,7 +306,7 @@ export function isCEOccludingWall(obj: Obj, player: Obj): boolean {
             if (obj.position.x === player.position.x) {
                 return frontObjDude && rightDudeObj
             }
-            return player.position.x > obj.position.x
+            return rightDudeObj
         }
         const frontDudeObj = hexIsInFrontOf(player.position, obj.position)
         let v = rightDudeObj
@@ -305,7 +318,7 @@ export function isCEOccludingWall(obj: Obj, player: Obj): boolean {
 // Byte-for-byte literal port of CE's object.cc:4949 _obj_render_object() occlusion
 // test, with none of the hand-tuned deviations in isCEOccludingWall() above (see
 // wiki/extended_flags.md §8 for the audit). Kept as a separate, switchable mode
-// ('ce-literal') so the literal CE behaviour and the hand-tuned one can be A/B'd
+// ('ce-egg') so the literal CE behaviour and the hand-tuned one can be A/B'd
 // against each other without losing either. Differences from isCEOccludingWall():
 //   - bit 27 (0x8000000) and bit 31 (0x80000000) share ONE branch using fOD, per
 //     CE's literal source — not split into two branches with a y-comparison swap.
@@ -363,12 +376,12 @@ export function isBBoxOccludingWall(obj: Obj, player: Obj): boolean {
     )
 }
 
-// 'egg', 'ce-literal', and 'bbox' all share the egg.png mask texture render
+// 'dh2-egg', 'ce-egg', and 'bbox' all share the egg.png mask texture render
 // path — they differ only in which objects qualify (isEggObject above), not
 // in how a qualifying object is drawn.
 function usesEggMaskTexture(): boolean {
     const mode = Config.ui.eggMode
-    return mode === 'egg' || mode === 'ce-literal' || mode === 'bbox'
+    return mode === 'dh2-egg' || mode === 'ce-egg' || mode === 'bbox'
 }
 
 function isEggObject(obj: Obj): boolean {
@@ -380,10 +393,10 @@ function isEggObject(obj: Obj): boolean {
     if (!player) return false
     if (hexDistance(player.position, obj.position) > getEggRadius()) return false
 
-    if (Config.ui.eggMode === 'egg') {
+    if (Config.ui.eggMode === 'dh2-egg') {
         return isCEOccludingWall(obj, player)
     }
-    if (Config.ui.eggMode === 'ce-literal') {
+    if (Config.ui.eggMode === 'ce-egg') {
         return isCEOccludingWallLiteral(obj, player)
     }
     if (Config.ui.eggMode === 'bbox') {

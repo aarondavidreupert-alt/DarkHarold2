@@ -326,10 +326,10 @@ window.onload = async function () {
 
     // Console commands for the egg transparency effect.
     // setEggMode('alpha')      — flat alpha applied to the whole wall sprite
-    // setEggMode('egg')        — egg.png mask using DH2's hand-tuned occlusion test (default)
-    // setEggMode('ce-literal') — egg.png mask using the byte-for-byte literal CE occlusion
+    // setEggMode('dh2-egg')    — egg.png mask using DH2's hand-tuned occlusion test (default)
+    // setEggMode('ce-egg')     — egg.png mask using the byte-for-byte literal CE occlusion
     //                            test (isCEOccludingWallLiteral) — no DH2 deviations, for A/B
-    //                            comparison against 'egg'. See wiki/extended_flags.md §8.
+    //                            comparison against 'dh2-egg'. See wiki/extended_flags.md §8.
     // setEggMode('bbox')       — egg.png mask using a screen-space bounding-box overlap +
     //                            draw-order depth test (isBBoxOccludingWall) — DH2-original,
     //                            not CE-derived. See wiki/extended_flags.md §8.
@@ -337,9 +337,9 @@ window.onload = async function () {
     //                            within eggRadius, no wall transparency
     // setEggAlpha(0.3)         — set the outer/flat alpha (0=invisible, 1=opaque, default 0.4)
     // setEggRadius(6)          — set max hex distance for egg effect (default 8)
-    ;(window as any).setEggMode = (mode: 'alpha' | 'egg' | 'ce-literal' | 'bbox' | 'beta') => {
-        if (mode !== 'alpha' && mode !== 'egg' && mode !== 'ce-literal' && mode !== 'bbox' && mode !== 'beta') {
-            console.log("Usage: setEggMode('alpha'), setEggMode('egg'), setEggMode('ce-literal'), setEggMode('bbox'), or setEggMode('beta')")
+    ;(window as any).setEggMode = (mode: 'alpha' | 'dh2-egg' | 'ce-egg' | 'bbox' | 'beta') => {
+        if (mode !== 'alpha' && mode !== 'dh2-egg' && mode !== 'ce-egg' && mode !== 'bbox' && mode !== 'beta') {
+            console.log("Usage: setEggMode('alpha'), setEggMode('dh2-egg'), setEggMode('ce-egg'), setEggMode('bbox'), or setEggMode('beta')")
             return
         }
         Config.ui.eggMode = mode
@@ -389,8 +389,8 @@ window.onload = async function () {
 
     // eggDebug() — real-time dump of every wall/scenery within egg radius of
     // the player, with all four isCEOccludingWall predicate components visible,
-    // plus a side-by-side comparison of DH2's hand-tuned occlusion test ('egg'),
-    // the byte-for-byte literal CE port ('ce-literal'), and the screen-space
+    // plus a side-by-side comparison of DH2's hand-tuned occlusion test ('dh2-egg'),
+    // the byte-for-byte literal CE port ('ce-egg'), and the screen-space
     // bbox/depth test ('bbox') — see wiki/extended_flags.md §8 for what differs and why.
     // Example: wall pos=21718 extFlags=0x2000 fOD=false fDO=true rOD=false rDO=true → egg=true ceLiteral=false bbox=false (DIFF)
     ;(window as any).eggDebug = () => {
@@ -414,12 +414,12 @@ window.onload = async function () {
             const fDO = hexIsInFrontOf(player.position, obj.position)
             const rOD = hexIsToRightOf(obj.position, player.position)
             const rDO = hexIsToRightOf(player.position, obj.position)
-            const egg = isCEOccludingWall(obj, player)
-            const ceLiteral = isCEOccludingWallLiteral(obj, player)
+            const dh2Egg = isCEOccludingWall(obj, player)
+            const ceEgg = isCEOccludingWallLiteral(obj, player)
             const bbox = isBBoxOccludingWall(obj, player)
             const pos = obj.position.y * 200 + obj.position.x
-            const diff = (egg !== ceLiteral || egg !== bbox) ? ' (DIFF)' : ''
-            console.log(`[EggDebug] ${obj.type} pos=${pos} extFlags=0x${extFlags.toString(16)} fOD=${fOD} fDO=${fDO} rOD=${rOD} rDO=${rDO} → egg=${egg} ceLiteral=${ceLiteral} bbox=${bbox}${diff}`)
+            const diff = (dh2Egg !== ceEgg || dh2Egg !== bbox) ? ' (DIFF)' : ''
+            console.log(`[EggDebug] ${obj.type} pos=${pos} extFlags=0x${extFlags.toString(16)} fOD=${fOD} fDO=${fDO} rOD=${rOD} rDO=${rDO} → dh2Egg=${dh2Egg} ceEgg=${ceEgg} bbox=${bbox}${diff}`)
         }
         console.log(`[EggDebug] ${nearby.length} objects checked`)
     }
