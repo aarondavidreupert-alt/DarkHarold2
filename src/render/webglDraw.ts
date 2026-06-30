@@ -461,15 +461,32 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         }
     }
 
-    // Fix tall-sprite lighting: fix world-Y to the sprite's foot so upper pixels
-    // don't sample unlit hexes above the object's tile. World-X still varies
-    // per-fragment, giving the same smooth bilinear horizontal gradient as the floor.
-    // CE ref: object.cc:835 — one intensity per object tile, not per-fragment.
+    // Fix tall-sprite lighting: anchor world-Y so upper pixels don't sample unlit
+    // hexes above the object's tile. World-X still varies per-fragment (horizontal
+    // bilinear gradient). CE ref: object.cc:835 — one tile per object.
+    // Three modes (Config.engine.objectLightingMode):
+    //   'tile-y'  — inverse of shader's hex formula applied to obj.position,
+    //               guaranteed to hit the correct tile in u_tileIntensity.
+    //   'foot-y'  — bottom of sprite bounding box (world pixels).
+    //   'off'     — full per-fragment (original path, dark tops on tall sprites).
     if (this.uObjectBaseY) {
         const gl = this.gl
         gl.useProgram(this.tileShader)
-        // Foot Y = top of bounding box + frame height (world pixels, pre-zoom).
-        gl.uniform1f(this.uObjectBaseY, renderInfo.y + renderInfo.frameHeight)
+        const mode = Config.engine.objectLightingMode
+        let baseY = -1.0
+        if (mode === 'tile-y') {
+            // Inverse of getWorldTileLight()'s hex_y formula:
+            //   hex_y = world_x/64 + world_y/16 − 75.7
+            //   hex_x = 150 − (world_x/32 − world_y/24)
+            // Solving for world_y at tile centre (tx, ty):
+            //   world_y = 12*ty + 8.4 + 6*tx
+            const tx = obj.position.x
+            const ty = obj.position.y
+            baseY = 12 * ty + 8.4 + 6 * tx
+        } else if (mode === 'foot-y') {
+            baseY = renderInfo.y + renderInfo.frameHeight
+        }
+        gl.uniform1f(this.uObjectBaseY, baseY)
     }
 
     this.renderFrame(

@@ -79,6 +79,13 @@ export const Config = {
         // "Naive lighting mode (distance-only baseline)".
         // Compare live via setLightPropagationMode() and lightingDebug() in the browser console.
         lightPropagationMode: 'dh2' as 'dh2' | 'derived' | 'naive',
+        // Object sprite lighting Y mode. 'tile-y': derive world-Y from obj.position
+        // using the inverse hex formula (guaranteed to land on obj's tile in the
+        // tileIntensity texture). 'foot-y': use the bottom of the sprite's bounding
+        // box. 'off': full per-fragment sampling (original path — dark tops on tall
+        // sprites, but no reliance on the coordinate math below).
+        // Toggle live: setObjectLightingMode('tile-y'|'foot-y'|'off')
+        objectLightingMode: 'tile-y' as 'tile-y' | 'foot-y' | 'off',
         useLightColorLUT: true, // Use intensityColorTable/colorLUT/colorRGB for accurate lighting colors?
         doAudio: true, // enable audio?
         doLogLazyLoads: false, // Log lazy-loading of images? (Noisy)

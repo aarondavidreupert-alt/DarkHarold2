@@ -293,6 +293,26 @@ window.onload = async function () {
         console.log(`[Lighting] propagation mode="${mode}"`)
     }
 
+    // setObjectLightingMode(mode) — controls how object/wall/critter sprites
+    // sample the tile intensity texture (takes effect immediately, next frame):
+    //
+    //   'tile-y'  — (default) fixes world-Y to the object's tile position using the
+    //               inverse hex formula, varies world-X per-fragment. Gives the same
+    //               smooth bilinear horizontal light gradient as the floor without
+    //               dark tops on tall sprites.
+    //   'foot-y'  — fixes world-Y to the bottom of the sprite's bounding box.
+    //               Alternative anchor if 'tile-y' looks off for specific sprites.
+    //   'off'     — original per-fragment path: both X and Y come from gl_FragCoord.
+    //               Tall sprites get dark tops but the horizontal gradient still works.
+    ;(window as any).setObjectLightingMode = (mode: 'tile-y' | 'foot-y' | 'off') => {
+        if (mode !== 'tile-y' && mode !== 'foot-y' && mode !== 'off') {
+            console.log("Usage: setObjectLightingMode('tile-y' | 'foot-y' | 'off')")
+            return
+        }
+        Config.engine.objectLightingMode = mode
+        console.log(`[Lighting] object lighting mode="${mode}"`)
+    }
+
     // lightingDebug() — rebakes the current map's lighting under all three propagation
     // modes ('dh2', 'derived', 'naive') and lists every tile within radius hexes of the
     // player whose resulting intensity differs, mirroring eggDebug()'s side-by-side
