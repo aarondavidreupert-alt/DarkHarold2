@@ -1292,9 +1292,9 @@ html, body {
 /* left loot inventory */
 #lootBoxLeft {
   position: absolute;
-  left: 180px;
+  left: 179px;
   top: 40px;
-  width: 64px;
+  width: 65px;
   height: 290px;
   overflow: hidden;
 }
@@ -1302,11 +1302,29 @@ html, body {
 /* right loot inventory */
 #lootBoxRight {
   position: absolute;
-  left: 300px;
+  left: 296px;
   top: 40px;
-  width: 64px;
+  width: 65px;
   height: 290px;
   overflow: hidden;
+}
+
+/* CE ref: inventory.cc:2083-2089 _display_body INVENTORY_WINDOW_TYPE_LOOT —
+   player portrait at (48,39), target at (426,39), both 60×100 px. */
+#lootBoxPlayerPortrait {
+  position: absolute;
+  left: 48px;
+  top: 39px;
+  width: 40px;
+  height: 67px;
+}
+
+#lootBoxTargetPortrait {
+  position: absolute;
+  left: 426px;
+  top: 39px;
+  width: 40px;
+  height: 67px;
 }
 
 #lootBoxDoneButton {
