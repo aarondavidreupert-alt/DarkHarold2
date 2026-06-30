@@ -1,9 +1,8 @@
 import globalState from '../globalState.js'
 import * as GameTime from '../gametime.js'
-import { Lightmap } from '../lightmap.js'
 import { Obj } from '../object.js'
 import { getZoom, SCREEN_HEIGHT, SCREEN_WIDTH, TileMap } from '../renderer.js'
-import { tileToScreen, toTileNum, TILE_HEIGHT, TILE_WIDTH } from '../tile.js'
+import { tileToScreen, TILE_HEIGHT, TILE_WIDTH } from '../tile.js'
 import { Config } from '../config.js'
 import { Font } from '../formats/fon.js'
 import { dbg } from '../logger.js'
@@ -462,18 +461,15 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         }
     }
 
-    // CE ref: object.cc:835 — lightGetTileIntensity(elevation, obj->tile).
-    // Sample the object's own tile intensity once, not per-fragment.
-    // This prevents tall sprites from having upper pixels sample dark hexes
-    // and stops bilinear bleed through walls from the tileIntensity texture.
-    if (this.uObjectLight) {
+    // Fix tall-sprite lighting: fix world-Y to the sprite's foot so upper pixels
+    // don't sample unlit hexes above the object's tile. World-X still varies
+    // per-fragment, giving the same smooth bilinear horizontal gradient as the floor.
+    // CE ref: object.cc:835 — one intensity per object tile, not per-fragment.
+    if (this.uObjectBaseY) {
         const gl = this.gl
         gl.useProgram(this.tileShader)
-        const tileNum = toTileNum(obj.position)
-        const rawIntensity = Lightmap.tile_intensity[tileNum] ?? 655
-        const ambient = GameTime.getAmbientLight()
-        const effectiveIntensity = Math.max(ambient, rawIntensity)
-        gl.uniform1f(this.uObjectLight, effectiveIntensity / 65536)
+        // Foot Y = top of bounding box + frame height (world pixels, pre-zoom).
+        gl.uniform1f(this.uObjectBaseY, renderInfo.y + renderInfo.frameHeight)
     }
 
     this.renderFrame(
@@ -492,9 +488,8 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         if (this.uAlpha) gl.uniform1f(this.uAlpha, 1.0)
         if (usesEggMaskTexture() && this.uEggMode) gl.uniform1i(this.uEggMode, 0)
     }
-    if (this.uObjectLight) {
-        // Reset to per-fragment fallback for floor tiles and UI draws.
-        this.gl.uniform1f(this.uObjectLight, -1.0)
+    if (this.uObjectBaseY) {
+        this.gl.uniform1f(this.uObjectBaseY, -1.0)
     }
 }
 

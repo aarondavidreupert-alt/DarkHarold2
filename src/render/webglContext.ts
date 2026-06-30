@@ -70,7 +70,7 @@ export class WebGLRenderer extends Renderer {
     uOutlineMode: WebGLUniformLocation | null = null
     uOutlineColor: WebGLUniformLocation | null = null
     uOutlineAlpha: WebGLUniformLocation | null = null
-    uObjectLight: WebGLUniformLocation | null = null
+    uObjectBaseY: WebGLUniformLocation | null = null
 
     // Resolution uniforms stashed at init-time so resize() can re-upload them
     // (they are set once in init() and then re-read by the fragment shader
@@ -423,9 +423,9 @@ export class WebGLRenderer extends Renderer {
         this.uOutlineAlpha = gl.getUniformLocation(this.tileShader, 'u_outlineAlpha')
         if (this.uOutlineMode) gl.uniform1i(this.uOutlineMode, 0)
         if (this.uOutlineAlpha) gl.uniform1f(this.uOutlineAlpha, 1.0)
-        this.uObjectLight = gl.getUniformLocation(this.tileShader, 'u_objectLight')
-        // -1.0 = per-fragment world-position fallback (floor tiles, UI draws)
-        if (this.uObjectLight) gl.uniform1f(this.uObjectLight, -1.0)
+        this.uObjectBaseY = gl.getUniformLocation(this.tileShader, 'u_objectBaseY')
+        // -1.0 = per-fragment fallback (floor tiles, UI draws)
+        if (this.uObjectBaseY) gl.uniform1f(this.uObjectBaseY, -1.0)
 
         // 1×1 R8 dummy texture (value 0) for roof draws — roofs are
         // sky-facing and should be lit by ambient only, not by floor

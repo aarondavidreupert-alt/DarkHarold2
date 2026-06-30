@@ -22,15 +22,17 @@ uniform highp vec2 u_resolution;     // logical pixels (SCREEN_WIDTH, SCREEN_HEI
 uniform float u_zoom;                // world-space zoom factor (1.0 = no zoom); UI draws leave this at 1.0
 uniform float u_alpha;               // per-draw alpha multiplier (flat egg fallback = 0.4, normal = 1.0)
 
-// CE ref: object.cc:835 — lighting for objects/critters is sampled once per
-// object at its own tile, not per-fragment. This prevents tall sprites (walls,
-// critters) from sampling dark hexes on their upper pixels while their lower
-// pixels are lit, and also prevents bilinear bleed from the tileIntensity
-// texture leaking light through walls.
-// u_objectLight >= 0: use this pre-sampled value (CE-style per-object path).
-// u_objectLight  < 0: fall back to per-fragment world-position sampling (floor
-//                     tiles, UI draws).
-uniform float u_objectLight;
+// Object sprite lighting mode (DH2 extension of the CE per-object path):
+// CE ref: object.cc:835 — one intensity per object tile, not per-fragment.
+// DH2 extends this: instead of a pre-sampled scalar, we fix the world-Y to
+// the sprite's foot position and vary only world-X per-fragment. This gives
+// the same smooth bilinear light gradient as the floor (horizontal bands
+// tracking the hex boundary) without the "dark top pixels" problem caused
+// by tall sprites reaching up into unlit hexes.
+// u_objectBaseY >= 0: object sprite path — use gl_FragCoord.x for world_x
+//                     but this fixed value for world_y.
+// u_objectBaseY  < 0: per-fragment fallback — floor tiles, UI draws.
+uniform highp float u_objectBaseY;
 
 // CE ref: object.cc:4983 — egg mask texture (art/intrface/egg.frm, unit 6).
 // White center = player-visible area (wall transparent there).
@@ -62,10 +64,15 @@ float getWorldTileLight() {
     // Convert physical gl_FragCoord → logical screen pixels → world coord.
     // Zoom divides the logical screen delta because each on-screen pixel
     // covers `1/zoom` world units when the view is scaled.
+    // For object sprites (u_objectBaseY >= 0): world_x still varies per-fragment
+    // (horizontal bilinear gradient matching the floor), but world_y is fixed to
+    // the sprite's foot so tall sprites don't reach up into unlit hexes.
     float dpr = u_screenResolution.x / u_resolution.x;
     float zoom = max(u_zoom, 0.0001);
     float world_x = u_camera.x + (gl_FragCoord.x / dpr) / zoom;
-    float world_y = u_camera.y + (u_resolution.y - gl_FragCoord.y / dpr) / zoom;
+    float world_y = (u_objectBaseY >= 0.0)
+        ? u_objectBaseY
+        : u_camera.y + (u_resolution.y - gl_FragCoord.y / dpr) / zoom;
 
     // Continuous hex UV (same math as fragmentLighting.glsl::getGPULightIntensity).
     float cube_x = world_x / 32.0 - world_y / 24.0;
@@ -130,7 +137,6 @@ void main() {
         }
     }
 
-    float tileLight = (u_objectLight >= 0.0) ? u_objectLight : getWorldTileLight();
-    float light = max(tileLight, u_ambient);
+    float light = max(getWorldTileLight(), u_ambient);
     gl_FragColor = vec4(texel.rgb * light, texel.a * alpha);
 }
