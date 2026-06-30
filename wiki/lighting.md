@@ -920,8 +920,11 @@ Note: "player appears dark" was separately investigated — see LD5 note below.
 **Fix** (`shaders/fragment.glsl`, `src/render/webglContext.ts`,
 `src/render/webglDraw.ts`):
 
-- `u_tileIntensity` texture filter changed from `gl.LINEAR` → `gl.NEAREST`, so
-  each hex reads its own exact texel with no bleeding (fix for bug 1).
+- `u_tileIntensity` texture filter stays `gl.LINEAR` — object sprites now use
+  `u_objectLight` and never sample this texture, so bilinear blending between
+  hex values only affects floor tiles (where the smooth wash is the desired
+  look). The wall light-leak is resolved by the per-object path, not by
+  changing the filter.
 - New uniform `float u_objectLight` added to `fragment.glsl` (default `−1.0`):
   - When `u_objectLight >= 0.0` the shader uses this pre-sampled value directly
     instead of calling `getWorldTileLight()` — the CE-style per-object path.

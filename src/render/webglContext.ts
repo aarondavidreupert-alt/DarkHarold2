@@ -369,14 +369,12 @@ export class WebGLRenderer extends Renderer {
         gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-        // NEAREST not LINEAR: per-hex tile intensity must not bleed across hex
-        // boundaries — bilinear filtering would smear lit values into adjacent
-        // dark hexes (behind walls), producing light leak. Object sprites now
-        // use the per-object CE path (u_objectLight) so they never sample this
-        // texture mid-sprite anyway; NEAREST also keeps floor tile sampling
-        // crisp at hex edges.
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+        // LINEAR: object sprites use the per-object u_objectLight uniform and
+        // never sample this texture, so bilinear blending between hex values
+        // only affects floor tiles — where the smooth wash between differently-lit
+        // hexes is the desired look.
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
         gl.texImage2D(
             gl.TEXTURE_2D,
             0,
