@@ -466,17 +466,11 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     // Sample the object's own tile intensity once, not per-fragment.
     // This prevents tall sprites from having upper pixels sample dark hexes
     // and stops bilinear bleed through walls from the tileIntensity texture.
-    // CE ref: object.cc:1748-1754 (objectGetLightIntensity / LD5) — for gDude
-    // the player's own light contribution is subtracted so they don't
-    // self-illuminate.
     if (this.uObjectLight) {
         const gl = this.gl
         gl.useProgram(this.tileShader)
         const tileNum = toTileNum(obj.position)
-        let rawIntensity = Lightmap.tile_intensity[tileNum] ?? 655
-        if (obj === globalState.player) {
-            rawIntensity -= obj.lightIntensity
-        }
+        const rawIntensity = Lightmap.tile_intensity[tileNum] ?? 655
         const ambient = GameTime.getAmbientLight()
         const effectiveIntensity = Math.max(ambient, rawIntensity)
         gl.uniform1f(this.uObjectLight, effectiveIntensity / 65536)

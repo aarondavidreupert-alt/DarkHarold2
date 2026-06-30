@@ -910,13 +910,12 @@ every fragment — converting `gl_FragCoord` to a hex coordinate and sampling th
    `gl.LINEAR` (bilinear) filtering, so lit hex values bled across the texel
    boundary into adjacent dark hexes (behind walls), producing a visible halo
    on the wall's shadowed side.
-2. **Walls don't light up** — a tall sprite (wall, critter) that straddles a
-   lit/unlit boundary had its upper pixels sample dark hexes while its lower
-   pixels sampled lit ones. CE applies one uniform intensity to the entire sprite.
-3. **Player appears dark (LD5)** — CE ref: `object.cc:1753-1754` subtracts
-   `gDude->lightIntensity` from the sampled tile value for the player character
-   specifically, so the player's own light source doesn't self-illuminate them.
-   DH2 was missing this subtraction.
+2. **Walls/critters don't light up uniformly** — a tall sprite (wall, critter)
+   that straddles a lit/unlit boundary had its upper pixels sample dark hexes
+   while its lower pixels sampled lit ones. CE applies one uniform intensity to
+   the entire sprite (`object.cc:835`).
+
+Note: "player appears dark" was separately investigated — see LD5 note below.
 
 **Fix** (`shaders/fragment.glsl`, `src/render/webglContext.ts`,
 `src/render/webglDraw.ts`):
@@ -933,10 +932,8 @@ every fragment — converting `gl_FragCoord` to a hex coordinate and sampling th
 
   ```typescript
   // CE ref: object.cc:835  lightGetTileIntensity(elevation, obj->tile)
-  // CE ref: object.cc:1753-1754  LD5 self-illumination subtraction for gDude
   const tileNum = toTileNum(obj.position)
-  let rawIntensity = Lightmap.tile_intensity[tileNum] ?? 655
-  if (obj === globalState.player) rawIntensity -= obj.lightIntensity
+  const rawIntensity = Lightmap.tile_intensity[tileNum] ?? 655
   const effectiveIntensity = Math.max(GameTime.getAmbientLight(), rawIntensity)
   gl.uniform1f(this.uObjectLight, effectiveIntensity / 65536)
   // ... renderFrame() ...
@@ -946,7 +943,7 @@ every fragment — converting `gl_FragCoord` to a hex coordinate and sampling th
 - `uObjectLight` field added to `WebGLRenderer` class; initialized to `−1.0` at
   shader setup time.
 
-**CE anchor**: `object.cc:835` — per-object: `lightIntensity = std::max(ambientIntensity, lightGetTileIntensity(elevation, objectListNode->obj->tile))`. `object.cc:1748-1754` — `objectGetLightIntensity()`: for `gDude`, `tileIntensity -= gDude->lightIntensity`.
+**CE anchor**: `object.cc:835` — `lightIntensity = std::max(ambientIntensity, lightGetTileIntensity(elevation, objectListNode->obj->tile))`. CE's render loop does NOT subtract `gDude->lightIntensity` — that only happens in `objectGetLightIntensity()` (gameplay path, called from `combat.cc:4450` and `perk.cc:659`). LD5 therefore remains open in the gameplay path (see `wiki/known_bugs.md §LD5`).
 
-**Gap status**: LD5 FIXED 2026-06-30. LD10 (new entry) — per-object tile intensity
-for object sprites: FIXED 2026-06-30. See `wiki/known_bugs.md §LD`.
+**Gap status**: LD10 (new entry) — per-object tile intensity for object sprites:
+FIXED 2026-06-30. LD5 still missing (gameplay path only). See `wiki/known_bugs.md §LD`.
