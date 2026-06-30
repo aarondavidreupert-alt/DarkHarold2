@@ -18,12 +18,14 @@ import globalState from "./globalState.js"
 import { Obj } from "./object.js"
 import { fromTileNum, toTileNum } from "./tile.js"
 import { dbg } from "./logger.js"
+import { Config } from "./config.js"
 import {
     light_offsets,
     light_distance,
     obj_light_table_init,
     ensureLightTableInit,
 } from "./lightmap/lightTable.js"
+import { obj_adjust_light_derived } from "./lightmap/lightDerived.js"
 
 // Generates a lightmap for floor lighting
 
@@ -73,8 +75,14 @@ export module Lightmap {
         if (obj.visible === false) return
         if (obj.lightRadius <= 0 || obj.lightIntensity <= 655) return
 
-        var pos = obj.position
         var lightModifier = isSub ? light_subtract_from_tile : light_add_to_tile
+
+        if (Config.engine.lightPropagationMode === 'derived') {
+            obj_adjust_light_derived(obj, lightModifier)
+            return
+        }
+
+        var pos = obj.position
 
         lightModifier(toTileNum(obj.position), obj.lightIntensity)
 
@@ -401,5 +409,30 @@ export module Lightmap {
                 obj_adjust_light(obj, false)
             }
         }
+    }
+
+    // Debug helper for lightingDebug() (src/main.ts) — fully rebakes the
+    // current map's lighting under each propagation mode in turn and
+    // returns both resulting tile_intensity snapshots, then restores the
+    // mode and lighting that were active before the call. Not used by the
+    // normal render loop.
+    export function compareLightingModes(): { dh2: Int32Array; derived: Int32Array } {
+        const originalMode = Config.engine.lightPropagationMode
+
+        Config.engine.lightPropagationMode = 'dh2'
+        bakeStaticLight()
+        rebuildDynamicLight()
+        const dh2Result = tile_intensity.slice()
+
+        Config.engine.lightPropagationMode = 'derived'
+        bakeStaticLight()
+        rebuildDynamicLight()
+        const derivedResult = tile_intensity.slice()
+
+        Config.engine.lightPropagationMode = originalMode
+        bakeStaticLight()
+        rebuildDynamicLight()
+
+        return { dh2: dh2Result, derived: derivedResult }
     }
 }

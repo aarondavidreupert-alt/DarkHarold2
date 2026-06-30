@@ -68,6 +68,14 @@ export const Config = {
         doInfiniteUse: false, // allow infinite-range object usage?
         doFloorLighting: true, // use FO2-realistic floor lighting?
         floorLightingMode: 'auto' as 'auto' | 'gpu' | 'cpu', // lighting backend: 'auto' detects GPU capability
+        // Light *propagation/blocking* algorithm (separate from floorLightingMode, which
+        // only controls how an already-computed tile_intensity grid gets drawn to the floor).
+        // 'dh2' = the literal CE-ported 36-case switch table (src/lightmap.ts), DH2 default.
+        // 'derived' = DH2-original hex-grid BFS shadowcasting, inferred from reverse-engineering
+        // the literal switch — NOT verified bit-exact against CE. See wiki/lighting.md →
+        // "Derived lighting mode (DH2 inference)". Compare live via setLightPropagationMode()
+        // and lightingDebug() in the browser console.
+        lightPropagationMode: 'dh2' as 'dh2' | 'derived',
         useLightColorLUT: true, // Use intensityColorTable/colorLUT/colorRGB for accurate lighting colors?
         doAudio: true, // enable audio?
         doLogLazyLoads: false, // Log lazy-loading of images? (Noisy)

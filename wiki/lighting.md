@@ -702,4 +702,180 @@ treatment in both engines.
 | 12 | `OBJECT_LIGHTING` flag (`0x20`) must be set for an object to contribute light | DH2 does not check a PRO-data flag; instead it approximates the same effect with a magnitude heuristic — `lightRadius > 0 && lightIntensity > 655` (`lightmap.ts:69`) — so any object whose light fields happen to be populated above that threshold contributes light, regardless of whether `OBJECT_LIGHTING` would actually be set on the equivalent CE object | `lightmap.ts:68-74` / `object.cc:3977`; `obj_types.h:61` |
 | 13 | `objectGetLightIntensity` self-subtraction: player's own torch is excluded from the tile intensity used for night penalty | No DH2 equivalent — moot while night penalty is absent (gap #1), but needed if it is ever implemented | `combat.ts` / `object.cc:1748` |
 
-<!-- audited: 2026-06-02 -->
+<!-- audited: 2026-06-30 -->
+
+---
+
+## 14. Derived Lighting Mode (DH2 Inference)
+
+> **Disclosure: everything in this section is DH2's own inference, produced by
+> reverse-engineering the literal 36-case switch in `lightmap.ts` (§4b, §6) during
+> a chat-based audit session — it is not sourced from CE comments, debug symbols,
+> decompiler metadata, or any other reference material.** Where this section says
+> "verified," it means "hand-checked against the literal switch-case text quoted
+> below," not "confirmed against CE's original source by an independent source."
+> Treat every claim in §14.2-§14.4 as a working hypothesis, and use
+> `lightingDebug()` (§14.6) to check it empirically against your own map data
+> before trusting it for anything beyond visual comparison.
+
+### 14.1 Why the literal switch resists a one-line description
+
+`obj_adjust_light`'s 36-case `switch(i)` (`lightmap.ts:168-287`) is a hand-unrolled
+decompiler dump — there are no case labels, comments, or named intermediate
+variables (just `v26`..`v34`), and the boolean expressions mix `&`/`|` without any
+indentation grouping that maps onto an obvious geometric meaning. Cases 0-7 are a
+single term each; cases 8-14 are two-term `&` expressions; from case 15 onward, the
+expressions grow into multi-term `|`-of-`&` chains (case 32, for example, is four
+named intermediates feeding a five-term final OR). Reading the switch top-to-bottom
+gives no hint that it's actually implementing one consistent algorithm — it reads
+like 36 unrelated special cases, which is what prompted calling it "unreadable" in
+the conversation that led to this write-up. §14.2-14.4 is the result of working out
+that it *is* one consistent algorithm (a memoized shadowcast), just one whose
+encoding stops being a simple pattern partway through.
+
+### 14.2 The 36-entry table is a triangular wedge between two compass directions
+
+`light_distance` (`lightmap/lightTable.ts:37-38`) is the key to the structure:
+
+```
+[1,2,3,4,5,6,7,8,  2,3,4,5,6,7,8,  3,4,5,6,7,8,  4,5,6,7,8,  5,6,7,8,  6,7,8,  7,8,  8]
+ \_______row 0_____/\____row 1___/\___row 2___/\__row 3__/\_row 4__/\row5_/\row6/\row7
+   (8 entries)        (7 entries)   (6 entries)  (5)        (4)      (3)    (2)   (1)
+```
+
+Eight rows of lengths 8,7,6,5,4,3,2,1 (= 36 total). This is exactly the shape of a
+right triangle, and `obj_light_table_init()`'s nested loop (`lightTable.ts:81-144`)
+confirms it geometrically: the outer loop walks `distance` steps in `dir`, the inner
+loop walks `column` steps in `nextDir = (dir+1)%6` starting from that point — i.e.
+each table index `i` addresses one cell in the **triangular wedge of hexes between
+two adjacent compass directions**, the same wedge shape `case 8`'s formula
+(`light_blocked(36*nextDir) & light_blocked(36*dir)`) telegraphs by being the first
+case to reference `nextDir` at all (row 1, the first row whose cells aren't on the
+`dir` axis itself).
+
+Mapping index `i` (0-35) to `(row r, column c)`:
+
+```
+rowStart(r) = 8r − r(r−1)/2      // cumulative index where row r begins
+row r has (8 − r) entries, columns c = 0 .. (7 − r)
+i = rowStart(r) + c
+true hex distance from the light source = r + 1 + c
+```
+
+This matches `light_distance` exactly — e.g. row 0 (`r=0`, indices 0-7) gives
+distances `1..8` (`c+1`); row 1 (`r=1`, indices 8-14) gives distances `2..8`
+(`c+2`); row 2 (`r=2`, indices 15-20) gives distances `3..8`. Column `c=0` is
+always the cell lying on the `dir` axis itself; increasing `c` walks laterally
+toward the `nextDir` axis.
+
+### 14.3 Predecessor rule verified for rows 0-1 (cases 0-14)
+
+Cases 0-7 (row 0, the `dir`-axis cells) are single terms — case `n` (n=1..7)
+just reads `light_blocked(36*dir + (n-1))`, i.e. "blocked iff the cell one step
+closer along the same axis was blocked." Case 0 (the cell adjacent to the source)
+is hardcoded `isLightBlocked = 0` (always initially open — the source itself can't
+self-shadow).
+
+Cases 8-14 (row 1) are consistently two-term `&` expressions. Hand-checked against
+the literal text:
+
+| case | (r,c) | predecessors (r−1,c) and (r,c−1) | literal formula |
+|---|---|---|---|
+| 8 | (1,0) | (0,0)→idx0 via `dir`, (0,0)→idx0 via `nextDir` | `light_blocked(36*nextDir) & light_blocked(36*dir)` |
+| 9 | (1,1) | (0,1)→idx1, (1,0)→idx8 | `light_blocked(36*dir+1) & light_blocked(36*dir+8)` |
+| 10 | (1,2) | (0,2)→idx2, (1,1)→idx9 | `light_blocked(36*dir+2) & light_blocked(36*dir+9)` |
+| 13 | (1,5) | (0,5)→idx5, (1,4)→idx12 | `light_blocked(36*dir+5) & light_blocked(36*dir+12)` |
+
+In every checked case, `isLightBlocked` for cell `(r,c)` is exactly
+`blocked(r−1,c) & blocked(r,c−1)` — bitwise AND of "blocked," which is logically
+the same as "OR of reachable": the cell is lit if *either* of its two nearer
+neighbors (one step closer to source along `dir`, one step closer along the lateral
+axis) was itself open. This is a textbook two-predecessor dynamic-programming
+shadowcast — the same shape as Pascal's-triangle predecessor relationships, applied
+to hex-grid visibility instead of binomial coefficients.
+
+### 14.4 Rule breaks down at row 2+ (case 16 onward)
+
+Case 15 (row 2, `c=0`, the `dir`-axis cell again) still fits the pattern:
+`light_blocked(36*nextDir+1) & light_blocked(36*dir+8)` — predecessors at
+`(1,1)`→idx9 reached via `nextDir`, and `(1,0)`→idx8 reached via `dir`.
+
+Case 16 (row 2, `c=1`) is where the simple rule stops predicting the literal text:
+
+```
+case 16:
+  isLightBlocked = light_blocked(36*dir+15) & light_blocked(36*dir+9) | light_blocked(36*dir+8);
+```
+
+The simple rule predicts predecessors `(1,1)`→idx9 and `(2,0)`→idx15 — and both do
+appear, AND'd together as expected. But there's a third OR'd term,
+`light_blocked(36*dir+8)`, referencing idx8 = `(1,0)`. `(1,0)` is **not** a direct
+Pascal's-triangle predecessor of `(2,1)` under the simple rule — it's a
+*grandparent*: it's the `(r,c−1)`-predecessor of `(2,0)`, i.e. a second-order
+lookahead. Every case from 16 onward (checked through case 35, the last one) has at
+least one extra term of this shape — a reference to a cell that is two (or more)
+steps back along some path, not just one.
+
+The most plausible interpretation: CE's algorithm isn't a strict two-predecessor DP
+after row 1 — it's closer to a **permissive/diagonal shadowcast**, the same family
+of technique used by many roguelike FOV algorithms, where light is allowed to slip
+past a single blocking corner cell if an alternate route around it stays open. The
+extra grandparent terms are exactly what that kind of "look one cell further back"
+permissiveness would produce. This is a reasonable design for 1998-era Fallout 2 —
+hand-unrolling a recursive algorithm into 36 static cases trades source readability
+for guaranteed-O(1) runtime cost per light source, which matters when several
+torches/critters rebuild their light cones every frame.
+
+**The practical consequence**: a generic algorithm built only from the row 0-1
+two-predecessor rule, extrapolated naively to all rows, is **not** guaranteed to
+bit-match literal CE/DH2 output beyond hex distance 2. Any "derived" reimplementation
+must be labeled as such and checked empirically, not assumed correct.
+
+### 14.5 The `'derived'` light-propagation mode
+
+`src/lightmap/lightDerived.ts` implements `obj_adjust_light_derived()`, a DH2-original
+generalization of the §14.3 predecessor rule using **real hex-grid adjacency**
+(`hexNeighbors`/`hexDistance` from `src/geometry.ts`) instead of the artificial
+`(dir, i)` wedge-index lookup:
+
+- Same light-source physics as the literal mode — isotropic point light, linear
+  falloff per hex-distance step (`light_per_dist`), `obj.lightIntensity` capped to
+  `65536` as a side effect (mirroring the literal mode's behavior exactly).
+- Cells are visited in increasing hex-distance order via real BFS over
+  `hexNeighbors()`, rather than the precomputed 36-entry table.
+- A cell is lit if **any** of its hex neighbors strictly closer to the source was
+  itself open (not blocked) — the natural generalization of the verified row 0-1
+  "OR of reachable predecessors" rule (§14.3) to arbitrary hex distance, using
+  however many actually-closer neighbors a hex has (1 or 2, depending on whether
+  it's on a `dir` axis or off-axis) rather than hardcoding exactly two.
+- The same `OBJECT_LIGHT_THRU` flag check as the literal mode (`lightmap.ts:309`)
+  determines whether a cell that does receive light also blocks propagation past it.
+
+**Known, deliberate simplification**: the literal mode's wall-facing-direction
+partial-block logic (the `edi` computation in `lightmap.ts:319-333`, which lets a
+wall's *near* side receive light even when its *far* side is blocked, based on the
+wall's PRO `extendedFlags` and the literal `(dir, i)` indices) does not generalize
+cleanly to BFS coordinates and was not reimplemented. `'derived'` mode treats any
+non-flat, non-`LightThru` wall as fully opaque from both sides. This is the single
+largest known source of divergence from `'dh2'` mode near walls — expect
+`lightingDebug()` to flag wall-adjacent tiles most often.
+
+This mode does **not** close known-gap #7 (non-wall opaque-scenery shadowing,
+§13) by virtue of being more "correct" — it's a different, unverified algorithm,
+not a fix. Gap #7 remains open for the literal `'dh2'`/`'ce-literal'` code path.
+
+### 14.6 Comparing modes live
+
+```js
+setLightPropagationMode('derived')   // switch the live light-propagation algorithm
+setLightPropagationMode('dh2')       // switch back to the literal CE-ported table (default)
+lightingDebug()                      // rebakes the map under both modes and lists every
+                                      // tile within 10 hexes of the player whose resulting
+                                      // intensity differs, e.g.:
+                                      //   tile pos=21718 (18,108) dh2=43210 derived=39850 Δ=-3360 (DIFF)
+lightingDebug(20)                    // widen the comparison radius
+```
+
+`Config.engine.lightPropagationMode` (`'dh2' | 'derived'`, default `'dh2'`) controls
+the live mode; `setLightingMode('gpu'|'cpu')` is unrelated — it switches the floor
+*rendering* backend (§12), not propagation/blocking.

@@ -270,6 +270,54 @@ window.onload = async function () {
         dbg('map', '[Lighting] switched to:', mode)
     }
 
+    // setLightPropagationMode('dh2')      — literal CE-ported 36-case switch table (default)
+    // setLightPropagationMode('derived')  — DH2-original hex-grid BFS shadowcasting, inferred
+    //                                        from reverse-engineering the literal switch table.
+    //                                        See wiki/lighting.md → "Derived lighting mode
+    //                                        (DH2 inference)". NOT verified bit-exact vs CE —
+    //                                        compare against 'dh2' with lightingDebug().
+    // This controls light *propagation/blocking*, not floor rendering — see setLightingMode()
+    // above for the GPU/CPU floor-render backend switch (a separate, unrelated layer).
+    ;(window as any).setLightPropagationMode = (mode: 'dh2' | 'derived') => {
+        if (mode !== 'dh2' && mode !== 'derived') {
+            console.log("Usage: setLightPropagationMode('dh2') or setLightPropagationMode('derived')")
+            return
+        }
+        Config.engine.lightPropagationMode = mode
+        Lightmap.bakeStaticLight()
+        Lightmap.rebuildDynamicLight()
+        console.log(`[Lighting] propagation mode="${mode}"`)
+    }
+
+    // lightingDebug() — rebakes the current map's lighting under both 'dh2' and 'derived'
+    // propagation modes and lists every tile within radius hexes of the player whose
+    // resulting intensity differs, mirroring eggDebug()'s side-by-side comparison pattern.
+    // Example: tile pos=21718 (18,108) dh2=43210 derived=39850 Δ=-3360 (DIFF)
+    ;(window as any).lightingDebug = (radius: number = 10) => {
+        const player = globalState.player
+        if (!player) { console.log('[LightingDebug] no player'); return }
+        console.log(`[LightingDebug] comparing 'dh2' vs 'derived' within ${radius} hexes of player (live mode=${Config.engine.lightPropagationMode})`)
+        const { dh2, derived } = Lightmap.compareLightingModes()
+        let diffCount = 0
+        let sameCount = 0
+        for (let x = Math.max(0, player.position.x - radius); x <= Math.min(199, player.position.x + radius); x++) {
+            for (let y = Math.max(0, player.position.y - radius); y <= Math.min(199, player.position.y + radius); y++) {
+                const pos = { x, y }
+                if (hexDistance(player.position, pos) > radius) continue
+                const tileNum = y * 200 + x
+                const a = dh2[tileNum]
+                const b = derived[tileNum]
+                if (a !== b) {
+                    diffCount++
+                    console.log(`[LightingDebug] tile pos=${tileNum} (${x},${y}) dh2=${a} derived=${b} Δ=${b - a} (DIFF)`)
+                } else {
+                    sameCount++
+                }
+            }
+        }
+        console.log(`[LightingDebug] ${diffCount} differing tiles, ${sameCount} matching tiles within radius ${radius}`)
+    }
+
     // Console commands for the egg transparency effect.
     // setEggMode('alpha')      — flat alpha applied to the whole wall sprite
     // setEggMode('egg')        — egg.png mask using DH2's hand-tuned occlusion test (default)
