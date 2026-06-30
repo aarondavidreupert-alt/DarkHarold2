@@ -26,6 +26,7 @@ import {
     ensureLightTableInit,
 } from "./lightmap/lightTable.js"
 import { obj_adjust_light_derived } from "./lightmap/lightDerived.js"
+import { obj_adjust_light_naive } from "./lightmap/lightNaive.js"
 
 // Generates a lightmap for floor lighting
 
@@ -79,6 +80,11 @@ export module Lightmap {
 
         if (Config.engine.lightPropagationMode === 'derived') {
             obj_adjust_light_derived(obj, lightModifier)
+            return
+        }
+
+        if (Config.engine.lightPropagationMode === 'naive') {
+            obj_adjust_light_naive(obj, lightModifier)
             return
         }
 
@@ -416,7 +422,7 @@ export module Lightmap {
     // returns both resulting tile_intensity snapshots, then restores the
     // mode and lighting that were active before the call. Not used by the
     // normal render loop.
-    export function compareLightingModes(): { dh2: Int32Array; derived: Int32Array } {
+    export function compareLightingModes(): { dh2: Int32Array; derived: Int32Array; naive: Int32Array } {
         const originalMode = Config.engine.lightPropagationMode
 
         Config.engine.lightPropagationMode = 'dh2'
@@ -429,10 +435,15 @@ export module Lightmap {
         rebuildDynamicLight()
         const derivedResult = tile_intensity.slice()
 
+        Config.engine.lightPropagationMode = 'naive'
+        bakeStaticLight()
+        rebuildDynamicLight()
+        const naiveResult = tile_intensity.slice()
+
         Config.engine.lightPropagationMode = originalMode
         bakeStaticLight()
         rebuildDynamicLight()
 
-        return { dh2: dh2Result, derived: derivedResult }
+        return { dh2: dh2Result, derived: derivedResult, naive: naiveResult }
     }
 }

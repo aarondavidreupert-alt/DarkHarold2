@@ -73,9 +73,12 @@ export const Config = {
         // 'dh2' = the literal CE-ported 36-case switch table (src/lightmap.ts), DH2 default.
         // 'derived' = DH2-original hex-grid BFS shadowcasting, inferred from reverse-engineering
         // the literal switch — NOT verified bit-exact against CE. See wiki/lighting.md →
-        // "Derived lighting mode (DH2 inference)". Compare live via setLightPropagationMode()
-        // and lightingDebug() in the browser console.
-        lightPropagationMode: 'dh2' as 'dh2' | 'derived',
+        // "Derived lighting mode (DH2 inference)".
+        // 'naive' = pure hex-distance falloff with NO occlusion at all (light bleeds through
+        // walls) — a comparison baseline only, see wiki/lighting.md →
+        // "Naive lighting mode (distance-only baseline)".
+        // Compare live via setLightPropagationMode() and lightingDebug() in the browser console.
+        lightPropagationMode: 'dh2' as 'dh2' | 'derived' | 'naive',
         useLightColorLUT: true, // Use intensityColorTable/colorLUT/colorRGB for accurate lighting colors?
         doAudio: true, // enable audio?
         doLogLazyLoads: false, // Log lazy-loading of images? (Noisy)

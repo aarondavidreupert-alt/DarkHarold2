@@ -864,18 +864,38 @@ This mode does **not** close known-gap #7 (non-wall opaque-scenery shadowing,
 §13) by virtue of being more "correct" — it's a different, unverified algorithm,
 not a fix. Gap #7 remains open for the literal `'dh2'`/`'ce-literal'` code path.
 
-### 14.6 Comparing modes live
+### 14.7 The `'naive'` light-propagation mode — distance-only baseline
+
+`src/lightmap/lightNaive.ts` implements `obj_adjust_light_naive()`: the same
+isotropic point-light physics and linear falloff (`light_per_dist`, `lightIntensity`
+capped to `65536`) as the other two modes, but with **no occlusion logic at all**.
+Every hex within `obj.lightRadius` of the source is lit purely as a function of
+`hexDistance(source, hex)` — walls, scenery, and the `OBJECT_LIGHT_THRU` flag are
+never consulted.
+
+This exists only as a comparison baseline, to make the cost/benefit of
+shadowcasting visible side-by-side: distance falloff is identical across all
+three modes (`'dh2'`, `'derived'`, `'naive'`) and is the trivial part of the
+calculation. The entire 36-case literal switch (§14.1-14.4) and the BFS predecessor
+rule in `'derived'` mode (§14.5) exist solely to compute occlusion — `'naive'`
+mode removes that entirely. Expect light to visibly bleed through walls into
+adjacent rooms/corridors whenever `'naive'` is active — that is the deliberate,
+expected trade-off being demonstrated, not a bug to fix. `'naive'` is not intended
+for normal play and is not a candidate default.
+
+### 14.8 Comparing modes live
 
 ```js
 setLightPropagationMode('derived')   // switch the live light-propagation algorithm
+setLightPropagationMode('naive')     // switch to the distance-only baseline (no occlusion)
 setLightPropagationMode('dh2')       // switch back to the literal CE-ported table (default)
-lightingDebug()                      // rebakes the map under both modes and lists every
+lightingDebug()                      // rebakes the map under all three modes and lists every
                                       // tile within 10 hexes of the player whose resulting
                                       // intensity differs, e.g.:
-                                      //   tile pos=21718 (18,108) dh2=43210 derived=39850 Δ=-3360 (DIFF)
+                                      //   tile pos=21718 (18,108) dh2=43210 derived=39850 naive=51200 (DIFF)
 lightingDebug(20)                    // widen the comparison radius
 ```
 
-`Config.engine.lightPropagationMode` (`'dh2' | 'derived'`, default `'dh2'`) controls
-the live mode; `setLightingMode('gpu'|'cpu')` is unrelated — it switches the floor
-*rendering* backend (§12), not propagation/blocking.
+`Config.engine.lightPropagationMode` (`'dh2' | 'derived' | 'naive'`, default
+`'dh2'`) controls the live mode; `setLightingMode('gpu'|'cpu')` is unrelated — it
+switches the floor *rendering* backend (§12), not propagation/blocking.

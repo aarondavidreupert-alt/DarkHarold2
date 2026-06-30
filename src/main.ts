@@ -276,11 +276,15 @@ window.onload = async function () {
     //                                        See wiki/lighting.md → "Derived lighting mode
     //                                        (DH2 inference)". NOT verified bit-exact vs CE —
     //                                        compare against 'dh2' with lightingDebug().
+    // setLightPropagationMode('naive')    — pure hex-distance falloff, NO occlusion at all
+    //                                        (light bleeds through walls). Comparison baseline
+    //                                        only — see wiki/lighting.md → "Naive lighting mode
+    //                                        (distance-only baseline)".
     // This controls light *propagation/blocking*, not floor rendering — see setLightingMode()
     // above for the GPU/CPU floor-render backend switch (a separate, unrelated layer).
-    ;(window as any).setLightPropagationMode = (mode: 'dh2' | 'derived') => {
-        if (mode !== 'dh2' && mode !== 'derived') {
-            console.log("Usage: setLightPropagationMode('dh2') or setLightPropagationMode('derived')")
+    ;(window as any).setLightPropagationMode = (mode: 'dh2' | 'derived' | 'naive') => {
+        if (mode !== 'dh2' && mode !== 'derived' && mode !== 'naive') {
+            console.log("Usage: setLightPropagationMode('dh2' | 'derived' | 'naive')")
             return
         }
         Config.engine.lightPropagationMode = mode
@@ -289,15 +293,16 @@ window.onload = async function () {
         console.log(`[Lighting] propagation mode="${mode}"`)
     }
 
-    // lightingDebug() — rebakes the current map's lighting under both 'dh2' and 'derived'
-    // propagation modes and lists every tile within radius hexes of the player whose
-    // resulting intensity differs, mirroring eggDebug()'s side-by-side comparison pattern.
-    // Example: tile pos=21718 (18,108) dh2=43210 derived=39850 Δ=-3360 (DIFF)
+    // lightingDebug() — rebakes the current map's lighting under all three propagation
+    // modes ('dh2', 'derived', 'naive') and lists every tile within radius hexes of the
+    // player whose resulting intensity differs, mirroring eggDebug()'s side-by-side
+    // comparison pattern.
+    // Example: tile pos=21718 (18,108) dh2=43210 derived=39850 naive=51200 (DIFF)
     ;(window as any).lightingDebug = (radius: number = 10) => {
         const player = globalState.player
         if (!player) { console.log('[LightingDebug] no player'); return }
-        console.log(`[LightingDebug] comparing 'dh2' vs 'derived' within ${radius} hexes of player (live mode=${Config.engine.lightPropagationMode})`)
-        const { dh2, derived } = Lightmap.compareLightingModes()
+        console.log(`[LightingDebug] comparing 'dh2' vs 'derived' vs 'naive' within ${radius} hexes of player (live mode=${Config.engine.lightPropagationMode})`)
+        const { dh2, derived, naive } = Lightmap.compareLightingModes()
         let diffCount = 0
         let sameCount = 0
         for (let x = Math.max(0, player.position.x - radius); x <= Math.min(199, player.position.x + radius); x++) {
@@ -307,9 +312,10 @@ window.onload = async function () {
                 const tileNum = y * 200 + x
                 const a = dh2[tileNum]
                 const b = derived[tileNum]
-                if (a !== b) {
+                const c = naive[tileNum]
+                if (a !== b || a !== c) {
                     diffCount++
-                    console.log(`[LightingDebug] tile pos=${tileNum} (${x},${y}) dh2=${a} derived=${b} Δ=${b - a} (DIFF)`)
+                    console.log(`[LightingDebug] tile pos=${tileNum} (${x},${y}) dh2=${a} derived=${b} naive=${c} (DIFF)`)
                 } else {
                     sameCount++
                 }
