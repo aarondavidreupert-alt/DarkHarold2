@@ -33,7 +33,7 @@ import {
 } from './ui.js'
 import { loadPreferences } from './ui_options.js'
 import { getFileJSON } from './util.js'
-import { isCEOccludingWall, WebGLRenderer } from './webglrenderer.js'
+import { isCEOccludingWall, isCEOccludingWallLiteral, WebGLRenderer } from './webglrenderer.js'
 import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
 import { Lightmap } from './lightmap.js'
@@ -271,15 +271,18 @@ window.onload = async function () {
     }
 
     // Console commands for the egg transparency effect.
-    // setEggMode('alpha') — flat alpha applied to the whole wall sprite
-    // setEggMode('egg')   — CE-faithful egg.png mask: smooth falloff centered on player (default)
-    // setEggMode('beta')  — floor hex debug overlay: colored quads on every floor tile within
-    //                       eggRadius, no wall transparency — verifies hex radius shape on field
-    // setEggAlpha(0.3)    — set the outer/flat alpha (0=invisible, 1=opaque, default 0.4)
-    // setEggRadius(6)     — set max hex distance for egg effect (default 8)
-    ;(window as any).setEggMode = (mode: 'alpha' | 'egg' | 'beta') => {
-        if (mode !== 'alpha' && mode !== 'egg' && mode !== 'beta') {
-            console.log("Usage: setEggMode('alpha'), setEggMode('egg'), or setEggMode('beta')")
+    // setEggMode('alpha')      — flat alpha applied to the whole wall sprite
+    // setEggMode('egg')        — egg.png mask using DH2's hand-tuned occlusion test (default)
+    // setEggMode('ce-literal') — egg.png mask using the byte-for-byte literal CE occlusion
+    //                            test (isCEOccludingWallLiteral) — no DH2 deviations, for A/B
+    //                            comparison against 'egg'. See wiki/extended_flags.md §8.
+    // setEggMode('beta')       — floor hex debug overlay: colored quads on every floor tile
+    //                            within eggRadius, no wall transparency
+    // setEggAlpha(0.3)         — set the outer/flat alpha (0=invisible, 1=opaque, default 0.4)
+    // setEggRadius(6)          — set max hex distance for egg effect (default 8)
+    ;(window as any).setEggMode = (mode: 'alpha' | 'egg' | 'ce-literal' | 'beta') => {
+        if (mode !== 'alpha' && mode !== 'egg' && mode !== 'ce-literal' && mode !== 'beta') {
+            console.log("Usage: setEggMode('alpha'), setEggMode('egg'), setEggMode('ce-literal'), or setEggMode('beta')")
             return
         }
         Config.ui.eggMode = mode
@@ -328,8 +331,11 @@ window.onload = async function () {
     }
 
     // eggDebug() — real-time dump of every wall/scenery within egg radius of
-    // the player, with all four isCEOccludingWall predicate components visible.
-    // Example: wall pos=21718 extFlags=0x2000 fOD=false fDO=true rOD=false rDO=true → occluding=true
+    // the player, with all four isCEOccludingWall predicate components visible,
+    // plus a side-by-side comparison of DH2's hand-tuned occlusion test ('egg')
+    // against the byte-for-byte literal CE port ('ce-literal') — see
+    // wiki/extended_flags.md §8 for what differs and why.
+    // Example: wall pos=21718 extFlags=0x2000 fOD=false fDO=true rOD=false rDO=true → egg=true ceLiteral=false (DIFF)
     ;(window as any).eggDebug = () => {
         const player = globalState.player
         if (!player) { console.log('[EggDebug] no player'); return }
@@ -351,9 +357,11 @@ window.onload = async function () {
             const fDO = hexIsInFrontOf(player.position, obj.position)
             const rOD = hexIsToRightOf(obj.position, player.position)
             const rDO = hexIsToRightOf(player.position, obj.position)
-            const occluding = isCEOccludingWall(obj, player)
+            const egg = isCEOccludingWall(obj, player)
+            const ceLiteral = isCEOccludingWallLiteral(obj, player)
             const pos = obj.position.y * 200 + obj.position.x
-            console.log(`[EggDebug] ${obj.type} pos=${pos} extFlags=0x${extFlags.toString(16)} fOD=${fOD} fDO=${fDO} rOD=${rOD} rDO=${rDO} → occluding=${occluding}`)
+            const diff = egg !== ceLiteral ? ' (DIFF)' : ''
+            console.log(`[EggDebug] ${obj.type} pos=${pos} extFlags=0x${extFlags.toString(16)} fOD=${fOD} fDO=${fDO} rOD=${rOD} rDO=${rDO} → egg=${egg} ceLiteral=${ceLiteral}${diff}`)
         }
         console.log(`[EggDebug] ${nearby.length} objects checked`)
     }

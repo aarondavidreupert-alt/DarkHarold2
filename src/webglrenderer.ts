@@ -8,6 +8,6 @@
 // side-effect imports below wire those methods onto WebGLRenderer.prototype
 // at module-load time, before any caller constructs the class.
 export { WebGLRenderer, ShaderSources } from './render/webglContext.js'
-export { isCEOccludingWall } from './render/webglDraw.js'
+export { isCEOccludingWall, isCEOccludingWallLiteral } from './render/webglDraw.js'
 import './render/webglLighting.js'
 import './render/webglDraw.js'

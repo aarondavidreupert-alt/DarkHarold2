@@ -302,6 +302,37 @@ export function isCEOccludingWall(obj: Obj, player: Obj): boolean {
     }
 }
 
+// Byte-for-byte literal port of CE's object.cc:4949 _obj_render_object() occlusion
+// test, with none of the hand-tuned deviations in isCEOccludingWall() above (see
+// wiki/extended_flags.md §8 for the audit). Kept as a separate, switchable mode
+// ('ce-literal') so the literal CE behaviour and the hand-tuned one can be A/B'd
+// against each other without losing either. Differences from isCEOccludingWall():
+//   - bit 27 (0x8000000) and bit 31 (0x80000000) share ONE branch using fOD, per
+//     CE's literal source — not split into two branches with a y-comparison swap.
+//   - no extFlags===0x2000 special case in the default branch — plain rDO/fDO.
+export function isCEOccludingWallLiteral(obj: Obj, player: Obj): boolean {
+    const extendedFlags: number = obj.pro?.extra?.extendedFlags ?? 0
+    const objFlags: number = obj.flags ?? 0
+    const frontObjDude = hexIsInFrontOf(obj.position, player.position)
+    const frontDudeObj = hexIsInFrontOf(player.position, obj.position)
+    const rightObjDude = hexIsToRightOf(obj.position, player.position)
+    const rightDudeObj = hexIsToRightOf(player.position, obj.position)
+
+    if ((extendedFlags & 0x8000000) !== 0 || (extendedFlags & 0x80000000) !== 0) {
+        let v = frontObjDude
+        if (v && rightObjDude && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
+        return v
+    } else if ((extendedFlags & 0x10000000) !== 0) {
+        return frontObjDude || rightDudeObj
+    } else if ((extendedFlags & 0x20000000) !== 0) {
+        return frontObjDude && rightDudeObj
+    } else {
+        let v = rightDudeObj
+        if (v && frontDudeObj && (objFlags & OBJECT_WALL_TRANS_END) !== 0) v = false
+        return v
+    }
+}
+
 function isEggObject(obj: Obj): boolean {
     // 'beta' mode is a pure floor overlay — no wall transparency at all.
     if (Config.ui.eggMode === 'beta') return false
@@ -313,6 +344,9 @@ function isEggObject(obj: Obj): boolean {
 
     if (Config.ui.eggMode === 'egg') {
         return isCEOccludingWall(obj, player)
+    }
+    if (Config.ui.eggMode === 'ce-literal') {
+        return isCEOccludingWallLiteral(obj, player)
     }
 
     // 'alpha' mode: symmetric radius only, no directional gate — see comment above.
@@ -347,7 +381,7 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         // goes down/south and +x goes right/east). Deriving the anchor from
         // the player's own renderInfo also makes the egg track per-frame
         // walk-animation shift smoothly, instead of snapping per-hex.
-        if (Config.ui.eggMode === 'egg' && this.eggTexture && this.eggWidth > 0 && this.eggHeight > 0 && this.uEggMode && this.uEggCenter) {
+        if ((Config.ui.eggMode === 'egg' || Config.ui.eggMode === 'ce-literal') && this.eggTexture && this.eggWidth > 0 && this.eggHeight > 0 && this.uEggMode && this.uEggCenter) {
             const playerInfo = this.objectRenderInfo(globalState.player!)
             if (playerInfo) {
                 // Use frameWidth/frameHeight (this frame's actual trimmed
@@ -387,7 +421,7 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     if (egg) {
         const gl = this.gl
         if (this.uAlpha) gl.uniform1f(this.uAlpha, 1.0)
-        if (Config.ui.eggMode === 'egg' && this.uEggMode) gl.uniform1i(this.uEggMode, 0)
+        if ((Config.ui.eggMode === 'egg' || Config.ui.eggMode === 'ce-literal') && this.uEggMode) gl.uniform1i(this.uEggMode, 0)
     }
 }
 

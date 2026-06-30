@@ -313,6 +313,16 @@ valued, and correctly placed).
   that followed it, so the wiki currently documents a state the code has since
   diverged from. Fix status: **not fixed, not reverted — flagged only**, per
   task instructions to investigate and document without changing behavior.
+  **Update**: `isCEOccludingWall()` itself is left untouched, but a new sibling
+  function `isCEOccludingWallLiteral()` (`src/render/webglDraw.ts`, exported via
+  the `webglrenderer.ts` barrel) now reproduces the literal CE port exactly as
+  it existed at commit `bcd96ca` (single `0x8000000 | 0x80000000` branch, plain
+  `fOD`, no `extFlags===0x2000` special case). It's wired up as a third egg
+  mode, `setEggMode('ce-literal')`, using the same `egg.png` mask rendering
+  path as `'egg'` mode so the two are visually A/B-comparable in-browser.
+  `eggDebug()` now logs both predicates side by side per object (`egg=… ceLiteral=…`,
+  flagged `(DIFF)` on disagreement) — this is the practical tool for resolving
+  the bit-30/31 question above once real proto data is loaded.
 
 ## 9. Gaps / TODOs
 
