@@ -391,6 +391,22 @@ isLightBlocked = (curObj.flags & 0x20000000 /* LightThru */) ? 0 : 1
 (`lightmap.ts:335-345`), meaning opaque scenery (non-wall, non-flat) does not
 cast shadows in DH2 while it does in CE.
 
+### Roofs do not block or interact with light, in either engine
+
+Roof tiles are a separate static rendering layer (`TileMap`'s roof grid,
+toggled by `Config.ui.showRoof`/`hideRoofWhenUnder`), not entries in
+`globalState.gMap.getObjects()`. The light-blocking pass above only ever
+iterates real game objects at a tile (walls, scenery, critters, items) — it
+has no concept of "is this tile covered by a roof" at all, and neither does
+CE (`object.cc:4532-4603` walks the same per-tile object list, never the
+roof layer). This is not a gap: CE never modeled sunbeams-through-broken-
+roofs or indoor/outdoor light falloff based on roof coverage — a building's
+interior is dim only because indoor maps script `set_light_level` low in
+`map_enter_p_proc` (§8), not because the engine detected a roof overhead.
+DH2 should not add roof-aware light blocking unless explicitly asked —
+doing so would be inventing a feature beyond CE, per `CLAUDE.md`'s
+"follow the originals" rule.
+
 ---
 
 ## 7. Night Penalty (Combat To-Hit)
@@ -633,6 +649,38 @@ The tile-intensity texture is uploaded once per frame in
 
 Cross-reference: [wiki/rendering.md §3 (Tile Drawing & Object Order)](rendering.md)
 documents the GPU floor-lighting FBO path and `floorLightingMode` flag.
+
+### Surface shading model — uniform per-tile multiply, no per-pixel normals
+
+Both engines light **whole sprites**, not surfaces. A wall, a floor tile, a
+critter, and a piece of scenery are each a single flat pre-rendered sprite
+with no normal/depth data — there is nothing for a "light hits this face at
+this angle" calculation to operate on, in either CE or DH2. The only input
+to lighting is which hex the sprite's object sits on; the whole sprite is
+darkened by one scalar (CE: palette-table lookup; DH2: `texel.rgb * light`
+in the fragment shader). A wall doesn't have a separately-lit "outward"
+face — the entire wall sprite gets the intensity of its own tile, same as
+the floor under it. This is a deliberate inheritance from Fallout's
+isometric sprite pipeline, not a DH2 shortcut, and a "modern" lighting
+proposal should not try to add per-pixel/normal-based surface shading
+without explicit sign-off — it would be a stylistic divergence from "faithful
+F2 gameplay" (`CLAUDE.md`), not a bug fix.
+
+Tile-to-tile smoothing already exists at two different granularities
+depending on backend:
+- **CPU path** (`renderLitFloorCPU`): reproduces CE's actual per-vertex
+  triangle interpolation (`Lighting.computeFrame()`) — light is a smooth
+  gradient across each tile's diamond, exactly matching the original engine.
+- **GPU path** (`renderLitFloorGPU`/`compositeFloorWithLighting`): samples
+  `tileIntensityTexture` with `gl.LINEAR` filtering (`webglContext.ts:371`),
+  bilinearly blending the 200×200 per-tile intensity grid — visually softer
+  than CE's exact triangle gradient but cheaper (one texture sample vs. a
+  per-vertex computation), and avoids CE's hard tile-edge seams.
+
+Neither path applies any smoothing to *walls/objects/critters* — those
+sample `u_tileIntensity` once for their own occupied tile (flat shading per
+sprite), matching CE exactly; only the floor gets the smoothed/interpolated
+treatment in both engines.
 
 ---
 
