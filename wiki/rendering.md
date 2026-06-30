@@ -7,7 +7,7 @@ DH2 implementation: `src/webglrenderer.ts` (barrel; `src/render/{webglContext,we
 
 Cross-references: `wiki/lighting.md` (lighting overview and scripting-level gaps LD1–LD6 in §13), `wiki/tile_system.md`, `wiki/known_bugs.md §22` (bug registry)
 
-Last audited: 2026-06-16
+Last audited: 2026-06-30
 
 ---
 
@@ -645,15 +645,13 @@ alpha = mix(u_alpha, 0.0, mask);  // white=fully transparent, dark=flat alpha
 
 **Coordinates**: egg center is passed as world-space `(ps.x + 16, ps.y + 8)`. Fragment world position is computed identically to `getWorldTileLight()` so the egg UV is zoom-independent.
 
-**Qualification** (`isEggObject` in webglDraw.ts):
-```typescript
-hexIsInFrontOf(obj.position, player.position)   // wall renders above player (occludes)
-&& hexIsToRightOf(player.position, obj.position) // CE: tileIsToRightOf(gDude, obj)
-&& hexDistance(player.position, obj.position) <= getEggRadius()
-```
+**Qualification** (`isEggObject` → `isCEOccludingWall` in webglDraw.ts):
+
+In `'egg'` mode, `isEggObject` calls `isCEOccludingWall(obj, player)` which branches on the object's `extendedFlags`. In `'alpha'` mode, the qualification is purely `hexDistance(player, obj) <= radius` (no directional component — symmetric bubble). See §**isCEOccludingWall branch logic** immediately below for the full per-flag breakdown.
+
 Radius and alpha tunable at runtime: `setEggRadius(8)`, `setEggAlpha(0.4)`.
 
-**Status**: confirmed working (RD16, 2026-06-15; refined 2026-06-17; gradient restored 2026-06-23; directional-asymmetry symptom resolved 2026-06-26 by cache invalidation — see note below).
+**Status**: confirmed working (RD16, 2026-06-15; refined 2026-06-17; gradient restored 2026-06-23; directional-asymmetry symptom resolved 2026-06-26 by cache invalidation; extendedFlags branching fully documented 2026-06-30 — see notes below).
 
 **2026-06-23 — real gradient restored, binary cutoff removed**: `art/intrface/egg.png` was replaced again. The jsFO-sourced binary mask (alpha = hard 0/1) is gone; `tools/export_mask_frms.py` now exports the FRM's raw mask bytes with correct semantics. Key findings from spatial pixel inspection: CE's egg data has **low bytes (~1) at the oval center and high bytes (~120) at the perimeter** — the opposite of the "bright center" assumption. The converter rescales from CE's 0–128 scale to 0–255 alpha then **inverts non-zero values** (`alpha = 255 - scaled`) so that center → high alpha → `mix(1.0, 0.0, mask)` → transparent wall, perimeter → low alpha → opaque wall, giving a smooth CRT "oval cutout" the jsFO binary only approximated. The shader formula (`float mask = texture2D(u_eggTex, eggUV).a; alpha = mix(1.0, 0.0, mask)`) is unchanged — the binary version worked for the same reason the gradient does, just with no falloff. `src/render/webglContext.ts` URL bumped to `?v=20260623b` to force browser cache invalidation.
 
@@ -677,6 +675,101 @@ Radius and alpha tunable at runtime: `setEggRadius(8)`, `setEggAlpha(0.4)`.
   **Follow-up (2026-06-18)**: the 4-case branching fixed `'egg'` mode but `'alpha'` mode still showed the same one-sided NW-SE cutoff, plus affected walls behind the player. Root cause: `tileIsInFrontOf`/`tileIsToRightOf` aren't distance checks — they're `dx <= dy*k` half-plane line tests in screen space, whose boundary geometrically *is* the NW-SE hex axis. That's correct and deliberate for CE/`'egg'` mode (the real egg effect is "is this wall between the fixed-angle isometric camera and the player," inherently one-sided, never a symmetric bubble). `'alpha'` mode is a DH2 invention with no CE equivalent, meant to behave like a symmetric "see-through bubble around me," so it shouldn't use the camera-facing directional test as its qualification at all. Split `isEggObject()`: the CE branching moved to `isCEOccludingWall()`, used only when `eggMode === 'egg'`; `'alpha'` mode now qualifies purely on `hexDistance(player, obj) <= radius`, with no directional component — genuinely symmetric in every direction.
 
 **2026-06-26 — residual directional asymmetry traced to stale IndexedDB cache (no code change required)**: After all the code fixes above were in place, the egg effect still appeared to affect only walls to the screen-left. Investigation confirmed that `tools/proto.py` already contained `readWall()` (correctly reading `extendedFlags`, `scriptID`, `material` as three consecutive 32-bit ints — added in the 2026-06-18 sprint), that `proto/pro.json` already had non-zero `extendedFlags` for 3061 of 3484 wall/scenery entries (e.g., `walls[1].extra.extendedFlags = 0x20000000`, `walls[2].extra.extendedFlags = 0x8000000`), and that `isCEOccludingWall` was CE-faithful. The symptom — `debugEgg()` showing `extendedFlags = 0` for every sampled wall — was caused entirely by the browser's IndexedDB cache serving a stale `proMap` that predated the 2026-06-18 code changes. **Fix: `clearAssetCache()` (calls `IDBCache.nuke()`, commit fa0fc2b) + page reload.** No source files required changing. `debugEgg()`'s `wallExtendedFlagsSample` field flags a stale cache automatically.
+
+### isCEOccludingWall — extendedFlags Branch Logic (audited 2026-06-30)
+
+`isCEOccludingWall(obj, player)` (`src/render/webglDraw.ts`) replicates CE's `object.cc:4949` occlusion gating. CE's code is marked "TODO: Probably wrong" because the predicates are acknowledged approximations — no local per-tile predicate can perfectly distinguish all inside/outside approach angles.
+
+#### Screen-space predicates
+
+All predicates operate in screen space after `hexToScreen(x, y)`:
+```
+sx = 4816 − (((x+1)>>1)<<5) + ((x>>1)<<4) − (y<<4)
+sy = 12·(x>>1) + 12·y + 11
+```
+
+Key coordinate facts:
+- Larger hex-y → larger screen-y (south in game = downward on screen)
+- Larger hex-x → smaller screen-x (more west in game = leftward on screen)
+- For constant hex-x: Δy=+1 → Δsx=+16, Δsy=+12 (SE in screen)
+- For constant hex-y: Δx=−2 → Δsx=+48, Δsy=0 (eastward) — but parity varies
+- **Isometric Z = screen-x + 4·screen-y**. Larger Z = rendered later = drawn on top.
+
+The four half-plane predicates used (`OD` = obj-then-dude arg order, `DO` = dude-then-obj):
+
+| Name | Code | Condition | Geometric meaning |
+|------|------|-----------|-------------------|
+| `frontObjDude` (fOD) | `hexIsInFrontOf(obj, player)` | `dx ≤ dy·(−4)` where dx=player.sx−obj.sx | Z(obj) ≥ Z(player): obj draws on top of player |
+| `frontDudeObj` (fDO) | `hexIsInFrontOf(player, obj)` | `dx ≤ dy·(−4)` where dx=obj.sx−player.sx | Z(player) ≥ Z(obj): player draws on top of obj |
+| `rightObjDude` (rOD) | `hexIsToRightOf(obj, player)` | `dx ≤ dy·(4/3)` where dx=player.sx−obj.sx | Player is isometrically right of obj |
+| `rightDudeObj` (rDO) | `hexIsToRightOf(player, obj)` | `dx ≤ dy·(4/3)` where dx=obj.sx−player.sx | Obj is isometrically right of player |
+
+`hexIsInFrontOf` / `hexIsToRightOf` use `<=` (not `<`) — ties evaluate to true.
+
+#### IEEE-754 tie trap (same-hex-x walls)
+
+When `obj.position.x === player.position.x`, every hexToScreen step is `Δy` only. Then for any Δy ≠ 0:
+```
+Δsx = Δy · 16,   Δsy = Δy · 12   →   dx/dy = 16/12 = 4/3 exactly
+```
+In IEEE-754 double: `−48 × 1.3333333333333335 = −64.0` exactly, so `−64 ≤ −64` is **true**. `rDO` always fires for same-column walls regardless of whether the player is inside or outside the building. The same-x branch gates this with `fOD` to suppress outside-corner false-positives.
+
+#### extendedFlags branch table
+
+| extendedFlags bits | Branch | Predicate | Reasoning |
+|---|---|---|---|
+| `& 0x40000000` (bit 30) | NE-SW column type (e.g. `0x40002000`) | `fOD`, suppressed by `rOD && WALL_TRANS_END` | fOD=false when player is outside same column; no tie trap because Δx≠0. |
+| `& 0x8000000` (bit 27) | E-W run type, south-face (e.g. `0x8002000`) | `player.y < obj.y` | See below. |
+| `& 0x10000000` (bit 28) | — | `fOD \|\| rDO` | CE verbatim. |
+| `& 0x20000000` (bit 29) | — | `fOD && rDO` | CE verbatim. |
+| `=== 0x2000`, same x | NE-SW column, same column | `fOD && rDO` | Gates the IEEE-754 same-x tie. |
+| `=== 0x2000`, diff x | NW-SE column (e.g. `0x2000`) | `rDO` | CE-authentic; see caveat below. |
+| `=== 0x0` (default) | Interior NE-SW panels, misc | `rDO`, suppressed by `fDO && WALL_TRANS_END` | CE verbatim. |
+
+#### Bit 27 (0x8000000) — E-W south-face walls
+
+CE used `fOD` here with "TODO: Probably wrong." `fOD` is false for all south players and fires for outside-west players at same hex-y — the opposite of what's needed.
+
+DH2 fix: `player.position.y < obj.position.y`. These are south-face E-W walls; the building interior is to the north (smaller y). The camera looks from the north, so the wall covers the player when the player is north of the wall. Integer comparison — no tie possible.
+
+Verified test cases:
+```
+outside-south (player y=116, wall y=115):  116 < 115 = false  → not occlude ✓
+outside-west  (player y=115, wall y=115):  115 < 115 = false  → not occlude ✓
+inside-north  (player y=112, wall y=115):  112 < 115 = true   → occlude ✓
+```
+
+#### extFlags=0x2000, same-hex-x — outside-corner suppression
+
+For a NE-SW wall column at `obj.x = player.x`, the IEEE-754 4/3 tie makes `rDO=true` for every wall directly north of the player, including outside-corner walls above the player (fOD=false there because the player's Z is larger). Gating with `fOD && rDO` eliminates this false-positive: `fOD=false` for an outside-corner player → combined is false.
+
+Verified:
+```
+outside-corner (player below same-column wall, fOD=false): fOD&&rDO = false ✓
+inside (player inside, fOD=true, rDO=true via tie):        fOD&&rDO = true  ✓
+```
+
+#### extFlags=0x2000, different-hex-x — NW-SE column walls (known limitation)
+
+CE uses plain `rDO` for these walls. DH2 reverts to the same after exhausting alternatives.
+
+**Why no better predicate exists:** For a NW-SE wall column at constant hex-x, two approach directions produce **identical** screen-space predicates, Z-values, and hex-coordinate deltas:
+
+| Scenario | Δx | Δy | dx_screen | dy_screen | ΔZ | rDO | fOD | Desired |
+|---|---|---|---|---|---|---|---|---|
+| Inside-east (player x=59, wall x=60, same y) | +1 | 0 | −32 | +12 | +16 | T | T | occlude |
+| Inside-east (player x=59, wall x=60, wall 5N) | +1 | −5 | −112 | −48 | −304 | T | F | occlude |
+| Outside-south (player x=95, wall x=96, wall 5N) | +1 | −5 | −112 | −48 | −304 | T | F | NOT occlude |
+
+Cases 2 and 3 are geometrically identical — no per-tile local predicate (using only {fOD, fDO, rOD, rDO} or any combination of `obj.position.x/y` vs `player.position.x/y`) can distinguish them. This is CE's root "TODO: Probably wrong" issue.
+
+Compound predicates tried and why they fail:
+
+- **`obj.x > player.x`** alone: fires for both inside-east AND outside-south (same x-relationship).
+- **`obj.x > player.x && fOD`**: correctly handles outside-south (fOD=false) and in-front (obj.x gate) but leaves north column tiles (Δy<0, fOD=false) non-occluding even when the sprite physically extends into the player's area.
+- **`rDO` (CE-authentic)**: fires for all column tiles when player is east, matching original game behaviour. Also fires for outside-south players — CE's known approximation error. Chosen as the lesser visual evil since the north-tile issue is more jarring gameplay-wise than outside-south transparency.
+
+**Chosen: plain `rDO`** — CE-authentic. The outside-south false-positive (transparent east wall when player is south of the building) exists in the original FO2 game too.
 
 ---
 
