@@ -280,12 +280,25 @@ export function isCEOccludingWall(obj: Obj, player: Obj): boolean {
         //   to suppress: fOD=false for same-column outside-corner players. ✓
         //
         // Different-hex-x walls (NW-SE column, e.g. extFlags=0x2000, obj.x≠player.x):
-        //   rDO fires true for outside players (e.g. outside-east player vs NW-SE
-        //   wall to the northwest) because the wall's dx/dy ratio exceeds 4/3.
-        //   The correct gate is the hex-x axis: these walls run at constant hex-x,
-        //   so "player is inside (west side)" = player.x > obj.x. Verified:
-        //     outside (player x=95, wall x=96): 95 > 96 = false ✓ (wall stays)
-        //     inside  (player x=97, wall x=96): 97 > 96 = true  ✓ (wall vanishes)
+        //   CE uses plain rightDudeObj (rDO) here — "TODO: Probably wrong" (object.cc:4957).
+        //
+        //   The geometric flaw: for any (obj.x, obj.y) where Δx=+1 and Δy < 0 relative to
+        //   the player, the screen-space predicates (fOD, fDO, rOD, rDO) and Z-order are
+        //   IDENTICAL whether the player is inside-east (should occlude) or outside-south
+        //   (should not occlude). No local per-tile predicate can distinguish them. This is
+        //   the root of CE's "TODO: Probably wrong" comment.
+        //
+        //   The available tradeoffs:
+        //   (A) rightDudeObj (CE-authentic): all north-wall tiles in the column vanish,
+        //       matching observed original game behaviour. Over-fires for players outside-south
+        //       of the column (e.g. player y=116, wall y=111-114), but CE does too.
+        //   (B) obj.x > player.x && fOD (Z-order correct): only tiles where wall draws on
+        //       top of player (Z(wall)>Z(player)) vanish. Fixes corner-south firing but
+        //       leaves north tiles (y < player.y) non-vanishing even when sprite overlap
+        //       occurs due to tall NW-SE wall sprites extending southward.
+        //
+        //   Using CE-authentic rDO (option A) to preserve behind-wall transparency across
+        //   the full column. The outside-south false-positive is a CE-known approximation.
         //
         // extFlags=0x0 (no upper bits): CE's plain rightDudeObj below — correct
         // for genuine interior NE-SW panel walls.
@@ -293,7 +306,7 @@ export function isCEOccludingWall(obj: Obj, player: Obj): boolean {
             if (obj.position.x === player.position.x) {
                 return frontObjDude && rightDudeObj
             }
-            return player.position.x > obj.position.x
+            return rightDudeObj
         }
         const frontDudeObj = hexIsInFrontOf(player.position, obj.position)
         let v = rightDudeObj
