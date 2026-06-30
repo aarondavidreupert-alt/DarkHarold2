@@ -323,6 +323,18 @@ valued, and correctly placed).
   `eggDebug()` now logs both predicates side by side per object (`egg=… ceLiteral=…`,
   flagged `(DIFF)` on disagreement) — this is the practical tool for resolving
   the bit-30/31 question above once real proto data is loaded.
+  **Update 2**: a fourth egg mode, `setEggMode('bbox')`, adds a DH2-original
+  alternative that sidesteps the `extendedFlags` bit question entirely —
+  `isBBoxOccludingWall()` (`src/render/webglDraw.ts`, also exported via the
+  barrel) tests actual screen-space sprite-rect overlap (via the existing
+  `Renderer.objectRenderInfo()`) gated by the same `hexIsInFrontOf` draw-order
+  depth check `Obj.ts`'s `objectZCompare()` uses for real z-sorting, instead of
+  branching on the proto's orientation flags at all. It's not a CE port — CE
+  never did this — so it isn't "more correct" relative to CE, just a different,
+  geometrically-grounded heuristic that's immune to the bit-30/31 ambiguity
+  above by construction. `eggDebug()` now logs all three predicates per object
+  (`egg=… ceLiteral=… bbox=…`), flagging `(DIFF)` whenever any of the three
+  disagree.
 
 ## 9. Gaps / TODOs
 

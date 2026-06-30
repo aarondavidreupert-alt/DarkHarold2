@@ -333,6 +333,44 @@ export function isCEOccludingWallLiteral(obj: Obj, player: Obj): boolean {
     }
 }
 
+// DH2-original alternative (not CE-derived) — instead of branching on the
+// proto's extendedFlags orientation bits (whose CE semantics are partly
+// ambiguous; see wiki/extended_flags.md §8), this asks the question directly
+// in screen space: does this object's drawn sprite rect actually overlap the
+// player's, and would it really be painted on top of the player? The depth
+// test reuses hexIsInFrontOf the same way Obj.ts's objectZCompare does for
+// real draw-order sorting — "a in front of b" means a draws later, i.e. on
+// top of b — so this stays consistent with whatever the engine actually
+// paints over the player, rather than guessing from a per-wall flag.
+// Simplified vs objectZCompare: no same-tile or ambiguous-order tie-break
+// fallback (walls/scenery never share a player's exact tile in practice, and
+// the ambiguous case is rare); when the depth test is inconclusive this
+// errs toward NOT occluding rather than risk an incorrect see-through wall.
+export function isBBoxOccludingWall(obj: Obj, player: Obj): boolean {
+    if (!hexIsInFrontOf(obj.position, player.position)) return false
+
+    const renderer = globalState.renderer
+    if (!renderer) return false
+    const objInfo = renderer.objectRenderInfo(obj)
+    const playerInfo = renderer.objectRenderInfo(player)
+    if (!objInfo || !playerInfo) return false
+
+    return (
+        objInfo.x < playerInfo.x + playerInfo.frameWidth &&
+        objInfo.x + objInfo.frameWidth > playerInfo.x &&
+        objInfo.y < playerInfo.y + playerInfo.frameHeight &&
+        objInfo.y + objInfo.frameHeight > playerInfo.y
+    )
+}
+
+// 'egg', 'ce-literal', and 'bbox' all share the egg.png mask texture render
+// path — they differ only in which objects qualify (isEggObject above), not
+// in how a qualifying object is drawn.
+function usesEggMaskTexture(): boolean {
+    const mode = Config.ui.eggMode
+    return mode === 'egg' || mode === 'ce-literal' || mode === 'bbox'
+}
+
 function isEggObject(obj: Obj): boolean {
     // 'beta' mode is a pure floor overlay — no wall transparency at all.
     if (Config.ui.eggMode === 'beta') return false
@@ -347,6 +385,9 @@ function isEggObject(obj: Obj): boolean {
     }
     if (Config.ui.eggMode === 'ce-literal') {
         return isCEOccludingWallLiteral(obj, player)
+    }
+    if (Config.ui.eggMode === 'bbox') {
+        return isBBoxOccludingWall(obj, player)
     }
 
     // 'alpha' mode: symmetric radius only, no directional gate — see comment above.
@@ -381,7 +422,7 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         // goes down/south and +x goes right/east). Deriving the anchor from
         // the player's own renderInfo also makes the egg track per-frame
         // walk-animation shift smoothly, instead of snapping per-hex.
-        if ((Config.ui.eggMode === 'egg' || Config.ui.eggMode === 'ce-literal') && this.eggTexture && this.eggWidth > 0 && this.eggHeight > 0 && this.uEggMode && this.uEggCenter) {
+        if (usesEggMaskTexture() && this.eggTexture && this.eggWidth > 0 && this.eggHeight > 0 && this.uEggMode && this.uEggCenter) {
             const playerInfo = this.objectRenderInfo(globalState.player!)
             if (playerInfo) {
                 // Use frameWidth/frameHeight (this frame's actual trimmed
@@ -421,7 +462,7 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     if (egg) {
         const gl = this.gl
         if (this.uAlpha) gl.uniform1f(this.uAlpha, 1.0)
-        if ((Config.ui.eggMode === 'egg' || Config.ui.eggMode === 'ce-literal') && this.uEggMode) gl.uniform1i(this.uEggMode, 0)
+        if (usesEggMaskTexture() && this.uEggMode) gl.uniform1i(this.uEggMode, 0)
     }
 }
 
