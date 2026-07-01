@@ -24,13 +24,13 @@ uniform float u_alpha;               // per-draw alpha multiplier (flat egg fall
 
 // Object sprite lighting mode (DH2 extension of the CE per-object path):
 // CE ref: object.cc:835 — one intensity per object tile, not per-fragment.
-// DH2 extends this: instead of a pre-sampled scalar, we fix the world-Y to
-// the sprite's foot position and vary only world-X per-fragment. This gives
-// the same smooth bilinear light gradient as the floor (horizontal bands
-// tracking the hex boundary) without the "dark top pixels" problem caused
-// by tall sprites reaching up into unlit hexes.
-// u_objectBaseY >= 0: object sprite path — use gl_FragCoord.x for world_x
-//                     but this fixed value for world_y.
+// DH2 extends this: world_x varies freely per-fragment (horizontal gradient),
+// and world_y is clamped to ±6 world units of the sprite's anchor tile.
+// ±6 world units = ±0.375 texels in the 200×200 tile-intensity texture
+// (adjacent iso tiles are ~0.75 texels apart), so the LINEAR filter blends
+// smoothly into neighbouring tiles at sprite edges without ever sampling the
+// wrong tile (prevents dark tops on tall sprites).
+// u_objectBaseY >= 0: object sprite path — world_y clamped around this value.
 // u_objectBaseY  < 0: per-fragment fallback — floor tiles, UI draws.
 uniform highp float u_objectBaseY;
 
@@ -64,15 +64,19 @@ float getWorldTileLight() {
     // Convert physical gl_FragCoord → logical screen pixels → world coord.
     // Zoom divides the logical screen delta because each on-screen pixel
     // covers `1/zoom` world units when the view is scaled.
-    // For object sprites (u_objectBaseY >= 0): world_x still varies per-fragment
-    // (horizontal bilinear gradient matching the floor), but world_y is fixed to
-    // the sprite's foot so tall sprites don't reach up into unlit hexes.
+    // For object sprites (u_objectBaseY >= 0): world_x varies freely per-fragment
+    // (horizontal bilinear gradient). world_y is clamped to ±6 world units of the
+    // sprite's anchor tile — in tile-intensity texture space this is ±0.375 texels
+    // (adjacent iso tiles are ~0.75 texels apart), so the LINEAR filter smoothly
+    // blends with neighbouring tiles at sprite edges without ever sampling the wrong
+    // tile and making tall sprites dark at the top.
     float dpr = u_screenResolution.x / u_resolution.x;
     float zoom = max(u_zoom, 0.0001);
     float world_x = u_camera.x + (gl_FragCoord.x / dpr) / zoom;
+    float frag_world_y = u_camera.y + (u_resolution.y - gl_FragCoord.y / dpr) / zoom;
     float world_y = (u_objectBaseY >= 0.0)
-        ? u_objectBaseY
-        : u_camera.y + (u_resolution.y - gl_FragCoord.y / dpr) / zoom;
+        ? clamp(frag_world_y, u_objectBaseY - 6.0, u_objectBaseY + 6.0)
+        : frag_world_y;
 
     // Continuous hex UV (same math as fragmentLighting.glsl::getGPULightIntensity).
     float cube_x = world_x / 32.0 - world_y / 24.0;
