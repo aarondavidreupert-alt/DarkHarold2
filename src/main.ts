@@ -313,6 +313,22 @@ window.onload = async function () {
         console.log(`[Lighting] object lighting mode="${mode}"`)
     }
 
+    // setPlayerLight(radius, intensity) — set the player's own light source.
+    // radius:    hex distance (CE default for the player/torch = 4)
+    // intensity: 0–100 percent (CE maps 100% → 65536, matching obj_set_light_level)
+    // Examples:
+    //   setPlayerLight(4, 100)  — default torch
+    //   setPlayerLight(8, 100)  — bigger torch
+    //   setPlayerLight(0, 0)    — no personal light
+    ;(window as any).setPlayerLight = (radius: number, intensity: number) => {
+        const player = globalState.player
+        if (!player) { console.log('[setPlayerLight] no player'); return }
+        player.lightRadius = Math.max(0, Math.round(radius))
+        player.lightIntensity = Math.round(Math.max(0, Math.min(100, intensity)) * 65536 / 100)
+        Lightmap.rebuildLight()
+        console.log(`[setPlayerLight] radius=${player.lightRadius} intensity=${player.lightIntensity} (${intensity}%)`)
+    }
+
     // lightingDebug() — rebakes the current map's lighting under all three propagation
     // modes ('dh2', 'derived', 'naive') and lists every tile within radius hexes of the
     // player whose resulting intensity differs, mirroring eggDebug()'s side-by-side
