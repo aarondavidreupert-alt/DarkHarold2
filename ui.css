@@ -1313,18 +1313,64 @@ html, body {
    player portrait at (48,39), target at (426,39), both 60×100 px. */
 #lootBoxPlayerPortrait {
   position: absolute;
-  left: 48px;
-  top: 39px;
+  left: 58px;
+  top: 49px;
   width: 40px;
   height: 67px;
 }
 
 #lootBoxTargetPortrait {
   position: absolute;
-  left: 426px;
-  top: 39px;
+  left: 436px;
+  top: 49px;
   width: 40px;
   height: 67px;
+}
+
+/* CE ref: inventory.cc:1137-1177, 1272-1322 — loot scroll buttons.
+   Left pair at x=128, right pair at x=379 (local to gInventoryWindow).
+   Up buttons at y=39, down buttons at y=62, both 22×23 px.
+   FRM 49/50 = invupout/invupin, FRM 51/52 = invdnout/invdnin. */
+#lootScrollLeftUp,
+#lootScrollRightUp {
+  position: absolute;
+  width: 22px;
+  height: 23px;
+  top: 39px;
+  background-image: url("art/intrface/invupout.png");
+  background-size: 100% 100%;
+  cursor: pointer;
+}
+
+#lootScrollLeftDown,
+#lootScrollRightDown {
+  position: absolute;
+  width: 22px;
+  height: 23px;
+  top: 62px;
+  background-image: url("art/intrface/invdnout.png");
+  background-size: 100% 100%;
+  cursor: pointer;
+}
+
+#lootScrollLeftUp,
+#lootScrollLeftDown {
+  left: 128px;
+}
+
+#lootScrollRightUp,
+#lootScrollRightDown {
+  left: 379px;
+}
+
+#lootScrollLeftUp:active,
+#lootScrollRightUp:active {
+  background-image: url("art/intrface/invupin.png");
+}
+
+#lootScrollLeftDown:active,
+#lootScrollRightDown:active {
+  background-image: url("art/intrface/invdnin.png");
 }
 
 #lootBoxDoneButton {

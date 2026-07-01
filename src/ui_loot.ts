@@ -99,6 +99,11 @@ export function initLoot(): void {
 export function uiLoot(object: Obj) {
     globalState.uiMode = UIMode.loot
 
+    // CE ref: inventory.cc:1693-1873 — scroll offsets, one item per click,
+    // clamped so there's always at least one item visible.
+    let leftScroll = 0
+    let rightScroll = 0
+
     async function uiLootMove(data: string /* "l"|"r" */, where: 'left' | 'right') {
         dbg('inventory', '[Loot] move ' + data + ' to ' + where)
 
@@ -134,10 +139,10 @@ export function uiLoot(object: Obj) {
         drawLoot()
     }
 
-    function drawInventory($el: HTMLElement, who: 'p' | 'm' | 'l' | 'r', objects: Obj[]) {
+    function drawInventory($el: HTMLElement, who: 'p' | 'm' | 'l' | 'r', objects: Obj[], scroll: number = 0) {
         clearEl($el)
 
-        for (let i = 0; i < objects.length; i++) {
+        for (let i = scroll; i < objects.length; i++) {
             const inventoryImage = objects[i].invArt
             const img = makeEl('img', {
                 src: inventoryImage + '.png',
@@ -169,6 +174,23 @@ export function uiLoot(object: Obj) {
         uiLootMove(data, 'right')
     })
 
+    $id('lootScrollLeftUp').onclick = () => {
+        leftScroll = Math.max(0, leftScroll - 1)
+        drawLoot()
+    }
+    $id('lootScrollLeftDown').onclick = () => {
+        leftScroll = Math.min(Math.max(0, globalState.player.inventory.length - 1), leftScroll + 1)
+        drawLoot()
+    }
+    $id('lootScrollRightUp').onclick = () => {
+        rightScroll = Math.max(0, rightScroll - 1)
+        drawLoot()
+    }
+    $id('lootScrollRightDown').onclick = () => {
+        rightScroll = Math.min(Math.max(0, object.inventory.length - 1), rightScroll + 1)
+        drawLoot()
+    }
+
     $id('lootBoxTakeAllButton').onclick = () => {
         dbg('inventory', '[Loot] take all')
         const inv = object.inventory.slice(0) // clone inventory
@@ -187,8 +209,10 @@ export function uiLoot(object: Obj) {
     }
 
     function drawLoot() {
-        drawInventory($id('lootBoxLeft'), 'l', globalState.player.inventory)
-        drawInventory($id('lootBoxRight'), 'r', object.inventory)
+        leftScroll = Math.min(leftScroll, Math.max(0, globalState.player.inventory.length - 1))
+        rightScroll = Math.min(rightScroll, Math.max(0, object.inventory.length - 1))
+        drawInventory($id('lootBoxLeft'), 'l', globalState.player.inventory, leftScroll)
+        drawInventory($id('lootBoxRight'), 'r', object.inventory, rightScroll)
     }
 
     drawLoot()
