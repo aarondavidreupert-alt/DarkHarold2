@@ -201,17 +201,19 @@ function curveAt(hourFloat: number): number {
 // Ambient light intensity in the same 0..65536 range Fallout 2 uses. Takes
 // the script override into account.
 //
-// Semantics: the time-of-day curve is the primary driver. If a script has
-// called set_light_level (e.g. a vault with fluorescent lighting, a tavern
-// with lamps), the returned value is the MAXIMUM of the curve and the
-// override — i.e. the script sets a brightness FLOOR for the area.
-// Indoor areas never drop below the scripted level even at night (the
-// "lights" are on), but daytime can still brighten them (e.g. windows).
+// Semantics: the time-of-day curve is the primary driver. If a script calls
+// set_light_level, the override acts as a brightness CEILING — min(curve,
+// override). The script can only darken the area further; the curve still
+// provides night-time darkness regardless. set_light_level(100) therefore
+// means "no artificial darkening" (= CE's default reset), and the curve
+// governs as normal. CE has no curve so this distinction is moot there;
+// in DH2 this preserves the night cycle on outdoor maps while still
+// honouring darkness scripts (caves, vaults) at any time of day.
 export function getAmbientLight(): number {
     const hourFloat = getHour() + getMinute() / 60
     const curveValue = curveAt(hourFloat)
     if (lightLevelOverride !== null) {
-        return Math.max(curveValue, lightLevelOverride)
+        return Math.min(curveValue, lightLevelOverride)
     }
     return curveValue
 }

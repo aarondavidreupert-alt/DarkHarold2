@@ -127,11 +127,13 @@ ambient brightness instead (both CE and DH2: `max(ambient, tileIntensity)`).
 
   Implemented as piecewise-linear interpolation in `curveAt()` (`gametime.ts:190`).
 
-- **`getAmbientLight()` semantics** (`gametime.ts:212`): returns
-  `max(curveValue, scriptOverride)`. A script that sets darkness (e.g. a
-  blacked-out vault) pins a brightness *floor* for the area; the curve can
-  still brighten it further at noon. Matches the indoor intent of the original
-  `set_light_level` usage.
+- **`getAmbientLight()` semantics** (`gametime.ts:210`): returns
+  `min(curveValue, scriptOverride)`. The script override acts as a brightness
+  *ceiling* — scripts can only darken the area further; the time-of-day curve
+  still provides night-time darkness regardless. `set_light_level(100)` = no
+  ceiling = curve governs as normal (CE's "reset to default" pattern). Cave /
+  vault scripts (`set_light_level(20)`) cap the ambient at their level at all
+  times of day.
 
 
 - **Night Vision perk**: not applied to ambient in DH2 (CE gap — see §10 #3).
