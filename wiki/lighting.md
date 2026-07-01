@@ -133,10 +133,6 @@ ambient brightness instead (both CE and DH2: `max(ambient, tileIntensity)`).
   still brighten it further at noon. Matches the indoor intent of the original
   `set_light_level` usage.
 
-- **Outdoor maps** (`gametime.ts:235`): `setLightLevelOverride()` silently
-  ignores `set_light_level` calls on outdoor maps (detected by
-  `GameMap.isOutdoor()`) to prevent open-air map scripts from clamping noon
-  to dusk.
 
 - **Night Vision perk**: not applied to ambient in DH2 (CE gap — see §10 #3).
 
@@ -692,7 +688,7 @@ treatment in both engines.
 | 2 | `obj_set_light_level` (0x8107) changes tile intensity at runtime — CE calls `objectSetLight()` which triggers the full turn-off/turn-on cycle and refreshes the screen rect | **FIXED** — wired at `vm_bridge.ts:115`; `scripting.ts:1577-1588` sets `obj.lightRadius`/`obj.lightIntensity` then calls `Lightmap.rebuildLight()`, a full re-bake (`bakeStaticLight()` + `rebuildDynamicLight()`) rather than CE's targeted turn-off/turn-on subtract-add — functionally equivalent for static objects, costs a full rebake instead of an O(36) delta | `scripting.ts:1577`, `vm_bridge.ts:115` |
 | 3 | Night Vision perk adds 20 %/rank to ambient (`LIGHT_LEVEL_NIGHT_VISION_BONUS`) | **Not applied** to ambient in DH2 | `light.cc:50`; perk defined in `perks.ts` but unused |
 | 4 | No built-in day/night curve — only script-driven ambient | DH2 adds a custom curve (`gametime.ts:181`). This is a DH2 extension beyond CE. | `gametime.ts` |
-| 5 | `set_light_level` always applied (indoor and outdoor) | DH2 **silently ignores** it on outdoor maps | `gametime.ts:235` |
+| 5 | `set_light_level` always applied (indoor and outdoor) | **FIXED 2026-07-01** — outdoor-map guard removed; `setLightLevelOverride()` now honors the call on all map types, matching CE. Previously dropped on outdoor maps (e.g. SID 219 `Kladwtwn.int` — Klamath Downtown). | `gametime.ts:232` |
 | 6 | CE `set_light_level` maps 0-100 through piecewise ramp (`intensities[3]`) | **FIXED** — DH2 now matches the piecewise ramp exactly (`gametime.ts:244-253`); see `known_bugs.md` LD7 | `gametime.ts:244` |
 | 7 | Non-wall opaque scenery casts light shadow (the `edi=0` path in `_obj_adjust_light`) | **Commented out** in DH2 | `lightmap.ts:335-345` |
 | 8 | Per-elevation tile intensity (`gTileIntensity[ELEVATION_COUNT][HEX_GRID_SIZE]`) | DH2 `tile_intensity` is a flat `40000`-entry array — **no elevation separation** | `lightmap.ts:37` |
