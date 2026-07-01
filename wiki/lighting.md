@@ -15,7 +15,7 @@ Ground-truth references: `raw/fallout2-ce/src/light.cc`, `light.h`,
 `interpreter_extra.cc` (`set_light_level`, `obj_set_light_level`,
 `opSetObjectVisibility` opcodes), `combat_ai.cc` (Solar Scorcher / flare AI).
 
-Last audited: 2026-06-30
+Last audited: 2026-07-01
 
 ---
 
@@ -900,53 +900,69 @@ lightingDebug(20)                    // widen the comparison radius
 `'dh2'`) controls the live mode; `setLightingMode('gpu'|'cpu')` is unrelated — it
 switches the floor *rendering* backend (§12), not propagation/blocking.
 
-### 14.9 CE-faithful per-object tile intensity (LD5, LD10) — 2026-06-30
+### 14.9 Object sprite lighting — fixed-Y bilinear path (LD10) — 2026-07-01
 
-**Problem**: DH2's fragment shader previously called `getWorldTileLight()` for
-every fragment — converting `gl_FragCoord` to a hex coordinate and sampling the
-`u_tileIntensity` texture there. Three bugs resulted:
+**Problem**: DH2's fragment shader called `getWorldTileLight()` per-fragment,
+converting `gl_FragCoord` to a world coordinate and sampling `u_tileIntensity`
+there. Two rendering bugs resulted:
 
-1. **Light leaks through walls** — the 200×200 `u_tileIntensity` texture used
-   `gl.LINEAR` (bilinear) filtering, so lit hex values bled across the texel
-   boundary into adjacent dark hexes (behind walls), producing a visible halo
-   on the wall's shadowed side.
-2. **Walls/critters don't light up uniformly** — a tall sprite (wall, critter)
-   that straddles a lit/unlit boundary had its upper pixels sample dark hexes
-   while its lower pixels sampled lit ones. CE applies one uniform intensity to
-   the entire sprite (`object.cc:835`).
-
-Note: "player appears dark" was separately investigated — see LD5 note below.
+1. **Tall sprites had dark upper pixels** — a wall or critter sprite whose top
+   extends above its own tile would have its upper fragments map to world
+   positions in unlit hexes above the object. CE applies one intensity value
+   uniformly to the entire sprite (`object.cc:835`).
+2. **Light leaked through walls** — `u_tileIntensity` uses `gl.LINEAR` (bilinear)
+   filtering; a fragment near a wall boundary blended the lit hex on the far side
+   into the dark hex on the near side, producing a visible halo behind walls.
 
 **Fix** (`shaders/fragment.glsl`, `src/render/webglContext.ts`,
-`src/render/webglDraw.ts`):
+`src/render/webglDraw.ts`, `src/config.ts`, `src/main.ts`):
 
-- `u_tileIntensity` texture filter stays `gl.LINEAR` — object sprites now use
-  `u_objectLight` and never sample this texture, so bilinear blending between
-  hex values only affects floor tiles (where the smooth wash is the desired
-  look). The wall light-leak is resolved by the per-object path, not by
-  changing the filter.
-- New uniform `float u_objectLight` added to `fragment.glsl` (default `−1.0`):
-  - When `u_objectLight >= 0.0` the shader uses this pre-sampled value directly
-    instead of calling `getWorldTileLight()` — the CE-style per-object path.
-  - When `u_objectLight < 0.0` the shader falls back to per-fragment
-    world-position sampling (floor tiles, UI draws — unchanged behaviour).
-- `renderObject()` in `src/render/webglDraw.ts` now computes the effective
-  intensity for each object sprite before calling `renderFrame()`:
+New uniform `highp float u_objectBaseY` in `fragment.glsl` (default `−1.0`):
+- **`u_objectBaseY >= 0`** (object sprite path): `getWorldTileLight()` uses
+  `gl_FragCoord.x` for `world_x` (per-fragment horizontal variation → smooth
+  bilinear gradient matching the floor) but this fixed value for `world_y`
+  (anchored to the object's tile, not wherever the fragment happens to land
+  vertically). This fixes both bugs simultaneously: no dark tops, no wall bleed.
+- **`u_objectBaseY < 0`** (default): full per-fragment path — both `world_x`
+  and `world_y` derived from `gl_FragCoord`, used for floor tiles and UI draws.
+  `u_tileIntensity` stays `gl.LINEAR` for the floor's smooth per-hex wash.
 
-  ```typescript
-  // CE ref: object.cc:835  lightGetTileIntensity(elevation, obj->tile)
-  const tileNum = toTileNum(obj.position)
-  const rawIntensity = Lightmap.tile_intensity[tileNum] ?? 655
-  const effectiveIntensity = Math.max(GameTime.getAmbientLight(), rawIntensity)
-  gl.uniform1f(this.uObjectLight, effectiveIntensity / 65536)
-  // ... renderFrame() ...
-  gl.uniform1f(this.uObjectLight, -1.0)  // reset for floor/UI draws
-  ```
+`getWorldTileLight()` in the shader now selects `world_y` in one place:
 
-- `uObjectLight` field added to `WebGLRenderer` class; initialized to `−1.0` at
-  shader setup time.
+```glsl
+float world_y = (u_objectBaseY >= 0.0)
+    ? u_objectBaseY
+    : u_camera.y + (u_resolution.y - gl_FragCoord.y / dpr) / zoom;
+```
 
-**CE anchor**: `object.cc:835` — `lightIntensity = std::max(ambientIntensity, lightGetTileIntensity(elevation, objectListNode->obj->tile))`. CE's render loop does NOT subtract `gDude->lightIntensity` — that only happens in `objectGetLightIntensity()` (gameplay path, called from `combat.cc:4450` and `perk.cc:659`). LD5 therefore remains open in the gameplay path (see `wiki/known_bugs.md §LD5`).
+**Three selectable modes** (`Config.engine.objectLightingMode`, default `'tile-y'`):
 
-**Gap status**: LD10 (new entry) — per-object tile intensity for object sprites:
-FIXED 2026-06-30. LD5 still missing (gameplay path only). See `wiki/known_bugs.md §LD`.
+| Mode | `u_objectBaseY` value | Texture filter |
+|------|-----------------------|----------------|
+| `'tile-y'` | World-Y of `obj.position` via inverse hex formula: `12·ty + 8.4 + 6·tx`. Guaranteed to sample the object's exact tile in `u_tileIntensity`. | LINEAR (horizontal gradient intentional) |
+| `'foot-y'` | `renderInfo.y + renderInfo.frameHeight` — bottom of sprite bounding box. | LINEAR |
+| `'off'` | −1 (full per-fragment, original path) | **NEAREST** switched per-draw (prevents bilinear wall bleed); restored to LINEAR after each object draw so floors are unaffected |
+
+The inverse hex formula is derived by solving `getWorldTileLight()`'s `hex_y`/`hex_x`
+equations for `world_y` at tile centre `(tx, ty)`:
+
+```
+hex_y = world_x/64 + world_y/16 − 75.7
+hex_x = 150 − (world_x/32 − world_y/24)
+
+solving for world_y → world_y = 12·ty + 8.4 + 6·tx
+```
+
+Toggle live:
+```js
+setObjectLightingMode('tile-y')  // default — correct tile anchor
+setObjectLightingMode('foot-y')  // bottom-of-sprite anchor
+setObjectLightingMode('off')     // original per-fragment (no bleed; dark tops)
+```
+
+**CE anchor**: `object.cc:835` — `lightIntensity = std::max(ambientIntensity, lightGetTileIntensity(elevation, objectListNode->obj->tile))`. The DH2 `'tile-y'` mode approximates this (one effective intensity per object tile), but extends it with per-column horizontal bilinear blending so walls catch the smooth gradient the floor has. CE uses a palette darkening table instead — exact per-pixel bilinear is a DH2 extension.
+
+**LD5 note**: CE's `objectGetLightIntensity()` subtracts `gDude->lightIntensity` before the ambient clamp (`object.cc:1753-1754`), but this function is only called from `combat.cc:4450` and `perk.cc:659` (gameplay, not render). The render path at `object.cc:835` does not subtract. LD5 remains open in the gameplay path; it was never part of the render fix.
+
+**Gap status**: LD10 FIXED 2026-07-01. LD5 still missing (gameplay path).
+See `wiki/known_bugs.md §LD`.
