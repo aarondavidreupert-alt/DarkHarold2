@@ -469,10 +469,12 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     //               guaranteed to hit the correct tile in u_tileIntensity.
     //   'foot-y'  — bottom of sprite bounding box (world pixels).
     //   'off'     — full per-fragment (original path, dark tops on tall sprites).
+    //               Uses NEAREST filter for this draw so bilinear bleed through
+    //               walls is still suppressed; floor draws restore LINEAR.
+    const mode = Config.engine.objectLightingMode
     if (this.uObjectBaseY) {
         const gl = this.gl
         gl.useProgram(this.tileShader)
-        const mode = Config.engine.objectLightingMode
         let baseY = -1.0
         if (mode === 'tile-y') {
             // Inverse of getWorldTileLight()'s hex_y formula:
@@ -487,6 +489,19 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
             baseY = renderInfo.y + renderInfo.frameHeight
         }
         gl.uniform1f(this.uObjectBaseY, baseY)
+    }
+
+    // 'off' mode still uses per-fragment world-position sampling (u_objectBaseY = -1),
+    // but switches tileIntensity to NEAREST for this draw to prevent bilinear
+    // bleed across hex boundaries (light leak through walls).
+    // 'tile-y'/'foot-y' fix world_y so horizontal LINEAR blending is intentional.
+    if (mode === 'off' && this.tileIntensityTexture) {
+        const gl = this.gl
+        gl.activeTexture(gl.TEXTURE5)
+        gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+        gl.activeTexture(gl.TEXTURE0)
     }
 
     this.renderFrame(
@@ -507,6 +522,14 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     }
     if (this.uObjectBaseY) {
         this.gl.uniform1f(this.uObjectBaseY, -1.0)
+    }
+    if (mode === 'off' && this.tileIntensityTexture) {
+        const gl = this.gl
+        gl.activeTexture(gl.TEXTURE5)
+        gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+        gl.activeTexture(gl.TEXTURE0)
     }
 }
 
