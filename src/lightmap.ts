@@ -325,11 +325,18 @@ export module Lightmap {
                                 // ebx = (curObj+20h) & 0x0F000000 >> 24
                                 if(curObj.type === "wall") {
                                     //console.log("obj flags: " + curObj.flags.toString(16))
-                                    if(!(curObj.flags & 8)) { // Flat flag?
-                                        //proto_ptr(*(v37 + 100), &v43, 3, v11);
-                                        //var flags = (pro+24)
-                                        var flags = curObj.pro.flags // XXX: flags directly from PRO?
-                                        //console.log("pro flags: " + flags.toString(16))
+                                    if(!(curObj.flags & 8)) { // Flat flag? (OBJECT_FLAT, object.cc:4553)
+                                        // Wall ORIENTATION bits live in the wall proto's extendedFlags
+                                        // (flags_ext), NOT the common PRO header `flags`. CE reads
+                                        // proto->wall.extendedFlags here (object.cc:4556); DH2 stores
+                                        // it at pro.extra.extendedFlags (tools/proto.py readWall) — the
+                                        // same field the egg occlusion reads. Reading pro.flags meant
+                                        // every wall fell through to the default (else) branch, giving
+                                        // the wrong occlusion for W-E walls (light-bleed stripes) while
+                                        // NW-SE walls happened to match the default. See wiki/known_bugs
+                                        // LD11 / wiki/extended_flags.md §4.
+                                        var flags = curObj.pro.extra?.extendedFlags ?? 0
+                                        //console.log("wall extendedFlags: " + flags.toString(16))
                                         if(flags & 0x8000000 || flags & 0x40000000) {
                                             if(dir != 4 && dir != 5 && (dir || i >= 8) && (dir != 3 || i <= 15))
                                                 edi = 0

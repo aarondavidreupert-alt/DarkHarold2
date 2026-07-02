@@ -174,6 +174,16 @@ This switch shares 3 of its 4 bits with the egg logic (`0x8000000`,
 `0x10000000`, `0x20000000`) but pairs `0x8000000` with **`0x40000000`** (bit 30),
 not `0x80000000` (bit 31) the way the egg/render functions do.
 
+> **DH2 status (fixed 2026-07-02, `known_bugs.md` LD11):** `src/lightmap.ts`
+> ports this switch faithfully (all four `rotation`/`index` branches match CE),
+> but until 2026-07-02 it read the orientation from `curObj.pro.flags` — the
+> common PRO **header** flags — instead of `curObj.pro.extra.extendedFlags`.
+> The orientation bits are absent from the header, so every wall fell through to
+> the `else` (default) branch: correct for the NE-SW/default family, wrong for
+> W-E walls, which bled light in alternating stripes along the face. Now reads
+> `pro.extra.extendedFlags` — the same field this section documents and the egg
+> occlusion already used.
+
 ## 5. Investigation Task 2 — Is `0x40000`/bit 30 a Decompiler Artifact?
 
 The premise as posed ("`0x80000` appears twice in `_obj_intersects_with`") does
