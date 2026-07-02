@@ -389,11 +389,14 @@ passes a single `lightIntensity` into `_obj_render_object`). DH2's three modes
 (`Config.engine.objectLightingMode`, default **`'foot-y'`** as of 2026-07-02)
 approximate this:
 
-| Mode | `u_objectBaseY` | Behaviour vs CE |
-|------|-----------------|-----------------|
-| **`foot-y`** (default) | `renderInfo.y + renderInfo.frameHeight` (sprite bottom, world px) | Anchors to the sprite's ground-contact point, so the player's floor light pools naturally at the base of walls (visually preferred). Samples the tile the feet land on; can differ from `tile-y` by ~a few px when FRM offsets shift the foot. |
-| **`tile-y`** | `12·ty + (11.25\|5.25) + 6·tx` (tile centre, parity-aware — see §6) | Locks the sample to the object's own tile row exactly (slightly above the foot). Marginally more stable for critters with large walk offsets. |
-| **`off`** | `−1.0` (per-fragment) | Original path: full per-fragment sampling → dark tops on tall sprites. Switches `u_tileIntensity` to **NEAREST** for the draw to stop bilinear light-leak through walls (floor draws restore LINEAR). |
+| Mode | Sampling | Behaviour vs CE |
+|------|----------|-----------------|
+| **`foot-y`** (default) | `baseY = renderInfo.y + renderInfo.frameHeight` (sprite bottom); world-X per-fragment | Anchors to the sprite's ground-contact point, so the player's floor light pools naturally at the base of walls (visually preferred). Has the residual stripes (below). |
+| **`tile-y`** | `baseY = 12·ty + (11.25\|5.25) + 6·tx` (tile centre, parity-aware — see §6); world-X per-fragment | Locks the sample to the object's own tile row exactly (slightly above the foot). Marginally more stable for critters with large walk offsets. Has stripes. |
+| **`flat`** | one sample at the tile centre `(baseX, baseY)` for the whole sprite | **CE-faithful** (`lightGetTileIntensity` per object). No gradient, no stripes. `baseX = 32·(150.0417 − tx) + (4/3)·baseY`. |
+| **`foot-smooth`** | `foot-y` + world-space blur kernel (`u_objectSmoothPx`, default 12) | Keeps the pooling gradient but averages a small cross of taps to soften the stripes. Tune with `setObjectLightSmooth(px)`. |
+| **`tile-smooth`** | `tile-y` + the same blur kernel | As above, anchored to the tile row. |
+| **`off`** | `baseY = −1` (per-fragment) | Original path: full per-fragment sampling → dark tops on tall sprites. Switches `u_tileIntensity` to **NEAREST** for the draw to stop bilinear light-leak through walls (floor draws restore LINEAR). |
 
 None reproduces CE exactly: CE is *flat* (single intensity per object, hard
 per-hex edges); DH2 samples per-fragment (world-X varies across the sprite),
@@ -692,16 +695,24 @@ with one `lightGetTileIntensity(obj->tile)` value — no per-fragment gradient, 
 no stripes (but also no "spotlight pooling" on the wall). DH2's per-fragment
 gradient is a deliberate embellishment (RD05); the stripes are its cost.
 
-Candidate resolutions (undecided — aesthetic trade-off):
-- **(A) CE-faithful `flat` mode** — one intensity per object. Kills the gradient
-  *and* the stripes; matches vanilla F2 (project mandate: "follow the
-  originals"). Adjacent staggered segments still differ by their true per-tile
-  light, but each segment is uniform.
-- **(B) Keep the gradient, smooth harder** — e.g. average each wall tile's
-  intensity with its stagger neighbour before sampling (the conservative
-  fallback noted for LD11), or relax the `±6` world-Y clamp so the object
-  hex-lerp blends in 2-D. Keeps the pooling look; effectiveness needs in-browser
-  iteration (can't be verified from source alone).
+Candidate resolutions — **all implemented as live-switchable `objectLightingMode`
+options** (2026-07-02) so they can be compared in-browser via
+`setObjectLightingMode(...)`; aesthetic default still TBD:
+- **(A) CE-faithful `flat`** — one intensity per object (sampled at the tile
+  centre). Kills the gradient *and* the stripes; matches vanilla F2 (project
+  mandate: "follow the originals"). Adjacent staggered segments still differ by
+  their true per-tile light, but each segment is uniform. Verified: `flat`'s
+  computed `(baseX, baseY)` samples the object's own tile for all 40 000 tiles.
+- **(B) `foot-smooth` / `tile-smooth`** — keep the gradient but blur the sampled
+  light over a small world-space kernel (`u_objectSmoothPx`, default 12 px,
+  tunable via `setObjectLightSmooth(px)`): 2 horizontal taps (soften the
+  per-column stripe) + 2 short vertical taps (soften the per-object hex-row
+  stagger), centre-weighted. Reads the shared tile-intensity texture, so it
+  blends across tile/object boundaries. Effectiveness/strength is an in-browser
+  tuning question (can't be judged from source alone).
+
+Once a winner is chosen from live testing, promote it to the default in
+`config.ts` and note it here.
 
 ### The lighting-alignment story in one line
 

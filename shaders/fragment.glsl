@@ -34,6 +34,14 @@ uniform float u_alpha;               // per-draw alpha multiplier (flat egg fall
 // u_objectBaseY  < 0: per-fragment fallback — floor tiles, UI draws.
 uniform highp float u_objectBaseY;
 
+// Object-lighting smoothing extras (wiki/alignment.md §8):
+// u_objectBaseX >= 0 → 'flat' mode: sample the whole sprite at ONE tile centre
+//   (u_objectBaseX, u_objectBaseY) — CE-faithful, no gradient, no stripes.
+// u_objectSmoothPx > 0 → blur the sampled light over a small world-space kernel
+//   to soften the per-column "vertical stripe" texture on wall faces.
+uniform highp float u_objectBaseX;
+uniform float u_objectSmoothPx;
+
 // Tile-intensity interpolation mode — see sampleTileLight below and
 // fragmentLighting.glsl (kept identical). wiki/alignment.md §7.
 uniform int u_lightInterp;
@@ -153,9 +161,31 @@ float getWorldTileLight() {
     float zoom = max(u_zoom, 0.0001);
     float world_x = u_camera.x + (gl_FragCoord.x / dpr) / zoom;
     float frag_world_y = u_camera.y + (u_resolution.y - gl_FragCoord.y / dpr) / zoom;
+
+    // 'flat' mode: whole sprite samples one tile centre → CE-faithful, no stripes.
+    if (u_objectBaseX >= 0.0) {
+        return sampleTileLight(u_objectBaseX, u_objectBaseY);
+    }
+
     float world_y = (u_objectBaseY >= 0.0)
         ? clamp(frag_world_y, u_objectBaseY - 6.0, u_objectBaseY + 6.0)
         : frag_world_y;
+
+    // '*-smooth' modes: average the sampled light over a small world-space kernel
+    // (2 wide horizontal taps + 2 short vertical taps, centre-weighted). The
+    // horizontal taps smooth the per-column stripe texture along a wall face; the
+    // vertical taps soften the per-object hex-row stagger step. Reads the shared
+    // tile-intensity texture, so it blends across tile/object boundaries. §8.
+    if (u_objectSmoothPx > 0.0) {
+        float p = u_objectSmoothPx;
+        return (sampleTileLight(world_x, world_y) * 2.0
+              + sampleTileLight(world_x - p, world_y)
+              + sampleTileLight(world_x + p, world_y)
+              + sampleTileLight(world_x - 2.0 * p, world_y)
+              + sampleTileLight(world_x + 2.0 * p, world_y)
+              + sampleTileLight(world_x, world_y - p)
+              + sampleTileLight(world_x, world_y + p)) / 8.0;
+    }
 
     // Parity-correct hex sampling with selectable interpolation (world_y has
     // already been clamped to the sprite's tile row above). See §6/§7.

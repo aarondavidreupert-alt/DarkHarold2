@@ -71,6 +71,8 @@ export class WebGLRenderer extends Renderer {
     uOutlineColor: WebGLUniformLocation | null = null
     uOutlineAlpha: WebGLUniformLocation | null = null
     uObjectBaseY: WebGLUniformLocation | null = null
+    uObjectBaseX: WebGLUniformLocation | null = null      // 'flat' mode: fixed tile-centre X; <0 = per-fragment
+    uObjectSmoothPx: WebGLUniformLocation | null = null   // '*-smooth' blur kernel radius (world px); 0 = off
 
     // Tile-intensity interpolation mode (u_lightInterp) — see setLightInterpMode
     // and shaders/fragment*.glsl sampleTileLight. wiki/alignment.md §7.
@@ -433,6 +435,10 @@ export class WebGLRenderer extends Renderer {
         this.uObjectBaseY = gl.getUniformLocation(this.tileShader, 'u_objectBaseY')
         // -1.0 = per-fragment fallback (floor tiles, UI draws)
         if (this.uObjectBaseY) gl.uniform1f(this.uObjectBaseY, -1.0)
+        this.uObjectBaseX = gl.getUniformLocation(this.tileShader, 'u_objectBaseX')
+        if (this.uObjectBaseX) gl.uniform1f(this.uObjectBaseX, -1.0)      // <0 = not flat
+        this.uObjectSmoothPx = gl.getUniformLocation(this.tileShader, 'u_objectSmoothPx')
+        if (this.uObjectSmoothPx) gl.uniform1f(this.uObjectSmoothPx, 0.0) // 0 = no blur
         this.uLightInterp = gl.getUniformLocation(this.tileShader, 'u_lightInterp')
         if (this.uLightInterp) gl.uniform1i(this.uLightInterp, this.lightInterpValue)
 

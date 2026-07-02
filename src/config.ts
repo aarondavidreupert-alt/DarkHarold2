@@ -79,15 +79,22 @@ export const Config = {
         // "Naive lighting mode (distance-only baseline)".
         // Compare live via setLightPropagationMode() and lightingDebug() in the browser console.
         lightPropagationMode: 'dh2' as 'dh2' | 'derived' | 'naive',
-        // Object sprite lighting Y mode. 'foot-y' (default): anchor world-Y to the
-        // bottom of the sprite's bounding box — the wall/critter's contact point with
-        // the ground — which makes the player's floor light pool naturally at the base
-        // of walls. 'tile-y': derive world-Y from obj.position via the inverse hex
-        // formula (locks to the object's tile row exactly; slightly higher than the
-        // foot). 'off': full per-fragment sampling (original path — dark tops on tall
-        // sprites, but no reliance on the coordinate math below).
-        // Toggle live: setObjectLightingMode('foot-y'|'tile-y'|'off')
-        objectLightingMode: 'foot-y' as 'tile-y' | 'foot-y' | 'off',
+        // Object sprite lighting Y mode. Controls how wall/critter/scenery sprites
+        // sample the tile-intensity texture. Toggle live via setObjectLightingMode();
+        // tune the smooth kernel via setObjectLightSmooth(px). See wiki/alignment.md §8.
+        //   'foot-y' (default) — anchor world-Y to the sprite's ground-contact point;
+        //                        world-X per-fragment. Light pools at the wall base.
+        //   'tile-y'           — anchor world-Y to the object's tile row (inverse hex).
+        //   'flat'             — CE-faithful: ONE intensity for the whole sprite
+        //                        (sampled at the tile centre). No gradient, no stripes.
+        //   'foot-smooth'      — foot-y + a world-space blur kernel to soften the
+        //                        per-column "vertical stripe" texture on wall faces.
+        //   'tile-smooth'      — tile-y + the same blur kernel.
+        //   'off'              — full per-fragment sampling (dark tops on tall sprites).
+        objectLightingMode: 'foot-y' as 'tile-y' | 'foot-y' | 'off' | 'flat' | 'foot-smooth' | 'tile-smooth',
+        // Blur kernel radius (world px) for the '*-smooth' object lighting modes.
+        // Larger = smoother wall faces but softer light detail. Tune: setObjectLightSmooth(px).
+        objectLightSmoothPx: 12,
         // How the tile-intensity texture (unit 5) is interpolated when sampled by
         // the world shaders. Plain 'linear' bleeds across the hex column stagger and
         // shows NW-SE stripes; the other modes remove them. Toggle live via

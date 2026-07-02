@@ -475,23 +475,37 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     if (this.uObjectBaseY) {
         const gl = this.gl
         gl.useProgram(this.tileShader)
-        let baseY = -1.0
+
+        // Tile-centre world coords (parity-aware inverse of the shader hex_y
+        // formula, see wiki/alignment.md §6): world_y = 12*ty + (11.25|5.25) + 6*tx;
+        // world_x solved from hex_x = tx. Used by tile-y / tile-smooth / flat.
+        const tx = obj.position.x
+        const ty = obj.position.y
+        const tileCenterY = 12 * ty + ((tx & 1) === 0 ? 11.25 : 5.25) + 6 * tx
+        const tileCenterX = 32 * (150.0416667 - tx) + (4 / 3) * tileCenterY
+        const foot = renderInfo.y + renderInfo.frameHeight
+
+        let baseY = -1.0     // -1 = per-fragment ('off')
+        let baseX = -1.0     // -1 = not flat
+        let smoothPx = 0.0   // 0 = no blur
         if (mode === 'tile-y') {
-            // Inverse of getWorldTileLight()'s hex_y formula, solved for
-            // world_y at tile centre (tx, ty). The shader's hex_y constant is
-            // per-column-parity (see wiki/alignment.md §6): Cy = −75.9375 (even)
-            // or −75.4375 (odd). Since world_y = 12*ty + 6*tx − 12*(Cy + 75),
-            // the offset term is 11.25 for even columns and 5.25 for odd.
-            // (The previous single 8.4 = 12×0.7 matched the old averaged
-            //  −75.7 constant and was up to ~3px off per column.)
-            const tx = obj.position.x
-            const ty = obj.position.y
-            const parityOffset = (tx & 1) === 0 ? 11.25 : 5.25
-            baseY = 12 * ty + parityOffset + 6 * tx
+            baseY = tileCenterY
         } else if (mode === 'foot-y') {
-            baseY = renderInfo.y + renderInfo.frameHeight
+            baseY = foot
+        } else if (mode === 'flat') {
+            // CE-faithful: whole sprite samples one tile centre.
+            baseY = tileCenterY
+            baseX = tileCenterX
+        } else if (mode === 'foot-smooth') {
+            baseY = foot
+            smoothPx = Config.engine.objectLightSmoothPx ?? 12
+        } else if (mode === 'tile-smooth') {
+            baseY = tileCenterY
+            smoothPx = Config.engine.objectLightSmoothPx ?? 12
         }
         gl.uniform1f(this.uObjectBaseY, baseY)
+        if (this.uObjectBaseX) gl.uniform1f(this.uObjectBaseX, baseX)
+        if (this.uObjectSmoothPx) gl.uniform1f(this.uObjectSmoothPx, smoothPx)
     }
 
     // 'off' mode still uses per-fragment world-position sampling (u_objectBaseY = -1),
@@ -525,6 +539,8 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     }
     if (this.uObjectBaseY) {
         this.gl.uniform1f(this.uObjectBaseY, -1.0)
+        if (this.uObjectBaseX) this.gl.uniform1f(this.uObjectBaseX, -1.0)
+        if (this.uObjectSmoothPx) this.gl.uniform1f(this.uObjectSmoothPx, 0.0)
     }
     if (mode === 'off' && this.tileIntensityTexture) {
         // Restore the filter the active interpolation mode wants (not a hardcoded

@@ -297,22 +297,41 @@ window.onload = async function () {
     }
 
     // setObjectLightingMode(mode) — controls how object/wall/critter sprites
-    // sample the tile intensity texture (takes effect immediately, next frame):
+    // sample the tile intensity texture (takes effect immediately, next frame).
+    // The '*-smooth'/'flat' modes exist to test fixes for the residual per-column
+    // "vertical stripe" texture on wall faces — see wiki/alignment.md §8.
     //
-    //   'foot-y'  — (default) fixes world-Y to the bottom of the sprite's bounding
-    //               box (ground-contact point), varies world-X per-fragment. Makes the
-    //               player's floor light pool naturally at the base of walls.
-    //   'tile-y'  — fixes world-Y to the object's tile position via the inverse hex
-    //               formula (locks to the tile row exactly; slightly above the foot).
-    //   'off'     — original per-fragment path: both X and Y come from gl_FragCoord.
-    //               Tall sprites get dark tops but the horizontal gradient still works.
-    ;(window as any).setObjectLightingMode = (mode: 'tile-y' | 'foot-y' | 'off') => {
-        if (mode !== 'tile-y' && mode !== 'foot-y' && mode !== 'off') {
-            console.log("Usage: setObjectLightingMode('tile-y' | 'foot-y' | 'off')")
+    //   'foot-y'      — (default) world-Y at the sprite's ground-contact point,
+    //                   world-X per-fragment. Light pools at the wall base. Has stripes.
+    //   'tile-y'      — world-Y locked to the object's tile row (inverse hex). Has stripes.
+    //   'flat'        — CE-faithful: ONE intensity for the whole sprite (tile centre).
+    //                   No gradient, no stripes — matches vanilla Fallout 2.
+    //   'foot-smooth' — foot-y + a world-space blur kernel that softens the stripes
+    //                   while keeping the pooling gradient. Tune with setObjectLightSmooth().
+    //   'tile-smooth' — tile-y + the same blur kernel.
+    //   'off'         — original per-fragment path (dark tops on tall sprites).
+    ;(window as any).setObjectLightingMode = (mode: string) => {
+        const valid = ['tile-y', 'foot-y', 'off', 'flat', 'foot-smooth', 'tile-smooth']
+        if (!valid.includes(mode)) {
+            console.log("Usage: setObjectLightingMode('foot-y'|'tile-y'|'flat'|'foot-smooth'|'tile-smooth'|'off')")
             return
         }
-        Config.engine.objectLightingMode = mode
-        console.log(`[Lighting] object lighting mode="${mode}"`)
+        Config.engine.objectLightingMode = mode as any
+        console.log(`[Lighting] object lighting mode="${mode}"` +
+            (mode.endsWith('-smooth') ? ` (blur ${Config.engine.objectLightSmoothPx}px — setObjectLightSmooth(px) to tune)` : ''))
+    }
+
+    // setObjectLightSmooth(px) — blur kernel radius (world px) for the '*-smooth'
+    // object lighting modes. Larger = smoother wall faces, softer light detail.
+    // Try values ~4–24; 12 is the default. Takes effect next frame.
+    ;(window as any).setObjectLightSmooth = (px: number) => {
+        if (typeof px !== 'number' || !isFinite(px) || px < 0) {
+            console.log('Usage: setObjectLightSmooth(px)  — world pixels, e.g. setObjectLightSmooth(12)')
+            return
+        }
+        Config.engine.objectLightSmoothPx = px
+        console.log(`[Lighting] object light smooth kernel = ${px}px` +
+            (Config.engine.objectLightingMode.endsWith('-smooth') ? '' : " (set mode to 'foot-smooth' or 'tile-smooth' to see it)"))
     }
 
     // setPlayerLight(radius, intensity) — set the player's own light source.
