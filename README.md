@@ -99,6 +99,7 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 40 | [`wiki/actions.md`](wiki/actions.md) | `actions.cc` dispatch, death animations, float text |
 | 41 | [`wiki/endgame.md`](wiki/endgame.md) | Endgame slides, death narrator |
 | 42 | [`wiki/extended_flags.md`](wiki/extended_flags.md) | Wall/scenery `extendedFlags` orientation bits — egg occlusion vs light blocking |
+| 43 | [`wiki/alignment.md`](wiki/alignment.md) | Screen-space anchor reference for all renderable categories — floor/roof `−96`, object bottom-centre anchor, `uniformFrameWidth` vs `frameWidth`, and the `8.4` lightmap-UV inverse |
 
 ### 🐛 Known issues & roadmap
 
