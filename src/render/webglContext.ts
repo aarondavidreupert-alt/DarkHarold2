@@ -704,4 +704,20 @@ export class WebGLRenderer extends Renderer {
         }
         this.invalidateFloorFBO()
     }
+
+    // Switch the tile-intensity texture between bilinear (LINEAR) and
+    // nearest-neighbour (NEAREST) filtering. NEAREST makes every tile
+    // show its raw discrete intensity value — useful for debugging the
+    // lightmap distribution without the smooth interpolation blurring the
+    // tile boundaries. See setLightingBilinear() console command (main.ts).
+    setTileIntensityFilter(linear: boolean): void {
+        if (!this.tileIntensityTexture) return
+        const gl = this.gl
+        const filter = linear ? gl.LINEAR : gl.NEAREST
+        gl.activeTexture(gl.TEXTURE5)
+        gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
+        gl.activeTexture(gl.TEXTURE0)
+    }
 }

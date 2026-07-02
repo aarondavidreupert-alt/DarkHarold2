@@ -329,6 +329,22 @@ window.onload = async function () {
         console.log(`[setPlayerLight] radius=${player.lightRadius} intensity=${player.lightIntensity} (${intensity}%)`)
     }
 
+    // setLightingBilinear(enable) — toggle bilinear interpolation on the tile-intensity
+    // texture (u_tileIntensity, 200×200 R8, texture unit 5).
+    //   true  (default) — gl.LINEAR:  smooth gradient between neighbouring tiles.
+    //   false           — gl.NEAREST: each tile shows its raw discrete intensity value,
+    //                     making tile boundaries and the lightmap distribution clearly
+    //                     visible — useful for debugging light propagation.
+    ;(window as any).setLightingBilinear = (enable: boolean) => {
+        const r = globalState.renderer as WebGLRenderer
+        if (!r || typeof r.setTileIntensityFilter !== 'function') {
+            console.log('[setLightingBilinear] renderer not ready')
+            return
+        }
+        r.setTileIntensityFilter(enable)
+        console.log(`[setLightingBilinear] tile-intensity filter → ${enable ? 'LINEAR (smooth)' : 'NEAREST (debug)'}`)
+    }
+
     // lightingDebug() — rebakes the current map's lighting under all three propagation
     // modes ('dh2', 'derived', 'naive') and lists every tile within radius hexes of the
     // player whose resulting intensity differs, mirroring eggDebug()'s side-by-side
