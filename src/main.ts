@@ -16,7 +16,7 @@ import { HTMLAudioEngine, NullAudioEngine } from './audio.js'
 import { useDrug } from './drugs.js'
 import { getElevator } from './data.js'
 import { heart } from './heart.js'
-import { hexDistance, hexesInRadius, hexIsInFrontOf, hexIsToRightOf } from './geometry.js'
+import { hexDistance, hexesInRadius, hexIsInFrontOf, hexIsToRightOf, hexInDirection, hexInDirectionDistance } from './geometry.js'
 import globalState from './globalState.js'
 import { IDBCache } from './idbcache.js'
 import { initGame } from './init.js'
@@ -374,6 +374,113 @@ window.onload = async function () {
             }
         }
         console.log(`[LightingDebug] ${diffCount} differing tiles, ${sameCount} matching tiles within radius ${radius}`)
+    }
+
+    // lightingPlayerDebug(rings=2) — dump light values for all hex neighbours around the
+    // player, separated by ring, with direction labels (CE obj_types.h Rotation enum:
+    // 0=NE 1=E 2=SE 3=SW 4=W 5=NW) and an ASCII hex grid so asymmetries are immediately
+    // readable. Also compares all three propagation modes and flags DIFFs inline.
+    //
+    // CE ref: obj_types.h Rotation enum; tile.cc _off_tile / dword_51D984 screen offsets.
+    // Screen offsets: NE=(+16,−12) E=(+32,0) SE=(+16,+12) SW=(−16,+12) W=(−32,0) NW=(−16,−12)
+    // Grid layout: col = screenX/16 + 4, row = screenY/12 + 2  → 9 cols × 5 rows.
+    // Natural indentation from leading null columns: rows 0,4 → 12-char, rows 1,3 → 6-char.
+    ;(window as any).lightingPlayerDebug = (rings: number = 2) => {
+        const player = globalState.player
+        if (!player) { console.log('[LightingPlayerDebug] no player'); return }
+
+        const pos = player.position
+        const mode = Config.engine.lightPropagationMode
+        // Inline helpers to avoid a module-level tile import just for this debug command.
+        const toTile = (p: { x: number; y: number }): number => p.y * 200 + p.x
+        const tileVal = (p: { x: number; y: number }): number => {
+            const t = toTile(p)
+            return (t >= 0 && t < 40000) ? Lightmap.tile_intensity[t] : 0
+        }
+
+        // CE Rotation enum: 0=NE,1=E,2=SE,3=SW,4=W,5=NW
+        const DIR = ['NE', 'E', 'SE', 'SW', 'W', 'NW']
+
+        // All-mode comparison snapshot
+        const { dh2, derived, naive } = Lightmap.compareLightingModes()
+        const diffStr = (p: { x: number; y: number }): string => {
+            const t = toTile(p)
+            if (t < 0 || t >= 40000) return ''
+            const a = dh2[t], b = derived[t], c = naive[t]
+            return (a !== b || a !== c) ? `  ← DIFF dh2=${a} derived=${b} naive=${c}` : ''
+        }
+
+        const px = pos.x, py = pos.y
+        console.log(`[LightingPlayerDebug] Player @ (${px},${py}) | mode=${mode}`)
+        console.log(`  player tile (${px},${py}): ${tileVal(pos)}${diffStr(pos)}`)
+
+        // ── Ring 1: 6 immediate neighbours ───────────────────────────────────────────
+        const n1 = DIR.map((name, dir) => ({ name, p: hexInDirection(pos, dir) }))
+        console.log('\n  Ring 1 (CE dir order 0–5):')
+        n1.forEach(({ name, p }) =>
+            console.log(`    ${name.padEnd(3)}: (${p.x},${p.y}) = ${tileVal(p)}${diffStr(p)}`)
+        )
+
+        if (rings < 2) return
+
+        // ── Ring 2: 6 corner (dir×2) + 6 edge (between adjacent dirs) ───────────────
+        const n2corners = DIR.map((name, dir) => ({
+            name: name + '×2',
+            p: hexInDirectionDistance(pos, dir, 2),
+        }))
+        const EDGE_LABELS = ['NE+E', 'E+SE', 'SE+SW', 'SW+W', 'W+NW', 'NW+NE']
+        const n2edges = EDGE_LABELS.map((name, i) => ({
+            name,
+            // From the ring-1 tile in direction i, take one more step in direction (i+1)%6.
+            // The two paths (NE→E and E→NE) converge on the same tile — verified by symmetry.
+            p: hexInDirection(hexInDirection(pos, i), (i + 1) % 6),
+        }))
+
+        console.log('\n  Ring 2:')
+        for (let i = 0; i < 6; i++) {
+            const c = n2corners[i], e = n2edges[i]
+            console.log(`    ${c.name.padEnd(6)}: (${c.p.x},${c.p.y}) = ${tileVal(c.p)}${diffStr(c.p)}`)
+            console.log(`    ${e.name.padEnd(6)}: (${e.p.x},${e.p.y}) = ${tileVal(e.p)}${diffStr(e.p)}`)
+        }
+
+        // ── ASCII hex grid ────────────────────────────────────────────────────────────
+        // 9 columns × 5 rows. col = screenX/16+4, row = screenY/12+2.
+        // Leading null columns produce natural indentation (12 chars for rows 0/4, 6 for rows 1/3).
+        const CELL = 6  // chars per cell (fits 5-digit intensity + 1 sep)
+        const GW = 9, GH = 5
+        const g: (string | null)[][] = Array.from({ length: GH }, () => Array(GW).fill(null))
+
+        const place = (sx: number, sy: number, val: string) => {
+            const c = sx / 16 + 4, r = sy / 12 + 2
+            if (r >= 0 && r < GH && c >= 0 && c < GW) g[r][c] = val
+        }
+
+        // Player
+        place(0, 0, '@')
+        // Ring-1: screen offsets from CE tile.cc _off_tile / dword_51D984
+        const R1S = [[16,-12],[32,0],[16,12],[-16,12],[-32,0],[-16,-12]] as const
+        n1.forEach(({ p }, i) => place(R1S[i][0], R1S[i][1], String(tileVal(p))))
+        // Ring-2 corners (2× each direction)
+        const R2CS = [[32,-24],[64,0],[32,24],[-32,24],[-64,0],[-32,-24]] as const
+        n2corners.forEach(({ p }, i) => place(R2CS[i][0], R2CS[i][1], String(tileVal(p))))
+        // Ring-2 edges (between adjacent directions)
+        const R2ES = [[48,-12],[48,12],[0,24],[-48,12],[-48,-12],[0,-24]] as const
+        n2edges.forEach(({ p }, i) => place(R2ES[i][0], R2ES[i][1], String(tileVal(p))))
+
+        console.log('\n  Hex grid (2 rings, offsets = CE _off_tile/dword_51D984):')
+        for (let r = 0; r < GH; r++) {
+            if (!g[r].some(x => x !== null)) continue
+            let line = ''
+            for (let c = 0; c < GW; c++) {
+                const cell = g[r][c]
+                if (cell !== null) {
+                    line += cell.padStart(CELL)
+                } else if (g[r].slice(c + 1).some(x => x !== null)) {
+                    line += ' '.repeat(CELL)  // spacer between occupied cells in same row
+                }
+            }
+            console.log('  ' + line)
+        }
     }
 
     // Console commands for the egg transparency effect.
