@@ -79,9 +79,14 @@ float getWorldTileLight() {
         : frag_world_y;
 
     // Continuous hex UV (same math as fragmentLighting.glsl::getGPULightIntensity).
-    float cube_x = world_x / 32.0 - world_y / 24.0;
-    float hex_x = 150.0 - cube_x;
-    float hex_y = world_x / 64.0 + world_y / 16.0 - 75.7;
+    // Exact inverse of hexToScreen: parity-aware because hexToScreen is a
+    // per-column-parity affine map. The old single -75.7 constant was the
+    // even/odd average and mis-sampled by ±0.2375 texels per column. See
+    // wiki/alignment.md §6.
+    float hex_x = 150.0416667 - (world_x / 32.0 - world_y / 24.0);   // 150 + 1/24
+    float col = floor(hex_x + 0.5);                                  // nearest hex column
+    float cy = (mod(col, 2.0) < 0.5) ? -75.9375 : -75.4375;          // even : odd
+    float hex_y = world_x / 64.0 + world_y / 16.0 + cy;
 
     return texture2D(u_tileIntensity, (vec2(hex_x, hex_y) + 0.5) / 200.0).r;
 }

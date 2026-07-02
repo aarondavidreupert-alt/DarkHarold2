@@ -477,14 +477,17 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         gl.useProgram(this.tileShader)
         let baseY = -1.0
         if (mode === 'tile-y') {
-            // Inverse of getWorldTileLight()'s hex_y formula:
-            //   hex_y = world_x/64 + world_y/16 − 75.7
-            //   hex_x = 150 − (world_x/32 − world_y/24)
-            // Solving for world_y at tile centre (tx, ty):
-            //   world_y = 12*ty + 8.4 + 6*tx
+            // Inverse of getWorldTileLight()'s hex_y formula, solved for
+            // world_y at tile centre (tx, ty). The shader's hex_y constant is
+            // per-column-parity (see wiki/alignment.md §6): Cy = −75.9375 (even)
+            // or −75.4375 (odd). Since world_y = 12*ty + 6*tx − 12*(Cy + 75),
+            // the offset term is 11.25 for even columns and 5.25 for odd.
+            // (The previous single 8.4 = 12×0.7 matched the old averaged
+            //  −75.7 constant and was up to ~3px off per column.)
             const tx = obj.position.x
             const ty = obj.position.y
-            baseY = 12 * ty + 8.4 + 6 * tx
+            const parityOffset = (tx & 1) === 0 ? 11.25 : 5.25
+            baseY = 12 * ty + parityOffset + 6 * tx
         } else if (mode === 'foot-y') {
             baseY = renderInfo.y + renderInfo.frameHeight
         }

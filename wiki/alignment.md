@@ -12,7 +12,7 @@ player character, and the per-object lightmap UV lookup.
 > (`drawTileMap`, `renderRoof`, `renderObject`), `shaders/fragment.glsl`,
 > `shaders/fragmentLighting.glsl`, `tools/frmpixels.py` (sprite-sheet packer)
 > **Related:** [`wiki/rendering.md`](rendering.md) (full pipeline + deviation
-> registry RD01–RD16), [`wiki/tile_system.md`](tile_system.md) (coordinate
+> registry RD01–RD17), [`wiki/tile_system.md`](tile_system.md) (coordinate
 > layer), [`wiki/lighting.md`](lighting.md) (intensity model),
 > [`wiki/failed_animation_offset_attempts.md`](failed_animation_offset_attempts.md)
 > (`artOffset` derivation)
@@ -386,7 +386,7 @@ passes a single `lightIntensity` into `_obj_render_object`). DH2's three modes
 
 | Mode | `u_objectBaseY` | Behaviour vs CE |
 |------|-----------------|-----------------|
-| **`tile-y`** (default) | `12·ty + 8.4 + 6·tx` (tile centre) | Closest to CE: locks the sample to the object's own tile row. Still permits a *horizontal* bilinear gradient across the sprite (a DH2 softening — CE is flat per object). |
+| **`tile-y`** (default) | `12·ty + (11.25\|5.25) + 6·tx` (tile centre, parity-aware — see §6) | Closest to CE: locks the sample to the object's own tile row. Still permits a *horizontal* bilinear gradient across the sprite (a DH2 softening — CE is flat per object). |
 | **`foot-y`** | `renderInfo.y + renderInfo.frameHeight` (sprite bottom, world px) | Samples whatever tile the *feet pixels* fall on. Near-correct, but diverges from `tile-y` when FRM offsets shift the foot pixel off the logical tile; can pick a neighbouring row. |
 | **`off`** | `−1.0` (per-fragment) | Original path: full per-fragment sampling → dark tops on tall sprites. Switches `u_tileIntensity` to **NEAREST** for the draw to stop bilinear light-leak through walls (floor draws restore LINEAR). |
 
@@ -397,9 +397,129 @@ the smooth horizontal gradient DH2 accepts elsewhere (deviation **RD05** in
 `rendering.md`). This is a deliberate WebGL-architecture approximation, not a
 bug.
 
+> **Update (2026-07-02):** the single `8.4` constant (which matched the old
+> averaged shader constant `−75.7`) was replaced by a per-column-parity offset
+> (`11.25` even / `5.25` odd) as part of the §6 fix, so `tile-y` now stays
+> aligned with the corrected shader on both column parities.
+
 ---
 
-## 6. Summary — agreements, deviations, approximations
+## 6. Diagnosis — Hex ↔ lightmap sampling offset (root cause + fix)
+
+**Symptom.** The player sprite sits correctly in the centre of the cursor hex,
+but the rendered light circle is offset from that hex — tiles on one side are
+brighter than the symmetric opposite. `lightingPlayerDebug()` shows the stored
+per-tile intensities are perfectly symmetric, so the *data* is right; the
+*sampling* is displaced.
+
+### The two mappings compared
+
+**Cursor hex → screen** (`renderer.ts:187`): the cursor overlay uses
+`scr = hexToScreen(mouseHex.x, mouseHex.y)` and draws `hex_outline` at
+`worldToScreen(scr.x − 16, scr.y − 12)`. The player sprite uses the *same*
+`hexToScreen` for its foot anchor (`objectRenderInfo`, `renderer.ts:343`). So
+**cursor and player agree** — they are both placed by `hexToScreen`. `hexToScreen`
+is the ground truth for "where tile *(x, y)* appears on screen".
+
+**Lightmap texel → screen** (`shaders/fragmentLighting.glsl`, mirrored in
+`fragment.glsl`): each fragment reconstructs a continuous hex coordinate from
+its world position and samples texel *(hex_x, hex_y)*:
+
+```glsl
+hex_x = 150.0 − (world_x/32 − world_y/24);
+hex_y = world_x/64 + world_y/16 − 75.7;      // ← the culprit
+```
+
+The texel for tile *(tx, ty)* is uploaded at index `ty·200 + tx`
+(`webglLighting.ts:40`, `texSubImage2D(…, 200, 200, RED)`), so `hex_x ↔ x`,
+`hex_y ↔ y` with no transposition. The screen point whose light peaks for tile
+*(tx, ty)* is the world point that makes `hex_x = tx, hex_y = ty`.
+
+### Do they agree? No — and here is the exact delta
+
+`hexToScreen` is **not a single affine map**. Its `x >> 1` floor makes even and
+odd columns follow *different* affine maps:
+
+```
+even x:  sx = 4816 − 24x + 16y     sy = 6x + 12y + 11
+odd  x:  sx = 4808 − 24x + 16y     sy = 6x + 12y + 5
+```
+
+Inverting each exactly gives a **parity-dependent** `hex_y` constant, and a
+`hex_x` constant that is the same for both:
+
+| | exact `hex_x` const | exact `hex_y` const |
+|--|--------------------|---------------------|
+| even column | **150.0417** (= 150 + 1/24) | **−75.9375** |
+| odd column | **150.0417** | **−75.4375** |
+| shipped shader | `150.0` | `−75.7` (the even/odd **average**) |
+
+A single affine formula *cannot* invert a two-parity map, so `−75.7` is the
+best compromise (the mean of `−75.9375` and `−75.4375`). Feeding a tile's true
+screen position back through the shader (`shaderHex(hexToScreen(tile))`) yields
+this round-trip error, in texels:
+
+| tile | current `(150.0, −75.7)` error | ⇒ light-peak offset from hex |
+|------|-------------------------------|------------------------------|
+| `(100,100)` even | `(−0.042, +0.238)` | **(−4.8, −2.6) px** (peak NW of player) |
+| `(101,100)` odd | `(−0.042, −0.263)` | **(+3.2, +3.4) px** (peak SE of player) |
+
+So the light circle is displaced ≈ **5 px** from the player's hex, and the
+direction **flips with the player's column parity**. On any one tile it reads as
+a consistent one-sided brightness bias — exactly the reported symptom. (The
+`hex_x` error of `−0.042` texels ≈ 1 px is a minor consistent contributor; the
+dominant term is the alternating `hex_y` parity error of ±0.24 texels.)
+
+### Is it zoom-dependent? Yes
+
+The two formulas diverge by a fixed offset in **world** units (≈ 5 world px).
+The shader computes world coords as `camera + (fragCoord/dpr)/zoom` *before* the
+hex math, so a fixed world-space error renders as `error × zoom` screen pixels:
+**zooming in magnifies the visible misalignment, zooming out shrinks it.** (A
+fixed *pixel* offset — e.g. a bad texel-upload origin — would not scale with
+zoom; this one does, which fingers the world→hex formula, not the upload.)
+
+### Root cause
+
+The shader's `hex_y` constant `−75.7` is a single-affine approximation of a
+map (`hexToScreen`) that is genuinely per-column-parity affine. Nothing in the
+lightmap *data* or the *upload* is wrong; the analytic screen→hex inverse in the
+shader simply cannot be parity-blind and still be exact.
+
+### Fix (applied 2026-07-02)
+
+Make the shader's `hex_y` constant parity-aware, and correct `hex_x` to its
+exact value. In both `shaders/fragment.glsl` (`getWorldTileLight`) and
+`shaders/fragmentLighting.glsl` (`getGPULightIntensity`):
+
+```glsl
+float hex_x = 150.0416667 - (world_x / 32.0 - world_y / 24.0);   // 150 + 1/24
+float col   = floor(hex_x + 0.5);                                // nearest column
+float cy    = (mod(col, 2.0) < 0.5) ? -75.9375 : -75.4375;       // even : odd
+float hex_y = world_x / 64.0 + world_y / 16.0 + cy;
+```
+
+This drives the round-trip error to **exactly zero on every tile of both
+parities** (verified numerically). The parity `hex_y` step of 0.5 texel at each
+column boundary is the *correct* compensation for the half-hex vertical stagger,
+not a seam. `renderObject`'s `tile-y` `baseY` (`webglDraw.ts:479`) was updated
+to the matching parity offset (`11.25` even / `5.25` odd) so per-object
+lighting stays consistent with the corrected shader.
+
+**Not touched:** the CPU floor-light path (`webglLighting.ts:120`) uses the
+*discrete, rounded* `hexFromScreen(scr.x − 13, scr.y + 13)` per square tile — a
+different mechanism that does not suffer the continuous-affine averaging error
+(though its own `−13/+13` fudge is worth a future audit). Default rendering uses
+the GPU path, which the fix corrects.
+
+**Verify in-browser:** enable the cursor-hex overlay + lightmap debug, stand on
+`(100,100)`, confirm the brightest texel now coincides with the hex centre at
+1× zoom, then re-check at 0.5× and 3× zoom (the pre-fix offset scaled with
+zoom; post-fix it should be ~0 at all zooms).
+
+---
+
+## 7. Summary — agreements, deviations, approximations
 
 | Category | CE anchor | DH2 anchor | Status |
 |----------|-----------|------------|--------|
@@ -407,11 +527,12 @@ bug.
 | **Walls & scenery** | hex centre + FRM dir/frame offsets, bottom-centre | same via `hexToScreen` + `directionOffsets` + `ox/oy` | ✅ match, minus 1px `−(h−1)` vs `−h` |
 | **Roofs** | square projection, `screenY − 96` | `tileToScreen` + `scr.y − 96` | ✅ exact; value correct |
 | **Objects / critters / player** | trimmed bitmap at `(centre−w/2, anchorY−(h−1))` | uniform-slot sheet, top-left packed; anchor uses trimmed `w/h` | ✅ match; `uniformFrameWidth` is a DH2 packing artifact |
-| **Object lightmap UV** | one `lightGetTileIntensity` per object (flat) | `baseY = 12·ty + 8.4 + 6·tx`, ±6 clamp, horizontal LINEAR | ⚠️ approximation (exact inverse of an approximate shader) |
+| **Object lightmap UV** | one `lightGetTileIntensity` per object (flat) | parity-aware `baseY = 12·ty + (11.25\|5.25) + 6·tx`, ±6 clamp, horizontal LINEAR | ⚠️ approximation (horizontal blend); vertical now exact — see §6 |
+| **Hex ↔ lightmap sampling** | n/a | shader screen→hex inverse of `hexToScreen` | ✅ **fixed 2026-07-02** — was ±5px zoom-scaled offset from a non-parity-aware `hex_y` constant (§6) |
 
 ### Cross-references
 
-- Full render pipeline and the deviation registry (RD01–RD16, incl. roof
+- Full render pipeline and the deviation registry (RD01–RD17, incl. roof
   clipping RD06, object sort RD09, floor-light filter RD05, roof lighting
   RD15) → [`wiki/rendering.md`](rendering.md)
 - Coordinate encoding, square/hex projection, `tile_coord` gap TS4 →

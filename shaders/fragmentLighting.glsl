@@ -23,13 +23,18 @@ float getGPULightIntensity() {
     float world_x = u_camera.x + (gl_FragCoord.x / dpr) / zoom;
     float world_y = u_camera.y + (u_resolution.y - gl_FragCoord.y / dpr) / zoom;
 
-    // hexFromScreen without rounding (continuous hex UV for smooth GPU interpolation).
-    // Derived from geometry.ts pixelToCube + cubeRoundToHex (HEX_WIDTH=32, HEX_HEIGHT=16).
-    // The continuous formula omits cubeRoundToHex's isEvenX adjustment (-0.25 avg) and
-    // integer floor (-0.5 avg), causing a +0.69 bias in hex_y. Corrected with -0.7 offset.
-    float cube_x = world_x / 32.0 - world_y / 24.0;
-    float hex_x = 150.0 - cube_x;
-    float hex_y = world_x / 64.0 + world_y / 16.0 - 75.7;
+    // Exact inverse of hexToScreen (src/geometry/hexScreen.ts). That map is
+    // PER-COLUMN-PARITY affine (the `x>>1` floor makes even and odd columns
+    // follow slightly different affine maps), so a single affine formula cannot
+    // invert it exactly. The old constant -75.7 was the *average* of the two
+    // true parity constants (-75.9375 even, -75.4375 odd), leaving a ±0.2375
+    // texel (~±5 world-px, zoom-scaled) alternating mis-sample that offset the
+    // light circle off the player's hex. Selecting the constant by the sampled
+    // column's parity makes the round-trip exact. See wiki/alignment.md §6.
+    float hex_x = 150.0416667 - (world_x / 32.0 - world_y / 24.0);   // 150 + 1/24
+    float col = floor(hex_x + 0.5);                                  // nearest hex column
+    float cy = (mod(col, 2.0) < 0.5) ? -75.9375 : -75.4375;          // even : odd
+    float hex_y = world_x / 64.0 + world_y / 16.0 + cy;
 
     // GPU LINEAR filter interpolates continuously between adjacent hex intensities.
     return texture2D(u_tileIntensity, (vec2(hex_x, hex_y) + 0.5) / 200.0).r;

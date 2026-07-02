@@ -480,6 +480,7 @@ If both yes → fix. If cosmetic/imperceptible → accept. If unsure → mark �
 | RD14 | Elevation transition | Visual fade effect between elevation levels | Instant switch; no transition (`map.ts changeElevation`) | Not implemented | low | ⚠️ Known Bug |
 | RD15 | Roof tile lighting | `tileRenderRoofsInRect` blits roof tiles at full palette intensity — unaffected by any light source or time of day | Roofs bind `roofDummyTexture` (1 × 1, zeroed) on unit 5 → `max(0, ambient) = ambient`; roofs dim at night (`webglrenderer.ts`) | DH2 implementation detail — see §6 Q1 for CE ground-truth question | low | ❓ Unknown |
 | RD16 | Object-lighting scripting | See `wiki/known_bugs.md §20` entries LD1–LD6 for all scripting-level lighting deviations (hidden objects, OBJECT_LIGHTING flag, `obj_set_light_level`, `set_obj_visibility`) | (cross-reference) | — | — | ⚠️ Known Bug (→ LD1–LD6) |
+| RD17 | Lightmap hex sampling | Per-tile intensity looked up at the exact hex the sprite occupies | GPU shaders reconstructed hex coords with a single-affine `hex_y = … − 75.7`; `hexToScreen` is per-column-parity, so this averaged constant mis-sampled by ±0.24 texel (~±5 world-px, zoom-scaled), offsetting the light circle off the player's hex | Single affine cannot invert a two-parity map | major | ✅ Fixed 2026-07-02 (parity-aware `hex_y`; see `wiki/alignment.md §6`, `known_bugs.md RD17`) |
 
 ### Accepted Deviations — Rationale
 
