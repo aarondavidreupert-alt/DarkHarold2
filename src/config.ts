@@ -79,13 +79,15 @@ export const Config = {
         // "Naive lighting mode (distance-only baseline)".
         // Compare live via setLightPropagationMode() and lightingDebug() in the browser console.
         lightPropagationMode: 'dh2' as 'dh2' | 'derived' | 'naive',
-        // Object sprite lighting Y mode. 'tile-y': derive world-Y from obj.position
-        // using the inverse hex formula (guaranteed to land on obj's tile in the
-        // tileIntensity texture). 'foot-y': use the bottom of the sprite's bounding
-        // box. 'off': full per-fragment sampling (original path — dark tops on tall
+        // Object sprite lighting Y mode. 'foot-y' (default): anchor world-Y to the
+        // bottom of the sprite's bounding box — the wall/critter's contact point with
+        // the ground — which makes the player's floor light pool naturally at the base
+        // of walls. 'tile-y': derive world-Y from obj.position via the inverse hex
+        // formula (locks to the object's tile row exactly; slightly higher than the
+        // foot). 'off': full per-fragment sampling (original path — dark tops on tall
         // sprites, but no reliance on the coordinate math below).
-        // Toggle live: setObjectLightingMode('tile-y'|'foot-y'|'off')
-        objectLightingMode: 'tile-y' as 'tile-y' | 'foot-y' | 'off',
+        // Toggle live: setObjectLightingMode('foot-y'|'tile-y'|'off')
+        objectLightingMode: 'foot-y' as 'tile-y' | 'foot-y' | 'off',
         // How the tile-intensity texture (unit 5) is interpolated when sampled by
         // the world shaders. Plain 'linear' bleeds across the hex column stagger and
         // shows NW-SE stripes; the other modes remove them. Toggle live via

@@ -299,12 +299,11 @@ window.onload = async function () {
     // setObjectLightingMode(mode) — controls how object/wall/critter sprites
     // sample the tile intensity texture (takes effect immediately, next frame):
     //
-    //   'tile-y'  — (default) fixes world-Y to the object's tile position using the
-    //               inverse hex formula, varies world-X per-fragment. Gives the same
-    //               smooth bilinear horizontal light gradient as the floor without
-    //               dark tops on tall sprites.
-    //   'foot-y'  — fixes world-Y to the bottom of the sprite's bounding box.
-    //               Alternative anchor if 'tile-y' looks off for specific sprites.
+    //   'foot-y'  — (default) fixes world-Y to the bottom of the sprite's bounding
+    //               box (ground-contact point), varies world-X per-fragment. Makes the
+    //               player's floor light pool naturally at the base of walls.
+    //   'tile-y'  — fixes world-Y to the object's tile position via the inverse hex
+    //               formula (locks to the tile row exactly; slightly above the foot).
     //   'off'     — original per-fragment path: both X and Y come from gl_FragCoord.
     //               Tall sprites get dark tops but the horizontal gradient still works.
     ;(window as any).setObjectLightingMode = (mode: 'tile-y' | 'foot-y' | 'off') => {

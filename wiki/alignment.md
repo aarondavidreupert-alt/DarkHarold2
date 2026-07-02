@@ -386,20 +386,22 @@ constant (the `.7` in `−75.7`).
 CE applies **one** intensity per object — `lightGetTileIntensity(elevation,
 obj->tile)` — to every pixel of the sprite (`object.cc`, `_obj_render_pre_roof`
 passes a single `lightIntensity` into `_obj_render_object`). DH2's three modes
-(`Config.engine.objectLightingMode`, default **`'tile-y'`**) approximate this:
+(`Config.engine.objectLightingMode`, default **`'foot-y'`** as of 2026-07-02)
+approximate this:
 
 | Mode | `u_objectBaseY` | Behaviour vs CE |
 |------|-----------------|-----------------|
-| **`tile-y`** (default) | `12·ty + (11.25\|5.25) + 6·tx` (tile centre, parity-aware — see §6) | Closest to CE: locks the sample to the object's own tile row. Still permits a *horizontal* bilinear gradient across the sprite (a DH2 softening — CE is flat per object). |
-| **`foot-y`** | `renderInfo.y + renderInfo.frameHeight` (sprite bottom, world px) | Samples whatever tile the *feet pixels* fall on. Near-correct, but diverges from `tile-y` when FRM offsets shift the foot pixel off the logical tile; can pick a neighbouring row. |
+| **`foot-y`** (default) | `renderInfo.y + renderInfo.frameHeight` (sprite bottom, world px) | Anchors to the sprite's ground-contact point, so the player's floor light pools naturally at the base of walls (visually preferred). Samples the tile the feet land on; can differ from `tile-y` by ~a few px when FRM offsets shift the foot. |
+| **`tile-y`** | `12·ty + (11.25\|5.25) + 6·tx` (tile centre, parity-aware — see §6) | Locks the sample to the object's own tile row exactly (slightly above the foot). Marginally more stable for critters with large walk offsets. |
 | **`off`** | `−1.0` (per-fragment) | Original path: full per-fragment sampling → dark tops on tall sprites. Switches `u_tileIntensity` to **NEAREST** for the draw to stop bilinear light-leak through walls (floor draws restore LINEAR). |
 
-None reproduces CE exactly: CE is *flat* (single intensity, hard per-hex
-edges); DH2 always samples a texture and so blends horizontally. `tile-y` is
-the intended default because it guarantees the correct tile row while keeping
-the smooth horizontal gradient DH2 accepts elsewhere (deviation **RD05** in
-`rendering.md`). This is a deliberate WebGL-architecture approximation, not a
-bug.
+None reproduces CE exactly: CE is *flat* (single intensity per object, hard
+per-hex edges); DH2 samples per-fragment (world-X varies across the sprite),
+which produces the pleasing horizontal light gradient on walls but also a
+residual per-column "vertical stripe" texture along a wall face — see §8
+"Residual".
+This is a deliberate WebGL-architecture approximation (deviation **RD05** in
+`rendering.md`), not a bug.
 
 > **Update (2026-07-02):** the single `8.4` constant (which matched the old
 > averaged shader constant `−75.7`) was replaced by a per-column-parity offset
@@ -670,6 +672,36 @@ byte-identical (no regression). It's a **propagation** fix — `hex-lerp` sampli
 CE's **non-wall** opaque-object occlusion branch (`object.cc:4583` — scenery
 casting directional shadow) is still commented out in `lightmap.ts`. Separate
 from the wall bug; left as a known gap (`known_bugs.md` LD11 note).
+
+### Residual — per-column "vertical stripes" on wall faces (open, 2026-07-02)
+
+After LD11, a **slight** vertical striping remains on lit wall faces. This is
+*not* an occlusion bug — it is a consequence of how DH2 lights objects:
+
+- **The floor** is one continuous surface sampled per-fragment in full 2-D, so
+  `hex-lerp` (§7) smooths it perfectly.
+- **A wall** is a stack of separate wall *objects*, one per tile. Each object's
+  sprite is anchored to its own tile row (`u_objectBaseY`, `foot-y`/`tile-y`
+  clamp), and world-X still varies per-fragment across the sprite. Because a
+  W-E wall's tiles alternate hex-row with the column stagger, neighbouring wall
+  segments sample the light field at slightly different rows / tile intensities
+  → faint per-segment brightness steps = vertical stripes.
+
+The **CE-canonical** behaviour is *flat per object*: CE lights an entire sprite
+with one `lightGetTileIntensity(obj->tile)` value — no per-fragment gradient, so
+no stripes (but also no "spotlight pooling" on the wall). DH2's per-fragment
+gradient is a deliberate embellishment (RD05); the stripes are its cost.
+
+Candidate resolutions (undecided — aesthetic trade-off):
+- **(A) CE-faithful `flat` mode** — one intensity per object. Kills the gradient
+  *and* the stripes; matches vanilla F2 (project mandate: "follow the
+  originals"). Adjacent staggered segments still differ by their true per-tile
+  light, but each segment is uniform.
+- **(B) Keep the gradient, smooth harder** — e.g. average each wall tile's
+  intensity with its stagger neighbour before sampling (the conservative
+  fallback noted for LD11), or relax the `±6` world-Y clamp so the object
+  hex-lerp blends in 2-D. Keeps the pooling look; effectiveness needs in-browser
+  iteration (can't be verified from source alone).
 
 ### The lighting-alignment story in one line
 
