@@ -86,6 +86,17 @@ export const Config = {
         // sprites, but no reliance on the coordinate math below).
         // Toggle live: setObjectLightingMode('tile-y'|'foot-y'|'off')
         objectLightingMode: 'tile-y' as 'tile-y' | 'foot-y' | 'off',
+        // How the tile-intensity texture (unit 5) is interpolated when sampled by
+        // the world shaders. Plain 'linear' bleeds across the hex column stagger and
+        // shows NW-SE stripes; the other modes remove them. Toggle live via
+        // setLightingBilinear('off'|'linear'|'column-center'|'hex-lerp'|'bicubic').
+        // See wiki/alignment.md §7.
+        //   'off'           — NEAREST, crisp hex cells (debug baseline)
+        //   'linear'        — LINEAR, fast but striped (kept for comparison)
+        //   'column-center' — LINEAR within a column only, no cross-column bleed
+        //   'hex-lerp'      — 3-tap barycentric over the 3 nearest hexes (default; smoothest, correct)
+        //   'bicubic'       — Catmull-Rom down the column, smoother falloff, no stagger
+        lightingInterpolation: 'hex-lerp' as 'off' | 'linear' | 'column-center' | 'hex-lerp' | 'bicubic',
         useLightColorLUT: true, // Use intensityColorTable/colorLUT/colorRGB for accurate lighting colors?
         doAudio: true, // enable audio?
         doLogLazyLoads: false, // Log lazy-loading of images? (Noisy)
