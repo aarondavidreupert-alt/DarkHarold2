@@ -26,6 +26,7 @@ import { hexToTile, tileFromScreen } from './tile.js'
 import { Config } from './config.js'
 import { WindowFrame } from './ui.js'
 import { Font } from './formats/fon.js'
+import { Lightmap } from './lightmap.js'
 import {
     SCREEN_WIDTH,
     SCREEN_HEIGHT,
@@ -247,7 +248,9 @@ export class Renderer {
 
         this.renderText('x: ' + mouseHex.x, 5, 15)
         this.renderText('y: ' + mouseHex.y, 60, 15)
-        this.renderText('tile: ' + (mouseHex.y * 200 + mouseHex.x), 115, 15)
+        const _hudTile = mouseHex.y * 200 + mouseHex.x
+        const _hudLit = (_hudTile >= 0 && _hudTile < 40000) ? Lightmap.tile_intensity[_hudTile] : 0
+        this.renderText('tile: ' + _hudTile + ' lit: ' + _hudLit, 115, 15)
         this.renderText('mt: ' + mouseSquare.x + ',' + mouseSquare.y, 225, 15)
         //heart.graphics.print("mt: " + mouseTile.x + "," + mouseTile.y, 100, 15)
         this.renderText('m: ' + mousePos[0] + ', ' + mousePos[1], 325, 15)
