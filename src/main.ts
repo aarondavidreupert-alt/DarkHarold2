@@ -385,12 +385,15 @@ window.onload = async function () {
     // Screen offsets: NE=(+16,−12) E=(+32,0) SE=(+16,+12) SW=(−16,+12) W=(−32,0) NW=(−16,−12)
     // Grid layout: col = screenX/16 + 4, row = screenY/12 + 2  → 9 cols × 5 rows.
     // Natural indentation from leading null columns: rows 0,4 → 12-char, rows 1,3 → 6-char.
-    ;(window as any).lightingPlayerDebug = (rings: number = 2) => {
+    ;(window as any).lightingPlayerDebug = (rings: number = 2, output: string = 'full') => {
         const player = globalState.player
         if (!player) { console.log('[LightingPlayerDebug] no player'); return }
 
+        const showList = output !== 'hex'
+        const showHex  = output !== 'list'
+
         const pos = player.position
-        const mode = Config.engine.lightPropagationMode
+        const propMode = Config.engine.lightPropagationMode
         // Inline helpers to avoid a module-level tile import just for this debug command.
         const toTile = (p: { x: number; y: number }): number => p.y * 200 + p.x
         const tileVal = (p: { x: number; y: number }): number => {
@@ -411,37 +414,42 @@ window.onload = async function () {
         }
 
         const px = pos.x, py = pos.y
-        console.log(`[LightingPlayerDebug] Player @ (${px},${py}) | mode=${mode}`)
+        console.log(`[LightingPlayerDebug] Player @ (${px},${py}) | mode=${propMode} | output=${output}`)
         console.log(`  player tile (${px},${py}): ${tileVal(pos)}${diffStr(pos)}`)
 
         // ── Ring 1: 6 immediate neighbours ───────────────────────────────────────────
         const n1 = DIR.map((name, dir) => ({ name, p: hexInDirection(pos, dir) }))
-        console.log('\n  Ring 1 (CE dir order 0–5):')
-        n1.forEach(({ name, p }) =>
-            console.log(`    ${name.padEnd(3)}: (${p.x},${p.y}) = ${tileVal(p)}${diffStr(p)}`)
-        )
-
-        if (rings < 2) return
+        if (showList) {
+            console.log('\n  Ring 1 (CE dir order 0–5):')
+            n1.forEach(({ name, p }) =>
+                console.log(`    ${name.padEnd(3)}: (${p.x},${p.y}) = ${tileVal(p)}${diffStr(p)}`)
+            )
+        }
 
         // ── Ring 2: 6 corner (dir×2) + 6 edge (between adjacent dirs) ───────────────
-        const n2corners = DIR.map((name, dir) => ({
-            name: name + '×2',
-            p: hexInDirectionDistance(pos, dir, 2),
-        }))
+        type TP = { name: string; p: { x: number; y: number } }
+        const n2corners: TP[] = rings >= 2
+            ? DIR.map((name, dir) => ({ name: name + '×2', p: hexInDirectionDistance(pos, dir, 2) }))
+            : []
         const EDGE_LABELS = ['NE+E', 'E+SE', 'SE+SW', 'SW+W', 'W+NW', 'NW+NE']
-        const n2edges = EDGE_LABELS.map((name, i) => ({
-            name,
-            // From the ring-1 tile in direction i, take one more step in direction (i+1)%6.
-            // The two paths (NE→E and E→NE) converge on the same tile — verified by symmetry.
-            p: hexInDirection(hexInDirection(pos, i), (i + 1) % 6),
-        }))
+        const n2edges: TP[] = rings >= 2
+            ? EDGE_LABELS.map((name, i) => ({
+                name,
+                // From the ring-1 tile in direction i, take one more step in direction (i+1)%6.
+                p: hexInDirection(hexInDirection(pos, i), (i + 1) % 6),
+            }))
+            : []
 
-        console.log('\n  Ring 2:')
-        for (let i = 0; i < 6; i++) {
-            const c = n2corners[i], e = n2edges[i]
-            console.log(`    ${c.name.padEnd(6)}: (${c.p.x},${c.p.y}) = ${tileVal(c.p)}${diffStr(c.p)}`)
-            console.log(`    ${e.name.padEnd(6)}: (${e.p.x},${e.p.y}) = ${tileVal(e.p)}${diffStr(e.p)}`)
+        if (rings >= 2 && showList) {
+            console.log('\n  Ring 2:')
+            for (let i = 0; i < 6; i++) {
+                const c = n2corners[i], e = n2edges[i]
+                console.log(`    ${c.name.padEnd(6)}: (${c.p.x},${c.p.y}) = ${tileVal(c.p)}${diffStr(c.p)}`)
+                console.log(`    ${e.name.padEnd(6)}: (${e.p.x},${e.p.y}) = ${tileVal(e.p)}${diffStr(e.p)}`)
+            }
         }
+
+        if (!showHex) return
 
         // ── ASCII hex grid ────────────────────────────────────────────────────────────
         // 9 columns × 5 rows. col = screenX/16+4, row = screenY/12+2.
@@ -460,14 +468,17 @@ window.onload = async function () {
         // Ring-1: screen offsets from CE tile.cc _off_tile / dword_51D984
         const R1S = [[16,-12],[32,0],[16,12],[-16,12],[-32,0],[-16,-12]] as const
         n1.forEach(({ p }, i) => place(R1S[i][0], R1S[i][1], String(tileVal(p))))
-        // Ring-2 corners (2× each direction)
-        const R2CS = [[32,-24],[64,0],[32,24],[-32,24],[-64,0],[-32,-24]] as const
-        n2corners.forEach(({ p }, i) => place(R2CS[i][0], R2CS[i][1], String(tileVal(p))))
-        // Ring-2 edges (between adjacent directions)
-        const R2ES = [[48,-12],[48,12],[0,24],[-48,12],[-48,-12],[0,-24]] as const
-        n2edges.forEach(({ p }, i) => place(R2ES[i][0], R2ES[i][1], String(tileVal(p))))
+        if (rings >= 2) {
+            // Ring-2 corners (2× each direction)
+            const R2CS = [[32,-24],[64,0],[32,24],[-32,24],[-64,0],[-32,-24]] as const
+            n2corners.forEach(({ p }, i) => place(R2CS[i][0], R2CS[i][1], String(tileVal(p))))
+            // Ring-2 edges (between adjacent directions)
+            const R2ES = [[48,-12],[48,12],[0,24],[-48,12],[-48,-12],[0,-24]] as const
+            n2edges.forEach(({ p }, i) => place(R2ES[i][0], R2ES[i][1], String(tileVal(p))))
+        }
 
-        console.log('\n  Hex grid (2 rings, offsets = CE _off_tile/dword_51D984):')
+        const ringLabel = rings >= 2 ? '2 rings' : '1 ring'
+        console.log(`\n  Hex grid (${ringLabel}, offsets = CE _off_tile/dword_51D984):`)
         for (let r = 0; r < GH; r++) {
             if (!g[r].some(x => x !== null)) continue
             let line = ''
