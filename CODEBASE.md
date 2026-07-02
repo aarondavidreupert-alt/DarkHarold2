@@ -293,7 +293,9 @@ with per-case detail.
 | Worldmap | `src/worldmap.ts` (barrel; `src/worldmap/{types,parser,Worldmap,encounters}.ts`) | Functional but rough: area entrances are misplaced on area screens; no difficulty modifier on encounter rate; encounter-spawned critters have no items or equipment. |
 | Quest system | `src/questData.ts`, `src/questLog.ts` | GVAR-based tracking and Pip-Boy display work. No XP awards for completion; no quest-completion script callbacks wired. Descriptions are inlined in TS, not loaded from `quests.msg`. |
 | Karma / reputation scripting | `src/scripting.ts` | `set_pc_stat` / `mod_pc_stat` handle Karma (4) and Reputation (3); other `PCSTAT_*` IDs stub. No town-reputation table; no faction scripting. |
-| Lighting accuracy | `src/lighting.ts`, `src/lightmap.ts` | Functional; minor colour inaccuracies vs. original engine; CPU path is slow on large maps. |
+| Lighting accuracy | `src/lighting.ts`, `src/lightmap.ts` | Functional. Lightmap hex sampling is parity-correct (RD17) with selectable interpolation (`setLightingBilinear`, default `hex-lerp`); directional wall occlusion reads `pro.extra.extendedFlags` so W-E walls no longer bleed light (LD11). Remaining: minor colour inaccuracies vs. original engine; CPU path slow on large maps; non-wall opaque-object directional shadowing still stubbed (LD11 note). See `wiki/alignment.md` §6–§8. |
+
+<!-- audited: 2026-07-02 (Lighting accuracy row: RD17 parity sampling + interpolation, LD11 wall occlusion) -->
 
 ### Previously Listed as Gaps — Now Confirmed Implemented
 

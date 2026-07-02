@@ -2,9 +2,12 @@
 
 How Fallout 2 CE positions and aligns every renderable category in screen
 space, and exactly where DH2's WebGL 2.0 renderer agrees, deviates, or
-approximates. This is the single reference for "why is *X* drawn at *that*
-pixel", covering floor tiles, walls, scenery, roofs, objects/critters, the
-player character, and the per-object lightmap UV lookup.
+approximates. This is the single reference for "why is *X* drawn — or lit — at
+*that* pixel", covering floor tiles, walls, scenery, roofs, objects/critters,
+the player character, the per-object lightmap UV lookup, and the three
+lighting-alignment fixes that all trace back to `hexToScreen` being a
+per-column-parity map: §6 light **centring** offset, §7 the interpolation
+**stripes**, and §8 the W-E wall **occlusion** bleed.
 
 > **Source anchor:** `raw/fallout2-ce/src/tile.cc`, `object.cc`, `art.cc`
 > **DH2 files:** `src/tile.ts`, `src/geometry.ts` (barrel; `src/geometry/{hexScreen,hexGrid}.ts`),
@@ -14,6 +17,7 @@ player character, and the per-object lightmap UV lookup.
 > **Related:** [`wiki/rendering.md`](rendering.md) (full pipeline + deviation
 > registry RD01–RD17), [`wiki/tile_system.md`](tile_system.md) (coordinate
 > layer), [`wiki/lighting.md`](lighting.md) (intensity model),
+> [`wiki/extended_flags.md`](extended_flags.md) (wall orientation bits §2, light-blocking switch §4),
 > [`wiki/failed_animation_offset_attempts.md`](failed_animation_offset_attempts.md)
 > (`artOffset` derivation)
 > **Last audited:** 2026-07-02
@@ -611,7 +615,73 @@ LINEAR, so the two settings no longer fight.
 
 ---
 
-## 8. Summary — agreements, deviations, approximations
+## 8. Wall light occlusion — the W-E "light bleed" stripes
+
+A third lighting-alignment artifact, distinct from §6 (offset) and §7
+(sampling): **W-E-facing walls bled light through, showing alternating lit/dark
+stripes along the face**, while NW-SE walls were clean. This one is **not** a
+sampling/geometry issue — it's wrong data in `tile_intensity`, produced by the
+occlusion (light-propagation) pass. Full entry: `known_bugs.md` **LD11**;
+mechanism detail in [`wiki/lighting.md`](lighting.md) and
+[`wiki/extended_flags.md §4`](extended_flags.md).
+
+### The model (CE) — directional per-wall occlusion
+
+CE does *not* occlude walls with a light→tile · normal dot product. In
+`_obj_adjust_light` (`object.cc:4552–4581`), each wall the light reaches during
+propagation blocks certain camera **rotations** (directions) chosen from a
+4-way switch on the wall's **orientation class**, read from
+`proto->wall.extendedFlags`:
+
+```c
+if (extendedFlags & 0x8000000 || extendedFlags & 0x40000000) { /* E-W run   */ }
+else if (extendedFlags & 0x10000000)                          { /* NE-SW diag*/ }
+else if (extendedFlags & 0x20000000)                          { /* corner    */ }
+else                                                          { /* default   */ }
+```
+
+Each branch allows light from the wall's *front* side and blocks it from
+*behind* — the correct directional behaviour, encoded per orientation rather
+than computed from a normal. DH2 already ports this switch faithfully in
+`lightmap.ts` (all four `dir`/`i` branches match CE's `rotation`/`index`).
+
+### The bug (DH2) — wrong flag field
+
+DH2 read the orientation from **`curObj.pro.flags`** — the common PRO *header*
+flags — where the orientation bits are absent. So **every wall** fell through to
+the `else` (default) branch. That default is correct for the NE-SW/default
+family (so NW-SE walls looked clean) but wrong for W-E walls, whose occlusion
+boundary then zig-zagged across the hex column stagger → the stripes. This is
+the same `hexToScreen` per-column stagger that underlies §6/§7, surfacing here
+through the *data* rather than the sampling.
+
+### The fix (2026-07-02)
+
+Read `curObj.pro.extra?.extendedFlags ?? 0` — the field `tools/proto.py
+readWall` populates and the egg occlusion already used (`wiki/extended_flags.md
+§4` had predicted CE uses this field). One-line functional change; the four
+branch conditions were already CE-correct. Verified: W-E walls switch to the
+correct branch (blocked-direction set changes), default/NW-SE walls are
+byte-identical (no regression). It's a **propagation** fix — `hex-lerp` sampling
+(§7) was already correct.
+
+### Related open gap
+
+CE's **non-wall** opaque-object occlusion branch (`object.cc:4583` — scenery
+casting directional shadow) is still commented out in `lightmap.ts`. Separate
+from the wall bug; left as a known gap (`known_bugs.md` LD11 note).
+
+### The lighting-alignment story in one line
+
+All three artifacts trace to the same root — **`hexToScreen` is a
+per-column-parity map, not a single affine one**:
+§6 mis-*centred* the light (averaged constant), §7 mis-*blended* it (rectangular
+LINEAR over a staggered grid), §8 mis-*occluded* it (wrong branch → wrong
+shadow boundary). §6/§7 live in the shader; §8 lives in propagation.
+
+---
+
+## 9. Summary — agreements, deviations, approximations
 
 | Category | CE anchor | DH2 anchor | Status |
 |----------|-----------|------------|--------|
@@ -621,6 +691,7 @@ LINEAR, so the two settings no longer fight.
 | **Objects / critters / player** | trimmed bitmap at `(centre−w/2, anchorY−(h−1))` | uniform-slot sheet, top-left packed; anchor uses trimmed `w/h` | ✅ match; `uniformFrameWidth` is a DH2 packing artifact |
 | **Object lightmap UV** | one `lightGetTileIntensity` per object (flat) | parity-aware `baseY = 12·ty + (11.25\|5.25) + 6·tx`, ±6 clamp, horizontal LINEAR | ⚠️ approximation (horizontal blend); vertical now exact — see §6 |
 | **Hex ↔ lightmap sampling** | n/a | shader screen→hex inverse of `hexToScreen` | ✅ **fixed 2026-07-02** — centring offset (§6) + selectable interpolation to remove the LINEAR stagger stripes (§7, default `hex-lerp`) |
+| **Wall light occlusion** | directional per-orientation switch on `proto->wall.extendedFlags` (`object.cc:4552`) | same switch, now reading `pro.extra.extendedFlags` | ✅ **fixed 2026-07-02** — was reading `pro.flags` (wrong field) → W-E walls bled light in stripes (§8, LD11) |
 
 ### Cross-references
 
@@ -629,8 +700,11 @@ LINEAR, so the two settings no longer fight.
   RD15) → [`wiki/rendering.md`](rendering.md)
 - Coordinate encoding, square/hex projection, `tile_coord` gap TS4 →
   [`wiki/tile_system.md`](tile_system.md)
-- Intensity scale, per-object light sources, ambient →
+- Intensity scale, per-object light sources, ambient, and the LD-series
+  lighting gaps (incl. **LD11** wall occlusion) →
   [`wiki/lighting.md`](lighting.md)
+- Wall/scenery orientation bits (egg vs light-blocking) →
+  [`wiki/extended_flags.md`](extended_flags.md)
 - `artOffset` / animation-transition continuity →
   [`wiki/failed_animation_offset_attempts.md`](failed_animation_offset_attempts.md)
 
