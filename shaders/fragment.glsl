@@ -34,6 +34,10 @@ uniform float u_alpha;               // per-draw alpha multiplier (flat egg fall
 // u_objectBaseY  < 0: per-fragment fallback — floor tiles, UI draws.
 uniform highp float u_objectBaseY;
 
+// Tile-intensity interpolation mode — see sampleTileLight below and
+// fragmentLighting.glsl (kept identical). wiki/alignment.md §7.
+uniform int u_lightInterp;
+
 // CE ref: object.cc:4983 — egg mask texture (art/intrface/egg.frm, unit 6).
 // White center = player-visible area (wall transparent there).
 // u_eggMode: 0=disabled / flat-alpha mode, 1=egg-mask mode.
@@ -60,6 +64,81 @@ uniform float u_outlineAlpha; // separate fill-alpha vs border-alpha draws share
 
 varying vec2 v_texCoord;
 
+// --- Tile-intensity sampling with selectable interpolation (u_lightInterp) ---
+// Identical to shaders/fragmentLighting.glsl::sampleTileLight — keep in sync.
+// hexToScreen is per-column-parity affine, so plain LINEAR blends across the hex
+// stagger (NW-SE stripes). Modes: 0=off/linear (single sample), 1=column-center
+// (quantize column, blend within column), 2=hex-lerp (3-tap barycentric over the
+// 3 nearest hexes in parity-free axial space), 3=bicubic (Catmull-Rom down the
+// column). See wiki/alignment.md §7.
+
+void worldToHex(highp float wx, highp float wy, out highp float hx, out highp float hy) {
+    hx = 150.0416667 - (wx / 32.0 - wy / 24.0);
+    float col = floor(hx + 0.5);
+    float cy = (mod(col, 2.0) < 0.5) ? -75.9375 : -75.4375;
+    hy = wx / 64.0 + wy / 16.0 + cy;
+}
+
+highp vec2 axialToUV(highp float ai, highp float aj) {
+    highp float sx = 4816.0 + 32.0 * ai + 16.0 * aj;
+    highp float sy = 11.0 + 12.0 * aj;
+    highp float hx; highp float hy;
+    worldToHex(sx, sy, hx, hy);
+    return (floor(vec2(hx, hy) + 0.5) + 0.5) / 200.0;
+}
+
+float sampleTileLight(highp float wx, highp float wy) {
+    if (u_lightInterp == 2) {                       // hex-lerp
+        highp float aj = (wy - 11.0) / 12.0;
+        highp float ai = ((wx - 4816.0) - 16.0 * aj) / 32.0;
+        highp float i0 = floor(ai);
+        highp float j0 = floor(aj);
+        highp float fi = ai - i0;
+        highp float fj = aj - j0;
+        highp vec2 uvA, uvB, uvC;
+        float wA, wB, wC;
+        if (fi + fj <= 1.0) {
+            uvA = axialToUV(i0, j0);             wA = 1.0 - fi - fj;
+            uvB = axialToUV(i0 + 1.0, j0);       wB = fi;
+            uvC = axialToUV(i0, j0 + 1.0);       wC = fj;
+        } else {
+            uvA = axialToUV(i0 + 1.0, j0 + 1.0); wA = fi + fj - 1.0;
+            uvB = axialToUV(i0 + 1.0, j0);       wB = 1.0 - fj;
+            uvC = axialToUV(i0, j0 + 1.0);       wC = 1.0 - fi;
+        }
+        return wA * texture2D(u_tileIntensity, uvA).r
+             + wB * texture2D(u_tileIntensity, uvB).r
+             + wC * texture2D(u_tileIntensity, uvC).r;
+    }
+
+    highp float hx; highp float hy;
+    worldToHex(wx, wy, hx, hy);
+
+    if (u_lightInterp == 1) {                       // column-center
+        highp vec2 uv = (vec2(floor(hx + 0.5), hy) + 0.5) / 200.0;
+        return texture2D(u_tileIntensity, uv).r;
+    }
+
+    if (u_lightInterp == 3) {                       // bicubic (down column)
+        highp float col = floor(hx + 0.5);
+        highp float r1 = floor(hy);
+        float t = float(hy - r1);
+        float t2 = t * t;
+        float t3 = t2 * t;
+        float w0 = 0.5 * (-t3 + 2.0 * t2 - t);
+        float w1 = 0.5 * (3.0 * t3 - 5.0 * t2 + 2.0);
+        float w2 = 0.5 * (-3.0 * t3 + 4.0 * t2 + t);
+        float w3 = 0.5 * (t3 - t2);
+        float s0 = texture2D(u_tileIntensity, (vec2(col, r1 - 1.0) + 0.5) / 200.0).r;
+        float s1 = texture2D(u_tileIntensity, (vec2(col, r1) + 0.5) / 200.0).r;
+        float s2 = texture2D(u_tileIntensity, (vec2(col, r1 + 1.0) + 0.5) / 200.0).r;
+        float s3 = texture2D(u_tileIntensity, (vec2(col, r1 + 2.0) + 0.5) / 200.0).r;
+        return w0 * s0 + w1 * s1 + w2 * s2 + w3 * s3;
+    }
+
+    return texture2D(u_tileIntensity, (vec2(hx, hy) + 0.5) / 200.0).r;
+}
+
 float getWorldTileLight() {
     // Convert physical gl_FragCoord → logical screen pixels → world coord.
     // Zoom divides the logical screen delta because each on-screen pixel
@@ -78,17 +157,9 @@ float getWorldTileLight() {
         ? clamp(frag_world_y, u_objectBaseY - 6.0, u_objectBaseY + 6.0)
         : frag_world_y;
 
-    // Continuous hex UV (same math as fragmentLighting.glsl::getGPULightIntensity).
-    // Exact inverse of hexToScreen: parity-aware because hexToScreen is a
-    // per-column-parity affine map. The old single -75.7 constant was the
-    // even/odd average and mis-sampled by ±0.2375 texels per column. See
-    // wiki/alignment.md §6.
-    float hex_x = 150.0416667 - (world_x / 32.0 - world_y / 24.0);   // 150 + 1/24
-    float col = floor(hex_x + 0.5);                                  // nearest hex column
-    float cy = (mod(col, 2.0) < 0.5) ? -75.9375 : -75.4375;          // even : odd
-    float hex_y = world_x / 64.0 + world_y / 16.0 + cy;
-
-    return texture2D(u_tileIntensity, (vec2(hex_x, hex_y) + 0.5) / 200.0).r;
+    // Parity-correct hex sampling with selectable interpolation (world_y has
+    // already been clamped to the sprite's tile row above). See §6/§7.
+    return sampleTileLight(world_x, world_y);
 }
 
 void main() {

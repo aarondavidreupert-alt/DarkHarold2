@@ -70,6 +70,9 @@ window.onload = async function () {
     )
 
     globalState.renderer.init()
+    // Apply the configured tile-intensity interpolation mode (default 'hex-lerp')
+    // so the texture filter + shader branch match Config from the first frame.
+    ;(globalState.renderer as WebGLRenderer).setLightInterpMode(Config.engine.lightingInterpolation)
 
     // --- Dynamic resolution ---
     //
@@ -329,20 +332,39 @@ window.onload = async function () {
         console.log(`[setPlayerLight] radius=${player.lightRadius} intensity=${player.lightIntensity} (${intensity}%)`)
     }
 
-    // setLightingBilinear(enable) — toggle bilinear interpolation on the tile-intensity
-    // texture (u_tileIntensity, 200×200 R8, texture unit 5).
-    //   true  (default) — gl.LINEAR:  smooth gradient between neighbouring tiles.
-    //   false           — gl.NEAREST: each tile shows its raw discrete intensity value,
-    //                     making tile boundaries and the lightmap distribution clearly
-    //                     visible — useful for debugging light propagation.
-    ;(window as any).setLightingBilinear = (enable: boolean) => {
+    // setLightingBilinear(mode) — choose how the tile-intensity texture
+    // (u_tileIntensity, 200×200 R8, unit 5) is interpolated when the world
+    // shaders sample it. hexToScreen is per-column-parity affine, so plain
+    // 'linear' bleeds across the hex stagger and shows NW-SE stripes; the other
+    // modes remove them. Takes effect next frame, persists across map changes
+    // (stored in Config.engine.lightingInterpolation). See wiki/alignment.md §7.
+    //
+    //   'off'           — NEAREST. Crisp hex cells, no interpolation (debug baseline).
+    //   'linear'        — LINEAR. Fast but striped; kept for comparison.
+    //   'column-center' — LINEAR within a column only (no cross-column bleed).
+    //   'hex-lerp'      — (default) 3-tap barycentric over the 3 nearest hexes;
+    //                     geometrically correct, smoothest, no stripes.
+    //   'bicubic'       — Catmull-Rom down the column; smoother falloff, no stagger.
+    //
+    // Back-compat: setLightingBilinear(true) → 'linear', setLightingBilinear(false) → 'off'.
+    ;(window as any).setLightingBilinear = (mode: boolean | string) => {
         const r = globalState.renderer as WebGLRenderer
-        if (!r || typeof r.setTileIntensityFilter !== 'function') {
+        if (!r || typeof r.setLightInterpMode !== 'function') {
             console.log('[setLightingBilinear] renderer not ready')
             return
         }
-        r.setTileIntensityFilter(enable)
-        console.log(`[setLightingBilinear] tile-intensity filter → ${enable ? 'LINEAR (smooth)' : 'NEAREST (debug)'}`)
+        const resolved = mode === true ? 'linear' : mode === false ? 'off' : mode
+        const valid = ['off', 'linear', 'column-center', 'hex-lerp', 'bicubic']
+        if (typeof resolved !== 'string' || !valid.includes(resolved)) {
+            console.log("Usage: setLightingBilinear('off'|'linear'|'column-center'|'hex-lerp'|'bicubic')")
+            return
+        }
+        Config.engine.lightingInterpolation = resolved as any
+        r.setLightInterpMode(resolved as any)
+        // GPU floor is cached in an FBO keyed on camera/zoom, but the lighting is
+        // applied in the composite pass which re-runs every frame, so no FBO
+        // invalidation is needed — the new mode shows on the next frame.
+        console.log(`[setLightingBilinear] interpolation → '${resolved}'`)
     }
 
     // lightingDebug() — rebakes the current map's lighting under all three propagation

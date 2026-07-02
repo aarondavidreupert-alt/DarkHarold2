@@ -72,6 +72,13 @@ export class WebGLRenderer extends Renderer {
     uOutlineAlpha: WebGLUniformLocation | null = null
     uObjectBaseY: WebGLUniformLocation | null = null
 
+    // Tile-intensity interpolation mode (u_lightInterp) — see setLightInterpMode
+    // and shaders/fragment*.glsl sampleTileLight. wiki/alignment.md §7.
+    uLightInterp: WebGLUniformLocation | null = null       // on tileShader (fragment.glsl)
+    uFloorLightInterp: WebGLUniformLocation | null = null  // on floorLightShader (fragmentLighting.glsl)
+    lightInterpValue = 2                                    // int passed to shaders (default 'hex-lerp')
+    tileIntensityLinear = false                            // texture filter state (LINEAR vs NEAREST)
+
     // Resolution uniforms stashed at init-time so resize() can re-upload them
     // (they are set once in init() and then re-read by the fragment shader
     // every frame via uniform state).
@@ -426,6 +433,8 @@ export class WebGLRenderer extends Renderer {
         this.uObjectBaseY = gl.getUniformLocation(this.tileShader, 'u_objectBaseY')
         // -1.0 = per-fragment fallback (floor tiles, UI draws)
         if (this.uObjectBaseY) gl.uniform1f(this.uObjectBaseY, -1.0)
+        this.uLightInterp = gl.getUniformLocation(this.tileShader, 'u_lightInterp')
+        if (this.uLightInterp) gl.uniform1i(this.uLightInterp, this.lightInterpValue)
 
         // 1×1 R8 dummy texture (value 0) for roof draws — roofs are
         // sky-facing and should be lit by ambient only, not by floor
@@ -494,6 +503,8 @@ export class WebGLRenderer extends Renderer {
             this.uScreenResolutionLighting = gl.getUniformLocation(this.floorLightShader, 'u_screenResolution')
             gl.uniform2f(this.uScreenResolutionLighting, this.canvas.width, this.canvas.height)
             if (this.uFloorLightZoom) gl.uniform1f(this.uFloorLightZoom, 1.0)
+            this.uFloorLightInterp = gl.getUniformLocation(this.floorLightShader, 'u_lightInterp')
+            if (this.uFloorLightInterp) gl.uniform1i(this.uFloorLightInterp, this.lightInterpValue)
 
             // Create floor FBO for caching unlit floor tiles (GPU lighting mode)
             this.floorFBO = gl.createFramebuffer()
@@ -705,19 +716,50 @@ export class WebGLRenderer extends Renderer {
         this.invalidateFloorFBO()
     }
 
-    // Switch the tile-intensity texture between bilinear (LINEAR) and
-    // nearest-neighbour (NEAREST) filtering. NEAREST makes every tile
-    // show its raw discrete intensity value — useful for debugging the
-    // lightmap distribution without the smooth interpolation blurring the
-    // tile boundaries. See setLightingBilinear() console command (main.ts).
-    setTileIntensityFilter(linear: boolean): void {
+    // Apply the raw tile-intensity texture filter (LINEAR/NEAREST) that the
+    // current interpolation mode requires. Kept as a helper so the object 'off'
+    // lighting path can temporarily flip to NEAREST and restore to whatever the
+    // active mode wants (not hardcoded LINEAR).
+    applyTileIntensityFilter(): void {
         if (!this.tileIntensityTexture) return
         const gl = this.gl
-        const filter = linear ? gl.LINEAR : gl.NEAREST
+        const filter = this.tileIntensityLinear ? gl.LINEAR : gl.NEAREST
         gl.activeTexture(gl.TEXTURE5)
         gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
         gl.activeTexture(gl.TEXTURE0)
+    }
+
+    // Select the tile-intensity interpolation mode (see shaders/fragment*.glsl
+    // sampleTileLight and wiki/alignment.md §7). Sets the shader branch
+    // (u_lightInterp on both world shaders) and the texture filter it needs:
+    //   'off'|'hex-lerp'|'bicubic' → NEAREST (single-snap or manual centre taps)
+    //   'linear'|'column-center'   → LINEAR  (the sampler does the blend)
+    // hex-lerp/bicubic sample at exact texel centres, so they are filter-agnostic;
+    // NEAREST is used for them to avoid any sub-texel rounding.
+    setLightInterpMode(mode: 'off' | 'linear' | 'column-center' | 'hex-lerp' | 'bicubic'): void {
+        const value = { off: 0, linear: 0, 'column-center': 1, 'hex-lerp': 2, bicubic: 3 }[mode]
+        const linear = mode === 'linear' || mode === 'column-center'
+        this.lightInterpValue = value
+        this.tileIntensityLinear = linear
+
+        const gl = this.gl
+        // Upload the int to both world shaders (persistent per-program uniform).
+        if (this.uLightInterp) {
+            gl.useProgram(this.tileShader)
+            gl.uniform1i(this.uLightInterp, value)
+        }
+        if (this.uFloorLightInterp) {
+            gl.useProgram(this.floorLightShader)
+            gl.uniform1i(this.uFloorLightInterp, value)
+        }
+        gl.useProgram(this.tileShader)
+        this.applyTileIntensityFilter()
+    }
+
+    // Back-compat: the old boolean toggle maps onto the mode enum.
+    setTileIntensityFilter(linear: boolean): void {
+        this.setLightInterpMode(linear ? 'linear' : 'off')
     }
 }

@@ -519,7 +519,99 @@ zoom; post-fix it should be ~0 at all zooms).
 
 ---
 
-## 7. Summary — agreements, deviations, approximations
+## 7. Lighting interpolation modes (stripe fix)
+
+### Why the parity fix introduced stripes
+
+The §6 parity fix centres the light on the player's hex, but it did **not**
+change how WebGL's `gl.LINEAR` sampler blends *between* hexes. LINEAR
+interpolates the four texels surrounding `(hex_x, hex_y)` in a **rectangular**
+grid, but `hexToScreen` is per-column-parity: the texel at `(x+1, y)` (the next
+column) sits half a hex-cell higher/lower on screen than the texel at `(x, y)`.
+So LINEAR mixes light from tiles that are **not** screen-adjacent, and the
+mismatch beats along column boundaries — which run NW-SE — producing the NW-SE
+**stripes**.
+
+Put differently: a unit step in `hex_x` is `(−32, 0)` screen on even→odd
+columns but `(−16, +12)` on odd→even. The texture grid is uniform; the screen
+lattice is staggered. LINEAR assumes the former, so it's wrong by exactly the
+stagger at every column edge.
+
+### The modes — `setLightingBilinear(mode)`
+
+Runtime-switchable (persists in `Config.engine.lightingInterpolation`), no
+reload. Same `u_lightInterp` branch in both world shaders
+(`sampleTileLight` in `fragment.glsl` and `fragmentLighting.glsl`); the CPU
+sets the texture filter each mode needs (`webglContext.ts setLightInterpMode`).
+
+| Mode | `u_lightInterp` | Filter | How it samples | Result |
+|------|-----------------|--------|----------------|--------|
+| `off` | 0 | NEAREST | single snap at `(hex_x, hex_y)` | Crisp hex cells, no blend. Debug baseline. |
+| `linear` | 0 | LINEAR | single sample, sampler blends 4 rect texels | Fast, **striped** (kept for comparison). |
+| `column-center` | 1 | LINEAR | quantize column `u = floor(hex_x)+0.5`, keep row `v` continuous | LINEAR blends **only within a column** (screen-adjacent SE neighbours) → no cross-column bleed, no stripes. Hard steps *between* columns. |
+| `hex-lerp` | 2 | NEAREST | 3-tap barycentric over the 3 nearest hexes in **axial** space | **Default.** Geometrically correct, smoothest, no stripes. |
+| `bicubic` | 3 | NEAREST | 4-tap Catmull-Rom down the column (column locked to centre) | Smoother falloff than linear along the column; never crosses the stagger. Cross-column steps remain (like `column-center`). |
+
+### Why `hex-lerp` is the correct one
+
+The stripes come from interpolating in the staggered *offset* grid. `hex-lerp`
+interpolates in **axial** coordinates instead — a parity-free triangular
+lattice where hex centres are uniform. World→axial is a single constant linear
+map (no parity):
+
+```
+aj = (world_y − 11) / 12          // 11 = hexToScreen(0,0).y
+ai = ((world_x − 4816) − 16·aj) / 32
+```
+
+with generators `+i = screen (32,0)` (E) and `+j = screen (16,12)` (SE). The
+fractional cell `(ai, aj)` is split into two triangles along the E–SE diagonal
+(the Delaunay diagonal of the hex lattice); the enclosing triangle's 3 corners
+are the 3 nearest hexes, with barycentric weights:
+
+```
+fi + fj ≤ 1 :  A=(i0,j0)   wA=1−fi−fj ; B=(i0+1,j0)   wB=fi ; C=(i0,j0+1) wC=fj
+fi + fj > 1 :  A=(i0+1,j0+1) wA=fi+fj−1 ; B=(i0+1,j0) wB=1−fj ; C=(i0,j0+1) wC=1−fi
+```
+
+Each integer axial corner maps back to a texel via `axialToUV`, which walks
+axial→screen→(parity inverse)→offset — exact because corners are hex centres.
+**Numerically verified** over all 40 000 tiles: at a tile centre one weight is
+1 (so §6's centring is preserved exactly), weights always sum to 1 and are
+non-negative, and the 3 taps are always pairwise hex-adjacent (≤ 32 px) — so it
+can never blend non-adjacent tiles, i.e. no stagger, no stripes.
+
+### Alternatives considered
+
+- **Gaussian / hex-aware CPU blur** of `tile_intensity` before upload (blur each
+  tile with its 6 `hexNeighbors`, done once per lightmap rebuild): also correct
+  and cheap, but softens the whole field globally rather than being a
+  per-fragment choice, and can't be toggled without a re-bake. `hex-lerp` keeps
+  the data crisp and does the smoothing at sample time. Left as a possible
+  future mode if per-fragment cost ever matters (it doesn't — the GPU floor is a
+  single fullscreen composite).
+- **Naïve bicubic over the rectangular grid** (4×4): would *reintroduce* the
+  stagger because it still crosses columns. Rejected — the shipped `bicubic`
+  stays inside one column instead.
+
+### Objects vs floor
+
+Both the floor shader (`getGPULightIntensity`) and the object/wall/critter
+shader (`getWorldTileLight`) route through the same `sampleTileLight`, so the
+mode applies everywhere consistently. For objects the world-Y is still clamped
+to the sprite's tile row first (§5), so `hex-lerp`'s taps stay on the object's
+tile and its immediate neighbours.
+
+### Interaction with `objectLightingMode 'off'`
+
+That debug mode temporarily forces NEAREST on the intensity texture during a
+sprite draw to stop bilinear bleed; it now restores the **active** interpolation
+mode's filter (`applyTileIntensityFilter`) afterwards instead of a hardcoded
+LINEAR, so the two settings no longer fight.
+
+---
+
+## 8. Summary — agreements, deviations, approximations
 
 | Category | CE anchor | DH2 anchor | Status |
 |----------|-----------|------------|--------|
@@ -528,7 +620,7 @@ zoom; post-fix it should be ~0 at all zooms).
 | **Roofs** | square projection, `screenY − 96` | `tileToScreen` + `scr.y − 96` | ✅ exact; value correct |
 | **Objects / critters / player** | trimmed bitmap at `(centre−w/2, anchorY−(h−1))` | uniform-slot sheet, top-left packed; anchor uses trimmed `w/h` | ✅ match; `uniformFrameWidth` is a DH2 packing artifact |
 | **Object lightmap UV** | one `lightGetTileIntensity` per object (flat) | parity-aware `baseY = 12·ty + (11.25\|5.25) + 6·tx`, ±6 clamp, horizontal LINEAR | ⚠️ approximation (horizontal blend); vertical now exact — see §6 |
-| **Hex ↔ lightmap sampling** | n/a | shader screen→hex inverse of `hexToScreen` | ✅ **fixed 2026-07-02** — was ±5px zoom-scaled offset from a non-parity-aware `hex_y` constant (§6) |
+| **Hex ↔ lightmap sampling** | n/a | shader screen→hex inverse of `hexToScreen` | ✅ **fixed 2026-07-02** — centring offset (§6) + selectable interpolation to remove the LINEAR stagger stripes (§7, default `hex-lerp`) |
 
 ### Cross-references
 

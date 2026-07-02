@@ -527,12 +527,9 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         this.gl.uniform1f(this.uObjectBaseY, -1.0)
     }
     if (mode === 'off' && this.tileIntensityTexture) {
-        const gl = this.gl
-        gl.activeTexture(gl.TEXTURE5)
-        gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-        gl.activeTexture(gl.TEXTURE0)
+        // Restore the filter the active interpolation mode wants (not a hardcoded
+        // LINEAR, which would corrupt hex-lerp/column-center/off draws).
+        this.applyTileIntensityFilter()
     }
 }
 
