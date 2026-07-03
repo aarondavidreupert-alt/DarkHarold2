@@ -33,7 +33,7 @@ import {
 } from './ui.js'
 import { loadPreferences } from './ui_options.js'
 import { getFileJSON } from './util.js'
-import { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall, WebGLRenderer } from './webglrenderer.js'
+import { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall, WebGLRenderer, setLightSourceOverlayActive, setLightOverlayRadiusScale } from './webglrenderer.js'
 import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
 import { Lightmap } from './lightmap.js'
@@ -314,6 +314,27 @@ window.onload = async function () {
         }
         Config.engine.objectLightingMode = mode
         console.log(`[Lighting] object lighting mode="${mode}"`)
+    }
+
+    // showLightSources(true/false) — persistent, camera-aware debug overlay
+    // that draws every active light source (lightRadius > 0 &&
+    // lightIntensity > 655) as a labelled circle on the 2D text overlay:
+    // colour-coded centre dot, dashed radius ring, and r=/i= + type/name label.
+    // It reads obj.lightRadius/lightIntensity directly, so it survives
+    // setLightPropagationMode / setObjectLightingMode switches — you can watch
+    // the effect of changing modes while seeing exactly where the sources are.
+    ;(window as any).showLightSources = (on: boolean) => {
+        setLightSourceOverlayActive(on)
+        console.log(`[lightDebug] light source overlay ${on ? 'ON' : 'OFF'}`)
+    }
+
+    // setLightOverlayRadius(scale) — multiplies the overlay ring's screen
+    // radius (defaults to 1.0). Use it to calibrate whether the ring lines up
+    // with the visible light falloff on the floor — a diagnostic for the
+    // hex-UV offset issue.
+    ;(window as any).setLightOverlayRadius = (scale: number) => {
+        setLightOverlayRadiusScale(scale)
+        console.log(`[lightDebug] light overlay radius scale=${scale}`)
     }
 
     // setPlayerLight(radius, intensity) — set the player's own light source.

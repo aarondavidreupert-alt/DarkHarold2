@@ -337,6 +337,10 @@ export class Renderer {
             }
             // 'move' mode: hex_outline handles cursor rendering (snapped to hex grid)
         }
+
+        // Light Source Debug Overlay — drawn last so it sits on top of the
+        // whole scene. Self-guards on its toggle; a no-op when inactive.
+        this.drawLightSourceOverlay()
     }
 
     objectRenderInfo(obj: Obj): ObjectRenderInfo | null {
@@ -469,6 +473,10 @@ export class Renderer {
         this.renderImage(window.background, window.position.x, window.position.y, window.width, window.height)
     }
     renderFont(font: Font, x: number, y: number) {}
+
+    // Debug-only; overridden on WebGLRenderer.prototype in
+    // render/webglDebugOverlay.ts. No-op on the base renderer.
+    drawLightSourceOverlay(): void {}
 }
 
 export function objectOnScreen(obj: Obj): boolean {

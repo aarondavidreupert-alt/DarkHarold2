@@ -898,6 +898,33 @@ lightingDebug(20)                    // widen the comparison radius
 `'dh2'`) controls the live mode; `setLightingMode('gpu'|'cpu')` is unrelated — it
 switches the floor *rendering* backend (§12), not propagation/blocking.
 
+### 14.8.1 Light-source debug overlay
+
+A camera-aware overlay that draws every active light source on the current
+elevation directly on the 2D text canvas, so you can see *where* the sources
+are while comparing propagation/object-lighting modes. It reads
+`obj.lightRadius` / `obj.lightIntensity` directly (the same
+`lightRadius > 0 && lightIntensity > 655` guard as `obj_adjust_light()`), **not**
+the baked `tile_intensity` array, so it is independent of both mode switches and
+survives them without needing to be re-enabled.
+
+```js
+showLightSources(true)     // draw a colour-coded dot (white=player, orange=critter,
+                            // yellow=item/scenery), a dashed radius ring, and an
+                            // r=<radius> i=<intensity> + type/name label per source
+showLightSources(false)    // hide it (no per-frame cost when off)
+setLightOverlayRadius(1.5) // scale the ring's screen radius to calibrate it against
+                            // where the floor visibly goes dark (default 1.0)
+```
+
+Implementation: `src/render/webglDebugOverlay.ts`
+(`WebGLRenderer.prototype.drawLightSourceOverlay`), called at the end of
+`Renderer.render()`. Sources live on the hex grid (no Z in CE), so each dot is
+projected through the same `hexToScreen` → `worldToScreen` path the renderer
+uses for sprites — *not* the square-tile `tileToScreen` transform. The ring
+radius is a first-order estimate (`lightRadius × 32px × zoom × scale`); the
+`setLightOverlayRadius` knob exists to calibrate the hex-UV alignment.
+
 ### 14.9 Object sprite lighting — fixed-Y bilinear path (LD10) — 2026-07-01
 
 **Problem**: DH2's fragment shader called `getWorldTileLight()` per-fragment,
