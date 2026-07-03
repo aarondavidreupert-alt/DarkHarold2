@@ -10,7 +10,8 @@
 // at module-load time, before any caller constructs the class.
 export { WebGLRenderer, ShaderSources } from './render/webglContext.js'
 export { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall } from './render/webglDraw.js'
-export { setLightSourceOverlayActive, setLightOverlayRadiusScale, isLightSourceOverlayActive } from './render/webglDebugOverlay.js'
+export { setLightSourceOverlayActive, setLightOverlayMode, setLightOverlayRadiusScale, isLightSourceOverlayActive } from './render/webglDebugOverlay.js'
+export type { LightOverlayMode } from './render/webglDebugOverlay.js'
 import './render/webglLighting.js'
 import './render/webglDraw.js'
 import './render/webglDebugOverlay.js'

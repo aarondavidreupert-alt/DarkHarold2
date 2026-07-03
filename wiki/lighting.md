@@ -909,21 +909,34 @@ the baked `tile_intensity` array, so it is independent of both mode switches and
 survives them without needing to be re-enabled.
 
 ```js
-showLightSources(true)     // draw a colour-coded dot (white=player, orange=critter,
-                            // yellow=item/scenery), a dashed radius ring, and an
-                            // r=<radius> i=<intensity> + type/name label per source
-showLightSources(false)    // hide it (no per-frame cost when off)
-setLightOverlayRadius(1.5) // scale the ring's screen radius to calibrate it against
-                            // where the floor visibly goes dark (default 1.0)
+showLightSources(true)         // enable: colour-coded dot (white=player,
+                                // orange=critter, yellow=item/scenery) + an
+                                // r=<radius> i=<intensity> + type/name label per source
+showLightSources(false)        // hide it (no per-frame cost when off)
+setLightOverlayMode('ellipse') // (default) radius as a perspective-correct dashed ellipse
+setLightOverlayMode('tiles')   // radius as filled floor hexes, like the 'beta' egg overlay
+setLightOverlayMode('none')    // no radius shape — just the centre point + its data
+setLightOverlayRadius(1.5)     // scale the ellipse's screen radius to calibrate it against
+                                // where the floor visibly goes dark (default 1.0; ellipse only)
 ```
 
 Implementation: `src/render/webglDebugOverlay.ts`
 (`WebGLRenderer.prototype.drawLightSourceOverlay`), called at the end of
 `Renderer.render()`. Sources live on the hex grid (no Z in CE), so each dot is
 projected through the same `hexToScreen` → `worldToScreen` path the renderer
-uses for sprites — *not* the square-tile `tileToScreen` transform. The ring
-radius is a first-order estimate (`lightRadius × 32px × zoom × scale`); the
-`setLightOverlayRadius` knob exists to calibrate the hex-UV alignment.
+uses for sprites — *not* the square-tile `tileToScreen` transform.
+
+The three radius modes:
+- **`ellipse`** — a ground circle of hex-distance N projects to an *ellipse*
+  under the isometric camera, so the ring's vertical semi-axis is squashed by
+  the floor-tile aspect ratio (`TILE_HEIGHT / TILE_WIDTH`), axes aligned to the
+  tile diamond. Horizontal semi-axis is a first-order estimate
+  (`lightRadius × 32px × zoom × scale`); `setLightOverlayRadius` calibrates the
+  hex-UV alignment.
+- **`tiles`** — fills every hex within `lightRadius` (hex distance, occlusion
+  ignored) as a translucent 32×16 floor rhombus, reusing the `hexesInRadius` +
+  egg-overlay geometry. Shows the discrete tile coverage.
+- **`none`** — draws only the centre point and its `r=`/`i=` label.
 
 ### 14.9 Object sprite lighting — fixed-Y bilinear path (LD10) — 2026-07-01
 

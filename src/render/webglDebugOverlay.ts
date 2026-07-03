@@ -1,8 +1,8 @@
 // Light Source Debug Overlay — a persistent, camera-aware 2D overlay that
-// draws every active light source on the current map as a labelled circle on
-// the `textCtx` overlay. Toggle from the browser console with
-// `showLightSources(true/false)`; calibrate the ring size with
-// `setLightOverlayRadius(scale)`.
+// draws every active light source on the current map on the `textCtx` overlay.
+// Toggle from the browser console with `showLightSources(true/false)`; choose
+// how the radius is visualised with `setLightOverlayMode(...)`; calibrate the
+// ellipse size with `setLightOverlayRadius(scale)`.
 //
 // Why this exists: we iterate on object lighting modes (setObjectLightingMode)
 // and light propagation modes (setLightPropagationMode). To tell whether a
@@ -22,7 +22,8 @@ import globalState from '../globalState.js'
 import { Obj } from '../object.js'
 import { getZoom } from '../renderer.js'
 import { worldToScreen } from './camera.js'
-import { hexToScreen } from '../geometry/hexScreen.js'
+import { hexToScreen, hexesInRadius } from '../geometry.js'
+import { TILE_WIDTH, TILE_HEIGHT } from '../tile.js'
 import { WebGLRenderer } from './webglContext.js'
 
 declare module './webglContext.js' {
@@ -31,18 +32,32 @@ declare module './webglContext.js' {
     }
 }
 
+// How the light radius is visualised around each source:
+//   'ellipse' — (default) a dashed ellipse. A circle of hex-distance N on the
+//               ground projects to an ellipse under the isometric camera, so
+//               the ring is squashed vertically by the floor-tile aspect ratio
+//               (TILE_HEIGHT / TILE_WIDTH) with its axes aligned to the tile
+//               diamond's width/height.
+//   'tiles'   — fill every hex within lightRadius (hex distance, occlusion
+//               ignored) as a translucent floor rhombus, exactly like the
+//               'beta' egg overlay. Shows the discrete tile coverage.
+//   'none'    — no radius shape at all: just the centre point + its data.
+export type LightOverlayMode = 'ellipse' | 'tiles' | 'none'
+
 // One hex tile is a 32×16 (world-px) cell — the same dimensions the beta egg
 // overlay uses to draw a floor hex (renderer.ts). We use the 32px width as the
-// per-tile radius estimate: a light of `lightRadius` hexes is drawn as a ring
-// of `lightRadius * 32` world px. This is a first-order estimate of the radial
-// world-space falloff (hex spacing is anisotropic, so a single circle can only
-// approximate it) — `setLightOverlayRadius(scale)` exists precisely to
-// calibrate it against where the floor visibly goes dark.
+// per-tile radius estimate: a light of `lightRadius` hexes gets a horizontal
+// semi-axis of `lightRadius * 32` world px. This is a first-order estimate of
+// the radial world-space falloff — `setLightOverlayRadius(scale)` exists
+// precisely to calibrate it against where the floor visibly goes dark.
 const HEX_TILE_SCREEN_WIDTH = 32
+const HEX_CELL_W = 32 // world-px width of a floor hex cell (for 'tiles' fill)
+const HEX_CELL_H = 16 // world-px height of a floor hex cell
 
 // Overlay state — module-level so it survives lighting-mode switches
 // (setLightPropagationMode / setObjectLightingMode never touch it).
 let overlayActive = false
+let overlayMode: LightOverlayMode = 'ellipse'
 let radiusScale = 1.0
 
 /** Console command hook — `showLightSources(true/false)`. */
@@ -50,9 +65,14 @@ export function setLightSourceOverlayActive(on: boolean): void {
     overlayActive = !!on
 }
 
+/** Console command hook — `setLightOverlayMode('ellipse'|'tiles'|'none')`. */
+export function setLightOverlayMode(mode: LightOverlayMode): void {
+    overlayMode = mode
+}
+
 /** Console command hook — `setLightOverlayRadius(scale)`, defaults to 1.0. */
 export function setLightOverlayRadiusScale(scale: number): void {
-    // Guard against NaN / non-positive: fall back to 1.0 so the ring never
+    // Guard against NaN / non-positive: fall back to 1.0 so the ellipse never
     // vanishes or inverts.
     radiusScale = Number.isFinite(scale) && scale > 0 ? scale : 1.0
 }
@@ -69,8 +89,36 @@ function dotColorFor(obj: Obj): string {
     return '#FFFF44'
 }
 
+// Translucent fill for the 'tiles' mode, matching the dot colour so overlapping
+// sources stay distinguishable.
+function tileFillColorFor(obj: Obj): string {
+    if (obj === globalState.player) return 'rgba(255, 255, 255, 0.15)'
+    if (obj.type === 'critter') return 'rgba(255, 136, 0, 0.15)'
+    return 'rgba(255, 255, 68, 0.15)'
+}
+
 function truncate(s: string, n: number): string {
     return s.length > n ? s.slice(0, n - 1) + '…' : s
+}
+
+// Fill the hexes within `radius` of `centre` as translucent floor rhombi,
+// matching the 'beta' egg overlay geometry (renderer.ts): a 32×16 world-px
+// diamond per hex, projected through worldToScreen.
+function drawTileFill(ctx: CanvasRenderingContext2D, centre: Obj, z: number): void {
+    ctx.fillStyle = tileFillColorFor(centre)
+    const w = HEX_CELL_W * z
+    const h = HEX_CELL_H * z
+    for (const pos of hexesInRadius(centre.position, centre.lightRadius)) {
+        const scr = hexToScreen(pos.x, pos.y)
+        const s = worldToScreen(scr.x - 16, scr.y - 12)
+        ctx.beginPath()
+        ctx.moveTo(s.x + w / 2, s.y)         // top
+        ctx.lineTo(s.x + w, s.y + h / 2)     // right
+        ctx.lineTo(s.x + w / 2, s.y + h)     // bottom
+        ctx.lineTo(s.x, s.y + h / 2)         // left
+        ctx.closePath()
+        ctx.fill()
+    }
 }
 
 // Drawn at the END of the render loop (after clear() and after all game
@@ -110,17 +158,27 @@ WebGLRenderer.prototype.drawLightSourceOverlay = function (): void {
         // (scr.x - 16, scr.y - 12), so its centre is (scr.x, scr.y - 4).
         const c = worldToScreen(scr.x, scr.y - 4)
 
-        // 2. Radius ring — dashed so it doesn't obscure the scene.
-        const ringRadius = obj.lightRadius * HEX_TILE_SCREEN_WIDTH * z * radiusScale
-        ctx.beginPath()
-        ctx.setLineDash([4, 4])
-        ctx.strokeStyle = 'rgba(255, 220, 120, 0.7)'
-        ctx.lineWidth = 1
-        ctx.arc(c.x, c.y, ringRadius, 0, Math.PI * 2)
-        ctx.stroke()
-        ctx.setLineDash([])
+        // --- Radius visualisation (behind the dot) ---
+        if (overlayMode === 'tiles') {
+            drawTileFill(ctx, obj, z)
+        } else if (overlayMode === 'ellipse') {
+            // A ground circle projects to an ellipse: horizontal semi-axis is
+            // the calibrated radius; the vertical semi-axis is squashed by the
+            // floor-tile aspect ratio so the axes line up with the tile
+            // diamond's outer borders.
+            const rx = obj.lightRadius * HEX_TILE_SCREEN_WIDTH * z * radiusScale
+            const ry = rx * (TILE_HEIGHT / TILE_WIDTH)
+            ctx.beginPath()
+            ctx.setLineDash([4, 4])
+            ctx.strokeStyle = 'rgba(255, 220, 120, 0.7)'
+            ctx.lineWidth = 1
+            ctx.ellipse(c.x, c.y, rx, ry, 0, 0, Math.PI * 2)
+            ctx.stroke()
+            ctx.setLineDash([])
+        }
+        // 'none' — draw nothing here; only the centre dot + label below.
 
-        // 1. Centre dot — ~4px filled circle, colour-coded by type.
+        // --- Centre dot — ~4px filled circle, colour-coded by type ---
         ctx.beginPath()
         ctx.fillStyle = dotColorFor(obj)
         ctx.arc(c.x, c.y, 4, 0, Math.PI * 2)
@@ -129,8 +187,8 @@ WebGLRenderer.prototype.drawLightSourceOverlay = function (): void {
         ctx.lineWidth = 1
         ctx.stroke()
 
-        // 3. Label — two lines directly below the dot. Black outline so the
-        //    text stays readable over the floor, matching renderText().
+        // --- Label — two lines directly below the dot. Black outline so the
+        //     text stays readable over the floor, matching renderText() ---
         const line1 = `r=${obj.lightRadius} i=${obj.lightIntensity}`
         const nameOrArt = obj.name ? obj.name : obj.art
         const line2 = nameOrArt ? `${obj.type} ${truncate(nameOrArt, 20)}` : obj.type
