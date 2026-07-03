@@ -39,8 +39,20 @@ uniform highp float u_objectBaseY;
 //   (u_objectBaseX, u_objectBaseY) — CE-faithful, no gradient, no stripes.
 // u_objectSmoothPx > 0 → blur the sampled light over a small world-space kernel
 //   to soften the per-column "vertical stripe" texture on wall faces.
+// u_objectHardClampY == 1 → 'wall-clamp' mode: world_y is fixed EXACTLY to
+//   u_objectBaseY (the foot row) for every pixel, instead of the ±6 soft band —
+//   so the wall face samples the floor light field along its foot line, per
+//   column, inheriting whatever interpolation the floor uses (setLightingBilinear).
 uniform highp float u_objectBaseX;
 uniform float u_objectSmoothPx;
+uniform int u_objectHardClampY;
+
+// Wall top-edge fade (walls only; u_wallFadePx == 0 for non-wall draws).
+// Fades the LIT contribution toward 0 in the last u_wallFadePx world-px below
+// the sprite's top edge (u_wallTopY), so the wall's top recedes to ambient
+// where it meets the dark roof tile — a cheap ambient-occlusion cue. §8.
+uniform highp float u_wallTopY;
+uniform float u_wallFadePx;
 
 // Tile-intensity interpolation mode — see sampleTileLight below and
 // fragmentLighting.glsl (kept identical). wiki/alignment.md §7.
@@ -162,34 +174,49 @@ float getWorldTileLight() {
     float world_x = u_camera.x + (gl_FragCoord.x / dpr) / zoom;
     float frag_world_y = u_camera.y + (u_resolution.y - gl_FragCoord.y / dpr) / zoom;
 
-    // 'flat' mode: whole sprite samples one tile centre → CE-faithful, no stripes.
+    float intensity;
     if (u_objectBaseX >= 0.0) {
-        return sampleTileLight(u_objectBaseX, u_objectBaseY);
+        // 'flat' mode: whole sprite samples one tile centre → CE-faithful, no stripes.
+        intensity = sampleTileLight(u_objectBaseX, u_objectBaseY);
+    } else {
+        // world_y: 'wall-clamp' pins it exactly to the foot row; other object modes
+        // use the ±6 soft band around the anchor; floor/UI (baseY<0) use per-fragment.
+        float world_y = (u_objectHardClampY == 1)
+            ? u_objectBaseY
+            : (u_objectBaseY >= 0.0
+                ? clamp(frag_world_y, u_objectBaseY - 6.0, u_objectBaseY + 6.0)
+                : frag_world_y);
+
+        if (u_objectSmoothPx > 0.0) {
+            // '*-smooth' modes: average the sampled light over a small world-space
+            // kernel (2 wide horizontal taps + 2 short vertical taps, centre-weighted).
+            // Horizontal taps smooth the per-column stripe; vertical taps soften the
+            // per-object hex-row stagger. Reads the shared texture, so it blends
+            // across tile/object boundaries. §8.
+            float p = u_objectSmoothPx;
+            intensity = (sampleTileLight(world_x, world_y) * 2.0
+                  + sampleTileLight(world_x - p, world_y)
+                  + sampleTileLight(world_x + p, world_y)
+                  + sampleTileLight(world_x - 2.0 * p, world_y)
+                  + sampleTileLight(world_x + 2.0 * p, world_y)
+                  + sampleTileLight(world_x, world_y - p)
+                  + sampleTileLight(world_x, world_y + p)) / 8.0;
+        } else {
+            // Parity-correct hex sampling with selectable interpolation. See §6/§7.
+            intensity = sampleTileLight(world_x, world_y);
+        }
     }
 
-    float world_y = (u_objectBaseY >= 0.0)
-        ? clamp(frag_world_y, u_objectBaseY - 6.0, u_objectBaseY + 6.0)
-        : frag_world_y;
-
-    // '*-smooth' modes: average the sampled light over a small world-space kernel
-    // (2 wide horizontal taps + 2 short vertical taps, centre-weighted). The
-    // horizontal taps smooth the per-column stripe texture along a wall face; the
-    // vertical taps soften the per-object hex-row stagger step. Reads the shared
-    // tile-intensity texture, so it blends across tile/object boundaries. §8.
-    if (u_objectSmoothPx > 0.0) {
-        float p = u_objectSmoothPx;
-        return (sampleTileLight(world_x, world_y) * 2.0
-              + sampleTileLight(world_x - p, world_y)
-              + sampleTileLight(world_x + p, world_y)
-              + sampleTileLight(world_x - 2.0 * p, world_y)
-              + sampleTileLight(world_x + 2.0 * p, world_y)
-              + sampleTileLight(world_x, world_y - p)
-              + sampleTileLight(world_x, world_y + p)) / 8.0;
+    // Wall top-edge fade (walls only — u_wallFadePx is 0 for other draws). Fades the
+    // lit contribution to 0 at the sprite's top edge; main()'s max(_, u_ambient)
+    // then floors it to ambient, so the wall top blends into the roof. §8.
+    // frag_world_y increases downward, so (frag_world_y - u_wallTopY) is 0 at the top
+    // edge and grows positive down the face.
+    if (u_wallFadePx > 0.0) {
+        intensity *= smoothstep(0.0, u_wallFadePx, frag_world_y - u_wallTopY);
     }
 
-    // Parity-correct hex sampling with selectable interpolation (world_y has
-    // already been clamped to the sprite's tile row above). See §6/§7.
-    return sampleTileLight(world_x, world_y);
+    return intensity;
 }
 
 void main() {

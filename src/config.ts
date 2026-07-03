@@ -85,16 +85,25 @@ export const Config = {
         //   'foot-y' (default) — anchor world-Y to the sprite's ground-contact point;
         //                        world-X per-fragment. Light pools at the wall base.
         //   'tile-y'           — anchor world-Y to the object's tile row (inverse hex).
+        //   'wall-clamp'       — world-Y pinned EXACTLY to the foot row; samples the
+        //                        floor light field per column via the shared floor path,
+        //                        so the wall inherits the floor's interpolation
+        //                        (setLightingBilinear). No per-wall blend.
         //   'flat'             — CE-faithful: ONE intensity for the whole sprite
         //                        (sampled at the tile centre). No gradient, no stripes.
         //   'foot-smooth'      — foot-y + a world-space blur kernel to soften the
         //                        per-column "vertical stripe" texture on wall faces.
         //   'tile-smooth'      — tile-y + the same blur kernel.
         //   'off'              — full per-fragment sampling (dark tops on tall sprites).
-        objectLightingMode: 'foot-y' as 'tile-y' | 'foot-y' | 'off' | 'flat' | 'foot-smooth' | 'tile-smooth',
+        objectLightingMode: 'foot-y' as 'tile-y' | 'foot-y' | 'off' | 'flat' | 'foot-smooth' | 'tile-smooth' | 'wall-clamp',
         // Blur kernel radius (world px) for the '*-smooth' object lighting modes.
         // Larger = smoother wall faces but softer light detail. Tune: setObjectLightSmooth(px).
         objectLightSmoothPx: 12,
+        // Wall top-edge fade height (world px): walls fade their lit contribution to
+        // ambient over the top N px, so the wall top blends into the roof above.
+        // Applies to wall-type objects in every lighting mode. 0 = off. Tune:
+        // setWallTopFade(px). See wiki/alignment.md §8.
+        wallTopFadePx: 12,
         // How the tile-intensity texture (unit 5) is interpolated when sampled by
         // the world shaders. Plain 'linear' bleeds across the hex column stagger and
         // shows NW-SE stripes; the other modes remove them. Toggle live via

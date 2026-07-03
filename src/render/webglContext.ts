@@ -73,6 +73,9 @@ export class WebGLRenderer extends Renderer {
     uObjectBaseY: WebGLUniformLocation | null = null
     uObjectBaseX: WebGLUniformLocation | null = null      // 'flat' mode: fixed tile-centre X; <0 = per-fragment
     uObjectSmoothPx: WebGLUniformLocation | null = null   // '*-smooth' blur kernel radius (world px); 0 = off
+    uObjectHardClampY: WebGLUniformLocation | null = null // 'wall-clamp': 1 = world_y pinned exactly to baseY
+    uWallTopY: WebGLUniformLocation | null = null         // world-Y of a wall sprite's top edge (top-fade)
+    uWallFadePx: WebGLUniformLocation | null = null       // wall top-edge fade height (world px); 0 = off/non-wall
 
     // Tile-intensity interpolation mode (u_lightInterp) — see setLightInterpMode
     // and shaders/fragment*.glsl sampleTileLight. wiki/alignment.md §7.
@@ -439,6 +442,11 @@ export class WebGLRenderer extends Renderer {
         if (this.uObjectBaseX) gl.uniform1f(this.uObjectBaseX, -1.0)      // <0 = not flat
         this.uObjectSmoothPx = gl.getUniformLocation(this.tileShader, 'u_objectSmoothPx')
         if (this.uObjectSmoothPx) gl.uniform1f(this.uObjectSmoothPx, 0.0) // 0 = no blur
+        this.uObjectHardClampY = gl.getUniformLocation(this.tileShader, 'u_objectHardClampY')
+        if (this.uObjectHardClampY) gl.uniform1i(this.uObjectHardClampY, 0) // 0 = soft ±6 clamp
+        this.uWallTopY = gl.getUniformLocation(this.tileShader, 'u_wallTopY')
+        this.uWallFadePx = gl.getUniformLocation(this.tileShader, 'u_wallFadePx')
+        if (this.uWallFadePx) gl.uniform1f(this.uWallFadePx, 0.0) // 0 = no top fade (non-wall/default)
         this.uLightInterp = gl.getUniformLocation(this.tileShader, 'u_lightInterp')
         if (this.uLightInterp) gl.uniform1i(this.uLightInterp, this.lightInterpValue)
 

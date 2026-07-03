@@ -488,10 +488,16 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         let baseY = -1.0     // -1 = per-fragment ('off')
         let baseX = -1.0     // -1 = not flat
         let smoothPx = 0.0   // 0 = no blur
+        let hardClamp = 0    // 1 = pin world_y exactly to baseY ('wall-clamp')
         if (mode === 'tile-y') {
             baseY = tileCenterY
         } else if (mode === 'foot-y') {
             baseY = foot
+        } else if (mode === 'wall-clamp') {
+            // Sample the floor light field along the foot row, per column, hard-pinned
+            // (no ±6 band). Inherits the floor's interpolation via sampleTileLight.
+            baseY = foot
+            hardClamp = 1
         } else if (mode === 'flat') {
             // CE-faithful: whole sprite samples one tile centre.
             baseY = tileCenterY
@@ -506,6 +512,16 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         gl.uniform1f(this.uObjectBaseY, baseY)
         if (this.uObjectBaseX) gl.uniform1f(this.uObjectBaseX, baseX)
         if (this.uObjectSmoothPx) gl.uniform1f(this.uObjectSmoothPx, smoothPx)
+        if (this.uObjectHardClampY) gl.uniform1i(this.uObjectHardClampY, hardClamp)
+
+        // Wall top-edge fade — walls only (fading a critter/item top would darken
+        // its head). u_wallTopY is the sprite's top edge in world space (renderInfo.y
+        // is already world-space); u_wallFadePx>0 enables the fade. See §8.
+        if (this.uWallFadePx) {
+            const fadePx = obj.type === 'wall' ? (Config.engine.wallTopFadePx ?? 12) : 0
+            gl.uniform1f(this.uWallFadePx, fadePx)
+            if (fadePx > 0 && this.uWallTopY) gl.uniform1f(this.uWallTopY, renderInfo.y)
+        }
     }
 
     // 'off' mode still uses per-fragment world-position sampling (u_objectBaseY = -1),
@@ -541,6 +557,8 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         this.gl.uniform1f(this.uObjectBaseY, -1.0)
         if (this.uObjectBaseX) this.gl.uniform1f(this.uObjectBaseX, -1.0)
         if (this.uObjectSmoothPx) this.gl.uniform1f(this.uObjectSmoothPx, 0.0)
+        if (this.uObjectHardClampY) this.gl.uniform1i(this.uObjectHardClampY, 0)
+        if (this.uWallFadePx) this.gl.uniform1f(this.uWallFadePx, 0.0)
     }
     if (mode === 'off' && this.tileIntensityTexture) {
         // Restore the filter the active interpolation mode wants (not a hardcoded

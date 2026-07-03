@@ -304,6 +304,10 @@ window.onload = async function () {
     //   'foot-y'      — (default) world-Y at the sprite's ground-contact point,
     //                   world-X per-fragment. Light pools at the wall base. Has stripes.
     //   'tile-y'      — world-Y locked to the object's tile row (inverse hex). Has stripes.
+    //   'wall-clamp'  — world-Y pinned exactly to the foot row; samples the floor light
+    //                   field per column via the shared floor path, so the wall gradient
+    //                   matches the floor's and inherits setLightingBilinear (LINEAR =
+    //                   smooth, NEAREST = discrete). No per-wall blend.
     //   'flat'        — CE-faithful: ONE intensity for the whole sprite (tile centre).
     //                   No gradient, no stripes — matches vanilla Fallout 2.
     //   'foot-smooth' — foot-y + a world-space blur kernel that softens the stripes
@@ -311,9 +315,9 @@ window.onload = async function () {
     //   'tile-smooth' — tile-y + the same blur kernel.
     //   'off'         — original per-fragment path (dark tops on tall sprites).
     ;(window as any).setObjectLightingMode = (mode: string) => {
-        const valid = ['tile-y', 'foot-y', 'off', 'flat', 'foot-smooth', 'tile-smooth']
+        const valid = ['tile-y', 'foot-y', 'off', 'flat', 'foot-smooth', 'tile-smooth', 'wall-clamp']
         if (!valid.includes(mode)) {
-            console.log("Usage: setObjectLightingMode('foot-y'|'tile-y'|'flat'|'foot-smooth'|'tile-smooth'|'off')")
+            console.log("Usage: setObjectLightingMode('foot-y'|'tile-y'|'wall-clamp'|'flat'|'foot-smooth'|'tile-smooth'|'off')")
             return
         }
         Config.engine.objectLightingMode = mode as any
@@ -332,6 +336,19 @@ window.onload = async function () {
         Config.engine.objectLightSmoothPx = px
         console.log(`[Lighting] object light smooth kernel = ${px}px` +
             (Config.engine.objectLightingMode.endsWith('-smooth') ? '' : " (set mode to 'foot-smooth' or 'tile-smooth' to see it)"))
+    }
+
+    // setWallTopFade(px) — height (world px) of the top-edge fade on WALL sprites:
+    // the wall's lit contribution fades to ambient over the top N px so it blends
+    // into the roof above (a cheap ambient-occlusion cue). Applies to walls in every
+    // objectLightingMode. Default 12; useful range ~4–24; 0 disables. Next frame.
+    ;(window as any).setWallTopFade = (px: number) => {
+        if (typeof px !== 'number' || !isFinite(px) || px < 0) {
+            console.log('Usage: setWallTopFade(px)  — world pixels, e.g. setWallTopFade(12); 0 to disable')
+            return
+        }
+        Config.engine.wallTopFadePx = px
+        console.log(`[Lighting] wall top-edge fade = ${px}px${px === 0 ? ' (disabled)' : ''}`)
     }
 
     // setPlayerLight(radius, intensity) — set the player's own light source.
@@ -364,14 +381,16 @@ window.onload = async function () {
     //                     geometrically correct, smoothest, no stripes.
     //   'bicubic'       — Catmull-Rom down the column; smoother falloff, no stagger.
     //
-    // Back-compat: setLightingBilinear(true) → 'linear', setLightingBilinear(false) → 'off'.
+    // Back-compat: setLightingBilinear(true)/'on' → 'linear', false/'off' → 'off'.
     ;(window as any).setLightingBilinear = (mode: boolean | string) => {
         const r = globalState.renderer as WebGLRenderer
         if (!r || typeof r.setLightInterpMode !== 'function') {
             console.log('[setLightingBilinear] renderer not ready')
             return
         }
-        const resolved = mode === true ? 'linear' : mode === false ? 'off' : mode
+        const resolved = (mode === true || mode === 'on') ? 'linear'
+            : (mode === false || mode === 'off') ? 'off'
+            : mode
         const valid = ['off', 'linear', 'column-center', 'hex-lerp', 'bicubic']
         if (typeof resolved !== 'string' || !valid.includes(resolved)) {
             console.log("Usage: setLightingBilinear('off'|'linear'|'column-center'|'hex-lerp'|'bicubic')")

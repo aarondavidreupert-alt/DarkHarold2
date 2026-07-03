@@ -393,6 +393,7 @@ approximate this:
 |------|----------|-----------------|
 | **`foot-y`** (default) | `baseY = renderInfo.y + renderInfo.frameHeight` (sprite bottom); world-X per-fragment | Anchors to the sprite's ground-contact point, so the player's floor light pools naturally at the base of walls (visually preferred). Has the residual stripes (below). |
 | **`tile-y`** | `baseY = 12·ty + (11.25\|5.25) + 6·tx` (tile centre, parity-aware — see §6); world-X per-fragment | Locks the sample to the object's own tile row exactly (slightly above the foot). Marginally more stable for critters with large walk offsets. Has stripes. |
+| **`wall-clamp`** | world-Y pinned **exactly** to the foot row (hard clamp, no ±6 band); `sampleTileLight(world_x, footY)` — the same call the floor uses | Samples the floor light field per column along the foot line, so the wall gradient **matches the floor's** and inherits its interpolation via `setLightingBilinear` (LINEAR/hex-lerp = smooth, `off` = discrete). No per-wall blend or averaging. |
 | **`flat`** | one sample at the tile centre `(baseX, baseY)` for the whole sprite | **CE-faithful** (`lightGetTileIntensity` per object). No gradient, no stripes. `baseX = 32·(150.0417 − tx) + (4/3)·baseY`. |
 | **`foot-smooth`** | `foot-y` + world-space blur kernel (`u_objectSmoothPx`, default 12) | Keeps the pooling gradient but averages a small cross of taps to soften the stripes. Tune with `setObjectLightSmooth(px)`. |
 | **`tile-smooth`** | `tile-y` + the same blur kernel | As above, anchored to the tile row. |
@@ -710,6 +711,22 @@ options** (2026-07-02) so they can be compared in-browser via
   stagger), centre-weighted. Reads the shared tile-intensity texture, so it
   blends across tile/object boundaries. Effectiveness/strength is an in-browser
   tuning question (can't be judged from source alone).
+- **(C) `wall-clamp`** (added 2026-07-02) — hard-pin world-Y to the foot row and
+  sample `sampleTileLight(world_x, footY)`, i.e. the *same call the floor uses*,
+  so the wall face reads the floor light field along its foot line and inherits
+  the floor's interpolation (`setLightingBilinear`: LINEAR/hex-lerp → smooth,
+  `off` → discrete steps that match the floor). No per-wall blend or averaging.
+  Removes the ±6 vertical drift of `foot-y`; the per-segment stagger step between
+  adjacent wall objects can remain (it's the honest per-tile light difference),
+  but each segment now cleanly matches the floor directly in front of it.
+
+**Top-edge fade (all wall modes, added 2026-07-02).** Independent of the sampling
+mode above, wall-type sprites fade their lit contribution to ambient over the top
+`u_wallFadePx` world-px (default 12, `setWallTopFade(px)`, 0 disables) so the wall
+top blends into the dark roof instead of ending on a hard bright edge — a cheap
+ambient-occlusion cue. Gated to `obj.type === 'wall'` so critter/​item tops are
+never darkened; applied *before* `max(_, u_ambient)` so it settles to ambient, not
+black. `u_wallTopY = renderInfo.y` (already world-space).
 
 Once a winner is chosen from live testing, promote it to the default in
 `config.ts` and note it here.
