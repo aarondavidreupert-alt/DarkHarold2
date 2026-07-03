@@ -49,9 +49,15 @@ uniform int u_objectHardClampY;
 
 // Wall top-edge fade (walls only; u_wallFadePx == 0 for non-wall draws).
 // Fades the LIT contribution toward 0 in the last u_wallFadePx world-px below
-// the sprite's top edge (u_wallTopY), so the wall's top recedes to ambient
-// where it meets the dark roof tile — a cheap ambient-occlusion cue. §8.
+// the sprite's top edge, so the wall's top recedes to ambient where it meets the
+// dark roof tile — a cheap ambient-occlusion cue. §8.
+// The fade boundary is a SLANTED line parallel to the isometric tile edge (slope
+// u_wallTopSlope ≈ ±0.5), anchored at (u_wallTopX, u_wallTopY) — the high corner
+// of the sprite's top edge — so the band follows the wall's perspective incline
+// instead of cutting horizontally across it.
 uniform highp float u_wallTopY;
+uniform highp float u_wallTopX;
+uniform float u_wallTopSlope;
 uniform float u_wallFadePx;
 
 // Tile-intensity interpolation mode — see sampleTileLight below and
@@ -210,10 +216,13 @@ float getWorldTileLight() {
     // Wall top-edge fade (walls only — u_wallFadePx is 0 for other draws). Fades the
     // lit contribution to 0 at the sprite's top edge; main()'s max(_, u_ambient)
     // then floors it to ambient, so the wall top blends into the roof. §8.
-    // frag_world_y increases downward, so (frag_world_y - u_wallTopY) is 0 at the top
-    // edge and grows positive down the face.
+    // The boundary is slanted (u_wallTopSlope ≈ ±0.5) so it runs parallel to the
+    // isometric tile edge / wall top, not a flat horizontal cut. distFromTop is the
+    // downward distance from that slanted line; frag_world_y increases downward, so
+    // it is ~0 along the top edge and grows positive down the face.
     if (u_wallFadePx > 0.0) {
-        intensity *= smoothstep(0.0, u_wallFadePx, frag_world_y - u_wallTopY);
+        float distFromTop = frag_world_y - u_wallTopY - u_wallTopSlope * (world_x - u_wallTopX);
+        intensity *= smoothstep(0.0, u_wallFadePx, distFromTop);
     }
 
     return intensity;

@@ -515,12 +515,33 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         if (this.uObjectHardClampY) gl.uniform1i(this.uObjectHardClampY, hardClamp)
 
         // Wall top-edge fade — walls only (fading a critter/item top would darken
-        // its head). u_wallTopY is the sprite's top edge in world space (renderInfo.y
-        // is already world-space); u_wallFadePx>0 enables the fade. See §8.
+        // its head). The fade boundary is slanted parallel to the isometric tile
+        // edge (slope ±mag) so it follows the wall's perspective incline instead of
+        // a flat horizontal cut. Sign comes from the wall's extendedFlags
+        // orientation; the anchor is the HIGH corner of the top edge (top-left for
+        // +slope, top-right for −slope) so the slanted band starts at the art top.
+        // renderInfo.x/y are already world-space. See §8.
         if (this.uWallFadePx) {
             const fadePx = obj.type === 'wall' ? (Config.engine.wallTopFadePx ?? 12) : 0
             gl.uniform1f(this.uWallFadePx, fadePx)
-            if (fadePx > 0 && this.uWallTopY) gl.uniform1f(this.uWallTopY, renderInfo.y)
+            if (fadePx > 0) {
+                const mag = Config.engine.wallTopFadeSlope ?? 0.5
+                // Orientation → slope sign (best-guess mapping; flip a class here if a
+                // whole orientation slants the wrong way in-browser). extendedFlags
+                // bits: 0x8000000/0x40000000 = E-W run, 0x10000000 = NE-SW diagonal,
+                // 0x20000000 = corner, else default.
+                const ef: number = (obj as any).pro?.extra?.extendedFlags ?? 0
+                let sign = -1
+                if ((ef & 0x8000000) !== 0 || (ef & 0x40000000) !== 0) sign = 1
+                else if ((ef & 0x10000000) !== 0) sign = -1
+                else if ((ef & 0x20000000) !== 0) sign = 1
+                const slope = sign * mag
+                // High corner of the top edge: left for +slope, right for −slope.
+                const anchorX = slope >= 0 ? renderInfo.x : renderInfo.x + renderInfo.uniformFrameWidth
+                if (this.uWallTopY) gl.uniform1f(this.uWallTopY, renderInfo.y)
+                if (this.uWallTopX) gl.uniform1f(this.uWallTopX, anchorX)
+                if (this.uWallTopSlope) gl.uniform1f(this.uWallTopSlope, slope)
+            }
         }
     }
 

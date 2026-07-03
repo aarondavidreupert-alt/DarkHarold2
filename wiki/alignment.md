@@ -726,7 +726,19 @@ mode above, wall-type sprites fade their lit contribution to ambient over the to
 top blends into the dark roof instead of ending on a hard bright edge — a cheap
 ambient-occlusion cue. Gated to `obj.type === 'wall'` so critter/​item tops are
 never darkened; applied *before* `max(_, u_ambient)` so it settles to ambient, not
-black. `u_wallTopY = renderInfo.y` (already world-space).
+black.
+
+The fade boundary is **slanted parallel to the isometric tile edge** (slope
+`u_wallTopSlope` ≈ ±0.5 — the tile-diamond edge slope), not a flat horizontal cut,
+so it follows the wall's perspective incline:
+`distFromTop = frag_world_y − u_wallTopY − slope·(world_x − u_wallTopX)`.
+The per-wall **sign** comes from the `extendedFlags` orientation (buildings have
+two wall orientations whose tops slant oppositely); the anchor `(u_wallTopX,
+u_wallTopY)` is the *high corner* of the sprite's top edge (top-left for +slope,
+top-right for −slope) so the band starts on the art's top edge. Magnitude is
+tunable via `setWallTopFadeSlope(mag)` (0 = old horizontal fade); the
+orientation→sign mapping is a best guess pending in-browser confirmation (flip a
+class in `renderObject` if a whole orientation slants the wrong way).
 
 Once a winner is chosen from live testing, promote it to the default in
 `config.ts` and note it here.

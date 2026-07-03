@@ -104,6 +104,11 @@ export const Config = {
         // Applies to wall-type objects in every lighting mode. 0 = off. Tune:
         // setWallTopFade(px). See wiki/alignment.md §8.
         wallTopFadePx: 12,
+        // Magnitude of the wall top-edge fade slope (iso tile-edge slope ≈ 0.5). The
+        // per-wall SIGN comes from the wall's extendedFlags orientation; this is just
+        // the magnitude so the fade band runs parallel to the tile edge rather than
+        // horizontal. Tune: setWallTopFadeSlope(mag). 0 = horizontal (old behaviour).
+        wallTopFadeSlope: 0.5,
         // How the tile-intensity texture (unit 5) is interpolated when sampled by
         // the world shaders. Plain 'linear' bleeds across the hex column stagger and
         // shows NW-SE stripes; the other modes remove them. Toggle live via
