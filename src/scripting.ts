@@ -77,6 +77,21 @@ export module Scripting {
         return dialogueReviewLog
     }
     export var timeEventList: TimedEvent[] = []
+
+    // CE ref: game_vars.h GVAR_TOWN_REP_* enum — maps each town-reputation
+    // GVAR index (verified against the source, indices are NOT contiguous)
+    // to its display name. game_vars.h also defines GVAR_TOWN_REP_BURIED_VAULT
+    // (58), _COLUSA (60), _ENCLAVE (62), and _NAVARRO (628) — none of which
+    // appear in CE's own displayed reputation list either
+    // (character_editor.cc gTownReputationEntries[TOWN_REPUTATION_COUNT=19]),
+    // so they're intentionally omitted here too.
+    export const TOWN_REP_GVARS: { [gvar: number]: string } = {
+        47: 'Arroyo', 48: 'Klamath', 49: 'The Den', 50: 'Vault City',
+        51: 'Gecko', 52: 'Modoc', 53: 'Sierra Base', 54: 'Broken Hills',
+        55: 'New Reno', 56: 'Redding', 57: 'NCR', 59: 'Vault 13',
+        61: 'San Francisco', 63: 'Abbey', 64: 'EPA', 65: 'Primitive Tribe',
+        66: 'Raiders', 294: 'Vault 15', 308: 'Ghost Farm',
+    }
     let overrideStartPos: StartPos | null = null
     let fadeOverlay: HTMLDivElement | null = null
 
@@ -482,6 +497,15 @@ export module Scripting {
             // Sync to player stat so the character-sheet title display stays current.
             if (gvar === 0 && globalState.player) {
                 globalState.player.stats.setBase('Karma', typeof value === 'number' ? value : parseInt(value))
+            }
+            // Same pattern for per-town reputation: CE writes these as plain
+            // GVARs (scripts.cc:487 gameSetGlobalVar(GVAR_TOWN_REP_ARROYO, ...)),
+            // with no separate opcode. Sync to a player stat so
+            // ui_character/viewer.ts's reputation panel reflects script writes
+            // instead of only ever reading an unset default.
+            const townRepName = TOWN_REP_GVARS[gvar]
+            if (townRepName !== undefined && globalState.player) {
+                globalState.player.stats.setBase('Rep_' + townRepName, typeof value === 'number' ? value : parseInt(value))
             }
         }
         set_local_var(lvar: number, value: any) {

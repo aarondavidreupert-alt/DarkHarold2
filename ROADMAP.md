@@ -355,7 +355,7 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| R2 | **No per-town reputation tracking.** Global karma ✅; per-faction NPC reaction modifiers absent. | `karma.cc` | minor |
+| R2 | ✅ FIXED 2026-07-04 — CE has no generic engine-side "NPC reaction modifier" system for town rep at all (verified: only plain GVARs scripts read directly, one hardcoded exception in `scripts.cc`). Fixed the real gap: `set_global_var()` now syncs town-rep GVAR writes to `player.stats`, so the pre-existing (but previously always-empty) reputation display panel populates. Also fixed an off-by-one in the title-threshold boundaries found while verifying. | `game_vars.h GVAR_TOWN_REP_*`; `character_editor.cc:4582-4599` | minor |
 
 ### 9j. Skills / Locks
 
@@ -536,7 +536,7 @@ reflects the 2026-07-04 source audit.
 
 | ID | What | CE Ref | Sev | Status |
 |----|------|--------|-----|--------|
-| R2 | **Per-town reputation tracking + NPC reaction modifiers.** Global karma done; no per-faction delta table, no town-reputation title strings. | `karma.cc` | minor | missing |
+| R2 | ✅ FIXED 2026-07-04 — same root cause as R1's karma bug (already fixed): CE writes town reputation as plain GVARs (`game_vars.h GVAR_TOWN_REP_*`) with no dedicated opcode or generic engine-side reaction system (verified — no hits in `game_dialog.cc`; only one hardcoded Arroyo movie-penalty reads it in C++). `set_global_var()` now mirrors town-rep GVAR writes to `player.stats` (new `Scripting.TOWN_REP_GVARS`, 19 entries, exact non-contiguous indices verified against `game_vars.h`, matching CE's own curated display list), so `ui_character/viewer.ts`'s pre-existing reputation panel — previously always empty since nothing wrote the stats it read — now populates. Also fixed an off-by-one at the Antipathy/Hated/Vilified title thresholds (-14/-29 → -15/-30, matching `character_editor.cc:4586-4599`) found while verifying. | `game_vars.h GVAR_TOWN_REP_*`; `character_editor.cc:4582-4599`; `scripts.cc:487` | minor | fixed |
 
 ### 10e. Worldmap (full parity)
 
