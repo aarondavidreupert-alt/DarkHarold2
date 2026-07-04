@@ -17,7 +17,7 @@ DH2 sources:
 
 Cross-link: See [damage_formula.md](damage_formula.md) for how `attack_complex` and related opcodes connect to the damage pipeline.
 
-<!-- audited: 2026-06-02 -->
+<!-- audited: 2026-07-04 — metarule3 sub-ops 102/109/111 wired (S2), reg_anim_animate delay fix (S14); see ROADMAP.md Phase 10 -->
 
 ---
 
@@ -261,7 +261,7 @@ For the **Status** column, see the key in §3.
 | 0x810C | anim | 3 (obj,anim,param) | void | PARTIAL | IDs 1000 (set rotation) and 1010 (set frame) handled; rest stub |
 | 0x810D | obj_carrying_pid_obj | 2 (obj,pid) | obj | WIRED | Find carried item by pid |
 | 0x810E | reg_anim_func | 2 (obj,fn) | void | INLINE | Queue callback in animation batch |
-| 0x810F | reg_anim_animate | 3 (obj,anim,delay) | void | WIRED | Queue animation step with delay |
+| 0x810F | reg_anim_animate | 3 (obj,anim,delay) | void | WIRED | Queue animation step with delay. **FIXED 2026-07-04 (S14)**: the legacy non-batch path (`animBatch === null`) previously ignored `delay` entirely; now honors it via `setTimeout`, matching `animation.cc:1374 animationRegisterAnimate`'s uniform delay handling |
 | 0x8110 | reg_anim_obj_move_to_tile | 3 (obj,tile,delay) | void | WIRED | Queue move animation |
 | 0x8111 | reg_anim_begin | 1 (flags) | void | WIRED | Start animation batch |
 | 0x8112 | reg_anim_end | 0 | void | WIRED | Execute animation batch with delays |
@@ -380,7 +380,17 @@ CE source: `raw/fallout2-ce/src/interpreter_extra.cc`
 | ID | CE Name | DH2 Status | Description |
 |----|---------|------------|-------------|
 | 100 | `METARULE3_CLR_FIXED_TIMED_EVENTS` | WIRED | Removes timer event by (obj, userdata) pair |
+| 101 | `METARULE3_MARK_SUBTILE` | STUB (documented) | Needs a subtile-grid worldmap fog-of-war system DH2 doesn't have; not just a missing opcode |
+| 102 | `METARULE3_SET_WM_MUSIC` | WIRED | **Verified 2026-07-04**: CE's `opMetarule3` switch has no case for this ID despite the enum name — returns 0, matching CE exactly (not a gap) |
+| 103 | `METARULE3_GET_KILL_COUNT` | WIRED | Returns kill count for killType `obj` from `killCounts` map |
+| 104 | `METARULE3_MARK_MAP_ENTRANCE` | STUB (documented) | Needs per-entrance discovered-state tracking DH2 doesn't have |
+| 105 | `METARULE3_WM_SUBTILE_STATE` | STUB (documented) | Same missing subtile-grid subsystem as 101 |
 | 106 | `METARULE3_TILE_GET_NEXT_CRITTER` | WIRED (partial) | First non-player critter at tile; elevation not respected |
+| 107 | `METARULE3_ART_SET_BASE_FID_NUM` | WIRED | Rebuilds object's FID with a new frmId via `lookupArt()` |
+| 108 | `METARULE3_TILE_SET_CENTER` | WIRED | Centers the camera on the given tile |
+| 109 | `METARULE3_109` (chem use preference) | **WIRED 2026-07-04** | Reads the critter's live AI packet `chem_use` field via `getAiPacket()`, returns CE's numeric index (`CHEM_USE_MAP`) |
+| 110 | `METARULE3_110` (car out of gas) | STUB (documented) | Car travel (Phase 10e, W8) is entirely absent from DH2 |
+| 111 | `METARULE3_111` (`_map_target_load_area`) | **WIRED 2026-07-04** | Returns the worldmap area index containing the current map, via `areaContainingMap()`/`lookupMapName()`, or -1 |
 | all others | — | STUB | logs + returns undefined |
 
 ---

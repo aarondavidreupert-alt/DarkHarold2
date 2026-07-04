@@ -3,7 +3,7 @@
 > **Source anchor:** `raw/fallout2-ce/src/proto.cc`, `proto.h`, `proto_types.h`, `obj_types.h`, `art.cc`
 > **DH2 files:** `src/pro.ts`, `src/object.ts` (barrel; `src/object/*.ts`), `src/scripting.ts`, `src/vm_bridge.ts`
 > **DH2 pipeline:** `tools/proto.py`, `tools/exportPRO.py`
-> **Last audited:** 2026-06-02
+> **Last audited:** 2026-07-04 — PS2/PS3/PS4 fixed
 
 ---
 
@@ -274,7 +274,7 @@ tools/exportPRO.py::extractPROs()          ← iterates all .pro files per subdi
     └── proto/pro.json               ← single master JSON, keyed by type then numeric ID
 ```
 
-`tools/exportPRO.py` processes five subdirectories: `items`, `critters`, `scenery`, `walls`, `misc`. **Tiles are excluded** (see gap PS3).
+`tools/exportPRO.py` processes six subdirectories: `items`, `critters`, `scenery`, `walls`, `tiles`, `misc`. **FIXED 2026-07-04 (PS3/PS4)**: tiles were previously excluded and misc had no `extra` parsing — both are now extracted.
 
 The JSON structure produced:
 
@@ -284,11 +284,12 @@ The JSON structure produced:
   "critters": { "1": { ... "extra": { "actionFlags": ..., "AI": ..., "baseStats": {...}, "bonusStats": {...}, "skills": {...}, ... } }, ... },
   "scenery":  { "1": { ... "extra": { "subType": 0, "wallLightTypeFlags": ..., "actionFlags": ..., ... } }, ... },
   "walls":    { "1": { "pid": ..., "textID": ..., "frmPID": ..., "frmType": ..., "flags": 0 } },
-  "misc":     { "1": { ... } }
+  "tiles":    { "1": { "pid": ..., "textID": ..., "extra": { "flags": ... } } },
+  "misc":     { "1": { ... "extra": { "lightDistance": ..., "lightIntensity": ... } } }
 }
 ```
 
-`tools/proto.py::readPRO` splits the FID field into separate `frmPID` (bits 23-0) and `frmType` (bits 27-24) fields. The common header is always written; subtype `extra` data is populated only for items, critters, and scenery. Walls and misc have no `extra` key (see gap PS4).
+`tools/proto.py::readPRO` splits the FID field into separate `frmPID` (bits 23-0) and `frmType` (bits 27-24) fields. The common header is always written; subtype `extra` data is now populated for items, critters, scenery, tiles, and misc (walls still have no per-type extra beyond the shared header — CE's `WallProtoData` has no fields beyond it either). **Note**: `TileProto` does not share the `lightDistance`/`lightIntensity` fields present on the other proto types (`proto.cc:1719` reads tile `flags` before the common light-field read, not after) — `readPRO()` special-cases `TYPE_TILE` ahead of the generic light-field read to avoid misaligning every subsequent byte.
 
 ### 6.2 Runtime Loading
 
@@ -375,9 +376,9 @@ DH2's `proto_data` method (scripting.ts:1090) is implemented but **opcode 0x8104
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
 | PS1 | **`proto_data` opcode (0x8104) not wired in vm_bridge.ts.** The `proto_data` method exists in `scripting.ts:1090` and partially works, but no `bridged("proto_data", 2)` entry exists in `vm_bridge.ts`. Any script calling `proto_data()` will hit an unknown-opcode handler and return 0. | `vm_bridge.ts` (missing), `scripting.ts:1090` | `interpreter_extra.cc:2962 opGetProtoData()` | major | missing |
-| PS2 | **`tools/proto.py` has `FO1 = True`, suppressing critter `damageType`.** Line 234: `if FO1 or obj["killType"] in (5, 10)` — with `FO1=True`, all critters get `damageType=null`. Fallout 2 critters should have a native damage type (e.g. explosion for grenades, fire for flamers). Scripts and combat code reading critter `damageType` always see null. | `tools/proto.py:20,234` | `proto_types.h CritterProtoData.damageType` | minor | bug |
-| PS3 | **Tile PROs not extracted.** `tools/exportPRO.py` iterates only `("items", "critters", "scenery", "walls", "misc")`. Tile prototypes (material type, script index, flags) are absent from `proto/pro.json`. DH2 cannot read tile material for gameplay effects (footstep sounds, terrain damage, etc.). | `tools/exportPRO.py:23` | `proto.cc proto_tile_init()` | minor | missing |
-| PS4 | **Wall and misc `extra` fields not parsed.** `tools/proto.py::readPRO` only calls `readItem`, `readCritter`, or `readScenery`. For wall (type 3) and misc (type 5), it prints "unhandled type" and returns no `extra` key. Scripts querying wall `extendedFlags` or misc `lightDistance` via `proto_data` get 0. | `tools/proto.py:268-275` | `proto.cc protoRead() case OBJ_TYPE_WALL/MISC` | minor | missing |
+| PS2 | ✅ **FIXED 2026-07-04.** `tools/proto.py` had `FO1 = True`, suppressing critter `damageType` (old line 234: `if FO1 or obj["killType"] in (5, 10)` forced `damageType=null` for all critters). CE's `protoCritterDataRead` (`critter.cc:1064`) reads `damageType` unconditionally, not gated on `killType` — the `FO1`/`killType` gate was DH2-only and wrong. Now reads the field unconditionally with a short-read fallback to `DAMAGE_TYPE_NORMAL` (0). | `tools/proto.py:265-277` | `proto_types.h CritterProtoData.damageType`; `critter.cc:1064` | minor | fixed |
+| PS3 | ✅ **FIXED 2026-07-04.** Tile PROs were not extracted — `tools/exportPRO.py` iterated only `("items", "critters", "scenery", "walls", "misc")`. Now includes `"tiles"`, and `tools/proto.py::readPRO` special-cases `TYPE_TILE` (new `readTile()`) ahead of the generic light-field read, since `TileProto` has no `lightDistance`/`lightIntensity` fields — a naive "just add a tile branch" fix would have misaligned every subsequent byte read for that type. | `tools/exportPRO.py:23`, `tools/proto.py:96-107,307-329` | `proto.cc protoRead() case OBJ_TYPE_TILE` (`proto.cc:1719`) | minor | fixed |
+| PS4 | ✅ **FIXED 2026-07-04.** Wall and misc `extra` fields were not parsed — `tools/proto.py::readPRO` only called `readItem`/`readCritter`/`readScenery`. Added `readMisc()` (populates `extra.lightDistance`/`extra.lightIntensity`) and wired the `TYPE_MISC` dispatch case; wall was already emitting its shared-header fields correctly (CE's `WallProtoData` has no fields beyond the common header, so wall never needed a separate `extra` reader). | `tools/proto.py:109-118,330+`, `tools/exportPRO.py:23` | `proto.cc protoRead() case OBJ_TYPE_MISC` | minor | fixed |
 | PS5 | **`proto_data` item data_member IDs don't match CE.** DH2 maps `data_member=0` to `ITEM_TYPE`, `data_member=1` to `ITEM_MATERIAL`, etc. CE defines `ITEM_DATA_MEMBER_TYPE=9`, `ITEM_DATA_MEMBER_MATERIAL=11`. Scripts compiled against the CE API will pass CE's IDs (9, 11, 12…) and receive wrong fields. Already noted as `known_bugs.md §S12`. | `scripting.ts:1100-1130` | `proto.h ItemDataMember` enum | major | bug |
 
-<!-- audited: 2026-06-02 -->
+<!-- audited: 2026-07-04 — PS2/PS3/PS4 fixed, see ROADMAP.md Phase 10 -->
