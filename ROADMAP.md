@@ -491,6 +491,7 @@ reflects the 2026-07-04 source audit.
 | ID | What | CE Ref | Sev | Status |
 |----|------|--------|-----|--------|
 | P4 | **Speech audio / subtitles.** `Config.ui.subtitles = false`; no `.acm` speech playback path (`audio.ts` handles music/SFX only). | `sound.cc`, `gdialog.cc` | minor | missing |
+| DLG-HEAD | **Talking-head animations not rendered** (verified 2026-07-04). CE `gameDialogRenderTalkingHead()` draws the speaker's animated head FRM (mood + phoneme/lip-sync frames driven by speech duration) in the 388×200 head rect, or a live crop of the game view when no head art exists. DH2 ignores the `headNum` arg to `start_gdialog` and shows the static `alltlk.png` background; only the glint overlay (P22), caps readout (P16) and review log (P17) exist on that window. Head art is indexed (`lut/lst/art_heads.json`) but never drawn. Lip-sync depends on P4 (speech). Sub-gap of `known_bugs` P22. | `game_dialog.cc:4549-4627 gameDialogRenderTalkingHead()` | minor | missing |
 | S15 | **`play_gmovie` is a no-op.** `.mve` video playback infrastructure absent (`scripting.ts:2141` logs + skips). | `movie.cc` | minor | stub |
 | EG4 | **`endgame_movie` skips credits music + text.** CE plays `akiss.acm`, `creditsOpen("credits.txt")`, then `10labone.acm`. | `endgame.cc:234`; `credits.cc` | minor | missing |
 | EG5 | **Death ending slide is a black screen.** CE plays the narrator over the death scene. | `critter.cc:912` | low | missing |
