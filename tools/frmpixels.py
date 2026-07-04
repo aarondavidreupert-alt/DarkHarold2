@@ -68,6 +68,7 @@ def readFRMInfo(f: BufferedReader, exportImage=True):
 	# print "frameOffset:", frameOffset
 	return {'numFrames': numFrames,
 			'fps': fps,
+			'actionFrame': _actionFrame, # CE ref: art.h ArtFrame.actionFrame — hit/sound-sync frame index
 			'numDirections': nDirTotal,
 			'totalFrames': numFrames * nDirTotal,
 	        'directionOffsets': [{'x': x, 'y': y} for x,y in zip(dOffsetX, dOffsetY)],
@@ -214,12 +215,18 @@ def exportFRMs(frmFiles, outFile, palette, exportImage=True):
 	for i,frmInfo in enumerate(frmInfos):
 		dOffsets[i] = frmInfo['directionOffsets'][0]
 
+	# actionFrame is read once per .FR[0-5] sub-file's own header, so unlike
+	# fps/numFrames (validated equal above) it may legitimately differ per
+	# direction — kept as a per-direction array, same shape as dOffsets.
+	actionFrames = [frmInfo['actionFrame'] for frmInfo in frmInfos]
+
 	# construct new FRM info
 	return {'numFrames': _numFrames,
 	        'totalFrames': totalFrames,
 			'frameWidth': maxW,
 			'frameHeight': maxH,
 			'fps': _fps,
+			'actionFrame': actionFrames,
 			'numDirections': len(frmFiles),
 	        'directionOffsets': dOffsets,
 	        'frameOffsets': _frameOffsets}
