@@ -938,6 +938,23 @@ The three radius modes:
   egg-overlay geometry. Shows the discrete tile coverage.
 - **`none`** — draws only the centre point and its `r=`/`i=` label.
 
+### 14.8.2 Tile inspector (`inspect` key, default `i`)
+
+The numeric counterpart to the overlay above. Hover a tile and press `i`: it
+dumps a formatted block to the console **and** the clipboard
+(`navigator.clipboard.writeText`, satisfied by the keydown user-gesture) with
+the tile index / world coords / elevation, the raw + normalized
+`tile_intensity`, the light sources whose `lightRadius` reaches the tile (the
+same `lightRadius > 0 && lightIntensity > 655` filter as the overlay, matched by
+hex distance — inferred, since CE stores only accumulated intensity per tile,
+not contributing sources), the egg/occlusion state, and every object on the hex
+with its `pid`/`art`/`flags`/`extendedFlags`/light fields. `extendedFlags` is
+read from `pro.extra` and always shown (`n/a` if absent) — its silent omission
+caused the LD11 wall-occlusion bug. Implementation:
+`buildTileInspectorReport()` in `src/input.ts`, on the `Config.controls.inspect`
+handler. Use it to read the exact intensity a wall fragment should sample and
+confirm which source produced it.
+
 ### 14.9 Object sprite lighting — fixed-Y bilinear path (LD10) — 2026-07-01
 
 **Problem**: DH2's fragment shader called `getWorldTileLight()` per-fragment,

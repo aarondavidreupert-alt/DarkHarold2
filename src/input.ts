@@ -15,9 +15,10 @@
 import { Combat } from './combat.js'
 import { critterKill } from './critter.js'
 import { heart } from './heart.js'
-import { hexFromScreen } from './geometry.js'
+import { hexFromScreen, hexToScreen, hexDistance, Point } from './geometry.js'
 import globalState from './globalState.js'
-import { dbg } from './logger.js'
+import { dbg, dbgWarn } from './logger.js'
+import { Lightmap } from './lightmap.js'
 import { Obj } from './object.js'
 import {
     clampCameraPosition,
@@ -43,6 +44,94 @@ import { Config } from './config.js'
 import { getActiveUnarmedModeForHand } from './unarmed.js'
 import { togglePipBoy } from './ui_pipboy.js'
 import { playerUse, cancelSkillTargeting } from './playerUse.js'
+
+// Tile inspector — build a structured, copy-pasteable dump of everything the
+// debug tooling knows about the hex tile under the cursor: its lighting, the
+// light sources that can reach it, and every object standing on it. Invoked by
+// the `inspect` key (default 'i'); the same text is logged and copied to the
+// clipboard. Anchored to DH2's own data model (art paths, not FO2 FIDs;
+// extendedFlags nested under pro.extra), so what it prints is what the engine
+// actually reads at render time.
+function hex32(n: number): string {
+    return '0x' + (n >>> 0).toString(16).toUpperCase().padStart(8, '0')
+}
+
+function buildTileInspectorReport(mouseHex: Point): string {
+    const lines: string[] = []
+    const tileIndex = mouseHex.y * 200 + mouseHex.x
+    const world = hexToScreen(mouseHex.x, mouseHex.y)
+
+    lines.push('=== TILE INSPECTOR ===')
+    lines.push(`Tile:       index=${tileIndex}  tileX=${mouseHex.x}  tileY=${mouseHex.y}`)
+    lines.push(`World:      x=${world.x}  y=${world.y}`)
+    lines.push(`Elevation:  ${globalState.currentElevation}`)
+    lines.push('')
+
+    // --- LIGHTING --- reads Lightmap.tile_intensity directly, the same array
+    // the floor/object shaders sample. Raw value plus the 0..1 normalization
+    // the shaders apply (min(v, 65536) / 65536).
+    lines.push('--- LIGHTING ---')
+    const rawIntensity = tileIndex >= 0 && tileIndex < 40000 ? Lightmap.tile_intensity[tileIndex] : 0
+    const normalized = Math.min(rawIntensity, 65536) / 65536
+    lines.push(`tile_intensity:   ${rawIntensity}  (${normalized.toFixed(3)} normalized)`)
+
+    // Light sources that can reach this tile, reconstructed by hex distance —
+    // CE's light.cc stores only accumulated intensity per tile, not which
+    // sources contributed, so this is inferred, not authoritative. Same guard
+    // as lightmap.ts obj_adjust_light() / the light-source overlay.
+    const objects = globalState.gMap ? globalState.gMap.getObjects() : []
+    const sources = objects
+        .filter((o) => o.lightRadius > 0 && o.lightIntensity > 655)
+        .map((o) => ({ o, dist: hexDistance(o.position, mouseHex) }))
+        .filter((s) => s.dist <= s.o.lightRadius)
+        .sort((a, b) => a.dist - b.dist)
+    lines.push('Light sources in range (by hex distance):')
+    if (sources.length === 0) {
+        lines.push('  (none in range)')
+    } else {
+        sources.forEach((s, i) => {
+            lines.push(
+                `  [${i}] type=${s.o.type} pid=${hex32(s.o.pid)}  ` +
+                    `radius=${s.o.lightRadius}  intensity=${s.o.lightIntensity}  dist=${s.dist}`
+            )
+        })
+    }
+    lines.push('')
+
+    // --- OCCLUSION --- the "egg" is DH2's wall-transparency radius around the
+    // player (Config.ui.eggRadius), an occlusion concept, NOT a lighting one —
+    // kept in its own section to avoid implying it affects tile intensity.
+    lines.push('--- OCCLUSION ---')
+    const eggRadius = Config.ui.eggRadius ?? 8
+    const insideEgg =
+        globalState.player != null && hexDistance(globalState.player.position, mouseHex) <= eggRadius
+    lines.push(`Inside egg (radius ${eggRadius}):  ${insideEgg ? 'yes' : 'no'}`)
+    lines.push('')
+
+    // --- OBJECTS --- every object standing exactly on this hex.
+    const here = objects.filter((o) => o.position.x === mouseHex.x && o.position.y === mouseHex.y)
+    lines.push(`--- OBJECTS (${here.length} at tile) ---`)
+    if (here.length === 0) {
+        lines.push('  (none)')
+    } else {
+        here.forEach((o, i) => {
+            // extendedFlags lives under pro.extra (webglDraw.ts occlusion path
+            // reads it there); its absence caused the LD11 wall-occlusion bug,
+            // so always surface it — 'n/a' rather than silently omitting.
+            const ext: number | undefined = o.pro?.extra?.extendedFlags
+            lines.push(`  [${i}] type=${o.type}  pid=${hex32(o.pid)}  pidID=${o.pidID}`)
+            lines.push(`      art:            ${o.art}  orient=${o.orientation ?? 'n/a'} frame=${o.frame}`)
+            lines.push(`      flags:          ${hex32(o.flags)}`)
+            lines.push(`      extendedFlags:  ${ext === undefined ? 'n/a' : hex32(ext)}`)
+            lines.push(`      lightRadius:    ${o.lightRadius}  lightIntensity: ${o.lightIntensity}`)
+            if (o.type === 'critter') {
+                lines.push(`      shift:          ${o.shift ? `x=${o.shift.x}  y=${o.shift.y}` : 'null'}`)
+            }
+        })
+    }
+
+    return lines.join('\n')
+}
 
 export function installInputHandlers(): void {
     heart.mousepressed = (x: number, y: number, btn: string) => {
@@ -282,27 +371,19 @@ export function installInputHandlers(): void {
             }
         }
         if (k === Config.controls.inspect) {
-            globalState.gMap.getObjects().forEach((obj, idx) => {
-                if (obj.position.x === mouseHex.x && obj.position.y === mouseHex.y) {
-                    const hasScripts =
-                        (obj.script !== undefined ? 'yes (' + obj.script + ')' : 'no') +
-                        ' ' +
-                        (obj._script === undefined ? 'and is NOT loaded' : 'and is loaded')
-                    dbg(
-                        'map',
-                        '[Main] object is at index ' +
-                            idx +
-                            ', of type ' +
-                            obj.type +
-                            ', has art ' +
-                            obj.art +
-                            ', and has scripts? ' +
-                            hasScripts +
-                            ' -> %o',
-                        obj
-                    )
-                }
-            })
+            const report = buildTileInspectorReport(mouseHex)
+            // Deliberate, user-invoked diagnostic — must print unconditionally
+            // (like the eggDebug/lightingDebug console tools), not be gated
+            // behind dbg() debug-log categories.
+            console.log(report)
+            // The keydown gesture satisfies the clipboard-write user-activation
+            // requirement, so this needs no async workaround. Guard for
+            // non-secure contexts where navigator.clipboard is absent.
+            if (navigator.clipboard?.writeText) {
+                navigator.clipboard
+                    .writeText(report)
+                    .catch((err) => dbgWarn('map', 'tile inspector: clipboard copy failed:', err))
+            }
         }
         if (k === Config.controls.moveTo) {
             globalState.player.walkTo(mouseHex)
