@@ -198,7 +198,7 @@ the wiki tracker is the source of truth.
 - **Time & date system** — `gametime.ts` ticks, day/night ambient curve, midnight queue fires `objectUnjamAll` (IU3/GTC5); `get_month` / `get_day` wired; ARTIMER midnight movie events still not implemented.
 - **Quest system** — `questData.ts` covers all major Fallout 2 quests with GVAR-based state tracking; Pip-Boy ARCHIVES tab surfaces them. Per-quest completion rewards/XP route through scripts but not engine-side. Quest descriptions inlined in TS rather than loaded from `quests.msg`.
 - **Combat AI** — friendly-fire gate for AoE attacks (line-of-fire blockers between attacker and target) still absent; otherwise distance modes, perception, taunts, and team targeting are wired.
-- **Worldmap** — area entrance positions are misplaced on area screens (W9); walk masks not loaded so the player can walk through mountains (W10).
+- **Worldmap** — area entrance positions on area screens fixed (W9, a fixed 22/21px CE window-vs-map-origin offset); walk masks not loaded so the player can walk through mountains (W10).
 - **Endgame** — death-narrator slide wired (EG6); credits music / `creditsOpen("credits.txt")` (EG4) and panning-slide ms/pixel timing (EG3) still absent.
 
 ---

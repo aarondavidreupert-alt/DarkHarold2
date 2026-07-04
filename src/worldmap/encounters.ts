@@ -115,8 +115,10 @@ export function didEncounter(): boolean {
         return true
     else {
         // Adjust for game difficulty — CE ref: worldmap.cc:3322 wmRndEncounterOccurred
+        // CE keys this off settings.preferences.game_difficulty, a separate preference
+        // from combat_difficulty (which only affects combat damage) — see config.ts.
         let adjRate = encRate
-        const diff = Config.combat.difficultyModifier
+        const diff = Config.combat.gameDifficultyModifier
         if (diff < 100) adjRate -= Math.floor(encRate / 15)       // Easy
         else if (diff > 100) adjRate += Math.floor(encRate / 15)  // Hard
 

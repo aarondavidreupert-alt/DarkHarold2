@@ -172,8 +172,14 @@ export const Config = {
         allowWalkDuringAnyTurn: false, // Allows the player to walk AP-free out of their turn
         maxAIDepth: 8, // Maximum number of turns the AI can consider (as a bail-out instead of infinitely recursing)
         // Combat difficulty modifier: 75 = easy (player deals more), 100 = normal, 125 = hard (enemies deal more)
-        // Mirrors FO2's preference_level: VIOLENCE_LEVEL 0=easy 1=normal 2=hard
+        // CE ref: settings.h combat_difficulty / COMBAT_DIFFICULTY_* — affects damage multiplier only (combat.cc:4552-4572).
         difficultyModifier: 100 as 75 | 100 | 125,
+        // Game difficulty modifier: 75 = easy, 100 = normal, 125 = hard.
+        // CE ref: settings.h game_difficulty / GAME_DIFFICULTY_* — a SEPARATE preference from
+        // combat_difficulty above; affects skill-check modifiers (skill.cc:1129
+        // skillGetGameDifficultyModifier, +20/0/-10) and worldmap encounter frequency
+        // (worldmap.cc:3406 wmRndEncounterOccurred, ±frequency/15), never damage.
+        gameDifficultyModifier: 100 as 75 | 100 | 125,
         // Damage calculation ruleset: 0=Vanilla, 1=Glovz, 2=Glovz+MultTweak, 5=YAAM
         // Matches fallout2-ce DamageCalculationType enum values exactly.
         damageCalculationType: 0 as 0 | 1 | 2 | 5,

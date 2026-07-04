@@ -284,7 +284,7 @@ covered by Phases 1–8.
 |----|------|--------|-----|
 | LE1 | ✅ FIXED 2026-06-04 — `Obj.canCarry` enforced at loot drag/Take All and ground pickup. | `item.cc:322 itemAttemptAdd()` | major |
 | LE4 | ✅ FIXED 2026-06-04 — `WeaponObj.approxEq` compares ammoPID+rounds; loaded≠unloaded stacks. | `item.cc:357 _item_identical()` | minor |
-| LE5 | **Ammo stack merge ignores magazine capacity ceiling.** CE fills to capacity and splits remainder. | `item.cc:322 itemAdd()` | minor |
+| LE5 | 🟡 Investigated 2026-07-04 — not a bounded fix; surfaced a real `.amount` semantics inconsistency between `reloadWeapon()` (rounds) and barter pricing (boxes) instead. See Phase 10k for the full writeup. | `item.cc:322 itemAdd()` | minor |
 | LE6 | ✅ FIXED 2026-06-04 — `Scripting.pickup` now fires when an item is dropped into a hand slot. | `inventory.cc:4102,4494` | minor |
 
 ### 9b. Pathfinding
@@ -348,7 +348,7 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| W9 | **Area entrance positions misplaced on area screens.** | — | minor |
+| W9 | ✅ FIXED 2026-07-04 — root cause was a fixed 22/21px offset between CE's town-map blit origin and its window-relative entrance-button coordinates; see Phase 10e for the full writeup. | `worldmap.cc:5886,5917-5921` | minor |
 | W8 | **Car travel system entirely absent.** No fuel, no speed multipliers, no encounter rate reduction. | `worldmap.cc:5984 wmCarUseGas()` | major |
 | W10 | **Walk masks not loaded.** Player walks through mountains. | `worldmap.cc:1337 wmGrabTileWalkMask()` | minor |
 
@@ -369,7 +369,7 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| K4 | **Expanded Lockpick Set / Electronic Lockpick not modelled.** Tool type not checked in `useLockpick()`. | `skill.cc` | minor |
+| K4 | ✅ Investigated 2026-07-04 — not a real gap; CE's `skillGetValue()` has no tool-bonus logic at all, only per-door scripts do (already supported via the wired `roll_vs_skill` opcode). See Phase 10k for the full writeup. | `skill.cc:230-269` | minor |
 | EL3 | ✅ FIXED — verified 2026-07-04 in `ui_elevator.ts:134-142`: after travel, hexes within radius 5 of the arrival tile with door PIDs (153/421/470) are reset to `frame=0`/`open=false`. `known_bugs` already marked fixed; ROADMAP row was stale. Gauge-animation interpolation (EV1) remains a separate low-pri gap. | `scripts.cc:926` | low |
 | EL4 | **`_map_data_elev_flags` bitmask not in DH2 map format.** Empty elevations can't be represented. | `map.cc:81` | low |
 
@@ -480,7 +480,7 @@ Items already implemented (indicator bar, AP lights, sneaking/addiction/level fl
 | IF03 | **End-button lights missing.** CE `interfaceBarEndButtonsRenderGreenLights()` / `RenderRedLights()` blit separate light sprites over the End Turn / End Combat buttons on enter/exit combat. DH2 has no light overlay. | `interface.cc interfaceBarEndButtonsRenderGreenLights` | low |
 | IF04 | **End-button SFX missing.** CE plays `icombat2` (lights on) and `icombat1` (lights off) when combat mode is entered/exited. DH2 does not fire these SFX. | `interface.cc interfaceBarEndButtonsRenderGreenLights` | low |
 | IF05 | **Active hand not persisted in save.** CE `interfaceSave()` writes `gInterfaceCurrentHand` to the save stream. DH2 `saveload.ts` does not save/restore `player.activeHand`. | `interface.cc interfaceSave/Load` | low |
-| IF06 | **Reload AP cost hardcoded to 2.** CE reads `reloadAP` from the weapon PRO data. DH2 `ui.ts` has a TODO and returns 2 unconditionally. | `interface.cc interfaceBarRefreshMainAction / item.cc` | med |
+| IF06 | ✅ FIXED 2026-07-04 — corrected: the actual reload-AP-spend path (`ui.ts:238`) already called `Weapon.getReloadAPCost()` correctly. The stale hardcoded-2 fallback was in the *display-only* attack-button-affordability check (`ui_hud.ts:328`, `updateAttackButtonAvailability()`), which used `(weapon.weapon as any).getReloadAPCost?.() ?? 2` — unnecessary since `weapon.weapon` is narrowed non-null and `getReloadAPCost()` is a real, always-defined `Weapon` method. Simplified to a direct call; zero new tsc errors. | `interface.cc interfaceBarRefreshMainAction / item.cc` | med |
 | IF07 | **Called-shot aiming not reachable via action-cycle.** CE cycles PRIMARY→PRIMARY_AIMING→SECONDARY→SECONDARY_AIMING→RELOAD; entering an AIMING mode auto-opens the called-shot panel. DH2 uses a separate hotkey ('Z'). | `interface.cc interfaceBarRefreshMainAction` | low |
 | IF08 | **Ammo bar fill width deviant.** CE formula: `ratio = currentRounds / maxAmmo * 70` (70 px max). DH2 uses 55 px max. | `interface.cc interfaceBarRefreshMainAction line ~1361` | low |
 | IF09 | **HUD bar hide/show script hooks absent.** CE exposes `gInterfaceBarMode` toggled by `intface_hide` / `intface_show` opcodes; scripts can hide the entire HUD. DH2 stubs these opcodes. | `interface.cc indicatorBarHide/Show, scripting opcodes` | low |
@@ -552,7 +552,7 @@ reflects the 2026-07-04 source audit.
 |----|------|--------|-----|--------|
 | W8 | **Car travel system entirely absent.** No fuel, speed multipliers, or encounter-rate reduction; car-related `metarule` IDs 30/31/32/52/53 stub. | `worldmap.cc:5984 wmCarUseGas()` | major | missing |
 | W10 | **Walk masks not loaded** (`.msk`); player walks through mountains. | `worldmap.cc:1337 wmGrabTileWalkMask()` | minor | missing |
-| W9 | **Area entrance positions misplaced on area screens.** | — | minor | bug |
+| W9 | ✅ FIXED 2026-07-04 — CE's town-map art blits at a fixed `(WM_VIEW_X, WM_VIEW_Y) = (22, 21)` offset within its window (`worldmap.cc:5917-5921`), but entrance buttons are created at raw window-relative `entrance->x,y` (`worldmap.cc:5886`). DH2's `#areamap` has no equivalent window border, so every marker was off by that fixed offset; `uiWorldMapShowArea()` now subtracts it. | `worldmap.cc:5886,5917-5921` | minor | fixed |
 | W7 | **Encounter-avoidance dialog absent.** Outdoorsman XP awarded, but every rolled encounter is still forced (no "do you wish to encounter it?"). | `worldmap.cc:3450` | minor | partial |
 
 ### 10f. Rendering & Lighting (visual-only remainder)
@@ -602,7 +602,7 @@ sections above and `wiki/known_bugs.md §26`.
 | ID | What | CE Ref | Sev | Status |
 |----|------|--------|-----|--------|
 | IF01 | **HP counter digit-roll animation absent** — CE rolls digits frame-by-frame with colour transitions; DH2 is instant. | `interface.cc interfaceRenderCounter` | minor | missing |
-| IF06 | **Reload AP cost hardcoded to 2 in `ui.ts`** (a second call site; `Weapon.getReloadAPCost()` is correct — reconcile). | `interface.cc`; `item.cc` | minor | bug |
+| IF06 | ✅ FIXED 2026-07-04 — the second call site (`ui_hud.ts:328`, attack-button affordability display) reconciled to call `Weapon.getReloadAPCost()` directly instead of a defensive `?? 2` fallback. | `interface.cc`; `item.cc` | minor | fixed |
 | AF7 | **Item-condition bars under equipped weapon absent** (`interfaceRenderItemBars`). | `interface.cc interfaceRenderItemBars()` | minor | missing |
 | AF9 | **Brightness/gamma slider absent** in preferences. | `preferences.cc PREF_BRIGHTNESS` | minor | missing |
 | AF10 | **Mouse-sensitivity slider absent.** | `preferences.cc PREF_MOUSE_SENSITIVITY` | low | missing |
@@ -618,20 +618,20 @@ sections above and `wiki/known_bugs.md §26`.
 | ID | What | CE Ref | Sev | Status |
 |----|------|--------|-----|--------|
 | CI1/CI5 | **No file-based config** — all settings hardcoded in `Config`; prefs in `localStorage`, not `fallout2.cfg` (lost in private browsing). | `config.cc:273`; `settings.cc:118` | minor | missing |
-| CI2 | **`game_difficulty` vs `combat_difficulty` conflated** — both map to `difficultyModifier` (combat-damage only); CE separates skill-check/loot/XP effects. | `settings.h:29-31` | minor | missing |
+| CI2 | ✅ FIXED 2026-07-04 — added `Config.combat.gameDifficultyModifier` as a separate field from `difficultyModifier`. Verified against CE: `combat_difficulty` only scales damage (`combat.cc:4552-4572`, used correctly by `Combat.ts`), while `game_difficulty` drives skill-check modifiers (`skill.cc:1129 skillGetGameDifficultyModifier`, +20/0/-10) and worldmap encounter frequency (`worldmap.cc:3406 wmRndEncounterOccurred`, ±freq/15) — two genuinely independent CE preferences. `skills.ts`/`worldmap/encounters.ts` now read the new field; `ui_options.ts`'s "Game Difficulty" knob (already correctly labelled, previously wired to the wrong field) and "Combat Difficulty" knob (previously an unpersisted local variable, non-functional) are now each wired to their own Config field. No loot/XP effect found in CE for `game_difficulty` — the ROADMAP's original "loot/XP" claim doesn't match the source; only skill checks and encounter rate. | `settings.h:29-31`; `skill.cc:1129`; `worldmap.cc:3406`; `combat.cc:4552-4572` | minor | fixed |
 | CI7 | **`item_highlight` persistent setting** — CE-accurate hover-highlight wired (CI12); the CE Options *checkbox* semantics are approximated. | `game_config.h:37` | low | partial |
 
 ### 10k. Skills, Locks, Elevators & Economy (edge cases)
 
 | ID | What | CE Ref | Sev | Status |
 |----|------|--------|-----|--------|
-| K4 | **Expanded/Electronic Lockpick tool types not modelled** in `useLockpick()`. | `skill.cc` | minor | partial |
+| K4 | ✅ Investigated 2026-07-04, not a real gap — CE's `skillGetValue()` (`skill.cc:230-269`) has no item/tool-bonus logic anywhere; Expanded/Electronic Lockpick Set bonuses are 100% script-driven (each door's own `use_skill_on_p_proc` passes its own bonus into `roll_vs_skill`, already wired in DH2 at opcode `0x80AC`). `useLockpick()` is explicitly CE's engine-level fallback for when no script overrides it, and correctly has no tool logic — matching `skill.cc`'s own no-op `SKILL_LOCKPICK` case. Modelling tool types there would invent behavior CE doesn't have. Any real gap here would be missing script content, not an engine bug. | `skill.cc:230-269` | minor | not-a-gap |
 | K3 | **Steal item-size penalty absent** (no item-select UI); facing/knockdown done. | `skill.cc:1037` | minor | partial |
-| LE5 | **Ammo stack merge ignores magazine-capacity ceiling** — CE fills to capacity, splits remainder. | `item.cc:322 itemAdd()` | minor | partial |
+| LE5 | 🟡 Investigated 2026-07-04, deliberately not attempted — the premise doesn't map cleanly onto DH2's data model. CE's `itemAdd()` (`item.cc:361-378`) tracks ammo as discrete "box" `Object` instances: `inventory->items[index].quantity` = number of boxes, and the one representative item object's own charge field holds a *partial* box's remaining rounds; merging sums that partial charge and only increments the box count when it overflows a box's `capacity` (`pro.extra.quantity`/`ammoGetCapacity`). DH2 never modelled ammo as discrete boxes at all — `reloadWeapon()` (`ui.ts:205-231`) treats an ammo stack's `.amount` as a flat *total rounds* counter, consumed 1:1 with no box/capacity concept, and `addInventoryItem()`'s flat `amount += count` merge is actually *correct* for that simplified model (summing total rounds needs no ceiling). **However**, this investigation surfaced a real, separate inconsistency worth flagging: `ui_barter/screen.ts:167` prices ammo as `pro.extra.cost * amount` — i.e. treats `.amount` as a *box count* at full per-box price — while `reloadWeapon()` treats the same field as raw rounds. Whichever convention `.amount` is meant to hold for ammo, the other consumer is wrong (barter is either drastically over- or under-pricing ammo stacks depending on which is authoritative), and map-loaded ammo `.amount` (`Obj.ts:433`, straight from the map file) hasn't been checked against either assumption. Fixing LE5 as literally stated would require first resolving *that* inconsistency and deciding whether DH2 should adopt CE's box+capacity model at all — a data-model question, not a bounded bug fix — so left open pending that decision. | `item.cc:322,361-378`; `ui.ts:205-231`; `ui_barter/screen.ts:167` | minor | needs-design-decision |
 | LE10 | **STEALTH_BOY II auto-stealth not implemented.** | `item.cc:322` | low | missing |
 | EL4 | **`_map_data_elev_flags` bitmask not in DH2 map format** — empty elevations can't be represented. | `map.cc:81` | low | missing |
-| EV1 | **Elevator gauge-pointer travel animation absent** — destination loads instantly. | `elevator.cc:405` | low | missing |
-| EV2 | **Sierra-2 / Military Base elevation remapping offsets absent.** | `elevator.cc:354-375` | low | missing |
+| EV1 | 🟡 Stale claim, corrected 2026-07-04 — already implemented. `ui_elevator.ts` has `animateGauge()`/`setGaugeFrame()`/`gaugeFrameForFloor()`, driven by the same per-frame interpolation CE uses (`GAUGE_FRAME_MS=276`, matching `elevator.cc:405`'s float-step loop); called from the button handler before `proceed()`. | `elevator.cc:405` | low | fixed |
+| EV2 | 🟡 Investigated 2026-07-04, deliberately not attempted. CE's `elevatorSelectLevel` (`elevator.cc:349-378`) computes the *current-floor* button index via two interacting steps: (1) a generic step for **all** elevators — find the first button entry whose `.map` matches the current map, then `*elevationPtr += that entry's index`; (2) the three elevator-specific offsets (Sierra-2 −2/−3, Military-Base-Lower −2 if ≥2, Military-Base-Upper −2 if =4), applied only to determine where the gauge needle starts — **not** to travel destinations, which always come straight from `elevatorDescription[keyCode]` regardless. DH2's `uiElevator()` uses a structurally different approach (linear search for a button whose `(mapID, level)` matches `globalState.currentElevation` directly, no index-arithmetic), so CE's offsets can't be ported as a literal patch — they'd need re-deriving against DH2's search algorithm and the real `lut/elevators.json` button data (git-ignored, unavailable in-repo) to confirm whether a mismatch is even reachable, and DH2 currently has no path threading the elevator's identity index (0–23, e.g. `elevatorStub.extra.type`) into `uiElevator()` to condition on it. Net effect if never fixed: the gauge needle may show the wrong "current floor" on first opening the panel for these 2-3 specific elevators; **actual travel destinations are unaffected** (always correct, matching the button table directly) — zero gameplay impact, cosmetic only. Left open pending real asset access to verify against. | `elevator.cc:354-378` | low | missing |
 | EV4 | ✅ FIXED 2026-07-04 — all 5 `console.log` call sites in `ui_elevator.ts` now use `dbg('map', ...)`. | — | low | fixed |
 | RN5 | **PRNG chi-squared startup validation absent** (CE runs a 100k-sample test). | `random.cc:224` | low | missing |
 

@@ -325,7 +325,7 @@ function updateAttackButtonAvailability(availableAP: number, isPlayerTurn: boole
     let cost = 0
     if (weapon && weapon.weapon) {
         const mode = (weapon.weapon as any).mode
-        if (mode === 'reload') cost = (weapon.weapon as any).getReloadAPCost?.() ?? 2
+        if (mode === 'reload') cost = weapon.weapon.getReloadAPCost()
         else if (mode === 'called') cost = (weapon.weapon as any).getAPCost(1) + 1
         else if (weapon.weapon.isBurst?.()) cost = (weapon.weapon as any).getAPCost(2)
         else cost = (weapon.weapon as any).getAPCost(1)

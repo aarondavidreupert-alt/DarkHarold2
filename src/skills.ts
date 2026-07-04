@@ -184,7 +184,7 @@ const DIFFICULTY_AFFECTED_SKILLS: Set<string> = new Set([
 
 export function skillGetGameDifficultyModifier(skill: string): number {
     if (!DIFFICULTY_AFFECTED_SKILLS.has(skill)) return 0
-    const diff = Config.combat.difficultyModifier
+    const diff = Config.combat.gameDifficultyModifier
     // FO2-CE: Easy = +20, Normal = 0, Hard = -10
     if (diff === 75) return 20
     if (diff === 125) return -10

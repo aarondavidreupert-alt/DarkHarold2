@@ -252,6 +252,8 @@ CE's `skillUse` for Lockpick is a **no-op** at the engine level. All lockpicking
 
 **DH2 status: PARTIAL** — `src/skillUse.ts:useLockpick()` provides a fallback roll using `pro.extra.lockDifficulty` (default 50) when no script is present. Script-driven lockpicking (the normal path) goes through `roll_vs_skill` in scripting.ts.
 
+**Lockpick tool types (Expanded/Electronic Lockpick Set) — investigated 2026-07-04, confirmed not an engine-level gap** (`known_bugs.md` K4). `skillGetValue()` (`skill.cc:230-269`) has no item/tool-bonus logic whatsoever; any tool bonus in vanilla FO2 comes entirely from individual door/container scripts checking inventory and passing their own bonus into `roll_vs_skill`. DH2 already wires that opcode (`0x80AC`); `useLockpick()` correctly has no tool logic, matching CE's own no-op engine path.
+
 ---
 
 ### Steal
