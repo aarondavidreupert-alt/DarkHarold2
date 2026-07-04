@@ -301,13 +301,13 @@ window.onload = async function () {
     // The '*-smooth'/'flat' modes exist to test fixes for the residual per-column
     // "vertical stripe" texture on wall faces — see wiki/alignment.md §8.
     //
-    //   'foot-y'      — (default) world-Y at the sprite's ground-contact point,
+    //   'wall-clamp'  — (default) world-Y pinned exactly to the foot row; samples the
+    //                   floor light field per column via the shared floor path, so the
+    //                   wall gradient matches the floor's and inherits setLightingBilinear
+    //                   (LINEAR = smooth, NEAREST = discrete). No per-wall blend, no stripes.
+    //   'foot-y'      — world-Y at the sprite's ground-contact point (±6 soft band),
     //                   world-X per-fragment. Light pools at the wall base. Has stripes.
     //   'tile-y'      — world-Y locked to the object's tile row (inverse hex). Has stripes.
-    //   'wall-clamp'  — world-Y pinned exactly to the foot row; samples the floor light
-    //                   field per column via the shared floor path, so the wall gradient
-    //                   matches the floor's and inherits setLightingBilinear (LINEAR =
-    //                   smooth, NEAREST = discrete). No per-wall blend.
     //   'flat'        — CE-faithful: ONE intensity for the whole sprite (tile centre).
     //                   No gradient, no stripes — matches vanilla Fallout 2.
     //   'foot-smooth' — foot-y + a world-space blur kernel that softens the stripes

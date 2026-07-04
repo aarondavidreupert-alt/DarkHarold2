@@ -386,14 +386,14 @@ constant (the `.7` in `−75.7`).
 CE applies **one** intensity per object — `lightGetTileIntensity(elevation,
 obj->tile)` — to every pixel of the sprite (`object.cc`, `_obj_render_pre_roof`
 passes a single `lightIntensity` into `_obj_render_object`). DH2's three modes
-(`Config.engine.objectLightingMode`, default **`'foot-y'`** as of 2026-07-02)
+(`Config.engine.objectLightingMode`, default **`'wall-clamp'`** as of 2026-07-02)
 approximate this:
 
 | Mode | Sampling | Behaviour vs CE |
 |------|----------|-----------------|
-| **`foot-y`** (default) | `baseY = renderInfo.y + renderInfo.frameHeight` (sprite bottom); world-X per-fragment | Anchors to the sprite's ground-contact point, so the player's floor light pools naturally at the base of walls (visually preferred). Has the residual stripes (below). |
+| **`wall-clamp`** (default) | world-Y pinned **exactly** to the foot row (hard clamp, no ±6 band); `sampleTileLight(world_x, footY)` — the same call the floor uses | Samples the floor light field per column along the foot line, so the wall gradient **matches the floor's** and inherits its interpolation via `setLightingBilinear` (LINEAR/hex-lerp = smooth, `off` = discrete). No per-wall blend or averaging; no stripes. |
+| **`foot-y`** | `baseY = renderInfo.y + renderInfo.frameHeight` (sprite bottom), ±6 soft band; world-X per-fragment | Anchors to the sprite's ground-contact point. Has the residual stripes (below). |
 | **`tile-y`** | `baseY = 12·ty + (11.25\|5.25) + 6·tx` (tile centre, parity-aware — see §6); world-X per-fragment | Locks the sample to the object's own tile row exactly (slightly above the foot). Marginally more stable for critters with large walk offsets. Has stripes. |
-| **`wall-clamp`** | world-Y pinned **exactly** to the foot row (hard clamp, no ±6 band); `sampleTileLight(world_x, footY)` — the same call the floor uses | Samples the floor light field per column along the foot line, so the wall gradient **matches the floor's** and inherits its interpolation via `setLightingBilinear` (LINEAR/hex-lerp = smooth, `off` = discrete). No per-wall blend or averaging. |
 | **`flat`** | one sample at the tile centre `(baseX, baseY)` for the whole sprite | **CE-faithful** (`lightGetTileIntensity` per object). No gradient, no stripes. `baseX = 32·(150.0417 − tx) + (4/3)·baseY`. |
 | **`foot-smooth`** | `foot-y` + world-space blur kernel (`u_objectSmoothPx`, default 12) | Keeps the pooling gradient but averages a small cross of taps to soften the stripes. Tune with `setObjectLightSmooth(px)`. |
 | **`tile-smooth`** | `tile-y` + the same blur kernel | As above, anchored to the tile row. |

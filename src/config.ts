@@ -82,20 +82,21 @@ export const Config = {
         // Object sprite lighting Y mode. Controls how wall/critter/scenery sprites
         // sample the tile-intensity texture. Toggle live via setObjectLightingMode();
         // tune the smooth kernel via setObjectLightSmooth(px). See wiki/alignment.md §8.
-        //   'foot-y' (default) — anchor world-Y to the sprite's ground-contact point;
-        //                        world-X per-fragment. Light pools at the wall base.
+        //   'wall-clamp' (default) — world-Y pinned EXACTLY to the foot row; samples
+        //                        the floor light field per column via the shared floor
+        //                        path, so the wall inherits the floor's interpolation
+        //                        (setLightingBilinear) and matches the floor in front
+        //                        of it. No per-wall blend. No stripes.
+        //   'foot-y'           — anchor world-Y to the sprite's ground-contact point
+        //                        with a ±6 soft band; world-X per-fragment.
         //   'tile-y'           — anchor world-Y to the object's tile row (inverse hex).
-        //   'wall-clamp'       — world-Y pinned EXACTLY to the foot row; samples the
-        //                        floor light field per column via the shared floor path,
-        //                        so the wall inherits the floor's interpolation
-        //                        (setLightingBilinear). No per-wall blend.
         //   'flat'             — CE-faithful: ONE intensity for the whole sprite
         //                        (sampled at the tile centre). No gradient, no stripes.
         //   'foot-smooth'      — foot-y + a world-space blur kernel to soften the
         //                        per-column "vertical stripe" texture on wall faces.
         //   'tile-smooth'      — tile-y + the same blur kernel.
         //   'off'              — full per-fragment sampling (dark tops on tall sprites).
-        objectLightingMode: 'foot-y' as 'tile-y' | 'foot-y' | 'off' | 'flat' | 'foot-smooth' | 'tile-smooth' | 'wall-clamp',
+        objectLightingMode: 'wall-clamp' as 'tile-y' | 'foot-y' | 'off' | 'flat' | 'foot-smooth' | 'tile-smooth' | 'wall-clamp',
         // Blur kernel radius (world px) for the '*-smooth' object lighting modes.
         // Larger = smoother wall faces but softer light detail. Tune: setObjectLightSmooth(px).
         objectLightSmoothPx: 12,
