@@ -106,13 +106,17 @@ export const Config = {
         // sprite's own alpha silhouette in the shader, so the fade follows the
         // painted isometric slant automatically (no slope/orientation input).
         // Applies to wall-type objects in every lighting mode. 0 = off.
-        // Split per orientation (the two building-wall directions need different
-        // depths): `wallTopFadePx` = E-W-run walls (extendedFlags 0x8000000/0x40000000);
-        // `wallTopFadePxNWSE` = the other orientation (NE-SW/corner/default).
-        // Tune: setWallTopFadeEW(px) / setWallTopFadeNWSE(px) / setWallTopFade(px) (both).
+        // DEFAULT OFF (0) — opt-in. The fade is gated on obj.type === 'wall', but
+        // Fallout's 'wall' proto type is noisy (includes furniture like bar counters)
+        // while some wall-looking decorations are 'scenery', and interior walls are
+        // the same type as exterior ones — so there is no clean signal for "wall that
+        // meets a roof", and the fade both over- and under-applies. Kept available for
+        // experimentation via setWallTopFade(px); wall-clamp (the real win) is
+        // independent and stays on. Split per orientation: `wallTopFadePx` = E-W-run
+        // walls (extendedFlags 0x8000000/0x40000000), `wallTopFadePxNWSE` = the rest.
         // See wiki/alignment.md §8.
-        wallTopFadePx: 12,
-        wallTopFadePxNWSE: 12,
+        wallTopFadePx: 0,
+        wallTopFadePxNWSE: 0,
         // How the tile-intensity texture (unit 5) is interpolated when sampled by
         // the world shaders. Plain 'linear' bleeds across the hex column stagger and
         // shows NW-SE stripes; the other modes remove them. Toggle live via
