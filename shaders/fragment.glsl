@@ -34,6 +34,30 @@ uniform float u_alpha;               // per-draw alpha multiplier (flat egg fall
 // u_objectBaseY  < 0: per-fragment fallback — floor tiles, UI draws.
 uniform highp float u_objectBaseY;
 
+// Object-lighting smoothing extras (wiki/alignment.md §8):
+// u_objectBaseX >= 0 → 'flat' mode: sample the whole sprite at ONE tile centre
+//   (u_objectBaseX, u_objectBaseY) — CE-faithful, no gradient, no stripes.
+// u_objectSmoothPx > 0 → blur the sampled light over a small world-space kernel
+//   to soften the per-column "vertical stripe" texture on wall faces.
+// u_objectHardClampY == 1 → 'wall-clamp' mode: world_y is fixed EXACTLY to
+//   u_objectBaseY (the foot row) for every pixel, instead of the ±6 soft band —
+//   so the wall face samples the floor light field along its foot line, per
+//   column, inheriting whatever interpolation the floor uses (setLightingBilinear).
+uniform highp float u_objectBaseX;
+uniform float u_objectSmoothPx;
+uniform int u_objectHardClampY;
+
+// Wall top-edge fade (walls only; u_wallFadePx == 0 for non-wall draws).
+// Fades the LIT contribution toward 0 within u_wallFadePx TEXELS of the sprite's
+// painted top edge, so the wall top recedes to ambient where it meets the dark
+// roof tile — a cheap ambient-occlusion cue. §8.
+// The edge is read from the sprite's OWN alpha silhouette (wallTopFadeFactor in
+// main): the isometric slant of the top is already baked into the art, so marching
+// up the alpha follows it exactly — no slope/orientation math needed.
+// u_wallTexelStepV = 1 / sprite-sheet-height-in-texels (v-delta for one art row).
+uniform float u_wallFadePx;
+uniform float u_wallTexelStepV;
+
 // Tile-intensity interpolation mode — see sampleTileLight below and
 // fragmentLighting.glsl (kept identical). wiki/alignment.md §7.
 uniform int u_lightInterp;
@@ -153,13 +177,70 @@ float getWorldTileLight() {
     float zoom = max(u_zoom, 0.0001);
     float world_x = u_camera.x + (gl_FragCoord.x / dpr) / zoom;
     float frag_world_y = u_camera.y + (u_resolution.y - gl_FragCoord.y / dpr) / zoom;
-    float world_y = (u_objectBaseY >= 0.0)
-        ? clamp(frag_world_y, u_objectBaseY - 6.0, u_objectBaseY + 6.0)
-        : frag_world_y;
 
-    // Parity-correct hex sampling with selectable interpolation (world_y has
-    // already been clamped to the sprite's tile row above). See §6/§7.
-    return sampleTileLight(world_x, world_y);
+    float intensity;
+    if (u_objectBaseX >= 0.0) {
+        // 'flat' mode: whole sprite samples one tile centre → CE-faithful, no stripes.
+        intensity = sampleTileLight(u_objectBaseX, u_objectBaseY);
+    } else {
+        // world_y: 'wall-clamp' pins it exactly to the foot row; other object modes
+        // use the ±6 soft band around the anchor; floor/UI (baseY<0) use per-fragment.
+        float world_y = (u_objectHardClampY == 1)
+            ? u_objectBaseY
+            : (u_objectBaseY >= 0.0
+                ? clamp(frag_world_y, u_objectBaseY - 6.0, u_objectBaseY + 6.0)
+                : frag_world_y);
+
+        if (u_objectSmoothPx > 0.0) {
+            // '*-smooth' modes: average the sampled light over a small world-space
+            // kernel (2 wide horizontal taps + 2 short vertical taps, centre-weighted).
+            // Horizontal taps smooth the per-column stripe; vertical taps soften the
+            // per-object hex-row stagger. Reads the shared texture, so it blends
+            // across tile/object boundaries. §8.
+            float p = u_objectSmoothPx;
+            intensity = (sampleTileLight(world_x, world_y) * 2.0
+                  + sampleTileLight(world_x - p, world_y)
+                  + sampleTileLight(world_x + p, world_y)
+                  + sampleTileLight(world_x - 2.0 * p, world_y)
+                  + sampleTileLight(world_x + 2.0 * p, world_y)
+                  + sampleTileLight(world_x, world_y - p)
+                  + sampleTileLight(world_x, world_y + p)) / 8.0;
+        } else {
+            // Parity-correct hex sampling with selectable interpolation. See §6/§7.
+            intensity = sampleTileLight(world_x, world_y);
+        }
+    }
+
+    // (Wall top-edge fade is applied in main() via the sprite's own alpha — it needs
+    // the frame UV / sprite texture, which live there. See wallTopFadeFactor.)
+    return intensity;
+}
+
+// Wall top-edge fade factor (1 = full light, →0 near the painted top edge).
+// Reads the sprite's OWN alpha: march up the current frame column until the art
+// turns transparent (or the frame top is passed). The distance to that first
+// transparent texel is the distance to the painted top edge — which is already
+// isometrically slanted in the art — so the fade follows any top-edge angle/shape
+// with no slope, sign, or orientation input. `coord` is the frame-adjusted UV.
+// v=0 is the sprite's screen-top (vertex shader flips Y; art is top-aligned in the
+// slot), so "up" is decreasing v. Faded light is floored to ambient by main().
+float wallTopFadeFactor(vec2 coord) {
+    if (u_wallFadePx <= 0.0) return 1.0;   // non-wall / disabled — no marching
+    // Distance (texels) up to the first transparent texel; default = past the band.
+    float nearest = u_wallFadePx + 1.0;
+    // The loop bound compares against u_wallFadePx (a UNIFORM), so every fragment in
+    // the draw runs the same iteration count → uniform control flow, and texture2D
+    // is sampled unconditionally each step (legal implicit-LOD use in WebGL1). The
+    // data-dependent test only updates `nearest`, it does not gate the sample.
+    for (int k = 1; k <= 32; k++) {
+        float fk = float(k);
+        if (fk > u_wallFadePx) break;
+        float vy = coord.y - fk * u_wallTexelStepV;
+        float a = (vy < 0.0) ? 0.0 : texture2D(u_image, vec2(coord.x, vy)).a;
+        if (a < 0.5 && fk < nearest) nearest = fk;
+    }
+    if (nearest > u_wallFadePx) return 1.0;               // no transparent within band → deep inside
+    return smoothstep(0.0, u_wallFadePx, nearest);        // near edge → faded toward 0
 }
 
 void main() {
@@ -217,6 +298,9 @@ void main() {
         }
     }
 
-    float light = max(getWorldTileLight(), u_ambient);
+    // Fade the wall top toward ambient (applied to the lit term BEFORE the ambient
+    // floor, so it settles to ambient — matching the roof — not to black).
+    float tileLight = getWorldTileLight() * wallTopFadeFactor(coord);
+    float light = max(tileLight, u_ambient);
     gl_FragColor = vec4(texel.rgb * light, texel.a * alpha);
 }

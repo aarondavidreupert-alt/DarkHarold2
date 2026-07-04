@@ -2,9 +2,12 @@
 
 How Fallout 2 CE positions and aligns every renderable category in screen
 space, and exactly where DH2's WebGL 2.0 renderer agrees, deviates, or
-approximates. This is the single reference for "why is *X* drawn at *that*
-pixel", covering floor tiles, walls, scenery, roofs, objects/critters, the
-player character, and the per-object lightmap UV lookup.
+approximates. This is the single reference for "why is *X* drawn — or lit — at
+*that* pixel", covering floor tiles, walls, scenery, roofs, objects/critters,
+the player character, the per-object lightmap UV lookup, and the three
+lighting-alignment fixes that all trace back to `hexToScreen` being a
+per-column-parity map: §6 light **centring** offset, §7 the interpolation
+**stripes**, and §8 the W-E wall **occlusion** bleed.
 
 > **Source anchor:** `raw/fallout2-ce/src/tile.cc`, `object.cc`, `art.cc`
 > **DH2 files:** `src/tile.ts`, `src/geometry.ts` (barrel; `src/geometry/{hexScreen,hexGrid}.ts`),
@@ -14,6 +17,7 @@ player character, and the per-object lightmap UV lookup.
 > **Related:** [`wiki/rendering.md`](rendering.md) (full pipeline + deviation
 > registry RD01–RD17), [`wiki/tile_system.md`](tile_system.md) (coordinate
 > layer), [`wiki/lighting.md`](lighting.md) (intensity model),
+> [`wiki/extended_flags.md`](extended_flags.md) (wall orientation bits §2, light-blocking switch §4),
 > [`wiki/failed_animation_offset_attempts.md`](failed_animation_offset_attempts.md)
 > (`artOffset` derivation)
 > **Last audited:** 2026-07-02
@@ -382,20 +386,26 @@ constant (the `.7` in `−75.7`).
 CE applies **one** intensity per object — `lightGetTileIntensity(elevation,
 obj->tile)` — to every pixel of the sprite (`object.cc`, `_obj_render_pre_roof`
 passes a single `lightIntensity` into `_obj_render_object`). DH2's three modes
-(`Config.engine.objectLightingMode`, default **`'tile-y'`**) approximate this:
+(`Config.engine.objectLightingMode`, default **`'wall-clamp'`** as of 2026-07-02)
+approximate this:
 
-| Mode | `u_objectBaseY` | Behaviour vs CE |
-|------|-----------------|-----------------|
-| **`tile-y`** (default) | `12·ty + (11.25\|5.25) + 6·tx` (tile centre, parity-aware — see §6) | Closest to CE: locks the sample to the object's own tile row. Still permits a *horizontal* bilinear gradient across the sprite (a DH2 softening — CE is flat per object). |
-| **`foot-y`** | `renderInfo.y + renderInfo.frameHeight` (sprite bottom, world px) | Samples whatever tile the *feet pixels* fall on. Near-correct, but diverges from `tile-y` when FRM offsets shift the foot pixel off the logical tile; can pick a neighbouring row. |
-| **`off`** | `−1.0` (per-fragment) | Original path: full per-fragment sampling → dark tops on tall sprites. Switches `u_tileIntensity` to **NEAREST** for the draw to stop bilinear light-leak through walls (floor draws restore LINEAR). |
+| Mode | Sampling | Behaviour vs CE |
+|------|----------|-----------------|
+| **`wall-clamp`** (default) | world-Y pinned **exactly** to the foot row (hard clamp, no ±6 band); `sampleTileLight(world_x, footY)` — the same call the floor uses | Samples the floor light field per column along the foot line, so the wall gradient **matches the floor's** and inherits its interpolation via `setLightingBilinear` (LINEAR/hex-lerp = smooth, `off` = discrete). No per-wall blend or averaging; no stripes. |
+| **`foot-y`** | `baseY = renderInfo.y + renderInfo.frameHeight` (sprite bottom), ±6 soft band; world-X per-fragment | Anchors to the sprite's ground-contact point. Has the residual stripes (below). |
+| **`tile-y`** | `baseY = 12·ty + (11.25\|5.25) + 6·tx` (tile centre, parity-aware — see §6); world-X per-fragment | Locks the sample to the object's own tile row exactly (slightly above the foot). Marginally more stable for critters with large walk offsets. Has stripes. |
+| **`flat`** | one sample at the tile centre `(baseX, baseY)` for the whole sprite | **CE-faithful** (`lightGetTileIntensity` per object). No gradient, no stripes. `baseX = 32·(150.0417 − tx) + (4/3)·baseY`. |
+| **`foot-smooth`** | `foot-y` + world-space blur kernel (`u_objectSmoothPx`, default 12) | Keeps the pooling gradient but averages a small cross of taps to soften the stripes. Tune with `setObjectLightSmooth(px)`. |
+| **`tile-smooth`** | `tile-y` + the same blur kernel | As above, anchored to the tile row. |
+| **`off`** | `baseY = −1` (per-fragment) | Original path: full per-fragment sampling → dark tops on tall sprites. Switches `u_tileIntensity` to **NEAREST** for the draw to stop bilinear light-leak through walls (floor draws restore LINEAR). |
 
-None reproduces CE exactly: CE is *flat* (single intensity, hard per-hex
-edges); DH2 always samples a texture and so blends horizontally. `tile-y` is
-the intended default because it guarantees the correct tile row while keeping
-the smooth horizontal gradient DH2 accepts elsewhere (deviation **RD05** in
-`rendering.md`). This is a deliberate WebGL-architecture approximation, not a
-bug.
+None reproduces CE exactly: CE is *flat* (single intensity per object, hard
+per-hex edges); DH2 samples per-fragment (world-X varies across the sprite),
+which produces the pleasing horizontal light gradient on walls but also a
+residual per-column "vertical stripe" texture along a wall face — see §8
+"Residual".
+This is a deliberate WebGL-architecture approximation (deviation **RD05** in
+`rendering.md`), not a bug.
 
 > **Update (2026-07-02):** the single `8.4` constant (which matched the old
 > averaged shader constant `−75.7`) was replaced by a per-column-parity offset
@@ -611,7 +621,149 @@ LINEAR, so the two settings no longer fight.
 
 ---
 
-## 8. Summary — agreements, deviations, approximations
+## 8. Wall light occlusion — the W-E "light bleed" stripes
+
+A third lighting-alignment artifact, distinct from §6 (offset) and §7
+(sampling): **W-E-facing walls bled light through, showing alternating lit/dark
+stripes along the face**, while NW-SE walls were clean. This one is **not** a
+sampling/geometry issue — it's wrong data in `tile_intensity`, produced by the
+occlusion (light-propagation) pass. Full entry: `known_bugs.md` **LD11**;
+mechanism detail in [`wiki/lighting.md`](lighting.md) and
+[`wiki/extended_flags.md §4`](extended_flags.md).
+
+### The model (CE) — directional per-wall occlusion
+
+CE does *not* occlude walls with a light→tile · normal dot product. In
+`_obj_adjust_light` (`object.cc:4552–4581`), each wall the light reaches during
+propagation blocks certain camera **rotations** (directions) chosen from a
+4-way switch on the wall's **orientation class**, read from
+`proto->wall.extendedFlags`:
+
+```c
+if (extendedFlags & 0x8000000 || extendedFlags & 0x40000000) { /* E-W run   */ }
+else if (extendedFlags & 0x10000000)                          { /* NE-SW diag*/ }
+else if (extendedFlags & 0x20000000)                          { /* corner    */ }
+else                                                          { /* default   */ }
+```
+
+Each branch allows light from the wall's *front* side and blocks it from
+*behind* — the correct directional behaviour, encoded per orientation rather
+than computed from a normal. DH2 already ports this switch faithfully in
+`lightmap.ts` (all four `dir`/`i` branches match CE's `rotation`/`index`).
+
+### The bug (DH2) — wrong flag field
+
+DH2 read the orientation from **`curObj.pro.flags`** — the common PRO *header*
+flags — where the orientation bits are absent. So **every wall** fell through to
+the `else` (default) branch. That default is correct for the NE-SW/default
+family (so NW-SE walls looked clean) but wrong for W-E walls, whose occlusion
+boundary then zig-zagged across the hex column stagger → the stripes. This is
+the same `hexToScreen` per-column stagger that underlies §6/§7, surfacing here
+through the *data* rather than the sampling.
+
+### The fix (2026-07-02)
+
+Read `curObj.pro.extra?.extendedFlags ?? 0` — the field `tools/proto.py
+readWall` populates and the egg occlusion already used (`wiki/extended_flags.md
+§4` had predicted CE uses this field). One-line functional change; the four
+branch conditions were already CE-correct. Verified: W-E walls switch to the
+correct branch (blocked-direction set changes), default/NW-SE walls are
+byte-identical (no regression). It's a **propagation** fix — `hex-lerp` sampling
+(§7) was already correct.
+
+### Related open gap
+
+CE's **non-wall** opaque-object occlusion branch (`object.cc:4583` — scenery
+casting directional shadow) is still commented out in `lightmap.ts`. Separate
+from the wall bug; left as a known gap (`known_bugs.md` LD11 note).
+
+### Residual — per-column "vertical stripes" on wall faces (open, 2026-07-02)
+
+After LD11, a **slight** vertical striping remains on lit wall faces. This is
+*not* an occlusion bug — it is a consequence of how DH2 lights objects:
+
+- **The floor** is one continuous surface sampled per-fragment in full 2-D, so
+  `hex-lerp` (§7) smooths it perfectly.
+- **A wall** is a stack of separate wall *objects*, one per tile. Each object's
+  sprite is anchored to its own tile row (`u_objectBaseY`, `foot-y`/`tile-y`
+  clamp), and world-X still varies per-fragment across the sprite. Because a
+  W-E wall's tiles alternate hex-row with the column stagger, neighbouring wall
+  segments sample the light field at slightly different rows / tile intensities
+  → faint per-segment brightness steps = vertical stripes.
+
+The **CE-canonical** behaviour is *flat per object*: CE lights an entire sprite
+with one `lightGetTileIntensity(obj->tile)` value — no per-fragment gradient, so
+no stripes (but also no "spotlight pooling" on the wall). DH2's per-fragment
+gradient is a deliberate embellishment (RD05); the stripes are its cost.
+
+Candidate resolutions — **all implemented as live-switchable `objectLightingMode`
+options** (2026-07-02) so they can be compared in-browser via
+`setObjectLightingMode(...)`; aesthetic default still TBD:
+- **(A) CE-faithful `flat`** — one intensity per object (sampled at the tile
+  centre). Kills the gradient *and* the stripes; matches vanilla F2 (project
+  mandate: "follow the originals"). Adjacent staggered segments still differ by
+  their true per-tile light, but each segment is uniform. Verified: `flat`'s
+  computed `(baseX, baseY)` samples the object's own tile for all 40 000 tiles.
+- **(B) `foot-smooth` / `tile-smooth`** — keep the gradient but blur the sampled
+  light over a small world-space kernel (`u_objectSmoothPx`, default 12 px,
+  tunable via `setObjectLightSmooth(px)`): 2 horizontal taps (soften the
+  per-column stripe) + 2 short vertical taps (soften the per-object hex-row
+  stagger), centre-weighted. Reads the shared tile-intensity texture, so it
+  blends across tile/object boundaries. Effectiveness/strength is an in-browser
+  tuning question (can't be judged from source alone).
+- **(C) `wall-clamp`** (added 2026-07-02) — hard-pin world-Y to the foot row and
+  sample `sampleTileLight(world_x, footY)`, i.e. the *same call the floor uses*,
+  so the wall face reads the floor light field along its foot line and inherits
+  the floor's interpolation (`setLightingBilinear`: LINEAR/hex-lerp → smooth,
+  `off` → discrete steps that match the floor). No per-wall blend or averaging.
+  Removes the ±6 vertical drift of `foot-y`; the per-segment stagger step between
+  adjacent wall objects can remain (it's the honest per-tile light difference),
+  but each segment now cleanly matches the floor directly in front of it.
+
+**Top-edge fade (all wall modes, added 2026-07-02).** Independent of the sampling
+mode above, wall-type sprites fade their lit contribution to ambient over the top
+`u_wallFadePx` world-px (default 12, `setWallTopFade(px)`, 0 disables) so the wall
+top blends into the dark roof instead of ending on a hard bright edge — a cheap
+ambient-occlusion cue. Gated to `obj.type === 'wall'` so critter/​item tops are
+never darkened; applied *before* `max(_, u_ambient)` so it settles to ambient, not
+black.
+
+The fade follows the wall's painted (isometric) top edge by reading the sprite's
+**own alpha silhouette** — the slant is already baked into the art, so no slope,
+sign, or orientation input is needed. `wallTopFadeFactor` (in `main`) marches up
+the current frame column in the sprite texture: the distance to the first
+transparent texel (the corner above the slanted top edge) *is* the distance to the
+painted edge, so the fade ramps 0→1 over `u_wallFadePx` **art texels** below the
+edge, per column, matching any top-edge angle or shape automatically.
+Implementation notes: the vertex shader flips Y so `v=0` is the sprite's screen-top
+and trimmed art is top-aligned in the slot (`frmpixels.py`), so "up" is decreasing
+`v`; the march uses a *uniform* loop bound (compare against the `u_wallFadePx`
+uniform) and samples `texture2D` unconditionally so implicit-LOD stays legal in
+WebGL1; `u_wallTexelStepV = 1 / uniformFrameHeight` (the frame spans the full 0..1
+`v` range). Depth is split per orientation (the two building-wall directions want different
+amounts): E-W-run walls (`extendedFlags` `0x8000000`/`0x40000000`) use
+`wallTopFadePx` (`setWallTopFadeEW(px)`), the other orientation uses
+`wallTopFadePxNWSE` (`setWallTopFadeNWSE(px)`); `setWallTopFade(px)` sets both.
+Depths are in art texels (default 12; 0 disables). *(This replaced an earlier
+slanted world-space line that needed a per-orientation slope sign — the
+alpha-silhouette shape is orientation-free; only the depth is split, and the
+`isEW` bucket test in `renderObject` can be flipped if a whole orientation lands
+in the wrong knob.)*
+
+Once a winner is chosen from live testing, promote it to the default in
+`config.ts` and note it here.
+
+### The lighting-alignment story in one line
+
+All three artifacts trace to the same root — **`hexToScreen` is a
+per-column-parity map, not a single affine one**:
+§6 mis-*centred* the light (averaged constant), §7 mis-*blended* it (rectangular
+LINEAR over a staggered grid), §8 mis-*occluded* it (wrong branch → wrong
+shadow boundary). §6/§7 live in the shader; §8 lives in propagation.
+
+---
+
+## 9. Summary — agreements, deviations, approximations
 
 | Category | CE anchor | DH2 anchor | Status |
 |----------|-----------|------------|--------|
@@ -621,6 +773,7 @@ LINEAR, so the two settings no longer fight.
 | **Objects / critters / player** | trimmed bitmap at `(centre−w/2, anchorY−(h−1))` | uniform-slot sheet, top-left packed; anchor uses trimmed `w/h` | ✅ match; `uniformFrameWidth` is a DH2 packing artifact |
 | **Object lightmap UV** | one `lightGetTileIntensity` per object (flat) | parity-aware `baseY = 12·ty + (11.25\|5.25) + 6·tx`, ±6 clamp, horizontal LINEAR | ⚠️ approximation (horizontal blend); vertical now exact — see §6 |
 | **Hex ↔ lightmap sampling** | n/a | shader screen→hex inverse of `hexToScreen` | ✅ **fixed 2026-07-02** — centring offset (§6) + selectable interpolation to remove the LINEAR stagger stripes (§7, default `hex-lerp`) |
+| **Wall light occlusion** | directional per-orientation switch on `proto->wall.extendedFlags` (`object.cc:4552`) | same switch, now reading `pro.extra.extendedFlags` | ✅ **fixed 2026-07-02** — was reading `pro.flags` (wrong field) → W-E walls bled light in stripes (§8, LD11) |
 
 ### Cross-references
 
@@ -629,8 +782,11 @@ LINEAR, so the two settings no longer fight.
   RD15) → [`wiki/rendering.md`](rendering.md)
 - Coordinate encoding, square/hex projection, `tile_coord` gap TS4 →
   [`wiki/tile_system.md`](tile_system.md)
-- Intensity scale, per-object light sources, ambient →
+- Intensity scale, per-object light sources, ambient, and the LD-series
+  lighting gaps (incl. **LD11** wall occlusion) →
   [`wiki/lighting.md`](lighting.md)
+- Wall/scenery orientation bits (egg vs light-blocking) →
+  [`wiki/extended_flags.md`](extended_flags.md)
 - `artOffset` / animation-transition continuity →
   [`wiki/failed_animation_offset_attempts.md`](failed_animation_offset_attempts.md)
 

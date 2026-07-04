@@ -71,6 +71,11 @@ export class WebGLRenderer extends Renderer {
     uOutlineColor: WebGLUniformLocation | null = null
     uOutlineAlpha: WebGLUniformLocation | null = null
     uObjectBaseY: WebGLUniformLocation | null = null
+    uObjectBaseX: WebGLUniformLocation | null = null      // 'flat' mode: fixed tile-centre X; <0 = per-fragment
+    uObjectSmoothPx: WebGLUniformLocation | null = null   // '*-smooth' blur kernel radius (world px); 0 = off
+    uObjectHardClampY: WebGLUniformLocation | null = null // 'wall-clamp': 1 = world_y pinned exactly to baseY
+    uWallFadePx: WebGLUniformLocation | null = null       // wall top-edge fade depth (art texels); 0 = off/non-wall
+    uWallTexelStepV: WebGLUniformLocation | null = null   // v-delta for one art row = 1/sheet-height-texels
 
     // Tile-intensity interpolation mode (u_lightInterp) — see setLightInterpMode
     // and shaders/fragment*.glsl sampleTileLight. wiki/alignment.md §7.
@@ -433,6 +438,16 @@ export class WebGLRenderer extends Renderer {
         this.uObjectBaseY = gl.getUniformLocation(this.tileShader, 'u_objectBaseY')
         // -1.0 = per-fragment fallback (floor tiles, UI draws)
         if (this.uObjectBaseY) gl.uniform1f(this.uObjectBaseY, -1.0)
+        this.uObjectBaseX = gl.getUniformLocation(this.tileShader, 'u_objectBaseX')
+        if (this.uObjectBaseX) gl.uniform1f(this.uObjectBaseX, -1.0)      // <0 = not flat
+        this.uObjectSmoothPx = gl.getUniformLocation(this.tileShader, 'u_objectSmoothPx')
+        if (this.uObjectSmoothPx) gl.uniform1f(this.uObjectSmoothPx, 0.0) // 0 = no blur
+        this.uObjectHardClampY = gl.getUniformLocation(this.tileShader, 'u_objectHardClampY')
+        if (this.uObjectHardClampY) gl.uniform1i(this.uObjectHardClampY, 0) // 0 = soft ±6 clamp
+        this.uWallFadePx = gl.getUniformLocation(this.tileShader, 'u_wallFadePx')
+        if (this.uWallFadePx) gl.uniform1f(this.uWallFadePx, 0.0) // 0 = no top fade (non-wall/default)
+        this.uWallTexelStepV = gl.getUniformLocation(this.tileShader, 'u_wallTexelStepV')
+        if (this.uWallTexelStepV) gl.uniform1f(this.uWallTexelStepV, 0.0)
         this.uLightInterp = gl.getUniformLocation(this.tileShader, 'u_lightInterp')
         if (this.uLightInterp) gl.uniform1i(this.uLightInterp, this.lightInterpValue)
 

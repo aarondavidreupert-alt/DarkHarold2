@@ -79,13 +79,40 @@ export const Config = {
         // "Naive lighting mode (distance-only baseline)".
         // Compare live via setLightPropagationMode() and lightingDebug() in the browser console.
         lightPropagationMode: 'dh2' as 'dh2' | 'derived' | 'naive',
-        // Object sprite lighting Y mode. 'tile-y': derive world-Y from obj.position
-        // using the inverse hex formula (guaranteed to land on obj's tile in the
-        // tileIntensity texture). 'foot-y': use the bottom of the sprite's bounding
-        // box. 'off': full per-fragment sampling (original path — dark tops on tall
-        // sprites, but no reliance on the coordinate math below).
-        // Toggle live: setObjectLightingMode('tile-y'|'foot-y'|'off')
-        objectLightingMode: 'tile-y' as 'tile-y' | 'foot-y' | 'off',
+        // Object sprite lighting Y mode. Controls how wall/critter/scenery sprites
+        // sample the tile-intensity texture. Toggle live via setObjectLightingMode();
+        // tune the smooth kernel via setObjectLightSmooth(px). See wiki/alignment.md §8.
+        //   'wall-clamp' (default) — world-Y pinned EXACTLY to the foot row; samples
+        //                        the floor light field per column via the shared floor
+        //                        path, so the wall inherits the floor's interpolation
+        //                        (setLightingBilinear) and matches the floor in front
+        //                        of it. No per-wall blend. No stripes.
+        //   'foot-y'           — anchor world-Y to the sprite's ground-contact point
+        //                        with a ±6 soft band; world-X per-fragment.
+        //   'tile-y'           — anchor world-Y to the object's tile row (inverse hex).
+        //   'flat'             — CE-faithful: ONE intensity for the whole sprite
+        //                        (sampled at the tile centre). No gradient, no stripes.
+        //   'foot-smooth'      — foot-y + a world-space blur kernel to soften the
+        //                        per-column "vertical stripe" texture on wall faces.
+        //   'tile-smooth'      — tile-y + the same blur kernel.
+        //   'off'              — full per-fragment sampling (dark tops on tall sprites).
+        objectLightingMode: 'wall-clamp' as 'tile-y' | 'foot-y' | 'off' | 'flat' | 'foot-smooth' | 'tile-smooth' | 'wall-clamp',
+        // Blur kernel radius (world px) for the '*-smooth' object lighting modes.
+        // Larger = smoother wall faces but softer light detail. Tune: setObjectLightSmooth(px).
+        objectLightSmoothPx: 12,
+        // Wall top-edge fade depth (in art texels): walls fade their lit
+        // contribution to ambient within N texels of the sprite's painted top edge,
+        // so the wall top blends into the roof above. The edge is read from the
+        // sprite's own alpha silhouette in the shader, so the fade follows the
+        // painted isometric slant automatically (no slope/orientation input).
+        // Applies to wall-type objects in every lighting mode. 0 = off.
+        // Split per orientation (the two building-wall directions need different
+        // depths): `wallTopFadePx` = E-W-run walls (extendedFlags 0x8000000/0x40000000);
+        // `wallTopFadePxNWSE` = the other orientation (NE-SW/corner/default).
+        // Tune: setWallTopFadeEW(px) / setWallTopFadeNWSE(px) / setWallTopFade(px) (both).
+        // See wiki/alignment.md §8.
+        wallTopFadePx: 12,
+        wallTopFadePxNWSE: 12,
         // How the tile-intensity texture (unit 5) is interpolated when sampled by
         // the world shaders. Plain 'linear' bleeds across the hex column stagger and
         // shows NW-SE stripes; the other modes remove them. Toggle live via

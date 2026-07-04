@@ -15,7 +15,7 @@ Ground-truth references: `raw/fallout2-ce/src/light.cc`, `light.h`,
 `interpreter_extra.cc` (`set_light_level`, `obj_set_light_level`,
 `opSetObjectVisibility` opcodes), `combat_ai.cc` (Solar Scorcher / flare AI).
 
-Last audited: 2026-07-01
+Last audited: 2026-07-02
 
 ---
 
@@ -370,23 +370,34 @@ For each destination tile:
 
 Closed doors block light because they lack the `OBJECT_LIGHT_THRU` flag.
 
-### DH2 — blocking logic (`lightmap.ts:287-357`)
+### DH2 — blocking logic (`lightmap.ts`)
 
-DH2 mirrors CE's wall direction logic:
+DH2 mirrors CE's wall direction logic (all four `dir`/`i` branches match CE's
+`rotation`/`index` conditions):
 
 ```typescript
-// LightThru flag
+// LightThru — read from the object instance flags (correct)
 isLightBlocked = (curObj.flags & 0x20000000 /* LightThru */) ? 0 : 1
 
-// Wall direction-dependent blocking (same bit constants as CE):
+// Wall orientation — read from the wall proto's extendedFlags (same bit
+// constants as CE, same field CE uses: proto->wall.extendedFlags):
+const flags = curObj.pro.extra?.extendedFlags ?? 0
 // flags & 0x8000000 || flags & 0x40000000  → N/S wall
 // flags & 0x10000000                        → pass-through N/S
 // flags & 0x20000000                        → E/W wall
 // else                                      → default wall
 ```
 
+> **Fixed 2026-07-02 (LD11):** DH2 previously read the orientation from
+> `curObj.pro.flags` (the common PRO *header* flags), where these bits are
+> absent — so every wall used the `else` (default) branch. Correct for the
+> default/NE-SW family (NW-SE walls looked clean) but wrong for W-E walls, which
+> bled light in alternating stripes along the face. Now reads
+> `pro.extra.extendedFlags` (the field CE uses and the egg occlusion already
+> read). Default-class walls are unchanged; W-E walls now block correctly.
+
 **Gap**: the non-wall opaque-object `edi=0` path is commented out in DH2
-(`lightmap.ts:335-345`), meaning opaque scenery (non-wall, non-flat) does not
+(`lightmap.ts`), meaning opaque scenery (non-wall, non-flat) does not
 cast shadows in DH2 while it does in CE.
 
 ### Roofs do not block or interact with light, in either engine
