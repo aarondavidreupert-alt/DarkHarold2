@@ -635,6 +635,39 @@ sections above and `wiki/known_bugs.md §26`.
 
 ---
 
+### Phase 10 — suggested model tier per group
+
+Guidance for *which model to drive each group with* (added 2026-07-04). This is
+about matching effort/cost to task shape, not a hard rule — the audit itself is
+done, so most of Phase 10 no longer needs a frontier model. Tiers: **Haiku 4.5**
+(trivial mechanical) · **Sonnet 5** (well-scoped, CE-referenced — the bulk) ·
+**Opus 4.8** (architecturally significant / cross-cutting) · **Fable 5** (only if a
+single hardest item warrants a long autonomous run; premium pricing).
+
+| Group | Suggested tier | Why |
+|-------|----------------|-----|
+| 10a Speech/Movies/Endgame + DLG-HEAD | **Opus 4.8** for the speech/`.acm` + head-render pipeline (new subsystem, audio+render plumbing); **Sonnet 5** for EG3/EG4 slide timing/credits. |
+| 10b NPC AI & Schedules | **Opus 4.8** — P2 day-night schedules is a genuinely new system with map/time coupling. AC1/AC4/AC7 are Sonnet 5. |
+| 10c Companion parity | **Sonnet 5** for level-up UI + P21 portraits; **Opus 4.8** for formation pathfinding + best-weapon/armor heuristic (AI logic). |
+| 10d Reputation (R2) | **Sonnet 5** — bounded table + reaction-modifier wiring. |
+| 10e Worldmap | **Opus 4.8** for W8 car travel (new subsystem: fuel/speed/encounter-rate + worldmap integration); **Sonnet 5** for W7/W9/W10. |
+| 10f Rendering/Lighting | **Opus 4.8** — anything touching the WebGL shaders or the lighting model (RD07/08, LD5, LD11n, stripes) is subtle and regression-prone. RD10/RD13/RD14 are Sonnet 5. |
+| 10g Animation/Pipeline | **Sonnet 5** — PS2 is a one-liner (**Haiku 4.5** would do it), FA3/PS3/PS4 are bounded Python extraction; FA6 completion is Sonnet 5. |
+| 10h Scripting stubs | **Sonnet 5** — each opcode is small and CE-referenced. |
+| 10i HUD fidelity (AF/IF) | **Sonnet 5**, or **Haiku 4.5** for the pure FRM-vs-DOM cosmetic swaps; **Opus 4.8** only for IW8 dialogue sub-mode state machine. |
+| 10j Config/Persistence | **Sonnet 5**. |
+| 10k Skills/Elevators/Economy | **Sonnet 5**; EV4 (`console.log`→`dbg`) and RN5 are **Haiku 4.5**. |
+| 10l Type hygiene | **Sonnet 5** — mechanical but needs `strict`-mode care across call sites. |
+
+**Rule of thumb:** default to **Sonnet 5** for Phase 10; switch to **Opus 4.8** only
+for the four cross-cutting subsystems (NPC schedules, car travel, shader/lighting
+work, the speech/head pipeline); use **Haiku 4.5** for the true one-liners; reserve
+**Fable 5** for a single hardest end-to-end build you want run autonomously in one
+pass. The 2026-07-04 audit that produced this phase was Opus-tier work; executing
+the phase mostly is not.
+
+---
+
 ### Phase 10 — verified-done during the 2026-07-04 audit
 
 Items the deep-pass confirmed already implemented (moved off the open list; see
