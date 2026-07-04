@@ -16,9 +16,6 @@ limitations under the License.
 
 # Parser/converter for Fallout 1 and 2 .PRO files to a JSON format
 
-# Fallout 1 mode
-FO1 = True
-
 from io import BufferedReader
 import sys, os, struct, json
 from typing import Any, Dict
@@ -243,11 +240,17 @@ def readCritter(f):
 	obj["XPValue"] = read32(f)
 	obj["killType"] = read32(f)
 
-
-	if FO1 or obj["killType"] in (5, 10): # Robots/Brahmin
-		obj["damageType"] = None
+	# CE ref: critter.cc:1064 protoCritterDataRead — damageType (native unarmed
+	# damage type, e.g. Floater/Nasty Floater/Floating Eye Bot) is read
+	# unconditionally, not gated on killType. Two vanilla protos (Sentry Bot,
+	# Weak Brahmin) are 4 bytes short and lack the field; CE treats a failed
+	# read as DAMAGE_TYPE_NORMAL (critter.cc:1086-1088) since this is the last
+	# field in the file for critters.
+	damageTypeBytes = f.read(4)
+	if len(damageTypeBytes) == 4:
+		obj["damageType"] = struct.unpack("!l", damageTypeBytes)[0]
 	else:
-		obj["damageType"] = read32(f)
+		obj["damageType"] = 0 # DAMAGE_TYPE_NORMAL
 
 	return obj
 

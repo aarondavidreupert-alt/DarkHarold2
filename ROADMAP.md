@@ -377,7 +377,7 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| PS2 | **`tools/proto.py` has `FO1=True`, suppressing critter `damageType` extraction.** One-line fix. | `proto_types.h CritterProtoData.damageType` | major |
+| PS2 | ✅ FIXED 2026-07-04 — removed `FO1` flag; `readCritter()` reads `damageType` unconditionally per CE `critter.cc:1064` (the killType-based skip had no CE basis); short-read (2 vanilla protos) falls back to `DAMAGE_TYPE_NORMAL` matching CE's own EOF handling. Requires pipeline re-run to take effect; combat consumption (`getUnarmedDamageDone`) still hardcodes `'Normal'` — separate open follow-on. | `critter.cc:1064-1091` | major |
 | FA3 | **`actionFrame` discarded by `tools/frmpixels.py`.** Field not saved; hit-frame sync absent. | `art.h ArtFrame.actionFrame` | major |
 | PS3 | **Tile PROs not extracted.** Type 4 silently skipped; terrain costs hardcoded. | `proto_types.h TileProto` | low |
 | PS4 | 🟡 Partial (verified 2026-07-04). Wall `extra` **now parsed** — `tools/proto.py readWall()` extracts `extendedFlags`/`sid`/`material` (added during the RD16 egg work). **Still missing**: misc `extra` (`MiscProto.extra`) — type 5 falls through to the `else`/"unhandled" branch in `readPRO()`. | `proto_types.h` | low |
@@ -567,7 +567,7 @@ reflects the 2026-07-04 source audit.
 
 | ID | What | CE Ref | Sev | Status |
 |----|------|--------|-----|--------|
-| PS2 | **`tools/proto.py` `FO1 = True` (line 20) suppresses critter `damageType` extraction.** `readCritter` writes `damageType = None` when `FO1`; one-line fix. | `proto_types.h CritterProtoData.damageType` | major | bug |
+| PS2 | ✅ FIXED 2026-07-04 — `FO1` flag removed; `readCritter()` now reads `damageType` unconditionally after `killType`, matching CE `critter.cc:1064 protoCritterDataRead` exactly. Verified against CE source: the original killType∈{5,10} skip was not CE-accurate — CE only special-cases a *failed* read (2 vanilla protos 4 bytes short: Sentry Bot, Weak Brahmin), falling back to `DAMAGE_TYPE_NORMAL`, which the fix replicates. Requires a pipeline re-run against real assets to take effect (git-ignored `proto/`); `combat/Combat.ts getUnarmedDamageDone()` still hardcodes `'Normal'` for unarmed natural damage type — separate open item, not covered here. | `critter.cc:1064-1091 protoCritterDataRead` | major | fixed |
 | FA3 | **`actionFrame` discarded by pipeline.** `tools/frmpixels.py:40` reads it into `_actionFrame` but never writes it to `imageMap.json`; hit/sound frame-sync impossible. | `art.h ArtFrame.actionFrame` | major | missing |
 | FA6 | ✅ **Weapon-stance FID composition substantially implemented** (see Phase 9m, re-verified 2026-07-04). `Weapon.getSkin()`/`getAnim()` + `critterAnimation.ts` behind `doUseWeaponModel` (default on). Remaining: end-to-end per-weapon FRM-coverage audit. | `art.cc buildFid()` | medium | partial |
 | PS4 | **Misc `extra` fields not parsed** (type 5 → "unhandled"). Wall extras now extracted via `readWall()` (see Phase 9l). | `proto_types.h MiscProto.extra` | low | partial |
@@ -624,7 +624,7 @@ sections above and `wiki/known_bugs.md §26`.
 | EL4 | **`_map_data_elev_flags` bitmask not in DH2 map format** — empty elevations can't be represented. | `map.cc:81` | low | missing |
 | EV1 | **Elevator gauge-pointer travel animation absent** — destination loads instantly. | `elevator.cc:405` | low | missing |
 | EV2 | **Sierra-2 / Military Base elevation remapping offsets absent.** | `elevator.cc:354-375` | low | missing |
-| EV4 | **`console.log` in `ui_elevator.ts:59` production path** — should use `dbg()`/`dbgWarn()`. | — | low | bug |
+| EV4 | ✅ FIXED 2026-07-04 — all 5 `console.log` call sites in `ui_elevator.ts` now use `dbg('map', ...)`. | — | low | fixed |
 | RN5 | **PRNG chi-squared startup validation absent** (CE runs a 100k-sample test). | `random.cc:224` | low | missing |
 
 ### 10l. Type Hygiene
