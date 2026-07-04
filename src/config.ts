@@ -124,6 +124,18 @@ export const Config = {
         //   'hex-lerp'      — 3-tap barycentric over the 3 nearest hexes (default; smoothest, correct)
         //   'bicubic'       — Catmull-Rom down the column, smoother falloff, no stagger
         lightingInterpolation: 'hex-lerp' as 'off' | 'linear' | 'column-center' | 'hex-lerp' | 'bicubic',
+        // How a moving critter's own light (mainly the player's radius-4 torch) is
+        // stamped into the lightmap while walking. The lightmap is a per-tile integer
+        // grid, so CE stamps at the logical hex and the light cone snaps tile-to-tile
+        // on arrival (CE-faithful). The smooth modes split the stamp across tiles so
+        // the cone's centre tracks the gliding sprite. Only affects the 'dh2'
+        // propagation mode; toggle live via setPlayerLightSmooth(). See wiki/lighting.md.
+        //   'ce'        — (default) stamp at the integer hex; CE-faithful tile-snap.
+        //   'blend'     — 2-tile lerp between the current and next path hex, weighted
+        //                 by walk progress t (frame within the step).
+        //   'egg-split' — barycentric split across the tiles under the animated foot
+        //                 position (hexToScreen + shift), tracking the sprite exactly.
+        playerLightSmooth: 'ce' as 'ce' | 'blend' | 'egg-split',
         useLightColorLUT: true, // Use intensityColorTable/colorLUT/colorRGB for accurate lighting colors?
         doAudio: true, // enable audio?
         doLogLazyLoads: false, // Log lazy-loading of images? (Noisy)

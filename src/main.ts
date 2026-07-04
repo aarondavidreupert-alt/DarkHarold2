@@ -366,6 +366,27 @@ window.onload = async function () {
         console.log(`[Lighting] wall top-edge fade (both) = ${px} texels${px === 0 ? ' (disabled)' : ''}`)
     }
 
+    // setPlayerLightSmooth(mode) — how a walking critter's own light (mainly the
+    // player's radius-4 torch) is stamped while moving. The lightmap is a per-tile
+    // grid, so CE snaps the cone tile-to-tile on arrival; the smooth modes split the
+    // stamp so the cone centre tracks the gliding sprite. Only affects the 'dh2'
+    // propagation mode. Takes effect next frame. See wiki/lighting.md.
+    //   'ce'        — (default) integer-hex stamp; CE-faithful tile-snap.
+    //   'blend'     — 2-tile lerp between current and next path hex by walk progress.
+    //   'egg-split' — barycentric split across the tiles under the animated foot
+    //                 position; tracks the sprite exactly (like the egg anchor).
+    ;(window as any).setPlayerLightSmooth = (mode: string) => {
+        const valid = ['ce', 'blend', 'egg-split']
+        if (!valid.includes(mode)) {
+            console.log("Usage: setPlayerLightSmooth('ce' | 'blend' | 'egg-split')")
+            return
+        }
+        Config.engine.playerLightSmooth = mode as any
+        console.log(`[Lighting] player light smoothing = '${mode}'` +
+            (mode !== 'ce' && Config.engine.lightPropagationMode !== 'dh2'
+                ? " (note: only active in 'dh2' propagation mode)" : ''))
+    }
+
     // setPlayerLight(radius, intensity) — set the player's own light source.
     // radius:    hex distance (CE default for the player/torch = 4)
     // intensity: 0–100 percent (CE maps 100% → 65536, matching obj_set_light_level)

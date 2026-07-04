@@ -17,6 +17,7 @@ limitations under the License.
 import globalState from "./globalState.js"
 import { Obj } from "./object.js"
 import { fromTileNum, toTileNum } from "./tile.js"
+import { hexToScreen, worldToHexBarycentric, Point } from "./geometry.js"
 import { dbg } from "./logger.js"
 import { Config } from "./config.js"
 import {
@@ -68,7 +69,11 @@ export module Lightmap {
     // obj_adjust_light(eax=obj_ptr, ebx=0, edx=0)
     // edx controls whether light is added or subtracted
 
-    function obj_adjust_light(obj: Obj, isSub: boolean=false): void {
+    // posOverride: stamp the cone at this hex instead of obj.position (used by the
+    //   smooth moving-light modes to place the source at a fractional/animated tile).
+    // scale: multiply every applied intensity by this (0..1) so a light can be split
+    //   across several tiles that sum to the full cone. Both default to no-op.
+    function obj_adjust_light(obj: Obj, isSub: boolean=false, posOverride: Point | null = null, scale: number = 1): void {
         // CE ref: object.cc:3969 bails if lightIntensity <= 0; 3973 bails if OBJECT_HIDDEN;
         // 3977 bails if OBJECT_LIGHTING flag absent. DH2 uses 655 as ambient baseline and
         // visible===false as the hidden-flag equivalent; OBJECT_LIGHTING is modelled as
@@ -76,7 +81,13 @@ export module Lightmap {
         if (obj.visible === false) return
         if (obj.lightRadius <= 0 || obj.lightIntensity <= 655) return
 
-        var lightModifier = isSub ? light_subtract_from_tile : light_add_to_tile
+        const baseModifier = isSub ? light_subtract_from_tile : light_add_to_tile
+        // Scale the APPLIED amount (not obj.lightIntensity — that would distort the
+        // cone via the −655 falloff term); this keeps the cone shape and scales its
+        // amplitude, so weighted stamps sum linearly. §player-light-smooth.
+        var lightModifier = scale === 1
+            ? baseModifier
+            : (tile: number, amount: number) => baseModifier(tile, Math.round(amount * scale))
 
         if (Config.engine.lightPropagationMode === 'derived') {
             obj_adjust_light_derived(obj, lightModifier)
@@ -88,9 +99,11 @@ export module Lightmap {
             return
         }
 
-        var pos = obj.position
+        var pos = posOverride ?? obj.position
 
-        lightModifier(toTileNum(obj.position), obj.lightIntensity)
+        const srcTile = toTileNum(pos)
+        if (srcTile < 0 || srcTile >= 40000) return   // off-grid override → skip
+        lightModifier(srcTile, obj.lightIntensity)
 
         obj.lightIntensity = Math.min(obj.lightIntensity, 65536)
 
@@ -302,7 +315,7 @@ export module Lightmap {
 
                     if(isLightBlocked === 0) {
                         // loc_4A7500:
-                        var nextTile = toTileNum(obj.position) + light_offsets[(lightOffsetsStart/4|0) + 36 * dir + i]
+                        var nextTile = toTileNum(pos) + light_offsets[(lightOffsetsStart/4|0) + 36 * dir + i]
 
                         if(nextTile > 0 && nextTile < 40000) { // nextTile is within valid tile range
                             var edi = 1
@@ -413,13 +426,46 @@ export module Lightmap {
         staticTileIntensity.set(tile_intensity)
     }
 
+    // Smooth moving-light: split a walking light-critter's cone across the tiles
+    // under its animated position so the lightmap centre tracks the gliding sprite
+    // instead of snapping on tile arrival. Returns weighted (hex, weight) stamps
+    // summing to ~1, or null to stamp normally (idle / 'ce' mode / not dh2).
+    // 'blend'     — 2-tile lerp between the current and next path hex by walk t.
+    // 'egg-split' — barycentric split across the tiles under the animated foot
+    //               (hexToScreen(position) + shift), tracking the sprite exactly.
+    function playerLightSplits(obj: Obj): { x: number; y: number; w: number }[] | null {
+        const mode = Config.engine.playerLightSmooth ?? 'ce'
+        if (mode === 'ce') return null
+        if (Config.engine.lightPropagationMode !== 'dh2') return null   // dh2-only
+        const c = obj as any   // Critter (has getWalkLerp / shift)
+        if (mode === 'blend') {
+            const wl = typeof c.getWalkLerp === 'function' ? c.getWalkLerp() : null
+            if (!wl) return null
+            return [
+                { x: wl.hexA.x, y: wl.hexA.y, w: 1 - wl.t },
+                { x: wl.hexB.x, y: wl.hexB.y, w: wl.t },
+            ]
+        }
+        // egg-split: animated foot world pos → barycentric split. Needs a walk shift;
+        // when idle (shift null) the point is the tile centre → single stamp → == ce.
+        const shift: Point | null = c.shift ?? null
+        if (!shift) return null
+        const scr = hexToScreen(obj.position.x, obj.position.y)
+        return worldToHexBarycentric(scr.x + shift.x, scr.y + shift.y)
+    }
+
     // Rebuild dynamic (critter) lighting on top of the static bake.
     // Call once per render frame before drawing the lit floor.
     export function rebuildDynamicLight(): void {
         tile_intensity.set(staticTileIntensity)
         for (const obj of globalState.gMap.getObjects()) {
             if (obj.type === 'critter' && obj.lightRadius > 0) {
-                obj_adjust_light(obj, false)
+                const splits = playerLightSplits(obj)
+                if (splits) {
+                    for (const s of splits) obj_adjust_light(obj, false, { x: s.x, y: s.y }, s.w)
+                } else {
+                    obj_adjust_light(obj, false)
+                }
             }
         }
     }
