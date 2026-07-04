@@ -338,32 +338,20 @@ window.onload = async function () {
             (Config.engine.objectLightingMode.endsWith('-smooth') ? '' : " (set mode to 'foot-smooth' or 'tile-smooth' to see it)"))
     }
 
-    // setWallTopFade(px) — height (world px) of the top-edge fade on WALL sprites:
-    // the wall's lit contribution fades to ambient over the top N px so it blends
-    // into the roof above (a cheap ambient-occlusion cue). Applies to walls in every
-    // objectLightingMode. Default 12; useful range ~4–24; 0 disables. Next frame.
+    // setWallTopFade(px) — depth (in art texels) of the top-edge fade on WALL
+    // sprites: the wall's lit contribution fades to ambient within N texels of the
+    // sprite's painted top edge so it blends into the roof above (a cheap
+    // ambient-occlusion cue). The edge is read from the sprite's own alpha, so the
+    // fade follows the painted isometric slant automatically — no slope/orientation
+    // tuning. Applies to walls in every objectLightingMode. Default 12; useful range
+    // ~4–24; 0 disables. Next frame.
     ;(window as any).setWallTopFade = (px: number) => {
         if (typeof px !== 'number' || !isFinite(px) || px < 0) {
-            console.log('Usage: setWallTopFade(px)  — world pixels, e.g. setWallTopFade(12); 0 to disable')
+            console.log('Usage: setWallTopFade(px)  — art texels, e.g. setWallTopFade(12); 0 to disable')
             return
         }
         Config.engine.wallTopFadePx = px
-        console.log(`[Lighting] wall top-edge fade = ${px}px${px === 0 ? ' (disabled)' : ''}`)
-    }
-
-    // setWallTopFadeSlope(mag) — magnitude of the wall top-edge fade slope so the
-    // fade band runs PARALLEL to the isometric tile edge instead of a flat
-    // horizontal cut. The per-wall sign is taken from the wall's orientation; this
-    // sets the magnitude (iso tile edge ≈ 0.5). Try ~0.4–0.6; 0 = old horizontal
-    // fade. If a whole wall orientation slants the wrong way, tell me and I'll flip
-    // that orientation's sign in renderObject. Next frame.
-    ;(window as any).setWallTopFadeSlope = (mag: number) => {
-        if (typeof mag !== 'number' || !isFinite(mag) || mag < 0) {
-            console.log('Usage: setWallTopFadeSlope(mag)  — e.g. setWallTopFadeSlope(0.5); 0 = horizontal')
-            return
-        }
-        Config.engine.wallTopFadeSlope = mag
-        console.log(`[Lighting] wall top-edge fade slope magnitude = ${mag} (sign per wall orientation)`)
+        console.log(`[Lighting] wall top-edge fade = ${px} texels${px === 0 ? ' (disabled)' : ''}`)
     }
 
     // setPlayerLight(radius, intensity) — set the player's own light source.

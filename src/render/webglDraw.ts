@@ -515,32 +515,16 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         if (this.uObjectHardClampY) gl.uniform1i(this.uObjectHardClampY, hardClamp)
 
         // Wall top-edge fade — walls only (fading a critter/item top would darken
-        // its head). The fade boundary is slanted parallel to the isometric tile
-        // edge (slope ±mag) so it follows the wall's perspective incline instead of
-        // a flat horizontal cut. Sign comes from the wall's extendedFlags
-        // orientation; the anchor is the HIGH corner of the top edge (top-left for
-        // +slope, top-right for −slope) so the slanted band starts at the art top.
-        // renderInfo.x/y are already world-space. See §8.
+        // its head). The fade reads the sprite's own alpha silhouette in the shader
+        // (wallTopFadeFactor), so it follows the painted isometric top edge with no
+        // slope/orientation input. We just pass the fade depth (art texels) and the
+        // v-step for one art row (1 / sheet-height-texels = 1 / uniformFrameHeight,
+        // since the frame spans the full 0..1 v range). See §8.
         if (this.uWallFadePx) {
             const fadePx = obj.type === 'wall' ? (Config.engine.wallTopFadePx ?? 12) : 0
             gl.uniform1f(this.uWallFadePx, fadePx)
-            if (fadePx > 0) {
-                const mag = Config.engine.wallTopFadeSlope ?? 0.5
-                // Orientation → slope sign (best-guess mapping; flip a class here if a
-                // whole orientation slants the wrong way in-browser). extendedFlags
-                // bits: 0x8000000/0x40000000 = E-W run, 0x10000000 = NE-SW diagonal,
-                // 0x20000000 = corner, else default.
-                const ef: number = (obj as any).pro?.extra?.extendedFlags ?? 0
-                let sign = -1
-                if ((ef & 0x8000000) !== 0 || (ef & 0x40000000) !== 0) sign = 1
-                else if ((ef & 0x10000000) !== 0) sign = -1
-                else if ((ef & 0x20000000) !== 0) sign = 1
-                const slope = sign * mag
-                // High corner of the top edge: left for +slope, right for −slope.
-                const anchorX = slope >= 0 ? renderInfo.x : renderInfo.x + renderInfo.uniformFrameWidth
-                if (this.uWallTopY) gl.uniform1f(this.uWallTopY, renderInfo.y)
-                if (this.uWallTopX) gl.uniform1f(this.uWallTopX, anchorX)
-                if (this.uWallTopSlope) gl.uniform1f(this.uWallTopSlope, slope)
+            if (fadePx > 0 && this.uWallTexelStepV && renderInfo.uniformFrameHeight > 0) {
+                gl.uniform1f(this.uWallTexelStepV, 1 / renderInfo.uniformFrameHeight)
             }
         }
     }

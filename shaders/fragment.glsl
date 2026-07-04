@@ -48,17 +48,15 @@ uniform float u_objectSmoothPx;
 uniform int u_objectHardClampY;
 
 // Wall top-edge fade (walls only; u_wallFadePx == 0 for non-wall draws).
-// Fades the LIT contribution toward 0 in the last u_wallFadePx world-px below
-// the sprite's top edge, so the wall's top recedes to ambient where it meets the
-// dark roof tile — a cheap ambient-occlusion cue. §8.
-// The fade boundary is a SLANTED line parallel to the isometric tile edge (slope
-// u_wallTopSlope ≈ ±0.5), anchored at (u_wallTopX, u_wallTopY) — the high corner
-// of the sprite's top edge — so the band follows the wall's perspective incline
-// instead of cutting horizontally across it.
-uniform highp float u_wallTopY;
-uniform highp float u_wallTopX;
-uniform float u_wallTopSlope;
+// Fades the LIT contribution toward 0 within u_wallFadePx TEXELS of the sprite's
+// painted top edge, so the wall top recedes to ambient where it meets the dark
+// roof tile — a cheap ambient-occlusion cue. §8.
+// The edge is read from the sprite's OWN alpha silhouette (wallTopFadeFactor in
+// main): the isometric slant of the top is already baked into the art, so marching
+// up the alpha follows it exactly — no slope/orientation math needed.
+// u_wallTexelStepV = 1 / sprite-sheet-height-in-texels (v-delta for one art row).
 uniform float u_wallFadePx;
+uniform float u_wallTexelStepV;
 
 // Tile-intensity interpolation mode — see sampleTileLight below and
 // fragmentLighting.glsl (kept identical). wiki/alignment.md §7.
@@ -213,19 +211,36 @@ float getWorldTileLight() {
         }
     }
 
-    // Wall top-edge fade (walls only — u_wallFadePx is 0 for other draws). Fades the
-    // lit contribution to 0 at the sprite's top edge; main()'s max(_, u_ambient)
-    // then floors it to ambient, so the wall top blends into the roof. §8.
-    // The boundary is slanted (u_wallTopSlope ≈ ±0.5) so it runs parallel to the
-    // isometric tile edge / wall top, not a flat horizontal cut. distFromTop is the
-    // downward distance from that slanted line; frag_world_y increases downward, so
-    // it is ~0 along the top edge and grows positive down the face.
-    if (u_wallFadePx > 0.0) {
-        float distFromTop = frag_world_y - u_wallTopY - u_wallTopSlope * (world_x - u_wallTopX);
-        intensity *= smoothstep(0.0, u_wallFadePx, distFromTop);
-    }
-
+    // (Wall top-edge fade is applied in main() via the sprite's own alpha — it needs
+    // the frame UV / sprite texture, which live there. See wallTopFadeFactor.)
     return intensity;
+}
+
+// Wall top-edge fade factor (1 = full light, →0 near the painted top edge).
+// Reads the sprite's OWN alpha: march up the current frame column until the art
+// turns transparent (or the frame top is passed). The distance to that first
+// transparent texel is the distance to the painted top edge — which is already
+// isometrically slanted in the art — so the fade follows any top-edge angle/shape
+// with no slope, sign, or orientation input. `coord` is the frame-adjusted UV.
+// v=0 is the sprite's screen-top (vertex shader flips Y; art is top-aligned in the
+// slot), so "up" is decreasing v. Faded light is floored to ambient by main().
+float wallTopFadeFactor(vec2 coord) {
+    if (u_wallFadePx <= 0.0) return 1.0;   // non-wall / disabled — no marching
+    // Distance (texels) up to the first transparent texel; default = past the band.
+    float nearest = u_wallFadePx + 1.0;
+    // The loop bound compares against u_wallFadePx (a UNIFORM), so every fragment in
+    // the draw runs the same iteration count → uniform control flow, and texture2D
+    // is sampled unconditionally each step (legal implicit-LOD use in WebGL1). The
+    // data-dependent test only updates `nearest`, it does not gate the sample.
+    for (int k = 1; k <= 32; k++) {
+        float fk = float(k);
+        if (fk > u_wallFadePx) break;
+        float vy = coord.y - fk * u_wallTexelStepV;
+        float a = (vy < 0.0) ? 0.0 : texture2D(u_image, vec2(coord.x, vy)).a;
+        if (a < 0.5 && fk < nearest) nearest = fk;
+    }
+    if (nearest > u_wallFadePx) return 1.0;               // no transparent within band → deep inside
+    return smoothstep(0.0, u_wallFadePx, nearest);        // near edge → faded toward 0
 }
 
 void main() {
@@ -283,6 +298,9 @@ void main() {
         }
     }
 
-    float light = max(getWorldTileLight(), u_ambient);
+    // Fade the wall top toward ambient (applied to the lit term BEFORE the ambient
+    // floor, so it settles to ambient — matching the roof — not to black).
+    float tileLight = getWorldTileLight() * wallTopFadeFactor(coord);
+    float light = max(tileLight, u_ambient);
     gl_FragColor = vec4(texel.rgb * light, texel.a * alpha);
 }

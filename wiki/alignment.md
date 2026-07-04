@@ -728,17 +728,22 @@ ambient-occlusion cue. Gated to `obj.type === 'wall'` so critter/​item tops ar
 never darkened; applied *before* `max(_, u_ambient)` so it settles to ambient, not
 black.
 
-The fade boundary is **slanted parallel to the isometric tile edge** (slope
-`u_wallTopSlope` ≈ ±0.5 — the tile-diamond edge slope), not a flat horizontal cut,
-so it follows the wall's perspective incline:
-`distFromTop = frag_world_y − u_wallTopY − slope·(world_x − u_wallTopX)`.
-The per-wall **sign** comes from the `extendedFlags` orientation (buildings have
-two wall orientations whose tops slant oppositely); the anchor `(u_wallTopX,
-u_wallTopY)` is the *high corner* of the sprite's top edge (top-left for +slope,
-top-right for −slope) so the band starts on the art's top edge. Magnitude is
-tunable via `setWallTopFadeSlope(mag)` (0 = old horizontal fade); the
-orientation→sign mapping is a best guess pending in-browser confirmation (flip a
-class in `renderObject` if a whole orientation slants the wrong way).
+The fade follows the wall's painted (isometric) top edge by reading the sprite's
+**own alpha silhouette** — the slant is already baked into the art, so no slope,
+sign, or orientation input is needed. `wallTopFadeFactor` (in `main`) marches up
+the current frame column in the sprite texture: the distance to the first
+transparent texel (the corner above the slanted top edge) *is* the distance to the
+painted edge, so the fade ramps 0→1 over `u_wallFadePx` **art texels** below the
+edge, per column, matching any top-edge angle or shape automatically.
+Implementation notes: the vertex shader flips Y so `v=0` is the sprite's screen-top
+and trimmed art is top-aligned in the slot (`frmpixels.py`), so "up" is decreasing
+`v`; the march uses a *uniform* loop bound (compare against the `u_wallFadePx`
+uniform) and samples `texture2D` unconditionally so implicit-LOD stays legal in
+WebGL1; `u_wallTexelStepV = 1 / uniformFrameHeight` (the frame spans the full 0..1
+`v` range). Depth is tunable via `setWallTopFade(px)` (art texels, default 12; 0
+disables). *(This replaced an earlier slanted world-space line that needed a
+per-orientation slope sign — the alpha-silhouette approach is orientation-free and
+handles both wall directions with no calibration.)*
 
 Once a winner is chosen from live testing, promote it to the default in
 `config.ts` and note it here.
