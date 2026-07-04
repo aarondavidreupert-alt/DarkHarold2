@@ -333,7 +333,14 @@ export class Obj {
     subtype: string // Some objects, like items and scenery, have subtypes
     invArt: string // Art path used for in-inventory image
 
-    anim: any = null // Current animation (TODO: Is this only a string? It should probably be an enum.)
+    // Current animation name — one of the animInfo keys in critterAnimation.ts
+    // (idle/walk/attack/death-*/etc.), or null when no animation is active.
+    // Not narrowed to a literal union: staticAnimation()'s `anim` parameter
+    // (critterAnimation.ts) is itself plain `string` and is called from many
+    // sites across combat/skill/inventory code with animation-name literals;
+    // narrowing this field alone wouldn't be enforced without also auditing
+    // and narrowing every staticAnimation() call site — out of scope here.
+    anim: string | null = null
     animCallback: () => void | null = null // Callback when current animation is finished playing
     frame = 0 // Animation frame index
     lastFrameTime = 0 // Time since last animation frame played

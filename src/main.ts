@@ -679,7 +679,7 @@ window.onload = async function () {
         // Run clearAssetCache() and reload if so.
         let wallsWithFlags = 0
         let wallsSampled = 0
-        const walls = (globalState.proMap as any)?.walls
+        const walls = globalState.proMap?.walls
         if (walls) {
             for (const id of Object.keys(walls).slice(0, 50)) {
                 wallsSampled++

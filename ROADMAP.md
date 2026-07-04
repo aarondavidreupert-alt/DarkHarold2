@@ -175,13 +175,21 @@ a believable playthrough.
 - ✅ Dead `tile_coord()` function removed (TS4 FIXED 2026-06-03).
 - 🔴 **Town faction deltas** — per-town rep table absent; NPC reaction modifiers absent.
   Global karma display ✅; town-level display not. Ref: `reputation.cc`
-  *(Still open, re-verified 2026-07-04 — no `townRep` in `src/`. Beyond the 95%
-  line → tracked for 100% as **R2** in Phase 10d.)*
+  *(✅ FIXED 2026-07-04 — see **R2** in Phase 10d for the full writeup.
+  `set_global_var()` now syncs town-rep GVAR writes to `player.stats`, so the
+  pre-existing reputation panel populates; an off-by-one in the title
+  thresholds was also found and fixed.)*
 - 🔴 **Type annotations**: `Obj.type`, `Obj.pro`, `Obj.art`, `Obj.extra`, `Obj.anim`,
   `globalState.proMap`, `Critter.weapon` — still `any`.
-  *(Still open, re-verified 2026-07-04 — `object/Obj.ts:284/291/316/326/336`,
-  `globalState.ts:125`. Technical-debt, not gameplay → tracked for 100% as
-  **Q-any** in Phase 10l.)*
+  *(🟡 Partial — re-verified 2026-07-04, and 3 of these 7 turned out to already
+  be resolved: `Obj.type`/`Obj.art` are already plain `string` (not `any`);
+  `Critter.weapon` doesn't exist as a field — `leftHand`/`rightHand: WeaponObj`
+  are the real, already-properly-typed fields. Of the 4 genuinely still `any`,
+  fixed **`globalState.proMap`** (shaped object, zero new tsc errors) and
+  **`Obj.anim`** (`string | null`, matching the precedent already set by
+  `Obj.type`/`Obj.art` in the same class). `Obj.pro`/`Obj.extra` remain `any`
+  by deliberate choice — see **Q-any** in Phase 10l for why a full discriminated
+  union is a much larger, separate effort, not attempted here.)*
 
 ---
 
@@ -631,7 +639,7 @@ sections above and `wiki/known_bugs.md §26`.
 
 | ID | What | CE Ref | Sev | Status |
 |----|------|--------|-----|--------|
-| Q-any | **`any`-typed fields** (verified 2026-07-04): `Obj.pro`/`Obj.extra`/`Obj.anim` (`object/Obj.ts:284,291,316,326,336`), `globalState.proMap` (`globalState.ts:125`), plus `Obj.type`/`Obj.art`/`Critter.weapon`. Technical debt; masks future bugs. | — | low | open |
+| Q-any | 🟡 Partial — RE-AUDITED 2026-07-04. Of the 7 originally-listed fields, 3 were already resolved (stale claim, corrected here): `Obj.type`/`Obj.art` are plain `string`, not `any`; `Critter.weapon` doesn't exist — `leftHand`/`rightHand: WeaponObj` are the real fields, already typed. **Fixed** this pass: `globalState.proMap` → `{ [subdir: string]: { [id: string]: any } } \| null` (4 call sites, zero new tsc errors); `Obj.anim` → `string \| null` (matching the `Obj.type`/`Obj.art` precedent in the same class — `staticAnimation()`'s `anim` param is already plain `string`, so no call-site changes needed). **Deliberately left `any`**: `Obj.pro` (62+ call sites via `.pro.extra.`, plus direct `.pro.X` accesses) and `Obj.extra` (176+ raw matches) — both need a discriminated union keyed on `obj.type`/`pro.type` to type properly, since item/critter/scenery/wall/misc each have a different `extra` shape (see PS2-PS4's proto struct research above for exactly how much these differ). A shallow/wrong type here would give false confidence; a correct one requires updating call sites to narrow by type first — a genuinely separate, larger effort needing browser-testable verification, not attempted in this pass. | `object/Obj.ts:284,291`; `globalState.ts:125` | low | partial |
 
 ---
 

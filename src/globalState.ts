@@ -122,7 +122,11 @@ const globalState = {
     inCombat: boolean
     messageFiles: { [msgFile: string]: { [msgID: string]: string } }
     player: Player | null
-    proMap: any // TODO: type
+    // Raw parsed proto/pro.json, keyed by subdir (items/critters/scenery/
+    // walls/tiles/misc) then numeric proto ID. Per-type record shape varies
+    // (item vs critter vs ... extra fields) — not narrowed further here;
+    // see src/pro.ts loadPRO() for the lookup path. `null` until loaded.
+    proMap: { [subdir: string]: { [id: string]: any } } | null
 
     skillMode: Skills
 
