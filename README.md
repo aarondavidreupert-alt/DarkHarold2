@@ -11,11 +11,12 @@ It is written primarily in TypeScript and Python, and targets recent browsers wi
 
 ## Status
 
-DarkHarold2 is not a complete remake at this time. Estimated overall completion: **~93%**.
+DarkHarold2 is not a complete remake at this time. Estimated overall completion: **~94%** (target: **100%**).
 The core technical foundation (rendering, combat math, scripting VM, map loading, dialogue runtime) is
-solid, and most gameplay systems are now wired end-to-end. The remaining gaps are concentrated in
-asset-pipeline extractions, speech/movie infrastructure, and a handful of larger systems (car travel,
-per-town reputation, NPC daily schedules). See [`ROADMAP.md`](ROADMAP.md) and
+solid, and most gameplay systems are now wired end-to-end; the 2026-07-02 lighting-alignment sprint closed
+the last major rendering block. The remaining gaps are concentrated in asset-pipeline extractions,
+speech/movie infrastructure, and a handful of larger systems (car travel, per-town reputation, NPC daily
+schedules) — all enumerated in **Phase 10 (Path to 100%)**. See [`ROADMAP.md`](ROADMAP.md) and
 [`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
 
 If you're looking for documentation on how Fallout 2 works, documentation on certain file formats, or
@@ -36,7 +37,7 @@ existing maintainers stay oriented; each section builds on the previous.
 |---|---|
 | [`README.md`](README.md) | This file — project overview, completion status, build commands |
 | [`CLAUDE.md`](CLAUDE.md) | AI-assistant instructions, research workflow, architecture rules, what NOT to implement |
-| [`ROADMAP.md`](ROADMAP.md) | Phased plan toward 95%; canonical completion estimate |
+| [`ROADMAP.md`](ROADMAP.md) | Phased plan toward 100% (Phases 1–10); canonical completion estimate |
 
 ### 📐 Architecture & codebase
 
@@ -106,7 +107,7 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | File | Purpose |
 |---|---|
 | [`wiki/known_bugs.md`](wiki/known_bugs.md) | Primary tracker — fix status per ID across all subsystems |
-| [`ROADMAP.md`](ROADMAP.md) | Phased plan (Phases 1–9) toward 95% with audit dates |
+| [`ROADMAP.md`](ROADMAP.md) | Phased plan (Phases 1–10) toward 100% with audit dates |
 | [`TODO.md`](TODO.md) | Older free-form TODO list — superseded by `wiki/known_bugs.md` |
 | Inline `// TODO` / `// FIXME` in `src/` | Source-level annotations |
 | [`CLAUDE.md`](CLAUDE.md) → "Intentionally Incomplete Systems" | Explicit out-of-scope / "do not implement unless asked" |
@@ -220,8 +221,10 @@ status per ID.
 
 ## Roadmap
 
-[`ROADMAP.md`](ROADMAP.md) is the canonical phased plan (Phases 1–9) toward a 95%-complete
-playthrough. The most recent audit (2026-06-25) closes 60+ items since 2026-06-04: the complete
+[`ROADMAP.md`](ROADMAP.md) is the canonical phased plan (Phases 1–10) toward 100% parity; the 95%
+playable-main-quest milestone is essentially met and **Phase 10 (Path to 100%)** tracks the remainder.
+The most recent audit (2026-07-04) added Phase 10 and confirmed the 2026-07-02 lighting-alignment sprint;
+the prior 2026-06-25 audit closed 60+ items since 2026-06-04: the complete
 companion/dialogue state machine (P5–P20), barter screen CE-accuracy (P14, P19–P21, P23–P24),
 worldmap scroll+labels (W11/W12), Pip-Boy rest+clock (IW10/IW11), per-building roof clipping
 (RD06), egg transparency (RD16), outline system (CI11–CI15), and earlier preference/HUD/scripting

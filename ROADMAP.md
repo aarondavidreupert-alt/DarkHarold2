@@ -1,21 +1,28 @@
-# Roadmap to 95%
+# Roadmap to 100%
 
 Ordered by impact and dependency. Each phase is a coherent chunk of work that
 unlocks the next. Phases 1–3 are pure connectivity — the engine infrastructure
 already exists, these wire it up. Phases 4–5 introduce the only genuinely new
-systems still needed.
+systems still needed. **Phase 10 (added 2026-07-04) collects everything the
+original 95% target deliberately excluded — the remaining ~5–6% needed for true
+100% parity with Fallout 2.**
 
-**Last audited: 2026-06-25**
-Current estimate: **~93% complete** (was ~90% at 2026-06-04; 60+ items fixed across
-2026-06-11 to 2026-06-25 sprints: companion/dialogue state machine P5–P20, barter
-P14/P19–P24, worldmap W11/W12, Pip-Boy IW10/IW11, roof RD06, egg RD16, outline
-CI11–CI15, and preferences/HUD gaps CI3/CI6/CI8/CI9/CI10/IW3/IW9).
-Target: 95% (a playable end-to-end run through Fallout 2's main quest with
-companions, working scripted content, and correct combat).
+**Last audited: 2026-07-04**
+Current estimate: **~94% complete** (was ~93% at 2026-06-25; the 2026-06-26→07-02
+rendering/lighting-alignment sprint closed the hex-parity light-sampling block —
+LD7/LD11/RD17 + `alignment.md` §6–§8: parity-aware shader inverse, `hex-lerp`
+interpolation, W-E wall occlusion, `wall-clamp` object lighting — plus earlier
+2026-06-11→25 sprints: companion/dialogue state machine P5–P24, barter, worldmap
+W11/W12, Pip-Boy IW10/IW11, roof RD06, egg RD16, outline CI11–CI15).
+Target: **100%** (full parity with Fallout 2 including the immersion, presentation,
+and edge-case systems the 95% target set aside). The 95% milestone — a playable
+end-to-end run through the main quest with companions, working scripted content,
+and correct combat — is essentially met; Phase 10 tracks the remainder.
 
-Phases 1–7 are now mostly complete. Phase 8 (rendering) is the largest remaining
-coherent block. Phase 9 collects all remaining tractable gaps across subsystems
-(~55 items) that don't fit neatly into the earlier phases.
+Phases 1–7 are now mostly complete. Phase 8 (rendering) is largely closed after
+the 2026-07-02 lighting-alignment sprint; a handful of visual-only items remain.
+Phase 9 collects the remaining tractable gaps across subsystems. Phase 10 —
+**Path to 100%** — enumerates every gap beyond the 95% line, grouped by subsystem.
 
 ---
 
@@ -184,6 +191,18 @@ a believable playthrough.
 
 ## Phase 8 — Rendering Gaps
 
+> **Lighting-alignment sprint ✅ (2026-06-26 → 2026-07-02).** The largest remaining
+> rendering block — the hex-parity light-sampling family — is now closed. All three
+> artifacts traced to `hexToScreen` being a per-column-parity map (not single-affine):
+> **RD17/§6** light *centring* (parity-aware shader inverse `150.0416667` / `−75.9375`
+> even ⁄ `−75.4375` odd), **§7** interpolation *stripes* (selectable `setLightingBilinear`,
+> default `hex-lerp` — 3-tap barycentric in axial space), **LD11/§8** W-E wall *occlusion*
+> bleed (read `pro.extra.extendedFlags`, not `pro.flags`). Also added: `wall-clamp`
+> object-light mode (default), selectable `objectLightingMode`, `LD7` piecewise
+> `set_light_level`, and `LD8`/`LD9` alternative propagation modes. Full derivation:
+> `wiki/alignment.md §6–§8`. The remaining Phase 8 items (8b/8d/8f/8g/8h) are visual-only
+> and are re-collected into Phase 10f.
+
 ### 8a. Egg transparency system ✅ FIXED 2026-06-15/17/18
 - CE 4-case `extendedFlags` branch (`isCEOccludingWall`) wired for `'egg'` mode;
   `'alpha'` mode uses `hexDistance` radial check. `extendedFlags` now extracted for
@@ -270,7 +289,7 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| IW1 | **No HP/AC indicator bars in the character window.** CE renders colour-coded indicator bars on the HUD. | `interface.cc` | minor |
+| IW1 | ✅ FIXED — stale duplicate of the row below (the original "no indicator bars" line predates the fix); superseded, kept for history. | `interface.cc` | minor |
 | IW1 | ✅ FIXED 2026-06-04, updated 2026-06-11 — `#indicatorBar` shows all 5 CE badges in correct order (ADDICT/SNEAK/LEVEL/POISONED/RADIATED); LEVEL badge on unspent skill points; radiation threshold corrected to ≥65; bad/good colour coding (red/green). | `interface.cc indicatorBarRefresh` | major |
 | IW2 | ✅ FIXED 2026-06-04 — `drawAP` dims `#attackButton` (opacity+grayscale) when AP < cost or not player turn. | `interface.cc interfaceRenderActionPoints()` | minor |
 | IW3 | ✅ FIXED 2026-06-11 — mode cycle is `single → called → burst → reload`; called mode auto-opens `uiCalledShot()`. Target-highlight outlines refresh immediately on cycle. | `interface.cc` | minor |
@@ -296,7 +315,7 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| C10 | **Unarmed special moves have no combat logic.** `unarmed.ts` defines 9 modes; hit/damage bonuses not applied. | `unarmed.cc` | minor |
+| C10 | ✅ FIXED — verified 2026-07-04 in `combat/Combat.ts`: `getActiveUnarmedMode(ForHand)` selects the mode, `getUnarmedDamageDone` reads `mode.minDmg/maxDmg`, `mode.penetrate` applies the DT-bypass, and `mode.critBonus` adds to crit chance. `known_bugs` already marked fixed; ROADMAP row was stale. | `unarmed.cc` | minor |
 | C8 | ✅ FIXED 2026-06-04 — wander caps by type (5/15/∞ hex) around spawn origin. | `ai.cc aiMoveSteps()` | minor |
 | C13 | ✅ FIXED 2026-06-04 (STAY_CLOSE wired); CHARGE remains the default. | `combat_ai.cc` | minor |
 
@@ -326,7 +345,7 @@ covered by Phases 1–8.
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
 | K4 | **Expanded Lockpick Set / Electronic Lockpick not modelled.** Tool type not checked in `useLockpick()`. | `skill.cc` | minor |
-| EL3 | **Elevator door-animation reset partial.** Door re-close animation on floor switch absent. | `elevator.cc` | low |
+| EL3 | ✅ FIXED — verified 2026-07-04 in `ui_elevator.ts:134-142`: after travel, hexes within radius 5 of the arrival tile with door PIDs (153/421/470) are reset to `frame=0`/`open=false`. `known_bugs` already marked fixed; ROADMAP row was stale. Gauge-animation interpolation (EV1) remains a separate low-pri gap. | `scripts.cc:926` | low |
 | EL4 | **`_map_data_elev_flags` bitmask not in DH2 map format.** Empty elevations can't be represented. | `map.cc:81` | low |
 
 ### 9k. Endgame
@@ -344,17 +363,21 @@ covered by Phases 1–8.
 | PS2 | **`tools/proto.py` has `FO1=True`, suppressing critter `damageType` extraction.** One-line fix. | `proto_types.h CritterProtoData.damageType` | major |
 | FA3 | **`actionFrame` discarded by `tools/frmpixels.py`.** Field not saved; hit-frame sync absent. | `art.h ArtFrame.actionFrame` | major |
 | PS3 | **Tile PROs not extracted.** Type 4 silently skipped; terrain costs hardcoded. | `proto_types.h TileProto` | low |
-| PS4 | **Wall and misc `extra` fields not parsed.** `WallProto.extra` / `MiscProto.extra` absent. | `proto_types.h` | low |
+| PS4 | 🟡 Partial (verified 2026-07-04). Wall `extra` **now parsed** — `tools/proto.py readWall()` extracts `extendedFlags`/`sid`/`material` (added during the RD16 egg work). **Still missing**: misc `extra` (`MiscProto.extra`) — type 5 falls through to the `else`/"unhandled" branch in `readPRO()`. | `proto_types.h` | low |
 
 ### 9m. Animation
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| FA6 | **FID composition / weapon stance animation absent.** Critters always display unarmed pose regardless of equipped weapon. CE `buildFid()` selects FRM set from weapon `animCode`. | `art.cc buildFid()`; `art.h ART_TYPE_CRITTER` | medium |
+| FA6 | 🟡 Partial → **substantially implemented** (verified 2026-07-04, docs were stale). `Weapon.getSkin()` (`critter/Weapon.ts:355`) maps weapon `animCode` → FRM letter suffix (a/d/e/f/g/h/i/j/k/l/m); `Weapon.getAnim()` composes the per-stance path (`idle→Xa`, `walk→Xb`, `attack→X+attackSkin`, `weapon-draw→Xc`, `weapon-holster→Xd`); `critterAnimation.ts:146` uses `equippedWeapon` to select the armed FRM set, gated by `Config.engine.doUseWeaponModel` (default **on**). This is the `buildFid()`-equivalent path — critters DO change pose on equip. Remaining for 100%: per-weapon FRM-coverage completeness and holster/draw sequencing not fully audited end-to-end. | `art.cc buildFid()`; `art.h ART_TYPE_CRITTER` | medium |
 
 ---
 
 ## What is NOT required for 95%
+
+> **These are now enumerated with full status detail in Phase 10 (Path to 100%).**
+> This list is retained for the 95%-milestone framing; Phase 10 is the source of
+> truth for what remains.
 
 These are real FO2 systems but not on the critical path to a playable main quest run:
 
@@ -381,8 +404,9 @@ Infrastructure (wiki, CODEBASE.md, CLAUDE.md)
                     └─ Phase 5 (deferred systems — partially done) ✅/🟡
                         └─ Phase 6 (polish — partially done) ✅/🔴
 Phase 7 (save/load completeness) ✅
-Phase 8 (rendering gaps) 🔴
+Phase 8 (rendering gaps) ✅ (lighting-alignment block closed 2026-07-02) / 🟡 (visual-only remainder)
 Phase 9 (remaining tractable gaps) 🟡/🔴
+Phase 10 (path to 100% — deferred/parity systems) 🔴  [independent of 1–9; not on the playable-run critical path]
 ```
 
 ---
@@ -435,3 +459,172 @@ Items already implemented (indicator bar, AP lights, sneaking/addiction/level fl
 | IF07 | **Called-shot aiming not reachable via action-cycle.** CE cycles PRIMARY→PRIMARY_AIMING→SECONDARY→SECONDARY_AIMING→RELOAD; entering an AIMING mode auto-opens the called-shot panel. DH2 uses a separate hotkey ('Z'). | `interface.cc interfaceBarRefreshMainAction` | low |
 | IF08 | **Ammo bar fill width deviant.** CE formula: `ratio = currentRounds / maxAmmo * 70` (70 px max). DH2 uses 55 px max. | `interface.cc interfaceBarRefreshMainAction line ~1361` | low |
 | IF09 | **HUD bar hide/show script hooks absent.** CE exposes `gInterfaceBarMode` toggled by `intface_hide` / `intface_show` opcodes; scripts can hide the entire HUD. DH2 stubs these opcodes. | `interface.cc indicatorBarHide/Show, scripting opcodes` | low |
+
+---
+
+## Phase 10 — Path to 100%
+
+<!--
+  Completion estimate for this phase:
+  Current whole-project estimate ~94% (95% playable-main-quest milestone
+  essentially met). Phase 10 is the remaining ~5–6% — the immersion,
+  presentation, and edge-case systems the 95% target deliberately set aside,
+  plus the AF/IF HUD-fidelity audit findings and TypeScript hygiene.
+  Rough weight of the remainder: presentation/audio (subtitles, movies, endgame
+  narration) ≈ 2%; NPC schedules + car travel + town reputation ≈ 2%; the long
+  tail of HUD-FRM fidelity (AF/IF), asset-pipeline extras, type hygiene, and
+  visual-only rendering polish ≈ 1–2%. None are on the critical path to a
+  completable playthrough — they are parity/faithfulness work.
+  Verified during the 2026-07-04 deep-pass audit; source-checked items are
+  marked ✅ (already done) or 🟡 (more complete than previously documented).
+-->
+
+All items below are **beyond the 95% line** and collectively define true 100%
+parity with Fallout 2. Grouped by subsystem (same structure as Phase 9). Items
+already tracked in Phase 8/9 or in `wiki/known_bugs.md` keep their existing ID;
+newly surfaced gaps are noted inline. Severity: **major** (visible system-level
+gap) · **minor** (feature/polish) · **low** (cosmetic / edge-case). Status
+reflects the 2026-07-04 source audit.
+
+### 10a. Speech, Movies & Endgame Presentation
+
+| ID | What | CE Ref | Sev | Status |
+|----|------|--------|-----|--------|
+| P4 | **Speech audio / subtitles.** `Config.ui.subtitles = false`; no `.acm` speech playback path (`audio.ts` handles music/SFX only). | `sound.cc`, `gdialog.cc` | minor | missing |
+| S15 | **`play_gmovie` is a no-op.** `.mve` video playback infrastructure absent (`scripting.ts:2141` logs + skips). | `movie.cc` | minor | stub |
+| EG4 | **`endgame_movie` skips credits music + text.** CE plays `akiss.acm`, `creditsOpen("credits.txt")`, then `10labone.acm`. | `endgame.cc:234`; `credits.cc` | minor | missing |
+| EG5 | **Death ending slide is a black screen.** CE plays the narrator over the death scene. | `critter.cc:912` | low | missing |
+| EG3 | **Panning slide uses linear timing** instead of CE's per-pixel ms/step from image width + speech duration. | `endgame.cc:337-345` | low | bug |
+
+### 10b. NPC AI & Schedules
+
+| ID | What | CE Ref | Sev | Status |
+|----|------|--------|-----|--------|
+| P2 | **Full NPC day-night schedules.** Critters with `wander_type>0` random-wander; CE assigns fixed home/work/sleep positions keyed by hour. (Minimal wander is done — Phase 5d.) | `scripts.cc`, `ai.cc` | major | missing |
+| AC4 | **Hit-from-front vs hit-from-back death direction not tracked.** CE `_is_hit_from_front` picks `FALL_FRONT`/`FALL_BACK`; DH2 always uses one fall direction. | `actions.cc:1512` | low | missing |
+| AC7 | **`explosion()` lacks adjacent-tile secondary blasts + per-target `SCRIPT_PROC_DAMAGE` callbacks.** Base script-supplied damage works. | `actions.cc:1582` | minor | partial |
+| AC1 | **`PERK_WEAPON_KNOCKBACK` divisor-5 path skipped** (weapon-proto perk field not loaded). Stonewall/base knockback done. | `combat.cc:4633` | low | partial |
+
+### 10c. Companion / Party (full parity)
+
+| ID | What | CE Ref | Sev | Status |
+|----|------|--------|-----|--------|
+| — | **Companion level-up UI.** Companions function without it; CE levels them via `partyMemberIncLevels`. | `party.cc partyMemberIncLevels` | minor | missing |
+| — | **Formation pathfinding.** `followPlayer` pathfinds to nearest free adjacent hex; no CE squad formation. | `party.cc` | minor | missing |
+| — | **"Use Best Weapon / Best Armor" heuristics** (companion Custom screen buttons present but inert). | `combat_ai.cc _ai_search_inven_weap/_armor` | minor | missing |
+| P21 | **Barter/Trade body-view portraits** render the actual critter sprite — implementation path documented, canvas sprite-extractor not yet built. | `inventory.cc:1982-2070` | minor | partial |
+
+### 10d. Reputation / Faction
+
+| ID | What | CE Ref | Sev | Status |
+|----|------|--------|-----|--------|
+| R2 | **Per-town reputation tracking + NPC reaction modifiers.** Global karma done; no per-faction delta table, no town-reputation title strings. | `karma.cc` | minor | missing |
+
+### 10e. Worldmap (full parity)
+
+| ID | What | CE Ref | Sev | Status |
+|----|------|--------|-----|--------|
+| W8 | **Car travel system entirely absent.** No fuel, speed multipliers, or encounter-rate reduction; car-related `metarule` IDs 30/31/32/52/53 stub. | `worldmap.cc:5984 wmCarUseGas()` | major | missing |
+| W10 | **Walk masks not loaded** (`.msk`); player walks through mountains. | `worldmap.cc:1337 wmGrabTileWalkMask()` | minor | missing |
+| W9 | **Area entrance positions misplaced on area screens.** | — | minor | bug |
+| W7 | **Encounter-avoidance dialog absent.** Outdoorsman XP awarded, but every rolled encounter is still forced (no "do you wish to encounter it?"). | `worldmap.cc:3450` | minor | partial |
+
+### 10f. Rendering & Lighting (visual-only remainder)
+
+| ID | What | CE Ref | Sev | Status |
+|----|------|--------|-----|--------|
+| RD10 | **Color cycling absent** — no palette rotation for water/fire (verified: no `colorCycle*` in `src/`/`shaders/`). | `color.cc colorCycleEnable()` | minor | missing |
+| RD07 | **OBJECT_FLAT two-pass rendering absent** — flat decals/blood not drawn in a dedicated first pass. | `object.cc:761 _obj_render_pre_roof()` | minor | missing |
+| RD08 | **General post-roof object pass absent.** A post-roof pass exists **for outlines only** (CI11, `webglDraw.ts:605`); full-intensity post-roof object rendering not generalised. | `object.cc:862 _obj_render_post_roof()` | minor | partial |
+| RD13 | **Hex click hit-testing approximate** — cube-coord rounding, not CE's `_tile_mask[512]` pixel-precise edges (verified: no `tile_mask` in `src/`). | `tile.cc:718 tileFromScreenXY()` | low | bug |
+| RD14 | **Elevation transition instant** — CE fades between levels. | `map.cc mapSetElevation()` | low | missing |
+| RD15 | **Roof tile lighting deviation** — CE blits roofs at full palette intensity; DH2 dims at night via `roofDummyTexture`. | `tile.cc tileRenderRoofsInRect()` | low | bug |
+| RD06 | **Behind-building roof reveal** — flood-fill roof clipping done; egg-style roof transparency for standing *behind* a building is the intended fix (`roofPeek` is an opt-in, default-off fallback). | `tile.cc tile_fill_roof()` | minor | partial |
+| LD5 | **`objectGetLightIntensity` self-subtraction absent** in the combat/perk path (verified: no `lightIntensity` in `combat/hitChance.ts`). Not a render-path gap. | `object.cc:1748` | low | missing |
+| LD11n | **Non-wall opaque-object directional occlusion** still commented out (`lightmap.ts`) — separate from the fixed wall case. | `object.cc:4583` | low | missing |
+| §8 | **Residual per-column wall-face stripes** — inherent to DH2's per-fragment wall gradient (RD05 embellishment); `flat` mode is CE-faithful, aesthetic default TBD. | `alignment.md §8` | low | deviation |
+| GTC10 | **Day/night ambient light curve is a DH2 invention** — CE has no clock-driven ambient. | `light.cc`, `map.cc:927` | low | deviation |
+
+### 10g. Animation & Asset Pipeline
+
+| ID | What | CE Ref | Sev | Status |
+|----|------|--------|-----|--------|
+| PS2 | **`tools/proto.py` `FO1 = True` (line 20) suppresses critter `damageType` extraction.** `readCritter` writes `damageType = None` when `FO1`; one-line fix. | `proto_types.h CritterProtoData.damageType` | major | bug |
+| FA3 | **`actionFrame` discarded by pipeline.** `tools/frmpixels.py:40` reads it into `_actionFrame` but never writes it to `imageMap.json`; hit/sound frame-sync impossible. | `art.h ArtFrame.actionFrame` | major | missing |
+| FA6 | ✅ **Weapon-stance FID composition substantially implemented** (see Phase 9m, re-verified 2026-07-04). `Weapon.getSkin()`/`getAnim()` + `critterAnimation.ts` behind `doUseWeaponModel` (default on). Remaining: end-to-end per-weapon FRM-coverage audit. | `art.cc buildFid()` | medium | partial |
+| PS4 | **Misc `extra` fields not parsed** (type 5 → "unhandled"). Wall extras now extracted via `readWall()` (see Phase 9l). | `proto_types.h MiscProto.extra` | low | partial |
+| PS3 | **Tile PROs (type 4) not extracted** — `readPRO()` falls to the "unhandled" branch; terrain movement cost is hardcoded. | `proto_types.h TileProto` | low | missing |
+
+### 10h. Scripting (remaining stubs)
+
+| ID | What | CE Ref | Sev | Status |
+|----|------|--------|-----|--------|
+| S1 | **`metarule` car IDs 30/31/32/52/53 stub** (car system absent — see W8). All non-car IDs handled. | `interpreter_extra.cc opMetarule` | minor | partial |
+| S2 | **`metarule3` IDs 101/102/104/105/109-111 stub.** IDs 100/103/106/107/108 handled. | `interpreter_extra.cc opMetarule3` | minor | partial |
+| GTC5 | **ARTIMER midnight movies not wired** — `_scriptsCheckGameEvents()` (explicit TODO `gameTick.ts:161`); `objectUnjamAll()` done, radiation deferred. | `scripts.cc:405` | minor | partial |
+| S14 | **`reg_anim_animate` delay ignored in legacy non-batch path.** Batch path applies `delay*100ms`. | `animation.cc:1374` | minor | partial |
+| P8 | **`make_path` / `make_straight_path` / `obj_blocking_at` absent** (verified: not present in `src/`). | `sfall_opcodes.cc:937,951` | low | missing |
+| S26 | **`get_poison`/`poison` lack CE-accurate decay loop** (`main.ts` decrements 1/cycle; CE more complex). | `critter.cc critterPoisonCheck` | minor | partial |
+| S27 | **`radiation_dec` deliberately deferred.** | `radiation.cc` | minor | stub |
+
+### 10i. Interface / HUD Fidelity (AF + IF audit findings)
+
+CE-faithful HUD/preferences rendering. Mostly cosmetic (DOM/CSS vs pre-baked FRM
+sprites); functional parity already met. Full detail in the **AUDIT FINDINGS**
+sections above and `wiki/known_bugs.md §26`.
+
+| ID | What | CE Ref | Sev | Status |
+|----|------|--------|-----|--------|
+| IF01 | **HP counter digit-roll animation absent** — CE rolls digits frame-by-frame with colour transitions; DH2 is instant. | `interface.cc interfaceRenderCounter` | minor | missing |
+| IF06 | **Reload AP cost hardcoded to 2 in `ui.ts`** (a second call site; `Weapon.getReloadAPCost()` is correct — reconcile). | `interface.cc`; `item.cc` | minor | bug |
+| AF7 | **Item-condition bars under equipped weapon absent** (`interfaceRenderItemBars`). | `interface.cc interfaceRenderItemBars()` | minor | missing |
+| AF9 | **Brightness/gamma slider absent** in preferences. | `preferences.cc PREF_BRIGHTNESS` | minor | missing |
+| AF10 | **Mouse-sensitivity slider absent.** | `preferences.cc PREF_MOUSE_SENSITIVITY` | low | missing |
+| AF15 | **Preferences "Default" button absent.** | `preferences.cc preferencesSave()` | low | missing |
+| AF16 | **`text_line_delay` (per-line auto-advance) absent** — distinct from `text_base_delay`. | `settings.h:43` | low | missing |
+| AF17 | **`language_filter` (profanity) toggle absent.** | `preferences.cc PREF_LANGUAGE_FILTER` | low | missing |
+| AF1–AF6, AF8, AF11–AF14 | **HUD/prefs FRM-sprite fidelity** (badge/digit/pip/knob/background FRMs vs DOM-CSS). Functional parity met; presentation differs. | `interface.cc`, `preferences.cc` | low | deviation |
+| IF02–IF05, IF07–IF08 | **HP colour-transition frames, end-button lights/SFX, active-hand save, ammo-bar width, aim-mode cycle** — cosmetic/edge HUD details. | `interface.cc` | low | mixed |
+| IW8 | **Dialogue sub-mode state machine partial** — only `dialogue→barter`; other CE sub-mode paths not replicated. | `game_dialog.cc gameDialogEnter()` | minor | partial |
+
+### 10j. Config / Persistence
+
+| ID | What | CE Ref | Sev | Status |
+|----|------|--------|-----|--------|
+| CI1/CI5 | **No file-based config** — all settings hardcoded in `Config`; prefs in `localStorage`, not `fallout2.cfg` (lost in private browsing). | `config.cc:273`; `settings.cc:118` | minor | missing |
+| CI2 | **`game_difficulty` vs `combat_difficulty` conflated** — both map to `difficultyModifier` (combat-damage only); CE separates skill-check/loot/XP effects. | `settings.h:29-31` | minor | missing |
+| CI7 | **`item_highlight` persistent setting** — CE-accurate hover-highlight wired (CI12); the CE Options *checkbox* semantics are approximated. | `game_config.h:37` | low | partial |
+
+### 10k. Skills, Locks, Elevators & Economy (edge cases)
+
+| ID | What | CE Ref | Sev | Status |
+|----|------|--------|-----|--------|
+| K4 | **Expanded/Electronic Lockpick tool types not modelled** in `useLockpick()`. | `skill.cc` | minor | partial |
+| K3 | **Steal item-size penalty absent** (no item-select UI); facing/knockdown done. | `skill.cc:1037` | minor | partial |
+| LE5 | **Ammo stack merge ignores magazine-capacity ceiling** — CE fills to capacity, splits remainder. | `item.cc:322 itemAdd()` | minor | partial |
+| LE10 | **STEALTH_BOY II auto-stealth not implemented.** | `item.cc:322` | low | missing |
+| EL4 | **`_map_data_elev_flags` bitmask not in DH2 map format** — empty elevations can't be represented. | `map.cc:81` | low | missing |
+| EV1 | **Elevator gauge-pointer travel animation absent** — destination loads instantly. | `elevator.cc:405` | low | missing |
+| EV2 | **Sierra-2 / Military Base elevation remapping offsets absent.** | `elevator.cc:354-375` | low | missing |
+| EV4 | **`console.log` in `ui_elevator.ts:59` production path** — should use `dbg()`/`dbgWarn()`. | — | low | bug |
+| RN5 | **PRNG chi-squared startup validation absent** (CE runs a 100k-sample test). | `random.cc:224` | low | missing |
+
+### 10l. Type Hygiene
+
+| ID | What | CE Ref | Sev | Status |
+|----|------|--------|-----|--------|
+| Q-any | **`any`-typed fields** (verified 2026-07-04): `Obj.pro`/`Obj.extra`/`Obj.anim` (`object/Obj.ts:284,291,316,326,336`), `globalState.proMap` (`globalState.ts:125`), plus `Obj.type`/`Obj.art`/`Critter.weapon`. Technical debt; masks future bugs. | — | low | open |
+
+---
+
+### Phase 10 — verified-done during the 2026-07-04 audit
+
+Items the deep-pass confirmed already implemented (moved off the open list; see
+inline ✅ above and the corrected Phase 8/9 rows):
+
+- **C10** unarmed special-move combat logic — `combat/Combat.ts` (Phase 9f corrected).
+- **EL3** elevator door-reset on floor switch — `ui_elevator.ts:134-142` (Phase 9j corrected).
+- **FA6** weapon-stance FID composition — `Weapon.getSkin/getAnim` + `critterAnimation.ts` (Phase 9m/10g downgraded missing→partial).
+- **PS4 (walls)** — wall `extendedFlags/sid/material` extraction via `readWall()` (Phase 9l/10g).
+- **Perk selection screen**, **save-slot screenshots** — already ✅ in the "NOT required for 95%" list.
+- The entire **lighting-alignment block** (LD7/LD11/RD17 + `alignment.md §6–§8`) — see the Phase 8 note.
