@@ -661,6 +661,15 @@ window.onload = async function () {
         Config.ui.eggRadius = Math.max(1, r)
         console.log(`[Egg] radius=${Config.ui.eggRadius}`)
     }
+    // setRoofEgg(bool) — apply the soft egg oval to roof tiles that occlude the
+    // player when standing BEHIND a building (roof not hidden by the under-
+    // building flood-fill). Lets you see the character through the roof without
+    // the whole roof vanishing. The under-building full-hide rules are unchanged.
+    // Needs an egg-mask eggMode + showEgg. Default on.
+    ;(window as any).setRoofEgg = (on: boolean) => {
+        Config.ui.roofEgg = on !== false
+        console.log(`[Roof] egg-transparency = ${Config.ui.roofEgg} (${Config.ui.roofEgg ? 'soft oval on roofs behind buildings' : 'off: roofs stay opaque unless fully hidden'})`)
+    }
     ;(window as any).debugEgg = () => {
         const r = globalState.renderer as WebGLRenderer
         // Quick sanity check that proto/pro.json's wall extendedFlags data
