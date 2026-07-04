@@ -130,12 +130,16 @@ export const Config = {
         // on arrival (CE-faithful). The smooth modes split the stamp across tiles so
         // the cone's centre tracks the gliding sprite. Only affects the 'dh2'
         // propagation mode; toggle live via setPlayerLightSmooth(). See wiki/lighting.md.
-        //   'ce'        — (default) stamp at the integer hex; CE-faithful tile-snap.
+        //   'ce'        — stamp at the integer hex; CE-faithful tile-snap.
         //   'blend'     — 2-tile lerp between the current and next path hex, weighted
         //                 by walk progress t (frame within the step).
-        //   'egg-split' — barycentric split across the tiles under the animated foot
-        //                 position (hexToScreen + shift), tracking the sprite exactly.
-        playerLightSmooth: 'ce' as 'ce' | 'blend' | 'egg-split',
+        //   'egg-split' — (default) barycentric split across the tiles under the
+        //                 animated foot (hexToScreen + shift), tracking the sprite
+        //                 exactly. Chosen as default: derives from the same render
+        //                 position as the sprite/egg (can't desync), and needs only
+        //                 position+shift (no path/frame dependency), so it also smooths
+        //                 non-path movement. Visually identical to 'blend'.
+        playerLightSmooth: 'egg-split' as 'ce' | 'blend' | 'egg-split',
         useLightColorLUT: true, // Use intensityColorTable/colorLUT/colorRGB for accurate lighting colors?
         doAudio: true, // enable audio?
         doLogLazyLoads: false, // Log lazy-loading of images? (Noisy)

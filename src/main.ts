@@ -371,10 +371,10 @@ window.onload = async function () {
     // grid, so CE snaps the cone tile-to-tile on arrival; the smooth modes split the
     // stamp so the cone centre tracks the gliding sprite. Only affects the 'dh2'
     // propagation mode. Takes effect next frame. See wiki/lighting.md.
-    //   'ce'        — (default) integer-hex stamp; CE-faithful tile-snap.
+    //   'ce'        — integer-hex stamp; CE-faithful tile-snap.
     //   'blend'     — 2-tile lerp between current and next path hex by walk progress.
-    //   'egg-split' — barycentric split across the tiles under the animated foot
-    //                 position; tracks the sprite exactly (like the egg anchor).
+    //   'egg-split' — (default) barycentric split across the tiles under the animated
+    //                 foot position; tracks the sprite exactly (like the egg anchor).
     ;(window as any).setPlayerLightSmooth = (mode: string) => {
         const valid = ['ce', 'blend', 'egg-split']
         if (!valid.includes(mode)) {

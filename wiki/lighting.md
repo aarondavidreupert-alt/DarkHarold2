@@ -230,7 +230,7 @@ sprite glides smoothly via `obj.shift`. This is **CE-faithful** (CE also stamps
 per-tile on arrival). The egg mask, by contrast, tracks the animated foot, so the
 light can visibly lag the character on dark maps.
 
-`playerLightSmooth` (`setPlayerLightSmooth()`, default `'ce'`; **`'dh2'`
+`playerLightSmooth` (`setPlayerLightSmooth()`, default `'egg-split'`; **`'dh2'`
 propagation only**) optionally splits the moving critter's cone across the tiles
 under its animated position so the lightmap centre tracks the sprite. Occlusion is
 preserved (each partial stamp runs the real propagation); the split is cheap (a
@@ -241,9 +241,9 @@ to the full cone.
 
 | Mode | How the cone is placed | Notes |
 |------|------------------------|-------|
-| **`ce`** (default) | one stamp at `obj.position` | CE-faithful tile-snap. |
+| **`ce`** | one stamp at `obj.position` | CE-faithful tile-snap. |
 | **`blend`** | 2 stamps: current path hex `(1−t)` + next path hex `t`, `t` = frame progress within the walk step (`Critter.getWalkLerp`) | Linear along the logical path. |
-| **`egg-split`** | barycentric split (`worldToHexBarycentric`) across the tiles under the animated foot `hexToScreen(position) + shift` | Tracks the sprite exactly (same position basis as the egg); reuses the hex-lerp axial triangle. |
+| **`egg-split`** (default) | barycentric split (`worldToHexBarycentric`) across the tiles under the animated foot `hexToScreen(position) + shift` | Tracks the sprite exactly (same position basis as the egg); reuses the hex-lerp axial triangle. Default: single render-position source of truth, no path/frame dependency (also smooths non-path movement). |
 
 Both smooth modes reduce to `ce` when idle (foot = tile centre → single stamp) and
 crossfade with a tiny mid-step brightness dip (~10 % for a radius-4 torch), reading
