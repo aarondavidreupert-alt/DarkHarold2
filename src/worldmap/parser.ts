@@ -165,6 +165,9 @@ export function parseWorldmap(data: string): Worldmap {
     const squares: Square[][] = new Array(NUM_SQUARES_X) // (4*7) x (5*6) array (i.e., number of tiles -- 840)
     for (let i = 0; i < NUM_SQUARES_X; i++) squares[i] = new Array(NUM_SQUARES_Y)
 
+    // CE ref: worldmap.cc:1337 — one optional walk_mask_name per [Tile N] section.
+    const walkMaskNames: (string | null)[] = []
+
     // console.log(ini)
 
     for (const key in ini) {
@@ -174,6 +177,8 @@ export function parseWorldmap(data: string): Worldmap {
             const tileX = tileNum % 4
             const tileY = Math.floor(tileNum / 4)
             const difficulty = parseInt(ini[key].encounter_difficulty)
+
+            walkMaskNames[tileNum] = ini[key].walk_mask_name ?? null
 
             for (const position in ini[key]) {
                 const pos = position.match(/(\d)_(\d)/)
@@ -235,5 +240,6 @@ export function parseWorldmap(data: string): Worldmap {
         encounterGroups,
         encounterRates,
         terrainSpeed: parseKeyed(ini.Data.terrain_types) as { [terrainType: string]: number },
+        walkMaskNames,
     }
 }

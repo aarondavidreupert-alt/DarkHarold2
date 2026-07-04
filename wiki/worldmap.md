@@ -1,6 +1,6 @@
 # World Map & Random Encounters Reference
 
-> Last audited: 2026-06-02  
+> Last audited: 2026-07-04 — W10 fixed (walk masks)  
 > CE sources: `raw/fallout2-ce/src/worldmap.cc` (`wmWorldMapFunc`, `wmConfigInit`, `wmParseTerrainTypes`, `wmParseSubTileInfo`, `wmParseEncounterTableIndex`, `wmParseEncBaseSubTypeStr`, `wmRndEncounterOccurred`, `wmRndEncounterPick`, `wmSetupRandomEncounter`, `wmSetupCritterObjs`, `wmPartyWalkingStep`, `wmPartyInitWalking`, `wmGameTimeIncrement`, `wmCarUseGas`, `wmEvalConditional`, `wmAreaIsKnown`, `wmAreaVisitedState`, `wmAreaMarkVisited`, `wmAreaMarkVisitedState`, `wmAreaSetVisibleState`, `wmMapIsKnown`, `wmMapMarkVisited`, `wmAreaSetWorldPos`, `wmGetPartyCurArea`, `wmGrabTileWalkMask`, `wmSubTileMarkRadiusVisited`), `raw/fallout2-ce/src/worldmap.h` (`City` enum, `Map` enum, car constants), `raw/fallout2-ce/src/interpreter_extra.cc`  
 > DH2 sources: `src/worldmap/parser.ts` (`parseWorldmap`, `parseSquare`), `src/worldmap/Worldmap.ts` (`updateWorldmapPlayer`, `setSquareStateAt`, `withinArea`), `src/worldmap/encounters.ts` (`didEncounter`, `doEncounter`), `src/encounters/resolver.ts` (`pickEncounter`, `evalEncounter`, `positionCritters`), `src/encounters/conditionLang.ts` (`evalCond`), `src/data.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/globalState.ts`  
 > Data files: `data/data/worldmap.txt`, `data/data/city.txt`
@@ -269,6 +269,9 @@ walk_mask_name=wm0000
   `tile->encounterDifficultyModifier`. (`worldmap.cc:1332`)
 - `walk_mask_name` (optional): base name of a `.msk` file (300×44 bytes = 13200
   bytes) that marks impassable terrain. (`worldmap.cc:1337`, `wmGrabTileWalkMask`)
+  **FIXED 2026-07-04 (W10)**: `parser.ts` captures this per tile into
+  `Worldmap.walkMaskNames`; `Worldmap.ts` lazily fetches `data/{name}.msk` and
+  `worldPosInvalid(x, y)` gates each worldmap movement step against it.
 - `row_column` keys (`0_0` through `6_5`): each tile has a 7×6 grid of
   **subtiles** (SUBTILE_GRID_WIDTH=7, SUBTILE_GRID_HEIGHT=6), each 50×50 pixels.
   (`worldmap.cc:64–65`)
@@ -1197,7 +1200,7 @@ After the encounter map is loaded, `wmSetupRandomEncounter` populates the map:
 | Car encounter rate reduction | ❌ | Car reduces detection in CE; DH2 has no car |
 | Pathfinder perk (time reduction) | ❌ | DH2 time advance is fixed at ~2 min/tick |
 | Special encounters | ✅ (partial) | Map override implemented; location pin on worldmap not added |
-| Walk mask (impassable terrain) | ❌ | No `.msk` file loading or impassable-tile check |
+| Walk mask (impassable terrain) | ✅ FIXED 2026-07-04 | `worldPosInvalid()` checks `.msk` bitmap; travel halts at blocked pixels (W10) |
 | Fog of war | ✅ | Square states: undiscovered/discovered/seen |
 | Area hotspots | ✅ | `withinArea` circle check for named locations |
 | Time advancement | ⚠️ | ~2 min/tick, no perk support; CE is 30 min/frame |
@@ -1258,7 +1261,7 @@ annotations used throughout §11 and §13.
 | Metarule 46 returns 0 vs -1 | -1 when not in any area | 0 when not found | Scripts checking `== -1` will break |
 | Pathfinder perk | 25%/50% travel time reduction | Not implemented | All perk-based travel speed is lost |
 | Party healing during travel | ~1 HP/critter/sec wall time | None | No healing on long walks |
-| Walk masks (.msk files) | Block passage over impassable terrain | Not implemented | Player can walk through mountains on the pixel level |
+| Walk masks (.msk files) | Block passage over impassable terrain (a generic per-tile pixel mechanism — no separate ocean-specific check exists in CE) | ✅ FIXED 2026-07-04 — `worldPosInvalid()` checked each movement tick; travel halts at the boundary | Matches CE's stop-in-place behavior; adapted from CE's discrete pixel-stepper to DH2's continuous float movement (checks each tick's candidate endpoint, not every intermediate pixel) |
 | Car system | Fuel, refueling, speed upgrades, area tracking | None | Entire vehicle mechanics absent |
 | wmSubTileMarkRadiusVisited | Reveals subtiles around current pos | Partial (seeAdjacent flag) | DH2's reveal radius is always 1 square, not configurable |
 | `mark_area_known` DOM update | CE updates game state only (no DOM) | DH2 `init()` pre-renders circles; runtime reveal has no DOM append | Area dots for initially-hidden areas won't appear after `mark_area_known` |
@@ -1351,4 +1354,4 @@ fuel tank (`CAR_FUEL_MAX=80000`), fuel consumption per step, fuel cell upgrades,
 out-of-gas location spawned on empty. None of this exists in DH2. The car cannot
 be driven on the world map.
 
-<!-- audited: 2026-06-02 -->
+<!-- audited: 2026-07-04 — W10 walk masks fixed, see ROADMAP.md Phase 10e -->
