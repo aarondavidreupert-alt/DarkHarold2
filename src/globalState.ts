@@ -24,6 +24,7 @@ import { Player } from './player.js'
 import { Renderer } from './renderer.js'
 import { Skills } from './skills.js'
 import { UIMode } from './ui.js'
+import { Proto } from './proto_types.js'
 
 export type CursorMode = 'move' | 'command' | 'attack' | 'interface' | 'scroll' | 'useSkill'
 
@@ -123,10 +124,11 @@ const globalState = {
     messageFiles: { [msgFile: string]: { [msgID: string]: string } }
     player: Player | null
     // Raw parsed proto/pro.json, keyed by subdir (items/critters/scenery/
-    // walls/tiles/misc) then numeric proto ID. Per-type record shape varies
-    // (item vs critter vs ... extra fields) — not narrowed further here;
-    // see src/pro.ts loadPRO() for the lookup path. `null` until loaded.
-    proMap: { [subdir: string]: { [id: string]: any } } | null
+    // walls/tiles/misc) then numeric proto ID. `Proto.extra`'s shape varies
+    // by type (item vs critter vs ...) — see src/proto_types.ts ProtoExtra
+    // for the full per-type breakdown; see src/pro.ts loadPRO() for the
+    // lookup path. `null` until loaded.
+    proMap: { [subdir: string]: { [id: string]: Proto } } | null
 
     skillMode: Skills
 

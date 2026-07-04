@@ -309,12 +309,17 @@ def readPRO(f: BufferedReader):
 		obj["extra"] = readTile(f)
 		return obj
 
-	lightRadius = read32(f)
+	# CE ref: proto_types.h — field is `lightDistance` (light_distance), read
+	# by scripting.ts proto_data() ITEM/CRITTER_DATA_MEMBER_LIGHT_DISTANCE.
+	# Previously named "lightRadius" here, a DH2-invented name that never
+	# matched any TS consumer, silently breaking that opcode (always fell
+	# through to `?? 0`) — found during the 2026-07-04 Q-any type-hygiene pass.
+	lightDistance = read32(f)
 	lightIntensity = read32(f)
 	flags = read32(f)
 
 	obj["flags"] = flags
-	obj["lightRadius"] = lightRadius
+	obj["lightDistance"] = lightDistance
 	obj["lightIntensity"] = lightIntensity
 
 	#print "type:", objType

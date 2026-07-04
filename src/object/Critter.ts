@@ -178,14 +178,14 @@ export class Critter extends Obj {
         super.init()
 
         this.stats = StatSet.fromPro(this.pro)
-        this.skills = SkillSet.fromPro(this.pro.extra.skills)
+        this.skills = SkillSet.fromPro(this.pro!.extra.skills)
         // console.log("Loaded stats/skills from PRO: HP=%d Speech=%d", this.stats.get("HP"), this.skills.get("Speech", this.stats))
-        this.name = getMessage('pro_crit', this.pro.textID) || ''
+        this.name = getMessage('pro_crit', this.pro!.textID) || ''
 
         // initialize AI packet / team number
         // FO2-CE ref: ai.cc — team_num comes from the proto field; fall back to AI packet if absent
-        this.aiNum = this.pro.extra.AI
-        const protoTeam: number | undefined = this.pro.extra.team
+        this.aiNum = this.pro!.extra.AI
+        const protoTeam: number | undefined = this.pro!.extra.team
         if (protoTeam !== undefined && protoTeam !== null && protoTeam >= 0) {
             this.teamNum = protoTeam
         } else {

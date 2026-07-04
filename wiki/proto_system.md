@@ -3,7 +3,7 @@
 > **Source anchor:** `raw/fallout2-ce/src/proto.cc`, `proto.h`, `proto_types.h`, `obj_types.h`, `art.cc`
 > **DH2 files:** `src/pro.ts`, `src/object.ts` (barrel; `src/object/*.ts`), `src/scripting.ts`, `src/vm_bridge.ts`
 > **DH2 pipeline:** `tools/proto.py`, `tools/exportPRO.py`
-> **Last audited:** 2026-07-04 — PS2/PS3/PS4 fixed
+> **Last audited:** 2026-07-04 — PS2/PS3/PS4 fixed; lightDistance field-name bug fixed (Q-any pass)
 
 ---
 
@@ -84,12 +84,20 @@ Offset  Bytes  Field            Description
 0       4      pid              Packed PID (type in bits 31-24, index in bits 23-0)
 4       4      textID           Message ID in pro_{type}.msg for name (textID) / description (textID+1)
 8       4      fid              Sprite FID (see §3)
-12      4      lightRadius      Emitted light radius in tiles (0 = no light)
+12      4      lightDistance    Emitted light radius in tiles (0 = no light)
 16      4      lightIntensity   Emitted light intensity (0..65535 = 0..100%)
 20      4      flags            ObjectFlags bitmask (OBJECT_NO_BLOCK=0x10, OBJECT_FLAT=0x08, etc.)
 ```
 
-TileProto omits `lightRadius` and `lightIntensity` — its header is only 24 bytes total including flags + extendedFlags + sid + material.
+TileProto omits `lightDistance` and `lightIntensity` — its header is only 24 bytes total including flags + extendedFlags + sid + material.
+
+**FIXED 2026-07-04**: `tools/proto.py::readPRO()` emitted this field as `lightRadius` — a DH2-invented
+name matching neither CE's `lightDistance` (`proto_types.h`) nor `scripting.ts`'s `proto_data()`
+`ITEM_DATA_MEMBER_LIGHT_DISTANCE`/`CRITTER_DATA_MEMBER_LIGHT_DISTANCE` cases (which already read
+`pro.lightDistance`, correctly matching CE). The mismatch meant that opcode always fell through to
+its `?? 0` fallback, silently returning 0 regardless of the proto's real light radius. Renamed to
+`lightDistance` to match; requires a pipeline re-run to take effect on real assets. Found during
+the 2026-07-04 Q-any type-hygiene pass.
 
 ### 4.2 Item PRO (`ItemProto`, sizeof = 0x84)
 
@@ -222,7 +230,7 @@ After common header: `extendedFlags int32`, `sid int32`, `material int32`. No su
 
 ### 4.6 Tile PRO (`TileProto`, sizeof = 0x1C)
 
-Minimal header — no lightRadius / lightIntensity:
+Minimal header — no lightDistance / lightIntensity:
 ```
 pid int32; textID int32; fid int32; flags int32; extendedFlags int32; sid int32; material int32
 ```
@@ -280,7 +288,7 @@ The JSON structure produced:
 
 ```json
 {
-  "items":    { "1": { "pid": 1, "textID": 100, "type": 0, "flags": 0, "lightRadius": 0, "lightIntensity": 0, "frmPID": 0, "frmType": 0, "extra": { ... } }, ... },
+  "items":    { "1": { "pid": 1, "textID": 100, "type": 0, "flags": 0, "lightDistance": 0, "lightIntensity": 0, "frmPID": 0, "frmType": 0, "extra": { ... } }, ... },
   "critters": { "1": { ... "extra": { "actionFlags": ..., "AI": ..., "baseStats": {...}, "bonusStats": {...}, "skills": {...}, ... } }, ... },
   "scenery":  { "1": { ... "extra": { "subType": 0, "wallLightTypeFlags": ..., "actionFlags": ..., ... } }, ... },
   "walls":    { "1": { "pid": ..., "textID": ..., "frmPID": ..., "frmType": ..., "flags": 0 } },
@@ -345,8 +353,8 @@ CE opcode `0x8104` → `opGetProtoData` (interpreter_extra.cc:2962) → `protoGe
 | 1 | `ITEM_DATA_MEMBER_NAME` | — |
 | 2 | `ITEM_DATA_MEMBER_DESCRIPTION` | — |
 | 3 | `ITEM_DATA_MEMBER_FID` | — |
-| 4 | `ITEM_DATA_MEMBER_LIGHT_DISTANCE` | — |
-| 5 | `ITEM_DATA_MEMBER_LIGHT_INTENSITY` | — |
+| 4 | `ITEM_DATA_MEMBER_LIGHT_DISTANCE` | `pro.lightDistance` — **FIXED 2026-07-04**: `scripting.ts` already read the correct CE field name, but `tools/proto.py` emitted it as `lightRadius`; this opcode silently always returned 0 until the field was renamed to match (see §4.1) |
+| 5 | `ITEM_DATA_MEMBER_LIGHT_INTENSITY` | `pro.lightIntensity` |
 | 6 | `ITEM_DATA_MEMBER_FLAGS` | `extra.itemFlags` |
 | 7 | `ITEM_DATA_MEMBER_EXTENDED_FLAGS` | `extra.attackMode` |
 | 8 | `ITEM_DATA_MEMBER_SID` | — |

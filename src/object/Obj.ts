@@ -26,6 +26,7 @@ import { lazyLoadImage } from '../images.js'
 import { Lightmap } from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { getPROSubTypeName, getPROTypeName, loadPRO, lookupArt, makePID } from '../pro.js'
+import { Proto } from '../proto_types.js'
 import { Scripting } from '../scripting.js'
 import { fromTileNum } from '../tile.js'
 import { uiLoot, uiLog } from '../ui.js'
@@ -313,7 +314,7 @@ export class Obj {
     pid: number // PID (Prototype IDentifier)
     pidID: number // ID (not type) part of the PID
     type: string = null // TODO: enum // Type of object (critter, item, ...)
-    pro: any = null // TODO: pro ref // PRO Object
+    pro: Proto | null = null // PRO Object — see src/proto_types.ts
     flags = 0 // Flags from PRO; may be overriden by map objects
     art: string // TODO: Path // Art path
     frmPID: number = null // Art FID
@@ -378,27 +379,34 @@ export class Obj {
         const pidType = (pid >> 24) & 0xff
         const pidID = pid & 0xffff
 
-        const pro: any = loadPRO(pid, pidID) // TODO: any
+        const pro = loadPRO(pid, pidID)
         obj.type = getPROTypeName(pidType)
         obj.pid = pid
         obj.pro = pro
-        obj.flags = obj.pro.flags
+        // A proto always exists for a valid pid (loadPRO only returns null
+        // before globalState.proMap has been loaded at all); matches this
+        // function's pre-existing assumption of unconditional pro access.
+        obj.flags = obj.pro!.flags
 
         // TODO: Subclasses
         if (pidType == 0) {
             // item — PRO JSON uses camelCase 'subType' (from proto.py), not 'subtype'
-            obj.subtype = getPROSubTypeName(pro.extra.subType ?? pro.extra.subtype)
-            obj.name = getMessage('pro_item', pro.textID)
+            obj.subtype = getPROSubTypeName(pro!.extra.subType ?? pro!.extra.subtype)
+            obj.name = getMessage('pro_item', pro!.textID)
 
-            const invPID = pro.extra.invFRM & 0xffff
+            const invPID = pro!.extra.invFRM & 0xffff
             dbg('object', `[Object] invPID: ${invPID}, pid=${pid}`)
             if (invPID !== 0xffff) {
                 obj.invArt = 'art/inven/' + getLstId('art/inven/inven', invPID).split('.')[0]
             }
         }
 
+        // NOTE: loadPRO() returns `null`, never `undefined`, on a miss — this
+        // check is a pre-existing no-op (the `else` branch is dead code).
+        // Left as-is: fixing it would change behavior beyond this pass's
+        // type-hygiene scope; not introduced by the pro: Proto|null typing.
         if (obj.pro !== undefined) {
-            obj.art = lookupArt(makePID(obj.pro.frmType, obj.pro.frmPID))
+            obj.art = lookupArt(makePID(obj.pro!.frmType, obj.pro!.frmPID))
         } else {
             obj.art = 'art/items/RESERVED'
         }
@@ -760,23 +768,23 @@ export class Obj {
     }
 
     get isDoor(): boolean {
-        return this.type === 'scenery' && this.pro.extra.subType === 0 // SCENERY_DOOR
+        return this.type === 'scenery' && this.pro!.extra.subType === 0 // SCENERY_DOOR
     }
 
     get isStairs(): boolean {
-        return this.type === 'scenery' && this.pro.extra.subType === 1 // SCENERY_STAIRS
+        return this.type === 'scenery' && this.pro!.extra.subType === 1 // SCENERY_STAIRS
     }
 
     get isLadder(): boolean {
         return (
             this.type === 'scenery' &&
-            (this.pro.extra.subType === 3 || // SCENERY_LADDER_BOTTOM
-                this.pro.extra.subType === 4)
+            (this.pro!.extra.subType === 3 || // SCENERY_LADDER_BOTTOM
+                this.pro!.extra.subType === 4)
         ) // SCENERY_LADDER_TOP
     }
 
     get isContainer(): boolean {
-        return this.type === 'item' && this.pro.extra.subType === 1 // SUBTYPE_CONTAINER
+        return this.type === 'item' && this.pro!.extra.subType === 1 // SUBTYPE_CONTAINER
     }
 
     get isExplosive(): boolean {
@@ -796,7 +804,7 @@ export class Obj {
             if (this.isDoor || this.isStairs || this.isLadder) {
                 return true
             } else {
-                return (this.pro.extra.extendedFlags & 8) != 0
+                return (this.pro!.extra.extendedFlags & 8) != 0
             }
         }
         return false
@@ -860,7 +868,7 @@ export class Obj {
                 globalState.gMap.loadMapByID(this.extra.destinationMap, destTile, destElev)
             }
         } else if (this.isLadder) {
-            const isTop = this.pro.extra.subType === 4
+            const isTop = this.pro!.extra.subType === 4
             // CE ref: proto_instance.cc:1512 useLadderDown/useLadderUp — reads tile and
             // elevation from the packed destinationBuiltTile field (same format as stairs).
             const destTile = fromTileNum(this.extra.destination & 0xffff)

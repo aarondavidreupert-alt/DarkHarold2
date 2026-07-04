@@ -442,8 +442,9 @@ export function showInventory() {
                         ammoObj.amount = ammoCurrent
                         globalState.player.addInventoryItem(ammoObj, ammoCurrent)
                     }
-                    obj.pro.extra.rounds = 0
-                    if (obj.pro.extra.ammoPID !== undefined) obj.pro.extra.ammoPID = 0
+                    // ammoCurrent > 0 above already implies obj.pro was non-null (via ?. defaulting to 0).
+                    obj.pro!.extra.rounds = 0
+                    if (obj.pro!.extra.ammoPID !== undefined) obj.pro!.extra.ammoPID = 0
                 }
                 uiDrawWeapon()
                 showInventory()
