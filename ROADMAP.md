@@ -175,8 +175,13 @@ a believable playthrough.
 - ✅ Dead `tile_coord()` function removed (TS4 FIXED 2026-06-03).
 - 🔴 **Town faction deltas** — per-town rep table absent; NPC reaction modifiers absent.
   Global karma display ✅; town-level display not. Ref: `reputation.cc`
+  *(Still open, re-verified 2026-07-04 — no `townRep` in `src/`. Beyond the 95%
+  line → tracked for 100% as **R2** in Phase 10d.)*
 - 🔴 **Type annotations**: `Obj.type`, `Obj.pro`, `Obj.art`, `Obj.extra`, `Obj.anim`,
   `globalState.proMap`, `Critter.weapon` — still `any`.
+  *(Still open, re-verified 2026-07-04 — `object/Obj.ts:284/291/316/326/336`,
+  `globalState.ts:125`. Technical-debt, not gameplay → tracked for 100% as
+  **Q-any** in Phase 10l.)*
 
 ---
 
@@ -213,7 +218,10 @@ a believable playthrough.
 ### 8b. Flat object two-pass rendering 🔴 Missing (RD07/RD08)
 - CE renders `OBJECT_FLAT` objects (floor decals, blood) in a dedicated first pass.
 - Also missing: post-roof object pass (`_obj_render_post_roof` at full intensity).
+- **Re-verified 2026-07-04:** a post-roof pass exists **for outlines only** (CI11,
+  `webglDraw.ts:605`); the general flat/full-intensity passes are still absent.
 - Ref: `object.cc:761 _obj_render_pre_roof()`; `object.cc:862 _obj_render_post_roof()`
+- → tracked for 100% as **RD07/RD08** in Phase 10f.
 
 ### 8c. Object depth sort ✅ FIXED 2026-06-04
 - `objectZCompare` now uses `hexIsInFrontOf` (CE `tile.cc:854 tileIsInFrontOf`)
@@ -223,7 +231,9 @@ a believable playthrough.
 
 ### 8d. Color cycling absent 🔴 (RD10)
 - CE `colorCycleEnable/Disable` drives palette rotation for water and fire.
+- **Re-verified 2026-07-04:** no `colorCycle*` in `src/` or `shaders/`.
 - Ref: `color.cc colorCycleEnable()`
+- → tracked for 100% as **RD10** in Phase 10f.
 
 ### 8e. Scroll blocking / border limiting ✅ FIXED 2026-06-04
 - `clampCameraPosition` enforces map-edge bounds (RD12) and reverts any
@@ -234,16 +244,23 @@ a believable playthrough.
 ### 8f. Hex click hit-testing approximate 🔴 (RD13)
 - CE uses `_tile_mask[512]` (32×16 px, 5 sub-regions) for pixel-precise edges.
 - DH2 uses cube-coordinate rounding — imprecise at hex boundaries.
+- **Re-verified 2026-07-04:** no `tile_mask` in `src/`.
 - Ref: `tile.cc:718 tileFromScreenXY()`
+- → tracked for 100% as **RD13** in Phase 10f.
 
 ### 8g. Elevation transition instant 🔴 (RD14)
 - CE fades between elevation levels; DH2 switches immediately.
+- **Re-verified 2026-07-04:** `GameMap.changeElevation()` (`map/GameMap.ts:224`)
+  swaps levels with no fade.
 - Ref: `map.cc mapSetElevation()`
+- → tracked for 100% as **RD14** in Phase 10f.
 
 ### 8h. Roof tile lighting deviation 🔴 (RD15)
 - CE appears to blit roofs at full intensity (no `intensityColorTable`).
 - DH2 roofs dim at night via `roofDummyTexture`.
+- **Re-verified 2026-07-04:** unchanged; see `alignment.md §3` caveat.
 - Ref: `tile.cc tileRenderRoofsInRect()`
+- → tracked for 100% as **RD15** in Phase 10f.
 
 ---
 
