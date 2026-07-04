@@ -4,10 +4,14 @@
 // renderLitFloorGPU) live in `render/webglLighting.ts`. The prototype
 // methods for tile/object/font draw calls (drawTileMap, renderRoof,
 // renderFloor, renderObject, renderObjectOutlined, renderFrame, renderText,
-// renderImage, renderFont) live in `render/webglDraw.ts`. The two
+// renderImage, renderFont) live in `render/webglDraw.ts`. The debug-only
+// drawLightSourceOverlay lives in `render/webglDebugOverlay.ts`. The
 // side-effect imports below wire those methods onto WebGLRenderer.prototype
 // at module-load time, before any caller constructs the class.
 export { WebGLRenderer, ShaderSources } from './render/webglContext.js'
 export { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall } from './render/webglDraw.js'
+export { setLightSourceOverlayActive, setLightOverlayMode, setLightOverlayRadiusScale, isLightSourceOverlayActive } from './render/webglDebugOverlay.js'
+export type { LightOverlayMode } from './render/webglDebugOverlay.js'
 import './render/webglLighting.js'
 import './render/webglDraw.js'
+import './render/webglDebugOverlay.js'

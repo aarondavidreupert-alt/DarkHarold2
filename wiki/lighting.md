@@ -939,6 +939,63 @@ lightingDebug(20)                    // widen the comparison radius
 `'dh2'`) controls the live mode; `setLightingMode('gpu'|'cpu')` is unrelated — it
 switches the floor *rendering* backend (§12), not propagation/blocking.
 
+### 14.8.1 Light-source debug overlay
+
+A camera-aware overlay that draws every active light source on the current
+elevation directly on the 2D text canvas, so you can see *where* the sources
+are while comparing propagation/object-lighting modes. It reads
+`obj.lightRadius` / `obj.lightIntensity` directly (the same
+`lightRadius > 0 && lightIntensity > 655` guard as `obj_adjust_light()`), **not**
+the baked `tile_intensity` array, so it is independent of both mode switches and
+survives them without needing to be re-enabled.
+
+```js
+showLightSources(true)         // enable: colour-coded dot (white=player,
+                                // orange=critter, yellow=item/scenery) + an
+                                // r=<radius> i=<intensity> + type/name label per source
+showLightSources(false)        // hide it (no per-frame cost when off)
+setLightOverlayMode('ellipse') // (default) radius as a perspective-correct dashed ellipse
+setLightOverlayMode('tiles')   // radius as filled floor hexes, like the 'beta' egg overlay
+setLightOverlayMode('none')    // no radius shape — just the centre point + its data
+setLightOverlayRadius(1.5)     // scale the ellipse's screen radius to calibrate it against
+                                // where the floor visibly goes dark (default 1.0; ellipse only)
+```
+
+Implementation: `src/render/webglDebugOverlay.ts`
+(`WebGLRenderer.prototype.drawLightSourceOverlay`), called at the end of
+`Renderer.render()`. Sources live on the hex grid (no Z in CE), so each dot is
+projected through the same `hexToScreen` → `worldToScreen` path the renderer
+uses for sprites — *not* the square-tile `tileToScreen` transform.
+
+The three radius modes:
+- **`ellipse`** — a ground circle of hex-distance N projects to an *ellipse*
+  under the isometric camera, so the ring's vertical semi-axis is squashed by
+  the floor-tile aspect ratio (`TILE_HEIGHT / TILE_WIDTH`), axes aligned to the
+  tile diamond. Horizontal semi-axis is a first-order estimate
+  (`lightRadius × 32px × zoom × scale`); `setLightOverlayRadius` calibrates the
+  hex-UV alignment.
+- **`tiles`** — fills every hex within `lightRadius` (hex distance, occlusion
+  ignored) as a translucent 32×16 floor rhombus, reusing the `hexesInRadius` +
+  egg-overlay geometry. Shows the discrete tile coverage.
+- **`none`** — draws only the centre point and its `r=`/`i=` label.
+
+### 14.8.2 Tile inspector (`inspect` key, default `i`)
+
+The numeric counterpart to the overlay above. Hover a tile and press `i`: it
+dumps a formatted block to the console **and** the clipboard
+(`navigator.clipboard.writeText`, satisfied by the keydown user-gesture) with
+the tile index / world coords / elevation, the raw + normalized
+`tile_intensity`, the light sources whose `lightRadius` reaches the tile (the
+same `lightRadius > 0 && lightIntensity > 655` filter as the overlay, matched by
+hex distance — inferred, since CE stores only accumulated intensity per tile,
+not contributing sources), the egg/occlusion state, and every object on the hex
+with its `pid`/`art`/`flags`/`extendedFlags`/light fields. `extendedFlags` is
+read from `pro.extra` and always shown (`n/a` if absent) — its silent omission
+caused the LD11 wall-occlusion bug. Implementation:
+`buildTileInspectorReport()` in `src/input.ts`, on the `Config.controls.inspect`
+handler. Use it to read the exact intensity a wall fragment should sample and
+confirm which source produced it.
+
 ### 14.9 Object sprite lighting — fixed-Y bilinear path (LD10) — 2026-07-01
 
 **Problem**: DH2's fragment shader called `getWorldTileLight()` per-fragment,

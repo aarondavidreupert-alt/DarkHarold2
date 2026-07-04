@@ -33,7 +33,7 @@ import {
 } from './ui.js'
 import { loadPreferences } from './ui_options.js'
 import { getFileJSON } from './util.js'
-import { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall, WebGLRenderer } from './webglrenderer.js'
+import { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall, WebGLRenderer, setLightSourceOverlayActive, setLightOverlayMode, setLightOverlayRadiusScale, LightOverlayMode } from './webglrenderer.js'
 import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
 import { Lightmap } from './lightmap.js'
@@ -384,6 +384,42 @@ window.onload = async function () {
         console.log(`[Lighting] player light smoothing = '${mode}'` +
             (mode !== 'ce' && Config.engine.lightPropagationMode !== 'dh2'
                 ? " (note: only active in 'dh2' propagation mode)" : ''))
+    }
+
+    // showLightSources(true/false) — persistent, camera-aware debug overlay
+    // that draws every active light source (lightRadius > 0 &&
+    // lightIntensity > 655) as a labelled circle on the 2D text overlay:
+    // colour-coded centre dot, dashed radius ring, and r=/i= + type/name label.
+    // It reads obj.lightRadius/lightIntensity directly, so it survives
+    // setLightPropagationMode / setObjectLightingMode switches — you can watch
+    // the effect of changing modes while seeing exactly where the sources are.
+    ;(window as any).showLightSources = (on: boolean) => {
+        setLightSourceOverlayActive(on)
+        console.log(`[lightDebug] light source overlay ${on ? 'ON' : 'OFF'}`)
+    }
+
+    // setLightOverlayMode(mode) — how the radius is drawn around each source:
+    //   'ellipse' — (default) perspective-correct dashed ellipse (a ground
+    //               circle projects to an ellipse squashed by the tile ratio)
+    //   'tiles'   — fill every hex within lightRadius as a translucent floor
+    //               rhombus, like the 'beta' egg overlay
+    //   'none'    — no radius shape; just the centre point + its r=/i= data
+    ;(window as any).setLightOverlayMode = (mode: LightOverlayMode) => {
+        if (mode !== 'ellipse' && mode !== 'tiles' && mode !== 'none') {
+            console.log("Usage: setLightOverlayMode('ellipse' | 'tiles' | 'none')")
+            return
+        }
+        setLightOverlayMode(mode)
+        console.log(`[lightDebug] light overlay mode="${mode}"`)
+    }
+
+    // setLightOverlayRadius(scale) — multiplies the overlay ellipse's screen
+    // radius (defaults to 1.0). Use it to calibrate whether the ellipse lines
+    // up with the visible light falloff on the floor — a diagnostic for the
+    // hex-UV offset issue. (No effect in 'tiles'/'none' modes.)
+    ;(window as any).setLightOverlayRadius = (scale: number) => {
+        setLightOverlayRadiusScale(scale)
+        console.log(`[lightDebug] light overlay radius scale=${scale}`)
     }
 
     // setPlayerLight(radius, intensity) — set the player's own light source.

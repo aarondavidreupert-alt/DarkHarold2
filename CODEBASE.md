@@ -80,7 +80,7 @@ the pipeline or the TS compiler.
 | File | Purpose | fallout2-ce counterpart |
 |------|---------|------------------------|
 | `src/renderer.ts` | Abstract `Renderer` base class + object picking helpers; camera/zoom/screen-coord math carved into `render/camera.ts` (re-exported from this file) | `draw.cc` |
-| `src/webglrenderer.ts` | Barrel — `WebGLRenderer extends Renderer`; split into `render/webglContext.ts` (class shell + texture/shader/program plumbing), `render/webglLighting.ts` (CPU + GPU lit floor on prototype), `render/webglDraw.ts` (tile/object/font draws on prototype) | `draw.cc` |
+| `src/webglrenderer.ts` | Barrel — `WebGLRenderer extends Renderer`; split into `render/webglContext.ts` (class shell + texture/shader/program plumbing), `render/webglLighting.ts` (CPU + GPU lit floor on prototype), `render/webglDraw.ts` (tile/object/font draws on prototype), `render/webglDebugOverlay.ts` (console-toggled light-source debug overlay on prototype) | `draw.cc` |
 | `src/lighting.ts` | CPU floor-lighting: triangle-mesh light propagation (`Lighting` module) | `light.cc` |
 | `src/lightmap.ts` | Per-tile intensity map: `obj_adjust_light`, `obj_rebuild_all_light`, GPU upload. Static table-generation (`light_offsets`, `obj_light_table_init`, `tile_num_in_direction`) carved into `lightmap/lightTable.ts` via `ensureLightTableInit()` | `light.cc` |
 | `src/tile.ts` | Tile coordinate math: `toTileNum`, `fromTileNum`, `hexToTile`, tile pixel positions | `tile.cc` |

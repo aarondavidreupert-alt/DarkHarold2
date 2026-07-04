@@ -194,7 +194,7 @@ All handled in `heart.keydown` at `main.ts:719`. Key value from `Config.controls
 | `o` | `showObjects` | Toggle object rendering (debug) | No CE equivalent — dev toggle |
 | `w` | `showWalls` | Toggle wall rendering (debug) | No CE equivalent — dev toggle |
 | `t` | `talkTo` | Talk to critter at mouse hex | CE: left-click critter with move cursor |
-| `i` | `inspect` | Debug-log object at mouse hex to console | No CE equivalent — dev tool |
+| `i` | `inspect` | Tile inspector: dump the hex under the cursor (tile/world/elevation, tile_intensity + in-range light sources, egg/occlusion state, and every object's pid/art/flags/extendedFlags/light) to the console **and** the clipboard | No CE equivalent — dev tool |
 | `m` | `moveTo` | Walk player to mouse hex | CE: left-click ground |
 | `j` | `runTo` | Force-run player to mouse hex | No CE equivalent — dev shortcut |
 | `g` | `attack` | Attack critter at mouse hex (in combat) | CE: left-click critter in combat |
