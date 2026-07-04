@@ -296,7 +296,7 @@ covered by Phases 1–8.
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
 | S11 | ✅ FIXED 2026-06-04 — reverse direction wired through animBatch → `singleAnimation(reversed)`. | `interpreter_extra.cc:3355` | minor |
-| S14 | **`reg_anim_animate` delay ignored in non-batch path.** Batch path works; legacy non-batch path ignores delay. | `animation.cc:1374` | minor |
+| S14 | ✅ FIXED 2026-07-04 — non-batch path now applies `delay*100ms` via `setTimeout`, mirroring the batch path (CE has no batch-vs-standalone distinction; verified against `opRegAnimAnimate`). | `animation.cc:1374` | minor |
 | S26 | **`get_poison`/`poison` script read/write work; no CE-accurate decay loop.** (`main.ts` decrements 1/cycle, CE is more complex.) | `critter.cc critterPoisonCheck` | minor |
 | S15 | **`play_gmovie` is a no-op.** `.mve` video playback infrastructure absent. | `movie.cc` | minor |
 | S27 | **`radiation_dec` deliberately deferred.** | `radiation.cc` | minor |
@@ -580,7 +580,7 @@ reflects the 2026-07-04 source audit.
 | S1 | **`metarule` car IDs 30/31/32/52/53 stub** (car system absent — see W8). All non-car IDs handled. | `interpreter_extra.cc opMetarule` | minor | partial |
 | S2 | 🟡 Partial — IMPROVED 2026-07-04. Wired: 102 (verified CE has no case for this ID at all — always 0, matches CE exactly), 109 (chem_use via `getAiPacket`/`CHEM_USE_MAP`), 111 (`_map_target_load_area` via `areaContainingMap`/`lookupMapName`). **Genuinely stub** (each needs a subsystem DH2 lacks, not just a bounded opcode fix): 101/105 need a subtile-grid worldmap fog-of-war system; 104 needs per-entrance discovery state; 110 needs the car system (W8). IDs 100/103/106/107/108 already handled. | `interpreter_extra.cc opMetarule3` | minor | partial |
 | GTC5 | **ARTIMER midnight movies not wired** — `_scriptsCheckGameEvents()` (explicit TODO `gameTick.ts:161`); `objectUnjamAll()` done, radiation deferred. | `scripts.cc:405` | minor | partial |
-| S14 | **`reg_anim_animate` delay ignored in legacy non-batch path.** Batch path applies `delay*100ms`. | `animation.cc:1374` | minor | partial |
+| S14 | ✅ FIXED 2026-07-04 — legacy non-batch path now applies `delay*100ms` via `setTimeout`, matching the batch path. Verified against CE `opRegAnimAnimate` (interpreter_extra.cc:3477): delay is uniform, no batch/standalone split exists in CE. | `animation.cc:1374` | minor | fixed |
 | P8 | **`make_path` / `make_straight_path` / `obj_blocking_at` absent** (verified: not present in `src/`). | `sfall_opcodes.cc:937,951` | low | missing |
 | S26 | **`get_poison`/`poison` lack CE-accurate decay loop** (`main.ts` decrements 1/cycle; CE more complex). | `critter.cc critterPoisonCheck` | minor | partial |
 | S27 | **`radiation_dec` deliberately deferred.** | `radiation.cc` | minor | stub |

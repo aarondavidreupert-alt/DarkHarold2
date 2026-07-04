@@ -1964,8 +1964,13 @@ export module Scripting {
                 return
             }
             if (animBatch === null) {
-                // Outside a batch — play immediately (legacy path)
-                obj.singleAnimation(false, () => obj.clearAnim())
+                // Outside a batch (legacy path) — CE ref: animation.cc:1374
+                // animationRegisterAnimate treats `delay` as a uniform field on
+                // the animation description regardless of batch context, so
+                // honor it here the same way the batch path does below.
+                const play = () => obj.singleAnimation(false, () => obj.clearAnim())
+                if (delay > 0) setTimeout(play, delay * 100)
+                else play()
                 return
             }
             animBatch.push({ kind: 'animate', obj, anim, delay })
