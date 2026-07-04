@@ -289,7 +289,7 @@ covered by Phases 1–8.
 | P2 | **No rotation-change step cost.** CE adds +10 to node cost on direction change (outside combat). | `animation.cc:1838` | low |
 | P4 | ✅ FIXED 2026-06-04 — `pathBlocks()` allows closed-unlocked doors; LoF still blocks (`blocks()`). | `animation.cc:1805` | minor |
 | P3 | **No radioactive goo tile penalty.** CE adds +100 (gecko) / +400 (others) on goo PID tiles. | `animation.cc:1852` | low |
-| P8 | **`make_path` / `obj_blocking_at` / `make_straight_path` are stubs.** | `sfall_opcodes.cc:937,951` | low |
+| P8 | 🟡 Partial — IMPROVED 2026-07-04. Correction: `make_path` isn't a real CE script opcode (only the internal `_make_path` C++ function exists, never exposed to scripts). `make_straight_path`/`obj_blocking_at` now wired for BLOCK/SHOOT blocking types; AI/SIGHT/SCROLL types remain stub, each needing infrastructure DH2 lacks (see Phase 10h for detail). | `sfall_opcodes.cc:914-967` | low |
 
 ### 9c. Scripting
 
@@ -581,7 +581,7 @@ reflects the 2026-07-04 source audit.
 | S2 | 🟡 Partial — IMPROVED 2026-07-04. Wired: 102 (verified CE has no case for this ID at all — always 0, matches CE exactly), 109 (chem_use via `getAiPacket`/`CHEM_USE_MAP`), 111 (`_map_target_load_area` via `areaContainingMap`/`lookupMapName`). **Genuinely stub** (each needs a subsystem DH2 lacks, not just a bounded opcode fix): 101/105 need a subtile-grid worldmap fog-of-war system; 104 needs per-entrance discovery state; 110 needs the car system (W8). IDs 100/103/106/107/108 already handled. | `interpreter_extra.cc opMetarule3` | minor | partial |
 | GTC5 | **ARTIMER midnight movies not wired** — `_scriptsCheckGameEvents()` (explicit TODO `gameTick.ts:161`); `objectUnjamAll()` done, radiation deferred. | `scripts.cc:405` | minor | partial |
 | S14 | ✅ FIXED 2026-07-04 — legacy non-batch path now applies `delay*100ms` via `setTimeout`, matching the batch path. Verified against CE `opRegAnimAnimate` (interpreter_extra.cc:3477): delay is uniform, no batch/standalone split exists in CE. | `animation.cc:1374` | minor | fixed |
-| P8 | **`make_path` / `make_straight_path` / `obj_blocking_at` absent** (verified: not present in `src/`). | `sfall_opcodes.cc:937,951` | low | missing |
+| P8 | 🟡 Partial — IMPROVED 2026-07-04. `make_path` corrected: not a real CE script opcode (verified — only the internal `_make_path()` C++ function exists, animation.cc:1709, never exposed to scripts; no `op_make_path` anywhere in `interpreter_extra.cc`/`sfall_opcodes.cc`). The two real opcodes — `make_straight_path` (0x826E) and `obj_blocking_at` (0x826F) — are now wired for `BLOCKING_TYPE_BLOCK` (0) and `_SHOOT` (1), reusing `Obj.pathBlocks()` and the existing `hexLinecast` shoot-blocking logic. `_AI` (2) / `_SIGHT` (3) / `_SCROLL` (4) remain stub — each needs infrastructure DH2 doesn't have: AI's stateful "second obstacle" rule (`_moveBlockObj`), a per-tile SIGHT lookup (DH2's `hasLineOfSight` is angle/distance-based, not per-tile), and a boolean-returning SCROLL check distinct from the existing camera-clamp path (RD11/RD12). | `sfall_opcodes.cc:914-967` | low | partial |
 | S26 | **`get_poison`/`poison` lack CE-accurate decay loop** (`main.ts` decrements 1/cycle; CE more complex). | `critter.cc critterPoisonCheck` | minor | partial |
 | S27 | **`radiation_dec` deliberately deferred.** | `radiation.cc` | minor | stub |
 

@@ -1717,6 +1717,30 @@ export module Scripting {
             if (tile < 0 || tile >= Lightmap.tile_intensity.length) return 0
             return Lightmap.tile_intensity[tile] > 0 ? 1 : 0
         }
+        obj_blocking_at(tile: number, elevation: number, type: number): any {
+            // CE ref: sfall_opcodes.cc:951 op_obj_blocking_at. type: 0=BLOCK,
+            // 1=SHOOT (only these two are implemented — see GameMap.blockingObjectAt).
+            const result = globalState.gMap.blockingObjectAt(tile, elevation, type)
+            if (result === undefined) {
+                stub('obj_blocking_at (type ' + type + ' not implemented)', arguments)
+                return 0
+            }
+            return result ?? 0
+        }
+        make_straight_path(obj: Obj, dest: number, type: number): any {
+            // CE ref: sfall_opcodes.cc:937 op_make_straight_path. type: 0=BLOCK,
+            // 1=SHOOT (only these two are implemented — see GameMap.blockingObjectAt).
+            if (!isGameObject(obj)) {
+                warn('make_straight_path: not a game object')
+                return 0
+            }
+            const result = globalState.gMap.straightPathBlockingObject(obj, fromTileNum(dest), type)
+            if (result === undefined) {
+                stub('make_straight_path (type ' + type + ' not implemented)', arguments)
+                return 0
+            }
+            return result ?? 0
+        }
         tile_num_in_direction(tile: number, direction: number, distance: number) {
             if (distance === 0) {
                 //warn("tile_num_in_direction: distance=" + distance)

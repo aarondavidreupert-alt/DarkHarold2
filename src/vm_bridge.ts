@@ -228,6 +228,9 @@ export module ScriptVMBridge {
 
             this.scriptObj.giq_option(iqTest, msgList, msgId, targetFn, reaction)
         }
+
+       ,0x826E: bridged("make_straight_path", 3)
+       ,0x826F: bridged("obj_blocking_at", 3)
     }
 
     // update VM opMap with our bridgeOpMap
