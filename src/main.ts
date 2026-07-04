@@ -613,6 +613,14 @@ window.onload = async function () {
         Config.ui.eggAlpha = Math.max(0, Math.min(1, a))
         console.log(`[Egg] alpha=${Config.ui.eggAlpha}`)
     }
+    // setRoofPeek(bool) — also hide the roof of a building the player stands BEHIND
+    // (north of), not just under. Roofs draw 96px up, so a building you're behind
+    // occludes you with a roof whose tile is ~south of you; CE only hides the roof
+    // over your own tile. Default on. Set false for CE-exact behavior.
+    ;(window as any).setRoofPeek = (on: boolean) => {
+        Config.ui.roofPeek = on !== false
+        console.log(`[Roof] peek-behind = ${Config.ui.roofPeek} (${Config.ui.roofPeek ? 'reveal character behind buildings' : 'CE-exact: only hide roof over own tile'})`)
+    }
     ;(window as any).setEggRadius = (r: number) => {
         Config.ui.eggRadius = Math.max(1, r)
         console.log(`[Egg] radius=${Config.ui.eggRadius}`)

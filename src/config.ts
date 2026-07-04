@@ -15,6 +15,13 @@ export const Config = {
         showFloor: true, // show floor tiles?
         showRoof: true, // show roof tiles?
         hideRoofWhenUnder: true, // hide roof when we walk under it?
+        // Also hide the roof of a building the player stands BEHIND (north of), not
+        // just under. Roofs draw 96px up, so the roof sprite covering the player when
+        // they're behind a building belongs to a tile ~2-3 squares south; CE floods
+        // only from the player's own square (object.cc:1445), leaving the character
+        // occluded there. This DH2 extension also floods from the roof tile that
+        // visually covers the player. Toggle: setRoofPeek(). See wiki/rendering.md RD06.
+        roofPeek: true,
         showEgg: true, // egg transparency: make walls/scenery in front of the player semi-transparent
         eggMode: 'dh2-egg' as 'alpha' | 'dh2-egg' | 'ce-egg' | 'bbox' | 'beta', // 'alpha'=flat transparent, 'dh2-egg'=CE egg.png mask (DH2 hand-tuned occlusion test), 'ce-egg'=CE egg.png mask using the byte-for-byte CE occlusion test (no DH2 deviations), 'bbox'=CE egg.png mask using a screen-space bounding-box overlap + draw-order depth test (DH2-original, not CE-derived), 'beta'=floor hex debug overlay (no wall transparency)
         eggAlpha:  undefined as number | undefined, // outer alpha — undefined = use default 0.4
