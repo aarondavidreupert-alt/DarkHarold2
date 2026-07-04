@@ -43,6 +43,7 @@ declare module './Critter.js' {
         updateStaticAnim(): void
         updateLoopingAnim(): void
         updateAnim(): void
+        getWalkLerp(): { hexA: Point; hexB: Point; t: number } | null
     }
 }
 
@@ -450,6 +451,26 @@ Critter.prototype.updateAnim = function (this: Critter): void {
             }
         }
     }
+}
+
+// Walk-step interpolation state for smooth moving-light stamping (wiki/lighting.md
+// §player-light). While walking, the sprite glides from `position` (t=0) toward
+// the next path hex (t=1); `t` is the frame's progress within the current partial
+// action. Returns null when not walking (or no next hex) → caller stamps normally.
+Critter.prototype.getWalkLerp = function (this: Critter): { hexA: Point; hexB: Point; t: number } | null {
+    if (this.shift === null || !this.path) return null
+    const nextPos = this.path.path?.[this.path.index]
+    if (!nextPos) return null
+    const hexB: Point = { x: nextPos[0], y: nextPos[1] }
+    const hexA: Point = { x: this.position.x, y: this.position.y }
+    if (hexA.x === hexB.x && hexA.y === hexB.y) return null
+    const info = globalState.imageInfo[this.art]
+    if (!info) return null
+    const cp = getAnimPartialActions(this.art, this.anim).actions[this.path.partial]
+    if (!cp) return null
+    const span = cp.endFrame - cp.startFrame
+    const t = span > 0 ? Math.min(1, Math.max(0, (this.frame - cp.startFrame) / span)) : 0
+    return { hexA, hexB, t }
 }
 
 Critter.prototype.staticAnimation = function (this: Critter, anim: string, callback?: () => void, waitForLoad = true, reversed = false): void {

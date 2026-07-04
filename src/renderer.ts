@@ -22,7 +22,7 @@ import globalState from './globalState.js'
 import { lazyLoadImage } from './images.js'
 import { dbg } from './logger.js'
 import { Obj } from './object.js'
-import { hexToTile, tileFromScreen } from './tile.js'
+import { tileFromScreen } from './tile.js'
 import { Config } from './config.js'
 import { WindowFrame } from './ui.js'
 import { Font } from './formats/fon.js'
@@ -197,8 +197,20 @@ export class Renderer {
             // hide only the connected roof section the player is standing under.
             let hideSet: Set<string> | null = null
             if (globalState.player) {
-                const pt = hexToTile(globalState.player.position)
-                hideSet = roofFloodFill(this.roofTiles, pt.x, pt.y)
+                const scr = hexToScreen(globalState.player.position.x, globalState.player.position.y)
+                const own = tileFromScreen(scr.x, scr.y)   // = hexToTile(player); CE behavior
+                hideSet = roofFloodFill(this.roofTiles, own.x, own.y)
+                // Roofs draw 96px up, so the roof sprite that visually COVERS the
+                // player when they stand behind (north of) a building belongs to a
+                // tile ~2-3 squares south — the player's own tile is roofless there,
+                // so CE's flood-from-own hides nothing and the character stays
+                // occluded. Also flood from the roof tile at the player's screen
+                // position shifted down by the roof offset so behind-building roofs
+                // reveal the character. DH2 extension (setRoofPeek() to disable).
+                if (Config.ui.roofPeek !== false) {
+                    const cover = tileFromScreen(scr.x, scr.y + 96)
+                    for (const k of roofFloodFill(this.roofTiles, cover.x, cover.y)) hideSet.add(k)
+                }
             }
             this.renderRoof(this.roofTiles, hideSet)
         }

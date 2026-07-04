@@ -48,6 +48,41 @@ export function hexToScreen(x: number, y: number): Point {
     return { x: sx, y: sy }
 }
 
+// Integer axial (i along screen +E=(32,0), j along +SE=(16,12)) → offset (col,row).
+// Inverse of the packing used by the shader's hex-lerp; exact for integer axial.
+// hexToScreen(0,0) = (4816, 11) is the lattice origin.
+function axialToOffset(i: number, j: number): Point {
+    const sx = 4816 + 32 * i + 16 * j
+    const sy = 11 + 12 * j
+    const hx = 150.0416667 - (sx / 32 - sy / 24)
+    const col = Math.round(hx)
+    const cy = ((((col % 2) + 2) % 2) < 0.5) ? -75.9375 : -75.4375
+    const hy = sx / 64 + sy / 16 + cy
+    return { x: col, y: Math.round(hy) }
+}
+
+// Distribute a world-space point across the 3 nearest hex tiles with barycentric
+// weights (summing to 1) — the same axial triangle the fragment shader's hex-lerp
+// uses (wiki/alignment.md §7). Used to fractionally stamp a moving light source
+// (player torch) across the tiles under its animated position so the lightmap
+// centre moves smoothly sub-tile instead of snapping on tile arrival. §9.
+export function worldToHexBarycentric(wx: number, wy: number): { x: number; y: number; w: number }[] {
+    const aj = (wy - 11) / 12
+    const ai = ((wx - 4816) - 16 * aj) / 32
+    const i0 = Math.floor(ai), j0 = Math.floor(aj)
+    const fi = ai - i0, fj = aj - j0
+    const corners: [number, number, number][] = (fi + fj <= 1)
+        ? [[i0, j0, 1 - fi - fj], [i0 + 1, j0, fi], [i0, j0 + 1, fj]]
+        : [[i0 + 1, j0 + 1, fi + fj - 1], [i0 + 1, j0, 1 - fj], [i0, j0 + 1, 1 - fi]]
+    const out: { x: number; y: number; w: number }[] = []
+    for (const [i, j, w] of corners) {
+        if (w <= 1e-4) continue
+        const o = axialToOffset(i, j)
+        out.push({ x: o.x, y: o.y, w })
+    }
+    return out
+}
+
 // CE ref: tile.cc:854 tileIsInFrontOf — tile a is rendered in front of
 // (above in z order) tile b if `dx <= dy * -4` in screen coords.
 export function hexIsInFrontOf(a: Point, b: Point): boolean {

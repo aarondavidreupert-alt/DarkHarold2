@@ -339,15 +339,14 @@ window.onload = async function () {
     }
 
     // Wall top-edge fade depth (in art texels): a wall's lit contribution fades to
-    // ambient within N texels of the sprite's painted top edge so it blends into the
-    // roof above (a cheap ambient-occlusion cue). The edge is read from the sprite's
-    // own alpha, so the fade follows the painted isometric slant automatically — no
-    // slope/orientation tuning. Split per orientation because the two building-wall
-    // directions want different depths:
+    // ambient within N texels of the sprite's painted top edge (alpha-silhouette).
+    // DEFAULT OFF (0) — opt-in: it gates on obj.type === 'wall', which is noisy in
+    // Fallout data (catches furniture like bar counters, misses 'scenery'
+    // decorations, and hits interior walls), so it over-/under-applies. Enable to
+    // experiment; ~4–24 is a reasonable range. Split per orientation:
     //   setWallTopFadeEW(px)    — E-W-run walls (extendedFlags 0x8000000/0x40000000)
     //   setWallTopFadeNWSE(px)  — the other orientation (NE-SW / corner / default)
-    //   setWallTopFade(px)      — set BOTH at once
-    // Applies in every objectLightingMode. Default 12 each; ~4–24; 0 disables.
+    //   setWallTopFade(px)      — set BOTH at once (0 disables)
     const _validFade = (px: number) => typeof px === 'number' && isFinite(px) && px >= 0
     ;(window as any).setWallTopFadeEW = (px: number) => {
         if (!_validFade(px)) { console.log('Usage: setWallTopFadeEW(px)  — art texels; 0 to disable'); return }
@@ -364,6 +363,27 @@ window.onload = async function () {
         Config.engine.wallTopFadePx = px
         Config.engine.wallTopFadePxNWSE = px
         console.log(`[Lighting] wall top-edge fade (both) = ${px} texels${px === 0 ? ' (disabled)' : ''}`)
+    }
+
+    // setPlayerLightSmooth(mode) — how a walking critter's own light (mainly the
+    // player's radius-4 torch) is stamped while moving. The lightmap is a per-tile
+    // grid, so CE snaps the cone tile-to-tile on arrival; the smooth modes split the
+    // stamp so the cone centre tracks the gliding sprite. Only affects the 'dh2'
+    // propagation mode. Takes effect next frame. See wiki/lighting.md.
+    //   'ce'        — integer-hex stamp; CE-faithful tile-snap.
+    //   'blend'     — 2-tile lerp between current and next path hex by walk progress.
+    //   'egg-split' — (default) barycentric split across the tiles under the animated
+    //                 foot position; tracks the sprite exactly (like the egg anchor).
+    ;(window as any).setPlayerLightSmooth = (mode: string) => {
+        const valid = ['ce', 'blend', 'egg-split']
+        if (!valid.includes(mode)) {
+            console.log("Usage: setPlayerLightSmooth('ce' | 'blend' | 'egg-split')")
+            return
+        }
+        Config.engine.playerLightSmooth = mode as any
+        console.log(`[Lighting] player light smoothing = '${mode}'` +
+            (mode !== 'ce' && Config.engine.lightPropagationMode !== 'dh2'
+                ? " (note: only active in 'dh2' propagation mode)" : ''))
     }
 
     // setPlayerLight(radius, intensity) — set the player's own light source.
@@ -592,6 +612,14 @@ window.onload = async function () {
     ;(window as any).setEggAlpha = (a: number) => {
         Config.ui.eggAlpha = Math.max(0, Math.min(1, a))
         console.log(`[Egg] alpha=${Config.ui.eggAlpha}`)
+    }
+    // setRoofPeek(bool) — also hide the roof of a building the player stands BEHIND
+    // (north of), not just under. Roofs draw 96px up, so a building you're behind
+    // occludes you with a roof whose tile is ~south of you; CE only hides the roof
+    // over your own tile. Default on. Set false for CE-exact behavior.
+    ;(window as any).setRoofPeek = (on: boolean) => {
+        Config.ui.roofPeek = on !== false
+        console.log(`[Roof] peek-behind = ${Config.ui.roofPeek} (${Config.ui.roofPeek ? 'reveal character behind buildings' : 'CE-exact: only hide roof over own tile'})`)
     }
     ;(window as any).setEggRadius = (r: number) => {
         Config.ui.eggRadius = Math.max(1, r)

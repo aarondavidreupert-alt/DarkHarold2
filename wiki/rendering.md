@@ -297,7 +297,7 @@ Floor tiles are iterated in reverse row order (`i = tileMap.length-1` down to 0)
 
 **Roof Y offset**: DH2 shifts roof tiles up by 96 pixels: `scr.y -= 96` (`webglrenderer.ts`). This empirically aligns 80×36 roof sprites with the floor tiles beneath them.
 
-**Roof clipping**: DH2 renders all roof tiles unconditionally in `renderRoof()` (`webglrenderer.ts`). There is no equivalent to CE's `tile_fill_roof` or per-square roof hiding. `Config.ui.showRoof` (default `true`) is a debug toggle that hides **all** roofs globally. `map.hasRoofAt(pos)` (`map.ts`) returns true if a given hex position has a non-`grid000` roof tile above it, but is not used during rendering. See deviation **RD06** in §5.
+**Roof clipping** (RD06, FIXED 2026-06-15): `renderer.ts` flood-fills (`roofFloodFill`) the connected roof section the player stands under from their square tile each frame (matching CE `tile_fill_roof`), passing a `hideSet` to `renderRoof()` which skips those tiles. `Config.ui.showRoof` (default `true`) is a separate global on/off. `Config.ui.roofPeek` (**default off**) can additionally flood from the roof tile ~96px south (the one covering the player when *behind* a building), but full-hiding the whole roof that way is too aggressive; the planned behind-building fix is egg-style roof transparency (a soft oval), not a full vanish — see `known_bugs.md` RD06. See **RD06** in §5.
 
 ### Object Sort (`objectZCompare`, `object.ts`)
 
@@ -469,7 +469,7 @@ If both yes → fix. If cosmetic/imperceptible → accept. If unsure → mark �
 | RD03 | Camera zoom | Fixed 1× | Configurable `[ZOOM_MIN=0.5, ZOOM_MAX=3.0]` via `cameraZoom`; affects `viewW`, `viewH`, and all shader uniforms | DH2 extension | — | ✅ Accepted |
 | RD04 | Day/night ambient | No automatic curve; ambient is set exclusively by scripts (`set_global_lighting`, `set_ambient_intensity`) | Piecewise-linear 24-hour curve in `gametime.ts`; 35 % floor at midnight, 100 % at noon; drives `u_ambient` | DH2 extension to prevent pitch-black on maps without ambient scripts | low | ✅ Accepted |
 | RD05 | Floor lighting — texture filter | Sharp per-hex boundary: each tile's pixel gets exactly the integer intensity for that hex cell | GPU mode: LINEAR-filtered 200 × 200 tile-intensity texture; bilinear interpolation between adjacent hex centres (`fragmentLighting.glsl:35`) | GPU `LINEAR` filter is unavoidable with texture sampling; creates smooth gradients instead of CE's sharp edges | low | ✅ Accepted |
-| RD06 | Roof clipping | `tile_fill_roof` flood-fills all connected square roof tiles when player walks under a building; re-evaluated each frame (`object.cc:1445`) | All roof tiles rendered unconditionally in `renderRoof()` (`webglrenderer.ts`); `Config.ui.showRoof` is all-or-nothing | Not implemented; `map.hasRoofAt()` exists but not wired to per-position clipping | major | ⚠️ Known Bug |
+| RD06 | Roof clipping | `tile_fill_roof` flood-fills connected roof tiles from the player's square when under a building; re-evaluated each frame (`object.cc:1445`) | `roofFloodFill` from the player's square → `hideSet` → `renderRoof` skips them (matches CE). `roofPeek` behind-building full-hide exists but is **default off** (too aggressive); egg-style roof transparency planned instead | — | ✅ Fixed 2026-06-15 (under-building); behind-building = open (`known_bugs.md` RD06) |
 | RD07 | OBJECT_FLAT — two-pass | `_obj_render_pre_roof` renders OBJECT_FLAT objects (floor decals, blood) in a dedicated first pass before all non-flat objects (`object.cc:761`) | All objects rendered in one sorted pass; OBJECT_FLAT not read by renderer | Not implemented | minor | ⚠️ Known Bug |
 | RD08 | Post-roof object pass | `_obj_render_post_roof` draws any object that must appear above roofs at full intensity (0x10000) after the roof layer (`object.cc:862`) | No post-roof pass; no object can render above the roof layer | Not implemented | minor | ⚠️ Known Bug |
 | RD09 | Object depth sort | Two-phase isometric sort: `_obj_preload_sort` + `_obj_order_comp_func_even/odd` using `tileIsInFrontOf` / `tileIsToRightOf`; correct for all 6 hex directions (`object.cc:761`) | `objectZCompare` (`object.ts`): primary hex-y, secondary hex-x, tertiary walls-first; fails on NE/SW diagonal hex borders | Simplification | minor | ⚠️ Known Bug |
@@ -509,9 +509,7 @@ Listed in descending order of gameplay impact.
 
 #### Priority 1 — Visually blocking
 
-| Bug | File(s) | Why it matters |
-|-----|---------|----------------|
-| **RD06 Roof clipping** | `webglrenderer.ts`, `map.ts` | Players can see through roofs of every building on every map. `map.hasRoofAt()` already exists; a per-frame flood-fill from the player's square tile is the missing piece. |
+_(RD06 roof clipping was here; fixed 2026-06-15, `roofPeek` behind-building extension 2026-07-02 — see the deviation table above and `known_bugs.md` RD06.)_
 
 #### Priority 2 — Visible gameplay deviations
 

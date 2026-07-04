@@ -15,6 +15,13 @@ export const Config = {
         showFloor: true, // show floor tiles?
         showRoof: true, // show roof tiles?
         hideRoofWhenUnder: true, // hide roof when we walk under it?
+        // Also FULLY hide the roof of a building the player stands BEHIND (north of),
+        // not just under. DEFAULT OFF — it hides the whole building roof whenever a
+        // roof sits ~2-3 tiles south of the player (i.e. most of the time you're near
+        // a building), which is too aggressive and not CE behaviour. The intended fix
+        // for the behind-building case is egg-style roof transparency (a soft oval),
+        // not a full vanish. Kept as an opt-in via setRoofPeek(). See wiki/rendering.md RD06.
+        roofPeek: false,
         showEgg: true, // egg transparency: make walls/scenery in front of the player semi-transparent
         eggMode: 'dh2-egg' as 'alpha' | 'dh2-egg' | 'ce-egg' | 'bbox' | 'beta', // 'alpha'=flat transparent, 'dh2-egg'=CE egg.png mask (DH2 hand-tuned occlusion test), 'ce-egg'=CE egg.png mask using the byte-for-byte CE occlusion test (no DH2 deviations), 'bbox'=CE egg.png mask using a screen-space bounding-box overlap + draw-order depth test (DH2-original, not CE-derived), 'beta'=floor hex debug overlay (no wall transparency)
         eggAlpha:  undefined as number | undefined, // outer alpha — undefined = use default 0.4
@@ -106,13 +113,17 @@ export const Config = {
         // sprite's own alpha silhouette in the shader, so the fade follows the
         // painted isometric slant automatically (no slope/orientation input).
         // Applies to wall-type objects in every lighting mode. 0 = off.
-        // Split per orientation (the two building-wall directions need different
-        // depths): `wallTopFadePx` = E-W-run walls (extendedFlags 0x8000000/0x40000000);
-        // `wallTopFadePxNWSE` = the other orientation (NE-SW/corner/default).
-        // Tune: setWallTopFadeEW(px) / setWallTopFadeNWSE(px) / setWallTopFade(px) (both).
+        // DEFAULT OFF (0) — opt-in. The fade is gated on obj.type === 'wall', but
+        // Fallout's 'wall' proto type is noisy (includes furniture like bar counters)
+        // while some wall-looking decorations are 'scenery', and interior walls are
+        // the same type as exterior ones — so there is no clean signal for "wall that
+        // meets a roof", and the fade both over- and under-applies. Kept available for
+        // experimentation via setWallTopFade(px); wall-clamp (the real win) is
+        // independent and stays on. Split per orientation: `wallTopFadePx` = E-W-run
+        // walls (extendedFlags 0x8000000/0x40000000), `wallTopFadePxNWSE` = the rest.
         // See wiki/alignment.md §8.
-        wallTopFadePx: 12,
-        wallTopFadePxNWSE: 12,
+        wallTopFadePx: 0,
+        wallTopFadePxNWSE: 0,
         // How the tile-intensity texture (unit 5) is interpolated when sampled by
         // the world shaders. Plain 'linear' bleeds across the hex column stagger and
         // shows NW-SE stripes; the other modes remove them. Toggle live via
@@ -124,6 +135,22 @@ export const Config = {
         //   'hex-lerp'      — 3-tap barycentric over the 3 nearest hexes (default; smoothest, correct)
         //   'bicubic'       — Catmull-Rom down the column, smoother falloff, no stagger
         lightingInterpolation: 'hex-lerp' as 'off' | 'linear' | 'column-center' | 'hex-lerp' | 'bicubic',
+        // How a moving critter's own light (mainly the player's radius-4 torch) is
+        // stamped into the lightmap while walking. The lightmap is a per-tile integer
+        // grid, so CE stamps at the logical hex and the light cone snaps tile-to-tile
+        // on arrival (CE-faithful). The smooth modes split the stamp across tiles so
+        // the cone's centre tracks the gliding sprite. Only affects the 'dh2'
+        // propagation mode; toggle live via setPlayerLightSmooth(). See wiki/lighting.md.
+        //   'ce'        — stamp at the integer hex; CE-faithful tile-snap.
+        //   'blend'     — 2-tile lerp between the current and next path hex, weighted
+        //                 by walk progress t (frame within the step).
+        //   'egg-split' — (default) barycentric split across the tiles under the
+        //                 animated foot (hexToScreen + shift), tracking the sprite
+        //                 exactly. Chosen as default: derives from the same render
+        //                 position as the sprite/egg (can't desync), and needs only
+        //                 position+shift (no path/frame dependency), so it also smooths
+        //                 non-path movement. Visually identical to 'blend'.
+        playerLightSmooth: 'egg-split' as 'ce' | 'blend' | 'egg-split',
         useLightColorLUT: true, // Use intensityColorTable/colorLUT/colorRGB for accurate lighting colors?
         doAudio: true, // enable audio?
         doLogLazyLoads: false, // Log lazy-loading of images? (Noisy)

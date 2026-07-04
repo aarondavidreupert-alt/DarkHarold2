@@ -744,14 +744,28 @@ WebGL1; `u_wallTexelStepV = 1 / uniformFrameHeight` (the frame spans the full 0.
 amounts): E-W-run walls (`extendedFlags` `0x8000000`/`0x40000000`) use
 `wallTopFadePx` (`setWallTopFadeEW(px)`), the other orientation uses
 `wallTopFadePxNWSE` (`setWallTopFadeNWSE(px)`); `setWallTopFade(px)` sets both.
-Depths are in art texels (default 12; 0 disables). *(This replaced an earlier
-slanted world-space line that needed a per-orientation slope sign — the
-alpha-silhouette shape is orientation-free; only the depth is split, and the
-`isEW` bucket test in `renderObject` can be flipped if a whole orientation lands
-in the wrong knob.)*
+Depths are in art texels; `0` disables. *(This replaced an earlier slanted
+world-space line that needed a per-orientation slope sign — the alpha-silhouette
+shape is orientation-free; only the depth is split, and the `isEW` bucket test in
+`renderObject` can be flipped if a whole orientation lands in the wrong knob.)*
 
-Once a winner is chosen from live testing, promote it to the default in
-`config.ts` and note it here.
+> **Default OFF (0) as of 2026-07-02 — opt-in.** The alpha-silhouette *shape* is
+> clean, but there is **no reliable signal for "wall that meets a roof."** The
+> gate is `obj.type === 'wall'`, and Fallout's `wall` proto type is noisy:
+> in-field testing (Vault City) showed it fading furniture (a bar counter is a
+> `wall` proto), missing wall-looking `scenery` (corner decorations), and darkening
+> interior walls — while `map.hasRoofAt()` can't separate exterior from interior
+> (interiors have roof tiles too). So it both over- and under-applies. The code is
+> kept (enable via `setWallTopFade(px)`) but ships off. Separately, a roof tile can
+> overlap a wall top and leave a hard corner (notably NW-SE walls in Vault City) —
+> that is roof-tile placement / draw-order (the `−96` offset, RD06 territory), a
+> pre-existing issue the fade only made more visible. `wall-clamp` (the substantive
+> win) is independent and stays on.
+
+**Chosen default (2026-07-02): `wall-clamp`.** It samples the floor light field
+per column along the wall's foot line (matching the floor in front of it) with no
+stripes; the top-edge fade runs on top. `flat` / `foot-y` / `tile-y` /
+`foot-smooth` / `tile-smooth` / `off` remain available via `setObjectLightingMode()`.
 
 ### The lighting-alignment story in one line
 
@@ -763,7 +777,26 @@ shadow boundary). §6/§7 live in the shader; §8 lives in propagation.
 
 ---
 
-## 9. Summary — agreements, deviations, approximations
+## 9. Runtime tuning — console commands
+
+All the lighting/rendering knobs added during the §6–§8 work are live-switchable
+from the browser DevTools console (each persists in `Config.engine.*` and takes
+effect next frame). Player-light smoothing is detailed in
+[`wiki/lighting.md`](lighting.md) → "Moving-light smoothing".
+
+| Command | Config | Effect |
+|---------|--------|--------|
+| `setLightingBilinear(mode)` | `lightingInterpolation` | Tile-intensity interpolation: `'off'` / `'linear'` / `'column-center'` / `'hex-lerp'` (default) / `'bicubic'` (also accepts `true`/`'on'`→linear, `false`/`'off'`). §7 |
+| `setObjectLightingMode(mode)` | `objectLightingMode` | How object/wall sprites sample light: `'wall-clamp'` (default) / `'foot-y'` / `'tile-y'` / `'flat'` / `'foot-smooth'` / `'tile-smooth'` / `'off'`. §5, §8 |
+| `setObjectLightSmooth(px)` | `objectLightSmoothPx` | Blur-kernel radius (world px, default 12) for the `*-smooth` object modes. §8 |
+| `setWallTopFade(px)` | `wallTopFadePx` + `…NWSE` | Wall top-edge alpha-fade depth (art texels; **default 0 = off**, opt-in — see §8 limitations) — sets **both** orientations. §8 |
+| `setWallTopFadeEW(px)` / `setWallTopFadeNWSE(px)` | `wallTopFadePx` / `wallTopFadePxNWSE` | Per-orientation top-fade depth (E-W-run walls vs the rest). §8 |
+| `setPlayerLightSmooth(mode)` | `playerLightSmooth` | Moving-torch stamp: `'ce'` / `'blend'` / `'egg-split'` (default). `'dh2'` propagation only. → lighting.md |
+| `setLightPropagationMode(mode)` | `lightPropagationMode` | Occlusion algorithm: `'dh2'` (default, CE port incl. LD11 wall fix) / `'derived'` / `'naive'`. |
+
+---
+
+## 10. Summary — agreements, deviations, approximations
 
 | Category | CE anchor | DH2 anchor | Status |
 |----------|-----------|------------|--------|
@@ -774,6 +807,9 @@ shadow boundary). §6/§7 live in the shader; §8 lives in propagation.
 | **Object lightmap UV** | one `lightGetTileIntensity` per object (flat) | parity-aware `baseY = 12·ty + (11.25\|5.25) + 6·tx`, ±6 clamp, horizontal LINEAR | ⚠️ approximation (horizontal blend); vertical now exact — see §6 |
 | **Hex ↔ lightmap sampling** | n/a | shader screen→hex inverse of `hexToScreen` | ✅ **fixed 2026-07-02** — centring offset (§6) + selectable interpolation to remove the LINEAR stagger stripes (§7, default `hex-lerp`) |
 | **Wall light occlusion** | directional per-orientation switch on `proto->wall.extendedFlags` (`object.cc:4552`) | same switch, now reading `pro.extra.extendedFlags` | ✅ **fixed 2026-07-02** — was reading `pro.flags` (wrong field) → W-E walls bled light in stripes (§8, LD11) |
+| **Object light sampling mode** | flat per object | `wall-clamp` (default): samples floor field per column at the foot row; 6 other modes | ✅ DH2 extension; no stripes, matches floor. §5/§8, `setObjectLightingMode()` |
+| **Wall top-edge fade** | none | alpha-silhouette fade to ambient near the painted top edge | ⚠️ DH2 extension, **default off / opt-in** — no reliable "wall meets roof" gate (`wall` type is noisy). §8, `setWallTopFade*()` |
+| **Moving-torch light** | per-tile stamp, snaps on arrival | `egg-split` (default): fractional stamp under the animated foot | ✅ DH2 extension over CE tile-snap; occlusion preserved. → lighting.md, `setPlayerLightSmooth()` |
 
 ### Cross-references
 
