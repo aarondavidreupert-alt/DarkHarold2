@@ -18,7 +18,8 @@ Scripting system/engine for DarkFO
 
 import { Combat, isCombatActive } from './combat.js'
 import { critterDamage, critterKill, killCounts } from './critter.js'
-import { lookupScriptName } from './data.js'
+import { areaContainingMap, lookupMapName, lookupScriptName } from './data.js'
+import { CHEM_USE_MAP, getAiPacket } from './aiPackets.js'
 import * as GameTime from './gametime.js'
 import {
     hexDirectionTo,
@@ -668,10 +669,35 @@ export module Scripting {
                 }
                 return
             }
+            case 101:
+                // METARULE3_MARK_SUBTILE — CE ref: worldmap.cc:5076 wmSubTileMarkRadiusVisited.
+                // Marks a subtile-grid radius around (x,y) as worldmap fog-of-war "visited".
+                // DH2 has no subtile-grid worldmap fog system (only per-area knownAreas);
+                // implementing this needs that subsystem, not just the opcode.
+                stub('metarule3 101 (mark_subtile — no subtile fog-of-war grid)', arguments)
+                return 0
+            case 102:
+                // METARULE3_SET_WM_MUSIC — verified against CE `opMetarule3`
+                // (interpreter_extra.cc:1968-2060): the switch has no case for this ID
+                // despite the enum name; the result stays the initialized 0. Not a DH2
+                // gap — this matches CE exactly.
+                return 0
             case 103:
                 // CE ref: interpreter_extra.cc:1989 METARULE3_GET_KILL_COUNT
                 // Returns how many critters of killType `obj` have been killed.
                 return killCounts.get(obj as number) ?? 0
+            case 104:
+                // METARULE3_MARK_MAP_ENTRANCE — CE ref: worldmap.cc:2940 wmMapMarkMapEntranceState.
+                // Marks one map+elevation entrance as discovered — a per-entrance state
+                // distinct from mark_area_known's per-area knownAreas. DH2 has no
+                // per-entrance state tracking; needs that data structure first.
+                stub('metarule3 104 (mark_map_entrance — no per-entrance state tracking)', arguments)
+                return 0
+            case 105:
+                // METARULE3_WM_SUBTILE_STATE — CE ref: worldmap.cc:5125 wmSubTileGetVisitedState.
+                // Same missing subsystem as 101.
+                stub('metarule3 105 (wm_subtile_state — no subtile fog-of-war grid)', arguments)
+                return 0
             case 106: {
                 // METARULE3_TILE_GET_NEXT_CRITTER
                 // TODO: use elevation
@@ -702,6 +728,29 @@ export module Scripting {
                 // Centers the game camera on the given tile number.
                 centerCamera(fromTileNum(obj as number))
                 return 0
+            }
+            case 109: {
+                // METARULE3_109 (chem use preference) — CE ref: combat_ai.cc:804
+                // aiGetChemUse() → ai->chem_use. Reads the live AI packet (respecting
+                // any companion-disposition override) and returns CE's numeric index.
+                if (!isGameObject(obj)) return 0
+                const critter = obj as Critter
+                const packet = critter.ai?.packet ?? getAiPacket(critter.aiNum)
+                const idx = CHEM_USE_MAP.indexOf(packet.chemUse)
+                return idx === -1 ? 0 : idx
+            }
+            case 110:
+                // METARULE3_110 (car out of gas) — CE ref: worldmap.cc wmCarIsOutOfGas.
+                // Car travel (Phase 10e, W8) is entirely absent from DH2; stub until
+                // that system exists.
+                stub('metarule3 110 (car_is_out_of_gas — no car system, W8)', arguments)
+                return 0
+            case 111: {
+                // METARULE3_111 (_map_target_load_area) — CE ref: map.cc:1202.
+                // Returns the worldmap area index containing the current map, or -1.
+                const mapName = lookupMapName(globalState.gMap.mapID)
+                const area = mapName ? areaContainingMap(mapName) : null
+                return area ? area.id : -1
             }
             default:
                 stub('metarule3', arguments)

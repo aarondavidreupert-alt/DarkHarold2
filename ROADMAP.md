@@ -578,7 +578,7 @@ reflects the 2026-07-04 source audit.
 | ID | What | CE Ref | Sev | Status |
 |----|------|--------|-----|--------|
 | S1 | **`metarule` car IDs 30/31/32/52/53 stub** (car system absent — see W8). All non-car IDs handled. | `interpreter_extra.cc opMetarule` | minor | partial |
-| S2 | **`metarule3` IDs 101/102/104/105/109-111 stub.** IDs 100/103/106/107/108 handled. | `interpreter_extra.cc opMetarule3` | minor | partial |
+| S2 | 🟡 Partial — IMPROVED 2026-07-04. Wired: 102 (verified CE has no case for this ID at all — always 0, matches CE exactly), 109 (chem_use via `getAiPacket`/`CHEM_USE_MAP`), 111 (`_map_target_load_area` via `areaContainingMap`/`lookupMapName`). **Genuinely stub** (each needs a subsystem DH2 lacks, not just a bounded opcode fix): 101/105 need a subtile-grid worldmap fog-of-war system; 104 needs per-entrance discovery state; 110 needs the car system (W8). IDs 100/103/106/107/108 already handled. | `interpreter_extra.cc opMetarule3` | minor | partial |
 | GTC5 | **ARTIMER midnight movies not wired** — `_scriptsCheckGameEvents()` (explicit TODO `gameTick.ts:161`); `objectUnjamAll()` done, radiation deferred. | `scripts.cc:405` | minor | partial |
 | S14 | **`reg_anim_animate` delay ignored in legacy non-batch path.** Batch path applies `delay*100ms`. | `animation.cc:1374` | minor | partial |
 | P8 | **`make_path` / `make_straight_path` / `obj_blocking_at` absent** (verified: not present in `src/`). | `sfall_opcodes.cc:937,951` | low | missing |
