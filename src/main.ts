@@ -338,20 +338,32 @@ window.onload = async function () {
             (Config.engine.objectLightingMode.endsWith('-smooth') ? '' : " (set mode to 'foot-smooth' or 'tile-smooth' to see it)"))
     }
 
-    // setWallTopFade(px) — depth (in art texels) of the top-edge fade on WALL
-    // sprites: the wall's lit contribution fades to ambient within N texels of the
-    // sprite's painted top edge so it blends into the roof above (a cheap
-    // ambient-occlusion cue). The edge is read from the sprite's own alpha, so the
-    // fade follows the painted isometric slant automatically — no slope/orientation
-    // tuning. Applies to walls in every objectLightingMode. Default 12; useful range
-    // ~4–24; 0 disables. Next frame.
-    ;(window as any).setWallTopFade = (px: number) => {
-        if (typeof px !== 'number' || !isFinite(px) || px < 0) {
-            console.log('Usage: setWallTopFade(px)  — art texels, e.g. setWallTopFade(12); 0 to disable')
-            return
-        }
+    // Wall top-edge fade depth (in art texels): a wall's lit contribution fades to
+    // ambient within N texels of the sprite's painted top edge so it blends into the
+    // roof above (a cheap ambient-occlusion cue). The edge is read from the sprite's
+    // own alpha, so the fade follows the painted isometric slant automatically — no
+    // slope/orientation tuning. Split per orientation because the two building-wall
+    // directions want different depths:
+    //   setWallTopFadeEW(px)    — E-W-run walls (extendedFlags 0x8000000/0x40000000)
+    //   setWallTopFadeNWSE(px)  — the other orientation (NE-SW / corner / default)
+    //   setWallTopFade(px)      — set BOTH at once
+    // Applies in every objectLightingMode. Default 12 each; ~4–24; 0 disables.
+    const _validFade = (px: number) => typeof px === 'number' && isFinite(px) && px >= 0
+    ;(window as any).setWallTopFadeEW = (px: number) => {
+        if (!_validFade(px)) { console.log('Usage: setWallTopFadeEW(px)  — art texels; 0 to disable'); return }
         Config.engine.wallTopFadePx = px
-        console.log(`[Lighting] wall top-edge fade = ${px} texels${px === 0 ? ' (disabled)' : ''}`)
+        console.log(`[Lighting] wall top-edge fade (E-W) = ${px} texels${px === 0 ? ' (disabled)' : ''}`)
+    }
+    ;(window as any).setWallTopFadeNWSE = (px: number) => {
+        if (!_validFade(px)) { console.log('Usage: setWallTopFadeNWSE(px)  — art texels; 0 to disable'); return }
+        Config.engine.wallTopFadePxNWSE = px
+        console.log(`[Lighting] wall top-edge fade (NW-SE) = ${px} texels${px === 0 ? ' (disabled)' : ''}`)
+    }
+    ;(window as any).setWallTopFade = (px: number) => {
+        if (!_validFade(px)) { console.log('Usage: setWallTopFade(px)  — sets both E-W and NW-SE; 0 to disable'); return }
+        Config.engine.wallTopFadePx = px
+        Config.engine.wallTopFadePxNWSE = px
+        console.log(`[Lighting] wall top-edge fade (both) = ${px} texels${px === 0 ? ' (disabled)' : ''}`)
     }
 
     // setPlayerLight(radius, intensity) — set the player's own light source.

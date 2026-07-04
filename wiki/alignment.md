@@ -740,10 +740,15 @@ and trimmed art is top-aligned in the slot (`frmpixels.py`), so "up" is decreasi
 `v`; the march uses a *uniform* loop bound (compare against the `u_wallFadePx`
 uniform) and samples `texture2D` unconditionally so implicit-LOD stays legal in
 WebGL1; `u_wallTexelStepV = 1 / uniformFrameHeight` (the frame spans the full 0..1
-`v` range). Depth is tunable via `setWallTopFade(px)` (art texels, default 12; 0
-disables). *(This replaced an earlier slanted world-space line that needed a
-per-orientation slope sign — the alpha-silhouette approach is orientation-free and
-handles both wall directions with no calibration.)*
+`v` range). Depth is split per orientation (the two building-wall directions want different
+amounts): E-W-run walls (`extendedFlags` `0x8000000`/`0x40000000`) use
+`wallTopFadePx` (`setWallTopFadeEW(px)`), the other orientation uses
+`wallTopFadePxNWSE` (`setWallTopFadeNWSE(px)`); `setWallTopFade(px)` sets both.
+Depths are in art texels (default 12; 0 disables). *(This replaced an earlier
+slanted world-space line that needed a per-orientation slope sign — the
+alpha-silhouette shape is orientation-free; only the depth is split, and the
+`isEW` bucket test in `renderObject` can be flipped if a whole orientation lands
+in the wrong knob.)*
 
 Once a winner is chosen from live testing, promote it to the default in
 `config.ts` and note it here.

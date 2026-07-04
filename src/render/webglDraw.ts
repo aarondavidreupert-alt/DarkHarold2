@@ -517,11 +517,20 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         // Wall top-edge fade — walls only (fading a critter/item top would darken
         // its head). The fade reads the sprite's own alpha silhouette in the shader
         // (wallTopFadeFactor), so it follows the painted isometric top edge with no
-        // slope/orientation input. We just pass the fade depth (art texels) and the
-        // v-step for one art row (1 / sheet-height-texels = 1 / uniformFrameHeight,
-        // since the frame spans the full 0..1 v range). See §8.
+        // slope/orientation input. The DEPTH is split per orientation because the
+        // two building-wall directions want different amounts: E-W-run walls
+        // (extendedFlags 0x8000000/0x40000000) use wallTopFadePx, the other
+        // orientation uses wallTopFadePxNWSE. (If a whole orientation ends up in the
+        // wrong bucket in-browser, flip the isEW test.) We also pass the v-step for
+        // one art row (1 / sheet-height-texels = 1 / uniformFrameHeight, since the
+        // frame spans the full 0..1 v range). See §8.
         if (this.uWallFadePx) {
-            const fadePx = obj.type === 'wall' ? (Config.engine.wallTopFadePx ?? 12) : 0
+            let fadePx = 0
+            if (obj.type === 'wall') {
+                const ef: number = (obj as any).pro?.extra?.extendedFlags ?? 0
+                const isEW = (ef & 0x8000000) !== 0 || (ef & 0x40000000) !== 0
+                fadePx = isEW ? (Config.engine.wallTopFadePx ?? 12) : (Config.engine.wallTopFadePxNWSE ?? 12)
+            }
             gl.uniform1f(this.uWallFadePx, fadePx)
             if (fadePx > 0 && this.uWallTexelStepV && renderInfo.uniformFrameHeight > 0) {
                 gl.uniform1f(this.uWallTexelStepV, 1 / renderInfo.uniformFrameHeight)

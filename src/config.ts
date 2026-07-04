@@ -104,9 +104,14 @@ export const Config = {
         // so the wall top blends into the roof above. The edge is read from the
         // sprite's own alpha silhouette in the shader, so the fade follows the
         // painted isometric slant automatically (no slope/orientation input).
-        // Applies to wall-type objects in every lighting mode. 0 = off. Tune:
-        // setWallTopFade(px). See wiki/alignment.md §8.
+        // Applies to wall-type objects in every lighting mode. 0 = off.
+        // Split per orientation (the two building-wall directions need different
+        // depths): `wallTopFadePx` = E-W-run walls (extendedFlags 0x8000000/0x40000000);
+        // `wallTopFadePxNWSE` = the other orientation (NE-SW/corner/default).
+        // Tune: setWallTopFadeEW(px) / setWallTopFadeNWSE(px) / setWallTopFade(px) (both).
+        // See wiki/alignment.md §8.
         wallTopFadePx: 12,
+        wallTopFadePxNWSE: 12,
         // How the tile-intensity texture (unit 5) is interpolated when sampled by
         // the world shaders. Plain 'linear' bleeds across the hex column stagger and
         // shows NW-SE stripes; the other modes remove them. Toggle live via
