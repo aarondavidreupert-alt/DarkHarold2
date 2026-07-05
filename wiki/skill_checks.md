@@ -304,7 +304,7 @@ else:
 
 **XP:** 25 XP on success (per `_show_skill_use_messages`; `experience = 25`, `field_28 = 1` in CE descriptor).
 
-**DH2 status: PARTIAL** — `src/skillUse.ts:useSteal()` implements the sneaking bonus and 95% cap. Missing: item-size penalty (`−4 × size`), facing check (`−25`), multi-steal penalty (`_gStealCount`), party-member auto-success, and target's Steal counter-roll. DH2 uses a simplified single-roll with `catchChance = floor((100 − chance) / 2)`.
+**DH2 status: ✅ FIXED 2026-07-05** — `src/skillUse.ts:performSteal()` is now a faithful per-item port of the formula above (item-size penalty, facing check, knocked-down bonus, `stealCount` session penalty, party-member auto-critical-success, and the real two-roll/catchRoll system), called once per item dragged in the new interactive `uiSteal()` screen (`src/ui_steal.ts`) rather than DH2's old single abstract roll. See `known_bugs.md` K3 for the full citation. Session-end bonus XP (`+10`/success capped `300-skill`) lives in `uiSteal()`, matching `inventory.cc:4368-4470` — separate from the flat 25 XP message-list descriptor above.
 
 ---
 
@@ -451,11 +451,11 @@ DH2 implements this identically in `src/skillUse.ts` via `hasFreeUsageSlot()` / 
 | Difficulty modifier skills | Affects Speech, Barter, Gambling too | Only First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair, Outdoorsman |
 | First Aid crit success | Same heal range as normal success | Doubles the heal roll |
 | Doctor time cap | `3600 × attempts` seconds (no cap) | `min(3, attempts)` hours |
-| Steal: item size | −4% per size unit | Not implemented |
-| Steal: facing | −25% if face-to-face | Not implemented |
-| Steal: repeat penalty | −(`_gStealCount` − 1) | Not implemented |
-| Steal: party member | Auto critical success | Not implemented |
-| Steal: catch roll | Target's Steal skill minus modifier | `floor((100 − chance) / 2)` |
+| Steal: item size | −4% per size unit | ✅ Matches (2026-07-05) |
+| Steal: facing | −25% if face-to-face | ✅ Matches (2026-06-02) |
+| Steal: repeat penalty | −(`_gStealCount` − 1) | ✅ Matches (2026-07-05) |
+| Steal: party member | Auto critical success | ✅ Matches (2026-07-05) |
+| Steal: catch roll | Target's Steal skill minus modifier | ✅ Matches (2026-07-05) |
 | Repair: robot check | Only works on BODY_TYPE_ROBOTIC | No body-type check |
 | Repair: time cost | +30 min per damage-flag attempt | Fixed +30 min |
 | Traps/Science (direct use) | Hard −1 with message; script-only | Fallback roll using pro data |

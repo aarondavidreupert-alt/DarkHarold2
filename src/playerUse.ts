@@ -33,6 +33,7 @@ import {
 import { getProtoMsg } from './util.js'
 import { Config } from './config.js'
 import { getActiveUnarmedModeForHand } from './unarmed.js'
+import { uiSteal } from './ui_steal.js'
 
 // Return the skill ID used by the Fallout 2 engine
 export function getSkillID(skill: Skills): number {
@@ -84,6 +85,22 @@ export function playerUseSkill(skill: Skills, obj: Obj): void {
     }
 
     if (!scriptHandled) {
+        // CE ref: actions.cc:1350,1428-1431 — Steal is dude-only (never a party
+        // member) and always opens the interactive per-item UI (inventory.cc:4505
+        // inventoryOpenStealing), not a synchronous single roll. CE's own
+        // inventoryOpenStealing sets _gIsSteal = critterIsActive(target) — a
+        // dead/knocked-out target gets a free, unchecked loot instead.
+        if (skillName === 'Steal') {
+            if (obj.type === 'critter' && target.dead !== true) {
+                uiSteal(globalState.player as Critter, target)
+            } else if (obj.type === 'critter') {
+                uiLoot(obj)
+            } else {
+                uiLog('There is nothing to steal.')
+            }
+            return
+        }
+
         // CE ref: actions.cc:1374 actionUseSkill — for First Aid and Doctor,
         // delegates to the party member with the highest skill if one beats
         // the player. Other skills always use the player.

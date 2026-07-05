@@ -130,11 +130,13 @@ export function resetSkillUsage(): void {
 // ---------------------------------------------------------------------------
 // XP awards  (FO2-CE ref: skill.cc _show_skill_use_messages)
 // ---------------------------------------------------------------------------
+// Steal has no flat XP value here — its real per-session bonus formula
+// (skill.cc:1031-1110 stealingXpBonus, capped at 300-skillValue) lives in
+// ui_steal.ts's uiSteal(), awarded once at session end.
 const SKILL_XP: { [skill: string]: number } = {
     'First Aid': 25,
     'Doctor': 50,
     'Lockpick': 50,
-    'Steal': 30,
     'Traps': 50,
     'Science': 25,
     'Repair': 50,
@@ -171,7 +173,11 @@ export function skillUse(user: Critter, target: Critter | null, skill: string): 
         case 'Lockpick':
             return useLockpick(user, target)
         case 'Steal':
-            return useSteal(user, target)
+            // CE ref: inventory.cc:4505 inventoryOpenStealing() — real stealing is an
+            // interactive per-item UI (see ui_steal.ts's uiSteal(), wired from
+            // playerUse.ts), not a single abstract roll. This engine-fallback path
+            // only fires if playerUseSkill() couldn't resolve a live critter target.
+            return makeResult(false, RollResult.Failure, 'There is nothing to steal.')
         case 'Traps':
             return useTraps(user, target)
         case 'Science':
@@ -430,90 +436,75 @@ function useLockpick(user: Critter, target: Critter | null): SkillUseResult {
 
 // ---------------------------------------------------------------------------
 // STEAL
-// FO2-CE ref: skill.cc skillsPerformStealing()
-// Chance based on Steal skill, target facing, item size. Cap at 95%.
+// FO2-CE ref: skill.cc:1031 skillsPerformStealing() — one roll PER ITEM,
+// invoked from the interactive steal UI (ui_steal.ts's uiSteal()), not this
+// module's synchronous skillUse() dispatcher. See playerUse.ts's Steal
+// special-case for the entry point.
 // ---------------------------------------------------------------------------
-function useSteal(user: Critter, target: Critter | null): SkillUseResult {
-    logSkillHeader('Steal', target, user)
+export interface StealAttemptResult {
+    success: boolean // true: item may be moved; false: caught, item stays put
+    caught: boolean
+}
 
-    if (!target) {
-        return makeResult(false, RollResult.Failure, 'Nothing to steal from.')
-    }
+/**
+ * CE ref: skill.cc:1031 skillsPerformStealing(). One call per item dragged
+ * in the steal UI.
+ *
+ * stealCount: CE's _gStealCount — count of items attempted so far *this
+ * session* (including this attempt); every drag makes subsequent ones
+ * harder, success or fail (inventory.cc:4360,4384).
+ *
+ * Faithfully reproduces the well-known FO2 quirk where the skilldex-shown
+ * Steal% isn't the true success chance: a normal (non-critical) stealRoll
+ * result is discarded and a *second*, independent catchRoll actually
+ * decides the outcome — only the stealRoll's critical thresholds
+ * short-circuit that second roll.
+ */
+export function performSteal(thief: Critter, target: Critter, item: Obj, stealCount: number): StealAttemptResult {
+    let stealModifier = -stealCount + 1
 
-    if (target.dead) {
-        console.log('[SKILL]   Target is dead — looting freely')
-        return makeResult(true, RollResult.Success, 'You search the body.')
-    }
-
-    const baseSkill = user.getSkill('Steal')
-    let stealSkill = baseSkill
-    const modifiers: [string, number][] = []
-
-    // FO2-CE: +30 bonus if sneaking
-    const isSneaking = user.isPlayer ? (globalState.player as any)?.isSneaking : false
-    if (isSneaking) {
-        stealSkill += 30
-        modifiers.push(['sneaking bonus', 30])
-    }
-
-    const hasPickpocket = user.hasPerk?.('Pickpocket') ?? false
+    const hasPickpocket = thief.hasPerk?.('Pickpocket') ?? false
     if (!hasPickpocket) {
-        // CE ref: skill.cc:1043 skillsPerformStealing — facing check: -25 if face to face
+        // CE ref: skill.cc:1039 — -4% per item size (proto.item.size)
+        const size = (item.pro?.extra as any)?.size ?? 0
+        stealModifier -= 4 * size
+
+        // CE ref: skill.cc:1043 — facing check: -25 if face to face
         // _is_hit_from_front: abs(a.rotation - b.rotation) not in {0,1,5}
-        const rotDiff = Math.abs(user.orientation - target.orientation) % 6
+        const rotDiff = Math.abs(thief.orientation - target.orientation) % 6
         const faceToFace = rotDiff !== 0 && rotDiff !== 1 && rotDiff !== 5
-        if (faceToFace) {
-            stealSkill -= 25
-            modifiers.push(['facing penalty', -25])
-        }
+        if (faceToFace) stealModifier -= 25
     }
 
     // CE ref: skill.cc:1049 — +20 if target is knocked out or down
-    if ((target as any).isKnockedDown) {
-        stealSkill += 20
-        modifiers.push(['knocked down/out', 20])
+    if ((target as any).isKnockedDown) stealModifier += 20
+
+    const stealChance = Math.min(95, stealModifier + thief.getSkill('Steal'))
+
+    // CE ref: skill.cc:1059 — stealing from a party member always critically succeeds
+    let stealRoll: RollResult
+    if (thief.isPlayer && globalState.gParty.isPartyMember(target)) {
+        stealRoll = RollResult.CriticalSuccess
+    } else {
+        stealRoll = randomRoll(stealChance, thief.getStat('Critical Chance')).roll
     }
 
-    // Cap at 95%
-    const chance = Math.min(95, stealSkill)
-    if (stealSkill > 95) {
-        modifiers.push(['cap at 95%', 95 - stealSkill])
+    let caught: boolean
+    if (stealRoll === RollResult.CriticalSuccess) {
+        caught = false
+    } else if (stealRoll === RollResult.CriticalFailure) {
+        caught = true
+    } else {
+        // CE ref: skill.cc:1073 — catchChance uses the TARGET's Steal skill (only
+        // non-critter targets use the flat 30; DH2's steal UI only targets critters)
+        const catchChance = target.getSkill('Steal') - stealModifier
+        caught = rollIsSuccess(randomRoll(catchChance, 0).roll)
     }
 
-    console.log(`[SKILL]   Base skill: ${baseSkill}`)
-    for (const [name, value] of modifiers) {
-        const sign = value >= 0 ? '+' : ''
-        console.log(`[SKILL]   Modifier: ${sign}${value} (${name})`)
-    }
-    console.log(`[SKILL]   Final chance: ${chance}%`)
+    dbg('skills', `[skill:Steal] item=%s stealCount=%d stealChance=%d%% caught=%s`,
+        item.name ?? item.pid, stealCount, stealChance, caught)
 
-    const stealRoll = getRandomInt(1, 100)
-    console.log(`[SKILL]   Roll: ${stealRoll}`)
-
-    if (stealRoll <= chance) {
-        console.log(`[SKILL]   Result: SUCCESS (roll ${stealRoll} <= chance ${chance})`)
-        emitSkillRoll('Steal', user, chance, RollResult.Success, stealRoll)
-        const xp = SKILL_XP['Steal']
-        if (user.isPlayer && xp > 0) {
-            (globalState.player as any)?.addExperience?.(xp)
-        }
-        logSkillXP(xp)
-        return makeResult(true, RollResult.Success, 'You steal successfully.', xp)
-    }
-
-    // Caught: separate catch roll
-    const catchChance = Math.floor((100 - chance) / 2)
-    const catchRoll = getRandomInt(1, 100)
-    console.log(`[SKILL]   Steal failed. Catch check: roll ${catchRoll} vs ${catchChance}% chance`)
-    if (catchRoll <= catchChance) {
-        console.log(`[SKILL]   Result: CRITICAL FAILURE — caught stealing!`)
-        emitSkillRoll('Steal', user, chance, RollResult.CriticalFailure, stealRoll)
-        return makeResult(false, RollResult.CriticalFailure, 'You are caught stealing!')
-    }
-
-    console.log(`[SKILL]   Result: FAILURE (roll ${stealRoll} > chance ${chance})`)
-    emitSkillRoll('Steal', user, chance, RollResult.Failure, stealRoll)
-    return makeResult(false, RollResult.Failure, 'You fail to steal anything.')
+    return { success: !caught, caught }
 }
 
 // ---------------------------------------------------------------------------
