@@ -152,6 +152,35 @@ export const statDependencies: { [name: string]: Stat } = {
     Experience: new Stat(0, 99999999, 0, []),
     Reputation: new Stat(-20, 20, 0, []),
     Karma: new Stat(-99999999, 99999999, 0, []),
+
+    // Per-town reputation — CE ref: game_vars.h GVAR_TOWN_REP_*, plain signed
+    // GVARs with no engine-enforced clamp. Registered here (2026-07-04, R2
+    // follow-up) so StatSet.getBase() doesn't throw when the karma panel
+    // reads back a value written by Script.set_global_var()'s TOWN_REP_GVARS
+    // sync — that sync path used setBase() (which has no validation) without
+    // ever registering these names, so any town whose GVAR a script touched
+    // would populate baseStats but crash on the next getBase() read (e.g.
+    // reopening the character screen). Names must match TOWN_NAMES in
+    // ui_character/viewer.ts and TOWN_REP_GVARS in scripting.ts exactly.
+    Rep_Arroyo: new Stat(-99999999, 99999999, 0, []),
+    Rep_Klamath: new Stat(-99999999, 99999999, 0, []),
+    'Rep_The Den': new Stat(-99999999, 99999999, 0, []),
+    'Rep_Vault City': new Stat(-99999999, 99999999, 0, []),
+    Rep_Gecko: new Stat(-99999999, 99999999, 0, []),
+    Rep_Modoc: new Stat(-99999999, 99999999, 0, []),
+    'Rep_Sierra Base': new Stat(-99999999, 99999999, 0, []),
+    'Rep_Broken Hills': new Stat(-99999999, 99999999, 0, []),
+    'Rep_New Reno': new Stat(-99999999, 99999999, 0, []),
+    Rep_Redding: new Stat(-99999999, 99999999, 0, []),
+    Rep_NCR: new Stat(-99999999, 99999999, 0, []),
+    'Rep_Vault 13': new Stat(-99999999, 99999999, 0, []),
+    'Rep_San Francisco': new Stat(-99999999, 99999999, 0, []),
+    Rep_Abbey: new Stat(-99999999, 99999999, 0, []),
+    Rep_EPA: new Stat(-99999999, 99999999, 0, []),
+    'Rep_Primitive Tribe': new Stat(-99999999, 99999999, 0, []),
+    Rep_Raiders: new Stat(-99999999, 99999999, 0, []),
+    'Rep_Vault 15': new Stat(-99999999, 99999999, 0, []),
+    'Rep_Ghost Farm': new Stat(-99999999, 99999999, 0, []),
 }
 
 // TODO: figure out what is going on with Skill

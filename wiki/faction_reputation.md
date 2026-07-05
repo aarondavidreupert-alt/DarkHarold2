@@ -305,6 +305,17 @@ the same call, the same way GVAR 0 already mirrored into `'Karma'`. This means
 any script that updates a town's reputation now populates the stat key the
 karma panel reads, so the town section is no longer permanently empty.
 
+**REGRESSION found and fixed 2026-07-05** (user-reported crash on opening the
+character screen after entering a town): `setBase()` writes unconditionally
+with no validation, but `StatSet.getBase()` (`char.ts:268-275`) throws
+`No dependencies for stat '<name>'` for any name not registered in
+`statDependencies` (`skills.ts`) — none of the 19 `Rep_*` names were
+registered, so the very first town-GVAR write from any script populated
+`baseStats` (passing the panel's presence guard) but crashed the next
+`getBase()` read, breaking the character screen. Fixed by registering all 19
+`Rep_*` entries in `statDependencies` (wide range, default 0, no
+dependencies, matching the pre-existing `Karma` entry).
+
 The panel still only displays a town if the key exists in
 `player.stats.baseStats` — a town whose GVAR a script never touches still
 won't appear, matching CE's behavior of not showing towns the player hasn't
@@ -787,7 +798,7 @@ with no transparency to indicate their position.
 | # | CE behaviour | DH2 status |
 |---|---|---|
 | K1 | Script karma writes (`set_global_var(0, N)`) should update the displayed karma score | **Fixed** (pre-existing, prior to this audit) — `set_global_var(0, N)` syncs into `player.stats` |
-| K2 | Town reputation UI reads from `gGameGlobalVars[47-66]` via character editor | **FIXED 2026-07-04 (R2)** — `set_global_var()` now syncs town-rep GVAR writes (indices 47-66, 294, 308) into `player.stats.setBase('Rep_' + town, ...)` via `TOWN_REP_GVARS`, so the town section populates once a script touches that GVAR |
+| K2 | Town reputation UI reads from `gGameGlobalVars[47-66]` via character editor | **FIXED 2026-07-04 (R2), regression fixed 2026-07-05** — `set_global_var()` now syncs town-rep GVAR writes (indices 47-66, 294, 308) into `player.stats.setBase('Rep_' + town, ...)` via `TOWN_REP_GVARS`, so the town section populates once a script touches that GVAR. The 19 `Rep_*` names weren't registered in `statDependencies`, so the panel's `getBase()` read-back crashed the character screen — fixed by registering them in `skills.ts`. |
 | K3 | Special karma flags (Childkiller, Berserker, etc.) shown in character editor karma panel | **Gap** — stored correctly in `globalVars[1-3, 37-45]` by scripts but no UI display |
 | K4 | Town standing tier labels are per-town-script thresholds in CE | **Gap** — DH2 uses a hardcoded 7-tier table; not incorrect per se, but CE has no engine table |
 | K5 | `PC_STAT_REPUTATION` (pcstat 3) and `PC_STAT_KARMA` (pcstat 4) are vestigial in CE — always 0 | **Info** — DH2 adds `set_pc_stat`/`mod_pc_stat` for these; no CE script uses them |
@@ -811,4 +822,4 @@ with no transparency to indicate their position.
 | E9 | `tileIsInFrontOf` / `tileIsToRightOf` geometry functions | Not present in DH2; needed for egg and also for correct combat sight-line logic |
 | E10 | Egg is reset / repositioned on elevation change synchronously with player | N/A (egg not present), but elevation change is handled in `changeElevation` (`map.ts`) |
 
-<!-- audited: 2026-07-04 — synced §2.2/K1/K2 with ROADMAP.md R2 fix (town-rep GVAR→stats sync, townStanding off-by-one) -->
+<!-- audited: 2026-07-05 — R2 regression fixed (Rep_* stats now registered in statDependencies, skills.ts) -->
