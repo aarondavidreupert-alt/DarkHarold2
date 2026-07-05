@@ -53,7 +53,16 @@ function loadWalkMask(name: string): Uint8Array | null {
     if (_walkMaskCache.has(name)) return _walkMaskCache.get(name)!
     let mask: Uint8Array | null = null
     try {
-        const dv = getFileBinarySync(`data/${name}.msk`)
+        // CE literal path is "data\\%s.msk" (worldmap.cc:4225) — the SAME
+        // "data\" prefix as worldmap.txt's own "data\\worldmap.txt"
+        // (worldmap.cc:1275), which DH2 fetches from data/data/worldmap.txt.
+        // tools/setup.py's DAT extraction preserves each entry's internal
+        // archive path under the project's data/ folder, so any CE path
+        // starting with "data\" lands at data/data/* here — .msk files
+        // included. Originally fetched from data/{name}.msk (missing the
+        // extraction-root prefix), which 404'd on real installs and made
+        // every worldPosInvalid() check silently pass (never blocking).
+        const dv = getFileBinarySync(`data/data/${name}.msk`)
         mask = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength)
     } catch {
         dbg('worldmap', `[Worldmap] walk mask load failed: ${name}`)
