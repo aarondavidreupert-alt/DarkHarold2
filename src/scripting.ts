@@ -1267,7 +1267,8 @@ export module Scripting {
             }
         }
         mod_pc_stat(pcstat: number, delta: number) {
-            // FO2-CE ref: scripts.cc opModifyPcStat()
+            // DH2-internal convenience (delta variant of set_pc_stat); no CE script
+            // opcode exists for this — pcSetStat() (stat.cc) is never scriptable in CE.
             const p = globalState.player
             if (!p) return -1
             switch (pcstat) {

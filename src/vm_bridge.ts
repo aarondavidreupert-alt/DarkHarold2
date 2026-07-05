@@ -110,6 +110,7 @@ export module ScriptVMBridge {
        ,0x8116: bridged("add_mult_objs_to_inven", 3, false)
        ,0x8117: bridged("rm_mult_objs_from_inven", 3)
        ,0x80D8: bridged("add_obj_to_inven", 2, false)
+       ,0x80D9: bridged("rm_obj_from_inven", 2, false) // CE: interpreter_extra.cc:4930 opRemoveObjectFromInventory — method existed, just never wired
        ,0x80DC: bridged("obj_can_see_obj", 2)
        ,0x80E9: bridged("set_light_level", 1)
        ,0x8107: bridged("obj_set_light_level", 3, false)
@@ -134,6 +135,7 @@ export module ScriptVMBridge {
        ,0x8100: bridged("obj_pid", 1)
        ,0x8104: bridged("proto_data", 2) // proto_data(pid, data_member) — CE: interpreter_extra.cc opGetProtoData (PS1)
        ,0x80A4: bridged("obj_name", 1)
+       ,0x80A6: bridged("get_pc_stat", 1) // CE: interpreter_extra.cc:4879 opGetPcStat — method existed, just never wired
        ,0x8149: bridged("obj_art_fid", 1)
        ,0x8150: bridged("obj_on_screen", 1)
        ,0x80f5: bridged("obj_can_hear_obj", 2)
