@@ -713,7 +713,7 @@ this.numLevels = (map.levels ?? []).length
 this.objects = new Array(map.levels.length)
 ```
 
-The CE `_map_data_elev_flags` bitmask is not propagated to the JSON format. Empty elevations are simply absent from the levels array rather than flagged as empty.
+✅ Investigated 2026-07-05, not a gap — CE's `_map_data_elev_flags` bitmask exists purely to let the binary `.map` reader (`_square_load`, `map.cc:1714`) skip absent elevations' tile-data blocks in the file stream; it's a file-format detail, not a distinct piece of game state. `tools/fomap.py`'s `getNumLevels()` already replicates that exact bit logic at extraction time, and the resulting `levels` array is exactly as long as the map's real elevation count — array length losslessly encodes the same presence information the bitmask does, with no separate field needed. See `known_bugs.md` EL4.
 
 ---
 
@@ -728,7 +728,7 @@ The CE `_map_data_elev_flags` bitmask is not propagated to the JSON format. Empt
 | EL1 | **`elevation(obj)` always returns player's current elevation.** `scripting.ts:753` returns `globalState.currentElevation` for all objects. CE `opGetObjectElevation` returns `obj->elevation`. Scripts that query a different object's elevation (e.g., checking if a party member fell to a lower level) get the wrong answer. | `scripting.ts:753`, `vm_bridge.ts:158` | `interpreter_extra.cc:2285 opGetObjectElevation()` | major | bug |
 | EL2 | **`doEnterElevation()` fires `map_enter_p_proc` on stair/ladder elevation change.** CE `mapSetElevation` fires only `map_update_p_proc`. DH2 calls `doEnterElevation()` which runs `map_enter_p_proc` on every stair/ladder use, causing map-entry side-effects (light resets, NPC repositions, first-visit flags) to run on every floor change. | `src/map/GameMap.ts`, `src/object/Obj.ts` | `map.cc:362 mapSetElevation()` | major | bug |
 | EL3 | **No elevator opcode handler.** CE `scriptsHandleRequests` has a dedicated elevator branch that closes old elevator doors, handles same-map vs. cross-map splits, and calls `mapSetElevation`. DH2 routes elevator-type objects through the generic stair/ladder path, skipping door animations and the same-map-different-elevation optimisation. | `object.ts` | `scripts.cc:926 scriptsHandleRequests SCRIPT_REQUEST_ELEVATOR` | minor | missing |
-| EL4 | **`_map_data_elev_flags` bitmask not represented in DH2 map format.** CE saves per-elevation empty/non-empty state in `MapHeader.flags`. DH2's JSON pipeline omits this; all elevations present in the `levels` array are always loaded. Maps that CE would skip (empty elevations) are treated identically to populated ones. | `map.ts` | `map.cc:81 _map_data_elev_flags` | low | missing |
+| EL4 | ✅ Investigated 2026-07-05, not a real gap (see §16.7) — `_map_data_elev_flags` is a `.map`-file-stream-skip detail; DH2's `levels` array length already losslessly encodes the same "which elevations exist" information, and every runtime consumer (`GameMap.ts`, `mapLoader.ts`) derives elevation count dynamically from it rather than assuming a fixed 3. | `tools/fomap.py:48`; `src/map/GameMap.ts` | `map.cc:81,1377-1385,1404,1714 _map_data_elev_flags` | low | not-a-gap |
 | EL5 | **`getObjectsAndSpatials()` passes no elevation to `getSpatials()`, so `map_update_p_proc` is fired only on current-elevation objects and spatials.** CE `scriptsExecMapUpdateScripts` runs `map_update_p_proc` on all loaded scripts regardless of elevation. Critters on other elevations do not tick their scripts when the player is away. | `map.ts`, `scripting.ts:2118` | `scripts.cc:2601 scriptsExecMapUpdateScripts()` | minor | bug |
 
-<!-- audited: 2026-06-02 -->
+<!-- audited: 2026-07-05 — EL4 corrected to not-a-gap, see known_bugs.md -->
