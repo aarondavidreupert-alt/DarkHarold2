@@ -33,6 +33,7 @@ import { uiLoot, uiLog } from '../ui.js'
 import { getMessage, getRandomInt, skillRoll, RollResult } from '../util.js'
 import { showTimerDialog } from '../ui_timer.js'
 import { Config } from '../config.js'
+import { isChargedMiscItem, useChargedMiscItem } from '../miscItem.js'
 import type { Critter } from './Critter.js'
 // Late-bound factory hooks — set by factories.ts at module-init time.
 // Direct static import would create a cycle: Obj.ts → factories.ts → items.ts
@@ -306,6 +307,9 @@ export interface SerializedObj {
 
     lightRadius: number
     lightIntensity: number
+
+    miscOn?: boolean
+    miscCharges?: number
 }
 
 export class Obj {
@@ -323,6 +327,12 @@ export class Obj {
     open = false // Is the object open? (Mainly for doors)
     locked = false // Is the object locked? (Mainly for doors)
     jammed = false // Is the lock jammed? (CE DOOR_FLAG_JAMMGED / OBJ_JAMMED)
+
+    // CE ref: item.cc data.item.misc.charges — Stealth Boy/Geiger Counter
+    // on/off + remaining-charge state. See src/miscItem.ts (LE10). Only
+    // meaningful for items where miscItem.ts's isChargedMiscItem() is true.
+    miscOn?: boolean
+    miscCharges?: number
 
     extra: any // TODO
 
@@ -442,6 +452,8 @@ export class Obj {
         obj.inventory = mobj.inventory
         obj.script = mobj.script
         obj.extra = mobj.extra
+        obj.miscOn = mobj.miscOn
+        obj.miscCharges = mobj.miscCharges
 
         obj.pro = mobj.pro || loadPRO(obj.pid, obj.pidID)
         obj.flags = mobj.flags // NOTE: Tested with two objects in Mapper, map object flags seem to inherit PROs already and should thus use them
@@ -837,6 +849,14 @@ export class Obj {
             }
         }
 
+        // CE ref: item.cc:2246-2280 _item_m_use_charged_item() — Stealth Boy /
+        // Geiger Counter toggle. LE10.
+        if (isChargedMiscItem(this)) {
+            if (source === undefined) source = globalState.player as Critter
+            useChargedMiscItem(this, source ?? null)
+            return true
+        }
+
         if (this.isExplosive) {
             useExplosive(this, source)
             return true
@@ -1124,6 +1144,8 @@ export class Obj {
             }).filter((obj) => obj !== null),
             lightRadius: this.lightRadius,
             lightIntensity: this.lightIntensity,
+            miscOn: this.miscOn,
+            miscCharges: this.miscCharges,
         }
     }
 }

@@ -141,11 +141,21 @@ export interface DrugProtoExtra extends ItemProtoExtraBase {
     addictionOnset: number
 }
 
-// Container / Key / Misc-subtype items: tools/proto.py readItem() has no
-// branch for these subtypes ("unhandled item subtype") — only the base
-// fields above are populated.
+// CE ref: proto_types.h ProtoItemMiscData (power_type_pid, power_type,
+// charges) — the Stealth Boy/Geiger Counter on/off charge system
+// (item.cc miscItemTurnOn()/miscItemIsConsumable()). LE10.
+export interface MiscItemProtoExtra extends ItemProtoExtraBase {
+    subType: 5 // ITEM_SUBTYPE_MISC
+    powerTypePid: number
+    powerType: number
+    charges: number
+}
+
+// Container / Key-subtype items: tools/proto.py readItem() has no branch
+// for these subtypes ("unhandled item subtype") — only the base fields
+// above are populated.
 export interface OtherItemProtoExtra extends ItemProtoExtraBase {
-    subType: 1 | 5 | 6 // CONTAINER | MISC | KEY
+    subType: 1 | 6 // CONTAINER | KEY
 }
 
 export type ItemProtoExtra =
@@ -153,6 +163,7 @@ export type ItemProtoExtra =
     | AmmoProtoExtra
     | ArmorProtoExtra
     | DrugProtoExtra
+    | MiscItemProtoExtra
     | OtherItemProtoExtra
 
 // --- Critter extra -------------------------------------------------------

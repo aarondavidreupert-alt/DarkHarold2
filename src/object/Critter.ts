@@ -30,6 +30,7 @@ import { dbg, dbgWarn } from '../logger.js'
 import { Scripting } from '../scripting.js'
 import { getMessage } from '../util.js'
 import { getAiPacket, AiPacket } from '../aiPackets.js'
+import { refreshStealthState } from '../miscItem.js'
 import { hitSpatialTrigger, Obj, objectIsWeapon, SerializedObj, setObjectOpen } from './Obj.js'
 import { WeaponObj } from './items.js'
 
@@ -85,6 +86,11 @@ export class Critter extends Obj {
     // constructor for where these get merged onto the base packet.
     customAiOverrides: Partial<AiPacket> | null = null
     hostile = false // Currently engaging an enemy?
+    // CE ref: item.cc:2460-2499 stealthBoyTurnOn/Off (OBJECT_TRANS_GLASS) — true
+    // while an active Stealth Boy II sits in either hand slot. Derived, not
+    // independently serialized — recomputed via miscItem.ts's
+    // refreshStealthState() whenever a hand slot or item on/off state changes.
+    stealthActive = false
     // Wander origin (lazily captured on first wander tick) — used to enforce
     // per-type radius caps. CE ref: ai.cc wander_type 1/2/3 short/large/unrestricted.
     wanderOrigin: { x: number; y: number } | null = null
@@ -169,6 +175,15 @@ export class Critter extends Obj {
             }
             if (!obj.leftHand)  obj.leftHand  = makeFist()
             if (!obj.rightHand) obj.rightHand = makeFist()
+
+            // NOTE: this re-equip pass only restores weapon-subtype items, so a
+            // Stealth Boy equipped in a hand at save time falls back to plain
+            // inventory here (not re-equipped) — a known DH2 simplification vs.
+            // CE, which persists hand-slot occupancy for any item type. The
+            // item's own on/off + charge state (miscOn/miscCharges) still
+            // round-trips correctly; the player just needs to re-equip it this
+            // session for its detection effect to resume. See wiki/items.md LE10.
+            refreshStealthState(obj)
         }
 
         return obj

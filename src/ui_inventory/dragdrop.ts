@@ -22,6 +22,7 @@ import globalState from '../globalState.js'
 import { Obj, cloneItem } from '../object.js'
 import { lookupArt } from '../pro.js'
 import { Scripting } from '../scripting.js'
+import { refreshStealthState } from '../miscItem.js'
 import { uiGetAmount } from '../ui_barter/swap.js'
 import { drawAC, uiDrawWeapon, uiLog } from '../ui_hud.js'
 import { showInventory } from './panel.js'
@@ -169,6 +170,12 @@ export async function uiMoveSlot(data: string, target: string) {
         applyArmorArt(target === 'armor' ? obj : null)
         const armorAC = (globalState.player as any).armor?.pro?.extra?.AC ?? 0
         drawAC(globalState.player.getStat('AC') + armorAC)
+    }
+
+    // CE ref: item.cc:353-358,449-456 — hand-slot contents changing (equip,
+    // unequip, swap) can start or stop a held Stealth Boy's detection effect.
+    if (data === 'leftHand' || data === 'rightHand' || target === 'leftHand' || target === 'rightHand') {
+        refreshStealthState(globalState.player!)
     }
 
     uiDrawWeapon()

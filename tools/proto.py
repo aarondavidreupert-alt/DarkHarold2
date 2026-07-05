@@ -208,6 +208,13 @@ def readItem(f: BufferedReader):
 		obj["addictionRate"] = read32(f)
 		obj["addictionEffect"] = read32(f)
 		obj["addictionOnset"] = read32(f)
+	elif objSubType == SUBTYPE_MISC:
+		# CE ref: proto_types.h ProtoItemMiscData (power_type_pid, power_type,
+		# charges) — used by Stealth Boy/Geiger Counter's on/off charge system
+		# (item.cc miscItemTurnOn/miscItemIsConsumable). LE10.
+		obj["powerTypePid"] = read32(f)
+		obj["powerType"] = read32(f)
+		obj["charges"] = read32(f)
 
 	#else:
 	#	print "warning: unhandled item subtype", objSubType

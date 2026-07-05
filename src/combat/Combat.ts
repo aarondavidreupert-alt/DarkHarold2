@@ -760,7 +760,10 @@ export class Combat {
         const targets = this.combatants.filter((x) => {
             if (x.dead || x.teamNum === obj.teamNum) return false
             const dist = hexDistance(obj.position, x.position)
-            if (dist > per * 5) return false               // beyond max perception range
+            // CE ref: combat_ai.cc:3510 isWithinPerception() — an active Stealth
+            // Boy II (OBJECT_TRANS_GLASS) halves the max detection range. LE10.
+            const maxRange = x.stealthActive ? Math.floor((per * 5) / 2) : per * 5
+            if (dist > maxRange) return false                // beyond max perception range
             if (dist > per * 2 && !this.hasLineOfSight(obj.position, x.position)) return false
             return true
         })
