@@ -61,6 +61,7 @@ export class Player extends Critter {
         createObjectWithPID(19),                 // Minigun           (big gun, uses 5mm JHP)
         createObjectWithPID(20),                 // Rocket Launcher   (big gun, uses Rocket AP)
         createObjectWithPID(16),                 // Assault Rifle     (small gun, uses 5mm JHP)
+        createObjectWithPID(54),                 // Stealth Boy       (misc, LE10 charge/toggle test)
 
         // --- Testing ammo ---
         createObjectWithPID(33).setAmount(200),  // 10mm JHP          (SMG / 10mm Pistol)
