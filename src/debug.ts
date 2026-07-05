@@ -116,6 +116,15 @@ export const debug = {
             return
         }
         if (amount > 1) item.setAmount(amount)
+        // Test-only: charged misc items (Stealth Boy/Geiger Counter, LE10) read
+        // charges from item.pro.extra.charges, which is only present once the
+        // asset pipeline has been re-run locally with tools/proto.py's
+        // SUBTYPE_MISC fix. Hardcode a usable value here so console-given items
+        // are testable before that re-run happens. Remove once real proto data
+        // is present — see wiki/known_bugs.md LE10.
+        if ((pid === 54 || pid === 210 || pid === 52 || pid === 207) && !item.pro?.extra?.charges) {
+            item.miscCharges = 50
+        }
         p.inventory.push(item)
         console.log(`[debug] Added PID ${pid}${amount > 1 ? ` x${amount}` : ''} (${item.name || '?'}) to inventory. Inventory size: ${p.inventory.length}`)
     },

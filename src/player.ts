@@ -26,6 +26,17 @@ import { uiWorldMap } from './ui.js'
 
 // Contains the Player class and relevant initialization logic
 
+// Test-only helper: hardcodes charges on the test-inventory Stealth Boy
+// (LE10) since it reads from item.pro.extra.charges, which only exists in
+// proto/items/*.json after re-running the asset pipeline locally with the
+// tools/proto.py SUBTYPE_MISC fix. Remove once that data is present — see
+// wiki/known_bugs.md LE10.
+function testStealthBoy(): Obj {
+    const item = createObjectWithPID(54)
+    item.miscCharges = 50
+    return item
+}
+
 export class Player extends Critter {
     name = 'Player'
 
@@ -61,7 +72,7 @@ export class Player extends Critter {
         createObjectWithPID(19),                 // Minigun           (big gun, uses 5mm JHP)
         createObjectWithPID(20),                 // Rocket Launcher   (big gun, uses Rocket AP)
         createObjectWithPID(16),                 // Assault Rifle     (small gun, uses 5mm JHP)
-        createObjectWithPID(54),                 // Stealth Boy       (misc, LE10 charge/toggle test)
+        testStealthBoy(),                        // Stealth Boy       (misc, LE10 charge/toggle test)
 
         // --- Testing ammo ---
         createObjectWithPID(33).setAmount(200),  // 10mm JHP          (SMG / 10mm Pistol)
