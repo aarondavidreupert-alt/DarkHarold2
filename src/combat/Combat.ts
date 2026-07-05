@@ -1204,6 +1204,13 @@ export class Combat {
         globalState.inCombat = false
         combatActive = false
 
+        // CE ref: combat.cc:2811 — combatEnd() restores gDude's AP to max
+        // (critterGetStat(gDude, STAT_MAXIMUM_ACTION_POINTS)) before redrawing
+        // the interface bar. Without this, the player's leftover low combat-AP
+        // value persists outside combat and the attack button stays shown as
+        // unaffordable (dimmed) even though there's no more combat to spend AP in.
+        this.player.AP?.resetAP()
+
         if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat2')
         globalState.gMap.updateMap()
         uiEndCombat()
@@ -1220,6 +1227,8 @@ export class Combat {
         eventLogPush({ actor: null, action: 'combat-end', result: 'forced', message: 'Combat ended (forced)' })
         globalState.combat = null
         globalState.inCombat = false
+        // CE ref: combat.cc:2811 — see end() above for why this matters.
+        this.player.AP?.resetAP()
         if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat2')
         globalState.gMap?.updateMap()
         uiEndCombat()

@@ -318,7 +318,7 @@ function renderIndicatorBadges(active: Set<string>): void {
 // Dim the attack button when the player can't afford the current weapon mode's
 // AP cost (or when it isn't the player's turn). CE ref: interface.cc
 // interfaceRenderActionPoints — attack-button colour follows AP availability.
-function updateAttackButtonAvailability(availableAP: number, isPlayerTurn: boolean): void {
+export function updateAttackButtonAvailability(availableAP: number, isPlayerTurn: boolean): void {
     const $btn = document.getElementById('attackButton') as HTMLElement | null
     if (!$btn) return
     const weapon = globalState.player?.equippedWeapon
@@ -524,6 +524,16 @@ export function uiEndCombat(): void {
 
     const $hover = document.getElementById('combatHoverInfo')
     if ($hover) $hover.style.display = 'none'
+
+    // Refresh the attack button's affordability tint now that combat's AP
+    // pool has been reset (Combat.ts end()/forceEnd() call player.AP.resetAP()
+    // right before this). Without this, the button kept showing the
+    // unaffordable/dimmed tint from whatever AP the player had left in the
+    // fight, even after leaving combat entirely. Calling the button-tint
+    // update directly (not drawAP) so the AP light bar stays hidden — it's
+    // combat-only UI and shouldn't reappear here.
+    const player = globalState.player
+    if (player?.AP) updateAttackButtonAvailability(player.AP.getAvailableMoveAP(), true)
 }
 
 export function uiShowCombatHover(target: Critter, screenX: number, screenY: number): void {
