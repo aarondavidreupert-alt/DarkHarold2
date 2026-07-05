@@ -48,15 +48,17 @@ declare module './GameMap.js' {
 }
 
 GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point, startingElevation = 0, loadedCallback?: () => void): void {
-        // CE ref: map.cc:1225 mapHandleTransition — CE refuses to perform a map
-        // transition at all while isInCombat() is true (the transition request
-        // is deferred/aborted instead). DH2 doesn't gate transitions on combat
-        // state, so a player fleeing to another map (or elevator/worldmap
-        // travel triggered mid-fight) could leave globalState.inCombat/combat
-        // stuck "on" in the new map, since combat's own end-of-encounter logic
-        // never runs there. Force-clean any leftover combat state here so the
-        // invariant CE guarantees (never in combat right after a transition)
-        // holds regardless of how the player left the fight.
+        // Fleeing to a map exit mid-combat is valid in CE (and always has been)
+        // — CE does not block the transition. What CE actually does: reaching
+        // an exit grid during combat (object.cc:1399-1432) sets a "quit this
+        // loop" flag combat.cc's own turn loop checks every iteration
+        // (combat.cc:3186-3196), which cleanly ends the encounter as a side
+        // effect before mapHandleTransition() (map.cc:1244-1256) actually
+        // performs the load — so combat is already over by the time the new
+        // map appears. DH2 has no per-tick loop to unwind that way, and never
+        // reset inCombat/combat on a transition, so fleeing mid-fight left
+        // stale combat state bleeding into the new map. Force-clean it here to
+        // reproduce CE's actual end state (never in combat on the new map).
         if (globalState.inCombat) {
             globalState.combat?.forceEnd()
             globalState.inCombat = false
