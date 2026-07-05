@@ -655,6 +655,7 @@ These CE scripting intrinsics have no entry in `src/vm_bridge.ts`:
 | IU3  | No jammed state               | `jam_lock` / `unjam_lock` exist; midnight unjam fires             | No jammed state on `Obj`; opcodes missing; midnight unjam never fires (cross-ref §GTC5 in known_bugs.md) | `proto_instance.cc:2131,2171`; `scripts.cc:418` | `scripting.ts` (missing) |
 | IU4  | No locked-door SFX/message    | Plays locked SFX + "That door is locked." before proc fires       | `setObjectOpen()` returns `false` silently                           | `proto_instance.cc:1710-1722`              | `src/object/Obj.ts`       |
 | IU5  | Container loot UI timing      | Loot screen shown only after `objectOpenClose()` animation        | `setObjectOpen()` calls `uiLoot(obj)` immediately                   | `proto_instance.cc:1825-1840`              | `src/object/Obj.ts`       |
+| IU6  | ✅ FIXED 2026-07-05 — `canUse` read a nonexistent `extendedFlags` key (items have no such top-level `extra` field) | Standalone-usable items (Stealth Boy, radios, etc.) never showed as usable | Fixed to read `extra.weaponFlags & 0x08` — see `known_bugs.md` IU6 for the full byte-swap derivation | `proto.cc:257 _proto_action_can_use()` | `src/object/Obj.ts:canUse` |
 
-Last audited: 2026-06-02
-<!-- 2026-07-05: added §4.3b misc charged items (Stealth Boy/Geiger Counter, LE10 fixed) -->
+Last audited: 2026-07-05
+<!-- 2026-07-05: added §4.3b misc charged items (Stealth Boy/Geiger Counter, LE10 fixed); IU6 canUse bitmask fix -->

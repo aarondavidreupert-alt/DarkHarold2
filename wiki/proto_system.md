@@ -333,7 +333,7 @@ Every `Obj` instance caches its proto in `obj.pro` (set during `objFromMapObject
 | `pro.frmPID`, `pro.frmType` | `proto.fid` (decoded) | `lookupArt()` → sprite path |
 | `pro.extra.subType` | `proto.item.type` / `proto.scenery.type` | Door/stairs/weapon/armor dispatch |
 | `pro.extra.scriptPID` / `.scriptID` | `proto.sid` | Script to attach on object creation |
-| `pro.extra.actionFlags` | `proto.item.extendedFlags` | `_proto_action_can_use()` checks |
+| `pro.extra.weaponFlags & 0x08` | `proto.item.extendedFlags & 0x0800` | `_proto_action_can_use()` checks — **fixed 2026-07-05 (IU6)**: was `extra.extendedFlags & 8`, a nonexistent key (items have no top-level `extendedFlags` field — only scenery/wall/tile/misc do). CE's `fileReadInt32()` byte-swaps every 4-byte PRO field (`db.cc:321-332`); the real 32-bit `extendedFlags` is reassembled from 4 separately-named bytes DH2 already reads correctly (`itemFlags`/`actionFlags`/`weaponFlags`/`attackMode` = bytes 0-3 on disk), and bit `0x0800` lands in byte 2 (`weaponFlags`, bit `0x08`) after the swap. See `known_bugs.md` IU6. |
 | `pro.extra.AI` | `proto.critter.aiPacket` | AI packet index |
 | `pro.extra.team` | `proto.critter.team` | Combat team assignment |
 | `pro.extra.baseStats` | `proto.critter.data.baseStats[]` | `StatSet.fromPro()` — initial stat values |
@@ -355,8 +355,8 @@ CE opcode `0x8104` → `opGetProtoData` (interpreter_extra.cc:2962) → `protoGe
 | 3 | `ITEM_DATA_MEMBER_FID` | — |
 | 4 | `ITEM_DATA_MEMBER_LIGHT_DISTANCE` | `pro.lightDistance` — **FIXED 2026-07-04**: `scripting.ts` already read the correct CE field name, but `tools/proto.py` emitted it as `lightRadius`; this opcode silently always returned 0 until the field was renamed to match (see §4.1) |
 | 5 | `ITEM_DATA_MEMBER_LIGHT_INTENSITY` | `pro.lightIntensity` |
-| 6 | `ITEM_DATA_MEMBER_FLAGS` | `extra.itemFlags` |
-| 7 | `ITEM_DATA_MEMBER_EXTENDED_FLAGS` | `extra.attackMode` |
+| 6 | `ITEM_DATA_MEMBER_FLAGS` | `pro.flags` — **fixed 2026-07-05 (IU6)**: was `extra.itemFlags`, which is one raw header byte, not CE's `proto->item.flags` (a separate top-level field already correctly stored at `pro.flags`) |
+| 7 | `ITEM_DATA_MEMBER_EXTENDED_FLAGS` | reassembled from `extra.itemFlags/actionFlags/weaponFlags/attackMode` — **fixed 2026-07-05 (IU6)**: was `extra.attackMode` (one byte); now reconstructs the full 32-bit `extendedFlags` CE returns, matching the byte-swap in `db.cc:321-332` |
 | 8 | `ITEM_DATA_MEMBER_SID` | — |
 | 9 | `ITEM_DATA_MEMBER_TYPE` | `extra.subType` (as data_member=0 in DH2, off by 9) |
 | 11 | `ITEM_DATA_MEMBER_MATERIAL` | `extra.materialID` (as data_member=1) |
@@ -390,4 +390,4 @@ DH2's `proto_data` method (scripting.ts:1090) is implemented but **opcode 0x8104
 | PS5 | **`proto_data` item data_member IDs don't match CE.** DH2 maps `data_member=0` to `ITEM_TYPE`, `data_member=1` to `ITEM_MATERIAL`, etc. CE defines `ITEM_DATA_MEMBER_TYPE=9`, `ITEM_DATA_MEMBER_MATERIAL=11`. Scripts compiled against the CE API will pass CE's IDs (9, 11, 12…) and receive wrong fields. Already noted as `known_bugs.md §S12`. | `scripting.ts:1100-1130` | `proto.h ItemDataMember` enum | major | bug |
 | PS6 | ✅ **FIXED 2026-07-05** (found during LE10/Stealth Boy work). `readItem()`'s subtype dispatch (§ above PS3/PS4, a *different* MISC than PS4's top-level `PROTO_TYPE_MISC`) had no branch for `ITEM_SUBTYPE_MISC` (5) at all — `charges`/`powerType`/`powerTypePid` (`proto_types.h ProtoItemMiscData`, 3×int32) were silently dropped for every misc item (Stealth Boy, Geiger Counter, Motion Sensor). Added the branch; new `MiscItemProtoExtra` type in `proto_types.ts`. Container (subtype 1) and Key (subtype 6) remain unhandled — no current DH2 consumer needs their fields (`maxSize`/`openFlags`/`keyCode`). **Requires a pipeline re-run against real assets locally** to regenerate `proto/items/*.json` before this affects a running game. | `tools/proto.py` (readItem SUBTYPE_MISC branch) | `proto_types.h ProtoItemMiscData` | minor | fixed |
 
-<!-- audited: 2026-07-05 — PS6 added (misc-item charges fix, LE10) -->
+<!-- audited: 2026-07-05 — PS6 added (misc-item charges fix, LE10); §6.3/§6.4 field-mapping tables corrected for IU6 (canUse/proto_data extendedFlags byte-swap fix, known_bugs.md) -->

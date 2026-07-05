@@ -816,7 +816,14 @@ export class Obj {
             if (this.isDoor || this.isStairs || this.isLadder) {
                 return true
             } else {
-                return (this.pro!.extra.extendedFlags & 8) != 0
+                // CE ref: proto.cc:257 _proto_action_can_use() — checks
+                // proto->item.extendedFlags & 0x0800 (ItemProtoExtendedFlags_0x0800).
+                // CE's fileReadInt32() byte-swaps that 32-bit field on read
+                // (db.cc:321-332), so bit 0x0800 (bits 8-15 of the swapped value)
+                // ends up inside tools/proto.py's 3rd raw byte — the field this
+                // codebase calls `weaponFlags` — not a top-level `extendedFlags`
+                // key (items have no such key; only scenery/wall/tile/misc do).
+                return (this.pro!.extra.weaponFlags & 0x08) != 0
             }
         }
         return false

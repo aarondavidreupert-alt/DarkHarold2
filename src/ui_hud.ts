@@ -18,7 +18,7 @@ limitations under the License.
 // combat hover info, and the scrolling message log.
 
 import globalState from './globalState.js'
-import { Critter, WeaponObj } from './object.js'
+import { Critter, Obj, WeaponObj, objectIsWeapon } from './object.js'
 import { getActivePunchMode, getActiveKickMode } from './unarmed.js'
 import { $id, $img, $q, clearEl, show, hide, showv, hidev } from './ui_dom.js'
 import { font1 } from './ui_font.js'
@@ -368,10 +368,24 @@ export function uiDrawWeapon(): void {
     const $wepImg = $id('attackButtonWeapon') as HTMLImageElement
     const $typeImg = $img('attackButtonType')
     if (!weapon || !weapon.weapon) {
-        // Unarmed HUD: left hand → punch family, right hand → kick family (both empty only)
         const player = globalState.player!
-        const unarmedSkill = player.getSkill('Unarmed')
         const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
+        const activeItem = (player as any)[activeHand] as Obj | undefined
+
+        // CE ref: interface.cc:1067-1078,1116-1127 interfaceUpdateItems() — a
+        // non-weapon item in the active hand shows its own icon in the HUD
+        // (INTERFACE_ITEM_ACTION_USE), not the unarmed fists/kicks fallback.
+        if (activeItem && activeItem.invArt && !objectIsWeapon(activeItem)) {
+            $wepImg.style.display = ''
+            $wepImg.onload = null
+            $wepImg.src = activeItem.invArt + '.png'
+            $typeImg.style.display = 'none'
+            hide($id('attackButtonCalled'))
+            return
+        }
+
+        // Unarmed HUD: left hand → punch family, right hand → kick family (both empty only)
+        const unarmedSkill = player.getSkill('Unarmed')
         const leftWeapon = (player as any).leftHand?.weapon ?? null
         const rightWeapon = (player as any).rightHand?.weapon ?? null
         const bothHandsEmpty = !leftWeapon && !rightWeapon

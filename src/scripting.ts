@@ -1472,8 +1472,12 @@ export module Scripting {
                     case 3:   return pro.frmPID ?? 0               // ITEM_DATA_MEMBER_FID
                     case 4:   return pro.lightDistance ?? 0        // ITEM_DATA_MEMBER_LIGHT_DISTANCE
                     case 5:   return pro.lightIntensity ?? 0       // ITEM_DATA_MEMBER_LIGHT_INTENSITY
-                    case 6:   return extra.itemFlags ?? 0          // ITEM_DATA_MEMBER_FLAGS
-                    case 7:   return extra.attackMode ?? 0         // ITEM_DATA_MEMBER_EXTENDED_FLAGS
+                    case 6:   return pro.flags ?? 0                // ITEM_DATA_MEMBER_FLAGS (proto.cc:1130 proto->item.flags)
+                    // ITEM_DATA_MEMBER_EXTENDED_FLAGS (proto.cc:1133 proto->item.extendedFlags).
+                    // Reconstructs CE's post-byte-swap 32-bit value (db.cc:321-332)
+                    // from tools/proto.py's 4 raw header bytes — see Obj.ts canUse.
+                    case 7:   return ((extra.itemFlags ?? 0) << 24) | ((extra.actionFlags ?? 0) << 16)
+                                   | ((extra.weaponFlags ?? 0) << 8) | (extra.attackMode ?? 0)
                     case 8:   return 0                             // ITEM_DATA_MEMBER_SID (not persisted)
                     case 9:   return extra.subType ?? 0            // ITEM_DATA_MEMBER_TYPE
                     case 11:  return extra.materialID ?? 0         // ITEM_DATA_MEMBER_MATERIAL
