@@ -1164,7 +1164,7 @@ After the encounter map is loaded, `wmSetupRandomEncounter` populates the map:
 |---------|-----|-----|
 | Day-part splits | 3 per subtile (morning/afternoon/night) | Single `frequency` value |
 | Difficulty modifier | ±(frequency/15) | None |
-| Outdoorsman detection | Skill check, XP reward, avoidance UI | None |
+| Outdoorsman detection | Skill check, XP reward, avoidance UI | ✅ FIXED 2026-06-02/2026-07-05 — skill check + XP + avoidance dialog (W7) |
 | Car encounter reduction | Reduces frequency by 30–40 during day | No car system |
 | Encounter condition eval | GVAR, time-of-day, days-played conditions | Partial (via `encounters.ts`) |
 
@@ -1184,8 +1184,8 @@ After the encounter map is loaded, `wmSetupRandomEncounter` populates the map:
 | Script-forced encounters (`wmForceEncounter`) | ❌ Gap #5 | No opcode support |
 | Encounter table entry picker | ✅ | Luck, perks, difficulty all match CE |
 | Entry `counter` decrement | ❌ Gap #6 | Counter ignored; special encounters can fire infinitely |
-| Detection / Outdoorsman check | ❌ Gap #7 | No outdoorsman check, no early-detection dialog |
-| Encounter XP award | ❌ Gap #8 | CE awards up to 100 XP for catching encounter early |
+| Detection / Outdoorsman check | ✅ Gap #7 FIXED 2026-07-05 | Outdoorsman check (2026-06-02) + `showConfirm()` avoidance dialog (W7, 2026-07-05) |
+| Encounter XP award | ✅ Gap #8 FIXED 2026-06-02 | `100-outdoorsman` XP awarded on successful early detection |
 | Map selection | ✅ | Random from table maps list |
 | Terrain random map fallback | ✅ (partially) | Pool parsed but DH2 uses table maps; no terrain fallback |
 | Critter spawning | ✅ | `createObjectWithPID`, added to map |
@@ -1219,10 +1219,15 @@ After the encounter map is loaded, `wmSetupRandomEncounter` populates the map:
 `double_line`, `wedge`, or `cone` in `Encounters.positionCritters`
 (`encounters.ts–388`), mirroring CE's placement maths in §9.3.
 
-**Implementing the Outdoorsman detection check** (Gap #7): after `didEncounter()`
-returns true, run a `partyGetBestSkillValue(SKILL_OUTDOORSMAN)` check, add +20 for
-a Motion Sensor, cap at 95, add `square.difficulty`, then `randomBetween(1,100)`
-gates early detection. Award `100 − outdoorsman` XP on success (Gap #8).
+**Outdoorsman detection check + avoidance dialog** (Gaps #7/#8): ✅ FIXED.
+`didEncounter()` (`encounters.ts`) returns `{ occurs, detected }`. The
+detection roll runs `player.getSkill('Outdoorsman')`, +20 for a Motion
+Sensor (PID 59), capped at 95, + `square.difficulty`, then
+`getRandomInt(1,100) < outdoorsman` gates `detected`; `100 − outdoorsman`
+XP is awarded on success. `Worldmap.ts`'s `updateWorldmapPlayer()` shows a
+`showConfirm()` Yes/No prompt only when `detected` is true (CE
+`worldmap.cc:3503-3517`); undetected/forced encounters and the DH2
+`encRate===100` shortcut skip the prompt.
 
 ---
 
@@ -1275,7 +1280,7 @@ annotations used throughout §11 and §13.
 |---------|-----|-----|--------|
 | Day-part encounter splits | 3 frequencies per subtile | 1 value only | Night/day encounter rate variation absent |
 | Encounter difficulty modifier | ±(frequency/15) on easy/hard | None | Easy mode does not reduce encounters |
-| Outdoorsman detection | Skill check, avoidance option, XP reward | None | No detection mechanic; encounters are always ambushes |
+| Outdoorsman detection | Skill check, avoidance option, XP reward | ✅ FIXED 2026-06-02/2026-07-05 | Skill check + XP (2026-06-02) + `showConfirm()` avoidance dialog (W7, 2026-07-05) match CE |
 | Car encounter reduction | 30–40% reduction during day | No car | Not applicable (car system absent) |
 | Encounter check timing | Per walking step (≥3px move + 1500ms cooldown) | Every 800ms wall time | May fire between movement pixels; more or fewer checks on fast/slow machines |
 
@@ -1316,17 +1321,20 @@ CE tracks `EncounterTableEntry.counter` and decrements it each time the entry
 fires (counter = -1 means unlimited). DH2's `pickEncounter` ignores the `counter`
 field, so limited special encounters can fire any number of times.
 
-#### Gap #7 — No Outdoorsman detection check
+#### Gap #7 — Outdoorsman detection check ✅ FIXED (W7, 2026-06-02/2026-07-05)
 
 CE runs an Outdoorsman skill check after the base encounter roll passes: if
 `random(1,100) < outdoorsman`, the player is warned early, gets XP, and sees a
-dialog to accept or decline. DH2 immediately loads the encounter map without
-any detection check or player choice.
+dialog to accept or decline. `didEncounter()` (`encounters.ts`) now returns
+`{ occurs, detected }` and `Worldmap.ts` shows a `showConfirm()` Yes/No
+prompt when `detected` is true, matching `worldmap.cc:3503-3517`; declining
+resumes normal travel, accepting calls `beginWorldmapEncounter()`.
 
-#### Gap #8 — No early-encounter XP
+#### Gap #8 — Early-encounter XP ✅ FIXED 2026-06-02
 
 CE awards `100 − outdoorsman` XP (1–5 XP typically) for catching encounters
-early. No DH2 equivalent.
+early. `didEncounter()` awards this XP via `player.addExperience(xp)` on
+successful detection.
 
 #### Gap #9 — No difficulty-based critter count scaling
 

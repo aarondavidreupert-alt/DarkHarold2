@@ -25,6 +25,7 @@ import { hidev, makeEl, showv, uiCloseWorldMap, uiWorldMapShowArea } from '../ui
 import { clamp, getFileBinarySync, getFileText } from '../util.js'
 import { Config } from '../config.js'
 import { dbg } from '../logger.js'
+import { showConfirm } from '../ui_dialog.js'
 import { Worldmap as WorldmapData, WorldmapPlayer } from './types.js'
 import { parseWorldmap } from './parser.js'
 import { didEncounter, doEncounter } from './encounters.js'
@@ -467,6 +468,20 @@ export function withinArea(position: Point) {
     return null
 }
 
+// Runs the "you've been ambushed" flash + delay + actual encounter load,
+// shared by both the forced (undetected) and confirmed (accepted-prompt) paths.
+function beginWorldmapEncounter(): void {
+    $worldmapPlayer.style.backgroundImage = "url('art/intrface/wmapfgt0.png')"
+
+    // TODO: Disable Worldmap UI while waiting on this!
+
+    setTimeout(function () {
+        doEncounter()
+        uiCloseWorldMap()
+        $worldmapPlayer.style.backgroundImage = "url('art/intrface/wmaploc.png')"
+    }, 1000)
+}
+
 export function updateWorldmapPlayer() {
     $worldmapPlayer.style.left = worldmapPlayer.x + 'px'
     $worldmapPlayer.style.top = worldmapPlayer.y + 'px'
@@ -542,19 +557,25 @@ export function updateWorldmapPlayer() {
                 && withinArea(worldmapPlayer) === null) {
             lastEncounterCheck = time
 
-            const hadEncounter = didEncounter()
-            if (hadEncounter === true) {
-                $worldmapPlayer.style.backgroundImage = "url('art/intrface/wmapfgt0.png')"
-
-                // TODO: Disable Worldmap UI while waiting on this!
-
-                setTimeout(function () {
-                    doEncounter()
-                    uiCloseWorldMap()
-                    $worldmapPlayer.style.backgroundImage = "url('art/intrface/wmaploc.png')"
-                }, 1000)
-
+            const enc = didEncounter()
+            if (enc.occurs) {
                 clearTimeout(worldmapTimer)
+
+                // CE ref: worldmap.cc:3503-3517 — a *detected* encounter shows a
+                // "Do you wish to encounter it?" Yes/No prompt; declining cancels
+                // it and travel resumes. An undetected encounter (ambush) is
+                // forced with no prompt.
+                if (enc.detected) {
+                    showConfirm('You have encountered a possible situation. Do you wish to encounter it?').then((yes) => {
+                        if (yes) {
+                            beginWorldmapEncounter()
+                        } else {
+                            worldmapTimer = setTimeout(updateWorldmapPlayer, 75)
+                        }
+                    })
+                } else {
+                    beginWorldmapEncounter()
+                }
                 return
             }
         }
