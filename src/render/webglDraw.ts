@@ -457,6 +457,10 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         gl.useProgram(this.tileShader)
         if (this.uAlpha) gl.uniform1f(this.uAlpha, Config.ui.stealthAlpha ?? 0.25)
         if (this.uStealth) gl.uniform1i(this.uStealth, Config.ui.stealthGrayscale !== false ? 1 : 0)
+        if (this.uStealthTint) {
+            const t = Config.ui.stealthTint ?? [1.0, 1.0, 1.0]
+            gl.uniform3f(this.uStealthTint, t[0], t[1], t[2])
+        }
     }
 
     if (egg) {

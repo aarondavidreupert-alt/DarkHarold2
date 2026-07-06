@@ -36,11 +36,17 @@ export const Config = {
         // Stealth Boy OBJECT_TRANS_GLASS semi-transparent rendering.
         // stealthAlpha: sprite alpha (0–1). Console: Config.ui.stealthAlpha = 0.3
         stealthAlpha: undefined as number | undefined, // undefined = use default 0.25
-        // stealthGrayscale: true  = CE-accurate: pure teal ghost, brightness drives opacity
-        //                           (u_stealth=1; sprite colour fully replaced by teal)
+        // stealthGrayscale: true  = CE-accurate: tint ghost, brightness drives opacity
+        //                           (u_stealth=1; sprite colour fully replaced by tint)
         //                   false = DH2 non-CE: original sprite colours at reduced alpha
         // Console: Config.ui.stealthGrayscale = false
         stealthGrayscale: true,
+        // stealthTint: [r, g, b] 0–1. CE exact = [0.29, 1.0, 1.0] (teal _colorTable[10239]).
+        // Looks vivid blue in linear RGB vs. original palette rendering; [1,1,1] gives
+        // the "whitish ghost" look the original game often appeared to have in practice.
+        // Console: Config.ui.stealthTint = [1, 1, 1]   // white
+        //          Config.ui.stealthTint = [0.29, 1, 1] // CE-exact teal
+        stealthTint: [1.0, 1.0, 1.0] as [number, number, number],
         showObjects: true, // show objects?
         showWalls: true, // show walls?
         showBoundingBox: false, // show bounding boxes around objects?

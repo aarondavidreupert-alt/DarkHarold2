@@ -25,6 +25,7 @@ uniform float u_alpha;               // per-draw alpha multiplier (flat egg fall
 // _glassGrayTable (desaturate) + _glassBlendTable (_colorTable[10239] ≈ teal/cyan).
 // When 1: desaturate texel to luma, then tint with the same teal blend.
 uniform int u_stealth;               // 1 = Stealth Boy OBJECT_TRANS_GLASS desaturate+tint
+uniform vec3 u_stealthTint;          // tint colour (CE exact = vec3(0.29,1,1); white = vec3(1,1,1))
 
 // Object sprite lighting mode (DH2 extension of the CE per-object path):
 // CE ref: object.cc:835 — one intensity per object tile, not per-fragment.
@@ -311,8 +312,8 @@ void main() {
     //                     = RGB(74, 255, 255) ≈ vec3(0.29, 1.0, 1.0).
     if (u_stealth == 1) {
         float luma = dot(texel.rgb, vec3(0.1, 0.5, 0.4));  // (r+5g+4b)/10 normalised
-        texel.rgb = vec3(0.29, 1.0, 1.0);                  // teal = _colorTable[10239]
-        texel.a  *= luma;                                   // dark→transparent, bright→teal
+        texel.rgb = u_stealthTint;                          // configurable tint (CE exact = teal)
+        texel.a  *= luma;                                   // dark→transparent, bright→tint
         // u_alpha (Config.ui.stealthAlpha) scales overall visibility via the
         // alpha local var below — no additional multiply needed here.
     }
