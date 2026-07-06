@@ -452,10 +452,11 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     // the critter while active, rendering it semi-transparent (glass effect).
     const stealth = (obj as any).stealthActive === true
 
-    if (stealth && this.uAlpha) {
+    if (stealth) {
         const gl = this.gl
         gl.useProgram(this.tileShader)
-        gl.uniform1f(this.uAlpha, 0.25)
+        if (this.uAlpha) gl.uniform1f(this.uAlpha, Config.ui.stealthAlpha ?? 0.25)
+        if (this.uStealth) gl.uniform1i(this.uStealth, Config.ui.stealthGrayscale !== false ? 1 : 0)
     }
 
     if (egg) {
@@ -608,6 +609,7 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     if (egg || stealth) {
         const gl = this.gl
         if (this.uAlpha) gl.uniform1f(this.uAlpha, 1.0)
+        if (stealth && this.uStealth) gl.uniform1i(this.uStealth, 0)
         if (egg && usesEggMaskTexture() && this.uEggMode) gl.uniform1i(this.uEggMode, 0)
     }
     if (this.uObjectBaseY) {

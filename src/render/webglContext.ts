@@ -61,6 +61,7 @@ export class WebGLRenderer extends Renderer {
     uTileZoom: WebGLUniformLocation | null = null
     uFloorLightZoom: WebGLUniformLocation | null = null
     uAlpha: WebGLUniformLocation | null = null
+    uStealth: WebGLUniformLocation | null = null
     uEggMode: WebGLUniformLocation | null = null
     uEggCenter: WebGLUniformLocation | null = null
     uEggSize: WebGLUniformLocation | null = null
@@ -422,6 +423,8 @@ export class WebGLRenderer extends Renderer {
         if (this.uTileZoom) gl.uniform1f(this.uTileZoom, 1.0)
         this.uAlpha = gl.getUniformLocation(this.tileShader, 'u_alpha')
         if (this.uAlpha) gl.uniform1f(this.uAlpha, 1.0)
+        this.uStealth = gl.getUniformLocation(this.tileShader, 'u_stealth')
+        if (this.uStealth) gl.uniform1i(this.uStealth, 0)
         this.uEggMode = gl.getUniformLocation(this.tileShader, 'u_eggMode')
         this.uEggCenter = gl.getUniformLocation(this.tileShader, 'u_eggCenter')
         this.uEggSize = gl.getUniformLocation(this.tileShader, 'u_eggSize')
