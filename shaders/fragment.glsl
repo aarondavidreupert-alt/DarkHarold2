@@ -26,6 +26,11 @@ uniform float u_alpha;               // per-draw alpha multiplier (flat egg fall
 // When 1: desaturate texel to luma, then tint with the same teal blend.
 uniform int u_stealth;               // 1 = Stealth Boy OBJECT_TRANS_GLASS desaturate+tint
 uniform vec3 u_stealthTint;          // tint colour (CE exact = vec3(0.29,1,1); white = vec3(1,1,1))
+// CE ref: cycle.cc colorCycleTicker() — palette entries 229-254 cycle at runtime.
+// u_cycleMask: R8 texture unit 7; stored as (paletteIndex-228)/255 per pixel.
+// u_cycleTime: seconds since page load, updated per draw in renderFrame.
+uniform sampler2D u_cycleMask;
+uniform float u_cycleTime;
 
 // Object sprite lighting mode (DH2 extension of the CE per-object path):
 // CE ref: object.cc:835 — one intensity per object tile, not per-fragment.
@@ -248,12 +253,87 @@ float wallTopFadeFactor(vec2 coord) {
     return smoothstep(0.0, u_wallFadePx, nearest);        // near edge → faded toward 0
 }
 
+// CE ref: cycle.cc colorCycleTicker() — returns the animated RGB for a cycling palette entry.
+// palIdx: raw Fallout 2 palette index (229-254).
+// Colors are the CE source values after the >> 2 shift (6-bit) * 4 (to 8-bit), / 255 for GLSL.
+// Rotation direction: CE decrements the start offset each tick, so display order reverses.
+// Formula: displayed_color[palOffset] at tick f = colors[(palOffset - f + N) % N].
+vec3 cycleColor(int palIdx, float t) {
+    // slime: indices 229-232, 4 colors, slow (5fps)
+    if (palIdx <= 232) {
+        int off = palIdx - 229;
+        int f = int(mod(t * 5.0, 4.0));
+        int ci = int(mod(float(off - f + 400), 4.0));
+        if (ci == 0) return vec3(0.0,        108.0/255.0, 0.0);
+        if (ci == 1) return vec3(8.0/255.0,  112.0/255.0, 4.0/255.0);
+        if (ci == 2) return vec3(24.0/255.0, 120.0/255.0, 12.0/255.0);
+        return          vec3(40.0/255.0, 128.0/255.0, 24.0/255.0);
+    }
+    // monitors: indices 233-237, 5 colors, fast (10fps)
+    if (palIdx <= 237) {
+        int off = palIdx - 233;
+        int f = int(mod(t * 10.0, 5.0));
+        int ci = int(mod(float(off - f + 500), 5.0));
+        if (ci == 0) return vec3(104.0/255.0, 104.0/255.0, 108.0/255.0);
+        if (ci == 1) return vec3(96.0/255.0,  100.0/255.0, 124.0/255.0);
+        if (ci == 2) return vec3(84.0/255.0,  104.0/255.0, 140.0/255.0);
+        if (ci == 3) return vec3(0.0,         144.0/255.0, 160.0/255.0);
+        return          vec3(104.0/255.0, 184.0/255.0, 252.0/255.0);
+    }
+    // fire_slow: indices 238-242, 5 colors, slow (5fps)
+    if (palIdx <= 242) {
+        int off = palIdx - 238;
+        int f = int(mod(t * 5.0, 5.0));
+        int ci = int(mod(float(off - f + 500), 5.0));
+        if (ci == 0) return vec3(252.0/255.0, 0.0,         0.0);
+        if (ci == 1) return vec3(212.0/255.0, 0.0,         0.0);
+        if (ci == 2) return vec3(144.0/255.0, 40.0/255.0,  8.0/255.0);
+        if (ci == 3) return vec3(252.0/255.0, 116.0/255.0, 0.0);
+        return          vec3(252.0/255.0, 56.0/255.0,  0.0);
+    }
+    // fire_fast: indices 243-247, 5 colors, medium (7fps)
+    if (palIdx <= 247) {
+        int off = palIdx - 243;
+        int f = int(mod(t * 7.0, 5.0));
+        int ci = int(mod(float(off - f + 500), 5.0));
+        if (ci == 0) return vec3(68.0/255.0,  0.0, 0.0);
+        if (ci == 1) return vec3(120.0/255.0, 0.0, 0.0);
+        if (ci == 2) return vec3(176.0/255.0, 0.0, 0.0);
+        if (ci == 3) return vec3(120.0/255.0, 0.0, 0.0);
+        return          vec3(68.0/255.0,  0.0, 0.0);
+    }
+    // shoreline: indices 248-253, 6 colors, slow (5fps)
+    if (palIdx <= 253) {
+        int off = palIdx - 248;
+        int f = int(mod(t * 5.0, 6.0));
+        int ci = int(mod(float(off - f + 600), 6.0));
+        if (ci == 0) return vec3(80.0/255.0, 60.0/255.0, 40.0/255.0);
+        if (ci == 1) return vec3(72.0/255.0, 56.0/255.0, 40.0/255.0);
+        if (ci == 2) return vec3(64.0/255.0, 52.0/255.0, 36.0/255.0);
+        if (ci == 3) return vec3(60.0/255.0, 48.0/255.0, 36.0/255.0);
+        if (ci == 4) return vec3(52.0/255.0, 44.0/255.0, 32.0/255.0);
+        return          vec3(48.0/255.0, 40.0/255.0, 32.0/255.0);
+    }
+    // bobber (palIdx == 254): red pulse 0→240→0, ~1-second period at 30fps step=16
+    float phase = mod(t, 1.0);
+    float red = (1.0 - abs(2.0 * phase - 1.0)) * (240.0/255.0);
+    return vec3(red, 0.0, 0.0);
+}
+
 void main() {
     float frameWidth = 1.0 / u_numFrames;
     vec2 coord = v_texCoord;
     coord.x = coord.x / u_numFrames + frameWidth * u_frame;
 
     vec4 texel = texture2D(u_image, coord);
+
+    // Color cycling — CE ref: cycle.cc colorCycleTicker().
+    // Recover palette index from R8 cycle mask (value = (palIdx-228)/255).
+    int cycCode = int(texture2D(u_cycleMask, coord).r * 255.0 + 0.5);
+    if (cycCode > 0) {
+        int palIdx = cycCode + 228;  // 229..254
+        texel.rgb = cycleColor(palIdx, u_cycleTime);
+    }
 
     if (u_outlineMode == 1) {
         // Flat solid-color silhouette stamp — no lighting, no egg/alpha logic.

@@ -237,11 +237,10 @@ a believable playthrough.
   fallback only on ambiguous cases. NE/SW diagonals no longer mis-sort.
 - Ref: `object.cc:761`; `tile.cc tileIsInFrontOf()`
 
-### 8d. Color cycling absent 🔴 (RD10)
-- CE `colorCycleEnable/Disable` drives palette rotation for water and fire.
-- **Re-verified 2026-07-04:** no `colorCycle*` in `src/` or `shaders/`.
-- Ref: `color.cc colorCycleEnable()`
-- → tracked for 100% as **RD10** in Phase 10f.
+### 8d. Color cycling ✅ FIXED 2026-07-07 (RD10)
+- Shader-based. `src/colorCycle.ts` parses raw PNG bytes to extract palette indices 229-254 at image load time. `shaders/fragment.glsl cycleColor()` looks up CE-faithful animated RGB per palette index. All six groups from `cycle.cc colorCycleTicker()`: slime (5fps), monitors (10fps), fire_slow/fire_fast (5/7fps), shoreline (5fps), bobber (30fps).
+- Cycle masks fetched async for art/tiles, art/scenery, art/misc (critters/UI never use cycling entries).
+- Ref: `cycle.cc colorCycleTicker()`
 
 ### 8e. Scroll blocking / border limiting ✅ FIXED 2026-06-04
 - `clampCameraPosition` enforces map-edge bounds (RD12) and reverts any
@@ -559,7 +558,7 @@ reflects the 2026-07-04 source audit.
 
 | ID | What | CE Ref | Sev | Status |
 |----|------|--------|-----|--------|
-| RD10 | **Color cycling absent** — no palette rotation for water/fire (verified: no `colorCycle*` in `src/`/`shaders/`). | `color.cc colorCycleEnable()` | minor | missing |
+| RD10 | ✅ FIXED 2026-07-07 — shader-based palette cycling for water/slime/fire/monitors/shoreline/bobber. `src/colorCycle.ts` + `shaders/fragment.glsl cycleColor()`. All six CE groups. | `cycle.cc colorCycleTicker()` | minor | fixed |
 | RD07 | **OBJECT_FLAT two-pass rendering absent** — flat decals/blood not drawn in a dedicated first pass. | `object.cc:761 _obj_render_pre_roof()` | minor | missing |
 | RD08 | **General post-roof object pass absent.** A post-roof pass exists **for outlines only** (CI11, `webglDraw.ts:605`); full-intensity post-roof object rendering not generalised. | `object.cc:862 _obj_render_post_roof()` | minor | partial |
 | RD13 | **Hex click hit-testing approximate** — cube-coord rounding, not CE's `_tile_mask[512]` pixel-precise edges (verified: no `tile_mask` in `src/`). | `tile.cc:718 tileFromScreenXY()` | low | bug |

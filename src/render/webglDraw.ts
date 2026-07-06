@@ -780,6 +780,13 @@ WebGLRenderer.prototype.renderFrame = function (
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, texture)
 
+    // Bind cycle mask to unit 7; update wall-clock time for shader animation.
+    // CE ref: cycle.cc colorCycleTicker() — animated palette entries 229-254.
+    gl.activeTexture(gl.TEXTURE7)
+    gl.bindTexture(gl.TEXTURE_2D, this.getCycleMaskTex(imgPath))
+    gl.activeTexture(gl.TEXTURE0)
+    if (this.uCycleTime) gl.uniform1f(this.uCycleTime, performance.now() / 1000.0)
+
     gl.uniform1f(this.uNumFramesLocation, totalFrames)
     gl.uniform1f(this.uFrameLocation, frame)
 
