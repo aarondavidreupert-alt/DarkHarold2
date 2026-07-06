@@ -80,10 +80,12 @@ export function miscItemTurnOff(item: Obj, owner: Critter | null): void {
 }
 
 // CE ref: item.cc:2297-2327 miscItemTrickleEventProcess() — 600 ticks (one
-// in-game minute) per charge for Stealth Boy/Geiger Counter, self-rescheduling.
+// in-game minute) per charge for Stealth Boy; 3000 ticks (five in-game
+// minutes) per charge for Geiger Counter. Self-rescheduling.
 function scheduleTrickle(item: Obj, owner: Critter | null): void {
+    const isStealthBoyPid = item.pid === PROTO_ID_STEALTH_BOY_I || item.pid === PROTO_ID_STEALTH_BOY_II
     Scripting.timeEventList.push({
-        ticks: 600,
+        ticks: isStealthBoyPid ? 600 : 3000,
         obj: item,
         userdata: null,
         fn: () => {
