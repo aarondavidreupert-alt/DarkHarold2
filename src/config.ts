@@ -35,7 +35,7 @@ export const Config = {
         eggRadius: undefined as number | undefined, // hex radius — undefined = use default 8
         // Stealth Boy OBJECT_TRANS_GLASS semi-transparent rendering.
         // stealthAlpha: sprite alpha (0–1). Console: Config.ui.stealthAlpha = 0.3
-        stealthAlpha: undefined as number | undefined, // undefined = use default 0.25
+        stealthAlpha: undefined as number | undefined, // undefined = use default 0.9
         // stealthGrayscale: true  = CE-accurate: tint ghost, brightness drives opacity
         //                           (u_stealth=1; sprite colour fully replaced by tint)
         //                   false = DH2 non-CE: original sprite colours at reduced alpha
