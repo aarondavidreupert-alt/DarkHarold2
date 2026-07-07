@@ -322,7 +322,8 @@ export class WebGLRenderer extends Renderer {
             this.textures[font.filepath] = this.textureFromFont(font)
         }
 
-        this.gl.clearColor(0.75, 0.75, 0.75, 1.0)
+        // CE ref: tile.cc tileRefreshGame — bufferFill 0 (black) before drawing tiles
+        this.gl.clearColor(0, 0, 0, 1)
         this.gl.enable(this.gl.DEPTH_TEST)
         this.gl.depthFunc(this.gl.LEQUAL)
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT)

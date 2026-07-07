@@ -22,6 +22,7 @@ import { IDBCache } from './idbcache.js'
 import { initGame } from './init.js'
 import { dbg } from './logger.js'
 import {
+    clampCameraPosition,
     setScreenSize,
     ZOOM_MAX,
     ZOOM_MIN,
@@ -200,6 +201,9 @@ window.onload = async function () {
                 globalState.cameraPosition.x += mouseX * (1 / oldZoom - 1 / newZoom)
                 globalState.cameraPosition.y += mouseY * (1 / oldZoom - 1 / newZoom)
                 globalState.cameraZoom = newZoom
+                // CE ref: tile.cc:537 tileSetCenter — borders re-evaluated after any
+                // zoom change because getWorldViewWidth/Height depend on zoom.
+                clampCameraPosition()
 
                 // The floor FBO caches a pre-zoomed snapshot of the floor;
                 // invalidate it so the next frame re-bakes at the new zoom.

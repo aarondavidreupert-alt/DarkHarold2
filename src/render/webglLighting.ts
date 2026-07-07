@@ -262,9 +262,9 @@ WebGLRenderer.prototype.renderFloorToFBO = function (tileMap: TileMap): void {
         }
     }
 
-    // Restore state
+    // Restore state — keep clear colour black (CE: tileRefreshGame bufferFill=0)
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-    gl.clearColor(0.75, 0.75, 0.75, 1.0)
+    gl.clearColor(0, 0, 0, 1)
     gl.enable(gl.DEPTH_TEST)
 
     this.lastFloorCameraX = cameraX
