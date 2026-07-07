@@ -24,7 +24,7 @@ import { dbg, dbgWarn } from '../logger.js'
 import { Critter, deserializeObj, Obj } from '../object.js'
 import { centerCamera } from '../renderer.js'
 import { Scripting } from '../scripting.js'
-import { fromTileNum, hexToTile, toTileNum } from '../tile.js'
+import { fromTileNum, hexToTile } from '../tile.js'
 import { arrayRemove, arrayWithout } from '../util.js'
 
 declare let PF: any
@@ -393,75 +393,6 @@ export class GameMap {
                 if (!o.blocks()) continue
                 return o
             }
-        }
-        return null
-    }
-
-    // CE ref: sfall_opcodes.cc:914-934 BlockType / get_blocking_func — dispatches
-    // to one of 5 per-tile blocking predicates by type. DH2 only has faithful
-    // parity for BLOCK (0, object.cc:2387 _obj_blocking_at) and SHOOT (1,
-    // object.cc:2440 _obj_shoot_blocking_at, matching hexLinecast above).
-    // AI (2)/SIGHT (3)/SCROLL (4) are not implemented here: AI has stateful
-    // "second obstacle" semantics (_moveBlockObj) object.cc:2496; SIGHT uses
-    // OBJECT_LIGHT_THRU and DH2's existing sight check (combat/Combat.ts
-    // hasLineOfSight) is angle/distance-based, not a per-tile object lookup;
-    // SCROLL returns a boolean, not an object, and only tests misc PID
-    // 0x500000C (already covered for camera clamping, RD11/RD12, but not
-    // exposed as this generic predicate). Returns `undefined` for those to
-    // let the caller distinguish "unsupported type" from "no obstacle found".
-    blockingObjectAt(tile: number, elevation: number, blockType: number, excludeObj?: Obj): Obj | null | undefined {
-        const pos = fromTileNum(tile)
-        const atTile = (p: Point) => this.getObjects(elevation).filter((o) => o.position.x === p.x && o.position.y === p.y)
-
-        if (blockType === 0) {
-            // BLOCK (default) — CE ref: object.cc:2387 _obj_blocking_at
-            for (const o of atTile(pos)) {
-                if (o === excludeObj) continue
-                if (o.pathBlocks()) return o
-            }
-            // OBJECT_MULTIHEX (0x800) neighbors also block this tile.
-            for (const nb of hexNeighbors(pos)) {
-                for (const o of atTile(nb)) {
-                    if (o === excludeObj) continue
-                    if ((((o as any).flags ?? 0) & 0x800) !== 0 && o.pathBlocks()) return o
-                }
-            }
-            return null
-        }
-
-        if (blockType === 1) {
-            // SHOOT — same single-tile check as hexLinecast's inner loop.
-            const SHOOT_THRU = 0x80000000
-            const HIDDEN = 0x01000000
-            for (const o of atTile(pos)) {
-                if (o === excludeObj) continue
-                const flags = (o as any).flags ?? 0
-                if ((flags & HIDDEN) !== 0) continue
-                if ((flags & SHOOT_THRU) !== 0) continue
-                if ((o as any).type === 'critter' && (o as any).dead) continue
-                if (!o.blocks()) continue
-                return o
-            }
-            return null
-        }
-
-        return undefined // AI / SIGHT / SCROLL — not implemented, see comment above
-    }
-
-    // CE ref: sfall_opcodes.cc:936-948 op_make_straight_path — walks a straight
-    // line from `source`'s own tile to `to`, returning the first blocking
-    // object per blockingObjectAt(). CE passes no separate elevation to
-    // _make_straight_path_func; the blocking callback runs at `source`'s own
-    // elevation (object->elevation), not the viewport's current elevation.
-    // Endpoints excluded, matching hexLinecast's convention.
-    straightPathBlockingObject(source: Obj, to: Point, blockType: number): Obj | null | undefined {
-        let line = hexLine(source.position, to)
-        if (line === null) return null
-        line = line.slice(1, -1)
-        for (const p of line) {
-            const result = this.blockingObjectAt(toTileNum(p), source.elevation, blockType, source)
-            if (result === undefined) return undefined
-            if (result !== null) return result
         }
         return null
     }

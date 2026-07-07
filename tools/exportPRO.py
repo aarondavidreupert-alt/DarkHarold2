@@ -20,7 +20,7 @@ from __future__ import print_function
 import os, glob, json
 import proto
 
-subdirs = ("items", "critters", "scenery", "walls", "tiles", "misc")
+subdirs = ("items", "critters", "scenery", "walls", "misc")
 
 def onError(path):
     print("Error reading", path)

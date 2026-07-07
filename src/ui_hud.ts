@@ -18,7 +18,7 @@ limitations under the License.
 // combat hover info, and the scrolling message log.
 
 import globalState from './globalState.js'
-import { Critter, Obj, WeaponObj, objectIsWeapon } from './object.js'
+import { Critter, WeaponObj } from './object.js'
 import { getActivePunchMode, getActiveKickMode } from './unarmed.js'
 import { $id, $img, $q, clearEl, show, hide, showv, hidev } from './ui_dom.js'
 import { font1 } from './ui_font.js'
@@ -318,14 +318,14 @@ function renderIndicatorBadges(active: Set<string>): void {
 // Dim the attack button when the player can't afford the current weapon mode's
 // AP cost (or when it isn't the player's turn). CE ref: interface.cc
 // interfaceRenderActionPoints — attack-button colour follows AP availability.
-export function updateAttackButtonAvailability(availableAP: number, isPlayerTurn: boolean): void {
+function updateAttackButtonAvailability(availableAP: number, isPlayerTurn: boolean): void {
     const $btn = document.getElementById('attackButton') as HTMLElement | null
     if (!$btn) return
     const weapon = globalState.player?.equippedWeapon
     let cost = 0
     if (weapon && weapon.weapon) {
         const mode = (weapon.weapon as any).mode
-        if (mode === 'reload') cost = weapon.weapon.getReloadAPCost()
+        if (mode === 'reload') cost = (weapon.weapon as any).getReloadAPCost?.() ?? 2
         else if (mode === 'called') cost = (weapon.weapon as any).getAPCost(1) + 1
         else if (weapon.weapon.isBurst?.()) cost = (weapon.weapon as any).getAPCost(2)
         else cost = (weapon.weapon as any).getAPCost(1)
@@ -368,24 +368,10 @@ export function uiDrawWeapon(): void {
     const $wepImg = $id('attackButtonWeapon') as HTMLImageElement
     const $typeImg = $img('attackButtonType')
     if (!weapon || !weapon.weapon) {
-        const player = globalState.player!
-        const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
-        const activeItem = (player as any)[activeHand] as Obj | undefined
-
-        // CE ref: interface.cc:1067-1078,1116-1127 interfaceUpdateItems() — a
-        // non-weapon item in the active hand shows its own icon in the HUD
-        // (INTERFACE_ITEM_ACTION_USE), not the unarmed fists/kicks fallback.
-        if (activeItem && activeItem.invArt && !objectIsWeapon(activeItem)) {
-            $wepImg.style.display = ''
-            $wepImg.onload = null
-            $wepImg.src = activeItem.invArt + '.png'
-            $typeImg.style.display = 'none'
-            hide($id('attackButtonCalled'))
-            return
-        }
-
         // Unarmed HUD: left hand → punch family, right hand → kick family (both empty only)
+        const player = globalState.player!
         const unarmedSkill = player.getSkill('Unarmed')
+        const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
         const leftWeapon = (player as any).leftHand?.weapon ?? null
         const rightWeapon = (player as any).rightHand?.weapon ?? null
         const bothHandsEmpty = !leftWeapon && !rightWeapon
@@ -538,16 +524,6 @@ export function uiEndCombat(): void {
 
     const $hover = document.getElementById('combatHoverInfo')
     if ($hover) $hover.style.display = 'none'
-
-    // Refresh the attack button's affordability tint now that combat's AP
-    // pool has been reset (Combat.ts end()/forceEnd() call player.AP.resetAP()
-    // right before this). Without this, the button kept showing the
-    // unaffordable/dimmed tint from whatever AP the player had left in the
-    // fight, even after leaving combat entirely. Calling the button-tint
-    // update directly (not drawAP) so the AP light bar stays hidden — it's
-    // combat-only UI and shouldn't reappear here.
-    const player = globalState.player
-    if (player?.AP) updateAttackButtonAvailability(player.AP.getAvailableMoveAP(), true)
 }
 
 export function uiShowCombatHover(target: Critter, screenX: number, screenY: number): void {

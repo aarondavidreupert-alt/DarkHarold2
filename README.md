@@ -11,12 +11,11 @@ It is written primarily in TypeScript and Python, and targets recent browsers wi
 
 ## Status
 
-DarkHarold2 is not a complete remake at this time. Estimated overall completion: **~94%** (target: **100%**).
+DarkHarold2 is not a complete remake at this time. Estimated overall completion: **~93%**.
 The core technical foundation (rendering, combat math, scripting VM, map loading, dialogue runtime) is
-solid, and most gameplay systems are now wired end-to-end; the 2026-07-02 lighting-alignment sprint closed
-the last major rendering block. The remaining gaps are concentrated in asset-pipeline extractions,
-speech/movie infrastructure, and a handful of larger systems (car travel, per-town reputation, NPC daily
-schedules) — all enumerated in **Phase 10 (Path to 100%)**. See [`ROADMAP.md`](ROADMAP.md) and
+solid, and most gameplay systems are now wired end-to-end. The remaining gaps are concentrated in
+asset-pipeline extractions, speech/movie infrastructure, and a handful of larger systems (car travel,
+per-town reputation, NPC daily schedules). See [`ROADMAP.md`](ROADMAP.md) and
 [`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
 
 If you're looking for documentation on how Fallout 2 works, documentation on certain file formats, or
@@ -37,7 +36,7 @@ existing maintainers stay oriented; each section builds on the previous.
 |---|---|
 | [`README.md`](README.md) | This file — project overview, completion status, build commands |
 | [`CLAUDE.md`](CLAUDE.md) | AI-assistant instructions, research workflow, architecture rules, what NOT to implement |
-| [`ROADMAP.md`](ROADMAP.md) | Phased plan toward 100% (Phases 1–10); canonical completion estimate |
+| [`ROADMAP.md`](ROADMAP.md) | Phased plan toward 95%; canonical completion estimate |
 
 ### 📐 Architecture & codebase
 
@@ -107,7 +106,7 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | File | Purpose |
 |---|---|
 | [`wiki/known_bugs.md`](wiki/known_bugs.md) | Primary tracker — fix status per ID across all subsystems |
-| [`ROADMAP.md`](ROADMAP.md) | Phased plan (Phases 1–10) toward 100% with audit dates |
+| [`ROADMAP.md`](ROADMAP.md) | Phased plan (Phases 1–9) toward 95% with audit dates |
 | [`TODO.md`](TODO.md) | Older free-form TODO list — superseded by `wiki/known_bugs.md` |
 | Inline `// TODO` / `// FIXME` in `src/` | Source-level annotations |
 | [`CLAUDE.md`](CLAUDE.md) → "Intentionally Incomplete Systems" | Explicit out-of-scope / "do not implement unless asked" |
@@ -172,9 +171,9 @@ the wiki tracker is the source of truth.
 - **Bartering** — CE-accurate `_barter_compute_value`, reaction LVAR, Master Trader perk, difficulty bonus; outer-list scroll buttons (P19), offer-table scroll buttons (P20), barter/trade skin selection (P14); movemult quantity picker: BIGNUM 5-digit display, item icon, ALL button, CE-accurate hit zones (P23/P24)
 - **Companion screens** — `partyMemberControlWindowInit`/`partyMemberCustomizationWindowInit` (P5/P8): disposition presets, 6-category custom AI, weight-based trade, `#dialogueContainer`-integrated panel swap via `uiSwapDialoguePanel()`, correct return-path rules (Customize→Control→Talk, Trade→Talk), persistent background window across transitions
 - **Inventory UI** — drag-and-drop, equip slots, weight display + carry-weight enforcement (LE1), reload + ammo state-aware stacking (LE4), `pickup_p_proc` on inventory equip (LE6), container `use_p_proc` gate (LE9), multi-pile caps sum (LE11)
-- **Active skill use** — First Aid, Doctor, Sneak, Lockpick, interactive Steal UI (`ui_steal.ts`: per-item size/facing/knockdown/session-count rolls, real double-roll catch mechanic, K3), Traps, Science, Repair, Gambling/Outdoorsman messages; Healer perk applied; party-member delegation for First Aid/Doctor (AC6)
+- **Active skill use** — First Aid, Doctor, Sneak, Lockpick, Steal (with facing + knockdown), Traps, Science, Repair, Gambling/Outdoorsman messages; Healer perk applied; party-member delegation for First Aid/Doctor (AC6)
 - **Level-up & perks** — XP thresholds, skill points (5 + 2×INT, +2 Educated), HP per level (END/2 + 2, +4 Lifegiver), perk every 3 levels (every 4 Skilled), **perk selection modal** (`ui_character.ts:1866 showPerkModal`), Tag! 4th slot
-- **Karma & reputation** — `get_pc_stat` / `mod_pc_stat` / `set_pc_stat` wired, +1 karma per hostile kill, **karma title computation** (`ui_character.ts:581–624`), STATUS panel surfaces both stats, per-town reputation tracked and displayed (R2)
+- **Karma & reputation** — `get_pc_stat` / `mod_pc_stat` / `set_pc_stat` wired, +1 karma per hostile kill, **karma title computation** (`ui_character.ts:581–624`), STATUS panel surfaces both stats; per-town reputation still absent (R2)
 - **Worldmap travel** — 28×30 grid, per-tile encounter tables, time-of-day frequency (W1), difficulty modifier (W2), encounter formations (straight_line/double_line/wedge/cone) (W6), encounter critters carry items + equipped weapons (W3), Outdoorsman detection XP (W7), Pathfinder travel-time reduction; keyboard/mouse-edge map pan (W12); label list CE-accurate filter + alphabetic sort (W11)
 - **Random encounters** — encounter group generation, level/time_of_day conditions, encounter counter (W4)
 - **Scripting VM** — INT file parser, **~150+ opcodes wired**, transpiler/disassembler; remaining stubs are largely car-system or movie/credits sub-ops (see [`wiki/known_bugs.md §2`](wiki/known_bugs.md))
@@ -198,7 +197,7 @@ the wiki tracker is the source of truth.
 - **Time & date system** — `gametime.ts` ticks, day/night ambient curve, midnight queue fires `objectUnjamAll` (IU3/GTC5); `get_month` / `get_day` wired; ARTIMER midnight movie events still not implemented.
 - **Quest system** — `questData.ts` covers all major Fallout 2 quests with GVAR-based state tracking; Pip-Boy ARCHIVES tab surfaces them. Per-quest completion rewards/XP route through scripts but not engine-side. Quest descriptions inlined in TS rather than loaded from `quests.msg`.
 - **Combat AI** — friendly-fire gate for AoE attacks (line-of-fire blockers between attacker and target) still absent; otherwise distance modes, perception, taunts, and team targeting are wired.
-- **Worldmap** — area entrance positions on area screens fixed (W9, a fixed 22/21px CE window-vs-map-origin offset); walk masks (`.msk` impassable-terrain bitmaps — oceans, mountains) now loaded and enforced during travel (W10).
+- **Worldmap** — area entrance positions are misplaced on area screens (W9); walk masks not loaded so the player can walk through mountains (W10).
 - **Endgame** — death-narrator slide wired (EG6); credits music / `creditsOpen("credits.txt")` (EG4) and panning-slide ms/pixel timing (EG3) still absent.
 
 ---
@@ -221,10 +220,8 @@ status per ID.
 
 ## Roadmap
 
-[`ROADMAP.md`](ROADMAP.md) is the canonical phased plan (Phases 1–10) toward 100% parity; the 95%
-playable-main-quest milestone is essentially met and **Phase 10 (Path to 100%)** tracks the remainder.
-The most recent audit (2026-07-04) added Phase 10 and confirmed the 2026-07-02 lighting-alignment sprint;
-the prior 2026-06-25 audit closed 60+ items since 2026-06-04: the complete
+[`ROADMAP.md`](ROADMAP.md) is the canonical phased plan (Phases 1–9) toward a 95%-complete
+playthrough. The most recent audit (2026-06-25) closes 60+ items since 2026-06-04: the complete
 companion/dialogue state machine (P5–P20), barter screen CE-accuracy (P14, P19–P21, P23–P24),
 worldmap scroll+labels (W11/W12), Pip-Boy rest+clock (IW10/IW11), per-building roof clipping
 (RD06), egg transparency (RD16), outline system (CI11–CI15), and earlier preference/HUD/scripting

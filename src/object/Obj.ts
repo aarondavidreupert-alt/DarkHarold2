@@ -26,14 +26,12 @@ import { lazyLoadImage } from '../images.js'
 import { Lightmap } from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { getPROSubTypeName, getPROTypeName, loadPRO, lookupArt, makePID } from '../pro.js'
-import { Proto } from '../proto_types.js'
 import { Scripting } from '../scripting.js'
 import { fromTileNum } from '../tile.js'
-import { drawHP, uiLoot, uiLog } from '../ui.js'
+import { uiLoot, uiLog } from '../ui.js'
 import { getMessage, getRandomInt, skillRoll, RollResult } from '../util.js'
 import { showTimerDialog } from '../ui_timer.js'
 import { Config } from '../config.js'
-import { isChargedMiscItem, useChargedMiscItem } from '../miscItem.js'
 import type { Critter } from './Critter.js'
 // Late-bound factory hooks — set by factories.ts at module-init time.
 // Direct static import would create a cycle: Obj.ts → factories.ts → items.ts
@@ -307,9 +305,6 @@ export interface SerializedObj {
 
     lightRadius: number
     lightIntensity: number
-
-    miscOn?: boolean
-    miscCharges?: number
 }
 
 export class Obj {
@@ -318,7 +313,7 @@ export class Obj {
     pid: number // PID (Prototype IDentifier)
     pidID: number // ID (not type) part of the PID
     type: string = null // TODO: enum // Type of object (critter, item, ...)
-    pro: Proto | null = null // PRO Object — see src/proto_types.ts
+    pro: any = null // TODO: pro ref // PRO Object
     flags = 0 // Flags from PRO; may be overriden by map objects
     art: string // TODO: Path // Art path
     frmPID: number = null // Art FID
@@ -327,12 +322,6 @@ export class Obj {
     open = false // Is the object open? (Mainly for doors)
     locked = false // Is the object locked? (Mainly for doors)
     jammed = false // Is the lock jammed? (CE DOOR_FLAG_JAMMGED / OBJ_JAMMED)
-
-    // CE ref: item.cc data.item.misc.charges — Stealth Boy/Geiger Counter
-    // on/off + remaining-charge state. See src/miscItem.ts (LE10). Only
-    // meaningful for items where miscItem.ts's isChargedMiscItem() is true.
-    miscOn?: boolean
-    miscCharges?: number
 
     extra: any // TODO
 
@@ -344,14 +333,7 @@ export class Obj {
     subtype: string // Some objects, like items and scenery, have subtypes
     invArt: string // Art path used for in-inventory image
 
-    // Current animation name — one of the animInfo keys in critterAnimation.ts
-    // (idle/walk/attack/death-*/etc.), or null when no animation is active.
-    // Not narrowed to a literal union: staticAnimation()'s `anim` parameter
-    // (critterAnimation.ts) is itself plain `string` and is called from many
-    // sites across combat/skill/inventory code with animation-name literals;
-    // narrowing this field alone wouldn't be enforced without also auditing
-    // and narrowing every staticAnimation() call site — out of scope here.
-    anim: string | null = null
+    anim: any = null // Current animation (TODO: Is this only a string? It should probably be an enum.)
     animCallback: () => void | null = null // Callback when current animation is finished playing
     frame = 0 // Animation frame index
     lastFrameTime = 0 // Time since last animation frame played
@@ -389,34 +371,27 @@ export class Obj {
         const pidType = (pid >> 24) & 0xff
         const pidID = pid & 0xffff
 
-        const pro = loadPRO(pid, pidID)
+        const pro: any = loadPRO(pid, pidID) // TODO: any
         obj.type = getPROTypeName(pidType)
         obj.pid = pid
         obj.pro = pro
-        // A proto always exists for a valid pid (loadPRO only returns null
-        // before globalState.proMap has been loaded at all); matches this
-        // function's pre-existing assumption of unconditional pro access.
-        obj.flags = obj.pro!.flags
+        obj.flags = obj.pro.flags
 
         // TODO: Subclasses
         if (pidType == 0) {
             // item — PRO JSON uses camelCase 'subType' (from proto.py), not 'subtype'
-            obj.subtype = getPROSubTypeName(pro!.extra.subType ?? pro!.extra.subtype)
-            obj.name = getMessage('pro_item', pro!.textID)
+            obj.subtype = getPROSubTypeName(pro.extra.subType ?? pro.extra.subtype)
+            obj.name = getMessage('pro_item', pro.textID)
 
-            const invPID = pro!.extra.invFRM & 0xffff
+            const invPID = pro.extra.invFRM & 0xffff
             dbg('object', `[Object] invPID: ${invPID}, pid=${pid}`)
             if (invPID !== 0xffff) {
                 obj.invArt = 'art/inven/' + getLstId('art/inven/inven', invPID).split('.')[0]
             }
         }
 
-        // NOTE: loadPRO() returns `null`, never `undefined`, on a miss — this
-        // check is a pre-existing no-op (the `else` branch is dead code).
-        // Left as-is: fixing it would change behavior beyond this pass's
-        // type-hygiene scope; not introduced by the pro: Proto|null typing.
         if (obj.pro !== undefined) {
-            obj.art = lookupArt(makePID(obj.pro!.frmType, obj.pro!.frmPID))
+            obj.art = lookupArt(makePID(obj.pro.frmType, obj.pro.frmPID))
         } else {
             obj.art = 'art/items/RESERVED'
         }
@@ -452,8 +427,6 @@ export class Obj {
         obj.inventory = mobj.inventory
         obj.script = mobj.script
         obj.extra = mobj.extra
-        obj.miscOn = mobj.miscOn
-        obj.miscCharges = mobj.miscCharges
 
         obj.pro = mobj.pro || loadPRO(obj.pid, obj.pidID)
         obj.flags = mobj.flags // NOTE: Tested with two objects in Mapper, map object flags seem to inherit PROs already and should thus use them
@@ -780,23 +753,23 @@ export class Obj {
     }
 
     get isDoor(): boolean {
-        return this.type === 'scenery' && this.pro!.extra.subType === 0 // SCENERY_DOOR
+        return this.type === 'scenery' && this.pro.extra.subType === 0 // SCENERY_DOOR
     }
 
     get isStairs(): boolean {
-        return this.type === 'scenery' && this.pro!.extra.subType === 1 // SCENERY_STAIRS
+        return this.type === 'scenery' && this.pro.extra.subType === 1 // SCENERY_STAIRS
     }
 
     get isLadder(): boolean {
         return (
             this.type === 'scenery' &&
-            (this.pro!.extra.subType === 3 || // SCENERY_LADDER_BOTTOM
-                this.pro!.extra.subType === 4)
+            (this.pro.extra.subType === 3 || // SCENERY_LADDER_BOTTOM
+                this.pro.extra.subType === 4)
         ) // SCENERY_LADDER_TOP
     }
 
     get isContainer(): boolean {
-        return this.type === 'item' && this.pro!.extra.subType === 1 // SUBTYPE_CONTAINER
+        return this.type === 'item' && this.pro.extra.subType === 1 // SUBTYPE_CONTAINER
     }
 
     get isExplosive(): boolean {
@@ -816,14 +789,7 @@ export class Obj {
             if (this.isDoor || this.isStairs || this.isLadder) {
                 return true
             } else {
-                // CE ref: proto.cc:257 _proto_action_can_use() — checks
-                // proto->item.extendedFlags & 0x0800 (ItemProtoExtendedFlags_0x0800).
-                // CE's fileReadInt32() byte-swaps that 32-bit field on read
-                // (db.cc:321-332), so bit 0x0800 (bits 8-15 of the swapped value)
-                // ends up inside tools/proto.py's 3rd raw byte — the field this
-                // codebase calls `weaponFlags` — not a top-level `extendedFlags`
-                // key (items have no such key; only scenery/wall/tile/misc do).
-                return (this.pro!.extra.weaponFlags & 0x08) != 0
+                return (this.pro.extra.extendedFlags & 8) != 0
             }
         }
         return false
@@ -851,42 +817,9 @@ export class Obj {
         if (this.subtype === 'drug') {
             if (source === undefined) source = globalState.player as Critter
             if (globalState.drugHandler) {
-                const handled = globalState.drugHandler(this, source)
-                if (handled) {
-                    // CE ref: item.cc itemUse() — drug item is consumed on use.
-                    // Check inventory first, then hand slots.
-                    const owner = source ?? globalState.player as Critter
-                    if (owner) {
-                        const idx = owner.inventory.indexOf(this)
-                        if (idx !== -1) {
-                            if (this.amount > 1) this.amount--
-                            else owner.inventory.splice(idx, 1)
-                        } else {
-                            const ownerAny = owner as any
-                            if (ownerAny.leftHand === this) ownerAny.leftHand = null
-                            else if (ownerAny.rightHand === this) ownerAny.rightHand = null
-                        }
-                    }
-                    if (source?.isPlayer) drawHP(source.getStat('HP'))
-                }
-                return handled
+                globalState.drugHandler(this, source)
+                return true
             }
-        }
-
-        // CE ref: proto_instance.cc:1245 _protinst_use_item_on — First Aid Kit /
-        // Doctor's Bag trigger their respective skills, with a 10% chance the
-        // item's supplies are exhausted on use.
-        if (this.subtype === 'misc' && globalState.miscItemUseHandler) {
-            if (source === undefined) source = globalState.player as Critter
-            if (globalState.miscItemUseHandler(this, source)) return true
-        }
-
-        // CE ref: item.cc:2246-2280 _item_m_use_charged_item() — Stealth Boy /
-        // Geiger Counter toggle. LE10.
-        if (isChargedMiscItem(this)) {
-            if (source === undefined) source = globalState.player as Critter
-            useChargedMiscItem(this, source ?? null)
-            return true
         }
 
         if (this.isExplosive) {
@@ -920,7 +853,7 @@ export class Obj {
                 globalState.gMap.loadMapByID(this.extra.destinationMap, destTile, destElev)
             }
         } else if (this.isLadder) {
-            const isTop = this.pro!.extra.subType === 4
+            const isTop = this.pro.extra.subType === 4
             // CE ref: proto_instance.cc:1512 useLadderDown/useLadderUp — reads tile and
             // elevation from the packed destinationBuiltTile field (same format as stairs).
             const destTile = fromTileNum(this.extra.destination & 0xffff)
@@ -1176,8 +1109,6 @@ export class Obj {
             }).filter((obj) => obj !== null),
             lightRadius: this.lightRadius,
             lightIntensity: this.lightIntensity,
-            miscOn: this.miscOn,
-            miscCharges: this.miscCharges,
         }
     }
 }

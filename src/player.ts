@@ -26,17 +26,6 @@ import { uiWorldMap } from './ui.js'
 
 // Contains the Player class and relevant initialization logic
 
-// Test-only helper: hardcodes charges on the test-inventory Stealth Boy
-// (LE10) since it reads from item.pro.extra.charges, which only exists in
-// proto/items/*.json after re-running the asset pipeline locally with the
-// tools/proto.py SUBTYPE_MISC fix. Remove once that data is present — see
-// wiki/known_bugs.md LE10.
-function testStealthBoy(): Obj {
-    const item = createObjectWithPID(54)
-    item.miscCharges = 50
-    return item
-}
-
 export class Player extends Critter {
     name = 'Player'
 
@@ -72,28 +61,6 @@ export class Player extends Critter {
         createObjectWithPID(19),                 // Minigun           (big gun, uses 5mm JHP)
         createObjectWithPID(20),                 // Rocket Launcher   (big gun, uses Rocket AP)
         createObjectWithPID(16),                 // Assault Rifle     (small gun, uses 5mm JHP)
-        testStealthBoy(),                        // Stealth Boy       (misc, LE10 charge/toggle test)
-
-        // --- Healing items ---
-        // CE ref: proto_types.h PROTO_ID_STIMPACK=40, _FIRST_AID_KIT=47, _DOCTORS_BAG=91
-        createObjectWithPID(40).setAmount(5),    // Stimpak           x5
-        createObjectWithPID(47).setAmount(3),    // First Aid Kit     x3
-        createObjectWithPID(91).setAmount(2),    // Doctor's Bag      x2
-
-        // --- Drug testing items ---
-        // CE ref: proto_types.h (MENTATS=53, BUFF_OUT=87, PSYCHO=110, JET=259,
-        //   JET_ANTIDOTE=260, RADAWAY=48, NUKA_COLA=106, BEER=124, BOOZE=125, HEALING_POWDER=273)
-        createObjectWithPID(53).setAmount(3),    // Mentats
-        createObjectWithPID(87).setAmount(3),    // Buffout
-        createObjectWithPID(110).setAmount(3),   // Psycho
-        createObjectWithPID(259).setAmount(3),   // Jet
-        createObjectWithPID(260).setAmount(2),   // Jet Antidote
-        createObjectWithPID(48).setAmount(3),    // Rad-Away
-        createObjectWithPID(106).setAmount(5),   // Nuka-Cola
-        createObjectWithPID(124).setAmount(3),   // Beer
-        createObjectWithPID(125).setAmount(3),   // Booze
-        createObjectWithPID(273).setAmount(3),   // Healing Powder
-        createObjectWithPID(144).setAmount(2),   // Super Stimpak
 
         // --- Testing ammo ---
         createObjectWithPID(33).setAmount(200),  // 10mm JHP          (SMG / 10mm Pistol)

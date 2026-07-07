@@ -5,7 +5,7 @@ Covers FRM binary format, FID/animation ID encoding, the `reg_anim_*` batch syst
 
 > **Source anchor:** `raw/fallout2-ce/src/art.cc`, `art.h`, `animation.cc`, `animation.h`, `obj_types.h`, `cycle.cc`, `object.cc`  
 > **DH2 files:** `src/object/critterAnimation.ts`, `src/object/Critter.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/renderer.ts`, `tools/frmpixels.py` (pipeline)  
-> **Last audited:** 2026-07-04 — AN3 partially fixed (pipeline preserves actionFrame; runtime consumption still open)
+> **Last audited:** 2026-06-03
 
 ---
 
@@ -51,7 +51,7 @@ CE reference: `artReadFrameData()` in `art.cc`; `ArtFrame` struct in `art.h`.
 
 ### 1.3 actionFrame
 
-`actionFrame` marks the frame where the key game event fires — the moment of impact for weapon attacks, muzzle-flash start, etc. CE uses this to synchronise hit-detection and sound with the correct animation frame (`art.cc:713`). **FIXED 2026-07-04**: the pipeline now preserves this field into `imageMap.json`; runtime consumption is still missing (see gap AN3 in §13).
+`actionFrame` marks the frame where the key game event fires — the moment of impact for weapon attacks, muzzle-flash start, etc. CE uses this to synchronise hit-detection and sound with the correct animation frame (`art.cc:713`). DH2's pipeline discards this field (see gap AN3 in §9).
 
 ---
 
@@ -704,7 +704,7 @@ Implementing palette cycling in DH2 would require either (a) baking multiple pre
 |-----|-------------|---------|--------------|-----|--------|
 | AN1 | **`updateStaticAnim` hardcodes fps = 8.** Comment reads `// todo: get FPS from image info`. Should read `info.fps \|\| 10` like `updateLoopingAnim`. Scenery such as flowing water or fire plays at the wrong speed. | `object.ts` | `art.cc:713 artGetFramesPerSecond()` | minor | bug |
 | AN2 | **`getAnimDistance` reads direction 1 for the last frame.** `frameOffsets[1][numFrames-1].ox` uses direction E instead of direction 0 (NE). Returns wrong hex-steps-per-walk-cycle, causing partial-action boundaries to be off and walk animation to hitch or overshoot. | `object.ts` | `animation.cc:1716` | major | bug |
-| AN3 | **PARTIALLY FIXED 2026-07-04.** `actionFrame` was discarded by the extraction pipeline (`tools/frmpixels.py:40` read it into `_actionFrame` — leading underscore meant not saved — and it was absent from `imageMap.json`). The pipeline side is now fixed: `readFRMInfo()` returns `actionFrame` (no underscore), and `exportFRMs()` builds a per-direction `actionFrames` array that's written into each entry's `extra`/frame-info JSON. **Remaining gap**: no runtime code in `src/` reads the field yet — hit-detection and sound-sync still don't consume it, so weapon-attack timing is unaffected until a follow-up wires it into combat/animation playback. | `tools/frmpixels.py:40,71,218-229` (fixed); runtime consumption still missing | `art.h ArtFrame.actionFrame`, `animation.cc` | major | partial |
+| AN3 | **`actionFrame` discarded by the extraction pipeline.** `tools/frmpixels.py:40` reads the field into `_actionFrame` (leading underscore = not saved). It is absent from `imageMap.json`. DH2 cannot synchronise hit-detection or sound to the correct animation frame for weapon attacks. | `tools/frmpixels.py:40` | `art.h ArtFrame.actionFrame`, `animation.cc` | major | missing |
 | AN4 | **No combat walk speed bonus.** CE's `animationComputeTicksPerFrame` adds the `combat_speed` preference to ANIM_WALK in combat. DH2 uses a fixed `1000/fps` for all animations. | `src/object/critterAnimation.ts` | `animation.cc:3287 animationComputeTicksPerFrame()` | minor | missing |
 | AN5 | **`obj.shift = {x:0, y:0}` is truthy at walk start; frame 0's static ox/oy is skipped.** At the beginning of a walk cycle, `shift` is set to `{x:0,y:0}` — a truthy object. The renderer therefore takes the shift path and adds `+0`, while the correct static offset for frame 0 would be `frameInfo.ox`. For most walk FRMs `ox` at frame 0 is zero so the effect is invisible, but any FRM where frame 0 has a non-zero initial delta will display one frame off-anchor. | `renderer.ts:311`, `src/object/critterAnimation.ts` | `object.cc _obj_offset()` | low | bug |
 | AN6 | **FID composition / weapon stance animation not implemented for NPC critters.** CE builds a Frame Identifier via `buildFid(objectType, animType, weaponAnimCode, direction, rotation)` (`art.cc`), where `weaponAnimCode` selects the critter's armed-pose FRM set (0=unarmed, 1=pistol, 3=rifle, 4=big gun, etc.). DH2 has no `buildFid` equivalent — critter FRM paths come from a static `skin` string. The player's `skin` is updated at weapon-swap time via `playWeaponSwapAnim`, but NPC critters on a map never have their skin recalculated from their held weapon; they always display unarmed animations. Full detail: §9 (Weapon Animation Codes). | `src/object/critterAnimation.ts`; `src/renderer.ts` | `art.cc buildFid()`; `art.h ART_TYPE_CRITTER`; `proto_types.h ItemWeaponData.animCode` | medium | missing |

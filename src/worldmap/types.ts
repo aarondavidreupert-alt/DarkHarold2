@@ -33,7 +33,7 @@ export interface Square {
 export interface WorldmapPlayer {
     x: number
     y: number
-    target: Point | null
+    target: Point
 }
 
 export interface Worldmap {
@@ -42,9 +42,6 @@ export interface Worldmap {
     encounterGroups: { [groupName: string]: EncounterGroup }
     encounterRates: { [frequency: string]: number }
     terrainSpeed: { [terrainType: string]: number }
-    // CE ref: worldmap.cc:1337 — per-Tile-N `walk_mask_name`, indexed by tile number
-    // (0..19, 4 wide x 5 tall). `null` where a tile has no mask (fully walkable).
-    walkMaskNames: (string | null)[]
 }
 
 export interface EncounterTable {

@@ -26,7 +26,6 @@ import { lookupInterfaceArt } from './pro.js'
 import { fromTileNum } from './tile.js'
 import { UIMode } from './ui_panels.js'
 import { $id, $qa, showv, hidev } from './ui_dom.js'
-import { dbg } from './logger.js'
 
 // CE ref: elevator.cc — gauge sprite gaj000.png: 92×715, 13 rows (frames 0-12).
 // Frame 0 = needle at bottom, frame 12 = needle at top.
@@ -76,12 +75,12 @@ function uiElevatorDone() {
 export function uiElevator(elevator: Elevator) {
     globalState.uiMode = UIMode.elevator
     const art = lookupInterfaceArt(elevator.type)
-    dbg('map', '[Elevator] art:', art)
-    dbg('map', '[Elevator] buttons:', elevator.buttonCount)
+    console.log('[Elevator] art: ' + art)
+    console.log('[Elevator] buttons: ' + elevator.buttonCount)
 
     if (elevator.labels !== -1) {
         const labelArt = lookupInterfaceArt(elevator.labels)
-        dbg('map', '[Elevator] label art:', labelArt)
+        console.log('[Elevator] label art: ' + labelArt)
 
         const $elevatorLabel = $id('elevatorLabel')
         showv($elevatorLabel)
@@ -116,7 +115,7 @@ export function uiElevator(elevator: Elevator) {
             const proceed = (): void => {
                 if (mapID !== globalState.gMap.mapID) {
                     // different map
-                    dbg('map', `[Elevator] → map ${mapID}, level ${level} @ (${position.x}, ${position.y})`)
+                    console.log(`[Elevator] → map ${mapID}, level ${level} @ (${position.x}, ${position.y})`)
                     globalState.audioEngine.playSfxByName('selevdx1')
                     globalState.gMap.loadMapByID(mapID, position, level)
                 } else if (level !== globalState.currentElevation) {
@@ -125,7 +124,7 @@ export function uiElevator(elevator: Elevator) {
                     // 1 floor = elv1_1, 2 floors = elv1_2, 3+ floors = elv1_3
                     const dist = Math.abs(level - globalState.currentElevation)
                     const elvSfx = dist === 1 ? 'elv1_1' : dist === 2 ? 'elv1_2' : 'elv1_3'
-                    dbg('map', `[Elevator] → level ${level} @ (${position.x}, ${position.y})`)
+                    console.log(`[Elevator] → level ${level} @ (${position.x}, ${position.y})`)
                     globalState.audioEngine.playSfxByName(elvSfx)
                     globalState.player.move(position)
                     globalState.gMap.changeElevation(level, true)

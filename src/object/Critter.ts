@@ -30,7 +30,6 @@ import { dbg, dbgWarn } from '../logger.js'
 import { Scripting } from '../scripting.js'
 import { getMessage } from '../util.js'
 import { getAiPacket, AiPacket } from '../aiPackets.js'
-import { refreshStealthState } from '../miscItem.js'
 import { hitSpatialTrigger, Obj, objectIsWeapon, SerializedObj, setObjectOpen } from './Obj.js'
 import { WeaponObj } from './items.js'
 
@@ -86,11 +85,6 @@ export class Critter extends Obj {
     // constructor for where these get merged onto the base packet.
     customAiOverrides: Partial<AiPacket> | null = null
     hostile = false // Currently engaging an enemy?
-    // CE ref: item.cc:2460-2499 stealthBoyTurnOn/Off (OBJECT_TRANS_GLASS) — true
-    // while an active Stealth Boy II sits in either hand slot. Derived, not
-    // independently serialized — recomputed via miscItem.ts's
-    // refreshStealthState() whenever a hand slot or item on/off state changes.
-    stealthActive = false
     // Wander origin (lazily captured on first wander tick) — used to enforce
     // per-type radius caps. CE ref: ai.cc wander_type 1/2/3 short/large/unrestricted.
     wanderOrigin: { x: number; y: number } | null = null
@@ -175,15 +169,6 @@ export class Critter extends Obj {
             }
             if (!obj.leftHand)  obj.leftHand  = makeFist()
             if (!obj.rightHand) obj.rightHand = makeFist()
-
-            // NOTE: this re-equip pass only restores weapon-subtype items, so a
-            // Stealth Boy equipped in a hand at save time falls back to plain
-            // inventory here (not re-equipped) — a known DH2 simplification vs.
-            // CE, which persists hand-slot occupancy for any item type. The
-            // item's own on/off + charge state (miscOn/miscCharges) still
-            // round-trips correctly; the player just needs to re-equip it this
-            // session for its detection effect to resume. See wiki/items.md LE10.
-            refreshStealthState(obj)
         }
 
         return obj
@@ -193,14 +178,14 @@ export class Critter extends Obj {
         super.init()
 
         this.stats = StatSet.fromPro(this.pro)
-        this.skills = SkillSet.fromPro(this.pro!.extra.skills)
+        this.skills = SkillSet.fromPro(this.pro.extra.skills)
         // console.log("Loaded stats/skills from PRO: HP=%d Speech=%d", this.stats.get("HP"), this.skills.get("Speech", this.stats))
-        this.name = getMessage('pro_crit', this.pro!.textID) || ''
+        this.name = getMessage('pro_crit', this.pro.textID) || ''
 
         // initialize AI packet / team number
         // FO2-CE ref: ai.cc — team_num comes from the proto field; fall back to AI packet if absent
-        this.aiNum = this.pro!.extra.AI
-        const protoTeam: number | undefined = this.pro!.extra.team
+        this.aiNum = this.pro.extra.AI
+        const protoTeam: number | undefined = this.pro.extra.team
         if (protoTeam !== undefined && protoTeam !== null && protoTeam >= 0) {
             this.teamNum = protoTeam
         } else {

@@ -1,6 +1,6 @@
 # World Map & Random Encounters Reference
 
-> Last audited: 2026-07-04 — W10 fixed (walk masks)  
+> Last audited: 2026-06-02  
 > CE sources: `raw/fallout2-ce/src/worldmap.cc` (`wmWorldMapFunc`, `wmConfigInit`, `wmParseTerrainTypes`, `wmParseSubTileInfo`, `wmParseEncounterTableIndex`, `wmParseEncBaseSubTypeStr`, `wmRndEncounterOccurred`, `wmRndEncounterPick`, `wmSetupRandomEncounter`, `wmSetupCritterObjs`, `wmPartyWalkingStep`, `wmPartyInitWalking`, `wmGameTimeIncrement`, `wmCarUseGas`, `wmEvalConditional`, `wmAreaIsKnown`, `wmAreaVisitedState`, `wmAreaMarkVisited`, `wmAreaMarkVisitedState`, `wmAreaSetVisibleState`, `wmMapIsKnown`, `wmMapMarkVisited`, `wmAreaSetWorldPos`, `wmGetPartyCurArea`, `wmGrabTileWalkMask`, `wmSubTileMarkRadiusVisited`), `raw/fallout2-ce/src/worldmap.h` (`City` enum, `Map` enum, car constants), `raw/fallout2-ce/src/interpreter_extra.cc`  
 > DH2 sources: `src/worldmap/parser.ts` (`parseWorldmap`, `parseSquare`), `src/worldmap/Worldmap.ts` (`updateWorldmapPlayer`, `setSquareStateAt`, `withinArea`), `src/worldmap/encounters.ts` (`didEncounter`, `doEncounter`), `src/encounters/resolver.ts` (`pickEncounter`, `evalEncounter`, `positionCritters`), `src/encounters/conditionLang.ts` (`evalCond`), `src/data.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/globalState.ts`  
 > Data files: `data/data/worldmap.txt`, `data/data/city.txt`
@@ -269,9 +269,6 @@ walk_mask_name=wm0000
   `tile->encounterDifficultyModifier`. (`worldmap.cc:1332`)
 - `walk_mask_name` (optional): base name of a `.msk` file (300×44 bytes = 13200
   bytes) that marks impassable terrain. (`worldmap.cc:1337`, `wmGrabTileWalkMask`)
-  **FIXED 2026-07-04 (W10)**: `parser.ts` captures this per tile into
-  `Worldmap.walkMaskNames`; `Worldmap.ts` lazily fetches `data/{name}.msk` and
-  `worldPosInvalid(x, y)` gates each worldmap movement step against it.
 - `row_column` keys (`0_0` through `6_5`): each tile has a 7×6 grid of
   **subtiles** (SUBTILE_GRID_WIDTH=7, SUBTILE_GRID_HEIGHT=6), each 50×50 pixels.
   (`worldmap.cc:64–65`)
@@ -1164,7 +1161,7 @@ After the encounter map is loaded, `wmSetupRandomEncounter` populates the map:
 |---------|-----|-----|
 | Day-part splits | 3 per subtile (morning/afternoon/night) | Single `frequency` value |
 | Difficulty modifier | ±(frequency/15) | None |
-| Outdoorsman detection | Skill check, XP reward, avoidance UI | ✅ FIXED 2026-06-02/2026-07-05 — skill check + XP + avoidance dialog (W7) |
+| Outdoorsman detection | Skill check, XP reward, avoidance UI | None |
 | Car encounter reduction | Reduces frequency by 30–40 during day | No car system |
 | Encounter condition eval | GVAR, time-of-day, days-played conditions | Partial (via `encounters.ts`) |
 
@@ -1184,8 +1181,8 @@ After the encounter map is loaded, `wmSetupRandomEncounter` populates the map:
 | Script-forced encounters (`wmForceEncounter`) | ❌ Gap #5 | No opcode support |
 | Encounter table entry picker | ✅ | Luck, perks, difficulty all match CE |
 | Entry `counter` decrement | ❌ Gap #6 | Counter ignored; special encounters can fire infinitely |
-| Detection / Outdoorsman check | ✅ Gap #7 FIXED 2026-07-05 | Outdoorsman check (2026-06-02) + `showConfirm()` avoidance dialog (W7, 2026-07-05) |
-| Encounter XP award | ✅ Gap #8 FIXED 2026-06-02 | `100-outdoorsman` XP awarded on successful early detection |
+| Detection / Outdoorsman check | ❌ Gap #7 | No outdoorsman check, no early-detection dialog |
+| Encounter XP award | ❌ Gap #8 | CE awards up to 100 XP for catching encounter early |
 | Map selection | ✅ | Random from table maps list |
 | Terrain random map fallback | ✅ (partially) | Pool parsed but DH2 uses table maps; no terrain fallback |
 | Critter spawning | ✅ | `createObjectWithPID`, added to map |
@@ -1200,7 +1197,7 @@ After the encounter map is loaded, `wmSetupRandomEncounter` populates the map:
 | Car encounter rate reduction | ❌ | Car reduces detection in CE; DH2 has no car |
 | Pathfinder perk (time reduction) | ❌ | DH2 time advance is fixed at ~2 min/tick |
 | Special encounters | ✅ (partial) | Map override implemented; location pin on worldmap not added |
-| Walk mask (impassable terrain) | ✅ FIXED 2026-07-04 | `worldPosInvalid()` checks `.msk` bitmap; travel halts at blocked pixels (W10) |
+| Walk mask (impassable terrain) | ❌ | No `.msk` file loading or impassable-tile check |
 | Fog of war | ✅ | Square states: undiscovered/discovered/seen |
 | Area hotspots | ✅ | `withinArea` circle check for named locations |
 | Time advancement | ⚠️ | ~2 min/tick, no perk support; CE is 30 min/frame |
@@ -1219,15 +1216,10 @@ After the encounter map is loaded, `wmSetupRandomEncounter` populates the map:
 `double_line`, `wedge`, or `cone` in `Encounters.positionCritters`
 (`encounters.ts–388`), mirroring CE's placement maths in §9.3.
 
-**Outdoorsman detection check + avoidance dialog** (Gaps #7/#8): ✅ FIXED.
-`didEncounter()` (`encounters.ts`) returns `{ occurs, detected }`. The
-detection roll runs `player.getSkill('Outdoorsman')`, +20 for a Motion
-Sensor (PID 59), capped at 95, + `square.difficulty`, then
-`getRandomInt(1,100) < outdoorsman` gates `detected`; `100 − outdoorsman`
-XP is awarded on success. `Worldmap.ts`'s `updateWorldmapPlayer()` shows a
-`showConfirm()` Yes/No prompt only when `detected` is true (CE
-`worldmap.cc:3503-3517`); undetected/forced encounters and the DH2
-`encRate===100` shortcut skip the prompt.
+**Implementing the Outdoorsman detection check** (Gap #7): after `didEncounter()`
+returns true, run a `partyGetBestSkillValue(SKILL_OUTDOORSMAN)` check, add +20 for
+a Motion Sensor, cap at 95, add `square.difficulty`, then `randomBetween(1,100)`
+gates early detection. Award `100 − outdoorsman` XP on success (Gap #8).
 
 ---
 
@@ -1266,7 +1258,7 @@ annotations used throughout §11 and §13.
 | Metarule 46 returns 0 vs -1 | -1 when not in any area | 0 when not found | Scripts checking `== -1` will break |
 | Pathfinder perk | 25%/50% travel time reduction | Not implemented | All perk-based travel speed is lost |
 | Party healing during travel | ~1 HP/critter/sec wall time | None | No healing on long walks |
-| Walk masks (.msk files) | Block passage over impassable terrain (a generic per-tile pixel mechanism — no separate ocean-specific check exists in CE) | ✅ FIXED 2026-07-04 — `worldPosInvalid()` checked each movement tick; travel halts at the boundary | Matches CE's stop-in-place behavior; adapted from CE's discrete pixel-stepper to DH2's continuous float movement (checks each tick's candidate endpoint, not every intermediate pixel) |
+| Walk masks (.msk files) | Block passage over impassable terrain | Not implemented | Player can walk through mountains on the pixel level |
 | Car system | Fuel, refueling, speed upgrades, area tracking | None | Entire vehicle mechanics absent |
 | wmSubTileMarkRadiusVisited | Reveals subtiles around current pos | Partial (seeAdjacent flag) | DH2's reveal radius is always 1 square, not configurable |
 | `mark_area_known` DOM update | CE updates game state only (no DOM) | DH2 `init()` pre-renders circles; runtime reveal has no DOM append | Area dots for initially-hidden areas won't appear after `mark_area_known` |
@@ -1280,7 +1272,7 @@ annotations used throughout §11 and §13.
 |---------|-----|-----|--------|
 | Day-part encounter splits | 3 frequencies per subtile | 1 value only | Night/day encounter rate variation absent |
 | Encounter difficulty modifier | ±(frequency/15) on easy/hard | None | Easy mode does not reduce encounters |
-| Outdoorsman detection | Skill check, avoidance option, XP reward | ✅ FIXED 2026-06-02/2026-07-05 | Skill check + XP (2026-06-02) + `showConfirm()` avoidance dialog (W7, 2026-07-05) match CE |
+| Outdoorsman detection | Skill check, avoidance option, XP reward | None | No detection mechanic; encounters are always ambushes |
 | Car encounter reduction | 30–40% reduction during day | No car | Not applicable (car system absent) |
 | Encounter check timing | Per walking step (≥3px move + 1500ms cooldown) | Every 800ms wall time | May fire between movement pixels; more or fewer checks on fast/slow machines |
 
@@ -1321,20 +1313,17 @@ CE tracks `EncounterTableEntry.counter` and decrements it each time the entry
 fires (counter = -1 means unlimited). DH2's `pickEncounter` ignores the `counter`
 field, so limited special encounters can fire any number of times.
 
-#### Gap #7 — Outdoorsman detection check ✅ FIXED (W7, 2026-06-02/2026-07-05)
+#### Gap #7 — No Outdoorsman detection check
 
 CE runs an Outdoorsman skill check after the base encounter roll passes: if
 `random(1,100) < outdoorsman`, the player is warned early, gets XP, and sees a
-dialog to accept or decline. `didEncounter()` (`encounters.ts`) now returns
-`{ occurs, detected }` and `Worldmap.ts` shows a `showConfirm()` Yes/No
-prompt when `detected` is true, matching `worldmap.cc:3503-3517`; declining
-resumes normal travel, accepting calls `beginWorldmapEncounter()`.
+dialog to accept or decline. DH2 immediately loads the encounter map without
+any detection check or player choice.
 
-#### Gap #8 — Early-encounter XP ✅ FIXED 2026-06-02
+#### Gap #8 — No early-encounter XP
 
 CE awards `100 − outdoorsman` XP (1–5 XP typically) for catching encounters
-early. `didEncounter()` awards this XP via `player.addExperience(xp)` on
-successful detection.
+early. No DH2 equivalent.
 
 #### Gap #9 — No difficulty-based critter count scaling
 
@@ -1362,4 +1351,4 @@ fuel tank (`CAR_FUEL_MAX=80000`), fuel consumption per step, fuel cell upgrades,
 out-of-gas location spawned on empty. None of this exists in DH2. The car cannot
 be driven on the world map.
 
-<!-- audited: 2026-07-04 — W10 walk masks fixed, see ROADMAP.md Phase 10e -->
+<!-- audited: 2026-06-02 -->

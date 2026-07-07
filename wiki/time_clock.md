@@ -192,12 +192,9 @@ The `EVENT_TYPE_MAP_UPDATE_EVENT` queued at `600` ticks (60 seconds) fires
 `mapUpdateEventProcess` which runs `map_update_p_proc` for all scripts on the
 current map.
 
-**DH2 gaps**: The midnight event (GTC5) is partial — `objectUnjamAll()` fires on
-day transitions, but the ARTIMER threshold consequences (worldmap area swap +
-town-rep penalty, independent of the out-of-scope movie playback) and radiation
-tick do not. See `known_bugs.md` §GTC5 for the full investigation. `map_update_p_proc`
-fires every 600 ticks via `nextMapUpdateTick` in `gameTick.ts:191-222`, which
-matches CE's 60-second cadence.
+**DH2 gaps**: There is no midnight event (GTC5). `map_update_p_proc` fires every
+600 ticks via `nextMapUpdateTick` in `main.ts:1059-1061`, which matches CE's
+60-second cadence.
 
 ---
 
@@ -420,12 +417,12 @@ Save/load (`saveload.ts:83,202`) persists and restores `gameTickTime` directly.
 | GTC1 | **`game_time_hour` opcode returns wrong value.** Opcodes 0x80F6 and 0x80a8 use `floor((ticks/600)%24)` instead of military format `100*hour+minute`. Scripts checking hours like `game_time_hour >= 800` will never match. | `vm_bridge.ts:53-54` | `scripts.cc:332 gameTimeGetHour()` | major | bug |
 | GTC2 | **`game_time_advance` skips queue processing.** CE fires `queueProcessEvents()` per day advanced, triggering midnight events (door unjam, story timers, radiation). DH2 directly adds ticks. | `scripting.ts:1755` | `interpreter_extra.cc:2761 opGameTimeAdvance` | minor | missing |
 | GTC3 | **`set_light_level` uses linear mapping, not CE piecewise.** CE maps 0-50 and 51-100 as separate segments with midpoint at 40960. DH2 uses one linear segment. Levels near 0 or 100 differ slightly. Also: DH2 silently ignores the call on outdoor maps; CE applies it globally. | `gametime.ts:234`, `scripting.ts:1255` | `interpreter_extra.cc:2233 opSetLightLevel` | minor | bug |
-| GTC4 | ✅ Stale claim, corrected 2026-07-05 — `days_since_visited` (0x811B) **is** wired (`vm_bridge.ts`: `bridged("days_since_visited", 0)`). | `vm_bridge.ts` | `interpreter_extra.cc:3734 opGetDaysSinceLastVisit` | minor | fixed |
-| GTC5 | 🟡 Partial, investigated 2026-07-05 — `gameTick.ts` fires `objectUnjamAll()` on the in-game midnight transition. `_scriptsCheckGameEvents()` (ARTIMER1-4) turned out to be more than a movie trigger: crossing a day threshold applies a real worldmap area swap (Arroyo → Destroyed Arroyo) and a `GVAR_TOWN_REP_ARROYO -= 15` penalty, independent of the (correctly out-of-scope) movie playback. Left unimplemented pending two unknowns: the true vanilla day thresholds (Sfall-config-only in CE source, no in-source default) and whether DH2's `city.txt` has a "Destroyed Arroyo" area entry. Radiation damage deferred separately (project scope). | `gameTick.ts:161` | `scripts.cc:405,438-490 gameTimeEventProcess/_scriptsCheckGameEvents` | minor | partial |
+| GTC4 | **`days_since_visited` (0x811B) not wired in `vm_bridge.ts`.** Any script calling `days_since_visited` will fault. | `vm_bridge.ts` | `interpreter_extra.cc:3734 opGetDaysSinceLastVisit` | minor | missing |
+| GTC5 | **No midnight queue event.** CE fires `gameTimeEventProcess` at each in-game midnight: unjams all doors/containers, checks story timer movies (ARTIMER1-4), and runs radiation damage on the player. | `main.ts` | `scripts.cc:405 gameTimeEventProcess` | minor | missing |
 | GTC6 | **Starting month is August (DH2) instead of July (CE).** `START_MONTH = 7` (0-indexed August) vs CE `gStartMonth = 6` (0-indexed July). `get_month` returns 8 in DH2 where CE returns 7. | `gametime.ts:36` | `sfall_config.cc:31` | minor | bug |
 | GTC7 | **No 13-year endgame timeout.** CE's `gameTimeAddTicks` ends the game if the year counter reaches 13. | `gametime.ts` / `scripting.ts:1755` | `scripts.cc:368` | minor | missing |
 | GTC8 | **Pathfinder perk does not reduce worldmap travel time.** CE reduces ticks by 25% per Pathfinder perk rank during worldmap travel. | `src/worldmap/Worldmap.ts` | `worldmap.cc:4178` | minor | missing |
 | GTC9 | **`game_time_in_seconds` (0x80EB) not wired in `vm_bridge.ts`.** | `vm_bridge.ts` | `interpreter_extra.cc:2277 opGetGameTimeInSeconds` | low | missing |
 | GTC10 | **Day/night ambient light curve is a DH2 invention.** CE has no automatic clock-driven ambient light change; only script-controlled `set_light_level` calls. DH2's piecewise ramp (`gametime.ts:181`) produces a sunrise/sunset effect not present in the original. | `gametime.ts:181` | `light.cc`, `map.cc:927` | low | deviation |
 
-<!-- audited: 2026-07-05 — GTC4 corrected (already wired), GTC5 investigated (ARTIMER consequence system scoped, blocked on unknown day-threshold defaults) -->
+<!-- audited: 2026-06-02 -->

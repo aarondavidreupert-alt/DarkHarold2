@@ -18,8 +18,7 @@ Scripting system/engine for DarkFO
 
 import { Combat, isCombatActive } from './combat.js'
 import { critterDamage, critterKill, killCounts } from './critter.js'
-import { areaContainingMap, lookupMapName, lookupScriptName } from './data.js'
-import { CHEM_USE_MAP, getAiPacket } from './aiPackets.js'
+import { lookupScriptName } from './data.js'
 import * as GameTime from './gametime.js'
 import {
     hexDirectionTo,
@@ -77,21 +76,6 @@ export module Scripting {
         return dialogueReviewLog
     }
     export var timeEventList: TimedEvent[] = []
-
-    // CE ref: game_vars.h GVAR_TOWN_REP_* enum — maps each town-reputation
-    // GVAR index (verified against the source, indices are NOT contiguous)
-    // to its display name. game_vars.h also defines GVAR_TOWN_REP_BURIED_VAULT
-    // (58), _COLUSA (60), _ENCLAVE (62), and _NAVARRO (628) — none of which
-    // appear in CE's own displayed reputation list either
-    // (character_editor.cc gTownReputationEntries[TOWN_REPUTATION_COUNT=19]),
-    // so they're intentionally omitted here too.
-    export const TOWN_REP_GVARS: { [gvar: number]: string } = {
-        47: 'Arroyo', 48: 'Klamath', 49: 'The Den', 50: 'Vault City',
-        51: 'Gecko', 52: 'Modoc', 53: 'Sierra Base', 54: 'Broken Hills',
-        55: 'New Reno', 56: 'Redding', 57: 'NCR', 59: 'Vault 13',
-        61: 'San Francisco', 63: 'Abbey', 64: 'EPA', 65: 'Primitive Tribe',
-        66: 'Raiders', 294: 'Vault 15', 308: 'Ghost Farm',
-    }
     let overrideStartPos: StartPos | null = null
     let fadeOverlay: HTMLDivElement | null = null
 
@@ -498,15 +482,6 @@ export module Scripting {
             if (gvar === 0 && globalState.player) {
                 globalState.player.stats.setBase('Karma', typeof value === 'number' ? value : parseInt(value))
             }
-            // Same pattern for per-town reputation: CE writes these as plain
-            // GVARs (scripts.cc:487 gameSetGlobalVar(GVAR_TOWN_REP_ARROYO, ...)),
-            // with no separate opcode. Sync to a player stat so
-            // ui_character/viewer.ts's reputation panel reflects script writes
-            // instead of only ever reading an unset default.
-            const townRepName = TOWN_REP_GVARS[gvar]
-            if (townRepName !== undefined && globalState.player) {
-                globalState.player.stats.setBase('Rep_' + townRepName, typeof value === 'number' ? value : parseInt(value))
-            }
         }
         set_local_var(lvar: number, value: any) {
             this.lvars[lvar] = value
@@ -693,35 +668,10 @@ export module Scripting {
                 }
                 return
             }
-            case 101:
-                // METARULE3_MARK_SUBTILE — CE ref: worldmap.cc:5076 wmSubTileMarkRadiusVisited.
-                // Marks a subtile-grid radius around (x,y) as worldmap fog-of-war "visited".
-                // DH2 has no subtile-grid worldmap fog system (only per-area knownAreas);
-                // implementing this needs that subsystem, not just the opcode.
-                stub('metarule3 101 (mark_subtile — no subtile fog-of-war grid)', arguments)
-                return 0
-            case 102:
-                // METARULE3_SET_WM_MUSIC — verified against CE `opMetarule3`
-                // (interpreter_extra.cc:1968-2060): the switch has no case for this ID
-                // despite the enum name; the result stays the initialized 0. Not a DH2
-                // gap — this matches CE exactly.
-                return 0
             case 103:
                 // CE ref: interpreter_extra.cc:1989 METARULE3_GET_KILL_COUNT
                 // Returns how many critters of killType `obj` have been killed.
                 return killCounts.get(obj as number) ?? 0
-            case 104:
-                // METARULE3_MARK_MAP_ENTRANCE — CE ref: worldmap.cc:2940 wmMapMarkMapEntranceState.
-                // Marks one map+elevation entrance as discovered — a per-entrance state
-                // distinct from mark_area_known's per-area knownAreas. DH2 has no
-                // per-entrance state tracking; needs that data structure first.
-                stub('metarule3 104 (mark_map_entrance — no per-entrance state tracking)', arguments)
-                return 0
-            case 105:
-                // METARULE3_WM_SUBTILE_STATE — CE ref: worldmap.cc:5125 wmSubTileGetVisitedState.
-                // Same missing subsystem as 101.
-                stub('metarule3 105 (wm_subtile_state — no subtile fog-of-war grid)', arguments)
-                return 0
             case 106: {
                 // METARULE3_TILE_GET_NEXT_CRITTER
                 // TODO: use elevation
@@ -752,29 +702,6 @@ export module Scripting {
                 // Centers the game camera on the given tile number.
                 centerCamera(fromTileNum(obj as number))
                 return 0
-            }
-            case 109: {
-                // METARULE3_109 (chem use preference) — CE ref: combat_ai.cc:804
-                // aiGetChemUse() → ai->chem_use. Reads the live AI packet (respecting
-                // any companion-disposition override) and returns CE's numeric index.
-                if (!isGameObject(obj)) return 0
-                const critter = obj as Critter
-                const packet = critter.ai?.packet ?? getAiPacket(critter.aiNum)
-                const idx = CHEM_USE_MAP.indexOf(packet.chemUse)
-                return idx === -1 ? 0 : idx
-            }
-            case 110:
-                // METARULE3_110 (car out of gas) — CE ref: worldmap.cc wmCarIsOutOfGas.
-                // Car travel (Phase 10e, W8) is entirely absent from DH2; stub until
-                // that system exists.
-                stub('metarule3 110 (car_is_out_of_gas — no car system, W8)', arguments)
-                return 0
-            case 111: {
-                // METARULE3_111 (_map_target_load_area) — CE ref: map.cc:1202.
-                // Returns the worldmap area index containing the current map, or -1.
-                const mapName = lookupMapName(globalState.gMap.mapID)
-                const area = mapName ? areaContainingMap(mapName) : null
-                return area ? area.id : -1
             }
             default:
                 stub('metarule3', arguments)
@@ -1267,8 +1194,7 @@ export module Scripting {
             }
         }
         mod_pc_stat(pcstat: number, delta: number) {
-            // DH2-internal convenience (delta variant of set_pc_stat); no CE script
-            // opcode exists for this — pcSetStat() (stat.cc) is never scriptable in CE.
+            // FO2-CE ref: scripts.cc opModifyPcStat()
             const p = globalState.player
             if (!p) return -1
             switch (pcstat) {
@@ -1472,12 +1398,8 @@ export module Scripting {
                     case 3:   return pro.frmPID ?? 0               // ITEM_DATA_MEMBER_FID
                     case 4:   return pro.lightDistance ?? 0        // ITEM_DATA_MEMBER_LIGHT_DISTANCE
                     case 5:   return pro.lightIntensity ?? 0       // ITEM_DATA_MEMBER_LIGHT_INTENSITY
-                    case 6:   return pro.flags ?? 0                // ITEM_DATA_MEMBER_FLAGS (proto.cc:1130 proto->item.flags)
-                    // ITEM_DATA_MEMBER_EXTENDED_FLAGS (proto.cc:1133 proto->item.extendedFlags).
-                    // Reconstructs CE's post-byte-swap 32-bit value (db.cc:321-332)
-                    // from tools/proto.py's 4 raw header bytes — see Obj.ts canUse.
-                    case 7:   return ((extra.itemFlags ?? 0) << 24) | ((extra.actionFlags ?? 0) << 16)
-                                   | ((extra.weaponFlags ?? 0) << 8) | (extra.attackMode ?? 0)
+                    case 6:   return extra.itemFlags ?? 0          // ITEM_DATA_MEMBER_FLAGS
+                    case 7:   return extra.attackMode ?? 0         // ITEM_DATA_MEMBER_EXTENDED_FLAGS
                     case 8:   return 0                             // ITEM_DATA_MEMBER_SID (not persisted)
                     case 9:   return extra.subType ?? 0            // ITEM_DATA_MEMBER_TYPE
                     case 11:  return extra.materialID ?? 0         // ITEM_DATA_MEMBER_MATERIAL
@@ -1746,30 +1668,6 @@ export module Scripting {
             if (tile < 0 || tile >= Lightmap.tile_intensity.length) return 0
             return Lightmap.tile_intensity[tile] > 0 ? 1 : 0
         }
-        obj_blocking_at(tile: number, elevation: number, type: number): any {
-            // CE ref: sfall_opcodes.cc:951 op_obj_blocking_at. type: 0=BLOCK,
-            // 1=SHOOT (only these two are implemented — see GameMap.blockingObjectAt).
-            const result = globalState.gMap.blockingObjectAt(tile, elevation, type)
-            if (result === undefined) {
-                stub('obj_blocking_at (type ' + type + ' not implemented)', arguments)
-                return 0
-            }
-            return result ?? 0
-        }
-        make_straight_path(obj: Obj, dest: number, type: number): any {
-            // CE ref: sfall_opcodes.cc:937 op_make_straight_path. type: 0=BLOCK,
-            // 1=SHOOT (only these two are implemented — see GameMap.blockingObjectAt).
-            if (!isGameObject(obj)) {
-                warn('make_straight_path: not a game object')
-                return 0
-            }
-            const result = globalState.gMap.straightPathBlockingObject(obj, fromTileNum(dest), type)
-            if (result === undefined) {
-                stub('make_straight_path (type ' + type + ' not implemented)', arguments)
-                return 0
-            }
-            return result ?? 0
-        }
         tile_num_in_direction(tile: number, direction: number, distance: number) {
             if (distance === 0) {
                 //warn("tile_num_in_direction: distance=" + distance)
@@ -2017,13 +1915,8 @@ export module Scripting {
                 return
             }
             if (animBatch === null) {
-                // Outside a batch (legacy path) — CE ref: animation.cc:1374
-                // animationRegisterAnimate treats `delay` as a uniform field on
-                // the animation description regardless of batch context, so
-                // honor it here the same way the batch path does below.
-                const play = () => obj.singleAnimation(false, () => obj.clearAnim())
-                if (delay > 0) setTimeout(play, delay * 100)
-                else play()
+                // Outside a batch — play immediately (legacy path)
+                obj.singleAnimation(false, () => obj.clearAnim())
                 return
             }
             animBatch.push({ kind: 'animate', obj, anim, delay })

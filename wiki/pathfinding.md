@@ -261,8 +261,8 @@ step-by-direction algorithm.
 | Sight-blocking type | `_obj_sight_blocking_at` (scenery/wall, LIGHT_THRU aware) | Partial — `hasLineOfSight` checks wall type only; `hexLinecast` checks all types |
 | Straight-line LoF | `_make_straight_path_func` (hex step directions) | `hexLine` greedy walk — same concept, different step algorithm |
 | Dead critters blocking paths | Yes (treated as critters) | `Critter.blocks()` returns `false` when dead |
-| Script opcode `obj_blocking_at` (0x826F) | `op_obj_blocking_at` → `_obj_blocking_at` | **WIRED 2026-07-04** — `Script.obj_blocking_at(tile, elevation, type)` delegates to `GameMap.blockingObjectAt()` |
-| Script opcode `make_straight_path` (0x826E) | `op_make_straight_path` → `_make_straight_path_func` | **WIRED 2026-07-04** — `Script.make_straight_path(obj, dest, type)` delegates to `GameMap.straightPathBlockingObject()` |
+| Script opcode `make_path` | `pathfinderFindPath` with `_obj_blocking_at` | Not implemented (`stub()`) |
+| Script opcode `obj_blocking_at` | `_obj_blocking_at` | Not implemented (`stub()`) |
 
 ---
 
@@ -277,6 +277,6 @@ step-by-direction algorithm.
 | P5 | No `OBJECT_MULTIHEX` neighbor check in `blocks()`. CE checks all 6 adjacent tiles for multihex objects when computing blocking. | `src/object/Obj.ts` | `object.cc:2413` | Low |
 | P6 | No shoot-blocking type: `_obj_shoot_blocking_at` skips dead critters and OBJECT_SHOOT_THRU objects; DH2 uses the same `blocks()` for everything. | `src/map/GameMap.ts` | `object.cc:2440` | Medium |
 | P7 | `hasLineOfSight` checks only `type === 'wall'`; CE's `_obj_sight_blocking_at` also blocks on scenery objects without `OBJECT_LIGHT_THRU`. Scenery objects currently do not block combat LoS. | `src/combat/Combat.ts` | `object.cc:2583` | Medium |
-| P8 | ✅ **FIXED 2026-07-04.** Script opcodes `obj_blocking_at` (0x826F) and `make_straight_path` (0x826E) are now implemented — `Script.obj_blocking_at()`/`make_straight_path()` delegate to new `GameMap.blockingObjectAt()`/`straightPathBlockingObject()` methods. Only `blockType` BLOCK (0) and SHOOT (1) are handled with dedicated predicates (matching `_obj_blocking_at`/`_obj_shoot_blocking_at`); AI (2)/SIGHT (3)/SCROLL (4) fall through to `stub()` since CE's `_obj_ai_blocking_at`/`_obj_sight_blocking_at`/`_obj_scroll_blocking_at` weren't ported. **Note**: `make_path` (referenced in the original gap text) is not a real CE script opcode — only the internal C++ function `_make_path` exists; there is nothing to wire for it. These new GameMap methods are a script-opcode-facing dispatch only; they are not yet used by `combat.ts`/`hexLinecast` internally, so P6/P7 below remain open for the engine's own combat LoS/LoF paths. | `scripting.ts`, `src/map/GameMap.ts:412-467` | `sfall_opcodes.cc:936-951` (opcodes); `object.cc:2387,2440` (predicates) | fixed |
+| P8 | Script opcodes `make_path` and `obj_blocking_at` / `make_straight_path` are stubs. | `scripting.ts` | `sfall_opcodes.cc:937,951` | Low |
 
-<!-- audited: 2026-07-04 — P8 fixed (script-opcode dispatch only), see ROADMAP.md Phase 10 -->
+<!-- audited: 2026-06-02 -->

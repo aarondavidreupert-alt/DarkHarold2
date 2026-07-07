@@ -234,17 +234,6 @@ export function load(id: number): void {
             // Apply the save state. Called directly (same-location) or after
             // images finish loading (cross-location) via the isLoading gate.
             const applyState = () => {
-                // Combat state is transient engine state, not part of the save
-                // format (CE doesn't persist it either — a save is never taken
-                // mid-combat in practice). Force-clean any leftover combat state
-                // from whatever session was active before this load, so it can
-                // never bleed into the freshly loaded save.
-                if (globalState.inCombat) {
-                    globalState.combat?.forceEnd()
-                }
-                globalState.inCombat = false
-                globalState.combat = null
-
                 globalState.gMap.deserialize(savedMap)
                 dbg('saveload', '[SaveLoad] Finished map deserialization')
 

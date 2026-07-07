@@ -141,22 +141,20 @@ interface AttackInfo {
 }
 
 function parseAttack(weapon: WeaponObj): { first: AttackInfo; second: AttackInfo } {
-    // A WeaponObj always has its proto loaded by the time it's used in combat
-    // (assigned in Obj.fromPID_/fromMapObject_); pro is only null before that.
-    var attackModes = weapon.pro!.extra['attackMode']
+    var attackModes = weapon.pro.extra['attackMode']
     var modeOne = attackMode[attackModes & 0xf] as number
     var modeTwo = attackMode[(attackModes >> 4) & 0xf] as number
     var attackOne: AttackInfo = { mode: modeOne, APCost: 0, maxRange: 0 }
     var attackTwo: AttackInfo = { mode: modeTwo, APCost: 0, maxRange: 0 }
 
     if (modeOne !== attackMode.none) {
-        attackOne.APCost = weapon.pro!.extra.APCost1
-        attackOne.maxRange = weapon.pro!.extra.maxRange1
+        attackOne.APCost = weapon.pro.extra.APCost1
+        attackOne.maxRange = weapon.pro.extra.maxRange1
     }
 
     if (modeTwo !== attackMode.none) {
-        attackTwo.APCost = weapon.pro!.extra.APCost2
-        attackTwo.maxRange = weapon.pro!.extra.maxRange2
+        attackTwo.APCost = weapon.pro.extra.APCost2
+        attackTwo.maxRange = weapon.pro.extra.maxRange2
     }
 
     return { first: attackOne, second: attackTwo }
@@ -233,8 +231,8 @@ export class Weapon {
         } else {
             // todo: spears, etc
             this.type = 'gun'
-            this.minDmg = weapon.pro!.extra.minDmg
-            this.maxDmg = weapon.pro!.extra.maxDmg
+            this.minDmg = weapon.pro.extra.minDmg
+            this.maxDmg = weapon.pro.extra.maxDmg
             var s = weapon.art.split('/')
             this.name = s[s.length - 1]
 

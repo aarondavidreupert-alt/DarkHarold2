@@ -3,7 +3,7 @@
 > **Source anchor:** `raw/fallout2-ce/src/proto.cc`, `proto.h`, `proto_types.h`, `obj_types.h`, `art.cc`
 > **DH2 files:** `src/pro.ts`, `src/object.ts` (barrel; `src/object/*.ts`), `src/scripting.ts`, `src/vm_bridge.ts`
 > **DH2 pipeline:** `tools/proto.py`, `tools/exportPRO.py`
-> **Last audited:** 2026-07-04 — PS2/PS3/PS4 fixed; lightDistance field-name bug fixed (Q-any pass)
+> **Last audited:** 2026-06-02
 
 ---
 
@@ -84,20 +84,12 @@ Offset  Bytes  Field            Description
 0       4      pid              Packed PID (type in bits 31-24, index in bits 23-0)
 4       4      textID           Message ID in pro_{type}.msg for name (textID) / description (textID+1)
 8       4      fid              Sprite FID (see §3)
-12      4      lightDistance    Emitted light radius in tiles (0 = no light)
+12      4      lightRadius      Emitted light radius in tiles (0 = no light)
 16      4      lightIntensity   Emitted light intensity (0..65535 = 0..100%)
 20      4      flags            ObjectFlags bitmask (OBJECT_NO_BLOCK=0x10, OBJECT_FLAT=0x08, etc.)
 ```
 
-TileProto omits `lightDistance` and `lightIntensity` — its header is only 24 bytes total including flags + extendedFlags + sid + material.
-
-**FIXED 2026-07-04**: `tools/proto.py::readPRO()` emitted this field as `lightRadius` — a DH2-invented
-name matching neither CE's `lightDistance` (`proto_types.h`) nor `scripting.ts`'s `proto_data()`
-`ITEM_DATA_MEMBER_LIGHT_DISTANCE`/`CRITTER_DATA_MEMBER_LIGHT_DISTANCE` cases (which already read
-`pro.lightDistance`, correctly matching CE). The mismatch meant that opcode always fell through to
-its `?? 0` fallback, silently returning 0 regardless of the proto's real light radius. Renamed to
-`lightDistance` to match; requires a pipeline re-run to take effect on real assets. Found during
-the 2026-07-04 Q-any type-hygiene pass.
+TileProto omits `lightRadius` and `lightIntensity` — its header is only 24 bytes total including flags + extendedFlags + sid + material.
 
 ### 4.2 Item PRO (`ItemProto`, sizeof = 0x84)
 
@@ -230,7 +222,7 @@ After common header: `extendedFlags int32`, `sid int32`, `material int32`. No su
 
 ### 4.6 Tile PRO (`TileProto`, sizeof = 0x1C)
 
-Minimal header — no lightDistance / lightIntensity:
+Minimal header — no lightRadius / lightIntensity:
 ```
 pid int32; textID int32; fid int32; flags int32; extendedFlags int32; sid int32; material int32
 ```
@@ -282,22 +274,21 @@ tools/exportPRO.py::extractPROs()          ← iterates all .pro files per subdi
     └── proto/pro.json               ← single master JSON, keyed by type then numeric ID
 ```
 
-`tools/exportPRO.py` processes six subdirectories: `items`, `critters`, `scenery`, `walls`, `tiles`, `misc`. **FIXED 2026-07-04 (PS3/PS4)**: tiles were previously excluded and misc had no `extra` parsing — both are now extracted.
+`tools/exportPRO.py` processes five subdirectories: `items`, `critters`, `scenery`, `walls`, `misc`. **Tiles are excluded** (see gap PS3).
 
 The JSON structure produced:
 
 ```json
 {
-  "items":    { "1": { "pid": 1, "textID": 100, "type": 0, "flags": 0, "lightDistance": 0, "lightIntensity": 0, "frmPID": 0, "frmType": 0, "extra": { ... } }, ... },
+  "items":    { "1": { "pid": 1, "textID": 100, "type": 0, "flags": 0, "lightRadius": 0, "lightIntensity": 0, "frmPID": 0, "frmType": 0, "extra": { ... } }, ... },
   "critters": { "1": { ... "extra": { "actionFlags": ..., "AI": ..., "baseStats": {...}, "bonusStats": {...}, "skills": {...}, ... } }, ... },
   "scenery":  { "1": { ... "extra": { "subType": 0, "wallLightTypeFlags": ..., "actionFlags": ..., ... } }, ... },
   "walls":    { "1": { "pid": ..., "textID": ..., "frmPID": ..., "frmType": ..., "flags": 0 } },
-  "tiles":    { "1": { "pid": ..., "textID": ..., "extra": { "flags": ... } } },
-  "misc":     { "1": { ... "extra": { "lightDistance": ..., "lightIntensity": ... } } }
+  "misc":     { "1": { ... } }
 }
 ```
 
-`tools/proto.py::readPRO` splits the FID field into separate `frmPID` (bits 23-0) and `frmType` (bits 27-24) fields. The common header is always written; subtype `extra` data is now populated for items, critters, scenery, tiles, and misc (walls still have no per-type extra beyond the shared header — CE's `WallProtoData` has no fields beyond it either). **Note**: `TileProto` does not share the `lightDistance`/`lightIntensity` fields present on the other proto types (`proto.cc:1719` reads tile `flags` before the common light-field read, not after) — `readPRO()` special-cases `TYPE_TILE` ahead of the generic light-field read to avoid misaligning every subsequent byte.
+`tools/proto.py::readPRO` splits the FID field into separate `frmPID` (bits 23-0) and `frmType` (bits 27-24) fields. The common header is always written; subtype `extra` data is populated only for items, critters, and scenery. Walls and misc have no `extra` key (see gap PS4).
 
 ### 6.2 Runtime Loading
 
@@ -333,7 +324,7 @@ Every `Obj` instance caches its proto in `obj.pro` (set during `objFromMapObject
 | `pro.frmPID`, `pro.frmType` | `proto.fid` (decoded) | `lookupArt()` → sprite path |
 | `pro.extra.subType` | `proto.item.type` / `proto.scenery.type` | Door/stairs/weapon/armor dispatch |
 | `pro.extra.scriptPID` / `.scriptID` | `proto.sid` | Script to attach on object creation |
-| `pro.extra.weaponFlags & 0x08` | `proto.item.extendedFlags & 0x0800` | `_proto_action_can_use()` checks — **fixed 2026-07-05 (IU6)**: was `extra.extendedFlags & 8`, a nonexistent key (items have no top-level `extendedFlags` field — only scenery/wall/tile/misc do). CE's `fileReadInt32()` byte-swaps every 4-byte PRO field (`db.cc:321-332`); the real 32-bit `extendedFlags` is reassembled from 4 separately-named bytes DH2 already reads correctly (`itemFlags`/`actionFlags`/`weaponFlags`/`attackMode` = bytes 0-3 on disk), and bit `0x0800` lands in byte 2 (`weaponFlags`, bit `0x08`) after the swap. See `known_bugs.md` IU6. |
+| `pro.extra.actionFlags` | `proto.item.extendedFlags` | `_proto_action_can_use()` checks |
 | `pro.extra.AI` | `proto.critter.aiPacket` | AI packet index |
 | `pro.extra.team` | `proto.critter.team` | Combat team assignment |
 | `pro.extra.baseStats` | `proto.critter.data.baseStats[]` | `StatSet.fromPro()` — initial stat values |
@@ -353,10 +344,10 @@ CE opcode `0x8104` → `opGetProtoData` (interpreter_extra.cc:2962) → `protoGe
 | 1 | `ITEM_DATA_MEMBER_NAME` | — |
 | 2 | `ITEM_DATA_MEMBER_DESCRIPTION` | — |
 | 3 | `ITEM_DATA_MEMBER_FID` | — |
-| 4 | `ITEM_DATA_MEMBER_LIGHT_DISTANCE` | `pro.lightDistance` — **FIXED 2026-07-04**: `scripting.ts` already read the correct CE field name, but `tools/proto.py` emitted it as `lightRadius`; this opcode silently always returned 0 until the field was renamed to match (see §4.1) |
-| 5 | `ITEM_DATA_MEMBER_LIGHT_INTENSITY` | `pro.lightIntensity` |
-| 6 | `ITEM_DATA_MEMBER_FLAGS` | `pro.flags` — **fixed 2026-07-05 (IU6)**: was `extra.itemFlags`, which is one raw header byte, not CE's `proto->item.flags` (a separate top-level field already correctly stored at `pro.flags`) |
-| 7 | `ITEM_DATA_MEMBER_EXTENDED_FLAGS` | reassembled from `extra.itemFlags/actionFlags/weaponFlags/attackMode` — **fixed 2026-07-05 (IU6)**: was `extra.attackMode` (one byte); now reconstructs the full 32-bit `extendedFlags` CE returns, matching the byte-swap in `db.cc:321-332` |
+| 4 | `ITEM_DATA_MEMBER_LIGHT_DISTANCE` | — |
+| 5 | `ITEM_DATA_MEMBER_LIGHT_INTENSITY` | — |
+| 6 | `ITEM_DATA_MEMBER_FLAGS` | `extra.itemFlags` |
+| 7 | `ITEM_DATA_MEMBER_EXTENDED_FLAGS` | `extra.attackMode` |
 | 8 | `ITEM_DATA_MEMBER_SID` | — |
 | 9 | `ITEM_DATA_MEMBER_TYPE` | `extra.subType` (as data_member=0 in DH2, off by 9) |
 | 11 | `ITEM_DATA_MEMBER_MATERIAL` | `extra.materialID` (as data_member=1) |
@@ -383,11 +374,10 @@ DH2's `proto_data` method (scripting.ts:1090) is implemented but **opcode 0x8104
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
-| PS1 | ✅ Stale entry, corrected 2026-07-05 — already fixed. `vm_bridge.ts:136` has `0x8104: bridged("proto_data", 2)`; `known_bugs.md` already tracked this as FIXED 2026-06-02, this table just wasn't updated to match. | `vm_bridge.ts:136`, `scripting.ts:1454 proto_data()` | `interpreter_extra.cc:2962 opGetProtoData()` | major | fixed |
-| PS2 | ✅ **FIXED 2026-07-04.** `tools/proto.py` had `FO1 = True`, suppressing critter `damageType` (old line 234: `if FO1 or obj["killType"] in (5, 10)` forced `damageType=null` for all critters). CE's `protoCritterDataRead` (`critter.cc:1064`) reads `damageType` unconditionally, not gated on `killType` — the `FO1`/`killType` gate was DH2-only and wrong. Now reads the field unconditionally with a short-read fallback to `DAMAGE_TYPE_NORMAL` (0). | `tools/proto.py:265-277` | `proto_types.h CritterProtoData.damageType`; `critter.cc:1064` | minor | fixed |
-| PS3 | ✅ **FIXED 2026-07-04.** Tile PROs were not extracted — `tools/exportPRO.py` iterated only `("items", "critters", "scenery", "walls", "misc")`. Now includes `"tiles"`, and `tools/proto.py::readPRO` special-cases `TYPE_TILE` (new `readTile()`) ahead of the generic light-field read, since `TileProto` has no `lightDistance`/`lightIntensity` fields — a naive "just add a tile branch" fix would have misaligned every subsequent byte read for that type. | `tools/exportPRO.py:23`, `tools/proto.py:96-107,307-329` | `proto.cc protoRead() case OBJ_TYPE_TILE` (`proto.cc:1719`) | minor | fixed |
-| PS4 | ✅ **FIXED 2026-07-04.** Wall and misc `extra` fields were not parsed — `tools/proto.py::readPRO` only called `readItem`/`readCritter`/`readScenery`. Added `readMisc()` (populates `extra.lightDistance`/`extra.lightIntensity`) and wired the `TYPE_MISC` dispatch case; wall was already emitting its shared-header fields correctly (CE's `WallProtoData` has no fields beyond the common header, so wall never needed a separate `extra` reader). | `tools/proto.py:109-118,330+`, `tools/exportPRO.py:23` | `proto.cc protoRead() case OBJ_TYPE_MISC` | minor | fixed |
-| PS5 | ✅ Stale entry, corrected 2026-07-05 — already fixed, and the premise doesn't match current code. `scripting.ts:1454-1486 proto_data()`'s item switch already uses CE's real, non-sequential `ItemDataMember` IDs verbatim (`proto.h:13-28`: case 9=TYPE, 11=MATERIAL, 12=SIZE, 13=WEIGHT, 14=COST, 15=INVENTORY_FID, 555=WEAPON_RANGE — gap at 10 and jump to 555 both preserved), not the sequential 0/1/2/3 remapping this entry describes. | `scripting.ts:1454-1486` | `proto.h ItemDataMember` enum | major | fixed |
-| PS6 | ✅ **FIXED 2026-07-05** (found during LE10/Stealth Boy work). `readItem()`'s subtype dispatch (§ above PS3/PS4, a *different* MISC than PS4's top-level `PROTO_TYPE_MISC`) had no branch for `ITEM_SUBTYPE_MISC` (5) at all — `charges`/`powerType`/`powerTypePid` (`proto_types.h ProtoItemMiscData`, 3×int32) were silently dropped for every misc item (Stealth Boy, Geiger Counter, Motion Sensor). Added the branch; new `MiscItemProtoExtra` type in `proto_types.ts`. Container (subtype 1) and Key (subtype 6) remain unhandled — no current DH2 consumer needs their fields (`maxSize`/`openFlags`/`keyCode`). **Requires a pipeline re-run against real assets locally** to regenerate `proto/items/*.json` before this affects a running game. | `tools/proto.py` (readItem SUBTYPE_MISC branch) | `proto_types.h ProtoItemMiscData` | minor | fixed |
+| PS1 | **`proto_data` opcode (0x8104) not wired in vm_bridge.ts.** The `proto_data` method exists in `scripting.ts:1090` and partially works, but no `bridged("proto_data", 2)` entry exists in `vm_bridge.ts`. Any script calling `proto_data()` will hit an unknown-opcode handler and return 0. | `vm_bridge.ts` (missing), `scripting.ts:1090` | `interpreter_extra.cc:2962 opGetProtoData()` | major | missing |
+| PS2 | **`tools/proto.py` has `FO1 = True`, suppressing critter `damageType`.** Line 234: `if FO1 or obj["killType"] in (5, 10)` — with `FO1=True`, all critters get `damageType=null`. Fallout 2 critters should have a native damage type (e.g. explosion for grenades, fire for flamers). Scripts and combat code reading critter `damageType` always see null. | `tools/proto.py:20,234` | `proto_types.h CritterProtoData.damageType` | minor | bug |
+| PS3 | **Tile PROs not extracted.** `tools/exportPRO.py` iterates only `("items", "critters", "scenery", "walls", "misc")`. Tile prototypes (material type, script index, flags) are absent from `proto/pro.json`. DH2 cannot read tile material for gameplay effects (footstep sounds, terrain damage, etc.). | `tools/exportPRO.py:23` | `proto.cc proto_tile_init()` | minor | missing |
+| PS4 | **Wall and misc `extra` fields not parsed.** `tools/proto.py::readPRO` only calls `readItem`, `readCritter`, or `readScenery`. For wall (type 3) and misc (type 5), it prints "unhandled type" and returns no `extra` key. Scripts querying wall `extendedFlags` or misc `lightDistance` via `proto_data` get 0. | `tools/proto.py:268-275` | `proto.cc protoRead() case OBJ_TYPE_WALL/MISC` | minor | missing |
+| PS5 | **`proto_data` item data_member IDs don't match CE.** DH2 maps `data_member=0` to `ITEM_TYPE`, `data_member=1` to `ITEM_MATERIAL`, etc. CE defines `ITEM_DATA_MEMBER_TYPE=9`, `ITEM_DATA_MEMBER_MATERIAL=11`. Scripts compiled against the CE API will pass CE's IDs (9, 11, 12…) and receive wrong fields. Already noted as `known_bugs.md §S12`. | `scripting.ts:1100-1130` | `proto.h ItemDataMember` enum | major | bug |
 
-<!-- audited: 2026-07-05 — PS6 added (misc-item charges fix, LE10); §6.3/§6.4 field-mapping tables corrected for IU6 (canUse/proto_data extendedFlags byte-swap fix, known_bugs.md); PS1 and PS5 corrected from stale "missing/bug" to "fixed" — both were already fixed in code, this table just wasn't updated to match known_bugs.md -->
+<!-- audited: 2026-06-02 -->

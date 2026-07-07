@@ -22,7 +22,6 @@ import { lazyLoadImage } from '../images.js'
 import { Obj, createObjectWithPID, cloneItem } from '../object.js'
 import { uiGetAmount } from '../ui_barter/swap.js'
 import { Scripting } from '../scripting.js'
-import { refreshStealthState } from '../miscItem.js'
 import { drawAC, drawAP, uiDrawWeapon } from '../ui_hud.js'
 import { makePanelDraggable } from '../ui_drag.js'
 import { UIMode, closeAllPanels, isInventoryOpen, registerCloseInventoryPanel } from '../ui_panels.js'
@@ -377,7 +376,6 @@ export function showInventory() {
             case 'use':
                 console.log('[UI] using object: ' + obj.art)
                 obj.use(globalState.player)
-                showInventory()  // refresh so consumed items disappear
                 break
             case 'drop':
                 console.log('[UI] dropping: ' + obj.art + ' with pid ' + obj.pid)
@@ -385,7 +383,6 @@ export function showInventory() {
                     console.log('[UI] moving into inventory first')
                     globalState.player.inventory.push(obj)
                     playerAny[slot] = null
-                    if (slot === 'leftHand' || slot === 'rightHand') refreshStealthState(globalState.player!)
                 }
                 obj.drop(globalState.player)
                 globalState.player.clearAnim()
@@ -402,7 +399,6 @@ export function showInventory() {
                         globalState.player.inventory.push(playerAny[targetSlot])
                     }
                     playerAny[targetSlot] = obj
-                    refreshStealthState(globalState.player!)
                 }
                 globalState.player.clearAnim()
                 uiDrawWeapon()
@@ -430,8 +426,6 @@ export function showInventory() {
                 if (slot === 'armor') {
                     applyArmorArt(null)
                     drawAC(globalState.player.getStat('AC'))
-                } else if (slot === 'leftHand' || slot === 'rightHand') {
-                    refreshStealthState(globalState.player!)
                 }
                 globalState.player.clearAnim()
                 uiDrawWeapon()
@@ -448,9 +442,8 @@ export function showInventory() {
                         ammoObj.amount = ammoCurrent
                         globalState.player.addInventoryItem(ammoObj, ammoCurrent)
                     }
-                    // ammoCurrent > 0 above already implies obj.pro was non-null (via ?. defaulting to 0).
-                    obj.pro!.extra.rounds = 0
-                    if (obj.pro!.extra.ammoPID !== undefined) obj.pro!.extra.ammoPID = 0
+                    obj.pro.extra.rounds = 0
+                    if (obj.pro.extra.ammoPID !== undefined) obj.pro.extra.ammoPID = 0
                 }
                 uiDrawWeapon()
                 showInventory()

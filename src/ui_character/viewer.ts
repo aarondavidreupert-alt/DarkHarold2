@@ -372,18 +372,12 @@ export function showCharacterScreen() {
     ]
 
     const townStanding = (val: number): string => {
-        // CE ref: character_editor.cc:4586-4599 — thresholds are
-        // < -30 Vilified, < -15 Hated, < 0 Antipathy, == 0 Neutral,
-        // < 15 Accepted, < 30 Liked, else Idolized. FIXED 2026-07-04: the
-        // Antipathy/Hated/Vilified boundaries were off by one (-14/-29
-        // instead of -15/-30), misclassifying val=-15 as Hated (should be
-        // Antipathy) and val=-30 as Vilified (should be Hated).
         if (val >= 30)  return 'Idolized'
         if (val >= 15)  return 'Liked'
         if (val >= 1)   return 'Accepted'
         if (val === 0)  return 'Neutral'
-        if (val >= -15) return 'Antipathy'
-        if (val >= -30) return 'Hated'
+        if (val >= -14) return 'Antipathy'
+        if (val >= -29) return 'Hated'
         return 'Vilified'
     }
 

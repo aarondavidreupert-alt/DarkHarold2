@@ -17,7 +17,7 @@ DH2 sources:
 
 Cross-link: See [damage_formula.md](damage_formula.md) for how `attack_complex` and related opcodes connect to the damage pipeline.
 
-<!-- audited: 2026-07-04 — metarule3 sub-ops 102/109/111 wired (S2), reg_anim_animate delay fix (S14); see ROADMAP.md Phase 10 -->
+<!-- audited: 2026-06-02 -->
 
 ---
 
@@ -261,7 +261,7 @@ For the **Status** column, see the key in §3.
 | 0x810C | anim | 3 (obj,anim,param) | void | PARTIAL | IDs 1000 (set rotation) and 1010 (set frame) handled; rest stub |
 | 0x810D | obj_carrying_pid_obj | 2 (obj,pid) | obj | WIRED | Find carried item by pid |
 | 0x810E | reg_anim_func | 2 (obj,fn) | void | INLINE | Queue callback in animation batch |
-| 0x810F | reg_anim_animate | 3 (obj,anim,delay) | void | WIRED | Queue animation step with delay. **FIXED 2026-07-04 (S14)**: the legacy non-batch path (`animBatch === null`) previously ignored `delay` entirely; now honors it via `setTimeout`, matching `animation.cc:1374 animationRegisterAnimate`'s uniform delay handling |
+| 0x810F | reg_anim_animate | 3 (obj,anim,delay) | void | WIRED | Queue animation step with delay |
 | 0x8110 | reg_anim_obj_move_to_tile | 3 (obj,tile,delay) | void | WIRED | Queue move animation |
 | 0x8111 | reg_anim_begin | 1 (flags) | void | WIRED | Start animation batch |
 | 0x8112 | reg_anim_end | 0 | void | WIRED | Execute animation batch with delays |
@@ -335,19 +335,17 @@ These read directly from the script VM context or globalState without going thro
 
 Opcode `0x80A6` (`get_pc_stat`) and `0x80CB` (`set_critter_stat`) use indices from the `PcStat` enum (`stat_defs.h:76`). These are **player-only** stats not part of the normal SPECIAL/derived stat array.
 
-**FIXED 2026-07-05**: `get_pc_stat` (`scripting.ts:1225`) is now wired at `0x80A6` in `vm_bridge.ts` — the method existed and was CE-accurate, it had simply never been added to `bridgeOpMap`.
+DH2 implements `get_pc_stat` (in `scripting.ts:892`) but **0x80A6 is not wired** in `vm_bridge.ts` — scripts calling it will trigger an unhandled opcode.
 
 | Value | CE Constant | DH2 `get_pc_stat` | DH2 `set_pc_stat` |
 |-------|-------------|-------------------|-------------------|
-| 0 | `PC_STAT_UNSPENT_SKILL_POINTS` | returns `player.skills.skillPoints ?? 0` | sets `player.skills.skillPoints` |
-| 1 | `PC_STAT_LEVEL` | returns `player.getStat('Level')` | sets `player.stats` base (clamped 1-99) |
-| 2 | `PC_STAT_EXPERIENCE` | returns `player.getStat('Experience')` | sets `player.stats` base (clamped ≥0) |
-| 3 | `PC_STAT_REPUTATION` | returns `player.stats.getBase('Reputation')` | sets `player.stats` base (clamped -20..20) |
-| 4 | `PC_STAT_KARMA` | returns `player.stats.getBase('Karma')` | sets `player.stats` base (clamped ±99999999) |
+| 0 | `PC_STAT_UNSPENT_SKILL_POINTS` | returns `player.unspentSkillPoints ?? 0` | STUB |
+| 1 | `PC_STAT_LEVEL` | returns `player.level` | STUB |
+| 2 | `PC_STAT_EXPERIENCE` | returns `player.experience` | STUB |
+| 3 | `PC_STAT_REPUTATION` | returns `player.reputation ?? 0` | STUB |
+| 4 | `PC_STAT_KARMA` | returns `player.karma ?? 0` | STUB |
 
-Correction: `DH2 set_pc_stat` is fully implemented for all 5 cases (`scripting.ts:1244`), not a stub — an earlier pass of this table was stale. `mod_pc_stat` (`set_pc_stat` + delta, `scripting.ts:1269`) is likewise implemented, not stubbed.
-
-**Neither `set_pc_stat` nor `mod_pc_stat` is wired in `vm_bridge.ts`, and that's correct** — CE has no `op_set_pc_stat`/`op_mod_pc_stat` opcode at all (verified: no hits for `opSetPcStat`/`opModPcStat`/`ModifyPcStat` anywhere in `interpreter_extra.cc` or elsewhere). `pcSetStat()` is a CE-internal C++ function used only by the character editor, perk, and skill-point-spending code paths (`character_editor.cc`, `perk.cc`, `skill.cc`, `stat.cc`) — it was never exposed to scripts. `mod_pc_stat`'s in-code comment citing `scripts.cc opModifyPcStat()` does not correspond to any real CE function; there is nothing to wire these to.
+`mod_pc_stat` (`set_pc_stat` + delta) is in `scripting.ts:927` but also unwired.
 
 CE source: `raw/fallout2-ce/src/stat_defs.h` (`PcStat` enum)
 
@@ -382,17 +380,7 @@ CE source: `raw/fallout2-ce/src/interpreter_extra.cc`
 | ID | CE Name | DH2 Status | Description |
 |----|---------|------------|-------------|
 | 100 | `METARULE3_CLR_FIXED_TIMED_EVENTS` | WIRED | Removes timer event by (obj, userdata) pair |
-| 101 | `METARULE3_MARK_SUBTILE` | STUB (documented) | Needs a subtile-grid worldmap fog-of-war system DH2 doesn't have; not just a missing opcode |
-| 102 | `METARULE3_SET_WM_MUSIC` | WIRED | **Verified 2026-07-04**: CE's `opMetarule3` switch has no case for this ID despite the enum name — returns 0, matching CE exactly (not a gap) |
-| 103 | `METARULE3_GET_KILL_COUNT` | WIRED | Returns kill count for killType `obj` from `killCounts` map |
-| 104 | `METARULE3_MARK_MAP_ENTRANCE` | STUB (documented) | Needs per-entrance discovered-state tracking DH2 doesn't have |
-| 105 | `METARULE3_WM_SUBTILE_STATE` | STUB (documented) | Same missing subtile-grid subsystem as 101 |
 | 106 | `METARULE3_TILE_GET_NEXT_CRITTER` | WIRED (partial) | First non-player critter at tile; elevation not respected |
-| 107 | `METARULE3_ART_SET_BASE_FID_NUM` | WIRED | Rebuilds object's FID with a new frmId via `lookupArt()` |
-| 108 | `METARULE3_TILE_SET_CENTER` | WIRED | Centers the camera on the given tile |
-| 109 | `METARULE3_109` (chem use preference) | **WIRED 2026-07-04** | Reads the critter's live AI packet `chem_use` field via `getAiPacket()`, returns CE's numeric index (`CHEM_USE_MAP`) |
-| 110 | `METARULE3_110` (car out of gas) | STUB (documented) | Car travel (Phase 10e, W8) is entirely absent from DH2 |
-| 111 | `METARULE3_111` (`_map_target_load_area`) | **WIRED 2026-07-04** | Returns the worldmap area index containing the current map, via `areaContainingMap()`/`lookupMapName()`, or -1 |
 | all others | — | STUB | logs + returns undefined |
 
 ---
@@ -401,30 +389,36 @@ CE source: `raw/fallout2-ce/src/interpreter_extra.cc`
 
 These opcodes exist in CE (`interpreter_extra.cc`) but have no entry in DH2's `vm_bridge.ts`. Scripts that call them hit the unhandled opcode path (silent no-op in the default dispatch; no error thrown).
 
-**Corrected 2026-07-05**: this table had drifted — several rows below were already wired (`set_critter_stat` 0x80CB, `set_exit_grids` 0x80E6, `get_game_time_in_seconds` 0x80EB, `proto_data` 0x8104, `obj_set_light_level` 0x8107, `days_since_visited` 0x811B) contrary to what was listed; removed. `get_pc_stat` (0x80A6) and `rm_obj_from_inven` (0x80D9) were genuinely unwired — both existed as fully-working methods in `scripting.ts` and just needed one `bridged(...)` line each in `vm_bridge.ts`; now fixed. The remainder below has **not** been re-verified row-by-row against the current `vm_bridge.ts` — treat as a starting point, not a guarantee.
-
 | Opcode | CE Name | CE Description |
 |--------|---------|----------------|
 | 0x80A2 | `scr_return` | Return value from a scripted function call |
 | 0x80A5 | `sfx_build_open_name` | Build SFX filename for open action |
+| 0x80A6 | `get_pc_stat` | Read player-only stat (see §5) — method exists in scripting.ts but not wired |
 | 0x80AD | `skill_contest` | Two-critter skill contest |
 | 0x80B1 | `how_much` | Count of a specific item type on tile |
 | 0x80B3 | `reaction_influence` | Adjust NPC reaction |
 | 0x80B5 | `roll_dice` | Multi-dice roll (Nd6 etc.) |
 | 0x80C0 | `obj_being_used_with` | Object currently being used with self |
 | 0x80C7 | `script_action` | Current script action |
+| 0x80CB | `set_critter_stat` | Set critter stat (see §5) |
 | 0x80CD | `animate_stand_reverse_obj` | Stand-reverse animation |
 | 0x80D1 | `make_daytime` | Advance time to next daytime |
 | 0x80D6 | `pickup_obj` | Pick up object (script-driven) |
 | 0x80D7 | `drop_obj` | Drop object (script-driven) |
+| 0x80D9 | `rm_obj_from_inven` | Remove single item from inventory — method exists (`rm_obj_from_inven` delegates to `rm_mult_objs_from_inven`) but not wired at 0x80D9 |
 | 0x80DB | `use_obj` | Use object |
 | 0x80DD | `attack` | CE `attack` opcode (maps to same handler as attack_complex) |
 | 0x80E0 | `dialogue_reaction` | Set/get NPC dialogue reaction |
 | 0x80E2 | `set_map_music` | Change ambient map music |
+| 0x80E6 | `set_exit_grids` | Configure map exit grids |
+| 0x80EB | `get_game_time_in_seconds` | Game time in seconds (ticks / 10) |
 | 0x80EE | `kill_critter_type` | Kill all critters of a given type |
 | 0x8103 | `critter_rm_trait` | Remove trait from critter |
+| 0x8104 | `proto_data` | Read PRO field by data_member ID — method exists in scripting.ts at `proto_data()` but not wired |
+| 0x8107 | `obj_set_light_level` | Set per-object light level/radius — method exists at `obj_set_light_level()` |
 | 0x8108 | `scripts_request_world_map` | Transition to world map |
 | 0x8114 | `reg_anim_obj_run_to_tile` | Queue run-to-tile animation |
+| 0x811B | `days_since_visited` | Days since last map visit |
 | 0x8122 | `poison` | Apply poison to critter |
 | 0x812A | `get_game_difficulty` | Read game difficulty setting |
 | 0x813A | `anim_action_frame` | Anim action-frame callback |
@@ -443,10 +437,13 @@ These opcodes exist in CE (`interpreter_extra.cc`) but have no entry in DH2's `v
 
 ### Most-Called Unwired Opcodes (high script frequency)
 
-**FIXED 2026-07-05**: `get_pc_stat` and `rm_obj_from_inven` are now wired (see §5 and §8 corrections above). `proto_data`, `set_critter_stat`, and `obj_set_light_level` turned out to already be wired — this list was stale.
+Scripts that use these will silently malfunction. Priority for future wiring:
 
-Remaining:
-
+- **`0x80A6` `get_pc_stat`** — commonly called to read player level, XP, reputation; method already exists, just needs `bridged("get_pc_stat", 1)` added to vm_bridge.ts at 0x80A6
+- **`0x8104` `proto_data`** — item/weapon stat queries in AI and shop scripts; method exists
+- **`0x80CB` `set_critter_stat`** — used by scripts that modify NPC stats; method exists as `set_pc_stat` (STUB for most fields)
+- **`0x80D9` `rm_obj_from_inven`** — single-item inventory removal; method exists as `rm_obj_from_inven`
+- **`0x8107` `obj_set_light_level`** — light-emitting objects (lamps, fires); method exists
 - **`0x8122` `poison`** — apply poison; no DH2 method exists
 - **`0x812A` `get_game_difficulty`** — difficulty checks in AI scripts; no DH2 method
 

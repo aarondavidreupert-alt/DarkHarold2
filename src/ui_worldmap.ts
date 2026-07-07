@@ -107,16 +107,6 @@ function uiWorldMapWorldView() {
     Worldmap.start()
 }
 
-// CE ref: worldmap.cc WM_VIEW_X=22, WM_VIEW_Y=21 (wmTownMapRefresh's blit
-// destination for _townFrmImage within the 640x480 wmBkWin). Entrance button
-// coordinates (city.txt entrance_N x,y, wmTownMapInit's buttonCreate call)
-// are window-relative, i.e. authored assuming that same +22/+21 map origin —
-// so placing them directly against DH2's #areamap (which represents just the
-// map image, with no equivalent window border) shifts every hotspot down and
-// right by that fixed offset. Subtract it here to land markers back on the map.
-const AREAMAP_VIEW_X = 22
-const AREAMAP_VIEW_Y = 21
-
 export function uiWorldMapShowArea(area: Area) {
     uiWorldMapAreaView()
 
@@ -139,8 +129,8 @@ export function uiWorldMapShowArea(area: Area) {
 
         $entranceEl.appendChild($hotspot)
         appendHTML($entranceEl, entrance.mapLookupName)
-        $entranceEl.style.left = (entrance.x - AREAMAP_VIEW_X) + 'px'
-        $entranceEl.style.top = (entrance.y - AREAMAP_VIEW_Y) + 'px'
+        $entranceEl.style.left = entrance.x + 'px'
+        $entranceEl.style.top = entrance.y + 'px'
         $id('areamap').appendChild($entranceEl)
     }
 }

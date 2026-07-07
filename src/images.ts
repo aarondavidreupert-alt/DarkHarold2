@@ -14,13 +14,6 @@
 
 import globalState from './globalState.js'
 import { Config } from './config.js'
-import { parsePNGCycleMask } from './colorCycle.js'
-
-// CE ref: cycle.cc — cycling palette entries only appear in tiles, scenery, and misc art.
-// Critters, interfaces, items, heads, and skilldex never use indices 229-254.
-function mightHaveCyclingPixels(art: string): boolean {
-    return art.startsWith('art/tiles/') || art.startsWith('art/scenery/') || art.startsWith('art/misc/')
-}
 
 export function lazyLoadImage(art: string, callback?: (x: HTMLImageElement) => void) {
     if (globalState.images[art] !== undefined) {
@@ -55,14 +48,6 @@ export function lazyLoadImage(art: string, callback?: (x: HTMLImageElement) => v
         }
     }
     img.src = art + '.png'
-
-    // Fetch cycle mask for art that might use animated palette entries (229-254).
-    // Async; cycle mask textures upload lazily on first draw after this resolves.
-    if (mightHaveCyclingPixels(art) && globalState.cycleMasks[art] === undefined) {
-        parsePNGCycleMask(art + '.png').then(mask => {
-            globalState.cycleMasks[art] = mask  // null = no cycling pixels
-        })
-    }
 }
 
 /**

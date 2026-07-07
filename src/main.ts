@@ -14,8 +14,6 @@
 
 import { HTMLAudioEngine, NullAudioEngine } from './audio.js'
 import { useDrug } from './drugs.js'
-import { skillUse } from './skillUse.js'
-import { drawHP } from './ui_hud.js'
 import { getElevator } from './data.js'
 import { heart } from './heart.js'
 import { hexDistance, hexesInRadius, hexIsInFrontOf, hexIsToRightOf, hexInDirection, hexInDirectionDistance } from './geometry.js'
@@ -32,7 +30,6 @@ import {
     initLogScrollZones,
     uiElevator,
     UIMode,
-    uiLog,
 } from './ui.js'
 import { loadPreferences } from './ui_options.js'
 import { getFileJSON } from './util.js'
@@ -48,33 +45,6 @@ import './autocrawler.js'
 // Re-export playerUse so existing call sites (scripting.ts imports it from './main.js')
 // keep working after the Phase 7 split.
 export { playerUse } from './playerUse.js'
-
-// CE ref: proto_instance.cc:1245 _protinst_use_item_on — First Aid Kit (pid=47)
-// and Doctor's Bag (pid=91) trigger their respective skills. 10% chance per use
-// the item's supplies run out (CE: randomBetween(1,10)==1).
-// Called via globalState.miscItemUseHandler to avoid a circular import from object.ts.
-function miscHealingItemUse(item: import('./object.js').Obj, user: import('./object.js').Critter): boolean {
-    // CE ref: proto_types.h PROTO_ID_FIRST_AID_KIT=47, PROTO_ID_DOCTORS_BAG=91
-    let skill: string | null = null
-    if (item.pid === 47 || item.pid === 108) skill = 'First Aid'
-    else if (item.pid === 91 || item.pid === 107) skill = 'Doctor'
-    if (!skill) return false
-
-    const result = skillUse(user, user, skill)
-    uiLog(result.message)
-    if (result.hpHealed > 0 && user.isPlayer) drawHP(user.getStat('HP'))
-
-    // 10% chance the supplies run out (CE: randomBetween(1,10)==1)
-    if (Math.random() < 0.1) {
-        const idx = user.inventory.indexOf(item)
-        if (idx !== -1) {
-            if (item.amount > 1) item.amount--
-            else user.inventory.splice(idx, 1)
-        }
-        uiLog('The supplies in the ' + (item.name || 'item') + ' run out.')
-    }
-    return true
-}
 
 window.onload = async function () {
     globalState.isInitializing = true
@@ -280,7 +250,6 @@ window.onload = async function () {
                 // continue initialization
                 initGame()
                 globalState.drugHandler = useDrug
-                globalState.miscItemUseHandler = miscHealingItemUse
                 globalState.isInitializing = false
 
                 // debug exposure for console inspection
@@ -692,15 +661,6 @@ window.onload = async function () {
         Config.ui.eggRadius = Math.max(1, r)
         console.log(`[Egg] radius=${Config.ui.eggRadius}`)
     }
-    // setRoofEgg(bool) — apply the soft egg oval to roof tiles that occlude the
-    // player when standing BEHIND a building (roof not hidden by the under-
-    // building flood-fill). Lets you see the character through the roof without
-    // the whole roof vanishing. The under-building full-hide rules are unchanged.
-    // Needs an egg-mask eggMode + showEgg. Default on.
-    ;(window as any).setRoofEgg = (on: boolean) => {
-        Config.ui.roofEgg = on !== false
-        console.log(`[Roof] egg-transparency = ${Config.ui.roofEgg} (${Config.ui.roofEgg ? 'soft oval on roofs behind buildings' : 'off: roofs stay opaque unless fully hidden'})`)
-    }
     ;(window as any).debugEgg = () => {
         const r = globalState.renderer as WebGLRenderer
         // Quick sanity check that proto/pro.json's wall extendedFlags data
@@ -710,7 +670,7 @@ window.onload = async function () {
         // Run clearAssetCache() and reload if so.
         let wallsWithFlags = 0
         let wallsSampled = 0
-        const walls = globalState.proMap?.walls
+        const walls = (globalState.proMap as any)?.walls
         if (walls) {
             for (const id of Object.keys(walls).slice(0, 50)) {
                 wallsSampled++

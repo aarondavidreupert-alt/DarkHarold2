@@ -138,36 +138,6 @@ WebGLRenderer.prototype.renderRoof = function (roof: TileMap, hideSet?: Set<stri
     // Use ambient-only lighting for sky-facing roof tiles.
     this.setRoofLighting()
 
-    // Egg-transparency on roofs: roof tiles that overlap the player's egg oval
-    // but are NOT hidden by the under-building flood-fill (i.e. you're standing
-    // BEHIND a building, not under it) get the same soft egg mask the walls get,
-    // so the character shows through without the whole roof vanishing. The
-    // under-building full-hide rules (hideSet) are untouched. The shader clips
-    // the fade to the egg oval's world rect (fragment.glsl u_eggMode block), so
-    // enabling it for the whole roof pass only affects fragments actually inside
-    // the oval — non-overlapping roof tiles stay fully opaque. CE ref:
-    // object.cc:5006 (eggRect). Anchor mirrors renderObject's wall egg.
-    let roofEggActive = false
-    if (
-        Config.ui.showEgg !== false &&
-        Config.ui.roofEgg !== false &&
-        usesEggMaskTexture() &&
-        this.eggTexture && this.eggWidth > 0 && this.eggHeight > 0 &&
-        this.uEggMode && this.uEggCenter
-    ) {
-        const playerInfo = globalState.player ? this.objectRenderInfo(globalState.player) : null
-        if (playerInfo) {
-            const eggX = playerInfo.x + playerInfo.frameWidth / 2
-            const eggY = playerInfo.y + playerInfo.frameHeight + 10
-            gl.uniform1i(this.uEggMode, 1)
-            gl.uniform2f(this.uEggCenter, eggX, eggY)
-            gl.activeTexture(gl.TEXTURE6)
-            gl.bindTexture(gl.TEXTURE_2D, this.eggTexture)
-            gl.activeTexture(gl.TEXTURE0)
-            roofEggActive = true
-        }
-    }
-
     const viewW = SCREEN_WIDTH / z
     const viewH = SCREEN_HEIGHT / z
 
@@ -205,10 +175,6 @@ WebGLRenderer.prototype.renderRoof = function (roof: TileMap, hideSet?: Set<stri
             gl.drawArrays(gl.TRIANGLES, 0, 6)
         }
     }
-
-    // Restore non-egg state so later tileShader draws (or the next frame's
-    // roof pass when the player moves under the building) aren't left faded.
-    if (roofEggActive && this.uEggMode) gl.uniform1i(this.uEggMode, 0)
 }
 
 WebGLRenderer.prototype.renderFloor = function (floor: TileMap): void {
@@ -448,20 +414,6 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     }
     const z = getZoom()
     const egg = Config.ui.showEgg !== false && isEggObject(obj)
-    // CE ref: item.cc:2460-2499 stealthBoyTurnOn() sets OBJECT_TRANS_GLASS on
-    // the critter while active, rendering it semi-transparent (glass effect).
-    const stealth = (obj as any).stealthActive === true
-
-    if (stealth) {
-        const gl = this.gl
-        gl.useProgram(this.tileShader)
-        if (this.uAlpha) gl.uniform1f(this.uAlpha, Config.ui.stealthAlpha ?? 0.9)
-        if (this.uStealth) gl.uniform1i(this.uStealth, Config.ui.stealthGrayscale !== false ? 1 : 0)
-        if (this.uStealthTint) {
-            const t = Config.ui.stealthTint ?? [1.0, 1.0, 1.0]
-            gl.uniform3f(this.uStealthTint, t[0], t[1], t[2])
-        }
-    }
 
     if (egg) {
         const gl = this.gl
@@ -610,11 +562,10 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         /*lit*/ true
     )
 
-    if (egg || stealth) {
+    if (egg) {
         const gl = this.gl
         if (this.uAlpha) gl.uniform1f(this.uAlpha, 1.0)
-        if (stealth && this.uStealth) gl.uniform1i(this.uStealth, 0)
-        if (egg && usesEggMaskTexture() && this.uEggMode) gl.uniform1i(this.uEggMode, 0)
+        if (usesEggMaskTexture() && this.uEggMode) gl.uniform1i(this.uEggMode, 0)
     }
     if (this.uObjectBaseY) {
         this.gl.uniform1f(this.uObjectBaseY, -1.0)
@@ -779,13 +730,6 @@ WebGLRenderer.prototype.renderFrame = function (
     // draw
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, texture)
-
-    // Bind cycle mask to unit 7; update wall-clock time for shader animation.
-    // CE ref: cycle.cc colorCycleTicker() — animated palette entries 229-254.
-    gl.activeTexture(gl.TEXTURE7)
-    gl.bindTexture(gl.TEXTURE_2D, this.getCycleMaskTex(imgPath))
-    gl.activeTexture(gl.TEXTURE0)
-    if (this.uCycleTime) gl.uniform1f(this.uCycleTime, performance.now() / 1000.0)
 
     gl.uniform1f(this.uNumFramesLocation, totalFrames)
     gl.uniform1f(this.uFrameLocation, frame)

@@ -314,45 +314,6 @@ Non-door scenery with unrecognised subtype falls through to printing the object
 name — no engine default behaviour beyond that. Items (misc, radios) fire
 `use_p_proc` on the item's own script when used standalone.
 
-### 4.3b Misc charged items — Stealth Boy / Geiger Counter (LE10)
-
-✅ FIXED 2026-07-05. CE ref: `item.cc:2246-2499`. Stealth Boy and Geiger
-Counter are `ITEM_SUBTYPE_MISC` items with a finite charge count
-(`ProtoItemMiscData.charges`) that drain while toggled on. CE represents
-on/off by literally swapping the item's own pid between the "I" (off) and
-"II" (on) proto variant; DH2 tracks the same state directly on the `Obj`
-instance instead (`miscOn`/`miscCharges`, new `src/miscItem.ts`), to avoid
-mutating the shared cached `Proto` object every instance of that pid points
-to (see `Obj.ts serialize()`'s "if pro changes in the future, this should be
-cloned" note — proto objects are cache-shared via `proMap`/`loadPRO`, not
-cloned per instance).
-
-**Pipeline note**: this uncovered a real, separate gap — `tools/proto.py`'s
-`readItem()` had no `SUBTYPE_MISC` branch at all, so `charges`/`powerType`/
-`powerTypePid` were silently dropped for every misc item. Fixed alongside
-(new branch + `MiscItemProtoExtra` in `proto_types.ts`); needs a pipeline
-re-run against real assets locally to regenerate `proto/items/*.json`.
-
-**Mechanics**: `Obj.use()` (the inventory "Use" action) toggles via
-`useChargedMiscItem()`; charges drain 1 per in-game minute via
-`Scripting.timeEventList` (matching CE's 600-tick
-`miscItemTrickleEventProcess`). Re-equipping an already-toggled-on item into
-a hand slot auto-reactivates it (`item.cc:353-358` — the literal "auto-
-stealth" gap LE10 named) via a new `Critter.stealthActive` flag, recomputed
-by `refreshStealthState()` on every equip/unequip/swap/drop
-(`dragdrop.ts`/`panel.ts`). `Combat.ts findTarget()` halves max AI detection
-range for a stealthed critter, matching `isWithinPerception()`
-(`combat_ai.cc:3499-3520`).
-
-**Known simplification**: the save/load re-equip pass (`Critter.ts`) only
-restores weapon-subtype items into hand slots — a Stealth Boy equipped at
-save time falls back into plain inventory on load (its on/off + charge
-state still round-trips; the player just re-equips it that session).
-
-**Not implemented**: CE's `OBJECT_TRANS_GLASS` semi-transparent sprite
-rendering — needs a real WebGL shader/alpha change verified in a browser,
-deferred to visual/rendering work (same status as color-cycling, RD10).
-
 ### 4.4 `_protinst_use_item_on` — use-item-on dispatch (`proto_instance.cc:1245`)
 
 Handles "use item X on object Y". Two-step dispatch:
@@ -655,7 +616,5 @@ These CE scripting intrinsics have no entry in `src/vm_bridge.ts`:
 | IU3  | No jammed state               | `jam_lock` / `unjam_lock` exist; midnight unjam fires             | No jammed state on `Obj`; opcodes missing; midnight unjam never fires (cross-ref §GTC5 in known_bugs.md) | `proto_instance.cc:2131,2171`; `scripts.cc:418` | `scripting.ts` (missing) |
 | IU4  | No locked-door SFX/message    | Plays locked SFX + "That door is locked." before proc fires       | `setObjectOpen()` returns `false` silently                           | `proto_instance.cc:1710-1722`              | `src/object/Obj.ts`       |
 | IU5  | Container loot UI timing      | Loot screen shown only after `objectOpenClose()` animation        | `setObjectOpen()` calls `uiLoot(obj)` immediately                   | `proto_instance.cc:1825-1840`              | `src/object/Obj.ts`       |
-| IU6  | ✅ FIXED 2026-07-05 — `canUse` read a nonexistent `extendedFlags` key (items have no such top-level `extra` field) | Standalone-usable items (Stealth Boy, radios, etc.) never showed as usable | Fixed to read `extra.weaponFlags & 0x08` — see `known_bugs.md` IU6 for the full byte-swap derivation | `proto.cc:257 _proto_action_can_use()` | `src/object/Obj.ts:canUse` |
 
-Last audited: 2026-07-05
-<!-- 2026-07-05: added §4.3b misc charged items (Stealth Boy/Geiger Counter, LE10 fixed); IU6 canUse bitmask fix -->
+Last audited: 2026-06-02

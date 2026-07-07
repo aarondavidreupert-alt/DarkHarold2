@@ -16,7 +16,6 @@ limitations under the License.
 
 import { getLstJson } from "./data.js"
 import globalState from "./globalState.js"
-import { Proto } from "./proto_types.js"
 
 // Functions handling FO2 prototypes and lookups performed on them
 
@@ -25,7 +24,7 @@ function getPROType(pid: number) {
     return map[(pid >> 24) & 0xff]
 }
 
-export function loadPRO(pid: number, pidID: number): Proto | null {
+export function loadPRO(pid: number, pidID: number) {
     if(!globalState.proMap)
         return null
 

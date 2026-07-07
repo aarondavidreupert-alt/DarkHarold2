@@ -2,7 +2,7 @@
 
 Cross-references: `wiki/sound_system.md` (volume keys), `wiki/save_load.md` (localStorage persistence).
 
-**Audited:** 2026-07-04 — S-CI2 fixed (game/combat difficulty split); §4.5's control table flagged stale pending full re-pass  
+**Audited:** 2026-06-02  
 **CE source files:**  
 `raw/fallout2-ce/src/config.cc` (`configRead`, `configWrite`, `configParseLine`, `configParseCommandLineArguments`),  
 `raw/fallout2-ce/src/settings.cc` (`settingsFromConfig`, `settingsToConfig`),  
@@ -13,9 +13,9 @@ Cross-references: `wiki/sound_system.md` (volume keys), `wiki/save_load.md` (loc
 `src/config.ts` (all Config fields and defaults),  
 `src/ui_options.ts` (`buildPrefsPanel`), `src/ui_options/preferences.ts` (`loadPreferences`, `savePreferences`, `SavedPreferences`),  
 `src/main.ts` / `src/input.ts` (consumption of `Config.engine.doAlwaysRun`),  
-`src/combat.ts` (barrel; `src/combat/*.ts`) (consumption of `Config.combat.difficultyModifier`, combat damage only),  
-`src/skills.ts` (consumption of `Config.combat.gameDifficultyModifier`, skill-check modifier — **FIXED 2026-07-04, S-CI2**: now a field separate from `difficultyModifier`),  
-`src/encounters.ts` (barrel; `src/encounters/{conditionLang,resolver}.ts`) (consumption of `Config.combat.gameDifficultyModifier`, encounter rate)
+`src/combat.ts` (barrel; `src/combat/*.ts`) (consumption of `Config.combat.difficultyModifier`),  
+`src/skills.ts` (consumption of `Config.combat.difficultyModifier` as game difficulty),  
+`src/encounters.ts` (barrel; `src/encounters/{conditionLang,resolver}.ts`) (consumption of `Config.combat.difficultyModifier`)
 
 ---
 
@@ -270,8 +270,8 @@ if (typeof window !== 'undefined') {
 
 | CE key | CE section | DH2 field | DH2 default | Notes |
 |--------|-----------|-----------|-------------|-------|
-| `game_difficulty` | preferences | `Config.combat.gameDifficultyModifier` | `100` | DH2 encodes as modifier: 75=Easy, 100=Normal, 125=Hard. **FIXED 2026-07-04 (S-CI2)**: now a field separate from combat_difficulty, driving skill checks + encounter rate. |
-| `combat_difficulty` | preferences | `Config.combat.difficultyModifier` | `100` | Same 75/100/125 encoding; damage multiplier only. Separate field from `game_difficulty` as of the S-CI2 fix. |
+| `game_difficulty` | preferences | `Config.combat.difficultyModifier` | `100` | DH2 encodes as modifier: 75=Easy, 100=Normal, 125=Hard. CE separates game_difficulty from combat_difficulty; DH2 conflates both (see §7 gap S-CI2). |
+| `combat_difficulty` | preferences | *(same as above)* | — | No separate field in DH2 |
 | `violence_level` | preferences | `Config.combat.violenceLevel` | `2` | CE values match: 0=None, 1=Minimal, 2=Normal, 3=Maximum. DH2 default is 2 (Normal); CE default is 3 (Maximum Blood). |
 | `target_highlight` | preferences | `Config.ui.targetHighlight` | `true` | DH2 uses bool; CE uses 0/1/2. CE's "Targeting Only" mode has no DH2 equivalent (see §7 gap S-CI9). |
 | `combat_messages` | preferences | `Config.ui.combatMessages` | `'verbose'` | CE: 0=Verbose, 1=Brief (stored inverted). DH2 uses string literals. |
@@ -305,7 +305,6 @@ Persisted fields:
 | localStorage key | Config target |
 |-----------------|--------------|
 | `difficultyModifier` | `Config.combat.difficultyModifier` |
-| `gameDifficultyModifier` | `Config.combat.gameDifficultyModifier` |
 | `combatSpeed` | `Config.combat.combatSpeed` |
 | `violenceLevel` | `Config.combat.violenceLevel` |
 | `targetHighlight` | `Config.ui.targetHighlight` |
@@ -324,17 +323,9 @@ DH2's in-game preferences panel (`UIMode.options` = 15) is built lazily via `bui
 
 The panel exposes 10 controls:
 
-> **Note (2026-07-04):** `buildPrefsPanel()` has been substantially rewritten
-> since this table was last fully audited (2026-06-02) — it now positions
-> controls at exact CE pixel coordinates via `primaryKnob`/`checkboxBtn`/
-> `redButton` helpers and has more than 10 rows. Only the Game/Combat
-> Difficulty row below has been re-verified as part of the S-CI2 fix; the
-> rest of this table may be stale and needs a full re-pass.
-
 | DH2 label | CE equivalent | DH2 Config field | Values | Default |
 |-----------|--------------|-----------------|--------|---------|
-| Game Difficulty | `game_difficulty` | `Config.combat.gameDifficultyModifier` | 75=Easy, 100=Normal, 125=Hard | 100 |
-| Combat Difficulty | `combat_difficulty` | `Config.combat.difficultyModifier` | 75=Easy, 100=Normal, 125=Hard | 100 |
+| Game Difficulty | `game_difficulty` + `combat_difficulty` | `Config.combat.difficultyModifier` | 75=Easy, 100=Normal, 125=Hard | 100 |
 | Combat Speed | `combat_speed` | `Config.combat.combatSpeed` | 1=Slow, 2=Normal, 4=Fast | 2 |
 | Violence Level | `violence_level` | `Config.combat.violenceLevel` | 0–3 | 2 |
 | Target Highlight | `target_highlight` | `Config.ui.targetHighlight` | true/false | true |
@@ -363,8 +354,7 @@ How each setting's stored value actually affects gameplay:
 
 | CE preference | DH2 Config field | Consumed in | Effect |
 |--------------|-----------------|-------------|--------|
-| `game_difficulty` | `Config.combat.gameDifficultyModifier` | `skills.ts:187` (skill modifier), `encounters.ts` (encounter rate) | 75=Easy: +20% on difficulty-affected skills, reduced encounter rate. 125=Hard: -10% skills, increased encounter rate. **FIXED 2026-07-04 (S-CI2)**: now a field separate from `combat_difficulty`. |
-| `combat_difficulty` | `Config.combat.difficultyModifier` | `combat/Combat.ts:333,398` (damage) | 75=Easy: reduced incoming combat damage. 125=Hard: increased damage. Separate field from `game_difficulty` as of the S-CI2 fix. |
+| `game_difficulty` + `combat_difficulty` | `Config.combat.difficultyModifier` | `skills.ts:187` (skill modifier), `combat.ts` (damage), `encounters.ts` (encounter rate) | 75=Easy: +20% on difficulty-affected skills, reduced incoming combat damage. 125=Hard: -10% skills, increased damage. Fully wired. |
 | `running` | `Config.engine.doAlwaysRun` | `main.ts:190,213,231`, `object.ts` | Controls whether player walks or runs by default when moving. Fully wired. |
 | `violence_level` | `Config.combat.violenceLevel` | *(not consumed)* | Stored in Config; no code reads it for death animation gating. No effect — see §7 gap S-CI2b. |
 | `combat_speed` | `Config.combat.combatSpeed` | *(not consumed)* | Stored in Config; no combat loop reads it for delays. No effect — see §7 gap S-CI3. |
@@ -480,7 +470,7 @@ Gaps prefixed `S-CI` were originally `CI` in `config_ini.md`; prefixed `S-PR` we
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
 | S-CI1 | **No fallout2.cfg — all config is hardcoded.** DH2 has no file-based config; defaults are baked into `Config` in `src/config.ts`. User cannot change settings by editing a file between sessions. | `src/config.ts` | `config.cc:273 configRead()`; `game_config.h:8` | minor | missing |
-| S-CI2 | ✅ FIXED 2026-07-04 — `Config.combat.gameDifficultyModifier` (skill checks, `skill.cc:1129`; encounter rate, `worldmap.cc:3406`) is now separate from `Config.combat.difficultyModifier` (damage only, `combat.cc:4552-4572`). The two can now be mixed independently (e.g. Hard game difficulty with Easy combat difficulty), matching CE. No CE loot/XP effect from `game_difficulty` was actually found in source — that part of the original gap description didn't hold up. | `src/config.ts`; `src/skills.ts`; `src/worldmap/encounters.ts`; `src/ui_options.ts`; `src/ui_options/preferences.ts` | `settings.h:29-31`; `skill.cc:1129`; `worldmap.cc:3406`; `combat.cc:4552-4572` | minor | fixed |
+| S-CI2 | **`game_difficulty` and `combat_difficulty` conflated.** CE has separate settings: `game_difficulty` affects skill checks, loot, XP; `combat_difficulty` affects enemy stats. DH2 maps both to a single `difficultyModifier` that affects both. CE allowed mixing (e.g. Hard game difficulty with Easy combat difficulty); DH2 does not. For the default case (both Normal) the results match. | `src/config.ts:62`; `src/ui_options.ts` | `settings.h:29-31`; `preferences.cc:371-372` | minor | missing |
 | S-CI2b | **Violence Level stored but not gated.** `Config.combat.violenceLevel` is set by the panel and persisted, but no code checks it before playing death animations or gore FX. All deaths render with full animation regardless of setting. | `src/combat.ts` | `preferences.cc` violence_level checks | minor | missing |
 | S-CI3 | **`combat_speed` uses inverse/incompatible scale.** CE: integer 0–50 where 0=slowest (maximum ms-per-frame delay) and 50=fastest. DH2: discrete values 1/2/4 where 1=Slow, 4=Fast. Semantics are reversed and not directly translatable. Additionally, `Config.combat.combatSpeed` is not consumed at runtime — no combat loop reads it. | `src/config.ts:67` | `preferences.cc:382`; `game_config.h:44` | low | bug |
 | S-CI4 | **`running` defaults differ.** CE default is `false` (walk by default); DH2 `doAlwaysRun` defaults to `true` (always run). Affects feel for new players. | `src/config.ts:41` | `settings.h:38` | low | bug |

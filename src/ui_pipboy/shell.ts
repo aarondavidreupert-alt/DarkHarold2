@@ -60,7 +60,6 @@ let currentTab: PipBoyTab = 'STATUS'
 const dotElements: Map<string, HTMLDivElement> = new Map()
 let alarmOn = false
 let waitMenuDiv: HTMLDivElement | null = null
-let isRestAnimating = false  // prevents re-entry during time-advance animation
 
 // numbers.png sprite: each digit is 9x17, laid out horizontally 0-9 then extra glyphs
 // Index 12 = colon character
@@ -235,10 +234,9 @@ function toggleWaitMenu(): void {
     ]
 
     for (const opt of options) {
-        content.appendChild(makeListItem(opt.label, async () => {
-            if (isRestAnimating) return
+        content.appendChild(makeListItem(opt.label, () => {
             const mins = opt.getMinutes()
-            if (mins > 0) await advanceTime(mins)
+            if (mins > 0) advanceTime(mins)
             alarmOn = false
             waitMenuDiv = null
             renderDateTimeBar()
@@ -250,28 +248,11 @@ function toggleWaitMenu(): void {
     waitMenuDiv = content  // track so toggle-off knows we're in rest mode
 }
 
-// CE ref: pipboy.cc:1968 pipboyRest() — animates the date/time bar while advancing
-// game time, then heals the player. Animation formula: v2 = totalMinutes/1440*3.5+0.25
-// seconds total, ~20fps (50ms per frame), stepping game time proportionally each frame.
-async function advanceTime(minutes: number): Promise<void> {
-    if (isRestAnimating) return
-    isRestAnimating = true
-
-    const startTicks = GameTime.getTime()
-    const totalTicks = minutes * GameTime.TICKS_PER_MINUTE
-    const animSeconds = minutes / 1440 * 3.5 + 0.25  // CE formula
-    const nSteps = Math.max(1, Math.round(animSeconds * 20))
-
-    for (let step = 0; step < nSteps; step++) {
-        const progress = (step + 1) / nSteps
-        GameTime.setTime(Math.round(startTicks + progress * totalTicks))
-        renderDateTimeBar()
-        await new Promise<void>(res => setTimeout(res, 50))
-    }
-
-    GameTime.setTime(startTicks + totalTicks)
-
-    // Heal player — CE ref: pipboy.cc:2029 _Check4Health() / _AddHealth()
+function advanceTime(minutes: number): void {
+    GameTime.advanceMinutes(minutes)
+    // Heal player proportionally — CE ref: pipboy.cc:1968 pipboyRest advances
+    // time and triggers critter healing; DH2 approximates by healing at the same
+    // rate (STAT_HEALING_RATE HP per 3h) applied in one step.
     const player = globalState.player
     if (player) {
         const hp    = player.getStat('HP') as number
@@ -279,12 +260,12 @@ async function advanceTime(minutes: number): Promise<void> {
         if (hp < maxHp) {
             const end = player.getStat('Endurance') as number
             const healingRate = Math.max(Math.floor(end / 3), 1)
-            const healed = Math.floor(minutes / 60 / 3 * healingRate)
-            player.stats.setBase('HP', Math.min(hp + healed, maxHp))
+            const hoursRested = minutes / 60
+            const healed = Math.floor(hoursRested / 3 * healingRate)
+            const newHp = Math.min(hp + healed, maxHp)
+            player.stats.setBase('HP', newHp)
         }
     }
-
-    isRestAnimating = false
 }
 
 function formatGameTime(_ticks: number): string {

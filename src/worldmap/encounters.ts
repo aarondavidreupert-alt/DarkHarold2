@@ -93,16 +93,7 @@ export function doEncounter(): void {
     execEncounter(encTable)
 }
 
-export interface EncounterCheckResult {
-    occurs: boolean
-    // CE ref: worldmap.cc:3453-3492 wmRndEncounterOccurred — an encounter the
-    // player detects (via Outdoorsman/Motion Sensor) shows a "Do you wish to
-    // encounter it?" Yes/No prompt before it happens; an undetected one is a
-    // forced ambush with no prompt. Only meaningful when occurs === true.
-    detected: boolean
-}
-
-export function didEncounter(): EncounterCheckResult {
+export function didEncounter(): boolean {
     const worldmap = getWorldmap()
     const worldmapPlayer = getWorldmapPlayer()
     const squarePos = positionToSquare(worldmapPlayer)
@@ -118,17 +109,14 @@ export function didEncounter(): EncounterCheckResult {
 
     if (encRate === 0)
         // 0% encounter rate (none)
-        return { occurs: false, detected: false }
+        return false
     else if (encRate === 100)
-        // 100% encounter rate (forced) — DH2 shortcut: skips the detection
-        // roll entirely for always-encounter squares, so never prompts.
-        return { occurs: true, detected: false }
+        // 100% encounter rate (forced)
+        return true
     else {
         // Adjust for game difficulty — CE ref: worldmap.cc:3322 wmRndEncounterOccurred
-        // CE keys this off settings.preferences.game_difficulty, a separate preference
-        // from combat_difficulty (which only affects combat damage) — see config.ts.
         let adjRate = encRate
-        const diff = Config.combat.gameDifficultyModifier
+        const diff = Config.combat.difficultyModifier
         if (diff < 100) adjRate -= Math.floor(encRate / 15)       // Easy
         else if (diff > 100) adjRate += Math.floor(encRate / 15)  // Hard
 
@@ -139,7 +127,6 @@ export function didEncounter(): EncounterCheckResult {
             // Base encounter rolled — run Outdoorsman detection check.
             // CE ref: worldmap.cc:3450 wmRndEncounterOccurred
             const player = globalState.player
-            let detected = false
             if (player !== null) {
                 let outdoorsman = player.getSkill('Outdoorsman')
                 // PROTO_ID_MOTION_SENSOR = 59 (proto_types.h:146); +20 if carried
@@ -147,8 +134,7 @@ export function didEncounter(): EncounterCheckResult {
                 if (outdoorsman > 95) outdoorsman = 95
                 outdoorsman += square.difficulty
                 if (getRandomInt(1, 100) < outdoorsman) {
-                    detected = true
-                    // Detected: award XP, and (see caller) offer to avoid it.
+                    // Detected: award XP; avoidance dialog not yet implemented
                     const xp = 100 - outdoorsman
                     if (xp > 0) {
                         player.addExperience(xp)
@@ -156,9 +142,9 @@ export function didEncounter(): EncounterCheckResult {
                     }
                 }
             }
-            return { occurs: true, detected }
+            return true
         }
     }
 
-    return { occurs: false, detected: false }
+    return false
 }

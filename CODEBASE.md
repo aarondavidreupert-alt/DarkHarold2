@@ -2,9 +2,7 @@
 
 DarkHarold2 is a browser-based recreation of Fallout 2, forked from the DarkFO
 project (Apache 2.0). Written in TypeScript (strict mode) with WebGL 2.0
-rendering and a Python 3 asset pipeline. Estimated completion: ~94%
-(the 95% playable-main-quest milestone is essentially met; see `ROADMAP.md`
-Phase 10 for the remaining path to 100%).
+rendering and a Python 3 asset pipeline. Estimated completion: ~55%.
 
 Ground-truth reference: [fallout2-ce](https://github.com/alexbatalov/fallout2-ce)
 (authoritative C++ source). Secondary: [jsFO](https://github.com/ajxs/jsFO).

@@ -22,31 +22,10 @@ export const Config = {
         // for the behind-building case is egg-style roof transparency (a soft oval),
         // not a full vanish. Kept as an opt-in via setRoofPeek(). See wiki/rendering.md RD06.
         roofPeek: false,
-        // Egg-transparency on ROOFS: a roof tile that would occlude the player but is
-        // NOT already hidden by the under-building flood-fill (i.e. you're standing
-        // BEHIND a building) gets the same soft egg oval the walls get, so you can see
-        // your character through it without the whole roof vanishing. The under-building
-        // full-hide rules are unchanged. Requires an egg-mask mode + showEgg. Toggle:
-        // setRoofEgg(). See wiki/rendering.md RD06 / known_bugs.md.
-        roofEgg: true,
         showEgg: true, // egg transparency: make walls/scenery in front of the player semi-transparent
         eggMode: 'dh2-egg' as 'alpha' | 'dh2-egg' | 'ce-egg' | 'bbox' | 'beta', // 'alpha'=flat transparent, 'dh2-egg'=CE egg.png mask (DH2 hand-tuned occlusion test), 'ce-egg'=CE egg.png mask using the byte-for-byte CE occlusion test (no DH2 deviations), 'bbox'=CE egg.png mask using a screen-space bounding-box overlap + draw-order depth test (DH2-original, not CE-derived), 'beta'=floor hex debug overlay (no wall transparency)
         eggAlpha:  undefined as number | undefined, // outer alpha — undefined = use default 0.4
         eggRadius: undefined as number | undefined, // hex radius — undefined = use default 8
-        // Stealth Boy OBJECT_TRANS_GLASS semi-transparent rendering.
-        // stealthAlpha: sprite alpha (0–1). Console: Config.ui.stealthAlpha = 0.3
-        stealthAlpha: undefined as number | undefined, // undefined = use default 0.9
-        // stealthGrayscale: true  = CE-accurate: tint ghost, brightness drives opacity
-        //                           (u_stealth=1; sprite colour fully replaced by tint)
-        //                   false = DH2 non-CE: original sprite colours at reduced alpha
-        // Console: Config.ui.stealthGrayscale = false
-        stealthGrayscale: true,
-        // stealthTint: [r, g, b] 0–1. CE exact = [0.29, 1.0, 1.0] (teal _colorTable[10239]).
-        // Looks vivid blue in linear RGB vs. original palette rendering; [1,1,1] gives
-        // the "whitish ghost" look the original game often appeared to have in practice.
-        // Console: Config.ui.stealthTint = [1, 1, 1]   // white
-        //          Config.ui.stealthTint = [0.29, 1, 1] // CE-exact teal
-        stealthTint: [1.0, 1.0, 1.0] as [number, number, number],
         showObjects: true, // show objects?
         showWalls: true, // show walls?
         showBoundingBox: false, // show bounding boxes around objects?
@@ -186,14 +165,8 @@ export const Config = {
         allowWalkDuringAnyTurn: false, // Allows the player to walk AP-free out of their turn
         maxAIDepth: 8, // Maximum number of turns the AI can consider (as a bail-out instead of infinitely recursing)
         // Combat difficulty modifier: 75 = easy (player deals more), 100 = normal, 125 = hard (enemies deal more)
-        // CE ref: settings.h combat_difficulty / COMBAT_DIFFICULTY_* — affects damage multiplier only (combat.cc:4552-4572).
+        // Mirrors FO2's preference_level: VIOLENCE_LEVEL 0=easy 1=normal 2=hard
         difficultyModifier: 100 as 75 | 100 | 125,
-        // Game difficulty modifier: 75 = easy, 100 = normal, 125 = hard.
-        // CE ref: settings.h game_difficulty / GAME_DIFFICULTY_* — a SEPARATE preference from
-        // combat_difficulty above; affects skill-check modifiers (skill.cc:1129
-        // skillGetGameDifficultyModifier, +20/0/-10) and worldmap encounter frequency
-        // (worldmap.cc:3406 wmRndEncounterOccurred, ±frequency/15), never damage.
-        gameDifficultyModifier: 100 as 75 | 100 | 125,
         // Damage calculation ruleset: 0=Vanilla, 1=Glovz, 2=Glovz+MultTweak, 5=YAAM
         // Matches fallout2-ce DamageCalculationType enum values exactly.
         damageCalculationType: 0 as 0 | 1 | 2 | 5,

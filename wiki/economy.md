@@ -13,7 +13,7 @@
 >
 > See also: [critter_stats.md](critter_stats.md) §1.3 — `CRITTER_NO_DROP` flag gap.
 
-<!-- audited: 2026-07-04 — L3 investigated (see ROADMAP.md Phase 10k) -->
+<!-- audited: 2026-06-02 -->
 
 ---
 
@@ -609,7 +609,7 @@ Unified gap table combining loot/pickup gaps (prefix L) and barter gaps (prefix 
 |----|-------------|---------|--------------|-----|--------|
 | L1 | **Weight limit not enforced on pickup or loot UI.** `addInventoryItem` has no weight check; loot UI has no weight check. CE's `itemAttemptAdd` refuses pickup if critter exceeds carry weight and shows "at maximum weight" message. Player can carry unlimited items. | `src/object/Obj.ts`, `src/ui_loot.ts` | `proto_instance.cc:571`, `item.cc:322` | major | missing |
 | L2 | **`CRITTER_NO_DROP` flag not checked on kill.** Critters with `CRITTER_NO_DROP` bit set should not drop items when killed. `critterKill()` never checks `pro.extra.flags`; all critters drop inventory. Quest-critical "no drop" critters will expose loot that should be invisible. | `src/critter/lifecycle.ts` | `proto_instance.cc` | major | missing |
-| L3 | 🟡 Investigated 2026-07-04, not fixed — the premise doesn't map cleanly onto DH2's ammo model. CE's `itemAdd()` tracks ammo as discrete "box" objects (`quantity` = box count, one representative item holding a partial box's remaining rounds, capacity-ceiling splitting exists purely to manage that representation); DH2 never modelled boxes at all — `reloadWeapon()` (`ui.ts:205-231`) treats an ammo stack's `.amount` as a flat *total rounds* counter, for which `addInventoryItem`'s plain `amount += count` merge is already correct (no ceiling needed when there's no per-unit cap to enforce). **Found instead**: `ui_barter/screen.ts:167` prices ammo as `pro.extra.cost * amount` — i.e. treats `.amount` as a box count at full per-box price — directly contradicting `reloadWeapon()`'s rounds-based reading of the same field. One of the two is pricing or consuming ammo wrong; resolving that (and deciding whether to adopt CE's box model at all) has to happen before "fixing" L3 as originally stated. See `ROADMAP.md` Phase 10k for detail. | `src/object/Obj.ts:689`; `src/ui.ts:205-231`; `src/ui_barter/screen.ts:167` | `item.cc:322,361-378` | minor | needs-design-decision |
+| L3 | **Ammo stack merge ignores magazine capacity.** CE merges ammo into existing magazines: fills to capacity, splits remainder. `addInventoryItem` stacks by PID but uses simple quantity addition; no magazine-capacity splitting. Ammo always stacks without capacity limit. | `src/object/Obj.ts` | `item.cc:322` | minor | partial |
 | L4 | **`move_obj_inven_to_obj` overwrites destination inventory.** CE iterates items and calls `itemAdd` for each (stack-merging). DH2 bulk-assigns the array reference directly: `dst.inventory = src.inventory` — no merge. Scripts that call `move_obj_inven_to_obj` when `dst` already has items will overwrite dst inventory. | `scripting.ts` | `item.cc` | minor | bug |
 | L5 | **Caps pickup quantity may be wrong for multi-pile tiles.** CE's `PROTO_ID_MONEY` path calls `itemGetMoney(item)` which sums all money objects at the tile. DH2 `pickup` passes `this.amount` directly — correct for items placed as discrete amounts; may be wrong for multi-money-object tiles. | `src/object/Obj.ts` | `proto_instance.cc:571` | minor | partial |
 | L6 | **`pickup_p_proc` not fired from inventory UI equip path.** CE fires `SCRIPT_PROC_PICKUP` in `inventory.cc:4102` and `4494` when equipping an item via the inventory screen. Not fired in DH2 inventory screen (`ui_inventory.ts`); only fires on tile pickup. Scripts that use `pickup_p_proc` to track equip events won't trigger from inventory. | `src/ui_inventory/dragdrop.ts` | `inventory.cc:4102,4494` | minor | missing |
@@ -631,4 +631,4 @@ Unified gap table combining loot/pickup gaps (prefix L) and barter gaps (prefix 
 | B11 | **No dedicated Barter button in dialogue UI.** CE renders a permanent BARTER button in the dialogue window gated by `CRITTER_BARTER` proto flag. DH2 has no such button — barter is only accessible if the NPC script adds a dialogue option that calls `gdialog_mod_barter`. NPCs with `CRITTER_BARTER` set but no scripted barter option are unreachable in DH2. | `play.html:57–59`, `scripting.ts:1430` | `game_dialog.cc:3662 _gdCanBarter()`, `obj_types.h:93` | major | missing |
 | B12 | **`CRITTER_BARTER` proto flag not read.** DH2 never checks `proto.critter.data.flags & 0x02` anywhere. | `scripting.ts`, `src/ui_barter/screen.ts` | `obj_types.h:93`, `game_dialog.cc:3673` | minor | missing |
 
-<!-- audited: 2026-07-04 — L3 investigated (see ROADMAP.md Phase 10k) -->
+<!-- audited: 2026-06-02 -->

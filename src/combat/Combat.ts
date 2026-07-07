@@ -27,7 +27,7 @@ import { eventLogPush, dbg, dbgWarn } from '../logger.js'
 import { Critter, Obj } from '../object.js'
 import { Player } from '../player.js'
 import { Scripting } from '../scripting.js'
-import { drawAC, drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiLog, uiStartCombat } from '../ui.js'
+import { drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiLog, uiStartCombat } from '../ui.js'
 import { clamp, getMessage, getRandomInt, rollSkillCheck } from '../util.js'
 import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from '../unarmed.js'
 import { ActionPoints } from './actionPoints.js'
@@ -760,10 +760,7 @@ export class Combat {
         const targets = this.combatants.filter((x) => {
             if (x.dead || x.teamNum === obj.teamNum) return false
             const dist = hexDistance(obj.position, x.position)
-            // CE ref: combat_ai.cc:3510 isWithinPerception() — an active Stealth
-            // Boy II (OBJECT_TRANS_GLASS) halves the max detection range. LE10.
-            const maxRange = x.stealthActive ? Math.floor((per * 5) / 2) : per * 5
-            if (dist > maxRange) return false                // beyond max perception range
+            if (dist > per * 5) return false               // beyond max perception range
             if (dist > per * 2 && !this.hasLineOfSight(obj.position, x.position)) return false
             return true
         })
@@ -1207,13 +1204,6 @@ export class Combat {
         globalState.inCombat = false
         combatActive = false
 
-        // CE ref: combat.cc:2811 — combatEnd() restores gDude's AP to max
-        // (critterGetStat(gDude, STAT_MAXIMUM_ACTION_POINTS)) before redrawing
-        // the interface bar. Without this, the player's leftover low combat-AP
-        // value persists outside combat and the attack button stays shown as
-        // unaffordable (dimmed) even though there's no more combat to spend AP in.
-        this.player.AP?.resetAP()
-
         if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat2')
         globalState.gMap.updateMap()
         uiEndCombat()
@@ -1230,8 +1220,6 @@ export class Combat {
         eventLogPush({ actor: null, action: 'combat-end', result: 'forced', message: 'Combat ended (forced)' })
         globalState.combat = null
         globalState.inCombat = false
-        // CE ref: combat.cc:2811 — see end() above for why this matters.
-        this.player.AP?.resetAP()
         if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat2')
         globalState.gMap?.updateMap()
         uiEndCombat()
@@ -1330,14 +1318,12 @@ export class Combat {
         if (this.whoseTurn >= this.combatants.length) this.whoseTurn = 0
 
         // Convert unused AP to bonus AC for the critter whose turn just ended
-        // CE ref: stat.cc:203-242 — AC += critter->data.critter.combat.ap when not critter's turn
         if (this.whoseTurn > 0 || this.turnNum > 2) {
             var prevIdx = this.whoseTurn - 1
             if (prevIdx < 0) prevIdx = this.combatants.length - 1
             var prev = this.combatants[prevIdx]
             if (!prev.dead && prev.AP) {
                 prev.bonusAC = prev.AP.getAvailableMoveAP()
-                if (prev.isPlayer) drawAC(prev.getStat('AC') + prev.bonusAC)
             }
         }
 
@@ -1349,7 +1335,6 @@ export class Combat {
             this.player.AP!.resetAP()
             drawAP(this.player.AP!.getAvailableMoveAP(), this.player.AP!.getTotalMaxAP())
             drawHP(this.player.getStat('HP'))
-            drawAC(this.player.getStat('AC'))
             eventLogPush({
                 actor: actorName(this.player), action: 'turn-begin',
                 AP: this.player.AP!.getAvailableMoveAP(), HP: this.player.getStat('HP'),

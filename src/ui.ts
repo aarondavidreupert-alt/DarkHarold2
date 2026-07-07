@@ -16,7 +16,7 @@ limitations under the License.
 
 import { Combat } from './combat.js'
 import globalState from './globalState.js'
-import { Obj, objectIsWeapon } from './object.js'
+import { Obj } from './object.js'
 import { Config } from './config.js'
 import { openAutomap, closeAutomap, isAutomapOpen } from './ui_automap.js'
 import { openPipBoy, closePipBoy, isPipBoyOpen } from './ui_pipboy.js'
@@ -251,21 +251,10 @@ export function initUI() {
         }
 
         if (!wep || !wep.weapon) {
-            const player = globalState.player!
-            const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
-            const activeItem = (player as any)[activeHand] as Obj | undefined
-
-            // CE ref: interface.cc:1073-1078,1122-1127 — clicking a non-weapon
-            // item's HUD slot fires INTERFACE_ITEM_ACTION_USE (the item's own
-            // use_p_proc / engine handler), not the unarmed punch/kick cycle.
-            if (activeItem && !objectIsWeapon(activeItem)) {
-                activeItem.use(player)
-                uiDrawWeapon()
-                return
-            }
-
             // Unarmed: left-click cycles the active hand's mode family
+            const player = globalState.player!
             const skill = player.getSkill('Unarmed')
+            const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
             const leftWeapon = (player as any).leftHand?.weapon ?? null
             const rightWeapon = (player as any).rightHand?.weapon ?? null
             const bothHandsEmpty = !leftWeapon && !rightWeapon

@@ -18,7 +18,6 @@ import { getFileJSON, getFileText, parseIni } from './util.js'
 import globalState from './globalState.js'
 import { Point } from './geometry.js'
 import { lookupInterfaceArt } from './pro.js'
-import { dbg } from './logger.js'
 
 var lstFiles: { [lsgFile: string]: string[] } = {}
 var lstJsonFiles: { [lstFile: string]: any[] | null } = {}
@@ -139,7 +138,7 @@ function parseAreas(data: string): AreaMap {
     return out
 }
 
-export function areaContainingMap(mapName: string) {
+function areaContainingMap(mapName: string) {
     if (!globalState.mapAreas) throw Error('globalState.mapAreas not loaded')
     for (var area in globalState.mapAreas) {
         var entrances = globalState.mapAreas[area].entrances
@@ -222,11 +221,10 @@ export function getLstJson(lst: string, id: number): any {
 }
 
 export function lookupScriptName(scriptID: number): string {
+    console.log('SID: ' + scriptID)
     const lookupName = getLstId('scripts/scripts', scriptID - 1)
     if (lookupName === null) throw Error('lookupScriptName: failed to look up script name')
-    const name = lookupName.split('.')[0].toLowerCase()
-    dbg('load', `lookupScriptName: sid=${scriptID} -> ${name}`)
-    return name
+    return lookupName.split('.')[0].toLowerCase()
 }
 
 // Map info (data/data/maps.txt)

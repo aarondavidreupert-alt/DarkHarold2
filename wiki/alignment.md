@@ -20,7 +20,7 @@ per-column-parity map: §6 light **centring** offset, §7 the interpolation
 > [`wiki/extended_flags.md`](extended_flags.md) (wall orientation bits §2, light-blocking switch §4),
 > [`wiki/failed_animation_offset_attempts.md`](failed_animation_offset_attempts.md)
 > (`artOffset` derivation)
-> **Last audited:** 2026-07-04
+> **Last audited:** 2026-07-02
 
 ---
 
@@ -793,8 +793,6 @@ effect next frame). Player-light smoothing is detailed in
 | `setWallTopFadeEW(px)` / `setWallTopFadeNWSE(px)` | `wallTopFadePx` / `wallTopFadePxNWSE` | Per-orientation top-fade depth (E-W-run walls vs the rest). §8 |
 | `setPlayerLightSmooth(mode)` | `playerLightSmooth` | Moving-torch stamp: `'ce'` / `'blend'` / `'egg-split'` (default). `'dh2'` propagation only. → lighting.md |
 | `setLightPropagationMode(mode)` | `lightPropagationMode` | Occlusion algorithm: `'dh2'` (default, CE port incl. LD11 wall fix) / `'derived'` / `'naive'`. |
-| `setRoofEgg(bool)` | `roofEgg` | Egg-oval transparency on roof tiles that occlude the player when *behind* a building (**default on**). Full-hide under-building rules unchanged. Needs an egg-mask `eggMode` + `showEgg`. rendering.md RD06. |
-| `setRoofPeek(bool)` | `roofPeek` | Full-hide the roof of a building the player stands *behind* (**default off**, too aggressive — superseded by `roofEgg`). rendering.md RD06. |
 
 ---
 
@@ -804,7 +802,7 @@ effect next frame). Player-light smoothing is detailed in
 |----------|-----------|------------|--------|
 | **Floor tiles** | square corner, dynamic `_square_offx` origin | square corner, fixed world origin `4752` | ✅ same result; origin *mechanism* differs |
 | **Walls & scenery** | hex centre + FRM dir/frame offsets, bottom-centre | same via `hexToScreen` + `directionOffsets` + `ox/oy` | ✅ match, minus 1px `−(h−1)` vs `−h` |
-| **Roofs** | square projection, `screenY − 96`; full-hide under building | `tileToScreen` + `scr.y − 96`; full-hide under building + egg-oval when *behind* (`roofEgg`, default on) | ✅ exact position; behind-building egg is a DH2 extension — rendering.md RD06 |
+| **Roofs** | square projection, `screenY − 96` | `tileToScreen` + `scr.y − 96` | ✅ exact; value correct |
 | **Objects / critters / player** | trimmed bitmap at `(centre−w/2, anchorY−(h−1))` | uniform-slot sheet, top-left packed; anchor uses trimmed `w/h` | ✅ match; `uniformFrameWidth` is a DH2 packing artifact |
 | **Object lightmap UV** | one `lightGetTileIntensity` per object (flat) | parity-aware `baseY = 12·ty + (11.25\|5.25) + 6·tx`, ±6 clamp, horizontal LINEAR | ⚠️ approximation (horizontal blend); vertical now exact — see §6 |
 | **Hex ↔ lightmap sampling** | n/a | shader screen→hex inverse of `hexToScreen` | ✅ **fixed 2026-07-02** — centring offset (§6) + selectable interpolation to remove the LINEAR stagger stripes (§7, default `hex-lerp`) |

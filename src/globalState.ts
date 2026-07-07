@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import { AudioEngine } from './audio.js'
-import type { CycleMask } from './colorCycle.js'
 import type { Combat } from './combat.js'
 import { AreaMap } from './data.js'
 import { Point } from './geometry.js'
@@ -25,7 +24,6 @@ import { Player } from './player.js'
 import { Renderer } from './renderer.js'
 import { Skills } from './skills.js'
 import { UIMode } from './ui.js'
-import { Proto } from './proto_types.js'
 
 export type CursorMode = 'move' | 'command' | 'attack' | 'interface' | 'scroll' | 'useSkill'
 
@@ -55,7 +53,6 @@ const globalState = {
     lazyAssetLoadingQueue: {}, // set of lazily-loaded assets being loaded
 
     images: {}, // Image cache
-    cycleMasks: {}, // Cycling palette-index masks for animated tiles/objects (undefined=pending, null=none, CycleMask=data)
     imageInfo: null, // Metadata about images (Number of frames, FPS, etc)
     currentElevation: 0, // current map elevation
     tempCanvas: null, // temporary canvas used for detecting single pixels
@@ -119,19 +116,13 @@ const globalState = {
     gameUIDisabled: false,
 
     drugHandler: null,
-    miscItemUseHandler: null,
 } as {
     gMap: GameMap | null
     combat: Combat | null
     inCombat: boolean
     messageFiles: { [msgFile: string]: { [msgID: string]: string } }
     player: Player | null
-    // Raw parsed proto/pro.json, keyed by subdir (items/critters/scenery/
-    // walls/tiles/misc) then numeric proto ID. `Proto.extra`'s shape varies
-    // by type (item vs critter vs ...) — see src/proto_types.ts ProtoExtra
-    // for the full per-type breakdown; see src/pro.ts loadPRO() for the
-    // lookup path. `null` until loaded.
-    proMap: { [subdir: string]: { [id: string]: Proto } } | null
+    proMap: any // TODO: type
 
     skillMode: Skills
 
@@ -146,8 +137,6 @@ const globalState = {
     }
 
     images: { [name: string]: HTMLImageElement } // Image cache
-    // undefined = cycle mask fetch not yet started/complete; null = no cycling pixels; CycleMask = animated
-    cycleMasks: { [name: string]: CycleMask | null | undefined }
     imageInfo: any // Metadata about images (Number of frames, FPS, etc)
     currentElevation: number // current map elevation
     tempCanvas: HTMLCanvasElement | null // temporary canvas used for detecting single pixels
@@ -201,10 +190,6 @@ const globalState = {
     // Drug use handler — set from main.ts after importing drugs.ts
     // to avoid circular import (object.ts -> scripting.ts -> object.ts)
     drugHandler: ((item: Obj, user: any) => boolean) | null
-
-    // Misc healing item handler (First Aid Kit, Doctor's Bag) — set from main.ts
-    // CE ref: proto_instance.cc:1245 _protinst_use_item_on PID switch
-    miscItemUseHandler: ((item: Obj, user: any) => boolean) | null
 }
 
 export default globalState

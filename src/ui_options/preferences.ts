@@ -23,7 +23,6 @@ import globalState from '../globalState.js'
 
 export interface SavedPreferences {
     difficultyModifier?: 75 | 100 | 125
-    gameDifficultyModifier?: 75 | 100 | 125
     combatSpeed?: number
     violenceLevel?: 0 | 1 | 2 | 3
     targetHighlight?: 'off' | 'on' | 'targeting-only' | boolean // boolean kept for legacy saves
@@ -53,7 +52,6 @@ export function loadPreferences(): void {
     }
 
     if (prefs.difficultyModifier !== undefined) Config.combat.difficultyModifier = prefs.difficultyModifier
-    if (prefs.gameDifficultyModifier !== undefined) Config.combat.gameDifficultyModifier = prefs.gameDifficultyModifier
     if (prefs.combatSpeed !== undefined) Config.combat.combatSpeed = prefs.combatSpeed
     if (prefs.violenceLevel !== undefined) Config.combat.violenceLevel = prefs.violenceLevel
     if (prefs.targetHighlight !== undefined) {
@@ -96,7 +94,6 @@ export function savePreferences(): void {
     const heSpeech = hasVol ? ((eng as unknown) as { speechVolume: number }) : null
     const prefs: SavedPreferences = {
         difficultyModifier: Config.combat.difficultyModifier,
-        gameDifficultyModifier: Config.combat.gameDifficultyModifier,
         combatSpeed: Config.combat.combatSpeed,
         violenceLevel: Config.combat.violenceLevel,
         targetHighlight: Config.ui.targetHighlight,
