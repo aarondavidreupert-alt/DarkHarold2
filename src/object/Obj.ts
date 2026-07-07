@@ -29,7 +29,7 @@ import { getPROSubTypeName, getPROTypeName, loadPRO, lookupArt, makePID } from '
 import { Proto } from '../proto_types.js'
 import { Scripting } from '../scripting.js'
 import { fromTileNum } from '../tile.js'
-import { uiLoot, uiLog } from '../ui.js'
+import { drawHP, uiLoot, uiLog } from '../ui.js'
 import { getMessage, getRandomInt, skillRoll, RollResult } from '../util.js'
 import { showTimerDialog } from '../ui_timer.js'
 import { Config } from '../config.js'
@@ -851,9 +851,34 @@ export class Obj {
         if (this.subtype === 'drug') {
             if (source === undefined) source = globalState.player as Critter
             if (globalState.drugHandler) {
-                globalState.drugHandler(this, source)
-                return true
+                const handled = globalState.drugHandler(this, source)
+                if (handled) {
+                    // CE ref: item.cc itemUse() — drug item is consumed on use.
+                    // Check inventory first, then hand slots.
+                    const owner = source ?? globalState.player as Critter
+                    if (owner) {
+                        const idx = owner.inventory.indexOf(this)
+                        if (idx !== -1) {
+                            if (this.amount > 1) this.amount--
+                            else owner.inventory.splice(idx, 1)
+                        } else {
+                            const ownerAny = owner as any
+                            if (ownerAny.leftHand === this) ownerAny.leftHand = null
+                            else if (ownerAny.rightHand === this) ownerAny.rightHand = null
+                        }
+                    }
+                    if (source?.isPlayer) drawHP(source.getStat('HP'))
+                }
+                return handled
             }
+        }
+
+        // CE ref: proto_instance.cc:1245 _protinst_use_item_on — First Aid Kit /
+        // Doctor's Bag trigger their respective skills, with a 10% chance the
+        // item's supplies are exhausted on use.
+        if (this.subtype === 'misc' && globalState.miscItemUseHandler) {
+            if (source === undefined) source = globalState.player as Critter
+            if (globalState.miscItemUseHandler(this, source)) return true
         }
 
         // CE ref: item.cc:2246-2280 _item_m_use_charged_item() — Stealth Boy /

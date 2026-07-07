@@ -119,6 +119,7 @@ const globalState = {
     gameUIDisabled: false,
 
     drugHandler: null,
+    miscItemUseHandler: null,
 } as {
     gMap: GameMap | null
     combat: Combat | null
@@ -200,6 +201,10 @@ const globalState = {
     // Drug use handler — set from main.ts after importing drugs.ts
     // to avoid circular import (object.ts -> scripting.ts -> object.ts)
     drugHandler: ((item: Obj, user: any) => boolean) | null
+
+    // Misc healing item handler (First Aid Kit, Doctor's Bag) — set from main.ts
+    // CE ref: proto_instance.cc:1245 _protinst_use_item_on PID switch
+    miscItemUseHandler: ((item: Obj, user: any) => boolean) | null
 }
 
 export default globalState

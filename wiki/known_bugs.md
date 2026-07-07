@@ -542,7 +542,7 @@ These systems are out-of-scope and marked deliberately incomplete. They appear i
 |--------|---------|-------|
 | Poison decay loop | `drugs.ts`, `main.ts:1063` | Stat field + tick hook exists; CE formula not implemented |
 | Radiation accumulation | `main.ts:1076` | `applyRadiationSymptoms` runs but does not accumulate rads from exposure |
-| Drug/chem timers | `drugs.ts` | Effect tables defined; no duration/addiction-roll loop |
+| Drug/chem timers | `drugs.ts` | FIXED 2026-07-07 — all 12 chems implemented with correct PIDs, timed effects, addiction, withdrawal messages. See wiki/drugs.md. |
 | Endgame slides | `scripting.ts:1768` | `play_gmovie` skips — no `.mve` infrastructure |
 | Unarmed special-move combat logic | `unarmed.ts` | Mode table defined; combat dispatch not wired |
 | Party full AI | `party.ts` | Shell only; see P3 above |
@@ -562,7 +562,7 @@ The following entries appeared in `TODO.md` but are **confirmed fixed** in `main
 | Object removal `splice()` index drift | `src/map/GameMap.ts` — `_removalQueue` with `drainRemovalQueue()` per heartbeat |
 | Perk selection UI missing | `src/ui_character/perkModal.ts` (`showPerkModal()`) |
 | Trait selection missing | `src/ui_character/creator.ts` |
-| Drug decay / addiction loop missing | `main.ts:1073 tickAddictions()` — runs every 600 ticks |
+| Drug decay / addiction loop | `main.ts:1073 tickAddictions()` — FIXED 2026-07-07, runs every 600 ticks |
 | Poison tick damage missing | `main.ts:1063` — `-1 HP / 10 poison` per 600-tick cycle |
 | Radiation symptom tick missing | `main.ts:1076 applyRadiationSymptoms()` |
 

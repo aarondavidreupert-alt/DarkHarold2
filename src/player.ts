@@ -74,6 +74,27 @@ export class Player extends Critter {
         createObjectWithPID(16),                 // Assault Rifle     (small gun, uses 5mm JHP)
         testStealthBoy(),                        // Stealth Boy       (misc, LE10 charge/toggle test)
 
+        // --- Healing items ---
+        // CE ref: proto_types.h PROTO_ID_STIMPACK=40, _FIRST_AID_KIT=47, _DOCTORS_BAG=91
+        createObjectWithPID(40).setAmount(5),    // Stimpak           x5
+        createObjectWithPID(47).setAmount(3),    // First Aid Kit     x3
+        createObjectWithPID(91).setAmount(2),    // Doctor's Bag      x2
+
+        // --- Drug testing items ---
+        // CE ref: proto_types.h (MENTATS=53, BUFF_OUT=87, PSYCHO=110, JET=259,
+        //   JET_ANTIDOTE=260, RADAWAY=48, NUKA_COLA=106, BEER=124, BOOZE=125, HEALING_POWDER=273)
+        createObjectWithPID(53).setAmount(3),    // Mentats
+        createObjectWithPID(87).setAmount(3),    // Buffout
+        createObjectWithPID(110).setAmount(3),   // Psycho
+        createObjectWithPID(259).setAmount(3),   // Jet
+        createObjectWithPID(260).setAmount(2),   // Jet Antidote
+        createObjectWithPID(48).setAmount(3),    // Rad-Away
+        createObjectWithPID(106).setAmount(5),   // Nuka-Cola
+        createObjectWithPID(124).setAmount(3),   // Beer
+        createObjectWithPID(125).setAmount(3),   // Booze
+        createObjectWithPID(273).setAmount(3),   // Healing Powder
+        createObjectWithPID(144).setAmount(2),   // Super Stimpak
+
         // --- Testing ammo ---
         createObjectWithPID(33).setAmount(200),  // 10mm JHP          (SMG / 10mm Pistol)
         createObjectWithPID(34).setAmount(200),  // 10mm AP           (SMG / 10mm Pistol)

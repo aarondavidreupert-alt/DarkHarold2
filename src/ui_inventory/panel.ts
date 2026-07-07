@@ -377,6 +377,7 @@ export function showInventory() {
             case 'use':
                 console.log('[UI] using object: ' + obj.art)
                 obj.use(globalState.player)
+                showInventory()  // refresh so consumed items disappear
                 break
             case 'drop':
                 console.log('[UI] dropping: ' + obj.art + ' with pid ' + obj.pid)

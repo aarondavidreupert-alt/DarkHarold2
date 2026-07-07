@@ -27,7 +27,7 @@ import { eventLogPush, dbg, dbgWarn } from '../logger.js'
 import { Critter, Obj } from '../object.js'
 import { Player } from '../player.js'
 import { Scripting } from '../scripting.js'
-import { drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiLog, uiStartCombat } from '../ui.js'
+import { drawAC, drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiLog, uiStartCombat } from '../ui.js'
 import { clamp, getMessage, getRandomInt, rollSkillCheck } from '../util.js'
 import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from '../unarmed.js'
 import { ActionPoints } from './actionPoints.js'
@@ -1330,12 +1330,14 @@ export class Combat {
         if (this.whoseTurn >= this.combatants.length) this.whoseTurn = 0
 
         // Convert unused AP to bonus AC for the critter whose turn just ended
+        // CE ref: stat.cc:203-242 — AC += critter->data.critter.combat.ap when not critter's turn
         if (this.whoseTurn > 0 || this.turnNum > 2) {
             var prevIdx = this.whoseTurn - 1
             if (prevIdx < 0) prevIdx = this.combatants.length - 1
             var prev = this.combatants[prevIdx]
             if (!prev.dead && prev.AP) {
                 prev.bonusAC = prev.AP.getAvailableMoveAP()
+                if (prev.isPlayer) drawAC(prev.getStat('AC') + prev.bonusAC)
             }
         }
 
@@ -1347,6 +1349,7 @@ export class Combat {
             this.player.AP!.resetAP()
             drawAP(this.player.AP!.getAvailableMoveAP(), this.player.AP!.getTotalMaxAP())
             drawHP(this.player.getStat('HP'))
+            drawAC(this.player.getStat('AC'))
             eventLogPush({
                 actor: actorName(this.player), action: 'turn-begin',
                 AP: this.player.AP!.getAvailableMoveAP(), HP: this.player.getStat('HP'),
