@@ -266,6 +266,7 @@ export class Renderer {
         this.renderText('mt: ' + mouseSquare.x + ',' + mouseSquare.y, 225, 15)
         this.renderText('m: ' + mousePos[0] + ', ' + mousePos[1], 325, 15)
         this.renderText('lit: ' + _hudLit, 5, 30)
+        this.renderText('cam: ' + Math.round(globalState.cameraPosition.x) + ',' + Math.round(globalState.cameraPosition.y), 5, 45)
 
         //this.text("fps: " + heart.timer.getFPS(), SCREEN_WIDTH - 50, 15)
 
