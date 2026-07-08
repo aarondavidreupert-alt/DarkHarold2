@@ -76,40 +76,57 @@ export function getWorldViewHeight(): number {
     return SCREEN_HEIGHT / getZoom()
 }
 
-// CE ref: tile.cc:537 gTileBorderMinX/MaxX/MinY/MaxY. The world is laid out by
-// hexToScreen so we derive the bounds from the four corner hexes of the 200×200
-// grid. Without these clamps the viewport can scroll past the map edge and
-// expose grey canvas.
-export const MAP_WORLD_BOUNDS = (() => {
-    const corners = [hexToScreen(0, 0), hexToScreen(199, 0), hexToScreen(0, 199), hexToScreen(199, 199)]
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
-    for (const c of corners) {
-        if (c.x < minX) minX = c.x
-        if (c.x > maxX) maxX = c.x
-        if (c.y < minY) minY = c.y
-        if (c.y > maxY) maxY = c.y
-    }
-    return { minX, maxX, minY, maxY }
-})()
+// CE ref: tile.cc:461 tileSetBorder() — border margins computed at 640×380
+// (ORIGINAL_ISO_WINDOW_WIDTH/HEIGHT) regardless of actual viewport size. The
+// CE comment says: "For now keep borders for original resolution."
+//
+// CE calls tileFromScreenXY(-320,-240,0) and tileFromScreenXY(-320,620,0)
+// with the map centre as reference to derive gTileBorderMinX/MaxX/MinY/MaxY.
+// Working through that arithmetic for a 200×200 grid gives valid centre-tile
+// hex ranges (in DH2 coordinates): hex_x ∈ [45,153], hex_y ∈ [44,155].
+//
+// Converting those boundary hexes to world-space (hexToScreen):
+//   minX = hexToScreen(153, 44).x = 1840   (large x → small world X)
+//   maxX = hexToScreen(45,  155).x = 6208   (small x → large world X)
+//   minY = hexToScreen(45,  44).y  = 803
+//   maxY = hexToScreen(153, 155).y = 2783
+//
+// These are the bounds for the VIEWPORT CENTRE, not the camera top-left.
+// The camera top-left bounds are derived per-frame by subtracting half the
+// current world-view size.
+export const CE_CENTER_BOUNDS = {
+    minX: hexToScreen(153, 44).x,   // 1840
+    maxX: hexToScreen(45, 155).x,   // 6208
+    minY: hexToScreen(45, 44).y,    // 803
+    maxY: hexToScreen(153, 155).y,  // 2783
+}
+
+// Keep the old name as an alias so renderer.ts re-exports work unchanged.
+export const MAP_WORLD_BOUNDS = CE_CENTER_BOUNDS
 
 export function clampCameraPosition(): void {
     const viewW = getWorldViewWidth()
     const viewH = getWorldViewHeight()
-    const maxCamX = Math.max(0, MAP_WORLD_BOUNDS.maxX - viewW)
-    const maxCamY = Math.max(0, MAP_WORLD_BOUNDS.maxY - viewH)
+    const halfW = viewW / 2
+    const halfH = viewH / 2
+
+    // Clamp the viewport CENTRE to the CE-faithful scrollable region, then
+    // back-convert to camera top-left. This matches CE tileSetCenter() which
+    // rejects scrolls where tile_x/tile_y fall outside the precomputed borders.
     const prevX = globalState.cameraPosition.x
     const prevY = globalState.cameraPosition.y
-    let nextX = Math.max(MAP_WORLD_BOUNDS.minX, Math.min(maxCamX, prevX))
-    let nextY = Math.max(MAP_WORLD_BOUNDS.minY, Math.min(maxCamY, prevY))
+    let nextX = Math.max(CE_CENTER_BOUNDS.minX - halfW, Math.min(CE_CENTER_BOUNDS.maxX - halfW, prevX))
+    let nextY = Math.max(CE_CENTER_BOUNDS.minY - halfH, Math.min(CE_CENTER_BOUNDS.maxY - halfH, prevY))
+
     // CE ref: object.cc:2559 _obj_scroll_blocking_at — misc PID 0x500000C
-    // (type=5, pidID=12) flags a tile as scroll-blocking. Reject the move
-    // when the new viewport center sits on such a tile.
-    const centerHex = hexFromScreen(nextX + viewW / 2, nextY + viewH / 2)
+    // (type=5, pidID=12) flags a tile as a scroll blocker. Reject the move
+    // when the proposed viewport centre sits on such a tile.
+    const centerHex = hexFromScreen(nextX + halfW, nextY + halfH)
     const gMap = globalState.gMap
     if (gMap) {
-        const blockers = gMap.objectsAtPosition(centerHex).some((o: Obj) =>
+        const blocked = gMap.objectsAtPosition(centerHex).some((o: Obj) =>
             (o as any).type === 'misc' && (o as any).pidID === 12)
-        if (blockers) {
+        if (blocked) {
             nextX = prevX
             nextY = prevY
         }

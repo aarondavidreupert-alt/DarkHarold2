@@ -34,33 +34,45 @@ Additionally `gTileScrollBlockingEnabled` lets individual misc objects (PID `0x5
 
 ## DH2 Implementation
 
-### `MAP_WORLD_BOUNDS` (`src/render/camera.ts`)
-Instead of tile-space margins, DH2 computes world-space (pixel) bounds from the four corner hexes:
-```typescript
-const corners = [hexToScreen(0,0), hexToScreen(199,0), hexToScreen(0,199), hexToScreen(199,199)]
-// → minX≈32, maxX≈8000, minY≈11, maxY≈3587
-```
-This is functionally equivalent to CE's border system: tiles outside 0..199 in either axis don't exist and never render.
+### `CE_CENTER_BOUNDS` (`src/render/camera.ts`)
+The CE border maths (reproduced in comments in camera.ts) gives valid viewport-centre hex ranges:
+- `hex_x ∈ [45, 153]`, `hex_y ∈ [44, 155]` (DH2 coordinates)
 
-### `clampCameraPosition()` (`src/render/camera.ts:95`)
-Clamps `globalState.cameraPosition` to keep the viewport entirely within `MAP_WORLD_BOUNDS`. Also checks for misc `pidID=12` scroll-blocker objects at the prospective viewport center (CE ref: `object.cc:2559 _obj_scroll_blocking_at`).
+Converting those boundary hexes to world-space pixel positions:
+| Bound | Hex | World value |
+|---|---|---|
+| minX (centre) | hexToScreen(153, 44).x | 1840 |
+| maxX (centre) | hexToScreen(45, 155).x | 6208 |
+| minY (centre) | hexToScreen(45, 44).y  | 803  |
+| maxY (centre) | hexToScreen(153, 155).y | 2783 |
+
+These bounds apply to the **viewport centre**, not the camera top-left. The camera's valid top-left range is `[centreMin - viewW/2, centreMax - viewW/2]` and changes with zoom.
+
+### `clampCameraPosition()` (`src/render/camera.ts`)
+Clamps `globalState.cameraPosition` so the viewport centre stays in `CE_CENTER_BOUNDS`. Also checks for misc `pidID=12` scroll-blocker objects (CE ref: `object.cc:2559 _obj_scroll_blocking_at`).
 
 Called from:
 | Site | Trigger |
 |---|---|
 | `gameTick.ts:109` | Mouse-edge scroll (every frame while cursor at border) |
 | `input.ts:314,318,322,326` | Arrow-key / WASD scroll |
-| `camera.ts:129` | `centerCamera()` (map load, player move) |
-| `main.ts` *(gap — now fixed)* | Zoom wheel |
+| `camera.ts` (in `centerCamera()`) | Map load, player move |
+| `main.ts` (zoom wheel) | After zoom-anchor camera mutation |
 
 ### WebGL Black Background
 CE fills unrendered areas with 0 (black) via `bufferFill`. DH2 uses WebGL's `clearColor`:
 - Set to `(0, 0, 0, 1)` in `WebGLRenderer.init()` (`webglContext.ts:325`)
 - Restored to `(0, 0, 0, 1)` after floor-FBO pass (`webglLighting.ts:267`)
-- `WebGLRenderer.clear()` calls `gl.clear(COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT)` each frame, so black shows for any area not covered by tiles
+- `WebGLRenderer.clear()` clears `COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT` each frame
+
+### High-resolution viewports
+CE does not expand borders for viewports larger than 640×380 (see `tileSetBorder` comment).
+sfall covers the extra area with black overlay quads. DH2 relies on `clearColor=(0,0,0,1)` to
+make unrendered viewport margins automatically black — no explicit overlay pass needed,
+because `clampCameraPosition` keeps the valid tile area centred and `gl.clear()` fills the rest.
 
 ## Known Gaps vs CE
-- **Scroll-blocker objects** (misc pidID=12): the `clampCameraPosition` check exists but only fires on the viewport centre hex — CE checks the actual center tile being set. Low impact in practice; no maps in DH2 currently use scroll blockers.
-- **Viewport-relative border margins** (CE "+6"/"+7" padding): DH2 clamps at the world-space pixel of the exact corner hex centre. Tiles at the very edge may be partially clipped rather than kept fully in frame, but the area beyond renders black correctly.
+- **Scroll-blocker objects** (misc pidID=12): the `clampCameraPosition` check fires on the viewport centre hex — CE checks the actual candidate centre tile. Low impact; no maps in DH2 currently use scroll blockers.
+- **Odd-column border alignment**: CE adjusts `gTileBorderMinX` by ±1 to keep it odd (for hex column alignment). The DH2 world-space clamp skips this; the difference is sub-tile (≤16 px) and not perceptible.
 
-<!-- audited: 2026-07-07 -->
+<!-- audited: 2026-07-08 -->
