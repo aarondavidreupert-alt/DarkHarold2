@@ -168,6 +168,10 @@ export function computeMapContentBounds(floorMap: string[][] | null): void {
         }
     }
     mapContentBounds = (minX === Infinity) ? null : { minX, maxX, minY, maxY }
+    // Diagnostic: expose to the console so map extents can be inspected live.
+    ;(window as any).mapContentBounds = mapContentBounds
+    console.log('[scroll] mapContentBounds =', JSON.stringify(mapContentBounds),
+        'floor', floorMap.length + 'x' + (floorMap[0]?.length ?? 0))
 }
 
 // Keep the old name as an alias so renderer.ts re-exports work unchanged.
