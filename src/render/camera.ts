@@ -80,25 +80,37 @@ export function getWorldViewHeight(): number {
 // (ORIGINAL_ISO_WINDOW_WIDTH/HEIGHT) regardless of actual viewport size. The
 // CE comment says: "For now keep borders for original resolution."
 //
-// CE calls tileFromScreenXY(-320,-240,0) and tileFromScreenXY(-320,620,0)
-// with the map centre as reference to derive gTileBorderMinX/MaxX/MinY/MaxY.
-// Working through that arithmetic for a 200×200 grid gives valid centre-tile
-// hex ranges (in DH2 coordinates): hex_x ∈ [45,153], hex_y ∈ [44,155].
-//
-// Converting those boundary hexes to world-space (hexToScreen):
-//   minX = hexToScreen(153, 44).x = 1840   (large x → small world X)
-//   maxX = hexToScreen(45,  155).x = 6208   (small x → large world X)
-//   minY = hexToScreen(45,  44).y  = 803
-//   maxY = hexToScreen(153, 155).y = 2783
-//
-// These are the bounds for the VIEWPORT CENTRE, not the camera top-left.
-// The camera top-left bounds are derived per-frame by subtracting half the
-// current world-view size.
+// CE's borders cover the full 200×200 tile grid minus a viewport-sized margin,
+// which is much wider than any individual map's content area. DH2 maps only
+// place floor tiles in the content region; areas outside render as black.
+// So we use per-map empirically-tuned limits (viewport-centre world coords)
+// that match each map's actual playfield, with CE_CENTER_BOUNDS as fallback.
 export const CE_CENTER_BOUNDS = {
-    minX: hexToScreen(153, 44).x,   // 1840
+    minX: hexToScreen(153, 44).x,   // 1840 — full 200×200 grid fallback
     maxX: hexToScreen(45, 155).x,   // 6208
     minY: hexToScreen(45, 44).y,    // 803
     maxY: hexToScreen(153, 155).y,  // 2783
+}
+
+// Per-map scroll limits (viewport-centre world coords, empirically tuned).
+// Key = map filename stem, lowercase (matches GameMap.name).
+// Add an entry for each map as it is tested in-game.
+const MAP_SCROLL_LIMITS: Record<string, typeof CE_CENTER_BOUNDS> = {
+    arvillag: { minX: 3367, maxX: 4492, minY: 1370, maxY: 2210 },
+    kladwtwn: { minX: 3178, maxX: 4918, minY: 1400, maxY: 2150 },
+    klatrap:  { minX: 3343, maxX: 4468, minY: 1445, maxY: 2090 },
+    geckjunk: { minX: 3535, maxX: 4870, minY: 1463, maxY: 2183 },
+}
+
+// Active limits — updated by setMapScrollLimits() on each map load.
+let _activeLimits: typeof CE_CENTER_BOUNDS = CE_CENTER_BOUNDS
+
+export function setMapScrollLimits(mapName: string): void {
+    _activeLimits = MAP_SCROLL_LIMITS[mapName] ?? CE_CENTER_BOUNDS
+}
+
+export function getActiveScrollLimits(): typeof CE_CENTER_BOUNDS {
+    return (window as any).scrollLimits ?? _activeLimits
 }
 
 // Keep the old name as an alias so renderer.ts re-exports work unchanged.
@@ -110,13 +122,18 @@ export function clampCameraPosition(): void {
     const halfW = viewW / 2
     const halfH = viewH / 2
 
-    // Clamp the viewport CENTRE to the CE-faithful scrollable region, then
-    // back-convert to camera top-left. This matches CE tileSetCenter() which
-    // rejects scrolls where tile_x/tile_y fall outside the precomputed borders.
+    // Allow live tuning from the DevTools console without recompiling:
+    //   window.scrollLimits = { minX: 3367, maxX: 4492, minY: 1370, maxY: 2210 }
+    // Values are viewport-CENTRE world coords (zoom-independent).
+    // Reset with:  delete window.scrollLimits
+    const lim: typeof CE_CENTER_BOUNDS = (window as any).scrollLimits ?? _activeLimits
+
+    // Clamp the viewport CENTRE to the scrollable region, then back-convert to
+    // camera top-left. Matches CE tileSetCenter() border check (tile.cc:537).
     const prevX = globalState.cameraPosition.x
     const prevY = globalState.cameraPosition.y
-    let nextX = Math.max(CE_CENTER_BOUNDS.minX - halfW, Math.min(CE_CENTER_BOUNDS.maxX - halfW, prevX))
-    let nextY = Math.max(CE_CENTER_BOUNDS.minY - halfH, Math.min(CE_CENTER_BOUNDS.maxY - halfH, prevY))
+    let nextX = Math.max(lim.minX - halfW, Math.min(lim.maxX - halfW, prevX))
+    let nextY = Math.max(lim.minY - halfH, Math.min(lim.maxY - halfH, prevY))
 
     // CE ref: object.cc:2559 _obj_scroll_blocking_at — misc PID 0x500000C
     // (type=5, pidID=12) flags a tile as a scroll blocker. Reject the move

@@ -28,6 +28,7 @@ import { Lightmap } from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Critter, deserializeObj, Obj, objFromMapObject } from '../object.js'
 import { centerCamera } from '../renderer.js'
+import { setMapScrollLimits } from '../render/camera.js'
 import { Scripting } from '../scripting.js'
 import { fromTileNum, hexToTile } from '../tile.js'
 import { arrayWithout, getFileJSON } from '../util.js'
@@ -119,6 +120,7 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
         }
 
         this.name = mapName.toLowerCase()
+        setMapScrollLimits(this.name)
 
         Events.emit('loadMapPre')
 

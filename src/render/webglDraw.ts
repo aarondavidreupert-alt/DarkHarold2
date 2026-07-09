@@ -9,10 +9,12 @@ import { dbg } from '../logger.js'
 import { WebGLRenderer } from './webglContext.js'
 import { hexDistance } from '../geometry.js'
 import { hexIsInFrontOf, hexIsToRightOf } from '../geometry/hexScreen.js'
+import { getActiveScrollLimits, getWorldViewWidth, getWorldViewHeight } from './camera.js'
 
 declare module './webglContext.js' {
     interface WebGLRenderer {
         renderText(txt: string, x: number, y: number, align?: CanvasTextAlign, color?: string): void
+        renderScrollBorderOverlay(): void
         renderImage(imgPath: string, x: number, y: number, width: number, height: number): void
         renderFont(font: Font, x: number, y: number): void
         drawTileMap(tilemap: TileMap, offsetY: number): void
@@ -55,6 +57,43 @@ WebGLRenderer.prototype.renderText = function (
     ctx.lineWidth = 2
     ctx.strokeText(txt, x, y)
     ctx.fillText(txt, x, y)
+}
+
+// sfall-style black overlay: draw solid black rects over the portions of the
+// viewport that fall outside the active map scroll limits. This masks empty
+// (unrendered) world-space areas at the map boundary, identical to sfall's
+// approach of covering the extra resolution overhang with black quads.
+// The scroll clamp already prevents the camera centre from leaving the content
+// area; this overlay handles the half-viewport margin at the map edge and any
+// zoom-transition frames where the edge might momentarily be visible.
+WebGLRenderer.prototype.renderScrollBorderOverlay = function (): void {
+    const lim = getActiveScrollLimits()
+    const cam = globalState.cameraPosition
+    const z = getZoom()
+    const ctx = this.textCtx
+
+    // Convert world-space limit to screen pixels.
+    // limit.minX is the min allowed viewport-centre world X. The left edge of
+    // the content in screen space = (lim.minX - cam.x) * z.
+    const leftEdge  = (lim.minX - cam.x) * z   // screen X where content starts
+    const rightEdge = (lim.maxX - cam.x) * z   // screen X where content ends
+    const topEdge   = (lim.minY - cam.y) * z   // screen Y where content starts
+    const botEdge   = (lim.maxY - cam.y) * z   // screen Y where content ends
+
+    ctx.fillStyle = '#000000'
+
+    // Left bar
+    if (leftEdge > 0)
+        ctx.fillRect(0, 0, leftEdge, SCREEN_HEIGHT)
+    // Right bar
+    if (rightEdge < SCREEN_WIDTH)
+        ctx.fillRect(rightEdge, 0, SCREEN_WIDTH - rightEdge, SCREEN_HEIGHT)
+    // Top bar (between left and right edges to avoid corner double-fill)
+    if (topEdge > 0)
+        ctx.fillRect(leftEdge, 0, rightEdge - leftEdge, topEdge)
+    // Bottom bar
+    if (botEdge < SCREEN_HEIGHT)
+        ctx.fillRect(leftEdge, botEdge, rightEdge - leftEdge, SCREEN_HEIGHT - botEdge)
 }
 
 WebGLRenderer.prototype.drawTileMap = function (tilemap: TileMap, offsetY: number): void {

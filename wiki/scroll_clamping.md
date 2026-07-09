@@ -34,17 +34,30 @@ Additionally `gTileScrollBlockingEnabled` lets individual misc objects (PID `0x5
 
 ## DH2 Implementation
 
-### `CE_CENTER_BOUNDS` (`src/render/camera.ts`)
-The CE border maths (reproduced in comments in camera.ts) gives valid viewport-centre hex ranges:
-- `hex_x ∈ [45, 153]`, `hex_y ∈ [44, 155]` (DH2 coordinates)
+### Scroll Limits Strategy
+CE's borders cover the entire 200×200 tile grid minus a viewport-margin. In CE, empty areas still render terrain — scrolling there shows sparse land, not black. DH2 maps only place floor tiles in the content region; areas outside are unrendered and show black.
 
-Converting those boundary hexes to world-space pixel positions:
+Because of this, DH2 uses **per-map empirically-tuned viewport-centre limits** rather than the CE formula directly. CE's computed limits (`CE_CENTER_BOUNDS`) serve only as a fallback for untested maps.
+
+### `CE_CENTER_BOUNDS` / `MAP_SCROLL_LIMITS` (`src/render/camera.ts`)
+`CE_CENTER_BOUNDS` (full-grid fallback):
 | Bound | Hex | World value |
 |---|---|---|
 | minX (centre) | hexToScreen(153, 44).x | 1840 |
 | maxX (centre) | hexToScreen(45, 155).x | 6208 |
 | minY (centre) | hexToScreen(45, 44).y  | 803  |
 | maxY (centre) | hexToScreen(153, 155).y | 2783 |
+
+Per-map calibrated limits (viewport-centre world coords, tested in-game via `window.scrollLimits`):
+| Map file | Location | minX | maxX | minY | maxY |
+|---|---|---|---|---|---|
+| `arvillag` | Arroyo Village | 3367 | 4492 | 1370 | 2210 |
+| `kladwtwn` | Klamath Downtown | 3178 | 4918 | 1400 | 2150 |
+| `klatrap`  | Klamath Trapping Caves | 3343 | 4468 | 1445 | 2090 |
+| `geckjunk` | Gecko Junkyard | 3535 | 4870 | 1463 | 2183 |
+
+### `setMapScrollLimits(mapName)` (`src/render/camera.ts`)
+Called from `mapLoader.ts` immediately after `this.name = mapName.toLowerCase()`. Looks up `MAP_SCROLL_LIMITS[mapName]`, falls back to `CE_CENTER_BOUNDS` for uncalibrated maps.
 
 These bounds apply to the **viewport centre**, not the camera top-left. The camera's valid top-left range is `[centreMin - viewW/2, centreMax - viewW/2]` and changes with zoom.
 
@@ -76,3 +89,4 @@ because `clampCameraPosition` keeps the valid tile area centred and `gl.clear()`
 - **Odd-column border alignment**: CE adjusts `gTileBorderMinX` by ±1 to keep it odd (for hex column alignment). The DH2 world-space clamp skips this; the difference is sub-tile (≤16 px) and not perceptible.
 
 <!-- audited: 2026-07-08 -->
+<!-- per-map table updated: 2026-07-08 (arvillag, kladwtwn) -->
