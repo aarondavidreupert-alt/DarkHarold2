@@ -61,6 +61,11 @@ export class WebGLRenderer extends Renderer {
     uTileZoom: WebGLUniformLocation | null = null
     uFloorLightZoom: WebGLUniformLocation | null = null
     uAlpha: WebGLUniformLocation | null = null
+    // CE ref: cycle.cc colorCycleTicker() — animated palette entries 229-254.
+    uCycleTime: WebGLUniformLocation | null = null   // seconds since page load
+    uCycleMask: WebGLUniformLocation | null = null   // sampler2D unit 7: R8 cycle-group texture
+    cycleMaskTextures: { [key: string]: WebGLTexture | null } = {}
+    cycleMaskNullTex: WebGLTexture | null = null      // 1×1 R8=0, bound when no cycle data
     uEggMode: WebGLUniformLocation | null = null
     uEggCenter: WebGLUniformLocation | null = null
     uEggSize: WebGLUniformLocation | null = null
@@ -153,6 +158,37 @@ export class WebGLRenderer extends Renderer {
             return null
         }
         return this.textures[name]
+    }
+
+    // Returns the R8 cycle-mask texture for the given art key, or the 1×1 null texture.
+    // Lazily uploads from globalState.cycleMasks when the async parse has resolved.
+    // CE ref: cycle.cc — palette indices 229-254 animated at runtime.
+    getCycleMaskTex(key: string): WebGLTexture {
+        if (key in this.cycleMaskTextures) {
+            return this.cycleMaskTextures[key] ?? this.cycleMaskNullTex!
+        }
+        const cm = globalState.cycleMasks[key]
+        if (cm === undefined) {
+            return this.cycleMaskNullTex!
+        }
+        if (cm === null) {
+            this.cycleMaskTextures[key] = null
+            return this.cycleMaskNullTex!
+        }
+        const gl = this.gl
+        const tex = gl.createTexture()!
+        gl.activeTexture(gl.TEXTURE7)
+        gl.bindTexture(gl.TEXTURE_2D, tex)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, cm.width, cm.height, 0, gl.RED, gl.UNSIGNED_BYTE, cm.data)
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4)
+        gl.activeTexture(gl.TEXTURE0)
+        this.cycleMaskTextures[key] = tex
+        return tex
     }
 
     // create a texture from an array-like thing into a 3-component Float32Array using only the R component
@@ -423,6 +459,20 @@ export class WebGLRenderer extends Renderer {
         if (this.uTileZoom) gl.uniform1f(this.uTileZoom, 1.0)
         this.uAlpha = gl.getUniformLocation(this.tileShader, 'u_alpha')
         if (this.uAlpha) gl.uniform1f(this.uAlpha, 1.0)
+        // Color cycling — CE ref: cycle.cc colorCycleTicker().
+        this.uCycleTime = gl.getUniformLocation(this.tileShader, 'u_cycleTime')
+        if (this.uCycleTime) gl.uniform1f(this.uCycleTime, 0.0)
+        this.uCycleMask = gl.getUniformLocation(this.tileShader, 'u_cycleMask')
+        gl.uniform1i(gl.getUniformLocation(this.tileShader, 'u_cycleMask'), 7)
+        this.cycleMaskNullTex = gl.createTexture()
+        gl.activeTexture(gl.TEXTURE7)
+        gl.bindTexture(gl.TEXTURE_2D, this.cycleMaskNullTex)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array([0]))
+        gl.activeTexture(gl.TEXTURE0)
         this.uEggMode = gl.getUniformLocation(this.tileShader, 'u_eggMode')
         this.uEggCenter = gl.getUniformLocation(this.tileShader, 'u_eggCenter')
         this.uEggSize = gl.getUniformLocation(this.tileShader, 'u_eggSize')

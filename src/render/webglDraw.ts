@@ -9,7 +9,7 @@ import { dbg } from '../logger.js'
 import { WebGLRenderer } from './webglContext.js'
 import { hexDistance } from '../geometry.js'
 import { hexIsInFrontOf, hexIsToRightOf } from '../geometry/hexScreen.js'
-import { getActiveScrollLimits, getWorldViewWidth, getWorldViewHeight } from './camera.js'
+import { mapContentBounds } from './camera.js'
 
 declare module './webglContext.js' {
     interface WebGLRenderer {
@@ -59,41 +59,46 @@ WebGLRenderer.prototype.renderText = function (
     ctx.fillText(txt, x, y)
 }
 
-// sfall-style black overlay: draw solid black rects over the portions of the
-// viewport that fall outside the active map scroll limits. This masks empty
-// (unrendered) world-space areas at the map boundary, identical to sfall's
-// approach of covering the extra resolution overhang with black quads.
-// The scroll clamp already prevents the camera centre from leaving the content
-// area; this overlay handles the half-viewport margin at the map edge and any
-// zoom-transition frames where the edge might momentarily be visible.
+// CE-faithful black map border. CE ref: tile.cc tileRefreshGame bufferFill(0) —
+// every pixel past the last real floor tile is black. We reproduce that by
+// filling black over the four screen margins that fall outside the map's fixed
+// world-space content bbox (computeMapContentBounds). Because the bbox is fixed
+// in world space, this is fully robust to zoom, pan, and window resolution: the
+// bars grow/shrink automatically as the content projects to more or fewer screen
+// pixels. Decoupled from the scroll clamp entirely — the clamp controls where
+// you *can* look; this controls what the empty area *looks like*.
+//
+// The content diamond's axis-aligned bbox includes four triangular corners that
+// have no tiles; those are left to the WebGL clearColor=(0,0,0,1) beneath this
+// transparent overlay, so the whole non-content region ends up black.
 WebGLRenderer.prototype.renderScrollBorderOverlay = function (): void {
-    const lim = getActiveScrollLimits()
+    const b = mapContentBounds
+    if (!b) return
     const cam = globalState.cameraPosition
     const z = getZoom()
     const ctx = this.textCtx
 
-    // Convert world-space limit to screen pixels.
-    // limit.minX is the min allowed viewport-centre world X. The left edge of
-    // the content in screen space = (lim.minX - cam.x) * z.
-    const leftEdge  = (lim.minX - cam.x) * z   // screen X where content starts
-    const rightEdge = (lim.maxX - cam.x) * z   // screen X where content ends
-    const topEdge   = (lim.minY - cam.y) * z   // screen Y where content starts
-    const botEdge   = (lim.maxY - cam.y) * z   // screen Y where content ends
+    // Project the world-space content bbox to screen pixels.
+    const leftEdge  = (b.minX - cam.x) * z
+    const rightEdge = (b.maxX - cam.x) * z
+    const topEdge   = (b.minY - cam.y) * z
+    const botEdge   = (b.maxY - cam.y) * z
 
     ctx.fillStyle = '#000000'
 
-    // Left bar
+    // Clamp the inner cross-bars to the screen so top/bottom bars never draw
+    // with negative width when a side bar already covers the whole edge.
+    const innerL = Math.max(0, leftEdge)
+    const innerR = Math.min(SCREEN_WIDTH, rightEdge)
+
     if (leftEdge > 0)
         ctx.fillRect(0, 0, leftEdge, SCREEN_HEIGHT)
-    // Right bar
     if (rightEdge < SCREEN_WIDTH)
         ctx.fillRect(rightEdge, 0, SCREEN_WIDTH - rightEdge, SCREEN_HEIGHT)
-    // Top bar (between left and right edges to avoid corner double-fill)
-    if (topEdge > 0)
-        ctx.fillRect(leftEdge, 0, rightEdge - leftEdge, topEdge)
-    // Bottom bar
-    if (botEdge < SCREEN_HEIGHT)
-        ctx.fillRect(leftEdge, botEdge, rightEdge - leftEdge, SCREEN_HEIGHT - botEdge)
+    if (topEdge > 0 && innerR > innerL)
+        ctx.fillRect(innerL, 0, innerR - innerL, topEdge)
+    if (botEdge < SCREEN_HEIGHT && innerR > innerL)
+        ctx.fillRect(innerL, botEdge, innerR - innerL, SCREEN_HEIGHT - botEdge)
 }
 
 WebGLRenderer.prototype.drawTileMap = function (tilemap: TileMap, offsetY: number): void {
@@ -769,6 +774,13 @@ WebGLRenderer.prototype.renderFrame = function (
     // draw
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, texture)
+
+    // Bind cycle mask to unit 7; update wall-clock time for shader animation.
+    // CE ref: cycle.cc colorCycleTicker() — animated palette entries 229-254.
+    gl.activeTexture(gl.TEXTURE7)
+    gl.bindTexture(gl.TEXTURE_2D, this.getCycleMaskTex(imgPath))
+    gl.activeTexture(gl.TEXTURE0)
+    if (this.uCycleTime) gl.uniform1f(this.uCycleTime, performance.now() / 1000.0)
 
     gl.uniform1f(this.uNumFramesLocation, totalFrames)
     gl.uniform1f(this.uFrameLocation, frame)

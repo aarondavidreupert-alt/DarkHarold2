@@ -23,6 +23,7 @@ import { Lightmap } from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Critter, deserializeObj, Obj } from '../object.js'
 import { centerCamera } from '../renderer.js'
+import { computeMapContentBounds } from '../render/camera.js'
 import { Scripting } from '../scripting.js'
 import { fromTileNum, hexToTile } from '../tile.js'
 import { arrayRemove, arrayWithout } from '../util.js'
@@ -234,6 +235,9 @@ export class GameMap {
         this._isOutdoorCachedElevation = -1
         this.floorMap = this.mapObj.levels[level].tiles.floor
         this.roofMap = this.mapObj.levels[level].tiles.roof
+        // Recompute the world-space content bbox for the black edge overlay.
+        // Per-elevation: floor layout differs between levels.
+        computeMapContentBounds(this.floorMap)
         //this.spatials = this.mapObj.levels[level]["spatials"]
 
         // If we're in combat, end it since we're moving off of that elevation
@@ -508,6 +512,7 @@ export class GameMap {
         }
         this.roofMap = obj.roofMap
         this.floorMap = obj.floorMap
+        computeMapContentBounds(this.floorMap)
         this.currentElevation = 0 // TODO
 
         //this.mapObj = {levels: [{tiles: {floor: this.floorMap, roof: this.roofMap}}]} // TODO: add dimension to roofMap

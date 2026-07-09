@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { AudioEngine } from './audio.js'
+import type { CycleMask } from './colorCycle.js'
 import type { Combat } from './combat.js'
 import { AreaMap } from './data.js'
 import { Point } from './geometry.js'
@@ -53,6 +54,7 @@ const globalState = {
     lazyAssetLoadingQueue: {}, // set of lazily-loaded assets being loaded
 
     images: {}, // Image cache
+    cycleMasks: {}, // Cycling palette-index masks for animated tiles/objects (undefined=pending, null=none, CycleMask=data)
     imageInfo: null, // Metadata about images (Number of frames, FPS, etc)
     currentElevation: 0, // current map elevation
     tempCanvas: null, // temporary canvas used for detecting single pixels
@@ -137,6 +139,8 @@ const globalState = {
     }
 
     images: { [name: string]: HTMLImageElement } // Image cache
+    // undefined = cycle mask fetch not yet started/complete; null = no cycling pixels; CycleMask = animated
+    cycleMasks: { [name: string]: CycleMask | null | undefined }
     imageInfo: any // Metadata about images (Number of frames, FPS, etc)
     currentElevation: number // current map elevation
     tempCanvas: HTMLCanvasElement | null // temporary canvas used for detecting single pixels
