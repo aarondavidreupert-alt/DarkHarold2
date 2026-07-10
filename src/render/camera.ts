@@ -111,7 +111,8 @@ export const CE_CENTER_BOUNDS = {
 // push the auto bbox too wide. Empty by default; auto object-bbox handles all
 // shipped maps. Add an entry here only if a specific map's auto bounds feel wrong.
 const MAP_SCROLL_LIMITS: Record<string, typeof CE_CENTER_BOUNDS> = {
-    newrst: { minX: 2400, maxX: 5324, minY: 1051, maxY: 2459 },
+    arvillag: { minX: 2920, maxX: 4944, minY:  991, maxY: 2579 },
+    newrst:   { minX: 2400, maxX: 5324, minY: 1051, maxY: 2459 },
 }
 
 // Active limits — updated by setMapScrollLimits() on each map load.
