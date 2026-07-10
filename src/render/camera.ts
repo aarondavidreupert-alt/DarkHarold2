@@ -107,14 +107,11 @@ export const CE_CENTER_BOUNDS = {
     maxY: hexToScreen(153, 155).y,  // 2783
 }
 
-// Per-map scroll limits (viewport-centre world coords, empirically tuned).
-// Key = map filename stem, lowercase (matches GameMap.name).
-// Add an entry for each map as it is tested in-game.
+// Per-map scroll limits — emergency override for maps with outlier objects that
+// push the auto bbox too wide. Empty by default; auto object-bbox handles all
+// shipped maps. Add an entry here only if a specific map's auto bounds feel wrong.
 const MAP_SCROLL_LIMITS: Record<string, typeof CE_CENTER_BOUNDS> = {
-    arvillag: { minX: 3367, maxX: 4492, minY: 1370, maxY: 2210 },
-    kladwtwn: { minX: 3178, maxX: 4918, minY: 1400, maxY: 2150 },
-    klatrap:  { minX: 3343, maxX: 4468, minY: 1445, maxY: 2090 },
-    geckjunk: { minX: 3535, maxX: 4870, minY: 1463, maxY: 2183 },
+    newrst: { minX: 2400, maxX: 5324, minY: 1051, maxY: 2459 },
 }
 
 // Active limits — updated by setMapScrollLimits() on each map load.
@@ -155,6 +152,9 @@ export function getActiveScrollLimits(): typeof CE_CENTER_BOUNDS {
 // Falls back to expanding the active clamp by the current half-viewport so bars
 // still appear at the clamp edge if no object bbox is available.
 export function getActiveScrollBarBounds(): typeof CE_CENTER_BOUNDS | null {
+    // blackBar() editor: window.scrollLimits is the live bar edge source
+    if ((window as any).scrollLimits) return (window as any).scrollLimits
+    // Normal: object bbox is the authoritative edge source
     if (objectContentBounds) return objectContentBounds
     // No object bbox: derive edge bounds from centre clamp + current half-view.
     const lim = getActiveScrollLimits()
@@ -257,42 +257,88 @@ export function computeMapContentBounds(floorMap: string[][] | null): void {
     return out
 }
 
-// --- Manual border calibration helpers (call from the DevTools console) ---
+// --- Interactive black-bar editor (call from DevTools console) ---
 //
-//   borderCalib()                 → turn ON grey calibration overlay
-//   borderCalib(false)            → turn OFF (back to solid black)
-//   setBorder(minX,maxX,minY,maxY)→ set window.scrollLimits directly
-//   grabBorderEdge('left')        → set the current viewport-centre as the
-//                                    left/right/top/bottom limit (scroll to the
-//                                    edge you want, then call this per side)
-//   clearBorder()                 → delete window.scrollLimits (use table value)
+//   blackBar('W')   → edit west  bar with PageUp/PageDown
+//   blackBar('E')   → edit east  bar
+//   blackBar('N')   → edit north bar
+//   blackBar('S')   → edit south bar
+//   blackBar()      → exit editor (bars go solid black, clamp re-enabled)
 //
-;(window as any).borderCalib = function (on = true) {
-    ;(window as any).borderDebug = !!on
-    console.log('[border] calibration overlay ' + (on ? 'ON (grey)' : 'OFF (black)'))
+//   While in edit mode:
+//     PageUp   → move active bar outward (more map visible)
+//     PageDown → move active bar inward  (less map visible)
+//     Step = 20 world units per press (hold Shift = 5)
+//
+//   clearBorder() → revert to auto object-bbox bounds
+//
+const BB_STEP = 20
+
+let _bbKeyListener: ((e: KeyboardEvent) => void) | null = null
+
+;(window as any).blackBar = function (side?: 'W' | 'E' | 'N' | 'S') {
+    // Exit mode
+    if (!side) {
+        ;(window as any).borderDebug = false
+        ;(window as any)._bbSide = null
+        if (_bbKeyListener) { document.removeEventListener('keydown', _bbKeyListener); _bbKeyListener = null }
+        const mapName = (globalState.gMap as any)?.name ?? '?'
+        const lim = (window as any).scrollLimits
+        if (lim) console.log('[blackBar] SAVE → ' + mapName + ': ' + JSON.stringify(lim))
+        console.log('[blackBar] OFF — bars solid black, clamp active')
+        return
+    }
+
+    // Seed window.scrollLimits from the current auto bounds so edits are relative
+    if (!(window as any).scrollLimits) {
+        const b = objectContentBounds
+        if (b) {
+            ;(window as any).scrollLimits = { minX: b.minX, maxX: b.maxX, minY: b.minY, maxY: b.maxY }
+        } else {
+            ;(window as any).scrollLimits = { ...getActiveScrollLimits() }
+        }
+    }
+
+    ;(window as any).borderDebug = true   // grey overlay + free scroll
+    ;(window as any)._bbSide = side
+
+    // Remove any previous listener before adding a new one
+    if (_bbKeyListener) document.removeEventListener('keydown', _bbKeyListener)
+
+    _bbKeyListener = function (e: KeyboardEvent) {
+        if (e.code !== 'PageUp' && e.code !== 'PageDown') return
+        e.preventDefault()
+        const step = e.shiftKey ? 5 : BB_STEP
+        const out = e.code === 'PageUp'  // true = more visible = bar moves outward
+        const lim = (window as any).scrollLimits
+        const s = (window as any)._bbSide
+        if (s === 'W') lim.minX += out ? -step : +step
+        if (s === 'E') lim.maxX += out ? +step : -step
+        if (s === 'N') lim.minY += out ? -step : +step
+        if (s === 'S') lim.maxY += out ? +step : -step
+        // Keep overlay source in sync (objectContentBounds is immutable; scroll limits override it)
+        const mapName = (globalState.gMap as any)?.name ?? '?'
+    console.log('[blackBar] ' + mapName + ' ' + s + ' → ' + JSON.stringify(lim))
+    }
+    document.addEventListener('keydown', _bbKeyListener)
+
+    console.log('[blackBar] editing ' + side + ' bar  |  PageUp=more  PageDown=less  Shift=fine  |  blackBar() to exit')
+    console.log('[blackBar] current = ' + JSON.stringify((window as any).scrollLimits))
 }
-;(window as any).setBorder = function (minX: number, maxX: number, minY: number, maxY: number) {
-    ;(window as any).scrollLimits = { minX, maxX, minY, maxY }
-    console.log('[border] window.scrollLimits = ' + JSON.stringify((window as any).scrollLimits))
-    return (window as any).scrollLimits
+
+;(window as any).borderSave = function () {
+    const mapName = (globalState.gMap as any)?.name ?? '?'
+    const lim = (window as any).scrollLimits ?? objectContentBounds
+    console.log(mapName + ': ' + JSON.stringify(lim))
+    return lim
 }
+
 ;(window as any).clearBorder = function () {
     delete (window as any).scrollLimits
-    console.log('[border] window.scrollLimits cleared')
-}
-;(window as any).grabBorderEdge = function (side: 'left' | 'right' | 'top' | 'bottom') {
-    const cam = globalState.cameraPosition
-    const cx = Math.round(cam.x + getWorldViewWidth() / 2)
-    const cy = Math.round(cam.y + getWorldViewHeight() / 2)
-    const cur = (window as any).scrollLimits ?? { ...getActiveScrollLimits() }
-    if (side === 'left') cur.minX = cx
-    else if (side === 'right') cur.maxX = cx
-    else if (side === 'top') cur.minY = cy
-    else if (side === 'bottom') cur.maxY = cy
-    ;(window as any).scrollLimits = cur
-    console.log('[border] ' + side + ' = ' + (side === 'left' || side === 'right' ? cx : cy) +
-        '  → window.scrollLimits = ' + JSON.stringify(cur))
-    return cur
+    ;(window as any).borderDebug = false
+    ;(window as any)._bbSide = null
+    if (_bbKeyListener) { document.removeEventListener('keydown', _bbKeyListener); _bbKeyListener = null }
+    console.log('[border] cleared — auto object-bbox bounds restored')
 }
 
 // Keep the old name as an alias so renderer.ts re-exports work unchanged.
