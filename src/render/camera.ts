@@ -23,6 +23,11 @@ import { Obj } from '../object.js'
 import { Config } from '../config.js'
 import { tileToScreen, TILE_WIDTH, TILE_HEIGHT } from '../tile.js'
 
+// Sprite half-extents added to each object's screen position so the bbox
+// covers the full art footprint, not just the anchor point.
+const OBJ_HALF_W = 48
+const OBJ_HALF_H = 36
+
 // Logical screen dimensions. Dynamic — resized at runtime when the browser
 // window resizes so the visible world area grows/shrinks with the viewport.
 // Exposed as `export let` so ES-module consumers pick up the updated value
@@ -119,17 +124,42 @@ export function setMapScrollLimits(mapName: string): void {
     _activeLimits = MAP_SCROLL_LIMITS[mapName] ?? CE_CENTER_BOUNDS
 }
 
-// Returns the active centre bounds (used by the scroll clamp).
+// Returns the active viewport-CENTRE clamp bounds. Precedence:
+//   1. window.scrollLimits  — live console override / calibration
+//   2. MAP_SCROLL_LIMITS    — per-map hand-calibrated (set on map load)
+//   3. objectContentBounds inset by the CE reference half-extents (320, 190)
+//      — automatic, derived from placed-object world bbox
+//   4. CE_CENTER_BOUNDS     — full 200×200 grid fallback (CE-faithful but wide)
 export function getActiveScrollLimits(): typeof CE_CENTER_BOUNDS {
-    return (window as any).scrollLimits ?? _activeLimits
+    if ((window as any).scrollLimits) return (window as any).scrollLimits
+    if (_activeLimits !== CE_CENTER_BOUNDS) return _activeLimits
+    // Automatic: inset object bbox by CE reference viewport half-extents so the
+    // clamp stops the camera before placed objects scroll fully off screen.
+    if (objectContentBounds) {
+        const b = objectContentBounds
+        const inX = ORIGINAL_ISO_WINDOW_WIDTH  / 2  // 320
+        const inY = ORIGINAL_ISO_WINDOW_HEIGHT / 2  // 190
+        return {
+            minX: b.minX + inX,
+            maxX: b.maxX - inX,
+            minY: b.minY + inY,
+            maxY: b.maxY - inY,
+        }
+    }
+    return CE_CENTER_BOUNDS
 }
 
-// Returns content-EDGE bounds for the overlay: expand centre bounds outward by
-// the current half-viewport so the overlay only fires when the viewport edge
-// actually extends past the content boundary.
-export function getActiveScrollEdgeBounds(): typeof CE_CENTER_BOUNDS {
+// Returns the world-space EDGE bounds for the black overlay bars. This is the
+// object content bbox (where placed objects actually end), independent of the
+// clamp. Decoupled so the clamp (centre inset) and overlay (edge) can't fight.
+// Falls back to expanding the active clamp by the current half-viewport so bars
+// still appear at the clamp edge if no object bbox is available.
+export function getActiveScrollBarBounds(): typeof CE_CENTER_BOUNDS | null {
+    if (objectContentBounds) return objectContentBounds
+    // No object bbox: derive edge bounds from centre clamp + current half-view.
     const lim = getActiveScrollLimits()
-    const halfW = getWorldViewWidth() / 2
+    if (lim === CE_CENTER_BOUNDS) return null  // would be off-screen; skip
+    const halfW = getWorldViewWidth()  / 2
     const halfH = getWorldViewHeight() / 2
     return {
         minX: lim.minX - halfW,
@@ -139,19 +169,47 @@ export function getActiveScrollEdgeBounds(): typeof CE_CENTER_BOUNDS {
     }
 }
 
-// World-space bounding box of the actual (non-empty) floor tiles on the current
-// map/elevation. This is the FIXED content extent — zoom- and resolution-
-// independent — and is the source of truth for the black edge overlay. CE ref:
-// tile.cc tileRefreshGame bufferFill(0): everything past the last real tile is
-// black. `null` until a map is loaded / computeMapContentBounds runs.
+// World-space bounding box of the placed objects on the current map/elevation.
+// This is the authoritative "playfield" extent — much tighter than the floor
+// bbox because desert-fill floor tiles extend far past the settlements.
+// CE has no equivalent (its maps fill the whole grid), so this is DH2-specific.
+// `null` until a map is loaded / computeObjectContentBounds runs.
+export let objectContentBounds: { minX: number; maxX: number; minY: number; maxY: number } | null = null
+
+// Floor-tile bbox kept for debug/diagnostic purposes only (window.mapContentBounds).
 export let mapContentBounds: { minX: number; maxX: number; minY: number; maxY: number } | null = null
 
+// Scan the placed objects on the current elevation and record their world-space
+// bbox. hexToScreen converts hex-grid position to world-space pixels. Called
+// from GameMap.changeElevation after objects are ready.
+export function computeObjectContentBounds(objects: Obj[]): void {
+    if (!objects || objects.length === 0) {
+        objectContentBounds = null
+        ;(window as any).objectContentBounds = null
+        return
+    }
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+    for (const obj of objects) {
+        const pos = (obj as any).position
+        if (!pos || pos.x == null || pos.y == null) continue
+        const p = hexToScreen(pos.x, pos.y)
+        if (p.x - OBJ_HALF_W < minX) minX = p.x - OBJ_HALF_W
+        if (p.x + OBJ_HALF_W > maxX) maxX = p.x + OBJ_HALF_W
+        if (p.y - OBJ_HALF_H < minY) minY = p.y - OBJ_HALF_H
+        if (p.y + OBJ_HALF_H > maxY) maxY = p.y + OBJ_HALF_H
+    }
+    objectContentBounds = (minX === Infinity) ? null : { minX, maxX, minY, maxY }
+    ;(window as any).objectContentBounds = objectContentBounds
+    console.log('[scroll] objectContentBounds =', JSON.stringify(objectContentBounds),
+        objects.length + ' objects')
+}
+
 // Scan the floor tilemap for real tiles and record their world-space bbox.
-// Called on every map load and elevation change (floorMap differs per level).
-// floorMap is indexed [y][x]; the empty-tile sentinel is 'grid000'.
+// Kept for diagnostics (window.mapContentBounds); not used for overlay/clamp.
 export function computeMapContentBounds(floorMap: string[][] | null): void {
     if (!floorMap || floorMap.length === 0) {
         mapContentBounds = null
+        ;(window as any).mapContentBounds = null
         return
     }
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
@@ -168,16 +226,83 @@ export function computeMapContentBounds(floorMap: string[][] | null): void {
         }
     }
     mapContentBounds = (minX === Infinity) ? null : { minX, maxX, minY, maxY }
-    // Diagnostic: expose to the console so map extents can be inspected live.
     ;(window as any).mapContentBounds = mapContentBounds
-    console.log('[scroll] mapContentBounds =', JSON.stringify(mapContentBounds),
-        'floor', floorMap.length + 'x' + (floorMap[0]?.length ?? 0))
+}
+
+// Copyable console diagnostic. Call `scrollDebug()` in DevTools to print the
+// current content bbox, camera, zoom, screen size, and the black-bar widths the
+// overlay would draw this frame. Returns the same object so it copies cleanly.
+;(window as any).scrollDebug = function () {
+    const ob = objectContentBounds
+    const cam = globalState.cameraPosition
+    const z = getZoom()
+    const lim = getActiveScrollLimits()
+    const out: any = {
+        objBbox: ob,
+        autoClamp: ob ? { minX: Math.round(ob.minX+320), maxX: Math.round(ob.maxX-320), minY: Math.round(ob.minY+190), maxY: Math.round(ob.maxY-190) } : null,
+        activeClamp: lim,
+        camera: { x: Math.round(cam.x), y: Math.round(cam.y) },
+        zoom: z,
+        screen: { w: SCREEN_WIDTH, h: SCREEN_HEIGHT },
+    }
+    if (ob) {
+        out.barsPx = {
+            left:   Math.round((ob.minX - cam.x) * z),
+            right:  Math.round(SCREEN_WIDTH - (ob.maxX - cam.x) * z),
+            top:    Math.round((ob.minY - cam.y) * z),
+            bottom: Math.round(SCREEN_HEIGHT - (ob.maxY - cam.y) * z),
+        }
+    }
+    console.log('[scrollDebug] ' + JSON.stringify(out))
+    return out
+}
+
+// --- Manual border calibration helpers (call from the DevTools console) ---
+//
+//   borderCalib()                 → turn ON grey calibration overlay
+//   borderCalib(false)            → turn OFF (back to solid black)
+//   setBorder(minX,maxX,minY,maxY)→ set window.scrollLimits directly
+//   grabBorderEdge('left')        → set the current viewport-centre as the
+//                                    left/right/top/bottom limit (scroll to the
+//                                    edge you want, then call this per side)
+//   clearBorder()                 → delete window.scrollLimits (use table value)
+//
+;(window as any).borderCalib = function (on = true) {
+    ;(window as any).borderDebug = !!on
+    console.log('[border] calibration overlay ' + (on ? 'ON (grey)' : 'OFF (black)'))
+}
+;(window as any).setBorder = function (minX: number, maxX: number, minY: number, maxY: number) {
+    ;(window as any).scrollLimits = { minX, maxX, minY, maxY }
+    console.log('[border] window.scrollLimits = ' + JSON.stringify((window as any).scrollLimits))
+    return (window as any).scrollLimits
+}
+;(window as any).clearBorder = function () {
+    delete (window as any).scrollLimits
+    console.log('[border] window.scrollLimits cleared')
+}
+;(window as any).grabBorderEdge = function (side: 'left' | 'right' | 'top' | 'bottom') {
+    const cam = globalState.cameraPosition
+    const cx = Math.round(cam.x + getWorldViewWidth() / 2)
+    const cy = Math.round(cam.y + getWorldViewHeight() / 2)
+    const cur = (window as any).scrollLimits ?? { ...getActiveScrollLimits() }
+    if (side === 'left') cur.minX = cx
+    else if (side === 'right') cur.maxX = cx
+    else if (side === 'top') cur.minY = cy
+    else if (side === 'bottom') cur.maxY = cy
+    ;(window as any).scrollLimits = cur
+    console.log('[border] ' + side + ' = ' + (side === 'left' || side === 'right' ? cx : cy) +
+        '  → window.scrollLimits = ' + JSON.stringify(cur))
+    return cur
 }
 
 // Keep the old name as an alias so renderer.ts re-exports work unchanged.
 export const MAP_WORLD_BOUNDS = CE_CENTER_BOUNDS
 
 export function clampCameraPosition(): void {
+    // Calibration mode (borderCalib()): let the camera scroll freely so each
+    // edge can be reached and grabbed without half-set bounds locking scroll.
+    if ((window as any).borderDebug) return
+
     const viewW = getWorldViewWidth()
     const viewH = getWorldViewHeight()
     const halfW = viewW / 2
@@ -189,35 +314,12 @@ export function clampCameraPosition(): void {
     const prevCX = prevX + halfW
     const prevCY = prevY + halfH
 
-    // Derive the valid viewport-CENTRE range. window.scrollLimits still wins for
-    // live tuning; otherwise prefer the CE-faithful content-bbox clamp and fall
-    // back to the per-map/CE centre bounds only if the bbox isn't available.
-    let loCX: number, hiCX: number, loCY: number, hiCY: number
-    const override = (window as any).scrollLimits
-    const b = mapContentBounds
-    if (override) {
-        loCX = override.minX; hiCX = override.maxX
-        loCY = override.minY; hiCY = override.maxY
-    } else if (b) {
-        // CE ref: tile.cc tileSetBorder — border computed at ORIGINAL_ISO window
-        // size, not the actual one. The centre is constrained so a 640×380 view
-        // centred there stays inside the content; at real (larger) viewports the
-        // extra margin projects to black beyond the content, filled by the overlay.
-        const refHalfW = ORIGINAL_ISO_WINDOW_WIDTH / 2   // 320
-        const refHalfH = ORIGINAL_ISO_WINDOW_HEIGHT / 2  // 190
-        loCX = b.minX + refHalfW; hiCX = b.maxX - refHalfW
-        loCY = b.minY + refHalfH; hiCY = b.maxY - refHalfH
-        // Content smaller than the reference window on an axis → lock centre to
-        // the content midpoint (map fully visible, black on all sides).
-        if (loCX > hiCX) { const m = (b.minX + b.maxX) / 2; loCX = hiCX = m }
-        if (loCY > hiCY) { const m = (b.minY + b.maxY) / 2; loCY = hiCY = m }
-    } else {
-        loCX = _activeLimits.minX; hiCX = _activeLimits.maxX
-        loCY = _activeLimits.minY; hiCY = _activeLimits.maxY
-    }
-
-    let nextCX = Math.max(loCX, Math.min(hiCX, prevCX))
-    let nextCY = Math.max(loCY, Math.min(hiCY, prevCY))
+    // Clamp the viewport CENTRE to the active per-map bounds (window.scrollLimits
+    // override → _activeLimits table → CE_CENTER_BOUNDS). Same source the black
+    // bars use (getActiveScrollBarBounds), so scroll limit and bars stay in sync.
+    const lim = getActiveScrollLimits()
+    let nextCX = Math.max(lim.minX, Math.min(lim.maxX, prevCX))
+    let nextCY = Math.max(lim.minY, Math.min(lim.maxY, prevCY))
 
     // CE ref: object.cc:2559 _obj_scroll_blocking_at — misc PID 0x500000C
     // (type=5, pidID=12) flags a tile as a scroll blocker. Reject the move

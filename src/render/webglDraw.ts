@@ -9,7 +9,7 @@ import { dbg } from '../logger.js'
 import { WebGLRenderer } from './webglContext.js'
 import { hexDistance } from '../geometry.js'
 import { hexIsInFrontOf, hexIsToRightOf } from '../geometry/hexScreen.js'
-import { mapContentBounds } from './camera.js'
+import { getActiveScrollBarBounds } from './camera.js'
 
 declare module './webglContext.js' {
     interface WebGLRenderer {
@@ -59,32 +59,28 @@ WebGLRenderer.prototype.renderText = function (
     ctx.fillText(txt, x, y)
 }
 
-// CE-faithful black map border. CE ref: tile.cc tileRefreshGame bufferFill(0) —
-// every pixel past the last real floor tile is black. We reproduce that by
-// filling black over the four screen margins that fall outside the map's fixed
-// world-space content bbox (computeMapContentBounds). Because the bbox is fixed
-// in world space, this is fully robust to zoom, pan, and window resolution: the
-// bars grow/shrink automatically as the content projects to more or fewer screen
-// pixels. Decoupled from the scroll clamp entirely — the clamp controls where
-// you *can* look; this controls what the empty area *looks like*.
-//
-// The content diamond's axis-aligned bbox includes four triangular corners that
-// have no tiles; those are left to the WebGL clearColor=(0,0,0,1) beneath this
-// transparent overlay, so the whole non-content region ends up black.
+// Screen-parallel black border bars. These are axis-aligned rectangles filled
+// on the 2D overlay canvas along whichever of the four screen edges falls
+// outside the active scroll bounds — distinct from the diamond-shaped black
+// "tile" area (which is just the WebGL clearColor showing where no floor tile
+// is drawn). Source of the bounds is getActiveScrollBarBounds() in camera.ts.
 WebGLRenderer.prototype.renderScrollBorderOverlay = function (): void {
-    const b = mapContentBounds
+    const b = getActiveScrollBarBounds()
     if (!b) return
     const cam = globalState.cameraPosition
     const z = getZoom()
     const ctx = this.textCtx
 
-    // Project the world-space content bbox to screen pixels.
+    // Project the world-space bar bounds to screen pixels.
     const leftEdge  = (b.minX - cam.x) * z
     const rightEdge = (b.maxX - cam.x) * z
     const topEdge   = (b.minY - cam.y) * z
     const botEdge   = (b.maxY - cam.y) * z
 
-    ctx.fillStyle = '#000000'
+    // Calibration mode: `window.borderDebug = true` renders the bars as
+    // semi-transparent grey so the map shows through and you can see exactly
+    // where the border sits while tuning window.scrollLimits. Default = solid black.
+    ctx.fillStyle = (window as any).borderDebug ? 'rgba(128,128,128,0.5)' : '#000000'
 
     // Clamp the inner cross-bars to the screen so top/bottom bars never draw
     // with negative width when a side bar already covers the whole edge.

@@ -23,7 +23,7 @@ import { Lightmap } from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Critter, deserializeObj, Obj } from '../object.js'
 import { centerCamera } from '../renderer.js'
-import { computeMapContentBounds } from '../render/camera.js'
+import { computeMapContentBounds, computeObjectContentBounds } from '../render/camera.js'
 import { Scripting } from '../scripting.js'
 import { fromTileNum, hexToTile } from '../tile.js'
 import { arrayRemove, arrayWithout } from '../util.js'
@@ -235,8 +235,7 @@ export class GameMap {
         this._isOutdoorCachedElevation = -1
         this.floorMap = this.mapObj.levels[level].tiles.floor
         this.roofMap = this.mapObj.levels[level].tiles.roof
-        // Recompute the world-space content bbox for the black edge overlay.
-        // Per-elevation: floor layout differs between levels.
+        // Floor bbox kept for diagnostics only (window.mapContentBounds).
         computeMapContentBounds(this.floorMap)
         //this.spatials = this.mapObj.levels[level]["spatials"]
 
@@ -262,6 +261,10 @@ export class GameMap {
         }
 
         this.placeParty()
+
+        // Compute object world-space bbox — source of truth for the black edge
+        // overlay and the automatic scroll clamp. Done after objects are placed.
+        computeObjectContentBounds(this.getObjects())
 
         // set up renderer data
         globalState.renderer.initData(this.roofMap, this.floorMap, this.getObjects())
