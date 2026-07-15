@@ -139,32 +139,26 @@ export function setMapScrollLimits(mapName: string): void {
 //   2. MAP_BAR_BOUNDS entry  — hand-calibrated edge bounds for this map
 //   3. objectContentBounds   — auto: world bbox of placed objects
 //   4. null                  — no data yet; overlay skips drawing
+// Returns the world-space EDGE bounds for the black overlay bars.
+// Precedence:
+//   1. window.scrollLimits   — live blackBar() editor
+//   2. MAP_BAR_BOUNDS entry  — hand-calibrated edge bounds for this map
+//   3. mapContentBounds      — auto: interior floor bbox (non-grid000, non-edg*) + inset
+//   4. null                  — no data yet; overlay skips drawing
 export function getActiveScrollBarBounds(): typeof CE_CENTER_BOUNDS | null {
     if ((window as any).scrollLimits) return (window as any).scrollLimits
     if (_activeBarBounds) return _activeBarBounds
-    return objectContentBounds ?? null
+    return mapContentBounds ?? null
 }
 
-// Returns the viewport-CENTRE clamp bounds (inset of the bar bounds by the CE
-// reference half-extents 320×190 so the camera stops before content leaves screen).
-// Precedence mirrors getActiveScrollBarBounds; falls back to CE_CENTER_BOUNDS.
+// Returns the viewport-CENTRE clamp bounds (bar bounds inset by CE reference
+// half-extents 320×190 so the camera stops before content leaves screen).
 export function getActiveScrollLimits(): typeof CE_CENTER_BOUNDS {
     const inX = ORIGINAL_ISO_WINDOW_WIDTH  / 2  // 320
     const inY = ORIGINAL_ISO_WINDOW_HEIGHT / 2  // 190
-    // Live editor override — inset the live edge bounds for the clamp.
-    if ((window as any).scrollLimits) {
-        const b = (window as any).scrollLimits
-        return { minX: b.minX + inX, maxX: b.maxX - inX, minY: b.minY + inY, maxY: b.maxY - inY }
-    }
-    // Hand-calibrated edge bounds for this map.
-    if (_activeBarBounds) {
-        const b = _activeBarBounds
-        return { minX: b.minX + inX, maxX: b.maxX - inX, minY: b.minY + inY, maxY: b.maxY - inY }
-    }
-    // Auto: inset object bbox.
-    if (objectContentBounds) {
-        const b = objectContentBounds
-        return { minX: b.minX + inX, maxX: b.maxX - inX, minY: b.minY + inY, maxY: b.maxY - inY }
+    const barBounds = getActiveScrollBarBounds()
+    if (barBounds) {
+        return { minX: barBounds.minX + inX, maxX: barBounds.maxX - inX, minY: barBounds.minY + inY, maxY: barBounds.maxY - inY }
     }
     return CE_CENTER_BOUNDS
 }
