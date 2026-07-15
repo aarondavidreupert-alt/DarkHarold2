@@ -141,26 +141,53 @@ export function setMapScrollLimits(mapName: string): void {
 //   3. objectContentBounds   — auto: world bbox of placed objects
 //   4. null                  — no data yet; overlay skips drawing
 // Returns the world-space EDGE bounds for the black overlay bars.
+// scrollBlockerBounds is the camera CENTRE clamp; bars sit one reference
+// half-viewport (320×190) outward from that ring — matching where the
+// original 640×380 viewport edge would be at the scroll limit.
 // Precedence:
-//   1. window.scrollLimits   — live blackBar() editor
-//   2. MAP_BAR_BOUNDS entry  — hand-calibrated edge bounds for this map
-//   3. scrollBlockerBounds   — CE-authoritative: bbox of scroll blocker objects
-//   4. mapContentBounds      — fallback: interior floor bbox (non-grid000, non-edg*)
-//   5. null                  — no data; overlay skips drawing
+//   1. window.scrollLimits  — live blackBar() editor (already edge bounds)
+//   2. MAP_BAR_BOUNDS entry — hand-calibrated edge bounds for this map
+//   3. scrollBlockerBounds expanded by 320×190 — CE-authoritative
+//   4. mapContentBounds     — interior floor bbox fallback
+//   5. null                 — no data; overlay skips drawing
 export function getActiveScrollBarBounds(): typeof CE_CENTER_BOUNDS | null {
     if ((window as any).scrollLimits) return (window as any).scrollLimits
     if (_activeBarBounds) return _activeBarBounds
-    return scrollBlockerBounds ?? mapContentBounds ?? null
+    if (scrollBlockerBounds) {
+        const refHalfX = ORIGINAL_ISO_WINDOW_WIDTH  / 2  // 320
+        const refHalfY = ORIGINAL_ISO_WINDOW_HEIGHT / 2  // 190
+        return {
+            minX: scrollBlockerBounds.minX - refHalfX,
+            maxX: scrollBlockerBounds.maxX + refHalfX,
+            minY: scrollBlockerBounds.minY - refHalfY,
+            maxY: scrollBlockerBounds.maxY + refHalfY,
+        }
+    }
+    return mapContentBounds ?? null
 }
 
-// Returns the viewport-CENTRE clamp bounds (bar bounds inset by CE reference
-// half-extents 320×190 so the camera stops before content leaves screen).
+// Returns the viewport-CENTRE clamp bounds.
+// Precedence:
+//   1. window.scrollLimits inset by 320×190  — live editor
+//   2. MAP_BAR_BOUNDS inset by 320×190       — hand-calibrated
+//   3. scrollBlockerBounds                   — CE-authoritative (already centre bounds)
+//   4. mapContentBounds inset by 320×190     — floor bbox fallback
+//   5. CE_CENTER_BOUNDS                      — full grid
 export function getActiveScrollLimits(): typeof CE_CENTER_BOUNDS {
     const inX = ORIGINAL_ISO_WINDOW_WIDTH  / 2  // 320
     const inY = ORIGINAL_ISO_WINDOW_HEIGHT / 2  // 190
-    const barBounds = getActiveScrollBarBounds()
-    if (barBounds) {
-        return { minX: barBounds.minX + inX, maxX: barBounds.maxX - inX, minY: barBounds.minY + inY, maxY: barBounds.maxY - inY }
+    if ((window as any).scrollLimits) {
+        const b = (window as any).scrollLimits
+        return { minX: b.minX + inX, maxX: b.maxX - inX, minY: b.minY + inY, maxY: b.maxY - inY }
+    }
+    if (_activeBarBounds) {
+        const b = _activeBarBounds
+        return { minX: b.minX + inX, maxX: b.maxX - inX, minY: b.minY + inY, maxY: b.maxY - inY }
+    }
+    if (scrollBlockerBounds) return scrollBlockerBounds  // already centre bounds
+    if (mapContentBounds) {
+        const b = mapContentBounds
+        return { minX: b.minX + inX, maxX: b.maxX - inX, minY: b.minY + inY, maxY: b.maxY - inY }
     }
     return CE_CENTER_BOUNDS
 }
