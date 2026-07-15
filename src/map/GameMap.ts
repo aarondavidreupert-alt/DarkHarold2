@@ -23,7 +23,7 @@ import { Lightmap } from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Critter, deserializeObj, Obj } from '../object.js'
 import { centerCamera } from '../renderer.js'
-import { computeMapContentBounds, computeObjectContentBounds } from '../render/camera.js'
+import { computeMapContentBounds, computeObjectContentBounds, computeScrollBlockerBounds } from '../render/camera.js'
 import { Scripting } from '../scripting.js'
 import { fromTileNum, hexToTile } from '../tile.js'
 import { arrayRemove, arrayWithout } from '../util.js'
@@ -262,9 +262,10 @@ export class GameMap {
 
         this.placeParty()
 
-        // Compute object world-space bbox — source of truth for the black edge
-        // overlay and the automatic scroll clamp. Done after objects are placed.
+        // Compute object bbox and CE-authoritative scroll blocker bbox.
+        // scrollBlockerBounds is the primary source for bars and clamp.
         computeObjectContentBounds(this.getObjects())
+        computeScrollBlockerBounds(this.getObjects())
 
         // set up renderer data
         globalState.renderer.initData(this.roofMap, this.floorMap, this.getObjects())

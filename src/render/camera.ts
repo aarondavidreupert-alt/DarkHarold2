@@ -28,6 +28,12 @@ import { tileToScreen, TILE_WIDTH, TILE_HEIGHT } from '../tile.js'
 const OBJ_HALF_W = 48
 const OBJ_HALF_H = 36
 
+// CE ref: object.cc:2559 _obj_scroll_blocking_at — misc PID 0x500000C
+// (type='misc', pidID=12) marks a tile as a scroll blocker. In CE these form
+// a ring around the playable area; their bbox is the per-map border.
+const SCROLL_BLOCKER_TYPE  = 'misc'
+const SCROLL_BLOCKER_PIDID = 12
+
 // Logical screen dimensions. Dynamic — resized at runtime when the browser
 // window resizes so the visible world area grows/shrinks with the viewport.
 // Exposed as `export let` so ES-module consumers pick up the updated value
@@ -112,13 +118,8 @@ export const CE_CENTER_BOUNDS = {
 // getActiveScrollLimits() insets them by (320,190) to get the centre clamp.
 // Add an entry only when a map's auto object-bbox feels wrong.
 const MAP_BAR_BOUNDS: Record<string, typeof CE_CENTER_BOUNDS> = {
-    arvillag: { minX: 2920, maxX: 4944, minY:  991, maxY: 2579 },
-    artemple: { minX: 3720, maxX: 4444, minY: 1211, maxY: 2099 },
-    denbus1:  { minX: 2860, maxX: 5272, minY: 1055, maxY: 2683 },
-    denres1:  { minX: 2364, maxX: 4996, minY: 1075, maxY: 2127 },
-    kladwtwn: { minX: 2740, maxX: 5372, minY: 1035, maxY: 2515 },
-    klamall:  { minX: 2560, maxX: 5292, minY: 1035, maxY: 2515 },
-    newrst:   { minX: 2400, maxX: 5324, minY: 1051, maxY: 2459 },
+    // Auto interior-floor-bbox handles all maps now.
+    // Add an entry here only if a specific map's auto result feels wrong.
 }
 
 // Active bar bounds for this map — set on each map load.
@@ -143,12 +144,13 @@ export function setMapScrollLimits(mapName: string): void {
 // Precedence:
 //   1. window.scrollLimits   — live blackBar() editor
 //   2. MAP_BAR_BOUNDS entry  — hand-calibrated edge bounds for this map
-//   3. mapContentBounds      — auto: interior floor bbox (non-grid000, non-edg*) + inset
-//   4. null                  — no data yet; overlay skips drawing
+//   3. scrollBlockerBounds   — CE-authoritative: bbox of scroll blocker objects
+//   4. mapContentBounds      — fallback: interior floor bbox (non-grid000, non-edg*)
+//   5. null                  — no data; overlay skips drawing
 export function getActiveScrollBarBounds(): typeof CE_CENTER_BOUNDS | null {
     if ((window as any).scrollLimits) return (window as any).scrollLimits
     if (_activeBarBounds) return _activeBarBounds
-    return mapContentBounds ?? null
+    return scrollBlockerBounds ?? mapContentBounds ?? null
 }
 
 // Returns the viewport-CENTRE clamp bounds (bar bounds inset by CE reference
@@ -163,14 +165,16 @@ export function getActiveScrollLimits(): typeof CE_CENTER_BOUNDS {
     return CE_CENTER_BOUNDS
 }
 
+// CE-authoritative per-map border: world-space bbox of scroll blocker objects
+// (type='misc', pidID=12). These form a ring around the playable area placed
+// by map designers — their bbox is the exact per-map playfield boundary.
+// CE ref: object.cc _obj_scroll_blocking_at, tile.cc tileSetCenter scroll check.
+export let scrollBlockerBounds: { minX: number; maxX: number; minY: number; maxY: number } | null = null
+
 // World-space bounding box of the placed objects on the current map/elevation.
-// This is the authoritative "playfield" extent — much tighter than the floor
-// bbox because desert-fill floor tiles extend far past the settlements.
-// CE has no equivalent (its maps fill the whole grid), so this is DH2-specific.
-// `null` until a map is loaded / computeObjectContentBounds runs.
 export let objectContentBounds: { minX: number; maxX: number; minY: number; maxY: number } | null = null
 
-// Floor-tile bbox kept for debug/diagnostic purposes only (window.mapContentBounds).
+// Floor-tile bbox (non-grid000, non-edg*, inset) — fallback when no scroll blockers.
 export let mapContentBounds: { minX: number; maxX: number; minY: number; maxY: number } | null = null
 
 // Scan the placed objects on the current elevation and record their world-space
@@ -204,6 +208,33 @@ export function computeObjectContentBounds(objects: Obj[]): void {
 // ~60px of manual calibration on every tested map.
 const INTERIOR_INSET_X = 130
 const INTERIOR_INSET_Y = 60
+
+// Compute the world-space bbox of scroll blocker objects (type='misc', pidID=12).
+// These are placed by map designers as an invisible ring at the playable boundary.
+// Called from GameMap.changeElevation alongside computeObjectContentBounds.
+export function computeScrollBlockerBounds(objects: Obj[]): void {
+    if (!objects || objects.length === 0) {
+        scrollBlockerBounds = null
+        ;(window as any).scrollBlockerBounds = null
+        return
+    }
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+    let count = 0
+    for (const obj of objects) {
+        if ((obj as any).type !== SCROLL_BLOCKER_TYPE || (obj as any).pidID !== SCROLL_BLOCKER_PIDID) continue
+        const pos = (obj as any).position
+        if (!pos || pos.x == null || pos.y == null) continue
+        count++
+        const p = hexToScreen(pos.x, pos.y)
+        if (p.x < minX) minX = p.x
+        if (p.x > maxX) maxX = p.x
+        if (p.y < minY) minY = p.y
+        if (p.y > maxY) maxY = p.y
+    }
+    scrollBlockerBounds = (count === 0) ? null : { minX, maxX, minY, maxY }
+    ;(window as any).scrollBlockerBounds = scrollBlockerBounds
+    console.log('[scroll] scrollBlockerBounds =', JSON.stringify(scrollBlockerBounds), count + ' blockers')
+}
 
 // Scan the floor tilemap for the interior playfield bbox and store the bar
 // bounds (inset interior) in mapContentBounds. "Interior" = tiles that are
