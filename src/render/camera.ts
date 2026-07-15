@@ -107,20 +107,25 @@ export const CE_CENTER_BOUNDS = {
     maxY: hexToScreen(153, 155).y,  // 2783
 }
 
-// Per-map scroll limits — emergency override for maps with outlier objects that
-// push the auto bbox too wide. Empty by default; auto object-bbox handles all
-// shipped maps. Add an entry here only if a specific map's auto bounds feel wrong.
-const MAP_SCROLL_LIMITS: Record<string, typeof CE_CENTER_BOUNDS> = {
+// Per-map bar bounds — EDGE coords (where the black bars sit), calibrated via
+// blackBar() in-game. getActiveScrollBarBounds() returns these directly;
+// getActiveScrollLimits() insets them by (320,190) to get the centre clamp.
+// Add an entry only when a map's auto object-bbox feels wrong.
+const MAP_BAR_BOUNDS: Record<string, typeof CE_CENTER_BOUNDS> = {
     arvillag: { minX: 2920, maxX: 4944, minY:  991, maxY: 2579 },
     artemple: { minX: 3720, maxX: 4444, minY: 1211, maxY: 2099 },
+    denbus1:  { minX: 2860, maxX: 5272, minY: 1055, maxY: 2683 },
+    denres1:  { minX: 2364, maxX: 4996, minY: 1075, maxY: 2127 },
+    kladwtwn: { minX: 2740, maxX: 5372, minY: 1035, maxY: 2515 },
+    klamall:  { minX: 2560, maxX: 5292, minY: 1035, maxY: 2515 },
     newrst:   { minX: 2400, maxX: 5324, minY: 1051, maxY: 2459 },
 }
 
-// Active limits — updated by setMapScrollLimits() on each map load.
-let _activeLimits: typeof CE_CENTER_BOUNDS = CE_CENTER_BOUNDS
+// Active bar bounds for this map — set on each map load.
+let _activeBarBounds: typeof CE_CENTER_BOUNDS | null = null
 
 export function setMapScrollLimits(mapName: string): void {
-    _activeLimits = MAP_SCROLL_LIMITS[mapName] ?? CE_CENTER_BOUNDS
+    _activeBarBounds = MAP_BAR_BOUNDS[mapName] ?? null
     // Clear any live console override so it doesn't bleed into the next map.
     delete (window as any).scrollLimits
     delete (window as any).borderDebug
@@ -128,52 +133,40 @@ export function setMapScrollLimits(mapName: string): void {
     if (_bbKeyListener) { document.removeEventListener('keydown', _bbKeyListener); _bbKeyListener = null }
 }
 
-// Returns the active viewport-CENTRE clamp bounds. Precedence:
-//   1. window.scrollLimits  — live console override / calibration
-//   2. MAP_SCROLL_LIMITS    — per-map hand-calibrated (set on map load)
-//   3. objectContentBounds inset by the CE reference half-extents (320, 190)
-//      — automatic, derived from placed-object world bbox
-//   4. CE_CENTER_BOUNDS     — full 200×200 grid fallback (CE-faithful but wide)
-export function getActiveScrollLimits(): typeof CE_CENTER_BOUNDS {
+// Returns the world-space EDGE bounds for the black overlay bars.
+// Precedence:
+//   1. window.scrollLimits   — live blackBar() editor
+//   2. MAP_BAR_BOUNDS entry  — hand-calibrated edge bounds for this map
+//   3. objectContentBounds   — auto: world bbox of placed objects
+//   4. null                  — no data yet; overlay skips drawing
+export function getActiveScrollBarBounds(): typeof CE_CENTER_BOUNDS | null {
     if ((window as any).scrollLimits) return (window as any).scrollLimits
-    if (_activeLimits !== CE_CENTER_BOUNDS) return _activeLimits
-    // Automatic: inset object bbox by CE reference viewport half-extents so the
-    // clamp stops the camera before placed objects scroll fully off screen.
-    if (objectContentBounds) {
-        const b = objectContentBounds
-        const inX = ORIGINAL_ISO_WINDOW_WIDTH  / 2  // 320
-        const inY = ORIGINAL_ISO_WINDOW_HEIGHT / 2  // 190
-        return {
-            minX: b.minX + inX,
-            maxX: b.maxX - inX,
-            minY: b.minY + inY,
-            maxY: b.maxY - inY,
-        }
-    }
-    return CE_CENTER_BOUNDS
+    if (_activeBarBounds) return _activeBarBounds
+    return objectContentBounds ?? null
 }
 
-// Returns the world-space EDGE bounds for the black overlay bars. This is the
-// object content bbox (where placed objects actually end), independent of the
-// clamp. Decoupled so the clamp (centre inset) and overlay (edge) can't fight.
-// Falls back to expanding the active clamp by the current half-viewport so bars
-// still appear at the clamp edge if no object bbox is available.
-export function getActiveScrollBarBounds(): typeof CE_CENTER_BOUNDS | null {
-    // blackBar() editor: window.scrollLimits is the live bar edge source
-    if ((window as any).scrollLimits) return (window as any).scrollLimits
-    // Normal: object bbox is the authoritative edge source
-    if (objectContentBounds) return objectContentBounds
-    // No object bbox: derive edge bounds from centre clamp + current half-view.
-    const lim = getActiveScrollLimits()
-    if (lim === CE_CENTER_BOUNDS) return null  // would be off-screen; skip
-    const halfW = getWorldViewWidth()  / 2
-    const halfH = getWorldViewHeight() / 2
-    return {
-        minX: lim.minX - halfW,
-        maxX: lim.maxX + halfW,
-        minY: lim.minY - halfH,
-        maxY: lim.maxY + halfH,
+// Returns the viewport-CENTRE clamp bounds (inset of the bar bounds by the CE
+// reference half-extents 320×190 so the camera stops before content leaves screen).
+// Precedence mirrors getActiveScrollBarBounds; falls back to CE_CENTER_BOUNDS.
+export function getActiveScrollLimits(): typeof CE_CENTER_BOUNDS {
+    const inX = ORIGINAL_ISO_WINDOW_WIDTH  / 2  // 320
+    const inY = ORIGINAL_ISO_WINDOW_HEIGHT / 2  // 190
+    // Live editor override — inset the live edge bounds for the clamp.
+    if ((window as any).scrollLimits) {
+        const b = (window as any).scrollLimits
+        return { minX: b.minX + inX, maxX: b.maxX - inX, minY: b.minY + inY, maxY: b.maxY - inY }
     }
+    // Hand-calibrated edge bounds for this map.
+    if (_activeBarBounds) {
+        const b = _activeBarBounds
+        return { minX: b.minX + inX, maxX: b.maxX - inX, minY: b.minY + inY, maxY: b.maxY - inY }
+    }
+    // Auto: inset object bbox.
+    if (objectContentBounds) {
+        const b = objectContentBounds
+        return { minX: b.minX + inX, maxX: b.maxX - inX, minY: b.minY + inY, maxY: b.maxY - inY }
+    }
+    return CE_CENTER_BOUNDS
 }
 
 // World-space bounding box of the placed objects on the current map/elevation.
@@ -211,8 +204,19 @@ export function computeObjectContentBounds(objects: Obj[]): void {
         objects.length + ' objects')
 }
 
-// Scan the floor tilemap for real tiles and record their world-space bbox.
-// Kept for diagnostics (window.mapContentBounds); not used for overlay/clamp.
+// Interior inset applied to the raw non-edg floor bbox to arrive at bar bounds.
+// Empirically validated against 5 hand-calibrated maps: X diff ≈ ±129px,
+// Y-top diff ≈ 55px. A single fixed pad of 130/60 produces results within
+// ~60px of manual calibration on every tested map.
+const INTERIOR_INSET_X = 130
+const INTERIOR_INSET_Y = 60
+
+// Scan the floor tilemap for the interior playfield bbox and store the bar
+// bounds (inset interior) in mapContentBounds. "Interior" = tiles that are
+// neither the empty filler ('grid000') nor border-transition tiles ('edg*').
+// The edg* tiles are explicitly the artist-drawn outer ring — excluding them
+// gives the settled/playable area, which matches hand-calibrated bar positions
+// to within ~60px on all tested maps. Called on every map load / elevation change.
 export function computeMapContentBounds(floorMap: string[][] | null): void {
     if (!floorMap || floorMap.length === 0) {
         mapContentBounds = null
@@ -224,7 +228,8 @@ export function computeMapContentBounds(floorMap: string[][] | null): void {
         const row = floorMap[y]
         if (!row) continue
         for (let x = 0; x < row.length; x++) {
-            if (row[x] === 'grid000') continue
+            const name = row[x]
+            if (name === 'grid000' || name.startsWith('edg')) continue
             const p = tileToScreen(x, y)
             if (p.x < minX) minX = p.x
             if (p.x + TILE_WIDTH > maxX) maxX = p.x + TILE_WIDTH
@@ -232,8 +237,19 @@ export function computeMapContentBounds(floorMap: string[][] | null): void {
             if (p.y + TILE_HEIGHT > maxY) maxY = p.y + TILE_HEIGHT
         }
     }
-    mapContentBounds = (minX === Infinity) ? null : { minX, maxX, minY, maxY }
+    if (minX === Infinity) {
+        mapContentBounds = null
+    } else {
+        // Inset to the calibrated bar position.
+        mapContentBounds = {
+            minX: minX + INTERIOR_INSET_X,
+            maxX: maxX - INTERIOR_INSET_X,
+            minY: minY + INTERIOR_INSET_Y,
+            maxY: maxY - INTERIOR_INSET_Y,
+        }
+    }
     ;(window as any).mapContentBounds = mapContentBounds
+    console.log('[scroll] interiorFloorBounds =', JSON.stringify(mapContentBounds))
 }
 
 // Copyable console diagnostic. Call `scrollDebug()` in DevTools to print the
