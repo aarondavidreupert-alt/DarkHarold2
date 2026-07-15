@@ -112,6 +112,7 @@ export const CE_CENTER_BOUNDS = {
 // shipped maps. Add an entry here only if a specific map's auto bounds feel wrong.
 const MAP_SCROLL_LIMITS: Record<string, typeof CE_CENTER_BOUNDS> = {
     arvillag: { minX: 2920, maxX: 4944, minY:  991, maxY: 2579 },
+    artemple: { minX: 3720, maxX: 4444, minY: 1211, maxY: 2099 },
     newrst:   { minX: 2400, maxX: 5324, minY: 1051, maxY: 2459 },
 }
 
@@ -120,6 +121,11 @@ let _activeLimits: typeof CE_CENTER_BOUNDS = CE_CENTER_BOUNDS
 
 export function setMapScrollLimits(mapName: string): void {
     _activeLimits = MAP_SCROLL_LIMITS[mapName] ?? CE_CENTER_BOUNDS
+    // Clear any live console override so it doesn't bleed into the next map.
+    delete (window as any).scrollLimits
+    delete (window as any).borderDebug
+    delete (window as any)._bbSide
+    if (_bbKeyListener) { document.removeEventListener('keydown', _bbKeyListener); _bbKeyListener = null }
 }
 
 // Returns the active viewport-CENTRE clamp bounds. Precedence:
