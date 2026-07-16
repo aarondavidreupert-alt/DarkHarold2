@@ -154,13 +154,19 @@ export function getActiveScrollBarBounds(): typeof CE_CENTER_BOUNDS | null {
     if ((window as any).scrollLimits) return (window as any).scrollLimits
     if (_activeBarBounds) return _activeBarBounds
     if (scrollBlockerBounds) {
-        const refHalfX = ORIGINAL_ISO_WINDOW_WIDTH  / 2  // 320
-        const refHalfY = ORIGINAL_ISO_WINDOW_HEIGHT / 2  // 190
-        return {
-            minX: scrollBlockerBounds.minX - refHalfX,
-            maxX: scrollBlockerBounds.maxX + refHalfX,
-            minY: scrollBlockerBounds.minY - refHalfY,
-            maxY: scrollBlockerBounds.maxY + refHalfY,
+        const refHalfX = 290  // empirical: blocker ring sits ~290px inside the bar edge
+        const refHalfY = 172  // empirical: blocker ring sits ~172px inside the bar edge
+        // Skip if the blocker ring is anomalously wide (multi-district city maps
+        // like ncr1 where blockers span the whole grid — bbox would be off-screen).
+        const w = scrollBlockerBounds.maxX - scrollBlockerBounds.minX
+        const h = scrollBlockerBounds.maxY - scrollBlockerBounds.minY
+        if (w < 3500 && h < 2500) {
+            return {
+                minX: scrollBlockerBounds.minX - refHalfX,
+                maxX: scrollBlockerBounds.maxX + refHalfX,
+                minY: scrollBlockerBounds.minY - refHalfY,
+                maxY: scrollBlockerBounds.maxY + refHalfY,
+            }
         }
     }
     return mapContentBounds ?? null
@@ -184,7 +190,11 @@ export function getActiveScrollLimits(): typeof CE_CENTER_BOUNDS {
         const b = _activeBarBounds
         return { minX: b.minX + inX, maxX: b.maxX - inX, minY: b.minY + inY, maxY: b.maxY - inY }
     }
-    if (scrollBlockerBounds) return scrollBlockerBounds  // already centre bounds
+    if (scrollBlockerBounds) {
+        const w = scrollBlockerBounds.maxX - scrollBlockerBounds.minX
+        const h = scrollBlockerBounds.maxY - scrollBlockerBounds.minY
+        if (w < 3500 && h < 2500) return scrollBlockerBounds
+    }
     if (mapContentBounds) {
         const b = mapContentBounds
         return { minX: b.minX + inX, maxX: b.maxX - inX, minY: b.minY + inY, maxY: b.maxY - inY }
