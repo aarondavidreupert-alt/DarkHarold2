@@ -21,6 +21,11 @@ uniform vec2 u_screenResolution;     // canvas physical pixels
 uniform highp vec2 u_resolution;     // logical pixels (SCREEN_WIDTH, SCREEN_HEIGHT) — highp to match vertex shader
 uniform float u_zoom;                // world-space zoom factor (1.0 = no zoom); UI draws leave this at 1.0
 uniform float u_alpha;               // per-draw alpha multiplier (flat egg fallback = 0.4, normal = 1.0)
+// CE ref: object.cc:5074 OBJECT_TRANS_GLASS — _dark_translucent_trans_buf_to_buf with
+// _glassGrayTable (desaturate) + _glassBlendTable (_colorTable[10239] ≈ teal/cyan).
+// When 1: desaturate texel to luma, then tint with the same teal blend.
+uniform int u_stealth;               // 1 = Stealth Boy OBJECT_TRANS_GLASS desaturate+tint
+uniform vec3 u_stealthTint;          // tint colour (CE exact = vec3(0.29,1,1); white = vec3(1,1,1))
 // CE ref: cycle.cc colorCycleTicker() — palette entries 229-254 cycle at runtime.
 // u_cycleMask: R8 texture unit 7; stored as (paletteIndex-228)/255 per pixel.
 // u_cycleTime: seconds since page load, updated per draw in renderFrame.
@@ -376,6 +381,21 @@ void main() {
             float mask = texture2D(u_eggTex, eggUV).a;
             alpha = mix(1.0, 0.0, mask);
         }
+    }
+
+    // CE ref: object.cc:5074 OBJECT_TRANS_GLASS + color.cc:375 _buildBlendTable.
+    // _glassGrayTable: luma = (r + 5g + 4b)/10, max 0-7 (5-bit input, >>2).
+    // _buildBlendTable (7-step): section N = (N/7)*teal + (1-N/7)*background.
+    // → dark pixels: fully transparent; bright pixels: pure teal.
+    // Sprite colour is discarded — only luminance controls teal opacity.
+    // _colorTable[10239] = 15-bit 0RRRRR GGGGG BBBBB: R=9 G=31 B=31
+    //                     = RGB(74, 255, 255) ≈ vec3(0.29, 1.0, 1.0).
+    if (u_stealth == 1) {
+        float luma = dot(texel.rgb, vec3(0.1, 0.5, 0.4));  // (r+5g+4b)/10 normalised
+        texel.rgb = u_stealthTint;                          // configurable tint (CE exact = teal)
+        texel.a  *= luma;                                   // dark→transparent, bright→tint
+        // u_alpha (Config.ui.stealthAlpha) scales overall visibility via the
+        // alpha local var below — no additional multiply needed here.
     }
 
     // Fade the wall top toward ambient (applied to the lit term BEFORE the ambient

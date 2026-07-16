@@ -61,6 +61,8 @@ export class WebGLRenderer extends Renderer {
     uTileZoom: WebGLUniformLocation | null = null
     uFloorLightZoom: WebGLUniformLocation | null = null
     uAlpha: WebGLUniformLocation | null = null
+    uStealth: WebGLUniformLocation | null = null
+    uStealthTint: WebGLUniformLocation | null = null
     // CE ref: cycle.cc colorCycleTicker() — animated palette entries 229-254.
     uCycleTime: WebGLUniformLocation | null = null   // seconds since page load
     uCycleMask: WebGLUniformLocation | null = null   // sampler2D unit 7: R8 cycle-group texture
@@ -164,17 +166,21 @@ export class WebGLRenderer extends Renderer {
     // Lazily uploads from globalState.cycleMasks when the async parse has resolved.
     // CE ref: cycle.cc — palette indices 229-254 animated at runtime.
     getCycleMaskTex(key: string): WebGLTexture {
+        // Already cached (even null means "no cycle data — return null tex")
         if (key in this.cycleMaskTextures) {
             return this.cycleMaskTextures[key] ?? this.cycleMaskNullTex!
         }
         const cm = globalState.cycleMasks[key]
         if (cm === undefined) {
+            // Mask fetch not yet complete — return null tex without caching so we try again next frame
             return this.cycleMaskNullTex!
         }
         if (cm === null) {
+            // No cycling pixels in this art
             this.cycleMaskTextures[key] = null
             return this.cycleMaskNullTex!
         }
+        // Upload R8 texture
         const gl = this.gl
         const tex = gl.createTexture()!
         gl.activeTexture(gl.TEXTURE7)
@@ -183,6 +189,8 @@ export class WebGLRenderer extends Renderer {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+        // UNPACK_ALIGNMENT=1: cycle mask rows are tightly packed (width is not necessarily
+        // a multiple of 4, and each pixel is 1 byte — R8 format).
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, cm.width, cm.height, 0, gl.RED, gl.UNSIGNED_BYTE, cm.data)
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4)
@@ -358,8 +366,7 @@ export class WebGLRenderer extends Renderer {
             this.textures[font.filepath] = this.textureFromFont(font)
         }
 
-        // CE ref: tile.cc tileRefreshGame — bufferFill 0 (black) before drawing tiles
-        this.gl.clearColor(0, 0, 0, 1)
+        this.gl.clearColor(0.75, 0.75, 0.75, 1.0)
         this.gl.enable(this.gl.DEPTH_TEST)
         this.gl.depthFunc(this.gl.LEQUAL)
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT)
@@ -459,20 +466,10 @@ export class WebGLRenderer extends Renderer {
         if (this.uTileZoom) gl.uniform1f(this.uTileZoom, 1.0)
         this.uAlpha = gl.getUniformLocation(this.tileShader, 'u_alpha')
         if (this.uAlpha) gl.uniform1f(this.uAlpha, 1.0)
-        // Color cycling — CE ref: cycle.cc colorCycleTicker().
-        this.uCycleTime = gl.getUniformLocation(this.tileShader, 'u_cycleTime')
-        if (this.uCycleTime) gl.uniform1f(this.uCycleTime, 0.0)
-        this.uCycleMask = gl.getUniformLocation(this.tileShader, 'u_cycleMask')
-        gl.uniform1i(gl.getUniformLocation(this.tileShader, 'u_cycleMask'), 7)
-        this.cycleMaskNullTex = gl.createTexture()
-        gl.activeTexture(gl.TEXTURE7)
-        gl.bindTexture(gl.TEXTURE_2D, this.cycleMaskNullTex)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array([0]))
-        gl.activeTexture(gl.TEXTURE0)
+        this.uStealth = gl.getUniformLocation(this.tileShader, 'u_stealth')
+        if (this.uStealth) gl.uniform1i(this.uStealth, 0)
+        this.uStealthTint = gl.getUniformLocation(this.tileShader, 'u_stealthTint')
+        if (this.uStealthTint) gl.uniform3f(this.uStealthTint, 1.0, 1.0, 1.0)
         this.uEggMode = gl.getUniformLocation(this.tileShader, 'u_eggMode')
         this.uEggCenter = gl.getUniformLocation(this.tileShader, 'u_eggCenter')
         this.uEggSize = gl.getUniformLocation(this.tileShader, 'u_eggSize')
@@ -501,6 +498,23 @@ export class WebGLRenderer extends Renderer {
         if (this.uWallTexelStepV) gl.uniform1f(this.uWallTexelStepV, 0.0)
         this.uLightInterp = gl.getUniformLocation(this.tileShader, 'u_lightInterp')
         if (this.uLightInterp) gl.uniform1i(this.uLightInterp, this.lightInterpValue)
+
+        // Color cycling — CE ref: cycle.cc colorCycleTicker().
+        // u_cycleMask bound to unit 7; u_cycleTime updated per draw in renderFrame.
+        this.uCycleTime = gl.getUniformLocation(this.tileShader, 'u_cycleTime')
+        if (this.uCycleTime) gl.uniform1f(this.uCycleTime, 0.0)
+        this.uCycleMask = gl.getUniformLocation(this.tileShader, 'u_cycleMask')
+        gl.uniform1i(gl.getUniformLocation(this.tileShader, 'u_cycleMask'), 7)
+        // 1×1 R8=0 null texture — bound on unit 7 for sprites with no cycle data
+        this.cycleMaskNullTex = gl.createTexture()
+        gl.activeTexture(gl.TEXTURE7)
+        gl.bindTexture(gl.TEXTURE_2D, this.cycleMaskNullTex)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array([0]))
+        gl.activeTexture(gl.TEXTURE0)
 
         // 1×1 R8 dummy texture (value 0) for roof draws — roofs are
         // sky-facing and should be lit by ambient only, not by floor

@@ -71,7 +71,7 @@ const DISTANCE_MAP: DistanceMode[]        = ['on_your_own', 'charge', 'snipe', '
 // FO2 stored as -1…4; we normalise -1→'never', 0→'none', 1–4 follow
 const RUN_AWAY_MODE_MAP: RunAwayMode[]    = ['never', 'none', 'bleeding', 'finger_hurts', 'not_feeling_good', 'coward']
 // FO2: 0=clean 1=stims_when_hurt_little 2=stims_when_hurt_lots 3=sometimes 4=anytime
-const CHEM_USE_MAP: ChemUse[]             = ['clean', 'stims_when_hurt_little', 'stims_when_hurt_lots', 'sometimes', 'anytime']
+export const CHEM_USE_MAP: ChemUse[]             = ['clean', 'stims_when_hurt_little', 'stims_when_hurt_lots', 'sometimes', 'anytime']
 
 // ── Valid string sets ─────────────────────────────────────────────────────────
 

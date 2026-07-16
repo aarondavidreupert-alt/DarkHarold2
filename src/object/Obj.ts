@@ -305,6 +305,9 @@ export interface SerializedObj {
 
     lightRadius: number
     lightIntensity: number
+
+    miscOn?: boolean
+    miscCharges?: number
 }
 
 export class Obj {
@@ -361,6 +364,9 @@ export class Obj {
     // TODO: verify
     lightRadius = 0
     lightIntensity = 655
+
+    miscOn?: boolean      // CE ref: item.cc miscItemIsOn() — true while trickle event is queued
+    miscCharges?: number  // CE ref: item.cc — remaining charge count (Stealth Boy / Geiger Counter)
 
     static fromPID(pid: number, sid?: number): Obj {
         return Obj.fromPID_(new Obj(), pid, sid)

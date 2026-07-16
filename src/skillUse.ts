@@ -517,6 +517,62 @@ function useSteal(user: Critter, target: Critter | null): SkillUseResult {
 }
 
 // ---------------------------------------------------------------------------
+// STEAL — per-item roll called from the interactive steal UI (ui_steal.ts).
+// FO2-CE ref: skill.cc:1031 skillsPerformStealing(). One call per item dragged.
+// stealCount: CE's _gStealCount — count of items attempted this session;
+// every drag makes subsequent ones harder (inventory.cc:4360,4384).
+// ---------------------------------------------------------------------------
+export interface StealAttemptResult {
+    success: boolean
+    caught: boolean
+}
+
+export function performSteal(thief: Critter, target: Critter, item: Obj, stealCount: number): StealAttemptResult {
+    let stealModifier = -stealCount + 1
+
+    const hasPickpocket = thief.hasPerk?.('Pickpocket') ?? false
+    if (!hasPickpocket) {
+        // CE ref: skill.cc:1039 — -4% per item size
+        const size = (item.pro?.extra as any)?.size ?? 0
+        stealModifier -= 4 * size
+
+        // CE ref: skill.cc:1043 — -25 if face to face
+        const rotDiff = Math.abs(thief.orientation - target.orientation) % 6
+        const faceToFace = rotDiff !== 0 && rotDiff !== 1 && rotDiff !== 5
+        if (faceToFace) stealModifier -= 25
+    }
+
+    // CE ref: skill.cc:1049 — +20 if target is knocked out or down
+    if ((target as any).isKnockedDown) stealModifier += 20
+
+    const stealChance = Math.min(95, stealModifier + thief.getSkill('Steal'))
+
+    // CE ref: skill.cc:1059 — stealing from a party member always critically succeeds
+    let stealRoll: RollResult
+    if (thief.isPlayer && globalState.gParty.isPartyMember(target)) {
+        stealRoll = RollResult.CriticalSuccess
+    } else {
+        stealRoll = randomRoll(stealChance, thief.getStat('Critical Chance')).roll
+    }
+
+    let caught: boolean
+    if (stealRoll === RollResult.CriticalSuccess) {
+        caught = false
+    } else if (stealRoll === RollResult.CriticalFailure) {
+        caught = true
+    } else {
+        // CE ref: skill.cc:1073 — catchChance uses the TARGET's Steal skill
+        const catchChance = target.getSkill('Steal') - stealModifier
+        caught = rollIsSuccess(randomRoll(catchChance, 0).roll)
+    }
+
+    dbg('skills', `[skill:Steal] item=%s stealCount=%d stealChance=%d%% caught=%s`,
+        item.name ?? item.pid, stealCount, stealChance, caught)
+
+    return { success: !caught, caught }
+}
+
+// ---------------------------------------------------------------------------
 // TRAPS
 // FO2-CE ref: skill.cc skillUse() case SKILL_TRAPS
 // Roll vs. trap difficulty to disarm.

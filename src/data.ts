@@ -138,7 +138,7 @@ function parseAreas(data: string): AreaMap {
     return out
 }
 
-function areaContainingMap(mapName: string) {
+export function areaContainingMap(mapName: string) {
     if (!globalState.mapAreas) throw Error('globalState.mapAreas not loaded')
     for (var area in globalState.mapAreas) {
         var entrances = globalState.mapAreas[area].entrances

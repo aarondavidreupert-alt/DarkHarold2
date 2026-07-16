@@ -18,7 +18,8 @@ Scripting system/engine for DarkFO
 
 import { Combat, isCombatActive } from './combat.js'
 import { critterDamage, critterKill, killCounts } from './critter.js'
-import { lookupScriptName } from './data.js'
+import { areaContainingMap, lookupMapName, lookupScriptName } from './data.js'
+import { CHEM_USE_MAP, getAiPacket } from './aiPackets.js'
 import * as GameTime from './gametime.js'
 import {
     hexDirectionTo,
@@ -76,6 +77,16 @@ export module Scripting {
         return dialogueReviewLog
     }
     export var timeEventList: TimedEvent[] = []
+    // CE ref: game_vars.h GVAR_TOWN_REP_* — maps each town-reputation GVAR index
+    // (verified against CE source; indices are NOT contiguous) to its display name.
+    // character_editor.cc gTownReputationEntries[TOWN_REPUTATION_COUNT=19].
+    export const TOWN_REP_GVARS: { [gvar: number]: string } = {
+        47: 'Arroyo', 48: 'Klamath', 49: 'The Den', 50: 'Vault City',
+        51: 'Gecko', 52: 'Modoc', 53: 'Sierra Base', 54: 'Broken Hills',
+        55: 'New Reno', 56: 'Redding', 57: 'NCR', 59: 'Vault 13',
+        61: 'San Francisco', 63: 'Abbey', 64: 'EPA', 65: 'Primitive Tribe',
+        66: 'Raiders', 294: 'Vault 15', 308: 'Ghost Farm',
+    }
     let overrideStartPos: StartPos | null = null
     let fadeOverlay: HTMLDivElement | null = null
 
@@ -482,6 +493,13 @@ export module Scripting {
             if (gvar === 0 && globalState.player) {
                 globalState.player.stats.setBase('Karma', typeof value === 'number' ? value : parseInt(value))
             }
+            // CE ref: scripts.cc:487 gameSetGlobalVar(GVAR_TOWN_REP_ARROYO, ...) —
+            // town reps are plain GVARs; sync to player stat so viewer.ts reputation
+            // panel reflects script writes instead of only ever reading an unset default.
+            const townRepName = TOWN_REP_GVARS[gvar]
+            if (townRepName !== undefined && globalState.player) {
+                globalState.player.stats.setBase('Rep_' + townRepName, typeof value === 'number' ? value : parseInt(value))
+            }
         }
         set_local_var(lvar: number, value: any) {
             this.lvars[lvar] = value
@@ -668,10 +686,32 @@ export module Scripting {
                 }
                 return
             }
+            case 101:
+                // METARULE3_MARK_SUBTILE — CE ref: worldmap.cc:5076 wmSubTileMarkRadiusVisited.
+                // Marks a subtile-grid radius around (x,y) as worldmap fog-of-war "visited".
+                // DH2 has no subtile-grid worldmap fog system (only per-area knownAreas);
+                // implementing this needs that subsystem, not just the opcode.
+                stub('metarule3 101 (mark_subtile — no subtile fog-of-war grid)', arguments)
+                return 0
+            case 102:
+                // METARULE3_SET_WM_MUSIC — CE ref: interpreter_extra.cc:1968-2060:
+                // the switch has no case for this ID despite the enum name; result stays 0.
+                // Not a DH2 gap — this matches CE exactly.
+                return 0
             case 103:
                 // CE ref: interpreter_extra.cc:1989 METARULE3_GET_KILL_COUNT
                 // Returns how many critters of killType `obj` have been killed.
                 return killCounts.get(obj as number) ?? 0
+            case 104:
+                // METARULE3_MARK_MAP_ENTRANCE — CE ref: worldmap.cc:2940 wmMapMarkMapEntranceState.
+                // Marks one map+elevation entrance as discovered; DH2 has no per-entrance state tracking.
+                stub('metarule3 104 (mark_map_entrance — no per-entrance state tracking)', arguments)
+                return 0
+            case 105:
+                // METARULE3_WM_SUBTILE_STATE — CE ref: worldmap.cc:5125 wmSubTileGetVisitedState.
+                // Same missing subsystem as 101.
+                stub('metarule3 105 (wm_subtile_state — no subtile fog-of-war grid)', arguments)
+                return 0
             case 106: {
                 // METARULE3_TILE_GET_NEXT_CRITTER
                 // TODO: use elevation
@@ -702,6 +742,27 @@ export module Scripting {
                 // Centers the game camera on the given tile number.
                 centerCamera(fromTileNum(obj as number))
                 return 0
+            }
+            case 109: {
+                // METARULE3_109 (chem use preference) — CE ref: combat_ai.cc:804
+                // aiGetChemUse() → ai->chem_use. Reads live AI packet and returns CE's numeric index.
+                if (!isGameObject(obj)) return 0
+                const critter = obj as Critter
+                const packet = critter.ai?.packet ?? getAiPacket(critter.aiNum)
+                const idx = CHEM_USE_MAP.indexOf(packet.chemUse)
+                return idx === -1 ? 0 : idx
+            }
+            case 110:
+                // METARULE3_110 (car out of gas) — CE ref: worldmap.cc wmCarIsOutOfGas.
+                // Car travel is entirely absent from DH2.
+                stub('metarule3 110 (car_is_out_of_gas — no car system, W8)', arguments)
+                return 0
+            case 111: {
+                // METARULE3_111 (_map_target_load_area) — CE ref: map.cc:1202.
+                // Returns the worldmap area index containing the current map, or -1.
+                const mapName = lookupMapName(globalState.gMap.mapID)
+                const area = mapName ? areaContainingMap(mapName) : null
+                return area ? area.id : -1
             }
             default:
                 stub('metarule3', arguments)
