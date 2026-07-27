@@ -409,6 +409,14 @@ export class Weapon {
                 return wep + attackSkin
             case 'fidget':
                 return wep + 'a'  // idle IS the fidget/reload animation (Xa)
+            case 'run':
+                return wep + 't'  // CE ref: art.cc buildFid — Xt = run-while-armed
+            case 'shoot': {
+                const attackSkin = this.getAttackSkin()
+                return wep + (attackSkin ?? 'j')  // CE ref: art.cc — Xj = fire-single default
+            }
+            case 'weapon-reload':
+                return wep + 'a'  // CE ref: art.cc — reload reuses idle FRM (Xa)
             case 'weapon-draw':
                 return wep + 'c'  // Xc = pull out weapon, played forward
             case 'weapon-holster':
@@ -418,9 +426,10 @@ export class Weapon {
         }
     }
 
-    // FIXME: need some other way to check this without accessing `globalState.imageInfo`
-    canEquip(obj: Critter): boolean {
-        return globalState.imageInfo[obj.getBase() + this.getAnim('attack')] !== undefined
+    canEquip(_obj: Critter): boolean {
+        // CE ref: critter.cc critterEquipCurrent — equipping never gates on FRM availability;
+        // getAnimation() falls back to unarmed skin 'a' when weapon FRM is absent.
+        return true
     }
 
     getDamageType(): string {

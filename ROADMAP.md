@@ -350,7 +350,7 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| FA6 | **FID composition / weapon stance animation absent.** Critters always display unarmed pose regardless of equipped weapon. CE `buildFid()` selects FRM set from weapon `animCode`. | `art.cc buildFid()`; `art.h ART_TYPE_CRITTER` | medium |
+| FA6 | ✅ FIXED 2026-07-27 — `canEquip()` now always returns true (CE never blocks equip on FRM availability). `getAnim()` extended to cover run/shoot/weapon-reload. `getAnimation()` weapon path now checks FRM existence and falls back to unarmed skin 'a' when the armed FRM is absent (graceful degradation until the pipeline extracts weapon-armed FRMs). | `art.cc buildFid()`; `critter.cc critterEquipCurrent` | medium |
 
 ---
 

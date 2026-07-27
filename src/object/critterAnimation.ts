@@ -150,7 +150,10 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
         }
         const wepAnim = weaponObj.weapon.getAnim(anim)
         if (wepAnim) {
-            return base + wepAnim
+            const key = base + wepAnim
+            // CE ref: art.cc buildFid() — only use armed FRM set when it exists in the atlas;
+            // fall through to unarmed fallback below when the FRM is absent.
+            if (globalState.imageInfo[key] !== undefined) return key
         }
     }
 
