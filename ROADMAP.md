@@ -264,7 +264,7 @@ covered by Phases 1–8.
 | S26 | ✅ FIXED 2026-07-27 — CE-faithful timed-event decay: `poisonDecayEvent` scheduled at `10*(505-5*level)` ticks; -2 poison/-1 HP per event; resistance applied on add; save/load restores event for old saves. | `critter.cc critterAdjustPoison, poisonEventProcess` | minor |
 | S15 | **`play_gmovie` is a no-op.** `.mve` video playback infrastructure absent. | `movie.cc` | minor |
 | S27 | ~~**`radiation_dec/inc` stubs.**~~ FIXED 2026-07-27 — `radiation_inc`/`radiation_dec` implemented in `scripting.ts`; wired at 0x80FD/0x80FE. No decay loop (deferred). | `radiation.cc` | minor |
-| GTC5 | **Midnight queue partial.** `objectUnjamAll()` wired; ARTIMER movies (`_scriptsCheckGameEvents`) not yet wired. | `scripts.cc:405 gameTimeEventProcess` | minor |
+| GTC5 | ✅ FIXED 2026-07-27 — `objectUnjamAll()` + CE-faithful `_scriptsCheckGameEvents`: GVAR_ENEMY_ARROYO triggers AFAILED ending; ARTIMER1-4 fire at days 90/180/270/360; each adjusts GVAR_TOWN_REP_ARROYO -15; ARTIMER4 hides Arroyo/reveals Destroyed Arroyo. `seenMovies` persisted in save. | `scripts.cc:438 _scriptsCheckGameEvents` | minor |
 
 ### 9d. Interface / HUD
 
