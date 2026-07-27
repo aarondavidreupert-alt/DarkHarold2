@@ -469,14 +469,15 @@ export function uiDrawWeapon(): void {
 export function uiUpdateAmmoBar(weapon: WeaponObj | null): void {
     const fill = document.getElementById('ammoBarFill')
     if (!fill) return
+    // CE ref: interface.cc interfaceBarRefreshMainAction line ~1361 — fill = ratio * 70
     let ratio = 0
     const extra = (weapon as any)?.pro?.extra
     if (extra?.maxAmmo > 0) {
-        ratio = Math.floor(((extra.rounds ?? 0) / extra.maxAmmo) * 55)
+        ratio = Math.floor(((extra.rounds ?? 0) / extra.maxAmmo) * 70)
     } else if (extra?.maxCharges > 0) {
-        ratio = Math.floor(((extra.charges ?? 0) / extra.maxCharges) * 55)
+        ratio = Math.floor(((extra.charges ?? 0) / extra.maxCharges) * 70)
     }
-    fill.style.width = Math.max(0, Math.min(55, ratio)) + 'px'
+    fill.style.width = Math.max(0, Math.min(70, ratio)) + 'px'
 }
 
 // --- Combat bar ------------------------------------------------------------
