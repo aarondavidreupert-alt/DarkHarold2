@@ -270,8 +270,7 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| IW1 | **No HP/AC indicator bars in the character window.** CE renders colour-coded indicator bars on the HUD. | `interface.cc` | minor |
-| IW1 | ✅ FIXED 2026-06-04, updated 2026-06-11 — `#indicatorBar` shows all 5 CE badges in correct order (ADDICT/SNEAK/LEVEL/POISONED/RADIATED); LEVEL badge on unspent skill points; radiation threshold corrected to ≥65; bad/good colour coding (red/green). | `interface.cc indicatorBarRefresh` | major |
+| IW1 | ✅ FIXED 2026-06-04, updated 2026-06-11 — `#indicatorBar` shows all 5 CE badges in correct order (ADDICT/SNEAK/LEVEL/POISONED/RADIATED); LEVEL badge on unspent skill points; radiation threshold corrected to ≥65; bad/good colour coding (red/green). | `interface.cc indicatorBarRefresh` | minor |
 | IW2 | ✅ FIXED 2026-06-04 — `drawAP` dims `#attackButton` (opacity+grayscale) when AP < cost or not player turn. | `interface.cc interfaceRenderActionPoints()` | minor |
 | IW3 | ✅ FIXED 2026-06-11 — mode cycle is `single → called → burst → reload`; called mode auto-opens `uiCalledShot()`. Target-highlight outlines refresh immediately on cycle. | `interface.cc` | minor |
 | IW4 | ✅ FIXED 2026-06-04 — `game_ui_disable/enable` toggle `#bar` visibility in addition to input block. | `interface.cc` | minor |
@@ -287,7 +286,7 @@ covered by Phases 1–8.
 | CI4 | ✅ FIXED 2026-06-04 — `doAlwaysRun` default = false, matching CE. | `settings.h:38` | low |
 | CI5 | **Preferences in localStorage, not fallout2.cfg.** Lost in private browsing. | `settings.cc:118` | minor |
 | CI6 | ✅ FIXED 2026-06-11 — `speechVolume` added to `HTMLAudioEngine`, persisted in `SavedPreferences`, slider in prefs panel. | `settings.cc:93` | low |
-| CI7 | **`item_highlight` setting absent.** CE allows toggling item-highlight on hover. | `game_config.h:37` | low |
+| CI7 | ✅ FIXED (prior sprint) — `Config.ui.itemHighlight` wired to prefs panel toggle in `ui_options.ts`; `input.ts` gates hover-highlight on this flag; persisted in `SavedPreferences`. | `game_config.h:37` | low |
 | CI8 | ✅ FIXED 2026-06-11 — `target_highlight` is now full 3-state enum `'off'|'targeting-only'|'on'` matching CE 0/1/2; prefs cycle order corrected; legacy boolean load migration preserved. | `game_config.h:111` | low |
 | CI9 | ✅ FIXED 2026-06-11 — `textBaseDelay` (1.0–6.0 s) added to `Config.ui`, preferences slider added, persisted in `SavedPreferences`. | `settings.h:42` | low |
 | CI10 | ✅ FIXED 2026-06-11 — `player_speedup` checkbox added to `Config.engine.playerSpeedup`; prefs panel checkbox wired; `critterAnimation.ts` skips player FPS boost when disabled. | `preferences.cc player_speedup` | low |
@@ -325,8 +324,8 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| K4 | **Expanded Lockpick Set / Electronic Lockpick not modelled.** Tool type not checked in `useLockpick()`. | `skill.cc` | minor |
-| EL3 | **Elevator door-animation reset partial.** Door re-close animation on floor switch absent. | `elevator.cc` | low |
+| K4 | **Expanded Lockpick Set / Electronic Lockpick.** CE engine (`skill.cc`) does NOT check tool type — all lockpick bonuses are applied by MAP SCRIPTS via `has_item_pid`. DH2's `useLockpick()` is only a script-absent fallback; the normal CE code path is script-driven and already works in DH2. No engine change needed. | `skill.cc` | minor |
+| EL3 | ✅ FIXED 2026-06-04 — `uiElevator` scans hexes within radius 5 of arrival position and sets `frame = 0` / `open = false` on scenery with door PIDs (153, 421, 470). CE ref: `scripts.cc:926 scriptsHandleRequests SCRIPT_REQUEST_ELEVATOR`. | `elevator.cc` | low |
 | EL4 | **`_map_data_elev_flags` bitmask not in DH2 map format.** Empty elevations can't be represented. | `map.cc:81` | low |
 
 ### 9k. Endgame
@@ -341,7 +340,7 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| PS2 | **`tools/proto.py` has `FO1=True`, suppressing critter `damageType` extraction.** One-line fix. | `proto_types.h CritterProtoData.damageType` | major |
+| PS2 | ✅ FIXED (prior sprint) — `FO1 = False` is set in `tools/proto.py` line 20; critter `damageType` is extracted for all critters except killType 5/10 (Robots/Brahmin), which is the correct FO2 proto structure. | `proto_types.h CritterProtoData.damageType` | major |
 | FA3 | **`actionFrame` discarded by `tools/frmpixels.py`.** Field not saved; hit-frame sync absent. | `art.h ArtFrame.actionFrame` | major |
 | PS3 | **Tile PROs not extracted.** Type 4 silently skipped; terrain costs hardcoded. | `proto_types.h TileProto` | low |
 | PS4 | **Wall and misc `extra` fields not parsed.** `WallProto.extra` / `MiscProto.extra` absent. | `proto_types.h` | low |
