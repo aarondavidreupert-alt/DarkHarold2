@@ -509,12 +509,34 @@ function stepEndAnim(dir: 1 | -1, onDone: () => void): void {
     _endAnimTimer = setTimeout(tick, END_ANIM_DELAY_MS)
 }
 
+// CE ref: interface.cc interfaceBarEndButtonsRenderRedLights / RenderGreenLights —
+// Show the light overlay over the end-button container.
+// Red lights = AI turn (buttons disabled); green lights = player's turn (buttons enabled).
+export function uiEndButtonsRedLights(): void {
+    const el = document.getElementById('endLights')
+    if (!el) return
+    el.style.backgroundImage = "url('art/intrface/endltred.png')"
+    el.style.display = 'block'
+}
+export function uiEndButtonsGreenLights(): void {
+    const el = document.getElementById('endLights')
+    if (!el) return
+    el.style.backgroundImage = "url('art/intrface/endltgrn.png')"
+    el.style.display = 'block'
+}
+export function uiEndButtonsClearLights(): void {
+    const el = document.getElementById('endLights')
+    if (el) el.style.display = 'none'
+}
+
 export function uiStartCombat(): void {
     globalState.cursorMode = 'attack'
-    // CE ref: interface.cc — animate end-turn panel open (frames 0→4), then show buttons
+    // CE ref: interface.cc interfaceBarEndButtonsShow / RenderRedLights:
+    // animate end-turn panel open (frames 0→4), then show buttons with red lights.
     stepEndAnim(1, () => {
         showv($id('endTurnButton'))
         showv($id('endCombatButton'))
+        uiEndButtonsRedLights()
     })
     const player = globalState.player!
     drawHP(player.getStat('HP'))
@@ -526,6 +548,7 @@ export function uiStartCombat(): void {
 export function uiEndCombat(): void {
     hidev($id('endTurnButton'))
     hidev($id('endCombatButton'))
+    uiEndButtonsClearLights()
     // CE ref: interface.cc — animate end-turn panel close (frames 4→0)
     stepEndAnim(-1, () => { /* panel closed */ })
 

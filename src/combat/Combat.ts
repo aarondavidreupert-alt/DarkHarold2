@@ -27,7 +27,7 @@ import { eventLogPush, dbg, dbgWarn } from '../logger.js'
 import { Critter, Obj } from '../object.js'
 import { Player } from '../player.js'
 import { Scripting } from '../scripting.js'
-import { drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiLog, uiStartCombat } from '../ui.js'
+import { drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiEndButtonsGreenLights, uiEndButtonsRedLights, uiLog, uiStartCombat } from '../ui.js'
 import { clamp, getMessage, getRandomInt, rollSkillCheck } from '../util.js'
 import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from '../unarmed.js'
 import { ActionPoints } from './actionPoints.js'
@@ -1205,7 +1205,8 @@ export class Combat {
         globalState.inCombat = false
         combatActive = false
 
-        if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat2')
+        // CE ref: interface.cc:1455 interfaceBarEndButtonsHide — plays icibcxx1 when buttons close
+        if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icibcxx1')
         this.player.AP?.resetAP()  // CE ref: combat.cc:2811
         globalState.gMap.updateMap()
         uiEndCombat()
@@ -1222,7 +1223,7 @@ export class Combat {
         eventLogPush({ actor: null, action: 'combat-end', result: 'forced', message: 'Combat ended (forced)' })
         globalState.combat = null
         globalState.inCombat = false
-        if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat2')
+        if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icibcxx1')
         this.player.AP?.resetAP()  // CE ref: combat.cc:2811
         globalState.gMap?.updateMap()
         uiEndCombat()
@@ -1338,6 +1339,10 @@ export class Combat {
             this.player.AP!.resetAP()
             drawAP(this.player.AP!.getAvailableMoveAP(), this.player.AP!.getTotalMaxAP())
             drawHP(this.player.getStat('HP'))
+            // CE ref: combat.cc:3276 / interface.cc interfaceBarEndButtonsRenderGreenLights —
+            // green lights + icombat2 when player's turn begins (buttons enabled)
+            if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat2')
+            uiEndButtonsGreenLights()
             eventLogPush({
                 actor: actorName(this.player), action: 'turn-begin',
                 AP: this.player.AP!.getAvailableMoveAP(), HP: this.player.getStat('HP'),
@@ -1346,6 +1351,10 @@ export class Combat {
         } else {
             this.inPlayerTurn = false
             drawAP(0, this.player.AP!.getTotalMaxAP(), 0, false)
+            // CE ref: interface.cc interfaceBarEndButtonsRenderRedLights —
+            // red lights + icombat1 during AI turns (buttons disabled)
+            if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat1')
+            uiEndButtonsRedLights()
             var critter = this.combatants[this.whoseTurn]
             // Party members (same team as player) take AI turns even without hostile flag.
             // CE ref: party.cc — party members participate fully in combat on the player's side.

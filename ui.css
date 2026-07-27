@@ -138,6 +138,19 @@ html, body {
   /* frame controlled by JS (same pattern as elevator gauge / wmdial) */
 }
 
+/* CE ref: interface.cc interfaceBarEndButtonsRenderGreenLights / RenderRedLights —
+   57x58 light overlay (endltgrn.frm / endltred.frm) blitted over the end-button area. */
+#endLights {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 57px;
+  height: 58px;
+  display: none;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
 #endTurnButton {
   position: absolute;
   top: 5px;
