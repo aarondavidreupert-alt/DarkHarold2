@@ -1747,6 +1747,25 @@ export module Scripting {
             if (tile < 0 || tile >= Lightmap.tile_intensity.length) return 0
             return Lightmap.tile_intensity[tile] > 0 ? 1 : 0
         }
+        // CE ref: sfall_opcodes.cc:951 op_obj_blocking_at — returns first blocking object
+        // at (tile, elevation) for the given blocking type, or null if none.
+        // Blocking types: 0=block, 1=shoot, 2=ai, 3=sight (DH2 uses common blocking).
+        obj_blocking_at(tile: number, elevation: number, _blockingType: number): Obj | null {
+            if (!globalState.gMap) return null
+            const pos = fromTileNum(tile)
+            const objs = globalState.gMap.objectsAtPosition(pos)
+            for (const o of objs) {
+                if (o.blocks()) return o
+            }
+            return null
+        }
+        // CE ref: sfall_opcodes.cc:937 op_make_straight_path — casts a straight hex
+        // line from obj.tile to dest and returns the first blocking obstacle, or null.
+        make_straight_path(obj: Obj, destTile: number, _blockingType: number): Obj | null {
+            if (!isGameObject(obj) || !globalState.gMap) return null
+            const dest = fromTileNum(destTile)
+            return globalState.gMap.hexLinecast(obj.position, dest)
+        }
         tile_num_in_direction(tile: number, direction: number, distance: number) {
             if (distance === 0) {
                 //warn("tile_num_in_direction: distance=" + distance)

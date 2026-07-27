@@ -158,6 +158,8 @@ export module ScriptVMBridge {
        ,0x8123: bridged("get_poison", 1)          // CE: interpreter_extra.cc:5004 opGetPoison
        ,0x80FD: bridged("radiation_inc", 2, false) // CE: interpreter_extra.cc:4966 opRadiationIncrease
        ,0x80FE: bridged("radiation_dec", 2, false) // CE: interpreter_extra.cc:4967 opRadiationDecrease
+       ,0x826E: bridged("make_straight_path", 3)    // CE: sfall_opcodes.cc:937 op_make_straight_path
+       ,0x826F: bridged("obj_blocking_at", 3)       // CE: sfall_opcodes.cc:951 op_obj_blocking_at
        ,0x80A1: bridged("give_exp_points", 1, false)
        ,0x8138: bridged("item_caps_total", 1)
        ,0x8139: bridged("item_caps_adjust", 2)
