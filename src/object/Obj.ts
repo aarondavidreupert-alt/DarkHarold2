@@ -690,16 +690,38 @@ export class Obj {
     }
 
     addInventoryItem(item: Obj, count = 1): void {
+        // CE ref: item.cc:322 itemAdd() — ammo boxes have a per-box capacity
+        // (proto.extra.quantity). Filling an existing stack beyond capacity creates
+        // an additional overflow stack rather than unboundedly growing one entry.
+        const isAmmo = item.subtype === 'ammo'
+        const capacity: number = isAmmo ? (item.pro?.extra?.quantity ?? 0) : 0
+
         for (let i = 0; i < this.inventory.length; i++) {
             if (this.inventory[i].approxEq(item)) {
-                this.inventory[i].amount += count
+                if (isAmmo && capacity > 0) {
+                    const combined = this.inventory[i].amount + count
+                    if (combined > capacity) {
+                        this.inventory[i].amount = capacity
+                        // overflow — recurse with the remainder to fill/create next stack
+                        this.addInventoryItem(item, combined - capacity)
+                    } else {
+                        this.inventory[i].amount = combined
+                    }
+                } else {
+                    this.inventory[i].amount += count
+                }
                 return
             }
         }
 
         // no existing item, add new inventory object
         const clone = item.clone()
-        this.inventory.push(clone.setAmount(count))
+        if (isAmmo && capacity > 0 && count > capacity) {
+            this.inventory.push(clone.setAmount(capacity))
+            this.addInventoryItem(item, count - capacity)
+        } else {
+            this.inventory.push(clone.setAmount(count))
+        }
     }
 
     // CE ref: item.cc objectGetInventoryWeight — sums pro.extra.weight per item.
