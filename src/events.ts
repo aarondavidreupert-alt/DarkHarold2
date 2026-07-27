@@ -30,6 +30,11 @@ export module Events {
             handlers[msgType] = [handler];
     }
 
+    export function off(msgType: string, handler: EventHandler): void {
+        if (msgType in handlers)
+            handlers[msgType] = handlers[msgType].filter(h => h !== handler)
+    }
+
     export function emit(msgType: string, msg?: any): void {
         if(msgType in handlers) {
             for(const handler of handlers[msgType])

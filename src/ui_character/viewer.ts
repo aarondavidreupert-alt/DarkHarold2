@@ -20,6 +20,7 @@ limitations under the License.
 // in creator.ts; the level-up perk picker lives in perkModal.ts.
 
 import { Config } from '../config.js'
+import { Events } from '../events.js'
 import globalState from '../globalState.js'
 import { Widget } from '../ui_widget.js'
 import { font2, font3, makeFontLabel, renderBignum } from '../ui_font.js'
@@ -41,6 +42,7 @@ import { showPerkModal } from './perkModal.js'
 // open. Creator imports setCharacterWindow() to plug its WindowFrame in.
 
 let characterWindow: WindowFrame
+let _statsChangedHandler: (() => void) | null = null
 
 export function getCharacterWindow(): WindowFrame | null {
     return characterWindow ?? null
@@ -51,6 +53,7 @@ export function setCharacterWindow(w: WindowFrame): void {
 }
 
 export function closeCharacterScreen(): void {
+    if (_statsChangedHandler) { Events.off('statsChanged', _statsChangedHandler); _statsChangedHandler = null }
     if (characterWindow && characterWindow.showing) {
         characterWindow.close()
     }
@@ -146,7 +149,7 @@ export function showCharacterScreen() {
         .add(makeFontLabel(455 + 18, 454, 'DONE', font3).css({ pointerEvents: 'none' }))
         .add(
             new SmallButton(552, 454).onClick(() => {
-                characterWindow.close()
+                closeCharacterScreen()
             })
         )
         .add(makeFontLabel(552 + 18, 454, 'CANCEL', font3).css({ pointerEvents: 'none' }))
@@ -728,6 +731,10 @@ export function showCharacterScreen() {
     redrawStatsSkills()
     showInfoCard(SPECIAL_FULL_NAMES['STR'], SPECIAL_DESCRIPTIONS['STR'], SPECIAL_IMG['STR'])
 
+    // Refresh stats live when drugs/effects change them while the screen is open
+    _statsChangedHandler = redrawStatsSkills
+    Events.on('statsChanged', redrawStatsSkills)
+
     // Stat level up buttons (char creation only)
     const canChangeStats = false
     if (canChangeStats) {
@@ -757,7 +764,7 @@ export function showCharacterScreen() {
 
         console.log('[CharScreen] Changes saved.')
         updateIndicatorBar()
-        characterWindow.close()
+        closeCharacterScreen()
     })
 
     // FO2-CE ref: editor.cc editorRun() — perk selector is triggered inside the

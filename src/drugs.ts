@@ -184,7 +184,7 @@ export function useDrug(item: Obj, user: Critter): boolean {
         const heal = Math.min(drug.immediateHP, maxHP - curHP)
         if (heal > 0) {
             user.stats.modifyBase('HP', heal)
-            if (user.isPlayer) uiLog(`You heal ${heal} hit points.`)
+            if (user.isPlayer) { uiLog(`You heal ${heal} hit points.`); Events.emit('statsChanged') }
         } else if (user.isPlayer) {
             uiLog("You're already at full health.")
         }
@@ -257,6 +257,7 @@ export function useDrug(item: Obj, user: Critter): boolean {
         if (user.isPlayer) {
             const parts = Object.entries(stats).map(([s, d]) => `${d > 0 ? '+' : ''}${d} ${s}`)
             uiLog(`${drug.name}: ${parts.join(', ')}.`)
+            Events.emit('statsChanged')
         }
         dbg('script', `[Drug] ${drug.name} timed effect applied, duration=${duration}`)
 
@@ -270,7 +271,7 @@ export function useDrug(item: Obj, user: Critter): boolean {
                 for (const [stat, delta] of Object.entries(stats)) {
                     user.stats.modifyBase(stat, -delta)
                 }
-                if (user.isPlayer) uiLog(`${drug.name} wears off.`)
+                if (user.isPlayer) { uiLog(`${drug.name} wears off.`); Events.emit('statsChanged') }
                 dbg('script', `[Drug] ${drug.name} effect wore off`)
 
                 // Addiction check — CE ref: item.cc:2822-2845
