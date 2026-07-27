@@ -308,6 +308,13 @@ export function load(id: number): void {
                                         user.stats.modifyBase(stat, -delta)
                                 }})
                             }
+                        } else if (userdata === 'poison') {
+                            // CE ref: critter.cc poisonEventProcess — restore poison decay timer.
+                            const player = globalState.player as Critter | null
+                            if (player && !player.dead) {
+                                Scripting.timeEventList.push({ obj: player, ticks, userdata,
+                                    fn: () => Scripting.poisonDecayEvent(player) })
+                            }
                         } else if (obj?._script) {
                             const script = obj._script
                             Scripting.timeEventList.push({ obj, ticks, userdata,
@@ -315,6 +322,20 @@ export function load(id: number): void {
                             })
                         }
                     }
+
+                    // CE ref: critter.cc critterAdjustPoison — if player loaded with poisonLevel>0
+                    // but no timed poison event (old save format), re-arm the decay event now.
+                    const playerForPoison = globalState.player as Critter | null
+                    if (playerForPoison && !playerForPoison.dead && (playerForPoison.poisonLevel ?? 0) > 0) {
+                        const hasEvent = Scripting.timeEventList.some(
+                            e => e.obj === playerForPoison && e.userdata === 'poison')
+                        if (!hasEvent) {
+                            const delay = 10 * (505 - 5 * playerForPoison.poisonLevel)
+                            Scripting.timeEventList.push({ obj: playerForPoison, ticks: delay, userdata: 'poison',
+                                fn: () => Scripting.poisonDecayEvent(playerForPoison) })
+                        }
+                    }
+
                     dbg('saveload', '[SaveLoad] Restored %d timed events', save.timedEvents.length)
                 }
 

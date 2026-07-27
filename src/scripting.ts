@@ -175,6 +175,18 @@ export module Scripting {
         else console.log(`INFO: ${msg}`)
     }
 
+    // CE ref: critter.cc poisonEventProcess — timed poison decay: -2 poison, -1 HP, reschedule.
+    // Userdata tag 'poison' is used to identify and cancel existing events on reschedule.
+    export function poisonDecayEvent(critter: Critter): void {
+        if (!critter || critter.dead) return
+        critter.poisonLevel = Math.max(0, (critter.poisonLevel ?? 0) - 2)
+        critter.stats.modifyBase('HP', -1)
+        if (critter.poisonLevel > 0) {
+            const delay = 10 * (505 - 5 * critter.poisonLevel)
+            timeEventList.push({ obj: critter, ticks: delay, userdata: 'poison', fn: () => poisonDecayEvent(critter) })
+        }
+    }
+
     // http://stackoverflow.com/a/23304189/1958152
     function seed(s: number) {
         Math.random = () => {
@@ -1377,8 +1389,30 @@ export module Scripting {
             info('critter_heal: ' + obj.name + ' healed ' + healed + ' HP')
         }
         poison(obj: Obj, amount: number) {
-            // FO2-CE ref: critter.cc critterPoisonAdj
-            ;(obj as Critter).poisonLevel = Math.max(0, ((obj as Critter).poisonLevel ?? 0) + amount)
+            // CE ref: critter.cc critterAdjustPoison — only applies to player (gDude).
+            // Positive amount: apply poison resistance then add. Negative: remove (no resistance).
+            // After adjusting, cancel old EVENT_TYPE_POISON event and schedule a new one.
+            const critter = obj as Critter
+            if (!critter.isPlayer) return
+            if (amount > 0) {
+                const resistance = critter.getStat('DR Poison') ?? 0
+                amount = Math.max(0, amount - Math.floor(amount * resistance / 100))
+            } else {
+                if ((critter.poisonLevel ?? 0) <= 0) return
+            }
+            const newPoison = Math.max(0, (critter.poisonLevel ?? 0) + amount)
+            critter.poisonLevel = newPoison
+            // Cancel any existing poison decay event (CE: _queue_clear_type(EVENT_TYPE_POISON))
+            for (let i = timeEventList.length - 1; i >= 0; i--) {
+                if (timeEventList[i].obj === critter && timeEventList[i].userdata === 'poison') {
+                    timeEventList.splice(i, 1)
+                    break
+                }
+            }
+            if (newPoison > 0) {
+                const delay = 10 * (505 - 5 * newPoison)
+                timeEventList.push({ obj: critter, ticks: delay, userdata: 'poison', fn: () => poisonDecayEvent(critter) })
+            }
         }
         radiation_inc(obj: Obj, amount: number) {
             // CE ref: interpreter_extra.cc:2777 opRadiationIncrease — scripted radiation increase

@@ -202,16 +202,12 @@ export function tickGame(): void {
                 nextMapUpdateTick = globalState.gameTickTime + 600
                 globalState.gMap.updateMap()
 
-                // Poison tick: -1 HP per 600-tick cycle for each 10 points of poison.
-                // FO2-CE ref: critter.cc critterPoisonCheck
-                const player = globalState.player as Critter | null
-                if (player && !player.dead && player.poisonLevel > 0) {
-                    const dmg = Math.floor(player.poisonLevel / 10)
-                    if (dmg > 0) player.stats.modifyBase('HP', -dmg)
-                    player.poisonLevel = Math.max(0, player.poisonLevel - 1)
-                }
+                // Poison decay is now handled by a CE-faithful timed event queue in scripting.ts.
+                // CE ref: critter.cc poisonEventProcess — the event is scheduled by poison()
+                // at 10*(505-5*level) ticks, fires in the timed-event loop above.
 
                 // Addiction withdrawal tick for the player.
+                const player = globalState.player as Critter | null
                 if (player && !player.dead) tickAddictions(player)
 
                 // Radiation symptom tick (FO2-CE ref: radiation.cc radiationEventProcess)

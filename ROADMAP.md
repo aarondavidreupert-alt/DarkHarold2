@@ -261,7 +261,7 @@ covered by Phases 1–8.
 |----|------|--------|-----|
 | S11 | ✅ FIXED 2026-06-04 — reverse direction wired through animBatch → `singleAnimation(reversed)`. | `interpreter_extra.cc:3355` | minor |
 | S14 | ~~**`reg_anim_animate` delay ignored in non-batch path.**~~ FIXED 2026-07-27 — non-batch path now applies delay via `setTimeout` and respects `anim=0` (stand still). | `animation.cc:1374` | minor |
-| S26 | **`get_poison`/`poison` read/write work; decay loop is simplified** (`main.ts` decrements 1/cycle; CE is more complex). `poison` opcode (0x8122) wired 2026-07-27. | `critter.cc critterPoisonCheck` | minor |
+| S26 | ✅ FIXED 2026-07-27 — CE-faithful timed-event decay: `poisonDecayEvent` scheduled at `10*(505-5*level)` ticks; -2 poison/-1 HP per event; resistance applied on add; save/load restores event for old saves. | `critter.cc critterAdjustPoison, poisonEventProcess` | minor |
 | S15 | **`play_gmovie` is a no-op.** `.mve` video playback infrastructure absent. | `movie.cc` | minor |
 | S27 | ~~**`radiation_dec/inc` stubs.**~~ FIXED 2026-07-27 — `radiation_inc`/`radiation_dec` implemented in `scripting.ts`; wired at 0x80FD/0x80FE. No decay loop (deferred). | `radiation.cc` | minor |
 | GTC5 | **Midnight queue partial.** `objectUnjamAll()` wired; ARTIMER movies (`_scriptsCheckGameEvents`) not yet wired. | `scripts.cc:405 gameTimeEventProcess` | minor |
@@ -406,14 +406,14 @@ Phase 9 (remaining tractable gaps) 🟡/🔴
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| AF9 | **`brightness` slider absent.** CE has a gamma/brightness slider (prfsldof/prfsldon FRMs). | `preferences.cc PREF_BRIGHTNESS` | minor |
-| AF10 | **`mouse_sensitivity` slider absent.** CE has a mouse sensitivity knob. | `preferences.cc PREF_MOUSE_SENSITIVITY` | low |
+| AF9 | ✅ FIXED (prior sprint) — `brightness` slider implemented in `ui_options.ts`; CSS filter applied to canvas. | `preferences.cc PREF_BRIGHTNESS` | minor |
+| AF10 | ✅ FIXED (prior sprint) — `mouseSensitivity` slider implemented in `ui_options.ts`; applied to mouse delta. | `preferences.cc PREF_MOUSE_SENSITIVITY` | low |
 | AF11 | **`running` toggle cycles boolean; CE uses a 2-way toggle knob FRM (prflknbs.frm).** DH2 uses a cycle button; cosmetic. | `preferences.cc` | low |
 | AF12 | **`game_difficulty` uses CE 3-way knob (prfbknbs.frm); DH2 uses a cycle button.** The 4-way rotary knob FRM is not loaded. | `preferences.cc PREF_GAME_DIFFICULTY` | low |
 | AF13 | **Preferences background (`prefscrn.frm`) not loaded.** DH2 prefs panel uses a raw `<div>` with inline styles; the 640×480 background FRM is never rendered. | `preferences.cc` | low |
 | AF14 | **`combat_messages` uses cycle button; CE uses 2-way toggle knob (prflknbs.frm).** | `preferences.cc PREF_COMBAT_MESSAGES` | low |
-| AF15 | **Preferences screen has no Default button.** CE has a "DEFAULT" button that resets all sliders to CE defaults. | `preferences.cc preferencesSave()` | low |
-| AF16 | **`text_line_delay` absent.** CE has a separate `text_line_delay` (per-line auto-advance speed distinct from `text_base_delay`). | `settings.h:43` | low |
+| AF15 | ✅ FIXED (prior sprint) — DEFAULT button in `ui_options.ts` resets all sliders to CE defaults via `preferencesSetDefaults()` equivalent. | `preferences.cc preferencesSave()` | low |
+| AF16 | **`text_line_delay` absent.** CE derives line delay from base delay: `(base-1)*0.4` clamped to [0,2]s. Used by `text_object.cc` for auto-advance of multi-line floating text. DH2 has no floating-text auto-advance. | `settings.h:43` | low |
 | AF17 | **`language_filter` checkbox absent.** CE has a profanity filter toggle. | `preferences.cc PREF_LANGUAGE_FILTER` | low |
 
 ---
