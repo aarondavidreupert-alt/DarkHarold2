@@ -75,8 +75,8 @@ export class Player extends Critter {
         createObjectWithPID(260),                // Jet Antidote
 
         // Misc items
-        createObjectWithPID(52),  // Geiger Counter I
-        createObjectWithPID(54),  // Stealth Boy I
+        (() => { const o = createObjectWithPID(52); o.miscCharges = 200; return o })(),  // Geiger Counter I
+        (() => { const o = createObjectWithPID(54); o.miscCharges = 50;  return o })(),  // Stealth Boy I
     ]
 
     lightRadius = 4
