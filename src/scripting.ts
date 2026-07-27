@@ -1905,7 +1905,7 @@ export module Scripting {
             if (elevation !== globalState.currentElevation) {
                 info('move_to: moving to elevation ' + elevation)
 
-                if (obj instanceof Critter && obj.isPlayer) globalState.gMap.changeElevation(elevation, true)
+                if (obj instanceof Critter && obj.isPlayer) globalState.gMap.changeElevationFaded(elevation, true)
                 else {
                     globalState.gMap.removeObject(obj)
                     globalState.gMap.addObject(obj, elevation)

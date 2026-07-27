@@ -128,7 +128,7 @@ export function uiElevator(elevator: Elevator) {
                     dbg(`[Elevator] → level ${level} @ (${position.x}, ${position.y})`)
                     globalState.audioEngine.playSfxByName(elvSfx)
                     globalState.player.move(position)
-                    globalState.gMap.changeElevation(level, true)
+                    globalState.gMap.changeElevationFaded(level, true)
                 }
 
                 // CE ref: scripts.cc:926 scriptsHandleRequests SCRIPT_REQUEST_ELEVATOR

@@ -910,7 +910,7 @@ export class Obj {
                 dbg('object', `[Object] stairs: tile=(${destTile.x}, ${destTile.y}), elev=${destElev}`)
 
                 globalState.player.position = destTile
-                globalState.gMap.changeElevation(destElev)
+                globalState.gMap.changeElevationFaded(destElev)
                 // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc, not map_enter_p_proc
                 globalState.gMap.updateMap()
             } else {
@@ -935,14 +935,14 @@ export class Obj {
                 actor.staticAnimation('climb', () => {
                     actor.clearAnim()
                     actor.position = destTile
-                    globalState.gMap.changeElevation(destElev)
+                    globalState.gMap.changeElevationFaded(destElev)
                     // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc
                     globalState.gMap.updateMap()
                 })
                 return true // updateMap() handled in callback above; skip the one below
             }
             globalState.player.position = destTile
-            globalState.gMap.changeElevation(destElev)
+            globalState.gMap.changeElevationFaded(destElev)
             // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc
             globalState.gMap.updateMap()
         } else {

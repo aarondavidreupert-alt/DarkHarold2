@@ -288,6 +288,28 @@ export class GameMap {
         Events.emit('elevationChanged', { elevation: level, oldElevation, isMapLoading })
     }
 
+    // CE ref: map.cc mapSetElevation — fades to black (~166ms), switches elevation, fades in (~83ms).
+    // DH2 approximation: instant black overlay while the switch occurs synchronously underneath,
+    // then fades the overlay to transparent (166ms) so the new elevation is revealed.
+    changeElevationFaded(level: number, updateScripts = false): void {
+        if (typeof document === 'undefined') {
+            this.changeElevation(level, updateScripts, false)
+            return
+        }
+        const overlay = document.createElement('div')
+        Object.assign(overlay.style, {
+            position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
+            background: 'black', opacity: '1', pointerEvents: 'none', zIndex: '9000',
+        })
+        document.body.appendChild(overlay)
+        this.changeElevation(level, updateScripts, false)
+        requestAnimationFrame(() => {
+            overlay.style.transition = 'opacity 166ms linear'
+            overlay.style.opacity = '0'
+            overlay.addEventListener('transitionend', () => overlay.remove(), { once: true })
+        })
+    }
+
     placeParty() {
         // set up party members' positions
         globalState.gParty.getPartyMembers().forEach((obj: Critter) => {
