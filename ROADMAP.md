@@ -312,7 +312,7 @@ covered by Phases 1–8.
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
 | GTC10 | **Day/night ambient light curve is a DH2 invention.** CE has no clock-driven ambient. | `light.cc`, `map.cc:927` | low |
-| LD5 | **`objectGetLightIntensity` self-subtraction absent.** Prevents self-illumination artefacts. | `object.cc:1748` | low |
+| LD5 | ✅ FIXED 2026-07-27 — `darknessPenalty()` in `hitChance.ts` uses `getObjectLightIntensity` (tile intensity minus player's own lightIntensity); applies -40/-25/-10 tiers when player attacks; PERK_WEAPON_NIGHT_SIGHT (66) bypasses penalty. CE ref: `combat.cc:4447-4464 / object.cc:1748`. | `object.cc:1748` | low |
 
 ### 9i. Reputation / Economy
 
