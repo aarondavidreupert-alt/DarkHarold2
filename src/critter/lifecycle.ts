@@ -126,6 +126,7 @@ export function critterKill(
                 const pool = new Obj()
                 pool.type = 'misc'
                 pool.art = bloodArt
+                pool.flags = 0x8 // OBJECT_FLAT — renders beneath critters (CE object.cc:4553)
                 pool.position = { x: obj.position.x, y: obj.position.y }
                 globalState.gMap.addObject(pool)
             })

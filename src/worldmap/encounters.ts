@@ -93,7 +93,11 @@ export function doEncounter(): void {
     execEncounter(encTable)
 }
 
-export function didEncounter(): boolean {
+// CE ref: worldmap.cc:3504 wmRndEncounterOccurred()
+// 'none'      — no encounter rolled
+// 'forced'    — encounter rolled; Outdoorsman check failed (or not run)
+// 'avoidable' — encounter rolled; Outdoorsman check passed; player may opt out
+export function didEncounter(): 'none' | 'forced' | 'avoidable' {
     const worldmap = getWorldmap()
     const worldmapPlayer = getWorldmapPlayer()
     const squarePos = positionToSquare(worldmapPlayer)
@@ -105,14 +109,10 @@ export function didEncounter(): boolean {
                   : 0                                                  // morning
     const encRate = worldmap.encounterRates[square.frequencies[dayPart]]
 
-    //console.log("square: %o, worldmap: %o, encRate: %d", square, worldmap, encRate)
-
     if (encRate === 0)
-        // 0% encounter rate (none)
-        return false
+        return 'none'
     else if (encRate === 100)
-        // 100% encounter rate (forced)
-        return true
+        return 'forced'
     else {
         // Adjust for game difficulty — CE ref: worldmap.cc:3322 wmRndEncounterOccurred
         let adjRate = encRate
@@ -134,17 +134,17 @@ export function didEncounter(): boolean {
                 if (outdoorsman > 95) outdoorsman = 95
                 outdoorsman += square.difficulty
                 if (getRandomInt(1, 100) < outdoorsman) {
-                    // Detected: award XP; avoidance dialog not yet implemented
                     const xp = 100 - outdoorsman
                     if (xp > 0) {
                         player.addExperience(xp)
-                        dbg('worldmap', 'encounter detected: outdoorsman=%d xp=%d', outdoorsman, xp)
+                        dbg('worldmap', 'encounter detected (avoidable): outdoorsman=%d xp=%d', outdoorsman, xp)
                     }
+                    return 'avoidable'
                 }
             }
-            return true
+            return 'forced'
         }
     }
 
-    return false
+    return 'none'
 }

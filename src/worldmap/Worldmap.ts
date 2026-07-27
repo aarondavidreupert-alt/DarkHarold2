@@ -22,6 +22,7 @@ import * as GameTime from '../gametime.js'
 import { Point, pointIntersectsCircle } from '../geometry.js'
 import globalState from '../globalState.js'
 import { hidev, makeEl, showv, uiCloseWorldMap, uiWorldMapShowArea } from '../ui.js'
+import { showConfirm } from '../ui_dialog.js'
 import { clamp, getFileText } from '../util.js'
 import { Config } from '../config.js'
 import { dbg } from '../logger.js'
@@ -470,19 +471,29 @@ export function updateWorldmapPlayer() {
                 && withinArea(worldmapPlayer) === null) {
             lastEncounterCheck = time
 
-            const hadEncounter = didEncounter()
-            if (hadEncounter === true) {
+            const encResult = didEncounter()
+            if (encResult !== 'none') {
                 $worldmapPlayer.style.backgroundImage = "url('art/intrface/wmapfgt0.png')"
+                clearTimeout(worldmapTimer)
 
-                // TODO: Disable Worldmap UI while waiting on this!
-
-                setTimeout(function () {
+                // CE ref: worldmap.cc:3504 wmRndEncounterOccurred — when detected,
+                // show YES/NO dialog; skip encounter on NO. Msg 2999 title, 3000+
+                // per-entry body. DH2: fixed message (worldmap.msg not loaded).
+                const doIt = async () => {
+                    if (encResult === 'avoidable') {
+                        const engage = await showConfirm('You have spotted an encounter.\nDo you wish to engage?')
+                        if (!engage) {
+                            $worldmapPlayer.style.backgroundImage = "url('art/intrface/wmaploc.png')"
+                            worldmapTimer = setTimeout(updateWorldmapPlayer, 75)
+                            return
+                        }
+                    }
+                    await new Promise<void>(r => setTimeout(r, 1000))
                     doEncounter()
                     uiCloseWorldMap()
                     $worldmapPlayer.style.backgroundImage = "url('art/intrface/wmaploc.png')"
-                }, 1000)
-
-                clearTimeout(worldmapTimer)
+                }
+                void doIt()
                 return
             }
         }

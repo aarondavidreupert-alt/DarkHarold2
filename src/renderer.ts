@@ -466,10 +466,9 @@ export class Renderer {
         // Distinct from Config.ui.itemHighlight (the real CE preference for
         // single-item mouse-hover highlighting — see input.ts mousemoved).
         const highlightItems = globalState.highlightItemsKeyHeld === true
-        for (const obj of objs) {
-            if (!Config.ui.showWalls && obj.type === 'wall') {
-                continue
-            }
+
+        const renderOne = (obj: Obj): void => {
+            if (!Config.ui.showWalls && obj.type === 'wall') return
             const wantTempOutline = highlightItems && obj.type === 'item' && !obj.outline
             if (wantTempOutline) {
                 const prev = obj.outline
@@ -481,6 +480,16 @@ export class Renderer {
             } else {
                 this.renderObject(obj)
             }
+        }
+
+        // CE ref: object.cc:761 _obj_render_pre_roof() — OBJECT_FLAT (0x8) objects
+        // (floor decals, blood pools) are drawn in a dedicated first pass so they
+        // always appear beneath critters and items regardless of tile sort order.
+        for (const obj of objs) {
+            if (obj.flags & 0x8) renderOne(obj)
+        }
+        for (const obj of objs) {
+            if (!(obj.flags & 0x8)) renderOne(obj)
         }
     }
 
