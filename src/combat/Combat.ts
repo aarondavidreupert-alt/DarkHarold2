@@ -760,7 +760,8 @@ export class Combat {
         const targets = this.combatants.filter((x) => {
             if (x.dead || x.teamNum === obj.teamNum) return false
             const dist = hexDistance(obj.position, x.position)
-            if (dist > per * 5) return false               // beyond max perception range
+            const maxRange = (x as any).stealthActive ? Math.floor((per * 5) / 2) : per * 5
+            if (dist > maxRange) return false              // beyond max perception range (halved vs stealthed targets; CE ref: combat_ai.cc:3510)
             if (dist > per * 2 && !this.hasLineOfSight(obj.position, x.position)) return false
             return true
         })
@@ -1205,6 +1206,7 @@ export class Combat {
         combatActive = false
 
         if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat2')
+        this.player.AP?.resetAP()  // CE ref: combat.cc:2811
         globalState.gMap.updateMap()
         uiEndCombat()
     }
@@ -1221,6 +1223,7 @@ export class Combat {
         globalState.combat = null
         globalState.inCombat = false
         if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat2')
+        this.player.AP?.resetAP()  // CE ref: combat.cc:2811
         globalState.gMap?.updateMap()
         uiEndCombat()
         // Defer flag reset so the current script execution frame finishes

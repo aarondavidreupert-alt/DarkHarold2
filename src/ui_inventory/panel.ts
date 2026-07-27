@@ -28,6 +28,7 @@ import { UIMode, closeAllPanels, isInventoryOpen, registerCloseInventoryPanel } 
 import { $id, clearEl, showv, hidev, makeEl } from '../ui_dom.js'
 import { makeDropTarget, makeDraggable, uiMoveSlot, applyArmorArt, tryLoadAmmoIntoWeapon } from './dragdrop.js'
 import { refreshStealthState } from '../miscItem.js'
+import { Events } from '../events.js'
 
 // --- Public open / close lifecycle -----------------------------------------
 
@@ -38,6 +39,7 @@ export function closeInventory(): void {
     if (globalState.player) globalState.player.clearAnim?.()
     globalState.audioEngine.playSfxByName('isdxxxx1')
     uiDrawWeapon()
+    Events.off('statsChanged', showInventory)
 }
 
 /**
@@ -87,7 +89,11 @@ export function initInventory(): void {
 export function showInventory() {
     const wasOpen = isInventoryOpen()
     globalState.uiMode = UIMode.inventory
-    if (!wasOpen) globalState.audioEngine.playSfxByName('iisxxxx1')
+    if (!wasOpen) {
+        globalState.audioEngine.playSfxByName('iisxxxx1')
+        Events.off('statsChanged', showInventory)
+        Events.on('statsChanged', showInventory)
+    }
 
     // CE ref: inventory.cc inventoryOpen() — deduct AP on first open during combat
     // Base cost: 4; Quick Pockets perk reduces by 2 per rank (CE: PERK_QUICK_POCKETS id=35)
