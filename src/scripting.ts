@@ -392,19 +392,26 @@ export module Scripting {
         const dist = hexDistance(obj.position, target.position)
         const perception = obj.getStat('PER')
         const sneakSkill = target.getSkill('Sneak')
-        // CE ref: combat_ai.cc isWithinPerception — is_sneaking() fires when isSneaking is toggled.
-        // is_pc_sneak_working() (periodic skill-roll pass) is not implemented; we treat the
-        // toggle alone as the working state (permissive approximation until periodic roll is added).
-        const targetIsSneaking = target === globalState.player &&
-            (globalState.player as any).isSneaking === true
+        // CE ref: combat_ai.cc:3514-3522 isWithinPerception — sneak detection tiers:
+        //   dudeIsSneaking (isSneaking && sneakWorking) → ÷4 (strong path)
+        //   dudeHasState(SNEAKING) (isSneaking only, roll failing) → ×2/3 (weak path)
+        const playerTarget = target === globalState.player
+        const isSneaking = playerTarget && (globalState.player as any).isSneaking === true
+        const sneakWorking = isSneaking && (globalState.player as any).sneakWorking === true
         let reqDist
 
         if (canSee(obj, target)) {
             reqDist = perception * 5
 
-            if (targetIsSneaking) {
-                // CE: is_pc_sneak_working → /4; plain is_sneaking → ×2/3
-                // We use the weaker reduction until the periodic skill-roll is added.
+            // CE ref: combat_ai.cc:3510 — OBJECT_TRANS_GLASS (Stealth Boy II) halves visual range.
+            if ((target as any).stealthActive) reqDist = Math.floor(reqDist / 2)
+
+            if (sneakWorking) {
+                // CE: dudeIsSneaking() → true → ÷4
+                reqDist = Math.floor(reqDist / 4)
+                if (sneakSkill > 120) reqDist--
+            } else if (isSneaking) {
+                // CE: dudeHasState(SNEAKING) only → ×2/3
                 reqDist = Math.floor((reqDist * 2) / 3)
                 if (sneakSkill > 120) reqDist--
             }
@@ -414,7 +421,12 @@ export module Scripting {
 
         reqDist = globalState.inCombat ? perception * 2 : perception
 
-        if (targetIsSneaking) {
+        if ((target as any).stealthActive) reqDist = Math.floor(reqDist / 2)
+
+        if (sneakWorking) {
+            reqDist = Math.floor(reqDist / 4)
+            if (sneakSkill > 120) reqDist--
+        } else if (isSneaking) {
             reqDist = Math.floor((reqDist * 2) / 3)
             if (sneakSkill > 120) reqDist--
         }

@@ -24,6 +24,7 @@ import { SerializedMap } from './map.js'
 import { Critter, deserializeObj, SerializedObj } from './object.js'
 import { refreshStealthState } from './miscItem.js'
 import { Scripting } from './scripting.js'
+import { scheduleSneakEvent } from './skillUse.js'
 import { getDrugByName } from './drugs.js'
 import { drawHP, drawAC, uiDrawWeapon } from './ui_hud.js'
 import { getFileJSON } from './util.js'
@@ -63,6 +64,7 @@ export interface SaveGame {
         gender: string
         activeHand: string
         isSneaking: boolean
+        sneakWorking?: boolean
         leftHand: SerializedObj | null
         rightHand: SerializedObj | null
         armor: SerializedObj | null
@@ -140,6 +142,7 @@ function gatherSaveData(name: string): SaveGame {
             gender: p.gender,
             activeHand: p.activeHand,
             isSneaking: p.isSneaking,
+            sneakWorking: (p as any).sneakWorking ?? false,
             leftHand: p.leftHand ? p.leftHand.serialize() : null,
             rightHand: p.rightHand ? p.rightHand.serialize() : null,
             armor: p.armor ? p.armor.serialize() : null,
@@ -264,6 +267,7 @@ export function load(id: number): void {
                     p.gender = ps.gender
                     p.activeHand = ps.activeHand as 'leftHand' | 'rightHand'
                     p.isSneaking = ps.isSneaking
+                    ;(p as any).sneakWorking = ps.sneakWorking ?? false
                     p.leftHand = ps.leftHand ? deserializeObj(ps.leftHand) as any : undefined
                     p.rightHand = ps.rightHand ? deserializeObj(ps.rightHand) as any : undefined
                     p.armor = ps.armor ? deserializeObj(ps.armor) : null
@@ -320,6 +324,13 @@ export function load(id: number): void {
                                         user.stats.modifyBase(stat, -delta)
                                 }})
                             }
+                        } else if (userdata === 'sneak') {
+                            // CE ref: critter.cc:1194 sneakEventProcess — restore periodic sneak roll timer.
+                            const playerForSneak = globalState.player
+                            if (playerForSneak && (playerForSneak as any).isSneaking) {
+                                Scripting.timeEventList.push({ obj: playerForSneak, ticks, userdata,
+                                    fn: () => { if ((playerForSneak as any).isSneaking) scheduleSneakEvent(playerForSneak) } })
+                            }
                         } else if (userdata === 'poison') {
                             // CE ref: critter.cc poisonEventProcess — restore poison decay timer.
                             const player = globalState.player as Critter | null
@@ -346,6 +357,15 @@ export function load(id: number): void {
                             Scripting.timeEventList.push({ obj: playerForPoison, ticks: delay, userdata: 'poison',
                                 fn: () => Scripting.poisonDecayEvent(playerForPoison) })
                         }
+                    }
+
+                    // CE ref: critter.cc sneakEventProcess — if player loaded with isSneaking=true
+                    // but no sneak timer (old save format), re-arm the sneak event now.
+                    const playerForSneak2 = globalState.player
+                    if (playerForSneak2 && (playerForSneak2 as any).isSneaking) {
+                        const hasSneakEvent = Scripting.timeEventList.some(
+                            e => e.obj === playerForSneak2 && e.userdata === 'sneak')
+                        if (!hasSneakEvent) scheduleSneakEvent(playerForSneak2)
                     }
 
                     dbg('saveload', '[SaveLoad] Restored %d timed events', save.timedEvents.length)

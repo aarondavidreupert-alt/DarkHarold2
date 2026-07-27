@@ -31,6 +31,9 @@ export class Player extends Critter {
 
     isPlayer = true
     isSneaking = false
+    // CE ref: critter.cc:149 _sneak_working — true when the last periodic sneak roll passed.
+    // Set by the sneak-event timer in skillUse.ts. Used by isWithinPerception (÷4 path).
+    sneakWorking = false
     art = 'art/critters/hmjmpsaa'
 
     stats = new StatSet({ AGI: 8, INT: 8, STR: 8, CHA: 8, HP: 100 })

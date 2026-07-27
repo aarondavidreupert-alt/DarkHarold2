@@ -13,6 +13,7 @@ import { dbg, eventLogPush } from './logger.js'
 import { RollResult, randomRoll, rollIsSuccess, getRandomInt } from './util.js'
 import { updateIndicatorBar } from './ui_hud.js'
 import * as GameTime from './gametime.js'
+import { Scripting } from './scripting.js'
 
 // ---------------------------------------------------------------------------
 // Logging helper — structured [SKILL] output for debugging
@@ -362,18 +363,59 @@ function useDoctor(user: Critter, target: Critter): SkillUseResult {
 // SNEAK
 // FO2-CE ref: skill.cc skillUse() case SKILL_SNEAK — toggle sneak mode
 // FO2-CE ref: intface.cc — sneak indicator on HUD
+// CE ref: critter.cc:1194 sneakEventProcess — periodic sneak-skill roll that
+// sets _sneak_working. True sneaking (dudeIsSneaking) requires both the
+// DUDE_STATE_SNEAKING flag AND a passing roll. The roll reschedules itself.
 // ---------------------------------------------------------------------------
+
+function clearSneakTimer(player: any): void {
+    const idx = Scripting.timeEventList.findIndex(e => e.obj === player && e.userdata === 'sneak')
+    if (idx !== -1) Scripting.timeEventList.splice(idx, 1)
+}
+
+export function scheduleSneakEvent(player: any): void {
+    const sneak = (player as Critter).getSkill('Sneak')
+    const passed = rollIsSuccess(randomRoll(sneak, 0).roll)
+    player.sneakWorking = passed
+
+    let ticks: number
+    if (!passed) {
+        // CE ref: critter.cc:1201-1215 — shorter retry interval at higher skill
+        if (sneak > 250) ticks = 100
+        else if (sneak > 200) ticks = 120
+        else if (sneak > 170) ticks = 150
+        else if (sneak > 135) ticks = 200
+        else if (sneak > 100) ticks = 300
+        else if (sneak > 80) ticks = 400
+        else ticks = 600
+    } else {
+        ticks = 600
+    }
+    dbg('object', '[SNEAK] roll %s (skill=%d), working=%s, next in %d ticks', passed ? 'PASS' : 'FAIL', sneak, player.sneakWorking, ticks)
+
+    Scripting.timeEventList.push({
+        obj: player,
+        ticks,
+        userdata: 'sneak',
+        fn: () => { if ((player as any).isSneaking) scheduleSneakEvent(player) },
+    })
+}
+
 function useSneak(user: Critter): SkillUseResult {
     if (user.isPlayer) {
         const player = globalState.player as any
         if (player.isSneaking) {
             player.isSneaking = false
-            console.log('[SNEAK] Sneak mode DEACTIVATED')
+            player.sneakWorking = false
+            clearSneakTimer(player)
+            dbg('object', '[SNEAK] Sneak mode DEACTIVATED')
             updateIndicatorBar()
             return makeResult(true, RollResult.Success, 'You stop sneaking.')
         } else {
             player.isSneaking = true
-            console.log('[SNEAK] Sneak mode ACTIVATED')
+            // CE ref: critter.cc:1194 — fire first sneak event immediately on activation.
+            scheduleSneakEvent(player)
+            dbg('object', '[SNEAK] Sneak mode ACTIVATED')
             updateIndicatorBar()
             return makeResult(true, RollResult.Success, 'You are now sneaking.')
         }
