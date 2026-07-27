@@ -834,6 +834,16 @@ export module Scripting {
                 return 0
             }
 
+            if (traitType === 0) {
+                // CRITTER_TRAIT_PERK — CE ref: interpreter_extra.cc:2570 opHasTrait
+                // perkGetRank returns number of times perk acquired (0 = not present).
+                const def = PERKS[trait]
+                if (!def) return 0
+                const critter = obj as Critter
+                if (!critter.isPlayer) return 0 // DH2 perk system is player-only
+                return getPerkRank(globalState.player as any, def.name)
+            }
+
             if (traitType === 1) {
                 // TRAIT_OBJECT
                 switch (trait) {
@@ -855,6 +865,22 @@ export module Scripting {
                         return totalWeight
                     }
                 }
+            }
+
+            if (traitType === 2) {
+                // CRITTER_TRAIT_TRAIT — CE ref: interpreter_extra.cc:2600 opHasTrait
+                // traitIsSelected(param) checks the player's selected character traits.
+                // Object arg is ignored by CE for this type.
+                // CE trait index order: trait_defs.h TRAIT_* enum (0=Fast Metabolism … 15=Gifted)
+                const TRAIT_NAMES: string[] = [
+                    'Fast Metabolism', 'Bruiser', 'Small Frame', 'One Hander',
+                    'Finesse', 'Kamikaze', 'Heavy Handed', 'Fast Shot',
+                    'Bloody Mess', 'Jinxed', 'Good Natured', 'Chem Reliant',
+                    'Chem Resistant', 'Sex Appeal', 'Skilled', 'Gifted',
+                ]
+                const traitName = TRAIT_NAMES[trait]
+                if (!traitName) return 0
+                return globalState.player?.traits?.includes(traitName) ? 1 : 0
             }
 
             stub('has_trait', arguments)
@@ -1320,8 +1346,12 @@ export module Scripting {
             // FO2-CE ref: critter.cc critterPoisonAdj
             ;(obj as Critter).poisonLevel = Math.max(0, ((obj as Critter).poisonLevel ?? 0) + amount)
         }
+        radiation_inc(obj: Obj, amount: number) {
+            // CE ref: interpreter_extra.cc:2777 opRadiationIncrease — scripted radiation increase
+            ;(obj as Critter).radiationLevel = ((obj as Critter).radiationLevel ?? 0) + amount
+        }
         radiation_dec(obj: Obj, amount: number) {
-            // FO2-CE ref: radiation.cc radiationAddAmount
+            // CE ref: interpreter_extra.cc:2792 opRadiationDecrease — scripted radiation decrease
             ;(obj as Critter).radiationLevel = Math.max(0, ((obj as Critter).radiationLevel ?? 0) - amount)
         }
 
