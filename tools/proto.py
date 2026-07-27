@@ -17,7 +17,7 @@ limitations under the License.
 # Parser/converter for Fallout 1 and 2 .PRO files to a JSON format
 
 # Fallout 1 mode
-FO1 = True
+FO1 = False
 
 from io import BufferedReader
 import sys, os, struct, json

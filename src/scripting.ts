@@ -371,31 +371,25 @@ export module Scripting {
         return [0, 1, 5].indexOf(dir) !== -1
     }
 
-    // TODO: Thoroughly test these functions (dealing with critter LOS)
     function isWithinPerception(obj: Critter, target: Critter): boolean {
         const dist = hexDistance(obj.position, target.position)
         const perception = obj.getStat('PER')
         const sneakSkill = target.getSkill('Sneak')
+        // CE ref: combat_ai.cc isWithinPerception — is_sneaking() fires when isSneaking is toggled.
+        // is_pc_sneak_working() (periodic skill-roll pass) is not implemented; we treat the
+        // toggle alone as the working state (permissive approximation until periodic roll is added).
+        const targetIsSneaking = target === globalState.player &&
+            (globalState.player as any).isSneaking === true
         let reqDist
-
-        // TODO: Implement all of the conditionals here
 
         if (canSee(obj, target)) {
             reqDist = perception * 5
 
-            if (false /* some target flags & 2 */)
-                // @ts-ignore: Unreachable code error (this isn't implemented yet)
-                reqDist /= 2
-
-            if (target === globalState.player) {
-                if (false /* is_pc_sneak_working */) {
-                    // @ts-ignore: Unreachable code error (this isn't implemented yet)
-                    reqDist /= 4
-
-                    if (sneakSkill > 120) reqDist--
-                } else if (false /* is_sneaking */)
-                    // @ts-ignore: Unreachable code error (this isn't implemented yet)
-                    reqDist = (reqDist * 2) / 3
+            if (targetIsSneaking) {
+                // CE: is_pc_sneak_working → /4; plain is_sneaking → ×2/3
+                // We use the weaker reduction until the periodic skill-roll is added.
+                reqDist = Math.floor((reqDist * 2) / 3)
+                if (sneakSkill > 120) reqDist--
             }
 
             if (dist <= reqDist) return true
@@ -403,15 +397,9 @@ export module Scripting {
 
         reqDist = globalState.inCombat ? perception * 2 : perception
 
-        if (target === globalState.player) {
-            if (false /* is_pc_sneak_working */) {
-                // @ts-ignore: Unreachable code error (this isn't implemented yet)
-                reqDist /= 4
-
-                if (sneakSkill > 120) reqDist--
-            } else if (false /* is_sneaking */)
-                // @ts-ignore: Unreachable code error (this isn't implemented yet)
-                reqDist = (reqDist * 2) / 3
+        if (targetIsSneaking) {
+            reqDist = Math.floor((reqDist * 2) / 3)
+            if (sneakSkill > 120) reqDist--
         }
 
         return dist <= reqDist

@@ -185,14 +185,15 @@ export function critterDamage(
     // CE ref: combat.cc:4633 attackComputeDamage — knockback: damage/10, melee/unarmed/explosion only.
     // CE obj_types.h:103 CRITTER_NO_KNOCKBACK = 0x4000
     // Stonewall perk (player only): 50% negate entirely; if fails, halve distance.
+    // ITEM_PERK_WEAPON_KNOCKBACK = 3: attacker's weapon perk halves divisor (damage/5 → double distance).
     const _srcWep = source?.equippedWeapon
     const _isMeleeOrExplode = damageType === 'Explosion' ||
         _srcWep === null || (_srcWep?.weapon?.type === 'melee')
     if (_isMeleeOrExplode && source && source !== obj && !((obj.pro?.extra?.flags ?? 0) & 0x4000)) {
-        let kbDiv = 10
+        let kbDiv = (_srcWep as any)?.pro?.extra?.perk === 3 ? 5 : 10  // CE: ITEM_PERK_WEAPON_KNOCKBACK=3
         if (obj === (globalState.player as Obj) && (obj as Critter).hasPerk?.('Stonewall')) {
             if (getRandomInt(0, 100) < 50) kbDiv = 0 // 50% full negation
-            else kbDiv = 20 // remaining 50%: halved distance
+            else kbDiv = kbDiv * 2 // remaining 50%: halved distance
         }
         const kbDist = kbDiv > 0 ? Math.min(Math.floor(damage / kbDiv), 6) : 0
         if (kbDist > 0 && globalState.gMap) {
@@ -214,22 +215,36 @@ export function critterDamage(
         }
     }
 
+    // CE ref: actions.cc:1512 _is_hit_from_front — attacker is "in front" when the
+    // direction from the target to the attacker is within the target's front 3-hex arc
+    // (facing ±1 direction mod 6). Front hit → hitFront/knockdownFront; rear → hitBack/knockdownBack.
+    const _hitFromFront = !source ? true : (() => {
+        const dirToSrc = hexDirectionTo(obj.position, source.position)
+        const diff = Math.abs(dirToSrc - (obj.orientation ?? 0)) % 6
+        return diff <= 1 || diff === 5
+    })()
+
     // Play a hit reaction if the critter isn't already mid-animation.
-    // If a knockdown/knockout crit was applied this hit, play knockdownFront and stay down;
+    // If a knockdown/knockout crit was applied this hit, play knockdownFront/Back and stay down;
     // otherwise pick the normal hit reaction (dodge/hitFront/hitBack).
     if (useAnim && !obj.inAnim()) {
-        if (obj.isKnockedDown && obj.hasAnimation('knockdownFront')) {
+        const kdAnim = _hitFromFront ? 'knockdownFront' : 'knockdownBack'
+        const kdFallback = _hitFromFront ? 'knockdownBack' : 'knockdownFront'
+        if (obj.isKnockedDown && (obj.hasAnimation(kdAnim) || obj.hasAnimation(kdFallback))) {
             obj.isKnockedDown = false
-            obj.staticAnimation('knockdownFront', () => {
+            const chosenKd = obj.hasAnimation(kdAnim) ? kdAnim : kdFallback
+            obj.staticAnimation(chosenKd, () => {
                 // Stay on last frame — Combat.nextTurn() plays getUpFront when skipTurns reaches 0
             })
             obj.skipTurns = 1
         } else {
             obj.isKnockedDown = false // consume flag even if no knockdown animation available
+            const preferredHit = _hitFromFront ? 'hitFront' : 'hitBack'
+            const fallbackHit  = _hitFromFront ? 'hitBack'  : 'hitFront'
             const hitAnim =
                 (obj.hasAnimation('dodge') && Math.random() < 0.3) ? 'dodge' :
-                obj.hasAnimation('hitFront') ? 'hitFront' :
-                obj.hasAnimation('hitBack') ? 'hitBack' : null
+                obj.hasAnimation(preferredHit) ? preferredHit :
+                obj.hasAnimation(fallbackHit)  ? fallbackHit  : null
 
             if (hitAnim !== null) {
                 obj.staticAnimation(hitAnim, () => {
