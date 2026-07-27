@@ -101,6 +101,17 @@ export function critterKill(
     // Clear the one-shot override so it doesn't bleed into a second death call
     obj.deathAnim = undefined
 
+    // FO2-CE ref: actions.cc:207 _pick_death — violence_level filter.
+    // VIOLENCE_LEVEL_NONE/MINIMAL (0/1): clamp to plain 'death'.
+    // VIOLENCE_LEVEL_NORMAL (2): damage-specific animations allowed.
+    // VIOLENCE_LEVEL_MAXIMUM_BLOOD (3): all animations allowed (same for DH2,
+    // which has no separate maximum-blood variants per damage type).
+    const violenceLevel = Config.combat.violenceLevel
+    const GORE_ANIMS = new Set(['death-fire', 'death-plasma', 'death-laser', 'death-electro', 'death-explode'])
+    if (violenceLevel < 2 && GORE_ANIMS.has(resolvedAnim)) {
+        resolvedAnim = obj.hasAnimation('death') ? 'death' : resolvedAnim
+    }
+
     const finalizeCallback = function () {
         obj.frame-- // freeze on the last frame of the death animation
         // Use 'dead' sentinel: updateAnim() returns immediately for this value,
