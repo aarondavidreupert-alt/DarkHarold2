@@ -18,9 +18,12 @@ limitations under the License.
 import { CriticalEffects } from '../criticalEffects.js'
 import { hexDistance, hexLine } from '../geometry.js'
 import globalState from '../globalState.js'
+import { Lightmap } from '../lightmap.js'
 import { dbg } from '../logger.js'
 import { Critter, Obj } from '../object.js'
 import { loadPRO } from '../pro.js'
+import * as GameTime from '../gametime.js'
+import { toTileNum } from '../tile.js'
 import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from '../unarmed.js'
 
 function combatDebug(...args: any[]): void {
@@ -116,8 +119,26 @@ export function getHitDistanceModifier(obj: Critter, target: Critter, weapon: Ob
     else return 0
 }
 
+// CE ref: object.cc:1748 objectGetLightIntensity — tile intensity at obj's position,
+// subtracting the player's own light so self-illumination doesn't reduce darkness penalty.
+function getObjectLightIntensity(obj: Critter, isPlayer: boolean): number {
+    const tileNum = toTileNum(obj.position)
+    let intensity = Math.min(65536, Lightmap.tile_intensity[tileNum] ?? 655)
+    if (isPlayer) intensity -= obj.lightIntensity
+    const ambient = GameTime.getAmbientLight()
+    return Math.max(ambient, Math.min(65536, intensity))
+}
+
+// CE ref: combat.cc:4458-4463 — darkness penalty tiers for player attacks.
+function darknessPenalty(target: Critter): number {
+    const light = getObjectLightIntensity(target, false)
+    if (light <= 26214) return 40   // < 40% light → -40
+    if (light <= 39321) return 25   // < 60% light → -25
+    if (light <= 52428) return 10   // < 80% light → -10
+    return 0
+}
+
 export function getHitChance(obj: Critter, target: Critter, region: string) {
-    // NOTE: distance modifier is implemented; light conditions not yet factored in
     var weaponObj = obj.equippedWeapon
     if (weaponObj === null) {
         // Unarmed (no weapon equipped): use Unarmed skill
@@ -134,6 +155,8 @@ export function getHitChance(obj: Critter, target: Critter, region: string) {
         const regionPenalty = Math.floor(CriticalEffects.regionHitChanceDecTable[region] / 2)
         var hitChance = unarmedSkill - AC - regionPenalty - partialCoverPenalty - crippledArmPenalty - blindPenalty
         var critChance = baseCrit + CriticalEffects.regionHitChanceDecTable[region]
+        // CE ref: combat.cc:4447 — darkness penalty when player is the attacker (unarmed)
+        if (obj.isPlayer) hitChance -= darknessPenalty(target)
         hitChance = Math.min(95, hitChance)
         combatDebug(`hitChance(unarmed): skill=${unarmedSkill} AC=${AC} region=${regionPenalty} cover=${partialCoverPenalty} → ${hitChance}%`)
         return { hit: hitChance, crit: critChance }
@@ -175,6 +198,13 @@ export function getHitChance(obj: Critter, target: Critter, region: string) {
     var critChance = baseCrit + regionPenaltyFull
 
     if (isNaN(hitChance)) throw 'something went wrong with hit chance calculation'
+
+    // CE ref: combat.cc:4447 — darkness penalty when player is the attacker.
+    // PERK_WEAPON_NIGHT_SIGHT (66) bypasses it.
+    if (obj.isPlayer) {
+        const hasNightSight = (weaponObj as any)?.pro?.extra?.perk === 66
+        if (!hasNightSight) hitChance -= darknessPenalty(target)
+    }
 
     // 1 in 20 chance of failing needs to be preserved
     hitChance = Math.min(95, hitChance)
