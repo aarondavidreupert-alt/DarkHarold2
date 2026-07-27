@@ -799,7 +799,11 @@ export class Obj {
             if (this.isDoor || this.isStairs || this.isLadder) {
                 return true
             } else {
-                return (this.pro.extra.extendedFlags & 8) != 0
+                // CE ref: proto.cc:257 _proto_action_can_use() bit 0x0800.
+                // FO2 .pro files are big-endian; proto.py reads the 4 extendedFlags
+                // bytes separately as itemFlags/actionFlags/weaponFlags/attackMode.
+                // Bit 0x0800 lands in byte 2 (weaponFlags, bit 0x08) after the swap.
+                return (this.pro.extra.weaponFlags & 0x08) != 0
             }
         }
         return false
