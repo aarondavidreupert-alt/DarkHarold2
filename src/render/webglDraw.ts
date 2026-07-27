@@ -454,6 +454,20 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     }
     const z = getZoom()
     const egg = Config.ui.showEgg !== false && isEggObject(obj)
+    // CE ref: item.cc:2460-2499 stealthBoyTurnOn() sets OBJECT_TRANS_GLASS on
+    // the critter while active, rendering it semi-transparent (glass effect).
+    const stealth = (obj as any).stealthActive === true
+
+    if (stealth) {
+        const gl = this.gl
+        gl.useProgram(this.tileShader)
+        if (this.uAlpha) gl.uniform1f(this.uAlpha, Config.ui.stealthAlpha ?? 0.9)
+        if (this.uStealth) gl.uniform1i(this.uStealth, Config.ui.stealthGrayscale !== false ? 1 : 0)
+        if (this.uStealthTint) {
+            const t = Config.ui.stealthTint ?? [1.0, 1.0, 1.0]
+            gl.uniform3f(this.uStealthTint, t[0], t[1], t[2])
+        }
+    }
 
     if (egg) {
         const gl = this.gl
@@ -602,10 +616,11 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         /*lit*/ true
     )
 
-    if (egg) {
+    if (egg || stealth) {
         const gl = this.gl
         if (this.uAlpha) gl.uniform1f(this.uAlpha, 1.0)
-        if (usesEggMaskTexture() && this.uEggMode) gl.uniform1i(this.uEggMode, 0)
+        if (stealth && this.uStealth) gl.uniform1i(this.uStealth, 0)
+        if (egg && usesEggMaskTexture() && this.uEggMode) gl.uniform1i(this.uEggMode, 0)
     }
     if (this.uObjectBaseY) {
         this.gl.uniform1f(this.uObjectBaseY, -1.0)

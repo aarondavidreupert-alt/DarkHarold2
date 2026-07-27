@@ -46,31 +46,37 @@ export class Player extends Critter {
     activeHand: 'leftHand' | 'rightHand' = 'leftHand'
 
     inventory = [
-        createObjectWithPID(41).setAmount(1337), // Money
-        createObjectWithPID(4),                  // Combat Knife (melee)
-        createObjectWithPID(15),                 // Hunting Rifle (small gun)
-        createObjectWithPID(2),                  // Leather Jacket (armor)
-        createObjectWithPID(3),                  // Leather Armor (armor)
+        // Money
+        createObjectWithPID(41).setAmount(5000),
 
-        // --- Testing weapons ---
-        createObjectWithPID(22),                 // Laser Pistol      (energy, uses Small Energy Cell)
-        createObjectWithPID(23),                 // Laser Rifle       (energy, uses Micro Fusion Cell)
-        createObjectWithPID(24),                 // Plasma Pistol     (energy, uses Micro Fusion Cell)
-        createObjectWithPID(25),                 // Plasma Rifle      (energy, uses Micro Fusion Cell)
-        createObjectWithPID(27),                 // Gatling Laser     (energy, uses Micro Fusion Cell)
-        createObjectWithPID(19),                 // Minigun           (big gun, uses 5mm JHP)
-        createObjectWithPID(20),                 // Rocket Launcher   (big gun, uses Rocket AP)
-        createObjectWithPID(16),                 // Assault Rifle     (small gun, uses 5mm JHP)
+        // Armor
+        createObjectWithPID(2),   // Leather Jacket
+        createObjectWithPID(3),   // Leather Armor
+        createObjectWithPID(28),  // Combat Armor
 
-        // --- Testing ammo ---
-        createObjectWithPID(33).setAmount(200),  // 10mm JHP          (SMG / 10mm Pistol)
-        createObjectWithPID(34).setAmount(200),  // 10mm AP           (SMG / 10mm Pistol)
-        createObjectWithPID(42).setAmount(200),  // Small Energy Cell (Laser Pistol)
-        createObjectWithPID(43).setAmount(200),  // Micro Fusion Cell (Laser Rifle, Plasma Pistol/Rifle, Gatling Laser)
-        createObjectWithPID(38).setAmount(200),  // 5mm JHP           (Minigun, Assault Rifle)
-        createObjectWithPID(36).setAmount(200),  // .223 FMJ          (Hunting Rifle, Sniper Rifle)
-        createObjectWithPID(44).setAmount(20),   // Rocket AP         (Rocket Launcher)
-        createObjectWithPID(45).setAmount(20),   // Rocket Explosive  (Rocket Launcher)
+        // Weapons
+        createObjectWithPID(9),   // 10mm SMG       (ammo: 10mm JHP/AP)
+        createObjectWithPID(15),  // Hunting Rifle  (ammo: .223 FMJ)
+        createObjectWithPID(23),  // Laser Rifle    (ammo: Micro Fusion Cell)
+
+        // Ammo
+        createObjectWithPID(33).setAmount(200),  // 10mm JHP
+        createObjectWithPID(36).setAmount(200),  // .223 FMJ
+        createObjectWithPID(43).setAmount(200),  // Micro Fusion Cell
+
+        // Drugs & chems
+        createObjectWithPID(40).setAmount(5),    // Stimpak
+        createObjectWithPID(144).setAmount(2),   // Super Stimpak
+        createObjectWithPID(110).setAmount(3),   // Psycho
+        createObjectWithPID(87).setAmount(3),    // Buffout
+        createObjectWithPID(53).setAmount(3),    // Mentats
+        createObjectWithPID(259).setAmount(3),   // Jet
+        createObjectWithPID(48).setAmount(3),    // Rad-Away
+        createObjectWithPID(260),                // Jet Antidote
+
+        // Misc items
+        createObjectWithPID(52),  // Geiger Counter I
+        createObjectWithPID(54),  // Stealth Boy I
     ]
 
     lightRadius = 4

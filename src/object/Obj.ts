@@ -32,6 +32,8 @@ import { uiLoot, uiLog } from '../ui.js'
 import { getMessage, getRandomInt, skillRoll, RollResult } from '../util.js'
 import { showTimerDialog } from '../ui_timer.js'
 import { Config } from '../config.js'
+import { isChargedMiscItem, useChargedMiscItem } from '../miscItem.js'
+import { drawHP } from '../ui_hud.js'
 import type { Critter } from './Critter.js'
 // Late-bound factory hooks — set by factories.ts at module-init time.
 // Direct static import would create a cycle: Obj.ts → factories.ts → items.ts
@@ -433,6 +435,8 @@ export class Obj {
         obj.inventory = mobj.inventory
         obj.script = mobj.script
         obj.extra = mobj.extra
+        obj.miscOn = mobj.miscOn
+        obj.miscCharges = mobj.miscCharges
 
         obj.pro = mobj.pro || loadPRO(obj.pid, obj.pidID)
         obj.flags = mobj.flags // NOTE: Tested with two objects in Mapper, map object flags seem to inherit PROs already and should thus use them
@@ -823,9 +827,38 @@ export class Obj {
         if (this.subtype === 'drug') {
             if (source === undefined) source = globalState.player as Critter
             if (globalState.drugHandler) {
-                globalState.drugHandler(this, source)
-                return true
+                const handled = globalState.drugHandler(this, source)
+                if (handled) {
+                    // CE ref: item.cc itemUse() — drug item is consumed on use.
+                    const owner = source ?? globalState.player as Critter
+                    if (owner) {
+                        const idx = owner.inventory.indexOf(this)
+                        if (idx !== -1) {
+                            if (this.amount > 1) this.amount--
+                            else owner.inventory.splice(idx, 1)
+                        } else {
+                            const ownerAny = owner as any
+                            if (ownerAny.leftHand === this) ownerAny.leftHand = null
+                            else if (ownerAny.rightHand === this) ownerAny.rightHand = null
+                        }
+                    }
+                    if (source?.isPlayer) drawHP(source.getStat('HP'))
+                }
+                return handled
             }
+        }
+
+        // CE ref: proto_instance.cc:1245 — First Aid Kit / Doctor's Bag trigger skills.
+        if (this.subtype === 'misc' && globalState.miscItemUseHandler) {
+            if (source === undefined) source = globalState.player as Critter
+            if (globalState.miscItemUseHandler(this, source)) return true
+        }
+
+        // CE ref: item.cc:2246-2280 _item_m_use_charged_item() — Stealth Boy / Geiger Counter toggle.
+        if (isChargedMiscItem(this)) {
+            if (source === undefined) source = globalState.player as Critter
+            useChargedMiscItem(this, source ?? null)
+            return true
         }
 
         if (this.isExplosive) {
@@ -1115,6 +1148,8 @@ export class Obj {
             }).filter((obj) => obj !== null),
             lightRadius: this.lightRadius,
             lightIntensity: this.lightIntensity,
+            miscOn: this.miscOn,
+            miscCharges: this.miscCharges,
         }
     }
 }

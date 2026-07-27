@@ -31,7 +31,10 @@ import {
     initLogScrollZones,
     uiElevator,
     UIMode,
+    uiLog,
 } from './ui.js'
+import { drawHP } from './ui_hud.js'
+import { skillUse } from './skillUse.js'
 import { loadPreferences } from './ui_options.js'
 import { getFileJSON } from './util.js'
 import { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall, WebGLRenderer, setLightSourceOverlayActive, setLightOverlayMode, setLightOverlayRadiusScale, LightOverlayMode } from './webglrenderer.js'
@@ -46,6 +49,28 @@ import './autocrawler.js'
 // Re-export playerUse so existing call sites (scripting.ts imports it from './main.js')
 // keep working after the Phase 7 split.
 export { playerUse } from './playerUse.js'
+
+// CE ref: proto_instance.cc:1245 _protinst_use_item_on — First Aid Kit / Doctor's Bag
+// trigger their respective skills. 10% chance per use the supplies run out.
+// Wired via globalState.miscItemUseHandler to avoid a circular import from object.ts.
+function miscHealingItemUse(item: import('./object.js').Obj, user: import('./object.js').Critter): boolean {
+    let skill: string | null = null
+    if (item.pid === 47 || item.pid === 108) skill = 'First Aid'
+    else if (item.pid === 91 || item.pid === 107) skill = 'Doctor'
+    if (!skill) return false
+    const result = skillUse(user, user, skill)
+    uiLog(result.message)
+    if (result.hpHealed > 0 && user.isPlayer) drawHP(user.getStat('HP'))
+    if (Math.random() < 0.1) {
+        const idx = user.inventory.indexOf(item)
+        if (idx !== -1) {
+            if (item.amount > 1) item.amount--
+            else user.inventory.splice(idx, 1)
+        }
+        uiLog('The supplies in the ' + (item.name || 'item') + ' run out.')
+    }
+    return true
+}
 
 window.onload = async function () {
     globalState.isInitializing = true
@@ -254,6 +279,7 @@ window.onload = async function () {
                 // continue initialization
                 initGame()
                 globalState.drugHandler = useDrug
+                globalState.miscItemUseHandler = miscHealingItemUse
                 globalState.isInitializing = false
 
                 // debug exposure for console inspection

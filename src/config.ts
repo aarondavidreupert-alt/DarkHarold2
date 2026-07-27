@@ -26,6 +26,18 @@ export const Config = {
         eggMode: 'dh2-egg' as 'alpha' | 'dh2-egg' | 'ce-egg' | 'bbox' | 'beta', // 'alpha'=flat transparent, 'dh2-egg'=CE egg.png mask (DH2 hand-tuned occlusion test), 'ce-egg'=CE egg.png mask using the byte-for-byte CE occlusion test (no DH2 deviations), 'bbox'=CE egg.png mask using a screen-space bounding-box overlap + draw-order depth test (DH2-original, not CE-derived), 'beta'=floor hex debug overlay (no wall transparency)
         eggAlpha:  undefined as number | undefined, // outer alpha — undefined = use default 0.4
         eggRadius: undefined as number | undefined, // hex radius — undefined = use default 8
+        // Stealth Boy OBJECT_TRANS_GLASS semi-transparent rendering.
+        // stealthAlpha: sprite alpha (0–1). Console: Config.ui.stealthAlpha = 0.3
+        stealthAlpha: undefined as number | undefined, // undefined = use default 0.9
+        // stealthGrayscale: true  = CE-accurate: tint ghost, brightness drives opacity
+        //                           (u_stealth=1; sprite colour fully replaced by tint)
+        //                   false = DH2 non-CE: original sprite colours at reduced alpha
+        // Console: Config.ui.stealthGrayscale = false
+        stealthGrayscale: true,
+        // stealthTint: [r, g, b] 0–1. CE exact = [0.29, 1.0, 1.0] (teal _colorTable[10239]).
+        // Console: Config.ui.stealthTint = [1, 1, 1]   // white ghost
+        //          Config.ui.stealthTint = [0.29, 1, 1] // CE-exact teal
+        stealthTint: [1.0, 1.0, 1.0] as [number, number, number],
         showObjects: true, // show objects?
         showWalls: true, // show walls?
         showBoundingBox: false, // show bounding boxes around objects?
