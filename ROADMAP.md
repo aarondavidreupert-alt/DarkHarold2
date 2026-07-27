@@ -74,7 +74,7 @@ game features, but prerequisites for reliable iteration.
 | `inven_cmds` | ✅ Done | All INVEN_CMD_* cases handled 2026-06-02. Ref: `interpreter_extra.cc opInvenCmds` |
 | `set_pc_stat` | ✅ Done | All PCSTAT IDs (0–4) handled 2026-06-02. Ref: `stat.cc pcSetStat` |
 | `mod_pc_stat` | ✅ Done | All PCSTAT IDs (0–4) handled 2026-06-02. Ref: `scripts.cc opModifyPcStat` |
-| `metarule` | 🟡 Partial | IDs 9,13,14,15,16,17,18,19,22,40,44,45,46,47,48,49,50,51 handled; car-related IDs 30/31/32/52/53 still stub (car system absent). Ref: `interpreter_extra.cc opMetarule` |
+| `metarule` | 🟡 Partial | IDs 9,13,14,15,16,17,18,19,22,40,42,43,44,45,46,47,48,49,50,51 handled (42=DROP_ALL_INVEN, 43=INVEN_UNWIELD_WHO added 2026-07-27); car IDs 30/31/32/52/53 still stub. Ref: `interpreter_extra.cc opMetarule` |
 | `metarule3` | 🟡 Partial | IDs 100,103,106,107,108 handled (107 added 2026-06-04 — ART_SET_BASE_FID_NUM via lookupArt); others stub. Ref: `interpreter_extra.cc opMetarule3` |
 | `critter_add_trait` | ✅ Done | TRAIT_PERK (kind=0) added 2026-06-04 — player-only via applyPerk/perks.splice; TRAIT_OBJECT cases handled 2026-06-02. Ref: `interpreter_extra.cc opAddTrait` |
 | `anim` | ✅ Done | Reverse direction (param ≠ 0) wired through animBatch 2026-06-04 — passed to `singleAnimation(reversed)`. IDs 1000/1010 + types 0–64 handled 2026-06-02. Ref: `interpreter_extra.cc opAnim` |
@@ -240,7 +240,7 @@ covered by Phases 1–8.
 |----|------|--------|-----|
 | LE1 | ✅ FIXED 2026-06-04 — `Obj.canCarry` enforced at loot drag/Take All and ground pickup. | `item.cc:322 itemAttemptAdd()` | major |
 | LE4 | ✅ FIXED 2026-06-04 — `WeaponObj.approxEq` compares ammoPID+rounds; loaded≠unloaded stacks. | `item.cc:357 _item_identical()` | minor |
-| LE5 | **Ammo stack merge ignores magazine capacity ceiling.** CE fills to capacity and splits remainder. | `item.cc:322 itemAdd()` | minor |
+| LE5 | ~~**Ammo stack merge ignores magazine capacity ceiling.**~~ FIXED 2026-07-27 — `addInventoryItem` enforces `pro.extra.quantity` ceiling and recursively splits overflow. | `item.cc:322 itemAdd()` | minor |
 | LE6 | ✅ FIXED 2026-06-04 — `Scripting.pickup` now fires when an item is dropped into a hand slot. | `inventory.cc:4102,4494` | minor |
 
 ### 9b. Pathfinding
@@ -253,17 +253,17 @@ covered by Phases 1–8.
 | P2 | **No rotation-change step cost.** CE adds +10 to node cost on direction change (outside combat). | `animation.cc:1838` | low |
 | P4 | ✅ FIXED 2026-06-04 — `pathBlocks()` allows closed-unlocked doors; LoF still blocks (`blocks()`). | `animation.cc:1805` | minor |
 | P3 | **No radioactive goo tile penalty.** CE adds +100 (gecko) / +400 (others) on goo PID tiles. | `animation.cc:1852` | low |
-| P8 | **`make_path` / `obj_blocking_at` / `make_straight_path` are stubs.** | `sfall_opcodes.cc:937,951` | low |
+| P8 | ~~**`make_path` / `obj_blocking_at` / `make_straight_path` are stubs.**~~ FIXED 2026-07-27 — `make_straight_path` uses `hexLinecast`; `obj_blocking_at` uses `objectsAtPosition` + `blocks()`. Wired at 0x826E/0x826F. | `sfall_opcodes.cc:937,951` | low |
 
 ### 9c. Scripting
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
 | S11 | ✅ FIXED 2026-06-04 — reverse direction wired through animBatch → `singleAnimation(reversed)`. | `interpreter_extra.cc:3355` | minor |
-| S14 | **`reg_anim_animate` delay ignored in non-batch path.** Batch path works; legacy non-batch path ignores delay. | `animation.cc:1374` | minor |
-| S26 | **`get_poison`/`poison` script read/write work; no CE-accurate decay loop.** (`main.ts` decrements 1/cycle, CE is more complex.) | `critter.cc critterPoisonCheck` | minor |
+| S14 | ~~**`reg_anim_animate` delay ignored in non-batch path.**~~ FIXED 2026-07-27 — non-batch path now applies delay via `setTimeout` and respects `anim=0` (stand still). | `animation.cc:1374` | minor |
+| S26 | **`get_poison`/`poison` read/write work; decay loop is simplified** (`main.ts` decrements 1/cycle; CE is more complex). `poison` opcode (0x8122) wired 2026-07-27. | `critter.cc critterPoisonCheck` | minor |
 | S15 | **`play_gmovie` is a no-op.** `.mve` video playback infrastructure absent. | `movie.cc` | minor |
-| S27 | **`radiation_dec` deliberately deferred.** | `radiation.cc` | minor |
+| S27 | ~~**`radiation_dec/inc` stubs.**~~ FIXED 2026-07-27 — `radiation_inc`/`radiation_dec` implemented in `scripting.ts`; wired at 0x80FD/0x80FE. No decay loop (deferred). | `radiation.cc` | minor |
 | GTC5 | **Midnight queue partial.** `objectUnjamAll()` wired; ARTIMER movies (`_scriptsCheckGameEvents`) not yet wired. | `scripts.cc:405 gameTimeEventProcess` | minor |
 
 ### 9d. Interface / HUD

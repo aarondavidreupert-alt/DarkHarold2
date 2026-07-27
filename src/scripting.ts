@@ -601,6 +601,31 @@ export module Scripting {
                 }
                 case 22:
                     return 0 // is_game_loading
+                case 42: {
+                    // CE ref: interpreter_extra.cc:3246 METARULE_DROP_ALL_INVEN —
+                    // drops all inventory items to the ground at critter's tile
+                    const dropTarget = target as any
+                    if (!isGameObject(dropTarget) || !globalState.gMap) return 0
+                    const items = [...dropTarget.inventory] as Obj[]
+                    for (const item of items) item.drop(dropTarget)
+                    return 0
+                }
+                case 43: {
+                    // CE ref: interpreter_extra.cc:3256 METARULE_INVEN_UNWIELD_WHO —
+                    // moves the active-hand weapon back to inventory (unwield)
+                    const unObj = target as any
+                    if (!isGameObject(unObj)) return 0
+                    const isPlayer = unObj === globalState.player
+                    const handKey: 'leftHand' | 'rightHand' = isPlayer
+                        ? ((unObj.activeHand as 'leftHand' | 'rightHand') ?? 'rightHand')
+                        : 'rightHand'
+                    const heldItem = unObj[handKey] as Obj | null | undefined
+                    if (heldItem) {
+                        unObj[handKey] = null
+                        unObj.inventory.push(heldItem)
+                    }
+                    return 0
+                }
                 case 40: {
                     // CE ref: interpreter_extra.cc:3243 METARULE_SKILL_CHECK_TAG
                     const skillName = SKILL_NAMES[target as number]
@@ -2013,8 +2038,10 @@ export module Scripting {
                 return
             }
             if (animBatch === null) {
-                // Outside a batch — play immediately (legacy path)
-                obj.singleAnimation(false, () => obj.clearAnim())
+                // CE ref: animation.cc:1374 — honour delay even outside a batch
+                const play = () => { if (anim !== 0) obj.singleAnimation(false, () => obj.clearAnim()) }
+                if (delay > 0) setTimeout(play, delay * 100)
+                else play()
                 return
             }
             animBatch.push({ kind: 'animate', obj, anim, delay })
