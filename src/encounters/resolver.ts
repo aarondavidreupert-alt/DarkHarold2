@@ -93,8 +93,8 @@ function pickEncounter(encounters: Worldmap.Encounter[]) {
     var luck = globalState.player.getStat("LUK")
     var roll = getRandomInt(0, totalChance) + (luck - 5)
 
-    // FO2-CE ref: worldmap.cc pickEncounterTable — difficulty and perk modifiers
-    const diff = Config.combat.difficultyModifier
+    // FO2-CE ref: worldmap.cc pickEncounterTable — game_difficulty and perk modifiers
+    const diff = Config.combat.gameDifficultyModifier
     roll += diff === 75 ? 5 : diff === 125 ? -5 : 0
     const player = globalState.player as any
     if (player.perks?.includes('Scout'))    roll += 1

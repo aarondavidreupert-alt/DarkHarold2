@@ -252,7 +252,6 @@ function buildPrefsPanel(): HTMLElement {
 
     // ── Local state for prefs not yet in Config ───────────────────────────────
     // These are rendered faithfully but not persisted until Config fields are added.
-    let combatDifficulty = 1   // CE COMBAT_DIFFICULTY_NORMAL
     let combatLooks = 0
     let combatTaunts = 1
     let languageFilter = 0
@@ -263,14 +262,20 @@ function buildPrefsPanel(): HTMLElement {
     // CE ref: gPreferenceDescriptions[] — knobX=76 for all, varying knobY.
 
     // Game Difficulty: knobY=71, CE 0=Easy/1=Normal/2=Hard → Config 75/100/125.
-    const diffFrame = (): number => Config.combat.difficultyModifier === 75 ? 0 : Config.combat.difficultyModifier === 100 ? 1 : 2
-    primaryKnob(76, 71, diffFrame, () => {
-        const next = (diffFrame() + 1) % 3
-        Config.combat.difficultyModifier = next === 0 ? 75 : next === 1 ? 100 : 125
+    // FO2-CE ref: preferences.cc game_difficulty — affects skill checks, barter, worldmap encounters.
+    const gameDiffFrame = (): number => Config.combat.gameDifficultyModifier === 75 ? 0 : Config.combat.gameDifficultyModifier === 100 ? 1 : 2
+    primaryKnob(76, 71, gameDiffFrame, () => {
+        const next = (gameDiffFrame() + 1) % 3
+        Config.combat.gameDifficultyModifier = next === 0 ? 75 : next === 1 ? 100 : 125
     })
 
-    // Combat Difficulty: knobY=149 (local state — no Config field yet).
-    primaryKnob(76, 149, () => combatDifficulty, () => { combatDifficulty = (combatDifficulty + 1) % 3 })
+    // Combat Difficulty: knobY=149, CE 0=Easy/1=Normal/2=Hard → Config 75/100/125.
+    // FO2-CE ref: preferences.cc combat_difficulty — affects combat damage scaling only.
+    const combDiffFrame = (): number => Config.combat.difficultyModifier === 75 ? 0 : Config.combat.difficultyModifier === 100 ? 1 : 2
+    primaryKnob(76, 149, combDiffFrame, () => {
+        const next = (combDiffFrame() + 1) % 3
+        Config.combat.difficultyModifier = next === 0 ? 75 : next === 1 ? 100 : 125
+    })
 
     // Violence Level: knobY=226, CE 0=None/1=Min/2=Normal/3=Max.
     primaryKnob(76, 226,
@@ -381,8 +386,8 @@ function buildPrefsPanel(): HTMLElement {
 
     // DEFAULT — restore CE defaults from preferencesSetDefaults() in preferences.cc.
     redButton(23, 450, () => {
+        Config.combat.gameDifficultyModifier = 100
         Config.combat.difficultyModifier = 100
-        combatDifficulty = 1
         Config.combat.violenceLevel = 3
         Config.ui.targetHighlight = 'targeting-only'
         combatLooks = 0

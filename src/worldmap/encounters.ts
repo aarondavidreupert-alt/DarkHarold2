@@ -116,7 +116,7 @@ export function didEncounter(): 'none' | 'forced' | 'avoidable' {
     else {
         // Adjust for game difficulty — CE ref: worldmap.cc:3322 wmRndEncounterOccurred
         let adjRate = encRate
-        const diff = Config.combat.difficultyModifier
+        const diff = Config.combat.gameDifficultyModifier
         if (diff < 100) adjRate -= Math.floor(encRate / 15)       // Easy
         else if (diff > 100) adjRate += Math.floor(encRate / 15)  // Hard
 

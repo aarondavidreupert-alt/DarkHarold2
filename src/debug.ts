@@ -15,6 +15,7 @@ import { centerCamera } from './renderer.js'
 
 let _crawlerModeSnapshot: {
     stub: boolean; dialogue: boolean; combat: boolean; ai: boolean
+    gameDifficultyModifier: 100 | 75 | 125
     difficultyModifier: 100 | 75 | 125
 } | null = null
 
@@ -112,18 +113,21 @@ export const debug = {
                 dialogue: Config.scripting.debugLogShowType.dialogue,
                 combat: Config.scripting.debugLogShowType.combat,
                 ai: Config.scripting.debugLogShowType.ai,
+                gameDifficultyModifier: Config.combat.gameDifficultyModifier,
                 difficultyModifier: Config.combat.difficultyModifier,
             }
             Config.scripting.debugLogShowType.stub = false
             Config.scripting.debugLogShowType.dialogue = false
             Config.scripting.debugLogShowType.combat = false
             Config.scripting.debugLogShowType.ai = false
+            Config.combat.gameDifficultyModifier = 100
             Config.combat.difficultyModifier = 100
         } else if (_crawlerModeSnapshot) {
             Config.scripting.debugLogShowType.stub = _crawlerModeSnapshot.stub
             Config.scripting.debugLogShowType.dialogue = _crawlerModeSnapshot.dialogue
             Config.scripting.debugLogShowType.combat = _crawlerModeSnapshot.combat
             Config.scripting.debugLogShowType.ai = _crawlerModeSnapshot.ai
+            Config.combat.gameDifficultyModifier = _crawlerModeSnapshot.gameDifficultyModifier
             Config.combat.difficultyModifier = _crawlerModeSnapshot.difficultyModifier
             _crawlerModeSnapshot = null
         }

@@ -182,8 +182,9 @@ export function uiBarterMode(merchant: Critter) {
             .reduce((s, o) => s + o.amount, 0)
         const costWithoutCaps = totalCost - capsInTable
 
-        // Barter skill: player's effective value + difficulty modifier
-        const diff = Config.combat.difficultyModifier
+        // Barter skill: player's effective value + game difficulty modifier
+        // FO2-CE ref: skill.cc skillGetGameDifficultyModifier — Barter is one of the 12 affected skills
+        const diff = Config.combat.gameDifficultyModifier
         const diffBonus = diff < 100 ? 20 : diff > 100 ? -10 : 0
         const playerBarter = Math.max(0, (player.getSkill?.('Barter') ?? 0) + diffBonus)
         const npcBarter = (merchant as any).getSkill?.('Barter') ?? 0

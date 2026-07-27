@@ -22,6 +22,7 @@ import { Config } from '../config.js'
 import globalState from '../globalState.js'
 
 export interface SavedPreferences {
+    gameDifficultyModifier?: 75 | 100 | 125
     difficultyModifier?: 75 | 100 | 125
     combatSpeed?: number
     violenceLevel?: 0 | 1 | 2 | 3
@@ -51,6 +52,7 @@ export function loadPreferences(): void {
         return
     }
 
+    if (prefs.gameDifficultyModifier !== undefined) Config.combat.gameDifficultyModifier = prefs.gameDifficultyModifier
     if (prefs.difficultyModifier !== undefined) Config.combat.difficultyModifier = prefs.difficultyModifier
     if (prefs.combatSpeed !== undefined) Config.combat.combatSpeed = prefs.combatSpeed
     if (prefs.violenceLevel !== undefined) Config.combat.violenceLevel = prefs.violenceLevel
@@ -93,6 +95,7 @@ export function savePreferences(): void {
 
     const heSpeech = hasVol ? ((eng as unknown) as { speechVolume: number }) : null
     const prefs: SavedPreferences = {
+        gameDifficultyModifier: Config.combat.gameDifficultyModifier,
         difficultyModifier: Config.combat.difficultyModifier,
         combatSpeed: Config.combat.combatSpeed,
         violenceLevel: Config.combat.violenceLevel,
