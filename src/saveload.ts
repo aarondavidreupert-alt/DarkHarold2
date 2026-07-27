@@ -22,6 +22,7 @@ import { dbg, dbgWarn } from './logger.js'
 import type { EventLogEntry } from './eventlog.types.js'
 import { SerializedMap } from './map.js'
 import { Critter, deserializeObj, SerializedObj } from './object.js'
+import { refreshStealthState } from './miscItem.js'
 import { Scripting } from './scripting.js'
 import { getDrugByName } from './drugs.js'
 import { drawHP, drawAC, uiDrawWeapon } from './ui_hud.js'
@@ -267,6 +268,9 @@ export function load(id: number): void {
                     p.rightHand = ps.rightHand ? deserializeObj(ps.rightHand) as any : undefined
                     p.armor = ps.armor ? deserializeObj(ps.armor) : null
                     Scripting.setGlobalVars(ps.gvars)
+                    // CE ref: item.cc:353 itemAdd() stealthBoyTurnOn — restore stealthActive
+                    // after hand slots are deserialized (Stealth Boy II may have been active).
+                    refreshStealthState(p as unknown as Critter)
                 }
 
                 globalState.gParty.deserialize(save.party)

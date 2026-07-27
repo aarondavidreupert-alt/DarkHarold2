@@ -19,7 +19,9 @@ limitations under the License.
 // proposals" §8.
 
 import globalState from '../globalState.js'
+import { refreshStealthState } from '../miscItem.js'
 import { Obj, cloneItem } from '../object.js'
+import type { Critter } from '../object.js'
 import { lookupArt } from '../pro.js'
 import { Scripting } from '../scripting.js'
 import { uiGetAmount } from '../ui_barter/swap.js'
@@ -169,6 +171,15 @@ export async function uiMoveSlot(data: string, target: string) {
         applyArmorArt(target === 'armor' ? obj : null)
         const armorAC = (globalState.player as any).armor?.pro?.extra?.AC ?? 0
         drawAC(globalState.player.getStat('AC') + armorAC)
+    }
+
+    // CE ref: item.cc:353 itemAdd() stealthBoyTurnOn / item.cc:449 stealthBoyTurnOff —
+    // recompute stealthActive whenever a hand slot changes (equip, unequip, or swap).
+    if (
+        target === 'leftHand' || target === 'rightHand' ||
+        data === 'leftHand' || data === 'rightHand'
+    ) {
+        refreshStealthState(globalState.player as unknown as Critter)
     }
 
     uiDrawWeapon()

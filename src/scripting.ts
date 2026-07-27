@@ -48,6 +48,7 @@ import { ScriptVM } from './vm.js'
 import { Worldmap } from './worldmap.js'
 import { ScriptVMBridge } from './vm_bridge.js'
 import { Config } from './config.js'
+import { refreshStealthState } from './miscItem.js'
 
 export module Scripting {
     var gameObjects: Obj[] | null = null
@@ -1376,6 +1377,8 @@ export module Scripting {
             }
             info('wield_obj_critter: ' + obj.name + ' wields ' + (item.name ?? item.pid))
             ;(obj as Critter).rightHand = item as any
+            // CE ref: item.cc:353 itemAdd() stealthBoyTurnOn — sync stealthActive after wield.
+            refreshStealthState(obj as Critter)
         }
         critter_dmg(obj: Critter, damage: number, damageType: string) {
             if (!isGameObject(obj)) {
