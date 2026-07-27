@@ -296,7 +296,7 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| C10 | **Unarmed special moves have no combat logic.** `unarmed.ts` defines 9 modes; hit/damage bonuses not applied. | `unarmed.cc` | minor |
+| C10 | ✅ FIXED 2026-07-27 — `rollHit()` now accepts `critBonus` param (CE ref: `unarmed.cc unarmedFindBestAttack`). Unarmed attack path resolves full `UnarmedMove` object and passes `critBonus` to `rollHit()`; `penetrate` (DT→20%) was already applied in `getUnarmedDamageDone()`. | `unarmed.cc` | minor |
 | C8 | ✅ FIXED 2026-06-04 — wander caps by type (5/15/∞ hex) around spawn origin. | `ai.cc aiMoveSteps()` | minor |
 | C13 | ✅ FIXED 2026-06-04 (STAY_CLOSE wired); CHARGE remains the default. | `combat_ai.cc` | minor |
 

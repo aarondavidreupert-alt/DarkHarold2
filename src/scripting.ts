@@ -133,6 +133,10 @@ export module Scripting {
         6: 'LUK',
         7: 'Max HP',
         9: 'AC',
+        // CE stat_defs.h: 11=STAT_MELEE_DAMAGE, 12=STAT_CARRY_WEIGHT, 14=STAT_HEALING_RATE
+        11: 'Melee',
+        12: 'Carry',
+        14: 'Healing Rate',
         15: 'Critical Chance',
         16: 'Better Criticals',
         35: 'HP',
@@ -804,6 +808,11 @@ export module Scripting {
             if (stat === 8) {
                 // STAT_MAXIMUM_ACTION_POINTS — CE ref: stat.cc critterGetStat, formula: 5 + AGI/2
                 return 5 + Math.floor(obj.getStat('AGI') / 2)
+            }
+            if (stat === 10) {
+                // STAT_UNARMED_DAMAGE — CE ref: stat.cc critterStatBaseGetter (default 0 bonus)
+                // DH2 tracks unarmed damage per-move in UNARMED_MOVES; no separate bonus stat.
+                return 0
             }
             if (stat === 13) {
                 // STAT_SEQUENCE — CE ref: stat.cc:572 baseStats[STAT_SEQUENCE] = 2 * perception

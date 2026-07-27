@@ -188,10 +188,11 @@ export class Combat {
     }
 
     rollHit(obj: Critter, target: Critter, region: string, hitBonus: number = 0,
-            attackerName?: string, defenderName?: string): any {
+            attackerName?: string, defenderName?: string, critBonus: number = 0): any {
         // FO2-CE ref: combat.cc rollCriticalHit() — Better Criticals perk: +30 per rank
         const bcRanks = obj.perks.filter(p => p === 'Better Criticals').length
-        var critModifer = obj.getStat('Better Criticals') + bcRanks * 30
+        // CE ref: unarmed.cc unarmedFindBestAttack — critBonus from unarmed move adds to crit level roll
+        var critModifer = obj.getStat('Better Criticals') + bcRanks * 30 + critBonus
         var hitChance = this.getHitChance(obj, target, region)
         hitChance = { ...hitChance, hit: hitChance.hit + hitBonus }
 
@@ -469,11 +470,13 @@ export class Combat {
         // ── UNARMED (no weapon equipped) ──────────────────────────────────────
         if (weaponObj === null) {
             var unarmedSkill = obj.getSkill('Unarmed')
-            var unarmedModeName = (obj.isPlayer
+            // CE ref: unarmed.cc unarmedFindBestAttack — resolve full move to access critBonus
+            var unarmedMode = obj.isPlayer
                 ? getActiveUnarmedModeForHand(unarmedSkill, (obj as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(obj as any).leftHand?.weapon && !(obj as any).rightHand?.weapon)
-                : getActiveUnarmedMode(unarmedSkill, 0)).name
+                : getActiveUnarmedMode(unarmedSkill, 0)
+            var unarmedModeName = unarmedMode.name
 
-            var unarmedHit = this.rollHit(obj, target, region, 0, who, targetName)
+            var unarmedHit = this.rollHit(obj, target, region, 0, who, targetName, unarmedMode.critBonus)
 
             if (unarmedHit.hit === true) {
                 var unarmedCritMod = unarmedHit.crit ? unarmedHit.DM : 2
