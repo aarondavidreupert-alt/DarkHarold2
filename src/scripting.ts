@@ -801,8 +801,7 @@ export module Scripting {
             }
             case 110:
                 // METARULE3_110 (car out of gas) — CE ref: worldmap.cc wmCarIsOutOfGas.
-                // Car travel is entirely absent from DH2.
-                stub('metarule3 110 (car_is_out_of_gas — no car system, W8)', arguments)
+                // Car system absent from DH2 (W8); always 0 (not out of gas).
                 return 0
             case 111: {
                 // METARULE3_111 (_map_target_load_area) — CE ref: map.cc:1202.

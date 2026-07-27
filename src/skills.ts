@@ -175,11 +175,12 @@ export function skillImprovementCost(effectiveSkillValue: number): number {
 }
 
 // FO2-CE ref: skill.cc skillGetGameDifficultyModifier()
-// Skills affected by game difficulty: First Aid, Doctor, Sneak, Lockpick, Steal,
-// Traps, Science, Repair, Outdoorsman
+// CE ref: skill.cc skillGetGameDifficultyModifier() — 12 non-combat skills affected.
+// Speech, Barter, Gambling were previously omitted from this list; CE includes them.
 const DIFFICULTY_AFFECTED_SKILLS: Set<string> = new Set([
     'First Aid', 'Doctor', 'Sneak', 'Lockpick', 'Steal',
     'Traps', 'Science', 'Repair', 'Outdoorsman',
+    'Speech', 'Barter', 'Gambling',
 ])
 
 export function skillGetGameDifficultyModifier(skill: string): number {
