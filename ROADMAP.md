@@ -74,11 +74,11 @@ game features, but prerequisites for reliable iteration.
 | `inven_cmds` | ✅ Done | All INVEN_CMD_* cases handled 2026-06-02. Ref: `interpreter_extra.cc opInvenCmds` |
 | `set_pc_stat` | ✅ Done | All PCSTAT IDs (0–4) handled 2026-06-02. Ref: `stat.cc pcSetStat` |
 | `mod_pc_stat` | ✅ Done | All PCSTAT IDs (0–4) handled 2026-06-02. Ref: `scripts.cc opModifyPcStat` |
-| `metarule` | 🟡 Partial | IDs 9,13,14,15,16,17,18,19,22,40,42,43,44,45,46,47,48,49,50,51 handled (42=DROP_ALL_INVEN, 43=INVEN_UNWIELD_WHO added 2026-07-27); car IDs 30/31/32/52/53 still stub. Ref: `interpreter_extra.cc opMetarule` |
+| `metarule` | 🟡 Partial | IDs 9,13,14,15,16,17,18,19,22,30,31,32,40,42,43,44,45,46,47,48,49,50,51,52,53 handled (car IDs 30/31/32/52/53 added 2026-07-27 — safe no-ops since DH2 has no car system); others stub. Ref: `interpreter_extra.cc opMetarule` |
 | `metarule3` | 🟡 Partial | IDs 100,103,106,107,108 handled (107 added 2026-06-04 — ART_SET_BASE_FID_NUM via lookupArt); others stub. Ref: `interpreter_extra.cc opMetarule3` |
 | `critter_add_trait` | ✅ Done | TRAIT_PERK (kind=0) added 2026-06-04 — player-only via applyPerk/perks.splice; TRAIT_OBJECT cases handled 2026-06-02. Ref: `interpreter_extra.cc opAddTrait` |
 | `anim` | ✅ Done | Reverse direction (param ≠ 0) wired through animBatch 2026-06-04 — passed to `singleAnimation(reversed)`. IDs 1000/1010 + types 0–64 handled 2026-06-02. Ref: `interpreter_extra.cc opAnim` |
-| `get_critter_stat` | ✅ Done | STAT_AGE (33) added 2026-06-04 — `25 + gameTime / TICKS_PER_YEAR`. SPECIAL 0–6, MaxHP/MaxAP/AC, Sequence, CritChance, BetterCriticals, DT/DR ranges all handled. Ref: `interpreter_extra.cc opGetCritterStat` |
+| `get_critter_stat` | ✅ Done | STAT_AGE (33) added 2026-06-04; STAT_CURRENT_POISON_LEVEL (36) / STAT_CURRENT_RADIATION_LEVEL (37) added 2026-07-27. SPECIAL 0–6, MaxHP/MaxAP/AC, Sequence, CritChance, BetterCriticals, DT/DR ranges all handled. Ref: `interpreter_extra.cc opGetCritterStat` |
 
 ---
 
