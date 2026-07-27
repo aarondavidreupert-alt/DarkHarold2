@@ -22,6 +22,7 @@ import { Area, loadAreas, lookupMapNameFromLookup } from './data.js'
 import { Worldmap } from './worldmap.js'
 import { UIMode } from './ui_panels.js'
 import { $id, clearEl, show, hide, showv, hidev, appendHTML, makeEl } from './ui_dom.js'
+import { dbg } from './logger.js'
 
 // CE ref: worldmap.cc — label list visible height ~182px, each tab 27px.
 // tabsBackgroundFrmImage.getHeight()=480, max scroll = 480-230=250, but we
@@ -115,22 +116,26 @@ export function uiWorldMapShowArea(area: Area) {
     clearEl($areamap)
 
     for (const entrance of area.entrances) {
-        console.log('[Worldmap] area entrance: ' + entrance.mapLookupName)
+        dbg('worldmap', '[Worldmap] area entrance:', entrance.mapLookupName)
         const $entranceEl = makeEl('div', { classes: ['worldmapEntrance'] })
         const $hotspot = makeEl('div', { classes: ['worldmapEntranceHotspot'] })
 
         $hotspot.onclick = () => {
             // hotspot click -- travel to relevant map
             const mapName = lookupMapNameFromLookup(entrance.mapLookupName)
-            console.log(`[Worldmap] hotspot → ${mapName} (via ${entrance.mapLookupName})`)
+            dbg('worldmap', `[Worldmap] hotspot → ${mapName} (via ${entrance.mapLookupName})`)
             globalState.gMap.loadMap(mapName, undefined, entrance.elevation)
             uiCloseWorldMap()
         }
 
         $entranceEl.appendChild($hotspot)
         appendHTML($entranceEl, entrance.mapLookupName)
-        $entranceEl.style.left = entrance.x + 'px'
-        $entranceEl.style.top = entrance.y + 'px'
+        // CE ref: worldmap.cc wmTownMapInit() — buttonCreate() places hotspots at
+        // (entrance.x, entrance.y) in the 640×480 window frame, but the town FRM is
+        // blitted at (WM_VIEW_X=22, WM_VIEW_Y=21). Subtract that offset so the hotspot
+        // aligns with its rendered position on the FRM background image.
+        $entranceEl.style.left = (entrance.x - 22) + 'px'
+        $entranceEl.style.top = (entrance.y - 21) + 'px'
         $id('areamap').appendChild($entranceEl)
     }
 }

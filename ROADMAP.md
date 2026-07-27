@@ -5,11 +5,13 @@ unlocks the next. Phases 1–3 are pure connectivity — the engine infrastructu
 already exists, these wire it up. Phases 4–5 introduce the only genuinely new
 systems still needed.
 
-**Last audited: 2026-06-25**
-Current estimate: **~93% complete** (was ~90% at 2026-06-04; 60+ items fixed across
-2026-06-11 to 2026-06-25 sprints: companion/dialogue state machine P5–P20, barter
-P14/P19–P24, worldmap W11/W12, Pip-Boy IW10/IW11, roof RD06, egg RD16, outline
-CI11–CI15, and preferences/HUD gaps CI3/CI6/CI8/CI9/CI10/IW3/IW9).
+**Last audited: 2026-07-27**
+Current estimate: **~94% complete** (was ~93% at 2026-06-25; 2026-07-27 sprint
+on branch claude/stealth-audit-regression-vtj3r9: RD14 elevation fade, W9 hotspot
+offset, RD15 verified correct, EV1 gauge animation verified, AC2 violence filter,
+CI2/EV2 game-vs-combat difficulty split, metarule3 IDs 109/110/111, S14 anim delay,
+S26 poison decay, S27 radiation opcodes, P8 make_path, FA6 canEquip, LE5 ammo stack,
+GTC5 game events, LD5 darkness penalty, C14/C15/C16 sneak/stealth/AP fixes).
 Target: 95% (a playable end-to-end run through Fallout 2's main quest with
 companions, working scripted content, and correct combat).
 
@@ -75,7 +77,7 @@ game features, but prerequisites for reliable iteration.
 | `set_pc_stat` | ✅ Done | All PCSTAT IDs (0–4) handled 2026-06-02. Ref: `stat.cc pcSetStat` |
 | `mod_pc_stat` | ✅ Done | All PCSTAT IDs (0–4) handled 2026-06-02. Ref: `scripts.cc opModifyPcStat` |
 | `metarule` | 🟡 Partial | IDs 9,13,14,15,16,17,18,19,22,30,31,32,40,42,43,44,45,46,47,48,49,50,51,52,53 handled (car IDs 30/31/32/52/53 added 2026-07-27 — safe no-ops since DH2 has no car system); others stub. Ref: `interpreter_extra.cc opMetarule` |
-| `metarule3` | 🟡 Partial | IDs 100,103,106,107,108 handled (107 added 2026-06-04 — ART_SET_BASE_FID_NUM via lookupArt); others stub. Ref: `interpreter_extra.cc opMetarule3` |
+| `metarule3` | 🟡 Partial | IDs 100,102,103,106,107,108,109,110,111 handled (102=SET_WM_MUSIC, 109=chem_use preference, 110=car_out_of_gas→0, 111=map_target_load_area added 2026-07-27); IDs 101/104/105 stub (worldmap subtile fog-of-war not in DH2). Ref: `interpreter_extra.cc opMetarule3` |
 | `critter_add_trait` | ✅ Done | TRAIT_PERK (kind=0) added 2026-06-04 — player-only via applyPerk/perks.splice; TRAIT_OBJECT cases handled 2026-06-02. Ref: `interpreter_extra.cc opAddTrait` |
 | `anim` | ✅ Done | Reverse direction (param ≠ 0) wired through animBatch 2026-06-04 — passed to `singleAnimation(reversed)`. IDs 1000/1010 + types 0–64 handled 2026-06-02. Ref: `interpreter_extra.cc opAnim` |
 | `get_critter_stat` | ✅ Done | STAT_AGE (33) added 2026-06-04; STAT_CURRENT_POISON_LEVEL (36) / STAT_CURRENT_RADIATION_LEVEL (37) added 2026-07-27. SPECIAL 0–6, MaxHP/MaxAP/AC, Sequence, CritChance, BetterCriticals, DT/DR ranges all handled. Ref: `interpreter_extra.cc opGetCritterStat` |
@@ -217,14 +219,11 @@ a believable playthrough.
 - DH2 uses cube-coordinate rounding — imprecise at hex boundaries.
 - Ref: `tile.cc:718 tileFromScreenXY()`
 
-### 8g. Elevation transition instant 🔴 (RD14)
-- CE fades between elevation levels; DH2 switches immediately.
-- Ref: `map.cc mapSetElevation()`
+### 8g. Elevation transition fade ✅ FIXED 2026-07-27 (RD14)
+- `GameMap.changeElevationFaded()` added: instant black overlay (z-index 9000), synchronous `changeElevation()`, 166ms CSS fade-out. CE ref: `map.cc mapSetElevation()` — `fadeOut(2)` (~166ms) → switch → `fadeIn(1)`.
 
-### 8h. Roof tile lighting deviation 🔴 (RD15)
-- CE appears to blit roofs at full intensity (no `intensityColorTable`).
-- DH2 roofs dim at night via `roofDummyTexture`.
-- Ref: `tile.cc tileRenderRoofsInRect()`
+### 8h. Roof tile lighting ✅ VERIFIED CORRECT 2026-07-27 (RD15)
+- CE `tile.cc:1256 tileRenderRoofsInRect()` calls `lightGetAmbientIntensity()` — ambient-only, matching DH2. Prior "full intensity" claim was incorrect speculation.
 
 ---
 
@@ -303,7 +302,7 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| W9 | **Area entrance positions misplaced on area screens.** | — | minor |
+| W9 | ✅ FIXED 2026-07-27 — Hotspots offset by `(entrance.x - WM_VIEW_X, entrance.y - WM_VIEW_Y)` = `(-22, -21)` to align with town FRM blit origin. CE ref: `worldmap.cc:5886 wmTownMapInit()`. | `worldmap.cc:5886` | minor |
 | W8 | **Car travel system entirely absent.** No fuel, no speed multipliers, no encounter rate reduction. | `worldmap.cc:5984 wmCarUseGas()` | major |
 | W10 | **Walk masks not loaded.** Player walks through mountains. | `worldmap.cc:1337 wmGrabTileWalkMask()` | minor |
 
