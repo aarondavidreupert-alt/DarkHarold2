@@ -697,6 +697,11 @@ export module Scripting {
                     if (!isGameObject(target as any)) return 0
                     return (target as any).killType ?? 0
                 }
+                case 30: return -1  // CAR_CURRENT_TOWN — no car system; -1 = not in a town
+                case 31: return 0   // GIVE_CAR_TO_PARTY — no car system; no-op
+                case 32: return 0   // GIVE_CAR_GAS — no car system; no-op
+                case 52: return 0   // SET_CAR_CARRY_AMOUNT — no car system; no-op
+                case 53: return 0   // GET_CAR_CARRY_AMOUNT — no car system; 0
                 default:
                     stub('metarule', arguments)
                     break
@@ -849,6 +854,8 @@ export module Scripting {
                 // so use the default of 25 (gStatDescriptions[STAT_AGE].defaultValue).
                 return 25 + Math.floor(globalState.gameTickTime / GameTime.TICKS_PER_YEAR)
             }
+            if (stat === 36) return obj.poisonLevel ?? 0    // STAT_CURRENT_POISON_LEVEL
+            if (stat === 37) return obj.radiationLevel ?? 0 // STAT_CURRENT_RADIATION_LEVEL
             var namedStat = statMap[stat]
             if (namedStat !== undefined) return obj.getStat(namedStat)
             stub('get_critter_stat', arguments)
