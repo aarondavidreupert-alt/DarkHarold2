@@ -75,6 +75,10 @@ export interface SaveGame {
     // Discovered worldmap areas (persists Set<number> across save/load).
     knownAreas?: number[]
 
+    // CE ref: game_movie.cc gameMoviesSave — bitmask of triggered story movies.
+    // Optional so older saves (without the field) load cleanly.
+    seenMovies?: number[]
+
     // Structured event log accumulated by logger.eventLogPush. Optional so
     // older saves (without the field) continue to load cleanly.
     eventLog?: EventLogEntry[]
@@ -142,6 +146,7 @@ function gatherSaveData(name: string): SaveGame {
         },
         mvars: Scripting.getMapVars(),
         knownAreas: [...globalState.knownAreas],
+        seenMovies: [...globalState.seenMovies],
         eventLog: globalState.eventLog.slice(),
         timedEvents: Scripting.getTimedEventsSerialized(),
     }
@@ -272,6 +277,9 @@ export function load(id: number): void {
 
                 // Restore discovered worldmap areas.
                 if (Array.isArray(save.knownAreas)) globalState.knownAreas = new Set(save.knownAreas)
+
+                // Restore seen-movie set (CE ref: game_movie.cc gameMoviesLoad).
+                if (Array.isArray(save.seenMovies)) globalState.seenMovies = new Set(save.seenMovies)
 
                 // Restore the structured event log. Older saves may have the field
                 // under the old name (combatLog) — accept either; fall back to empty.

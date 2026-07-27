@@ -92,6 +92,10 @@ const globalState = {
 
     knownAreas: new Set<number>(),
 
+    // CE ref: game_movie.cc gameMovieIsSeen — bitmask of movies that have been triggered.
+    // Used by _scriptsCheckGameEvents to fire ARTIMER story events only once.
+    seenMovies: new Set<number>(),
+
     // Structured event log — populated by logger.eventLogPush().
     // Survives across map changes and is persisted with the save game.
     eventLog: [] as EventLogEntry[],
@@ -177,6 +181,7 @@ const globalState = {
     mapAreas: AreaMap | null
 
     knownAreas: Set<number>
+    seenMovies: Set<number>
 
     eventLog: EventLogEntry[]
 

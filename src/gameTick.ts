@@ -158,7 +158,8 @@ export function tickGame(): void {
             dbg('map', 'QUEUE PROCESS: Midnight!')
             // CE ref: scripts.cc:418 gameTimeEventProcess — unjam all locks at midnight
             objectUnjamAll()
-            // _scriptsCheckGameEvents() — ARTIMER movie triggers, not yet implemented
+            // CE ref: scripts.cc:421 gameTimeEventProcess — ARTIMER story-movie triggers
+            scriptsCheckGameEvents(currentDay)
             // _critter_check_rads() — radiation decay, intentionally deferred
         }
 
@@ -275,6 +276,65 @@ export function tickGame(): void {
     globalState.gMap?.drainRemovalQueue()
 
     globalState.lastUpdateTime = Math.floor(window.performance.now() - time)
+}
+
+// CE ref: scripts.cc:438 _scriptsCheckGameEvents
+// Fires daily ARTIMER story-movie events. Each ARTIMER triggers once (via seenMovies)
+// and decrements GVAR_TOWN_REP_ARROYO by 15.  ARTIMER4 also hides Arroyo and
+// reveals Destroyed Arroyo on the worldmap.  GVAR_ENEMY_ARROYO triggers the
+// AFAILED death ending (Arroyo destroyed by the Enclave).
+//
+// Default day thresholds from sfall_config.cc:56-59:
+//   artimer1=90, artimer2=180, artimer3=270, artimer4=360
+// Movie IDs from game_movie.h (MOVIE_AFAILED=4, MOVIE_ARTIMER1-4=12-15)
+// GVAR indices (0-based, game_vars.h): ENEMY_ARROYO=7, TOWN_REP_ARROYO=47, FALLOUT_2=494
+// City indices (worldmap.h City enum): CITY_ARROYO=0, CITY_DESTROYED_ARROYO=22
+function scriptsCheckGameEvents(day: number): void {
+    const gvars = Scripting.getGlobalVars()
+    const MOVIE_AFAILED = 4
+    const ARTIMER_MOVIE_BASE = 12  // MOVIE_ARTIMER1
+    const ARTIMER_DAYS = [90, 180, 270, 360]
+
+    if (gvars[7]) {
+        // GVAR_ENEMY_ARROYO non-zero → Arroyo destroyed by Enclave; play AFAILED ending.
+        if (!globalState.seenMovies.has(MOVIE_AFAILED)) {
+            globalState.seenMovies.add(MOVIE_AFAILED)
+            dbg('map', 'ARTIMER: AFAILED — Arroyo destroyed, triggering death ending')
+            Endgame.setupDeathEnding(Endgame.DEATH_REASON_TIMEOUT)
+            Endgame.playDeathEnding().catch((e: unknown) =>
+                dbgWarn('endgame', 'GTC5 AFAILED ending error: ' + String(e)))
+        }
+        return
+    }
+
+    const fallout2Complete = (gvars[494] ?? 0) >= 3  // GVAR_FALLOUT_2 >= 3 → main quest done
+
+    // Find highest applicable ARTIMER (CE picks the highest crossed threshold, not all of them)
+    let movieIdx = -1
+    for (let i = 3; i >= 0; i--) {
+        const crossedThreshold = day >= ARTIMER_DAYS[i]
+        const eligible = i === 3 ? (crossedThreshold || fallout2Complete) : (crossedThreshold && !fallout2Complete)
+        if (eligible) { movieIdx = i; break }
+    }
+    if (movieIdx === -1) return
+
+    const movieId = ARTIMER_MOVIE_BASE + movieIdx
+    if (globalState.seenMovies.has(movieId)) return  // already fired
+
+    globalState.seenMovies.add(movieId)
+    dbg('map', `ARTIMER: ARTIMER${movieIdx + 1} triggered (day ${day})`)
+
+    // CE ref: scripts.cc:487 — adjustRep: GVAR_TOWN_REP_ARROYO -= 15
+    const repIdx = 47
+    gvars[repIdx] = (gvars[repIdx] ?? 0) - 15
+    Scripting.setGlobalVars(gvars)
+
+    if (movieIdx === 3) {
+        // ARTIMER4: hide Arroyo (id=0), reveal Destroyed Arroyo (id=22)
+        globalState.knownAreas.delete(0)
+        globalState.knownAreas.add(22)
+        dbg('map', 'ARTIMER4: Arroyo → Destroyed Arroyo on worldmap')
+    }
 }
 
 // FO2-CE ref: radiation.cc radiationGetLevel
