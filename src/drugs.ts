@@ -10,6 +10,7 @@ import { dbg } from './logger.js'
 import { Critter, Obj } from './object.js'
 import { Scripting } from './scripting.js'
 import { uiLog } from './ui_hud.js'
+import { Events } from './events.js'
 
 interface DrugEffect {
     // pidID = pid & 0xFFFF
