@@ -30,6 +30,7 @@ limitations under the License.
 // wiki/known_bugs.md.
 
 import globalState from './globalState.js'
+import { dbgWarn } from './logger.js'
 import { Critter, Obj } from './object.js'
 import { UIMode, getUiContainer } from './ui_panels.js'
 import { font1, font3 } from './ui_font.js'
@@ -298,10 +299,10 @@ export function uiCompanionControl(companion: Critter): void {
             uiCompanionTrade(companion)
         }))
         panel.appendChild(makeActionButton(236, 15, () => {
-            console.log('[Companion] "Use best weapon" is not implemented yet — CE\'s _ai_search_inven_weap heuristic (AP cost, ammo, damage comparison) is a separate sub-system. See wiki/known_bugs.md.')
+            dbgWarn('stub', '[Companion] "Use best weapon" is not implemented yet — CE\'s _ai_search_inven_weap heuristic (AP cost, ammo, damage comparison) is a separate sub-system. See wiki/known_bugs.md.')
         }))
         panel.appendChild(makeActionButton(235, 46, () => {
-            console.log('[Companion] "Use best armor" is not implemented yet — see wiki/known_bugs.md.')
+            dbgWarn('stub', '[Companion] "Use best armor" is not implemented yet — see wiki/known_bugs.md.')
         }))
 
         // Disposition buttons.

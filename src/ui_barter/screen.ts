@@ -18,6 +18,7 @@ limitations under the License.
 // → "Per-file split proposals" §21.
 
 import globalState from '../globalState.js'
+import { dbg, dbgWarn } from '../logger.js'
 import { Critter, cloneItem, Obj } from '../object.js'
 import { Scripting } from '../scripting.js'
 import { UIMode } from '../ui_panels.js'
@@ -147,7 +148,7 @@ export function uiBarterMode(merchant: Critter) {
     const $dialogueBox = $id('dialogueBox')
     uiAnimateBox($dialogueBox, null, 480, () => {
         $dialogueBox.style.visibility = 'hidden'
-        console.log('[Barter] popping up barter box')
+        dbg('script', '[Barter] popping up barter box')
 
         // Pop up the bartering screen (animate up)
         const $barterBox = $id('barterBox')
@@ -233,14 +234,14 @@ export function uiBarterMode(merchant: Critter) {
 
     // TODO: checkOffer() or some-such
     function offer() {
-        console.log('[Barter] offer')
+        dbg('script', '[Barter] offer')
 
         const playerOffered = totalAmount(playerBarterTable)
         const merchantNeed = barterMinPlayerOffer(merchantBarterTable)
 
         if (playerOffered >= merchantNeed) {
             // OK, player offered equal to more more than the value
-            console.log('[Barter] offer accepted')
+            dbg('script', '[Barter] offer accepted')
 
             // finalize and apply the deal
 
@@ -280,7 +281,7 @@ export function uiBarterMode(merchant: Critter) {
             const obj = objects[i]
             const inventoryImage = obj.invArt
             if (!inventoryImage) {
-                console.warn('[Barter] item has no invArt, skipping image:', obj.name ?? obj.pid)
+                dbgWarn('script', `[Barter] item has no invArt, skipping image: ${obj.name ?? obj.pid}`)
             }
             const img = makeEl('img', {
                 src: inventoryImage ? inventoryImage + '.png' : '',
@@ -297,7 +298,7 @@ export function uiBarterMode(merchant: Critter) {
     }
 
     async function uiBarterMove(data: string, where: 'left' | 'right' | 'leftInv' | 'rightInv') {
-        console.log('[Barter] move ' + data + ' to ' + where)
+        dbg('script', `[Barter] move ${data} to ${where}`)
 
         const from = (
             {

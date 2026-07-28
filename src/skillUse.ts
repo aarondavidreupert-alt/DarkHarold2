@@ -31,29 +31,29 @@ function rollName(roll: RollResult): string {
 function logSkillHeader(skill: string, target: Obj | Critter | null, user: Critter): void {
     const targetName = target ? ((target as any).name ?? 'object') : 'self'
     const pid = (target as any)?.pid ?? '?'
-    console.log(`[SKILL] ${skill} on ${targetName} (pid: ${pid})`)
+    dbg('skills', `[SKILL] ${skill} on ${targetName} (pid: ${pid})`)
 }
 
 function logSkillRoll(baseSkill: number, modifiers: [string, number][], finalChance: number, roll: RollResult, delta: number): void {
-    console.log(`[SKILL]   Base skill: ${baseSkill}`)
+    dbg('skills', `[SKILL]   Base skill: ${baseSkill}`)
     for (const [name, value] of modifiers) {
         const sign = value >= 0 ? '+' : ''
-        console.log(`[SKILL]   Modifier: ${sign}${value} (${name})`)
+        dbg('skills', `[SKILL]   Modifier: ${sign}${value} (${name})`)
     }
-    console.log(`[SKILL]   Final chance: ${finalChance}%`)
+    dbg('skills', `[SKILL]   Final chance: ${finalChance}%`)
     // d100 = finalChance - delta  (since delta = finalChance - d100)
     const d100 = finalChance - delta
-    console.log(`[SKILL]   Roll: ${d100}`)
+    dbg('skills', `[SKILL]   Roll: ${d100}`)
     const resultStr = rollName(roll)
     if (rollIsSuccess(roll)) {
-        console.log(`[SKILL]   Result: ${resultStr} (roll ${d100} <= chance ${finalChance})`)
+        dbg('skills', `[SKILL]   Result: ${resultStr} (roll ${d100} <= chance ${finalChance})`)
     } else {
-        console.log(`[SKILL]   Result: ${resultStr} (roll ${d100} > chance ${finalChance})`)
+        dbg('skills', `[SKILL]   Result: ${resultStr} (roll ${d100} > chance ${finalChance})`)
     }
 }
 
 function logSkillXP(xp: number): void {
-    if (xp > 0) console.log(`[SKILL]   XP awarded: ${xp}`)
+    if (xp > 0) dbg('skills', `[SKILL]   XP awarded: ${xp}`)
 }
 
 function rollResultKey(roll: RollResult): 'critical-success' | 'success' | 'failure' | 'critical-failure' {
@@ -199,19 +199,19 @@ function useFirstAid(user: Critter, target: Critter): SkillUseResult {
     logSkillHeader('First Aid', target, user)
 
     if (target.dead) {
-        console.log('[SKILL]   Blocked: target is dead')
+        dbg('skills', '[SKILL]   Blocked: target is dead')
         return makeResult(false, RollResult.Failure, 'You cannot heal the dead.')
     }
 
     if (!hasFreeUsageSlot('First Aid')) {
-        console.log('[SKILL]   Blocked: 3/day limit reached')
+        dbg('skills', '[SKILL]   Blocked: 3/day limit reached')
         return makeResult(false, RollResult.Failure, 'You have already used First Aid too many times today.')
     }
 
     const targetHP = target.getStat('HP')
     const targetMaxHP = target.getStat('Max HP')
     if (targetHP >= targetMaxHP) {
-        console.log('[SKILL]   Blocked: target already at full health (%d/%d)', targetHP, targetMaxHP)
+        dbg('skills', `[SKILL]   Blocked: target already at full health (${targetHP}/${targetMaxHP})`)
         return makeResult(false, RollResult.Failure, 'The target is already at full health.')
     }
 
@@ -253,7 +253,7 @@ function useFirstAid(user: Critter, target: Critter): SkillUseResult {
         (globalState.player as any)?.addExperience?.(xp)
     }
 
-    console.log(`[SKILL]   Healed: ${actualHeal} HP (target: ${targetHP}→${targetHP + actualHeal}/${targetMaxHP})`)
+    dbg('skills', `[SKILL]   Healed: ${actualHeal} HP (target: ${targetHP}→${targetHP + actualHeal}/${targetMaxHP})`)
     logSkillXP(xp)
 
     return makeResult(true, roll, `First Aid healed ${actualHeal} hit points.`, xp, actualHeal)
@@ -268,12 +268,12 @@ function useDoctor(user: Critter, target: Critter): SkillUseResult {
     logSkillHeader('Doctor', target, user)
 
     if (target.dead) {
-        console.log('[SKILL]   Blocked: target is dead')
+        dbg('skills', '[SKILL]   Blocked: target is dead')
         return makeResult(false, RollResult.Failure, 'You cannot heal the dead.')
     }
 
     if (!hasFreeUsageSlot('Doctor')) {
-        console.log('[SKILL]   Blocked: 3/day limit reached')
+        dbg('skills', '[SKILL]   Blocked: 3/day limit reached')
         return makeResult(false, RollResult.Failure, 'You have already used Doctor too many times today.')
     }
 
@@ -300,9 +300,9 @@ function useDoctor(user: Critter, target: Critter): SkillUseResult {
         if (rollIsSuccess(limbRoll.roll)) {
             ;(target as any)[flag] = false
             limbsHealed++
-            console.log(`[SKILL]   Limb heal: ${String(flag)} — SUCCESS (roll ${limbD100} <= ${skillValue})`)
+            dbg('skills', `[SKILL]   Limb heal: ${String(flag)} — SUCCESS (roll ${limbD100} <= ${skillValue})`)
         } else {
-            console.log(`[SKILL]   Limb heal: ${String(flag)} — FAILURE (roll ${limbD100} > ${skillValue})`)
+            dbg('skills', `[SKILL]   Limb heal: ${String(flag)} — FAILURE (roll ${limbD100} > ${skillValue})`)
         }
         timeHours++ // Each attempt costs extra time
     }
@@ -351,7 +351,7 @@ function useDoctor(user: Critter, target: Critter): SkillUseResult {
     if (parts.length === 0) parts.push('treatment was unsuccessful')
 
     if (hpHealed > 0) {
-        console.log(`[SKILL]   Healed: ${hpHealed} HP (target: ${targetHP}→${targetHP + hpHealed}/${targetMaxHP})`)
+        dbg('skills', `[SKILL]   Healed: ${hpHealed} HP (target: ${targetHP}→${targetHP + hpHealed}/${targetMaxHP})`)
     }
     logSkillXP(xp)
 
@@ -483,7 +483,7 @@ function useSteal(user: Critter, target: Critter | null): SkillUseResult {
     }
 
     if (target.dead) {
-        console.log('[SKILL]   Target is dead — looting freely')
+        dbg('skills', '[SKILL]   Target is dead — looting freely')
         return makeResult(true, RollResult.Success, 'You search the body.')
     }
 
@@ -522,18 +522,18 @@ function useSteal(user: Critter, target: Critter | null): SkillUseResult {
         modifiers.push(['cap at 95%', 95 - stealSkill])
     }
 
-    console.log(`[SKILL]   Base skill: ${baseSkill}`)
+    dbg('skills', `[SKILL]   Base skill: ${baseSkill}`)
     for (const [name, value] of modifiers) {
         const sign = value >= 0 ? '+' : ''
-        console.log(`[SKILL]   Modifier: ${sign}${value} (${name})`)
+        dbg('skills', `[SKILL]   Modifier: ${sign}${value} (${name})`)
     }
-    console.log(`[SKILL]   Final chance: ${chance}%`)
+    dbg('skills', `[SKILL]   Final chance: ${chance}%`)
 
     const stealRoll = getRandomInt(1, 100)
-    console.log(`[SKILL]   Roll: ${stealRoll}`)
+    dbg('skills', `[SKILL]   Roll: ${stealRoll}`)
 
     if (stealRoll <= chance) {
-        console.log(`[SKILL]   Result: SUCCESS (roll ${stealRoll} <= chance ${chance})`)
+        dbg('skills', `[SKILL]   Result: SUCCESS (roll ${stealRoll} <= chance ${chance})`)
         emitSkillRoll('Steal', user, chance, RollResult.Success, stealRoll)
         const xp = SKILL_XP['Steal']
         if (user.isPlayer && xp > 0) {
@@ -546,14 +546,14 @@ function useSteal(user: Critter, target: Critter | null): SkillUseResult {
     // Caught: separate catch roll
     const catchChance = Math.floor((100 - chance) / 2)
     const catchRoll = getRandomInt(1, 100)
-    console.log(`[SKILL]   Steal failed. Catch check: roll ${catchRoll} vs ${catchChance}% chance`)
+    dbg('skills', `[SKILL]   Steal failed. Catch check: roll ${catchRoll} vs ${catchChance}% chance`)
     if (catchRoll <= catchChance) {
-        console.log(`[SKILL]   Result: CRITICAL FAILURE — caught stealing!`)
+        dbg('skills', `[SKILL]   Result: CRITICAL FAILURE — caught stealing!`)
         emitSkillRoll('Steal', user, chance, RollResult.CriticalFailure, stealRoll)
         return makeResult(false, RollResult.CriticalFailure, 'You are caught stealing!')
     }
 
-    console.log(`[SKILL]   Result: FAILURE (roll ${stealRoll} > chance ${chance})`)
+    dbg('skills', `[SKILL]   Result: FAILURE (roll ${stealRoll} > chance ${chance})`)
     emitSkillRoll('Steal', user, chance, RollResult.Failure, stealRoll)
     return makeResult(false, RollResult.Failure, 'You fail to steal anything.')
 }
@@ -701,7 +701,7 @@ function useRepair(user: Critter, target: Critter | null): SkillUseResult {
     }
 
     if (!hasFreeUsageSlot('Repair')) {
-        console.log('[SKILL]   Blocked: 3/day limit reached')
+        dbg('skills', '[SKILL]   Blocked: 3/day limit reached')
         return makeResult(false, RollResult.Failure, 'You have already used Repair too many times today.')
     }
 
@@ -740,7 +740,7 @@ function useRepair(user: Critter, target: Critter | null): SkillUseResult {
     }
 
     if (hpHealed > 0) {
-        console.log(`[SKILL]   Repaired: ${hpHealed} HP (target: ${targetHP}→${targetHP + hpHealed}/${targetMaxHP})`)
+        dbg('skills', `[SKILL]   Repaired: ${hpHealed} HP (target: ${targetHP}→${targetHP + hpHealed}/${targetMaxHP})`)
     }
     logSkillXP(xp)
 
