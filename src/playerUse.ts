@@ -98,22 +98,27 @@ export function playerUseSkill(skill: Skills, obj: Obj): void {
             return
         }
 
-        // CE ref: actions.cc:1374 actionUseSkill — for First Aid and Doctor,
-        // delegates to the party member with the highest skill if one beats
-        // the player. Other skills always use the player.
+        // CE ref: actions.cc:1417-1450 actionUseSkill — for all non-Steal/non-Sneak skills,
+        // delegate to the party member who is best in the skill, provided it is also
+        // that member's personal best skill (partyMemberGetBestSkill check).
+        // CE ref: party_member.cc:1133 partyMemberGetBestSkill, :1160 partyMemberGetBestInSkill.
         let user: Critter = globalState.player as Critter
-        if (skillName === 'First Aid' || skillName === 'Doctor') {
+        if (skillName !== 'Steal' && skillName !== 'Sneak') {
             const playerSkill = user.getSkill(skillName)
-            let best = user
-            let bestSkill = playerSkill
+            let best: Critter | null = null
+            let bestVal = playerSkill
             for (const member of globalState.gParty.party) {
                 if (member.dead) continue
                 const s = member.getSkill(skillName)
-                if (s > bestSkill) { best = member; bestSkill = s }
+                if (s > bestVal) { best = member; bestVal = s }
             }
-            if (best !== user) {
-                uiLog(`${best.name} steps in to help.`)
-                user = best
+            if (best !== null) {
+                const b = best
+                const memberBestSkill = SKILL_NAMES.reduce((acc, sk) => b.getSkill(sk) > b.getSkill(acc) ? sk : acc, 'Small Guns')
+                if (memberBestSkill === skillName) {
+                    uiLog(`${b.name} steps in to help.`)
+                    user = b
+                }
             }
         }
         dbg('script', `[Skill] Engine fallback: skillUse("${skillName}") via ${user.name ?? 'player'}`)
