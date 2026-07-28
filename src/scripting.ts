@@ -240,7 +240,7 @@ export module Scripting {
             info('loadGlobalVars: loaded ' + Object.keys(data).length + ' global vars from gvars.json')
         } catch (e: any) {
             globalVarsLoaded = true
-            console.log('loadGlobalVars: gvars.json not found, using defaults (' + e.message + ')')
+            dbg('load', 'loadGlobalVars: gvars.json not found, using defaults (' + e.message + ')')
         }
     }
 
@@ -2063,7 +2063,7 @@ export module Scripting {
             log('giQ_Option', arguments)
             var msg = getScriptMessage(msgList, msgID)
             if (msg === null) {
-                console.warn('giq_option: msg is null')
+                dbgWarn('script', 'giq_option: msg is null')
                 return
             }
             info(

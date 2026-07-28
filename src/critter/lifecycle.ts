@@ -20,6 +20,7 @@ limitations under the License.
 
 import { Config } from '../config.js'
 import globalState from '../globalState.js'
+import { dbgWarn } from '../logger.js'
 import { lazyLoadImage } from '../images.js'
 import { Obj } from '../object/Obj.js'
 import type { Critter } from '../object/Critter.js'
@@ -148,7 +149,7 @@ export function critterKill(
         if (obj.isPlayer && typeof document !== 'undefined') {
             Endgame.setupDeathEnding(Endgame.DEATH_REASON_DEATH)
             Endgame.playDeathEnding().catch((e: unknown) => {
-                console.error('[death] playDeathEnding error:', e)
+                dbgWarn('combat', `[death] playDeathEnding error: ${e}`)
             })
         }
 

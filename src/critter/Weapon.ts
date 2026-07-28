@@ -19,6 +19,7 @@ limitations under the License.
 // Split out of critter.ts. See wiki/ts-split-refactor.md → §13.
 
 import globalState from '../globalState.js'
+import { dbgWarn } from '../logger.js'
 import type { Critter } from '../object/Critter.js'
 import type { WeaponObj } from '../object/items.js'
 
@@ -247,7 +248,7 @@ export class Weapon {
                 const legacySkill = weaponSkillMap[this.name]
                 if (legacySkill) this.weaponSkillType = legacySkill
             }
-            if (this.weaponSkillType === undefined) console.log('unknown weapon type for ' + this.name)
+            if (this.weaponSkillType === undefined) dbgWarn('combat', 'unknown weapon type for ' + this.name)
             // FO2-CE ref: item.cc — melee weapons use the melee damage/crit tables, not the gun tables
             if (this.weaponSkillType === 'Melee Weapons') this.type = 'melee'
 

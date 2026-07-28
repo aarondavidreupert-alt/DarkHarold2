@@ -19,6 +19,7 @@ limitations under the License.
 
 import { Critter, WeaponObj } from '../object.js'
 import globalState from '../globalState.js'
+import { dbg } from '../logger.js'
 import { critterDamage, Weapon, getAvailableUnarmedMoves } from '../critter.js'
 import { uiDrawWeapon, uiLog } from '../ui.js'
 
@@ -67,7 +68,7 @@ export const critFailEffects: Dict<EffectsFunction> = {
     damageSelf: function (target: Critter) {
         // Attacker injures themselves with their own weapon (no armor bypass, no crit)
         const dmg = Math.max(1, selfWeaponDamage(target))
-        console.log(target.name + ' damaged themselves for ' + dmg)
+        dbg('combat', target.name + ' damaged themselves for ' + dmg)
         critterDamage(target, dmg, target, false, true)
     },
 
@@ -75,7 +76,7 @@ export const critFailEffects: Dict<EffectsFunction> = {
         const appendages = ['crippledLeftArm', 'crippledRightArm', 'crippledLeftLeg', 'crippledRightLeg']
         const choice = appendages[Math.floor(Math.random() * appendages.length)] as keyof Critter
         ;(target as any)[choice] = true
-        console.log(target.name + ' crippled their own ' + choice)
+        dbg('combat', target.name + ' crippled their own ' + choice)
     },
 
     hitRandomly: function (target: Critter) {
@@ -88,14 +89,14 @@ export const critFailEffects: Dict<EffectsFunction> = {
         if (candidates.length === 0) return
         const victim: Critter = candidates[Math.floor(Math.random() * candidates.length)]
         const dmg = Math.max(1, selfWeaponDamage(target))
-        console.log(target.name + ' hit randomly — struck ' + victim.name + ' for ' + dmg)
+        dbg('combat', target.name + ' hit randomly — struck ' + victim.name + ' for ' + dmg)
         critterDamage(victim, dmg, target, false, true)
     },
 
     hitSelf: function (target: Critter) {
         // Attacker turns the weapon on themselves (full damage, no armor)
         const dmg = Math.max(1, selfWeaponDamage(target))
-        console.log(target.name + ' hit themselves for ' + dmg)
+        dbg('combat', target.name + ' hit themselves for ' + dmg)
         critterDamage(target, dmg, target, false, true)
     },
 
@@ -104,14 +105,14 @@ export const critFailEffects: Dict<EffectsFunction> = {
         const weaponObj = (target as any).equippedWeapon
         if (weaponObj?.pro?.extra) {
             weaponObj.pro.extra.rounds = 0
-            console.log(target.name + ' lost their ammo')
+            dbg('combat', target.name + ' lost their ammo')
         }
     },
 
     destroyWeapon: function (target: Critter) {
         // Weapon explodes in hand — drop it and deal blast damage to the attacker
         const dmg = Math.max(1, selfWeaponDamage(target))
-        console.log(target.name + "'s weapon blew up for " + dmg + ' damage')
+        dbg('combat', target.name + "'s weapon blew up for " + dmg + ' damage')
         critterEffects.droppedWeapon(target) // remove from hand and place on ground
         critterDamage(target, dmg, target, false, true)
     },
@@ -133,35 +134,35 @@ export const critterEffects: Dict<(target: Critter) => void> = {
     crippledLeftLeg: function (target: Critter) {
         if (!target.crippledLeftLeg) {
             target.crippledLeftLeg = true
-            console.log(target.name + ' has been crippled in the left leg')
+            dbg('combat', target.name + ' has been crippled in the left leg')
         }
     },
 
     crippledRightLeg: function (target: Critter) {
         if (!target.crippledRightLeg) {
             target.crippledRightLeg = true
-            console.log(target.name + ' has been crippled in the right leg')
+            dbg('combat', target.name + ' has been crippled in the right leg')
         }
     },
 
     crippledLeftArm: function (target: Critter) {
         if (!target.crippledLeftArm) {
             target.crippledLeftArm = true
-            console.log(target.name + ' has been crippled in the left arm')
+            dbg('combat', target.name + ' has been crippled in the left arm')
         }
     },
 
     crippledRightArm: function (target: Critter) {
         if (!target.crippledRightArm) {
             target.crippledRightArm = true
-            console.log(target.name + ' has been crippled in the right arm')
+            dbg('combat', target.name + ' has been crippled in the right arm')
         }
     },
 
     blinded: function (target: Critter) {
         if (!target.isBlinded) {
             target.isBlinded = true
-            console.log(target.name + ' has been blinded')
+            dbg('combat', target.name + ' has been blinded')
         }
     },
 
@@ -174,7 +175,7 @@ export const critterEffects: Dict<(target: Critter) => void> = {
     onFire: function (target: Critter) {
         // 3 turns of fire DoT; stacks by taking the max so double-fire doesn't double-tick
         target.onFireTurns = Math.max(target.onFireTurns, 3)
-        console.log(target.name + ' is on fire for ' + target.onFireTurns + ' turns')
+        dbg('combat', target.name + ' is on fire for ' + target.onFireTurns + ' turns')
     },
 
     bypassArmor: function (target: Critter) {

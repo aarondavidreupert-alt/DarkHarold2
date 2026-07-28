@@ -20,6 +20,7 @@ limitations under the License.
 
 import { Critter } from '../object.js'
 import { StatType } from '../skills.js'
+import { dbgWarn } from '../logger.js'
 import { getFileJSON, rollSkillCheck } from '../util.js'
 import { critterEffects, critFailEffects, EffectsFunction } from './effects.js'
 
@@ -150,7 +151,7 @@ export function getCritical(critterKillType: number, region: string, critLevel: 
     } catch (e) {}
 
     if (ret === undefined) {
-        console.log('error: could not find critical: ' + critterKillType + '/' + region + '/' + critLevel)
+        dbgWarn('combat', 'error: could not find critical: ' + critterKillType + '/' + region + '/' + critLevel)
         ret = defaultCritType(critterKillType, region, critLevel)
     }
 
@@ -173,7 +174,7 @@ export function getCriticalFail(weaponType: string, failLevel: number): EffectsF
         //default crit fail error, which doesn't do anything but print an error message
         ret = [
             (critter) => {
-                console.log('error: could not find critical fail: ' + weaponType + '/' + failLevel)
+                dbgWarn('combat', 'error: could not find critical fail: ' + weaponType + '/' + failLevel)
             },
         ]
 
@@ -190,7 +191,7 @@ export function loadTable() {
     })
 
     if (!haveTable) {
-        console.log('lut/criticalTables.json not found, not loading critical hit/miss table')
+        dbgWarn('combat', 'lut/criticalTables.json not found, not loading critical hit/miss table')
         return
     }
 
