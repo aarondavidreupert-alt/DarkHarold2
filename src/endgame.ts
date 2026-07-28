@@ -25,7 +25,7 @@ import { Scripting } from './scripting.js'
 import globalState from './globalState.js'
 import { getFileJSON } from './util.js'
 import { dbg, dbgWarn } from './logger.js'
-import { createOverlay, removeOverlay, showStaticSlide, showPanningSlide } from './endgame/slideRender.js'
+import { createOverlay, removeOverlay, showStaticSlide, showPanningSlide, showCredits } from './endgame/slideRender.js'
 import { getDeathEndingFileName } from './endgame/deathEndings.js'
 
 export { EndgameDeathEnding, DEATH_REASON_DEATH, DEATH_REASON_TIMEOUT, setupDeathEnding, getDeathEndingFileName } from './endgame/deathEndings.js'
@@ -119,12 +119,26 @@ export async function playSlideshow(): Promise<void> {
     }
 }
 
-// CE: endgame.cc:endgamePlayMovie (0x43F810)
-// In DH2: no .mve playback infrastructure. Shows continue dialog directly.
-// TODO: play credits.txt when credits system is implemented (CE: credits.cc:creditsOpen)
+// CE: endgame.cc:234-258 endgamePlayMovie (0x43F810)
+// 1. Load akiss music  2. Wait 3s  3. creditsOpen("credits.txt")  4. Continue dialog
 export async function playMovie(): Promise<void> {
+    // CE: soundLoad/speechPlay("akiss.acm") before 3-second delay
+    const music = globalState.audioEngine.playSound('music/akiss')
+
+    await new Promise(r => setTimeout(r, 3000))
+
+    const overlay = createOverlay()
+    await showCredits(overlay)
+    removeOverlay()
+
+    if (music) {
+        music.pause()
+        music.src = ''
+    }
+
     const wantsContinue = await showContinueDialog()
     if (!wantsContinue) {
+        dbg('endgame', 'player chose to quit — reloading page')
         location.reload()
     }
 }

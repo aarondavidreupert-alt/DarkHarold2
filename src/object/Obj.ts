@@ -20,7 +20,7 @@ limitations under the License.
 import { critterDamage } from '../critter.js'
 import { getLstId, lookupScriptName } from '../data.js'
 import { Events, scheduleExplosion } from '../events.js'
-import { hexDistance, hexesInRadius, hexIsInFrontOf, Point } from '../geometry.js'
+import { hexDistance, hexesInRadius, hexIsInFrontOf, hexNeighbors, Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { lazyLoadImage } from '../images.js'
 import { Lightmap } from '../lightmap.js'
@@ -959,9 +959,21 @@ export class Obj {
         const explosion = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
         explosion.position = { x: this.position.x, y: this.position.y }
 
+        // CE ref: actions.cc:1605 actionExplode — 6 adjacent explosion sprites, one per rotation
+        const adjPositions = hexNeighbors(this.position)
+        const adjExplosions = adjPositions.map(pos => {
+            const adj = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
+            adj.position = { x: pos.x, y: pos.y }
+            return adj
+        })
+
         lazyLoadImage(explosion.art, () => {
             if (!globalState.gMap) return
             globalState.gMap.addObject(explosion)
+            for (const adj of adjExplosions) {
+                globalState.gMap!.addObject(adj)
+                adj.singleAnimation(false, () => { globalState.gMap?.destroyObject(adj) })
+            }
             globalState.audioEngine?.playSfxByName('dynamite')
             dbg('object', `[Object] explosion: dmg=${damage} radius=${radius}`)
 

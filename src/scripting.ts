@@ -685,7 +685,9 @@ export module Scripting {
                 case 47:
                     return 0 // METARULE_LANGUAGE_FILTER — always off in DH2
                 case 48:
-                    return 2 // METARULE_VIOLENCE_FILTER (2 = VLNCLVL_NORMAL)
+                    // CE ref: interpreter_extra.cc:3310 METARULE_VIOLENCE_FILTER
+                    // Returns current violence level: 0=None,1=Minimal,2=Normal,3=Maximum
+                    return Config.combat.violenceLevel
                 case 49: // METARULE_W_DAMAGE_TYPE
                     // FO2-CE ref: combat_defs.h DMG_* constants
                     switch (objectGetDamageType(target)) {

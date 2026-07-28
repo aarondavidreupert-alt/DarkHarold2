@@ -159,6 +159,91 @@ function loadImageToCanvas(ctx: CanvasRenderingContext2D, imagePath: string | nu
     })
 }
 
+// ---------- scrolling credits ----------
+
+// CE: credits.cc:creditsOpen (0x42E054) + creditsFileParseNextLine (0x42E53C)
+// Parses data/text/english/credits.txt and scrolls it over the overlay.
+// Line prefixes: ';' = skip (comment), '@' = title font/color, '#' = highlight color.
+// Scroll speed: CE runs the scroll loop at ~1px per 20ms (creditsOpen:191-210).
+export async function showCredits(overlay: HTMLDivElement): Promise<void> {
+    let raw: string
+    try {
+        raw = getFileText('data/text/english/credits.txt')
+    } catch (_e) {
+        return
+    }
+
+    const container = document.createElement('div')
+    container.style.cssText = [
+        'position:absolute', 'top:0', 'left:0', 'width:100%', 'height:100%',
+        'overflow:hidden', 'background:#000',
+        'display:flex', 'align-items:flex-start', 'justify-content:center',
+    ].join(';')
+
+    const scroller = document.createElement('div')
+    scroller.style.cssText = [
+        'font-family:monospace', 'font-size:14px', 'text-align:center',
+        'padding:0 40px', 'width:100%', 'box-sizing:border-box',
+        'will-change:transform',
+    ].join(';')
+
+    for (const rawLine of raw.split('\n')) {
+        const line = rawLine.trimEnd()
+        if (line.startsWith(';')) continue
+
+        if (line === '') {
+            const sp = document.createElement('div')
+            sp.style.height = '12px'
+            scroller.appendChild(sp)
+            continue
+        }
+
+        const el = document.createElement('div')
+        if (line.startsWith('@')) {
+            // CE: title font — gold color, larger
+            el.textContent = line.slice(1)
+            el.style.cssText = 'color:#c8a040;font-size:18px;font-weight:bold;margin:8px 0 4px;line-height:1.6;'
+        } else if (line.startsWith('#')) {
+            // CE: highlighted name — green tint
+            el.textContent = line.slice(1)
+            el.style.cssText = 'color:#70b870;line-height:1.6;'
+        } else {
+            el.textContent = line
+            el.style.cssText = 'color:#ccc;line-height:1.6;'
+        }
+        scroller.appendChild(el)
+    }
+
+    container.appendChild(scroller)
+    overlay.appendChild(container)
+
+    // CE: 1px per 20ms scroll tick — total distance = screenH + contentH
+    const screenH = window.innerHeight || SLIDE_H
+    scroller.getBoundingClientRect()  // flush layout to get correct scrollHeight
+    const contentH = scroller.scrollHeight
+    const totalPx = screenH + contentH
+    const durationMs = totalPx * 20
+
+    scroller.style.transform = `translateY(${screenH}px)`
+    scroller.getBoundingClientRect()  // flush before setting transition
+    scroller.style.transition = `transform ${durationMs}ms linear`
+
+    await new Promise<void>(resolve => {
+        let done = false
+        const finish = () => { if (!done) { done = true; resolve() } }
+
+        requestAnimationFrame(() => {
+            scroller.style.transform = `translateY(-${contentH}px)`
+        })
+
+        document.addEventListener('keydown', finish, { once: true })
+        overlay.addEventListener('click', finish, { once: true })
+        setTimeout(finish, durationMs)
+    })
+
+    container.remove()
+}
+
 // ---------- slide renderers ----------
 
 // CE: endgame.cc:endgameEndingRenderStaticScene (0x440004)
@@ -222,8 +307,11 @@ export async function showStaticSlide(
 }
 
 // CE: endgame.cc:endgameEndingRenderPanningScene (0x43FBDC)
-// TODO: CE uses a complex per-tick delay formula tied to voice-over duration
-//       (endgame.cc:337-345). DH2 uses a simple linear pan over narrator duration.
+// CE formula (endgame.cc:337-345):
+//   v8 = imageWidth - 640 (pan range in px)
+//   base msPer = 16  (16 ms/px → 16 * panRange ms total at 1px/step)
+//   if speechMs > 8 * panRange: msPer = (speechMs + 8 * panRange) / panRange
+//   total = msPer * panRange
 export async function showPanningSlide(
     imagePath: string | null,
     voiceBaseName: string,
@@ -234,8 +322,7 @@ export async function showPanningSlide(
     const subDiv = createSubtitleDiv(overlay)
 
     const audio = playNarratorAudio(voiceBaseName)
-    const speechMs = audio ? await waitAudioDurationMs(audio) : 5000
-    const panDurationMs = Math.max(speechMs, 5000)
+    const speechMs = audio ? await waitAudioDurationMs(audio) : 0
 
     // Load image (may be wider than SLIDE_W for panning)
     let img: HTMLImageElement | null = null
@@ -255,6 +342,14 @@ export async function showPanningSlide(
     const panRange = Math.max(0, imgW - SLIDE_W)
     const startX = direction === -1 ? panRange : 0
     const endX   = direction === -1 ? 0 : panRange
+
+    // CE: endgame.cc:337-345 — 16ms base per pixel; stretch when speech > 8*panRange
+    const BASE_MS_PER_PX = 16
+    let msPer = BASE_MS_PER_PX
+    if (panRange > 0 && speechMs > 0 && speechMs > BASE_MS_PER_PX * 0.5 * panRange) {
+        msPer = Math.round((speechMs + BASE_MS_PER_PX * 0.5 * panRange) / panRange)
+    }
+    const panDurationMs = panRange > 0 ? msPer * panRange : Math.max(speechMs, 3000)
 
     const subtitleLines = loadSubtitleLines(voiceBaseName)
     const subtitleTimings = buildSubtitleTimings(subtitleLines, panDurationMs)
