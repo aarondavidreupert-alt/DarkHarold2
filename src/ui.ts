@@ -16,6 +16,7 @@ limitations under the License.
 
 import { Combat } from './combat.js'
 import globalState from './globalState.js'
+import { dbg } from './logger.js'
 import { Obj, objectIsWeapon } from './object.js'
 import { Config } from './config.js'
 import { openAutomap, closeAutomap, isAutomapOpen } from './ui_automap.js'
@@ -316,10 +317,10 @@ export function initUI() {
     $id('endTurnButton').onclick = () => {
         if (globalState.inCombat && globalState.combat!.inPlayerTurn) {
             if (globalState.player.anim !== null && globalState.player.anim !== 'idle') {
-                console.log("[Combat] can't end turn while player is in an animation")
+                dbg('combat', "[Combat] can't end turn while player is in an animation")
                 return
             }
-            console.log('[Combat] player turn ended')
+            dbg('combat', '[Combat] player turn ended')
             globalState.combat!.nextTurn()
         }
     }

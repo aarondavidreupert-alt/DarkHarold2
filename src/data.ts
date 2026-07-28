@@ -16,6 +16,7 @@ limitations under the License.
 
 import { getFileJSON, getFileText, parseIni } from './util.js'
 import globalState from './globalState.js'
+import { dbg } from './logger.js'
 import { Point } from './geometry.js'
 import { lookupInterfaceArt } from './pro.js'
 
@@ -69,7 +70,7 @@ export interface Elevator {
 
 export function getElevator(type: number): Elevator {
     if (!elevatorInfo) {
-        console.log('loading elevator info')
+        dbg('map', 'loading elevator info')
         elevatorInfo = getFileJSON('lut/elevators.json')
     }
 
@@ -223,7 +224,7 @@ export function getLstJson(lst: string, id: number): any {
 }
 
 export function lookupScriptName(scriptID: number): string {
-    console.log('SID: ' + scriptID)
+    dbg('script', 'SID: ' + scriptID)
     const lookupName = getLstId('scripts/scripts', scriptID - 1)
     if (lookupName === null) throw Error('lookupScriptName: failed to look up script name')
     return lookupName.split('.')[0].toLowerCase()

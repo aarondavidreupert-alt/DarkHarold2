@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import globalState from './globalState.js'
+import { dbg } from './logger.js'
 import { hexDistance, hexNeighbors } from './geometry.js'
 import { Critter, deserializeObj, SerializedObj } from './object.js'
 import { arrayIncludes, arrayRemove } from './util.js'
@@ -34,7 +35,7 @@ export class Party {
     addPartyMember(obj: Critter) {
         const player = globalState.player as Critter
         if (this.party.length >= this.maxSize(player)) return
-        console.log('party member %o added', obj)
+        dbg('party', `party member ${(obj as any).name ?? obj.pid} added`)
         this.party.push(obj)
     }
 
@@ -70,7 +71,7 @@ export class Party {
     }
 
     removePartyMember(obj: Critter) {
-        console.log('party member %o removed', obj)
+        dbg('party', `party member ${(obj as any).name ?? obj.pid} removed`)
         if (!arrayRemove(this.party, obj)) throw Error('Could not remove party member')
     }
 

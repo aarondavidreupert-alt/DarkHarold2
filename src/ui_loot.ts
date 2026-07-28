@@ -18,6 +18,7 @@ limitations under the License.
 // dead critter on the right) with drag-and-drop and a "take all" button.
 
 import globalState from './globalState.js'
+import { dbg } from './logger.js'
 import { Obj } from './object.js'
 import { UIMode } from './ui_panels.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter.js'
@@ -50,7 +51,7 @@ export function uiLoot(object: Obj) {
     globalState.uiMode = UIMode.loot
 
     async function uiLootMove(data: string /* "l"|"r" */, where: 'left' | 'right') {
-        console.log('[Loot] move ' + data + ' to ' + where)
+        dbg('inventory', `[Loot] move ${data} to ${where}`)
 
         const from = ({ l: globalState.player.inventory, r: object.inventory } as any)[data[0]]
 
@@ -100,7 +101,7 @@ export function uiLoot(object: Obj) {
         }
     }
 
-    console.log('[Loot] opening loot screen')
+    dbg('inventory', '[Loot] opening loot screen')
 
     showv($id('lootBox'))
 
@@ -113,7 +114,7 @@ export function uiLoot(object: Obj) {
     })
 
     $id('lootBoxTakeAllButton').onclick = () => {
-        console.log('[Loot] take all')
+        dbg('inventory', '[Loot] take all')
         const inv = object.inventory.slice(0) // clone inventory
         let blocked = false
         const player = globalState.player!

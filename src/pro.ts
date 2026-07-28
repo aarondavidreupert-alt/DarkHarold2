@@ -16,6 +16,7 @@ limitations under the License.
 
 import { getLstJson } from "./data.js"
 import globalState from "./globalState.js"
+import { dbg } from "./logger.js"
 
 // Functions handling FO2 prototypes and lookups performed on them
 
@@ -55,7 +56,7 @@ export function makePID(type: number, pid: number) {
 }
 
 function getCritterArtPath(frmPID: number) {
-    console.log("FRM PID: " + frmPID)
+    dbg('object', "FRM PID: " + frmPID)
     var idx = (frmPID & 0x00000fff)
     var id1 = (frmPID & 0x0000f000) >> 12
     var id2 = (frmPID & 0x00ff0000) >> 16
@@ -96,7 +97,7 @@ function getCritterArtPath(frmPID: number) {
         throw "0x0d"
     else {
         if(id2 <= 1 && id1 > 0) {
-            console.log("ID1: " + id1)
+            dbg('object', "ID1: " + id1)
             path += String.fromCharCode(id1 + 'c'.charCodeAt(0))
         }
         else

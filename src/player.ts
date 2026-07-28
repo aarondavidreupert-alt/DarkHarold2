@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { SkillSet, StatSet } from './char.js'
+import { dbg } from './logger.js'
 import { clamp } from './util.js'
 import { Events } from './events.js'
 import { Point } from './geometry.js'
@@ -136,10 +137,7 @@ export class Player extends Critter {
                 // when the character screen is opened (FO2-CE ref: editor.cc).
             }
 
-            console.log(
-                `Level up! Now level ${currentLevel}. `
-                + `Gained ${skillPointGain} skill points, ${hpGain} HP.`
-            )
+            dbg('object', `Level up! Now level ${currentLevel}. Gained ${skillPointGain} skill points, ${hpGain} HP.`)
         }
     }
 
@@ -205,10 +203,7 @@ export class Player extends Critter {
         this.stats.setBase('Age', age)
         this.gender = sex.toLowerCase()
 
-        console.log(
-            `[CharCreator] Applied: ${name}, ${sex}, age ${age}, `
-            + `traits [${traits.join(', ')}], HP ${maxHp}, SP ${skills.skillPoints}`
-        )
+        dbg('object', `[CharCreator] Applied: ${name}, ${sex}, age ${age}, traits [${traits.join(', ')}], HP ${maxHp}, SP ${skills.skillPoints}`)
     }
 
     /*
@@ -239,20 +234,11 @@ export class Player extends Critter {
 
                 if (startingPosition.x === -1 || startingPosition.y === -1 || exitMapID < 0) {
                     // world map
-                    console.log('exit grid -> worldmap')
+                    dbg('map', 'exit grid -> worldmap')
                     uiWorldMap()
                 } else {
                     // another map
-                    console.log(
-                        'exit grid -> map ' +
-                            exitMapID +
-                            ' elevation ' +
-                            startingElevation +
-                            ' @ ' +
-                            startingPosition.x +
-                            ', ' +
-                            startingPosition.y
-                    )
+                    dbg('map', `exit grid -> map ${exitMapID} elevation ${startingElevation} @ ${startingPosition.x}, ${startingPosition.y}`)
                     if (exitMapID === globalState.gMap.mapID) {
                         // same map, different elevation
                         globalState.gMap.changeElevation(Number(startingElevation) || 0, true)
