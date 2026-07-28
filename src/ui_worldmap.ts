@@ -115,19 +115,26 @@ export function uiWorldMapShowArea(area: Area) {
     $areamap.style.backgroundImage = `url('${area.mapArt}.png')`
     clearEl($areamap)
 
-    for (const entrance of area.entrances) {
-        // CE ref: worldmap.cc wmTownMapDraw — skips entrances whose state was
-        // set to 0 by script (metarule3 104). Entrances that start Off in city.txt
-        // are also hidden until scripted unlock — but since DH2 doesn't yet run the
-        // map-open scripts that unlock them, we show all entrances regardless of
-        // startState so testers can reach every sub-map.
-        // TODO: re-enable state filter once map entry scripts are functional.
-        dbg('worldmap', '[Worldmap] area entrance:', entrance.mapLookupName)
+    // CE ref: worldmap.cc wmTownMapDraw — skips entrances whose state was set to 0
+    // by script (metarule3 104). DH2 defaults all entrances to state=true; scripts
+    // can still explicitly hide them. TODO: re-enable strict filter once map-open
+    // scripts reliably run.
+    const active = area.entrances.filter(e => e.state)
+
+    // Entrances with x=0,y=0 in city.txt have no assigned position; after
+    // subtracting the WM_VIEW offset (22,21) they'd land at/below (0,0) and
+    // cluster in the top-left corner. Split and auto-distribute those.
+    const WM_VIEW_X = 22
+    const WM_VIEW_Y = 21
+    const positioned = active.filter(e => e.x - WM_VIEW_X > 5 || e.y - WM_VIEW_Y > 5)
+    const orphaned   = active.filter(e => e.x - WM_VIEW_X <= 5 && e.y - WM_VIEW_Y <= 5)
+
+    function makeEntrance(entrance: typeof area.entrances[0], left: number, top: number): void {
+        dbg('worldmap', '[Worldmap] area entrance:', entrance.mapLookupName, `@ (${left}, ${top})`)
         const $entranceEl = makeEl('div', { classes: ['worldmapEntrance'] })
         const $hotspot = makeEl('div', { classes: ['worldmapEntranceHotspot'] })
 
         $hotspot.onclick = () => {
-            // hotspot click -- travel to relevant map
             const mapName = lookupMapNameFromLookup(entrance.mapLookupName)
             dbg('worldmap', `[Worldmap] hotspot → ${mapName} (via ${entrance.mapLookupName})`)
             globalState.gMap.loadMap(mapName, undefined, entrance.elevation)
@@ -136,13 +143,29 @@ export function uiWorldMapShowArea(area: Area) {
 
         $entranceEl.appendChild($hotspot)
         appendHTML($entranceEl, entrance.mapLookupName)
+        $entranceEl.style.left = left + 'px'
+        $entranceEl.style.top  = top + 'px'
+        $areamap.appendChild($entranceEl)
+    }
+
+    for (const entrance of positioned) {
         // CE ref: worldmap.cc wmTownMapInit() — buttonCreate() places hotspots at
         // (entrance.x, entrance.y) in the 640×480 window frame, but the town FRM is
         // blitted at (WM_VIEW_X=22, WM_VIEW_Y=21). Subtract that offset so the hotspot
         // aligns with its rendered position on the FRM background image.
-        $entranceEl.style.left = (entrance.x - 22) + 'px'
-        $entranceEl.style.top = (entrance.y - 21) + 'px'
-        $id('areamap').appendChild($entranceEl)
+        makeEntrance(entrance, entrance.x - WM_VIEW_X, entrance.y - WM_VIEW_Y)
+    }
+
+    // Auto-distribute orphaned entrances (no valid city.txt coordinates) in a
+    // horizontal row below the FRM background image, 3 per row × 150px columns.
+    const ORPHAN_START_Y = 195
+    const ORPHAN_COL_W   = 150
+    const ORPHAN_ROW_H   = 30
+    const COLS_PER_ROW   = 3
+    for (let i = 0; i < orphaned.length; i++) {
+        const col = i % COLS_PER_ROW
+        const row = Math.floor(i / COLS_PER_ROW)
+        makeEntrance(orphaned[i], 10 + col * ORPHAN_COL_W, ORPHAN_START_Y + row * ORPHAN_ROW_H)
     }
 }
 
