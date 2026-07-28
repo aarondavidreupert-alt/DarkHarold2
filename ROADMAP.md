@@ -101,10 +101,10 @@ game features, but prerequisites for reliable iteration.
 - **Crit level formula**: CE non-uniform breakpoints (FIXED 2026-06-02).
 - Ref: `combat.cc:3891 rollCriticalHit()`, `combat.cc:4102 attackComputeCriticalHit()`
 
-### 4c. Melee critical table 🟡 Partial
+### 4c. Melee critical table ✅ Done (verified 2026-07-28)
 - Melee crit `DM` is halved (`max(2, floor(DM/2))`) — `combat.ts:538`.
-- Separate melee critical effects table not used — single table for all weapons.
-- Ref: `combat.cc` critical hit table indices
+- CE uses `gCriticalHitTables[killType][hitLocation]` for ALL weapon types — there is no separate melee-specific table. Single table is CE-accurate. (C5 verified 2026-06-02.)
+- Ref: `combat.cc:4089 attackComputeCriticalHit()`
 
 ### 4d. `damage_p_proc` timing ✅ Done
 ### 4e. DAM_DROP ✅ Done (verified 2026-06-02)
