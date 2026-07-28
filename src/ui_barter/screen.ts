@@ -33,7 +33,9 @@ import { getMessage } from '../util.js'
 // + frame 0; NPC/barterer uses their stored orientation + last frame.
 // Sprite sheets in art/critters/ are laid out as all-directions-all-frames
 // left to right: frame = numFrames * direction + frameIndex.
-export function renderBarterPortrait(el: HTMLElement, critter: Critter, useLastFrame = false): void {
+// overrideDirection overrides the direction derived from useLastFrame (used
+// by the player-spin animation loop below).
+export function renderBarterPortrait(el: HTMLElement, critter: Critter, useLastFrame = false, overrideDirection?: number): void {
     const art = critter.art
     if (!art) return
     const info = globalState.imageInfo?.[art]
@@ -41,7 +43,8 @@ export function renderBarterPortrait(el: HTMLElement, critter: Critter, useLastF
 
     // Clamp direction to the number of directions actually in this FRM (some
     // FRMs have only 1 direction — accessing index 3 would be undefined).
-    const wantedDir = useLastFrame ? (critter.orientation ?? 0) : 3  // 3 = ROTATION_SW for player
+    const wantedDir = overrideDirection !== undefined ? overrideDirection
+                    : useLastFrame ? (critter.orientation ?? 0) : 3  // 3 = ROTATION_SW for player
     const direction = Math.min(wantedDir, info.frameOffsets.length - 1)
     const frameIndex = useLastFrame ? (info.numFrames - 1) : 0
 
@@ -91,7 +94,30 @@ export function renderBarterPortrait(el: HTMLElement, critter: Critter, useLastF
     }
 }
 
+// CE ref: inventory.cc:1982 _display_body — `gInventoryWindowDudeRotation++`
+// fires every ~167ms on a timer, cycling the player portrait through all 6
+// directions (a slow idle spin). NPC portrait is static.
+let _portraitAnimInterval: ReturnType<typeof setInterval> | null = null
+
+export function startBarterPortraitAnimation(player: Critter): void {
+    stopBarterPortraitAnimation()
+    let dir = 3  // start at ROTATION_SW (CE starts at whatever the dude's current rotation is; SW is common)
+    const el = $id('barterBoxPlayerPortrait')
+    _portraitAnimInterval = setInterval(() => {
+        dir = (dir + 1) % 6
+        renderBarterPortrait(el, player, false, dir)
+    }, 167)
+}
+
+export function stopBarterPortraitAnimation(): void {
+    if (_portraitAnimInterval !== null) {
+        clearInterval(_portraitAnimInterval)
+        _portraitAnimInterval = null
+    }
+}
+
 function uiEndBarterMode() {
+    stopBarterPortraitAnimation()
     const $barterBox = $id('barterBox')
 
     uiAnimateBox($barterBox, null, 480, () => {
@@ -135,9 +161,12 @@ export function uiBarterMode(merchant: Critter) {
         $barterBox.style.pointerEvents = 'auto'
         uiAnimateBox($barterBox, 480, 290)
         // CE ref: inventory.cc:2039-2052 _display_body — player at (15,25),
-        // barterer at (560,25), both 60x100. Player: ROTATION_SW, frame 0.
-        // NPC: stored orientation, last frame.
-        renderBarterPortrait($id('barterBoxPlayerPortrait'), globalState.player, false)
+        // barterer at (560,25), both 60x100. Player: ROTATION_SW, frame 0,
+        // then spin via 167ms timer. NPC: stored orientation, last frame.
+        if (globalState.player) {
+            renderBarterPortrait($id('barterBoxPlayerPortrait'), globalState.player, false)
+            startBarterPortraitAnimation(globalState.player)
+        }
         renderBarterPortrait($id('barterBoxMerchantPortrait'), merchant, true)
     })
 

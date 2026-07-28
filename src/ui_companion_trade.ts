@@ -40,7 +40,7 @@ import { getVisibleDialoguePanel, uiSetDialogueReply, uiSwapDialoguePanel } from
 import { makeDropTarget, makeDraggable } from './ui_inventory.js'
 import { $id, clearEl, makeEl } from './ui_dom.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter/swap.js'
-import { renderBarterPortrait } from './ui_barter/screen.js'
+import { renderBarterPortrait, startBarterPortraitAnimation, stopBarterPortraitAnimation } from './ui_barter/screen.js'
 import { Scripting } from './scripting.js'
 import { getMessage } from './util.js'
 
@@ -50,6 +50,7 @@ import { getMessage } from './util.js'
 // Control — game_dialog.cc:3757-3762 confirms Trade-from-Control just sets
 // _dialogue_switch_mode=2, the same state barter-from-dialogue uses).
 function uiEndCompanionTrade(): void {
+    stopBarterPortraitAnimation()
     const $barterBox = $id('barterBox')
     $barterBox.style.pointerEvents = 'none'
     globalState.uiMode = UIMode.dialogue
@@ -67,9 +68,12 @@ export function uiCompanionTrade(companion: Critter): void {
     $barterBox.style.backgroundImage = "url('art/intrface/trade.png')"
     uiSwapDialoguePanel(getVisibleDialoguePanel(), $barterBox)
     // CE ref: inventory.cc:2039-2052 _display_body — player at (15,25),
-    // barterer at (560,25), both 60x100. Player: ROTATION_SW, frame 0.
-    // Companion: stored orientation, last frame.
-    renderBarterPortrait($id('barterBoxPlayerPortrait'), globalState.player, false)
+    // barterer at (560,25), both 60x100. Player: ROTATION_SW, frame 0,
+    // then spin via 167ms timer. Companion: stored orientation, last frame.
+    if (globalState.player) {
+        renderBarterPortrait($id('barterBoxPlayerPortrait'), globalState.player, false)
+        startBarterPortraitAnimation(globalState.player)
+    }
     renderBarterPortrait($id('barterBoxMerchantPortrait'), companion, true)
 
     let workingPlayerInventory = globalState.player.inventory.map(cloneItem)

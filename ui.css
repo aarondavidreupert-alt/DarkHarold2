@@ -1213,10 +1213,10 @@ html, body {
    inventory.cc:2039-2052 _display_body — player at (15,25), barterer/NPC at
    (560,25), both 60x100, drawn directly into the full 640-wide window (no
    +80 offset — these are NOT inside the inset gInventoryWindow).
-   Known simplification: CE renders the critter's actual standing sprite
-   here (idle pose, player at rotation SW, NPC at its current rotation);
-   DH2 doesn't yet have static-sprite-portrait rendering infrastructure, so
-   this just shows the name as a placeholder — see wiki/known_bugs.md. */
+   CE renders the critter's actual standing sprite (player at SW, NPC at
+   its stored orientation); DH2 matches via renderBarterPortrait() (canvas-
+   based, 40×67 slot). Player portrait spins through 6 directions at 167ms/
+   step via startBarterPortraitAnimation(). */
 #barterBoxPlayerPortrait,
 #barterBoxMerchantPortrait {
   position: absolute;
