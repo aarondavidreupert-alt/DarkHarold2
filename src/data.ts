@@ -122,7 +122,9 @@ function parseAreas(data: string): AreaMap {
 
                 const entrance = {
                     startState: s[0],
-                    state: s[0].trim().toLowerCase() === 'on',
+                    // DH2: default true — startup scripts that reveal areas (metarule3 104) don't
+                    // reliably run in DH2, so start open; scripts can still explicitly hide entrances.
+                    state: true,
                     x: parseInt(s[1]),
                     y: parseInt(s[2]),
                     mapLookupName,
