@@ -1296,16 +1296,23 @@ export module Scripting {
             return this.move_to(obj, targetTile, elevation)
         }
         critter_state(obj: Critter) {
-            /*stub("critter_state", arguments);*/
+            // CE ref: interpreter_extra.cc:2730 opGetCritterState
+            // CRITTER_STATE_DEAD=1, CRITTER_STATE_PRONE=2, CRITTER_STATE_NORMAL=0
+            // Plus cripple flags: leg_left=0x10, leg_right=0x20, arm_left=0x40, arm_right=0x80
             if (!isGameObject(obj)) {
                 warn('critter_state: not game object: ' + obj)
                 return 0
             }
 
-            var state = 0
-            if (obj.dead === true) state |= 1
-            // TODO: if obj is prone, state |= 2
+            const c = obj as any
+            if (obj.dead === true || obj.getStat('HP') <= 0)
+                return 1 // CRITTER_STATE_DEAD
 
+            let state = c.isKnockedDown ? 2 : 0 // PRONE : NORMAL
+            if (c.crippledLeftLeg)  state |= 0x10 // DAM_CRIP_LEG_LEFT
+            if (c.crippledRightLeg) state |= 0x20 // DAM_CRIP_LEG_RIGHT
+            if (c.crippledLeftArm)  state |= 0x40 // DAM_CRIP_ARM_LEFT
+            if (c.crippledRightArm) state |= 0x80 // DAM_CRIP_ARM_RIGHT
             return state
         }
         kill_critter(obj: Critter, deathFrame: number) {
@@ -1822,9 +1829,11 @@ export module Scripting {
             globalState.gMap.destroyObject(obj)
         }
         set_exit_grids(onElev: number, mapID: number, elevation: number, tileNum: number, rotation: number) {
-            // FO2-CE ref: scripts.cc — updates misc exit-grid objects on onElev with new destination
+            // CE ref: interpreter_extra.cc:2180 opSetExitGrids — iterates objectFindFirstAtElevation(onElev)
+            // and updates all exit-grid objects (PIDs 0x5000010-0x5000017) on that elevation.
             for (var i = 0; i < gameObjects!.length; i++) {
                 var obj = gameObjects![i]
+                if (obj.elevation !== onElev) continue
                 if (obj.type === 'misc' && obj.extra && obj.extra.exitMapID !== undefined) {
                     obj.extra.exitMapID = mapID
                     obj.extra.startingPosition = tileNum
