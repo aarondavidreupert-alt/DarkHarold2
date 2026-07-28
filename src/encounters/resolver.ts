@@ -52,7 +52,8 @@ function evalEncounterCritters(count: number, group: Worldmap.EncounterGroup): W
         var critter = group.critters[i]
 
         if(critter.cond) {
-            if(!evalConds(critter.cond)) {
+            // CE ref: worldmap.cc wmEvalConditional — passes critterCount for ENCOUNTER_CONDITION_TYPE_NUMBER_OF_CRITTERS
+            if(!evalConds(critter.cond, count)) {
                 dbg('encounters', "critter cond false: %o", critter.cond)
                 continue
             }

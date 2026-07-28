@@ -1,6 +1,6 @@
 # World Map & Random Encounters Reference
 
-> Last audited: 2026-06-02  
+> Last audited: 2026-07-28  
 > CE sources: `raw/fallout2-ce/src/worldmap.cc` (`wmWorldMapFunc`, `wmConfigInit`, `wmParseTerrainTypes`, `wmParseSubTileInfo`, `wmParseEncounterTableIndex`, `wmParseEncBaseSubTypeStr`, `wmRndEncounterOccurred`, `wmRndEncounterPick`, `wmSetupRandomEncounter`, `wmSetupCritterObjs`, `wmPartyWalkingStep`, `wmPartyInitWalking`, `wmGameTimeIncrement`, `wmCarUseGas`, `wmEvalConditional`, `wmAreaIsKnown`, `wmAreaVisitedState`, `wmAreaMarkVisited`, `wmAreaMarkVisitedState`, `wmAreaSetVisibleState`, `wmMapIsKnown`, `wmMapMarkVisited`, `wmAreaSetWorldPos`, `wmGetPartyCurArea`, `wmGrabTileWalkMask`, `wmSubTileMarkRadiusVisited`), `raw/fallout2-ce/src/worldmap.h` (`City` enum, `Map` enum, car constants), `raw/fallout2-ce/src/interpreter_extra.cc`  
 > DH2 sources: `src/worldmap/parser.ts` (`parseWorldmap`, `parseSquare`), `src/worldmap/Worldmap.ts` (`updateWorldmapPlayer`, `setSquareStateAt`, `withinArea`), `src/worldmap/encounters.ts` (`didEncounter`, `doEncounter`), `src/encounters/resolver.ts` (`pickEncounter`, `evalEncounter`, `positionCritters`), `src/encounters/conditionLang.ts` (`evalCond`), `src/data.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/globalState.ts`  
 > Data files: `data/data/worldmap.txt`, `data/data/city.txt`
@@ -1128,20 +1128,24 @@ difficulty, and perk modifiers. ✅
 
 ### 11.7 Condition Evaluation (`Encounters.evalCond`)
 
+All six CE condition types are now implemented in `conditionLang.ts` (FIXED 2026-07-28):
+
 | CE Condition | DH2 support |
 |---|---|
 | `global(N)` (GVAR check) | ✅ via `Scripting.getGlobalVar(N)` |
 | `rand(N)` (random %) | ✅ `getRandomInt(0,100) <= N` |
-| `player(level)` | ⚠️ always returns 0 |
-| `time_of_day` | ⚠️ always returns 12 (noon) |
-| `global(N) == value` | ✅ |
-| `global(N) < value` | ✅ |
-| `global(N) > value` | ✅ |
-| `== !=` operators | ❌ not in the `op` map in `evalCond` |
+| `player(level)` | ✅ returns `player.getStat('Level')` |
+| `time_of_day` | ✅ returns `getHourMilitary()/100` (0–23) |
+| `days_played` | ✅ returns `getTotalDays()` |
+| `enctr(num_critters)` | ✅ critter count threaded via `evalConds(conds, count)` |
+| All operators (`==`, `!=`, `<`, `>`, `<=`, `>=`) | ✅ |
+| `and`, `or` logical operators | ✅ |
 | Encounter-level conditions | ✅ `parseEncounter` calls `Encounters.parseConds` |
 | Critter-level conditions (`if` on `type_NN`) | ✅ `parseEncounterCritter` calls `parseConds` |
 
-(`encounters.ts–227`)
+CE ref: `worldmap.cc:4096 wmEvalConditional`, `worldmap.cc:2183–2330 wmParseEncBaseSubTypeStr`.
+
+(`src/encounters/conditionLang.ts`)
 
 ### 11.8 CE Encounter Groups and Critter Spawning summary (`wmSetupRandomEncounter`)
 
@@ -1163,7 +1167,7 @@ After the encounter map is loaded, `wmSetupRandomEncounter` populates the map:
 | Difficulty modifier | ±(frequency/15) | None |
 | Outdoorsman detection | Skill check, XP reward, avoidance UI | None |
 | Car encounter reduction | Reduces frequency by 30–40 during day | No car system |
-| Encounter condition eval | GVAR, time-of-day, days-played conditions | Partial (via `encounters.ts`) |
+| Encounter condition eval | GVAR, time-of-day, days-played conditions | ✅ All six CE condition types (FIXED 2026-07-28) |
 
 ---
 

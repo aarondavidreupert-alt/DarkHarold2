@@ -22,7 +22,7 @@ import globalState from "../globalState.js"
 import { Scripting } from "../scripting.js"
 import { getRandomInt } from "../util.js"
 import { dbg } from "../logger.js"
-import { getHourMilitary } from "../gametime.js"
+import { getHourMilitary, getTotalDays } from "../gametime.js"
 
 enum Tok {
     IF = 0,
@@ -181,10 +181,11 @@ export function printTree(node: Node, s: string) {
 }
 
 // evaluates conditions against game state
-function evalCond(node: Node): number|boolean {
+// critterCount: total critter count for this encounter group (for enctr(num_critters))
+function evalCond(node: Node, critterCount?: number): number|boolean {
     switch(node.type) {
         case "if": // condition
-            return evalCond(node.cond)
+            return evalCond(node.cond, critterCount)
         case "call": // call (more like a property access)
             switch(node.name) {
                 case "global": // GVAR
@@ -198,19 +199,30 @@ function evalCond(node: Node): number|boolean {
                 case "rand": // random percentage
                     if(node.arg.type !== "int") throw "evalCond: rand arg not a number";
                     return getRandomInt(0, 100) <= node.arg.value
+                case "enctr":
+                    // CE ref: worldmap.cc wmEvalConditional ENCOUNTER_CONDITION_TYPE_NUMBER_OF_CRITTERS
+                    // enctr(num_critters) — critter count for the current encounter group
+                    if(node.arg.type !== "var" || node.arg.name !== "num_critters")
+                        throw "evalCond: enctr arg must be num_critters"
+                    return critterCount ?? 0
                 default: throw "unhandled call: " + node.name
             }
         case "var":
             switch(node.name) {
                 case "time_of_day":
-                    // CE ref: worldmap.cc wmParseEncounterTableIndex — returns 24h hour (0-23)
+                    // CE ref: worldmap.cc wmEvalConditional ENCOUNTER_CONDITION_TYPE_TIME_OF_DAY
+                    // gameTimeGetHour() / 100 → 24h hour (0-23)
                     return Math.floor(getHourMilitary() / 100)
+                case "days_played":
+                    // CE ref: worldmap.cc wmEvalConditional ENCOUNTER_CONDITION_TYPE_DAYS_PLAYED
+                    // gameTimeGetTime() / GAME_TIME_TICKS_PER_DAY
+                    return getTotalDays()
                 default: throw "unhandled var: " + node.name
             }
         case "int": return node.value
         case "op": {
-            const lhs = evalCond(node.lhs)
-            const rhs = evalCond(node.rhs)
+            const lhs = evalCond(node.lhs, critterCount)
+            const rhs = evalCond(node.rhs, critterCount)
             const op: { [op: string]: (l: boolean|number, r: boolean|number) => boolean|number } = {
                 "<":   (l, r) => +l < +r,
                 ">":   (l, r) => +l > +r,
@@ -229,10 +241,10 @@ function evalCond(node: Node): number|boolean {
     }
 }
 
-export function evalConds(conds: Node[]): boolean {
+export function evalConds(conds: Node[], critterCount?: number): boolean {
     // TODO: Array.every
     for(var i = 0; i < conds.length; i++) {
-        if(evalCond(conds[i]) === false)
+        if(evalCond(conds[i], critterCount) === false)
             return false
     }
     return true
