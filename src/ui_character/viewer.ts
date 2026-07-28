@@ -374,14 +374,15 @@ export function showCharacterScreen() {
         'Raiders', 'Vault 15', 'Ghost Farm',
     ]
 
+    // CE ref: character_editor.cc:4586 — thresholds from gTownReputationEntries display logic.
     const townStanding = (val: number): string => {
         if (val >= 30)  return 'Idolized'
         if (val >= 15)  return 'Liked'
         if (val >= 1)   return 'Accepted'
         if (val === 0)  return 'Neutral'
-        if (val >= -14) return 'Antipathy'
-        if (val >= -29) return 'Hated'
-        return 'Vilified'
+        if (val >= -15) return 'Antipathy'   // CE: < 0 (not < -15)
+        if (val >= -30) return 'Hated'       // CE: < -15 (not < -30)
+        return 'Vilified'                    // CE: < -30
     }
 
     const addLine = (parent: HTMLElement, text: string) => {

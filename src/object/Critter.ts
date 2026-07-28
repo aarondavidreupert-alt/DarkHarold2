@@ -362,7 +362,7 @@ export class Critter extends Obj {
                 dbgWarn('movement', '[Pathfinding] walkTo: invalid target tile', target.x, target.y)
                 return false
             }
-            path = globalState.gMap.recalcPath(this.position, target)
+            path = globalState.gMap.recalcPath(this.position, target, undefined, this)
         }
 
         if (path.length === 0) {
@@ -401,7 +401,7 @@ export class Critter extends Obj {
     }
 
     walkInFrontOf(targetPos: Point, callback?: () => void): boolean {
-        const path = globalState.gMap.recalcPath(this.position, targetPos, false)
+        const path = globalState.gMap.recalcPath(this.position, targetPos, false, this)
         if (path.length === 0) {
             // invalid path
             return false

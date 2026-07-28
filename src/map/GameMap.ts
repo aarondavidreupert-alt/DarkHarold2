@@ -17,7 +17,7 @@ limitations under the License.
 import { Config } from '../config.js'
 import { getCurrentMapInfo } from '../data.js'
 import { Events } from '../events.js'
-import { hexInDirectionDistance, hexLine, hexNeighbors, HEX_GRID_SIZE, Point } from '../geometry.js'
+import { hexDistance, hexInDirectionDistance, hexLine, hexNeighbors, HEX_GRID_SIZE, Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { Lightmap } from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
@@ -427,7 +427,118 @@ export class GameMap {
         return null
     }
 
-    recalcPath(start: Point, goal: Point, isGoalBlocking?: boolean) {
+    // CE ref: animation.cc:1715 pathfinderFindPath — custom hex A* with step costs.
+    // Replaces pathfinding-browser.js PF.AStarFinder to support:
+    //   P2: +10 direction-change cost outside combat (animation.cc:1838)
+    //   P3: +400/+100 radioactive goo penalty (animation.cc:1845)
+    // gooTiles: packed tile keys (y*W+x) of scenery PIDs 0x20003D9–0x20003DC.
+    // notInCombat: true when not in combat (direction-change cost only outside combat).
+    // geckoMover: true if moving critter's killType == KILL_TYPE_GECKO (15) → +100 instead of +400.
+    private static hexAStar(
+        start: Point, goal: Point,
+        blocked: number[][],
+        gooTiles: Set<number>,
+        notInCombat: boolean,
+        geckoMover: boolean,
+    ): number[][] {
+        const W = HEX_GRID_SIZE
+        const k = (x: number, y: number): number => y * W + x
+        const INF = 2e9
+
+        const g = new Float32Array(W * W).fill(INF)
+        const fromDir = new Int8Array(W * W).fill(-1)
+        const par = new Int32Array(W * W).fill(-1)
+
+        const sk = k(start.x, start.y)
+        const gk = k(goal.x, goal.y)
+        g[sk] = 0
+
+        // Min-heap with lazy deletion: each entry [f, tileKey, gSnapshot].
+        // When popped entry gSnapshot > g[key], it is a stale entry — skip it.
+        type HE = [number, number, number]
+        const heap: HE[] = [[0, sk, 0]]
+
+        const push = (f: number, key: number, gv: number): void => {
+            heap.push([f, key, gv])
+            let i = heap.length - 1
+            while (i > 0) {
+                const p = (i - 1) >> 1
+                if (heap[p][0] <= heap[i][0]) break
+                const tmp = heap[p]; heap[p] = heap[i]; heap[i] = tmp
+                i = p
+            }
+        }
+
+        const pop = (): HE | undefined => {
+            if (heap.length === 0) return undefined
+            const top = heap[0]
+            const last = heap.pop()!
+            if (heap.length > 0) {
+                heap[0] = last
+                let i = 0
+                while (true) {
+                    const l = 2 * i + 1, r = 2 * i + 2
+                    let m = i
+                    if (l < heap.length && heap[l][0] < heap[m][0]) m = l
+                    if (r < heap.length && heap[r][0] < heap[m][0]) m = r
+                    if (m === i) break
+                    const tmp = heap[m]; heap[m] = heap[i]; heap[i] = tmp
+                    i = m
+                }
+            }
+            return top
+        }
+
+        while (heap.length > 0) {
+            const entry = pop()!
+            const [, curr, gSnap] = entry
+            if (g[curr] < gSnap) continue // stale entry
+            if (curr === gk) break
+
+            const cx = curr % W, cy = (curr / W) | 0
+            const currDir = fromDir[curr]
+
+            const nbs = hexNeighbors({ x: cx, y: cy })
+            for (let d = 0; d < nbs.length; d++) {
+                const nb = nbs[d]
+                if (nb.x < 0 || nb.x >= W || nb.y < 0 || nb.y >= W) continue
+                if (blocked[nb.y][nb.x]) continue
+
+                const nk = k(nb.x, nb.y)
+
+                // Base step cost: CE animation.cc:1836 v27->cost = temp.cost + 50
+                let cost = 50
+                // P2: +10 on direction change outside combat. CE:1838
+                if (notInCombat && currDir !== -1 && currDir !== d) cost += 10
+                // P3: radioactive goo penalty. CE:1845 FIRST/LAST_RADIOACTIVE_GOO_PID
+                if (gooTiles.has(nk)) cost += geckoMover ? 100 : 400
+
+                const newG = g[curr] + cost
+                if (newG < g[nk]) {
+                    g[nk] = newG
+                    fromDir[nk] = d
+                    par[nk] = curr
+                    const h = hexDistance({ x: nb.x, y: nb.y }, goal) * 50
+                    push(newG + h, nk, newG)
+                }
+            }
+        }
+
+        if (g[gk] === INF) return []
+
+        const path: number[][] = []
+        let curr = gk
+        while (curr !== -1 && curr !== sk) {
+            path.push([curr % W, (curr / W) | 0])
+            curr = par[curr]
+        }
+        if (curr !== sk) return []
+        path.push([start.x, start.y])
+        path.reverse()
+        return path
+    }
+
+    recalcPath(start: Point, goal: Point, isGoalBlocking?: boolean, mover?: Obj) {
         // FO2-CE ref: ai.cc — all pathFind() call sites guard against tile == -1;
         // tile.cc tileIsValid() checks tile >= 0 && tile < gHexGridSize (200*200).
         // Equivalent check on x,y coords: each must be in [0, HEX_GRID_SIZE).
@@ -435,11 +546,15 @@ export class GameMap {
             goal.x < 0 || goal.x >= HEX_GRID_SIZE || goal.y < 0 || goal.y >= HEX_GRID_SIZE) {
             return []
         }
-        const matrix = new Array(HEX_GRID_SIZE)
+        const matrix: number[][] = []
 
         for (let y = 0; y < HEX_GRID_SIZE; y++) {
-            matrix[y] = new Array(HEX_GRID_SIZE)
+            matrix[y] = new Array(HEX_GRID_SIZE).fill(0)
         }
+
+        // CE ref: animation.cc:1845 FIRST_RADIOACTIVE_GOO_PID=0x20003D9 LAST=0x20003DC
+        const gooTiles = new Set<number>()
+        const W = HEX_GRID_SIZE
 
         for (const obj of this.getObjects()) {
             const ox = obj.position.x, oy = obj.position.y
@@ -457,15 +572,24 @@ export class GameMap {
                     }
                 }
             }
+            // P3: radioactive goo tiles. CE ref: animation.cc:1845
+            const pid = (obj as any).pid as number | undefined
+            if (pid !== undefined && pid >= 0x20003D9 && pid <= 0x20003DC) {
+                gooTiles.add(oy * W + ox)
+            }
         }
 
         if (isGoalBlocking === false) {
             matrix[goal.y][goal.x] = 0
         }
 
-        const grid = new PF.Grid(HEX_GRID_SIZE, HEX_GRID_SIZE, matrix)
-        const finder = new PF.AStarFinder()
-        return finder.findPath(start.x, start.y, goal.x, goal.y, grid)
+        // P2: direction-change cost applies outside combat. CE ref: animation.cc:1838
+        const notInCombat = !globalState.inCombat
+        // P3: gecko critters get +100 penalty instead of +400. CE ref: animation.cc:1852
+        // KILL_TYPE_GECKO = 15 (proto_types.h)
+        const geckoMover = ((mover as any)?.killType ?? 0) === 15
+
+        return GameMap.hexAStar(start, goal, matrix, gooTiles, notInCombat, geckoMover)
     }
 
     serialize(): SerializedMap {

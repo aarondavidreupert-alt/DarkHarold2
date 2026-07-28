@@ -248,12 +248,13 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
+| P1 | ✅ FIXED 2026-07-28 — Replaced `PathFinding.js` (4/8-connected grid) with custom hex A* using `hexNeighbors()` (6-connected). | `animation.cc:makePath` | low |
 | P7 | ✅ FIXED 2026-06-04 — `hasLineOfSight` blocks on walls+scenery lacking `OBJECT_LIGHT_THRU`; skips hidden. | `object.cc:2583` | minor |
 | P5 | ✅ FIXED 2026-06-04 — `recalcPath` marks all 6 neighbours blocked for MULTIHEX (0x800) objects. | `object.cc:2413` | low |
 | P6 | ✅ FIXED 2026-06-04 — `hexLinecast` skips dead critters, `OBJECT_SHOOT_THRU`, hidden, non-blocking. | `object.cc:2440` | minor |
-| P2 | **No rotation-change step cost.** CE adds +10 to node cost on direction change (outside combat). | `animation.cc:1838` | low |
+| P2 | ✅ FIXED 2026-07-28 — Custom hex A* (`GameMap.hexAStar`) adds +10 step cost on direction change outside combat. | `animation.cc:1838` | low |
 | P4 | ✅ FIXED 2026-06-04 — `pathBlocks()` allows closed-unlocked doors; LoF still blocks (`blocks()`). | `animation.cc:1805` | minor |
-| P3 | **No radioactive goo tile penalty.** CE adds +100 (gecko) / +400 (others) on goo PID tiles. | `animation.cc:1852` | low |
+| P3 | ✅ FIXED 2026-07-28 — Custom hex A* adds +400 (non-gecko) / +100 (gecko) penalty on radioactive goo PID tiles (0x20003D9–0x20003DC). | `animation.cc:1852` | low |
 | P8 | ~~**`make_path` / `obj_blocking_at` / `make_straight_path` are stubs.**~~ FIXED 2026-07-27 — `make_straight_path` uses `hexLinecast`; `obj_blocking_at` uses `objectsAtPosition` + `blocks()`. Wired at 0x826E/0x826F. | `sfall_opcodes.cc:937,951` | low |
 
 ### 9c. Scripting
@@ -319,7 +320,7 @@ covered by Phases 1–8.
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| R2 | **No per-town reputation tracking.** Global karma ✅; per-faction NPC reaction modifiers absent. | `karma.cc` | minor |
+| R2 | ✅ FIXED 2026-07-28 — `townStanding()` thresholds corrected to match CE (`>= 1` Accepted, `>= -15` Antipathy, `>= -30` Hated, `< -30` Vilified). | `character_editor.cc:4586` | minor |
 
 ### 9j. Skills / Locks
 
