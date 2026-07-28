@@ -195,9 +195,9 @@ a believable playthrough.
   console command added.
 - Ref: `object.cc:4949 _obj_render()`; `proto.cc protoRead() case OBJ_TYPE_WALL`.
 
-### 8b. Flat object two-pass rendering 🔴 Missing (RD07/RD08)
-- CE renders `OBJECT_FLAT` objects (floor decals, blood) in a dedicated first pass.
-- Also missing: post-roof object pass (`_obj_render_post_roof` at full intensity).
+### 8b. Flat object two-pass rendering ✅/🔴 RD07 FIXED 2026-07-27 / RD08 Missing
+- ✅ RD07 FIXED 2026-07-27 — `renderObjects()` now iterates objects twice: first pass renders only `OBJECT_FLAT` (0x8) objects (floor decals, blood pools) so they always draw under critters/items; second pass renders all non-flat objects. Blood pool `Obj` in `critterKill` gets `flags = 0x8`. CE ref: `object.cc:761 _obj_render_pre_roof()`.
+- RD08 still missing: post-roof object pass (`_obj_render_post_roof` at full intensity, `object.cc:862`). Objects that must appear above the roof layer (e.g. critters on rooftops) have no dedicated post-roof render path.
 - Ref: `object.cc:761 _obj_render_pre_roof()`; `object.cc:862 _obj_render_post_roof()`
 
 ### 8c. Object depth sort ✅ FIXED 2026-06-04
@@ -267,6 +267,8 @@ covered by Phases 1–8.
 | S15 | **`play_gmovie` is a no-op.** `.mve` video playback infrastructure absent. | `movie.cc` | minor |
 | S27 | ~~**`radiation_dec/inc` stubs.**~~ FIXED 2026-07-27 — `radiation_inc`/`radiation_dec` implemented in `scripting.ts`; wired at 0x80FD/0x80FE. No decay loop (deferred). | `radiation.cc` | minor |
 | GTC5 | ✅ FIXED 2026-07-27 — `objectUnjamAll()` + CE-faithful `_scriptsCheckGameEvents`: GVAR_ENEMY_ARROYO triggers AFAILED ending; ARTIMER1-4 fire at days 90/180/270/360; each adjusts GVAR_TOWN_REP_ARROYO -15; ARTIMER4 hides Arroyo/reveals Destroyed Arroyo. `seenMovies` persisted in save. | `scripts.cc:438 _scriptsCheckGameEvents` | minor |
+| GTC2 | ✅ FIXED 2026-07-28 — `game_time_advance` now fires `processMidnightForDay()` for each elapsed day during a scripted time skip, matching CE's `queueProcessEvents()` call per day in `opGameTimeAdvance`. Timed-event drainage was already complete (2026-06-02). | `interpreter_extra.cc:2761 opGameTimeAdvance` | minor |
+| IW8 | ✅ VERIFIED DONE 2026-07-28 — P5–P18 sprint fully implemented CE's dialogue sub-mode state machine: vendor barter, companion trade, companion control, and customize transitions all wired with CE-accurate return paths. | `game_dialog.cc gameDialogEnter()` | minor |
 
 ### 9d. Interface / HUD
 

@@ -48,6 +48,18 @@ let nextMapUpdateTick = 600
 // Tracks the last elapsed-day count for midnight event detection (GTC5)
 let lastMidnightDay = -1
 
+// CE ref: scripts.cc:405 gameTimeEventProcess — midnight queue event.
+// Exported so game_time_advance (scripting.ts) can fire it synchronously for
+// each day that elapses during a scripted time skip (CE: queueProcessEvents
+// per day in opGameTimeAdvance, interpreter_extra.cc:2761).
+export function processMidnightForDay(day: number): void {
+    if (lastMidnightDay === -1 || day <= lastMidnightDay) return
+    lastMidnightDay = day
+    dbg('map', 'QUEUE PROCESS: Midnight!')
+    objectUnjamAll()
+    scriptsCheckGameEvents(day)
+}
+
 export function tickGame(): void {
     if (globalState.isInitializing || globalState.isWaitingOnRemote) {
         return
@@ -160,13 +172,8 @@ export function tickGame(): void {
         const currentDay = GameTime.getTotalDays()
         if (lastMidnightDay === -1) {
             lastMidnightDay = currentDay // initialize on first tick
-        } else if (currentDay !== lastMidnightDay) {
-            lastMidnightDay = currentDay
-            dbg('map', 'QUEUE PROCESS: Midnight!')
-            // CE ref: scripts.cc:418 gameTimeEventProcess — unjam all locks at midnight
-            objectUnjamAll()
-            // CE ref: scripts.cc:421 gameTimeEventProcess — ARTIMER story-movie triggers
-            scriptsCheckGameEvents(currentDay)
+        } else {
+            processMidnightForDay(currentDay)
             // _critter_check_rads() — radiation decay, intentionally deferred
         }
 

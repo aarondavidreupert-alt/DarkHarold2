@@ -47,6 +47,7 @@ import { assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getM
 import { ScriptVM } from './vm.js'
 import { Worldmap } from './worldmap.js'
 import { ScriptVMBridge } from './vm_bridge.js'
+import { processMidnightForDay } from './gameTick.js'
 import { Config } from './config.js'
 import { refreshStealthState } from './miscItem.js'
 
@@ -2335,8 +2336,14 @@ export module Scripting {
         game_time_advance(ticks: number) {
             log('game_time_advance', arguments)
             info('advancing time ' + ticks + ' ticks (' + ticks / 10 + ' seconds)')
+            const dayBefore = GameTime.getTotalDays()
             GameTime.advanceTicks(ticks)
+            const dayAfter = GameTime.getTotalDays()
             // CE ref: interpreter_extra.cc:2761 opGameTimeAdvance — calls queueProcessEvents() per day advanced.
+            // Fire midnight events synchronously for each day that elapsed (GTC2/GTC5).
+            for (let d = dayBefore + 1; d <= dayAfter; d++) {
+                processMidnightForDay(d)
+            }
             // Process any timed events whose countdown expires in the skipped window.
             let numEvents = timeEventList.length
             for (let i = 0; i < numEvents; i++) {
