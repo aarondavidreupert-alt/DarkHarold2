@@ -89,10 +89,11 @@ game features, but prerequisites for reliable iteration.
 ## Phase 4 — Combat Correctness
 **Goal:** Combat produces the right outcomes; AI behaves like FO2.
 
-### 4a. AI team targeting ✅ Done
+### 4a. AI team targeting ✅ Done (fully corrected 2026-07-28)
 - `teamNum` assigned from proto AI packet at critter load — `object.ts:1290`.
 - `findTarget()` filters by `x.teamNum !== obj.teamNum` — `combat.ts:1058`.
-- Ref: `ai.cc aiGetAttackTarget()`
+- Player-initiated `Combat.start()` now adds `teamNum=-1` to `triggerTeams`, enrolling all neutral (no `team_num` in ai.txt) map-placed critters so they retaliate when attacked.
+- Ref: `ai.cc aiGetAttackTarget()`; `combat.cc combatBeginSequence`
 
 ### 4b. Perk crit bonuses ✅ Done
 - **Better Criticals**: +30 per rank applied.

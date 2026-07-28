@@ -1159,6 +1159,11 @@ export class Combat {
                 if (obj instanceof Critter && !obj.dead && !obj.isPlayer && obj.teamNum >= 0)
                     triggerTeams.add(obj.teamNum)
             }
+            // CE ref: combat.cc combatBeginSequence enrolls all map critters.
+            // teamNum=-1 (neutral — no team_num in ai.txt) critters must also be
+            // enrolled so they can retaliate after being attacked (nextTurn's
+            // hasAttacked+LOS gate then marks them hostile and gives them a turn).
+            triggerTeams.add(-1)
         }
         combatDebug(`start: triggerTeams=[${[...triggerTeams].join(',')}]`)
         globalState.combat = new Combat(globalState.gMap.getObjects(), triggerTeams)
