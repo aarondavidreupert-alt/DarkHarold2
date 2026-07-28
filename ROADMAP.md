@@ -401,7 +401,7 @@ Phase 9 (remaining tractable gaps) 🟡/🔴
 | AF4 | **AP pip sprites hardcode `hlgrn.png`/`hlred.png`; CE picks FRM by AP state per slot.** Missing: "move AP" (yellow) pips correctly matching CE interface — CE uses separate ap_active/ap_move/ap_empty FRMs. DH2 approximates with hlyel. | `interface.cc interfaceRenderActionPoints()` | low |
 | AF5 | **Ammo bar widget renders 55 px fill; CE uses a 4-frame FRM strip for each increment.** Cosmetic difference only. | `interface.cc interfaceRenderAmmoBar()` | low |
 | AF6 | **`interfaceBarEndButtonsEnable/Disable` not fully wired.** CE dims End Turn / End Combat buttons via a separate FRM; DH2 uses CSS opacity. | `interface.cc` | low |
-| AF7 | **`interfaceRenderItemBars` (item condition bars) absent.** CE renders two small bars under equipped weapon for condition. | `interface.cc interfaceRenderItemBars()` | minor |
+| AF7 | **No CE equivalent found — entry based on incorrect premise.** `interfaceRenderItemBars()` does not exist in CE source. The only bar CE renders near the weapon slot is the ammo-fill bar (`interfaceUpdateAmmoBar`), which DH2 implements as `uiUpdateAmmoBar`. No action required. | `interface.cc` | n/a |
 | AF8 | **Combat hover info is DOM overlay; CE renders directly into buffer.** Functional parity but no `windowRefresh` integration. | `interface.cc` | low |
 
 ### AF-PREFS — preferences.cc gaps
@@ -416,7 +416,7 @@ Phase 9 (remaining tractable gaps) 🟡/🔴
 | AF14 | **`combat_messages` uses cycle button; CE uses 2-way toggle knob (prflknbs.frm).** | `preferences.cc PREF_COMBAT_MESSAGES` | low |
 | AF15 | ✅ FIXED (prior sprint) — DEFAULT button in `ui_options.ts` resets all sliders to CE defaults via `preferencesSetDefaults()` equivalent. | `preferences.cc preferencesSave()` | low |
 | AF16 | ~~**`text_line_delay` absent.**~~ FIXED 2026-07-28 — line delay derived and applied in `gameTick.ts` float-message expiry; see CI9. | `settings.h:43` | low |
-| AF17 | **`language_filter` checkbox absent.** CE has a profanity filter toggle. | `preferences.cc PREF_LANGUAGE_FILTER` | low |
+| AF17 | ~~**`language_filter` checkbox absent.**~~ FIXED (prior sprint) — `Config.ui.languageFilter` toggle wired to preferences panel secondary-knob at (299,207) in `ui_options.ts:312`. | `preferences.cc PREF_LANGUAGE_FILTER` | low |
 
 ---
 
@@ -433,6 +433,6 @@ Items already implemented (indicator bar, AP lights, sneaking/addiction/level fl
 | IF04 | ~~**End-button SFX missing.**~~ FIXED 2026-07-27 — `icombat2` fires at player-turn start, `icombat1` at AI-turn start, `icibcxx1` at combat end (was swapped). | `interface.cc interfaceBarEndButtonsRenderGreenLights` | low |
 | IF05 | ~~**Active hand not persisted in save.**~~ FIXED (prior session) — `saveload.ts` serializes and restores `player.activeHand`. | `interface.cc interfaceSave/Load` | low |
 | IF06 | ~~**Reload AP cost hardcoded to 2.**~~ FIXED (prior session) — `Weapon.getReloadAPCost()` matches CE: perk 65 → 1 AP, Solar Scorcher → 0 AP, default → 2 AP. | `interface.cc interfaceBarRefreshMainAction / item.cc` | med |
-| IF07 | **Called-shot aiming not reachable via action-cycle.** CE cycles PRIMARY→PRIMARY_AIMING→SECONDARY→SECONDARY_AIMING→RELOAD; entering an AIMING mode auto-opens the called-shot panel. DH2 uses a separate hotkey ('Z'). | `interface.cc interfaceBarRefreshMainAction` | low |
+| IF07 | ~~**Called-shot aiming not reachable via action-cycle.**~~ VERIFIED DONE 2026-07-28 — right-click cycles include 'called' mode (= CE PRIMARY_AIMING); bullseye shows on attack button; clicking a target in 'called' mode opens `calledShotSelectHitLocation` equivalent (`playerUse.ts:282`). 'Z' hotkey was never needed — the comment in `input.ts:511` was already commented out. Gap: SECONDARY_AIMING (burst+aimed) not in DH2's cycle, but no FO2 weapons in the base game require it. | `interface.cc interfaceBarRefreshMainAction` | low |
 | IF08 | ~~**Ammo bar fill width deviant.**~~ FIXED 2026-07-27 — `uiUpdateAmmoBar` now uses 70 px max to match CE formula. | `interface.cc interfaceBarRefreshMainAction line ~1361` | low |
 | IF09 | **No CE equivalent found — entry was based on incorrect premise.** CE has no `intface_hide`/`intface_show` script opcodes. `gInterfaceBarMode` is a fallout2.cfg config value (`[IFACE] IFACE_BAR_MODE`), not a runtime script-toggled flag. `indicatorBarHide()` is called internally when entering char editor / dialogue / pipboy. `game_ui_disable`/`game_ui_enable` (IW4, FIXED 2026-06-04) already cover the hide-HUD use-case from scripts. No action required. CE ref: `interface.cc:261 gInterfaceBarMode`, `svga.cc:137 configGetBool IFACE_BAR_MODE`. | `interface.cc` | n/a |
