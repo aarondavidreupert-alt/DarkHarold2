@@ -290,7 +290,7 @@ export class WebGLRenderer extends Renderer {
         this.eggHeight = H
         gl.useProgram(this.tileShader)
         if (this.uEggSize) gl.uniform2f(this.uEggSize, W, H)
-        console.log(`[Egg] procedural ellipse ready ${W}x${H}; loading egg.png for CE-accurate gradient`)
+        dbg('renderer', `[Egg] procedural ellipse ready ${W}x${H}; loading egg.png for CE-accurate gradient`)
 
         // Upgrade to CE-accurate FRM-derived gradient asynchronously
         const img = new Image()
@@ -309,10 +309,10 @@ export class WebGLRenderer extends Renderer {
             this.eggHeight = img.naturalHeight
             gl.useProgram(this.tileShader)
             if (this.uEggSize) gl.uniform2f(this.uEggSize, img.naturalWidth, img.naturalHeight)
-            console.log(`[Egg] upgraded to CE-accurate egg.png: ${img.naturalWidth}x${img.naturalHeight}`)
+            dbg('renderer', `[Egg] upgraded to CE-accurate egg.png: ${img.naturalWidth}x${img.naturalHeight}`)
         }
         img.onerror = () => {
-            console.warn('[Egg] egg.png not found — procedural ellipse fallback stays active')
+            dbg('renderer', '[Egg] egg.png not found — procedural ellipse fallback stays active')
         }
         // Bump the version string whenever egg.png is regenerated via
         // tools/export_mask_frms.py so the browser discards the cached copy.

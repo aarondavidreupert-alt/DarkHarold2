@@ -17,6 +17,7 @@ limitations under the License.
 // Event manager
 
 import globalState from './globalState.js'
+import { dbg, dbgWarn } from './logger.js'
 
 export module Events {
     export type EventHandler = (e: any) => void;
@@ -65,12 +66,12 @@ const pendingCombatExplosions: PendingExplosion[] = []
  */
 export function scheduleExplosion(obj: any, minDmg: number, maxDmg: number, radius: number, delayTurns: number): void {
     if (globalState.inCombat) {
-        console.log(`[Events] explosion scheduled in ${delayTurns} combat turn(s)`)
+        dbg('combat', `[Events] explosion scheduled in ${delayTurns} combat turn(s)`)
         pendingCombatExplosions.push({ obj, minDmg, maxDmg, radius, turnsRemaining: delayTurns })
         return
     }
     const delayMs = delayTurns * TURN_DURATION_MS
-    console.log(`[Events] explosion scheduled in ${delayTurns} turn(s) (${delayMs / 1000}s)`)
+    dbg('combat', `[Events] explosion scheduled in ${delayTurns} turn(s) (${delayMs / 1000}s)`)
     setTimeout(() => obj.explode(null, minDmg, maxDmg, radius), delayMs)
 }
 
@@ -87,7 +88,7 @@ export function tickCombatTurn(): void {
         if (ev.turnsRemaining <= 0) {
             pendingCombatExplosions.splice(i, 1)
             try { ev.obj.explode(null, ev.minDmg, ev.maxDmg, ev.radius) }
-            catch (e) { console.warn('[Events] explosion detonation threw', e) }
+            catch (e) { dbgWarn('combat', `[Events] explosion detonation threw: ${e}`) }
         }
     }
 }
