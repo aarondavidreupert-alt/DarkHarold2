@@ -18,6 +18,7 @@ limitations under the License.
 // wiki/ts-split-refactor.md → "Per-file split proposals" §12.
 
 import globalState from '../../globalState.js'
+import { dbg } from '../../logger.js'
 import { drawAutomapInto, getArchivedMaps, getSeenTiles } from '../../automapData.js'
 import { getAutomapZoom, zoomIn, zoomOut, getAutomapPan, attachAutomapDragPan, attachAutomapWheelZoom } from '../../ui_automap.js'
 import {
@@ -218,10 +219,7 @@ export function renderAutomapsTab(screen: HTMLDivElement): void {
                 const label = `${e.mapName}  L${e.elevation + 1}${e.isCurrent ? '  (CURRENT)' : ''}`
                 list.appendChild(makeListItem(label, () => {
                     const tiles = getSeenTiles(e.mapName, e.elevation)
-                    console.log(
-                        `[automap] level-3 click: mapName=${e.mapName} elevation=${e.elevation} ` +
-                        `isCurrent=${e.isCurrent} seenTiles=${tiles.size}`
-                    )
+                    dbg('map', `[automap] level-3 click: mapName=${e.mapName} elevation=${e.elevation} isCurrent=${e.isCurrent} seenTiles=${tiles.size}`)
                     automapViewing = e
                     renderAutomapsTab(screen)
                 }))

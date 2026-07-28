@@ -18,7 +18,7 @@ limitations under the License.
 // Split out of automapData.ts. See wiki/ts-split-refactor.md →
 // "Per-file split proposals" §18.
 
-import { dbgWarn } from '../logger.js'
+import { dbg, dbgWarn } from '../logger.js'
 import {
     seenData,
     objectSnapshots,
@@ -146,7 +146,7 @@ async function migrateFromLocalStorage(db: IDBDatabase): Promise<void> {
         ])
         localStorage.removeItem(LS_TILES_KEY)
         localStorage.removeItem(LS_OBJECTS_KEY)
-        console.log(`[automapData] migrated ${tileBatch.length} tile records, ${objBatch.length} object records from localStorage → IDB`)
+        dbg('map', `[automapData] migrated ${tileBatch.length} tile records, ${objBatch.length} object records from localStorage → IDB`)
     } catch (e) {
         dbgWarn('automap', '[automapData] migration: IDB write failed:', e)
     }

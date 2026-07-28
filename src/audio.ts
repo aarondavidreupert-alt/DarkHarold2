@@ -15,9 +15,9 @@ limitations under the License.
 */
 
 import { getCurrentMapInfo } from './data.js'
+import { dbg, dbgWarn } from './logger.js'
 import { getFileJSON, getRandomInt } from './util.js'
 import { getWeaponSounds, ImpactMaterial } from './soundMap.js'
-import { dbg, dbgWarn } from './logger.js'
 
 // Audio engine for handling music and sound effects
 
@@ -177,7 +177,7 @@ export class HTMLAudioEngine implements AudioEngine {
             this.sfxLookup = getFileJSON('lut/lst/sound_sfx_sndlist.json') ?? {}
         }
         if (!(stem.toUpperCase() in this.sfxLookup!)) {
-            console.warn('[Audio] SFX stem not found:', stem)
+            dbgWarn('audio', `[Audio] SFX stem not found: ${stem}`)
             return
         }
         this.playSfx(stem)

@@ -25,6 +25,7 @@
 import { font4 } from './ui_font.js'
 import { uiSaveLoad } from './ui_saveload.js'
 import globalState from './globalState.js'
+import { dbgWarn } from './logger.js'
 import { UIMode } from './ui_panels.js'
 
 // Enum mirrors fallout2-ce MainMenuButton order exactly.
@@ -174,7 +175,7 @@ function handleButton(btn: MainMenuButton): void {
     switch (btn) {
         case MainMenuButton.INTRO:
             // FO2-CE: plays intro movie; stub as no-op when video unavailable.
-            console.log('[MainMenu] INTRO: video not implemented')
+            dbgWarn('stub', '[MainMenu] INTRO: video not implemented')
             break
 
         case MainMenuButton.NEW_GAME:

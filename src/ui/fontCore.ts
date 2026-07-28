@@ -22,6 +22,7 @@
 // this renders variable-width glyphs from an AAF-derived sprite atlas + JSON
 // symbol info map: { [charCode: number]: { x, y, w, h } }.
 
+import { dbgWarn } from '../logger.js'
 import { Widget } from '../ui_widget.js'
 import { lazyLoadImage } from '../images.js'
 
@@ -81,7 +82,7 @@ export class FontRenderer {
                 this.checkLoaded()
             })
             .catch((err) => {
-                console.error('FontRenderer: failed to load symbol info', this.jsonPath, err)
+                dbgWarn('renderer', `FontRenderer: failed to load symbol info ${this.jsonPath}:`, err)
             })
     }
 

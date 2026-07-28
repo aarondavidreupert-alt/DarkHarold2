@@ -17,6 +17,7 @@ limitations under the License.
 // Save / Load window (FO2-CE ref: loadsave.cc lsgFileList / lsgSelectFileList).
 
 import globalState from './globalState.js'
+import { dbg } from './logger.js'
 import { formatSaveDate, load, save, SaveGame, saveList } from './saveload.js'
 import { Widget } from './ui_widget.js'
 import { WindowFrame, SmallButton, Label, List } from './ui_components.js'
@@ -87,7 +88,7 @@ export function uiSaveLoad(isSave: boolean): void {
         if (!item) return
 
         const saveID = item.id
-        console.log('[UI] %s save #%d.', isSave ? 'Saving' : 'Loading', saveID)
+        dbg('saveload', `[UI] ${isSave ? 'Saving' : 'Loading'} save #${saveID}.`)
 
         if (isSave) {
             // CE ref: loadsave.cc — message 131: "Save game already exists, overwrite?"

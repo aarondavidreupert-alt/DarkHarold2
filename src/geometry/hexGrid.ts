@@ -17,6 +17,7 @@ limitations under the License.
 // Hex grid topology + lines + bbox predicates split out of geometry.ts.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §25.
 
+import { dbgWarn } from '../logger.js'
 import {
     HEX_GRID_SIZE,
     Point,
@@ -263,9 +264,7 @@ export function tile_in_tile_rect(tile: Point, a: Point, b: Point, c: Point, d: 
     if (c.x != d.x || a.x != b.x || a.x > c.x) error = true
     if (a.y != d.y || b.y != c.y || a.y > c.y) error = true
     if (error) {
-        console.warn(
-            `[Geometry] pointInRect: not a rectangle: (${a.x},${a.y}), (${b.x},${b.y}), (${c.x},${c.y}), (${d.x},${d.y})`
-        )
+        dbgWarn('object', `[Geometry] pointInRect: not a rectangle: (${a.x},${a.y}), (${b.x},${b.y}), (${c.x},${c.y}), (${d.x},${d.y})`)
         return false
     }
     var inside = true

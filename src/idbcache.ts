@@ -1,3 +1,5 @@
+import { dbg, dbgWarn } from './logger.js'
+
 export module IDBCache {
     let db: IDBDatabase = null;
 
@@ -50,10 +52,10 @@ export module IDBCache {
             db = request.result;
 
             db.onerror = function(e) {
-                console.error("Database error: " + (<any>e.target).errorCode, (<any>e).target);
+                dbgWarn('saveload', `Database error: ${(<any>e.target).errorCode}`)
             };
 
-            console.log("Established Cache DB connection");
+            dbg('saveload', 'Established Cache DB connection')
 
             callback && callback();
         }

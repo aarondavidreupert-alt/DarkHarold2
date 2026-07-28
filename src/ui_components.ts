@@ -18,6 +18,7 @@ limitations under the License.
 // with-background-image container), SmallButton, Label, and List.
 
 import { Point } from './geometry.js'
+import { dbgWarn } from './logger.js'
 import { CSSBoundingBox, Widget } from './ui_widget.js'
 import { getUiContainer } from './ui_panels.js'
 
@@ -151,7 +152,7 @@ export class List extends Widget {
         }
 
         if (!itemElem) {
-            console.warn(`[UI] can't find item's element for item UID ${item.uid}`)
+            dbgWarn('inventory', `[UI] can't find item's element for item UID ${item.uid}`)
             return false
         }
 

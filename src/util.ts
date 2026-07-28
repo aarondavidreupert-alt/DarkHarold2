@@ -18,6 +18,7 @@ limitations under the License.
 import { Critter } from './object.js'
 import { loadMessage } from './data.js'
 import globalState from './globalState.js'
+import { dbgWarn } from './logger.js'
 
 // Utility functions
 
@@ -36,7 +37,7 @@ export function parseIni(text: string) {
             const eqIdx = line.indexOf('=')
             if (eqIdx === -1) {
                 // MAPS.TXT has one of these, so it's not an exception
-                console.log('warning: parseIni: not a key=value line: ' + line)
+                dbgWarn('script', `warning: parseIni: not a key=value line: ${line}`)
                 continue
             }
             if (category === null) throw 'parseIni: key=value not in category: ' + line

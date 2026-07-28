@@ -22,7 +22,7 @@ import { Config } from '../config.js'
 import { directionOfDelta, hexToScreen, Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { lazyLoadImage } from '../images.js'
-import { dbg } from '../logger.js'
+import { dbg, dbgWarn } from '../logger.js'
 import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from '../unarmed.js'
 import { Critter } from './Critter.js'
 // Imported from Obj (not the barrel) to avoid a cycle through ../object.js.
@@ -341,11 +341,7 @@ Critter.prototype.updateAnim = function (this: Critter): void {
     if (animInfo[this.anim] === undefined) {
         // Unknown anim key — likely stale state from a deserialized save or a script bug.
         // Log identity for diagnostics, then tombstone so the rAF loop stops hammering it.
-        console.warn(
-            `[updateAnim] unknown anim "${this.anim}" on critter ` +
-            `"${this.name || this.pid}" pid=${this.pid} ` +
-            `tile=(${this.position.x},${this.position.y}) art="${this.art}" — tombstoning`
-        )
+        dbgWarn('animation', `[updateAnim] unknown anim "${this.anim}" on critter "${this.name || this.pid}" pid=${this.pid} tile=(${this.position.x},${this.position.y}) art="${this.art}" — tombstoning`)
         this.anim = 'dead'
         return
     }

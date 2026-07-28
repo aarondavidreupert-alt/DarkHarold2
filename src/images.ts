@@ -14,6 +14,7 @@
 
 import globalState from './globalState.js'
 import { Config } from './config.js'
+import { dbg } from './logger.js'
 import { parsePNGCycleMask } from './colorCycle.js'
 
 // CE ref: cycle.cc — cycling palette entries only appear in tiles, scenery, and misc art.
@@ -38,7 +39,7 @@ export function lazyLoadImage(art: string, callback?: (x: HTMLImageElement) => v
     }
 
     if (Config.engine.doLogLazyLoads) {
-        console.log('lazy loading ' + art + '...')
+        dbg('renderer', `lazy loading ${art}...`)
     }
 
     globalState.lazyAssetLoadingQueue[art] = callback ? [callback] : []
