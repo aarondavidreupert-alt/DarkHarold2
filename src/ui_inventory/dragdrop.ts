@@ -19,6 +19,7 @@ limitations under the License.
 // proposals" §8.
 
 import globalState from '../globalState.js'
+import { dbg, dbgWarn } from '../logger.js'
 import { refreshStealthState } from '../miscItem.js'
 import { Obj, cloneItem } from '../object.js'
 import type { Critter } from '../object.js'
@@ -42,7 +43,7 @@ export function makeDraggable($el: HTMLElement, data: string, endCallback?: () =
     $el.setAttribute('draggable', 'true')
     $el.ondragstart = (e: DragEvent) => {
         e.dataTransfer.setData('text/plain', data)
-        console.log('[UI] start drag')
+        dbg('inventory', '[UI] start drag')
     }
     $el.ondragend = (e: DragEvent) => {
         if (e.dataTransfer.dropEffect !== 'none') {
@@ -91,7 +92,7 @@ export async function uiMoveSlot(data: string, target: string) {
         } // disallow inventory -> inventory
 
         const idx = parseInt(data.slice(1))
-        console.log('[UI] inventory idx: ' + idx)
+        dbg('inventory', '[UI] inventory idx: ' + idx)
         obj = globalState.player.inventory[idx]
 
         // CE ref: inventory.cc — armor slot only accepts armor items
@@ -127,7 +128,7 @@ export async function uiMoveSlot(data: string, target: string) {
         playerUnsafe[data] = null // remove object from slot
     }
 
-    console.log(`[UI] drop target: obj=${obj} data=${data} target=${target}`)
+    dbg('inventory', `[UI] drop target: obj=${obj} data=${data} target=${target}`)
 
     if (target === 'inventory') {
         globalState.player.inventory.push(obj)
@@ -205,7 +206,7 @@ export function applyArmorArt(armor: Obj | null) {
                     return
                 }
             } catch (e) {
-                console.warn('[UI] applyArmorArt: lookupArt failed for fid', fid, e)
+                dbgWarn('inventory', `[UI] applyArmorArt: lookupArt failed for fid ${fid}: ${e}`)
             }
         }
     }

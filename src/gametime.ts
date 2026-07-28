@@ -18,6 +18,7 @@ You may obtain a copy of the License at
 // math, and adds a day/night ambient-light curve used by the renderer.
 
 import globalState from './globalState.js'
+import { dbg } from './logger.js'
 
 // --- Tick constants (all match fallout2-ce) ---
 export const TICKS_PER_SECOND = 10
@@ -243,14 +244,12 @@ export function setLightLevelOverride(level0to100: number): void {
         intensity = Math.trunc(LIGHT_INTENSITY_MIN + data * (mid - LIGHT_INTENSITY_MIN) / 100)
     }
     lightLevelOverride = intensity
-    console.log(
-        `[lighting] script set_light_level(${level0to100}) → override=${(lightLevelOverride / LIGHT_INTENSITY_MAX).toFixed(3)}`
-    )
+    dbg('script', `[lighting] script set_light_level(${level0to100}) → override=${(lightLevelOverride / LIGHT_INTENSITY_MAX).toFixed(3)}`)
 }
 
 export function clearLightLevelOverride(): void {
     if (lightLevelOverride !== null) {
-        console.log('[lighting] override cleared')
+        dbg('script', '[lighting] override cleared')
     }
     lightLevelOverride = null
 }

@@ -18,6 +18,7 @@ limitations under the License.
 // wiki/ts-split-refactor.md → "Per-file split proposals" §8.
 
 import globalState from '../globalState.js'
+import { dbg } from '../logger.js'
 import { lazyLoadImage } from '../images.js'
 import { Obj, createObjectWithPID, cloneItem } from '../object.js'
 import { uiGetAmount } from '../ui_barter/swap.js'
@@ -381,13 +382,13 @@ export function showInventory() {
             case 'cancel':
                 break
             case 'use':
-                console.log('[UI] using object: ' + obj.art)
+                dbg('inventory', '[UI] using object: ' + obj.art)
                 obj.use(globalState.player)
                 break
             case 'drop':
-                console.log('[UI] dropping: ' + obj.art + ' with pid ' + obj.pid)
+                dbg('inventory', '[UI] dropping: ' + obj.art + ' with pid ' + obj.pid)
                 if (slot !== 'inventory') {
-                    console.log('[UI] moving into inventory first')
+                    dbg('inventory', '[UI] moving into inventory first')
                     globalState.player.inventory.push(obj)
                     playerAny[slot] = null
                     if (slot === 'leftHand' || slot === 'rightHand') refreshStealthState(globalState.player!)
@@ -445,7 +446,7 @@ export function showInventory() {
             case 'unload': {
                 const ammoPID: number | undefined = obj.pro?.extra?.ammoPID
                 const ammoCurrent: number = obj.pro?.extra?.rounds ?? 0
-                console.log(`[UI] unload: ammoPID=${ammoPID} rounds=${ammoCurrent}`)
+                dbg('inventory', `[UI] unload: ammoPID=${ammoPID} rounds=${ammoCurrent}`)
                 if (ammoCurrent > 0) {
                     if (ammoPID) {
                         // Create an ammo item and return it to inventory
