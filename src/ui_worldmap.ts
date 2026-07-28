@@ -116,8 +116,12 @@ export function uiWorldMapShowArea(area: Area) {
     clearEl($areamap)
 
     for (const entrance of area.entrances) {
-        // CE ref: worldmap.cc wmTownMapDraw — skips entrances with state == 0
-        if (!entrance.state) continue
+        // CE ref: worldmap.cc wmTownMapDraw — skips entrances whose state was
+        // set to 0 by script (metarule3 104). Entrances that start Off in city.txt
+        // are also hidden until scripted unlock — but since DH2 doesn't yet run the
+        // map-open scripts that unlock them, we show all entrances regardless of
+        // startState so testers can reach every sub-map.
+        // TODO: re-enable state filter once map entry scripts are functional.
         dbg('worldmap', '[Worldmap] area entrance:', entrance.mapLookupName)
         const $entranceEl = makeEl('div', { classes: ['worldmapEntrance'] })
         const $hotspot = makeEl('div', { classes: ['worldmapEntranceHotspot'] })
