@@ -6,7 +6,6 @@ export const Config = {
         screenHeight: 600,
 
         scrollPadding: 20, // how far the mouse has to be from an edge to scroll, in pixels
-        floatMessageDuration: 3, // how long floating messages stay on screen, in seconds
 
         showHexOverlay: false, // show hex grid?
         showCoordinates: false, // show coordinates on hex grid?

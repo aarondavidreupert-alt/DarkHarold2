@@ -129,9 +129,16 @@ export function tickGame(): void {
 
     }
 
-    // Expire old float messages regardless of focus state
+    // Expire old float messages regardless of focus state.
+    // CE ref: text_object.cc:337 — delay = gTextObjectsLineDelay * linesCount + gTextObjectsBaseDelay
+    // lineDelay derived from baseDelay per preferences.cc:548: (baseDelay - 1.0) * 0.4 (seconds)
     for (let i = 0; i < globalState.floatMessages.length; i++) {
-        if (time >= globalState.floatMessages[i].startTime + 1000 * Config.ui.floatMessageDuration) {
+        const fm = globalState.floatMessages[i]
+        const baseDelay = Config.ui.textBaseDelay
+        const lineDelay = (baseDelay - 1.0) * 0.4
+        const lineCount = (fm.msg.match(/\n/g)?.length ?? 0) + 1
+        const expiryMs = (baseDelay + lineDelay * lineCount) * 1000
+        if (time >= fm.startTime + expiryMs) {
             globalState.floatMessages.splice(i--, 1)
             continue
         }

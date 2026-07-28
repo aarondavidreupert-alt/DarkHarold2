@@ -290,7 +290,7 @@ covered by Phases 1–8.
 | CI6 | ✅ FIXED 2026-06-11 — `speechVolume` added to `HTMLAudioEngine`, persisted in `SavedPreferences`, slider in prefs panel. | `settings.cc:93` | low |
 | CI7 | ✅ FIXED (prior sprint) — `Config.ui.itemHighlight` wired to prefs panel toggle in `ui_options.ts`; `input.ts` gates hover-highlight on this flag; persisted in `SavedPreferences`. | `game_config.h:37` | low |
 | CI8 | ✅ FIXED 2026-06-11 — `target_highlight` is now full 3-state enum `'off'|'targeting-only'|'on'` matching CE 0/1/2; prefs cycle order corrected; legacy boolean load migration preserved. | `game_config.h:111` | low |
-| CI9 | ✅ FIXED 2026-06-11 — `textBaseDelay` (1.0–6.0 s) added to `Config.ui`, preferences slider added, persisted in `SavedPreferences`. | `settings.h:42` | low |
+| CI9 | ✅ FIXED 2026-07-28 — `textBaseDelay` preference now drives float message expiry via CE formula: `(baseDelay + (baseDelay-1)×0.4 × lineCount) × 1000 ms`. Removed stale `floatMessageDuration` constant. Also see AF16 below (now fixed). | `settings.h:42` | low |
 | CI10 | ✅ FIXED 2026-06-11 — `player_speedup` checkbox added to `Config.engine.playerSpeedup`; prefs panel checkbox wired; `critterAnimation.ts` skips player FPS boost when disabled. | `preferences.cc player_speedup` | low |
 
 ### 9f. Combat (remaining)
@@ -415,7 +415,7 @@ Phase 9 (remaining tractable gaps) 🟡/🔴
 | AF13 | **Preferences background (`prefscrn.frm`) not loaded.** DH2 prefs panel uses a raw `<div>` with inline styles; the 640×480 background FRM is never rendered. | `preferences.cc` | low |
 | AF14 | **`combat_messages` uses cycle button; CE uses 2-way toggle knob (prflknbs.frm).** | `preferences.cc PREF_COMBAT_MESSAGES` | low |
 | AF15 | ✅ FIXED (prior sprint) — DEFAULT button in `ui_options.ts` resets all sliders to CE defaults via `preferencesSetDefaults()` equivalent. | `preferences.cc preferencesSave()` | low |
-| AF16 | **`text_line_delay` absent.** CE derives line delay from base delay: `(base-1)*0.4` clamped to [0,2]s. Used by `text_object.cc` for auto-advance of multi-line floating text. DH2 has no floating-text auto-advance. | `settings.h:43` | low |
+| AF16 | ~~**`text_line_delay` absent.**~~ FIXED 2026-07-28 — line delay derived and applied in `gameTick.ts` float-message expiry; see CI9. | `settings.h:43` | low |
 | AF17 | **`language_filter` checkbox absent.** CE has a profanity filter toggle. | `preferences.cc PREF_LANGUAGE_FILTER` | low |
 
 ---
