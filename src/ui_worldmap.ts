@@ -116,6 +116,8 @@ export function uiWorldMapShowArea(area: Area) {
     clearEl($areamap)
 
     for (const entrance of area.entrances) {
+        // CE ref: worldmap.cc wmTownMapDraw — skips entrances with state == 0
+        if (!entrance.state) continue
         dbg('worldmap', '[Worldmap] area entrance:', entrance.mapLookupName)
         const $entranceEl = makeEl('div', { classes: ['worldmapEntrance'] })
         const $hotspot = makeEl('div', { classes: ['worldmapEntranceHotspot'] })

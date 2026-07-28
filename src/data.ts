@@ -42,6 +42,7 @@ export interface Area {
 
 interface AreaEntrance {
     startState: string
+    state: boolean   // runtime toggle: CE wmMapMarkMapEntranceState sets entrance->state
     x: number
     y: number
     mapLookupName: string
@@ -120,6 +121,7 @@ function parseAreas(data: string): AreaMap {
 
                 const entrance = {
                     startState: s[0],
+                    state: s[0].trim().toLowerCase() === 'on',
                     x: parseInt(s[1]),
                     y: parseInt(s[2]),
                     mapLookupName,

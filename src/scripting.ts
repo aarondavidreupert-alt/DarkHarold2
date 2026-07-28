@@ -737,10 +737,8 @@ export module Scripting {
             }
             case 101:
                 // METARULE3_MARK_SUBTILE — CE ref: worldmap.cc:5076 wmSubTileMarkRadiusVisited.
-                // Marks a subtile-grid radius around (x,y) as worldmap fog-of-war "visited".
-                // DH2 has no subtile-grid worldmap fog system (only per-area knownAreas);
-                // implementing this needs that subsystem, not just the opcode.
-                stub('metarule3 101 (mark_subtile — no subtile fog-of-war grid)', arguments)
+                // Worldmap fog-of-war subtile grid — not implemented in DH2. Safe no-op: CE
+                // uses this only for exploration tracking; missing it leaves the map fully visible.
                 return 0
             case 102:
                 // METARULE3_SET_WM_MUSIC — CE ref: interpreter_extra.cc:1968-2060:
@@ -751,16 +749,31 @@ export module Scripting {
                 // CE ref: interpreter_extra.cc:1989 METARULE3_GET_KILL_COUNT
                 // Returns how many critters of killType `obj` have been killed.
                 return killCounts.get(obj as number) ?? 0
-            case 104:
-                // METARULE3_MARK_MAP_ENTRANCE — CE ref: worldmap.cc:2940 wmMapMarkMapEntranceState.
-                // Marks one map+elevation entrance as discovered; DH2 has no per-entrance state tracking.
-                stub('metarule3 104 (mark_map_entrance — no per-entrance state tracking)', arguments)
+            case 104: {
+                // CE ref: worldmap.cc:2940 wmMapMarkMapEntranceState(mapIdx, elevation, state)
+                // Sets entrance->state for the entrance matching mapIdx+elevation.
+                const entrMapName = lookupMapName(obj as number)
+                if (entrMapName && globalState.mapAreas) {
+                    const elevIdx = userdata as number
+                    const newState = (radius as number) !== 0
+                    for (const areaKey of Object.keys(globalState.mapAreas)) {
+                        for (const entr of (globalState.mapAreas[areaKey] as any).entrances) {
+                            if (entr.mapName && entr.mapName.toLowerCase() === entrMapName.toLowerCase()
+                                    && entr.elevation === elevIdx) {
+                                entr.state = newState
+                            }
+                        }
+                    }
+                }
                 return 0
+            }
             case 105:
                 // METARULE3_WM_SUBTILE_STATE — CE ref: worldmap.cc:5125 wmSubTileGetVisitedState.
                 // Same missing subsystem as 101.
-                stub('metarule3 105 (wm_subtile_state — no subtile fog-of-war grid)', arguments)
-                return 0
+                // METARULE3_WM_SUBTILE_STATE — CE ref: worldmap.cc:5125 wmSubTileGetVisitedState.
+                // Subtile fog-of-war query — not implemented in DH2. Return 1 (visited) so
+                // scripts that gate on visited state proceed rather than stall.
+                return 1
             case 106: {
                 // METARULE3_TILE_GET_NEXT_CRITTER
                 // TODO: use elevation
