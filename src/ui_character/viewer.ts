@@ -22,6 +22,7 @@ limitations under the License.
 import { Config } from '../config.js'
 import { Events } from '../events.js'
 import globalState from '../globalState.js'
+import { dbg, dbgWarn } from '../logger.js'
 import { Widget } from '../ui_widget.js'
 import { font2, font3, makeFontLabel, renderBignum } from '../ui_font.js'
 import { updateIndicatorBar } from '../ui_hud.js'
@@ -690,7 +691,7 @@ export function showCharacterScreen() {
         if (inc) {
             const changed = newSkillSet.incBase(selectedSkill, newStatSet, playerSkillOpts)
             if (!changed) {
-                console.warn('Not enough skill points or at skill cap!')
+                dbgWarn('skills', 'Not enough skill points or at skill cap!')
             }
         } else {
             const currentBase = newSkillSet.getBase(selectedSkill)
@@ -763,7 +764,7 @@ export function showCharacterScreen() {
             player.stats.baseStats = Object.assign({}, newStatSet.baseStats)
         }
 
-        console.log('[CharScreen] Changes saved.')
+        dbg('object', '[CharScreen] Changes saved.')
         updateIndicatorBar()
         closeCharacterScreen()
     })

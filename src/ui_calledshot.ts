@@ -19,6 +19,7 @@ limitations under the License.
 
 import { Combat } from './combat.js'
 import globalState from './globalState.js'
+import { dbg } from './logger.js'
 import { Critter } from './object.js'
 import { drawDigits } from './ui_hud.js'
 import { UIMode } from './ui_panels.js'
@@ -54,7 +55,7 @@ export function uiCalledShot(art: string, target: Critter, callback?: (regionHit
 
     function drawChance(region: string) {
         let chance: any = (globalState.combat ?? new Combat([])).getHitChance(globalState.player, target, region).hit
-        console.log('[UI] called shot: id: %s | chance: %d', '#calledShot-' + region + '-chance #digit', chance)
+        dbg('combat', `[UI] called shot: id: #calledShot-${region}-chance #digit | chance: ${chance}`)
         if (chance <= 0) {
             chance = '--'
         }
@@ -106,7 +107,7 @@ export function uiCalledShot(art: string, target: Critter, callback?: (regionHit
             })
             $label.onclick = (evt: MouseEvent) => {
                 const clickedRegion = (evt.target as HTMLElement).id.split('-')[1]
-                console.log('[UI] called shot: clicked region %s', clickedRegion)
+                dbg('combat', `[UI] called shot: clicked region ${clickedRegion}`)
                 if (callback) {
                     callback(clickedRegion)
                 }

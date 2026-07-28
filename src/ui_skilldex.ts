@@ -19,6 +19,7 @@ limitations under the License.
 
 import { Config } from './config.js'
 import globalState from './globalState.js'
+import { dbg } from './logger.js'
 import { Skills, SKILL_NAMES } from './skills.js'
 import { skillUse } from './skillUse.js'
 import { Widget } from './ui_widget.js'
@@ -61,7 +62,7 @@ export function initSkilldex(): void {
                 if (result.hpHealed > 0) {
                     drawHP(player.getStat('HP'))
                 }
-                console.log('[UI] Passive skill executed:', skillName, result)
+                dbg('skills', `[UI] Passive skill executed: ${skillName} result=${JSON.stringify(result)}`)
                 return
             }
 
@@ -72,7 +73,7 @@ export function initSkilldex(): void {
             // CSS cursor fallback — crosshair visible even if WebGL crossuse asset is missing
             const cnv = document.getElementById('cnv')
             if (cnv) cnv.style.cursor = "url('art/intrface/crossuse.png') 11 11, crosshair"
-            console.log('[UI] Skill targeting mode:', SKILL_NAMES[skill - 1])
+            dbg('skills', `[UI] Skill targeting mode: ${SKILL_NAMES[skill - 1]}`)
         }
     }
 

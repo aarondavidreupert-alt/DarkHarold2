@@ -20,6 +20,7 @@ limitations under the License.
 // inventory and skill (skilldex) buttons.
 
 import globalState from './globalState.js'
+import { dbg, dbgWarn } from './logger.js'
 import { Critter, Obj } from './object.js'
 import { Scripting } from './scripting.js'
 import { uiLog } from './ui_hud.js'
@@ -77,14 +78,14 @@ export function uiContextMenu(obj: Obj, evt: any) {
     })
     const talkBtn = button(obj, 'talk', () => {
         if (!obj._script) {
-            console.warn('[Dialog] obj has no script')
+            dbgWarn('dialogue', '[Dialog] obj has no script')
             return
         }
         // CE ref: actions.cc:1832-1860 actionTalk — walks the player to the
         // NPC before the dialogue callback fires, unless already close.
         globalState.player.walkInFrontOf(obj.position, () => {
             globalState.player.clearAnim()
-            console.log('[Dialog] talking to ' + obj.name)
+            dbg('dialogue', '[Dialog] talking to ' + obj.name)
             Scripting.talk(obj._script!, obj)
         })
     })
