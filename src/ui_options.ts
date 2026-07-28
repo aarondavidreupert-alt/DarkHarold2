@@ -254,7 +254,6 @@ function buildPrefsPanel(): HTMLElement {
     // These are rendered faithfully but not persisted until Config fields are added.
     let combatLooks = 0
     let combatTaunts = 1
-    let languageFilter = 0
     let brightness = 1.0       // CE range 1.0–1.18 (preferences.cc dbl_50C168)
     let mouseSensitivity = 1.0 // CE range 1.0–2.5
 
@@ -309,8 +308,8 @@ function buildPrefsPanel(): HTMLElement {
     // Combat Taunts: knobY=141 (local).
     secondaryKnob(299, 141, () => combatTaunts, () => { combatTaunts = 1 - combatTaunts })
 
-    // Language Filter: knobY=207 (local).
-    secondaryKnob(299, 207, () => languageFilter, () => { languageFilter = 1 - languageFilter })
+    // Language Filter: knobY=207. CE ref: preferences.cc PREF_LANGUAGE_FILTER.
+    secondaryKnob(299, 207, () => Config.ui.languageFilter ? 1 : 0, () => { Config.ui.languageFilter = !Config.ui.languageFilter })
 
     // Running: knobY=271.
     secondaryKnob(299, 271,
@@ -393,7 +392,7 @@ function buildPrefsPanel(): HTMLElement {
         combatLooks = 0
         Config.ui.combatMessages = 'brief'
         combatTaunts = 1
-        languageFilter = 0
+        Config.ui.languageFilter = false
         Config.engine.doAlwaysRun = false
         Config.ui.subtitles = false
         Config.ui.itemHighlight = true

@@ -683,7 +683,8 @@ export module Scripting {
                     return 0
                 }
                 case 47:
-                    return 0 // METARULE_LANGUAGE_FILTER — always off in DH2
+                    // CE ref: interpreter_extra.cc:3291 METARULE_LANGUAGE_FILTER — profanity filter state
+                    return Config.ui.languageFilter ? 1 : 0
                 case 48:
                     // CE ref: interpreter_extra.cc:3310 METARULE_VIOLENCE_FILTER
                     // Returns current violence level: 0=None,1=Minimal,2=Normal,3=Maximum

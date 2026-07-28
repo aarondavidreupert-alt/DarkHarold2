@@ -153,6 +153,7 @@ export async function playDeathEnding(): Promise<void> {
         ? selected.slice('narrator/'.length)
         : selected
     const overlay = createOverlay()
-    await showStaticSlide(null, baseName, overlay)
+    // CE ref: main.cc:390 — DEATH.FRM is interface art #309, blitted as the death background
+    await showStaticSlide('art/intrface/death.png', baseName, overlay)
     removeOverlay()
 }

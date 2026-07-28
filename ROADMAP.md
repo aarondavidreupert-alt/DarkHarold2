@@ -78,8 +78,8 @@ game features, but prerequisites for reliable iteration.
 | `inven_cmds` | ✅ Done | All INVEN_CMD_* cases handled 2026-06-02. Ref: `interpreter_extra.cc opInvenCmds` |
 | `set_pc_stat` | ✅ Done | All PCSTAT IDs (0–4) handled 2026-06-02. Ref: `stat.cc pcSetStat` |
 | `mod_pc_stat` | ✅ Done | All PCSTAT IDs (0–4) handled 2026-06-02. Ref: `scripts.cc opModifyPcStat` |
-| `metarule` | 🟡 Partial | IDs 9,13,14,15,16,17,18,19,22,30,31,32,40,42,43,44,45,46,47,48,49,50,51,52,53 handled (car IDs 30/31/32/52/53 added 2026-07-27 — safe no-ops since DH2 has no car system); others stub. Ref: `interpreter_extra.cc opMetarule` |
-| `metarule3` | 🟡 Partial | IDs 100,102,103,106,107,108,109,110,111 handled (102=SET_WM_MUSIC, 109=chem_use preference, 110=car_out_of_gas→0, 111=map_target_load_area added 2026-07-27); IDs 101/104/105 stub (worldmap subtile fog-of-war not in DH2). Ref: `interpreter_extra.cc opMetarule3` |
+| `metarule` | ✅ Done | All CE IDs (13–53) handled — IDs 13/14/15/16/17/18/19/22/30/31/32/40/42/43/44/45/46/47/48/49/50/51/52/53. Car IDs 30/31/32/52/53 are safe no-ops (no car system). `default:` stub fires only for truly unknown IDs not in CE spec. Ref: `interpreter_extra.cc opMetarule` |
+| `metarule3` | ✅ Done 2026-07-28 | IDs 100–111 all handled: 100=clear fixed events, 101=subtile mark (silent→0), 102=SET_WM_MUSIC, 103=kill-count, 104=wmMapMarkMapEntranceState (full impl), 105=visited query (→1), 106–108=various, 109=chem_use pref, 110=car_out_of_gas→0, 111=map_target_load_area. `default:` stub fires only for IDs outside CE spec. Ref: `interpreter_extra.cc opMetarule3` |
 | `critter_add_trait` | ✅ Done | TRAIT_PERK (kind=0) added 2026-06-04 — player-only via applyPerk/perks.splice; TRAIT_OBJECT cases handled 2026-06-02. Ref: `interpreter_extra.cc opAddTrait` |
 | `anim` | ✅ Done | Reverse direction (param ≠ 0) wired through animBatch 2026-06-04 — passed to `singleAnimation(reversed)`. IDs 1000/1010 + types 0–64 handled 2026-06-02. Ref: `interpreter_extra.cc opAnim` |
 | `get_critter_stat` | ✅ Done | STAT_AGE (33) added 2026-06-04; STAT_CURRENT_POISON_LEVEL (36) / STAT_CURRENT_RADIATION_LEVEL (37) added 2026-07-27. SPECIAL 0–6, MaxHP/MaxAP/AC, Sequence, CritChance, BetterCriticals, DT/DR ranges all handled. Ref: `interpreter_extra.cc opGetCritterStat` |
@@ -335,7 +335,7 @@ covered by Phases 1–8.
 |----|------|--------|-----|
 | EG3 | ✅ FIXED 2026-07-28 — CE formula: base `msPer=16`; if `speechMs > 8*panRange`: `msPer = (speechMs+8*panRange)/panRange`. Total = `msPer*panRange`. | `endgame.cc:337` | low |
 | EG4 | ✅ FIXED 2026-07-28 — `playMovie()` now plays `music/akiss`, waits 3s, calls `showCredits()` (parses `credits.txt`; `;`/`@`/`#` format, CSS scroll at ~1px/20ms). CE: `endgame.cc:234`, `credits.cc:creditsOpen`. | `endgame.cc:234` | minor |
-| EG5 | **Death ending slide is a black screen.** CE plays narrator over the death scene. | `critter.cc:912` | low |
+| EG5 | ✅ FIXED 2026-07-28 — `playDeathEnding()` now passes `art/intrface/death.png` (interface art #309, CE `DEATH.FRM`) as the background. `loadImageToCanvas` gracefully falls back to black if the asset is absent. CE ref: `main.cc:390 buildFid(OBJ_TYPE_INTERFACE, 309, 0, 0, 0)`. | `critter.cc:912` | low |
 
 ### 9l. Asset Pipeline (Python — separate process)
 
@@ -434,4 +434,4 @@ Items already implemented (indicator bar, AP lights, sneaking/addiction/level fl
 | IF06 | ~~**Reload AP cost hardcoded to 2.**~~ FIXED (prior session) — `Weapon.getReloadAPCost()` matches CE: perk 65 → 1 AP, Solar Scorcher → 0 AP, default → 2 AP. | `interface.cc interfaceBarRefreshMainAction / item.cc` | med |
 | IF07 | **Called-shot aiming not reachable via action-cycle.** CE cycles PRIMARY→PRIMARY_AIMING→SECONDARY→SECONDARY_AIMING→RELOAD; entering an AIMING mode auto-opens the called-shot panel. DH2 uses a separate hotkey ('Z'). | `interface.cc interfaceBarRefreshMainAction` | low |
 | IF08 | ~~**Ammo bar fill width deviant.**~~ FIXED 2026-07-27 — `uiUpdateAmmoBar` now uses 70 px max to match CE formula. | `interface.cc interfaceBarRefreshMainAction line ~1361` | low |
-| IF09 | **HUD bar hide/show script hooks absent.** CE exposes `gInterfaceBarMode` toggled by `intface_hide` / `intface_show` opcodes; scripts can hide the entire HUD. DH2 stubs these opcodes. | `interface.cc indicatorBarHide/Show, scripting opcodes` | low |
+| IF09 | **No CE equivalent found — entry was based on incorrect premise.** CE has no `intface_hide`/`intface_show` script opcodes. `gInterfaceBarMode` is a fallout2.cfg config value (`[IFACE] IFACE_BAR_MODE`), not a runtime script-toggled flag. `indicatorBarHide()` is called internally when entering char editor / dialogue / pipboy. `game_ui_disable`/`game_ui_enable` (IW4, FIXED 2026-06-04) already cover the hide-HUD use-case from scripts. No action required. CE ref: `interface.cc:261 gInterfaceBarMode`, `svga.cc:137 configGetBool IFACE_BAR_MODE`. | `interface.cc` | n/a |

@@ -30,6 +30,7 @@ export interface SavedPreferences {
     combatMessages?: 'brief' | 'verbose'
     doAlwaysRun?: boolean
     subtitles?: boolean
+    languageFilter?: boolean
     textBaseDelay?: number
     playerSpeedup?: boolean
     itemHighlight?: boolean
@@ -64,6 +65,7 @@ export function loadPreferences(): void {
     if (prefs.combatMessages !== undefined) Config.ui.combatMessages = prefs.combatMessages
     if (prefs.doAlwaysRun !== undefined) Config.engine.doAlwaysRun = prefs.doAlwaysRun
     if (prefs.subtitles !== undefined) Config.ui.subtitles = prefs.subtitles
+    if (prefs.languageFilter !== undefined) Config.ui.languageFilter = prefs.languageFilter
     if (prefs.textBaseDelay !== undefined) Config.ui.textBaseDelay = prefs.textBaseDelay
     if (prefs.playerSpeedup !== undefined) Config.engine.playerSpeedup = prefs.playerSpeedup
     if (prefs.itemHighlight !== undefined) Config.ui.itemHighlight = prefs.itemHighlight
@@ -103,6 +105,7 @@ export function savePreferences(): void {
         combatMessages: Config.ui.combatMessages,
         doAlwaysRun: Config.engine.doAlwaysRun,
         subtitles: Config.ui.subtitles,
+        languageFilter: Config.ui.languageFilter,
         textBaseDelay: Config.ui.textBaseDelay,
         playerSpeedup: Config.engine.playerSpeedup,
         itemHighlight: Config.ui.itemHighlight,
