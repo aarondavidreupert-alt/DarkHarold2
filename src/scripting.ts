@@ -32,7 +32,7 @@ import {
 import { Lightmap } from './lightmap.js'
 import globalState from './globalState.js'
 import { parseIntFile } from './intfile.js'
-import { dbg } from './logger.js'
+import { dbg, dbgWarn } from './logger.js'
 import { useElevator } from './main.js'
 import { Critter, createObjectWithPID, Obj, objectGetDamageType } from './object.js'
 import { applyPerk, getPerkRank, PERKS } from './perks.js'
@@ -719,7 +719,7 @@ export module Scripting {
                 case 52: return 0   // SET_CAR_CARRY_AMOUNT — no car system; no-op
                 case 53: return 0   // GET_CAR_CARRY_AMOUNT — no car system; 0
                 default:
-                    stub('metarule', arguments)
+                    dbgWarn('script', `metarule: unhandled id ${id}`)
                     break
             }
         }
@@ -827,7 +827,7 @@ export module Scripting {
                 return area ? area.id : -1
             }
             default:
-                stub('metarule3', arguments)
+                dbgWarn('script', `metarule3: unhandled id ${id}`)
             }
         }
         script_overrides() {
@@ -886,8 +886,8 @@ export module Scripting {
             if (stat === 37) return obj.radiationLevel ?? 0 // STAT_CURRENT_RADIATION_LEVEL
             var namedStat = statMap[stat]
             if (namedStat !== undefined) return obj.getStat(namedStat)
-            stub('get_critter_stat', arguments)
-            return 5
+            dbgWarn('script', `get_critter_stat: unknown stat ${stat}`)
+            return 0
         }
         set_critter_stat(obj: Obj, stat: number, value: number) {
             // CE ref: interpreter_extra.cc:1313 opSetCritterStat — player only, additive
@@ -926,7 +926,7 @@ export module Scripting {
             }
 
             if (traitType === 1) {
-                // TRAIT_OBJECT
+                // CRITTER_TRAIT_OBJECT — CE ref: interpreter_extra.cc:2570 opHasTrait
                 switch (trait) {
                     case 5:
                         return (<Critter>obj).aiNum ?? 0 // OBJECT_AI_PACKET
@@ -934,25 +934,31 @@ export module Scripting {
                         return (<Critter>obj).teamNum ?? 0 // OBJECT_TEAM_NUM
                     case 10:
                         return obj.orientation // OBJECT_CUR_ROT
+                    case 34: // OBJECT_SEX — CE ref: critter.cc critterGetSex
+                        if ((<Critter>obj).isPlayer) return (<Player>obj).gender === 'female' ? 1 : 0
+                        return 0
                     case 666: // OBJECT_VISIBILITY
                         return obj.visible === false ? 0 : 1 // 1 = visible, 0 = invisible
+                    case 667: // OBJECT_CUR_POISON — CE ref: critter.cc critterGetPoison
+                        return (<Critter>obj).poisonLevel ?? 0
+                    case 668: // OBJECT_CUR_RADIATION — CE ref: critter.cc critterGetRadiation
+                        return (<Critter>obj).radiationLevel ?? 0
                     case 669: {
                         // CE ref: interpreter_extra.cc:2595 CRITTER_TRAIT_OBJECT_GET_INVENTORY_WEIGHT
-                        // objectGetInventoryWeight sums pro.extra.weight for each inventory item
                         let totalWeight = 0
                         for (const item of obj.inventory) {
                             totalWeight += (item.pro?.extra?.weight ?? 0) * (item.amount ?? 1)
                         }
                         return totalWeight
                     }
+                    default:
+                        dbgWarn('script', `has_trait: unhandled OBJECT trait ${trait}`)
+                        return -1
                 }
             }
 
             if (traitType === 2) {
                 // CRITTER_TRAIT_TRAIT — CE ref: interpreter_extra.cc:2600 opHasTrait
-                // traitIsSelected(param) checks the player's selected character traits.
-                // Object arg is ignored by CE for this type.
-                // CE trait index order: trait_defs.h TRAIT_* enum (0=Fast Metabolism … 15=Gifted)
                 const TRAIT_NAMES: string[] = [
                     'Fast Metabolism', 'Bruiser', 'Small Frame', 'One Hander',
                     'Finesse', 'Kamikaze', 'Heavy Handed', 'Fast Shot',
@@ -964,7 +970,7 @@ export module Scripting {
                 return globalState.player?.traits?.includes(traitName) ? 1 : 0
             }
 
-            stub('has_trait', arguments)
+            dbgWarn('script', `has_trait: unknown traitType ${traitType}`)
             return 0
         }
         critter_add_trait(obj: Obj, traitType: number, trait: number, amount: number) {
@@ -979,7 +985,8 @@ export module Scripting {
             }
 
             if (traitType === 1) {
-                // TRAIT_OBJECT — CE ref: interpreter_extra.cc opCritterAddTrait
+                // CRITTER_TRAIT_OBJECT — CE ref: interpreter_extra.cc:2869 opCritterAddTrait
+                // Unknown OBJECT traits are silently ignored in CE (default: break).
                 switch (trait) {
                     case 5: // OBJECT_AI_PACKET
                         ;(<Critter>obj).aiNum = amount
@@ -994,6 +1001,9 @@ export module Scripting {
                         obj.visible = amount !== 0
                         return
                     case 669: // OBJECT_CUR_WEIGHT — read-only (computed), no-op
+                        return
+                    default:
+                        dbgWarn('script', `critter_add_trait: unhandled OBJECT trait ${trait} (amount=${amount}) — ignored`)
                         return
                 }
             } else if (traitType === 0) {
@@ -1020,7 +1030,7 @@ export module Scripting {
                 return
             }
 
-            stub('critter_add_trait', arguments)
+            dbgWarn('script', `critter_add_trait: unhandled traitType ${traitType}`)
         }
         item_caps_total(obj: Obj) {
             // CE ref: item.cc item_caps_total — iterates ITEM_TYPE_MONEY inventory
@@ -1257,7 +1267,7 @@ export module Scripting {
             // CE ref: interpreter_extra.cc:3088 _op_inven_cmds
             // Only cmd=13 exists in CE: _inven_index_ptr(obj, index) → inventory[index]
             if (invenCmd !== 13) {
-                stub('inven_cmds', arguments, 'inventory')
+                dbgWarn('script', `inven_cmds: unhandled cmd ${invenCmd}`)
                 return null
             }
             if (!isGameObject(obj as any) || !obj.inventory) return null
@@ -1344,8 +1354,10 @@ export module Scripting {
                 case 4: // PCSTAT_karma
                     p.stats.setBase('Karma', Math.max(-99999999, Math.min(99999999, value)))
                     return 0
+                case 5: // PCSTAT_max_pc_stat — sentinel count; CE pcSetStat returns -1
+                    return -1
                 default:
-                    stub('set_pc_stat', arguments)
+                    dbgWarn('script', `set_pc_stat: unknown pcstat ${pcstat}`)
                     return -1
             }
         }
@@ -1375,8 +1387,10 @@ export module Scripting {
                     p.stats.setBase('Karma', Math.max(-99999999, Math.min(99999999, cur + delta)))
                     return 0
                 }
+                case 5: // PCSTAT_max_pc_stat — sentinel; CE mod returns -1
+                    return -1
                 default:
-                    stub('mod_pc_stat', arguments)
+                    dbgWarn('script', `mod_pc_stat: unknown pcstat ${pcstat}`)
                     return -1
             }
         }
@@ -1746,7 +1760,7 @@ export module Scripting {
                 this.reg_anim_end()
                 animBatch = saved
             } else {
-                stub('anim', arguments)
+                dbgWarn('script', `anim: unhandled anim value ${anim}`)
             }
         }
 
