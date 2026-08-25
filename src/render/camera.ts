@@ -305,7 +305,10 @@ export function computeMapContentBounds(floorMap: string[][] | null): void {
             maxY: maxY - INTERIOR_INSET_Y,
         }
     }
+    const mapName = (globalState.gMap as any)?.name?.toLowerCase() ?? '?'
     ;(window as any).mapContentBounds = mapContentBounds
+        ? { map: mapName, ...mapContentBounds }
+        : null
     dbg('map', '[scroll] interiorFloorBounds =', JSON.stringify(mapContentBounds))
 }
 
