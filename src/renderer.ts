@@ -223,6 +223,14 @@ export class Renderer {
             this.renderOutlinePass(this.objects)
         }
 
+        // DH2 fix: re-stamp the player on top of the outline pass so NPC
+        // combat-outline fills (post-roof) never visually cover the player
+        // character. CE never drew player outlines so this case didn't arise
+        // there; refreshHighlights() already excludes isPlayer from outlines.
+        if (Config.ui.showObjects && globalState.inCombat && globalState.player) {
+            this.renderObject(globalState.player)
+        }
+
         for (const window of this.windows.filter((w) => w.showing)) {
             this.renderWindow(window)
         }

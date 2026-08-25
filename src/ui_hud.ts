@@ -19,6 +19,7 @@ limitations under the License.
 
 import globalState from './globalState.js'
 import { Critter, Obj, WeaponObj, objectIsWeapon } from './object.js'
+import { getMessage } from './util.js'
 import { getActivePunchMode, getActiveKickMode } from './unarmed.js'
 import { $id, $img, $q, clearEl, show, hide, showv, hidev } from './ui_dom.js'
 import { font1 } from './ui_font.js'
@@ -569,6 +570,19 @@ export function uiShowCombatHover(target: Critter, screenX: number, screenY: num
     if (!$hover) return
 
     let info = `${target.name || 'Unknown'}\nHP: ${target.getStat('HP')}/${target.getStat('Max HP')}`
+
+    // Show the target's equipped weapon and whether it's drawn or holstered.
+    // A critter is "armed" (weapon drawn) when it is hostile; otherwise the
+    // weapon is holstered even if one is equipped (see critterAnimation.ts).
+    const targetWeapon = (target as any).equippedWeapon as WeaponObj | null
+    const hasRealWeapon = targetWeapon?.weapon && targetWeapon.weapon.weaponSkillType !== 'Unarmed'
+    if (hasRealWeapon && targetWeapon!.pro) {
+        const wepName = getMessage('pro_item', targetWeapon!.pro.textID) ?? targetWeapon!.weapon!.name
+        const drawn = target.hostile
+        info += `\n${wepName} [${drawn ? 'drawn' : 'holstered'}]`
+    } else {
+        info += '\nUnarmed'
+    }
 
     if (globalState.inCombat && globalState.combat && globalState.player!.equippedWeapon?.weapon) {
         const hitChance = globalState.combat.getHitChance(globalState.player!, target, 'torso')
