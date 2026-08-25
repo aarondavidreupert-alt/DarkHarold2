@@ -28,6 +28,8 @@ import {
     SCREEN_HEIGHT,
     SCREEN_WIDTH,
 } from './renderer.js'
+import { getActiveScrollBarBounds } from './render/camera.js'
+import { hexToScreen } from './geometry.js'
 import { Scripting } from './scripting.js'
 import {
     uiHideCombatHover,
@@ -268,10 +270,18 @@ export function tickGame(): void {
                     }
                     const radius = pkt.wanderType === 1 ? 5 : pkt.wanderType === 2 ? 15 : Infinity
                     const neighbors = hexNeighbors(critter.position)
-                    // Prefer neighbours inside the radius
-                    const validNeighbors = radius === Infinity
-                        ? neighbors
-                        : neighbors.filter(n => hexDistance(n, critter.wanderOrigin!) <= radius)
+                    const barBounds = getActiveScrollBarBounds()
+                    // Prefer neighbours inside the radius and within the visible bar bounds
+                    // so wandering NPCs don't stray into the black overlay region.
+                    const validNeighbors = neighbors.filter(n => {
+                        if (radius !== Infinity && hexDistance(n, critter.wanderOrigin!) > radius) return false
+                        if (barBounds) {
+                            const s = hexToScreen(n.x, n.y)
+                            if (s.x < barBounds.minX || s.x > barBounds.maxX ||
+                                s.y < barBounds.minY || s.y > barBounds.maxY) return false
+                        }
+                        return true
+                    })
                     const pool = validNeighbors.length > 0 ? validNeighbors : neighbors
                     const dest = pool[Math.floor(Math.random() * pool.length)]
                     if (dest) critter.walkTo(dest, false)
