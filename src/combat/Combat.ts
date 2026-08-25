@@ -1302,7 +1302,13 @@ export class Combat {
                 // before combat started. Entering combat mode alone (weapon drawn,
                 // movement AP spent) must not flip bystanders to hostile.
                 if (this.hasAttacked || obj.hostile) {
-                    obj.hostile = true
+                    if (!obj.hostile) {
+                        // First time turning hostile — draw weapon from inventory.
+                        // CE ref: critter.cc critterEquipCurrent (called at combat start).
+                        obj.hostile = true
+                        obj.equipFromInventory()
+                        obj.art = obj.getAnimation('idle')
+                    }
                     numActive++
                 }
             }

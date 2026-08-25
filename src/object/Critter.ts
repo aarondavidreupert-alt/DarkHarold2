@@ -150,28 +150,17 @@ export class Critter extends Obj {
                 dbgWarn('object', '[Deserialize] skill set: %o to: %o', mobj.skills, obj.skills)
             }
 
-            // Re-equip weapons from the deserialized inventory.
-            // init() ran before inventory was deserialized, so leftHand/rightHand
-            // may point at stale raw objects. Redo the equip pass now.
+            // Re-equip weapons from the deserialized inventory so leftHand/rightHand
+            // point at the re-created inventory objects (not stale pre-deserialize refs).
+            // Player and already-hostile NPCs (mid-combat save) get their weapon;
+            // non-hostile NPCs start with fists and draw on turning hostile.
             // FO2-CE ref: critter.cc critterUnequipAll / critterEquipCurrent
-            obj.leftHand = undefined
-            obj.rightHand = undefined
-            for (const inv of obj.inventory) {
-                if (inv.subtype === 'weapon') {
-                    const w = inv as WeaponObj
-                    if (obj.leftHand === undefined && w.weapon?.canEquip(obj)) {
-                        obj.leftHand = w
-                    } else if (obj.rightHand === undefined && w.weapon?.canEquip(obj)) {
-                        obj.rightHand = w
-                    }
-                }
+            if (obj.isPlayer || obj.hostile) {
+                obj.equipFromInventory()
+            } else {
+                obj.leftHand  = Critter.makeFist()
+                obj.rightHand = Critter.makeFist()
             }
-            const makeFist = () => {
-                const f = new WeaponObj(); f.type = 'item'; f.subtype = 'weapon'
-                f.weapon = new Weapon(null as unknown as WeaponObj); return f
-            }
-            if (!obj.leftHand)  obj.leftHand  = makeFist()
-            if (!obj.rightHand) obj.rightHand = makeFist()
         }
 
         return obj
@@ -195,37 +184,15 @@ export class Critter extends Obj {
             this.teamNum = getAiPacket(this.aiNum).teamNum
         }
 
-        // initialize weapons
-        this.inventory.forEach((inv) => {
-            if (inv.subtype === 'weapon') {
-                const w = <WeaponObj>inv
-                if (this.leftHand === undefined) {
-                    if (w.weapon!.canEquip(this)) {
-                        this.leftHand = w
-                    }
-                } else if (this.rightHand === undefined) {
-                    if (w.weapon!.canEquip(this)) {
-                        this.rightHand = w
-                    }
-                }
-                //console.log("left: " + this.leftHand + " | right: " + this.rightHand)
-            }
-        })
-
-        // default to punches
-        if (!this.leftHand) {
-            const fist = new WeaponObj()
-            fist.type = 'item'
-            fist.subtype = 'weapon'
-            fist.weapon = new Weapon(null)
-            this.leftHand = fist
-        }
-        if (!this.rightHand) {
-            const fist = new WeaponObj()
-            fist.type = 'item'
-            fist.subtype = 'weapon'
-            fist.weapon = new Weapon(null)
-            this.rightHand = fist
+        // Player gets weapons equipped immediately; NPCs start with fists and
+        // draw their weapon when they turn hostile (equipFromInventory() in Combat.ts).
+        // CE ref: critter.cc critterEquipCurrent — CE always equips; DH2 defers
+        // for NPCs so non-hostile critters look holstered by default.
+        if (this.isPlayer) {
+            this.equipFromInventory()
+        } else {
+            this.leftHand  = Critter.makeFist()
+            this.rightHand = Critter.makeFist()
         }
 
         // set them in their proper idle state for the weapon
@@ -238,6 +205,28 @@ export class Critter extends Obj {
 
     inAnim(): boolean {
         return !!(this.path || this.animCallback)
+    }
+
+    static makeFist(): WeaponObj {
+        const f = new WeaponObj()
+        f.type = 'item'; f.subtype = 'weapon'
+        f.weapon = new Weapon(null as unknown as WeaponObj)
+        return f
+    }
+
+    /** CE ref: critter.cc critterEquipCurrent — equip first two weapons from inventory. */
+    equipFromInventory(): void {
+        this.leftHand  = undefined
+        this.rightHand = undefined
+        for (const inv of this.inventory) {
+            if (inv.subtype !== 'weapon') continue
+            const w = inv as WeaponObj
+            if (!w.weapon?.canEquip(this)) continue
+            if (this.leftHand === undefined) this.leftHand = w
+            else if (this.rightHand === undefined) { this.rightHand = w; break }
+        }
+        if (!this.leftHand)  this.leftHand  = Critter.makeFist()
+        if (!this.rightHand) this.rightHand = Critter.makeFist()
     }
 
     move(position: Point, curIdx?: number, signalEvents = true): boolean {

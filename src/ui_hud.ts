@@ -571,15 +571,13 @@ export function uiShowCombatHover(target: Critter, screenX: number, screenY: num
 
     let info = `${target.name || 'Unknown'}\nHP: ${target.getStat('HP')}/${target.getStat('Max HP')}`
 
-    // Show the target's equipped weapon and whether it's drawn or holstered.
-    // A critter is "armed" (weapon drawn) when it is hostile; otherwise the
-    // weapon is holstered even if one is equipped (see critterAnimation.ts).
+    // Show the target's equipped weapon. Non-hostile NPCs have fists until they
+    // turn hostile and draw from inventory (see Critter.equipFromInventory()).
     const targetWeapon = (target as any).equippedWeapon as WeaponObj | null
     const hasRealWeapon = targetWeapon?.weapon && targetWeapon.weapon.weaponSkillType !== 'Unarmed'
     if (hasRealWeapon && targetWeapon!.pro) {
         const wepName = getMessage('pro_item', targetWeapon!.pro.textID) ?? targetWeapon!.weapon!.name
-        const drawn = target.hostile
-        info += `\n${wepName} [${drawn ? 'drawn' : 'holstered'}]`
+        info += `\n${wepName} [armed]`
     } else {
         info += '\nUnarmed'
     }

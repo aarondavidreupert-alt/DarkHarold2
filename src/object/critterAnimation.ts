@@ -144,13 +144,7 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
 
     // try weapon animation first
     const weaponObj = this.equippedWeapon
-    // DH2: non-hostile NPCs show the unarmed pose regardless of equipped weapon
-    // so shopkeepers and civilians don't appear aggressive. Hostile critters and
-    // the player always use the armed skin when the weapon FRM exists.
-    // CE ref: art.cc buildFid() — CE always uses the armed skin; this is a
-    // deliberate DH2 deviation for better visual clarity.
-    const showArmed = this.isPlayer || this.hostile
-    if (weaponObj !== null && Config.engine.doUseWeaponModel === true && showArmed) {
+    if (weaponObj !== null && Config.engine.doUseWeaponModel === true) {
         if (!weaponObj.weapon) {
             throw Error()
         }
