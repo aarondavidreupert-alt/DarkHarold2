@@ -118,22 +118,35 @@ tier 3 and the per-map table can be retired for most maps.
 
 ## DH2 Implementation (current state)
 
-### Per-map calibrated limits (`src/render/camera.ts`)
-`MAP_SCROLL_LIMITS` — viewport-**centre** world coords, hand-tuned in-game via the
-console helpers below. Four maps calibrated so far:
-```
-arvillag { minX:3367 maxX:4492 minY:1370 maxY:2210 }
-kladwtwn { minX:3178 maxX:4918 minY:1400 maxY:2150 }
-klatrap  { minX:3343 maxX:4468 minY:1445 maxY:2090 }
-geckjunk { minX:3535 maxX:4870 minY:1463 maxY:2183 }
-```
-No clean regularity across the four (widths 1125/1740/1125/1335, heights
-840/750/645/720) — consistent with "playfield size is per-map content", which is
-why a formula from grid constants alone can't produce them and why the
-object-bbox proxy is the more promising automatic route.
+### Automatic bounds (default path)
 
-`getActiveScrollLimits()` precedence: `window.scrollLimits` → `_activeLimits`
-(per-map table, set by `setMapScrollLimits()` on load) → `CE_CENTER_BOUNDS`.
+`getActiveScrollBarBounds()` selects bar-edge coords using this precedence:
+
+1. `window.scrollLimits` — live `blackBar()` editor override (edge coords)
+2. `MAP_BAR_BOUNDS[mapName]` — hand-calibrated edge coords (currently empty — see below)
+3. `scrollBlockerBounds` expanded by (290, 172) — CE-authoritative ring, when present
+   and not anomalously wide (w < 3500 && h < 2500; wider rings = city multi-district maps)
+4. `mapContentBounds` — interior floor tile bbox, excluding `grid000` and `edg*` tiles,
+   inset by (130, 60). Fallback for outdoor maps whose blocker rings exceed the width
+   threshold.
+5. `null` — no overlay drawn (only for maps with no floor tiles at all)
+
+`getActiveScrollLimits()` (for the scroll clamp) derives from the same chain but
+insets the bar bounds by (320, 190) = reference half-viewport to get centre coords.
+Falls back to `CE_CENTER_BOUNDS` (full 200×200 grid) if no bar bounds are available.
+
+### Per-map override table (`src/render/camera.ts`)
+
+`MAP_BAR_BOUNDS` — **edge** world coords, calibrated via `blackBar()` in-game.
+Currently empty: auto-detection (scroll blockers → floor bbox fallback) handles all
+shipped maps. Add an entry only when a specific map's auto result feels wrong:
+```typescript
+const MAP_BAR_BOUNDS: Record<string, typeof CE_CENTER_BOUNDS> = {
+    // e.g. arvillag: { minX: 1047, maxX: 5812, minY: 514, maxY: 2593 },
+}
+```
+Note: these are **bar-edge** coords (where the black bars sit), not viewport-centre
+clamp coords. `getActiveScrollLimits()` insets them by (320, 190) automatically.
 
 ### Scroll clamp — `clampCameraPosition()`
 Clamps the viewport **centre** (camera top-left + half view) to the active
@@ -156,30 +169,45 @@ pass (`webglLighting.ts`); `clear()` clears colour+depth each frame. This is wha
 fills the un-rendered (non-content) region black behind the overlay.
 
 ### Console calibration helpers (`camera.ts`, registered on `window`)
-- `scrollDebug()` — copyable JSON: content bbox, camera, zoom, screen, bar px
-- `borderCalib(on=true)` — grey semi-transparent bars + free scroll (ON) / solid
-  black + clamp (OFF)
-- `setBorder(minX,maxX,minY,maxY)` — set `window.scrollLimits` directly
-- `grabBorderEdge('left'|'right'|'top'|'bottom')` — capture current viewport
-  centre as one edge
-- `clearBorder()` — delete `window.scrollLimits`
+- `scrollDebug()` — prints copyable JSON: object bbox, auto clamp, active clamp,
+  camera position, zoom, screen size, and bar pixel widths for the current frame.
+- `blackBar('W'|'E'|'N'|'S')` — enters edit mode for the named bar edge (West/East/
+  North/South). Grey semi-transparent bars appear and scroll clamping is disabled so
+  you can reach any position. Keys while in edit mode:
+  - `PageUp` → bar moves outward (more map visible), step = 20 world units
+  - `PageDown` → bar moves inward (less map visible), step = 20 world units
+  - `Shift` → fine mode: step = 5 world units
+  - Prints current `window.scrollLimits` JSON after every step.
+- `blackBar()` (no argument) — exits edit mode; bars go solid black and clamping
+  re-enables. Prints the final `window.scrollLimits` value to copy into `MAP_BAR_BOUNDS`.
+- `borderSave()` — prints `mapName: { current scrollLimits }` for copy-paste.
+- `clearBorder()` — deletes `window.scrollLimits` and exits edit mode; auto bounds
+  are restored immediately.
 
-Workflow: `borderCalib()` → scroll to each real map edge → `grabBorderEdge(side)`
-per side → `borderCalib(false)` to preview solid → paste the final
-`window.scrollLimits` into `MAP_SCROLL_LIMITS`.
+**Calibration workflow** (for a map whose auto result is wrong):
+1. Load the map in-game.
+2. `blackBar('W')` → use PageUp/Down until the west bar looks right → repeat for
+   `'E'`, `'N'`, `'S'`.
+3. `blackBar()` → copy the printed JSON.
+4. Add an entry to `MAP_BAR_BOUNDS` in `camera.ts`:
+   ```typescript
+   mapfilename: { minX: <W edge>, maxX: <E edge>, minY: <N edge>, maxY: <S edge> }
+   ```
+5. Recompile (`npx tsc`) and verify in-game.
 
 ## Known Gaps vs CE
 - **Not CE-faithful by design.** CE scrolls to the painted-floor / grid-edge
   bound (borders "far out"). DH2 deliberately tightens to the playfield for a
   cleaner presentation. Accept this divergence.
-- **No automatic tight bound yet.** Per-map calibration is manual. Object-bbox
-  automation is proposed but unvalidated (classifier outage this session).
+- **Automatic bounds are empirically calibrated, not derived.** The (130, 60)
+  interior inset for the floor bbox fallback and the (290, 172) expansion from
+  scroll blocker rings are tuned to match tested maps; not guaranteed for all.
 - **Reference margin approximation.** DH2 uses plain 640×380 half-extents as the
   clamp margin; CE adds a 6–7 tile pad. Tunable via
   `ORIGINAL_ISO_WINDOW_WIDTH/HEIGHT`.
 - **Scroll-blocker objects** (misc pidID=12): DH2 checks the viewport-centre hex;
   CE checks the candidate centre tile. Low impact; no shipped DH2 map uses them.
 
-<!-- audited: 2026-07-09 -->
+<!-- audited: 2026-08-25 -->
 <!-- deep-dive: 2026-07-09 — CE has no per-map bounds; uniform grid-edge clamp. -->
-<!-- DH2 floor bbox = painted extent (too wide); object-bbox proposed as auto proxy (unvalidated: classifier outage). -->
+<!-- 2026-08-25: updated to reflect MAP_BAR_BOUNDS (was MAP_SCROLL_LIMITS), corrected console helpers (blackBar/borderSave/clearBorder replacing old setBorder/grabBorderEdge/borderCalib), updated auto-detection precedence chain. -->
