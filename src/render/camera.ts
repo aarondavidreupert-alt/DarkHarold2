@@ -22,6 +22,7 @@ import globalState from '../globalState.js'
 import { Obj } from '../object.js'
 import { Config } from '../config.js'
 import { tileToScreen, TILE_WIDTH, TILE_HEIGHT } from '../tile.js'
+import { dbg } from '../logger.js'
 
 // Sprite half-extents added to each object's screen position so the bbox
 // covers the full art footprint, not just the anchor point.
@@ -135,19 +136,13 @@ export function setMapScrollLimits(mapName: string): void {
 }
 
 // Returns the world-space EDGE bounds for the black overlay bars.
-// Precedence:
-//   1. window.scrollLimits   — live blackBar() editor
-//   2. MAP_BAR_BOUNDS entry  — hand-calibrated edge bounds for this map
-//   3. objectContentBounds   — auto: world bbox of placed objects
-//   4. null                  — no data yet; overlay skips drawing
-// Returns the world-space EDGE bounds for the black overlay bars.
 // scrollBlockerBounds is the camera CENTRE clamp; bars sit one reference
 // half-viewport (320×190) outward from that ring — matching where the
 // original 640×380 viewport edge would be at the scroll limit.
 // Precedence:
 //   1. window.scrollLimits  — live blackBar() editor (already edge bounds)
 //   2. MAP_BAR_BOUNDS entry — hand-calibrated edge bounds for this map
-//   3. scrollBlockerBounds expanded by 320×190 — CE-authoritative
+//   3. scrollBlockerBounds expanded by (290, 172) — CE-authoritative ring
 //   4. mapContentBounds     — interior floor bbox fallback
 //   5. null                 — no data; overlay skips drawing
 export function getActiveScrollBarBounds(): typeof CE_CENTER_BOUNDS | null {
@@ -235,7 +230,7 @@ export function computeObjectContentBounds(objects: Obj[]): void {
     }
     objectContentBounds = (minX === Infinity) ? null : { minX, maxX, minY, maxY }
     ;(window as any).objectContentBounds = objectContentBounds
-    console.log('[scroll] objectContentBounds =', JSON.stringify(objectContentBounds),
+    dbg('map', '[scroll] objectContentBounds =', JSON.stringify(objectContentBounds),
         objects.length + ' objects')
 }
 
@@ -270,7 +265,7 @@ export function computeScrollBlockerBounds(objects: Obj[]): void {
     }
     scrollBlockerBounds = (count === 0) ? null : { minX, maxX, minY, maxY }
     ;(window as any).scrollBlockerBounds = scrollBlockerBounds
-    console.log('[scroll] scrollBlockerBounds =', JSON.stringify(scrollBlockerBounds), count + ' blockers')
+    dbg('map', '[scroll] scrollBlockerBounds =', JSON.stringify(scrollBlockerBounds), count + ' blockers')
 }
 
 // Scan the floor tilemap for the interior playfield bbox and store the bar
@@ -311,7 +306,7 @@ export function computeMapContentBounds(floorMap: string[][] | null): void {
         }
     }
     ;(window as any).mapContentBounds = mapContentBounds
-    console.log('[scroll] interiorFloorBounds =', JSON.stringify(mapContentBounds))
+    dbg('map', '[scroll] interiorFloorBounds =', JSON.stringify(mapContentBounds))
 }
 
 // Copyable console diagnostic. Call `scrollDebug()` in DevTools to print the
