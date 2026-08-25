@@ -184,6 +184,17 @@ fills the un-rendered (non-content) region black behind the overlay.
 - `clearBorder()` — deletes `window.scrollLimits` and exits edit mode; auto bounds
   are restored immediately.
 
+**Read-only diagnostic properties** (set automatically on every map load / elevation change):
+- `window.objectContentBounds` — world-space bbox of all placed objects on the
+  current elevation (scenery, walls, critters, etc.). The raw object extent before
+  any inset; used as the seed for `blackBar()` when no `scrollLimits` are set yet.
+- `window.scrollBlockerBounds` — world-space bbox of misc `pidID=12` scroll-blocker
+  objects only. `null` if none exist on this elevation. Used as tier-3 bar bounds
+  (expanded by 290, 172) when narrower than 3500×2500.
+- `window.mapContentBounds` — interior floor tile bbox, excluding `grid000` and `edg*`
+  tiles, already inset by (130, 60). This is the tier-4 fallback bar bound. Inspect
+  this to see what the auto-detection chose for the current map.
+
 **Calibration workflow** (for a map whose auto result is wrong):
 1. Load the map in-game.
 2. `blackBar('W')` → use PageUp/Down until the west bar looks right → repeat for
