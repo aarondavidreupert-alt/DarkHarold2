@@ -29,7 +29,7 @@ import { getRandomInt } from '../util.js'
 import { Config } from '../config.js'
 import { dbg } from '../logger.js'
 import { EncounterGroup, EncounterTable } from './types.js'
-import { getWorldmap, getWorldmapPlayer, positionToSquare } from './Worldmap.js'
+import { getWorldmap, getWorldmapPlayer, positionToSquare, getIsInCar } from './Worldmap.js'
 
 export function getEncounterGroup(groupName: string): EncounterGroup {
     return getWorldmap().encounterGroups[groupName]
@@ -119,6 +119,9 @@ export function didEncounter(): 'none' | 'forced' | 'avoidable' {
         const diff = Config.combat.gameDifficultyModifier
         if (diff < 100) adjRate -= Math.floor(encRate / 15)       // Easy
         else if (diff > 100) adjRate += Math.floor(encRate / 15)  // Hard
+
+        // CE ref: worldmap.cc:3504 — car halves the effective encounter rate.
+        if (getIsInCar()) adjRate = Math.floor(adjRate / 2)
 
         const roll = getRandomInt(0, 100)
         dbg('worldmap', 'encounter: rolled %d vs %d (adj %d)', roll, encRate, adjRate)

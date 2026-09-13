@@ -41,11 +41,17 @@ export const SQUARE_SIZE = 50
 
 export const WORLDMAP_SPEED = 2 // speed scalar
 export const WORLDMAP_ENCOUNTER_CHECK_RATE = 800 // ms (TODO: find right value)
+// CE ref: worldmap.h:8 #define CAR_FUEL_MAX (80000)
+export const CAR_FUEL_MAX = 80000
 
 // Module-private mutable state. Exposed to sibling modules via the accessor
 // helpers below.
 let worldmap: WorldmapData = null
 let worldmapPlayer: WorldmapPlayer = null
+// CE ref: worldmap.h wmGenData.isInCar / wmGenData.carFuel — persisted across
+// worldmap open/close cycles (init() recreates worldmapPlayer from these).
+let _isInCar = false
+let _carFuel = 0
 let $worldmap: HTMLElement | null = null
 let $worldmapPlayer: HTMLElement | null = null
 let $worldmapTarget: HTMLElement | null = null
@@ -65,6 +71,19 @@ const VIEW_H = 438    // #worldMapWorld viewport height (CE WM_VIEW_HEIGHT)
 const MAP_W = NUM_SQUARES_X * SQUARE_SIZE   // 1400
 const MAP_H = NUM_SQUARES_Y * SQUARE_SIZE   // 1500
 const EDGE_THRESHOLD = 20  // px from edge that triggers mouse-edge scroll
+
+// Console command: window.giveCar([fuel]) — give the player the car with a full
+// (or specified) tank without any in-game unlock. Available as soon as the module
+// is loaded. CE ref: worldmap.cc:6043 wmCarGiveToParty.
+if (typeof window !== 'undefined') {
+    ;(window as any).giveCar = (fuel: number = CAR_FUEL_MAX) => {
+        _isInCar = true
+        _carFuel = Math.min(CAR_FUEL_MAX, Math.max(0, fuel))
+        if (worldmapPlayer) { worldmapPlayer.isInCar = true; worldmapPlayer.carFuel = _carFuel }
+        dbg('worldmap', 'giveCar: isInCar=true, carFuel=%d', _carFuel)
+        console.log(`Car enabled. Fuel: ${_carFuel} / ${CAR_FUEL_MAX}`)
+    }
+}
 
 function applyPan(px: number, py: number): void {
     _panX = clamp(0, MAP_W - VIEW_W, px)
@@ -136,6 +155,28 @@ export function getWorldmap(): WorldmapData {
 }
 export function getWorldmapPlayer(): WorldmapPlayer {
     return worldmapPlayer
+}
+
+// CE ref: worldmap.cc wmCarGiveToParty / wmCarUseGas / wmCarFillGas / wmCarIsOutOfGas.
+// The backing vars (_isInCar, _carFuel) survive worldmap open/close cycles;
+// worldmapPlayer shadows them while the worldmap is open.
+export function getIsInCar(): boolean { return _isInCar }
+export function setIsInCar(val: boolean): void {
+    _isInCar = val
+    if (worldmapPlayer) worldmapPlayer.isInCar = val
+}
+export function getCarFuel(): number { return _carFuel }
+export function setCarFuel(amount: number): void {
+    _carFuel = Math.min(CAR_FUEL_MAX, Math.max(0, amount))
+    if (worldmapPlayer) worldmapPlayer.carFuel = _carFuel
+}
+export function addCarFuel(amount: number): void {
+    _carFuel = Math.min(CAR_FUEL_MAX, _carFuel + Math.max(0, amount))
+    if (worldmapPlayer) worldmapPlayer.carFuel = _carFuel
+}
+export function fillCarFuel(): void {
+    _carFuel = CAR_FUEL_MAX
+    if (worldmapPlayer) worldmapPlayer.carFuel = CAR_FUEL_MAX
 }
 
 // CE ref: worldmap.cc wmGetPartyWorldPos — returns player pixel position on worldmap
@@ -340,7 +381,12 @@ export function init(): void {
         x: globalState.mapAreas[0].worldPosition.x,
         y: globalState.mapAreas[0].worldPosition.y,
         target: null,
+        // CE ref: worldmap.cc wmGenData — restored from backing vars so car
+        // state survives worldmap open/close and save/load cycles.
+        isInCar: _isInCar,
+        carFuel: _carFuel,
     }
+
     $worldmapTarget.style.left = worldmapPlayer.x + 'px'
     $worldmapTarget.style.top = worldmapPlayer.y + 'px'
 
@@ -426,7 +472,13 @@ export function updateWorldmapPlayer() {
 
         const squarePos = positionToSquare(worldmapPlayer)
         const currentSquare = worldmap.squares[squarePos.x][squarePos.y]
-        const speed = WORLDMAP_SPEED / worldmap.terrainSpeed[currentSquare.terrainType]
+
+        // CE ref: worldmap.cc:3028 wmCarCurrentTownFar — car moves 4 steps/tick (base).
+        // Each DH2 tick = 75ms; WORLDMAP_SPEED is px/tick. Car is 4× base.
+        // If out of fuel, treat as on foot (car becomes impassable; player exits).
+        const inCar = worldmapPlayer.isInCar && worldmapPlayer.carFuel > 0
+        const carMult = inCar ? 4 : 1
+        const speed = (WORLDMAP_SPEED * carMult) / worldmap.terrainSpeed[currentSquare.terrainType]
 
         if (len < speed) {
             worldmapPlayer.x = worldmapPlayer.target.x
@@ -444,6 +496,17 @@ export function updateWorldmapPlayer() {
             // head towards it
             worldmapPlayer.x += dx * speed
             worldmapPlayer.y += dy * speed
+        }
+
+        // CE ref: worldmap.cc:5984 wmCarUseGas(100) — consume 100 fuel per step (4 steps/tick).
+        // Base: 400/tick. Here we consume 100/tick (DH2 tick is 75ms vs CE's longer loop).
+        if (inCar) {
+            _carFuel = Math.max(0, _carFuel - 100)
+            worldmapPlayer.carFuel = _carFuel
+            if (_carFuel === 0) {
+                dbg('worldmap', 'car out of gas')
+                console.warn('The car is out of gas!')
+            }
         }
 
         // CE ref: worldmap.cc wmGameTimeIncrement(18000) — 30 game-minutes per 1-pixel step.

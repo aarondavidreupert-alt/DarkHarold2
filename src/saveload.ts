@@ -28,6 +28,7 @@ import { scheduleSneakEvent } from './skillUse.js'
 import { getDrugByName } from './drugs.js'
 import { drawHP, drawAC, uiDrawWeapon } from './ui_hud.js'
 import { getFileJSON } from './util.js'
+import { Worldmap } from './worldmap.js'
 
 // Saving and loading support
 
@@ -90,6 +91,11 @@ export interface SaveGame {
     // CE ref: scripts.cc scriptsSaveProcedureNames — events keyed by object PID.
     // Optional so older saves (without the field) load without error.
     timedEvents?: Scripting.SerializedTimedEvent[]
+
+    // CE ref: worldmap.h wmGenData — car ownership and fuel level.
+    // Optional so older saves (without the field) load cleanly (no car).
+    isInCar?: boolean
+    carFuel?: number
 }
 
 function captureScreenshot(): string | undefined {
@@ -153,6 +159,9 @@ function gatherSaveData(name: string): SaveGame {
         seenMovies: [...globalState.seenMovies],
         eventLog: globalState.eventLog.slice(),
         timedEvents: Scripting.getTimedEventsSerialized(),
+        // CE ref: worldmap.h wmGenData — persist car state across saves.
+        isInCar: Worldmap.getIsInCar(),
+        carFuel: Worldmap.getCarFuel(),
     }
 }
 
@@ -285,6 +294,11 @@ export function load(id: number): void {
 
                 // Restore discovered worldmap areas.
                 if (Array.isArray(save.knownAreas)) globalState.knownAreas = new Set(save.knownAreas)
+
+                // Restore car state. CE ref: worldmap.h wmGenData.isInCar / wmGenData.carFuel.
+                // Older saves lack these fields; default to no car / no fuel.
+                Worldmap.setIsInCar(save.isInCar ?? false)
+                Worldmap.setCarFuel(save.carFuel ?? 0)
 
                 // Restore seen-movie set (CE ref: game_movie.cc gameMoviesLoad).
                 if (Array.isArray(save.seenMovies)) globalState.seenMovies = new Set(save.seenMovies)

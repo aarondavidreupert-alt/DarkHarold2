@@ -47,6 +47,16 @@ export module Worldmap {
     export const withinArea = _WorldmapMod.withinArea
     export const getWorldmapPlayer = _WorldmapMod.getWorldmapPlayer
 
+    // Car system accessors (worldmap/Worldmap.ts).
+    // CE ref: worldmap.cc wmCarGiveToParty / wmCarUseGas / wmCarFillGas / wmCarIsOutOfGas.
+    export const CAR_FUEL_MAX = _WorldmapMod.CAR_FUEL_MAX
+    export const getIsInCar = _WorldmapMod.getIsInCar
+    export const setIsInCar = _WorldmapMod.setIsInCar
+    export const getCarFuel = _WorldmapMod.getCarFuel
+    export const setCarFuel = _WorldmapMod.setCarFuel
+    export const addCarFuel = _WorldmapMod.addCarFuel
+    export const fillCarFuel = _WorldmapMod.fillCarFuel
+
     // Encounter dispatch (worldmap/encounters.ts).
     export const getEncounterGroup = _Encounters.getEncounterGroup
     export const doEncounter = _Encounters.doEncounter

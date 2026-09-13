@@ -34,6 +34,9 @@ export interface WorldmapPlayer {
     x: number
     y: number
     target: Point
+    // CE ref: worldmap.h — wmGenData.isInCar / wmGenData.carFuel (CAR_FUEL_MAX=80000).
+    isInCar: boolean
+    carFuel: number
 }
 
 export interface Worldmap {

@@ -714,9 +714,31 @@ export module Scripting {
                     if (!isGameObject(target as any)) return 0
                     return (target as any).killType ?? 0
                 }
-                case 30: return -1  // CAR_CURRENT_TOWN — no car system; -1 = not in a town
-                case 31: return 0   // GIVE_CAR_TO_PARTY — no car system; no-op
-                case 32: return 0   // GIVE_CAR_GAS — no car system; no-op
+                case 30:
+                    // CE ref: interpreter_extra.cc:3235 METARULE_CAR_CURRENT_TOWN.
+                    // Returns the worldmap area index the player is currently in, or -1 if travelling.
+                    if (Worldmap.getIsInCar()) {
+                        const pos = Worldmap.getPlayerWorldPos()
+                        if (pos) {
+                            const area = Worldmap.withinArea(pos)
+                            return area ? (area as any).id ?? -1 : -1
+                        }
+                    }
+                    return -1
+                case 31: {
+                    // CE ref: interpreter_extra.cc:3238 METARULE_GIVE_CAR_TO_PARTY →
+                    // worldmap.cc:6043 wmCarGiveToParty — set isInCar=true, fill tank.
+                    Worldmap.setIsInCar(true)
+                    Worldmap.fillCarFuel()
+                    return 1
+                }
+                case 32: {
+                    // CE ref: interpreter_extra.cc:3241 METARULE_GIVE_CAR_GAS →
+                    // worldmap.cc:5984 wmCarFillGas(amount).
+                    const gasAmount = typeof target === 'number' ? target : 0
+                    Worldmap.addCarFuel(gasAmount)
+                    return 1
+                }
                 case 52: return 0   // SET_CAR_CARRY_AMOUNT — no car system; no-op
                 case 53: return 0   // GET_CAR_CARRY_AMOUNT — no car system; 0
                 default:
@@ -817,9 +839,8 @@ export module Scripting {
                 return idx === -1 ? 0 : idx
             }
             case 110:
-                // METARULE3_110 (car out of gas) — CE ref: worldmap.cc wmCarIsOutOfGas.
-                // Car system absent from DH2 (W8); always 0 (not out of gas).
-                return 0
+                // CE ref: worldmap.cc:5984 wmCarIsOutOfGas — returns 1 if car fuel is 0.
+                return (Worldmap.getIsInCar() && Worldmap.getCarFuel() === 0) ? 1 : 0
             case 111: {
                 // METARULE3_111 (_map_target_load_area) — CE ref: map.cc:1202.
                 // Returns the worldmap area index containing the current map, or -1.

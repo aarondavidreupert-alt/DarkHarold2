@@ -526,6 +526,20 @@ _debug.addXP(2000)
 | `movePlayer(tileNum)` | Teleport the player to a tile by number within the current map (no map reload). | `debug.movePlayer(18040)` |
 | `crawlerMode(on)` | Silence noisy log categories (`stub`, `dialogue`, `combat`, `ai`) and set difficulty to neutral for a clean crawler run. | `debug.crawlerMode(true)` |
 
+### Car system (worldmap travel)
+
+The worldmap car travel system is enabled in-game when a script fires CE metarule 31 (`GIVE_CAR_TO_PARTY`). To enable it instantly from the DevTools console — **no in-game unlock required**:
+
+```js
+// Give the car with a full tank (80 000 fuel units)
+giveCar()
+
+// Give the car with a specific fuel amount
+giveCar(40000)
+```
+
+`window.giveCar` is available as soon as the page loads (no worldmap open required). The car travels at **4× normal worldmap speed** and consumes 100 fuel/tick (75 ms ticks). A full tank (80 000 units) lasts several map crossings. Encounter rate is halved while in the car (CE ref: `worldmap.cc:3504`).
+
 ### Quick level-up test (no debug flag needed)
 
 The classic one-liner works in any DevTools console without enabling debug
