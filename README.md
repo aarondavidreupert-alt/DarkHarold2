@@ -159,12 +159,12 @@ pipenv run python tools/pipeline_gui.py
 ## Feature completion
 
 The buckets below are sourced from [`wiki/known_bugs.md`](wiki/known_bugs.md) (current
-audit: 2026-06-25). Items marked FIXED there roll up here. If you spot a contradiction,
+audit: 2026-07-04). Items marked FIXED there roll up here. If you spot a contradiction,
 the wiki tracker is the source of truth.
 
 ### ✅ Substantially implemented (~85–95%)
 
-- **Map loading & rendering** — tile maps, multi-elevation, WebGL 2.0 renderer, lightmap, real-time lighting, screen-space hex z-sort (RD09), camera clamp + `OBJECT_SCROLL_BLOCK` (RD11/RD12), per-building roof flood-fill (RD06), parity-correct lightmap hex sampling with selectable interpolation (RD17, default `hex-lerp`), directional wall light occlusion via `extendedFlags` (LD11), per-column wall light sampling (`wall-clamp` default), and smooth moving-torch lighting (`egg-split`); an alpha-silhouette wall top-edge fade exists but ships **off** (no reliable "wall meets roof" gate) — see [`wiki/alignment.md`](wiki/alignment.md)
+- **Map loading & rendering** — tile maps, multi-elevation, WebGL 2.0 renderer, lightmap, real-time lighting, screen-space hex z-sort (RD09), camera clamp + `OBJECT_SCROLL_BLOCK` (RD11/RD12), per-building roof flood-fill + roofEgg transparency on occluding roof tiles (RD06, DEFAULT ON), parity-correct lightmap hex sampling with selectable interpolation (RD17, default `hex-lerp`), directional wall light occlusion via `extendedFlags` (LD11), per-column wall light sampling (`wall-clamp` default), and smooth moving-torch lighting (`egg-split`); an alpha-silhouette wall top-edge fade exists but ships **off** (no reliable "wall meets roof" gate) — see [`wiki/alignment.md`](wiki/alignment.md)
 - **Walking & running** — A\* pathfinding with separate path-blocking / shoot-blocking predicates (P4/P5/P6), `OBJECT_MULTIHEX` neighbour scan, scenery LoS via `OBJECT_LIGHT_THRU` (P7), door interaction, exit grids
 - **Combat core** — hit/damage formulas (YAAM), ammo X/Y/DR/AC modifiers, burst fire, called shots, 6-level criticals + Better Criticals, critical failures, armor DR/DT per damage type, crippled limbs, knockdown/knockout, DAM_DROP, fire DoT, partial cover, AI team targeting + perception gate + LoS, AI distance modes (charge / snipe / stay / stay_close), combat-turn explosion timer (T1), combat walk-speed bonus (FA4), per-damage-type death animations + `CRITTER_SPECIAL_DEATH`, float-text colour + stacking (AC8)
 - **Combat perks** — Slayer, Sniper, Sharpshooter, Bonus HtH Attacks, Bonus Rate of Fire, Better Criticals, Stonewall, Fast Reload, Finesse, Healer, Pathfinder, Pickpocket, and more
@@ -184,7 +184,7 @@ the wiki tracker is the source of truth.
 - **Save / load** — IndexedDB-backed; player state, inventory + ammo state, stats/skills/traits/perks, level/XP, equipped items, GVARs, MVARs (U5), knownAreas (U6), timed-event queue (U7), 160×100 JPEG save-slot thumbnails (U3)
 - **Status effects** — drug / chem effect timers with addiction rolls (5a), poison + radiation decay loops (5b)
 - **Animations** — FRM sprite rendering with `artOffset` zero-jump model (FA7), correct frame-0 timing (FA9), symmetric walk-cycle partials (FA10), weapon-draw drift fix (FA12)
-- **Rendering** — per-building roof flood-fill clipping (RD06), egg transparency with CE 4-case `extendedFlags` branch + `'alpha'` radial mode (RD16), combat/item/neutral critter outline system with fill/border alpha (CI11–CI15), worldmap pan/scroll with arrow/WASD/mouse-edge input (W12)
+- **Rendering** — per-building roof flood-fill clipping + roofEgg transparency (RD06), egg transparency with CE 4-case `extendedFlags` branch + `'alpha'` radial mode (RD16), combat/item/neutral critter outline system with fill/border alpha (CI11–CI15), worldmap pan/scroll with arrow/WASD/mouse-edge input (W12)
 - **Preferences** — full options panel (difficulty, combat speed, violence level, target-highlight 3-state (CI8), item highlight (CI7/CI12), run-by-default (CI4), subtitles, speech/SFX/music volume, brightness slider stub) persisted via localStorage; hover-only item highlight matching CE `gameMouseLoadItemHighlight` (CI12)
 
 ---
