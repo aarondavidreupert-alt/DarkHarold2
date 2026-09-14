@@ -1446,6 +1446,51 @@ html, body {
   background-image: url("art/intrface/lilreddn.png");
 }
 
+/* CE ref: worldmap.cc:6179 wmInterfaceRefreshCarStatus.
+   wmcarmve.frm (interface art 433) blit at WM_WINDOW_CAR_X=514, WM_WINDOW_CAR_Y=336.
+   wmscreen.frm (363) overlay at WM_WINDOW_CAR_OVERLAY_X=499, WM_WINDOW_CAR_OVERLAY_Y=330.
+   wmglobe.frm (366) at the same overlay position when NOT in car.
+   All relative to #worldMapBox (640×480). */
+#wmCarImage {
+  position: absolute;
+  left: 514px;
+  top: 336px;
+  width: 84px;
+  height: 64px;
+  background-image: url("art/intrface/wmcarmve.png");
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+#wmGlobeOverlay {
+  position: absolute;
+  left: 499px;
+  top: 330px;
+  width: 141px;
+  height: 90px;
+  background-image: url("art/intrface/wmscreen.png");
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+
+/* CE ref: worldmap.cc:6219 wmInterfaceRefreshCarFuel — vertical fill bar.
+   WM_WINDOW_CAR_FUEL_BAR_X=500, WM_WINDOW_CAR_FUEL_BAR_Y=339, height=70px.
+   CE draws colour 196 (bright green ~#00c000) for filled, 14 (dark ~#202020) for empty. */
+#wmCarFuelBarTrack {
+  position: absolute;
+  left: 500px;
+  top: 339px;
+  width: 3px;
+  height: 70px;
+  background: #202020;
+}
+#wmCarFuelBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: #00c000;
+}
+
 #worldMapWorld {
   position: absolute;
   left: 105px;

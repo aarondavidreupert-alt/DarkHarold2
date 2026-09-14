@@ -220,6 +220,16 @@ limitations under the License.
 					<!-- CE ref: worldmap.cc WM_TOWN_WORLD_SWITCH_X/Y=519/439 — toggle area/world view -->
 					<div id="worldmapViewButton"></div>
 					<div id="worldMapDial"></div>
+					<!-- CE ref: worldmap.cc:6179 — when isInCar, blit wmcarmve.frm (interface 433)
+					     at WM_WINDOW_CAR_X=514,Y=336 over wmscreen.frm overlay (363) at 499,330.
+					     When not in car, blit wmglobe.frm (366) at the same overlay position. -->
+					<div id="wmCarImage" hidden></div>
+					<div id="wmGlobeOverlay"></div>
+					<!-- CE ref: worldmap.cc:6219 wmInterfaceRefreshCarFuel —
+					     vertical fill bar at WM_WINDOW_CAR_FUEL_BAR_X=500,Y=339, height=70px. -->
+					<div id="wmCarFuelBarTrack" hidden>
+						<div id="wmCarFuelBar"></div>
+					</div>
 					<!-- CE ref: worldmap.cc wmInterfaceRefreshDate — blit at x=487,y=12 -->
 					<div id="wmDateArea">
 						<div id="wmDay1"  class="wmDigit"></div>

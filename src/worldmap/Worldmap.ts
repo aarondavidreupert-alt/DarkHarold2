@@ -52,6 +52,9 @@ let worldmapPlayer: WorldmapPlayer = null
 // worldmap open/close cycles (init() recreates worldmapPlayer from these).
 let _isInCar = false
 let _carFuel = 0
+// CE ref: worldmap.cc wmGenData.currentCarAreaId — area where the car is parked.
+// Set when entering a local map while in car; returned by wmCarCurrentArea().
+let _currentCarAreaId = -1
 let $worldmap: HTMLElement | null = null
 let $worldmapPlayer: HTMLElement | null = null
 let $worldmapTarget: HTMLElement | null = null
@@ -80,6 +83,7 @@ if (typeof window !== 'undefined') {
         _isInCar = true
         _carFuel = Math.min(CAR_FUEL_MAX, Math.max(0, fuel))
         if (worldmapPlayer) { worldmapPlayer.isInCar = true; worldmapPlayer.carFuel = _carFuel }
+        updateCarUI()
         dbg('worldmap', 'giveCar: isInCar=true, carFuel=%d', _carFuel)
         console.log(`Car enabled. Fuel: ${_carFuel} / ${CAR_FUEL_MAX}`)
     }
@@ -177,6 +181,29 @@ export function addCarFuel(amount: number): void {
 export function fillCarFuel(): void {
     _carFuel = CAR_FUEL_MAX
     if (worldmapPlayer) worldmapPlayer.carFuel = CAR_FUEL_MAX
+}
+// CE ref: worldmap.cc wmGenData.currentCarAreaId / wmCarCurrentArea().
+export function getCarAreaId(): number { return _currentCarAreaId }
+export function setCarAreaId(areaId: number): void { _currentCarAreaId = areaId }
+
+// Update the worldmap car overlay image + fuel bar visibility.
+// CE ref: worldmap.cc:6179 wmInterfaceRefreshCarStatus — draws wmcarmve.frm or wmglobe.frm,
+// plus wmInterfaceRefreshCarFuel (vertical bar at WM_WINDOW_CAR_FUEL_BAR_X=500,Y=339,H=70).
+export function updateCarUI(): void {
+    const $car = document.getElementById('wmCarImage')
+    const $globe = document.getElementById('wmGlobeOverlay')
+    const $track = document.getElementById('wmCarFuelBarTrack')
+    const $bar = document.getElementById('wmCarFuelBar')
+    if (!$car || !$globe) return
+    $car.hidden = !_isInCar
+    $globe.hidden = _isInCar
+    if ($track) $track.hidden = !_isInCar
+    if (_isInCar && $bar) {
+        // CE ref: worldmap.cc:6221 ratio = (70 * carFuel) / CAR_FUEL_MAX, rounded down to even.
+        let ratio = Math.floor((70 * _carFuel) / CAR_FUEL_MAX)
+        if (ratio & 1) ratio -= 1
+        $bar.style.height = ratio + 'px'
+    }
 }
 
 // CE ref: worldmap.cc wmGetPartyWorldPos — returns player pixel position on worldmap
@@ -410,6 +437,9 @@ export function init(): void {
 
     // Apply initial pan so the map starts centred on the player
     applyPan(worldmapPlayer.x - VIEW_W / 2, worldmapPlayer.y - VIEW_H / 2)
+
+    // CE ref: worldmap.cc:6179 — sync car image + globe overlay visibility on open.
+    updateCarUI()
 }
 
 function _onWMKeyDown(e: KeyboardEvent): void { _heldKeys.add(e.key) }
@@ -507,6 +537,7 @@ export function updateWorldmapPlayer() {
                 dbg('worldmap', 'car out of gas')
                 console.warn('The car is out of gas!')
             }
+            updateCarUI()
         }
 
         // CE ref: worldmap.cc wmGameTimeIncrement(18000) — 30 game-minutes per 1-pixel step.

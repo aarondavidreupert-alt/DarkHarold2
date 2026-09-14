@@ -56,6 +56,9 @@ export module Worldmap {
     export const setCarFuel = _WorldmapMod.setCarFuel
     export const addCarFuel = _WorldmapMod.addCarFuel
     export const fillCarFuel = _WorldmapMod.fillCarFuel
+    export const getCarAreaId = _WorldmapMod.getCarAreaId
+    export const setCarAreaId = _WorldmapMod.setCarAreaId
+    export const updateCarUI = _WorldmapMod.updateCarUI
 
     // Encounter dispatch (worldmap/encounters.ts).
     export const getEncounterGroup = _Encounters.getEncounterGroup

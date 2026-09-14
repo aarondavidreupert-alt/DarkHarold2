@@ -92,10 +92,12 @@ export interface SaveGame {
     // Optional so older saves (without the field) load without error.
     timedEvents?: Scripting.SerializedTimedEvent[]
 
-    // CE ref: worldmap.h wmGenData — car ownership and fuel level.
+    // CE ref: worldmap.h wmGenData — car ownership, fuel level, and parked area.
     // Optional so older saves (without the field) load cleanly (no car).
     isInCar?: boolean
     carFuel?: number
+    // CE ref: worldmap.cc wmGenData.currentCarAreaId — area index where car is parked.
+    currentCarAreaId?: number
 }
 
 function captureScreenshot(): string | undefined {
@@ -162,6 +164,7 @@ function gatherSaveData(name: string): SaveGame {
         // CE ref: worldmap.h wmGenData — persist car state across saves.
         isInCar: Worldmap.getIsInCar(),
         carFuel: Worldmap.getCarFuel(),
+        currentCarAreaId: Worldmap.getCarAreaId(),
     }
 }
 
@@ -295,10 +298,11 @@ export function load(id: number): void {
                 // Restore discovered worldmap areas.
                 if (Array.isArray(save.knownAreas)) globalState.knownAreas = new Set(save.knownAreas)
 
-                // Restore car state. CE ref: worldmap.h wmGenData.isInCar / wmGenData.carFuel.
-                // Older saves lack these fields; default to no car / no fuel.
+                // Restore car state. CE ref: worldmap.h wmGenData.isInCar / wmGenData.carFuel /
+                // wmGenData.currentCarAreaId. Older saves lack these fields; default to no car.
                 Worldmap.setIsInCar(save.isInCar ?? false)
                 Worldmap.setCarFuel(save.carFuel ?? 0)
+                Worldmap.setCarAreaId(save.currentCarAreaId ?? -1)
 
                 // Restore seen-movie set (CE ref: game_movie.cc gameMoviesLoad).
                 if (Array.isArray(save.seenMovies)) globalState.seenMovies = new Set(save.seenMovies)

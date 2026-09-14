@@ -137,6 +137,13 @@ export function uiWorldMapShowArea(area: Area) {
         $hotspot.onclick = () => {
             const mapName = lookupMapNameFromLookup(entrance.mapLookupName)
             dbg('worldmap', `[Worldmap] hotspot → ${mapName} (via ${entrance.mapLookupName})`)
+            // CE ref: worldmap.cc:3061-3078 — entering a local map while in car:
+            // sets isInCar=false and records currentCarAreaId = currentAreaId.
+            if (Worldmap.getIsInCar()) {
+                Worldmap.setIsInCar(false)
+                Worldmap.setCarAreaId(area.id)
+                dbg('worldmap', `car parked at area ${area.id} (${area.name})`)
+            }
             globalState.gMap.loadMap(mapName, undefined, entrance.elevation)
             uiCloseWorldMap()
         }

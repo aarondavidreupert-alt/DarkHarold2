@@ -715,21 +715,17 @@ export module Scripting {
                     return (target as any).killType ?? 0
                 }
                 case 30:
-                    // CE ref: interpreter_extra.cc:3235 METARULE_CAR_CURRENT_TOWN.
-                    // Returns the worldmap area index the player is currently in, or -1 if travelling.
-                    if (Worldmap.getIsInCar()) {
-                        const pos = Worldmap.getPlayerWorldPos()
-                        if (pos) {
-                            const area = Worldmap.withinArea(pos)
-                            return area ? (area as any).id ?? -1 : -1
-                        }
-                    }
-                    return -1
+                    // CE ref: interpreter_extra.cc:3235 METARULE_CAR_CURRENT_TOWN →
+                    // worldmap.cc:6037 wmCarCurrentArea — returns wmGenData.currentCarAreaId.
+                    return Worldmap.getCarAreaId()
                 case 31: {
                     // CE ref: interpreter_extra.cc:3238 METARULE_GIVE_CAR_TO_PARTY →
-                    // worldmap.cc:6043 wmCarGiveToParty — set isInCar=true, fill tank.
+                    // worldmap.cc:6043 wmCarGiveToParty — set isInCar=true, fill tank,
+                    // also sets GVAR_PLAYER_GOT_CAR=1 (game_vars.h:25, index 18).
                     Worldmap.setIsInCar(true)
                     Worldmap.fillCarFuel()
+                    Worldmap.updateCarUI()
+                    globalVars[18] = 1   // GVAR_PLAYER_GOT_CAR (game_vars.h:25)
                     return 1
                 }
                 case 32: {
