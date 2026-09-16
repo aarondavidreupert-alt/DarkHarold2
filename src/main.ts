@@ -15,6 +15,7 @@
 import { HTMLAudioEngine, NullAudioEngine } from './audio.js'
 import { useDrug } from './drugs.js'
 import { getElevator } from './data.js'
+import { Events } from './events.js'
 import { heart } from './heart.js'
 import { hexDistance, hexesInRadius, hexIsInFrontOf, hexIsToRightOf, hexInDirection, hexInDirectionDistance } from './geometry.js'
 import globalState from './globalState.js'
@@ -32,6 +33,7 @@ import {
     uiElevator,
     UIMode,
     uiLog,
+    uiWorldMap,
 } from './ui.js'
 import { drawHP } from './ui_hud.js'
 import { skillUse } from './skillUse.js'
@@ -74,6 +76,12 @@ function miscHealingItemUse(item: import('./object.js').Obj, user: import('./obj
 
 window.onload = async function () {
     globalState.isInitializing = true
+
+    // CE ref: worldmap.cc wmCarGiveToParty → mapSetTransition(map=-2) → wmWorldMap().
+    // mapLoader.ts injects the car Scenery on map load and emits 'openWorldmap' when
+    // the player interacts with it. Register the handler here, outside the map module,
+    // to avoid a circular import (mapLoader → worldmap → ui → ... → map).
+    Events.on('openWorldmap', () => uiWorldMap())
 
     globalState.$fpsOverlay = document.getElementById('fpsOverlay')
     initLogScrollZones()

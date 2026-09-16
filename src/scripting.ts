@@ -41,7 +41,7 @@ import { loadPRO, lookupArt, makePID } from './pro.js'
 import * as Endgame from './endgame.js'
 import { centerCamera, objectOnScreen } from './renderer.js'
 import { fromTileNum, toTileNum } from './tile.js'
-import { uiAddDialogueOption, uiBarterMode, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, UIMode } from './ui.js'
+import { uiAddDialogueOption, uiBarterMode, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, uiWorldMap, UIMode } from './ui.js'
 import { SKILL_NAMES } from './skills.js'
 import { assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
 import { ScriptVM } from './vm.js'
@@ -722,10 +722,12 @@ export module Scripting {
                     // CE ref: interpreter_extra.cc:3238 METARULE_GIVE_CAR_TO_PARTY →
                     // worldmap.cc:6043 wmCarGiveToParty — set isInCar=true, fill tank,
                     // also sets GVAR_PLAYER_GOT_CAR=1 (game_vars.h:25, index 18).
+                    // CE ref: wmCarGiveToParty calls mapSetTransition({map:-2}) → wmWorldMap().
                     Worldmap.setIsInCar(true)
                     Worldmap.fillCarFuel()
                     Worldmap.updateCarUI()
                     globalVars[18] = 1   // GVAR_PLAYER_GOT_CAR (game_vars.h:25)
+                    uiWorldMap()
                     return 1
                 }
                 case 32: {

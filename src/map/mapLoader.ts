@@ -19,20 +19,21 @@ limitations under the License.
 // proposals" §9.
 
 import { Config } from '../config.js'
-import { getCurrentMapInfo, lookupMapName } from '../data.js'
+import { areaContainingMap, getCurrentMapInfo, loadAreas, lookupMapName } from '../data.js'
 import { Events } from '../events.js'
 import { Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { heart } from '../heart.js'
 import { Lightmap } from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
-import { Critter, deserializeObj, Obj, objFromMapObject } from '../object.js'
+import { Critter, deserializeObj, Obj, objFromMapObject, Scenery } from '../object.js'
 import { centerCamera } from '../renderer.js'
 import { setMapScrollLimits } from '../render/camera.js'
 import { Scripting } from '../scripting.js'
 import { fromTileNum, hexToTile } from '../tile.js'
 import { arrayWithout, getFileJSON } from '../util.js'
 import { showAlert } from '../ui_dialog.js'
+import { Worldmap } from '../worldmap.js'
 import { GameMap } from './GameMap.js'
 
 declare let PF: any
@@ -250,6 +251,49 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
 
             // change elevation with script updates
             this.changeElevation(this.currentElevation, true, true)
+
+            // CE ref: worldmap.cc wmCarIsOutsideAnyArea / map_enter_p_proc scripts —
+            // F2 places the Highwayman via map_enter_p_proc in each area's entrance
+            // script. DH2 replicates that by injecting a Scenery object here when
+            // GVAR_PLAYER_GOT_CAR (index 18) is set and the parked area matches the
+            // map being loaded.
+            const _gotCar = Scripting.getGlobalVar(18) !== 0
+            const _carParked = !Worldmap.getIsInCar() && Worldmap.getCarAreaId() >= 0
+            if (_gotCar && _carParked) {
+                if (!globalState.mapAreas) globalState.mapAreas = loadAreas()
+                const _carArea = areaContainingMap(this.name)
+                if (_carArea && _carArea.id === Worldmap.getCarAreaId()) {
+                    const _carElev = this.currentElevation
+                    // Derive spawn position from the area entrance for this map so the
+                    // car appears near where the player arrived. Fall back to map start.
+                    const _ent = _carArea.entrances.find(e => e.mapName === this.name)
+                    let _carPos: Point
+                    if (_ent && _ent.tileNum > 0) {
+                        const _ep = fromTileNum(_ent.tileNum)
+                        _carPos = { x: _ep.x + 3, y: _ep.y }
+                    } else {
+                        const _sp = map.startPosition ?? { x: 100, y: 100 }
+                        _carPos = { x: _sp.x + 3, y: _sp.y }
+                    }
+                    // CE ref: proto_instance.cc — PROTO_ID_CAR = 0x020003F1 (pidType=scenery,
+                    // subType=generic=5, art = art/scenery/carspec1).
+                    const PROTO_ID_CAR = 0x020003F1
+                    const _carObj = Scenery.fromPID(PROTO_ID_CAR)
+                    _carObj.position = _carPos
+                    _carObj.elevation = _carElev
+                    // Attach use_p_proc: interacting with the parked car reopens the worldmap
+                    // so the player can drive away (mirrors wmCarGiveToParty flow in CE).
+                    _carObj._script = {
+                        use_p_proc: () => {
+                            Worldmap.setIsInCar(true)
+                            Worldmap.updateCarUI()
+                            Events.emit('openWorldmap')
+                        }
+                    } as any
+                    this.objects[_carElev].push(_carObj)
+                    dbg('map', `[Car] Highwayman injected at (${_carPos.x},${_carPos.y}) elev=${_carElev} for area "${_carArea.name}" (id=${_carArea.id})`)
+                }
+            }
         }
 
         // CE ref: map.cc:362 mapSetElevation — only fires scriptsExecMapUpdateProc, NOT map_enter_p_proc
