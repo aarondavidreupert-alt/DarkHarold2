@@ -17,7 +17,7 @@ limitations under the License.
 // World Map module state, constants, DOM lifecycle, and travel loop —
 // carved out of worldmap.ts. See wiki/ts-split-refactor.md §10.
 
-import { loadAreas } from '../data.js'
+import { areaContainingMap, loadAreas } from '../data.js'
 import * as GameTime from '../gametime.js'
 import { Point, pointIntersectsCircle } from '../geometry.js'
 import globalState from '../globalState.js'
@@ -80,12 +80,33 @@ const EDGE_THRESHOLD = 20  // px from edge that triggers mouse-edge scroll
 // is loaded. CE ref: worldmap.cc:6043 wmCarGiveToParty.
 if (typeof window !== 'undefined') {
     ;(window as any).giveCar = (fuel: number = CAR_FUEL_MAX) => {
-        _isInCar = true
         _carFuel = Math.min(CAR_FUEL_MAX, Math.max(0, fuel))
-        if (worldmapPlayer) { worldmapPlayer.isInCar = true; worldmapPlayer.carFuel = _carFuel }
+        // If the player is on a map that belongs to an area, park the car there so it
+        // appears immediately on re-entry (via the mapLoader injection). Otherwise set
+        // isInCar=true for travel mode — they'll park it when they enter an area.
+        let parked = false
+        const mapName = (globalState.gMap as any)?.name as string | undefined
+        if (mapName) {
+            if (!globalState.mapAreas) {
+                try { globalState.mapAreas = loadAreas() } catch (_) {}
+            }
+            const area = globalState.mapAreas ? areaContainingMap(mapName) : null
+            if (area) {
+                _isInCar = false
+                _currentCarAreaId = area.id
+                if (worldmapPlayer) { worldmapPlayer.isInCar = false; worldmapPlayer.carFuel = _carFuel }
+                parked = true
+                dbg('worldmap', 'giveCar: parked at area %d (%s), fuel=%d', area.id, area.name, _carFuel)
+                console.log(`Car parked at area "${area.name}". Re-enter this map or any of its entrances to see the car.`)
+            }
+        }
+        if (!parked) {
+            _isInCar = true
+            if (worldmapPlayer) { worldmapPlayer.isInCar = true; worldmapPlayer.carFuel = _carFuel }
+            dbg('worldmap', 'giveCar: travel mode, fuel=%d', _carFuel)
+            console.log(`Car enabled (travel mode). Fuel: ${_carFuel} / ${CAR_FUEL_MAX}`)
+        }
         updateCarUI()
-        dbg('worldmap', 'giveCar: isInCar=true, carFuel=%d', _carFuel)
-        console.log(`Car enabled. Fuel: ${_carFuel} / ${CAR_FUEL_MAX}`)
     }
 }
 

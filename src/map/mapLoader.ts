@@ -255,11 +255,12 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
             // CE ref: worldmap.cc wmCarIsOutsideAnyArea / map_enter_p_proc scripts —
             // F2 places the Highwayman via map_enter_p_proc in each area's entrance
             // script. DH2 replicates that by injecting a Scenery object here when
-            // GVAR_PLAYER_GOT_CAR (index 18) is set and the parked area matches the
-            // map being loaded.
-            const _gotCar = Scripting.getGlobalVar(18) !== 0
+            // the car is parked (not currently traveling) and the parked area matches
+            // the map being loaded. carAreaId >= 0 implies the car was given to the
+            // player and parked; we don't rely on GVAR_PLAYER_GOT_CAR so that the
+            // giveCar() console command also works without scripting state.
             const _carParked = !Worldmap.getIsInCar() && Worldmap.getCarAreaId() >= 0
-            if (_gotCar && _carParked) {
+            if (_carParked) {
                 if (!globalState.mapAreas) globalState.mapAreas = loadAreas()
                 const _carArea = areaContainingMap(this.name)
                 if (_carArea && _carArea.id === Worldmap.getCarAreaId()) {
