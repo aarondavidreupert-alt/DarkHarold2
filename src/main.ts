@@ -844,6 +844,17 @@ window.onload = async function () {
         if (l) l.style.opacity = String(lower)
         console.log(`[DialogueHighlight] upper=${upper} lower=${lower}`)
     }
+
+    // debugCarTile() — prints the player's current tile as a tileNum suitable for
+    // lut/car_parking.json. Walk to where you want the car or trunk to spawn, then
+    // call this to get the value to paste into the JSON file.
+    ;(window as any).debugCarTile = () => {
+        const p = globalState.player
+        if (!p) { console.log('[Car] no player'); return }
+        const tileNum = p.position.y * 200 + p.position.x
+        console.log(`[Car] player at tileNum=${tileNum}  (x=${p.position.x}, y=${p.position.y})`)
+        console.log(`[Car] map="${globalState.gMap?.name}" — paste tileNum into lut/car_parking.json`)
+    }
 }
 
 installInputHandlers()

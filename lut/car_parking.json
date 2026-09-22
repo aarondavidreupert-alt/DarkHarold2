@@ -1,0 +1,18 @@
+{
+  "_doc": "Highwayman parking tiles per local map. tileNum = y*200+x (0-based, 200 tiles wide). -1 = use entrance-offset heuristic. Tune values in-game: window.debugCarTile() prints the tile under the cursor. Trunk tile should be 1-2 tiles from car tile, in open ground.",
+  "denbus1":  { "carTile": -1, "trunkTile": -1 },
+  "denbus2":  { "carTile": -1, "trunkTile": -1 },
+  "broken1":  { "carTile": -1, "trunkTile": -1 },
+  "broken2":  { "carTile": -1, "trunkTile": -1 },
+  "kladwtwn": { "carTile": -1, "trunkTile": -1 },
+  "klamall":  { "carTile": -1, "trunkTile": -1 },
+  "modmain":  { "carTile": -1, "trunkTile": -1 },
+  "ncr1":     { "carTile": -1, "trunkTile": -1 },
+  "ncr2":     { "carTile": -1, "trunkTile": -1 },
+  "sfchina":  { "carTile": -1, "trunkTile": -1 },
+  "gecksetl": { "carTile": -1, "trunkTile": -1 },
+  "newr1":    { "carTile": -1, "trunkTile": -1 },
+  "newr2":    { "carTile": -1, "trunkTile": -1 },
+  "reddown":  { "carTile": -1, "trunkTile": -1 },
+  "navarro":  { "carTile": -1, "trunkTile": -1 }
+}

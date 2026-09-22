@@ -36,6 +36,63 @@ import { showAlert } from '../ui_dialog.js'
 import { Worldmap } from '../worldmap.js'
 import { GameMap } from './GameMap.js'
 
+// CE ref: proto_types.h — PROTO_ID_CAR = 0x020003F1 (scenery/generic, art=carspec1)
+//                         PROTO_ID_CAR_TRUNK = 455 (0x1C7, item/container)
+const PROTO_ID_CAR = 0x020003F1
+const PROTO_ID_CAR_TRUNK = 455
+
+// Per-map parking tile override table — loaded once from lut/car_parking.json.
+// Keys are lowercase map names. -1 = use entrance-offset heuristic.
+interface CarParkingEntry { carTile: number; trunkTile: number }
+let _carParkingData: Record<string, CarParkingEntry> | null = null
+
+function getCarParkingEntry(mapName: string): CarParkingEntry | null {
+    if (_carParkingData === null) {
+        try {
+            _carParkingData = getFileJSON('lut/car_parking.json') ?? {}
+        } catch (_) {
+            _carParkingData = {}
+        }
+        // Strip the _doc comment key if present
+        delete (_carParkingData as any)['_doc']
+    }
+    const data = _carParkingData!
+    return data[mapName] ?? null
+}
+
+// Resolve the car body position for the given map: use the data-file tile if it
+// is ≥ 0, otherwise fall back to 3 tiles east of the area entrance tile (or map
+// start if no entrance tileNum is recorded).
+function resolveCarPos(mapName: string, mapObj: any): Point {
+    const entry = getCarParkingEntry(mapName)
+    if (entry && entry.carTile >= 0) {
+        return fromTileNum(entry.carTile)
+    }
+    // Heuristic fallback: entrance tile + x+3
+    if (globalState.mapAreas) {
+        const area = areaContainingMap(mapName)
+        if (area) {
+            const ent = area.entrances.find(e => e.mapName === mapName)
+            if (ent && ent.tileNum > 0) {
+                const ep = fromTileNum(ent.tileNum)
+                return { x: ep.x + 3, y: ep.y }
+            }
+        }
+    }
+    const sp = mapObj.startPosition ?? { x: 100, y: 100 }
+    return { x: sp.x + 3, y: sp.y }
+}
+
+// Resolve the trunk position: data-file tile if ≥ 0, otherwise 2 tiles east of
+// the car position.
+function resolveTrunkPos(mapName: string, carPos: Point): Point {
+    const entry = getCarParkingEntry(mapName)
+    if (entry && entry.trunkTile >= 0) {
+        return fromTileNum(entry.trunkTile)
+    }
+    return { x: carPos.x + 2, y: carPos.y }
+}
+
 declare let PF: any
 
 // Spatial type — duplicated from GameMap.ts to avoid exposing it on the barrel.
@@ -93,24 +150,16 @@ GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point,
             // Change elevation again
             this.changeElevation(this.currentElevation, true, false)
 
-            // Re-inject the parked car if this is the parked map — the transient object
-            // was stripped from the dirty-cache serialization, so inject it again here.
+            // Re-inject the car body on dirty-cache revisit — the body is _transient so
+            // it was stripped from the serialized snapshot. The trunk is NOT _transient
+            // and is already restored from the snapshot (with its inventory intact).
             const _dcCarParked = !Worldmap.getIsInCar() && Worldmap.getCarMapName() === this.name
             if (_dcCarParked) {
                 if (!globalState.mapAreas) globalState.mapAreas = loadAreas()
                 const _dcArea = areaContainingMap(this.name)
                 if (_dcArea) {
                     const _dcElev = this.currentElevation
-                    const _dcEnt = _dcArea.entrances.find(e => e.mapName === this.name)
-                    let _dcPos: Point
-                    if (_dcEnt && _dcEnt.tileNum > 0) {
-                        const _ep = fromTileNum(_dcEnt.tileNum)
-                        _dcPos = { x: _ep.x + 3, y: _ep.y }
-                    } else {
-                        const _sp2 = map.mapObj.startPosition ?? { x: 100, y: 100 }
-                        _dcPos = { x: _sp2.x + 3, y: _sp2.y }
-                    }
-                    const PROTO_ID_CAR = 0x020003F1
+                    const _dcPos = resolveCarPos(this.name, map.mapObj)
                     const _dcObj = Scenery.fromPID(PROTO_ID_CAR)
                     _dcObj.position = _dcPos
                     _dcObj.elevation = _dcElev
@@ -287,40 +336,26 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
             this.changeElevation(this.currentElevation, true, true)
 
             // CE ref: worldmap.cc wmCarIsOutsideAnyArea / map_enter_p_proc scripts —
-            // F2 places the Highwayman via map_enter_p_proc in each area's entrance
-            // script. DH2 replicates that by injecting a Scenery object here when
-            // the car is parked (not currently traveling) and the parked area matches
-            // the map being loaded. carAreaId >= 0 implies the car was given to the
-            // player and parked; we don't rely on GVAR_PLAYER_GOT_CAR so that the
-            // giveCar() console command also works without scripting state.
+            // F2 places the Highwayman and its trunk via map_enter_p_proc per map.
+            // DH2 replicates that here. Tile positions come from lut/car_parking.json
+            // (per-map data file, pipeline-safe); -1 entries fall back to the
+            // entrance-offset heuristic. carAreaId >= 0 and getCarMapName() matching
+            // this.name ensures injection only on the exact parked map.
             const _carParked = !Worldmap.getIsInCar() && Worldmap.getCarMapName() === this.name
             if (_carParked) {
                 if (!globalState.mapAreas) globalState.mapAreas = loadAreas()
                 const _carArea = areaContainingMap(this.name)
                 if (_carArea) {
                     const _carElev = this.currentElevation
-                    // Derive spawn position from the area entrance for this map so the
-                    // car appears near where the player arrived. Fall back to map start.
-                    const _ent = _carArea.entrances.find(e => e.mapName === this.name)
-                    let _carPos: Point
-                    if (_ent && _ent.tileNum > 0) {
-                        const _ep = fromTileNum(_ent.tileNum)
-                        _carPos = { x: _ep.x + 3, y: _ep.y }
-                    } else {
-                        const _sp = map.startPosition ?? { x: 100, y: 100 }
-                        _carPos = { x: _sp.x + 3, y: _sp.y }
-                    }
-                    // CE ref: proto_instance.cc — PROTO_ID_CAR = 0x020003F1 (pidType=scenery,
-                    // subType=generic=5, art = art/scenery/carspec1).
-                    const PROTO_ID_CAR = 0x020003F1
+                    const _carPos = resolveCarPos(this.name, map)
+                    const _trunkPos = resolveTrunkPos(this.name, _carPos)
+
+                    // Car body — transient: re-injected on every visit since it has no
+                    // persistent state. use_p_proc reopens the worldmap (drive away).
                     const _carObj = Scenery.fromPID(PROTO_ID_CAR)
                     _carObj.position = _carPos
                     _carObj.elevation = _carElev
-                    // Transient: excluded from dirty-map serialization so synthetic _script
-                    // doesn't cause Obj.serialize() to crash, and re-injected fresh on each visit.
                     ;(_carObj as any)._transient = true
-                    // Attach use_p_proc: interacting with the parked car reopens the worldmap
-                    // so the player can drive away (mirrors wmCarGiveToParty flow in CE).
                     _carObj._script = {
                         use_p_proc: () => {
                             Worldmap.setIsInCar(true)
@@ -329,7 +364,17 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
                         }
                     } as any
                     this.objects[_carElev].push(_carObj)
-                    dbg('map', `[Car] Highwayman injected at (${_carPos.x},${_carPos.y}) elev=${_carElev} for area "${_carArea.name}" (id=${_carArea.id})`)
+
+                    // Trunk — CE ref: proto_types.h PROTO_ID_CAR_TRUNK=455 (item/container).
+                    // NOT transient: inventory persists in the dirty-map cache across visits.
+                    // Only injected on clean (first) load; dirty-cache revisits restore it
+                    // from serialized state, including whatever items the player stored.
+                    const _trunkObj = Obj.fromPID(PROTO_ID_CAR_TRUNK)
+                    _trunkObj.position = _trunkPos
+                    _trunkObj.elevation = _carElev
+                    this.objects[_carElev].push(_trunkObj)
+
+                    dbg('map', `[Car] Highwayman at (${_carPos.x},${_carPos.y}), trunk at (${_trunkPos.x},${_trunkPos.y}), elev=${_carElev}, area "${_carArea.name}"`)
                 }
             }
         }
