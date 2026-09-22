@@ -93,6 +93,40 @@ GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point,
             // Change elevation again
             this.changeElevation(this.currentElevation, true, false)
 
+            // Re-inject the parked car if this is the parked map — the transient object
+            // was stripped from the dirty-cache serialization, so inject it again here.
+            const _dcCarParked = !Worldmap.getIsInCar() && Worldmap.getCarMapName() === this.name
+            if (_dcCarParked) {
+                if (!globalState.mapAreas) globalState.mapAreas = loadAreas()
+                const _dcArea = areaContainingMap(this.name)
+                if (_dcArea) {
+                    const _dcElev = this.currentElevation
+                    const _dcEnt = _dcArea.entrances.find(e => e.mapName === this.name)
+                    let _dcPos: Point
+                    if (_dcEnt && _dcEnt.tileNum > 0) {
+                        const _ep = fromTileNum(_dcEnt.tileNum)
+                        _dcPos = { x: _ep.x + 3, y: _ep.y }
+                    } else {
+                        const _sp2 = map.mapObj.startPosition ?? { x: 100, y: 100 }
+                        _dcPos = { x: _sp2.x + 3, y: _sp2.y }
+                    }
+                    const PROTO_ID_CAR = 0x020003F1
+                    const _dcObj = Scenery.fromPID(PROTO_ID_CAR)
+                    _dcObj.position = _dcPos
+                    _dcObj.elevation = _dcElev
+                    ;(_dcObj as any)._transient = true
+                    _dcObj._script = {
+                        use_p_proc: () => {
+                            Worldmap.setIsInCar(true)
+                            Worldmap.updateCarUI()
+                            Events.emit('openWorldmap')
+                        }
+                    } as any
+                    this.objects[_dcElev].push(_dcObj)
+                    dbg('map', `[Car] Highwayman re-injected (dirty cache) at (${_dcPos.x},${_dcPos.y}) elev=${_dcElev}`)
+                }
+            }
+
             // Done
 			this.playMapMusic()
             dbg('map', `[Main] Loaded from dirty map cache`)
@@ -259,11 +293,11 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
             // the map being loaded. carAreaId >= 0 implies the car was given to the
             // player and parked; we don't rely on GVAR_PLAYER_GOT_CAR so that the
             // giveCar() console command also works without scripting state.
-            const _carParked = !Worldmap.getIsInCar() && Worldmap.getCarAreaId() >= 0
+            const _carParked = !Worldmap.getIsInCar() && Worldmap.getCarMapName() === this.name
             if (_carParked) {
                 if (!globalState.mapAreas) globalState.mapAreas = loadAreas()
                 const _carArea = areaContainingMap(this.name)
-                if (_carArea && _carArea.id === Worldmap.getCarAreaId()) {
+                if (_carArea) {
                     const _carElev = this.currentElevation
                     // Derive spawn position from the area entrance for this map so the
                     // car appears near where the player arrived. Fall back to map start.
@@ -282,6 +316,9 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
                     const _carObj = Scenery.fromPID(PROTO_ID_CAR)
                     _carObj.position = _carPos
                     _carObj.elevation = _carElev
+                    // Transient: excluded from dirty-map serialization so synthetic _script
+                    // doesn't cause Obj.serialize() to crash, and re-injected fresh on each visit.
+                    ;(_carObj as any)._transient = true
                     // Attach use_p_proc: interacting with the parked car reopens the worldmap
                     // so the player can drive away (mirrors wmCarGiveToParty flow in CE).
                     _carObj._script = {

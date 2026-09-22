@@ -98,6 +98,8 @@ export interface SaveGame {
     carFuel?: number
     // CE ref: worldmap.cc wmGenData.currentCarAreaId — area index where car is parked.
     currentCarAreaId?: number
+    // Name of the specific local map the car is parked on (DH2 addition).
+    currentCarMapName?: string | null
 }
 
 function captureScreenshot(): string | undefined {
@@ -165,6 +167,7 @@ function gatherSaveData(name: string): SaveGame {
         isInCar: Worldmap.getIsInCar(),
         carFuel: Worldmap.getCarFuel(),
         currentCarAreaId: Worldmap.getCarAreaId(),
+        currentCarMapName: Worldmap.getCarMapName(),
     }
 }
 
@@ -303,6 +306,7 @@ export function load(id: number): void {
                 Worldmap.setIsInCar(save.isInCar ?? false)
                 Worldmap.setCarFuel(save.carFuel ?? 0)
                 Worldmap.setCarAreaId(save.currentCarAreaId ?? -1)
+                Worldmap.setCarMapName(save.currentCarMapName ?? null)
 
                 // Restore seen-movie set (CE ref: game_movie.cc gameMoviesLoad).
                 if (Array.isArray(save.seenMovies)) globalState.seenMovies = new Set(save.seenMovies)

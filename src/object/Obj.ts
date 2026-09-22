@@ -1170,7 +1170,7 @@ export class Obj {
             visible: this.visible,
             extra: this.extra,
             script: this.script,
-            _script: this._script ? this._script._serialize() : null,
+            _script: this._script && typeof this._script._serialize === 'function' ? this._script._serialize() : null,
             name: this.name,
             subtype: this.subtype,
             invArt: this.invArt,

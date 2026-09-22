@@ -142,7 +142,8 @@ export function uiWorldMapShowArea(area: Area) {
             if (Worldmap.getIsInCar()) {
                 Worldmap.setIsInCar(false)
                 Worldmap.setCarAreaId(area.id)
-                dbg('worldmap', `car parked at area ${area.id} (${area.name})`)
+                Worldmap.setCarMapName(mapName)
+                dbg('worldmap', `car parked at area ${area.id} (${area.name}) map "${mapName}"`)
             }
             globalState.gMap.loadMap(mapName, undefined, entrance.elevation)
             uiCloseWorldMap()

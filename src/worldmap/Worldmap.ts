@@ -55,6 +55,9 @@ let _carFuel = 0
 // CE ref: worldmap.cc wmGenData.currentCarAreaId — area where the car is parked.
 // Set when entering a local map while in car; returned by wmCarCurrentArea().
 let _currentCarAreaId = -1
+// Name of the specific local map the car is parked on (within _currentCarAreaId).
+// Null = not yet parked. Used by mapLoader to inject the car only on the right map.
+let _carMapName: string | null = null
 let $worldmap: HTMLElement | null = null
 let $worldmapPlayer: HTMLElement | null = null
 let $worldmapTarget: HTMLElement | null = null
@@ -94,10 +97,11 @@ if (typeof window !== 'undefined') {
             if (area) {
                 _isInCar = false
                 _currentCarAreaId = area.id
+                _carMapName = mapName
                 if (worldmapPlayer) { worldmapPlayer.isInCar = false; worldmapPlayer.carFuel = _carFuel }
                 parked = true
-                dbg('worldmap', 'giveCar: parked at area %d (%s), fuel=%d', area.id, area.name, _carFuel)
-                console.log(`Car parked at area "${area.name}". Re-enter this map or any of its entrances to see the car.`)
+                dbg('worldmap', 'giveCar: parked at area %d (%s) map=%s, fuel=%d', area.id, area.name, mapName, _carFuel)
+                console.log(`Car parked at "${mapName}" (area "${area.name}"). Re-enter this map to see the car.`)
             }
         }
         if (!parked) {
@@ -206,6 +210,8 @@ export function fillCarFuel(): void {
 // CE ref: worldmap.cc wmGenData.currentCarAreaId / wmCarCurrentArea().
 export function getCarAreaId(): number { return _currentCarAreaId }
 export function setCarAreaId(areaId: number): void { _currentCarAreaId = areaId }
+export function getCarMapName(): string | null { return _carMapName }
+export function setCarMapName(name: string | null): void { _carMapName = name }
 
 // Update the worldmap car overlay image + fuel bar visibility.
 // CE ref: worldmap.cc:6179 wmInterfaceRefreshCarStatus — draws wmcarmve.frm or wmglobe.frm,

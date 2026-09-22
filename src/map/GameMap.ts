@@ -609,7 +609,9 @@ export class GameMap {
 
             mapScript: this.mapScript ? this.mapScript._serialize() : null,
             objects: this.objects.map((level: Obj[]) =>
-                arrayWithout(level, globalState.player).map((obj) => obj.serialize())
+                arrayWithout(level, globalState.player)
+                    .filter((obj): obj is Obj => obj !== null && !(obj as any)._transient)
+                    .map((obj) => obj.serialize())
             ), // TODO: Should be without entire party?
             // FO2-CE ref: map.cc mapSave — spatials persist their LVARs across saves
             spatials: this.spatials
