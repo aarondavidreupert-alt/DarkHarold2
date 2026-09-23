@@ -18,6 +18,7 @@ limitations under the License.
 // Split out of map.ts. See wiki/ts-split-refactor.md → "Per-file split
 // proposals" §9.
 
+import { getCarParkingEntry } from '../carParking.js'
 import { Config } from '../config.js'
 import { areaContainingMap, getCurrentMapInfo, loadAreas, lookupMapName } from '../data.js'
 import { Events } from '../events.js'
@@ -41,24 +42,10 @@ import { GameMap } from './GameMap.js'
 const PROTO_ID_CAR = 0x020003F1
 const PROTO_ID_CAR_TRUNK = 455
 
-// Per-map parking tile override table — loaded once from lut/car_parking.json.
-// Keys are lowercase map names. -1 = use entrance-offset heuristic.
-interface CarParkingEntry { carTile: number; trunkTile: number }
-let _carParkingData: Record<string, CarParkingEntry> | null = null
-
-function getCarParkingEntry(mapName: string): CarParkingEntry | null {
-    if (_carParkingData === null) {
-        try {
-            _carParkingData = getFileJSON('lut/car_parking.json') ?? {}
-        } catch (_) {
-            _carParkingData = {}
-        }
-        // Strip the _doc comment key if present
-        delete (_carParkingData as any)['_doc']
-    }
-    const data = _carParkingData!
-    return data[mapName] ?? null
-}
+// Per-map parking tile override table (lut/car_parking.json) — see
+// ../carParking.ts. Kept as its own dependency-free module so both this
+// file and src/worldmap/Worldmap.ts / src/ui_worldmap.ts can use it without
+// a circular import (this file already depends on the worldmap barrel).
 
 // Resolve the car body position for the given map: use the data-file tile if it
 // is ≥ 0, otherwise fall back to 3 tiles east of the area entrance tile (or map

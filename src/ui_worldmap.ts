@@ -17,6 +17,7 @@ limitations under the License.
 // World map: travel-screen overlay (worldmap canvas + per-area entrance
 // view), plus the area label list down the right side.
 
+import { resolveCanonicalCarMapName } from './carParking.js'
 import globalState from './globalState.js'
 import { Area, loadAreas, lookupMapNameFromLookup } from './data.js'
 import { Worldmap } from './worldmap.js'
@@ -140,10 +141,15 @@ export function uiWorldMapShowArea(area: Area) {
             // CE ref: worldmap.cc:3061-3078 — entering a local map while in car:
             // sets isInCar=false and records currentCarAreaId = currentAreaId.
             if (Worldmap.getIsInCar()) {
+                // Multi-map towns (Den, Broken Hills, New Reno, ...) only place
+                // the Highwayman on one specific submap in the original game —
+                // whichever entrance the player actually clicked isn't
+                // necessarily that one. See carParking.ts for the rationale.
+                const carMapName = resolveCanonicalCarMapName(area, mapName)
                 Worldmap.setIsInCar(false)
                 Worldmap.setCarAreaId(area.id)
-                Worldmap.setCarMapName(mapName)
-                dbg('worldmap', `car parked at area ${area.id} (${area.name}) map "${mapName}"`)
+                Worldmap.setCarMapName(carMapName)
+                dbg('worldmap', `car parked at area ${area.id} (${area.name}) map "${carMapName}" (entered via "${mapName}")`)
             }
             globalState.gMap.loadMap(mapName, undefined, entrance.elevation)
             uiCloseWorldMap()

@@ -17,6 +17,7 @@ limitations under the License.
 // World Map module state, constants, DOM lifecycle, and travel loop —
 // carved out of worldmap.ts. See wiki/ts-split-refactor.md §10.
 
+import { resolveCanonicalCarMapName } from '../carParking.js'
 import { areaContainingMap, loadAreas } from '../data.js'
 import * as GameTime from '../gametime.js'
 import { Point, pointIntersectsCircle } from '../geometry.js'
@@ -95,13 +96,17 @@ if (typeof window !== 'undefined') {
             }
             const area = globalState.mapAreas ? areaContainingMap(mapName) : null
             if (area) {
+                // Multi-map towns only place the Highwayman on one specific
+                // submap in the original game — the map the player happens to
+                // be standing on isn't necessarily that one. See carParking.ts.
+                const carMapName = resolveCanonicalCarMapName(area, mapName)
                 _isInCar = false
                 _currentCarAreaId = area.id
-                _carMapName = mapName
+                _carMapName = carMapName
                 if (worldmapPlayer) { worldmapPlayer.isInCar = false; worldmapPlayer.carFuel = _carFuel }
                 parked = true
-                dbg('worldmap', 'giveCar: parked at area %d (%s) map=%s, fuel=%d', area.id, area.name, mapName, _carFuel)
-                console.log(`Car parked at "${mapName}" (area "${area.name}"). Re-enter this map to see the car.`)
+                dbg('worldmap', 'giveCar: parked at area %d (%s) map=%s (standing on %s), fuel=%d', area.id, area.name, carMapName, mapName, _carFuel)
+                console.log(`Car parked at "${carMapName}" (area "${area.name}"). Re-enter this map to see the car.`)
             }
         }
         if (!parked) {
