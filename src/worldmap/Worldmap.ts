@@ -288,31 +288,50 @@ export function setSquareStateAt(squarePos: Point, newState: number, seeAdjacent
     }
 }
 
+// Matches .areaSize-small/medium/large in ui.css. Used instead of the
+// areaCircle element's live offsetWidth/offsetHeight — see the
+// WORLDMAP_TARGET_W/H comment below for why: the circles are first created
+// and centered from init(), while the worldmap panel is still display:none,
+// where offsetWidth/offsetHeight both read 0 and silently turn "centered"
+// into an uncentered top-left placement instead.
+const AREA_CIRCLE_SIZE: { [size: string]: number } = { small: 8, medium: 32, large: 64 }
+
 // CE ref: worldmap.cc wmAreaSetPos() — moves a town-marker DOM element to match
 // updated worldPosition after a script calls wm_area_set_pos.
 export function updateAreaMarkerPos(areaKey: string, x: number, y: number): void {
     if (!$worldmap) return
     const $area = $worldmap.querySelector<HTMLElement>(`[data-area-key="${areaKey}"]`)
     if (!$area) return
-    const $circle = $area.querySelector<HTMLElement>('.areaCircle')
-    const halfW = $circle ? $circle.offsetWidth / 2 : 0
-    const halfH = $circle ? $circle.offsetHeight / 2 : 0
-    $area.style.left = (x - halfW) + 'px'
-    $area.style.top  = (y - halfH) + 'px'
+    const size = AREA_CIRCLE_SIZE[globalState.mapAreas?.[areaKey]?.size] ?? 0
+    $area.style.left = (x - size / 2) + 'px'
+    $area.style.top  = (y - size / 2) + 'px'
 }
 
-// Matches #worldmapTarget's fixed CSS size (ui.css). Using the CSS-declared
-// size directly rather than offsetWidth/offsetHeight matters because this is
-// called from init() before the worldmap panel is ever shown for the first
-// time — with a display:none ancestor, offsetWidth/offsetHeight both read 0,
-// silently turning "centered" into the same uncentered placement this was
-// meant to replace.
+// #worldmapTarget's CSS box (ui.css) is fixed at 25x13 to fit the
+// hotspot1.png/hotspot2.png triangle, but it's reused for wmaptarg.png (the
+// crosshair shown while walking to a just-clicked destination), which is a
+// smaller, differently-shaped 11x11 image rendered at the box's top-left
+// (default background-position). Centering the 25x13 BOX on a click would
+// leave the smaller crosshair graphic sitting off-center within it, so each
+// image needs centering against its own real pixel size, not the box's.
+// Sizes are hardcoded (not measured via offsetWidth/offsetHeight) because
+// centerWorldmapTarget's first call happens from init(), before the
+// worldmap panel is ever shown — under a display:none ancestor,
+// offsetWidth/offsetHeight both read 0, silently turning "centered" into an
+// uncentered top-left placement instead.
 const WORLDMAP_TARGET_W = 25
 const WORLDMAP_TARGET_H = 13
+const WORLDMAP_CROSSHAIR_W = 11
+const WORLDMAP_CROSSHAIR_H = 11
 
 function centerWorldmapTarget(x: number, y: number): void {
     $worldmapTarget.style.left = ((x - WORLDMAP_TARGET_W / 2) | 0) + 'px'
     $worldmapTarget.style.top = ((y - WORLDMAP_TARGET_H / 2) | 0) + 'px'
+}
+
+function centerWorldmapCrosshair(x: number, y: number): void {
+    $worldmapTarget.style.left = ((x - WORLDMAP_CROSSHAIR_W / 2) | 0) + 'px'
+    $worldmapTarget.style.top = ((y - WORLDMAP_CROSSHAIR_H / 2) | 0) + 'px'
 }
 
 // The hotspot1.png/hotspot2.png triangle shares one silhouette clipped via
@@ -373,8 +392,7 @@ export function init(): void {
         worldmapPlayer.target = { x: ax, y: ay }
         showv($worldmapPlayer)
         setTargetImage('art/intrface/wmaptarg.png', false)
-        $worldmapTarget.style.left = ax + 'px'
-        $worldmapTarget.style.top = ay + 'px'
+        centerWorldmapCrosshair(ax, ay)
         dbg('worldmap', 'targeting: ' + ax + ', ' + ay)
     }
 
@@ -413,9 +431,13 @@ export function init(): void {
         const $el = makeEl('div', { classes: ['areaCircle', 'areaSize-' + area.size] })
         $area.appendChild($el)
 
-        // transform the circle since (0,0) is the top-left instead of center
-        const x = area.worldPosition.x - $el.offsetWidth / 2
-        const y = area.worldPosition.y - $el.offsetHeight / 2
+        // transform the circle since (0,0) is the top-left instead of center.
+        // Uses the fixed CSS size (AREA_CIRCLE_SIZE), not $el.offsetWidth/
+        // offsetHeight — this runs while the worldmap panel is still
+        // display:none (first open), where both would read 0.
+        const circleSize = AREA_CIRCLE_SIZE[area.size] ?? 0
+        const x = area.worldPosition.x - circleSize / 2
+        const y = area.worldPosition.y - circleSize / 2
         //console.log("adding one @ " + x + ", " + y + " | " + $el.width() + ", " + $el.height())
         //console.log("size = " + area.size)
         $area.style.left = x + 'px'
@@ -425,7 +447,7 @@ export function init(): void {
 
         const $label = makeEl('div', {
             classes: ['areaLabel'],
-            style: { left: '0px', top: 2 + $el.offsetHeight + 'px' },
+            style: { left: '0px', top: 2 + circleSize + 'px' },
         })
         $area.appendChild($label)
         $label.textContent = area.name
