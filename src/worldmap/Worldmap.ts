@@ -301,9 +301,28 @@ export function updateAreaMarkerPos(areaKey: string, x: number, y: number): void
     $area.style.top  = (y - halfH) + 'px'
 }
 
+// Matches #worldmapTarget's fixed CSS size (ui.css). Using the CSS-declared
+// size directly rather than offsetWidth/offsetHeight matters because this is
+// called from init() before the worldmap panel is ever shown for the first
+// time — with a display:none ancestor, offsetWidth/offsetHeight both read 0,
+// silently turning "centered" into the same uncentered placement this was
+// meant to replace.
+const WORLDMAP_TARGET_W = 25
+const WORLDMAP_TARGET_H = 13
+
 function centerWorldmapTarget(x: number, y: number): void {
-    $worldmapTarget.style.left = ((x - $worldmapTarget.offsetWidth / 2) | 0) + 'px'
-    $worldmapTarget.style.top = ((y - $worldmapTarget.offsetHeight / 2) | 0) + 'px'
+    $worldmapTarget.style.left = ((x - WORLDMAP_TARGET_W / 2) | 0) + 'px'
+    $worldmapTarget.style.top = ((y - WORLDMAP_TARGET_H / 2) | 0) + 'px'
+}
+
+// The hotspot1.png/hotspot2.png triangle shares one silhouette clipped via
+// the wmHotspotShape CSS class (ui.css); wmaptarg.png (the crosshair shown
+// while a target is still being walked to) is a different shape and must
+// not be clipped the same way — toggle the class alongside the image so
+// the clickable area always matches whichever graphic is actually showing.
+function setTargetImage(url: string, isHotspot: boolean): void {
+    $worldmapTarget.style.backgroundImage = `url('${url}')`
+    $worldmapTarget.classList.toggle('wmHotspotShape', isHotspot)
 }
 
 export function init(): void {
@@ -353,11 +372,9 @@ export function init(): void {
 
         worldmapPlayer.target = { x: ax, y: ay }
         showv($worldmapPlayer)
-        Object.assign($worldmapTarget.style, {
-            backgroundImage: "url('art/intrface/wmaptarg.png')",
-            left: ax + 'px',
-            top: ay + 'px',
-        })
+        setTargetImage('art/intrface/wmaptarg.png', false)
+        $worldmapTarget.style.left = ax + 'px'
+        $worldmapTarget.style.top = ay + 'px'
         dbg('worldmap', 'targeting: ' + ax + ', ' + ay)
     }
 
@@ -366,13 +383,13 @@ export function init(): void {
     $worldmapTarget.onmousedown = function () {
         const area = withinArea(worldmapPlayer)
         if (area !== null) {
-            $worldmapTarget.style.backgroundImage = "url('art/intrface/hotspot2.png')"
+            setTargetImage('art/intrface/hotspot2.png', true)
         }
     }
     $worldmapTarget.onmouseup = function (e: MouseEvent) {
         const area = withinArea(worldmapPlayer)
         if (area !== null) {
-            $worldmapTarget.style.backgroundImage = "url('art/intrface/hotspot1.png')"
+            setTargetImage('art/intrface/hotspot1.png', true)
             e.stopPropagation()
             uiWorldMapShowArea(area)
         }
@@ -380,7 +397,7 @@ export function init(): void {
     $worldmapTarget.onmouseleave = function () {
         // revert to normal if mouse leaves without releasing
         if ($worldmapTarget.style.backgroundImage.includes('hotspot2')) {
-            $worldmapTarget.style.backgroundImage = "url('art/intrface/hotspot1.png')"
+            setTargetImage('art/intrface/hotspot1.png', true)
         }
     }
     $worldmapTarget.onclick = null  // handled by mouseup above
@@ -446,14 +463,18 @@ export function init(): void {
         carFuel: _carFuel,
     }
 
-    $worldmapTarget.style.left = worldmapPlayer.x + 'px'
-    $worldmapTarget.style.top = worldmapPlayer.y + 'px'
+    // CE ref: worldmap.cc — hotspot/target marker is centered on the world
+    // position, matching centerWorldmapTarget()'s convention used everywhere
+    // else (area circles are likewise centered on area.worldPosition). A raw
+    // top-left assignment here would offset the marker by half its own size
+    // relative to where every other call site places it.
+    centerWorldmapTarget(worldmapPlayer.x, worldmapPlayer.y)
 
     setSquareStateAt(positionToSquare(worldmapPlayer), WORLDMAP_DISCOVERED)
 
     if (withinArea(worldmapPlayer) !== null) {
         hidev($worldmapPlayer)
-        $worldmapTarget.style.backgroundImage = "url('art/intrface/hotspot1.png')"
+        setTargetImage('art/intrface/hotspot1.png', true)
     }
 
     // Keyboard scroll
@@ -548,7 +569,7 @@ export function updateWorldmapPlayer() {
             worldmapPlayer.target = null
 
             hidev($worldmapPlayer)
-            $worldmapTarget.style.backgroundImage = "url('art/intrface/hotspot1.png')"
+            setTargetImage('art/intrface/hotspot1.png', true)
             centerWorldmapTarget(worldmapPlayer.x, worldmapPlayer.y)
         } else {
             // normalize direction

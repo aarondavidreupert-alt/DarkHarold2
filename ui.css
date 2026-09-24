@@ -1788,6 +1788,16 @@ html, body {
   z-index: 100;
 }
 
+/* Restricts the clickable area to the hotspot1.png/hotspot2.png triangle's
+   actual silhouette (traced from the source pixels: full-width top edge
+   tapering linearly to a point at bottom-center) instead of the full 25x13
+   bounding rect, whose corners render transparent. Applied only while the
+   hotspot triangle is shown — not for the wmaptarg.png crosshair state,
+   which is a different (radially symmetric) shape. */
+#worldmapTarget.wmHotspotShape {
+  clip-path: polygon(0% 0%, 100% 0%, 50% 100%);
+}
+
 #calledShotBox {
   position: absolute;
   /* 800×600-era offset; centered by .ui-stage. */
