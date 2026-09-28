@@ -1447,29 +1447,47 @@ html, body {
 }
 
 /* CE ref: worldmap.cc:6179 wmInterfaceRefreshCarStatus.
-   wmcarmve.frm (interface art 433) blit at WM_WINDOW_CAR_X=514, WM_WINDOW_CAR_Y=336.
-   wmscreen.frm (363) overlay at WM_WINDOW_CAR_OVERLAY_X=499, WM_WINDOW_CAR_OVERLAY_Y=330.
-   wmglobe.frm (366) at the same overlay position when NOT in car.
-   All relative to #worldMapBox (640×480). */
+   wmcarmve.frm (interface art 433) blit at WM_WINDOW_CAR_X=514, WM_WINDOW_CAR_Y=336 —
+   a 14-frame driving animation, 93x73 per frame (art/imageMap.json), cycled by
+   updateCarAnimation() in Worldmap.ts the same way updateDial() cycles wmdial.png.
+   wmscreen.frm (363) is the fixed screen bezel at WM_WINDOW_CAR_OVERLAY_X=499,
+   WM_WINDOW_CAR_OVERLAY_Y=330 (117x95) — always visible, like the dial's own
+   frame, never hidden. wmglobe.frm (366, 134x89) sits at the same overlay
+   position and shows only when not in car; the car animation replaces it.
+   All relative to #worldMapBox (640×480). Sizes are the real per-frame pixel
+   dimensions from art/imageMap.json, not guessed — a too-small box here would
+   silently crop the image instead of scaling it (background-size is auto). */
 #wmCarImage {
   position: absolute;
   left: 514px;
   top: 336px;
-  width: 84px;
-  height: 64px;
+  width: 93px;
+  height: 73px;
   background-image: url("art/intrface/wmcarmve.png");
   background-repeat: no-repeat;
   image-rendering: pixelated;
 }
-#wmGlobeOverlay {
+#wmGlobeImage {
   position: absolute;
   left: 499px;
   top: 330px;
-  width: 141px;
-  height: 90px;
+  width: 134px;
+  height: 89px;
+  background-image: url("art/intrface/wmglobe.png");
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+#wmScreenFrame {
+  position: absolute;
+  left: 499px;
+  top: 330px;
+  width: 117px;
+  height: 95px;
   background-image: url("art/intrface/wmscreen.png");
   background-repeat: no-repeat;
   image-rendering: pixelated;
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* CE ref: worldmap.cc:6219 wmInterfaceRefreshCarFuel — vertical fill bar.

@@ -218,17 +218,38 @@ export function setCarAreaId(areaId: number): void { _currentCarAreaId = areaId 
 export function getCarMapName(): string | null { return _carMapName }
 export function setCarMapName(name: string | null): void { _carMapName = name }
 
+// wmcarmve.png: 1302×73 — 14 frames × 93px (art/imageMap.json), the same
+// frmpixels.py horizontal-strip packing as wmdial.png. Cycled once per
+// travel tick while actually driving, the same way updateDial() cycles on
+// game-time change — see updateCarAnimation().
+const CAR_ANIM_FRAMES = 14
+const CAR_ANIM_FRAME_W = 93
+let _carAnimFrame = 0
+
+function updateCarAnimation(): void {
+    const $car = document.getElementById('wmCarImage')
+    if (!$car) return
+    _carAnimFrame = (_carAnimFrame + 1) % CAR_ANIM_FRAMES
+    $car.style.backgroundPositionX = -(_carAnimFrame * CAR_ANIM_FRAME_W) + 'px'
+}
+
 // Update the worldmap car overlay image + fuel bar visibility.
 // CE ref: worldmap.cc:6179 wmInterfaceRefreshCarStatus — draws wmcarmve.frm or wmglobe.frm,
 // plus wmInterfaceRefreshCarFuel (vertical bar at WM_WINDOW_CAR_FUEL_BAR_X=500,Y=339,H=70).
+// wmScreenFrame (wmscreen.png) is the fixed bezel and is never toggled — like
+// the dial's own frame, it stays visible; only the content behind it swaps.
 export function updateCarUI(): void {
     const $car = document.getElementById('wmCarImage')
-    const $globe = document.getElementById('wmGlobeOverlay')
+    const $globe = document.getElementById('wmGlobeImage')
     const $track = document.getElementById('wmCarFuelBarTrack')
     const $bar = document.getElementById('wmCarFuelBar')
     if (!$car || !$globe) return
     $car.hidden = !_isInCar
     $globe.hidden = _isInCar
+    if (!_isInCar) {
+        _carAnimFrame = 0
+        $car.style.backgroundPositionX = '0px'
+    }
     if ($track) $track.hidden = !_isInCar
     if (_isInCar && $bar) {
         // CE ref: worldmap.cc:6221 ratio = (70 * carFuel) / CAR_FUEL_MAX, rounded down to even.
@@ -584,6 +605,8 @@ export function updateWorldmapPlayer() {
         const inCar = worldmapPlayer.isInCar && worldmapPlayer.carFuel > 0
         const carMult = inCar ? 4 : 1
         const speed = (WORLDMAP_SPEED * carMult) / worldmap.terrainSpeed[currentSquare.terrainType]
+
+        if (inCar) updateCarAnimation()
 
         if (len < speed) {
             worldmapPlayer.x = worldmapPlayer.target.x

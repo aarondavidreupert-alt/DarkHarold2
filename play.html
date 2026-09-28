@@ -220,11 +220,16 @@ limitations under the License.
 					<!-- CE ref: worldmap.cc WM_TOWN_WORLD_SWITCH_X/Y=519/439 — toggle area/world view -->
 					<div id="worldmapViewButton"></div>
 					<div id="worldMapDial"></div>
-					<!-- CE ref: worldmap.cc:6179 — when isInCar, blit wmcarmve.frm (interface 433)
-					     at WM_WINDOW_CAR_X=514,Y=336 over wmscreen.frm overlay (363) at 499,330.
-					     When not in car, blit wmglobe.frm (366) at the same overlay position. -->
+					<!-- CE ref: worldmap.cc:6179 wmInterfaceRefreshCarStatus. wmscreen.frm (363) is
+					     the fixed screen bezel — always visible, like the dial's own frame — at
+					     WM_WINDOW_CAR_OVERLAY_X=499,Y=330. Inside it: wmglobe.frm (366) when not in
+					     car, or the animated wmcarmve.frm (433, 14 frames) at WM_WINDOW_CAR_X=514,Y=336
+					     when in car. Previously wmGlobeOverlay showed wmscreen.png directly and was
+					     hidden while driving, which both mislabeled the asset and made the bezel
+					     disappear instead of staying put with swapped content underneath it. -->
 					<div id="wmCarImage" hidden></div>
-					<div id="wmGlobeOverlay"></div>
+					<div id="wmGlobeImage"></div>
+					<div id="wmScreenFrame"></div>
 					<!-- CE ref: worldmap.cc:6219 wmInterfaceRefreshCarFuel —
 					     vertical fill bar at WM_WINDOW_CAR_FUEL_BAR_X=500,Y=339, height=70px. -->
 					<div id="wmCarFuelBarTrack" hidden>

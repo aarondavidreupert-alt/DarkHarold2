@@ -31,7 +31,7 @@ import { Critter, deserializeObj, Obj, objFromMapObject, Scenery } from '../obje
 import { centerCamera } from '../renderer.js'
 import { setMapScrollLimits } from '../render/camera.js'
 import { Scripting } from '../scripting.js'
-import { fromTileNum, hexToTile } from '../tile.js'
+import { fromTileNum, hexToTile, tileFromScreen, tileToScreen } from '../tile.js'
 import { arrayWithout, getFileJSON } from '../util.js'
 import { showAlert } from '../ui_dialog.js'
 import { Worldmap } from '../worldmap.js'
@@ -70,14 +70,43 @@ function resolveCarPos(mapName: string, mapObj: any): Point {
     return { x: sp.x + 3, y: sp.y }
 }
 
-// Resolve the trunk position: data-file tile if ≥ 0, otherwise 2 tiles east of
-// the car position.
+// Resolve the trunk position: data-file tile if ≥ 0, otherwise a fixed
+// nearby offset from the car, applied in SCREEN space (tileToScreen/
+// tileFromScreen) rather than tile-grid arithmetic. DH2's tile grid is an
+// offset/staggered hex grid (src/geometry/hexGrid.ts hexNeighbors —
+// neighbor deltas depend on x's parity), so simple tile-coordinate math
+// like the original {x: carPos.x + 2, y: carPos.y} heuristic doesn't
+// reliably land in a consistent screen-space direction from the car (it
+// rendered visibly skewed — ~1 hex south + 1 hex east of the intended
+// adjacent tile). Going through screen space sidesteps that: the offset
+// below is picked directly in on-screen pixels (left + up from the car),
+// tuned interactively in-game, and round-tripped back to a tile via
+// tileFromScreen. The original game computes this relative to the car via
+// tile_num_in_dir() (see wiki/car_system.md §7) but the exact per-town
+// direction/distance wasn't extracted, so this is a reasonable nearby
+// placement, not a faithful reproduction of that value.
+// `let`, not `const` — window.setTrunkOffset(x, y) in main.ts writes these
+// directly for live in-browser tuning (see that function for usage). Changes
+// apply the next time a car+trunk get (re)injected — leave the parked map
+// and come back, or call window.giveCar() again.
+let TRUNK_OFFSET_SCREEN_X = 128 // +right / -left of the car, screen px
+let TRUNK_OFFSET_SCREEN_Y = -52 // +down  / -up   of the car, screen px
+
+export function setTrunkOffset(x: number, y: number): void {
+    TRUNK_OFFSET_SCREEN_X = x
+    TRUNK_OFFSET_SCREEN_Y = y
+}
+export function getTrunkOffset(): { x: number; y: number } {
+    return { x: TRUNK_OFFSET_SCREEN_X, y: TRUNK_OFFSET_SCREEN_Y }
+}
+
 function resolveTrunkPos(mapName: string, carPos: Point): Point {
     const entry = getCarParkingEntry(mapName)
     if (entry && entry.trunkTile >= 0) {
         return fromTileNum(entry.trunkTile)
     }
-    return { x: carPos.x + 2, y: carPos.y }
+    const carScreen = tileToScreen(carPos.x, carPos.y)
+    return tileFromScreen(carScreen.x + TRUNK_OFFSET_SCREEN_X, carScreen.y + TRUNK_OFFSET_SCREEN_Y)
 }
 
 declare let PF: any
@@ -138,8 +167,14 @@ GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point,
             this.changeElevation(this.currentElevation, true, false)
 
             // Re-inject the car body on dirty-cache revisit — the body is _transient so
-            // it was stripped from the serialized snapshot. The trunk is NOT _transient
-            // and is already restored from the snapshot (with its inventory intact).
+            // it was stripped from the serialized snapshot. The trunk is NOT _transient,
+            // so a trunk that was already present when this snapshot was taken comes back
+            // on its own (with its inventory intact) — but if this map was cached BEFORE
+            // the car was ever parked here (e.g. giveCar() called while already standing
+            // on it, or the car got parked here after this map had already been visited
+            // once), the cached snapshot never had a trunk to begin with, and dirty-cache
+            // revisits used to never inject one either. Check for one and add it if it's
+            // genuinely missing, exactly like the clean-load path below.
             const _dcCarParked = !Worldmap.getIsInCar() && Worldmap.getCarMapName() === this.name
             if (_dcCarParked) {
                 if (!globalState.mapAreas) globalState.mapAreas = loadAreas()
@@ -160,6 +195,16 @@ GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point,
                     } as any
                     this.objects[_dcElev].push(_dcObj)
                     dbg('map', `[Car] Highwayman re-injected (dirty cache) at (${_dcPos.x},${_dcPos.y}) elev=${_dcElev}`)
+
+                    const _dcHasTrunk = this.objects[_dcElev].some((o: any) => o.pid === PROTO_ID_CAR_TRUNK)
+                    if (!_dcHasTrunk) {
+                        const _dcTrunkPos = resolveTrunkPos(this.name, _dcPos)
+                        const _dcTrunkObj = Obj.fromPID(PROTO_ID_CAR_TRUNK)
+                        _dcTrunkObj.position = _dcTrunkPos
+                        _dcTrunkObj.elevation = _dcElev
+                        this.objects[_dcElev].push(_dcTrunkObj)
+                        dbg('map', `[Car] Trunk was missing from cached snapshot — injected at (${_dcTrunkPos.x},${_dcTrunkPos.y}) elev=${_dcElev}`)
+                    }
                 }
             }
 
