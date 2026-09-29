@@ -89,8 +89,8 @@ function resolveCarPos(mapName: string, mapObj: any): Point {
 // directly for live in-browser tuning (see that function for usage). Changes
 // apply the next time a car+trunk get (re)injected — leave the parked map
 // and come back, or call window.giveCar() again.
-let TRUNK_OFFSET_SCREEN_X = 128 // +right / -left of the car, screen px
-let TRUNK_OFFSET_SCREEN_Y = -52 // +down  / -up   of the car, screen px
+let TRUNK_OFFSET_SCREEN_X = 0   // +right / -left of the car, screen px
+let TRUNK_OFFSET_SCREEN_Y = -80 // +down  / -up   of the car, screen px
 
 export function setTrunkOffset(x: number, y: number): void {
     TRUNK_OFFSET_SCREEN_X = x
@@ -98,6 +98,24 @@ export function setTrunkOffset(x: number, y: number): void {
 }
 export function getTrunkOffset(): { x: number; y: number } {
     return { x: TRUNK_OFFSET_SCREEN_X, y: TRUNK_OFFSET_SCREEN_Y }
+}
+
+// Recomputes and moves an already-injected trunk on the currently loaded map,
+// in place, using the current offset — so window.setTrunkOffset() in main.ts
+// can show its effect immediately instead of requiring the leave/re-enter (or
+// manual dirtyMapCache surgery) that "(re)injection" would otherwise need.
+// Returns true if it found a car+trunk pair to move.
+export function repositionExistingTrunk(): boolean {
+    const map = globalState.gMap
+    if (!map || !map.objects) return false
+    const elev = map.currentElevation
+    const objs = map.objects[elev]
+    if (!objs) return false
+    const car = objs.find((o: any) => o.pid === PROTO_ID_CAR)
+    const trunk = objs.find((o: any) => o.pid === PROTO_ID_CAR_TRUNK)
+    if (!car || !trunk) return false
+    trunk.position = resolveTrunkPos(map.name, car.position)
+    return true
 }
 
 function resolveTrunkPos(mapName: string, carPos: Point): Point {

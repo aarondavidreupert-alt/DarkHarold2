@@ -21,7 +21,7 @@ import { hexDistance, hexesInRadius, hexIsInFrontOf, hexIsToRightOf, hexInDirect
 import globalState from './globalState.js'
 import { IDBCache } from './idbcache.js'
 import { initGame } from './init.js'
-import { getTrunkOffset, setTrunkOffset } from './map/mapLoader.js'
+import { getTrunkOffset, repositionExistingTrunk, setTrunkOffset } from './map/mapLoader.js'
 import { dbg } from './logger.js'
 import {
     clampCameraPosition,
@@ -860,16 +860,20 @@ window.onload = async function () {
     // setTrunkOffset(x, y) — live-tune the trunk's screen-space offset from the
     // car for maps without a real trunkTile in lut/car_parking.json (mapLoader.ts
     // resolveTrunkPos). +x = right, -x = left, +y = down, -y = up, in screen
-    // pixels. Takes effect the next time the trunk is (re)injected — leave this
-    // map and come back, or call window.giveCar() again while standing on it.
-    // Call with no args to just print the current offset.
+    // pixels. If a car+trunk are already on the currently loaded map, moves the
+    // trunk immediately (repositionExistingTrunk) — no need to leave and come
+    // back. Call with no args to just print the current offset.
     ;(window as any).setTrunkOffset = (x?: number, y?: number) => {
         if (x === undefined || y === undefined) {
             console.log('[Trunk] current offset:', getTrunkOffset(), '— call setTrunkOffset(x, y) to change it')
             return
         }
         setTrunkOffset(x, y)
-        console.log(`[Trunk] offset set to (${x}, ${y}). Leave and re-enter this map (or call giveCar() again) to see it.`)
+        if (repositionExistingTrunk()) {
+            console.log(`[Trunk] offset set to (${x}, ${y}) and moved the trunk on this map now.`)
+        } else {
+            console.log(`[Trunk] offset set to (${x}, ${y}). No car+trunk on this map right now — it'll apply next time one is injected.`)
+        }
     }
 }
 
