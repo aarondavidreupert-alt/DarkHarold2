@@ -72,34 +72,35 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 13 | [`wiki/scripting_reference.md`](wiki/scripting_reference.md) | Opcode reference and coverage table |
 | 14 | [`wiki/dialogue_system.md`](wiki/dialogue_system.md) | Dialogue runtime, MSG files, `gsay`/`giq` chain |
 | 15 | [`wiki/worldmap.md`](wiki/worldmap.md) | Worldmap travel, encounter tables, area entrances |
-| 16 | [`wiki/map_scripting.md`](wiki/map_scripting.md) | Map-level script hooks (`map_enter_p_proc`, etc.) |
-| 17 | [`wiki/items.md`](wiki/items.md) | Item system, weights, stacking rules |
-| 18 | [`wiki/proto_system.md`](wiki/proto_system.md) | Proto binary layout (types 0–5) and JSON schema |
-| 19 | [`wiki/file_formats.md`](wiki/file_formats.md) | DAT2/FRM/PRO/MSG binary layouts |
-| 20 | [`wiki/character_stats.md`](wiki/character_stats.md) / [`wiki/critter_stats.md`](wiki/critter_stats.md) | SPECIAL stats, derived stats, base ranges |
-| 21 | [`wiki/perks_traits.md`](wiki/perks_traits.md) | Perk and trait registries, effects |
-| 22 | [`wiki/skill_checks.md`](wiki/skill_checks.md) | Skill-use rolls, modifiers, XP awards |
-| 23 | [`wiki/companion_party.md`](wiki/companion_party.md) | Party system, CHA cap, follow logic |
-| 24 | [`wiki/quest_system.md`](wiki/quest_system.md) | Quest GVAR tracking, Pip-Boy ARCHIVES |
-| 25 | [`wiki/pipboy.md`](wiki/pipboy.md) | Pip-Boy panels, AUTOMAP, clock/alarm |
-| 26 | [`wiki/interface_windows.md`](wiki/interface_windows.md) | HUD, character/inventory windows, indicator bar |
-| 27 | [`wiki/hotkeys.md`](wiki/hotkeys.md) | Default keybindings |
-| 28 | [`wiki/save_load.md`](wiki/save_load.md) | Save/load format, IndexedDB slots, thumbnails |
-| 29 | [`wiki/time_clock.md`](wiki/time_clock.md) | In-game time, day/night cycle, midnight queue |
-| 30 | [`wiki/spatial_triggers.md`](wiki/spatial_triggers.md) | Spatial trigger system |
-| 31 | [`wiki/tile_system.md`](wiki/tile_system.md) | Tile grid, hex math, screen projection |
-| 32 | [`wiki/pathfinding.md`](wiki/pathfinding.md) | A\* path-blocking vs shoot-blocking, MULTIHEX |
-| 33 | [`wiki/lighting.md`](wiki/lighting.md) | Lightmap, ambient curve, object light emission |
-| 34 | [`wiki/sound_system.md`](wiki/sound_system.md) | Audio engine, GainNode chain, ambient SFX |
-| 35 | [`wiki/economy.md`](wiki/economy.md) | Caps, barter formula, vendor stock |
-| 36 | [`wiki/faction_reputation.md`](wiki/faction_reputation.md) | Karma, town reputation, title tiers |
-| 37 | [`wiki/status_effects.md`](wiki/status_effects.md) | Poison, radiation, addictions, drug effects |
-| 38 | [`wiki/random_numbers.md`](wiki/random_numbers.md) | PRNG seeding, `rollSkillCheck` ranges |
-| 39 | [`wiki/settings.md`](wiki/settings.md) | Config/preferences system |
-| 40 | [`wiki/actions.md`](wiki/actions.md) | `actions.cc` dispatch, death animations, float text |
-| 41 | [`wiki/endgame.md`](wiki/endgame.md) | Endgame slides, death narrator |
-| 42 | [`wiki/extended_flags.md`](wiki/extended_flags.md) | Wall/scenery `extendedFlags` orientation bits — egg occlusion vs light blocking |
-| 43 | [`wiki/alignment.md`](wiki/alignment.md) | Screen-space anchor reference for all renderable categories (floor/roof `−96`, object bottom-centre anchor, `uniformFrameWidth` vs `frameWidth`, `8.4` lightmap-UV inverse) **plus the lighting-alignment work** — centring offset (RD17 §6), interpolation stripes / `hex-lerp` (§7), W-E wall occlusion (LD11 §8), object light-sampling modes (`wall-clamp` default), alpha-silhouette wall top-fade, and moving-torch smoothing (`egg-split`); §9 lists all runtime `setLighting*/setObjectLighting*/setWallTopFade*/setPlayerLightSmooth` console commands |
+| 16 | [`wiki/car_system.md`](wiki/car_system.md) | Highwayman car system deep-dive: CE-vs-DH2 tables, bytecode-extracted per-map parking tiles, gap list |
+| 17 | [`wiki/map_scripting.md`](wiki/map_scripting.md) | Map-level script hooks (`map_enter_p_proc`, etc.) |
+| 18 | [`wiki/items.md`](wiki/items.md) | Item system, weights, stacking rules |
+| 19 | [`wiki/proto_system.md`](wiki/proto_system.md) | Proto binary layout (types 0–5) and JSON schema |
+| 20 | [`wiki/file_formats.md`](wiki/file_formats.md) | DAT2/FRM/PRO/MSG binary layouts |
+| 21 | [`wiki/character_stats.md`](wiki/character_stats.md) / [`wiki/critter_stats.md`](wiki/critter_stats.md) | SPECIAL stats, derived stats, base ranges |
+| 22 | [`wiki/perks_traits.md`](wiki/perks_traits.md) | Perk and trait registries, effects |
+| 23 | [`wiki/skill_checks.md`](wiki/skill_checks.md) | Skill-use rolls, modifiers, XP awards |
+| 24 | [`wiki/companion_party.md`](wiki/companion_party.md) | Party system, CHA cap, follow logic |
+| 25 | [`wiki/quest_system.md`](wiki/quest_system.md) | Quest GVAR tracking, Pip-Boy ARCHIVES |
+| 26 | [`wiki/pipboy.md`](wiki/pipboy.md) | Pip-Boy panels, AUTOMAP, clock/alarm |
+| 27 | [`wiki/interface_windows.md`](wiki/interface_windows.md) | HUD, character/inventory windows, indicator bar |
+| 28 | [`wiki/hotkeys.md`](wiki/hotkeys.md) | Default keybindings |
+| 29 | [`wiki/save_load.md`](wiki/save_load.md) | Save/load format, IndexedDB slots, thumbnails |
+| 30 | [`wiki/time_clock.md`](wiki/time_clock.md) | In-game time, day/night cycle, midnight queue |
+| 31 | [`wiki/spatial_triggers.md`](wiki/spatial_triggers.md) | Spatial trigger system |
+| 32 | [`wiki/tile_system.md`](wiki/tile_system.md) | Tile grid, hex math, screen projection |
+| 33 | [`wiki/pathfinding.md`](wiki/pathfinding.md) | A\* path-blocking vs shoot-blocking, MULTIHEX |
+| 34 | [`wiki/lighting.md`](wiki/lighting.md) | Lightmap, ambient curve, object light emission |
+| 35 | [`wiki/sound_system.md`](wiki/sound_system.md) | Audio engine, GainNode chain, ambient SFX |
+| 36 | [`wiki/economy.md`](wiki/economy.md) | Caps, barter formula, vendor stock |
+| 37 | [`wiki/faction_reputation.md`](wiki/faction_reputation.md) | Karma, town reputation, title tiers |
+| 38 | [`wiki/status_effects.md`](wiki/status_effects.md) | Poison, radiation, addictions, drug effects |
+| 39 | [`wiki/random_numbers.md`](wiki/random_numbers.md) | PRNG seeding, `rollSkillCheck` ranges |
+| 40 | [`wiki/settings.md`](wiki/settings.md) | Config/preferences system |
+| 41 | [`wiki/actions.md`](wiki/actions.md) | `actions.cc` dispatch, death animations, float text |
+| 42 | [`wiki/endgame.md`](wiki/endgame.md) | Endgame slides, death narrator |
+| 43 | [`wiki/extended_flags.md`](wiki/extended_flags.md) | Wall/scenery `extendedFlags` orientation bits — egg occlusion vs light blocking |
+| 44 | [`wiki/alignment.md`](wiki/alignment.md) | Screen-space anchor reference for all renderable categories (floor/roof `−96`, object bottom-centre anchor, `uniformFrameWidth` vs `frameWidth`, `8.4` lightmap-UV inverse) **plus the lighting-alignment work** — centring offset (RD17 §6), interpolation stripes / `hex-lerp` (§7), W-E wall occlusion (LD11 §8), object light-sampling modes (`wall-clamp` default), alpha-silhouette wall top-fade, and moving-torch smoothing (`egg-split`); §9 lists all runtime `setLighting*/setObjectLighting*/setWallTopFade*/setPlayerLightSmooth` console commands |
 
 ### 🐛 Known issues & roadmap
 
@@ -158,7 +159,7 @@ pipenv run python tools/pipeline_gui.py
 ## Feature completion
 
 The buckets below are sourced from [`wiki/known_bugs.md`](wiki/known_bugs.md) (current
-audit: 2026-07-04). Items marked FIXED there roll up here. If you spot a contradiction,
+audit: 2026-09-30). Items marked FIXED there roll up here. If you spot a contradiction,
 the wiki tracker is the source of truth.
 
 ### ✅ Substantially implemented (~85–95%)
@@ -174,7 +175,8 @@ the wiki tracker is the source of truth.
 - **Active skill use** — First Aid, Doctor, Sneak, Lockpick, Steal (with facing + knockdown), Traps, Science, Repair, Gambling/Outdoorsman messages; Healer perk applied; party-member delegation for First Aid/Doctor (AC6)
 - **Level-up & perks** — XP thresholds, skill points (5 + 2×INT, +2 Educated), HP per level (END/2 + 2, +4 Lifegiver), perk every 3 levels (every 4 Skilled), **perk selection modal** (`ui_character.ts:1866 showPerkModal`), Tag! 4th slot
 - **Karma & reputation** — `get_pc_stat` / `mod_pc_stat` / `set_pc_stat` wired, +1 karma per hostile kill, **karma title computation** (`ui_character.ts:581–624`), STATUS panel surfaces both stats; per-town reputation still absent (R2)
-- **Worldmap travel** — 28×30 grid, per-tile encounter tables, time-of-day frequency (W1), difficulty modifier (W2), encounter formations (straight_line/double_line/wedge/cone) (W6), encounter critters carry items + equipped weapons (W3), Outdoorsman detection XP (W7), Pathfinder travel-time reduction; keyboard/mouse-edge map pan (W12); label list CE-accurate filter + alphabetic sort (W11)
+- **Worldmap travel** — 28×30 grid, per-tile encounter tables, time-of-day frequency (W1), difficulty modifier (W2), encounter formations (straight_line/double_line/wedge/cone) (W6), encounter critters carry items + equipped weapons (W3), Outdoorsman detection XP (W7), Pathfinder travel-time reduction; keyboard/mouse-edge map pan (W12); label list CE-accurate filter + alphabetic sort (W11); walk masks enforced so the player can't walk through mountains (W10); city-entry hotspot marker correctly centered + shaped (W13)
+- **Car travel system (Highwayman)** — worldmap travel at 4× speed with fuel consumption + halved encounter rate (W8, `window.giveCar()` for testing), animated 14-frame driving sprite on the worldmap HUD; local-map car body + trunk container both auto-injected with correct z-order/collision (M6), real per-map parking tiles extracted from the original compiled scripts for 10 of 15 candidate towns (see [`wiki/car_system.md`](wiki/car_system.md)); trunk placement + car-upgrade speed tiers + 5 remaining towns' tiles still open
 - **Random encounters** — encounter group generation, level/time_of_day conditions, encounter counter (W4)
 - **Scripting VM** — INT file parser, **~150+ opcodes wired**, transpiler/disassembler; remaining stubs are largely car-system or movie/credits sub-ops (see [`wiki/known_bugs.md §2`](wiki/known_bugs.md))
 - **Audio engine** — music looping, weapon/action sound mapping, ambient SFX from map data, master/music/sfx GainNode chain with persisted volume sliders
@@ -197,7 +199,7 @@ the wiki tracker is the source of truth.
 - **Time & date system** — `gametime.ts` ticks, day/night ambient curve, midnight queue fires `objectUnjamAll` (IU3/GTC5); `get_month` / `get_day` wired; ARTIMER midnight movie events still not implemented.
 - **Quest system** — `questData.ts` covers all major Fallout 2 quests with GVAR-based state tracking; Pip-Boy ARCHIVES tab surfaces them. Per-quest completion rewards/XP route through scripts but not engine-side. Quest descriptions inlined in TS rather than loaded from `quests.msg`.
 - **Combat AI** — friendly-fire gate for AoE attacks (line-of-fire blockers between attacker and target) still absent; otherwise distance modes, perception, taunts, and team targeting are wired.
-- **Worldmap** — area entrance positions are misplaced on area screens (W9); walk masks not loaded so the player can walk through mountains (W10).
+- **Car system remaining gaps** — trunk container built via generic `Obj.fromPID` instead of `Item.fromPID` (harmless today); no car-upgrade GVAR speed tiers (`GVAR_CAR_BLOWER`/New Reno upgrades); no cross-elevation parking awareness; 5 of 15 candidate towns' `carTile` still unverified; metarule 52/53 (car cargo capacity) are no-ops. See [`wiki/car_system.md`](wiki/car_system.md) §4.
 - **Endgame** — death-narrator slide wired (EG6); credits music / `creditsOpen("credits.txt")` (EG4) and panning-slide ms/pixel timing (EG3) still absent.
 
 ---
@@ -206,7 +208,6 @@ the wiki tracker is the source of truth.
 
 - **NPC schedules / day-night behaviour** — non-scripted critters do radius-capped wander (C8) only; full home/work/sleep schedules deferred (P2).
 - **Per-town reputation tracking** — global karma + title work; per-town faction deltas and reaction modifiers absent (R2).
-- **Car travel system** — no car fuel, no car-speed multipliers, no encounter-rate reduction (W8).
 - **Subtitles / speech file playback** — audio engine has no `.acm` speech hooks; no subtitle overlay (P4).
 - **Movie / FMV playback** — `play_gmovie` is a no-op (S15); ARTIMER midnight movies (GTC5).
 - **`actionFrame` from FRM headers** — discarded by `tools/frmpixels.py:40`; hit/sound sync absent for weapon attacks (FA3, asset-pipeline change).

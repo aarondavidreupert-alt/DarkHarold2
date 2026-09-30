@@ -34,7 +34,7 @@ import globalState from './globalState.js'
 import { parseIntFile } from './intfile.js'
 import { dbg, dbgWarn } from './logger.js'
 import { useElevator } from './main.js'
-import { Critter, createObjectWithPID, Obj, objectGetDamageType } from './object.js'
+import { Critter, createObjectWithPID, Obj, objectGetDamageType, zsort } from './object.js'
 import { applyPerk, getPerkRank, PERKS } from './perks.js'
 import { Player } from './player.js'
 import { loadPRO, lookupArt, makePID } from './pro.js'
@@ -1675,7 +1675,7 @@ export module Scripting {
                 warn("create_object_sid: couldn't create object", undefined, this)
                 return null
             }
-            obj.position = fromTileNum(tile)
+            obj.elevation = elev
 
             //stub("create_object_sid", arguments)
 
@@ -1685,8 +1685,20 @@ export module Scripting {
                 return
             }*/
 
-            // add it to the map
+            // add it to the map, then set its position and fix its draw order.
+            // Rendering is a plain painter's-algorithm draw in array order (no
+            // depth buffer, no per-tile sort) — a raw `obj.position = ...`
+            // assignment before pushing left every dynamically-created object
+            // (critters, scenery, anything a map script spawns at runtime) stuck
+            // at the tail of the array, drawing on top of literally everything
+            // regardless of its actual position. `elev` isn't always the
+            // currently-displayed elevation, so `obj.move()` (which only
+            // re-splices the *current* elevation's array) can't be used
+            // directly here — a full zsort() of the target elevation's array is
+            // safe and correct regardless of which elevation that is.
             globalState.gMap.addObject(obj, elev)
+            obj.position = fromTileNum(tile)
+            zsort(globalState.gMap.objects[elev])
 
             return obj
         }

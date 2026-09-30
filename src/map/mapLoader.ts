@@ -114,7 +114,8 @@ export function repositionExistingTrunk(): boolean {
     const car = objs.find((o: any) => o.pid === PROTO_ID_CAR)
     const trunk = objs.find((o: any) => o.pid === PROTO_ID_CAR_TRUNK)
     if (!car || !trunk) return false
-    trunk.position = resolveTrunkPos(map.name, car.position)
+    const idx = objs.indexOf(trunk)
+    trunk.move(resolveTrunkPos(map.name, car.position), idx, false)
     return true
 }
 
@@ -201,7 +202,6 @@ GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point,
                     const _dcElev = this.currentElevation
                     const _dcPos = resolveCarPos(this.name, map.mapObj)
                     const _dcObj = Scenery.fromPID(PROTO_ID_CAR)
-                    _dcObj.position = _dcPos
                     _dcObj.elevation = _dcElev
                     ;(_dcObj as any)._transient = true
                     _dcObj._script = {
@@ -211,16 +211,25 @@ GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point,
                             Events.emit('openWorldmap')
                         }
                     } as any
+                    // push() alone leaves the object at the tail of the array forever —
+                    // rendering is a plain painter's-algorithm draw in array order (no
+                    // depth buffer, no per-tile sort), so "last in array" means "always
+                    // drawn on top of literally everything," and looked like the player
+                    // could walk through the car even though pathfinding (which rescans
+                    // the array fresh every call) already blocked its tile correctly.
+                    // .move() is what re-splices a newly-added object into its correct
+                    // z-order slot (see Obj.drop() for the same push-then-move pattern).
                     this.objects[_dcElev].push(_dcObj)
+                    _dcObj.move(_dcPos, this.objects[_dcElev].length - 1, false)
                     dbg('map', `[Car] Highwayman re-injected (dirty cache) at (${_dcPos.x},${_dcPos.y}) elev=${_dcElev}`)
 
                     const _dcHasTrunk = this.objects[_dcElev].some((o: any) => o.pid === PROTO_ID_CAR_TRUNK)
                     if (!_dcHasTrunk) {
                         const _dcTrunkPos = resolveTrunkPos(this.name, _dcPos)
                         const _dcTrunkObj = Obj.fromPID(PROTO_ID_CAR_TRUNK)
-                        _dcTrunkObj.position = _dcTrunkPos
                         _dcTrunkObj.elevation = _dcElev
                         this.objects[_dcElev].push(_dcTrunkObj)
+                        _dcTrunkObj.move(_dcTrunkPos, this.objects[_dcElev].length - 1, false)
                         dbg('map', `[Car] Trunk was missing from cached snapshot — injected at (${_dcTrunkPos.x},${_dcTrunkPos.y}) elev=${_dcElev}`)
                     }
                 }
@@ -403,7 +412,6 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
                     // Car body — transient: re-injected on every visit since it has no
                     // persistent state. use_p_proc reopens the worldmap (drive away).
                     const _carObj = Scenery.fromPID(PROTO_ID_CAR)
-                    _carObj.position = _carPos
                     _carObj.elevation = _carElev
                     ;(_carObj as any)._transient = true
                     _carObj._script = {
@@ -413,16 +421,25 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
                             Events.emit('openWorldmap')
                         }
                     } as any
+                    // push() alone leaves the object at the tail of the array forever —
+                    // rendering is a plain painter's-algorithm draw in array order (no
+                    // depth buffer, no per-tile sort), so "last in array" means "always
+                    // drawn on top of literally everything," and looked like the player
+                    // could walk through the car even though pathfinding (which rescans
+                    // the array fresh every call) already blocked its tile correctly.
+                    // .move() is what re-splices a newly-added object into its correct
+                    // z-order slot (see Obj.drop() for the same push-then-move pattern).
                     this.objects[_carElev].push(_carObj)
+                    _carObj.move(_carPos, this.objects[_carElev].length - 1, false)
 
                     // Trunk — CE ref: proto_types.h PROTO_ID_CAR_TRUNK=455 (item/container).
                     // NOT transient: inventory persists in the dirty-map cache across visits.
                     // Only injected on clean (first) load; dirty-cache revisits restore it
                     // from serialized state, including whatever items the player stored.
                     const _trunkObj = Obj.fromPID(PROTO_ID_CAR_TRUNK)
-                    _trunkObj.position = _trunkPos
                     _trunkObj.elevation = _carElev
                     this.objects[_carElev].push(_trunkObj)
+                    _trunkObj.move(_trunkPos, this.objects[_carElev].length - 1, false)
 
                     dbg('map', `[Car] Highwayman at (${_carPos.x},${_carPos.y}), trunk at (${_trunkPos.x},${_trunkPos.y}), elev=${_carElev}, area "${_carArea.name}"`)
                 }

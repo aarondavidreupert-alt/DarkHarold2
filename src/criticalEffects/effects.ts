@@ -203,10 +203,16 @@ export const critterEffects: Dict<(target: Critter) => void> = {
         if (invIdx === -1) return
         target.inventory.splice(invIdx, 1)
 
-        // Place weapon on the ground at target's position
+        // Place weapon on the ground at target's position. Push first, then
+        // .move() to fix its draw order — a raw position assignment before
+        // pushing leaves it at the tail of the object array, and rendering is
+        // a plain painter's-algorithm draw in array order (no depth buffer,
+        // no per-tile sort), so it would render on top of literally
+        // everything regardless of actual position.
         if (globalState.gMap) {
-            weaponObj.position = { ...target.position }
             globalState.gMap.addObject(weaponObj)
+            const idx = globalState.gMap.getObjects().length - 1
+            weaponObj.move({ ...target.position }, idx, false)
         }
 
         // Replace hand slot with unarmed punch (with progression if critter has skill)
