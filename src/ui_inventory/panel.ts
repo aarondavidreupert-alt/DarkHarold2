@@ -27,11 +27,19 @@ import { drawAC, drawAP, uiDrawWeapon } from '../ui_hud.js'
 import { makePanelDraggable } from '../ui_drag.js'
 import { UIMode, closeAllPanels, isInventoryOpen, registerCloseInventoryPanel } from '../ui_panels.js'
 import { $id, clearEl, showv, hidev, makeEl } from '../ui_dom.js'
-import { makeDropTarget, makeDraggable, uiMoveSlot, applyArmorArt, tryLoadAmmoIntoWeapon } from './dragdrop.js'
+import { makeDropTarget, makeDraggable, uiMoveSlot, applyArmorArt, tryLoadAmmoIntoWeapon, dragInProgress } from './dragdrop.js'
 import { refreshStealthState } from '../miscItem.js'
 import { Events } from '../events.js'
 
 // --- Public open / close lifecycle -----------------------------------------
+
+// Stable reference for Events.on/off — wraps showInventory() so a
+// statsChanged refresh can be skipped while a native drag is in progress
+// (see dragInProgress in dragdrop.ts).
+function onStatsChangedRefresh(): void {
+    if (dragInProgress) return
+    showInventory()
+}
 
 export function closeInventory(): void {
     if (!isInventoryOpen()) return
@@ -40,7 +48,7 @@ export function closeInventory(): void {
     if (globalState.player) globalState.player.clearAnim?.()
     globalState.audioEngine.playSfxByName('isdxxxx1')
     uiDrawWeapon()
-    Events.off('statsChanged', showInventory)
+    Events.off('statsChanged', onStatsChangedRefresh)
 }
 
 /**
@@ -92,8 +100,8 @@ export function showInventory() {
     globalState.uiMode = UIMode.inventory
     if (!wasOpen) {
         globalState.audioEngine.playSfxByName('iisxxxx1')
-        Events.off('statsChanged', showInventory)
-        Events.on('statsChanged', showInventory)
+        Events.off('statsChanged', onStatsChangedRefresh)
+        Events.on('statsChanged', onStatsChangedRefresh)
     }
 
     // CE ref: inventory.cc inventoryOpen() — deduct AP on first open during combat

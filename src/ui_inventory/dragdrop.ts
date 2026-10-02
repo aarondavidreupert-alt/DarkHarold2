@@ -29,6 +29,14 @@ import { uiGetAmount } from '../ui_barter/swap.js'
 import { drawAC, uiDrawWeapon, uiLog } from '../ui_hud.js'
 import { showInventory } from './panel.js'
 
+// True between a slot/inventory image's dragstart and its dragend. Guards
+// against showInventory() (wired to the 'statsChanged' event — see panel.ts)
+// tearing down and rebuilding the inventory DOM while the browser's native
+// drag session is still tracking one of its <img> elements: removing the
+// actively-dragged node mid-drag can leave that native session stuck, which
+// silently swallows all further clicks until the page is reloaded.
+export let dragInProgress = false
+
 export function makeDropTarget($el: HTMLElement, dropCallback: (data: string, e?: DragEvent) => void | Promise<void>) {
     $el.ondrop = (e: DragEvent) => {
         const data = e.dataTransfer.getData('text/plain')
@@ -43,9 +51,11 @@ export function makeDraggable($el: HTMLElement, data: string, endCallback?: () =
     $el.setAttribute('draggable', 'true')
     $el.ondragstart = (e: DragEvent) => {
         e.dataTransfer.setData('text/plain', data)
+        dragInProgress = true
         dbg('inventory', '[UI] start drag')
     }
     $el.ondragend = (e: DragEvent) => {
+        dragInProgress = false
         if (e.dataTransfer.dropEffect !== 'none') {
             //$(this).remove()
             endCallback && endCallback()
