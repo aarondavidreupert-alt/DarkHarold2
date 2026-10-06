@@ -17,7 +17,7 @@ limitations under the License.
 /* eslint-disable @typescript-eslint/no-empty-function */
 
 import { heart } from './heart.js'
-import { BoundingBox, hexFromScreen, hexesInRadius, hexToScreen, Point, pointInBoundingBox } from './geometry.js'
+import { BoundingBox, hexCellTopLeft, hexFromScreen, hexesInRadius, hexToScreen, Point, pointInBoundingBox } from './geometry.js'
 import globalState from './globalState.js'
 import { lazyLoadImage } from './images.js'
 import { dbg } from './logger.js'
@@ -160,8 +160,8 @@ export class Renderer {
                 ctx.save()
                 ctx.fillStyle = 'rgba(0,255,0,0.3)'
                 for (const pos of hexesInRadius(globalState.player.position, radius)) {
-                    const scr = hexToScreen(pos.x, pos.y)
-                    const s = worldToScreen(scr.x - 16, scr.y - 12)
+                    const scr = hexCellTopLeft(pos.x, pos.y)
+                    const s = worldToScreen(scr.x, scr.y)
                     // Flat-topped hex tile in isometric view: draw a simple filled rhombus
                     // whose corners match the four cardinal points of the 32×16 hex cell.
                     const w = 32 * z, h = 16 * z
@@ -184,8 +184,9 @@ export class Renderer {
             const hexImg = globalState.images['hex_outline']
             const hexW = hexImg?.naturalWidth ?? 32
             const hexH = hexImg?.naturalHeight ?? 16
-            const scr = hexToScreen(mouseHex.x, mouseHex.y)
-            const screen = worldToScreen(scr.x - 16, scr.y - 12)
+            // CE draws the hex cursor at tileToScreenXY (cell top-left).
+            const scr = hexCellTopLeft(mouseHex.x, mouseHex.y)
+            const screen = worldToScreen(scr.x, scr.y)
             this.renderImage('hex_outline', screen.x, screen.y, hexW * z, hexH * z)
         }
 

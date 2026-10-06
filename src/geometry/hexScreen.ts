@@ -189,5 +189,76 @@ export function сubeRoundToHex(cubeRound: Point3): Point {
  * @returns int 2d hexagonal offset coordinates
  */
 export function hexFromScreen(x: number, y: number): Point {
-    return сubeRoundToHex(cubeRound(pixelToCube({ x, y })));
+    return tileFromScreenXY(Math.floor(x), Math.floor(y))
+}
+
+// ── CE pixel-precise hex picking (RD13) ───────────────────────────────────────
+// CE ref: tile.cc:345-385 _tile_mask construction and tile.cc:718 tileFromScreenXY.
+// Hexes live in 12-px bands; within a band each 64-px period holds two hex
+// columns, and the 32x16 mask decides whether a pixel near a diamond edge
+// belongs to a neighbouring hex (1/2 = up-left/up-right, 3/4 = down cases).
+//
+// Frame mapping (verified numerically): DH2 world coords equal CE screen coords
+// with _tile_x = _tile_y = 0 plus a constant offset. A tile's CE top-left is
+// (hexToScreen.x - 16, hexToScreen.y - 9): CE anchors objects at top-left + (16, 8)
+// with an inclusive bottom row (object.cc objectGetRect), DH2 at hexToScreen with
+// an exclusive bottom. CE column index is inverted (gHexGridWidth - 1 - x).
+const TILE_MASK: Uint8Array = (() => {
+    const mask = new Uint8Array(512)
+    let i = 0
+    for (let v11 = 0; v11 !== 64; v11 += 16) {
+        for (let v13 = 64; v13 !== 0; v13 -= 4) mask[i++] = v13 > v11 ? 1 : 0
+        for (let v13 = 0; v13 !== 64; v13 += 4) mask[i++] = v13 > v11 ? 2 : 0
+    }
+    for (let k = 0; k < 8 * 32; k++) mask[i++] = 0
+    for (let v11 = 0; v11 !== 64; v11 += 16) {
+        for (let v13 = 0; v13 !== 64; v13 += 4) mask[i++] = v13 > v11 ? 0 : 3
+        for (let v13 = 64; v13 !== 0; v13 -= 4) mask[i++] = v13 > v11 ? 0 : 4
+    }
+    return mask
+})()
+
+const TILE_OFF_X = 16
+const TILE_OFF_Y = 1190
+
+// C integer division (truncates toward zero)
+const cdiv = (a: number, b: number) => Math.trunc(a / b)
+
+function tileFromScreenXY(screenX: number, screenY: number): Point {
+    const v2 = screenY - TILE_OFF_Y
+    const v3 = v2 >= 0 ? cdiv(v2, 12) : cdiv(v2 + 1, 12) - 1
+    const v4 = screenX - TILE_OFF_X - 16 * v3
+    const v5 = v2 - 12 * v3
+    const v6 = v4 >= 0 ? cdiv(v4, 64) : cdiv(v4 + 1, 64) - 1
+    let v10 = v6 + v3
+    let v8 = v4 - v6 * 64
+    let v11 = 2 * v6
+    if (v8 >= 32) {
+        v8 -= 32
+        v11++
+    }
+    switch (TILE_MASK[32 * v5 + v8]) {
+        case 2:
+            v11++
+            if (v11 & 1) v10--
+            break
+        case 1:
+            v10--
+            break
+        case 3:
+            v11--
+            if (!(v11 & 1)) v10++
+            break
+        case 4:
+            v10++
+            break
+    }
+    // CE: tile = W * v10 + (W - 1 - v11)  →  DH2 x = W - 1 - v11, y = v10
+    return { x: HEX_GRID_SIZE - 1 - v11, y: v10 }
+}
+
+// Top-left of a hex's 32x16 cell in DH2 world coords (CE tileToScreenXY result).
+export function hexCellTopLeft(x: number, y: number): Point {
+    const s = hexToScreen(x, y)
+    return { x: s.x - 16, y: s.y - 9 }
 }

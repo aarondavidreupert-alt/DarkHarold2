@@ -218,7 +218,7 @@ a believable playthrough.
   `0x500000C`) under the viewport center (RD11).
 - Ref: `tile.cc tileSetCenter()`; `object.cc:2559 _obj_scroll_blocking_at`
 
-### 8f. Hex click hit-testing approximate 🔴 (RD13)
+### 8f. Hex click hit-testing ✅ FIXED 2026-10-06 (RD13) — CE `_tile_mask` / `tileFromScreenXY` ported
 - CE uses `_tile_mask[512]` (32×16 px, 5 sub-regions) for pixel-precise edges.
 - DH2 uses cube-coordinate rounding — imprecise at hex boundaries.
 - Ref: `tile.cc:718 tileFromScreenXY()`

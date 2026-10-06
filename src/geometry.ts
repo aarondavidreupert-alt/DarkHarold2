@@ -30,6 +30,7 @@ export {
     cubeRound,
     сubeRoundToHex,
     hexFromScreen,
+    hexCellTopLeft,
     worldToHexBarycentric,
 } from './geometry/hexScreen.js'
 
