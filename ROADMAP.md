@@ -196,7 +196,7 @@ a believable playthrough.
   console command added.
 - Ref: `object.cc:4949 _obj_render()`; `proto.cc protoRead() case OBJ_TYPE_WALL`.
 
-### 8b. Flat object two-pass rendering ✅/🔴 RD07 FIXED 2026-07-27 / RD08 Missing
+### 8b. Flat object two-pass rendering ✅ RD07 FIXED 2026-07-27 / RD08 FIXED 2026-10-06
 - ✅ RD07 FIXED 2026-07-27 — `renderObjects()` now iterates objects twice: first pass renders only `OBJECT_FLAT` (0x8) objects (floor decals, blood pools) so they always draw under critters/items; second pass renders all non-flat objects. Blood pool `Obj` in `critterKill` gets `flags = 0x8`. CE ref: `object.cc:761 _obj_render_pre_roof()`.
 - RD08 still missing: post-roof object pass (`_obj_render_post_roof` at full intensity, `object.cc:862`). Objects that must appear above the roof layer (e.g. critters on rooftops) have no dedicated post-roof render path.
 - Ref: `object.cc:761 _obj_render_pre_roof()`; `object.cc:862 _obj_render_post_roof()`

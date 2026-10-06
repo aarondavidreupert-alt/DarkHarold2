@@ -176,20 +176,6 @@ export class Renderer {
                 ctx.restore()
             }
         }
-        if (Config.ui.showCursor && globalState.cursorMode === 'move') {
-            // hex_outline is a world-anchored overlay — project its world
-            // position through the zoom and scale the image dimensions too
-            // so it lines up with the (zoomed) hex grid underneath.
-            const z = getZoom()
-            const hexImg = globalState.images['hex_outline']
-            const hexW = hexImg?.naturalWidth ?? 32
-            const hexH = hexImg?.naturalHeight ?? 16
-            // CE draws the hex cursor at tileToScreenXY (cell top-left).
-            const scr = hexCellTopLeft(mouseHex.x, mouseHex.y)
-            const screen = worldToScreen(scr.x, scr.y)
-            this.renderImage('hex_outline', screen.x, screen.y, hexW * z, hexH * z)
-        }
-
         if (Config.ui.showObjects && this.objects) {
             this.renderObjects(this.objects)
         }
@@ -230,6 +216,23 @@ export class Renderer {
         // there; refreshHighlights() already excludes isPlayer from outlines.
         if (Config.ui.showObjects && globalState.inCombat && globalState.player) {
             this.renderObject(globalState.player)
+        }
+
+        if (Config.ui.showCursor && globalState.cursorMode === 'move') {
+            // CE ref: object.cc:862 _obj_render_post_roof — the hex cursor is a flat object
+            // whose paletted outline (game_mouse.cc:1973) is drawn in the post-roof
+            // outline pass, i.e. above objects and roofs. (Was drawn before objects.)
+            // hex_outline is a world-anchored overlay — project its world
+            // position through the zoom and scale the image dimensions too
+            // so it lines up with the (zoomed) hex grid underneath.
+            const z = getZoom()
+            const hexImg = globalState.images['hex_outline']
+            const hexW = hexImg?.naturalWidth ?? 32
+            const hexH = hexImg?.naturalHeight ?? 16
+            // CE draws the hex cursor at tileToScreenXY (cell top-left).
+            const scr = hexCellTopLeft(mouseHex.x, mouseHex.y)
+            const screen = worldToScreen(scr.x, scr.y)
+            this.renderImage('hex_outline', screen.x, screen.y, hexW * z, hexH * z)
         }
 
         for (const window of this.windows.filter((w) => w.showing)) {
