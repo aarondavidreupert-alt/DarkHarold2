@@ -30,6 +30,7 @@ import { dbg, dbgWarn } from '../logger.js'
 import { Scripting } from '../scripting.js'
 import { getMessage } from '../util.js'
 import { getAiPacket, AiPacket } from '../aiPackets.js'
+import { getObjectLightIntensity } from '../combat/hitChance.js'
 import { hitSpatialTrigger, Obj, objectIsWeapon, SerializedObj, setObjectOpen } from './Obj.js'
 import { WeaponObj } from './items.js'
 
@@ -273,11 +274,14 @@ export class Critter extends Obj {
         return this.hasAnimation('run')
     }
 
-    getSkill(skill: string) {
+    getSkill(skill: string): number {
         // FO2-CE ref: skill.cc skillGetValue() — player gets tagged/trait/perk/difficulty bonuses
         return this.skills.get(skill, this.stats, {
             isPlayer: this.isPlayer,
             perks: this.perks,
+            // CE perkGetSkillModifier: Ghost reads objectGetLightIntensity(gDude).
+            lightIntensity: skill === 'Sneak' && this.perks.includes('Ghost') && globalState.player
+                ? getObjectLightIntensity(globalState.player as Critter, true) : undefined,
         })
     }
 

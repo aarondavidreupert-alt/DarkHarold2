@@ -2,6 +2,7 @@
 // Perk requirement checking and application — split out of perks.ts per
 // wiki/ts-split-refactor.md → "Per-file split proposals" §11.
 
+import { perkApplyEffect, perkIdByName } from './cePerks.js'
 import { Player } from '../player.js'
 import { PerkDef, PERKS, SPECIAL } from './perks.data.js'
 
@@ -61,6 +62,8 @@ export function applyPerk(player: Player, perkName: string): void {
 
     player.perks.push(perkName)
     player.pendingPerkPick = false
+    // CE perk.cc:554 perkAddEffect — per-rank stat modifier (Toughness, Action Boy…).
+    perkApplyEffect(player, perkIdByName(perkName), 1)
 
     // Tag! enables the 4th tagged-skill slot in SkillSet
     if (perkName === 'Tag!') {

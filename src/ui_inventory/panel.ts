@@ -29,6 +29,7 @@ import { UIMode, closeAllPanels, isInventoryOpen, registerCloseInventoryPanel } 
 import { $id, clearEl, showv, hidev, makeEl } from '../ui_dom.js'
 import { makeDropTarget, makeDraggable, uiMoveSlot, applyArmorArt, tryLoadAmmoIntoWeapon, dragInProgress } from './dragdrop.js'
 import { refreshStealthState } from '../miscItem.js'
+import { armorPerkSwap } from '../perks.js'
 import { Events } from '../events.js'
 
 // --- Public open / close lifecycle -----------------------------------------
@@ -431,6 +432,7 @@ export function showInventory() {
                     if (playerAny.armor) {
                         globalState.player.inventory.push(playerAny.armor)
                     }
+                    armorPerkSwap(globalState.player!, playerAny.armor ?? null, obj)
                     playerAny.armor = obj
                 }
                 applyArmorArt(obj)
@@ -443,6 +445,7 @@ export function showInventory() {
                 globalState.player.inventory.push(obj)
                 playerAny[slot] = null
                 if (slot === 'armor') {
+                    armorPerkSwap(globalState.player!, obj, null)
                     applyArmorArt(null)
                     drawAC(globalState.player.getStat('AC'))
                 } else if (slot === 'leftHand' || slot === 'rightHand') {

@@ -121,7 +121,7 @@ export function getHitDistanceModifier(obj: Critter, target: Critter, weapon: Ob
 
 // CE ref: object.cc:1748 objectGetLightIntensity — tile intensity at obj's position,
 // subtracting the player's own light so self-illumination doesn't reduce darkness penalty.
-function getObjectLightIntensity(obj: Critter, isPlayer: boolean): number {
+export function getObjectLightIntensity(obj: Critter, isPlayer: boolean): number {
     const tileNum = toTileNum(obj.position)
     let intensity = Math.min(65536, Lightmap.tile_intensity[tileNum] ?? 655)
     if (isPlayer) intensity -= obj.lightIntensity

@@ -189,10 +189,10 @@ export class Combat {
 
     rollHit(obj: Critter, target: Critter, region: string, hitBonus: number = 0,
             attackerName?: string, defenderName?: string, critBonus: number = 0): any {
-        // FO2-CE ref: combat.cc rollCriticalHit() — Better Criticals perk: +30 per rank
-        const bcRanks = obj.perks.filter(p => p === 'Better Criticals').length
+        // FO2-CE ref: combat.cc:4104 — critterGetStat(STAT_BETTER_CRITICALS); the Better
+        // Criticals perk's +20 is applied to that stat by perkAddEffect (perks/cePerks.ts).
         // CE ref: unarmed.cc unarmedFindBestAttack — critBonus from unarmed move adds to crit level roll
-        var critModifer = obj.getStat('Better Criticals') + bcRanks * 30 + critBonus
+        var critModifer = obj.getStat('Better Criticals') + critBonus
         var hitChance = this.getHitChance(obj, target, region)
         hitChance = { ...hitChance, hit: hitChance.hit + hitBonus }
 

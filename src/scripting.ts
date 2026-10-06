@@ -39,7 +39,7 @@ import { parseIntFile } from './intfile.js'
 import { dbg, dbgWarn } from './logger.js'
 import { useElevator } from './main.js'
 import { Critter, createObjectWithPID, Obj, objectGetDamageType, zsort } from './object.js'
-import { applyPerk, getPerkRank, perkNameById, PERKS } from './perks.js'
+import { applyPerk, CE_PERKS, getPerkRank, perkApplyEffect, perkNameById, PERKS } from './perks.js'
 import { Player } from './player.js'
 import { loadPRO, lookupArt, makePID } from './pro.js'
 import * as Endgame from './endgame.js'
@@ -1031,11 +1031,13 @@ export module Scripting {
             if (traitType === 0) {
                 // CRITTER_TRAIT_PERK — CE ref: interpreter_extra.cc:2570 opHasTrait
                 // perkGetRank returns number of times perk acquired (0 = not present).
-                const def = PERKS[trait]
-                if (!def) return 0
+                // `trait` is the CE perk id (perk_defs.h), not an index into DH2's
+                // selectable PERKS list (the two diverge from id 33 on).
+                const name = perkNameById(trait)
+                if (!name) return 0
                 const critter = obj as Critter
                 if (!critter.isPlayer) return 0 // DH2 perk system is player-only
-                return getPerkRank(globalState.player as any, def.name)
+                return getPerkRank(globalState.player as any, name)
             }
 
             if (traitType === 1) {
@@ -1128,17 +1130,25 @@ export module Scripting {
                     dbg('script', 'critter_add_trait: PERK on non-player critter ignored (trait=%d)', trait)
                     return
                 }
-                const def = PERKS[trait]
-                if (!def) {
-                    warn(`critter_add_trait: unknown perk index ${trait}`)
+                // CE perk.cc perkAddForce / perkRemove, by CE perk id. Covers the
+                // special/quest perks (ids 70-118) that aren't in DH2's selectable list.
+                const name = perkNameById(trait)
+                const ce = CE_PERKS[trait]
+                if (!name || !ce) {
+                    warn(`critter_add_trait: unknown perk id ${trait}`)
                     return
                 }
                 if (amount > 0) {
-                    const rank = getPerkRank(player, def.name)
-                    if (rank < def.maxRanks) applyPerk(player, def.name)
+                    const rank = getPerkRank(player, name)
+                    if (ce.maxRank !== -1 && rank >= ce.maxRank) return
+                    player.perks.push(name)
+                    perkApplyEffect(player, trait, 1)
                 } else {
-                    const idx = player.perks.indexOf(def.name)
-                    if (idx >= 0) player.perks.splice(idx, 1)
+                    const idx = player.perks.indexOf(name)
+                    if (idx >= 0) {
+                        player.perks.splice(idx, 1)
+                        perkApplyEffect(player, trait, -1)
+                    }
                 }
                 return
             }
@@ -2373,7 +2383,11 @@ export module Scripting {
             }
             const name = perkNameById(param)
             const perks: string[] = (obj as any).perks ?? []
-            if (name) for (let i = perks.length - 1; i >= 0; i--) if (perks[i] === name) perks.splice(i, 1)
+            if (name) for (let i = perks.length - 1; i >= 0; i--) {
+                if (perks[i] !== name) continue
+                perks.splice(i, 1)
+                perkApplyEffect(obj as Critter, param, -1) // CE perkRemove → perkRemoveEffect
+            }
             return -1
         }
         // CE ref: interpreter_extra.cc:4937 op_dialogue_reaction (0x80E0)

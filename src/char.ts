@@ -32,6 +32,7 @@ export interface SkillCalcOptions {
     perks?: string[];
     traits?: string[];
     hasTagPerk?: boolean; // Tag! perk: allows 4th tagged skill (no +20 bonus on that slot)
+    lightIntensity?: number; // objectGetLightIntensity(gDude), for Ghost's Sneak bonus
 }
 
 export class SkillSet {
@@ -128,7 +129,7 @@ export class SkillSet {
                 value += traitGetSkillModifier(options.traits, skill);
             }
             if(options?.perks && options.perks.length > 0) {
-                value += perkGetSkillModifier(options.perks, skill);
+                value += perkGetSkillModifier(options.perks, skill, options.lightIntensity);
             }
             value += skillGetGameDifficultyModifier(skill);
         }

@@ -23,6 +23,7 @@ import { dbg, dbgWarn } from '../logger.js'
 import { refreshStealthState } from '../miscItem.js'
 import { Obj, cloneItem } from '../object.js'
 import type { Critter } from '../object.js'
+import { armorPerkSwap } from '../perks.js'
 import { lookupArt } from '../pro.js'
 import { Scripting } from '../scripting.js'
 import { uiGetAmount } from '../ui_barter/swap.js'
@@ -94,6 +95,7 @@ export function tryLoadAmmoIntoWeapon(ammoObj: Obj, weaponObj: Obj): boolean {
 // TODO: Rewrite this sanely (and not directly modify the player object's properties...)
 export async function uiMoveSlot(data: string, target: string) {
     const playerUnsafe = globalState.player as any
+    const oldArmor = playerUnsafe.armor ?? null
     let obj = null
 
     if (data[0] === 'i') {
@@ -164,6 +166,7 @@ export async function uiMoveSlot(data: string, target: string) {
 
     // Update armor appearance if armor slot changed
     if (target === 'armor' || data === 'armor') {
+        armorPerkSwap(globalState.player!, oldArmor, playerUnsafe.armor ?? null)
         if (target === 'armor' && obj) {
             const fid: number = globalState.player.gender === 'female'
                 ? (obj as any).pro?.extra?.femaleFID

@@ -218,30 +218,33 @@ export function skillGetGameDifficultyModifier(skill: string): number {
     return 0
 }
 
-// FO2-CE ref: skill.cc skillGetValue() → perkGetSkillModifier()
-// Maps perk names to skill bonuses. Perk ranks multiply the bonus.
+// FO2-CE ref: perk.cc:628 perkGetSkillModifier — perkHasRank checks (a perk counts
+// once, regardless of rank).
 const PERK_SKILL_MODIFIERS: { [perk: string]: { [skill: string]: number } } = {
-    'Thief':        { 'Sneak': 10, 'Lockpick': 10, 'Steal': 10, 'Traps': 10 },
-    'Master Thief': { 'Lockpick': 15, 'Steal': 15 },
-    'Medic':        { 'First Aid': 10, 'Doctor': 10 },
-    'Mr. Fixit':    { 'Science': 10, 'Repair': 10 },
-    'Speaker':      { 'Speech': 20 },
-    'Survivalist':  { 'Outdoorsman': 25 },
-    'Negotiator':   { 'Speech': 10, 'Barter': 10 },
-    'Salesman':     { 'Barter': 20 },
-    'Ranger':       { 'Outdoorsman': 15 },
-    // Ghost: +20 Sneak at night — requires time-of-day check, added as flat for now
-    'Ghost':        { 'Sneak': 20 },
+    'Medic':                     { 'First Aid': 10, 'Doctor': 10 },
+    'Vault City Training':       { 'First Aid': 5, 'Doctor': 5 },
+    'Living Anatomy':            { 'Doctor': 10 },
+    'Thief':                     { 'Sneak': 10, 'Lockpick': 10, 'Steal': 10, 'Traps': 10 },
+    'Master Thief':              { 'Lockpick': 15, 'Steal': 15 },
+    'Harmless':                  { 'Steal': 20 },
+    'Mr. Fixit':                 { 'Science': 10, 'Repair': 10 },
+    'Speaker':                   { 'Speech': 20 },
+    'Expert Excrement Expeditor': { 'Speech': 5 },
+    'Negotiator':                { 'Speech': 10, 'Barter': 10 },
+    'Salesman':                  { 'Barter': 20 },
+    'Gambler':                   { 'Gambling': 20 },
+    'Ranger':                    { 'Outdoorsman': 15 },
+    'Survivalist':               { 'Outdoorsman': 25 },
 }
 
-export function perkGetSkillModifier(perks: string[], skill: string): number {
+export function perkGetSkillModifier(perks: string[], skill: string, lightIntensity?: number): number {
     let mod = 0
-    for (const perk of perks) {
+    for (const perk of new Set(perks)) {
         const entry = PERK_SKILL_MODIFIERS[perk]
-        if (entry && entry[skill] !== undefined) {
-            mod += entry[skill]
-        }
+        if (entry && entry[skill] !== undefined) mod += entry[skill]
     }
+    // CE: Ghost +20 Sneak only while objectGetLightIntensity(gDude) > 45875 (literal CE test).
+    if (skill === 'Sneak' && perks.includes('Ghost') && (lightIntensity ?? 0) > 45875) mod += 20
     return mod
 }
 
