@@ -210,7 +210,6 @@ the wiki tracker is the source of truth.
 - **`actionFrame` from FRM headers** — discarded by `tools/frmpixels.py:40`; hit/sound sync absent for weapon attacks (FA3, asset-pipeline change).
 - **FID weapon-stance composition** — partially wired via `Weapon.getAnim` skin codes; CE `buildFid` parity not verified (FA6).
 - **Post-roof object rendering pass** (RD08), **palette colour cycling** for water/fire (RD10 — runtime done, pipeline exports RGBA), **pixel-precise hex hit-testing** via `_tile_mask` (RD13).
-- **Missing map assets** — `maps/mbase34.json` and `maps/klacanyn.json` are 0-byte files; needs pipeline re-extraction (M7).
 
 See [`wiki/known_bugs.md`](wiki/known_bugs.md) for the complete tracker with CE references and fix
 status per ID.

@@ -348,7 +348,7 @@ covered by Phases 1–8.
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
 | PS2 | ✅ FIXED (prior sprint) — `FO1 = False` is set in `tools/proto.py` line 20; critter `damageType` is extracted for all critters except killType 5/10 (Robots/Brahmin), which is the correct FO2 proto structure. | `proto_types.h CritterProtoData.damageType` | major |
-| M7 | **Five 0-byte map JSONs** — `mbase34`, `klacanyn` (both in `maps.txt`, reachable) plus unused `newr1a`/`newr2a`/`rndparih`. Re-extract with `fomap.py`. | — | major |
+| M7 | ✅ FIXED 2026-10-06 — 0-byte maps were a `fomap.py` critter-art crash; CE `artBuildFilePath` ported; mbase34/klacanyn/rndparih re-exported. | `art.cc:615` | major |
 | FA3 | **`actionFrame` discarded by `tools/frmpixels.py`.** Field not saved; hit-frame sync absent. | `art.h ArtFrame.actionFrame` | major |
 | PS3 | 🟡 Pipeline FIXED 2026-07-04 (tile PROs extracted); runtime does not consume them yet. | `proto_types.h TileProto` | low |
 | PS4 | **Wall and misc `extra` fields not parsed.** `WallProto.extra` / `MiscProto.extra` absent. | `proto_types.h` | low |

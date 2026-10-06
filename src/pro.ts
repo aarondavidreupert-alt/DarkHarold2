@@ -55,57 +55,59 @@ export function makePID(type: number, pid: number) {
     return (type << 24) | pid
 }
 
+// Critter animations that CE redirects to the critter's alias art (critters.lst
+// 2nd field — stored as `walk` in lut/lst/art_critters.json).
+// CE ref: art.cc:904 artAliasFid()
+const ALIASED_CRITTER_ANIMS = [27, 29, 30, 55, 57, 58, 33, 64]
+
+// Port of CE art.cc:544 _art_get_code(). Returns [weaponCode, animCode] or null.
+function artGetCode(animation: number, weaponType: number): [string, string] | null {
+    const chr = (base: string, off: number) => String.fromCharCode(base.charCodeAt(0) + off)
+    if (weaponType < 0 || weaponType >= 11) return null
+    if (animation >= 38 && animation <= 47) { // ANIM_TAKE_OUT..ANIM_FIRE_CONTINUOUS
+        if (weaponType === 0) return null
+        return [chr('d', weaponType - 1), chr('c', animation - 38)]
+    }
+    if (animation === 36) return ['c', 'h'] // ANIM_PRONE_TO_STANDING
+    if (animation === 37) return ['c', 'j'] // ANIM_BACK_TO_STANDING
+    if (animation === 64) return ['n', 'a'] // ANIM_CALLED_SHOT_PIC
+    if (animation >= 48) return ['r', chr('a', animation - 48)] // FIRST_SF_DEATH_ANIM
+    if (animation >= 20) return ['b', chr('a', animation - 20)] // FIRST_KNOCKDOWN_AND_DEATH_ANIM
+    if (animation === 18) { // ANIM_THROW_ANIM
+        if (weaponType === 1) return ['d', 'm'] // knife
+        if (weaponType === 4) return ['g', 'm'] // spear
+        return ['a', 's']
+    }
+    if (animation === 13) // ANIM_DODGE_ANIM
+        return weaponType <= 0 ? ['a', 'n'] : [chr('d', weaponType - 1), 'e']
+    const animCode = chr('a', animation)
+    if (animation <= 1 && weaponType > 0) return [chr('d', weaponType - 1), animCode]
+    return ['a', animCode]
+}
+
+// Port of CE art.cc:615 artBuildFilePath() for OBJ_TYPE_CRITTER (without extension).
+// Previously threw "reindex(?)" / "0x14" etc. for death, dodge and throw animations.
 function getCritterArtPath(frmPID: number) {
     dbg('object', "FRM PID: " + frmPID)
     var idx = (frmPID & 0x00000fff)
-    var id1 = (frmPID & 0x0000f000) >> 12
-    var id2 = (frmPID & 0x00ff0000) >> 16
-    //var id3 = (frmPID & 0x70000000) >> 28
+    var weaponType = (frmPID & 0x0000f000) >> 12
+    var anim = (frmPID & 0x00ff0000) >> 16
 
-    if (id2 == 0x1b || id2 == 0x1d ||
-            id2 == 0x1e || id2 == 0x37 ||
-            id2 == 0x39 || id2 == 0x3a ||
-            id2 == 0x21 || id2 == 0x40) {
-        throw "reindex(?)"
-    }
-
-    var path = "art/critters/" + getLstJson("art/critters/critters", idx)!.frm.toLowerCase()
-
-    if(id1 >= 0x0b)
-        throw "?"
-
-    if(id2 >= 0x26 && id2 <= 0x2f)
-        throw ("0x26 and 0x2f")
-    else if(id2 === 0x24)
-        path += "ch"
-    else if(id2 === 0x25)
-        path += "cj"
-    else if(id2 >= 0x30)
-        path += 'r' + String.fromCharCode(id2 + 0x31)
-    else if(id2 >= 0x14)
-        throw "0x14"
-    else if (id2 === 0x12) {
-        throw "0x12"
-        /*if(id1 === 0x01)
-            path += "dm"
-        else if(id1 === 0x04)
-            path += "gm"
-        else
-            path += "as"*/
-    }
-    else if(id2 === 0x0d)
-        throw "0x0d"
-    else {
-        if(id2 <= 1 && id1 > 0) {
-            dbg('object', "ID1: " + id1)
-            path += String.fromCharCode(id1 + 'c'.charCodeAt(0))
+    if (ALIASED_CRITTER_ANIMS.includes(anim)) {
+        const alias = getLstJson("art/critters/critters", idx)?.walk
+        if (typeof alias === 'number' && alias > 0) idx = alias
+        else {
+            // CE falls back to the vault-dweller art when the lst line has no alias.
+            for (let i = 1, e; (e = getLstJson("art/critters/critters", i)) !== null; i++)
+                if (e.frm?.toLowerCase() === 'hmjmps') { idx = i; break }
         }
-        else
-            path += 'a'
-        path += String.fromCharCode(id2 + 'a'.charCodeAt(0))
     }
 
-    return path
+    const code = artGetCode(anim, weaponType)
+    if (code === null)
+        throw `getCritterArtPath: no art code for anim=${anim} weapon=${weaponType}`
+
+    return "art/critters/" + getLstJson("art/critters/critters", idx)!.frm.toLowerCase() + code[0] + code[1]
 }
 
 export function lookupInterfaceArt(idx: number) {

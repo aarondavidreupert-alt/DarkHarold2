@@ -132,7 +132,12 @@ def parseMapScripts(f, scriptLst: list[bytes]):
                             # filter them out here.
 
                             print("invalid spatial script range:", spatialRange, " i=", i)
-                            print("script:", script)
+                            print("script ID:", scriptID)
+                        elif scriptID < 0 or scriptID >= len(scriptLst):
+                            # Unused maps (newr1a/newr2a) carry spatial entries whose script
+                            # index is past the end of scripts.lst; skip them like CE does
+                            # when scriptGetScript() fails, instead of aborting the export.
+                            print("spatial script ID out of range:", scriptID, " i=", i)
                         else:
                             #print "script id:", script.spatialScriptID, "or", (script.spatialScriptID & 0xffff)
                             scriptName = stripExt(scriptLst[scriptID].decode('ascii').split()[0])
@@ -156,57 +161,92 @@ def parseMapScripts(f, scriptLst: list[bytes]):
 
     return {"count": totalScriptCount, "spatials": spatials, "mapScriptPIDs": mapScriptPIDs}
 
-# TODO: rewrite this
+# Critter animation IDs used by the FID → filename mapping (CE animation.h).
+ANIM_WALK = 1
+ANIM_DODGE_ANIM = 13
+ANIM_THROW_ANIM = 18
+ANIM_FALL_BACK = 20                 # FIRST_KNOCKDOWN_AND_DEATH_ANIM
+ANIM_ELECTRIFY = 27
+ANIM_BURNED_TO_NOTHING = 29
+ANIM_ELECTRIFIED_TO_NOTHING = 30
+ANIM_FIRE_DANCE = 33
+ANIM_PRONE_TO_STANDING = 36
+ANIM_BACK_TO_STANDING = 37
+ANIM_TAKE_OUT = 38
+ANIM_FIRE_CONTINUOUS = 47
+ANIM_FALL_BACK_SF = 48              # FIRST_SF_DEATH_ANIM
+ANIM_ELECTRIFY_SF = 55
+ANIM_BURNED_TO_NOTHING_SF = 57
+ANIM_ELECTRIFIED_TO_NOTHING_SF = 58
+ANIM_CALLED_SHOT_PIC = 64
+WEAPON_ANIMATION_KNIFE = 1
+WEAPON_ANIMATION_SPEAR = 4
+WEAPON_ANIMATION_COUNT = 11
+
+# Animations that CE redirects to the critter's alias art (critters.lst 2nd field).
+ALIASED_ANIMS = (ANIM_ELECTRIFY, ANIM_BURNED_TO_NOTHING, ANIM_ELECTRIFIED_TO_NOTHING,
+                 ANIM_ELECTRIFY_SF, ANIM_BURNED_TO_NOTHING_SF, ANIM_ELECTRIFIED_TO_NOTHING_SF,
+                 ANIM_FIRE_DANCE, ANIM_CALLED_SHOT_PIC)
+
+def artGetCode(animation, weaponType):
+    """Port of CE art.cc:544 _art_get_code(). Returns (weaponCode, animCode) or None."""
+    if weaponType < 0 or weaponType >= WEAPON_ANIMATION_COUNT:
+        return None
+    if ANIM_TAKE_OUT <= animation <= ANIM_FIRE_CONTINUOUS:
+        if weaponType == 0:
+            return None
+        return chr(ord('d') + weaponType - 1), chr(ord('c') + animation - ANIM_TAKE_OUT)
+    if animation == ANIM_PRONE_TO_STANDING:
+        return 'c', 'h'
+    if animation == ANIM_BACK_TO_STANDING:
+        return 'c', 'j'
+    if animation == ANIM_CALLED_SHOT_PIC:
+        return 'n', 'a'
+    if animation >= ANIM_FALL_BACK_SF:
+        return 'r', chr(ord('a') + animation - ANIM_FALL_BACK_SF)
+    if animation >= ANIM_FALL_BACK:
+        return 'b', chr(ord('a') + animation - ANIM_FALL_BACK)
+    if animation == ANIM_THROW_ANIM:
+        if weaponType == WEAPON_ANIMATION_KNIFE:
+            return 'd', 'm'
+        if weaponType == WEAPON_ANIMATION_SPEAR:
+            return 'g', 'm'
+        return 'a', 's'
+    if animation == ANIM_DODGE_ANIM:
+        if weaponType <= 0:
+            return 'a', 'n'
+        return chr(ord('d') + weaponType - 1), 'e'
+    animCode = chr(ord('a') + animation)
+    if animation <= ANIM_WALK and weaponType > 0:
+        return chr(ord('d') + weaponType - 1), animCode
+    return 'a', animCode
+
 def getCritterArtPath(frmPID, critterLst: list[bytes]):
-    idx =  frmPID & 0x00000fff
-    id1 = (frmPID & 0x0000f000) >> 12
-    id2 = (frmPID & 0x00ff0000) >> 16
-    id3 = (frmPID & 0x70000000) >> 28
+    """Port of CE art.cc:615 artBuildFilePath() for OBJ_TYPE_CRITTER, including
+    the artAliasFid() (art.cc:904) redirect for electrify/burn/fire-dance/called-shot
+    animations. Previously this raised "reindex" for those animations, which made
+    whole maps (e.g. mbase34, klacanyn) fail to export."""
+    rotation = (frmPID & 0x70000000) >> 28
+    anim = (frmPID & 0x00ff0000) >> 16
+    weaponType = (frmPID & 0x0000f000) >> 12
+    idx = frmPID & 0x00000fff
 
-    if (id2 == 0x1b or id2 == 0x1d or
-            id2 == 0x1e or id2 == 0x37 or
-            id2 == 0x39 or id2 == 0x3a or
-            id2 == 0x21 or id2 == 0x40):
-        raise Exception("reindex")
-
-    path = "art/critters/" + critterLst[idx].decode('ascii').split(",")[0].upper()
-
-    if (id1 >= 0x0b):
-        raise Exception("?")
-
-    if (id2 >= 0x26 and id2 <= 0x2f):
-        raise Exception("0x26 and 0x2f")
-    elif (id2 == 0x24):
-        path += "ch"
-    elif (id2 == 0x25):
-        path += "cj"
-    elif (id2 >= 0x30):
-        path += 'r' + chr(id2 + 0x31)
-    elif (id2 >= 0x14):
-        raise Exception("0x14")
-    elif (id2 == 0x12):
-        raise Exception("0x12")
-        if id1 == 0x01:
-            path += "dm"
-        elif id1 == 0x04:
-            path += "gm"
+    if anim in ALIASED_ANIMS:
+        fields = critterLst[idx].decode('ascii').strip().split(",")
+        if len(fields) > 1 and fields[1].strip():
+            idx = int(fields[1])
         else:
-            path += "as"
-    elif (id2 == 0x0d):
-        raise Exception("0x0d")
-    else:
-        if (id2 <= 1 and id1 > 0):
-            path += chr(id1 + ord('c'))
-        else:
-            path += 'A'
-        path += chr(id2 + ord('a'))
+            # CE falls back to the vault-dweller art (hmjmps) when no alias is given.
+            names = [l.decode('ascii').split(",")[0].strip().lower() for l in critterLst]
+            idx = names.index("hmjmps")
 
-    path += ".fr"
-    if not id3:
-        path += "m"
-    else:
-        path += str(id3 - 1)
+    code = artGetCode(anim, weaponType)
+    if code is None:
+        raise Exception("no art code for anim=%d weapon=%d" % (anim, weaponType))
 
+    path = "art/critters/" + critterLst[idx].decode('ascii').split(",")[0].strip().lower()
+    path += code[0] + code[1]
+    path += ".frm" if not rotation else ".fr" + chr(rotation + 47)
     return path
 
 def parseItemObj(f, frmPID, protoPID, itemsLst, itemsProtoLst):
@@ -490,9 +530,11 @@ def exportMap(dataDir: str, mapFile: str, outFile: str, verbose=False):
                }
 
     with open(mapFile, "rb") as fin:
+        # Parse before opening the output: a parse failure used to leave a
+        # 0-byte .json behind, which the engine then failed to load.
+        map = parseMap(fin, lstFiles)
         with open(outFile, "w") as fout:
             if verbose: print("writing %s..." % outFile)
-            map = parseMap(fin, lstFiles)
             json.dump(map, fout)
 
             # write image list
