@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { ammoGetCapacity, ammoGetQuantity, findReloadAmmo, weaponReload } from './weaponAmmo.js'
 import { Combat } from './combat.js'
 import globalState from './globalState.js'
 import { dbg } from './logger.js'
@@ -207,28 +208,20 @@ export function initUI() {
 
     /** Attempt to reload weaponObj from inventory. Returns true if rounds were loaded. */
     function reloadWeapon(weaponObj: Obj): boolean {
-        const w = weaponObj as any
-        const ammoPID: number | undefined = w.pro?.extra?.ammoPID
-        const maxAmmo: number = w.pro?.extra?.maxAmmo ?? 0
-        const currentRounds: number = w.pro?.extra?.rounds ?? 0
-        if (maxAmmo <= 0 || currentRounds >= maxAmmo) return false
+        const maxAmmo = ammoGetCapacity(weaponObj)
+        if (maxAmmo <= 0 || ammoGetQuantity(weaponObj) >= maxAmmo) return false
 
-        // Find compatible ammo in inventory by matching pid
-        const inv = globalState.player.inventory as any[]
-        const ammoIdx = inv.findIndex((item) => item.pid === ammoPID)
-        if (ammoIdx === -1) {
+        // CE item.cc weaponCanBeReloadedWith — first ammo of the weapon's caliber.
+        const inv = globalState.player.inventory
+        const ammoItem = findReloadAmmo(weaponObj, inv)
+        if (ammoItem === null) {
             uiLog("No compatible ammo in inventory.")
             return false
         }
 
-        const ammoItem = inv[ammoIdx]
-        const needed = maxAmmo - currentRounds
-        const available: number = ammoItem.amount ?? 1
-        const toLoad = Math.min(needed, available)
-
-        w.pro.extra.rounds = currentRounds + toLoad
-        ammoItem.amount = available - toLoad
-        if (ammoItem.amount <= 0) inv.splice(ammoIdx, 1)
+        const toLoad = weaponReload(weaponObj, ammoItem)
+        if (toLoad <= 0) return false
+        if ((ammoItem.amount ?? 0) <= 0) inv.splice(inv.indexOf(ammoItem), 1)
 
         uiLog(`Reloaded ${toLoad} round${toLoad !== 1 ? 's' : ''}.`)
         return true

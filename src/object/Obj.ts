@@ -17,6 +17,7 @@ limitations under the License.
 // Obj base class + top-of-file helpers + SerializedObj interface.
 // Split out of object.ts per wiki/ts-split-refactor.md §2.
 
+import { initWeaponAmmo } from '../weaponAmmo.js'
 import { critterDamage } from '../critter.js'
 import { getLstId, lookupScriptName } from '../data.js'
 import { Events, scheduleExplosion } from '../events.js'
@@ -310,6 +311,8 @@ export interface SerializedObj {
 
     miscOn?: boolean
     miscCharges?: number
+    ammoQuantity?: number
+    ammoTypePid?: number
 }
 
 export class Obj {
@@ -369,6 +372,8 @@ export class Obj {
 
     miscOn?: boolean      // CE ref: item.cc miscItemIsOn() — true while trickle event is queued
     miscCharges?: number  // CE ref: item.cc — remaining charge count (Stealth Boy / Geiger Counter)
+    ammoQuantity?: number // CE obj->data.item.weapon.ammoQuantity — rounds loaded (weapons; see weaponAmmo.ts)
+    ammoTypePid?: number  // CE obj->data.item.weapon.ammoTypePid — loaded ammo type
 
     static fromPID(pid: number, sid?: number): Obj {
         return Obj.fromPID_(new Obj(), pid, sid)
@@ -404,6 +409,7 @@ export class Obj {
             obj.art = 'art/items/RESERVED'
         }
 
+        initWeaponAmmo(obj)
         obj.init()
         obj.loadScript(sid)
         return obj
@@ -439,6 +445,20 @@ export class Obj {
         obj.miscCharges = mobj.miscCharges
 
         obj.pro = mobj.pro || loadPRO(obj.pid, obj.pidID)
+        if (obj.subtype === 'weapon') {
+            if (deserializing && mobj.ammoQuantity === undefined && mobj.pro?.extra) {
+                // Saves from before per-object ammo kept the loaded rounds/type in a
+                // copy of the proto; take them from there and go back to the real proto.
+                obj.ammoQuantity = mobj.pro.extra.rounds
+                obj.ammoTypePid = mobj.pro.extra.ammoPID
+                obj.pro = loadPRO(obj.pid, obj.pidID) ?? mobj.pro
+            } else {
+                obj.ammoQuantity = mobj.ammoQuantity
+                obj.ammoTypePid = mobj.ammoTypePid
+            }
+            // CE proto.cc:585 objectDataRead — the map stores ammoQuantity/ammoTypePid.
+            initWeaponAmmo(obj, mobj.extra?.ammoQuantity, mobj.extra?.ammoTypePid)
+        }
         obj.flags = mobj.flags // NOTE: Tested with two objects in Mapper, map object flags seem to inherit PROs already and should thus use them
 
         // etc? TODO: check this!
@@ -1195,6 +1215,8 @@ export class Obj {
             lightIntensity: this.lightIntensity,
             miscOn: this.miscOn,
             miscCharges: this.miscCharges,
+            ammoQuantity: this.ammoQuantity,
+            ammoTypePid: this.ammoTypePid,
         }
     }
 }

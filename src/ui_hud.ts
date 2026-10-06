@@ -17,6 +17,7 @@ limitations under the License.
 // Main HUD bar: HP / AC / AP readouts, weapon display, combat-mode buttons,
 // combat hover info, and the scrolling message log.
 
+import { ammoGetQuantity } from './weaponAmmo.js'
 import globalState from './globalState.js'
 import { Critter, Obj, WeaponObj, objectIsWeapon } from './object.js'
 import { getMessage } from './util.js'
@@ -474,7 +475,7 @@ export function uiUpdateAmmoBar(weapon: WeaponObj | null): void {
     let ratio = 0
     const extra = (weapon as any)?.pro?.extra
     if (extra?.maxAmmo > 0) {
-        ratio = Math.floor(((extra.rounds ?? 0) / extra.maxAmmo) * 70)
+        ratio = Math.floor((ammoGetQuantity(weapon) / extra.maxAmmo) * 70)
     } else if (extra?.maxCharges > 0) {
         ratio = Math.floor(((extra.charges ?? 0) / extra.maxCharges) * 70)
     }

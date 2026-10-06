@@ -130,7 +130,9 @@ def readDrugEffect(f):
 def readItem(f: BufferedReader):
 	obj: Dict[str, Any] = {}
 
-	flagsExt = repr(f.read(3))
+	# CE proto.cc protoItemDataRead: extendedFlags is a big-endian int32 whose low
+	# byte is attackMode; keep the other three bytes as raw ints (bytes[i] is an int).
+	flagsExt = f.read(3)
 	attackMode = ord(f.read(1))
 	scriptID = read32(f)
 	objSubType = read32(f)
@@ -141,11 +143,9 @@ def readItem(f: BufferedReader):
 	invFRM = read32(f)
 	soundID = ord(f.read(1))
 
-	# FIXME: `flagsExt` is of `bytes` type that can't represented as JSON without additional conversions.
-	# obj["flagsExt"] = flagsExt
-	obj["itemFlags"] = ord(flagsExt[0])
-	obj["actionFlags"] = ord(flagsExt[1])
-	obj["weaponFlags"] = ord(flagsExt[2])
+	obj["itemFlags"] = flagsExt[0]
+	obj["actionFlags"] = flagsExt[1]
+	obj["weaponFlags"] = flagsExt[2]
 	obj["attackMode"] = attackMode
 	obj["scriptID"] = scriptID
 	obj["subType"] = objSubType

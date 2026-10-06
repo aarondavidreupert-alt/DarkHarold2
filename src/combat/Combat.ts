@@ -15,29 +15,36 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, findReloadAmmo, weaponGetBurstRounds, weaponReload } from '../weaponAmmo.js'
 import { AudioEngine } from '../audio.js'
 import { Config } from '../config.js'
 import { CriticalEffects } from '../criticalEffects.js'
 import { critterDamage, critterKill } from '../critter.js'
 import { tickCombatTurn } from '../events.js'
 import * as GameTime from '../gametime.js'
-import { hexDirectionTo, hexDistance, hexInDirection, hexInDirectionDistance, hexLine, hexNearestNeighbor, hexNeighbors, Point } from '../geometry.js'
+import { hexDirectionTo, hexDistance, hexInDirection, hexInDirectionDistance, hexLine, hexLineBeyond, hexNearestNeighbor, hexNeighbors, Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { eventLogPush, dbg, dbgWarn } from '../logger.js'
-import { Critter, Obj } from '../object.js'
+import { createObjectWithPID, Critter, Obj } from '../object.js'
 import { Player } from '../player.js'
 import { Scripting } from '../scripting.js'
 import { drawAC, drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiEndButtonsGreenLights, uiEndButtonsRedLights, uiLog, uiStartCombat } from '../ui.js'
-import { clamp, getMessage, getRandomInt, rollSkillCheck } from '../util.js'
+import { clamp, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollSkillCheck } from '../util.js'
+import { randomBetween } from '../random.js'
+import { toTileNum } from '../tile.js'
 import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from '../unarmed.js'
 import { ActionPoints } from './actionPoints.js'
 import { AI, fleeHpThreshold } from './AI.js'
 import { computeDamage } from './damage.js'
+import { combatIsShotBlocked, nextShootObstacle } from './lineOfFire.js'
+import { lazyLoadImage } from '../images.js'
+import { makePID } from '../pro.js'
 import {
     accountForPartialCover as _accountForPartialCover,
     getAmmoStats as _getAmmoStats,
     getHitChance as _getHitChance,
     getHitDistanceModifier as _getHitDistanceModifier,
+    weaponAttackType,
 } from './hitChance.js'
 
 // Turn-based combat system
@@ -89,9 +96,8 @@ function getCritFailTableType(weapon: any): string {
 // Returns true when the weapon can be fired (melee/unarmed always ok; ranged ok if rounds > 0)
 function aiHaveAmmo(weaponObj: Obj | null): boolean {
     if (!weaponObj) return true // unarmed — always valid
-    const maxAmmo: number = (weaponObj as any)?.pro?.extra?.maxAmmo ?? 0
-    if (maxAmmo === 0) return true // melee/unarmed — no ammo needed
-    return ((weaponObj as any)?.pro?.extra?.rounds ?? 0) > 0
+    if (ammoGetCapacity(weaponObj as any) === 0) return true // melee/unarmed — no ammo needed
+    return ammoGetQuantity(weaponObj as any) > 0
 }
 
 // Clears the DH2-only 'blue' neutral-critter outline (see
@@ -222,32 +228,13 @@ export class Combat {
                 }
             }
             if (isCrit === true) {
-                // CE ref: combat.cc:4102 attackComputeCriticalHit — non-uniform effect bands
-                const critRoll = getRandomInt(1, 100) + critModifer
-                const critLevel = critRoll <= 20 ? 0
-                                : critRoll <= 45 ? 1
-                                : critRoll <= 70 ? 2
-                                : critRoll <= 90 ? 3
-                                : critRoll <= 100 ? 4
-                                : 5
-                combatDebug(`crit hit: roll=${roll} critRoll=${critRoll} level=${critLevel}`)
-                dbg('rolls', `${aName} scores a CRITICAL HIT on ${dName}! (level ${critLevel})`)
-                if (attackerName) uiLog(`${attackerName} scores a CRITICAL HIT on ${defenderName}! (level ${critLevel})`)
-                var crit = CriticalEffects.getCritical(target.killType ?? 0, region, critLevel)
-                var critStatus = crit.doEffectsOn(target)
-                // FO2-CE ref: combat.cc — melee crits use a separate table with half DM
-                var critDM = critStatus.DM
-                const atkWep = obj.equippedWeapon?.weapon
-                if (atkWep && atkWep.type === 'melee' && atkWep.weaponSkillType !== 'Unarmed') {
-                    critDM = Math.max(2, Math.floor(critDM / 2))
-                }
-
+                const c = this.computeCriticalHit(obj, target, region, critModifer, attackerName, defenderName)
                 eventLogPush({
                     actor: aName, action: 'attack-roll', target: dName, result: 'crit',
                     region, roll, hitChance: hitChance.hit, critChance: hitChance.crit,
-                    critLevel, message: `${aName} → ${dName}: critical hit (${region})`,
+                    critLevel: c.level, message: `${aName} → ${dName}: critical hit (${region})`,
                 })
-                return { hit: true, crit: true, DM: critDM, msgID: critStatus.msgID } // crit
+                return { hit: true, crit: true, DM: c.DM, msgID: c.msgID } // crit
             }
 
             combatDebug(`hit: roll=${roll} vs ${hitChance.hit}%`)
@@ -283,6 +270,63 @@ export class Combat {
             message: `${aName} → ${dName}: ${isCrit ? 'critical miss' : 'miss'} (${region})`,
         })
         return { hit: false, crit: isCrit } // miss
+    }
+
+    // CE ref: combat.cc:4102 attackComputeCriticalHit — non-uniform effect bands on
+    // d100 + Better Criticals; the table effect is applied to the target and its damage
+    // multiplier returned (melee weapons halve it, min 2).
+    computeCriticalHit(obj: Critter, target: Critter, region: string, critModifier: number,
+                       attackerName?: string, defenderName?: string): { DM: number; msgID: any; level: number } {
+        const critRoll = getRandomInt(1, 100) + critModifier
+        const critLevel = critRoll <= 20 ? 0
+                        : critRoll <= 45 ? 1
+                        : critRoll <= 70 ? 2
+                        : critRoll <= 90 ? 3
+                        : critRoll <= 100 ? 4
+                        : 5
+        combatDebug(`crit hit: critRoll=${critRoll} level=${critLevel}`)
+        dbg('rolls', `${actorName(obj)} scores a CRITICAL HIT on ${actorName(target)}! (level ${critLevel})`)
+        if (attackerName) uiLog(`${attackerName} scores a CRITICAL HIT on ${defenderName}! (level ${critLevel})`)
+        const crit = CriticalEffects.getCritical(target.killType ?? 0, region, critLevel)
+        const critStatus = crit.doEffectsOn(target)
+        let critDM = critStatus.DM
+        const atkWep = obj.equippedWeapon?.weapon
+        if (atkWep && atkWep.type === 'melee' && atkWep.weaponSkillType !== 'Unarmed') {
+            critDM = Math.max(2, Math.floor(critDM / 2))
+        }
+        return { DM: critDM, msgID: critStatus.msgID, level: critLevel }
+    }
+
+    // CE ref: combat.cc attackComputeCriticalFailure — d100 adjusted by Luck picks the
+    // level in the weapon's critical-failure table.
+    private doCriticalFailure(obj: Critter, weapon: any, who: string): void {
+        const critFailMod = (obj.getStat('LUK') - 5) * -5
+        const critFailRoll = Math.floor(getRandomInt(1, 100) - critFailMod)
+        let critFailLevel = 1
+        if (critFailRoll <= 20) critFailLevel = 1
+        else if (critFailRoll <= 50) critFailLevel = 2
+        else if (critFailRoll <= 75) critFailLevel = 3
+        else if (critFailRoll <= 95) critFailLevel = 4
+        else critFailLevel = 5
+
+        uiLog(`${who} critically fails!`)
+        combatDebug(`crit fail: level=${critFailLevel} roll=${critFailRoll}`)
+
+        const critFailTableType = getCritFailTableType(weapon)
+        const critFailEffect = CriticalEffects.criticalFailTable[critFailTableType]?.[critFailLevel]
+            ?? CriticalEffects.criticalFailTable.unarmed[critFailLevel]
+        CriticalEffects.temporaryDoCritFail(critFailEffect, obj)
+    }
+
+    // Damage, combat_p_proc and death for one victim of a ranged attack. Returns false
+    // if combat ended (a script stopped it), so the caller stops resolving.
+    private applyRangedDamage(attacker: Critter, victim: Critter, damage: number, dmgType: string): boolean {
+        critterDamage(victim, damage, attacker, true, true, dmgType)
+        if (victim.isPlayer) drawHP(victim.getStat('HP'))
+        if (!victim.dead && victim._script?.combat_p_proc) Scripting.combatEvent(victim, 'damage')
+        if (!globalState.combat) return false
+        if (victim.dead) this.perish(victim, attacker, dmgType)
+        return true
     }
 
     /** Vanilla damage calculation (fallout2-ce attackComputeDamage, lines 4578-4615).
@@ -536,77 +580,9 @@ export class Combat {
         }
 
         // ── BURST MODE ────────────────────────────────────────────────────────
-        // 3-line cone spread (FO2: _compute_spray + _shoot_along_path).
-        // Rounds split: center≈½, left≈¼, right≈¼.  All critters on each line are eligible.
+        // CE combat.cc _compute_spray + _shoot_along_path (see resolveSpray).
         if (weapon && weapon.isBurst && weapon.isBurst()) {
-            const burstCount: number = (weaponObj as any)?.pro?.extra?.burstCount ?? 10
-            combatDebug(`burst: count=${burstCount} weapon=${weapon.name}`)
-
-            const centerCount = Math.floor(burstCount / 2)
-            const remaining = burstCount - centerCount
-            const leftCount = Math.floor(remaining / 2)
-            const rightCount = remaining - leftCount
-
-            const dir = hexDirectionTo(obj.position, target.position)
-            const cones = [
-                { dir,              count: centerCount },
-                { dir: (dir+1) % 6, count: leftCount   }, // left cone
-                { dir: (dir+5) % 6, count: rightCount  }, // right cone
-            ]
-
-            // Accumulate damage per critter across all cone lines
-            const damageMap = new Map<Critter, number>()
-            let totalBulletHits = 0
-            const mapObjects = globalState.gMap?.getObjects() ?? []
-
-            for (const cone of cones) {
-                if (cone.count === 0) continue
-                const coneEnd = hexInDirectionDistance(target.position, cone.dir, 2)
-                const line = hexLine(obj.position, coneEnd) ?? []
-                for (const pos of line) {
-                    for (const o of mapObjects) {
-                        if (!(o instanceof Critter) || o.dead || o === obj) continue
-                        if (o.position.x !== pos.x || o.position.y !== pos.y) continue
-                        for (let b = 0; b < cone.count; b++) {
-                            const bRoll = this.rollHit(obj, o, 'torso', -20)
-                            if (bRoll.hit) {
-                                totalBulletHits++
-                                const dmg = this.getDamageDone(obj, o, bRoll.crit ? bRoll.DM : 2)
-                                damageMap.set(o, (damageMap.get(o) ?? 0) + dmg)
-                            }
-                        }
-                    }
-                }
-            }
-
-            uiLog(`${who} burst-fired at ${targetName}: ${totalBulletHits}/${burstCount} hits`)
-
-            if (damageMap.size > 0) {
-                // Burst fire: the wa<id>2xxx1 attack sample already covers the
-                // whole volley, so skip per-victim impact sounds (they stacked
-                // into a rapid-fire click train).
-                for (const [victim, dmg] of damageMap) {
-                    const victimName = victim.isPlayer ? 'you' : victim.name
-                    uiLog(`  ${victimName} took ${dmg} damage`)
-                    critterDamage(victim, dmg, obj, true, true, attackDmgType)
-                    if (victim.isPlayer) drawHP(victim.getStat('HP'))
-                    if (!victim.dead && victim._script?.combat_p_proc) {
-                        Scripting.combatEvent(victim, 'damage')
-                    }
-                    if (!globalState.combat) return
-                    if (victim.dead) this.perish(victim, obj, attackDmgType)
-                }
-            } else {
-                if (!(window as any).__test?.fastMode) audio.playSfxByName('cmbtflx')
-                if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
-                    target.staticAnimation('dodge', () => target.clearAnim())
-                }
-            }
-
-            // Deduct burst ammo
-            const curRounds: number = (weaponObj as any)?.pro?.extra?.rounds ?? 0
-            ;(weaponObj as any).pro.extra.rounds = Math.max(0, curRounds - burstCount)
-            uiDrawWeapon()
+            this.resolveSpray(obj, target, weaponObj!, who, targetName, attackDmgType)
             return
         }
 
@@ -615,9 +591,9 @@ export class Combat {
 
         // Deduct one round after the roll
         if (weapon && weapon.type !== 'melee') {
-            var roundsBefore: number = (weaponObj as any)?.pro?.extra?.rounds
-            if (roundsBefore !== undefined && roundsBefore > 0) {
-                ;(weaponObj as any).pro.extra.rounds = roundsBefore - 1
+            var roundsBefore = ammoGetQuantity(weaponObj as any)
+            if (roundsBefore > 0) {
+                ammoSetQuantity(weaponObj as any, roundsBefore - 1)
                 uiDrawWeapon()
             }
         }
@@ -633,6 +609,10 @@ export class Combat {
 
             critterDamage(target, damage, obj, true, true, attackDmgType)
             if (target.isPlayer) drawHP(target.getStat('HP'))
+            if (this.isExplosiveAttack(weaponObj!, attackDmgType)) {
+                this.explosionOnExtras(obj, target, target.position, weaponObj!, attackDmgType)
+                if (!globalState.combat) return
+            }
             if (!target.dead && target._script?.combat_p_proc) {
                 if (Scripting.combatEvent(target, 'damage')) return
             }
@@ -647,71 +627,402 @@ export class Combat {
                 target.staticAnimation('dodge', () => target.clearAnim())
             }
 
-            // Ranged miss scatter: stray shot may hit other critters behind the target (Feature 3)
-            if (weapon && weapon.type !== 'melee') {
-                this.checkRangedMiss(obj, target, attackDmgType)
-            }
+            if (hitRoll.crit === true) this.doCriticalFailure(obj, weapon, who)
 
-            if (hitRoll.crit === true) {
-                var critFailMod = (obj.getStat('LUK') - 5) * -5
-                var critFailRoll = Math.floor(getRandomInt(1, 100) - critFailMod)
-                var critFailLevel = 1
-                if (critFailRoll <= 20) critFailLevel = 1
-                else if (critFailRoll <= 50) critFailLevel = 2
-                else if (critFailRoll <= 75) critFailLevel = 3
-                else if (critFailRoll <= 95) critFailLevel = 4
-                else critFailLevel = 5
-
-                uiLog(`${who} critically fails!`)
-                combatDebug(`crit fail: level=${critFailLevel} roll=${critFailRoll}`)
-
-                var critFailTableType = getCritFailTableType(weapon)
-                var critFailEffect = CriticalEffects.criticalFailTable[critFailTableType]?.[critFailLevel]
-                    ?? CriticalEffects.criticalFailTable.unarmed[critFailLevel]
-                CriticalEffects.temporaryDoCritFail(critFailEffect, obj)
+            // CE attackCompute: a ranged/thrown attack that hit nothing may hit someone else.
+            const attackType = weaponAttackType(weaponObj)
+            if (attackType === 'ranged' || attackType === 'throw') {
+                const impact = this.rangedMissAccident(obj, target, weaponObj!, attackDmgType, hitRoll.crit !== true)
+                if (impact && this.isExplosiveAttack(weaponObj!, attackDmgType)) {
+                    this.explosionOnExtras(obj, impact.hit, impact.hit?.position ?? impact.tile, weaponObj!, attackDmgType)
+                }
             }
         }
     }
 
-    /**
-     * Ranged miss scatter (FO2: _check_ranged_miss / _shoot_along_path).
-     * Extends the shot path 5 hexes past the original target and checks every critter
-     * along that extension for an accidental hit at -70 hit-chance penalty.
-     */
-    checkRangedMiss(attacker: Critter, missedTarget: Critter, dmgType: string): void {
-        if (!globalState.gMap) return
-        const dir = hexDirectionTo(attacker.position, missedTarget.position)
-        const lineEnd = hexInDirectionDistance(missedTarget.position, dir, 5)
-        const line = hexLine(attacker.position, lineEnd) ?? []
-        const mapObjects = globalState.gMap.getObjects()
+    // CE attackCompute (SFALL form): explosive damage — or a thrown Plasma/EMP grenade —
+    // runs _compute_explosion_on_extras.
+    private isExplosiveAttack(weaponObj: Obj, dmgType: string): boolean {
+        if (dmgType === 'Explosive') return true
+        return weaponAttackType(weaponObj) === 'throw' && (dmgType === 'Plasma' || dmgType === 'EMP')
+    }
 
-        let pastTarget = false
-        for (const pos of line) {
-            if (pos.x === missedTarget.position.x && pos.y === missedTarget.position.y) {
-                pastTarget = true
-                continue
-            }
-            if (!pastTarget) continue
+    // CE combat.cc _compute_explosion_on_extras — walks rings around the impact (grenades
+    // radius 2, rockets 3; CE item.cc defaults) and hits up to 6 live critters with a clear
+    // line to the blast, one round at x2 each; the attacker included (DAM_BACKWASH). The
+    // object at the centre already took the hit and is excluded.
+    private explosionOnExtras(attacker: Critter, centerObj: Obj | null, center: Point, weaponObj: Obj, dmgType: string): void {
+        const gMap = globalState.gMap
+        if (!gMap) return
+        this.spawnExplosionSprite(center)
+        const isGrenade = weaponAttackType(weaponObj) === 'throw'
+        const GRENADE_RADIUS = 2, ROCKET_RADIUS = 3, MAX_TARGETS = 6
+        const SHOOT_THRU = 0x80000000
+        const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y
 
-            for (const o of mapObjects) {
-                if (!(o instanceof Critter) || o.dead || o === attacker) continue
-                if (o.position.x !== pos.x || o.position.y !== pos.y) continue
-
-                // Accidental hit check with -70 penalty (FO2: _shoot_along_path)
-                const roll = this.rollHit(attacker, o, 'torso', -70)
-                if (roll.hit) {
-                    const critMod = roll.crit ? roll.DM : 2
-                    const dmg = this.getDamageDone(attacker, o, critMod)
-                    const who = attacker.isPlayer ? 'You' : attacker.name
-                    const victimName = o.isPlayer ? 'you' : o.name
-                    uiLog(`${who}'s stray shot hit ${victimName} for ${dmg} damage!`)
-                    critterDamage(o, dmg, attacker, true, true, dmgType)
-                    if (o.isPlayer) drawHP(o.getStat('HP'))
-                    if (o.dead) this.perish(o, attacker, dmgType)
+        const victims: Critter[] = []
+        let radius = 0
+        let rotation = 0
+        let tile: Point | null = null
+        let ringFirst: Point | null = center
+        let ringIdx = 0
+        while (victims.length < MAX_TARGETS) {
+            if (radius !== 0 && (tile === null || !same(tile = hexInDirection(tile, rotation), ringFirst!))) {
+                ringIdx++
+                if (ringIdx % radius === 0) {
+                    rotation += 1
+                    if (rotation === 6) rotation = 0 // ROTATION_NE
                 }
-                // Projectile continues through critters (all on-path critters are checked)
+            } else {
+                radius++
+                if (isGrenade && GRENADE_RADIUS < radius) tile = null
+                else if (isGrenade || ROCKET_RADIUS >= radius) tile = hexInDirection(ringFirst!, 0) // ROTATION_NE
+                else tile = null
+                ringFirst = tile
+                rotation = 2 // ROTATION_SE
+                ringIdx = 0
+            }
+            if (tile === null) break
+
+            const obstacle = gMap.blockingObjectAt(toTileNum(tile), attacker.elevation, 0, centerObj)
+            if (obstacle === null || obstacle.type !== 'critter') continue
+            const c = obstacle as Critter
+            if (c.dead || ((((c as any).flags ?? 0) >>> 0) & SHOOT_THRU) !== 0) continue
+            if (combatIsShotBlocked(c, c.position, center, null).blocked) continue
+            if (!victims.includes(c)) victims.push(c)
+        }
+
+        for (const victim of victims) {
+            const damage = this.getDamageDone(attacker, victim, 2)
+            uiLog(`  ${victim.isPlayer ? 'you' : victim.name} caught in the blast for ${damage} damage`)
+            if (!this.applyRangedDamage(attacker, victim, damage, dmgType)) return
+        }
+    }
+
+    // Visual only: one explosion sprite at the impact (misc proto 14, as Obj.explode uses).
+    private spawnExplosionSprite(pos: Point): void {
+        if ((window as any).__test?.fastMode) return
+        const sprite = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
+        sprite.position = { x: pos.x, y: pos.y }
+        lazyLoadImage(sprite.art, () => {
+            if (!globalState.gMap) return
+            globalState.gMap.addObject(sprite)
+            sprite.singleAnimation(false, () => { globalState.gMap?.destroyObject(sprite) })
+        })
+    }
+
+    // CE combat.cc _compute_spray (driven from attackCompute): one roll decides the
+    // burst; the rounds split into a centre line (part aimed at the target) and two side
+    // lines through tiles beside the target, each walked by _shoot_along_path, so anyone
+    // on a line of fire can be hit — friends included.
+    private resolveSpray(obj: Critter, target: Critter, weaponObj: Obj, who: string, targetName: string, dmgType: string): void {
+        const audio = globalState.audioEngine
+        const weapon = (weaponObj as any).weapon
+        const range = weapon.getMaximumRange()
+
+        let ammoQuantity = ammoGetQuantity(weaponObj)
+        const burstRounds = weaponGetBurstRounds(weaponObj)
+        if (burstRounds < ammoQuantity) ammoQuantity = burstRounds
+        const roundsSpent = ammoQuantity
+
+        let { roll, mainHits, extras } = this.computeSpray(obj, target, ammoQuantity, range)
+
+        // attackCompute: Jinxed turns a failure into a critical failure half the time.
+        if (roll === RollResult.Failure && this.isJinxed(obj, target) && randomBetween(0, 1) === 1) {
+            roll = RollResult.CriticalFailure
+        }
+        // Sniper (player, ranged): d10 <= Luck upgrades a success to a critical.
+        if (roll === RollResult.Success && obj.isPlayer && obj.hasPerk('Sniper')
+            && randomBetween(1, 10) <= obj.getStat('LUK')) {
+            roll = RollResult.CriticalSuccess
+        }
+
+        ammoSetQuantity(weaponObj, ammoGetQuantity(weaponObj) - roundsSpent)
+        uiDrawWeapon()
+
+        let damageMultiplier = 2
+        let extraMsg = ''
+        if (roll === RollResult.CriticalSuccess) {
+            const c = this.computeCriticalHit(obj, target, 'torso', obj.getStat('Better Criticals'), who, targetName)
+            damageMultiplier = c.DM
+            extraMsg = this.getCombatMsg(c.msgID) || ''
+        }
+
+        uiLog(`${who} burst-fired at ${targetName}: ${mainHits}/${roundsSpent} rounds on target`)
+        if (rollIsSuccess(roll)) {
+            if (mainHits > 0) {
+                let damage = 0
+                for (let i = 0; i < mainHits; i++) damage += this.getDamageDone(obj, target, damageMultiplier)
+                uiLog(`  ${targetName} took ${damage} damage${extraMsg}`)
+                if (!this.applyRangedDamage(obj, target, damage, dmgType)) return
+            }
+        } else {
+            if (!(window as any).__test?.fastMode) audio.playSfxByName('cmbtflx')
+            if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
+                target.staticAnimation('dodge', () => target.clearAnim())
+            }
+            if (roll === RollResult.CriticalFailure) this.doCriticalFailure(obj, weapon, who)
+            else this.rangedMissAccident(obj, target, weaponObj, dmgType, true)
+        }
+
+        // Extras (_shoot_along_path): each takes its rounds at ×2.
+        for (const [victim, rounds] of extras) {
+            if (victim.dead) continue
+            let damage = 0
+            for (let i = 0; i < rounds; i++) damage += this.getDamageDone(obj, victim, 2)
+            const victimName = victim.isPlayer ? 'you' : victim.name
+            uiLog(`  ${victimName} took ${damage} damage`)
+            if (!this.applyRangedDamage(obj, victim, damage, dmgType)) return
+        }
+    }
+
+    // CE combat.cc _compute_spray — the roll and the rounds per victim, no damage. Also
+    // used by the AI safety check (_combat_safety_invalidate_weapon), as in CE.
+    private computeSpray(obj: Critter, target: Critter, ammoQuantity: number, range: number): { roll: RollResult; mainHits: number; extras: Map<Critter, number> } {
+        const chance = this.getHitChance(obj, target, 'torso')
+        let accuracy = chance.hit
+        let { roll } = randomRoll(accuracy, chance.crit)
+        combatDebug(`spray: rounds=${ammoQuantity} accuracy=${accuracy} roll=${RollResult[roll]}`)
+
+        const extras = new Map<Critter, number>() // victim → rounds that hit (attack->extras)
+        let mainHits = 0
+
+        if (roll !== RollResult.CriticalFailure) {
+            if (roll === RollResult.CriticalSuccess) accuracy += 20
+
+            // Non-sfall split (sfall's burst mod is off by default).
+            let centerRounds = Math.trunc(ammoQuantity / 3)
+            if (centerRounds === 0) centerRounds = 1
+            const leftRounds = Math.trunc(ammoQuantity / 3)
+            const rightRounds = ammoQuantity - centerRounds - leftRounds
+            let mainTargetRounds = Math.trunc(centerRounds / 2)
+            if (mainTargetRounds === 0) { mainTargetRounds = 1; centerRounds -= 1 }
+
+            for (let i = 0; i < mainTargetRounds; i++) {
+                if (rollIsSuccess(randomRoll(accuracy, 0).roll)) mainHits += 1
+            }
+            if (mainHits === 0 && this.checkRangedMiss(obj, target, range, 'torso')) mainHits = 1
+
+            const mainEnd = hexLineBeyond(obj.position, target.position, range)
+            mainHits += this.shootAlongPath(obj, target, mainEnd, centerRounds - mainHits, extras)
+
+            const centerTile = hexDistance(obj.position, target.position) <= 3
+                ? hexLineBeyond(obj.position, target.position, 3)
+                : target.position
+            const rotation = hexDirectionTo(centerTile, obj.position)
+            const leftEnd = hexLineBeyond(obj.position, hexInDirection(centerTile, (rotation + 1) % 6), range)
+            mainHits += this.shootAlongPath(obj, target, leftEnd, leftRounds, extras)
+            const rightEnd = hexLineBeyond(obj.position, hexInDirection(centerTile, (rotation + 5) % 6), range)
+            mainHits += this.shootAlongPath(obj, target, rightEnd, rightRounds, extras)
+
+            if (roll !== RollResult.Failure || (mainHits <= 0 && extras.size <= 0)) {
+                if (rollIsSuccess(roll) && mainHits === 0 && extras.size === 0) roll = RollResult.Failure
+            } else {
+                roll = RollResult.Success
             }
         }
+
+        return { roll, mainHits, extras }
+    }
+
+    private isJinxed(obj: Critter, target: Critter): boolean {
+        // CE: traitIsSelected(TRAIT_JINXED) || perkHasRank(gDude, PERK_JINXED) — both the
+        // player's; DH2 keeps the attacker/target Pariah Dog check from rollHit.
+        const player = globalState.player
+        return !!player && (((player as any).traits?.includes('Jinxed') ?? false) || player.hasPerk('Jinxed')
+            || obj.hasPerk('Pariah Dog') || target.hasPerk('Pariah Dog'))
+    }
+
+    // CE combat_ai.cc _caiHasWeapPrefType — _weapPrefOrderings[best_weapon + 1].
+    private static readonly WEAP_PREF_ORDERINGS: { [best: string]: string[] } = {
+        no_pref: ['ranged', 'throw', 'melee', 'unarmed'],
+        melee: ['melee'],
+        melee_over_ranged: ['melee', 'ranged'],
+        ranged_over_melee: ['ranged', 'melee'],
+        ranged: ['ranged'],
+        unarmed: ['unarmed'],
+        unarmed_over_throw: ['unarmed', 'throw'],
+        random: [],
+        never: [],
+    }
+
+    // CE combat_ai.cc _ai_pick_hit_mode. DH2 weapons only expose a burst secondary,
+    // so 'secondary' means burst.
+    private aiPickHitMode(attacker: Critter, weaponObj: Obj, defender: Critter): 'primary' | 'secondary' {
+        const weapon = (weaponObj as any).weapon
+        const secondary = String(weapon?.attackTwo?.mode)
+        if (secondary !== 'fire burst' && secondary !== '7') return 'primary'
+        const packet = attacker.ai?.packet
+        if (!packet) return 'primary'
+
+        const secondaryToHit = (): number => {
+            const prev = weapon.mode
+            weapon.mode = 'burst'
+            const hit = this.getHitChance(attacker, defender, 'torso').hit
+            weapon.mode = prev
+            return hit
+        }
+        const safe = () => !this.combatSafetyInvalidateWeapon(attacker, weaponObj, 'secondary', defender, false)
+        const freq = Math.max(1, packet.secondaryFreq || 1)
+
+        let useSecondary = false
+        switch (packet.areaAttackMode) {
+            case 'always': useSecondary = true; break
+            case 'sometimes': useSecondary = randomBetween(1, freq) === 1; break
+            case 'be_sure': useSecondary = secondaryToHit() >= 85 && safe(); break
+            case 'be_careful': useSecondary = secondaryToHit() >= 50 && safe(); break
+            case 'be_absolutely_sure': useSecondary = secondaryToHit() >= 95 && safe(); break
+            default: // no_pref (-1)
+                if (attacker.getStat('INT') < 6 || hexDistance(attacker.position, defender.position) < 10) {
+                    useSecondary = randomBetween(1, freq) === 1
+                }
+        }
+        if (useSecondary && !(Combat.WEAP_PREF_ORDERINGS[packet.bestWeapon] ?? []).includes('ranged')) useSecondary = false
+        // SFALL fixes kept by CE: range and AP of the secondary mode.
+        if (useSecondary && hexDistance(attacker.position, defender.position) > weapon.getMaximumRange(2)) useSecondary = false
+        if (useSecondary && (attacker.AP?.getAvailableCombatAP() ?? 0) < weapon.getAPCost(2)) useSecondary = false
+        return useSecondary ? 'secondary' : 'primary'
+    }
+
+    // CE combat.cc _combat_safety_invalidate_weapon_func — true if the attack would
+    // hurt the attacker's team: a blast weapon with a team-mate (or, without a safe-
+    // distance out-param, the attacker) inside its radius, or a spray whose simulated
+    // extras include a team-mate. The DR × (maxDmg - DT) test is CE's literal formula.
+    // `withSafeDistance` mirrors CE passing safeDistancePtr: the attacker standing in its
+    // own blast then isn't disqualifying (CE would step back first; DH2 doesn't).
+    private combatSafetyInvalidateWeapon(attacker: Critter, weaponObj: Obj, hitMode: 'primary' | 'secondary',
+                                         defender: Critter, withSafeDistance: boolean): boolean {
+        const weapon = (weaponObj as any).weapon
+        if (!weapon) return false
+        const team = attacker.teamNum
+        const damageType = weapon.getDamageType()
+        const maxDamage = weapon.maxDmg ?? 0
+        const hurts = (c: Critter) => {
+            const dt = c.getStat('DT ' + damageType) + c.getArmorDT(damageType)
+            const dr = c.getStat('DR ' + damageType) + c.getArmorDR(damageType)
+            return Math.trunc(dr * (maxDamage - dt) / 100) > 0
+        }
+        const isTeamMate = (c: Critter) => c.teamNum === team && c !== attacker && c !== defender && !c.dead
+            && c !== (c as any).whoHitMe
+
+        // weaponGetDamageRadius: rockets (single-fire Explosive) 3, grenades 2.
+        const attackType = weaponAttackType(weaponObj)
+        let damageRadius = 0
+        if (hitMode === 'primary' && attackType === 'ranged' && damageType === 'Explosive') damageRadius = 3
+        else if (attackType === 'throw' && this.isExplosiveAttack(weaponObj, damageType)) damageRadius = 2
+
+        if (damageRadius > 0) {
+            const intelligence = attacker.getStat('INT')
+            if (intelligence < 5) damageRadius = Math.max(0, damageRadius - (5 - intelligence))
+            for (const c of this.combatants) {
+                if (isTeamMate(c) && hexDistance(defender.position, c.position) < damageRadius && hurts(c)) return true
+            }
+            if (hexDistance(defender.position, attacker.position) <= damageRadius) return !withSafeDistance
+            return false
+        }
+
+        if (hitMode !== 'secondary') return false // only burst/continuous sprays
+        const ammo = Math.min(ammoGetQuantity(weaponObj), weaponGetBurstRounds(weaponObj))
+        const prev = weapon.mode
+        weapon.mode = 'burst'
+        const { extras } = this.computeSpray(attacker, defender, ammo, weapon.getMaximumRange(2))
+        weapon.mode = prev
+        for (const c of extras.keys()) if (isTeamMate(c) && hurts(c)) return true
+        return false
+    }
+
+    // CE combat.cc _shoot_along_path — walks the line of fire from the attacker to
+    // `endTile`; each critter met rolls its own to-hit per remaining round. Rounds on the
+    // main target are returned; others accumulate in `extras` (max 6 victims).
+    private shootAlongPath(attacker: Critter, defender: Critter, endTile: Point, rounds: number, extras: Map<Critter, number>): number {
+        let remaining = rounds
+        let mainHits = 0
+        let current = attacker.position
+        let critter: Obj | null = attacker
+        while (critter !== null) {
+            if (remaining <= 0 || (current.x === endTile.x && current.y === endTile.y) || extras.size >= 6) break
+            critter = nextShootObstacle(attacker, current, endTile, critter)
+            if (critter === null) break
+            if (critter.type !== 'critter') break
+
+            const accuracy = this.getHitChance(attacker, critter as Critter, 'torso').hit
+            let roundsHit = 0
+            while (randomBetween(1, 100) <= accuracy && remaining > 0) {
+                remaining -= 1
+                roundsHit += 1
+            }
+            if (roundsHit !== 0) {
+                if (critter === defender) mainHits += roundsHit
+                else extras.set(critter as Critter, (extras.get(critter as Critter) ?? 0) + roundsHit)
+            }
+            current = critter.position
+        }
+        return mainHits
+    }
+
+    // CE combat.cc _check_ranged_miss — looks for someone on the line of fire to take a
+    // missed shot. Vanilla quirk kept by CE: the final test requires OBJECT_SHOOT_THRU on
+    // the obstacle, which the shoot-mode walk never returns, so it rolls but never hits.
+    private checkRangedMiss(attacker: Critter, defender: Critter, range: number, region: string): boolean {
+        const to = hexLineBeyond(attacker.position, defender.position, range)
+        let success = false
+        let critter: Obj | null = attacker
+        let curr = attacker.position
+        while (curr.x !== to.x || curr.y !== to.y) {
+            critter = nextShootObstacle(attacker, curr, to, critter)
+            if (critter === null) break
+            if (critter.type !== 'critter') { success = true; break }
+            if (critter !== defender) {
+                const c = critter as Critter
+                const chance = c.dead ? 5 : Math.trunc(this.getHitChance(attacker, c, region).hit / 3)
+                if (randomBetween(1, 100) <= chance) { success = true; break }
+            }
+            curr = critter.position
+        }
+        const SHOOT_THRU = 0x80000000
+        if (!success || critter === null || ((((critter as any).flags ?? 0) >>> 0) & SHOOT_THRU) === 0) return false
+        return false // unreachable in practice (see above)
+    }
+
+    // CE combat.cc attackCompute, ranged/throw tail: a shot that hit nothing flies on to
+    // _tile_num_beyond(attacker, defender, range) (a grenade lands up to distance/2 away
+    // in a random direction); the first shoot-blocking object past the defender — or
+    // whatever blocks the landing tile — takes one round at ×2.
+    private rangedMissAccident(attacker: Critter, defender: Critter, weaponObj: Obj, dmgType: string,
+                               plainFailure: boolean): { tile: Point; hit: Critter | null } | null {
+        const gMap = globalState.gMap
+        const weapon = (weaponObj as any).weapon
+        if (!gMap || !weapon) return null
+        const range = weapon.getMaximumRange()
+        if (plainFailure && this.checkRangedMiss(attacker, defender, range, 'torso')) return null
+
+        const isGrenade = weaponAttackType(weaponObj) === 'throw'
+            && (dmgType === 'Explosive' || dmgType === 'Plasma' || dmgType === 'EMP')
+        let tile: Point
+        if (isGrenade) {
+            const distance = hexDistance(attacker.position, defender.position)
+            const throwDistance = Math.max(1, randomBetween(1, Math.max(1, Math.trunc(distance / 2))))
+            tile = hexInDirectionDistance(defender.position, randomBetween(0, 5), throwDistance)
+        } else {
+            tile = hexLineBeyond(attacker.position, defender.position, range)
+        }
+
+        let accidental: Obj | null = gMap.straightPathObstacle(defender, defender.position, tile, 1, defender)
+        if (accidental === null || accidental === defender) {
+            accidental = gMap.blockingObjectAt(toTileNum(tile), defender.elevation, 0, null)
+        }
+        const SHOOT_THRU = 0x80000000
+        const none = { tile, hit: null as Critter | null }
+        if (accidental === null || ((((accidental as any).flags ?? 0) >>> 0) & SHOOT_THRU) !== 0) return none
+        // Only critters take damage in DH2 (CE's damage to scenery has no effect either).
+        if (accidental.type !== 'critter' || (accidental as Critter).dead || accidental === attacker) return none
+
+        const victim = accidental as Critter
+        const damage = this.getDamageDone(attacker, victim, 2)
+        const who = attacker.isPlayer ? 'You' : attacker.name
+        uiLog(`${who} hit ${victim.isPlayer ? 'you' : victim.name} instead for ${damage} damage!`)
+        this.applyRangedDamage(attacker, victim, damage, dmgType)
+        return { tile: victim.position, hit: victim }
     }
 
     perish(obj: Critter, attacker?: Critter, damageType?: string) {
@@ -1068,17 +1379,11 @@ export class Combat {
 
             // ── AI AMMO CHECK ────────────────────────────────────────────────────
             if (!aiHaveAmmo(weaponObj)) {
-                const aiWeapAny = weaponObj as any
-                const aiAmmoPID: number | undefined = aiWeapAny?.pro?.extra?.ammoPID
-                const aiMaxAmmo: number = aiWeapAny?.pro?.extra?.maxAmmo ?? 0
-                const aiInv = (obj as any).inventory as any[] | undefined
-                const ammoItem = aiInv?.find((item: any) => item.pid === aiAmmoPID)
-                if (ammoItem) {
-                    // Reload from own inventory and continue turn
-                    const available: number = ammoItem.amount ?? 1
-                    const toLoad = Math.min(aiMaxAmmo, available)
-                    aiWeapAny.pro.extra.rounds = toLoad
-                    ammoItem.amount = available - toLoad
+                const aiInv = obj.inventory
+                const ammoItem = weaponObj ? findReloadAmmo(weaponObj, aiInv) : null
+                if (ammoItem && weaponObj) {
+                    // Reload from own inventory and continue turn (CE weaponReload)
+                    const toLoad = weaponReload(weaponObj, ammoItem)
                     if (ammoItem.amount <= 0) {
                         const ammoIdx2 = aiInv!.indexOf(ammoItem)
                         if (ammoIdx2 !== -1) aiInv!.splice(ammoIdx2, 1)
@@ -1118,19 +1423,19 @@ export class Combat {
 
             if (obj.equippedWeapon === null) throw 'combatant has no equipped weapon'
 
-            // Prefer burst fire if: weapon has burst mode, ≥2 enemies in burst range, and enough AP
+            // CE combat_ai.cc _ai_try_attack: hit mode from _ai_pick_hit_mode; an unsafe
+            // mode (friends in the spray or blast) is dropped (_ai_switch_weapons — DH2 only
+            // falls back from burst to single, else holds fire this turn).
+            let useBurst = this.aiPickHitMode(obj, weaponObj!, target) === 'secondary'
+            if (this.combatSafetyInvalidateWeapon(obj, weaponObj!, useBurst ? 'secondary' : 'primary', target, true)) {
+                if (useBurst && !this.combatSafetyInvalidateWeapon(obj, weaponObj!, 'primary', target, true)) {
+                    useBurst = false
+                } else {
+                    dbg('ai', `[AI] ${actorName(obj)} holds fire — friendly in the line of fire`)
+                    return this.nextTurn()
+                }
+            }
             const burstAPCost = weapon.getAPCost(2)
-            const hasBurstMode = weapon.isBurst !== undefined && weapon.isBurst()
-            const burstRange = weapon.getMaximumRange(2)
-            const targetsInBurstRange = this.combatants.filter(
-                (c) => c !== obj && !c.dead && hexDistance(obj.position, c.position) <= burstRange
-            ).length
-
-            const useBurst =
-                !hasBurstMode && // weapon hasn't been switched to burst mode by AI yet
-                String((weapon as any).attackTwo?.mode) === 'fire burst' &&
-                AP.getAvailableCombatAP() >= burstAPCost &&
-                targetsInBurstRange >= 2
 
             if (useBurst) {
                 AP.subtractCombatAP(burstAPCost)

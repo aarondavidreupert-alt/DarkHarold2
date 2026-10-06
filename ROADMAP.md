@@ -120,7 +120,8 @@ game features, but prerequisites for reliable iteration.
 - **YAAM formula (C3)**: armour-penetration capped per CE (FIXED 2026-06-02).
 - **Sequence formula (C11)**: `2 * PER + Fast Shot bonus` (FIXED 2026-06-02).
 - **Melee location penalty (C4)**: halved per CE (FIXED 2026-06-02).
-- Remaining gaps: friendly-fire / line-of-fire blockers for AoE.
+- Line of fire, friendly fire and blast radius ported from CE (C17, 2026-10-07); hit chance is a straight port of `attackDetermineToHit` (C18).
+- Remaining gaps: CE `_ai_move_away` to a safe blast distance and full `_ai_switch_weapons`.
 - Ref: `wiki/ai_behavior.md §9`
 
 ---

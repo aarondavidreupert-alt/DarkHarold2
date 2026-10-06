@@ -17,6 +17,7 @@ limitations under the License.
 // Critical-effect appliers split out of criticalEffects.ts. See
 // wiki/ts-split-refactor.md → "Per-file split proposals" §22.
 
+import { ammoSetQuantity } from '../weaponAmmo.js'
 import { getRandomInt } from '../util.js'
 import { Critter, WeaponObj } from '../object.js'
 import globalState from '../globalState.js'
@@ -105,7 +106,7 @@ export const critFailEffects: Dict<EffectsFunction> = {
         // Empty the magazine (jam / misfire)
         const weaponObj = (target as any).equippedWeapon
         if (weaponObj?.pro?.extra) {
-            weaponObj.pro.extra.rounds = 0
+            ammoSetQuantity(weaponObj, 0)
             dbg('combat', target.name + ' lost their ammo')
         }
     },

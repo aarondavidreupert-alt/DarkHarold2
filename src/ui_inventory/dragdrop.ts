@@ -18,6 +18,7 @@ limitations under the License.
 // ui_inventory.ts. See wiki/ts-split-refactor.md → "Per-file split
 // proposals" §8.
 
+import { weaponReload } from '../weaponAmmo.js'
 import globalState from '../globalState.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { refreshStealthState } from '../miscItem.js'
@@ -66,26 +67,15 @@ export function makeDraggable($el: HTMLElement, data: string, endCallback?: () =
 
 /**
  * Try to load ammoObj into weaponObj.
- * Compatibility: ammo pid must match weapon.pro.extra.ammoPID (or weapon is unloaded).
- * Returns true if at least one round was loaded.
+ * Compatibility per CE item.cc weaponCanBeReloadedWith: same caliber, and a loaded
+ * weapon only takes the ammo type already in it. Returns true if a round was loaded.
  */
 export function tryLoadAmmoIntoWeapon(ammoObj: Obj, weaponObj: Obj): boolean {
     const w = weaponObj as any
-    const a = ammoObj as any
-    const maxAmmo: number = w.pro?.extra?.maxAmmo ?? 0
-    const currentRounds: number = w.pro?.extra?.rounds ?? 0
-    const weaponAmmoPID: number | undefined = w.pro?.extra?.ammoPID
-    if (maxAmmo <= 0 || currentRounds >= maxAmmo) return false
-    // Compatibility: ammoPID must match (or weapon is empty and has no type yet)
-    if (weaponAmmoPID && weaponAmmoPID !== a.pid) return false
-    const needed = maxAmmo - currentRounds
-    const available: number = a.amount ?? 1
-    const toLoad = Math.min(needed, available)
-    w.pro.extra.rounds = currentRounds + toLoad
-    w.pro.extra.ammoPID = a.pid // record which ammo type is now loaded
-    a.amount = available - toLoad
+    const toLoad = weaponReload(weaponObj, ammoObj)
+    if (toLoad <= 0) return false
     const ammoIdx = globalState.player.inventory.indexOf(ammoObj)
-    if (a.amount <= 0 && ammoIdx !== -1) globalState.player.inventory.splice(ammoIdx, 1)
+    if ((ammoObj.amount ?? 0) <= 0 && ammoIdx !== -1) globalState.player.inventory.splice(ammoIdx, 1)
     uiLog(`Loaded ${toLoad} round${toLoad !== 1 ? 's' : ''}.`)
     const soundId: string = w.pro?.extra?.soundId ?? ''
     if (soundId) globalState.audioEngine.playWeaponSfx(soundId, 'reload')

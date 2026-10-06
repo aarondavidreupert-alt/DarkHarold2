@@ -490,26 +490,34 @@ export class GameMap {
     // without testing it. In SHOOT mode (CE a6 == 32) OBJECT_SHOOT_THRU obstacles are
     // ignored. Runs at `source`'s own elevation.
     straightPathBlockingObject(source: Obj, to: Point, blockType: number): Obj | null {
+        return this.straightPathObstacle(source, source.position, to, blockType, null)
+    }
+
+    // Full CE _make_straight_path_func(obj, from, to, NULL, &obstacle, a6, callback):
+    // walks from `from` (not necessarily `source`'s tile) and skips `prev`, the value
+    // *obstaclePtr held on entry — combat loops pass the last obstacle so the walk
+    // continues past it. Shoot mode (blockType 1 ⇔ CE a6 == 32) ignores SHOOT_THRU.
+    straightPathObstacle(source: Obj, from: Point, to: Point, blockType: number, prev: Obj | null): Obj | null {
         const elev = source.elevation
         const shoot = blockType === 1
         const aiState = { moveBlockObj: null as Obj | null }
         const test = (p: Point): Obj | null => {
             const o = this.blockingObjectAt(toTileNum(p), elev, blockType, source, aiState)
-            if (o === null) return null
+            if (o === null || o === prev) return null
             if (shoot && ((((o as any).flags ?? 0) >>> 0) & 0x80000000) !== 0) return null
             return o
         }
 
-        const first = test(source.position)
+        const first = test(from)
         if (first) return first
 
-        const fromSc = hexToScreen(source.position.x, source.position.y)
+        const fromSc = hexToScreen(from.x, from.y)
         const toSc = hexToScreen(to.x, to.y)
         let tileX = fromSc.x + 16, tileY = fromSc.y + 8
         const toX = toSc.x + 16, toY = toSc.y + 8
         const stepX = Math.sign(toX - tileX), stepY = Math.sign(toY - tileY)
         const ddx = 2 * Math.abs(toX - tileX), ddy = 2 * Math.abs(toY - tileY)
-        let prev = source.position
+        let prevTile = from
 
         if (ddx <= ddy) {
             let middle = ddx - ddy / 2
@@ -519,10 +527,10 @@ export class GameMap {
                 if (middle >= 0) { tileX += stepX; middle -= ddy }
                 tileY += stepY
                 middle += ddx
-                if (cur.x !== prev.x || cur.y !== prev.y) {
+                if (cur.x !== prevTile.x || cur.y !== prevTile.y) {
                     const o = test(cur)
                     if (o) return o
-                    prev = cur
+                    prevTile = cur
                 }
             }
         } else {
@@ -533,10 +541,10 @@ export class GameMap {
                 if (middle >= 0) { tileY += stepY; middle -= ddx }
                 tileX += stepX
                 middle += ddy
-                if (cur.x !== prev.x || cur.y !== prev.y) {
+                if (cur.x !== prevTile.x || cur.y !== prevTile.y) {
                     const o = test(cur)
                     if (o) return o
-                    prev = cur
+                    prevTile = cur
                 }
             }
         }

@@ -18,6 +18,7 @@ limitations under the License.
 // Weapon class + attack-mode/skin/damage-type constants + unarmed-move table.
 // Split out of critter.ts. See wiki/ts-split-refactor.md → §13.
 
+import { ammoGetCapacity, ammoGetQuantity } from '../weaponAmmo.js'
 import globalState from '../globalState.js'
 import { dbgWarn } from '../logger.js'
 import type { Critter } from '../object/Critter.js'
@@ -269,9 +270,8 @@ export class Weapon {
     cycleMode(): void {
         // Dynamically append 'reload' when magazine is not full (Fallout 2 cycle order:
         // single → called/aimed → [burst] → reload → single)
-        const maxAmmo: number = (this.weapon as any).pro?.extra?.maxAmmo ?? 0
-        const currentRounds: number = (this.weapon as any).pro?.extra?.rounds ?? maxAmmo
-        const canReload = maxAmmo > 0 && currentRounds < maxAmmo
+        const maxAmmo = ammoGetCapacity(this.weapon)
+        const canReload = maxAmmo > 0 && ammoGetQuantity(this.weapon) < maxAmmo
         const effectiveModes = canReload ? [...this.modes, 'reload'] : this.modes
 
         const idx = effectiveModes.indexOf(this.mode)

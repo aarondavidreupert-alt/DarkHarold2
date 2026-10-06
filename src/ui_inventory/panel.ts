@@ -17,6 +17,7 @@ limitations under the License.
 // Inventory panel — split out of ui_inventory.ts. See
 // wiki/ts-split-refactor.md → "Per-file split proposals" §8.
 
+import { ammoGetQuantity, ammoSetQuantity, weaponGetAmmoTypePid } from '../weaponAmmo.js'
 import globalState from '../globalState.js'
 import { dbg } from '../logger.js'
 import { lazyLoadImage } from '../images.js'
@@ -456,18 +457,18 @@ export function showInventory() {
                 showInventory()
                 break
             case 'unload': {
-                const ammoPID: number | undefined = obj.pro?.extra?.ammoPID
-                const ammoCurrent: number = obj.pro?.extra?.rounds ?? 0
+                const ammoPID = weaponGetAmmoTypePid(obj)
+                const ammoCurrent = ammoGetQuantity(obj)
                 dbg('inventory', `[UI] unload: ammoPID=${ammoPID} rounds=${ammoCurrent}`)
                 if (ammoCurrent > 0) {
-                    if (ammoPID) {
+                    if (ammoPID > 0) {
                         // Create an ammo item and return it to inventory
                         const ammoObj = createObjectWithPID(ammoPID)
                         ammoObj.amount = ammoCurrent
                         globalState.player.addInventoryItem(ammoObj, ammoCurrent)
                     }
-                    obj.pro.extra.rounds = 0
-                    if (obj.pro.extra.ammoPID !== undefined) obj.pro.extra.ammoPID = 0
+                    // CE inventory.cc unload: the weapon keeps its ammo type, empty.
+                    ammoSetQuantity(obj, 0)
                 }
                 uiDrawWeapon()
                 showInventory()

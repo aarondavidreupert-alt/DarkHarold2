@@ -17,6 +17,7 @@ limitations under the License.
 // Item / WeaponObj / Scenery / Door subclasses split out of object.ts.
 // See wiki/ts-split-refactor.md §2.
 
+import { ammoGetQuantity, weaponGetAmmoTypePid } from '../weaponAmmo.js'
 import { Weapon } from '../critter.js'
 import { getLstId } from '../data.js'
 import { getMessage } from '../util.js'
@@ -57,10 +58,8 @@ export class WeaponObj extends Item {
     // copies of the same weapon PID from merging into one stack.
     approxEq(obj: Obj): boolean {
         if (this.pid !== obj.pid) return false
-        const a = this.pro?.extra
-        const b = obj.pro?.extra
-        return (a?.ammoPID ?? 0) === (b?.ammoPID ?? 0)
-            && (a?.rounds ?? 0) === (b?.rounds ?? 0)
+        return weaponGetAmmoTypePid(this) === weaponGetAmmoTypePid(obj)
+            && ammoGetQuantity(this) === ammoGetQuantity(obj)
     }
 
     static fromPID(pid: number, sid?: number): WeaponObj {

@@ -260,7 +260,9 @@ def parseItemObj(f, frmPID, protoPID, itemsLst, itemsProtoLst):
         item["ammoCount"] = readU32(f)
     elif subtype == 3: # weapon
         item["subtype"] = "weapon"
-        f.read(8)
+        # CE proto.cc:585 objectDataRead - weapon.ammoQuantity, weapon.ammoTypePid
+        item["ammoQuantity"] = read32(f)
+        item["ammoTypePid"] = read32(f)
     elif subtype == 1: # container
         item["subtype"] = "container"
     elif subtype == 0: # armor

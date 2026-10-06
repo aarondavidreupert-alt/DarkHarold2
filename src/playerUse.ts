@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { ammoGetCapacity, ammoGetQuantity } from './weaponAmmo.js'
 import { heart } from './heart.js'
 import { hexFromScreen, hexNeighbors, hexDistance } from './geometry.js'
 import globalState from './globalState.js'
@@ -277,9 +278,7 @@ export function playerUse(obj: Obj | null) {
                 dbg('combat', '[Combat] player unarmed attack')
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')            } else {
             // Block attack (and AP deduction) if ranged weapon has no ammo
-            const playerMaxAmmo: number = (weapon as any)?.pro?.extra?.maxAmmo ?? 0
-            const playerRounds: number = (weapon as any)?.pro?.extra?.rounds ?? -1
-            if (playerMaxAmmo > 0 && playerRounds === 0) {
+            if (ammoGetCapacity(weapon as any) > 0 && ammoGetQuantity(weapon as any) === 0) {
                 uiLog('You: out of ammo!')
                 return
             }
