@@ -54,6 +54,7 @@ export interface SaveGame {
 
     player: { position: Point; orientation: number; inventory: SerializedObj[] }
     party: SerializedObj[]
+    partyLevels?: { [memberIndex: number]: import('./party.js').PartyMemberLevelUpInfo }
     savedMaps: { [mapName: string]: SerializedMap }
 
     playerState?: {
@@ -142,6 +143,7 @@ function gatherSaveData(name: string): SaveGame {
             inventory: p.inventory.map((obj) => obj.serialize()),
         },
         party: globalState.gParty.serialize(),
+        partyLevels: globalState.gParty.serializeLevels(),
         savedMaps: { [curMap.name]: curMap, ...globalState.dirtyMapCache },
         playerState: {
             stats: p.stats.serialize(),
@@ -303,6 +305,7 @@ export function load(id: number): void {
                 }
 
                 globalState.gParty.deserialize(save.party)
+                globalState.gParty.deserializeLevels(save.partyLevels)
 
                 // Restore MVARs (map variables). Older saves lack this field; those
                 // will reset to the default .mvars.json values on first script run.

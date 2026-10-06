@@ -16,14 +16,14 @@ limitations under the License.
 
 import { SkillSet, StatSet } from './char.js'
 import { dbg } from './logger.js'
-import { clamp } from './util.js'
+import { clamp, getMessage } from './util.js'
 import { Events } from './events.js'
 import { Point } from './geometry.js'
 import globalState from './globalState.js'
 import { Critter, createObjectWithPID, Obj, WeaponObj } from './object.js'
 import { centerCamera } from './renderer.js'
 import { fromTileNum } from './tile.js'
-import { uiWorldMap } from './ui.js'
+import { uiLog, uiWorldMap } from './ui.js'
 
 // Contains the Player class and relevant initialization logic
 
@@ -99,6 +99,9 @@ export class Player extends Critter {
     }
 
     addExperience(xp: number) {
+        // CE ref: stat.cc:735 pcAddExperienceWithOptions — Swift Learner: +5% per rank.
+        const swiftRanks = this.perks.filter((p) => p === 'Swift Learner').length
+        xp += Math.trunc(swiftRanks * 5 * xp / 100)
         this.stats.modifyBase('Experience', xp)
 
         // FO2-CE ref: stat.cc — loop handles gaining multiple levels at once
@@ -113,6 +116,9 @@ export class Player extends Critter {
             currentLevel++
 
             globalState.audioEngine.playSfxByName('levelup')
+            // CE stat.cc:757 — stat.msg 600 "You have gone up a level."
+            const lvlMsg = getMessage('stat', 600)
+            if (lvlMsg) uiLog(lvlMsg)
 
             // FO2-CE ref: stat.cc — Skill points: 5 + 2*INT per level
             // Educated perk +2; Skilled trait +5; Gifted trait -5
@@ -125,7 +131,7 @@ export class Player extends Critter {
             // FO2-CE ref: stat.cc — HP per level: floor(END / 2) + 2
             // Lifegiver perk: +4 per rank
             let hpGain = Math.floor(this.getStat('END') / 2) + 2
-            if (this.hasPerk('Lifegiver')) hpGain += 4
+            hpGain += this.perks.filter((p) => p === 'Lifegiver').length * 4 // CE: perkGetRank(LIFEGIVER) * 4
             this.stats.modifyBase('Max HP', hpGain)
             this.stats.modifyBase('HP', hpGain)
 
@@ -138,6 +144,9 @@ export class Player extends Critter {
             }
 
             dbg('object', `Level up! Now level ${currentLevel}. Gained ${skillPointGain} skill points, ${hpGain} HP.`)
+
+            // CE ref: stat.cc:789 — party members may level with the player.
+            globalState.gParty?.incLevels()
         }
     }
 

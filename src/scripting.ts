@@ -2193,7 +2193,7 @@ export module Scripting {
             if (type === -2 /* FLOAT_MSG_WARNING */ || type === -1 /* FLOAT_MSG_SEQUENTIAL */) color = colorMap[9]
             globalState.floatMessages.push({
                 msg: msg,
-                obj: this.self_obj as Obj,
+                obj: obj, // CE opFloatMessage: over the object passed in (was this.self_obj)
                 startTime: window.performance.now(),
                 color: color,
             })

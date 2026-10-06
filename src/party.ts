@@ -18,25 +18,120 @@ import globalState from './globalState.js'
 import { dbg } from './logger.js'
 import { hexDistance, hexNeighbors } from './geometry.js'
 import { Critter, deserializeObj, SerializedObj } from './object.js'
-import { arrayIncludes, arrayRemove } from './util.js'
+import { arrayIncludes, arrayRemove, getFileText, getMessage, getRandomInt, parseIni } from './util.js'
+import { SkillSet } from './char.js'
+import { loadPRO } from './pro.js'
+import { uiLog } from './ui_hud.js'
 import { AiPacket, Disposition, findCompanionPacketForDisposition, getAiPacket } from './aiPackets.js'
 
 // Party member system for DarkFO
+
+// CE ref: party_member.cc PartyMemberDescription (level fields) — parsed from
+// data/data/party.txt `[Party Member N]` sections. N is CE's member index.
+interface PartyMemberLevelDesc {
+    index: number
+    pid: number
+    levelMinimum: number
+    levelUpEvery: number
+    levelPids: number[]
+}
+
+// CE ref: party_member.cc:61 PartyMemberLevelUpInfo
+export interface PartyMemberLevelUpInfo {
+    level: number        // party member level
+    numLevelUps: number  // PC level-ups observed with this member in the party
+    isEarly: number      // last level-up came early via the probability roll
+}
+
+const PARTY_MEMBER_MAX_LEVEL = 6 // CE party_member.cc:45 (SFALL fix: was 5)
+
+let partyDescs: PartyMemberLevelDesc[] | null = null
+
+function loadPartyDescs(): PartyMemberLevelDesc[] {
+    if (partyDescs) return partyDescs
+    partyDescs = []
+    try {
+        const ini = parseIni(getFileText('data/data/party.txt'))
+        for (const section of Object.keys(ini)) {
+            const m = section.match(/^Party Member (\d+)$/)
+            if (!m) continue
+            const sec = ini[section]
+            const levelPids = String(sec.level_pids ?? '-1').split(',').map((x: string) => parseInt(x.trim(), 10))
+                .filter((x: number) => !isNaN(x) && x !== -1).slice(0, PARTY_MEMBER_MAX_LEVEL)
+            partyDescs.push({
+                index: parseInt(m[1], 10),
+                pid: parseInt(sec.party_member_pid, 10),
+                levelMinimum: parseInt(sec.level_minimum ?? '0', 10) || 0,
+                levelUpEvery: parseInt(sec.level_up_every ?? '0', 10) || 0,
+                levelPids,
+            })
+        }
+    } catch (e) {
+        dbg('party', `party.txt not loaded: ${e}`)
+    }
+    return partyDescs
+}
 
 export class Party {
     // party members
     party: Critter[] = []
 
-    // FO2-CE ref: party.cc partyMemberGetMaxMembersToFollow — base 1 + floor(CHA/2)
-    maxSize(player: Critter): number {
-        return 1 + Math.floor(player.getStat('CHA') / 2)
-    }
+    // CE ref: party_member.cc:61 _partyMemberLevelUpInfoList, keyed by party.txt index.
+    levelUpInfo: { [memberIndex: number]: PartyMemberLevelUpInfo } = {}
 
+    // CE ref: party_member.cc:375 partyMemberAdd. CE has NO engine-side follower
+    // cap — the CHA-based limit lives in the scripts (party.h macros), which already
+    // check it (incl. Magnetic Personality) before calling party_add. The old DH2 cap
+    // here could veto a recruit the script had approved. CE only rejects duplicates
+    // (same object or same pid) and a hard table limit.
     addPartyMember(obj: Critter) {
-        const player = globalState.player as Critter
-        if (this.party.length >= this.maxSize(player)) return
+        if (this.party.some((m) => m === obj || m.pid === obj.pid)) return
+        if (this.party.length >= loadPartyDescs().length + 20) return
         dbg('party', `party member ${(obj as any).name ?? obj.pid} added`)
         this.party.push(obj)
+        // CE: critterSetTeam(object, 0) — party members join the player's team.
+        const player = globalState.player as Critter | null
+        if (player) obj.teamNum = player.teamNum
+    }
+
+    // CE ref: party_member.cc:1454 _partyMemberIncLevels — called once per PC level-up
+    // (stat.cc:789). Each member with level data advances on every `level_up_every`th
+    // PC level, or earlier with probability 100*levelMod/level_up_every (then skips
+    // until the cycle completes).
+    incLevels(): void {
+        const player = globalState.player as Critter | null
+        if (!player) return
+        const pcLevel = player.getStat('Level')
+        for (const obj of this.party) {
+            if (obj.type !== 'critter') continue
+            const desc = loadPartyDescs().find((d) => d.pid === obj.pid)
+            if (!desc || desc.levelUpEvery === 0) continue
+            if (pcLevel < desc.levelMinimum) continue
+            const info = (this.levelUpInfo[desc.index] ??= { level: 0, numLevelUps: 0, isEarly: 0 })
+            if (info.level >= desc.levelPids.length) continue
+
+            info.numLevelUps++
+            const levelMod = info.numLevelUps % desc.levelUpEvery
+            if (info.isEarly !== 0) {
+                if (levelMod === 0) info.isEarly = 0
+                continue
+            }
+            if (levelMod !== 0 && getRandomInt(0, 100) > Math.trunc(100 * levelMod / desc.levelUpEvery)) continue
+
+            info.level++
+            if (levelMod !== 0) info.isEarly = 1
+            // CE indexes level_pids by the new level (level_pids[0] is the base form).
+            if (!copyLevelInfo(obj, desc.levelPids[info.level])) continue
+
+            const name = obj.name ?? ''
+            const fmt = getMessage('misc', 9000) // "%s has gained in some abilities."
+            if (fmt) uiLog(fmt.replace('%s', name))
+            const individual = getMessage('misc', 9000 + 10 * desc.index + info.level - 1)
+            if (individual) {
+                globalState.floatMessages.push({ msg: individual.replace('%s', name), obj, startTime: window.performance.now(), color: 'white' })
+            }
+            dbg('party', `${name} reached party level ${info.level}`)
+        }
     }
 
     // Walk each living party member toward the player if more than 5 hexes away.
@@ -95,10 +190,43 @@ export class Party {
         return this.party.map((obj) => obj.serialize())
     }
 
+    serializeLevels(): { [memberIndex: number]: PartyMemberLevelUpInfo } {
+        return JSON.parse(JSON.stringify(this.levelUpInfo))
+    }
+
+    deserializeLevels(data: { [memberIndex: number]: PartyMemberLevelUpInfo } | undefined): void {
+        this.levelUpInfo = data ? JSON.parse(JSON.stringify(data)) : {}
+    }
+
     deserialize(objs: SerializedObj[]): void {
         this.party.length = 0
         for (const obj of objs) this.party.push(<Critter>deserializeObj(obj))
     }
+}
+
+// CE ref: party_member.cc:1563 _partyMemberCopyLevelInfo — the member takes the
+// SPECIAL (base + bonus) and skills of the next-stage proto and is healed to the
+// new max HP; equipped armor/weapon stay equipped.
+function copyLevelInfo(critter: Critter, stagePid: number | undefined): boolean {
+    if (stagePid === undefined || stagePid === -1) return false
+    const stage = loadPRO(stagePid, stagePid & 0xffff)
+    if (!stage?.extra?.baseStats) return false
+    const special = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK']
+    for (const s of special) {
+        const base = stage.extra.baseStats[s] ?? 0
+        const bonus = stage.extra.bonusStats?.[s] ?? 0
+        critter.stats.setBase(s, base + bonus)
+    }
+    // CE copies only SPECIAL (0-6) and skills; Max HP isn't copied (the arrays are
+    // assigned directly, so critterUpdateDerivedStats never runs).
+    const tagged = critter.skills?.tagged ?? []
+    const points = critter.skills?.skillPoints ?? 0
+    const skills = SkillSet.fromPro(stage.extra.skills)
+    skills.tagged = tagged
+    skills.skillPoints = points
+    critter.skills = skills
+    critter.stats.setBase('HP', critter.getStat('Max HP'))
+    return true
 }
 
 // ── Companion behavior control (party member control/customization screens) ──
