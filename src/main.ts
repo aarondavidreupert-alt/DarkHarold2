@@ -263,16 +263,35 @@ window.onload = async function () {
 
     // initialize cached data
 
+    // Cheap fingerprint of a static file (Last-Modified + Content-Length via a sync
+    // HEAD request) so a pipeline re-run invalidates the IndexedDB copy instead of
+    // silently serving stale proMap/imageMap data forever.
+    function fileStamp(path: string): string {
+        try {
+            const xhr = new XMLHttpRequest()
+            xhr.open('HEAD', path, false)
+            // Force revalidation: the browser's heuristic HTTP cache otherwise answers
+            // with the stale Last-Modified of an older copy.
+            xhr.setRequestHeader('Cache-Control', 'no-cache')
+            xhr.send(null)
+            return `${xhr.getResponseHeader('Last-Modified') ?? ''}|${xhr.getResponseHeader('Content-Length') ?? ''}`
+        } catch {
+            return ''
+        }
+    }
+
     function cachedJSON(key: string, path: string, callback: (value: any) => void): void {
-        // load data from cache if possible, else load and cache it
-        IDBCache.get(key, (value) => {
-            if (value) {
+        // load data from cache if possible (and still current), else load and cache it
+        const stamp = fileStamp(path)
+        IDBCache.get(key, (cached) => {
+            if (cached && cached.__stamp !== undefined && cached.__stamp === stamp && stamp !== '') {
                 dbg('map', '[Main] %s loaded from cache DB', key)
-                callback(value)
+                callback(cached.data)
             } else {
-                value = getFileJSON(path)
-                IDBCache.add(key, value)
-                dbg('map', '[Main] %s loaded and cached', key)
+                // Version query string so the HTTP cache can't hand back an old body either.
+                const value = getFileJSON(stamp ? `${path}?v=${encodeURIComponent(stamp)}` : path)
+                IDBCache.add(key, { __stamp: stamp, data: value })
+                dbg('map', '[Main] %s loaded and cached (stamp %s)', key, stamp)
                 callback(value)
             }
         })
@@ -304,6 +323,13 @@ window.onload = async function () {
     ;(window as any).toggleFloorLighting = () => {
         Config.engine.doFloorLighting = !Config.engine.doFloorLighting
         dbg('map', '[Lighting] floor lighting:', Config.engine.doFloorLighting)
+    }
+
+    // setRoofEgg(bool) — soft egg oval on roof tiles that occlude the player when
+    // standing BEHIND a building (roof not hidden by the under-building flood-fill).
+    ;(window as any).setRoofEgg = (on: boolean) => {
+        Config.ui.roofEgg = on !== false
+        console.log(`[Roof] egg-transparency = ${Config.ui.roofEgg}`)
     }
 
     ;(window as any).setLightingMode = (mode: 'gpu' | 'cpu') => {

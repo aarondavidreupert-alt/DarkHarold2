@@ -23,6 +23,7 @@ import { Obj } from './object.js'
 import { UIMode } from './ui_panels.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter.js'
 import { uiLog } from './ui_hud.js'
+import { getMessage } from './util.js'
 import { makeDropTarget, makeDraggable } from './ui_inventory.js'
 import { $id, clearEl, showv, hidev, off, makeEl } from './ui_dom.js'
 
@@ -78,7 +79,11 @@ export function uiLoot(object: Obj) {
         // CE ref: item.cc itemAttemptAdd — enforce STAT_CARRY_WEIGHT on the receiving critter.
         const toOwner: any = where === 'left' ? globalState.player! : object
         if (wantedAmount > 0 && !toOwner.canCarry?.(obj, wantedAmount)) {
-            uiLog("You can't carry any more.")
+            // CE ref: inventory.cc:4622/4657 — msg 26 when the container is full,
+            // msg 25 when the player is over their weight capacity.
+            uiLog(where === 'left'
+                ? (getMessage('inventry', 25) ?? 'You cannot pick that up. You are at your maximum weight capacity.')
+                : (getMessage('inventry', 26) ?? 'There is no space left for that item.'))
             return
         }
         uiSwapItem(from, obj, to, wantedAmount)

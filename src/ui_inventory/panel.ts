@@ -392,6 +392,7 @@ export function showInventory() {
             case 'use':
                 dbg('inventory', '[UI] using object: ' + obj.art)
                 obj.use(globalState.player)
+                showInventory()  // refresh so consumed items disappear
                 break
             case 'drop':
                 dbg('inventory', '[UI] dropping: ' + obj.art + ' with pid ' + obj.pid)

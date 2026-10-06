@@ -27,7 +27,7 @@ import { eventLogPush, dbg, dbgWarn } from '../logger.js'
 import { Critter, Obj } from '../object.js'
 import { Player } from '../player.js'
 import { Scripting } from '../scripting.js'
-import { drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiEndButtonsGreenLights, uiEndButtonsRedLights, uiLog, uiStartCombat } from '../ui.js'
+import { drawAC, drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiEndButtonsGreenLights, uiEndButtonsRedLights, uiLog, uiStartCombat } from '../ui.js'
 import { clamp, getMessage, getRandomInt, rollSkillCheck } from '../util.js'
 import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from '../unarmed.js'
 import { ActionPoints } from './actionPoints.js'
@@ -450,18 +450,37 @@ export class Combat {
             return
         }
 
+        // CE ref: actions.cc:629 _action_melee / _action_ranged — the weapon's ATTACK
+        // sound is registered with delay 0 (frame 0); only the HIT sound and the damage
+        // display wait for the action frame.
+        const rawAttackSoundID = weaponObj?.pro?.extra?.soundID
+        const attackSoundChar = typeof rawAttackSoundID === 'number' ? String.fromCharCode(rawAttackSoundID) : null
+        if (attackSoundChar && !(window as any).__test?.fastMode) {
+            const isBurstAttack = !!(weaponObj?.weapon?.isBurst?.())
+            globalState.audioEngine.playWeaponSfx(attackSoundChar, isBurstAttack ? 'attack_burst' : 'attack')
+        }
+
         // attack!
-        obj.staticAnimation('attack', callback)
+        // FA3 — CE ref: animation.cc / combat.cc _action_melee/_action_ranged: the hit,
+        // impact sound and target reaction happen on the attacker's FRM action frame,
+        // not on frame 0. resolveAttack() runs then (or at animation end at the latest,
+        // always before the turn-continuation callback).
+        let resolved = false
+        const resolveAttack = (): void => {
+            if (resolved) return
+            resolved = true
+            this.resolveAttack(obj, target, region, weaponObj, who)
+        }
+        obj.staticAnimation('attack', () => { resolveAttack(); if (callback) callback(); else obj.clearAnim() },
+            undefined, undefined, resolveAttack)
+    }
+
+    // Second half of attack(): rolls, damage and reactions, run on the action frame.
+    private resolveAttack(obj: Critter, target: Critter, region: string, weaponObj: Critter['equippedWeapon'], who: string): void {
 
         var audio: AudioEngine = globalState.audioEngine
         var rawSoundID = weaponObj?.pro?.extra?.soundID
         var soundIdChar = typeof rawSoundID === 'number' ? String.fromCharCode(rawSoundID) : null
-
-        // Play attack sound — burst-fire weapons have their own wa<id>2xxx1 sample.
-        if (soundIdChar && !(window as any).__test?.fastMode) {
-            const isBurstAttack = !!(weaponObj?.weapon?.isBurst?.())
-            audio.playWeaponSfx(soundIdChar, isBurstAttack ? 'attack_burst' : 'attack')
-        }
 
         var targetName = target.isPlayer ? 'you' : target.name
         var weapon = weaponObj?.weapon
@@ -1263,14 +1282,13 @@ export class Combat {
         const interior = line.slice(1, -1)
         const mapObjects = globalState.gMap.getObjects()
         const LIGHT_THRU = 0x20000000
-        const HIDDEN = 0x01000000
         for (const pos of interior) {
             for (const o of mapObjects) {
                 const t = (o as any).type
                 if (t !== 'wall' && t !== 'scenery') continue
                 if ((o as any).position?.x !== pos.x || (o as any).position?.y !== pos.y) continue
                 const flags = (o as any).flags ?? 0
-                if ((flags & HIDDEN) !== 0) continue
+                if ((o as any).visible === false || (flags & 0x01) !== 0) continue // CE OBJECT_HIDDEN = 0x01
                 if ((flags & LIGHT_THRU) !== 0) continue
                 return false
             }
@@ -1342,6 +1360,8 @@ export class Combat {
             var prev = this.combatants[prevIdx]
             if (!prev.dead && prev.AP) {
                 prev.bonusAC = prev.AP.getAvailableMoveAP()
+                // CE ref: stat.cc:203-242 — unused AP counts as AC while it isn't the critter's turn.
+                if (prev.isPlayer) drawAC(prev.getStat('AC') + prev.bonusAC)
             }
         }
 
@@ -1353,6 +1373,7 @@ export class Combat {
             this.player.AP!.resetAP()
             drawAP(this.player.AP!.getAvailableMoveAP(), this.player.AP!.getTotalMaxAP())
             drawHP(this.player.getStat('HP'))
+            drawAC(this.player.getStat('AC'))
             // CE ref: combat.cc:3276 / interface.cc interfaceBarEndButtonsRenderGreenLights —
             // green lights + icombat2 when player's turn begins (buttons enabled)
             if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat2')

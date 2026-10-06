@@ -96,6 +96,27 @@ def readWall(f):
 
 	return obj
 
+def readTile(f):
+	obj = {}
+
+	# CE ref: proto.cc:1719 protoRead() OBJ_TYPE_TILE — `flags` is read at the
+	# readPRO() level for this type (TileProto lacks lightDistance/lightIntensity);
+	# this continues with the remaining 3 fields. (Restored 2026-10-06, PS3.)
+	obj["extendedFlags"] = read32(f)
+	obj["scriptID"] = read32(f) # sid
+	obj["material"] = read32(f)
+
+	return obj
+
+def readMisc(f):
+	obj = {}
+
+	# CE ref: proto.cc protoRead() OBJ_TYPE_MISC — read right after the common
+	# lightDistance/lightIntensity/flags header. (Restored 2026-10-06, PS4.)
+	obj["extendedFlags"] = read32(f)
+
+	return obj
+
 def readDrugEffect(f):
 	obj = {}
 	
@@ -188,6 +209,19 @@ def readItem(f: BufferedReader):
 		obj["addictionEffect"] = read32(f)
 		obj["addictionOnset"] = read32(f)
 
+	elif objSubType == SUBTYPE_CONTAINER:
+		# CE ref: proto.cc protoItemDataRead ITEM_TYPE_CONTAINER
+		obj["maxSize"] = read32(f)
+		obj["openFlags"] = read32(f)
+	elif objSubType == SUBTYPE_MISC:
+		# CE ref: proto.cc protoItemDataRead ITEM_TYPE_MISC
+		obj["powerTypePid"] = read32(f)
+		obj["powerType"] = read32(f)
+		obj["charges"] = read32(f)
+	elif objSubType == SUBTYPE_KEY:
+		# CE ref: proto.cc protoItemDataRead ITEM_TYPE_KEY
+		obj["keyCode"] = read32(f)
+
 	#else:
 	#	print "warning: unhandled item subtype", objSubType
 
@@ -243,11 +277,19 @@ def readCritter(f):
 	obj["XPValue"] = read32(f)
 	obj["killType"] = read32(f)
 
-
-	if FO1 or obj["killType"] in (5, 10): # Robots/Brahmin
+	# CE ref: critter.cc:1064 protoCritterDataRead — damageType (native unarmed
+	# damage type, e.g. Floater/Floating Eye Bot) is read unconditionally, not gated
+	# on killType. Two vanilla protos (Sentry Bot, Weak Brahmin) are 4 bytes short;
+	# CE treats the failed read as DAMAGE_TYPE_NORMAL (critter.cc:1086-1088).
+	# (Restored 2026-10-06 — reverted to the killType gate in b282cca.)
+	if FO1:
 		obj["damageType"] = None
 	else:
-		obj["damageType"] = read32(f)
+		damageTypeBytes = f.read(4)
+		if len(damageTypeBytes) == 4:
+			obj["damageType"] = struct.unpack("!l", damageTypeBytes)[0]
+		else:
+			obj["damageType"] = 0 # DAMAGE_TYPE_NORMAL
 
 	return obj
 
@@ -257,9 +299,6 @@ def readPRO(f: BufferedReader):
 	objectTypeAndID = read32(f)
 	textID = read32(f)
 	frmTypeAndID = read32(f)
-	lightRadius = read32(f)
-	lightIntensity = read32(f)
-	flags = read32(f)
 
 	pid = objectTypeAndID & 0xffff
 	objType = (objectTypeAndID >> 24) & 0xff
@@ -267,14 +306,24 @@ def readPRO(f: BufferedReader):
 	obj["pid"] = pid
 	obj["textID"] = textID
 	obj["type"] = objType
-	obj["flags"] = flags
-	obj["lightRadius"] = lightRadius
-	obj["lightIntensity"] = lightIntensity
 
 	frmPID = frmTypeAndID & 0xffff
 	frmType = (frmTypeAndID >> 24) & 0xff
 	obj["frmPID"] = frmPID
 	obj["frmType"] = frmType
+
+	# CE ref: proto.cc:1663 protoRead — the true common prefix is only
+	# pid/messageId/fid. TileProto (proto_types.h:423) has no
+	# lightDistance/lightIntensity, so tiles read flags directly.
+	if objType == TYPE_TILE:
+		obj["flags"] = read32(f)
+		obj["extra"] = readTile(f)
+		return obj
+
+	# CE name is `lightDistance` (proto_types.h); scripting.ts proto_data() reads it.
+	obj["lightDistance"] = read32(f)
+	obj["lightIntensity"] = read32(f)
+	obj["flags"] = read32(f)
 
 	#print "type:", objType
 
@@ -286,6 +335,8 @@ def readPRO(f: BufferedReader):
 		obj["extra"] = readScenery(f)
 	elif objType == TYPE_WALL:
 		obj["extra"] = readWall(f)
+	elif objType == TYPE_MISC:
+		obj["extra"] = readMisc(f)
 	else:
 		print(f"unhandled type {objType}")
 

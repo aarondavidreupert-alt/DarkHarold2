@@ -142,6 +142,17 @@ declare module './GameMap.js' {
 }
 
 GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point, startingElevation = 0, loadedCallback?: () => void): void {
+        // Fleeing to a map exit mid-combat is valid in CE: reaching an exit grid
+        // (object.cc:1399-1432) makes combat.cc's turn loop quit (combat.cc:3186-3196)
+        // before mapHandleTransition() (map.cc:1244-1256) loads the new map, so you
+        // are never in combat on arrival. Reproduce that end state here.
+        // (Restored 2026-10-06; lost in b282cca.)
+        if (globalState.inCombat) {
+            globalState.combat?.forceEnd()
+            globalState.inCombat = false
+            globalState.combat = null
+        }
+
         if (Config.engine.doSaveDirtyMaps && this.name !== null && this.objects !== null) {
             // if a map is already loaded, save it to the dirty map cache before loading
             dbg('map', `[Main] Serializing map ${this.name} and committing to dirty map cache`)

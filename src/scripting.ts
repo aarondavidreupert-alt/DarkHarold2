@@ -389,10 +389,10 @@ export module Scripting {
         return [0, 1, 5].indexOf(dir) !== -1
     }
 
-    function isWithinPerception(obj: Critter, target: Critter): boolean {
+    function isWithinPerception(obj: Critter, target: Obj): boolean {
         const dist = hexDistance(obj.position, target.position)
         const perception = obj.getStat('PER')
-        const sneakSkill = target.getSkill('Sneak')
+        const sneakSkill = target.type === 'critter' ? (target as Critter).getSkill('Sneak') : 0
         // CE ref: combat_ai.cc:3514-3522 isWithinPerception — sneak detection tiers:
         //   dudeIsSneaking (isSneaking && sneakWorking) → ÷4 (strong path)
         //   dudeHasState(SNEAKING) (isSneaking only, roll failing) → ×2/3 (weak path)
@@ -412,24 +412,21 @@ export module Scripting {
                 reqDist = Math.floor(reqDist / 4)
                 if (sneakSkill > 120) reqDist--
             } else if (isSneaking) {
-                // CE: dudeHasState(SNEAKING) only → ×2/3
+                // CE: dudeHasState(SNEAKING) only → ×2/3 (no Sneak>120 bonus on this path)
                 reqDist = Math.floor((reqDist * 2) / 3)
-                if (sneakSkill > 120) reqDist--
             }
 
             if (dist <= reqDist) return true
         }
 
+        // Hearing range — CE combat_ai.cc:3527: no OBJECT_TRANS_GLASS halving here.
         reqDist = globalState.inCombat ? perception * 2 : perception
-
-        if ((target as any).stealthActive) reqDist = Math.floor(reqDist / 2)
 
         if (sneakWorking) {
             reqDist = Math.floor(reqDist / 4)
             if (sneakSkill > 120) reqDist--
         } else if (isSneaking) {
             reqDist = Math.floor((reqDist * 2) / 3)
-            if (sneakSkill > 120) reqDist--
         }
 
         return dist <= reqDist
@@ -737,8 +734,19 @@ export module Scripting {
                     Worldmap.addCarFuel(gasAmount)
                     return 1
                 }
-                case 52: return 0   // SET_CAR_CARRY_AMOUNT — no car system; no-op
-                case 53: return 0   // GET_CAR_CARRY_AMOUNT — no car system; 0
+                case 52: {
+                    // CE ref: interpreter_extra.cc:3331 METARULE_SET_CAR_CARRY_AMOUNT — writes
+                    // maxSize on the shared PROTO_ID_CAR_TRUNK (455) proto.
+                    const trunkPro = loadPRO(455, 455)
+                    if (!trunkPro) return 0
+                    trunkPro.extra.maxSize = typeof target === 'number' ? target : 0
+                    return 1
+                }
+                case 53: {
+                    // CE ref: interpreter_extra.cc:3340 METARULE_GET_CAR_CARRY_AMOUNT.
+                    const trunkPro = loadPRO(455, 455)
+                    return trunkPro?.extra?.maxSize ?? 0
+                }
                 default:
                     dbgWarn('script', `metarule: unhandled id ${id}`)
                     break
@@ -1191,7 +1199,13 @@ export module Scripting {
             return +objCanSeeObj(a, b)
         }
         obj_can_hear_obj(a: Obj, b: Obj) {
-            /*stub("obj_can_hear_obj", arguments);*/ return 0
+            // CE ref: interpreter_extra.cc:2620 opObjectCanHearObject (sfall-fixed form CE
+            // ships): same elevation, both on valid tiles, and isWithinPerception(a, b).
+            if (!isGameObject(a) || !isGameObject(b)) return 0
+            if (a.type !== 'critter') return 0
+            if (a.elevation !== b.elevation) return 0
+            if (!a.position || !b.position) return 0
+            return isWithinPerception(a as Critter, b) ? 1 : 0
         }
         critter_mod_skill(obj: Obj, skill: number, amount: number) {
             if (!isGameObject(obj) || obj.type !== 'critter') {
@@ -1603,7 +1617,17 @@ export module Scripting {
             //stub("obj_open", arguments)
         }
         proto_data(pid: number, data_member: number): any {
-            // FO2-CE ref: intrinsics.cc proto_data_pointer() — maps data_member IDs to PRO fields
+            // CE ref: proto.cc:1099 protoGetDataMember (+ proto.h *_DATA_MEMBER_* enums).
+            // Field mapping to tools/proto.py JSON:
+            //   flags            → pro.flags (common header)
+            //   extendedFlags    → items: the 32-bit word proto.py splits into
+            //                      itemFlags/actionFlags/weaponFlags/attackMode bytes;
+            //                      critters: extra.actionFlags; scenery/wall/misc: extra.extendedFlags
+            //   sid              → extra.scriptID (scenery: extra.scriptPID)
+            // CRITTER_DATA_MEMBER_DATA (9) / SCENERY_DATA_MEMBER_DATA (10) return C
+            // pointers in CE and have no script-visible meaning — 0 here.
+            // (Rewritten 2026-10-06 — flags/extended-flags/head-FID previously read the
+            // wrong JSON fields.)
             const pidID = pid & 0xffff
             const pro = loadPRO(pid, pidID)
             if (!pro) {
@@ -1612,56 +1636,58 @@ export module Scripting {
             }
             const objType = (pid >> 24) & 0xff
             const extra = pro.extra ?? {}
+            const msgCat = ['pro_item', 'pro_crit', 'pro_scen', 'pro_wall', 'pro_tile', 'pro_misc'][objType]
+            // Members 0-5 are identical for every type.
+            switch (data_member) {
+                case 0: return pid
+                case 1: return getMessage(msgCat, pro.textID) ?? ''
+                case 2: return getMessage(msgCat, pro.textID + 1) ?? ''
+                case 3: return ((pro.frmType ?? objType) << 24) | (pro.frmPID ?? 0)
+                case 4: return pro.lightDistance ?? pro.lightRadius ?? 0
+                case 5: return pro.lightIntensity ?? 0
+                case 6: return pro.flags ?? 0
+            }
             if (objType === 0 /* OBJ_TYPE_ITEM */) {
-                // CE ref: proto.h ItemDataMember enum / proto.cc:1107 protoGetDataMember
-                // Only these IDs exist in CE — subtype-specific weapon/ammo/armor fields
-                // are NOT accessible via proto_data() in the original engine.
                 switch (data_member) {
-                    case 0:   return pid                            // ITEM_DATA_MEMBER_PID
-                    case 1:   return getMessage('pro_item', pro.textID) ?? ''      // ITEM_DATA_MEMBER_NAME
-                    case 2:   return getMessage('pro_item', pro.textID + 1) ?? ''  // ITEM_DATA_MEMBER_DESCRIPTION
-                    case 3:   return pro.frmPID ?? 0               // ITEM_DATA_MEMBER_FID
-                    case 4:   return pro.lightDistance ?? 0        // ITEM_DATA_MEMBER_LIGHT_DISTANCE
-                    case 5:   return pro.lightIntensity ?? 0       // ITEM_DATA_MEMBER_LIGHT_INTENSITY
-                    case 6:   return extra.itemFlags ?? 0          // ITEM_DATA_MEMBER_FLAGS
-                    case 7:   return extra.attackMode ?? 0         // ITEM_DATA_MEMBER_EXTENDED_FLAGS
-                    case 8:   return 0                             // ITEM_DATA_MEMBER_SID (not persisted)
-                    case 9:   return extra.subType ?? 0            // ITEM_DATA_MEMBER_TYPE
-                    case 11:  return extra.materialID ?? 0         // ITEM_DATA_MEMBER_MATERIAL
-                    case 12:  return extra.size ?? 0               // ITEM_DATA_MEMBER_SIZE
-                    case 13:  return extra.weight ?? 0             // ITEM_DATA_MEMBER_WEIGHT
-                    case 14:  return extra.cost ?? 0               // ITEM_DATA_MEMBER_COST
-                    case 15:  return extra.invFRM ?? 0             // ITEM_DATA_MEMBER_INVENTORY_FID
-                    case 555: return extra.maxRange1 ?? 0          // ITEM_DATA_MEMBER_WEAPON_RANGE (weapon only)
-                    default:  return 0
+                    case 7: return (((extra.itemFlags ?? 0) << 24) | ((extra.actionFlags ?? 0) << 16)
+                        | ((extra.weaponFlags ?? 0) << 8) | (extra.attackMode ?? 0)) >>> 0
+                    case 8: return extra.scriptID ?? -1
+                    case 9: return extra.subType ?? 0
+                    case 11: return extra.materialID ?? 0
+                    case 12: return extra.size ?? 0
+                    case 13: return extra.weight ?? 0
+                    case 14: return extra.cost ?? 0
+                    case 15: return extra.invFRM ?? 0
+                    case 555: return extra.maxRange1 ?? 0 // ITEM_DATA_MEMBER_WEAPON_RANGE
                 }
             } else if (objType === 1 /* OBJ_TYPE_CRITTER */) {
-                // CE ref: proto.h CritterDataMember enum / proto.cc:1166 protoGetDataMember
                 switch (data_member) {
-                    case 0:   return pid                            // CRITTER_DATA_MEMBER_PID
-                    case 1:   return getMessage('pro_crit', pro.textID) ?? ''      // CRITTER_DATA_MEMBER_NAME
-                    case 2:   return getMessage('pro_crit', pro.textID + 1) ?? ''  // CRITTER_DATA_MEMBER_DESCRIPTION
-                    case 3:   return pro.frmPID ?? 0               // CRITTER_DATA_MEMBER_FID
-                    case 4:   return pro.lightDistance ?? 0        // CRITTER_DATA_MEMBER_LIGHT_DISTANCE
-                    case 5:   return pro.lightIntensity ?? 0       // CRITTER_DATA_MEMBER_LIGHT_INTENSITY
-                    case 6:   return extra.flags ?? 0              // CRITTER_DATA_MEMBER_FLAGS
-                    case 7:   return extra.extendedFlags ?? 0      // CRITTER_DATA_MEMBER_EXTENDED_FLAGS
-                    case 8:   return 0                             // CRITTER_DATA_MEMBER_SID
-                    case 10:  return extra.headFRM ?? extra.head ?? 0 // CRITTER_DATA_MEMBER_HEAD_FID
-                    case 11:  return extra.bodyType ?? 0           // CRITTER_DATA_MEMBER_BODY_TYPE
-                    default:  return 0
+                    case 7: return extra.actionFlags ?? 0
+                    case 8: return extra.scriptID ?? -1
+                    case 9: return 0 // CRITTER_DATA_MEMBER_DATA (pointer)
+                    case 10: return extra.headFID ?? -1
+                    case 11: return extra.bodyType ?? 0
                 }
             } else if (objType === 2 /* OBJ_TYPE_SCENERY */) {
-                // CE ref: proto.h SceneryDataMember enum / proto.cc protoGetDataMember
                 switch (data_member) {
-                    case 6:  return extra.flags ?? 0               // SCENERY_DATA_MEMBER_FLAGS
-                    case 7:  return extra.extendedFlags ?? 0       // SCENERY_DATA_MEMBER_EXTENDED_FLAGS
-                    case 9:  return extra.subType ?? 0             // SCENERY_DATA_MEMBER_TYPE
-                    case 11: return extra.materialID ?? 0          // SCENERY_DATA_MEMBER_MATERIAL
-                    default: return 0
+                    case 7: return extra.extendedFlags ?? 0
+                    case 8: return extra.scriptPID ?? -1
+                    case 9: return extra.subType ?? 0
+                    case 10: return 0 // SCENERY_DATA_MEMBER_DATA (pointer)
+                    case 11: return extra.materialID ?? 0
                 }
+            } else if (objType === 3 /* OBJ_TYPE_WALL */) {
+                switch (data_member) {
+                    case 7: return extra.extendedFlags ?? 0
+                    case 8: return extra.scriptID ?? -1
+                    case 9: return extra.material ?? 0
+                }
+            } else if (objType === 5 /* OBJ_TYPE_MISC */) {
+                if (data_member === 7) return extra.extendedFlags ?? 0
             }
-            warn('proto_data: unsupported objType=' + objType + ' data_member=' + data_member)
+            // CE: unknown members for a valid type log "Invalid data member" and yield 0;
+            // OBJ_TYPE_TILE has no members at all.
+            dbgWarn('script', `proto_data: invalid data member ${data_member} for objType=${objType}`)
             return 0
         }
         create_object_sid(pid: number, tile: number, elev: number, sid: number) {
@@ -1907,24 +1933,21 @@ export module Scripting {
             if (tile < 0 || tile >= Lightmap.tile_intensity.length) return 0
             return Lightmap.tile_intensity[tile] > 0 ? 1 : 0
         }
-        // CE ref: sfall_opcodes.cc:951 op_obj_blocking_at — returns first blocking object
-        // at (tile, elevation) for the given blocking type, or null if none.
-        // Blocking types: 0=block, 1=shoot, 2=ai, 3=sight (DH2 uses common blocking).
-        obj_blocking_at(tile: number, elevation: number, _blockingType: number): Obj | null {
+        // CE ref: sfall_opcodes.cc:951 op_obj_blocking_at — first blocking object at
+        // (tile, elevation) for block type 0=BLOCK/1=SHOOT/2=AI/3=SIGHT/4=SCROLL
+        // (see GameMap.blockingObjectAt); SHOOT drops OBJECT_SHOOT_THRU obstacles.
+        obj_blocking_at(tile: number, elevation: number, blockingType: number): Obj | null {
             if (!globalState.gMap) return null
-            const pos = fromTileNum(tile)
-            const objs = globalState.gMap.objectsAtPosition(pos)
-            for (const o of objs) {
-                if (o.blocks()) return o
-            }
-            return null
+            const o = globalState.gMap.blockingObjectAt(tile, elevation, blockingType, null)
+            if (o && blockingType === 1 && ((((o as any).flags ?? 0) >>> 0) & 0x80000000) !== 0) return null
+            return o
         }
-        // CE ref: sfall_opcodes.cc:937 op_make_straight_path — casts a straight hex
-        // line from obj.tile to dest and returns the first blocking obstacle, or null.
-        make_straight_path(obj: Obj, destTile: number, _blockingType: number): Obj | null {
+        // CE ref: sfall_opcodes.cc:937 op_make_straight_path — screen-space straight line
+        // from obj's tile to dest, returning the first obstacle (animation.cc
+        // _make_straight_path_func; see GameMap.straightPathBlockingObject).
+        make_straight_path(obj: Obj, destTile: number, blockingType: number): Obj | null {
             if (!isGameObject(obj) || !globalState.gMap) return null
-            const dest = fromTileNum(destTile)
-            return globalState.gMap.hexLinecast(obj.position, dest)
+            return globalState.gMap.straightPathBlockingObject(obj, fromTileNum(destTile), blockingType)
         }
         tile_num_in_direction(tile: number, direction: number, distance: number) {
             if (distance === 0) {

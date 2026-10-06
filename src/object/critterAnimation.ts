@@ -37,7 +37,11 @@ declare module './Critter.js' {
         getBase(): string
         getAnimation(anim: string): string
         hasAnimation(anim: string): boolean
-        staticAnimation(anim: string, callback?: () => void, waitForLoad?: boolean, reversed?: boolean): void
+        staticAnimation(anim: string, callback?: () => void, waitForLoad?: boolean, reversed?: boolean, onActionFrame?: () => void): void
+        // FA3: fired once when the current static animation reaches its FRM action frame
+        // (CE art.h ArtFrame.actionFrame), or just before animCallback if it never does.
+        actionFrameCallback?: (() => void) | null
+        fireActionFrame(): void
         playWeaponSwapAnim(swapFn: () => void, callback?: () => void): void
         clearAnim(): void
         updateStaticAnim(): void
@@ -261,8 +265,24 @@ Critter.prototype.hasAnimation = function (this: Critter, anim: string): boolean
     return globalState.imageInfo[this.getAnimation(anim)] !== undefined
 }
 
+// FA3 — CE ref: art.h ArtFrame.actionFrame; animation.cc fires the action-frame event
+// (hit / impact / projectile release) when the animation's frame index reaches it.
+// The pipeline stores it per direction (tools/frmpixels.py exportFRMs).
+function actionFrameFor(art: string, orientation: number): number | null {
+    const af = globalState.imageInfo[art]?.actionFrame
+    if (Array.isArray(af)) return typeof af[orientation] === 'number' ? af[orientation] : (af[0] ?? null)
+    return typeof af === 'number' ? af : null
+}
+
+Critter.prototype.fireActionFrame = function (this: Critter): void {
+    const cb = this.actionFrameCallback
+    this.actionFrameCallback = null
+    if (cb) cb()
+}
+
 Critter.prototype.updateStaticAnim = function (this: Critter): void {
     if ((window as any).__test?.fastMode) {
+        this.fireActionFrame()
         const cb = this.animCallback
         ;(this as any).animCallback = null
         this.frame = 0  // match the normal done-path which resets frame before calling callback
@@ -282,11 +302,18 @@ Critter.prototype.updateStaticAnim = function (this: Critter): void {
         }
         this.lastFrameTime = time
 
+        if (this.actionFrameCallback && !reversed) {
+            const af = actionFrameFor(this.art, this.orientation ?? 0)
+            if (af !== null && this.frame >= af) this.fireActionFrame()
+        }
+
         const done = reversed
             ? this.frame === -1
             : this.frame === globalState.imageInfo[this.art].numFrames
         if (done) {
             if (reversed) this.frame++ // clamp back to frame 0
+            // An action frame past the last frame (or missing data) still resolves first.
+            this.fireActionFrame()
             // animation is done
             if (this.animCallback) {
                 this.animCallback()
@@ -472,7 +499,7 @@ Critter.prototype.getWalkLerp = function (this: Critter): { hexA: Point; hexB: P
     return { hexA, hexB, t }
 }
 
-Critter.prototype.staticAnimation = function (this: Critter, anim: string, callback?: () => void, waitForLoad = true, reversed = false): void {
+Critter.prototype.staticAnimation = function (this: Critter, anim: string, callback?: () => void, waitForLoad = true, reversed = false, onActionFrame?: () => void): void {
     // Capture current state synchronously — these are the old-art values we need for the
     // offset formula. We do NOT switch this.art/this.frame here so the renderer keeps
     // showing the old sprite until the new texture is confirmed loaded.
@@ -537,6 +564,9 @@ Critter.prototype.staticAnimation = function (this: Critter, anim: string, callb
             this.anim = anim
         }
         this.animCallback = callback || (() => this.clearAnim())
+        this.actionFrameCallback = onActionFrame ?? null
+        // Frame 0 can itself be the action frame.
+        if (onActionFrame && !reversed && actionFrameFor(newArt, this.orientation ?? 0) === 0) this.fireActionFrame()
     }
 
     if (waitForLoad) {

@@ -178,6 +178,33 @@ WebGLRenderer.prototype.renderRoof = function (roof: TileMap, hideSet?: Set<stri
     // Use ambient-only lighting for sky-facing roof tiles.
     this.setRoofLighting()
 
+    // Egg-transparency on roofs: roof tiles that overlap the player's egg oval but
+    // are NOT hidden by the under-building flood-fill (you're standing BEHIND a
+    // building, not under it) get the same soft egg mask the walls get. hideSet
+    // rules are untouched; the shader clips the fade to the egg oval's world rect,
+    // so only fragments inside the oval are affected. Anchor mirrors renderObject's
+    // wall egg. (Restored 2026-10-06; lost in b282cca.)
+    let roofEggActive = false
+    if (
+        Config.ui.showEgg !== false &&
+        Config.ui.roofEgg !== false &&
+        usesEggMaskTexture() &&
+        this.eggTexture && this.eggWidth > 0 && this.eggHeight > 0 &&
+        this.uEggMode && this.uEggCenter
+    ) {
+        const playerInfo = globalState.player ? this.objectRenderInfo(globalState.player) : null
+        if (playerInfo) {
+            const eggX = playerInfo.x + playerInfo.frameWidth / 2
+            const eggY = playerInfo.y + playerInfo.frameHeight + 10
+            gl.uniform1i(this.uEggMode, 1)
+            gl.uniform2f(this.uEggCenter, eggX, eggY)
+            gl.activeTexture(gl.TEXTURE6)
+            gl.bindTexture(gl.TEXTURE_2D, this.eggTexture)
+            gl.activeTexture(gl.TEXTURE0)
+            roofEggActive = true
+        }
+    }
+
     const viewW = SCREEN_WIDTH / z
     const viewH = SCREEN_HEIGHT / z
 
@@ -215,6 +242,9 @@ WebGLRenderer.prototype.renderRoof = function (roof: TileMap, hideSet?: Set<stri
             gl.drawArrays(gl.TRIANGLES, 0, 6)
         }
     }
+
+    // Restore non-egg state so later tileShader draws aren't left faded.
+    if (roofEggActive && this.uEggMode) gl.uniform1i(this.uEggMode, 0)
 }
 
 WebGLRenderer.prototype.renderFloor = function (floor: TileMap): void {

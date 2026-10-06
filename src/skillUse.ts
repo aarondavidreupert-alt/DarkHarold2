@@ -135,7 +135,6 @@ const SKILL_XP: { [skill: string]: number } = {
     'First Aid': 25,
     'Doctor': 50,
     'Lockpick': 50,
-    'Steal': 30,
     'Traps': 50,
     'Science': 25,
     'Repair': 50,
@@ -172,7 +171,10 @@ export function skillUse(user: Critter, target: Critter | null, skill: string): 
         case 'Lockpick':
             return useLockpick(user, target)
         case 'Steal':
-            return useSteal(user, target)
+            // CE ref: inventory.cc:4505 inventoryOpenStealing() — real stealing is the
+            // interactive per-item UI (ui_steal.ts uiSteal(), wired from playerUse.ts).
+            // This fallback only fires if playerUseSkill() had no live critter target.
+            return makeResult(false, RollResult.Failure, 'There is nothing to steal.')
         case 'Traps':
             return useTraps(user, target)
         case 'Science':
@@ -468,94 +470,6 @@ function useLockpick(user: Critter, target: Critter | null): SkillUseResult {
     }
 
     return makeResult(false, roll, 'You fail to pick the lock.')
-}
-
-// ---------------------------------------------------------------------------
-// STEAL
-// FO2-CE ref: skill.cc skillsPerformStealing()
-// Chance based on Steal skill, target facing, item size. Cap at 95%.
-// ---------------------------------------------------------------------------
-function useSteal(user: Critter, target: Critter | null): SkillUseResult {
-    logSkillHeader('Steal', target, user)
-
-    if (!target) {
-        return makeResult(false, RollResult.Failure, 'Nothing to steal from.')
-    }
-
-    if (target.dead) {
-        dbg('skills', '[SKILL]   Target is dead — looting freely')
-        return makeResult(true, RollResult.Success, 'You search the body.')
-    }
-
-    const baseSkill = user.getSkill('Steal')
-    let stealSkill = baseSkill
-    const modifiers: [string, number][] = []
-
-    // FO2-CE: +30 bonus if sneaking
-    const isSneaking = user.isPlayer ? (globalState.player as any)?.isSneaking : false
-    if (isSneaking) {
-        stealSkill += 30
-        modifiers.push(['sneaking bonus', 30])
-    }
-
-    const hasPickpocket = user.hasPerk?.('Pickpocket') ?? false
-    if (!hasPickpocket) {
-        // CE ref: skill.cc:1043 skillsPerformStealing — facing check: -25 if face to face
-        // _is_hit_from_front: abs(a.rotation - b.rotation) not in {0,1,5}
-        const rotDiff = Math.abs(user.orientation - target.orientation) % 6
-        const faceToFace = rotDiff !== 0 && rotDiff !== 1 && rotDiff !== 5
-        if (faceToFace) {
-            stealSkill -= 25
-            modifiers.push(['facing penalty', -25])
-        }
-    }
-
-    // CE ref: skill.cc:1049 — +20 if target is knocked out or down
-    if ((target as any).isKnockedDown) {
-        stealSkill += 20
-        modifiers.push(['knocked down/out', 20])
-    }
-
-    // Cap at 95%
-    const chance = Math.min(95, stealSkill)
-    if (stealSkill > 95) {
-        modifiers.push(['cap at 95%', 95 - stealSkill])
-    }
-
-    dbg('skills', `[SKILL]   Base skill: ${baseSkill}`)
-    for (const [name, value] of modifiers) {
-        const sign = value >= 0 ? '+' : ''
-        dbg('skills', `[SKILL]   Modifier: ${sign}${value} (${name})`)
-    }
-    dbg('skills', `[SKILL]   Final chance: ${chance}%`)
-
-    const stealRoll = getRandomInt(1, 100)
-    dbg('skills', `[SKILL]   Roll: ${stealRoll}`)
-
-    if (stealRoll <= chance) {
-        dbg('skills', `[SKILL]   Result: SUCCESS (roll ${stealRoll} <= chance ${chance})`)
-        emitSkillRoll('Steal', user, chance, RollResult.Success, stealRoll)
-        const xp = SKILL_XP['Steal']
-        if (user.isPlayer && xp > 0) {
-            (globalState.player as any)?.addExperience?.(xp)
-        }
-        logSkillXP(xp)
-        return makeResult(true, RollResult.Success, 'You steal successfully.', xp)
-    }
-
-    // Caught: separate catch roll
-    const catchChance = Math.floor((100 - chance) / 2)
-    const catchRoll = getRandomInt(1, 100)
-    dbg('skills', `[SKILL]   Steal failed. Catch check: roll ${catchRoll} vs ${catchChance}% chance`)
-    if (catchRoll <= catchChance) {
-        dbg('skills', `[SKILL]   Result: CRITICAL FAILURE — caught stealing!`)
-        emitSkillRoll('Steal', user, chance, RollResult.CriticalFailure, stealRoll)
-        return makeResult(false, RollResult.CriticalFailure, 'You are caught stealing!')
-    }
-
-    dbg('skills', `[SKILL]   Result: FAILURE (roll ${stealRoll} > chance ${chance})`)
-    emitSkillRoll('Steal', user, chance, RollResult.Failure, stealRoll)
-    return makeResult(false, RollResult.Failure, 'You fail to steal anything.')
 }
 
 // ---------------------------------------------------------------------------

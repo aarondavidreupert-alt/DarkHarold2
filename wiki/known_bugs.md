@@ -81,7 +81,7 @@ All entries below are wired in `vm_bridge.ts` and have a corresponding method in
 | S25 | `critter_attempt_placement` now searches adjacent tiles when target is occupied (verified 2026-06-02). Matches CE `critter.cc critterAttemptPlacement()`. | `scripting.ts:929` | — | minor | fixed |
 | S26 | `get_poison` / `poison` **FIXED 2026-07-27, decay loop FIXED 2026-07-27** — `get_poison` returns `poisonLevel ?? 0`; `poison(obj, amount)` increments `poisonLevel`. `poison` opcode `0x8122` was missing from vm_bridge — now wired. Decay loop now uses CE-faithful timed-event approach: schedules `poisonDecayEvent` at `10*(505-5*level)` ticks (faster at high poison, slower at low), -2 poison/-1 HP per event. Resistance applied on add. Save/load restores poison event. CE ref: `critter.cc critterAdjustPoison, poisonEventProcess`. | `src/scripting.ts`, `src/gameTick.ts`, `src/saveload.ts` | `critter.cc:327 critterAdjustPoison` | minor | fixed |
 | S27 | `radiation_inc` / `radiation_dec` **FIXED 2026-07-27** — `radiation_inc` method added to scripting.ts (increments `radiationLevel`); `radiation_dec` already existed. Both opcodes `0x80FD`/`0x80FE` wired in vm_bridge. No decay loop (intentional). CE ref: `interpreter_extra.cc:4966-4967`. | `src/scripting.ts`, `src/vm_bridge.ts` | `interpreter_extra.cc:2777 opRadiationIncrease`, `:2792 opRadiationDecrease` | minor | fixed |
-| S28 | `obj_can_hear_obj` **silent no-op** (found 2026-10-06 audit) — wired at `0x80F5` but the body is `/*stub(...)*/ return 0`, so scripts always see "cannot hear" with no log (violates the no-silent-no-op rule). CE (with sfall fix) returns true when both objects are non-null, on the same elevation, on valid tiles, and `isWithinPerception(obj1, obj2)`. | `src/scripting.ts:1193` | `interpreter_extra.cc:2620 opObjectCanHearObject` | minor | missing |
+| S28 | `obj_can_hear_obj` **silent no-op** (found 2026-10-06 audit) — wired at `0x80F5` but the body is `/*stub(...)*/ return 0`, so scripts always see "cannot hear" with no log (violates the no-silent-no-op rule). CE (with sfall fix) returns true when both objects are non-null, on the same elevation, on valid tiles, and `isWithinPerception(obj1, obj2)`. **FIXED 2026-10-06** — implemented exactly that; `isWithinPerception` also corrected to CE (no Sneak>120 bonus on the ×2/3 path, no Stealth-Boy halving on the hearing range). | `src/scripting.ts:1193` | `interpreter_extra.cc:2620 opObjectCanHearObject`; `combat_ai.cc:3499 isWithinPerception` | minor | fixed |
 
 ---
 
@@ -281,7 +281,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 | FA0c | **`Obj` base class had no `hasAnimation()` method.** `scripting.ts:use_obj_on_obj` passes any `Obj` as source (via `as Critter` cast); non-Critter objects (encdet, encfite, encpres) crashed with `source.hasAnimation is not a function`. Fixed: `Obj.hasAnimation()` stub added returning `false`. | `src/object/Obj.ts` | — | minor | **FIXED 2026-06-02** |
 | FA1 | **`updateStaticAnim` hardcodes fps = 8.** FIXED 2026-06-02 — changed to `globalState.imageInfo[this.art]?.fps \|\| 8`, matching `updateLoopingAnim`. CE ref: `art.cc:713 artGetFramesPerSecond()`. | `src/object/critterAnimation.ts` | `art.cc:713 artGetFramesPerSecond()` | minor | fixed |
 | FA2 | **`getAnimDistance` used wrong direction anchor, causing walk snap-back.** RE-FIXED 2026-06-03 — the 2026-06-02 "fix" switched both anchors to direction 0 (NE), but NE has oblique/negative x displacement that makes `(total+16)/32` give 0 or negative → clamped to 1 hex/cycle. For 2-hex-per-cycle animations (e.g. player walk, dir1.lastOx=69), shift accumulated 2-hex worth (~69px) but position advanced only 1 hex (~32px), causing a 37px snap-back on cycle end. Correct anchor: direction E (index 1) whose x displacement is purely horizontal (+32px per hex), so `floor((totalE+16)/32)` gives exact hex count. CE ref: `Art.xOffsets[rotation]` — rotation 1. | `object.ts getAnimDistance` | `art.h Art.xOffsets` | major | fixed |
-| FA3 | **`actionFrame` discarded by the extraction pipeline.** `tools/frmpixels.py:40` reads the header field into `_actionFrame` (not saved to output dict). Absent from `imageMap.json`. DH2 cannot synchronise hit-detection or sounds to the correct animation frame for weapon attacks. | `tools/frmpixels.py:40` | `art.h ArtFrame.actionFrame` | major | missing |
+| FA3 | **`actionFrame` hit-frame sync. FIXED 2026-10-06** — the pipeline export had been fixed once and then lost in the b282cca revert (§30). `tools/frmpixels.py` again stores `actionFrame` per direction in `imageMap.json` (regenerated; all other entries byte-identical). Runtime: `Critter.staticAnimation()` takes an `onActionFrame` callback fired when the frame index reaches that direction's action frame (or just before the end callback); `Combat.attack()` now plays the weapon's ATTACK sound on frame 0 and runs the new `resolveAttack()` (hit roll, damage, impact sound, target reaction) on the action frame, matching CE `actions.cc:598 _action_melee` / `_action_ranged` (`animationRegisterPlaySoundEffect(..., delay = artGetActionFrame(art))`). Verified: an unarmed punch (`hmjmpsaq`, action frame 3) resolves at frame 3, ~325 ms in. | `tools/frmpixels.py`, `src/object/critterAnimation.ts`, `src/combat/Combat.ts` | `art.h ArtFrame.actionFrame`; `actions.cc:598` | major | fixed |
 | FA4 | **Combat walk-speed boost wired.** FIXED 2026-06-04 — `Critter.updateWalkAnim` adds `Config.combat.combatSpeed` to walk/run `fps` while `globalState.inCombat`. Player-speedup pref is moot in DH2 so the boost always applies during combat. CE ref: `animation.cc:3287 animationComputeTicksPerFrame`. | `src/object/critterAnimation.ts` | `animation.cc:3287` | minor | fixed |
 | FA5 | **Walk start: `obj.shift={x:0,y:0}` is truthy; frame 0's static ox/oy is skipped.** FIXED 2026-06-02 — renderer condition changed to `obj.shift !== null` so `{x:0,y:0}` correctly falls through to `frameInfo.ox/oy`. CE ref: `object.cc _obj_offset()`. | `renderer.ts:311` | `object.cc _obj_offset()` | low | fixed |
 | FA6 | **FID composition / weapon stance animation.** FIXED 2026-07-27 — `canEquip()` always returns true so NPCs equip their inventory weapons (CE ref: `critter.cc critterEquipCurrent`). `Weapon.getAnim()` extended to cover run/shoot/weapon-reload. `getAnimation()` weapon path now checks FRM existence via `globalState.imageInfo` and falls back to unarmed skin 'a' when the armed FRM is absent (CE ref: `art.cc buildFid()`). Full armed-pose visuals require the asset pipeline to extract weapon-armed FRM sets; graceful degradation is now in place for when they are. | `src/object/critterAnimation.ts`; `src/critter/Weapon.ts` | `art.cc buildFid()`; `critter.cc critterEquipCurrent`; `proto_types.h ItemWeaponData.animCode` | medium | **FIXED 2026-07-27** |
@@ -545,6 +545,43 @@ See [wiki/interface_windows.md §11](interface_windows.md) for full documentatio
 | EV4 | **`console.log` in production path. FIXED 2026-07-27** — All 4 `console.log` calls in `ui_elevator.ts` replaced with `dbg()`; added `import { dbg } from './logger.js'`. | `src/ui_elevator.ts` | — | low | fixed |
 
 <!-- audited: 2026-06-02 -->
+
+---
+
+## 30. Regression Audit — commit `b282cca` ("tt", 2026-07-07)
+
+<!-- audited: 2026-10-06 -->
+
+Commit `b282cca` removed ~2,800 lines across 67 files (it looks like a stale-branch
+overwrite). The deleted files (`colorCycle.ts`, `miscItem.ts`, `proto_types.ts`,
+`ui_steal.ts`) were later restored byte-identical, and much in-file work was
+re-implemented later, but a line-by-line diff against HEAD on 2026-10-06 found these
+still missing even though the rows above marked them FIXED. All restored on branch
+`100percent` (CE-faithful, re-verified against CE source):
+
+| ID | Lost feature | Restored where | Status |
+|----|--------------|----------------|--------|
+| RV1 | `get_pc_stat` (0x80A6) and `rm_obj_from_inven` (0x80D9) unwired in `vm_bridge.ts`, so scripts calling them hit an unknown opcode | `src/vm_bridge.ts` | fixed |
+| RV2 | `Rep_<town>` stat definitions (R2) gone, so `StatSet.getBase()` **threw** on the character screen once any town-rep GVAR was set | `src/skills.ts` | fixed |
+| RV3 | Worldmap walk masks (W10) removed entirely; the player walked through oceans/mountains | `src/worldmap/{Worldmap,parser,types}.ts` | fixed |
+| RV4 | `obj_blocking_at` / `make_straight_path` (P8) regressed to an elevation-blind single-predicate version | `GameMap.blockingObjectAt` now ports all 5 CE block types (BLOCK/SHOOT/AI/SIGHT/SCROLL, `object.cc:2387-2583`); `straightPathBlockingObject` ports `animation.cc _make_straight_path_func` | fixed |
+| RV5 | Roof egg-transparency (RD06 `Config.ui.roofEgg`, `setRoofEgg()`) | `src/render/webglDraw.ts`, `src/config.ts`, `src/main.ts` | fixed |
+| RV6 | Pipeline: tile PROs (PS3), misc PRO `extendedFlags` (PS4), critter `damageType` read (PS2 — had reverted to the killType gate), CE `lightDistance` naming | `tools/proto.py`, `tools/exportPRO.py` (re-run; existing fields identical) | fixed |
+| RV7 | `actionFrame` export (FA3) | `tools/frmpixels.py` | fixed |
+| RV8 | Combat force-ended on map transition / save load (fleeing via an exit grid left stale combat state) | `src/map/mapLoader.ts`, `src/saveload.ts` | fixed |
+| RV9 | AC redraw for unused-AP bonus AC at turn change (`stat.cc:203-242`); attack-button tint refresh at combat end (IW2) | `src/combat/Combat.ts`, `src/ui_hud.ts` | fixed |
+| RV10 | Legacy single-roll `useSteal()` + non-CE flat 30 Steal XP resurrected beside the per-item `performSteal()` | removed from `src/skillUse.ts` | fixed |
+| RV11 | Inventory "use" no longer refreshed the panel (consumed items stayed visible); `debug.giveItem(pid, amount)` / `giveItemByName()`; `wiki/drugs.md` deleted | `src/ui_inventory/panel.ts`, `src/debug.ts`, `wiki/drugs.md` | fixed |
+
+Found during the same pass (not from b282cca):
+
+| ID | Gap | Fix | Status |
+|----|-----|-----|--------|
+| RV12 | `OBJECT_HIDDEN` tested as `0x01000000` (that is CE `OBJECT_IN_LEFT_HAND`); CE value is `0x01` | `GameMap.isHiddenObj()` (+ `visible === false`), `Combat.hasLineOfSight` | fixed |
+| RV13 | `proto_data` returned wrong fields for FLAGS / EXTENDED_FLAGS (6/7) on every type and for the critter HEAD_FID (10); wall/misc members missing | rewritten against `proto.cc:1099 protoGetDataMember` | fixed |
+| RV14 | IndexedDB cache of `proMap`/`imageMap` never invalidated, so a pipeline re-run was silently ignored (the browser HTTP cache made it worse) | `main.ts cachedJSON` keys on HEAD Last-Modified+Length and fetches with `?v=`; `idbcache.ts` uses `put` | fixed |
+| RV15 | Container capacity: `maxSize`/`openFlags` (and misc `powerTypePid/powerType/charges`, key `keyCode`) not extracted; loot ignored container size | `tools/proto.py`; `Obj.canCarry` container branch (`item.cc:253 itemAttemptAdd`, `>=` quirk kept); CE messages 25/26 in `ui_loot.ts` | fixed |
+| RV16 | `METARULE_SET/GET_CAR_CARRY_AMOUNT` (52/53) were no-ops | `scripting.ts metarule` writes/reads trunk proto 455 `maxSize` (`interpreter_extra.cc:3331`) | fixed |
 
 ---
 

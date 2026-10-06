@@ -22,6 +22,11 @@ export const Config = {
         // not a full vanish. Kept as an opt-in via setRoofPeek(). See wiki/rendering.md RD06.
         roofPeek: false,
         showEgg: true, // egg transparency: make walls/scenery in front of the player semi-transparent
+        // Egg-transparency on ROOFS: a roof tile that would occlude the player but is NOT
+        // already hidden by the under-building flood-fill (you're standing BEHIND a
+        // building) gets the same soft egg oval as walls. Toggle: setRoofEgg().
+        // See wiki/rendering.md RD06. (Restored 2026-10-06; lost in b282cca.)
+        roofEgg: true,
         eggMode: 'dh2-egg' as 'alpha' | 'dh2-egg' | 'ce-egg' | 'bbox' | 'beta', // 'alpha'=flat transparent, 'dh2-egg'=CE egg.png mask (DH2 hand-tuned occlusion test), 'ce-egg'=CE egg.png mask using the byte-for-byte CE occlusion test (no DH2 deviations), 'bbox'=CE egg.png mask using a screen-space bounding-box overlap + draw-order depth test (DH2-original, not CE-derived), 'beta'=floor hex debug overlay (no wall transparency)
         eggAlpha:  undefined as number | undefined, // outer alpha — undefined = use default 0.4
         eggRadius: undefined as number | undefined, // hex radius — undefined = use default 8

@@ -270,7 +270,7 @@ covered by Phases 1–8.
 | S27 | ~~**`radiation_dec/inc` stubs.**~~ FIXED 2026-07-27 — `radiation_inc`/`radiation_dec` implemented in `scripting.ts`; wired at 0x80FD/0x80FE. No decay loop (deferred). | `radiation.cc` | minor |
 | GTC5 | ✅ FIXED 2026-07-27 — `objectUnjamAll()` + CE-faithful `_scriptsCheckGameEvents`: GVAR_ENEMY_ARROYO triggers AFAILED ending; ARTIMER1-4 fire at days 90/180/270/360; each adjusts GVAR_TOWN_REP_ARROYO -15; ARTIMER4 hides Arroyo/reveals Destroyed Arroyo. `seenMovies` persisted in save. | `scripts.cc:438 _scriptsCheckGameEvents` | minor |
 | GTC2 | ✅ FIXED 2026-07-28 — `game_time_advance` now fires `processMidnightForDay()` for each elapsed day during a scripted time skip, matching CE's `queueProcessEvents()` call per day in `opGameTimeAdvance`. Timed-event drainage was already complete (2026-06-02). | `interpreter_extra.cc:2761 opGameTimeAdvance` | minor |
-| S28 | **`obj_can_hear_obj` silent no-op** (always 0). Port CE: same elevation + valid tiles + `isWithinPerception`. | `interpreter_extra.cc:2620 opObjectCanHearObject` | minor |
+| S28 | ✅ FIXED 2026-10-06 — `obj_can_hear_obj` ported (same elevation + valid tiles + `isWithinPerception`). | `interpreter_extra.cc:2620 opObjectCanHearObject` | minor |
 | IW8 | ✅ VERIFIED DONE 2026-07-28 — P5–P18 sprint fully implemented CE's dialogue sub-mode state machine: vendor barter, companion trade, companion control, and customize transitions all wired with CE-accurate return paths. | `game_dialog.cc gameDialogEnter()` | minor |
 
 ### 9d. Interface / HUD
@@ -349,8 +349,8 @@ covered by Phases 1–8.
 |----|------|--------|-----|
 | PS2 | ✅ FIXED (prior sprint) — `FO1 = False` is set in `tools/proto.py` line 20; critter `damageType` is extracted for all critters except killType 5/10 (Robots/Brahmin), which is the correct FO2 proto structure. | `proto_types.h CritterProtoData.damageType` | major |
 | M7 | ✅ FIXED 2026-10-06 — 0-byte maps were a `fomap.py` critter-art crash; CE `artBuildFilePath` ported; mbase34/klacanyn/rndparih re-exported. | `art.cc:615` | major |
-| FA3 | **`actionFrame` discarded by `tools/frmpixels.py`.** Field not saved; hit-frame sync absent. | `art.h ArtFrame.actionFrame` | major |
-| PS3 | 🟡 Pipeline FIXED 2026-07-04 (tile PROs extracted); runtime does not consume them yet. | `proto_types.h TileProto` | low |
+| FA3 | ✅ FIXED 2026-10-06 — `actionFrame` exported per direction; attacks resolve on the attacker's action frame (`actions.cc:598`). | `art.h ArtFrame.actionFrame` | major |
+| PS3 | 🟡 Pipeline re-FIXED 2026-10-06 (lost in the b282cca revert, see known_bugs §30); runtime does not consume tile protos yet. | `proto_types.h TileProto` | low |
 | PS4 | **Wall and misc `extra` fields not parsed.** `WallProto.extra` / `MiscProto.extra` absent. | `proto_types.h` | low |
 
 ### 9m. Animation

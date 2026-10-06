@@ -258,6 +258,15 @@ export function load(id: number): void {
             // Apply the save state. Called directly (same-location) or after
             // images finish loading (cross-location) via the isLoading gate.
             const applyState = () => {
+                // Loading a save never resumes a live combat from the current session
+                // (CE loadsave.cc tears combat down via gameReset before reading).
+                // (Restored 2026-10-06; lost in b282cca.)
+                if (globalState.inCombat) {
+                    globalState.combat?.forceEnd()
+                }
+                globalState.inCombat = false
+                globalState.combat = null
+
                 globalState.gMap.deserialize(savedMap)
                 dbg('saveload', '[SaveLoad] Finished map deserialization')
 

@@ -17,7 +17,7 @@ export module IDBCache {
 
     export function add(key: string, value: any): any {
         withTransaction(trans => {
-            trans.objectStore("cache").add({key, value})
+            trans.objectStore("cache").put({key, value}) // put: replaces a stale entry (add would throw ConstraintError)
         });
 
         return value;

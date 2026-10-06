@@ -731,10 +731,17 @@ export class Obj {
         return w
     }
 
-    // CE ref: item.cc itemAttemptAdd — for critters: rejects if adding the item
-    // would exceed STAT_CARRY_WEIGHT. Non-critters always pass (containers have
-    // their own size logic which isn't modelled here).
+    // CE ref: item.cc:253 itemAttemptAdd — critters reject anything that would exceed
+    // STAT_CARRY_WEIGHT; item containers reject when containerGetTotalSize + size*qty
+    // reaches proto maxSize (note CE's `>=`, item.cc:269). Other owners always pass.
     canCarry(item: Obj, count = 1): boolean {
+        if (this.type === 'item' && this.subtype === 'container') {
+            const maxSize = this.pro?.extra?.maxSize
+            if (typeof maxSize !== 'number') return true // proto predates the container fields
+            let total = 0
+            for (const it of this.inventory) total += (it.pro?.extra?.size ?? 0) * (it.amount ?? 1)
+            return total + (item.pro?.extra?.size ?? 0) * count < maxSize
+        }
         if (this.type !== 'critter') return true
         const max = (this as unknown as Critter).getStat?.('Carry') ?? Infinity
         const addWeight = (item.pro?.extra?.weight ?? 0) * count

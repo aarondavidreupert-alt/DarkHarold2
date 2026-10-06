@@ -24,7 +24,7 @@ import { Point, pointIntersectsCircle } from '../geometry.js'
 import globalState from '../globalState.js'
 import { hidev, makeEl, showv, uiCloseWorldMap, uiWorldMapShowArea } from '../ui.js'
 import { showConfirm } from '../ui_dialog.js'
-import { clamp, getFileText } from '../util.js'
+import { clamp, getFileBinarySync, getFileText } from '../util.js'
 import { Config } from '../config.js'
 import { dbg } from '../logger.js'
 import { Worldmap as WorldmapData, WorldmapPlayer } from './types.js'
@@ -44,6 +44,49 @@ export const WORLDMAP_SPEED = 2 // speed scalar
 export const WORLDMAP_ENCOUNTER_CHECK_RATE = 800 // ms (TODO: find right value)
 // CE ref: worldmap.h:8 #define CAR_FUEL_MAX (80000)
 export const CAR_FUEL_MAX = 80000
+
+// CE ref: worldmap.cc:96-97 WM_TILE_WIDTH/HEIGHT, :1300 num_horizontal_tiles.
+const WM_TILE_WIDTH = 7 * SQUARE_SIZE // 350 (7 subtiles wide)
+const WM_TILE_HEIGHT = 6 * SQUARE_SIZE // 300 (6 subtiles tall)
+const WM_NUM_HORIZONTAL_TILES = 4
+const WM_WALK_MASK_ROW_BYTES = 44 // CE: 13200-byte mask = 300 rows x 44 bytes/row
+
+const _walkMaskCache = new Map<string, Uint8Array | null>()
+
+function loadWalkMask(name: string): Uint8Array | null {
+    if (_walkMaskCache.has(name)) return _walkMaskCache.get(name)!
+    let mask: Uint8Array | null = null
+    try {
+        // CE literal path is "data\%s.msk" (worldmap.cc:4225) — same "data\" prefix as
+        // worldmap.txt, which DH2 fetches from data/data/ (DAT extraction root).
+        const dv = getFileBinarySync(`data/data/${name}.msk`)
+        mask = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength)
+    } catch {
+        dbg('worldmap', `[Worldmap] walk mask load failed: ${name}`)
+    }
+    _walkMaskCache.set(name, mask)
+    return mask
+}
+
+// CE ref: worldmap.cc:4244 wmWorldPosInvalid — true if (x,y) is blocked by the
+// containing tile's walk mask (ocean, mountains...). Bit-test formula ported as-is,
+// including CE's own "TODO: Check math." quirk, since the shipped .msk data was
+// authored against this exact layout. (Restored 2026-10-06; lost in b282cca.)
+export function worldPosInvalid(x: number, y: number): boolean {
+    if (!worldmap) return false
+    const tileIdx = Math.floor(y / WM_TILE_HEIGHT) * WM_NUM_HORIZONTAL_TILES
+        + (Math.floor(x / WM_TILE_WIDTH) % WM_NUM_HORIZONTAL_TILES)
+    const name = worldmap.walkMaskNames[tileIdx]
+    if (!name) return false
+    const mask = loadWalkMask(name)
+    if (!mask) return false
+
+    const lx = ((x % WM_TILE_WIDTH) + WM_TILE_WIDTH) % WM_TILE_WIDTH
+    const ly = ((y % WM_TILE_HEIGHT) + WM_TILE_HEIGHT) % WM_TILE_HEIGHT
+    const pos = ly * WM_WALK_MASK_ROW_BYTES + Math.floor(lx / 8)
+    const bit = 1 << (Math.floor(lx / 8) & 3)
+    return (mask[pos] & bit) !== 0
+}
 
 // Module-private mutable state. Exposed to sibling modules via the accessor
 // helpers below.
@@ -608,22 +651,37 @@ export function updateWorldmapPlayer() {
 
         if (inCar) updateCarAnimation()
 
-        if (len < speed) {
-            worldmapPlayer.x = worldmapPlayer.target.x
-            worldmapPlayer.y = worldmapPlayer.target.y
+        // CE ref: worldmap.cc:4335-4341 wmPartyWalkingStep — a step into walk-mask-
+        // blocked terrain halts travel in place instead of arriving / continuing.
+        const haltTravel = () => {
             worldmapPlayer.target = null
-
             hidev($worldmapPlayer)
             setTargetImage('art/intrface/hotspot1.png', true)
             centerWorldmapTarget(worldmapPlayer.x, worldmapPlayer.y)
+        }
+
+        if (len < speed) {
+            if (worldPosInvalid(Math.round(worldmapPlayer.target.x), Math.round(worldmapPlayer.target.y))) {
+                haltTravel()
+            } else {
+                worldmapPlayer.x = worldmapPlayer.target.x
+                worldmapPlayer.y = worldmapPlayer.target.y
+                haltTravel()
+            }
         } else {
             // normalize direction
             dx /= len
             dy /= len
 
-            // head towards it
-            worldmapPlayer.x += dx * speed
-            worldmapPlayer.y += dy * speed
+            const nextX = worldmapPlayer.x + dx * speed
+            const nextY = worldmapPlayer.y + dy * speed
+            if (worldPosInvalid(Math.round(nextX), Math.round(nextY))) {
+                haltTravel()
+            } else {
+                // head towards it
+                worldmapPlayer.x = nextX
+                worldmapPlayer.y = nextY
+            }
         }
 
         // CE ref: worldmap.cc:5984 wmCarUseGas(100) — consume 100 fuel per step (4 steps/tick).

@@ -17,7 +17,7 @@ limitations under the License.
 import { Config } from '../config.js'
 import { getCurrentMapInfo } from '../data.js'
 import { Events } from '../events.js'
-import { hexDistance, hexInDirectionDistance, hexLine, hexNeighbors, HEX_GRID_SIZE, Point } from '../geometry.js'
+import { hexDistance, hexFromScreen, hexInDirectionDistance, hexLine, hexNeighbors, hexToScreen, HEX_GRID_SIZE, Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { Lightmap } from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
@@ -25,7 +25,7 @@ import { Critter, deserializeObj, Obj } from '../object.js'
 import { centerCamera } from '../renderer.js'
 import { computeMapContentBounds, computeObjectContentBounds, computeScrollBlockerBounds } from '../render/camera.js'
 import { Scripting } from '../scripting.js'
-import { fromTileNum, hexToTile } from '../tile.js'
+import { fromTileNum, hexToTile, toTileNum } from '../tile.js'
 import { arrayRemove, arrayWithout } from '../util.js'
 
 declare let PF: any
@@ -402,6 +402,146 @@ export class GameMap {
         return (this.objectsAtPosition(position).find((obj) => obj.type === 'critter') as Critter) || null
     }
 
+    // CE object flags (obj_types.h). OBJECT_HIDDEN is 0x01 — DH2 also tracks
+    // script-driven hiding as `visible === false` (set_obj_visibility).
+    static isHiddenObj(o: Obj): boolean {
+        return o.visible === false || (((o as any).flags ?? 0) & 0x01) !== 0
+    }
+
+    // CE ref: sfall_opcodes.cc:914-934 BlockType / get_blocking_func — dispatches to one
+    // of the per-tile blocking predicates in object.cc:
+    //   0 BLOCK  → object.cc:2387 _obj_blocking_at
+    //   1 SHOOT  → object.cc:2440 _obj_shoot_blocking_at
+    //   2 AI     → object.cc:2496 _obj_ai_blocking_at (stateful: the first critter is
+    //              remembered in `aiState.moveBlockObj`; only a second obstacle blocks)
+    //   3 SIGHT  → object.cc:2583 _obj_sight_blocking_at
+    //   4 SCROLL → CE get_blocking_func's default branch, i.e. _obj_blocking_at
+    // (Restored + extended to all 5 types 2026-10-06; the 2-type version was lost in b282cca.)
+    blockingObjectAt(tile: number, elevation: number, blockType: number, excludeObj?: Obj | null,
+                     aiState?: { moveBlockObj: Obj | null }): Obj | null {
+        if (tile < 0 || tile >= 40000) return null
+        const pos = fromTileNum(tile)
+        const objs = this.getObjects(elevation)
+        const at = (p: Point) => objs.filter((o) => o.position && o.position.x === p.x && o.position.y === p.y)
+        const NO_BLOCK = 0x10, MULTIHEX = 0x800, LIGHT_THRU = 0x20000000, SHOOT_THRU = 0x80000000
+        const isBlockerType = (o: Obj) => o.type === 'critter' || o.type === 'scenery' || o.type === 'wall'
+        const flagsOf = (o: Obj) => ((o as any).flags ?? 0) >>> 0
+        const neighbourMultihex = (pred: (o: Obj) => boolean): Obj | null => {
+            for (const nb of hexNeighbors(pos)) {
+                for (const o of at(nb)) {
+                    if ((flagsOf(o) & MULTIHEX) !== 0 && pred(o)) return o
+                }
+            }
+            return null
+        }
+
+        if (blockType === 3) {
+            for (const o of at(pos)) {
+                if (o === excludeObj || GameMap.isHiddenObj(o)) continue
+                if ((flagsOf(o) & LIGHT_THRU) !== 0) continue
+                if (o.type === 'scenery' || o.type === 'wall') return o
+            }
+            return null
+        }
+
+        if (blockType === 1) {
+            const centre = (o: Obj) => {
+                const f = flagsOf(o)
+                if (o === excludeObj || GameMap.isHiddenObj(o)) return false
+                // CE: (flags & NO_BLOCK) == 0 || (flags & SHOOT_THRU) == 0
+                if ((f & NO_BLOCK) !== 0 && (f & SHOOT_THRU) !== 0) return false
+                // SFALL fix kept by CE: corpses don't block line of fire.
+                if (o.type === 'critter') return !(o as Critter).dead
+                return o.type === 'scenery' || o.type === 'wall'
+            }
+            const multihex = (o: Obj) => {
+                if (o === excludeObj || GameMap.isHiddenObj(o) || (flagsOf(o) & NO_BLOCK) !== 0) return false
+                if (o.type === 'critter') return !(o as Critter).dead
+                return o.type === 'scenery' || o.type === 'wall'
+            }
+            for (const o of at(pos)) if (centre(o)) return o
+            return neighbourMultihex(multihex)
+        }
+
+        const plain = (o: Obj) => o !== excludeObj && !GameMap.isHiddenObj(o)
+            && (flagsOf(o) & NO_BLOCK) === 0 && isBlockerType(o)
+
+        if (blockType === 2) {
+            const state = aiState ?? { moveBlockObj: null }
+            const check = (o: Obj): boolean => {
+                if (!plain(o)) return false
+                if (state.moveBlockObj !== null || o.type !== 'critter') return true
+                state.moveBlockObj = o
+                return false
+            }
+            for (const o of at(pos)) if (check(o)) return o
+            return neighbourMultihex(check)
+        }
+
+        // BLOCK (0) and the SCROLL (4) fallback.
+        for (const o of at(pos)) if (plain(o)) return o
+        return neighbourMultihex(plain)
+    }
+
+    // CE ref: animation.cc _make_straight_path_func + sfall_opcodes.cc:937
+    // op_make_straight_path — screen-space Bresenham from source's tile toward `to`,
+    // returning the first obstacle reported by blockingObjectAt(). The start tile is
+    // checked (excluding `source` itself); the walk stops on reaching `to`'s row/column
+    // without testing it. In SHOOT mode (CE a6 == 32) OBJECT_SHOOT_THRU obstacles are
+    // ignored. Runs at `source`'s own elevation.
+    straightPathBlockingObject(source: Obj, to: Point, blockType: number): Obj | null {
+        const elev = source.elevation
+        const shoot = blockType === 1
+        const aiState = { moveBlockObj: null as Obj | null }
+        const test = (p: Point): Obj | null => {
+            const o = this.blockingObjectAt(toTileNum(p), elev, blockType, source, aiState)
+            if (o === null) return null
+            if (shoot && ((((o as any).flags ?? 0) >>> 0) & 0x80000000) !== 0) return null
+            return o
+        }
+
+        const first = test(source.position)
+        if (first) return first
+
+        const fromSc = hexToScreen(source.position.x, source.position.y)
+        const toSc = hexToScreen(to.x, to.y)
+        let tileX = fromSc.x + 16, tileY = fromSc.y + 8
+        const toX = toSc.x + 16, toY = toSc.y + 8
+        const stepX = Math.sign(toX - tileX), stepY = Math.sign(toY - tileY)
+        const ddx = 2 * Math.abs(toX - tileX), ddy = 2 * Math.abs(toY - tileY)
+        let prev = source.position
+
+        if (ddx <= ddy) {
+            let middle = ddx - ddy / 2
+            while (true) {
+                const cur = hexFromScreen(tileX, tileY)
+                if (tileY === toY) return null
+                if (middle >= 0) { tileX += stepX; middle -= ddy }
+                tileY += stepY
+                middle += ddx
+                if (cur.x !== prev.x || cur.y !== prev.y) {
+                    const o = test(cur)
+                    if (o) return o
+                    prev = cur
+                }
+            }
+        } else {
+            let middle = ddy - ddx / 2
+            while (true) {
+                const cur = hexFromScreen(tileX, tileY)
+                if (tileX === toX) return null
+                if (middle >= 0) { tileY += stepY; middle -= ddx }
+                tileX += stepX
+                middle += ddy
+                if (cur.x !== prev.x || cur.y !== prev.y) {
+                    const o = test(cur)
+                    if (o) return o
+                    prev = cur
+                }
+            }
+        }
+    }
+
     /// Draws a line between a and b, returning the first object hit
     hexLinecast(a: Point, b: Point): Obj | null {
         // CE ref: object.cc:2440 _obj_shoot_blocking_at — skips OBJECT_SHOOT_THRU
@@ -412,12 +552,11 @@ export class GameMap {
         }
         line = line.slice(1, -1)
         const SHOOT_THRU = 0x80000000
-        const HIDDEN = 0x01000000
         for (let i = 0; i < line.length; i++) {
             const objs = this.objectsAtPosition(line[i])
             for (const o of objs) {
                 const flags = (o as any).flags ?? 0
-                if ((flags & HIDDEN) !== 0) continue
+                if (GameMap.isHiddenObj(o)) continue
                 if ((flags & SHOOT_THRU) !== 0) continue
                 if ((o as any).type === 'critter' && (o as any).dead) continue
                 if (!o.blocks()) continue
