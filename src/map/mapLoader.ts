@@ -19,115 +19,22 @@ limitations under the License.
 // proposals" §9.
 
 import { ensureCycleMask } from '../images.js'
-import { getCarParkingEntry } from '../carParking.js'
 import { Config } from '../config.js'
-import { areaContainingMap, getCurrentMapInfo, loadAreas, lookupMapName } from '../data.js'
+import { getCurrentMapInfo, lookupMapName } from '../data.js'
 import { Events } from '../events.js'
 import { Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { heart } from '../heart.js'
 import { Lightmap } from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
-import { Critter, deserializeObj, Obj, objFromMapObject, Scenery } from '../object.js'
+import { Critter, deserializeObj, Obj, objFromMapObject } from '../object.js'
 import { centerCamera } from '../renderer.js'
 import { setMapScrollLimits } from '../render/camera.js'
 import { Scripting } from '../scripting.js'
-import { fromTileNum, hexToTile, tileFromScreen, tileToScreen } from '../tile.js'
+import { fromTileNum, hexToTile } from '../tile.js'
 import { arrayWithout, getFileJSON } from '../util.js'
 import { showAlert } from '../ui_dialog.js'
-import { Worldmap } from '../worldmap.js'
 import { GameMap } from './GameMap.js'
-
-// CE ref: proto_types.h — PROTO_ID_CAR = 0x020003F1 (scenery/generic, art=carspec1)
-//                         PROTO_ID_CAR_TRUNK = 455 (0x1C7, item/container)
-const PROTO_ID_CAR = 0x020003F1
-const PROTO_ID_CAR_TRUNK = 455
-
-// Per-map parking tile override table (lut/car_parking.json) — see
-// ../carParking.ts. Kept as its own dependency-free module so both this
-// file and src/worldmap/Worldmap.ts / src/ui_worldmap.ts can use it without
-// a circular import (this file already depends on the worldmap barrel).
-
-// Resolve the car body position for the given map: use the data-file tile if it
-// is ≥ 0, otherwise fall back to 3 tiles east of the area entrance tile (or map
-// start if no entrance tileNum is recorded).
-function resolveCarPos(mapName: string, mapObj: any): Point {
-    const entry = getCarParkingEntry(mapName)
-    if (entry && entry.carTile >= 0) {
-        return fromTileNum(entry.carTile)
-    }
-    // Heuristic fallback: entrance tile + x+3
-    if (globalState.mapAreas) {
-        const area = areaContainingMap(mapName)
-        if (area) {
-            const ent = area.entrances.find(e => e.mapName === mapName)
-            if (ent && ent.tileNum > 0) {
-                const ep = fromTileNum(ent.tileNum)
-                return { x: ep.x + 3, y: ep.y }
-            }
-        }
-    }
-    const sp = mapObj.startPosition ?? { x: 100, y: 100 }
-    return { x: sp.x + 3, y: sp.y }
-}
-
-// Resolve the trunk position: data-file tile if ≥ 0, otherwise a fixed
-// nearby offset from the car, applied in SCREEN space (tileToScreen/
-// tileFromScreen) rather than tile-grid arithmetic. DH2's tile grid is an
-// offset/staggered hex grid (src/geometry/hexGrid.ts hexNeighbors —
-// neighbor deltas depend on x's parity), so simple tile-coordinate math
-// like the original {x: carPos.x + 2, y: carPos.y} heuristic doesn't
-// reliably land in a consistent screen-space direction from the car (it
-// rendered visibly skewed — ~1 hex south + 1 hex east of the intended
-// adjacent tile). Going through screen space sidesteps that: the offset
-// below is picked directly in on-screen pixels (left + up from the car),
-// tuned interactively in-game, and round-tripped back to a tile via
-// tileFromScreen. The original game computes this relative to the car via
-// tile_num_in_dir() (see wiki/car_system.md §7) but the exact per-town
-// direction/distance wasn't extracted, so this is a reasonable nearby
-// placement, not a faithful reproduction of that value.
-// `let`, not `const` — window.setTrunkOffset(x, y) in main.ts writes these
-// directly for live in-browser tuning (see that function for usage). Changes
-// apply the next time a car+trunk get (re)injected — leave the parked map
-// and come back, or call window.giveCar() again.
-let TRUNK_OFFSET_SCREEN_X = 0   // +right / -left of the car, screen px
-let TRUNK_OFFSET_SCREEN_Y = -80 // +down  / -up   of the car, screen px
-
-export function setTrunkOffset(x: number, y: number): void {
-    TRUNK_OFFSET_SCREEN_X = x
-    TRUNK_OFFSET_SCREEN_Y = y
-}
-export function getTrunkOffset(): { x: number; y: number } {
-    return { x: TRUNK_OFFSET_SCREEN_X, y: TRUNK_OFFSET_SCREEN_Y }
-}
-
-// Recomputes and moves an already-injected trunk on the currently loaded map,
-// in place, using the current offset — so window.setTrunkOffset() in main.ts
-// can show its effect immediately instead of requiring the leave/re-enter (or
-// manual dirtyMapCache surgery) that "(re)injection" would otherwise need.
-// Returns true if it found a car+trunk pair to move.
-export function repositionExistingTrunk(): boolean {
-    const map = globalState.gMap
-    if (!map || !map.objects) return false
-    const elev = map.currentElevation
-    const objs = map.objects[elev]
-    if (!objs) return false
-    const car = objs.find((o: any) => o.pid === PROTO_ID_CAR)
-    const trunk = objs.find((o: any) => o.pid === PROTO_ID_CAR_TRUNK)
-    if (!car || !trunk) return false
-    const idx = objs.indexOf(trunk)
-    trunk.move(resolveTrunkPos(map.name, car.position), idx, false)
-    return true
-}
-
-function resolveTrunkPos(mapName: string, carPos: Point): Point {
-    const entry = getCarParkingEntry(mapName)
-    if (entry && entry.trunkTile >= 0) {
-        return fromTileNum(entry.trunkTile)
-    }
-    const carScreen = tileToScreen(carPos.x, carPos.y)
-    return tileFromScreen(carScreen.x + TRUNK_OFFSET_SCREEN_X, carScreen.y + TRUNK_OFFSET_SCREEN_Y)
-}
 
 declare let PF: any
 
@@ -153,6 +60,27 @@ GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point,
             globalState.inCombat = false
             globalState.combat = null
         }
+
+        // CE ref: map.cc:1427 _map_save_in_game — the party is taken off the map, then
+        // scriptsExecMapExitProc runs map_exit_p_proc for the map script and every other
+        // script on it (scripts.cc scriptsExecMapUpdateScripts), and only then is the map
+        // saved. (The car's script removes the car this way when you drive off.)
+        if (Config.engine.doLoadScripts && this.name !== null && this.objects !== null) {
+            if (this.mapScript?.map_exit_p_proc !== undefined) {
+                this.mapScript.self_obj = { _script: this.mapScript }
+                this.mapScript.map_exit_p_proc()
+            }
+            const party = new Set<Obj>(globalState.gParty.getPartyMembersAndPlayer())
+            const scripted = [...this.objects.flat(), ...((this.spatials ?? []) as any[]).flat()]
+                .filter((o: any) => o && !party.has(o) && o._script?.map_exit_p_proc !== undefined)
+            for (const obj of scripted) {
+                if (obj.type !== undefined && obj.type !== 'spatial' && !this.objects.some((l) => l.includes(obj))) continue // destroyed meanwhile
+                Scripting.objectRunProc(obj, 'map_exit_p_proc')
+            }
+        }
+        // destroy_object only queues the removal (drained per tick); objects the exit
+        // procs destroyed must be gone before the snapshot below.
+        if (this.objects !== null) this.drainRemovalQueue()
 
         if (Config.engine.doSaveDirtyMaps && this.name !== null && this.objects !== null) {
             // if a map is already loaded, save it to the dirty map cache before loading
@@ -197,55 +125,6 @@ GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point,
             // Change elevation again
             this.changeElevation(this.currentElevation, true, false)
 
-            // Re-inject the car body on dirty-cache revisit — the body is _transient so
-            // it was stripped from the serialized snapshot. The trunk is NOT _transient,
-            // so a trunk that was already present when this snapshot was taken comes back
-            // on its own (with its inventory intact) — but if this map was cached BEFORE
-            // the car was ever parked here (e.g. giveCar() called while already standing
-            // on it, or the car got parked here after this map had already been visited
-            // once), the cached snapshot never had a trunk to begin with, and dirty-cache
-            // revisits used to never inject one either. Check for one and add it if it's
-            // genuinely missing, exactly like the clean-load path below.
-            const _dcCarParked = !Worldmap.getIsInCar() && Worldmap.getCarMapName() === this.name
-            if (_dcCarParked) {
-                if (!globalState.mapAreas) globalState.mapAreas = loadAreas()
-                const _dcArea = areaContainingMap(this.name)
-                if (_dcArea) {
-                    const _dcElev = this.currentElevation
-                    const _dcPos = resolveCarPos(this.name, map.mapObj)
-                    const _dcObj = Scenery.fromPID(PROTO_ID_CAR)
-                    _dcObj.elevation = _dcElev
-                    ;(_dcObj as any)._transient = true
-                    _dcObj._script = {
-                        use_p_proc: () => {
-                            Worldmap.setIsInCar(true)
-                            Worldmap.updateCarUI()
-                            Events.emit('openWorldmap')
-                        }
-                    } as any
-                    // push() alone leaves the object at the tail of the array forever —
-                    // rendering is a plain painter's-algorithm draw in array order (no
-                    // depth buffer, no per-tile sort), so "last in array" means "always
-                    // drawn on top of literally everything," and looked like the player
-                    // could walk through the car even though pathfinding (which rescans
-                    // the array fresh every call) already blocked its tile correctly.
-                    // .move() is what re-splices a newly-added object into its correct
-                    // z-order slot (see Obj.drop() for the same push-then-move pattern).
-                    this.objects[_dcElev].push(_dcObj)
-                    _dcObj.move(_dcPos, this.objects[_dcElev].length - 1, false)
-                    dbg('map', `[Car] Highwayman re-injected (dirty cache) at (${_dcPos.x},${_dcPos.y}) elev=${_dcElev}`)
-
-                    const _dcHasTrunk = this.objects[_dcElev].some((o: any) => o.pid === PROTO_ID_CAR_TRUNK)
-                    if (!_dcHasTrunk) {
-                        const _dcTrunkPos = resolveTrunkPos(this.name, _dcPos)
-                        const _dcTrunkObj = Obj.fromPID(PROTO_ID_CAR_TRUNK)
-                        _dcTrunkObj.elevation = _dcElev
-                        this.objects[_dcElev].push(_dcTrunkObj)
-                        _dcTrunkObj.move(_dcTrunkPos, this.objects[_dcElev].length - 1, false)
-                        dbg('map', `[Car] Trunk was missing from cached snapshot — injected at (${_dcTrunkPos.x},${_dcTrunkPos.y}) elev=${_dcElev}`)
-                    }
-                }
-            }
 
             // Done
 			this.playMapMusic()
@@ -284,13 +163,6 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
         globalState.loadingAssetsTotal = 1 // this will remain +1 until we load the map, preventing it from exiting early
         globalState.loadingAssetsLoaded = 0
         globalState.loadingLoadedCallback = loadedCallback || null
-
-        // CE ref: map.cc:1440 scriptsExecMapExitProc() — run map_exit_p_proc on the
-        // current map script before tearing down state.
-        if (Config.engine.doLoadScripts && this.mapScript?.map_exit_p_proc !== undefined) {
-            this.mapScript.self_obj = { _script: this.mapScript }
-            this.mapScript.map_exit_p_proc()
-        }
 
         // clear any previous objects/events
         this.objects = null
@@ -407,56 +279,6 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
             // change elevation with script updates
             this.changeElevation(this.currentElevation, true, true)
 
-            // CE ref: worldmap.cc wmCarIsOutsideAnyArea / map_enter_p_proc scripts —
-            // F2 places the Highwayman and its trunk via map_enter_p_proc per map.
-            // DH2 replicates that here. Tile positions come from lut/car_parking.json
-            // (per-map data file, pipeline-safe); -1 entries fall back to the
-            // entrance-offset heuristic. carAreaId >= 0 and getCarMapName() matching
-            // this.name ensures injection only on the exact parked map.
-            const _carParked = !Worldmap.getIsInCar() && Worldmap.getCarMapName() === this.name
-            if (_carParked) {
-                if (!globalState.mapAreas) globalState.mapAreas = loadAreas()
-                const _carArea = areaContainingMap(this.name)
-                if (_carArea) {
-                    const _carElev = this.currentElevation
-                    const _carPos = resolveCarPos(this.name, map)
-                    const _trunkPos = resolveTrunkPos(this.name, _carPos)
-
-                    // Car body — transient: re-injected on every visit since it has no
-                    // persistent state. use_p_proc reopens the worldmap (drive away).
-                    const _carObj = Scenery.fromPID(PROTO_ID_CAR)
-                    _carObj.elevation = _carElev
-                    ;(_carObj as any)._transient = true
-                    _carObj._script = {
-                        use_p_proc: () => {
-                            Worldmap.setIsInCar(true)
-                            Worldmap.updateCarUI()
-                            Events.emit('openWorldmap')
-                        }
-                    } as any
-                    // push() alone leaves the object at the tail of the array forever —
-                    // rendering is a plain painter's-algorithm draw in array order (no
-                    // depth buffer, no per-tile sort), so "last in array" means "always
-                    // drawn on top of literally everything," and looked like the player
-                    // could walk through the car even though pathfinding (which rescans
-                    // the array fresh every call) already blocked its tile correctly.
-                    // .move() is what re-splices a newly-added object into its correct
-                    // z-order slot (see Obj.drop() for the same push-then-move pattern).
-                    this.objects[_carElev].push(_carObj)
-                    _carObj.move(_carPos, this.objects[_carElev].length - 1, false)
-
-                    // Trunk — CE ref: proto_types.h PROTO_ID_CAR_TRUNK=455 (item/container).
-                    // NOT transient: inventory persists in the dirty-map cache across visits.
-                    // Only injected on clean (first) load; dirty-cache revisits restore it
-                    // from serialized state, including whatever items the player stored.
-                    const _trunkObj = Obj.fromPID(PROTO_ID_CAR_TRUNK)
-                    _trunkObj.elevation = _carElev
-                    this.objects[_carElev].push(_trunkObj)
-                    _trunkObj.move(_trunkPos, this.objects[_carElev].length - 1, false)
-
-                    dbg('map', `[Car] Highwayman at (${_carPos.x},${_carPos.y}), trunk at (${_trunkPos.x},${_trunkPos.y}), elev=${_carElev}, area "${_carArea.name}"`)
-                }
-            }
         }
 
         // CE ref: map.cc:362 mapSetElevation — only fires scriptsExecMapUpdateProc, NOT map_enter_p_proc

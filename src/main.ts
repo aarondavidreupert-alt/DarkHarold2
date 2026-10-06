@@ -21,7 +21,6 @@ import { hexDistance, hexesInRadius, hexIsInFrontOf, hexIsToRightOf, hexInDirect
 import globalState from './globalState.js'
 import { IDBCache } from './idbcache.js'
 import { initGame } from './init.js'
-import { getTrunkOffset, repositionExistingTrunk, setTrunkOffset } from './map/mapLoader.js'
 import { dbg } from './logger.js'
 import {
     clampCameraPosition,
@@ -873,35 +872,6 @@ window.onload = async function () {
         console.log(`[DialogueHighlight] upper=${upper} lower=${lower}`)
     }
 
-    // debugCarTile() — prints the player's current tile as a tileNum suitable for
-    // lut/car_parking.json. Walk to where you want the car or trunk to spawn, then
-    // call this to get the value to paste into the JSON file.
-    ;(window as any).debugCarTile = () => {
-        const p = globalState.player
-        if (!p) { console.log('[Car] no player'); return }
-        const tileNum = p.position.y * 200 + p.position.x
-        console.log(`[Car] player at tileNum=${tileNum}  (x=${p.position.x}, y=${p.position.y})`)
-        console.log(`[Car] map="${globalState.gMap?.name}" — paste tileNum into lut/car_parking.json`)
-    }
-
-    // setTrunkOffset(x, y) — live-tune the trunk's screen-space offset from the
-    // car for maps without a real trunkTile in lut/car_parking.json (mapLoader.ts
-    // resolveTrunkPos). +x = right, -x = left, +y = down, -y = up, in screen
-    // pixels. If a car+trunk are already on the currently loaded map, moves the
-    // trunk immediately (repositionExistingTrunk) — no need to leave and come
-    // back. Call with no args to just print the current offset.
-    ;(window as any).setTrunkOffset = (x?: number, y?: number) => {
-        if (x === undefined || y === undefined) {
-            console.log('[Trunk] current offset:', getTrunkOffset(), '— call setTrunkOffset(x, y) to change it')
-            return
-        }
-        setTrunkOffset(x, y)
-        if (repositionExistingTrunk()) {
-            console.log(`[Trunk] offset set to (${x}, ${y}) and moved the trunk on this map now.`)
-        } else {
-            console.log(`[Trunk] offset set to (${x}, ${y}). No car+trunk on this map right now — it'll apply next time one is injected.`)
-        }
-    }
 }
 
 installInputHandlers()

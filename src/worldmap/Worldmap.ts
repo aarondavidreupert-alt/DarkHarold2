@@ -18,7 +18,6 @@ limitations under the License.
 // carved out of worldmap.ts. See wiki/ts-split-refactor.md §10.
 
 import { scriptsCheckGameEvents } from '../gameTick.js'
-import { resolveCanonicalCarMapName } from '../carParking.js'
 import { areaContainingMap, loadAreas } from '../data.js'
 import * as GameTime from '../gametime.js'
 import { Point, pointIntersectsCircle } from '../geometry.js'
@@ -102,7 +101,6 @@ let _carFuel = 0
 let _currentCarAreaId = -1
 // Name of the specific local map the car is parked on (within _currentCarAreaId).
 // Null = not yet parked. Used by mapLoader to inject the car only on the right map.
-let _carMapName: string | null = null
 let $worldmap: HTMLElement | null = null
 let $worldmapPlayer: HTMLElement | null = null
 let $worldmapTarget: HTMLElement | null = null
@@ -123,44 +121,66 @@ const MAP_W = NUM_SQUARES_X * SQUARE_SIZE   // 1400
 const MAP_H = NUM_SQUARES_Y * SQUARE_SIZE   // 1500
 const EDGE_THRESHOLD = 20  // px from edge that triggers mouse-edge scroll
 
-// Console command: window.giveCar([fuel]) — give the player the car with a full
-// (or specified) tank without any in-game unlock. Available as soon as the module
-// is loaded. CE ref: worldmap.cc:6043 wmCarGiveToParty.
+// Console command: window.giveCar([fuel]) — test helper standing in for the quest
+// that hands over the Highwayman: sets GVAR_PLAYER_GOT_CAR (which the town map
+// scripts check before placing the car) and parks the car in the current area
+// (CE wmCarSetCurrentArea), or puts the party in it when outside any area.
 if (typeof window !== 'undefined') {
     ;(window as any).giveCar = (fuel: number = CAR_FUEL_MAX) => {
         _carFuel = Math.min(CAR_FUEL_MAX, Math.max(0, fuel))
-        // If the player is on a map that belongs to an area, park the car there so it
-        // appears immediately on re-entry (via the mapLoader injection). Otherwise set
-        // isInCar=true for travel mode — they'll park it when they enter an area.
-        let parked = false
+        if (worldmapPlayer) worldmapPlayer.carFuel = _carFuel
+        setGlobalVarHook?.(GVAR_PLAYER_GOT_CAR, 1)
         const mapName = (globalState.gMap as any)?.name as string | undefined
-        if (mapName) {
-            if (!globalState.mapAreas) {
-                try { globalState.mapAreas = loadAreas() } catch (_) {}
-            }
-            const area = globalState.mapAreas ? areaContainingMap(mapName) : null
-            if (area) {
-                // Multi-map towns only place the Highwayman on one specific
-                // submap in the original game — the map the player happens to
-                // be standing on isn't necessarily that one. See carParking.ts.
-                const carMapName = resolveCanonicalCarMapName(area, mapName)
-                _isInCar = false
-                _currentCarAreaId = area.id
-                _carMapName = carMapName
-                if (worldmapPlayer) { worldmapPlayer.isInCar = false; worldmapPlayer.carFuel = _carFuel }
-                parked = true
-                dbg('worldmap', 'giveCar: parked at area %d (%s) map=%s (standing on %s), fuel=%d', area.id, area.name, carMapName, mapName, _carFuel)
-                console.log(`Car parked at "${carMapName}" (area "${area.name}"). Re-enter this map to see the car.`)
-            }
+        if (!globalState.mapAreas) {
+            try { globalState.mapAreas = loadAreas() } catch (_) {}
         }
-        if (!parked) {
-            _isInCar = true
-            if (worldmapPlayer) { worldmapPlayer.isInCar = true; worldmapPlayer.carFuel = _carFuel }
-            dbg('worldmap', 'giveCar: travel mode, fuel=%d', _carFuel)
+        const area = mapName && globalState.mapAreas ? areaContainingMap(mapName) : null
+        if (area) {
+            setIsInCar(false)
+            _currentCarAreaId = area.id
+            console.log(`Car parked in "${area.name}" — its map script places it on the next map load.`)
+        } else {
+            setIsInCar(true)
             console.log(`Car enabled (travel mode). Fuel: ${_carFuel} / ${CAR_FUEL_MAX}`)
         }
         updateCarUI()
     }
+}
+
+// game_vars.h car GVARs. Scripting registers the accessors (avoids a worldmap →
+// scripting import cycle).
+const GVAR_PLAYER_GOT_CAR = 18
+const GVAR_CAR_BLOWER = 439
+const GVAR_CAR_UPGRADE_FUEL_CELL_REGULATOR = 453
+const GVAR_NEW_RENO_CAR_UPGRADE = 455
+const GVAR_NEW_RENO_SUPER_CAR = 456
+const CITY_CAR_OUT_OF_GAS = 21 // worldmap.h City enum
+let setGlobalVarHook: ((gvar: number, value: number) => void) | null = null
+let getGlobalVarHook: ((gvar: number) => number) | null = null
+export function setWorldmapGlobalVarHooks(get: (gvar: number) => number, set: (gvar: number, value: number) => void): void {
+    getGlobalVarHook = get
+    setGlobalVarHook = set
+}
+const gvar = (n: number): number => getGlobalVarHook?.(n) ?? 0
+
+// CE worldmap.cc:3025-3046 — the car takes 4 wmPartyWalkingStep()s per loop, +1 with
+// the blower, +1 with the New Reno upgrade, +3 with the super car.
+function carStepsPerTick(): number {
+    let steps = 4
+    if (gvar(GVAR_CAR_BLOWER)) steps += 1
+    if (gvar(GVAR_NEW_RENO_CAR_UPGRADE)) steps += 1
+    if (gvar(GVAR_NEW_RENO_SUPER_CAR)) steps += 3
+    return steps
+}
+
+// CE worldmap.cc wmCarUseGas — once per loop regardless of the step count; the
+// upgrades cut the cost (super car -90%, New Reno upgrade -10%, fuel cell regulator /2).
+function carUseGas(amount: number): void {
+    if (gvar(GVAR_NEW_RENO_SUPER_CAR) !== 0) amount -= Math.trunc(amount * 90 / 100)
+    if (gvar(GVAR_NEW_RENO_CAR_UPGRADE) !== 0) amount -= Math.trunc(amount * 10 / 100)
+    if (gvar(GVAR_CAR_UPGRADE_FUEL_CELL_REGULATOR) !== 0) amount = Math.trunc(amount / 2)
+    _carFuel = Math.max(0, _carFuel - amount)
+    worldmapPlayer.carFuel = _carFuel
 }
 
 function applyPan(px: number, py: number): void {
@@ -259,8 +279,6 @@ export function fillCarFuel(): void {
 // CE ref: worldmap.cc wmGenData.currentCarAreaId / wmCarCurrentArea().
 export function getCarAreaId(): number { return _currentCarAreaId }
 export function setCarAreaId(areaId: number): void { _currentCarAreaId = areaId }
-export function getCarMapName(): string | null { return _carMapName }
-export function setCarMapName(name: string | null): void { _carMapName = name }
 
 // wmcarmve.png: 1302×73 — 14 frames × 93px (art/imageMap.json), the same
 // frmpixels.py horizontal-strip packing as wmdial.png. Cycled once per
@@ -363,6 +381,83 @@ const AREA_CIRCLE_SIZE: { [size: string]: number } = { small: 8, medium: 32, lar
 
 // CE ref: worldmap.cc wmAreaSetPos() — moves a town-marker DOM element to match
 // updated worldPosition after a script calls wm_area_set_pos.
+// One marker per area whose state isn't CITY_STATE_UNKNOWN (CE worldmap.cc:5225
+// wmInterfaceRefresh draws exactly those). Re-run whenever an area's state changes.
+export function refreshAreaMarkers(): void {
+    if (!$worldmap || !globalState.mapAreas) return
+    for (const key in globalState.mapAreas) {
+        const area = globalState.mapAreas[key]
+        const $existing = $worldmap.querySelector<HTMLElement>(`[data-area-key="${key}"]`)
+        if (area.state !== true) {
+            $existing?.remove()
+            continue
+        }
+        if ($existing) continue
+
+        const $area = makeEl('div', { classes: ['area'], attrs: { 'data-area-key': key } })
+        $worldmap.appendChild($area)
+
+        const $el = makeEl('div', { classes: ['areaCircle', 'areaSize-' + area.size] })
+        $area.appendChild($el)
+
+        // transform the circle since (0,0) is the top-left instead of center.
+        // Uses the fixed CSS size (AREA_CIRCLE_SIZE), not $el.offsetWidth/
+        // offsetHeight — this can run while the worldmap panel is still
+        // display:none (first open), where both would read 0.
+        const circleSize = AREA_CIRCLE_SIZE[area.size] ?? 0
+        $area.style.left = (area.worldPosition.x - circleSize / 2) + 'px'
+        $area.style.top = (area.worldPosition.y - circleSize / 2) + 'px'
+
+        const $label = makeEl('div', {
+            classes: ['areaLabel'],
+            style: { left: '0px', top: 2 + circleSize + 'px' },
+        })
+        $area.appendChild($label)
+        $label.textContent = area.name
+    }
+}
+
+// CE worldmap.cc wmAreaSetVisibleState (+ force) — known/unknown on the worldmap.
+// globalState.knownAreas mirrors it for the scripting/endgame checks that read it.
+export function setAreaVisible(areaId: number, visible: boolean): void {
+    const area = globalState.mapAreas?.[areaId]
+    if (area) area.state = visible
+    if (visible) globalState.knownAreas.add(areaId)
+    else globalState.knownAreas.delete(areaId)
+    refreshAreaMarkers()
+}
+
+// CE worldmap.cc wmAreaMarkVisitedState — 1 known, 2 visited (a first visit lands on 1).
+export function setAreaVisitedState(areaId: number, state: number): void {
+    const area: any = globalState.mapAreas?.[areaId]
+    if (!area) return
+    const old = area.visitedState ?? 0
+    area.visitedState = state
+    if (state === 2 && old === 0) area.visitedState = 1
+}
+
+// Save/load of the area states (CE worldmap.cc wmWorldMapSave/Load: state, visitedState, x, y).
+export function serializeAreaStates(): { [id: string]: { state: boolean; visitedState: number; x: number; y: number } } {
+    const out: { [id: string]: { state: boolean; visitedState: number; x: number; y: number } } = {}
+    for (const key in globalState.mapAreas ?? {}) {
+        const area: any = globalState.mapAreas[key]
+        out[key] = { state: area.state === true, visitedState: area.visitedState ?? 0, x: area.worldPosition.x, y: area.worldPosition.y }
+    }
+    return out
+}
+export function deserializeAreaStates(data: { [id: string]: { state: boolean; visitedState: number; x: number; y: number } } | undefined): void {
+    if (!data || !globalState.mapAreas) return
+    for (const key in data) {
+        const area: any = globalState.mapAreas[key]
+        if (!area) continue
+        area.state = data[key].state
+        area.visitedState = data[key].visitedState
+        area.worldPosition = { x: data[key].x, y: data[key].y }
+        updateAreaMarkerPos(key, area.worldPosition.x, area.worldPosition.y)
+    }
+    refreshAreaMarkers()
+}
+
 export function updateAreaMarkerPos(areaKey: string, x: number, y: number): void {
     if (!$worldmap) return
     const $area = $worldmap.querySelector<HTMLElement>(`[data-area-key="${areaKey}"]`)
@@ -485,38 +580,7 @@ export function init(): void {
     }
     $worldmapTarget.onclick = null  // handled by mouseup above
 
-    for (const key in globalState.mapAreas) {
-        const area = globalState.mapAreas[key]
-        if (area.state !== true) continue
-
-        const $area = makeEl('div', { classes: ['area'], attrs: { 'data-area-key': key } })
-        $worldmap.appendChild($area)
-
-        //console.log("adding one @ " + area.worldPosition.x + ", " + area.worldPosition.y)
-        const $el = makeEl('div', { classes: ['areaCircle', 'areaSize-' + area.size] })
-        $area.appendChild($el)
-
-        // transform the circle since (0,0) is the top-left instead of center.
-        // Uses the fixed CSS size (AREA_CIRCLE_SIZE), not $el.offsetWidth/
-        // offsetHeight — this runs while the worldmap panel is still
-        // display:none (first open), where both would read 0.
-        const circleSize = AREA_CIRCLE_SIZE[area.size] ?? 0
-        const x = area.worldPosition.x - circleSize / 2
-        const y = area.worldPosition.y - circleSize / 2
-        //console.log("adding one @ " + x + ", " + y + " | " + $el.width() + ", " + $el.height())
-        //console.log("size = " + area.size)
-        $area.style.left = x + 'px'
-        $area.style.top = y + 'px'
-
-        //if(area.name==="Arroyo")console.log("ARROYO IS " + key)
-
-        const $label = makeEl('div', {
-            classes: ['areaLabel'],
-            style: { left: '0px', top: 2 + circleSize + 'px' },
-        })
-        $area.appendChild($label)
-        $label.textContent = area.name
-    }
+    refreshAreaMarkers()
 
     for (let x = 0; x < NUM_SQUARES_X; x++) {
         for (let y = 0; y < NUM_SQUARES_Y; y++) {
@@ -631,6 +695,28 @@ export function withinArea(position: Point) {
     return null
 }
 
+// CE ref: worldmap.cc:3052-3082 — out of gas: travel stops, the party leaves the car,
+// and the car stays in the area here, or at CITY_CAR_OUT_OF_GAS moved to this spot
+// (its map script then places the car there).
+function carRanOutOfGas(): void {
+    dbg('worldmap', 'Ran outta gas!')
+    worldmapPlayer.target = null
+    setIsInCar(false)
+    const area = withinArea(worldmapPlayer)
+    if (area) {
+        _currentCarAreaId = area.id
+    } else {
+        _currentCarAreaId = CITY_CAR_OUT_OF_GAS
+        const outOfGas = globalState.mapAreas?.[CITY_CAR_OUT_OF_GAS]
+        if (outOfGas) {
+            outOfGas.worldPosition = { x: Math.round(worldmapPlayer.x), y: Math.round(worldmapPlayer.y) }
+            ;(outOfGas as any).visitedState = 1
+            setAreaVisible(CITY_CAR_OUT_OF_GAS, true) // CITY_STATE_KNOWN
+            updateAreaMarkerPos(String(CITY_CAR_OUT_OF_GAS), outOfGas.worldPosition.x, outOfGas.worldPosition.y)
+        }
+    }
+}
+
 export function updateWorldmapPlayer() {
     $worldmapPlayer.style.left = worldmapPlayer.x + 'px'
     $worldmapPlayer.style.top = worldmapPlayer.y + 'px'
@@ -643,11 +729,10 @@ export function updateWorldmapPlayer() {
         const squarePos = positionToSquare(worldmapPlayer)
         const currentSquare = worldmap.squares[squarePos.x][squarePos.y]
 
-        // CE ref: worldmap.cc:3028 wmCarCurrentTownFar — car moves 4 steps/tick (base).
-        // Each DH2 tick = 75ms; WORLDMAP_SPEED is px/tick. Car is 4× base.
-        // If out of fuel, treat as on foot (car becomes impassable; player exits).
+        // CE ref: worldmap.cc:3025-3046 — the car makes carStepsPerTick() steps per
+        // loop (4 base, up to 9 with upgrades); WORLDMAP_SPEED is DH2's one-step px/tick.
         const inCar = worldmapPlayer.isInCar && worldmapPlayer.carFuel > 0
-        const carMult = inCar ? 4 : 1
+        const carMult = inCar ? carStepsPerTick() : 1
         const speed = (WORLDMAP_SPEED * carMult) / worldmap.terrainSpeed[currentSquare.terrainType]
 
         if (inCar) updateCarAnimation()
@@ -685,15 +770,10 @@ export function updateWorldmapPlayer() {
             }
         }
 
-        // CE ref: worldmap.cc:5984 wmCarUseGas(100) — consume 100 fuel per step (4 steps/tick).
-        // Base: 400/tick. Here we consume 100/tick (DH2 tick is 75ms vs CE's longer loop).
+        // CE ref: worldmap.cc:3048 wmCarUseGas(100) — once per loop, after all the steps.
         if (inCar) {
-            _carFuel = Math.max(0, _carFuel - 100)
-            worldmapPlayer.carFuel = _carFuel
-            if (_carFuel === 0) {
-                dbg('worldmap', 'car out of gas')
-                console.warn('The car is out of gas!')
-            }
+            carUseGas(100)
+            if (_carFuel <= 0) carRanOutOfGas()
             updateCarUI()
         }
 

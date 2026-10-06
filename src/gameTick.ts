@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { Worldmap } from './worldmap.js'
 import { gameMoviePlay, GAME_MOVIE_FADE_IN, GAME_MOVIE_FADE_OUT, GAME_MOVIE_PAUSE_MUSIC, GAME_MOVIE_STOP_MUSIC } from './gameMovie.js'
 import { getRandomInt } from './util.js'
 import { checkRads } from './radiation.js'
@@ -338,8 +339,8 @@ export function scriptsCheckGameEvents(day: number): void {
 
     if (movieIdx === 3) {
         // ARTIMER4: hide Arroyo (id=0), reveal Destroyed Arroyo (id=22)
-        globalState.knownAreas.delete(0)
-        globalState.knownAreas.add(22)
+        Worldmap.setAreaVisible(0, false)
+        Worldmap.setAreaVisible(22, true)
         dbg('map', 'ARTIMER4: Arroyo → Destroyed Arroyo on worldmap')
     }
 }

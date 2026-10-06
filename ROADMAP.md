@@ -312,7 +312,7 @@ covered by Phases 1–8.
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
 | W9 | ✅ FIXED 2026-07-27 — Hotspots offset by `(entrance.x - WM_VIEW_X, entrance.y - WM_VIEW_Y)` = `(-22, -21)` to align with town FRM blit origin. CE ref: `worldmap.cc:5886 wmTownMapInit()`. | `worldmap.cc:5886` | minor |
-| W8 | ✅ FIXED 2026-09-13 → 2026-09-2x — 4× speed with fuel, halved encounter rate, local-map car + trunk injection. Remaining: metarule 52/53, upgrade speed tiers, 5 of 15 towns' parking tiles. See `wiki/car_system.md`. | `worldmap.cc:5984 wmCarUseGas()` | major |
+| W8 | ✅ FIXED 2026-09-13 → 2026-09-2x — 4× speed with fuel, halved encounter rate, local-map car + trunk injection. Script-driven like CE since 2026-10-07 (W14): town scripts place the car, the trunk travels in the party; speed tiers, fuel reductions and out-of-gas ported; metarule 52/53 done. See `wiki/car_system.md` §0. | `worldmap.cc:5984 wmCarUseGas()` | major |
 | W10 | ✅ FIXED 2026-07-04 — `.msk` walk masks loaded; `worldPosInvalid()` port halts travel. | `worldmap.cc:1337 wmGrabTileWalkMask()` | minor |
 
 ### 9h. Lighting

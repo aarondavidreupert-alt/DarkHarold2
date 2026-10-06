@@ -795,15 +795,20 @@ export module Scripting {
                     return Worldmap.getCarAreaId()
                 case 31: {
                     // CE ref: interpreter_extra.cc:3238 METARULE_GIVE_CAR_TO_PARTY →
-                    // worldmap.cc:6043 wmCarGiveToParty — set isInCar=true, fill tank,
-                    // also sets GVAR_PLAYER_GOT_CAR=1 (game_vars.h:25, index 18).
-                    // CE ref: wmCarGiveToParty calls mapSetTransition({map:-2}) → wmWorldMap().
+                    // worldmap.cc:6043 wmCarGiveToParty — refuses an empty tank (worldmap
+                    // msg 1502), else puts the party in the car and goes to the worldmap
+                    // (mapSetTransition map -2), resetting the CAR_OUT_OF_GAS area. The
+                    // fuel and GVAR_PLAYER_GOT_CAR are the calling script's business.
+                    if (Worldmap.getCarFuel() <= 0) {
+                        uiLog(getMessage('worldmap', 1502) ?? 'The car is out of power.')
+                        return -1
+                    }
                     Worldmap.setIsInCar(true)
-                    Worldmap.fillCarFuel()
                     Worldmap.updateCarUI()
-                    globalVars[18] = 1   // GVAR_PLAYER_GOT_CAR (game_vars.h:25)
+                    const outOfGas = globalState.mapAreas?.[21] // CITY_CAR_OUT_OF_GAS
+                    if (outOfGas) { Worldmap.setAreaVisible(21, false); (outOfGas as any).visitedState = 0 }
                     uiWorldMap()
-                    return 1
+                    return 0
                 }
                 case 32: {
                     // CE ref: interpreter_extra.cc:3241 METARULE_GIVE_CAR_GAS →
@@ -2795,13 +2800,24 @@ export module Scripting {
                 info('endgame_movie error: ' + String(e))
             })
         }
+        // CE ref: interpreter_extra.cc opMarkAreaKnown — type 0 (town): state
+        // CITY_STATE_INVISIBLE (-66) hides it, anything else shows it
+        // (wmAreaSetVisibleState force) and sets the visited state (1 known, 2 visited);
+        // type 1: wmMapMarkVisited(mapIdx) marks the area containing that map visited.
         mark_area_known(areaType: number, areaID: number, state: number) {
-            // areaType: 0 = AREATYPE_KNOWN, 1 = AREATYPE_ENTRANCE_KNOWN
-            // state: 1 = mark known, 0 = mark unknown
             log('mark_area_known', arguments)
-            if (state === 1) globalState.knownAreas.add(areaID)
-            else globalState.knownAreas.delete(areaID)
-            info('mark_area_known: area ' + areaID + ' → ' + (state ? 'known' : 'unknown'))
+            if (areaType === 0) {
+                if (state === -66) {
+                    Worldmap.setAreaVisible(areaID, false)
+                } else {
+                    Worldmap.setAreaVisible(areaID, true)
+                    Worldmap.setAreaVisitedState(areaID, state)
+                }
+            } else if (areaType === 1) {
+                const name = lookupMapName(areaID)
+                const area = name ? areaContainingMap(name) : null
+                if (area) Worldmap.setAreaVisitedState(area.id, 2)
+            }
         }
         wm_area_set_pos(area: number, x: number, y: number) {
             // CE ref: worldmap.cc wmAreaSetPos() — updates world-map marker position
@@ -3220,6 +3236,19 @@ export module Scripting {
         return null
     }
 
+    // Runs a no-argument proc on an object's script with the per-call context
+    // objectEnterMap sets up (used for map_exit_p_proc).
+    export function objectRunProc(obj: Obj, proc: 'map_exit_p_proc'): void {
+        const script: any = obj._script
+        if (script === undefined || script[proc] === undefined) return
+        script.combat_is_initialized = globalState.inCombat ? 1 : 0
+        script.self_obj = obj as ScriptableObj
+        script.game_time = Math.max(1, globalState.gameTickTime)
+        script.game_time_hour = GameTime.getHourMilitary()
+        script.cur_map_index = currentMapID
+        script[proc]()
+    }
+
     export function objectEnterMap(obj: Obj, elevation: number, mapID: number) {
         var script = obj._script
         if (script !== undefined && script.map_enter_p_proc !== undefined) {
@@ -3240,11 +3269,14 @@ export module Scripting {
         gameObjects = null
         currentMapObject = null
         currentMapID = mapID !== undefined ? mapID : null
-        mapVars = {}
+        // MVARs belong to their map and persist with it (CE saves them with the map);
+        // only a map never seen before gets its defaults (loadMapVars fills missing ones).
+        if (mapVars === null) mapVars = {}
         loadMapVars(mapName)
     }
 
     export function init(mapName: string, mapID?: number) {
+        Worldmap.setWorldmapGlobalVarHooks((g) => globalVars[g] ?? 0, setGlobalVar) // car GVARs
         // CE ref: random.cc:31 randomInit() — seeds from compat_timeGetTime() for different rolls each launch
         randomInit(Date.now())
         loadGlobalVars()

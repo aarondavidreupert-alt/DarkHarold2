@@ -81,6 +81,7 @@ export interface SaveGame {
 
     // Discovered worldmap areas (persists Set<number> across save/load).
     knownAreas?: number[]
+    areaStates?: ReturnType<typeof Worldmap.serializeAreaStates>
 
     // CE ref: game_movie.cc gameMoviesSave — bitmask of triggered story movies.
     // Optional so older saves (without the field) load cleanly.
@@ -102,7 +103,6 @@ export interface SaveGame {
     // CE ref: worldmap.cc wmGenData.currentCarAreaId — area index where car is parked.
     currentCarAreaId?: number
     // Name of the specific local map the car is parked on (DH2 addition).
-    currentCarMapName?: string | null
 }
 
 function captureScreenshot(): string | undefined {
@@ -164,6 +164,7 @@ function gatherSaveData(name: string): SaveGame {
         },
         mvars: Scripting.getMapVars(),
         knownAreas: [...globalState.knownAreas],
+        areaStates: Worldmap.serializeAreaStates(),
         seenMovies: [...globalState.seenMovies],
         eventLog: globalState.eventLog.slice(),
         timedEvents: Scripting.getTimedEventsSerialized(),
@@ -171,7 +172,6 @@ function gatherSaveData(name: string): SaveGame {
         isInCar: Worldmap.getIsInCar(),
         carFuel: Worldmap.getCarFuel(),
         currentCarAreaId: Worldmap.getCarAreaId(),
-        currentCarMapName: Worldmap.getCarMapName(),
     }
 }
 
@@ -314,13 +314,13 @@ export function load(id: number): void {
 
                 // Restore discovered worldmap areas.
                 if (Array.isArray(save.knownAreas)) globalState.knownAreas = new Set(save.knownAreas)
+                Worldmap.deserializeAreaStates(save.areaStates)
 
                 // Restore car state. CE ref: worldmap.h wmGenData.isInCar / wmGenData.carFuel /
                 // wmGenData.currentCarAreaId. Older saves lack these fields; default to no car.
                 Worldmap.setIsInCar(save.isInCar ?? false)
                 Worldmap.setCarFuel(save.carFuel ?? 0)
                 Worldmap.setCarAreaId(save.currentCarAreaId ?? -1)
-                Worldmap.setCarMapName(save.currentCarMapName ?? null)
 
                 // Restore seen-movie set (CE ref: game_movie.cc gameMoviesLoad).
                 if (Array.isArray(save.seenMovies)) globalState.seenMovies = new Set(save.seenMovies)

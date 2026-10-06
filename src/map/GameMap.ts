@@ -260,7 +260,10 @@ export class GameMap {
             obj.elevation = level
         }
 
-        this.placeParty()
+        // CE places the party once, before map_enter_p_proc (partyMemberRestore); a
+        // re-entry at the same elevation mustn't undo scripts' move_to on party members
+        // (e.g. the car trunk, which its script parks next to the car).
+        if (isMapLoading || level !== oldElevation) this.placeParty()
 
         // Compute object bbox and CE-authoritative scroll blocker bbox.
         // scrollBlockerBounds is the primary source for bars and clamp.
@@ -369,9 +372,16 @@ export class GameMap {
         // place party again, so if the map script overrided the start position we're in the right place
         this.placeParty()
 
-        // Tell objects' scripts that they're now on the map
+        // Tell objects' scripts that they're now on the map. CE ref: scripts.cc
+        // scriptsExecMapUpdateScripts builds the script list first and skips scripts
+        // removed meanwhile — map_enter procs create and destroy objects, and a live
+        // forEach would skip the entries shifted down by a removal.
         // TODO: Does this apply to all levels or just the current elevation?
-        this.objects.forEach((level) => level.forEach((obj) => obj.enterMap()))
+        this.objects.forEach((level) => {
+            for (const obj of level.slice()) {
+                if (level.includes(obj)) obj.enterMap()
+            }
+        })
         this.spatials.forEach((level) =>
             level.forEach((spatial) => Scripting.objectEnterMap(spatial, this.currentElevation, this.mapID))
         )
@@ -755,11 +765,15 @@ export class GameMap {
             floorMap: this.floorMap,
 
             mapScript: this.mapScript ? this.mapScript._serialize() : null,
-            objects: this.objects.map((level: Obj[]) =>
-                arrayWithout(level, globalState.player)
-                    .filter((obj): obj is Obj => obj !== null && !(obj as any)._transient)
+            // The party (player, companions, the car trunk) travels with the player, so
+            // it isn't part of the map snapshot — otherwise a revisit restores a second
+            // copy next to the one that walked in (CE removes the party before mapSave).
+            objects: this.objects.map((level: Obj[]) => {
+                const party = new Set<Obj>(globalState.gParty.getPartyMembersAndPlayer())
+                return level
+                    .filter((obj): obj is Obj => obj !== null && !party.has(obj) && !(obj as any)._transient)
                     .map((obj) => obj.serialize())
-            ), // TODO: Should be without entire party?
+            }),
             // FO2-CE ref: map.cc mapSave — spatials persist their LVARs across saves
             spatials: this.spatials
                 ? this.spatials.map(level => level.map((s: Spatial): SerializedSpatial => ({

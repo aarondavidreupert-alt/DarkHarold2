@@ -1,9 +1,60 @@
 # Car System (Highwayman) — Deep-Dive Audit
 
-> Last audited: 2026-09-23
+> Last audited: 2026-10-07 — **§0 supersedes the engine-side parking design described in §§1-8.**
 > Sources: `raw/fallout2-ce/src/worldmap.cc`, `worldmap.h`, `proto_instance.cc`, `proto_types.h`, `interpreter_extra.cc`, `game_vars.h`
 > DH2 sources: `src/map/mapLoader.ts`, `lut/car_parking.json`, `src/worldmap.ts` (barrel), `src/worldmap/Worldmap.ts`, `src/scripting.ts`, `src/object/Obj.ts`, `src/object/factories.ts`, `src/main.ts`
 > Cross-reference: [worldmap.md](worldmap.md) §"Car Movement"/Gap #12 — **note: that document predates the W8 fix (2026-09-13/14/16) and still describes DH2 as having "no car system"**. Treat this doc as authoritative for car-specific behavior; `worldmap.md`'s car sections are stale and not corrected as part of this pass (out of scope — flagged here only).
+
+---
+
+## 0. 2026-10-07: the car is script-driven, as in CE
+
+CE never places the car or the trunk itself; the town scripts do. The engine only keeps
+`currentCarAreaId` (`worldmap.cc`), and the scripts handle the rest:
+
+- **Town map scripts** (e.g. `denbus1`): in `map_enter_p_proc`, if `car_current_town`
+  (metarule 30) is this town, `!is_loadgame` and `GVAR_PLAYER_GOT_CAR` is set, they
+  `create_object_sid(PID_CAR, <tile>, 0, 304)` and surround it with blocker scenery. The
+  same script removes the car and blockers when the car has left (`map_var` 9 and a
+  town flag, e.g. `GVAR_DEN_FLAG_3 & 0x8000`).
+- **`zsdrvcar`** (the car, sid 304): `use_p_proc` → `give_car_to_party` (metarule 31).
+- **`zicrtrnk`** (the trunk): `party_add`s itself, so it travels with the party. In
+  `map_enter_p_proc` it parks next to the car (`tile_num_in_direction` + `move_to`) or
+  hides itself (`set_obj_visibility`) when there's no car.
+
+DH2 now relies on exactly this. The `mapLoader.ts` injection, `src/carParking.ts`,
+`lut/car_parking.json`, `carMapName`, the trunk-offset tuning helpers and
+`window.debugCarTile` are gone. Making the scripts work needed four engine fixes, all
+real bugs well beyond the car:
+
+1. `Scripting.reset()` wiped **all MVARs** on every map load (and right after a save
+   load). MVARs now persist with their map.
+2. `map_exit_p_proc` ran only on the map script, and only *after* the dirty-map snapshot.
+   It now runs on every script on the map (party excluded), the deferred removal queue
+   is drained, and only then is the map snapshotted (CE `map.cc:1427 _map_save_in_game`).
+3. The map snapshot included party members, so a revisit restored a second copy of
+   every companion and the trunk. The whole party is now excluded (it travels with
+   the player).
+4. Re-entering a map at the same elevation re-ran `placeParty()` after `map_enter`,
+   undoing scripts' `move_to` on party members. The party is now placed only on a
+   map load or an actual elevation change.
+
+Also ported:
+
+- **Speed tiers** (CE `worldmap.cc:3025-3046`): 4 steps per loop, +1 `GVAR_CAR_BLOWER`,
+  +1 `GVAR_NEW_RENO_CAR_UPGRADE`, +3 `GVAR_NEW_RENO_SUPER_CAR`.
+- **Fuel**: `wmCarUseGas(100)` once per loop, with the super car -90%, New Reno
+  upgrade -10% and fuel cell regulator /2 reductions.
+- **Running out of gas**: travel stops, the party leaves the car, and the car stays in
+  the area or at `CITY_CAR_OUT_OF_GAS` moved to the spot.
+- **`give_car_to_party`** (`wmCarGiveToParty`): refuses an empty tank (msg 1502). It no
+  longer refills the tank or sets `GVAR_PLAYER_GOT_CAR`; that's the scripts' job.
+
+`window.giveCar()` remains as a test helper: it sets `GVAR_PLAYER_GOT_CAR` and the car
+area, and the town script does the rest.
+
+Verified in the browser on Den: park, revisit, drive off (the car is removed and the
+trunk travels hidden in the party, its contents kept), and park again.
 
 ---
 
