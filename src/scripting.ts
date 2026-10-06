@@ -16,6 +16,7 @@ limitations under the License.
 Scripting system/engine for DarkFO
 */
 
+import { critterAdjustRadiation } from './radiation.js'
 import { Combat, isCombatActive } from './combat.js'
 import { critterDamage, critterKill, killCounts } from './critter.js'
 import { areaContainingMap, lookupMapName, lookupScriptName } from './data.js'
@@ -928,6 +929,13 @@ export module Scripting {
                 warn('set_critter_stat: can only modify obj_dude')
                 return -1
             }
+            // CE stat.cc:439 critterSetBaseStat: derived stats (STAT_MAXIMUM_HIT_POINTS 7 ..
+            // STAT_POISON_RESISTANCE 32) can't be set; current HP / poison / radiation (35-37)
+            // route through their adjust functions with the delta.
+            if (stat > 6 && stat <= 32) return 0
+            if (stat === 35) { (obj as Critter).stats.modifyBase('HP', value); return 0 }
+            if (stat === 36) { this.poison(obj, value); return 0 }
+            if (stat === 37) { critterAdjustRadiation(obj as Critter, value); return 0 }
             const statName = statMap[stat]
             if (!statName) {
                 warn('set_critter_stat: unknown stat ' + stat)
@@ -1507,12 +1515,16 @@ export module Scripting {
             }
         }
         radiation_inc(obj: Obj, amount: number) {
-            // CE ref: interpreter_extra.cc:2777 opRadiationIncrease — scripted radiation increase
-            ;(obj as Critter).radiationLevel = ((obj as Critter).radiationLevel ?? 0) + amount
+            // CE ref: interpreter_extra.cc:2777 opRadiationIncrease → critter.cc:412
+            // critterAdjustRadiation (player only; resistance, geiger, CRITTER_RADIATED).
+            if (!isGameObject(obj) || obj.type !== 'critter') return
+            critterAdjustRadiation(obj as Critter, amount)
         }
         radiation_dec(obj: Obj, amount: number) {
-            // CE ref: interpreter_extra.cc:2792 opRadiationDecrease — scripted radiation decrease
-            ;(obj as Critter).radiationLevel = Math.max(0, ((obj as Critter).radiationLevel ?? 0) - amount)
+            // CE ref: interpreter_extra.cc:2792 opRadiationDecrease.
+            if (!isGameObject(obj) || obj.type !== 'critter') return
+            const radiation = (obj as Critter).radiationLevel ?? 0
+            critterAdjustRadiation(obj as Critter, radiation >= 0 ? -amount : 0)
         }
 
         // combat

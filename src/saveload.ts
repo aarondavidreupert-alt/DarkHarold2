@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { restoreRadiationEvent } from './radiation.js'
 import { StatSet, SkillSet } from './char.js'
 import { Point } from './geometry.js'
 import globalState from './globalState.js'
@@ -362,6 +363,10 @@ export function load(id: number): void {
                                 Scripting.timeEventList.push({ obj: playerForSneak, ticks, userdata,
                                     fn: () => { if ((playerForSneak as any).isSneaking) scheduleSneakEvent(playerForSneak) } })
                             }
+                        } else if (typeof userdata === 'string' && userdata.startsWith('radiation:')) {
+                            // CE ref: critter.cc radiationEventRead — restore sickness / recovery event.
+                            const player = globalState.player as Critter | null
+                            if (player && !player.dead) restoreRadiationEvent(player, ticks, userdata)
                         } else if (userdata === 'poison') {
                             // CE ref: critter.cc poisonEventProcess — restore poison decay timer.
                             const player = globalState.player as Critter | null

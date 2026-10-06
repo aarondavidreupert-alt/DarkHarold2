@@ -59,7 +59,7 @@ export interface SerializedCritter extends SerializedObj {
 export const SERIALIZED_CRITTER_PROPS = [
     'stats', 'skills', 'aiNum', 'teamNum', 'hostile', 'isPlayer', 'dead',
     'anim', 'crippledLeftArm', 'crippledRightArm', 'crippledLeftLeg', 'crippledRightLeg',
-    'poisonLevel', 'radiationLevel', 'addictions', 'customAiOverrides',
+    'poisonLevel', 'radiationLevel', 'radiated', 'addictions', 'customAiOverrides',
 ]
 
 export class Critter extends Obj {
@@ -113,6 +113,9 @@ export class Critter extends Obj {
     // Poison / radiation / addiction (FO2-CE ref: critter.cc, radiation.cc)
     poisonLevel: number = 0
     radiationLevel: number = 0
+    // CE CRITTER_RADIATED (proto data flag): set when a dose is taken, consumed by the
+    // nightly radiation check (src/radiation.ts checkRads).
+    radiated: boolean = false
     addictions: string[] = []   // drug names this critter is addicted to
 
     // Combat status effect counters / flags

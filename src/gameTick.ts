@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { checkRads } from './radiation.js'
 import { getAiPacket } from './aiPackets.js'
 import { tickAddictions } from './drugs.js'
 import { heart } from './heart.js'
@@ -60,6 +61,9 @@ export function processMidnightForDay(day: number): void {
     dbg('map', 'QUEUE PROCESS: Midnight!')
     objectUnjamAll()
     scriptsCheckGameEvents(day)
+    // CE ref: scripts.cc:424 gameTimeEventProcess → critter.cc:495 _critter_check_rads(gDude)
+    const player = globalState.player as Critter | null
+    if (player && !player.dead) checkRads(player)
 }
 
 export function tickGame(): void {
@@ -176,7 +180,6 @@ export function tickGame(): void {
             lastMidnightDay = currentDay // initialize on first tick
         } else {
             processMidnightForDay(currentDay)
-            // _critter_check_rads() — radiation decay, intentionally deferred
         }
 
         if (Config.engine.doTimedEvents && !globalState.inCombat) {
@@ -227,10 +230,6 @@ export function tickGame(): void {
                 const player = globalState.player as Critter | null
                 if (player && !player.dead) tickAddictions(player)
 
-                // Radiation symptom tick (FO2-CE ref: radiation.cc radiationEventProcess)
-                if (player && !player.dead && player.radiationLevel > 0) {
-                    applyRadiationSymptoms(player)
-                }
             }
         }
 
@@ -362,18 +361,3 @@ function scriptsCheckGameEvents(day: number): void {
 }
 
 // FO2-CE ref: radiation.cc radiationGetLevel
-function applyRadiationSymptoms(player: Critter): void {
-    const rads = player.radiationLevel
-    if (rads >= 1000) {
-        uiLog('Radiation: You are dying!')
-        player.stats.modifyBase('HP', -10)
-    } else if (rads >= 600) {
-        uiLog('Radiation: Critical!')
-        player.stats.modifyBase('HP', -4)
-    } else if (rads >= 450) {
-        uiLog('Radiation: Acute sickness')
-    } else if (rads >= 300) {
-        uiLog('Radiation: Nausea')
-    }
-    // Below 150 rads is safe — no symptoms
-}

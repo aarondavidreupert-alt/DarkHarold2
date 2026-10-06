@@ -593,7 +593,7 @@ These systems are out-of-scope and marked deliberately incomplete.
 
 | System | File(s) | Notes |
 |--------|---------|-------|
-| Radiation effects (CE-faithful) | `gameTick.ts applyRadiationSymptoms` | `radiation_inc`/`radiation_dec` work (S27). But `applyRadiationSymptoms` is a DH2 invention: thresholds 300/450/600/1000, flat HP loss, no stat penalties. CE `critter.cc _critter_check_rads` / `radiationEventProcess` uses levels 100/200/400/600/1000, an END roll that can bump the level, and `gRadiationEffectPenalties` stat modifiers. Port it if radiation is un-deferred |
+| ~~Radiation effects (CE-faithful)~~ | `src/radiation.ts` | **FIXED 2026-10-06 (branch 100percent)** — DH2-invented `applyRadiationSymptoms` removed; ported `critter.cc` `critterAdjustRadiation` (DR Radiation resistance, geiger messages 1007-1009, CRITTER_RADIATED flag), midnight `_critter_check_rads` (levels 100/200/400/600/1000, END statRoll bump, event in 4-18 h), `_process_rads` (`gRadiationEffectPenalties`, primary-stat death, msgs 1000-1006/3003) and `radiationEventProcess` (7-day recovery). `radiation_inc/dec` and `set_critter_stat(…,37,…)` route through it; events persist in saves. |
 | `.mve` movie playback | `scripting.ts play_gmovie` | No MVE decoder; `play_gmovie` logs and skips (S15). Endgame *slides* are implemented — only FMV is absent |
 | NPC day/night schedules | `gameTick.ts`, `combat/AI.ts` | Radius-capped wander only (C8); see P2 |
 | Party full AI | `party.ts` | Partial, not a shell: follow, CHA cap, combat turns, control/customize/trade screens exist; level-up and formation pathfinding missing (see C6/P3) |
