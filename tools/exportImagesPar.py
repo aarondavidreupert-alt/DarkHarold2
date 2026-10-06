@@ -23,7 +23,8 @@ import frmpixels
 N_PROCS = 2
 CHUNKSIZE = 4
 # SUBDIRS = ("inven", "tiles", "critters", "items", "scenery", "walls", "misc", "intrface") # etc
-SUBDIRS = ("inven", "tiles", "critters", "items", "scenery", "walls", "misc", "intrface", "skilldex")
+# heads + backgrnd: talking-head dialogue art (CE game_dialog.cc gameDialogRenderTalkingHead)
+SUBDIRS = ("inven", "tiles", "critters", "items", "scenery", "walls", "misc", "intrface", "skilldex", "heads", "backgrnd")
 def convertFRM(task):
 	(name, FRM, outpath, palette, exportImage) = task
 	return ('art/'+name, frmpixels.exportFRM(FRM, outpath, palette, exportImage))

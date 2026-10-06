@@ -202,6 +202,7 @@ export module ScriptVMBridge {
        ,0x811E: bridged("gsay_reply", 2, false)
        ,0x80DF: bridged("end_dialogue", 0) // void?
        ,0x8120: bridged("gsay_message", 3, false)
+       ,0x80E0: bridged("dialogue_reaction", 1, false) // CE: interpreter_extra.cc:4937 op_dialogue_reaction
        //,0x806B: bridged("display", 1)
        ,0x814E: bridged("gdialog_set_barter_mod", 1, false)
 
@@ -213,6 +214,17 @@ export module ScriptVMBridge {
             this.retStack.push(this.pc + 2)
             this.halted = true
             this.scriptObj.gsay_end()
+       }
+
+       // gsay_option — CE: interpreter_extra.cc _op_gsay_option (0x811F); like giq_option without the IQ test.
+       ,0x811F: function() {
+            var reaction = this.pop()
+            var target = this.pop()
+            var msgId = this.pop()
+            var msgList = this.pop()
+            var targetProc = typeof target === 'string' ? target : this.intfile.proceduresTable[target].name
+            var targetFn = () => { this.call(targetProc) }
+            this.scriptObj.gsay_option(msgList, msgId, targetFn, reaction)
        }
 
        //,0x8121: bridged("giq_option", 5) // TODO: wrap this so that target becomes a function

@@ -16,6 +16,7 @@ limitations under the License.
 Scripting system/engine for DarkFO
 */
 
+import { FIDGET_BAD, FIDGET_GOOD, FIDGET_NEUTRAL, GAME_DIALOG_REACTION_NEUTRAL, reactToOption, startLips, startTalkingHead, talkToCritterReacts, isTalkingHeadActive } from './talkingHead.js'
 import { gameMoviePlay, SCRIPT_MOVIE_FLAGS } from './gameMovie.js'
 import { randomInit, randomSeedPrerandom } from './random.js'
 import { critterAdjustRadiation } from './radiation.js'
@@ -66,6 +67,8 @@ export module Scripting {
     var scriptMessages: { [scriptName: string]: { [msgID: number]: string } } = {}
     var dialogueOptionProcs: (() => void)[] = [] // Maps dialogue options to handler callbacks
     var dialogueOptionTexts: string[] = [] // parallel to dialogueOptionProcs — display text, for the review log
+    var dialogueOptionReactions: number[] = [] // parallel — GAME_DIALOG_REACTION_* (head reaction on pick)
+    var scriptMessageAudio: { [msgFile: string]: { [msgID: number]: string } } = {} // {id}{audio}{text} middle field
     var currentDialogueObject: Obj | null = null
 
     // Conversation review log. CE ref: game_dialog.cc gDialogReviewEntries —
@@ -346,17 +349,32 @@ export module Scripting {
         return scriptMessages[name][msg]
     }
 
+    // CE scripts.cc:2726 _scr_get_msg_str_speech(…, a3=1): with a talking head
+    // active, a reply whose message has a speech name starts the lip-synced audio.
+    function speakScriptMessage(msgList: number, msgID: string | number): void {
+        if (typeof msgID !== 'number' || !isTalkingHeadActive()) return
+        const name = getScriptName(msgList)
+        if (!name) return
+        const audio = scriptMessageAudio[name.toLowerCase()]?.[msgID]
+        if (audio) startLips(audio)
+        else dbg('dialogue', `Missing speech name: ${msgID}`)
+    }
+
     export function dialogueReply(id: number): void {
         var f = dialogueOptionProcs[id]
         // CE ref: game_dialog.cc:2040-2044 _gdProcessChoice — records the
         // chosen option's text onto the most recent review entry, before
         // running its callback (which may clear/replace state).
         const pickedText = dialogueOptionTexts[id]
+        // CE game_dialog.cc _gdProcessChoice → _talk_to_critter_reacts(option reaction).
+        reactToOption(dialogueOptionReactions[id] ?? GAME_DIALOG_REACTION_NEUTRAL)
+        dialogueOptionReactions = []
         if (dialogueReviewLog.length > 0 && pickedText !== undefined) {
             dialogueReviewLog[dialogueReviewLog.length - 1].option = pickedText
         }
         dialogueOptionProcs = []
         dialogueOptionTexts = []
+        dialogueOptionReactions = []
         f()
         // by this point the option's callback may have switched to an
         // entirely different screen (barter, companion control/customize) —
@@ -406,6 +424,7 @@ export module Scripting {
         globalState.uiMode = UIMode.dialogue
         dialogueOptionProcs = []
         dialogueOptionTexts = []
+        dialogueOptionReactions = []
         talk(currentDialogueObject._script, currentDialogueObject)
     }
 
@@ -2077,12 +2096,40 @@ export module Scripting {
             }
             currentDialogueObject = this.self_obj as Critter
             uiStartDialogue(false, this.self_obj as Critter)
-            //stub("start_gdialog", arguments)
+            // CE ref: interpreter_extra.cc:1892 opStartGameDialog — with a head, the
+            // starting fidget comes from the speaker's reaction (LVAR 0 →
+            // reactionTranslateValue: > 10 good, > -10 neutral, else bad); otherwise mood.
+            if (!globalState.inCombat) {
+                let fidget = mood
+                if (headNum !== -1) {
+                    const lv0 = (this.self_obj as any)._script?.lvars?.[0]
+                    const value = typeof lv0 === 'number' ? lv0 : -1
+                    fidget = value > 10 ? FIDGET_GOOD : value > -10 ? FIDGET_NEUTRAL : FIDGET_BAD
+                }
+                startTalkingHead(headNum, fidget, backgroundID)
+            }
+        }
+        // CE ref: interpreter_extra.cc:4937 op_dialogue_reaction (0x80E0)
+        dialogue_reaction(value: number) {
+            talkToCritterReacts(value)
+        }
+        // CE ref: interpreter_extra.cc _op_gsay_option (0x811F) — option without an IQ test.
+        gsay_option(msgList: number, msgID: string | number, target: any, reaction: number) {
+            const msg = getScriptMessage(msgList, msgID)
+            if (msg === null) {
+                dbgWarn('script', 'gsay_option: msg is null')
+                return
+            }
+            dialogueOptionProcs.push(target.bind(this))
+            dialogueOptionTexts.push(msg)
+            dialogueOptionReactions.push(reaction)
+            uiAddDialogueOption(msg, dialogueOptionProcs.length - 1)
         }
         gsay_start() {
             log('gsay_start', arguments)
             dialogueOptionProcs = []
             dialogueOptionTexts = []
+        dialogueOptionReactions = []
             // ensure dialogue UI is open (may already be open from start_gdialog)
             if (globalState.uiMode !== UIMode.dialogue && this.self_obj) {
                 uiStartDialogue(false, this.self_obj as Critter)
@@ -2095,6 +2142,8 @@ export module Scripting {
             if (msg === null) throw Error('gsay_reply: msg is null')
             info('REPLY: ' + msg, 'dialogue')
             uiSetDialogueReply(msg)
+            // CE scripts.cc:2726 _scr_get_msg_str_speech(…, 1) — speak it if there's a head.
+            speakScriptMessage(msgList, msgID)
             // CE ref: game_dialog.cc:1134-1146 gameDialogSetMessageReply ->
             // gameDialogAddReviewMessage.
             dialogueReviewLog.push({ reply: msg, option: null })
@@ -2108,6 +2157,7 @@ export module Scripting {
                 return
             }
             uiSetDialogueReply(msg)
+            speakScriptMessage(msgList, msgID)
             // CE ref: game_dialog.cc:1148-1160 gameDialogSetTextReply ->
             // gameDialogAddReviewText.
             dialogueReviewLog.push({ reply: msg, option: null })
@@ -2152,11 +2202,13 @@ export module Scripting {
                 'dialogue'
             )
 
-            const INT = globalState.player.getStat('INT')
+            // CE _op_giq_option: INT + Smooth Talker rank.
+            const INT = globalState.player.getStat('INT') + globalState.player.perks.filter((p: string) => p === 'Smooth Talker').length
             if ((iqTest > 0 && INT < iqTest) || (iqTest < 0 && INT > -iqTest)) return // not enough intelligence for this option
 
             dialogueOptionProcs.push(target.bind(this))
             dialogueOptionTexts.push(msg)
+            dialogueOptionReactions.push(reaction)
             uiAddDialogueOption(msg, dialogueOptionProcs.length - 1)
         }
         dialogue_system_enter() {
@@ -2556,6 +2608,12 @@ export module Scripting {
             if (m === null) throw 'message parsing: not a valid line: ' + lines[i]
             // HACK: replace unicode replacement character with an apostrophe (because the Web sucks at character encodings)
             scriptMessages[name][parseInt(m[1])] = m[2].replace(/\ufffd/g, "'")
+            // CE message.cc: the middle field is the speech file for talking heads.
+            const audio = lines[i].match(/^\{\d+\}\{([^}]*)\}/)
+            if (audio && audio[1].trim() !== '') {
+                if (scriptMessageAudio[name] === undefined) scriptMessageAudio[name] = {}
+                scriptMessageAudio[name][parseInt(m[1])] = audio[1].trim()
+            }
         }
     }
 

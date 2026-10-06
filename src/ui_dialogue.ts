@@ -18,6 +18,7 @@ limitations under the License.
 // pop-up animation for the dialogueBox. Also exports uiAnimateBox, the
 // generic CSS-transition helper used by the barter pop-up.
 
+import { stopTalkingHead } from './talkingHead.js'
 import globalState from './globalState.js'
 import { Critter } from './object.js'
 import { objectBoundingBox } from './renderer.js'
@@ -183,6 +184,7 @@ export function uiStartDialogue(force: boolean, target?: Critter) {
 export function uiEndDialogue() {
     // TODO: Transition the dialogue box down?
     globalState.uiMode = UIMode.none
+    stopTalkingHead() // CE _gdialogExitFromScript: head window + music
 
     $id('dialogueContainer').style.visibility = 'hidden'
     $id('dialogueBox').style.visibility = 'hidden'

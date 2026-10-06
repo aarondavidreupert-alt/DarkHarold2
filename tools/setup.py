@@ -56,6 +56,7 @@ import convertLST
 import convertEndgame
 import convertAudio
 import convertMovies
+import convertSpeech
 
 # global paths/flags
 SRC_DIR = None
@@ -225,6 +226,17 @@ def export_movies(overwrite=True):
 		warn("Error converting movies (see traceback above). Will continue setup.")
 	return True
 
+def export_speech(overwrite=True):
+	# CE ref: lips.cc _lips_make_speech — talking-head speech ACM -> MP3 for the
+	# lip-synced dialogue heads. Needs ffmpeg (as export_movies).
+	info("Converting talking-head speech to MP3, please wait while this runs.")
+	try:
+		convertSpeech.convertAll(overwrite=overwrite)
+	except Exception:
+		traceback.print_exc()
+		warn("Error converting speech (see traceback above). Will continue setup.")
+	return True
+
 def convert_lsts(overwrite=True):
 	if not overwrite and os.path.exists("lut/lst") and os.listdir("lut/lst"):
 		info("Skipping LST conversion - lut/lst/ already populated")
@@ -326,6 +338,7 @@ STAGES = {
 	"export_maps": export_maps,
 	"export_audio": export_audio,
 	"export_movies": export_movies,
+	"export_speech": export_speech,
 	"convert_lsts": convert_lsts,
 	"convert_endgame": convert_endgame_data,
 }

@@ -51,6 +51,7 @@ STAGES = [
     ("convert_endgame", "Convert endgame slide data", True),
     ("export_audio", "Convert audio (ACM -> WAV, needs acm2wav.exe)", False),
     ("export_movies", "Convert movies (MVE -> WebM, needs ffmpeg)", True),
+    ("export_speech", "Convert talking-head speech (ACM -> MP3, needs ffmpeg)", True),
 ]
 
 # Mirrors tools/setup.py's DELETE_ORIGINALS_GLOBS — kept duplicated rather
