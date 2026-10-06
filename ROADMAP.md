@@ -129,7 +129,7 @@ game features, but prerequisites for reliable iteration.
 **Goal:** The four systems marked "deliberately deferred" that are required for
 a believable playthrough.
 
-### 5a. Drug/chem effects and addiction ✅ Done
+### 5a. Drug/chem effects and addiction ✅ Done (rewritten 2026-10-06 as a CE `item.cc` port — see wiki/drugs.md)
 ### 5b. Poison and radiation decay loops ✅ Done
 
 ### 5c. Party / companion follow logic 🟡 Partial

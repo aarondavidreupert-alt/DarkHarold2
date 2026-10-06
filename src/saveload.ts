@@ -26,7 +26,7 @@ import { Critter, deserializeObj, SerializedObj } from './object.js'
 import { refreshStealthState } from './miscItem.js'
 import { Scripting } from './scripting.js'
 import { scheduleSneakEvent } from './skillUse.js'
-import { getDrugByName } from './drugs.js'
+import { restoreDrugEvent } from './drugs.js'
 import { drawHP, drawAC, uiDrawWeapon } from './ui_hud.js'
 import { getFileJSON } from './util.js'
 import { Worldmap } from './worldmap.js'
@@ -337,25 +337,11 @@ export function load(id: number): void {
                             ? mapObjects.find(o => o.pid === ev.objPid) ?? null
                             : null
                         const { ticks, userdata } = ev
-                        if (typeof userdata === 'string' && userdata.startsWith('drug:delayed:')) {
-                            const drug = getDrugByName(userdata.slice('drug:delayed:'.length))
-                            const user = obj as Critter | null
-                            if (drug?.delayedHP !== undefined && user) {
-                                const dmg = -(drug.delayedHP)
-                                Scripting.timeEventList.push({ obj, ticks, userdata, fn: () => {
-                                    if (dmg > 0) user.stats.modifyBase('HP', -dmg)
-                                }})
-                            }
-                        } else if (typeof userdata === 'string' && userdata.startsWith('drug:')) {
-                            const drug = getDrugByName(userdata.slice('drug:'.length))
-                            const user = obj as Critter | null
-                            if (drug?.timedStats && user) {
-                                const stats = drug.timedStats
-                                Scripting.timeEventList.push({ obj, ticks, userdata, fn: () => {
-                                    for (const [stat, delta] of Object.entries(stats))
-                                        user.stats.modifyBase(stat, -delta)
-                                }})
-                            }
+                        if (typeof userdata === 'string' && (userdata.startsWith('drug:') || userdata.startsWith('withdrawal:'))) {
+                            // CE ref: item.cc drugEffectEventRead / withdrawalEventRead. Old-format
+                            // drug events (pre-2026-10-06 'drug:<name>') don't parse and are dropped.
+                            const user = (obj ?? globalState.player) as Critter | null
+                            if (user && user.type === 'critter') restoreDrugEvent(user, ticks, userdata)
                         } else if (userdata === 'sneak') {
                             // CE ref: critter.cc:1194 sneakEventProcess — restore periodic sneak roll timer.
                             const playerForSneak = globalState.player

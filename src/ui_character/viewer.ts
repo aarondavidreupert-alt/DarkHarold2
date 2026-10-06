@@ -36,6 +36,9 @@ import {
     STAT_COMMENTS, FOLDER_TABS, STATS, SKILLS,
 } from './descriptions.js'
 import { showPerkModal } from './perkModal.js'
+import { ADDICTION_KARMA_GVARS } from '../drugs.js'
+import { Scripting } from '../scripting.js'
+import { getMessage } from '../util.js'
 
 // ── Window singleton ──────────────────────────────────────────────────────────
 // Shared between viewer (showCharacterScreen) and creator (showCharacterCreator)
@@ -411,6 +414,15 @@ export function showCharacterScreen() {
             if (!(key in (repStats.baseStats ?? {}))) continue
             const val: number = player.stats.getBase(key)
             addLine(panel, `${town}: ${townStanding(val)}`)
+        }
+
+        // ── Reliances (addictions) ────────────────────────────────────────────
+        // CE ref: character_editor.cc:5613 — one line per non-zero addiction GVAR,
+        // heading editor.msg 4001, names 1004 + index (gAddictionReputationVars order).
+        const addicted = ADDICTION_KARMA_GVARS.map((g, i) => [g, i] as const).filter(([g]) => Scripting.getGlobalVar(g) !== 0)
+        if (addicted.length > 0) {
+            panel.appendChild(mkSectionHeader(`────── ${(getMessage('editor', 4001) ?? 'Reliance').toUpperCase()} ──────`))
+            for (const [, i] of addicted) addLine(panel, getMessage('editor', 1004 + i) ?? '')
         }
     }
 

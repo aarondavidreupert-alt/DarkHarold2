@@ -1,7 +1,17 @@
-// Drug effects and addiction system for DarkHarold2
-// FO2-CE ref: item.cc:_item_d_take_drug(), item.cc:_perform_drug_effect(),
-//             item.cc:gDrugDescriptions[], proto_types.h, stat_defs.h
-// See also wiki/drugs.md for the full system reference.
+// Drugs, addiction and withdrawal — port of fallout2-ce item.cc:
+//   _item_d_take_drug()        (item.cc:2776) — use a drug item
+//   _perform_drug_effect()     (item.cc:2639) — apply a stat delta triple
+//   _insert_drug_effect()      (item.cc:2598) — queue a delayed delta triple
+//   _drug_effect_allowed()     (item.cc:2721) — per-drug stacking limit
+//   drugEffectEventProcess()   (item.cc:2864)
+//   _insert_withdrawal() / _item_wd_clear_all() / withdrawalEventProcess()
+//   performWithdrawalStart() / performWithdrawalEnd()  (item.cc:2917-3104)
+//   dudeSetAddiction() / dudeClearAddiction() / dudeIsAddicted()  (item.cc:3106-3150)
+// Effects are driven entirely by the drug's proto data (tools/proto.py readItem
+// SUBTYPE_DRUG: stat0-2, amount0-2, firstDelayed/secondDelayed, addictionRate,
+// addictionEffect (= withdrawal perk), addictionOnset).
+// Replaces the earlier hand-written DRUG_TABLE, whose numbers did not match
+// the protos (e.g. Psycho is AGI+3/INT-3/DR+50, not "+25 DR for 3 h").
 //
 // Copyright 2014-2022 darkf (Apache 2.0)
 
@@ -9,313 +19,356 @@ import globalState from './globalState.js'
 import { dbg } from './logger.js'
 import { Critter, Obj } from './object.js'
 import { Scripting } from './scripting.js'
-import { uiLog } from './ui_hud.js'
+import { uiLog, updateIndicatorBar } from './ui_hud.js'
 import { Events } from './events.js'
+import { critterKill } from './critter/lifecycle.js'
+import { critterAdjustRadiation } from './radiation.js'
+import { STAT_CURRENT_HIT_POINTS, STAT_CURRENT_POISON_LEVEL, STAT_CURRENT_RADIATION_LEVEL, STAT_NAME_BY_ID } from './statIds.js'
+import { getMessage, getRandomInt } from './util.js'
 
-interface DrugEffect {
-    // pidID = pid & 0xFFFF
-    pidID: number
-    name: string
-    // Immediate stat bonuses: statName -> delta
-    immediate?: { [stat: string]: number }
-    // Timed stat bonuses (reversed after duration): statName -> delta
-    timedStats?: { [stat: string]: number }
-    duration?: number // in game ticks
-    // Immediate HP heal
-    immediateHP?: number
-    // Delayed HP damage (after delayTicks)
-    delayedHP?: number
-    delayTicks?: number
-    // Addiction chance (0-100)
-    addictChance?: number
-    // Withdrawal stat penalties (applied once per tick cycle when addicted)
-    withdrawal?: { [stat: string]: number }
-    // Special effects
-    specialEffect?: 'radaway' | 'jetCure' | 'jetAddict'
-}
+const PROTO_ID_JET = 259
+const PROTO_ID_JET_ANTIDOTE = 260
+const PERK_JET_ADDICTION = 70
+const PERK_FLOWER_CHILD_NAME = 'Flower Child'
+const BODY_TYPE_ROBOTIC = 2
 
-// Duration constants (CE ref: item.cc:2928 queueAddEvent(600 * duration, ...))
-// DH2 TICKS_PER_MINUTE=600, TICKS_PER_HOUR=36000
-const T_15MIN  =  9_000   // 15 game minutes
-const T_30MIN  = 18_000   // 30 game minutes
-const T_3H     = 108_000  // 3 game hours
-
-const DRUG_TABLE: DrugEffect[] = [
-    // ── Healing ──────────────────────────────────────────────────────────────
-    // CE ref: PROTO_ID_STIMPACK=40
-    // Immediate HP (CE: randomBetween(4,10); DH2: flat 10). No addiction.
-    {
-        pidID: 40, name: 'Stimpak',
-        immediateHP: 10,
-    },
-    // CE ref: PROTO_ID_SUPER_STIMPACK=144
-    // +75 HP immediate; −9 HP after 1 hour (CE: duration2 schedule). No addiction.
-    {
-        pidID: 144, name: 'Super Stimpak',
-        immediateHP: 75,
-        delayedHP: -9,
-        delayTicks: 36_000,
-    },
-    // CE ref: PROTO_ID_NUKA_COLA=106
-    {
-        pidID: 106, name: 'Nuka-Cola',
-        immediateHP: 2,
-    },
-    // CE ref: PROTO_ID_HEALING_POWDER=273 (Arroyo primitive)
-    // +4 HP, −1 PER (timed, wears off after 30 min). No addiction.
-    {
-        pidID: 273, name: 'Healing Powder',
-        immediateHP: 4,
-        timedStats: { 'PER': -1 },
-        duration: T_30MIN,
-    },
-
-    // ── Combat chems ─────────────────────────────────────────────────────────
-    // CE ref: PROTO_ID_PSYCHO=110
-    // +25 DR Normal for 3h. CE: gDrugDescriptions addictChance 10%, withdrawal −1 END.
-    {
-        pidID: 110, name: 'Psycho',
-        timedStats: { 'DR Normal': 25 },
-        duration: T_3H,
-        addictChance: 10,
-        withdrawal: { 'END': -1 },
-    },
-    // CE ref: PROTO_ID_BUFF_OUT=87
-    // +2 STR, +2 END for 3h. CE: addictChance 10%, withdrawal −2 STR, −1 END.
-    {
-        pidID: 87, name: 'Buffout',
-        timedStats: { 'STR': 2, 'END': 2 },
-        duration: T_3H,
-        addictChance: 10,
-        withdrawal: { 'STR': -2, 'END': -1 },
-    },
-
-    // ── Cognitive chems ──────────────────────────────────────────────────────
-    // CE ref: PROTO_ID_MENTATS=53
-    // +2 INT, +2 PER for 3h. CE: addictChance 10%, withdrawal −1 INT.
-    {
-        pidID: 53, name: 'Mentats',
-        timedStats: { 'INT': 2, 'PER': 2 },
-        duration: T_3H,
-        addictChance: 10,
-        withdrawal: { 'INT': -1 },
-    },
-
-    // ── Action chems ─────────────────────────────────────────────────────────
-    // CE ref: PROTO_ID_JET=259
-    // +2 AP for 15 min. CE: addictChance 100% (guaranteed). Withdrawal −1 AGI, −1 END.
-    // specialEffect 'jetAddict': marks critter as Jet Addict (required for Jet Antidote).
-    {
-        pidID: 259, name: 'Jet',
-        timedStats: { 'AP': 2 },
-        duration: T_15MIN,
-        addictChance: 100,
-        withdrawal: { 'AGI': -1, 'END': -1 },
-        specialEffect: 'jetAddict',
-    },
-
-    // ── Alcohol ──────────────────────────────────────────────────────────────
-    // CE ref: PROTO_ID_BEER=124 — CE GVAR_ALCOHOL_ADDICT; proto addictChance=0
-    // +1 STR, −1 INT for 15 min.
-    {
-        pidID: 124, name: 'Beer',
-        timedStats: { 'STR': 1, 'INT': -1 },
-        duration: T_15MIN,
-    },
-    // CE ref: PROTO_ID_BOOZE=125 — same GVAR as Beer; proto addictChance=0
-    // +2 STR, −2 INT for 15 min.
-    {
-        pidID: 125, name: 'Booze',
-        timedStats: { 'STR': 2, 'INT': -2 },
-        duration: T_15MIN,
-    },
-
-    // ── Environmental / antidotes ─────────────────────────────────────────────
-    // CE ref: PROTO_ID_RADAWAY=48
-    // −150 radiation. CE gDrugDescriptions: GVAR_RADAWAY_ADDICT but proto addictChance=0.
-    {
-        pidID: 48, name: 'Rad-Away',
-        specialEffect: 'radaway',
-    },
-    // CE ref: PROTO_ID_JET_ANTIDOTE=260
-    // Cures Jet addiction. CE: performWithdrawalEnd(PERK_JET_ADDICTION).
-    {
-        pidID: 260, name: 'Jet Antidote',
-        specialEffect: 'jetCure',
-    },
+// CE item.cc:144 gDrugDescriptions — { drugPid, gvar, max concurrent doses (0 = unlimited) }
+const DRUG_DESCRIPTIONS: { pid: number; gvar: number; maxDoses: number }[] = [
+    { pid: 106, gvar: 21, maxDoses: 0 },  // Nuka-Cola       GVAR_NUKA_COLA_ADDICT
+    { pid: 87, gvar: 22, maxDoses: 4 },   // Buffout         GVAR_BUFF_OUT_ADDICT
+    { pid: 53, gvar: 23, maxDoses: 4 },   // Mentats         GVAR_MENTATS_ADDICT
+    { pid: 110, gvar: 24, maxDoses: 4 },  // Psycho          GVAR_PSYCHO_ADDICT
+    { pid: 48, gvar: 25, maxDoses: 0 },   // Rad-Away        GVAR_RADAWAY_ADDICT
+    { pid: 124, gvar: 26, maxDoses: 0 },  // Beer            GVAR_ALCOHOL_ADDICT
+    { pid: 125, gvar: 26, maxDoses: 0 },  // Booze           GVAR_ALCOHOL_ADDICT
+    { pid: PROTO_ID_JET, gvar: 296, maxDoses: 4 }, // Jet     GVAR_ADDICT_JET
+    { pid: 304, gvar: 295, maxDoses: 0 }, // Tragic cards    GVAR_ADDICT_TRAGIC
 ]
 
-// Build a lookup map by pidID
-const drugByPID: Map<number, DrugEffect> = new Map()
-for (const d of DRUG_TABLE) {
-    drugByPID.set(d.pidID, d)
+// CE perk.cc gPerkDescriptions for the withdrawal perks: { stat, statModifier, primary-stat deltas[7] }.
+const WITHDRAWAL_PERKS: { [perk: number]: { stat: number; mod: number; special: number[] } } = {
+    53: { stat: -1, mod: 0, special: [0, 0, 0, 0, 0, 0, 0] },     // Nuka-Cola
+    54: { stat: -1, mod: 0, special: [-2, 0, -2, 0, 0, -3, 0] },  // Buffout
+    55: { stat: -1, mod: 0, special: [0, 0, 0, 0, -3, -2, 0] },   // Mentats
+    56: { stat: -1, mod: 0, special: [0, 0, 0, 0, -2, 0, 0] },    // Psycho
+    57: { stat: 31, mod: -20, special: [0, 0, 0, 0, 0, 0, 0] },   // Rad-Away (DR Radiation -20)
+    70: { stat: 8, mod: -1, special: [-1, -1, 0, 0, 0, 0, 0] },   // Jet (AP -1)
+    71: { stat: -1, mod: 0, special: [0, -2, 0, 0, -1, 0, -1] },  // Tragic cards
 }
 
-export function getDrugByName(name: string): DrugEffect | undefined {
-    return DRUG_TABLE.find(d => d.name === name)
+const DRUG_TAG = 'drug:'             // `drug:<pid>:<s0>,<s1>,<s2>:<m0>,<m1>,<m2>`
+const WITHDRAWAL_TAG = 'withdrawal:' // `withdrawal:<start 1|0>:<pid>:<perk>`
+
+function itemMsg(id: number): string | null {
+    return getMessage('item', id)
 }
 
-export type { DrugEffect }
+function isDude(c: Critter): boolean {
+    return c === globalState.player
+}
 
-function computeAddictChance(drug: DrugEffect, user: Critter): number {
-    let chance = drug.addictChance ?? 0
-    // Chem Resistant halves the chance; Chem Reliant doubles it
-    if (user.perks.includes('Chem Resistant')) chance = Math.floor(chance / 2)
-    if (user.perks.includes('Chem Reliant')) chance = Math.min(100, chance * 2)
-    return chance
+function hasTrait(c: Critter, name: string): boolean {
+    return isDude(c) && ((c as any).traits ?? []).includes(name)
+}
+
+function gvarForPid(pid: number): number {
+    return DRUG_DESCRIPTIONS.find((d) => d.pid === pid)?.gvar ?? -1
+}
+
+// CE item.cc:3142 dudeIsAddicted — NOTE the CE loop returns on the first
+// matching entry, so dudeIsAddicted(-1) only ever looks at the Nuka-Cola GVAR.
+// Reproduced as-is (it decides when the ADDICT indicator clears).
+function dudeIsAddicted(pid: number): boolean {
+    for (const d of DRUG_DESCRIPTIONS) {
+        if (pid === -1 || pid === d.pid) return Scripting.getGlobalVar(d.gvar) !== 0
+    }
+    return false
+}
+
+function setAddictedState(on: boolean): void {
+    const p = globalState.player as Critter | null
+    if (!p) return
+    p.addictedState = on
+    updateIndicatorBar()
+}
+
+// CE item.cc:3106 dudeSetAddiction
+function dudeSetAddiction(pid: number): void {
+    const gvar = gvarForPid(pid)
+    if (gvar !== -1) Scripting.setGlobalVar(gvar, 1)
+    setAddictedState(true)
+}
+
+// CE item.cc:3119 dudeClearAddiction
+function dudeClearAddiction(pid: number): void {
+    const gvar = gvarForPid(pid)
+    if (gvar !== -1) Scripting.setGlobalVar(gvar, 0)
+    if (!dudeIsAddicted(-1)) setAddictedState(false)
+}
+
+// critterSetBonusStat() for the stats a drug can touch. DH2 keeps no separate
+// bonus layer, so the delta lands on the base value (reversible by the later events).
+function adjustStat(critter: Critter, stat: number, delta: number): void {
+    if (delta === 0) return
+    if (stat === STAT_CURRENT_HIT_POINTS) {
+        const max = critter.getStat('Max HP')
+        const hp = critter.getStat('HP')
+        critter.stats.setBase('HP', Math.max(0, Math.min(max, hp + delta)))
+    } else if (stat === STAT_CURRENT_POISON_LEVEL) {
+        Scripting.adjustPoison(critter, delta)
+    } else if (stat === STAT_CURRENT_RADIATION_LEVEL) {
+        critterAdjustRadiation(critter, delta)
+    } else {
+        const name = STAT_NAME_BY_ID[stat]
+        if (name) critter.stats.modifyBase(name, delta)
+    }
+}
+
+function statValue(critter: Critter, stat: number): number {
+    if (stat === STAT_CURRENT_HIT_POINTS) return critter.getStat('HP')
+    if (stat === STAT_CURRENT_POISON_LEVEL) return critter.poisonLevel ?? 0
+    if (stat === STAT_CURRENT_RADIATION_LEVEL) return critter.radiationLevel ?? 0
+    const name = STAT_NAME_BY_ID[stat]
+    return name ? critter.getStat(name) : 0
+}
+
+// CE item.cc:2639 _perform_drug_effect
+function performDrugEffect(critter: Critter, stats: number[], mods: number[], isImmediate: boolean): void {
+    let statsChanged = false
+    let start = 0
+    let firstStatIsMinimum = false
+    if (stats[0] === -2) { // stat0 == -2: amount0..amount1 is a random range for stat1
+        start = 1
+        firstStatIsMinimum = true
+    }
+
+    for (let i = start; i < 3; i++) {
+        const stat = stats[i]
+        if (stat === -1) continue
+
+        const before = isDude(critter) ? statValue(critter, stat) : 0
+        let delta: number
+        if (firstStatIsMinimum) {
+            delta = getRandomInt(mods[i - 1], mods[i])
+            firstStatIsMinimum = false
+        } else {
+            delta = mods[i]
+        }
+
+        if (stat === STAT_CURRENT_HIT_POINTS && !isDude(critter) && critter.getStat('HP') + delta <= 0) {
+            const fmt = itemMsg(600) ?? '%s succumbs to the adverse effects of chems.'
+            uiLog(fmt.replace('%s', critter.name ?? ''))
+        }
+
+        adjustStat(critter, stat, delta)
+
+        if (isDude(critter)) {
+            const after = statValue(critter, stat)
+            if (after !== before) {
+                // 1 "You gained %d %s." / 2 "You lost %d %s."
+                const fmt = itemMsg(after < before ? 2 : 1)
+                const statName = getMessage('stat', 100 + stat) ?? STAT_NAME_BY_ID[stat] ?? ''
+                if (fmt) uiLog(fmt.replace('%d', String(Math.abs(after - before))).replace('%s', statName))
+                statsChanged = true
+            }
+        }
+    }
+
+    if (critter.getStat('HP') > 0) {
+        if (isDude(critter) && !statsChanged && isImmediate) {
+            const msg = itemMsg(10) // "Nothing happens."
+            if (msg) uiLog(msg)
+        }
+    } else if (!critter.dead) {
+        // CE kills via the HP adjustment; item.msg 4 (dude) is fetched but never shown.
+        critterKill(critter)
+    }
+    if (isDude(critter)) Events.emit('statsChanged')
+}
+
+function queuedDrugDoses(critter: Critter, pid: number): number {
+    let n = 0
+    for (const e of Scripting.timeEventList) {
+        if (e.obj !== critter || typeof e.userdata !== 'string' || !e.userdata.startsWith(DRUG_TAG)) continue
+        if (Number(e.userdata.split(':')[1]) === pid) n++
+    }
+    return n
+}
+
+// CE item.cc:2721 _drug_effect_allowed
+function drugEffectAllowed(critter: Critter, pid: number): boolean {
+    const d = DRUG_DESCRIPTIONS.find((x) => x.pid === pid)
+    if (!d || d.maxDoses === 0) return true
+    return queuedDrugDoses(critter, pid) < d.maxDoses
+}
+
+function scheduleDrugEvent(critter: Critter, ticks: number, pid: number, stats: number[], mods: number[]): void {
+    const userdata = `${DRUG_TAG}${pid}:${stats.join(',')}:${mods.join(',')}`
+    Scripting.timeEventList.push({ obj: critter, ticks, userdata, fn: () => drugEffectEventProcess(critter, stats, mods) })
+}
+
+// CE item.cc:2598 _insert_drug_effect — duration in game minutes.
+function insertDrugEffect(critter: Critter, pid: number, duration: number, stats: number[], mods: number[]): void {
+    if (mods.every((m) => m === 0)) return
+    let delay = 600 * duration
+    if (hasTrait(critter, 'Chem Resistant')) delay = Math.trunc(delay / 2)
+    scheduleDrugEvent(critter, delay, pid, stats, mods)
+}
+
+// CE item.cc:2864 drugEffectEventProcess
+function drugEffectEventProcess(critter: Critter, stats: number[], mods: number[]): void {
+    if (!critter || critter.type !== 'critter') return
+    performDrugEffect(critter, stats, mods, false)
+}
+
+function scheduleWithdrawal(critter: Critter, ticks: number, isStart: boolean, pid: number, perk: number): void {
+    const userdata = `${WITHDRAWAL_TAG}${isStart ? 1 : 0}:${pid}:${perk}`
+    Scripting.timeEventList.push({ obj: critter, ticks, userdata, fn: () => withdrawalEventProcess(critter, isStart, pid, perk) })
+}
+
+// CE item.cc:2917 _insert_withdrawal — duration in game minutes.
+function insertWithdrawal(critter: Critter, isStart: boolean, duration: number, perk: number, pid: number): void {
+    scheduleWithdrawal(critter, 600 * duration, isStart, pid, perk)
+}
+
+// CE perk.cc:554 perkAddEffect / :594 perkRemoveEffect for the withdrawal perks.
+function applyWithdrawalPerk(critter: Critter, perk: number, sign: 1 | -1): void {
+    const def = WITHDRAWAL_PERKS[perk]
+    if (!def) return
+    if (def.stat !== -1) adjustStat(critter, def.stat, sign * def.mod)
+    for (let s = 0; s < 7; s++) adjustStat(critter, s, sign * def.special[s])
+}
+
+// CE item.cc:3039 performWithdrawalStart
+function performWithdrawalStart(critter: Critter, perk: number, pid: number): void {
+    applyWithdrawalPerk(critter, perk, 1)
+    if (isDude(critter)) {
+        const desc = getMessage('perk', 1101 + perk)
+        if (desc) uiLog(desc)
+    }
+    let duration = 10080 // one week, in minutes
+    if (isDude(critter)) {
+        if (hasTrait(critter, 'Chem Reliant')) duration = Math.trunc(duration / 2)
+        if (critter.hasPerk?.(PERK_FLOWER_CHILD_NAME)) duration = Math.trunc(duration / 2)
+    }
+    insertWithdrawal(critter, false, duration, perk, pid)
+}
+
+// CE item.cc:3072 performWithdrawalEnd
+function performWithdrawalEnd(critter: Critter, perk: number): void {
+    applyWithdrawalPerk(critter, perk, -1)
+    if (isDude(critter)) {
+        const msg = itemMsg(3) // "You feel better."
+        if (msg) uiLog(msg)
+    }
+}
+
+// CE item.cc:2977 withdrawalEventProcess
+function withdrawalEventProcess(critter: Critter, isStart: boolean, pid: number, perk: number): void {
+    if (isStart) {
+        performWithdrawalStart(critter, perk, pid)
+        return
+    }
+    if (perk === PERK_JET_ADDICTION) return // Jet withdrawal only ends with the antidote
+    performWithdrawalEnd(critter, perk)
+    if (isDude(critter)) dudeClearAddiction(pid)
+}
+
+// CE item.cc:2953 _item_wd_clear_all — taking the drug again ends an active
+// withdrawal for that addiction GVAR and restarts the onset timer (first match only).
+// Pending events are neutralised in place (this may run from inside the gameTick
+// timed-event loop, which splices by index).
+function resetWithdrawal(critter: Critter, gvar: number, onset: number): void {
+    for (const e of Scripting.timeEventList) {
+        if (e.obj !== critter || e.ticks <= 0) continue
+        const ev = parseWithdrawal(e.userdata)
+        if (!ev || gvarForPid(ev.pid) !== gvar) continue
+        if (!ev.isStart) performWithdrawalEnd(critter, ev.perk)
+        e.userdata = 'withdrawal-cancelled'
+        e.fn = () => {}
+        e.ticks = 1
+        insertWithdrawal(critter, true, onset, ev.perk, ev.pid)
+        return
+    }
+}
+
+function parseWithdrawal(userdata: any): { isStart: boolean; pid: number; perk: number } | null {
+    if (typeof userdata !== 'string' || !userdata.startsWith(WITHDRAWAL_TAG)) return null
+    const [start, pid, perk] = userdata.slice(WITHDRAWAL_TAG.length).split(':').map(Number)
+    return { isStart: start === 1, pid, perk }
 }
 
 /**
- * Apply a drug to a critter.
- * Returns true if the item is a recognized drug, false otherwise.
- * FO2-CE ref: item.cc:_item_d_take_drug(), item.cc:_perform_drug_effect()
+ * CE item.cc:2776 _item_d_take_drug. Returns true when the item is consumed.
  */
 export function useDrug(item: Obj, user: Critter): boolean {
-    const pidID = item.pid & 0xFFFF
-    const drug = drugByPID.get(pidID)
-    if (!drug) return false
+    if (!user || user.dead) return false
+    if ((user.pro?.extra?.bodyType ?? 0) === BODY_TYPE_ROBOTIC) return false
 
-    dbg('script', `[Drug] ${user.name} used ${drug.name} (pidID=${pidID})`)
+    const drug = item.pro?.extra
+    if (!drug || drug.stat0 === undefined) return false
+    const stats = [drug.stat0, drug.stat1, drug.stat2]
 
-    // Immediate HP heal — CE ref: item.cc:_perform_drug_effect STAT_CURRENT_HIT_POINTS
-    if (drug.immediateHP !== undefined && drug.immediateHP > 0) {
-        const maxHP = user.getStat('Max HP')
-        const curHP = user.getStat('HP')
-        const heal = Math.min(drug.immediateHP, maxHP - curHP)
-        if (heal > 0) {
-            user.stats.modifyBase('HP', heal)
-            if (user.isPlayer) { uiLog(`You heal ${heal} hit points.`); Events.emit('statsChanged') }
-        } else if (user.isPlayer) {
-            uiLog("You're already at full health.")
+    if (item.pid === PROTO_ID_JET_ANTIDOTE && dudeIsAddicted(PROTO_ID_JET)) {
+        performWithdrawalEnd(user, PERK_JET_ADDICTION)
+        // drop the open-ended Jet withdrawal event
+        for (const e of Scripting.timeEventList) {
+            const ev = e.obj === user ? parseWithdrawal(e.userdata) : null
+            if (ev && ev.perk === PERK_JET_ADDICTION) { e.userdata = 'withdrawal-cancelled'; e.fn = () => {}; e.ticks = 1 }
         }
+        if (isDude(user)) dudeClearAddiction(PROTO_ID_JET)
+        return true // SFALL fix kept by CE: the antidote is consumed
     }
 
-    // Special effects ──────────────────────────────────────────────────────────
-    // CE ref: item.cc:2789 — Jet Antidote performs withdrawalEnd and removes item
-    if (drug.specialEffect === 'jetCure') {
-        const addictions: string[] = (user as any).addictions ?? []
-        const idx = addictions.indexOf('Jet')
-        if (idx !== -1) {
-            addictions.splice(idx, 1)
-            ;(user as any).addictions = addictions
-            const pi = user.perks.indexOf('Jet Addict')
-            if (pi !== -1) user.perks.splice(pi, 1)
-            if (user.isPlayer) uiLog('You no longer crave Jet.')
-            dbg('script', `[Drug] ${user.name} cured of Jet addiction`)
-        } else {
-            if (user.isPlayer) uiLog("You don't need that right now.")
-        }
-        return true
+    dbg('script', `[Drug] ${user.name} used ${item.name} (pid=${item.pid})`)
+
+    resetWithdrawal(user, gvarForPid(item.pid), drug.addictionOnset ?? 0)
+
+    if (drugEffectAllowed(user, item.pid)) {
+        performDrugEffect(user, stats, [drug.amount0, drug.amount1, drug.amount2], true)
+        const d1 = drug.firstDelayed ?? { duration: 0, amount0: 0, amount1: 0, amount2: 0 }
+        const d2 = drug.secondDelayed ?? { duration: 0, amount0: 0, amount1: 0, amount2: 0 }
+        insertDrugEffect(user, item.pid, d1.duration, stats, [d1.amount0, d1.amount1, d1.amount2])
+        insertDrugEffect(user, item.pid, d2.duration, stats, [d2.amount0, d2.amount1, d2.amount2])
+    } else if (isDude(user)) {
+        const msg = itemMsg(50) // "That didn't seem to do that much."
+        if (msg) uiLog(msg)
     }
 
-    // CE ref: item.cc — Rad-Away reduces radiationLevel
-    if (drug.specialEffect === 'radaway') {
-        const before = (user as any).radiationLevel ?? 0
-        ;(user as any).radiationLevel = Math.max(0, before - 150)
-        if (user.isPlayer) uiLog('You feel the radiation leaving your body.')
-        dbg('script', `[Drug] ${user.name} Rad-Away: radiation ${before} → ${(user as any).radiationLevel}`)
-        return true
-    }
-
-    // Jet addict perk — marks user as addicted (enables Jet Antidote target)
-    if (drug.specialEffect === 'jetAddict') {
-        if (!user.perks.includes('Jet Addict')) {
-            user.perks.push('Jet Addict')
+    if (!dudeIsAddicted(item.pid)) {
+        let chance = drug.addictionRate ?? 0
+        if (isDude(user)) {
+            if (hasTrait(user, 'Chem Reliant')) chance *= 2
+            if (hasTrait(user, 'Chem Resistant')) chance = Math.trunc(chance / 2)
+            if (user.hasPerk?.(PERK_FLOWER_CHILD_NAME)) chance = Math.trunc(chance / 2)
         }
-    }
-
-    // Delayed HP damage — CE ref: item.cc:_insert_drug_effect with duration2 schedule
-    // (e.g. Super Stimpak: −9 HP after 1 hour)
-    if (drug.delayedHP !== undefined && drug.delayTicks !== undefined) {
-        const delayHP = drug.delayedHP
-        const delayTicks = drug.delayTicks
-        Scripting.timeEventList.push({
-            obj: user,
-            ticks: globalState.gameTickTime + delayTicks,
-            userdata: 'drug:delayed:' + drug.name,
-            fn: () => {
-                const dmg = -delayHP // delayedHP is negative (damage)
-                if (dmg > 0) {
-                    user.stats.modifyBase('HP', -dmg)
-                    if (user.isPlayer) uiLog(`The ${drug.name} wears off, causing ${dmg} damage.`)
-                    dbg('script', `[Drug] ${drug.name} delayed effect: -${dmg} HP`)
-                }
-            },
-        })
-    }
-
-    // Timed stat bonuses — CE ref: item.cc:_insert_drug_effect with duration1 schedule
-    if (drug.timedStats && drug.duration) {
-        const stats = drug.timedStats
-        const duration = drug.duration
-
-        // Apply bonuses immediately
-        for (const [stat, delta] of Object.entries(stats)) {
-            user.stats.modifyBase(stat, delta)
+        if (getRandomInt(1, 100) <= chance) {
+            insertWithdrawal(user, true, drug.addictionOnset ?? 0, drug.addictionEffect ?? -1, item.pid)
+            if (isDude(user)) dudeSetAddiction(item.pid)
         }
-
-        if (user.isPlayer) {
-            const parts = Object.entries(stats).map(([s, d]) => `${d > 0 ? '+' : ''}${d} ${s}`)
-            uiLog(`${drug.name}: ${parts.join(', ')}.`)
-            Events.emit('statsChanged')
-        }
-        dbg('script', `[Drug] ${drug.name} timed effect applied, duration=${duration}`)
-
-        // Schedule reversal + addiction check
-        Scripting.timeEventList.push({
-            obj: user,
-            ticks: globalState.gameTickTime + duration,
-            userdata: 'drug:' + drug.name,
-            fn: () => {
-                // Reverse stat mods
-                for (const [stat, delta] of Object.entries(stats)) {
-                    user.stats.modifyBase(stat, -delta)
-                }
-                if (user.isPlayer) { uiLog(`${drug.name} wears off.`); Events.emit('statsChanged') }
-                dbg('script', `[Drug] ${drug.name} effect wore off`)
-
-                // Addiction check — CE ref: item.cc:2822-2845
-                const addictions: string[] = (user as any).addictions ?? []
-                if (drug.addictChance && drug.addictChance > 0 && !addictions.includes(drug.name)) {
-                    const chance = computeAddictChance(drug, user)
-                    if (Math.random() * 100 < chance) {
-                        addictions.push(drug.name)
-                        ;(user as any).addictions = addictions
-                        if (user.isPlayer) uiLog(`You are addicted to ${drug.name}.`)
-                        dbg('script', `[Drug] ${user.name} became addicted to ${drug.name}`)
-                    }
-                }
-            },
-        })
     }
 
     return true
 }
 
-/**
- * Apply withdrawal stat penalties once per addiction per 600-tick cycle.
- * Called from map_update_p_proc in main.ts.
- * FO2-CE ref: addiction.cc addictionProcess
- */
-export function tickAddictions(critter: Critter): void {
-    const addictions: string[] = (critter as any).addictions ?? []
-    if (addictions.length === 0) return
-
-    for (const drugName of addictions) {
-        const drug = DRUG_TABLE.find(d => d.name === drugName)
-        if (!drug || !drug.withdrawal) continue
-
-        // Check if any active drug timed event for this drug is in the list
-        // (i.e., the drug is still in effect — no withdrawal while active)
-        const isActive = Scripting.timeEventList.some(
-            e => e.obj === critter && typeof e.userdata === 'string' && e.userdata === 'drug:' + drug.name
-        )
-        if (isActive) continue
-
-        // Apply withdrawal penalties
-        for (const [stat, delta] of Object.entries(drug.withdrawal)) {
-            critter.stats.modifyBase(stat, delta)
-            dbg('script', `[Drug] ${critter.name} withdrawal from ${drugName}: ${stat} ${delta}`)
-        }
+// Re-arm a drug / withdrawal event read from a save (saveload.ts). Returns
+// false if `userdata` isn't one of ours.
+export function restoreDrugEvent(critter: Critter, ticks: number, userdata: any): boolean {
+    if (typeof userdata !== 'string') return false
+    if (userdata.startsWith(DRUG_TAG)) {
+        const [, pid, s, m] = userdata.split(':')
+        const stats = s.split(',').map(Number)
+        const mods = m.split(',').map(Number)
+        if (stats.length !== 3 || mods.length !== 3) return false
+        scheduleDrugEvent(critter, ticks, Number(pid), stats, mods)
+        return true
     }
+    const ev = parseWithdrawal(userdata)
+    if (!ev) return false
+    scheduleWithdrawal(critter, ticks, ev.isStart, ev.pid, ev.perk)
+    return true
 }
+
+// CE character_editor.cc:540 gAddictionReputationVars — order of the karma-panel list
+// (editor.msg 1004 + index).
+export const ADDICTION_KARMA_GVARS = [21, 22, 23, 24, 25, 26, 296, 295]

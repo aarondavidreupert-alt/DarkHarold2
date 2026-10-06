@@ -582,6 +582,8 @@ Found during the same pass (not from b282cca):
 | RV14 | IndexedDB cache of `proMap`/`imageMap` never invalidated, so a pipeline re-run was silently ignored (the browser HTTP cache made it worse) | `main.ts cachedJSON` keys on HEAD Last-Modified+Length and fetches with `?v=`; `idbcache.ts` uses `put` | fixed |
 | RV15 | Container capacity: `maxSize`/`openFlags` (and misc `powerTypePid/powerType/charges`, key `keyCode`) not extracted; loot ignored container size | `tools/proto.py`; `Obj.canCarry` container branch (`item.cc:253 itemAttemptAdd`, `>=` quirk kept); CE messages 25/26 in `ui_loot.ts` | fixed |
 | RV16 | `METARULE_SET/GET_CAR_CARRY_AMOUNT` (52/53) were no-ops | `scripting.ts metarule` writes/reads trunk proto 455 `maxSize` (`interpreter_extra.cc:3331`) | fixed |
+| RV17 | Drug system was a hand-written `DRUG_TABLE` whose numbers didn't match the protos (Psycho, Buffout, Mentats, Jet all wrong) plus a 600-tick withdrawal loop that stacked penalties without limit | `src/drugs.ts` rewritten as a port of CE `item.cc` drug/withdrawal code driven by proto data; addiction state in CE GVARs 21-26/295/296; `addictedState` = DUDE_STATE_ADDICTED; reliances listed in the karma panel (`character_editor.cc:5613`). See `wiki/drugs.md`. | fixed |
+| RV18 | Poison: no misc.msg 3000-3003 feedback, no death at 0 HP from poison | `Scripting.adjustPoison` / `poisonDecayEvent` ported from `critter.cc:327/378` | fixed |
 
 ---
 

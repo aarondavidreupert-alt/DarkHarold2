@@ -261,8 +261,8 @@ export function updateIndicatorBar(): void {
 
     // Determine active badges in CE enum order.
     const active = new Set<string>()
-    const addicts: string[] = (player as any).addictions ?? []
-    if (addicts.length > 0)                              active.add('ADDICT')
+    // CE interface.cc:2323 — dudeHasState(DUDE_STATE_ADDICTED)
+    if ((player as any).addictedState === true)          active.add('ADDICT')
     if ((player as any).isSneaking)                      active.add('SNEAK')
     if (((player as any).skills?.skillPoints ?? 0) > 0) active.add('LEVEL')
     if (((player as any).poisonLevel    ?? 0) > 0)      active.add('POISONED')

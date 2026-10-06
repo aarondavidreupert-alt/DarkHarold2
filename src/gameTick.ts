@@ -14,7 +14,6 @@
 
 import { checkRads } from './radiation.js'
 import { getAiPacket } from './aiPackets.js'
-import { tickAddictions } from './drugs.js'
 import { heart } from './heart.js'
 import { hexNeighbors, hexDistance } from './geometry.js'
 import globalState from './globalState.js'
@@ -226,9 +225,6 @@ export function tickGame(): void {
                 // CE ref: critter.cc poisonEventProcess — the event is scheduled by poison()
                 // at 10*(505-5*level) ticks, fires in the timed-event loop above.
 
-                // Addiction withdrawal tick for the player.
-                const player = globalState.player as Critter | null
-                if (player && !player.dead) tickAddictions(player)
 
             }
         }

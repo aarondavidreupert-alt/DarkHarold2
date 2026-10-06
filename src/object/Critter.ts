@@ -59,7 +59,7 @@ export interface SerializedCritter extends SerializedObj {
 export const SERIALIZED_CRITTER_PROPS = [
     'stats', 'skills', 'aiNum', 'teamNum', 'hostile', 'isPlayer', 'dead',
     'anim', 'crippledLeftArm', 'crippledRightArm', 'crippledLeftLeg', 'crippledRightLeg',
-    'poisonLevel', 'radiationLevel', 'radiated', 'addictions', 'customAiOverrides',
+    'poisonLevel', 'radiationLevel', 'radiated', 'addictions', 'addictedState', 'customAiOverrides',
 ]
 
 export class Critter extends Obj {
@@ -116,7 +116,9 @@ export class Critter extends Obj {
     // CE CRITTER_RADIATED (proto data flag): set when a dose is taken, consumed by the
     // nightly radiation check (src/radiation.ts checkRads).
     radiated: boolean = false
-    addictions: string[] = []   // drug names this critter is addicted to
+    addictions: string[] = []   // legacy (pre-2026-10-06 saves); addiction state now lives in the CE GVARs
+    // CE DUDE_STATE_ADDICTED (critter.cc dudeEnableState) — drives the ADDICT indicator.
+    addictedState: boolean = false
 
     // Combat status effect counters / flags
     onFireTurns = 0          // Turns of fire DoT remaining; decremented in nextTurn

@@ -43,6 +43,7 @@ import * as Endgame from './endgame.js'
 import { centerCamera, objectOnScreen } from './renderer.js'
 import { fromTileNum, toTileNum } from './tile.js'
 import { uiAddDialogueOption, uiBarterMode, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, uiWorldMap, UIMode } from './ui.js'
+import { updateIndicatorBar } from './ui_hud.js'
 import { SKILL_NAMES } from './skills.js'
 import { assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
 import { ScriptVM } from './vm.js'
@@ -178,16 +179,51 @@ export module Scripting {
         else console.log(`INFO: ${msg}`)
     }
 
-    // CE ref: critter.cc poisonEventProcess — timed poison decay: -2 poison, -1 HP, reschedule.
-    // Userdata tag 'poison' is used to identify and cancel existing events on reschedule.
-    export function poisonDecayEvent(critter: Critter): void {
-        if (!critter || critter.dead) return
-        critter.poisonLevel = Math.max(0, (critter.poisonLevel ?? 0) - 2)
-        critter.stats.modifyBase('HP', -1)
-        if (critter.poisonLevel > 0) {
-            const delay = 10 * (505 - 5 * critter.poisonLevel)
-            timeEventList.push({ obj: critter, ticks: delay, userdata: 'poison', fn: () => poisonDecayEvent(critter) })
+    // CE ref: critter.cc:327 critterAdjustPoison — player only. Positive amounts are
+    // reduced by poison resistance; a positive result (re)schedules the decay event at
+    // 10*(505-5*poison) ticks; messages misc.msg 3000/3002/3003.
+    export function adjustPoison(critter: Critter, amount: number): void {
+        if (critter !== globalState.player) return
+        if (amount > 0) {
+            amount -= Math.trunc(amount * (critter.getStat('DR Poison') ?? 0) / 100)
+        } else if ((critter.poisonLevel ?? 0) <= 0) {
+            return
         }
+        const newPoison = (critter.poisonLevel ?? 0) + amount
+        let msgId: number
+        if (newPoison > 0) {
+            critter.poisonLevel = newPoison
+            // CE: _queue_clear_type(EVENT_TYPE_POISON) — neutralised in place because this
+            // also runs from inside the gameTick timed-event loop (via poisonDecayEvent).
+            for (const e of timeEventList) {
+                if (e.obj === critter && e.userdata === 'poison' && e.ticks > 0) {
+                    e.userdata = 'poison-cancelled'; e.fn = () => {}; e.ticks = 1
+                }
+            }
+            timeEventList.push({ obj: critter, ticks: 10 * (505 - 5 * newPoison), userdata: 'poison', fn: () => poisonDecayEvent(critter) })
+            msgId = amount < 0 ? 3002 : 3000 // "You feel a little better." / "You have been poisoned!"
+        } else {
+            critter.poisonLevel = 0
+            msgId = 3003 // "You feel better."
+        }
+        const msg = getMessage('misc', msgId)
+        if (msg) uiLog(msg)
+        updateIndicatorBar()
+    }
+
+    // CE ref: critter.cc:378 poisonEventProcess — -2 poison (reschedules), -1 HP, msg 3001.
+    export function poisonDecayEvent(critter: Critter): void {
+        if (!critter || critter.dead || critter !== globalState.player) return
+        adjustPoison(critter, -2)
+        const hp = critter.getStat('HP') - 1
+        critter.stats.setBase('HP', Math.min(hp, critter.getStat('Max HP')))
+        const msg = getMessage('misc', 3001) // "You take damage from poison."
+        if (msg) uiLog(msg)
+        if (hp <= 0 && !critter.dead) critterKill(critter, undefined, true)
+    }
+
+    export function setGlobalVar(gvar: number, value: number): void {
+        globalVars[gvar] = value
     }
 
     // http://stackoverflow.com/a/23304189/1958152
@@ -1489,30 +1525,9 @@ export module Scripting {
             info('critter_heal: ' + obj.name + ' healed ' + healed + ' HP')
         }
         poison(obj: Obj, amount: number) {
-            // CE ref: critter.cc critterAdjustPoison — only applies to player (gDude).
-            // Positive amount: apply poison resistance then add. Negative: remove (no resistance).
-            // After adjusting, cancel old EVENT_TYPE_POISON event and schedule a new one.
-            const critter = obj as Critter
-            if (!critter.isPlayer) return
-            if (amount > 0) {
-                const resistance = critter.getStat('DR Poison') ?? 0
-                amount = Math.max(0, amount - Math.floor(amount * resistance / 100))
-            } else {
-                if ((critter.poisonLevel ?? 0) <= 0) return
-            }
-            const newPoison = Math.max(0, (critter.poisonLevel ?? 0) + amount)
-            critter.poisonLevel = newPoison
-            // Cancel any existing poison decay event (CE: _queue_clear_type(EVENT_TYPE_POISON))
-            for (let i = timeEventList.length - 1; i >= 0; i--) {
-                if (timeEventList[i].obj === critter && timeEventList[i].userdata === 'poison') {
-                    timeEventList.splice(i, 1)
-                    break
-                }
-            }
-            if (newPoison > 0) {
-                const delay = 10 * (505 - 5 * newPoison)
-                timeEventList.push({ obj: critter, ticks: delay, userdata: 'poison', fn: () => poisonDecayEvent(critter) })
-            }
+            // CE ref: interpreter_extra.cc opPoison → critter.cc:327 critterAdjustPoison.
+            if (!isGameObject(obj) || obj.type !== 'critter') return
+            adjustPoison(obj as Critter, amount)
         }
         radiation_inc(obj: Obj, amount: number) {
             // CE ref: interpreter_extra.cc:2777 opRadiationIncrease → critter.cc:412
