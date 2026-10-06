@@ -234,26 +234,17 @@ Key conventions:
 
 ## Scripting VM — Opcode Coverage
 
-_Last audited: 2026-05-31 against `main` branch._
+_Last audited: 2026-10-06 against `main` branch (opcode table re-verified; first pass 2026-05-31)._
 
-`vm_bridge.ts` wires **~118 opcodes** — roughly 110 via the `bridged()` factory,
-8 via custom inline handlers (including `gsay_end` and `giq_option`).
+`vm_bridge.ts` wires **~130 opcodes** via the `bridged()` factory plus a few custom
+inline handlers (including `gsay_end` and `giq_option`).
 
-Methods in `scripting.ts` that still call `stub(...)` at runtime:
-
-| Method | Real status | What's missing |
-|--------|-------------|----------------|
-| `metarule` | PARTIAL | Sub-ops 14/15/17/18/22/46/48/49 handled; all other IDs stub |
-| `metarule3` | PARTIAL | Sub-ops 100 (clear fixed timed events) and 106 (tile_get_next_critter) handled; all other IDs stub |
-| `get_critter_stat` | PARTIAL | 7 stat IDs mapped (SPECIAL 0–6, HP/MaxHP); stat ID 34 (gender) handled; any other ID stubs |
-| `has_trait` | PARTIAL | `TRAIT_OBJECT` cases 5/6/10/666 handled (ai_packet, team_num, rotation, visibility); `OBJECT_CUR_WEIGHT` (669) and all non-TRAIT_OBJECT types stub |
-| `critter_add_trait` | PARTIAL | `TRAIT_OBJECT` cases 5 (ai_packet) and 6 (team_num) write through; cases 10/666/669 and all other trait types are silently ignored (no-op after stub log) |
-| `using_skill` | STUB | Always returns 0; FO2-CE `skill.cc::isUsingSkill()` check not implemented |
-| `do_check` | STUB | Always returns 1 (success); FO2-CE `stat.cc::statRoll()` not invoked |
-| `inven_cmds` | STUB | Only `INVEN_CMD_INDEX_PTR` (13) is asserted; all cases return null |
-| `set_pc_stat` | PARTIAL | Cases 3 (Reputation) and 4 (Karma) write through; all other `PCSTAT_*` IDs stub |
-| `mod_pc_stat` | PARTIAL | Cases 3 (Reputation) and 4 (Karma) write through; all other `PCSTAT_*` IDs stub |
-| `anim` | PARTIAL | ID 1000 (set rotation) and 1010 (set frame) implemented; all other anim IDs stub |
+No method in `scripting.ts` calls `stub(...)` at runtime any more. The 11 methods this
+table used to list (`metarule`, `metarule3`, `get_critter_stat`, `has_trait`,
+`critter_add_trait`, `using_skill`, `do_check`, `inven_cmds`, `set_pc_stat`,
+`mod_pc_stat`, `anim`) are all closed — see `wiki/known_bugs.md` S1–S11. Unknown
+sub-IDs now log via `dbgWarn`. Remaining no-op paths: `play_gmovie` (S15),
+`obj_can_hear_obj` (S28), metarule 52/53 (car cargo, W8).
 
 **Note on `giq_option` and `gsay_end`:** both are wired — they have custom
 inline handlers in `vm_bridge.ts` (lines 191 and 203) rather than using
@@ -265,7 +256,7 @@ reminders of the original bridged form, not the live wiring.
 
 ## Known Gaps and Incomplete Systems
 
-_Last audited: 2026-05-31 against `main` branch. Every entry below is
+_Last audited: 2026-10-06 (tracker reconciliation; first pass 2026-05-31) against `main` branch. Every entry below is
 anchored to an active `stub(...)` call, a confirmed missing wire in
 `vm_bridge.ts`, or documented absent engine behaviour verified in source._
 
@@ -273,8 +264,10 @@ See `ROADMAP.md` for the prioritised plan.
 
 ### Opcode Stubs (wired in vm_bridge.ts, but method body calls stub())
 
-See the table in "Scripting VM — Opcode Coverage" above for the full list
-with per-case detail.
+None active as of 2026-10-06 — all 8 `stub(` occurrences in `src/` are commented out.
+Remaining no-op paths: `play_gmovie` (S15), `obj_can_hear_obj` always 0 (S28),
+metarule 52/53 car cargo (W8). See `wiki/known_bugs.md §2`.
+<!-- audited: 2026-10-06 -->
 
 ### Engine Systems — Partial or Missing
 
@@ -282,18 +275,18 @@ with per-case detail.
 |--------|---------|-------------|
 | Party member combat AI | `src/party.ts`, `src/combat/Combat.ts` | Corrected 2026-06-18 (was stale): party members ARE enrolled in the combatants list and take AI turns (`Combat.nextTurn()` bypasses the hostile-flag gate for same-team critters; fixed 2026-06-02). Still missing CE-style non-combatant promotion (companions are enrolled unconditionally at combat start rather than joining mid-fight when attacked/alerted). Control/customization screens for per-companion disposition and AI behavior (Berserk/Aggressive/Defensive/Coward/Custom presets, 6-category overrides, weight-based trade) added in `src/ui_companion.ts`/`src/ui_companion_trade.ts` — see `wiki/companion_party.md` §8. |
 <!-- audited: 2026-06-18 -->
-| Active skill use | `src/skillUse.ts` | **8 of 10** active skills handled: First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair. **Gambling** and **Outdoorsman** fall through to the default `"cannot be used directly"` error. No Healer perk bonus; no electronic lockpick distinction; no facing check on Steal. |
+| Active skill use | `src/skillUse.ts` | All active skills handled; Gambling/Outdoorsman return CE refusal messages (K2); Healer perk applied; Steal facing check present. Electronic lockpick bonuses are script-driven in CE (K4) — no engine change needed. |
 | Subtitles / speech audio | `src/audio.ts` | `Config.ui.subtitles = false`; no speech `.acm` playback path exists. |
 | Movie playback | `src/scripting.ts:1769` | `play_gmovie()` logs and skips — `.mve` video playback is not implemented. |
 | Endgame slideshow | `src/endgame.ts` | `endgame_slideshow` (0x8146) and `endgame_movie` (0x8148) wired. `playSlideshow()` iterates `lut/endgame.json`, shows static/panning PNG slides in a DOM overlay with narrator audio and subtitle support. `setupDeathEnding()` selects a death ending via weighted random from `lut/enddeath.json`. Split per wiki/ts-split-refactor.md §19: `endgame/deathEndings.ts` (selection) + `endgame/slideRender.ts` (slide rendering). See `wiki/endgame.md` and `wiki/known_bugs.md §23`. |
-| Karma titles / town reputation | `src/player.ts` | `Karma` and `Reputation` stats are tracked and displayed. No karma-title string table, no per-town faction deltas. |
+| Karma titles / town reputation | `src/player.ts`, `src/ui_character/viewer.ts` | Karma titles computed (R1); per-town rep GVARs synced and displayed with CE tier labels (R2). Engine-side NPC reaction modifiers unverified. |
 | NPC schedule AI | `src/gameTick.ts` | Scriptless critters with `wander_type > 0` do wander randomly each tick. FO2-style time-of-day position schedules (critters moving between fixed locations at fixed hours) are not implemented. |
-| 🟡 `wander_type` | `src/combat/AI.ts` | Binary wander implemented (`wander_type > 0` → 5% per-tick chance). CE differentiates radii by type (small/big/all) — `ai.cc` maps type 1 to a short radius, type 2 to a larger one, type 3 to unrestricted; DH2 applies no radius limit regardless of type. Revisit during AI system merge. |
-| Animation interleaving | `src/scripting.ts:1558` | `reg_anim_begin/end` queue animate steps with proper `setTimeout` delays. `reg_anim_func` callbacks are collected and fired **after all animate steps complete**, not interleaved between them in registration order (FO2-CE `animationRegAnimFunc` sequences them together). |
-| Worldmap | `src/worldmap.ts` (barrel; `src/worldmap/{types,parser,Worldmap,encounters}.ts`) | Functional. Area-entrance/city-hotspot misplacement fixed 2026-09-24 (`wiki/known_bugs.md` W13); difficulty modifier on encounter rate already implemented (`encounters.ts` `didEncounter()`, `Config.combat.gameDifficultyModifier`) — both claims in this row were stale. Car travel + local-map placement + trunk container substantially implemented, see `wiki/car_system.md` and `wiki/known_bugs.md` W8/M6. Remaining gap: encounter-spawned critters have no items or equipment. |
+| `wander_type` | `src/combat/AI.ts` | Radius differentiated by type (1=5, 2=15, 3=unrestricted) around spawn origin — C8 FIXED 2026-06-04. |
+| Animation interleaving | `src/scripting.ts` | Fixed (S13, 2026-06-02): `reg_anim_func` entries fire in registration order between animate steps, matching CE `animationRegAnimFunc`. |
+| Worldmap | `src/worldmap.ts` (barrel; `src/worldmap/{types,parser,Worldmap,encounters}.ts`) | Functional. Area-entrance/city-hotspot misplacement fixed 2026-09-24 (`wiki/known_bugs.md` W13); difficulty modifier on encounter rate already implemented (`encounters.ts` `didEncounter()`, `Config.combat.gameDifficultyModifier`) — both claims in this row were stale. Car travel + local-map placement + trunk container substantially implemented, see `wiki/car_system.md` and `wiki/known_bugs.md` W8/M6. Encounter-spawned critters carry items/equipment (W3 FIXED 2026-06-03). |
 <!-- audited: 2026-09-30 -->
 | Quest system | `src/questData.ts`, `src/questLog.ts` | GVAR-based tracking and Pip-Boy display work. No XP awards for completion; no quest-completion script callbacks wired. Descriptions are inlined in TS, not loaded from `quests.msg`. |
-| Karma / reputation scripting | `src/scripting.ts` | `set_pc_stat` / `mod_pc_stat` handle Karma (4) and Reputation (3); other `PCSTAT_*` IDs stub. No town-reputation table; no faction scripting. |
+| Karma / reputation scripting | `src/scripting.ts` | `set_pc_stat` / `mod_pc_stat` handle Karma (4) and Reputation (3); all PCSTAT IDs 0–5 handled (S9/S10); town-rep GVARs synced to stats (R2). |
 | Lighting accuracy | `src/lighting.ts`, `src/lightmap.ts` | Functional. Lightmap hex sampling is parity-correct (RD17) with selectable interpolation (`setLightingBilinear`, default `hex-lerp`); directional wall occlusion reads `pro.extra.extendedFlags` so W-E walls no longer bleed light (LD11). Remaining: minor colour inaccuracies vs. original engine; CPU path slow on large maps; non-wall opaque-object directional shadowing still stubbed (LD11 note). See `wiki/alignment.md` §6–§8. |
 
 <!-- audited: 2026-07-02 (Lighting accuracy row: RD17 parity sampling + interpolation, LD11 wall occlusion) -->
@@ -309,7 +302,7 @@ present and functional in the current source:
 | Trait selection at character creation | Full 2-trait selector in `src/ui_character/creator.ts`; 2-trait limit enforced; traits live-update skill calculations during creation. |
 | Name / age / sex entry at creation | Text input (name), spinner (age), toggle buttons (sex) all wired in `src/ui_character/creator.ts`; values applied via `player.applyCreationStats()` on DONE. |
 | Drug decay / addiction ticks | `tickAddictions(player)` called every 600-tick cycle in `src/gameTick.ts`, imported from `src/drugs.ts`. |
-| Poison tick-based damage | `-1 HP / 10 poison` per 600-tick cycle in `src/gameTick.ts`; `poisonLevel` decays by 1 each cycle. |
+| Poison tick-based damage | Superseded by S26 (2026-07-27): CE-faithful `poisonDecayEvent` timed event in `src/scripting.ts` (`10*(505-5*level)` ticks, -2 poison / -1 HP). |
 | Radiation symptom ticks | `applyRadiationSymptoms(player)` called every 600-tick cycle in `src/gameTick.ts`. |
 | `get_month` / `get_day` | Both read from `GameTime.getDate()` in `src/vm_bridge.ts:52,56` — not hardcoded. |
 | `end_dialogue` | Implemented: calls `dialogueExit()` in `src/scripting.ts:1486`. |
@@ -352,9 +345,9 @@ Also available via URL: `?crawl=maps`, `?crawl=dialogue`, `?crawl=combat`.
 
 ---
 
-## 🔶 Pending Branch: `claude/ai-packet-system-3P13i` — AI System
+## ✅ Merged: `claude/ai-packet-system-3P13i` — AI System
 
-**Not yet merged into main.** Adds a complete `AI.TXT` parser with typed
+**Merged into main** (2026-10-06 audit: `src/aiPackets.ts` `getAiPacket()` is consumed by `combat/AI.ts`, `party.ts`, `Critter.ts`; distance modes, run-away, wander radius all live — see ROADMAP §4g). The notes below are historical. Adds a complete `AI.TXT` parser with typed
 enums; wander radius differentiation and full AI-loop integration follow
 after merge.
 

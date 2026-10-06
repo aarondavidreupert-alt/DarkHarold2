@@ -11,11 +11,11 @@ It is written primarily in TypeScript and Python, and targets recent browsers wi
 
 ## Status
 
-DarkHarold2 is not a complete remake at this time. Estimated overall completion: **~93%**.
+DarkHarold2 is not a complete remake at this time. Estimated overall completion: **~94%**.
 The core technical foundation (rendering, combat math, scripting VM, map loading, dialogue runtime) is
 solid, and most gameplay systems are now wired end-to-end. The remaining gaps are concentrated in
-asset-pipeline extractions, speech/movie infrastructure, and a handful of larger systems (car travel,
-per-town reputation, NPC daily schedules). See [`ROADMAP.md`](ROADMAP.md) and
+asset-pipeline extractions, speech/movie infrastructure, and a handful of larger systems (NPC daily
+schedules, companion level-up, `.mve` movie playback). See [`ROADMAP.md`](ROADMAP.md) and
 [`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
 
 If you're looking for documentation on how Fallout 2 works, documentation on certain file formats, or
@@ -159,7 +159,7 @@ pipenv run python tools/pipeline_gui.py
 ## Feature completion
 
 The buckets below are sourced from [`wiki/known_bugs.md`](wiki/known_bugs.md) (current
-audit: 2026-09-30). Items marked FIXED there roll up here. If you spot a contradiction,
+audit: 2026-10-06). Items marked FIXED there roll up here. If you spot a contradiction,
 the wiki tracker is the source of truth.
 
 ### ✅ Substantially implemented (~85–95%)
@@ -174,45 +174,43 @@ the wiki tracker is the source of truth.
 - **Inventory UI** — drag-and-drop, equip slots, weight display + carry-weight enforcement (LE1), reload + ammo state-aware stacking (LE4), `pickup_p_proc` on inventory equip (LE6), container `use_p_proc` gate (LE9), multi-pile caps sum (LE11)
 - **Active skill use** — First Aid, Doctor, Sneak, Lockpick, Steal (with facing + knockdown), Traps, Science, Repair, Gambling/Outdoorsman messages; Healer perk applied; party-member delegation for First Aid/Doctor (AC6)
 - **Level-up & perks** — XP thresholds, skill points (5 + 2×INT, +2 Educated), HP per level (END/2 + 2, +4 Lifegiver), perk every 3 levels (every 4 Skilled), **perk selection modal** (`ui_character.ts:1866 showPerkModal`), Tag! 4th slot
-- **Karma & reputation** — `get_pc_stat` / `mod_pc_stat` / `set_pc_stat` wired, +1 karma per hostile kill, **karma title computation** (`ui_character.ts:581–624`), STATUS panel surfaces both stats; per-town reputation still absent (R2)
+- **Karma & reputation** — `get_pc_stat` / `mod_pc_stat` / `set_pc_stat` wired, +1 karma per hostile kill, **karma title computation** (`ui_character.ts:581–624`), STATUS panel surfaces both stats; per-town reputation GVARs synced and shown with CE tier labels (R2)
 - **Worldmap travel** — 28×30 grid, per-tile encounter tables, time-of-day frequency (W1), difficulty modifier (W2), encounter formations (straight_line/double_line/wedge/cone) (W6), encounter critters carry items + equipped weapons (W3), Outdoorsman detection XP (W7), Pathfinder travel-time reduction; keyboard/mouse-edge map pan (W12); label list CE-accurate filter + alphabetic sort (W11); walk masks enforced so the player can't walk through mountains (W10); city-entry hotspot marker correctly centered + shaped (W13)
-- **Car travel system (Highwayman)** — worldmap travel at 4× speed with fuel consumption + halved encounter rate (W8, `window.giveCar()` for testing), animated 14-frame driving sprite on the worldmap HUD; local-map car body + trunk container both auto-injected with correct z-order/collision (M6), real per-map parking tiles extracted from the original compiled scripts for 10 of 15 candidate towns (see [`wiki/car_system.md`](wiki/car_system.md)); trunk placement + car-upgrade speed tiers + 5 remaining towns' tiles still open
+- **Car travel system (Highwayman)** — worldmap travel at 4× speed with fuel consumption + halved encounter rate (W8, `window.giveCar()` for testing), animated 14-frame driving sprite on the worldmap HUD; local-map car body + trunk container both auto-injected with correct z-order/collision (M6), real per-map parking tiles extracted from the original compiled scripts for 10 of 15 candidate towns (see [`wiki/car_system.md`](wiki/car_system.md)); car-upgrade speed tiers + 5 remaining towns' tiles still open
 - **Random encounters** — encounter group generation, level/time_of_day conditions, encounter counter (W4)
-- **Scripting VM** — INT file parser, **~150+ opcodes wired**, transpiler/disassembler; remaining stubs are largely car-system or movie/credits sub-ops (see [`wiki/known_bugs.md §2`](wiki/known_bugs.md))
+- **Scripting VM** — INT file parser, **~150+ opcodes wired**, transpiler/disassembler; no active `stub()` calls remain; known no-op paths are `play_gmovie` (S15), `obj_can_hear_obj` (S28) and car metarule 52/53 (see [`wiki/known_bugs.md §2`](wiki/known_bugs.md))
 - **Audio engine** — music looping, weapon/action sound mapping, ambient SFX from map data, master/music/sfx GainNode chain with persisted volume sliders
 - **Pip-Boy** — clock display, alarm button (CE geometry IW10), STATUS/QUESTS/ARCHIVES/AUTOMAP tabs with per-location map view + zoom/pan, IndexedDB persistence; rest/wait menu renders inside the Pip-Boy screen with all 13 CE options including "Until healed" (IW11); month sprite stride/position corrected (IW10)
 - **Character screen / HUD** — full SPECIAL/skill view, stat display, trait/perk lists, indicator bar (SNEAK/POISONED/RADIATED/ADDICT) (IW1), AP-light fade animation (IW7), attack button greyed when AP insufficient (IW2), `game_ui_disable` hides HUD bar (IW4)
 - **Save / load** — IndexedDB-backed; player state, inventory + ammo state, stats/skills/traits/perks, level/XP, equipped items, GVARs, MVARs (U5), knownAreas (U6), timed-event queue (U7), 160×100 JPEG save-slot thumbnails (U3)
-- **Status effects** — drug / chem effect timers with addiction rolls (5a), poison + radiation decay loops (5b)
+- **Status effects** — drug / chem effect timers with addiction rolls (5a), CE-faithful poison decay (S26); radiation symptoms are a DH2 approximation, not the CE `_critter_check_rads` port (§29)
 - **Animations** — FRM sprite rendering with `artOffset` zero-jump model (FA7), correct frame-0 timing (FA9), symmetric walk-cycle partials (FA10), weapon-draw drift fix (FA12)
 - **Rendering** — per-building roof flood-fill clipping + roofEgg transparency (RD06), egg transparency with CE 4-case `extendedFlags` branch + `'alpha'` radial mode (RD16), combat/item/neutral critter outline system with fill/border alpha (CI11–CI15), worldmap pan/scroll with arrow/WASD/mouse-edge input (W12)
-- **Preferences** — full options panel (difficulty, combat speed, violence level, target-highlight 3-state (CI8), item highlight (CI7/CI12), run-by-default (CI4), subtitles, speech/SFX/music volume, brightness slider stub) persisted via localStorage; hover-only item highlight matching CE `gameMouseLoadItemHighlight` (CI12)
+- **Preferences** — full options panel (difficulty, combat speed, violence level, target-highlight 3-state (CI8), item highlight (CI7/CI12), run-by-default (CI4), subtitles, speech/SFX/music volume, brightness + mouse-sensitivity sliders (AF9/AF10)) persisted via localStorage; hover-only item highlight matching CE `gameMouseLoadItemHighlight` (CI12)
 
 ---
 
 ### 🔶 Partially implemented (~30–69%)
 
-- **Traits** — 2 of 16 traits (Gifted, Good Natured) affect skill calculations; no trait selection at character creation; no 2-trait slot limit enforced.
-- **Character creation** — SPECIAL point-buy and tag-skill selection present. Trait selection and name/age/sex entry incomplete.
 - **Party / companions** — `addPartyMember` (CHA cap), `followPlayer` pathfinds to a free hex adjacent to the player, `dismissPartyMember` and silent `party_remove`, combat AI for friendly-team members, full companion control/customize/trade screens integrated into persistent dialogue window (P5/P8), correct return-path rules (P8). **Missing:** companion level-up, formation pathfinding, Use Best Weapon/Armor AI heuristics.
-- **Lighting** — `obj_set_light_level` + `set_obj_visibility` correctly rebuild the lightmap (LD3/LD4), hidden objects no longer emit light (LD1), directional wall occlusion reads `extendedFlags` so W-E walls no longer bleed light (LD11), and the player's moving torch is stamped smoothly sub-tile (`egg-split`, default) instead of snapping per tile. Day/night ambient curve is a DH2 invention rather than CE-matched (GTC10); `objectGetLightIntensity` self-subtraction absent (LD5); non-wall opaque-object shadowing still stubbed (LD11 note).
-- **Time & date system** — `gametime.ts` ticks, day/night ambient curve, midnight queue fires `objectUnjamAll` (IU3/GTC5); `get_month` / `get_day` wired; ARTIMER midnight movie events still not implemented.
+- **Lighting** — `obj_set_light_level` + `set_obj_visibility` correctly rebuild the lightmap (LD3/LD4), hidden objects no longer emit light (LD1), directional wall occlusion reads `extendedFlags` so W-E walls no longer bleed light (LD11), and the player's moving torch is stamped smoothly sub-tile (`egg-split`, default) instead of snapping per tile. Day/night ambient curve is a DH2 invention rather than CE-matched (GTC10); non-wall opaque-object shadowing still stubbed (LD11 note).
+- **Time & date system** — `gametime.ts` ticks, day/night ambient curve, midnight queue fires `objectUnjamAll` (IU3/GTC5); `get_month` / `get_day` wired; ARTIMER day-90/180/270/360 events fire (GTC5), but their `.mve` movies do not play (S15).
 - **Quest system** — `questData.ts` covers all major Fallout 2 quests with GVAR-based state tracking; Pip-Boy ARCHIVES tab surfaces them. Per-quest completion rewards/XP route through scripts but not engine-side. Quest descriptions inlined in TS rather than loaded from `quests.msg`.
 - **Combat AI** — friendly-fire gate for AoE attacks (line-of-fire blockers between attacker and target) still absent; otherwise distance modes, perception, taunts, and team targeting are wired.
 - **Car system remaining gaps** — trunk container built via generic `Obj.fromPID` instead of `Item.fromPID` (harmless today); no car-upgrade GVAR speed tiers (`GVAR_CAR_BLOWER`/New Reno upgrades); no cross-elevation parking awareness; 5 of 15 candidate towns' `carTile` still unverified; metarule 52/53 (car cargo capacity) are no-ops. See [`wiki/car_system.md`](wiki/car_system.md) §4.
-- **Endgame** — death-narrator slide wired (EG6); credits music / `creditsOpen("credits.txt")` (EG4) and panning-slide ms/pixel timing (EG3) still absent.
+- **Endgame** — slideshow, death endings (EG5/EG6), credits scroll (EG4) and CE panning timing (EG3) wired; only `.mve` movies are absent (S15).
 
 ---
 
 ### ❌ Not implemented or deliberately deferred
 
 - **NPC schedules / day-night behaviour** — non-scripted critters do radius-capped wander (C8) only; full home/work/sleep schedules deferred (P2).
-- **Per-town reputation tracking** — global karma + title work; per-town faction deltas and reaction modifiers absent (R2).
 - **Subtitles / speech file playback** — audio engine has no `.acm` speech hooks; no subtitle overlay (P4).
-- **Movie / FMV playback** — `play_gmovie` is a no-op (S15); ARTIMER midnight movies (GTC5).
+- **Movie / FMV playback** — `play_gmovie` is a no-op (S15).
 - **`actionFrame` from FRM headers** — discarded by `tools/frmpixels.py:40`; hit/sound sync absent for weapon attacks (FA3, asset-pipeline change).
 - **FID weapon-stance composition** — partially wired via `Weapon.getAnim` skin codes; CE `buildFid` parity not verified (FA6).
-- **Two-pass flat / post-roof object rendering** (RD07/RD08), **palette colour cycling** for water/fire (RD10), **pixel-precise hex hit-testing** via `_tile_mask` (RD13), **elevation transition fade** (RD14).
+- **Post-roof object rendering pass** (RD08), **palette colour cycling** for water/fire (RD10 — runtime done, pipeline exports RGBA), **pixel-precise hex hit-testing** via `_tile_mask` (RD13).
+- **Missing map assets** — `maps/mbase34.json` and `maps/klacanyn.json` are 0-byte files; needs pipeline re-extraction (M7).
 
 See [`wiki/known_bugs.md`](wiki/known_bugs.md) for the complete tracker with CE references and fix
 status per ID.

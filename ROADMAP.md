@@ -5,7 +5,7 @@ unlocks the next. Phases 1–3 are pure connectivity — the engine infrastructu
 already exists, these wire it up. Phases 4–5 introduce the only genuinely new
 systems still needed.
 
-**Last audited: 2026-07-28**
+**Last audited: 2026-10-06** (tracker reconciliation — rows below synced to `wiki/known_bugs.md`; the ~94% estimate itself was not re-derived and predates the 2026-09 car/worldmap work)
 Current estimate: **~94% complete** (was ~93% at 2026-06-25; 2026-07-27 sprint
 on branch claude/stealth-audit-regression-vtj3r9: RD14 elevation fade, W9 hotspot
 offset, RD15 verified correct, EV1 gauge animation verified, AC2 violence filter,
@@ -78,7 +78,7 @@ game features, but prerequisites for reliable iteration.
 | `inven_cmds` | ✅ Done | All INVEN_CMD_* cases handled 2026-06-02. Ref: `interpreter_extra.cc opInvenCmds` |
 | `set_pc_stat` | ✅ Done | All PCSTAT IDs (0–4) handled 2026-06-02. Ref: `stat.cc pcSetStat` |
 | `mod_pc_stat` | ✅ Done | All PCSTAT IDs (0–4) handled 2026-06-02. Ref: `scripts.cc opModifyPcStat` |
-| `metarule` | ✅ Done | All CE IDs (13–53) handled — IDs 13/14/15/16/17/18/19/22/30/31/32/40/42/43/44/45/46/47/48/49/50/51/52/53. Car IDs 30/31/32/52/53 are safe no-ops (no car system). `default:` stub fires only for truly unknown IDs not in CE spec. Ref: `interpreter_extra.cc opMetarule` |
+| `metarule` | ✅ Done | All CE IDs (13–53) handled — IDs 13/14/15/16/17/18/19/22/30/31/32/40/42/43/44/45/46/47/48/49/50/51/52/53. Car IDs 30/31/32 implemented with the car system (W8); 52/53 (car cargo capacity) still return 0. `default:` stub fires only for truly unknown IDs not in CE spec. Ref: `interpreter_extra.cc opMetarule` |
 | `metarule3` | ✅ Done 2026-07-28 | IDs 100–111 all handled: 100=clear fixed events, 101=subtile mark (silent→0), 102=SET_WM_MUSIC, 103=kill-count, 104=wmMapMarkMapEntranceState (full impl), 105=visited query (→1), 106–108=various, 109=chem_use pref, 110=car_out_of_gas→0, 111=map_target_load_area. `default:` stub fires only for IDs outside CE spec. Ref: `interpreter_extra.cc opMetarule3` |
 | `critter_add_trait` | ✅ Done | TRAIT_PERK (kind=0) added 2026-06-04 — player-only via applyPerk/perks.splice; TRAIT_OBJECT cases handled 2026-06-02. Ref: `interpreter_extra.cc opAddTrait` |
 | `anim` | ✅ Done | Reverse direction (param ≠ 0) wired through animBatch 2026-06-04 — passed to `singleAnimation(reversed)`. IDs 1000/1010 + types 0–64 handled 2026-06-02. Ref: `interpreter_extra.cc opAnim` |
@@ -137,7 +137,7 @@ a believable playthrough.
 - ✅ followPlayer now pathfinds to nearest free hex adjacent to player (2026-06-04).
 - ✅ `dismissPartyMember` helper added; `party_remove` opcode silently no-ops on
   non-party objects per CE (2026-06-04).
-- **Missing**: companion inventory from HUD, level-up, formation pathfinding.
+- **Missing**: companion level-up, formation pathfinding. (Companion inventory is reached via dialogue Trade in CE — implemented, IW8/P8; there is no HUD route to add.)
 - Ref: `wiki/companion_party.md §1,2,4,5`
 
 ### 5d. Minimal NPC wander schedules 🟡 Partial
@@ -171,8 +171,8 @@ a believable playthrough.
 - ✅ Gambling/Outdoorsman skill use return proper refusal messages (K2 FIXED 2026-06-03).
 - ✅ Hex line-beyond (`hexLineBeyond`) — CE Bresenham screen-space walk (TS3 FIXED 2026-06-03).
 - ✅ Dead `tile_coord()` function removed (TS4 FIXED 2026-06-03).
-- 🔴 **Town faction deltas** — per-town rep table absent; NPC reaction modifiers absent.
-  Global karma display ✅; town-level display not. Ref: `reputation.cc`
+- 🟡 **Town faction deltas** — per-town rep GVARs synced + displayed with CE tier labels (R2 FIXED 2026-07-28).
+  Unverified: whether any engine-side NPC reaction modifier exists beyond what scripts read from the GVARs. Ref: `reputation.cc`
 - 🔴 **Type annotations**: `Obj.type`, `Obj.pro`, `Obj.art`, `Obj.extra`, `Obj.anim`,
   `globalState.proMap`, `Critter.weapon` — still `any`.
 
@@ -207,8 +207,9 @@ a believable playthrough.
   fallback only on ambiguous cases. NE/SW diagonals no longer mis-sort.
 - Ref: `object.cc:761`; `tile.cc tileIsInFrontOf()`
 
-### 8d. Color cycling absent 🔴 (RD10)
+### 8d. Color cycling 🟡 (RD10) — runtime done, pipeline gap
 - CE `colorCycleEnable/Disable` drives palette rotation for water and fire.
+- Runtime (shader `cycleColor()`, `colorCycle.ts`, mask binding) is present; `tools/frmpixels.py` exports RGBA instead of indexed PNGs, so cycle indices are lost.
 - Ref: `color.cc colorCycleEnable()`
 
 ### 8e. Scroll blocking / border limiting ✅ FIXED 2026-06-04
@@ -269,6 +270,7 @@ covered by Phases 1–8.
 | S27 | ~~**`radiation_dec/inc` stubs.**~~ FIXED 2026-07-27 — `radiation_inc`/`radiation_dec` implemented in `scripting.ts`; wired at 0x80FD/0x80FE. No decay loop (deferred). | `radiation.cc` | minor |
 | GTC5 | ✅ FIXED 2026-07-27 — `objectUnjamAll()` + CE-faithful `_scriptsCheckGameEvents`: GVAR_ENEMY_ARROYO triggers AFAILED ending; ARTIMER1-4 fire at days 90/180/270/360; each adjusts GVAR_TOWN_REP_ARROYO -15; ARTIMER4 hides Arroyo/reveals Destroyed Arroyo. `seenMovies` persisted in save. | `scripts.cc:438 _scriptsCheckGameEvents` | minor |
 | GTC2 | ✅ FIXED 2026-07-28 — `game_time_advance` now fires `processMidnightForDay()` for each elapsed day during a scripted time skip, matching CE's `queueProcessEvents()` call per day in `opGameTimeAdvance`. Timed-event drainage was already complete (2026-06-02). | `interpreter_extra.cc:2761 opGameTimeAdvance` | minor |
+| S28 | **`obj_can_hear_obj` silent no-op** (always 0). Port CE: same elevation + valid tiles + `isWithinPerception`. | `interpreter_extra.cc:2620 opObjectCanHearObject` | minor |
 | IW8 | ✅ VERIFIED DONE 2026-07-28 — P5–P18 sprint fully implemented CE's dialogue sub-mode state machine: vendor barter, companion trade, companion control, and customize transitions all wired with CE-accurate return paths. | `game_dialog.cc gameDialogEnter()` | minor |
 
 ### 9d. Interface / HUD
@@ -309,8 +311,8 @@ covered by Phases 1–8.
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
 | W9 | ✅ FIXED 2026-07-27 — Hotspots offset by `(entrance.x - WM_VIEW_X, entrance.y - WM_VIEW_Y)` = `(-22, -21)` to align with town FRM blit origin. CE ref: `worldmap.cc:5886 wmTownMapInit()`. | `worldmap.cc:5886` | minor |
-| W8 | **Car travel system entirely absent.** No fuel, no speed multipliers, no encounter rate reduction. | `worldmap.cc:5984 wmCarUseGas()` | major |
-| W10 | **Walk masks not loaded.** Player walks through mountains. | `worldmap.cc:1337 wmGrabTileWalkMask()` | minor |
+| W8 | ✅ FIXED 2026-09-13 → 2026-09-2x — 4× speed with fuel, halved encounter rate, local-map car + trunk injection. Remaining: metarule 52/53, upgrade speed tiers, 5 of 15 towns' parking tiles. See `wiki/car_system.md`. | `worldmap.cc:5984 wmCarUseGas()` | major |
+| W10 | ✅ FIXED 2026-07-04 — `.msk` walk masks loaded; `worldPosInvalid()` port halts travel. | `worldmap.cc:1337 wmGrabTileWalkMask()` | minor |
 
 ### 9h. Lighting
 
@@ -331,7 +333,7 @@ covered by Phases 1–8.
 |----|------|--------|-----|
 | K4 | **Expanded Lockpick Set / Electronic Lockpick.** CE engine (`skill.cc`) does NOT check tool type — all lockpick bonuses are applied by MAP SCRIPTS via `has_item_pid`. DH2's `useLockpick()` is only a script-absent fallback; the normal CE code path is script-driven and already works in DH2. No engine change needed. | `skill.cc` | minor |
 | EL3 | ✅ FIXED 2026-06-04 — `uiElevator` scans hexes within radius 5 of arrival position and sets `frame = 0` / `open = false` on scenery with door PIDs (153, 421, 470). CE ref: `scripts.cc:926 scriptsHandleRequests SCRIPT_REQUEST_ELEVATOR`. | `elevator.cc` | low |
-| EL4 | **`_map_data_elev_flags` bitmask not in DH2 map format.** Empty elevations can't be represented. | `map.cc:81` | low |
+| EL4 | ✅ Not a gap (2026-07-05) — `levels.length` in map JSON losslessly encodes the same info. | `map.cc:81` | low |
 
 ### 9k. Endgame
 
@@ -346,8 +348,9 @@ covered by Phases 1–8.
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
 | PS2 | ✅ FIXED (prior sprint) — `FO1 = False` is set in `tools/proto.py` line 20; critter `damageType` is extracted for all critters except killType 5/10 (Robots/Brahmin), which is the correct FO2 proto structure. | `proto_types.h CritterProtoData.damageType` | major |
+| M7 | **Five 0-byte map JSONs** — `mbase34`, `klacanyn` (both in `maps.txt`, reachable) plus unused `newr1a`/`newr2a`/`rndparih`. Re-extract with `fomap.py`. | — | major |
 | FA3 | **`actionFrame` discarded by `tools/frmpixels.py`.** Field not saved; hit-frame sync absent. | `art.h ArtFrame.actionFrame` | major |
-| PS3 | **Tile PROs not extracted.** Type 4 silently skipped; terrain costs hardcoded. | `proto_types.h TileProto` | low |
+| PS3 | 🟡 Pipeline FIXED 2026-07-04 (tile PROs extracted); runtime does not consume them yet. | `proto_types.h TileProto` | low |
 | PS4 | **Wall and misc `extra` fields not parsed.** `WallProto.extra` / `MiscProto.extra` absent. | `proto_types.h` | low |
 
 ### 9m. Animation
@@ -366,9 +369,7 @@ These are real FO2 systems but not on the critical path to a playable main quest
 - **Full NPC day-night schedules** — minimal wander (Phase 5d) is enough
 - **Perk selection screen** — ✅ already implemented (`ui_character.ts:1866 showPerkModal`)
 - **Full companion level-up UI** — companions work without it
-- **Town reputation / faction tracking** — affects NPC reactions but not quest completion
-- **Save slot screenshots**
-- **Car travel system** — main quest areas accessible on foot
+- **Engine-side town reaction modifiers** — affects NPC reactions but not quest completion
 - **Color cycling / water animation** — visual only
 - **`_tile_mask` pixel-precise hit-testing** — cube rounding sufficient for play
 
