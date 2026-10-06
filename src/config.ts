@@ -187,6 +187,8 @@ export const Config = {
         // FO2-CE ref: settings.h game_difficulty — 0=Easy/1=Normal/2=Hard → modifier 75/100/125.
         // Affects skill checks, barter, and worldmap encounter rolls (not combat damage).
         gameDifficultyModifier: 100 as 75 | 100 | 125,
+        // CE settings.preferences.running_burning_guy (preferences screen) — default on.
+        runningBurningGuy: true,
         // FO2-CE ref: settings.h combat_difficulty — 0=Easy/1=Normal/2=Hard → modifier 75/100/125.
         // Affects combat damage scaling only (CE ref: combat.cc combatDifficultyGetMultiplicator).
         difficultyModifier: 100 as 75 | 100 | 125,

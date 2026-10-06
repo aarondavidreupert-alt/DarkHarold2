@@ -312,6 +312,13 @@ function getMapInfo(mapName: string) {
     return null
 }
 
+// CE ref: worldmap.cc wmSetMapMusic — script override of a map's music (maps.txt index).
+export function setMapMusicOverride(mapIndex: number, music: string): void {
+    if (mapInfo === null) parseMapInfo()
+    const info = mapInfo![mapIndex]
+    if (info) info.music = music.trim().toLowerCase()
+}
+
 export function getCurrentMapInfo() {
     return getMapInfo(globalState.gMap.name)
 }

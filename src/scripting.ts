@@ -22,7 +22,7 @@ import { randomInit, randomSeedPrerandom } from './random.js'
 import { critterAdjustRadiation } from './radiation.js'
 import { Combat, isCombatActive } from './combat.js'
 import { critterDamage, critterKill, killCounts } from './critter.js'
-import { areaContainingMap, lookupMapName, lookupScriptName } from './data.js'
+import { areaContainingMap, getLstJson, lookupMapName, lookupScriptName, setMapMusicOverride } from './data.js'
 import { CHEM_USE_MAP, getAiPacket } from './aiPackets.js'
 import * as GameTime from './gametime.js'
 import {
@@ -39,16 +39,16 @@ import { parseIntFile } from './intfile.js'
 import { dbg, dbgWarn } from './logger.js'
 import { useElevator } from './main.js'
 import { Critter, createObjectWithPID, Obj, objectGetDamageType, zsort } from './object.js'
-import { applyPerk, getPerkRank, PERKS } from './perks.js'
+import { applyPerk, getPerkRank, perkNameById, PERKS } from './perks.js'
 import { Player } from './player.js'
 import { loadPRO, lookupArt, makePID } from './pro.js'
 import * as Endgame from './endgame.js'
 import { centerCamera, objectOnScreen } from './renderer.js'
 import { fromTileNum, toTileNum } from './tile.js'
-import { uiAddDialogueOption, uiBarterMode, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, uiWorldMap, UIMode } from './ui.js'
+import { uiAddDialogueOption, uiBarterMode, uiDrawWeapon, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, uiWorldMap, UIMode } from './ui.js'
 import { updateIndicatorBar } from './ui_hud.js'
 import { SKILL_NAMES } from './skills.js'
-import { assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
+import { arrayRemove, assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
 import { ScriptVM } from './vm.js'
 import { Worldmap } from './worldmap.js'
 import { ScriptVMBridge } from './vm_bridge.js'
@@ -507,6 +507,25 @@ export module Scripting {
         _script: Script
     }
 
+
+    // CE game_sound.cc:92 _snd_lookup_scenery_action
+    const SND_SCENERY_ACTION = 'OCLNU'
+    // CE art.cc _art_get_code for sound names (weapon code, anim code)
+    function artGetCodeForSfx(animation: number, weaponType: number): [string, string] | null {
+        const chr = (b: string, o: number) => String.fromCharCode(b.charCodeAt(0) + o)
+        if (weaponType < 0 || weaponType >= 11) return null
+        if (animation >= 38 && animation <= 47) return weaponType === 0 ? null : [chr('d', weaponType - 1), chr('c', animation - 38)]
+        if (animation === 36) return ['c', 'h']
+        if (animation === 37) return ['c', 'j']
+        if (animation === 64) return ['n', 'a']
+        if (animation >= 48) return ['r', chr('a', animation - 48)]
+        if (animation >= 20) return ['b', chr('a', animation - 20)]
+        if (animation === 18) return weaponType === 1 ? ['d', 'm'] : weaponType === 4 ? ['g', 'm'] : ['a', 's']
+        if (animation === 13) return weaponType <= 0 ? ['a', 'n'] : [chr('d', weaponType - 1), 'e']
+        if (animation <= 1 && weaponType > 0) return [chr('d', weaponType - 1), chr('a', animation)]
+        return ['a', chr('a', animation)]
+    }
+
     export class Script {
         // Stuff we hacked in
         _didOverride = false // Did the procedure call override the default action?
@@ -522,6 +541,9 @@ export module Scripting {
         cur_map_index!: number | null
         fixed_param!: number
         source_obj!: Obj | 0
+        returnValue = 0 // CE Script.returnValue (scr_return)
+        howMuch = 0 // CE Script.howMuch
+        action = 0 // CE Script.action
         target_obj!: Obj
         action_being_used!: number
         game_time_hour!: number
@@ -1581,6 +1603,8 @@ export module Scripting {
             if (Config.engine.doCombat) {
                 if (isCombatActive() || globalState.combat) return // already in combat — ignore re-entry from script
                 const initiator = this.self_obj as Critter
+                // CE opAttackComplex: attacker = self, defender = target.
+                if (initiator && isGameObject(obj)) (initiator as any).whoHitMe = obj
                 // Mark the initiating critter hostile before combat starts so the LOS
                 // scan in nextTurn() counts it as active and doesn't skip its turn.
                 if (initiator && !initiator.isPlayer) initiator.hostile = true
@@ -2108,6 +2132,249 @@ export module Scripting {
                 }
                 startTalkingHead(headNum, fidget, backgroundID)
             }
+        }
+
+        // ── Opcodes that were never bridged (found 2026-10-06 by diffing CE's
+        //    interpreterRegisterOpcode table against vm.ts/vm_bridge.ts). An unbridged
+        //    opcode makes vm.step() return false, silently ending the procedure.
+
+        // CE interpreter_extra.cc opScrReturn (0x80A2) — value handed back to the engine.
+        scr_return(value: number) {
+            this.returnValue = value
+        }
+        // CE opSfxBuildOpenName (0x80A5) — game_sound.cc sfxBuildOpenName
+        sfx_build_open_name(obj: Obj, action: number): string | null {
+            if (!isGameObject(obj)) return null
+            const act = SND_SCENERY_ACTION[action] ?? 'O'
+            if (obj.type === 'scenery') {
+                const id = obj.pro?.extra?.soundID
+                return `S${act}DOORS${typeof id === 'number' ? String.fromCharCode(id) : 'A'}`.toUpperCase()
+            }
+            const id = obj.pro?.extra?.soundID
+            return `I${act}CNTNR${typeof id === 'number' ? String.fromCharCode(id) : 'A'}`.toUpperCase()
+        }
+        // CE opSkillContest (0x80AD) — "not implemented" in CE too; returns 0.
+        skill_contest(_a: number, _b: number, _c: number) {
+            dbgWarn('script', 'skill_contest: not implemented in CE either (returns 0)')
+            return 0
+        }
+        // CE opHowMuch (0x80B1) — script->howMuch
+        how_much(_data: number) {
+            return this.howMuch ?? 0
+        }
+        // CE opReactionInfluence (0x80B3) — reaction.cc _reaction_influence_ returns 0.
+        reaction_influence(_a: number, _b: number, _c: number) {
+            return 0
+        }
+        // CE opGetObjectBeingUsed (0x80C0) — script->target: the item used on this object
+        // in use_obj_on_p_proc (DH2 keeps it in target_obj).
+        obj_being_used_with(): Obj | 0 {
+            return this.target_obj ?? 0
+        }
+        // CE opGetScriptAction (0x80C7) — script->action
+        script_action() {
+            return this.action ?? 0
+        }
+        // CE opAnimateStandReverse (0x80CD) — ANIM_STAND reversed, outside combat only.
+        animate_stand_reverse_obj(obj: Obj) {
+            const target = isGameObject(obj) ? obj : (this.self_obj as Obj)
+            if (!target || globalState.inCombat || target.type !== 'critter') return
+            ;(target as Critter).staticAnimation('idle', () => (target as Critter).clearAnim(), true, true)
+        }
+        // CE opMakeDayTime (0x80D1) — an empty function in CE.
+        make_daytime() {}
+        // CE opPickup (0x80D6) — actionPickUp(script->target, obj)
+        pickup_obj(obj: Obj) {
+            if (!isGameObject(obj)) return
+            const who = (this.target_obj ?? this.self_obj) as Critter
+            if (!who || who.type !== 'critter') return
+            obj.pickup?.(who)
+        }
+        // CE opDrop (0x80D7) — _obj_drop(script->target, obj)
+        drop_obj(obj: Obj) {
+            if (!isGameObject(obj)) return
+            const who = (this.target_obj ?? this.self_obj) as Critter
+            if (!who) return
+            obj.drop?.(who)
+        }
+        // CE opGetGameDifficulty (0x812A) — settings.preferences.game_difficulty (0/1/2)
+        game_difficulty() {
+            const d = Config.combat.gameDifficultyModifier
+            return d === 75 ? 0 : d === 125 ? 2 : 1
+        }
+        // CE opGetRunningBurningGuy (0x812B)
+        running_burning_guy() {
+            return Config.combat.runningBurningGuy === false ? 0 : 1
+        }
+        // CE _op_inven_unwield (0x812C) — self puts its weapon away (dude: current hand).
+        inven_unwield() {
+            const self = this.self_obj as Critter
+            if (!self || self.type !== 'critter') return
+            const hand: 'leftHand' | 'rightHand' = self.isPlayer
+                ? ((self as any).activeHand ?? 'leftHand')
+                : 'rightHand'
+            const item = (self as any)[hand]
+            if (!item) return
+            ;(self as any)[hand] = undefined
+            self.inventory.push(item)
+            if (self.isPlayer) uiDrawWeapon()
+        }
+        // CE opGameUiIsDisabled (0x8135)
+        game_ui_is_disabled() {
+            return globalState.gameUIDisabled ? 1 : 0
+        }
+        // CE _op_anim_action_frame (0x813A) — artGetActionFrame of obj's FRM for `anim`.
+        anim_action_frame(obj: Obj, anim: number) {
+            if (!isGameObject(obj) || !obj.pro) return 0
+            try {
+                const fid = ((obj.pro.frmType ?? 1) << 24) | ((anim & 0xff) << 16) | (obj.pro.frmPID & 0xfff)
+                const info = globalState.imageInfo[lookupArt(fid)]
+                const af = info?.actionFrame
+                return Array.isArray(af) ? (af[obj.orientation ?? 0] ?? af[0] ?? 0) : (af ?? 0)
+            } catch {
+                return 0
+            }
+        }
+        // CE opRegAnimPlaySfx (0x813B) — sound step inside the current reg_anim sequence.
+        reg_anim_play_sfx(obj: Obj, sfx: string, delay: number) {
+            if (!isGameObject(obj) || typeof sfx !== 'string') return
+            const play = () => globalState.audioEngine?.playSfxByName?.(sfx.toLowerCase())
+            if (animBatch !== null) animBatch.push({ kind: 'func', obj, fn: () => setTimeout(play, Math.max(0, delay) * 100) } as any)
+            else setTimeout(play, Math.max(0, delay) * 100)
+        }
+        // CE opSfxBuildCharName (0x813D) — game_sound.cc sfxBuildCharName
+        sfx_build_char_name(obj: Obj, anim: number, extra: number): string | null {
+            if (!isGameObject(obj) || !obj.pro) return null
+            const base = getLstJson('art/critters/critters', obj.pro.frmPID & 0xfff)?.frm
+            if (!base) return null
+            const weapon = anim === 38 /* ANIM_TAKE_OUT */ ? extra : (((obj as any).frmPID ?? obj.pro.frmPID) & 0xf000) >> 12
+            const code = artGetCodeForSfx(anim, weapon)
+            if (!code) return null
+            let [w, a] = code
+            if (anim === 21 || anim === 20) { // ANIM_FALL_FRONT / ANIM_FALL_BACK
+                if (extra === 2) w = 'Y'      // CHARACTER_SOUND_EFFECT_PASS_OUT
+                else if (extra === 3) w = 'Z' // CHARACTER_SOUND_EFFECT_DIE
+            } else if ((anim === 16 || anim === 17) && extra === 4) { // punch/kick + CONTACT
+                w = 'Z'
+            }
+            return `${base}${w}${a}`.toUpperCase()
+        }
+        // CE opSfxBuildAmbientName (0x813E)
+        sfx_build_ambient_name(name: string) {
+            return `A${String(name).padStart(6).slice(0, 6)}1`.toUpperCase()
+        }
+        // CE opSfxBuildInterfaceName (0x813F) / opSfxBuildItemName (0x8140) — both use
+        // gameSoundBuildInterfaceName in CE.
+        sfx_build_interface_name(name: string) {
+            return `N${String(name).padStart(6).slice(0, 6)}1`.toUpperCase()
+        }
+        sfx_build_item_name(name: string) {
+            return `N${String(name).padStart(6).slice(0, 6)}1`.toUpperCase()
+        }
+        // CE opSfxBuildWeaponName (0x8141) — game_sound.cc sfxBuildWeaponName
+        sfx_build_weapon_name(effectType: number, weapon: Obj, hitMode: number, target: Obj) {
+            const typeCode = 'RAOFH'[effectType] ?? 'A'
+            const sid = weapon?.pro?.extra?.soundID
+            const weaponCode = typeof sid === 'number' ? String.fromCharCode(sid) : 'A'
+            const variant = (effectType !== 0 && effectType !== 2 && hitMode !== 0 && hitMode !== 2 && hitMode !== 4) ? 2 : 1
+            const dmg = weapon?.pro?.extra?.dmgType
+            let material = 'X'
+            if (typeCode === 'H' && isGameObject(target) && dmg !== 3 /* plasma */ && dmg !== 5 /* EMP */ && dmg !== 6 /* explosion */) {
+                const m = target.type === 'wall' ? target.pro?.extra?.material : (target.type === 'item' || target.type === 'scenery') ? target.pro?.extra?.materialID : -1
+                material = (m === 0 || m === 1 || m === 2) ? 'M' : m === 3 ? 'W' : (m === 4 || m === 5 || m === 6) ? 'S' : 'F'
+            }
+            return `W${typeCode}${weaponCode}${variant}${material}XX1`.toUpperCase()
+        }
+        // CE opSfxBuildSceneryName (0x8142)
+        sfx_build_scenery_name(name: string, action: number, actionType: number) {
+            const typeCode = actionType === 1 /* SOUND_EFFECT_ACTION_TYPE_PASSIVE */ ? 'P' : 'A'
+            return `S${typeCode}${SND_SCENERY_ACTION[action] ?? 'O'}${String(name).padStart(4).slice(0, 4)}1`.toUpperCase()
+        }
+        // CE opAttackSetup (0x8143) — attacker engages defender (starts combat if needed).
+        attack_setup(attacker: Obj, defender: Obj) {
+            if (!isGameObject(attacker) || !isGameObject(defender)) return
+            const a = attacker as Critter, d = defender as Critter
+            if (a.dead || a.visible === false) return
+            if (d.dead || d.visible === false) return
+            if ((d as any).isFleeing) return // CRITTER_MANUEVER_FLEEING
+            ;(a as any).whoHitMe = d
+            if (!a.isPlayer) a.hostile = true
+            if (!globalState.inCombat && Config.engine.doCombat) Combat.start(a.isPlayer ? undefined : a)
+        }
+        // CE opDestroyMultipleObjects (0x8144) — remove `quantity` of an item from its
+        // owner (returns how many), or destroy the object outright when it has no owner.
+        destroy_mult_objs(obj: Obj, quantity: number) {
+            if (!isGameObject(obj)) return 0
+            const owner = globalState.gMap.getObjects().find((o) => o.inventory?.includes(obj))
+                ?? (globalState.player?.inventory?.includes(obj) ? globalState.player : undefined)
+            if (owner) {
+                const have = obj.amount ?? 1
+                const n = Math.min(have, quantity)
+                if (n >= have) arrayRemove(owner.inventory, obj)
+                else obj.amount = have - n
+                if (owner === globalState.player) uiDrawWeapon()
+                return n
+            }
+            globalState.gMap.destroyObject(obj)
+            return 0
+        }
+        // CE opGetCombatDifficulty (0x814F) — settings.preferences.combat_difficulty (0/1/2)
+        combat_difficulty() {
+            const d = Config.combat.difficultyModifier
+            return d === 75 ? 0 : d === 125 ? 2 : 1
+        }
+        // CE opCritterStopAttacking (0x8155) — CRITTER_MANEUVER_DISENGAGING, forget target.
+        critter_stop_attacking(obj: Obj) {
+            if (!isGameObject(obj)) return
+            const c = obj as Critter
+            ;(c as any).disengaging = true
+            ;(c as any).whoHitMe = null
+            c.hostile = false
+        }
+        // CE opSetMapMusic (0x80E2) — worldmap.cc wmSetMapMusic: override maps.txt music.
+        set_map_music(mapIndex: number, music: string) {
+            setMapMusicOverride(mapIndex, String(music))
+        }
+        // CE opWorldmap (0x8108) — scriptsRequestWorldMap
+        world_map() {
+            uiWorldMap()
+        }
+        // CE opRegAnimObjectRunToTile (0x8114) — as move_to_tile, running.
+        reg_anim_obj_run_to_tile(obj: Obj, tileNum: number, delay: number) {
+            if (globalState.inCombat) return
+            this.reg_anim_obj_move_to_tile(obj, tileNum, delay)
+        }
+        // CE opKillCritterType (0x80EE) — kill (or with deathFrame 0, destroy) every live,
+        // visible critter of `pid` on the map. deathFrame 1 cycles CE's ftList.
+        kill_critter_type(pid: number, deathFrame: number) {
+            const FT_LIST = ['death-burst', 'death-explode', 'death-fire', 'death', 'death', 'death', 'death-burst', 'death', 'death-explode', 'death', 'death']
+            let ft = 0
+            let count = 0
+            for (const obj of globalState.gMap.getObjects().slice()) {
+                if (obj.type !== 'critter' || obj.pid !== pid || (obj as Critter).dead || obj.visible === false) continue
+                if (++count > 200) { warn('kill_critter_type: infinite loop destroying critters!'); return }
+                const c = obj as Critter
+                if (deathFrame === 0) {
+                    globalState.gMap.destroyObject(c)
+                } else {
+                    // CE _combat_delete_critter: critterKill below drops it from combat via its dead flag.
+                    const anim = deathFrame === 1 ? FT_LIST[ft] : undefined
+                    ft = (ft + 1) % FT_LIST.length
+                    critterKill(c, undefined, true, anim)
+                }
+            }
+        }
+        // CE opCritterRemoveTrait (0x8103) — TRAIT_PERK only: remove every rank.
+        critter_rm_trait(obj: Obj, kind: number, param: number, _value: number) {
+            if (!isGameObject(obj) || obj.type !== 'critter') return -1
+            if (kind !== 0) {
+                warn('critter_rm_trait: trait out of range')
+                return -1
+            }
+            const name = perkNameById(param)
+            const perks: string[] = (obj as any).perks ?? []
+            if (name) for (let i = perks.length - 1; i >= 0; i--) if (perks[i] === name) perks.splice(i, 1)
+            return -1
         }
         // CE ref: interpreter_extra.cc:4937 op_dialogue_reaction (0x80E0)
         dialogue_reaction(value: number) {
