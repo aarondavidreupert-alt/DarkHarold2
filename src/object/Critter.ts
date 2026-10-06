@@ -87,7 +87,6 @@ export class Critter extends Obj {
     hostile = false // Currently engaging an enemy?
     // Wander origin (lazily captured on first wander tick) — used to enforce
     // per-type radius caps. CE ref: ai.cc wander_type 1/2/3 short/large/unrestricted.
-    wanderOrigin: { x: number; y: number } | null = null
     // True while an active Stealth Boy II is in either hand slot.
     // Derived, not serialized — recomputed via miscItem.ts refreshStealthState().
     stealthActive = false

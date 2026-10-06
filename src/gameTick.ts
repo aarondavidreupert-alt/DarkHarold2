@@ -14,9 +14,7 @@
 
 import { getRandomInt } from './util.js'
 import { checkRads } from './radiation.js'
-import { getAiPacket } from './aiPackets.js'
 import { heart } from './heart.js'
-import { hexNeighbors, hexDistance } from './geometry.js'
 import globalState from './globalState.js'
 import { dbg, dbgWarn } from './logger.js'
 import { Critter, objectUnjamAll } from './object.js'
@@ -29,8 +27,6 @@ import {
     SCREEN_HEIGHT,
     SCREEN_WIDTH,
 } from './renderer.js'
-import { getActiveScrollBarBounds } from './render/camera.js'
-import { hexToScreen } from './geometry.js'
 import { Scripting } from './scripting.js'
 import {
     uiHideCombatHover,
@@ -47,6 +43,7 @@ import { Config } from './config.js'
 // the cadence here and reschedule from a local counter rather than a
 // persisted field (map entry resets the cadence anyway).
 let nextMapUpdateTick = 600
+let critterScriptCursor = -1 // CE scripts.cc _count_
 
 // Tracks the last elapsed-day count for midnight event detection (GTC5)
 let lastMidnightDay = -1
@@ -233,64 +230,26 @@ export function tickGame(): void {
         globalState.audioEngine.tick()
     }
 
-    for (const obj of globalState.gMap.getObjects()) {
-        if (obj.type === 'critter') {
-            const critter = obj as Critter
-            if (
-                didTick &&
-                Config.engine.doUpdateCritters &&
-                !globalState.inCombat &&
-                !critter.dead &&
-                !obj.inAnim() &&
-                obj._script
-            ) {
-                Scripting.updateCritter(obj._script, critter)
-            }
-
-            // Wander: move to a random neighbor every tick when not in combat
-            // and the critter has a wander_type > 0 in its AI packet.
-            // FO2-CE ref: ai.cc critterAttemptWander
-            if (
-                didTick &&
-                !globalState.inCombat &&
-                !critter.dead &&
-                !critter.inAnim() &&
-                !obj._script
-            ) {
-                const pkt = getAiPacket(critter.aiNum)
-                if (pkt.wanderType > 0 && getRandomInt(1, 100) <= 5) {
-                    // CE ref: ai.cc wander_type — 1=short, 2=large, 3=unrestricted.
-                    // DH2 caps wander to a radius around the spawn position (captured lazily).
-                    if (!critter.wanderOrigin) {
-                        critter.wanderOrigin = { x: critter.position.x, y: critter.position.y }
-                    }
-                    const radius = pkt.wanderType === 1 ? 5 : pkt.wanderType === 2 ? 15 : Infinity
-                    const neighbors = hexNeighbors(critter.position)
-                    const barBounds = getActiveScrollBarBounds()
-                    // Prefer neighbours inside the radius and within the visible bar bounds
-                    // so wandering NPCs don't stray into the black overlay region.
-                    const validNeighbors = neighbors.filter(n => {
-                        if (radius !== Infinity && hexDistance(n, critter.wanderOrigin!) > radius) return false
-                        if (barBounds) {
-                            const s = hexToScreen(n.x, n.y)
-                            if (s.x < barBounds.minX || s.x > barBounds.maxX ||
-                                s.y < barBounds.minY || s.y > barBounds.maxY) return false
-                        }
-                        return true
-                    })
-                    const pool = validNeighbors.length > 0 ? validNeighbors : neighbors
-                    const dest = pool[getRandomInt(0, pool.length - 1)]
-                    if (dest) critter.walkTo(dest, false)
-                }
-            }
+    // CE ref: scripts.cc:704 _script_chk_critters — outside combat and dialogue, ONE
+    // critter script's critter_p_proc runs per background-loop iteration, round-robin
+    // over the critter script list. (DH2 used to run every critter's script every tick,
+    // multiplying the rate of anything random a script does by the critter count.)
+    // NPC day/night schedules and companion follow/formation are implemented by those
+    // scripts (game_time_hour checks; party.h follow macros using tile_distance_objs /
+    // rotation_to_tile / animate_move_obj_to_tile) — CE has no engine-side schedule,
+    // wander or follow logic, so the DH2 inventions for those were removed 2026-10-06.
+    if (didTick && Config.engine.doUpdateCritters && !globalState.inCombat) {
+        const scripted = globalState.gMap.getObjects().filter(
+            (o) => o.type === 'critter' && o._script && !(o as Critter).dead)
+        if (scripted.length > 0) {
+            critterScriptCursor = (critterScriptCursor + 1) % scripted.length
+            const critter = scripted[critterScriptCursor] as Critter
+            Scripting.updateCritter(critter._script!, critter)
         }
-
-        obj.updateAnim()
     }
 
-    // Party follow: move companions toward the player each tick
-    if (didTick && !globalState.inCombat && globalState.gParty.party.length > 0) {
-        globalState.gParty.followPlayer()
+    for (const obj of globalState.gMap.getObjects()) {
+        obj.updateAnim()
     }
 
     globalState.gMap?.drainRemovalQueue()
