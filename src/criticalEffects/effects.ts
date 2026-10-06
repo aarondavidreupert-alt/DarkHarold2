@@ -17,6 +17,7 @@ limitations under the License.
 // Critical-effect appliers split out of criticalEffects.ts. See
 // wiki/ts-split-refactor.md → "Per-file split proposals" §22.
 
+import { getRandomInt } from '../util.js'
 import { Critter, WeaponObj } from '../object.js'
 import globalState from '../globalState.js'
 import { dbg } from '../logger.js'
@@ -61,7 +62,7 @@ function selfWeaponDamage(target: Critter): number {
     if (!weapon) return 0
     const min = weapon.minDmg ?? 1
     const max = weapon.maxDmg ?? min
-    return Math.floor(Math.random() * (max - min + 1)) + min
+    return getRandomInt(min, max)
 }
 
 export const critFailEffects: Dict<EffectsFunction> = {
@@ -74,7 +75,7 @@ export const critFailEffects: Dict<EffectsFunction> = {
 
     crippleRandomAppendage: function (target: Critter) {
         const appendages = ['crippledLeftArm', 'crippledRightArm', 'crippledLeftLeg', 'crippledRightLeg']
-        const choice = appendages[Math.floor(Math.random() * appendages.length)] as keyof Critter
+        const choice = appendages[getRandomInt(0, appendages.length - 1)] as keyof Critter
         ;(target as any)[choice] = true
         dbg('combat', target.name + ' crippled their own ' + choice)
     },
@@ -87,7 +88,7 @@ export const critFailEffects: Dict<EffectsFunction> = {
             (c: Critter) => !c.dead && c !== target
         ) ?? []
         if (candidates.length === 0) return
-        const victim: Critter = candidates[Math.floor(Math.random() * candidates.length)]
+        const victim: Critter = candidates[getRandomInt(0, candidates.length - 1)]
         const dmg = Math.max(1, selfWeaponDamage(target))
         dbg('combat', target.name + ' hit randomly — struck ' + victim.name + ' for ' + dmg)
         critterDamage(victim, dmg, target, false, true)
@@ -237,7 +238,7 @@ export const critterEffects: Dict<(target: Critter) => void> = {
     random: function (target: Critter) {
         // Pick a random non-death effect from the set; avoid infinite recursion
         const pool = ['knockdown', 'loseNextTurn', 'crippledLeftArm', 'crippledRightArm']
-        const choice = pool[Math.floor(Math.random() * pool.length)]
+        const choice = pool[getRandomInt(0, pool.length - 1)]
         critterEffects[choice](target)
     },
 }

@@ -19,6 +19,7 @@ import { Critter } from './object.js'
 import { loadMessage } from './data.js'
 import globalState from './globalState.js'
 import { dbgWarn } from './logger.js'
+import { randomBetween } from './random.js'
 
 // Utility functions
 
@@ -99,18 +100,18 @@ export function getFileBinarySync(path: string) {
     return new DataView(buffer)
 }
 
-// Min inclusive, max inclusive
+// Min inclusive, max inclusive — CE random.cc:87 randomBetween (Park-Miller, src/random.ts)
 export function getRandomInt(min: number, max: number) {
-    return Math.floor(Math.random() * (max - min + 1)) + min
+    return randomBetween(min, max)
 }
 
 export function rollSkillCheck(skill: number, modifier: number, isBounded: boolean) {
     const tempSkill = skill + modifier
-    if (isBounded) clamp(0, 95, tempSkill)
+    const bounded = isBounded ? clamp(0, 95, tempSkill) : tempSkill // (result was previously discarded)
 
     // CE ref: random.cc:87 randomBetween(1, 100) — range is [1,100], not [0,100]
     const roll = getRandomInt(1, 100)
-    return roll <= tempSkill
+    return roll <= bounded
 }
 
 // FO2-CE ref: random.h — Roll enum
@@ -128,18 +129,21 @@ export enum RollResult {
 //   delta = difficulty - d100 (positive = success margin, negative = failure margin)
 export function randomRoll(difficulty: number, criticalSuccessModifier: number): { roll: RollResult, delta: number } {
     const delta = difficulty - getRandomInt(1, 100)
+    // CE random.cc:58 randomTranslateRoll — criticals are only possible once the game
+    // clock has passed its first full day (gameTimeGetTime() / TICKS_PER_DAY >= 1).
+    const criticalsAllowed = Math.floor((globalState.gameTickTime ?? 0) / 864000) >= 1
 
     let roll: RollResult
     if (delta < 0) {
         roll = RollResult.Failure
-        // FO2-CE: critical failure if d100 <= |delta| / 10
-        if (getRandomInt(1, 100) <= Math.floor(-delta / 10)) {
+        // FO2-CE: critical failure if d100 <= -delta / 10
+        if (criticalsAllowed && getRandomInt(1, 100) <= Math.trunc(-delta / 10)) {
             roll = RollResult.CriticalFailure
         }
     } else {
         roll = RollResult.Success
         // FO2-CE: critical success if d100 <= delta/10 + critChance
-        if (getRandomInt(1, 100) <= Math.floor(delta / 10) + criticalSuccessModifier) {
+        if (criticalsAllowed && getRandomInt(1, 100) <= Math.trunc(delta / 10) + criticalSuccessModifier) {
             roll = RollResult.CriticalSuccess
         }
     }

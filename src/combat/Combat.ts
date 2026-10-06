@@ -724,7 +724,7 @@ export class Combat {
             damageType: damageType ?? null,
             message: `${victimDisplay} killed by ${attackerDisplay}`,
         })
-        const dieStem = ['hmxxxxba', 'hmxxxxbb', 'hmxxxxbd'][Math.floor(Math.random() * 3)]
+        const dieStem = ['hmxxxxba', 'hmxxxxbb', 'hmxxxxbd'][getRandomInt(0, 2)]
         if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName(dieStem)
 
         // Defensively ensure dead flag is set — critterKill (called by critterDamage

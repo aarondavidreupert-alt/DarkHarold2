@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { getRandomInt } from './util.js'
 import { checkRads } from './radiation.js'
 import { getAiPacket } from './aiPackets.js'
 import { heart } from './heart.js'
@@ -257,7 +258,7 @@ export function tickGame(): void {
                 !obj._script
             ) {
                 const pkt = getAiPacket(critter.aiNum)
-                if (pkt.wanderType > 0 && Math.random() < 0.05) {
+                if (pkt.wanderType > 0 && getRandomInt(1, 100) <= 5) {
                     // CE ref: ai.cc wander_type — 1=short, 2=large, 3=unrestricted.
                     // DH2 caps wander to a radius around the spawn position (captured lazily).
                     if (!critter.wanderOrigin) {
@@ -278,7 +279,7 @@ export function tickGame(): void {
                         return true
                     })
                     const pool = validNeighbors.length > 0 ? validNeighbors : neighbors
-                    const dest = pool[Math.floor(Math.random() * pool.length)]
+                    const dest = pool[getRandomInt(0, pool.length - 1)]
                     if (dest) critter.walkTo(dest, false)
                 }
             }

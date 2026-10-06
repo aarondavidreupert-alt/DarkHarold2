@@ -255,7 +255,7 @@ export function critterDamage(
             const preferredHit = _hitFromFront ? 'hitFront' : 'hitBack'
             const fallbackHit  = _hitFromFront ? 'hitBack'  : 'hitFront'
             const hitAnim =
-                (obj.hasAnimation('dodge') && Math.random() < 0.3) ? 'dodge' :
+                (obj.hasAnimation('dodge') && getRandomInt(1, 10) <= 3) ? 'dodge' :
                 obj.hasAnimation(preferredHit) ? preferredHit :
                 obj.hasAnimation(fallbackHit)  ? fallbackHit  : null
 

@@ -39,7 +39,7 @@ import {
 import { drawHP } from './ui_hud.js'
 import { skillUse } from './skillUse.js'
 import { loadPreferences } from './ui_options.js'
-import { getFileJSON } from './util.js'
+import { getFileJSON, getRandomInt } from './util.js'
 import { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall, WebGLRenderer, setLightSourceOverlayActive, setLightOverlayMode, setLightOverlayRadiusScale, LightOverlayMode } from './webglrenderer.js'
 import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
@@ -64,7 +64,8 @@ function miscHealingItemUse(item: import('./object.js').Obj, user: import('./obj
     const result = skillUse(user, user, skill)
     uiLog(result.message)
     if (result.hpHealed > 0 && user.isPlayer) drawHP(user.getStat('HP'))
-    if (Math.random() < 0.1) {
+    // CE ref: proto_instance.cc — randomBetween(1, 10) == 1
+    if (getRandomInt(1, 10) === 1) {
         const idx = user.inventory.indexOf(item)
         if (idx !== -1) {
             if (item.amount > 1) item.amount--

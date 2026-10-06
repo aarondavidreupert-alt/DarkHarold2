@@ -16,6 +16,7 @@ limitations under the License.
 Scripting system/engine for DarkFO
 */
 
+import { randomInit, randomSeedPrerandom } from './random.js'
 import { critterAdjustRadiation } from './radiation.js'
 import { Combat, isCombatActive } from './combat.js'
 import { critterDamage, critterKill, killCounts } from './critter.js'
@@ -226,12 +227,10 @@ export module Scripting {
         globalVars[gvar] = value
     }
 
-    // http://stackoverflow.com/a/23304189/1958152
+    // CE random.cc — seeding goes to the ported Park-Miller generator (src/random.ts);
+    // Math.random is no longer overridden.
     function seed(s: number) {
-        Math.random = () => {
-            s = Math.sin(s) * 10000
-            return s - Math.floor(s)
-        }
+        randomSeedPrerandom(Math.abs(Math.trunc(s)) % 0x7fffffff)
     }
 
     export function getGlobalVar(gvar: number): any {
@@ -2919,8 +2918,8 @@ export module Scripting {
     }
 
     export function init(mapName: string, mapID?: number) {
-        // CE ref: random.cc:39 randomInit() — seeds from compat_timeGetTime() for different rolls each launch
-        seed(Date.now())
+        // CE ref: random.cc:31 randomInit() — seeds from compat_timeGetTime() for different rolls each launch
+        randomInit(Date.now())
         loadGlobalVars()
         reset(mapName, mapID)
     }
