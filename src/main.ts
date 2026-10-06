@@ -37,7 +37,7 @@ import {
 } from './ui.js'
 import { drawHP } from './ui_hud.js'
 import { skillUse } from './skillUse.js'
-import { loadPreferences } from './ui_options.js'
+import { loadFallout2Cfg, loadPreferences } from './ui_options.js'
 import { getFileJSON, getRandomInt } from './util.js'
 import { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall, WebGLRenderer, setLightSourceOverlayActive, setLightOverlayMode, setLightOverlayRadiusScale, LightOverlayMode } from './webglrenderer.js'
 import { Config } from './config.js'
@@ -257,8 +257,10 @@ window.onload = async function () {
         globalState.audioEngine = new NullAudioEngine()
     }
 
-    // Apply persisted user preferences (volume, difficulty, etc.) after audioEngine is ready.
-    // FO2-CE ref: preferences.cc — preferenceLoad()
+    // Apply persisted user preferences (volume, difficulty, etc.) after audioEngine is ready:
+    // fallout2.cfg first (CE game_config.cc gameConfigInit), then the options screen's
+    // localStorage write-back on top (FO2-CE ref: preferences.cc — preferenceLoad()).
+    loadFallout2Cfg()
     loadPreferences()
 
     // initialize cached data

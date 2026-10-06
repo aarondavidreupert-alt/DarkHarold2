@@ -35,7 +35,8 @@ import { showConfirm } from './ui_dialog.js'
 // FO2-CE ref: preferences.cc TargetHighlight enum — 0=off, 1=targeting-only, 2=all-enemies.
 type TargetHighlight = 'off' | 'targeting-only' | 'on'
 
-export { SavedPreferences, PREFS_KEY, loadPreferences } from './ui_options/preferences.js'
+export { SavedPreferences, PREFS_KEY, loadPreferences } from './ui_options/preferences.js'
+export { loadFallout2Cfg, parseCfg, applyCfg } from './ui_options/fallout2Cfg.js'
 
 let optionsWindow: WindowFrame
 
