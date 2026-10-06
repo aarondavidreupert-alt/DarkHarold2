@@ -105,6 +105,8 @@ WebGLRenderer.prototype.drawTileMap = function (tilemap: TileMap, offsetY: numbe
     gl.uniform1f(this.uFrameLocation, 0)
     const z = getZoom()
     gl.uniform2f(this.uScaleLocation, 80 * z, 36 * z)
+    // CE ref: cycle.cc colorCycleTicker — floor tiles animate palette entries 229-254 too.
+    if (this.uCycleTime) gl.uniform1f(this.uCycleTime, performance.now() / 1000.0)
 
     // Roofs and fallback (unlit) floors are world geometry — react to
     // day/night + per-tile intensity like everything else on the map.
@@ -141,6 +143,10 @@ WebGLRenderer.prototype.drawTileMap = function (tilemap: TileMap, offsetY: numbe
             }
             gl.activeTexture(gl.TEXTURE0)
             gl.bindTexture(gl.TEXTURE_2D, texture)
+            // Palette colour cycling for floor tiles (water, shoreline...) — RD10.
+            gl.activeTexture(gl.TEXTURE7)
+            gl.bindTexture(gl.TEXTURE_2D, this.getCycleMaskTex(img))
+            gl.activeTexture(gl.TEXTURE0)
 
             // draw — screen offset is zoomed world delta
             gl.uniform2f(

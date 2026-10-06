@@ -102,6 +102,7 @@ export class WebGLRenderer extends Renderer {
     floorFBO: WebGLFramebuffer | null = null
     floorFBOTexture: WebGLTexture | null = null
     floorFBOValid = false
+    floorFBOHasCycling = false // RD10: visible floor tiles use colour cycling → redraw each frame
     lastFloorCameraX = -Infinity
     lastFloorCameraY = -Infinity
     lastFloorZoom = -Infinity

@@ -57,13 +57,22 @@ export function lazyLoadImage(art: string, callback?: (x: HTMLImageElement) => v
     }
     img.src = art + '.png'
 
-    // Fetch cycle mask for art that might use animated palette entries (229-254).
-    // Async; cycle mask textures upload lazily on first draw after this resolves.
-    if (mightHaveCyclingPixels(art) && globalState.cycleMasks[art] === undefined) {
-        parsePNGCycleMask(art + '.png').then(mask => {
-            globalState.cycleMasks[art] = mask  // null = no cycling pixels
-        })
-    }
+    ensureCycleMask(art)
+}
+
+// Fetch the cycle mask for art that might use animated palette entries (229-254).
+// Async; cycle mask textures upload lazily on first draw after this resolves.
+// Must also be called by loaders that bypass lazyLoadImage (map preload, save load) —
+// otherwise floor tiles (water, shoreline) never get a mask and never cycle (RD10).
+const cycleMaskInFlight = new Set<string>()
+
+export function ensureCycleMask(art: string): void {
+    if (!mightHaveCyclingPixels(art) || globalState.cycleMasks[art] !== undefined || cycleMaskInFlight.has(art)) return
+    cycleMaskInFlight.add(art)
+    parsePNGCycleMask(art + '.png').then(mask => {
+        cycleMaskInFlight.delete(art)
+        globalState.cycleMasks[art] = mask  // null = no cycling pixels
+    })
 }
 
 /**

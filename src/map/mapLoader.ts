@@ -18,6 +18,7 @@ limitations under the License.
 // Split out of map.ts. See wiki/ts-split-refactor.md → "Per-file split
 // proposals" §9.
 
+import { ensureCycleMask } from '../images.js'
 import { getCarParkingEntry } from '../carParking.js'
 import { Config } from '../config.js'
 import { areaContainingMap, getCurrentMapInfo, loadAreas, lookupMapName } from '../data.js'
@@ -264,6 +265,7 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
                 return
             } // don't load more than once
             globalState.loadingAssetsTotal++
+            ensureCycleMask(file)
             heart.graphics.newImage(file + '.png', (r: HTMLImageElement) => {
                 globalState.images[file] = r
                 globalState.loadingAssetsLoaded++

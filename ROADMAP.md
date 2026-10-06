@@ -207,9 +207,9 @@ a believable playthrough.
   fallback only on ambiguous cases. NE/SW diagonals no longer mis-sort.
 - Ref: `object.cc:761`; `tile.cc tileIsInFrontOf()`
 
-### 8d. Color cycling 🟡 (RD10) — runtime done, pipeline gap
+### 8d. Color cycling ✅ FIXED 2026-10-06 (RD10)
 - CE `colorCycleEnable/Disable` drives palette rotation for water and fire.
-- Runtime (shader `cycleColor()`, `colorCycle.ts`, mask binding) is present; `tools/frmpixels.py` exports RGBA instead of indexed PNGs, so cycle indices are lost.
+- PNGs were always indexed; the gaps were floor tiles never fetching/binding their cycle mask and the cached floor FBO. See known_bugs RD10.
 - Ref: `color.cc colorCycleEnable()`
 
 ### 8e. Scroll blocking / border limiting ✅ FIXED 2026-06-04

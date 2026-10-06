@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { ensureCycleMask } from './images.js'
 import { restoreRadiationEvent } from './radiation.js'
 import { StatSet, SkillSet } from './char.js'
 import { Point } from './geometry.js'
@@ -443,6 +444,7 @@ export function load(id: number): void {
             globalState.loadingLoadedCallback = applyState
 
             for (const img of toLoad) {
+                ensureCycleMask(img)
                 heart.graphics.newImage(img + '.png', (r: HTMLImageElement) => {
                     globalState.images[img] = r
                     globalState.loadingAssetsLoaded++

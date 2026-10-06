@@ -199,10 +199,14 @@ WebGLRenderer.prototype.renderFloorToFBO = function (tileMap: TileMap): void {
         cameraX === this.lastFloorCameraX &&
         cameraY === this.lastFloorCameraY &&
         z === this.lastFloorZoom &&
-        tileMap === this.lastFloorTileMap
+        tileMap === this.lastFloorTileMap &&
+        // Colour-cycling tiles (or tiles whose cycle mask is still loading) on
+        // screen must be redrawn every frame to animate (RD10).
+        !this.floorFBOHasCycling
     ) {
         return
     }
+    let hasCycling = false
 
     // Render unlit floor tiles into FBO
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.floorFBO)
@@ -211,6 +215,7 @@ WebGLRenderer.prototype.renderFloorToFBO = function (tileMap: TileMap): void {
     gl.disable(gl.DEPTH_TEST)
 
     gl.useProgram(this.tileShader)
+    if (this.uCycleTime) gl.uniform1f(this.uCycleTime, performance.now() / 1000.0)
     gl.activeTexture(gl.TEXTURE0)
     gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer)
     gl.enableVertexAttribArray(this.texCoordLocation)
@@ -254,6 +259,12 @@ WebGLRenderer.prototype.renderFloorToFBO = function (tileMap: TileMap): void {
                 const texture = this.getTextureFromHack(img)
                 if (!texture) continue
                 gl.bindTexture(gl.TEXTURE_2D, texture)
+                // Palette colour cycling for floor tiles (RD10); unit 7 = cycle mask.
+                gl.activeTexture(gl.TEXTURE7)
+                gl.bindTexture(gl.TEXTURE_2D, this.getCycleMaskTex(img))
+                gl.activeTexture(gl.TEXTURE0)
+                const cm = globalState.cycleMasks[img]
+                if (cm === undefined || cm !== null) hasCycling = true // pending or cycling
                 lastTexture = img
             }
 
@@ -261,6 +272,8 @@ WebGLRenderer.prototype.renderFloorToFBO = function (tileMap: TileMap): void {
             gl.drawArrays(gl.TRIANGLES, 0, 6)
         }
     }
+
+    this.floorFBOHasCycling = hasCycling
 
     // Restore state — keep clear colour black (CE: tileRefreshGame bufferFill=0)
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
