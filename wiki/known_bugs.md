@@ -251,7 +251,7 @@ These are `any`-typed fields and `throw 'TODO'` sites that do not produce visibl
 | GTC7 | **No 13-year endgame timeout.** FIXED 2026-06-02 — `main.ts` didTick block now checks `gameTickTime >= 13 * TICKS_PER_YEAR`; calls `Endgame.setupDeathEnding(DEATH_REASON_TIMEOUT)` then `Endgame.playDeathEnding()`. CE ref: `scripts.cc:368 gameTimeAddTicks`. | `main.ts:1031` | `scripts.cc:368` | minor | fixed |
 | GTC8 | **Pathfinder perk does not reduce worldmap travel time.** FIXED 2026-06-02 — `pathfinderRank * 0.25` reduction applied per tick (CE worldmap.cc:4180). Rank is `player.perks.filter(…).length`. | `src/worldmap/Worldmap.ts` | `worldmap.cc:4178` | minor | fixed |
 | GTC9 | **`game_time_in_seconds` (0x80EB) wired.** FIXED 2026-06-02 — returns `GameTime.getTotalSeconds()` (ticks / 10). CE ref: `interpreter_extra.cc:2277 opGetGameTimeInSeconds`. | `vm_bridge.ts:0x80EB` | `interpreter_extra.cc:2277` | low | fixed |
-| GTC10 | **Day/night ambient light curve is a DH2 invention.** CE has no clock-driven ambient curve; only script-controlled `set_light_level`. | `gametime.ts:181` | `light.cc`, `map.cc:927` | low | deviation |
+| GTC10 | **Day/night ambient light curve removed. FIXED 2026-10-06** — ambient is now CE's single `gAmbientIntensity`: reset to max on map load (`map.cc:927`), set only by `set_light_level` (`interpreter_extra.cc:2233` mapping, Night Vision +65536/5 per rank and MIN..MAX clamp from `light.cc:48`). Outdoor maps darken at night through their own scripts' Lighting macro (verified: arvillag at 23:00 → `set_light_level(40)` → 26214). | `src/gametime.ts` | `light.cc`, `map.cc:927` | low | fixed |
 
 <!-- audited: 2026-06-02 -->
 

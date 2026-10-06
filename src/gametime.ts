@@ -47,12 +47,10 @@ export const LIGHT_INTENSITY_MAX = 65536
 // (which is the engine-wide floor fallout2-ce uses for set_light_level
 // mapping) so we can keep nights visible without affecting the script
 // intrinsic's 0..100 range. 0.35 * MAX ≈ 22937.
-const LIGHT_CURVE_NIGHT_FLOOR = Math.round(0.35 * LIGHT_INTENSITY_MAX)
 
 // Script-controlled override. Scripts (set_light_level opcode) can force
 // darkness or full brightness regardless of the time-of-day curve.
 // null = no override, use the hour-of-day curve.
-let lightLevelOverride: number | null = null
 
 // Initialize game time once at startup. Called from init.ts. We preserve
 // any pre-existing value (non-zero) in case a save was already loaded.
@@ -152,71 +150,28 @@ export function advanceSeconds(seconds: number): void { advanceTicks(seconds * T
 export function advanceMinutes(minutes: number): void { advanceTicks(minutes * TICKS_PER_MINUTE) }
 export function advanceHours(hours: number): void { advanceTicks(hours * TICKS_PER_HOUR) }
 
-// --- Day / night ambient light curve ---
+// --- Ambient light ---
 //
-// Fallout 2 doesn't ship an automatic day/night cycle — maps load at
-// LIGHT_INTENSITY_MAX and scripts manually call set_light_level when they
-// want darkness. For DarkHarold2 we derive a continuous light curve from
-// the hour of day using a piecewise-linear ramp between a night floor
-// (LIGHT_CURVE_NIGHT_FLOOR ≈ 0.35) and LIGHT_INTENSITY_MAX. The ramps are
-// deliberately wide so dawn and dusk are gradual rather than abrupt:
-//
-//   00:00 ─┐
-//          │  night (0.35)
-//   04:00 ─┤
-//            \_ dawn ramp (4h)
-//   08:00 ─┐
-//          │  day (1.00)
-//   18:00 ─┤
-//            \_ dusk ramp (4h)
-//   22:00 ─┐
-//          │  night (0.35)
-//   24:00 ─┘
-//
-// Scripts can call set_light_level to force a fixed value, which overrides
-// the curve until the next map load or the script releases it.
+// CE ref: light.cc gAmbientIntensity / lightSetAmbientIntensity. Fallout 2 has no
+// engine day/night cycle: every map load resets ambient to LIGHT_INTENSITY_MAX
+// (map.cc:927) and map scripts set darkness / time-of-day lighting themselves via
+// set_light_level (their map_update_p_proc "Lighting" macros key off
+// game_time_hour). The DH2-invented hour curve that used to live here (GTC10) was
+// removed 2026-10-06.
 
-interface LightStop { hour: number; intensity: number }
-const LIGHT_CURVE: LightStop[] = [
-    { hour: 0,  intensity: LIGHT_CURVE_NIGHT_FLOOR },
-    { hour: 4,  intensity: LIGHT_CURVE_NIGHT_FLOOR },
-    { hour: 8,  intensity: LIGHT_INTENSITY_MAX },
-    { hour: 18, intensity: LIGHT_INTENSITY_MAX },
-    { hour: 22, intensity: LIGHT_CURVE_NIGHT_FLOOR },
-    { hour: 24, intensity: LIGHT_CURVE_NIGHT_FLOOR },
-]
+let ambientIntensity = LIGHT_INTENSITY_MAX
 
-function curveAt(hourFloat: number): number {
-    for (let i = 0; i < LIGHT_CURVE.length - 1; i++) {
-        const a = LIGHT_CURVE[i]
-        const b = LIGHT_CURVE[i + 1]
-        if (hourFloat >= a.hour && hourFloat <= b.hour) {
-            if (b.hour === a.hour) return a.intensity
-            const t = (hourFloat - a.hour) / (b.hour - a.hour)
-            return a.intensity + t * (b.intensity - a.intensity)
-        }
-    }
-    return LIGHT_INTENSITY_MAX
+// CE light.cc:48 lightSetAmbientIntensity — adds the Night Vision bonus
+// (LIGHT_LEVEL_NIGHT_VISION_BONUS = 65536/5 per rank) and clamps to MIN..MAX.
+function setAmbientIntensity(intensity: number): void {
+    const nightVision = (globalState.player?.perks ?? []).filter((p: string) => p === 'Night Vision').length
+    const adjusted = intensity + nightVision * Math.trunc(65536 / 5)
+    ambientIntensity = Math.max(LIGHT_INTENSITY_MIN, Math.min(LIGHT_INTENSITY_MAX, adjusted))
 }
 
-// Ambient light intensity in the same 0..65536 range Fallout 2 uses. Takes
-// the script override into account.
-//
-// Semantics: the time-of-day curve is the primary driver. If a script calls
-// set_light_level, the override acts as a brightness CEILING — min(curve,
-// override). The script can only darken the area further; the curve still
-// provides night-time darkness regardless. set_light_level(100) therefore
-// means "no artificial darkening" (= CE's default reset), and the curve
-// governs as normal. CE has no curve so this distinction is moot there;
-// in DH2 this preserves the night cycle on outdoor maps while still
-// honouring darkness scripts (caves, vaults) at any time of day.
+// Ambient light intensity in Fallout 2's 0..65536 range.
 export function getAmbientLight(): number {
-    const hourFloat = getHour() + getMinute() / 60
-    const curveValue = curveAt(hourFloat)
-    if (lightLevelOverride !== null) {
-        return Math.min(curveValue, lightLevelOverride)
-    }
-    return curveValue
+    return ambientIntensity
 }
 
 // 0..1 for the GL fragment shader.
@@ -227,14 +182,13 @@ export function getAmbientLightNormalized(): number {
 // Called by the scripting intrinsic `set_light_level(level)`. Fallout 2
 // passes 0..100; we map that across the min..max intensity range.
 // CE ref: interpreter_extra.cc:2233 opSetLightLevel — no outdoor guard in CE.
+// Called by the scripting intrinsic `set_light_level(level)`.
+// CE ref: interpreter_extra.cc:2233 opSetLightLevel — piecewise mapping over
+// intensities = [MIN, (MIN+MAX)/2, MAX] = [16384, 40960, 65536]; no clamp of the
+// 0..100 input (lightSetAmbientIntensity clamps the result).
 export function setLightLevelOverride(level0to100: number): void {
-    // CE ref: interpreter_extra.cc:2233 opSetLightLevel — piecewise mapping
-    // intensities = [MIN, (MIN+MAX)/2, MAX]  i.e. [16384, 40960, 65536]
-    // level > 50: 40960 + level * (65536-40960) / 100
-    // level = 50: 40960
-    // level < 50: 16384 + level * (40960-16384) / 100
     const mid = (LIGHT_INTENSITY_MIN + LIGHT_INTENSITY_MAX) / 2 // 40960
-    const data = Math.max(0, Math.min(100, level0to100))
+    const data = level0to100
     let intensity: number
     if (data === 50) {
         intensity = mid
@@ -243,15 +197,13 @@ export function setLightLevelOverride(level0to100: number): void {
     } else {
         intensity = Math.trunc(LIGHT_INTENSITY_MIN + data * (mid - LIGHT_INTENSITY_MIN) / 100)
     }
-    lightLevelOverride = intensity
-    dbg('script', `[lighting] script set_light_level(${level0to100}) → override=${(lightLevelOverride / LIGHT_INTENSITY_MAX).toFixed(3)}`)
+    setAmbientIntensity(intensity)
+    dbg('script', `[lighting] set_light_level(${level0to100}) -> ambient=${(ambientIntensity / LIGHT_INTENSITY_MAX).toFixed(3)}`)
 }
 
+// CE ref: map.cc:927 — ambient light resets to maximum on every map load.
 export function clearLightLevelOverride(): void {
-    if (lightLevelOverride !== null) {
-        dbg('script', '[lighting] override cleared')
-    }
-    lightLevelOverride = null
+    setAmbientIntensity(LIGHT_INTENSITY_MAX)
 }
 
 // --- Schedule helpers (NPC sleep / shop open hours) ---
