@@ -20,6 +20,7 @@ limitations under the License.
 import globalState from '../../globalState.js'
 import * as GameTime from '../../gametime.js'
 import { clearScreen, makeContentArea, makeHeader, makeRow } from '../shell.js'
+import { appendQuestLog } from './archives.js'
 
 export function renderStatusTab(screen: HTMLDivElement): void {
     clearScreen(screen)
@@ -44,4 +45,7 @@ export function renderStatusTab(screen: HTMLDivElement): void {
     content.appendChild(makeRow('Date', GameTime.getDateString()))
     const nightLabel = GameTime.isNightTime() ? 'NIGHT' : 'DAY'
     content.appendChild(makeRow('Cycle', nightLabel))
+
+    // CE pipboy.cc pipboyWindowHandleStatus — quests are listed on the STATUS page.
+    appendQuestLog(content)
 }

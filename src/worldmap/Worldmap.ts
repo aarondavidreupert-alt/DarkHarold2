@@ -17,6 +17,7 @@ limitations under the License.
 // World Map module state, constants, DOM lifecycle, and travel loop —
 // carved out of worldmap.ts. See wiki/ts-split-refactor.md §10.
 
+import { scriptsCheckGameEvents } from '../gameTick.js'
 import { resolveCanonicalCarMapName } from '../carParking.js'
 import { areaContainingMap, loadAreas } from '../data.js'
 import * as GameTime from '../gametime.js'
@@ -708,6 +709,10 @@ export function updateWorldmapPlayer() {
         GameTime.advanceMinutes(Math.max(1, Math.round(10 * travelScale * pathfinderMult)))
         updateDial()
         updateDate()
+
+        // CE ref: worldmap.cc:3017 wmCheckGameEvents — story events (ARTIMER movies,
+        // Arroyo failure) are checked continuously while travelling, not only at midnight.
+        scriptsCheckGameEvents(GameTime.getTotalDays())
 
         // CE ref: worldmap.cc wmInterfaceScrollMap — pan viewport to keep player centred.
         applyPan(Math.floor(worldmapPlayer.x - VIEW_W / 2), Math.floor(worldmapPlayer.y - VIEW_H / 2))

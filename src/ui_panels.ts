@@ -49,6 +49,7 @@ export enum UIMode {
     characterCreator = 17,
     dialog = 18,
     companionControl = 19,
+    movie = 20, // gameMovie.ts modal player — pauses tickGame like other panels
 }
 
 // --- $uiContainer ownership -------------------------------------------------

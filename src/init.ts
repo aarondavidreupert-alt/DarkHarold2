@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { randomSeedPrerandom } from './random.js'
+import { gameMoviePlay, GAME_MOVIE_FADE_IN, GAME_MOVIE_STOP_MUSIC, MOVIE_CREDITS, MOVIE_ELDER, MOVIE_INTRO, MOVIE_IPLOGO } from './gameMovie.js'
 import { Config } from './config.js'
 import { CriticalEffects } from './criticalEffects.js'
 import { Events } from './events.js'
@@ -73,7 +75,14 @@ export function initGame() {
 
     // Wire main menu + character creator after UI is ready. Callbacks break the
     // potential circular import: ui_mainmenu ↔ ui_charactercreator.
-    const startNewGame = () => globalState.gMap.loadMap('artemple')
+    // CE main.cc:114 — after character creation: gameMoviePlay(MOVIE_ELDER, STOP_MUSIC),
+    // reseed the RNG, then load the starting map.
+    const startNewGame = () => {
+        void gameMoviePlay(MOVIE_ELDER, GAME_MOVIE_STOP_MUSIC).then(() => {
+            randomSeedPrerandom(-1)
+            globalState.gMap.loadMap('artemple')
+        })
+    }
     initCharacterCreator(startNewGame, showMainMenu)
     initMainMenu(showCharacterCreator)
 
@@ -85,7 +94,16 @@ export function initGame() {
         // overlay covers the canvas so the player never sees it during menu).
         // This avoids potential game-loop crashes from a completely unloaded map.
         globalState.gMap.loadMap('artemple')
-        showMainMenu()
+        // CE main.cc:86-91 — IPLOGO (fade in), INTRO, CREDITS before the main menu,
+        // unless sfall's SkipOpeningMovies is set (Config.ui.skipOpeningMovies).
+        if (Config.ui.skipOpeningMovies) {
+            showMainMenu()
+        } else {
+            void gameMoviePlay(MOVIE_IPLOGO, GAME_MOVIE_FADE_IN)
+                .then(() => gameMoviePlay(MOVIE_INTRO, 0))
+                .then(() => gameMoviePlay(MOVIE_CREDITS, 0))
+                .then(() => showMainMenu())
+        }
     }
 
     // CE ref: tile.cc tile_fill_roof — roof hiding is now per-building:

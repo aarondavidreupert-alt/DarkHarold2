@@ -16,6 +16,7 @@ limitations under the License.
 Scripting system/engine for DarkFO
 */
 
+import { gameMoviePlay, SCRIPT_MOVIE_FLAGS } from './gameMovie.js'
 import { randomInit, randomSeedPrerandom } from './random.js'
 import { critterAdjustRadiation } from './radiation.js'
 import { Combat, isCombatActive } from './combat.js'
@@ -2425,25 +2426,10 @@ export module Scripting {
         game_time_advance(ticks: number) {
             log('game_time_advance', arguments)
             info('advancing time ' + ticks + ' ticks (' + ticks / 10 + ' seconds)')
-            const dayBefore = GameTime.getTotalDays()
+            // CE ref: interpreter_extra.cc:2761 opGameTimeAdvance — advance, then
+            // queueProcessEvents(); GameTime's time-jump hook (gameTick.ts) runs every
+            // crossed midnight and fires the expired timed events in due order.
             GameTime.advanceTicks(ticks)
-            const dayAfter = GameTime.getTotalDays()
-            // CE ref: interpreter_extra.cc:2761 opGameTimeAdvance — calls queueProcessEvents() per day advanced.
-            // Fire midnight events synchronously for each day that elapsed (GTC2/GTC5).
-            for (let d = dayBefore + 1; d <= dayAfter; d++) {
-                processMidnightForDay(d)
-            }
-            // Process any timed events whose countdown expires in the skipped window.
-            let numEvents = timeEventList.length
-            for (let i = 0; i < numEvents; i++) {
-                timeEventList[i].ticks -= ticks
-                if (timeEventList[i].ticks <= 0) {
-                    info('timed event triggered by time advance', 'timer')
-                    timeEventList[i].fn()
-                    timeEventList.splice(i--, 1)
-                    numEvents--
-                }
-            }
         }
 
         // game
@@ -2454,10 +2440,12 @@ export module Scripting {
             else globalState.gMap.loadMapByID(map)
         }
         play_gmovie(movieID: number) {
-            // CE: interpreter_extra.cc:opPlayGameMovie (0x45A14C)
-            // FO2 .mve movies are not converted/supported. Log and skip.
-            info('play_gmovie: movie ' + movieID + ' (no .mve support — skipping)')
-            uiLog('[Movie ' + movieID + ' skipped]')
+            // CE: interpreter_extra.cc:3581 opPlayGameMovie — per-movie flags table,
+            // map updates and dialogue disabled while it plays (DH2: the movie sets a
+            // modal uiMode, which pauses tickGame). CE blocks the script until the movie
+            // ends; DH2's VM can't block, so the script continues behind the modal overlay.
+            info('play_gmovie: movie ' + movieID)
+            void gameMoviePlay(movieID, SCRIPT_MOVIE_FLAGS[movieID] ?? 0)
         }
         endgame_slideshow() {
             // CE: interpreter_extra.cc:opEndgameSlideshow (0x8146)

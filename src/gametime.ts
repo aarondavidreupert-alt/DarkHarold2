@@ -67,7 +67,10 @@ export function getTime(): number {
 }
 
 export function setTime(ticks: number): void {
+    const before = globalState.gameTickTime
     globalState.gameTickTime = Math.max(1, ticks)
+    const delta = globalState.gameTickTime - before
+    if (delta > 0) timeJumpHandler?.(delta)
 }
 
 // Total elapsed seconds / minutes / hours / days since Jan 1 of year 1 of
@@ -142,9 +145,19 @@ export function getDateString(): string {
 
 // --- Time advance ---
 
+// CE's event queue stores absolute due-times, so any clock jump (rest, travel,
+// game_time_advance, skill time costs) fires whatever became overdue. DH2's timed
+// events count down per tick instead; gameTick.ts registers this hook to drain
+// them (and run each crossed midnight) whenever the clock jumps.
+let timeJumpHandler: ((deltaTicks: number) => void) | null = null
+export function setTimeJumpHandler(fn: (deltaTicks: number) => void): void {
+    timeJumpHandler = fn
+}
+
 export function advanceTicks(ticks: number): void {
     if (ticks <= 0) return
     globalState.gameTickTime += ticks
+    timeJumpHandler?.(ticks)
 }
 export function advanceSeconds(seconds: number): void { advanceTicks(seconds * TICKS_PER_SECOND) }
 export function advanceMinutes(minutes: number): void { advanceTicks(minutes * TICKS_PER_MINUTE) }

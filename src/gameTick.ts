@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { gameMoviePlay, GAME_MOVIE_FADE_IN, GAME_MOVIE_FADE_OUT, GAME_MOVIE_PAUSE_MUSIC, GAME_MOVIE_STOP_MUSIC } from './gameMovie.js'
 import { getRandomInt } from './util.js'
 import { checkRads } from './radiation.js'
 import { heart } from './heart.js'
@@ -44,6 +45,7 @@ import { Config } from './config.js'
 // persisted field (map entry resets the cadence anyway).
 let nextMapUpdateTick = 600
 let critterScriptCursor = -1 // CE scripts.cc _count_
+let gameEndingTriggered = false
 
 // Tracks the last elapsed-day count for midnight event detection (GTC5)
 let lastMidnightDay = -1
@@ -52,6 +54,28 @@ let lastMidnightDay = -1
 // Exported so game_time_advance (scripting.ts) can fire it synchronously for
 // each day that elapses during a scripted time skip (CE: queueProcessEvents
 // per day in opGameTimeAdvance, interpreter_extra.cc:2761).
+// Clock jumped forward by `delta` ticks outside the per-tick loop — run every
+// crossed midnight and fire the timed events that expired, earliest first
+// (CE queueProcessEvents fires overdue events in due-time order).
+function processTimeJump(delta: number): void {
+    const now = globalState.gameTickTime
+    const dayBefore = Math.floor((now - delta) / GameTime.TICKS_PER_DAY)
+    const dayAfter = Math.floor(now / GameTime.TICKS_PER_DAY)
+    for (let d = dayBefore + 1; d <= dayAfter; d++) processMidnightForDay(d)
+
+    if (!Config.engine.doTimedEvents) return
+    const due = Scripting.timeEventList.filter((e) => e.ticks - delta <= 0).sort((a, b) => a.ticks - b.ticks)
+    for (const e of Scripting.timeEventList) e.ticks -= delta
+    for (const e of due) {
+        const idx = Scripting.timeEventList.indexOf(e)
+        if (idx === -1) continue
+        Scripting.timeEventList.splice(idx, 1)
+        if (e.obj && e.obj instanceof Critter && e.obj.dead) continue
+        e.fn()
+    }
+}
+GameTime.setTimeJumpHandler(processTimeJump)
+
 export function processMidnightForDay(day: number): void {
     if (lastMidnightDay === -1 || day <= lastMidnightDay) return
     lastMidnightDay = day
@@ -268,31 +292,33 @@ export function tickGame(): void {
 // Movie IDs from game_movie.h (MOVIE_AFAILED=4, MOVIE_ARTIMER1-4=12-15)
 // GVAR indices (0-based, game_vars.h): ENEMY_ARROYO=7, TOWN_REP_ARROYO=47, FALLOUT_2=494
 // City indices (worldmap.h City enum): CITY_ARROYO=0, CITY_DESTROYED_ARROYO=22
-function scriptsCheckGameEvents(day: number): void {
+export function scriptsCheckGameEvents(day: number): void {
     const gvars = Scripting.getGlobalVars()
     const MOVIE_AFAILED = 4
     const ARTIMER_MOVIE_BASE = 12  // MOVIE_ARTIMER1
     const ARTIMER_DAYS = [90, 180, 270, 360]
 
     if (gvars[7]) {
-        // GVAR_ENEMY_ARROYO non-zero → Arroyo destroyed by Enclave; play AFAILED ending.
-        if (!globalState.seenMovies.has(MOVIE_AFAILED)) {
-            globalState.seenMovies.add(MOVIE_AFAILED)
-            dbg('map', 'ARTIMER: AFAILED — Arroyo destroyed, triggering death ending')
-            Endgame.setupDeathEnding(Endgame.DEATH_REASON_TIMEOUT)
-            Endgame.playDeathEnding().catch((e: unknown) =>
-                dbgWarn('endgame', 'GTC5 AFAILED ending error: ' + String(e)))
-        }
+        // GVAR_ENEMY_ARROYO non-zero → Arroyo destroyed by the Enclave. CE plays
+        // MOVIE_AFAILED (FADE_IN | STOP_MUSIC) once and sets _game_user_wants_to_quit = 2:
+        // the game ends straight back to the main menu (no slides).
+        if (gameEndingTriggered) return
+        gameEndingTriggered = true
+        const seen = globalState.seenMovies.has(MOVIE_AFAILED)
+        dbg('map', 'ARTIMER: AFAILED — Arroyo destroyed, game over')
+        ;(seen ? Promise.resolve() : gameMoviePlay(MOVIE_AFAILED, GAME_MOVIE_FADE_IN | GAME_MOVIE_STOP_MUSIC))
+            .then(() => location.reload())
         return
     }
 
-    const fallout2Complete = (gvars[494] ?? 0) >= 3  // GVAR_FALLOUT_2 >= 3 → main quest done
+    const fallout2 = gvars[494] ?? 0 // GVAR_FALLOUT_2
 
     // Find highest applicable ARTIMER (CE picks the highest crossed threshold, not all of them)
     let movieIdx = -1
     for (let i = 3; i >= 0; i--) {
         const crossedThreshold = day >= ARTIMER_DAYS[i]
-        const eligible = i === 3 ? (crossedThreshold || fallout2Complete) : (crossedThreshold && !fallout2Complete)
+        // CE scripts.cc:453-466: ARTIMER4 when day >= t4 || FALLOUT_2 >= 3; 1-3 need FALLOUT_2 != 3.
+        const eligible = i === 3 ? (crossedThreshold || fallout2 >= 3) : (crossedThreshold && fallout2 !== 3)
         if (eligible) { movieIdx = i; break }
     }
     if (movieIdx === -1) return
@@ -300,8 +326,10 @@ function scriptsCheckGameEvents(day: number): void {
     const movieId = ARTIMER_MOVIE_BASE + movieIdx
     if (globalState.seenMovies.has(movieId)) return  // already fired
 
-    globalState.seenMovies.add(movieId)
     dbg('map', `ARTIMER: ARTIMER${movieIdx + 1} triggered (day ${day})`)
+    // CE: gameMoviePlay(movie, FADE_IN | FADE_OUT | PAUSE_MUSIC) — marks it seen.
+    globalState.seenMovies.add(movieId)
+    void gameMoviePlay(movieId, GAME_MOVIE_FADE_IN | GAME_MOVIE_FADE_OUT | GAME_MOVIE_PAUSE_MUSIC)
 
     // CE ref: scripts.cc:487 — adjustRep: GVAR_TOWN_REP_ARROYO -= 15
     const repIdx = 47

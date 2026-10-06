@@ -55,6 +55,7 @@ import fomap
 import convertLST
 import convertEndgame
 import convertAudio
+import convertMovies
 
 # global paths/flags
 SRC_DIR = None
@@ -211,6 +212,19 @@ def export_audio(overwrite=True):
 		warn("Error converting audio (see traceback above). Will continue setup.")
 	return True
 
+def export_movies(overwrite=True):
+	# CE ref: game_movie.cc gameMoviePlay — .MVE playback. Browsers can't decode
+	# Interplay MVE, so convert to WebM (VP9/Opus) + a timer-rate JSON used for
+	# subtitle/fade timing. Needs ffmpeg on PATH or ffmpeg.exe in the project root;
+	# skipped with a warning otherwise.
+	info("Converting MVE movies to WebM, please wait while this runs.")
+	try:
+		convertMovies.convertAll(overwrite=overwrite)
+	except Exception:
+		traceback.print_exc()
+		warn("Error converting movies (see traceback above). Will continue setup.")
+	return True
+
 def convert_lsts(overwrite=True):
 	if not overwrite and os.path.exists("lut/lst") and os.listdir("lut/lst"):
 		info("Skipping LST conversion - lut/lst/ already populated")
@@ -311,6 +325,7 @@ STAGES = {
 	"export_pros": export_pros,
 	"export_maps": export_maps,
 	"export_audio": export_audio,
+	"export_movies": export_movies,
 	"convert_lsts": convert_lsts,
 	"convert_endgame": convert_endgame_data,
 }

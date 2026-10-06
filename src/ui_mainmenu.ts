@@ -22,6 +22,9 @@
 // Keyboard bindings from gMainMenuButtonKeyBindings[]:
 //   i = INTRO, n = NEW GAME, l = LOAD GAME, o = OPTIONS, c = CREDITS, e/ESC = EXIT
 
+import { createOverlay, removeOverlay, showCredits } from './endgame/slideRender.js'
+import { showOptionsMenu } from './ui_options.js'
+import { gameMoviePlay, GAME_MOVIE_STOP_MUSIC, MOVIE_CREDITS, MOVIE_INTRO } from './gameMovie.js'
 import { font4 } from './ui_font.js'
 import { uiSaveLoad } from './ui_saveload.js'
 import globalState from './globalState.js'
@@ -174,8 +177,11 @@ function handleKey(e: KeyboardEvent): void {
 function handleButton(btn: MainMenuButton): void {
     switch (btn) {
         case MainMenuButton.INTRO:
-            // FO2-CE: plays intro movie; stub as no-op when video unavailable.
-            dbgWarn('stub', '[MainMenu] INTRO: video not implemented')
+            // CE main.cc:105 — gameMoviePlay(MOVIE_INTRO, STOP_MUSIC) then MOVIE_CREDITS.
+            hideMainMenu()
+            void gameMoviePlay(MOVIE_INTRO, GAME_MOVIE_STOP_MUSIC)
+                .then(() => gameMoviePlay(MOVIE_CREDITS, 0))
+                .then(() => showMainMenu())
             break
 
         case MainMenuButton.NEW_GAME:
@@ -189,14 +195,19 @@ function handleButton(btn: MainMenuButton): void {
             break
 
         case MainMenuButton.OPTIONS:
-            // Options/preferences panel not yet implemented.
-            // In-game the same panel is opened via the optionsButton HUD button.
-            alert('Preferences not yet implemented.')
+            // CE main.cc:197 — doPreferences(true): the same preferences screen as in game.
+            showOptionsMenu()
             break
 
         case MainMenuButton.CREDITS:
-            // Stub — full credits screen not yet implemented.
-            alert('DarkFO\n\nFallout 2 by Black Isle Studios / Interplay')
+            // CE main.cc:202 — creditsOpen("credits.txt", -1, false) (scrolling text credits).
+            hideMainMenu()
+            void (async () => {
+                const overlay = createOverlay()
+                await showCredits(overlay)
+                removeOverlay()
+                showMainMenu()
+            })()
             break
 
         case MainMenuButton.EXIT:
