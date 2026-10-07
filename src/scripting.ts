@@ -1728,7 +1728,7 @@ export module Scripting {
                 case 1: return getMessage(msgCat, pro.textID) ?? ''
                 case 2: return getMessage(msgCat, pro.textID + 1) ?? ''
                 case 3: return ((pro.frmType ?? objType) << 24) | (pro.frmPID ?? 0)
-                case 4: return pro.lightDistance ?? pro.lightRadius ?? 0
+                case 4: return pro.lightDistance ?? 0
                 case 5: return pro.lightIntensity ?? 0
                 case 6: return pro.flags ?? 0
             }

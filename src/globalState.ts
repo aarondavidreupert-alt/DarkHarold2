@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { Proto } from './proto_types.js'
 import { AudioEngine } from './audio.js'
 import type { CycleMask } from './colorCycle.js'
 import type { Combat } from './combat.js'
@@ -129,7 +130,7 @@ const globalState = {
     inCombat: boolean
     messageFiles: { [msgFile: string]: { [msgID: string]: string } }
     player: Player | null
-    proMap: any // TODO: type
+    proMap: { [type: string]: { [id: number]: Proto } } | null // proto/pro.json, by type name then proto id
 
     skillMode: Skills
 

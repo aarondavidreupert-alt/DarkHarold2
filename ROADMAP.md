@@ -174,8 +174,7 @@ a believable playthrough.
 - ✅ Dead `tile_coord()` function removed (TS4 FIXED 2026-06-03).
 - 🟡 **Town faction deltas** — per-town rep GVARs synced + displayed with CE tier labels (R2 FIXED 2026-07-28).
   VERIFIED 2026-10-07: CE has no engine-side reaction modifier (`reaction.cc _reaction_influence_` returns 0; reaction is LVAR 0, which scripts manage). The one engine write is `_critter_set_who_hit_me` setting the victim's reaction to −3 when the player hits it, now ported (C19).
-- 🔴 **Type annotations**: `Obj.type`, `Obj.pro`, `Obj.art`, `Obj.extra`, `Obj.anim`,
-  `globalState.proMap`, `Critter.weapon` — still `any`.
+- ✅ **Type annotations** (2026-10-07): `Obj.type` is an `ObjType` union, `Obj.pro` is `Proto`, `Obj.anim` is `string | null`, `Obj.extra` is a keyed map, `globalState.proMap` is typed, and `Weapon.weapon` is `WeaponObj | UnarmedWeaponStub`. `Proto.extra` stays deliberately `any` (see `proto_types.ts`). The pass caught a stale `pro.lightRadius` fallback and a dead `weapon === 'punch'` check.
 
 ---
 

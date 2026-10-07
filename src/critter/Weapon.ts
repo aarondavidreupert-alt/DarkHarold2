@@ -23,6 +23,7 @@ import globalState from '../globalState.js'
 import { dbgWarn } from '../logger.js'
 import type { Critter } from '../object/Critter.js'
 import type { WeaponObj } from '../object/items.js'
+import type { Obj } from '../object/Obj.js'
 
 const weaponSkins: { [weapon: string]: string } = {
     uzi: 'i',
@@ -197,9 +198,12 @@ export function getAvailableUnarmedMoves(unarmedSkill: number, charLevel: number
     return UNARMED_MOVES.filter(m => unarmedSkill >= m.skillReq && charLevel >= m.levelReq)
 }
 
+// Unarmed "weapon": no item, just the proto-shaped fields the AP/range code reads.
+export interface UnarmedWeaponStub { pro: { extra: { [key: string]: any } }; pid?: undefined }
+
 // TODO: improve handling of melee
 export class Weapon {
-    weapon: any // TODO: any (because of melee)
+    weapon: WeaponObj | UnarmedWeaponStub // the item, or a stub carrying unarmed AP/range
     name: string
     modes: string[]
     mode: string // current mode
@@ -224,8 +228,7 @@ export class Weapon {
             this.maxDmg = 2
             this.name = 'punch'
             this.weaponSkillType = 'Unarmed'
-            this.weapon = {}
-            this.weapon.pro = { extra: {} }
+            this.weapon = { pro: { extra: {} } }
             this.weapon.pro.extra.maxRange1 = 1
             this.weapon.pro.extra.maxRange2 = 1
             this.weapon.pro.extra.APCost1 = 3 // base punch AP cost
@@ -270,8 +273,10 @@ export class Weapon {
     cycleMode(): void {
         // Dynamically append 'reload' when magazine is not full (Fallout 2 cycle order:
         // single → called/aimed → [burst] → reload → single)
-        const maxAmmo = ammoGetCapacity(this.weapon)
-        const canReload = maxAmmo > 0 && ammoGetQuantity(this.weapon) < maxAmmo
+        // The unarmed stub isn't a weapon item, so the helpers report 0 for it.
+        const item = this.weapon as Obj
+        const maxAmmo = ammoGetCapacity(item)
+        const canReload = maxAmmo > 0 && ammoGetQuantity(item) < maxAmmo
         const effectiveModes = canReload ? [...this.modes, 'reload'] : this.modes
 
         const idx = effectiveModes.indexOf(this.mode)
@@ -372,7 +377,6 @@ export class Weapon {
 
     getAttackSkin(): string | null {
         if (this.weapon.pro === undefined || this.weapon.pro.extra === undefined) return null
-        if (this.weapon === 'punch') return 'q'
 
         const modeSkinMap: { [mode: string]: string } = {
             punch: 'q',

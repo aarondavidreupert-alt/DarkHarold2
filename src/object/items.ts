@@ -21,10 +21,10 @@ import { ammoGetQuantity, weaponGetAmmoTypePid } from '../weaponAmmo.js'
 import { Weapon } from '../critter.js'
 import { getLstId } from '../data.js'
 import { getMessage } from '../util.js'
-import { Obj, SerializedObj } from './Obj.js'
+import { Obj, ObjType, SerializedObj } from './Obj.js'
 
 export class Item extends Obj {
-    type = 'item'
+    type: ObjType = 'item'
 
     static fromPID(pid: number, sid?: number): Item {
         return Obj.fromPID_(new Item(), pid, sid)
@@ -88,7 +88,7 @@ export class WeaponObj extends Item {
 }
 
 export class Scenery extends Obj {
-    type = 'scenery'
+    type: ObjType = 'scenery'
 
     static fromPID(pid: number, sid?: number): Scenery {
         return Obj.fromPID_(new Scenery(), pid, sid)

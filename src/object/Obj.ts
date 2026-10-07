@@ -18,6 +18,10 @@ limitations under the License.
 // Split out of object.ts per wiki/ts-split-refactor.md §2.
 
 import { initWeaponAmmo } from '../weaponAmmo.js'
+import type { Proto } from '../proto_types.js'
+
+// Object kinds as getPROTypeName() names them (plus map-object kinds that carry no proto).
+export type ObjType = 'item' | 'critter' | 'scenery' | 'wall' | 'tile' | 'misc' | 'spatial'
 import { critterDamage } from '../critter.js'
 import { getLstId, lookupScriptName } from '../data.js'
 import { Events, scheduleExplosion } from '../events.js'
@@ -320,8 +324,8 @@ export class Obj {
 
     pid: number // PID (Prototype IDentifier)
     pidID: number // ID (not type) part of the PID
-    type: string = null // TODO: enum // Type of object (critter, item, ...)
-    pro: any = null // TODO: pro ref // PRO Object
+    type: ObjType = null // getPROTypeName(): item/critter/scenery/wall/tile/misc
+    pro: Proto = null // PRO object (shared per pid — see weaponAmmo.ts for per-object state)
     flags = 0 // Flags from PRO; may be overriden by map objects
     art: string // TODO: Path // Art path
     frmPID: number = null // Art FID
@@ -331,7 +335,7 @@ export class Obj {
     locked = false // Is the object locked? (Mainly for doors)
     jammed = false // Is the lock jammed? (CE DOOR_FLAG_JAMMGED / OBJ_JAMMED)
 
-    extra: any // TODO
+    extra: { [key: string]: any } // per-object map data (fomap.py item/scenery/misc extras)
 
     script: string // Script name
     _script: Scripting.Script | undefined // Live script object
@@ -341,7 +345,7 @@ export class Obj {
     subtype: string // Some objects, like items and scenery, have subtypes
     invArt: string // Art path used for in-inventory image
 
-    anim: any = null // Current animation (TODO: Is this only a string? It should probably be an enum.)
+    anim: string | null = null // Current animation name ('idle', 'walk', 'attack', ...)
     animCallback: () => void | null = null // Callback when current animation is finished playing
     frame = 0 // Animation frame index
     lastFrameTime = 0 // Time since last animation frame played
@@ -384,7 +388,7 @@ export class Obj {
         const pidType = (pid >> 24) & 0xff
         const pidID = pid & 0xffff
 
-        const pro: any = loadPRO(pid, pidID) // TODO: any
+        const pro: Proto = loadPRO(pid, pidID)
         obj.type = getPROTypeName(pidType)
         obj.pid = pid
         obj.pro = pro

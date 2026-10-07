@@ -31,7 +31,7 @@ import { Scripting } from '../scripting.js'
 import { getMessage } from '../util.js'
 import { getAiPacket, AiPacket } from '../aiPackets.js'
 import { getObjectLightIntensity } from '../combat/hitChance.js'
-import { hitSpatialTrigger, Obj, objectIsWeapon, SerializedObj, setObjectOpen } from './Obj.js'
+import { hitSpatialTrigger, Obj, ObjType, objectIsWeapon, SerializedObj, setObjectOpen } from './Obj.js'
 import { WeaponObj } from './items.js'
 
 export interface SerializedCritter extends SerializedObj {
@@ -70,7 +70,7 @@ export class Critter extends Obj {
     leftHand?: WeaponObj // Left-hand object slot
     rightHand?: WeaponObj // Right-hand object slot
 
-    type = 'critter'
+    type: ObjType = 'critter'
     anim = 'idle'
     path: any = null // Holds pathfinding objects
     AP: ActionPoints | null = null

@@ -40,9 +40,9 @@ export function loadPRO(pid: number, pidID: number) {
     return globalState.proMap[type][id]
 }
 
-export function getPROTypeName(type: number) {
+export function getPROTypeName(type: number): 'item' | 'critter' | 'scenery' | 'wall' | 'tile' | 'misc' {
     // singular
-    const map: { [type: number]: string } = {0: 'item', 1: 'critter', 2: 'scenery', 3: 'wall', 4: 'tile', 5: 'misc'}
+    const map: { [type: number]: 'item' | 'critter' | 'scenery' | 'wall' | 'tile' | 'misc' } = {0: 'item', 1: 'critter', 2: 'scenery', 3: 'wall', 4: 'tile', 5: 'misc'}
     return map[type]
 }
 
