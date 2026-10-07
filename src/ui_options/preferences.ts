@@ -38,6 +38,10 @@ export interface SavedPreferences {
     musicVolume?: number
     sfxVolume?: number
     speechVolume?: number
+    combatTaunts?: boolean
+    combatLooks?: boolean
+    brightness?: number
+    mouseSensitivity?: number
 }
 
 export const PREFS_KEY = 'dh2_preferences'
@@ -69,6 +73,11 @@ export function loadPreferences(): void {
     if (prefs.textBaseDelay !== undefined) Config.ui.textBaseDelay = prefs.textBaseDelay
     if (prefs.playerSpeedup !== undefined) Config.engine.playerSpeedup = prefs.playerSpeedup
     if (prefs.itemHighlight !== undefined) Config.ui.itemHighlight = prefs.itemHighlight
+    if (prefs.combatTaunts !== undefined) Config.ui.combatTaunts = prefs.combatTaunts
+    if (prefs.combatLooks !== undefined) Config.ui.combatLooks = prefs.combatLooks
+    if (prefs.brightness !== undefined) Config.ui.brightness = prefs.brightness
+    if (prefs.mouseSensitivity !== undefined) Config.ui.mouseSensitivity = prefs.mouseSensitivity
+    applyBrightness()
 
     // Audio volumes — applied after audioEngine may be set
     if (globalState.audioEngine) {
@@ -109,10 +118,44 @@ export function savePreferences(): void {
         textBaseDelay: Config.ui.textBaseDelay,
         playerSpeedup: Config.engine.playerSpeedup,
         itemHighlight: Config.ui.itemHighlight,
+        combatTaunts: Config.ui.combatTaunts,
+        combatLooks: Config.ui.combatLooks,
+        brightness: Config.ui.brightness,
+        mouseSensitivity: Config.ui.mouseSensitivity,
         masterVolume: he ? Math.round(he.masterVolume * 100) : 100,
         musicVolume: he ? Math.round(he.musicVolume * 100) : 100,
         sfxVolume: he ? Math.round(he.sfxVolume * 100) : 100,
         speechVolume: heSpeech ? Math.round(heSpeech.speechVolume * 100) : 100,
     }
     localStorage.setItem(PREFS_KEY, JSON.stringify(prefs))
+}
+
+// CE ref: color.cc colorSetBrightness — gamma table over the 6-bit palette:
+// out[i] = clamp(i ^ brightness, 0, 63). Applied to the game canvas as an SVG
+// component-transfer filter with that table (identity at 1.0).
+export function applyBrightness(): void {
+    if (typeof document === 'undefined') return
+    const canvas = document.getElementById('cnv') as HTMLElement | null
+    if (!canvas) return
+    const b = Config.ui.brightness
+    if (!(b > 1.0)) {
+        canvas.style.filter = ''
+        return
+    }
+    const table: string[] = []
+    for (let i = 0; i < 64; i++) table.push((Math.min(63, Math.max(0, Math.pow(i, b))) / 63).toFixed(4))
+    const values = table.join(' ')
+    let svg = document.getElementById("dh2GammaSvg") as unknown as SVGSVGElement | null
+    if (!svg) {
+        svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+        svg.id = 'dh2GammaSvg'
+        svg.setAttribute('width', '0')
+        svg.setAttribute('height', '0')
+        svg.style.position = 'absolute'
+        svg.innerHTML = '<filter id="dh2Gamma" color-interpolation-filters="sRGB"><feComponentTransfer>'
+            + '<feFuncR type="table"/><feFuncG type="table"/><feFuncB type="table"/></feComponentTransfer></filter>'
+        document.body.appendChild(svg)
+    }
+    for (const f of Array.from(svg.querySelectorAll('feFuncR, feFuncG, feFuncB'))) f.setAttribute('tableValues', values)
+    canvas.style.filter = 'url(#dh2Gamma)'
 }

@@ -400,14 +400,14 @@ Phase 9 (remaining tractable gaps) 🟡/🔴
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| AF1 | **Indicator bar is DOM text, not FRM sprites.** CE renders badge FRMs (e.g. `intrface/idxbadge.frm`) at fixed pixel offsets in the HUD. DH2 uses `<span>` elements above the bar. | `interface.cc indicatorBarDraw()` | low |
-| AF2 | **INDICATOR_SLOTS_COUNT = 6, but DH2 has no slot reservation.** CE allocates 6 fixed pixel slots; badges slide into position 0–5. DH2 has no slot concept — badges just flex. | `interface.cc:2890 INDICATOR_SLOTS_COUNT` | low |
-| AF3 | **HP/AC digit sprites use custom backgroundPosition trick, not CE's `buf_to_buf` blit.** Functionally equivalent but doesn't use pre-baked FRM digit sprites from `numeron.frm`. | `interface.cc interfaceRenderHitPoints()` | low |
-| AF4 | **AP pip sprites hardcode `hlgrn.png`/`hlred.png`; CE picks FRM by AP state per slot.** Missing: "move AP" (yellow) pips correctly matching CE interface — CE uses separate ap_active/ap_move/ap_empty FRMs. DH2 approximates with hlyel. | `interface.cc interfaceRenderActionPoints()` | low |
-| AF5 | **Ammo bar widget renders 55 px fill; CE uses a 4-frame FRM strip for each increment.** Cosmetic difference only. | `interface.cc interfaceRenderAmmoBar()` | low |
-| AF6 | **`interfaceBarEndButtonsEnable/Disable` not fully wired.** CE dims End Turn / End Combat buttons via a separate FRM; DH2 uses CSS opacity. | `interface.cc` | low |
+| AF1 | ✅ VERIFIED 2026-10-07 — badges are pre-rendered from `warnbox.png` (FRM 126) + font text, as in CE. **Indicator bar is DOM text, not FRM sprites.** CE renders badge FRMs (e.g. `intrface/idxbadge.frm`) at fixed pixel offsets in the HUD. DH2 uses `<span>` elements above the bar. | `interface.cc indicatorBarDraw()` | low |
+| AF2 | ✅ VERIFIED 2026-10-07 — CE packing (connector overlap, enum order) implemented in `renderIndicatorBadges`. **INDICATOR_SLOTS_COUNT = 6, but DH2 has no slot reservation.** CE allocates 6 fixed pixel slots; badges slide into position 0–5. DH2 has no slot concept — badges just flex. | `interface.cc:2890 INDICATOR_SLOTS_COUNT` | low |
+| AF3 | ✅ VERIFIED 2026-10-07 — digits come from `numbers.frm` with CE colour bands; step delay now CE's 250/(|Δ|+1). **HP/AC digit sprites use custom backgroundPosition trick, not CE's `buf_to_buf` blit.** Functionally equivalent but doesn't use pre-baked FRM digit sprites from `numeron.frm`. | `interface.cc interfaceRenderHitPoints()` | low |
+| AF4 | ✅ VERIFIED 2026-10-07 — green/yellow(bonus move)/red-when-not-your-turn pips match `interfaceRenderActionPoints`. **AP pip sprites hardcode `hlgrn.png`/`hlred.png`; CE picks FRM by AP state per slot.** Missing: "move AP" (yellow) pips correctly matching CE interface — CE uses separate ap_active/ap_move/ap_empty FRMs. DH2 approximates with hlyel. | `interface.cc interfaceRenderActionPoints()` | low |
+| AF5 | ✅ FIXED 2026-10-07 — 1×70 px column at bar (463,26), palette 196/14 stripes from the bottom, ratio rounded to even, misc-item charges (`interfaceUpdateAmmoBar`). **Ammo bar widget renders 55 px fill; CE uses a 4-frame FRM strip for each increment.** Cosmetic difference only. | `interface.cc interfaceRenderAmmoBar()` | low |
+| AF6 | ✅ FIXED 2026-10-07 — FRM lights plus buttonEnable/Disable (End Turn/End Combat inert on red). **`interfaceBarEndButtonsEnable/Disable` not fully wired.** CE dims End Turn / End Combat buttons via a separate FRM; DH2 uses CSS opacity. | `interface.cc` | low |
 | AF7 | **No CE equivalent found — entry based on incorrect premise.** `interfaceRenderItemBars()` does not exist in CE source. The only bar CE renders near the weapon slot is the ammo-fill bar (`interfaceUpdateAmmoBar`), which DH2 implements as `uiUpdateAmmoBar`. No action required. | `interface.cc` | n/a |
-| AF8 | **Combat hover info is DOM overlay; CE renders directly into buffer.** Functional parity but no `windowRefresh` integration. | `interface.cc` | low |
+| AF8 | ✅ FIXED 2026-10-07 — now shows only CE's to-hit readout with `_colorTable` team colours (CI18); a DOM overlay is the browser stand-in for the cursor blit. **Combat hover info is DOM overlay; CE renders directly into buffer.** Functional parity but no `windowRefresh` integration. | `interface.cc` | low |
 
 ### AF-PREFS — preferences.cc gaps
 
@@ -415,10 +415,10 @@ Phase 9 (remaining tractable gaps) 🟡/🔴
 |----|------|--------|-----|
 | AF9 | ✅ FIXED (prior sprint) — `brightness` slider implemented in `ui_options.ts`; CSS filter applied to canvas. | `preferences.cc PREF_BRIGHTNESS` | minor |
 | AF10 | ✅ FIXED (prior sprint) — `mouseSensitivity` slider implemented in `ui_options.ts`; applied to mouse delta. | `preferences.cc PREF_MOUSE_SENSITIVITY` | low |
-| AF11 | **`running` toggle cycles boolean; CE uses a 2-way toggle knob FRM (prflknbs.frm).** DH2 uses a cycle button; cosmetic. | `preferences.cc` | low |
-| AF12 | **`game_difficulty` uses CE 3-way knob (prfbknbs.frm); DH2 uses a cycle button.** The 4-way rotary knob FRM is not loaded. | `preferences.cc PREF_GAME_DIFFICULTY` | low |
-| AF13 | **Preferences background (`prefscrn.frm`) not loaded.** DH2 prefs panel uses a raw `<div>` with inline styles; the 640×480 background FRM is never rendered. | `preferences.cc` | low |
-| AF14 | **`combat_messages` uses cycle button; CE uses 2-way toggle knob (prflknbs.frm).** | `preferences.cc PREF_COMBAT_MESSAGES` | low |
+| AF11 | ✅ VERIFIED 2026-10-07 — `prflknbs.png` 2-way knob. **`running` toggle cycles boolean; CE uses a 2-way toggle knob FRM (prflknbs.frm).** DH2 uses a cycle button; cosmetic. | `preferences.cc` | low |
+| AF12 | ✅ VERIFIED 2026-10-07 — `prfbknbs.png` knob. **`game_difficulty` uses CE 3-way knob (prfbknbs.frm); DH2 uses a cycle button.** The 4-way rotary knob FRM is not loaded. | `preferences.cc PREF_GAME_DIFFICULTY` | low |
+| AF13 | ✅ VERIFIED 2026-10-07 — panel is laid out over `prefscrn.png`. **Preferences background (`prefscrn.frm`) not loaded.** DH2 prefs panel uses a raw `<div>` with inline styles; the 640×480 background FRM is never rendered. | `preferences.cc` | low |
+| AF14 | ✅ VERIFIED 2026-10-07 — `prflknbs.png` 2-way knob. **`combat_messages` uses cycle button; CE uses 2-way toggle knob (prflknbs.frm).** | `preferences.cc PREF_COMBAT_MESSAGES` | low |
 | AF15 | ✅ FIXED (prior sprint) — DEFAULT button in `ui_options.ts` resets all sliders to CE defaults via `preferencesSetDefaults()` equivalent. | `preferences.cc preferencesSave()` | low |
 | AF16 | ~~**`text_line_delay` absent.**~~ FIXED 2026-07-28 — line delay derived and applied in `gameTick.ts` float-message expiry; see CI9. | `settings.h:43` | low |
 | AF17 | ~~**`language_filter` checkbox absent.**~~ FIXED (prior sprint) — `Config.ui.languageFilter` toggle wired to preferences panel secondary-knob at (299,207) in `ui_options.ts:312`. | `preferences.cc PREF_LANGUAGE_FILTER` | low |

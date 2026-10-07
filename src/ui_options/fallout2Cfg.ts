@@ -93,6 +93,17 @@ export function applyCfg(cfg: CfgSections): void {
     if (ps !== null) Config.engine.playerSpeedup = ps !== 0
     const rbg = int(prefs['running_burning_guy'])
     if (rbg !== null) Config.combat.runningBurningGuy = rbg !== 0
+    const ct = int(prefs['combat_taunts'])
+    if (ct !== null) Config.ui.combatTaunts = ct !== 0
+    const cl = int(prefs['combat_looks'])
+    if (cl !== null) Config.ui.combatLooks = cl !== 0
+    const flt = (key: string, lo: number, hi: number, set: (v: number) => void) => {
+        if (prefs[key] === undefined) return
+        const v = parseFloat(prefs[key])
+        if (Number.isFinite(v) && v >= lo && v <= hi) set(v)
+    }
+    flt('brightness', 1.0, 1.18, (v) => { Config.ui.brightness = v })
+    flt('mouse_sensitivity', 1.0, 2.5, (v) => { Config.ui.mouseSensitivity = v })
     if (prefs['text_base_delay'] !== undefined) {
         const tbd = parseFloat(prefs['text_base_delay'])
         if (Number.isFinite(tbd) && tbd >= 1 && tbd <= 6) Config.ui.textBaseDelay = tbd

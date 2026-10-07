@@ -29,7 +29,7 @@ import { WindowFrame } from './ui_components.js'
 import { makePanelDraggable } from './ui_drag.js'
 import { uiSaveLoad } from './ui_saveload.js'
 import globalState from './globalState.js'
-import { getVolumeValue, savePreferences } from './ui_options/preferences.js'
+import { applyBrightness, getVolumeValue, savePreferences } from './ui_options/preferences.js'
 import { showConfirm } from './ui_dialog.js'
 
 // FO2-CE ref: preferences.cc TargetHighlight enum — 0=off, 1=targeting-only, 2=all-enemies.
@@ -252,11 +252,6 @@ function buildPrefsPanel(): HTMLElement {
     }
 
     // ── Local state for prefs not yet in Config ───────────────────────────────
-    // These are rendered faithfully but not persisted until Config fields are added.
-    let combatLooks = 0
-    let combatTaunts = 1
-    let brightness = 1.0       // CE range 1.0–1.18 (preferences.cc dbl_50C168)
-    let mouseSensitivity = 1.0 // CE range 1.0–2.5
 
     // ── Primary knobs (prfbknbs.png) ─────────────────────────────────────────
     // CE ref: gPreferenceDescriptions[] — knobX=76 for all, varying knobY.
@@ -293,8 +288,8 @@ function buildPrefsPanel(): HTMLElement {
     }
     primaryKnob(76, 309, thFrame, () => { Config.ui.targetHighlight = thOrder[(thFrame() + 1) % 3] })
 
-    // Combat Looks: knobY=387, 2-way (local state).
-    primaryKnob(76, 387, () => combatLooks, () => { combatLooks = (combatLooks + 1) % 2 })
+    // Combat Looks: knobY=387, 2-way. CE ref: game_mouse.cc:745.
+    primaryKnob(76, 387, () => Config.ui.combatLooks ? 1 : 0, () => { Config.ui.combatLooks = !Config.ui.combatLooks })
 
     // ── Secondary knobs (prflknbs.png) ───────────────────────────────────────
     // CE ref: gPreferenceDescriptions[] — knobX=299 for all, varying knobY.
@@ -306,8 +301,8 @@ function buildPrefsPanel(): HTMLElement {
         () => { Config.ui.combatMessages = Config.ui.combatMessages === 'brief' ? 'verbose' : 'brief' },
     )
 
-    // Combat Taunts: knobY=141 (local).
-    secondaryKnob(299, 141, () => combatTaunts, () => { combatTaunts = 1 - combatTaunts })
+    // Combat Taunts: knobY=141. CE ref: combat_ai.cc:3308 _combatai_msg.
+    secondaryKnob(299, 141, () => Config.ui.combatTaunts ? 1 : 0, () => { Config.ui.combatTaunts = !Config.ui.combatTaunts })
 
     // Language Filter: knobY=207. CE ref: preferences.cc PREF_LANGUAGE_FILTER.
     secondaryKnob(299, 207, () => Config.ui.languageFilter ? 1 : 0, () => { Config.ui.languageFilter = !Config.ui.languageFilter })
@@ -355,22 +350,22 @@ function buildPrefsPanel(): HTMLElement {
     stdSlider(298, 0, 100, () => getVolumeValue('sfx'),    v => { globalState.audioEngine.setVolume('sfx',    v) })
     stdSlider(349, 0, 100, () => getVolumeValue('speech'), v => { globalState.audioEngine.setVolume('speech', v) })
 
-    // Brightness: knobY=400, CE 1.0–1.18 (local state).
+    // Brightness: knobY=400, CE 1.0–1.18 — applied live (colorSetBrightness).
     rangeSlider(
         400,
-        () => brightness,
-        v => { brightness = v },
+        () => Config.ui.brightness,
+        v => { Config.ui.brightness = v; applyBrightness() },
         0, 100,
         (v: number) => Math.round((v - 1.0) * (219 / 0.18)) + 384,
         (v: number) => Math.round((v - 1.0) * (100 / 0.18)),
         (n: number) => 1.0 + Math.max(0, Math.min(0.18, n * 0.18 / 100)),
     )
 
-    // Mouse Sensitivity: knobY=451, CE 1.0–2.5 (local state).
+    // Mouse Sensitivity: knobY=451, CE 1.0–2.5 (stored only — the browser owns the pointer).
     rangeSlider(
         451,
-        () => mouseSensitivity,
-        v => { mouseSensitivity = v },
+        () => Config.ui.mouseSensitivity,
+        v => { Config.ui.mouseSensitivity = v },
         0, 150,
         (v: number) => Math.round((v - 1.0) * (219 / 1.5)) + 384,
         (v: number) => Math.round((v - 1.0) * 100),
@@ -390,9 +385,9 @@ function buildPrefsPanel(): HTMLElement {
         Config.combat.difficultyModifier = 100
         Config.combat.violenceLevel = 3
         Config.ui.targetHighlight = 'targeting-only'
-        combatLooks = 0
+        Config.ui.combatLooks = false
         Config.ui.combatMessages = 'brief'
-        combatTaunts = 1
+        Config.ui.combatTaunts = true
         Config.ui.languageFilter = false
         Config.engine.doAlwaysRun = false
         Config.ui.subtitles = false
@@ -400,8 +395,9 @@ function buildPrefsPanel(): HTMLElement {
         Config.combat.combatSpeed = 0
         Config.engine.playerSpeedup = false
         Config.ui.textBaseDelay = 3.5
-        brightness = 1.0
-        mouseSensitivity = 1.0
+        Config.ui.brightness = 1.0
+        Config.ui.mouseSensitivity = 1.0
+        applyBrightness()
         refreshFns.forEach(f => f())
     })
 

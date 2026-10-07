@@ -27,6 +27,7 @@ import {
     SCREEN_HEIGHT,
     SCREEN_WIDTH,
 } from './renderer.js'
+import { objLookAt } from './examine.js'
 import { Scripting } from './scripting.js'
 import {
     drawAP,
@@ -171,8 +172,9 @@ export function installInputHandlers(): void {
                 globalState.commandModeTimer = window.setTimeout(() => {
                     globalState.showLookCursor = true
                     const hoverObj = getObjectUnderCursor((_: Obj) => true)
-                    if (hoverObj) {
-                        uiLog('You see: ' + hoverObj.getName())
+                    // CE game_mouse.cc look-cursor hover: _obj_look_at
+                    if (hoverObj && globalState.player) {
+                        for (const line of objLookAt(globalState.player, hoverObj)) uiLog(line)
                     }
                 }, 1000)
             } else if (globalState.cursorMode === 'command') {
@@ -232,8 +234,9 @@ export function installInputHandlers(): void {
             globalState.commandModeTimer = window.setTimeout(() => {
                 globalState.showLookCursor = true
                 const hoverObj = getObjectUnderCursor((_: Obj) => true)
-                if (hoverObj) {
-                    uiLog('You see: ' + hoverObj.getName())
+                // CE game_mouse.cc look-cursor hover: _obj_look_at
+                if (hoverObj && globalState.player) {
+                    for (const line of objLookAt(globalState.player, hoverObj)) uiLog(line)
                 }
             }, 1000)
         }

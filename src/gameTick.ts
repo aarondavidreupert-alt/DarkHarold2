@@ -155,9 +155,9 @@ export function tickGame(): void {
             const obj = getObjectUnderCursor((obj) => obj.isSelectable)
             if (obj !== null) {
                 changeCursor('pointer')
-                // Show combat hover info for critters during combat
-                if (globalState.inCombat && obj instanceof Critter && !obj.dead) {
-                    uiShowCombatHover(obj as Critter, globalState.cursorPos.x, globalState.cursorPos.y)
+                // CE game_mouse.cc:745 — the to-hit readout follows the attack cursor.
+                if (globalState.inCombat && globalState.cursorMode === 'attack') {
+                    uiShowCombatHover(obj, globalState.cursorPos.x, globalState.cursorPos.y)
                 } else {
                     uiHideCombatHover()
                 }

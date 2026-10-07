@@ -278,20 +278,26 @@ html, body {
 
 #attackButtonWeapon {}
 
+/* CE ref: interface.cc interfaceUpdateAmmoBar — a 1x70 px column at bar (463, 26),
+   i.e. (198, 0) in this container: palette 14 (#282828) above, and from the bottom
+   `ratio` rows alternating palette 196 (#64e464) / 14, top row green. */
 #ammoBar {
   position: absolute;
-  bottom: 32px;
-  left: 158px;
-  width: 55px;
-  height: 1px;
-  background: #111;
+  left: 198px;
+  top: 0px;
+  width: 1px;
+  height: 70px;
+  background: #282828;
   overflow: hidden;
 }
 
 #ammoBarFill {
-  height: 100%;
-  width: 0;
-  background: #00ff00;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 0;
+  background: repeating-linear-gradient(to bottom, #64e464 0px, #64e464 1px, #282828 1px, #282828 2px);
 }
 
 #attackButtonContainer:active #attackButtonWeapon {

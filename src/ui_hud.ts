@@ -17,7 +17,9 @@ limitations under the License.
 // Main HUD bar: HP / AC / AP readouts, weapon display, combat-mode buttons,
 // combat hover info, and the scrolling message log.
 
-import { ammoGetQuantity } from './weaponAmmo.js'
+import { objExamine, objLookAt } from './examine.js'
+import { ammoGetCapacity, ammoGetQuantity } from './weaponAmmo.js'
+import { Config } from './config.js'
 import globalState from './globalState.js'
 import { Critter, Obj, WeaponObj, objectIsWeapon } from './object.js'
 import { getMessage } from './util.js'
@@ -65,8 +67,7 @@ export function drawDigits(idPrefix: string, amount: number, maxDigits: number, 
 //
 // CE ref: interface.cc interfaceRenderCounter / interfaceRenderHitPoints.
 // Steps one unit per tick from the last displayed value toward the new target.
-// Delay between ticks = max(16, 250 / |change|) ms — total ~250 ms for large
-// changes, slower for small ones (1-unit change = 125 ms).
+// Delay between ticks = 250 / (|change| + 1) ms (CE) — ~250 ms in total.
 // CE blocks the main loop synchronously; DH2 uses a non-blocking setInterval.
 
 let _dispHp: number | null = null   // value currently shown on the HUD (null = uninit)
@@ -104,7 +105,7 @@ export function drawHP(hp: number): void {
     if (_dispHp === hp) return
 
     const step  = hp > _dispHp ? 1 : -1
-    const delay = Math.max(16, Math.floor(250 / Math.abs(hp - _dispHp)))
+    const delay = Math.trunc(250 / (Math.abs(hp - _dispHp) + 1)) // CE interfaceRenderHitPoints
 
     const timerId = setInterval(() => {
         if (_dispHp === null) { clearInterval(timerId); return }
@@ -128,7 +129,7 @@ export function drawAC(ac: number): void {
     if (_dispAc === ac) return
 
     const step  = ac > _dispAc ? 1 : -1
-    const delay = Math.max(16, Math.floor(250 / Math.abs(ac - _dispAc)))
+    const delay = Math.trunc(250 / (Math.abs(ac - _dispAc) + 1)) // CE interfaceRenderArmorClass
 
     const timerId = setInterval(() => {
         if (_dispAc === null) { clearInterval(timerId); return }
@@ -471,15 +472,18 @@ export function uiDrawWeapon(): void {
 export function uiUpdateAmmoBar(weapon: WeaponObj | null): void {
     const fill = document.getElementById('ammoBarFill')
     if (!fill) return
-    // CE ref: interface.cc interfaceBarRefreshMainAction line ~1361 — fill = ratio * 70
+    // CE ref: interface.cc:1355 interfaceBarRefreshMainAction — ratio = current/max * 70
+    // (weapon ammo, or a misc item's charges); interfaceUpdateAmmoBar rounds it down to even.
     let ratio = 0
     const extra = (weapon as any)?.pro?.extra
     if (extra?.maxAmmo > 0) {
-        ratio = Math.floor((ammoGetQuantity(weapon) / extra.maxAmmo) * 70)
-    } else if (extra?.maxCharges > 0) {
-        ratio = Math.floor(((extra.charges ?? 0) / extra.maxCharges) * 70)
+        ratio = Math.trunc((ammoGetQuantity(weapon) / extra.maxAmmo) * 70)
+    } else if (extra?.charges > 0) { // misc proto `charges` = CE miscItemGetMaxCharges
+        ratio = Math.trunc((((weapon as any)?.miscCharges ?? 0) / extra.charges) * 70)
     }
-    fill.style.width = Math.max(0, Math.min(70, ratio)) + 'px'
+    ratio = Math.max(0, Math.min(70, ratio))
+    if ((ratio & 1) !== 0) ratio -= 1
+    fill.style.height = ratio + 'px'
 }
 
 // --- Combat bar ------------------------------------------------------------
@@ -515,13 +519,23 @@ function stepEndAnim(dir: 1 | -1, onDone: () => void): void {
 // CE ref: interface.cc interfaceBarEndButtonsRenderRedLights / RenderGreenLights —
 // Show the light overlay over the end-button container.
 // Red lights = AI turn (buttons disabled); green lights = player's turn (buttons enabled).
+// CE ref: interface.cc interfaceBarEndButtonsRenderRed/GreenLights — the lights
+// FRM and buttonDisable/buttonEnable on End Turn / End Combat.
+function setEndButtonsEnabled(enabled: boolean): void {
+    for (const id of ['endTurnButton', 'endCombatButton']) {
+        const b = document.getElementById(id)
+        if (b) b.style.pointerEvents = enabled ? '' : 'none'
+    }
+}
 export function uiEndButtonsRedLights(): void {
+    setEndButtonsEnabled(false)
     const el = document.getElementById('endLights')
     if (!el) return
     el.style.backgroundImage = "url('art/intrface/endltred.png')"
     el.style.display = 'block'
 }
 export function uiEndButtonsGreenLights(): void {
+    setEndButtonsEnabled(true)
     const el = document.getElementById('endLights')
     if (!el) return
     el.style.backgroundImage = "url('art/intrface/endltgrn.png')"
@@ -573,36 +587,65 @@ export function uiEndCombat(): void {
     if (player?.AP) updateAttackButtonAvailability(player.AP.getAvailableMoveAP(), true)
 }
 
-export function uiShowCombatHover(target: Critter, screenX: number, screenY: number): void {
+// CE _colorTable[rgb555] → CSS.
+const rgb555 = (v: number): string => {
+    const c = (x: number) => Math.round(((x & 31) * 255) / 31)
+    return `rgb(${c(v >> 10)}, ${c(v >> 5)}, ${c(v)})`
+}
+let _lastHoverObj: Obj | null = null
+
+// CE ref: game_mouse.cc:745-777 — with the attack cursor over an object: "NN%" from
+// _combat_to_hit (bad shot → " X "), coloured by team (non-player team 32767/31744,
+// player team 32495/18161, non-critter 17969/32239); with combat_looks on, the object
+// is examined (_obj_examine) when the pointed object changes.
+export function uiShowCombatHover(target: Obj, screenX: number, screenY: number): void {
     const $hover = document.getElementById('combatHoverInfo')
     if (!$hover) return
+    const player = globalState.player
+    if (!player) return
 
-    let info = `${target.name || 'Unknown'}\nHP: ${target.getStat('HP')}/${target.getStat('Max HP')}`
-
-    // Show the target's equipped weapon. Non-hostile NPCs have fists until they
-    // turn hostile and draw from inventory (see Critter.equipFromInventory()).
-    const targetWeapon = (target as any).equippedWeapon as WeaponObj | null
-    const hasRealWeapon = targetWeapon?.weapon && targetWeapon.weapon.weaponSkillType !== 'Unarmed'
-    if (hasRealWeapon && targetWeapon!.pro) {
-        const wepName = getMessage('pro_item', targetWeapon!.pro.textID) ?? targetWeapon!.weapon!.name
-        info += `\n${wepName} [armed]`
-    } else {
-        info += '\nUnarmed'
+    if (Config.ui.combatLooks && target !== _lastHoverObj) {
+        // CE: _obj_examine, falling back to _obj_look_at.
+        const lines = objExamine(player, target)
+        for (const line of (lines.length ? lines : objLookAt(player, target))) uiLog(line)
     }
+    _lastHoverObj = target
 
-    if (globalState.inCombat && globalState.combat && globalState.player!.equippedWeapon?.weapon) {
-        const hitChance = globalState.combat.getHitChance(globalState.player!, target, 'torso')
-        info += `\nHit: ${Math.max(0, hitChance.hit)}%`
+    const isCritter = target.type === 'critter'
+    const notPlayerTeam = isCritter && (target as Critter).teamNum !== player.teamNum
+    let text: string
+    let color: string
+    const weaponOk = !globalState.combat || (player.equippedWeapon === null || aiHaveAmmoForHover(player))
+    if (isCritter && !(target as Critter).dead && weaponOk && globalState.combat) {
+        const hit = globalState.combat.getHitChance(player, target as Critter, 'torso').hit
+        text = `${hit}%`
+        color = rgb555(notPlayerTeam ? 32767 : 32495)
+    } else if (!isCritter) {
+        // CE also shows the to-hit for non-critters (colour 17969 / 32239); DH2's
+        // getHitChance needs a critter target, so the hover stays hidden for those.
+        uiHideCombatHover()
+        return
+    } else {
+        text = ' X '
+        color = rgb555(notPlayerTeam ? 31744 : 18161)
     }
 
     $hover.style.display = 'block'
     $hover.style.left = (screenX + 16) + 'px'
     $hover.style.top = (screenY - 10) + 'px'
-    $hover.textContent = info
+    $hover.style.color = color
     $hover.style.whiteSpace = 'pre'
+    $hover.textContent = text
+}
+
+// _combat_check_bad_shot's ammo test, enough for the hover's OK/" X " split.
+function aiHaveAmmoForHover(player: Critter): boolean {
+    const w = player.equippedWeapon
+    return ammoGetCapacity(w) === 0 || ammoGetQuantity(w) > 0
 }
 
 export function uiHideCombatHover(): void {
+    _lastHoverObj = null
     const $hover = document.getElementById('combatHoverInfo')
     if ($hover) $hover.style.display = 'none'
 }

@@ -1067,6 +1067,7 @@ export class Combat {
 
     maybeTaunt(obj: Critter, type: string, roll: boolean) {
         if (roll === false) return
+        if (!Config.ui.combatTaunts) return // CE combat_ai.cc:3308 _combatai_msg
         const range = obj.ai!.packet.messageRanges[type]
         if (!range) return
         const [start, end] = range

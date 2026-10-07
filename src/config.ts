@@ -75,6 +75,14 @@ export const Config = {
         languageFilter: false,
         // FO2-CE ref: preferences.cc text_base_delay — on-screen text linger time, 1.0–6.0 s
         textBaseDelay: 3.5,
+        // CE settings.preferences.combat_taunts — AI combat float messages (combat_ai.cc:3308 _combatai_msg)
+        combatTaunts: true,
+        // CE settings.preferences.combat_looks — examine whatever the attack cursor points at (game_mouse.cc:745)
+        combatLooks: false,
+        // CE settings.preferences.brightness — palette gamma, 1.0–1.18 (color.cc colorSetBrightness)
+        brightness: 1.0,
+        // CE settings.preferences.mouse_sensitivity — 1.0–2.5 (stored; the browser owns the pointer speed)
+        mouseSensitivity: 1.0,
     },
 
     engine: {

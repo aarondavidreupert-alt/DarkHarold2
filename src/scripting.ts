@@ -3010,6 +3010,23 @@ export module Scripting {
         return script._didOverride
     }
 
+    // CE proto_instance.cc _obj_look_at_func / _obj_examine_func — SCRIPT_PROC_LOOK_AT /
+    // SCRIPT_PROC_DESCRIPTION with source = the viewer; true if the script overrode the
+    // engine's text (script_overrides).
+    function runViewProc(obj: Obj, source: Obj, proc: 'look_at_p_proc' | 'description_p_proc'): boolean {
+        const script: any = obj._script
+        if (!script || script[proc] === undefined) return false
+        script.source_obj = source
+        script.self_obj = obj as ScriptableObj
+        script.game_time = Math.max(1, globalState.gameTickTime)
+        script.cur_map_index = currentMapID
+        script._didOverride = false
+        script[proc]()
+        return script._didOverride
+    }
+    export function lookAt(obj: Obj, source: Obj): boolean { return runViewProc(obj, source, 'look_at_p_proc') }
+    export function description(obj: Obj, source: Obj): boolean { return runViewProc(obj, source, 'description_p_proc') }
+
     export function use(obj: Obj, source: Obj): boolean | null {
         if (!obj._script || obj._script.use_p_proc === undefined) return null
 

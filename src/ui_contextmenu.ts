@@ -19,6 +19,7 @@ limitations under the License.
 // buttons (talk / use / look / pickup / loot) plus the always-visible
 // inventory and skill (skilldex) buttons.
 
+import { objExamine } from './examine.js'
 import globalState from './globalState.js'
 import { dbg, dbgWarn } from './logger.js'
 import { Critter, Obj } from './object.js'
@@ -69,7 +70,8 @@ export function uiContextMenu(obj: Obj, evt: any) {
         top: `${ly}px`,
     })
     const cancelBtn = button(obj, 'cancel')
-    const lookBtn = button(obj, 'look', () => uiLog('You see: ' + obj.getLookText()))
+    // CE: the look action examines (proto_instance.cc _obj_examine_func).
+    const lookBtn = button(obj, 'look', () => { for (const line of objExamine(globalState.player!, obj)) uiLog(line) })
     const useBtn = button(obj, 'use', () => {
         globalState.player.walkInFrontOf(obj.position, () => {
             globalState.player.clearAnim()
