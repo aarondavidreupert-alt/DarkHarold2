@@ -17,7 +17,7 @@ limitations under the License.
 import { Config } from '../config.js'
 import { getCurrentMapInfo } from '../data.js'
 import { Events } from '../events.js'
-import { hexDistance, hexFromScreen, hexInDirectionDistance, hexLine, hexNeighbors, hexToScreen, HEX_GRID_SIZE, Point } from '../geometry.js'
+import { hexDistance, hexFromScreen, hexInDirection, hexInDirectionDistance, hexLine, hexNeighbors, hexToScreen, HEX_GRID_SIZE, Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { Lightmap } from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
@@ -313,31 +313,45 @@ export class GameMap {
         })
     }
 
+    // CE ref: party_member.cc _partyMemberSyncPosition — visible critter members go
+    // to alternating sides of the player (rotation +4, then +2) at distance 1, 1, 2, 2,
+    // 3, … via _objPMAttemptPlacement. Non-critters (the car trunk) and hidden members
+    // stay where they are; their scripts place them.
     placeParty() {
-        // set up party members' positions
-        globalState.gParty.getPartyMembers().forEach((obj: Critter) => {
-            // attempt party member placement around player
-            let placed = false
-            for (let dist = 1; dist < 3; dist++) {
-                for (let dir = 0; dir < 6; dir++) {
-                    const pos = hexInDirectionDistance(globalState.player.position, dir, dist)
-                    if (this.objectsAtPosition(pos).length === 0) {
-                        obj.position = pos
-                        dbg('object', 'placed %o @ %o', obj, pos)
-                        placed = true
-                        break
-                    }
-                }
+        const dude = globalState.player
+        if (!dude) return
+        const clockwise = (dude.orientation + 2) % 6
+        const counterClockwise = (dude.orientation + 4) % 6
+        let n = 0
+        let distance = 2
+        for (const member of globalState.gParty.getPartyMembers()) {
+            if (member.type !== 'critter' || GameMap.isHiddenObj(member)) continue
+            const rotation = n % 2 !== 0 ? clockwise : counterClockwise
+            const tile = hexInDirectionDistance(dude.position, rotation, Math.trunc(distance / 2))
+            member.position = this.attemptPartyPlacement(dude, tile)
+            dbg('object', 'placed %o @ %o', member, member.position)
+            distance++
+            n++
+        }
+    }
 
-                if (placed) {
-                    break
-                }
-            }
-
-            if (!placed) {
-                dbg('object', "couldn't place %o (player position: %o)", obj, globalState.player.position)
-            }
-        })
+    // CE ref: proto_instance.cc:2244 _objPMAttemptPlacement + worldmap.cc
+    // wmEvalTileNumForPlacement (not blocked, and reachable from the player): if the
+    // wanted tile fails, spiral out from the player (direction v%6, step 1) up to 100
+    // steps, giving up (back to the wanted tile) once more than 8 hexes away.
+    private attemptPartyPlacement(dude: Obj, tile: Point): Point {
+        const ok = (p: Point): boolean => {
+            if (this.blockingObjectAt(toTileNum(p), dude.elevation, 0, dude) !== null) return false
+            return this.recalcPath(dude.position, p, false, dude).length > 0
+        }
+        if (ok(tile)) return tile
+        let cur = dude.position
+        for (let v = 1; v <= 100; v++) {
+            cur = hexInDirection(cur, v % 6)
+            if (ok(cur)) return cur
+            if (hexDistance(dude.position, cur) > 8) return tile
+        }
+        return cur
     }
 
     doEnterNewMap(isFirstRun: boolean): void {
