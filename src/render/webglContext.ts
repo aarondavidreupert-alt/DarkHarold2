@@ -88,6 +88,8 @@ export class WebGLRenderer extends Renderer {
     // and shaders/fragment*.glsl sampleTileLight. wiki/alignment.md §7.
     uLightInterp: WebGLUniformLocation | null = null       // on tileShader (fragment.glsl)
     uFloorLightInterp: WebGLUniformLocation | null = null  // on floorLightShader (fragmentLighting.glsl)
+    uFloorCycleTime: WebGLUniformLocation | null = null    // floorLightShader u_cycleTime (RD10, CPU path)
+    uFloorUseCycle: WebGLUniformLocation | null = null     // floorLightShader u_useCycleMask
     lightInterpValue = 2                                    // int passed to shaders (default 'hex-lerp')
     tileIntensityLinear = false                            // texture filter state (LINEAR vs NEAREST)
 
@@ -536,6 +538,11 @@ export class WebGLRenderer extends Renderer {
         if (Config.engine.doFloorLighting) {
             this.floorLightShader = this.getProgram(this.gl, 'vertex', 'fragmentLighting')
             gl.useProgram(this.floorLightShader)
+            // Colour cycling in the CPU floor path — same unit-7 mask as the tile shader.
+            gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_cycleMask'), 7)
+            this.uFloorCycleTime = gl.getUniformLocation(this.floorLightShader, 'u_cycleTime')
+            this.uFloorUseCycle = gl.getUniformLocation(this.floorLightShader, 'u_useCycleMask')
+            if (this.uFloorUseCycle) gl.uniform1i(this.uFloorUseCycle, 0)
             this.litOffsetLocation = gl.getUniformLocation(this.floorLightShader, 'u_offset')
             this.litScaleLocation = gl.getUniformLocation(this.floorLightShader, 'u_scale')
             this.uLightBuffer = gl.getUniformLocation(this.floorLightShader, 'u_lightBuffer')

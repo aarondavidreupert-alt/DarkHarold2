@@ -48,6 +48,9 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
     // use floor light shader
     gl.useProgram(this.floorLightShader)
     gl.uniform1i(this.uUseGPULighting, 0)
+    // RD10 colour cycling: per-tile mask on unit 7 (bound with each texture below).
+    if (this.uFloorUseCycle) gl.uniform1i(this.uFloorUseCycle, 1)
+    if (this.uFloorCycleTime) gl.uniform1f(this.uFloorCycleTime, performance.now() / 1000.0)
     const ambientCPU = GameTime.getAmbientLightNormalized()
     gl.uniform1f(this.uAmbient, ambientCPU)
     if (ambientCPU !== this.lastLoggedAmbient) {
@@ -110,6 +113,9 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
                 }
 
                 gl.bindTexture(gl.TEXTURE_2D, texture)
+                gl.activeTexture(gl.TEXTURE7)
+                gl.bindTexture(gl.TEXTURE_2D, this.getCycleMaskTex(img))
+                gl.activeTexture(gl.TEXTURE0)
 
                 lastTexture = img
             }
@@ -302,7 +308,8 @@ WebGLRenderer.prototype.compositeFloorWithLighting = function (): void {
     gl.enableVertexAttribArray(litPositionLoc)
     gl.vertexAttribPointer(litPositionLoc, 2, gl.FLOAT, false, 0, 0)
 
-    // Set uniforms for fullscreen quad composite
+    // Set uniforms for fullscreen quad composite (the FBO is already cycled)
+    if (this.uFloorUseCycle) gl.uniform1i(this.uFloorUseCycle, 0)
     gl.uniform1i(this.uUseGPULighting, 1)
     const ambientGPU = GameTime.getAmbientLightNormalized()
     gl.uniform1f(this.uAmbient, ambientGPU)

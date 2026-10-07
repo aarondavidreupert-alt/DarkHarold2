@@ -15,6 +15,78 @@ uniform int u_lightInterp;          // tile-intensity interpolation mode (see sa
 
 varying vec2 v_texCoord;
 
+// Palette colour cycling for the CPU floor path (RD10) — mirrors shaders/fragment.glsl.
+uniform sampler2D u_cycleMask;  // unit 7, (paletteIndex-228)/255 per pixel
+uniform float u_cycleTime;      // seconds since page load
+uniform int u_useCycleMask;     // 1 = sample u_cycleMask (per-tile CPU draws), 0 = composite of the cycled FBO
+
+// CE ref: cycle.cc colorCycleTicker() — returns the animated RGB for a cycling palette entry.
+// palIdx: raw Fallout 2 palette index (229-254).
+// Colors are the CE source values after the >> 2 shift (6-bit) * 4 (to 8-bit), / 255 for GLSL.
+// Rotation direction: CE decrements the start offset each tick, so display order reverses.
+// Formula: displayed_color[palOffset] at tick f = colors[(palOffset - f + N) % N].
+vec3 cycleColor(int palIdx, float t) {
+    // slime: indices 229-232, 4 colors, slow (5fps)
+    if (palIdx <= 232) {
+        int off = palIdx - 229;
+        int f = int(mod(t * 5.0, 4.0));
+        int ci = int(mod(float(off - f + 400), 4.0));
+        if (ci == 0) return vec3(0.0,        108.0/255.0, 0.0);
+        if (ci == 1) return vec3(8.0/255.0,  112.0/255.0, 4.0/255.0);
+        if (ci == 2) return vec3(24.0/255.0, 120.0/255.0, 12.0/255.0);
+        return          vec3(40.0/255.0, 128.0/255.0, 24.0/255.0);
+    }
+    // monitors: indices 233-237, 5 colors, fast (10fps)
+    if (palIdx <= 237) {
+        int off = palIdx - 233;
+        int f = int(mod(t * 10.0, 5.0));
+        int ci = int(mod(float(off - f + 500), 5.0));
+        if (ci == 0) return vec3(104.0/255.0, 104.0/255.0, 108.0/255.0);
+        if (ci == 1) return vec3(96.0/255.0,  100.0/255.0, 124.0/255.0);
+        if (ci == 2) return vec3(84.0/255.0,  104.0/255.0, 140.0/255.0);
+        if (ci == 3) return vec3(0.0,         144.0/255.0, 160.0/255.0);
+        return          vec3(104.0/255.0, 184.0/255.0, 252.0/255.0);
+    }
+    // fire_slow: indices 238-242, 5 colors, slow (5fps)
+    if (palIdx <= 242) {
+        int off = palIdx - 238;
+        int f = int(mod(t * 5.0, 5.0));
+        int ci = int(mod(float(off - f + 500), 5.0));
+        if (ci == 0) return vec3(252.0/255.0, 0.0,         0.0);
+        if (ci == 1) return vec3(212.0/255.0, 0.0,         0.0);
+        if (ci == 2) return vec3(144.0/255.0, 40.0/255.0,  8.0/255.0);
+        if (ci == 3) return vec3(252.0/255.0, 116.0/255.0, 0.0);
+        return          vec3(252.0/255.0, 56.0/255.0,  0.0);
+    }
+    // fire_fast: indices 243-247, 5 colors, medium (7fps)
+    if (palIdx <= 247) {
+        int off = palIdx - 243;
+        int f = int(mod(t * 7.0, 5.0));
+        int ci = int(mod(float(off - f + 500), 5.0));
+        if (ci == 0) return vec3(68.0/255.0,  0.0, 0.0);
+        if (ci == 1) return vec3(120.0/255.0, 0.0, 0.0);
+        if (ci == 2) return vec3(176.0/255.0, 0.0, 0.0);
+        if (ci == 3) return vec3(120.0/255.0, 0.0, 0.0);
+        return          vec3(68.0/255.0,  0.0, 0.0);
+    }
+    // shoreline: indices 248-253, 6 colors, slow (5fps)
+    if (palIdx <= 253) {
+        int off = palIdx - 248;
+        int f = int(mod(t * 5.0, 6.0));
+        int ci = int(mod(float(off - f + 600), 6.0));
+        if (ci == 0) return vec3(80.0/255.0, 60.0/255.0, 40.0/255.0);
+        if (ci == 1) return vec3(72.0/255.0, 56.0/255.0, 40.0/255.0);
+        if (ci == 2) return vec3(64.0/255.0, 52.0/255.0, 36.0/255.0);
+        if (ci == 3) return vec3(60.0/255.0, 48.0/255.0, 36.0/255.0);
+        if (ci == 4) return vec3(52.0/255.0, 44.0/255.0, 32.0/255.0);
+        return          vec3(48.0/255.0, 40.0/255.0, 32.0/255.0);
+    }
+    // bobber (palIdx == 254): red pulse 0→240→0, ~1-second period at 30fps step=16
+    float phase = mod(t, 1.0);
+    float red = (1.0 - abs(2.0 * phase - 1.0)) * (240.0/255.0);
+    return vec3(red, 0.0, 0.0);
+}
+
 // --- Tile-intensity sampling with selectable interpolation (u_lightInterp) ---
 // hexToScreen (src/geometry/hexScreen.ts) is a PER-COLUMN-PARITY affine map, so a
 // plain gl.LINEAR sample blends texels across the hex stagger and produces NW-SE
@@ -115,6 +187,10 @@ float getGPULightIntensity() {
 
 void main() {
     vec4 tileTexel = texture2D(u_image, v_texCoord);
+    if (u_useCycleMask == 1) {
+        int cycCode = int(texture2D(u_cycleMask, v_texCoord).r * 255.0 + 0.5);
+        if (cycCode > 0) tileTexel.rgb = cycleColor(cycCode + 228, u_cycleTime);
+    }
 
     float lightIntensity;
     if (u_useGPULighting == 2) {
