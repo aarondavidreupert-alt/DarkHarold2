@@ -37,6 +37,7 @@ import { ActionPoints } from './actionPoints.js'
 import { AI, fleeHpThreshold } from './AI.js'
 import { computeDamage } from './damage.js'
 import { combatIsShotBlocked, nextShootObstacle } from './lineOfFire.js'
+import { noteHit } from './whoHitMe.js'
 import { lazyLoadImage } from '../images.js'
 import { makePID } from '../pro.js'
 import {
@@ -320,8 +321,10 @@ export class Combat {
 
     // Damage, combat_p_proc and death for one victim of a ranged attack. Returns false
     // if combat ended (a script stopped it), so the caller stops resolving.
-    private applyRangedDamage(attacker: Critter, victim: Critter, damage: number, dmgType: string): boolean {
+    // `accidental`: not the intended target (spray extras, blast victims, stray shots).
+    private applyRangedDamage(attacker: Critter, victim: Critter, damage: number, dmgType: string, accidental: boolean): boolean {
         critterDamage(victim, damage, attacker, true, true, dmgType)
+        noteHit(victim, attacker, accidental)
         if (victim.isPlayer) drawHP(victim.getStat('HP'))
         if (!victim.dead && victim._script?.combat_p_proc) Scripting.combatEvent(victim, 'damage')
         if (!globalState.combat) return false
@@ -548,6 +551,7 @@ export class Combat {
                 uiLog(`${who} hits ${targetName} for ${unarmedDmg} damage (${unarmedModeName})${unarmedExtraMsg}`)
                 if (!(window as any).__test?.fastMode) audio.playWeaponSfx('Y', 'impact')
                 critterDamage(target, unarmedDmg, obj, true, true, 'Normal')
+                noteHit(target, obj, false) // CE combat.cc:4706
                 if (target.isPlayer) drawHP(target.getStat('HP'))
                 if (!target.dead && target._script?.combat_p_proc) {
                     if (Scripting.combatEvent(target, 'damage')) return
@@ -608,6 +612,7 @@ export class Combat {
             if (!(window as any).__test?.fastMode) audio.playWeaponSfx(soundIdChar || '#', 'impact')
 
             critterDamage(target, damage, obj, true, true, attackDmgType)
+            noteHit(target, obj, false) // CE combat.cc:4706
             if (target.isPlayer) drawHP(target.getStat('HP'))
             if (this.isExplosiveAttack(weaponObj!, attackDmgType)) {
                 this.explosionOnExtras(obj, target, target.position, weaponObj!, attackDmgType)
@@ -695,7 +700,7 @@ export class Combat {
         for (const victim of victims) {
             const damage = this.getDamageDone(attacker, victim, 2)
             uiLog(`  ${victim.isPlayer ? 'you' : victim.name} caught in the blast for ${damage} damage`)
-            if (!this.applyRangedDamage(attacker, victim, damage, dmgType)) return
+            if (!this.applyRangedDamage(attacker, victim, damage, dmgType, true)) return
         }
     }
 
@@ -754,7 +759,7 @@ export class Combat {
                 let damage = 0
                 for (let i = 0; i < mainHits; i++) damage += this.getDamageDone(obj, target, damageMultiplier)
                 uiLog(`  ${targetName} took ${damage} damage${extraMsg}`)
-                if (!this.applyRangedDamage(obj, target, damage, dmgType)) return
+                if (!this.applyRangedDamage(obj, target, damage, dmgType, false)) return
             }
         } else {
             if (!(window as any).__test?.fastMode) audio.playSfxByName('cmbtflx')
@@ -772,7 +777,7 @@ export class Combat {
             for (let i = 0; i < rounds; i++) damage += this.getDamageDone(obj, victim, 2)
             const victimName = victim.isPlayer ? 'you' : victim.name
             uiLog(`  ${victimName} took ${damage} damage`)
-            if (!this.applyRangedDamage(obj, victim, damage, dmgType)) return
+            if (!this.applyRangedDamage(obj, victim, damage, dmgType, true)) return
         }
     }
 
@@ -1021,7 +1026,7 @@ export class Combat {
         const damage = this.getDamageDone(attacker, victim, 2)
         const who = attacker.isPlayer ? 'You' : attacker.name
         uiLog(`${who} hit ${victim.isPlayer ? 'you' : victim.name} instead for ${damage} damage!`)
-        this.applyRangedDamage(attacker, victim, damage, dmgType)
+        this.applyRangedDamage(attacker, victim, damage, dmgType, true)
         return { tile: victim.position, hit: victim }
     }
 

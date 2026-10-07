@@ -173,7 +173,7 @@ a believable playthrough.
 - ✅ Hex line-beyond (`hexLineBeyond`) — CE Bresenham screen-space walk (TS3 FIXED 2026-06-03).
 - ✅ Dead `tile_coord()` function removed (TS4 FIXED 2026-06-03).
 - 🟡 **Town faction deltas** — per-town rep GVARs synced + displayed with CE tier labels (R2 FIXED 2026-07-28).
-  Unverified: whether any engine-side NPC reaction modifier exists beyond what scripts read from the GVARs. Ref: `reputation.cc`
+  VERIFIED 2026-10-07: CE has no engine-side reaction modifier (`reaction.cc _reaction_influence_` returns 0; reaction is LVAR 0, which scripts manage). The one engine write is `_critter_set_who_hit_me` setting the victim's reaction to −3 when the player hits it, now ported (C19).
 - 🔴 **Type annotations**: `Obj.type`, `Obj.pro`, `Obj.art`, `Obj.extra`, `Obj.anim`,
   `globalState.proMap`, `Critter.weapon` — still `any`.
 
@@ -370,7 +370,7 @@ These are real FO2 systems but not on the critical path to a playable main quest
 - **Full NPC day-night schedules** — minimal wander (Phase 5d) is enough
 - **Perk selection screen** — ✅ already implemented (`ui_character.ts:1866 showPerkModal`)
 - **Full companion level-up UI** — companions work without it
-- **Engine-side town reaction modifiers** — affects NPC reactions but not quest completion
+- ~~**Engine-side town reaction modifiers**~~ — CE has none (C19, 2026-10-07)
 - **Color cycling / water animation** — visual only
 - **`_tile_mask` pixel-precise hit-testing** — cube rounding sufficient for play
 
