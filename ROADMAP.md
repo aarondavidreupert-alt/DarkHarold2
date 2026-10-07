@@ -5,15 +5,14 @@ unlocks the next. Phases 1–3 are pure connectivity — the engine infrastructu
 already exists, these wire it up. Phases 4–5 introduce the only genuinely new
 systems still needed.
 
-**Last audited: 2026-10-06** (tracker reconciliation — rows below synced to `wiki/known_bugs.md`; the ~94% estimate itself was not re-derived and predates the 2026-09 car/worldmap work)
-Current estimate: **~94% complete** (was ~93% at 2026-06-25; 2026-07-27 sprint
-on branch claude/stealth-audit-regression-vtj3r9: RD14 elevation fade, W9 hotspot
-offset, RD15 verified correct, EV1 gauge animation verified, AC2 violence filter,
-CI2/EV2 game-vs-combat difficulty split, metarule3 IDs 109/110/111, S14 anim delay,
-S26 poison decay, S27 radiation opcodes, P8 make_path, FA6 canEquip, LE5 ammo stack,
-GTC5 game events, LD5 darkness penalty, C14/C15/C16 sneak/stealth/AP fixes;
-2026-07-28: EG3 panning timing, EG4 credits scroll, AC7 adjacent explosion sprites,
-METARULE_VIOLENCE_FILTER).
+**Last audited: 2026-10-07** (branch `100percent`: every row in `wiki/known_bugs.md` closed or documented as won't-fix/approximation)
+Current estimate: **~98% complete** (was ~94% at 2026-10-06). The 2026-10-06/07 sprint ported the
+formerly deferred systems: movies (S15), talking heads/speech (P4), radiation, drugs/addiction, CE RNG,
+party level-ups and placement, the script-driven car (W14), line of fire/friendly fire/blast radius
+(C17), `attackDetermineToHit` (C18), the CE perk table (K6), per-object weapon ammo (LE12), MVAR
+persistence (M8), map-exit scripts (M9), party-free map snapshots (M10), look/examine (IU6), area reveal
+(W15) and fallout2.cfg (CI1). The last ~2% is a full playthrough plus the approximations in README →
+"Known approximations".
 Target: 95% (a playable end-to-end run through Fallout 2's main quest with
 companions, working scripted content, and correct combat).
 

@@ -79,17 +79,14 @@ Proto type encoding (pid high byte): 0=items, 1=critters, 2=scenery, 3=walls, 4=
 Tile coordinate convention: `tileNum = y * 200 + x` (200-wide grid, 40000 max tiles per elevation)
 
 ## Conventions
-- Scripting opcodes live on the `Script` class. The class declaration is in
-  `src/scripting/Script.ts`; opcode bodies are organised by FO2 category in
-  `src/scripting/opcodes/<category>.ts` and assigned onto `Script.prototype`.
-  To add a new opcode: pick the matching category file (see the index in
-  `src/scripting/opcodes/README.md`), declare the method on the `Script`
-  interface in `Script.ts`, and implement it as a
-  `Script.prototype.foo = function (...) { ... }` in the category file.
+- Scripting opcodes live on the `Script` class inside the `Scripting` module in
+  `src/scripting.ts` (the planned `src/scripting/` split has not happened). To
+  add an opcode: add the method to `Script` there, then wire it in
+  `src/vm_bridge.ts` with `bridged("name", argc[, returns])`.
 - Use the existing `stub()` helper for unimplemented opcodes — never silent no-ops
 - Use `dbg()` / `dbgWarn()` from src/logger.ts for logging — never raw console.log in new code
 - TimedEvent / `timeEventList` in scripting.ts is the hook for all tick-based callbacks
-- Do not add addiction, drug, poison/radiation decay, or NPC schedule logic unless the task explicitly asks for it
+- Radiation (`src/radiation.ts`), drugs/addiction (`src/drugs.ts`) and poison decay are CE ports; NPC schedules are script-driven (`critter_p_proc`, as in CE). Keep changes to them CE-faithful.
 
 ### Subfolder layout convention
 When a file gets split, its parts land in a sibling subfolder named after
@@ -141,15 +138,15 @@ substantively. Specifically:
 - The wiki tracker is the source of truth when README and the tracker disagree;
   the README must be updated to match, not the other way around.
 
-## Intentionally Incomplete Systems (do not implement unless asked)
-- Party system — add/remove/enumerate stubs only (src/party.ts)
-- Perk selection UI — `pendingPerkPick` flag exists but no selection screen
-- Poison / radiation / addiction — stat fields defined, no decay loop
-- NPC schedules / day-night AI behavior
-- Unarmed special moves (Haymaker etc.)
-- Subtitles / speech audio playback
-- Endgame slides
-- ~11 script opcodes remain active `stub()` no-ops (e.g. `metarule`, `has_trait`, `using_skill`, `do_check`, `inven_cmds`)
+## Intentionally Incomplete Systems
+Everything formerly listed here is implemented as of the `100percent` branch (2026-10-07):
+party (level-ups, CE placement), perk selection, poison/radiation/addiction, script-driven NPC
+schedules, unarmed special moves, talking heads + speech + subtitles, movies, endgame slides,
+and all 181 vanilla opcodes (0 active `stub()` calls). Remaining deliberate approximations
+are listed in README.md → "Known approximations" and `wiki/known_bugs.md`:
+- Ammo stacks count rounds in `amount` (CE: boxes + rounds in the top box)
+- AI blast safety: no `_ai_move_away` / full `_ai_switch_weapons`
+- Browser limits: no `fallout2.cfg` write-back (localStorage instead), mouse sensitivity stored only
 
 ## Constraints
 - WebGL 2.0 only — no Three.js, no canvas 2D, no native deps

@@ -109,8 +109,11 @@ the pipeline or the TS compiler.
 | `src/player.ts` | `Player extends Critter`: level-up, XP thresholds, HP-per-level formula, skill points | `player.cc` |
 | `src/char.ts` | `StatSet` / `SkillSet` value objects and calculation helpers | `stat.cc`, `skill.cc` |
 | `src/skills.ts` | Skill enum, cost curves, tagged-skill doubling, trait/perk/difficulty modifiers | `skill.cc` |
-| `src/perks.ts` | Barrel — `PerkDef` registry; split into `perks/perks.data.ts` (PERKS array) + `perks/perks.ts` (getValidPerks/getPerkRank/applyPerk) | `perk.cc` |
-| `src/party.ts` | `Party` class: add/remove/follow logic; only basic follow is wired (82 lines) | `party.cc` |
+| `src/perks.ts` | Barrel — `PerkDef` registry; split into `perks/perks.data.ts` (selectable PERKS list), `perks/perks.ts` (getValidPerks/getPerkRank/applyPerk) and `perks/cePerks.ts` (CE `gPerkDescriptions` runtime fields by CE perk id: names, `perkApplyEffect`, `armorPerkSwap`) | `perk.cc` |
+| `src/party.ts` | `Party` class: add/remove/enumerate, companion level-ups from `party.txt` (`incLevels`, `levelUpInfo`, saved as `partyLevels`). Following is script-driven (`critter_p_proc`); map-entry placement is `GameMap.placeParty` (CE `_partyMemberSyncPosition`) | `party_member.cc` |
+| `src/statIds.ts` | CE stat enum id → DH2 stat name (`STAT_NAME_BY_ID`) | `stat_defs.h` |
+| `src/weaponAmmo.ts` | Per-object weapon ammo (`ammoQuantity`/`ammoTypePid`), capacity/burst from the proto, `weaponCanBeReloadedWith`/`weaponReload` | `item.cc`, `proto.cc:758` |
+| `src/examine.ts` | Look at / examine text incl. `look_at_p_proc` / `description_p_proc`, health/crippled lines, Awareness details | `proto_instance.cc _obj_look_at_func / _obj_examine_func` |
 
 ### Combat
 
@@ -120,6 +123,8 @@ the pipeline or the TS compiler.
 | `src/criticalEffects.ts` | Barrel — critical hit / failure system; split into `criticalEffects/effects.ts` (effect appliers + region table) + `criticalEffects/table.ts` (lookup + parsers + crit-fail table) | `critfail.cc` |
 | `src/unarmed.ts` | Unarmed mode definitions (9 modes, threshold/AP/damage table) | `unarmed.cc` |
 | `src/skillUse.ts` | Active skill use: First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair (622 lines) | `skill.cc::skillUse()` |
+| `src/combat/lineOfFire.ts` | `_combat_is_shot_blocked` (LoF critter count) on top of `GameMap.straightPathObstacle` (`_make_straight_path_func`) | `combat.cc`, `animation.cc` |
+| `src/combat/whoHitMe.ts` | `_critter_set_who_hit_me` (incl. reaction −3), `_combatai_check_retaliation`, `_combatai_rating` | `critter.cc`, `combat_ai.cc` |
 
 Wiki references: [wiki/actions.md](wiki/actions.md) · [wiki/ai_behavior.md](wiki/ai_behavior.md) · [wiki/alignment.md](wiki/alignment.md) · [wiki/animation.md](wiki/animation.md) · [wiki/character_stats.md](wiki/character_stats.md) · [wiki/combat.md](wiki/combat.md) · [wiki/companion_party.md](wiki/companion_party.md) · [wiki/critter_stats.md](wiki/critter_stats.md) · [wiki/damage_formula.md](wiki/damage_formula.md) · [wiki/dialogue_system.md](wiki/dialogue_system.md) · [wiki/economy.md](wiki/economy.md) · [wiki/endgame.md](wiki/endgame.md) · [wiki/extended_flags.md](wiki/extended_flags.md) · [wiki/faction_reputation.md](wiki/faction_reputation.md) · [wiki/file_formats.md](wiki/file_formats.md) · [wiki/hotkeys.md](wiki/hotkeys.md) · [wiki/interface_windows.md](wiki/interface_windows.md) · [wiki/items.md](wiki/items.md) · [wiki/known_bugs.md](wiki/known_bugs.md) · [wiki/lighting.md](wiki/lighting.md) · [wiki/map_scripting.md](wiki/map_scripting.md) · [wiki/pathfinding.md](wiki/pathfinding.md) · [wiki/perks_traits.md](wiki/perks_traits.md) · [wiki/pipboy.md](wiki/pipboy.md) · [wiki/proto_system.md](wiki/proto_system.md) · [wiki/quest_system.md](wiki/quest_system.md) · [wiki/random_numbers.md](wiki/random_numbers.md) · [wiki/rendering.md](wiki/rendering.md) · [wiki/save_load.md](wiki/save_load.md) · [wiki/scripting_reference.md](wiki/scripting_reference.md) · [wiki/scripting_vm.md](wiki/scripting_vm.md) · [wiki/settings.md](wiki/settings.md) · [wiki/skill_checks.md](wiki/skill_checks.md) · [wiki/sound_system.md](wiki/sound_system.md) · [wiki/spatial_triggers.md](wiki/spatial_triggers.md) · [wiki/status_effects.md](wiki/status_effects.md) · [wiki/tile_system.md](wiki/tile_system.md) · [wiki/time_clock.md](wiki/time_clock.md) · [wiki/weapon_combat.md](wiki/weapon_combat.md) · [wiki/worldmap.md](wiki/worldmap.md)
 
@@ -189,8 +194,13 @@ All UI files render to DOM elements over the WebGL canvas.
 
 | File | Purpose |
 |------|---------|
-| `src/gametime.ts` | Tick system: `TICKS_PER_*` constants, day/night ambient curve, time accessors (276 lines) |
-| `src/drugs.ts` | Drug effect/addiction definitions and apply logic; decay stubs (224 lines) |
+| `src/gametime.ts` | Tick system: `TICKS_PER_*` constants, CE ambient light (`gAmbientIntensity`, light-level override), time accessors, time-jump handler (`game_time.cc`, `light.cc`) |
+| `src/drugs.ts` | Drug effects and addiction from proto data (`DRUG_DESCRIPTIONS`, withdrawal perks), timed events `drug:`/`withdrawal:` (`item.cc`) |
+| `src/radiation.ts` | `critterAdjustRadiation`, midnight `checkRads`, `processRads` and radiation timed events (`critter.cc`) |
+| `src/random.ts` | Park-Miller RNG with MSVC rand seeding and chi-square check; `randomBetween` (`random.cc`) |
+| `src/gameMovie.ts` | `gameMoviePlay` for the WebM movies (subtitles from `.sve`, fades from `.cfg`, seen-movie set) (`game_movie.cc`) |
+| `src/talkingHead.ts` | Talking heads: fidgets, reactions, lip-synced speech from `.lip` files (`game_dialog.cc`, `lips.cc`) |
+| `src/ui_options/fallout2Cfg.ts` | Reads `fallout2.cfg` into Config at startup (`config.cc`, `settings.cc`) |
 | `src/questData.ts` | All Fallout 2 quest definitions (GVAR index, thresholds, descriptions) (204 lines) |
 | `src/questLog.ts` | Reads GVARs against `questData` to produce active/completed quest list (53 lines) |
 | `src/events.ts` | Pub/sub `Events` module + `scheduleExplosion` helper (52 lines) |
@@ -220,6 +230,8 @@ The engine consumes only pre-baked JSON/PNG — no runtime DAT parsing.
 | PRO indexes | `tools/convertPRO.py` | `lut/pro/*.json` (proto lookup) |
 | AAF/FON fonts | `tools/fonts.py` (`tools/oldPy/fonts2.py`, `fonts7alphawhite.py`, `data_fonts*.py` are superseded iterations) | `art/fonts/` |
 | ACM → WAV | `acm2wav/` + `tools/convertAudio.py` | `audio/**/*.wav` |
+| MVE → WebM | `tools/convertMovies.py` (`export_movies` stage; needs ffmpeg) | `art/cuts/*.webm` + `.json` |
+| Speech ACM → MP3 | `tools/convertSpeech.py` (`export_speech` stage; needs ffmpeg) | `audio/speech/<head>/*.mp3` |
 | Crit table | `tools/parseCritTable.py` | `lut/criticalTables.json` |
 | Elevator table | `tools/parseElevatorTable.py` | `lut/elevators.json` |
 | Worldmap stitch | `tools/stitchWorldmap.py` | `worldmap.png` |
@@ -256,7 +268,7 @@ reminders of the original bridged form, not the live wiring.
 
 ## Known Gaps and Incomplete Systems
 
-_Last audited: 2026-10-06 (tracker reconciliation; first pass 2026-05-31) against `main` branch. Every entry below is
+_Last audited: 2026-10-07 (branch `100percent`; earlier: 2026-10-06 reconciliation, first pass 2026-05-31). Every entry below is
 anchored to an active `stub(...)` call, a confirmed missing wire in
 `vm_bridge.ts`, or documented absent engine behaviour verified in source._
 
@@ -264,28 +276,28 @@ See `ROADMAP.md` for the prioritised plan.
 
 ### Opcode Stubs (wired in vm_bridge.ts, but method body calls stub())
 
-None active as of 2026-10-06 — all 8 `stub(` occurrences in `src/` are commented out.
-Remaining no-op paths: `play_gmovie` (S15), `obj_can_hear_obj` always 0 (S28),
-metarule 52/53 car cargo (W8). See `wiki/known_bugs.md §2`.
-<!-- audited: 2026-10-06 -->
+None — all 8 `stub(` occurrences in `src/` are commented out, and all 181 vanilla
+opcodes are bridged (S29). `play_gmovie` (S15), `obj_can_hear_obj` (S28) and metarule
+52/53 (W8) are implemented. See `wiki/known_bugs.md §2`.
+<!-- audited: 2026-10-07 -->
 
 ### Engine Systems — Partial or Missing
 
 | System | File(s) | Real status |
 |--------|---------|-------------|
-| Party member combat AI | `src/party.ts`, `src/combat/Combat.ts` | Corrected 2026-06-18 (was stale): party members ARE enrolled in the combatants list and take AI turns (`Combat.nextTurn()` bypasses the hostile-flag gate for same-team critters; fixed 2026-06-02). Still missing CE-style non-combatant promotion (companions are enrolled unconditionally at combat start rather than joining mid-fight when attacked/alerted). Control/customization screens for per-companion disposition and AI behavior (Berserk/Aggressive/Defensive/Coward/Custom presets, 6-category overrides, weight-based trade) added in `src/ui_companion.ts`/`src/ui_companion_trade.ts` — see `wiki/companion_party.md` §8. |
+| Party member combat AI | `src/party.ts`, `src/combat/Combat.ts`, `src/map/GameMap.ts` | Party members take AI turns with their packets; level-ups (`incLevels`); CE placement on map entry; excluded from map snapshots (M10). |
 <!-- audited: 2026-06-18 -->
 | Active skill use | `src/skillUse.ts` | All active skills handled; Gambling/Outdoorsman return CE refusal messages (K2); Healer perk applied; Steal facing check present. Electronic lockpick bonuses are script-driven in CE (K4) — no engine change needed. |
-| Subtitles / speech audio | `src/audio.ts` | `Config.ui.subtitles = false`; no speech `.acm` playback path exists. |
-| Movie playback | `src/scripting.ts:1769` | `play_gmovie()` logs and skips — `.mve` video playback is not implemented. |
+| Subtitles / speech audio | `src/talkingHead.ts`, `src/gameMovie.ts` | Talking-head speech with lip sync (P4); movie subtitles from `.sve` (S15). |
+| Movie playback | `src/gameMovie.ts`, `tools/convertMovies.py` | `play_gmovie` / startup / ARTIMER / endgame movies play as WebM (S15). |
 | Endgame slideshow | `src/endgame.ts` | `endgame_slideshow` (0x8146) and `endgame_movie` (0x8148) wired. `playSlideshow()` iterates `lut/endgame.json`, shows static/panning PNG slides in a DOM overlay with narrator audio and subtitle support. `setupDeathEnding()` selects a death ending via weighted random from `lut/enddeath.json`. Split per wiki/ts-split-refactor.md §19: `endgame/deathEndings.ts` (selection) + `endgame/slideRender.ts` (slide rendering). See `wiki/endgame.md` and `wiki/known_bugs.md §23`. |
-| Karma titles / town reputation | `src/player.ts`, `src/ui_character/viewer.ts` | Karma titles computed (R1); per-town rep GVARs synced and displayed with CE tier labels (R2). Engine-side NPC reaction modifiers unverified. |
-| NPC schedule AI | `src/gameTick.ts` | Scriptless critters with `wander_type > 0` do wander randomly each tick. FO2-style time-of-day position schedules (critters moving between fixed locations at fixed hours) are not implemented. |
-| `wander_type` | `src/combat/AI.ts` | Radius differentiated by type (1=5, 2=15, 3=unrestricted) around spawn origin — C8 FIXED 2026-06-04. |
+| Karma titles / town reputation | `src/player.ts`, `src/ui_character/viewer.ts`, `src/combat/whoHitMe.ts` | Karma titles (R1), town rep tiers (R2). CE has no engine-side reaction modifier (`_reaction_influence_` = 0); its one reaction write, −3 on being hit by the player, is ported (C19). |
+| NPC schedule AI | `src/gameTick.ts` | Script-driven, as in CE: one `critter_p_proc` per tick round-robin (`_script_chk_critters`); the DH2 engine wander/follow inventions were removed 2026-10-06. |
+| `wander_type` | — | Removed with the engine wander (2026-10-06); CE has no engine wander. |
 | Animation interleaving | `src/scripting.ts` | Fixed (S13, 2026-06-02): `reg_anim_func` entries fire in registration order between animate steps, matching CE `animationRegAnimFunc`. |
 | Worldmap | `src/worldmap.ts` (barrel; `src/worldmap/{types,parser,Worldmap,encounters}.ts`) | Functional. Area-entrance/city-hotspot misplacement fixed 2026-09-24 (`wiki/known_bugs.md` W13); difficulty modifier on encounter rate already implemented (`encounters.ts` `didEncounter()`, `Config.combat.gameDifficultyModifier`) — both claims in this row were stale. Car travel + local-map placement + trunk container substantially implemented, see `wiki/car_system.md` and `wiki/known_bugs.md` W8/M6. Encounter-spawned critters carry items/equipment (W3 FIXED 2026-06-03). |
 <!-- audited: 2026-09-30 -->
-| Quest system | `src/questData.ts`, `src/questLog.ts` | GVAR-based tracking and Pip-Boy display work. No XP awards for completion; no quest-completion script callbacks wired. Descriptions are inlined in TS, not loaded from `quests.msg`. |
+| Quest system | `src/questData.ts`, `src/questLog.ts` | GVAR-based tracking and Pip-Boy display. XP and completion are script-driven in CE (`give_exp_points`), so there's no engine award. Descriptions are inlined in TS, not loaded from `quests.msg`. |
 | Karma / reputation scripting | `src/scripting.ts` | `set_pc_stat` / `mod_pc_stat` handle Karma (4) and Reputation (3); all PCSTAT IDs 0–5 handled (S9/S10); town-rep GVARs synced to stats (R2). |
 | Lighting accuracy | `src/lighting.ts`, `src/lightmap.ts` | Functional. Lightmap hex sampling is parity-correct (RD17) with selectable interpolation (`setLightingBilinear`, default `hex-lerp`); directional wall occlusion reads `pro.extra.extendedFlags` so W-E walls no longer bleed light (LD11). Remaining: minor colour inaccuracies vs. original engine; CPU path slow on large maps; non-wall opaque-object directional shadowing still stubbed (LD11 note). See `wiki/alignment.md` §6–§8. |
 
@@ -301,9 +313,9 @@ present and functional in the current source:
 | Perk selection UI | `showPerkModal()` in `src/ui_character/perkModal.ts`; triggered when `player.pendingPerkPick` is true. SPECIAL/skill prerequisites checked via `getValidPerks()` in `src/perks/perks.ts`. Perk applied and `pendingPerkPick` cleared via `applyPerk()` in `src/perks/perks.ts`. |
 | Trait selection at character creation | Full 2-trait selector in `src/ui_character/creator.ts`; 2-trait limit enforced; traits live-update skill calculations during creation. |
 | Name / age / sex entry at creation | Text input (name), spinner (age), toggle buttons (sex) all wired in `src/ui_character/creator.ts`; values applied via `player.applyCreationStats()` on DONE. |
-| Drug decay / addiction ticks | `tickAddictions(player)` called every 600-tick cycle in `src/gameTick.ts`, imported from `src/drugs.ts`. |
+| Drug decay / addiction | `src/drugs.ts`: CE item.cc port on timed events (`drug:` / `withdrawal:`); `tickAddictions` removed. |
 | Poison tick-based damage | Superseded by S26 (2026-07-27): CE-faithful `poisonDecayEvent` timed event in `src/scripting.ts` (`10*(505-5*level)` ticks, -2 poison / -1 HP). |
-| Radiation symptom ticks | `applyRadiationSymptoms(player)` called every 600-tick cycle in `src/gameTick.ts`. |
+| Radiation | `src/radiation.ts`: CE `critterAdjustRadiation` / `checkRads` (midnight) / `processRads`, replacing the old symptom approximation. |
 | `get_month` / `get_day` | Both read from `GameTime.getDate()` in `src/vm_bridge.ts:52,56` — not hardcoded. |
 | `end_dialogue` | Implemented: calls `dialogueExit()` in `src/scripting.ts:1486`. |
 | `gsay_end` | Implemented: halts the VM via `this._vm.halted = true` in `src/scripting.ts:1484`; wired in `vm_bridge.ts:191`. |

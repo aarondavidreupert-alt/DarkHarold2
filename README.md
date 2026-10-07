@@ -11,12 +11,12 @@ It is written primarily in TypeScript and Python, and targets recent browsers wi
 
 ## Status
 
-DarkHarold2 is not a complete remake at this time. Estimated overall completion: **~94%**.
-The core technical foundation (rendering, combat math, scripting VM, map loading, dialogue runtime) is
-solid, and most gameplay systems are now wired end-to-end. The remaining gaps are concentrated in
-asset-pipeline extractions, speech/movie infrastructure, and a handful of larger systems (NPC daily
-schedules, companion level-up, `.mve` movie playback). See [`ROADMAP.md`](ROADMAP.md) and
-[`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
+DarkHarold2 is not a complete remake at this time. Estimated overall completion: **~98%**.
+Every gap tracked in [`wiki/known_bugs.md`](wiki/known_bugs.md) is now closed on the `100percent` branch, including
+the systems previously deferred: movies, talking heads and speech, radiation, drugs and addiction, party level-ups,
+the car, and line of fire. The remaining share is verification and a few documented approximations: there has been
+no full end-to-end playthrough yet, and a handful of places still simplify CE (listed under "Known approximations"
+below). See [`ROADMAP.md`](ROADMAP.md) and [`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
 
 If you're looking for documentation on how Fallout 2 works, documentation on certain file formats, or
 tools to work with them, this project will be useful to you as well.
@@ -110,7 +110,7 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | [`ROADMAP.md`](ROADMAP.md) | Phased plan (Phases 1–9) toward 95% with audit dates |
 | [`TODO.md`](TODO.md) | Older free-form TODO list — superseded by `wiki/known_bugs.md` |
 | Inline `// TODO` / `// FIXME` in `src/` | Source-level annotations |
-| [`CLAUDE.md`](CLAUDE.md) → "Intentionally Incomplete Systems" | Explicit out-of-scope / "do not implement unless asked" |
+| [`CLAUDE.md`](CLAUDE.md) → "Intentionally Incomplete Systems" | Remaining deliberate approximations |
 
 ### 🔧 Asset pipeline (Python 3.9+)
 
@@ -159,57 +159,47 @@ pipenv run python tools/pipeline_gui.py
 ## Feature completion
 
 The buckets below are sourced from [`wiki/known_bugs.md`](wiki/known_bugs.md) (current
-audit: 2026-10-06). Items marked FIXED there roll up here. If you spot a contradiction,
+audit: 2026-10-07). Items marked FIXED there roll up here. If you spot a contradiction,
 the wiki tracker is the source of truth.
 
-### ✅ Substantially implemented (~85–95%)
+### ✅ Substantially implemented (~85–100%)
 
-- **Map loading & rendering** — tile maps, multi-elevation, WebGL 2.0 renderer, lightmap, real-time lighting, screen-space hex z-sort (RD09), camera clamp + `OBJECT_SCROLL_BLOCK` (RD11/RD12), per-building roof flood-fill + roofEgg transparency on occluding roof tiles (RD06, DEFAULT ON), parity-correct lightmap hex sampling with selectable interpolation (RD17, default `hex-lerp`), directional wall light occlusion via `extendedFlags` (LD11), per-column wall light sampling (`wall-clamp` default), and smooth moving-torch lighting (`egg-split`); an alpha-silhouette wall top-edge fade exists but ships **off** (no reliable "wall meets roof" gate) — see [`wiki/alignment.md`](wiki/alignment.md)
+- **Map loading & rendering** — tile maps, multi-elevation, WebGL 2.0 renderer, lightmap, real-time lighting, screen-space hex z-sort (RD09), camera clamp + `OBJECT_SCROLL_BLOCK` (RD11/RD12), per-building roof flood-fill + roofEgg transparency (RD06), post-roof hex cursor/outline pass (RD08), palette colour cycling for water/fire/monitors in both floor paths (RD10), pixel-precise `_tile_mask` hex picking (RD13), parity-correct lightmap hex sampling (RD17), directional wall light occlusion (LD11); see [`wiki/alignment.md`](wiki/alignment.md)
 - **Walking & running** — A\* pathfinding with separate path-blocking / shoot-blocking predicates (P4/P5/P6), `OBJECT_MULTIHEX` neighbour scan, scenery LoS via `OBJECT_LIGHT_THRU` (P7), door interaction, exit grids
-- **Combat core** — hit/damage formulas (YAAM), ammo X/Y/DR/AC modifiers, burst fire, called shots, 6-level criticals + Better Criticals, critical failures, armor DR/DT per damage type, crippled limbs, knockdown/knockout, DAM_DROP, fire DoT, partial cover, AI team targeting + perception gate + LoS, AI distance modes (charge / snipe / stay / stay_close), combat-turn explosion timer (T1), combat walk-speed bonus (FA4), per-damage-type death animations + `CRITTER_SPECIAL_DEATH`, float-text colour + stacking (AC8)
-- **Combat perks** — Slayer, Sniper, Sharpshooter, Bonus HtH Attacks, Bonus Rate of Fire, Better Criticals, Stonewall, Fast Reload, Finesse, Healer, Pathfinder, Pickpocket, and more
-- **Dialogue** — `start_gdialog` / `gSay_Start` / `giq_option` / `gsay_message` / `gsay_reply` / real fixed-position Barter + Combat Control buttons (P9), `gdialog_set_barter_mod`, float messages, reenter-dialogue on sub-screen return, walk-to-NPC before talk (P15), caps readout in dialogue window (P16), dialogue review log + scrollable modal (P17/P18), screen-curvature highlight overlays (P22)
-- **Bartering** — CE-accurate `_barter_compute_value`, reaction LVAR, Master Trader perk, difficulty bonus; outer-list scroll buttons (P19), offer-table scroll buttons (P20), barter/trade skin selection (P14); movemult quantity picker: BIGNUM 5-digit display, item icon, ALL button, CE-accurate hit zones (P23/P24)
-- **Companion screens** — `partyMemberControlWindowInit`/`partyMemberCustomizationWindowInit` (P5/P8): disposition presets, 6-category custom AI, weight-based trade, `#dialogueContainer`-integrated panel swap via `uiSwapDialoguePanel()`, correct return-path rules (Customize→Control→Talk, Trade→Talk), persistent background window across transitions
-- **Inventory UI** — drag-and-drop, equip slots, weight display + carry-weight enforcement (LE1), reload + ammo state-aware stacking (LE4), `pickup_p_proc` on inventory equip (LE6), container `use_p_proc` gate (LE9), multi-pile caps sum (LE11)
-- **Active skill use** — First Aid, Doctor, Sneak, Lockpick, Steal (with facing + knockdown), Traps, Science, Repair, Gambling/Outdoorsman messages; Healer perk applied; party-member delegation for First Aid/Doctor (AC6)
-- **Level-up & perks** — XP thresholds, skill points (5 + 2×INT, +2 Educated), HP per level (END/2 + 2, +4 Lifegiver), perk every 3 levels (every 4 Skilled), **perk selection modal** (`ui_character.ts:1866 showPerkModal`), Tag! 4th slot
-- **Karma & reputation** — `get_pc_stat` / `mod_pc_stat` / `set_pc_stat` wired, +1 karma per hostile kill, **karma title computation** (`ui_character.ts:581–624`), STATUS panel surfaces both stats; per-town reputation GVARs synced and shown with CE tier labels (R2)
-- **Worldmap travel** — 28×30 grid, per-tile encounter tables, time-of-day frequency (W1), difficulty modifier (W2), encounter formations (straight_line/double_line/wedge/cone) (W6), encounter critters carry items + equipped weapons (W3), Outdoorsman detection XP (W7), Pathfinder travel-time reduction; keyboard/mouse-edge map pan (W12); label list CE-accurate filter + alphabetic sort (W11); walk masks enforced so the player can't walk through mountains (W10); city-entry hotspot marker correctly centered + shaped (W13)
-- **Car travel system (Highwayman)** — worldmap travel at 4× speed with fuel consumption + halved encounter rate (W8, `window.giveCar()` for testing), animated 14-frame driving sprite on the worldmap HUD; local-map car body + trunk container both auto-injected with correct z-order/collision (M6), real per-map parking tiles extracted from the original compiled scripts for 10 of 15 candidate towns (see [`wiki/car_system.md`](wiki/car_system.md)); car-upgrade speed tiers + 5 remaining towns' tiles still open
-- **Random encounters** — encounter group generation, level/time_of_day conditions, encounter counter (W4)
-- **Scripting VM** — INT file parser, **~150+ opcodes wired**, transpiler/disassembler; no active `stub()` calls remain; known no-op paths are `play_gmovie` (S15), `obj_can_hear_obj` (S28) and car metarule 52/53 (see [`wiki/known_bugs.md §2`](wiki/known_bugs.md))
-- **Audio engine** — music looping, weapon/action sound mapping, ambient SFX from map data, master/music/sfx GainNode chain with persisted volume sliders
-- **Pip-Boy** — clock display, alarm button (CE geometry IW10), STATUS/QUESTS/ARCHIVES/AUTOMAP tabs with per-location map view + zoom/pan, IndexedDB persistence; rest/wait menu renders inside the Pip-Boy screen with all 13 CE options including "Until healed" (IW11); month sprite stride/position corrected (IW10)
-- **Character screen / HUD** — full SPECIAL/skill view, stat display, trait/perk lists, indicator bar (SNEAK/POISONED/RADIATED/ADDICT) (IW1), AP-light fade animation (IW7), attack button greyed when AP insufficient (IW2), `game_ui_disable` hides HUD bar (IW4)
-- **Save / load** — IndexedDB-backed; player state, inventory + ammo state, stats/skills/traits/perks, level/XP, equipped items, GVARs, MVARs (U5), knownAreas (U6), timed-event queue (U7), 160×100 JPEG save-slot thumbnails (U3)
-- **Status effects** — drug / chem effect timers with addiction rolls (5a), CE-faithful poison decay (S26); radiation symptoms are a DH2 approximation, not the CE `_critter_check_rads` port (§29)
-- **Animations** — FRM sprite rendering with `artOffset` zero-jump model (FA7), correct frame-0 timing (FA9), symmetric walk-cycle partials (FA10), weapon-draw drift fix (FA12)
-- **Rendering** — per-building roof flood-fill clipping + roofEgg transparency (RD06), egg transparency with CE 4-case `extendedFlags` branch + `'alpha'` radial mode (RD16), combat/item/neutral critter outline system with fill/border alpha (CI11–CI15), worldmap pan/scroll with arrow/WASD/mouse-edge input (W12)
-- **Preferences** — full options panel (difficulty, combat speed, violence level, target-highlight 3-state (CI8), item highlight (CI7/CI12), run-by-default (CI4), subtitles, speech/SFX/music volume, brightness + mouse-sensitivity sliders (AF9/AF10)) persisted via localStorage; hover-only item highlight matching CE `gameMouseLoadItemHighlight` (CI12)
+- **Combat** — `attackDetermineToHit` port (line-of-fire critter count, distance/perception with Long Range/Scope/Sharpshooter, min ST, Accurate, One Hander, knocked-down/multihex, combat difficulty — C18); `_compute_spray`/`_shoot_along_path` bursts that hit whoever stands on a line of fire, missed shots that fly on and hit someone else, grenade/rocket blast rings (C17); 6-level criticals, critical failures, YAAM, armor DR/DT, crippling, knockdown, DAM_DROP, fire; attack sound on frame 0 and damage on the FRM action frame (FA3); who-hit-me / retaliation and the reaction hit (C19)
+- **Combat AI** — AI packets (attack who, best weapon, distance modes, run-away), `_ai_pick_hit_mode` + `_combat_safety_invalidate_weapon` friendly-fire check, perception/LoS gate, taunts (gated by the combat-taunts preference)
+- **Perks & traits** — CE perk table (`perks/cePerks.ts`): perks addressed by CE id from scripts, per-rank stat effects (Toughness, Action Boy, Dodger, …), armor perks on equip (Powered Armor, …), `perkGetSkillModifier` as CE (K6); level-up with Swift Learner / Lifegiver, perk selection modal
+- **Dialogue** — full `gsay_*`/`giq_option`/`gsay_option` set, barter/combat-control buttons, review log, highlight overlays; **talking heads** with fidgets, reactions and lip-synced speech (P4)
+- **Bartering** — CE `_barter_compute_value`, reaction LVAR, Master Trader, difficulty bonus, scrollable tables, quantity picker
+- **Party / companions** — `party_add`/`party_remove`, companion level-ups from `party.txt` (`_partyMemberIncLevels`), CE `_partyMemberSyncPosition` placement on map entry, script-driven following (`critter_p_proc`), companion control/customize/trade screens; the party travels with the player and is excluded from map snapshots (M10)
+- **Inventory & items** — drag-and-drop, equip slots, carry weight, per-object weapon ammo (`ammoQuantity`/`ammoTypePid`, caliber-checked reload — LE12), container capacity, CE ammo bar (AF5)
+- **Active skill use** — First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair, Gambling/Outdoorsman messages; party delegation (AC6)
+- **Look & examine** — `look_at_p_proc`/`description_p_proc` scripts, CE health/crippled text, Awareness details, weapon/ammo lines (IU6)
+- **Karma & reputation** — karma title, per-town reputation tiers; CE has no engine-side reaction modifier beyond the who-hit-me reaction hit (C19)
+- **Worldmap** — encounters (frequency, difficulty, formations, Outdoorsman), Pathfinder, walk masks, panning, labels; towns revealed by `mark_area_known` (W15), area state saved
+- **Car (Highwayman)** — script-driven like CE: town map scripts place the car, the trunk travels in the party (W14); speed tiers (blower / New Reno upgrade / super car), fuel-saving upgrades, out-of-gas handling, metarule 52/53 trunk capacity; see [`wiki/car_system.md`](wiki/car_system.md)
+- **Scripting VM** — INT parser, all 181 vanilla opcodes bridged (S29), MVARs persisted per map (M8), `map_exit_p_proc` on every script (M9), timed events, `critter_p_proc` round-robin (CE `_script_chk_critters`)
+- **Time** — CE game clock and ambient light (`gAmbientIntensity`, Night Vision), midnight events, ARTIMER/AFAILED game events, time jumps drain timed events
+- **Status effects** — radiation (`critterAdjustRadiation`/`processRads`), drugs and addiction from proto data with withdrawal perks, poison decay (S26)
+- **Movies** — MVE → WebM pipeline stage, CE `gameMoviePlay` with subtitles and fades, Pip-Boy video archive (S15)
+- **Audio** — music, weapon/action/ambient SFX, master/music/sfx/speech volumes, speech playback for talking heads
+- **Pip-Boy** — clock, alarm, STATUS (incl. quest log), ARCHIVES (video archive), AUTOMAP, rest menu
+- **Character screen / HUD** — SPECIAL/skills/perks, warnbox indicator badges, numbers.frm counters, AP lights, end-turn lights with enable/disable (AF6), CE to-hit hover readout
+- **Save / load** — IndexedDB; player, party (+ levels), inventory + weapon ammo, GVARs, MVARs, area states, timed events, car state, seen movies, thumbnails
+- **Preferences** — full CE options panel, persisted (localStorage) and seeded from `fallout2.cfg` (CI1); combat looks/taunts, brightness (CE gamma table) are live (CI18)
+- **Random numbers** — CE Park-Miller generator with MSVC seeding (RN)
 
 ---
 
-### 🔶 Partially implemented (~30–69%)
+### 🔶 Known approximations
 
-- **Party / companions** — `addPartyMember` (CHA cap), `followPlayer` pathfinds to a free hex adjacent to the player, `dismissPartyMember` and silent `party_remove`, combat AI for friendly-team members, full companion control/customize/trade screens integrated into persistent dialogue window (P5/P8), correct return-path rules (P8). **Missing:** companion level-up, formation pathfinding, Use Best Weapon/Armor AI heuristics.
-- **Lighting** — `obj_set_light_level` + `set_obj_visibility` correctly rebuild the lightmap (LD3/LD4), hidden objects no longer emit light (LD1), directional wall occlusion reads `extendedFlags` so W-E walls no longer bleed light (LD11), and the player's moving torch is stamped smoothly sub-tile (`egg-split`, default) instead of snapping per tile. Day/night ambient curve is a DH2 invention rather than CE-matched (GTC10); non-wall opaque-object shadowing still stubbed (LD11 note).
-- **Time & date system** — `gametime.ts` ticks, day/night ambient curve, midnight queue fires `objectUnjamAll` (IU3/GTC5); `get_month` / `get_day` wired; ARTIMER day-90/180/270/360 events fire (GTC5), but their `.mve` movies do not play (S15).
-- **Quest system** — `questData.ts` covers all major Fallout 2 quests with GVAR-based state tracking; Pip-Boy ARCHIVES tab surfaces them. Per-quest completion rewards/XP route through scripts but not engine-side. Quest descriptions inlined in TS rather than loaded from `quests.msg`.
-- **Combat AI** — friendly-fire gate for AoE attacks (line-of-fire blockers between attacker and target) still absent; otherwise distance modes, perception, taunts, and team targeting are wired.
-- **Car system remaining gaps** — trunk container built via generic `Obj.fromPID` instead of `Item.fromPID` (harmless today); no car-upgrade GVAR speed tiers (`GVAR_CAR_BLOWER`/New Reno upgrades); no cross-elevation parking awareness; 5 of 15 candidate towns' `carTile` still unverified; metarule 52/53 (car cargo capacity) are no-ops. See [`wiki/car_system.md`](wiki/car_system.md) §4.
-- **Endgame** — slideshow, death endings (EG5/EG6), credits scroll (EG4) and CE panning timing (EG3) wired; only `.mve` movies are absent (S15).
+- **Ammo stacks** count rounds in `amount`, where CE keeps boxes plus rounds in the top box (LE12 note).
+- **AI blast safety** — CE's `_ai_move_away` to a safe distance and the full `_ai_switch_weapons` aren't ported; the AI drops from burst to single fire or holds fire (C17 note). Explosions from DAM_EXPLODE critical failures aren't generated.
+- **Hover readout** is a DOM overlay rather than a cursor blit, and isn't shown for non-critter targets (CI18).
+- **Browser limits** — preferences can't be written back to `fallout2.cfg` (CI5, localStorage instead); mouse sensitivity is stored but the browser owns pointer speed.
+- **Not playthrough-verified** — systems were checked individually in the browser; a full main-quest run hasn't been done.
 
 ---
-
-### ❌ Not implemented or deliberately deferred
-
-- **NPC schedules / day-night behaviour** — non-scripted critters do radius-capped wander (C8) only; full home/work/sleep schedules deferred (P2).
-- **Subtitles / speech file playback** — audio engine has no `.acm` speech hooks; no subtitle overlay (P4).
-- **Movie / FMV playback** — `play_gmovie` is a no-op (S15).
-- **`actionFrame` from FRM headers** — discarded by `tools/frmpixels.py:40`; hit/sound sync absent for weapon attacks (FA3, asset-pipeline change).
-- **FID weapon-stance composition** — partially wired via `Weapon.getAnim` skin codes; CE `buildFid` parity not verified (FA6).
-- **Post-roof object rendering pass** (RD08), **palette colour cycling** for water/fire (RD10 — runtime done, pipeline exports RGBA), **pixel-precise hex hit-testing** via `_tile_mask` (RD13).
 
 See [`wiki/known_bugs.md`](wiki/known_bugs.md) for the complete tracker with CE references and fix
 status per ID.
@@ -218,15 +208,15 @@ status per ID.
 
 ## Roadmap
 
-[`ROADMAP.md`](ROADMAP.md) is the canonical phased plan (Phases 1–9) toward a 95%-complete
-playthrough. The most recent audit (2026-06-25) closes 60+ items since 2026-06-04: the complete
-companion/dialogue state machine (P5–P20), barter screen CE-accuracy (P14, P19–P21, P23–P24),
-worldmap scroll+labels (W11/W12), Pip-Boy rest+clock (IW10/IW11), per-building roof clipping
-(RD06), egg transparency (RD16), outline system (CI11–CI15), and earlier preference/HUD/scripting
-gaps. See the file header for the per-phase breakdown.
+[`ROADMAP.md`](ROADMAP.md) is the canonical phased plan (Phases 1–9). The 2026-10-07 audit on the
+`100percent` branch closes the remaining tracker items and the formerly deferred systems. Recent
+work includes movies (S15), talking heads (P4), radiation, drugs and addiction, party level-ups, the
+script-driven car (W14), line of fire and blast radius (C17), the `attackDetermineToHit` port (C18),
+per-object weapon ammo (LE12), the CE perk table (K6), MVAR persistence (M8) and map-exit scripts (M9).
+See the file header for the per-phase breakdown.
 
-[`CLAUDE.md`](CLAUDE.md) → "Intentionally Incomplete Systems" lists features that are deliberately
-out of scope unless explicitly requested.
+[`CLAUDE.md`](CLAUDE.md) → "Intentionally Incomplete Systems" now lists only the remaining
+deliberate approximations.
 
 ---
 
@@ -526,7 +516,7 @@ _debug.addXP(2000)
 
 ### Car system (worldmap travel)
 
-The worldmap car travel system is enabled in-game when a script fires CE metarule 31 (`GIVE_CAR_TO_PARTY`). To enable it instantly from the DevTools console — **no in-game unlock required**:
+In-game, the car is handed over by quest scripts (`GVAR_PLAYER_GOT_CAR` + metarule 31 `GIVE_CAR_TO_PARTY`). To enable it instantly from the DevTools console — **no in-game unlock required**:
 
 ```js
 // Give the car with a full tank (80 000 fuel units)
@@ -536,7 +526,7 @@ giveCar()
 giveCar(40000)
 ```
 
-`window.giveCar` is available as soon as the page loads (no worldmap open required). The car travels at **4× normal worldmap speed** and consumes 100 fuel/tick (75 ms ticks). A full tank (80 000 units) lasts several map crossings. Encounter rate is halved while in the car (CE ref: `worldmap.cc:3504`).
+`window.giveCar` sets `GVAR_PLAYER_GOT_CAR` and parks the car in the current town (its map script places it on the next map load), or puts the party in it outside any town. The car makes 4 worldmap steps per loop (+1 blower, +1 New Reno upgrade, +3 super car) for 100 fuel per loop (less with the fuel upgrades); encounters are halved while driving (CE ref: `worldmap.cc:3025-3082`, `wmCarUseGas`).
 
 ### Quick level-up test (no debug flag needed)
 
