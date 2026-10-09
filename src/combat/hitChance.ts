@@ -197,7 +197,7 @@ export function getHitChance(obj: Critter, target: Critter, region: string, from
     if (toHit > 95) toHit = 95
 
     // Critical chance (attackCompute): STAT_CRITICAL_CHANCE - hit_location_penalty.
-    const finesse = (obj as any).traits?.includes('Finesse') ? 10 : 0
+    const finesse = 0 // Finesse's +10 is in Player.getStat('Critical Chance') (traitGetStatModifier)
     const critChance = obj.getStat('Critical Chance') + finesse + critBonus + regionPenalty
 
     combatDebug(`hitChance: type=${attackType} dist=${distanceMod} cover=${coverPenalty} AC=${AC} region=${region} -> ${toHit}%`)

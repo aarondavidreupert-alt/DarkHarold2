@@ -18,13 +18,15 @@ limitations under the License.
 
 import globalState from './globalState.js'
 import { dbg } from './logger.js'
-import { formatSaveDate, load, save, SaveGame, saveList } from './saveload.js'
+import { formatSaveDate, getSaveSnapshot, load, save, SaveGame, saveList, takeSaveSnapshot } from './saveload.js'
 import { Widget } from './ui_widget.js'
 import { WindowFrame, SmallButton, Label, List } from './ui_components.js'
 import { UIMode } from './ui_panels.js'
 import { showConfirm, showInput } from './ui_dialog.js'
 
 export function uiSaveLoad(isSave: boolean): void {
+    // CE loadsave.cc lsgSaveGame: _QuickSnapShot before the save window opens.
+    if (isSave) takeSaveSnapshot()
     globalState.uiMode = UIMode.saveLoad
 
     const listOfSaves = new List({ x: 55, y: 50, w: 'auto', h: 'auto' })
@@ -48,6 +50,19 @@ export function uiSaveLoad(isSave: boolean): void {
         .add(listOfSaves)
         .show()
 
+    // CE ref: loadsave.cc:479-491 — the slot thumbnail (224x133, drawn 223x132) is
+    // blitted at (366, 58) over the lscover art; with nothing to show the cover stays.
+    const preview = document.createElement('img')
+    Object.assign(preview.style, {
+        position: 'absolute', left: '366px', top: '58px', width: '223px', height: '132px',
+        display: 'none', pointerEvents: 'none',
+    })
+    saveLoadWindow.elem.appendChild(preview)
+    const showPreview = (src: string | undefined) => {
+        if (src) { preview.src = src; preview.style.display = 'block' }
+        else preview.style.display = 'none'
+    }
+
     if (isSave) {
         listOfSaves.select(
             listOfSaves.addItem({
@@ -55,6 +70,7 @@ export function uiSaveLoad(isSave: boolean): void {
                 id: -1,
                 onSelected: () => {
                     saveInfo.setText('New save')
+                    showPreview(getSaveSnapshot()) // CE: an empty slot previews the current snapshot
                 },
             })
         )
@@ -67,12 +83,10 @@ export function uiSaveLoad(isSave: boolean): void {
                 text: save.name,
                 id: save.id,
                 onSelected: () => {
-                    // CE ref: loadsave.cc — show the saved thumbnail alongside
-                    // the date/map metadata so the player can preview each slot.
-                    const thumb = save.screenshot
-                        ? `<img src="${save.screenshot}" style="display:block;margin-top:4px;width:160px;height:100px;object-fit:cover;border:1px solid #555;">`
-                        : ''
-                    saveInfo.setText(formatSaveDate(save) + '<br>' + save.currentMap + thumb)
+                    // CE ref: loadsave.cc — the slot's thumbnail in the preview area,
+                    // date/map metadata in the info box.
+                    showPreview(save.screenshot)
+                    saveInfo.setText(formatSaveDate(save) + '<br>' + save.currentMap)
                 },
             })
         }

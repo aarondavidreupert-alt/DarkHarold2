@@ -26,9 +26,10 @@ import { GameMap } from './map.js'
 import { Player } from './player.js'
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 import { saveLoadInit } from './saveload.js'
-import { initUI, uiLog } from './ui.js'
+import { drawAC, drawHP, initUI, uiDrawWeapon, uiLog } from './ui.js'
 import { initMainMenu, showMainMenu } from './ui_mainmenu.js'
-import { initCharacterCreator, showCharacterCreator } from './ui_charactercreator.js'
+import { initCharacterCreator } from './ui_charactercreator.js'
+import { initCharacterSelector, showCharacterSelector } from './ui_charselect.js'
 import { Worldmap } from './worldmap.js'
 import { initAutomapTracking } from './automapData.js'
 
@@ -78,13 +79,22 @@ export function initGame() {
     // CE main.cc:114 — after character creation: gameMoviePlay(MOVIE_ELDER, STOP_MUSIC),
     // reseed the RNG, then load the starting map.
     const startNewGame = () => {
+        // The HUD still shows the placeholder player from the background map load;
+        // redraw it for the created/premade character (CE intface init on game start).
+        const player = globalState.player!
+        player.resetInventoryForNewGame()
+        uiDrawWeapon()
+        drawHP(player.getStat('HP'))
+        drawAC(player.getStat('AC') + player.getArmorAC())
         void gameMoviePlay(MOVIE_ELDER, GAME_MOVIE_STOP_MUSIC).then(() => {
             randomSeedPrerandom(-1)
             globalState.gMap.loadMap('artemple')
         })
     }
+    // CE main.cc:113 — NEW GAME opens the premade character selector first.
     initCharacterCreator(startNewGame, showMainMenu)
-    initMainMenu(showCharacterCreator)
+    initCharacterSelector(startNewGame, showMainMenu)
+    initMainMenu(() => showCharacterSelector())
 
     if (mapFromQuery !== null) {
         // Debug: map specified in URL query → skip main menu and load directly.

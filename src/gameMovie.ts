@@ -201,6 +201,8 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
             document.removeEventListener('keydown', onInput, true)
             screen.removeEventListener('mouseup', onInput, true)
             globalState.seenMovies.add(movie) // CE gGameMoviesSeen[movie] = 1
+            // CE interpreter_extra.cc:4625 — the vault-suit movie changes the dude's look.
+            if (movie === MOVIE_VSUIT) globalState.player?.updateNativeLook()
             if (flags & GAME_MOVIE_FADE_OUT) fadeLayer.style.opacity = '1'
             screen.remove()
             globalState.uiMode = prevUiMode

@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 import { ensureCycleMask } from './images.js'
 import { restoreRadiationEvent } from './radiation.js'
 import { StatSet, SkillSet } from './char.js'
@@ -105,23 +106,46 @@ export interface SaveGame {
     // Name of the specific local map the car is parked on (DH2 addition).
 }
 
-function captureScreenshot(): string | undefined {
-    // CE ref: loadsave.cc — save slot thumbnail. Capture the WebGL canvas
-    // at a small size to keep saves compact. Returns undefined if the canvas
-    // is missing or toDataURL throws (cross-origin, oversize).
+// CE ref: loadsave.cc:838 _QuickSnapShot — when the save screen opens, the iso window
+// is redrawn and its centre 640x380 stretched to the 224x133 preview
+// (LS_PREVIEW_WIDTH/HEIGHT). The WebGL canvas has no preserveDrawingBuffer, so the
+// frame is rendered and read back in the same task; reading it later gives a blank.
+const LS_PREVIEW_WIDTH = 224
+const LS_PREVIEW_HEIGHT = 133
+const ISO_W = 640, ISO_H = 380
+const INTERFACE_BAR_HEIGHT = 99
+let pendingSnapshot: string | undefined
+
+export function takeSaveSnapshot(): void {
+    pendingSnapshot = undefined
     try {
         const cnv = document.getElementById('cnv') as HTMLCanvasElement | null
-        if (!cnv) return undefined
+        if (!cnv || !globalState.renderer) return
+        globalState.renderer.render()
+        const scale = cnv.width / SCREEN_WIDTH
+        const isoH = SCREEN_HEIGHT - INTERFACE_BAR_HEIGHT
+        const sx = ((SCREEN_WIDTH - ISO_W) / 2) * scale
+        const sy = ((isoH - ISO_H) / 2) * scale
         const thumb = document.createElement('canvas')
-        thumb.width = 160
-        thumb.height = 100
+        thumb.width = LS_PREVIEW_WIDTH
+        thumb.height = LS_PREVIEW_HEIGHT
         const ctx = thumb.getContext('2d')
-        if (!ctx) return undefined
-        ctx.drawImage(cnv, 0, 0, thumb.width, thumb.height)
-        return thumb.toDataURL('image/jpeg', 0.6)
+        if (!ctx) return
+        ctx.drawImage(cnv, sx, sy, ISO_W * scale, ISO_H * scale, 0, 0, LS_PREVIEW_WIDTH, LS_PREVIEW_HEIGHT)
+        pendingSnapshot = thumb.toDataURL('image/jpeg', 0.8)
     } catch {
-        return undefined
+        pendingSnapshot = undefined
     }
+}
+
+// The snapshot the open save screen previews for an empty slot.
+export function getSaveSnapshot(): string | undefined { return pendingSnapshot }
+
+function captureScreenshot(): string | undefined {
+    if (pendingSnapshot === undefined) takeSaveSnapshot()
+    const shot = pendingSnapshot
+    pendingSnapshot = undefined
+    return shot
 }
 
 function gatherSaveData(name: string): SaveGame {
@@ -324,6 +348,7 @@ export function load(id: number): void {
 
                 // Restore seen-movie set (CE ref: game_movie.cc gameMoviesLoad).
                 if (Array.isArray(save.seenMovies)) globalState.seenMovies = new Set(save.seenMovies)
+                globalState.player?.updateNativeLook() // CE loadsave.cc:1772
 
                 // Restore the structured event log. Older saves may have the field
                 // under the old name (combatLog) — accept either; fall back to empty.

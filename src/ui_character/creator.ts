@@ -41,14 +41,24 @@ import { setCharacterWindow } from './viewer.js'
 // onDone   — called after valid DONE (player stats applied, start the game)
 // onCancel — called when CANCEL is clicked (returns to main menu)
 
-export function showCharacterCreator(onDone: () => void, onCancel: () => void): void {
+// `initial`: a premade character to start from (CE character selector MODIFY —
+// characterEditorShow(1) on the dude _proto_dude_init loaded from the .gcd).
+export interface CreatorInitialState {
+    name: string
+    special: { [stat: string]: number }
+    age: number
+    sex: 'Male' | 'Female'
+    tagged: string[]
+    traits: string[]
+    characterPoints: number
+}
+
+export function showCharacterCreator(onDone: () => void, onCancel: () => void, initial?: CreatorInitialState): void {
     const player = globalState.player!
 
     // Fresh stat/skill sets — all SPECIAL at default (5); no invested points
     const newStatSet = new StatSet()
     const newSkillSet = new SkillSet()
-
-
 
     // Creation-mode state
     let pool = 5                                   // bonus SPECIAL points to allocate
@@ -56,6 +66,16 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void): 
     let playerName = 'none'
     let playerAge = 25
     let playerSex: 'Male' | 'Female' = 'Male'
+
+    if (initial) {
+        for (const s of STATS) newStatSet.setBase(s, initial.special[s] ?? 5)
+        for (const t of initial.tagged) newSkillSet.tag(t)
+        selectedTraits.push(...initial.traits)
+        playerName = initial.name
+        playerAge = initial.age
+        playerSex = initial.sex
+        pool = initial.characterPoints
+    }
 
     // SkillCalcOptions — traits array updated live so skill list reflects Good Natured etc.
     const skillOpts: SkillCalcOptions = { isPlayer: true, perks: [], traits: selectedTraits }

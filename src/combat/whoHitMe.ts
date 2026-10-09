@@ -51,7 +51,7 @@ export function critterSetWhoHitMe(a1: Critter, a2: Critter | null): void {
 function combatAiRating(obj: Critter | null): number {
     if (!obj || obj.type !== 'critter') return 0
     if (obj.dead || ((obj.injuryFlags ?? 0) & 0x01) !== 0) return 0
-    let damage = obj.getStat('Melee Damage')
+    let damage = obj.getStat('Melee') // STAT_MELEE_DAMAGE
     for (const hand of ['rightHand', 'leftHand'] as const) {
         const item: any = (obj as any)[hand]
         const max = item?.subtype === 'weapon' ? item.pro?.extra?.maxDmg : undefined

@@ -254,3 +254,9 @@ export const SKILLS = [
     'Science', 'Repair', 'Speech', 'Barter', 'Gambling', 'Outdoorsman',
 ]
 export const TRAITS = Object.keys(TRAIT_DESCRIPTIONS)
+// CE trait_defs.h Trait enum order (ids stored in .gcd files and used by scripts).
+export const TRAITS_BY_ID: readonly string[] = [
+    'Fast Metabolism', 'Bruiser', 'Small Frame', 'One Hander', 'Finesse', 'Kamikaze',
+    'Heavy Handed', 'Fast Shot', 'Bloody Mess', 'Jinxed', 'Good Natured', 'Chem Reliant',
+    'Chem Resistant', 'Sex Appeal', 'Skilled', 'Gifted',
+]

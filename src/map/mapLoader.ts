@@ -131,6 +131,7 @@ GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point,
             dbg('map', `[Main] Loaded from dirty map cache`)
             loadedCallback && loadedCallback()
 
+            globalState.player?.updateNativeLook() // CE map.cc:999
             Events.emit('loadMapPost')
         } else {
             dbg('map', `[Main] Loading map ${mapName} from clean load`)
@@ -323,6 +324,7 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
             `floorLightingMode=${Config.engine.floorLightingMode}`
         )
 
+        globalState.player?.updateNativeLook() // CE map.cc:999
         Events.emit('loadMapPost')
     }
 

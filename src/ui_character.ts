@@ -23,5 +23,6 @@ limitations under the License.
 //   ui_character/perkModal.ts     — showPerkModal() (level-up perk picker)
 
 export { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './ui_character/viewer.js'
-export { showCharacterCreator } from './ui_character/creator.js'
+export { showCharacterCreator, CreatorInitialState } from './ui_character/creator.js'
+export { STATS, SKILLS, TRAITS_BY_ID } from './ui_character/descriptions.js'
 export { showPerkModal } from './ui_character/perkModal.js'

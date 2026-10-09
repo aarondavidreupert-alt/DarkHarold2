@@ -358,7 +358,7 @@ export class Combat {
                 DT = Math.trunc(20 * DT / 100)
             }
             // TRAIT_FINESSE: +30 DR penalty (player only)
-            if (obj.isPlayer && obj.hasPerk('Finesse')) {
+            if (obj.isPlayer && ((obj as any).traits ?? []).includes('Finesse')) {
                 DR += 30
             }
         }
@@ -435,7 +435,7 @@ export class Combat {
                 DT = Math.trunc(20 * DT / 100)
             }
             // TRAIT_FINESSE: +30 DR penalty (player only)
-            if (obj.isPlayer && obj.hasPerk('Finesse')) {
+            if (obj.isPlayer && ((obj as any).traits ?? []).includes('Finesse')) {
                 DR += 30
             }
         }

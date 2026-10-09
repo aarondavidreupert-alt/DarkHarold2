@@ -30,6 +30,57 @@ import { uiLog, uiWorldMap } from './ui.js'
 export class Player extends Critter {
     name = 'Player'
 
+    // CE ref: proto.cc _proto_dude_init → _obj_inven_free — a new game's dude has an
+    // empty inventory and nothing equipped (the debug kit above is for ?<map> starts);
+    // anything the Chosen One carries is given by the game's scripts.
+    resetInventoryForNewGame(): void {
+        this.inventory = []
+        this.leftHand = undefined
+        this.rightHand = undefined
+        this.armor = null
+        this.activeHand = 'leftHand'
+        this.updateNativeLook()
+    }
+
+    // CE ref: proto.cc:847 _proto_dude_update_gender — the unarmored look is tribal
+    // (hmwarr / hfprim) until the VSUIT movie has been seen, then the vault jumpsuit
+    // (hmjmps / hfjmps), by gender. With armor on, only the look to restore changes.
+    updateNativeLook(): void {
+        const MOVIE_VSUIT = 3 // gameMovie.ts
+        const female = this.gender === 'female'
+        const look = globalState.seenMovies?.has(MOVIE_VSUIT)
+            ? (female ? 'hfjmps' : 'hmjmps')
+            : (female ? 'hfprim' : 'hmwarr')
+        const art = 'art/critters/' + look + 'aa'
+        const self = this as any
+        if (this.armor) {
+            self._baseArt = art
+        } else {
+            this.art = art
+            self._baseArt = null
+        }
+    }
+
+    // CE ref: stat.cc critterGetStat → trait.cc traitGetStatModifier for the dude.
+    // The SPECIAL parts (Gifted, Bruiser STR, Small Frame AGI) are baked into the
+    // base stats at creation (applyCreationStats); the derived ones apply here.
+    getStat(stat: string): number {
+        const value = super.getStat(stat)
+        const t = this.traits ?? []
+        switch (stat) {
+            case 'AP': return t.includes('Bruiser') ? value - 2 : value
+            case 'AC': return t.includes('Kamikaze') ? 0 : value // -critterGetBaseStat(AC)
+            case 'Melee': return t.includes('Heavy Handed') ? value + 4 : value
+            case 'Carry': return t.includes('Small Frame') ? value - 10 * this.stats.getBase('STR') : value
+            case 'Sequence': return t.includes('Kamikaze') ? value + 5 : value
+            case 'Healing Rate': return t.includes('Fast Metabolism') ? value + 2 : value
+            case 'Critical Chance': return t.includes('Finesse') ? value + 10 : value
+            case 'Better Criticals': return t.includes('Heavy Handed') ? value - 30 : value
+            case 'DR Radiation': case 'DR Poison': return t.includes('Fast Metabolism') ? 0 : value
+        }
+        return value
+    }
+
     isPlayer = true
     isSneaking = false
     // CE ref: critter.cc:149 _sneak_working — true when the last periodic sneak roll passed.
@@ -187,11 +238,10 @@ export class Player extends Critter {
             this.stats.setBase(s, clamp(1, 10, this.stats.getBase(s)))
         }
 
-        // Derive Max HP from final END/STR (FO2: 15 + 2×END + STR)
-        const end = this.stats.getBase('END')
-        const str = this.stats.getBase('STR')
-        const maxHp = 15 + 2 * end + str
-        this.stats.setBase('Max HP', maxHp)
+        // Max HP is derived (skills.ts: 15 + 2×END + STR on a base of 0); a fresh
+        // character starts at full HP (CE _proto_dude_init: critterAdjustHitPoints).
+        this.stats.setBase('Max HP', 0)
+        const maxHp = this.stats.get('Max HP')
         this.stats.setBase('HP', maxHp)
 
         // Derive initial skill points for level 1 (FO2: 5 + 2×INT; Gifted -5; Skilled +5)
@@ -212,6 +262,7 @@ export class Player extends Critter {
         this.stats.setBase('Age', age)
         this.gender = sex.toLowerCase()
 
+        this.updateNativeLook() // CE _proto_dude_init → _proto_dude_update_gender
         dbg('object', `[CharCreator] Applied: ${name}, ${sex}, age ${age}, traits [${traits.join(', ')}], HP ${maxHp}, SP ${skills.skillPoints}`)
     }
 
