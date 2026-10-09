@@ -114,6 +114,8 @@ the pipeline or the TS compiler.
 | `src/statIds.ts` | CE stat enum id → DH2 stat name (`STAT_NAME_BY_ID`) | `stat_defs.h` |
 | `src/weaponAmmo.ts` | Per-object weapon ammo (`ammoQuantity`/`ammoTypePid`), capacity/burst from the proto, `weaponCanBeReloadedWith`/`weaponReload` | `item.cc`, `proto.cc:758` |
 | `src/examine.ts` | Look at / examine text incl. `look_at_p_proc` / `description_p_proc`, health/crippled lines, Awareness details | `proto_instance.cc _obj_look_at_func / _obj_examine_func` |
+| `src/premade.ts` | Premade characters: `.gcd` parser and `.bio` loader for Narg/Mingan/Chitsa | `critter.cc gcdLoad`, `character_selector.cc` |
+| `src/ui_charselect.ts` | NEW GAME character selector (TAKE/MODIFY/CREATE/BACK) | `character_selector.cc characterSelectorOpen` |
 
 ### Combat
 
