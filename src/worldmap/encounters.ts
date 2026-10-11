@@ -29,7 +29,7 @@ import { getRandomInt } from '../util.js'
 import { Config } from '../config.js'
 import { dbg } from '../logger.js'
 import { EncounterGroup, EncounterTable } from './types.js'
-import { getWorldmap, getWorldmapPlayer, positionToSquare, getIsInCar } from './Worldmap.js'
+import { areaIdContainingMap, getWorldmap, getWorldmapPlayer, positionToSquare, getIsInCar, setCarAreaId } from './Worldmap.js'
 
 export function getEncounterGroup(groupName: string): EncounterGroup {
     return getWorldmap().encounterGroups[groupName]
@@ -38,6 +38,10 @@ export function getEncounterGroup(groupName: string): EncounterGroup {
 export function execEncounter(encTable: EncounterTable): void {
     const enc = Encounters.evalEncounter(encTable)
     dbg('worldmap', 'final: map %s, groups %o', enc.mapName, enc.groups)
+
+    // CE ref: worldmap.cc:3111 — in the car, the encounter map's area becomes the car's
+    // area (wmMatchAreaContainingMapIdx); the party stays in the car.
+    if (getIsInCar()) setCarAreaId(areaIdContainingMap(enc.mapName))
 
     // load map
     globalState.gMap.loadMap(enc.mapName, undefined, undefined, function () {

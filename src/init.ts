@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { gameReset } from './gameReset.js'
 import { randomSeedPrerandom } from './random.js'
 import { gameMoviePlay, GAME_MOVIE_FADE_IN, GAME_MOVIE_STOP_MUSIC, MOVIE_CREDITS, MOVIE_ELDER, MOVIE_INTRO, MOVIE_IPLOGO } from './gameMovie.js'
 import { Config } from './config.js'
@@ -94,7 +95,8 @@ export function initGame() {
     // CE main.cc:113 — NEW GAME opens the premade character selector first.
     initCharacterCreator(startNewGame, showMainMenu)
     initCharacterSelector(startNewGame, showMainMenu)
-    initMainMenu(() => showCharacterSelector())
+    // CE main.cc main_reset_system — gameReset() before every NEW GAME.
+    initMainMenu(() => { gameReset(); showCharacterSelector() })
 
     if (mapFromQuery !== null) {
         // Debug: map specified in URL query → skip main menu and load directly.

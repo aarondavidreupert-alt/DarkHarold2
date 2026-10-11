@@ -31,6 +31,7 @@ import { scheduleSneakEvent } from './skillUse.js'
 import { restoreDrugEvent } from './drugs.js'
 import { drawHP, drawAC, uiDrawWeapon } from './ui_hud.js'
 import { getFileJSON } from './util.js'
+import { gameReset } from './gameReset.js'
 import { Worldmap } from './worldmap.js'
 
 // Saving and loading support
@@ -73,6 +74,9 @@ export interface SaveGame {
         leftHand: SerializedObj | null
         rightHand: SerializedObj | null
         armor: SerializedObj | null
+        // Dude conditions (CE saves the dude object: crippled/blind flags, poison,
+        // radiation). Optional — older saves start clean after gameReset.
+        condition?: { [prop: string]: any }
         gvars: { [k: string]: number }
     }
 
@@ -103,6 +107,8 @@ export interface SaveGame {
     carFuel?: number
     // CE ref: worldmap.cc wmGenData.currentCarAreaId — area index where car is parked.
     currentCarAreaId?: number
+    // CE ref: worldmap.cc wmWorldMapSave — wmGenData.worldPosX/Y.
+    worldPos?: { x: number; y: number } | null
     // Name of the specific local map the car is parked on (DH2 addition).
 }
 
@@ -110,6 +116,11 @@ export interface SaveGame {
 // is redrawn and its centre 640x380 stretched to the 224x133 preview
 // (LS_PREVIEW_WIDTH/HEIGHT). The WebGL canvas has no preserveDrawingBuffer, so the
 // frame is rendered and read back in the same task; reading it later gives a blank.
+const PLAYER_CONDITION_PROPS = [
+    'dead', 'crippledLeftArm', 'crippledRightArm', 'crippledLeftLeg', 'crippledRightLeg', 'isBlinded',
+    'poisonLevel', 'radiationLevel', 'radiated', 'addictedState',
+]
+
 const LS_PREVIEW_WIDTH = 224
 const LS_PREVIEW_HEIGHT = 133
 const ISO_W = 640, ISO_H = 380
@@ -184,6 +195,7 @@ function gatherSaveData(name: string): SaveGame {
             leftHand: p.leftHand ? p.leftHand.serialize() : null,
             rightHand: p.rightHand ? p.rightHand.serialize() : null,
             armor: p.armor ? p.armor.serialize() : null,
+            condition: Object.fromEntries(PLAYER_CONDITION_PROPS.map((k) => [k, (p as any)[k]])),
             gvars: Object.assign({}, Scripting.getGlobalVars()),
         },
         mvars: Scripting.getMapVars(),
@@ -196,6 +208,7 @@ function gatherSaveData(name: string): SaveGame {
         isInCar: Worldmap.getIsInCar(),
         carFuel: Worldmap.getCarFuel(),
         currentCarAreaId: Worldmap.getCarAreaId(),
+        worldPos: Worldmap.getPlayerWorldPos(),
     }
 }
 
@@ -294,6 +307,9 @@ export function load(id: number): void {
                 }
                 globalState.inCombat = false
                 globalState.combat = null
+                // CE ref: loadsave.cc _PrepLoad — gameReset() before the save is read, so
+                // nothing the save doesn't carry survives from the current session.
+                gameReset()
 
                 globalState.gMap.deserialize(savedMap)
                 dbg('saveload', '[SaveLoad] Finished map deserialization')
@@ -323,6 +339,9 @@ export function load(id: number): void {
                     p.leftHand = ps.leftHand ? deserializeObj(ps.leftHand) as any : undefined
                     p.rightHand = ps.rightHand ? deserializeObj(ps.rightHand) as any : undefined
                     p.armor = ps.armor ? deserializeObj(ps.armor) : null
+                    for (const k of PLAYER_CONDITION_PROPS) {
+                        if (ps.condition?.[k] !== undefined) (p as any)[k] = ps.condition[k]
+                    }
                     Scripting.setGlobalVars(ps.gvars)
                     // CE ref: item.cc:353 itemAdd() stealthBoyTurnOn — restore stealthActive
                     // after hand slots are deserialized (Stealth Boy II may have been active).
@@ -345,6 +364,7 @@ export function load(id: number): void {
                 Worldmap.setIsInCar(save.isInCar ?? false)
                 Worldmap.setCarFuel(save.carFuel ?? 0)
                 Worldmap.setCarAreaId(save.currentCarAreaId ?? -1)
+                if (save.worldPos) Worldmap.setPlayerWorldPos(save.worldPos.x, save.worldPos.y)
 
                 // Restore seen-movie set (CE ref: game_movie.cc gameMoviesLoad).
                 if (Array.isArray(save.seenMovies)) globalState.seenMovies = new Set(save.seenMovies)

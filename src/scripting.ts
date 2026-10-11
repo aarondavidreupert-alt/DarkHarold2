@@ -250,6 +250,16 @@ export module Scripting {
         globalVars = Object.assign({}, vars)
     }
 
+    // CE ref: game.cc gameReset → gameLoadGlobalVars (vault13.gam defaults), _scr_reset /
+    // scriptsReset (queue, MVARs of every map) — a new game or a load starts clean.
+    export function resetGameState(): void {
+        globalVars = {}
+        globalVarsLoaded = false
+        loadGlobalVars()
+        mapVars = null
+        timeEventList.length = 0
+    }
+
     export function getMapVars(): any {
         return mapVars
     }

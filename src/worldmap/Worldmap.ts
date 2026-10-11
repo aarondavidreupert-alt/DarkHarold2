@@ -18,7 +18,7 @@ limitations under the License.
 // carved out of worldmap.ts. See wiki/ts-split-refactor.md §10.
 
 import { scriptsCheckGameEvents } from '../gameTick.js'
-import { areaContainingMap, loadAreas } from '../data.js'
+import { areaContainingMap, loadAreas, lookupMapName } from '../data.js'
 import * as GameTime from '../gametime.js'
 import { Point, pointIntersectsCircle } from '../geometry.js'
 import globalState from '../globalState.js'
@@ -327,6 +327,17 @@ export function getPlayerWorldPos(): { x: number; y: number } | null {
     return { x: Math.round(worldmapPlayer.x), y: Math.round(worldmapPlayer.y) }
 }
 
+// CE ref: worldmap.cc wmWorldMapLoad — wmGenData.worldPosX/Y come back from the save.
+export function setPlayerWorldPos(x: number, y: number): void {
+    if (!worldmapPlayer) return
+    worldmapPlayer.x = x
+    worldmapPlayer.y = y
+    worldmapPlayer.target = null
+    centerWorldmapTarget(x, y)
+    if ($worldmapPlayer) hidev($worldmapPlayer)
+    setTargetImage('art/intrface/hotspot1.png', true)
+}
+
 export function positionToSquare(pos: Point): Point {
     return { x: Math.floor(pos.x / SQUARE_SIZE), y: Math.floor(pos.y / SQUARE_SIZE) }
 }
@@ -458,6 +469,45 @@ export function deserializeAreaStates(data: { [id: string]: { state: boolean; vi
     refreshAreaMarkers()
 }
 
+// CE ref: worldmap.cc wmWorldMap_reset / wmGenDataReset (called from game.cc gameReset):
+// area states back to city.txt, party back at Arroyo, no car (fuel CAR_FUEL_MAX, no
+// parking area) and the subtile fog of worldmap.txt.
+export function resetWorldmap(): void {
+    _isInCar = false
+    _carFuel = CAR_FUEL_MAX
+    _currentCarAreaId = -1
+    globalState.knownAreas = new Set()
+    try { globalState.mapAreas = loadAreas() } catch (_) { globalState.mapAreas = null }
+    if (!$worldmap || !worldmap || !globalState.mapAreas) return
+
+    $worldmap.querySelectorAll('[data-area-key]').forEach((el) => el.remove())
+    refreshAreaMarkers()
+
+    worldmap = parseWorldmap(getFileText('data/data/worldmap.txt'))
+    const stateName: { [state: number]: string } = {
+        [WORLDMAP_UNDISCOVERED]: 'undiscovered', [WORLDMAP_DISCOVERED]: 'discovered', [WORLDMAP_SEEN]: 'seen',
+    }
+    $worldmap.querySelectorAll<HTMLElement>('div.worldmapSquare').forEach(($sq) => {
+        const x = Number($sq.getAttribute('square-x'))
+        const y = Number($sq.getAttribute('square-y'))
+        const state = worldmap.squares[x][y].state
+        $sq.className = 'worldmapSquare worldmapSquare-' + (stateName[state] ?? state)
+    })
+
+    worldmapPlayer = {
+        x: globalState.mapAreas[0].worldPosition.x,
+        y: globalState.mapAreas[0].worldPosition.y,
+        target: null,
+        isInCar: _isInCar,
+        carFuel: _carFuel,
+    }
+    centerWorldmapTarget(worldmapPlayer.x, worldmapPlayer.y)
+    setSquareStateAt(positionToSquare(worldmapPlayer), WORLDMAP_DISCOVERED)
+    if ($worldmapPlayer) hidev($worldmapPlayer)
+    setTargetImage('art/intrface/hotspot1.png', true)
+    updateCarUI()
+}
+
 export function updateAreaMarkerPos(areaKey: string, x: number, y: number): void {
     if (!$worldmap) return
     const $area = $worldmap.querySelector<HTMLElement>(`[data-area-key="${areaKey}"]`)
@@ -560,7 +610,7 @@ export function init(): void {
     // clicking a known area hotspot opens the area map.
     $worldmapTarget.onmousedown = function () {
         const area = withinArea(worldmapPlayer)
-        if (area !== null) {
+        if (area !== null || worldmapPlayer.target === null) {
             setTargetImage('art/intrface/hotspot2.png', true)
         }
     }
@@ -570,6 +620,11 @@ export function init(): void {
             setTargetImage('art/intrface/hotspot1.png', true)
             e.stopPropagation()
             uiWorldMapShowArea(area)
+        } else if (worldmapPlayer.target === null) {
+            setTargetImage('art/intrface/hotspot1.png', true)
+            e.stopPropagation()
+            markerClickHandled = true
+            enterWilderness()
         }
     }
     $worldmapTarget.onmouseleave = function () {
@@ -578,7 +633,13 @@ export function init(): void {
             setTargetImage('art/intrface/hotspot1.png', true)
         }
     }
-    $worldmapTarget.onclick = null  // handled by mouseup above
+    // Handled by mouseup above; swallow the click that follows a wilderness entry so
+    // the worldmap's walk-to-click handler doesn't set a new destination.
+    let markerClickHandled = false
+    $worldmapTarget.onclick = function (e: MouseEvent) {
+        if (markerClickHandled) e.stopPropagation()
+        markerClickHandled = false
+    }
 
     refreshAreaMarkers()
 
@@ -693,6 +754,32 @@ export function withinArea(position: Point) {
     }
 
     return null
+}
+
+// CE ref: worldmap.cc:6541 wmMatchAreaContainingMapIdx — the area with an entrance
+// to `mapName`; CE leaves area 0 when none matches.
+export function areaIdContainingMap(mapName: string): number {
+    if (!globalState.mapAreas) {
+        try { globalState.mapAreas = loadAreas() } catch (_) { return 0 }
+    }
+    return areaContainingMap(mapName)?.id ?? 0
+}
+
+// CE ref: worldmap.cc:3141-3172 — clicking the party marker while stopped outside
+// every area enters map 0 (Desert Encounter 1, whatever the terrain). In the car the
+// party gets out; the car stays in the area containing that map (Area 26 "Random"),
+// whose map script places it.
+function enterWilderness(): void {
+    const mapName = lookupMapName(0)
+    if (!mapName) return
+    dbg('worldmap', `[Worldmap] party marker outside any area → map 0 (${mapName})`)
+    if (_isInCar) {
+        setIsInCar(false)
+        _currentCarAreaId = areaIdContainingMap(mapName)
+        dbg('worldmap', `car parked at area ${_currentCarAreaId}`)
+    }
+    globalState.gMap.loadMap(mapName)
+    uiCloseWorldMap()
 }
 
 // CE ref: worldmap.cc:3052-3082 — out of gas: travel stops, the party leaves the car,

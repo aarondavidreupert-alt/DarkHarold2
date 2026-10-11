@@ -63,6 +63,8 @@ export module Worldmap {
     export const setAreaVisitedState = _WorldmapMod.setAreaVisitedState
     export const serializeAreaStates = _WorldmapMod.serializeAreaStates
     export const deserializeAreaStates = _WorldmapMod.deserializeAreaStates
+    export const resetWorldmap = _WorldmapMod.resetWorldmap
+    export const setPlayerWorldPos = _WorldmapMod.setPlayerWorldPos
     export const updateCarUI = _WorldmapMod.updateCarUI
 
     // Encounter dispatch (worldmap/encounters.ts).

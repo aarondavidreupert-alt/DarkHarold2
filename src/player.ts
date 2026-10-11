@@ -27,12 +27,47 @@ import { uiLog, uiWorldMap } from './ui.js'
 
 // Contains the Player class and relevant initialization logic
 
+const newPlayerStats = () => new StatSet({ AGI: 8, INT: 8, STR: 8, CHA: 8, HP: 100 })
+const newPlayerSkills = () => new SkillSet(undefined, undefined, 10) // Start off with 10 skill points
+
 export class Player extends Critter {
     name = 'Player'
 
     // CE ref: proto.cc _proto_dude_init → _obj_inven_free — a new game's dude has an
     // empty inventory and nothing equipped (the debug kit above is for ?<map> starts);
     // anything the Chosen One carries is given by the game's scripts.
+    // CE ref: game.cc gameReset — statsReset / skillsReset / perksReset / traitsReset /
+    // critterReset / _inven_reset_dude for the dude: the next character starts from a
+    // clean slate (no XP, perks, traits, conditions or items of the previous game).
+    resetForNewGame(): void {
+        this.stats = newPlayerStats()
+        this.skills = newPlayerSkills()
+        this.perks = []
+        this.traits = []
+        this.pendingPerkPick = false
+        if (this.dead) {
+            this.anim = 'idle'
+            this.frame = 0
+        }
+        this.dead = false
+        this.crippledLeftArm = this.crippledRightArm = false
+        this.crippledLeftLeg = this.crippledRightLeg = false
+        this.isBlinded = false
+        this.poisonLevel = 0
+        this.radiationLevel = 0
+        this.radiated = false
+        this.addictions = []
+        this.addictedState = false
+        this.onFireTurns = 0
+        this.skipTurns = 0
+        this.isKnockedDown = false
+        this.bonusAC = 0
+        this.isSneaking = false
+        this.sneakWorking = false
+        this.stealthActive = false
+        this.resetInventoryForNewGame()
+    }
+
     resetInventoryForNewGame(): void {
         this.inventory = []
         this.leftHand = undefined
@@ -88,8 +123,8 @@ export class Player extends Critter {
     sneakWorking = false
     art = 'art/critters/hmjmpsaa'
 
-    stats = new StatSet({ AGI: 8, INT: 8, STR: 8, CHA: 8, HP: 100 })
-    skills = new SkillSet(undefined, undefined, 10) // Start off with 10 skill points
+    stats = newPlayerStats()
+    skills = newPlayerSkills()
 
     teamNum = 0
 
