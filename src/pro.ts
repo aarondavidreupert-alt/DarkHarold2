@@ -61,7 +61,7 @@ export function makePID(type: number, pid: number) {
 const ALIASED_CRITTER_ANIMS = [27, 29, 30, 55, 57, 58, 33, 64]
 
 // Port of CE art.cc:544 _art_get_code(). Returns [weaponCode, animCode] or null.
-function artGetCode(animation: number, weaponType: number): [string, string] | null {
+export function artGetCode(animation: number, weaponType: number): [string, string] | null {
     const chr = (base: string, off: number) => String.fromCharCode(base.charCodeAt(0) + off)
     if (weaponType < 0 || weaponType >= 11) return null
     if (animation >= 38 && animation <= 47) { // ANIM_TAKE_OUT..ANIM_FIRE_CONTINUOUS

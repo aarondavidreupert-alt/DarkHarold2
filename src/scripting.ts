@@ -16,6 +16,7 @@ limitations under the License.
 Scripting system/engine for DarkFO
 */
 
+import { sfxBuildOpenName } from './sfxNames.js'
 import { FIDGET_BAD, FIDGET_GOOD, FIDGET_NEUTRAL, GAME_DIALOG_REACTION_NEUTRAL, reactToOption, startLips, startTalkingHead, talkToCritterReacts, isTalkingHeadActive } from './talkingHead.js'
 import { gameMoviePlay, SCRIPT_MOVIE_FLAGS } from './gameMovie.js'
 import { randomInit, randomSeedPrerandom } from './random.js'
@@ -2160,13 +2161,7 @@ export module Scripting {
         // CE opSfxBuildOpenName (0x80A5) — game_sound.cc sfxBuildOpenName
         sfx_build_open_name(obj: Obj, action: number): string | null {
             if (!isGameObject(obj)) return null
-            const act = SND_SCENERY_ACTION[action] ?? 'O'
-            if (obj.type === 'scenery') {
-                const id = obj.pro?.extra?.soundID
-                return `S${act}DOORS${typeof id === 'number' ? String.fromCharCode(id) : 'A'}`.toUpperCase()
-            }
-            const id = obj.pro?.extra?.soundID
-            return `I${act}CNTNR${typeof id === 'number' ? String.fromCharCode(id) : 'A'}`.toUpperCase()
+            return sfxBuildOpenName(obj, action)
         }
         // CE opSkillContest (0x80AD) — "not implemented" in CE too; returns 0.
         skill_contest(_a: number, _b: number, _c: number) {

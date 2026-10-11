@@ -17,6 +17,7 @@ limitations under the License.
 // Obj base class + top-of-file helpers + SerializedObj interface.
 // Split out of object.ts per wiki/ts-split-refactor.md §2.
 
+import { playCharSfx, playOpenSfx, sfxBuildCharName, SCENERY_SOUND_EFFECT } from '../sfxNames.js'
 import { initWeaponAmmo } from '../weaponAmmo.js'
 import type { Proto } from '../proto_types.js'
 
@@ -171,24 +172,17 @@ export function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent 
     // Open/closable doors/containers
     // TODO: Door/Container subclasses
     if (obj.locked) {
-        // CE ref: proto_instance.cc:1712 _obj_use_door — plays SLDOORSx for locked doors
-        //         proto_instance.cc:1804 — plays ILCNTNRx + msg 487 for locked containers
-        if (obj.isDoor) {
-            globalState.audioEngine.playSfxByName('sldoorsa')
-        } else if (obj.isContainer) {
-            globalState.audioEngine.playSfxByName('silcntna')
-            uiLog('It is locked.')
-        }
+        // CE ref: proto_instance.cc:1712 _obj_use_door — SLDOORS<id> for locked doors;
+        //         proto_instance.cc:1804 — ILCNTNR<id> + msg 487 for locked containers
+        playOpenSfx(obj, SCENERY_SOUND_EFFECT.locked)
+        if (obj.isContainer) uiLog('It is locked.')
         return false
     }
 
     obj.open = open
-    if (obj.isDoor) {
-        globalState.audioEngine.playSfxByName(open ? 'sndoorsa' : 'sndoorsc')
-    } else if (obj.isContainer) {
-        const variant = String.fromCharCode(97 + getRandomInt(0, 4)) // 'a'..'e'
-        globalState.audioEngine.playSfxByName((open ? 'iocntnr' : 'iccntnr') + variant)
-    }
+    // CE ref: proto_instance.cc:1764/1773 (doors) and :1842/1846 (containers) —
+    // sfxBuildOpenName(obj, OPEN / CLOSED): S{O,C}DOORS<id> / I{O,C}CNTNR<id>.
+    playOpenSfx(obj, open ? SCENERY_SOUND_EFFECT.open : SCENERY_SOUND_EFFECT.closed)
 
     if (signalEvent) {
         Events.emit('objSetOpen', { obj, open })
@@ -962,6 +956,9 @@ export class Obj {
             }
 
             const actor = source ?? globalState.player
+            // CE ref: actions.cc:1050 — sfxBuildCharName(critter, ANIM_CLIMB_LADDER) is
+            // played as the climb starts (HMWARRAE → fallback HMXXXXAE etc.).
+            playCharSfx(actor, sfxBuildCharName(actor, 4 /* ANIM_CLIMB_LADDER */))
             if (actor.hasAnimation('climb')) {
                 actor.staticAnimation('climb', () => {
                     actor.clearAnim()

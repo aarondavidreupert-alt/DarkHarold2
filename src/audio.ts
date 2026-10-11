@@ -28,6 +28,7 @@ export const AUDIO_ASSET_QUERY = '?r=2'
 export interface AudioEngine {
     playSfx(sfx: string): void
     playSfxByName(stem: string): void
+    hasSfx(stem: string): boolean
     playMusic(music: string): void
     playSound(soundName: string): HTMLAudioElement | null
     playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial): void
@@ -40,6 +41,7 @@ export interface AudioEngine {
 export class NullAudioEngine implements AudioEngine {
     playSfx(sfx: string): void {}
     playSfxByName(stem: string): void {}
+    hasSfx(stem: string): boolean { return false }
     playMusic(music: string): void {}
     playSound(soundName: string): HTMLAudioElement | null {
         return null
@@ -173,6 +175,14 @@ export class HTMLAudioEngine implements AudioEngine {
         }, false)
         sound.src = 'audio/' + soundName + '.wav' + AUDIO_ASSET_QUERY
         return sound
+    }
+
+    // Is `stem` in sound/sfx/sndlist.lst (lut/lst/sound_sfx_sndlist.json)?
+    hasSfx(stem: string): boolean {
+        if (!this.sfxLookup) {
+            this.sfxLookup = getFileJSON('lut/lst/sound_sfx_sndlist.json') ?? {}
+        }
+        return stem.toUpperCase() in this.sfxLookup!
     }
 
     playSfxByName(stem: string): void {
