@@ -24,6 +24,7 @@ limitations under the License.
 // tools/convertSpeech.py (audio/speech/<head>/<name>.mp3); .lip files are read from
 // data/sound/speech/<head>/.
 
+import { AUDIO_ASSET_QUERY } from './audio.js'
 import globalState from './globalState.js'
 import { getCurrentMapInfo, getLstJson } from './data.js'
 import { lazyLoadImage } from './images.js'
@@ -258,7 +259,7 @@ function loadLips(audioName: string): Lips | null {
         markers.push({ marker: dv.getInt32(p, false), position: dv.getInt32(p + 4, false) })
         p += 8
     }
-    const audio = new Audio(`audio/speech/${headName}/${base}.mp3`)
+    const audio = new Audio(`audio/speech/${headName}/${base}.mp3${AUDIO_ASSET_QUERY}`)
     return { phonemes, markers, totalBytes, audio }
 }
 
@@ -355,9 +356,10 @@ function ensureCanvas(): HTMLCanvasElement | null {
         c.width = HEAD_W
         c.height = HEAD_H
         // CE: head view occupies (126,14)-(514,214) of the 640x480 dialogue window,
-        // under the hilight1/hilight2 overlays.
+        // seen through the frame's TV hole — so below #dialogueFrame (and the
+        // hilight1/hilight2 overlays above it).
         Object.assign(c.style, { position: 'absolute', left: '126px', top: '14px', width: HEAD_W + 'px', height: HEAD_H + 'px', pointerEvents: 'none' })
-        container.insertBefore(c, container.firstChild)
+        container.insertBefore(c, container.firstChild) // first child = bottom layer, under #dialogueFrame
     }
     c.style.display = 'block'
     return c

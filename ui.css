@@ -872,8 +872,21 @@ html, body {
   height: 480px;
 
   visibility: hidden;
-  background-image: url("art/intrface/alltlk.png");
   overflow: hidden;
+}
+
+/* The dialogue frame (alltlk.frm) as its own layer ABOVE the talking-head canvas:
+   CE draws the head into the "TV" hole behind the frame, whose opaque border clips
+   it (game_dialog.cc). A CSS background on #dialogueContainer would always paint
+   under its children, i.e. under the head. Order: head canvas, frame, highlights,
+   reply/options. */
+#dialogueFrame {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 640px;
+  height: 480px;
+  pointer-events: none;
 }
 
 /* Talking-head "screen curvature" glint/shadow. CE ref: game_dialog.cc:4526-4546

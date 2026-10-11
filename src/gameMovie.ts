@@ -178,6 +178,13 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
         video.src = `art/cuts/${name}.webm`
         video.preload = 'auto'
         video.playsInline = true
+        // No browser chrome on the movie: Chrome otherwise overlays its own cast /
+        // picture-in-picture buttons on <video>, and those layers could linger after
+        // the element was removed (until the next repaint, e.g. a tab switch).
+        video.controls = false
+        video.disablePictureInPicture = true
+        ;(video as any).disableRemotePlayback = true
+        video.setAttribute('controlslist', 'nodownload nofullscreen noremoteplayback')
         Object.assign(video.style, { position: 'absolute', left: '0', width: MOVIE_W + 'px', top: '80px', height: '320px' })
         const sub = document.createElement('div')
         // CE movie.cc:629 — subtitle strip centered between the movie's bottom and 480.
@@ -194,12 +201,22 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
         let subIdx = 0
         let finished = false
 
+        // CE movie.cc movieStop/_movieClose: stop, release the stream, close the window
+        // — in that order, every exit path (end, skip, error) through this one place.
+        let resumeListener: (() => void) | null = null
         const finish = async () => {
             if (finished) return
             finished = true
+            video.removeEventListener('timeupdate', update)
             video.pause()
+            video.removeAttribute('src') // release the media pipeline (and its overlay layers)
+            video.load()
             document.removeEventListener('keydown', onInput, true)
             screen.removeEventListener('mouseup', onInput, true)
+            if (resumeListener) {
+                document.removeEventListener('keydown', resumeListener, true)
+                screen.removeEventListener('mousedown', resumeListener)
+            }
             globalState.seenMovies.add(movie) // CE gGameMoviesSeen[movie] = 1
             // CE interpreter_extra.cc:4625 — the vault-suit movie changes the dude's look.
             if (movie === MOVIE_VSUIT) globalState.player?.updateNativeLook()
@@ -244,6 +261,7 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
 
         video.addEventListener('ended', () => void finish())
         video.addEventListener('error', () => {
+            if (finished) return // the teardown's own src removal
             dbgWarn('script', `[Movie] art/cuts/${name}.webm unavailable — run the export_movies pipeline stage`)
             void finish()
         })
@@ -252,6 +270,9 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
             if (flags & GAME_MOVIE_STOP_MUSIC) audio?.stopMusic?.()
             else if ((flags & GAME_MOVIE_PAUSE_MUSIC) && musicWasPlaying) musicEl!.pause()
             if (flags & GAME_MOVIE_FADE_IN) await fadeTo(fadeLayer, 1)
+            // An error during the fade-in may already have finished the movie; don't
+            // put its window up afterwards (it would never be removed).
+            if (finished) return
             document.body.appendChild(screen)
             fadeLayer.style.opacity = '0'
             globalState.uiMode = UIMode.movie // modal: pauses tickGame (CE isoDisable)
@@ -265,12 +286,19 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
                 awaitingGesture = true
                 sub.textContent = '[click to play]'
                 const resume = () => {
+                    if (resumeListener) {
+                        document.removeEventListener('keydown', resumeListener, true)
+                        screen.removeEventListener('mousedown', resumeListener)
+                        resumeListener = null
+                    }
+                    if (finished) return
                     sub.textContent = ''
                     video.play().catch(() => void finish())
                     setTimeout(() => { awaitingGesture = false }, 0)
                 }
-                screen.addEventListener('mousedown', resume, { once: true })
-                document.addEventListener('keydown', resume, { once: true, capture: true })
+                resumeListener = resume
+                screen.addEventListener('mousedown', resume)
+                document.addEventListener('keydown', resume, true)
             }
             requestAnimationFrame(tick)
         }

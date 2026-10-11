@@ -192,10 +192,10 @@ def export_pros(overwrite=True):
 	return True
 
 def export_audio(overwrite=True):
-	# CE ref: n/a — DH2-specific conversion. Requires acm2wav.exe at CWD
-	# (project root) and data/sound/{sfx,music} from extract_dats().
-	if not os.path.exists("acm2wav.exe"):
-		warn("acm2wav.exe not found in project root - skipping audio conversion")
+	# DH2-specific conversion. Needs ffmpeg (SFX are decoded mono, as CE plays them —
+	# see tools/acmMono.py); music uses acm2wav.exe when present, else ffmpeg.
+	if convertMovies.findFfmpeg() is None:
+		warn("ffmpeg not found (PATH or project root) - skipping audio conversion")
 		return True
 	if not os.path.exists("data/sound/sfx") and not os.path.exists("data/sound/music"):
 		warn("data/sound/{sfx,music} not found - run DAT extraction first")

@@ -26,6 +26,7 @@ limitations under the License.
 import os
 import subprocess
 
+from acmMono import convertAcmMono
 from convertMovies import findFfmpeg
 
 
@@ -51,9 +52,8 @@ def convertAll(srcDir=os.path.join("data", "sound", "speech"), outDir=os.path.jo
             out = os.path.join(outHead, os.path.splitext(name)[0].lower() + ".mp3")
             if not overwrite and os.path.exists(out):
                 continue
-            result = subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
-                                     "-i", os.path.join(headDir, name), "-c:a", "libmp3lame", "-b:a", "64k", out])
-            if result.returncode != 0:
+            # Mono, as CE plays speech (see acmMono.py) — the headers claim stereo.
+            if not convertAcmMono(ffmpeg, os.path.join(headDir, name), out, ["-c:a", "libmp3lame", "-b:a", "64k"]):
                 print("WARNING: ffmpeg failed for %s" % os.path.join(headDir, name))
             count += 1
         if verbose:

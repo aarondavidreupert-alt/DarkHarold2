@@ -17,7 +17,11 @@ limitations under the License.
 import { getCurrentMapInfo } from './data.js'
 import { dbg, dbgWarn } from './logger.js'
 import { getFileJSON, getRandomInt } from './util.js'
-import { getWeaponSounds, ImpactMaterial } from './soundMap.js'
+import { getWeaponSounds, ImpactMaterial } from './soundMap.js'
+
+// Bump when the pipeline's SFX/speech output changes, so browsers drop cached copies
+// (2 = mono SFX/speech, 2026-10-11).
+export const AUDIO_ASSET_QUERY = '?r=2'
 
 // Audio engine for handling music and sound effects
 
@@ -60,11 +64,10 @@ export class HTMLAudioEngine implements AudioEngine {
     // FO2-CE ref: settings.cc:93 speech_volume (0–32767 in CE, normalised to 0.0–1.0 here)
     speechVolume: number = 1
 
-    // Web Audio pipeline for SFX.
-    // FO2 .wav files are 22050 Hz. HTMLAudioElement plays them at the output
-    // device's rate without resampling, so they sound ~2× too fast on modern
-    // 44100/48000 Hz output. AudioContext.decodeAudioData resamples correctly.
+    // Web Audio pipeline for SFX (decodeAudioData + one-shot buffers).
     // Music stays on HTMLAudioElement — loop + streaming are simpler there.
+    // SFX/speech that played "2× too fast" were converted as stereo although CE
+    // plays them mono — fixed in the pipeline (tools/acmMono.py), not here.
     private ctx: AudioContext | null = null
     private sfxCache: Map<string, AudioBuffer> = new Map()
     private sfxPending: Map<string, Promise<AudioBuffer | null>> = new Map()
@@ -102,7 +105,7 @@ export class HTMLAudioEngine implements AudioEngine {
         const ctx = this.getCtx()
         const promise = (async () => {
             try {
-                const res = await fetch('audio/sfx/' + name + '.wav')
+                const res = await fetch('audio/sfx/' + name + '.wav' + AUDIO_ASSET_QUERY)
                 if (!res.ok) {
                     dbgWarn('audio', '[Audio] could not load:', name, `(${res.status})`)
                     this.sfxMissing.add(name)
@@ -168,7 +171,7 @@ export class HTMLAudioEngine implements AudioEngine {
             // File missing (404) or unsupported format — fail silently to avoid console spam
             dbgWarn('audio', '[Audio] could not load:', soundName)
         }, false)
-        sound.src = 'audio/' + soundName + '.wav'
+        sound.src = 'audio/' + soundName + '.wav' + AUDIO_ASSET_QUERY
         return sound
     }
 
