@@ -23,6 +23,7 @@ import { directionOfDelta, hexToScreen, Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { lazyLoadImage } from '../images.js'
 import { dbg, dbgWarn } from '../logger.js'
+import { ANIM, critterWeaponCode, playCharAnimSfx } from '../sfxNames.js'
 import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from '../unarmed.js'
 import { Critter } from './Critter.js'
 // Imported from Obj (not the barrel) to avoid a cycle through ../object.js.
@@ -590,6 +591,9 @@ Critter.prototype.playWeaponSwapAnim = function (this: Critter, swapFn: () => vo
         swapFn()
         if (this.hasAnimation('weapon-draw')) {
             // Xc = pull out weapon, played forward
+            // CE ref: animation.cc:1188 animationRegisterTakeOutWeapon —
+            // sfxBuildCharName(owner, ANIM_TAKE_OUT, weaponAnimationCode).
+            playCharAnimSfx(this, ANIM.takeOut, critterWeaponCode(this))
             this.staticAnimation('weapon-draw', settle)
         } else {
             settle()
@@ -597,6 +601,8 @@ Critter.prototype.playWeaponSwapAnim = function (this: Critter, swapFn: () => vo
     }
 
     if (this.hasAnimation('weapon-holster')) {
+        // CE ref: interface.cc:1824 — sfxBuildCharName(gDude, ANIM_PUT_AWAY, UNUSED).
+        playCharAnimSfx(this, ANIM.putAway)
         this.staticAnimation('weapon-holster', playDraw)
     } else {
         playDraw()

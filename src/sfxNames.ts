@@ -37,18 +37,41 @@ export function sfxBuildOpenName(obj: Obj, action: number): string {
     return (obj.type === 'scenery' ? `S${act}DOORS${idChar}` : `I${act}CNTNR${idChar}`).toUpperCase()
 }
 
+// CE game_sound.h CharacterSoundEffect — the `extra` of sfxBuildCharName.
+export const CHARACTER_SOUND_EFFECT = { unused: 0, knockdown: 1, passOut: 2, die: 3, contact: 4 } as const
+
+// CE anim ids used for character sounds (animation.h).
+export const ANIM = {
+    climbLadder: 4, dodge: 13, hitFromFront: 14, hitFromBack: 15, throwPunch: 16, kickLeg: 17,
+    fallBack: 20, fallFront: 21, takeOut: 38, putAway: 39,
+} as const
+
 // CE game_sound.cc:1318 sfxBuildCharName — critter art base name (6 chars) + the
-// art code of `anim` for the weapon code currently held (fid bits 12-15).
-export function sfxBuildCharName(critter: Obj, anim: number, weaponCode?: number): string | null {
+// art code of `anim` for the weapon code currently held (fid bits 12-15). TAKE_OUT
+// uses `extra` as the weapon code; falls with PASS_OUT/DIE and unarmed attacks
+// with CONTACT replace the first code letter with 'Y'/'Z'.
+export function sfxBuildCharName(critter: Obj, anim: number, extra: number = CHARACTER_SOUND_EFFECT.unused): string | null {
     const base = critter.art?.split('/').pop()?.slice(0, 6)
     if (!base) return null
-    const code = artGetCode(anim, weaponCode ?? critterWeaponCode(critter))
+    const code = artGetCode(anim, anim === ANIM.takeOut ? extra : critterWeaponCode(critter))
     if (!code) return null
-    return (base + code[0] + code[1]).toUpperCase()
+    let first = code[0]
+    if (anim === ANIM.fallFront || anim === ANIM.fallBack) {
+        if (extra === CHARACTER_SOUND_EFFECT.passOut) first = 'Y'
+        else if (extra === CHARACTER_SOUND_EFFECT.die) first = 'Z'
+    } else if ((anim === ANIM.throwPunch || anim === ANIM.kickLeg) && extra === CHARACTER_SOUND_EFFECT.contact) {
+        first = 'Z'
+    }
+    return (base + first + code[1]).toUpperCase()
+}
+
+// Shorthand: build and play a character sound.
+export function playCharAnimSfx(critter: Obj, anim: number, extra: number = CHARACTER_SOUND_EFFECT.unused): void {
+    playCharSfx(critter, sfxBuildCharName(critter, anim, extra))
 }
 
 // fid weapon code: the held weapon's proto animCode while one is in the active hand.
-function critterWeaponCode(critter: Obj): number {
+export function critterWeaponCode(critter: Obj): number {
     const weapon: any = (critter as any).equippedWeapon
     const animCode = weapon?.pro?.extra?.animCode
     return typeof animCode === 'number' && animCode > 0 && animCode < 11 ? animCode : 0

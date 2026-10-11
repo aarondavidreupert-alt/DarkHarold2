@@ -33,6 +33,7 @@ import { clamp, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess,
 import { randomBetween } from '../random.js'
 import { toTileNum } from '../tile.js'
 import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from '../unarmed.js'
+import { ANIM, CHARACTER_SOUND_EFFECT, playCharAnimSfx } from '../sfxNames.js'
 import { ActionPoints } from './actionPoints.js'
 import { AI, fleeHpThreshold } from './AI.js'
 import { computeDamage } from './damage.js'
@@ -506,6 +507,9 @@ export class Combat {
             const isBurstAttack = !!(weaponObj?.weapon?.isBurst?.())
             globalState.audioEngine.playWeaponSfx(attackSoundChar, isBurstAttack ? 'attack_burst' : 'attack')
         }
+        // CE ref: actions.cc:625 — punches and kicks use sfxBuildCharName(attacker,
+        // anim, UNUSED) instead of a weapon sound.
+        if (weaponObj === null && !(window as any).__test?.fastMode) playCharAnimSfx(obj, unarmedAttackAnim(obj))
 
         // attack!
         // FA3 — CE ref: animation.cc / combat.cc _action_melee/_action_ranged: the hit,
@@ -549,7 +553,8 @@ export class Combat {
                 var unarmedDmg = this.getUnarmedDamageDone(obj, target, unarmedCritMod)
                 var unarmedExtraMsg = unarmedHit.crit ? this.getCombatMsg(unarmedHit.msgID) || '' : ''
                 uiLog(`${who} hits ${targetName} for ${unarmedDmg} damage (${unarmedModeName})${unarmedExtraMsg}`)
-                if (!(window as any).__test?.fastMode) audio.playWeaponSfx('Y', 'impact')
+                // CE ref: actions.cc:637 — the hit sound is sfxBuildCharName(attacker, anim, CONTACT).
+                if (!(window as any).__test?.fastMode) playCharAnimSfx(obj, unarmedAttackAnim(obj), CHARACTER_SOUND_EFFECT.contact)
                 critterDamage(target, unarmedDmg, obj, true, true, 'Normal')
                 noteHit(target, obj, false) // CE combat.cc:4706
                 if (target.isPlayer) drawHP(target.getStat('HP'))
@@ -560,8 +565,9 @@ export class Combat {
                 if (target.dead) this.perish(target, obj, 'Normal')
             } else {
                 uiLog(`${who} misses ${targetName} (${unarmedModeName})`)
-                if (!(window as any).__test?.fastMode) audio.playSfxByName('cmbtflx')
                 if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
+                    // CE ref: actions.cc:660 — sfxBuildCharName(defender, ANIM_DODGE_ANIM, UNUSED).
+                    playCharAnimSfx(target, ANIM.dodge)
                     target.staticAnimation('dodge', () => target.clearAnim())
                 }
                 if (unarmedHit.crit === true) {
@@ -629,6 +635,9 @@ export class Combat {
 
             // Play a dodge/flinch on the target if they aren't already animating
             if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
+                // CE ref: actions.cc:660 — sfxBuildCharName(defender, ANIM_DODGE_ANIM, UNUSED),
+                // melee only (_action_ranged plays no dodge sound).
+                if (weapon?.type === 'melee') playCharAnimSfx(target, ANIM.dodge)
                 target.staticAnimation('dodge', () => target.clearAnim())
             }
 
@@ -1785,4 +1794,14 @@ export class Combat {
             obj.outline = (obj as any).hostile ? 'red' : sameTeam ? 'green' : 'blue'
         }
     }
+}
+
+// CE anim of an unarmed attack: ANIM_KICK_LEG for kick moves, else ANIM_THROW_PUNCH
+// (same choice as Critter.getAnimation('attack')).
+function unarmedAttackAnim(obj: Critter): number {
+    const skill = obj.getSkill('Unarmed')
+    const mode = obj.isPlayer
+        ? getActiveUnarmedModeForHand(skill, (obj as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(obj as any).leftHand?.weapon && !(obj as any).rightHand?.weapon)
+        : getActiveUnarmedMode(skill, 0)
+    return mode.icon === 'kick' ? ANIM.kickLeg : ANIM.throwPunch
 }

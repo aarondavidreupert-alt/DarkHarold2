@@ -28,6 +28,7 @@ import { Scripting } from '../scripting.js'
 import * as Endgame from '../endgame.js'
 import { hexDirectionTo, hexInDirection, HEX_GRID_SIZE } from '../geometry.js'
 import { getRandomInt } from '../util.js'
+import { ANIM, CHARACTER_SOUND_EFFECT, playCharAnimSfx } from '../sfxNames.js'
 
 // CE ref: kills.cc killsGetByType() — per-type kill counters, persisted in save
 // Key = killType number (proto.extra.killType), value = count
@@ -170,13 +171,41 @@ export function critterKill(
     // If the critter is mid-knockdown, let that animation finish first, then
     // transition directly to the death animation.  This avoids an ugly pop
     // where the critter snaps from falling to dying.
-    if (obj.anim === 'knockdownFront' || obj.anim === 'knockdownBack') {
-        obj.animCallback = () => {
-            obj.staticAnimation(resolvedAnim, finalizeCallback, true)
-        }
-    } else {
+    const playDeath = () => {
+        playDeathSfx(obj, source, resolvedAnim)
         obj.staticAnimation(resolvedAnim, finalizeCallback, true)
     }
+    if (obj.anim === 'knockdownFront' || obj.anim === 'knockdownBack') {
+        obj.animCallback = playDeath
+    } else {
+        playDeath()
+    }
+}
+
+// CE ref: actions.cc:1512 _is_hit_from_front — attacker is "in front" when the
+// direction from the target to the attacker is within the target's front 3-hex arc
+// (facing ±1 direction mod 6).
+function isHitFromFront(obj: Critter, source?: Critter): boolean {
+    if (!source) return true
+    const dirToSrc = hexDirectionTo(obj.position, source.position)
+    const diff = Math.abs(dirToSrc - (obj.orientation ?? 0)) % 6
+    return diff <= 1 || diff === 5
+}
+
+// CE ref: actions.cc:321 _show_damage_to_object — sfxBuildCharName(defender, anim,
+// DIE) for the picked death anim. A plain death is ANIM_FALL_BACK/FRONT (by
+// _is_hit_from_front, _pick_death), which DIE turns into the Z… scream; the special
+// deaths use the code of the death art actually played (b<letter> = anim 20+).
+function playDeathSfx(obj: Critter, source: Critter | undefined, deathAnim: string): void {
+    let anim: number
+    if (deathAnim === 'death') {
+        anim = isHitFromFront(obj, source) ? ANIM.fallBack : ANIM.fallFront
+    } else {
+        const code = obj.getAnimation(deathAnim).slice(-2)
+        if (code[0] !== 'b') return
+        anim = 20 + code.charCodeAt(1) - 97 // FIRST_KNOCKDOWN_AND_DEATH_ANIM
+    }
+    playCharAnimSfx(obj, anim, CHARACTER_SOUND_EFFECT.die)
 }
 
 export function critterDamage(
@@ -228,14 +257,8 @@ export function critterDamage(
         }
     }
 
-    // CE ref: actions.cc:1512 _is_hit_from_front — attacker is "in front" when the
-    // direction from the target to the attacker is within the target's front 3-hex arc
-    // (facing ±1 direction mod 6). Front hit → hitFront/knockdownFront; rear → hitBack/knockdownBack.
-    const _hitFromFront = !source ? true : (() => {
-        const dirToSrc = hexDirectionTo(obj.position, source.position)
-        const diff = Math.abs(dirToSrc - (obj.orientation ?? 0)) % 6
-        return diff <= 1 || diff === 5
-    })()
+    // Front hit → hitFront/knockdownFront; rear → hitBack/knockdownBack.
+    const _hitFromFront = isHitFromFront(obj, source)
 
     // Play a hit reaction if the critter isn't already mid-animation.
     // If a knockdown/knockout crit was applied this hit, play knockdownFront/Back and stay down;
@@ -246,6 +269,9 @@ export function critterDamage(
         if (obj.isKnockedDown && (obj.hasAnimation(kdAnim) || obj.hasAnimation(kdFallback))) {
             obj.isKnockedDown = false
             const chosenKd = obj.hasAnimation(kdAnim) ? kdAnim : kdFallback
+            // CE ref: actions.cc:402 — knocked out/down: sfxBuildCharName(defender,
+            // hitFromFront ? ANIM_FALL_BACK : ANIM_FALL_FRONT, UNUSED).
+            playCharAnimSfx(obj, _hitFromFront ? ANIM.fallBack : ANIM.fallFront)
             obj.staticAnimation(chosenKd, () => {
                 // Stay on last frame — Combat.nextTurn() plays getUpFront when skipTurns reaches 0
             })
@@ -260,6 +286,8 @@ export function critterDamage(
                 obj.hasAnimation(fallbackHit)  ? fallbackHit  : null
 
             if (hitAnim !== null) {
+                // CE ref: actions.cc:431 — sfxBuildCharName(defender, ANIM_HIT_FROM_FRONT/BACK, UNUSED).
+                playCharAnimSfx(obj, hitAnim === 'dodge' ? ANIM.dodge : hitAnim === 'hitFront' ? ANIM.hitFromFront : ANIM.hitFromBack)
                 obj.staticAnimation(hitAnim, () => {
                     obj.clearAnim()
                     if (callback) callback()
