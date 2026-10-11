@@ -176,7 +176,7 @@ the wiki tracker is the source of truth.
 - **Active skill use** — First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair, Gambling/Outdoorsman messages; party delegation (AC6)
 - **Look & examine** — `look_at_p_proc`/`description_p_proc` scripts, CE health/crippled text, Awareness details, weapon/ammo lines (IU6)
 - **Karma & reputation** — karma title, per-town reputation tiers; CE has no engine-side reaction modifier beyond the who-hit-me reaction hit (C19)
-- **Worldmap** — encounters (frequency, difficulty, formations, Outdoorsman), Pathfinder, walk masks, panning, labels; towns revealed by `mark_area_known` (W15), area state saved
+- **Worldmap** — encounters (frequency, difficulty, formations, Outdoorsman), Pathfinder, walk masks, panning, labels; towns revealed by `mark_area_known` (W15), area state and party position saved; clicking the stopped party marker in the wilderness enters the desert map like CE (W16)
 - **Car (Highwayman)** — script-driven like CE: town map scripts place the car, the trunk travels in the party (W14); speed tiers (blower / New Reno upgrade / super car), fuel-saving upgrades, out-of-gas handling, metarule 52/53 trunk capacity; see [`wiki/car_system.md`](wiki/car_system.md)
 - **Scripting VM** — INT parser, all 181 vanilla opcodes bridged (S29), MVARs persisted per map (M8), `map_exit_p_proc` on every script (M9), timed events, `critter_p_proc` round-robin (CE `_script_chk_critters`)
 - **Time** — CE game clock and ambient light (`gAmbientIntensity`, Night Vision), midnight events, ARTIMER/AFAILED game events, time jumps drain timed events
@@ -185,7 +185,7 @@ the wiki tracker is the source of truth.
 - **Audio** — music, weapon/action/ambient SFX, master/music/sfx/speech volumes, speech playback for talking heads
 - **Pip-Boy** — clock, alarm, STATUS (incl. quest log), ARCHIVES (video archive), AUTOMAP, rest menu
 - **Character screen / HUD** — SPECIAL/skills/perks, warnbox indicator badges, numbers.frm counters, AP lights, end-turn lights with enable/disable (AF6), CE to-hit hover readout
-- **Save / load** — IndexedDB; player, party (+ levels), inventory + weapon ammo, GVARs, MVARs, area states, timed events, car state, seen movies, thumbnails
+- **Save / load** — IndexedDB; player, party (+ levels), inventory + weapon ammo, GVARs, MVARs, area states, timed events, car state, seen movies, thumbnails; CE `gameReset` before NEW GAME and every load, so nothing leaks between games (U12)
 - **Preferences** — full CE options panel, persisted (localStorage) and seeded from `fallout2.cfg` (CI1); combat looks/taunts, brightness (CE gamma table) are live (CI18)
 - **Random numbers** — CE Park-Miller generator with MSVC seeding (RN)
 
