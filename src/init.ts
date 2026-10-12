@@ -55,12 +55,19 @@ export function initGame() {
     }
 
     document.oncontextmenu = () => false
+    // The game has input focus while the mouse is over the map or the HUD bar (a DOM
+    // layer over the canvas): moving between the two must not drop it, or edge
+    // scrolling stops at the bottom edge over the HUD (CE game_mouse.cc:2334 scrolls
+    // on the whole screen).
     const $cnv = document.getElementById('cnv')!
-    $cnv.onmouseenter = () => {
-        globalState.gameHasFocus = true
-    }
-    $cnv.onmouseleave = () => {
-        globalState.gameHasFocus = false
+    const $bar = document.getElementById('bar')
+    const inGameArea = (el: EventTarget | null) => el instanceof Node && (el === $cnv || ($bar?.contains(el) ?? false))
+    for (const el of [$cnv, $bar]) {
+        if (!el) continue
+        el.addEventListener('mouseenter', () => { globalState.gameHasFocus = true })
+        el.addEventListener('mouseleave', (e) => {
+            if (!inGameArea((e as MouseEvent).relatedTarget)) globalState.gameHasFocus = false
+        })
     }
 
     globalState.tempCanvas = document.createElement('canvas') as HTMLCanvasElement

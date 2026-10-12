@@ -553,7 +553,12 @@ export function uiStartCombat(): void {
     stepEndAnim(1, () => {
         showv($id('endTurnButton'))
         showv($id('endCombatButton'))
-        uiEndButtonsRedLights()
+        // The panel finishes opening asynchronously — by then the first turn may
+        // already be the player's (Combat.start → nextTurn), so light the buttons for
+        // whoever's turn it is now instead of always red (which left End Turn / End
+        // Combat disabled for the player's whole first turn).
+        if (globalState.combat?.inPlayerTurn) uiEndButtonsGreenLights()
+        else uiEndButtonsRedLights()
     })
     const player = globalState.player!
     drawHP(player.getStat('HP'))
