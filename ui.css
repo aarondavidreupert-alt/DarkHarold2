@@ -231,6 +231,25 @@ html, body {
   cursor: url('art/intrface/sdnarrow.png') 5 5, s-resize !important;
 }
 
+/* Screen-edge scrolling over the HUD (CE game_mouse.cc:2334 tests the whole screen).
+   input.ts sets #bar[data-scroll] to the scroll direction; the arrows replace every
+   other HUD cursor while it is set, so the cursor doesn't flicker over buttons. */
+#bar[data-scroll="s"], #bar[data-scroll="s"] *, #bar[data-scroll="s"] #logScrollUp, #bar[data-scroll="s"] #logScrollDown {
+  cursor: url('art/intrface/scrsouth.png') 16 25, s-resize !important;
+}
+#bar[data-scroll="sw"], #bar[data-scroll="sw"] *, #bar[data-scroll="sw"] #logScrollUp, #bar[data-scroll="sw"] #logScrollDown {
+  cursor: url('art/intrface/scrswest.png') 0 27, sw-resize !important;
+}
+#bar[data-scroll="se"], #bar[data-scroll="se"] *, #bar[data-scroll="se"] #logScrollUp, #bar[data-scroll="se"] #logScrollDown {
+  cursor: url('art/intrface/scrseast.png') 27 27, se-resize !important;
+}
+#bar[data-scroll="w"], #bar[data-scroll="w"] *, #bar[data-scroll="w"] #logScrollUp, #bar[data-scroll="w"] #logScrollDown {
+  cursor: url('art/intrface/scrwest.png') 0 16, w-resize !important;
+}
+#bar[data-scroll="e"], #bar[data-scroll="e"] *, #bar[data-scroll="e"] #logScrollUp, #bar[data-scroll="e"] #logScrollDown {
+  cursor: url('art/intrface/screast.png') 24 16, e-resize !important;
+}
+
 #attackButtonContainer {
   position: absolute;
   left: 265px;
@@ -2005,53 +2024,6 @@ html, body {
 #pipBoyContainer,
 #automapContainer {
   cursor: url('art/intrface/stdarrow.png'), none !important;
-}
-
-/* Unarmed mode picker panel */
-#unarmedModePanel {
-  position: absolute;
-  /* Bottom-flush with the 99px HUD bar, horizontally aligned over the attack button. */
-  /* #bar is 640px wide centered in 800px uiStage → left offset = (800-640)/2 + 265 = 345px */
-  left: 345px;
-  bottom: 99px;
-  width: 160px;
-  background: #1a1408;
-  border: 1px solid #6b5a00;
-  padding: 2px;
-  z-index: 50;
-}
-
-.unarmedModeRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 2px 4px;
-  cursor: url('art/intrface/stdarrow.png'), auto;
-  border: 1px solid transparent;
-}
-
-.unarmedModeRow:hover {
-  background: #2a2200;
-  border-color: #6b5a00;
-}
-
-.unarmedModeRow-active {
-  background: #2a2200;
-  border-color: #b38600;
-}
-
-.unarmedModeLabel {
-  height: 12px;
-  image-rendering: pixelated;
-  flex-shrink: 0;
-}
-
-.unarmedModeAP {
-  color: #b38600;
-  font-size: 11px;
-  line-height: 1;
-  margin-left: 4px;
-  flex-shrink: 0;
 }
 
 /* Timed explosive timer dialog */

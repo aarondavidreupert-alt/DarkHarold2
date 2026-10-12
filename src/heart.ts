@@ -222,6 +222,12 @@ class Heart {
                 heart.mousemoved(e.pageX, e.pageY)
             }
         }
+        // CE ref: game_mouse.cc:2334 gameMouseHandleScrolling — edge scrolling tests the
+        // mouse against the whole screen (_scr_size), before asking which window it is
+        // over. The HUD bar is a DOM layer above the canvas and swallows its mouse
+        // events, so track the mouse there too (otherwise the position freezes at the
+        // last spot over the map and the bottom edge never scrolls).
+        document.getElementById('bar')?.addEventListener('mousemove', heart.canvas.onmousemove as (e: MouseEvent) => void)
 
         /* keypressed and keyreleased are aliases to
 			 keydown and keyup, respectively. */

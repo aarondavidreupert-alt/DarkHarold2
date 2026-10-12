@@ -19,7 +19,7 @@ import { hexFromScreen, hexToScreen, hexDistance, Point } from './geometry.js'
 import globalState from './globalState.js'
 import { dbg, dbgWarn } from './logger.js'
 import { Lightmap } from './lightmap.js'
-import { Obj } from './object.js'
+import { Obj, objectIsWeapon } from './object.js'
 import {
     clampCameraPosition,
     getObjectUnderCursor,
@@ -178,8 +178,13 @@ export function installInputHandlers(): void {
                     }
                 }, 1000)
             } else if (globalState.cursorMode === 'command') {
-                // command (arrow) → attack (crosshair)
-                globalState.cursorMode = 'attack'
+                // command (arrow) → attack (crosshair). CE ref: game_mouse.cc
+                // gameMouseCycleMode — the crosshair is skipped (back to move) outside
+                // combat, and in combat while the active item isn't a weapon.
+                const player = globalState.player as any
+                const activeItem = player?.[player?.activeHand ?? 'leftHand'] as Obj | undefined
+                const skipCrosshair = !globalState.inCombat || (activeItem !== undefined && activeItem !== null && !objectIsWeapon(activeItem))
+                globalState.cursorMode = skipCrosshair ? 'move' : 'attack'
                 globalState.showLookCursor = false
                 if (globalState.commandModeTimer !== null) {
                     clearTimeout(globalState.commandModeTimer)
@@ -248,6 +253,13 @@ export function installInputHandlers(): void {
             y >= SCREEN_HEIGHT - SCROLL_PAD ||
             x <= SCROLL_PAD ||
             x >= SCREEN_WIDTH - SCROLL_PAD
+
+        // The HUD shows a CSS cursor (the canvas cursor is under it): mirror the scroll
+        // direction onto #bar so ui.css swaps in the matching scroll arrow there.
+        const scrollDir = (y >= SCREEN_HEIGHT - SCROLL_PAD ? 's' : y <= SCROLL_PAD ? 'n' : '')
+            + (x >= SCREEN_WIDTH - SCROLL_PAD ? 'e' : x <= SCROLL_PAD ? 'w' : '')
+        const $bar = document.getElementById('bar')
+        if ($bar && ($bar.dataset.scroll ?? '') !== scrollDir) $bar.dataset.scroll = scrollDir
 
         if (anyScroll) {
             if (globalState.cursorMode !== 'scroll') {

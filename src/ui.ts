@@ -38,7 +38,6 @@ import { uiWorldMap, uiCloseWorldMap, uiWorldMapShowArea } from './ui_worldmap.j
 import { uiElevator } from './ui_elevator.js'
 import { initCalledShot, uiCalledShot, uiCloseCalledShot } from './ui_calledshot.js'
 import { uiContextMenu, uiHideContextMenu } from './ui_contextmenu.js'
-import { openUnarmedModePanel, closeUnarmedModePanel } from './ui_unarmed.js'
 import {
     drawHP,
     drawAC,
@@ -261,11 +260,32 @@ export function initUI() {
                 return
             }
 
-            // Unarmed: left-click cycles the active hand's mode family
+            // Unarmed: the fist is a weapon in CE (isWeapon) — fall through to the
+            // crosshair below; right-click cycles the punch/kick moves.
+        }
+
+        // CE ref: interface.cc _intface_use_item — a weapon (or the fist) not in reload
+        // mode: crosshair cursor + GAME_MOUSE_MODE_CROSSHAIR, starting combat
+        // (_combat) when not already in it.
+        if (!Config.engine.doCombat) {
+            return
+        }
+        if (!globalState.inCombat) Combat.start()
+        globalState.cursorMode = 'attack'
+        globalState.combat?.refreshHighlights()
+    }
+
+    $id('attackButtonContainer').oncontextmenu = () => {
+        // CE ref: interface.cc interfaceCycleItemAction — right-click cycles the active
+        // item's actions: a weapon's modes, or the unarmed hand's punch/kick moves.
+        const wep = globalState.player.equippedWeapon
+        if (!wep || !wep.weapon) {
+            const player = globalState.player!
+            const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
+            const activeItem = (player as any)[activeHand] as Obj | undefined
+            if (activeItem && !objectIsWeapon(activeItem)) return false // non-weapon: one action
             const skill = player.getSkill('Unarmed')
-            const leftWeapon = (player as any).leftHand?.weapon ?? null
-            const rightWeapon = (player as any).rightHand?.weapon ?? null
-            const bothHandsEmpty = !leftWeapon && !rightWeapon
+            const bothHandsEmpty = !(player as any).leftHand?.weapon && !(player as any).rightHand?.weapon
             let mode
             if (activeHand === 'rightHand' && bothHandsEmpty) {
                 globalState.kickModeIdx = nextKickModeIdx(skill, globalState.kickModeIdx)
@@ -276,30 +296,6 @@ export function initUI() {
             }
             uiLog(`Unarmed: ${mode.name}`)
             uiDrawWeapon()
-            return
-        }
-
-        if (!Config.engine.doCombat) {
-            return
-        }
-        if (globalState.inCombat) {
-            // clicking gun in combat → switch to attack cursor
-            globalState.cursorMode = 'attack'
-            globalState.combat?.refreshHighlights()
-        } else {
-            // begin combat and switch to attack cursor
-            Combat.start()
-            globalState.cursorMode = 'attack'
-            globalState.combat?.refreshHighlights()
-        }
-    }
-
-    $id('attackButtonContainer').oncontextmenu = () => {
-        // right mouse button: open unarmed mode picker, or cycle weapon modes
-        const wep = globalState.player.equippedWeapon
-        if (!wep || !wep.weapon) {
-            // Unarmed: right-click opens the mode picker panel
-            openUnarmedModePanel()
             return false
         }
         wep.weapon.cycleMode()
