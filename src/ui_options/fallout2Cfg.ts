@@ -109,6 +109,13 @@ export function applyCfg(cfg: CfgSections): void {
         if (Number.isFinite(tbd) && tbd >= 1 && tbd <= 6) Config.ui.textBaseDelay = tbd
     }
 
+    // [dh2] — DarkHarold2-only options (not in CE; CE ignores unknown sections).
+    //   day_night_cycle=1  smooth hour-of-day light curve (default)
+    //   day_night_cycle=0  CE lighting: only map scripts' set_light_level
+    const dh2 = cfg['dh2'] ?? {}
+    const dnc = int(dh2['day_night_cycle'])
+    if (dnc !== null) Config.engine.dayNightCycle = dnc !== 0
+
     const eng = globalState.audioEngine
     if (eng) {
         const vol = (key: string, channel: 'master' | 'music' | 'sfx' | 'speech') => {

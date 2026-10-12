@@ -100,6 +100,7 @@ export const Config = {
         playerSpeedup: true,
         // DH2 option, not in CE: smooth hour-of-day ambient light curve (gametime.ts).
         // false = CE lighting: only map scripts' set_light_level changes the light.
+        // Set in fallout2.cfg: [dh2] day_night_cycle=0/1.
         dayNightCycle: true,
         doZOrder: true, // Z-order objects?
         doEncounters: true, // allow random encounters?

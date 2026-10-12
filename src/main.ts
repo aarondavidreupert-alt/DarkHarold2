@@ -37,7 +37,7 @@ import {
 } from './ui.js'
 import { drawHP } from './ui_hud.js'
 import { skillUse } from './skillUse.js'
-import { loadFallout2Cfg, loadPreferences, savePreferences } from './ui_options.js'
+import { loadFallout2Cfg, loadPreferences } from './ui_options.js'
 import { getFileJSON, getRandomInt } from './util.js'
 import { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall, WebGLRenderer, setLightSourceOverlayActive, setLightOverlayMode, setLightOverlayRadiusScale, LightOverlayMode } from './webglrenderer.js'
 import { Config } from './config.js'
@@ -336,10 +336,9 @@ window.onload = async function () {
 
     // setDayNightCycle(true)  — DH2 smooth day/night light curve (default)
     // setDayNightCycle(false) — CE lighting: only map scripts' set_light_level
-    // Persisted with the preferences.
+    // For this session only; the permanent setting is fallout2.cfg [dh2] day_night_cycle.
     ;(window as any).setDayNightCycle = (on: boolean) => {
         Config.engine.dayNightCycle = on !== false
-        savePreferences()
         console.log(`[Lighting] day/night cycle = ${Config.engine.dayNightCycle} (${Config.engine.dayNightCycle ? 'DH2 curve' : 'CE scripts only'})`)
     }
 
