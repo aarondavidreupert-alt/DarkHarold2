@@ -467,6 +467,10 @@ export function closePipBoy(): void {
     pipBoyContainer.remove()
     pipBoyContainer = null
     globalState.uiMode = UIMode.none
+
+    // CE ref: pipboy.cc:712 pipboyWindowFree — scriptsExecMapUpdateProc() on close,
+    // so map scripts react to time spent resting (e.g. their time-of-day lighting).
+    globalState.gMap?.updateMap()
 }
 
 export function togglePipBoy(): void {

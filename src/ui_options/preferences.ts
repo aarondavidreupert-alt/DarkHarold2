@@ -42,6 +42,7 @@ export interface SavedPreferences {
     combatLooks?: boolean
     brightness?: number
     mouseSensitivity?: number
+    dayNightCycle?: boolean
 }
 
 export const PREFS_KEY = 'dh2_preferences'
@@ -77,6 +78,7 @@ export function loadPreferences(): void {
     if (prefs.combatLooks !== undefined) Config.ui.combatLooks = prefs.combatLooks
     if (prefs.brightness !== undefined) Config.ui.brightness = prefs.brightness
     if (prefs.mouseSensitivity !== undefined) Config.ui.mouseSensitivity = prefs.mouseSensitivity
+    if (prefs.dayNightCycle !== undefined) Config.engine.dayNightCycle = prefs.dayNightCycle
     applyBrightness()
 
     // Audio volumes — applied after audioEngine may be set
@@ -122,6 +124,7 @@ export function savePreferences(): void {
         combatLooks: Config.ui.combatLooks,
         brightness: Config.ui.brightness,
         mouseSensitivity: Config.ui.mouseSensitivity,
+        dayNightCycle: Config.engine.dayNightCycle,
         masterVolume: he ? Math.round(he.masterVolume * 100) : 100,
         musicVolume: he ? Math.round(he.musicVolume * 100) : 100,
         sfxVolume: he ? Math.round(he.sfxVolume * 100) : 100,

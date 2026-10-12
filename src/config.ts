@@ -98,6 +98,9 @@ export const Config = {
         doAlwaysRun: false, // always run instead of walk? CE default = false (settings.h:38)
         // FO2-CE ref: preferences.cc player_speedup — apply combat-speed boost to player walk animation.
         playerSpeedup: true,
+        // DH2 option, not in CE: smooth hour-of-day ambient light curve (gametime.ts).
+        // false = CE lighting: only map scripts' set_light_level changes the light.
+        dayNightCycle: true,
         doZOrder: true, // Z-order objects?
         doEncounters: true, // allow random encounters?
         doInfiniteUse: false, // allow infinite-range object usage?

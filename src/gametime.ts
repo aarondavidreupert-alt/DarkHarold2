@@ -18,6 +18,7 @@ You may obtain a copy of the License at
 // math, and adds a day/night ambient-light curve used by the renderer.
 
 import globalState from './globalState.js'
+import { Config } from './config.js'
 import { dbg } from './logger.js'
 
 // --- Tick constants (all match fallout2-ce) ---
@@ -47,6 +48,7 @@ export const LIGHT_INTENSITY_MAX = 65536
 // (which is the engine-wide floor fallout2-ce uses for set_light_level
 // mapping) so we can keep nights visible without affecting the script
 // intrinsic's 0..100 range. 0.35 * MAX ≈ 22937.
+const LIGHT_CURVE_NIGHT_FLOOR = Math.round(0.35 * LIGHT_INTENSITY_MAX)
 
 // Script-controlled override. Scripts (set_light_level opcode) can force
 // darkness or full brightness regardless of the time-of-day curve.
@@ -169,22 +171,56 @@ export function advanceHours(hours: number): void { advanceTicks(hours * TICKS_P
 // engine day/night cycle: every map load resets ambient to LIGHT_INTENSITY_MAX
 // (map.cc:927) and map scripts set darkness / time-of-day lighting themselves via
 // set_light_level (their map_update_p_proc "Lighting" macros key off
-// game_time_hour). The DH2-invented hour curve that used to live here (GTC10) was
-// removed 2026-10-06.
+// game_time_hour). That is the CE mode (Config.engine.dayNightCycle = false).
+//
+// DH2 option (default, Config.engine.dayNightCycle = true; not in CE): a smooth
+// hour-of-day curve between a night floor (0.35) and full light, with 4-hour dawn
+// and dusk ramps, so the light fades continuously and follows time skips at once.
+// The script level then acts as a ceiling — min(curve, script) — so dark interiors
+// stay dark and set_light_level(100) leaves the curve in charge.
+//
+//   00-04 night · 04-08 dawn ramp · 08-18 day · 18-22 dusk ramp · 22-24 night
 
 let ambientIntensity = LIGHT_INTENSITY_MAX
+
+const LIGHT_CURVE: { hour: number; intensity: number }[] = [
+    { hour: 0,  intensity: LIGHT_CURVE_NIGHT_FLOOR },
+    { hour: 4,  intensity: LIGHT_CURVE_NIGHT_FLOOR },
+    { hour: 8,  intensity: LIGHT_INTENSITY_MAX },
+    { hour: 18, intensity: LIGHT_INTENSITY_MAX },
+    { hour: 22, intensity: LIGHT_CURVE_NIGHT_FLOOR },
+    { hour: 24, intensity: LIGHT_CURVE_NIGHT_FLOOR },
+]
+
+function curveAt(hourFloat: number): number {
+    for (let i = 0; i < LIGHT_CURVE.length - 1; i++) {
+        const a = LIGHT_CURVE[i]
+        const b = LIGHT_CURVE[i + 1]
+        if (hourFloat >= a.hour && hourFloat <= b.hour) {
+            const t = (hourFloat - a.hour) / (b.hour - a.hour)
+            return a.intensity + t * (b.intensity - a.intensity)
+        }
+    }
+    return LIGHT_INTENSITY_MAX
+}
+
+function nightVisionBonus(): number {
+    const ranks = (globalState.player?.perks ?? []).filter((p: string) => p === 'Night Vision').length
+    return ranks * Math.trunc(65536 / 5) // LIGHT_LEVEL_NIGHT_VISION_BONUS
+}
 
 // CE light.cc:48 lightSetAmbientIntensity — adds the Night Vision bonus
 // (LIGHT_LEVEL_NIGHT_VISION_BONUS = 65536/5 per rank) and clamps to MIN..MAX.
 function setAmbientIntensity(intensity: number): void {
-    const nightVision = (globalState.player?.perks ?? []).filter((p: string) => p === 'Night Vision').length
-    const adjusted = intensity + nightVision * Math.trunc(65536 / 5)
+    const adjusted = intensity + nightVisionBonus()
     ambientIntensity = Math.max(LIGHT_INTENSITY_MIN, Math.min(LIGHT_INTENSITY_MAX, adjusted))
 }
 
 // Ambient light intensity in Fallout 2's 0..65536 range.
 export function getAmbientLight(): number {
-    return ambientIntensity
+    if (!Config.engine.dayNightCycle) return ambientIntensity
+    const curve = curveAt(getHour() + getMinute() / 60) + nightVisionBonus()
+    return Math.min(Math.min(LIGHT_INTENSITY_MAX, curve), ambientIntensity)
 }
 
 // 0..1 for the GL fragment shader.

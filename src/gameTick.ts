@@ -236,11 +236,10 @@ export function tickGame(): void {
         // scripts can check `game_time_hour` and drive NPC behavior (shop
         // hours, sleep schedules, etc.) without any engine-level gates.
         if (!globalState.inCombat && globalState.gMap) {
-            if (nextMapUpdateTick < globalState.gameTickTime) {
-                // Catch up after a save load or fresh start where gameTickTime
-                // has jumped forward past the initial sentinel.
-                nextMapUpdateTick = globalState.gameTickTime + 600
-            } else if (globalState.gameTickTime >= nextMapUpdateTick) {
+            // CE ref: scripts.cc:507 mapUpdateEventProcess — a queue event whose time
+            // has passed fires once on the next queueProcessEvents, also after a time
+            // jump (rest, load), then re-queues itself 600 ticks ahead.
+            if (globalState.gameTickTime >= nextMapUpdateTick) {
                 nextMapUpdateTick = globalState.gameTickTime + 600
                 globalState.gMap.updateMap()
 

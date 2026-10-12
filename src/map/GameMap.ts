@@ -200,6 +200,7 @@ export class GameMap {
     updateMap(): void {
         // CE ref: scripts.cc:2601 scriptsExecMapUpdateScripts — iterates ALL script lists
         // regardless of elevation, so off-floor critters still tick.
+        if (!this.objects) return // no map loaded yet
         const allObjs: Obj[] = (this.objects as Obj[][]).reduce((acc, level) => acc.concat(level), [])
         if (this.spatials) {
             (this.spatials as any[][]).forEach(level => level.forEach((s: any) => allObjs.push(s)))
