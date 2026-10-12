@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { beginUseItemOn, itemCanUseOn } from './useItemOn.js'
 import { ammoGetCapacity, ammoGetQuantity, findReloadAmmo, weaponReload } from './weaponAmmo.js'
 import { Combat } from './combat.js'
 import globalState from './globalState.js'
@@ -255,6 +256,12 @@ export function initUI() {
             // item's HUD slot fires INTERFACE_ITEM_ACTION_USE (the item's own
             // use_p_proc / engine handler), not the unarmed punch/kick cycle.
             if (activeItem && !objectIsWeapon(activeItem)) {
+                // CE _intface_use_item: items used *on* something get the use
+                // crosshair (USE_CROSSHAIR); others are used at once.
+                if (itemCanUseOn(activeItem)) {
+                    beginUseItemOn(activeItem)
+                    return
+                }
                 activeItem.use(player)
                 uiDrawWeapon()
                 return

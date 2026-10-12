@@ -57,8 +57,10 @@ export { playerUse } from './playerUse.js'
 // Wired via globalState.miscItemUseHandler to avoid a circular import from object.ts.
 function miscHealingItemUse(item: import('./object.js').Obj, user: import('./object.js').Critter): boolean {
     let skill: string | null = null
-    if (item.pid === 47 || item.pid === 108) skill = 'First Aid'
-    else if (item.pid === 91 || item.pid === 107) skill = 'Doctor'
+    // CE proto_types.h: First Aid Kit 47, Field Medic First Aid Kit 408 (First Aid);
+    // Doctor's Bag 91, Paramedics Bag 409 (Doctor). (107/108 are bones.)
+    if (item.pid === 47 || item.pid === 408) skill = 'First Aid'
+    else if (item.pid === 91 || item.pid === 409) skill = 'Doctor'
     if (!skill) return false
     const result = skillUse(user, user, skill)
     uiLog(result.message)

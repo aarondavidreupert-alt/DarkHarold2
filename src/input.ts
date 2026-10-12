@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { cancelUseItemOn, usePendingItemOn } from './useItemOn.js'
 import { Combat } from './combat.js'
 import { critterKill } from './critter.js'
 import { heart } from './heart.js'
@@ -141,7 +142,11 @@ export function installInputHandlers(): void {
         } else if (globalState.gameUIDisabled) {
             return
         } else if (btn === 'l') {
-            if (globalState.cursorMode === 'command') {
+            if (globalState.cursorMode === 'useItem') {
+                // CE game_mouse.cc:1019 — use the HUD item on the object under the cursor
+                // (the player included), then back to the move cursor.
+                usePendingItemOn(getObjectUnderCursor((_: Obj) => true))
+            } else if (globalState.cursorMode === 'command') {
                 // open context menu immediately on any object under cursor
                 const obj = getObjectUnderCursor((_: Obj) => true)
                 if (obj) {
@@ -162,6 +167,12 @@ export function installInputHandlers(): void {
             // Right-click cancels skill targeting mode
             if (globalState.uiMode === UIMode.useSkill) {
                 cancelSkillTargeting()
+                return
+            }
+            if (globalState.cursorMode === 'useItem') {
+                // CE gameMouseCycleMode: (USE_CROSSHAIR + 1) % 3 = ARROW
+                cancelUseItemOn()
+                globalState.cursorMode = 'command'
                 return
             }
             if (globalState.cursorMode === 'move') {
@@ -269,7 +280,7 @@ export function installInputHandlers(): void {
         } else if (globalState.cursorMode === 'scroll') {
             // leaving scroll zone — restore whatever was active before (move, command, attack, …)
             globalState.cursorMode = globalState.preScrollCursorMode
-        } else if (globalState.cursorMode !== 'command' && globalState.cursorMode !== 'attack' && globalState.cursorMode !== 'useSkill') {
+        } else if (globalState.cursorMode !== 'command' && globalState.cursorMode !== 'attack' && globalState.cursorMode !== 'useSkill' && globalState.cursorMode !== 'useItem') {
             // move / interface: re-evaluate based on HUD / dialogue position
             const barEl = document.getElementById('bar')
             const barRect = barEl?.getBoundingClientRect()

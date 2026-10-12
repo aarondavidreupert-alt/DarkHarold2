@@ -150,6 +150,13 @@ export interface SkillUseResult {
     message: string
     xpAwarded: number
     hpHealed: number
+    // The skill wasn't attempted at all (dead / full HP / daily limit) — CE skillUse
+    // returns -1 there, so a medical kit isn't used up (proto_instance.cc:1342).
+    blocked?: boolean
+}
+
+function blockedResult(message: string): SkillUseResult {
+    return { ...makeResult(false, RollResult.Failure, message), blocked: true }
 }
 
 function makeResult(success: boolean, roll: RollResult, message: string, xp: number = 0, hp: number = 0): SkillUseResult {
@@ -160,12 +167,14 @@ function makeResult(success: boolean, roll: RollResult, message: string, xp: num
 // user = critter using the skill (usually globalState.player)
 // target = object being acted upon (can be self for First Aid/Doctor)
 // skill = skill name string ('First Aid', 'Doctor', etc.)
-export function skillUse(user: Critter, target: Critter | null, skill: string): SkillUseResult {
+// `criticalChanceModifier`: CE skillUse's 4th argument — the medical kits add +20/+40
+// (proto_instance.cc _protinst_use_item_on).
+export function skillUse(user: Critter, target: Critter | null, skill: string, criticalChanceModifier: number = 0): SkillUseResult {
     switch (skill) {
         case 'First Aid':
-            return useFirstAid(user, target ?? user)
+            return useFirstAid(user, target ?? user, criticalChanceModifier)
         case 'Doctor':
-            return useDoctor(user, target ?? user)
+            return useDoctor(user, target ?? user, criticalChanceModifier)
         case 'Sneak':
             return useSneak(user)
         case 'Lockpick':
@@ -197,29 +206,28 @@ export function skillUse(user: Critter, target: Critter | null, skill: string): 
 // FO2-CE ref: skill.cc skillUse() case SKILL_FIRST_AID
 // Heals 1-5 HP on success. +30 min game time. 3/day limit. Awards 25 XP.
 // ---------------------------------------------------------------------------
-function useFirstAid(user: Critter, target: Critter): SkillUseResult {
+function useFirstAid(user: Critter, target: Critter, criticalChanceModifier: number = 0): SkillUseResult {
     logSkillHeader('First Aid', target, user)
 
     if (target.dead) {
         dbg('skills', '[SKILL]   Blocked: target is dead')
-        return makeResult(false, RollResult.Failure, 'You cannot heal the dead.')
+        return blockedResult('You cannot heal the dead.')
     }
 
     if (!hasFreeUsageSlot('First Aid')) {
         dbg('skills', '[SKILL]   Blocked: 3/day limit reached')
-        return makeResult(false, RollResult.Failure, 'You have already used First Aid too many times today.')
+        return blockedResult('You have already used First Aid too many times today.')
     }
 
     const targetHP = target.getStat('HP')
     const targetMaxHP = target.getStat('Max HP')
     if (targetHP >= targetMaxHP) {
         dbg('skills', `[SKILL]   Blocked: target already at full health (${targetHP}/${targetMaxHP})`)
-        return makeResult(false, RollResult.Failure, 'The target is already at full health.')
+        return blockedResult('The target is already at full health.')
     }
 
-    // FO2-CE: skillRoll with criticalChanceModifier = 0 for skill use
     const skillValue = user.getSkill('First Aid')
-    const critChance = user.getStat('Critical Chance')
+    const critChance = user.getStat('Critical Chance') + criticalChanceModifier
     const { roll, delta } = randomRoll(skillValue, critChance)
 
     logSkillRoll(skillValue, [], skillValue, roll, delta)
@@ -266,21 +274,21 @@ function useFirstAid(user: Critter, target: Critter): SkillUseResult {
 // FO2-CE ref: skill.cc skillUse() case SKILL_DOCTOR
 // Heals crippled limbs first, then 4-10 HP. +1-3 hours game time. Awards 50 XP.
 // ---------------------------------------------------------------------------
-function useDoctor(user: Critter, target: Critter): SkillUseResult {
+function useDoctor(user: Critter, target: Critter, criticalChanceModifier: number = 0): SkillUseResult {
     logSkillHeader('Doctor', target, user)
 
     if (target.dead) {
         dbg('skills', '[SKILL]   Blocked: target is dead')
-        return makeResult(false, RollResult.Failure, 'You cannot heal the dead.')
+        return blockedResult('You cannot heal the dead.')
     }
 
     if (!hasFreeUsageSlot('Doctor')) {
         dbg('skills', '[SKILL]   Blocked: 3/day limit reached')
-        return makeResult(false, RollResult.Failure, 'You have already used Doctor too many times today.')
+        return blockedResult('You have already used Doctor too many times today.')
     }
 
     const skillValue = user.getSkill('Doctor')
-    const critChance = user.getStat('Critical Chance')
+    const critChance = user.getStat('Critical Chance') + criticalChanceModifier
 
     // FO2-CE ref: skill.cc — Doctor first attempts to heal each crippled limb/blindness
     // via individual rolls, then does a general HP heal.

@@ -3145,6 +3145,19 @@ export module Scripting {
         return obj._script._didOverride
     }
 
+    // CE ref: proto_instance.cc:1293 — the item's own use_obj_on_p_proc, with
+    // scriptSetObjects(item->sid, critter, targetObj). True when the script overrides.
+    export function useObjOnItem(item: Obj, source: Obj, target: Obj): boolean {
+        if (!item._script || item._script.use_obj_on_p_proc === undefined) return false
+        item._script.self_obj = item as ScriptableObj
+        item._script.source_obj = source
+        item._script.target_obj = target
+        item._script.cur_map_index = currentMapID
+        item._script._didOverride = false
+        item._script.use_obj_on_p_proc()
+        return item._script._didOverride
+    }
+
     export function useObjOnMe(obj: Obj, item: Obj, source: Obj): boolean {
         if (!obj._script || obj._script.use_obj_on_p_proc === undefined) return false
         // CE ref: proto_instance.cc:1286 scriptSetObjects(targetObj->sid, critter, item)

@@ -342,7 +342,7 @@ export class Renderer {
             } else if (globalState.cursorMode === 'interface') {
                 const stdarrowImg = globalState.images['art/intrface/stdarrow']
                 this.renderImage('art/intrface/stdarrow', rawX, rawY, stdarrowImg?.naturalWidth ?? 14, stdarrowImg?.naturalHeight ?? 17)
-            } else if (globalState.cursorMode === 'useSkill') {
+            } else if (globalState.cursorMode === 'useSkill' || globalState.cursorMode === 'useItem') {
                 // FO2-CE ref: crossuse.frm — yellow crosshair for skill targeting
                 const crossuseImg = globalState.images['art/intrface/crossuse']
                 if (crossuseImg) {
