@@ -272,7 +272,8 @@ export class StatSet {
         if(!statDep)
             throw Error(`No dependencies for stat '${stat}'`);
 
-        return this.baseStats[stat] || statDep.defaultValue;
+        // `??`, not `||`: a stored 0 is a value (HP 0 = dead), not "unset".
+        return this.baseStats[stat] ?? statDep.defaultValue;
     }
 
     get(stat: string): number {

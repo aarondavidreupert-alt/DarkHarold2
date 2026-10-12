@@ -19,7 +19,7 @@ import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, findReloadAmmo, weap
 import { AudioEngine } from '../audio.js'
 import { Config } from '../config.js'
 import { CriticalEffects } from '../criticalEffects.js'
-import { critterDamage, critterKill } from '../critter.js'
+import { critterDamage, critterKill, unarmedAttackAnim } from '../critter.js'
 import { tickCombatTurn } from '../events.js'
 import * as GameTime from '../gametime.js'
 import { hexDirectionTo, hexDistance, hexInDirection, hexInDirectionDistance, hexLine, hexLineBeyond, hexNearestNeighbor, hexNeighbors, Point } from '../geometry.js'
@@ -1049,19 +1049,9 @@ export class Combat {
             damageType: damageType ?? null,
             message: `${victimDisplay} killed by ${attackerDisplay}`,
         })
-        const dieStem = ['hmxxxxba', 'hmxxxxbb', 'hmxxxxbd'][getRandomInt(0, 2)]
-        if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName(dieStem)
-
-        // Defensively ensure dead flag is set — critterKill (called by critterDamage
-        // when HP <= 0) should have already set this, but guard against edge cases.
-        obj.dead = true
-        obj.outline = null
-
-        // Only run critterKill if critterDamage didn't already do it
-        // (critterDamage calls critterKill when HP <= 0, which plays the death anim)
-        if (!obj.anim || obj.anim === 'idle') {
-            critterKill(obj, attacker, undefined, undefined, damageType)
-        }
+        // critterDamage has normally killed it already (death anim + its CE DIE sound,
+        // critter/lifecycle.ts); guard against a path that didn't.
+        if (!obj.dead) critterKill(obj, attacker, undefined, { animate: true }, damageType)
 
         // Inventory stays on the critter — the player loots it via the context menu,
         // just like a container.
@@ -1736,11 +1726,15 @@ export class Combat {
                 critter.skipTurns--
                 if (critter.skipTurns === 0) {
                     critter.isKnockedDown = false // clear flag now that they're getting up
-                    if (critter.hasAnimation('getUpFront')) {
-                        critter.staticAnimation('getUpFront', () => critter.clearAnim())
+                    // CE: ANIM_FALL_BACK → ANIM_BACK_TO_STANDING, ANIM_FALL_FRONT →
+                    // ANIM_PRONE_TO_STANDING (actions.cc:425-429, combat.cc _combat_standup).
+                    const getUp = critter.knockdownAnim === 'knockdownBack' ? 'getUpBack' : 'getUpFront'
+                    critter.knockdownAnim = null
+                    if (critter.hasAnimation(getUp)) {
+                        critter.staticAnimation(getUp, () => critter.clearAnim())
                     } else {
-                        // Critter has no getUpFront FRM — clear the anim sentinel directly so
-                        // they don't stay frozen on the last knockdownFront frame.
+                        // No get-up FRM — clear the anim sentinel directly so they
+                        // don't stay frozen on the last knockdown frame.
                         critter.clearAnim()
                     }
                 }
@@ -1796,12 +1790,3 @@ export class Combat {
     }
 }
 
-// CE anim of an unarmed attack: ANIM_KICK_LEG for kick moves, else ANIM_THROW_PUNCH
-// (same choice as Critter.getAnimation('attack')).
-function unarmedAttackAnim(obj: Critter): number {
-    const skill = obj.getSkill('Unarmed')
-    const mode = obj.isPlayer
-        ? getActiveUnarmedModeForHand(skill, (obj as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(obj as any).leftHand?.weapon && !(obj as any).rightHand?.weapon)
-        : getActiveUnarmedMode(skill, 0)
-    return mode.icon === 'kick' ? ANIM.kickLeg : ANIM.throwPunch
-}

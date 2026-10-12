@@ -22,7 +22,7 @@ import { gameMoviePlay, SCRIPT_MOVIE_FLAGS } from './gameMovie.js'
 import { randomInit, randomSeedPrerandom } from './random.js'
 import { critterAdjustRadiation } from './radiation.js'
 import { Combat, isCombatActive } from './combat.js'
-import { critterDamage, critterKill, killCounts } from './critter.js'
+import { ANIM_FALL_BACK_SF, ANIM_FALL_FRONT_BLOOD_SF, correctDeath, critterDamage, critterKill, killCounts } from './critter.js'
 import { areaContainingMap, getLstJson, lookupMapName, lookupScriptName, setMapMusicOverride } from './data.js'
 import { CHEM_USE_MAP, getAiPacket } from './aiPackets.js'
 import * as GameTime from './gametime.js'
@@ -1459,9 +1459,11 @@ export module Scripting {
             if (c.crippledRightArm) state |= 0x80 // DAM_CRIP_ARM_RIGHT
             return state
         }
+        // CE opKillCritter — critterKill(obj, deathFrame) without animation: the corpse
+        // is the single-frame death `deathFrame` (ANIM_*_SF; others → LAST_SF_DEATH_ANIM).
         kill_critter(obj: Critter, deathFrame: number) {
             log('kill_critter', arguments)
-            critterKill(obj)
+            critterKill(obj, undefined, true, { deathFrame })
         }
         get_poison(obj: Obj) {
             // FO2-CE ref: critter.cc critterGetPoison
@@ -1578,7 +1580,7 @@ export module Scripting {
                 warn('critter_dmg: not game object: ' + obj)
                 return
             }
-            critterDamage(obj, damage, this.self_obj as Critter, true, true, damageType)
+            critterDamage(obj, damage, this.self_obj as Critter, true, true, damageType, undefined, { scriptDamage: true })
         }
         critter_heal(obj: Obj, amount: number) {
             if (!isGameObject(obj)) {
@@ -2367,7 +2369,8 @@ export module Scripting {
         // CE opKillCritterType (0x80EE) — kill (or with deathFrame 0, destroy) every live,
         // visible critter of `pid` on the map. deathFrame 1 cycles CE's ftList.
         kill_critter_type(pid: number, deathFrame: number) {
-            const FT_LIST = ['death-burst', 'death-explode', 'death-fire', 'death', 'death', 'death', 'death-burst', 'death', 'death-explode', 'death', 'death']
+            // interpreter_extra.cc:2367 ftList (single-frame deaths)
+            const FT_LIST = [62, 51, 52, 53, 63, 62, 54, 56, 59, 62, 63]
             let ft = 0
             let count = 0
             for (const obj of globalState.gMap.getObjects().slice()) {
@@ -2378,9 +2381,14 @@ export module Scripting {
                     globalState.gMap.destroyObject(c)
                 } else {
                     // CE _combat_delete_critter: critterKill below drops it from combat via its dead flag.
-                    const anim = deathFrame === 1 ? FT_LIST[ft] : undefined
-                    ft = (ft + 1) % FT_LIST.length
-                    critterKill(c, undefined, true, anim)
+                    let frame: number
+                    if (deathFrame === 1) {
+                        frame = correctDeath(c, FT_LIST[ft])
+                        ft = (ft + 1) % FT_LIST.length
+                    } else {
+                        frame = deathFrame >= ANIM_FALL_BACK_SF && deathFrame <= ANIM_FALL_FRONT_BLOOD_SF ? deathFrame : ANIM_FALL_BACK_SF
+                    }
+                    critterKill(c, undefined, true, { deathFrame: frame })
                 }
             }
         }

@@ -169,9 +169,9 @@ export const critterEffects: Dict<(target: Critter) => void> = {
     },
 
     death: function (target: Critter) {
-        // Mark the critter for an explosive death animation if this hit kills them.
-        // critterKill() reads target.deathAnim before choosing the animation.
-        target.deathAnim = 'death-explode'
+        // CE combat.cc critical tables DAM_DEAD — the hit kills outright; critterDamage
+        // applies it, and the death anim is picked as for any other kill (_pick_death).
+        target.critDeath = true
     },
 
     onFire: function (target: Critter) {

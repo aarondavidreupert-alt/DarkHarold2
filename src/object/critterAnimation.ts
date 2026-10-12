@@ -23,6 +23,7 @@ import { directionOfDelta, hexToScreen, Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { lazyLoadImage } from '../images.js'
 import { dbg, dbgWarn } from '../logger.js'
+import { artGetCode } from '../pro.js'
 import { ANIM, critterWeaponCode, playCharAnimSfx } from '../sfxNames.js'
 import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from '../unarmed.js'
 import { Critter } from './Critter.js'
@@ -65,13 +66,6 @@ const animInfo: { [anim: string]: { type: string } } = {
     pickUp: { type: 'static' },
     climb: { type: 'static' },
     hitFront: { type: 'static' },
-    death: { type: 'static' },
-    'death-explode': { type: 'static' },
-    'death-fire': { type: 'static' },
-    'death-plasma': { type: 'static' },
-    'death-electro': { type: 'static' },
-    'death-laser': { type: 'static' },
-    'death-burst': { type: 'static' },
     // Sentinel for a finished death animation — updateAnim() returns immediately,
     // freezing the critter on its last death frame permanently.
     dead: { type: 'static' },
@@ -147,6 +141,13 @@ Critter.prototype.getBase = function (this: Critter): string {
 Critter.prototype.getAnimation = function (this: Critter, anim: string): string {
     const base = this.getBase()
 
+    // 'anim:<id>' — a CE anim id (animation.h), e.g. the death and corpse anims
+    // chosen by critter/deathAnim.ts; art code from CE art.cc _art_get_code.
+    if (anim.startsWith('anim:')) {
+        const code = artGetCode(Number(anim.slice(5)), 0)
+        return code ? base + code[0] + code[1] : base + 'aa'
+    }
+
     // try weapon animation first
     const weaponObj = this.equippedWeapon
     if (weaponObj !== null && Config.engine.doUseWeaponModel === true) {
@@ -213,14 +214,17 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
             const skinD = wObjD?.weapon?.getSkin()
             return (skinD && skinD !== 'a') ? base + skinD + 'e' : base + 'an'
         }
+        // CE actions.cc:402 — knocked down by a hit from the front = ANIM_FALL_BACK ('ba'),
+        // from behind = ANIM_FALL_FRONT ('bb'); getting up from them is
+        // ANIM_BACK_TO_STANDING ('cj') / ANIM_PRONE_TO_STANDING ('ch').
         case 'knockdownFront':
-            return base + 'ap'
+            return base + 'ba'
         case 'knockdownBack':
-            return base + 'aq'
+            return base + 'bb'
         case 'getUpFront':
-            return base + 'ar'
+            return base + 'cj'
         case 'getUpBack':
-            return base + 'as'
+            return base + 'ch'
         case 'knockout':
             return base + 'au'
         case 'fidget': {
@@ -238,25 +242,6 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
         //case "punch": return base + 'aq'
         case 'called-shot':
             return base + 'na'
-        case 'death':
-            if (this.pro && this.pro.extra.killType === 18) {
-                // Boss is special-cased
-                dbg('combat', '[Combat] boss death')
-                return base + 'bl'
-            }
-            return base + 'bo' // normal crumple death
-        case 'death-explode':
-            return base + 'bl' // sliced in half / blown apart
-        case 'death-fire':
-            return base + 'be' // burning death dance
-        case 'death-plasma':
-            return base + 'bm' // burned to nothing
-        case 'death-electro':
-            return base + 'bk' // electrified
-        case 'death-laser':
-            return base + 'bg' // big hole / vaporised
-        case 'death-burst':
-            return base + 'bj' // dancing autofire
         default:
             throw 'Unknown animation: ' + anim
     }
@@ -365,6 +350,9 @@ Critter.prototype.updateAnim = function (this: Critter): void {
     if (!this.anim || this.anim === 'idle') {
         this.updateLoopingAnim()
         return
+    }
+    if (animInfo[this.anim] === undefined && this.anim.startsWith('anim:')) {
+        return this.updateStaticAnim()
     }
     if (animInfo[this.anim] === undefined) {
         // Unknown anim key — likely stale state from a deserialized save or a script bug.

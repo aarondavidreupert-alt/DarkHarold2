@@ -19,10 +19,11 @@ limitations under the License.
 //   critter/Weapon.ts    — Weapon class + attack-mode/skin/damage-type
 //                          constants + UnarmedMove table.
 //   critter/lifecycle.ts — critterKill, critterDamage,
-//                          deathAnimForDamageType, killCounts.
+//                          killCounts.
 //
 // Dead helpers (critterGetRawStat/critterSetRawSkill quartet) were dropped
 // during the split — they were only referenced internally with TODO warnings.
 
 export { Weapon, UnarmedMove, UNARMED_MOVES, getAvailableUnarmedMoves } from './critter/Weapon.js'
-export { critterKill, critterDamage, deathAnimForDamageType, killCounts } from './critter/lifecycle.js'
+export { critterKill, critterDamage, killCounts, KillOptions } from './critter/lifecycle.js'
+export { correctDeath, unarmedAttackAnim, ANIM_FALL_BACK_SF, ANIM_FALL_FRONT_BLOOD_SF, ANIM_STAND } from './critter/deathAnim.js'

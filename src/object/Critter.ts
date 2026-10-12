@@ -99,7 +99,8 @@ export class Critter extends Obj {
     nextIdleAnimTime = 0 // performance.now() after which the next idle cycle begins; 0 = uninitialised
     skipTurns = 0 // Number of combat turns to skip (set by knockdown/loseNextTurn effects)
     isKnockedDown = false // Set by knockdown/knockout crit effects; consumed by critterDamage() to play the animation
-    deathAnim?: string // Override death animation (set by critical 'death' effects, e.g. 'death-explode')
+    critDeath = false // a critical with DAM_DEAD hit this critter (criticalEffects 'death'); critterDamage kills it
+    knockdownAnim: 'knockdownFront' | 'knockdownBack' | null = null // fall played by the last knockdown
 
     // Crippled-limb flags (set by critical effects; persist for the fight)
     crippledLeftArm = false

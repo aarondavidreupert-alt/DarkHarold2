@@ -23,7 +23,7 @@ import type { Proto } from '../proto_types.js'
 
 // Object kinds as getPROTypeName() names them (plus map-object kinds that carry no proto).
 export type ObjType = 'item' | 'critter' | 'scenery' | 'wall' | 'tile' | 'misc' | 'spatial'
-import { critterDamage } from '../critter.js'
+import { ANIM_STAND, critterDamage } from '../critter.js'
 import { getLstId, lookupScriptName } from '../data.js'
 import { Events, scheduleExplosion } from '../events.js'
 import { hexDistance, hexesInRadius, hexIsInFrontOf, hexNeighbors, Point } from '../geometry.js'
@@ -1017,7 +1017,7 @@ export class Obj {
 
                         if (target.type === 'critter' && !(target as Critter).dead) {
                             dbg('object', `[Object] explosion hits ${(target as Critter).name} for ${damage}`)
-                            critterDamage(target as Critter, damage, killer, true, true, 'Explosive')
+                            critterDamage(target as Critter, damage, killer, true, true, 'Explosive', undefined, { attackerAnim: ANIM_STAND, weapon: null })
                         } else if (target.isDoor || target.isContainer) {
                             // Vanilla: door/container destroy_p_proc swaps to destroyed-open FRM.
                             // No destroy scripts yet — open the object and mark NoBlock

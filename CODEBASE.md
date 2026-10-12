@@ -105,7 +105,7 @@ the pipeline or the TS compiler.
 | File | Purpose | fallout2-ce counterpart |
 |------|---------|------------------------|
 | `src/object.ts` | Barrel — Obj/Critter/items; split into `object/Obj.ts` (base class + helpers + SerializedObj), `object/items.ts` (Item/WeaponObj/Scenery/Door), `object/factories.ts` (createObjectWithPID, objFromMapObject, deserializeObj), `object/Critter.ts` (Critter class + combat/skill/armor accessors + walkTo/move/serialize), `object/critterAnimation.ts` (FRM state machine + animInfo on Critter.prototype via declaration merging) | `object.cc`, `critter.cc` |
-| `src/critter.ts` | Barrel — critter module; split into `critter/Weapon.ts` (Weapon class + attack-mode/skin/damage-type constants + UnarmedMove table) + `critter/lifecycle.ts` (critterKill, critterDamage, deathAnimForDamageType, killCounts) | `critter.cc` |
+| `src/critter.ts` | Barrel — critter module; split into `critter/Weapon.ts` (Weapon class + attack-mode/skin/damage-type constants + UnarmedMove table) + `critter/lifecycle.ts` (critterKill, critterDamage, killCounts) + `critter/deathAnim.ts` (CE death-anim choice: `_pick_death`, `_check_death`, `_pick_fall`, `_action_blood`, single-frame corpses) | `critter.cc`, `actions.cc` |
 | `src/player.ts` | `Player extends Critter`: level-up, XP thresholds, HP-per-level formula, skill points | `player.cc` |
 | `src/char.ts` | `StatSet` / `SkillSet` value objects and calculation helpers | `stat.cc`, `skill.cc` |
 | `src/skills.ts` | Skill enum, cost curves, tagged-skill doubling, trait/perk/difficulty modifiers | `skill.cc` |

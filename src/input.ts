@@ -481,7 +481,7 @@ export function installInputHandlers(): void {
         if (k === Config.controls.kill) {
             const critter = globalState.gMap.critterAtPosition(mouseHex)
             if (critter) {
-                critterKill(critter, globalState.player)
+                critterKill(critter, globalState.player, undefined, { animate: true })
             }
         }
 
