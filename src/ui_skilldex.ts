@@ -88,7 +88,7 @@ export function initSkilldex(): void {
         185,
         368
     )
-        .add(new FontWidget(65, 15, 'SKILLDEX', font3, '#FFD700'))
+        .add(new FontWidget(65, 15, 'SKILLDEX', font3, '#907824'))
 
     // FO2-CE ref: skilldex.cc SkilldexSkill enum — 8 skills in order
     const skilldexSkills: [string, Skills][] = [
@@ -113,7 +113,7 @@ export function initSkilldex(): void {
 
         // Render text once font is loaded
         font3.onLoad(() => {
-            const rendered = font3.renderText(name.toUpperCase(), '#FFD700')
+            const rendered = font3.renderText(name.toUpperCase(), '#907824')
             rendered.style.pointerEvents = 'none'
             nameWidget.elem.appendChild(rendered)
         })

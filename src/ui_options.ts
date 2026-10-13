@@ -24,13 +24,14 @@ limitations under the License.
 
 import { Config } from './config.js'
 import { Widget } from './ui_widget.js'
-import { font1, font3, font4, FontWidget, FontRenderer, FoText } from './ui_font.js'
+import { CE_COLOR, font1, font3, font4, FontWidget, FontRenderer, FoText } from './ui_font.js'
 import { WindowFrame } from './ui_components.js'
 import { makePanelDraggable } from './ui_drag.js'
 import { uiSaveLoad } from './ui_saveload.js'
 import globalState from './globalState.js'
 import { applyBrightness, getVolumeValue, savePreferences } from './ui_options/preferences.js'
 import { showConfirm } from './ui_dialog.js'
+import { getMessage } from './util.js'
 
 // FO2-CE ref: preferences.cc TargetHighlight enum — 0=off, 1=targeting-only, 2=all-enemies.
 type TargetHighlight = 'off' | 'targeting-only' | 'on'
@@ -99,7 +100,7 @@ function buildPrefsPanel(): HTMLElement {
                         : anchorX
                 const lineH = renderer.lineHeight || 10
                 for (const [part, py] of [[text.slice(0, space), y], [text.slice(space + 1), y + lineH]] as [string, number][]) {
-                    const ft = new FoText(renderer, part, '#c8b466')
+                    const ft = new FoText(renderer, part, '#907824')
                     Object.assign(ft.elem.style, { position: 'absolute', left: x + 'px', top: py + 'px' })
                     labelsContainer.appendChild(ft.elem)
                 }
@@ -109,7 +110,7 @@ function buildPrefsPanel(): HTMLElement {
         // FoText uses renderBitmapText internally: pixel-scanned actual glyph heights
         // give correct baseline alignment, unlike renderText (div-per-glyph) where all
         // JSON h values are cell_h so top offsets collapse to 0.
-        const ft = new FoText(renderer, text, '#c8b466')
+        const ft = new FoText(renderer, text, '#907824')
         // FoText queues its redraw onLoad first; this callback fires after, so ft.width is set.
         renderer.onLoad(() => {
             const w = ft.width
@@ -611,78 +612,112 @@ function closePrefsPanel(): void {
 // ---------------------------------------------------------------------------
 
 // FO2-CE ref: options.cc — in-game options panel with Save/Load/Preferences/Quit/Done
+// CE ref: options.cc optionsWindowInit / showOptions.
+//   - opbase.frm (164x217) unscaled, centred, 60 px above the screen centre; no title text
+//   - 5 buttons (opbtnoff/opbtnon, 137x34) at x=13, y=17 + i*(34+3)
+//   - labels: options.msg 0-4 in font 103, centred (textX = (137 - width) / 2,
+//     textY = (34 - lineHeight) / 2 + 1), _colorTable[18979] up / [14723] pressed
+//   - keys: Esc/Return/O/D close, S save, L load, P preferences, +/= and -/_ brightness,
+//     E / Ctrl-Q / Ctrl-X / F10 the quit confirmation (game.cc showQuitConfirmationDialog)
+const OPTIONS_BG_W = 164
+const OPTIONS_BG_H = 217
+const OPTIONS_BTN_W = 137
+const OPTIONS_BTN_H = 34
+// CE preferences.cc brightnessIncrease / brightnessDecrease
+const BRIGHTNESS_MAX = 1.17999267578125
+const BRIGHTNESS_STEP = 0.01124954223632812
+
+function changeBrightness(dir: 1 | -1): void {
+    const b = Config.ui.brightness + dir * BRIGHTNESS_STEP
+    Config.ui.brightness = Math.max(1.0, Math.min(BRIGHTNESS_MAX, b))
+    applyBrightness()
+    savePreferences()
+}
+
+// game.cc showQuitConfirmationDialog — misc.msg 0 "Are you sure you want to quit?";
+// yes leaves to the main menu (DH2: reload the page).
+async function quitConfirmation(): Promise<void> {
+    const text = getMessage('misc', 0) ?? 'Are you sure you want to quit?'
+    if (await showConfirm(text)) {
+        optionsWindow.close()
+        window.location.reload()
+    }
+}
+
 export function initOptionsMenu(): void {
     optionsWindow = new WindowFrame(
         'art/intrface/opbase',
         {
-            x: (Config.ui.screenWidth - 200) / 2,
-            y: (Config.ui.screenHeight - 260) / 2,
+            x: Math.trunc((Config.ui.screenWidth - OPTIONS_BG_W) / 2),
+            y: Math.trunc((Config.ui.screenHeight - OPTIONS_BG_H) / 2) - 60,
         },
-        200,
-        260
+        OPTIONS_BG_W,
+        OPTIONS_BG_H
     )
-        .add(new FontWidget(50, 15, 'OPTIONS', font3, '#FFD700'))
 
-    // FO2-CE ref: options.cc — button order matches original FO2: Save, Load, Preferences, Exit to Main, Done
-    const optionButtons: [string, () => void][] = [
-        ['Save Game',         () => { optionsWindow.close(); uiSaveLoad(true) }],
-        ['Load Game',         () => { optionsWindow.close(); uiSaveLoad(false) }],
-        ['Preferences',       () => { openPrefsPanel() }],
-        ['Exit to Main Menu', async () => {
-            // CE ref: game.cc showQuitConfirmationDialog() — message 0 from gMiscMessageList
-            if (await showConfirm('Return to the main menu?\nUnsaved progress will be lost.')) {
-                optionsWindow.close()
-                window.location.reload()
-            }
-        }],
-        ['Done',              () => { optionsWindow.close() }],
+    const handlers: (() => void)[] = [
+        () => { optionsWindow.close(); uiSaveLoad(true) },   // 500 SAVE GAME
+        () => { optionsWindow.close(); uiSaveLoad(false) },  // 501 LOAD GAME
+        () => { openPrefsPanel() },                           // 502 PREFERENCES
+        () => { void quitConfirmation() },                    // 503 EXIT GAME
+        () => { optionsWindow.close() },                      // 504 DONE
     ]
+    const fallback = ['SAVE GAME', 'LOAD GAME', 'PREFERENCES', 'EXIT GAME', 'DONE']
+    new Image().src = 'art/intrface/opbtnon.png' // preload the pressed state (no blank first press)
 
-    let yPos = 55
-    for (const [label, handler] of optionButtons) {
-        const btnWidget = new Widget('art/intrface/opbtnoff.png', { x: 32, y: yPos, w: 137, h: 33 })
+    handlers.forEach((handler, i) => {
+        const btnWidget = new Widget('art/intrface/opbtnoff.png', { x: 13, y: 17 + i * (OPTIONS_BTN_H + 3), w: OPTIONS_BTN_W, h: OPTIONS_BTN_H })
             .mouseDownBG('art/intrface/opbtnon.png')
-            .css({ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' })
+            .css({ cursor: 'pointer' })
             .onClick(handler)
         optionsWindow.add(btnWidget)
 
+        const text = getMessage('options', i) ?? fallback[i]
+        const label = new FoText(font3, text, CE_COLOR.label)
         font3.onLoad(() => {
-            const rendered = font3.renderText(label.toUpperCase(), '#FFD700')
-            rendered.style.pointerEvents = 'none'
-            btnWidget.elem.appendChild(rendered)
+            const x = Math.max(0, Math.trunc((OPTIONS_BTN_W - font3.measureText(text)) / 2))
+            const y = Math.trunc((OPTIONS_BTN_H - font3.lineHeight) / 2) + 1
+            Object.assign(label.elem.style, { position: 'absolute', left: x + 'px', top: y + 'px', pointerEvents: 'none' })
+            btnWidget.elem.appendChild(label.elem)
         })
-
-        yPos += 36
-    }
+        btnWidget.elem.addEventListener('mousedown', () => { label.color = CE_COLOR.labelPressed })
+        for (const ev of ['mouseup', 'mouseleave']) {
+            btnWidget.elem.addEventListener(ev, () => { label.color = CE_COLOR.label })
+        }
+    })
 
     Object.assign(optionsWindow.elem.style, {
         backgroundImage: `url('${optionsWindow.background}.png')`,
         backgroundRepeat: 'no-repeat',
-        backgroundSize: '100% 100%',
         zIndex: '20',
         cursor: 'default',
     })
 
     makePanelDraggable(optionsWindow.elem)
 
-    // FO2-CE ref: options.cc — S=Save, L=Load, P=Preferences, ESC/D=Done
     const optionsKeyHandler = (e: KeyboardEvent) => {
         if (!optionsWindow.showing) return
-
-        switch (e.key.toLowerCase()) {
-            case 's': optionsWindow.close(); uiSaveLoad(true); e.preventDefault(); break
-            case 'l': optionsWindow.close(); uiSaveLoad(false); e.preventDefault(); break
-            case 'p': openPrefsPanel(); e.preventDefault(); break
-            case 'x':
-                void (async () => {
-                    if (await showConfirm('Return to the main menu?\nUnsaved progress will be lost.')) {
-                        optionsWindow.close(); window.location.reload()
-                    }
-                })()
-                e.preventDefault(); break
-            case 'd':
-            case 'escape': optionsWindow.close(); e.preventDefault(); break
+        const k = e.key
+        if (k === 'Escape' || k === 'Enter' || /^[oOdD]$/.test(k)) {
+            globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
+            optionsWindow.close()
+        } else if (/^[sS]$/.test(k)) {
+            handlers[0]()
+        } else if (/^[lL]$/.test(k)) {
+            handlers[1]()
+        } else if (/^[pP]$/.test(k)) {
+            globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
+            openPrefsPanel()
+        } else if (k === '+' || k === '=') {
+            changeBrightness(1)
+        } else if (k === '-' || k === '_') {
+            changeBrightness(-1)
+        } else if (/^[eE]$/.test(k) || k === 'F10' || (e.ctrlKey && /^[qQxX]$/.test(k))) {
+            void quitConfirmation()
+        } else {
+            return
         }
+        e.preventDefault()
     }
     document.addEventListener('keydown', optionsKeyHandler)
 }

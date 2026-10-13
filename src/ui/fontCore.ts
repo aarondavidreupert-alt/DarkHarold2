@@ -52,6 +52,30 @@ const DEFAULT_LETTER_SPACING = 1
 // atlas drawn with the bottom-aligned renderer puts every lower-case letter high).
 export const FONT_ASSET_QUERY = '?r=2'
 
+// CE text colours (_colorTable[<RGB555>] → color.pal entry). The names say where CE
+// uses them; hex values are the palette colours.
+export const CE_COLOR = {
+    label: '#907824',          // 18979 — labels, headings, button text
+    labelPressed: '#7c6818',   // 14723 — pressed button text, inactive tab
+    green: '#3cf800',          // 992   — values / list entries
+    highlight: '#fcfc7c',      // 32747 — the selected list entry
+    tagged: '#a0a0a0',         // 21140 — tagged skill / picked trait
+    taggedHighlight: '#fcfcfc', // 32767 — selected tagged skill / picked trait
+    dimGreen: '#183018',       // 1313  — inactive condition
+    dimHighlight: '#707820',   // 15845 — selected inactive condition
+    dialog: '#fc9c48',         // 32328 — dialog box text
+} as const
+
+// Legacy colour names some callers pass → CE colour.
+export function resolveFontColor(color: string): string {
+    switch (color.toLowerCase()) {
+        case 'yellow': case '#ffd700': case '#ffff00': case '#ff0': return CE_COLOR.label
+        case 'green': case 'lime': case '#00ff00': return CE_COLOR.green
+        case 'red': return '#fc0000'
+        default: return color
+    }
+}
+
 export class FontRenderer {
     /** Public URL of the sprite sheet (suitable for CSS url('...')). */
     spriteUrl: string
@@ -161,21 +185,17 @@ export class FontRenderer {
     }
 
     /**
-     * Build a container div with one absolutely-positioned glyph div per
-     * character. If the font isn't loaded yet, the container is returned
-     * empty and filled in once loading completes.
+     * Build a container holding `text` drawn by renderBitmapText (exact colour
+     * tint, CE glyph placement). If the font isn't loaded yet, the container is
+     * returned empty and filled in once loading completes.
      *
-     * @param color  Optional tint — applied as a CSS `filter` on the
-     *               container. The sprite is already yellow; pass a value
-     *               here only if you want to recolor it (e.g. green/red
-     *               for skilldex skill values).
+     * @param color  CSS hex colour, or a legacy name (resolveFontColor); without
+     *               one the glyphs stay white.
      */
     renderText(text: string, color?: string): HTMLElement {
         const container = document.createElement('div')
-        container.style.cssText = 'position: relative; display: inline-block;'
-        if (color) {
-            container.style.filter = FontRenderer.filterForColor(color)
-        }
+        container.style.cssText = 'position: relative; display: inline-block; line-height: 0;'
+        const hex = color ? resolveFontColor(color) : undefined
 
         let currentText = text
 
@@ -183,48 +203,20 @@ export class FontRenderer {
             while (container.firstChild) {
                 container.removeChild(container.firstChild)
             }
-            if (!this.symbolInfo) {
+            if (!this.symbolInfo || !this.spriteImage) {
                 return
             }
-
-            // Pass 1: measure line height so every glyph can be bottom-aligned.
-            // Without this, shorter glyphs (e, x) share a top edge with taller ones (t, h),
-            // making ascenders appear to hang below instead of above the x-height.
-            let maxH = 0
-            for (let i = 0; i < currentText.length; i++) {
-                const info = this.symbolInfo[currentText.charCodeAt(i)]
-                if (info && info.h > maxH) maxH = info.h
-            }
-
-            // Pass 2: lay out glyphs baseline-aligned (bottom edges flush).
-            let left = 0
-            for (let i = 0; i < currentText.length; i++) {
-                const code = currentText.charCodeAt(i)
-                const info = this.symbolInfo[code]
-                if (!info) {
-                    // Unknown glyph: advance like a narrow space
-                    if (currentText[i] === ' ') {
-                        left += 4 + this.letterSpacing
-                    } else {
-                        left += 4
-                    }
-                    continue
-                }
-
-                const glyph = document.createElement('div')
-                glyph.style.cssText = `
-                    position: absolute;
-                    left: ${left}px; top: ${maxH - info.h}px;
-                    width: ${info.w}px; height: ${info.h}px;
-                    background-image: url('${this.spriteUrl}');
-                    background-position: -${info.x}px -${info.y}px;
-                    background-repeat: no-repeat;
-                `
-                container.appendChild(glyph)
-                left += info.w + this.letterSpacing
-            }
-            container.style.width = `${Math.max(0, left - this.letterSpacing)}px`
-            container.style.height = `${maxH}px`
+            const canvas = renderBitmapText(
+                currentText,
+                this.spriteImage,
+                this.symbolInfo as unknown as Record<string, SymbolInfo>,
+                this.letterSpacing,
+                hex
+            )
+            canvas.style.display = 'block'
+            container.appendChild(canvas)
+            container.style.width = `${canvas.width}px`
+            container.style.height = `${canvas.height}px`
         }
 
         // Render now if ready, otherwise queue for when the font loads.
@@ -265,25 +257,6 @@ export class FontRenderer {
             color
         )
     }
-
-    /**
-     * Map a CSS color keyword / hex code to an approximate CSS `filter`
-     * that recolors the yellow sprite. Good enough for the small palette
-     * the UI actually uses (green/red for skill values).
-     */
-    static filterForColor(color: string): string {
-        const c = color.toLowerCase()
-        if (c === 'yellow' || c === '#ffd700' || c === '#ffff00' || c === '#ff0') {
-            return 'sepia(1) saturate(4) hue-rotate(5deg)'
-        }
-        if (c === 'green' || c === '#00ff00' || c === 'lime') {
-            return 'sepia(1) saturate(4) hue-rotate(65deg)'
-        }
-        if (c === 'red' || c === '#ff0000') {
-            return 'sepia(1) saturate(5) hue-rotate(-40deg)'
-        }
-        return 'sepia(1) saturate(3)'
-    }
 }
 
 /**
@@ -316,10 +289,12 @@ export class FontWidget extends Widget {
         }
     }
 
-    /** Recolor by tweaking the CSS filter on the font element. */
+    /** Re-render in another colour. */
     setColor(color: string): void {
         this.textColor = color
-        this.fontElem.style.filter = FontRenderer.filterForColor(color)
+        const next = this.renderer.renderText(this.text, color)
+        this.elem.replaceChild(next, this.fontElem)
+        this.fontElem = next
     }
 }
 

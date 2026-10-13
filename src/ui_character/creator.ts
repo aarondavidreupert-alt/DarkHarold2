@@ -87,12 +87,12 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
 
     // ── Panel 2: HP display (conditions all inactive for new character) ────────
     const panel2 = new Widget(null, { x: 196, y: 43, w: 'auto', h: 'auto' })
-        .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
+        .css({ fontSize: '0.69em', color: '#3cf800', whiteSpace: 'pre', lineHeight: '1.2' })
     const panel2El = panel2.elem
 
     // ── Panel 3: derived stats ────────────────────────────────────────────────
     const panel3 = new Widget(null, { x: 196, y: 176, w: 'auto', h: 'auto' })
-        .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
+        .css({ fontSize: '0.69em', color: '#3cf800', whiteSpace: 'pre', lineHeight: '1.2' })
     const panel3El = panel3.elem
 
     // ── Skill rows container (replaces List widget) ───────────────────────────
@@ -222,7 +222,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         statValueWidgets.push(valW.elem)
         characterWindow.add(valW)
 
-        const commentLbl = new Label(105, 43 + n, '', '#00FF00').css({ fontSize: '0.69em' }) as Label
+        const commentLbl = new Label(105, 43 + n, '', '#3cf800').css({ fontSize: '0.69em' }) as Label
         statCommentLabels.push(commentLbl)
         characterWindow.add(commentLbl)
 
@@ -238,7 +238,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         pointerEvents: 'none',
     })
     font3.onLoad(() => {
-        poolTextEl.appendChild(font3.renderText('Char Points', '#FFD700'))
+        poolTextEl.appendChild(font3.renderText('Char Points', '#907824'))
     })
     characterWindow.elem.appendChild(poolTextEl)
 
@@ -426,7 +426,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             Object.assign(inp, { type: 'text', maxLength: 11, value: playerName })
             Object.assign(inp.style, {
                 position: 'relative', zIndex: '2',
-                fontSize: '0.9em', color: '#FFD700',
+                fontSize: '0.9em', color: '#907824',
                 background: 'transparent', border: 'none',
                 borderBottom: '1px solid #806814',
                 fontFamily: 'monospace', outline: 'none',
@@ -544,7 +544,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
 
     const updateNameDisplay = () => {
         while (nameLabelEl.firstChild) nameLabelEl.removeChild(nameLabelEl.firstChild)
-        nameLabelEl.appendChild(font3.renderText(playerName, '#FFD700'))
+        nameLabelEl.appendChild(font3.renderText(playerName, '#907824'))
     }
     updateNameDisplay()
     nameBtn.onclick = () => openCreatorPopup('name', updateNameDisplay)
@@ -572,7 +572,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
 
     const updateAgeDisplay = () => {
         while (ageLabelEl.firstChild) ageLabelEl.removeChild(ageLabelEl.firstChild)
-        ageLabelEl.appendChild(font3.renderText(String(playerAge), '#FFD700'))
+        ageLabelEl.appendChild(font3.renderText(String(playerAge), '#907824'))
     }
     updateAgeDisplay()
     ageBtn.onclick = () => openCreatorPopup('age', updateAgeDisplay)
@@ -600,7 +600,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
 
     const updateSexDisplay = () => {
         while (sexLabelEl.firstChild) sexLabelEl.removeChild(sexLabelEl.firstChild)
-        sexLabelEl.appendChild(font3.renderText(playerSex, '#FFD700'))
+        sexLabelEl.appendChild(font3.renderText(playerSex, '#907824'))
     }
     updateSexDisplay()
     sexBtn.onclick = () => openCreatorPopup('sex', updateSexDisplay)
@@ -619,7 +619,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             traitToggleImgs[i].src = selected
                 ? 'art/intrface/tgsklon.png'
                 : 'art/intrface/tgskloff.png'
-            traitRowEls[i].style.color = selected ? '#FFD700' : '#00FF00'
+            traitRowEls[i].style.color = selected ? '#a0a0a0' : '#3cf800' // CE 21140 picked / 992
         }
     }
 
@@ -721,7 +721,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         pointerEvents: 'none',
     })
     font3.onLoad(() => {
-        optionalTraitsLabelEl.appendChild(font3.renderText('Optional Traits', '#FFD700'))
+        optionalTraitsLabelEl.appendChild(font3.renderText('Optional Traits', '#907824'))
     })
     characterWindow.elem.appendChild(optionalTraitsLabelEl)
     characterWindow.elem.appendChild(leftColEl)
@@ -785,7 +785,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         pointerEvents: 'none',
     })
     font3.onLoad(() => {
-        tagLabelEl.appendChild(font3.renderText('Tag Skills', '#FFD700'))
+        tagLabelEl.appendChild(font3.renderText('Tag Skills', '#907824'))
     })
     characterWindow.elem.appendChild(tagLabelEl)
 
@@ -810,7 +810,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         for (const skill of SKILLS) {
             const isTagged = newSkillSet.isTagged(skill)
             const val = newSkillSet.get(skill, newStatSet, skillOpts)
-            const color = isTagged ? '#FFB000' : 'rgb(0,255,0)'
+            const color = isTagged ? '#a0a0a0' : '#3cf800' // CE characterEditorDrawSkills: 21140 tagged / 992
 
             const row = document.createElement('div')
             Object.assign(row.style, {

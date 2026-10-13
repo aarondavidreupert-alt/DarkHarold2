@@ -79,12 +79,12 @@ export function showCharacterScreen() {
 
     // Panel 2: Hit Points + condition flags (upper status box)
     const panel2 = new Widget(null, { x: 196, y: 43, w: 'auto', h: 'auto' })
-        .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
+        .css({ fontSize: '0.69em', color: '#3cf800', whiteSpace: 'pre', lineHeight: '1.2' })
     const panel2El = panel2.elem
 
     // Panel 3: derived stats (lower status box)
     const panel3 = new Widget(null, { x: 196, y: 176, w: 'auto', h: 'auto' })
-        .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
+        .css({ fontSize: '0.69em', color: '#3cf800', whiteSpace: 'pre', lineHeight: '1.2' })
     const panel3El = panel3.elem
 
     // Slider widget elements (initially hidden)
@@ -160,19 +160,19 @@ export function showCharacterScreen() {
         .add(
             new Label(33, 278, `Level: ${currentLevel}`).css({
                 fontSize: '0.69em',
-                color: '#00FF00',
+                color: '#3cf800',
             })
         )
         .add(
             new Label(33, 289, `Exp: ${player.getStat('Experience')}`).css({
                 fontSize: '0.69em',
-                color: '#00FF00',
+                color: '#3cf800',
             })
         )
         .add(
             new Label(33, 300, `Next Level: ${nextLevelXP}`).css({
                 fontSize: '0.69em',
-                color: '#00FF00',
+                color: '#3cf800',
             })
         )
         .add(makeFontLabel(380, 5, 'Skills', font3))
@@ -211,7 +211,7 @@ export function showCharacterScreen() {
         pointerEvents: 'none', zIndex: '2',
     })
     font3.onLoad(() => {
-        screenNameLbl.appendChild(font3.renderText(player.name || 'none', '#FFD700'))
+        screenNameLbl.appendChild(font3.renderText(player.name || 'none', '#907824'))
     })
     characterWindow.elem.appendChild(screenNameLbl)
 
@@ -232,7 +232,7 @@ export function showCharacterScreen() {
         pointerEvents: 'none', zIndex: '2',
     })
     font3.onLoad(() => {
-        screenAgeLbl.appendChild(font3.renderText(String(player.getStat('Age')), '#FFD700'))
+        screenAgeLbl.appendChild(font3.renderText(String(player.getStat('Age')), '#907824'))
     })
     characterWindow.elem.appendChild(screenAgeLbl)
 
@@ -253,7 +253,7 @@ export function showCharacterScreen() {
         pointerEvents: 'none', zIndex: '2',
     })
     font3.onLoad(() => {
-        screenSexLbl.appendChild(font3.renderText(player.gender === 'female' ? 'Female' : 'Male', '#FFD700'))
+        screenSexLbl.appendChild(font3.renderText(player.gender === 'female' ? 'Female' : 'Male', '#907824'))
     })
     characterWindow.elem.appendChild(screenSexLbl)
 
@@ -288,14 +288,14 @@ export function showCharacterScreen() {
         left: '30px',
         top: '370px',
         fontSize: '0.69em',
-        color: '#00FF00',
+        color: '#3cf800',
     })
 
     const mkSectionHeader = (text: string) => {
         const hdr = document.createElement('div')
         hdr.textContent = text
         Object.assign(hdr.style, {
-            color: '#00FF00',
+            color: '#3cf800',
             fontSize: '0.85em',
             margin: '2px 0 1px',
             pointerEvents: 'none',
@@ -314,13 +314,13 @@ export function showCharacterScreen() {
             if (activeTraits.length === 0) {
                 const none = document.createElement('div')
                 none.textContent = 'No traits selected.'
-                Object.assign(none.style, { color: '#70A070', fontSize: '0.9em' })
+                Object.assign(none.style, { color: '#3cf800', fontSize: '0.9em' })
                 panel.appendChild(none)
             } else {
                 for (const traitName of activeTraits) {
                     const line = document.createElement('div')
                     line.textContent = traitName
-                    Object.assign(line.style, { color: '#FFD700', cursor: 'pointer' })
+                    Object.assign(line.style, { color: '#3cf800', cursor: 'pointer' })
                     line.onclick = () => showInfoCard(traitName, TRAIT_DESCRIPTIONS[traitName] ?? traitName, TRAIT_IMG[traitName])
                     panel.appendChild(line)
                 }
@@ -333,7 +333,7 @@ export function showCharacterScreen() {
             if (perks.length === 0) {
                 const none = document.createElement('div')
                 none.textContent = 'No perks.'
-                Object.assign(none.style, { color: '#00FF00', fontSize: '0.9em' })
+                Object.assign(none.style, { color: '#3cf800', fontSize: '0.9em' })
                 panel.appendChild(none)
             } else {
                 const counts: Record<string, number> = {}
@@ -342,7 +342,7 @@ export function showCharacterScreen() {
                     const def = PERKS.find(d => d.name === perkName)
                     const line = document.createElement('div')
                     line.textContent = rank > 1 ? `${perkName} (${rank})` : perkName
-                    line.style.color = '#FFD700'
+                    line.style.color = '#3cf800'
                     line.style.cursor = 'pointer'
                     line.onclick = () => showInfoCard(perkName, def?.description ?? perkName, undefined)
                     panel.appendChild(line)
@@ -392,7 +392,7 @@ export function showCharacterScreen() {
     const addLine = (parent: HTMLElement, text: string) => {
         const el = document.createElement('div')
         el.textContent = text
-        Object.assign(el.style, { color: '#00FF00' })
+        Object.assign(el.style, { color: '#3cf800' })
         parent.appendChild(el)
     }
 
@@ -449,7 +449,7 @@ export function showCharacterScreen() {
         region.onclick = () => activateFolder(idx)
 
         font3.onLoad(() => {
-            const lbl = font3.renderText(tab.label, '#FFD700')
+            const lbl = font3.renderText(tab.label, '#907824')
             lbl.style.pointerEvents = 'none'
             region.appendChild(lbl)
         })
@@ -555,7 +555,7 @@ export function showCharacterScreen() {
         statValueWidgets.push(valW.elem)
         characterWindow.add(valW)
 
-        const commentLbl = new Label(105, 43 + n, '', '#00FF00').css({ fontSize: '0.69em' }) as Label
+        const commentLbl = new Label(105, 43 + n, '', '#3cf800').css({ fontSize: '0.69em' }) as Label
         statCommentLabels.push(commentLbl)
         characterWindow.add(commentLbl)
 
@@ -663,7 +663,7 @@ export function showCharacterScreen() {
                 alignItems: 'center',
                 minWidth: '215px',
                 cursor: 'pointer',
-                color: isTagged ? '#FFD700' : '#00FF00',
+                color: isTagged ? '#a0a0a0' : '#3cf800', // CE 21140 tagged / 992
             })
             const nameSpan = document.createElement('span')
             nameSpan.textContent = skill

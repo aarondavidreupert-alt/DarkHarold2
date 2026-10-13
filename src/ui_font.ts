@@ -22,6 +22,8 @@ export {
     FontWidget,
     makeFontLabel,
     renderBitmapText,
+    CE_COLOR,
+    resolveFontColor,
 } from './ui/fontCore.js'
 
 export { FoText } from './ui/foText.js'

@@ -197,7 +197,7 @@ export function showPerkModal(player: any): void {
     if (validPerks.length === 0) {
         const none = document.createElement('div')
         none.textContent = 'No eligible perks.'
-        Object.assign(none.style, { color: '#00FF00', fontSize: '0.68em', padding: '4px 3px' })
+        Object.assign(none.style, { color: '#3cf800', fontSize: '0.68em', padding: '4px 3px' })
         listEl.appendChild(none)
     }
 
@@ -212,7 +212,7 @@ export function showPerkModal(player: any): void {
             padding: '1px 3px',
             cursor: 'pointer',
             fontSize: '0.68em',
-            color: '#00FF00',
+            color: '#3cf800',
             backgroundColor: def.name === selectedPerk ? 'rgba(0,255,0,0.2)' : 'transparent',
         })
 
