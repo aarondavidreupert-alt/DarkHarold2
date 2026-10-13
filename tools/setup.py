@@ -50,6 +50,7 @@ import dat2
 import parseCritTable
 import parseElevatorTable
 import exportImagesPar
+import exportFonts
 import exportPRO
 import fomap
 import convertLST
@@ -175,6 +176,21 @@ def export_images(overwrite=True):
 		warn("Error when converting images (see traceback above). Will not finish converting images, but will continue setup.")
 		return False
 
+	return True
+
+def export_fonts(overwrite=True):
+	# data/font<N>.aaf / .fon -> art/fonts/font<N>_aaf|_fon.png + .json (src/ui/fontCore.ts).
+	if not overwrite and os.path.exists(os.path.join("art", "fonts", "font1_aaf.json")):
+		info("Skipping font export - art/fonts already populated")
+		return True
+	info("Converting fonts...")
+	try:
+		n = exportFonts.convert_all("data", os.path.join("art", "fonts"), verbose=False)
+		info(f"Converted {n} font(s)")
+	except Exception:
+		traceback.print_exc()
+		warn("Error when converting fonts (see traceback above). Will continue setup.")
+		return False
 	return True
 
 def export_pros(overwrite=True):
@@ -334,6 +350,7 @@ STAGES = {
 	"elevator_table": parse_elevator_table,
 	"extract_dats": extract_dats,
 	"export_images": export_images,
+	"export_fonts": export_fonts,
 	"export_pros": export_pros,
 	"export_maps": export_maps,
 	"export_audio": export_audio,

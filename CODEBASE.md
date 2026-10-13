@@ -233,6 +233,7 @@ The engine consumes only pre-baked JSON/PNG — no runtime DAT parsing.
 | PRO indexes | `tools/convertPRO.py` | `lut/pro/*.json` (proto lookup) |
 | AAF/FON fonts | `tools/fonts.py` (`tools/oldPy/fonts2.py`, `fonts7alphawhite.py`, `data_fonts*.py` are superseded iterations) | `art/fonts/` |
 | ACM → WAV | `acm2wav/` + `tools/convertAudio.py` | `audio/**/*.wav` |
+| AAF/FON fonts → PNG atlas | `tools/exportFonts.py` (`export_fonts` stage) | `art/fonts/font<N>_aaf.png/.json`, `font<N>_fon.png/.json` |
 | MVE → WebM | `tools/convertMovies.py` (`export_movies` stage; needs ffmpeg) | `art/cuts/*.webm` + `.json` |
 | Speech ACM → MP3 | `tools/convertSpeech.py` (`export_speech` stage; needs ffmpeg) | `audio/speech/<head>/*.mp3` |
 | Crit table | `tools/parseCritTable.py` | `lut/criticalTables.json` |

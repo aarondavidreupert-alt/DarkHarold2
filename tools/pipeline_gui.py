@@ -45,6 +45,7 @@ STAGES = [
     ("elevator_table", "Parse elevator table (from fallout2.exe)", True),
     ("extract_dats", "Extract DAT archives (master.dat / critter.dat)", True),
     ("export_images", "Export images (FRM -> PNG)", True),
+    ("export_fonts", "Export fonts (AAF/FON -> PNG atlas)", True),
     ("export_pros", "Export prototypes (PRO -> JSON)", True),
     ("export_maps", "Export maps (MAP -> JSON)", True),
     ("convert_lsts", "Convert LST files (-> lut/lst/*.json)", True),

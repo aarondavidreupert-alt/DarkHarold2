@@ -35,8 +35,18 @@ export interface SymbolInfo {
 
 export type SymbolInfoMap = { [charCode: number]: SymbolInfo }
 
-// Inter-glyph spacing in pixels (fallout2-ce: FONT_SPACE_BETWEEN_SYMBOLS = 1)
-const GLYPH_GAP = 1
+// CE font metrics (font_manager.cc InterfaceFontDescriptor), written by
+// tools/exportFonts.py as the JSON's "meta" entry.
+export interface FontMeta {
+    maxHeight: number
+    letterSpacing: number
+    wordSpacing: number
+    lineSpacing: number
+}
+
+// Fallback inter-glyph spacing for atlases without "meta" (CE letterSpacing is 1
+// for fonts 0-3, 2 for font 4).
+const DEFAULT_LETTER_SPACING = 1
 
 export class FontRenderer {
     /** Public URL of the sprite sheet (suitable for CSS url('...')). */
@@ -45,6 +55,7 @@ export class FontRenderer {
     private spritePath: string
     private jsonPath: string
     private symbolInfo: SymbolInfoMap | null = null
+    private meta: FontMeta | null = null
     private spriteImage: HTMLImageElement | null = null
     private imageLoaded = false
     private loaded = false
@@ -77,7 +88,8 @@ export class FontRenderer {
 
         fetch(this.jsonPath)
             .then((r) => r.json())
-            .then((info: SymbolInfoMap) => {
+            .then((info: SymbolInfoMap & { meta?: FontMeta }) => {
+                this.meta = info.meta ?? null
                 this.symbolInfo = info
                 this.checkLoaded()
             })
@@ -102,6 +114,16 @@ export class FontRenderer {
         return this.loaded
     }
 
+    /** CE letterSpacing — pixels between glyphs. */
+    get letterSpacing(): number {
+        return this.meta?.letterSpacing ?? DEFAULT_LETTER_SPACING
+    }
+
+    /** CE line height: maxHeight + lineSpacing (font_manager.cc:229). */
+    get lineHeight(): number {
+        return this.meta ? this.meta.maxHeight + this.meta.lineSpacing : 0
+    }
+
     /** Register a one-shot callback that fires as soon as the font is ready. */
     onLoad(cb: () => void): void {
         this.ensureLoadStarted()
@@ -122,13 +144,13 @@ export class FontRenderer {
             const code = text.charCodeAt(i)
             const info = this.symbolInfo[code]
             if (info) {
-                width += info.w + GLYPH_GAP
+                width += info.w + this.letterSpacing
             } else if (text[i] === ' ') {
                 // Fallback space width when ' ' isn't in the atlas
-                width += 4 + GLYPH_GAP
+                width += 4 + this.letterSpacing
             }
         }
-        return Math.max(0, width - GLYPH_GAP)
+        return Math.max(0, width - this.letterSpacing)
     }
 
     /**
@@ -175,7 +197,7 @@ export class FontRenderer {
                 if (!info) {
                     // Unknown glyph: advance like a narrow space
                     if (currentText[i] === ' ') {
-                        left += 4 + GLYPH_GAP
+                        left += 4 + this.letterSpacing
                     } else {
                         left += 4
                     }
@@ -192,9 +214,9 @@ export class FontRenderer {
                     background-repeat: no-repeat;
                 `
                 container.appendChild(glyph)
-                left += info.w + GLYPH_GAP
+                left += info.w + this.letterSpacing
             }
-            container.style.width = `${Math.max(0, left - GLYPH_GAP)}px`
+            container.style.width = `${Math.max(0, left - this.letterSpacing)}px`
             container.style.height = `${maxH}px`
         }
 
@@ -232,7 +254,7 @@ export class FontRenderer {
             text,
             this.spriteImage,
             this.symbolInfo as unknown as Record<string, SymbolInfo>,
-            1,
+            this.letterSpacing,
             color
         )
     }
@@ -323,112 +345,26 @@ function parseHexColor(hex: string): [number, number, number] {
     ]
 }
 
-interface GlyphMetrics {
-    /** First pixel row from the top of the cell (0 = glyph starts at cell top). */
-    topRow: number
-    /** Distance from cell top to last pixel row + 1 (= bottomRow + 1). */
-    actualH: number
-}
-
-// Cache per glyphMap object — scanned once per font load.
-const glyphMetricsCache = new WeakMap<object, Map<string, GlyphMetrics>>()
-
-/**
- * Scan the sprite sheet pixel-by-pixel for each glyph cell to find:
- *   topRow  — first row that contains any visible pixel (from the top)
- *   actualH — last row that contains any visible pixel + 1 (from the top)
- *
- * Needed because the generated JSONs store `h: cell_h` for every glyph, so
- * the JSON alone cannot distinguish ascenders, x-height letters, and descenders.
- */
-function computeGlyphMetrics(
-    spriteSheet: HTMLImageElement,
-    glyphMap: Record<string, { x: number; y: number; w: number; h: number }>
-): Map<string, GlyphMetrics> {
-    const cached = glyphMetricsCache.get(glyphMap)
-    if (cached) return cached
-
-    const off = document.createElement('canvas')
-    off.width = spriteSheet.width
-    off.height = spriteSheet.height
-    const offCtx = off.getContext('2d')!
-    offCtx.drawImage(spriteSheet, 0, 0)
-
-    function rowHasPixel(data: Uint8ClampedArray, py: number, w: number): boolean {
-        for (let px = 0; px < w; px++) {
-            const idx = (py * w + px) * 4
-            if (data[idx + 3] > 0 && (data[idx] > 0 || data[idx + 1] > 0 || data[idx + 2] > 0)) {
-                return true
-            }
-        }
-        return false
-    }
-
-    const result = new Map<string, GlyphMetrics>()
-    for (const code of Object.keys(glyphMap)) {
-        const g = glyphMap[code]
-        if (g.w <= 0 || g.h <= 0) {
-            result.set(code, { topRow: 0, actualH: 0 })
-            continue
-        }
-        let topRow = 0
-        let actualH = 0
-        try {
-            const data = offCtx.getImageData(g.x, g.y, g.w, g.h).data
-            // Find first non-empty row from the top.
-            let foundTop = false
-            for (let py = 0; py < g.h; py++) {
-                if (rowHasPixel(data, py, g.w)) {
-                    topRow = py
-                    foundTop = true
-                    break
-                }
-            }
-            if (!foundTop) {
-                result.set(code, { topRow: 0, actualH: 0 })
-                continue
-            }
-            // Find last non-empty row from the bottom.
-            for (let py = g.h - 1; py >= topRow; py--) {
-                if (rowHasPixel(data, py, g.w)) {
-                    actualH = py + 1
-                    break
-                }
-            }
-        } catch {
-            topRow = 0
-            actualH = g.h
-        }
-        result.set(code, { topRow, actualH })
-    }
-
-    glyphMetricsCache.set(glyphMap, result)
-    return result
-}
-
 /**
  * Render a string into an HTMLCanvasElement by blitting glyphs from a sprite
  * sheet. Unlike FontRenderer.renderText (div-per-glyph), this draws once into
  * a single canvas — better for static labels that don't need per-glyph DOM.
  *
- * Uses true baseline alignment:
- *   - The baseline is anchored to 'A' (char 65): its actualH defines where the
- *     bottom of non-descender glyphs sits.
- *   - Each glyph is drawn at canvas y = topRow (its first pixel row), so
- *     x-height letters (e, a, r) appear lower than cap-height letters (A, T).
- *   - Descenders (g, p, y) have actualH > baseline, so they extend below it.
- *   - Canvas height = baseline + max descender depth.
+ * CE ref: font_manager.cc interfaceFontDrawImpl — every glyph is drawn bottom-
+ * aligned in a maxHeight-tall line (`ptr += (maxHeight - glyph->height) * pitch`).
+ * tools/exportFonts.py already places each glyph that way inside its cell, so
+ * the cells are blitted whole at y = 0: lower-case letters keep their two empty
+ * bottom rows and g/p/q/y/j hang their descenders into them.
  *
- * The sprite sheet stores white pixels with glyph intensity as alpha (see
- * fonts.py). When a `color` hex string is provided, each pixel's red channel
- * is used as the alpha value and the RGB is replaced with the target color —
- * preserving the soft, worn AAF glyph edges.
+ * The sprite sheet stores white pixels with glyph intensity as alpha. When a
+ * `color` hex string is provided, each pixel's red channel is used as the alpha
+ * value and the RGB is replaced with the target color — preserving the soft
+ * AAF glyph edges.
  *
  * @param text          The string to render.
  * @param spriteSheet   The loaded sprite-sheet image.
  * @param glyphMap      Char-code (as string key) → {x, y, w, h} in the sheet.
- * @param letterSpacing Extra pixels between glyphs (default 1, matching
- *                      fallout2-ce FONT_SPACE_BETWEEN_SYMBOLS).
+ * @param letterSpacing Pixels between glyphs (CE letterSpacing).
  * @param color         Optional CSS hex color (e.g. '#806814') to tint glyphs.
  */
 export function renderBitmapText(
@@ -438,69 +374,36 @@ export function renderBitmapText(
     letterSpacing: number = 1,
     color?: string
 ): HTMLCanvasElement {
-    const metrics = computeGlyphMetrics(spriteSheet, glyphMap)
-
-    // All glyphs are top-aligned in the sprite (topRow=0 for every glyph).
-    // The AAF format stores each glyph starting at row 0, with empty rows at
-    // the BOTTOM for short characters (e, a) and extra rows at the BOTTOM for
-    // descenders (g, p, y).
-    //
-    // Strategy: use 'A' (char 65) as the baseline reference.
-    //   - actualH('A') = the cap-height, which equals the baseline in this format.
-    //   - Non-descenders (actualH ≤ baseline): bottom-align to baseline by drawing
-    //     at canvas y = baseline - actualH.  Their bottoms all land on the same row.
-    //   - Descenders (actualH > baseline): draw at canvas y = 0 (same top as 'A').
-    //     Their body bottom aligns with 'A' at baseline-1; their descender pixels
-    //     extend into the reserved zone below.
-    const baselineH = metrics.get(String('A'.charCodeAt(0)))?.actualH
-                   ?? metrics.get(String('a'.charCodeAt(0)))?.actualH
-                   ?? 1
-
-    // Pass 1: measure total width and max descender depth.
+    // Pass 1: width and line height (the cell height = CE maxHeight).
     let totalWidth = 0
-    let maxDescent = 0
+    let lineH = 0
     for (let i = 0; i < text.length; i++) {
-        const code = String(text.charCodeAt(i))
-        const glyph = glyphMap[code]
+        const glyph = glyphMap[String(text.charCodeAt(i))]
+        if (i > 0) totalWidth += letterSpacing
         if (glyph) {
-            if (i > 0) totalWidth += letterSpacing
             totalWidth += glyph.w
-            const m = metrics.get(code)
-            if (m) {
-                const descent = Math.max(0, m.actualH - baselineH)
-                if (descent > maxDescent) maxDescent = descent
-            }
-        } else if (text[i] === ' ') {
-            if (i > 0) totalWidth += letterSpacing
+            if (glyph.h > lineH) lineH = glyph.h
+        } else {
             totalWidth += 4
         }
     }
 
-    const canvasH = baselineH + maxDescent
     const canvas = document.createElement('canvas')
     canvas.width = Math.max(totalWidth, 1)
-    canvas.height = Math.max(canvasH, 1)
+    canvas.height = Math.max(lineH, 1)
     const ctx = canvas.getContext('2d')!
 
-    // Pass 2: blit each glyph.
-    //   Non-descender: canvas y = baselineH - actualH  (bottom-aligned to baseline)
-    //   Descender:     canvas y = 0                    (top-aligned, body matches 'A')
-    // Source rect height = actualH so we skip empty rows at the bottom of each cell.
+    // Pass 2: blit each glyph cell.
     let x = 0
     for (let i = 0; i < text.length; i++) {
-        const code = String(text.charCodeAt(i))
-        const glyph = glyphMap[code]
+        const glyph = glyphMap[String(text.charCodeAt(i))]
+        if (i > 0) x += letterSpacing
         if (glyph) {
-            if (i > 0) x += letterSpacing
-            const m = metrics.get(code)
-            if (m && m.actualH > 0) {
-                const isDescender = m.actualH > baselineH
-                const canvasY = isDescender ? 0 : baselineH - m.actualH
-                ctx.drawImage(spriteSheet, glyph.x, glyph.y, glyph.w, m.actualH, x, canvasY, glyph.w, m.actualH)
+            if (glyph.w > 0 && glyph.h > 0) {
+                ctx.drawImage(spriteSheet, glyph.x, glyph.y, glyph.w, glyph.h, x, 0, glyph.w, glyph.h)
             }
             x += glyph.w
-        } else if (text[i] === ' ') {
-            if (i > 0) x += letterSpacing
+        } else {
             x += 4
         }
     }
