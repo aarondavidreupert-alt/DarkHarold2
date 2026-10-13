@@ -115,7 +115,7 @@ export function applyCfg(cfg: CfgSections): void {
     const dh2 = cfg['dh2'] ?? {}
     const dnc = int(dh2['day_night_cycle'])
     if (dnc !== null) Config.engine.dayNightCycle = dnc !== 0
-    //   pixel_font=1  all UI text in the Fallout pixel font (default 0)
+    //   pixel_font=0  UI text in the browser font instead of the Fallout pixel font (default 1)
     const pf = int(dh2['pixel_font'])
     if (pf !== null) Config.ui.pixelFont = pf !== 0
 

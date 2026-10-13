@@ -18,7 +18,7 @@ limitations under the License.
 
 /* Main stylesheet for the DarkFO UI */
 
-/* DH2 option (fallout2.cfg [dh2] pixel_font=1, not in CE): every DOM text in the
+/* DH2 option (fallout2.cfg [dh2] pixel_font, default on; not in CE): every DOM text in the
    Fallout interface font — CE FONT 101 (data/font1.aaf) as a web font built by
    tools/exportFonts.py. 9px = the AAF maxHeight, so one font pixel is one CSS
    pixel; advances, space, baseline and line height are the CE metrics, and the
@@ -26,7 +26,7 @@ limitations under the License.
    #itemContextMenu keeps font-size 0 and #apBar line-height 0 (image-only rows). */
 @font-face {
   font-family: 'Fallout Font 1';
-  src: url('art/fonts/font1_aaf.woff') format('woff');
+  src: url('art/fonts/font1_aaf.woff?r=2') format('woff');
   font-display: block;
 }
 html.dh2-pixel-font body,

@@ -24,7 +24,6 @@
 
 import { dbgWarn } from '../logger.js'
 import { Widget } from '../ui_widget.js'
-import { lazyLoadImage } from '../images.js'
 
 export interface SymbolInfo {
     x: number
@@ -48,6 +47,11 @@ export interface FontMeta {
 // for fonts 0-3, 2 for font 4).
 const DEFAULT_LETTER_SPACING = 1
 
+// Version query for the font atlases: bumped when tools/exportFonts.py changes the
+// layout, so browsers don't keep an old cached sheet (the top-aligned pre-U14
+// atlas drawn with the bottom-aligned renderer puts every lower-case letter high).
+export const FONT_ASSET_QUERY = '?r=2'
+
 export class FontRenderer {
     /** Public URL of the sprite sheet (suitable for CSS url('...')). */
     spriteUrl: string
@@ -64,13 +68,13 @@ export class FontRenderer {
 
     /**
      * @param spritePath  Path without .png extension (e.g. 'art/fonts/font0_aaf').
-     *                    Passed to lazyLoadImage which appends .png.
+     *                    '.png' + FONT_ASSET_QUERY is appended.
      * @param jsonPath    Full path to the symbol info JSON (including .json).
      */
     constructor(spritePath: string, jsonPath: string) {
         this.spritePath = spritePath
         this.jsonPath = jsonPath
-        this.spriteUrl = spritePath + '.png'
+        this.spriteUrl = spritePath + '.png' + FONT_ASSET_QUERY
     }
 
     /** Kick off asset loading. Safe to call repeatedly. */
@@ -80,13 +84,16 @@ export class FontRenderer {
         }
         this.loadStarted = true
 
-        lazyLoadImage(this.spritePath, (img) => {
+        const img = new Image()
+        img.onload = () => {
             this.spriteImage = img
             this.imageLoaded = true
             this.checkLoaded()
-        })
+        }
+        img.onerror = () => dbgWarn('renderer', `FontRenderer: failed to load ${this.spriteUrl}`)
+        img.src = this.spriteUrl
 
-        fetch(this.jsonPath)
+        fetch(this.jsonPath + FONT_ASSET_QUERY)
             .then((r) => r.json())
             .then((info: SymbolInfoMap & { meta?: FontMeta }) => {
                 this.meta = info.meta ?? null
