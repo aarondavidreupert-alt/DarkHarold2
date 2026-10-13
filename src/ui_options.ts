@@ -86,7 +86,26 @@ function buildPrefsPanel(): HTMLElement {
      *  align: 'left' = anchorX is left edge; 'center' = anchorX is horizontal centre;
      *         'right' = anchorX is right edge (CE: anchorX - fontGetStringWidth(str)).
      */
-    function label(renderer: FontRenderer, text: string, anchorX: number, y: number, align: 'left' | 'center' | 'right' = 'left'): void {
+    // `splitFirstWord`: CE preferences.cc:599 _UpdateThing — a primary preference's
+    // value label is aligned by its full width, then drawn as the first word and,
+    // one line (fontGetLineHeight) lower at the same x, the rest.
+    function label(renderer: FontRenderer, text: string, anchorX: number, y: number, align: 'left' | 'center' | 'right' = 'left', splitFirstWord = false): void {
+        const space = text.indexOf(' ')
+        if (splitFirstWord && space !== -1) {
+            renderer.onLoad(() => {
+                const w = renderer.measureText(text)
+                const x = align === 'right'  ? anchorX - w
+                        : align === 'center' ? anchorX - Math.floor(w / 2)
+                        : anchorX
+                const lineH = renderer.lineHeight || 10
+                for (const [part, py] of [[text.slice(0, space), y], [text.slice(space + 1), y + lineH]] as [string, number][]) {
+                    const ft = new FoText(renderer, part, '#c8b466')
+                    Object.assign(ft.elem.style, { position: 'absolute', left: x + 'px', top: py + 'px' })
+                    labelsContainer.appendChild(ft.elem)
+                }
+            })
+            return
+        }
         // FoText uses renderBitmapText internally: pixel-scanned actual glyph heights
         // give correct baseline alignment, unlike renderText (div-per-glyph) where all
         // JSON h values are cell_h so top offsets collapse to 0.
@@ -479,12 +498,12 @@ function buildPrefsPanel(): HTMLElement {
     label(font1, 'None',          78,  236, 'right')
     label(font1, 'Minimal',       101, 222, 'center')
     label(font1, 'Normal',        122, 236)
-    label(font1, 'Maximum Blood', 122, 257)
+    label(font1, 'Maximum Blood', 122, 257, 'left', true)
 
     // Target Highlight (knobX=76, knobY=309). Msg: 202=Off, 201=On, 213=Targeting Only.
     label(font1, 'Off',           78,  319, 'right')
     label(font1, 'On',            101, 305, 'center')
-    label(font1, 'Targeting Only',122, 319)
+    label(font1, 'Targeting Only',122, 319, 'left', true)
 
     // Combat Looks (knobX=76, knobY=387, valuesCount=2). Msg: 202=Off, 201=On.
     label(font1, 'Off', 78,  397, 'right')

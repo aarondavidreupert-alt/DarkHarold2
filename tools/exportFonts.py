@@ -224,7 +224,16 @@ def build_aaf_webfont(data, family, out_path):
     fb.setupGlyphOrder(names)
     fb.setupCharacterMap(cmap)
     fb.setupGlyf(outlines)
-    fb.setupHorizontalMetrics({n: (metrics[n][0], metrics[n][1]) for n in names})
+    # hmtx lsb must equal the glyph's xMin: renderers place the outline by lsb, so a
+    # layer glyph that doesn't start at x = 0 (e.g. the faint pixels of 'k') would
+    # otherwise be shifted onto the stem.
+    glyf = fb.font["glyf"]
+    lsb = {}
+    for n in names:
+        g = glyf[n]
+        g.recalcBounds(glyf)
+        lsb[n] = g.xMin if g.numberOfContours else 0
+    fb.setupHorizontalMetrics({n: (metrics[n][0], lsb[n]) for n in names})
     fb.setupHorizontalHeader(ascent=ascent * UNIT, descent=-descent * UNIT, lineGap=line_spacing * UNIT)
     fb.setupNameTable({"familyName": family, "styleName": "Regular"})
     fb.setupOS2(sTypoAscender=ascent * UNIT, sTypoDescender=-descent * UNIT, sTypoLineGap=line_spacing * UNIT,

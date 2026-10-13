@@ -26,7 +26,7 @@ limitations under the License.
    #itemContextMenu keeps font-size 0 and #apBar line-height 0 (image-only rows). */
 @font-face {
   font-family: 'Fallout Font 1';
-  src: url('art/fonts/font1_aaf.woff?r=2') format('woff');
+  src: url('art/fonts/font1_aaf.woff?r=3') format('woff');
   font-display: block;
 }
 html.dh2-pixel-font body,
