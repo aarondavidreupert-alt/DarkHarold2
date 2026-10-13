@@ -403,6 +403,12 @@ export class Critter extends Obj {
             throw Error()
         }
         this.orientation = dir
+        // CE ref: animation.cc _object_move (field_20 == -2000) — the walk starts on the
+        // hex centre (objectSetLocation) and then adds frame 0's FRM delta.
+        if (Config.engine.walkModel !== 'dh2') {
+            const d0 = globalState.imageInfo[this.art]?.frameOffsets[dir]?.[0]
+            if (d0) this.shift = { x: d0.x, y: d0.y }
+        }
         //console.log("start dir: %o", this.orientation)
 
         return true

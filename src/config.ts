@@ -95,6 +95,20 @@ export const Config = {
         // inspector i, kill k, ...; none of them exist in CE). Off so they can't fire
         // while playing or typing; console: setDevKeys(true).
         devKeys: false,
+        // Walk/run movement model (console: setWalkModel('ce' | 'dh2' | 'smooth')):
+        //   'ce'     — CE animation.cc _object_move: per-frame FRM deltas accumulate, the
+        //              critter steps a hex when the offset reaches the hex step and keeps
+        //              the remainder; the cycle never restarts at a hex
+        //   'dh2'    — the old DarkFO model: fixed frame chunks per hex, offset reset
+        //   'smooth' — 'ce' plus a render-time blend toward the next frame (not CE)
+        walkModel: 'ce' as 'ce' | 'dh2' | 'smooth',
+        // Sprite offset across animations (console: setAnimOffsetModel('ce' | 'dh2')):
+        //   'ce'  — CE obj->x/y accumulator: + old art's direction offset + new frame-0
+        //           delta at an art change (animation.cc _object_animate), + each frame's
+        //           delta, reset by _dude_stand when an action ends; drawn as
+        //           tile + art direction offset + obj->x - width/2 (object.cc objectGetRect)
+        //   'dh2' — the DH2 artOffset that pins the anchor point at every art change
+        animOffsetModel: 'ce' as 'ce' | 'dh2',
         doSaveDirtyMaps: true, // save dirty maps to in-memory cache?
         doLoadScripts: true, // should we load scripts?
         doUpdateCritters: true, // should we give critters heartbeats?

@@ -50,6 +50,8 @@ declare module './Critter.js' {
         updateLoopingAnim(): void
         updateAnim(): void
         getWalkLerp(): { hexA: Point; hexB: Point; t: number } | null
+        walkFrameCE(): void
+        walkFrameBlend(): { x: number; y: number }
     }
 }
 
@@ -281,10 +283,14 @@ Critter.prototype.updateStaticAnim = function (this: Critter): void {
 
     if (time - this.lastFrameTime >= 1000 / fps) {
         const reversed = this.anim === 'reverse'
+        // CE _object_animate: forward adds the new frame's delta; reverse removes the
+        // current frame's delta before stepping back.
         if (reversed) {
+            ceOffsetAdd(this, this.frame, -1)
             this.frame--
         } else {
             this.frame++
+            ceOffsetAdd(this, this.frame, 1)
         }
         this.lastFrameTime = time
 
@@ -333,9 +339,11 @@ Critter.prototype.updateLoopingAnim = function (this: Critter): void {
     const fps = info.fps || 8
     if (time - this.lastFrameTime >= 1000 / fps) {
         this.frame++
+        ceOffsetAdd(this, this.frame, 1)
         this.lastFrameTime = time
         if (this.frame >= info.numFrames) {
             this.frame = 0
+            this.ceOff = ceStandOffset(this) // the fidget ends with _dude_stand
             // Pause 3–10 s before the next idle cycle
             this.nextIdleAnimTime = time + 3000 + Math.random() * 7000
         }
@@ -391,6 +399,14 @@ Critter.prototype.updateAnim = function (this: Critter): void {
             fps += Math.round((50 - Math.max(0, Math.min(50, Config.combat.combatSpeed))) * 0.2)
         }
     }
+    if (Config.engine.walkModel !== 'dh2') {
+        if (time - this.lastFrameTime >= 1000 / fps) {
+            this.lastFrameTime = time
+            this.walkFrameCE()
+        }
+        return
+    }
+
     const targetScreen = hexToScreen(this.path.target.x, this.path.target.y)
 
     const partials = getAnimPartialActions(this.art, this.anim)
@@ -468,6 +484,63 @@ Critter.prototype.updateAnim = function (this: Critter): void {
     }
 }
 
+// CE ref: animation.cc _object_move — one walk/run frame: next frame (the cycle wraps
+// freely), add its FRM delta to the sub-tile offset, and step to the next path hex
+// once the offset reaches that direction's hex step (tile.cc _off_tile /
+// dword_51D984), carrying the remainder into the new hex. The last hex ends the walk
+// on the hex centre.
+const HEX_STEP_X = [16, 32, 16, -16, -32, -16]
+const HEX_STEP_Y = [-12, 0, 12, 12, 0, -12]
+
+function crossedHexStep(dir: number, sx: number, sy: number): boolean {
+    const x = HEX_STEP_X[dir], y = HEX_STEP_Y[dir]
+    return (x > 0 && x <= sx) || (x < 0 && x >= sx) || (y > 0 && y <= sy) || (y < 0 && y >= sy)
+}
+
+Critter.prototype.walkFrameCE = function (this: Critter): void {
+    const info = globalState.imageInfo[this.art]
+    if (!info || !this.path || !this.shift) return
+    this.frame = (this.frame + 1) % info.numFrames
+    const d = info.frameOffsets[this.orientation]?.[this.frame]
+    if (d) {
+        this.shift.x += d.x
+        this.shift.y += d.y
+    }
+    const dir = this.orientation
+    if (!crossedHexStep(dir, this.shift.x, this.shift.y)) return
+
+    const rest = { x: this.shift.x - HEX_STEP_X[dir], y: this.shift.y - HEX_STEP_Y[dir] }
+    const pos = this.path.path[this.path.index++]
+    if (!pos) return
+    this.shift = { x: 0, y: 0 } // objectSetLocation clears the offset
+    if (!this.move({ x: pos[0], y: pos[1] })) return
+    if (!this.path) return // move() side effects can end the walk
+
+    if (this.position.x === this.path.target.x && this.position.y === this.path.target.y) {
+        const callback = this.animCallback
+        this.clearAnim()
+        if (callback) callback()
+        return
+    }
+    const next = this.path.path[this.path.index]
+    if (next) {
+        const nd = directionOfDelta(this.position.x, this.position.y, next[0], next[1])
+        if (nd != null) this.orientation = nd
+    }
+    this.shift = rest
+}
+
+// 'smooth' walk model: how far (0..1) the current frame has progressed toward the next.
+Critter.prototype.walkFrameBlend = function (this: Critter): { x: number; y: number } {
+    if (Config.engine.walkModel !== 'smooth' || !this.shift || (this.anim !== 'walk' && this.anim !== 'run')) return { x: 0, y: 0 }
+    const info = globalState.imageInfo[this.art]
+    if (!info) return { x: 0, y: 0 }
+    const fps = info.fps || 10
+    const t = Math.max(0, Math.min(1, (window.performance.now() - this.lastFrameTime) * fps / 1000))
+    const d = info.frameOffsets[this.orientation]?.[(this.frame + 1) % info.numFrames]
+    return d ? { x: d.x * t, y: d.y * t } : { x: 0, y: 0 }
+}
+
 // Walk-step interpolation state for smooth moving-light stamping (wiki/lighting.md
 // §player-light). While walking, the sprite glides from `position` (t=0) toward
 // the next path hex (t=1); `t` is the frame's progress within the current partial
@@ -481,6 +554,12 @@ Critter.prototype.getWalkLerp = function (this: Critter): { hexA: Point; hexB: P
     if (hexA.x === hexB.x && hexA.y === hexB.y) return null
     const info = globalState.imageInfo[this.art]
     if (!info) return null
+    if (Config.engine.walkModel !== 'dh2') {
+        // CE model: progress = how much of this direction's hex step the offset covers.
+        const dir = this.orientation
+        const t = HEX_STEP_X[dir] !== 0 ? this.shift.x / HEX_STEP_X[dir] : this.shift.y / HEX_STEP_Y[dir]
+        return { hexA, hexB, t: Math.min(1, Math.max(0, t)) }
+    }
     const cp = getAnimPartialActions(this.art, this.anim).actions[this.path.partial]
     if (!cp) return null
     const span = cp.endFrame - cp.startFrame
@@ -543,6 +622,13 @@ Critter.prototype.staticAnimation = function (this: Critter, anim: string, callb
         // Atomically switch art state so the renderer never sees newArt with a stale offset,
         // and frame 0 is held for a full fps interval (lastFrameTime = now, not 0).
         this.artOffset = pendingArtOffset
+        // CE _object_animate art change: obj->x/y += old art's rotation offset + the new
+        // start frame's delta (a walk ended on the hex centre, objectSetLocation).
+        if (this.shift !== null) this.ceOff = { x: 0, y: 0 }
+        if (newArt !== oldArt) {
+            const oldDir = globalState.imageInfo[oldArt]?.directionOffsets[this.orientation ?? 0]
+            if (oldDir) { this.ceOff = { x: this.ceOff.x + oldDir.x, y: this.ceOff.y + oldDir.y } }
+        }
         this.art = newArt
         this.lastFrameTime = window.performance.now()
         if (reversed) {
@@ -552,6 +638,7 @@ Critter.prototype.staticAnimation = function (this: Critter, anim: string, callb
             this.frame = 0
             this.anim = anim
         }
+        ceOffsetAdd(this, this.frame, 1)
         this.animCallback = callback || (() => this.clearAnim())
         this.actionFrameCallback = onActionFrame ?? null
         // Frame 0 can itself be the action frame.
@@ -651,4 +738,30 @@ Critter.prototype.clearAnim = function (this: Critter): void {
     // reset to idle pose
     this.anim = 'idle'
     this.art = newArt
+    this.ceOff = ceStandOffset(this) // CE _dude_stand
+}
+
+// CE obj->x/y bookkeeping (Config.engine.animOffsetModel 'ce'): add `sign` times the
+// FRM delta of `frame` (no-op past the last frame).
+function ceOffsetAdd(c: Critter, frame: number, sign: 1 | -1): void {
+    const d = globalState.imageInfo[c.art]?.frameOffsets[c.orientation ?? 0]?.[frame]
+    if (!d) return
+    c.ceOff = { x: c.ceOff.x + sign * d.x, y: c.ceOff.y + sign * d.y }
+}
+
+// CE animation.cc _dude_stand: obj->x/y = 0, or with a weapon in hand the summed
+// deltas of the take-out animation plus the unarmed stand art's rotation offset.
+function ceStandOffset(c: Critter): Point {
+    // weapon code of the current fid: the art name's second-to-last letter
+    const skin = c.art.charAt(c.art.length - 2)
+    if (!skin || skin === 'a') return { x: 0, y: 0 }
+    const orient = c.orientation ?? 0
+    const base = c.getBase()
+    const takeOut = globalState.imageInfo[base + skin + 'c']
+    const stand = globalState.imageInfo[base + 'aa']
+    if (!takeOut || !stand) return { x: 0, y: 0 }
+    let x = 0, y = 0
+    for (const f of takeOut.frameOffsets[orient] ?? []) { x += f.x; y += f.y }
+    const so = stand.directionOffsets[orient] ?? { x: 0, y: 0 }
+    return { x: x + so.x, y: y + so.y }
 }

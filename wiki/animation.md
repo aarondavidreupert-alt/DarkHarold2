@@ -256,6 +256,36 @@ The same formula gives zero jump for mid-cycle idle frames (ox=1) and for all 6 
 
 After a complete draw-then-return cycle the artOffset may be ±1 px from zero (the draw animation's net `ox` drift). This matches CE's own accumulation (CE never resets `obj->x` between static animations). In practice this is imperceptible and is reset by any walk.
 
+### 4.3 CE Models (default since 2026-10-14) — `walkModel` / `animOffsetModel`
+
+Both models above were replaced by direct ports of CE's `obj->x/y` bookkeeping. The old
+behaviour stays available from the console for comparison.
+
+**Walking — `Config.engine.walkModel`, console `setWalkModel('ce' | 'dh2' | 'smooth')`**
+
+- `'ce'` (default) ports `animation.cc _object_move`. Every frame runs `objectSetNextFrame`, so the frame wraps freely.
+  - The frame's delta is added to `shift`.
+  - The critter enters the next hex once `shift` reaches that direction's hex step (tile.cc `_off_tile` / `dword_51D984`). The remainder carries over, so no pixels are lost at a hex boundary.
+  - The walk starts with frame 0's delta. The last hex ends on the hex centre.
+- `'dh2'` is the old fixed partials (`numFrames / getAnimDistance`). They reset `shift` to 0 at every hex, so the walk and run loops stutter by a few pixels per hex.
+- `'smooth'` is `'ce'` plus a sub-frame blend toward the next frame's delta. It is not CE.
+
+**Art changes — `Config.engine.animOffsetModel`, console `setAnimOffsetModel('ce' | 'dh2')`**
+
+`'ce'` (default) keeps `Obj.ceOff`, the CE `obj->x/y`. The renderer draws
+`dirOffset(current art) + ceOff`, as in `object.cc objectGetRect`.
+
+| Event | `ceOff` change | CE source |
+|-------|----------------|-----------|
+| Art change | `+= old art directionOffsets[rot] + new start frame delta` | `_object_animate`, fid change |
+| Forward frame | `+= delta(new frame)` | `_object_animate` |
+| Reverse frame | `-= delta(current frame)`, then step back | `_object_animate` |
+| Walk ended | `0` | `objectSetLocation` |
+| Action ends / stand | unarmed: `0`. Armed: `Σ take-out (Xc) frame deltas + stand (aa) directionOffsets[rot]` | `_dude_stand` |
+
+`'dh2'` is the anchor-pinning `artOffset` from §4.2. It cancels the offsets the FRMs were
+drawn with, so a 10mm SMG holster draws about 8 px right of CE and snaps back on the next stand.
+
 ---
 
 ## 5. Frame Sequencing and Sub-tile Offset Accumulation

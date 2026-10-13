@@ -415,6 +415,16 @@ export class Renderer {
         if (obj.shift !== null) {
             offsetX += obj.shift.x
             offsetY += obj.shift.y
+            // walkModel 'smooth' only: blend toward the next frame's position.
+            const blend = (obj as any).walkFrameBlend?.()
+            if (blend) {
+                offsetX += Math.round(blend.x)
+                offsetY += Math.round(blend.y)
+            }
+        } else if (Config.engine.animOffsetModel === 'ce' && obj.type === 'critter') {
+            // CE objectGetRect: tile + art direction offset + obj->x/y - width/2
+            offsetX += obj.ceOff.x
+            offsetY += obj.ceOff.y
         } else {
             offsetX += frameInfo.ox + obj.artOffset.x
             offsetY += frameInfo.oy + obj.artOffset.y
@@ -589,8 +599,11 @@ export function objectBoundingBox(obj: Obj): BoundingBox | null {
         return null
     }
     const dirOffset = info.directionOffsets[obj.orientation]
-    const offsetX = Math.floor(frameInfo.w / 2) - dirOffset.x - frameInfo.ox - obj.artOffset.x
-    const offsetY = frameInfo.h - dirOffset.y - frameInfo.oy - obj.artOffset.y
+    const ceModel = Config.engine.animOffsetModel === 'ce' && obj.type === 'critter' && obj.shift === null
+    const ox = ceModel ? obj.ceOff.x : frameInfo.ox + obj.artOffset.x
+    const oy = ceModel ? obj.ceOff.y : frameInfo.oy + obj.artOffset.y
+    const offsetX = Math.floor(frameInfo.w / 2) - dirOffset.x - ox
+    const offsetY = frameInfo.h - dirOffset.y - oy
 
     return { x: scr.x - offsetX, y: scr.y - offsetY, w: frameInfo.w, h: frameInfo.h }
 }

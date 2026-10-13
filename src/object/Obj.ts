@@ -355,6 +355,9 @@ export class Obj {
     // change during walk) and otherwise carries forward. Reset to {0,0} on walk end; updated at
     // every art switch via the exact zero-jump formula (see Critter.staticAnimation / clearAnim).
     artOffset: Point = { x: 0, y: 0 }
+    // CE obj->x/y sub-tile offset while not walking (Config.engine.animOffsetModel 'ce');
+    // see critterAnimation.ts ceOffsetAdd / ceStandOffset.
+    ceOff: Point = { x: 0, y: 0 }
 
     // Outline color, if outlined
     outline: string | null = null

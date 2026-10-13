@@ -338,6 +338,27 @@ window.onload = async function () {
         console.log(`[Roof] egg-transparency = ${Config.ui.roofEgg}`)
     }
 
+    // setWalkModel('ce' | 'dh2' | 'smooth') — walk/run movement model (Config.engine.walkModel)
+    ;(window as any).setWalkModel = (model: 'ce' | 'dh2' | 'smooth') => {
+        if (model !== 'ce' && model !== 'dh2' && model !== 'smooth') {
+            console.log("[Walk] use 'ce' (CE _object_move, default), 'dh2' (old DarkFO chunks) or 'smooth' (ce + frame blend)")
+            return
+        }
+        Config.engine.walkModel = model
+        console.log(`[Walk] movement model = ${model}`)
+    }
+
+    // setAnimOffsetModel('ce' | 'dh2') — sprite offset across animation changes
+    // (Config.engine.animOffsetModel)
+    ;(window as any).setAnimOffsetModel = (model: 'ce' | 'dh2') => {
+        if (model !== 'ce' && model !== 'dh2') {
+            console.log("[Anim] use 'ce' (CE obj->x/y accumulator, default) or 'dh2' (old anchor-pinning artOffset)")
+            return
+        }
+        Config.engine.animOffsetModel = model
+        console.log(`[Anim] offset model = ${model}`)
+    }
+
     // setDevKeys(true) — enable the DH2 developer hotkeys (h teleport, q/e elevation, ...)
     ;(window as any).setDevKeys = (on: boolean) => {
         Config.engine.devKeys = on !== false
