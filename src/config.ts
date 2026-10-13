@@ -91,6 +91,10 @@ export const Config = {
 
     engine: {
         debug: true, // set true to enable debug/cheat utilities in src/debug.ts
+        // DH2 developer hotkeys (teleport h, elevation q/e, layer toggles r/f/o/w, tile
+        // inspector i, kill k, ...; none of them exist in CE). Off so they can't fire
+        // while playing or typing; console: setDevKeys(true).
+        devKeys: false,
         doSaveDirtyMaps: true, // save dirty maps to in-memory cache?
         doLoadScripts: true, // should we load scripts?
         doUpdateCritters: true, // should we give critters heartbeats?

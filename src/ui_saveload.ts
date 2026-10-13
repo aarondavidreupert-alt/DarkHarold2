@@ -87,8 +87,12 @@ export function uiSaveLoad(isSave: boolean): void {
     if (isSave) takeSaveSnapshot()
     globalState.uiMode = UIMode.saveLoad
 
+    // lscover (the "13" plate) at (340, 39) hides the photo frame only in the LOAD window
+    // while an empty slot is selected (loadsave.cc:983); otherwise lsgame's photo frame
+    // shows with the thumbnail inside.
+    const cover = new Widget('art/intrface/lscover.png', { x: 340, y: 39, w: 275, h: 173 })
     const win = new WindowFrame('art/intrface/lsgame.png', { x: 80, y: 20 }, 640, 480)
-        .add(new Widget('art/intrface/lscover.png', { x: 340, y: 40, w: 275, h: 173 }))
+        .add(cover)
         .add(new SmallButton(391, 349).onClick(() => { void confirm() }))
         .add(new SmallButton(495, 349).onClick(close))
         .add(new SmallButton(391, 323).onClick(() => { void remove() }))
@@ -162,6 +166,7 @@ export function uiSaveLoad(isSave: boolean): void {
     function drawInfo(): void {
         while (info.firstChild) info.removeChild(info.firstChild)
         const s = slots[cursor]
+        cover.elem.style.display = !isSave && !s ? 'block' : 'none'
         if (!s) {
             addText(info, lsg(114, 'Empty.'), 404, 262)
             const snap = isSave ? getSaveSnapshot() : undefined // CE: an empty slot previews the current snapshot
@@ -220,10 +225,15 @@ export function uiSaveLoad(isSave: boolean): void {
         select(Math.floor(slots.length * y / LIST_H))
     })
 
+    let firstList = true
     function refresh(): void {
         saveList((all: SaveGame[]) => {
             saves = all.slice().sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
             rebuildSlots()
+            // Saving starts on the first free slot, which previews the current
+            // snapshot (CE: an empty slot shows _snapshotBuf).
+            if (firstList && isSave) cursor = Math.max(0, slots.indexOf(null))
+            firstList = false
             select(cursor)
         })
     }
@@ -288,7 +298,8 @@ export function uiSaveLoad(isSave: boolean): void {
     }
     document.addEventListener('keydown', onKey, true)
 
-    rebuildSlots()
-    redraw()
+    // Like CE, which reads the slots before showing the window: draw the list only
+    // once the saves are in (no placeholder slots flashing up first).
+    cover.elem.style.display = 'none'
     refresh()
 }

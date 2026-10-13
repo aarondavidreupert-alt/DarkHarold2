@@ -338,6 +338,12 @@ window.onload = async function () {
         console.log(`[Roof] egg-transparency = ${Config.ui.roofEgg}`)
     }
 
+    // setDevKeys(true) — enable the DH2 developer hotkeys (h teleport, q/e elevation, ...)
+    ;(window as any).setDevKeys = (on: boolean) => {
+        Config.engine.devKeys = on !== false
+        console.log(`[Input] developer hotkeys ${Config.engine.devKeys ? 'on' : 'off'}`)
+    }
+
     // setDayNightCycle(true)  — DH2 smooth day/night light curve (default)
     // setDayNightCycle(false) — CE lighting: only map scripts' set_light_level
     // For this session only; the permanent setting is fallout2.cfg [dh2] day_night_cycle.

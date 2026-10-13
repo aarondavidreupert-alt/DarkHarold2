@@ -46,6 +46,10 @@ import { Config } from './config.js'
 // persisted field (map entry resets the cadence anyway).
 let nextMapUpdateTick = 600
 let critterScriptCursor = -1 // CE scripts.cc _count_
+// CE runs _script_chk_critters from _doBkProcesses, i.e. once per main-loop pass
+// (CE's frame limiter: 60 fps) — not once per 10 Hz game tick.
+const CE_LOOP_MS = 1000 / 60
+let critterLoopLast = -1
 let gameEndingTriggered = false
 
 // Tracks the last elapsed-day count for midnight event detection (GTC5)
@@ -262,14 +266,22 @@ export function tickGame(): void {
     // scripts (game_time_hour checks; party.h follow macros using tile_distance_objs /
     // rotation_to_tile / animate_move_obj_to_tile) — CE has no engine-side schedule,
     // wander or follow logic, so the DH2 inventions for those were removed 2026-10-06.
-    if (didTick && Config.engine.doUpdateCritters && !globalState.inCombat) {
-        const scripted = globalState.gMap.getObjects().filter(
-            (o) => o.type === 'critter' && o._script && !(o as Critter).dead)
-        if (scripted.length > 0) {
-            critterScriptCursor = (critterScriptCursor + 1) % scripted.length
-            const critter = scripted[critterScriptCursor] as Critter
-            Scripting.updateCritter(critter._script!, critter)
+    if (critterLoopLast < 0 || globalState.inCombat) critterLoopLast = time
+    if (Config.engine.doUpdateCritters && !globalState.inCombat) {
+        // As many CE loop passes as have elapsed since the last frame (capped, so a
+        // stalled tab doesn't burst).
+        const passes = Math.min(8, Math.floor((time - critterLoopLast) / CE_LOOP_MS))
+        critterLoopLast += passes * CE_LOOP_MS
+        if (passes > 0) {
+            const scripted = globalState.gMap.getObjects().filter(
+                (o) => o.type === 'critter' && o._script && !(o as Critter).dead)
+            for (let i = 0; i < passes && scripted.length > 0; i++) {
+                critterScriptCursor = (critterScriptCursor + 1) % scripted.length
+                const critter = scripted[critterScriptCursor] as Critter
+                Scripting.updateCritter(critter._script!, critter)
+            }
         }
+        if (time - critterLoopLast > 8 * CE_LOOP_MS) critterLoopLast = time
     }
 
     for (const obj of globalState.gMap.getObjects()) {

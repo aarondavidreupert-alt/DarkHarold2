@@ -135,6 +135,20 @@ function buildTileInspectorReport(mouseHex: Point): string {
     return lines.join('\n')
 }
 
+// DH2 developer hotkeys — no CE equivalent; only with Config.engine.devKeys
+// (console setDevKeys(true)). Camera arrows, Pip-Boy, inventory, save/load, combat
+// and the item-highlight key stay on.
+const DEV_CONTROLS = new Set([
+    'elevationDown', 'elevationUp', 'showRoof', 'showFloor', 'showObjects', 'showWalls',
+    'talkTo', 'inspect', 'moveTo', 'runTo', 'attack', 'playerToTargetRaycast',
+    'showTargetInventory', 'use', 'kill', 'worldmap',
+])
+
+function isKey(k: string, control: keyof typeof Config.controls): boolean {
+    if (k !== Config.controls[control]) return false
+    return Config.engine.devKeys || !DEV_CONTROLS.has(control)
+}
+
 export function installInputHandlers(): void {
     heart.mousepressed = (x: number, y: number, btn: string) => {
         if (globalState.isInitializing || globalState.isLoading || globalState.isWaitingOnRemote) {
@@ -322,7 +336,7 @@ export function installInputHandlers(): void {
         // screen while held. Kept separate from Config.ui.itemHighlight,
         // which is the actual CE preference for hover-highlighting a single
         // item (see globalState.highlightItemsKeyHeld, mousemoved below).
-        if (k === Config.controls.highlightItems) {
+        if (isKey(k, 'highlightItems')) {
             globalState.highlightItemsKeyHeld = true
         }
         const mousePos = heart.mouse.getPosition()
@@ -335,45 +349,45 @@ export function installInputHandlers(): void {
         // Keep keyboard pan speed consistent on-screen regardless of zoom
         // (see the mouse-edge scroll block in heart.update for the same trick).
         const kbStep = 15 / kz
-        if (k === Config.controls.cameraDown) {
+        if (isKey(k, 'cameraDown')) {
             globalState.cameraPosition.y += kbStep
             clampCameraPosition()
         }
-        if (k === Config.controls.cameraRight) {
+        if (isKey(k, 'cameraRight')) {
             globalState.cameraPosition.x += kbStep
             clampCameraPosition()
         }
-        if (k === Config.controls.cameraLeft) {
+        if (isKey(k, 'cameraLeft')) {
             globalState.cameraPosition.x -= kbStep
             clampCameraPosition()
         }
-        if (k === Config.controls.cameraUp) {
+        if (isKey(k, 'cameraUp')) {
             globalState.cameraPosition.y -= kbStep
             clampCameraPosition()
         }
-        if (k === Config.controls.elevationDown) {
+        if (isKey(k, 'elevationDown')) {
             if (globalState.currentElevation - 1 >= 0) {
                 globalState.gMap.changeElevation(globalState.currentElevation - 1, true)
             }
         }
-        if (k === Config.controls.elevationUp) {
+        if (isKey(k, 'elevationUp')) {
             if (globalState.currentElevation + 1 < globalState.gMap.numLevels) {
                 globalState.gMap.changeElevation(globalState.currentElevation + 1, true)
             }
         }
-        if (k === Config.controls.showRoof) {
+        if (isKey(k, 'showRoof')) {
             Config.ui.showRoof = !Config.ui.showRoof
         }
-        if (k === Config.controls.showFloor) {
+        if (isKey(k, 'showFloor')) {
             Config.ui.showFloor = !Config.ui.showFloor
         }
-        if (k === Config.controls.showObjects) {
+        if (isKey(k, 'showObjects')) {
             Config.ui.showObjects = !Config.ui.showObjects
         }
-        if (k === Config.controls.showWalls) {
+        if (isKey(k, 'showWalls')) {
             Config.ui.showWalls = !Config.ui.showWalls
         }
-        if (k === Config.controls.talkTo) {
+        if (isKey(k, 'talkTo')) {
             const critter = globalState.gMap.critterAtPosition(mouseHex)
             if (critter) {
                 // CE ref: game_dialog.cc:732 gameDialogEnter — talking to a
@@ -396,7 +410,7 @@ export function installInputHandlers(): void {
                 }
             }
         }
-        if (k === Config.controls.inspect) {
+        if (isKey(k, 'inspect')) {
             const report = buildTileInspectorReport(mouseHex)
             // Deliberate, user-invoked diagnostic — must print unconditionally
             // (like the eggDebug/lightingDebug console tools), not be gated
@@ -411,13 +425,13 @@ export function installInputHandlers(): void {
                     .catch((err) => dbgWarn('map', 'tile inspector: clipboard copy failed:', err))
             }
         }
-        if (k === Config.controls.moveTo) {
+        if (isKey(k, 'moveTo')) {
             globalState.player.walkTo(mouseHex)
         }
-        if (k === Config.controls.runTo) {
+        if (isKey(k, 'runTo')) {
             globalState.player.walkTo(mouseHex, true)
         }
-        if (k === Config.controls.attack) {
+        if (isKey(k, 'attack')) {
             if (!globalState.inCombat || !globalState.combat.inPlayerTurn || globalState.player.anim !== 'idle') {
                 dbg('combat', "[Main] can't do that yet")
                 return
@@ -449,7 +463,7 @@ export function installInputHandlers(): void {
             }
         }
 
-        if (k === Config.controls.combat) {
+        if (isKey(k, 'combat')) {
             if (!Config.engine.doCombat) {
                 return
             }
@@ -464,7 +478,7 @@ export function installInputHandlers(): void {
             }
         }
 
-        if (k === Config.controls.playerToTargetRaycast) {
+        if (isKey(k, 'playerToTargetRaycast')) {
             const obj = globalState.gMap.objectsAtPosition(mouseHex)[0]
             if (obj !== undefined) {
                 const hit = globalState.gMap.hexLinecast(globalState.player.position, obj.position)
@@ -475,7 +489,7 @@ export function installInputHandlers(): void {
             }
         }
 
-        if (k === Config.controls.showTargetInventory) {
+        if (isKey(k, 'showTargetInventory')) {
             const obj = globalState.gMap.objectsAtPosition(mouseHex)[0]
             if (obj !== undefined) {
                 dbg('object', '[Main] PID: ' + obj.pid)
@@ -490,41 +504,41 @@ export function installInputHandlers(): void {
             }
         }
 
-        if (k === Config.controls.use) {
+        if (isKey(k, 'use')) {
             const objs = globalState.gMap.objectsAtPosition(mouseHex)
             for (let i = 0; i < objs.length; i++) {
                 objs[i].use()
             }
         }
 
-        if (k === 'h') {
+        if (Config.engine.devKeys && k === 'h') { // dev: teleport to the mouse hex
             globalState.player.move(mouseHex)
         }
 
-        if (k === Config.controls.kill) {
+        if (isKey(k, 'kill')) {
             const critter = globalState.gMap.critterAtPosition(mouseHex)
             if (critter) {
                 critterKill(critter, globalState.player, undefined, { animate: true })
             }
         }
 
-        if (k === Config.controls.worldmap) {
+        if (isKey(k, 'worldmap')) {
             uiWorldMap()
         }
 
-        if (k === Config.controls.pipboy) {
+        if (isKey(k, 'pipboy')) {
             togglePipBoy()
         }
 
-        if (k === Config.controls.saveKey) {
+        if (isKey(k, 'saveKey')) {
             uiSaveLoad(true)
         }
 
-        if (k === Config.controls.loadKey) {
+        if (isKey(k, 'loadKey')) {
             uiSaveLoad(false)
         }
 
-        if (k === Config.controls.inventory) {
+        if (isKey(k, 'inventory')) {
             if (globalState.uiMode === UIMode.inventory) {
                 globalState.uiMode = UIMode.none
                 document.getElementById('inventoryBox')!.style.visibility = 'hidden'
@@ -543,7 +557,7 @@ export function installInputHandlers(): void {
 
     heart.keyup = (k: string) => {
         // DH2-specific QoL sweep — release clears the outline. See note above.
-        if (k === Config.controls.highlightItems) {
+        if (isKey(k, 'highlightItems')) {
             globalState.highlightItemsKeyHeld = false
         }
     }
