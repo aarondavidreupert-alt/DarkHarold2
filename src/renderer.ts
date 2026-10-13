@@ -16,6 +16,7 @@ limitations under the License.
 
 /* eslint-disable @typescript-eslint/no-empty-function */
 
+import { updateFloatText } from './floatText.js'
 import { heart } from './heart.js'
 import { BoundingBox, hexCellTopLeft, hexFromScreen, hexesInRadius, hexToScreen, Point, pointInBoundingBox } from './geometry.js'
 import globalState from './globalState.js'
@@ -299,19 +300,13 @@ export class Renderer {
         // Group float messages by anchor object so stacked messages don't
         // overlap. CE ref: actions.cc _show_damage_to_object — textObjectAdd
         // queues vertically with collision avoidance.
-        const stackIndex = new Map<any, number>()
-        for (let i = 0; i < globalState.floatMessages.length; i++) {
-            const fm = globalState.floatMessages[i]
-            const bbox = objectBoundingBox(fm.obj)
-            if (bbox === null) continue
-            // Float messages are anchored to world objects but kept at a
-            // fixed text size. Project their anchor through the zoom then
-            // render with normal screen-space text.
-            const anchor = worldToScreen(bbox.x + bbox.w / 2, bbox.y)
-            const stack = stackIndex.get(fm.obj) ?? 0
-            stackIndex.set(fm.obj, stack + 1)
-            this.renderText(fm.msg, anchor.x, anchor.y - 16 - stack * 16, 'center', fm.color)
-        }
+        // Float messages are anchored to world objects but kept at a fixed text
+        // size: project the anchor through the zoom; floatText.ts draws them in the
+        // CE interface font (text_object.cc textObjectAdd) in a DOM layer.
+        updateFloatText((obj) => {
+            const bbox = objectBoundingBox(obj)
+            return bbox === null ? null : worldToScreen(bbox.x + bbox.w / 2, bbox.y)
+        })
 
         if (globalState.player.dead) {
             this.color(255, 0, 0, 50)

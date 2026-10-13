@@ -19,6 +19,8 @@ limitations under the License.
 // Pure data; no logic.
 
 // ── Module-level constants ────────────────────────────────────────────────────
+
+import { getMessage } from '../util.js'
 
 export const SPECIAL_FULL_NAMES: Record<string, string> = {
     STR: 'Strength', PER: 'Perception', END: 'Endurance',
@@ -236,10 +238,17 @@ export const PERK_IMG: Record<string, string> = {
 }
 
 // FO2-CE ref: editor.cc gCharacterEditorPrimaryStatDescriptions — value → adjective
+// CE stat.cc statGetValueDescription — stat.msg 301-310 ("V. Bad" / "V. Good" are
+// abbreviated there for the character editor). These are the fallbacks.
 export const STAT_COMMENTS = [
-    '', 'Terrible', 'Bad', 'Poor', 'Fair', 'Average',
-    'Good', 'Very Good', 'Great', 'Excellent', 'Heroic',
+    '', 'V. Bad', 'Bad', 'Poor', 'Fair', 'Average',
+    'Good', 'V. Good', 'Great', 'Excellent', 'Heroic',
 ]
+
+export function statComment(value: number): string {
+    const v = Math.max(1, Math.min(10, value))
+    return getMessage('stat', 300 + v) ?? STAT_COMMENTS[v]
+}
 
 export const FOLDER_TABS = [
     { label: 'PERKS',  sprite: 'art/intrface/perksfdr.png' },

@@ -114,8 +114,10 @@ export interface GameDate {
     hours: number     // 0..23
     minutes: number   // 0..59
 }
-export function getDate(): GameDate {
-    const totalDays = getTotalDays()
+// `ticks` defaults to the current game time (e.g. a save's gameTickTime).
+export function getDate(ticks: number = globalState.gameTickTime): GameDate {
+    const totalDays = Math.floor(ticks / TICKS_PER_DAY)
+    const totalMinutes = Math.floor(ticks / TICKS_PER_MINUTE)
     let year = START_YEAR
     let month = START_MONTH
     let day = START_DAY + totalDays
@@ -127,7 +129,7 @@ export function getDate(): GameDate {
             year++
         }
     }
-    return { day, month, year, hours: getHour(), minutes: getMinute() }
+    return { day, month, year, hours: Math.floor(totalMinutes / 60) % 24, minutes: totalMinutes % 60 }
 }
 
 // "8:24 AM" style, for the PipBoy STATUS tab.

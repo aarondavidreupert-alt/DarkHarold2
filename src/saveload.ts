@@ -286,6 +286,13 @@ export function save(name: string, slot = -1, callback?: () => void): void {
     }, callback)
 }
 
+// DH2 addition (CE has no delete): remove a saved game from the database.
+export function deleteSave(id: number, callback?: () => void): void {
+    withTransaction((trans) => {
+        trans.objectStore('saves').delete(id)
+    }, callback)
+}
+
 export function load(id: number): void {
     // Load stored savegame with id
 

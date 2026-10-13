@@ -23,7 +23,8 @@ import { dbg } from './logger.js'
 import { Skills, SKILL_NAMES } from './skills.js'
 import { skillUse } from './skillUse.js'
 import { Widget } from './ui_widget.js'
-import { font3, FontWidget, renderBignum } from './ui_font.js'
+import { CE_COLOR, font3, FontWidget, FoText, renderBignum } from './ui_font.js'
+import { getMessage } from './util.js'
 import { WindowFrame, SmallButton } from './ui_components.js'
 import { makePanelDraggable } from './ui_drag.js'
 import { UIMode } from './ui_panels.js'
@@ -77,18 +78,20 @@ export function initSkilldex(): void {
         }
     }
 
+    // CE ref: skilldex.cc skilldexWindowInit — skldxbox (185x368) right-aligned over
+    // the 640-wide interface bar, 4 px right / 6 px bottom margin above the bar.
+    const BAR_LEFT = (Config.ui.screenWidth - 640) / 2
     skilldexWindow = new WindowFrame(
         'art/intrface/skldxbox',
         {
-            // Positions are in the 800×600 layout frame provided by
-            // #uiStage; the stage centers those coordinates on screen.
-            x: Config.ui.screenWidth - 185,
-            y: Config.ui.screenHeight - 368 - 99,
+            x: BAR_LEFT + 640 - 185 - 4,
+            y: Config.ui.screenHeight - 99 - 1 - 368 - 6,
         },
         185,
         368
     )
-        .add(new FontWidget(65, 15, 'SKILLDEX', font3, '#907824'))
+        // "SKILLDEX" title: skilldex.msg 100, font 103 at (55, 14), _colorTable[18979]
+        .add(new FontWidget(55, 14, getMessage('skilldex', 100) ?? 'SKILLDEX', font3, CE_COLOR.label))
 
     // FO2-CE ref: skilldex.cc SkilldexSkill enum — 8 skills in order
     const skilldexSkills: [string, Skills][] = [
@@ -102,38 +105,46 @@ export function initSkilldex(): void {
         ['Repair',    Skills.Repair],
     ]
 
-    let yPos = 49
+    // CE: buttons skldxon (up) / skldxoff (down), 86x33, at x 15, y 45 + 36*i; the
+    // name (skilldex.msg 102+i, font 103) centred: x = (86 - w) / 2 + 1,
+    // y = (33 - lineHeight) / 2 + 1, colour 18979 up / 14723 down. Values: big
+    // numbers at x 110, y 48 + 36*i.
+    const BTN_W = 86
+    const BTN_H = 33
+    new Image().src = 'art/intrface/skldxoff.png' // preload the pressed state
     for (let i = 0; i < skilldexSkills.length; i++) {
         const [name, skill] = skilldexSkills[i]
+        const btn = new Widget('art/intrface/skldxon.png', { x: 15, y: 45 + i * 36, w: BTN_W, h: BTN_H })
+            .mouseDownBG('art/intrface/skldxoff.png')
+            .css({ cursor: 'pointer' })
+            .onClick(useSkill(skill))
+        skilldexWindow.add(btn)
 
-        // Skill name — div-per-glyph for transparent background
-        const nameWidget = new Widget(null, { x: 19, y: yPos - 5, w: 110, h: 24 })
-        nameWidget.css({ cursor: 'pointer', display: 'flex', alignItems: 'flex-end' }).onClick(useSkill(skill))
-        skilldexWindow.add(nameWidget)
-
-        // Render text once font is loaded
+        const text = getMessage('skilldex', 102 + i) ?? name.toUpperCase()
+        const label = new FoText(font3, text, CE_COLOR.label)
         font3.onLoad(() => {
-            const rendered = font3.renderText(name.toUpperCase(), '#907824')
-            rendered.style.pointerEvents = 'none'
-            nameWidget.elem.appendChild(rendered)
+            const x = Math.max(0, Math.trunc((BTN_W - font3.measureText(text)) / 2) + 1)
+            const y = Math.trunc((BTN_H - font3.lineHeight) / 2) + 1
+            Object.assign(label.elem.style, { position: 'absolute', left: x + 'px', top: y + 'px', pointerEvents: 'none' })
+            btn.elem.appendChild(label.elem)
         })
+        btn.elem.addEventListener('mousedown', () => { label.color = CE_COLOR.labelPressed })
+        for (const ev of ['mouseup', 'mouseleave']) btn.elem.addEventListener(ev, () => { label.color = CE_COLOR.label })
 
-        // FO2-CE ref: skilldex.cc — 3-digit skill value display next to each button
-        const valWidget = new Widget(null, { x: 112, y: yPos - 2, w: 42, h: 28 })
+        const valWidget = new Widget(null, { x: 110, y: 48 + i * 36, w: 42, h: 28 })
         skillValueElems.push(valWidget.elem)
         skilldexWindow.add(valWidget)
-
-        yPos += 36
     }
 
+    // CANCEL: skilldex.msg 101 at (72, 337), little red button at (48, 338).
     skilldexWindow.add(
-        new SmallButton(47, 339).onClick(() => { skilldexWindow.close() })
+        new SmallButton(48, 338).onClick(() => { skilldexWindow.close() })
     )
+    skilldexWindow.add(new FontWidget(72, 337, getMessage('skilldex', 101) ?? 'CANCEL', font3, CE_COLOR.label).css({ pointerEvents: 'none' }))
 
     Object.assign(skilldexWindow.elem.style, {
         backgroundImage: `url('${skilldexWindow.background}.png')`,
         backgroundRepeat: 'no-repeat',
-        backgroundSize: '100% 100%',
         zIndex: '20',
         cursor: 'default',
     })

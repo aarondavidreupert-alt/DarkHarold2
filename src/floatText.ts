@@ -1,0 +1,190 @@
+/*
+Copyright 2026 DarkHarold2 contributors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Floating text over critters — CE text_object.cc textObjectAdd: the string in the
+// given interface font (101, 103 for warnings), word-wrapped at 200 px, every line
+// centred and lineHeight + 1 apart, drawn into a black buffer (so the soft AAF edges
+// darken instead of turning see-through) and outlined by bufferOutline (draw.cc).
+// Shown as canvases in a DOM layer over the game canvas.
+
+import globalState from './globalState.js'
+import { font1, font3 } from './ui_font.js'
+import type { FontRenderer } from './ui/fontCore.js'
+
+const WRAP_WIDTH = 200
+
+// CE float_msg colours (interpreter_extra.cc opFloatMessage, FLOATING_MESSAGE_TYPE_*),
+// color.pal entries of the _colorTable values.
+export const FLOAT_MSG_COLOR: { [type: number]: string } = {
+    [-2]: '#fc0000', // WARNING (font 103) — 31744
+    0: '#fcfc7c',    // NORMAL — 32747
+    1: '#545454',    // BLACK — 10570
+    2: '#fc0000',    // RED — 31744
+    3: '#3cf800',    // GREEN — 992
+    4: '#30588c',    // BLUE — 31
+    5: '#545454',    // PURPLE — 10570
+    6: '#a0a0a0',    // NEAR_WHITE — 21140
+    7: '#fc4848',    // LIGHT_RED — 32074
+    8: '#fcfc7c',    // YELLOW — 32747
+    9: '#fcfcfc',    // WHITE — 32767
+    10: '#545454',   // GREY — 10570
+    11: '#3c3c3c',   // DARK_GREY — 8456
+    12: '#747474',   // LIGHT_GREY — 15855
+}
+export const FLOAT_OUTLINE_BLACK = '#000000' // _colorTable[0]
+
+// Old DH2 colour names still passed by some callers.
+const NAMED: { [name: string]: string } = {
+    white: '#fcfcfc', yellow: '#fcfc7c', red: '#fc0000', green: '#3cf800', blue: '#30588c',
+    black: '#545454', purple: '#545454', 'dark gray': '#3c3c3c', 'light gray': '#747474',
+}
+
+interface FloatSpec {
+    msg: string
+    color: string
+    outline?: string | null
+    font?: 101 | 103
+}
+
+// CE wordWrap — break at spaces so no line is wider than `width`.
+function wordWrap(font: FontRenderer, text: string, width: number): string[] {
+    const lines: string[] = []
+    for (const para of text.split('\n')) {
+        let line = ''
+        for (const word of para.split(' ')) {
+            const tryLine = line ? line + ' ' + word : word
+            if (line && font.measureText(tryLine) > width) {
+                lines.push(line)
+                line = word
+            } else {
+                line = tryLine
+            }
+        }
+        lines.push(line)
+    }
+    return lines
+}
+
+function hexRgb(hex: string): [number, number, number] {
+    const h = hex.replace('#', '')
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]
+}
+
+function buildCanvas(spec: FloatSpec): HTMLCanvasElement | null {
+    const font = spec.font === 103 ? font3 : font1
+    if (!font.isLoaded()) return null
+    const color = NAMED[spec.color] ?? spec.color
+    const lines = wordWrap(font, spec.msg, WRAP_WIDTH)
+    const lineCanvases = lines.map((l) => font.renderCanvas(l, color))
+    const step = font.lineHeight + 1
+    const pad = spec.outline ? 1 : 0
+    const w = Math.max(1, ...lineCanvases.map((c) => c.width)) + 2 * pad
+    const h = lines.length * step + 2 * pad
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')!
+    lineCanvases.forEach((c, i) => ctx.drawImage(c, pad + Math.trunc((w - 2 * pad - c.width) / 2), pad + i * step))
+
+    // Blend onto black like CE's zero-filled buffer: soft pixels become dark but opaque.
+    const img = ctx.getImageData(0, 0, w, h)
+    const d = img.data
+    for (let i = 0; i < d.length; i += 4) {
+        const a = d[i + 3]
+        if (a === 0) continue
+        d[i] = Math.round(d[i] * a / 255)
+        d[i + 1] = Math.round(d[i + 1] * a / 255)
+        d[i + 2] = Math.round(d[i + 2] * a / 255)
+        d[i + 3] = 255
+    }
+    // draw.cc bufferOutline: the pixel before and after every horizontal and vertical run.
+    if (spec.outline) {
+        const [or, og, ob] = hexRgb(spec.outline)
+        const filled = new Uint8Array(w * h)
+        for (let p = 0; p < w * h; p++) filled[p] = d[p * 4 + 3] ? 1 : 0
+        const mark = new Uint8Array(w * h)
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const f = filled[y * w + x], prev = x > 0 ? filled[y * w + x - 1] : 0
+                if (f && !prev && x > 0) mark[y * w + x - 1] = 1
+                else if (!f && prev) mark[y * w + x] = 1
+            }
+        }
+        for (let x = 0; x < w; x++) {
+            for (let y = 0; y < h; y++) {
+                const f = filled[y * w + x], prev = y > 0 ? filled[(y - 1) * w + x] : 0
+                if (f && !prev && y > 0) mark[(y - 1) * w + x] = 1
+                else if (!f && prev) mark[y * w + x] = 1
+            }
+        }
+        for (let p = 0; p < w * h; p++) {
+            if (mark[p] && !filled[p]) {
+                d[p * 4] = or; d[p * 4 + 1] = og; d[p * 4 + 2] = ob; d[p * 4 + 3] = 255
+            }
+        }
+    }
+    ctx.putImageData(img, 0, 0)
+    canvas.style.position = 'absolute'
+    canvas.style.imageRendering = 'pixelated'
+    return canvas
+}
+
+let layer: HTMLDivElement | null = null
+const canvases = new Map<object, HTMLCanvasElement>()
+
+function ensureLayer(): HTMLDivElement {
+    if (layer) return layer
+    layer = document.createElement('div')
+    layer.id = 'floatTextLayer'
+    Object.assign(layer.style, { position: 'absolute', left: '0', top: '0', width: '100%', height: '100%', pointerEvents: 'none', overflow: 'hidden' })
+    font1.onLoad(() => {})
+    font3.onLoad(() => {})
+    const cnv = document.getElementById('cnv')
+    ;(cnv?.parentElement ?? document.body).insertBefore(layer, cnv?.nextSibling ?? null)
+    return layer
+}
+
+// Called once per frame by the renderer with the screen anchor (top centre of the
+// owner, in canvas pixels) of every live message.
+export function updateFloatText(anchor: (obj: any) => { x: number, y: number } | null): void {
+    const live = new Set<object>()
+    const stackBottom = new Map<object, number>()
+    const parent = ensureLayer()
+    for (const fm of globalState.floatMessages as any[]) {
+        let c = canvases.get(fm)
+        if (!c) {
+            const built = buildCanvas({ msg: fm.msg, color: fm.color ?? FLOAT_MSG_COLOR[0], outline: fm.outline === undefined ? FLOAT_OUTLINE_BLACK : fm.outline, font: fm.font })
+            if (!built) continue
+            c = built
+            canvases.set(fm, c)
+            parent.appendChild(c)
+        }
+        live.add(fm)
+        const a = anchor(fm.obj)
+        if (!a) { c.style.display = 'none'; continue }
+        const bottom = stackBottom.get(fm.obj) ?? Math.round(a.y)
+        stackBottom.set(fm.obj, bottom - c.height)
+        c.style.display = 'block'
+        c.style.left = Math.round(a.x - c.width / 2) + 'px'
+        c.style.top = (bottom - c.height) + 'px'
+    }
+    for (const [fm, c] of canvases) {
+        if (!live.has(fm)) {
+            c.remove()
+            canvases.delete(fm)
+        }
+    }
+}

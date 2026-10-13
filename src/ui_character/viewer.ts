@@ -33,12 +33,13 @@ import {
     SPECIAL_FULL_NAMES, SPECIAL_DESCRIPTIONS, SKILL_DESCRIPTIONS,
     DERIVED_DESCRIPTIONS, CONDITION_DESCRIPTIONS, TRAIT_DESCRIPTIONS,
     SPECIAL_IMG, SKILL_IMG, DERIVED_IMG, CONDITION_IMG, TRAIT_IMG,
-    STAT_COMMENTS, FOLDER_TABS, STATS, SKILLS,
+    statComment, FOLDER_TABS, STATS, SKILLS,
 } from './descriptions.js'
 import { showPerkModal } from './perkModal.js'
 import { ADDICTION_KARMA_GVARS } from '../drugs.js'
 import { Scripting } from '../scripting.js'
 import { getMessage } from '../util.js'
+import { renderStatPanels } from './statPanels.js'
 
 // ── Window singleton ──────────────────────────────────────────────────────────
 // Shared between viewer (showCharacterScreen) and creator (showCharacterCreator)
@@ -78,8 +79,10 @@ export function showCharacterScreen() {
     const skillPointBignumEl = skillPointBignumW.elem
 
     // Panel 2: Hit Points + condition flags (upper status box)
-    const panel2 = new Widget(null, { x: 196, y: 43, w: 'auto', h: 'auto' })
-        .css({ fontSize: '0.69em', color: '#3cf800', whiteSpace: 'pre', lineHeight: '1.2' })
+    // Both status boxes are drawn in one window-origin layer at CE coordinates
+    // (statPanels.ts); panel3 stays empty.
+    const panel2 = new Widget(null, { x: 0, y: 0, w: 'auto', h: 'auto' })
+        .css({ fontSize: '0.69em', whiteSpace: 'pre' })
     const panel2El = panel2.elem
 
     // Panel 3: derived stats (lower status box)
@@ -157,20 +160,21 @@ export function showCharacterScreen() {
             })
         )
         .add(makeFontLabel(552 + 18, 454, 'CANCEL', font3).css({ pointerEvents: 'none' }))
+        // CE characterEditorDrawPcStats: x 32 from y 280, lineHeight + 1 apart, editor.msg 113-115
         .add(
-            new Label(33, 278, `Level: ${currentLevel}`).css({
+            new Label(32, 280, `${getMessage('editor', 113) ?? 'Level:'} ${currentLevel}`).css({
                 fontSize: '0.69em',
                 color: '#3cf800',
             })
         )
         .add(
-            new Label(33, 289, `Exp: ${player.getStat('Experience')}`).css({
+            new Label(32, 291, `${getMessage('editor', 114) ?? 'Exp:'} ${player.getStat('Experience')}`).css({
                 fontSize: '0.69em',
                 color: '#3cf800',
             })
         )
         .add(
-            new Label(33, 300, `Next Level: ${nextLevelXP}`).css({
+            new Label(32, 302, `${getMessage('editor', 115) ?? 'Next Level:'} ${nextLevelXP}`).css({
                 fontSize: '0.69em',
                 color: '#3cf800',
             })
@@ -555,7 +559,8 @@ export function showCharacterScreen() {
         statValueWidgets.push(valW.elem)
         characterWindow.add(valW)
 
-        const commentLbl = new Label(105, 43 + n, '', '#3cf800').css({ fontSize: '0.69em' }) as Label
+        // CE characterEditorDrawPrimaryStat: description at x 103, y statY + 8
+        const commentLbl = new Label(103, 45 + n, '', '#3cf800').css({ fontSize: '0.69em' }) as Label
         statCommentLabels.push(commentLbl)
         characterWindow.add(commentLbl)
 
@@ -610,45 +615,19 @@ export function showCharacterScreen() {
     ]
 
     const renderPanel2 = () => {
-        while (panel2El.firstChild) panel2El.removeChild(panel2El.firstChild)
-
-        const hp = document.createElement('div')
-        hp.textContent = `Hit Points: ${player.getStat('HP')} / ${player.getStat('Max HP')}`
-        panel2El.appendChild(hp)
-
-        for (const [label, active] of CONDITIONS) {
-            const line = document.createElement('div')
-            line.textContent = label
-            line.style.opacity = active() ? '1' : '0.3'
-            line.style.cursor = 'pointer'
-            line.onclick = () => showInfoCard(label, CONDITION_DESCRIPTIONS[label] ?? label, CONDITION_IMG[label])
-            panel2El.appendChild(line)
-        }
+        renderStatPanels(panel2El, {
+            hp: player.getStat('HP'),
+            maxHp: newStatSet.get('Max HP'),
+            conditions: CONDITIONS.map(([, active]) => active()),
+            stats: newStatSet,
+            onInfo: (label, kind) => kind === 'condition'
+                ? showInfoCard(label, CONDITION_DESCRIPTIONS[label] ?? label, CONDITION_IMG[label])
+                : showInfoCard(label, DERIVED_DESCRIPTIONS[label] ?? label, DERIVED_IMG[label]),
+        })
     }
 
-    const renderPanel3 = () => {
-        while (panel3El.firstChild) panel3El.removeChild(panel3El.firstChild)
-
-        const rows: Array<[string, string | number]> = [
-            ['Armor Class',          newStatSet.get('AC')],
-            ['Action Points',        newStatSet.get('AP')],
-            ['Carry Weight',         newStatSet.get('Carry')],
-            ['Melee Damage',         newStatSet.get('Melee')],
-            ['Damage Resistance',    `${newStatSet.get('DR Normal')}%`],
-            ['Poison Resistance',    `${newStatSet.get('DR Poison')}%`],
-            ['Radiation Resistance', `${newStatSet.get('DR Radiation')}%`],
-            ['Sequence',             newStatSet.get('Sequence')],
-            ['Healing Rate',         newStatSet.get('Healing Rate')],
-            ['Critical Chance',      `${newStatSet.get('Critical Chance')}%`],
-        ]
-        for (const [label, value] of rows) {
-            const line = document.createElement('div')
-            line.textContent = `${label}: ${value}`
-            line.style.cursor = 'pointer'
-            line.onclick = () => showInfoCard(label, DERIVED_DESCRIPTIONS[label] ?? label, DERIVED_IMG[label])
-            panel3El.appendChild(line)
-        }
-    }
+    // Drawn by renderPanel2 (both boxes, statPanels.ts).
+    const renderPanel3 = () => {}
 
     const redrawStatsSkills = () => {
         while (skillRowsEl.firstChild) skillRowsEl.removeChild(skillRowsEl.firstChild)
@@ -687,7 +666,7 @@ export function showCharacterScreen() {
             el.appendChild(renderBignum(value, 2))
 
             const clamped = Math.max(1, Math.min(10, value))
-            statCommentLabels[i].setText(STAT_COMMENTS[clamped])
+            statCommentLabels[i].setText(statComment(clamped))
         }
 
         updateSkillPointBignum()

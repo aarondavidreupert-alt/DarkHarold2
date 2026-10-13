@@ -303,6 +303,15 @@ export function lookupMapName(mapID: number): string | null {
     return mapInfo![mapID].name || null
 }
 
+// maps.txt index of a map by file name, or -1.
+export function mapIndexOf(mapName: string): number {
+    if (mapInfo === null) parseMapInfo()
+    for (const mapID in mapInfo!) {
+        if (mapInfo![mapID].name.toLowerCase() === mapName.toLowerCase()) return Number(mapID)
+    }
+    return -1
+}
+
 function getMapInfo(mapName: string) {
     if (mapInfo === null) parseMapInfo()
 

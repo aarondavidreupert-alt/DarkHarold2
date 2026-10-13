@@ -162,7 +162,7 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/ui.ts` | Legacy UI root: `UIMode` enum, modal helpers, shared panel open/close (469 lines) |
 | `src/ui_panels.ts` | `UIMode` re-export + panel registration helpers (138 lines) |
 | `src/ui_hud.ts` | Main HUD bar: HP/AC/AP readouts, weapon display, combat buttons, message log (309 lines) |
-| `src/ui_character.ts` | Barrel — character screen + creator; split into `ui_character/descriptions.ts` (lookup tables), `ui_character/viewer.ts` (in-game character screen), `ui_character/creator.ts` (new-game creator flow), `ui_character/perkModal.ts` (level-up perk selection) |
+| `src/ui_character.ts` | Barrel — character screen + creator; split into `ui_character/descriptions.ts` (lookup tables), `ui_character/viewer.ts` (in-game character screen), `ui_character/creator.ts` (new-game creator flow), `ui_character/perkModal.ts` (level-up perk selection), `ui_character/statPanels.ts` (CE status boxes) |
 | `src/ui_charactercreator.ts` | Entry-point shim into the character creator section of ui_character.ts (46 lines) |
 | `src/ui_pipboy.ts` | Barrel — Pip-Boy overlay; split into `ui_pipboy/shell.ts` (container + date/time bar + wait menu + tab dispatcher + shared widget helpers) and `ui_pipboy/tabs/{status,automaps,archives}.ts` |
 | `src/ui_inventory.ts` | Barrel — inventory panel; split into `ui_inventory/dragdrop.ts` (drag/drop primitives, uiMoveSlot, applyArmorArt, tryLoadAmmoIntoWeapon) + `ui_inventory/panel.ts` (closeInventory, initInventory, showInventory) |
@@ -172,10 +172,10 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/ui_worldmap.ts` | World map travel screen overlay (193 lines) |
 | `src/ui_calledshot.ts` | Called-shot body region selector (173 lines) |
 | `src/ui_elevator.ts` | Elevator floor selection dialog (108 lines) |
-| `src/ui_skilldex.ts` | Skilldex panel: active skill picker (190 lines) |
+| `src/ui_skilldex.ts` | Skilldex panel per CE skilldex.cc: skill buttons, values, CANCEL |
 | `src/ui_mainmenu.ts` | Main menu (New Game / Load / Options / Quit) (221 lines) |
 | `src/ui_options.ts` | Options/preferences screen; pref I/O (SavedPreferences, loadPreferences, savePreferences, getVolumeValue) carved into `ui_options/preferences.ts` |
-| `src/ui_saveload.ts` | Save/load slot UI (105 lines) |
+| `src/ui_saveload.ts` | Save/load window per CE loadsave.cc (slot list, info box, preview), plus scroll bar and delete |
 | `src/ui_automap.ts` | Standalone automap overlay (272 lines) |
 | `src/ui_timer.ts` | In-game countdown timer panel (97 lines) |
 | `src/ui_contextmenu.ts` | Right-click context menu (178 lines) |
@@ -203,6 +203,7 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/random.ts` | Park-Miller RNG with MSVC rand seeding and chi-square check; `randomBetween` (`random.cc`) |
 | `src/gameMovie.ts` | `gameMoviePlay` for the WebM movies (subtitles from `.sve`, fades from `.cfg`, seen-movie set) (`game_movie.cc`) |
 | `src/talkingHead.ts` | Talking heads: fidgets, reactions, lip-synced speech from `.lip` files (`game_dialog.cc`, `lips.cc`) |
+| `src/floatText.ts` | Floating text over critters in the CE interface font (text_object.cc textObjectAdd: wrap, outline, float_msg colours) |
 | `src/ui_options/fallout2Cfg.ts` | Reads `fallout2.cfg` into Config at startup (`config.cc`, `settings.cc`) |
 | `src/questData.ts` | All Fallout 2 quest definitions (GVAR index, thresholds, descriptions) (204 lines) |
 | `src/questLog.ts` | Reads GVARs against `questData` to produce active/completed quest list (53 lines) |

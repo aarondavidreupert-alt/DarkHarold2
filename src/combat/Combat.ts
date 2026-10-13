@@ -1078,11 +1078,14 @@ export class Combat {
         var msgID = getRandomInt(start, end)
         var msg = this.getCombatAIMessage(msgID)
         if (msg) {
+            // CE combat_ai.cc:3401 — the AI packet's font / color / outline_color
+            // (ai.txt: 101, palette 58, palette 55 for every packet).
             globalState.floatMessages.push({
                 msg: msg,
                 obj: obj,
                 startTime: window.performance.now(),
-                color: 'white',
+                color: '#e4d80c',
+                outline: '#1c0c18',
             })
         }
     }

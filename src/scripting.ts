@@ -16,6 +16,7 @@ limitations under the License.
 Scripting system/engine for DarkFO
 */
 
+import { FLOAT_MSG_COLOR } from './floatText.js'
 import { sfxBuildOpenName } from './sfxNames.js'
 import { FIDGET_BAD, FIDGET_GOOD, FIDGET_NEUTRAL, GAME_DIALOG_REACTION_NEUTRAL, reactToOption, startLips, startTalkingHead, talkToCritterReacts, isTalkingHeadActive } from './talkingHead.js'
 import { gameMoviePlay, SCRIPT_MOVIE_FLAGS } from './gameMovie.js'
@@ -60,6 +61,7 @@ import { refreshStealthState } from './miscItem.js'
 export module Scripting {
     var gameObjects: Obj[] | null = null
     var mapVars: any = null
+    let floatMsgLastColor = 0 // CE _last_color (opFloatMessage COLOR_SEQUENCE)
     var globalVars: any = {}
     var globalVarsLoaded = false
     var currentMapID: number | null = null
@@ -2525,29 +2527,18 @@ export module Scripting {
                 warn('float_msg: not game object: ' + obj)
                 return
             }
-            var colorMap: { [color: number]: string } = {
-                // todo: take the exact values from some palette. also, yellow is ugly.
-                0: 'white', //0: "yellow",
-                1: 'black',
-                2: 'red',
-                3: 'green',
-                4: 'blue',
-                5: 'purple',
-                6: 'white',
-                7: 'red',
-                8: 'white', //8: "yellow",
-                9: 'white',
-                10: 'dark gray',
-                11: 'dark gray',
-                12: 'light gray',
+            // CE opFloatMessage: COLOR_SEQUENCE (-1) cycles BLACK..LIGHT_GREY; WARNING
+            // (-2) is red in font 103; every type has a black outline.
+            if (type === -1) {
+                floatMsgLastColor = floatMsgLastColor + 1 >= 13 ? 1 : floatMsgLastColor + 1
+                type = floatMsgLastColor
             }
-            var color = colorMap[type]
-            if (type === -2 /* FLOAT_MSG_WARNING */ || type === -1 /* FLOAT_MSG_SEQUENTIAL */) color = colorMap[9]
             globalState.floatMessages.push({
                 msg: msg,
                 obj: obj, // CE opFloatMessage: over the object passed in (was this.self_obj)
                 startTime: window.performance.now(),
-                color: color,
+                color: FLOAT_MSG_COLOR[type] ?? FLOAT_MSG_COLOR[0],
+                font: type === -2 ? 103 : 101,
             })
         }
 

@@ -18,6 +18,13 @@ limitations under the License.
 
 /* Main stylesheet for the DarkFO UI */
 
+/* Text selection (drag over UI text) in the interface green instead of the
+   browser blue (DH2 styling; CE has no text selection). */
+::selection {
+  background-color: rgba(60, 248, 0, 0.45);
+  color: #fcfcfc;
+}
+
 /* DH2 option (fallout2.cfg [dh2] pixel_font, default on; not in CE): every DOM text in the
    Fallout interface font — CE FONT 101 (data/font1.aaf) as a web font built by
    tools/exportFonts.py. 9px = the AAF maxHeight, so one font pixel is one CSS
