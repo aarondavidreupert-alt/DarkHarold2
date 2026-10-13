@@ -33,18 +33,30 @@ def convertFRX(task):
 	(name, images, outpath, palette, exportImage) = task
 	return ('art/'+name, frmpixels.exportFRMs(images, outpath, palette, exportImage))
 
+# Pictures that ship their own palette: a <name>.pal next to <name>.frm. CE loads it
+# before showing them (endgame.cc:735 endgameEndingLoadPalette — art\intrface\<name>.pal
+# for the ending slides and panning scenes; main.cc:433 death.pal for the death screen;
+# game.cc:1217 helpscrn.pal). Everything else uses color.pal.
+def ownPalettes(dataDir, subdir):
+	pals = {}
+	for path in glob.glob("%s/art/%s/*.[pP][aA][lL]" % (dataDir, subdir)):
+		pals[os.path.splitext(os.path.basename(path))[0].lower()] = readPAL(path)
+	return pals
+
 def getFRMTasks(palette, dataDir, outDir, exportImage=True):
 	subdirFRMs = [glob.glob("%s/art/%s/*.frm" % (dataDir, subdir)) for subdir in SUBDIRS]
 	#totalNum = sum(len(x) for x in subdirFRMs)
 	
 	for subdirIdx,FRMs in enumerate(subdirFRMs):
 		subdir = SUBDIRS[subdirIdx]
+		pals = ownPalettes(dataDir, subdir)
 		
 		for FRM in FRMs:
-			name = '%s/%s' % (subdir, os.path.splitext(os.path.basename(FRM))[0].lower())
+			basename = os.path.splitext(os.path.basename(FRM))[0].lower()
+			name = '%s/%s' % (subdir, basename)
 			outpath = "%s/%s.png" % (outDir, name)
 
-			yield (name, FRM, outpath, palette, exportImage)
+			yield (name, FRM, outpath, pals.get(basename, palette), exportImage)
 
 def getFRXTasks(palette, dataDir, outDir, exportImage=True):
 	subdirFRMs = [glob.glob("%s/art/%s/*.fr0" % (dataDir, subdir)) for subdir in SUBDIRS]
