@@ -92,6 +92,17 @@ export function uiWorldMap(onAreaMap = false) {
     const dnBtn = document.getElementById('wmLabelScrollDown')
     if (upBtn) upBtn.onclick = () => setLabelScroll(_labelScrollY - LABEL_STEP_PX)
     if (dnBtn) dnBtn.onclick = () => setLabelScroll(_labelScrollY + LABEL_STEP_PX)
+
+    // CE ref: worldmap.cc:3261 — the wheel over the town list scrolls it one tab (27 px)
+    // through wmInterfaceScrollTabsStart, like the arrows; the browser's own scroll
+    // would move the labels without the wmtabs background.
+    const labels = document.getElementById('worldMapLabels')
+    if (labels) {
+        labels.onwheel = (e: WheelEvent) => {
+            e.preventDefault()
+            if (e.deltaY !== 0) setLabelScroll(_labelScrollY + (e.deltaY > 0 ? LABEL_STEP_PX : -LABEL_STEP_PX))
+        }
+    }
 }
 
 function uiWorldMapAreaView() {

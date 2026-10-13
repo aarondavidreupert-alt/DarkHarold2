@@ -1535,9 +1535,10 @@ html, body {
   background-repeat: no-repeat;
   image-rendering: pixelated;
 }
+/* WM_WINDOW_GLOBE_OVERLAY_X/Y = 495/330 (worldmap.cc:80) */
 #wmGlobeImage {
   position: absolute;
-  left: 499px;
+  left: 495px;
   top: 330px;
   width: 134px;
   height: 89px;
@@ -1545,6 +1546,8 @@ html, body {
   background-repeat: no-repeat;
   image-rendering: pixelated;
 }
+/* wmscreen.frm, the car-mode overlay — shown only in the car (updateCarUI). */
+#wmScreenFrame[hidden] { display: none; }
 #wmScreenFrame {
   position: absolute;
   left: 499px;
@@ -1558,23 +1561,26 @@ html, body {
   z-index: 1;
 }
 
-/* CE ref: worldmap.cc:6219 wmInterfaceRefreshCarFuel — vertical fill bar.
-   WM_WINDOW_CAR_FUEL_BAR_X=500, WM_WINDOW_CAR_FUEL_BAR_Y=339, height=70px.
-   CE draws colour 196 (bright green ~#00c000) for filled, 14 (dark ~#202020) for empty. */
+/* CE ref: worldmap.cc:6219 wmInterfaceRefreshCarFuel — a 1 px column at
+   WM_WINDOW_CAR_FUEL_BAR_X/Y = 500/339, 70 px tall, drawn after (on top of) the
+   wmscreen overlay: palette 14 (#282828) where empty, and the filled part as
+   alternating rows of 196 (#64e464) and 14. */
 #wmCarFuelBarTrack {
   position: absolute;
   left: 500px;
   top: 339px;
-  width: 3px;
+  width: 1px;
   height: 70px;
-  background: #202020;
+  background: #282828;
+  z-index: 2;
 }
+#wmCarFuelBarTrack[hidden] { display: none; }
 #wmCarFuelBar {
   position: absolute;
   bottom: 0;
   left: 0;
-  width: 3px;
-  background: #00c000;
+  width: 1px;
+  background: repeating-linear-gradient(to bottom, #64e464 0, #64e464 1px, #282828 1px, #282828 2px);
 }
 
 #worldMapWorld {

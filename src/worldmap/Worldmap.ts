@@ -298,16 +298,18 @@ function updateCarAnimation(): void {
 // Update the worldmap car overlay image + fuel bar visibility.
 // CE ref: worldmap.cc:6179 wmInterfaceRefreshCarStatus — draws wmcarmve.frm or wmglobe.frm,
 // plus wmInterfaceRefreshCarFuel (vertical bar at WM_WINDOW_CAR_FUEL_BAR_X=500,Y=339,H=70).
-// wmScreenFrame (wmscreen.png) is the fixed bezel and is never toggled — like
-// the dial's own frame, it stays visible; only the content behind it swaps.
+// In the car: the car animation, its wmscreen.frm overlay and the fuel bar drawn on
+// top of the overlay; otherwise only the globe overlay (no screen frame).
 export function updateCarUI(): void {
     const $car = document.getElementById('wmCarImage')
     const $globe = document.getElementById('wmGlobeImage')
+    const $frame = document.getElementById('wmScreenFrame')
     const $track = document.getElementById('wmCarFuelBarTrack')
     const $bar = document.getElementById('wmCarFuelBar')
     if (!$car || !$globe) return
     $car.hidden = !_isInCar
     $globe.hidden = _isInCar
+    if ($frame) $frame.hidden = !_isInCar
     if (!_isInCar) {
         _carAnimFrame = 0
         $car.style.backgroundPositionX = '0px'
