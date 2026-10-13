@@ -27,6 +27,10 @@ export const Config = {
         // building) gets the same soft egg oval as walls. Toggle: setRoofEgg().
         // See wiki/rendering.md RD06. (Restored 2026-10-06; lost in b282cca.)
         roofEgg: true,
+        // DH2 option, not in CE: render all DOM UI text in the Fallout pixel font
+        // (art/fonts/font1_aaf.woff, CE FONT 101) instead of the browser font.
+        // Set in fallout2.cfg: [dh2] pixel_font=0/1.
+        pixelFont: false,
         eggMode: 'dh2-egg' as 'alpha' | 'dh2-egg' | 'ce-egg' | 'bbox' | 'beta', // 'alpha'=flat transparent, 'dh2-egg'=CE egg.png mask (DH2 hand-tuned occlusion test), 'ce-egg'=CE egg.png mask using the byte-for-byte CE occlusion test (no DH2 deviations), 'bbox'=CE egg.png mask using a screen-space bounding-box overlap + draw-order depth test (DH2-original, not CE-derived), 'beta'=floor hex debug overlay (no wall transparency)
         eggAlpha:  undefined as number | undefined, // outer alpha — undefined = use default 0.4
         eggRadius: undefined as number | undefined, // hex radius — undefined = use default 8

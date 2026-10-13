@@ -186,7 +186,7 @@ the wiki tracker is the source of truth.
 - **Pip-Boy** — clock, alarm, STATUS (incl. quest log), ARCHIVES (video archive), AUTOMAP, rest menu
 - **Character screen / HUD** — SPECIAL/skills/perks, warnbox indicator badges, numbers.frm counters, AP lights, end-turn lights with enable/disable (AF6), CE to-hit hover readout
 - **Save / load** — IndexedDB; player, party (+ levels), inventory + weapon ammo, GVARs, MVARs, area states, timed events, car state, seen movies, thumbnails; CE `gameReset` before NEW GAME and every load, so nothing leaks between games (U12)
-- **Preferences** — full CE options panel, persisted (localStorage) and seeded from `fallout2.cfg` (CI1); DH2-only options in a `[dh2]` section of the same file, e.g. `day_night_cycle=0` for CE lighting instead of the default smooth day/night curve (GTC10); combat looks/taunts, brightness (CE gamma table) are live (CI18)
+- **Preferences** — full CE options panel, persisted (localStorage) and seeded from `fallout2.cfg` (CI1); DH2-only options in a `[dh2]` section of the same file, e.g. `day_night_cycle=0` for CE lighting instead of the default smooth day/night curve (GTC10), `pixel_font=1` for the Fallout pixel font on all UI text (U15); combat looks/taunts, brightness (CE gamma table) are live (CI18)
 - **Random numbers** — CE Park-Miller generator with MSVC seeding (RN)
 
 ---

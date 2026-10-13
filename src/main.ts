@@ -264,6 +264,8 @@ window.onload = async function () {
     // localStorage write-back on top (FO2-CE ref: preferences.cc — preferenceLoad()).
     loadFallout2Cfg()
     loadPreferences()
+    // fallout2.cfg [dh2] pixel_font — ui.css switches every DOM text to the AAF web font.
+    document.documentElement.classList.toggle('dh2-pixel-font', Config.ui.pixelFont)
 
     // initialize cached data
 
