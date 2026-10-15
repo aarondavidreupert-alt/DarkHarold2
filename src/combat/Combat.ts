@@ -860,6 +860,85 @@ export class Combat {
         never: [],
     }
 
+    // CE combat_ai.cc _ai_search_inven_weap: the best weapon in the inventory (other
+    // than the one in hand) the attacker can use right now. Only bipeds, robots and
+    // PROTO_ID_0x1000098 search; _ai_best_weapon's blast-radius and team-safety terms
+    // are left out.
+    private aiSearchInvenWeap(attacker: Critter, defender: Critter): Obj | null {
+        const bodyType = (attacker.pro as any)?.extra?.bodyType ?? 0
+        if (bodyType !== 0 && bodyType !== 1 && attacker.pid !== 0x1000098) return null
+        const packet = attacker.ai!.packet
+        const prefs = Combat.WEAP_PREF_ORDERINGS[packet.bestWeapon] ?? []
+        const inHand = attacker.equippedWeapon
+        const ap = attacker.AP?.getAvailableCombatAP() ?? 0
+        let best: Obj | null = null
+        for (const item of attacker.inventory) {
+            const weapon = (item as any).weapon
+            if (item.subtype !== 'weapon' || !weapon || item === inHand) continue
+            if (weapon.getAPCost(1) > ap) continue
+            // _ai_can_use_weapon: the critter has the attack FRM, enough skill, and the
+            // attack type is one the packet's best_weapon allows
+            const attackArt = attacker.getBase() + weapon.getAnim('attack')
+            if (!globalState.imageInfo[attackArt]) continue
+            if (attacker.getSkill(weapon.weaponSkillType) < packet.minToHit) continue
+            const attackType = weaponAttackType(item)
+            if (!prefs.includes(attackType)) continue
+            if (attackType === 'ranged' && !aiHaveAmmo(item) && !findReloadAmmo(attacker as any, item as any)) continue
+            best = this.aiBestWeapon(attacker, best, item)
+        }
+        return best
+    }
+
+    // CE combat_ai.cc _ai_best_weapon — preference order of the attack type first, then
+    // average damage (x2 with a weapon perk), then cost.
+    private aiBestWeapon(attacker: Critter, w1: Obj | null, w2: Obj): Obj | null {
+        const best = attacker.ai!.packet.bestWeapon
+        if (best === 'random') return randomBetween(1, 100) <= 50 ? w1 : w2
+        if (!w1) return w2
+        const prefs = Combat.WEAP_PREF_ORDERINGS[best] ?? []
+        const score = (w: Obj) => {
+            const ex = (w as any).pro?.extra ?? {}
+            let avg = Math.trunc(((ex.minDmg ?? 0) + (ex.maxDmg ?? 0)) / 2)
+            if ((ex.perk ?? -1) !== -1) avg *= 2
+            const order = prefs.indexOf(weaponAttackType(w))
+            return { avg, order: order === -1 ? 999 : order, cost: ex.cost ?? 0 }
+        }
+        const a = score(w1), b = score(w2)
+        if (a.order === b.order) {
+            if (a.order === 999) return null
+            if (Math.abs(b.avg - a.avg) <= 5) return b.cost > a.cost ? w2 : w1
+            return b.avg > a.avg ? w2 : w1
+        }
+        if ((best === 'no_pref' || best === 'unarmed_over_throw') && Math.abs(b.avg - a.avg) > 5) {
+            return b.avg > a.avg ? w2 : w1
+        }
+        return a.order > b.order ? w2 : w1
+    }
+
+    // CE combat_ai.cc _ai_try_attack → _ai_switch_weapons: with nothing in hand the AI
+    // wields its best inventory weapon (_inven_wield, HAND_RIGHT). It keeps punching
+    // only if the target is an unarmed biped it can punch (throw-punch FRM) and within
+    // reach; out of reach CE switches too (COMBAT_BAD_SHOT_OUT_OF_RANGE, weapon ==
+    // nullptr). Returns true if a weapon was wielded.
+    private aiWieldInventoryWeapon(attacker: Critter, defender: Critter): boolean {
+        const inHand = attacker.equippedWeapon
+        if (inHand && inHand.pid !== undefined) return false
+        const defenderBiped = ((defender.pro as any)?.extra?.bodyType ?? 0) === 0
+        const defenderUnarmed = defender.art.charAt(defender.art.length - 2) === 'a'
+        const canPunch = !!globalState.imageInfo[attacker.getBase() + 'ap']
+        const punchRange = inHand?.weapon?.getMaximumRange(1) ?? 1
+        const inReach = hexDistance(attacker.position, defender.position) <= punchRange
+        if (defenderBiped && defenderUnarmed && canPunch && inReach) return false
+        const weapon = this.aiSearchInvenWeap(attacker, defender)
+        if (!weapon) return false
+        const a = attacker as any
+        a.rightHand = weapon
+        a.activeHand = 'rightHand'
+        attacker.art = attacker.getAnimation('idle')
+        dbg('ai', `[AI] ${actorName(attacker)} wields ${weapon.name} (CE _ai_switch_weapons)`)
+        return true
+    }
+
     // CE combat_ai.cc _ai_pick_hit_mode. DH2 weapons only expose a burst secondary,
     // so 'secondary' means burst.
     private aiPickHitMode(attacker: Critter, weaponObj: Obj, defender: Critter): 'primary' | 'secondary' {
@@ -1256,6 +1335,8 @@ export class Combat {
                 }
             }
         }
+
+        if (!weaponSwitchDone) this.aiWieldInventoryWeapon(obj, target)
 
         var weaponObj = obj.equippedWeapon
         // Handle unarmed AI (no weapon equipped) — punch at melee range
