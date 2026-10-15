@@ -118,6 +118,12 @@ export function applyCfg(cfg: CfgSections): void {
     //   pixel_font=0  UI text in the browser font instead of the Fallout pixel font (default 1)
     const pf = int(dh2['pixel_font'])
     if (pf !== null) Config.ui.pixelFont = pf !== 0
+    //   walk_model=ce|dh2|smooth      walk/run movement (console setWalkModel, default ce)
+    const wm = dh2['walk_model']?.toLowerCase()
+    if (wm === 'ce' || wm === 'dh2' || wm === 'smooth') Config.engine.walkModel = wm
+    //   anim_offset_model=ce|dh2      sprite offset across animations (console setAnimOffsetModel)
+    const am = dh2['anim_offset_model']?.toLowerCase()
+    if (am === 'ce' || am === 'dh2') Config.engine.animOffsetModel = am
 
     const eng = globalState.audioEngine
     if (eng) {

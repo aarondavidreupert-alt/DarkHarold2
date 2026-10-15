@@ -297,10 +297,21 @@ export module Scripting {
         }
     }
 
+    // data/maps/<map>.mvars.json per map (null = none), fetched once per session.
+    const mapVarsFileCache: { [map: string]: { [idx: string]: number } | null } = {}
+
     export function loadMapVars(mapName: string): void {
         const scriptName = mapName.toLowerCase()
         try {
-            const data = getFileJSON('data/maps/' + scriptName + '.mvars.json')
+            if (!(scriptName in mapVarsFileCache)) {
+                try {
+                    mapVarsFileCache[scriptName] = getFileJSON('data/maps/' + scriptName + '.mvars.json')
+                } catch (e) {
+                    mapVarsFileCache[scriptName] = null
+                }
+            }
+            const data = mapVarsFileCache[scriptName]
+            if (data === null) return
             if (mapVars[scriptName] === undefined) mapVars[scriptName] = {}
             for (const key of Object.keys(data)) {
                 const idx = Number(key)

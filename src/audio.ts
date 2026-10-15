@@ -17,7 +17,13 @@ limitations under the License.
 import { getCurrentMapInfo } from './data.js'
 import { dbg, dbgWarn } from './logger.js'
 import { getFileJSON, getRandomInt } from './util.js'
-import { getWeaponSounds, ImpactMaterial } from './soundMap.js'
+import { getWeaponSounds, ImpactMaterial } from './soundMap.js'
+
+// Has the page had a user gesture yet? (browser autoplay policy; true where the
+// UserActivation API is missing)
+function audioUnlocked(): boolean {
+    return (navigator as any).userActivation?.hasBeenActive ?? true
+}
 
 // Bump when the pipeline's SFX/speech output changes, so browsers drop cached copies
 // (2 = mono SFX/speech, 2026-10-11).
@@ -98,6 +104,9 @@ export class HTMLAudioEngine implements AudioEngine {
     }
 
     private async loadSfx(name: string): Promise<AudioBuffer | null> {
+        // Before the first click/key the browser refuses to start an AudioContext
+        // (and warns on every attempt); such sounds can't be heard anyway.
+        if (!audioUnlocked()) return null
         const cached = this.sfxCache.get(name)
         if (cached) return cached
         if (this.sfxMissing.has(name)) return null
@@ -167,7 +176,19 @@ export class HTMLAudioEngine implements AudioEngine {
         var sound = new Audio()
         sound.addEventListener('canplaythrough', () => {
             dbg('audio', '[Sound]', soundName)
-            sound.play().catch(e => dbg('audio', '[Audio] play() blocked:', e))
+            if (audioUnlocked()) {
+                sound.play().catch(e => dbg('audio', '[Audio] play() blocked:', e))
+                return
+            }
+            // Music before the first user gesture: start it on that gesture.
+            if (!sound.loop) return
+            const start = () => {
+                window.removeEventListener('pointerdown', start, true)
+                window.removeEventListener('keydown', start, true)
+                if (this.musicAudio === sound) sound.play().catch(e => dbg('audio', '[Audio] play() blocked:', e))
+            }
+            window.addEventListener('pointerdown', start, true)
+            window.addEventListener('keydown', start, true)
         }, false)
         sound.addEventListener('error', () => {
             // File missing (404) or unsupported format — fail silently to avoid console spam
