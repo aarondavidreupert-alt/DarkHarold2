@@ -1,4 +1,28 @@
-; fallout2.cfg - DarkHarold2
+"""
+Copyright 2026 DarkHarold2 contributors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
+
+# fallout2.cfg for a fresh install - CE game_config.cc gameConfigInit defaults
+# plus DarkHarold2's [dh2] section (read by src/ui_options/fallout2Cfg.ts).
+# CE writes the file itself on exit (gameConfigSave); a browser can't, so the
+# pipeline creates it once. An existing file is never overwritten - it may hold
+# the user's own settings.
+
+import os
+
+DEFAULT_CFG = r"""; fallout2.cfg - DarkHarold2
 ;
 ; Default values of CE game_config.cc gameConfigInit. DarkHarold2 reads this file at
 ; startup (src/ui_options/fallout2Cfg.ts). A browser can't write it back, so changes
@@ -85,3 +109,19 @@ pixel_font=1
 walk_model=ce
 ; sprite offset across animation changes: ce (CE obj->x/y), dh2 (old anchor pinning)
 anim_offset_model=ce
+"""
+
+
+def write_default_cfg(path="fallout2.cfg", overwrite=False):
+    """Write DEFAULT_CFG to `path`. Returns True if the file was written."""
+    if os.path.exists(path) and not overwrite:
+        return False
+    with open(path, "w", encoding="ascii", newline="\r\n") as f:
+        f.write(DEFAULT_CFG)
+    return True
+
+
+if __name__ == "__main__":
+    import sys
+    target = sys.argv[1] if len(sys.argv) > 1 else "fallout2.cfg"
+    print(("wrote " if write_default_cfg(target) else "kept existing ") + target)

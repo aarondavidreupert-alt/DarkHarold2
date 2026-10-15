@@ -58,6 +58,8 @@ import convertEndgame
 import convertAudio
 import convertMovies
 import convertSpeech
+import parse_gam
+import fallout2Cfg
 
 # global paths/flags
 SRC_DIR = None
@@ -275,6 +277,29 @@ def convert_endgame_data(overwrite=True):
 		warn("Error converting endgame data (see traceback above). Will continue setup.")
 	return True
 
+def convert_gam_vars(overwrite=True):
+	# data/data/vault13.gam -> data/gvars.json, data/maps/*.gam -> data/maps/*.mvars.json
+	# (CE game.cc globalVarsRead; read by src/scripting.ts at runtime).
+	if not overwrite and os.path.exists(os.path.join("data", "gvars.json")):
+		info("Skipping GAM conversion - data/gvars.json already exists")
+		return True
+	info("Converting global and map variables (.gam -> JSON)...")
+	try:
+		parse_gam.convert_gam("data")
+	except Exception:
+		traceback.print_exc()
+		warn("Error converting .gam files (see traceback above). Will continue setup.")
+	return True
+
+def write_config(overwrite=True):
+	# fallout2.cfg with CE defaults + [dh2]. Never replaces an existing file: it holds
+	# the user's settings (CE gameConfigInit only writes defaults for missing keys).
+	if fallout2Cfg.write_default_cfg("fallout2.cfg"):
+		info("Wrote default fallout2.cfg")
+	else:
+		info("Keeping existing fallout2.cfg")
+	return True
+
 def export_maps(overwrite=True):
 	# Export MAPs
 
@@ -358,6 +383,8 @@ STAGES = {
 	"export_speech": export_speech,
 	"convert_lsts": convert_lsts,
 	"convert_endgame": convert_endgame_data,
+	"convert_gam": convert_gam_vars,
+	"write_config": write_config,
 }
 
 # Stages run by default when --stages is not given. export_audio is opt-in

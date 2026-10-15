@@ -239,6 +239,8 @@ The engine consumes only pre-baked JSON/PNG — no runtime DAT parsing.
 | Speech ACM → MP3 | `tools/convertSpeech.py` (`export_speech` stage; needs ffmpeg) | `audio/speech/<head>/*.mp3` |
 | Crit table | `tools/parseCritTable.py` | `lut/criticalTables.json` |
 | Elevator table | `tools/parseElevatorTable.py` | `lut/elevators.json` |
+| GAM → JSON | `tools/parse_gam.py` (`convert_gam` stage; CE `globalVarsRead`) | `data/gvars.json` (from `data/data/vault13.gam`), `data/maps/*.mvars.json` |
+| Default config | `tools/fallout2Cfg.py` (`write_config` stage; never overwrites) | `fallout2.cfg` (git-ignored) |
 | Worldmap stitch | `tools/stitchWorldmap.py` | `worldmap.png` |
 | Color tables | `tools/pal.py` (via pipeline) | `lut/colorTable.json`, `lut/color_lut.json`, `lut/color_rgb.json` |
 

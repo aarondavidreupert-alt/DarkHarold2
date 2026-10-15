@@ -50,6 +50,8 @@ STAGES = [
     ("export_maps", "Export maps (MAP -> JSON)", True),
     ("convert_lsts", "Convert LST files (-> lut/lst/*.json)", True),
     ("convert_endgame", "Convert endgame slide data", True),
+    ("convert_gam", "Convert global/map variables (GAM -> JSON)", True),
+    ("write_config", "Write default fallout2.cfg (keeps an existing one)", True),
     ("export_audio", "Convert audio (ACM -> WAV, needs acm2wav.exe)", False),
     ("export_movies", "Convert movies (MVE -> WebM, needs ffmpeg)", True),
     ("export_speech", "Convert talking-head speech (ACM -> MP3, needs ffmpeg)", True),

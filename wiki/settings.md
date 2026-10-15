@@ -245,7 +245,9 @@ Note: `combat_messages` storage is inverted in the source — stored value 0 = v
 
 ### 4.1 Architecture
 
-DH2 has **no fallout2.cfg**. All configuration lives in a hard-coded in-memory TypeScript object (`src/config.ts`) with a separate localStorage layer for the subset of settings exposed in the in-game preferences panel. There is no `configRead()` or `configWrite()`. `Config` is also exposed as `window.Config` for browser DevTools inspection and live-mutation.
+> **Update 2026-10-15:** DH2 now reads `fallout2.cfg` at startup (`src/ui_options/fallout2Cfg.ts`, CE `configParseLine` / `settingsFromConfig`). The pipeline's `write_config` stage (`tools/fallout2Cfg.py`) writes it with CE `gameConfigInit` defaults plus a `[dh2]` section, and never overwrites an existing file. There is still no write-back (S-CI5). The text below describes the earlier state.
+
+DH2 had **no fallout2.cfg**. All configuration lives in a hard-coded in-memory TypeScript object (`src/config.ts`) with a separate localStorage layer for the subset of settings exposed in the in-game preferences panel. There is no `configRead()` or `configWrite()`. `Config` is also exposed as `window.Config` for browser DevTools inspection and live-mutation.
 
 ```typescript
 // config.ts:141
@@ -479,7 +481,7 @@ Gaps prefixed `S-CI` were originally `CI` in `config_ini.md`; prefixed `S-PR` we
 
 | ID | Description | File(s) | CE Reference | Sev | Status |
 |----|-------------|---------|--------------|-----|--------|
-| S-CI1 | **No fallout2.cfg — all config is hardcoded.** DH2 has no file-based config; defaults are baked into `Config` in `src/config.ts`. User cannot change settings by editing a file between sessions. | `src/config.ts` | `config.cc:273 configRead()`; `game_config.h:8` | minor | missing |
+| S-CI1 | **No fallout2.cfg — all config is hardcoded.** DH2 has no file-based config; defaults are baked into `Config` in `src/config.ts`. User cannot change settings by editing a file between sessions. | `src/config.ts` | `config.cc:273 configRead()`; `game_config.h:8` | minor | **FIXED** — read at startup; created by the `write_config` pipeline stage (2026-10-15) |
 | S-CI2 | ✅ FIXED 2026-07-04 — `Config.combat.gameDifficultyModifier` (skill checks, `skill.cc:1129`; encounter rate, `worldmap.cc:3406`) is now separate from `Config.combat.difficultyModifier` (damage only, `combat.cc:4552-4572`). The two can now be mixed independently (e.g. Hard game difficulty with Easy combat difficulty), matching CE. No CE loot/XP effect from `game_difficulty` was actually found in source — that part of the original gap description didn't hold up. | `src/config.ts`; `src/skills.ts`; `src/worldmap/encounters.ts`; `src/ui_options.ts`; `src/ui_options/preferences.ts` | `settings.h:29-31`; `skill.cc:1129`; `worldmap.cc:3406`; `combat.cc:4552-4572` | minor | fixed |
 | S-CI2b | **Violence Level stored but not gated.** `Config.combat.violenceLevel` is set by the panel and persisted, but no code checks it before playing death animations or gore FX. All deaths render with full animation regardless of setting. | `src/combat.ts` | `preferences.cc` violence_level checks | minor | missing |
 | S-CI3 | **`combat_speed` uses inverse/incompatible scale.** CE: integer 0–50 where 0=slowest (maximum ms-per-frame delay) and 50=fastest. DH2: discrete values 1/2/4 where 1=Slow, 4=Fast. Semantics are reversed and not directly translatable. Additionally, `Config.combat.combatSpeed` is not consumed at runtime — no combat loop reads it. | `src/config.ts:67` | `preferences.cc:382`; `game_config.h:44` | low | bug |

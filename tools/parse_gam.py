@@ -150,20 +150,13 @@ def find_case_insensitive(directory: str, filename: str) -> Optional[str]:
     return None
 
 
-def main():
-    if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <fallout2_data_dir>", file=sys.stderr)
-        print(
-            "\n  <fallout2_data_dir> should contain VAULT13.GAM and a maps/ directory.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+def convert_gam(data_dir: str = "data") -> None:
+    """data/data/vault13.gam -> data/gvars.json, data/maps/*.gam -> *.mvars.json.
 
-    data_dir = sys.argv[1]
-    if not os.path.isdir(data_dir):
-        print(f"Error: '{data_dir}' is not a directory", file=sys.stderr)
-        sys.exit(1)
-
+    CE loads the global vars from "data/vault13.gam" (game.cc gameInit), i.e.
+    data/data/vault13.gam after DAT extraction. data/maps/vault13.gam is the
+    Vault 13 *map's* vars file, not the global one.
+    """
     # Determine output directory (project root data/)
     script_dir = Path(__file__).resolve().parent
     project_root = script_dir.parent
@@ -172,7 +165,8 @@ def main():
     out_maps_dir.mkdir(parents=True, exist_ok=True)
 
     # --- Parse VAULT13.GAM for global variables ---
-    vault13_path = find_case_insensitive(data_dir, "VAULT13.GAM")
+    vault13_path = (find_case_insensitive(os.path.join(data_dir, "data"), "VAULT13.GAM")
+                    or find_case_insensitive(data_dir, "VAULT13.GAM"))
     if vault13_path:
         print(f"Parsing global vars from: {vault13_path}")
         gvars = parse_gam_file(vault13_path, "GAME_GLOBAL_VARS:")
@@ -225,6 +219,22 @@ def main():
         )
 
     print("\nDone.")
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} <extracted_data_dir>", file=sys.stderr)
+        print(
+            "\n  <extracted_data_dir> (normally data/) should contain data/VAULT13.GAM and maps/.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    data_dir = sys.argv[1]
+    if not os.path.isdir(data_dir):
+        print(f"Error: '{data_dir}' is not a directory", file=sys.stderr)
+        sys.exit(1)
+    convert_gam(data_dir)
 
 
 if __name__ == "__main__":
