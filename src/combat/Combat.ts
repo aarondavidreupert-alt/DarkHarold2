@@ -1249,8 +1249,8 @@ export class Combat {
                     backPos = next
                     steps++
                 }
-                if (steps > 0 && backPos !== obj.position) {
-                    obj.walkTo(backPos, false, () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1) }, steps)
+                if (steps > 0 && backPos !== obj.position &&
+                        obj.walkTo(backPos, false, () => { obj.clearAnim(); that.doAITurn(obj, idx, depth + 1) }, steps)) {
                     if (AP.subtractMoveAP(steps) === false) return this.nextTurn()
                     return
                 }

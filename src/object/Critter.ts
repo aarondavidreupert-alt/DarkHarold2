@@ -389,11 +389,19 @@ export class Critter extends Obj {
             running = false
         }
 
+        // Critters without a walk/run FRM (spore plants, floaters' stand-only art) can't
+        // move: CE _object_move does nothing when artLock(sad->fid) fails (animation.cc).
+        const moveArt = this.getAnimation(running ? 'run' : 'walk')
+        if (!globalState.imageInfo[moveArt]) {
+            dbgWarn('movement', `[walkTo] ${this.name || this.pid} has no move art ${moveArt} — not moving`)
+            return false
+        }
+
         // set up animation properties
         const actualTarget = { x: path[path.length - 1][0], y: path[path.length - 1][1] }
         this.path = { path: path, index: 1, target: actualTarget, partial: 0 }
         this.anim = running ? 'run' : 'walk'
-        this.art = this.getAnimation(this.anim)
+        this.art = moveArt
         this.animCallback = callback || (() => this.clearAnim())
         this.frame = 0
         this.lastFrameTime = window.performance.now()
