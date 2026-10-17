@@ -18,6 +18,7 @@ limitations under the License.
 // ui_inventory.ts. See wiki/ts-split-refactor.md → "Per-file split
 // proposals" §8.
 
+import { updateHandFlareLight } from '../object.js'
 import { ammoSplitOff, ammoUseTopBox, weaponCanBeReloadedWith, weaponReload } from '../weaponAmmo.js'
 import globalState from '../globalState.js'
 import { dbg, dbgWarn } from '../logger.js'
@@ -197,6 +198,7 @@ export async function uiMoveSlot(data: string, target: string) {
         data === 'leftHand' || data === 'rightHand'
     ) {
         refreshStealthState(globalState.player as unknown as Critter)
+        updateHandFlareLight(globalState.player as unknown as Critter) // inventory.cc _invenWieldFunc: a lit flare in hand
     }
 
     uiDrawWeapon()

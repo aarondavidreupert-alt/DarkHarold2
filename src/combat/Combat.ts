@@ -20,10 +20,11 @@ import { AudioEngine } from '../audio.js'
 import { Config } from '../config.js'
 import { ANIM_KICK_LEG, critterDamage, critterKill, unarmedAttackAnim } from '../critter.js'
 import * as GameTime from '../gametime.js'
+import { Lightmap } from '../lightmap.js'
 import { hexDirectionTo, hexDistance, hexFromScreen, hexInDirection, hexInDirectionDistance, hexLine, hexLineBeyond, hexNearestNeighbor, hexNeighbors, hexToScreen, Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { eventLogPush, dbg, dbgWarn } from '../logger.js'
-import { cloneItem, createObjectWithPID, Critter, Obj } from '../object.js'
+import { cloneItem, createObjectWithPID, Critter, Obj, PROTO_ID_FLARE, PROTO_ID_LIT_FLARE, useFlare } from '../object.js'
 import { Player } from '../player.js'
 import { Scripting } from '../scripting.js'
 import { drawAC, drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiEndButtonsGreenLights, uiEndButtonsRedLights, uiLog, uiStartCombat } from '../ui.js'
@@ -317,6 +318,8 @@ function attackTypeOf(weaponObj: Obj | null): 'unarmed' | 'melee' | 'throw' | 'r
 // Returns true when the weapon can be fired (melee/unarmed always ok; ranged ok if rounds > 0)
 function aiHaveAmmo(weaponObj: Obj | null): boolean {
     if (!weaponObj) return true // unarmed — always valid
+    // CE combat_ai.cc aiHaveAmmo: the Solar Scorcher only works in daylight (ambient > 95 %)
+    if (weaponObj.pid === 390) return GameTime.getAmbientLight() > 65536 * 0.95 // PROTO_ID_SOLAR_SCORCHER
     if (ammoGetCapacity(weaponObj as any) === 0) return true // melee/unarmed — no ammo needed
     return ammoGetQuantity(weaponObj as any) > 0
 }
@@ -1667,6 +1670,9 @@ export class Combat {
             item = weaponObj
         }
         if (attacker.isPlayer) uiDrawWeapon()
+        // CE actions.cc _action_ranged → combat_ai.cc _cAIPrepWeaponItem: a thrown flare is
+        // lit first when it is dark (ambient < 85 %) and the thrower has INT 3+.
+        if (item.pid === PROTO_ID_FLARE && attacker.getStat('INT') >= 3 && GameTime.getAmbientLight() < 65536 * 0.85) useFlare(item, attacker)
         return item
     }
 
@@ -1675,6 +1681,7 @@ export class Combat {
         if (!gMap || this.isExplosiveAttack(weaponObj, dmgType)) return
         gMap.addObject(item)
         item.move({ x: landing.x, y: landing.y }, gMap.getObjects().length - 1, false)
+        if (item.pid === PROTO_ID_LIT_FLARE && Config.engine.doFloorLighting) Lightmap.rebuildLight() // the flare lights where it lands
     }
 
     perish(obj: Critter, attacker?: Critter, damageType?: string) {

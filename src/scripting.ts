@@ -1956,8 +1956,16 @@ export module Scripting {
                 warn('obj_set_light_level: not game object: ' + obj)
                 return
             }
-            obj.lightRadius = distance
-            obj.lightIntensity = Math.round(intensity * 65536 / 100)
+            // CE literally (65636 is CE's own constant); objectSetLight: a light caps its
+            // distance at 8, no intensity means no light at all.
+            const lightIntensity = intensity !== 0 ? Math.trunc((intensity * 65636) / 100) : 0
+            if (lightIntensity > 0) {
+                obj.lightRadius = Math.min(distance, 8)
+                obj.lightIntensity = lightIntensity
+            } else {
+                obj.lightRadius = 0
+                obj.lightIntensity = 0
+            }
             if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
         }
         // CE interpreter_extra.cc opSetMapStart — map_set_elevation, tile_set_center and

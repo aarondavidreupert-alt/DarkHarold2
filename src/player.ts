@@ -64,6 +64,8 @@ export class Player extends Critter {
         this.isSneaking = false
         this.sneakWorking = false
         this.stealthActive = false
+        // CE object.cc objectsInit: gDude->flags |= OBJECT_LIGHT_THRU (his body casts no light shadow)
+        this.flags = ((this.flags ?? 0) | 0x20000000) >>> 0
         this.resetInventoryForNewGame()
     }
 

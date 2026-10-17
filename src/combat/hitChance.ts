@@ -105,7 +105,9 @@ export function getHitDistanceModifier(obj: Critter, target: Critter, weapon: Ob
 // subtracting the player's own light so self-illumination doesn't reduce darkness penalty.
 export function getObjectLightIntensity(obj: Critter, isPlayer: boolean): number {
     const tileNum = toTileNum(obj.position)
-    let intensity = Math.min(65536, Lightmap.tile_intensity[tileNum] ?? 655)
+    // CE object.cc objectGetLightIntensity: the true (unclamped) tile intensity, minus
+    // the dude's own light, then clamped to ambient..MAX.
+    let intensity = Lightmap.tile_intensity[tileNum] ?? 655
     if (isPlayer) intensity -= obj.lightIntensity
     const ambient = GameTime.getAmbientLight()
     return Math.max(ambient, Math.min(65536, intensity))

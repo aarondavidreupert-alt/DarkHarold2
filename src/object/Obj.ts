@@ -35,7 +35,7 @@ import { dbg, dbgWarn } from '../logger.js'
 import { getPROSubTypeName, getPROTypeName, loadPRO, lookupArt, makePID } from '../pro.js'
 import { Scripting } from '../scripting.js'
 import { fromTileNum, toTileNum } from '../tile.js'
-import { uiLoot, uiLog } from '../ui.js'
+import { uiDrawWeapon, uiLoot, uiLog } from '../ui.js'
 import { getMessage, getRandomInt, skillRoll, RollResult } from '../util.js'
 import { uiGetTimer } from '../ui_barter/swap.js'
 import { Config } from '../config.js'
@@ -155,16 +155,7 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
     uiLog(getMessage('proto', 589) ?? 'You set the timer.')
 
     // explosiveActivate: the armed proto
-    const pro = loadPRO(desc.active, desc.active & 0xffff)
-    if (pro) {
-        obj.pid = desc.active
-        obj.pro = pro
-        obj.art = lookupArt(makePID(pro.frmType, pro.frmPID))
-        const invPID = ((pro as any).extra?.invFRM ?? -1) & 0xffff
-        const invName = invPID !== 0xffff ? getLstId('art/inven/inven', invPID) : null
-        if (invName) obj.invArt = 'art/inven/' + invName.split('.')[0]
-        obj.name = getMessage('pro_item', pro.textID) ?? obj.name
-    }
+    switchItemProto(obj, desc.active)
 
     let delay = 10 * seconds
     const roll = source.hasPerk('Demolition Expert') ? RollResult.Success : skillRoll(source, 'Traps').roll
@@ -177,6 +168,84 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
     // CE queue.cc _queue_explode_exit: leaving the map sets it off at once, unanimated
     else Scripting.timeEventList.push({ obj, ticks: delay, userdata: failure ? 'explosionFailure' : 'explosion', fn: fire,
         leaveMap: () => { explosiveDetonate(obj, desc.min, desc.max, false, false); return true } })
+}
+
+// The item becomes another proto in place (CE: item->pid = …) — art, inventory art, name.
+function switchItemProto(obj: Obj, pid: number): void {
+    const pro = loadPRO(pid, pid & 0xffff)
+    if (!pro) return
+    obj.pid = pid
+    obj.pro = pro
+    obj.art = lookupArt(makePID(pro.frmType, pro.frmPID))
+    const invPID = ((pro as any).extra?.invFRM ?? -1) & 0xffff
+    const invName = invPID !== 0xffff ? getLstId('art/inven/inven', invPID) : null
+    if (invName) obj.invArt = 'art/inven/' + invName.split('.')[0]
+    obj.name = getMessage('pro_item', pro.textID) ?? obj.name
+}
+
+export const PROTO_ID_FLARE = 79
+export const PROTO_ID_LIT_FLARE = 205
+
+// The critter carrying `item` (in a hand or the inventory), if any.
+function itemOwner(item: Obj): Critter | null {
+    const gMap = globalState.gMap
+    const player = globalState.player as Critter | null
+    const has = (c: any) => c && (c.inventory?.includes(item) || c.leftHand === item || c.rightHand === item)
+    if (has(player)) return player
+    return (gMap?.getObjects().find((o) => o.type === 'critter' && has(o)) as Critter | undefined) ?? null
+}
+
+// CE inventory.cc _invenWieldFunc (PROTO_ID_LIT_FLARE): a lit flare in a hand lights its
+// holder with the larger of the two lights; without it the holder's own light comes
+// back (the dude 4 hexes at full intensity — objectsInit — an NPC its proto's).
+export function updateHandFlareLight(c: Critter): void {
+    const a = c as any
+    let radius = c.isPlayer ? 4 : (c.pro as any)?.lightDistance ?? 0
+    let intensity = c.isPlayer ? 65536 : (c.pro as any)?.lightIntensity ?? 0
+    for (const h of [a.leftHand, a.rightHand]) {
+        if (h?.pid !== PROTO_ID_LIT_FLARE) continue
+        radius = Math.max(radius, h.lightRadius ?? 8)
+        intensity = Math.max(intensity, h.lightIntensity ?? 65536)
+    }
+    c.lightRadius = radius
+    c.lightIntensity = intensity
+}
+
+// CE proto_instance.cc _obj_use_flare: "You light the flare." (proto.msg 587 — CE prints
+// 588 in both branches, the text says 587 is meant), the flare becomes the lit flare
+// with an 8-hex full light, and burns out (is destroyed) after 72000 ticks; "The flare
+// is already lit." (588) while it burns.
+export function useFlare(obj: Obj, source: Critter): boolean {
+    if (obj.pid !== PROTO_ID_FLARE) return false
+    if (Scripting.timeEventList.some((e) => e.obj === obj && e.userdata === 'flare')) {
+        if (source.isPlayer) uiLog(getMessage('proto', 588) ?? 'The flare is already lit.')
+        return true
+    }
+    if (source.isPlayer) uiLog(getMessage('proto', 587) ?? 'You light the flare.')
+    switchItemProto(obj, PROTO_ID_LIT_FLARE)
+    obj.lightRadius = 8
+    obj.lightIntensity = 65536
+    const burnOut = () => {
+        const owner = itemOwner(obj)
+        if (owner) {
+            const a = owner as any
+            if (a.leftHand === obj) a.leftHand = owner.isPlayer ? undefined : (owner.constructor as any).makeFist?.()
+            if (a.rightHand === obj) a.rightHand = owner.isPlayer ? undefined : (owner.constructor as any).makeFist?.()
+            const i = owner.inventory.indexOf(obj)
+            if (i !== -1) owner.inventory.splice(i, 1)
+            updateHandFlareLight(owner)
+            if (owner.isPlayer) uiDrawWeapon()
+        } else {
+            globalState.gMap?.destroyObject(obj)
+            if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
+        }
+    }
+    // queue.cc EVENT_TYPE_FLARE: its clear proc is flareEventProcess — leaving the map burns it out
+    Scripting.timeEventList.push({ obj, ticks: 72000, userdata: 'flare', fn: burnOut, leaveMap: () => { burnOut(); return true } })
+    const owner = itemOwner(obj)
+    if (owner) updateHandFlareLight(owner)
+    else if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
+    return true
 }
 
 // CE queue.cc explosionEventProcess / explosionFailureEventProcess → _queue_do_explosion_:
@@ -1008,6 +1077,12 @@ export class Obj {
             return true
         }
 
+        // CE _obj_use_item → _obj_use_flare
+        if (this.pid === PROTO_ID_FLARE) {
+            useFlare(this, source ?? globalState.player as Critter)
+            return true
+        }
+
         // Play the interact animation on the source critter (non-blocking: the
         // interaction effect proceeds concurrently). Skipped for ladders because
         // the climb animation already handles the timing in the isLadder branch.
@@ -1198,6 +1273,7 @@ export class Obj {
 
         globalState.audioEngine.playSfxByName('iputdown')
         globalState.gMap.addObject(this) // add to objects
+        if (this.pid === PROTO_ID_LIT_FLARE && Config.engine.doFloorLighting) Lightmap.rebuildLight() // its light now on the floor
         const idx = globalState.gMap.getObjects().length - 1 // our new index
         this.move({ x: source.position.x, y: source.position.y }, idx)
     }
