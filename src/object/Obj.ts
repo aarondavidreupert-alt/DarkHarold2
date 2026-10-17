@@ -636,6 +636,11 @@ export class Obj {
         if (this.type === 'misc') {
             return false
         }
+        // CE object.cc _obj_blocking_at: only critters, scenery and walls block; an item
+        // on the floor (dropped, thrown, ...) never does.
+        if (this.type === 'item') {
+            return false
+        }
         if (!this.pro) {
             return true
         } // XXX: ?

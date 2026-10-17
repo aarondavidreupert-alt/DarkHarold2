@@ -463,6 +463,9 @@ This was a full review of the attack chain against CE combat.cc (`attackDetermin
 | 18 | Thrown weapons (2026-10-17, C25) | `_action_ranged`: `itemRemove(attacker, weapon, 1)` — one item of the stack is the projectile, the rest stays in the hand; it lands on the target's tile on a hit, on the tile where the miss stopped (the critter it hit by accident, or the last free hex before a wall), and stays there; grenades explode and are gone; no throw on a critical failure | Thrown weapons were never used up |
 | 19 | Projectile flight (2026-10-17, C26) | Projectile object from the proto's `projPID`: appears on the hex next to the attacker on the action frame, moves 32 px per frame along a straight screen line at FRM fps (+ combat speed), hits on arrival | Nothing drawn; damage at once |
 | 20 | Secondary attacks (2026-10-17, C27) | Primary → aimed → secondary → aimed → reload; secondary uses APCost2 / maxRange2 / its own skill and attack type; throw anims dm / gm / as; AI picks any secondary | Only primary + burst; spears and knives could not be thrown; every weapon had an aimed mode |
+| 21 | Player bad-shot check (C28) | `_combat_check_bad_shot` before every attack: out of range, no ammo, AP, aim blocked, crippled arms (combat.msg 100–106) | No range check at all; only an AP check |
+| 22 | Hit-location penalties (C28) | Eyes −60, groin −30 | Swapped (eyes −30, groin −60) |
+| 23 | Items on the floor (C28) | Never block (`_obj_blocking_at`) | Blocked movement unless the proto had NoBlock |
 | 17 | Unarmed moves (2026-10-17, C24) | `gUnarmedHitDescriptions`: 1–2 + bonus damage, CE requirements, AP, bonus crit, penetration; left hand punches and right hand kicks; primary/secondary + aimed; NPCs plain punch | Two invented tables with other names, damage, AP and requirements; kicks only with both hands empty; NPC fists levelled up after a weapon drop — see `wiki/weapon_combat.md` §9 |
 
 ### Verified as CE (no change)

@@ -66,7 +66,8 @@ export function accountForPartialCover(obj: Critter, target: Critter, from: Poin
 // CE ref: combat.cc:4334-4393 attackDetermineToHit (ranged/throw branch) — distance
 // modifier. Returned as a penalty (positive = harder); negative means a close-range bonus,
 // which CE does apply (toHit += distanceMod whenever useDistance is set).
-export function getHitDistanceModifier(obj: Critter, target: Critter, weapon: Obj, from: Point = obj.position): number {
+export function getHitDistanceModifier(obj: Critter, target: Critter, weapon: Obj, from: Point = obj.position,
+                                       useDistance = true): number {
     const weaponPerk = (weapon as any)?.pro?.extra?.perk
     let perceptionBonusMult = 2
     let minEffectiveDist = 0
@@ -77,7 +78,8 @@ export function getHitDistanceModifier(obj: Critter, target: Critter, weapon: Ob
     // SFALL fix kept by CE: Sharpshooter adds 2 PER per rank (player only).
     if (obj.isPlayer) perception += 2 * obj.perks.filter((p) => p === 'Sharpshooter').length
 
-    let distanceMod = hexDistance(from, target.position)
+    // _determine_to_hit_no_range (useDistance = false) counts the distance as 0.
+    let distanceMod = useDistance ? hexDistance(from, target.position) : 0
     if (distanceMod >= minEffectiveDist) {
         distanceMod -= obj.isPlayer ? perceptionBonusMult * (perception - 2) : perceptionBonusMult * perception
     } else {
@@ -122,7 +124,8 @@ export function weaponAttackType(weaponObj: Obj | null): 'unarmed' | 'melee' | '
 
 // CE ref: combat.cc:4313 attackDetermineToHit (useDistance = true; `from` is the tile
 // the attack is made from, CE _determine_to_hit_from_tile).
-export function getHitChance(obj: Critter, target: Critter, region: string, from: Point = obj.position) {
+// `useDistance = false` is CE _determine_to_hit_no_range: distance 0, no line-of-fire count.
+export function getHitChance(obj: Critter, target: Critter, region: string, from: Point = obj.position, useDistance = true) {
     const weaponObj = obj.equippedWeapon
     const weapon = weaponObj?.weapon
     const attackType = weaponAttackType(weaponObj)
@@ -142,9 +145,9 @@ export function getHitChance(obj: Critter, target: Critter, region: string, from
         const extra = (weaponObj as any).pro?.extra ?? {}
 
         if (isRanged) {
-            distanceMod = getHitDistanceModifier(obj, target, weaponObj!, from)
+            distanceMod = getHitDistanceModifier(obj, target, weaponObj!, from, useDistance)
             toHit -= distanceMod
-            coverPenalty = accountForPartialCover(obj, target, from)
+            coverPenalty = useDistance ? accountForPartialCover(obj, target, from) : 0
             toHit -= coverPenalty
         }
 

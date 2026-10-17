@@ -167,7 +167,10 @@ the wiki tracker is the source of truth.
 - **Map loading & rendering** — tile maps, multi-elevation, WebGL 2.0 renderer, lightmap, real-time lighting, screen-space hex z-sort (RD09), camera clamp + `OBJECT_SCROLL_BLOCK` (RD11/RD12), per-building roof flood-fill + roofEgg transparency (RD06), post-roof hex cursor/outline pass (RD08), palette colour cycling for water/fire/monitors in both floor paths (RD10), pixel-precise `_tile_mask` hex picking (RD13), parity-correct lightmap hex sampling (RD17), directional wall light occlusion (LD11); see [`wiki/alignment.md`](wiki/alignment.md)
 - **Walking & running** — A\* pathfinding with separate path-blocking / shoot-blocking predicates (P4/P5/P6), `OBJECT_MULTIHEX` neighbour scan, scenery LoS via `OBJECT_LIGHT_THRU` (P7), door interaction, exit grids
 - **Combat** — `attackDetermineToHit` port (line-of-fire critter count, distance/perception with Long Range/Scope/Sharpshooter, min ST, Accurate, One Hander, knocked-down/multihex, combat difficulty — C18); `_compute_spray`/`_shoot_along_path` bursts that hit whoever stands on a line of fire, missed shots that fly on and hit someone else, grenade/rocket blast rings (C17); 6-level criticals, critical failures, YAAM, armor DR/DT, crippling, knockdown, DAM_DROP, fire; attack sound on frame 0 and damage on the FRM action frame (FA3); who-hit-me / retaliation and the reaction hit (C19); CE death animations (`_pick_death`: damage thresholds, violence level, Bloody Mess, fire dance, single-frame corpses) with their death sounds (C20); CE attack roll, critical failures, melee damage, difficulty, kill XP and AP rules after the 2026-10-17 audit (C22)
-- **Combat AI** — AI packets (attack who, best weapon, distance modes, run-away), `_ai_pick_hit_mode` + `_combat_safety_invalidate_weapon` friendly-fire check, perception/LoS gate, taunts (gated by the combat-taunts preference)
+- **Combat AI** — CE `_combat_ai` port (C28):
+  - Fights: target choice (`_ai_danger_source`), weapon switching and picking up weapons from the floor, called shots, primary/secondary hit modes with the friendly-fire check (`_ai_pick_hit_mode`, `_combat_safety_invalidate_weapon`).
+  - Ammo and health: reloading and fetching ammo; stimpaks and chems by `chem_use`.
+  - Movement: fleeing (`min_hp`, `hurt_too_much`, disengage past `max_dist`), distance preferences (charge, snipe, stay close), taunts (gated by the combat-taunts preference).
 - **Perks & traits** — CE perk table (`perks/cePerks.ts`): perks addressed by CE id from scripts, per-rank stat effects (Toughness, Action Boy, Dodger, …), armor perks on equip (Powered Armor, …), `perkGetSkillModifier` as CE (K6); level-up with Swift Learner / Lifegiver, perk selection modal
 - **Dialogue** — full `gsay_*`/`giq_option`/`gsay_option` set, barter/combat-control buttons, review log, highlight overlays; **talking heads** with fidgets, reactions and lip-synced speech (P4)
 - **Bartering** — CE `_barter_compute_value`, reaction LVAR, Master Trader, difficulty bonus, scrollable tables, quantity picker
@@ -194,7 +197,7 @@ the wiki tracker is the source of truth.
 ### 🔶 Known approximations
 
 - **Ammo stacks** count rounds in `amount`, where CE keeps boxes plus rounds in the top box (LE12 note).
-- **AI blast safety** — CE's `_ai_move_away` to a safe distance and a full port of `_ai_switch_weapons` (only the inventory pick is ported, C21) are missing; the AI drops from burst to single fire or holds fire (C17 note). Explosions from DAM_EXPLODE critical failures aren't generated.
+- **AI blast safety** — CE's `_cai_retargetTileFromFriendlyFire` (stepping to a clear firing tile) is missing; the AI drops from burst to single fire or holds fire (C17 note). Explosions from DAM_EXPLODE critical failures aren't generated.
 - **Combat details still not CE** (C23):
   - Knockout lasts one turn, and knockback moves the critter without the slide animation.
   - Silent Death and Enhanced Knockout aren't implemented.

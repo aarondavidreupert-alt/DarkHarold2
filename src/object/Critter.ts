@@ -210,6 +210,9 @@ export class Critter extends Obj {
             if (inv.flags & 0x1000000) this.leftHand  = w  // OBJECT_IN_LEFT_HAND
             else if (inv.flags & 0x2000000) this.rightHand = w // OBJECT_IN_RIGHT_HAND
         }
+        // CE: a critter other than the player acts with its right-hand item
+        // (critterGetItem2 — the fid's weapon code, HIT_MODE_RIGHT_WEAPON_*).
+        if (!this.isPlayer && (this.rightHand as any)?.pid !== undefined) (this as any).activeHand = 'rightHand'
 
         // set them in their proper idle state for the weapon
         this.art = this.getAnimation('idle')

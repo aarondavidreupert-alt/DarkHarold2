@@ -31,7 +31,7 @@ import {
     uiLoot,
     UIMode,
 } from './ui.js'
-import { getProtoMsg } from './util.js'
+import { getMessage, getProtoMsg } from './util.js'
 import { Config } from './config.js'
 import { uiSteal } from './ui_steal.js'
 import { currentUnarmed, unarmedAPCost } from './unarmed.js'
@@ -263,8 +263,20 @@ export function playerUse(obj: Obj | null) {
                 attackAPCost = weapon.weapon!.getAttackAPCost(globalState.player, undefined, weapon.weapon!.isCalled())
             }
 
-            if (globalState.player.AP!.getAvailableCombatAP() < attackAPCost) {
-                uiLog(getProtoMsg(700)!) // "You don't have enough action points."
+            // CE combat.cc _combat_attack_this → _combat_check_bad_shot: refuse with
+            // combat.msg 100-106 (out of ammo, out of range, AP, aim blocked, crippled arms).
+            const aimingNow = unarmed ? unarmed.aiming : weapon!.weapon!.isCalled()
+            const bad = globalState.combat!.checkBadShot(globalState.player, <Critter>obj, aimingNow)
+            if (bad !== 'ok') {
+                const BAD_SHOT_MSG: { [k: string]: number } = {
+                    noAmmo: 101, outOfRange: 102, notEnoughAp: 100, aimBlocked: 104, bothArmsCrippled: 105, armCrippled: 106,
+                }
+                const id = BAD_SHOT_MSG[bad]
+                if (id !== undefined) uiLog((getMessage('combat', id) ?? '').replace('%d', String(attackAPCost)))
+                if (bad === 'noAmmo' && weapon) {
+                    const sid = (weapon as any).pro?.extra?.soundID
+                    if (typeof sid === 'number') globalState.audioEngine.playWeaponSfx(String.fromCharCode(sid), 'empty')
+                }
                 return
             }
 

@@ -21,8 +21,8 @@ export type BestWeapon =
     | 'never'             // 8
 export type AreaAttackMode = 'no_pref' | 'always' | 'be_careful' | 'be_sure' | 'be_absolutely_sure' | 'sometimes'
 export type DistanceMode = 'charge' | 'snipe' | 'stay' | 'on_your_own' | 'random' | 'stay_close'
-export type RunAwayMode = 'never' | 'none' | 'bleeding' | 'finger_hurts' | 'not_feeling_good' | 'coward'
-export type ChemUse = 'clean' | 'anytime' | 'stims_when_hurt_little' | 'stims_when_hurt_lots' | 'sometimes'
+export type RunAwayMode = 'never' | 'none' | 'bleeding' | 'finger_hurts' | 'not_feeling_good' | 'coward' | 'tourniquet'
+export type ChemUse = 'clean' | 'anytime' | 'stims_when_hurt_little' | 'stims_when_hurt_lots' | 'sometimes' | 'always'
 
 // ── AiPacket interface ────────────────────────────────────────────────────────
 
@@ -70,8 +70,8 @@ const AREA_ATTACK_MODE_MAP: AreaAttackMode[] = ['no_pref', 'be_careful', 'be_sur
 const DISTANCE_MAP: DistanceMode[]        = ['on_your_own', 'charge', 'snipe', 'stay', 'random']
 // FO2 stored as -1…4; we normalise -1→'never', 0→'none', 1–4 follow
 const RUN_AWAY_MODE_MAP: RunAwayMode[]    = ['never', 'none', 'bleeding', 'finger_hurts', 'not_feeling_good', 'coward']
-// FO2: 0=clean 1=stims_when_hurt_little 2=stims_when_hurt_lots 3=sometimes 4=anytime
-export const CHEM_USE_MAP: ChemUse[]             = ['clean', 'stims_when_hurt_little', 'stims_when_hurt_lots', 'sometimes', 'anytime']
+// CE combat_ai.cc gChemUseKeys: 0=clean 1=stims_when_hurt_little 2=stims_when_hurt_lots 3=sometimes 4=anytime 5=always
+export const CHEM_USE_MAP: ChemUse[]             = ['clean', 'stims_when_hurt_little', 'stims_when_hurt_lots', 'sometimes', 'anytime', 'always']
 
 // ── Valid string sets ─────────────────────────────────────────────────────────
 
@@ -84,8 +84,8 @@ const BEST_WEAPONS: ReadonlySet<string>      = new Set<BestWeapon>([
 // CE combat_ai.cc:162 gAreaAttackModeKeys — always/sometimes/be_sure/be_careful/be_absolutely_sure; anything else → -1 (no_pref).
 const AREA_ATTACK_MODES: ReadonlySet<string> = new Set<AreaAttackMode>(['no_pref', 'always', 'be_careful', 'be_sure', 'be_absolutely_sure', 'sometimes'])
 const DISTANCE_MODES: ReadonlySet<string>    = new Set<DistanceMode>(['charge', 'snipe', 'stay', 'on_your_own', 'random', 'stay_close'])
-const RUN_AWAY_MODES: ReadonlySet<string>    = new Set<RunAwayMode>(['never', 'none', 'bleeding', 'finger_hurts', 'not_feeling_good', 'coward'])
-const CHEM_USES: ReadonlySet<string>         = new Set<ChemUse>(['clean', 'anytime', 'stims_when_hurt_little', 'stims_when_hurt_lots', 'sometimes'])
+const RUN_AWAY_MODES: ReadonlySet<string>    = new Set<RunAwayMode>(['never', 'none', 'bleeding', 'finger_hurts', 'not_feeling_good', 'coward', 'tourniquet'])
+const CHEM_USES: ReadonlySet<string>         = new Set<ChemUse>(['clean', 'anytime', 'stims_when_hurt_little', 'stims_when_hurt_lots', 'sometimes', 'always'])
 
 // ── Parsing helpers ───────────────────────────────────────────────────────────
 
