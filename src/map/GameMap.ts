@@ -92,7 +92,10 @@ export class GameMap {
     _isOutdoorCachedElevation: number = -1
 
     getObjects(level?: number): Obj[] {
-        return this.objects[level === undefined ? this.currentElevation : level]
+        // While a map loads `objects` is null (mapLoader clears it); input handlers such as
+        // the mouse-move hover test can still ask — nothing is there yet.
+        if (!this.objects) return []
+        return this.objects[level === undefined ? this.currentElevation : level] ?? []
     }
 
     getSpatials(level?: number): any[] {
