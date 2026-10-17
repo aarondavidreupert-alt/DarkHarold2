@@ -5,7 +5,7 @@ Covers FRM binary format, FID/animation ID encoding, the `reg_anim_*` batch syst
 
 > **Source anchor:** `raw/fallout2-ce/src/art.cc`, `art.h`, `animation.cc`, `animation.h`, `obj_types.h`, `cycle.cc`, `object.cc`  
 > **DH2 files:** `src/object/critterAnimation.ts`, `src/object/Critter.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/renderer.ts`, `tools/frmpixels.py` (pipeline)  
-> **Last audited:** 2026-07-04 — AN3 partially fixed (pipeline preserves actionFrame; runtime consumption still open)
+> **Last audited:** 2026-10-17 — reg_anim opcodes rewired to CE; anim ids played by `buildFid`; FPS default 10. AN table re-checked (§ Known gaps).
 
 ---
 
@@ -643,28 +643,24 @@ Rotation and frame-set via `anim(obj, anim, param)` (`src/scripting.ts:1237`): o
 
 All animation-related script opcodes, their hex values, CE counterparts, and DH2 status.
 
-| Opcode | CE Function                     | Args | DH2 Method                | Status        |
-|--------|---------------------------------|------|---------------------------|---------------|
-| 0x8111 | reg_anim_begin                  | 1    | `reg_anim_begin`          | implemented   |
-| 0x8112 | reg_anim_end                    | 0    | `reg_anim_end`            | implemented   |
-| 0x8113 | reg_anim_clear                  | 0    | `reg_anim_clear`          | implemented   |
-| 0x810E | reg_anim_func                   | 2    | `reg_anim_func`           | implemented   |
-| 0x810F | reg_anim_animate                | 3    | `reg_anim_animate`        | implemented   |
-| 0x8110 | reg_anim_obj_move_to_tile       | 3    | `reg_anim_obj_move_to_tile` | partial (delay ignored) |
-| 0x8126 | reg_anim_animate_forever        | 2    | `reg_anim_animate_forever`| implemented   |
-| 0x80E7 | anim_busy                       | 1    | `anim_busy`               | implemented   |
-| 0x810C | anim                            | 3    | `anim`                    | partial (1000/1010 only) |
-| 0x80E3 | set_obj_visibility              | 2    | `set_obj_visibility`      | implemented   |
-| 0x80CE | animate_move_obj_to_tile        | 3    | (vm_bridge stub)          | stub          |
-| 0x80A3 | play_sfx                        | 1    | `play_sfx`                | implemented   |
-| 0x8136 | gfade_out                       | 1    | `gfade_out`               | implemented (CSS) |
-| 0x8137 | gfade_in                        | 1    | `gfade_in`                | implemented (CSS) |
-| —      | reg_anim_animate_and_hide       | —    | —                         | **missing**   |
-| —      | reg_anim_obj_run_to_tile        | —    | —                         | **missing**   |
-| —      | reg_anim_obj_move_to_obj        | —    | —                         | **missing**   |
-| —      | reg_anim_obj_run_to_obj         | —    | —                         | **missing**   |
+Corrected 2026-10-17 against CE `interpreter_extra.cc:4981-5028` (`interpreterRegisterOpcode`). DH2 had 0x8110-0x8113 as move_to_tile / begin / end / clear and 0x810E as a "queue this procedure" call. So the original scripts' `reg_anim_begin` / `reg_anim_end` (both 0x810E) never opened a batch, 0x8110 (animate reverse) moved the critter to tile = the anim id, and 0x8112 / 0x8113 left their arguments on the stack.
 
-`0x810E` (`reg_anim_func`) is handled by a custom inline wrapper in `src/vm_bridge.ts` rather than `bridged()` — it converts a script proc address to a callable JS function before pushing to the batch.
+| Opcode | CE | Args | DH2 | Notes |
+|--------|----|------|-----|-------|
+| 0x810C | anim | 3 | `anim` | rotation (1000), frame (1010), anim ids < 65 as a one-step batch (reversed when param ≠ 0) |
+| 0x810E | reg_anim_func(cmd, param) | 2 | `reg_anim_func` | 1 = begin (flags), 2 = clear (obj), 3 = end |
+| 0x810F | reg_anim_animate | 3 | `reg_anim_animate` | the critter's anim id (`buildFid`, weapon code kept); PID 0x100002F's fall only at violence ≥ 2 |
+| 0x8110 | reg_anim_animate_reverse | 3 | `reg_anim_animate_reverse` | |
+| 0x8111 | reg_anim_obj_move_to_obj | 3 | `reg_anim_obj_move_to_obj` | walks next to the object; the next step waits |
+| 0x8112 | reg_anim_obj_run_to_obj | 3 | `reg_anim_obj_run_to_obj` | runs |
+| 0x8113 | reg_anim_obj_move_to_tile | 3 | `reg_anim_obj_move_to_tile` | |
+| 0x8114 | reg_anim_obj_run_to_tile | 3 | `reg_anim_obj_run_to_tile` | |
+| 0x8126 | reg_anim_animate_forever | 2 | `reg_anim_animate_forever` | |
+| 0x813B | reg_anim_play_sfx | 3 | `reg_anim_play_sfx` | |
+| 0x80E7 | anim_busy | 1 | `anim_busy` | |
+| 0x80CE | animate_move_obj_to_tile | 3 | `animate_move_obj_to_tile` | |
+
+All reg_anim calls do nothing in combat, and outside `reg_anim_begin … reg_anim_end` (CE `_check_registry`).
 
 `gfade_out` / `gfade_in` are implemented via a CSS `black` overlay div with an `opacity` transition, not a WebGL render pass.
 
@@ -732,6 +728,8 @@ Implementing palette cycling in DH2 would require either (a) baking multiple pre
 
 | ID  | Description | File(s) | CE Reference | Sev | Status |
 |-----|-------------|---------|--------------|-----|--------|
+*Re-audit 2026-10-17:* AN1 fixed (default fps 10 — CE `artGetFramesPerSecond`). AN3 (FA3 action frames) and AN4 (FA4 combat speed) fixed earlier. AN6: weapon stances via `getAnimation` / `setIdleArt`. AN7–AN12: the reg_anim / anim opcodes are wired as CE (see §11). AN15: all death anims (`critter/deathAnim.ts`). AN18: palette cycling (RD10). Still deviations: AN13 (rotation kept on the object), AN14/AN16/AN17 (one sequence at a time, no request flags), AN2/AN5 (walk-cycle details, see the walk-loop notes).
+
 | AN1 | **`updateStaticAnim` hardcodes fps = 8.** Comment reads `// todo: get FPS from image info`. Should read `info.fps \|\| 10` like `updateLoopingAnim`. Scenery such as flowing water or fire plays at the wrong speed. | `object.ts` | `art.cc:713 artGetFramesPerSecond()` | minor | bug |
 | AN2 | **`getAnimDistance` reads direction 1 for the last frame.** `frameOffsets[1][numFrames-1].ox` uses direction E instead of direction 0 (NE). Returns wrong hex-steps-per-walk-cycle, causing partial-action boundaries to be off and walk animation to hitch or overshoot. | `object.ts` | `animation.cc:1716` | major | bug |
 | AN3 | **PARTIALLY FIXED 2026-07-04.** `actionFrame` was discarded by the extraction pipeline (`tools/frmpixels.py:40` read it into `_actionFrame` — leading underscore meant not saved — and it was absent from `imageMap.json`). The pipeline side is now fixed: `readFRMInfo()` returns `actionFrame` (no underscore), and `exportFRMs()` builds a per-direction `actionFrames` array that's written into each entry's `extra`/frame-info JSON. **Remaining gap**: no runtime code in `src/` reads the field yet — hit-detection and sound-sync still don't consume it, so weapon-attack timing is unaffected until a follow-up wires it into combat/animation playback. | `tools/frmpixels.py:40,71,218-229` (fixed); runtime consumption still missing | `art.h ArtFrame.actionFrame`, `animation.cc` | major | partial |

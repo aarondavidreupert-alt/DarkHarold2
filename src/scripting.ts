@@ -111,11 +111,22 @@ export module Scripting {
 
     export function getDialogueBarterMod(): number { return dialogueBarterMod }
 
+    // CE animation.cc animationRegisterAnimate: the object's fid for `anim` (buildFid) —
+    // a critter plays that animation (its weapon code kept), other objects their single
+    // FRM.
+    function playAnimId(obj: Obj, anim: number, reversed: boolean, then: () => void): void {
+        if (obj.type === 'critter') (obj as Critter).staticAnimation('anim:' + anim, then, true, reversed)
+        else obj.singleAnimation(reversed, then)
+    }
+
     // Animation batch (reg_anim_begin / reg_anim_end queue)
     // ref: fallout2-ce animation.cc animationRegAnimFunc / animationRegAnimAnimate
     interface AnimStep { kind: 'animate'; obj: Obj; anim: number; delay: number; reversed?: boolean }
     interface AnimFunc  { kind: 'func';    fn: (() => void) | null }
-    type AnimEntry = AnimStep | AnimFunc
+    // animationRegisterMoveTo{Tile,Object} / RunTo…: walk (or run) there; the next step
+    // waits until it arrives (or can't get there).
+    interface AnimMove  { kind: 'move'; obj: Obj; to: Point | Obj; run: boolean; delay: number }
+    type AnimEntry = AnimStep | AnimFunc | AnimMove
     let animBatch: AnimEntry[] | null = null
 
     export interface StartPos {
@@ -2345,8 +2356,8 @@ export module Scripting {
         }
         // CE opRegAnimObjectRunToTile (0x8114) — as move_to_tile, running.
         reg_anim_obj_run_to_tile(obj: Obj, tileNum: number, delay: number) {
-            if (globalState.inCombat) return
-            this.reg_anim_obj_move_to_tile(obj, tileNum, delay)
+            if (isNaN(tileNum) || tileNum < 0) return
+            this.regAnimPush('reg_anim_obj_run_to_tile', obj, { kind: 'move', obj, to: fromTileNum(tileNum), run: true, delay })
         }
         // CE opKillCritterType (0x80EE) — kill (or with deathFrame 0, destroy) every live,
         // visible critter of `pid` on the map. deathFrame 1 cycles CE's ftList.
@@ -2522,36 +2533,53 @@ export module Scripting {
             })
         }
 
-        // animation — ref: fallout2-ce animation.cc animationRegAnimFunc/animationRegAnimAnimate/animationBegin/End
+        // animation — CE interpreter_extra.cc opRegAnimFunc / opRegAnimAnimate…: nothing in
+        // combat; outside reg_anim_begin … reg_anim_end the animation calls do nothing
+        // (animation.cc _check_registry).
+        reg_anim_func(cmd: number, param: any) {
+            if (globalState.inCombat) return
+            if (cmd === 1) this.reg_anim_begin(param)          // OP_REG_ANIM_FUNC_BEGIN
+            else if (cmd === 2) this.reg_anim_clear(param)     // OP_REG_ANIM_FUNC_CLEAR
+            else if (cmd === 3) this.reg_anim_end()            // OP_REG_ANIM_FUNC_END
+        }
+
         reg_anim_begin(_flags: number) {
             animBatch = []
         }
 
-        reg_anim_clear() {
-            animBatch = null
+        // CE animation.cc reg_anim_clear(obj): the object's animations stop.
+        reg_anim_clear(obj?: Obj) {
+            if (obj && isGameObject(obj)) {
+                if (animBatch) animBatch = animBatch.filter((st: any) => st.obj !== obj)
+                if (typeof (obj as any).clearAnim === 'function') (obj as any).clearAnim()
+            }
         }
 
-        reg_anim_func(obj: Obj, fn: (() => void) | null) {
-            if (animBatch === null) {
-                warn('reg_anim_func: called outside reg_anim_begin', 'animation')
-                return
-            }
-            animBatch.push({ kind: 'func', fn })
+        private regAnimPush(name: string, obj: Obj, step: AnimStep | AnimMove): void {
+            if (globalState.inCombat) return
+            if (!isGameObject(obj)) { warn(name + ': object is null', 'animation'); return }
+            if (animBatch === null) { warn(name + ': outside reg_anim_begin', 'animation'); return }
+            animBatch.push(step)
         }
 
         reg_anim_animate(obj: Obj, anim: number, delay: number) {
-            if (!isGameObject(obj)) {
-                warn('reg_anim_animate: not a game object', 'animation')
-                return
-            }
-            if (animBatch === null) {
-                // CE ref: animation.cc:1374 — honour delay even outside a batch
-                const play = () => { if (anim !== 0) obj.singleAnimation(false, () => obj.clearAnim()) }
-                if (delay > 0) setTimeout(play, delay * 100)
-                else play()
-                return
-            }
-            animBatch.push({ kind: 'animate', obj, anim, delay })
+            // CE opRegAnimAnimate: PID 0x100002F's fall (anim 20) only at violence ≥ 2
+            if (anim === 20 && obj?.pid === 0x100002f && Config.combat.violenceLevel < 2) return
+            this.regAnimPush('reg_anim_animate', obj, { kind: 'animate', obj, anim, delay })
+        }
+
+        reg_anim_animate_reverse(obj: Obj, anim: number, delay: number) {
+            this.regAnimPush('reg_anim_animate_reverse', obj, { kind: 'animate', obj, anim, delay, reversed: true })
+        }
+
+        reg_anim_obj_move_to_obj(obj: Obj, dest: Obj, delay: number) {
+            if (!isGameObject(dest)) return
+            this.regAnimPush('reg_anim_obj_move_to_obj', obj, { kind: 'move', obj, to: dest, run: false, delay })
+        }
+
+        reg_anim_obj_run_to_obj(obj: Obj, dest: Obj, delay: number) {
+            if (!isGameObject(dest)) return
+            this.regAnimPush('reg_anim_obj_run_to_obj', obj, { kind: 'move', obj, to: dest, run: true, delay })
         }
 
         reg_anim_end() {
@@ -2573,6 +2601,21 @@ export module Scripting {
                 }
                 if (i >= batch.length) return
 
+                if ((batch[i] as any).kind === 'move') {
+                    const mv = batch[i] as unknown as AnimMove
+                    const go = () => {
+                        const dest = (mv.to as any).position ?? mv.to
+                        const c = mv.obj as Critter
+                        const done = () => { c.clearAnim?.(); doStep(i + 1) }
+                        if (typeof c.walkTo !== 'function') { mv.obj.position = { ...dest }; return doStep(i + 1) }
+                        // CE animationRegisterMoveToObject: to the tile next to the object
+                        const target = (mv.to as any).position ? hexNearestNeighbor(c.position, dest)?.hex ?? dest : dest
+                        if (!c.walkTo(target, mv.run, done)) done()
+                    }
+                    if (mv.delay > 0) setTimeout(go, mv.delay * 100)
+                    else go()
+                    return
+                }
                 const step = batch[i] as AnimStep
                 const obj = step.obj
                 const next = () => { obj.clearAnim(); doStep(i + 1) }
@@ -2581,7 +2624,7 @@ export module Scripting {
                     if (step.delay > 0) setTimeout(next, step.delay * 100)
                     else next()
                 } else {
-                    const play = () => obj.singleAnimation(step.reversed === true, next)
+                    const play = () => playAnimId(obj, step.anim, step.reversed === true, next)
                     if (step.delay > 0) setTimeout(play, step.delay * 100)
                     else play()
                 }
@@ -2632,30 +2675,8 @@ export module Scripting {
             }
         }
         reg_anim_obj_move_to_tile(obj: Obj, tileNum: number, delay: number) {
-            if (!isGameObject(obj)) {
-                warn('reg_anim_obj_move_to_tile: not a game object', 'movement', this)
-                return
-            }
-            if (isNaN(tileNum)) {
-                warn('reg_anim_obj_move_to_tile: invalid tile num', 'movement', this)
-                return
-            }
-            const tile = fromTileNum(tileNum)
-            if (tile.x < 0 || tile.x >= 200 || tile.y < 0 || tile.y >= 200) {
-                warn(
-                    'reg_anim_obj_move_to_tile: invalid tile: ' + tile.x + ', ' + tile.y + ' (' + tileNum + ')',
-                    'movement',
-                    this
-                )
-                return
-            }
-            const critter = obj as Critter
-            if (typeof critter.walkTo === 'function') {
-                if (!critter.walkTo(tile, false))
-                    warn('reg_anim_obj_move_to_tile: no path to tile ' + tileNum, 'movement', this)
-            } else {
-                obj.position = tile
-            }
+            if (isNaN(tileNum) || tileNum < 0) return
+            this.regAnimPush('reg_anim_obj_move_to_tile', obj, { kind: 'move', obj, to: fromTileNum(tileNum), run: false, delay })
         }
 
         animate_stand_obj(obj: Critter) {

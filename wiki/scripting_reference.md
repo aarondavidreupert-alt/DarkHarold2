@@ -260,12 +260,12 @@ For the **Status** column, see the key in §3.
 | 0x810B | metarule | 2 (id,target) | any | PARTIAL | Sub-ops 14/15/17/18/22/46/48/49 handled; rest stub (see §6) |
 | 0x810C | anim | 3 (obj,anim,param) | void | PARTIAL | IDs 1000 (set rotation) and 1010 (set frame) handled; rest stub |
 | 0x810D | obj_carrying_pid_obj | 2 (obj,pid) | obj | WIRED | Find carried item by pid |
-| 0x810E | reg_anim_func | 2 (obj,fn) | void | INLINE | Queue callback in animation batch |
+| 0x810E | reg_anim_func | 2 (cmd,param) | void | WIRED | 1 = reg_anim_begin(flags), 2 = reg_anim_clear(obj), 3 = reg_anim_end (CE opRegAnimFunc; fixed 2026-10-17) |
 | 0x810F | reg_anim_animate | 3 (obj,anim,delay) | void | WIRED | Queue animation step with delay. **FIXED 2026-07-04 (S14)**: the legacy non-batch path (`animBatch === null`) previously ignored `delay` entirely; now honors it via `setTimeout`, matching `animation.cc:1374 animationRegisterAnimate`'s uniform delay handling |
-| 0x8110 | reg_anim_obj_move_to_tile | 3 (obj,tile,delay) | void | WIRED | Queue move animation |
-| 0x8111 | reg_anim_begin | 1 (flags) | void | WIRED | Start animation batch |
-| 0x8112 | reg_anim_end | 0 | void | WIRED | Execute animation batch with delays |
-| 0x8113 | reg_anim_clear | 0 | void | WIRED | Clear pending animation batch |
+| 0x8110 | reg_anim_animate_reverse | 3 (obj,anim,delay) | void | WIRED | Queue reversed animation (was miswired as move_to_tile until 2026-10-17) |
+| 0x8111 | reg_anim_obj_move_to_obj | 3 (obj,dest,delay) | void | WIRED | Queue walk next to an object |
+| 0x8112 | reg_anim_obj_run_to_obj | 3 (obj,dest,delay) | void | WIRED | Queue run next to an object |
+| 0x8113 | reg_anim_obj_move_to_tile | 3 (obj,tile,delay) | void | WIRED | Queue walk to a tile |
 | 0x8115 | play_gmovie | 1 (movieID) | void | WIRED | Play .MVE movie (logs skip — not implemented) |
 | 0x8116 | add_mult_objs_to_inven | 3 (critter,obj,count) | void | WIRED | Add N copies to inventory |
 | 0x8117 | rm_mult_objs_from_inven | 3 (critter,obj,count) | int | WIRED | Remove N copies from inventory |

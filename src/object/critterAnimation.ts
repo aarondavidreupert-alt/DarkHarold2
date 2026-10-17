@@ -147,7 +147,14 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
     // 'anim:<id>' — a CE anim id (animation.h), e.g. the death and corpse anims
     // chosen by critter/deathAnim.ts; art code from CE art.cc _art_get_code.
     if (anim.startsWith('anim:')) {
-        const code = artGetCode(Number(anim.slice(5)), 0)
+        // CE buildFid keeps the fid's weapon code (the wielded weapon's animation code);
+        // without that FRM, the unarmed one.
+        const id = Number(anim.slice(5))
+        const held = this.equippedWeapon
+        const weaponCode = held && held.pid !== undefined ? ((held as any).pro?.extra?.animCode ?? 0) : 0
+        const armed = weaponCode ? artGetCode(id, weaponCode) : null
+        if (armed && globalState.imageInfo[base + armed[0] + armed[1]] !== undefined) return base + armed[0] + armed[1]
+        const code = artGetCode(id, 0)
         return code ? base + code[0] + code[1] : base + 'aa'
     }
 
@@ -284,7 +291,7 @@ Critter.prototype.updateStaticAnim = function (this: Critter): void {
     }
 
     const time = window.performance.now()
-    const fps = globalState.imageInfo[this.art]?.fps || 8
+    const fps = globalState.imageInfo[this.art]?.fps || 10 // CE art.cc artGetFramesPerSecond: 0 → 10
 
     if (time - this.lastFrameTime >= 1000 / fps) {
         const reversed = this.anim === 'reverse'
@@ -341,7 +348,7 @@ Critter.prototype.updateLoopingAnim = function (this: Critter): void {
         return
     }
 
-    const fps = info.fps || 8
+    const fps = info.fps || 10 // CE art.cc artGetFramesPerSecond: 0 → 10
     if (time - this.lastFrameTime >= 1000 / fps) {
         this.frame++
         ceOffsetAdd(this, this.frame, 1)

@@ -73,19 +73,15 @@ export module ScriptVMBridge {
        ,0x80CB: bridged("set_critter_stat", 3)
        ,0x8105: bridged("message_str", 2)
        ,0x80B8: bridged("display_msg", 1, false)
-       ,0x8111: bridged("reg_anim_begin", 1, false)
-       ,0x8112: bridged("reg_anim_end", 0, false)
-       ,0x8113: bridged("reg_anim_clear", 0, false)
-       ,0x810E: function() { // reg_anim_func — wraps proc addr into a callable (ref: giq_option pattern)
-            const procAddr = this.pop()
-            const obj = this.pop()
-            const procEntry = this.intfile.proceduresTable[procAddr]
-            const fn = procEntry ? () => { this.call(procEntry.name) } : null
-            this.scriptObj.reg_anim_func(obj, fn)
-       }
-       ,0x8110: bridged("reg_anim_obj_move_to_tile", 3, false)
-       ,0x8126: bridged("reg_anim_animate_forever", 2, false)
+       // CE interpreter_extra.cc:4983-4989 — reg_anim_func(cmd, param) is begin (1, flags),
+       // clear (2, obj) and end (3); then animate, animate_reverse, move/run to obj/tile.
+       ,0x810E: bridged("reg_anim_func", 2, false)
        ,0x810F: bridged("reg_anim_animate", 3, false)
+       ,0x8110: bridged("reg_anim_animate_reverse", 3, false)
+       ,0x8111: bridged("reg_anim_obj_move_to_obj", 3, false)
+       ,0x8112: bridged("reg_anim_obj_run_to_obj", 3, false)
+       ,0x8113: bridged("reg_anim_obj_move_to_tile", 3, false)
+       ,0x8126: bridged("reg_anim_animate_forever", 2, false)
        ,0x810C: bridged("anim", 3, false)
        ,0x80E7: bridged("anim_busy", 1)
        ,0x810B: bridged("metarule", 2)
