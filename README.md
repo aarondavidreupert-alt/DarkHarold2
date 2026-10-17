@@ -165,7 +165,7 @@ the wiki tracker is the source of truth.
 ### ✅ Substantially implemented (~85–100%)
 
 - **Map loading & rendering** — tile maps, multi-elevation, WebGL 2.0 renderer, lightmap, real-time lighting, screen-space hex z-sort (RD09), camera clamp + `OBJECT_SCROLL_BLOCK` (RD11/RD12), per-building roof flood-fill + roofEgg transparency (RD06), post-roof hex cursor/outline pass (RD08), palette colour cycling for water/fire/monitors in both floor paths (RD10), pixel-precise `_tile_mask` hex picking (RD13), parity-correct lightmap hex sampling (RD17), directional wall light occlusion (LD11); see [`wiki/alignment.md`](wiki/alignment.md)
-- **Walking & running** — A\* pathfinding with separate path-blocking / shoot-blocking predicates (P4/P5/P6), `OBJECT_MULTIHEX` neighbour scan, scenery LoS via `OBJECT_LIGHT_THRU` (P7), door interaction, exit grids
+- **Walking & running** — the literal CE path finder (`pathfinderFindPath`, `canUseDoor`: NPCs open doors on the way, the player opens them himself — C45), separate shoot-blocking predicate (P6), `OBJECT_MULTIHEX` neighbour scan, scenery LoS via `OBJECT_LIGHT_THRU` (P7), exit grids (`set_exit_grids`, C39)
 - **Combat** — `attackDetermineToHit` port (line-of-fire critter count, distance/perception with Long Range/Scope/Sharpshooter, min ST, Accurate, One Hander, knocked-down/multihex, combat difficulty — C18); `_compute_spray`/`_shoot_along_path` bursts that hit whoever stands on a line of fire, missed shots that fly on and hit someone else, grenade/rocket blast rings (C17); 6-level criticals, critical failures, YAAM, armor DR/DT, crippling, knockdown, DAM_DROP, fire; attack sound on frame 0 and damage on the FRM action frame (FA3); who-hit-me / retaliation and the reaction hit (C19); CE death animations (`_pick_death`: damage thresholds, violence level, Bloody Mess, fire dance, single-frame corpses) with their death sounds (C20); CE attack roll, critical failures, melee damage, difficulty, kill XP and AP rules after the 2026-10-17 audit (C22)
 - **Combat AI** — CE `_combat_ai` port (C28):
   - Fights: target choice (`_ai_danger_source`), weapon switching and picking up weapons from the floor, called shots, primary/secondary hit modes with the friendly-fire check (`_ai_pick_hit_mode`, `_combat_safety_invalidate_weapon`).
@@ -175,7 +175,7 @@ the wiki tracker is the source of truth.
 - **Dialogue** — full `gsay_*`/`giq_option`/`gsay_option` set, barter/combat-control buttons, review log, highlight overlays; **talking heads** with fidgets, reactions and lip-synced speech (P4)
 - **Bartering** — CE `_barter_compute_value`, reaction LVAR, Master Trader, difficulty bonus, scrollable tables, quantity picker
 - **Party / companions** — `party_add`/`party_remove`, companion level-ups from `party.txt` (`_partyMemberIncLevels`), CE `_partyMemberSyncPosition` placement on map entry, script-driven following (`critter_p_proc`), companion control/customize/trade screens; the party travels with the player and is excluded from map snapshots (M10)
-- **Inventory & items** — drag-and-drop, equip slots, carry weight, per-object weapon ammo (`ammoQuantity`/`ammoTypePid`, caliber-checked reload — LE12), container capacity, CE ammo bar (AF5)
+- **Inventory & items** — drag-and-drop, equip slots, carry weight, CE ammo stacks (C36), container capacity, CE ammo bar (AF5); script wield / unwield / strip as CE (C44); flares light, burn out and light their holder (C46)
 - **Active skill use** — First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair, Gambling/Outdoorsman messages; party delegation (AC6)
 - **Look & examine** — `look_at_p_proc`/`description_p_proc` scripts, CE health/crippled text, Awareness details, weapon/ammo lines (IU6)
 - **Karma & reputation** — karma title, per-town reputation tiers; CE has no engine-side reaction modifier beyond the who-hit-me reaction hit (C19)
@@ -186,8 +186,10 @@ the wiki tracker is the source of truth.
 - **Status effects** — radiation (`critterAdjustRadiation`/`processRads`), drugs and addiction from proto data with withdrawal perks, poison decay (S26)
 - **Movies** — MVE → WebM pipeline stage, CE `gameMoviePlay` with subtitles and fades, Pip-Boy video archive (S15)
 - **Audio** — music, weapon/action/ambient SFX, master/music/sfx/speech volumes, speech playback for talking heads
-- **Pip-Boy** — clock, alarm, STATUS (incl. quest log), ARCHIVES (video archive), AUTOMAP, rest menu
-- **Character screen / HUD** — SPECIAL/skills/perks, warnbox indicator badges, numbers.frm counters, AP lights, end-turn lights with enable/disable (AF6), CE to-hit hover readout
+- **Pip-Boy** — CE STATUS page (quest locations from `quests.txt`, holodisk reader), ARCHIVES (video archive), AUTOMAP, the CE alarm clock (`pipboyRest`: rest-location check, healing every 3 hours, until-party-healed), available after the Vault Suit movie (C40)
+- **Character screen / HUD** — SPECIAL/skills/perks, warnbox indicator badges, numbers.frm counters, AP lights, end-turn lights with enable/disable (AF6), CE to-hit hover readout, CE action menu (use-on inventory, skill on target, push, rotate — C42)
+- **Keyboard** — CE `gameHandleKey` layout: C I S O P Z N B M A Tab, 1–8 skills, Space / Return in combat, F1–F7 incl. quick save / load, Ctrl keys, brightness, rotate, date (C43)
+- **Endings** — victory slideshow (CE pan timing), credits, death screen then back to the main menu (C41)
 - **Save / load** — IndexedDB; player, party (+ levels), inventory + weapon ammo, GVARs, MVARs, area states, timed events, car state, seen movies, thumbnails; CE `gameReset` before NEW GAME and every load, so nothing leaks between games (U12)
 - **Preferences** — full CE options panel, persisted (localStorage) and seeded from `fallout2.cfg` (CI1); DH2-only options in a `[dh2]` section of the same file, e.g. `day_night_cycle=0` for CE lighting instead of the default smooth day/night curve (GTC10), `pixel_font=0` to use the browser font instead of the default Fallout pixel font on all UI text (U15), `walk_model` / `anim_offset_model` to switch the CE walk and animation-offset models (FA13), `pipboy_available_at_game_start=1` (the sfall option; CE opens the Pip-Boy only after the Vault Suit movie, C40); the pipeline's `write_config` stage creates the file with CE defaults; combat looks/taunts, brightness (CE gamma table) are live (CI18)
 - **Random numbers** — CE Park-Miller generator with MSVC seeding (RN)
@@ -196,8 +198,9 @@ the wiki tracker is the source of truth.
 
 ### 🔶 Known approximations
 
-- **AI turn order** — round 1 isn't attacker / defender / player first as in CE's `_combat_sequence_init`; combatants are sorted by Sequence from the start (C31).
 - **Hover readout** is a DOM overlay rather than a cursor blit, and isn't shown for non-critter targets (CI18).
+- **Action menu** opens on right-click instead of CE's held left button; the mouse wheel zooms instead of scrolling (C42 / C43).
+- **Pip-Boy** — no idle screensaver; the rest stops on its observable results (combat, death, a dialogue) rather than CE's per-event bail flag (C40).
 - **Browser limits** — preferences can't be written back to `fallout2.cfg` (CI5, localStorage instead); mouse sensitivity is stored but the browser owns pointer speed.
 - **Not playthrough-verified** — systems were checked individually in the browser; a full main-quest run hasn't been done.
 
