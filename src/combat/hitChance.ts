@@ -26,7 +26,6 @@ import { Critter, Obj } from '../object.js'
 import { loadPRO } from '../pro.js'
 import * as GameTime from '../gametime.js'
 import { toTileNum } from '../tile.js'
-import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from '../unarmed.js'
 import { combatIsShotBlocked } from './lineOfFire.js'
 
 // perk_defs.h weapon perks (proto `perk` field)
@@ -131,17 +130,11 @@ export function getHitChance(obj: Critter, target: Critter, region: string, from
     const isRanged = attackType === 'ranged' || attackType === 'throw'
 
     let toHit: number
-    let critBonus = 0
     let ammoACmod = 0
     let distanceMod = 0
     let coverPenalty = 0
     if (isUnarmed) {
-        const unarmedSkill = obj.getSkill('Unarmed')
-        const mode = obj.isPlayer
-            ? getActiveUnarmedModeForHand(unarmedSkill, (obj as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(obj as any).leftHand?.weapon && !(obj as any).rightHand?.weapon)
-            : getActiveUnarmedMode(unarmedSkill, 0)
-        toHit = unarmedSkill
-        critBonus = mode.critBonus
+        toHit = obj.getSkill('Unarmed')
     } else {
         toHit = weapon!.weaponSkillType === undefined ? 0 : obj.getSkill(weapon!.weaponSkillType)
         const extra = (weaponObj as any).pro?.extra ?? {}
@@ -196,9 +189,9 @@ export function getHitChance(obj: Critter, target: Critter, region: string, from
 
     if (toHit > 95) toHit = 95
 
-    // Critical chance (attackCompute): STAT_CRITICAL_CHANCE - hit_location_penalty.
-    const finesse = 0 // Finesse's +10 is in Player.getStat('Critical Chance') (traitGetStatModifier)
-    const critChance = obj.getStat('Critical Chance') + finesse + critBonus + regionPenalty
+    // Critical chance (attackCompute): STAT_CRITICAL_CHANCE - hit_location_penalty. (Finesse's
+    // +10 is in the stat; an unarmed move's bonus crit chance is its own roll in rollHit.)
+    const critChance = obj.getStat('Critical Chance') + regionPenalty
 
     combatDebug(`hitChance: type=${attackType} dist=${distanceMod} cover=${coverPenalty} AC=${AC} region=${region} -> ${toHit}%`)
     return { hit: toHit, crit: critChance }

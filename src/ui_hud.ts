@@ -23,7 +23,7 @@ import { Config } from './config.js'
 import globalState from './globalState.js'
 import { Critter, Obj, WeaponObj, objectIsWeapon } from './object.js'
 import { getMessage } from './util.js'
-import { getActivePunchMode, getActiveKickMode } from './unarmed.js'
+import { currentUnarmed, unarmedAPCost } from './unarmed.js'
 import { $id, $img, $q, clearEl, show, hide, showv, hidev } from './ui_dom.js'
 import { font1 } from './ui_font.js'
 
@@ -387,22 +387,20 @@ export function uiDrawWeapon(): void {
             return
         }
 
-        // Unarmed HUD: left hand → punch family, right hand → kick family (both empty only)
-        const unarmedSkill = player.getSkill('Unarmed')
-        const leftWeapon = (player as any).leftHand?.weapon ?? null
-        const rightWeapon = (player as any).rightHand?.weapon ?? null
-        const bothHandsEmpty = !leftWeapon && !rightWeapon
-        const mode = activeHand === 'rightHand' && bothHandsEmpty
-            ? getActiveKickMode(unarmedSkill, globalState.kickModeIdx)
-            : getActivePunchMode(unarmedSkill, globalState.punchModeIdx)
+        // CE interface.cc interfaceBarRefreshMainAction: an empty left hand punches, an
+        // empty right hand kicks; the label is the hit mode's FRM (spunch, cm_jab, …),
+        // the bullseye marks an aimed attack, the digit is weaponGetActionPointCost.
+        const { mode, aiming } = currentUnarmed(player)
+        const ap = unarmedAPCost(player, mode, aiming)
         $wepImg.style.display = 'none'
         $typeImg.style.display = ''
         $img('attackButtonType').src = `art/intrface/${mode.icon}.png`
         const CHAR_W = 10
-        if (mode.apCost <= 9) {
-            $id('attackButtonAPDigit').style.backgroundPosition = 0 - CHAR_W * mode.apCost + 'px'
+        if (ap <= 9) {
+            $id('attackButtonAPDigit').style.backgroundPosition = 0 - CHAR_W * ap + 'px'
         }
-        hide($id('attackButtonCalled'))
+        if (aiming) show($id('attackButtonCalled'))
+        else hide($id('attackButtonCalled'))
         return
     }
     $wepImg.style.display = ''

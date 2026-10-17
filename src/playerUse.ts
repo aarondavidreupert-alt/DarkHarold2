@@ -34,7 +34,7 @@ import {
 import { getProtoMsg } from './util.js'
 import { Config } from './config.js'
 import { uiSteal } from './ui_steal.js'
-import { getActiveUnarmedModeForHand } from './unarmed.js'
+import { currentUnarmed, unarmedAPCost } from './unarmed.js'
 
 // Return the skill ID used by the Fallout 2 engine
 export function getSkillID(skill: Skills): number {
@@ -254,10 +254,9 @@ export function playerUse(obj: Obj | null) {
 
             // Determine AP cost for this attack up-front so we can guard before acting
             let attackAPCost: number
-            if (weapon === null) {
-                const p = globalState.player
-                const unarmedSkill = p.getSkill('Unarmed')
-                attackAPCost = getActiveUnarmedModeForHand(unarmedSkill, (p as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(p as any).leftHand?.weapon && !(p as any).rightHand?.weapon).apCost
+            const unarmed = weapon === null ? currentUnarmed(globalState.player) : null
+            if (unarmed) {
+                attackAPCost = unarmedAPCost(globalState.player, unarmed.mode, unarmed.aiming)
             } else if (weapon.weapon!.isCalled()) {
                 attackAPCost = weapon.weapon!.getAttackAPCost(globalState.player, 1, true)
             } else if (weapon.weapon!.isBurst()) {
@@ -272,11 +271,28 @@ export function playerUse(obj: Obj | null) {
             }
 
             if (weapon === null) {
-                // Unarmed attack
-                globalState.player.AP!.subtractCombatAP(attackAPCost)
-                drawAP(globalState.player.AP!.getAvailableCombatAP(), globalState.player.AP!.getTotalMaxAP(), globalState.player.AP!.move)
-                dbg('combat', '[Combat] player unarmed attack')
-                globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')            } else {
+                // Unarmed attack — an aimed punch/kick opens the called-shot window
+                // (CE INTERFACE_ITEM_ACTION_PRIMARY_AIMING / SECONDARY_AIMING).
+                const strike = (region: string) => {
+                    globalState.player.AP!.subtractCombatAP(attackAPCost)
+                    drawAP(globalState.player.AP!.getAvailableCombatAP(), globalState.player.AP!.getTotalMaxAP(), globalState.player.AP!.move)
+                    dbg('combat', `[Combat] player unarmed attack (${unarmed!.mode.name}, ${region})`)
+                    globalState.combat!.attack(globalState.player, <Critter>obj, region)
+                }
+                if (unarmed!.aiming) {
+                    const art = who.hasAnimation('called-shot') ? who.getAnimation('called-shot') : 'art/critters/hmjmpsna'
+                    uiCalledShot(art, who, (region: string) => {
+                        if (globalState.player.AP!.getAvailableCombatAP() < attackAPCost) {
+                            uiLog(getProtoMsg(700)!)
+                        } else {
+                            strike(region)
+                        }
+                        uiCloseCalledShot()
+                    })
+                } else {
+                    strike('torso')
+                }
+            } else {
             // Block attack (and AP deduction) if ranged weapon has no ammo
             if (ammoGetCapacity(weapon as any) > 0 && ammoGetQuantity(weapon as any) === 0) {
                 uiLog('You: out of ammo!')

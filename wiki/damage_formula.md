@@ -335,6 +335,6 @@ Before 2026-10-17 DH2 gave +1 AP per turn for each of the two attack perks and +
 | Critical tables | hardcoded in fallout2.exe | extracted to `lut/criticalTables.json` |
 | YAAM formula | DT subtracted before multiply; ammo RM adjusts DT; `/2` present (combat.cc:6767) | DT after multiply; ammo RM adjusts DR; no `/2` — matches Vanilla minus halving |
 | Melee hit penalty | `regionPenalty / 2` for melee (combat.cc:4440) | implemented |
-| Unarmed moves | `gUnarmedHitDescriptions` (bonus damage, bonus crit, AP, requirements) | **not CE** — invented tables, see `wiki/combat.md` §10 |
+| Unarmed moves | `gUnarmedHitDescriptions` (bonus damage, bonus crit, AP, requirements) | implemented 2026-10-17 (`src/unarmed.ts`, `wiki/weapon_combat.md` §9) |
 
 <!-- audited: 2026-10-17 (see wiki/combat.md §10) -->

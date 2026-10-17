@@ -22,7 +22,7 @@ import { getRandomInt } from '../util.js'
 import { Critter, WeaponObj } from '../object.js'
 import globalState from '../globalState.js'
 import { dbg } from '../logger.js'
-import { critterDamage, Weapon, getAvailableUnarmedMoves } from '../critter.js'
+import { critterDamage, Weapon } from '../critter.js'
 import { uiDrawWeapon, uiLog } from '../ui.js'
 
 interface Dict<T> {
@@ -217,15 +217,17 @@ export const critterEffects: Dict<(target: Critter) => void> = {
             weaponObj.move({ ...target.position }, idx, false)
         }
 
-        // Replace hand slot with unarmed punch (with progression if critter has skill)
-        const fist = new WeaponObj()
-        fist.type = 'item'
-        fist.subtype = 'weapon'
-        fist.weapon = new Weapon(null as any)
-        const unarmedSkill = (target as any).getSkill?.('Unarmed') ?? 55
-        const charLevel = (target as any).getStat?.('Level') ?? 1
-        fist.weapon.initUnarmedMoves(unarmedSkill, charLevel)
-        self[activeHand] = fist
+        // The hand is empty now: the player gets the unarmed hit modes of unarmed.ts
+        // (an empty hand slot), other critters a plain fist (CE HIT_MODE_PUNCH).
+        if (target.isPlayer) {
+            self[activeHand] = undefined
+        } else {
+            const fist = new WeaponObj()
+            fist.type = 'item'
+            fist.subtype = 'weapon'
+            fist.weapon = new Weapon(null as any)
+            self[activeHand] = fist
+        }
 
         uiLog(`${target.name} dropped their weapon!`)
         // FO2-CE ref: combat.cc DAM_DROP — update HUD weapon display if this is the player

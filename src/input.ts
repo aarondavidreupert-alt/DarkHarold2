@@ -43,7 +43,7 @@ import {
 } from './ui.js'
 import { getProtoMsg } from './util.js'
 import { Config } from './config.js'
-import { getActiveUnarmedModeForHand } from './unarmed.js'
+import { currentUnarmed, unarmedAPCost } from './unarmed.js'
 import { togglePipBoy } from './ui_pipboy.js'
 import { playerUse, cancelSkillTargeting } from './playerUse.js'
 
@@ -440,7 +440,7 @@ export function installInputHandlers(): void {
             const kbWeapon = globalState.player.equippedWeapon
             const kbP = globalState.player
             const kbAPCost = kbWeapon === null
-                ? getActiveUnarmedModeForHand(kbP.getSkill('Unarmed'), (kbP as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(kbP as any).leftHand?.weapon && !(kbP as any).rightHand?.weapon).apCost
+                ? unarmedAPCost(kbP, currentUnarmed(kbP).mode, false)
                 : kbWeapon.weapon!.getAttackAPCost(kbP, 1)
 
             if (globalState.player.AP.getAvailableCombatAP() < kbAPCost) {

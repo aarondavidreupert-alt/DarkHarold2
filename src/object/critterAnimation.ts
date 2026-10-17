@@ -25,7 +25,7 @@ import { lazyLoadImage } from '../images.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { artGetCode } from '../pro.js'
 import { ANIM, critterWeaponCode, playCharAnimSfx } from '../sfxNames.js'
-import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from '../unarmed.js'
+import { currentUnarmed } from '../unarmed.js'
 import { Critter } from './Critter.js'
 // Imported from Obj (not the barrel) to avoid a cycle through ../object.js.
 import { Obj } from './Obj.js'
@@ -170,11 +170,8 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
         case 'attack':
             if (weaponObj === null) {
                 // Unarmed: pick punch ('aq') or kick ('ar') based on active hand/mode
-                const unarmedSkill = this.getSkill('Unarmed')
-                const mode = this.isPlayer
-                    ? getActiveUnarmedModeForHand(unarmedSkill, (this as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(this as any).leftHand?.weapon && !(this as any).rightHand?.weapon)
-                    : getActiveUnarmedMode(unarmedSkill, 0)
-                const candidate = base + (mode.icon === 'kick' ? 'ar' : 'aq')
+                const mode = currentUnarmed(this).mode
+                const candidate = base + (mode.family === 'kick' ? 'ar' : 'aq')
                 if (globalState.imageInfo[candidate] !== undefined) return candidate
                 return base + 'aa' // fallback to idle if FRM not present
             }

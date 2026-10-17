@@ -32,6 +32,8 @@ import { makeDropTarget, makeDraggable, uiMoveSlot, applyArmorArt, tryLoadAmmoIn
 import { refreshStealthState } from '../miscItem.js'
 import { armorPerkSwap } from '../perks.js'
 import { Events } from '../events.js'
+import { unarmedHandMode } from '../unarmed.js'
+import { getMessage } from '../util.js'
 
 // --- Public open / close lifecycle -----------------------------------------
 
@@ -164,10 +166,16 @@ export function showInventory() {
             $info.appendChild(row)
         }
 
-        const addWeaponSection = (weapon: any, label: string) => {
+        const addWeaponSection = (weapon: any, label: string, hand: 'leftHand' | 'rightHand') => {
             addHR()
             if (!weapon) {
-                addRow(label, 'None')
+                // CE inventory.cc inventoryRenderSummary: "No item" and, for the player,
+                // "Unarmed dmg: bonus+min - bonus+Melee+max" of the hand's punch / kick
+                // hit mode (the selected primary or secondary one).
+                addRow(getMessage('inventory', 14) ?? 'No item', '')
+                const mode = unarmedHandMode(p as any, hand)
+                const melee = (p as any).getStat('Melee') ?? 0
+                addRow(`  ${getMessage('inventory', 24) ?? 'Unarmed dmg:'} ${mode.bonusDamage + mode.minDmg}-${mode.bonusDamage + melee + mode.maxDmg}`, '')
                 return
             }
             const name = weapon.name ?? label
@@ -256,8 +264,8 @@ export function showInventory() {
         $info.appendChild(twoCol)
 
         // Weapon sections
-        addWeaponSection(playerAny.leftHand ?? null, 'Left Hand')
-        addWeaponSection(playerAny.rightHand ?? null, 'Right Hand')
+        addWeaponSection(playerAny.leftHand ?? null, 'Left Hand', 'leftHand')
+        addWeaponSection(playerAny.rightHand ?? null, 'Right Hand', 'rightHand')
 
         // Total weight
         addHR()

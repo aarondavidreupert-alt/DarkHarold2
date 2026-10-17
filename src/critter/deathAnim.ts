@@ -24,7 +24,7 @@ import { hexInDirection } from '../geometry.js'
 import globalState from '../globalState.js'
 import type { Critter } from '../object/Critter.js'
 import type { Obj } from '../object/Obj.js'
-import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from '../unarmed.js'
+import { currentUnarmed } from '../unarmed.js'
 
 // CE animation.h
 export const ANIM_STAND = 0
@@ -103,11 +103,8 @@ function violenceLevel(): number {
 // Unarmed attack anim: ANIM_KICK_LEG for kick moves, else ANIM_THROW_PUNCH (same
 // choice as Critter.getAnimation('attack')).
 export function unarmedAttackAnim(obj: Critter): number {
-    const skill = obj.getSkill('Unarmed')
-    const mode = obj.isPlayer
-        ? getActiveUnarmedModeForHand(skill, (obj as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(obj as any).leftHand?.weapon && !(obj as any).rightHand?.weapon)
-        : getActiveUnarmedMode(skill, 0)
-    return mode.icon === 'kick' ? ANIM_KICK_LEG : ANIM_THROW_PUNCH
+    const mode = currentUnarmed(obj).mode
+    return mode.family === 'kick' ? ANIM_KICK_LEG : ANIM_THROW_PUNCH
 }
 
 // CE critterGetAnimationForHitMode — the attacker's anim for its current hit mode.

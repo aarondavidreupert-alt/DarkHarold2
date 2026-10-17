@@ -124,7 +124,7 @@ class ActionPoints {
 | Single shot / burst | `APCost1` / `APCost2` with the player modifiers above | `getAttackAPCost` |
 | Called shot | `APCost1` + 1 | `getAttackAPCost(…, aiming = true)` |
 | Unarmed (AI) | 3 | `doAITurn` |
-| Unarmed (player, no fist object) | `mode.apCost` | `getActiveUnarmedModeForHand()`; this table is not CE, see §10 |
+| Unarmed (player, empty hand) | the hit mode's AP (−1 Bonus HtH Attacks, +1 aimed) | `unarmedAPCost()` — `wiki/weapon_combat.md` §9 |
 
 **Unused AP → Bonus AC**: at the end of each critter's turn, the remaining AP converts 1:1 to `bonusAC` for the next round (`Combat.ts`). Free move points do not count. This is reset to 0 at the start of that critter's own turn. Matches CE: `critter->data.critter.combat.results & DAM_HIT` reduces bonus AC.
 
@@ -460,6 +460,7 @@ This was a full review of the attack chain against CE combat.cc (`attackDetermin
 | 14 | Bonus HtH Attacks / Rate of Fire / Move | −1 AP per melee/ranged attack; Bonus Move = 2 free move points per rank | +1 AP per turn each; Bonus Move +2 general AP |
 | 15 | Fast Shot | −1 AP for weapons with range > 2 | Not implemented |
 | 16 | `_is_hit_from_front` | Compares attacker and defender facing | Used the direction to the attacker |
+| 17 | Unarmed moves (2026-10-17, C24) | `gUnarmedHitDescriptions`: 1–2 + bonus damage, CE requirements, AP, bonus crit, penetration; left hand punches and right hand kicks; primary/secondary + aimed; NPCs plain punch | Two invented tables with other names, damage, AP and requirements; kicks only with both hands empty; NPC fists levelled up after a weapon drop — see `wiki/weapon_combat.md` §9 |
 
 ### Verified as CE (no change)
 
@@ -481,7 +482,6 @@ This was a full review of the attack chain against CE combat.cc (`attackDetermin
 
 | Area | CE | DH2 |
 |------|----|-----|
-| Unarmed moves | `gUnarmedHitDescriptions`: all 1–2 damage + bonus damage (Strong Punch +3 … Force Punch +10, Death Blossom +12), CE skill/level/stat requirements, AP 3–8, bonus crit 5–40, penetrating Dragon/Force Punch and Jump Kick | Two invented tables (`src/unarmed.ts` UNARMED_MODES, `src/critter/Weapon.ts` UNARMED_MOVES) with other names, damage, AP and requirements |
 | Critical failure effects | `DAM_DUD`, `DAM_EXPLODE`, `DAM_HURT_SELF` (×2 own damage), `DAM_RANDOM_HIT` via `_combat_ai_random_target` | DUD/EXPLODE become "destroy weapon"; own damage and random target are approximations (`criticalEffects/effects.ts`) |
 | Knockout duration | Knockout event 10 × (35 − 3 × END) ticks | `skipTurns = 1` |
 | Knockback / knockdown animation | Slide with fall anim, then stand up | Position moved hex by hex |

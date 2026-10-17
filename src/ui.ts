@@ -23,7 +23,7 @@ import { Obj, objectIsWeapon } from './object.js'
 import { Config } from './config.js'
 import { openAutomap, closeAutomap, isAutomapOpen } from './ui_automap.js'
 import { openPipBoy, closePipBoy, isPipBoyOpen } from './ui_pipboy.js'
-import { getActivePunchMode, getActiveKickMode, nextPunchModeIdx, nextKickModeIdx } from './unarmed.js'
+import { cycleUnarmedAction } from './unarmed.js'
 import { initOptionsMenu, getOptionsWindow, showOptionsMenu, closeOptionsMenu } from './ui_options.js'
 import { initSkilldex, getSkilldexWindow, showSkilldex, closeSkilldex } from './ui_skilldex.js'
 import {
@@ -291,17 +291,7 @@ export function initUI() {
             const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
             const activeItem = (player as any)[activeHand] as Obj | undefined
             if (activeItem && !objectIsWeapon(activeItem)) return false // non-weapon: one action
-            const skill = player.getSkill('Unarmed')
-            const bothHandsEmpty = !(player as any).leftHand?.weapon && !(player as any).rightHand?.weapon
-            let mode
-            if (activeHand === 'rightHand' && bothHandsEmpty) {
-                globalState.kickModeIdx = nextKickModeIdx(skill, globalState.kickModeIdx)
-                mode = getActiveKickMode(skill, globalState.kickModeIdx)
-            } else {
-                globalState.punchModeIdx = nextPunchModeIdx(skill, globalState.punchModeIdx)
-                mode = getActivePunchMode(skill, globalState.punchModeIdx)
-            }
-            uiLog(`Unarmed: ${mode.name}`)
+            cycleUnarmedAction(player)
             uiDrawWeapon()
             return false
         }

@@ -196,7 +196,6 @@ the wiki tracker is the source of truth.
 - **Ammo stacks** count rounds in `amount`, where CE keeps boxes plus rounds in the top box (LE12 note).
 - **AI blast safety** — CE's `_ai_move_away` to a safe distance and a full port of `_ai_switch_weapons` (only the inventory pick is ported, C21) are missing; the AI drops from burst to single fire or holds fire (C17 note). Explosions from DAM_EXPLODE critical failures aren't generated.
 - **Combat details still not CE** (C23):
-  - The unarmed special moves use DH2's own tables instead of CE's.
   - Knockout lasts one turn, and knockback moves the critter without the slide animation.
   - Thrown weapons aren't used up.
   - Silent Death and Enhanced Knockout aren't implemented.

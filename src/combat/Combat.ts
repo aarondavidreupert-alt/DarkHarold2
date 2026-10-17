@@ -32,7 +32,7 @@ import { drawAC, drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiEndButtonsGreenLig
 import { clamp, getMessage, getProtoMsg, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollSkillCheck } from '../util.js'
 import { randomBetween } from '../random.js'
 import { toTileNum } from '../tile.js'
-import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from '../unarmed.js'
+import { currentUnarmed } from '../unarmed.js'
 import { ANIM, CHARACTER_SOUND_EFFECT, playCharAnimSfx } from '../sfxNames.js'
 import { ActionPoints } from './actionPoints.js'
 import { AI, fleeHpThreshold } from './AI.js'
@@ -239,7 +239,7 @@ export class Combat {
         }
         if (roll === RollResult.Success && obj.isPlayer && (attackType === 'melee' || attackType === 'unarmed')) {
             if (obj.hasPerk('Slayer')) roll = RollResult.CriticalSuccess
-            const bonus = critBonus ?? (obj.equippedWeapon?.weapon as any)?.unarmedMove?.critBonus ?? 0
+            const bonus = critBonus ?? 0
             if (bonus !== 0 && randomBetween(1, 100) <= bonus) roll = RollResult.CriticalSuccess
         }
         if (roll === RollResult.Success && obj.isPlayer && attackType === 'ranged' && obj.hasPerk('Sniper')
@@ -341,8 +341,8 @@ export class Combat {
             target.bypassArmorNextHit = false
         } else {
             if (target.bypassArmorNextHit) target.bypassArmorNextHit = false
-            // PERK_WEAPON_PENETRATE or unarmed penetrating: only DT to 20%, DR unchanged
-            if ((weapon as any).pro?.extra?.perk === PERK_WEAPON_PENETRATE || wep.isPenetrating?.()) {
+            // PERK_WEAPON_PENETRATE: only DT to 20%, DR unchanged
+            if ((weapon as any).pro?.extra?.perk === PERK_WEAPON_PENETRATE) {
                 DT = Math.trunc(20 * DT / 100)
             }
             // TRAIT_FINESSE: +30 DR penalty (player only)
@@ -405,10 +405,7 @@ export class Combat {
      *  Unarmed: ammoMult=1, ammoDiv=1, damageType=Normal.
      *  Same formula as weapon damage: bonus → multiply → halve → DT → DR%. */
     getUnarmedDamageDone(obj: Critter, target: Critter, critMultiplier: number): number {
-        const unarmedSkill = obj.getSkill('Unarmed')
-        const mode = obj.isPlayer
-            ? getActiveUnarmedModeForHand(unarmedSkill, (obj as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(obj as any).leftHand?.weapon && !(obj as any).rightHand?.weapon)
-            : getActiveUnarmedMode(unarmedSkill, 0)
+        const mode = currentUnarmed(obj).mode
 
         // Unarmed damage type is always Normal
         var DT = target.getStat('DT Normal') + target.getArmorDT('Normal')
@@ -435,7 +432,8 @@ export class Combat {
 
         var CD = combatDifficultyDamageModifier(obj)
 
-        var RD = rollWeaponDamage(obj, mode.minDmg, mode.maxDmg, true)
+        // CE item.cc weaponGetDamage (no weapon): bonus + min .. bonus + Melee Damage + max
+        var RD = rollWeaponDamage(obj, mode.bonusDamage + mode.minDmg, mode.bonusDamage + mode.maxDmg, true)
         var damage = computeDamage({ RD, bonus: 0, critMult: critMultiplier, ammoX: 1, ammoY: 1, ammoRM: 0, DT, DR, CD })
 
         // Post-calculation perks
@@ -528,11 +526,8 @@ export class Combat {
 
         // ── UNARMED (no weapon equipped) ──────────────────────────────────────
         if (weaponObj === null) {
-            var unarmedSkill = obj.getSkill('Unarmed')
-            // CE ref: unarmed.cc unarmedFindBestAttack — resolve full move to access critBonus
-            var unarmedMode = obj.isPlayer
-                ? getActiveUnarmedModeForHand(unarmedSkill, (obj as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(obj as any).leftHand?.weapon && !(obj as any).rightHand?.weapon)
-                : getActiveUnarmedMode(unarmedSkill, 0)
+            // CE combat.cc gUnarmedHitDescriptions — the hand's current hit mode
+            var unarmedMode = currentUnarmed(obj).mode
             var unarmedModeName = unarmedMode.name
 
             var unarmedHit = this.rollHit(obj, target, region, 0, who, targetName, unarmedMode.critBonus)

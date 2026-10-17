@@ -986,12 +986,12 @@ export module Scripting {
                 return 0
             }
             if (stat === 8) {
-                // STAT_MAXIMUM_ACTION_POINTS — CE ref: stat.cc critterGetStat, formula: 5 + AGI/2
-                return 5 + Math.floor(obj.getStat('AGI') / 2)
+                // STAT_MAXIMUM_ACTION_POINTS — CE stat.cc critterGetStat (base + modifiers)
+                return obj.getStat('AP')
             }
             if (stat === 10) {
                 // STAT_UNARMED_DAMAGE — CE ref: stat.cc critterStatBaseGetter (default 0 bonus)
-                // DH2 tracks unarmed damage per-move in UNARMED_MOVES; no separate bonus stat.
+                // The unarmed moves' bonus damage is per hit mode (unarmed.ts), not this stat.
                 return 0
             }
             if (stat === 13) {

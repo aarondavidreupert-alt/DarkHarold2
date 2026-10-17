@@ -328,45 +328,47 @@ ammo. A rifle will not run dry from single-shot attacks.
 
 ---
 
-## 9. Unarmed Combat
+## 9. Unarmed Combat — CE `gUnarmedHitDescriptions` (since 2026-10-17)
 
-### 9.1 Unarmed Move Progression
+DH2 impl: `src/unarmed.ts`. CE ref: combat.cc `unarmedInitVanilla`, `unarmedGetPunchHitMode` / `unarmedGetKickHitMode` / `unarmedGetHitModeInRange`, `unarmedGetDamage`, `unarmedGetBonusCriticalChance`, `unarmedIsPenetrating`; interface.cc `interfaceUpdateItems`, `interfaceCycleItemAction`, `interfaceBarRefreshMainAction`.
 
-DH2 defines 14 unarmed moves in `UNARMED_MOVES` (`critter.ts`), unlocked by Unarmed
-skill and character level. CE equivalent: `unarmedFindBestAttack` in `item.cc`.
+### 9.1 Hit modes
 
-| Move | Level Req | Skill Req | Damage | AP | Crit Bonus | Penetrate |
-|------|-----------|-----------|--------|-----|-----------|-----------|
-| Punch | 1 | 55 | 1–2 | 3 | 0 | — |
-| Kick | 1 | 40 | 1–3 | 3 | 0 | — |
-| Strong Punch | 6 | 55 | 3–6 | 4 | 0 | — |
-| Haymaker | 6 | 60 | 3–6 | 5 | +5 | — |
-| Jab | 6 | 60 | 3–6 | 5 | +10 | — |
-| Hammer Punch | 9 | 60 | 3–6 | 4 | +5 | — |
-| Groin Kick | 9 | 50 | 3–6 | 4 | +10 | — |
-| Palm Strike | 12 | 70 | 3–6 | 5 | +20 | — |
-| Lightning Punch | 12 | 75 | 3–6 | 4 | +30 | — |
-| Power Kick | 12 | 60 | 5–10 | 4 | +5 | — |
-| Piercing Strike | 16 | 75 | 3–6 | 5 | +15 | **yes** |
-| Hip Kick | 16 | 60 | 5–10 | 5 | +10 | — |
-| Hook Kick | 18 | 75 | 5–10 | 6 | +10 | — |
-| Piercing Kick | 20 | 80 | 5–10 | 7 | +15 | **yes** |
+Every move does **1–2 damage + bonus damage**. Like any unarmed attack, the maximum also gets the Melee Damage stat (item.cc `weaponGetDamage`).
 
-`critBonus` is added to the critter's critical chance for that attack (`combat.ts` area).
-Penetrating moves reduce DT to 20% (`Weapon.isPenetrating()`, `critter.ts`).
+| HIT_MODE | Name | Req. level | Req. Unarmed | Req. ST / AG | Bonus dmg | Bonus crit | AP | Penetrate | Secondary | HUD FRM |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 4 PUNCH | Punch | – | – | – | 0 | 0 | 3 | – | – | punch |
+| 8 STRONG_PUNCH | Strong Punch | – | 55 | – / 6 | 3 | 0 | 3 | – | – | spunch |
+| 9 HAMMER_PUNCH | Hammer Punch | 6 | 75 | 5 / 6 | 5 | 5 | 3 | – | – | hampnch |
+| 10 HAYMAKER | Lightning Punch | 9 | 100 | 5 / 7 | 7 | 15 | 3 | – | – | cm_hymkr |
+| 11 JAB | Chop Punch | 5 | 75 | 5 / 7 | 3 | 10 | 3 | – | yes | cm_jab |
+| 12 PALM_STRIKE | Dragon Punch | 12 | 115 | 5 / 7 | 7 | 20 | 6 | yes | yes | cm_plmst |
+| 13 PIERCING_STRIKE | Force Punch | 16 | 130 | 5 / 7 | 10 | 40 | 8 | yes | yes | cm_pstrk |
+| 5 KICK | Kick | – | – | – | 0 | 0 | 3 | – | – | kick |
+| 14 STRONG_KICK | Strong Kick | – | 40 | – / 6 | 5 | 0 | 4 | – | – | skick |
+| 15 SNAP_KICK | Snap Kick | 6 | 60 | – / 6 | 7 | 0 | 4 | – | – | snapkick |
+| 16 POWER_KICK | Roundhouse Kick | 9 | 80 | 6 / 6 | 9 | 5 | 4 | – | – | cm_pwkck |
+| 17 HIP_KICK | Kip Kick | 6 | 60 | 6 / 7 | 7 | 0 | 7 | – | yes | hipk |
+| 18 HOOK_KICK | Jump Kick | 12 | 100 | 6 / 7 | 9 | 10 | 7 | yes | yes | cm_hookk |
+| 19 PIERCING_KICK | Death Blossom Kick | 15 | 125 | 6 / 8 | 12 | 50 | 9 | yes | yes | cm_prckk |
 
-### 9.2 Mode Cycle for Unarmed
+- **Bonus crit:** on a normal hit, a separate d100 ≤ bonus makes it a critical (CE `attackCompute`, sfall). It is not added to the critical chance.
+- **Penetrate:** DT drops to 20% (`unarmedIsPenetrating`).
+- **AP:** the move's cost, −1 with Bonus HtH Attacks, +1 when aimed, minimum 1 (`unarmedAPCost`, item.cc `weaponGetActionPointCost`).
 
-`Weapon.initUnarmedMoves(unarmedSkill, charLevel)` sets `this.modes` to the names of all
-available moves plus `'called'`. `cycleMode()` walks the list; selecting a named move updates
-`minDmg`, `maxDmg`, and `APCost1` on the synthetic proto.
+### 9.2 Hands and actions (player)
 
-**Not CE (audit 2026-10-17):** this table is invented. CE `combat.cc` `gUnarmedHitDescriptions` gives every move 1–2 damage plus a bonus damage, with other names, AP, requirements and bonus crit chances. See `wiki/combat.md` §10. Since 2026-10-17 the move's `critBonus` is rolled as CE's separate bonus-critical d100, no longer added to Better Criticals.
+- **Hands:** an empty **left** hand punches, an empty **right** hand kicks. This does not depend on the other hand; the old DH2 rule "kick only with both hands empty" was not CE.
+- **Primary** is the last non-secondary move of the hand's family the player qualifies for (Unarmed skill, level, ST, AG); without one it is Punch / Kick.
+- **Secondary** is the last qualifying secondary move. It exists only when it isn't the plain Punch / Kick.
+- **Right-click cycle** (`cycleUnarmedAction`): primary → primary aimed → secondary → secondary aimed. Aiming is skipped with Fast Shot (`critterCanAim`), and the secondary steps when there is no secondary move. The state is kept per hand (`globalState.punchModeIdx` / `kickModeIdx` = action index 0–3).
+- **HUD:** the action button shows the hit mode's FRM, the bullseye for an aimed attack, and the AP. An aimed punch or kick opens the called-shot window.
+- **Inventory:** for an empty hand the summary shows "No item" and "Unarmed dmg: (bonus + 1)–(bonus + Melee + 2)" (inventory.cc).
 
-**CE note:** In CE, special unarmed moves (Haymaker, Jab, etc.) are accessed via the HIT_MODE
-system (`HIT_MODE_PUNCH / KICK / STRONG_PUNCH` etc., ~18 values). DH2 maps these to the
-`UNARMED_MOVES` array. The critical bonus per move comes from `item.cc:unarmedGetBonusDamage`
-(which applies to crit chance, not damage in CE).
+### 9.3 Other critters
+
+NPCs and party members always use the plain punch (1–2 + Melee Damage, 3 AP). CE `_ai_pick_hit_mode` returns `HIT_MODE_PUNCH` without a weapon, and the move tables read only gDude's stats. Their empty hand is a fist object (`Critter.makeFist`, `Weapon(null)`). A player whose weapon is knocked away gets an empty hand slot and so keeps the moves.
 
 ---
 
@@ -426,7 +428,6 @@ Re-audited 2026-10-17. Most of the old list here (single-shot ammo, caliber chec
 
 | Feature | CE Behavior | DH2 Status |
 |---------|-------------|------------|
-| Unarmed moves | `gUnarmedHitDescriptions` | Invented tables (§9) |
 | Thrown weapons | The item itself is thrown and lands at the target | Not consumed |
 | Unarmed-type weapons (brass knuckles, power fist) | Weapon hit mode: min ST, One Hander and Accurate apply | Treated as plain unarmed in the hit chance |
 | Enhanced Knockout weapon perk | Knockout chance | Missing |
