@@ -276,11 +276,14 @@ function performWithdrawalEnd(critter: Critter, perk: number): void {
 function withdrawalEventProcess(critter: Critter, isStart: boolean, pid: number, perk: number): void {
     if (isStart) {
         performWithdrawalStart(critter, perk, pid)
+        if (isDude(critter)) Events.emit('queueBail')
         return
     }
     if (perk === PERK_JET_ADDICTION) return // Jet withdrawal only ends with the antidote
     performWithdrawalEnd(critter, perk)
     if (isDude(critter)) dudeClearAddiction(pid)
+    // CE returns 1 for the dude: queueProcessEvents stops (a rest ends)
+    if (isDude(critter)) Events.emit('queueBail')
 }
 
 // CE item.cc:2953 _item_wd_clear_all — taking the drug again ends an active

@@ -16,6 +16,7 @@ limitations under the License.
 Scripting system/engine for DarkFO
 */
 
+import { Events } from './events.js'
 import { isPartyMemberPid } from './party.js'
 import { FLOAT_MSG_COLOR } from './floatText.js'
 import { sfxBuildOpenName } from './sfxNames.js'
@@ -317,6 +318,8 @@ export module Scripting {
         const msg = getMessage('misc', 3001) // "You take damage from poison."
         if (msg) uiLog(msg)
         if (hp <= 0 && !critter.dead) critterKill(critter, undefined, true)
+        // CE returns 1 at 5 HP or less: queueProcessEvents stops (a rest ends)
+        if (hp <= 5) Events.emit('queueBail')
     }
 
     export function setGlobalVar(gvar: number, value: number): void {

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { Events } from './events.js'
 import { DAM_KNOCKED_OUT } from './combat/results.js'
 import { Worldmap } from './worldmap.js'
 import { gameMoviePlay, GAME_MOVIE_FADE_IN, GAME_MOVIE_FADE_OUT, GAME_MOVIE_PAUSE_MUSIC, GAME_MOVIE_STOP_MUSIC } from './gameMovie.js'
@@ -351,6 +352,7 @@ export function scriptsCheckGameEvents(day: number): void {
     dbg('map', `ARTIMER: ARTIMER${movieIdx + 1} triggered (day ${day})`)
     // CE: gameMoviePlay(movie, FADE_IN | FADE_OUT | PAUSE_MUSIC) — marks it seen.
     globalState.seenMovies.add(movieId)
+    Events.emit('queueBail') // CE gameTimeEventProcess: a movie stops queueProcessEvents
     void gameMoviePlay(movieId, GAME_MOVIE_FADE_IN | GAME_MOVIE_FADE_OUT | GAME_MOVIE_PAUSE_MUSIC)
 
     // CE ref: scripts.cc:487 — adjustRep: GVAR_TOWN_REP_ARROYO -= 15

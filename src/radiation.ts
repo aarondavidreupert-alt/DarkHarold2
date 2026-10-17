@@ -21,6 +21,7 @@ limitations under the License.
 //   radiationEventProcess()    (critter.cc:695)  — damage event, schedules 7-day recovery
 // Only the player (gDude) accumulates radiation in CE.
 
+import { Events } from './events.js'
 import globalState from './globalState.js'
 import { dbg } from './logger.js'
 import type { Critter } from './object.js'
@@ -200,4 +201,5 @@ function radiationEventProcess(obj: Critter, level: number, isHealing: boolean):
         scheduleRadiationEvent(obj, TICKS_PER_DAY * 7, level, true)
     }
     processRads(obj, level, isHealing)
+    Events.emit('queueBail') // CE returns 1: queueProcessEvents stops (a rest ends)
 }

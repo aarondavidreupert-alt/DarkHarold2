@@ -18,6 +18,7 @@ limitations under the License.
 // tab dispatcher, public open/close/toggle. Split out of ui_pipboy.ts.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §12.
 
+import { Events } from '../events.js'
 import globalState from '../globalState.js'
 import * as GameTime from '../gametime.js'
 import { UIMode } from '../ui_panels.js'
@@ -201,6 +202,9 @@ const REST_UNTIL_PARTY_HEALED = 13
 let restTime = 0
 let restCancelled = false
 let restBail = false
+// CE queueProcessEvents returning 1 (poison at 5 HP or less, radiation, withdrawal,
+// the midnight movie) during a rest sets _proc_bail_flag
+Events.on('queueBail', () => { if (isRestAnimating) restBail = true })
 
 // CE party_member.cc partyIsAnyoneCanBeHealedByRest / partyGetMaxWoundToHealByRest:
 // living, visible, non-robot party members (the dude excluded).
