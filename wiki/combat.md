@@ -1,91 +1,47 @@
 # Combat System Reference
 
-> Last audited: 2026-05-31  
+> Last audited: 2026-10-17 (lifecycle §1; formula audit C22/C23/C30, see §10)  
 > Sources: `raw/fallout2-ce/src/combat.cc`, `combat_ai.cc`, `critter.cc`, `obj_types.h`, `proto_types.h`  
-> DH2 sources: `src/combat.ts` (barrel; `src/combat/{actionPoints,AI,damage,hitChance,Combat}.ts`), `src/critter.ts` (barrel; `src/critter/{Weapon,lifecycle}.ts`), `src/scripting.ts`, `src/vm_bridge.ts`, `src/main.ts`  
+> DH2 sources: `src/combat.ts` (barrel; `src/combat/{actionPoints,AI,damage,hitChance,Combat,results,explosion,whoHitMe}.ts`), `src/critter.ts` (barrel; `src/critter/{Weapon,lifecycle}.ts`), `src/scripting.ts`, `src/vm_bridge.ts`, `src/main.ts`  
 > Cross-reference: [damage_formula.md](damage_formula.md) for hit chance, damage calculation, critical
 > effects, sequence/initiative, and AP base formula.
 
 ---
 
-## 1. Combat Lifecycle
+## 1. Combat Lifecycle (re-audited 2026-10-17)
 
-### CE (`combat.cc:_combat_begin`, `_combat_over`)
+### CE (`combat.cc _combat`)
 
 ```
-combat_begin(attacker):
-  _combat_turn_running = 0
-  _combat_begin_extra(attacker)  ← build turn order, assign AP
-    foreach critter in LOS of gDude:
-      actionPoints = critterGetStat(obj, STAT_MAXIMUM_ACTION_POINTS)
-        + _gcsd->actionPointsBonus (AI bonus AP from critter proto)
-      obj->data.critter.combat.ap = actionPoints
-    _combat_turn_obj = attacker   ← first actor
-  beginCombatTurnLoop()
-    _combat_turn(obj, false)      ← run one turn per object
-
-_combat_over():
-  check all LOS critters — any hostile & alive?
-  if not: end combat, clear flags, play sound
+_combat(csd):
+  _combat_begin(nullptr)                 every critter on the elevation in _combat_list
+  _combat_sequence_init(attacker, defender)
+      round 1 = attacker, defender, the dude (unless one of them); only these are
+      combatants (_list_com), the rest non-combatants; attacker / defender whoHitMe each other
+  loop:
+    _combat_set_move_all()
+    for each combatant: _combat_turn(obj)        (csd covers the first turn only)
+    _combat_sequence():                          end of round
+      _combat_add_noncoms()                      _combatai_want_to_join → joins
+      dead out; knocked out / DISENGAGING → non-combatants
+      qsort(_compare_faster)                     Sequence, then Luck, highest first
+      gameTimeAddSeconds(5)
+  while !_combat_should_end()
+  _combat_over(); scriptsExecMapUpdateProc()
 ```
 
-`_combatNumTurns` is a global turn counter. Each call to `_combat_turn`
-increments it. Combat ends when no hostile critter in LOS is alive.
+Inside the dude's turn `_combat_input`: Space ends the turn, Return tries to end combat (`combatAttemptEnd`), other keys go to `gameHandleKey`.
 
-### DH2 (`combat.ts`, `combat.ts`)
+### DH2 (`src/combat/Combat.ts`)
 
-```typescript
-// Entry points
-Combat.start(forceTurn?: Critter)   // called from main.ts click handler and attack_complex
-combat.end()                         // called from nextTurn() when no hostile critters remain
-combat.forceEnd()                    // called by terminate_combat script opcode
-```
+- `Combat.start(attacker?, gcsd?, teamCombat?)`: every living, visible critter of the map goes into `combatants`; `sequenceInit(attacker ?? gcsd.attacker, gcsd.defender)` is `_combat_sequence_init` (round 1 = attacker, defender, dude; whoHitMe both ways). Without an attacker (the A key, the attack button) the dude goes first.
+- Participation is the `hostile` flag (CE `_list_com`); `combatSequence()` at each round's end is `_combat_sequence`: `notifyFriends`, `wantToJoin` joins, knocked-out / disengaging leave, `sortBySequence()` (Sequence, then Luck — `_compare_faster`), 5 s of game time; then `shouldEnd()` (`_combat_should_end`).
+- `attack_complex` / `attack_setup` start combat with their start data (`attack_setup`: neutral data, in combat ENGAGING + whoHitMe, as `opAttackSetup`); worldmap encounters use `teamCombat` (`_caiSetupTeamCombat`).
+- Turn start: standup (`_combat_standup`), knockout / lose-turn skips, unused AP → AC (HtH Evade), the dude's damage-last-turn reset.
+- `attemptEnd()` = `combatAttemptEnd`; `forceEnd()` = `terminate_combat` / leaving the map.
+- Keys: `src/hotkeys.ts` (Space / Return in the player's turn).
 
-**`Combat.start()`** (combat.ts):
-1. Re-entry guard: `if (combatActive) return` — the `combatActive` flag is a file-level let, not just `globalState.inCombat`. Both are set together.
-2. Builds `triggerTeams: Set<number>` from player's team (always) + either the attacker's team (NPC-initiated) or all NPC teams on map (player-initiated).
-3. `new Combat(objects, triggerTeams)` — constructor filters `Critter` instances, excludes dead and invisible. Initializes `new ActionPoints(obj)` per combatant.
-4. Sort by **Sequence** descending: `10 + 2 * PER`. Ties: player first, then original array order.
-5. Sets `whoseTurn = playerIdx - 1` so the first `nextTurn()` call lands on the player.
-6. Plays `icombat1` sound, calls `uiStartCombat()`.
-7. `nextTurn()` starts the turn loop.
-
-**`nextTurn()`** (combat.ts):
-1. Updates hostility/LOS state for all non-player combatants:
-   - `hasLOS(obj, player)` — hex-line wall check (non-exported `hasLineOfSight()`)
-   - Critter becomes hostile if LOS is clear **and** at least one attack has been made (`hasAttacked` flag), or was already hostile before combat.
-   - Hostile critters get a red outline; player-team critters get green.
-2. If `numActive === 0 && turnNum > 1 && playerHadTurn`: calls `forceEnd()`.
-3. Advances game time by 5 seconds per turn (`GameTime.advanceSeconds(5)`).
-4. Increments `turnNum`, `whoseTurn`. Wraps at `combatants.length`.
-5. **Unused AP → bonus AC**: at end of previous critter's turn, `prev.bonusAC = prev.AP.getAvailableMoveAP()`. Reset to 0 at the start of that critter's next turn.
-6. Player's turn: resets AP, redraws HUD, sets `inPlayerTurn = true`.
-7. NPC turn:
-   - Skip if dead or not hostile.
-   - Apply fire DoT: `critter.onFireTurns > 0` → random 3–6 fire damage.
-   - Apply knockdown skip: `critter.skipTurns > 0` → decrement, skip to next turn; plays `getUpFront` when it reaches 0.
-   - Calls `doAITurn(critter, idx, depth=1)`.
-
-**`end()`** vs **`forceEnd()`**:
-
-| | `end()` | `forceEnd()` |
-|---|---------|--------------|
-| Condition | called by `nextTurn()` after checking hostile count | called directly (script / out-of-band) |
-| Clears hostile | yes | yes |
-| Sets `combatActive = false` | synchronous | deferred with `Promise.resolve().then(...)` to prevent re-entry |
-
-### Divergences from CE
-
-| Feature | CE | DH2 |
-|---------|-----|-----|
-| Turn counter | global `_combatNumTurns` | `combat.turnNum` (per-instance) |
-| AP source | `critterGetStat(STAT_MAXIMUM_ACTION_POINTS)` + bonus from critter proto | `ActionPoints.getMaxAP()` = `5 + floor(AGI/2)` + perk bonuses |
-| Combatant enrollment | all critters in LOS at start | `triggerTeams` set; non-hostile critters ignored until first attack |
-| LOS computation | `_combat_check_tile` (ray cast) | `hasLineOfSight()` — simple hex-line, wall-object check only |
-| Round time advance | 180000 ticks = 5 in-world minutes per round | 5 seconds per `nextTurn()` call |
-| `actionPointsBonus` | per-critter field from proto | not tracked; perk bonuses only |
-
----
+Remaining differences: none known in the lifecycle (see §10 for the formula audit).
 
 ## 2. AP Consumption
 

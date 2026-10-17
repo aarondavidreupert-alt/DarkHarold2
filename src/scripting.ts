@@ -2344,9 +2344,21 @@ export module Scripting {
             if (a.dead || a.visible === false) return
             if (d.dead || d.visible === false) return
             if ((d as any).isFleeing) return // CRITTER_MANUEVER_FLEEING
-            ;(a as any).whoHitMe = d
-            if (!a.isPlayer) a.hostile = true
-            if (!globalState.inCombat && Config.engine.doCombat) Combat.start(a.isPlayer ? undefined : a)
+            if (globalState.inCombat) {
+                // in combat: ENGAGING with the defender as who hit it (unless already engaging)
+                if (!(a as any).engaging) {
+                    ;(a as any).engaging = true
+                    ;(a as any).whoHitMe = d
+                }
+                if (!a.isPlayer) a.hostile = true
+            } else if (Config.engine.doCombat) {
+                // scriptsRequestCombat with neutral start data
+                if (!a.isPlayer) a.hostile = true
+                Combat.start(a.isPlayer ? undefined : a, {
+                    attacker: a, defender: d, actionPointsBonus: 0, accuracyBonus: 0, damageBonus: 0,
+                    minDamage: 0, maxDamage: 0x7fffffff, overrideAttackResults: false, attackerResults: 0, targetResults: 0,
+                })
+            }
         }
         // CE opDestroyMultipleObjects (0x8144) — remove `quantity` of an item from its
         // owner (returns how many), or destroy the object outright when it has no owner.

@@ -371,16 +371,8 @@ export class Combat {
             return false
         }) as Critter[]
 
-        // CE ref: stat.cc:572 — Sequence = 2*PER. Ties: player goes first, then by original array order.
-        this.combatants.sort((a, b) => {
-            const seqA = a.getStat('Sequence')
-            const seqB = b.getStat('Sequence')
-            if (seqA !== seqB) return seqB - seqA
-            if (a.isPlayer) return -1
-            if (b.isPlayer) return 1
-            return 0
-        })
-
+        // The first round's order comes from sequenceInit (Combat.start); later rounds
+        // are sorted by Sequence (combatSequence).
         this.playerIdx = this.combatants.findIndex((x) => x.isPlayer)
         if (this.playerIdx === -1) throw "combat: couldn't find player?"
 
@@ -2032,7 +2024,39 @@ export class Combat {
                 combatDebug(`${actorName(c)} leaves the fight`)
             }
         }
+        this.sortBySequence()
         GameTime.advanceSeconds(5)
+    }
+
+    // CE combat.cc _combat_sequence → qsort(_compare_faster): Sequence, then Luck, highest first.
+    // (Called at the round's start, whoseTurn 0: the new round begins with the fastest.)
+    private sortBySequence(): void {
+        this.combatants.sort((a, b) => (b.getStat('Sequence') - a.getStat('Sequence')) || (b.getStat('LUK') - a.getStat('LUK')))
+        this.playerIdx = this.combatants.indexOf(this.player)
+    }
+
+    // CE combat.cc _combat_sequence_init: the first round is the attacker, the defender,
+    // then the dude (unless he is one of them); they hit each other first (whoHitMe).
+    sequenceInit(attacker: Critter | null, defender: Critter | null): void {
+        let next = 0
+        const place = (c: Critter | null) => {
+            if (!c) return
+            const i = this.combatants.indexOf(c)
+            if (i === -1) return
+            const tmp = this.combatants[next]
+            this.combatants[next] = c
+            this.combatants[i] = tmp
+            next += 1
+        }
+        place(attacker)
+        place(defender)
+        if (attacker !== this.player && defender !== this.player) place(this.player)
+        if (attacker && defender) {
+            critterSetWhoHitMe(attacker, defender)
+            critterSetWhoHitMe(defender, attacker)
+        }
+        this.playerIdx = this.combatants.indexOf(this.player)
+        this.whoseTurn = -1
     }
 
     // CE combat.cc _combat_should_end — over when the player is the only combatant, or
@@ -2815,9 +2839,7 @@ export class Combat {
                 }
             }
         }
-        if (forceTurn) {
-            globalState.combat.forceTurn(forceTurn)
-        }
+        globalState.combat.sequenceInit(forceTurn ?? gcsd?.attacker ?? null, gcsd?.defender ?? null)
 
         eventLogPush({
             actor: null, action: 'combat-start',
@@ -2913,16 +2935,6 @@ export class Combat {
         // before a new combat can be started (prevents the map_update_p_proc
         // → attack_complex → Combat.start() re-entry loop).
         Promise.resolve().then(() => { combatActive = false })
-    }
-
-    forceTurn(obj: Critter) {
-        if (obj.isPlayer) this.whoseTurn = this.playerIdx - 1
-        else {
-            var idx = this.combatants.indexOf(obj)
-            if (idx === -1) throw "forceTurn: no combatant '" + obj.name + ''
-
-            this.whoseTurn = idx - 1
-        }
     }
 
     /**
