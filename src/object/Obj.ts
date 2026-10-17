@@ -805,8 +805,21 @@ export class Obj {
     }
 
     // Are two objects approximately (not necessarily strictly) equal?
-    approxEq(obj: Obj) {
-        return this.pid === obj.pid
+    // CE item.cc _item_identical — when two items share one inventory stack: same PID
+    // and script (a scripted item is its own), neither equipped / worn nor queued (a lit
+    // flare, an armed explosive, a running Stealth Boy), not containers, no inventories,
+    // and the same item data (a device's charges; a weapon's load in WeaponObj; an ammo
+    // box's or money's own quantity doesn't count).
+    approxEq(obj: Obj): boolean {
+        if (this.pid !== obj.pid) return false
+        if (this._script || obj._script) return false
+        const HELD = 0x1000000 | 0x2000000 | 0x4000000 // OBJECT_IN_LEFT/RIGHT_HAND, OBJECT_WORN (OBJECT_EQUIPPED)
+        if ((((this.flags ?? 0) | (obj.flags ?? 0)) & HELD) !== 0) return false
+        if (Scripting.timeEventList.some((e) => e.obj === this || e.obj === obj)) return false // OBJECT_QUEUED
+        if (this.subtype === 'container') return false
+        if ((this.inventory?.length ?? 0) !== 0 || (obj.inventory?.length ?? 0) !== 0) return false
+        if (((this as any).miscCharges ?? 0) !== ((obj as any).miscCharges ?? 0)) return false
+        return true
     }
 
     clone(): Obj {

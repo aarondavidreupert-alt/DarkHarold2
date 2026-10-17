@@ -92,6 +92,56 @@ export module Scripting {
         return dialogueReviewLog
     }
     export var timeEventList: TimedEvent[] = []
+
+    const PROTO_ID_MONEY = 41
+
+    // CE item.cc itemGetTotalCaps — money in the inventory and, recursively, in containers.
+    export function itemGetTotalCaps(obj: Obj): number {
+        let amount = 0
+        for (const item of obj.inventory ?? []) {
+            if (item.pid === PROTO_ID_MONEY) amount += item.amount ?? 1
+            else if (item.subtype === 'container') amount += itemGetTotalCaps(item)
+        }
+        return amount
+    }
+
+    // CE item.cc itemCapsAdjust — take from (or add to) the money stacks first, then the
+    // containers; with no money at all a positive amount becomes a new stack.
+    export function itemCapsAdjust(obj: Obj, amount: number): number {
+        const caps = itemGetTotalCaps(obj)
+        if (amount < 0 && caps < -amount) return -1
+        if (amount <= 0 || caps !== 0) {
+            const inv = obj.inventory
+            for (let i = 0; i < inv.length && amount !== 0; i++) {
+                const item = inv[i]
+                if (item.pid !== PROTO_ID_MONEY) continue
+                if (amount <= 0 && -amount >= (item.amount ?? 1)) {
+                    amount += item.amount ?? 1
+                    inv.splice(i, 1)
+                    i = -1
+                } else {
+                    item.amount = (item.amount ?? 1) + amount
+                    amount = 0
+                }
+            }
+            for (let i = 0; i < inv.length && amount !== 0; i++) {
+                const item = inv[i]
+                if (item.subtype !== 'container') continue
+                const inside = itemGetTotalCaps(item)
+                if (amount <= 0 || inside <= 0) {
+                    if (amount < 0) {
+                        if (inside < -amount) { if (itemCapsAdjust(item, inside) === 0) amount += inside }
+                        else if (itemCapsAdjust(item, amount) === 0) amount = 0
+                    }
+                } else if (itemCapsAdjust(item, amount) === 0) {
+                    amount = 0
+                }
+            }
+            return 0
+        }
+        obj.addInventoryItem(createObjectWithPID(PROTO_ID_MONEY), amount)
+        return 0
+    }
     // CE ref: game_vars.h GVAR_TOWN_REP_* — maps each town-reputation GVAR index
     // (verified against CE source; indices are NOT contiguous) to its display name.
     // character_editor.cc gTownReputationEntries[TOWN_REPUTATION_COUNT=19].
@@ -1162,35 +1212,19 @@ export module Scripting {
 
             dbgWarn('script', `critter_add_trait: unhandled traitType ${traitType}`)
         }
+        // CE interpreter_extra.cc opItemCapsTotal → item.cc itemGetTotalCaps (containers included)
         item_caps_total(obj: Obj) {
-            // CE ref: item.cc item_caps_total — iterates ITEM_TYPE_MONEY inventory
-            // and sums quantities live, so it cannot drift from `obj.money`.
             if (!isGameObject(obj)) throw 'item_caps_total: not game object'
-            const MONEY_PID = 41
-            let total = 0
-            for (const item of obj.inventory) {
-                if (item.pid === MONEY_PID) total += item.amount ?? 1
-            }
-            return total
+            return itemGetTotalCaps(obj)
         }
+        // CE opItemCapsAdjust → item.cc itemCapsAdjust: 0, or −1 when there isn't enough money
         item_caps_adjust(obj: Obj, amount: number) {
             if (!isGameObject(obj)) {
                 warn('item_caps_adjust: not game object: ' + obj)
-                return
+                return -1
             }
-            const MONEY_PID = 41
-            for (let i = 0; i < obj.inventory.length; i++) {
-                if (obj.inventory[i].pid === MONEY_PID) {
-                    obj.inventory[i].amount = Math.max(0, obj.inventory[i].amount + amount)
-                    info('item_caps_adjust: ' + obj.name + ' caps ' + (amount >= 0 ? '+' : '') + amount)
-                    return
-                }
-            }
-            if (amount > 0) {
-                const money = createObjectWithPID(MONEY_PID)
-                this.add_mult_objs_to_inven(obj, money, amount)
-                info('item_caps_adjust: ' + obj.name + ' caps +' + amount + ' (new)')
-            }
+            info('item_caps_adjust: ' + obj.name + ' caps ' + (amount >= 0 ? '+' : '') + amount)
+            return itemCapsAdjust(obj, amount)
         }
         move_obj_inven_to_obj(obj: Obj, other: Obj) {
             if (obj === null || other === null) {
