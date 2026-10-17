@@ -26,6 +26,7 @@ limitations under the License.
 // DH2 additions: any number of slots (always one free slot when saving) with a scroll
 // bar and mouse wheel, and deleting a save (DELETE button / Del key, with confirmation).
 
+import { uiLog } from './ui_hud.js'
 import { areaContainingMap, loadAreas, mapIndexOf } from './data.js'
 import * as GameTime from './gametime.js'
 import globalState from './globalState.js'
@@ -82,7 +83,32 @@ function wrap(text: string, width: number): string[] {
     return lines
 }
 
-export function uiSaveLoad(isSave: boolean): void {
+// CE loadsave.cc _quick_done / _slot_cursor: once a slot was picked in quick mode, F6
+// saves into it and F7 loads it without the window.
+let quickDone = false
+let quickId: number | null = null
+let quickName = ''
+
+export function uiQuickSave(): void {
+    if (quickDone && quickId !== null) {
+        takeSaveSnapshot()
+        save(quickName, quickId, () => uiLog(getMessage('misc', 5) ?? 'Quick save game successfully saved.'))
+        return
+    }
+    uiSaveLoad(true, true)
+}
+
+export function uiQuickLoad(): void {
+    if (quickDone && quickId !== null) {
+        load(quickId)
+        uiLog(getMessage('misc', 4) ?? 'Quick load game successfully loaded.')
+        return
+    }
+    uiSaveLoad(false, true)
+}
+
+export function uiSaveLoad(isSave: boolean, quick = false): void {
+    quickDone = false
     // CE loadsave.cc lsgSaveGame: _QuickSnapShot before the save window opens.
     if (isSave) takeSaveSnapshot()
     globalState.uiMode = UIMode.saveLoad
@@ -258,10 +284,14 @@ export function uiSaveLoad(isSave: boolean): void {
             const name = await showInput(lsg(130, 'DESCRIPTION'))
             if (name === null) return
             dbg('saveload', `[UI] Saving slot ${cursor + 1} (save #${s?.id ?? 'new'}).`)
-            save(name, s?.id ?? undefined, close)
+            save(name, s?.id ?? undefined, (id) => {
+                if (quick) { quickDone = true; quickId = id; quickName = name }
+                close()
+            })
         } else {
             if (!s || s.id === undefined) return
             dbg('saveload', `[UI] Loading save #${s.id}.`)
+            if (quick) { quickDone = true; quickId = s.id; quickName = s.name }
             load(s.id)
             close()
         }

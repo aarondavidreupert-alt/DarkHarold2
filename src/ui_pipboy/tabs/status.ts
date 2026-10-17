@@ -187,8 +187,8 @@ function renderHolodisk(screen: HTMLDivElement, disk: HolodiskDef, page: number)
         backButton(screen, page >= lastPage ? msg(214, 'DONE') : msg(200, 'MORE'), next, 'center'),
     ))
     setPageKeys((e) => {
-        if (e.key === 'PageDown' && page < lastPage) { e.stopPropagation(); click(); next() }
-        else if (e.key === 'PageUp') { e.stopPropagation(); click(); prev() }
+        if (e.key === 'PageDown' && page < lastPage) { e.stopImmediatePropagation(); click(); next() }
+        else if (e.key === 'PageUp') { e.stopImmediatePropagation(); click(); prev() }
     })
 }
 

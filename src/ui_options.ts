@@ -627,7 +627,7 @@ const OPTIONS_BTN_H = 34
 const BRIGHTNESS_MAX = 1.17999267578125
 const BRIGHTNESS_STEP = 0.01124954223632812
 
-function changeBrightness(dir: 1 | -1): void {
+export function changeBrightness(dir: 1 | -1): void {
     const b = Config.ui.brightness + dir * BRIGHTNESS_STEP
     Config.ui.brightness = Math.max(1.0, Math.min(BRIGHTNESS_MAX, b))
     applyBrightness()
@@ -636,10 +636,10 @@ function changeBrightness(dir: 1 | -1): void {
 
 // game.cc showQuitConfirmationDialog — misc.msg 0 "Are you sure you want to quit?";
 // yes leaves to the main menu (DH2: reload the page).
-async function quitConfirmation(): Promise<void> {
+export async function quitConfirmation(): Promise<void> {
     const text = getMessage('misc', 0) ?? 'Are you sure you want to quit?'
     if (await showConfirm(text)) {
-        optionsWindow.close()
+        optionsWindow?.close()
         window.location.reload()
     }
 }

@@ -238,6 +238,8 @@ export const Config = {
         violenceLevel: 2 as 0 | 1 | 2 | 3,
     },
 
+    // DH2 developer keys (Config.engine.devKeys) and the camera arrows. The game keys are
+    // CE's fixed gameHandleKey layout (src/hotkeys.ts).
     controls: {
         cameraDown: 'down',
         cameraUp: 'up',
@@ -254,17 +256,11 @@ export const Config = {
         moveTo: 'm',
         runTo: 'j',
         attack: 'g',
-        combat: 'c',
         playerToTargetRaycast: 'y',
         showTargetInventory: 'v',
         use: 'u',
         kill: 'k',
         worldmap: 'l',
-        pipboy: 'p',
-        calledShot: 'z',
-        saveKey: 'n',
-        loadKey: 'm',
-        inventory: 'b',
         // CE: KEYBIND_KEY_HIGHLIGHT_ITEMS — outlines all items while held.
         highlightItems: ' ',
     },

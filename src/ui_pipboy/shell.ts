@@ -73,7 +73,7 @@ let isRestAnimating = false  // prevents re-entry during time-advance animation
 
 // ESC stops a rest in progress (CE pipboyRest: inputGetInput() == KEY_ESCAPE)
 window.addEventListener('keydown', (e) => {
-    if (isRestAnimating && e.key === 'Escape') { restCancelled = true; e.stopPropagation() }
+    if (isRestAnimating && e.key === 'Escape') { restCancelled = true; e.stopImmediatePropagation() }
 }, true)
 
 // numbers.png sprite: each digit is 9x17, laid out horizontally 0-9 then extra glyphs
@@ -594,6 +594,14 @@ export function closePipBoy(): void {
     // CE ref: pipboy.cc:712 pipboyWindowFree — scriptsExecMapUpdateProc() on close,
     // so map scripts react to time spent resting (e.g. their time-of-day lighting).
     globalState.gMap?.updateMap()
+}
+
+// CE pipboyOpen(PIPBOY_OPEN_INTENT_REST) — the Z key: the Pip-Boy straight on the
+// alarm clock.
+export function openPipBoyRest(): void {
+    if (pipBoyContainer) return
+    openPipBoy()
+    if (pipBoyContainer) toggleWaitMenu()
 }
 
 export function togglePipBoy(): void {

@@ -169,6 +169,34 @@ import { $id, $img, $q, $qa, clearEl, show, hide, showv, hidev, off, appendHTML,
 // these via `from './ui.js'`).
 export { showv, hidev, makeEl } from './ui_dom.js'
 
+// CE interface.cc interfaceBarSwapHands — the B key and the change-hand button.
+export function swapHands(): void {
+    const p = globalState.player as any
+    const player = globalState.player
+    const nextHand: 'leftHand' | 'rightHand' = p.activeHand === 'leftHand' ? 'rightHand' : 'leftHand'
+    player.playWeaponSwapAnim(() => {
+        p.activeHand = nextHand
+        uiDrawWeapon()
+    })
+}
+
+// CE interface.cc interfaceCycleItemAction — the N key and a right-click on the item
+// button: a weapon's modes, or the unarmed hand's punch / kick moves.
+export function cycleActiveItemAction(): void {
+    const wep = globalState.player.equippedWeapon
+    if (!wep || !wep.weapon) {
+        const player = globalState.player!
+        const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
+        const activeItem = (player as any)[activeHand] as Obj | undefined
+        if (activeItem && !objectIsWeapon(activeItem)) return // non-weapon: one action
+        cycleUnarmedAction(player)
+        uiDrawWeapon()
+        return
+    }
+    wep.weapon.cycleMode()
+    uiDrawWeapon()
+}
+
 export function initUI() {
     uiInit()
 
@@ -197,15 +225,7 @@ export function initUI() {
 
     // lootBoxDoneButton wiring lives in ui_loot.ts → initLoot()
 
-    $id('handSwapButton').onclick = () => {
-        const p = globalState.player as any
-        const player = globalState.player
-        const nextHand: 'leftHand' | 'rightHand' = p.activeHand === 'leftHand' ? 'rightHand' : 'leftHand'
-        player.playWeaponSwapAnim(() => {
-            p.activeHand = nextHand
-            uiDrawWeapon()
-        })
-    }
+    $id('handSwapButton').onclick = () => swapHands()
 
     /** CE interface.cc _intface_item_reload — weaponAttemptReload box after box until the
      *  weapon is full or nothing fits; no message. Returns true if anything was loaded. */
@@ -275,20 +295,7 @@ export function initUI() {
     }
 
     $id('attackButtonContainer').oncontextmenu = () => {
-        // CE ref: interface.cc interfaceCycleItemAction — right-click cycles the active
-        // item's actions: a weapon's modes, or the unarmed hand's punch/kick moves.
-        const wep = globalState.player.equippedWeapon
-        if (!wep || !wep.weapon) {
-            const player = globalState.player!
-            const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
-            const activeItem = (player as any)[activeHand] as Obj | undefined
-            if (activeItem && !objectIsWeapon(activeItem)) return false // non-weapon: one action
-            cycleUnarmedAction(player)
-            uiDrawWeapon()
-            return false
-        }
-        wep.weapon.cycleMode()
-        uiDrawWeapon()
+        cycleActiveItemAction()
         return false
     }
 

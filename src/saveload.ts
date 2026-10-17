@@ -265,7 +265,7 @@ export function debugSave(): void {
     })
 }
 
-export function save(name: string, slot = -1, callback?: () => void): void {
+export function save(name: string, slot = -1, callback?: (id: number) => void): void {
     const save = gatherSaveData(name)
 
     const dirtyMapNames = Object.keys(globalState.dirtyMapCache)
@@ -279,11 +279,13 @@ export function save(name: string, slot = -1, callback?: () => void): void {
         save.id = slot
     }
 
+    let savedId = slot
     withTransaction((trans) => {
-        trans.objectStore('saves').put(save)
+        const req = trans.objectStore('saves').put(save)
+        req.onsuccess = () => { savedId = Number(req.result) }
 
         dbg('saveload', "[SaveLoad] Saving game data as '%s'", name)
-    }, callback)
+    }, () => callback?.(savedId))
 }
 
 // DH2 addition (CE has no delete): remove a saved game from the database.

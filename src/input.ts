@@ -44,7 +44,10 @@ import {
 import { getProtoMsg } from './util.js'
 import { Config } from './config.js'
 import { currentUnarmed, unarmedAPCost } from './unarmed.js'
-import { togglePipBoy } from './ui_pipboy.js'
+import { closePipBoy } from './ui_pipboy.js'
+import { gameHandleKey } from './hotkeys.js'
+import { closeInventory } from './ui_inventory.js'
+import { closeAutomap } from './ui_automap.js'
 import { playerUse, cancelSkillTargeting } from './playerUse.js'
 
 // Tile inspector — build a structured, copy-pasteable dump of everything the
@@ -138,6 +141,30 @@ function buildTileInspectorReport(mouseHex: Point): string {
 // DH2 developer hotkeys — no CE equivalent; only with Config.engine.devKeys
 // (console setDevKeys(true)). Camera arrows, Pip-Boy, inventory, save/load, combat
 // and the item-highlight key stay on.
+// A DH2 developer key that is bound (devKeys on) — then it isn't a CE game key.
+function devKeyBound(key: string): boolean {
+    const k = key.length === 1 ? key.toLowerCase() : key
+    for (const c of DEV_CONTROLS) if ((Config.controls as any)[c] === k) return true
+    return false
+}
+
+// The close keys of the window that is open (CE: each window's own input loop).
+function closeWindowKey(e: KeyboardEvent): boolean {
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key
+    switch (globalState.uiMode) {
+        case UIMode.pipBoy: // pipboy.cc pipboyOpen: Esc, Return, P, Z
+            if (k === 'Escape' || k === 'Enter' || k === 'p' || k === 'z') { closePipBoy(); return true }
+            return false
+        case UIMode.inventory: // inventory.cc inventoryOpen: Esc, I
+            if (k === 'Escape' || k === 'i') { closeInventory(); return true }
+            return false
+        case UIMode.automap: // automap.cc automapShow: Esc, Tab, Return
+            if (k === 'Escape' || k === 'Tab' || k === 'Enter') { closeAutomap(); return true }
+            return false
+    }
+    return false
+}
+
 const DEV_CONTROLS = new Set([
     'elevationDown', 'elevationUp', 'showRoof', 'showFloor', 'showObjects', 'showWalls',
     'talkTo', 'inspect', 'moveTo', 'runTo', 'attack', 'playerToTargetRaycast',
@@ -149,7 +176,65 @@ function isKey(k: string, control: keyof typeof Config.controls): boolean {
     return Config.engine.devKeys || !DEV_CONTROLS.has(control)
 }
 
+// CE game_mouse.cc gameMouseCycleMode — right-click and the M key: move (hex) → command
+// (arrow) → attack (crosshair, only in combat with a weapon or empty hand) → move.
+function cycleMouseMode(): void {
+    if (globalState.cursorMode === 'move') {
+        // move (hex) → command (arrow)
+        globalState.cursorMode = 'command'
+        globalState.showLookCursor = false
+        if (globalState.commandModeTimer !== null) clearTimeout(globalState.commandModeTimer)
+        globalState.commandModeTimer = window.setTimeout(() => {
+            globalState.showLookCursor = true
+            const hoverObj = getObjectUnderCursor((_: Obj) => true)
+            // CE game_mouse.cc look-cursor hover: _obj_look_at
+            if (hoverObj && globalState.player) {
+                for (const line of objLookAt(globalState.player, hoverObj)) uiLog(line)
+            }
+        }, 1000)
+    } else if (globalState.cursorMode === 'command') {
+        // command (arrow) → attack (crosshair). CE ref: game_mouse.cc
+        // gameMouseCycleMode — the crosshair is skipped (back to move) outside
+        // combat, and in combat while the active item isn't a weapon.
+        const player = globalState.player as any
+        const activeItem = player?.[player?.activeHand ?? 'leftHand'] as Obj | undefined
+        const skipCrosshair = !globalState.inCombat || (activeItem !== undefined && activeItem !== null && !objectIsWeapon(activeItem))
+        globalState.cursorMode = skipCrosshair ? 'move' : 'attack'
+        globalState.showLookCursor = false
+        if (globalState.commandModeTimer !== null) {
+            clearTimeout(globalState.commandModeTimer)
+            globalState.commandModeTimer = null
+        }
+        globalState.combat?.refreshHighlights()
+    } else if (globalState.cursorMode === 'attack') {
+        // attack (crosshair) → back to move (hex)
+        globalState.cursorMode = 'move'
+        globalState.showLookCursor = false
+        if (globalState.commandModeTimer !== null) {
+            clearTimeout(globalState.commandModeTimer)
+            globalState.commandModeTimer = null
+        }
+        globalState.combat?.refreshHighlights()
+    }
+}
+
 export function installInputHandlers(): void {
+    // CE game.cc gameHandleKey — the game keys on the map (src/hotkeys.ts); the open
+    // window's own close keys (CE runs each window's input loop).
+    window.addEventListener('keydown', (e: KeyboardEvent) => {
+        const t = e.target as HTMLElement | null
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+        if (globalState.isLoading || globalState.isInitializing || globalState.gameUIDisabled) return
+        if (Config.engine.devKeys && devKeyBound(e.key)) return
+        const mode = globalState.uiMode
+        if (closeWindowKey(e)) { e.preventDefault(); return }
+        // ESC cancels skill targeting (heart's own check compared 'Escape' with its lower-case
+        // 'escape' and never fired)
+        if (mode === UIMode.useSkill && e.key === 'Escape') { cancelSkillTargeting(); e.preventDefault(); return }
+        if (mode !== UIMode.none && mode !== UIMode.useSkill) return
+        if (gameHandleKey(e, cycleMouseMode)) e.preventDefault()
+    }, true)
+
     heart.mousepressed = (x: number, y: number, btn: string) => {
         if (globalState.isInitializing || globalState.isLoading || globalState.isWaitingOnRemote) {
             return
@@ -189,43 +274,7 @@ export function installInputHandlers(): void {
                 globalState.cursorMode = 'command'
                 return
             }
-            if (globalState.cursorMode === 'move') {
-                // move (hex) → command (arrow)
-                globalState.cursorMode = 'command'
-                globalState.showLookCursor = false
-                if (globalState.commandModeTimer !== null) clearTimeout(globalState.commandModeTimer)
-                globalState.commandModeTimer = window.setTimeout(() => {
-                    globalState.showLookCursor = true
-                    const hoverObj = getObjectUnderCursor((_: Obj) => true)
-                    // CE game_mouse.cc look-cursor hover: _obj_look_at
-                    if (hoverObj && globalState.player) {
-                        for (const line of objLookAt(globalState.player, hoverObj)) uiLog(line)
-                    }
-                }, 1000)
-            } else if (globalState.cursorMode === 'command') {
-                // command (arrow) → attack (crosshair). CE ref: game_mouse.cc
-                // gameMouseCycleMode — the crosshair is skipped (back to move) outside
-                // combat, and in combat while the active item isn't a weapon.
-                const player = globalState.player as any
-                const activeItem = player?.[player?.activeHand ?? 'leftHand'] as Obj | undefined
-                const skipCrosshair = !globalState.inCombat || (activeItem !== undefined && activeItem !== null && !objectIsWeapon(activeItem))
-                globalState.cursorMode = skipCrosshair ? 'move' : 'attack'
-                globalState.showLookCursor = false
-                if (globalState.commandModeTimer !== null) {
-                    clearTimeout(globalState.commandModeTimer)
-                    globalState.commandModeTimer = null
-                }
-                globalState.combat?.refreshHighlights()
-            } else if (globalState.cursorMode === 'attack') {
-                // attack (crosshair) → back to move (hex)
-                globalState.cursorMode = 'move'
-                globalState.showLookCursor = false
-                if (globalState.commandModeTimer !== null) {
-                    clearTimeout(globalState.commandModeTimer)
-                    globalState.commandModeTimer = null
-                }
-                globalState.combat?.refreshHighlights()
-            }
+            cycleMouseMode()
         }
     }
 
@@ -325,11 +374,6 @@ export function installInputHandlers(): void {
         }
         // CE ref: interface.cc gameUiDisable() — block all input during cutscenes/movies
         if (globalState.gameUIDisabled) {
-            return
-        }
-        // ESC cancels skill targeting mode
-        if (k === 'Escape' && globalState.uiMode === UIMode.useSkill) {
-            cancelSkillTargeting()
             return
         }
         // DH2-specific QoL sweep (no CE equivalent) — outline every item on
@@ -463,21 +507,6 @@ export function installInputHandlers(): void {
             }
         }
 
-        if (isKey(k, 'combat')) {
-            if (!Config.engine.doCombat) {
-                return
-            }
-            if (globalState.inCombat === true && globalState.combat.inPlayerTurn === true) {
-                dbg('combat', '[Combat] player turn ended')
-                globalState.combat.nextTurn()
-            } else if (globalState.inCombat === true) {
-                dbg('combat', '[Combat] wait your turn')
-            } else {
-                dbg('combat', '[Combat] begin')
-                Combat.start()
-            }
-        }
-
         if (isKey(k, 'playerToTargetRaycast')) {
             const obj = globalState.gMap.objectsAtPosition(mouseHex)[0]
             if (obj !== undefined) {
@@ -526,33 +555,6 @@ export function installInputHandlers(): void {
             uiWorldMap()
         }
 
-        if (isKey(k, 'pipboy')) {
-            togglePipBoy()
-        }
-
-        if (isKey(k, 'saveKey')) {
-            uiSaveLoad(true)
-        }
-
-        if (isKey(k, 'loadKey')) {
-            uiSaveLoad(false)
-        }
-
-        if (isKey(k, 'inventory')) {
-            if (globalState.uiMode === UIMode.inventory) {
-                globalState.uiMode = UIMode.none
-                document.getElementById('inventoryBox')!.style.visibility = 'hidden'
-                globalState.player.clearAnim()
-            } else {
-                uiInventoryScreen()
-            }
-        }
-
-        //if(k == calledShotKey)
-        //	uiCalledShot()
-
-        //if(k == 'a')
-        //	Worldmap.checkEncounters()
     }
 
     heart.keyup = (k: string) => {

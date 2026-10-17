@@ -73,14 +73,7 @@ export function initSkilldex(): void {
                 return
             }
 
-            // Target skills: enter targeting mode — cursor changes, game loop continues
-            globalState.uiMode = UIMode.useSkill
-            globalState.skillMode = skill
-            globalState.cursorMode = 'useSkill'
-            // CSS cursor fallback — crosshair visible even if WebGL crossuse asset is missing
-            const cnv = document.getElementById('cnv')
-            if (cnv) cnv.style.cursor = "url('art/intrface/crossuse.png') 11 11, crosshair"
-            dbg('skills', `[UI] Skill targeting mode: ${SKILL_NAMES[skill - 1]}`)
+            beginSkillTargeting(skill)
         }
     }
 
@@ -195,6 +188,26 @@ export function initSkilldex(): void {
         }
     }
     document.addEventListener('keydown', skilldexKeyHandler)
+}
+
+// CE game.cc: gameMouseSetCursor(MOUSE_CURSOR_USE_CROSSHAIR) + gameMouseSetMode(
+// GAME_MOUSE_MODE_USE_<skill>) — the next click uses the skill on what is under it.
+// (Sneak toggles at once: _action_skill_use(SKILL_SNEAK).)
+export function beginSkillTargeting(skill: Skills): void {
+    if (skill === Skills.Sneak) {
+        const player = globalState.player
+        if (!player) return
+        const result = skillUse(player, player, SKILL_NAMES[skill - 1])
+        uiLog(result.message)
+        return
+    }
+    globalState.uiMode = UIMode.useSkill
+    globalState.skillMode = skill
+    globalState.cursorMode = 'useSkill'
+    // CSS cursor fallback — crosshair visible even if WebGL crossuse asset is missing
+    const cnv = document.getElementById('cnv')
+    if (cnv) cnv.style.cursor = "url('art/intrface/crossuse.png') 11 11, crosshair"
+    dbg('skills', `[UI] Skill targeting mode: ${SKILL_NAMES[skill - 1]}`)
 }
 
 /** Open the skilldex panel. No-op if initSkilldex() hasn't been called yet. */
