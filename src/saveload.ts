@@ -27,7 +27,7 @@ import { SerializedMap } from './map.js'
 import { Critter, deserializeObj, SerializedObj } from './object.js'
 import { refreshStealthState } from './miscItem.js'
 import { Scripting } from './scripting.js'
-import { scheduleSneakEvent } from './skillUse.js'
+import { scheduleSneakEvent, sneakClear } from './skillUse.js'
 import { restoreDrugEvent } from './drugs.js'
 import { drawHP, drawAC, uiDrawWeapon } from './ui_hud.js'
 import { getFileJSON } from './util.js'
@@ -403,7 +403,8 @@ export function load(id: number): void {
                             const playerForSneak = globalState.player
                             if (playerForSneak && (playerForSneak as any).isSneaking) {
                                 Scripting.timeEventList.push({ obj: playerForSneak, ticks, userdata,
-                                    fn: () => { if ((playerForSneak as any).isSneaking) scheduleSneakEvent(playerForSneak) } })
+                                    fn: () => { if ((playerForSneak as any).isSneaking) scheduleSneakEvent(playerForSneak) },
+                                    leaveMap: () => sneakClear(playerForSneak) })
                             }
                         } else if (typeof userdata === 'string' && userdata.startsWith('radiation:')) {
                             // CE ref: critter.cc radiationEventRead — restore sickness / recovery event.
@@ -414,7 +415,7 @@ export function load(id: number): void {
                             const player = globalState.player as Critter | null
                             if (player && !player.dead) {
                                 Scripting.timeEventList.push({ obj: player, ticks, userdata,
-                                    fn: () => Scripting.poisonDecayEvent(player) })
+                                    fn: () => Scripting.poisonDecayEvent(player), leaveMap: 'keep' })
                             }
                         } else if (obj?._script) {
                             const script = obj._script
@@ -433,7 +434,7 @@ export function load(id: number): void {
                         if (!hasEvent) {
                             const delay = 10 * (505 - 5 * playerForPoison.poisonLevel)
                             Scripting.timeEventList.push({ obj: playerForPoison, ticks: delay, userdata: 'poison',
-                                fn: () => Scripting.poisonDecayEvent(playerForPoison) })
+                                fn: () => Scripting.poisonDecayEvent(playerForPoison), leaveMap: 'keep' })
                         }
                     }
 

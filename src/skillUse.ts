@@ -408,7 +408,16 @@ export function scheduleSneakEvent(player: any): void {
         ticks,
         userdata: 'sneak',
         fn: () => { if ((player as any).isSneaking) scheduleSneakEvent(player) },
+        leaveMap: () => sneakClear(player),
     })
+}
+
+// CE critter.cc _critter_sneak_clear — leaving the map ends sneaking.
+export function sneakClear(player: any): boolean {
+    player.isSneaking = false
+    player.sneakWorking = false
+    updateIndicatorBar()
+    return true
 }
 
 function useSneak(user: Critter): SkillUseResult {

@@ -140,6 +140,21 @@ export module Scripting {
         ticks: number
         userdata: any
         fn: () => void
+        // CE queue.cc gEventTypeDescriptions — what _queue_leaving_map does with the event:
+        // 'keep' (poison, radiation), or a clear proc that returns true when the event goes
+        // (false keeps it). Unset: the event is dropped (script timers and the rest).
+        leaveMap?: 'keep' | (() => boolean)
+    }
+
+    // CE queue.cc _queue_leaving_map (map.cc _map_save_in_game): every event type marked
+    // for it is cleared, through its clear proc where it has one.
+    export function queueLeavingMap(): void {
+        for (const e of timeEventList.slice()) {
+            if (e.leaveMap === 'keep') continue
+            if (e.leaveMap && !e.leaveMap()) continue
+            const i = timeEventList.indexOf(e)
+            if (i !== -1) timeEventList.splice(i, 1)
+        }
     }
 
     export interface SerializedTimedEvent {
@@ -221,7 +236,7 @@ export module Scripting {
                     e.userdata = 'poison-cancelled'; e.fn = () => {}; e.ticks = 1
                 }
             }
-            timeEventList.push({ obj: critter, ticks: 10 * (505 - 5 * newPoison), userdata: 'poison', fn: () => poisonDecayEvent(critter) })
+            timeEventList.push({ obj: critter, ticks: 10 * (505 - 5 * newPoison), userdata: 'poison', fn: () => poisonDecayEvent(critter), leaveMap: 'keep' })
             msgId = amount < 0 ? 3002 : 3000 // "You feel a little better." / "You have been poisoned!"
         } else {
             critter.poisonLevel = 0
@@ -1791,7 +1806,8 @@ export module Scripting {
             // Create object of pid and possibly script
             info('create_object_sid: pid=' + pid + ' tile=' + tile + ' elev=' + elev + ' sid=' + sid, undefined, this)
 
-            if (elev < 0 || elev > 2) throw 'create_object_sid: elev out of range: elev=' + elev
+            if (elev < 0 || elev > 2) { warn('create_object_sid: elev out of range: elev=' + elev, undefined, this); return null }
+            if (tile === -1) tile = 0 // CE opCreateObject
 
             var obj = createObjectWithPID(pid, sid)
             if (!obj) {
@@ -1996,10 +2012,9 @@ export module Scripting {
         set_exit_grids(onElev: number, mapID: number, elevation: number, tileNum: number, rotation: number) {
             // CE ref: interpreter_extra.cc:2180 opSetExitGrids — iterates objectFindFirstAtElevation(onElev)
             // and updates all exit-grid objects (PIDs 0x5000010-0x5000017) on that elevation.
-            for (var i = 0; i < gameObjects!.length; i++) {
-                var obj = gameObjects![i]
-                if (obj.elevation !== onElev) continue
-                if (obj.type === 'misc' && obj.extra && obj.extra.exitMapID !== undefined) {
+            for (const obj of globalState.gMap?.objects?.[onElev] ?? []) {
+                const pid = obj.pid >>> 0
+                if (pid >= 0x5000010 && pid <= 0x5000017 && obj.extra) { // FIRST/LAST_EXIT_GRID_PID
                     obj.extra.exitMapID = mapID
                     obj.extra.startingPosition = tileNum
                     obj.extra.startingElevation = elevation
@@ -2760,17 +2775,13 @@ export module Scripting {
                 }.bind(this),
             })
         }
+        // CE interpreter_extra.cc opRemoveTimerEvent → queue.cc queueRemoveEvents(object):
+        // every queued event this object owns goes, whatever its type.
         rm_timer_event(obj: Obj) {
             log('rm_timer_event', arguments)
-            info('rm_timer_event: ' + obj + ', ' + obj.pid)
-            for (var i = 0; i < timeEventList.length; i++) {
-                const timedEvent = timeEventList[i]
-                if (timedEvent.obj && timedEvent.obj.pid === obj.pid) {
-                    // TODO: better object equality
-                    info('removing timed event for obj')
-                    timeEventList.splice(i--, 1)
-                    break
-                }
+            if (!obj) { warn('rm_timer_event: pobj is NULL'); return }
+            for (let i = timeEventList.length - 1; i >= 0; i--) {
+                if (timeEventList[i].obj === obj) timeEventList.splice(i, 1)
             }
         }
         game_ticks(seconds: number) {
@@ -2796,8 +2807,16 @@ export module Scripting {
         load_map(map: number | string, startLocation: number) {
             log('load_map', arguments)
             info('load_map: ' + map)
-            if (typeof map === 'string') globalState.gMap.loadMap(map.split('.')[0].toLowerCase())
-            else globalState.gMap.loadMapByID(map)
+            // CE interpreter_extra.cc opLoadMap: the entrance goes to GVAR_LOAD_MAP_INDEX (27),
+            // which the new map's map_enter_p_proc reads to place the player; a negative
+            // map index does nothing.
+            if (typeof map === 'string') {
+                setGlobalVar(27, startLocation)
+                globalState.gMap.loadMap(map.split('.')[0].toLowerCase())
+            } else if (map >= 0) {
+                setGlobalVar(27, startLocation)
+                globalState.gMap.loadMapByID(map)
+            }
         }
         play_gmovie(movieID: number) {
             // CE: interpreter_extra.cc:3581 opPlayGameMovie — per-movie flags table,
@@ -3084,8 +3103,8 @@ export module Scripting {
     export function spatial(spatialObj: Obj, source: Obj) {
         // TODO: Spatial type
         const script = spatialObj._script
-        if (!script) throw Error('spatial without a script being triggered')
-        if (!script.spatial_p_proc) throw Error('spatial script without a spatial_p_proc triggered')
+        // CE scriptExecProc: a script without the proc just does nothing
+        if (!script || !script.spatial_p_proc) return
 
         script.game_time = globalState.gameTickTime
         script.cur_map_index = currentMapID

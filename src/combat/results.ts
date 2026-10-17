@@ -98,7 +98,8 @@ export function setNewResults(c: Critter, flags: number): void {
     } else if ((flags & DAM_KNOCKED_OUT) !== 0) {
         removeKnockoutEvents(c)
         const ticks = 10 * (35 - 3 * c.getStat('END'))
-        Scripting.timeEventList.push({ obj: c, ticks, userdata: 'knockout', fn: () => knockoutEventProcess(c) })
+        Scripting.timeEventList.push({ obj: c, ticks, userdata: 'knockout', fn: () => knockoutEventProcess(c),
+            leaveMap: () => critterWakeClear(c) })
     }
     c.injuryFlags = (results(c) | (flags & (DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN | DAM_CRIP | DAM_DEAD | DAM_LOSE_TURN))) >>> 0
 }
@@ -108,6 +109,14 @@ export function removeKnockoutEvents(c: Critter): void {
     for (let i = list.length - 1; i >= 0; i--) {
         if (list[i].obj === c && list[i].userdata === 'knockout') list.splice(i, 1)
     }
+}
+
+// CE critter.cc _critter_wake_clear — leaving the map: a living critter is up again.
+function critterWakeClear(c: Critter): boolean {
+    if (c.dead || (results(c) & DAM_DEAD) !== 0) return false
+    c.injuryFlags = (results(c) & ~(DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN)) >>> 0
+    c.clearAnim?.()
+    return true
 }
 
 // CE critter.cc knockoutEventProcess: the critter comes to and lies knocked down; in

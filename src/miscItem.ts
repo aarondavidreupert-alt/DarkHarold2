@@ -98,6 +98,8 @@ function scheduleTrickle(item: Obj, owner: Critter | null): void {
                 scheduleTrickle(item, owner)
             }
         },
+        // CE item.cc _item_m_turn_off_from_queue — off when leaving the map
+        leaveMap: () => { miscItemTurnOff(item, owner); return true },
     })
 }
 

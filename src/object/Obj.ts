@@ -174,12 +174,14 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
     dbg('object', `[Object] explosive armed: ${seconds}s, Traps ${RollResult[roll]}, fires in ${delay} ticks`)
     const fire = () => explosiveDetonate(obj, desc.min, desc.max, failure)
     if (delay === 0) fire()
-    else Scripting.timeEventList.push({ obj, ticks: delay, userdata: failure ? 'explosionFailure' : 'explosion', fn: fire })
+    // CE queue.cc _queue_explode_exit: leaving the map sets it off at once, unanimated
+    else Scripting.timeEventList.push({ obj, ticks: delay, userdata: failure ? 'explosionFailure' : 'explosion', fn: fire,
+        leaveMap: () => { explosiveDetonate(obj, desc.min, desc.max, false, false); return true } })
 }
 
 // CE queue.cc explosionEventProcess / explosionFailureEventProcess → _queue_do_explosion_:
 // at the owner's tile when carried.
-function explosiveDetonate(obj: Obj, min: number, max: number, failure: boolean): void {
+function explosiveDetonate(obj: Obj, min: number, max: number, failure: boolean, animate = true): void {
     const gMap = globalState.gMap
     if (!gMap) return
     if (failure) uiLog(getMessage('misc', 4000) ?? 'Due to your inept handling, the explosive detonates prematurely.')
@@ -193,7 +195,7 @@ function explosiveDetonate(obj: Obj, min: number, max: number, failure: boolean)
         obj.position = { ...owner.position }
         gMap.addObject(obj)
     }
-    obj.explode(player ?? null, min, max)
+    obj.explode(player ?? null, min, max, 3, animate)
 }
 
 // Set the object (door/container) open/closed; returns true if possible, false if not (e.g. locked)
@@ -1080,10 +1082,13 @@ export class Obj {
     // _compute_explosion_on_extras), each taking d(min, max) − explosion DT/DR with
     // knockback; then damage_p_proc for the scripts in range (_scr_explode_scenery).
     // `_radius` is unused: CE's scripted explosions always use the rocket radius.
-    explode(source: Obj | null, minDmg: number, maxDmg: number, _radius: number = 3): void {
+    // `animate` false (CE actionExplode's animate): the blast lands at once, no sprites.
+    explode(source: Obj | null, minDmg: number, maxDmg: number, _radius: number = 3, animate = true): void {
         const killer = (source ?? this) as Critter // explosive itself as killer when source is null
         const center = { x: this.position.x, y: this.position.y }
         const elevation = this.elevation ?? globalState.gMap?.currentElevation ?? 0
+        const blast = () => this.explosionBlast(killer, center, elevation, minDmg, maxDmg)
+        if (!animate) return blast()
         const explosion = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
         explosion.position = { ...center }
 
@@ -1110,35 +1115,39 @@ export class Obj {
                 if (fired) return
                 fired = true
                 globalState.gMap?.destroyObject(explosion)
-                const gMap = globalState.gMap
-                if (!gMap) return
-
-                const atTile = gMap.blockingObjectAt(toTileNum(center), elevation, 0, null)
-                const main = atTile && atTile.type === 'critter' && !(atTile as Critter).dead ? atTile as Critter : null
-                const victims = [...(main ? [main] : []), ...explosionRingCritters(center, elevation, main, false)]
-                dbg('object', `[Object] explosion: ${minDmg}-${maxDmg}, ${victims.length} critter(s)`)
-                for (const v of victims) {
-                    if (v.dead) continue
-                    const { damage, knockback } = computeExplosionDamage(minDmg, maxDmg, v, getRandomInt)
-                    critterDamage(v, damage, killer, true, true, 'Explosive', undefined, {
-                        attackerAnim: ANIM_STAND, weapon: null, knockback,
-                        knockbackRotation: hexDirectionTo(center, v.position),
-                    })
-                    if (v.isPlayer) drawHP(v.getStat('HP'))
-                }
-
-                scriptsExplodeScenery(this, center, elevation, (obj, target) => {
-                    if (!obj._script) return
-                    try {
-                        Scripting.damage(obj, target, null as any, 20) // fixed param 20
-                    } catch (e) {
-                        dbgWarn('object', `[Object] damage_p_proc error for ${obj.script}:`, e)
-                    }
-                })
-
-                globalState.gMap?.destroyObject(this)
+                blast()
             })
         })
+    }
+
+    private explosionBlast(killer: Critter, center: Point, elevation: number, minDmg: number, maxDmg: number): void {
+        const gMap = globalState.gMap
+        if (!gMap) return
+
+        const atTile = gMap.blockingObjectAt(toTileNum(center), elevation, 0, null)
+        const main = atTile && atTile.type === 'critter' && !(atTile as Critter).dead ? atTile as Critter : null
+        const victims = [...(main ? [main] : []), ...explosionRingCritters(center, elevation, main, false)]
+        dbg('object', `[Object] explosion: ${minDmg}-${maxDmg}, ${victims.length} critter(s)`)
+        for (const v of victims) {
+            if (v.dead) continue
+            const { damage, knockback } = computeExplosionDamage(minDmg, maxDmg, v, getRandomInt)
+            critterDamage(v, damage, killer, true, true, 'Explosive', undefined, {
+                attackerAnim: ANIM_STAND, weapon: null, knockback,
+                knockbackRotation: hexDirectionTo(center, v.position),
+            })
+            if (v.isPlayer) drawHP(v.getStat('HP'))
+        }
+
+        scriptsExplodeScenery(this, center, elevation, (obj, target) => {
+            if (!obj._script) return
+            try {
+                Scripting.damage(obj, target, null as any, 20) // fixed param 20
+            } catch (e) {
+                dbgWarn('object', `[Object] damage_p_proc error for ${obj.script}:`, e)
+            }
+        })
+
+        globalState.gMap?.destroyObject(this)
     }
 
     pickup(source: Critter) {

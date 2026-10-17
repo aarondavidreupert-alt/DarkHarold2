@@ -25,6 +25,7 @@ import { ActionPoints, AI } from '../combat.js'
 import { Config } from '../config.js'
 import { Weapon } from '../critter.js'
 import { directionOfDelta, hexDistance, HEX_GRID_SIZE, Point } from '../geometry.js'
+import { toTileNum } from '../tile.js'
 import globalState from '../globalState.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Scripting } from '../scripting.js'
@@ -33,6 +34,9 @@ import { getAiPacket, AiPacket } from '../aiPackets.js'
 import { getObjectLightIntensity } from '../combat/hitChance.js'
 import { hitSpatialTrigger, Obj, ObjType, objectIsWeapon, SerializedObj, setObjectOpen } from './Obj.js'
 import { WeaponObj } from './items.js'
+
+// CE scripts.cc _scr_SpatialsEnabled — off while a spatial_p_proc runs
+let spatialsBusy = false
 
 export interface SerializedCritter extends SerializedObj {
     stats: any
@@ -270,13 +274,18 @@ export class Critter extends Obj {
             return false
         }
 
-        if (Config.engine.doSpatials !== false) {
+        // CE scripts.cc scriptsExecSpatialProc: not for hidden objects or tiles below 10, and
+        // not while a spatial_p_proc is already running (_scr_SpatialsEnabled).
+        if (Config.engine.doSpatials !== false && this.visible !== false && toTileNum(position) >= 10 && !spatialsBusy) {
+            spatialsBusy = true
+            try {
             const hitSpatials = hitSpatialTrigger(position)
             for (let i = 0; i < hitSpatials.length; i++) {
                 const spatial = hitSpatials[i]
                 dbg('object', `[Object] triggered spatial ${spatial.script} (range=${spatial.range}) @ (${spatial.position.x}, ${spatial.position.y})`)
                 Scripting.spatial(spatial, this)
             }
+            } finally { spatialsBusy = false }
         }
 
         return true

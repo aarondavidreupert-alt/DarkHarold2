@@ -109,7 +109,7 @@ function parseRadiationEvent(userdata: any): { level: number; isHealing: boolean
 
 function scheduleRadiationEvent(obj: Critter, ticks: number, level: number, isHealing: boolean): void {
     const userdata = `${RADIATION_EVENT_TAG}${level}:${isHealing ? 1 : 0}`
-    Scripting.timeEventList.push({ obj, ticks, userdata, fn: () => radiationEventProcess(obj, level, isHealing) })
+    Scripting.timeEventList.push({ obj, ticks, userdata, fn: () => radiationEventProcess(obj, level, isHealing), leaveMap: 'keep' })
 }
 
 // Re-arm a radiation event read from a save (saveload.ts). Returns false if `userdata`

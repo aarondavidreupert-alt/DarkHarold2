@@ -142,7 +142,8 @@ script.spatial_p_proc()
 ```
 
 **Notes:**
-- Only `Critter.move()` triggers spatials — item movement and tile warps do not check.
+- Only `Critter.move()` triggers spatials — as in CE, where only `_object_move` (an animated walk) calls `scriptsExecSpatialProc`; tile warps don't.
+- As CE: no trigger for hidden critters or tiles below 10, and none while a `spatial_p_proc` is running (`_scr_SpatialsEnabled`); a spatial script without the proc does nothing.
 - Explosions also scan nearby spatials (object.ts–902) using a default radius of 3 if the spatial has no explicit radius.
 - `Config.engine.doSpatials` (default `true`) gates all spatial processing.
 
@@ -242,18 +243,28 @@ interface TimedEvent {
     ticks: number      // absolute game tick time to fire
     userdata: any      // passed to timed_event_p_proc as fixed_param
     fn: () => void     // callback, calls timedEvent(obj._script, userdata)
+    leaveMap?: 'keep' | (() => boolean)  // CE gEventTypeDescriptions clear proc
 }
 ```
 
 Opcodes:
 - `add_timer_event(obj, ticks, userdata)` → `0x80F0` — pushes a `TimedEvent` for `obj._script.timed_event_p_proc`
-- `rm_timer_event(obj)` → `0x80F1` — removes all timer events for `obj` (matched by `obj.pid`)
+- `rm_timer_event(obj)` → `0x80F1` — CE `queueRemoveEvents(object)`: removes **every** queued event `obj` owns (any type), matched by object identity
 
-`timeEventList` is cleared on every `Scripting.reset()` (i.e. each new map load). Timed events do not survive map transitions.
+**Leaving a map** (CE `map.cc _map_save_in_game` → `queue.cc _queue_leaving_map`): `Scripting.queueLeavingMap()` runs first in `GameMap.loadMap` (before `map_exit_p_proc`). Per CE event type:
+- script timers (and every event without a clear proc): dropped;
+- poison, radiation: kept;
+- drug effect / withdrawal (`_item_d_clear` / `_item_wd_clear`): kept for party members; for anyone else the drug wears off (withdrawal ends) now;
+- knockout (`_critter_wake_clear`): a living critter is up again (kept on dead ones);
+- sneak (`_critter_sneak_clear`): sneaking ends;
+- Stealth Boy / Geiger trickle (`_item_m_turn_off_from_queue`): the device turns off;
+- armed explosives (`_queue_explode_exit`): they go off at once, unanimated, on the old map (at the carrier when carried).
+
+A new game / load still empties the list (`Scripting.resetGameState`).
 
 `metarule3(100, obj, userdata, ...)` (scripting.ts:530) — removes specific timed event by `obj` + `userdata` match (METARULE3_CLR_FIXED_TIMED_EVENTS).
 
-**Known gap:** `rm_timer_event` matches by `obj.pid` only (not by object identity), which can remove events from a different object that shares the same PID.
+(The save restore still finds an event's owner by `pid` on the current map — see §10.)
 
 ---
 
@@ -267,7 +278,7 @@ load_map(map: number | string, startLocation: number)  // 0x80E4
 
 Loads a new map. If `map` is a string (e.g. `"ARTEMPLE.MAP"`), strips extension and lowercases it before calling `GameMap.loadMap()`. If `map` is a number, calls `loadMapByID()`.
 
-`startLocation` is accepted but currently ignored in DH2 — the player spawns at the map's default start.
+`startLocation` goes to `GVAR_LOAD_MAP_INDEX` (27), which the new map's `map_enter_p_proc` reads to place the player (`override_map_start`); a negative map index does nothing. CE defers the load to `mapHandleTransition`; DH2 loads at once.
 
 CE ref: `interpreter_extra.cc opLoadMap`.
 
@@ -281,15 +292,12 @@ Stores `overrideStartPos = { position: {x,y}, orientation: rotation, elevation }
 
 CE ref: `interpreter_extra.cc opOverrideMapStart`.
 
-### 7.3 set_map_start (MISSING)
+### 7.3 set_map_start
 
-**Opcode:** `0x80A8`  
-**CE ref:** `interpreter_extra.cc:4881 interpreterRegisterOpcode(0x80A8, opSetMapStart)`  
-**Status: NOT IMPLEMENTED in DH2.**
+**Opcode:** `0x80A8` (`set_map_start(x, y, elev, rot)`)  
+**CE ref:** `interpreter_extra.cc opSetMapStart` → `map.cc mapSetStart`
 
-CE `opSetMapStart` (interpreter_extra.cc:497) calls `mapSetStart(tile, elevation, rotation)` (map.cc:494), which permanently updates `gMapHeader.enteringTile/Elevation/Rotation` for subsequent map loads.
-
-DH2 has `0x80a8` wired as `game_time_hour` (vm_bridge.ts:54) — the same opcode slot is reused for a different operation! This is a conflict: CE uses `0x80A8` for `set_map_start`; DH2 uses `0x80A8` as an alternate `game_time_hour` read.
+Implemented 2026-10-17 (known_bugs C38): sets the map's entering tile / elevation / rotation for later loads. (The slot used to be a second `game_time_hour`, which left four arguments on the stack.)
 
 ### 7.4 create_object_sid
 
@@ -297,7 +305,7 @@ DH2 has `0x80a8` wired as `game_time_hour` (vm_bridge.ts:54) — the same opcode
 create_object_sid(pid, tile, elev, sid)  // 0x80B7
 ```
 
-Creates a new object with PID `pid` at `tile` on elevation `elev`, attaching script SID `sid` if nonzero. Adds the object to `globalState.gMap` (scripting.ts:1173).
+Creates a new object with PID `pid` at `tile` on elevation `elev`, attaching script SID `sid` if nonzero. As CE `opCreateObject`: tile −1 becomes 0; an invalid elevation warns and returns null. An object on another elevation is placed there at once — CE's scripts don't depend on the elevation either. Adds the object to `globalState.gMap` (scripting.ts:1173).
 
 **Known gap:** Cross-elevation creation is partially stubbed — if `elev !== currentElevation`, DH2 logs a warning but still places the object on the requested elevation via `gMap.addObject(obj, elev)`. CE would keep the object inactive until that elevation is entered.
 
@@ -326,12 +334,10 @@ CE ref: `interpreter_extra.cc` op_move_to.
 ### 7.7 set_exit_grids
 
 ```typescript
-set_exit_grids(onElev, mapID, elevation, tileNum, rotation)  // not in vm_bridge.ts
+set_exit_grids(onElev, mapID, elevation, tileNum, rotation)  // 0x80E6
 ```
 
-CE ref: `scripts.cc` — updates misc exit-grid objects.
-
-**Status: IMPLEMENTED in scripting.ts:1306 but NOT WIRED in vm_bridge.ts.** The method iterates all `obj.type === 'misc'` objects with an `exitMapID` field and updates their destination.
+CE ref: `interpreter_extra.cc opSetExitGrids` — every exit grid (PIDs `0x5000010`–`0x5000017`) on `onElev` gets the new destination map / tile / elevation (the rotation isn't stored, as in CE). DH2 walks `gMap.objects[onElev]`, so it works for elevations other than the displayed one.
 
 ### 7.8 script_overrides
 
@@ -442,19 +448,21 @@ Sequence for a script-initiated timed event:
 
 ## 10. Known Gaps
 
-| Feature | CE behavior | DH2 gap |
+| Feature | CE behavior | DH2 status |
 |---------|-------------|---------|
-| `set_map_start` | `0x80A8` permanently updates map header start tile/elev/rot | `0x80A8` is wired to `game_time_hour` in DH2 — method does not exist |
-| Map exit proc | `MAP_EXIT` fired on all scripts via `scriptsExecMapUpdateScripts` | `map_exit_p_proc` is **not declared** in the `Script` class at all — DH2 has no method for this proc and never fires it |
-| Elevation change MAP_ENTER | CE fires MAP_ENTER for all critters on elevation change | DH2 `changeElevation()` calls `Scripting.updateMap()` (MAP_UPDATE), not `enterMap()` (MAP_ENTER); `doEnterElevation()` fires MAP_ENTER but is only called in some paths |
-| `set_exit_grids` | Updates exit grid destinations | Implemented in scripting.ts:1306 but not wired in vm_bridge.ts |
-| `teleport_to` | Teleport critter to map/tile | Not in CE local repo; not implemented in DH2 |
-| `get_obj_at_position` | Get object at tile/elevation | Not in CE local repo; not implemented in DH2 |
-| MVAR reset on map transition | CE stores MVARs per-script with offset; survives save/load | DH2 clears `mapVars` on every `Scripting.reset()` call, reloading from disk each time |
-| Cross-elevation `create_object_sid` | Object inactive until elevation entered | DH2 places object immediately but logs a warning |
-| Script type 2 (TIMED) | Fires `timed_event_p_proc` on schedule | Implemented via `timeEventList` but cleared on every map transition |
-| `rm_timer_event` identity | CE matches by script SID | DH2 matches by `obj.pid` — can remove wrong event if multiple objects share a PID |
-| Spatial `range` field | `radius` from `.map` binary | DH2 JSON spatials use `radius`; runtime code reads `spatial.range` — these are the same object property (aliased by `any` type), but the Spatial type is `any` so no compile-time check |
+| `set_map_start` | `0x80A8` updates the map's start tile/elev/rot | **FIXED** (C38) |
+| Map exit proc | `MAP_EXIT` fired on all scripts | **FIXED** (M9): `map_exit_p_proc` runs for the map script and every other script on the map |
+| Elevation change | CE `mapSetElevation` runs `scriptsExecMapUpdateProc` (MAP_UPDATE) | Matches: `changeElevation()` calls `Scripting.updateMap()` |
+| `set_exit_grids` | Updates exit grid destinations on an elevation | **FIXED** (C39): wired as `0x80E6`; walks the target elevation's objects by exit-grid PID |
+| `teleport_to` / `get_obj_at_position` | Not vanilla opcodes | Not implemented (not needed) |
+| MVARs | Per map script, survive transitions and save/load | Matches: `mapVars` keyed by script name, reset only on new game / load (M8) |
+| Cross-elevation `create_object_sid` | Placed on that elevation; scripts run regardless | Matches |
+| Timed events on map transition | `_queue_leaving_map` clears by event type (clear procs) | **FIXED** (C39): `Scripting.queueLeavingMap()` — see §6 |
+| `rm_timer_event` identity | `queueRemoveEvents(object)` — all events of that object | **FIXED** (C39): by identity, all events |
+| `load_map` start location | `GVAR_LOAD_MAP_INDEX` = param | **FIXED** (C39) |
+| Save restore of event owners | Events keep their owner pointer | Approximation: restore looks the owner up by `pid` on the current map |
+| Spatial `range` field | `radius` from `.map` binary | DH2 JSON spatials use `radius`; runtime reads `spatial.range` (same property, `any` type) |
+<!-- audited: 2026-10-17 -->
 
 ---
 
@@ -473,10 +481,6 @@ Sequence for a script-initiated timed event:
    ,0xXXXX: bridged("myOpcode", 2)  // 2 = argc, true = push return value
    ```
 3. Look up the CE opcode in `raw/fallout2-ce/src/interpreter_extra.cc` for the correct hex value.
-
-### Fixing `set_exit_grids` wiring
-
-`set_exit_grids` exists in scripting.ts:1306 but is missing from vm_bridge.ts. The CE opcode is not in the local raw repo — search CE for `opSetExitGrids` to find the correct value before wiring.
 
 ### Debugging spatial triggers
 

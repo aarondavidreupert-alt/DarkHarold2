@@ -65,6 +65,8 @@ GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point,
         // scriptsExecMapExitProc runs map_exit_p_proc for the map script and every other
         // script on it (scripts.cc scriptsExecMapUpdateScripts), and only then is the map
         // saved. (The car's script removes the car this way when you drive off.)
+        // CE _map_save_in_game: _queue_leaving_map first
+        if (this.name !== null && this.objects !== null) Scripting.queueLeavingMap()
         if (Config.engine.doLoadScripts && this.name !== null && this.objects !== null) {
             if (this.mapScript?.map_exit_p_proc !== undefined) {
                 this.mapScript.self_obj = { _script: this.mapScript }
