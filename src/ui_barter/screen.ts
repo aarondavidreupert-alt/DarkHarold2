@@ -194,7 +194,7 @@ export function uiBarterMode(merchant: Critter) {
     function totalAmount(objects: Obj[]): number {
         let total = 0
         for (let i = 0; i < objects.length; i++) {
-            total += (objects[i].pro?.extra?.cost ?? 0) * objects[i].amount
+            total += objects[i].stackCost() // CE item.cc objectGetCost / itemGetCost
         }
         return total
     }

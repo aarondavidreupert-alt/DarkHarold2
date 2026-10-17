@@ -196,7 +196,6 @@ the wiki tracker is the source of truth.
 
 ### 🔶 Known approximations
 
-- **Ammo stacks** count rounds in `amount`, where CE keeps boxes plus rounds in the top box (LE12 note).
 - **AI turn order** — round 1 isn't attacker / defender / player first as in CE's `_combat_sequence_init`; combatants are sorted by Sequence from the start (C31).
 - **Hover readout** is a DOM overlay rather than a cursor blit, and isn't shown for non-critter targets (CI18).
 - **Browser limits** — preferences can't be written back to `fallout2.cfg` (CI5, localStorage instead); mouse sensitivity is stored but the browser owns pointer speed.

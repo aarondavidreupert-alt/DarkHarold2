@@ -17,7 +17,7 @@ limitations under the License.
 // Inventory panel — split out of ui_inventory.ts. See
 // wiki/ts-split-refactor.md → "Per-file split proposals" §8.
 
-import { ammoGetQuantity, ammoSetQuantity, weaponGetAmmoTypePid } from '../weaponAmmo.js'
+import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, ammoSplitOff, weaponGetAmmoTypePid } from '../weaponAmmo.js'
 import globalState from '../globalState.js'
 import { dbg } from '../logger.js'
 import { lazyLoadImage } from '../images.js'
@@ -458,13 +458,16 @@ export function showInventory() {
                 const ammoCurrent = ammoGetQuantity(obj)
                 dbg('inventory', `[UI] unload: ammoPID=${ammoPID} rounds=${ammoCurrent}`)
                 if (ammoCurrent > 0) {
-                    if (ammoPID > 0) {
-                        // Create an ammo item and return it to inventory
+                    // CE inventory.cc unload → item.cc weaponUnload, repeated: one box at a
+                    // time holding up to a box's rounds; the weapon keeps its ammo type.
+                    while (ammoPID > 0 && ammoGetQuantity(obj) > 0) {
                         const ammoObj = createObjectWithPID(ammoPID)
-                        ammoObj.amount = ammoCurrent
-                        globalState.player.addInventoryItem(ammoObj, ammoCurrent)
+                        const rounds = ammoGetQuantity(obj)
+                        const capacity = ammoGetCapacity(ammoObj)
+                        ammoSetQuantity(ammoObj, Math.min(rounds, capacity))
+                        ammoSetQuantity(obj, Math.max(0, rounds - capacity))
+                        globalState.player.addInventoryItem(ammoObj, 1)
                     }
-                    // CE inventory.cc unload: the weapon keeps its ammo type, empty.
                     ammoSetQuantity(obj, 0)
                 }
                 uiDrawWeapon()
@@ -499,6 +502,7 @@ export function showInventory() {
                     const split = cloneItem(obj)
                     split.amount = wanted
                     obj.amount -= wanted
+                    ammoSplitOff(obj, split) // CE itemRemove: the top ammo box goes along
                     split.drop(globalState.player)
                 } else {
                     if (slot !== 'inventory') {

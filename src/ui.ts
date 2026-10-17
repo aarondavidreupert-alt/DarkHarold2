@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { beginUseItemOn, itemCanUseOn } from './useItemOn.js'
-import { ammoGetCapacity, ammoGetQuantity, findReloadAmmo, weaponReload } from './weaponAmmo.js'
+import { ammoGetCapacity, ammoGetQuantity, weaponAttemptReload } from './weaponAmmo.js'
 import { Combat } from './combat.js'
 import globalState from './globalState.js'
 import { dbg } from './logger.js'
@@ -206,25 +206,15 @@ export function initUI() {
         })
     }
 
-    /** Attempt to reload weaponObj from inventory. Returns true if rounds were loaded. */
+    /** CE interface.cc _intface_item_reload — weaponAttemptReload box after box until the
+     *  weapon is full or nothing fits; no message. Returns true if anything was loaded. */
     function reloadWeapon(weaponObj: Obj): boolean {
         const maxAmmo = ammoGetCapacity(weaponObj)
         if (maxAmmo <= 0 || ammoGetQuantity(weaponObj) >= maxAmmo) return false
-
-        // CE item.cc weaponCanBeReloadedWith — first ammo of the weapon's caliber.
         const inv = globalState.player.inventory
-        const ammoItem = findReloadAmmo(weaponObj, inv)
-        if (ammoItem === null) {
-            uiLog("No compatible ammo in inventory.")
-            return false
-        }
-
-        const toLoad = weaponReload(weaponObj, ammoItem)
-        if (toLoad <= 0) return false
-        if ((ammoItem.amount ?? 0) <= 0) inv.splice(inv.indexOf(ammoItem), 1)
-
-        uiLog(`Reloaded ${toLoad} round${toLoad !== 1 ? 's' : ''}.`)
-        return true
+        let loaded = false
+        while (weaponAttemptReload(weaponObj, inv) !== -1) loaded = true
+        return loaded
     }
 
     $id('attackButtonContainer').onclick = () => {

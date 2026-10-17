@@ -18,7 +18,7 @@ limitations under the License.
 // ui_inventory.ts. See wiki/ts-split-refactor.md → "Per-file split
 // proposals" §8.
 
-import { weaponReload } from '../weaponAmmo.js'
+import { ammoSplitOff, ammoUseTopBox, weaponCanBeReloadedWith, weaponReload } from '../weaponAmmo.js'
 import globalState from '../globalState.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { refreshStealthState } from '../miscItem.js'
@@ -70,15 +70,27 @@ export function makeDraggable($el: HTMLElement, data: string, endCallback?: () =
  * Compatibility per CE item.cc weaponCanBeReloadedWith: same caliber, and a loaded
  * weapon only takes the ammo type already in it. Returns true if a round was loaded.
  */
-export function tryLoadAmmoIntoWeapon(ammoObj: Obj, weaponObj: Obj): boolean {
-    const w = weaponObj as any
-    const toLoad = weaponReload(weaponObj, ammoObj)
-    if (toLoad <= 0) return false
-    const ammoIdx = globalState.player.inventory.indexOf(ammoObj)
-    if ((ammoObj.amount ?? 0) <= 0 && ammoIdx !== -1) globalState.player.inventory.splice(ammoIdx, 1)
-    uiLog(`Loaded ${toLoad} round${toLoad !== 1 ? 's' : ''}.`)
-    const soundId: string = w.pro?.extra?.soundId ?? ''
-    if (soundId) globalState.audioEngine.playWeaponSfx(soundId, 'reload')
+// CE inventory.cc _inven_reload — with several boxes, the Move Items window asks how
+// many; then weaponReload box after box until the weapon is full. No message; the
+// weapon's READY sound on success.
+export async function tryLoadAmmoIntoWeapon(ammoObj: Obj, weaponObj: Obj): Promise<boolean> {
+    if (!weaponCanBeReloadedWith(weaponObj, ammoObj)) return false
+    const inventory = globalState.player.inventory
+    const boxes = (ammoObj.amount ?? 1) > 1 ? await uiGetAmount(ammoObj) : 1
+    if (boxes <= 0) return false
+    let reloaded = false
+    for (let i = 0; i < boxes; i++) {
+        const rc = weaponReload(weaponObj, ammoObj)
+        if (rc === -1) break
+        reloaded = true
+        if (rc !== 0) break
+        const last = (ammoObj.amount ?? 1) <= 1
+        ammoUseTopBox(ammoObj, inventory)
+        if (last) break
+    }
+    if (!reloaded) return false
+    const soundId = (weaponObj as any).pro?.extra?.soundID
+    if (typeof soundId === 'number') globalState.audioEngine.playWeaponSfx(String.fromCharCode(soundId), 'reload')
     return true
 }
 
@@ -102,7 +114,7 @@ export async function uiMoveSlot(data: string, target: string) {
 
         // Drag-drop reload: ammo from inventory dropped onto a hand slot with a weapon
         if ((target === 'leftHand' || target === 'rightHand') && playerUnsafe[target]) {
-            if (tryLoadAmmoIntoWeapon(obj, playerUnsafe[target] as Obj)) {
+            if (await tryLoadAmmoIntoWeapon(obj, playerUnsafe[target] as Obj)) {
                 uiDrawWeapon()
                 showInventory()
                 return
@@ -117,6 +129,7 @@ export async function uiMoveSlot(data: string, target: string) {
                 const split = cloneItem(obj)
                 split.amount = wanted
                 obj.amount -= wanted
+                ammoSplitOff(obj, split) // CE itemRemove: the top ammo box goes along
                 obj = split
                 // inventory entry stays — only count was reduced above
             } else {

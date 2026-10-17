@@ -18,7 +18,7 @@ limitations under the License.
 // Split out of object.ts per wiki/ts-split-refactor.md §2.
 
 import { playCharSfx, playOpenSfx, sfxBuildCharName, SCENERY_SOUND_EFFECT } from '../sfxNames.js'
-import { initWeaponAmmo } from '../weaponAmmo.js'
+import { ammoFromRounds, ammoGetCapacity, ammoGetQuantity, ammoMergeInto, ammoSplitOff, initWeaponAmmo } from '../weaponAmmo.js'
 import type { Proto } from '../proto_types.js'
 
 // Object kinds as getPROTypeName() names them (plus map-object kinds that carry no proto).
@@ -107,7 +107,9 @@ function objectSwapItem(a: Obj, item: Obj, b: Obj, amount: number) {
     if (amount !== undefined && amount < item.amount) {
         // just deduct amount from a and give amount to b
         item.amount -= amount
-        b.addInventoryItem(cloneItem(item), amount)
+        const moved = cloneItem(item)
+        ammoSplitOff(item, moved) // CE itemRemove: the top ammo box goes with the moved boxes
+        b.addInventoryItem(moved, amount)
     } else {
         // just swap them
         a.inventory.splice(idx, 1)
@@ -477,6 +479,15 @@ export class Obj {
         obj.miscCharges = mobj.miscCharges
 
         obj.pro = mobj.pro || loadPRO(obj.pid, obj.pidID)
+        if (obj.subtype === 'ammo') {
+            if (deserializing && mobj.ammoQuantity === undefined) {
+                // saves from before the CE ammo model kept the rounds in `amount`
+                ammoFromRounds(obj, obj.amount ?? 1)
+            } else {
+                // CE proto.cc objectDataRead: the map stores the top box's rounds
+                obj.ammoQuantity = mobj.ammoQuantity ?? mobj.extra?.ammoCount
+            }
+        }
         if (obj.subtype === 'weapon') {
             if (deserializing && mobj.ammoQuantity === undefined && mobj.pro?.extra) {
                 // Saves from before per-object ammo kept the loaded rounds/type in a
@@ -746,39 +757,18 @@ export class Obj {
         return cloneItem(this)
     }
 
+    // CE item.cc itemAdd — joins a stack of the same item; an ammo stack combines its top
+    // boxes (ammoMergeInto). Ammo `amount` counts boxes, as CE's quantity does.
     addInventoryItem(item: Obj, count = 1): void {
-        // CE ref: item.cc:322 itemAdd() — ammo boxes have a per-box capacity
-        // (proto.extra.quantity). Filling an existing stack beyond capacity creates
-        // an additional overflow stack rather than unboundedly growing one entry.
-        const isAmmo = item.subtype === 'ammo'
-        const capacity: number = isAmmo ? (item.pro?.extra?.quantity ?? 0) : 0
-
         for (let i = 0; i < this.inventory.length; i++) {
-            if (this.inventory[i].approxEq(item)) {
-                if (isAmmo && capacity > 0) {
-                    const combined = this.inventory[i].amount + count
-                    if (combined > capacity) {
-                        this.inventory[i].amount = capacity
-                        // overflow — recurse with the remainder to fill/create next stack
-                        this.addInventoryItem(item, combined - capacity)
-                    } else {
-                        this.inventory[i].amount = combined
-                    }
-                } else {
-                    this.inventory[i].amount += count
-                }
-                return
-            }
+            const stack = this.inventory[i]
+            if (!stack.approxEq(item)) continue
+            if (item.subtype === 'ammo') ammoMergeInto(stack, count, ammoGetQuantity(item))
+            else stack.amount += count
+            return
         }
-
         // no existing item, add new inventory object
-        const clone = item.clone()
-        if (isAmmo && capacity > 0 && count > capacity) {
-            this.inventory.push(clone.setAmount(capacity))
-            this.addInventoryItem(item, count - capacity)
-        } else {
-            this.inventory.push(clone.setAmount(count))
-        }
+        this.inventory.push(item.clone().setAmount(count))
     }
 
     // CE item.cc itemGetWeight — the proto weight (0 when hidden); power armors weigh
@@ -802,14 +792,37 @@ export class Obj {
         return weight
     }
 
-    // The weight of `count` of this item. DH2 counts an ammo stack in rounds (`amount`)
-    // where CE counts boxes, so ammo weighs by the box: ceil(rounds / rounds per box).
+    // The weight of `count` of this item (ammo: `count` boxes).
     stackWeight(count: number = this.amount ?? 1): number {
-        if (this.subtype === 'ammo') {
-            const perBox = Math.max(1, this.pro?.extra?.quantity ?? 1)
-            return this.getWeight() * Math.ceil(count / perBox)
-        }
         return this.getWeight() * count
+    }
+
+    // CE item.cc itemGetCost — proto cost; a container adds its contents, a loaded weapon
+    // its rounds' share of a box, an ammo box only the share of its rounds left.
+    getCost(): number {
+        const ex = this.pro?.extra ?? {}
+        let cost = ex.cost ?? 0
+        if (this.subtype === 'container') {
+            for (const it of this.inventory) cost += it.stackCost()
+        } else if (this.subtype === 'weapon') {
+            const rounds = ammoGetQuantity(this)
+            const ammoPid = (this as any).ammoTypePid ?? -1
+            if (rounds > 0 && ammoPid !== -1) {
+                const ammo = loadPRO(ammoPid, ammoPid & 0xffff)
+                const perBox = Math.max(1, ammo?.extra?.quantity ?? 1)
+                cost += Math.trunc(rounds * (ammo?.extra?.cost ?? 0) / perBox)
+            }
+        } else if (this.subtype === 'ammo') {
+            cost = Math.trunc(cost * ammoGetQuantity(this) / ammoGetCapacity(this))
+        }
+        return cost
+    }
+
+    // CE item.cc objectGetCost for one inventory entry: an ammo stack is its full boxes
+    // plus the partial top box.
+    stackCost(count: number = this.amount ?? 1): number {
+        if (this.subtype === 'ammo') return (this.pro?.extra?.cost ?? 0) * Math.max(0, count - 1) + this.getCost()
+        return this.getCost() * count
     }
 
     // CE item.cc objectGetInventoryWeight — every carried item; a critter also counts

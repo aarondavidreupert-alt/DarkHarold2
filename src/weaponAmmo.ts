@@ -14,14 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Per-object weapon ammo state (CE obj->data.item.weapon: ammoQuantity, ammoTypePid).
-// Protos are shared between every object of the same pid, so loaded rounds must live
-// on the object; the proto only supplies capacity, burst size and the default type.
-// The proto field `rounds` is CE's weapon burstRounds, not the loaded ammo.
+// Per-object ammo state, as CE keeps it on the object:
+// - a weapon: obj->data.item.weapon.ammoQuantity / ammoTypePid (rounds loaded, type);
+// - an ammo stack: `amount` is the number of boxes (CE inventory quantity) and
+//   `ammoQuantity` the rounds left in the top box (obj->data.item.ammo.quantity); every
+//   other box of the stack is full.
+// Protos are shared between every object of the same pid, so this lives on the object;
+// the proto supplies capacities, burst size and the default type. (The weapon proto
+// field `rounds` is CE's burstRounds, not the loaded ammo.)
 
 import type { Obj } from './object.js'
 
 const isWeapon = (w: Obj | null | undefined): w is Obj => !!w && w.subtype === 'weapon' && !!w.pro?.extra
+const isAmmo = (a: Obj | null | undefined): boolean => !!a && a.subtype === 'ammo' && !!a.pro?.extra
 
 // CE proto.cc:758 _proto_update_init — a new weapon is full, with the proto's ammo type;
 // object.cc:455 clamps a negative map value to 0. Map/save values win when present.
@@ -33,19 +38,61 @@ export function initWeaponAmmo(w: Obj, quantity?: number, typePid?: number): voi
     if (w.ammoQuantity! < 0) w.ammoQuantity = 0
 }
 
-// CE item.cc ammoGetQuantity / ammoSetQuantity (weapon branch).
+// CE item.cc ammoGetQuantity / ammoSetQuantity — a weapon's loaded rounds, or the
+// rounds in an ammo stack's top box (a full box when not set).
 export function ammoGetQuantity(w: Obj | null | undefined): number {
-    return isWeapon(w) ? (w.ammoQuantity ?? 0) : 0
+    if (isWeapon(w)) return w.ammoQuantity ?? 0
+    if (isAmmo(w)) return (w as Obj).ammoQuantity ?? ammoGetCapacity(w)
+    return 0
 }
 export function ammoSetQuantity(w: Obj, quantity: number): void {
-    if (!isWeapon(w)) return
+    if (!isWeapon(w) && !isAmmo(w)) return
     const capacity = ammoGetCapacity(w)
     w.ammoQuantity = Math.max(0, capacity > 0 ? Math.min(quantity, capacity) : quantity)
 }
 
-// CE item.cc ammoGetCapacity — proto ammoCapacity.
+// CE item.cc ammoGetCapacity — a weapon's ammoCapacity, an ammo box's quantity.
 export function ammoGetCapacity(w: Obj | null | undefined): number {
-    return isWeapon(w) ? (w.pro.extra.maxAmmo ?? 0) : 0
+    if (isWeapon(w)) return w.pro.extra.maxAmmo ?? 0
+    if (isAmmo(w)) return Math.max(1, (w as Obj).pro.extra.quantity ?? 1)
+    return 0
+}
+
+// All rounds in an ammo stack: full boxes plus the top box.
+export function ammoStackRounds(a: Obj): number {
+    if (!isAmmo(a)) return 0
+    return Math.max(0, (a.amount ?? 1) - 1) * ammoGetCapacity(a) + ammoGetQuantity(a)
+}
+
+// CE item.cc itemAdd (ammo): `count` boxes whose top box holds `topRounds` join `stack`;
+// the two top boxes combine, spilling into one more full box when they overflow.
+export function ammoMergeInto(stack: Obj, count: number, topRounds: number): void {
+    const capacity = ammoGetCapacity(stack)
+    const sum = ammoGetQuantity(stack) + topRounds
+    if (sum > capacity) {
+        stack.ammoQuantity = sum - capacity
+        stack.amount = (stack.amount ?? 1) + count
+    } else {
+        stack.ammoQuantity = sum
+        stack.amount = (stack.amount ?? 1) + count - 1
+    }
+}
+
+// CE item.cc itemRemove (ammo): boxes split off a stack take its top box with them; the
+// boxes left behind are all full.
+export function ammoSplitOff(source: Obj, moved: Obj): void {
+    if (!isAmmo(source)) return
+    moved.ammoQuantity = ammoGetQuantity(source)
+    source.ammoQuantity = ammoGetCapacity(source)
+}
+
+// Old saves kept an ammo stack's rounds in `amount`; turn them into boxes + top box.
+export function ammoFromRounds(a: Obj, rounds: number): void {
+    if (!isAmmo(a)) return
+    const capacity = ammoGetCapacity(a)
+    const boxes = Math.max(1, Math.ceil(rounds / capacity))
+    a.amount = boxes
+    a.ammoQuantity = Math.max(0, rounds - (boxes - 1) * capacity)
 }
 
 // CE item.cc weaponGetAmmoTypePid / weaponSetAmmoTypePid.
@@ -82,20 +129,53 @@ export function solarScorcherCanRecharge(ambient: number): boolean {
     return ambient > LIGHT_INTENSITY_MAX * 0.95
 }
 
-// CE item.cc weaponReload. DH2 ammo stacks keep their rounds in `amount` (CE keeps
-// boxes + rounds-in-top-box); the loaded rounds come off that count. Returns the
-// rounds loaded, or -1 if the ammo doesn't fit.
+// CE item.cc weaponReload — loads from the stack's top box only. Returns the rounds left
+// in that box (0: it is used up — the caller removes it with ammoUseTopBox), or -1 if
+// the ammo doesn't fit.
 export function weaponReload(w: Obj, ammo: Obj): number {
     if (!weaponCanBeReloadedWith(w, ammo)) return -1
     const quantity = ammoGetQuantity(w)
     const capacity = ammoGetCapacity(w)
-    if (quantity >= capacity) return 0
-    const available = ammo.amount ?? 1
-    const loaded = Math.min(capacity - quantity, available)
-    w.ammoTypePid = ammo.pid
-    ammo.amount = available - loaded
-    ammoSetQuantity(w, quantity + loaded)
-    return loaded
+    const top = ammoGetQuantity(ammo)
+    let left = top
+    if (quantity < capacity) {
+        let loaded: number
+        if (quantity + top > capacity) {
+            left = top - (capacity - quantity)
+            loaded = capacity
+        } else {
+            left = 0
+            loaded = quantity + top
+        }
+        w.ammoTypePid = ammo.pid
+        ammoSetQuantity(ammo, left)
+        ammoSetQuantity(w, loaded)
+    }
+    return left
+}
+
+// CE _obj_destroy(ammo) after a reload emptied the top box (itemRemove(…, 1)): one box
+// less, the next one full; the stack goes when it was the last.
+export function ammoUseTopBox(ammo: Obj, inventory: Obj[]): void {
+    if ((ammo.amount ?? 1) > 1) {
+        ammo.amount -= 1
+        ammo.ammoQuantity = ammoGetCapacity(ammo)
+    } else {
+        const i = inventory.indexOf(ammo)
+        if (i !== -1) inventory.splice(i, 1)
+    }
+}
+
+// CE item.cc weaponAttemptReload — one box of the loaded ammo type first, else of any
+// type that fits. Returns -1 when the weapon is full or there is nothing to load.
+export function weaponAttemptReload(w: Obj, inventory: Obj[]): number {
+    if (ammoGetQuantity(w) >= ammoGetCapacity(w)) return -1
+    const ammo = inventory.find((a) => a.subtype === 'ammo' && a.pid === weaponGetAmmoTypePid(w) && weaponCanBeReloadedWith(w, a))
+        ?? inventory.find((a) => weaponCanBeReloadedWith(w, a))
+    if (!ammo) return -1
+    const rc = weaponReload(w, ammo)
+    if (rc === 0) ammoUseTopBox(ammo, inventory)
+    return rc === -1 ? -1 : 0
 }
 
 // First inventory ammo that fits (CE _item_w_try_reload / inventory search).

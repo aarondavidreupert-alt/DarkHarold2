@@ -21,6 +21,7 @@ limitations under the License.
 import { Obj } from '../object.js'
 import { $id } from '../ui_dom.js'
 import globalState from '../globalState.js'
+import { ammoGetQuantity, ammoMergeInto, ammoSplitOff } from '../weaponAmmo.js'
 
 // CE ref: inventory.cc:5534-5568 _draw_amount — BIGNUM.frm (FRM 170,
 // art/intrface/bignum.png, 336×24) is a 24-glyph sprite strip at 14px/glyph.
@@ -267,7 +268,9 @@ export function uiGetTimer(item: Obj): Promise<number> {
 function _uiAddItem(items: Obj[], item: Obj, count: number) {
     for (let i = 0; i < items.length; i++) {
         if (items[i].approxEq(item)) {
-            items[i].amount += count
+            // CE itemAdd: ammo stacks combine their top boxes
+            if (item.subtype === 'ammo') ammoMergeInto(items[i], count, ammoGetQuantity(item))
+            else items[i].amount += count
             return
         }
     }
@@ -294,8 +297,13 @@ export function uiSwapItem(a: Obj[], item: Obj, b: Obj[], amount: number) {
     }
 
     if (amount < item.amount) {
-        // deduct amount from a and give amount to b
+        // deduct amount from a and give amount to b; CE itemRemove: the moved boxes take
+        // the top ammo box, the ones left are full
+        const moved = item.clone()
         item.amount -= amount
+        ammoSplitOff(item, moved)
+        _uiAddItem(b, moved, amount)
+        return
     }
     // just swap them
     else {

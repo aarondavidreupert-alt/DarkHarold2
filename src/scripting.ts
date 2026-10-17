@@ -56,6 +56,7 @@ import { Worldmap } from './worldmap.js'
 import { ScriptVMBridge } from './vm_bridge.js'
 import { processMidnightForDay } from './gameTick.js'
 import { Config } from './config.js'
+import { ammoSplitOff } from './weaponAmmo.js'
 import { refreshStealthState } from './miscItem.js'
 import { isWithinPerception } from './perception.js'
 
@@ -1232,6 +1233,7 @@ export module Scripting {
                 if (obj.inventory[i].approxEq(item)) {
                     obj.inventory[i].amount -= count
                     if (obj.inventory[i].amount <= 0) obj.inventory.splice(i, 1)
+                    else ammoSplitOff(obj.inventory[i], obj.inventory[i].clone()) // the boxes left are full
                     return
                 }
             }
@@ -2313,7 +2315,7 @@ export module Scripting {
                 const have = obj.amount ?? 1
                 const n = Math.min(have, quantity)
                 if (n >= have) arrayRemove(owner.inventory, obj)
-                else obj.amount = have - n
+                else { obj.amount = have - n; ammoSplitOff(obj, obj.clone()) } // the boxes left are full
                 if (owner === globalState.player) uiDrawWeapon()
                 return n
             }

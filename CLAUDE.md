@@ -144,7 +144,6 @@ party (level-ups, CE placement), perk selection, poison/radiation/addiction, scr
 schedules, unarmed special moves, talking heads + speech + subtitles, movies, endgame slides,
 and all 181 vanilla opcodes (0 active `stub()` calls). Remaining deliberate approximations
 are listed in README.md → "Known approximations" and `wiki/known_bugs.md`:
-- Ammo stacks count rounds in `amount` (CE: boxes + rounds in the top box)
 - Combat round 1 is sorted by Sequence (CE: attacker, defender, player first)
 - Browser limits: no `fallout2.cfg` write-back (localStorage instead), mouse sensitivity stored only
 

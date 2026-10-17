@@ -201,9 +201,9 @@ export class Player extends Critter {
         createObjectWithPID(23),  // Laser Rifle    (ammo: Micro Fusion Cell)
 
         // Ammo
-        createObjectWithPID(33).setAmount(200),  // 10mm JHP
-        createObjectWithPID(36).setAmount(200),  // .223 FMJ
-        createObjectWithPID(39).setAmount(200),  // Micro Fusion Cell (PROTO_ID_MICRO_FUSION_CELL)
+        createObjectWithPID(29).setAmount(10),   // 10mm JHP (boxes)
+        createObjectWithPID(34).setAmount(10),   // .223 FMJ (boxes)
+        createObjectWithPID(39).setAmount(10),   // Micro Fusion Cell (PROTO_ID_MICRO_FUSION_CELL, boxes)
 
         // Drugs & chems
         createObjectWithPID(40).setAmount(5),    // Stimpak

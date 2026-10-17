@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, findReloadAmmo, weaponGetBurstRounds, weaponReload } from '../weaponAmmo.js'
+import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, ammoUseTopBox, findReloadAmmo, weaponGetBurstRounds, weaponReload } from '../weaponAmmo.js'
 import { AudioEngine } from '../audio.js'
 import { Config } from '../config.js'
 import { ANIM_KICK_LEG, critterDamage, critterKill, unarmedAttackAnim } from '../critter.js'
@@ -2328,11 +2328,10 @@ export class Combat {
     }
 
     private aiReload(obj: Critter, wObj: Obj, ammo: Obj, then: () => void): void {
-        const loaded = weaponReload(wObj as any, ammo as any)
-        if ((ammo.amount ?? 0) <= 0) {
-            const i = obj.inventory.indexOf(ammo)
-            if (i !== -1) obj.inventory.splice(i, 1)
-        }
+        // CE combat_ai.cc aiAttemptWeaponReload: one box; an emptied box is used up
+        const before = ammoGetQuantity(wObj as any)
+        if (weaponReload(wObj as any, ammo as any) === 0) ammoUseTopBox(ammo, obj.inventory)
+        const loaded = ammoGetQuantity(wObj as any) - before
         const AP = obj.AP!
         const cost = (wObj as any).weapon?.getReloadAPCost?.() ?? 2
         if (AP.getAvailableCombatAP() < cost) AP.combat = 0
@@ -2873,11 +2872,7 @@ export class Combat {
             if (cap <= 0 || ammoGetQuantity(w as any) >= cap) continue
             const ammo = findReloadAmmo(w as any, c.inventory as any)
             if (!ammo) continue
-            weaponReload(w as any, ammo as any)
-            if ((ammo.amount ?? 0) <= 0) {
-                const i = c.inventory.indexOf(ammo)
-                if (i !== -1) c.inventory.splice(i, 1)
-            }
+            if (weaponReload(w as any, ammo as any) === 0) ammoUseTopBox(ammo, c.inventory)
         }
     }
 

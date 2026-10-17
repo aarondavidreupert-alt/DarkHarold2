@@ -30,7 +30,7 @@ import globalState from './globalState.js'
 import { dbg } from './logger.js'
 import { Combat } from './combat.js'
 import { armorPerkSwap } from './perks.js'
-import { ammoGetCapacity, ammoGetQuantity, findReloadAmmo, weaponReload } from './weaponAmmo.js'
+import { ammoGetCapacity, ammoGetQuantity, ammoUseTopBox, findReloadAmmo, weaponReload } from './weaponAmmo.js'
 import { getProtoMsg } from './util.js'
 import { randomBetween } from './random.js'
 import { Critter, Obj } from './object.js'
@@ -238,13 +238,7 @@ function useBestWeapon(companion: Critter): boolean {
         const cap = ammoGetCapacity(weapon as any)
         if (cap > 0 && ammoGetQuantity(weapon as any) < cap) {
             const ammo = findReloadAmmo(weapon as any, companion.inventory as any)
-            if (ammo) {
-                weaponReload(weapon as any, ammo as any)
-                if ((ammo.amount ?? 0) <= 0) {
-                    const i = companion.inventory.indexOf(ammo)
-                    if (i !== -1) companion.inventory.splice(i, 1)
-                }
-            }
+            if (ammo && weaponReload(weapon as any, ammo as any) === 0) ammoUseTopBox(ammo, companion.inventory)
         }
         dbg('ai', `[Companion] ${companion.name} wields ${weapon.name}`)
         showAIUpdateMsg(companion)
