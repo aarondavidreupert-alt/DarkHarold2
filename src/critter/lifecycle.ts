@@ -116,12 +116,7 @@ export function critterKill(
 
         // Player death: CE ref: critter.cc:912 — calls endgameSetupDeathEnding(REASON_DEATH)
         // then the death ending scene plays (narrator slide with voiceover).
-        if (obj.isPlayer && typeof document !== 'undefined') {
-            Endgame.setupDeathEnding(Endgame.DEATH_REASON_DEATH)
-            Endgame.playDeathEnding().catch((e: unknown) => {
-                dbgWarn('combat', `[death] playDeathEnding error: ${e}`)
-            })
-        }
+        if (obj.isPlayer && typeof document !== 'undefined') Endgame.dudeDeathScene()
 
         // Corpse auto-cleanup: remove empty corpses after a configurable timeout.
         // Corpses with loot are left on the map so the player can still loot them.

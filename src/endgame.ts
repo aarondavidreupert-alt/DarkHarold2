@@ -21,12 +21,13 @@
 //   endgame/deathEndings.ts — selection + filename helpers
 //   endgame/slideRender.ts  — slide rendering primitives + overlay
 
+import { showConfirm } from './ui_dialog.js'
 import { Scripting } from './scripting.js'
 import globalState from './globalState.js'
-import { getFileJSON } from './util.js'
+import { getFileJSON, getMessage } from './util.js'
 import { dbg, dbgWarn } from './logger.js'
 import { createOverlay, removeOverlay, showStaticSlide, showPanningSlide, showCredits } from './endgame/slideRender.js'
-import { getDeathEndingFileName } from './endgame/deathEndings.js'
+import { getDeathEndingFileName, setupDeathEnding, DEATH_REASON_DEATH } from './endgame/deathEndings.js'
 
 export { EndgameDeathEnding, DEATH_REASON_DEATH, DEATH_REASON_TIMEOUT, setupDeathEnding, getDeathEndingFileName } from './endgame/deathEndings.js'
 
@@ -48,35 +49,9 @@ const PANNING_ART_NUM = 327
 // CE: endgame.cc:endgameEndingHandleContinuePlaying (0x43F8C4)
 // misc.msg #30 = "Continue playing?"
 // Returns true if the player wants to continue, false if they want to quit.
-function showContinueDialog(): Promise<boolean> {
-    return new Promise(resolve => {
-        const dlg = document.createElement('div')
-        dlg.style.cssText = [
-            'position:fixed', 'top:50%', 'left:50%',
-            'transform:translate(-50%,-50%)',
-            'background:#1a1a1a', 'border:2px solid #777',
-            'padding:28px 40px', 'z-index:10000',
-            'text-align:center', 'color:#ccc',
-            'font-family:monospace', 'font-size:16px',
-        ].join(';')
-
-        const msg = document.createElement('div')
-        msg.textContent = 'Continue playing?'
-        msg.style.marginBottom = '18px'
-        dlg.appendChild(msg)
-
-        const mkBtn = (label: string, value: boolean) => {
-            const btn = document.createElement('button')
-            btn.textContent = label
-            btn.style.cssText = 'margin:0 8px;padding:6px 22px;background:#333;color:#ccc;border:1px solid #666;cursor:pointer;font-family:monospace;font-size:14px;'
-            btn.onclick = () => { dlg.remove(); resolve(value) }
-            return btn
-        }
-
-        dlg.appendChild(mkBtn('Yes', true))
-        dlg.appendChild(mkBtn('No', false))
-        document.body.appendChild(dlg)
-    })
+async function showContinueDialog(): Promise<boolean> {
+    // showDialogBox(misc.msg 30, DIALOG_BOX_YES_NO); NO → _game_user_wants_to_quit = 2
+    return showConfirm(getMessage('misc', 30) ?? 'Continue playing?')
 }
 
 // ---------- public API ----------
@@ -147,6 +122,19 @@ export async function playMovie(): Promise<void> {
 // CE equivalent: critter.cc calls endgameSetupDeathEnding then the game
 // enters the death screen where endgameDeathEndingGetFileName is used to
 // play the narrator voice-over. DH2 collapses this into a single call.
+let deathSceneShown = false
+
+// CE main.cc mainLoop: the dude dead (or knocked out outside combat) →
+// endgameSetupDeathEnding(REASON_DEATH), showDeath, and back to the main menu.
+export function dudeDeathScene(): void {
+    if (deathSceneShown) return
+    deathSceneShown = true
+    setupDeathEnding(DEATH_REASON_DEATH)
+    playDeathEnding()
+        .catch((e: unknown) => dbgWarn('endgame', 'death scene error: ' + String(e)))
+        .then(() => location.reload())
+}
+
 export async function playDeathEnding(): Promise<void> {
     const selected = getDeathEndingFileName()
     const baseName = selected.startsWith('narrator/')

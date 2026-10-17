@@ -321,7 +321,10 @@ export async function showPanningSlide(
     const [canvas, ctx] = createSlideCanvas(overlay)
     const subDiv = createSubtitleDiv(overlay)
 
+    // CE endgameEndingVoiceOverInit loads the speech now; endgameEndingVoiceOverReset starts
+    // it (and the subtitles) a quarter of the way in.
     const audio = playNarratorAudio(voiceBaseName)
+    if (audio) audio.pause()
     const speechMs = audio ? await waitAudioDurationMs(audio) : 0
 
     // Load image (may be wider than SLIDE_W for panning)
@@ -338,45 +341,57 @@ export async function showPanningSlide(
         })
     }
 
+    // CE endgame.cc endgameEndingRenderPanningScene: one pixel every v9 ms (16, stretched
+    // so the pan outlasts the speech); the palette fades in over the first quarter
+    // (v32 = range / 4) and out near the end; the speech starts at pixel v32
+    // (left→right) or 640 − v32 (right→left).
     const imgW = img?.naturalWidth ?? SLIDE_W
-    const panRange = Math.max(0, imgW - SLIDE_W)
-    const startX = direction === -1 ? panRange : 0
-    const endX   = direction === -1 ? 0 : panRange
-
-    // CE: endgame.cc:337-345 — 16ms base per pixel; stretch when speech > 8*panRange
-    const BASE_MS_PER_PX = 16
-    let msPer = BASE_MS_PER_PX
-    if (panRange > 0 && speechMs > 0 && speechMs > BASE_MS_PER_PX * 0.5 * panRange) {
-        msPer = Math.round((speechMs + BASE_MS_PER_PX * 0.5 * panRange) / panRange)
+    const v8 = Math.max(0, imgW - SLIDE_W)
+    const v32 = Math.trunc(v8 / 4)
+    const v12 = SLIDE_W - v32
+    let v9 = 16
+    if (v8 > 0 && speechMs > (16 * v8) / 2) v9 = Math.trunc((speechMs + 16 * Math.trunc(v8 / 2)) / v8)
+    const startX = direction === -1 ? v8 : 0
+    const endX   = direction === -1 ? 0 : v8
+    const voiceAt = direction === -1 ? v12 : v32
+    const brightness = (x: number): number => {
+        if (v32 === 0) return 1
+        if (x > v32) return v12 > x ? 1 : Math.max(0, Math.min(1, (v32 - (x - v12)) / v32))
+        return x / v32
     }
-    const panDurationMs = panRange > 0 ? msPer * panRange : Math.max(speechMs, 3000)
 
     const subtitleLines = loadSubtitleLines(voiceBaseName)
-    const subtitleTimings = buildSubtitleTimings(subtitleLines, panDurationMs)
-    const subHandles = scheduleSubtitles(subtitleLines, subtitleTimings, subDiv)
+    let subHandles: number[] = []
+    const startVoice = () => {
+        if (audio) void audio.play().catch(() => {})
+        subHandles = scheduleSubtitles(subtitleLines, buildSubtitleTimings(subtitleLines, speechMs || 3000), subDiv)
+    }
 
     let interrupted = false
     const onKey = () => { interrupted = true }
     document.addEventListener('keydown', onKey, { once: true })
     overlay.addEventListener('click', () => { interrupted = true }, { once: true })
-    if (audio) audio.addEventListener('ended', () => { interrupted = true }, { once: true })
 
-    const startTime = performance.now()
-
+    let x = startX
+    let voiceStarted = false
+    if (v8 === 0) startVoice()
     await new Promise<void>(resolve => {
+        let since = performance.now()
         function draw() {
-            if (interrupted) { resolve(); return }
-            const elapsed = performance.now() - startTime
-            const t = Math.min(elapsed / panDurationMs, 1)
-            const x = startX + (endX - startX) * t
-
+            if (interrupted || x === endX) { resolve(); return }
+            const now = performance.now()
+            while (now - since >= v9 && x !== endX) {
+                since += v9
+                x += direction === -1 ? -1 : 1
+                if (!voiceStarted && x === voiceAt) { voiceStarted = true; startVoice() }
+            }
             ctx.fillStyle = '#000'
             ctx.fillRect(0, 0, SLIDE_W, SLIDE_H)
             if (img?.complete && img.naturalWidth > 0) {
+                ctx.globalAlpha = brightness(x)
                 ctx.drawImage(img, -x, 0, imgW, SLIDE_H)
+                ctx.globalAlpha = 1
             }
-
-            if (t >= 1) { resolve(); return }
             requestAnimationFrame(draw)
         }
         requestAnimationFrame(draw)

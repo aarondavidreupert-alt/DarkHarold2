@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { DAM_KNOCKED_OUT } from './combat/results.js'
 import { Worldmap } from './worldmap.js'
 import { gameMoviePlay, GAME_MOVIE_FADE_IN, GAME_MOVIE_FADE_OUT, GAME_MOVIE_PAUSE_MUSIC, GAME_MOVIE_STOP_MUSIC } from './gameMovie.js'
 import { getRandomInt } from './util.js'
@@ -193,11 +194,18 @@ export function tickGame(): void {
         globalState.lastGameTick = time
         globalState.gameTickTime++
 
-        // CE ref: scripts.cc:368 gameTimeAddTicks — end game after 13 elapsed years
-        if (globalState.gameTickTime >= 13 * GameTime.TICKS_PER_YEAR) {
+        // CE ref: scripts.cc:368 gameTimeAddTicks — after 13 years endgameSetupDeathEnding(
+        // TIMEOUT) and _game_user_wants_to_quit = 2: straight back to the main menu (no
+        // death scene — main.cc only shows one when _main_show_death_scene is set).
+        if (globalState.gameTickTime >= 13 * GameTime.TICKS_PER_YEAR && !gameEndingTriggered) {
+            gameEndingTriggered = true
             Endgame.setupDeathEnding(Endgame.DEATH_REASON_TIMEOUT)
-            Endgame.playDeathEnding().catch((e: unknown) => dbgWarn('endgame', 'GTC7 timeout ending error: ' + String(e)))
+            location.reload()
         }
+        // CE main.cc mainLoop: the dude dead or knocked out outside combat ends the game.
+        // (Death goes through critterKill's death animation → dudeDeathScene.)
+        const dude = globalState.player
+        if (dude && !globalState.inCombat && !dude.dead && ((dude.injuryFlags ?? 0) & DAM_KNOCKED_OUT) !== 0) Endgame.dudeDeathScene()
 
         // CE ref: scripts.cc:405 gameTimeEventProcess — midnight queue event.
         // Fires once per in-game day: unjams all doors and checks story-movie triggers.
