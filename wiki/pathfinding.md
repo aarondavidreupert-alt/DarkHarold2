@@ -166,42 +166,17 @@ if (v24 != nullptr) {
 }
 ```
 
-`canUseDoor` (proto_instance.cc) checks that the obstacle is an unlocked/openable
-door and that `object` (the pathfinder) can interact with it. This allows A* to
-route through closed-but-openable doors; the animation layer then opens the door
-before the critter steps through.
+`canUseDoor` (`animation.cc:1667`): for **the dude** the door must be a walk-thru portal (proto scenery data `& 0x04`, `_obj_portal_is_walk_thru`) — no Fallout 2 door has it (all 98 door protos have 0), so the player never paths through a closed door and opens doors himself. Other critters pass a closed door that is an unlocked scenery door if they are biped or robotic and not geckos; `_object_move` then opens it (`_obj_use_door`) on the way.
 
 ---
 
 ## 6. DH2 Implementation
 
-### Library
+### `src/map/pathfinder.ts` (ported 2026-10-17, known_bugs C45)
 
-DH2 uses [PathFinding.js](https://github.com/qiao/PathFinding.js) (bundled as
-`lib/pathfinding-browser.js`, exposed as global `PF`; declared `declare let PF: any`
-in `src/map/GameMap.ts`).
+`pathfinderFindPath(mover, from, to, goalMustBeFree)` is CE `pathfinderFindPath` line by line: a tile is taken on first discovery (never re-opened), `estimate = _idist(screen distance)`, cost 50 per step, +10 for a turn outside combat (also from the start node, whose rotation is 0), +400 on radioactive goo (+100 geckos), the open node with the lowest estimate + cost wins (ties: lowest slot), 2000 open / 2000 closed nodes at most (no path beyond), 800 rotations returned at most. The blocking test is CE `_obj_blocking_at` precomputed per tile (critters, scenery, walls; not hidden / NO_BLOCK; OBJECT_MULTIHEX also blocks its six neighbours; the mover never blocks itself); a blocked tile is only entered when it is a door the mover `canUseDoor`.
 
-### `GameMap.recalcPath` (`src/map/GameMap.ts`)
-
-```typescript
-recalcPath(start: Point, goal: Point, isGoalBlocking?: boolean) {
-    const matrix = new Array(HEX_GRID_SIZE)
-    for (let y = 0; y < HEX_GRID_SIZE; y++)
-        matrix[y] = new Array(HEX_GRID_SIZE)
-
-    for (const obj of this.getObjects())
-        matrix[obj.position.y][obj.position.x] |= <any>obj.blocks()
-
-    if (isGoalBlocking === false)
-        matrix[goal.y][goal.x] = 0   // allow walking into blocking goal tile
-
-    const grid = new PF.Grid(HEX_GRID_SIZE, HEX_GRID_SIZE, matrix)
-    const finder = new PF.AStarFinder()
-    return finder.findPath(start.x, start.y, goal.x, goal.y, grid)
-}
-```
-
-Returns `[x, y][]` — an array of grid coordinates from start to goal.
+`GameMap.recalcPath(start, goal, isGoalBlocking?, mover?)` wraps it: the goal must be free unless `isGoalBlocking === false` (CE a5); `mover` defaults to the player; it returns `[x, y][]` from start to goal. The combat AI passes the critter and `false` for paths to a target critter (CE `_make_path(..., 0)`) — before, those paths always failed because the occupied goal counted as blocked.
 
 ### Blocking predicates
 
@@ -246,37 +221,25 @@ step-by-direction algorithm.
 
 | Feature | CE | DH2 |
 |---------|-----|-----|
-| Algorithm | A* in `animation.cc` | PathFinding.js A* on 2D grid |
-| Grid model | Hex tile indices (200×200, `tileNum = y*200+x`) | Same 200×200 array, but PathFinding.js treats it as orthogonal |
-| Heuristic | Screen-pixel octile distance (`_idist`, `animation.cc:1911`) | PathFinding.js default (Manhattan or Euclidean on grid coords) |
-| Output format | `rotations[]` array of direction 0-5 | `[x, y][]` coordinate pairs |
-| Max path length | 800 steps, 2000-node closed list | Unbounded (library default) |
-| Base step cost | 50 | Equal (library default: 1) |
-| Rotation-change penalty | +10 (outside combat) | None |
-| Radioactive goo penalty | +100/+400 | None |
-| Door passthrough | Yes (`canUseDoor` in expansion loop) | No — closed doors are hard blocks |
-| MULTIHEX neighbor check | Yes (6 neighbors per tile) | No |
-| Shoot-blocking type | `_obj_shoot_blocking_at` (excludes SHOOT_THRU, skips dead critters) | No dedicated variant |
-| AI-blocking type | `_obj_ai_blocking_at` (one critter passthrough) | No dedicated variant |
-| Sight-blocking type | `_obj_sight_blocking_at` (scenery/wall, LIGHT_THRU aware) | Partial — `hasLineOfSight` checks wall type only; `hexLinecast` checks all types |
-| Straight-line LoF | `_make_straight_path_func` (hex step directions) | `hexLine` greedy walk — same concept, different step algorithm |
-| Dead critters blocking paths | Yes (treated as critters) | `Critter.blocks()` returns `false` when dead |
-| Script opcode `obj_blocking_at` (0x826F) | `op_obj_blocking_at` → `_obj_blocking_at` | **WIRED 2026-07-04** — `Script.obj_blocking_at(tile, elevation, type)` delegates to `GameMap.blockingObjectAt()` |
-| Script opcode `make_straight_path` (0x826E) | `op_make_straight_path` → `_make_straight_path_func` | **WIRED 2026-07-04** — `Script.make_straight_path(obj, dest, type)` delegates to `GameMap.straightPathBlockingObject()` |
+| Algorithm, heuristic, costs, node limits, tie-break | `pathfinderFindPath` | Same (`src/map/pathfinder.ts`) |
+| Door passthrough | `canUseDoor` (dude: walk-thru portals only) | Same; `Critter.move` opens a door only when `canUseDoor` |
+| MULTIHEX / hidden / NO_BLOCK | `_obj_blocking_at` | Same |
+| Dead critters | `critterKill` sets OBJECT_NO_BLOCK | `Critter.blocks()` false when dead — same |
+| Shoot / sight blocking | `_obj_shoot_blocking_at`, `_obj_sight_blocking_at` | `GameMap.blockingObjectAt` types 0/1; `Combat.hasLineOfSight` walls + scenery without LIGHT_THRU |
+| Straight line | `_make_straight_path_func` | `hexLine` — same concept, different step algorithm |
+| `obj_blocking_at` / `make_straight_path` (0x826F / 0x826E) | sfall opcodes | wired (types 0/1) |
 
 ---
 
 ## 8. Known Gaps
 
-| ID | Description | DH2 Location | CE Reference | Severity |
-|----|-------------|--------------|--------------|----------|
-| P1 | PathFinding.js models the hex grid as an orthogonal rectangle. Diagonal moves in PathFinding.js are 4-connected or 8-connected (depending on heuristic); CE steps through all 6 hex rotations. Path quality near edges or angled obstacles may differ. | `src/map/GameMap.ts` | `animation.cc:1795` | Medium |
-| P2 | No rotation-change step cost (+10 in CE, outside combat) | `src/map/GameMap.ts` | `animation.cc:1838` | Low |
-| P3 | No radioactive goo tile penalty (+100 geckos / +400 others) | `src/map/GameMap.ts` | `animation.cc:1852` | Low |
-| P4 | Closed doors are hard blocks in pathfinding. CE's `canUseDoor` check routes through unlocked/openable doors and the critter opens them en route. | `src/map/GameMap.ts` | `animation.cc:1805` | Medium |
-| P5 | No `OBJECT_MULTIHEX` neighbor check in `blocks()`. CE checks all 6 adjacent tiles for multihex objects when computing blocking. | `src/object/Obj.ts` | `object.cc:2413` | Low |
-| P6 | No shoot-blocking type: `_obj_shoot_blocking_at` skips dead critters and OBJECT_SHOOT_THRU objects; DH2 uses the same `blocks()` for everything. | `src/map/GameMap.ts` | `object.cc:2440` | Medium |
-| P7 | `hasLineOfSight` checks only `type === 'wall'`; CE's `_obj_sight_blocking_at` also blocks on scenery objects without `OBJECT_LIGHT_THRU`. Scenery objects currently do not block combat LoS. | `src/combat/Combat.ts` | `object.cc:2583` | Medium |
-| P8 | ✅ **FIXED 2026-07-04.** Script opcodes `obj_blocking_at` (0x826F) and `make_straight_path` (0x826E) are now implemented — `Script.obj_blocking_at()`/`make_straight_path()` delegate to new `GameMap.blockingObjectAt()`/`straightPathBlockingObject()` methods. Only `blockType` BLOCK (0) and SHOOT (1) are handled with dedicated predicates (matching `_obj_blocking_at`/`_obj_shoot_blocking_at`); AI (2)/SIGHT (3)/SCROLL (4) fall through to `stub()` since CE's `_obj_ai_blocking_at`/`_obj_sight_blocking_at`/`_obj_scroll_blocking_at` weren't ported. **Note**: `make_path` (referenced in the original gap text) is not a real CE script opcode — only the internal C++ function `_make_path` exists; there is nothing to wire for it. These new GameMap methods are a script-opcode-facing dispatch only; they are not yet used by `combat.ts`/`hexLinecast` internally, so P6/P7 below remain open for the engine's own combat LoS/LoF paths. | `scripting.ts`, `src/map/GameMap.ts:412-467` | `sfall_opcodes.cc:936-951` (opcodes); `object.cc:2387,2440` (predicates) | fixed |
+| ID | Status |
+|----|--------|
+| P1–P3 | ✅ hex grid, turn cost, goo — now the literal CE port (C45) |
+| P4 | ✅ door passthrough per `canUseDoor` — the player no longer walks through closed doors (C45) |
+| P5 | ✅ MULTIHEX neighbours |
+| P6 / P7 | ✅ shoot / sight blocking (`blockingObjectAt`, `hasLineOfSight`) |
+| P8 | ✅ `obj_blocking_at` / `make_straight_path` |
+| — | `hexLine` steps greedily rather than CE's `_make_straight_path_func` (open, low) |
 
-<!-- audited: 2026-07-04 — P8 fixed (script-opcode dispatch only), see ROADMAP.md Phase 10 -->
+<!-- audited: 2026-10-17 -->

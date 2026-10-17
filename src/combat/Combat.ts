@@ -1919,7 +1919,7 @@ export class Combat {
                     && (c as any).aiLastTarget === player && !(ignoreFleeing && (c as any).fleeing))
                 sorted.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
                 for (const c of sorted) {
-                    if (this.checkBadShot(obj, c, false) === 'ok' || globalState.gMap!.recalcPath(obj.position, c.position).length > 0) return c
+                    if (this.checkBadShot(obj, c, false) === 'ok' || globalState.gMap!.recalcPath(obj.position, c.position, false, obj).length > 0) return c
                 }
             }
             if (attackWho === 'strongest' || attackWho === 'weakest' || attackWho === 'closest') (obj as any).whoHitMe = null
@@ -1949,7 +1949,7 @@ export class Combat {
         else list.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
         for (const c of list) {
             if (!this.isWithinPerception(obj, c)) continue
-            if (globalState.gMap!.recalcPath(obj.position, c.position).length > 0 || this.checkBadShot(obj, c, false) === 'ok') return c
+            if (globalState.gMap!.recalcPath(obj.position, c.position, false, obj).length > 0 || this.checkBadShot(obj, c, false) === 'ok') return c
         }
         return fallback ? this.findTarget(obj) : null
     }
@@ -2187,7 +2187,7 @@ export class Combat {
                         return 'acting'
                     }
                     // Step along the path until the chance from a tile reaches min_to_hit.
-                    const path = globalState.gMap!.recalcPath(obj.position, target.position)
+                    const path = globalState.gMap!.recalcPath(obj.position, target.position, false, obj)
                     let steps = AP.getAvailableMoveAP()
                     if (path.length > 1) {
                         steps = 0
@@ -2501,7 +2501,7 @@ export class Combat {
         const AP = obj.AP!
         const steps = AP.getAvailableMoveAP()
         if (steps <= 0) return false
-        const path = gMap.recalcPath(obj.position, item.position)
+        const path = gMap.recalcPath(obj.position, item.position, false, obj)
         if (path.length === 0) return false
         const reach = path.length - 1 <= steps
         // aiInfoSetLastItem: an item not reached this turn is fetched next turn (_ai_check_drugs)
@@ -2557,7 +2557,7 @@ export class Combat {
             for (const rot of [rotation, (rotation + 1) % 6, (rotation + 5) % 6]) {
                 const dest = hexInDirectionDistance(obj.position, rot, steps)
                 if (!dest || dest.x < 0 || dest.y < 0 || dest.x >= 200 || dest.y >= 200) continue
-                const path = gMap.recalcPath(obj.position, dest)
+                const path = gMap.recalcPath(obj.position, dest, true, obj)
                 if (path.length === 0) continue
                 if (obj.walkTo(dest, run, then, steps, path)) {
                     if (AP.subtractMoveAP(obj.path.path.length - 1) === false) AP.combat = 0

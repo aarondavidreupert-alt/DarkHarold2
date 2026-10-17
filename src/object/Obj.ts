@@ -702,11 +702,6 @@ export class Obj {
     // closed-but-unlocked doors — the engine opens them mid-walk
     // (animation.cc:1805). Locked/jammed doors remain blockers. Shooting LoF
     // still uses `blocks()` so bullets do not pass through closed doors.
-    pathBlocks(): boolean {
-        if (this.subtype === 'door' && !this.open && !this.locked && !this.jammed) return false
-        return this.blocks()
-    }
-
     inAnim(): boolean {
         return !!this.animCallback // TODO: find a better way
     }

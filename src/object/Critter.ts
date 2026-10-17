@@ -26,6 +26,7 @@ import { Config } from '../config.js'
 import { Weapon } from '../critter.js'
 import { directionOfDelta, hexDistance, HEX_GRID_SIZE, Point } from '../geometry.js'
 import { toTileNum } from '../tile.js'
+import { canUseDoor } from '../map/pathfinder.js'
 import globalState from '../globalState.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Scripting } from '../scripting.js'
@@ -261,10 +262,11 @@ export class Critter extends Obj {
     }
 
     move(position: Point, curIdx?: number, signalEvents = true): boolean {
-        // CE ref: animation.cc:1805 — auto-open closed unlocked doors walked through
+        // CE ref: animation.cc _object_move — doors on the way are opened (canUseDoor)
         if (globalState.gMap) {
             for (const obj of globalState.gMap.objectsAtPosition(position)) {
-                if (obj.subtype === 'door' && !obj.open && !obj.locked && !obj.jammed) {
+                // _object_move: a blocking door the critter canUseDoor gets _obj_use_door
+                if (obj.subtype === 'door' && !obj.open && !obj.jammed && canUseDoor(this, obj)) {
                     setObjectOpen(obj, true, false, true)
                 }
             }

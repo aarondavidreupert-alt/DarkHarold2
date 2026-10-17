@@ -71,6 +71,7 @@ the pipeline or the TS compiler.
 |------|---------|------------------------|
 | `src/main.ts` | Boot orchestrator: `initGame` wiring, `useElevator`, `heart.update`/`heart.draw` assignments. Split into `playerUse.ts` (object/critter interaction router), `input.ts` (mouse + keyboard handlers via `installInputHandlers()`), `gameTick.ts` (per-tick game loop) | `main.cc` |
 | `src/heart.ts` | 60 Hz rAF game loop (`heart.update` / `heart.draw`); exposes `_stepOnly` for headless testing | `main.cc` (game loop) |
+| `src/map/pathfinder.ts` | Hex path finder: literal CE `pathfinderFindPath` + `canUseDoor` (used by `GameMap.recalcPath`) | `animation.cc pathfinderFindPath` |
 | `src/hotkeys.ts` | The game keyboard: CE `gameHandleKey` + `_combat_input` (registered in `input.ts`) | `game.cc gameHandleKey`, `combat.cc _combat_input` |
 | `src/init.ts` | Engine boot sequence: asset loading, renderer init, scripting setup | `main.cc` init path |
 | `src/globalState.ts` | Central singleton: `gMap`, `player`, `combat`, `images`, `proMap`, camera, tick, eventLog | Spread across `game.cc`, `proto.cc` |
