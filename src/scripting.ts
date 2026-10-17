@@ -49,6 +49,7 @@ import { centerCamera, objectOnScreen } from './renderer.js'
 import { fromTileNum, toTileNum } from './tile.js'
 import { uiAddDialogueOption, uiBarterMode, uiDrawWeapon, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, uiWorldMap, UIMode } from './ui.js'
 import { updateIndicatorBar } from './ui_hud.js'
+import { invenUnwield, invenWield, moveAllInventory, scriptHand } from './inventoryWield.js'
 import { SKILL_NAMES } from './skills.js'
 import { arrayRemove, assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
 import { ScriptVM } from './vm.js'
@@ -1203,11 +1204,7 @@ export module Scripting {
             }
 
             info('move_obj_inven_to_obj: ' + obj.inventory.length + ' to ' + other.inventory.length, 'inventory')
-            // CE ref: item.cc itemAdd() — add per item to merge stacks correctly, not direct reference
-            for (const item of obj.inventory) {
-                other.addInventoryItem(item, item.amount ?? 1)
-            }
-            obj.inventory = []
+            moveAllInventory(obj, other) // CE itemMoveAll — armor and hands included
         }
         obj_is_carrying_obj_pid(obj: Obj, pid: number) {
             // Number of inventory items with matching PID
@@ -1566,9 +1563,9 @@ export module Scripting {
                 return
             }
             info('wield_obj_critter: ' + obj.name + ' wields ' + (item.name ?? item.pid))
-            ;(obj as Critter).rightHand = item as any
-            // CE ref: item.cc:353 itemAdd() stealthBoyTurnOn — sync stealthActive after wield.
-            refreshStealthState(obj as Critter)
+            // CE opWieldItem → inventory.cc _invenWieldFunc: the dude's active hand (an
+            // NPC's right), armor on the body; the old item back to the inventory.
+            invenWield(obj as Critter, item, scriptHand(obj as Critter))
         }
         critter_dmg(obj: Critter, damage: number, damageType: string) {
             if (!isGameObject(obj)) {
@@ -2255,17 +2252,11 @@ export module Scripting {
             return Config.combat.runningBurningGuy === false ? 0 : 1
         }
         // CE _op_inven_unwield (0x812C) — self puts its weapon away (dude: current hand).
+        // CE _op_inven_unwield → _invenUnwieldFunc(self, the dude's active hand / an NPC's right)
         inven_unwield() {
             const self = this.self_obj as Critter
             if (!self || self.type !== 'critter') return
-            const hand: 'leftHand' | 'rightHand' = self.isPlayer
-                ? ((self as any).activeHand ?? 'leftHand')
-                : 'rightHand'
-            const item = (self as any)[hand]
-            if (!item) return
-            ;(self as any)[hand] = undefined
-            self.inventory.push(item)
-            if (self.isPlayer) uiDrawWeapon()
+            invenUnwield(self, scriptHand(self))
         }
         // CE opGameUiIsDisabled (0x8135)
         game_ui_is_disabled() {
