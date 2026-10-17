@@ -71,6 +71,11 @@ function loadPartyDescs(): PartyMemberLevelDesc[] {
     return partyDescs
 }
 
+// CE party_member.cc gPartyMemberPids — the critters party.txt lists (possible companions).
+export function isPartyMemberPid(pid: number): boolean {
+    return loadPartyDescs().some((d) => d.pid === pid)
+}
+
 export class Party {
     // party members
     party: Critter[] = []

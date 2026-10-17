@@ -16,6 +16,7 @@ limitations under the License.
 Scripting system/engine for DarkFO
 */
 
+import { isPartyMemberPid } from './party.js'
 import { FLOAT_MSG_COLOR } from './floatText.js'
 import { sfxBuildOpenName } from './sfxNames.js'
 import { FIDGET_BAD, FIDGET_GOOD, FIDGET_NEUTRAL, GAME_DIALOG_REACTION_NEUTRAL, reactToOption, startLips, startTalkingHead, talkToCritterReacts, isTalkingHeadActive } from './talkingHead.js'
@@ -94,6 +95,13 @@ export module Scripting {
     export var timeEventList: TimedEvent[] = []
 
     const PROTO_ID_MONEY = 41
+
+    // CE perk.cc perkGetRankData: whose perk ranks a critter has — the dude's own, a
+    // party.txt member's own, else (CE's fallback for any other critter) the dude's.
+    export function perkRankOwner(c: Critter): Critter {
+        if (c.isPlayer || isPartyMemberPid(c.pid)) return c
+        return globalState.player as Critter
+    }
 
     // CE item.cc itemGetTotalCaps — money in the inventory and, recursively, in containers.
     export function itemGetTotalCaps(obj: Obj): number {
@@ -1098,9 +1106,7 @@ export module Scripting {
                 // selectable PERKS list (the two diverge from id 33 on).
                 const name = perkNameById(trait)
                 if (!name) return 0
-                const critter = obj as Critter
-                if (!critter.isPlayer) return 0 // DH2 perk system is player-only
-                return getPerkRank(globalState.player as any, name)
+                return getPerkRank(perkRankOwner(obj as Critter) as any, name)
             }
 
             if (traitType === 1) {
@@ -1183,14 +1189,12 @@ export module Scripting {
             } else if (traitType === 0) {
                 // CRITTER_TRAIT_PERK — CE ref: interpreter_extra.cc:2869 opCritterAddTrait
                 // amount > 0 → perkAddForce (no requirement check); amount <= 0 → perkRemove
-                // CE applies to any critter, but DH2's perk system is player-only.
-                const player = (<Critter>obj).isPlayer ? (<Player>obj) : null
-                if (!player) {
-                    dbg('script', 'critter_add_trait: PERK on non-player critter ignored (trait=%d)', trait)
-                    return
-                }
-                // CE perk.cc perkAddForce / perkRemove, by CE perk id. Covers the
-                // special/quest perks (ids 70-118) that aren't in DH2's selectable list.
+                // CE perk.cc perkAddForce / perkRemove, by CE perk id (ids 70-118 included):
+                // the ranks go to perkGetRankData's owner (the dude, a party.txt member's
+                // own list, or — CE's fallback — the dude's for anyone else), the effect
+                // (perkAddEffect) to the critter itself.
+                const player = perkRankOwner(<Critter>obj)
+                const target = <Critter>obj
                 const name = perkNameById(trait)
                 const ce = CE_PERKS[trait]
                 if (!name || !ce) {
@@ -1198,15 +1202,15 @@ export module Scripting {
                     return
                 }
                 if (amount > 0) {
-                    const rank = getPerkRank(player, name)
+                    const rank = getPerkRank(player as any, name)
                     if (ce.maxRank !== -1 && rank >= ce.maxRank) return
                     player.perks.push(name)
-                    perkApplyEffect(player, trait, 1)
+                    perkApplyEffect(target, trait, 1)
                 } else {
                     const idx = player.perks.indexOf(name)
                     if (idx >= 0) {
                         player.perks.splice(idx, 1)
-                        perkApplyEffect(player, trait, -1)
+                        perkApplyEffect(target, trait, -1)
                     }
                 }
                 return
@@ -2491,7 +2495,7 @@ export module Scripting {
                 return -1
             }
             const name = perkNameById(param)
-            const perks: string[] = (obj as any).perks ?? []
+            const perks: string[] = (perkRankOwner(obj as Critter) as any).perks ?? [] // perkGetRankData
             if (name) for (let i = perks.length - 1; i >= 0; i--) {
                 if (perks[i] !== name) continue
                 perks.splice(i, 1)
@@ -2513,7 +2517,7 @@ export module Scripting {
             dialogueOptionProcs.push(target.bind(this))
             dialogueOptionTexts.push(msg)
             dialogueOptionReactions.push(reaction)
-            uiAddDialogueOption(msg, dialogueOptionProcs.length - 1)
+            uiAddDialogueOption(msg, dialogueOptionProcs.length - 1, reaction)
         }
         gsay_start() {
             log('gsay_start', arguments)
@@ -2599,7 +2603,7 @@ export module Scripting {
             dialogueOptionProcs.push(target.bind(this))
             dialogueOptionTexts.push(msg)
             dialogueOptionReactions.push(reaction)
-            uiAddDialogueOption(msg, dialogueOptionProcs.length - 1)
+            uiAddDialogueOption(msg, dialogueOptionProcs.length - 1, reaction)
         }
         dialogue_system_enter() {
             log('dialogue_system_enter', arguments)

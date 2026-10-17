@@ -427,6 +427,15 @@ export class Critter extends Obj {
         if (running && !this.canRun()) {
             running = false
         }
+        // CE animation.cc: crippled legs walk (animationRegisterRunTo*); the dude running
+        // while sneaking stops sneaking unless he has Silent Running (_dude_run).
+        if (running && (this.crippledLeftLeg || this.crippledRightLeg)) running = false
+        if (running && this.isPlayer && (this as any).isSneaking && !this.hasPerk('Silent Running')) {
+            ;(this as any).isSneaking = false
+            ;(this as any).sneakWorking = false
+            Scripting.timeEventList.splice(0, Scripting.timeEventList.length,
+                ...Scripting.timeEventList.filter((e) => !(e.obj === this && e.userdata === 'sneak')))
+        }
 
         // Critters without a walk/run FRM (spore plants, floaters' stand-only art) can't
         // move: CE _object_move does nothing when artLock(sad->fid) fails (animation.cc).

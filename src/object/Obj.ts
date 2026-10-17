@@ -17,6 +17,7 @@ limitations under the License.
 // Obj base class + top-of-file helpers + SerializedObj interface.
 // Split out of object.ts per wiki/ts-split-refactor.md §2.
 
+import * as GameTime from '../gametime.js'
 import { playCharSfx, playOpenSfx, sfxBuildCharName, SCENERY_SOUND_EFFECT } from '../sfxNames.js'
 import { ammoFromRounds, ammoGetCapacity, ammoGetQuantity, ammoMergeInto, ammoSplitOff, initWeaponAmmo } from '../weaponAmmo.js'
 import type { Proto } from '../proto_types.js'
@@ -181,6 +182,50 @@ function switchItemProto(obj: Obj, pid: number): void {
     const invName = invPID !== 0xffff ? getLstId('art/inven/inven', invPID) : null
     if (invName) obj.invArt = 'art/inven/' + invName.split('.')[0]
     obj.name = getMessage('pro_item', pro.textID) ?? obj.name
+}
+
+// CE item.cc booksInit (vanilla table): book PID → [proto.msg line, skill]
+const BOOKS: { [pid: number]: [number, string] } = {
+    73: [802, 'Science'],     // PROTO_ID_BIG_BOOK_OF_SCIENCE
+    76: [803, 'Repair'],      // PROTO_ID_DEANS_ELECTRONICS
+    80: [804, 'First Aid'],   // PROTO_ID_FIRST_AID_BOOK
+    102: [805, 'Small Guns'], // PROTO_ID_GUNS_AND_BULLETS
+    86: [806, 'Outdoorsman'], // PROTO_ID_SCOUT_HANDBOOK
+}
+
+// CE proto_instance.cc _obj_use_book: not in combat (proto.msg 902); the dude's skill
+// rises by (100 − skill) / 10 points (×1.5 with Comprehension) — none past 100, "You
+// learn nothing new." (801) — and reading takes (11 − INT) hours; "You read the book."
+// (800) and the book's line. The book is used up (return 1).
+function useBook(book: Obj): void {
+    const [messageId0, skill] = BOOKS[book.pid]
+    if (globalState.inCombat) {
+        uiLog(getMessage('proto', 902) ?? 'You cannot do that in combat.')
+        return
+    }
+    const dude = globalState.player as Critter
+    let messageId = messageId0
+    let increase = Math.trunc((100 - dude.getSkill(skill)) / 10)
+    if (increase <= 0) {
+        messageId = 801
+    } else {
+        if (dude.hasPerk('Comprehension')) increase = Math.trunc(150 * increase / 100)
+        for (let i = 0; i < increase; i++) {
+            if (dude.getSkill(skill) >= 300) break // skillAddForce: −3 at the cap
+            dude.skills.baseSkills[skill] = dude.skills.getBase(skill) + 1
+        }
+    }
+    GameTime.advanceSeconds(3600 * (11 - dude.getStat('INT')))
+    globalState.gMap?.updateMap() // scriptsExecMapUpdateProc
+    uiLog(getMessage('proto', 800) ?? 'You read the book.')
+    const line = getMessage('proto', messageId)
+    if (line) uiLog(line)
+    // _obj_use_item: rc 1 — the book is gone
+    const i = dude.inventory.indexOf(book)
+    if (i !== -1) {
+        if ((book.amount ?? 1) > 1) book.amount -= 1
+        else dude.inventory.splice(i, 1)
+    }
 }
 
 export const PROTO_ID_FLARE = 79
@@ -1087,6 +1132,12 @@ export class Obj {
 
         if (this.isExplosive) {
             useExplosive(this, source)
+            return true
+        }
+
+        // CE _obj_use_item → _obj_use_book
+        if (BOOKS[this.pid]) {
+            useBook(this)
             return true
         }
 

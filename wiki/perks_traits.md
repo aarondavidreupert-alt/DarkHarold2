@@ -17,30 +17,30 @@ Traits are selected during **character creation** only (max 2). They provide tra
 - `traitGetStatModifier(trait)` in `trait.cc` — returns stat delta for each selected trait; called inside `critterGetStat` chain
 - `traitGetSkillModifier(traits[], skill)` in `trait.cc:284` — returns skill delta; called inside `skillGetValue`
 
-**DH2 Storage:** `Player.traits: string[]` — applied once at character creation via `src/ui_character/creator.ts`; trait names match `TRAIT_DESCRIPTIONS` keys in `src/ui_character/descriptions.ts`.
+**DH2 Storage:** `Player.traits: string[]` (names as in `TRAIT_DESCRIPTIONS`, `src/ui_character/descriptions.ts`), set at character creation and by Mutate! (`Player.setTraits`).
 
-**DH2 Live vs Applied:** DH2 reads `player.traits` at skill calculation time via `traitGetSkillModifier()` in `src/skills.ts` (called from `SkillSet.get()`), but stat modifiers from traits are **not** applied to the StatSet live — they are baked into `baseStats` during character creation.
+**DH2 Live vs Applied:** skills read the traits live (`traitGetSkillModifier` in `src/skills.ts`). The derived-stat parts of `traitGetStatModifier` are applied live in `Player.getStat` (`src/player.ts`: AP, AC, Melee, Carry, Sequence, Healing Rate, Critical Chance, Better Criticals, DR Radiation/Poison); only the SPECIAL parts (Gifted +1 all, Bruiser ST +2, Small Frame AG +1) are kept on the base stats and swapped by `setTraits` — equivalent, since CE's `critterGetBaseStatWithTraitModifier` adds them to the base.
 
 ### 1.2 Traits Table
 
-| # | CE Constant | Name | Stat/Skill Effect (CE) | DH2 Status |
+| # | CE Constant | Name | CE effect | DH2 |
 |---|---|---|---|---|
-| 0 | `TRAIT_FAST_METABOLISM` | Fast Metabolism | Healing Rate +2; Radiation Resist = 0; Poison Resist = 0 | PARTIAL — Healing Rate applied; rad/poison resist not enforced (no decay loop) |
-| 1 | `TRAIT_BRUISER` | Bruiser | ST +2; AP −2 | PARTIAL — ST applied at creation; AP delta applied via statDep |
-| 2 | `TRAIT_SMALL_FRAME` | Small Frame | AG +1; Carry Weight −10×STR | PARTIAL — AG applied; Carry Weight formula not separately adjusted |
-| 3 | `TRAIT_ONE_HANDER` | One Hander | +20% one-handed weapons; −40% two-handed weapons | STUB — no weapon-type skill modifier in DH2 |
-| 4 | `TRAIT_FINESSE` | Finesse | Critical Chance +10; all damage −30% from crits (Better Criticals) | WIRED — `critChance += 10` at creation; `Finesse` checked in `combat.ts` for −30 crit effect roll |
-| 5 | `TRAIT_KAMIKAZE` | Kamikaze | Sequence +5; AC = base AC (armor AC bonus zeroed) | PARTIAL — Sequence +5 applied at creation; AC zeroing is stub |
-| 6 | `TRAIT_HEAVY_HANDED` | Heavy Handed | Melee Damage +4; Better Criticals −30 | PARTIAL — Melee Damage +4 applied; Better Criticals penalty is stub |
-| 7 | `TRAIT_FAST_SHOT` | Fast Shot | Ranged weapons cost 1 fewer AP; no targeted shots | STUB — no AP cost reduction or targeting restriction |
-| 8 | `TRAIT_BLOODY_MESS` | Bloody Mess | Death animations always gory | STUB — no death animation selection in DH2 |
-| 9 | `TRAIT_JINXED` | Jinxed | Enemies have 1-in-4 chance of critical failure each turn | PARTIAL — CE: also affects player; `'Jinxed'` perk (not trait) checked in `combat.ts` |
-| 10 | `TRAIT_GOOD_NATURED` | Good Natured | Combat skills −10; First Aid/Doctor/Speech/Barter +15 | WIRED — `traitGetSkillModifier` in `src/skills.ts` applies these deltas live |
-| 11 | `TRAIT_CHEM_RELIANT` | Chem Reliant | Addiction chance ×2 | WIRED — `drugs.ts:98` checks `player.traits` includes `'Chem Reliant'` |
-| 12 | `TRAIT_CHEM_RESISTANT` | Chem Resistant | Addiction chance ÷2; drug duration ÷2 | PARTIAL — addiction chance halved (`drugs.ts:97`); duration halving stub |
-| 13 | `TRAIT_SEX_APPEAL` | Sex Appeal | +1 CH vs opposite-gender NPCs | STUB — no gender-sensitive CH modifier |
-| 14 | `TRAIT_SKILLED` | Skilled | +5 skill points/level; perk every 4 levels (not 3) | WIRED — `player.ts:127` checks `player.traits.includes('Skilled')` for perk rate; skill point bonus stub |
-| 15 | `TRAIT_GIFTED` | Gifted | All SPECIAL +1; all skills −10 | PARTIAL — SPECIAL +1 applied at creation; skill −10 via `traitGetSkillModifier` in `src/skills.ts` |
+| 0 | `TRAIT_FAST_METABOLISM` | Fast Metabolism | Healing Rate +2; Rad/Poison Resist 0 | `player.ts` getStat |
+| 1 | `TRAIT_BRUISER` | Bruiser | ST +2; AP −2 | SPECIAL on base; AP in getStat |
+| 2 | `TRAIT_SMALL_FRAME` | Small Frame | AG +1; Carry −10×ST | SPECIAL on base; Carry in getStat |
+| 3 | `TRAIT_ONE_HANDER` | One Hander | +20 one-handed, −40 two-handed (to-hit) | `combat/hitChance.ts` |
+| 4 | `TRAIT_FINESSE` | Finesse | Crit chance +10; damage −30 % | `player.ts`, `combat/Combat.ts` |
+| 5 | `TRAIT_KAMIKAZE` | Kamikaze | Sequence +5; AC = −base AC | `player.ts` getStat |
+| 6 | `TRAIT_HEAVY_HANDED` | Heavy Handed | Melee Damage +4; Better Criticals −30 | `player.ts` getStat |
+| 7 | `TRAIT_FAST_SHOT` | Fast Shot | −1 AP for weapons with range > 2; no aimed shots | `critter/Weapon.ts`, `unarmed.ts` |
+| 8 | `TRAIT_BLOODY_MESS` | Bloody Mess | Always the most violent death | `critter/deathAnim.ts` |
+| 9 | `TRAIT_JINXED` | Jinxed | Misses can become critical failures (everyone) | `combat/Combat.ts` |
+| 10 | `TRAIT_GOOD_NATURED` | Good Natured | Combat skills −10; First Aid/Doctor/Speech/Barter +15 | `skills.ts` |
+| 11 | `TRAIT_CHEM_RELIANT` | Chem Reliant | Addiction chance ×2; withdrawal ÷2 | `drugs.ts` |
+| 12 | `TRAIT_CHEM_RESISTANT` | Chem Resistant | Addiction chance ÷2; drug effect ÷2 | `drugs.ts` |
+| 13 | `TRAIT_SEX_APPEAL` | Sex Appeal | Script-driven (has_trait TRAIT_TRAIT) | `scripting.ts` has_trait |
+| 14 | `TRAIT_SKILLED` | Skilled | +5 SP/level; perk every 4 levels | `player.ts` addExperience |
+| 15 | `TRAIT_GIFTED` | Gifted | SPECIAL +1; skills −10; −5 SP/level | base SPECIAL, `skills.ts`, `player.ts` |
 
 ### 1.3 CE Stat Modifier Detail
 
@@ -97,177 +97,167 @@ From `trait.cc::traitGetSkillModifier()`:
 
 ### 2.1 CE Implementation
 
-**Storage:** Each critter has a per-perk rank array indexed by the `Perk` enum (0–119). `perkGetRank(critter, perk)` returns the rank count.
+**Storage:** a rank array per critter (`perkGetRankData`): the dude's, the party.txt members' own; any other critter falls back to the dude's ranks (CE quirk, kept). `perkGetRank(critter, perk)` returns the rank.
 
-**Live modifier queries:**
-- `perkGetSkillModifier(perks[], skill)` in `perk.cc:628` — called from `skillGetValue` for player
-- `perkAddEffect(critter, perk)` in `perk.cc:554` — writes to the critter's **bonus stat layer**; called when a perk is gained. If `maxRank == -1` (non-selectable), applies `stats[7]` SPECIAL deltas instead.
+**DH2 Storage:** `Critter.perks: string[]` (perk.msg names, one entry per rank). `getPerkRank(critter, name)` counts entries; `perkRankOwner(c)` (`src/scripting.ts`) is the CE `perkGetRankData` choice (player / party.txt member / else the player).
 
-**DH2 Storage:** `Critter.perks: string[]` (flat array of name strings, one entry per rank). `hasPerk(name)` = indexOf check. `getPerkRank(player, name)` counts occurrences.
-
-**DH2 Application:** `applyPerk(player, perkName)` in `src/perks/perks.ts` pushes name to `player.perks[]`. Effects are not stored in a stat layer — each system checks `hasPerk` at use time (e.g., `combat.ts`, `player.ts`).
+**DH2 Application:** `applyPerk(player, name)` (`src/perks/perks.ts`) pushes the rank and calls `perkApplyEffect` (`src/perks/cePerks.ts`, CE `perkAddEffect`): the per-rank `stat`/`statModifier`, the SPECIAL deltas of `maxRank == −1` perks and the Gain <stat> +1; plus Tag!, the immediate Lifegiver/Educated parts and Here and Now's XP. Other perks are checked where they act (table below).
 
 ### 2.2 Perk Prerequisites
 
-CE `perkCanAdd()` (`perk.cc:302`) checks:
-1. `minLevel` — player level ≥ requirement
-2. `stats[0..6]` — minimum SPECIAL (negative value means "must be < 10", used by GAIN_ perks)
-3. `param1 / paramMode / param2` — skill or GVAR requirements:
-   - `PERK_PARAM_MODE_FIRST_ONLY (0)` — only param1 checked
+CE `perkCanAdd()` (`perk.cc:302`), ported 1:1 as `perkCanAdd` in `src/perks/perks.ts` over `CE_PERK_REQS` (`src/perks/cePerks.ts`, generated from `gPerkDescriptions`):
+1. `maxRank != −1` and rank < maxRank
+2. `minLevel` (dude only)
+3. `param1` / `paramMode` / `param2` — skill id, or GVAR when bit `0x4000000` is set; a negative value is an upper bound:
+   - `PERK_PARAM_MODE_FIRST_ONLY (0)` — param1 only
    - `PERK_PARAM_MODE_OR (1)` — param1 OR param2
    - `PERK_PARAM_MODE_AND (2)` — param1 AND param2
+4. `stats[0..6]` — SPECIAL minimum; negative = must be below −value (Gain perks: < 10, Heave Ho! ST < 9, Weapon Handling ST < 7)
 
-DH2 `getValidPerks(player)` checks `minLevel` and `minStats` (SPECIAL) and `minSkills`. No GVAR-based prerequisites.
+`getValidPerks` walks all 119 ids like `perkGetAvailablePerks`; perks missing from `perks.data.ts` (the Gain perks, Here and Now …) get a `PerkDef` from perk.msg (`perkDefById`; image from `art/skilldex` by the CE frmId). minLevel 310 marks perks CE never offers (Mental Block, Scrounger, Flower Child, Animal Friend, the unused 36).
 
 ### 2.3 Perk Rate
 
-- **Default:** 1 perk every **3 levels** (levels 3, 6, 9, 12, …)
-- **Skilled trait:** 1 perk every **4 levels** (levels 4, 8, 12, …)
-- **Here and Now (special):** immediately grants one extra level-up's XP
-- DH2: `pendingPerkPick` flag set in `player.ts:122–127`
+- Default: 1 perk every **3 levels**; Skilled: every **4 levels** (`player.ts` addExperience → `pendingPerkPick`)
+- Here and Now: XP up to the next level (`pcGetExperienceForLevel(level + 1) − XP`, Swift Learner applies)
 
-### 2.4 Selectable Perks — Full Table
+### 2.4 Perk Table (CE `gPerkDescriptions`, all 119)
 
-Non-selectable perks (addiction, armor implants — `maxRank == -1`) are listed separately in §2.5.
+Generated from `perk.cc` / `perk_defs.h` / `perk.msg` (2026-10-18). "stat N" is the per-rank derived-stat bonus applied by `perkApplyEffect` (STAT ids: 3 CH, 8 AP, 9 AC, 11 Melee, 12 Carry, 13 Sequence, 14 Healing Rate, 15 Crit Chance, 16 Better Criticals, 24 DR Normal, 31 Rad Resist, 32 Poison Resist); "Δ" are the SPECIAL deltas of `maxRank == −1` perks. "Referenced in" lists the DH2 files that check the perk; `—` with a stat bonus means the bonus is all it does. Perks with neither are script-driven in CE as well (no engine reference in CE: Presence, Cult of Personality, Mysterious Stranger, Kama Sutra Master, Karma Beacon, Light Step, Magnetic Personality, Gecko Skinning, Scrounger, Animal Friend). The Alcohol/Autodoc HP perks (108–115) are checked by id in `Player.getStat` (CE `critterGetStat`).
 
-| CE Index | CE Constant | Name | Max Ranks | Min Level | SPECIAL Req | Skill Req | Stat Effect | DH2 Status |
-|---|---|---|---|---|---|---|---|---|
-| 0 | `PERK_AWARENESS` | Awareness | 1 | 3 | ST≥5 | — | — (reveals enemy HP/weapon) | PARTIAL — defined in PERKS; no enemy info display |
-| 1 | `PERK_BONUS_HTH_ATTACKS` | Bonus HtH Attacks | 1 | 15 | AG≥6 | — | +1 AP for HtH attacks | WIRED — `hasPerk('Bonus HtH Attacks')` in `combat.ts` |
-| 2 | `PERK_BONUS_HTH_DAMAGE` | Bonus HtH Damage | 3 | 3 | ST≥6, AG≥6 | — | Melee Damage +2/rank | WIRED — defined in PERKS; Melee Damage stat applied via `perkAddEffect` analog in stat layer |
-| 3 | `PERK_BONUS_MOVE` | Bonus Move | 2 | 6 | AG≥5 | — | +2 free move AP/rank | WIRED — `hasPerk('Bonus Move')` in `combat.ts` |
-| 4 | `PERK_BONUS_RANGED_DAMAGE` | Bonus Ranged Damage | 2 | 6 | AG≥6, LK≥6 | — | Ranged damage +2/rank | WIRED — `hasPerk('Bonus Ranged Damage')` filter in `combat.ts` |
-| 5 | `PERK_BONUS_RATE_OF_FIRE` | Bonus Rate of Fire | 1 | 15 | PE≥6, IN≥6, AG≥7 | — | +1 AP for ranged attacks | WIRED — `hasPerk('Bonus Rate of Fire')` in `combat.ts` |
-| 6 | `PERK_EARLIER_SEQUENCE` | Earlier Sequence | 3 | 3 | PE≥6 | — | Sequence +2/rank | PARTIAL — defined; stat written at level-up |
-| 7 | `PERK_FASTER_HEALING` | Faster Healing | 3 | 3 | EN≥6 | — | Healing Rate +2/rank | PARTIAL — defined; Healing Rate stub in DH2 |
-| 8 | `PERK_MORE_CRITICALS` | More Criticals | 3 | 6 | LK≥6 | — | Critical Chance +5/rank | PARTIAL — defined; Critical Chance stat applied |
-| 9 | `PERK_NIGHT_VISION` | Night Vision | 1 | 3 | PE≥6 | — | − (reduces darkness penalty) | STUB — no darkness penalty system |
-| 10 | `PERK_PRESENCE` | Presence | 3 | 3 | CH≥6 | — | — (reaction bonus in dialogue) | STUB — no reaction modifier |
-| 11 | `PERK_RAD_RESISTANCE` | Rad Resistance | 2 | 6 | EN≥6, IN≥4 | — | Radiation Resist +15/rank | STUB — no radiation system |
-| 12 | `PERK_TOUGHNESS` | Toughness | 3 | 3 | EN≥6, LK≥6 | — | DR Normal +10/rank | PARTIAL — defined; DR stat written, armor DR system incomplete |
-| 13 | `PERK_STRONG_BACK` | Strong Back | 3 | 3 | ST≥6, EN≥6 | — | Carry Weight +50/rank | PARTIAL — defined; Carry Weight stat written |
-| 14 | `PERK_SHARPSHOOTER` | Sharpshooter | 1 | 9 | PE≥7, IN≥6 | — | − (range penalty reduced) | WIRED — `hasPerk('Sharpshooter')` in `combat.ts`, range −2 |
-| 15 | `PERK_SILENT_RUNNING` | Silent Running | 1 | 6 | AG≥6 | Sneak≥50 | − (run without Sneak penalty) | STUB — no Sneak-while-running check |
-| 16 | `PERK_SURVIVALIST` | Survivalist | 1 | 3 | EN≥6, IN≥6 | Outdoorsman≥40 | Outdoorsman +25 | WIRED — `perkGetSkillModifier` covers Outdoorsman |
-| 17 | `PERK_MASTER_TRADER` | Master Trader | 1 | 12 | CH≥7 | Barter≥75 | Barter +25 | STUB — not in PERKS array; Barter bonus not wired |
-| 18 | `PERK_EDUCATED` | Educated | 3 | 3 | IN≥6 | — | +2 skill points/level/rank | WIRED — `player.ts:110` multiplies by perk rank |
-| 19 | `PERK_HEALER` | Healer | 4 | 3 | PE≥7, IN≥5, AG≥6 | First Aid≥40 | First Aid heals +4..+10 HP | STUB — no HP range bonus on First Aid use |
-| 20 | `PERK_FORTUNE_FINDER` | Fortune Finder | 1 | 6 | LK≥8 | — | More caps in random encounters | STUB — no loot modifier |
-| 21 | `PERK_BETTER_CRITICALS` | Better Criticals | 1 | 9 | PE≥6, AG≥4, LK≥6 | — | Critical effect table +20 | WIRED — `hasPerk('Better Criticals')` filter in `combat.ts`, +30/rank |
-| 22 | `PERK_EMPATHY` | Empathy | 1 | 6 | PE≥7, IN≥5 | — | See NPC reaction | STUB — no reaction display |
-| 23 | `PERK_SLAYER` | Slayer | 1 | 18 | ST≥8, AG≥8 | Unarmed≥80 | Melee/Unarmed always critical | WIRED — `hasPerk('Slayer')` in `combat.ts` |
-| 24 | `PERK_SNIPER` | Sniper | 1 | 18 | PE≥8, AG≥8 | Small Guns≥80 | Ranged always critical on LK roll | WIRED — `hasPerk('Sniper')` in `combat.ts` |
-| 25 | `PERK_SILENT_DEATH` | Silent Death | 1 | 18 | AG≥10 | Sneak≥80 | ×2 damage when sneaking + HtH | STUB — no sneak attack multiplier |
-| 26 | `PERK_ACTION_BOY` | Action Boy | 2 | 12 | AG≥5 | — | AP +1/rank | WIRED — stat written via bonus stat layer |
-| 27 | `PERK_MENTAL_BLOCK` | Mental Block | 1 | 9 | — | — | Immune to Telepathy (Psyker) | STUB — Psyker encounters not in DH2 |
-| 28 | `PERK_LIFEGIVER` | Lifegiver | 2 | 12 | EN≥4 | — | Max HP +4/rank per level | WIRED — `player.ts:118` adds `+4 * perkRank` HP/level |
-| 29 | `PERK_DODGER` | Dodger | 1 | 9 | AG≥6 | — | AC +5 | PARTIAL — defined; AC stat written |
-| 30 | `PERK_SNAKEATER` | Snakeater | 2 | 6 | EN≥3 | — | Poison Resist +25/rank | STUB — no poison system |
-| 31 | `PERK_MR_FIXIT` | Mr. Fixit | 1 | 12 | IN≥4 | — | Science/Repair +10 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
-| 32 | `PERK_MEDIC` | Medic | 1 | 12 | IN≥5, PE≥7 | — | First Aid/Doctor +10 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
-| 33 | `PERK_MASTER_THIEF` | Master Thief | 1 | 12 | — | — | Lockpick/Steal +15 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
-| 34 | `PERK_SPEAKER` | Speaker | 1 | 9 | CH≥7 | Speech≥50 | Speech +20 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
-| 35 | `PERK_GHOST` | Ghost | 1 | 6 | AG≥6 | Sneak≥60 | Sneak +20 in dim light | WIRED — `perkGetSkillModifier` (dim-light check stub in DH2) |
-| 36 | `PERK_FRIENDLY_FOE` | Friendly Foe | 1 | 3 | PE≥7 | — | — (ID friend vs foe at distance) | N/A — non-selectable in CE; add_perk missing |
-| 37 | `PERK_EXPLORER` | Explorer | 1 | 9 | — | — | More special encounters | N/A — non-selectable in CE; add_perk missing |
-| 38 | `PERK_FLOWER_CHILD` | Flower Child | 1 | 3 | EN≥5 | — | ÷2 addiction withdrawal | N/A — non-selectable in CE; add_perk missing |
-| 39 | `PERK_PATHFINDER` | Pathfinder | 2 | 6 | EN≥6 | Outdoorsman≥40 | World-map travel time −25%/rank | STUB — no travel time modifier |
-| 40 | `PERK_ANIMAL_FRIEND` | Animal Friend | 1 | 3 | IN≥5, PE≥7 | — | Animals won't attack | N/A — non-selectable in CE; add_perk missing |
-| 41 | `PERK_SCROUNGER` | Scrounger | 1 | 9 | LK≥8 | — | More ammo in random encounters | N/A — non-selectable in CE; add_perk missing |
-| 42 | `PERK_MYSTERIOUS_STRANGER` | Mysterious Stranger | 1 | 9 | LK≥8 | — | Random combat ally | N/A — non-selectable in CE; add_perk missing |
-| 43 | `PERK_RANGER` | Ranger | 1 | 6 | PE≥6 | — | Outdoorsman +15 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
-| 44 | `PERK_QUICK_POCKETS` | Quick Pockets | 1 | 3 | AG≥5 | — | Inventory access costs 2 AP | STUB — no AP cost for inventory |
-| 45 | `PERK_SMOOTH_TALKER` | Smooth Talker | 3 | 3 | IN≥4 | — | +1 IN for dialogue checks/rank | STUB — no temp IN boost in dialogue |
-| 46 | `PERK_SWIFT_LEARNER` | Swift Learner | 3 | 3 | IN≥4 | — | XP gained +5%/rank | STUB — no XP multiplier |
-| 47 | `PERK_TAG` | Tag! | 1 | 12 | — | — | Tag a 4th skill (no +20 bonus) | WIRED — `applyPerk` sets `player.skills.hasTagPerk = true` |
-| 48 | `PERK_MUTATE` | Mutate! | 1 | 9 | — | — | Change one trait | STUB — no trait-swap UI |
-| 49 | `PERK_ADD_NUKA_COLA` | (Nuka-Cola) | — | — | — | — | Script-granted item grant | N/A — non-selectable in CE |
-| 50 | `PERK_ADD_MENTATS` | (Mentats) | — | — | — | — | Script-granted item grant | N/A — non-selectable in CE |
-| 51 | `PERK_ADD_BUFFOUT` | (Buffout) | — | — | — | — | Script-granted item grant | N/A — non-selectable in CE |
-| 52 | `PERK_ADD_PSYCHO` | (Psycho) | — | — | — | — | Script-granted item grant | N/A — non-selectable in CE |
-| 79 | `PERK_THIEF` | Thief | 1 | 3 | — | — | Sneak/Steal/Lockpick/Traps +10 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
-| 80 | `PERK_GAIN_STRENGTH` | Gain Strength | 1 | 12 | ST<10 | — | ST +1 | PARTIAL — defined; SPECIAL boost applied |
-| 81 | `PERK_GAIN_PERCEPTION` | Gain Perception | 1 | 12 | PE<10 | — | PE +1 | PARTIAL — defined |
-| 82 | `PERK_GAIN_ENDURANCE` | Gain Endurance | 1 | 12 | EN<10 | — | EN +1 | PARTIAL — defined |
-| 83 | `PERK_GAIN_CHARISMA` | Gain Charisma | 1 | 12 | CH<10 | — | CH +1 | PARTIAL — defined |
-| 84 | `PERK_GAIN_INTELLIGENCE` | Gain Intelligence | 1 | 12 | IN<10 | — | IN +1 | PARTIAL — defined |
-| 85 | `PERK_GAIN_AGILITY` | Gain Agility | 1 | 12 | AG<10 | — | AG +1 | PARTIAL — defined |
-| 86 | `PERK_GAIN_LUCK` | Gain Luck | 1 | 12 | LK<10 | — | LK +1 | PARTIAL — defined |
-| 87 | `PERK_HARMLESS` | Harmless | 1 | 3 | CH≥8 | — | Steal +20 | N/A — non-selectable in CE; add_perk missing |
-| 88 | `PERK_HERE_AND_NOW` | Here and Now | 1 | 3 | — | — | Immediate level-up | N/A — non-selectable in CE; add_perk missing; special case in `perkAddEffect` |
-| 89 | `PERK_EVEN_TOUGHER` | Even Tougher | — | — | — | — | (unused/variant Toughness) | STUB — not in DH2 PERKS |
-| 90 | `PERK_KARMA_BEACON` | Karma Beacon | 1 | 9 | CH≥6 | — | Karma effects ×2 | N/A — non-selectable in CE |
-| 91 | `PERK_LIVING_ANATOMY` | Living Anatomy | 1 | 12 | — | Doctor≥60 | +10 damage vs critters; Doctor +10 | WIRED — `hasPerk('Living Anatomy')` in `combat.ts`; `perkGetSkillModifier` for Doctor |
-| 92 | `PERK_DEMOLITIONS_EXPERT` | Demolition Expert | 1 | 9 | — | Traps≥90 | Explosive damage +25% | WIRED — `hasPerk('Demolition Expert')` in `object.ts` |
-| 93 | `PERK_GAMBLER` | Gambler | 1 | 6 | — | Gambling≥50 | Gambling +20 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
-| 94 | `PERK_CULT_OF_PERSONALITY` | Cult of Personality | 1 | 12 | CH≥10 | — | Karma never affects reaction | STUB — no reaction system |
-| 95 | `PERK_NEGOTIATOR` | Negotiator | 1 | 6 | CH≥6 | Barter≥50, Speech≥50 | Barter/Speech +10 | WIRED — `perkGetSkillModifier` (Barter); Speech portion stub |
-| 96 | `PERK_DRUG_ADDICT` | (Drug Addict) | — | — | — | — | Withdrawal penalty | STUB — non-selectable; addiction system stub |
-| 97 | `PERK_DRUG_RESISTANT` | (Drug Resistant) | — | — | — | — | Resist withdrawal | N/A — non-selectable in CE |
-| 98 | `PERK_PYROMANIAC` | Pyromaniac | 1 | 9 | — | — | Fire damage +5 | WIRED — `hasPerk('Pyromaniac')` in `combat.ts` |
-| 99 | `PERK_ADRENALINE_RUSH` | Adrenaline Rush | 1 | 6 | ST≥4 | — | ST +1 when HP < 50% | STUB — no conditional ST modifier |
-| 100 | `PERK_CAUSE_OF_DEATH` | Cause of Death | 1 | 9 | — | — | More detail on kills | N/A — non-selectable in CE |
-| 101 | `PERK_DIVINE_FAVOR` | (Divine Favor) | — | — | — | — | (special encounter) | N/A — non-selectable in CE |
-| 102 | `PERK_VAULT_CITY_TRAINING` | Vault City Training | 1 | 3 | — | — | First Aid/Doctor +5 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
-| 103–107 | various | (Weapon Perk family) | — | — | — | — | Weapon type bonuses | STUB — not in DH2 PERKS |
-| 108 | `PERK_WEAPON_LONG_RANGE` | (Long Range) | — | — | — | — | Weapon range bonus | N/A — non-selectable in CE |
-| 109–112 | various | (Weapon enhanced family) | — | — | — | — | Weapon accuracy bonuses | N/A — non-selectable in CE |
-| 113 | `PERK_EXPERT_EXCREMENT_EXPEDITOR` | Expert Excrement Expeditor | 1 | — | — | — | Speech +5 | N/A — non-selectable in CE; add_perk missing |
-| 114 | `PERK_WEAPON_ENHANCED_KNOCKOUT` | (Enhanced Knockout) | — | — | — | — | Knockout chance | N/A — non-selectable in CE |
-| 115 | `PERK_JINXED` | Jinxed (perk) | 1 | — | — | — | Enemies crit-fail 1-in-4 | WIRED — `hasPerk('Jinxed')` in `combat.ts`; also Pariah Dog |
-| 116 | `PERK_SALESMAN` | Salesman | 1 | 6 | CH≥5 | Barter≥50 | Barter +20 | WIRED — `perkGetSkillModifier` in `src/skills.ts` |
-| 117 | `PERK_WEATHERED` | (Weathered) | — | — | — | — | (unused) | STUB — not in DH2 |
-| 118 | `PERK_PARIAH` | Pariah (Pariah Dog) | 1 | — | — | — | LK −1; enemy crit-fail | PARTIAL — `hasPerk('Pariah Dog')` in `combat.ts` |
-| 119 | `PERK_INTENSE_TRAINING` | Intense Training | 10 | 3 | — | — | +1 SPECIAL of choice/rank | STUB — not in DH2 PERKS |
-
-### 2.5 Non-Selectable Perks (maxRank = −1)
-
-These perks are granted by scripts, in-game events, or special conditions. They cannot be chosen at level-up.
-
-| CE Index Range | Category | Examples | DH2 Status |
-|---|---|---|---|
-| 53–70 | Drug Addiction | Nuka-Cola Addiction, Buffout Addiction, Jet Addiction | STUB — addiction system not implemented |
-| 61, 62 | Armor Bonus | Powered Armor, Combat Armor | STUB — no armor perk system |
-| 67, 68 | Advanced Armor | Advanced Power Armor I/II | STUB |
-| 72 | Armor Charisma | (from Tesla Armor) | STUB |
-| 73–76 | Dermal/Phoenix Implants | Dermal Impact Armor, Phoenix Armor | STUB — no implant system |
-| 77 | Inoculations | Vault City Inoculations | STUB |
-| 36, 37, 38, 40–42, 86–88, 90, 100, 113 | Misc Non-Selectable | Friendly Foe, Explorer, Flower Child, Harmless, Here and Now, Karma Beacon | STUB |
+| ID | CE constant | Name | Ranks | Lvl | SPECIAL | Skill / GVAR | Referenced in (src) |
+|---|---|---|---|---|---|---|---|
+| 0 | `PERK_AWARENESS` | Awareness | 1 | 3 | PE≥5 | — | examine.ts |
+| 1 | `PERK_BONUS_HTH_ATTACKS` | Bonus HtH Attacks | 1 | 15 | AG≥6 | — | critter/Weapon.ts, unarmed.ts |
+| 2 | `PERK_BONUS_HTH_DAMAGE` | Bonus HtH Damage | 3 | 3 | ST≥6, AG≥6; stat 11 +2/rank | — | combat/Combat.ts |
+| 3 | `PERK_BONUS_MOVE` | Bonus Move | 2 | 6 | AG≥5 | — | combat/actionPoints.ts |
+| 4 | `PERK_BONUS_RANGED_DAMAGE` | Bonus Ranged Damage | 2 | 6 | AG≥6, LK≥6 | — | combat/Combat.ts |
+| 5 | `PERK_BONUS_RATE_OF_FIRE` | Bonus Rate of Fire | 1 | 15 | PE≥6, IN≥6, AG≥7 | — | critter/Weapon.ts |
+| 6 | `PERK_EARLIER_SEQUENCE` | Earlier Sequence | 3 | 3 | PE≥6; stat 13 +2/rank | — | — |
+| 7 | `PERK_FASTER_HEALING` | Faster Healing | 3 | 3 | EN≥6; stat 14 +2/rank | — | — |
+| 8 | `PERK_MORE_CRITICALS` | More Criticals | 3 | 6 | LK≥6; stat 15 +5/rank | — | — |
+| 9 | `PERK_NIGHT_VISION` | Night Vision | 1 | 3 | PE≥6 | — | gametime.ts |
+| 10 | `PERK_PRESENCE` | Presence | 3 | 3 | CH≥6 | — | — |
+| 11 | `PERK_RAD_RESISTANCE` | Rad Resistance | 2 | 6 | EN≥6, IN≥4; stat 31 +15/rank | — | — |
+| 12 | `PERK_TOUGHNESS` | Toughness | 3 | 3 | EN≥6, LK≥6; stat 24 +10/rank | — | — |
+| 13 | `PERK_STRONG_BACK` | Strong Back | 3 | 3 | ST≥6, EN≥6; stat 12 +50/rank | — | — |
+| 14 | `PERK_SHARPSHOOTER` | Sharpshooter | 1 | 9 | PE≥7, IN≥6 | — | combat/hitChance.ts |
+| 15 | `PERK_SILENT_RUNNING` | Silent Running | 1 | 6 | AG≥6 | Sneak≥50 | object/Critter.ts |
+| 16 | `PERK_SURVIVALIST` | Survivalist | 1 | 3 | EN≥6, IN≥6 | Outdoorsman≥40 | skills.ts |
+| 17 | `PERK_MASTER_TRADER` | Master Trader | 1 | 12 | CH≥7 | Barter≥75 | ui_barter/screen.ts |
+| 18 | `PERK_EDUCATED` | Educated | 3 | 6 | IN≥6 | — | perks/perks.ts, player.ts |
+| 19 | `PERK_HEALER` | Healer | 2 | 3 | PE≥7, IN≥5, AG≥6 | First Aid≥40 | skillUse.ts |
+| 20 | `PERK_FORTUNE_FINDER` | Fortune Finder | 1 | 6 | LK≥8 | — | worldmap/encounters.ts |
+| 21 | `PERK_BETTER_CRITICALS` | Better Criticals | 1 | 9 | PE≥6, AG≥4, LK≥6; stat 16 +20/rank | — | combat/Combat.ts, player.ts, proto_types.ts, scripting.ts, skills.ts, statIds.ts |
+| 22 | `PERK_EMPATHY` | Empathy | 1 | 6 | PE≥7, IN≥5 | — | ui_dialogue.ts |
+| 23 | `PERK_SLAYER` | Slayer | 1 | 24 | ST≥8, AG≥8 | Unarmed≥80 | combat/Combat.ts |
+| 24 | `PERK_SNIPER` | Sniper | 1 | 24 | PE≥8, AG≥8 | Small Guns≥80 | combat/Combat.ts |
+| 25 | `PERK_SILENT_DEATH` | Silent Death | 1 | 18 | AG≥10 | Sneak≥80 AND Unarmed≥80 | combat/Combat.ts |
+| 26 | `PERK_ACTION_BOY` | Action Boy | 2 | 12 | AG≥5; stat 8 +1/rank | — | — |
+| 27 | `PERK_MENTAL_BLOCK` | Mental Block | 1 | 310 | — | — | — |
+| 28 | `PERK_LIFEGIVER` | Lifegiver | 2 | 12 | EN≥4 | — | perks/perks.ts, player.ts |
+| 29 | `PERK_DODGER` | Dodger | 1 | 9 | AG≥6; stat 9 +5/rank | — | — |
+| 30 | `PERK_SNAKEATER` | Snakeater | 2 | 6 | EN≥3; stat 32 +25/rank | — | — |
+| 31 | `PERK_MR_FIXIT` | Mr. Fixit | 1 | 12 | — | Repair≥40 OR Science≥40 | skills.ts |
+| 32 | `PERK_MEDIC` | Medic | 1 | 12 | — | First Aid≥40 OR Doctor≥40 | skills.ts |
+| 33 | `PERK_MASTER_THIEF` | Master Thief | 1 | 12 | — | Steal≥50 AND Lockpick≥50 | skills.ts |
+| 34 | `PERK_SPEAKER` | Speaker | 1 | 9 | — | Speech≥50 | skills.ts |
+| 35 | `PERK_HEAVE_HO` | Heave Ho! | 3 | 6 | ST<9 | — | combat/Combat.ts |
+| 36 | `PERK_FRIENDLY_FOE` | ERROR -- UNIMPED | 1 | 310 | PE≥4 | — | — |
+| 37 | `PERK_PICKPOCKET` | Pickpocket | 1 | 15 | AG≥8 | Steal≥80 | skillUse.ts |
+| 38 | `PERK_GHOST` | Ghost | 1 | 6 | — | Sneak≥60 | object/Critter.ts, skills.ts |
+| 39 | `PERK_CULT_OF_PERSONALITY` | Cult of Personality | 1 | 12 | CH≥10 | — | — |
+| 40 | `PERK_SCROUNGER` | Scrounger | 1 | 310 | LK≥8 | — | — |
+| 41 | `PERK_EXPLORER` | Explorer | 1 | 9 | — | — | encounters/resolver.ts |
+| 42 | `PERK_FLOWER_CHILD` | Flower Child | 1 | 310 | EN≥5 | — | drugs.ts |
+| 43 | `PERK_PATHFINDER` | Pathfinder | 2 | 6 | EN≥6 | Outdoorsman≥40 | worldmap/Worldmap.ts |
+| 44 | `PERK_ANIMAL_FRIEND` | Animal Friend | 1 | 310 | IN≥5 | Outdoorsman≥25 | — |
+| 45 | `PERK_SCOUT` | Scout | 1 | 3 | PE≥7 | — | encounters/resolver.ts |
+| 46 | `PERK_MYSTERIOUS_STRANGER` | Mysterious Stranger | 1 | 9 | LK≥4 | — | — |
+| 47 | `PERK_RANGER` | Ranger | 1 | 6 | PE≥6 | — | encounters/resolver.ts, skills.ts |
+| 48 | `PERK_QUICK_POCKETS` | Quick Pockets | 1 | 3 | AG≥5 | — | ui_inventory/panel.ts |
+| 49 | `PERK_SMOOTH_TALKER` | Smooth Talker | 3 | 3 | IN≥4 | — | scripting.ts |
+| 50 | `PERK_SWIFT_LEARNER` | Swift Learner | 3 | 3 | IN≥4 | — | player.ts |
+| 51 | `PERK_TAG` | Tag! | 1 | 12 | — | — | perks/perks.ts |
+| 52 | `PERK_MUTATE` | Mutate! | 1 | 9 | — | — | ui_character/perkModal.ts |
+| 53 | `PERK_NUKA_COLA_ADDICTION` | Nuka-Cola Reliance | ∞ (−1) | — | — | — | — |
+| 54 | `PERK_BUFFOUT_ADDICTION` | Buffout Reliance | ∞ (−1) | — | Δ ST-2, EN-2, AG-3 | — | — |
+| 55 | `PERK_MENTATS_ADDICTION` | Mentats Reliance | ∞ (−1) | — | Δ IN-3, AG-2 | — | — |
+| 56 | `PERK_PSYCHO_ADDICTION` | Psycho Reliance | ∞ (−1) | — | Δ IN-2 | — | — |
+| 57 | `PERK_RADAWAY_ADDICTION` | Radaway Reliance | ∞ (−1) | — | stat 31 -20/rank | — | — |
+| 58 | `PERK_WEAPON_LONG_RANGE` | Weapon Long Range | ∞ (−1) | — | — | — | combat/hitChance.ts |
+| 59 | `PERK_WEAPON_ACCURATE` | Weapon Accurate | ∞ (−1) | — | — | — | combat/hitChance.ts |
+| 60 | `PERK_WEAPON_PENETRATE` | Weapon Penetrate | ∞ (−1) | — | — | — | combat/Combat.ts |
+| 61 | `PERK_WEAPON_KNOCKBACK` | Weapon Knockback | ∞ (−1) | — | — | — | combat/Combat.ts |
+| 62 | `PERK_POWERED_ARMOR` | Powered Armor | ∞ (−1) | — | Δ ST+3; stat 31 +30/rank | — | — |
+| 63 | `PERK_COMBAT_ARMOR` | Combat Armor | ∞ (−1) | — | stat 31 +20/rank | — | — |
+| 64 | `PERK_WEAPON_SCOPE_RANGE` | Weapon Scope Range | ∞ (−1) | — | — | — | combat/hitChance.ts |
+| 65 | `PERK_WEAPON_FAST_RELOAD` | Weapon Fast Reload | ∞ (−1) | — | — | — | critter/Weapon.ts |
+| 66 | `PERK_WEAPON_NIGHT_SIGHT` | Weapon Night Sight | ∞ (−1) | — | — | — | combat/hitChance.ts |
+| 67 | `PERK_WEAPON_FLAMEBOY` | Weapon Flameboy | ∞ (−1) | — | — | — | critter/deathAnim.ts |
+| 68 | `PERK_ARMOR_ADVANCED_I` | Armor Advanced I | ∞ (−1) | — | Δ ST+4; stat 31 +60/rank | — | — |
+| 69 | `PERK_ARMOR_ADVANCED_II` | Armor Advanced II | ∞ (−1) | — | Δ ST+4; stat 31 +75/rank | — | — |
+| 70 | `PERK_JET_ADDICTION` | Jet Reliance | ∞ (−1) | — | Δ ST-1, PE-1; stat 8 -1/rank | — | drugs.ts |
+| 71 | `PERK_TRAGIC_ADDICTION` | Tragic Reliance | ∞ (−1) | — | Δ PE-2, IN-1, LK-1 | — | — |
+| 72 | `PERK_ARMOR_CHARISMA` | Armor Charisma | ∞ (−1) | — | Δ CH+2 | — | — |
+| 73 | `PERK_GECKO_SKINNING` | Gecko Skinning | ∞ (−1) | — | — | — | — |
+| 74 | `PERK_DERMAL_IMPACT_ARMOR` | Dermal Impact Armor | ∞ (−1) | — | — | — | player.ts |
+| 75 | `PERK_DERMAL_IMPACT_ASSAULT_ENHANCEMENT` | Dermal Impact Asslt. Enhance. | ∞ (−1) | — | stat 3 -1/rank | — | player.ts |
+| 76 | `PERK_PHOENIX_ARMOR_IMPLANTS` | Phoenix Armor Implants | ∞ (−1) | — | — | — | player.ts |
+| 77 | `PERK_PHOENIX_ASSAULT_ENHANCEMENT` | Phoenix Assault Enhancement | ∞ (−1) | — | stat 3 -1/rank | — | player.ts |
+| 78 | `PERK_VAULT_CITY_INOCULATIONS` | Vault City Inoculations | ∞ (−1) | — | — | — | player.ts |
+| 79 | `PERK_ADRENALINE_RUSH` | Adrenaline Rush | 1 | 6 | ST<10 | — | player.ts |
+| 80 | `PERK_CAUTIOUS_NATURE` | Cautious Nature | 1 | 3 | PE≥6 | — | encounters/resolver.ts |
+| 81 | `PERK_COMPREHENSION` | Comprehension | 1 | 3 | IN≥6 | — | object/Obj.ts |
+| 82 | `PERK_DEMOLITION_EXPERT` | Demolition Expert | 1 | 9 | AG≥4 | Traps≥75 | object/Obj.ts |
+| 83 | `PERK_GAMBLER` | Gambler | 1 | 6 | — | Gambling≥50 | skills.ts |
+| 84 | `PERK_GAIN_STRENGTH` | Gain Strength | 1 | 12 | ST<10 | — | — |
+| 85 | `PERK_GAIN_PERCEPTION` | Gain Perception | 1 | 12 | PE<10 | — | — |
+| 86 | `PERK_GAIN_ENDURANCE` | Gain Endurance | 1 | 12 | EN<10 | — | — |
+| 87 | `PERK_GAIN_CHARISMA` | Gain Charisma | 1 | 12 | CH<10 | — | — |
+| 88 | `PERK_GAIN_INTELLIGENCE` | Gain Intelligence | 1 | 12 | IN<10 | — | — |
+| 89 | `PERK_GAIN_AGILITY` | Gain Agility | 1 | 12 | AG<10 | — | — |
+| 90 | `PERK_GAIN_LUCK` | Gain Luck | 1 | 12 | LK<10 | — | — |
+| 91 | `PERK_HARMLESS` | Harmless | 1 | 6 | — | Steal≥50 AND GVAR 0≥50 | skills.ts |
+| 92 | `PERK_HERE_AND_NOW` | Here and Now | 1 | 3 | — | — | perks/perks.ts |
+| 93 | `PERK_HTH_EVADE` | HtH Evade | 1 | 12 | — | Unarmed≥75 | combat/Combat.ts |
+| 94 | `PERK_KAMA_SUTRA_MASTER` | Kama Sutra Master | 1 | 3 | EN≥5, AG≥5 | — | — |
+| 95 | `PERK_KARMA_BEACON` | Karma Beacon | 1 | 9 | CH≥6 | — | — |
+| 96 | `PERK_LIGHT_STEP` | Light Step | 1 | 9 | AG≥5, LK≥5 | — | — |
+| 97 | `PERK_LIVING_ANATOMY` | Living Anatomy | 1 | 12 | — | Doctor≥60 | combat/Combat.ts, skills.ts |
+| 98 | `PERK_MAGNETIC_PERSONALITY` | Magnetic Personality | 1 | 6 | CH<10 | — | — |
+| 99 | `PERK_NEGOTIATOR` | Negotiator | 1 | 6 | — | Barter≥50 AND Speech≥50 | skills.ts |
+| 100 | `PERK_PACK_RAT` | Pack Rat | 1 | 6 | stat 12 +50/rank | — | — |
+| 101 | `PERK_PYROMANIAC` | Pyromaniac | 1 | 9 | — | Big Guns≥75 | combat/Combat.ts, critter/deathAnim.ts |
+| 102 | `PERK_QUICK_RECOVERY` | Quick Recovery | 1 | 6 | AG≥5 | — | combat/results.ts |
+| 103 | `PERK_SALESMAN` | Salesman | 1 | 6 | — | Barter≥50 | skills.ts |
+| 104 | `PERK_STONEWALL` | Stonewall | 1 | 3 | ST≥6 | — | combat/Combat.ts |
+| 105 | `PERK_THIEF` | Thief | 1 | 3 | — | — | skills.ts |
+| 106 | `PERK_WEAPON_HANDLING` | Weapon Handling | 1 | 12 | ST<7, AG≥5 | — | combat/Combat.ts, combat/hitChance.ts |
+| 107 | `PERK_VAULT_CITY_TRAINING` | Vault City Training | ∞ (−1) | — | — | Doctor≥75 | skills.ts |
+| 108 | `PERK_ALCOHOL_RAISED_HIT_POINTS` | Alcohol Raised hit points | ∞ (−1) | — | — | — | player.ts |
+| 109 | `PERK_ALCOHOL_RAISED_HIT_POINTS_II` | Alcohol Raised hit points II | ∞ (−1) | — | — | — | — |
+| 110 | `PERK_ALCOHOL_LOWERED_HIT_POINTS` | Alcohol Lowered hit points | ∞ (−1) | — | — | — | player.ts |
+| 111 | `PERK_ALCOHOL_LOWERED_HIT_POINTS_II` | Alcohol Lowered hit points II | ∞ (−1) | — | — | — | — |
+| 112 | `PERK_AUTODOC_RAISED_HIT_POINTS` | Autodoc Raised hit points | ∞ (−1) | — | — | — | player.ts |
+| 113 | `PERK_AUTODOC_RAISED_HIT_POINTS_II` | Autodoc Raised hit points II | ∞ (−1) | — | — | — | — |
+| 114 | `PERK_AUTODOC_LOWERED_HIT_POINTS` | Autodoc Lowered hit points | ∞ (−1) | — | — | — | player.ts |
+| 115 | `PERK_AUTODOC_LOWERED_HIT_POINTS_II` | Autodoc Lowered hit points II | ∞ (−1) | — | — | — | — |
+| 116 | `PERK_EXPERT_EXCREMENT_EXPEDITOR` | Expert Excrement Expeditor | ∞ (−1) | — | — | — | skills.ts |
+| 117 | `PERK_WEAPON_ENHANCED_KNOCKOUT` | Weapon Enhanced Knockout | ∞ (−1) | — | — | — | combat/Combat.ts |
+| 118 | `PERK_JINXED` | Jinxed | ∞ (−1) | — | — | — | combat/Combat.ts, scripting.ts |
 
 ---
 
 ## 3. Perk & Trait Script Opcodes
 
-### 3.1 Opcode Table
+Vanilla FO2 has no `has_perk` / `add_perk` opcodes — scripts use `has_trait` / `critter_add_trait` / `critter_rm_trait` with `TRAIT_PERK`.
 
-| Opcode | Intrinsic Name | argc | vm_bridge.ts | scripting.ts | Status |
-|---|---|---|---|---|---|
-| `0x80F3` | `has_trait` | 3 | `bridged("has_trait", 3)` | `has_trait(traitType, obj, trait)` | PARTIAL (see §3.2) |
-| `0x8102` | `critter_add_trait` | 4 | `bridged("critter_add_trait", 4)` | `critter_add_trait(...)` | PARTIAL (stub body) |
-| — | `has_perk` | 2 | **NOT WIRED** | **NOT IMPL** | MISSING |
-| — | `add_perk` | 2 | **NOT WIRED** | **NOT IMPL** | MISSING |
-| — | `remove_perk` | 2 | **NOT WIRED** | **NOT IMPL** | MISSING |
-| — | `perk_level` | 2 | **NOT WIRED** | **NOT IMPL** | MISSING |
-
-### 3.2 `has_trait` Implementation Detail
-
-CE semantics: `has_trait(traitType, object, traitValue)` where `traitType` selects which attribute family to query:
-- `TRAIT_OBJECT = 0` — checks `critterGetStat` derived traits (team, rotation, etc.)
-- `TRAIT_PERK = 1` — checks perk rank
-- `TRAIT_OBJECT_DATA = 2` — checks object data field
-- `TRAIT_TAG = 3` — checks tagged skill
-
-**DH2 `scripting.ts`** (`has_trait` at line 580): Only handles `TRAIT_OBJECT` (type 1 in DH2's mapping). Recognized sub-values: `AI_PACKET (5)`, `TEAM_NUM (6)`, `CUR_ROT (10)`, `VISIBILITY (666)`. All other traitType values fall through to `stub()`.
-
-**Result:** FO2 scripts calling `has_trait(TRAIT_PERK, critter, PERK_*)` always return the stub default. Any script that gates behavior on perk presence via `has_trait` is broken in DH2.
-
-### 3.3 Missing Opcodes — Impact
-
-Since `has_perk`, `add_perk`, `remove_perk`, and `perk_level` are not wired in `vm_bridge.ts`:
-
-- FO2 scripts that grant perks via `add_perk` (e.g., Doctor granting Vault City Training, Gecko Skinning from Ranger quest) silently do nothing.
-- Scripts that branch on `has_perk` (e.g., special NPC dialogue for perk holders) return stub value 0 = "no perk", always taking the fallback path.
-- `perk_level` (rank query) returns stub value 0, blocking multi-rank gating.
+| Opcode | Intrinsic | argc | CE | DH2 (`src/scripting.ts`) |
+|---|---|---|---|---|
+| `0x80F3` | `has_trait(type, obj, id)` | 3 | `opHasTrait` | TRAIT_PERK (0): rank on `perkRankOwner`; TRAIT_OBJECT (1): AI packet, team, rotation, sex, visibility, poison, radiation, inventory weight; TRAIT_TRAIT (2): selected trait |
+| `0x8102` | `critter_add_trait(obj, type, id, amount)` | 4 | `opCritterAddTrait` | TRAIT_PERK: ranks on `perkRankOwner` + `perkApplyEffect`; TRAIT_OBJECT: AI packet / team |
+| `0x8103` | `critter_rm_trait(obj, type, id, value)` | 4 | `opCritterRemoveTrait` | TRAIT_PERK: removes ranks + `perkApplyEffect(−1)` |
 
 ---
 
@@ -292,7 +282,7 @@ Called from `skillGetValue()` for the player critter. Returns total perk bonus f
 | Gambling | Gambler +20 |
 | Outdoorsman | Ranger +15, Survivalist +25 |
 
-**DH2 `src/skills.ts`** implements `perkGetSkillModifier(perks, skill)` with equivalent logic. Ghost's dim-light check is not enforced (always grants the bonus if perk is held).
+**DH2 `src/skills.ts`** implements `perkGetSkillModifier(perks, skill)` with equivalent logic; Ghost's light check is in `object/Critter.ts` (sneak).
 
 ### 4.2 CE `traitGetSkillModifier(traits[], skill)` — `trait.cc:284`
 
@@ -302,74 +292,27 @@ Called from `skillGetValue()` for any critter. Returns total trait bonus for a s
 
 ### 4.3 CE `traitGetStatModifier(trait, stat)` — `trait.cc:180`
 
-Called inside `critterGetStat` for the base stat layer. Returns the stat delta for a given trait. See §1.3 for the full table.
-
-**DH2 Discrepancy:** DH2 does not call `traitGetStatModifier` at stat query time. Trait stat effects are baked into `baseStats` during character creation in `ui_character.ts`. This means trait stat modifiers on non-player critters granted traits via script are not respected.
+See §1.3. DH2 applies the derived-stat parts live in `Player.getStat`, the SPECIAL parts on the base (§1.1).
 
 ### 4.4 CE `perkAddEffect(critter, perk)` — `perk.cc:554`
 
-Writes the perk's `statModifier` to the critter's **bonus stat layer** (`critterSetBonusStat`). The bonus layer is then summed in `critterGetStat`. Special handling:
-- `HERE_AND_NOW`: XP to next level granted immediately
-- `maxRank == -1` perks: applies `stats[0..6]` array as SPECIAL bonus deltas
-
-**DH2 has no bonus stat layer.** Perks with stat effects (Dodger, Action Boy, Earlier Sequence, etc.) write directly to `baseStats` via `applyPerk → player.stats.modifyBase`. This is equivalent for single-rank perks but differs for multi-rank perks if ranks are applied non-atomically.
+Bonus stat layer `+= statModifier`; `HERE_AND_NOW` grants the XP to the next level; `maxRank == −1` perks add `stats[0..6]`. DH2 has no separate bonus layer — `perkApplyEffect` writes the base stats (sign −1 for `perkRemoveEffect`); armor perks swap via `armorPerkSwap` (CE `_adjust_ac`).
 
 ---
 
 ## 5. Character Creation
 
-### 5.1 Trait Selection
-
-- Max **2 traits** selectable (`TRAITS_MAX_SELECTED_COUNT = 2` in CE; enforced in `ui_character.ts`)
-- Traits cannot be changed after creation (except via the Mutate! perk — stub in DH2)
-- DH2 enforces the 2-trait cap with `showInfoCard('Traits', 'You may only pick 2 traits.')` when a 3rd is attempted (`ui_character.ts–1636`)
-
-### 5.2 Perk Availability
-
-| Condition | Perk Every N Levels |
-|---|---|
-| Default | 3 |
-| Skilled trait selected | 4 |
-
-DH2 implementation (`player.ts:122–127`):
-```ts
-if (this.level % (this.traits.includes('Skilled') ? 4 : 3) === 0) {
-    this.pendingPerkPick = true;
-}
-```
-
-### 5.3 Tag! Perk
-
-The **Tag!** perk (CE index 47) allows tagging a 4th skill. The 4th tagged skill receives the tagging bonus (doubled invested points) but **not** the flat +20. DH2 mirrors this via `SkillSet.hasTagPerk` (set by `applyPerk('Tag!')` in `src/perks/perks.ts`).
-
-See `src/char.ts:117–122` for the 4th-slot Tag! check:
-```ts
-const isTagPerk4thSlot = (options?.hasTagPerk || this.hasTagPerk)
-    && this.tagged.length >= 4
-    && this.tagged[3] === skill;
-if (!isTagPerk4thSlot) {
-    value += 20;
-}
-```
+- Max **2 traits** (`TRAITS_MAX_SELECTED_COUNT`), enforced in `ui_character/creator.ts`; Mutate! swaps one later (`ui_character/perkModal.ts` runMutate, CE `perkDialogHandleMutatePerk`).
+- Tag! (CE 51) adds a 4th tag slot without the +20 (`SkillSet.hasTagPerk`, set by `applyPerk`).
+- Books (`_obj_use_book`, `object/Obj.ts` useBook): +(100 − skill)/10 per read, ×1.5 with Comprehension, 3600 × (11 − INT) game ticks.
 
 ---
 
 ## 6. Known Gaps
 
-| # | Area | CE Behavior | DH2 Status | Gap Description |
-|---|---|---|---|---|
-| 1 | `has_perk` opcode | `perkGetRank(critter, perk) > 0` | MISSING | Not wired in vm_bridge.ts; scripts cannot query perk presence |
-| 2 | `add_perk` opcode | `perkAddEffect(critter, perk)` | MISSING | Not wired; quest-granted perks never applied |
-| 3 | `remove_perk` opcode | `perkRemoveEffect(critter, perk)` | MISSING | Not wired |
-| 4 | `perk_level` opcode | `perkGetRank(critter, perk)` | MISSING | Not wired; rank queries always return stub 0 |
-| 5 | `has_trait(TRAIT_PERK, ...)` | Routes to perk rank check | PARTIAL | DH2 has_trait only handles TRAIT_OBJECT sub-types |
-| 6 | Trait stat modifiers — live | `traitGetStatModifier` called in `critterGetStat` | PARTIAL | DH2 bakes trait stats at creation only; NPC traits via script ignored |
-| 7 | One Hander trait | ±weapon-type skill modifier | STUB | No weapon-type categorization for skill modifiers |
-| 8 | Fast Shot trait | −1 AP ranged, no targeting | STUB | AP cost and targeted-shot restriction not implemented |
-| 9 | Kamikaze — AC zeroing | Base AC only, armor bonus stripped | STUB | DH2 applies AC from armor normally |
-| 10 | Ghost perk — light condition | +20 Sneak only in dim/darkness | PARTIAL | Bonus always applied; no light-level check |
-| 11 | Addiction perks (53–70) | Script-granted withdrawal penalties | STUB | No addiction system; all 18 addiction perks are no-ops |
-| 12 | Implant perks (73–77) | SPECIAL stat bonuses via `stats[]` delta | STUB | No implant system; `add_perk` itself missing |
-| 13 | Action Boy multi-rank | AP +1 per `perkAddEffect` call | PARTIAL — DH2 modifyBase each rank | Functionally equivalent; differs if bonus layer reset ever implemented |
-| 14 | Here and Now | Immediate XP-to-next-level grant | STUB | Non-selectable; `add_perk` missing |
-| 15 | GAIN_* perks SPECIAL req | Require SPECIAL < 10 (encoded as `stats[n] = -10`) | PARTIAL | DH2 `getValidPerks` checks `minStats` as lower bound only; upper bound (< 10) not checked |
+| # | Area | CE | DH2 |
+|---|---|---|---|
+| 1 | Bonus stat layer | Perk/drug bonuses live in a separate layer | DH2 writes base stats (equivalent while effects are applied/removed symmetrically) |
+| 2 | Perks of non-party NPCs | Share the dude's rank array (CE quirk) | Same (`perkRankOwner`) — kept for fidelity |
+
+Everything else in this doc is implemented. <!-- audited: 2026-10-18 -->

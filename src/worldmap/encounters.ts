@@ -62,7 +62,10 @@ export function execEncounter(encTable: EncounterTable): void {
                 if (obj instanceof Critter && critter.items.length > 0) {
                     for (const encItem of critter.items) {
                         const itemObj = createObjectWithPID(encItem.pid)
-                        obj.addInventoryItem(itemObj, encItem.amount ?? 1)
+                        // CE worldmap.cc wmSetupCritterObjs: money doubles with Fortune Finder
+                        let quantity = encItem.amount ?? 1
+                        if (itemObj.pid === 41 && globalState.player?.hasPerk('Fortune Finder')) quantity *= 2
+                        obj.addInventoryItem(itemObj, quantity)
                         if (encItem.wielded && itemObj instanceof WeaponObj && itemObj.weapon !== null) {
                             // addInventoryItem clones into inventory; get that reference
                             const invRef = obj.inventory[obj.inventory.length - 1] as WeaponObj
