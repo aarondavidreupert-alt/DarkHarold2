@@ -177,7 +177,9 @@ export module Scripting {
     // animationRegisterMoveTo{Tile,Object} / RunTo…: walk (or run) there; the next step
     // waits until it arrives (or can't get there).
     interface AnimMove  { kind: 'move'; obj: Obj; to: Point | Obj; run: boolean; delay: number }
-    type AnimEntry = AnimStep | AnimFunc | AnimMove
+    // animationRegisterAnimateForever (ANIM_KIND_ANIMATE_FOREVER): loops until cleared
+    interface AnimForever { kind: 'forever'; obj: Obj; anim: number }
+    type AnimEntry = AnimStep | AnimFunc | AnimMove | AnimForever
     let animBatch: AnimEntry[] | null = null
 
     export interface StartPos {
@@ -1961,12 +1963,29 @@ export module Scripting {
                 // OBJECT_SET_FRAME — CE ref: interpreter_extra.cc:3427 opAnim
                 obj.frame = param
             } else if (anim >= 0 && anim < 65) {
-                // Animation type ID — wrap in a one-shot reg_anim batch
-                // CE ref: interpreter_extra.cc:3382 opAnim (anim < ANIM_COUNT branch)
-                // param == 0 → forward; param != 0 → reversed (animationRegisterAnimateReversed).
+                // CE interpreter_extra.cc opAnim (anim < ANIM_COUNT): _correctDeath, then
+                // param 0 plays the animation forward — a knockdown / death animation
+                // (ANIM_FALL_BACK … ANIM_FALL_FRONT_BLOOD) leaves the critter lying on its
+                // single-frame pose — and `results &= DAM_KNOCKED_DOWN` (CE's literal mask);
+                // any other param plays it reversed, the critter ends up lying
+                // (PRONE_TO_STANDING reversed = lying on the front) and is knocked down.
+                const c = obj.type === 'critter' ? obj as Critter : null
+                if (c) anim = correctDeath(c, anim)
+                const reversed = param !== 0
+                const lying = reversed || (anim >= 20 && anim <= 35) // ANIM_FALL_BACK..ANIM_FALL_FRONT_BLOOD
+                if (c) {
+                    c.injuryFlags = (reversed ? (c.injuryFlags | 0x02) : (c.injuryFlags & 0x02)) >>> 0 // DAM_KNOCKED_DOWN
+                }
+                if (lying && c) {
+                    // which way it lies, for _dude_standup later (lifecycle.ts naming)
+                    const onFront = anim === 21 || anim === 35 || anim === 36 // FALL_FRONT(_BLOOD), PRONE_TO_STANDING
+                    ;(c as any).knockdownAnim = onFront ? 'knockdownBack' : 'knockdownFront'
+                    playAnimId(obj, anim, reversed, () => {}) // stays on the last frame
+                    return
+                }
                 const saved = animBatch
                 animBatch = []
-                animBatch.push({ kind: 'animate', obj, anim, delay: 0, reversed: param !== 0 })
+                animBatch.push({ kind: 'animate', obj, anim, delay: 0, reversed })
                 this.reg_anim_end()
                 animBatch = saved
             } else {
@@ -2319,9 +2338,10 @@ export module Scripting {
         // CE opRegAnimPlaySfx (0x813B) — sound step inside the current reg_anim sequence.
         reg_anim_play_sfx(obj: Obj, sfx: string, delay: number) {
             if (!isGameObject(obj) || typeof sfx !== 'string') return
+            // CE animationRegisterPlaySoundEffect: a step of the current reg_anim batch;
+            // outside one (_check_registry) nothing plays.
             const play = () => globalState.audioEngine?.playSfxByName?.(sfx.toLowerCase())
             if (animBatch !== null) animBatch.push({ kind: 'func', obj, fn: () => setTimeout(play, Math.max(0, delay) * 100) } as any)
-            else setTimeout(play, Math.max(0, delay) * 100)
         }
         // CE opSfxBuildCharName (0x813D) — game_sound.cc sfxBuildCharName
         sfx_build_char_name(obj: Obj, anim: number, extra: number): string | null {
@@ -2633,7 +2653,7 @@ export module Scripting {
             }
         }
 
-        private regAnimPush(name: string, obj: Obj, step: AnimStep | AnimMove): void {
+        private regAnimPush(name: string, obj: Obj, step: AnimStep | AnimMove | AnimForever): void {
             if (globalState.inCombat) return
             if (!isGameObject(obj)) { warn(name + ': object is null', 'animation'); return }
             if (animBatch === null) { warn(name + ': outside reg_anim_begin', 'animation'); return }
@@ -2694,6 +2714,15 @@ export module Scripting {
                     else go()
                     return
                 }
+                if ((batch[i] as any).kind === 'forever') {
+                    const fv = batch[i] as unknown as AnimForever
+                    const loop = (): void => {
+                        if (fv.obj.type === 'critter') (fv.obj as Critter).staticAnimation('anim:' + fv.anim, loop, true)
+                        else fv.obj.singleAnimation(false, loop)
+                    }
+                    loop()
+                    return // never ends: the rest of the batch waits, as in CE
+                }
                 const step = batch[i] as AnimStep
                 const obj = step.obj
                 const next = () => { obj.clearAnim(); doStep(i + 1) }
@@ -2710,18 +2739,11 @@ export module Scripting {
             doStep(0)
         }
 
+        // CE opRegAnimAnimateForever: outside combat, animationRegisterAnimateForever —
+        // a step of the current batch that loops `anim` for good.
         reg_anim_animate_forever(obj: Obj, anim: number) {
-            log('reg_anim_animate_forever', arguments, 'animation')
-            if (!isGameObject(obj)) {
-                warn('reg_anim_animate_forever: not a game object')
-                return
-            }
-            //console.log("ANIM FOREVER: " + obj.art + " / " + anim)
-            if (anim !== 0) warn('reg_anim_animate_forever: anim = ' + anim)
-            function animate() {
-                obj.singleAnimation(false, animate)
-            }
-            animate()
+            if (globalState.inCombat) return
+            this.regAnimPush('reg_anim_animate_forever', obj, { kind: 'forever', obj, anim } as any)
         }
         animate_move_obj_to_tile(obj: Critter, tileNum: any, isRun: number) {
             log('animate_move_obj_to_tile', arguments, 'movement')

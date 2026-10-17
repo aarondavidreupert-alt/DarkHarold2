@@ -401,14 +401,13 @@ Critter.prototype.updateAnim = function (this: Critter): void {
 
     const time = window.performance.now()
     let fps = globalState.imageInfo[this.art].fps
-    // CE ref: animation.cc:3287 animationComputeTicksPerFrame — ANIM_WALK gets
-    // a frame-rate boost during combat. CE combat_speed is 0=fastest, 50=slowest;
-    // we map to an additive fps boost of 0–10 (inverted). Skip player critter if
-    // player_speedup is disabled (preferences.cc player_speedup checkbox).
-    if (globalState.inCombat && (this.anim === 'walk' || this.anim === 'run')) {
+    // CE animation.cc animationComputeTicksPerFrame: in combat ANIM_WALK (not running)
+    // gets fps += combat_speed (the 0..50 preference, higher is faster); the dude only
+    // with player_speedup.
+    if (globalState.inCombat && this.anim === 'walk') {
         const isPlayer = globalState.player && (this as any) === globalState.player
         if (!isPlayer || Config.engine.playerSpeedup) {
-            fps += Math.round((50 - Math.max(0, Math.min(50, Config.combat.combatSpeed))) * 0.2)
+            fps += Math.max(0, Math.min(50, Config.combat.combatSpeed))
         }
     }
     if (Config.engine.walkModel !== 'dh2') {

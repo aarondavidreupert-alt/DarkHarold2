@@ -254,8 +254,9 @@ export const Config = {
         // Damage calculation ruleset: 0=Vanilla, 1=Glovz, 2=Glovz+MultTweak, 5=YAAM
         // Matches fallout2-ce DamageCalculationType enum values exactly.
         damageCalculationType: 0 as 0 | 1 | 2 | 5,
-        // FO2-CE ref: preferences.cc — combat speed: 0=fastest, 50=slowest (matches CE game_config.h:44 range).
-        combatSpeed: 25,
+        // CE preferences.cc combat_speed 0..50 (game_config.cc default 0): added to the walk
+        // fps in combat (animationComputeTicksPerFrame) — higher is faster.
+        combatSpeed: 0,
         // FO2-CE ref: preferences.cc — VIOLENCE_LEVEL: 0=none, 1=minimum, 2=normal, 3=maximum
         violenceLevel: 2 as 0 | 1 | 2 | 3,
     },

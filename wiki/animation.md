@@ -724,29 +724,24 @@ Implementing palette cycling in DH2 would require either (a) baking multiple pre
 
 ---
 
-## 13. Known Gaps vs CE
+## 13. Known Gaps vs CE (re-audited 2026-10-18)
 
-| ID  | Description | File(s) | CE Reference | Sev | Status |
-|-----|-------------|---------|--------------|-----|--------|
-*Re-audit 2026-10-17:* AN1 fixed (default fps 10 — CE `artGetFramesPerSecond`). AN3 (FA3 action frames) and AN4 (FA4 combat speed) fixed earlier. AN6: weapon stances via `getAnimation` / `setIdleArt`. AN7–AN12: the reg_anim / anim opcodes are wired as CE (see §11). AN15: all death anims (`critter/deathAnim.ts`). AN18: palette cycling (RD10). Still deviations: AN13 (rotation kept on the object), AN14/AN16/AN17 (one sequence at a time, no request flags), AN2/AN5 (walk-cycle details, see the walk-loop notes).
+| ID | Status |
+|----|--------|
+| AN1 | ✅ default 10 fps (`artGetFramesPerSecond`) |
+| AN2 / AN5 | ✅ superseded: the CE walk model (`walkModel = 'ce'`, `_object_move` per-frame offsets) is the default; the old partial-action path (`getAnimDistance`) only runs with `walkModel = 'dh2'` |
+| AN3 | ✅ action frames exported and used (FA3) |
+| AN4 | ✅ combat walk speed — now literally `fps += combat_speed` for ANIM_WALK only (`animationComputeTicksPerFrame`; DH2 had it inverted and on running too; default `combat_speed` 0 as `game_config.cc`) — 2026-10-18 |
+| AN6 | ✅ weapon stances (`getAnimation` / `setIdleArt`) |
+| AN7 | — `reg_anim_animate_and_hide` is not a script opcode in vanilla Fallout 2 (internal `animationRegisterAnimateAndHide`) |
+| AN8–AN10 | ✅ `reg_anim_obj_run_to_tile`, `…move_to_obj`, `…run_to_obj` wired as CE (C37) |
+| AN11 | ✅ `anim()` is CE `opAnim` (2026-10-18): `_correctDeath`; a knockdown / death animation (20–35) leaves the critter lying, the CE `results &= DAM_KNOCKED_DOWN`; reversed animations end lying and set DAM_KNOCKED_DOWN; 1000 rotation, 1010 frame |
+| AN12 | ✅ `animate_move_obj_to_tile` implemented |
+| AN13 | Equivalent: the facing lives on `obj.orientation` instead of the FID bits |
+| AN14 / AN16 | Equivalent for scripts: every `reg_anim_begin … end` batch runs on its own (several at once); the kinds scripts can register — animate, animate reverse, move / run to tile / object, animate forever (2026-10-18: a batch step, outside combat only, any anim id), play sfx, callbacks — are all handled |
+| AN17 | Open (low): request flags (RESERVED / UNRESERVED / NO_STAND …) are not modelled |
+| AN15 | ✅ all death animations incl. SF (`critter/deathAnim.ts`) |
+| AN18 | ✅ palette cycling (RD10) |
+| — | `reg_anim_play_sfx` outside a batch plays nothing, as CE (2026-10-18) |
 
-| AN1 | **`updateStaticAnim` hardcodes fps = 8.** Comment reads `// todo: get FPS from image info`. Should read `info.fps \|\| 10` like `updateLoopingAnim`. Scenery such as flowing water or fire plays at the wrong speed. | `object.ts` | `art.cc:713 artGetFramesPerSecond()` | minor | bug |
-| AN2 | **`getAnimDistance` reads direction 1 for the last frame.** `frameOffsets[1][numFrames-1].ox` uses direction E instead of direction 0 (NE). Returns wrong hex-steps-per-walk-cycle, causing partial-action boundaries to be off and walk animation to hitch or overshoot. | `object.ts` | `animation.cc:1716` | major | bug |
-| AN3 | **PARTIALLY FIXED 2026-07-04.** `actionFrame` was discarded by the extraction pipeline (`tools/frmpixels.py:40` read it into `_actionFrame` — leading underscore meant not saved — and it was absent from `imageMap.json`). The pipeline side is now fixed: `readFRMInfo()` returns `actionFrame` (no underscore), and `exportFRMs()` builds a per-direction `actionFrames` array that's written into each entry's `extra`/frame-info JSON. **Remaining gap**: no runtime code in `src/` reads the field yet — hit-detection and sound-sync still don't consume it, so weapon-attack timing is unaffected until a follow-up wires it into combat/animation playback. | `tools/frmpixels.py:40,71,218-229` (fixed); runtime consumption still missing | `art.h ArtFrame.actionFrame`, `animation.cc` | major | partial |
-| AN4 | **No combat walk speed bonus.** CE's `animationComputeTicksPerFrame` adds the `combat_speed` preference to ANIM_WALK in combat. DH2 uses a fixed `1000/fps` for all animations. | `src/object/critterAnimation.ts` | `animation.cc:3287 animationComputeTicksPerFrame()` | minor | missing |
-| AN5 | **`obj.shift = {x:0, y:0}` is truthy at walk start; frame 0's static ox/oy is skipped.** At the beginning of a walk cycle, `shift` is set to `{x:0,y:0}` — a truthy object. The renderer therefore takes the shift path and adds `+0`, while the correct static offset for frame 0 would be `frameInfo.ox`. For most walk FRMs `ox` at frame 0 is zero so the effect is invisible, but any FRM where frame 0 has a non-zero initial delta will display one frame off-anchor. | `renderer.ts:311`, `src/object/critterAnimation.ts` | `object.cc _obj_offset()` | low | bug |
-| AN6 | **FID composition / weapon stance animation not implemented for NPC critters.** CE builds a Frame Identifier via `buildFid(objectType, animType, weaponAnimCode, direction, rotation)` (`art.cc`), where `weaponAnimCode` selects the critter's armed-pose FRM set (0=unarmed, 1=pistol, 3=rifle, 4=big gun, etc.). DH2 has no `buildFid` equivalent — critter FRM paths come from a static `skin` string. The player's `skin` is updated at weapon-swap time via `playWeaponSwapAnim`, but NPC critters on a map never have their skin recalculated from their held weapon; they always display unarmed animations. Full detail: §9 (Weapon Animation Codes). | `src/object/critterAnimation.ts`; `src/renderer.ts` | `art.cc buildFid()`; `art.h ART_TYPE_CRITTER`; `proto_types.h ItemWeaponData.animCode` | medium | missing |
-| AN7 | **`reg_anim_animate_and_hide` — animate then hide object.** Not wired; no opcode entry. | `animation.cc` | ANIM_KIND_ANIMATE_AND_HIDE | medium | missing |
-| AN8 | **`reg_anim_obj_run_to_tile` — run (not walk) to tile.** Not wired; no opcode entry. | `animation.cc` | ANIM_KIND_RUN_TO_TILE | medium | missing |
-| AN9 | **`reg_anim_obj_move_to_obj` — move to another object's tile.** Not wired. | `animation.cc` | ANIM_KIND_MOVE_TO_OBJECT | medium | missing |
-| AN10 | **`reg_anim_obj_run_to_obj` — run to another object's tile.** Not wired. | `animation.cc` | ANIM_KIND_RUN_TO_OBJECT | medium | missing |
-| AN11 | **`anim()` param dispatch incomplete.** CE handles all `AnimationType` values; DH2 only implements param values `1000` (rotation) and `1010` (frame). All other param values are stubs. | `src/scripting.ts:1237` | `animation.cc` | minor | partial |
-| AN12 | **`animate_move_obj_to_tile` (0x80CE) unimplemented.** Wired in `vm_bridge` but has no implementation body. | `src/vm_bridge.ts` | CE animate + move combo | minor | stub |
-| AN13 | **Rotation field in FID unused at render time.** CE stores facing in bits 29-28 for death anims. DH2 stores facing on `obj.orientation`; FID rotation bits are not used at render time. | `src/object/critterAnimation.ts`, `src/renderer.ts` | `art.cc buildFid()`, `obj_types.h` | low | deviation |
-| AN14 | **CE animation sequence capacity not replicated.** CE supports 32 concurrent sequences with 55 descriptions each. DH2 supports one active batch at a time (single `animBatch` array). | `src/scripting.ts` | `animation.cc` ANIMATION_SEQUENCE_LIST_CAPACITY | low | deviation |
-| AN15 | **SF death animations (IDs 48–63) mostly absent.** CE maps all 16 to unique FRM suffixes `ra`–`rp`. DH2 only maps `death-laser` → `bg`; others fall back to regular death or are absent. | `src/object/critterAnimation.ts` | `animation.h` FIRST_SF_DEATH_ANIM | medium | missing |
-| AN16 | **All 28 `AnimationKind` values not handled.** DH2 batch system only processes `animate` and `func` kinds. | `src/scripting.ts` | `animation.h AnimationKind` | medium | missing |
-| AN17 | **`AnimationRequestOptions` flags silently ignored.** UNRESERVED, RESERVED, NO_STAND, PING, INSIGNIFICANT are all discarded in `reg_anim_begin`. | `src/scripting.ts` | `animation.h AnimationRequestOptions` | low | missing |
-| AN18 | **Palette cycling not implemented.** CE's `colorCycleTicker` rotates palette ranges to animate water, fire, and terminals. DH2 has no runtime palette system; all such objects display static frames only. | `src/renderer.ts` | `cycle.cc colorCycleTicker`, `cycleInit` | medium | missing |
-
-<!-- audited: 2026-06-02 -->
+<!-- audited: 2026-10-18 -->
