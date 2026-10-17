@@ -25,7 +25,7 @@ import type { Proto } from '../proto_types.js'
 export type ObjType = 'item' | 'critter' | 'scenery' | 'wall' | 'tile' | 'misc' | 'spatial'
 import { ANIM_STAND, critterDamage } from '../critter.js'
 import { getLstId, lookupScriptName } from '../data.js'
-import { Events, scheduleExplosion } from '../events.js'
+import { Events } from '../events.js'
 import { hexDirectionTo, hexDistance, hexIsInFrontOf, hexNeighbors, Point } from '../geometry.js'
 import { computeExplosionDamage, explosionRingCritters, scriptsExplodeScenery } from '../combat/explosion.js'
 import globalState from '../globalState.js'
@@ -37,7 +37,7 @@ import { Scripting } from '../scripting.js'
 import { fromTileNum, toTileNum } from '../tile.js'
 import { uiLoot, uiLog } from '../ui.js'
 import { getMessage, getRandomInt, skillRoll, RollResult } from '../util.js'
-import { showTimerDialog } from '../ui_timer.js'
+import { uiGetTimer } from '../ui_barter/swap.js'
 import { Config } from '../config.js'
 import { isChargedMiscItem, useChargedMiscItem } from '../miscItem.js'
 import { drawHP } from '../ui_hud.js'
@@ -123,45 +123,75 @@ export function objectGetDamageType(obj: any): string {
     throw 'no damage type for obj: ' + obj
 }
 
+// CE item.cc explosiveActivate / _queue_do_explosion_: dynamite (51 → armed 206) and
+// plastic explosives (85 → 209); damage 30-50 / 40-80, +10 each with the player's
+// Demolition Expert.
+const EXPLOSIVES: { [pid: number]: { active: number; min: number; max: number } } = {
+    51: { active: 206, min: 30, max: 50 },
+    85: { active: 209, min: 40, max: 80 },
+}
+
+// CE proto_instance.cc _obj_use_explosive — set the timer (10-180 s), then a Traps
+// roll (none with Demolition Expert): success arms it for 10 × seconds ticks, a
+// failure goes off early (half the time), a critical failure at once — both with
+// "Due to your inept handling..." (misc.msg 4000). The armed explosive stays where it
+// is: carried, it explodes on whoever carries it.
 async function useExplosive(obj: Obj, source: Critter): Promise<void> {
     if (!source.isPlayer) return
+    const desc = EXPLOSIVES[obj.pid]
+    if (!desc) {
+        // An armed explosive (206 / 209): CE OBJECT_QUEUED → "The timer is already ticking!"
+        if (obj.pid === 206 || obj.pid === 209) uiLog(getMessage('proto', 590) ?? 'The timer is already ticking!')
+        return
+    }
+    if (Scripting.timeEventList.some((e) => e.obj === obj && (e.userdata === 'explosion' || e.userdata === 'explosionFailure'))) {
+        uiLog(getMessage('proto', 590) ?? 'The timer is already ticking!') // OBJECT_QUEUED
+        return
+    }
+    const seconds = await uiGetTimer(obj)
+    if (seconds === -1) return
+    uiLog(getMessage('proto', 589) ?? 'You set the timer.')
 
-    const isDynamite = obj.pid === 51
-    const minDmg = isDynamite ? 30 : 40
-    const maxDmg = isDynamite ? 50 : 80
-    const radius  = isDynamite ? 2  : 3
-
-    const chosenTurns = await showTimerDialog(obj)
-    if (chosenTurns === null) return // player cancelled
-
-    // Traps skill roll — skipped for Demolition Expert
-    let delayTurns = chosenTurns
-    if (source.hasPerk('Demolition Expert')) {
-        uiLog(`Armed! Timer set to ${delayTurns} turn(s).`)
-    } else {
-        const { roll } = skillRoll(source, 'Traps')
-        dbg('object', `[Object] Traps roll: ${RollResult[roll]}`)
-        if (roll === RollResult.CriticalFailure) {
-            uiLog('The explosive detonates in your hands!')
-            obj.explode(source, minDmg, maxDmg, radius)
-            return
-        } else if (roll === RollResult.Failure) {
-            delayTurns = Math.max(1, Math.floor(chosenTurns / 2))
-            uiLog(`You fumble the timer. Detonation in ${delayTurns} turn(s).`)
-        } else {
-            uiLog(`Armed! Detonation in ${delayTurns} turn(s).`)
-        }
+    // explosiveActivate: the armed proto
+    const pro = loadPRO(desc.active, desc.active & 0xffff)
+    if (pro) {
+        obj.pid = desc.active
+        obj.pro = pro
+        obj.art = lookupArt(makePID(pro.frmType, pro.frmPID))
+        const invPID = ((pro as any).extra?.invFRM ?? -1) & 0xffff
+        const invName = invPID !== 0xffff ? getLstId('art/inven/inven', invPID) : null
+        if (invName) obj.invArt = 'art/inven/' + invName.split('.')[0]
+        obj.name = getMessage('pro_item', pro.textID) ?? obj.name
     }
 
-    // Mark as armed and swap art (explosiveActivate() equivalent).
-    // invArt is the in-inventory image; art is the on-map/dropped image.
-    // The item stays in inventory — the player drops it manually.
-    ;(obj as any).armed = true
-    obj.invArt = isDynamite ? 'art/inven/dynon'    : 'art/inven/plastion'
-    obj.art    = isDynamite ? 'art/items/dynamite'  : 'art/items/plstic'
+    let delay = 10 * seconds
+    const roll = source.hasPerk('Demolition Expert') ? RollResult.Success : skillRoll(source, 'Traps').roll
+    let failure = false
+    if (roll === RollResult.CriticalFailure) { delay = 0; failure = true }
+    else if (roll === RollResult.Failure) { delay = Math.trunc(delay / 2); failure = true }
+    dbg('object', `[Object] explosive armed: ${seconds}s, Traps ${RollResult[roll]}, fires in ${delay} ticks`)
+    const fire = () => explosiveDetonate(obj, desc.min, desc.max, failure)
+    if (delay === 0) fire()
+    else Scripting.timeEventList.push({ obj, ticks: delay, userdata: failure ? 'explosionFailure' : 'explosion', fn: fire })
+}
 
-    scheduleExplosion(obj, minDmg, maxDmg, radius, delayTurns)
-    dbg('object', `[Object] ${isDynamite ? 'Dynamite' : 'Plastic Explosive'} armed: delay=${delayTurns}t dmg=${minDmg}-${maxDmg} r=${radius}`)
+// CE queue.cc explosionEventProcess / explosionFailureEventProcess → _queue_do_explosion_:
+// at the owner's tile when carried.
+function explosiveDetonate(obj: Obj, min: number, max: number, failure: boolean): void {
+    const gMap = globalState.gMap
+    if (!gMap) return
+    if (failure) uiLog(getMessage('misc', 4000) ?? 'Due to your inept handling, the explosive detonates prematurely.')
+    const player = globalState.player
+    if (player?.hasPerk('Demolition Expert')) { min += 10; max += 10 }
+    const owner = gMap.getObjects().find((o) => o.type === 'critter' && (o as Critter).inventory.includes(obj)) as Critter | undefined
+        ?? (player && player.inventory.includes(obj) ? player : undefined)
+    if (owner) {
+        const idx = owner.inventory.indexOf(obj)
+        if (idx !== -1) owner.inventory.splice(idx, 1)
+        obj.position = { ...owner.position }
+        gMap.addObject(obj)
+    }
+    obj.explode(player ?? null, min, max)
 }
 
 // Set the object (door/container) open/closed; returns true if possible, false if not (e.g. locked)
@@ -839,7 +869,8 @@ export class Obj {
     }
 
     get isExplosive(): boolean {
-        return this.pid === 85 /* Plastic Explosives */ || this.pid === 51 /* Dynamite */
+        // CE explosiveIsExplosive + explosiveIsActiveExplosive (armed 206 / 209)
+        return this.pid === 85 /* Plastic Explosives */ || this.pid === 51 /* Dynamite */ || this.pid === 206 || this.pid === 209
     }
 
     get isSelectable(): boolean {
@@ -1013,11 +1044,17 @@ export class Obj {
             globalState.gMap.addObject(explosion)
             for (const adj of adjExplosions) {
                 globalState.gMap!.addObject(adj)
-                adj.singleAnimation(false, () => { globalState.gMap?.destroyObject(adj) })
+                adj.singleAnimation(false, () => { adj.anim = null; globalState.gMap?.destroyObject(adj) })
             }
             globalState.audioEngine?.playSfxByName('whn1xxx1') // CE actionExplode
 
+            let fired = false
             explosion.singleAnimation(false, () => {
+                // updateAnim keeps calling a finished animation's callback until the anim
+                // is cleared; the blast happens once.
+                explosion.anim = null
+                if (fired) return
+                fired = true
                 globalState.gMap?.destroyObject(explosion)
                 const gMap = globalState.gMap
                 if (!gMap) return

@@ -289,7 +289,6 @@ src/
 ├── ui_pipboy.ts              ← barrel
 ├── ui_saveload.ts
 ├── ui_skilldex.ts
-├── ui_timer.ts
 ├── ui_unarmed.ts
 ├── ui_widget.ts
 ├── ui_worldmap.ts
@@ -369,7 +368,7 @@ Files that aren't being split keep their current top-level path. Specifically:
 `ui_calledshot.ts`, `ui_charactercreator.ts`, `ui_components.ts`,
 `ui_contextmenu.ts`, `ui_dialogue.ts`, `ui_drag.ts`, `ui_elevator.ts`,
 `ui_hud.ts`, `ui_loot.ts`, `ui_mainmenu.ts`, `ui_panels.ts`,
-`ui_saveload.ts`, `ui_skilldex.ts`, `ui_timer.ts`, `ui_unarmed.ts`,
+`ui_saveload.ts`, `ui_skilldex.ts`, `ui_unarmed.ts`,
 `ui_widget.ts`, `ui_worldmap.ts`, `unarmed.ts`, `util.ts`, `vm.ts`,
 `vm_bridge.ts`. The `formats/` subfolder is pre-existing and untouched.
 

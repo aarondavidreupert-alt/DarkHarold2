@@ -177,7 +177,6 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/ui_options.ts` | Options/preferences screen; pref I/O (SavedPreferences, loadPreferences, savePreferences, getVolumeValue) carved into `ui_options/preferences.ts` |
 | `src/ui_saveload.ts` | Save/load window per CE loadsave.cc (slot list, info box, preview), plus scroll bar and delete |
 | `src/ui_automap.ts` | Standalone automap overlay (272 lines) |
-| `src/ui_timer.ts` | In-game countdown timer panel (97 lines) |
 | `src/ui_contextmenu.ts` | Right-click context menu (178 lines) |
 | `src/ui_font.ts` | Barrel — bitmap font renderer; split into `ui/fontCore.ts` (FontRenderer/FontWidget/renderBitmapText) + `ui/numberDials.ts` (setNumberDial/renderBignum); keeps font1–font4 singletons |
 | `src/ui_components.ts` | Shared UI components: buttons, sliders, scroll containers (215 lines) |

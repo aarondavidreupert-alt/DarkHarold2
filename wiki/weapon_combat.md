@@ -146,18 +146,18 @@ Seven damage types indexed 0–6 in CE (`damageType` enum, `proto_types.h`):
 
 | Index | CE Name | DH2 String | Stat suffix | Death anim |
 |-------|---------|------------|-------------|------------|
-| 0 | `DAMAGE_NORMAL` | `'Normal'` | `'DT Normal'` / `'DR Normal'` | `'death'` |
-| 1 | `DAMAGE_LASER` | `'Laser'` | `'DT Laser'` / `'DR Laser'` | `'death-laser'` |
-| 2 | `DAMAGE_FIRE` | `'Fire'` | `'DT Fire'` / `'DR Fire'` | `'death-fire'` |
-| 3 | `DAMAGE_PLASMA` | `'Plasma'` | `'DT Plasma'` / `'DR Plasma'` | `'death-plasma'` |
-| 4 | `DAMAGE_EMP` | `'Electrical'` | `'DT Electrical'` / `'DR Electrical'` | `'death-electro'` |
-| 5 | `DAMAGE_EXPLOSIVE` | `'EMP'` | `'DT EMP'` / `'DR EMP'` | `'death-electro'` |
-| 6 | `DAMAGE_RADIATION` | `'Explosive'` | `'DT Explosion'` / `'DR Explosion'` | `'death-explode'` |
+| 0 | `DAMAGE_TYPE_NORMAL` | `'Normal'` | `'DT Normal'` / `'DR Normal'` | `'death'` |
+| 1 | `DAMAGE_TYPE_LASER` | `'Laser'` | `'DT Laser'` / `'DR Laser'` | `'death-laser'` |
+| 2 | `DAMAGE_TYPE_FIRE` | `'Fire'` | `'DT Fire'` / `'DR Fire'` | `'death-fire'` |
+| 3 | `DAMAGE_TYPE_PLASMA` | `'Plasma'` | `'DT Plasma'` / `'DR Plasma'` | `'death-plasma'` |
+| 4 | `DAMAGE_TYPE_ELECTRICAL` | `'Electrical'` | `'DT Electrical'` / `'DR Electrical'` | `'death-electro'` |
+| 5 | `DAMAGE_TYPE_EMP` | `'EMP'` | `'DT EMP'` / `'DR EMP'` | `'death-electro'` |
+| 6 | `DAMAGE_TYPE_EXPLOSION` | `'Explosive'` | `'DT Explosive'` / `'DR Explosive'` | `'death-explode'` |
 
-> **Important:** DH2's `damageType` bidirectional map in `critter.ts` has the string names
-> for CE indices 4 and 5 **swapped**. CE index 4 is `DAMAGE_EMP` but DH2 maps it to `'Electrical'`;
-> CE index 5 is `DAMAGE_EXPLOSIVE` but DH2 maps it to `'EMP'`. This is an existing discrepancy in
-> the source; changing it would require updating all proto JSON data.
+> Corrected 2026-10-17: an earlier version of this table had CE's names shifted
+> (index 4 "EMP", 5 "EXPLOSIVE", 6 "RADIATION") and called DH2's mapping swapped. CE
+> `proto_types.h` orders them NORMAL, LASER, FIRE, PLASMA, ELECTRICAL, EMP, EXPLOSION —
+> exactly DH2's strings.
 
 ### 4.2 Damage Roll
 
@@ -167,8 +167,11 @@ const RD = getRandomInt(wep.minDmg, wep.maxDmg)
 ```
 
 Unarmed moves use their own `mode.minDmg` / `mode.maxDmg` instead of the weapon PRO
-(`combat.ts`). For explosives (`Obj.explode`), damage is hardcoded: Dynamite 30–50,
-Plastic Explosive 40–80 (`object.ts`).
+(`combat.ts`). Explosives follow CE `_obj_use_explosive` / `_queue_do_explosion_`
+(`src/object/Obj.ts`): the Set Timer window (10–180 s, 10-s steps), 10 × seconds ticks
+of game time, a Traps roll (failure: half the time, critical failure: at once, both
+"detonates prematurely"), Dynamite 30–50 / Plastic 40–80 (+10 with Demolition Expert),
+then `actionExplode` (`src/combat/explosion.ts`).
 
 ### 4.3 Armor Lookup
 

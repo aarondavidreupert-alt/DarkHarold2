@@ -20,6 +20,7 @@ limitations under the License.
 
 import { Obj } from '../object.js'
 import { $id } from '../ui_dom.js'
+import globalState from '../globalState.js'
 
 // CE ref: inventory.cc:5534-5568 _draw_amount — BIGNUM.frm (FRM 170,
 // art/intrface/bignum.png, 336×24) is a 24-glyph sprite strip at 14px/glyph.
@@ -176,6 +177,89 @@ export function uiGetAmount(item: Obj): Promise<number> {
             resolve(amount)
         }
 
+        redraw()
+    })
+}
+
+/**
+ * CE "Set Timer" window — inventoryQuantitySelect(INVENTORY_WINDOW_TYPE_SET_TIMER,
+ * item, 180): the move-items window (movemult) with the TIMER overlay at (113,34),
+ * plus / minus at (194,64) / (194,76) stepping 10 seconds from 60 (10 … 180), the
+ * time drawn as m:ss in BIGNUM digits at (133,64) and no ALL button. Resolves to the
+ * seconds, or -1 on cancel. CE ref: inventory.cc:5584, :5743, :5534 _draw_amount.
+ */
+export function uiGetTimer(item: Obj): Promise<number> {
+    const DIALOG_W = 259
+    const DIALOG_H = 162
+    const MIN = 10, MAX = 180
+    return new Promise((resolve) => {
+        let value = 60
+        const overlay = $id('moveMultOverlay')
+        const canvas = $id('moveMultCanvas') as HTMLCanvasElement
+        const ctx = canvas.getContext('2d')!
+        const plusBtn = $id('moveMultPlusBtn')
+        const minusBtn = $id('moveMultMinusBtn')
+        const allBtn = $id('moveMultAllBtn')
+        const doneBtn = $id('moveMultDoneBtn')
+        const cancelBtn = $id('moveMultCancelBtn')
+        const saved = { plus: plusBtn.style.cssText, minus: minusBtn.style.cssText, all: allBtn.style.display }
+        plusBtn.style.left = '194px'; plusBtn.style.top = '64px'
+        minusBtn.style.left = '194px'; minusBtn.style.top = '76px'
+        allBtn.style.display = 'none'
+        overlay.style.display = 'flex'
+
+        const bignum = new Image(), timer = new Image(), icon = new Image()
+        let ready = 0
+        const redraw = () => {
+            ctx.clearRect(0, 0, DIALOG_W, DIALOG_H)
+            if (timer.complete && timer.naturalWidth) ctx.drawImage(timer, 113, 34)
+            if (icon.complete && icon.naturalWidth) {
+                const scale = Math.min(ICON_W / icon.naturalWidth, ICON_H / icon.naturalHeight)
+                const dw = icon.naturalWidth * scale, dh = icon.naturalHeight * scale
+                ctx.drawImage(icon, ICON_X + (ICON_W - dw) / 2, ICON_Y + (ICON_H - dh) / 2, dw, dh)
+            }
+            if (bignum.complete && bignum.naturalWidth) {
+                const digit = (d: number, x: number) => ctx.drawImage(bignum, d * BIGNUM_DIGIT_W, 0, BIGNUM_DIGIT_W, BIGNUM_DIGIT_H, x, 64, BIGNUM_DIGIT_W, BIGNUM_DIGIT_H)
+                digit(Math.trunc(value / 60), 133)
+                digit(Math.trunc((value % 60) / 10), 133 + 14 * 2)
+                digit(value % 10, 133 + 14 * 3)
+            }
+            void ready
+        }
+        for (const [img, src] of [[bignum, 'art/intrface/bignum.png'], [timer, 'art/intrface/timer.png'], [icon, item.invArt ? item.invArt + '.png' : '']] as [HTMLImageElement, string][]) {
+            if (!src) continue
+            img.onload = () => { ready++; redraw() }
+            img.src = src
+        }
+        const sfx = (name: string) => { try { (globalState as any).audioEngine?.playSfxByName(name) } catch (e) { void e } }
+        const onPlus = (e: Event) => { e.preventDefault(); if (value < MAX) { value += 10; redraw() } }
+        const onMinus = (e: Event) => { e.preventDefault(); if (value > MIN) { value -= 10; redraw() } }
+        const accept = () => {
+            if (value >= MIN && value <= MAX && value % 10 === 0) { sfx('ib1p1xx1'); cleanup(value) }
+            else sfx('iisxxxx1')
+        }
+        const onCancel = () => cleanup(-1)
+        const keyHandler = (e: KeyboardEvent) => {
+            if (e.key === 'Enter') { e.preventDefault(); accept() }
+            else if (e.key === 'Escape') { e.preventDefault(); cleanup(-1) }
+        }
+        plusBtn.addEventListener('mousedown', onPlus)
+        minusBtn.addEventListener('mousedown', onMinus)
+        doneBtn.addEventListener('click', accept)
+        cancelBtn.addEventListener('click', onCancel)
+        document.addEventListener('keydown', keyHandler, true)
+        function cleanup(result: number) {
+            overlay.style.display = 'none'
+            plusBtn.style.cssText = saved.plus
+            minusBtn.style.cssText = saved.minus
+            allBtn.style.display = saved.all
+            plusBtn.removeEventListener('mousedown', onPlus)
+            minusBtn.removeEventListener('mousedown', onMinus)
+            doneBtn.removeEventListener('click', accept)
+            cancelBtn.removeEventListener('click', onCancel)
+            document.removeEventListener('keydown', keyHandler, true)
+            resolve(result)
+        }
         redraw()
     })
 }

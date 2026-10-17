@@ -19,7 +19,6 @@ import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, findReloadAmmo, weap
 import { AudioEngine } from '../audio.js'
 import { Config } from '../config.js'
 import { ANIM_KICK_LEG, critterDamage, critterKill, unarmedAttackAnim } from '../critter.js'
-import { tickCombatTurn } from '../events.js'
 import * as GameTime from '../gametime.js'
 import { hexDirectionTo, hexDistance, hexFromScreen, hexInDirection, hexInDirectionDistance, hexLine, hexLineBeyond, hexNearestNeighbor, hexNeighbors, hexToScreen, Point } from '../geometry.js'
 import globalState from '../globalState.js'
@@ -767,7 +766,7 @@ export class Combat {
         lazyLoadImage(sprite.art, () => {
             if (!globalState.gMap) return
             globalState.gMap.addObject(sprite)
-            sprite.singleAnimation(false, () => { globalState.gMap?.destroyObject(sprite) })
+            sprite.singleAnimation(false, () => { sprite.anim = null; globalState.gMap?.destroyObject(sprite) })
         })
     }
 
@@ -2930,9 +2929,6 @@ export class Combat {
     }
 
     nextTurn(): void {
-        // Tick turn-driven scheduled events (e.g. armed grenades).
-        // CE ref: combat.cc combatTurnLoop — turn-driven event queue.
-        tickCombatTurn()
         this.refreshHighlights()
 
         // CE combat.cc _combat_turn: the player's damageLastTurn resets once the input ends.
