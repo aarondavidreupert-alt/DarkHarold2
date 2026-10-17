@@ -317,12 +317,15 @@ html, body {
   background-image: url("art/intrface/mvenum.png");
 }
 
+/* CE interface.cc interfaceBarRefreshMainAction: the hit-mode label at its own size,
+   right-aligned at x = 181 - width, y = 7 in the 188 px button (STRONG PUNCH is 112 px) */
 #attackButtonType {
   position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 64px;
+  top: 7px;
+  right: 7px;
+  width: auto;
   height: auto;
+  image-rendering: pixelated;
 }
 
 #attackButtonWeapon {}
