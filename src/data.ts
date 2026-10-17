@@ -63,6 +63,8 @@ export interface MapInfo {
     canRestHere: boolean[]
     // saved=Yes|No (MAP_SAVED, default on) — only saved maps mark their area visited
     saved: boolean
+    // dead_bodies_age=Yes|No (MAP_DEAD_BODIES_AGE, default on)
+    deadBodiesAge: boolean
 }
 
 export interface Elevator {
@@ -280,6 +282,7 @@ function parseMapInfo() {
             music: (ini[category].music || '').trim().toLowerCase(),
             randomStartPoints: randomStartPoints,
             saved: (ini[category].saved ?? 'Yes').split(';')[0].trim().toLowerCase() !== 'no',
+            deadBodiesAge: (ini[category].dead_bodies_age ?? 'Yes').split(';')[0].trim().toLowerCase() !== 'no',
             canRestHere: [0, 1, 2].map((e) => ((ini[category].can_rest_here ?? 'Yes,Yes,Yes').split(';')[0].split(',')[e] ?? 'Yes').trim().toLowerCase() !== 'no'),
         }
     }
@@ -338,6 +341,12 @@ export function setMapMusicOverride(mapIndex: number, music: string): void {
 export function mapIsSaved(mapName: string): boolean {
     const info = getMapInfo(mapName)
     return info ? info.saved : false
+}
+
+// CE worldmap.cc wmMapDeadBodiesAge
+export function mapDeadBodiesAge(mapName: string): boolean {
+    const info = getMapInfo(mapName)
+    return info ? info.deadBodiesAge : false
 }
 
 // CE worldmap.cc wmMapCanRestHere

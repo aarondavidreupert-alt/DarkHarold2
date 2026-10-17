@@ -297,7 +297,7 @@ function actionKnockdown(obj: Critter, anim: number, maxDistance: number, rotati
 }
 
 // CE critter.cc itemDropAll — everything carried lands on the critter's tile.
-function itemDropAll(obj: Critter): void {
+export function itemDropAll(obj: Critter): void {
     const gMap = globalState.gMap
     if (!gMap) return
     const self = obj as any
@@ -309,9 +309,12 @@ function itemDropAll(obj: Critter): void {
         if (slot === 'armor') { if (self.armor) self.armor = null }
         else if (item && item.pid !== undefined) self[slot] = undefined
     }
+    const level = obj.elevation ?? gMap.currentElevation
     for (const item of items) {
-        gMap.addObject(item)
-        item.move({ ...obj.position }, gMap.getObjects().length - 1, false)
+        item.elevation = level
+        gMap.addObject(item, level)
+        if (level === gMap.currentElevation) item.move({ ...obj.position }, gMap.getObjects().length - 1, false)
+        else item.position = { ...obj.position }
     }
 }
 

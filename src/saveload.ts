@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { restoreAutomap, SavedAutomap, serializeAutomap } from './automapData.js'
+import { killCounts } from './critter.js'
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 import { ensureCycleMask } from './images.js'
 import { restoreRadiationEvent } from './radiation.js'
@@ -94,6 +95,8 @@ export interface SaveGame {
     seenMovies?: number[]
     // CE: AUTOMAP.DB is part of the save game
     automap?: SavedAutomap
+    // CE critter.cc killsSave / killsLoad: kills per kill type
+    kills?: [number, number][]
 
     // Structured event log accumulated by logger.eventLogPush. Optional so
     // older saves (without the field) continue to load cleanly.
@@ -206,6 +209,7 @@ function gatherSaveData(name: string): SaveGame {
         areaStates: Worldmap.serializeAreaStates(),
         seenMovies: [...globalState.seenMovies],
         automap: serializeAutomap(),
+        kills: [...killCounts.entries()],
         eventLog: globalState.eventLog.slice(),
         timedEvents: Scripting.getTimedEventsSerialized(),
         // CE ref: worldmap.h wmGenData — persist car state across saves.
@@ -382,6 +386,8 @@ export function load(id: number): void {
                 // Restore seen-movie set (CE ref: game_movie.cc gameMoviesLoad).
                 if (Array.isArray(save.seenMovies)) globalState.seenMovies = new Set(save.seenMovies)
                 restoreAutomap(save.automap) // the save's automap (none in older saves)
+                killCounts.clear()
+                for (const [type, n] of save.kills ?? []) killCounts.set(type, n)
                 globalState.player?.updateNativeLook() // CE loadsave.cc:1772
 
                 // Restore the structured event log. Older saves may have the field

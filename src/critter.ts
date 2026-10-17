@@ -25,5 +25,5 @@ limitations under the License.
 // during the split — they were only referenced internally with TODO warnings.
 
 export { Weapon } from './critter/Weapon.js'
-export { critterKill, critterDamage, killCounts, KillOptions } from './critter/lifecycle.js'
+export { critterKill, critterDamage, itemDropAll, killCounts, KillOptions } from './critter/lifecycle.js'
 export { correctDeath, unarmedAttackAnim, ANIM_FALL_BACK_SF, ANIM_FALL_FRONT_BLOOD_SF, ANIM_STAND, ANIM_KICK_LEG } from './critter/deathAnim.js'
