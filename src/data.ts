@@ -59,6 +59,8 @@ export interface MapInfo {
     ambientSfx: [string, number][]
     music: string
     randomStartPoints: { elevation: number; tileNum: number }[]
+    // CE worldmap.cc wmConfigInit: can_rest_here=Yes/No per elevation (default all Yes, flags 0x3F)
+    canRestHere: boolean[]
 }
 
 export interface Elevator {
@@ -275,6 +277,7 @@ function parseMapInfo() {
             ambientSfx: ambientSfx,
             music: (ini[category].music || '').trim().toLowerCase(),
             randomStartPoints: randomStartPoints,
+            canRestHere: [0, 1, 2].map((e) => ((ini[category].can_rest_here ?? 'Yes,Yes,Yes').split(';')[0].split(',')[e] ?? 'Yes').trim().toLowerCase() !== 'no'),
         }
     }
 }
@@ -326,6 +329,12 @@ export function setMapMusicOverride(mapIndex: number, music: string): void {
     if (mapInfo === null) parseMapInfo()
     const info = mapInfo![mapIndex]
     if (info) info.music = music.trim().toLowerCase()
+}
+
+// CE worldmap.cc wmMapCanRestHere
+export function mapCanRestHere(elevation: number): boolean {
+    const info = globalState.gMap?.name ? getMapInfo(globalState.gMap.name) : null
+    return info ? info.canRestHere[elevation] !== false : true
 }
 
 export function getCurrentMapInfo() {

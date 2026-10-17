@@ -6,7 +6,7 @@
 `raw/fallout2-ce/src/interpreter_extra.cc` (`opGetGlobalVar` 0x80C5, `opSetGlobalVar` 0x80C6,
 `opGiveExpPoints` 0x80A1), `raw/fallout2-ce/src/game.cc` (`gGameGlobalVars`, `gGameGlobalVarsLength`,
 `gameSetGlobalVar`)  
-**DH2 ref:** `src/questData.ts`, `src/questLog.ts`, `src/ui_pipboy/tabs/archives.ts`, `src/scripting.ts`,
+**DH2 ref:** `src/questData.ts`, `src/questLog.ts`, `src/ui_pipboy/tabs/status.ts`, `src/scripting.ts`,
 `src/saveload.ts`  
 **See also:** `wiki/faction_reputation.md` (GVAR 0 = player karma), `wiki/save_load.md` (full save format)
 
@@ -174,52 +174,15 @@ keys as 0, matching the sparse-object convention.
 
 ### 8.1 Quest Definitions — `src/questData.ts`
 
-DH2 does not ship `quests.txt` or `quests.msg`. All ~90 quest definitions are inlined
-in TypeScript with their human-readable description strings:
-
-```typescript
-// [locationId, descMsgId, gvarIndex, displayThreshold, completedThreshold, description]
-const RAW_QUESTS: RawQuest[] = [
-    [1500, 100,   9, 2, 6, "Kill the evil plants that infest Hakunin's garden."],
-    // ... ~90 entries across 17 locations
-]
-```
-
-Location IDs map to town names: 1500=Arroyo, 1501=Klamath, 1502=Den, 1503=Modoc,
-1504=Vault City, 1505=Gecko, 1506=Broken Hills, 1507=New Reno, 1508=Vault 15,
-1509=NCR, 1510=Vault 13, 1511=San Francisco, 1512=Navarro, 1513=Abbey, 1514=Primitive Tribe,
-1515=Raiders, 1516=The Enclave.
-
-`questGvarSet: Set<number>` is exported for debug use (shows which GVARs are quest-tracked).
+As CE `pipboy.cc questInit` (2026-10-17, known_bugs C40): `getQuestDefs()` reads `data/data/quests.txt` (location, description, gvar, display threshold, completed threshold; `#` lines skipped, `strtok(" 	,")`), takes the texts from `quests.msg` and the location names from `map.msg`, and sorts by location (`questDescriptionCompare`). `getHolodiskDefs()` reads `data/data/holodisk.txt` the same way (`holodiskInit`). `getQuestGvarSet()` lists the quest GVARs (debug).
 
 ### 8.2 Quest Log — `src/questLog.ts`
 
-`getActiveQuests()` (lines 18–45):
+`getActiveQuests()` returns every quest whose GVAR has reached its display threshold, `isCompleted` at the completed threshold — the CE display test. `getUnknownActiveGvars()` lists non-zero GVARs no quest covers (debug aid).
 
-```typescript
-const gvars = Scripting.getGlobalVars()
-for (const q of questDefs) {
-    const val = Number(gvars[q.gvarIndex] ?? 0)
-    if (val >= q.displayThreshold) {
-        result.push({ ..., isCompleted: val >= q.completedThreshold })
-    }
-}
-```
+### 8.3 Pip-Boy — STATUS page (`src/ui_pipboy/tabs/status.ts`)
 
-Threshold logic exactly matches the CE display loop. Location grouping is done at
-render time in `ui_pipboy.ts` rather than via qsort.
-
-`getUnknownActiveGvars()` returns non-zero GVARs not in `questGvarSet` — a debug aid
-for spotting GVARs that scripts write but no quest definition covers.
-
-### 8.3 Pip-Boy — ARCHIVES Tab (`src/ui_pipboy/tabs/archives.ts`)
-
-- Calls `getActiveQuests()`.
-- Groups results by location; renders a location header for each group.
-- Active: `color: #00FF00` (matches CE green).
-- Completed: `color: #007700; text-decoration: line-through` (matches CE grey strikethrough).
-- When `Config.scripting.debugLogShowType.gvars` is true, unknown active GVARs appear
-  below the quest list as a debug section.
+As CE `pipboyWindowHandleStatus`: the locations with a shown quest, then per location "<location> <pipboy.msg 210>" and its numbered quests; completed ones struck through in dark green (`_colorTable[8804]`). See `wiki/pipboy.md` §3.
 
 ### 8.4 XP — `src/scripting.ts`
 
@@ -235,28 +198,16 @@ the XP threshold is crossed.
 |---|---|---|
 | GVAR integer state (no state machine) | `pipboy.cc`, `game.cc` | ✅ correct |
 | displayThreshold / completedThreshold display | `pipboy.cc:1162–1197` | ✅ correct (`questLog.ts`) |
-| Pip-Boy location grouping | `pipboy.cc:questDescriptionCompare` | ✅ correct (`ui_pipboy.ts`) |
+| Pip-Boy location grouping | `pipboy.cc:questDescriptionCompare` | ✅ correct (`questData.ts` sort, `tabs/status.ts`) |
 | Active (green) / done (strikethrough) colours | `pipboy.cc` | ✅ correct |
 | `get_global_var` / `set_global_var` opcodes | `interpreter_extra.cc` | ✅ wired (`vm_bridge.ts`) |
 | `give_exp_points` | `interpreter_extra.cc:0x80A1` | ✅ wired |
 | GVAR save/load round-trip | `game.cc`, `vault13.gam` | ✅ correct (`saveload.ts:104,224`) |
-| Quest definitions from `quests.txt` | `pipboy.cc:questInit` | ❌ DH2 inlines in `questData.ts` (gap #1) |
-| Quest text from `quests.msg` | `pipboy.cc:questInit` | ❌ DH2 inlines description strings (gap #1) |
-| `gvars.json` initial state | — | ❌ file absent; all GVARs start 0 (gap #2) |
+| Quest definitions from `quests.txt` | `pipboy.cc:questInit` | ✅ (C40) |
+| Quest text from `quests.msg` | `pipboy.cc:questInit` | ✅ (C40) |
+| Initial GVARs | `vault13.gam` | ✅ `data/gvars.json` (pipeline `parse_gam`) |
 | Quest-completion XP (engine-level) | — | N/A — CE has none; script-driven only |
 | Quest-completion callbacks | — | ❌ no `on_quest_complete` hook exists in CE or DH2 |
 
-### Gap #1 — Inlined definitions vs. data files
-`questData.ts` replaces both `quests.txt` (structure) and `quests.msg` (text). This
-is intentional: it avoids runtime MSG file loading and allows TypeScript type-checking
-of the quest table. The threshold logic and display are unaffected. Adding new quests
-or modding requires editing `questData.ts` rather than data files.
-
-### Gap #2 — `gvars.json` absent
-The repository has no `data/gvars.json`, so all GVARs start at 0 on a fresh game.
-In CE, `vault13.gam` pre-sets some GVARs to non-zero values for specific story
-conditions (e.g. which Village Elder was chosen, which NPCs are alive). Without this
-file, any script that checks a GVAR against a non-zero default initial value will see
-0 instead. Scripts that only check for "has been set by player action" (all values
-starting at 0 = not started) work correctly.
-<!-- audited: 2026-06-01 -->
+No open gaps.
+<!-- audited: 2026-10-17 -->

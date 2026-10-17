@@ -50,25 +50,13 @@
 
 ### 1.2 DH2
 
-`togglePipBoy()` in `src/ui_pipboy/shell.ts`. Triggered by `Config.controls.pipboy` key in
-`src/input.ts`. No availability check — the Pip-Boy is always available regardless of
-game progress.
+`togglePipBoy()` / `openPipBoy()` in `src/ui_pipboy/shell.ts`, triggered by `Config.controls.pipboy` (`src/input.ts`) or the HUD button.
 
-`openPipBoy()`:
-- Appends a `640×480` div to `#uiStage` with `pip.png` as background.
-- Creates four clickable red-dot tab buttons (STATUS, AUTOMAPS, ARCHIVES, CLOSE).
-- Renders the date/time bar and opens on the STATUS tab.
-- Resets automap navigation state to level 1.
-- `makePanelDraggable()` allows dragging by the frame area.
+- CE `pipboyOpen` gate: until the Vault Suit movie (`MOVIE_VSUIT`) has been seen, "You aren't wearing the pipboy!" (misc.msg 7000) and nothing opens. The sfall option `pipboy_available_at_game_start` is `fallout2.cfg [dh2] pipboy_available_at_game_start=1` (`Config.engine.pipboyAvailableAtStart`).
+- Appends a `640×480` div with `pip.png`, the red-dot tab buttons (STATUS, AUTOMAPS, ARCHIVES, CLOSE), the date/time bar; opens on STATUS; resets `_rest_time`.
+- `closePipBoy()` runs `map_update_p_proc` (CE `pipboyWindowFree` → `scriptsExecMapUpdateProc`).
 
-`closePipBoy()`:
-- Removes the container div; restores `UIMode.none`.
-
-**Gaps vs CE:**
-- No `wmMapPipboyActive` check.
-- No `pipon` sound on open.
-- No idle screensaver.
-- `map_update_p_proc` is not called on close.
+Not ported: the idle screensaver; the `pipon` sound (not in the extracted F2 data).
 
 ---
 
@@ -124,25 +112,15 @@ at 35 lines per page with "MORE" / "DONE" navigation.
 not the STATUS tab. There is no HP bar, level, XP, conditions (poison/rad), addictions,
 or any other character stat visible in the CE Pip-Boy content area.
 
-### 3.2 DH2 (`renderStatusTab`, `ui_pipboy.ts–330`)
+### 3.2 DH2 (`src/ui_pipboy/tabs/status.ts`)
 
-DH2 STATUS shows player conditions and time — a DH2-specific design with no CE equivalent:
+As CE `pipboyWindowHandleStatus` (2026-10-17):
+- Left: STATUS (pipboy.msg 202) and the quest locations (map.msg names) with at least one quest at or past its display threshold; "no quests" (203) when there are none.
+- Right: DATA (211) and the holodisks whose GVAR is non-zero (`data/data/holodisk.txt`).
+- A location opens "<location> <210>" and its numbered quests; completed ones (GVAR ≥ completed threshold) struck through in dark green; BACK (201).
+- A holodisk opens its text (`pipboyRenderHolodiskText`): pipboy.msg lines from `description` to `**END-DISK**`, `**END-PAR**` as an empty line, 35 lines a page, the title on the first page, "N of M" (212) with more than one page, BACK (201) and MORE (200) / DONE (214); Page Up / Page Down.
 
-| Field | Source |
-|---|---|
-| Hit Points (X / maxHP) | `player.getStat('HP')` / `player.getStat('Max HP')` |
-| Poisoned (level) | `player.getStat('Poison Level')` — highlighted red when > 0 |
-| Radiated (level) | `player.getStat('Radiation Level')` — highlighted red when > 0 |
-| Day + time | `GameTime.getDay()`, `GameTime.getTimeString()` |
-| Date | `GameTime.getDateString()` |
-| Cycle | `GameTime.isNightTime()` → `'NIGHT'` or `'DAY'` |
-
-**Gaps vs CE:**
-- CE STATUS shows quest locations + holodisks; DH2 STATUS shows HP/conditions. The
-  functions have different purposes sharing the same tab slot.
-- Holodisk display is entirely absent from DH2.
-- Level, XP, addictions, and party member status are not shown in either CE or DH2
-  (CE shows none of them in the Pip-Boy at all; DH2 shows only HP/poison/rad).
+Quests come from `data/data/quests.txt` + `quests.msg` (`src/questData.ts`, CE `questInit`, sorted by location) — no longer an inlined table.
 
 ---
 
@@ -214,37 +192,9 @@ whereas CE's `automapSaveCurrent` captures the full level tile data on exit.
 
 ---
 
-## 5. ARCHIVES Tab (Quest Log)
+## 5. ARCHIVES Tab — Video Archives
 
-The ARCHIVES tab is the DH2 equivalent of clicking a town name in the CE STATUS tab.
-Full documentation is in `wiki/quest_system.md`.
-
-Brief summary:
-- Calls `getActiveQuests()` from `questLog.ts`.
-- Groups quests by location, renders location headers.
-- Active quests: `color: #00FF00`. Completed quests: `color: #007700;
-  text-decoration: line-through`.
-- Debug section for unknown active GVARs when `Config.scripting.debugLogShowType.gvars`.
-
-CE serves the same content through the STATUS tab's town-name click flow rather than a
-dedicated ARCHIVES tab. The DH2 ARCHIVES tab also skips the top-level location overview
-that CE requires (click town → see quests); DH2 shows all active quests at once, grouped.
-
-**Not implemented:** holodisk reading (CE STATUS right column). No equivalent exists in DH2.
-
----
-
-## 6. VIDEO ARCHIVES (CE-only)
-
-`pipboyHandleVideoArchive` / `pipboyRenderVideoArchive` (`pipboy.cc:1673–1765`):
-
-- Shows a list of movies (game cutscenes) that the player has seen (`gameMovieIsSeen`).
-  Movies 2–15 (Elder Speech through Credits) are eligible; movie 1 is the intro, excluded.
-- Clicking a title replays the `.mve` video via `gameMoviePlay`.
-- The DH2 slot at this button position is repurposed as ARCHIVES (quest log).
-
-**DH2 status:** Not implemented. `play_gmovie()` in `src/scripting.ts:1768` logs a skip
-and does nothing. The tab slot is used for the quest log instead.
+The ARCHIVES dot opens CE's VIDEO ARCHIVES (`pipboyHandleVideoArchive` / `pipboyRenderVideoArchive`, `pipboy.cc:1673–1765`; `src/ui_pipboy/tabs/archives.ts`): every movie 2–15 the player has seen (pipboy.msg 500 + movie, header 206); clicking one replays it with FADE_IN | FADE_OUT | PAUSE_MUSIC. The quest log is on the STATUS page, as in CE (§3).
 
 ---
 
@@ -273,18 +223,12 @@ and does nothing. The tab slot is used for the quest log instead.
 
 ### 7.2 DH2
 
-Bell button in the date/time bar → `toggleWaitMenu()` (`ui_pipboy.ts`).
-
-- Shows a popup with 8 fixed durations: 10 MIN, 20 MIN, 30 MIN, 1 HR, 2 HR, 3 HR, 6 HR,
-  1 DAY.
-- Selecting a duration calls `advanceTime(minutes)` which calls `GameTime.advanceMinutes()`.
-- No rest-location check.
-- No `_critter_can_obj_dude_rest()` equivalent.
-- No healing during rest.
-- No condition-based rest ("Until Healed").
-- No party-aware rest option.
-- The CLOSE tab button at position 4 (CE's ALARM CLOCK button slot) just closes the
-  Pip-Boy rather than opening a rest screen.
+Bell button in the date/time bar → `toggleWaitMenu()` (`src/ui_pipboy/shell.ts`), ported 2026-10-17:
+- `critterCanDudeRest()` (CE `_critter_can_obj_dude_rest`): a living critter whose `whoHitMe` is the dude blocks resting; where maps.txt `can_rest_here` forbids it for the elevation (`mapCanRestHere`, `src/data.ts`), every living critter of another team blocks it too → `iisxxxx1` + "You cannot rest at this location!" (215).
+- ALARM CLOCK (300), "Hit Points cur/max" (301), options 302–314; 315 (until the party is healed) only with a party member rest can heal (living, visible, not a robot, wounded).
+- `pipboyRest(hours, minutes, duration)`: the CE frame loop (≈20 fps over `minutes / 1440 × 3.5 + 0.25` s), time set per frame so queued events fire on the way; `_Check4Health`: every 180 minutes rested, `_partyMemberRestingHeal` — the dude and every party member heal their Healing Rate. "Until healed": `wound / Healing Rate × 3` hours in ≤ 24 h chunks, then 3-hour steps until the dude (and with 315 the party) is full.
+- ESC stops the rest. Combat starting, the dude dying or a dialogue / barter / worldmap opening during it ends the rest and closes the Pip-Boy (CE `_proc_bail_flag`).
+- `_ClacTime` ported literally (until 08:00 / 12:00 / 18:00 / 00:00).
 
 ---
 
@@ -477,54 +421,7 @@ Quest-related (holodisk as a carried quest item, not Pip-Boy readable):
 
 ### 8.8 DH2 Implementation Status
 
-**Proto layer (`pro.ts`):** `getPROSubTypeName()` maps item subtype 5 to `'misc'`
-(matching CE's `ITEM_TYPE_MISC = 5`). Holodisk items in `proto/items/` load correctly
-as misc items with `obj.subtype = 'misc'`. No crash, no gap here — the proto layer
-works. ✅
-
-**Inventory addition (`scripting.ts`):** `add_obj_to_inven` (scripting.ts:734,
-vm_bridge.ts wired at `0x80D8`) adds items to `obj.inventory`. Scripts that call
-`add_obj_to_inven(gDude, holodisk_item)` will place the holodisk item in the player's
-inventory correctly. ✅
-
-`obj_carrying_pid_obj` (scripting.ts:740, wired at `0x810D`) checks whether an
-object carries an item with a given PID. This works for holodisk items. ✅
-
-`set_global_var` (scripting.ts, wired at `0x80C6`) sets GVARs. Scripts that
-call `set_global_var(GVAR_HOLODISK_XXX, 1)` will set the GVAR correctly. ✅
-
-**Misc item use (`object.ts`):** `Obj.use()` (`object.ts`) dispatches based on
-`this.subtype`. Misc items (`subtype === 'misc'`) fall through to the default
-`this.singleAnimation()` path — they play their idle animation and do nothing else at
-the engine level. For holodisk items that have a script with `use_p_proc`, the script
-fires first (line 731). If the script calls `set_global_var`, the GVAR is set. This
-mirrors CE's behaviour (CE holodisk use also goes to the item's script). ✅
-
-**Pip-Boy DATA column (`ui_pipboy.ts`):** Not implemented. `ui_pipboy.ts` has no
-holodisk data, no `holodisk.txt` loading, no GVAR scan for holodisk visibility, and no
-DATA column renderer. The ARCHIVES tab (`renderArchivesTab()`, `ui_pipboy.ts`)
-renders the quest log — it is a remap of CE's VIDEO ARCHIVES tab, not CE's STATUS DATA
-column. There is no equivalent to CE's STATUS tab DATA column in DH2. ❌
-
-**Text content (`pipboy.msg`):** `pipboy.msg` (or its DH2 equivalent) is not loaded
-anywhere in DH2. The holodisk text content stored as sequential entries in `pipboy.msg`
-is not accessible. ❌
-
-### 8.9 Implementation Notes (if adding holodisk support)
-
-Minimum viable path following CE architecture:
-
-1. **Data file**: Ship `data/holodisk.json` (converted from `holodisk.txt` by the
-   asset pipeline) with entries `[gvar, nameId, descBase]`.
-2. **Text file**: Load `pipboy.msg` entries into a `Map<number, string>` at
-   startup — same map used for quest names and holodisk text.
-3. **Registry**: On Pip-Boy open, scan holodisk entries where
-   `globalState.gvars[entry.gvar] !== 0` to build the visible list.
-4. **ui_pipboy.ts**: Add DATA column to `renderStatusTab()` (currently renders
-   HP/conditions, which is itself a gap from CE — see §9 Gap #1).
-   Alternatively add a new HOLODISKS tab.
-5. **Text view**: Add a holodisk reader sub-screen to ui_pipboy.ts with
-   pagination at 35 lines per page, navigable via button clicks or keyboard.
+Implemented 2026-10-17 (§3.2): `data/data/holodisk.txt` is read as CE `holodiskInit` (`getHolodiskDefs()`, `src/questData.ts`); a holodisk shows in the DATA column once its GVAR is non-zero; its text comes from pipboy.msg. The item side was already CE: holodisk items are misc items whose `use_p_proc` / pickup scripts set the GVAR.
 
 ---
 
@@ -532,80 +429,24 @@ Minimum viable path following CE architecture:
 
 | Feature | CE source | DH2 status |
 |---|---|---|
-| Pip-Boy open/close key | `pipboy.cc:403,453` | ✅ `Config.controls.pipboy` → `togglePipBoy` |
-| Date/time bar | `pipboy.cc:563–565` | ✅ renders day, month, year, HH:MM from `GameTime` |
-| STATUS: quest+holodisk overview | `pipboyWindowHandleStatus` | ❌ DH2 STATUS shows HP/conditions (gap #1) |
-| STATUS: HP/conditions display | *(CE: alarm clock only)* | ✅ DH2 shows HP, poison, rad (non-CE design) |
-| STATUS: quest detail (click town) | `pipboyWindowHandleStatus` | ✅ DH2 ARCHIVES tab covers this |
-| STATUS: holodisk list + reader | `pipboyWindowRenderHolodiskList` | ❌ not implemented (gap #2) |
-| AUTOMAPS: map database (AUTOMAP.DB) | `automap.cc` | ❌ replaced by seen-tile localStorage approach |
-| AUTOMAPS: location+map navigation | `_PrintAMList`, `_PrintAMelevList` | ✅ 3-level hierarchy in DH2 |
-| AUTOMAPS: FRM tile rendering | `automapRenderInPipboyWindow` | ❌ DH2 uses canvas pixel renderer |
-| AUTOMAPS: zoom/pan | — | ✅ DH2 adds zoom+drag (CE has no equivalent) |
-| ARCHIVES: quest log | CE: STATUS tab click flow | ✅ dedicated ARCHIVES tab |
-| VIDEO ARCHIVES | `pipboyHandleVideoArchive` | ❌ not implemented; tab slot repurposed (gap #3) |
-| ALARM CLOCK: rest system | `pipboyHandleAlarmClock` | ❌ replaced by simple wait menu (gap #4) |
-| ALARM CLOCK: rest-location check | `_critter_can_obj_dude_rest` | ❌ no rest location check |
-| ALARM CLOCK: heal during rest | `pipboyRest`, `_AddHealth` | ❌ time advances but no healing |
-| ALARM CLOCK: HP display during rest | `pipboyDrawHitPoints` | ❌ wait menu shows no HP |
-| Idle screensaver | `pipboyRenderScreensaver` | ❌ not implemented |
-| Pip-Boy availability gate | `wmMapPipboyActive` | ❌ always available in DH2 (gap #5) |
-| `pipon` sound on open | `pipboy.cc:699` | ❌ no open sound |
-| `map_update_p_proc` on close | `pipboyWindowFree:709` | ❌ not called on Pip-Boy close |
-| Holodisk proto/inventory layer | `proto_instance.cc`, `interpreter_extra.cc` | ✅ misc item type, add_obj_to_inven, set_global_var all work |
-| holodisk.txt loading | `holodiskInit()` `pipboy.cc:2525` | ❌ not implemented (gap #6) |
-| pipboy.msg text store | `pipboyRenderHolodiskText` | ❌ not loaded in DH2 (gap #7) |
-| GVAR → holodisk visibility scan | `pipboyWindowHandleStatus` `pipboy.cc:894` | ❌ not implemented (gap #8) |
-| Holodisk text pagination | `pipboy.cc:470,1286` | ❌ not implemented (gap #9) |
+| Pip-Boy open/close key | `pipboy.cc:403,453` | ✅ |
+| Availability gate (`MOVIE_VSUIT`) | `pipboyOpen`, `wmMapPipboyActive` | ✅ (sfall option as `[dh2] pipboy_available_at_game_start`) |
+| Date/time bar | `pipboyDrawDate` | ✅ |
+| STATUS: quest locations + quests | `pipboyWindowHandleStatus` | ✅ from quests.txt / quests.msg / map.msg |
+| STATUS: holodisk list + reader | `pipboyWindowRenderHolodiskList`, `pipboyRenderHolodiskText` | ✅ 35 lines a page |
+| AUTOMAPS | `automap.cc` | ✅ hierarchy; DH2 canvas renderer instead of AUTOMAP.DB (see §4) |
+| VIDEO ARCHIVES | `pipboyRenderVideoArchive` | ✅ (ARCHIVES dot) |
+| ALARM CLOCK: rest, location check, healing, party option | `pipboyHandleAlarmClock`, `pipboyRest`, `_critter_can_obj_dude_rest` | ✅ |
+| `map_update_p_proc` on close | `pipboyWindowFree` | ✅ |
+| Idle screensaver | `pipboyRenderScreensaver` | ❌ not ported (cosmetic) |
+| `pipon` sound | `pipboyWindowInit` | ❌ not in the extracted data |
 
 ---
 
 ## 10. Known Gaps
 
-### Gap #1 — STATUS tab content mismatch
-CE's STATUS tab shows quests + holodisks. DH2's STATUS tab shows HP/poison/rad/time.
-These serve different information needs. In DH2, quest viewing is on the ARCHIVES tab
-rather than STATUS, so the end-to-end quest access is preserved but at a different tab.
-The HP/conditions display in DH2 STATUS has no CE equivalent in the Pip-Boy.
+- **Idle screensaver** (`pipboyRenderScreensaver`) — not ported; cosmetic.
+- **Automap renderer** — DH2 draws the seen tiles on a canvas instead of CE's AUTOMAP.DB FRM rendering (§4).
+- **Rest interruption** — CE bails out when any queued event's process returns true; DH2 stops on the observable results (combat, death, a dialogue / barter / worldmap).
 
-### Gap #2 — Holodisk list and reader absent from Pip-Boy
-CE's holodisk system (DATA column in STATUS tab, paginated text reader) is not
-implemented in DH2. Items that grant holodisk GVARs exist in the game world but their
-text content cannot be read via the Pip-Boy.
-
-### Gap #3 — Video Archives absent
-CE allows replaying viewed cutscenes. `play_gmovie` in `scripting.ts` is a stub no-op,
-so even if the tab were present it would have nothing to play.
-
-### Gap #4 — Rest system replaced by time-advance only
-CE rest heals the player and party over time and checks location eligibility. DH2's
-wait menu only advances game time with no healing, no eligibility check, and no
-condition-based durations ("Until Healed").
-
-### Gap #5 — Pip-Boy always available
-CE gates Pip-Boy access on `MOVIE_VSUIT` (the Vault Suit pickup cutscene). DH2 makes
-it available from game start. Early-game access to the Pip-Boy's quest log and automaps
-is therefore always granted in DH2.
-
-### Gap #6 — No holodisk.txt loading
-CE loads `data\holodisk.txt` at Pip-Boy init (`holodiskInit()`). DH2 has no
-equivalent. The `HolodiskDescription` registry (GVAR index → name msg ID →
-text base msg ID) does not exist in DH2. To implement: load `data/holodisk.txt`
-(or its JSON equivalent) at startup; populate a holodisk registry.
-
-### Gap #7 — No pipboy.msg text store
-CE renders holodisk text by reading `pipboy.msg` entries
-`holodisk->description` through `"**END-DISK**"`. DH2 does not load `pipboy.msg`.
-To implement: load `pipboy.msg` and make it queryable by message ID
-(same infrastructure needed for quest/holodisk display in CE STATUS tab).
-
-### Gap #8 — GVAR → holodisk visibility never checked
-Even if GVARs are correctly set by map scripts, nothing in DH2 reads them to
-determine holodisk availability. The scan loop in `pipboyWindowHandleStatus()`
-(`gGameGlobalVars[holodisk->gvar] != 0`) has no DH2 equivalent.
-
-### Gap #9 — Holodisk text pagination not implemented
-CE paginates holodisk text at 35 lines per page and supports Page Up / Page Down
-within the Pip-Boy. DH2 has no pagination infrastructure for Pip-Boy content.
-
-<!-- audited: 2026-06-02 -->
+<!-- audited: 2026-10-17 -->

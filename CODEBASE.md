@@ -205,8 +205,8 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/talkingHead.ts` | Talking heads: fidgets, reactions, lip-synced speech from `.lip` files (`game_dialog.cc`, `lips.cc`) |
 | `src/floatText.ts` | Floating text over critters in the CE interface font (text_object.cc textObjectAdd: wrap, outline, float_msg colours) |
 | `src/ui_options/fallout2Cfg.ts` | Reads `fallout2.cfg` into Config at startup (`config.cc`, `settings.cc`) |
-| `src/questData.ts` | All Fallout 2 quest definitions (GVAR index, thresholds, descriptions) (204 lines) |
-| `src/questLog.ts` | Reads GVARs against `questData` to produce active/completed quest list (53 lines) |
+| `src/questData.ts` | CE `questInit` / `holodiskInit`: quests from `data/data/quests.txt` + quests.msg + map.msg, holodisks from `data/data/holodisk.txt` |
+| `src/questLog.ts` | Reads GVARs against `questData` to produce the active/completed quest list |
 | `src/events.ts` | Pub/sub `Events` module + `scheduleExplosion` helper (52 lines) |
 | `src/logger.ts` | `dbg` / `dbgWarn` category-gated console logging; `eventLogPush` for structured combat log (63 lines) |
 | `src/eventlog.types.ts` | `EventLogEntry` / `EventLogInput` types (27 lines) |
@@ -304,7 +304,7 @@ opcodes are bridged (S29). `play_gmovie` (S15), `obj_can_hear_obj` (S28) and met
 | Animation interleaving | `src/scripting.ts` | Fixed (S13, 2026-06-02): `reg_anim_func` entries fire in registration order between animate steps, matching CE `animationRegAnimFunc`. |
 | Worldmap | `src/worldmap.ts` (barrel; `src/worldmap/{types,parser,Worldmap,encounters}.ts`) | Functional. Area-entrance/city-hotspot misplacement fixed 2026-09-24 (`wiki/known_bugs.md` W13); difficulty modifier on encounter rate already implemented (`encounters.ts` `didEncounter()`, `Config.combat.gameDifficultyModifier`) — both claims in this row were stale. Car travel + local-map placement + trunk container substantially implemented, see `wiki/car_system.md` and `wiki/known_bugs.md` W8/M6. Encounter-spawned critters carry items/equipment (W3 FIXED 2026-06-03). |
 <!-- audited: 2026-09-30 -->
-| Quest system | `src/questData.ts`, `src/questLog.ts` | GVAR-based tracking and Pip-Boy display. XP and completion are script-driven in CE (`give_exp_points`), so there's no engine award. Descriptions are inlined in TS, not loaded from `quests.msg`. |
+| Quest system | `src/questData.ts`, `src/questLog.ts` | GVAR-based tracking and Pip-Boy display. XP and completion are script-driven in CE (`give_exp_points`), so there's no engine award. Loaded from `quests.txt` / `quests.msg` as CE; STATUS page with locations, quests and holodisks (C40). |
 | Karma / reputation scripting | `src/scripting.ts` | `set_pc_stat` / `mod_pc_stat` handle Karma (4) and Reputation (3); all PCSTAT IDs 0–5 handled (S9/S10); town-rep GVARs synced to stats (R2). |
 | Lighting accuracy | `src/lighting.ts`, `src/lightmap.ts` | Functional. Lightmap hex sampling is parity-correct (RD17) with selectable interpolation (`setLightingBilinear`, default `hex-lerp`); directional wall occlusion reads `pro.extra.extendedFlags` so W-E walls no longer bleed light (LD11). Remaining: minor colour inaccuracies vs. original engine; CPU path slow on large maps; non-wall opaque-object directional shadowing still stubbed (LD11 note). See `wiki/alignment.md` §6–§8. |
 

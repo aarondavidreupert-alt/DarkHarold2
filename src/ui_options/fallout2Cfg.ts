@@ -118,6 +118,9 @@ export function applyCfg(cfg: CfgSections): void {
     //   pixel_font=0  UI text in the browser font instead of the Fallout pixel font (default 1)
     const pf = int(dh2['pixel_font'])
     if (pf !== null) Config.ui.pixelFont = pf !== 0
+    //   pipboy_available_at_game_start=1  Pip-Boy before the Vault Suit movie (sfall option)
+    const pa = int(dh2['pipboy_available_at_game_start'])
+    if (pa !== null) Config.engine.pipboyAvailableAtStart = pa !== 0
     //   walk_model=ce|dh2|smooth      walk/run movement (console setWalkModel, default ce)
     const wm = dh2['walk_model']?.toLowerCase()
     if (wm === 'ce' || wm === 'dh2' || wm === 'smooth') Config.engine.walkModel = wm

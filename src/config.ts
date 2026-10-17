@@ -124,6 +124,9 @@ export const Config = {
         // false = CE lighting: only map scripts' set_light_level changes the light.
         // Set in fallout2.cfg: [dh2] day_night_cycle=0/1.
         dayNightCycle: true,
+        // sfall pipboy_available_at_game_start (CE pipboy.cc _pip_init_): the Pip-Boy opens
+        // before the Vault Suit movie. Set in fallout2.cfg: [dh2] pipboy_available_at_game_start=1.
+        pipboyAvailableAtStart: false,
         doZOrder: true, // Z-order objects?
         doEncounters: true, // allow random encounters?
         doInfiniteUse: false, // allow infinite-range object usage?
