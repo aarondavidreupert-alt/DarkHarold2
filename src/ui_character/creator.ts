@@ -135,7 +135,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     setCharacterWindow(characterWindow)
 
     characterWindow.elem.appendChild(skillRowsEl)
-    makePanelDraggable(characterWindow.elem)
+    makePanelDraggable(characterWindow.elem, 'characterCreator')
 
     // ── Info card ─────────────────────────────────────────────────────────────
     const cardImgEl = document.createElement('img') as HTMLImageElement
@@ -152,7 +152,6 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     cardImgEl.onload = () => { cardImgEl.style.visibility = 'visible' }
     cardImgEl.onerror = () => { cardImgEl.style.visibility = 'hidden' }
     characterWindow.elem.appendChild(cardImgEl)
-    makePanelDraggable(cardImgEl)
 
     const cardTitleEl = document.createElement('div')
     Object.assign(cardTitleEl.style, {
@@ -167,7 +166,6 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         width: '265px',
     })
     characterWindow.elem.appendChild(cardTitleEl)
-    makePanelDraggable(cardTitleEl)
 
     const cardBodyEl = document.createElement('div')
     Object.assign(cardBodyEl.style, {
@@ -182,7 +180,6 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         pointerEvents: 'auto',
     })
     characterWindow.elem.appendChild(cardBodyEl)
-    makePanelDraggable(cardBodyEl)
 
     const cardDividerEl = document.createElement('hr')
     Object.assign(cardDividerEl.style, {

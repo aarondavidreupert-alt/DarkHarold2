@@ -464,7 +464,7 @@ export function showCharacterScreen() {
     characterWindow.elem.appendChild(tabStripEl)
     characterWindow.elem.appendChild(tabContentEl)
 
-    makePanelDraggable(characterWindow.elem)
+    makePanelDraggable(characterWindow.elem, 'character')
 
     // ── Info card ─────────────────────────────────────────────────────────────
     const cardImgEl = document.createElement('img') as HTMLImageElement
@@ -481,7 +481,6 @@ export function showCharacterScreen() {
     cardImgEl.onload = () => { cardImgEl.style.visibility = 'visible' }
     cardImgEl.onerror = () => { cardImgEl.style.visibility = 'hidden' }
     characterWindow.elem.appendChild(cardImgEl)
-    makePanelDraggable(cardImgEl)
 
     const cardTitleEl = document.createElement('div')
     Object.assign(cardTitleEl.style, {
@@ -496,7 +495,6 @@ export function showCharacterScreen() {
         width: '265px',
     })
     characterWindow.elem.appendChild(cardTitleEl)
-    makePanelDraggable(cardTitleEl)
 
     const cardBodyEl = document.createElement('div')
     Object.assign(cardBodyEl.style, {
@@ -511,7 +509,6 @@ export function showCharacterScreen() {
         pointerEvents: 'auto',
     })
     characterWindow.elem.appendChild(cardBodyEl)
-    makePanelDraggable(cardBodyEl)
 
     const cardDividerEl = document.createElement('hr')
     Object.assign(cardDividerEl.style, {

@@ -26,6 +26,7 @@ limitations under the License.
 // DH2 additions: any number of slots (always one free slot when saving) with a scroll
 // bar and mouse wheel, and deleting a save (DELETE button / Del key, with confirmation).
 
+import { makePanelDraggable } from './ui_drag.js'
 import { uiLog } from './ui_hud.js'
 import { areaContainingMap, loadAreas, mapIndexOf } from './data.js'
 import * as GameTime from './gametime.js'
@@ -126,6 +127,7 @@ export function uiSaveLoad(isSave: boolean, quick = false): void {
         .add(new Widget('art/intrface/dnarwoff.png', { x: 35, y: 72, w: 11, h: 14 }).mouseDownBG('art/intrface/dnarwon.png').onClick(() => move(1)))
         .show()
     const el = win.elem
+    makePanelDraggable(el, 'saveLoad')
 
     font3.onLoad(() => {
         addText(el, lsg(isSave ? 102 : 100, isSave ? 'SAVE GAME' : 'LOAD GAME'), 48, 27, font3, CE_COLOR.label)

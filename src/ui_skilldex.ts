@@ -150,7 +150,7 @@ export function initSkilldex(): void {
 
     // Drag-to-reposition from non-interactive areas of the skilldex frame,
     // matching the PipBoy / automap / inventory / character panels.
-    makePanelDraggable(skilldexWindow.elem)
+    makePanelDraggable(skilldexWindow.elem, 'skilldex')
 
     // FO2-CE ref: skilldex.cc — update skill values when the skilldex is shown
     const origShow = skilldexWindow.show.bind(skilldexWindow)

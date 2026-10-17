@@ -61,6 +61,9 @@ export module Worldmap {
     export const setWorldmapGlobalVarHooks = _WorldmapMod.setWorldmapGlobalVarHooks
     export const setAreaVisible = _WorldmapMod.setAreaVisible
     export const setAreaVisitedState = _WorldmapMod.setAreaVisitedState
+    export const areaIsKnown = _WorldmapMod.areaIsKnown
+    export const markMapVisited = _WorldmapMod.markMapVisited
+    export const travelToArea = _WorldmapMod.travelToArea
     export const serializeAreaStates = _WorldmapMod.serializeAreaStates
     export const deserializeAreaStates = _WorldmapMod.deserializeAreaStates
     export const resetWorldmap = _WorldmapMod.resetWorldmap

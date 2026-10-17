@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { makePanelDraggable } from './ui_drag.js'
 import { beginUseItemOn, itemCanUseOn } from './useItemOn.js'
 import { ammoGetCapacity, ammoGetQuantity, weaponAttemptReload } from './weaponAmmo.js'
 import { Combat } from './combat.js'
@@ -131,6 +132,13 @@ function uiInit() {
     initInventory()
     initLoot()
     initCalledShot()
+
+    // DH2: the remaining windows can be dragged too (fallout2.cfg [dh2] drag_*)
+    makePanelDraggable($id('lootBox'), 'loot')                // loot, steal
+    makePanelDraggable($id('dialogueContainer'), 'dialogue')  // dialogue, barter, companion screens
+    makePanelDraggable($id('elevatorBox'), 'elevator')
+    makePanelDraggable($id('calledShotBox'), 'calledShot')
+    makePanelDraggable($id('moveMultBox'), 'moveItems')
 
     const chrBtn = document.getElementById('chrButton')
     if (chrBtn) {

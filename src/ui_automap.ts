@@ -248,7 +248,7 @@ export function openAutomap(): void {
 
     // Drag the automap panel from its frame; canvas drag-to-pan still wins
     // because makeDraggable skips elements with mousedown handlers.
-    makePanelDraggable(automapContainer)
+    makePanelDraggable(automapContainer, 'automap')
 }
 
 export function closeAutomap(): void {

@@ -17,6 +17,7 @@ limitations under the License.
 // FO2-CE ref: editor.cc — level-up perk picker modal.
 // Triggered by showCharacterScreen() when player.pendingPerkPick is true.
 
+import { makePanelDraggable } from '../ui_drag.js'
 import { font2, font3 } from '../ui_font.js'
 import { getValidPerks, getPerkRank, applyPerk } from '../perks.js'
 import { PERK_IMG, TRAIT_DESCRIPTIONS, TRAIT_IMG, TRAITS } from './descriptions.js'
@@ -103,6 +104,7 @@ function showPickList(title: string | null, items: PickItem[], onDone: (name: st
         boxSizing: 'border-box',
     })
     box.onclick = (e) => e.stopPropagation()
+    makePanelDraggable(box, 'perks')
 
     if (title) {
         const titleEl = document.createElement('div')

@@ -1,7 +1,19 @@
 // Configuration for the engine internals, controls and UI
 
+// The windows that can be dragged (DH2 addition) — fallout2.cfg [dh2] drag_<name>.
+export type DragWindow = 'inventory' | 'character' | 'characterCreator' | 'options' | 'skilldex' | 'pipboy'
+    | 'automap' | 'loot' | 'dialogue' | 'dialogueReview' | 'elevator' | 'calledShot' | 'moveItems'
+    | 'saveLoad' | 'perks' | 'dialogBox'
+export const DRAG_WINDOWS: DragWindow[] = ['inventory', 'character', 'characterCreator', 'options', 'skilldex',
+    'pipboy', 'automap', 'loot', 'dialogue', 'dialogueReview', 'elevator', 'calledShot', 'moveItems', 'saveLoad',
+    'perks', 'dialogBox']
+
 export const Config = {
     ui: {
+        // DH2 addition: windows can be dragged by their background (CE windows are fixed).
+        // fallout2.cfg [dh2] drag_windows=0 turns it off, drag_<window>=0 per window.
+        dragWindows: true,
+        dragWindow: {} as Partial<Record<DragWindow, boolean>>,
         screenWidth: 800,
         screenHeight: 600,
 

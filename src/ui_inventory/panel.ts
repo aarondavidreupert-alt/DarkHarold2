@@ -87,7 +87,7 @@ export function initInventory(): void {
     })
 
     // Inventory panel is a static DOM element — wire drag once at init.
-    makePanelDraggable($id('inventoryBox'))
+    makePanelDraggable($id('inventoryBox'), 'inventory')
     $id('inventoryDoneButton').onclick = () => {
         globalState.uiMode = UIMode.none
         $id('inventoryBox').style.visibility = 'hidden'

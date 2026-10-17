@@ -693,7 +693,7 @@ export function initOptionsMenu(): void {
         cursor: 'default',
     })
 
-    makePanelDraggable(optionsWindow.elem)
+    makePanelDraggable(optionsWindow.elem, 'options')
 
     const optionsKeyHandler = (e: KeyboardEvent) => {
         if (!optionsWindow.showing) return

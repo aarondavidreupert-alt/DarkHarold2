@@ -18,7 +18,8 @@ limitations under the License.
 // carved out of worldmap.ts. See wiki/ts-split-refactor.md §10.
 
 import { scriptsCheckGameEvents } from '../gameTick.js'
-import { areaContainingMap, loadAreas, lookupMapName } from '../data.js'
+import { Events } from '../events.js'
+import { areaContainingMap, loadAreas, lookupMapName, mapIsSaved } from '../data.js'
 import * as GameTime from '../gametime.js'
 import { Point, pointIntersectsCircle } from '../geometry.js'
 import globalState from '../globalState.js'
@@ -449,22 +450,55 @@ export function setAreaVisitedState(areaId: number, state: number): void {
     if (state === 2 && old === 0) area.visitedState = 1
 }
 
-// Save/load of the area states (CE worldmap.cc wmWorldMapSave/Load: state, visitedState, x, y).
-export function serializeAreaStates(): { [id: string]: { state: boolean; visitedState: number; x: number; y: number } } {
-    const out: { [id: string]: { state: boolean; visitedState: number; x: number; y: number } } = {}
+// CE worldmap.cc wmAreaIsKnown: known (state on) and visited at least once.
+export function areaIsKnown(areaId: number): boolean {
+    const area: any = globalState.mapAreas?.[areaId]
+    return !!area && area.state === true && (area.visitedState ?? 0) !== 0
+}
+
+// CE worldmap.cc map.cc:1028 wmMapMarkVisited — entering a saved map marks its area visited.
+export function markMapVisited(mapName: string): void {
+    if (!mapIsSaved(mapName)) return
+    const area = globalState.mapAreas ? areaContainingMap(mapName) : null
+    if (area) setAreaVisitedState(area.id, 2)
+}
+
+// CE worldmap.cc quick destinations (the town tabs, Ctrl+F1..F7): the party walks to
+// the area — wmPartyInitWalking to the centre of its circle.
+export function travelToArea(areaId: number): void {
+    const area = globalState.mapAreas?.[areaId]
+    if (!area || !areaIsKnown(areaId) || !worldmapPlayer || !$worldmapPlayer) return
+    const here = withinArea(worldmapPlayer)
+    if (here && here.id === areaId) return
+    worldmapPlayer.target = { x: area.worldPosition.x, y: area.worldPosition.y }
+    showv($worldmapPlayer)
+    setTargetImage('art/intrface/wmaptarg.png', false)
+    centerWorldmapCrosshair(area.worldPosition.x, area.worldPosition.y)
+}
+
+// Save/load of the area states (CE worldmap.cc wmWorldMapSave/Load: state, visitedState, x, y,
+// and every entrance's state).
+type SavedArea = { state: boolean; visitedState: number; x: number; y: number; entrances?: boolean[] }
+export function serializeAreaStates(): { [id: string]: SavedArea } {
+    const out: { [id: string]: SavedArea } = {}
     for (const key in globalState.mapAreas ?? {}) {
         const area: any = globalState.mapAreas[key]
-        out[key] = { state: area.state === true, visitedState: area.visitedState ?? 0, x: area.worldPosition.x, y: area.worldPosition.y }
+        out[key] = {
+            state: area.state === true, visitedState: area.visitedState ?? 0, x: area.worldPosition.x, y: area.worldPosition.y,
+            entrances: area.entrances.map((e: any) => e.state === true),
+        }
     }
     return out
 }
-export function deserializeAreaStates(data: { [id: string]: { state: boolean; visitedState: number; x: number; y: number } } | undefined): void {
+export function deserializeAreaStates(data: { [id: string]: SavedArea } | undefined): void {
     if (!data || !globalState.mapAreas) return
     for (const key in data) {
         const area: any = globalState.mapAreas[key]
         if (!area) continue
         area.state = data[key].state
         area.visitedState = data[key].visitedState
+        const ent = data[key].entrances
+        if (Array.isArray(ent)) area.entrances.forEach((e: any, i: number) => { if (i < ent.length) e.state = ent[i] })
         area.worldPosition = { x: data[key].x, y: data[key].y }
         updateAreaMarkerPos(key, area.worldPosition.x, area.worldPosition.y)
     }
@@ -557,6 +591,8 @@ function setTargetImage(url: string, isHotspot: boolean): void {
 }
 
 export function init(): void {
+    // map.cc mapLoad → wmMapMarkVisited(gMapHeader.index)
+    Events.on('loadMapPost', () => { if (globalState.gMap?.name) markMapVisited(globalState.gMap.name) })
     /*$("#worldmap").mousemove(function(e) {
         var offset = $(this).offset()
         var x = e.pageX - parseInt(offset.left)

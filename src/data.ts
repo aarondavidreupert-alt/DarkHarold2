@@ -61,6 +61,8 @@ export interface MapInfo {
     randomStartPoints: { elevation: number; tileNum: number }[]
     // CE worldmap.cc wmConfigInit: can_rest_here=Yes/No per elevation (default all Yes, flags 0x3F)
     canRestHere: boolean[]
+    // saved=Yes|No (MAP_SAVED, default on) — only saved maps mark their area visited
+    saved: boolean
 }
 
 export interface Elevator {
@@ -124,9 +126,9 @@ function parseAreas(data: string): AreaMap {
 
                 const entrance = {
                     startState: s[0],
-                    // DH2: default true — startup scripts that reveal areas (metarule3 104) don't
-                    // reliably run in DH2, so start open; scripts can still explicitly hide entrances.
-                    state: true,
+                    // CE worldmap.cc wmConfigInit: entrance_N=On|Off,… — the start state;
+                    // scripts open more with metarule3 104 (wmMapMarkMapEntranceState).
+                    state: s[0].trim().toLowerCase() === 'on',
                     x: parseInt(s[1]),
                     y: parseInt(s[2]),
                     mapLookupName,
@@ -277,6 +279,7 @@ function parseMapInfo() {
             ambientSfx: ambientSfx,
             music: (ini[category].music || '').trim().toLowerCase(),
             randomStartPoints: randomStartPoints,
+            saved: (ini[category].saved ?? 'Yes').split(';')[0].trim().toLowerCase() !== 'no',
             canRestHere: [0, 1, 2].map((e) => ((ini[category].can_rest_here ?? 'Yes,Yes,Yes').split(';')[0].split(',')[e] ?? 'Yes').trim().toLowerCase() !== 'no'),
         }
     }
@@ -329,6 +332,12 @@ export function setMapMusicOverride(mapIndex: number, music: string): void {
     if (mapInfo === null) parseMapInfo()
     const info = mapInfo![mapIndex]
     if (info) info.music = music.trim().toLowerCase()
+}
+
+// CE worldmap.cc wmMapMarkVisited: is MAP_SAVED set for this map?
+export function mapIsSaved(mapName: string): boolean {
+    const info = getMapInfo(mapName)
+    return info ? info.saved : false
 }
 
 // CE worldmap.cc wmMapCanRestHere

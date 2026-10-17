@@ -21,7 +21,7 @@ limitations under the License.
 // screen persist through localStorage (preferences.ts), which is applied after
 // this and so takes precedence.
 
-import { Config } from '../config.js'
+import { Config, DRAG_WINDOWS } from '../config.js'
 import globalState from '../globalState.js'
 import { dbg } from '../logger.js'
 import { getFileText } from '../util.js'
@@ -118,6 +118,18 @@ export function applyCfg(cfg: CfgSections): void {
     //   pixel_font=0  UI text in the browser font instead of the Fallout pixel font (default 1)
     const pf = int(dh2['pixel_font'])
     if (pf !== null) Config.ui.pixelFont = pf !== 0
+    //   drag_windows=0          no window can be dragged (default 1)
+    //   drag_<window>=0|1       per window: inventory, character, characterCreator, options,
+    //                           skilldex, pipboy, automap, loot, dialogue, dialogueReview,
+    //                           elevator, calledShot, moveItems, saveLoad, perks, dialogBox
+    const dw = int(dh2['drag_windows'])
+    if (dw !== null) Config.ui.dragWindows = dw !== 0
+    const dh2Lower: { [k: string]: string } = {}
+    for (const k in dh2) dh2Lower[k.toLowerCase()] = dh2[k]
+    for (const w of DRAG_WINDOWS) {
+        const v = int(dh2Lower['drag_' + w.toLowerCase()]) // case-insensitive (drag_characterCreator)
+        if (v !== null) Config.ui.dragWindow[w] = v !== 0
+    }
     //   pipboy_available_at_game_start=1  Pip-Boy before the Vault Suit movie (sfall option)
     const pa = int(dh2['pipboy_available_at_game_start'])
     if (pa !== null) Config.engine.pipboyAvailableAtStart = pa !== 0

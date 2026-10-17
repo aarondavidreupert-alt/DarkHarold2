@@ -26,6 +26,7 @@ limitations under the License.
 // and natively) but not a line-exact port of the original redraw-by-origin
 // mechanism. See wiki/known_bugs.md P17/P18.
 
+import { makePanelDraggable } from './ui_drag.js'
 import { Scripting } from './scripting.js'
 import { getUiContainer } from './ui_panels.js'
 
@@ -55,6 +56,8 @@ export function uiShowDialogueReview(): void {
         backgroundSize: '100% 100%',
         imageRendering: 'pixelated',
     })
+
+    makePanelDraggable(panel, 'dialogueReview')
 
     // CE ref: game_dialog.cc:1520-1524 — text rect (113,76)-(422,418).
     const list = document.createElement('div')

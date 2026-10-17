@@ -38,6 +38,9 @@ const OBJECTS_STORE = 'objects'
 
 let saveTimer: number | null = null
 let _db: IDBDatabase | null = null
+// Bumped by resetAutomap / restoreAutomap so a startup load still in flight doesn't
+// bring back another game's automap.
+let generation = 0
 
 // ─── IDB helpers ──────────────────────────────────────────────────────────────
 
@@ -89,6 +92,7 @@ function idbPutBatch(db: IDBDatabase, storeName: string, entries: Array<{ key: s
 // ─── Init / migration ─────────────────────────────────────────────────────────
 
 export async function initStorage(): Promise<void> {
+    const gen = generation
     try {
         const db = await openDB()
 
@@ -96,6 +100,7 @@ export async function initStorage(): Promise<void> {
             idbGetAll<string[]>(db, TILES_STORE),
             idbGetAll<ObjectSnapshotEntry[]>(db, OBJECTS_STORE),
         ])
+        if (gen !== generation) return
 
         for (const { key, value } of tileRecords) seenData.set(key, new Set(value))
         for (const { key, value } of objRecords) objectSnapshots.set(key, value)
@@ -209,5 +214,51 @@ export function flushAutomapSave(): void {
         clearTimeout(saveTimer)
         saveTimer = null
     }
+    flushPendingWrites()
+}
+
+// ─── Per-game state (CE automap.cc: AUTOMAP.DB lives with the save game) ─────────
+
+export interface SavedAutomap {
+    tiles: Record<string, string[]>
+    objects: Record<string, ObjectSnapshotEntry[]>
+}
+
+function clearStores(): void {
+    openDB().then((db) => new Promise<void>((resolve, reject) => {
+        const tx = db.transaction([TILES_STORE, OBJECTS_STORE], 'readwrite')
+        tx.objectStore(TILES_STORE).clear()
+        tx.objectStore(OBJECTS_STORE).clear()
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+    })).catch(e => dbgWarn('automap', '[automapData] failed to clear the automap store:', e))
+}
+
+// CE automap.cc automapReset (game.cc gameReset): a new game starts with an empty automap.
+export function resetAutomap(): void {
+    generation++
+    if (saveTimer !== null) { clearTimeout(saveTimer); saveTimer = null }
+    seenData.clear()
+    objectSnapshots.clear()
+    dirtyTiles.clear()
+    dirtyObjects.clear()
+    clearStores()
+}
+
+// The automap of the game in progress, for the save game.
+export function serializeAutomap(): SavedAutomap {
+    const tiles: Record<string, string[]> = {}
+    const objects: Record<string, ObjectSnapshotEntry[]> = {}
+    for (const [k, set] of seenData) tiles[k] = [...set]
+    for (const [k, list] of objectSnapshots) objects[k] = list
+    return { tiles, objects }
+}
+
+// Loading a game: its automap replaces the current one.
+export function restoreAutomap(data: SavedAutomap | undefined): void {
+    resetAutomap()
+    if (!data) return
+    for (const k in data.tiles ?? {}) { seenData.set(k, new Set(data.tiles[k])); dirtyTiles.add(k) }
+    for (const k in data.objects ?? {}) { objectSnapshots.set(k, data.objects[k]); dirtyObjects.add(k) }
     flushPendingWrites()
 }

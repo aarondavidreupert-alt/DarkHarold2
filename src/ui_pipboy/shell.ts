@@ -571,7 +571,7 @@ export function openPipBoy(): void {
 
     // Allow the user to drag the panel by clicking non-interactive background
     // areas (the pip.png frame) — tab dots/buttons are skipped automatically.
-    makePanelDraggable(pipBoyContainer)
+    makePanelDraggable(pipBoyContainer, 'pipboy')
 
     // Reset automap navigation each time PipBoy opens
     resetAutomapNavState()

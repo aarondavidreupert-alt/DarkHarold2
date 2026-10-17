@@ -18,6 +18,7 @@
 // Keyboard: Enter or Y = first button (YES/OK), Escape or N = last button (NO/Cancel).
 // UIMode.dialog is set while any dialog is open, blocking game key handlers.
 
+import { makePanelDraggable } from './ui_drag.js'
 import globalState from './globalState.js'
 import { font1, font3, FoText } from './ui_font.js'
 import { UIMode, getUiContainer } from './ui_panels.js'
@@ -158,6 +159,7 @@ export function showDialog(message: string, buttons: string[], dim = true): Prom
 
         const overlay = makeOverlay(dim)
         const box = makeDialogBox()
+        makePanelDraggable(box, 'dialogBox')
 
         box.appendChild(makeTextArea(message))
 
