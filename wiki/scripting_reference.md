@@ -191,7 +191,7 @@ For the **Status** column, see the key in §3.
 | 0x80A3 | play_sfx | 1 (sfx_name) | void | WIRED | Plays sound effect |
 | 0x80A4 | obj_name | 1 (obj) | str | WIRED | Returns object name string |
 | 0x80A7 | tile_contains_pid_obj | 3 (tile,elev,pid) | obj | WIRED | First obj with pid at tile |
-| 0x80A8 | game_time_hour | 0 | int | INLINE | Current hour 0-23 |
+| 0x80A8 | set_map_start | 4 (x,y,elev,rot) | void | WIRED | Map start tile / elevation / rotation, camera (CE opSetMapStart; was a second game_time_hour until 2026-10-17) |
 | 0x80A9 | override_map_start | 4 (tile,elev,rot,flags) | void | WIRED | Override player start position |
 | 0x80AA | has_skill | 2 (obj,skill) | int | WIRED | Returns effective skill value |
 | 0x80AB | using_skill | 2 (obj,skill) | int | STUB | Always returns 0; CE: isUsingSkill() |
@@ -224,14 +224,14 @@ For the **Status** column, see the key in §3.
 | 0x80DA | wield_obj_critter | 2 (critter,obj) | void | WIRED | Equip item |
 | 0x80DC | obj_can_see_obj | 2 (obj1,obj2) | bool | WIRED | LOS check |
 | 0x80DE | start_gdialog | 5 (head,msg,barter,unk,unk) | void | WIRED | Open dialogue |
-| 0x80DF | end_dialogue | 0 | void | WIRED | Close dialogue |
+| 0x80DF | end_dialogue | 0 | void | WIRED | Close dialogue (pushed a value until 2026-10-17) |
 | 0x80E1 | metarule3 | 4 (id,obj,userdata,radius) | any | PARTIAL | Sub-ops 100, 106 handled; rest stub (see §7) |
 | 0x80E3 | set_obj_visibility | 2 (obj,visible) | void | WIRED | Show/hide object |
 | 0x80E4 | load_map | 2 (mapName,startTile) | void | WIRED | Load a new map |
 | 0x80E5 | wm_area_set_pos | 3 (area,x,y) | void | WIRED | Set worldmap area position |
 | 0x80E7 | anim_busy | 1 (obj) | bool | WIRED | Is object animating? |
-| 0x80E8 | critter_heal | 2 (obj,amount) | void | WIRED | Heal critter HP |
-| 0x80E9 | set_light_level | 1 (level) | void | WIRED | Set ambient light level |
+| 0x80E8 | critter_heal | 2 (obj,amount) | int | WIRED | critterAdjustHitPoints: HP + amount (capped; ≤ 0 kills), returns 0 |
+| 0x80E9 | set_light_level | 1 (level) | void | WIRED | Set ambient light level (pushed a value until 2026-10-17) |
 | 0x80EA | game_time | 0 | int | INLINE | Current game tick counter |
 | 0x80EC | elevation | 1 (obj) | int | WIRED | Object's elevation |
 | 0x80ED | kill_critter | 2 (obj,anim) | void | WIRED | Kill critter |
@@ -271,8 +271,8 @@ For the **Status** column, see the key in §3.
 | 0x8117 | rm_mult_objs_from_inven | 3 (critter,obj,count) | int | WIRED | Remove N copies from inventory |
 | 0x8118 | get_month | 0 | int | INLINE | Current month 1-12 (from GameTime) |
 | 0x8119 | get_day | 0 | int | INLINE | Current day of month (from GameTime) |
-| 0x811A | explosion | 3 (tile,elev,dmg) | int | WIRED | Create explosion at tile |
-| 0x811C | gsay_start | 0 | int | WIRED | Begin dialogue option collection |
+| 0x811A | explosion | 3 (tile,elev,dmg) | void | WIRED | actionExplode d(1, dmg) at tile |
+| 0x811C | gsay_start | 0 | void | WIRED | Begin dialogue option collection |
 | 0x811D | gsay_end | 0 | void | INLINE | Halt VM to wait for player choice |
 | 0x811E | gsay_reply | 2 (msgFile,msgID) | void | WIRED | Set NPC reply text |
 | 0x8120 | gsay_message | 3 (msgFile,msgID,unk) | void | WIRED | Display gsay message (Done button) |

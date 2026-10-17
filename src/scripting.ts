@@ -1561,16 +1561,22 @@ export module Scripting {
             }
             critterDamage(obj, damage, this.self_obj as Critter, true, true, damageType, undefined, { scriptDamage: true })
         }
+        // CE opCritterHeal → critter.cc critterAdjustHitPoints: HP + amount, capped at max;
+        // at 0 or below (a negative amount) the critter dies. Returns 0.
         critter_heal(obj: Obj, amount: number) {
             if (!isGameObject(obj)) {
                 warn('critter_heal: not game object: ' + obj)
-                return
+                return 0
             }
-            const hp = (obj as Critter).getStat('HP')
-            const maxHp = (obj as Critter).getStat('Max HP')
-            const healed = Math.min(amount, maxHp - hp)
-            ;(obj as Critter).stats.modifyBase('HP', healed)
-            info('critter_heal: ' + obj.name + ' healed ' + healed + ' HP')
+            if (obj.type !== 'critter') return 0
+            const c = obj as Critter
+            const maxHp = c.getStat('Max HP')
+            const newHp = c.getStat('HP') + amount
+            c.stats.setBase('HP', Math.min(newHp, maxHp))
+            if (newHp <= 0 && !c.dead) critterKill(c, undefined, true)
+            if (c.isPlayer) updateIndicatorBar()
+            info('critter_heal: ' + obj.name + ' ' + amount + ' HP')
+            return 0
         }
         poison(obj: Obj, amount: number) {
             // CE ref: interpreter_extra.cc opPoison → critter.cc:327 critterAdjustPoison.
@@ -1939,6 +1945,17 @@ export module Scripting {
             obj.lightRadius = distance
             obj.lightIntensity = Math.round(intensity * 65536 / 100)
             if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
+        }
+        // CE interpreter_extra.cc opSetMapStart — map_set_elevation, tile_set_center and
+        // mapSetStart(tile, elevation, rotation).
+        set_map_start(x: number, y: number, elevation: number, rotation: number) {
+            const gMap = globalState.gMap
+            if (!gMap) return
+            if (elevation !== gMap.currentElevation) gMap.changeElevation(elevation, true)
+            centerCamera({ x, y })
+            gMap.mapObj.startPosition = { x, y }
+            gMap.mapObj.startOrientation = rotation
+            gMap.mapObj.startElevation = elevation
         }
         override_map_start(x: number, y: number, elevation: number, rotation: number) {
             log('override_map_start', arguments)
