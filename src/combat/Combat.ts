@@ -350,10 +350,11 @@ export class Combat {
         // Gather a list of combatants (critters meeting a certain criteria)
         this.combatants = objects.filter((obj) => {
             if (obj instanceof Critter) {
+                // CE combat.cc _combat_begin: every critter on the elevation is in the
+                // combat list; only combatants (`hostile`, CE _list_com) take turns, the
+                // others join by _combatai_want_to_join at the start of a round.
                 if (obj.dead || !obj.visible) return false
-                // Enroll if: player, on a trigger team, or already actively hostile
-                // (a critter marked hostile before combat started is a participant).
-                if (!obj.isPlayer && !triggerTeams.has(obj.teamNum) && !obj.hostile) return false
+                void triggerTeams
 
                 // NOTE: AI is initialized here for simplicity; could be moved to Critter later
                 if (!obj.isPlayer && !obj.ai) obj.ai = new AI(obj)
@@ -776,6 +777,12 @@ export class Combat {
 
     attack(obj: Critter, target: Critter, region = 'torso', callback?: () => void) {
         this.hasAttacked = true
+        // CE _combat_sequence_init: attacker and defender are combatants and have each
+        // other as who-hit-me when the fight starts with this attack.
+        if (!target.isPlayer && !target.hostile && target.teamNum !== this.player.teamNum) {
+            target.hostile = true
+            if (!(target as any).whoHitMe) critterSetWhoHitMe(target, obj)
+        }
         // turn to face the target
         var hex = hexNearestNeighbor(obj.position, target.position)
         if (hex !== null) obj.orientation = hex.direction
@@ -952,8 +959,11 @@ export class Combat {
             })
             noteHit(defender, attacker, accidental) // CE combat.cc:4706
             if (defender.isPlayer) drawHP(defender.getStat('HP'))
-            if (!defender.dead && defender._script?.combat_p_proc) {
-                if (Scripting.combatEvent(defender, 'damage')) return
+            this.notifyOnlookers(defender)
+            // CE _apply_damage: the attacker's combat_p_proc, fixed param 2 (hit), target
+            // the defender.
+            if (a.defenderDamage >= 0 && attacker._script?.combat_p_proc && !attacker.dead) {
+                if (Scripting.combatEvent(attacker, 'hit', defender)) return
             }
             if (!globalState.combat) return
             if (defender.dead) this.perish(defender, attacker, dmgType)
@@ -969,7 +979,10 @@ export class Combat {
             })
             noteHit(c, attacker, true)
             if (c.isPlayer) drawHP(c.getStat('HP'))
-            if (!c.dead && c._script?.combat_p_proc) Scripting.combatEvent(c, 'damage')
+            this.notifyOnlookers(c)
+            if (x.damage >= 0 && attacker._script?.combat_p_proc && !attacker.dead) {
+                if (Scripting.combatEvent(attacker, 'hit', c)) return
+            }
             if (!globalState.combat) return
             if (c.dead) this.perish(c, attacker, dmgType)
         }
@@ -1202,8 +1215,8 @@ export class Combat {
 
     // CE combat_ai.cc _ai_search_inven_weap: the best weapon in the inventory (other
     // than the one in hand) the attacker can use right now. Only bipeds, robots and
-    // PROTO_ID_0x1000098 search; _ai_best_weapon's blast-radius and team-safety terms
-    // are left out. Static: the party-member control screen uses it too (checkAP false).
+    // PROTO_ID_0x1000098 search. Static: the party-member control screen uses it too
+    // (checkAP false, no defender).
     static aiSearchInvenWeap(attacker: Critter, defender: Critter | null, checkAP = true): Obj | null {
         const bodyType = (attacker.pro as any)?.extra?.bodyType ?? 0
         if (bodyType !== 0 && bodyType !== 1 && attacker.pid !== 0x1000098) return null
@@ -1216,15 +1229,18 @@ export class Combat {
             const weapon = (item as any).weapon
             if (item.subtype !== 'weapon' || !weapon || item === inHand) continue
             if (checkAP && weapon.getAPCost(1) > ap) continue
-            // _ai_can_use_weapon: the critter has the attack FRM, enough skill, and the
+            // _ai_can_use_weapon: arms good enough, the attack FRM, enough skill, and the
             // attack type is one the packet's best_weapon allows
+            const twoHanded = ((((item as any).pro?.extra?.weaponFlags ?? 0) & 0x02) !== 0)
+            if (attacker.crippledLeftArm && attacker.crippledRightArm) continue
+            if ((attacker.crippledLeftArm || attacker.crippledRightArm) && twoHanded) continue
             const attackArt = attacker.getBase() + weapon.getAnim('attack')
             if (!globalState.imageInfo[attackArt]) continue
             if (attacker.getSkill(weapon.weaponSkillType) < packet.minToHit) continue
             const attackType = weaponAttackType(item)
             if (!prefs.includes(attackType)) continue
             if (attackType === 'ranged' && !aiHaveAmmo(item) && !findReloadAmmo(attacker as any, item as any)) continue
-            best = Combat.aiBestWeapon(packet, best, item)
+            best = Combat.aiBestWeapon(attacker, packet, best, item, defender)
         }
         return best
     }
@@ -1254,26 +1270,52 @@ export class Combat {
         return bestArmor
     }
 
-    // CE combat_ai.cc _ai_best_weapon — preference order of the attack type first, then
-    // average damage (x2 with a weapon perk), then cost.
-    private static aiBestWeapon(packet: AiPacket, w1: Obj | null, w2: Obj): Obj | null {
+    // CE combat_ai.cc _ai_best_weapon — the attack type's place in the packet's
+    // preference order first, then average damage (× the critters a blast would catch,
+    // × 2 with a weapon perk — sfall's fixes), then cost. A weapon that would hurt the
+    // team (_combat_safety_invalidate_weapon) has no place; a hidden (natural) weapon
+    // always wins; flares lose. No weapon counts as unarmed when the punch reaches.
+    private static aiBestWeapon(attacker: Critter, packet: AiPacket, w1: Obj | null, w2: Obj, defender: Critter | null): Obj | null {
         const best = packet.bestWeapon
         if (best === 'random') return randomBetween(1, 100) <= 50 ? w1 : w2
-        if (!w1) return w2
         const prefs = Combat.WEAP_PREF_ORDERINGS[best] ?? []
-        const score = (w: Obj) => {
+        const combat = globalState.combat
+        const PROTO_ID_FLARE = 79
+        const score = (w: Obj | null): { avg: number; order: number; cost: number; hidden: boolean } => {
+            if (!w) {
+                // punch range (1) against the defender's distance
+                const reach = defender ? objectDistance(attacker, attacker.position, defender) <= 1 : false
+                const order = reach ? prefs.indexOf('unarmed') : -1
+                return { avg: 0, order: order === -1 ? 999 : order, cost: 0, hidden: false }
+            }
             const ex = (w as any).pro?.extra ?? {}
             let avg = Math.trunc(((ex.minDmg ?? 0) + (ex.maxDmg ?? 0)) / 2)
+            const dmgType = (w as any).weapon?.getDamageType?.() ?? 'Normal'
+            const attackType = weaponAttackType(w)
+            const isGrenade = attackType === 'throw' && (dmgType === 'Explosive' || dmgType === 'Plasma' || dmgType === 'EMP')
+            const radius = isGrenade ? 2 : (attackType === 'ranged' && dmgType === 'Explosive' ? 3 : 0)
+            if (radius > 0 && defender) {
+                const caught = explosionRingCritters(defender.position, defender.elevation, null, isGrenade)
+                    .filter((c) => c !== attacker).length
+                avg *= caught + 1
+            }
             if ((ex.perk ?? -1) !== -1) avg *= 2
-            const order = prefs.indexOf(weaponAttackType(w))
-            return { avg, order: order === -1 ? 999 : order, cost: ex.cost ?? 0 }
+            const unsafe = !!defender && !!combat && combat.combatSafetyInvalidateWeapon(attacker, w, 'primary', defender, false)
+            const order = unsafe ? -1 : prefs.indexOf(attackType)
+            const hidden = ((((w as any).flags ?? 0) >>> 0) & 0x01) !== 0 // OBJECT_HIDDEN
+            return { avg, order: order === -1 ? 999 : order, cost: ex.cost ?? 0, hidden }
         }
-        const a = score(w1), b = score(w2)
+        const a = score(w1)
+        if (a.hidden) return w1
+        const b = score(w2)
+        if (b.hidden) return w2
         if (a.order === b.order) {
             if (a.order === 999) return null
             if (Math.abs(b.avg - a.avg) <= 5) return b.cost > a.cost ? w2 : w1
             return b.avg > a.avg ? w2 : w1
         }
+        if (w1 && w1.pid === PROTO_ID_FLARE) return w2
+        if (w2.pid === PROTO_ID_FLARE && w1) return w1
         if ((best === 'no_pref' || best === 'unarmed_over_throw') && Math.abs(b.avg - a.avg) > 5) {
             return b.avg > a.avg ? w2 : w1
         }
@@ -1358,7 +1400,7 @@ export class Combat {
     // extras include a team-mate. The DR × (maxDmg - DT) test is CE's literal formula.
     // `withSafeDistance` mirrors CE passing safeDistancePtr: the attacker standing in its
     // own blast then isn't disqualifying (CE would step back first; DH2 doesn't).
-    private combatSafetyInvalidateWeapon(attacker: Critter, weaponObj: Obj, hitMode: 'primary' | 'secondary',
+    combatSafetyInvalidateWeapon(attacker: Critter, weaponObj: Obj, hitMode: 'primary' | 'secondary',
                                          defender: Critter, withSafeDistance: boolean): boolean {
         const weapon = (weaponObj as any).weapon
         if (!weapon) return false
@@ -1639,15 +1681,6 @@ export class Combat {
         // critter/lifecycle.ts); guard against a path that didn't.
         if (!obj.dead) critterKill(obj, attacker, undefined, { animate: true }, damageType)
 
-        // CE combat_ai.cc _combatai_notify_onlookers: a critter not yet in the fight that
-        // sees the death but not the killer remembers the body ("Somebody died and I don't
-        // know why! Run!!!") and moves away from it on its turns.
-        const killer: Critter | null = attacker ?? (obj as any).whoHitMe ?? null
-        for (const c of this.combatants) {
-            if (c === obj || c.dead || c.isPlayer || c.hostile) continue
-            if (this.isWithinPerception(c, obj) && !this.isWithinPerception(c, killer)) (c as any).aiFriendlyDead = obj
-        }
-
         // Inventory stays on the critter — the player loots it via the context menu,
         // just like a container.
 
@@ -1846,8 +1879,9 @@ export class Combat {
     // team, sorted by attack_who, the first one it perceives and can reach or shoot.
     // DH2: when none qualifies, the nearest perceived enemy (Combat.findTarget) — DH2
     // doesn't set whoHitMe for every way a fight can start.
-    aiDangerSource(obj: Critter): Critter | null {
+    aiDangerSource(obj: Critter, fallback = true): Critter | null {
         const player = globalState.player
+        if (!obj.ai) return null
         const party = !!globalState.gParty?.isPartyMember(obj)
         const packet = obj.ai!.packet
         const alive = (c: Critter | null | undefined): c is Critter =>
@@ -1897,7 +1931,114 @@ export class Combat {
             if (!this.isWithinPerception(obj, c)) continue
             if (globalState.gMap!.recalcPath(obj.position, c.position).length > 0 || this.checkBadShot(obj, c, false) === 'ok') return c
         }
-        return this.findTarget(obj)
+        return fallback ? this.findTarget(obj) : null
+    }
+
+    // CE combat_ai.cc _combatai_want_to_join — a non-combatant joins when it took damage,
+    // its combat_p_proc (fixed param 5) or an onlooker / friend notice made it ENGAGING,
+    // or it has a danger source; not when hidden, elsewhere, out cold, disengaging or
+    // fleeing.
+    private wantToJoin(c: Critter): boolean {
+        const a = c as any
+        if (c.visible === false || ((((a.flags ?? 0) >>> 0) & 0x01) !== 0)) return false // OBJECT_HIDDEN
+        if (globalState.player && c.elevation !== globalState.player.elevation) return false
+        if ((c.injuryFlags & (DAM_DEAD | DAM_KNOCKED_OUT)) !== 0 || c.dead) return false
+        if ((a.damageLastTurn ?? 0) > 0) return true
+        if (c._script?.combat_p_proc) Scripting.combatEvent(c, 'wantToJoin')
+        if (a.engaging) return true
+        if (a.disengaging || a.fleeing) return false
+        return this.aiDangerSource(c, false) !== null
+    }
+
+    // CE combat_ai.cc _combatai_want_to_stop
+    private wantToStop(c: Critter): boolean {
+        const a = c as any
+        if (a.disengaging) return true
+        if ((c.injuryFlags & (DAM_KNOCKED_OUT | DAM_DEAD)) !== 0 || c.dead) return true
+        if (a.fleeing) return true
+        const enemy = this.aiDangerSource(c, false)
+        return enemy === null || !this.isWithinPerception(c, enemy)
+    }
+
+    // CE combat_ai.cc _combatai_notify_onlookers: whoever perceives the victim of an
+    // attack becomes ENGAGING; seeing it die without seeing its killer marks a friendly
+    // death to move away from.
+    private notifyOnlookers(victim: Critter): void {
+        for (const c of this.combatants) {
+            const a = c as any
+            if (a.engaging || c === victim || c.isPlayer || c.dead) continue
+            if (!this.isWithinPerception(c, victim)) continue
+            a.engaging = true
+            if (victim.dead && !this.isWithinPerception(c, (victim as any).whoHitMe ?? null)) a.aiFriendlyDead = victim
+        }
+    }
+
+    // CE combat_ai.cc _combatai_notify_friends: the player's team-mates who perceive the
+    // player become ENGAGING.
+    private notifyFriends(who: Critter): void {
+        for (const c of this.combatants) {
+            const a = c as any
+            if (a.engaging || c === who || c.dead || c.teamNum !== who.teamNum) continue
+            if (this.isWithinPerception(c, who)) a.engaging = true
+        }
+    }
+
+    // CE combat.cc _combat_sequence — between rounds: non-combatants that want to join
+    // do (_combat_add_noncoms); knocked-out and disengaging critters leave the fight;
+    // 5 seconds of game time pass.
+    private combatSequence(): void {
+        this.notifyFriends(this.player)
+        for (const c of this.combatants) {
+            if (c.isPlayer || c.dead || c.hostile) continue
+            if (this.wantToJoin(c)) {
+                c.hostile = true
+                ;(c as any).engaging = false // maneuver = NONE
+                ;(c as any).disengaging = false
+                combatDebug(`${actorName(c)} joins the fight`)
+            }
+        }
+        for (const c of this.combatants) {
+            if (c.isPlayer || c.dead || !c.hostile) continue
+            if ((c.injuryFlags & DAM_KNOCKED_OUT) !== 0 || (c as any).disengaging) {
+                c.hostile = false
+                ;(c as any).engaging = false
+                combatDebug(`${actorName(c)} leaves the fight`)
+            }
+        }
+        GameTime.advanceSeconds(5)
+    }
+
+    // CE combat.cc _combat_should_end — over when the player is the only combatant, or
+    // all combatants are on the player's team and none of them was hit by a team-mate.
+    private shouldEnd(): boolean {
+        const team = this.player.teamNum
+        const active = this.combatants.filter((c) => !c.dead && (c.isPlayer || c.hostile))
+        if (active.length <= 1) return true
+        for (const c of active) {
+            if (c.teamNum !== team) return false
+            const hit: Critter | null = (c as any).whoHitMe ?? null
+            if (hit && hit.teamNum === team) return false
+        }
+        return true
+    }
+
+    // CE combat.cc combatAttemptEnd — the player may end combat only when every hostile
+    // combatant wants to stop and no hostile non-combatant wants to join (else combat.msg
+    // 103, "Combat cannot end with nearby hostile creatures.").
+    attemptEnd(): void {
+        const team = this.player.teamNum
+        const relevant = (c: Critter) => {
+            const hit: Critter | null = (c as any).whoHitMe ?? null
+            return c.teamNum !== team || (!!hit && hit.teamNum === c.teamNum)
+        }
+        for (const c of this.combatants) {
+            if (c.isPlayer || c.dead || !relevant(c)) continue
+            if (c.hostile ? !this.wantToStop(c) : this.wantToJoin(c)) {
+                uiLog(this.getCombatMsg(103))
+                return
+            }
+        }
+        this.finish('normal')
     }
 
     nearestOfTeamPublic(obj: Critter, team: number): Critter | null {
@@ -2599,7 +2740,7 @@ export class Combat {
         return best
     }
 
-    static start(forceTurn?: Critter, gcsd?: CombatStartData): void {
+    static start(forceTurn?: Critter, gcsd?: CombatStartData, teamCombat?: [Critter, Critter]): void {
         if (combatActive) {
             combatDebug('ignoring Combat.start(): already active')
             return
@@ -2632,18 +2773,23 @@ export class Combat {
         // CE combat.cc _combat_begin: damageLastTurn starts at 0 for every combatant
         for (const c of globalState.combat.combatants) (c as any).damageLastTurn = 0
 
-        if (forceTurn) {
-            // CE combat_ai.cc _caiTeamCombatInit: the attacking team and the player's team
-            // each start with the nearest member of the other team as whoever hit them.
+        if (teamCombat) {
+            // CE combat_ai.cc _caiSetupTeamCombat (worldmap encounters only): every
+            // critter is ENGAGING, and _caiTeamCombatInit gives each member of the two
+            // teams the nearest member of the other as whoever hit it.
             const c = globalState.combat
+            const [attackerTeamObj, targetTeamObj] = teamCombat
             for (const critter of c.combatants) {
-                if (critter.dead) continue
-                if (critter.teamNum === forceTurn.teamNum && !critter.isPlayer) {
-                    ;(critter as any).whoHitMe = c.nearestOfTeamPublic(critter, player.teamNum)
-                } else if (critter.teamNum === player.teamNum && !critter.isPlayer) {
-                    ;(critter as any).whoHitMe = c.nearestOfTeamPublic(critter, forceTurn.teamNum)
+                if (critter.dead || critter.isPlayer) continue
+                ;(critter as any).engaging = true
+                if (critter.teamNum === attackerTeamObj.teamNum) {
+                    ;(critter as any).whoHitMe = c.nearestOfTeamPublic(critter, targetTeamObj.teamNum)
+                } else if (critter.teamNum === targetTeamObj.teamNum) {
+                    ;(critter as any).whoHitMe = c.nearestOfTeamPublic(critter, attackerTeamObj.teamNum)
                 }
             }
+        }
+        if (forceTurn) {
             globalState.combat.forceTurn(forceTurn)
         }
 
@@ -2658,25 +2804,13 @@ export class Combat {
         globalState.gMap.updateMap()
     }
 
+    // Combat over (CE _combat_over): used by the round check, the end-combat button
+    // (attemptEnd) and an elevation change.
     end() {
-        // Check number of active combatants to see if we can end
-        var numActive = 0
-        for (var i = 0; i < this.combatants.length; i++) {
-            var obj = this.combatants[i]
-            if (obj.dead || obj.isPlayer) continue
-            if (!obj.ai || !obj.ai.packet) {
-                combatWarn(`Critter ${obj.name || obj.art} has no AI info, skipping range check`)
-                continue
-            }
-            var inRange = hexDistance(obj.position, this.player.position) <= obj.ai.packet.maxDist
+        this.finish('normal')
+    }
 
-            if (obj.hostile) {
-                numActive++
-            }
-        }
-
-        if (numActive > 0) return
-
+    private finish(result: 'normal' | 'forced'): void {
         // Set all combatants to non-hostile and remove their outline
         for (const combatant of this.combatants) {
             combatant.hostile = false
@@ -2686,7 +2820,7 @@ export class Combat {
         this.combatOver()
 
         combatDebug('end combat')
-        eventLogPush({ actor: null, action: 'combat-end', result: 'normal', message: 'Combat ended' })
+        eventLogPush({ actor: null, action: 'combat-end', result, message: 'Combat ended' })
         globalState.combat = null // todo: invert control
         globalState.inCombat = false
         combatActive = false
@@ -2710,6 +2844,7 @@ export class Combat {
             ;(c as any).damageLastTurn = 0
             ;(c as any).aiFriendlyDead = null
             ;(c as any).aiLastItem = null
+            ;(c as any).engaging = false
             ;(c as any)._aiTurn = undefined
             if (c.isPlayer || c.dead) continue
             const w = c.equippedWeapon
@@ -2798,56 +2933,23 @@ export class Combat {
         // Tick turn-driven scheduled events (e.g. armed grenades).
         // CE ref: combat.cc combatTurnLoop — turn-driven event queue.
         tickCombatTurn()
-        // update range checks
-        var numActive = 0
-        for (var i = 0; i < this.combatants.length; i++) {
-            var obj = this.combatants[i]
-            if (obj.dead || obj.isPlayer) continue
-            // Party members (same team as player) never count as active enemies.
-            if (obj.teamNum === globalState.player.teamNum) continue
-            if (!obj.ai || !obj.ai.packet) {
-                combatWarn(`Critter ${obj.name || obj.art} has no AI info, skipping range check`)
-                continue
-            }
-            var inRange = hexDistance(obj.position, this.player.position) <= obj.ai.packet.maxDist
-            var hasLOS = inRange && this.hasLineOfSight(obj.position, this.player.position)
-
-            if (hasLOS || obj.hostile) {
-                // Only aggro via LOS if an attack has already been made this
-                // combat session, or the critter was already flagged hostile
-                // before combat started. Entering combat mode alone (weapon drawn,
-                // movement AP spent) must not flip bystanders to hostile.
-                if (this.hasAttacked || obj.hostile) {
-                    if (!obj.hostile) {
-                        // First time turning hostile. CE draws no weapon here: the AI wields
-                        // its best one when it first attacks (_ai_try_attack →
-                        // _ai_switch_weapons).
-                        obj.hostile = true
-                    }
-                    numActive++
-                }
-            }
-        }
-
         this.refreshHighlights()
 
-        if (numActive === 0 && this.turnNum !== 1 && this.playerHadTurn) {
-            // Only auto-end after the player has had at least one turn. Prevents
-            // the start → nextTurn → recursive-nextTurn → forceEnd cascade when
-            // an NPC initiates combat via attack_complex but no critter is
-            // marked hostile yet (because hasAttacked is still false).
-            this.forceEnd()
-            return
-        }
+        // CE combat.cc _combat_turn: the player's damageLastTurn resets once the input ends.
+        if (this.combatants[this.whoseTurn]?.isPlayer) (this.player as any).damageLastTurn = 0
 
         this.turnNum++
         this.whoseTurn++
 
         if (this.whoseTurn >= this.combatants.length) {
             this.whoseTurn = 0
-            // CE combat.cc _combat_sequence: each new round is 5 seconds of game time
-            // (knockout wake-ups and other queued events fire as it passes).
-            GameTime.advanceSeconds(5)
+            // CE combat.cc _combat: after each round _combat_sequence (joins, leaves, 5 s
+            // of game time — knockout wake-ups fire), then _combat_should_end.
+            this.combatSequence()
+            if (this.shouldEnd()) {
+                this.end()
+                return
+            }
         }
         // CE: attack_complex's start data covers the first combatant's turn only.
         if (this.turnNum > 2) this.gcsd = null

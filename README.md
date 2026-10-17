@@ -197,7 +197,7 @@ the wiki tracker is the source of truth.
 ### 🔶 Known approximations
 
 - **Ammo stacks** count rounds in `amount`, where CE keeps boxes plus rounds in the top box (LE12 note).
-- **AI blast safety** — `_ai_best_weapon` ignores blast radius and team safety; otherwise the AI steps out of a team-mate's line of fire (C29) or drops from burst to single fire / holds fire (C17 note). Explosions from DAM_EXPLODE critical failures aren't generated.
+- **AI turn order** — round 1 isn't attacker / defender / player first as in CE's `_combat_sequence_init`; combatants are sorted by Sequence from the start (C31).
 - **Explosive timers** — dynamite / plastic explosives count combat turns or real seconds, not CE's game-time explosion event (see the audit list in `wiki/known_bugs.md`).
 - **Hover readout** is a DOM overlay rather than a cursor blit, and isn't shown for non-critter targets (CI18).
 - **Browser limits** — preferences can't be written back to `fallout2.cfg` (CI5, localStorage instead); mouse sensitivity is stored but the browser owns pointer speed.

@@ -242,7 +242,7 @@ export class GameMap {
 
         // If we're in combat, end it since we're moving off of that elevation
         if (globalState.inCombat) {
-            globalState.combat.end()
+            globalState.combat.forceEnd()
         }
 
         globalState.player.clearAnim()

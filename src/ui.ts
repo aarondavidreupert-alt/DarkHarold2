@@ -312,8 +312,9 @@ export function initUI() {
     }
 
     $id('endCombatButton').onclick = () => {
+        // CE combat.cc combatAttemptEnd
         if (globalState.inCombat) {
-            globalState.combat!.end()
+            globalState.combat!.attemptEnd()
         }
     }
 

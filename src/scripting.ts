@@ -3144,7 +3144,7 @@ export module Scripting {
         return obj._script._didOverride
     }
 
-    export function combatEvent(obj: Obj, event: 'turnBegin' | 'damage'): boolean {
+    export function combatEvent(obj: Obj, event: 'turnBegin' | 'damage' | 'hit' | 'wantToJoin', target?: Obj): boolean {
         if (!obj._script) throw Error('combatEvent: Object has no script')
 
         let fixed_param: number | null = null
@@ -3153,8 +3153,12 @@ export module Scripting {
                 fixed_param = 4
                 break // COMBAT_SUBTYPE_TURN
             case 'damage':
+            case 'hit':
                 fixed_param = 2
-                break // COMBAT_SUBTYPE_DAMAGE_TAKE
+                break // COMBAT_SUBTYPE_HIT_SUCCEEDED (CE _apply_damage: the attacker's proc)
+            case 'wantToJoin':
+                fixed_param = 5
+                break // CE _combatai_want_to_join
             default:
                 throw 'combatEvent: unknown event ' + event
         }
@@ -3165,6 +3169,7 @@ export module Scripting {
 
         obj._script.combat_is_initialized = 1
         obj._script.fixed_param = fixed_param
+        if (target !== undefined) obj._script.target_obj = target
         obj._script.self_obj = obj as ScriptableObj
         obj._script.game_time = Math.max(1, globalState.gameTickTime)
         obj._script.cur_map_index = currentMapID

@@ -145,7 +145,7 @@ schedules, unarmed special moves, talking heads + speech + subtitles, movies, en
 and all 181 vanilla opcodes (0 active `stub()` calls). Remaining deliberate approximations
 are listed in README.md → "Known approximations" and `wiki/known_bugs.md`:
 - Ammo stacks count rounds in `amount` (CE: boxes + rounds in the top box)
-- AI blast safety: `_ai_best_weapon` ignores blast radius / team safety
+- Combat round 1 is sorted by Sequence (CE: attacker, defender, player first)
 - Browser limits: no `fallout2.cfg` write-back (localStorage instead), mouse sensitivity stored only
 
 ## Constraints

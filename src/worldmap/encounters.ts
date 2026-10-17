@@ -82,7 +82,21 @@ export function execEncounter(encTable: EncounterTable): void {
         })
 
         // player was ambushed, so begin combat
-        if (enc.encounterType === 'ambush' && Config.engine.doCombat === true) Combat.start()
+        if (enc.encounterType === 'ambush' && Config.engine.doCombat === true) {
+            // CE worldmap.cc wmRndEncounterOccurred: the first hostile attacks the player
+            // (whoHitMe = dude) as a team combat (_caiSetupTeamCombat(gDude, critter)).
+            const player = globalState.player
+            const first = globalState.gMap.getObjects().find((o) => o instanceof Critter && (o as Critter).hostile && !(o as Critter).dead) as Critter | undefined
+            if (first && player) {
+                ;(first as any).whoHitMe = player
+                Combat.start(first, {
+                    attacker: first, defender: player, actionPointsBonus: 0, accuracyBonus: 0, damageBonus: 0,
+                    minDamage: 0, maxDamage: 500, overrideAttackResults: false, attackerResults: 0, targetResults: 0,
+                }, [player, first])
+            } else {
+                Combat.start()
+            }
+        }
     })
 }
 
