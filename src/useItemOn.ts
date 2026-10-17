@@ -82,7 +82,7 @@ export function usePendingItemOn(target: Obj | null): void {
     const act = () => {
         if (globalState.inCombat) {
             player.AP?.subtractCombatAP(USE_ITEM_AP)
-            if (player.AP) drawAP(player.AP.getAvailableCombatAP(), player.AP.getTotalMaxAP())
+            if (player.AP) drawAP(player.AP.getAvailableCombatAP(), player.AP.getTotalMaxAP(), player.AP.move)
         }
         objUseItemOn(player, target, item)
     }

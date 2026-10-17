@@ -188,18 +188,19 @@ Unarmed attacks always use `DAMAGE_NORMAL`.
 The `perk` field in `ProtoItemWeaponData` refers to a `WeaponPerk` enum value embedded into
 the weapon's PRO. It is **different** from the critter-level `Perk` enum.
 
-| CE Constant | DH2 Proto Key | Meaning | DH2 Status |
-|-------------|--------------|---------|------------|
-| `PERK_WEAPON_LONG_RANGE` (1) | `pro.extra.perk == 1` | `distModifier = 4` (doubles range penalty reduction) | PARTIAL — `combat.ts` reads it; `distModifier=4` wired |
-| `PERK_WEAPON_ACCURATE` (2) | `pro.extra.perk == 2` | +20% hit chance for this weapon | STUB — not read in DH2 |
-| `PERK_WEAPON_PENETRATE` (3) | `pro.extra.perk == 3` | 80% DT/DR bypass on hit | STUB — not read; DH2 penetrate comes from unarmed `mode.penetrate` only |
-| `PERK_WEAPON_KNOCKBACK` (4) | `pro.extra.perk == 4` | Knockback divisor = 5 (not 10) | N/A — knockback not implemented |
-| `PERK_WEAPON_SCOPE_RANGE` (5) | `pro.extra.perk == 5` | `distModifier = 5` | STUB — not read (`distModifier=5` branch is comment in `combat.ts`) |
-| `PERK_WEAPON_FAST_RELOAD` (6) | `pro.extra.perk == 6` | Reload costs 0 AP | STUB — no AP cost for reload in DH2 |
-| `PERK_WEAPON_NIGHT_SIGHT` (7) | `pro.extra.perk == 7` | No night vision penalty | STUB — no night penalty system |
-| `PERK_WEAPON_FLAMEBOY` (8) | `pro.extra.perk == 8` | Fire damage deals splash | STUB |
-| `PERK_WEAPON_HANDLING` (9) | `pro.extra.perk == 9` | −3 minimum ST requirement | STUB — `minStrength` not checked |
-| `PERK_WEAPON_ENHANCED_KNOCKOUT` (10) | `pro.extra.perk == 10` | Knockout chance increased | STUB |
+The IDs are the CE `Perk` enum values (perk_defs.h). Weapon PROs store the same IDs as critter perks.
+
+| CE Constant (id) | Meaning | DH2 Status (audited 2026-10-17) |
+|------------------|---------|---------------------------------|
+| `PERK_WEAPON_LONG_RANGE` (58) | Perception bonus ×4 in the distance modifier | DONE — `hitChance.ts getHitDistanceModifier` |
+| `PERK_WEAPON_ACCURATE` (59) | +20 to hit | DONE — `getHitChance` |
+| `PERK_WEAPON_PENETRATE` (60) | DT ×20% (DR unchanged) | DONE 2026-10-17 — `Combat.getDamageDone` |
+| `PERK_WEAPON_KNOCKBACK` (61) | Knockback damage / 5 instead of / 10 | DONE 2026-10-17 — `lifecycle.ts critterDamage` (was checked as id 3) |
+| `PERK_WEAPON_SCOPE_RANGE` (64) | Perception bonus ×5, only from 8 hexes on | DONE — `getHitDistanceModifier` |
+| `PERK_WEAPON_FAST_RELOAD` (65) | Reload costs 1 AP | DONE — `Weapon.getReloadAPCost` |
+| `PERK_WEAPON_NIGHT_SIGHT` (66) | No darkness penalty | DONE — `getHitChance` |
+| `PERK_WEAPON_FLAMEBOY` (67) | Death-animation damage thresholds / 3 | DONE — `deathAnim.ts pickDeath` |
+| `PERK_WEAPON_ENHANCED_KNOCKOUT` (117) | Knockout on a hit with STR − 8 % chance, always on a critical | MISSING |
 
 CE ref: `perk_defs.h:65–124`, `item.cc:weaponGetActionPointCost` (Fast Reload, line ~1654),
 `combat.cc:attackComputeDamage` (Penetrate / Knockback / Accurate — lines ~4530–4558).
@@ -360,6 +361,8 @@ Penetrating moves reduce DT to 20% (`Weapon.isPenetrating()`, `critter.ts`).
 available moves plus `'called'`. `cycleMode()` walks the list; selecting a named move updates
 `minDmg`, `maxDmg`, and `APCost1` on the synthetic proto.
 
+**Not CE (audit 2026-10-17):** this table is invented. CE `combat.cc` `gUnarmedHitDescriptions` gives every move 1–2 damage plus a bonus damage, with other names, AP, requirements and bonus crit chances. See `wiki/combat.md` §10. Since 2026-10-17 the move's `critBonus` is rolled as CE's separate bonus-critical d100, no longer added to Better Criticals.
+
 **CE note:** In CE, special unarmed moves (Haymaker, Jab, etc.) are accessed via the HIT_MODE
 system (`HIT_MODE_PUNCH / KICK / STRONG_PUNCH` etc., ~18 values). DH2 maps these to the
 `UNARMED_MOVES` array. The critical bonus per move comes from `item.cc:unarmedGetBonusDamage`
@@ -392,11 +395,7 @@ elif dist ≥ 0:            dist *= 4
 if dist < 0: modifier = 0
 ```
 
-**Not implemented in DH2:**
-- Light-level penalty (noted in `getHitChance` comment: `combat.ts`)
-- `distModifier = 5` for `PERK_WEAPON_SCOPE_RANGE`
-- Melee region-penalty halving (CE `combat.cc:4440`: `toHit += penalty / 2` for melee;
-  DH2 applies full penalty — see `damage_formula.md` Divergences)
+All CE inputs are wired (light level, Scope Range ×5, melee region-penalty halving). The open points are listed in `wiki/combat.md` §10.
 
 ---
 
@@ -423,19 +422,15 @@ if dist < 0: modifier = 0
 
 ## 12. Known Gaps vs CE
 
-| # | Feature | CE Behavior | DH2 Status | Impact |
-|---|---------|-------------|------------|--------|
-| 1 | Single-shot ammo decrement | `weaponDecrAmmo` after each attack | MISSING — only burst deducts rounds | Guns never run dry from single-shot fire |
-| 2 | Caliber matching | Reload rejected if `weapon.caliber ≠ ammo.caliber` | STUB — any ammo loads any weapon | Wrong ammo can be loaded |
-| 3 | `minStrength` penalty | −20 hit chance if attacker ST < `minStrength` | MISSING — `pro.extra.minStr` never read | Heavy weapons equally accurate for weak characters |
-| 4 | `PERK_WEAPON_ACCURATE` | +20 hit chance for the weapon | STUB — `pro.extra.perk == 2` not read | Accurate weapons have no bonus |
-| 5 | `PERK_WEAPON_PENETRATE` | 80% DT/DR reduction on hit (weapon-level) | STUB — weapon perk not read; only unarmed `mode.penetrate` wired | Penetrating ranged weapons behave like normal |
-| 6 | `PERK_WEAPON_SCOPE_RANGE` | `distModifier = 5` | STUB — `distModifier=4` max, scope path is a comment | Scoped weapons have same range penalty as long-range |
-| 7 | `PERK_WEAPON_FAST_RELOAD` | Reload AP cost = 0 | STUB — no AP cost for reload at all in DH2 | Effectively all weapons have free reload |
-| 8 | Melee region-penalty halving | `regionPenalty / 2` for melee hit chance | MISSING — full penalty applied | Melee hit-chance is slightly harder than CE |
-| 9 | Light-level hit modifier | Night / darkness reduces hit chance | MISSING — noted in `getHitChance` comment | All attacks equally accurate at night |
-| 10 | `criticalFailureType` field | Per-weapon fail table selection | STUB — table selected by weapon category only | All knives use same fail table as all clubs |
-| 11 | `Weapon.canEquip(obj)` | CE checks ST ≥ `minStrength` and animation exists | DH2 checks only animation exists (`critter.ts`) | STR-heavy weapons can be equipped by anyone |
-| 12 | Damage type index swap | CE index 4 = EMP, 5 = Explosive | DH2 `damageType` map: 4 = 'Electrical', 5 = 'EMP' — string names swap EMP/Explosive indices | EMP vs Explosive damage type slightly wrong for edge cases |
-| 13 | Haymaker / special moves unarmed | CE `ANIM_HAYMAKER` etc. as distinct HIT_MODE values | DH2 implements move list but critical bonus (`critBonus`) not applied to `critChance` during roll | Unarmed crit bonuses from Haymaker, Palm Strike etc. are defined but not active in `rollHit` |
-| 14 | AI burst vs single choice | Prefers burst at close range, single at distance, based on AI `best_weapon` | Hardcoded `burstMinRange = 4` hex | AI burst preference is not weapon-specific |
+Re-audited 2026-10-17. Most of the old list here (single-shot ammo, caliber check, min-ST penalty, Accurate, Penetrate, Scope Range, Fast Reload, melee region halving, light level, critical-failure table) is now implemented. The current gap list for weapons, damage, criticals and death is in `wiki/combat.md` §10 "Still open". The weapon-specific gaps are:
+
+| Feature | CE Behavior | DH2 Status |
+|---------|-------------|------------|
+| Unarmed moves | `gUnarmedHitDescriptions` | Invented tables (§9) |
+| Thrown weapons | The item itself is thrown and lands at the target | Not consumed |
+| Unarmed-type weapons (brass knuckles, power fist) | Weapon hit mode: min ST, One Hander and Accurate apply | Treated as plain unarmed in the hit chance |
+| Enhanced Knockout weapon perk | Knockout chance | Missing |
+| Critical-failure effects DUD / EXPLODE | Weapon duds / explodes | Become "destroy weapon" |
+| `item_w_caliber` / `item_w_min_st` / `item_w_crit_fail` | Script opcodes | Not wired (§11) |
+
+<!-- audited: 2026-10-17 -->

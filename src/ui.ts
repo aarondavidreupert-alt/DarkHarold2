@@ -239,7 +239,7 @@ export function initUI() {
                 }
                 globalState.player.AP.subtractCombatAP(reloadAP)
                 const ap = globalState.player.AP
-                drawAP(ap.getAvailableCombatAP(), ap.getTotalMaxAP())
+                drawAP(ap.getAvailableCombatAP(), ap.getTotalMaxAP(), ap.move)
             }
             reloadWeapon(wep)
             wep.weapon.mode = 'single'

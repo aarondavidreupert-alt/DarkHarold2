@@ -224,7 +224,7 @@ export function playerUse(obj: Obj | null) {
                         maxWalkingDist
                     )
                 }
-                drawAP(globalState.player.AP.getAvailableMoveAP(), globalState.player.AP.getTotalMaxAP())
+                drawAP(globalState.player.AP.getAvailableCombatAP(), globalState.player.AP.getTotalMaxAP(), globalState.player.AP.move)
             }
         }
 
@@ -259,11 +259,11 @@ export function playerUse(obj: Obj | null) {
                 const unarmedSkill = p.getSkill('Unarmed')
                 attackAPCost = getActiveUnarmedModeForHand(unarmedSkill, (p as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(p as any).leftHand?.weapon && !(p as any).rightHand?.weapon).apCost
             } else if (weapon.weapon!.isCalled()) {
-                attackAPCost = weapon.weapon!.getAPCost(1) + 1
+                attackAPCost = weapon.weapon!.getAttackAPCost(globalState.player, 1, true)
             } else if (weapon.weapon!.isBurst()) {
-                attackAPCost = weapon.weapon!.getAPCost(2)
+                attackAPCost = weapon.weapon!.getAttackAPCost(globalState.player, 2)
             } else {
-                attackAPCost = weapon.weapon!.getAPCost(1)
+                attackAPCost = weapon.weapon!.getAttackAPCost(globalState.player, 1)
             }
 
             if (globalState.player.AP!.getAvailableCombatAP() < attackAPCost) {
@@ -274,7 +274,7 @@ export function playerUse(obj: Obj | null) {
             if (weapon === null) {
                 // Unarmed attack
                 globalState.player.AP!.subtractCombatAP(attackAPCost)
-                drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
+                drawAP(globalState.player.AP!.getAvailableCombatAP(), globalState.player.AP!.getTotalMaxAP(), globalState.player.AP!.move)
                 dbg('combat', '[Combat] player unarmed attack')
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')            } else {
             // Block attack (and AP deduction) if ranged weapon has no ammo
@@ -292,31 +292,31 @@ export function playerUse(obj: Obj | null) {
                 dbg('combat', '[Combat] called-shot art: %s', art)
 
                 uiCalledShot(art, who, (region: string) => {
-                    const calledAPCost = weapon.weapon!.getAPCost(1) + 1 // base weapon cost + 1 aiming surcharge
+                    const calledAPCost = weapon.weapon!.getAttackAPCost(globalState.player, 1, true)
                     if (globalState.player.AP!.getAvailableCombatAP() < calledAPCost) {
                         uiLog(getProtoMsg(700)!) // "You don't have enough action points."
                         uiCloseCalledShot()
                         return
                     }
                     globalState.player.AP!.subtractCombatAP(calledAPCost)
-                    drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
+                    drawAP(globalState.player.AP!.getAvailableCombatAP(), globalState.player.AP!.getTotalMaxAP(), globalState.player.AP!.move)
                     dbg('combat', '[Combat] player attacks %s', region)
                     globalState.combat!.attack(globalState.player, <Critter>obj, region)
                     uiCloseCalledShot()
                 })
             } else if (weapon.weapon!.isBurst()) {
-                const burstAPCost = weapon.weapon!.getAPCost(2)
+                const burstAPCost = weapon.weapon!.getAttackAPCost(globalState.player, 2)
                 if (globalState.player.AP!.getAvailableCombatAP() < burstAPCost) {
                     uiLog(getProtoMsg(700)!) // "You don't have enough action points."
                     return
                 }
                 globalState.player.AP!.subtractCombatAP(burstAPCost)
-                drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
+                drawAP(globalState.player.AP!.getAvailableCombatAP(), globalState.player.AP!.getTotalMaxAP(), globalState.player.AP!.move)
                 dbg('combat', '[Combat] burst fire at %s', who.name)
                 // Route through attack() which detects isBurst() and does the multi-roll loop
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')            } else {
                 globalState.player.AP!.subtractCombatAP(attackAPCost)
-                drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
+                drawAP(globalState.player.AP!.getAvailableCombatAP(), globalState.player.AP!.getTotalMaxAP(), globalState.player.AP!.move)
                 dbg('combat', '[Combat] player attacks torso')
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')            }
             }

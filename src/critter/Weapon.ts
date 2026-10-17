@@ -348,6 +348,26 @@ export class Weapon {
         return this.weapon.pro.extra['APCost' + slot]
     }
 
+    // CE item.cc weaponGetActionPointCost for an attack by `critter`: the slot's AP cost;
+    // the player's Fast Shot -1 for weapons with range > 2, Bonus HtH Attacks -1 for
+    // melee/unarmed, Bonus Rate of Fire -1 for ranged; +1 when aiming; never below 1.
+    getAttackAPCost(critter: Critter, slot?: number, aiming = false): number {
+        const s = slot ?? (this.mode === 'burst' ? 2 : 1)
+        let ap = this.getAPCost(s)
+        if (critter.isPlayer) {
+            const traits: string[] = (critter as any).traits ?? []
+            const isItem = (this.weapon as any).pid !== undefined
+            const modes = isItem ? ((this.weapon as any).pro?.extra?.attackMode ?? 0) : 0
+            const mode = s === 2 ? (modes >> 4) & 0xf : modes & 0xf
+            const attackType = !isItem ? 'unarmed' : (['none', 'unarmed', 'unarmed', 'melee', 'melee', 'throw', 'ranged', 'ranged', 'ranged'][mode] ?? 'none')
+            if (isItem && traits.includes('Fast Shot') && this.getMaximumRange(s) > 2) ap -= 1
+            if ((attackType === 'melee' || attackType === 'unarmed') && critter.hasPerk('Bonus HtH Attacks')) ap -= 1
+            if (attackType === 'ranged' && critter.hasPerk('Bonus Rate of Fire')) ap -= 1
+        }
+        if (aiming) ap += 1
+        return Math.max(1, ap)
+    }
+
     // CE ref: item.cc:1640 weaponGetActionPointCost HIT_MODE_*_WEAPON_RELOAD branch
     getReloadAPCost(): number {
         if (this.weapon && this.weapon.pro && this.weapon.pro.extra) {

@@ -17,9 +17,13 @@ limitations under the License.
 
 import { Critter } from '../object.js'
 
+// CE combat.cc AP bookkeeping: `combat` is critter.combat.ap, set to
+// STAT_MAXIMUM_ACTION_POINTS each round (_combat_set_move_all); `move` is the player's
+// _combat_free_move, 2 per Bonus Move rank at the start of the player's turn
+// (_combat_turn), spent before AP on movement only (animation.cc _object_move).
 export class ActionPoints {
     combat: number = 0 // Combat AP
-    move: number = 0 // Move AP
+    move: number = 0   // free move points (Bonus Move, player only)
     attachedCritter: Critter
 
     constructor(obj: Critter) {
@@ -28,40 +32,26 @@ export class ActionPoints {
     }
 
     resetAP() {
-        // Unified AP pool: base + all perk bonuses collected into combat; move is always 0
-        this.combat = this.getMaxAP() + this.getBonusCombatAP() + this.getBonusMoveAP()
-        this.move = 0
+        this.combat = this.getMaxAP()
+        this.move = this.attachedCritter.isPlayer
+            ? 2 * this.attachedCritter.perks.filter((p) => p === 'Bonus Move').length
+            : 0
     }
 
-    getBonusCombatAP(): number {
-        var bonus = 0
-        // Bonus HtH Attacks: +1 combat AP per rank (melee only, but applied globally for simplicity)
-        if (this.attachedCritter.hasPerk('Bonus HtH Attacks')) bonus += 1
-        // Bonus Rate of Fire: +1 combat AP per rank
-        if (this.attachedCritter.hasPerk('Bonus Rate of Fire')) bonus += 1
-        return bonus
-    }
-
-    getBonusMoveAP(): number {
-        var bonus = 0
-        // Bonus Move: +2 free move AP per rank added to the unified pool
-        if (this.attachedCritter.hasPerk('Bonus Move')) bonus += 2
-        return bonus
-    }
-
-    /** Base AP = 5 + floor(AGI / 2), without perk bonuses. */
+    /** STAT_MAXIMUM_ACTION_POINTS — 5 + AGI/2 (or the proto's value) plus Action Boy,
+     *  Bruiser and other stat modifiers. */
     getMaxAP(): number {
-        return 5 + Math.floor(this.attachedCritter.getStat('AGI') / 2)
+        return Math.max(0, this.attachedCritter.getStat('AP'))
     }
 
-    /** Full AP at turn start: base + all perk bonuses. Use this for the display max. */
+    /** Max AP for the HUD (the free move points show separately). */
     getTotalMaxAP(): number {
-        return this.getMaxAP() + this.getBonusCombatAP() + this.getBonusMoveAP()
+        return this.getMaxAP()
     }
 
-    /** Total AP remaining (unified pool — movement and attacks share the same bucket). */
+    /** Points available for movement: free move points first, then AP. */
     getAvailableMoveAP(): number {
-        return this.combat
+        return this.combat + this.move
     }
 
     getAvailableCombatAP() {
@@ -69,13 +59,15 @@ export class ActionPoints {
     }
 
     subtractMoveAP(value: number): boolean {
-        // Crippled legs increase the AP cost of movement (FO2 reference: 4× one leg, 8× both legs)
+        // CE critter.cc critterGetMovementPointCostAdjustedForCrippledLegs: x4 one leg, x8 both
         const critter = this.attachedCritter
         if (critter.crippledLeftLeg && critter.crippledRightLeg) value *= 8
         else if (critter.crippledLeftLeg || critter.crippledRightLeg) value *= 4
 
-        if (this.combat < value) return false
-        this.combat -= value
+        if (this.combat + this.move < value) return false
+        const fromFree = Math.min(this.move, value)
+        this.move -= fromFree
+        this.combat -= value - fromFree
         return true
     }
 

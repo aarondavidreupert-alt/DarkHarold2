@@ -73,7 +73,7 @@ DR = clamp(0, 100, DR)
 Positive RM = harder to hurt (e.g. hollow point vs. armored targets).  
 Negative RM = easier to hurt (e.g. AP rounds).
 
-### Bonus Ranged Damage perk (player + non-melee only)
+### Bonus Ranged Damage perk (player, ATTACK_TYPE_RANGED only — not thrown)
 ```
 bonus = 2 * rankCount("Bonus Ranged Damage")
 ```
@@ -81,8 +81,20 @@ Flat bonus added to `RD` before any multipliers.
 
 ### Combat Difficulty modifier
 ```
-CD = Config.combat.difficultyModifier   // Easy: 75 | Normal: 100 | Hard: 125
+CD = attacker on the player's team ? 100 : Config.combat.difficultyModifier   // Easy 75 | Normal 100 | Hard 125
 ```
+CE `attackComputeDamage` applies the difficulty only to attackers outside the player's team (fixed 2026-10-17).
+
+### Raw damage RD (CE item.cc `weaponGetDamage`)
+```
+RD = randomBetween(min, max)                          // ranged / thrown
+RD = randomBetween(min, max + Melee Damage)           // melee weapons and unarmed
+     player: min += 2 × Bonus HtH Damage rank         // sfall Bonus HtH Damage fix, CE default
+```
+Melee Damage was not added in DH2 before 2026-10-17.
+
+### PERK_WEAPON_PENETRATE (weapon perk 60)
+DT is cut to 20% (like a penetrating unarmed move); DR is unchanged.
 
 ---
 
@@ -256,15 +268,25 @@ if chance > 100 → effect 5
 Critical effects (kill type × region × level) are resolved from `lut/criticalTables.json`  
 via `CriticalEffects.getCritical(killType, region, level)`.
 
-**Special perk overrides:**
-- **Slayer** — every melee hit is automatically critical
-- **Sniper** — ranged hit: roll d10 ≤ LUK → upgrade to critical
-- **Jinxed / Pariah Dog** — 50% chance to upgrade any miss to a critical miss (either combatant)
+**The roll itself** (CE `attackCompute` → `randomRoll`, DH2 `Combat.rollHit`):
+```
+margin = toHit - d100                 // hit if margin >= 0
+hit  → critical if d100 <= margin/10 + critChance      (from game day 1 on)
+miss → critical miss if d100 <= -margin/10             (from game day 1 on)
+```
 
-**Melee crits use half DM** (minimum 2):
-```
-critDM = max(2, floor(critDM / 2))   // for melee (non-unarmed) weapons only
-```
+**Special perk overrides** (all CE `attackCompute`, player only unless noted):
+- **Slayer** — a melee or unarmed hit becomes critical.
+- **Unarmed move bonus crit** — on a melee or unarmed hit, a separate d100 ≤ the move's bonus critical chance makes it critical (sfall, CE default).
+- **Sniper** — on an ATTACK_TYPE_RANGED hit (not thrown), d10 ≤ LUK makes it critical.
+- **Jinxed** (the player's trait or perk) — any attacker's miss becomes a critical miss half the time. DH2 also counts Pariah Dog on either combatant.
+
+The critical damage multiplier is the table value as is. The old DH2 rule "melee crits use half DM (min 2)" is not in CE and was removed on 2026-10-17. Invulnerable critters (`CRITTER_INVULNERABLE`) take no critical and ×2.
+
+**Critical failure** (CE `attackComputeCriticalFailure`):
+- The table row is the weapon proto's `criticalFailureType` (DH2 `critFail`).
+- The effect index comes from `d100 - 5 × (LUK - 5)`: ≤20 → 0, ≤50 → 1, ≤75 → 2, ≤95 → 3, else 4.
+- The player gets no effect before game day 6.
 
 ---
 
@@ -285,14 +307,18 @@ Combatants sorted descending. Ties: player goes first, then original array order
 CE ref: `critter_max_ap`, `party.cc:partyMemberGetMaxMembersToFollow`
 
 ```
-baseAP = 5 + floor(AGI / 2)
-totalAP = baseAP + bonusCombatAP + bonusMoveAP
+AP per round = STAT_MAXIMUM_ACTION_POINTS   // 5 + AGI/2 (NPCs: proto value) + Action Boy + Bruiser − 2 …
+free move    = 2 × Bonus Move rank           // player only, spent before AP, movement only
 ```
 
-Bonus sources:
-- **Bonus HtH Attacks**: +1 AP per rank
-- **Bonus Rate of Fire**: +1 AP per rank
-- **Bonus Move**: +2 AP per rank (free movement)
+Attack cost (CE item.cc `weaponGetActionPointCost`, DH2 `Weapon.getAttackAPCost`):
+- **Fast Shot** (trait): −1 for weapons with range > 2.
+- **Bonus HtH Attacks**: −1 for melee and unarmed attacks.
+- **Bonus Rate of Fire**: −1 for ranged attacks.
+- **Aimed shot**: +1.
+- Minimum 1.
+
+Before 2026-10-17 DH2 gave +1 AP per turn for each of the two attack perks and +2 general AP for Bonus Move, which is not CE.
 
 ---
 
@@ -303,9 +329,12 @@ Bonus sources:
 | Damage types | 8 types (Normal, Laser, Fire, Plasma, Electrical, EMP, Explosive, Radiation) | All 8 wired |
 | ammoX/ammoY | weapon PRO field lookup | PRO loaded via `loadPRO()` |
 | Sequence ties | player wins; else random | player wins; else array order |
-| Light level | reduces hit chance at night | **NOT implemented** (noted in getHitChance comment) |
-| Distance modifier | `distModifier` 2/4/5 by weapon perk | only 2 (long_range/scope_range stubs) |
+| Light level | reduces hit chance at night (player only) | implemented (`darknessPenalty`, Night Sight) |
+| Distance modifier | `distModifier` 2/4/5 by weapon perk | implemented (`getHitDistanceModifier`) |
 | EMP damage | special DR/DT tables | lookup via stat system (EMP DT/DR stats) |
 | Critical tables | hardcoded in fallout2.exe | extracted to `lut/criticalTables.json` |
 | YAAM formula | DT subtracted before multiply; ammo RM adjusts DT; `/2` present (combat.cc:6767) | DT after multiply; ammo RM adjusts DR; no `/2` — matches Vanilla minus halving |
-| Melee hit penalty | `regionPenalty / 2` for melee (combat.cc:4440) | full penalty applied (not halved for melee) |
+| Melee hit penalty | `regionPenalty / 2` for melee (combat.cc:4440) | implemented |
+| Unarmed moves | `gUnarmedHitDescriptions` (bonus damage, bonus crit, AP, requirements) | **not CE** — invented tables, see `wiki/combat.md` §10 |
+
+<!-- audited: 2026-10-17 (see wiki/combat.md §10) -->

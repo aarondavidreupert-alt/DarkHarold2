@@ -96,40 +96,37 @@ and the movement AP tracked via `_gcsd->freeMovement`. Both are integers.
 
 Base AP formula: `critterGetStat(STAT_MAXIMUM_ACTION_POINTS)` = `5 + floor(AGI/2)`.
 
-### DH2 `ActionPoints` class (`combat.ts`)
-
-DH2 uses a **unified pool** — movement and attacks draw from the same bucket:
+### DH2 `ActionPoints` class (`src/combat/actionPoints.ts`) — CE model since 2026-10-17
 
 ```typescript
 class ActionPoints {
-    combat: number  // the single pool (both move and attack AP)
-    move: number    // always 0 (unused slot kept for historic reasons)
+    combat: number  // critter.combat.ap = getStat('AP') (STAT_MAXIMUM_ACTION_POINTS) each round
+    move: number    // player's _combat_free_move = 2 × Bonus Move rank (combat.cc _combat_turn)
 }
 ```
 
-**Pool initialization on each turn start** (`resetAP()`):
-```
-combat = getMaxAP() + getBonusCombatAP() + getBonusMoveAP()
-
-getMaxAP()         = 5 + floor(AGI / 2)
-getBonusCombatAP() = +1 (Bonus HtH Attacks) + 1 (Bonus Rate of Fire)
-getBonusMoveAP()   = +2 (Bonus Move perk)
-```
+- `getStat('AP')` is 5 + AGI/2 for the player, or the proto's value for NPCs. It already includes Action Boy (+1 per rank), Bruiser (−2) and drug modifiers.
+- Movement uses the free move points first, then AP (animation.cc `_object_move`). Crippled legs cost ×4 for one leg and ×8 for both (`critterGetMovementPointCostAdjustedForCrippledLegs`).
+- The attack cost for the player is `Weapon.getAttackAPCost(critter, slot, aiming)`, a port of CE item.cc `weaponGetActionPointCost`:
+  - Fast Shot: −1 for a weapon with range > 2.
+  - Bonus HtH Attacks: −1 for melee and unarmed attacks.
+  - Bonus Rate of Fire: −1 for ranged attacks.
+  - Aimed shot: +1.
+  - The cost is never below 1.
+- The HUD shows the free move points as extra lights (`drawAP(ap, max, move)`).
 
 **AP costs per action:**
 
 | Action | Cost | Source |
 |--------|------|--------|
-| Move 1 hex | 1 AP | `subtractMoveAP(path.length - 1)` |
-| Move with one crippled leg | 4× hex count | `subtractMoveAP` multiplier |
-| Move with both legs crippled | 8× hex count | `subtractMoveAP` multiplier |
-| Single-shot attack | `pro.extra.APCost1` | `weapon.getAPCost(1)` → reads from PRO |
-| Burst attack | `pro.extra.APCost2` | `weapon.getAPCost(2)` |
-| Called shot | `pro.extra.APCost1 + 1` | `main.ts:261` (base + 1 surcharge) |
-| Unarmed (AI) | 3 | Hardcoded in `doAITurn` (combat.ts) |
-| Unarmed (player) | `mode.apCost` | From `getActiveUnarmedModeForHand()` |
+| Move 1 hex | 1 (free move first) | `subtractMoveAP` |
+| Move with one / both crippled legs | ×4 / ×8 | `subtractMoveAP` |
+| Single shot / burst | `APCost1` / `APCost2` with the player modifiers above | `getAttackAPCost` |
+| Called shot | `APCost1` + 1 | `getAttackAPCost(…, aiming = true)` |
+| Unarmed (AI) | 3 | `doAITurn` |
+| Unarmed (player, no fist object) | `mode.apCost` | `getActiveUnarmedModeForHand()`; this table is not CE, see §10 |
 
-**Unused AP → Bonus AC**: at the end of each critter's turn, all remaining AP converts 1:1 to `bonusAC` for the next round (`combat.ts`). This is reset to 0 at the start of that critter's own turn. Matches CE: `critter->data.critter.combat.results & DAM_HIT` reduces bonus AC.
+**Unused AP → Bonus AC**: at the end of each critter's turn, the remaining AP converts 1:1 to `bonusAC` for the next round (`Combat.ts`). Free move points do not count. This is reset to 0 at the start of that critter's own turn. Matches CE: `critter->data.critter.combat.results & DAM_HIT` reduces bonus AC.
 
 ---
 
@@ -225,11 +222,18 @@ The defender is moved that many hexes. Each hex of movement checks for blocking 
 
 `CRITTER_NO_KNOCKBACK = 0x4000` is a proto-level flag set per critter type in the PRO file.
 
-### DH2
+### DH2 (`src/critter/lifecycle.ts` `critterDamage`)
 
-**Knockback is not implemented.** Neither `critter.ts` nor `combat.ts` contain any knockback
-distance computation or hex-movement-due-to-damage. `CriticalEffects` can set
-`isKnockedDown` and `skipTurns`, but there is no physics-style displacement.
+The conditions and the formula follow CE (fixed 2026-10-17):
+- The source is `'Explosive'` damage, a fist or an attack-mode swing/thrust weapon.
+- No multihex or `CRITTER_NO_KNOCKBACK` target.
+- `PERK_WEAPON_KNOCKBACK` (id 61) uses /5.
+- Stonewall applies.
+- The cap is 20 (`MAX_KNOCKDOWN_DISTANCE`).
+
+Earlier versions compared against the wrong name `'Explosion'`, used perk id 3 and capped the distance at 6.
+
+**Still not CE:** the critter is moved hex by hex instead of sliding with the fall animation and standing up again (CE `actionKnockdown` + `ANIM_BACK_TO_STANDING`). Spray and blast victims are knocked back too, while CE only knocks back the main defender.
 
 ---
 
@@ -247,26 +251,19 @@ distance computation or hex-movement-due-to-damage. `CriticalEffects` can set
 7. Calls `itemDestroyAllHidden(critter)` — destroys hidden inventory items but leaves visible ones on the corpse (player can loot)
 8. Player death: `endgameSetupDeathEnding` + `_game_user_wants_to_quit = 2`
 
-### DH2 `critterKill` (critter.ts)
+### DH2 `critterKill` (`src/critter/lifecycle.ts`)
 
-1. Re-entry guard: `if (obj.dead) return` — prevents double-kill during overkill
-2. `obj.dead = true`, `obj.outline = null`
-3. Karma +1 for player-sourced kills (placeholder; CE awards via proto `karma_vars`)
-4. Calls `Scripting.destroy(obj, source)` — triggers the object's `destroy_p_proc` if it has a script
-5. **Death animation resolution** (priority order):
-   - Explicit `animName` parameter
-   - `obj.deathAnim` (set by critical-hit 'death' effect, then cleared)
-   - `deathAnimForDamageType(damageType)` — maps damage type to animation name
-   - `'death'` as fallback
-6. After animation: `obj.frame--` (freeze on last frame), `obj.anim = 'dead'` (sentinel)
-7. Blood pool: spawns `art/misc/rdatblud` floor decal for non-Explosion/Electrical/EMP deaths
-8. Player death: creates `#playerDeadOverlay` DOM element with "YOU ARE DEAD"
-9. Corpse cleanup: if `Config.engine.corpseTimeout > 0` and inventory empty, `destroyObject` after timeout
-10. XP: `killXP = obj.pro?.extra?.killExp ?? 50`, awarded only to player-sourced kills
+1. Re-entry guard (`if (obj.dead) return`), then `dead = true` and HP 0.
+2. `killsIncByType` only for kills by the player or the player's team (combat.cc `_damage_object`). There is no karma for kills, as in CE (the scripts handle karma; the old "+1 karma per kill" placeholder was removed 2026-10-17).
+3. `destroy_p_proc` via `Scripting.destroy`.
+4. Death animation: `_pick_death` → `_check_death` → `_pick_fall` → `_action_blood` (`src/critter/deathAnim.ts`, C20), with the DIE sound. Without animation it uses the single-frame `deathFrame`. Fire dance → burned to nothing.
+5. Freeze on the last frame (`anim = 'dead'`). Player death → death ending.
+6. The inventory stays on the corpse. The old invented `CRITTER_NO_DROP` inventory wipe was removed: CE uses that flag only to keep the weapon from being dropped by a critical and to keep items from dropping when a critter is burned or exploded to nothing.
 
-**XP divergence**: CE awards XP from `proto->critter.data.experience` for the actual
-critter killed. DH2 reads `pro.extra.killExp` with a default of 50. Critters with no
-PRO data always give 50 XP.
+**XP** (`Combat.perish` / `giveExps`, fixed 2026-10-17):
+- A kill by the player or the player's team adds the proto's `XPValue` to `combatExps`, unless the victim's script overrode it.
+- At combat end the XP goes to the player with CE's message 621 and a prefix from 622–626 (`_combat_give_exps`).
+- Before, it read the non-existent field `killExp` and so gave 50 XP for every kill, immediately.
 
 ### Knockdown / knockout (DH2)
 
@@ -292,7 +289,7 @@ for their current turn and skips their next turn(s) until the flag clears.
 | Corpse inventory | hidden items destroyed, visible items stay | entire inventory stays |
 | Knockout state | `DAM_KNOCKED_OUT` flag | `skipTurns > 0` + `isKnockedDown` |
 | Critter prone state | `_critter_is_prone` checks fall animations | not queryable from scripts (`critter_state` returns 0 for prone) |
-| XP source | proto `experience` field | `pro.extra.killExp ?? 50` |
+| XP source | proto `experience` field, summed and given at combat end | same (`XPValue`, `giveExps`) — fixed 2026-10-17 |
 | Player death | `endgameSetupDeathEnding + quit` | DOM overlay; game does not hard-stop |
 | Script on kill | `destroy_p_proc` + `critter_p_proc` sequenced | only `Scripting.destroy()` |
 
@@ -421,14 +418,14 @@ DH2 only returns bit 0 (`obj.dead`). Bit 1 is documented as TODO in the source
 
 | Feature | CE | DH2 | Impact |
 |---------|-----|-----|--------|
-| Knockback | `damage / divisor` hexes from attacker | Not implemented | Explosions and melee crits never displace targets |
+| Knockback animation | knockdown slide + stand-up (`actionKnockdown`) | position moved hex by hex, no fall anim | Visual only; distance and conditions are CE |
 | `critter_set_flee_state` effect | Sets `CRITTER_MANUEVER_FLEEING`; AI immediately retreats | Sets `.fleeing` flag only; AI ignores it | Script-triggered fleeing non-functional |
 | `CRITTER_NO_FLEE` proto flag | Prevents AI from fleeing | Not checked | All critters can flee in DH2 |
 | `critter_stop_attacking` (0x8155) | Clears critter hostility | MISSING | De-aggro scripts fail silently |
 | `critter_state` prone bit | Bit 1 for knocked-down critters | Always 0 | Scripts checking `critter_state & 2` always get false |
 | `attack_complex` parameters | `numAttacks`, `bonus`, `minDmg`, `maxDmg`, `attackerResults`, `targetResults` | All ignored | Multi-attack / scripted-damage combat triggers simplified to normal combat start |
 | `kill_critter` `deathFrame` | Selects specific death animation by frame index | Ignored; uses damage-type fallback | Scripted death animations don't work |
-| CE critter AP bonus | `_gcsd->actionPointsBonus` from proto `ap_bonus` field | Not tracked | AP overrides from critter proto not respected |
+| `attack_complex` combat data | `_gcsd->actionPointsBonus` / `accuracyBonus` | Not tracked | Scripted fights don't get their AP and accuracy bonus |
 | `_combat_add_noncoms` | Adds nearby non-combatants to the fight mid-round | Not implemented | Large fights don't automatically pull in bystanders |
 | Surrender | CE has no surrender flag but `CRITTER_MANUEVER_FLEEING` covers it | Critters that flee just walk to map edge | Same effective behavior |
 | Fire DoT | CE applies at a specific phase; requires specific weapon flag | DH2 applies `onFireTurns--` at turn start | Timing differs slightly |
@@ -438,6 +435,68 @@ DH2 only returns bit 0 (`obj.dead`). Bit 1 is documented as TODO in the source
 | Called shot (AI) | AI can call shots based on ai.txt `hit_location` prefs | Not implemented | AI always targets torso |
 
 ---
+
+## 10. Audit 2026-10-17 — combat, damage, criticals, death vs fallout2-ce
+
+This was a full review of the attack chain against CE combat.cc (`attackDetermineToHit`, `attackCompute`, `attackComputeCriticalHit`, `attackComputeCriticalFailure`, `attackComputeDamage`, `_damage_object`, `_combat_give_exps`), item.cc (`weaponGetDamage`, `weaponGetActionPointCost`), actions.cc (`_pick_death`, `_show_damage_to_object`, `actionKnockdown`, `_is_hit_from_front`) and critter.cc `critterKill`.
+
+### Fixed in this audit
+
+| # | Area | CE | DH2 before |
+|---|------|----|-----------|
+| 1 | Single-shot / melee / unarmed roll | `randomRoll(toHit, critChance)`: hit if d100 ≤ toHit; crit if d100 ≤ margin/10 + crit; crit miss if d100 ≤ −margin/10; criticals only from day 1 | Old DarkFO `rollHit`: d1–101 and "roll < toHit" (about 1% too low), fractional margin, no day rule. Bursts already used `randomRoll`. |
+| 2 | Slayer / Sniper / unarmed bonus crit | Player only. Slayer: melee + unarmed. Sniper: ATTACK_TYPE_RANGED. A move's bonus crit chance is its own d100 roll on a hit. | Slayer not for fists; Sniper also for thrown weapons and NPCs; the move's crit bonus was added to Better Criticals |
+| 3 | Critical damage multiplier | Table value as is | Halved for melee weapons (min 2), which is not in CE |
+| 4 | Invulnerable critters | No critical, ×2 | Critical tables applied |
+| 5 | Critical failure | Table row = proto `criticalFailureType`; effect from d100 − 5×(LUK−5); none for the player before day 6 | Row guessed from the damage type; Luck sign inverted (high Luck made it worse); no day rule |
+| 6 | Melee damage | `random(min, max + Melee Damage)` for melee and unarmed; player min + 2 × Bonus HtH Damage (sfall fix, CE default) | Melee Damage never added |
+| 7 | Difficulty damage modifier | Only for attackers outside the player's team | Applied to everyone, so the player did 75% damage on Easy |
+| 8 | PERK_WEAPON_PENETRATE (60) | DT ×20% | Weapon perk not read (only unarmed moves) |
+| 9 | Bonus Ranged Damage | ATTACK_TYPE_RANGED only | Every non-melee weapon (also thrown) |
+| 10 | Knockback | See §4 | Never for explosions (`'Explosion'` typo), perk id 3 instead of 61, cap 6 |
+| 11 | Kill XP and kill counts | Proto XP for player/team kills, given at combat end; kill counter only for those | 50 XP for every player kill, immediately; every kill counted; +1 karma per kill (invented) |
+| 12 | `CRITTER_NO_DROP` | Weapon can't be dropped; items stay with burned/exploded corpses | Corpse inventory wiped |
+| 13 | Max AP | STAT_MAXIMUM_ACTION_POINTS (Action Boy, Bruiser, proto AP) | 5 + AGI/2 recomputed; Action Boy and Bruiser ignored in combat |
+| 14 | Bonus HtH Attacks / Rate of Fire / Move | −1 AP per melee/ranged attack; Bonus Move = 2 free move points per rank | +1 AP per turn each; Bonus Move +2 general AP |
+| 15 | Fast Shot | −1 AP for weapons with range > 2 | Not implemented |
+| 16 | `_is_hit_from_front` | Compares attacker and defender facing | Used the direction to the attacker |
+
+### Verified as CE (no change)
+
+- **Hit chance (`hitChance.ts`):**
+  - Distance with the perception bonus (Long Range ×4, Scope ×5 from 8 hexes), the Sharpshooter fix and the blind ×−12.
+  - −10 per critter in the line of fire.
+  - One Hander, min-ST penalty, Weapon Handling, Accurate +20.
+  - Ammo AC modifier, AC floor 0.
+  - Hit-location penalty (half for melee/unarmed), multihex +15, darkness tiers (Night Sight).
+  - Blind −25, prone target +40, difficulty ±20 for non-team attackers, cap 95.
+- **Critical chance and level:** STAT_CRITICAL_CHANCE − hit-location penalty. Level bands 20/45/70/90/100 + Better Criticals. Massive-critical stat roll (d10 ≤ stat + mod).
+- **Vanilla damage formula order:** bonus → ×(crit × ammo X) → /ammo Y → /2 → ×difficulty/100 → −DT → −DR%. Bypass (DT/DR 20%, not EMP), Finesse +30 DR, ammo DR modifier clamped 0–100, Living Anatomy +5, Pyromaniac +5.
+- **Death:** `_pick_death` / `_check_death` / `_pick_fall` / `_action_blood`, the DIE sounds and fire dance (C20).
+- **Bursts:** `_compute_spray` and `_shoot_along_path`; ranged miss → `_check_ranged_miss` / `_tile_num_beyond` (C17).
+- **Movement AP:** crippled legs ×4 / ×8.
+- **Checked in the browser:** 2000 rolls at 44% gave 45.4% hits (no criticals on day 0, as in CE). A spore plant kill gave its proto XP of 85 at combat end, with CE message 621.
+
+### Still open (not CE)
+
+| Area | CE | DH2 |
+|------|----|-----|
+| Unarmed moves | `gUnarmedHitDescriptions`: all 1–2 damage + bonus damage (Strong Punch +3 … Force Punch +10, Death Blossom +12), CE skill/level/stat requirements, AP 3–8, bonus crit 5–40, penetrating Dragon/Force Punch and Jump Kick | Two invented tables (`src/unarmed.ts` UNARMED_MODES, `src/critter/Weapon.ts` UNARMED_MOVES) with other names, damage, AP and requirements |
+| Critical failure effects | `DAM_DUD`, `DAM_EXPLODE`, `DAM_HURT_SELF` (×2 own damage), `DAM_RANDOM_HIT` via `_combat_ai_random_target` | DUD/EXPLODE become "destroy weapon"; own damage and random target are approximations (`criticalEffects/effects.ts`) |
+| Knockout duration | Knockout event 10 × (35 − 3 × END) ticks | `skipTurns = 1` |
+| Knockback / knockdown animation | Slide with fall anim, then stand up | Position moved hex by hex |
+| Non-lethal fire | `ANIM_FIRE_DANCE` on `DAM_ON_FIRE` | Not shown |
+| Thrown weapons | The weapon itself flies and lands at the target | Not consumed |
+| Burned/exploded corpse | `itemDropAll` unless NO_DROP | Items stay in the corpse |
+| Perks | Silent Death (×2 from behind while sneaking), Enhanced Knockout (weapon perk) | Missing |
+| `attack_complex` | `_gcsd` accuracy, AP, damage and result bonuses | Ignored |
+| Unarmed-type weapons | Brass knuckles etc. use the weapon hit mode (min ST, One Hander, Accurate apply) | Treated as plain unarmed in the hit chance |
+| Distance | `objectGetDistanceBetweenTiles` (multihex-aware) | `hexDistance` |
+| Dodge on ranged miss | Only without a visible projectile | Always |
+| Fast Shot | Also forbids aimed shots (`critterCanAim`) | Aimed shots still allowed |
+| AI "no range" to-hit | `_determine_to_hit_no_range` for flee decisions | Missing |
+
+<!-- audited: 2026-10-17 -->
 
 ## 9. How to Use — Guidance for Future Prompts
 

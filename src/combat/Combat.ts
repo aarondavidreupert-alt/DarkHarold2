@@ -29,7 +29,7 @@ import { createObjectWithPID, Critter, Obj } from '../object.js'
 import { Player } from '../player.js'
 import { Scripting } from '../scripting.js'
 import { drawAC, drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiEndButtonsGreenLights, uiEndButtonsRedLights, uiLog, uiStartCombat } from '../ui.js'
-import { clamp, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollSkillCheck } from '../util.js'
+import { clamp, getMessage, getProtoMsg, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollSkillCheck } from '../util.js'
 import { randomBetween } from '../random.js'
 import { toTileNum } from '../tile.js'
 import { getActiveUnarmedMode, getActiveUnarmedModeForHand } from '../unarmed.js'
@@ -83,16 +83,37 @@ function actorName(c: Critter): string {
  *   big-gun animCode 10 (Rocket Launcher) → 'rocketlauncher'
  *   everything else → 'firearms'
  */
+// CE item.cc weaponGetCriticalFailureType — the proto's criticalFailureType (DH2
+// `critFail`) selects the _cf_table row; no weapon (or -1) is row 0.
+const CRIT_FAIL_TABLES = ['unarmed', 'melee', 'firearms', 'energy', 'grenades', 'rocketlauncher', 'flamers']
 function getCritFailTableType(weapon: any): string {
-    if (!weapon || weapon.weaponSkillType === 'Unarmed') return 'unarmed'
-    if (weapon.type === 'melee') return 'melee'
-    const dmgType: string = weapon.getDamageType?.() ?? 'Normal'
-    if (dmgType === 'Explosive') return 'grenades'
-    if (dmgType === 'Fire') return 'flamers'
-    if (['Laser', 'Plasma', 'Electrical', 'EMP'].includes(dmgType)) return 'energy'
-    const animCode: number | undefined = weapon.weapon?.pro?.extra?.animCode
-    if (animCode === 10) return 'rocketlauncher'
-    return 'firearms'
+    const type = weapon?.weapon?.pro?.extra?.critFail ?? -1
+    return CRIT_FAIL_TABLES[type] ?? 'unarmed'
+}
+
+const PERK_WEAPON_PENETRATE = 60 // perk_defs.h
+
+// CE combat.cc attackComputeDamage — the combat-difficulty damage modifier applies
+// only to attackers outside the player's team.
+function combatDifficultyDamageModifier(attacker: Critter): number {
+    const player = globalState.player
+    if (player && attacker.teamNum === player.teamNum) return 100
+    return Config.combat.difficultyModifier
+}
+
+// CE item.cc weaponGetDamage — randomBetween(min, max + Melee Damage) for melee and
+// unarmed attacks; sfall's Bonus HtH Damage fix (CE default on) also raises the
+// player's minimum by 2 per rank.
+function rollWeaponDamage(attacker: Critter, min: number, max: number, melee: boolean): number {
+    if (!melee) return getRandomInt(min, max)
+    if (attacker.isPlayer) min += 2 * attacker.perks.filter((p) => p === 'Bonus HtH Damage').length
+    return getRandomInt(min, max + attacker.getStat('Melee'))
+}
+
+// CE weaponGetAttackTypeForHitMode: a fist (no item) or no weapon is unarmed.
+function attackTypeOf(weaponObj: Obj | null): 'unarmed' | 'melee' | 'throw' | 'ranged' | 'none' {
+    if (!weaponObj || weaponObj.pid === undefined) return 'unarmed'
+    return weaponAttackType(weaponObj)
 }
 
 // Returns true when the weapon can be fired (melee/unarmed always ok; ranged ok if rounds > 0)
@@ -125,6 +146,7 @@ export class Combat {
     inPlayerTurn: boolean
     hasAttacked = false // set true when the first attack fires this combat session
     playerHadTurn = false // set true the first time the player's turn starts
+    combatExps = 0 // CE _combat_exps: kill XP collected this combat, given at its end
 
     constructor(objects: Obj[], triggerTeams: Set<number> = new Set()) {
         // Gather a list of combatants (critters meeting a certain criteria)
@@ -195,83 +217,54 @@ export class Combat {
         return _getHitChance(obj, target, region)
     }
 
+    // CE combat.cc attackCompute — one randomRoll(accuracy, critical chance) decides
+    // hit / miss / critical, then the perk and trait upgrades CE applies to it.
+    // `critBonus`: the unarmed move's bonus critical chance (CE
+    // unarmedGetBonusCriticalChance), rolled separately on a plain hit.
     rollHit(obj: Critter, target: Critter, region: string, hitBonus: number = 0,
-            attackerName?: string, defenderName?: string, critBonus: number = 0): any {
-        // FO2-CE ref: combat.cc:4104 — critterGetStat(STAT_BETTER_CRITICALS); the Better
-        // Criticals perk's +20 is applied to that stat by perkAddEffect (perks/cePerks.ts).
-        // CE ref: unarmed.cc unarmedFindBestAttack — critBonus from unarmed move adds to crit level roll
-        var critModifer = obj.getStat('Better Criticals') + critBonus
-        var hitChance = this.getHitChance(obj, target, region)
-        hitChance = { ...hitChance, hit: hitChance.hit + hitBonus }
+            attackerName?: string, defenderName?: string, critBonus?: number): any {
+        const hitChance = this.getHitChance(obj, target, region)
+        const accuracy = hitChance.hit + hitBonus
 
         const aName = attackerName ?? actorName(obj)
         const dName = defenderName ?? actorName(target)
-        if (attackerName) combatDebug(`${attackerName} → ${defenderName}: hitChance=${hitChance.hit}% critChance=${hitChance.crit}%`)
-        dbg('rolls', `${aName} attacks ${dName} — hit chance: ${hitChance.hit}%`)
+        if (attackerName) combatDebug(`${attackerName} → ${defenderName}: hitChance=${accuracy}% critChance=${hitChance.crit}%`)
+        dbg('rolls', `${aName} attacks ${dName} — hit chance: ${accuracy}%`)
 
-        // hey kids! Did you know FO only rolls the dice once here and uses the results two times?
-        var roll = getRandomInt(1, 101)
+        let { roll, delta } = randomRoll(accuracy, hitChance.crit)
+        const attackType = attackTypeOf(obj.equippedWeapon)
 
-        if (hitChance.hit - roll > 0) {
-            var isCrit = false
-            if (rollSkillCheck(Math.floor(hitChance.hit - roll) / 10, hitChance.crit, false) === true) isCrit = true
-
-            // Slayer perk: every melee hit is automatically a critical
-            // Sniper perk: on ranged hit roll d10; if ≤ LUK → upgrade to critical
-            // CE ref: combat.cc:3891 — randomBetween(1,10) vs STAT_LUCK
-            if (!isCrit) {
-                var wep = obj.equippedWeapon?.weapon
-                if (wep && wep.type === 'melee' && obj.hasPerk('Slayer')) {
-                    isCrit = true
-                } else if (wep && wep.type === 'gun' && obj.hasPerk('Sniper')) {
-                    if (getRandomInt(1, 10) <= obj.getStat('LUK')) {
-                        isCrit = true
-                    }
-                }
-            }
-            if (isCrit === true) {
-                const c = this.computeCriticalHit(obj, target, region, critModifer, attackerName, defenderName)
-                eventLogPush({
-                    actor: aName, action: 'attack-roll', target: dName, result: 'crit',
-                    region, roll, hitChance: hitChance.hit, critChance: hitChance.crit,
-                    critLevel: c.level, message: `${aName} → ${dName}: critical hit (${region})`,
-                })
-                return { hit: true, crit: true, DM: c.DM, msgID: c.msgID } // crit
-            }
-
-            combatDebug(`hit: roll=${roll} vs ${hitChance.hit}%`)
-            dbg('rolls', `${aName} hits ${dName}! (roll: ${roll} vs target: ${hitChance.hit})`)
-            eventLogPush({
-                actor: aName, action: 'attack-roll', target: dName, result: 'hit',
-                region, roll, hitChance: hitChance.hit, critChance: hitChance.crit,
-                message: `${aName} → ${dName}: hit (${region})`,
-            })
-            return { hit: true, crit: false } // hit
+        if (roll === RollResult.Failure && this.isJinxed(obj, target) && randomBetween(0, 1) === 1) {
+            roll = RollResult.CriticalFailure
+        }
+        if (roll === RollResult.Success && obj.isPlayer && (attackType === 'melee' || attackType === 'unarmed')) {
+            if (obj.hasPerk('Slayer')) roll = RollResult.CriticalSuccess
+            const bonus = critBonus ?? (obj.equippedWeapon?.weapon as any)?.unarmedMove?.critBonus ?? 0
+            if (bonus !== 0 && randomBetween(1, 100) <= bonus) roll = RollResult.CriticalSuccess
+        }
+        if (roll === RollResult.Success && obj.isPlayer && attackType === 'ranged' && obj.hasPerk('Sniper')
+            && randomBetween(1, 10) <= obj.getStat('LUK')) {
+            roll = RollResult.CriticalSuccess
         }
 
-        // in reverse because miss -> roll > hitchance.hit
-        var isCrit = false
-        if (rollSkillCheck(Math.floor(roll - hitChance.hit) / 10, 0, false)) isCrit = true
-
-        // Jinxed trait / Pariah Dog perk: 50% chance to upgrade any miss to a critical miss (non-stacking)
-        if (!isCrit && (obj.hasPerk('Jinxed') || target.hasPerk('Jinxed') ||
-                         obj.hasPerk('Pariah Dog') || target.hasPerk('Pariah Dog'))) {
-            if (getRandomInt(1, 100) <= 50) isCrit = true
+        const logged = { actor: aName, action: 'attack-roll', target: dName, region, roll: delta, hitChance: accuracy, critChance: hitChance.crit }
+        if (roll === RollResult.CriticalSuccess) {
+            const c = this.computeCriticalHit(obj, target, region, obj.getStat('Better Criticals'), attackerName, defenderName)
+            eventLogPush({ ...logged, result: 'crit', critLevel: c.level, message: `${aName} → ${dName}: critical hit (${region})` })
+            return { hit: true, crit: c.level >= 0, DM: c.DM, msgID: c.msgID }
         }
-
-        combatDebug(`miss: roll=${roll} vs ${hitChance.hit}%${isCrit ? ' (crit fail)' : ''}`)
-        if (isCrit) {
-            dbg('rolls', `${aName} CRITICALLY FAILS! (roll: ${roll})`)
-        } else {
-            dbg('rolls', `${aName} misses ${dName}. (roll: ${roll} vs target: ${hitChance.hit})`)
+        if (roll === RollResult.Success) {
+            combatDebug(`hit: delta=${delta} vs ${accuracy}%`)
+            dbg('rolls', `${aName} hits ${dName}! (margin ${delta}, target ${accuracy})`)
+            eventLogPush({ ...logged, result: 'hit', message: `${aName} → ${dName}: hit (${region})` })
+            return { hit: true, crit: false }
         }
-        eventLogPush({
-            actor: aName, action: 'attack-roll', target: dName,
-            result: isCrit ? 'crit-miss' : 'miss',
-            region, roll, hitChance: hitChance.hit, critChance: hitChance.crit,
-            message: `${aName} → ${dName}: ${isCrit ? 'critical miss' : 'miss'} (${region})`,
-        })
-        return { hit: false, crit: isCrit } // miss
+        const isCrit = roll === RollResult.CriticalFailure
+        combatDebug(`miss: delta=${delta} vs ${accuracy}%${isCrit ? ' (crit fail)' : ''}`)
+        dbg('rolls', isCrit ? `${aName} CRITICALLY FAILS!` : `${aName} misses ${dName}. (margin ${delta}, target ${accuracy})`)
+        eventLogPush({ ...logged, result: isCrit ? 'crit-miss' : 'miss',
+            message: `${aName} → ${dName}: ${isCrit ? 'critical miss' : 'miss'} (${region})` })
+        return { hit: false, crit: isCrit }
     }
 
     // CE ref: combat.cc:4102 attackComputeCriticalHit — non-uniform effect bands on
@@ -279,6 +272,8 @@ export class Combat {
     // multiplier returned (melee weapons halve it, min 2).
     computeCriticalHit(obj: Critter, target: Critter, region: string, critModifier: number,
                        attackerName?: string, defenderName?: string): { DM: number; msgID: any; level: number } {
+        // CRITTER_INVULNERABLE (0x400): no critical, normal x2
+        if (((target.pro as any)?.extra?.flags ?? 0) & 0x400) return { DM: 2, msgID: null, level: -1 }
         const critRoll = getRandomInt(1, 100) + critModifier
         const critLevel = critRoll <= 20 ? 0
                         : critRoll <= 45 ? 1
@@ -291,32 +286,24 @@ export class Combat {
         if (attackerName) uiLog(`${attackerName} scores a CRITICAL HIT on ${defenderName}! (level ${critLevel})`)
         const crit = CriticalEffects.getCritical(target.killType ?? 0, region, critLevel)
         const critStatus = crit.doEffectsOn(target)
-        let critDM = critStatus.DM
-        const atkWep = obj.equippedWeapon?.weapon
-        if (atkWep && atkWep.type === 'melee' && atkWep.weaponSkillType !== 'Unarmed') {
-            critDM = Math.max(2, Math.floor(critDM / 2))
-        }
-        return { DM: critDM, msgID: critStatus.msgID, level: critLevel }
+        return { DM: critStatus.DM, msgID: critStatus.msgID, level: critLevel }
     }
 
-    // CE ref: combat.cc attackComputeCriticalFailure — d100 adjusted by Luck picks the
-    // level in the weapon's critical-failure table.
+    // CE combat.cc attackComputeCriticalFailure — the weapon proto's critical-failure
+    // type picks the table row, d100 - 5 x (Luck - 5) the effect. The player gets no
+    // effect before game day 6 (CE's critical time limit).
     private doCriticalFailure(obj: Critter, weapon: any, who: string): void {
-        const critFailMod = (obj.getStat('LUK') - 5) * -5
-        const critFailRoll = Math.floor(getRandomInt(1, 100) - critFailMod)
-        let critFailLevel = 1
-        if (critFailRoll <= 20) critFailLevel = 1
-        else if (critFailRoll <= 50) critFailLevel = 2
-        else if (critFailRoll <= 75) critFailLevel = 3
-        else if (critFailRoll <= 95) critFailLevel = 4
-        else critFailLevel = 5
+        if (((obj.pro as any)?.extra?.flags ?? 0) & 0x400) return // CRITTER_INVULNERABLE
+        if (obj.isPlayer && Math.floor((globalState.gameTickTime ?? 0) / 864000) < 6) return
+        const chance = getRandomInt(1, 100) - 5 * (obj.getStat('LUK') - 5)
+        const effect = chance <= 20 ? 0 : chance <= 50 ? 1 : chance <= 75 ? 2 : chance <= 95 ? 3 : 4
 
         uiLog(`${who} critically fails!`)
-        combatDebug(`crit fail: level=${critFailLevel} roll=${critFailRoll}`)
+        combatDebug(`crit fail: effect=${effect} roll=${chance}`)
 
-        const critFailTableType = getCritFailTableType(weapon)
-        const critFailEffect = CriticalEffects.criticalFailTable[critFailTableType]?.[critFailLevel]
-            ?? CriticalEffects.criticalFailTable.unarmed[critFailLevel]
+        const table = getCritFailTableType(weapon)
+        const critFailEffect = CriticalEffects.criticalFailTable[table]?.[effect + 1]
+            ?? CriticalEffects.criticalFailTable.unarmed[effect + 1]
         CriticalEffects.temporaryDoCritFail(critFailEffect, obj)
     }
 
@@ -355,7 +342,7 @@ export class Combat {
         } else {
             if (target.bypassArmorNextHit) target.bypassArmorNextHit = false
             // PERK_WEAPON_PENETRATE or unarmed penetrating: only DT to 20%, DR unchanged
-            if (wep.isPenetrating?.()) {
+            if ((weapon as any).pro?.extra?.perk === PERK_WEAPON_PENETRATE || wep.isPenetrating?.()) {
                 DT = Math.trunc(20 * DT / 100)
             }
             // TRAIT_FINESSE: +30 DR penalty (player only)
@@ -364,9 +351,10 @@ export class Combat {
             }
         }
 
-        // Bonus Ranged Damage perk: +2 per rank (player only, ranged attack types)
+        // Bonus Ranged Damage perk: +2 per rank (player only, ATTACK_TYPE_RANGED)
+        const attackType = attackTypeOf(weapon)
         var damageBonus = 0
-        if (obj.isPlayer && wep.type !== 'melee') {
+        if (obj.isPlayer && attackType === 'ranged') {
             const brdRank = obj.perks.filter(p => p === 'Bonus Ranged Damage').length
             damageBonus = 2 * brdRank
         }
@@ -378,10 +366,11 @@ export class Combat {
         DR += ammoStats.RM
         DR = clamp(0, 100, DR)
 
-        // Combat difficulty modifier (75/100/125)
-        var CD = Config.combat.difficultyModifier
+        var CD = combatDifficultyDamageModifier(obj)
 
-        var RD = getRandomInt(wep.minDmg, wep.maxDmg)
+        // CE item.cc weaponGetDamage: melee and unarmed attacks add Melee Damage to the
+        // maximum (and, sfall's Bonus HtH Damage fix, 2 per perk rank to the minimum).
+        var RD = rollWeaponDamage(obj, wep.minDmg, wep.maxDmg, attackType === 'melee' || attackType === 'unarmed')
         var damage = computeDamage({ RD, bonus: damageBonus, critMult: critMultiplier, ammoX: ammoStats.X, ammoY: ammoStats.Y, ammoRM: ammoStats.RM, DT, DR, CD })
 
         // Post-calculation perks (flat bonuses after main formula)
@@ -444,9 +433,9 @@ export class Combat {
         // Clamp DR to 0-100 (no ammo DR mod for unarmed)
         DR = clamp(0, 100, DR)
 
-        var CD = Config.combat.difficultyModifier
+        var CD = combatDifficultyDamageModifier(obj)
 
-        var RD = getRandomInt(mode.minDmg, mode.maxDmg)
+        var RD = rollWeaponDamage(obj, mode.minDmg, mode.maxDmg, true)
         var damage = computeDamage({ RD, bonus: 0, critMult: critMultiplier, ammoX: 1, ammoY: 1, ammoRM: 0, DT, DR, CD })
 
         // Post-calculation perks
@@ -570,21 +559,7 @@ export class Combat {
                     playCharAnimSfx(target, ANIM.dodge)
                     target.staticAnimation('dodge', () => target.clearAnim())
                 }
-                if (unarmedHit.crit === true) {
-                    var unarmedCritFailMod = (obj.getStat('LUK') - 5) * -5
-                    var unarmedCritFailRoll = Math.floor(getRandomInt(1, 100) - unarmedCritFailMod)
-                    var unarmedCritFailLevel = 1
-                    if (unarmedCritFailRoll <= 20) unarmedCritFailLevel = 1
-                    else if (unarmedCritFailRoll <= 50) unarmedCritFailLevel = 2
-                    else if (unarmedCritFailRoll <= 75) unarmedCritFailLevel = 3
-                    else if (unarmedCritFailRoll <= 95) unarmedCritFailLevel = 4
-                    else unarmedCritFailLevel = 5
-                    uiLog(`${who} critically fails!`)
-                    combatDebug(`unarmed crit fail: level=${unarmedCritFailLevel} roll=${unarmedCritFailRoll}`)
-                    var unarmedCritFailEffect = CriticalEffects.criticalFailTable['unarmed']?.[unarmedCritFailLevel]
-                        ?? CriticalEffects.criticalFailTable['unarmed'][1]
-                    CriticalEffects.temporaryDoCritFail(unarmedCritFailEffect, obj)
-                }
+                if (unarmedHit.crit === true) this.doCriticalFailure(obj, null, who)
             }
             return
         }
@@ -1135,13 +1110,31 @@ export class Combat {
         // Inventory stays on the critter — the player loots it via the context menu,
         // just like a container.
 
-        // Award XP to the player if the attacker is the player (or a party member)
-        if (attacker?.isPlayer) {
-            // Fallout 2 XP formula: base XP from critter's pro or a default based on level
-            const killXP = obj.pro?.extra?.killExp ?? 50
-            Scripting.give_exp_points(killXP)
-            uiLog(`Gained ${killXP} experience points.`)
+        // CE combat.cc _damage_object: a kill by the player or the player's team adds
+        // the victim's proto experience to _combat_exps unless its destroy_p_proc
+        // overrode it; _combat_over hands it out.
+        const player = globalState.player
+        if (attacker && player && !obj.isPlayer && (attacker.isPlayer || attacker.teamNum === player.teamNum)
+            && !obj._script?._didOverride) {
+            this.combatExps += (obj.pro?.extra as any)?.XPValue ?? 0
         }
+    }
+
+    // CE combat.cc _combat_give_exps — "%s you earn %d exp. points." with a random
+    // prefix (622-625), or 626 when unhurt (35%).
+    private giveExps(): void {
+        const xp = this.combatExps
+        this.combatExps = 0
+        const player = this.player
+        if (xp <= 0 || !player || player.dead) return
+        const before = player.stats.get('Experience')
+        player.addExperience(xp)
+        const gained = player.stats.get('Experience') - before
+        let prefixId = 622 + randomBetween(0, 3)
+        if (player.getStat('HP') === player.getStat('Max HP') && randomBetween(0, 100) > 65) prefixId = 626
+        const fmt = getProtoMsg(621)
+        const prefix = getProtoMsg(prefixId)
+        if (fmt && prefix) uiLog(fmt.replace('%s', prefix).replace('%d', String(gained)))
     }
 
     getCombatAIMessage(id: number) {
@@ -1629,6 +1622,7 @@ export class Combat {
         // CE ref: interface.cc:1455 interfaceBarEndButtonsHide — plays icibcxx1 when buttons close
         if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icibcxx1')
         this.player.AP?.resetAP()  // CE ref: combat.cc:2811
+        this.giveExps()            // CE ref: combat.cc:2816
         globalState.gMap.updateMap()
         uiEndCombat()
     }
@@ -1646,6 +1640,7 @@ export class Combat {
         globalState.inCombat = false
         if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icibcxx1')
         this.player.AP?.resetAP()  // CE ref: combat.cc:2811
+        this.giveExps()            // CE ref: combat.cc:2816
         globalState.gMap?.updateMap()
         uiEndCombat()
         // Defer flag reset so the current script execution frame finishes
@@ -1753,7 +1748,7 @@ export class Combat {
             if (prevIdx < 0) prevIdx = this.combatants.length - 1
             var prev = this.combatants[prevIdx]
             if (!prev.dead && prev.AP) {
-                prev.bonusAC = prev.AP.getAvailableMoveAP()
+                prev.bonusAC = prev.AP.getAvailableCombatAP() // CE stat.cc: STAT_ARMOR_CLASS + remaining combat.ap
                 // CE ref: stat.cc:203-242 — unused AP counts as AC while it isn't the critter's turn.
                 if (prev.isPlayer) drawAC(prev.getStat('AC') + prev.bonusAC)
             }
@@ -1765,7 +1760,7 @@ export class Combat {
             this.player.bonusAC = 0
             this.inPlayerTurn = true
             this.player.AP!.resetAP()
-            drawAP(this.player.AP!.getAvailableMoveAP(), this.player.AP!.getTotalMaxAP())
+            drawAP(this.player.AP!.getAvailableCombatAP(), this.player.AP!.getTotalMaxAP(), this.player.AP!.move)
             drawHP(this.player.getStat('HP'))
             drawAC(this.player.getStat('AC'))
             // CE ref: combat.cc:3276 / interface.cc interfaceBarEndButtonsRenderGreenLights —

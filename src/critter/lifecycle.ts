@@ -70,15 +70,10 @@ export function critterKill(
     // CE critter.cc:894 — critter->data.critter.hp = 0
     if (obj.stats.getBase('HP') > 0) obj.stats.setBase('HP', 0)
 
-    // Karma award for player kills. Simple placeholder: +1 per hostile kill.
-    // FO2-CE awards via proto karma_vars; that lookup is not wired yet.
-    if (source?.isPlayer && !obj.isPlayer) {
-        const cur = source.stats.getBase('Karma')
-        source.stats.setBase('Karma', Math.max(-99999999, Math.min(99999999, cur + 1)))
-    }
-
-    // CE ref: kills.cc killsAdd() — increment per-type kill counter
-    if (!obj.isPlayer) {
+    // CE combat.cc _damage_object — killsIncByType only for kills by the player or the
+    // player's team. (Karma for kills is handled by the critters' scripts, as in CE.)
+    const player = globalState.player
+    if (!obj.isPlayer && source && player && (source.isPlayer || source.teamNum === player.teamNum)) {
         const kt = obj.killType ?? 0
         killCounts.set(kt, (killCounts.get(kt) ?? 0) + 1)
     }
@@ -93,13 +88,6 @@ export function critterKill(
         // keeping the corpse frozen on its last frame indefinitely.
         obj.anim = 'dead'
         if (callback) callback()
-
-        // CE ref: critter.cc _critter_flag_check(pid, CRITTER_NO_DROP=0x40)
-        // If the critter's proto sets CRITTER_NO_DROP, wipe inventory so it
-        // cannot be looted — quest-critical critters must not expose items.
-        if ((obj.pro?.extra?.flags ?? 0) & 0x40) {
-            obj.inventory = []
-        }
 
         // Player death: CE ref: critter.cc:912 — calls endgameSetupDeathEnding(REASON_DEATH)
         // then the death ending scene plays (narrator slide with voiceover).
@@ -188,14 +176,12 @@ export function critterKill(
     }
 }
 
-// CE ref: actions.cc:1512 _is_hit_from_front — attacker is "in front" when the
-// direction from the target to the attacker is within the target's front 3-hex arc
-// (facing ±1 direction mod 6).
+// CE ref: actions.cc:1512 _is_hit_from_front(attacker, defender) — compares the two
+// facings: the hit is from behind when they face the same way (difference 0, 1 or 5).
 function isHitFromFront(obj: Critter, source?: Critter): boolean {
     if (!source || source === obj) return true
-    const dirToSrc = hexDirectionTo(obj.position, source.position)
-    const diff = Math.abs(dirToSrc - (obj.orientation ?? 0)) % 6
-    return diff <= 1 || diff === 5
+    const diff = Math.abs((source.orientation ?? 0) - (obj.orientation ?? 0))
+    return diff !== 0 && diff !== 1 && diff !== 5
 }
 
 export function critterDamage(
@@ -218,20 +204,22 @@ export function critterDamage(
         return critterKill(obj, source, useScript, { animate: true, damage, ...killOptions }, damageType)
     }
 
-    // CE ref: combat.cc:4633 attackComputeDamage — knockback: damage/10, melee/unarmed/explosion only.
-    // CE obj_types.h:103 CRITTER_NO_KNOCKBACK = 0x4000
-    // Stonewall perk (player only): 50% negate entirely; if fails, halve distance.
-    // ITEM_PERK_WEAPON_KNOCKBACK = 3: attacker's weapon perk halves divisor (damage/5 → double distance).
+    // CE ref: combat.cc:4633 attackComputeDamage — knockback damage/10 (/5 with
+    // PERK_WEAPON_KNOCKBACK) for explosions, unarmed and ATTACK_TYPE_MELEE, never for
+    // multihex or CRITTER_NO_KNOCKBACK (0x4000) critters; Stonewall (player) negates
+    // half the time, else halves it. actions.cc actionKnockdown caps it at
+    // MAX_KNOCKDOWN_DISTANCE (20).
     const _srcWep = source?.equippedWeapon
-    const _isMeleeOrExplode = damageType === 'Explosion' ||
-        _srcWep === null || (_srcWep?.weapon?.type === 'melee')
-    if (_isMeleeOrExplode && source && source !== obj && !((obj.pro?.extra?.flags ?? 0) & 0x4000)) {
-        let kbDiv = (_srcWep as any)?.pro?.extra?.perk === 3 ? 5 : 10  // CE: ITEM_PERK_WEAPON_KNOCKBACK=3
+    const _srcAttackMode = ((_srcWep as any)?.pro?.extra?.attackMode ?? 0) & 0xf
+    const _isMeleeOrExplode = damageType === 'Explosive' || !_srcWep || _srcWep.pid === undefined
+        || _srcAttackMode === 3 || _srcAttackMode === 4 // swing / thrust = ATTACK_TYPE_MELEE
+    const _multihex = (((obj as any).flags ?? 0) & 0x800) !== 0
+    if (_isMeleeOrExplode && source && source !== obj && !_multihex && !((obj.pro?.extra?.flags ?? 0) & 0x4000)) {
+        let kbDist = Math.trunc(damage / ((_srcWep as any)?.pro?.extra?.perk === 61 ? 5 : 10)) // PERK_WEAPON_KNOCKBACK
         if (obj === (globalState.player as Obj) && (obj as Critter).hasPerk?.('Stonewall')) {
-            if (getRandomInt(0, 100) < 50) kbDiv = 0 // 50% full negation
-            else kbDiv = kbDiv * 2 // remaining 50%: halved distance
+            kbDist = getRandomInt(0, 100) < 50 ? 0 : Math.trunc(kbDist / 2)
         }
-        const kbDist = kbDiv > 0 ? Math.min(Math.floor(damage / kbDiv), 6) : 0
+        kbDist = Math.min(kbDist, 20)
         if (kbDist > 0 && globalState.gMap) {
             const dir = hexDirectionTo(source.position, obj.position)
             let kbPos = obj.position

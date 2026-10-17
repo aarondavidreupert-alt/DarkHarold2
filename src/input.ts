@@ -441,7 +441,7 @@ export function installInputHandlers(): void {
             const kbP = globalState.player
             const kbAPCost = kbWeapon === null
                 ? getActiveUnarmedModeForHand(kbP.getSkill('Unarmed'), (kbP as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(kbP as any).leftHand?.weapon && !(kbP as any).rightHand?.weapon).apCost
-                : kbWeapon.weapon!.getAPCost(1)
+                : kbWeapon.weapon!.getAttackAPCost(kbP, 1)
 
             if (globalState.player.AP.getAvailableCombatAP() < kbAPCost) {
                 uiLog(getProtoMsg(700))
@@ -455,7 +455,7 @@ export function installInputHandlers(): void {
                     !globalState.combat.combatants[i].dead
                 ) {
                     globalState.player.AP.subtractCombatAP(kbAPCost)
-                    drawAP(globalState.player.AP.getAvailableMoveAP(), globalState.player.AP.getTotalMaxAP())
+                    drawAP(globalState.player.AP.getAvailableCombatAP(), globalState.player.AP.getTotalMaxAP(), globalState.player.AP.move)
                     dbg('combat', '[Combat] attack key pressed')
                     globalState.combat.attack(globalState.player, globalState.combat.combatants[i])
                     break

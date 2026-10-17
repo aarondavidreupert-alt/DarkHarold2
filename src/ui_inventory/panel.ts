@@ -114,7 +114,7 @@ export function showInventory() {
         const apCost = Math.max(0, 4 - 2 * qpRank)
         if (apCost > 0) {
             player.AP.subtractCombatAP(apCost)
-            drawAP(player.AP.getAvailableCombatAP(), player.AP.getTotalMaxAP())
+            drawAP(player.AP.getAvailableCombatAP(), player.AP.getTotalMaxAP(), player.AP.move)
         }
     }
 

@@ -329,9 +329,9 @@ function updateAttackButtonAvailability(availableAP: number, isPlayerTurn: boole
     if (weapon && weapon.weapon) {
         const mode = (weapon.weapon as any).mode
         if (mode === 'reload') cost = weapon.weapon.getReloadAPCost()
-        else if (mode === 'called') cost = (weapon.weapon as any).getAPCost(1) + 1
-        else if (weapon.weapon.isBurst?.()) cost = (weapon.weapon as any).getAPCost(2)
-        else cost = (weapon.weapon as any).getAPCost(1)
+        else if (mode === 'called') cost = weapon.weapon.getAttackAPCost(globalState.player!, 1, true)
+        else if (weapon.weapon.isBurst?.()) cost = weapon.weapon.getAttackAPCost(globalState.player!, 2)
+        else cost = weapon.weapon.getAttackAPCost(globalState.player!, 1)
     } else {
         cost = 3 // unarmed default
     }
@@ -434,11 +434,11 @@ export function uiDrawWeapon(): void {
     if (mode === 'reload') {
         digit = weapon.weapon.getReloadAPCost() // CE ref: item.cc:1640
     } else if (mode === 'called') {
-        digit = weapon.weapon.getAPCost(1) + 1 // base weapon cost + 1 for aiming (FO2: weaponGetActionPointCost)
+        digit = weapon.weapon.getAttackAPCost(globalState.player!, 1, true) // CE weaponGetActionPointCost
     } else if (weapon.weapon.isBurst && weapon.weapon.isBurst()) {
-        digit = weapon.weapon.getAPCost(2)
+        digit = weapon.weapon.getAttackAPCost(globalState.player!, 2)
     } else {
-        digit = weapon.weapon.getAPCost(1)
+        digit = weapon.weapon.getAttackAPCost(globalState.player!, 1)
     }
     if (digit === undefined || digit > 9) {
         return
@@ -563,7 +563,7 @@ export function uiStartCombat(): void {
     const player = globalState.player!
     drawHP(player.getStat('HP'))
     drawAC(player.getStat('AC'))
-    drawAP(player.AP!.getAvailableMoveAP(), player.AP!.getTotalMaxAP())
+    drawAP(player.AP!.getAvailableCombatAP(), player.AP!.getTotalMaxAP(), player.AP!.move)
     globalState.combat?.refreshHighlights()
 }
 
