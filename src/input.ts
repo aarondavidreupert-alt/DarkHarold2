@@ -441,7 +441,7 @@ export function installInputHandlers(): void {
             const kbP = globalState.player
             const kbAPCost = kbWeapon === null
                 ? unarmedAPCost(kbP, currentUnarmed(kbP).mode, false)
-                : kbWeapon.weapon!.getAttackAPCost(kbP, 1)
+                : kbWeapon.weapon!.getAttackAPCost(kbP, undefined, kbWeapon.weapon!.isCalled())
 
             if (globalState.player.AP.getAvailableCombatAP() < kbAPCost) {
                 uiLog(getProtoMsg(700))

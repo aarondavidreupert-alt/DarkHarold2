@@ -98,16 +98,15 @@ const BIG_GUN_ANIM_CODES = new Set([8, 9, 10])
 // FO2-CE ref: item.cc — Energy damage types: Laser, Plasma, Electrical
 const ENERGY_DAMAGE_TYPES = new Set(['Laser', 'Plasma', 'Electrical'])
 
-// Derives the correct weapon skill from the weapon's PRO data.
-// Replaces the old hardcoded weaponSkillMap.
-function getWeaponSkillFromPro(weapon: WeaponObj): string {
+// CE item.cc weaponGetSkillForHitMode — the skill of one attack mode (primary or
+// secondary nibble of the proto's attackMode).
+function getWeaponSkillFromPro(weapon: WeaponObj, slot: 1 | 2 = 1): string {
     if (!weapon || !weapon.pro || !weapon.pro.extra) return 'Unarmed'
 
-    // Read primary attack mode from PRO
     const attackModes = weapon.pro.extra['attackMode'] ?? 0
-    const primaryMode = attackModes & 0xf
+    const mode = slot === 2 ? (attackModes >> 4) & 0xf : attackModes & 0xf
 
-    let skill = attackModeToBaseSkill[primaryMode] ?? 'Unarmed'
+    let skill = attackModeToBaseSkill[mode] ?? 'Unarmed'
 
     // FO2-CE refinement: Small Guns can be Energy Weapons or Big Guns
     if (skill === 'Small Guns') {
@@ -221,14 +220,19 @@ export class Weapon {
             // FO2-CE ref: item.cc — melee weapons use the melee damage/crit tables, not the gun tables
             if (this.weaponSkillType === 'Melee Weapons') this.type = 'melee'
 
-            // If the secondary attack is burst fire, add 'burst' to the mode cycle.
-            // attackTwo.mode is stored as a string at runtime ('fire burst'), but guard
-            // against the numeric form (7) in case PRO data is read differently.
-            // attackTwo.mode is a string at runtime despite the 'as number' cast in parseAttack.
-            // Check both the string form and the numeric value (7) defensively.
-            const secondaryMode: any = this.attackTwo?.mode
-            if (secondaryMode === 'fire burst' || secondaryMode === 7) {
-                this.modes = ['single', 'called', 'burst']
+            // CE interface.cc interfaceCycleItemAction: primary → primary aimed →
+            // secondary → secondary aimed (→ reload, see cycleMode). Aiming needs
+            // critterCanAim; the secondary exists when its attack type isn't NONE.
+            // 'burst' is a burst / continuous secondary, 'secondary' any other (a spear's
+            // throw, a knife's thrust).
+            this.modes = ['single']
+            if (this.canAim(1)) this.modes.push('called')
+            const second = (weapon.pro.extra.attackMode >> 4) & 0xf
+            if (second === 7 || second === 8) {
+                this.modes.push('burst')
+            } else if (second !== 0) {
+                this.modes.push('secondary')
+                if (this.canAim(2)) this.modes.push('secondaryCalled')
             }
         }
 
@@ -250,7 +254,42 @@ export class Weapon {
     }
 
     isCalled(): boolean {
-        return this.mode === 'called'
+        return this.mode === 'called' || this.mode === 'secondaryCalled'
+    }
+
+    /** The current action uses the secondary attack (HIT_MODE_*_WEAPON_SECONDARY). */
+    usesSecondary(): boolean {
+        return this.mode === 'burst' || this.mode === 'secondary' || this.mode === 'secondaryCalled'
+    }
+
+    /** Attack slot of the current action: 1 primary, 2 secondary. */
+    slot(): 1 | 2 {
+        return this.usesSecondary() ? 2 : 1
+    }
+
+    /** The proto attack mode (0 none … 8 flame) of a slot (default: the current one). */
+    attackModeOf(slot?: 1 | 2): number {
+        const modes = (this.weapon as any).pro?.extra?.attackMode ?? 0
+        return (slot ?? this.slot()) === 2 ? (modes >> 4) & 0xf : modes & 0xf
+    }
+
+    /** CE weaponGetSkillForHitMode for the current action's attack. */
+    skillForMode(): string {
+        if ((this.weapon as any).pid === undefined) return this.weaponSkillType
+        const slot = this.slot()
+        if (slot === 1) return this.weaponSkillType
+        return getWeaponSkillFromPro(this.weapon as WeaponObj, 2)
+    }
+
+    // CE item.cc critterCanAim (weapon part): no aimed burst / continuous fire, no aimed
+    // explosive, fire or EMP attacks, no aimed plasma throw. (The player's Fast Shot
+    // check is in getAttackAPCost's callers' gate, see wiki/combat.md §10.)
+    private canAim(slot: 1 | 2): boolean {
+        const mode = this.attackModeOf(slot)
+        if (mode === 7 || mode === 8) return false
+        const dmg = damageType[(this.weapon as any).pro?.extra?.dmgType ?? 0]
+        if (dmg === 'Explosive' || dmg === 'Fire' || dmg === 'EMP') return false
+        return !(dmg === 'Plasma' && mode === 5)
     }
 
     isBurst(): boolean {
@@ -265,7 +304,7 @@ export class Weapon {
     // TODO: enum
     // When called without an argument, derives the slot from the current mode.
     getMaximumRange(attackType?: number): number {
-        const slot = attackType ?? (this.mode === 'burst' ? 2 : 1)
+        const slot = attackType ?? this.slot()
         if (slot === 1) return this.weapon.pro.extra.maxRange1
         if (slot === 2) return this.weapon.pro.extra.maxRange2
         throw 'invalid attack type ' + slot
@@ -273,7 +312,7 @@ export class Weapon {
 
     // When called without an argument, derives the slot from the current mode.
     getAPCost(attackSlot?: number): number {
-        const slot = attackSlot ?? (this.mode === 'burst' ? 2 : 1)
+        const slot = attackSlot ?? this.slot()
         return this.weapon.pro.extra['APCost' + slot]
     }
 
@@ -281,7 +320,7 @@ export class Weapon {
     // the player's Fast Shot -1 for weapons with range > 2, Bonus HtH Attacks -1 for
     // melee/unarmed, Bonus Rate of Fire -1 for ranged; +1 when aiming; never below 1.
     getAttackAPCost(critter: Critter, slot?: number, aiming = false): number {
-        const s = slot ?? (this.mode === 'burst' ? 2 : 1)
+        const s = slot ?? this.slot()
         let ap = this.getAPCost(s)
         if (critter.isPlayer) {
             const traits: string[] = (critter as any).traits ?? []
@@ -338,12 +377,11 @@ export class Weapon {
             flame: 'l',
         }
 
-        // Burst uses the secondary attack skin; everything else uses the primary.
-        if (this.mode === 'burst') {
-            return modeSkinMap['fire burst'] // 'k'
-        }
-        if (this.attackOne && this.attackOne.mode !== attackMode.none) {
-            return modeSkinMap[this.attackOne.mode] ?? null
+        // CE critterGetAnimationForHitMode — the anim of the current action's attack mode
+        // (primary or secondary: burst 'k', a spear's throw 's', …).
+        const attack = this.usesSecondary() ? this.attackTwo : this.attackOne
+        if (attack && attack.mode !== attackMode.none) {
+            return modeSkinMap[attack.mode] ?? null
         }
 
         return null
@@ -360,6 +398,9 @@ export class Weapon {
                 return wep + 'b'
             case 'attack':
                 var attackSkin = this.getAttackSkin()
+                // CE art.cc (ANIM_THROW_ANIM): knife throw 'dm', spear throw 'gm', any other
+                // throw (rock, grenade, spike) the unarmed 'as'
+                if (attackSkin === 's') return wep === 'd' ? 'dm' : wep === 'g' ? 'gm' : 'as'
                 return wep + attackSkin
             case 'fidget':
                 return wep + 'a'  // idle IS the fidget/reload animation (Xa)

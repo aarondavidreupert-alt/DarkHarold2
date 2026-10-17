@@ -116,7 +116,7 @@ export function attackerAnimation(attacker: Critter | undefined): number {
     if (!attacker) return ANIM_STAND
     const w = attacker.equippedWeapon?.weapon
     if (!w) return unarmedAttackAnim(attacker)
-    const mode = w.mode === 'burst' ? w.attackTwo?.mode : w.attackOne?.mode
+    const mode = w.usesSecondary?.() ? w.attackTwo?.mode : w.attackOne?.mode
     return ATTACK_MODE_ANIM[String(mode)] ?? ANIM_FIRE_SINGLE
 }
 

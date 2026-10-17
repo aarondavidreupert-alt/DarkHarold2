@@ -977,18 +977,20 @@ export class Combat {
     // so 'secondary' means burst.
     private aiPickHitMode(attacker: Critter, weaponObj: Obj, defender: Critter): 'primary' | 'secondary' {
         const weapon = (weaponObj as any).weapon
-        const secondary = String(weapon?.attackTwo?.mode)
-        if (secondary !== 'fire burst' && secondary !== '7') return 'primary'
+        // Any secondary attack (burst, a spear's throw, …) that the critter can use
+        // (_ai_can_use_weapon: the attack FRM exists).
+        const secondaryMode = Combat.secondaryModeName(weapon)
+        if (secondaryMode === null) return 'primary'
         const packet = attacker.ai?.packet
         if (!packet) return 'primary'
-
-        const secondaryToHit = (): number => {
+        const withSecondary = <T>(fn: () => T): T => {
             const prev = weapon.mode
-            weapon.mode = 'burst'
-            const hit = this.getHitChance(attacker, defender, 'torso').hit
-            weapon.mode = prev
-            return hit
+            weapon.mode = secondaryMode
+            try { return fn() } finally { weapon.mode = prev }
         }
+        if (!withSecondary(() => !!globalState.imageInfo[attacker.getAnimation('attack')])) return 'primary'
+
+        const secondaryToHit = (): number => withSecondary(() => this.getHitChance(attacker, defender, 'torso').hit)
         const safe = () => !this.combatSafetyInvalidateWeapon(attacker, weaponObj, 'secondary', defender, false)
         const freq = Math.max(1, packet.secondaryFreq || 1)
 
@@ -1009,6 +1011,14 @@ export class Combat {
         if (useSecondary && hexDistance(attacker.position, defender.position) > weapon.getMaximumRange(2)) useSecondary = false
         if (useSecondary && (attacker.AP?.getAvailableCombatAP() ?? 0) < weapon.getAPCost(2)) useSecondary = false
         return useSecondary ? 'secondary' : 'primary'
+    }
+
+    // The Weapon mode naming a weapon's secondary attack: 'burst' for burst /
+    // continuous fire, 'secondary' for any other; null without one.
+    static secondaryModeName(weapon: any): string | null {
+        const mode = weapon?.attackModeOf?.(2) ?? 0
+        if (mode === 0) return null
+        return mode === 7 || mode === 8 ? 'burst' : 'secondary'
     }
 
     // CE combat.cc _combat_safety_invalidate_weapon_func — true if the attack would
@@ -1722,9 +1732,9 @@ export class Combat {
 
             if (useBurst) {
                 AP.subtractCombatAP(burstAPCost)
-                // Temporarily set mode to 'burst' so attack() detects it, then restore
+                // Temporarily select the secondary attack so attack() uses it, then restore
                 const prevMode = weapon!.mode
-                weapon!.mode = 'burst'
+                weapon!.mode = Combat.secondaryModeName(weapon) ?? 'burst'
                 this.attack(obj, target, 'torso', function () {
                     weapon!.mode = prevMode
                     obj.clearAnim()

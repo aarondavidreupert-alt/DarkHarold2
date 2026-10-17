@@ -115,7 +115,7 @@ export function weaponAttackType(weaponObj: Obj | null): 'unarmed' | 'melee' | '
     const weapon = (weaponObj as any)?.weapon
     if (!weaponObj || !weapon) return 'unarmed'
     const modes = (weaponObj as any).pro?.extra?.attackMode ?? 0
-    const index = weapon.isBurst?.() ? (modes >> 4) & 0xf : modes & 0xf
+    const index = weapon.usesSecondary?.() ? (modes >> 4) & 0xf : modes & 0xf
     const types = ['none', 'unarmed', 'unarmed', 'melee', 'melee', 'throw', 'ranged', 'ranged', 'ranged'] as const
     return types[index] ?? 'none'
 }
@@ -136,7 +136,9 @@ export function getHitChance(obj: Critter, target: Critter, region: string, from
     if (isUnarmed) {
         toHit = obj.getSkill('Unarmed')
     } else {
-        toHit = weapon!.weaponSkillType === undefined ? 0 : obj.getSkill(weapon!.weaponSkillType)
+        // CE weaponGetSkillValue: the skill of the hit mode (a spear's throw uses Throwing)
+        const skill = weapon!.skillForMode?.() ?? weapon!.weaponSkillType
+        toHit = skill === undefined ? 0 : obj.getSkill(skill)
         const extra = (weaponObj as any).pro?.extra ?? {}
 
         if (isRanged) {

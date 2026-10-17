@@ -329,9 +329,7 @@ function updateAttackButtonAvailability(availableAP: number, isPlayerTurn: boole
     if (weapon && weapon.weapon) {
         const mode = (weapon.weapon as any).mode
         if (mode === 'reload') cost = weapon.weapon.getReloadAPCost()
-        else if (mode === 'called') cost = weapon.weapon.getAttackAPCost(globalState.player!, 1, true)
-        else if (weapon.weapon.isBurst?.()) cost = weapon.weapon.getAttackAPCost(globalState.player!, 2)
-        else cost = weapon.weapon.getAttackAPCost(globalState.player!, 1)
+        else cost = weapon.weapon.getAttackAPCost(globalState.player!, undefined, weapon.weapon.isCalled())
     } else {
         cost = 3 // unarmed default
     }
@@ -406,7 +404,8 @@ export function uiDrawWeapon(): void {
     $wepImg.style.display = ''
     $typeImg.style.display = ''
 
-    if (weapon.weapon.type !== 'melee') {
+    {
+        // CE interfaceBarRefreshMainAction draws the item's inventory image for any weapon
         $wepImg.onload = null
         $wepImg.onload = function (this: HTMLImageElement) {
             if (!this.complete) {
@@ -431,34 +430,24 @@ export function uiDrawWeapon(): void {
     const mode = weapon.weapon.mode
     if (mode === 'reload') {
         digit = weapon.weapon.getReloadAPCost() // CE ref: item.cc:1640
-    } else if (mode === 'called') {
-        digit = weapon.weapon.getAttackAPCost(globalState.player!, 1, true) // CE weaponGetActionPointCost
-    } else if (weapon.weapon.isBurst && weapon.weapon.isBurst()) {
-        digit = weapon.weapon.getAttackAPCost(globalState.player!, 2)
     } else {
-        digit = weapon.weapon.getAttackAPCost(globalState.player!, 1)
+        digit = weapon.weapon.getAttackAPCost(globalState.player!, undefined, weapon.weapon.isCalled()) // CE weaponGetActionPointCost
     }
     if (digit === undefined || digit > 9) {
         return
     } // TODO: Weapon AP >9?
     $id('attackButtonAPDigit').style.backgroundPosition = 0 - CHAR_W * digit + 'px'
 
-    // draw weapon type (single, burst, called, punch, reload, ...)
-    // TODO: all melee weapons
-    let type: string
-    if (weapon.weapon.type === 'melee') {
-        type = 'punch'
-    } else if (mode === 'reload') {
-        type = 'reload'
-    } else if (weapon.weapon.isBurst && weapon.weapon.isBurst()) {
-        type = 'burst'
-    } else {
-        type = 'single'
+    // CE interfaceBarRefreshMainAction: the label follows the action's attack anim —
+    // punch / kick, swing, thrust, throw, single, burst (burst + continuous), reload.
+    const ATTACK_LABEL: { [mode: number]: string } = {
+        1: 'punch', 2: 'kick', 3: 'swing', 4: 'thrust', 5: 'throw', 6: 'single', 7: 'burst', 8: 'burst',
     }
+    const type = mode === 'reload' ? 'reload' : (ATTACK_LABEL[weapon.weapon.attackModeOf()] ?? 'single')
     $img('attackButtonType').src = `art/intrface/${type}.png`
 
     // hide or show called shot sigil?
-    if (mode === 'called') {
+    if (weapon.weapon.isCalled()) {
         show($id('attackButtonCalled'))
     } else {
         hide($id('attackButtonCalled'))

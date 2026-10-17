@@ -372,6 +372,26 @@ NPCs and party members always use the plain punch (1–2 + Melee Damage, 3 AP). 
 
 ---
 
+## 9a. Weapon Actions — Primary / Secondary (CE `interfaceCycleItemAction`, since 2026-10-17)
+
+The proto's `attackMode` holds the primary attack in the low nibble and the secondary in the high one. The modes are 0 none, 1 punch, 2 kick, 3 swing, 4 thrust, 5 throw, 6 single, 7 burst, 8 flame. Examples: a spear is 0x54 (thrust / throw), a throwing knife 0x35 (throw / swing), a rock 0x15 (throw / punch), an SMG 0x76 (single / burst).
+
+| `Weapon.mode` | CE action | Slot | Present when |
+|---|---|---|---|
+| `single` | PRIMARY | 1 | always |
+| `called` | PRIMARY_AIMING | 1 | `critterCanAim` (not burst/flame, not explosive/fire/EMP, not a plasma throw) |
+| `burst` | SECONDARY (burst / flame) | 2 | secondary mode 7 or 8 |
+| `secondary` | SECONDARY | 2 | any other secondary mode |
+| `secondaryCalled` | SECONDARY_AIMING | 2 | secondary present and aimable |
+| `reload` | RELOAD | – | magazine not full |
+
+- **Slot 2 values:** the action uses `APCost2` and `maxRange2`, its own skill (`skillForMode`, CE `weaponGetSkillForHitMode`; a spear's throw uses Throwing) and its own attack type (`weaponAttackType` reads the secondary nibble).
+- **Aimed:** +1 AP.
+- **Thrown attacks:** they fire a projectile, and the item lands where it hits (C25/C26).
+- **Throw animation** (CE art.cc, ANIM_THROW_ANIM): knife `dm`, spear `gm`, anything else `as`.
+- **HUD:** the label is the action's attack (`thrust`, `swing`, `throw`, `single`, `burst`, `reload`), plus the bullseye when aimed. The button shows the item's inventory picture for every weapon.
+- **AI:** `_ai_pick_hit_mode` uses any secondary attack, not only bursts (area_attack_mode / secondary_freq, range and AP of slot 2).
+
 ## 10. Hit Chance & Combat Roll
 
 Full formula is in [damage_formula.md](damage_formula.md). Weapon-specific inputs:

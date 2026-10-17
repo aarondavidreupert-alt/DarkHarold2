@@ -172,10 +172,10 @@ export function showInventory() {
                 // CE inventory.cc inventoryRenderSummary: "No item" and, for the player,
                 // "Unarmed dmg: bonus+min - bonus+Melee+max" of the hand's punch / kick
                 // hit mode (the selected primary or secondary one).
-                addRow(getMessage('inventory', 14) ?? 'No item', '')
+                addRow(getMessage('inventry', 14) ?? 'No item', '')
                 const mode = unarmedHandMode(p as any, hand)
                 const melee = (p as any).getStat('Melee') ?? 0
-                addRow(`  ${getMessage('inventory', 24) ?? 'Unarmed dmg:'} ${mode.bonusDamage + mode.minDmg}-${mode.bonusDamage + melee + mode.maxDmg}`, '')
+                addRow(`  ${getMessage('inventry', 24) ?? 'Unarmed dmg:'} ${mode.bonusDamage + mode.minDmg}-${mode.bonusDamage + melee + mode.maxDmg}`, '')
                 return
             }
             const name = weapon.name ?? label

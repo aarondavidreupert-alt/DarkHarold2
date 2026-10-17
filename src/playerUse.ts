@@ -257,12 +257,10 @@ export function playerUse(obj: Obj | null) {
             const unarmed = weapon === null ? currentUnarmed(globalState.player) : null
             if (unarmed) {
                 attackAPCost = unarmedAPCost(globalState.player, unarmed.mode, unarmed.aiming)
-            } else if (weapon.weapon!.isCalled()) {
-                attackAPCost = weapon.weapon!.getAttackAPCost(globalState.player, 1, true)
-            } else if (weapon.weapon!.isBurst()) {
-                attackAPCost = weapon.weapon!.getAttackAPCost(globalState.player, 2)
             } else {
-                attackAPCost = weapon.weapon!.getAttackAPCost(globalState.player, 1)
+                // CE weaponGetActionPointCost for the current action (primary / secondary,
+                // +1 aimed)
+                attackAPCost = weapon.weapon!.getAttackAPCost(globalState.player, undefined, weapon.weapon!.isCalled())
             }
 
             if (globalState.player.AP!.getAvailableCombatAP() < attackAPCost) {
@@ -308,7 +306,7 @@ export function playerUse(obj: Obj | null) {
                 dbg('combat', '[Combat] called-shot art: %s', art)
 
                 uiCalledShot(art, who, (region: string) => {
-                    const calledAPCost = weapon.weapon!.getAttackAPCost(globalState.player, 1, true)
+                    const calledAPCost = attackAPCost
                     if (globalState.player.AP!.getAvailableCombatAP() < calledAPCost) {
                         uiLog(getProtoMsg(700)!) // "You don't have enough action points."
                         uiCloseCalledShot()
