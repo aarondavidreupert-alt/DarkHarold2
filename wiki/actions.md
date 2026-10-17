@@ -2,7 +2,7 @@
 
 > **Source anchor:** `raw/fallout2-ce/src/actions.cc`, `actions.h`
 > **DH2 files:** `src/combat.ts` (barrel; `src/combat/*.ts`), `src/object.ts` (barrel; `src/object/*.ts`), `src/scripting.ts`
-> **Last audited:** 2026-06-02
+> **Last audited:** 2026-10-17
 
 ---
 
@@ -187,17 +187,19 @@ Script-callable equivalent of `actionExplode` for a single tile:
 
 ## 12. DH2 Status and Known Gaps
 
-DH2 does not have an equivalent of `actions.cc`. Combat attacks are handled inline in `src/combat/Combat.ts`; pickup is in `src/object/Obj.ts` (`Obj.pickup`); skill use is in `src/playerUse.ts` (`playerUseSkill`).
+DH2 does not have an `actions.cc` module. Attacks run through the CE attack pipeline in `src/combat/Combat.ts` (`attackCompute` → animation → `_combat_display` / `_apply_damage`), the damage reaction through `src/critter/lifecycle.ts` (`_show_damage_to_object`, `actionKnockdown`, `_show_death`), explosions through `src/combat/explosion.ts` + `Obj.explode` (`actionExplode`), skill use through `src/playerUse.ts`.
 
-| ID | Gap | CE ref | DH2 location | Sev | Status |
-|----|-----|--------|--------------|-----|--------|
-| AC1 | **Knockback not implemented.** `actionKnockdown` slides critters physically along the tile grid after high-damage hits. DH2's `critterDamage` applies HP loss only; `attack.defenderKnockback` is computed by the damage formula but never used. | `actions.cc:102 actionKnockdown` | `combat.ts` | major | missing |
-| AC2 | **Death animation not selected by damage type / violence level.** `_pick_death` chooses from 7 death FRMs based on `damageType`, `violence_level` preference, and per-critter art availability. DH2 `critterKill` always calls `staticAnimation('dead')` — a single generic death. | `actions.cc:183 _pick_death` | `combat.ts:critterKill` | major | missing |
-| AC3 | **`CRITTER_SPECIAL_DEATH` flag not checked.** CE checks `critter_flag_check(CRITTER_SPECIAL_DEATH)` in `_pick_death` and forces `ANIM_EXPLODED_TO_NOTHING`. DH2 never reads this flag. | `actions.cc:209` | — | minor | missing |
-| AC4 | **Hit-from-front vs hit-from-back not tracked for death anim direction.** `_is_hit_from_front` (`actions.cc:1512`) checks attacker/defender rotation to pick `FALL_FRONT` vs `FALL_BACK`. DH2 always uses the same fall direction. | `actions.cc:1512 _is_hit_from_front` | — | low | missing |
-| AC5 | **AI combat taunts not queued.** `_combatai_msg(attacker, attack, AI_MESSAGE_TYPE_ATTACK/HIT/MISS)` fires critter voice-line float text at attack and hit/miss events. DH2 never calls `combatai_msg`. | `actions.cc:667,689` | — | minor | missing |
-| AC6 | **`actionUseSkill` party-member delegation not implemented.** CE uses `partyMemberGetBestInSkill(skill)` to potentially delegate skill use to a better party member and display their response text. DH2's `useSkill` always uses the player. | `actions.cc:1374` | `main.ts:useSkill` | minor | missing |
-| AC7 | **`actionExplode` is a stub with TODO comment.** `scripting.ts:1680` has `explosion(tile, elev, damage)` with a TODO noting the min/max damage are hardcoded to `0, 100`. The radius, per-target damage calc, and `_report_explosion` SCRIPT_PROC_DAMAGE callbacks are absent. | `actions.cc:1582` | `scripting.ts:1680` | major | partial |
-| AC8 | **Damage floating text uses different system.** CE calls `textObjectAdd` per hit to display numeric damage as a palette-rendered sprite above the defender. DH2 uses `globalState.floatMessages[]` rendered in WebGL text — same concept but no collision avoidance, fixed font, and no outline color. | `actions.cc:_show_damage_to_object` | `combat.ts`, `renderer.ts:207` | low | partial |
+| ID | Item | CE ref | DH2 location | Status |
+|----|------|--------|--------------|--------|
+| AC1 | Knockback slide (max 20, blockers / exit grids, CE's extra step back), then stand up | `actions.cc:102 actionKnockdown` | `critter/lifecycle.ts` | **FIXED 2026-10-17 (C30)** |
+| AC2 | Death anim by damage type / violence level | `actions.cc:183 _pick_death` | `critter/deathAnim.ts` | fixed (earlier sprint) |
+| AC3 | `CRITTER_SPECIAL_DEATH` | `actions.cc:209` | `critter/deathAnim.ts:164` | fixed |
+| AC4 | Hit from front / back for the fall direction | `actions.cc:1512 _is_hit_from_front` | `critter/lifecycle.ts`, `combat/Combat.ts` | fixed |
+| AC5 | Combat taunts: attack / move / run, and the hit (by hit location) / miss lines — after melee the attacker, after a ranged attack the defender; one floating text at a time | `actions.cc:630,676,679,734,918,921`; `combat_ai.cc _combatai_msg, _ai_print_msg` | `combat/Combat.ts maybeTaunt` | **FIXED 2026-10-17** (hit/miss lines were missing) |
+| AC6 | Skill delegation: the party member best at the skill (and whose own best it is) walks over and does it, saying skill.msg 1000-1005; next to the target the player does it (1100-1104); not for Steal; First Aid, Doctor, Lockpick, Steal, Traps, Science and Repair can't be used in combat (proto.msg 902) | `actions.cc:1325 actionUseSkill`; `party_member.cc partyMemberGetBestInSkill, partyMemberGetBestSkill`; `skill.cc skillsGetGenericResponse` | `playerUse.ts` | **FIXED 2026-10-17** (was "steps in to help" after the player had walked) |
+| AC7 | Script `explosion(tile, elev, dmg)`: d(1, dmg), no source; `actionExplode` with rings, explosion DT/DR, knockback, `_scr_explode_scenery` | `interpreter_extra.cc opExplosion`; `actions.cc:1582 actionExplode` | `scripting.ts explosion`, `object/Obj.ts explode` | **FIXED 2026-10-17 (C30/C32)** |
+| AC8 | Damage numbers | CE shows none; floating text is only taunts, generic responses and `float_msg` | — | not a gap (false premise) |
+| AC9 | Fire: non-lethal fire dance; burning run 2-5 hexes before burning to nothing | `actions.cc:333,398` | `critter/lifecycle.ts` | **FIXED 2026-10-17 (C30)** |
+| AC10 | Electrified / exploded corpses drop their items | `actions.cc _show_death` | `critter/lifecycle.ts itemDropAll` | **FIXED 2026-10-17 (C30)** |
 
-<!-- audited: 2026-06-02 -->
+<!-- audited: 2026-10-17 -->

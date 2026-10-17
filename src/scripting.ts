@@ -2667,12 +2667,12 @@ export module Scripting {
 
         explosion(tile: number, elevation: number, damage: number) {
             log('explosion', arguments)
-            // CE ref: actions.cc:1582 actionExplode — tile, elevation, minDamage, maxDamage
-            // Script opcode passes a single damage value; treat as fixed damage (min=max).
+            // CE interpreter_extra.cc opExplosion → scriptsRequestExplosion → actionExplode:
+            // d(1, damage) (0 when damage is 0) with no source object.
             const explosives = createObjectWithPID(makePID(0 /* items */, 85 /* Plastic Explosives */), -1)
             explosives.position = fromTileNum(tile)
             globalState.gMap.addObject(explosives)
-            explosives.explode(explosives, damage, damage)
+            explosives.explode(null, damage === 0 ? 0 : 1, damage)
             globalState.gMap.removeObject(explosives)
         }
 

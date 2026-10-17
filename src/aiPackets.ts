@@ -157,7 +157,10 @@ function parseIniText(text: string): Record<string, Record<string, string>> {
 
 function buildMessageRanges(raw: Record<string, string>): Partial<Record<string, [number, number]>> {
     const ranges: Partial<Record<string, [number, number]>> = {}
-    const keys = ['run', 'move', 'attack', 'miss']
+    // CE combat_ai.cc aiPacketRead: run / move / attack / miss and the hit lines per
+    // hit location (hit_head … hit_groin).
+    const keys = ['run', 'move', 'attack', 'miss', 'hit_head', 'hit_left_arm', 'hit_right_arm', 'hit_torso',
+        'hit_right_leg', 'hit_left_leg', 'hit_eyes', 'hit_groin']
     for (const key of keys) {
         const start = parseIntField(raw[key + '_start'], 0)
         const end   = parseIntField(raw[key + '_end'],   0)

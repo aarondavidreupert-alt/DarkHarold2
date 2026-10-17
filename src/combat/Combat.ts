@@ -920,6 +920,16 @@ export class Combat {
             if (a.explosionTile) this.spawnExplosionSprite(a.explosionTile)
             this.combatDisplay(a)
             this.applyDamage(a)
+            if (!globalState.combat) return
+            // CE actions.cc _action_melee:676 / _action_ranged:918 — after a melee attack
+            // the attacker says its hit / miss line, after a ranged one the defender
+            // (vanilla); no hit line for a killing blow.
+            const speaker = isRangedType ? a.defender : obj
+            if (hit) {
+                if ((a.defenderFlags & DAM_DEAD) === 0) this.maybeTaunt(speaker, 'hit', a.hitLocation)
+            } else {
+                this.maybeTaunt(isRangedType ? intended : obj, 'miss')
+            }
         }
 
         if (projectilePid !== null) {
@@ -1714,25 +1724,33 @@ export class Combat {
         return getMessage('combatai', id)
     }
 
-    maybeTaunt(obj: Critter, type: string, roll: boolean) {
-        if (roll === false) return
-        if (!Config.ui.combatTaunts) return // CE combat_ai.cc:3308 _combatai_msg
-        const range = obj.ai!.packet.messageRanges[type]
+    // CE combat_ai.cc _combatai_msg / _ai_print_msg — a floating line for run / move /
+    // attack / miss / hit (hit by hit location): not for the player or a dead / knocked-
+    // out critter, only with combat taunts on, d100 <= the packet's chance, and only
+    // when no other floating text is showing.
+    maybeTaunt(obj: Critter, type: 'run' | 'move' | 'attack' | 'miss' | 'hit', region?: string) {
+        if (!obj || obj.type !== 'critter' || obj.isPlayer || !obj.ai) return
+        if (!Config.ui.combatTaunts) return
+        if ((obj.injuryFlags & (DAM_DEAD | DAM_KNOCKED_OUT)) !== 0 || obj.dead) return
+        const packet = obj.ai.packet
+        if (randomBetween(1, 100) > (packet.chance ?? 0)) return
+        const LOCATION_KEYS: { [region: string]: string } = {
+            head: 'hit_head', leftArm: 'hit_left_arm', rightArm: 'hit_right_arm', torso: 'hit_torso',
+            rightLeg: 'hit_right_leg', leftLeg: 'hit_left_leg', eyes: 'hit_eyes', groin: 'hit_groin', uncalled: 'hit_torso',
+        }
+        const key = type === 'hit' ? LOCATION_KEYS[region ?? 'torso'] ?? 'hit_torso' : type
+        const range = packet.messageRanges[key]
         if (!range) return
         const [start, end] = range
-        var msgID = getRandomInt(start, end)
-        var msg = this.getCombatAIMessage(msgID)
-        if (msg) {
-            // CE combat_ai.cc:3401 — the AI packet's font / color / outline_color
-            // (ai.txt: 101, palette 58, palette 55 for every packet).
-            globalState.floatMessages.push({
-                msg: msg,
-                obj: obj,
-                startTime: window.performance.now(),
-                color: '#e4d80c',
-                outline: '#1c0c18',
-            })
-        }
+        if (end < start) return
+        const msg = this.getCombatAIMessage(randomBetween(start, end))
+        if (!msg) return
+        if (globalState.floatMessages.length > 0) return // _ai_print_msg: textObjectsGetCount() > 0
+        // CE combat_ai.cc:3401 — the AI packet's font / color / outline_color
+        // (ai.txt: 101, palette 58, palette 55 for every packet).
+        globalState.floatMessages.push({
+            msg, obj, startTime: window.performance.now(), color: '#e4d80c', outline: '#1c0c18',
+        })
     }
 
     private combataiRating(c: Critter): number {
@@ -2199,7 +2217,7 @@ export class Combat {
             AP: obj.AP!.getAvailableCombatAP(), weapon: wObj?.weapon?.name ?? null, region,
             message: `${actorName(obj)} attacks ${actorName(target)}`,
         })
-        this.maybeTaunt(obj, 'attack', rollSkillCheck(obj.ai!.packet.chance || 85, 0, false))
+        this.maybeTaunt(obj, 'attack')
         this.attack(obj, target, region, then)
         return true
     }
@@ -2513,7 +2531,7 @@ export class Combat {
         if (retarget.x !== target.position.x || retarget.y !== target.position.y) neighbours.unshift(retarget)
         for (const nb of neighbours) {
             if (obj.walkTo(nb, run, then, steps)) {
-                if (taunt) this.maybeTaunt(obj, 'move', rollSkillCheck(packet.chance || 85, 0, false))
+                if (taunt) this.maybeTaunt(obj, 'move')
                 eventLogPush({
                     actor: actorName(obj), action: 'ai-decision', result: 'creep', target: actorName(target),
                     AP: AP.getAvailableMoveAP(), message: `${actorName(obj)} moves toward ${actorName(target)}`,
@@ -2556,7 +2574,7 @@ export class Combat {
         const packet = obj.ai!.packet
         if (hexDistance(obj.position, threat.position) < packet.maxDist) {
             ;(obj as any).fleeing = true
-            this.maybeTaunt(obj, 'run', rollSkillCheck(packet.chance || 85, 0, false))
+            this.maybeTaunt(obj, 'run')
             return this.aiMoveAway(obj, threat, obj.AP!.getAvailableMoveAP(), true, then)
         }
         ;(obj as any).disengaging = true

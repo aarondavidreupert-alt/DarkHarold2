@@ -33,6 +33,7 @@ import {
 } from './ui.js'
 import { getMessage, getProtoMsg } from './util.js'
 import { Config } from './config.js'
+import { randomBetween } from './random.js'
 import { uiSteal } from './ui_steal.js'
 import { currentUnarmed, unarmedAPCost } from './unarmed.js'
 
@@ -62,7 +63,48 @@ export function getSkillID(skill: Skills): number {
     return -1
 }
 
-export function playerUseSkill(skill: Skills, obj: Obj): void {
+// CE actions.cc actionUseSkill: the skills that can't be used in combat (proto.msg 902).
+const NO_COMBAT_SKILLS = [Skills.FirstAid, Skills.Doctor, Skills.Lockpick, Skills.Steal, Skills.Traps, Skills.Science, Skills.Repair]
+
+// CE actions.cc actionUseSkill — who performs the player's skill: the party member best
+// at it in the whole party (partyMemberGetBestInSkill, the player first so ties stay
+// with the player), if it is also that member's own best skill
+// (partyMemberGetBestSkill), it is standing or walking, and the skill isn't Steal. The
+// member says a generic line (skill.msg 1000-1005); with the player right next to the
+// target the player does it after all (1100-1104).
+function skillPerformer(skill: Skills, target: Obj): Critter {
+    const player = globalState.player as Critter
+    if (skill === Skills.Steal || skill === Skills.Sneak) return player
+    const skillName = SKILL_NAMES[skill - 1]
+    let best: Critter | null = null
+    let bestValue = 0
+    for (const c of globalState.gParty?.getPartyMembersAndPlayer() ?? [player]) {
+        if (!c || c.dead || c.visible === false) continue
+        const v = c.getSkill(skillName)
+        if (v > bestValue) { bestValue = v; best = c }
+    }
+    if (!best || best === player) return player
+    let ownBest = SKILL_NAMES[0]
+    let ownValue = 0
+    for (const sk of SKILL_NAMES) {
+        const v = best.getSkill(sk)
+        if (v > ownValue) { ownValue = v; ownBest = sk }
+    }
+    if (ownBest !== skillName) return player
+    if (best.anim && best.anim !== 'idle' && best.anim !== 'walk' && best.anim !== 'run') return player
+    const nextToPlayer = hexDistance(player.position, target.position) <= 1
+    const id = nextToPlayer ? 1100 + randomBetween(0, 4) : 1000 + randomBetween(0, 5)
+    const line = getMessage('skill', id)
+    if (line) {
+        // textObjectAdd(partyMember, msg, 101, _colorTable[32747], _colorTable[0])
+        globalState.floatMessages.push({ msg: line, obj: best, startTime: window.performance.now(), color: '#ffff5a', outline: '#000000' })
+    }
+    if (nextToPlayer) return player
+    best.clearAnim()
+    return best
+}
+
+export function playerUseSkill(skill: Skills, obj: Obj, performer?: Critter): void {
     // FO2-CE ref: skill.cc skillUse() — engine handles the skill effect
     // Map enum to string name for the engine skillUse function
     const skillName = SKILL_NAMES[skill - 1] // Skills enum starts at 1 (SmallGuns=1)
@@ -76,7 +118,8 @@ export function playerUseSkill(skill: Skills, obj: Obj): void {
     if (obj._script) {
         dbg('script', `[Skill] Object has script — trying Scripting.useSkillOn(skillId=${skillId})`)
         try {
-            scriptHandled = Scripting.useSkillOn(globalState.player as Critter, skillId, obj)
+            // CE _obj_use_skill_on: the target's use_skill_on_p_proc with the performer as source
+            scriptHandled = Scripting.useSkillOn(performer ?? globalState.player as Critter, skillId, obj)
         } catch (e) {
             dbgWarn('script', '[Skill] useSkillOn script error:', e)
         }
@@ -99,29 +142,7 @@ export function playerUseSkill(skill: Skills, obj: Obj): void {
             return
         }
 
-        // CE ref: actions.cc:1417-1450 actionUseSkill — for all non-Steal/non-Sneak skills,
-        // delegate to the party member who is best in the skill, provided it is also
-        // that member's personal best skill (partyMemberGetBestSkill check).
-        // CE ref: party_member.cc:1133 partyMemberGetBestSkill, :1160 partyMemberGetBestInSkill.
-        let user: Critter = globalState.player as Critter
-        if (skillName !== 'Steal' && skillName !== 'Sneak') {
-            const playerSkill = user.getSkill(skillName)
-            let best: Critter | null = null
-            let bestVal = playerSkill
-            for (const member of globalState.gParty.party) {
-                if (member.dead) continue
-                const s = member.getSkill(skillName)
-                if (s > bestVal) { best = member; bestVal = s }
-            }
-            if (best !== null) {
-                const b = best
-                const memberBestSkill = SKILL_NAMES.reduce((acc, sk) => b.getSkill(sk) > b.getSkill(acc) ? sk : acc, 'Small Guns')
-                if (memberBestSkill === skillName) {
-                    uiLog(`${b.name} steps in to help.`)
-                    user = b
-                }
-            }
-        }
+        const user: Critter = performer ?? globalState.player as Critter
         dbg('script', `[Skill] Engine fallback: skillUse("${skillName}") via ${user.name ?? 'player'}`)
         const result = skillUse(user, target, skillName)
         uiLog(result.message)
@@ -163,12 +184,20 @@ export function playerUse(obj: Obj | null) {
             return
         }
 
+        // CE actions.cc actionUseSkill: no First Aid, Doctor, Lockpick, Steal, Traps,
+        // Science or Repair in combat.
+        if (globalState.inCombat && NO_COMBAT_SKILLS.includes(skill)) {
+            uiLog(getProtoMsg(902))
+            return
+        }
+        const performer = skillPerformer(skill, obj)
+
         const skillCallback = function () {
-            globalState.player!.clearAnim()
-            playerUseSkill(skill, obj)
+            performer.clearAnim()
+            playerUseSkill(skill, obj, performer)
         }
 
-        if (Config.engine.doInfiniteUse === true || hexDistance(globalState.player!.position, obj.position) <= 1) {
+        if (Config.engine.doInfiniteUse === true || hexDistance(performer.position, obj.position) <= 1) {
             skillCallback()
             return
         }
@@ -177,7 +206,7 @@ export function playerUse(obj: Obj | null) {
         // target tile itself, which may be blocked by the scenery object).
         const neighbors = hexNeighbors(obj.position)
         const map = globalState.gMap!
-        const playerPos = globalState.player!.position
+        const playerPos = performer.position
         let dest: { x: number; y: number } | null = null
         let bestDist = Infinity
         for (const n of neighbors) {
@@ -188,7 +217,9 @@ export function playerUse(obj: Obj | null) {
             }
         }
         if (dest) {
-            globalState.player!.walkTo(dest, Config.engine.doAlwaysRun, skillCallback)
+            // CE: run when the target is 5 or more hexes away (the player follows doAlwaysRun)
+            const run = performer.isPlayer ? Config.engine.doAlwaysRun : hexDistance(playerPos, obj.position) >= 5
+            performer.walkTo(dest, run, skillCallback)
         } else {
             uiLog("Can't reach that.")
         }
