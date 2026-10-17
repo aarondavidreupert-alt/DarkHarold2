@@ -292,9 +292,9 @@ export class Combat {
     // CE combat.cc attackComputeCriticalFailure — the weapon proto's critical-failure
     // type picks the table row, d100 - 5 x (Luck - 5) the effect. The player gets no
     // effect before game day 6 (CE's critical time limit).
-    private doCriticalFailure(obj: Critter, weapon: any, who: string): void {
-        if (((obj.pro as any)?.extra?.flags ?? 0) & 0x400) return // CRITTER_INVULNERABLE
-        if (obj.isPlayer && Math.floor((globalState.gameTickTime ?? 0) / 864000) < 6) return
+    private doCriticalFailure(obj: Critter, weapon: any, who: string): boolean {
+        if (((obj.pro as any)?.extra?.flags ?? 0) & 0x400) return false // CRITTER_INVULNERABLE
+        if (obj.isPlayer && Math.floor((globalState.gameTickTime ?? 0) / 864000) < 6) return false
         const chance = getRandomInt(1, 100) - 5 * (obj.getStat('LUK') - 5)
         const effect = chance <= 20 ? 0 : chance <= 50 ? 1 : chance <= 75 ? 2 : chance <= 95 ? 3 : 4
 
@@ -304,7 +304,9 @@ export class Combat {
         const table = getCritFailTableType(weapon)
         const critFailEffect = CriticalEffects.criticalFailTable[table]?.[effect + 1]
             ?? CriticalEffects.criticalFailTable.unarmed[effect + 1]
+        if (critFailEffect.length === 0) return false // _cf_table entry 0: no DAM_CRITICAL
         CriticalEffects.temporaryDoCritFail(critFailEffect, obj)
+        return true
     }
 
     // Damage, combat_p_proc and death for one victim of a ranged attack. Returns false
@@ -568,6 +570,10 @@ export class Combat {
 
         // ── SINGLE SHOT ───────────────────────────────────────────────────────
         var hitRoll = this.rollHit(obj, target, region, 0, who, targetName)
+        // CE actions.cc _action_ranged: a thrown weapon (ANIM_THROW_ANIM) is itself the
+        // projectile — unless a critical failure stopped the throw.
+        const thrown = attackTypeOf(weaponObj) === 'throw'
+        const targetTile = { ...target.position }
 
         // Deduct one round after the roll
         if (weapon && weapon.type !== 'melee') {
@@ -579,6 +585,7 @@ export class Combat {
         }
 
         if (hitRoll.hit === true) {
+            if (thrown) this.landThrownWeapon(obj, weaponObj!, targetTile, attackDmgType)
             var critModifier = hitRoll.crit ? hitRoll.DM : 2
             var damage = this.getDamageDone(obj, target, critModifier)
             var extraMsg = hitRoll.crit === true ? this.getCombatMsg(hitRoll.msgID) || '' : ''
@@ -611,15 +618,19 @@ export class Combat {
                 target.staticAnimation('dodge', () => target.clearAnim())
             }
 
-            if (hitRoll.crit === true) this.doCriticalFailure(obj, weapon, who)
+            // CE attackComputeCriticalFailure sets DAM_CRITICAL only when the table entry
+            // has an effect; without one the attack is an ordinary miss.
+            const critical = hitRoll.crit === true && this.doCriticalFailure(obj, weapon, who)
 
-            // CE attackCompute: a ranged/thrown attack that hit nothing may hit someone else.
+            // CE attackCompute: a ranged/thrown attack that hit nothing flies on and may hit
+            // someone else ((DAM_HIT | DAM_CRITICAL) == 0).
             const attackType = weaponAttackType(weaponObj)
-            if (attackType === 'ranged' || attackType === 'throw') {
-                const impact = this.rangedMissAccident(obj, target, weaponObj!, attackDmgType, hitRoll.crit !== true)
+            if (!critical && (attackType === 'ranged' || attackType === 'throw')) {
+                const impact = this.rangedMissAccident(obj, target, weaponObj!, attackDmgType, true)
                 if (impact && this.isExplosiveAttack(weaponObj!, attackDmgType)) {
                     this.explosionOnExtras(obj, impact.hit, impact.hit?.position ?? impact.tile, weaponObj!, attackDmgType)
                 }
+                if (thrown) this.landThrownWeapon(obj, weaponObj!, impact ? impact.landing : targetTile, attackDmgType)
             }
         }
     }
@@ -1052,7 +1063,7 @@ export class Combat {
     // in a random direction); the first shoot-blocking object past the defender — or
     // whatever blocks the landing tile — takes one round at ×2.
     private rangedMissAccident(attacker: Critter, defender: Critter, weaponObj: Obj, dmgType: string,
-                               plainFailure: boolean): { tile: Point; hit: Critter | null } | null {
+                               plainFailure: boolean): { tile: Point; hit: Critter | null; landing: Point } | null {
         const gMap = globalState.gMap
         const weapon = (weaponObj as any).weapon
         if (!gMap || !weapon) return null
@@ -1075,17 +1086,57 @@ export class Combat {
             accidental = gMap.blockingObjectAt(toTileNum(tile), defender.elevation, 0, null)
         }
         const SHOOT_THRU = 0x80000000
-        const none = { tile, hit: null as Critter | null }
-        if (accidental === null || ((((accidental as any).flags ?? 0) >>> 0) & SHOOT_THRU) !== 0) return none
+        if (accidental === null || ((((accidental as any).flags ?? 0) >>> 0) & SHOOT_THRU) !== 0) {
+            return { tile, hit: null, landing: tile }
+        }
+        // CE sets attack->tile to the obstacle's tile; the projectile's straight move stops
+        // on the last free hex before a wall or scenery blocker.
+        if (accidental.type !== 'critter') {
+            const line = hexLine(defender.position, accidental.position) ?? []
+            const before = line.length >= 2 ? line[line.length - 2] : defender.position
+            return { tile: accidental.position, hit: null, landing: { x: before.x, y: before.y } }
+        }
         // Only critters take damage in DH2 (CE's damage to scenery has no effect either).
-        if (accidental.type !== 'critter' || (accidental as Critter).dead || accidental === attacker) return none
+        if ((accidental as Critter).dead || accidental === attacker) {
+            return { tile: accidental.position, hit: null, landing: { ...accidental.position } }
+        }
 
         const victim = accidental as Critter
         const damage = this.getDamageDone(attacker, victim, 2)
         const who = attacker.isPlayer ? 'You' : attacker.name
         uiLog(`${who} hit ${victim.isPlayer ? 'you' : victim.name} instead for ${damage} damage!`)
+        const landing = { ...victim.position }
         this.applyRangedDamage(attacker, victim, damage, dmgType, true)
-        return { tile: victim.position, hit: victim }
+        return { tile: landing, hit: victim, landing }
+    }
+
+    // CE actions.cc _action_ranged (ANIM_THROW_ANIM): itemRemove(attacker, weapon, 1)
+    // makes one item of the stack the projectile while the rest stays in the hand
+    // (itemReplace); it lands on `landing` — the target's tile on a hit, where the miss
+    // stopped otherwise — and stays there. Grenades (explosive / plasma / EMP) explode
+    // and are gone.
+    private landThrownWeapon(attacker: Critter, weaponObj: Obj, landing: Point, dmgType: string): void {
+        if (weaponObj.pid === undefined) return
+        const a = attacker as any
+        let item: Obj
+        if ((weaponObj.amount ?? 1) > 1) {
+            weaponObj.amount -= 1
+            item = createObjectWithPID(weaponObj.pid)
+            item.amount = 1
+        } else {
+            const idx = attacker.inventory.indexOf(weaponObj)
+            if (idx !== -1) attacker.inventory.splice(idx, 1)
+            for (const hand of ['leftHand', 'rightHand']) {
+                if (a[hand] === weaponObj) a[hand] = attacker.isPlayer ? undefined : Critter.makeFist()
+            }
+            item = weaponObj
+        }
+        const gMap = globalState.gMap
+        if (gMap && !this.isExplosiveAttack(weaponObj, dmgType)) {
+            gMap.addObject(item)
+            item.move({ x: landing.x, y: landing.y }, gMap.getObjects().length - 1, false)
+        }
+        if (attacker.isPlayer) uiDrawWeapon()
     }
 
     perish(obj: Critter, attacker?: Critter, damageType?: string) {

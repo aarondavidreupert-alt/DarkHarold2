@@ -460,6 +460,7 @@ This was a full review of the attack chain against CE combat.cc (`attackDetermin
 | 14 | Bonus HtH Attacks / Rate of Fire / Move | −1 AP per melee/ranged attack; Bonus Move = 2 free move points per rank | +1 AP per turn each; Bonus Move +2 general AP |
 | 15 | Fast Shot | −1 AP for weapons with range > 2 | Not implemented |
 | 16 | `_is_hit_from_front` | Compares attacker and defender facing | Used the direction to the attacker |
+| 18 | Thrown weapons (2026-10-17, C25) | `_action_ranged`: `itemRemove(attacker, weapon, 1)` — one item of the stack is the projectile, the rest stays in the hand; it lands on the target's tile on a hit, on the tile where the miss stopped (the critter it hit by accident, or the last free hex before a wall), and stays there; grenades explode and are gone; no throw on a critical failure | Thrown weapons were never used up |
 | 17 | Unarmed moves (2026-10-17, C24) | `gUnarmedHitDescriptions`: 1–2 + bonus damage, CE requirements, AP, bonus crit, penetration; left hand punches and right hand kicks; primary/secondary + aimed; NPCs plain punch | Two invented tables with other names, damage, AP and requirements; kicks only with both hands empty; NPC fists levelled up after a weapon drop — see `wiki/weapon_combat.md` §9 |
 
 ### Verified as CE (no change)
@@ -486,7 +487,6 @@ This was a full review of the attack chain against CE combat.cc (`attackDetermin
 | Knockout duration | Knockout event 10 × (35 − 3 × END) ticks | `skipTurns = 1` |
 | Knockback / knockdown animation | Slide with fall anim, then stand up | Position moved hex by hex |
 | Non-lethal fire | `ANIM_FIRE_DANCE` on `DAM_ON_FIRE` | Not shown |
-| Thrown weapons | The weapon itself flies and lands at the target | Not consumed |
 | Burned/exploded corpse | `itemDropAll` unless NO_DROP | Items stay in the corpse |
 | Perks | Silent Death (×2 from behind while sneaking), Enhanced Knockout (weapon perk) | Missing |
 | `attack_complex` | `_gcsd` accuracy, AP, damage and result bonuses | Ignored |

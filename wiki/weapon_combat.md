@@ -428,7 +428,6 @@ Re-audited 2026-10-17. Most of the old list here (single-shot ammo, caliber chec
 
 | Feature | CE Behavior | DH2 Status |
 |---------|-------------|------------|
-| Thrown weapons | The item itself is thrown and lands at the target | Not consumed |
 | Unarmed-type weapons (brass knuckles, power fist) | Weapon hit mode: min ST, One Hander and Accurate apply | Treated as plain unarmed in the hit chance |
 | Enhanced Knockout weapon perk | Knockout chance | Missing |
 | Critical-failure effects DUD / EXPLODE | Weapon duds / explodes | Become "destroy weapon" |
