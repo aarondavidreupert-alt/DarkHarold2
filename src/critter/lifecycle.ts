@@ -195,6 +195,8 @@ export function critterDamage(
     killOptions: KillOptions = {}
 ) {
     obj.stats.modifyBase('HP', -damage)
+    // CE combat.cc _damage_object: combat.damageLastTurn += damage
+    if (damage > 0) (obj as any).damageLastTurn = ((obj as any).damageLastTurn ?? 0) + damage
     // FO2-CE ref: combat.cc attackComputeDamage() — damage_p_proc fires after HP reduction, before death check
     if (useScript && obj._script) {
         Scripting.damage(obj, obj, source, damage)

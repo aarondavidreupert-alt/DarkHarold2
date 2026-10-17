@@ -93,6 +93,7 @@ export class Player extends Critter {
         } else {
             this.art = art
             self._baseArt = null
+            this.setIdleArt() // CE keeps the fid's weapon code: stand with the weapon in hand
         }
     }
 

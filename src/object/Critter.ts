@@ -294,13 +294,17 @@ export class Critter extends Obj {
     }
 
     getEquippedArmor(): Obj | null {
-        // Player stores armor in a dedicated slot; NPCs check inventory
+        // Player stores armor in a dedicated slot; NPCs wear the inventory armor flagged
+        // OBJECT_WORN (CE critterGetArmor), else the first one carried.
         const self = this as any
         if (self.armor !== undefined) return self.armor
+        let first: Obj | null = null
         for (const item of this.inventory) {
-            if (item.subtype === 'armor') return item
+            if (item.subtype !== 'armor') continue
+            if ((((item as any).flags ?? 0) & 0x4000000) !== 0) return item // OBJECT_WORN
+            if (!first) first = item
         }
-        return null
+        return first
     }
 
     getArmorDR(damageType: string): number {

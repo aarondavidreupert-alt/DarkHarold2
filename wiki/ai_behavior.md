@@ -630,7 +630,7 @@ These functions do not affect the AI loop itself — they only gate what the pla
 CE ref: `combat_ai.cc` / `combat_ai_defs.h` / `combat.cc` / `item.cc`
 DH2 ref: `src/combat/Combat.ts` (`doAITurn` and the `ai*` methods), `src/aiPackets.ts`, `src/combat/whoHitMe.ts`
 
-<!-- audited: 2026-10-17 — full port of _combat_ai (C28) -->
+<!-- audited: 2026-10-17 — full port of _combat_ai (C28), remaining gaps closed (C29) -->
 
 DH2 actions are asynchronous: every move, attack, reload or drug is an animation. `doAITurn` therefore runs CE's `_combat_ai` as phases across repeated calls; each action's callback re-enters it:
 
@@ -640,7 +640,7 @@ DH2 actions are asynchronous: every move, attack, reload or drug is an animation
 | `drugs` | `_ai_check_drugs` | Healing items while HP < chem ratio; random chems; usable items from the floor |
 | `prefs` | `_ai_danger_source` + `_cai_perform_distance_prefs` | Picks the target; stay_close / charge / snipe |
 | `attack` | `_ai_try_attack` (≤ 10 attempts) | Switch weapons, reload, move closer, called shot, attack |
-| `end` | `_combat_ai` tail | Disengage past `max_dist`, keep near the team, spend extra AP on distance prefs |
+| `end` | `_combat_ai` tail | Step by step (`endStep`): past `max_dist` move away from a dead friend / join a friend within PER × 2 / disengage; no target but shot by a live attacker (`damageLastTurn`) → move away from a dead friend or run; away from a friend who died unseen until 10 hexes apart; keep near the team, spend extra AP on distance prefs |
 
 | System | DH2 Status | Notes |
 |--------|-----------|-------|
@@ -651,7 +651,7 @@ DH2 actions are asynchronous: every move, attack, reload or drug is an animation
 | Target selection `_ai_danger_source` | DONE* | Party: attack_who, last target (whomever_attacking_me), no chasing fleeing critters unless berserk / none / charge. Others: whoever hit them. Then aiFindAttackers (the one I attacked, my team's attacker, the one my team attacked), sorted by attack_who, within perception and reachable or shootable. *Fallback: DH2's nearest perceived enemy when nothing qualifies |
 | `_caiTeamCombatInit` | DONE | NPC-started fights: each side starts with the nearest member of the other team as `whoHitMe` |
 | `_critter_set_who_hit_me(attacker, defender)` | DONE | At the start of each `_ai_try_attack` |
-| Distance prefs | DONE | stay_close (within 5 of the player unless the player hit it), charge (all AP toward the target), snipe (sfall fix: retreat 10 when outrated and close), stay. `_cai_retargetTileFromFriendlyFire` MISSING |
+| Distance prefs | DONE | stay_close (within 5 of the player unless the player hit it), charge (all AP toward the target), snipe (sfall fix: retreat 10 when outrated and close), stay; then `_cai_retargetTileFromFriendlyFire` on the current tile (C29) |
 | Weapon choice `_ai_switch_weapons` | DONE | Best inventory weapon (`_ai_search_inven_weap` / `_ai_best_weapon`, AP checked), else one from the floor within PER + 5 (`_ai_search_environ` + `_ai_retrieve_object`, then wielded), else the fist if 3 AP remain |
 | Hands | DONE | NPCs fight with the right-hand item (`critterGetItem2`); the invented melee↔ranged hand swapping is gone |
 | Hit mode `_ai_pick_hit_mode` | DONE | Any secondary attack (burst, throw, …) per area_attack_mode / secondary_freq, range and AP |
@@ -666,9 +666,12 @@ DH2 actions are asynchronous: every move, attack, reload or drug is an animation
 | End of combat `_combat_over` | DONE | Living NPCs reload (`aiAttemptWeaponReload`); fleeing / disengaging cleared |
 | Combat taunts | WIRED | attack / move / run |
 | `_combatai_check_retaliation` | DONE | `whoHitMe.ts` (C19) |
-| Party armor upgrade `_ai_search_inven_armor` | MISSING | |
+| Party armor upgrade `_ai_search_inven_armor` | DONE | Party members only, AC + Σ(DR + DT) over 7 damage types; used by the control screen's Use Best Armor (C29) |
+| `_cai_retargetTileFromFriendlyFire` | DONE | A team-mate rating ≥ mine attacks the same target and its shot would hit me first (`_cai_attackWouldIntersect`) → step one hex to either side of its facing; INT > 0; destination of `_ai_move_steps_closer` and tail of the distance prefs (C29) |
+| `isWithinPerception` | DONE | Shared `src/perception.ts` (scripting + AI): `_can_see` facing, PER × 5 (Stealth Boy ÷2), else PER × 2 in combat / PER; sneak ÷4 or × 2/3; no LOS test (C29) |
+| `aiInfoSetLastItem` | DONE | An item not reached this turn is fetched first next turn, used if it is a drug (C29) |
 | `_combatai_want_to_join` / onlookers | PARTIAL | DH2 hostility / line-of-sight enrolment |
-| friendlyDead move-away, damageLastTurn flee | MISSING | Not tracked |
+| friendlyDead move-away, damageLastTurn flee | DONE | `damageLastTurn` accumulates in `critterDamage` (CE `_damage_object`), reset at combat start/end; `perish` marks onlookers that see the body but not its killer (`_combatai_notify_onlookers`); bystanders without a turn still run the move-away (C29) |
 
 ---
 
@@ -677,9 +680,5 @@ DH2 actions are asynchronous: every move, attack, reload or drug is an animation
 | Area | fallout2-ce | DarkHarold2 |
 |------|------------|-------------|
 | Target fallback | none: no target → no attack | DH2 falls back to the nearest perceived enemy (`findTarget`), because not every way a DH2 fight starts sets `whoHitMe` |
-| Perception | `isWithinPerception` incl. sneaking ÷4 / ×2/3, glass ÷2 | PER×5 with LOS (Stealth Boy ÷2), PER×2 without |
-| Friendly fire | `_cai_retargetTileFromFriendlyFire` moves to a clear tile | Holds fire / falls back to single fire (C17) |
-| Retrieval across turns | `aiInfoSetLastItem` keeps the item for the next turn | Searched again next turn |
-| Punch while holding an unaffordable weapon | `HIT_MODE_PUNCH` with the item still in hand | Punches with the free hand for the rest of the turn |
-| `damageLastTurn` / friendlyDead | Flee from an unseen shooter, move away from dead friends | Not tracked |
-| Party armor | `_ai_search_inven_armor` | Not implemented |
+| Punch while holding an unaffordable weapon | `HIT_MODE_PUNCH` with the item still in hand | Punches with the free hand for the rest of the turn (DH2 attacks with the active hand's item, so the in-hand item can't be bypassed) |
+| Onlookers | Every combatant runs `_combat_ai`; `_combatai_notify_onlookers` sets ENGAGING | Non-hostile bystanders get no AI turn (DH2 hostility model) except the friendlyDead move-away |

@@ -197,7 +197,7 @@ the wiki tracker is the source of truth.
 ### 🔶 Known approximations
 
 - **Ammo stacks** count rounds in `amount`, where CE keeps boxes plus rounds in the top box (LE12 note).
-- **AI blast safety** — CE's `_cai_retargetTileFromFriendlyFire` (stepping to a clear firing tile) is missing; the AI drops from burst to single fire or holds fire (C17 note). Explosions from DAM_EXPLODE critical failures aren't generated.
+- **AI blast safety** — `_ai_best_weapon` ignores blast radius and team safety; otherwise the AI steps out of a team-mate's line of fire (C29) or drops from burst to single fire / holds fire (C17 note). Explosions from DAM_EXPLODE critical failures aren't generated.
 - **Combat details still not CE** (C23):
   - Knockout lasts one turn, and knockback moves the critter without the slide animation.
   - Silent Death and Enhanced Knockout aren't implemented.

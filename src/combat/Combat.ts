@@ -42,6 +42,7 @@ import { computeDamage } from './damage.js'
 import { combatIsShotBlocked, nextShootObstacle } from './lineOfFire.js'
 import { critterSetWhoHitMe, noteHit } from './whoHitMe.js'
 import { lazyLoadImage } from '../images.js'
+import { isWithinPerception } from '../perception.js'
 import { loadPRO, makePID } from '../pro.js'
 import {
     accountForPartialCover as _accountForPartialCover,
@@ -134,7 +135,7 @@ interface AiTurnState {
     envSearched: boolean
     chemActive: boolean | null
     chemCount: number
-    endDone: boolean
+    endStep: number
     whoHitSet: boolean
 }
 
@@ -979,11 +980,11 @@ export class Combat {
     // CE combat_ai.cc _ai_search_inven_weap: the best weapon in the inventory (other
     // than the one in hand) the attacker can use right now. Only bipeds, robots and
     // PROTO_ID_0x1000098 search; _ai_best_weapon's blast-radius and team-safety terms
-    // are left out.
-    private aiSearchInvenWeap(attacker: Critter, defender: Critter): Obj | null {
+    // are left out. Static: the party-member control screen uses it too (checkAP false).
+    static aiSearchInvenWeap(attacker: Critter, defender: Critter | null, checkAP = true): Obj | null {
         const bodyType = (attacker.pro as any)?.extra?.bodyType ?? 0
         if (bodyType !== 0 && bodyType !== 1 && attacker.pid !== 0x1000098) return null
-        const packet = attacker.ai!.packet
+        const packet = attacker.ai?.packet ?? new AI(attacker).packet
         const prefs = Combat.WEAP_PREF_ORDERINGS[packet.bestWeapon] ?? []
         const inHand = attacker.equippedWeapon
         const ap = attacker.AP?.getAvailableCombatAP() ?? 0
@@ -991,7 +992,7 @@ export class Combat {
         for (const item of attacker.inventory) {
             const weapon = (item as any).weapon
             if (item.subtype !== 'weapon' || !weapon || item === inHand) continue
-            if (weapon.getAPCost(1) > ap) continue
+            if (checkAP && weapon.getAPCost(1) > ap) continue
             // _ai_can_use_weapon: the critter has the attack FRM, enough skill, and the
             // attack type is one the packet's best_weapon allows
             const attackArt = attacker.getBase() + weapon.getAnim('attack')
@@ -1000,15 +1001,40 @@ export class Combat {
             const attackType = weaponAttackType(item)
             if (!prefs.includes(attackType)) continue
             if (attackType === 'ranged' && !aiHaveAmmo(item) && !findReloadAmmo(attacker as any, item as any)) continue
-            best = this.aiBestWeapon(attacker, best, item)
+            best = Combat.aiBestWeapon(packet, best, item)
         }
         return best
     }
 
+    // CE combat_ai.cc _ai_search_inven_armor: party members only — the inventory armor
+    // with the highest AC + Σ(DR + DT) over all damage types, if it beats the worn one.
+    static aiSearchInvenArmor(critter: Critter): Obj | null {
+        if (!globalState.gParty?.isPartyMember(critter)) return null
+        const DAMAGE_TYPES = ['Normal', 'Laser', 'Fire', 'Plasma', 'Electrical', 'EMP', 'Explosive']
+        const score = (a: Obj): number => {
+            const ex = (a as any).pro?.extra ?? {}
+            let v = ex.AC ?? 0
+            for (const t of DAMAGE_TYPES) v += (ex.stats?.['DR ' + t] ?? 0) + (ex.stats?.['DT ' + t] ?? 0)
+            return v
+        }
+        const armor = critter.getEquippedArmor()
+        let armorScore = armor ? score(armor) : 0
+        let bestArmor: Obj | null = null
+        for (const candidate of critter.inventory) {
+            if (candidate.subtype !== 'armor' || candidate === armor) continue
+            const v = score(candidate)
+            if (v > armorScore) {
+                armorScore = v
+                bestArmor = candidate
+            }
+        }
+        return bestArmor
+    }
+
     // CE combat_ai.cc _ai_best_weapon — preference order of the attack type first, then
     // average damage (x2 with a weapon perk), then cost.
-    private aiBestWeapon(attacker: Critter, w1: Obj | null, w2: Obj): Obj | null {
-        const best = attacker.ai!.packet.bestWeapon
+    private static aiBestWeapon(packet: AiPacket, w1: Obj | null, w2: Obj): Obj | null {
+        const best = packet.bestWeapon
         if (best === 'random') return randomBetween(1, 100) <= 50 ? w1 : w2
         if (!w1) return w2
         const prefs = Combat.WEAP_PREF_ORDERINGS[best] ?? []
@@ -1045,12 +1071,12 @@ export class Combat {
         const punchRange = inHand?.weapon?.getMaximumRange(1) ?? 1
         const inReach = hexDistance(attacker.position, defender.position) <= punchRange
         if (defenderBiped && defenderUnarmed && canPunch && inReach) return false
-        const weapon = this.aiSearchInvenWeap(attacker, defender)
+        const weapon = Combat.aiSearchInvenWeap(attacker, defender)
         if (!weapon) return false
         const a = attacker as any
         a.rightHand = weapon
         a.activeHand = 'rightHand'
-        attacker.art = attacker.getAnimation('idle')
+        attacker.setIdleArt()
         dbg('ai', `[AI] ${actorName(attacker)} wields ${weapon.name} (CE _ai_switch_weapons)`)
         return true
     }
@@ -1400,6 +1426,15 @@ export class Combat {
         // critter/lifecycle.ts); guard against a path that didn't.
         if (!obj.dead) critterKill(obj, attacker, undefined, { animate: true }, damageType)
 
+        // CE combat_ai.cc _combatai_notify_onlookers: a critter not yet in the fight that
+        // sees the death but not the killer remembers the body ("Somebody died and I don't
+        // know why! Run!!!") and moves away from it on its turns.
+        const killer: Critter | null = attacker ?? (obj as any).whoHitMe ?? null
+        for (const c of this.combatants) {
+            if (c === obj || c.dead || c.isPlayer || c.hostile) continue
+            if (this.isWithinPerception(c, obj) && !this.isWithinPerception(c, killer)) (c as any).aiFriendlyDead = obj
+        }
+
         // Inventory stays on the critter — the player loots it via the context menu,
         // just like a container.
 
@@ -1462,15 +1497,7 @@ export class Combat {
     findTarget(obj: Critter): Critter | null {
         // CE ref: combat_ai.cc _ai_danger_source / isWithinPerception
         // Target must be within PER*5 tiles with LOS, or PER*2 tiles without.
-        const per = obj.getStat('PER')
-        const targets = this.combatants.filter((x) => {
-            if (x.dead || x.teamNum === obj.teamNum) return false
-            const dist = hexDistance(obj.position, x.position)
-            const maxRange = (x as any).stealthActive ? Math.floor((per * 5) / 2) : per * 5
-            if (dist > maxRange) return false              // beyond max perception range (halved vs stealthed targets; CE ref: combat_ai.cc:3510)
-            if (dist > per * 2 && !this.hasLineOfSight(obj.position, x.position)) return false
-            return true
-        })
+        const targets = this.combatants.filter((x) => !x.dead && x.teamNum !== obj.teamNum && this.isWithinPerception(obj, x))
         if (targets.length === 0) return null
         const attackWho = obj.ai?.packet.attackWho ?? 'closest'
         switch (attackWho) {
@@ -1537,14 +1564,14 @@ export class Combat {
         if (depth === 1) {
             ;(obj as any)._aiTurn = {
                 phase: 'start', target: null, attempts: 0, drugUsed: false, healed: false, healSearchDone: false,
-                envSearched: false, chemActive: null, chemCount: 0, endDone: false, whoHitSet: false,
+                envSearched: false, chemActive: null, chemCount: 0, endStep: 0, whoHitSet: false,
             } as AiTurnState
             dbg('ai', `[AI] ${actorName(obj)} turn start — AP: ${AP.getAvailableCombatAP()}, packet: ${obj.ai?.packet.name ?? '?'}`)
             // CE: a critter other than the player fights with its right-hand item
             const a = obj as any
             if (!obj.isPlayer && a.rightHand?.pid !== undefined && a.activeHand !== 'rightHand') {
                 a.activeHand = 'rightHand'
-                obj.art = obj.getAnimation('idle')
+                obj.setIdleArt()
             }
             // CE combat.cc _combat_turn: combat_p_proc once at the start of the turn
             if (Config.engine.doLoadScripts === true && obj._script !== undefined) {
@@ -1594,8 +1621,6 @@ export class Combat {
             }
             // falls through
             case 'end': {
-                if (st.endDone) return this.nextTurn()
-                st.endDone = true
                 if (this.aiEndOfTurn(obj, st, again)) return
                 return this.nextTurn()
             }
@@ -1675,14 +1700,9 @@ export class Combat {
         return best
     }
 
-    // CE combat_ai.cc isWithinPerception (simplified like findTarget): PER×5 with line of
-    // sight (halved against an active Stealth Boy), PER×2 without.
-    private isWithinPerception(obj: Critter, target: Critter): boolean {
-        const per = obj.getStat('PER')
-        const dist = hexDistance(obj.position, target.position)
-        const maxRange = (target as any).stealthActive ? Math.floor((per * 5) / 2) : per * 5
-        if (dist <= maxRange && this.hasLineOfSight(obj.position, target.position)) return true
-        return dist <= per * 2
+    // CE combat_ai.cc isWithinPerception (src/perception.ts)
+    isWithinPerception(obj: Critter, target: Critter | null): boolean {
+        return isWithinPerception(obj, target)
     }
 
     // CE item.cc weaponGetRange: the action's range; a throw is capped at 3 × ST (the
@@ -1868,12 +1888,12 @@ export class Combat {
     // else one from the floor (_ai_search_environ + _ai_retrieve_object), else the
     // fist if its AP fits.
     private aiSwitchWeapons(obj: Critter, target: Critter, again: () => void): 'acting' | 'retry' | 'fail' {
-        const best = this.aiSearchInvenWeap(obj, target)
+        const best = Combat.aiSearchInvenWeap(obj, target)
         if (best) {
             const a = obj as any
             a.rightHand = best
             a.activeHand = 'rightHand'
-            obj.art = obj.getAnimation('idle')
+            obj.setIdleArt()
             dbg('ai', `[AI] ${actorName(obj)} wields ${best.name} (CE _ai_switch_weapons)`)
             return this.checkBadShot(obj, target, false) === 'notEnoughAp' ? 'fail' : 'retry'
         }
@@ -1887,7 +1907,7 @@ export class Combat {
                     const a = obj as any
                     a.rightHand = got
                     a.activeHand = 'rightHand'
-                    obj.art = obj.getAnimation('idle')
+                    obj.setIdleArt()
                 }
                 again()
             }
@@ -1928,7 +1948,7 @@ export class Combat {
         uiLog(`${obj.name} ${getMessage('misc', 5001) ?? 'is out of ammo for the'} ${wObj.name}.`)
         const a = obj as any
         for (const hand of ['leftHand', 'rightHand']) if (a[hand] === wObj) a[hand] = Critter.makeFist()
-        obj.art = obj.getAnimation('idle')
+        obj.setIdleArt()
         const r = this.aiSwitchWeapons(obj, target, again)
         return r === 'fail' ? 'done' : r
     }
@@ -2007,13 +2027,17 @@ export class Combat {
                 st.healSearchDone = true
             }
         }
-        // Nothing usable carried: look for a usable item on the floor.
-        if (!st.drugUsed && st.healSearchDone && !st.envSearched) {
+        // An item fetched last turn (aiInfoGetLastItem), or nothing usable carried: look
+        // for a usable item on the floor.
+        const last: Obj | null = (obj as any).aiLastItem ?? null
+        if (last && !globalState.gMap!.getObjects().includes(last)) (obj as any).aiLastItem = null
+        if (((obj as any).aiLastItem || (!st.drugUsed && st.healSearchDone)) && !st.envSearched) {
             st.envSearched = true
-            const item = this.aiSearchEnviron(obj, 'drug', null) ?? this.aiSearchEnviron(obj, 'misc', null)
+            const item = (obj as any).aiLastItem ?? this.aiSearchEnviron(obj, 'drug', null) ?? this.aiSearchEnviron(obj, 'misc', null)
+            ;(obj as any).aiLastItem = null
             if (item && this.aiRetrieveObject(obj, item, () => {
                 const got = inventoryCopyOf(obj, item)
-                if (got && obj.AP!.getAvailableCombatAP() >= 2) {
+                if (got && got.subtype === 'drug' && obj.AP!.getAvailableCombatAP() >= 2) {
                     st.drugUsed = true
                     this.aiUseDrug(obj, got, again)
                 } else {
@@ -2107,6 +2131,8 @@ export class Combat {
         const path = gMap.recalcPath(obj.position, item.position)
         if (path.length === 0) return false
         const reach = path.length - 1 <= steps
+        // aiInfoSetLastItem: an item not reached this turn is fetched next turn (_ai_check_drugs)
+        if (!reach) (obj as any).aiLastItem = item
         if (!obj.walkTo(item.position, false, () => { obj.clearAnim(); if (reach) pick(); else then() }, steps, path)) return false
         if (AP.subtractMoveAP(obj.path.path.length - 1) === false) AP.combat = 0
         return true
@@ -2129,6 +2155,9 @@ export class Combat {
         const run = steps >= Math.trunc(obj.AP!.getMaxAP() / 2) && obj.canRun()
         const neighbours = hexNeighbors(target.position)
             .sort((a, b) => hexDistance(obj.position, a) - hexDistance(obj.position, b))
+        // _cai_retargetTileFromFriendlyFire on the destination (the target's tile)
+        const retarget = this.retargetTileFromFriendlyFire(obj, target, target.position)
+        if (retarget.x !== target.position.x || retarget.y !== target.position.y) neighbours.unshift(retarget)
         for (const nb of neighbours) {
             if (obj.walkTo(nb, run, then, steps)) {
                 if (taunt) this.maybeTaunt(obj, 'move', rollSkillCheck(packet.chance || 85, 0, false))
@@ -2181,8 +2210,49 @@ export class Combat {
         return false
     }
 
-    // CE combat_ai.cc _cai_perform_distance_prefs (sfall's snipe fix; without
-    // _cai_retargetTileFromFriendlyFire).
+    // CE combat_ai.cc _cai_retargetTileFromFriendlyFire: if the critter stands in the
+    // line of fire of a team-mate who rates at least as high and attacks the same target
+    // (_cai_attackWouldIntersect), step aside: one hex to either side of that team-mate's
+    // facing from `tile`, the free one nearest `tile`. Costs 2 INT per step (INT <= 0: none).
+    retargetTileFromFriendlyFire(source: Critter, target: Critter | null, tile: Point): Point {
+        if (!target || source.getStat('INT') <= 0) return tile
+        const rating = this.combataiRating(source)
+        const friends = this.combatants
+            .filter((c) => !c.dead && c !== source && c.teamNum === source.teamNum
+                && (c as any).aiLastTarget === target && this.combataiRating(c) >= rating)
+            .sort((a, b) => hexDistance(source.position, a.position) - hexDistance(source.position, b.position))
+        const candidates: Point[] = []
+        for (const f of friends) {
+            if (this.attackWouldIntersect(f, target, source)) {
+                const r = f.orientation ?? 0
+                const a = hexInDirection(tile, (r + 1) % 6)
+                const b = hexInDirection(tile, (r + 5) % 6)
+                if (a) candidates.push(a)
+                if (b) candidates.push(b)
+                break
+            }
+        }
+        const gMap = globalState.gMap!
+        let best: Point | null = null
+        for (const c of candidates) {
+            if (gMap.blockingObjectAt(toTileNum(c), source.elevation, 0, null)) continue
+            if (!best || hexDistance(tile, c) < hexDistance(tile, best)) best = c
+        }
+        return best ?? tile
+    }
+
+    // CE combat_ai.cc _cai_attackWouldIntersect: the attacker's shot at the defender would
+    // first meet `friend`, or its spray / blast would catch a team-mate.
+    private attackWouldIntersect(attacker: Critter, defender: Critter, friend: Critter): boolean {
+        const w = attacker.equippedWeapon
+        if (!w || w.pid === undefined) return false
+        if (this.attackRange(attacker, w) < 1) return false
+        if (nextShootObstacle(attacker, attacker.position, defender.position, attacker) === friend) return true
+        return this.combatSafetyInvalidateWeapon(attacker, w, 'primary', defender, false)
+    }
+
+    // CE combat_ai.cc _cai_perform_distance_prefs (sfall's snipe fix), ending with the
+    // friendly-fire sidestep (_cai_retargetTileFromFriendlyFire on the critter's tile).
     private aiDistancePrefs(obj: Critter, target: Critter | null, then: () => void): boolean {
         const AP = obj.AP!
         if (AP.getAvailableCombatAP() <= 0) return false
@@ -2192,61 +2262,118 @@ export class Combat {
             case 'stay_close':
                 if (player && (obj as any).whoHitMe !== player) {
                     const d = hexDistance(obj.position, player.position)
-                    if (d > 5) return this.aiMoveStepsCloser(obj, player, d - 5, false, then)
+                    if (d > 5 && this.aiMoveStepsCloser(obj, player, d - 5, false, then)) return true
                 }
-                return false
+                break
             case 'charge':
-                return !!target && this.aiMoveStepsCloser(obj, target, AP.getAvailableMoveAP(), true, then)
+                if (target && this.aiMoveStepsCloser(obj, target, AP.getAvailableMoveAP(), true, then)) return true
+                break
             case 'snipe': {
-                if (!target) return false
+                if (!target) break
                 const d = hexDistance(obj.position, target.position)
-                if (d >= 10) return false
+                if (d >= 10) break
                 const wObj = obj.equippedWeapon
                 const attackCost = wObj?.weapon ? wObj.weapon.getAttackAPCost(obj, 1, false) : 3
                 const movementPoints = AP.getAvailableCombatAP() - attackCost
                 if (movementPoints > 0) {
-                    if (movementPoints + d - 1 < 5 && this.combataiRating(obj) < this.combataiRating(target)) {
-                        return this.aiMoveAway(obj, target, 10, false, then)
-                    }
-                    return false
+                    if (movementPoints + d - 1 < 5 && this.combataiRating(obj) < this.combataiRating(target)
+                        && this.aiMoveAway(obj, target, 10, false, then)) return true
+                } else if (this.aiMoveAway(obj, target, 10, false, then)) {
+                    return true
                 }
-                return this.aiMoveAway(obj, target, 10, false, then)
+                break
+            }
+        }
+        // _cai_retargetTileFromFriendlyFire on the current tile: step out of a stronger
+        // team-mate's line of fire.
+        const tile = this.retargetTileFromFriendlyFire(obj, target, obj.position)
+        if (tile.x !== obj.position.x || tile.y !== obj.position.y) {
+            if (obj.walkTo(tile, false, then, AP.getAvailableMoveAP())) {
+                if (AP.subtractMoveAP(obj.path.path.length - 1) === false) AP.combat = 0
+                return true
             }
         }
         return false
     }
 
-    // The tail of CE _combat_ai: a target beyond max_dist → find a friend nearby or
-    // disengage; no target → keep within reach of the team (party members: their
-    // distance setting); otherwise spend leftover AP on the distance preferences.
+    // The tail of CE _combat_ai, step by step (each may start a move and re-enter):
+    //   1. a live target beyond max_dist: move away from a dead friend, or join a friend
+    //      within PER × 2 (_ai_find_friend), else disengage
+    //   2. no target (not a party member) but hit this combat by someone still alive: move
+    //      away from a dead friend, else run ("somebody is shooting at me")
+    //   3. away from a friend who died for no visible reason, until 10 hexes apart
+    //   4. no target: keep within reach of the team (party: by distance setting);
+    //      otherwise spend leftover AP on the distance preferences
     private aiEndOfTurn(obj: Critter, st: AiTurnState, then: () => void): boolean {
         const packet = obj.ai!.packet
         const target = st.target
         const AP = obj.AP!
-        if (target && !target.dead && AP.getAvailableCombatAP() !== 0 && hexDistance(obj.position, target.position) > packet.maxDist) {
-            const friend = this.nearestOfTeamExcept(obj)
-            const per = obj.getStat('PER')
-            if (!friend || hexDistance(obj.position, friend.position) > per * 2) (obj as any).disengaging = true
-            else if (hexDistance(obj.position, friend.position) > 5
-                && this.aiMoveStepsCloser(obj, friend, hexDistance(obj.position, friend.position) - 5, false, then)) return true
-        }
+        const a = obj as any
         const player = globalState.player
-        let teammate: Critter | null = null
-        let maxTeammateDistance = 5
-        if (player && obj.teamNum === player.teamNum) {
-            teammate = player
-            if (globalState.gParty?.isPartyMember(obj)) {
-                const PARTY_DISTANCES: { [d: string]: number } = { stay_close: 5, charge: 7, snipe: 7, on_your_own: 7, stay: 50000 }
-                maxTeammateDistance = PARTY_DISTANCES[packet.distance] ?? 5
-            }
-        } else {
-            teammate = this.nearestOfTeamExcept(obj)
+        const party = !!globalState.gParty?.isPartyMember(obj)
+        const steps: (() => boolean)[] = [
+            () => {
+                if (!target || target.dead || AP.getAvailableCombatAP() === 0
+                    || hexDistance(obj.position, target.position) <= packet.maxDist) return false
+                const fd: Critter | null = a.aiFriendlyDead ?? null
+                if (fd) {
+                    a.aiFriendlyDead = null
+                    return this.aiMoveAway(obj, fd, 10, false, then)
+                }
+                const friend = this.nearestOfTeamExcept(obj)
+                const per = obj.getStat('PER')
+                if (!friend || hexDistance(obj.position, friend.position) > per * 2) {
+                    a.disengaging = true
+                    return false
+                }
+                const d = hexDistance(obj.position, friend.position)
+                return d > 5 && this.aiMoveStepsCloser(obj, friend, d - 5, false, then)
+            },
+            () => {
+                if (target || party) return false
+                const who: Critter | null = a.whoHitMe ?? null
+                if (!who || who.dead || !(a.damageLastTurn > 0)) return false
+                const fd: Critter | null = a.aiFriendlyDead ?? null
+                if (fd) {
+                    a.aiFriendlyDead = null
+                    return this.aiMoveAway(obj, fd, 10, false, then)
+                }
+                dbg('ai', `[AI] ${actorName(obj)}: FLEEING: Somebody is shooting at me that I can't see!`)
+                return this.aiRunAway(obj, null, then)
+            },
+            () => {
+                const fd: Critter | null = a.aiFriendlyDead ?? null
+                if (!fd) return false
+                if (hexDistance(obj.position, fd.position) >= 10) {
+                    a.aiFriendlyDead = null
+                    return false
+                }
+                return this.aiMoveAway(obj, fd, 10, false, then)
+            },
+            () => {
+                let teammate: Critter | null = null
+                let maxTeammateDistance = 5
+                if (player && obj.teamNum === player.teamNum) {
+                    teammate = player
+                    if (party) {
+                        const PARTY_DISTANCES: { [d: string]: number } = { stay_close: 5, charge: 7, snipe: 7, on_your_own: 7, stay: 50000 }
+                        maxTeammateDistance = PARTY_DISTANCES[packet.distance] ?? 5
+                    }
+                } else {
+                    teammate = this.nearestOfTeamExcept(obj)
+                }
+                if (!target && teammate && hexDistance(obj.position, teammate.position) > maxTeammateDistance) {
+                    const d = hexDistance(obj.position, teammate.position)
+                    return this.aiMoveStepsCloser(obj, teammate, d - maxTeammateDistance, false, then)
+                }
+                if (AP.getAvailableCombatAP() > 0) return this.aiDistancePrefs(obj, target, then)
+                return false
+            },
+        ]
+        while (st.endStep < steps.length) {
+            const step = steps[st.endStep++]
+            if (step()) return true
         }
-        if (!target && teammate && hexDistance(obj.position, teammate.position) > maxTeammateDistance) {
-            const d = hexDistance(obj.position, teammate.position)
-            return this.aiMoveStepsCloser(obj, teammate, d - maxTeammateDistance, false, then)
-        }
-        if (AP.getAvailableCombatAP() > 0) return this.aiDistancePrefs(obj, target, then)
         return false
     }
 
@@ -2288,6 +2415,8 @@ export class Combat {
         }
         combatDebug(`start: triggerTeams=[${[...triggerTeams].join(',')}]`)
         globalState.combat = new Combat(globalState.gMap.getObjects(), triggerTeams)
+        // CE combat.cc _combat_begin: damageLastTurn starts at 0 for every combatant
+        for (const c of globalState.combat.combatants) (c as any).damageLastTurn = 0
 
         if (forceTurn) {
             // CE combat_ai.cc _caiTeamCombatInit: the attacking team and the player's team
@@ -2363,6 +2492,9 @@ export class Combat {
         for (const c of this.combatants) {
             ;(c as any).fleeing = false
             ;(c as any).disengaging = false
+            ;(c as any).damageLastTurn = 0
+            ;(c as any).aiFriendlyDead = null
+            ;(c as any).aiLastItem = null
             ;(c as any)._aiTurn = undefined
             if (c.isPlayer || c.dead) continue
             const w = c.equippedWeapon
@@ -2535,7 +2667,18 @@ export class Combat {
             // Party members (same team as player) take AI turns even without hostile flag.
             // CE ref: party.cc — party members participate fully in combat on the player's side.
             const isFriendly = critter.teamNum === globalState.player.teamNum
-            if (critter.dead === true || (!critter.hostile && !isFriendly)) return this.nextTurn()
+            if (critter.dead === true) return this.nextTurn()
+            if (!critter.hostile && !isFriendly) {
+                // A bystander still runs the friendlyDead step of CE _combat_ai: away from
+                // a body it saw fall without seeing the killer (_combatai_notify_onlookers).
+                const fd: Critter | null = (critter as any).aiFriendlyDead ?? null
+                if (fd && !critter.isPlayer) {
+                    critter.AP!.resetAP()
+                    if (hexDistance(critter.position, fd.position) >= 10) (critter as any).aiFriendlyDead = null
+                    else if (this.aiMoveAway(critter, fd, 10, false, () => this.nextTurn())) return
+                }
+                return this.nextTurn()
+            }
 
             // Fire DoT: apply at the start of each critter's turn
             if (critter.onFireTurns > 0) {

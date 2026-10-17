@@ -39,6 +39,7 @@ declare module './Critter.js' {
         getBase(): string
         getAnimation(anim: string): string
         hasAnimation(anim: string): boolean
+        setIdleArt(): void
         staticAnimation(anim: string, callback?: () => void, waitForLoad?: boolean, reversed?: boolean, onActionFrame?: () => void): void
         // FA3: fired once when the current static animation reaches its FRM action frame
         // (CE art.h ArtFrame.actionFrame), or just before animCallback if it never does.
@@ -244,6 +245,17 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
         default:
             throw 'Unknown animation: ' + anim
     }
+}
+
+// Stand with the wielded weapon (CE keeps the fid's weapon code). The weapon's FRM may
+// not be loaded yet — getAnimation would then fall back to the unarmed 'aa' — so load
+// it first and set the art once it is there.
+Critter.prototype.setIdleArt = function (this: Critter): void {
+    const set = () => { if (!this.inAnim() && !this.dead) this.art = this.getAnimation('idle') }
+    const code = this.equippedWeapon?.weapon?.getAnim('idle')
+    const key = code ? this.getBase() + code : null
+    set()
+    if (key && globalState.imageInfo[key] === undefined) lazyLoadImage(key, set)
 }
 
 Critter.prototype.hasAnimation = function (this: Critter, anim: string): boolean {

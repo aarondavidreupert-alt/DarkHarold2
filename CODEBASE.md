@@ -199,6 +199,7 @@ All UI files render to DOM elements over the WebGL canvas.
 |------|---------|
 | `src/gametime.ts` | Tick system: `TICKS_PER_*` constants, CE ambient light (`gAmbientIntensity`, light-level override), time accessors, time-jump handler (`game_time.cc`, `light.cc`) |
 | `src/drugs.ts` | Drug effects and addiction from proto data (`DRUG_DESCRIPTIONS`, withdrawal perks), timed events `drug:`/`withdrawal:` (`item.cc`) |
+| `src/perception.ts` | `canSee` / `isWithinPerception` shared by scripting and the combat AI (`actions.cc _can_see`, `combat_ai.cc isWithinPerception`) |
 | `src/radiation.ts` | `critterAdjustRadiation`, midnight `checkRads`, `processRads` and radiation timed events (`critter.cc`) |
 | `src/random.ts` | Park-Miller RNG with MSVC rand seeding and chi-square check; `randomBetween` (`random.cc`) |
 | `src/gameMovie.ts` | `gameMoviePlay` for the WebM movies (subtitles from `.sve`, fades from `.cfg`, seen-movie set) (`game_movie.cc`) |

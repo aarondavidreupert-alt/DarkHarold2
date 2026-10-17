@@ -286,7 +286,7 @@ calls. Tracked in ROADMAP.md Phase 5c ("dismissal dialogue hooks").
 | Control screen (disposition presets) | `game_dialog.cc:3354 partyMemberControlWindowInit` | ✅ `ui_companion.ts:uiCompanionControl` — see §8 |
 | Customize screen (6-category) | `game_dialog.cc:~3780 partyMemberCustomizationWindowInit` | ✅ `ui_companion.ts:uiCompanionCustomize` — see §8 |
 | Weight-based party trade | `inventory.cc:5031 inventoryOpenTrade`, weight check `inventory.cc:4710-4722` | ✅ `ui_companion_trade.ts:uiCompanionTrade` — see §8 |
-| Use Best Weapon/Armor buttons | `combat_ai.cc:_ai_search_inven_weap/_ai_search_inven_armor` | ❌ Buttons present (correct CE layout), no-op — see §8 |
+| Use Best Weapon/Armor buttons | `combat_ai.cc:_ai_search_inven_weap/_ai_search_inven_armor` | ✅ CE `w` / `a` handlers (C29) |
 
 ---
 
@@ -380,8 +380,8 @@ Background: FRM ID 390 → `control.png` (`game_dialog.cc:3357`, confirmed via
 |---|---|---|---|
 | Talk | 593,41 | Escape | re-enters companion dialogue (closes screen in DH2 — no dialogue re-entry hook exists) |
 | Trade | 593,97 | D | `inventoryOpenTrade()` → DH2 `uiCompanionTrade()` |
-| Use Best Weapon | 236,15 | W | `_ai_search_inven_weap` + `_inven_wield` — **not implemented in DH2** (see 8.5) |
-| Use Best Armor | 235,46 | A | `_ai_search_inven_armor` + `_inven_wield` — **not implemented in DH2** |
+| Use Best Weapon | 236,15 | W | Unwield the right hand, `_ai_search_inven_weap(critter, false, null)` + `_inven_wield` + `aiAttemptWeaponReload`, update message if one was found |
+| Use Best Armor | 235,46 | A | `_ai_search_inven_armor` + `_inven_wield` (not for PID 0x10000A1), update message always |
 
 **Disposition buttons** — 109×28 each, x=438, verified against `gGameDialogDispositionButtonsData`
 (`game_dialog.cc:386-390`) and the `Disposition` enum (`combat_ai_defs.h:66`,
@@ -458,11 +458,7 @@ torn down and recreated across multiple combats.
 
 ### 8.5 Known simplifications
 
-- **Use Best Weapon / Use Best Armor are not implemented.** CE's `_ai_search_inven_weap`/
-  `_ai_search_inven_armor` (`combat_ai.cc`) compare every weapon/armor in the companion's inventory
-  by AP cost, ammo availability, and damage output to pick the best one — a substantial heuristic
-  sub-system of its own. The buttons exist in the UI (correct CE position/art) but currently just
-  log a console notice rather than silently do nothing or guess at a half-correct heuristic.
+- **Use Best Weapon / Use Best Armor** follow CE (C29). The reply is `_gdPickAIUpdateMsg`: proto.msg 670–674, 677–678 for the dogs. DH2's `_ai_best_weapon` leaves out the blast-radius and team-safety terms (as in combat).
 - **CE's palette-shade button "shimmer" / dialogue-window scroll-in animation are not replicated** —
   DH2's screens are static panels, consistent with the simplification already applied to the combat
   outline effect (`wiki/rendering.md` "Combat Outline Effect").
