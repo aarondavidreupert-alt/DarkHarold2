@@ -122,8 +122,8 @@ the pipeline or the TS compiler.
 
 | File | Purpose | fallout2-ce counterpart |
 |------|---------|------------------------|
-| `src/combat.ts` | Barrel — combat system; split into `combat/actionPoints.ts` (ActionPoints class), `combat/damage.ts` (4 damage-formula variants + dispatcher), `combat/AI.ts` (AI class + helpers), `combat/hitChance.ts` (getHitChance + to-hit pipeline as free functions), `combat/Combat.ts` (Combat class — turn flow, attack, AI dispatch, LoS). | `combat.cc`, `combat_ai.cc` |
-| `src/criticalEffects.ts` | Barrel — critical hit / failure system; split into `criticalEffects/effects.ts` (effect appliers + region table) + `criticalEffects/table.ts` (lookup + parsers + crit-fail table) | `critfail.cc` |
+| `src/combat.ts` | Barrel — combat system; split into `combat/actionPoints.ts` (ActionPoints class), `combat/damage.ts` (4 damage-formula variants + dispatcher), `combat/AI.ts` (AI class + helpers), `combat/hitChance.ts` (getHitChance + to-hit pipeline as free functions), `combat/results.ts` (DAM_* results, `_set_new_results`, knockout event, stand-up), `combat/explosion.ts` (blast rings, `actionExplode` damage, `_scr_explode_scenery`), `combat/Combat.ts` (Combat class — turn flow, the CE attack pipeline `attackCompute` / `_apply_damage` / `_combat_display`, AI dispatch, LoS). | `combat.cc`, `combat_ai.cc`, `actions.cc` |
+| `src/criticalEffects.ts` | Barrel — hit-location penalties (`criticalEffects/effects.ts`) and CE's critical hit tables (`criticalEffects/ceTables.ts`, generated from `combat.cc`; re-exported by `criticalEffects/table.ts`). The effects are applied by the attack pipeline in `combat/Combat.ts`. | `combat.cc` |
 | `src/unarmed.ts` | Unarmed mode definitions (9 modes, threshold/AP/damage table) | `unarmed.cc` |
 | `src/skillUse.ts` | Active skill use: First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair (622 lines) | `skill.cc::skillUse()` |
 | `src/combat/lineOfFire.ts` | `_combat_is_shot_blocked` (LoF critter count) on top of `GameMap.straightPathObstacle` (`_make_straight_path_func`) | `combat.cc`, `animation.cc` |

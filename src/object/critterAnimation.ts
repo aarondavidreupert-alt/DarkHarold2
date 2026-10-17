@@ -247,15 +247,11 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
     }
 }
 
-// Stand with the wielded weapon (CE keeps the fid's weapon code). The weapon's FRM may
-// not be loaded yet — getAnimation would then fall back to the unarmed 'aa' — so load
-// it first and set the art once it is there.
+// Stand with the wielded weapon (CE keeps the fid's weapon code); without that FRM
+// (imageInfo lists every critter FRM there is — e.g. the tribal has no SMG art) the
+// critter stands unarmed, as CE's artExists check does.
 Critter.prototype.setIdleArt = function (this: Critter): void {
-    const set = () => { if (!this.inAnim() && !this.dead) this.art = this.getAnimation('idle') }
-    const code = this.equippedWeapon?.weapon?.getAnim('idle')
-    const key = code ? this.getBase() + code : null
-    set()
-    if (key && globalState.imageInfo[key] === undefined) lazyLoadImage(key, set)
+    if (!this.inAnim() && !this.dead) this.art = this.getAnimation('idle')
 }
 
 Critter.prototype.hasAnimation = function (this: Critter, anim: string): boolean {

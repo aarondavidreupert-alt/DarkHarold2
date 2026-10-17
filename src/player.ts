@@ -58,9 +58,7 @@ export class Player extends Critter {
         this.radiated = false
         this.addictions = []
         this.addictedState = false
-        this.onFireTurns = 0
-        this.skipTurns = 0
-        this.isKnockedDown = false
+        this.injuryFlags = 0 // CE combat.results (cripples, blind, knocked out/down)
         this.bonusAC = 0
         this.isSneaking = false
         this.sneakWorking = false

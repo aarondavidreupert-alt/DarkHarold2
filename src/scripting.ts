@@ -1414,15 +1414,15 @@ export module Scripting {
                 return 0
             }
 
-            const c = obj as any
-            if (obj.dead === true || obj.getStat('HP') <= 0)
-                return 1 // CRITTER_STATE_DEAD
-
-            let state = c.isKnockedDown ? 2 : 0 // PRONE : NORMAL
-            if (c.crippledLeftLeg)  state |= 0x10 // DAM_CRIP_LEG_LEFT
-            if (c.crippledRightLeg) state |= 0x20 // DAM_CRIP_LEG_RIGHT
-            if (c.crippledLeftArm)  state |= 0x40 // DAM_CRIP_ARM_LEFT
-            if (c.crippledRightArm) state |= 0x80 // DAM_CRIP_ARM_RIGHT
+            // CE opGetCritterState: an active critter is NORMAL, PRONE while its sprite
+            // is a knockdown fall, plus its DAM_CRIP bits (0x04-0x40); an inactive one
+            // (knocked out) is PRONE, a dead one DEAD.
+            const c = obj as Critter
+            if (c.dead === true || c.getStat('HP') <= 0) return 1 // CRITTER_STATE_DEAD
+            const results = c.injuryFlags ?? 0
+            if ((results & 0x01) !== 0) return 2 // knocked out: !critterIsActive → PRONE
+            let state = c.knockdownAnim !== null && (results & 0x02) !== 0 ? 2 : 0
+            state |= results & 0x7c // DAM_CRIP
             return state
         }
         // CE opKillCritter — critterKill(obj, deathFrame) without animation: the corpse
@@ -1519,8 +1519,12 @@ export module Scripting {
                 warn('critter_injure: not game object: ' + obj)
                 return
             }
-            ;(obj as Critter).injuryFlags = ((obj as Critter).injuryFlags ?? 0) | how
-            if (how & 0x80) critterKill(obj as Critter)
+            // CE opCritterInjure: only the DAM_CRIP bits; DAM_PERFORM_REVERSE heals them.
+            const c = obj as Critter
+            const reverse = (how & 0x800000) !== 0
+            const flags = how & 0x7c
+            c.injuryFlags = (reverse ? (c.injuryFlags & ~flags) : (c.injuryFlags | flags)) >>> 0
+            if (c.isPlayer && (flags & 0x30) !== 0) uiDrawWeapon() // interfaceUpdateItems
             info('critter_injure: ' + obj.name + ' flags=0x' + how.toString(16))
         }
         critter_is_fleeing(obj: Obj) {
@@ -1589,21 +1593,35 @@ export module Scripting {
             targetResults: number
         ) {
             info('[enter combat via attack_complex]')
-            //stub("attack_complex", arguments)
-            // since this isn't actually used beyond its basic form, we're not going to bother
-            // implementing all of it
-
-            // begin combat, turn starting with us
-            if (Config.engine.doCombat) {
-                if (isCombatActive() || globalState.combat) return // already in combat — ignore re-entry from script
-                const initiator = this.self_obj as Critter
-                // CE opAttackComplex: attacker = self, defender = target.
-                if (initiator && isGameObject(obj)) (initiator as any).whoHitMe = obj
-                // Mark the initiating critter hostile before combat starts so the LOS
-                // scan in nextTurn() counts it as active and doesn't skip its turn.
-                if (initiator && !initiator.isPlayer) initiator.hostile = true
-                Combat.start(initiator)
+            // CE opAttackComplex: self attacks the target. Nothing happens when either is
+            // inactive (dead / knocked out) or hidden, or the target is fleeing.
+            if (!Config.engine.doCombat) return
+            const initiator = this.self_obj as Critter
+            const target = obj as Critter
+            if (!initiator || !isGameObject(obj) || target.type !== 'critter') return
+            const inactive = (c: Critter) => c.dead || (c.injuryFlags & 0x01) !== 0 || c.visible === false
+            if (inactive(initiator) || inactive(target)) return
+            if ((target as any).fleeing) return
+            if (isCombatActive() || globalState.combat) {
+                // In combat: the attacker engages the target.
+                if (!initiator.hostile && !initiator.isPlayer) {
+                    initiator.hostile = true
+                    ;(initiator as any).whoHitMe = target
+                }
+                return
             }
+            ;(initiator as any).whoHitMe = target
+            // Mark the initiating critter hostile before combat starts so the LOS
+            // scan in nextTurn() counts it as active and doesn't skip its turn.
+            if (!initiator.isPlayer) initiator.hostile = true
+            // CombatStartData: bonus → accuracy, min/max damage; equal attacker / target
+            // results override the hit's results (CE's quirk: the target's are used).
+            Combat.start(initiator, {
+                attacker: initiator, defender: target, actionPointsBonus: 0,
+                accuracyBonus: bonus, damageBonus: 0, minDamage: minDmg, maxDamage: maxDmg,
+                overrideAttackResults: attackerResults === targetResults,
+                attackerResults, targetResults,
+            })
         }
         terminate_combat() {
             info('[terminate_combat]')
@@ -3061,6 +3079,7 @@ export module Scripting {
         obj._script.game_time = Math.max(1, globalState.gameTickTime)
         obj._script.cur_map_index = currentMapID
         obj._script._didOverride = false
+        obj._script.fixed_param = damage // CE _damage_object: scriptSetFixedParam(sid, damage)
         obj._script.damage_p_proc()
         return obj._script._didOverride
     }

@@ -18,19 +18,9 @@ limitations under the License.
 // Barrel — see wiki/ts-split-refactor.md → "Per-file split proposals" §22.
 
 import { regionHitChanceDecTable as _regionHitChanceDecTable } from './criticalEffects/effects.js'
-import {
-    getCritical as _getCritical,
-    getCriticalFail as _getCriticalFail,
-    loadTable as _loadTable,
-    criticalFailTable as _criticalFailTable,
-    temporaryDoCritFail as _temporaryDoCritFail,
-} from './criticalEffects/table.js'
+import { loadTable as _loadTable } from './criticalEffects/table.js'
 
 export module CriticalEffects {
     export const regionHitChanceDecTable = _regionHitChanceDecTable
-    export const getCritical = _getCritical
-    export const getCriticalFail = _getCriticalFail
     export const loadTable = _loadTable
-    export const criticalFailTable = _criticalFailTable
-    export const temporaryDoCritFail = _temporaryDoCritFail
 }

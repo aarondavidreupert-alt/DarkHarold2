@@ -246,7 +246,12 @@ export class Weapon {
         const item = this.weapon as Obj
         const maxAmmo = ammoGetCapacity(item)
         const canReload = maxAmmo > 0 && ammoGetQuantity(item) < maxAmmo
-        const effectiveModes = canReload ? [...this.modes, 'reload'] : this.modes
+        // CE item.cc critterCanAim: the player's Fast Shot trait forbids aimed attacks.
+        const player = globalState.player as any
+        const fastShot = !!player && (player.traits ?? []).includes('Fast Shot')
+            && (player.leftHand === item || player.rightHand === item)
+        const modes = fastShot ? this.modes.filter((m) => m !== 'called' && m !== 'secondaryCalled') : this.modes
+        const effectiveModes = canReload ? [...modes, 'reload'] : modes
 
         const idx = effectiveModes.indexOf(this.mode)
         this.mode = effectiveModes[(idx + 1) % effectiveModes.length]
@@ -283,7 +288,7 @@ export class Weapon {
 
     // CE item.cc critterCanAim (weapon part): no aimed burst / continuous fire, no aimed
     // explosive, fire or EMP attacks, no aimed plasma throw. (The player's Fast Shot
-    // check is in getAttackAPCost's callers' gate, see wiki/combat.md §10.)
+    // check is in cycleMode, since it depends on who holds the weapon.)
     private canAim(slot: 1 | 2): boolean {
         const mode = this.attackModeOf(slot)
         if (mode === 7 || mode === 8) return false

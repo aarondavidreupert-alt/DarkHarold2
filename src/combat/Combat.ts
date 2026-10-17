@@ -18,8 +18,7 @@ limitations under the License.
 import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, findReloadAmmo, weaponGetBurstRounds, weaponReload } from '../weaponAmmo.js'
 import { AudioEngine } from '../audio.js'
 import { Config } from '../config.js'
-import { CriticalEffects } from '../criticalEffects.js'
-import { critterDamage, critterKill, unarmedAttackAnim } from '../critter.js'
+import { ANIM_KICK_LEG, critterDamage, critterKill, unarmedAttackAnim } from '../critter.js'
 import { tickCombatTurn } from '../events.js'
 import * as GameTime from '../gametime.js'
 import { hexDirectionTo, hexDistance, hexFromScreen, hexInDirection, hexInDirectionDistance, hexLine, hexLineBeyond, hexNearestNeighbor, hexNeighbors, hexToScreen, Point } from '../geometry.js'
@@ -32,7 +31,7 @@ import { drawAC, drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiEndButtonsGreenLig
 import { clamp, getMessage, getProtoMsg, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollSkillCheck } from '../util.js'
 import { randomBetween } from '../random.js'
 import { toTileNum } from '../tile.js'
-import { currentUnarmed, unarmedAPCost } from '../unarmed.js'
+import { currentUnarmed, unarmedAPCost, type UnarmedMode } from '../unarmed.js'
 import { useDrug } from '../drugs.js'
 import type { AiPacket } from '../aiPackets.js'
 import { ANIM, CHARACTER_SOUND_EFFECT, playCharAnimSfx } from '../sfxNames.js'
@@ -40,15 +39,25 @@ import { ActionPoints } from './actionPoints.js'
 import { AI, fleeHpThreshold } from './AI.js'
 import { computeDamage } from './damage.js'
 import { combatIsShotBlocked, nextShootObstacle } from './lineOfFire.js'
+import { explosionRingCritters } from './explosion.js'
 import { critterSetWhoHitMe, noteHit } from './whoHitMe.js'
 import { lazyLoadImage } from '../images.js'
-import { isWithinPerception } from '../perception.js'
+import { canSee, isWithinPerception } from '../perception.js'
+import { getLstJson } from '../data.js'
+import { CRITICAL_HIT_TABLES, PLAYER_CRITICAL_HIT_TABLE, type CriticalHitDescription } from '../criticalEffects/ceTables.js'
+import {
+    attackFindInvalidFlags, combatStandup, critterIsProne, doRandomCripple, knockoutEventProcess, removeKnockoutEvents,
+    DAM_BACKWASH, DAM_BYPASS, DAM_CRIP_RANDOM, DAM_CRITICAL, DAM_DEAD, DAM_DESTROY, DAM_DROP, DAM_DUD, DAM_EXPLODE, DAM_HIT,
+    DAM_HIT_SELF, DAM_HURT_SELF, DAM_KNOCKED_DOWN, DAM_KNOCKED_OUT, DAM_LOSE_AMMO, DAM_LOSE_TURN, DAM_ON_FIRE,
+    DAM_RANDOM_HIT,
+} from './results.js'
 import { loadPRO, makePID } from '../pro.js'
 import {
     accountForPartialCover as _accountForPartialCover,
     getAmmoStats as _getAmmoStats,
     getHitChance as _getHitChance,
     getHitDistanceModifier as _getHitDistanceModifier,
+    objectDistance,
     weaponAttackType,
 } from './hitChance.js'
 
@@ -75,26 +84,124 @@ function actorName(c: Critter): string {
     return c.isPlayer ? 'you' : (c.name ?? c.art ?? 'unknown')
 }
 
-/**
- * Map a Weapon to the correct criticalFailTable key.
- * Rules (FO2 reference: item_w_compute_crit_fail_critter_to_weapon_type):
- *   unarmed → 'unarmed'
- *   melee   → 'melee'
- *   energy (Laser/Plasma/Electrical/EMP) → 'energy'
- *   flame   (Fire damage type) → 'flamers'
- *   explosive (Explosive damage type) → 'grenades'
- *   big-gun animCode 10 (Rocket Launcher) → 'rocketlauncher'
- *   everything else → 'firearms'
- */
+const PERK_WEAPON_PENETRATE = 60 // perk_defs.h
+const PERK_WEAPON_KNOCKBACK = 61
+const PERK_WEAPON_ENHANCED_KNOCKOUT = 117
+const CRITTER_INVULNERABLE = 0x400 // proto critter flags
+const CRITTER_NO_KNOCKBACK = 0x4000
+const OBJECT_SHOOT_THRU = 0x80000000
+
+// CE hit locations in table order (HIT_LOCATION_HEAD … HIT_LOCATION_UNCALLED).
+export const HIT_LOCATIONS = ['head', 'leftArm', 'rightArm', 'torso', 'rightLeg', 'leftLeg', 'eyes', 'groin', 'uncalled']
+
+// CE combat.cc _cf_table — critical-failure flags by the weapon's critical-failure type
+// (unarmed, melee, firearms, energy, grenades, rocket launcher, flamers) and effect.
+const CF_TABLE: readonly (readonly number[])[] = [
+    [0, DAM_LOSE_TURN, DAM_LOSE_TURN, DAM_HURT_SELF | DAM_KNOCKED_DOWN, DAM_CRIP_RANDOM],
+    [0, DAM_LOSE_TURN, DAM_DROP, DAM_RANDOM_HIT, DAM_HIT_SELF],
+    [0, DAM_LOSE_AMMO, DAM_DROP, DAM_RANDOM_HIT, DAM_DESTROY],
+    [DAM_LOSE_TURN, DAM_LOSE_TURN | DAM_LOSE_AMMO, DAM_DROP | DAM_LOSE_TURN, DAM_RANDOM_HIT, DAM_EXPLODE | DAM_LOSE_TURN],
+    [DAM_DUD, DAM_DROP, DAM_DROP | DAM_HURT_SELF, DAM_RANDOM_HIT, DAM_EXPLODE],
+    [DAM_LOSE_TURN, DAM_DUD, DAM_DESTROY, DAM_RANDOM_HIT, DAM_EXPLODE | DAM_LOSE_TURN | DAM_KNOCKED_DOWN],
+    [0, DAM_LOSE_TURN, DAM_RANDOM_HIT, DAM_DESTROY, DAM_EXPLODE | DAM_LOSE_TURN | DAM_ON_FIRE],
+]
+
 // CE item.cc weaponGetCriticalFailureType — the proto's criticalFailureType (DH2
-// `critFail`) selects the _cf_table row; no weapon (or -1) is row 0.
-const CRIT_FAIL_TABLES = ['unarmed', 'melee', 'firearms', 'energy', 'grenades', 'rocketlauncher', 'flamers']
-function getCritFailTableType(weapon: any): string {
-    const type = weapon?.weapon?.pro?.extra?.critFail ?? -1
-    return CRIT_FAIL_TABLES[type] ?? 'unarmed'
+// `critFail`); no weapon (or -1) is row 0.
+function weaponCriticalFailureType(weaponObj: Obj | null): number {
+    const t = (weaponObj as any)?.pro?.extra?.critFail
+    return typeof t === 'number' && t >= 0 && t < CF_TABLE.length ? t : 0
 }
 
-const PERK_WEAPON_PENETRATE = 60 // perk_defs.h
+// CE combat.cc attackComputeCriticalHit: gPlayerCriticalHitTable for the player, else
+// gCriticalHitTables[killType].
+function criticalHitDescription(defender: Critter, location: number, effect: number): CriticalHitDescription {
+    if (defender.isPlayer) return PLAYER_CRITICAL_HIT_TABLE[location][effect]
+    const table = CRITICAL_HIT_TABLES[defender.killType ?? 0] ?? CRITICAL_HIT_TABLES[0]
+    return table[location][effect]
+}
+
+// CE stat.cc statRoll: success when d10 <= stat + modifier (STAT_STRENGTH … STAT_LUCK).
+const PRIMARY_STATS = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK']
+function statRoll(c: Critter, stat: number, modifier: number): boolean {
+    const value = c.getStat(PRIMARY_STATS[stat]) + modifier
+    return randomBetween(1, 10) <= value
+}
+
+// CE combat.cc _check_for_death: damage that takes the critter to 0 HP adds DAM_DEAD.
+function checkForDeath(c: Critter, damage: number, flags: number): number {
+    if (!c || c.type !== 'critter') return flags
+    if (((c.pro as any)?.extra?.flags ?? 0) & CRITTER_INVULNERABLE) return flags
+    if (damage > 0 && c.getStat('HP') - damage <= 0) flags |= DAM_DEAD
+    return flags
+}
+
+// CE actions.cc _is_hit_from_front — the two facings differ by more than one step.
+function isHitFromFront(a: Critter, b: Critter): boolean {
+    const diff = Math.abs((a.orientation ?? 0) - (b.orientation ?? 0))
+    return diff !== 0 && diff !== 1 && diff !== 5
+}
+
+// Take `item` out of the critter's hands (a critter's empty hand is its fist).
+function removeFromHands(c: Critter, item: Obj): void {
+    const h = c as any
+    for (const hand of ['leftHand', 'rightHand']) {
+        if (h[hand] === item) h[hand] = c.isPlayer ? undefined : Critter.makeFist()
+    }
+}
+
+// CE Attack (combat.h) — one attack worked out by attackCompute and then shown and
+// applied. `oops` is the intended target, `defender` whoever is hit.
+interface AttackExtra { critter: Critter; damage: number; flags: number; knockback: number }
+interface Attack {
+    attacker: Critter
+    defender: Critter
+    oops: Critter
+    weapon: Obj | null
+    hitMode: UnarmedMode | undefined
+    hitLocation: string
+    attackerFlags: number
+    defenderFlags: number
+    attackerDamage: number
+    defenderDamage: number
+    defenderKnockback: number
+    criticalMessageId: number
+    ammoQuantity: number
+    accuracyBonus: number
+    tile: Point | null
+    landing: Point | null
+    explosionTile: Point | null
+    extras: AttackExtra[]
+    damageType: string
+    unarmedAnim: number // ANIM_THROW_PUNCH / ANIM_KICK_LEG for an unarmed attack, else -1
+}
+
+// CE combat.cc attackInit
+function attackInit(attacker: Critter, defender: Critter, weaponObj: Obj | null, region: string): Attack {
+    return {
+        attacker, defender, oops: defender, weapon: weaponObj,
+        hitMode: weaponObj === null ? currentUnarmed(attacker).mode : undefined,
+        hitLocation: region, attackerFlags: 0, defenderFlags: 0, attackerDamage: 0, defenderDamage: 0,
+        defenderKnockback: 0, criticalMessageId: -1, ammoQuantity: 0, accuracyBonus: 0,
+        tile: null, landing: null, explosionTile: null, extras: [],
+        damageType: (weaponObj as any)?.weapon?.getDamageType?.() ?? 'Normal',
+        unarmedAnim: -1,
+    }
+}
+
+// CE CombatStartData (combat.h) — attack_complex's bonuses for the first attack.
+export interface CombatStartData {
+    attacker: Critter
+    defender: Critter
+    actionPointsBonus: number
+    accuracyBonus: number
+    damageBonus: number
+    minDamage: number
+    maxDamage: number
+    overrideAttackResults: boolean
+    attackerResults: number
+    targetResults: number
+}
 
 // CE combat.cc attackComputeDamage — the combat-difficulty damage modifier applies
 // only to attackers outside the player's team.
@@ -308,247 +415,359 @@ export class Combat {
         return _getHitChance(obj, target, region, from ?? obj.position, useDistance)
     }
 
-    // CE combat.cc attackCompute — one randomRoll(accuracy, critical chance) decides
-    // hit / miss / critical, then the perk and trait upgrades CE applies to it.
-    // `critBonus`: the unarmed move's bonus critical chance (CE
-    // unarmedGetBonusCriticalChance), rolled separately on a plain hit.
-    rollHit(obj: Critter, target: Critter, region: string, hitBonus: number = 0,
-            attackerName?: string, defenderName?: string, critBonus?: number): any {
-        const hitChance = this.getHitChance(obj, target, region)
-        const accuracy = hitChance.hit + hitBonus
+    // CE combat.cc _gcsd — attack_complex's start data, for the first attack only.
+    gcsd: CombatStartData | null = null
 
-        const aName = attackerName ?? actorName(obj)
-        const dName = defenderName ?? actorName(target)
-        if (attackerName) combatDebug(`${attackerName} → ${defenderName}: hitChance=${accuracy}% critChance=${hitChance.crit}%`)
-        dbg('rolls', `${aName} attacks ${dName} — hit chance: ${accuracy}%`)
+    // CE attackCompute (SFALL form): explosive damage — or a thrown Plasma/EMP grenade —
+    // explodes.
+    private isExplosiveAttack(weaponObj: Obj, dmgType: string): boolean {
+        if (dmgType === 'Explosive') return true
+        return weaponAttackType(weaponObj) === 'throw' && (dmgType === 'Plasma' || dmgType === 'EMP')
+    }
 
-        let { roll, delta } = randomRoll(accuracy, hitChance.crit)
-        const attackType = attackTypeOf(obj.equippedWeapon)
+    // ── CE attack pipeline ────────────────────────────────────────────────────────
+    // combat.cc attackInit → attackCompute (roll, criticals, damage, ranged miss,
+    // explosions) → actions.cc _action_melee/_action_ranged (animation, projectile) →
+    // combat.cc _combat_display + _apply_damage.
 
-        if (roll === RollResult.Failure && this.isJinxed(obj, target) && randomBetween(0, 1) === 1) {
+    // CE combat.cc attackCompute.
+    private attackCompute(a: Attack): void {
+        const attacker = a.attacker
+        const weaponObj = a.weapon
+        const weapon = (weaponObj as any)?.weapon
+        const attackType = attackTypeOf(weaponObj)
+        const isBurst = !!weapon?.isBurst?.()
+        const dmgType = a.damageType
+        const isGrenade = attackType === 'throw' && (dmgType === 'Explosive' || dmgType === 'Plasma' || dmgType === 'EMP')
+        const range = weapon?.getMaximumRange?.() ?? 1
+        if (a.hitLocation === 'uncalled') a.hitLocation = 'torso'
+
+        let ammoQuantity = 1 // rounds on the main target
+        let roundsSpent = 1
+        let damageMultiplier = 2
+        let roll: RollResult
+        const chance = this.getHitChance(attacker, a.defender, a.hitLocation)
+        if (isBurst) {
+            let q = ammoGetQuantity(weaponObj as any)
+            const burst = weaponGetBurstRounds(weaponObj as any)
+            if (burst < q) q = burst
+            roundsSpent = q
+            const spray = this.computeSpray(attacker, a.defender, q, range)
+            roll = spray.roll
+            ammoQuantity = spray.mainHits
+            // _shoot_along_path: each extra takes its rounds at ×2 (attackComputeDamage)
+            for (const [victim, rounds] of spray.extras) {
+                const d = this.damageAgainst(attacker, weaponObj, victim, rounds, 2, 0, true)
+                a.extras.push({ critter: victim, damage: d.damage, flags: 0, knockback: d.knockback })
+            }
+        } else {
+            roll = randomRoll(chance.hit + a.accuracyBonus, chance.crit).roll
+        }
+        dbg('rolls', `${actorName(attacker)} attacks ${actorName(a.defender)} — hit chance ${chance.hit}%, roll ${RollResult[roll]}`)
+
+        if (roll === RollResult.Failure && this.isJinxed(attacker, a.defender) && randomBetween(0, 1) === 1) {
             roll = RollResult.CriticalFailure
         }
-        if (roll === RollResult.Success && obj.isPlayer && (attackType === 'melee' || attackType === 'unarmed')) {
-            if (obj.hasPerk('Slayer')) roll = RollResult.CriticalSuccess
-            const bonus = critBonus ?? 0
+        const meleeType = attackType === 'melee' || attackType === 'unarmed'
+        const silentDeath = meleeType && attacker.isPlayer && this.silentDeathApplies(attacker, a.defender)
+        if (roll === RollResult.Success && meleeType && attacker.isPlayer) {
+            if (attacker.hasPerk('Slayer')) roll = RollResult.CriticalSuccess
+            if (silentDeath) damageMultiplier = 4
+            // SFALL: the unarmed move's bonus critical chance (unarmedGetBonusCriticalChance)
+            const bonus = weaponObj === null ? currentUnarmed(attacker).mode.critBonus : 0
             if (bonus !== 0 && randomBetween(1, 100) <= bonus) roll = RollResult.CriticalSuccess
         }
-        if (roll === RollResult.Success && obj.isPlayer && attackType === 'ranged' && obj.hasPerk('Sniper')
-            && randomBetween(1, 10) <= obj.getStat('LUK')) {
-            roll = RollResult.CriticalSuccess
+        if (attackType === 'ranged') {
+            if (roll === RollResult.Success && attacker.isPlayer && attacker.hasPerk('Sniper')
+                && randomBetween(1, 10) <= attacker.getStat('LUK')) {
+                roll = RollResult.CriticalSuccess
+            }
+        }
+        a.ammoQuantity = weaponObj && ammoGetCapacity(weaponObj as any) > 0 ? (attackType === 'ranged' ? roundsSpent : 1) : 0
+
+        switch (roll) {
+            case RollResult.CriticalSuccess:
+                damageMultiplier = this.computeCriticalHit(a)
+                // SFALL: Silent Death also doubles a critical
+                if (silentDeath) damageMultiplier *= 2
+            // falls through
+            case RollResult.Success:
+                a.attackerFlags |= DAM_HIT
+                this.computeEnhancedKnockout(a)
+                this.attackComputeDamage(a, ammoQuantity, damageMultiplier)
+                break
+            case RollResult.CriticalFailure:
+                this.computeCriticalFailure(a)
+                break
+            default:
+                break
         }
 
-        const logged = { actor: aName, action: 'attack-roll', target: dName, region, roll: delta, hitChance: accuracy, critChance: hitChance.crit }
-        if (roll === RollResult.CriticalSuccess) {
-            const c = this.computeCriticalHit(obj, target, region, obj.getStat('Better Criticals'), attackerName, defenderName)
-            eventLogPush({ ...logged, result: 'crit', critLevel: c.level, message: `${aName} → ${dName}: critical hit (${region})` })
-            return { hit: true, crit: c.level >= 0, DM: c.DM, msgID: c.msgID }
+        // Ranged / thrown miss: the shot flies on and may hit someone else (attack->tile).
+        if ((attackType === 'ranged' || attackType === 'throw') && (a.attackerFlags & (DAM_HIT | DAM_CRITICAL)) === 0) {
+            const miss = this.computeRangedMiss(attacker, a.defender, weaponObj!, dmgType)
+            if (miss) {
+                a.tile = miss.tile
+                a.landing = miss.landing
+                if (miss.victim) {
+                    a.attackerFlags |= DAM_HIT
+                    a.defender = miss.victim
+                    this.attackComputeDamage(a, 1, 2)
+                }
+            }
         }
-        if (roll === RollResult.Success) {
-            combatDebug(`hit: delta=${delta} vs ${accuracy}%`)
-            dbg('rolls', `${aName} hits ${dName}! (margin ${delta}, target ${accuracy})`)
-            eventLogPush({ ...logged, result: 'hit', message: `${aName} → ${dName}: hit (${region})` })
-            return { hit: true, crit: false }
+
+        // SFALL form: explosive damage (or a thrown plasma / EMP grenade) blasts the
+        // extras unless the attack critically failed; a DAM_EXPLODE failure blasts
+        // around the attacker.
+        if ((dmgType === 'Explosive' || isGrenade) && ((a.attackerFlags & DAM_HIT) !== 0 || (a.attackerFlags & DAM_CRITICAL) === 0)) {
+            this.computeExplosionOnExtras(a, false, isGrenade)
+        } else if ((a.attackerFlags & DAM_EXPLODE) !== 0) {
+            this.computeExplosionOnExtras(a, true, isGrenade)
         }
-        const isCrit = roll === RollResult.CriticalFailure
-        combatDebug(`miss: delta=${delta} vs ${accuracy}%${isCrit ? ' (crit fail)' : ''}`)
-        dbg('rolls', isCrit ? `${aName} CRITICALLY FAILS!` : `${aName} misses ${dName}. (margin ${delta}, target ${accuracy})`)
-        eventLogPush({ ...logged, result: isCrit ? 'crit-miss' : 'miss',
-            message: `${aName} → ${dName}: ${isCrit ? 'critical miss' : 'miss'} (${region})` })
-        return { hit: false, crit: isCrit }
+
+        // CE combat.cc attackComputeDeathFlags / _check_for_death
+        a.attackerFlags = checkForDeath(attacker, a.attackerDamage, a.attackerFlags)
+        a.defenderFlags = checkForDeath(a.defender, a.defenderDamage, a.defenderFlags)
+        for (const x of a.extras) x.flags = checkForDeath(x.critter, x.damage, x.flags)
     }
 
-    // CE ref: combat.cc:4102 attackComputeCriticalHit — non-uniform effect bands on
-    // d100 + Better Criticals; the table effect is applied to the target and its damage
-    // multiplier returned (melee weapons halve it, min 2).
-    computeCriticalHit(obj: Critter, target: Critter, region: string, critModifier: number,
-                       attackerName?: string, defenderName?: string): { DM: number; msgID: any; level: number } {
-        // CRITTER_INVULNERABLE (0x400): no critical, normal x2
-        if (((target.pro as any)?.extra?.flags ?? 0) & 0x400) return { DM: 2, msgID: null, level: -1 }
-        const critRoll = getRandomInt(1, 100) + critModifier
-        const critLevel = critRoll <= 20 ? 0
-                        : critRoll <= 45 ? 1
-                        : critRoll <= 70 ? 2
-                        : critRoll <= 90 ? 3
-                        : critRoll <= 100 ? 4
-                        : 5
-        combatDebug(`crit hit: critRoll=${critRoll} level=${critLevel}`)
-        dbg('rolls', `${actorName(obj)} scores a CRITICAL HIT on ${actorName(target)}! (level ${critLevel})`)
-        if (attackerName) uiLog(`${attackerName} scores a CRITICAL HIT on ${defenderName}! (level ${critLevel})`)
-        const crit = CriticalEffects.getCritical(target.killType ?? 0, region, critLevel)
-        const critStatus = crit.doEffectsOn(target)
-        return { DM: critStatus.DM, msgID: critStatus.msgID, level: critLevel }
+    // CE combat.cc attackCompute: PERK_SILENT_DEATH — the player sneaking up from behind
+    // on someone who hasn't hit them.
+    private silentDeathApplies(attacker: Critter, defender: Critter): boolean {
+        return attacker.hasPerk('Silent Death') && !isHitFromFront(attacker, defender)
+            && !!(attacker as any).isSneaking && (defender as any).whoHitMe !== attacker
     }
 
-    // CE combat.cc attackComputeCriticalFailure — the weapon proto's critical-failure
-    // type picks the table row, d100 - 5 x (Luck - 5) the effect. The player gets no
-    // effect before game day 6 (CE's critical time limit).
-    private doCriticalFailure(obj: Critter, weapon: any, who: string): boolean {
-        if (((obj.pro as any)?.extra?.flags ?? 0) & 0x400) return false // CRITTER_INVULNERABLE
-        if (obj.isPlayer && Math.floor((globalState.gameTickTime ?? 0) / 864000) < 6) return false
-        const chance = getRandomInt(1, 100) - 5 * (obj.getStat('LUK') - 5)
+    // CE combat.cc attackComputeEnhancedKnockout: PERK_WEAPON_ENHANCED_KNOCKOUT knocks out
+    // with d100 <= ST − 8.
+    private computeEnhancedKnockout(a: Attack): void {
+        if (((a.weapon as any)?.pro?.extra?.perk ?? -1) !== PERK_WEAPON_ENHANCED_KNOCKOUT) return
+        if (randomBetween(1, 100) > a.attacker.getStat('STR') - 8) return
+        const defWeapon = a.defender.isPlayer ? null : this.rightHandWeapon(a.defender)
+        if ((attackFindInvalidFlags(a.defender, defWeapon) & 1) === 0) a.defenderFlags |= DAM_KNOCKED_OUT
+    }
+
+    private rightHandWeapon(c: Critter): Obj | null {
+        const w = (c as any).rightHand
+        return w && w.pid !== undefined ? w : null
+    }
+
+    // CE combat.cc attackComputeCriticalHit — d100 + Better Criticals picks the effect
+    // (bands 20/45/70/90/100), the defender's table (gPlayerCriticalHitTable for the
+    // player) gives the multiplier and flags; a failed stat roll adds the massive flags.
+    computeCriticalHit(a: Attack): number {
+        const defender = a.defender
+        if (((defender.pro as any)?.extra?.flags ?? 0) & CRITTER_INVULNERABLE) return 2
+        a.attackerFlags |= DAM_CRITICAL
+        const chance = randomBetween(1, 100) + a.attacker.getStat('Better Criticals')
+        const effect = chance <= 20 ? 0 : chance <= 45 ? 1 : chance <= 70 ? 2 : chance <= 90 ? 3 : chance <= 100 ? 4 : 5
+        const location = Math.max(0, HIT_LOCATIONS.indexOf(a.hitLocation))
+        const desc = criticalHitDescription(defender, location, effect)
+        a.defenderFlags |= desc[1]
+        a.criticalMessageId = desc[5]
+        if (desc[2] !== -1 && !statRoll(defender, desc[2], desc[3])) {
+            a.defenderFlags |= desc[4]
+            a.criticalMessageId = desc[6]
+        }
+        if ((a.defenderFlags & DAM_CRIP_RANDOM) !== 0) a.defenderFlags = doRandomCripple(a.defenderFlags)
+        if (((a.weapon as any)?.pro?.extra?.perk ?? -1) === PERK_WEAPON_ENHANCED_KNOCKOUT) a.defenderFlags |= DAM_KNOCKED_OUT
+        const defWeapon = defender.isPlayer ? null : this.rightHandWeapon(defender)
+        a.defenderFlags &= ~attackFindInvalidFlags(defender, defWeapon)
+        combatDebug(`crit hit: roll=${chance} effect=${effect} flags=0x${a.defenderFlags.toString(16)} DM=${desc[0]}`)
+        return desc[0]
+    }
+
+    // CE combat.cc attackComputeCriticalFailure — d100 − 5 × (LK − 5) picks the _cf_table
+    // effect of the weapon's critical-failure type; no effect before game day 6 for the
+    // player (CE's criticals time limit).
+    private computeCriticalFailure(a: Attack): void {
+        const attacker = a.attacker
+        a.attackerFlags &= ~DAM_HIT
+        if (((attacker.pro as any)?.extra?.flags ?? 0) & CRITTER_INVULNERABLE) return
+        if (attacker.isPlayer && Math.floor((globalState.gameTickTime ?? 0) / GameTime.TICKS_PER_DAY) < 6) return
+        const attackType = attackTypeOf(a.weapon)
+        const typeIndex = weaponCriticalFailureType(a.weapon)
+        const chance = randomBetween(1, 100) - 5 * (attacker.getStat('LUK') - 5)
         const effect = chance <= 20 ? 0 : chance <= 50 ? 1 : chance <= 75 ? 2 : chance <= 95 ? 3 : 4
+        const flags = CF_TABLE[typeIndex][effect]
+        combatDebug(`crit fail: type=${typeIndex} roll=${chance} effect=${effect} flags=0x${flags.toString(16)}`)
+        if (flags === 0) return
 
-        uiLog(`${who} critically fails!`)
-        combatDebug(`crit fail: effect=${effect} roll=${chance}`)
+        a.attackerFlags |= DAM_CRITICAL | flags
+        a.attackerFlags &= ~attackFindInvalidFlags(attacker, a.weapon)
 
-        const table = getCritFailTableType(weapon)
-        const critFailEffect = CriticalEffects.criticalFailTable[table]?.[effect + 1]
-            ?? CriticalEffects.criticalFailTable.unarmed[effect + 1]
-        if (critFailEffect.length === 0) return false // _cf_table entry 0: no DAM_CRITICAL
-        CriticalEffects.temporaryDoCritFail(critFailEffect, obj)
-        return true
+        if ((a.attackerFlags & DAM_HIT_SELF) !== 0) {
+            this.attackComputeDamage(a, attackType === 'ranged' ? a.ammoQuantity : 1, 2)
+        } else if ((a.attackerFlags & DAM_EXPLODE) !== 0) {
+            this.attackComputeDamage(a, 1, 2)
+        }
+        if ((a.attackerFlags & DAM_LOSE_TURN) !== 0 && attacker.AP) attacker.AP.combat = 0
+        if ((a.attackerFlags & DAM_LOSE_AMMO) !== 0) {
+            if (attackType === 'ranged') a.ammoQuantity = ammoGetQuantity(a.weapon as any)
+            else a.attackerFlags &= ~DAM_LOSE_AMMO
+        }
+        if ((a.attackerFlags & DAM_CRIP_RANDOM) !== 0) a.attackerFlags = doRandomCripple(a.attackerFlags)
+        if ((a.attackerFlags & DAM_RANDOM_HIT) !== 0) {
+            const victim = this.aiRandomTarget(a)
+            if (victim) {
+                a.defender = victim
+                a.attackerFlags |= DAM_HIT
+                a.hitLocation = 'torso'
+                a.attackerFlags &= ~DAM_CRITICAL
+                this.attackComputeDamage(a, attackType === 'ranged' ? a.ammoQuantity : 1, 2)
+            } else {
+                a.defender = a.oops
+            }
+            a.tile = { ...a.defender.position }
+        }
     }
 
-    // Damage, combat_p_proc and death for one victim of a ranged attack. Returns false
-    // if combat ended (a script stopped it), so the caller stops resolving.
-    // `accidental`: not the intended target (spray extras, blast victims, stray shots).
-    private applyRangedDamage(attacker: Critter, victim: Critter, damage: number, dmgType: string, accidental: boolean): boolean {
-        critterDamage(victim, damage, attacker, true, true, dmgType)
-        noteHit(victim, attacker, accidental)
-        if (victim.isPlayer) drawHP(victim.getStat('HP'))
-        if (!victim.dead && victim._script?.combat_p_proc) Scripting.combatEvent(victim, 'damage')
-        if (!globalState.combat) return false
-        if (victim.dead) this.perish(victim, attacker, dmgType)
-        return true
+    // CE combat_ai.cc _combat_ai_random_target: from a random start, the first other
+    // combatant the attacker faces (_can_see) and could shoot (_combat_check_bad_shot).
+    private aiRandomTarget(a: Attack): Critter | null {
+        const list = this.combatants.filter((c) => !c.dead)
+        if (list.length === 0) return null
+        const start = randomBetween(0, list.length - 1)
+        for (let i = 0; i < list.length; i++) {
+            const c = list[(start + i) % list.length]
+            if (c === a.attacker || c === a.defender) continue
+            if (!canSee(a.attacker, c)) continue
+            if (this.checkBadShot(a.attacker, c, false) === 'ok') return c
+        }
+        return null
     }
 
-    /** Vanilla damage calculation (fallout2-ce attackComputeDamage, lines 4578-4615).
-     *  Order: bonus → multiply → divide → halve → difficultyMod → subtract DT → apply DR%.
-     *  All divisions are integer-truncated. */
-    getDamageDone(obj: Critter, target: Critter, critMultiplier: number) {
-        var weapon = obj.equippedWeapon
-        if (!weapon) throw Error('getDamageDone: No weapon')
-        var wep = weapon.weapon
-        if (!wep) throw Error('getDamageDone: Weapon has no weapon data')
-        var damageType = wep.getDamageType()
+    // CE combat.cc attackComputeDamage — `rounds` rounds against the defender (DAM_HIT)
+    // or the attacker (critical failure).
+    private attackComputeDamage(a: Attack, rounds: number, multiplier: number): void {
+        const hit = (a.attackerFlags & DAM_HIT) !== 0
+        const target = hit ? a.defender : a.attacker
+        const flags = hit ? a.defenderFlags : a.attackerFlags
+        const d = this.damageAgainst(a.attacker, a.weapon, target, rounds, multiplier, flags, hit, a.hitMode)
+        if (hit) {
+            a.defenderDamage = d.damage
+            a.defenderKnockback = d.knockback
+        } else {
+            a.attackerDamage = d.damage
+        }
+    }
 
-        // DT and DR from critter stat system (base + armor + bonuses, like critterGetStat)
-        var DT = target.getStat('DT ' + damageType) + target.getArmorDT(damageType)
-        var DR = target.getStat('DR ' + damageType) + target.getArmorDR(damageType)
-
-        // DAM_BYPASS: reduce both DT and DR to 20% (does NOT apply to EMP)
-        if (target.bypassArmorNextHit && damageType !== 'EMP') {
+    // CE combat.cc attackComputeDamage body: per round weaponGetDamage + bonus, × multiplier
+    // × ammo multiplier / divisor, / 2, × difficulty, − DT, − DR%; Living Anatomy and
+    // Pyromaniac add 5 once; knockback is damage / 10 (/ 5 with PERK_WEAPON_KNOCKBACK).
+    private damageAgainst(attacker: Critter, weaponObj: Obj | null, target: Critter, rounds: number, multiplier: number,
+                          flags: number, withKnockback: boolean, hitMode?: UnarmedMode): { damage: number; knockback: number } {
+        if (target.type !== 'critter') return { damage: 0, knockback: 0 }
+        const unarmed = weaponObj === null
+        const mode = hitMode ?? (unarmed ? currentUnarmed(attacker).mode : null)
+        const wep = (weaponObj as any)?.weapon
+        const damageType = unarmed ? 'Normal' : (wep?.getDamageType?.() ?? 'Normal')
+        let DT = target.getStat('DT ' + damageType) + target.getArmorDT(damageType)
+        let DR = target.getStat('DR ' + damageType) + target.getArmorDR(damageType)
+        if ((flags & DAM_BYPASS) !== 0 && damageType !== 'EMP') {
             DT = Math.trunc(20 * DT / 100)
             DR = Math.trunc(20 * DR / 100)
-            target.bypassArmorNextHit = false
         } else {
-            if (target.bypassArmorNextHit) target.bypassArmorNextHit = false
-            // PERK_WEAPON_PENETRATE: only DT to 20%, DR unchanged
-            if ((weapon as any).pro?.extra?.perk === PERK_WEAPON_PENETRATE) {
-                DT = Math.trunc(20 * DT / 100)
+            const penetrate = unarmed ? !!mode?.penetrate : ((weaponObj as any)?.pro?.extra?.perk === PERK_WEAPON_PENETRATE)
+            if (penetrate) DT = Math.trunc(20 * DT / 100)
+            if (attacker.isPlayer && ((attacker as any).traits ?? []).includes('Finesse')) DR += 30
+        }
+        const attackType = attackTypeOf(weaponObj)
+        const damageBonus = attacker.isPlayer && attackType === 'ranged'
+            ? 2 * attacker.perks.filter((p) => p === 'Bonus Ranged Damage').length : 0
+        const ammo = unarmed ? { X: 1, Y: 1, RM: 0, ACmod: 0 } : this.getAmmoStats(weaponObj!)
+        DR = clamp(0, 100, DR + ammo.RM)
+        const CD = combatDifficultyDamageModifier(attacker)
+        const melee = attackType === 'melee' || attackType === 'unarmed'
+
+        let damage = 0
+        for (let i = 0; i < rounds; i++) {
+            const RD = unarmed
+                ? rollWeaponDamage(attacker, mode!.bonusDamage + mode!.minDmg, mode!.bonusDamage + mode!.maxDmg, true)
+                : rollWeaponDamage(attacker, wep.minDmg, wep.maxDmg, melee)
+            damage += computeDamage({ RD, bonus: damageBonus, critMult: multiplier, ammoX: ammo.X, ammoY: ammo.Y, ammoRM: ammo.RM, DT, DR, CD })
+        }
+        if (attacker.isPlayer) {
+            if (attacker.hasPerk('Living Anatomy')) {
+                const kt = target.killType ?? 0
+                if (kt !== 10 && kt !== 16) damage += 5 // not KILL_TYPE_ROBOT / KILL_TYPE_ALIEN
             }
-            // TRAIT_FINESSE: +30 DR penalty (player only)
-            if (obj.isPlayer && ((obj as any).traits ?? []).includes('Finesse')) {
-                DR += 30
-            }
+            if (attacker.hasPerk('Pyromaniac') && damageType === 'Fire') damage += 5
         }
 
-        // Bonus Ranged Damage perk: +2 per rank (player only, ATTACK_TYPE_RANGED)
-        const attackType = attackTypeOf(weapon)
-        var damageBonus = 0
-        if (obj.isPlayer && attackType === 'ranged') {
-            const brdRank = obj.perks.filter(p => p === 'Bonus Ranged Damage').length
-            damageBonus = 2 * brdRank
-        }
-
-        // Ammo stats
-        var ammoStats = this.getAmmoStats(weapon)
-
-        // Ammo DR modifier: added to DR, then clamp 0-100
-        DR += ammoStats.RM
-        DR = clamp(0, 100, DR)
-
-        var CD = combatDifficultyDamageModifier(obj)
-
-        // CE item.cc weaponGetDamage: melee and unarmed attacks add Melee Damage to the
-        // maximum (and, sfall's Bonus HtH Damage fix, 2 per perk rank to the minimum).
-        var RD = rollWeaponDamage(obj, wep.minDmg, wep.maxDmg, attackType === 'melee' || attackType === 'unarmed')
-        var damage = computeDamage({ RD, bonus: damageBonus, critMult: critMultiplier, ammoX: ammoStats.X, ammoY: ammoStats.Y, ammoRM: ammoStats.RM, DT, DR, CD })
-
-        // Post-calculation perks (flat bonuses after main formula)
-        if (obj.isPlayer) {
-            if (obj.hasPerk('Living Anatomy')) {
-                var kt = target.killType ?? 0
-                if (kt !== 10 && kt !== 16) { // not KILL_TYPE_ROBOT or KILL_TYPE_ALIEN
-                    damage += 5
-                }
+        let knockback = 0
+        const multihex = ((((target as any).flags ?? 0) >>> 0) & 0x800) !== 0 // OBJECT_MULTIHEX
+        if (withKnockback && !multihex && (damageType === 'Explosive' || weaponObj === null || weaponObj.pid === undefined || attackType === 'melee')
+            && !(((target.pro as any)?.extra?.flags ?? 0) & CRITTER_NO_KNOCKBACK)) {
+            let should = true
+            let stonewall = false
+            if (target.isPlayer && target.hasPerk('Stonewall')) {
+                stonewall = true
+                if (randomBetween(0, 100) < 50) should = false
             }
-            if (obj.hasPerk('Pyromaniac') && damageType === 'Fire') {
-                damage += 5
+            if (should) {
+                const divisor = ((weaponObj as any)?.pro?.extra?.perk ?? -1) === PERK_WEAPON_KNOCKBACK ? 5 : 10
+                knockback = Math.trunc(damage / divisor)
+                if (stonewall) knockback = Math.trunc(knockback / 2)
             }
         }
-
-        // Vanilla-formula intermediates for the damage log (approximated when a non-vanilla ruleset is active)
-        const _dmgBase = Math.trunc(Math.trunc(Math.trunc(Math.trunc((RD + damageBonus) * critMultiplier * ammoStats.X) / (ammoStats.Y || 1)) / 2) * CD / 100)
-        const _dmgAdj = Math.max(0, _dmgBase - DT)
-        dbg('damage', `RD: ${RD} | CM: ${critMultiplier} | ADR: ${DR} | ADT: ${DT} | Base: ${_dmgBase} | Adj: ${_dmgAdj} | Type: ${damageType} | Final: ${damage} (formula: max(RD*CM/2 - ADT, 0) * (1 - (ADR+RM)/100) * CD/100)`)
-        combatDebug(`damage: RD=${RD} CM=${critMultiplier} ×${ammoStats.X}/${ammoStats.Y} DT=${DT} DR=${DR}% CD=${CD} → ${damage}`)
+        combatDebug(`damage: ${actorName(attacker)} → ${actorName(target)} ×${rounds} M=${multiplier} DT=${DT} DR=${DR}% CD=${CD} → ${damage} (kb ${knockback})`)
         eventLogPush({
-            actor: actorName(obj), action: 'damage', target: actorName(target), result: 'computed',
-            damage, RD, critMultiplier, ammoX: ammoStats.X, ammoY: ammoStats.Y,
-            DT, DR, CD, damageType,
-            weapon: weapon?.name ?? null,
-            message: `${actorName(obj)} → ${actorName(target)}: ${damage} ${damageType} dmg`,
+            actor: actorName(attacker), action: 'damage', target: actorName(target), result: 'computed',
+            damage, rounds, critMultiplier: multiplier, DT, DR, CD, damageType,
+            weapon: weaponObj ? (weaponObj.name ?? null) : `unarmed:${mode?.name}`,
+            message: `${actorName(attacker)} → ${actorName(target)}: ${damage} ${damageType} dmg`,
         })
-        return damage
+        return { damage, knockback }
     }
 
-    /** Vanilla unarmed damage calculation (attackComputeDamage with weapon=null).
-     *  Unarmed: ammoMult=1, ammoDiv=1, damageType=Normal.
-     *  Same formula as weapon damage: bonus → multiply → halve → DT → DR%. */
-    getUnarmedDamageDone(obj: Critter, target: Critter, critMultiplier: number): number {
-        const mode = currentUnarmed(obj).mode
-
-        // Unarmed damage type is always Normal
-        var DT = target.getStat('DT Normal') + target.getArmorDT('Normal')
-        var DR = target.getStat('DR Normal') + target.getArmorDR('Normal')
-
-        // DAM_BYPASS: reduce both DT and DR to 20%
-        if (target.bypassArmorNextHit) {
-            DT = Math.trunc(20 * DT / 100)
-            DR = Math.trunc(20 * DR / 100)
-            target.bypassArmorNextHit = false
+    // CE combat.cc _compute_explosion_on_extras — rings around the impact (or the
+    // attacker for DAM_EXPLODE; grenades radius 2, rockets 3) hit up to 6 live critters
+    // with a clear line to the blast, one round at ×2 with knockback; the attacker caught
+    // in it takes the round too (DAM_BACKWASH).
+    private computeExplosionOnExtras(a: Attack, fromAttacker: boolean, isGrenade: boolean): void {
+        const gMap = globalState.gMap
+        if (!gMap) return
+        const attacker = a.attacker
+        let center: Point
+        let centerObj: Obj | null
+        if (fromAttacker) {
+            centerObj = attacker
+            center = attacker.position
+        } else if ((a.attackerFlags & DAM_HIT) !== 0) {
+            centerObj = a.defender
+            center = a.defender.position
         } else {
-            // unarmedIsPenetrating: only DT to 20%, DR unchanged
-            if (mode.penetrate) {
-                DT = Math.trunc(20 * DT / 100)
-            }
-            // TRAIT_FINESSE: +30 DR penalty (player only)
-            if (obj.isPlayer && ((obj as any).traits ?? []).includes('Finesse')) {
-                DR += 30
+            centerObj = null
+            center = a.tile ?? a.defender.position
+        }
+        a.explosionTile = { ...center }
+        // The attacker caught in the blast doesn't count towards the 6 extras.
+        const ring = explosionRingCritters(center, attacker.elevation, centerObj, isGrenade, 6 - a.extras.length + 1)
+        for (const c of ring) {
+            if (c === attacker) {
+                const hit = a.attackerFlags & DAM_HIT
+                a.attackerFlags &= ~DAM_HIT
+                this.attackComputeDamage(a, 1, 2)
+                a.attackerFlags |= hit | DAM_BACKWASH
+            } else if (a.extras.length < 6 && !a.extras.some((x) => x.critter === c)) {
+                const d = this.damageAgainst(attacker, a.weapon, c, 1, 2, 0, true)
+                a.extras.push({ critter: c, damage: d.damage, flags: 0, knockback: d.knockback })
             }
         }
+    }
 
-        // Clamp DR to 0-100 (no ammo DR mod for unarmed)
-        DR = clamp(0, 100, DR)
-
-        var CD = combatDifficultyDamageModifier(obj)
-
-        // CE item.cc weaponGetDamage (no weapon): bonus + min .. bonus + Melee Damage + max
-        var RD = rollWeaponDamage(obj, mode.bonusDamage + mode.minDmg, mode.bonusDamage + mode.maxDmg, true)
-        var damage = computeDamage({ RD, bonus: 0, critMult: critMultiplier, ammoX: 1, ammoY: 1, ammoRM: 0, DT, DR, CD })
-
-        // Post-calculation perks
-        if (obj.isPlayer) {
-            if (obj.hasPerk('Living Anatomy')) {
-                var kt = target.killType ?? 0
-                if (kt !== 10 && kt !== 16) {
-                    damage += 5
-                }
-            }
-            // Pyromaniac doesn't apply (unarmed is Normal damage, not Fire)
-        }
-
-        dbg('damage', `Unarmed [${mode.name}]: RD=${RD} CM=${critMultiplier} ADR=${DR} ADT=${DT} → ${damage}`)
-        combatDebug(`damage(unarmed [${mode.name}]): RD=${RD} CM=${critMultiplier} DT=${DT} DR=${DR}% CD=${CD} → ${damage}`)
-        eventLogPush({
-            actor: actorName(obj), action: 'damage', target: actorName(target), result: 'computed',
-            damage, RD, critMultiplier, ammoX: 1, ammoY: 1, DT, DR, CD,
-            damageType: 'Normal', weapon: `unarmed:${mode.name}`,
-            message: `${actorName(obj)} → ${actorName(target)}: ${damage} dmg (unarmed ${mode.name})`,
+    // Visual only: one explosion sprite at the impact (misc proto 14, as Obj.explode uses).
+    private spawnExplosionSprite(pos: Point): void {
+        if ((window as any).__test?.fastMode) return
+        const sprite = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
+        sprite.position = { x: pos.x, y: pos.y }
+        lazyLoadImage(sprite.art, () => {
+            if (!globalState.gMap) return
+            globalState.gMap.addObject(sprite)
+            sprite.singleAnimation(false, () => { globalState.gMap?.destroyObject(sprite) })
         })
-        return damage
     }
 
     getCombatMsg(id: number) {
@@ -578,6 +797,20 @@ export class Combat {
             return
         }
 
+        // CE combat.cc _combat_attack: attackInit + attackCompute before the animation.
+        const a = attackInit(obj, target, weaponObj, region)
+        const gcsd = this.gcsd
+        if (gcsd && gcsd.attacker === obj) a.accuracyBonus = gcsd.accuracyBonus
+        this.attackCompute(a)
+        if (gcsd && gcsd.attacker === obj) {
+            // CE _combat_attack: the attack_complex bonuses and clamps
+            a.defenderDamage += gcsd.damageBonus
+            if (a.defenderDamage < gcsd.minDamage) a.defenderDamage = gcsd.minDamage
+            if (a.defenderDamage > gcsd.maxDamage) a.defenderDamage = gcsd.maxDamage
+            if (gcsd.overrideAttackResults) a.defenderFlags = gcsd.targetResults
+            this.gcsd = null
+        }
+
         // CE ref: actions.cc:629 _action_melee / _action_ranged — the weapon's ATTACK
         // sound is registered with delay 0 (frame 0); only the HIT sound and the damage
         // display wait for the action frame.
@@ -587,11 +820,20 @@ export class Combat {
             const isBurstAttack = !!(weaponObj?.weapon?.isBurst?.())
             globalState.audioEngine.playWeaponSfx(attackSoundChar, isBurstAttack ? 'attack_burst' : 'attack')
         }
+        // CE combat.cc _combat_attack: a critter other than the player kicks instead of
+        // punching 1 time in 4 when it has the kick art (same damage and AP).
+        const fist = weaponObj === null || weaponObj.pid === undefined
+        let unarmedAnim = fist ? unarmedAttackAnim(obj) : -1
+        let attackAnim = 'attack'
+        if (fist && !obj.isPlayer && randomBetween(1, 4) === 1 && obj.hasAnimation('anim:' + ANIM_KICK_LEG)) {
+            unarmedAnim = ANIM_KICK_LEG
+            attackAnim = 'anim:' + ANIM_KICK_LEG
+        }
+        a.unarmedAnim = unarmedAnim
         // CE ref: actions.cc:625 — punches and kicks use sfxBuildCharName(attacker,
         // anim, UNUSED) instead of a weapon sound.
-        if (weaponObj === null && !(window as any).__test?.fastMode) playCharAnimSfx(obj, unarmedAttackAnim(obj))
+        if (fist && !(window as any).__test?.fastMode) playCharAnimSfx(obj, unarmedAnim)
 
-        // attack!
         // FA3 — CE ref: animation.cc / combat.cc _action_melee/_action_ranged: the hit,
         // impact sound and target reaction happen on the attacker's FRM action frame,
         // not on frame 0. resolveAttack() runs then (or at animation end at the latest,
@@ -603,308 +845,289 @@ export class Combat {
         let animDone = false
         const proceed = (): void => {
             if (!animDone || !finished) return
+            // CE combat.cc _combat_attack tail: an attacker its own critical failure
+            // knocked down stands up at once (unless out cold or its turn is lost).
+            const r = obj.injuryFlags
+            if (!obj.dead && (r & (DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN)) !== 0
+                && (r & (DAM_KNOCKED_OUT | DAM_DEAD | DAM_LOSE_TURN)) === 0) {
+                return combatStandup(obj, () => { if (callback) callback() })
+            }
             if (callback) callback()
-            else obj.clearAnim()
+            else if (!obj.isKnockedDown) obj.clearAnim()
         }
         const resolveAttack = (): void => {
             if (resolved) return
             resolved = true
-            const deferred = this.resolveAttack(obj, target, region, weaponObj, who, () => { finished = true; proceed() })
+            const deferred = this.resolveAttack(a, who, () => { finished = true; proceed() })
             if (!deferred) finished = true
         }
-        obj.staticAnimation('attack', () => { resolveAttack(); animDone = true; proceed() },
-            undefined, undefined, resolveAttack)
+        obj.staticAnimation(attackAnim, () => { resolveAttack(); animDone = true; proceed() },
+            attackAnim !== 'attack', undefined, resolveAttack)
     }
 
-    // Second half of attack(): rolls, damage and reactions, run on the action frame.
-    // Returns true when a projectile is in flight; `done` then runs after its impact.
-    private resolveAttack(obj: Critter, target: Critter, region: string, weaponObj: Critter['equippedWeapon'], who: string,
-                          done: () => void): boolean {
-
-        var audio: AudioEngine = globalState.audioEngine
-        var rawSoundID = weaponObj?.pro?.extra?.soundID
-        var soundIdChar = typeof rawSoundID === 'number' ? String.fromCharCode(rawSoundID) : null
-
-        var targetName = target.isPlayer ? 'you' : target.name
-        var weapon = weaponObj?.weapon
-        var attackDmgType = weaponObj?.weapon?.getDamageType() ?? 'Normal'
-
-        // ── UNARMED (no weapon equipped) ──────────────────────────────────────
-        if (weaponObj === null) {
-            // CE combat.cc gUnarmedHitDescriptions — the hand's current hit mode
-            var unarmedMode = currentUnarmed(obj).mode
-            var unarmedModeName = unarmedMode.name
-
-            var unarmedHit = this.rollHit(obj, target, region, 0, who, targetName, unarmedMode.critBonus)
-
-            if (unarmedHit.hit === true) {
-                var unarmedCritMod = unarmedHit.crit ? unarmedHit.DM : 2
-                var unarmedDmg = this.getUnarmedDamageDone(obj, target, unarmedCritMod)
-                var unarmedExtraMsg = unarmedHit.crit ? this.getCombatMsg(unarmedHit.msgID) || '' : ''
-                uiLog(`${who} hits ${targetName} for ${unarmedDmg} damage (${unarmedModeName})${unarmedExtraMsg}`)
-                // CE ref: actions.cc:637 — the hit sound is sfxBuildCharName(attacker, anim, CONTACT).
-                if (!(window as any).__test?.fastMode) playCharAnimSfx(obj, unarmedAttackAnim(obj), CHARACTER_SOUND_EFFECT.contact)
-                critterDamage(target, unarmedDmg, obj, true, true, 'Normal')
-                noteHit(target, obj, false) // CE combat.cc:4706
-                if (target.isPlayer) drawHP(target.getStat('HP'))
-                if (!target.dead && target._script?.combat_p_proc) {
-                    if (Scripting.combatEvent(target, 'damage')) return false
-                }
-                if (!globalState.combat) return false
-                if (target.dead) this.perish(target, obj, 'Normal')
-            } else {
-                uiLog(`${who} misses ${targetName} (${unarmedModeName})`)
-                if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
-                    // CE ref: actions.cc:660 — sfxBuildCharName(defender, ANIM_DODGE_ANIM, UNUSED).
-                    playCharAnimSfx(target, ANIM.dodge)
-                    target.staticAnimation('dodge', () => target.clearAnim())
-                }
-                if (unarmedHit.crit === true) this.doCriticalFailure(obj, null, who)
-            }
-            return false
-        }
-
-        // ── BURST MODE ────────────────────────────────────────────────────────
-        // CE combat.cc _compute_spray + _shoot_along_path (see resolveSpray).
-        if (weapon && weapon.isBurst && weapon.isBurst()) {
-            return this.resolveSpray(obj, target, weaponObj!, who, targetName, attackDmgType, done)
-        }
-
-        // ── SINGLE SHOT ───────────────────────────────────────────────────────
-        var hitRoll = this.rollHit(obj, target, region, 0, who, targetName)
+    // Second half of attack(): on the action frame — the projectile (CE _action_ranged:
+    // only when the attack hit or did not critically fail), the dodge, then
+    // _combat_display and _apply_damage. Returns true when a projectile is in flight;
+    // `done` then runs after its impact.
+    private resolveAttack(a: Attack, who: string, done: () => void): boolean {
+        const obj = a.attacker
+        const weaponObj = a.weapon
+        const audio: AudioEngine = globalState.audioEngine
+        const rawSoundID = weaponObj?.pro?.extra?.soundID
+        const soundIdChar = typeof rawSoundID === 'number' ? String.fromCharCode(rawSoundID) : null
         const attackType = attackTypeOf(weaponObj)
         const thrown = attackType === 'throw'
         const isRangedType = attackType === 'ranged' || attackType === 'throw'
-        const targetTile = { ...target.position }
+        const hit = (a.attackerFlags & DAM_HIT) !== 0
+        const critical = (a.attackerFlags & DAM_CRITICAL) !== 0
+        const intended = a.oops
 
-        // Deduct one round after the roll
-        if (weapon && weapon.type !== 'melee') {
-            var roundsBefore = ammoGetQuantity(weaponObj as any)
-            if (roundsBefore > 0) {
-                ammoSetQuantity(weaponObj as any, roundsBefore - 1)
-                uiDrawWeapon()
-            }
+        // Rounds leave the magazine (CE _combat_attack: ammo − attack->ammoQuantity).
+        if (weaponObj && a.ammoQuantity > 0 && ammoGetCapacity(weaponObj as any) > 0) {
+            ammoSetQuantity(weaponObj as any, Math.max(0, ammoGetQuantity(weaponObj as any) - a.ammoQuantity))
+            if (obj.isPlayer) uiDrawWeapon()
         }
 
-        // CE attackCompute decides everything before the animation: a critical failure
-        // (DAM_CRITICAL only when its table entry has an effect) stops the shot; a plain
-        // miss of a ranged/thrown attack flies on (attack->tile) and may hit someone else.
-        let critical = false
-        let miss: RangedMiss | null = null
-        if (hitRoll.hit !== true) {
-            critical = hitRoll.crit === true && this.doCriticalFailure(obj, weapon, who)
-            if (!critical && isRangedType) miss = this.computeRangedMiss(obj, target, weaponObj!, attackDmgType)
-        }
-        // CE actions.cc _action_ranged: the projectile (for a throw, the weapon itself) is
-        // registered when (DAM_HIT) or not (DAM_CRITICAL).
-        const flies = isRangedType && (hitRoll.hit === true || !critical)
+        const flies = isRangedType && (hit || !critical)
         const projectilePid = flies ? this.projectilePid(weaponObj!) : null
         const thrownItem = flies && thrown ? this.takeThrownItem(obj, weaponObj!) : null
+        const targetTile = { ...intended.position }
 
         const impact = (): void => {
-            if (hitRoll.hit === true) {
-                if (thrownItem) this.placeThrownItem(thrownItem, targetTile, weaponObj!, attackDmgType)
-                var critModifier = hitRoll.crit ? hitRoll.DM : 2
-                var damage = this.getDamageDone(obj, target, critModifier)
-                var extraMsg = hitRoll.crit === true ? this.getCombatMsg(hitRoll.msgID) || '' : ''
-                uiLog(who + ' hit ' + targetName + ' for ' + damage + ' damage' + extraMsg)
-
-                // Play impact sound
-                if (!(window as any).__test?.fastMode) audio.playWeaponSfx(soundIdChar || '#', 'impact')
-
-                critterDamage(target, damage, obj, true, true, attackDmgType)
-                noteHit(target, obj, false) // CE combat.cc:4706
-                if (target.isPlayer) drawHP(target.getStat('HP'))
-                if (this.isExplosiveAttack(weaponObj!, attackDmgType)) {
-                    this.explosionOnExtras(obj, target, target.position, weaponObj!, attackDmgType)
-                    if (!globalState.combat) return
+            if (hit) {
+                if (!(window as any).__test?.fastMode) {
+                    // CE ref: actions.cc:637 — an unarmed hit sounds sfxBuildCharName(attacker,
+                    // anim, CONTACT); a weapon its HIT sound.
+                    if (a.unarmedAnim >= 0) playCharAnimSfx(obj, a.unarmedAnim, CHARACTER_SOUND_EFFECT.contact)
+                    else audio.playWeaponSfx(soundIdChar || '#', 'impact')
                 }
-                if (!target.dead && target._script?.combat_p_proc) {
-                    if (Scripting.combatEvent(target, 'damage')) return
+            } else {
+                if (!(window as any).__test?.fastMode && isRangedType) audio.playSfxByName('cmbtflx')
+                // CE actions.cc: a miss dodges unless prone; a ranged miss only when the
+                // weapon has no visible projectile. Melee dodges play their sound.
+                if (!projectilePid && !intended.dead && !intended.isKnockedDown && !intended.inAnim() && intended.hasAnimation('dodge')) {
+                    if (!isRangedType) playCharAnimSfx(intended, ANIM.dodge)
+                    intended.staticAnimation('dodge', () => intended.clearAnim())
                 }
+            }
+            if (thrownItem) this.placeThrownItem(thrownItem, hit ? { ...a.defender.position } : (a.landing ?? targetTile), weaponObj!, a.damageType)
+            if (a.explosionTile) this.spawnExplosionSprite(a.explosionTile)
+            this.combatDisplay(a)
+            this.applyDamage(a)
+        }
+
+        if (projectilePid !== null) {
+            const dest = hit ? { ...a.defender.position } : (a.tile ?? targetTile)
+            this.flyProjectile(obj, intended, dest, projectilePid, () => { try { impact() } finally { done() } })
+            return true
+        }
+        impact()
+        return false
+    }
+
+    // CE combat.cc _apply_damage (+ actions.cc _show_damage_to_object for the animation):
+    // the results first (_set_new_results), then the damage, the who-hit-me bookkeeping,
+    // the critter's damage reaction and death.
+    private applyDamage(a: Attack): void {
+        const attacker = a.attacker
+        const dmgType = a.damageType
+        if (!attacker.dead) {
+            this.attackerWeaponEffects(a)
+            if (a.attackerFlags !== 0 || a.attackerDamage > 0) {
+                critterDamage(attacker, a.attackerDamage, attacker, true, true, dmgType, undefined,
+                    { flags: a.attackerFlags & ~DAM_HIT, weapon: a.weapon, hitFromFront: true })
+                if (attacker.isPlayer) drawHP(attacker.getStat('HP'))
                 if (!globalState.combat) return
-                if (target.dead) this.perish(target, obj, attackDmgType)
-            } else {
-                uiLog(who + ' missed ' + targetName + (hitRoll.crit === true ? ' critically' : ''))
-                if (!(window as any).__test?.fastMode) audio.playSfxByName('cmbtflx')
-
-                // CE actions.cc: a melee miss dodges (with its sound); a ranged miss only
-                // when the weapon has no visible projectile.
-                if (!projectilePid && !target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
-                    if (weapon?.type === 'melee') playCharAnimSfx(target, ANIM.dodge)
-                    target.staticAnimation('dodge', () => target.clearAnim())
-                }
-
-                if (miss) {
-                    this.applyRangedMiss(obj, miss, attackDmgType)
-                    if (this.isExplosiveAttack(weaponObj!, attackDmgType)) {
-                        this.explosionOnExtras(obj, miss.victim, miss.victim?.position ?? miss.tile, weaponObj!, attackDmgType)
-                    }
-                }
-                if (thrownItem) this.placeThrownItem(thrownItem, miss ? miss.landing : targetTile, weaponObj!, attackDmgType)
+                if (attacker.dead) this.perish(attacker, attacker, dmgType)
             }
         }
 
-        if (projectilePid !== null) {
-            const dest = hitRoll.hit === true ? targetTile : (miss?.tile ?? targetTile)
-            this.flyProjectile(obj, target, dest, projectilePid, () => { try { impact() } finally { done() } })
-            return true
-        }
-        impact()
-        return false
-    }
-
-    // CE attackCompute (SFALL form): explosive damage — or a thrown Plasma/EMP grenade —
-    // runs _compute_explosion_on_extras.
-    private isExplosiveAttack(weaponObj: Obj, dmgType: string): boolean {
-        if (dmgType === 'Explosive') return true
-        return weaponAttackType(weaponObj) === 'throw' && (dmgType === 'Plasma' || dmgType === 'EMP')
-    }
-
-    // CE combat.cc _compute_explosion_on_extras — walks rings around the impact (grenades
-    // radius 2, rockets 3; CE item.cc defaults) and hits up to 6 live critters with a clear
-    // line to the blast, one round at x2 each; the attacker included (DAM_BACKWASH). The
-    // object at the centre already took the hit and is excluded.
-    private explosionOnExtras(attacker: Critter, centerObj: Obj | null, center: Point, weaponObj: Obj, dmgType: string): void {
-        const gMap = globalState.gMap
-        if (!gMap) return
-        this.spawnExplosionSprite(center)
-        const isGrenade = weaponAttackType(weaponObj) === 'throw'
-        const GRENADE_RADIUS = 2, ROCKET_RADIUS = 3, MAX_TARGETS = 6
-        const SHOOT_THRU = 0x80000000
-        const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y
-
-        const victims: Critter[] = []
-        let radius = 0
-        let rotation = 0
-        let tile: Point | null = null
-        let ringFirst: Point | null = center
-        let ringIdx = 0
-        while (victims.length < MAX_TARGETS) {
-            if (radius !== 0 && (tile === null || !same(tile = hexInDirection(tile, rotation), ringFirst!))) {
-                ringIdx++
-                if (ringIdx % radius === 0) {
-                    rotation += 1
-                    if (rotation === 6) rotation = 0 // ROTATION_NE
-                }
-            } else {
-                radius++
-                if (isGrenade && GRENADE_RADIUS < radius) tile = null
-                else if (isGrenade || ROCKET_RADIUS >= radius) tile = hexInDirection(ringFirst!, 0) // ROTATION_NE
-                else tile = null
-                ringFirst = tile
-                rotation = 2 // ROTATION_SE
-                ringIdx = 0
+        const defender = a.defender
+        if ((a.attackerFlags & DAM_HIT) !== 0 && !defender.dead) {
+            const accidental = defender !== a.oops
+            critterDamage(defender, a.defenderDamage, attacker, true, true, dmgType, undefined, {
+                flags: a.defenderFlags, weapon: a.weapon, knockback: a.defenderKnockback,
+                knockbackRotation: hexDirectionTo(attacker.position, defender.position),
+                hitFromFront: isHitFromFront(defender, attacker),
+            })
+            noteHit(defender, attacker, accidental) // CE combat.cc:4706
+            if (defender.isPlayer) drawHP(defender.getStat('HP'))
+            if (!defender.dead && defender._script?.combat_p_proc) {
+                if (Scripting.combatEvent(defender, 'damage')) return
             }
-            if (tile === null) break
-
-            const obstacle = gMap.blockingObjectAt(toTileNum(tile), attacker.elevation, 0, centerObj)
-            if (obstacle === null || obstacle.type !== 'critter') continue
-            const c = obstacle as Critter
-            if (c.dead || ((((c as any).flags ?? 0) >>> 0) & SHOOT_THRU) !== 0) continue
-            if (combatIsShotBlocked(c, c.position, center, null).blocked) continue
-            if (!victims.includes(c)) victims.push(c)
+            if (!globalState.combat) return
+            if (defender.dead) this.perish(defender, attacker, dmgType)
         }
 
-        for (const victim of victims) {
-            const damage = this.getDamageDone(attacker, victim, 2)
-            uiLog(`  ${victim.isPlayer ? 'you' : victim.name} caught in the blast for ${damage} damage`)
-            if (!this.applyRangedDamage(attacker, victim, damage, dmgType, true)) return
+        for (const x of a.extras) {
+            const c = x.critter
+            if (c.dead) continue
+            critterDamage(c, x.damage, attacker, true, true, dmgType, undefined, {
+                flags: x.flags, weapon: a.weapon, knockback: x.knockback,
+                knockbackRotation: hexDirectionTo(a.explosionTile ?? attacker.position, c.position),
+                hitFromFront: isHitFromFront(c, attacker),
+            })
+            noteHit(c, attacker, true)
+            if (c.isPlayer) drawHP(c.getStat('HP'))
+            if (!c.dead && c._script?.combat_p_proc) Scripting.combatEvent(c, 'damage')
+            if (!globalState.combat) return
+            if (c.dead) this.perish(c, attacker, dmgType)
         }
     }
 
-    // Visual only: one explosion sprite at the impact (misc proto 14, as Obj.explode uses).
-    private spawnExplosionSprite(pos: Point): void {
-        if ((window as any).__test?.fastMode) return
-        const sprite = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
-        sprite.position = { x: pos.x, y: pos.y }
-        lazyLoadImage(sprite.art, () => {
-            if (!globalState.gMap) return
-            globalState.gMap.addObject(sprite)
-            sprite.singleAnimation(false, () => { globalState.gMap?.destroyObject(sprite) })
-        })
+    // CE actions.cc _show_damage_to_object for the attacker of a critical failure: its
+    // weapon explodes (gone, with an explosion), is destroyed, or is dropped at its feet.
+    private attackerWeaponEffects(a: Attack): void {
+        const weaponObj = a.weapon
+        if (!weaponObj || weaponObj.pid === undefined) return
+        const attacker = a.attacker
+        const flags = a.attackerFlags
+        if ((flags & (DAM_EXPLODE | DAM_DESTROY | DAM_DROP)) === 0) return
+        removeFromHands(attacker, weaponObj)
+        const idx = attacker.inventory.indexOf(weaponObj)
+        if (idx !== -1) attacker.inventory.splice(idx, 1)
+        if ((flags & DAM_EXPLODE) !== 0) {
+            this.spawnExplosionSprite(attacker.position)
+        } else if ((flags & DAM_DROP) !== 0 && globalState.gMap) {
+            globalState.gMap.addObject(weaponObj)
+            weaponObj.move({ ...attacker.position }, globalState.gMap.getObjects().length - 1, false)
+        }
+        if (attacker.isPlayer) uiDrawWeapon()
+        else attacker.setIdleArt()
     }
 
-    // CE combat.cc _compute_spray (driven from attackCompute): one roll decides the
-    // burst; the rounds split into a centre line (part aimed at the target) and two side
-    // lines through tiles beside the target, each walked by _shoot_along_path, so anyone
-    // on a line of fire can be hit — friends included.
-    private resolveSpray(obj: Critter, target: Critter, weaponObj: Obj, who: string, targetName: string, dmgType: string,
-                         done: () => void): boolean {
-        const audio = globalState.audioEngine
-        const weapon = (weaponObj as any).weapon
-        const range = weapon.getMaximumRange()
-
-        let ammoQuantity = ammoGetQuantity(weaponObj)
-        const burstRounds = weaponGetBurstRounds(weaponObj)
-        if (burstRounds < ammoQuantity) ammoQuantity = burstRounds
-        const roundsSpent = ammoQuantity
-
-        let { roll, mainHits, extras } = this.computeSpray(obj, target, ammoQuantity, range)
-
-        // attackCompute: Jinxed turns a failure into a critical failure half the time.
-        if (roll === RollResult.Failure && this.isJinxed(obj, target) && randomBetween(0, 1) === 1) {
-            roll = RollResult.CriticalFailure
+    // CE combat.cc _combat_display — the attack's lines in the message window.
+    private combatDisplay(a: Attack): void {
+        const msg = (id: number) => this.getCombatMsg(id) || ''
+        const fmt = (s: string, ...args: (string | number)[]) => {
+            let i = 0
+            return s.replace(/%[sd]/g, () => String(args[i++] ?? ''))
         }
-        // Sniper (player, ranged): d10 <= Luck upgrades a success to a critical.
-        if (roll === RollResult.Success && obj.isPlayer && obj.hasPerk('Sniper')
-            && randomBetween(1, 10) <= obj.getStat('LUK')) {
-            roll = RollResult.CriticalSuccess
+        const player = globalState.player
+        const male = (c: Critter) => c.isPlayer ? (c as any).gender !== 'female' : (c.getStat('Gender') ?? 0) === 0
+        const attacker = a.attacker
+
+        if (attacker.isPlayer && a.weapon && a.weapon.pid !== undefined) {
+            let strengthRequired = (a.weapon as any).pro?.extra?.minST ?? 0
+            if (attacker.hasPerk('Weapon Handling')) strengthRequired -= 3
+            if (strengthRequired > attacker.getStat('STR')) uiLog(msg(107))
         }
 
-        ammoSetQuantity(weaponObj, ammoGetQuantity(weaponObj) - roundsSpent)
-        uiDrawWeapon()
-
-        let damageMultiplier = 2
-        let extraMsg = ''
-        if (roll === RollResult.CriticalSuccess) {
-            const c = this.computeCriticalHit(obj, target, 'torso', obj.getStat('Better Criticals'), who, targetName)
-            damageMultiplier = c.DM
-            extraMsg = this.getCombatMsg(c.msgID) || ''
+        const hit = (a.attackerFlags & DAM_HIT) !== 0
+        const critical = (a.attackerFlags & DAM_CRITICAL) !== 0
+        const mainCritter = hit ? a.defender : attacker
+        const you = player && male(player) ? msg(506) : msg(556)
+        let mainName = '.'
+        let base = 600
+        if (mainCritter.isPlayer) {
+            mainName = you
+            base = male(mainCritter) ? 500 : 550
+        } else {
+            mainName = mainCritter.name ?? ''
+            base = male(mainCritter) ? 600 : 700
         }
 
-        // As for single shots: the miss / critical-failure outcome first, then the flight.
-        let critical = false
-        let miss: RangedMiss | null = null
-        if (!rollIsSuccess(roll)) {
-            if (roll === RollResult.CriticalFailure) critical = this.doCriticalFailure(obj, weapon, who)
-            if (!critical) miss = this.computeRangedMiss(obj, target, weaponObj, dmgType)
+        // Oops! someone else was hit instead.
+        if (a.defender !== a.oops && hit) {
+            const text = a.oops.isPlayer ? fmt(msg(base + 8), mainName) : fmt(msg(base + 9), mainName, a.oops.name ?? '')
+            uiLog(text + '.')
         }
-        const targetTile = { ...target.position }
 
-        const impact = (): void => {
-            uiLog(`${who} burst-fired at ${targetName}: ${mainHits}/${roundsSpent} rounds on target`)
-            if (rollIsSuccess(roll)) {
-                if (mainHits > 0) {
-                    let damage = 0
-                    for (let i = 0; i < mainHits; i++) damage += this.getDamageDone(obj, target, damageMultiplier)
-                    uiLog(`  ${targetName} took ${damage} damage${extraMsg}`)
-                    if (!this.applyRangedDamage(obj, target, damage, dmgType, false)) return
+        if (hit && !a.defender.dead && (a.defenderFlags & DAM_DEAD) === 0 || hit && (a.defenderFlags & DAM_DEAD) !== 0 && !a.defender.dead) {
+            const v = a.defender
+            const dmg = a.defenderDamage
+            let text = ''
+            if (a.hitLocation === 'torso' || a.hitLocation === 'uncalled') {
+                if (critical) {
+                    const id = dmg === 0 ? base + 28 : dmg === 1 ? base + 24 : base + 20
+                    text = dmg <= 1 ? fmt(msg(id), mainName) : fmt(msg(id), mainName, dmg)
+                } else {
+                    text = this.damageAmountDescription(v, dmg)
                 }
             } else {
-                if (!(window as any).__test?.fastMode) audio.playSfxByName('cmbtflx')
-                if (miss) this.applyRangedMiss(obj, miss, dmgType)
+                const locName = this.hitLocationName(v, a.hitLocation)
+                if (locName) {
+                    const id = critical
+                        ? (dmg === 0 ? base + 25 : dmg === 1 ? base + 21 : base + 11)
+                        : (dmg === 0 ? base + 26 : dmg === 1 ? base + 22 : base + 12)
+                    text = dmg <= 1 ? fmt(msg(id), mainName, locName) : fmt(msg(id), mainName, locName, dmg)
+                }
             }
+            if (Config.ui.combatMessages !== 'brief' && critical && a.criticalMessageId !== -1) {
+                text += msg(a.criticalMessageId)
+                if ((a.defenderFlags & DAM_DEAD) !== 0) {
+                    uiLog(text + '.')
+                    const killed = v.isPlayer ? (male(v) ? 207 : 257) : (male(v) ? 307 : 407)
+                    text = `${mainName} ${msg(killed)}`
+                }
+            } else {
+                text += this.damageFlagsDescription(a.defenderFlags, v)
+            }
+            uiLog(text + '.')
+        }
 
-            // Extras (_shoot_along_path): each takes its rounds at ×2.
-            for (const [victim, rounds] of extras) {
-                if (victim.dead) continue
-                let damage = 0
-                for (let i = 0; i < rounds; i++) damage += this.getDamageDone(obj, victim, 2)
-                const victimName = victim.isPlayer ? 'you' : victim.name
-                uiLog(`  ${victimName} took ${damage} damage`)
-                if (!this.applyRangedDamage(obj, victim, damage, dmgType, true)) return
+        if (!attacker.dead) {
+            if (!hit) {
+                let text: string
+                if (critical) {
+                    const d = a.attackerDamage
+                    const id = d === 0 ? base + 14 : d === 1 ? base + 33 : base + 34
+                    text = d <= 1 ? fmt(msg(id), mainName) : fmt(msg(id), mainName, d)
+                } else {
+                    text = fmt(msg(base + 15), mainName)
+                }
+                text += this.damageFlagsDescription(a.attackerFlags, attacker)
+                uiLog(text + '.')
+            }
+            if ((hit || !critical) && a.attackerDamage > 0) {
+                uiLog(this.damageAmountDescription(attacker, a.attackerDamage) + this.damageFlagsDescription(a.attackerFlags, attacker) + '.')
             }
         }
 
-        const projectilePid = rollIsSuccess(roll) || !critical ? this.projectilePid(weaponObj) : null
-        if (projectilePid !== null) {
-            const dest = rollIsSuccess(roll) ? targetTile : (miss?.tile ?? targetTile)
-            this.flyProjectile(obj, target, dest, projectilePid, () => { try { impact() } finally { done() } })
-            return true
+        for (const x of a.extras) {
+            if (x.critter.dead) continue
+            uiLog(this.damageAmountDescription(x.critter, x.damage) + this.damageFlagsDescription(x.flags, x.critter) + '.')
         }
-        impact()
-        return false
+    }
+
+    // CE combat.cc combatCopyDamageAmountDescription
+    private damageAmountDescription(c: Critter, damage: number): string {
+        const msg = (id: number) => this.getCombatMsg(id) || ''
+        const male = c.isPlayer ? (c as any).gender !== 'female' : (c.getStat('Gender') ?? 0) === 0
+        let id = c.isPlayer ? (male ? 500 : 550) : (male ? 600 : 700)
+        const name = c.isPlayer ? msg(id + 6) : (c.name ?? '')
+        id += damage === 0 ? 27 : damage === 1 ? 23 : 13
+        const text = msg(id)
+        let i = 0
+        const args: (string | number)[] = damage <= 1 ? [name] : [name, damage]
+        return text.replace(/%[sd]/g, () => String(args[i++] ?? ''))
+    }
+
+    // CE combat.cc combatAddDamageFlagsDescription — ", knocked down and blinded".
+    private damageFlagsDescription(flags: number, c: Critter): string {
+        if (flags === 0) return ''
+        const msg = (id: number) => this.getCombatMsg(id) || ''
+        const male = c.isPlayer ? (c as any).gender !== 'female' : (c.getStat('Gender') ?? 0) === 0
+        const num = c.isPlayer ? (male ? 200 : 250) : (male ? 300 : 400)
+        if ((flags & DAM_DEAD) !== 0) return msg(108) + msg(num + 7)
+        const bits: number[] = []
+        for (let i = 0; i < 32; i++) {
+            const bit = (1 << i) >>> 0
+            if (bit !== DAM_CRITICAL && bit !== DAM_HIT && (flags & bit) !== 0) bits.push(i)
+        }
+        if (bits.length === 0) return ''
+        let text = ''
+        for (let i = 0; i < bits.length - 1; i++) text += ', ' + msg(num + bits[i])
+        return text + msg(108) + msg(num + bits[bits.length - 1])
+    }
+
+    // CE combat.cc hitLocationGetName — combat.msg 1000 + 10 × art alias + location.
+    private hitLocationName(c: Critter, region: string): string | null {
+        const loc = HIT_LOCATIONS.indexOf(region)
+        if (loc < 0) return null
+        const entry = getLstJson('art/critters/critters', (c.frmPID ?? 0) & 0xfff)
+        const alias = typeof entry?.walk === 'number' ? entry.walk : 0
+        return this.getCombatMsg(1000 + 10 * alias + loc) || null
     }
 
     // CE combat.cc _compute_spray — the roll and the rounds per victim, no damage. Also
@@ -1248,7 +1471,7 @@ export class Combat {
             && (dmgType === 'Explosive' || dmgType === 'Plasma' || dmgType === 'EMP')
         let tile: Point
         if (isGrenade) {
-            const distance = hexDistance(attacker.position, defender.position)
+            const distance = objectDistance(attacker, attacker.position, defender) // attackCompute: objectGetDistanceBetween
             const throwDistance = Math.max(1, randomBetween(1, Math.max(1, Math.trunc(distance / 2))))
             tile = hexInDirectionDistance(defender.position, randomBetween(0, 5), throwDistance)
         } else {
@@ -1274,16 +1497,6 @@ export class Combat {
         const pos = { ...victim.position }
         if (victim.dead || victim === attacker) return { tile: pos, victim: null, landing: pos }
         return { tile: pos, victim, landing: pos }
-    }
-
-    // attackComputeDamage(attack, 1, 2) on the accidental victim of a miss.
-    private applyRangedMiss(attacker: Critter, miss: RangedMiss, dmgType: string): void {
-        const victim = miss.victim
-        if (!victim || victim.dead) return
-        const damage = this.getDamageDone(attacker, victim, 2)
-        const who = attacker.isPlayer ? 'You' : attacker.name
-        uiLog(`${who} hit ${victim.isPlayer ? 'you' : victim.name} instead for ${damage} damage!`)
-        this.applyRangedDamage(attacker, victim, damage, dmgType, true)
     }
 
     // The proto pid of the weapon's projectile when it has a visible one (CE
@@ -1734,7 +1947,7 @@ export class Combat {
             : wObj.weapon!.getAttackAPCost(attacker, undefined, aiming)
         if (cost > (attacker.AP?.getAvailableCombatAP() ?? 0)) return 'notEnoughAp'
         const range = this.attackRange(attacker, wObj)
-        if (range < hexDistance(attacker.position, defender.position)) return 'outOfRange'
+        if (range < objectDistance(attacker, attacker.position, defender)) return 'outOfRange' // objectGetDistanceBetween
         if (real && ammoGetCapacity(wObj as any) > 0 && ammoGetQuantity(wObj as any) === 0) return 'noAmmo'
         const at = attackTypeOf(wObj)
         if ((at === 'ranged' || at === 'throw' || range > 1)
@@ -2386,7 +2599,7 @@ export class Combat {
         return best
     }
 
-    static start(forceTurn?: Critter): void {
+    static start(forceTurn?: Critter, gcsd?: CombatStartData): void {
         if (combatActive) {
             combatDebug('ignoring Combat.start(): already active')
             return
@@ -2415,6 +2628,7 @@ export class Combat {
         }
         combatDebug(`start: triggerTeams=[${[...triggerTeams].join(',')}]`)
         globalState.combat = new Combat(globalState.gMap.getObjects(), triggerTeams)
+        globalState.combat.gcsd = gcsd ?? null
         // CE combat.cc _combat_begin: damageLastTurn starts at 0 for every combatant
         for (const c of globalState.combat.combatants) (c as any).damageLastTurn = 0
 
@@ -2476,6 +2690,7 @@ export class Combat {
         globalState.combat = null // todo: invert control
         globalState.inCombat = false
         combatActive = false
+        this.dudeWakeUp()
 
         // CE ref: interface.cc:1455 interfaceBarEndButtonsHide — plays icibcxx1 when buttons close
         if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icibcxx1')
@@ -2511,6 +2726,14 @@ export class Combat {
         }
     }
 
+    // CE combat.cc _combat_over: a player still on the ground comes to and stands up.
+    private dudeWakeUp(): void {
+        const p = this.player
+        if (!p || p.dead || !critterIsProne(p)) return
+        removeKnockoutEvents(p)
+        knockoutEventProcess(p)
+    }
+
     forceEnd() {
         dbgWarn('combat', `[forceEnd] stack: ${new Error().stack?.split('\n').slice(1, 4).join(' | ')}`)
         for (const combatant of this.combatants) {
@@ -2523,6 +2746,7 @@ export class Combat {
         eventLogPush({ actor: null, action: 'combat-end', result: 'forced', message: 'Combat ended (forced)' })
         globalState.combat = null
         globalState.inCombat = false
+        this.dudeWakeUp()
         if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icibcxx1')
         this.player.AP?.resetAP()  // CE ref: combat.cc:2811
         this.giveExps()            // CE ref: combat.cc:2816
@@ -2616,15 +2840,17 @@ export class Combat {
             return
         }
 
-        // Fallout 2 combat rounds represent ~5 seconds of in-world time
-        // per combatant. Advance the clock so long fights still age the
-        // world (critters healing over time, scheduled events firing).
-        GameTime.advanceSeconds(5)
-
         this.turnNum++
         this.whoseTurn++
 
-        if (this.whoseTurn >= this.combatants.length) this.whoseTurn = 0
+        if (this.whoseTurn >= this.combatants.length) {
+            this.whoseTurn = 0
+            // CE combat.cc _combat_sequence: each new round is 5 seconds of game time
+            // (knockout wake-ups and other queued events fire as it passes).
+            GameTime.advanceSeconds(5)
+        }
+        // CE: attack_complex's start data covers the first combatant's turn only.
+        if (this.turnNum > 2) this.gcsd = null
 
         // Convert unused AP to bonus AC for the critter whose turn just ended
         if (this.whoseTurn > 0 || this.turnNum > 2) {
@@ -2644,6 +2870,8 @@ export class Combat {
             this.player.bonusAC = 0
             this.inPlayerTurn = true
             this.player.AP!.resetAP()
+            if (this.turnSkipped(this.player)) return this.nextTurn()
+            if (critterIsProne(this.player)) combatStandup(this.player)
             drawAP(this.player.AP!.getAvailableCombatAP(), this.player.AP!.getTotalMaxAP(), this.player.AP!.move)
             drawHP(this.player.getStat('HP'))
             drawAC(this.player.getStat('AC'))
@@ -2680,50 +2908,35 @@ export class Combat {
                 return this.nextTurn()
             }
 
-            // Fire DoT: apply at the start of each critter's turn
-            if (critter.onFireTurns > 0) {
-                critter.onFireTurns--
-                const fireDmg = getRandomInt(3, 6)
-                uiLog(`${critter.name} burns for ${fireDmg} damage.`)
-                combatDebug(`fire DoT: ${critter.name} took ${fireDmg} (${critter.onFireTurns} turns left)`)
-                eventLogPush({
-                    actor: actorName(critter), action: 'fire-dot', target: actorName(critter),
-                    damage: fireDmg, turnsLeft: critter.onFireTurns, damageType: 'Fire',
-                    message: `${actorName(critter)} burns for ${fireDmg}`,
-                })
-                critterDamage(critter, fireDmg, critter, false, false, 'Fire')
-                if (critter.dead) return this.nextTurn() // fire killed them; skip to next
-            }
-
-            // Knockdown / loseNextTurn: skip this critter's turn and count down
-            if (critter.skipTurns > 0) {
-                critter.skipTurns--
-                if (critter.skipTurns === 0) {
-                    critter.isKnockedDown = false // clear flag now that they're getting up
-                    // CE: ANIM_FALL_BACK → ANIM_BACK_TO_STANDING, ANIM_FALL_FRONT →
-                    // ANIM_PRONE_TO_STANDING (actions.cc:425-429, combat.cc _combat_standup).
-                    const getUp = critter.knockdownAnim === 'knockdownBack' ? 'getUpBack' : 'getUpFront'
-                    critter.knockdownAnim = null
-                    if (critter.hasAnimation(getUp)) {
-                        critter.staticAnimation(getUp, () => critter.clearAnim())
-                    } else {
-                        // No get-up FRM — clear the anim sentinel directly so they
-                        // don't stay frozen on the last knockdown frame.
-                        critter.clearAnim()
-                    }
-                }
-                return this.nextTurn()
-            }
-
             critter.bonusAC = 0 // reset bonus AC at start of this critter's turn
             critter.AP!.resetAP()
-            eventLogPush({
-                actor: actorName(critter), action: 'turn-begin',
-                AP: critter.AP!.getAvailableMoveAP(), HP: critter.getStat('HP'),
-                message: `${actorName(critter)}: turn begins`,
-            })
-            this.doAITurn(critter, this.whoseTurn, 1)
+            // CE combat.cc _combat_turn: knocked out, dead or losing the turn → no turn
+            // (DAM_LOSE_TURN is used up); a prone critter first stands up (3 AP).
+            if (this.turnSkipped(critter)) return this.nextTurn()
+            if (critterIsProne(critter)) {
+                return combatStandup(critter, () => this.beginAITurn(critter))
+            }
+            this.beginAITurn(critter)
         }
+    }
+
+    // CE combat.cc _combat_turn head: DAM_KNOCKED_OUT | DAM_DEAD | DAM_LOSE_TURN skip the
+    // turn and DAM_LOSE_TURN is cleared.
+    private turnSkipped(c: Critter): boolean {
+        const r = c.injuryFlags
+        if ((r & (DAM_KNOCKED_OUT | DAM_DEAD | DAM_LOSE_TURN)) === 0) return false
+        c.injuryFlags = (r & ~DAM_LOSE_TURN) >>> 0
+        combatDebug(`${actorName(c)} loses the turn (results 0x${r.toString(16)})`)
+        return true
+    }
+
+    private beginAITurn(critter: Critter): void {
+        eventLogPush({
+            actor: actorName(critter), action: 'turn-begin',
+            AP: critter.AP!.getAvailableMoveAP(), HP: critter.getStat('HP'),
+            message: `${actorName(critter)}: turn begins`,
+        })
+        this.doAITurn(critter, this.whoseTurn, 1)
     }
 
     /** CE ref: combat.cc:2669 _combat_update_critter_outline_for_los() — red

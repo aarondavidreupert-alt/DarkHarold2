@@ -97,19 +97,29 @@ export class Critter extends Obj {
     bonusAC = 0 // Temporary AC bonus from unused AP at end of turn
     perks: string[] = [] // List of acquired perks
     nextIdleAnimTime = 0 // performance.now() after which the next idle cycle begins; 0 = uninitialised
-    skipTurns = 0 // Number of combat turns to skip (set by knockdown/loseNextTurn effects)
-    isKnockedDown = false // Set by knockdown/knockout crit effects; consumed by critterDamage() to play the animation
     critDeath = false // a critical with DAM_DEAD hit this critter (criticalEffects 'death'); critterDamage kills it
     knockdownAnim: 'knockdownFront' | 'knockdownBack' | null = null // fall played by the last knockdown
 
-    // Crippled-limb flags (set by critical effects; persist for the fight)
-    crippledLeftArm = false
-    crippledRightArm = false
-    crippledLeftLeg = false
-    crippledRightLeg = false
-    isBlinded = false        // Blinded: heavy hit-chance penalty, Perception effectively 1
+    // CE critter->data.critter.combat.results: the DAM_* bits (src/combat/results.ts).
+    // The cripple / blind / prone accessors below read and write them.
+    injuryFlags = 0
 
-    injuryFlags?: number     // DAM_* bitmask from critter_injure (0x01=knocked down, 0x80=dead, etc.)
+    private resultBit(bit: number): boolean { return (this.injuryFlags & bit) !== 0 }
+    private setResultBit(bit: number, on: boolean): void {
+        this.injuryFlags = (on ? (this.injuryFlags | bit) : (this.injuryFlags & ~bit)) >>> 0
+    }
+    get crippledLeftLeg(): boolean { return this.resultBit(0x04) }   // DAM_CRIP_LEG_LEFT
+    set crippledLeftLeg(v: boolean) { this.setResultBit(0x04, !!v) }
+    get crippledRightLeg(): boolean { return this.resultBit(0x08) }  // DAM_CRIP_LEG_RIGHT
+    set crippledRightLeg(v: boolean) { this.setResultBit(0x08, !!v) }
+    get crippledLeftArm(): boolean { return this.resultBit(0x10) }   // DAM_CRIP_ARM_LEFT
+    set crippledLeftArm(v: boolean) { this.setResultBit(0x10, !!v) }
+    get crippledRightArm(): boolean { return this.resultBit(0x20) }  // DAM_CRIP_ARM_RIGHT
+    set crippledRightArm(v: boolean) { this.setResultBit(0x20, !!v) }
+    get isBlinded(): boolean { return this.resultBit(0x40) }         // DAM_BLIND
+    set isBlinded(v: boolean) { this.setResultBit(0x40, !!v) }
+    // CE _critter_is_prone: DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN
+    get isKnockedDown(): boolean { return this.resultBit(0x03) }
 
     // Poison / radiation / addiction (FO2-CE ref: critter.cc, radiation.cc)
     poisonLevel: number = 0
@@ -122,8 +132,6 @@ export class Critter extends Obj {
     addictedState: boolean = false
 
     // Combat status effect counters / flags
-    onFireTurns = 0          // Turns of fire DoT remaining; decremented in nextTurn
-    bypassArmorNextHit = false // Set by bypassArmor crit effect; zeroes DR/DT for the hit that triggered it
 
     static fromPID(pid: number, sid?: number): Critter {
         return Obj.fromPID_(new Critter(), pid, sid)

@@ -26,14 +26,15 @@ export type ObjType = 'item' | 'critter' | 'scenery' | 'wall' | 'tile' | 'misc' 
 import { ANIM_STAND, critterDamage } from '../critter.js'
 import { getLstId, lookupScriptName } from '../data.js'
 import { Events, scheduleExplosion } from '../events.js'
-import { hexDistance, hexesInRadius, hexIsInFrontOf, hexNeighbors, Point } from '../geometry.js'
+import { hexDirectionTo, hexDistance, hexIsInFrontOf, hexNeighbors, Point } from '../geometry.js'
+import { computeExplosionDamage, explosionRingCritters, scriptsExplodeScenery } from '../combat/explosion.js'
 import globalState from '../globalState.js'
 import { lazyLoadImage } from '../images.js'
 import { Lightmap } from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { getPROSubTypeName, getPROTypeName, loadPRO, lookupArt, makePID } from '../pro.js'
 import { Scripting } from '../scripting.js'
-import { fromTileNum } from '../tile.js'
+import { fromTileNum, toTileNum } from '../tile.js'
 import { uiLoot, uiLog } from '../ui.js'
 import { getMessage, getRandomInt, skillRoll, RollResult } from '../util.js'
 import { showTimerDialog } from '../ui_timer.js'
@@ -989,15 +990,19 @@ export class Obj {
         return true
     }
 
-    explode(source: Obj | null, minDmg: number, maxDmg: number, radius: number = 8): void {
-        const damage = getRandomInt(minDmg, maxDmg)
+    // CE actions.cc actionExplode — the explosion sprite on the tile and the six around
+    // it, the critter on the tile plus up to 6 more in the blast rings (radius 3,
+    // _compute_explosion_on_extras), each taking d(min, max) − explosion DT/DR with
+    // knockback; then damage_p_proc for the scripts in range (_scr_explode_scenery).
+    // `_radius` is unused: CE's scripted explosions always use the rocket radius.
+    explode(source: Obj | null, minDmg: number, maxDmg: number, _radius: number = 3): void {
         const killer = (source ?? this) as Critter // explosive itself as killer when source is null
+        const center = { x: this.position.x, y: this.position.y }
+        const elevation = this.elevation ?? globalState.gMap?.currentElevation ?? 0
         const explosion = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
-        explosion.position = { x: this.position.x, y: this.position.y }
+        explosion.position = { ...center }
 
-        // CE ref: actions.cc:1605 actionExplode — 6 adjacent explosion sprites, one per rotation
-        const adjPositions = hexNeighbors(this.position)
-        const adjExplosions = adjPositions.map(pos => {
+        const adjExplosions = hexNeighbors(center).map(pos => {
             const adj = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
             adj.position = { x: pos.x, y: pos.y }
             return adj
@@ -1010,124 +1015,35 @@ export class Obj {
                 globalState.gMap!.addObject(adj)
                 adj.singleAnimation(false, () => { globalState.gMap?.destroyObject(adj) })
             }
-            globalState.audioEngine?.playSfxByName('dynamite')
-            dbg('object', `[Object] explosion: dmg=${damage} radius=${radius}`)
+            globalState.audioEngine?.playSfxByName('whn1xxx1') // CE actionExplode
 
             explosion.singleAnimation(false, () => {
                 globalState.gMap?.destroyObject(explosion)
+                const gMap = globalState.gMap
+                if (!gMap) return
 
-                const hexes = hexesInRadius(this.position, radius)
-                for (const hex of hexes) {
-                    // Snapshot — destroyObject() splices the live array mid-loop
-                    const objs = [...(globalState.gMap?.objectsAtPosition(hex) ?? [])]
-                    for (const target of objs) {
-                        if (target === explosion || target === this) continue
-
-                        if (target.type === 'critter' && !(target as Critter).dead) {
-                            dbg('object', `[Object] explosion hits ${(target as Critter).name} for ${damage}`)
-                            critterDamage(target as Critter, damage, killer, true, true, 'Explosive', undefined, { attackerAnim: ANIM_STAND, weapon: null })
-                        } else if (target.isDoor || target.isContainer) {
-                            // Vanilla: door/container destroy_p_proc swaps to destroyed-open FRM.
-                            // No destroy scripts yet — open the object and mark NoBlock
-                            // as a best-effort interim. Replace with destroyObject() +
-                            // script call once destroy scripts are implemented.
-                            target.open = true
-                            target.locked = false
-                            target.singleAnimation(false, () => {
-                                target.anim = null
-                                if (target.pro?.flags !== undefined) {
-                                    target.pro.flags |= 0x00000010 // NoBlock
-                                }
-                                Events.emit('objOpen', { obj: target })
-                                globalState.gMap?.updateMap()
-                            })
-                        } else if (target.type === 'item') {
-                            globalState.gMap?.destroyObject(target)
-                        }
-                        // walls: leave intact — vanilla walls are indestructible
-                    }
+                const atTile = gMap.blockingObjectAt(toTileNum(center), elevation, 0, null)
+                const main = atTile && atTile.type === 'critter' && !(atTile as Critter).dead ? atTile as Critter : null
+                const victims = [...(main ? [main] : []), ...explosionRingCritters(center, elevation, main, false)]
+                dbg('object', `[Object] explosion: ${minDmg}-${maxDmg}, ${victims.length} critter(s)`)
+                for (const v of victims) {
+                    if (v.dead) continue
+                    const { damage, knockback } = computeExplosionDamage(minDmg, maxDmg, v, getRandomInt)
+                    critterDamage(v, damage, killer, true, true, 'Explosive', undefined, {
+                        attackerAnim: ANIM_STAND, weapon: null, knockback,
+                        knockbackRotation: hexDirectionTo(center, v.position),
+                    })
+                    if (v.isPlayer) drawHP(v.getStat('HP'))
                 }
 
-                // Fire spatial_p_proc on any spatials whose radius covers the blast center.
-                // Vanilla sets scriptsRequestedExplosionTile to the explosion tile and
-                // then triggers spatials within their range — that is what hitSpatialTrigger does.
-                if (Config.engine.doSpatials !== false && globalState.gMap) {
-                    for (const spatialObj of hitSpatialTrigger(this.position)) {
-                        if (!spatialObj._script?.spatial_p_proc) continue
-                        try {
-                            Scripting.spatial(spatialObj, this)
-                        } catch (e) {
-                            dbgWarn('object', `[Object] spatial_p_proc error for ${spatialObj.script}:`, e)
-                        }
+                scriptsExplodeScenery(this, center, elevation, (obj, target) => {
+                    if (!obj._script) return
+                    try {
+                        Scripting.damage(obj, target, null as any, 20) // fixed param 20
+                    } catch (e) {
+                        dbgWarn('object', `[Object] damage_p_proc error for ${obj.script}:`, e)
                     }
-
-                    // Also fire on map objects carrying a spatial-type script
-                    // (e.g. temple wall scenery with ACTemDor). Vanilla's
-                    // scriptsExecSpatialProcs iterates all objects, not just the
-                    // invisible spatial list. Default radius 3 matches vanilla's
-                    // script->sp.radius default set in _obj_new_sid.
-                    const SPATIAL_RADIUS_DEFAULT = 3
-                    const blastPos = this.position
-                    const allObjs = globalState.gMap.getObjects()
-                    const scripted = allObjs.filter(o => o._script)
-                    const spatialCapable = scripted.filter(o => o._script?.spatial_p_proc)
-                    dbg(
-                        'object',
-                        `[Object] explosion @ (${blastPos.x},${blastPos.y}) — ` +
-                        `objects=${allObjs.length} scripted=${scripted.length} ` +
-                        `spatial-capable=${spatialCapable.length}`
-                    )
-                    for (const obj of spatialCapable) {
-                        const dist = hexDistance(obj.position, blastPos)
-                        if (dist > SPATIAL_RADIUS_DEFAULT) {
-                            dbg(
-                                'object',
-                                `[Object]   spatial candidate ${obj.script} pid=${obj.pid} ` +
-                                `@ (${obj.position.x},${obj.position.y}) dist=${dist} — out of range`
-                            )
-                            continue
-                        }
-                        dbg(
-                            'object',
-                            `[Object] explosion fires spatial_p_proc on ${obj.script} ` +
-                            `pid=${obj.pid} @ (${obj.position.x},${obj.position.y}) dist=${dist}`
-                        )
-                        try {
-                            Scripting.spatial(obj, this)
-                        } catch (e) {
-                            dbgWarn('object', `[Object] spatial_p_proc error for ${obj.script}:`, e)
-                        }
-                    }
-                    // Diagnostic: nearby scripted objects without spatial_p_proc
-                    for (const obj of scripted) {
-                        if (obj._script?.spatial_p_proc) continue
-                        const dist = hexDistance(obj.position, blastPos)
-                        if (dist > SPATIAL_RADIUS_DEFAULT) continue
-                        const procs = obj._script ? Object.keys(obj._script).filter(k => k.endsWith('_p_proc')) : []
-                        dbg(
-                            'object',
-                            `[Object]   nearby scripted (no spatial_p_proc) ${obj.script} ` +
-                            `pid=${obj.pid} @ (${obj.position.x},${obj.position.y}) dist=${dist} ` +
-                            `procs=[${procs.join(',')}]`
-                        )
-                    }
-                    // Diagnostic: dump every object within blast range so we can
-                    // identify the temple walls by art / PID / type. This lets us
-                    // register a stub keyed on whatever distinguishes them.
-                    dbg('object', `[Object]   --- all objects within ${SPATIAL_RADIUS_DEFAULT} tiles of blast ---`)
-                    for (const obj of allObjs) {
-                        const dist = hexDistance(obj.position, blastPos)
-                        if (dist > SPATIAL_RADIUS_DEFAULT) continue
-                        const proExtra = (obj.pro?.extra as any) ?? {}
-                        const protoSid = proExtra.scriptPID ?? proExtra.scriptID ?? 'n/a'
-                        dbg(
-                            'object',
-                            `[Object]     type=${obj.type} pid=${obj.pid} art=${obj.art} ` +
-                            `pos=(${obj.position.x},${obj.position.y}) dist=${dist} ` +
-                            `protoSid=${protoSid} hasScript=${!!obj._script}`
-                        )
-                    }
-                }
+                })
 
                 globalState.gMap?.destroyObject(this)
             })

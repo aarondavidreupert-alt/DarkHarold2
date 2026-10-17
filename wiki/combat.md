@@ -484,21 +484,29 @@ This was a full review of the attack chain against CE combat.cc (`attackDetermin
 - **Movement AP:** crippled legs ×4 / ×8.
 - **Checked in the browser:** 2000 rolls at 44% gave 45.4% hits (no criticals on day 0, as in CE). A spore plant kill gave its proto XP of 85 at combat end, with CE message 621.
 
-### Still open (not CE)
+### Closed by C30 (2026-10-17)
 
-| Area | CE | DH2 |
-|------|----|-----|
-| Critical failure effects | `DAM_DUD`, `DAM_EXPLODE`, `DAM_HURT_SELF` (×2 own damage), `DAM_RANDOM_HIT` via `_combat_ai_random_target` | DUD/EXPLODE become "destroy weapon"; own damage and random target are approximations (`criticalEffects/effects.ts`) |
-| Knockout duration | Knockout event 10 × (35 − 3 × END) ticks | `skipTurns = 1` |
-| Knockback / knockdown animation | Slide with fall anim, then stand up | Position moved hex by hex |
-| Non-lethal fire | `ANIM_FIRE_DANCE` on `DAM_ON_FIRE` | Not shown |
-| Burned/exploded corpse | `itemDropAll` unless NO_DROP | Items stay in the corpse |
-| Perks | Silent Death (×2 from behind while sneaking), Enhanced Knockout (weapon perk) | Missing |
-| `attack_complex` | `_gcsd` accuracy, AP, damage and result bonuses | Ignored |
-| Unarmed-type weapons | Brass knuckles etc. use the weapon hit mode (min ST, One Hander, Accurate apply) | Treated as plain unarmed in the hit chance |
-| Distance | `objectGetDistanceBetweenTiles` (multihex-aware) | `hexDistance` |
-| Fast Shot | Also forbids aimed shots (`critterCanAim`) | Aimed shots still allowed |
-| AI "no range" to-hit | `_determine_to_hit_no_range` for flee decisions | Missing |
+| Area | CE | DH2 now |
+|------|----|---------|
+| Attack pipeline | `attackInit` → `attackCompute` → `_combat_display` + `_apply_damage` | One `Attack` per attack (attacker/defender flags, damage, knockback, extras), computed before the animation; `src/combat/Combat.ts` |
+| Critical hit tables | `gCriticalHitTables` / `gPlayerCriticalHitTable` | Generated from CE source (`src/criticalEffects/ceTables.ts`); `lut/criticalTables.json` decoded DAM_BYPASS as "lose turn" and lost DAM_LOSE_TURN |
+| Critical failures | `_cf_table`, `attackComputeCriticalFailure` | Ported: DUD (nothing flies), EXPLODE (weapon gone, blast around the attacker), DESTROY, DROP, HIT_SELF (own rounds), LOSE_AMMO, LOSE_TURN, RANDOM_HIT (`_combat_ai_random_target`), CRIP_RANDOM, KNOCKED_DOWN (stands up at once) |
+| Results | `combat.results`, `_set_new_results` | `Critter.injuryFlags`; cripple / blind / prone accessors read the same bits (`src/combat/results.ts`) |
+| Knockout | Event after 10 × (35 − 3 × END) ticks, then knocked down | Same (`timeEventList` 'knockout'); turns are skipped while out; 5 s of game time per round (`_combat_sequence`), not per turn |
+| Turn start | `_combat_turn`: KO / dead / LOSE_TURN skip (LOSE_TURN cleared); prone → `_combat_standup` (3 AP, Quick Recovery 1) | Same, for NPCs and the player |
+| Knockback | `actionKnockdown`: slide with the fall anim (max 20, stops before blockers and exit grids, CE's extra step back), then stand up | Same; only the main defender and explosion victims (`attackComputeDamage` knockback pointer) |
+| Fire | `DAM_ON_FIRE`: non-lethal fire dance; lethal: run 2–5 hexes, burn to nothing | Same; the invented 3-turn fire damage over time is gone |
+| Corpses | `_show_death`: electrified / exploded to nothing drop everything | `itemDropAll` |
+| Perks | Silent Death (×2, also on criticals — sfall), Enhanced Knockout weapon perk | Implemented |
+| `attack_complex` | `_gcsd`: accuracy bonus, min / max damage, results override | Implemented (first attack only) |
+| Unarmed-type weapons | Weapon branch of `attackDetermineToHit` | Brass knuckles etc. use their skill, min ST, One Hander, Accurate |
+| Distance | `objectGetDistanceBetween(Tiles)` (−1 per multihex) | `objectDistance` for the to-hit range modifier, range checks and grenade scatter |
+| Fast Shot | `critterCanAim` false | No aimed modes for the player |
+| Messages | `_combat_display` (combat.msg 500–800, flag lists 200–422, hit locations 1000+) | Ported |
+| NPC kicks | `_combat_attack`: a non-player punch is a kick 1 in 4 with the art | Same; NPC punches now play their character sound |
+| Defender DAM_DROP | `_obj_drop(defender, attacker's weapon)` finds nothing — no effect (vanilla) | Same (the old C9 disarm was not CE) |
+| Scripted explosions | `actionExplode`: tile critter + ≤ 6 in rings ≤ 3, d(min, max) − explosion DT / DR, knockback; `_scr_explode_scenery` → `damage_p_proc` (fixed param 20) | Same (`src/combat/explosion.ts`); replaces radius 8 without DT/DR and the door / spatial workaround |
+| Living Anatomy | +5 once per attack | Was +5 per burst round |
 
 <!-- audited: 2026-10-17 -->
 
