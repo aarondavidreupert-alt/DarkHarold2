@@ -248,7 +248,7 @@ export class Renderer {
             }
         }
 
-        if (globalState.inCombat) {
+        if (Config.ui.showDebugOverlay && globalState.inCombat) {
             const whose = globalState.combat.inPlayerTurn
                 ? 'player'
                 : globalState.combat.combatants[globalState.combat.whoseTurn].name
@@ -271,28 +271,30 @@ export class Renderer {
             })
         }
 
-        this.renderText('x: ' + mouseHex.x, 5, 15)
-        this.renderText('y: ' + mouseHex.y, 60, 15)
-        const _hudTile = mouseHex.y * 200 + mouseHex.x
-        const _hudLit = (_hudTile >= 0 && _hudTile < 40000) ? Lightmap.tile_intensity[_hudTile] : 0
-        this.renderText('tile: ' + _hudTile, 115, 15)
-        this.renderText('mt: ' + mouseSquare.x + ',' + mouseSquare.y, 225, 15)
-        this.renderText('m: ' + mousePos[0] + ', ' + mousePos[1], 325, 15)
-        this.renderText('lit: ' + _hudLit, 5, 30)
-        const _ctrX = Math.round(globalState.cameraPosition.x + getWorldViewWidth() / 2)
-        const _ctrY = Math.round(globalState.cameraPosition.y + getWorldViewHeight() / 2)
-        this.renderText('ctr: ' + _ctrX + ',' + _ctrY + '  zoom:' + (globalState.cameraZoom || 1).toFixed(2), 5, 45)
-        const _b = (window as any).mapContentBounds
-        if (_b) {
-            const _z = getZoom()
-            const _cam = globalState.cameraPosition
-            const _l = Math.round((_b.minX - _cam.x) * _z)
-            const _r = Math.round((_b.maxX - _cam.x) * _z)
-            const _t = Math.round((_b.minY - _cam.y) * _z)
-            const _bot = Math.round((_b.maxY - _cam.y) * _z)
-            this.renderText('bbox L' + _l + ' R' + _r + ' T' + _t + ' B' + _bot + ' (scr ' + SCREEN_WIDTH + 'x' + SCREEN_HEIGHT + ')', 5, 60, 'left', 'yellow')
-        } else {
-            this.renderText('bbox: NULL', 5, 60, 'left', 'red')
+        if (Config.ui.showDebugOverlay) {
+            this.renderText('x: ' + mouseHex.x, 5, 15)
+            this.renderText('y: ' + mouseHex.y, 60, 15)
+            const _hudTile = mouseHex.y * 200 + mouseHex.x
+            const _hudLit = (_hudTile >= 0 && _hudTile < 40000) ? Lightmap.tile_intensity[_hudTile] : 0
+            this.renderText('tile: ' + _hudTile, 115, 15)
+            this.renderText('mt: ' + mouseSquare.x + ',' + mouseSquare.y, 225, 15)
+            this.renderText('m: ' + mousePos[0] + ', ' + mousePos[1], 325, 15)
+            this.renderText('lit: ' + _hudLit, 5, 30)
+            const _ctrX = Math.round(globalState.cameraPosition.x + getWorldViewWidth() / 2)
+            const _ctrY = Math.round(globalState.cameraPosition.y + getWorldViewHeight() / 2)
+            this.renderText('ctr: ' + _ctrX + ',' + _ctrY + '  zoom:' + (globalState.cameraZoom || 1).toFixed(2), 5, 45)
+            const _b = (window as any).mapContentBounds
+            if (_b) {
+                const _z = getZoom()
+                const _cam = globalState.cameraPosition
+                const _l = Math.round((_b.minX - _cam.x) * _z)
+                const _r = Math.round((_b.maxX - _cam.x) * _z)
+                const _t = Math.round((_b.minY - _cam.y) * _z)
+                const _bot = Math.round((_b.maxY - _cam.y) * _z)
+                this.renderText('bbox L' + _l + ' R' + _r + ' T' + _t + ' B' + _bot + ' (scr ' + SCREEN_WIDTH + 'x' + SCREEN_HEIGHT + ')', 5, 60, 'left', 'yellow')
+            } else {
+                this.renderText('bbox: NULL', 5, 60, 'left', 'red')
+            }
         }
 
         //this.text("fps: " + heart.timer.getFPS(), SCREEN_WIDTH - 50, 15)

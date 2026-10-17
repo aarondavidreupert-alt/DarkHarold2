@@ -13,6 +13,12 @@ export const Config = {
         // DH2 addition: windows can be dragged by their background (CE windows are fixed).
         // fallout2.cfg [dh2] drag_windows=0 turns it off, drag_<window>=0 per window.
         dragWindows: true,
+        // DH2 debug readouts (no CE equivalent): the mouse-hex / tile / light / camera /
+        // bbox lines at the top left and the combat-turn line at the top right (off),
+        // and the fps counter (on). fallout2.cfg [dh2] debug_overlay / fps_overlay,
+        // console setDebugOverlay(on) / setFpsOverlay(on).
+        showDebugOverlay: false,
+        showFPS: true,
         dragWindow: {} as Partial<Record<DragWindow, boolean>>,
         screenWidth: 800,
         screenHeight: 600,

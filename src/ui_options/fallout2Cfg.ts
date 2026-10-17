@@ -118,6 +118,12 @@ export function applyCfg(cfg: CfgSections): void {
     //   pixel_font=0  UI text in the browser font instead of the Fallout pixel font (default 1)
     const pf = int(dh2['pixel_font'])
     if (pf !== null) Config.ui.pixelFont = pf !== 0
+    //   debug_overlay=1  mouse-hex / tile / light / camera readouts (default 0)
+    const dbo = int(dh2['debug_overlay'])
+    if (dbo !== null) Config.ui.showDebugOverlay = dbo !== 0
+    //   fps_overlay=0    hide the fps counter (default 1)
+    const fpo = int(dh2['fps_overlay'])
+    if (fpo !== null) Config.ui.showFPS = fpo !== 0
     //   drag_windows=0          no window can be dragged (default 1)
     //   drag_<window>=0|1       per window: inventory, character, characterCreator, options,
     //                           skilldex, pipboy, automap, loot, dialogue, dialogueReview,

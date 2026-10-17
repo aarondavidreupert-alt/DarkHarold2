@@ -360,6 +360,13 @@ window.onload = async function () {
     }
 
     // setDevKeys(true) — enable the DH2 developer hotkeys (h teleport, q/e elevation, ...)
+    // Console: the debug readouts and the fps counter (fallout2.cfg [dh2] debug_overlay / fps_overlay)
+    ;(window as any).setDebugOverlay = (on: boolean) => { Config.ui.showDebugOverlay = !!on; console.log(`[DH2] debug overlay ${on ? 'on' : 'off'}`) }
+    ;(window as any).setFpsOverlay = (on: boolean) => {
+        Config.ui.showFPS = !!on
+        if (globalState.$fpsOverlay) globalState.$fpsOverlay.style.display = on ? '' : 'none'
+        console.log(`[DH2] fps overlay ${on ? 'on' : 'off'}`)
+    }
     // Console: skipTemple() — leave the Temple of Trials for Arroyo Village (src/debug.ts).
     ;(window as any).skipTemple = () => debug.skipTemple()
     ;(window as any).setDevKeys = (on: boolean) => {

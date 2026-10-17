@@ -115,7 +115,9 @@ export function tickGame(): void {
     }
     const time = window.performance.now()
 
-    if (time - globalState.lastFPSTime >= 500) {
+    const $fps = globalState.$fpsOverlay
+    if ($fps) $fps.style.display = Config.ui.showFPS ? '' : 'none'
+    if (Config.ui.showFPS && time - globalState.lastFPSTime >= 500) {
         globalState.$fpsOverlay.textContent = 'fps: ' + heart.timer.getFPS()
         globalState.lastFPSTime = time
 
