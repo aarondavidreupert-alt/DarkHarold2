@@ -570,6 +570,7 @@ export module Scripting {
         use_p_proc!: () => void
         use_obj_on_p_proc!: () => void
         talk_p_proc!: () => void
+        push_p_proc!: () => void
         pickup_p_proc!: () => void
         drop_p_proc!: () => void
 
@@ -3078,6 +3079,20 @@ export module Scripting {
         return obj._script._didOverride
     }
 
+    // CE actions.cc actionPush: the target's push_p_proc with the pusher as source;
+    // true when the script overrode the engine's push.
+    export function push(obj: Obj, source: Obj): boolean {
+        const script = obj._script
+        if (!script || !script.push_p_proc) return false
+        script.self_obj = obj as ScriptableObj
+        script.source_obj = source
+        script.game_time = Math.max(1, globalState.gameTickTime)
+        script.cur_map_index = currentMapID
+        script._didOverride = false
+        script.push_p_proc()
+        return script._didOverride
+    }
+
     export function talk(script: Script, obj: Obj): boolean {
         script.self_obj = obj as ScriptableObj
         script.game_time = Math.max(1, globalState.gameTickTime)
@@ -3339,7 +3354,9 @@ export module Scripting {
     }
 
     export function reset(mapName: string, mapID?: number) {
-        timeEventList.length = 0 // clear timed events
+        // The event queue is not emptied here: leaving the old map already cleared what CE
+        // clears (queueLeavingMap, _queue_leaving_map); poison, radiation and the party's
+        // drug events carry over. A new game / load empties it (resetGameState).
         dialogueOptionProcs.length = 0
         dialogueOptionTexts.length = 0
         dialogueReviewLog.length = 0

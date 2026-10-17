@@ -366,6 +366,15 @@ html, body {
 #attackButtonContainer:active #attackButton {
   background-image: url("art/intrface/sattkbdn.png");
 }
+
+/* CE interfaceBarRefreshMainAction isDisabled: intrface #73 (SATURBUP) up and down */
+#attackButtonContainer.weaponDisabled #attackButton,
+#attackButtonContainer.weaponDisabled:active #attackButton {
+  background-image: url("art/intrface/saturbup.png");
+}
+#attackButtonContainer.weaponDisabled:active #attackButtonWeapon {
+  transform: none;
+}
 /*
 #skilldexButton {
   position: absolute;
@@ -892,6 +901,22 @@ html, body {
 }
 
 /* Inventory button in context menu */
+#context_rotate {
+  background-image: url("art/intrface/rotaten.png");
+}
+
+#context_rotate:hover {
+  background-image: url("art/intrface/rotateh.png");
+}
+
+#context_push {
+  background-image: url("art/intrface/pushn.png");
+}
+
+#context_push:hover {
+  background-image: url("art/intrface/pushh.png");
+}
+
 #context_inventory {
   background-image: url("art/intrface/invenn.png");
 }

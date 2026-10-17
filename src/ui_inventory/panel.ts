@@ -17,6 +17,7 @@ limitations under the License.
 // Inventory panel — split out of ui_inventory.ts. See
 // wiki/ts-split-refactor.md → "Per-file split proposals" §8.
 
+import { beginUseItemOn, usePendingItemOn } from '../useItemOn.js'
 import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, ammoSplitOff, weaponGetAmmoTypePid } from '../weaponAmmo.js'
 import globalState from '../globalState.js'
 import { dbg } from '../logger.js'
@@ -45,7 +46,17 @@ function onStatsChangedRefresh(): void {
     showInventory()
 }
 
+// CE inventory.cc inventoryOpenUseItemOn — the action menu's Inventory icon: the next
+// item clicked is used on this object (2 AP in combat), and the window closes.
+let useOnTarget: Obj | null = null
+
+export function showInventoryUseOn(target: Obj): void {
+    useOnTarget = target
+    showInventory(true)
+}
+
 export function closeInventory(): void {
+    useOnTarget = null
     if (!isInventoryOpen()) return
     globalState.uiMode = UIMode.none
     $id('inventoryBox').style.visibility = 'hidden'
@@ -99,7 +110,8 @@ export function initInventory(): void {
     }
 }
 
-export function showInventory() {
+export function showInventory(useOn = false) {
+    if (!useOn && !isInventoryOpen()) useOnTarget = null
     const wasOpen = isInventoryOpen()
     globalState.uiMode = UIMode.inventory
     if (!wasOpen) {
@@ -110,7 +122,7 @@ export function showInventory() {
 
     // CE ref: inventory.cc inventoryOpen() — deduct AP on first open during combat
     // Base cost: 4; Quick Pockets perk reduces by 2 per rank (CE: PERK_QUICK_POCKETS id=35)
-    if (!wasOpen && globalState.inCombat && globalState.player?.AP) {
+    if (!wasOpen && !useOnTarget && globalState.inCombat && globalState.player?.AP) {
         const player = globalState.player
         const qpRank = player.hasPerk('Quick Pockets') ? 1 : 0
         const apCost = Math.max(0, 4 - 2 * qpRank)
@@ -359,6 +371,14 @@ export function showInventory() {
             $el.appendChild(amtSpan)
             makeDraggable(img, 'i' + i, () => {
                 showInventory()
+            })
+            img.addEventListener('click', () => {
+                const target = useOnTarget
+                if (!target) return
+                closeInventory()
+                // _action_use_an_item_on_object (useItemOn.ts: walk there, 2 AP in combat)
+                beginUseItemOn(invObj)
+                usePendingItemOn(target)
             })
 
             // Allow ammo to be dropped onto a weapon in the inventory list

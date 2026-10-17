@@ -31,6 +31,9 @@ import { UIMode } from './ui_panels.js'
 import { drawHP, uiLog } from './ui_hud.js'
 
 let skilldexWindow: WindowFrame
+// CE game_mouse.cc action menu USE_SKILL: skilldexOpen, then actionUseSkill on the
+// menu's object instead of the targeting cursor.
+let onSkillPicked: ((skill: Skills) => void) | null = null
 
 export function getSkilldexWindow(): WindowFrame | null {
     return skilldexWindow ?? null
@@ -51,7 +54,10 @@ export function initSkilldex(): void {
 
     function useSkill(skill: Skills) {
         return () => {
+            const picked = onSkillPicked
+            onSkillPicked = null
             skilldexWindow.close()
+            if (picked && !isPassiveSkill(skill)) { picked(skill); return }
 
             if (isPassiveSkill(skill)) {
                 // Passive/self skills: execute immediately, no target selection needed
@@ -192,7 +198,8 @@ export function initSkilldex(): void {
 }
 
 /** Open the skilldex panel. No-op if initSkilldex() hasn't been called yet. */
-export function showSkilldex(): void {
+export function showSkilldex(onPick: ((skill: Skills) => void) | null = null): void {
+    onSkillPicked = onPick
     skilldexWindow?.show()
 }
 

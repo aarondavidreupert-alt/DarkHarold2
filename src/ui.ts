@@ -48,6 +48,7 @@ import {
     uiDrawWeapon,
     uiEndCombatAnimationDone,
     initLogScrollZones,
+    attackButtonDisabled,
 } from './ui_hud.js'
 import {
     UIMode,
@@ -218,6 +219,7 @@ export function initUI() {
     }
 
     $id('attackButtonContainer').onclick = () => {
+        if (attackButtonDisabled()) return // CE buttonDisable(gSingleAttackButton)
         // Reload mode: immediately reload from inventory (AP cost in combat)
         const wep = globalState.player.equippedWeapon
         if (wep?.weapon?.mode === 'reload') {

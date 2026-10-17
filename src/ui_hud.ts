@@ -141,22 +141,16 @@ export function drawAC(ac: number): void {
 }
 
 export function drawAP(current: number, max: number, freeMove: number = 0, isPlayerTurn: boolean = true): void {
-    // CE ref: interface.cc interfaceRenderActionPoints animates point changes
-    // per-frame; when AP drops we briefly flash the deactivated lights before
-    // hiding them, so the player sees which slots are being spent.
+    // CE ref: interface.cc interfaceRenderActionPoints — the lights are redrawn at once
+    // (green for AP left, yellow for free move, all ten red off-turn); no animation.
     const apply = (i: number, src: string | null) => {
         const el = document.getElementById('apLight' + (i + 1)) as HTMLImageElement | null
         if (!el) return
         if (src) {
             el.src = src
             el.style.visibility = 'visible'
-            el.style.transition = 'opacity 120ms ease'
-            el.style.opacity = '1'
         } else {
-            el.style.transition = 'opacity 120ms ease'
-            el.style.opacity = '0'
-            // Hide after the fade-out completes so click hit-tests stay clean.
-            setTimeout(() => { if (el.style.opacity === '0') el.style.visibility = 'hidden' }, 130)
+            el.style.visibility = 'hidden'
         }
     }
     for (let i = 0; i < 10; i++) {
@@ -170,7 +164,6 @@ export function drawAP(current: number, max: number, freeMove: number = 0, isPla
         }
         apply(i, src)
     }
-    updateAttackButtonAvailability(current + freeMove, isPlayerTurn)
     updateIndicatorBar()
 }
 
@@ -318,27 +311,32 @@ function renderIndicatorBadges(active: Set<string>): void {
     }
 }
 
-// Dim the attack button when the player can't afford the current weapon mode's
-// AP cost (or when it isn't the player's turn). CE ref: interface.cc
-// interfaceRenderActionPoints — attack-button colour follows AP availability.
-function updateAttackButtonAvailability(availableAP: number, isPlayerTurn: boolean): void {
-    const $btn = document.getElementById('attackButton') as HTMLElement | null
-    if (!$btn) return
-    const weapon = globalState.player?.equippedWeapon
-    let cost = 0
-    if (weapon && weapon.weapon) {
-        const mode = (weapon.weapon as any).mode
-        if (mode === 'reload') cost = weapon.weapon.getReloadAPCost()
-        else cost = weapon.weapon.getAttackAPCost(globalState.player!, undefined, weapon.weapon.isCalled())
-    } else {
-        cost = 3 // unarmed default
+// CE item.cc dudeIsWeaponDisabled: a weapon is unusable with both arms crippled, or a
+// two-handed one with either arm crippled.
+function dudeIsWeaponDisabled(item: Obj | undefined | null): boolean {
+    if (!item || !objectIsWeapon(item) || (item as any).pid === undefined) return false
+    const p = globalState.player as any
+    if (p.crippledLeftArm && p.crippledRightArm) return true
+    const twoHanded = (((item as any).pro?.extra?.weaponFlags ?? 0) & 0x02) !== 0 // WEAPON_TWO_HAND
+    return twoHanded && (p.crippledLeftArm || p.crippledRightArm)
+}
+
+// CE interface.cc interfaceBarRefreshMainAction with isDisabled: the button is the
+// unreadied art (intrface #73 SATURBUP, up and down), no hit mode or AP cost, and the
+// attack button is disabled.
+function setAttackButtonDisabled(disabled: boolean): void {
+    const c = document.getElementById('attackButtonContainer')
+    if (!c) return
+    c.classList.toggle('weaponDisabled', disabled)
+    for (const id of ['attackButtonType', 'attackButtonAP', 'attackButtonCalled']) {
+        const el = document.getElementById(id)
+        if (el && disabled) el.style.visibility = 'hidden'
+        else if (el) el.style.visibility = ''
     }
-    const affordable = isPlayerTurn && availableAP >= cost
-    // CE ref: interface.cc interfaceRenderActionPoints — the unaffordable state
-    // tints the button (red wash). Opacity stays at 1 so the sprite is fully
-    // opaque; the tint alone signals "can't afford".
-    $btn.style.opacity = '1'
-    $btn.style.filter = affordable ? '' : 'brightness(0.7) sepia(0.4) hue-rotate(-25deg) saturate(2)'
+}
+
+export function attackButtonDisabled(): boolean {
+    return document.getElementById('attackButtonContainer')?.classList.contains('weaponDisabled') ?? false
 }
 
 // --- Scrolling log ---------------------------------------------------------
@@ -366,6 +364,10 @@ export function uiDrawWeapon(): void {
     // draw the active weapon in the interface bar
     const weapon = globalState.player!.equippedWeapon
     clearEl($id('attackButton'))
+    {
+        const player = globalState.player as any
+        setAttackButtonDisabled(dudeIsWeaponDisabled(player[player.activeHand ?? 'leftHand']))
+    }
     const $wepImg = $id('attackButtonWeapon') as HTMLImageElement
     const $typeImg = $img('attackButtonType')
     if (!weapon || !weapon.weapon) {
@@ -576,7 +578,6 @@ export function uiEndCombat(): void {
     // Otherwise the button keeps the dimmed tint from the fight's leftover AP.
     // (Restored 2026-10-06; lost in b282cca.)
     const player = globalState.player
-    if (player?.AP) updateAttackButtonAvailability(player.AP.getAvailableMoveAP(), true)
 }
 
 // CE _colorTable[rgb555] → CSS.
