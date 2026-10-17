@@ -104,17 +104,18 @@ export function initSkilldex(): void {
         ['Repair',    Skills.Repair],
     ]
 
-    // CE: buttons skldxon (up) / skldxoff (down), 86x33, at x 15, y 45 + 36*i; the
+    // CE skilldex.cc skilldexWindowInit: buttons skldxoff (up, buffer index*2) / skldxon
+    // (down, index*2+1), 86x33, at x 15, y 45 + 36*i; the
     // name (skilldex.msg 102+i, font 103) centred: x = (86 - w) / 2 + 1,
     // y = (33 - lineHeight) / 2 + 1, colour 18979 up / 14723 down. Values: big
     // numbers at x 110, y 48 + 36*i.
     const BTN_W = 86
     const BTN_H = 33
-    new Image().src = 'art/intrface/skldxoff.png' // preload the pressed state
+    new Image().src = 'art/intrface/skldxon.png' // preload the pressed state
     for (let i = 0; i < skilldexSkills.length; i++) {
         const [name, skill] = skilldexSkills[i]
-        const btn = new Widget('art/intrface/skldxon.png', { x: 15, y: 45 + i * 36, w: BTN_W, h: BTN_H })
-            .mouseDownBG('art/intrface/skldxoff.png')
+        const btn = new Widget('art/intrface/skldxoff.png', { x: 15, y: 45 + i * 36, w: BTN_W, h: BTN_H })
+            .mouseDownBG('art/intrface/skldxon.png')
             .css({ cursor: 'pointer' })
             .onClick(useSkill(skill))
         skilldexWindow.add(btn)
