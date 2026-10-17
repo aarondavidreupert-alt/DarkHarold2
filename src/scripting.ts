@@ -934,9 +934,9 @@ export module Scripting {
         // critters
         get_critter_stat(obj: Critter, stat: number) {
             if (stat === 34) {
-                // STAT_GENDER
+                // STAT_GENDER — the player's choice, else the proto's
                 if (obj.isPlayer) return (<Player>obj).gender === 'female' ? 1 : 0
-                return 0
+                return obj.getStat('Gender') ?? 0
             }
             if (stat === 8) {
                 // STAT_MAXIMUM_ACTION_POINTS — CE stat.cc critterGetStat (base + modifiers)
@@ -965,10 +965,8 @@ export module Scripting {
             if (stat === 31) return obj.getStat('DR Radiation') // STAT_RADIATION_RESISTANCE
             if (stat === 32) return obj.getStat('DR Poison')    // STAT_POISON_RESISTANCE
             if (stat === 33) {
-                // STAT_AGE — CE ref: stat.cc:244 critterGetStat — base age (default 25)
-                // + gameTime / GAME_TIME_TICKS_PER_YEAR. DH2 has no per-critter base,
-                // so use the default of 25 (gStatDescriptions[STAT_AGE].defaultValue).
-                return 25 + Math.floor(globalState.gameTickTime / GameTime.TICKS_PER_YEAR)
+                // STAT_AGE — CE stat.cc critterGetStat: base age + game years (Critter.getStat)
+                return obj.getStat('Age')
             }
             if (stat === 36) return obj.poisonLevel ?? 0    // STAT_CURRENT_POISON_LEVEL
             if (stat === 37) return obj.radiationLevel ?? 0 // STAT_CURRENT_RADIATION_LEVEL
@@ -1000,7 +998,9 @@ export module Scripting {
                 warn('set_critter_stat: unknown stat ' + stat)
                 return -1
             }
-            const current = (obj as Critter).getStat(statName)
+            // critterGetBaseStatWithTraitModifier: the base (DH2 keeps trait SPECIAL there),
+            // not drugs, perks or blindness
+            const current = (obj as Critter).stats.getBase(statName)
             ;(obj as Critter).stats.setBase(statName, current + value)
             return 0
         }
@@ -1042,11 +1042,7 @@ export module Scripting {
                         return (<Critter>obj).radiationLevel ?? 0
                     case 669: {
                         // CE ref: interpreter_extra.cc:2595 CRITTER_TRAIT_OBJECT_GET_INVENTORY_WEIGHT
-                        let totalWeight = 0
-                        for (const item of obj.inventory) {
-                            totalWeight += (item.pro?.extra?.weight ?? 0) * (item.amount ?? 1)
-                        }
-                        return totalWeight
+                        return obj.getInventoryWeight() // item.cc objectGetInventoryWeight
                     }
                     default:
                         dbgWarn('script', `has_trait: unhandled OBJECT trait ${trait}`)

@@ -34,6 +34,8 @@ import {
     statComment, STATS, SKILLS, TRAITS,
 } from './descriptions.js'
 import { setCharacterWindow } from './viewer.js'
+import { showAlert, showConfirm } from '../ui_dialog.js'
+import { getMessage } from '../util.js'
 
 // ── showCharacterCreator() ────────────────────────────────────────────────────
 // FO2-CE ref: editor.cc editorRun() — character creation mode.
@@ -843,7 +845,11 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         for (let i = 0; i < STATS.length; i++) {
             const el = statValueWidgets[i]
             while (el.firstChild) el.removeChild(el.firstChild)
-            const base = newStatSet.getBase(STATS[i])
+            // CE shows the SPECIAL with its trait modifier (critterGetBaseStatWithTraitModifier)
+            const st = STATS[i]
+            const base = newStatSet.getBase(st) + (selectedTraits.includes('Gifted') ? 1 : 0)
+                + (st === 'STR' && selectedTraits.includes('Bruiser') ? 2 : 0)
+                + (st === 'AGI' && selectedTraits.includes('Small Frame') ? 1 : 0)
             el.appendChild(renderBignum(base, 2))
             statCommentLabels[i].setText(statComment(base))
         }
@@ -855,22 +861,31 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     }
 
     // ── DONE button ───────────────────────────────────────────────────────────
-    doneBtn.onClick(() => {
-        if (pool > 0) {
-            showInfoCard('Character', `You have ${pool} unspent attribute point${pool !== 1 ? 's' : ''}.`)
-            return
+    // CE character_editor.cc characterEditorShow (creation DONE): all character points
+    // spent (editor.msg 118/119), all tag skills chosen (142/143), every SPECIAL with
+    // its trait modifier within 1..10 (_is_supper_bonus, 157/158), and a Yes/No warning
+    // when the name is still "None" (160/161).
+    doneBtn.onClick(async () => {
+        const msg = (id: number) => getMessage('editor', id) ?? ''
+        const refuse = (a: number, b: number) => {
+            globalState.audioEngine?.playSfxByName?.('iisxxxx1')
+            return showAlert(`${msg(a)}
+${msg(b)}`)
         }
-        if (newSkillSet.tagged.length < 3) {
-            const need = 3 - newSkillSet.tagged.length
-            showInfoCard('Tag Skills', `Tag ${need} more skill${need !== 1 ? 's' : ''}.`)
-            return
-        }
-        if (!playerName.trim()) {
-            showInfoCard('Name', 'Please enter a character name.')
-            return
+        if (pool > 0) return refuse(118, 119)
+        if (newSkillSet.tagged.length < 3) return refuse(142, 143)
+        const traitMod = (stat: string) => (selectedTraits.includes('Gifted') ? 1 : 0)
+            + (stat === 'STR' && selectedTraits.includes('Bruiser') ? 2 : 0)
+            + (stat === 'AGI' && selectedTraits.includes('Small Frame') ? 1 : 0)
+        if (STATS.some((st) => { const v = newStatSet.getBase(st) + traitMod(st); return v < 1 || v > 10 })) return refuse(157, 158)
+        const name = playerName.trim() || 'None'
+        if (name.toLowerCase() === 'none') {
+            globalState.audioEngine?.playSfxByName?.('iisxxxx1')
+            if (!(await showConfirm(`${msg(160)}
+${msg(161)}`))) return
         }
 
-        player.applyCreationStats(newStatSet, newSkillSet, playerName.trim(), playerAge, playerSex, selectedTraits)
+        player.applyCreationStats(newStatSet, newSkillSet, name, playerAge, playerSex, selectedTraits)
         characterWindow.close()
         onDone()
     })

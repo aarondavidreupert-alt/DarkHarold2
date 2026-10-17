@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { perkNameById } from './perks.js'
 import { SkillSet, StatSet } from './char.js'
 import { dbg } from './logger.js'
 import { clamp, getMessage } from './util.js'
@@ -75,6 +76,21 @@ export class Player extends Critter {
         this.updateNativeLook()
     }
 
+    // CE trait.cc traitsSetSelected (Mutate!). CE applies trait SPECIAL modifiers live
+    // (traitGetStatModifier); DH2 keeps Gifted (+1 all), Bruiser (+2 ST) and Small Frame
+    // (+1 AG) in the base, so they come off and go on here.
+    setTraits(traits: string[]): void {
+        const SPECIALS = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK']
+        const special = (t: string[], sign: 1 | -1) => {
+            if (t.includes('Gifted')) for (const st of SPECIALS) this.stats.modifyBase(st, sign)
+            if (t.includes('Bruiser')) this.stats.modifyBase('STR', 2 * sign)
+            if (t.includes('Small Frame')) this.stats.modifyBase('AGI', sign)
+        }
+        special(this.traits ?? [], -1)
+        this.traits = traits.slice(0, 2)
+        special(this.traits, 1)
+    }
+
     // CE ref: proto.cc:847 _proto_dude_update_gender — the unarmored look is tribal
     // (hmwarr / hfprim) until the VSUIT movie has been seen, then the vault jumpsuit
     // (hmjmps / hfjmps), by gender. With armor on, only the look to restore changes.
@@ -99,10 +115,46 @@ export class Player extends Critter {
     // The SPECIAL parts (Gifted, Bruiser STR, Small Frame AGI) are baked into the
     // base stats at creation (applyCreationStats); the derived ones apply here.
     getStat(stat: string): number {
-        const value = super.getStat(stat)
+        let value = super.getStat(stat)
         const t = this.traits ?? []
+        const perk = (id: number) => { const n = perkNameById(id); return !!n && this.perks.includes(n) }
+        // CE critterGetStat (critter == gDude): the live perk modifiers. (Gain <SPECIAL>
+        // raises the base when taken — perkApplyEffect — so the derived stats follow.)
         switch (stat) {
-            case 'AP': return t.includes('Bruiser') ? value - 2 : value
+            case 'STR':
+                // PERK_ADRENALINE_RUSH: +1 below half HP
+                if (perk(79) && this.getStat('HP') < Math.trunc(this.getStat('Max HP') / 2)) value = Math.min(10, value + 1)
+                break
+            case 'CHA': {
+                // PROTO_ID_MIRRORED_SHADES in either hand: +1
+                const shades = (this.leftHand as any)?.pid === 433 || (this.rightHand as any)?.pid === 433
+                if (shades) value = Math.min(10, value + 1)
+                break
+            }
+            case 'Max HP':
+                if (perk(108)) value += 2 // PERK_ALCOHOL_RAISED_HIT_POINTS
+                if (perk(109)) value += 4 // _II
+                if (perk(110)) value -= 2 // PERK_ALCOHOL_LOWERED_HIT_POINTS
+                if (perk(111)) value -= 4 // _II
+                if (perk(112)) value += 2 // PERK_AUTODOC_RAISED_HIT_POINTS
+                if (perk(113)) value += 4 // _II
+                if (perk(114)) value -= 2 // PERK_AUTODOC_LOWERED_HIT_POINTS
+                if (perk(115)) value -= 4 // _II
+                break
+            case 'DR Normal': case 'DR Explosive':
+                if (perk(74)) value += 5 // PERK_DERMAL_IMPACT_ARMOR
+                else if (perk(75)) value += 10 // PERK_DERMAL_IMPACT_ASSAULT_ENHANCEMENT
+                break
+            case 'DR Laser': case 'DR Fire': case 'DR Plasma':
+                if (perk(76)) value += 5 // PERK_PHOENIX_ARMOR_IMPLANTS
+                else if (perk(77)) value += 10 // PERK_PHOENIX_ASSAULT_ENHANCEMENT
+                break
+            case 'DR Radiation': case 'DR Poison':
+                if (perk(78)) value += 10 // PERK_VAULT_CITY_INOCULATIONS
+                break
+        }
+        switch (stat) {
+            case 'AP': return Math.max(1, t.includes('Bruiser') ? value - 2 : value) // clamped like CE critterGetStat
             case 'AC': return t.includes('Kamikaze') ? 0 : value // -critterGetBaseStat(AC)
             case 'Melee': return t.includes('Heavy Handed') ? value + 4 : value
             case 'Carry': return t.includes('Small Frame') ? value - 10 * this.stats.getBase('STR') : value
@@ -151,7 +203,7 @@ export class Player extends Critter {
         // Ammo
         createObjectWithPID(33).setAmount(200),  // 10mm JHP
         createObjectWithPID(36).setAmount(200),  // .223 FMJ
-        createObjectWithPID(43).setAmount(200),  // Micro Fusion Cell
+        createObjectWithPID(39).setAmount(200),  // Micro Fusion Cell (PROTO_ID_MICRO_FUSION_CELL)
 
         // Drugs & chems
         createObjectWithPID(40).setAmount(5),    // Stimpak
@@ -205,17 +257,21 @@ export class Player extends Critter {
             const lvlMsg = getMessage('stat', 600)
             if (lvlMsg) uiLog(lvlMsg)
 
-            // FO2-CE ref: stat.cc — Skill points: 5 + 2*INT per level
-            // Educated perk +2; Skilled trait +5; Gifted trait -5
-            let skillPointGain = 5 + this.getStat('INT') * 2
-            if (this.hasPerk('Educated'))          skillPointGain += 2
-            if (this.traits.includes('Skilled'))   skillPointGain += 5
-            if (this.traits.includes('Gifted'))    skillPointGain -= 5
-            this.skills.skillPoints += skillPointGain
+            // CE character_editor.cc characterEditorUpdateLevel: 5 + 2 × base INT (with
+            // traits, not drugs) + 2 per Educated rank + 5 with Skilled, − 5 with Gifted;
+            // the unspent total stays within 0..99.
+            const before = this.skills.skillPoints
+            let sp = before + 5 + 2 * this.stats.getBase('INT')
+            sp += 2 * this.perks.filter((p) => p === 'Educated').length
+            if (this.traits.includes('Skilled')) sp += 5
+            if (this.traits.includes('Gifted')) sp = Math.max(0, sp - 5)
+            sp = Math.min(99, sp)
+            this.skills.skillPoints = sp
+            const skillPointGain = sp - before
 
-            // FO2-CE ref: stat.cc — HP per level: floor(END / 2) + 2
-            // Lifegiver perk: +4 per rank
-            let hpGain = Math.floor(this.getStat('END') / 2) + 2
+            // CE stat.cc pcAddExperienceWithOptions — HP per level: base END (with traits,
+            // not drugs) / 2 + 2, + 4 per Lifegiver rank
+            let hpGain = Math.floor(this.stats.getBase('END') / 2) + 2
             hpGain += this.perks.filter((p) => p === 'Lifegiver').length * 4 // CE: perkGetRank(LIFEGIVER) * 4
             this.stats.modifyBase('Max HP', hpGain)
             this.stats.modifyBase('HP', hpGain)
@@ -278,12 +334,9 @@ export class Player extends Critter {
         const maxHp = this.stats.get('Max HP')
         this.stats.setBase('HP', maxHp)
 
-        // Derive initial skill points for level 1 (FO2: 5 + 2×INT; Gifted -5; Skilled +5)
-        const int = this.stats.getBase('INT')
-        let sp = 5 + 2 * int
-        if (traits.includes('Gifted'))  sp -= 5
-        if (traits.includes('Skilled')) sp += 5
-        skills.skillPoints = Math.max(0, sp)
+        // CE stat.cc pcStatsReset: a new character has no unspent skill points; the first
+        // ones come with level 2 (characterEditorUpdateLevel).
+        skills.skillPoints = 0
 
         // Apply skills and tags
         this.skills.baseSkills  = Object.assign({}, skills.baseSkills)

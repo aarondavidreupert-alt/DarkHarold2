@@ -432,21 +432,26 @@ skills.skillPoints = Math.max(0, sp)
 
 **Max HP formula**: `15 + 2×END + STR` — correct per CE (`stat.cc:567`).
 
-### 5.4 CE Perk SPECIAL Modifiers (not implemented in DH2)
+### 5.4 CE context and perk modifiers (`critterGetStat`, `stat.cc`)
 
-CE handles these live in `critterGetStat` (`stat.cc:249–366`). DH2 does not implement
-SPECIAL-modifying perks in the stat chain.
+Audit 2026-10-17 — all implemented:
 
-| CE Perk | Effect | DH2 status |
-|---------|--------|------------|
-| Gain Strength/Perception/Endurance/Charisma/Intelligence/Agility/Luck | +1 to that SPECIAL | NOT IMPLEMENTED |
-| Adrenaline Rush | +1 STR when HP < 50% | NOT IMPLEMENTED |
-| Alcohol Raised HP / Lowered HP (I/II) | ±2/±4 Max HP | NOT IMPLEMENTED |
-| Autodoc Raised HP / Lowered HP (I/II) | ±2/±4 Max HP | NOT IMPLEMENTED |
-| Lifegiver | +4 Max HP per rank (per level-up) | IMPLEMENTED (`player.ts:118`) |
-| Dermal Impact Armor/Enhancement | +5/+10 DR Normal + DR Explosive | NOT IMPLEMENTED |
-| Phoenix Armor/Enhancement | +5/+10 DR Laser/Fire/Plasma | NOT IMPLEMENTED |
-| Vault City Inoculations | +10 Radiation Resistance + Poison Resistance | NOT IMPLEMENTED |
+| CE | Effect | DH2 |
+|----|--------|-----|
+| `DAM_BLIND` | −5 PER | `Critter.getStat` |
+| Overloaded | Max AP − (excess weight / 40 + 1) | `Critter.getStat('AP')`, with CE `objectGetInventoryWeight` / `itemGetWeight` (`Obj.getInventoryWeight`, `getWeight`, `stackWeight`) |
+| Age | + game years | `Critter.getStat('Age')` |
+| Unused AP → AC | + remaining AP while it isn't the critter's turn; HtH Evade (player, no weapon in either hand): AP × 2 + Unarmed / 12 | `Combat.nextTurn` (`bonusAC`) |
+| Gain Strength … Gain Luck | +1 SPECIAL | +1 on the base when taken (`perkApplyEffect`), so the derived stats follow (CE recomputes them) |
+| Adrenaline Rush | +1 ST below half HP | `Player.getStat` |
+| Mirrored Shades in a hand | +1 CH | `Player.getStat` |
+| Alcohol / Autodoc raised / lowered HP (I/II) | ±2 / ±4 Max HP | `Player.getStat` |
+| Dermal Impact Armor / Enhancement | +5 / +10 DR Normal + Explosive | `Player.getStat` |
+| Phoenix Armor / Enhancement | +5 / +10 DR Laser, Fire, Plasma | `Player.getStat` |
+| Vault City Inoculations | +10 Radiation + Poison resistance | `Player.getStat` |
+| Lifegiver | +4 Max HP when taken, +4 per level per rank | `applyPerk`, `addExperience` |
+| Educated | +2 SP when taken, +2 per level per rank | `applyPerk`, `addExperience` |
+| Mutate! | Lose a trait (editor.msg 154), pick a new one (153); backing out takes the perk back | `perkModal.ts runMutate`, `Player.setTraits` |
 
 ### 5.5 Scripting Opcodes
 
@@ -518,79 +523,19 @@ scripts calling `get_pc_stat()` or `set_pc_stat()` will crash with an unknown op
 
 ## 6. Known Gaps
 
-Unified table from both source documents.
+Re-audited 2026-10-17. Fixed in this audit:
+- **Skill points:** a new character has none (CE `pcStatsReset`; DH2 gave 5 + 2 × INT).
+- **Level-up skill points:** base INT with traits, not drugs; Educated × rank; the total stays within 0–99 (`characterEditorUpdateLevel`).
+- **HP per level:** base END with traits, not drugs (`pcAddExperienceWithOptions`).
+- **Creation DONE:** the CE checks and messages — editor.msg 118/119, 142/143, `_is_supper_bonus` 157/158, and the "None" name Yes/No 160/161. The screen shows the SPECIAL with trait modifiers.
+- **Stat opcodes:** `set_critter_stat` adds to the base (not the live value); `get_critter_stat` 33 returns the critter's age, 34 an NPC's proto gender.
+- **Weights:** CE `objectGetInventoryWeight` / `itemGetWeight`. Held / worn items, container contents, loaded rounds and power armor at half weight are counted, and ammo is weighed by the box. The inventory readout shows STAT_CARRY_WEIGHT instead of 25 + 25 × ST.
+- **Debug start kit:** pid 43 "Ice Chest" ×200 was meant as Micro Fusion Cells (39).
 
-| Feature | CE source | DH2 status |
-|---------|-----------|------------|
-| 5-point SPECIAL pool | `character_editor.cc:1907` | IMPLEMENTED (`ui_character.ts`) |
-| SPECIAL default 5, range 1–10 | `stat.cc:43` | IMPLEMENTED |
-| Done: pool must reach 0 | `character_editor.cc:843` | IMPLEMENTED |
-| Done: must tag 3 skills | `character_editor.cc:861` | IMPLEMENTED |
-| Done: `_is_supper_bonus` check | `character_editor.cc:879` | PARTIAL — up-button blocks base ≥ 10; Gifted display discrepancy (Gap A) |
-| Tag skill bonus (+20 + double invest) | `skill.cc:251–255` | IMPLEMENTED (`char.ts:113–123`) |
-| 0–2 traits at creation | `character_editor.cc:5467` | IMPLEMENTED |
-| Age 16–35 in UI | `character_editor.cc:3442,3447` | IMPLEMENTED |
-| Sex selection | `stat.cc` | IMPLEMENTED |
-| Level-up SP formula | `character_editor.cc:5686–5701` | IMPLEMENTED (`player.ts:109–113`) |
-| Skill point cost tiers | `skill.cc:skillsGetCost` | IMPLEMENTED (`skills.ts:167–175`) |
-| 0 SPs at creation | `character_editor.cc:5160` | GAP A — DH2 grants level-1 SPs immediately |
-| Trait SPECIAL as live modifier | `trait.cc:traitGetStatModifier` | GAP B — DH2 bakes into baseStats |
-| Gifted: correct SPECIAL display during creation | `trait.cc` | GAP B — DH2 shows raw base without +1 |
-| Live trait modifier chain | `stat.cc:182` | GAP B — no live recalculation after creation |
-| Gain SPECIAL perks | `stat.cc:249–366` | GAP C — perks collected but stat chain ignores them |
-| `set_critter_stat` (`0x80CB`) | `interpreter_extra.cc:4916` | GAP D — method and opcode wiring both absent |
-| `get_pc_stat` (`0x80A6`) | `interpreter_extra.cc` | GAP D — method exists but NOT wired in `vm_bridge.ts` |
-| `set_pc_stat`, `mod_pc_stat` | `interpreter_extra.cc` | GAP D — methods exist but NOT wired; unknown opcode values |
-| `get_critter_stat` indices 8–16, 31–33, 36–37 | `stat.cc` | GAP D — falls through to `stub()`, returns hardcoded 5 |
-| `STAT_UNARMED_DAMAGE` (index 10) | proto default 0 | GAP E — no entry in `statDependencies` or `statMap` |
-| Small Frame carry weight penalty | `trait.cc:traitGetStatModifier` | GAP E — +1 AGI applied; −10×STR carry penalty ignored |
-| Trait derived stat modifiers (Kamikaze, Fast Metabolism, Heavy Handed, Finesse) | `trait.cc:traitGetStatModifier` | GAP E — not implemented |
-| Overweight AP penalty | `stat.cc:critterGetStat` | GAP E — not implemented |
-| Blind −5 PER | `stat.cc:critterGetStat` | GAP E — not implemented |
-| Alcohol/Autodoc HP perks | `stat.cc:249–366` | GAP E — not implemented |
-| Premade characters | `character_selector.cc` | NOT IMPLEMENTED |
-| "None" name warning | `character_editor.cc:897` | NOT IMPLEMENTED — blocks empty name instead |
-| Unused AP → AC bonus | `stat.cc` (combat context modifier) | Partially implemented — see `wiki/combat.md` |
+Earlier fixes: trait derived modifiers (`Player.getStat`), the stat opcodes (RV1), premade characters (`ui_charselect.ts`), Gifted's skill penalty.
 
-### Gap A — Creation-time SP grant
-DH2 `applyCreationStats` (`player.ts:183–186`) grants `5 + 2*INT ± traits` SPs immediately
-when a new character is finalised. CE gives 0 SPs at creation; the first batch is allocated only
-when the character screen opens after reaching level 2 (`characterEditorUpdateLevel`).
+| Feature | CE | DH2 |
+|---------|-----|-----|
+| Trait SPECIAL modifiers | Live (`traitGetStatModifier`) | On the base; `Player.setTraits` moves them when traits change (Mutate!), so the result matches |
 
-Result: DH2 players can spend SPs at level 1; CE players cannot until level 2.
-The level-up formula itself is correct in both.
-
-### Gap B — Trait SPECIAL modifiers baked vs live
-DH2 permanently modifies `baseStats` for Gifted (+1 all), Bruiser (+2 STR), and Small Frame
-(+1 AGI) in `applyCreationStats`. CE applies these via `traitGetStatModifier` at query time,
-so they are automatically reversed if a trait is removed (e.g. via the Mutate! perk,
-`perk_defs.h`).
-
-Consequences:
-1. If DH2 ever implements Mutate!, the trait-SPECIAL link is broken — baked bonuses won't be
-   undone.
-2. During `showCharacterCreator`, `redrawStatsSkills` renders `newStatSet.getBase(stat)` — the
-   raw value before Gifted's +1 is applied (`ui_character.ts`). CE shows the trait-modified
-   value. So a player with INT=5 and Gifted sees 5 in DH2 and 6 in CE during the creation
-   screen. Skill values shown in the creation screen also use the pre-Gifted SPECIAL (the −10
-   flat penalty from Gifted IS applied to skills via `traitGetSkillModifier`, but the
-   SPECIAL-based contribution does not include the +1 until after `applyCreationStats`).
-   After `applyCreationStats` the player correctly has INT=6, so in-game skill calculations
-   are unaffected. This is a creation-screen display issue only.
-
-### Gap C — Gain SPECIAL perks
-CE handles Gain Strength/Perception/etc. perks live in `critterGetStat` (`stat.cc:249–366`).
-DH2 collects perk selections but the `StatSet.get()` chain does not consult them.
-
-### Gap D — Scripting stat opcodes
-`set_critter_stat` is completely absent. `get_pc_stat`, `set_pc_stat`, and `mod_pc_stat`
-methods exist on the `Script` class but are not wired in `vm_bridge.ts`, causing unknown opcode
-crashes. `get_critter_stat` only maps indices 0–7, 34–35; all others fall through to
-`stub()` returning 5.
-
-### Gap E — Trait derived stat modifiers (non-SPECIAL)
-Kamikaze (AC = 0, +5 Sequence), Fast Metabolism (+2 Healing Rate, Rad/Poison Resist = 0),
-Heavy Handed (+4 Melee Damage, −30 Better Criticals), Finesse (+10 Critical Chance), and
-Small Frame's carry weight penalty (−10×STR) are not implemented in DH2.
-
-<!-- audited: 2026-06-02 -->
+<!-- audited: 2026-10-17 -->

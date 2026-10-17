@@ -297,8 +297,21 @@ export class Critter extends Obj {
         })
     }
 
+    // CE stat.cc critterGetStat — the stat plus its context modifiers: blindness −5 PER,
+    // overloaded −(excess / 40 + 1) AP, and age growing with the game years.
     getStat(stat: string) {
-        return this.stats.get(stat)
+        const value = this.stats.get(stat)
+        switch (stat) {
+            case 'PER':
+                return this.isBlinded ? Math.max(1, value - 5) : value // DAM_BLIND
+            case 'AP': {
+                const remaining = this.stats.get('Carry') - this.getInventoryWeight()
+                return remaining < 0 ? Math.max(1, value - (Math.trunc(-remaining / 40) + 1)) : value
+            }
+            case 'Age':
+                return value + Math.floor((globalState.gameTickTime ?? 0) / 315360000) // GAME_TIME_TICKS_PER_YEAR
+        }
+        return value
     }
 
     getEquippedArmor(): Obj | null {

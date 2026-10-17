@@ -166,6 +166,10 @@ function adjust(critter: Critter, stat: number, delta: number): void {
 export function perkApplyEffect(critter: Critter, id: number, sign: 1 | -1): void {
     const p = CE_PERKS[id]
     if (!p) return
+    // PERK_GAIN_STRENGTH … PERK_GAIN_LUCK (84-90): CE adds 1 to the SPECIAL live in
+    // critterGetStat and recomputes the derived stats; DH2 derives live from the base,
+    // so the +1 goes on the base.
+    if (critter.isPlayer && id >= 84 && id <= 90) adjust(critter, id - 84, sign)
     if (p.stat !== -1) adjust(critter, p.stat, sign * p.statMod)
     if (p.maxRank === -1) for (let s = 0; s < 7; s++) adjust(critter, s, sign * p.stats[s])
 }

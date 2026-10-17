@@ -781,10 +781,51 @@ export class Obj {
         }
     }
 
-    // CE ref: item.cc objectGetInventoryWeight — sums pro.extra.weight per item.
+    // CE item.cc itemGetWeight — the proto weight (0 when hidden); power armors weigh
+    // half, a container adds its contents, a loaded weapon its rounds (by the box).
+    getWeight(): number {
+        const ex = this.pro?.extra ?? {}
+        let weight = ex.weight ?? 0
+        if ((((this as any).flags ?? 0) & 0x01) !== 0) weight = 0 // OBJECT_HIDDEN
+        const POWER_ARMORS = [3, 232, 348, 349] // PROTO_ID_POWER_ARMOR, HARDENED, ADVANCED, ADVANCED_MK_II
+        if (this.subtype === 'armor' && POWER_ARMORS.includes(this.pid)) weight = Math.trunc(weight / 2)
+        else if (this.subtype === 'container') weight += this.getInventoryWeight()
+        else if (this.subtype === 'weapon') {
+            const rounds = (this as any).ammoQuantity ?? 0
+            const ammoPid = (this as any).ammoTypePid ?? -1
+            if (rounds > 0 && ammoPid !== -1) {
+                const ammo = loadPRO(ammoPid, ammoPid & 0xffff)
+                const perBox = Math.max(1, ammo?.extra?.quantity ?? 1)
+                weight += (ammo?.extra?.weight ?? 0) * (Math.trunc((rounds - 1) / perBox) + 1)
+            }
+        }
+        return weight
+    }
+
+    // The weight of `count` of this item. DH2 counts an ammo stack in rounds (`amount`)
+    // where CE counts boxes, so ammo weighs by the box: ceil(rounds / rounds per box).
+    stackWeight(count: number = this.amount ?? 1): number {
+        if (this.subtype === 'ammo') {
+            const perBox = Math.max(1, this.pro?.extra?.quantity ?? 1)
+            return this.getWeight() * Math.ceil(count / perBox)
+        }
+        return this.getWeight() * count
+    }
+
+    // CE item.cc objectGetInventoryWeight — every carried item; a critter also counts
+    // what it holds and wears outside the inventory list.
     getInventoryWeight(): number {
         let w = 0
-        for (const item of this.inventory) w += (item.pro?.extra?.weight ?? 0) * (item.amount ?? 1)
+        for (const item of this.inventory) w += item.stackWeight()
+        if (this.type === 'critter') {
+            const self = this as any
+            for (const slot of ['leftHand', 'rightHand', 'armor']) {
+                const item = self[slot]
+                if (item && item.pid !== undefined && !this.inventory.includes(item) && typeof item.stackWeight === 'function') {
+                    w += item.stackWeight()
+                }
+            }
+        }
         return w
     }
 
@@ -801,7 +842,7 @@ export class Obj {
         }
         if (this.type !== 'critter') return true
         const max = (this as unknown as Critter).getStat?.('Carry') ?? Infinity
-        const addWeight = (item.pro?.extra?.weight ?? 0) * count
+        const addWeight = item.stackWeight(count)
         return this.getInventoryWeight() + addWeight <= max
     }
 

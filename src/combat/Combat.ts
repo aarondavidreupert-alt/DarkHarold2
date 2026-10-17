@@ -29,6 +29,7 @@ import { Scripting } from '../scripting.js'
 import { drawAC, drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiEndButtonsGreenLights, uiEndButtonsRedLights, uiLog, uiStartCombat } from '../ui.js'
 import { clamp, getMessage, getProtoMsg, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollSkillCheck } from '../util.js'
 import { randomBetween } from '../random.js'
+import { perkNameById } from '../perks.js'
 import { toTileNum } from '../tile.js'
 import { currentUnarmed, unarmedAPCost, type UnarmedMode } from '../unarmed.js'
 import { useDrug } from '../drugs.js'
@@ -2976,7 +2977,18 @@ export class Combat {
             if (prevIdx < 0) prevIdx = this.combatants.length - 1
             var prev = this.combatants[prevIdx]
             if (!prev.dead && prev.AP) {
-                prev.bonusAC = prev.AP.getAvailableCombatAP() // CE stat.cc: STAT_ARMOR_CLASS + remaining combat.ap
+                // CE stat.cc critterGetStat(STAT_ARMOR_CLASS): + remaining combat AP while it
+                // isn't the critter's turn; the player's HtH Evade with no weapon in either
+                // hand doubles it and adds Unarmed / 12.
+                let apMult = 1, evade = 0
+                if (prev.isPlayer && prev.hasPerk(perkNameById(93) ?? 'HtH Evade')) {
+                    const armed = (h: any) => !!h && h.pid !== undefined && h.subtype === 'weapon' && (h.weapon?.getAnim?.('idle') ?? 'aa') !== 'aa'
+                    if (!armed((prev as any).leftHand) && !armed((prev as any).rightHand)) {
+                        apMult = 2
+                        evade = Math.trunc(prev.getSkill('Unarmed') / 12)
+                    }
+                }
+                prev.bonusAC = prev.AP.getAvailableCombatAP() * apMult + evade
                 // CE ref: stat.cc:203-242 — unused AP counts as AC while it isn't the critter's turn.
                 if (prev.isPlayer) drawAC(prev.getStat('AC') + prev.bonusAC)
             }

@@ -269,14 +269,9 @@ export function showInventory() {
 
         // Total weight
         addHR()
-        let current = 0
-        for (const item of p.inventory) {
-            current += ((item.pro?.extra?.weight ?? 0) as number) * item.amount
-        }
-        if (playerAny.leftHand?.pro?.extra?.weight) current += playerAny.leftHand.pro.extra.weight
-        if (playerAny.rightHand?.pro?.extra?.weight) current += playerAny.rightHand.pro.extra.weight
-        if (armorExtra?.weight) current += armorExtra.weight
-        const max = 25 + p.getStat('STR') * 25
+        // CE item.cc objectGetInventoryWeight / STAT_CARRY_WEIGHT
+        const current = p.getInventoryWeight()
+        const max = p.getStat('Carry')
         addRow('Total Wt:', `${current}/${max}`)
     }
 
@@ -330,15 +325,9 @@ export function showInventory() {
     function updateWeightDisplay() {
         const $weight = document.getElementById('inventoryBoxWeight')
         if (!$weight) return
-        let current = 0
-        for (const item of globalState.player.inventory) {
-            current += ((item.pro?.extra?.weight ?? 0) as number) * item.amount
-        }
-        const playerAny = globalState.player as any
-        if (playerAny.leftHand?.pro?.extra?.weight) current += playerAny.leftHand.pro.extra.weight
-        if (playerAny.rightHand?.pro?.extra?.weight) current += playerAny.rightHand.pro.extra.weight
-        if (playerAny.armor?.pro?.extra?.weight) current += playerAny.armor.pro.extra.weight
-        const max = 25 + globalState.player.getStat('STR') * 25
+        // CE item.cc objectGetInventoryWeight / STAT_CARRY_WEIGHT
+        const current = globalState.player.getInventoryWeight()
+        const max = globalState.player.getStat('Carry')
         $weight.textContent = `Wt: ${current}/${max}`
     }
 
