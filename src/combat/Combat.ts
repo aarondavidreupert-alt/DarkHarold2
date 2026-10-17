@@ -22,7 +22,7 @@ import { CriticalEffects } from '../criticalEffects.js'
 import { critterDamage, critterKill, unarmedAttackAnim } from '../critter.js'
 import { tickCombatTurn } from '../events.js'
 import * as GameTime from '../gametime.js'
-import { hexDirectionTo, hexDistance, hexInDirection, hexInDirectionDistance, hexLine, hexLineBeyond, hexNearestNeighbor, hexNeighbors, Point } from '../geometry.js'
+import { hexDirectionTo, hexDistance, hexFromScreen, hexInDirection, hexInDirectionDistance, hexLine, hexLineBeyond, hexNearestNeighbor, hexNeighbors, hexToScreen, Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { eventLogPush, dbg, dbgWarn } from '../logger.js'
 import { createObjectWithPID, Critter, Obj } from '../object.js'
@@ -40,7 +40,7 @@ import { computeDamage } from './damage.js'
 import { combatIsShotBlocked, nextShootObstacle } from './lineOfFire.js'
 import { noteHit } from './whoHitMe.js'
 import { lazyLoadImage } from '../images.js'
-import { makePID } from '../pro.js'
+import { loadPRO, makePID } from '../pro.js'
 import {
     accountForPartialCover as _accountForPartialCover,
     getAmmoStats as _getAmmoStats,
@@ -108,6 +108,14 @@ function rollWeaponDamage(attacker: Critter, min: number, max: number, melee: bo
     if (!melee) return getRandomInt(min, max)
     if (attacker.isPlayer) min += 2 * attacker.perks.filter((p) => p === 'Bonus HtH Damage').length
     return getRandomInt(min, max + attacker.getStat('Melee'))
+}
+
+// A ranged miss (CE attack->tile and the accidental victim); `landing` is where a
+// thrown item comes to rest.
+interface RangedMiss {
+    tile: Point
+    victim: Critter | null
+    landing: Point
 }
 
 // CE weaponGetAttackTypeForHitMode: a fist (no item) or no weapon is unarmed.
@@ -505,18 +513,30 @@ export class Combat {
         // impact sound and target reaction happen on the attacker's FRM action frame,
         // not on frame 0. resolveAttack() runs then (or at animation end at the latest,
         // always before the turn-continuation callback).
+        // A ranged attack's projectile flies after the action frame (CE _action_ranged);
+        // the turn continues once both the attack animation and the flight are done.
         let resolved = false
+        let finished = false
+        let animDone = false
+        const proceed = (): void => {
+            if (!animDone || !finished) return
+            if (callback) callback()
+            else obj.clearAnim()
+        }
         const resolveAttack = (): void => {
             if (resolved) return
             resolved = true
-            this.resolveAttack(obj, target, region, weaponObj, who)
+            const deferred = this.resolveAttack(obj, target, region, weaponObj, who, () => { finished = true; proceed() })
+            if (!deferred) finished = true
         }
-        obj.staticAnimation('attack', () => { resolveAttack(); if (callback) callback(); else obj.clearAnim() },
+        obj.staticAnimation('attack', () => { resolveAttack(); animDone = true; proceed() },
             undefined, undefined, resolveAttack)
     }
 
     // Second half of attack(): rolls, damage and reactions, run on the action frame.
-    private resolveAttack(obj: Critter, target: Critter, region: string, weaponObj: Critter['equippedWeapon'], who: string): void {
+    // Returns true when a projectile is in flight; `done` then runs after its impact.
+    private resolveAttack(obj: Critter, target: Critter, region: string, weaponObj: Critter['equippedWeapon'], who: string,
+                          done: () => void): boolean {
 
         var audio: AudioEngine = globalState.audioEngine
         var rawSoundID = weaponObj?.pro?.extra?.soundID
@@ -545,9 +565,9 @@ export class Combat {
                 noteHit(target, obj, false) // CE combat.cc:4706
                 if (target.isPlayer) drawHP(target.getStat('HP'))
                 if (!target.dead && target._script?.combat_p_proc) {
-                    if (Scripting.combatEvent(target, 'damage')) return
+                    if (Scripting.combatEvent(target, 'damage')) return false
                 }
-                if (!globalState.combat) return
+                if (!globalState.combat) return false
                 if (target.dead) this.perish(target, obj, 'Normal')
             } else {
                 uiLog(`${who} misses ${targetName} (${unarmedModeName})`)
@@ -558,21 +578,20 @@ export class Combat {
                 }
                 if (unarmedHit.crit === true) this.doCriticalFailure(obj, null, who)
             }
-            return
+            return false
         }
 
         // ── BURST MODE ────────────────────────────────────────────────────────
         // CE combat.cc _compute_spray + _shoot_along_path (see resolveSpray).
         if (weapon && weapon.isBurst && weapon.isBurst()) {
-            this.resolveSpray(obj, target, weaponObj!, who, targetName, attackDmgType)
-            return
+            return this.resolveSpray(obj, target, weaponObj!, who, targetName, attackDmgType, done)
         }
 
         // ── SINGLE SHOT ───────────────────────────────────────────────────────
         var hitRoll = this.rollHit(obj, target, region, 0, who, targetName)
-        // CE actions.cc _action_ranged: a thrown weapon (ANIM_THROW_ANIM) is itself the
-        // projectile — unless a critical failure stopped the throw.
-        const thrown = attackTypeOf(weaponObj) === 'throw'
+        const attackType = attackTypeOf(weaponObj)
+        const thrown = attackType === 'throw'
+        const isRangedType = attackType === 'ranged' || attackType === 'throw'
         const targetTile = { ...target.position }
 
         // Deduct one round after the roll
@@ -584,55 +603,72 @@ export class Combat {
             }
         }
 
-        if (hitRoll.hit === true) {
-            if (thrown) this.landThrownWeapon(obj, weaponObj!, targetTile, attackDmgType)
-            var critModifier = hitRoll.crit ? hitRoll.DM : 2
-            var damage = this.getDamageDone(obj, target, critModifier)
-            var extraMsg = hitRoll.crit === true ? this.getCombatMsg(hitRoll.msgID) || '' : ''
-            uiLog(who + ' hit ' + targetName + ' for ' + damage + ' damage' + extraMsg)
+        // CE attackCompute decides everything before the animation: a critical failure
+        // (DAM_CRITICAL only when its table entry has an effect) stops the shot; a plain
+        // miss of a ranged/thrown attack flies on (attack->tile) and may hit someone else.
+        let critical = false
+        let miss: RangedMiss | null = null
+        if (hitRoll.hit !== true) {
+            critical = hitRoll.crit === true && this.doCriticalFailure(obj, weapon, who)
+            if (!critical && isRangedType) miss = this.computeRangedMiss(obj, target, weaponObj!, attackDmgType)
+        }
+        // CE actions.cc _action_ranged: the projectile (for a throw, the weapon itself) is
+        // registered when (DAM_HIT) or not (DAM_CRITICAL).
+        const flies = isRangedType && (hitRoll.hit === true || !critical)
+        const projectilePid = flies ? this.projectilePid(weaponObj!) : null
+        const thrownItem = flies && thrown ? this.takeThrownItem(obj, weaponObj!) : null
 
-            // Play impact sound
-            if (!(window as any).__test?.fastMode) audio.playWeaponSfx(soundIdChar || '#', 'impact')
+        const impact = (): void => {
+            if (hitRoll.hit === true) {
+                if (thrownItem) this.placeThrownItem(thrownItem, targetTile, weaponObj!, attackDmgType)
+                var critModifier = hitRoll.crit ? hitRoll.DM : 2
+                var damage = this.getDamageDone(obj, target, critModifier)
+                var extraMsg = hitRoll.crit === true ? this.getCombatMsg(hitRoll.msgID) || '' : ''
+                uiLog(who + ' hit ' + targetName + ' for ' + damage + ' damage' + extraMsg)
 
-            critterDamage(target, damage, obj, true, true, attackDmgType)
-            noteHit(target, obj, false) // CE combat.cc:4706
-            if (target.isPlayer) drawHP(target.getStat('HP'))
-            if (this.isExplosiveAttack(weaponObj!, attackDmgType)) {
-                this.explosionOnExtras(obj, target, target.position, weaponObj!, attackDmgType)
-                if (!globalState.combat) return
-            }
-            if (!target.dead && target._script?.combat_p_proc) {
-                if (Scripting.combatEvent(target, 'damage')) return
-            }
-            if (!globalState.combat) return
-            if (target.dead) this.perish(target, obj, attackDmgType)
-        } else {
-            uiLog(who + ' missed ' + targetName + (hitRoll.crit === true ? ' critically' : ''))
-            if (!(window as any).__test?.fastMode) audio.playSfxByName('cmbtflx')
+                // Play impact sound
+                if (!(window as any).__test?.fastMode) audio.playWeaponSfx(soundIdChar || '#', 'impact')
 
-            // Play a dodge/flinch on the target if they aren't already animating
-            if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
-                // CE ref: actions.cc:660 — sfxBuildCharName(defender, ANIM_DODGE_ANIM, UNUSED),
-                // melee only (_action_ranged plays no dodge sound).
-                if (weapon?.type === 'melee') playCharAnimSfx(target, ANIM.dodge)
-                target.staticAnimation('dodge', () => target.clearAnim())
-            }
-
-            // CE attackComputeCriticalFailure sets DAM_CRITICAL only when the table entry
-            // has an effect; without one the attack is an ordinary miss.
-            const critical = hitRoll.crit === true && this.doCriticalFailure(obj, weapon, who)
-
-            // CE attackCompute: a ranged/thrown attack that hit nothing flies on and may hit
-            // someone else ((DAM_HIT | DAM_CRITICAL) == 0).
-            const attackType = weaponAttackType(weaponObj)
-            if (!critical && (attackType === 'ranged' || attackType === 'throw')) {
-                const impact = this.rangedMissAccident(obj, target, weaponObj!, attackDmgType, true)
-                if (impact && this.isExplosiveAttack(weaponObj!, attackDmgType)) {
-                    this.explosionOnExtras(obj, impact.hit, impact.hit?.position ?? impact.tile, weaponObj!, attackDmgType)
+                critterDamage(target, damage, obj, true, true, attackDmgType)
+                noteHit(target, obj, false) // CE combat.cc:4706
+                if (target.isPlayer) drawHP(target.getStat('HP'))
+                if (this.isExplosiveAttack(weaponObj!, attackDmgType)) {
+                    this.explosionOnExtras(obj, target, target.position, weaponObj!, attackDmgType)
+                    if (!globalState.combat) return
                 }
-                if (thrown) this.landThrownWeapon(obj, weaponObj!, impact ? impact.landing : targetTile, attackDmgType)
+                if (!target.dead && target._script?.combat_p_proc) {
+                    if (Scripting.combatEvent(target, 'damage')) return
+                }
+                if (!globalState.combat) return
+                if (target.dead) this.perish(target, obj, attackDmgType)
+            } else {
+                uiLog(who + ' missed ' + targetName + (hitRoll.crit === true ? ' critically' : ''))
+                if (!(window as any).__test?.fastMode) audio.playSfxByName('cmbtflx')
+
+                // CE actions.cc: a melee miss dodges (with its sound); a ranged miss only
+                // when the weapon has no visible projectile.
+                if (!projectilePid && !target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
+                    if (weapon?.type === 'melee') playCharAnimSfx(target, ANIM.dodge)
+                    target.staticAnimation('dodge', () => target.clearAnim())
+                }
+
+                if (miss) {
+                    this.applyRangedMiss(obj, miss, attackDmgType)
+                    if (this.isExplosiveAttack(weaponObj!, attackDmgType)) {
+                        this.explosionOnExtras(obj, miss.victim, miss.victim?.position ?? miss.tile, weaponObj!, attackDmgType)
+                    }
+                }
+                if (thrownItem) this.placeThrownItem(thrownItem, miss ? miss.landing : targetTile, weaponObj!, attackDmgType)
             }
         }
+
+        if (projectilePid !== null) {
+            const dest = hitRoll.hit === true ? targetTile : (miss?.tile ?? targetTile)
+            this.flyProjectile(obj, target, dest, projectilePid, () => { try { impact() } finally { done() } })
+            return true
+        }
+        impact()
+        return false
     }
 
     // CE attackCompute (SFALL form): explosive damage — or a thrown Plasma/EMP grenade —
@@ -710,7 +746,8 @@ export class Combat {
     // burst; the rounds split into a centre line (part aimed at the target) and two side
     // lines through tiles beside the target, each walked by _shoot_along_path, so anyone
     // on a line of fire can be hit — friends included.
-    private resolveSpray(obj: Critter, target: Critter, weaponObj: Obj, who: string, targetName: string, dmgType: string): void {
+    private resolveSpray(obj: Critter, target: Critter, weaponObj: Obj, who: string, targetName: string, dmgType: string,
+                         done: () => void): boolean {
         const audio = globalState.audioEngine
         const weapon = (weaponObj as any).weapon
         const range = weapon.getMaximumRange()
@@ -743,32 +780,48 @@ export class Combat {
             extraMsg = this.getCombatMsg(c.msgID) || ''
         }
 
-        uiLog(`${who} burst-fired at ${targetName}: ${mainHits}/${roundsSpent} rounds on target`)
-        if (rollIsSuccess(roll)) {
-            if (mainHits > 0) {
+        // As for single shots: the miss / critical-failure outcome first, then the flight.
+        let critical = false
+        let miss: RangedMiss | null = null
+        if (!rollIsSuccess(roll)) {
+            if (roll === RollResult.CriticalFailure) critical = this.doCriticalFailure(obj, weapon, who)
+            if (!critical) miss = this.computeRangedMiss(obj, target, weaponObj, dmgType)
+        }
+        const targetTile = { ...target.position }
+
+        const impact = (): void => {
+            uiLog(`${who} burst-fired at ${targetName}: ${mainHits}/${roundsSpent} rounds on target`)
+            if (rollIsSuccess(roll)) {
+                if (mainHits > 0) {
+                    let damage = 0
+                    for (let i = 0; i < mainHits; i++) damage += this.getDamageDone(obj, target, damageMultiplier)
+                    uiLog(`  ${targetName} took ${damage} damage${extraMsg}`)
+                    if (!this.applyRangedDamage(obj, target, damage, dmgType, false)) return
+                }
+            } else {
+                if (!(window as any).__test?.fastMode) audio.playSfxByName('cmbtflx')
+                if (miss) this.applyRangedMiss(obj, miss, dmgType)
+            }
+
+            // Extras (_shoot_along_path): each takes its rounds at ×2.
+            for (const [victim, rounds] of extras) {
+                if (victim.dead) continue
                 let damage = 0
-                for (let i = 0; i < mainHits; i++) damage += this.getDamageDone(obj, target, damageMultiplier)
-                uiLog(`  ${targetName} took ${damage} damage${extraMsg}`)
-                if (!this.applyRangedDamage(obj, target, damage, dmgType, false)) return
+                for (let i = 0; i < rounds; i++) damage += this.getDamageDone(obj, victim, 2)
+                const victimName = victim.isPlayer ? 'you' : victim.name
+                uiLog(`  ${victimName} took ${damage} damage`)
+                if (!this.applyRangedDamage(obj, victim, damage, dmgType, true)) return
             }
-        } else {
-            if (!(window as any).__test?.fastMode) audio.playSfxByName('cmbtflx')
-            if (!target.dead && !target.inAnim() && target.hasAnimation('dodge')) {
-                target.staticAnimation('dodge', () => target.clearAnim())
-            }
-            if (roll === RollResult.CriticalFailure) this.doCriticalFailure(obj, weapon, who)
-            else this.rangedMissAccident(obj, target, weaponObj, dmgType, true)
         }
 
-        // Extras (_shoot_along_path): each takes its rounds at ×2.
-        for (const [victim, rounds] of extras) {
-            if (victim.dead) continue
-            let damage = 0
-            for (let i = 0; i < rounds; i++) damage += this.getDamageDone(obj, victim, 2)
-            const victimName = victim.isPlayer ? 'you' : victim.name
-            uiLog(`  ${victimName} took ${damage} damage`)
-            if (!this.applyRangedDamage(obj, victim, damage, dmgType, true)) return
+        const projectilePid = rollIsSuccess(roll) || !critical ? this.projectilePid(weaponObj) : null
+        if (projectilePid !== null) {
+            const dest = rollIsSuccess(roll) ? targetTile : (miss?.tile ?? targetTile)
+            this.flyProjectile(obj, target, dest, projectilePid, () => { try { impact() } finally { done() } })
+            return true
         }
+        impact()
+        return false
     }
 
     // CE combat.cc _compute_spray — the roll and the rounds per victim, no damage. Also
@@ -1062,13 +1115,16 @@ export class Combat {
     // _tile_num_beyond(attacker, defender, range) (a grenade lands up to distance/2 away
     // in a random direction); the first shoot-blocking object past the defender — or
     // whatever blocks the landing tile — takes one round at ×2.
-    private rangedMissAccident(attacker: Critter, defender: Critter, weaponObj: Obj, dmgType: string,
-                               plainFailure: boolean): { tile: Point; hit: Critter | null; landing: Point } | null {
+    // CE combat.cc attackCompute, ranged miss tail: the shot flies on to _tile_num_beyond
+    // (grenades scatter up to distance/2 around the target); the first shoot-blocker past
+    // the target becomes attack->tile and, if it is a live critter, the accidental victim.
+    // Pure — the damage is applied by applyRangedMiss after the projectile arrived.
+    private computeRangedMiss(attacker: Critter, defender: Critter, weaponObj: Obj, dmgType: string): RangedMiss | null {
         const gMap = globalState.gMap
         const weapon = (weaponObj as any).weapon
         if (!gMap || !weapon) return null
         const range = weapon.getMaximumRange()
-        if (plainFailure && this.checkRangedMiss(attacker, defender, range, 'torso')) return null
+        if (this.checkRangedMiss(attacker, defender, range, 'torso')) return null
 
         const isGrenade = weaponAttackType(weaponObj) === 'throw'
             && (dmgType === 'Explosive' || dmgType === 'Plasma' || dmgType === 'EMP')
@@ -1087,36 +1143,132 @@ export class Combat {
         }
         const SHOOT_THRU = 0x80000000
         if (accidental === null || ((((accidental as any).flags ?? 0) >>> 0) & SHOOT_THRU) !== 0) {
-            return { tile, hit: null, landing: tile }
+            return { tile, victim: null, landing: tile }
         }
-        // CE sets attack->tile to the obstacle's tile; the projectile's straight move stops
-        // on the last free hex before a wall or scenery blocker.
+        // A wall or scenery blocker: a thrown item comes to rest on the hex before it.
         if (accidental.type !== 'critter') {
             const line = hexLine(defender.position, accidental.position) ?? []
             const before = line.length >= 2 ? line[line.length - 2] : defender.position
-            return { tile: accidental.position, hit: null, landing: { x: before.x, y: before.y } }
+            return { tile: { ...accidental.position }, victim: null, landing: { x: before.x, y: before.y } }
         }
         // Only critters take damage in DH2 (CE's damage to scenery has no effect either).
-        if ((accidental as Critter).dead || accidental === attacker) {
-            return { tile: accidental.position, hit: null, landing: { ...accidental.position } }
-        }
-
         const victim = accidental as Critter
+        const pos = { ...victim.position }
+        if (victim.dead || victim === attacker) return { tile: pos, victim: null, landing: pos }
+        return { tile: pos, victim, landing: pos }
+    }
+
+    // attackComputeDamage(attack, 1, 2) on the accidental victim of a miss.
+    private applyRangedMiss(attacker: Critter, miss: RangedMiss, dmgType: string): void {
+        const victim = miss.victim
+        if (!victim || victim.dead) return
         const damage = this.getDamageDone(attacker, victim, 2)
         const who = attacker.isPlayer ? 'You' : attacker.name
         uiLog(`${who} hit ${victim.isPlayer ? 'you' : victim.name} instead for ${damage} damage!`)
-        const landing = { ...victim.position }
         this.applyRangedDamage(attacker, victim, damage, dmgType, true)
-        return { tile: landing, hit: victim, landing }
     }
 
-    // CE actions.cc _action_ranged (ANIM_THROW_ANIM): itemRemove(attacker, weapon, 1)
+    // The proto pid of the weapon's projectile when it has a visible one (CE
+    // _action_ranged: weaponGetProjectilePid, projectileProto->fid != -1).
+    private projectilePid(weaponObj: Obj): number | null {
+        const pid = (weaponObj as any).pro?.extra?.projPID
+        if (pid === undefined || pid === null || pid < 0) return null
+        const pro = loadPRO(pid, pid & 0xffff)
+        if (!pro || pro.frmPID === undefined || pro.frmPID === -1) return null
+        return pid
+    }
+
+    // CE animation.cc _make_straight_path_func (a6 = 32 for non-critters): a Bresenham
+    // line in screen pixels between the two hex centres, one node every 32 steps.
+    private straightPathNodes(from: Point, to: Point): { tile: Point; x: number; y: number }[] {
+        const center = (t: Point) => { const p = hexToScreen(t.x, t.y); return { x: p.x, y: p.y - 1 } }
+        const a = center(from), b = center(to)
+        const stepX = Math.sign(b.x - a.x), stepY = Math.sign(b.y - a.y)
+        const ddx = 2 * Math.abs(b.x - a.x), ddy = 2 * Math.abs(b.y - a.y)
+        let x = a.x, y = a.y, count = 0
+        const nodes: { tile: Point; x: number; y: number }[] = []
+        const record = () => {
+            if (++count !== 32) return
+            count = 0
+            const tile = hexFromScreen(x, y)
+            const c = center(tile)
+            nodes.push({ tile, x: x - c.x, y: y - c.y })
+        }
+        if (ddx <= ddy) {
+            let middle = ddx - ddy / 2
+            for (;;) {
+                record()
+                if (y === b.y || nodes.length >= 200) break
+                if (middle >= 0) { x += stepX; middle -= ddy }
+                y += stepY
+                middle += ddx
+            }
+        } else {
+            let middle = ddy - ddx / 2
+            for (;;) {
+                record()
+                if (x === b.x || nodes.length >= 200) break
+                if (middle >= 0) { y += stepY; middle -= ddx }
+                x += stepX
+                middle += ddy
+            }
+        }
+        return nodes
+    }
+
+    // CE actions.cc _action_ranged + animation.cc animateMoveObjectToTileStraight /
+    // _object_straight_move: the projectile appears on the hex next to the attacker
+    // (_combat_bullet_start), faces the target and moves one path node per frame at the
+    // FRM's fps (+ combat speed in combat, ANIM_WALK), cycling its frames; on arrival it
+    // is removed and `onArrive` applies the impact.
+    private flyProjectile(attacker: Critter, target: Critter, dest: Point, pid: number, onArrive: () => void): void {
+        const gMap = globalState.gMap
+        if (!gMap || (window as any).__test?.fastMode) return onArrive()
+        const rotation = hexDirectionTo(attacker.position, target.position)
+        const start = hexInDirection(attacker.position, rotation)
+        const nodes = start ? this.straightPathNodes(start, dest) : []
+        if (!start || nodes.length === 0) return onArrive()
+
+        const proj = createObjectWithPID(pid, -1)
+        proj.position = { ...start }
+        proj.orientation = rotation
+        proj.frame = 0
+        lazyLoadImage(proj.art, () => {
+            if (globalState.gMap !== gMap) return onArrive()
+            gMap.addObject(proj)
+            proj.shift = { x: 0, y: 0 }
+            const info = globalState.imageInfo[proj.art]
+            const fps = (info?.fps || 10) + (globalState.inCombat ? Config.combat.combatSpeed : 0)
+            // Shown on the start hex for one frame, then one node per frame; the last node
+            // stays visible for a frame before the projectile is removed (CE hides it in
+            // the next animation step).
+            let index = 0
+            let last = window.performance.now()
+            proj.updateAnim = function (this: Obj): void {
+                const now = window.performance.now()
+                if (now - last < 1000 / fps) return
+                last = now
+                if (index >= nodes.length) {
+                    this.updateAnim = () => {}
+                    gMap.destroyObject(this)
+                    onArrive()
+                    return
+                }
+                if (info && info.numFrames > 1) this.frame = (this.frame + 1) % info.numFrames
+                const node = nodes[index++]
+                this.position = { x: node.tile.x, y: node.tile.y }
+                this.shift = { x: node.x, y: node.y }
+            }
+        })
+    }
+
+    // CE actions.cc _action_ranged (ANIM_THROW_ANIM): itemRemove(attacker, weapon, 1)    // CE actions.cc _action_ranged (ANIM_THROW_ANIM): itemRemove(attacker, weapon, 1)
     // makes one item of the stack the projectile while the rest stays in the hand
     // (itemReplace); it lands on `landing` — the target's tile on a hit, where the miss
     // stopped otherwise — and stays there. Grenades (explosive / plasma / EMP) explode
     // and are gone.
-    private landThrownWeapon(attacker: Critter, weaponObj: Obj, landing: Point, dmgType: string): void {
-        if (weaponObj.pid === undefined) return
+    private takeThrownItem(attacker: Critter, weaponObj: Obj): Obj | null {
+        if (weaponObj.pid === undefined) return null
         const a = attacker as any
         let item: Obj
         if ((weaponObj.amount ?? 1) > 1) {
@@ -1131,12 +1283,15 @@ export class Combat {
             }
             item = weaponObj
         }
-        const gMap = globalState.gMap
-        if (gMap && !this.isExplosiveAttack(weaponObj, dmgType)) {
-            gMap.addObject(item)
-            item.move({ x: landing.x, y: landing.y }, gMap.getObjects().length - 1, false)
-        }
         if (attacker.isPlayer) uiDrawWeapon()
+        return item
+    }
+
+    private placeThrownItem(item: Obj, landing: Point, weaponObj: Obj, dmgType: string): void {
+        const gMap = globalState.gMap
+        if (!gMap || this.isExplosiveAttack(weaponObj, dmgType)) return
+        gMap.addObject(item)
+        item.move({ x: landing.x, y: landing.y }, gMap.getObjects().length - 1, false)
     }
 
     perish(obj: Critter, attacker?: Critter, damageType?: string) {

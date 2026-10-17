@@ -461,6 +461,7 @@ This was a full review of the attack chain against CE combat.cc (`attackDetermin
 | 15 | Fast Shot | −1 AP for weapons with range > 2 | Not implemented |
 | 16 | `_is_hit_from_front` | Compares attacker and defender facing | Used the direction to the attacker |
 | 18 | Thrown weapons (2026-10-17, C25) | `_action_ranged`: `itemRemove(attacker, weapon, 1)` — one item of the stack is the projectile, the rest stays in the hand; it lands on the target's tile on a hit, on the tile where the miss stopped (the critter it hit by accident, or the last free hex before a wall), and stays there; grenades explode and are gone; no throw on a critical failure | Thrown weapons were never used up |
+| 19 | Projectile flight (2026-10-17, C26) | Projectile object from the proto's `projPID`: appears on the hex next to the attacker on the action frame, moves 32 px per frame along a straight screen line at FRM fps (+ combat speed), hits on arrival | Nothing drawn; damage at once |
 | 17 | Unarmed moves (2026-10-17, C24) | `gUnarmedHitDescriptions`: 1–2 + bonus damage, CE requirements, AP, bonus crit, penetration; left hand punches and right hand kicks; primary/secondary + aimed; NPCs plain punch | Two invented tables with other names, damage, AP and requirements; kicks only with both hands empty; NPC fists levelled up after a weapon drop — see `wiki/weapon_combat.md` §9 |
 
 ### Verified as CE (no change)
@@ -492,7 +493,6 @@ This was a full review of the attack chain against CE combat.cc (`attackDetermin
 | `attack_complex` | `_gcsd` accuracy, AP, damage and result bonuses | Ignored |
 | Unarmed-type weapons | Brass knuckles etc. use the weapon hit mode (min ST, One Hander, Accurate apply) | Treated as plain unarmed in the hit chance |
 | Distance | `objectGetDistanceBetweenTiles` (multihex-aware) | `hexDistance` |
-| Dodge on ranged miss | Only without a visible projectile | Always |
 | Fast Shot | Also forbids aimed shots (`critterCanAim`) | Aimed shots still allowed |
 | AI "no range" to-hit | `_determine_to_hit_no_range` for flee decisions | Missing |
 
