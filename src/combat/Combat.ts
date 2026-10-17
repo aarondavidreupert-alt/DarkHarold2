@@ -39,7 +39,7 @@ import { AI, fleeHpThreshold } from './AI.js'
 import { computeDamage } from './damage.js'
 import { combatIsShotBlocked, nextShootObstacle } from './lineOfFire.js'
 import { explosionRingCritters } from './explosion.js'
-import { critterSetWhoHitMe, noteHit } from './whoHitMe.js'
+import { combatAiRating, critterSetWhoHitMe, noteHit } from './whoHitMe.js'
 import { lazyLoadImage } from '../images.js'
 import { canSee, isWithinPerception } from '../perception.js'
 import { getLstJson } from '../data.js'
@@ -1753,8 +1753,10 @@ export class Combat {
         })
     }
 
+    // CE combat_ai.cc _combatai_rating (combat/whoHitMe.ts): best of melee damage and the
+    // wielded weapons' max damage, plus AC. (DH2 used HP + AC.)
     private combataiRating(c: Critter): number {
-        return c.getStat('HP') + c.getStat('AC')
+        return combatAiRating(c)
     }
 
     findTarget(obj: Critter): Critter | null {

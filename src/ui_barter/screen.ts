@@ -221,7 +221,8 @@ export function uiBarterMode(merchant: Critter) {
 
         // Reaction modifier from merchant LVAR 0 (CE ref: reaction.cc:18)
         const reactionVal = (merchant as any)._script?.lvars?.[0] ?? 0
-        const reactionMod = reactionVal > 10 ? -15 : reactionVal < -10 ? 25 : 0
+        // reactionTranslateValue: > 10 good (−15), > −10 neutral (0), else bad (+25)
+        const reactionMod = reactionVal > 10 ? -15 : reactionVal > -10 ? 0 : 25
 
         // Combined barterMod: script mod + reaction mod
         const scriptMod = Scripting.getDialogueBarterMod()
