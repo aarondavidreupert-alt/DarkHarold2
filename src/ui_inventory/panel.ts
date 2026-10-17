@@ -523,13 +523,12 @@ export function showInventory(useOn = false) {
                     split.amount = wanted
                     obj.amount -= wanted
                     ammoSplitOff(obj, split) // CE itemRemove: the top ammo box goes along
-                    split.drop(globalState.player)
+                    // a script that refuses the drop keeps the items with the dude
+                    if (!split.drop(globalState.player)) globalState.player.addInventoryItem(split, split.amount)
                 } else {
                     if (slot !== 'inventory') {
+                        globalState.player.inventory.push(obj)
                         playerAny[slot] = null
-                    } else {
-                        const idx = globalState.player.inventory.indexOf(obj)
-                        if (idx !== -1) globalState.player.inventory.splice(idx, 1)
                     }
                     obj.drop(globalState.player)
                 }

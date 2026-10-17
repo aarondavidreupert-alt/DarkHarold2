@@ -25,7 +25,7 @@ import { gameMoviePlay, SCRIPT_MOVIE_FLAGS } from './gameMovie.js'
 import { randomInit, randomSeedPrerandom } from './random.js'
 import { critterAdjustRadiation } from './radiation.js'
 import { Combat, isCombatActive } from './combat.js'
-import { ANIM_FALL_BACK_SF, ANIM_FALL_FRONT_BLOOD_SF, correctDeath, critterDamage, critterKill, killCounts } from './critter.js'
+import { ANIM_FALL_BACK_SF, ANIM_FALL_FRONT_BLOOD_SF, correctDeath, critterDamage, critterKill, itemDropAll, killCounts } from './critter.js'
 import { areaContainingMap, getLstJson, lookupMapName, lookupScriptName, setMapMusicOverride } from './data.js'
 import { CHEM_USE_MAP, getAiPacket } from './aiPackets.js'
 import * as GameTime from './gametime.js'
@@ -50,7 +50,7 @@ import * as Endgame from './endgame.js'
 import { centerCamera, objectOnScreen } from './renderer.js'
 import { fromTileNum, toTileNum } from './tile.js'
 import { uiAddDialogueOption, uiBarterMode, uiDrawWeapon, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, uiWorldMap, UIMode } from './ui.js'
-import { updateIndicatorBar } from './ui_hud.js'
+import { drawAC, updateIndicatorBar } from './ui_hud.js'
 import { invenUnwield, invenWield, moveAllInventory, scriptHand } from './inventoryWield.js'
 import { SKILL_NAMES } from './skills.js'
 import { arrayRemove, assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
@@ -637,6 +637,7 @@ export module Scripting {
         push_p_proc!: () => void
         pickup_p_proc!: () => void
         drop_p_proc!: () => void
+        is_dropping_p_proc!: () => void
 
         combat_p_proc!: () => void
         damage_p_proc!: () => void
@@ -777,11 +778,15 @@ export module Scripting {
                     return 0 // is_game_loading
                 case 42: {
                     // CE ref: interpreter_extra.cc:3246 METARULE_DROP_ALL_INVEN —
-                    // drops all inventory items to the ground at critter's tile
+                    // itemDropAll: everything (hands and armor too) onto the critter's
+                    // tile, no scripts run; the dude's interface items refresh.
                     const dropTarget = target as any
-                    if (!isGameObject(dropTarget) || !globalState.gMap) return 0
-                    const items = [...dropTarget.inventory] as Obj[]
-                    for (const item of items) item.drop(dropTarget)
+                    if (!isGameObject(dropTarget) || dropTarget.type !== 'critter' || !globalState.gMap) return 0
+                    itemDropAll(dropTarget as Critter)
+                    if ((dropTarget as Critter).isPlayer) {
+                        uiDrawWeapon()
+                        drawAC(dropTarget.getStat('AC'))
+                    }
                     return 0
                 }
                 case 43: {
@@ -901,7 +906,7 @@ export module Scripting {
                 }
                 default:
                     dbgWarn('script', `metarule: unhandled id ${id}`)
-                    break
+                    return 0 // CE opMetarule: result stays 0
             }
         }
         metarule3(id: number, obj: any, userdata: any, radius: number): any {
@@ -1008,6 +1013,7 @@ export module Scripting {
             }
             default:
                 dbgWarn('script', `metarule3: unhandled id ${id}`)
+                return 0 // CE opMetarule3: result stays 0
             }
         }
         script_overrides() {
@@ -3257,6 +3263,18 @@ export module Scripting {
         obj._script._didOverride = false
         obj._script.pickup_p_proc()
         return obj._script._didOverride
+    }
+
+    // CE proto_instance.cc _obj_drop: the owner's is_dropping_p_proc, source_obj = the
+    // item about to be dropped. True when the script overrides (keeps the item).
+    export function isDropping(owner: Obj, item: Obj): boolean {
+        if (!owner._script || owner._script.is_dropping_p_proc === undefined) return false
+        owner._script.self_obj = owner as ScriptableObj
+        owner._script.source_obj = item
+        owner._script.cur_map_index = currentMapID
+        owner._script._didOverride = false
+        owner._script.is_dropping_p_proc()
+        return owner._script._didOverride
     }
 
     export function drop(obj: Obj, source: Obj): boolean {

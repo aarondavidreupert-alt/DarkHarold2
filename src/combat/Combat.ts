@@ -1002,13 +1002,15 @@ export class Combat {
         const flags = a.attackerFlags
         if ((flags & (DAM_EXPLODE | DAM_DESTROY | DAM_DROP)) === 0) return
         removeFromHands(attacker, weaponObj)
-        const idx = attacker.inventory.indexOf(weaponObj)
-        if (idx !== -1) attacker.inventory.splice(idx, 1)
-        if ((flags & DAM_EXPLODE) !== 0) {
-            this.spawnExplosionSprite(attacker.position)
-        } else if ((flags & DAM_DROP) !== 0 && globalState.gMap) {
-            globalState.gMap.addObject(weaponObj)
-            weaponObj.move({ ...attacker.position }, globalState.gMap.getObjects().length - 1, false)
+        if ((flags & (DAM_EXPLODE | DAM_DESTROY)) === 0) {
+            // DAM_DROP: CE _obj_drop — is_dropping_p_proc / drop_p_proc may keep it
+            // (then it stays in the inventory, out of the hand)
+            if (!attacker.inventory.includes(weaponObj)) attacker.inventory.push(weaponObj)
+            if (globalState.gMap) weaponObj.drop(attacker)
+        } else {
+            const idx = attacker.inventory.indexOf(weaponObj)
+            if (idx !== -1) attacker.inventory.splice(idx, 1)
+            if ((flags & DAM_EXPLODE) !== 0) this.spawnExplosionSprite(attacker.position)
         }
         if (attacker.isPlayer) uiDrawWeapon()
         else attacker.setIdleArt()

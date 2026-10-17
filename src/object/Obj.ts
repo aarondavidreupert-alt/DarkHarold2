@@ -1317,29 +1317,26 @@ export class Obj {
         source.walkInFrontOf(this.position, playPickup)
     }
 
-    drop(source: Obj) {
-        // drop inventory object obj from source
-        let removed = false
-        for (let i = 0; i < source.inventory.length; i++) {
-            if (source.inventory[i] === this) {
-                removed = true
-                source.inventory.splice(i, 1) // remove from source
-                break
-            }
-        }
-        if (!removed) {
-            throw "dropObject: couldn't find object"
-        }
+    // CE proto_instance.cc _obj_drop(owner, item): the owner's is_dropping_p_proc
+    // (source_obj = the item), then the item's drop_p_proc (source_obj = the owner);
+    // either can override and keep the item. Otherwise it leaves the owner (inventory or
+    // hand / armor slot) and lands on the owner's tile. True when it was dropped.
+    drop(source: Obj): boolean {
+        if (source._script && Scripting.isDropping(source, this)) return false
+        if (this._script && Scripting.drop(this, source)) return false
 
-        if (this._script) {
-            Scripting.drop(this, source)
-        }
+        const owner = source as any
+        const i = source.inventory.indexOf(this)
+        if (i !== -1) source.inventory.splice(i, 1)
+        else for (const slot of ['leftHand', 'rightHand', 'armor']) if (owner[slot] === this) owner[slot] = null
+        this.flags = (this.flags ?? 0) & ~0x7000000 // no longer in a hand / worn
 
         globalState.audioEngine.playSfxByName('iputdown')
         globalState.gMap.addObject(this) // add to objects
         if (this.pid === PROTO_ID_LIT_FLARE && Config.engine.doFloorLighting) Lightmap.rebuildLight() // its light now on the floor
         const idx = globalState.gMap.getObjects().length - 1 // our new index
         this.move({ x: source.position.x, y: source.position.y }, idx)
+        return true
     }
 
     // TODO: override this for subclasses
