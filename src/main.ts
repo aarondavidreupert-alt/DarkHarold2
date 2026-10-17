@@ -45,7 +45,7 @@ import { fonUnpack } from './formats/fon.js'
 import { Lightmap } from './lightmap.js'
 import { installInputHandlers } from './input.js'
 import { tickGame } from './gameTick.js'
-import './debug.js'
+import { debug } from './debug.js'
 import './autocrawler.js'
 
 // Re-export playerUse so existing call sites (scripting.ts imports it from './main.js')
@@ -360,6 +360,8 @@ window.onload = async function () {
     }
 
     // setDevKeys(true) — enable the DH2 developer hotkeys (h teleport, q/e elevation, ...)
+    // Console: skipTemple() — leave the Temple of Trials for Arroyo Village (src/debug.ts).
+    ;(window as any).skipTemple = () => debug.skipTemple()
     ;(window as any).setDevKeys = (on: boolean) => {
         Config.engine.devKeys = on !== false
         console.log(`[Input] developer hotkeys ${Config.engine.devKeys ? 'on' : 'off'}`)

@@ -510,6 +510,7 @@ _debug.addXP(2000)
 | Method | Description | Example |
 |---|---|---|
 | `addXP(n)` | Add `n` experience points. Fires level-up and opens the perk picker if the XP threshold is crossed. | `debug.addXP(2000)` |
+| `skipTemple()` | Skip the Temple of Trials: load Arroyo Village at the temple exit's destination (map 4, tile 11683). Also on `window` as `skipTemple()`. | `debug.skipTemple()` |
 | `setHP(n)` | Set player current HP to `n`. | `debug.setHP(1)` |
 | `setKarma(n)` | Set player karma to `n`. Clamped to ±99999999. | `debug.setKarma(500)` |
 | `combatLog()` | Returns the current `eventLog` array (same data exported by the Combat Log tools). | `debug.combatLog()` |

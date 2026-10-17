@@ -84,6 +84,17 @@ export const debug = {
         gMap.loadMap(map)
     },
 
+    /** Skip the Temple of Trials: go where the temple's exit grid leads — Arroyo Village
+     *  (map 4, tile 11683, elevation 0, artemple.map exit grids past Cameron). Nothing
+     *  else is changed; the village scripts take it from there as after the real exit. */
+    skipTemple(): void {
+        if (!guardPlayer('skipTemple')) return
+        const gMap = globalState.gMap
+        if (!gMap) return
+        console.log('[debug] Skipping the Temple of Trials → arvillag')
+        gMap.loadMapByID(4, fromTileNum(11683), 0)
+    },
+
     /** Add an item to player inventory by prototype ID. Optional amount for stackables. */
     giveItem(pid: number, amount: number = 1): void {
         const p = guardPlayer('giveItem')
