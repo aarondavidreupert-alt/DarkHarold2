@@ -24,7 +24,7 @@ export const Config = {
         screenHeight: 600,
 
         // How far from the screen edge the map starts scrolling, in pixels. CE
-        // game_mouse.cc gameMouseHandleScrolling scrolls only on the edge itself; 2 px
+        // game_mouse.cc gameMouseHandleScrolling scrolls only on the edge itself; 10 px
         // because a browser window can't always put the pointer on its last pixel.
         // fallout2.cfg [dh2] scroll_edge=<px>.
         scrollPadding: 10,
