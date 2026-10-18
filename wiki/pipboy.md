@@ -77,12 +77,6 @@ also opens the alarm clock / rest screen.
 
 DH2 has the same four buttons and the alarm bell (`src/ui_pipboy/shell.ts`, tabs in `src/ui_pipboy/tabs/`): STATUS (quests and holodisks), AUTOMAPS, ARCHIVES (video archives) and ALARM CLOCK (rest) — see §9.
 
----|---|---|---|
-| STATUS | Button 0 | STATUS | ⚠️ Partially — CE STATUS shows quests+holodisks; DH2 shows HP/conditions |
-| AUTOMAPS | Button 2 | MAPS | ✅ Functional — different rendering engine |
-| ARCHIVES | Button 3 slot | (repurposed from VIDEO ARCHIVES) | ✅ Quest log only; no holodisks |
-| CLOSE | Button 4 slot | ALARM CLOCK | ❌ Close only; no rest system |
-
 ---
 
 ## 3. STATUS Tab
