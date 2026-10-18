@@ -304,7 +304,7 @@ Bonus stat layer `+= statModifier`; `HERE_AND_NOW` grants the XP to the next lev
 
 - Max **2 traits** (`TRAITS_MAX_SELECTED_COUNT`), enforced in `ui_character/creator.ts`; Mutate! swaps one later (`ui_character/perkModal.ts` runMutate, CE `perkDialogHandleMutatePerk`).
 - Tag! (CE 51) adds a 4th tag slot without the +20 (`SkillSet.hasTagPerk`, set by `applyPerk`).
-- Books (`_obj_use_book`, `object/Obj.ts` useBook): +(100 − skill)/10 per read, ×1.5 with Comprehension, 3600 × (11 − INT) game ticks.
+- Books (`_obj_use_book`, `object/Obj.ts` useBook): +(100 − skill)/10 per read, ×1.5 with Comprehension, 3600 × (11 − INT) game seconds.
 
 ---
 

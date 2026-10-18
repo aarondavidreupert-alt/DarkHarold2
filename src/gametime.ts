@@ -256,25 +256,3 @@ export function setLightLevelOverride(level0to100: number): void {
 export function clearLightLevelOverride(): void {
     setAmbientIntensity(LIGHT_INTENSITY_MAX)
 }
-
-// --- Schedule helpers (NPC sleep / shop open hours) ---
-//
-// These are used by scripting and by the UI layer to gate interactions
-// like talking to a shopkeeper at 3 AM.
-
-// NPCs sleep at night by default. Roughly matches the ambient-light curve
-// so the "asleep" window aligns with "it's dark".
-const NIGHT_START_HOUR = 22
-const NIGHT_END_HOUR = 6
-export function isNightTime(): boolean {
-    const h = getHour()
-    return h >= NIGHT_START_HOUR || h < NIGHT_END_HOUR
-}
-
-// Typical Fallout 2 shop hours: open 9 AM to 6 PM.
-const SHOP_OPEN_HOUR = 9
-const SHOP_CLOSE_HOUR = 18
-export function isShopOpen(): boolean {
-    const h = getHour()
-    return h >= SHOP_OPEN_HOUR && h < SHOP_CLOSE_HOUR
-}
