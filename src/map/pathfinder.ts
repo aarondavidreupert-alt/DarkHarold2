@@ -46,8 +46,10 @@ function idist(x1: number, y1: number, x2: number, y2: number): number {
 interface PathNode { tile: number; from: number; rotation: number; estimate: number; cost: number }
 
 // The blocking object per tile (CE _obj_blocking_at: OBJECT_MULTIHEX objects also
-// block the six hexes around them), and the goo tiles.
-function blockingMap(mover: Obj | null, elevation: number): { block: Map<number, Obj>; goo: Set<number> } {
+// block the six hexes around them), and the goo tiles. `shoot`: CE
+// _obj_shoot_blocking_at instead — living critters, scenery and walls that aren't
+// both NO_BLOCK and SHOOT_THRU (multihex neighbours: not NO_BLOCK).
+function blockingMap(mover: Obj | null, elevation: number, shoot = false): { block: Map<number, Obj>; goo: Set<number> } {
     const block = new Map<number, Obj>()
     const goo = new Set<number>()
     const W = HEX_GRID_SIZE
@@ -57,6 +59,20 @@ function blockingMap(mover: Obj | null, elevation: number): { block: Map<number,
         if (x < 0 || x >= W || y < 0 || y >= W) continue
         const pid = (o as any).pid as number | undefined
         if (pid !== undefined && pid >= FIRST_RADIOACTIVE_GOO_PID && pid <= LAST_RADIOACTIVE_GOO_PID) goo.add(y * W + x)
+        if (shoot) {
+            const flags = ((o as any).flags ?? 0) >>> 0
+            const kind = o.type === 'scenery' || o.type === 'wall' || (o.type === 'critter' && !(o as any).dead)
+            if (!kind || (flags & 0x01) !== 0 || (o as any).visible === false) continue // OBJECT_HIDDEN
+            const noBlock = (flags & 0x10) !== 0
+            if (!(noBlock && (flags & 0x80000000) !== 0) && !block.has(y * W + x)) block.set(y * W + x, o)
+            if (!noBlock && (flags & 0x800) !== 0) {
+                for (let r = 0; r < 6; r++) {
+                    const n = hexInDirection(o.position, r)
+                    if (n.x >= 0 && n.x < W && n.y >= 0 && n.y < W && !block.has(n.y * W + n.x)) block.set(n.y * W + n.x, o)
+                }
+            }
+            continue
+        }
         if (!o.blocks()) continue
         if (!block.has(y * W + x)) block.set(y * W + x, o)
         if ((((o as any).flags ?? 0) & 0x800) !== 0) { // OBJECT_MULTIHEX
@@ -70,13 +86,14 @@ function blockingMap(mover: Obj | null, elevation: number): { block: Map<number,
 }
 
 // Returns the rotations from `from` to `to` (empty: no path). `goalMustBeFree` is CE's
-// a5: the goal tile itself must not be blocked.
-export function pathfinderFindPath(mover: Obj | null, from: Point, to: Point, goalMustBeFree: boolean): number[] {
+// a5: the goal tile itself must not be blocked; `shoot` checks with
+// _obj_shoot_blocking_at (CE's blocking-function argument).
+export function pathfinderFindPath(mover: Obj | null, from: Point, to: Point, goalMustBeFree: boolean, shoot = false): number[] {
     const W = HEX_GRID_SIZE
     const fromTile = from.y * W + from.x
     const toTile = to.y * W + to.x
     const elevation = (mover as any)?.elevation ?? globalState.gMap?.currentElevation ?? 0
-    const { block, goo } = blockingMap(mover, elevation)
+    const { block, goo } = blockingMap(mover, elevation, shoot)
 
     if (goalMustBeFree && block.has(toTile)) return []
 

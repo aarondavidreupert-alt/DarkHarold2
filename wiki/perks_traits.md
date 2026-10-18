@@ -168,13 +168,13 @@ Generated from `perk.cc` / `perk_defs.h` / `perk.msg` (2026-10-18). "stat N" is 
 | 38 | `PERK_GHOST` | Ghost | 1 | 6 | — | Sneak≥60 | object/Critter.ts, skills.ts |
 | 39 | `PERK_CULT_OF_PERSONALITY` | Cult of Personality | 1 | 12 | CH≥10 | — | — |
 | 40 | `PERK_SCROUNGER` | Scrounger | 1 | 310 | LK≥8 | — | — |
-| 41 | `PERK_EXPLORER` | Explorer | 1 | 9 | — | — | encounters/resolver.ts |
+| 41 | `PERK_EXPLORER` | Explorer | 1 | 9 | — | — | worldmap/encounters.ts |
 | 42 | `PERK_FLOWER_CHILD` | Flower Child | 1 | 310 | EN≥5 | — | drugs.ts |
 | 43 | `PERK_PATHFINDER` | Pathfinder | 2 | 6 | EN≥6 | Outdoorsman≥40 | worldmap/Worldmap.ts |
 | 44 | `PERK_ANIMAL_FRIEND` | Animal Friend | 1 | 310 | IN≥5 | Outdoorsman≥25 | — |
-| 45 | `PERK_SCOUT` | Scout | 1 | 3 | PE≥7 | — | encounters/resolver.ts |
+| 45 | `PERK_SCOUT` | Scout | 1 | 3 | PE≥7 | — | worldmap/Worldmap.ts, worldmap/encounters.ts |
 | 46 | `PERK_MYSTERIOUS_STRANGER` | Mysterious Stranger | 1 | 9 | LK≥4 | — | — |
-| 47 | `PERK_RANGER` | Ranger | 1 | 6 | PE≥6 | — | encounters/resolver.ts, skills.ts |
+| 47 | `PERK_RANGER` | Ranger | 1 | 6 | PE≥6 | — | skills.ts, worldmap/encounters.ts |
 | 48 | `PERK_QUICK_POCKETS` | Quick Pockets | 1 | 3 | AG≥5 | — | ui_inventory/panel.ts |
 | 49 | `PERK_SMOOTH_TALKER` | Smooth Talker | 3 | 3 | IN≥4 | — | scripting.ts |
 | 50 | `PERK_SWIFT_LEARNER` | Swift Learner | 3 | 3 | IN≥4 | — | player.ts |
@@ -207,7 +207,7 @@ Generated from `perk.cc` / `perk_defs.h` / `perk.msg` (2026-10-18). "stat N" is 
 | 77 | `PERK_PHOENIX_ASSAULT_ENHANCEMENT` | Phoenix Assault Enhancement | ∞ (−1) | — | stat 3 -1/rank | — | player.ts |
 | 78 | `PERK_VAULT_CITY_INOCULATIONS` | Vault City Inoculations | ∞ (−1) | — | — | — | player.ts |
 | 79 | `PERK_ADRENALINE_RUSH` | Adrenaline Rush | 1 | 6 | ST<10 | — | player.ts |
-| 80 | `PERK_CAUTIOUS_NATURE` | Cautious Nature | 1 | 3 | PE≥6 | — | encounters/resolver.ts |
+| 80 | `PERK_CAUTIOUS_NATURE` | Cautious Nature | 1 | 3 | PE≥6 | — | worldmap/encounters.ts |
 | 81 | `PERK_COMPREHENSION` | Comprehension | 1 | 3 | IN≥6 | — | object/Obj.ts |
 | 82 | `PERK_DEMOLITION_EXPERT` | Demolition Expert | 1 | 9 | AG≥4 | Traps≥75 | object/Obj.ts |
 | 83 | `PERK_GAMBLER` | Gambler | 1 | 6 | — | Gambling≥50 | skills.ts |

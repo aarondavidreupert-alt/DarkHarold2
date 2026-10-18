@@ -393,7 +393,10 @@ export class Player extends Critter {
                         globalState.gMap.changeElevation(Number(startingElevation) || 0, true)
                         globalState.player.move(startingPosition)
                         centerCamera(globalState.player.position)
-                    } else globalState.gMap.loadMapByID(exitMapID, startingPosition, startingElevation)
+                    } else {
+                        globalState.gMap.loadMapByID(exitMapID, startingPosition, startingElevation)
+                        Events.emit('mapTransition', exitMapID) // CE mapHandleTransition → wmTeleportToArea
+                    }
                 }
 
                 return false

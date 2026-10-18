@@ -795,7 +795,7 @@ to per-section helpers. Out of scope.
 | `src/worldmap/types.ts` | All interfaces (Encounter*, Square, Range, etc.) | Types only. |
 | `src/worldmap/parser.ts` | `parseWorldmap` — the line-by-line `worldmap.txt` parser. | `parseWorldmap`. |
 | `src/worldmap/Worldmap.ts` | Travel loop + DOM lifecycle: `init`, `start`, `stop`, `updateWorldmapPlayer`, `withinArea`, `centerWorldmapTarget`, `getPlayerWorldPos`, `setSquareStateAt`, `updateAreaMarkerPos`. | Public surface used by `ui.ts`. |
-| `src/worldmap/encounters.ts` | Worldmap-side encounter dispatch: `getEncounterGroup`, `execEncounter`, `doEncounter`, `didEncounter`. (Not to be confused with `encounters.ts` which handles encounter table evaluation.) | Encounter dispatch. |
+| `src/worldmap/encounters.ts` | Worldmap-side encounter dispatch: `getEncounterGroup`, `execEncounter`, `doEncounter`, `didEncounter`. (Not to be confused with `encounters.ts` which handles encounter table evaluation.) | Encounter dispatch. *(2026-10-18: replaced by the CE port — `rndEncounterOccurred`, `setupRandomEncounter`; parsers in `worldmap/encounterData.ts`.)* |
 
 `src/worldmap.ts` becomes a barrel that augments the `Worldmap` namespace
 across the four files (TypeScript supports merging a `namespace`/`module`
@@ -1107,7 +1107,7 @@ state (no `Critter`/`Combat` deps).
 | New file | Owns | Exports |
 |----------|------|---------|
 | `src/encounters/conditionLang.ts` | The expression parser + evaluator (`tokenizeCond`, `parseCond`, `parseConds`, `printTree`, `evalCond`, `evalConds` + AST types). | Parser/eval. |
-| `src/encounters/resolver.ts` | Encounter resolution: `evalEncounterCritter`, `evalEncounterCritters`, `pickEncounter`, `positionCritters`, `evalEncounter`. | Resolution API. |
+| `src/encounters/resolver.ts` | Encounter resolution: `evalEncounterCritter`, `evalEncounterCritters`, `pickEncounter`, `positionCritters`, `evalEncounter`. | Resolution API. *(Removed 2026-10-18 — CE port in `worldmap/encounters.ts`.)* |
 
 `src/encounters.ts` becomes a barrel augmenting the `Encounters` namespace.
 

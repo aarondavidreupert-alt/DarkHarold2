@@ -115,6 +115,11 @@ export interface SaveGame {
     currentCarAreaId?: number
     // CE ref: worldmap.cc wmWorldMapSave — wmGenData.worldPosX/Y.
     worldPos?: { x: number; y: number } | null
+    // CE wmWorldMap_save: every subtile's state, didMeetFrankHorrigan and the
+    // encounter entries' counters
+    subtiles?: number[] | null
+    currentAreaId?: number
+    encounters?: Worldmap.SavedEncounters
     // Name of the specific local map the car is parked on (DH2 addition).
 }
 
@@ -217,6 +222,9 @@ function gatherSaveData(name: string): SaveGame {
         carFuel: Worldmap.getCarFuel(),
         currentCarAreaId: Worldmap.getCarAreaId(),
         worldPos: Worldmap.getPlayerWorldPos(),
+        subtiles: Worldmap.serializeSquareStates(),
+        currentAreaId: Worldmap.getCurrentAreaId(),
+        encounters: Worldmap.serializeEncounters(),
     }
 }
 
@@ -382,6 +390,9 @@ export function load(id: number): void {
                 Worldmap.setCarFuel(save.carFuel ?? 0)
                 Worldmap.setCarAreaId(save.currentCarAreaId ?? -1)
                 if (save.worldPos) Worldmap.setPlayerWorldPos(save.worldPos.x, save.worldPos.y)
+                Worldmap.deserializeSquareStates(save.subtiles)
+                Worldmap.setCurrentAreaId(save.currentAreaId ?? -1)
+                Worldmap.deserializeEncounters(save.encounters)
 
                 // Restore seen-movie set (CE ref: game_movie.cc gameMoviesLoad).
                 if (Array.isArray(save.seenMovies)) globalState.seenMovies = new Set(save.seenMovies)

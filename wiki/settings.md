@@ -15,7 +15,7 @@ Cross-references: `wiki/sound_system.md` (volume keys), `wiki/save_load.md` (loc
 `src/main.ts` / `src/input.ts` (consumption of `Config.engine.doAlwaysRun`),  
 `src/combat.ts` (barrel; `src/combat/*.ts`) (consumption of `Config.combat.difficultyModifier`, combat damage only),  
 `src/skills.ts` (consumption of `Config.combat.gameDifficultyModifier`, skill-check modifier — **FIXED 2026-07-04, S-CI2**: now a field separate from `difficultyModifier`),  
-`src/encounters.ts` (barrel; `src/encounters/{conditionLang,resolver}.ts`) (consumption of `Config.combat.gameDifficultyModifier`, encounter rate)
+`src/worldmap/encounters.ts` (consumption of `Config.combat.gameDifficultyModifier`: encounter rate, pick and critter count)
 
 ---
 

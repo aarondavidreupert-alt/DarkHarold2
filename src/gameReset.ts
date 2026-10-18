@@ -42,6 +42,7 @@ export function gameReset(): void {
     globalState.gParty.deserialize([])        // partyMembersReset
     globalState.gParty.deserializeLevels(undefined)
     Worldmap.resetWorldmap()                  // wmWorldMap_reset
+    Worldmap.resetEncounters()                // wmGenDataReset (didMeetFrankHorrigan)
     resetAutomap()                            // automapReset: the automap belongs to the game
     globalState.player?.resetForNewGame()     // stats/skills/perks/traits/_inven_reset_dude
     globalState.player?.updateNativeLook()    // _proto_dude_update_gender: tribal again

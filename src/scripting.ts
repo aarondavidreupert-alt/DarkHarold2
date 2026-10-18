@@ -26,7 +26,7 @@ import { randomInit, randomSeedPrerandom } from './random.js'
 import { critterAdjustRadiation } from './radiation.js'
 import { Combat, isCombatActive } from './combat.js'
 import { ANIM_FALL_BACK_SF, ANIM_FALL_FRONT_BLOOD_SF, correctDeath, critterDamage, critterKill, itemDropAll, killCounts } from './critter.js'
-import { areaContainingMap, getLstJson, lookupMapName, lookupScriptName, setMapMusicOverride } from './data.js'
+import { areaContainingMap, getLstJson, lookupMapName, lookupScriptName, mapIndexOf, setMapMusicOverride } from './data.js'
 import { CHEM_USE_MAP, getAiPacket } from './aiPackets.js'
 import * as GameTime from './gametime.js'
 import {
@@ -746,8 +746,8 @@ export module Scripting {
                 case 16:
                     // CE ref: interpreter_extra.cc:3219 METARULE_PARTY_COUNT
                     return globalState.gParty?.party.length ?? 0
-                case 17: // is area known?
-                    return globalState.knownAreas.has(target) ? 1 : 0
+                case 17: // METARULE_AREA_KNOWN — CE wmAreaVisitedState
+                    return Worldmap.areaVisitedState(target)
                 case 18: {
                     // FO2-CE ref: proto.cc drugEffect — is critter under influence of drugs?
                     const checkObj = (this as any).self ?? null
@@ -821,17 +821,8 @@ export module Scripting {
                     const wpos = Worldmap.getPlayerWorldPos()
                     return wpos ? wpos.y : 0
                 }
-                case 46: { // METARULE_CURRENT_TOWN
-                    const mapName = globalState.gMap?.name
-                    if (mapName && globalState.mapAreas) {
-                        for (const key of Object.keys(globalState.mapAreas)) {
-                            const area = globalState.mapAreas[key]
-                            if (area.entrances.some(e => e.mapName === mapName))
-                                return area.id
-                        }
-                    }
-                    return 0
-                }
+                case 46: // METARULE_CURRENT_TOWN — CE wmGetPartyCurArea (-1 in the wastes)
+                    return Worldmap.getCurrentAreaId()
                 case 47:
                     // CE ref: interpreter_extra.cc:3291 METARULE_LANGUAGE_FILTER — profanity filter state
                     return Config.ui.languageFilter ? 1 : 0
@@ -1463,24 +1454,14 @@ export module Scripting {
             return obj.inventory[itemIndex]
         }
         critter_attempt_placement(obj: Obj, tileNum: number, elevation: number) {
-            // FO2-CE ref: critter.cc critterAttemptPlacement() — tries target tile, then all 6 neighbors
-            let targetTile = tileNum
-            if (globalState.gMap) {
-                const targetPos = fromTileNum(tileNum)
-                const objects = globalState.gMap.getObjects(elevation)
-                if (!objects) return this.move_to(obj, tileNum, elevation)
-                const occupied = (p: Point) => objects.some(o => o !== obj && o.position.x === p.x && o.position.y === p.y)
-                if (occupied(targetPos)) {
-                    for (let dir = 0; dir < 6; dir++) {
-                        const neighborPos = hexInDirection(targetPos, dir)
-                        if (!occupied(neighborPos)) {
-                            targetTile = toTileNum(neighborPos)
-                            break
-                        }
-                    }
-                }
-            }
-            return this.move_to(obj, targetTile, elevation)
+            // CE opCritterAttemptPlacement: the critter leaves its tile (tile 0) first, then
+            // proto_instance.cc _obj_attempt_placement(critter, tile, elevation, 1)
+            if (!isGameObject(obj) || !globalState.gMap) return -1
+            if (tileNum === -1) return -1
+            obj.position = fromTileNum(0)
+            const placed = globalState.gMap.attemptPlacement(tileNum, elevation, 1)
+            this.move_to(obj, placed, elevation)
+            return 0
         }
         critter_state(obj: Critter) {
             // CE ref: interpreter_extra.cc:2730 opGetCritterState
@@ -2897,12 +2878,17 @@ export module Scripting {
             // CE interpreter_extra.cc opLoadMap: the entrance goes to GVAR_LOAD_MAP_INDEX (27),
             // which the new map's map_enter_p_proc reads to place the player; a negative
             // map index does nothing.
+            // The load is a map transition (mapSetTransition → mapHandleTransition), which
+            // puts the worldmap party on the new map's area (wmTeleportToArea).
             if (typeof map === 'string') {
                 setGlobalVar(27, startLocation)
-                globalState.gMap.loadMap(map.split('.')[0].toLowerCase())
+                const name = map.split('.')[0].toLowerCase()
+                globalState.gMap.loadMap(name)
+                Events.emit('mapTransition', mapIndexOf(name))
             } else if (map >= 0) {
                 setGlobalVar(27, startLocation)
                 globalState.gMap.loadMapByID(map)
+                Events.emit('mapTransition', map)
             }
         }
         play_gmovie(movieID: number) {
@@ -2942,9 +2928,9 @@ export module Scripting {
                     Worldmap.setAreaVisitedState(areaID, state)
                 }
             } else if (areaType === 1) {
+                // CE wmMapMarkVisited(mapIdx): saved maps mark their area visited
                 const name = lookupMapName(areaID)
-                const area = name ? areaContainingMap(name) : null
-                if (area) Worldmap.setAreaVisitedState(area.id, 2)
+                if (name) Worldmap.markMapVisited(name)
             }
         }
         wm_area_set_pos(area: number, x: number, y: number) {

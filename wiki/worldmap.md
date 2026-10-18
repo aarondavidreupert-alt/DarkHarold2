@@ -1,8 +1,8 @@
 # World Map & Random Encounters Reference
 
-> Last audited: 2026-10-06 — W10 walk masks restored (lost in revert b282cca; see known_bugs.md §30)  
-> CE sources: `raw/fallout2-ce/src/worldmap.cc` (`wmWorldMapFunc`, `wmConfigInit`, `wmParseTerrainTypes`, `wmParseSubTileInfo`, `wmParseEncounterTableIndex`, `wmParseEncBaseSubTypeStr`, `wmRndEncounterOccurred`, `wmRndEncounterPick`, `wmSetupRandomEncounter`, `wmSetupCritterObjs`, `wmPartyWalkingStep`, `wmPartyInitWalking`, `wmGameTimeIncrement`, `wmCarUseGas`, `wmEvalConditional`, `wmAreaIsKnown`, `wmAreaVisitedState`, `wmAreaMarkVisited`, `wmAreaMarkVisitedState`, `wmAreaSetVisibleState`, `wmMapIsKnown`, `wmMapMarkVisited`, `wmAreaSetWorldPos`, `wmGetPartyCurArea`, `wmGrabTileWalkMask`, `wmSubTileMarkRadiusVisited`), `raw/fallout2-ce/src/worldmap.h` (`City` enum, `Map` enum, car constants), `raw/fallout2-ce/src/interpreter_extra.cc`  
-> DH2 sources: `src/worldmap/parser.ts` (`parseWorldmap`, `parseSquare`), `src/worldmap/Worldmap.ts` (`updateWorldmapPlayer`, `setSquareStateAt`, `withinArea`), `src/worldmap/encounters.ts` (`didEncounter`, `doEncounter`), `src/encounters/resolver.ts` (`pickEncounter`, `evalEncounter`, `positionCritters`), `src/encounters/conditionLang.ts` (`evalCond`), `src/data.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/globalState.ts`  
+> Last audited: 2026-10-18 — travel loop, fog of war and random encounters ported from CE (known_bugs C55)
+> CE sources: `raw/fallout2-ce/src/worldmap.cc` (`wmWorldMapFunc`, `wmConfigInit`, `wmParseTerrainTypes`, `wmParseSubTileInfo`, `wmParseEncounterTableIndex`, `wmParseEncounterSubEncStr`, `wmReadEncBaseType`, `wmParseEncBaseSubTypeStr`, `wmParseItemType`, `wmRndEncounterOccurred`, `wmRndEncounterPick`, `wmSetupRandomEncounter`, `wmSetupCritterObjs`, `wmSetupRndNextTileNumInit`, `wmSetupRndNextTileNum`, `wmEvalTileNumForPlacement`, `wmPartyWalkingStep`, `wmPartyInitWalking`, `wmGameTimeIncrement`, `wmCarUseGas`, `wmEvalConditional`, `wmAreaIsKnown`, `wmAreaVisitedState`, `wmAreaMarkVisited`, `wmAreaMarkVisitedState`, `wmAreaSetVisibleState`, `wmMapIsKnown`, `wmMapMarkVisited`, `wmAreaSetWorldPos`, `wmGetPartyCurArea`, `wmTeleportToArea`, `wmGrabTileWalkMask`, `wmSubTileMarkRadiusVisited`, `wmBlinkRndEncounterIcon`), `raw/fallout2-ce/src/worldmap.h`, `raw/fallout2-ce/src/map.cc` (`mapHandleTransition`), `raw/fallout2-ce/src/interpreter_extra.cc`
+> DH2 sources: `src/worldmap/parser.ts` (`parseWorldmap`, `parseSquare`), `src/worldmap/encounterData.ts` (CE encounter parsers), `src/worldmap/encounters.ts` (roll, pick, setup), `src/worldmap/Worldmap.ts` (travel loop, fog, areas, car), `src/encounters/conditionLang.ts` (conditions), `src/data.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/map/GameMap.ts` (`attemptPlacement`), `src/map/pathfinder.ts`
 > Data files: `data/data/worldmap.txt`, `data/data/city.txt`
 
 ---
@@ -97,8 +97,8 @@ DH2 `Square` interface (`worldmap.ts`):
 ```typescript
 interface Square {
     terrainType: string       // "mountain" | "ocean" | "desert" | "city" | ...
-    fillType: string          // "no_fill" | "fill_w"
-    frequency: string         // "forced" | "frequent" | "uncommon" | "common" | "rare" | "none"
+    fillType: string          // "no_fill" | "fill_w" | "fill_s" … (trimmed, lower case)
+    frequencies: string[]     // morning / afternoon / night: "forced" | "frequent" | "common" | "uncommon" | "rare" | "none"
     encounterType: string     // encounter table lookup name
     difficulty: number        // tile-level encounter_difficulty modifier (from [Tile N] header)
     state: number             // fog-of-war: 0=UNDISCOVERED, 1=DISCOVERED, 2=SEEN
@@ -111,49 +111,42 @@ Fields parsed from worldmap.txt (columns 0–5 of each subtile entry):
 |-------|-------|----------------|
 | 0 | `terrainType` | `SubtileInfo.terrain` (index into `wmTerrainTypeList`) |
 | 1 | `fillType` | `SubtileInfo.fill` (`SubtileFill` enum) |
-| 2 | `frequency` | `SubtileInfo.encounterChance` (one value for all day-parts in DH2, vs 3 per CE) |
-| 3 | *(unused)* | |
-| 4 | *(unused)* | |
-| 5 | `encounterType` | `SubtileInfo.encounterType` (index into encounter table) |
+| 2 | `frequencies[0]` | `SubtileInfo.encounterChance[0]` (morning) |
+| 3 | `frequencies[1]` | `SubtileInfo.encounterChance[1]` (afternoon) |
+| 4 | `frequencies[2]` | `SubtileInfo.encounterChance[2]` (night) |
+| 5 | `encounterType` | `SubtileInfo.encounterType` (the table's lookup name) |
 | header | `difficulty` | `TileInfo.encounterDifficultyModifier` (from `encounter_difficulty` line) |
 
-CE stores three per-day-part encounter chances (`encounterChance[DAY_PART_COUNT]`) in each subtile. DH2 stores only one (the single `frequency` field from column 2), ignoring morning/afternoon/night splits.
+CE stores three per-day-part encounter chances (`encounterChance[DAY_PART_COUNT]`) in each subtile; DH2's `Square.frequencies` keeps all three (morning, afternoon, night).
 
-`difficulty` is parsed per-tile from the `encounter_difficulty` value in `[Tile N]` headers, **not** per-subtile. In CE this modifies the Outdoorsman detection window; in DH2 it is stored on the square but **not used** by `didEncounter()` (no Outdoorsman mechanic).
+`difficulty` is the `[Tile N]` `encounter_difficulty` (default 0), added to the Outdoorsman detection roll (§8.5) as in CE.
 
 ### Square State & Fog of War
 
-Each square tracks a three-state visibility value (`worldmap.ts–42`):
+Each subtile (DH2 "square", one global 28 × 30 grid of the 4 × 5 tiles' 7 × 6 subtiles) has CE's three states:
 
-| Constant | Value | Meaning | CSS class |
-|----------|-------|---------|-----------|
-| `WORLDMAP_UNDISCOVERED` | 0 | Never entered; rendered as black overlay | `worldmapSquare-undiscovered` |
-| `WORLDMAP_SEEN` | 1 | Adjacent to a visited square; dimmed overlay | `worldmapSquare-seen` |
-| `WORLDMAP_DISCOVERED` | 2 | Player has entered this square; fully visible | `worldmapSquare-discovered` |
+| CE | DH2 constant | Value | CSS class |
+|----|--------------|-------|-----------|
+| `SUBTILE_STATE_UNKNOWN` | `WORLDMAP_UNDISCOVERED` | 0 | `worldmapSquare-undiscovered` |
+| `SUBTILE_STATE_VISITED` | `WORLDMAP_DISCOVERED` | 1 | `worldmapSquare-discovered` |
+| `SUBTILE_STATE_KNOWN` | `WORLDMAP_SEEN` | 2 | `worldmapSquare-seen` |
 
-`setSquareStateAt(squarePos, newState, seeAdjacent)` (`worldmap.ts`):
-- Transitions the square's CSS class
-- **DISCOVERED → SEEN transition is blocked**: if `oldState === DISCOVERED`, upgrading to SEEN is skipped (line 360)
-- When `seeAdjacent = true` (default): marks all 8 neighbors (N, S, E, W + 4 diagonals) as SEEN
-- **`fill_w` stop**: if the current square's `fillType === 'fill_w'`, the eastward neighbor expansion is skipped (line 380). This prevents ocean-fill squares from revealing sea tiles beyond the edge.
-
-On travel: as the player moves, `updateWorldmapPlayer` calls `setSquareStateAt(squarePos, WORLDMAP_DISCOVERED)` each tick (line 662). CE equivalent: `wmSubTileMarkRadiusVisited` with a configurable radius.
-
-All squares start as `WORLDMAP_UNDISCOVERED` on init. The starting square (Arroyo) is immediately set to `WORLDMAP_DISCOVERED`.
+`markSubTileRadiusVisited(x, y)` (`Worldmap.ts`) is CE `wmMarkSubTileRadiusVisited` / `wmSubTileMarkRadiusVisited`: every subtile within 1 (Scout: 2) becomes known (only while unknown), the party's subtile visited; `fill_s` also visits the subtiles above it in its tile, `fill_w` those to its left and the whole row of the tile to the left. Called every walking frame and when the worldmap opens. The states are saved (`subtiles` in the save, CE `wmWorldMap_save`).
 
 ### Player Start Position
 
-`worldmapPlayer` is initialized to `globalState.mapAreas[0].worldPosition` (Arroyo, Area 0) on `Worldmap.init()`. This is hardcoded — no CE equivalent exists; CE restores party position from a save.
+`worldmapPlayer` starts on Arroyo (area 0, as CE `wmGenDataInit` 173,122); the position, `currentAreaId`, car state and subtile states come back from the save.
 
-### worldmap.ts Public API
+### Worldmap Public API (`src/worldmap.ts` barrel)
 
 ```typescript
-Worldmap.init()                         // parse worldmap.txt + city.txt, build DOM
-Worldmap.start()                        // begin 75ms travel timer loop
-Worldmap.stop()                         // clearTimeout(worldmapTimer)
-Worldmap.doEncounter()                  // trigger encounter at current square
-Worldmap.didEncounter(): boolean        // roll for encounter at current square
-Worldmap.getEncounterGroup(name)        // return EncounterGroup by lookup name
+Worldmap.init()                        // parse worldmap.txt + city.txt, build DOM, register events
+Worldmap.start() / stop()              // the 60 fps travel loop (CE wmWorldMapFunc frames)
+Worldmap.teleportToArea(id)            // CE wmTeleportToArea (map transitions)
+Worldmap.getCurrentAreaId()            // CE wmGetPartyCurArea
+Worldmap.areaVisitedState(id)          // CE wmAreaVisitedState
+Worldmap.serializeSquareStates() / deserializeSquareStates()
+Worldmap.serializeEncounters() / deserializeEncounters() / resetEncounters()
 ```
 
 ### city.txt — Area Metadata
@@ -167,8 +160,8 @@ CE `CityInfo` struct vs. DH2 `Area` interface:
 | `x`, `y` | `int` (world px) | `worldPosition` | `Point` | |
 | `size` | `CitySize` enum | `size` | `string` | small/medium/large |
 | `state` | `CityState` enum | `state` | `boolean` | CE: 4 states; DH2: on/off |
-| `lockState` | `LockState` enum | *(missing)* | — | DH2 never locks areas |
-| `visitedState` | `int` (0/1/2) | *(missing)* | — | DH2 has no visited progression |
+| `lockState` | `LockState` enum | `lockState` | `boolean` | city.txt `lock_state` (checked by the special-encounter reveal, as in CE) |
+| `visitedState` | `int` (0/1/2) | `visitedState` | `number` | `wmAreaMarkVisitedState`; saved |
 | `mapFid` | `int` | `mapArt` | `string` | town-map art |
 | `labelFid` | `int` | `labelArt` | `string` | |
 | `entrances[]` | `EntranceInfo[10]` | `entrances[]` | `AreaEntrance[]` | |
@@ -187,7 +180,7 @@ CE `visitedState`:
 - `1` = known (subtile marked `SUBTILE_STATE_KNOWN`)  
 - `2` = fully visited (town map available)
 
-DH2 `area.state` is a boolean: `start_state = on/off` from city.txt, set once at load. No runtime progression.
+DH2 `area.state` is a boolean (known / unknown); `-66` (INVISIBLE) from `mark_area_known` hides the area. `visitedState` progresses with `wmAreaMarkVisitedState` / `wmMapMarkVisited`; both are saved.
 
 ### EntranceInfo (CE) / AreaEntrance (DH2)
 
@@ -202,7 +195,7 @@ Each area has up to 10 entrances. An entrance is a specific map + starting posit
 | `tile` | `tileNum` | Starting tile |
 | `rotation` | `orientation` | Facing direction |
 
-`wmMapIsKnown(mapIdx)` in CE checks the specific entrance's `state == 1`. DH2 uses `globalState.knownAreas` (a `Set<number>`) which only tracks area-level visibility, not per-entrance state.
+`wmMapIsKnown(mapIdx)` in CE checks the specific entrance's `state == 1`. DH2 keeps each entrance's `state` (city.txt start state, metarule3 104) and saves it; the town map shows only the open ones.
 
 ### globalState worldmap fields
 
@@ -462,39 +455,17 @@ One rank = 25% less time per frame; two ranks = 50% less.
 
 ### DH2 (`src/worldmap/Worldmap.ts:updateWorldmapPlayer`)
 
-Called via `setTimeout(updateWorldmapPlayer, 75)` — ~13 Hz. (`src/worldmap/Worldmap.ts`)
+One call is one CE `wmWorldMapFunc` frame, scheduled every 1/60 s (CE's frame limiter):
 
-Each tick while `worldmapPlayer.target !== null`:
+1. `scriptsCheckGameEvents` (CE `wmCheckGameEvents`).
+2. While walking: `partyWalkingStep()` — CE `wmPartyWalkingStep`: the Bresenham line set up by `partyInitWalking` (CE `wmPartyInitWalking`), one pixel when `terrainCounter / difficulty >= 1` (the counter cycles 1..4; worldmap.txt `terrain_types` difficulty); a walk-masked pixel ends the walk.
+3. In the car: 4 steps (+1 blower, +1 New Reno upgrade, +3 super car), the car animation, `carUseGas(100)` once, out of gas → the party leaves the car (`CITY_CAR_OUT_OF_GAS`).
+4. Once a second of real time: every party member heals its Healing Rate (`_partyMemberRestingHeal(3)`).
+5. `markSubTileRadiusVisited`; at the end of the line the walk stops and `currentAreaId` is matched.
+6. `gameTimeIncrement(18000)` — 30 game minutes per frame; Pathfinder takes 25 % per rank off with the remainder carried (sfall fix); the queued events fire as the time passes.
+7. Still walking: `rndEncounterOccurred` (§8).
 
-1. Compute direction vector toward target.
-2. `speed = WORLDMAP_SPEED / worldmap.terrainSpeed[terrainType]` where
-   `WORLDMAP_SPEED = 2` px/tick. (`worldmap.ts`)
-3. Move player by `speed` pixels toward target; snap when within `speed`.
-4. Advance in-game time: `~2 minutes * (1 / terrainSpeed[terrain])`. (`worldmap.ts`)
-5. Update fog-of-war (mark current square as DISCOVERED).
-6. Every 800ms (`WORLDMAP_ENCOUNTER_CHECK_RATE`): call `didEncounter()`.
-
-```typescript
-// Fires every 75ms
-speed = WORLDMAP_SPEED(2) / terrainSpeed[terrainType]
-worldmapPlayer.x += dx/len * speed   // continuous pixel movement
-worldmapPlayer.y += dy/len * speed
-
-travelScale = 1 / terrainSpeed[terrainType]
-GameTime.advanceMinutes(Math.max(1, Math.round(2 * travelScale)))
-```
-
-`terrainSpeed` comes from worldmap.txt `[Data]terrain_types`. Higher values = faster terrain.
-
-Divergences from CE:
-- 75ms timer vs. CE's frame-rate-coupled loop
-- Continuous (floating-point) movement vs. integer pixel steps
-- No Pathfinder perk reduction
-- No car system (no fuel tracking, no GVAR multipliers)
-- No party healing during travel
-- Time scale is approximated ("roughly 2 in-game minutes per update, scaled by terrain") — no formal ticks-per-step equivalent. CE is 30 min/frame.
-
-See `wiki/time_clock.md` for the in-game tick/minute conversion constants.
+So the party walks ~60 px a real second on easy terrain and a game day passes every 48 frames, as in CE.
 
 ---
 
@@ -514,17 +485,11 @@ See `wiki/time_clock.md` for the in-game tick/minute conversion constants.
 | `wmAreaSetWorldPos` | `(areaIdx, x, y)` | Updates city world-map pixel position |
 | `wmGetPartyCurArea` | `(*areaIdxPtr)` | Returns `wmGenData.currentAreaId` |
 
-### DH2 (`src/scripting.ts`, `src/globalState.ts`)
+### DH2 (`src/worldmap/Worldmap.ts`, `src/scripting.ts`)
 
-DH2 has no equivalent of `CityState`, `visitedState`, `lockState`, or per-entrance state. Area visibility is binary:
+Areas carry `state` (known), `visitedState`, `lockState` and per-entrance `state`; `areaIsKnown` / `areaVisitedState` / `setAreaVisible` / `setAreaVisitedState` / `markMapVisited` are the CE functions above. `globalState.knownAreas` mirrors the known areas for the endgame / Pip-Boy checks. `currentAreaId` (CE `wmGenData.currentAreaId`) is −1 while walking, the matched area when a walk ends, and the new map's area after an exit-grid / `load_map` transition (`mapTransition` event → `teleportToArea`).
 
-```typescript
-globalState.knownAreas.add(areaID)     // mark known
-globalState.knownAreas.has(areaID)     // query
-globalState.knownAreas.delete(areaID)  // mark unknown
-```
-
-The `withinArea()` function in `src/worldmap/Worldmap.ts` uses `pointIntersectsCircle` to detect when the player is within an area's radius (small=16px, large=32px). Town map display is triggered when `$worldmapTarget` is clicked over a known area.
+`withinArea()` still matches by a circle (small 16 px, large 32 px) around the DH2 area centre, where CE `wmMatchWorldPosToArea` tests the sphere art's rectangle — see §17.
 
 ---
 
@@ -532,194 +497,31 @@ The `withinArea()` function in `src/worldmap/Worldmap.ts` uses `pointIntersectsC
 
 ### Direct opcodes
 
-| Opcode | Name | Signature | CE function | DH2 status |
-|--------|------|-----------|-------------|------------|
-| 0x80B2 | `mark_area_known` | `(areaType, areaID, state)` | `opMarkAreaKnown` | PARTIAL |
-| 0x80E5 | `wm_area_set_pos` | `(area, x, y)` | `opWorldmapCitySetPos → wmAreaSetWorldPos` | IMPLEMENTED |
-| 0x8108 | `scripts_request_world_map` | `()` | `opWorldmap → scriptsRequestWorldMap` | MISSING |
-
-#### `mark_area_known` (0x80B2)
-
-**CE logic** (`interpreter_extra.cc:737–756`):
-
-Args popped from stack (last arg first): `data[0]=state, data[1]=areaID, data[2]=areaType`
-
-```c
-if (data[2] == 0) {   // areaType 0: area-level visibility
-    if (data[0] == CITY_STATE_INVISIBLE) {
-        wmAreaSetVisibleState(data[1], 0, true);   // hide area
-    } else {
-        wmAreaSetVisibleState(data[1], 1, true);   // make visible
-        wmAreaMarkVisitedState(data[1], data[0]);  // set visitedState
-    }
-} else if (data[2] == 1) {   // areaType 1: entrance-level
-    wmMapMarkVisited(data[1]);   // data[1] = mapIdx (not areaIdx)
-}
-```
-
-**DH2** (`scripting.ts:1774–1780`):
-
-```typescript
-mark_area_known(areaType: number, areaID: number, state: number) {
-    if (state === 1) globalState.knownAreas.add(areaID)
-    else globalState.knownAreas.delete(areaID)
-}
-```
-
-DH2 divergences:
-- `areaType=1` (entrance unlock) is silently ignored
-- `CITY_STATE_INVISIBLE (-66)` is not recognized — will add ID −66 to knownAreas
-- `visitedState` progression is not tracked; only known/unknown
-- **DOM circle not created at runtime**: `Worldmap.init()` creates area `<div>` circles only for areas where `area.state === true` at load time. Calling `mark_area_known(0, id, 1)` for an initially-hidden area (`state=false`) updates `globalState.knownAreas` but does not append a DOM element — the area dot will not appear on the map. A full implementation needs a DOM insert in the opcode handler.
-
-#### `wm_area_set_pos` (0x80E5)
-
-**CE**: Validates `x` and `y` are within the full map bounds, then updates `city->x` and `city->y`.
-
-**DH2** (`scripting.ts:1782–1788`):
-```typescript
-wm_area_set_pos(area: number, x: number, y: number) {
-    globalState.mapAreas[String(area)].worldPosition = { x, y }
-}
-```
-
-No bounds checking. Calling this will update the area's circle position in the running HTML worldmap, effective immediately.
-
-#### `scripts_request_world_map` (0x8108) — MISSING
-
-CE: `opWorldmap → scriptsRequestWorldMap()` — queues a transition to the world map screen from within a script (used by exit grids and script-triggered travel).
-
-DH2: Not wired in `vm_bridge.ts`. Scripts that call this opcode will silently no-op.
+| Opcode | Name | Signature | CE function | DH2 |
+|--------|------|-----------|-------------|-----|
+| 0x80B2 | `mark_area_known` | `(areaType, areaID, state)` | `opMarkAreaKnown` | type 0: `-66` hides, else known + `wmAreaMarkVisitedState`; type 1: `wmMapMarkVisited` |
+| 0x80E5 | `wm_area_set_pos` | `(area, x, y)` | `wmAreaSetWorldPos` | moves the area and its marker |
+| 0x8108 | `world_map` | `()` | `opWorldmap → scriptsRequestWorldMap` | opens the worldmap |
+| 0x80E4 | `load_map` | `(map, start)` | `opLoadMap` → `mapSetTransition` | loads the map, GVAR 27 = start; the party teleports to the map's area |
 
 ### Metarule worldmap entries
 
-Routed through `metarule(id, target)` (opcode `0x80A0`).
-
-| Metarule ID | CE name | CE function | DH2 status |
-|-------------|---------|-------------|------------|
-| 17 | `METARULE_IS_AREA_KNOWN` | `wmAreaIsKnown(target)` | IMPLEMENTED |
-| 46 | `METARULE_CURRENT_TOWN` | `wmGetPartyCurArea()` | IMPLEMENTED |
-
-**Metarule 17** — is area known?
-
-CE: `wmAreaIsKnown(areaIdx)` → `visitedState != 0 && state == CITY_STATE_KNOWN`
-
-DH2 (`scripting.ts:480`):
-```typescript
-case 17:
-    return globalState.knownAreas.has(target) ? 1 : 0
-```
-
-Simpler than CE — only checks Set membership, not `visitedState`.
-
-**Metarule 46** — current town area index
-
-CE: Returns `wmGenData.currentAreaId` (−1 if on open world, ≥0 if at a named area).
-
-DH2 (`scripting.ts:497–506`):
-```typescript
-case 46: {
-    const mapName = globalState.gMap?.name
-    if (mapName && globalState.mapAreas) {
-        for (const key of Object.keys(globalState.mapAreas)) {
-            const area = globalState.mapAreas[key]
-            if (area.entrances.some(e => e.mapName === mapName))
-                return area.id
-        }
-    }
-    return 0
-}
-```
-
-DH2 iterates all areas every time instead of caching `currentAreaId`. Returns 0 (not −1) when not in any area — diverges from CE.
+| Metarule ID | CE name | CE function | DH2 |
+|-------------|---------|-------------|-----|
+| 17 | `METARULE_AREA_KNOWN` | `wmAreaVisitedState(area)` | `Worldmap.areaVisitedState` |
+| 30–32, 52–53 | car metarules | `wmCarCurrentArea`, `wmCarGiveToParty`, `wmCarGiveGas`, car trunk | implemented |
+| 44 / 45 | `METARULE_GET_WORLDMAP_X/YPOS` | `wmGetPartyWorldPos` | implemented |
+| 46 | `METARULE_CURRENT_TOWN` | `wmGetPartyCurArea` | `Worldmap.getCurrentAreaId()` (−1 in the wastes) |
 
 ---
 
 ## 6. How to Use — Worldmap Navigation Guidance
 
-**Adding a new worldmap opcode:**
-
-1. Implement the method on the `Script` class in `src/scripting.ts`.
-2. Wire it in `src/vm_bridge.ts`: `0xXXXX: bridged("methodName", argCount, false)`.
-3. For area mutations, update `globalState.mapAreas` and/or `globalState.knownAreas`.
-
-**Implementing `scripts_request_world_map` (0x8108):**
-
-```typescript
-// src/scripting.ts
-scripts_request_world_map() {
-    // CE: scriptsRequestWorldMap() → queues world map transition
-    // DH2: open the world map overlay
-    Worldmap.start()
-    uiOpenWorldMap()   // or equivalent UI call
-}
-// src/vm_bridge.ts
-0x8108: bridged("scripts_request_world_map", 0, false)
-```
-
-**Implementing visitedState progression:**
-
-1. Add `visitedState: number` to the `Area` interface in `src/data.ts`.
-2. Parse from city.txt (`start_state`) or default to 0.
-3. In `mark_area_known`, set `visitedState` to `data[0]` when `areaType == 0`.
-4. In metarule 46, use the visitedState to gate town-map access.
-
-**Implementing entrance-level visibility (areaType=1):**
-
-1. Add `state: number` to the `AreaEntrance` interface in `src/data.ts`.
-2. In `mark_area_known` areaType=1: `areaID` is a **map index** (not area index). Find the entrance matching that map and set its `state = 1`.
-3. In `wmMapIsKnown` equivalent: check `entrance.state == 1`.
-
-**Cross-referencing encounter tables:**
-
-- `worldmap.encounterTables[square.encounterType]` → the `EncounterTable` for that square
-- `worldmap.encounterRates` → the percentage values for each frequency string
-- `worldmap.terrainSpeed` → pixel-speed multipliers per terrain name
-- `worldmap.squares[x][y]` → the `Square` at grid position (x, y); convert pixel pos to square with `positionToSquare(pos) = { x: floor(pos.x/51), y: floor(pos.y/51) }`
-
-**Implementing runtime area reveal (fix `mark_area_known` DOM gap):**
-
-When `mark_area_known(0, id, 1)` is called for an area that was initially hidden,
-a DOM circle must be appended. Extract the circle-creation block from `Worldmap.init()`
-into a helper, then call it from the opcode:
-
-```typescript
-// src/worldmap/Worldmap.ts
-export function revealAreaCircle(area: Area): void {
-    if (!$worldmap) return
-    const $area = makeEl('div', { classes: ['area'] })
-    // ... same logic as init() circle creation
-    $worldmap.appendChild($area)
-}
-
-// src/scripting.ts — mark_area_known
-if (state === 1) {
-    globalState.knownAreas.add(areaID)
-    const area = globalState.mapAreas?.[String(areaID)]
-    if (area && !area.state) Worldmap.revealAreaCircle(area)
-}
-```
-
-**Working with the fog-of-war grid:**
-
-```typescript
-// Convert world pixel position to square grid coordinate
-const squarePos = { x: Math.floor(pos.x / 51), y: Math.floor(pos.y / 51) }
-// Square states: 0=UNDISCOVERED, 1=DISCOVERED, 2=SEEN
-const square = worldmap.squares[squarePos.x][squarePos.y]
-```
-
-`setSquareStateAt` is not exported — fog-of-war can only be mutated from within the
-`Worldmap` module. If scripting ever needs to reveal squares, export `setSquareStateAt`
-and call it from `mark_area_known` or a dedicated opcode.
-
-**Looking up CE function for a worldmap feature:**
-
-- Area state queries → `worldmap.cc:wmAreaIsKnown`, `wmAreaVisitedState`, `wmMapIsKnown`
-- Area mutations → `wmAreaMarkVisitedState`, `wmAreaSetVisibleState`, `wmMapMarkVisited`, `wmAreaSetWorldPos`
-- Encounter roll → `wmRndEncounterOccurred` (worldmap.cc ~3380), `wmRndEncounterPick` (~3360)
-- Travel time → `wmPartyWalkingStep` (worldmap.cc:4312), `wmGameTimeIncrement` (worldmap.cc:4172)
-- Opcode registration → `interpreter_extra.cc:interpreterRegisterOpcode` block (~line 4891)
+- **Area state:** `Worldmap.setAreaVisible(id, known)`, `setAreaVisitedState(id, n)`, `markMapVisited(mapName)`, `areaIsKnown(id)`, `areaVisitedState(id)` are the CE functions; markers refresh themselves (`refreshAreaMarkers`).
+- **Party position:** `getPlayerWorldPos()` / `setPlayerWorldPos(x, y)`; a map transition calls `teleportToArea` through the `mapTransition` event (emit it when adding a new way to change maps).
+- **Fog of war:** `markSubTileRadiusVisited(x, y)`; states per subtile in `worldmap.squares[x][y].state`, saved with `serializeSquareStates`.
+- **Encounter data:** `getWorldmap().encounters` — `tables` (by CE index; a square's `encounterType` is a table `lookupName`), `baseTypes`, `terrains`, `freqValues`.
+- **CE functions for a feature:** area queries `wmAreaIsKnown` / `wmAreaVisitedState` / `wmMapIsKnown`; mutations `wmAreaMarkVisitedState` / `wmAreaSetVisibleState` / `wmMapMarkVisited` / `wmAreaSetWorldPos`; travel `wmPartyInitWalking` / `wmPartyWalkingStep` / `wmGameTimeIncrement`; encounters `wmRndEncounterOccurred` / `wmRndEncounterPick` / `wmSetupRandomEncounter`.
 
 ---
 
@@ -987,251 +789,19 @@ Multiple conditions are joined by `and` / `or` (`ENCOUNTER_LOGICAL_OPERATOR_*`).
 
 ---
 
-## 11. DH2 Encounter Implementation (`worldmap.ts`, `encounters.ts`)
+## 11. DH2 Encounter Implementation
 
-### 11.1 Data Loading
+### 11.1 Data (`src/worldmap/encounterData.ts`)
 
-`Worldmap.init()` (`worldmap.ts`) reads `data/data/worldmap.txt` with
-`getFileText()` and passes to `parseWorldmap()`.
+`parseEncounterData(ini)` ports `wmConfigInit`'s encounter part: the `[Data]` frequency values, `terrain_types` with each terrain's `[Random Maps: …]`, the `[Encounter Table N]` sections (`lookup_name`, up to 6 `maps`, up to 40 `enc_NN`) and every `[Encounter: Name]` section a table names (read on first use, as `wmReadEncBaseType`). Each line goes through a cursor that mirrors CE's `strParseIntWithKey` / `strParseStrFromList` / `strParseStrFromFunc`, so the quirks carry over: an entry like `Chance:1%,Special,If(…)` without `Enc:` stops parsing before its condition; the `situation` word (AMBUSH / FIGHTING / AND) is parsed but unused; `team_num` only reaches critter entries; `Item:8{Wielded}` and `(worn)` equip; `Dead` is parsed but, like CE, never used.
 
-`parseWorldmap()` (`worldmap.ts`) parses the INI via `parseIni()` from
-`util.ts`:
+### 11.2 Roll, pick, setup (`src/worldmap/encounters.ts`)
 
-- `[Tile N]` sections → `squares[x][y]` grid (28×30 = 840 entries)
-- `[Encounter Table N]` sections → `encounterTables[name]`
-- `[Encounter: GroupName]` sections → `encounterGroups[name]`
-- `[Data]` → `encounterRates` (frequency name → integer) and `terrainSpeed`
-  (terrain name → difficulty number)
+`rndEncounterOccurred` is `wmRndEncounterOccurred` line by line (§8): 1.5 s real-time gate, 3 px in both axes since the last encounter, not in an area, Frank Horrigan after day 35 (`MAP_IN_GAME_MOVIE1`, saved flag), day-part frequency ± frequency / 15 by difficulty, `randomBetween(0, 100) < frequency`, the pick, a special entry's area moved to the party (and made known unless locked), the car's day-part modifier (40 / 30 / 0), the party's best Outdoorsman (+20 motion sensor, max 95, + the tile's difficulty), XP with misc.msg 8500, the YES / NO box (worldmap.msg 2999 + 3000 + 50 × table + entry). `Worldmap.ts` blinks the encounter icon (7 × 200 ms, `wmapfgt0/1` or `wmrnden2/3` for specials), asks if spotted, and loads the map.
 
-### 11.2 Square Struct
+`rndEncounterPick` is `wmRndEncounterPick`; `setupRandomEncounter` (called when the encounter map has loaded) is `wmSetupRandomEncounter` + `wmSetupCritterObjs` + the formation functions, using `GameMap.attemptPlacement` (`_obj_attempt_placement`) and the shoot-blocking path finder (`wmEvalTileNumForPlacement`). Combat is started only between the two groups of a two-group entry; a player ambush is left to the critters' scripts and AI, as in CE. The `Script:N` index is scripts.lst N − 1, as in CE (the raider entries of the vanilla worldmap.txt point one line early — data, kept).
 
-```ts
-interface Square {
-    terrainType: string       // e.g. "desert"
-    fillType: string          // e.g. "no_fill"
-    frequency: string         // ONE frequency value (morning only)
-    encounterType: string     // encounter table name
-    difficulty: number        // tile's encounter_difficulty
-    state: number             // 0=undiscovered, 1=discovered, 2=seen
-}
-```
-
-**Gap**: `parseSquare()` (`worldmap.ts`) reads props[2] as `frequency` —
-this is the **morning frequency token only**. The afternoon (props[3]) and night
-(props[4]) frequency tokens are silently discarded. All DH2 encounter rolls use
-the morning rate regardless of in-game time of day.
-(`worldmap.ts–155`) See Gap #1 in §17.
-
-### 11.3 Encounter Rate Check (`didEncounter`)
-
-DH2's `didEncounter()` rolls for an encounter at the current square:
-
-```ts
-function didEncounter(): boolean {
-    const encRate = worldmap.encounterRates[square.frequency];
-    if (encRate === 0) return false;       // none
-    if (encRate === 100) return true;      // forced
-    return getRandomInt(0, 100) < encRate; // random
-}
-```
-
-(`worldmap.ts–458`)
-
-**Encounter check timing**: DH2 checks for encounters every
-`WORLDMAP_ENCOUNTER_CHECK_RATE = 800` ms of real wall time (`worldmap.ts`),
-guarded by `window.performance.now()`. This is decoupled from movement — the check
-fires on the timer tick regardless of how far the player has moved. CE checks after
-each discrete pixel-step group.
-
-**Gap**: difficulty modifier not applied. CE applies `±(frequency/15)` for
-Easy/Hard. DH2 has a TODO comment at line 447 but does not implement it. (Gap #2)
-
-**Gap**: no minimum-movement requirement. CE requires ≥3px displacement since
-the last check. DH2 checks only by wall-clock interval. (Gap #3)
-
-**Gap**: no 1500ms cooldown (DH2 uses `WORLDMAP_ENCOUNTER_CHECK_RATE=800ms`
-instead, which is faster than CE's minimum gap). (Gap #3)
-
-### 11.4 Encounter Resolution (`doEncounter`, `Encounters.evalEncounter`)
-
-DH2 `doEncounter()` → `Encounters.evalEncounter(encTable)`:
-- Calls `src/encounters/resolver.ts` to evaluate the encounter table
-- Loads the encounter map, spawns critters at formation positions (`Encounters.positionCritters`)
-- Starts combat if encounter type is `'ambush'` and `Config.engine.doCombat === true`
-- When an encounter is triggered, `worldmapTimer` is cleared (travel stops); `uiCloseWorldMap()` is called after 1 s
-
-```ts
-// worldmap.ts
-function execEncounter(encTable: EncounterTable): void {
-    const enc = Encounters.evalEncounter(encTable);
-    globalState.gMap.loadMap(enc.mapName, ...);
-    Encounters.positionCritters(enc.groups, player.position, map);
-    // spawn critter objects, add to map
-    if (enc.encounterType === 'ambush') Combat.start();
-}
-```
-
-(`worldmap.ts–418`)
-
-`Encounters.evalEncounter()` (`encounters.ts`):
-1. Pick a random map from `encTable.maps`.
-2. Call `pickEncounter(encTable.encounters)` → selected `Encounter`.
-3. If special encounter: override `mapLookupName` with `encounter.special`.
-4. Build encounter groups (`ambush` or `fighting`).
-5. Return `{mapName, mapLookupName, encounter, encounterType, groups}`.
-
-### 11.5 Encounter Entry Picker (`Encounters.pickEncounter`)
-
-```ts
-function pickEncounter(encounters: Encounter[]) {
-    const succEncounters = encounters.filter(enc => evalConds(enc.cond));
-    const totalChance = succEncounters.reduce((sum, x) => x.chance + sum, 0);
-    const luck = player.getStat("LUK");
-    let roll = getRandomInt(0, totalChance) + (luck - 5);
-
-    // Difficulty modifier (matches CE exactly)
-    const diff = Config.combat.difficultyModifier;
-    roll += diff === 75 ? 5 : diff === 125 ? -5 : 0;
-
-    // Perk modifiers (matches CE)
-    if (player.perks?.includes('Scout'))    roll += 1;
-    if (player.perks?.includes('Ranger'))   roll += 1;
-    if (player.perks?.includes('Explorer')) roll += 2;
-
-    // weighted-random selection
-    let acc = roll;
-    for (idx = 0; idx < succEncounters.length; idx++) {
-        if (acc < succEncounters[idx].chance) break;
-        acc -= succEncounters[idx].chance;
-    }
-    return succEncounters[idx];
-}
-```
-
-(`encounters.ts–325`)
-
-This matches CE's `wmRndEncounterPick()` algorithm exactly for the Luck,
-difficulty, and perk modifiers. ✅
-
-**Gap**: DH2 `pickEncounter` does not decrement `entry.counter`. CE's
-`counter` limits how many times a special encounter can fire; DH2 ignores it. (Gap #6)
-
-### 11.6 Formation Placement (`Encounters.positionCritters`)
-
-| Formation | DH2 status |
-|---|---|
-| `surrounding` | Implemented — distance = PER + rand(−2, +2); +3 for Cautious Nature perk ✅ |
-| `huddle` | Implemented — all critters at same point, stepping by `group.spacing` ✅ |
-| `straight_line` | Stub — falls to default arbitrary layout ❌ |
-| `double_line` | Stub ❌ |
-| `wedge` | Stub ❌ |
-| `cone` | Stub ❌ |
-
-(`encounters.ts–388`)
-
-### 11.7 Condition Evaluation (`Encounters.evalCond`)
-
-All six CE condition types are now implemented in `conditionLang.ts` (FIXED 2026-07-28):
-
-| CE Condition | DH2 support |
-|---|---|
-| `global(N)` (GVAR check) | ✅ via `Scripting.getGlobalVar(N)` |
-| `rand(N)` (random %) | ✅ `getRandomInt(0,100) <= N` |
-| `player(level)` | ✅ returns `player.getStat('Level')` |
-| `time_of_day` | ✅ returns `getHourMilitary()/100` (0–23) |
-| `days_played` | ✅ returns `getTotalDays()` |
-| `enctr(num_critters)` | ✅ critter count threaded via `evalConds(conds, count)` |
-| All operators (`==`, `!=`, `<`, `>`, `<=`, `>=`) | ✅ |
-| `and`, `or` logical operators | ✅ |
-| Encounter-level conditions | ✅ `parseEncounter` calls `Encounters.parseConds` |
-| Critter-level conditions (`if` on `type_NN`) | ✅ `parseEncounterCritter` calls `parseConds` |
-
-CE ref: `worldmap.cc:4096 wmEvalConditional`, `worldmap.cc:2183–2330 wmParseEncBaseSubTypeStr`.
-
-(`src/encounters/conditionLang.ts`)
-
-### 11.8 CE Encounter Groups and Critter Spawning summary (`wmSetupRandomEncounter`)
-
-After the encounter map is loaded, `wmSetupRandomEncounter` populates the map:
-- Rolls `randomBetween(min, max)` critter count per sub-entry
-- Applies difficulty modifier: EASY → −2 critters, HARD → +2 critters
-- Party size > 2 → +2 critters
-- Handles two-group "fighting" encounters by setting `whoHitMe` cross-references and queuing combat
-
-(Full CE detail in §9.)
-
----
-
-## 12. DH2 vs CE Encounter Roll Divergences (Quick Reference)
-
-| Feature | CE | DH2 |
-|---------|-----|-----|
-| Day-part splits | 3 per subtile (morning/afternoon/night) | Single `frequency` value |
-| Difficulty modifier | ±(frequency/15) | None |
-| Outdoorsman detection | Skill check, XP reward, avoidance UI | ✅ FIXED 2026-06-02/2026-07-05 — skill check + XP + avoidance dialog (W7) |
-| Car encounter reduction | Reduces frequency by 30–40 during day | No car system |
-| Encounter condition eval | GVAR, time-of-day, days-played conditions | ✅ All six CE condition types (FIXED 2026-07-28) |
-
----
-
-## 13. DH2 Implementation Status Summary
-
-| Subsystem | Status | Notes |
-|---|---|---|
-| `worldmap.txt` parsing | ✅ | All sections parsed; minor field differences (see below) |
-| Tile/subtile grid | ✅ | 28×30 squares, 51px per square ≈ CE's 50px subtile |
-| Day-part frequencies | ❌ Gap #1 | Only morning frequency stored; afternoon/night discarded |
-| Encounter base roll | ✅ | `encounterRates[frequency]` roll implemented |
-| Difficulty modifier on base roll | ❌ Gap #2 | TODO in code, not applied |
-| Minimum movement before roll | ❌ Gap #3 | CE requires ≥3px displacement; DH2 uses time-only check |
-| Frank Horrigan forced encounter | ❌ Gap #4 | No day-35 check |
-| Script-forced encounters (`wmForceEncounter`) | ❌ Gap #5 | No opcode support |
-| Encounter table entry picker | ✅ | Luck, perks, difficulty all match CE |
-| Entry `counter` decrement | ❌ Gap #6 | Counter ignored; special encounters can fire infinitely |
-| Detection / Outdoorsman check | ✅ Gap #7 FIXED 2026-07-05 | Outdoorsman check (2026-06-02) + `showConfirm()` avoidance dialog (W7, 2026-07-05) |
-| Encounter XP award | ✅ Gap #8 FIXED 2026-06-02 | `100-outdoorsman` XP awarded on successful early detection |
-| Map selection | ✅ | Random from table maps list |
-| Terrain random map fallback | ✅ (partially) | Pool parsed but DH2 uses table maps; no terrain fallback |
-| Critter spawning | ✅ | `createObjectWithPID`, added to map |
-| Critter count Easy/Hard scaling | ❌ Gap #9 | CE ±2 critters per difficulty; DH2 not applied |
-| Party size critter bonus | ❌ | CE adds 2 critters if party > 2 |
-| Formation: surrounding | ✅ | PER-based distance, Cautious Nature perk |
-| Formation: huddle | ✅ | |
-| Formations: line/wedge/cone | ❌ Gap #10 | All fall to stub placement |
-| Item equipping on spawn | ❌ Gap #11 | `// TODO: items & equipping` comment in code |
-| Fortune Finder perk (double caps) | ❌ | Not implemented |
-| Car travel | ❌ Gap #12 | No `isInCar` concept; no speed multiplier; no fuel |
-| Car encounter rate reduction | ❌ | Car reduces detection in CE; DH2 has no car |
-| Pathfinder perk (time reduction) | ❌ | DH2 time advance is fixed at ~2 min/tick |
-| Special encounters | ✅ (partial) | Map override implemented; location pin on worldmap not added |
-| Walk mask (impassable terrain) | ✅ FIXED 2026-07-04 | `worldPosInvalid()` checks `.msk` bitmap; travel halts at blocked pixels (W10) |
-| Fog of war | ✅ | Square states: undiscovered/discovered/seen |
-| Area hotspots | ✅ | `withinArea` circle check for named locations |
-| Time advancement | ⚠️ | ~2 min/tick, no perk support; CE is 30 min/frame |
-
----
-
-## 14. How to Use — Encounter Guidance
-
-**Cross-referencing encounter tables** (also listed in §6):
-
-- `worldmap.encounterTables[square.encounterType]` → the `EncounterTable` for that square
-- `worldmap.encounterRates` → the percentage values for each frequency string
-- `worldmap.getEncounterGroup(name)` → the `EncounterGroup` for a `[Encounter: name]` section
-
-**Adding a missing formation** (Gap #10): implement `straight_line`,
-`double_line`, `wedge`, or `cone` in `Encounters.positionCritters`
-(`encounters.ts–388`), mirroring CE's placement maths in §9.3.
-
-**Outdoorsman detection check + avoidance dialog** (Gaps #7/#8): ✅ FIXED.
-`didEncounter()` (`encounters.ts`) returns `{ occurs, detected }`. The
-detection roll runs `player.getSkill('Outdoorsman')`, +20 for a Motion
-Sensor (PID 59), capped at 95, + `square.difficulty`, then
-`getRandomInt(1,100) < outdoorsman` gates `detected`; `100 − outdoorsman`
-XP is awarded on success. `Worldmap.ts`'s `updateWorldmapPlayer()` shows a
-`showConfirm()` Yes/No prompt only when `detected` is true (CE
-`worldmap.cc:3503-3517`); undetected/forced encounters and the DH2
-`encRate===100` shortcut skip the prompt.
+Counters and the Horrigan flag are saved (`encounters`), and reset for a new game.
 
 ---
 
@@ -1254,116 +824,11 @@ XP is awarded on success. `Worldmap.ts`'s `updateWorldmapPlayer()` shows a
 
 ## 17. Unified Known Gaps vs. CE
 
-This section merges the worldmap-navigation gaps and the encounter gaps into one
-authoritative table. The numbered Gap #N entries below match the `Gap #N`
-annotations used throughout §11 and §13.
+| # | Area | CE | DH2 |
+|---|------|----|-----|
+| 1 | Area hit test | `wmMatchWorldPosToArea`: the sphere art's rectangle from city.txt `world_pos` (window space, `WM_VIEW_X/Y` offset) | Circle of 16 / 32 px around the DH2 area centre |
+| 2 | Special-encounter area position | `worldPos + hotspot / 2 + sphere / 2` (rectangle origin) | The area centre is put on the party (DH2 centres areas) |
+| 3 | sfall forced encounters | `wmForceEncounter` (sfall opcodes) | Not available (no sfall opcodes beyond the two used) |
+| 4 | Fade out before an encounter | `wmFadeOut` | The map loads without a palette fade |
 
-### 17.1 Worldmap Navigation / Area / Travel Gaps
-
-| Feature | CE | DH2 | Impact |
-|---------|-----|-----|--------|
-| `scripts_request_world_map` (0x8108) | `scriptsRequestWorldMap` | MISSING | Exit grids / scripts that try to open the world map silently fail |
-| `mark_area_known` areaType=1 | Unlocks per-entrance state | Ignored | Individual entrance unlocking not tracked |
-| `CITY_STATE_INVISIBLE` (-66) | Hides area completely | Not recognized | Scripts using -66 will add garbage ID to knownAreas |
-| visitedState 0→1→2 progression | UNKNOWN→KNOWN→VISITED | Only known/unknown | Town map unlock logic and visited markers diverge |
-| lockState | Prevents `mark_area_known` unless forced | Not implemented | Locked areas can always be made visible in DH2 |
-| Metarule 46 returns 0 vs -1 | -1 when not in any area | 0 when not found | Scripts checking `== -1` will break |
-| Pathfinder perk | 25%/50% travel time reduction | Not implemented | All perk-based travel speed is lost |
-| Party healing during travel | ~1 HP/critter/sec wall time | None | No healing on long walks |
-| Walk masks (.msk files) | Block passage over impassable terrain (a generic per-tile pixel mechanism — no separate ocean-specific check exists in CE) | ✅ FIXED 2026-07-04 — `worldPosInvalid()` checked each movement tick; travel halts at the boundary | Matches CE's stop-in-place behavior; adapted from CE's discrete pixel-stepper to DH2's continuous float movement (checks each tick's candidate endpoint, not every intermediate pixel) |
-| Car system | Fuel, refueling, speed upgrades, area tracking | None | Entire vehicle mechanics absent |
-| wmSubTileMarkRadiusVisited | Reveals subtiles around current pos | Partial (seeAdjacent flag) | DH2's reveal radius is always 1 square, not configurable |
-| `mark_area_known` DOM update | CE updates game state only (no DOM) | DH2 `init()` pre-renders circles; runtime reveal has no DOM append | Area dots for initially-hidden areas won't appear after `mark_area_known` |
-| Square fog of war | `wmSubTileGetVisitedState` query API | CSS class only; no query API | Scripts cannot read fog state; `setSquareStateAt` is DOM-only |
-| `fill_w` subtiles | CE `fill_w` flag skips east neighbor in flood-fill | `fill_w` stops eastward expansion in `setSquareStateAt` | Functionally similar; CE uses full flood fill, DH2 only stops one neighbor |
-| Time advancement | 30 min/frame, Pathfinder-aware | ~2 min/tick, fixed | Travel time and clock advance diverge from CE |
-
-### 17.2 Encounter Gaps
-
-| Feature | CE | DH2 | Impact |
-|---------|-----|-----|--------|
-| Day-part encounter splits | 3 frequencies per subtile | 1 value only | Night/day encounter rate variation absent |
-| Encounter difficulty modifier | ±(frequency/15) on easy/hard | None | Easy mode does not reduce encounters |
-| Outdoorsman detection | Skill check, avoidance option, XP reward | ✅ FIXED 2026-06-02/2026-07-05 | Skill check + XP (2026-06-02) + `showConfirm()` avoidance dialog (W7, 2026-07-05) match CE |
-| Car encounter reduction | 30–40% reduction during day | No car | Not applicable (car system absent) |
-| Encounter check timing | Per walking step (≥3px move + 1500ms cooldown) | Every 800ms wall time | May fire between movement pixels; more or fewer checks on fast/slow machines |
-
-### 17.3 Numbered Encounter Gaps (from worldmap_encounters)
-
-#### Gap #1 — Morning-only encounter frequency
-
-`parseSquare()` (`worldmap.ts`) reads `props[2]` for `frequency`. The
-worldmap.txt subtile format is `terrain, fill, morning, afternoon, night, table`.
-Props[2] is morning. Props[3] and [4] are afternoon and night — silently ignored.
-DH2 always uses the morning rate.
-
-#### Gap #2 — No difficulty modifier on base encounter rate
-
-CE applies `±(frequency / 15)` to the base frequency based on
-`settings.preferences.game_difficulty`. DH2 has a TODO comment at
-`worldmap.ts` but the code is not present.
-
-#### Gap #3 — No minimum-movement guard / cooldown
-
-CE requires the player to have moved ≥3 pixels in both X and Y since the
-last encounter check, plus a 1500ms real-time cooldown. DH2 fires encounter
-checks purely on an 800ms wall-clock interval, even if the player is stationary.
-
-#### Gap #4 — Frank Horrigan forced encounter not implemented
-
-CE forces a `MAP_IN_GAME_MOVIE1` encounter after 35 in-game days if the player
-has not met Frank Horrigan. There is no equivalent in DH2.
-
-#### Gap #5 — No script-forced encounters
-
-CE exposes `wmForceEncounter(mapId, flags)` for scripted events and an SFALL
-opcode. DH2 has no equivalent.
-
-#### Gap #6 — Encounter counter not decremented
-
-CE tracks `EncounterTableEntry.counter` and decrements it each time the entry
-fires (counter = -1 means unlimited). DH2's `pickEncounter` ignores the `counter`
-field, so limited special encounters can fire any number of times.
-
-#### Gap #7 — Outdoorsman detection check ✅ FIXED (W7, 2026-06-02/2026-07-05)
-
-CE runs an Outdoorsman skill check after the base encounter roll passes: if
-`random(1,100) < outdoorsman`, the player is warned early, gets XP, and sees a
-dialog to accept or decline. `didEncounter()` (`encounters.ts`) now returns
-`{ occurs, detected }` and `Worldmap.ts` shows a `showConfirm()` Yes/No
-prompt when `detected` is true, matching `worldmap.cc:3503-3517`; declining
-resumes normal travel, accepting calls `beginWorldmapEncounter()`.
-
-#### Gap #8 — Early-encounter XP ✅ FIXED 2026-06-02
-
-CE awards `100 − outdoorsman` XP (1–5 XP typically) for catching encounters
-early. `didEncounter()` awards this XP via `player.addExperience(xp)` on
-successful detection.
-
-#### Gap #9 — No difficulty-based critter count scaling
-
-CE adjusts the critter count per group by ±2 for Easy/Hard difficulty. DH2 uses
-the raw `getRandomInt(min, max)` count with no difficulty adjustment. (CE also
-adds 2 critters if party > 2; DH2 does not.)
-
-#### Gap #10 — Four of six formations unimplemented
-
-`straight_line`, `double_line`, `wedge`, and `cone` fall to the stub default
-path in `positionCritters`, placing critters at a single position with a simple
-x-decrement. Only `surrounding` and `huddle` are faithfully implemented.
-
-#### Gap #11 — Items not equipped on spawn
-
-CE calls `itemAdd(critter, item, quantity)` for each item in the critter's entry,
-with a `wielded` flag. DH2 has `// TODO: items & equipping` in `execEncounter`
-— critters spawn without gear. (CE also doubles money for Fortune Finder perk;
-DH2 does not.)
-
-#### Gap #12 — No car travel
-
-CE's car mode: `isInCar` flag, 4× base movement speed (up to 9× with upgrades),
-fuel tank (`CAR_FUEL_MAX=80000`), fuel consumption per step, fuel cell upgrades,
-out-of-gas location spawned on empty. None of this exists in DH2. The car cannot
-be driven on the world map.
-
-<!-- audited: 2026-07-04 — W10 walk masks fixed, see ROADMAP.md Phase 10e -->
+Everything else in this doc — travel pace, fog of war, encounter roll / pick / setup, formations, items, car travel, Pathfinder, Horrigan, counters, save state — is ported. <!-- audited: 2026-10-18 -->

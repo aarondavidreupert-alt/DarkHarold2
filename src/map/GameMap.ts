@@ -340,6 +340,41 @@ export class GameMap {
         }
     }
 
+    // CE proto_instance.cc:2184 _obj_attempt_placement: the tile when it's free, else a
+    // free tile at distance 2..6 the dude can walk to — the loop runs on after a find,
+    // so the last examined tile is kept, as in CE — and, when that ends farther than
+    // radius + 2, any free neighbour (reachable or not). Returns the tile to use.
+    attemptPlacement(tile: number, elevation: number, radius: number): number {
+        if (tile === -1) return -1
+        const dude = globalState.player
+        let newTile = tile
+        if (this.blockingObjectAt(tile, elevation, 0, null) !== null) {
+            let dist = radius >= 1 ? radius : 1
+            let attempts = 0
+            const from = fromTileNum(tile)
+            while (dist < 7) {
+                attempts++
+                if (attempts >= 100) break
+                for (let rotation = 0; rotation < 6; rotation++) {
+                    newTile = toTileNum(hexInDirectionDistance(from, rotation, dist))
+                    if (this.blockingObjectAt(newTile, elevation, 0, null) === null && dist > 1
+                        && dude && this.recalcPath(dude.position, fromTileNum(newTile), false, dude).length > 0) break
+                }
+                dist++
+            }
+            if (radius !== 1 && dist > radius + 2) {
+                for (let rotation = 0; rotation < 6; rotation++) {
+                    const candidate = toTileNum(hexInDirection(from, rotation))
+                    if (this.blockingObjectAt(candidate, elevation, 0, null) === null) {
+                        newTile = candidate
+                        break
+                    }
+                }
+            }
+        }
+        return newTile
+    }
+
     // CE ref: proto_instance.cc:2244 _objPMAttemptPlacement + worldmap.cc
     // wmEvalTileNumForPlacement (not blocked, and reachable from the player): if the
     // wanted tile fails, spiral out from the player (direction v%6, step 1) up to 100

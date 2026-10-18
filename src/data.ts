@@ -35,6 +35,8 @@ export interface Area {
     id: number
     size: string
     state: boolean
+    // city.txt lock_state=On (CE LOCK_STATE_LOCKED): only forced state changes apply
+    lockState: boolean
     worldPosition: Point
     mapArt?: string
     labelArt?: string
@@ -99,6 +101,7 @@ function parseAreas(data: string): AreaMap {
             id: areaID,
             size: area.size.toLowerCase(),
             state: area.start_state.toLowerCase() === 'on',
+            lockState: (area.lock_state ?? 'off').trim().toLowerCase() === 'on',
             worldPosition: { x: worldPos[0], y: worldPos[1] },
             entrances: [],
         }
@@ -295,6 +298,21 @@ export function lookupMapFromLookup(lookupName: string) {
         if (mapInfo![mapID].lookupName === lookupName) return mapInfo![mapID]
     }
     return null
+}
+
+// CE worldmap.cc wmParseFindMapIdxMatch: maps.txt index by lookup_name (any case), or -1.
+export function mapIndexFromLookup(lookupName: string): number {
+    if (mapInfo === null) parseMapInfo()
+    for (const mapID in mapInfo!) {
+        if ((mapInfo![mapID].lookupName ?? '').toLowerCase() === lookupName.toLowerCase()) return Number(mapID)
+    }
+    return -1
+}
+
+// maps.txt entry by index
+export function getMapInfoById(mapID: number): MapInfo | null {
+    if (mapInfo === null) parseMapInfo()
+    return mapInfo![mapID] ?? null
 }
 
 export function lookupMapNameFromLookup(lookupName: string) {
