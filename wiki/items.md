@@ -477,7 +477,7 @@ Lock/open opcodes (`src/scripting.ts`):
 | `obj_is_open` | 0x8130 | reads `obj.open` |
 | `obj_open` | 0x8131 | calls `setObjectOpen(obj, true)` |
 | `obj_close` | 0x8132 | calls `setObjectOpen(obj, false)` |
-| `jam_lock` | 0x814D | sets `obj.jammed` (CE `opJamLock`); cleared by `objectUnjamAll` at midnight and on entering a map unvisited for 24 h (CE `_scripts_check_state_in_combat` / `mapLoadSaved`) |
+| `jam_lock` | 0x814D | sets `obj.jammed` (CE `opJamLock`); cleared by `objectUnjamAll` at midnight and on entering a map unvisited for 24 h (CE `gameTimeEventProcess` / `mapLoadSaved`) |
 
 All wired in `vm_bridge.ts`.
 
