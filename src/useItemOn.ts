@@ -171,10 +171,7 @@ function protinstUseItemOn(user: Critter, target: Obj, item: Obj): number {
         if (user.isPlayer) uiLog(getProtoMsg(582) ?? 'That does nothing.')
         return -1
     }
-    const result = skillUse(user, target as Critter, skill, criticalChanceModifier)
-    if (user.isPlayer) uiLog(result.message)
-    if (result.hpHealed > 0 && (target as Critter).isPlayer) drawHP((target as Critter).getStat('HP'))
-    if (result.blocked) return 0 // CE skillUse != 0 → the kit isn't touched
+    if (skillUse(user, target as Critter, skill, criticalChanceModifier).rc !== 0) return 0 // the kit isn't touched
     if (getRandomInt(1, 10) !== 1) return 0
     if (user.isPlayer) uiLog(getProtoMsg(messageId) ?? 'The supplies run out.')
     return 1

@@ -113,6 +113,12 @@ export function playerUseSkill(skill: Skills, obj: Obj, performer?: Critter): vo
 
     dbg('script', `[Skill] playerUseSkill: ${skillName} (enum=${skill}, scriptId=${skillId}) on ${obj.name || obj.type || 'unknown'}`)
 
+    // CE proto_instance.cc _obj_use_skill_on: a jammed lock stops it before the script
+    if (obj.jammed) {
+        uiLog(getMessage('misc', 2001) ?? 'The lock is jammed.')
+        return
+    }
+
     // Non-passive target skills: try script override first, then engine fallback
     const target = obj as Critter
     let scriptHandled = false
@@ -145,11 +151,7 @@ export function playerUseSkill(skill: Skills, obj: Obj, performer?: Critter): vo
 
         const user: Critter = performer ?? globalState.player as Critter
         dbg('script', `[Skill] Engine fallback: skillUse("${skillName}") via ${user.name ?? 'player'}`)
-        const result = skillUse(user, target, skillName)
-        uiLog(result.message)
-        if (result.hpHealed > 0) {
-            drawHP(globalState.player!.getStat('HP'))
-        }
+        skillUse(user, target, skillName)
     }
 }
 

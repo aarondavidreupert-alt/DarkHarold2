@@ -36,7 +36,7 @@ import {
     uiWorldMap,
 } from './ui.js'
 import { drawHP } from './ui_hud.js'
-import { skillUse } from './skillUse.js'
+import { objUseItemOn } from './useItemOn.js'
 import { loadFallout2Cfg, loadPreferences } from './ui_options.js'
 import { getFileJSON, getRandomInt } from './util.js'
 import { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall, WebGLRenderer, setLightSourceOverlayActive, setLightOverlayMode, setLightOverlayRadiusScale, LightOverlayMode } from './webglrenderer.js'
@@ -52,28 +52,14 @@ import './autocrawler.js'
 // keep working after the Phase 7 split.
 export { playerUse } from './playerUse.js'
 
-// CE ref: proto_instance.cc:1245 _protinst_use_item_on — First Aid Kit / Doctor's Bag
-// trigger their respective skills. 10% chance per use the supplies run out.
-// Wired via globalState.miscItemUseHandler to avoid a circular import from object.ts.
+// CE inventory.cc GAME_MOUSE_ACTION_MENU_ITEM_USE: an item without the use action is
+// used on the dude (_protinst_use_item_on) — the medical kits run their skill with the
+// kit's critical bonus. Wired via globalState.miscItemUseHandler (no object.ts cycle).
 function miscHealingItemUse(item: import('./object.js').Obj, user: import('./object.js').Critter): boolean {
-    let skill: string | null = null
-    // CE proto_types.h: First Aid Kit 47, Field Medic First Aid Kit 408 (First Aid);
-    // Doctor's Bag 91, Paramedics Bag 409 (Doctor). (107/108 are bones.)
-    if (item.pid === 47 || item.pid === 408) skill = 'First Aid'
-    else if (item.pid === 91 || item.pid === 409) skill = 'Doctor'
-    if (!skill) return false
-    const result = skillUse(user, user, skill)
-    uiLog(result.message)
-    if (result.hpHealed > 0 && user.isPlayer) drawHP(user.getStat('HP'))
-    // CE ref: proto_instance.cc — randomBetween(1, 10) == 1
-    if (getRandomInt(1, 10) === 1) {
-        const idx = user.inventory.indexOf(item)
-        if (idx !== -1) {
-            if (item.amount > 1) item.amount--
-            else user.inventory.splice(idx, 1)
-        }
-        uiLog('The supplies in the ' + (item.name || 'item') + ' run out.')
-    }
+    // CE proto_types.h: First Aid Kit 47, Field Medic First Aid Kit 408, Doctor's Bag 91,
+    // Paramedics Bag 409
+    if (![47, 408, 91, 409].includes(item.pid)) return false
+    objUseItemOn(user, user, item)
     return true
 }
 

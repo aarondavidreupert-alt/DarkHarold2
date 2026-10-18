@@ -26,6 +26,7 @@ import { dbg } from './logger.js'
 import { Scripting } from './scripting.js'
 import { Worldmap } from './worldmap.js'
 import { resetAutomap } from './automapData.js'
+import { resetSkillUsage } from './skillUse.js'
 
 export function gameReset(): void {
     // combatReset
@@ -39,6 +40,7 @@ export function gameReset(): void {
     globalState.eventLog = []
     globalState.dirtyMapCache = {}            // other maps' saved state
     killCounts.clear()                        // critterReset → killsReset
+    resetSkillUsage()                         // skillsReset → skill_use_slot_clear
     globalState.gParty.deserialize([])        // partyMembersReset
     globalState.gParty.deserializeLevels(undefined)
     Worldmap.resetWorldmap()                  // wmWorldMap_reset

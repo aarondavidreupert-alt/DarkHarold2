@@ -1,74 +1,28 @@
 /*
- * FO2-CE ref: skill.cc skillUse(), skillsPerformStealing(), skillGetFreeUsageSlot()
+ * FO2-CE ref: skill.cc skillUse(), skillRoll(), skillsPerformStealing(),
+ * skillGetFreeUsageSlot(), skillUpdateLastUse(), _show_skill_use_messages()
  *
- * Engine-side skill usage: First Aid, Doctor, Sneak, Lockpick, Steal, Traps,
- * Science, Repair.  In Fallout 2 these have hard-coded effects independent of
- * map scripts (heal HP, cure crippled limbs, advance game time, award XP, …).
- * Scripts can still override via use_skill_on_p_proc.
+ * The engine part of using a skill on something — what runs when the target's
+ * use_skill_on_p_proc doesn't override (proto_instance.cc _obj_use_skill_on) or a
+ * medical kit is used (_protinst_use_item_on). Only First Aid, Doctor and Repair
+ * have an engine effect; Lockpick does nothing, Traps / Science print a failure,
+ * everything else is script-driven (roll_vs_skill).
  */
 
 import { Critter, Obj } from './object.js'
 import globalState from './globalState.js'
 import { dbg, eventLogPush } from './logger.js'
-import { RollResult, randomRoll, rollIsSuccess, getRandomInt } from './util.js'
-import { updateIndicatorBar } from './ui_hud.js'
+import { RollResult, randomRoll, rollIsSuccess, getRandomInt, getMessage } from './util.js'
+import { updateIndicatorBar, uiLog, drawHP } from './ui_hud.js'
 import * as GameTime from './gametime.js'
 import { Scripting } from './scripting.js'
-
-// ---------------------------------------------------------------------------
-// Logging helper — structured [SKILL] output for debugging
-// ---------------------------------------------------------------------------
-function rollName(roll: RollResult): string {
-    switch (roll) {
-        case RollResult.CriticalFailure: return 'CRITICAL FAILURE'
-        case RollResult.Failure: return 'FAILURE'
-        case RollResult.Success: return 'SUCCESS'
-        case RollResult.CriticalSuccess: return 'CRITICAL SUCCESS'
-        default: return 'UNKNOWN'
-    }
-}
-
-function logSkillHeader(skill: string, target: Obj | Critter | null, user: Critter): void {
-    const targetName = target ? ((target as any).name ?? 'object') : 'self'
-    const pid = (target as any)?.pid ?? '?'
-    dbg('skills', `[SKILL] ${skill} on ${targetName} (pid: ${pid})`)
-}
-
-function logSkillRoll(baseSkill: number, modifiers: [string, number][], finalChance: number, roll: RollResult, delta: number): void {
-    dbg('skills', `[SKILL]   Base skill: ${baseSkill}`)
-    for (const [name, value] of modifiers) {
-        const sign = value >= 0 ? '+' : ''
-        dbg('skills', `[SKILL]   Modifier: ${sign}${value} (${name})`)
-    }
-    dbg('skills', `[SKILL]   Final chance: ${finalChance}%`)
-    // d100 = finalChance - delta  (since delta = finalChance - d100)
-    const d100 = finalChance - delta
-    dbg('skills', `[SKILL]   Roll: ${d100}`)
-    const resultStr = rollName(roll)
-    if (rollIsSuccess(roll)) {
-        dbg('skills', `[SKILL]   Result: ${resultStr} (roll ${d100} <= chance ${finalChance})`)
-    } else {
-        dbg('skills', `[SKILL]   Result: ${resultStr} (roll ${d100} > chance ${finalChance})`)
-    }
-}
-
-function logSkillXP(xp: number): void {
-    if (xp > 0) dbg('skills', `[SKILL]   XP awarded: ${xp}`)
-}
-
-function rollResultKey(roll: RollResult): 'critical-success' | 'success' | 'failure' | 'critical-failure' {
-    switch (roll) {
-        case RollResult.CriticalSuccess: return 'critical-success'
-        case RollResult.Success: return 'success'
-        case RollResult.Failure: return 'failure'
-        case RollResult.CriticalFailure: return 'critical-failure'
-        default: return 'failure'
-    }
-}
+import { SKILL_NAMES } from './skills.js'
 
 function emitSkillRoll(skillName: string, user: Critter, chance: number, roll: RollResult, d100: number): void {
     const actorName: string = (user as any).name ?? (user.isPlayer ? 'you' : 'critter')
-    const result = rollResultKey(roll)
+    const result = roll === RollResult.CriticalSuccess ? 'critical-success'
+        : roll === RollResult.Success ? 'success'
+        : roll === RollResult.CriticalFailure ? 'critical-failure' : 'failure'
     dbg('skills', `[skill:${skillName}] ${actorName} — chance: ${chance}%  roll: ${d100}  → ${result}`)
     eventLogPush({
         actor: actorName,
@@ -81,297 +35,311 @@ function emitSkillRoll(skillName: string, user: Critter, chance: number, roll: R
     })
 }
 
+const skillMsg = (id: number): string => getMessage('skill', id) ?? ''
+const skillId = (skill: string): number => SKILL_NAMES.indexOf(skill)
+
 // ---------------------------------------------------------------------------
-// Usage tracking: each skill can be used at most 3 times per 24-hour period.
-// FO2-CE ref: skill.cc SKILLS_MAX_USES_PER_DAY, skillGetFreeUsageSlot()
+// Usage slots — skill.cc _timesSkillUsed[SKILL_COUNT][SKILLS_MAX_USES_PER_DAY]:
+// the game times of the last 3 successful uses (0 = free), saved with the game.
 // ---------------------------------------------------------------------------
 const SKILLS_MAX_USES_PER_DAY = 3
+let timesSkillUsed: number[][] = SKILL_NAMES.map(() => [0, 0, 0])
 
-// Map skill name → array of game-tick timestamps of last uses
-const usageSlots: Map<string, number[]> = new Map()
-
-function getUsageSlots(skill: string): number[] {
-    let slots = usageSlots.get(skill)
-    if (!slots) {
-        slots = []
-        usageSlots.set(skill, slots)
+// skill.cc skillGetFreeUsageSlot: a free slot, else the last one when the oldest use
+// is more than 24 whole hours ago, else -1.
+function skillGetFreeUsageSlot(skill: number): number {
+    const times = timesSkillUsed[skill]
+    for (let slot = 0; slot < SKILLS_MAX_USES_PER_DAY; slot++) {
+        if (times[slot] === 0) return slot
     }
-    return slots
+    const hoursSinceLastUsage = Math.floor((GameTime.getTime() - times[0]) / GameTime.TICKS_PER_HOUR)
+    if (hoursSinceLastUsage <= 24) return -1
+    return SKILLS_MAX_USES_PER_DAY - 1
 }
 
-// FO2-CE ref: skill.cc skillGetFreeUsageSlot()
-// Returns true if the skill can be used right now (< 3 uses in 24h).
-function hasFreeUsageSlot(skill: string): boolean {
-    const slots = getUsageSlots(skill)
-    if (slots.length < SKILLS_MAX_USES_PER_DAY) return true
-
-    // Check if the oldest slot is > 24h ago
-    const now = GameTime.getTime()
-    const oldest = slots[0]
-    return (now - oldest) >= GameTime.TICKS_PER_DAY
-}
-
-// Record a usage of skill at the current game time.
-function recordUsage(skill: string): void {
-    const slots = getUsageSlots(skill)
-    const now = GameTime.getTime()
-
-    if (slots.length >= SKILLS_MAX_USES_PER_DAY) {
-        // Rotate: remove oldest, push new
-        slots.shift()
+// skill.cc skillUpdateLastUse
+function skillUpdateLastUse(skill: number): void {
+    const slot = skillGetFreeUsageSlot(skill)
+    if (slot === -1) return
+    const times = timesSkillUsed[skill]
+    if (times[slot] !== 0) {
+        for (let i = 0; i < slot; i++) times[i] = times[i + 1]
     }
-    slots.push(now)
+    times[slot] = GameTime.getTime()
 }
 
-// Reset usage tracking (e.g. on game load)
+// skill.cc skill_use_slot_clear (skillsReset) / skillsSave / skillsLoad
 export function resetSkillUsage(): void {
-    usageSlots.clear()
+    timesSkillUsed = SKILL_NAMES.map(() => [0, 0, 0])
+}
+export function serializeSkillUsage(): number[][] {
+    return timesSkillUsed.map((t) => t.slice())
+}
+export function deserializeSkillUsage(saved: number[][] | undefined): void {
+    resetSkillUsage()
+    if (!Array.isArray(saved)) return
+    saved.forEach((t, i) => { if (timesSkillUsed[i] && Array.isArray(t)) timesSkillUsed[i] = [t[0] | 0, t[1] | 0, t[2] | 0] })
 }
 
 // ---------------------------------------------------------------------------
-// XP awards  (FO2-CE ref: skill.cc _show_skill_use_messages)
+// XP — skill.cc gSkillDescriptions .experience / .field_28 and _show_skill_use_messages
 // ---------------------------------------------------------------------------
-const SKILL_XP: { [skill: string]: number } = {
-    'First Aid': 25,
-    'Doctor': 50,
-    'Lockpick': 50,
-    'Traps': 50,
-    'Science': 25,
-    'Repair': 50,
-    'Outdoorsman': 0,
+const SKILL_EXPERIENCE: { [skill: string]: [number, boolean] } = {
+    'First Aid': [25, false],
+    'Doctor': [50, false],
+    'Lockpick': [25, true],
+    'Steal': [25, true],
+    'Traps': [25, true],
+    'Outdoorsman': [100, false],
+}
+
+function showSkillUseMessages(obj: Critter, skill: string, successCount: number, criticalChanceModifier: number): void {
+    if (!obj.isPlayer || successCount <= 0) return
+    let [baseExperience, field28] = SKILL_EXPERIENCE[skill] ?? [0, false]
+    if (baseExperience === 0) return
+    if (field28 && criticalChanceModifier < 0) baseExperience += Math.abs(criticalChanceModifier)
+    const player = obj as any
+    const before = player.stats.get('Experience')
+    player.addExperience(successCount * baseExperience)
+    // 505: You earn %d XP for honing your skills.
+    uiLog(skillMsg(505).replace('%d', String(player.stats.get('Experience') - before)))
 }
 
 // ---------------------------------------------------------------------------
-// Public API
+// skill.cc skillRoll: the dude's roll is made by the party member best at the skill
+// if it is also that member's own best skill (partyMemberGetBestInSkill /
+// partyMemberGetBestSkill), not for Steal; `modifier` is added to the skill.
+// ---------------------------------------------------------------------------
+function skillRoll(critter: Critter, skill: string, modifier: number): RollResult {
+    if (critter.isPlayer && skill !== 'Steal') {
+        let best: Critter | null = null
+        let bestValue = 0
+        for (const c of globalState.gParty?.getPartyMembersAndPlayer() ?? []) {
+            if (!c || c.visible === false) continue
+            const v = c.getSkill(skill)
+            if (v > bestValue) { bestValue = v; best = c }
+        }
+        if (best) {
+            let ownBest = SKILL_NAMES[0]
+            let ownValue = 0
+            for (const sk of SKILL_NAMES) {
+                const v = best.getSkill(sk)
+                if (v > ownValue) { ownValue = v; ownBest = sk }
+            }
+            if (ownBest === skill) critter = best
+        }
+    }
+    let skillValue = critter.getSkill(skill)
+    if (critter.isPlayer && skill === 'Steal' && (critter as any).isSneaking && (critter as any).sneakWorking) skillValue += 30
+    const chance = skillValue + modifier
+    const { roll, delta } = randomRoll(chance, critter.getStat('Critical Chance'))
+    emitSkillRoll(skill, critter, chance, roll, chance - delta)
+    return roll
+}
+
+// ---------------------------------------------------------------------------
+// skill.cc skillUse
 // ---------------------------------------------------------------------------
 export interface SkillUseResult {
-    success: boolean
-    roll: RollResult
-    message: string
-    xpAwarded: number
+    // CE's return value: 0, or -1 when the skill wasn't used (daily limit, not a
+    // robot, Traps / Science, an invalid skill) — a medical kit is then left alone
+    // (proto_instance.cc _protinst_use_item_on).
+    rc: number
     hpHealed: number
-    // The skill wasn't attempted at all (dead / full HP / daily limit) — CE skillUse
-    // returns -1 there, so a medical kit isn't used up (proto_instance.cc:1342).
-    blocked?: boolean
 }
 
-function blockedResult(message: string): SkillUseResult {
-    return { ...makeResult(false, RollResult.Failure, message), blocked: true }
+// skill.cc gHealableDamageFlags / gRepairableDamageFlags (same list): DAM_BLIND,
+// DAM_CRIP_ARM_LEFT, DAM_CRIP_ARM_RIGHT, DAM_CRIP_LEG_RIGHT, DAM_CRIP_LEG_LEFT —
+// skill.msg 530 + index names each.
+const DAMAGE_FLAGS = ['isBlinded', 'crippledLeftArm', 'crippledRightArm', 'crippledRightLeg', 'crippledLeftLeg'] as const
+
+const isCritter = (o: Obj | null): o is Critter => !!o && o.type === 'critter'
+const BODY_TYPE_ROBOTIC = 2
+const isRobotic = (o: Obj): boolean => isCritter(o) && ((o.pro as any)?.extra?.bodyType ?? 0) === BODY_TYPE_ROBOTIC
+// critter.cc critterIsCrippled: any DAM_CRIP bit (the limbs and DAM_BLIND)
+const isCrippled = (o: Obj): boolean => isCritter(o) && DAMAGE_FLAGS.some((f) => (o as any)[f])
+
+// critter.cc critterAdjustHitPoints: HP + amount, capped at the maximum
+function adjustHitPoints(target: Critter, hp: number): void {
+    const maximumHp = target.getStat('Max HP')
+    target.stats.setBase('HP', Math.min(target.getStat('HP') + hp, maximumHp))
 }
 
-function makeResult(success: boolean, roll: RollResult, message: string, xp: number = 0, hp: number = 0): SkillUseResult {
-    return { success, roll, message, xpAwarded: xp, hpHealed: hp }
+// 590–592: You've taxed your ability … / You're too tired. / The strain might kill you.
+const showTooTired = (): void => uiLog(skillMsg(590 + getRandomInt(0, 2)))
+
+// 501 / 502: You look healthy already. / %s looks healthy already.
+function showHealthy(obj: Critter, target: Obj): void {
+    if (!obj.isPlayer) return
+    uiLog(target.type === 'critter' && (target as Critter).isPlayer ? skillMsg(501) : skillMsg(502).replace('%s', target.name ?? ''))
 }
 
-// FO2-CE ref: skill.cc skillUse()
-// user = critter using the skill (usually globalState.player)
-// target = object being acted upon (can be self for First Aid/Doctor)
-// skill = skill name string ('First Aid', 'Doctor', etc.)
-// `criticalChanceModifier`: CE skillUse's 4th argument — the medical kits add +20/+40
-// (proto_instance.cc _protinst_use_item_on).
-export function skillUse(user: Critter, target: Critter | null, skill: string, criticalChanceModifier: number = 0): SkillUseResult {
+// user = the critter using the skill; target = what it is used on.
+// `criticalChanceModifier`: CE skillUse's 4th argument — the medical kits add +20 / +40.
+export function skillUse(obj: Critter, target: Obj | null, skill: string, criticalChanceModifier: number = 0): SkillUseResult {
+    target = target ?? obj
+    const result: SkillUseResult = { rc: 0, hpHealed: 0 }
+    const currentHp = isCritter(target) ? target.getStat('HP') : 0
+    const maximumHp = isCritter(target) ? target.getStat('Max HP') : 0
+    const dead = isCritter(target) && !!target.dead
+
+    let minimumHpToHeal = 0
+    let maximumHpToHeal = 0
+    if (obj.isPlayer && (skill === 'First Aid' || skill === 'Doctor')) {
+        const healerRank = ((obj as any).perks as string[] | undefined)?.filter((p) => p === 'Healer').length ?? 0
+        minimumHpToHeal = 4 * healerRank
+        maximumHpToHeal = 10 * healerRank
+    }
+
+    const criticalChance = obj.getStat('Critical Chance') + criticalChanceModifier
+    let giveExp = true
+    let damageHealingAttempts = 1
+    let successCount = 0
+    let skillUseSlotAdded = false
+    const id = skillId(skill)
+
+    const healHp = (hp: number): void => {
+        const t = target as Critter
+        adjustHitPoints(t, hp)
+        if (obj.isPlayer) {
+            // 500: You heal %d hit points.
+            uiLog(skillMsg(500).replace('%d', String(Math.min(hp, maximumHp - currentHp))))
+        }
+        result.hpHealed = Math.min(hp, maximumHp - currentHp)
+        ;(t as any).fleeing = false // maneuver &= ~CRITTER_MANUEVER_FLEEING
+        if (t.isPlayer) drawHP(t.getStat('HP'))
+    }
+
+    // Doctor / Repair: one skillRoll per damage flag, then a plain HP roll.
+    const healDamageFlags = (): void => {
+        const t = target as Critter
+        DAMAGE_FLAGS.forEach((flag, index) => {
+            if (!(t as any)[flag]) return
+            damageHealingAttempts++
+            const roll = skillRoll(obj, skill, criticalChance)
+            let prefix: number
+            if (rollIsSuccess(roll)) {
+                ;(t as any)[flag] = false
+                ;(t as any).fleeing = false
+                prefix = t.isPlayer ? 520 : 521 // You heal your / the %s.
+                skillUpdateLastUse(id)
+                successCount = 1
+                skillUseSlotAdded = true
+            } else {
+                prefix = t.isPlayer ? 525 : 526 // You fail to heal your / the %s.
+            }
+            uiLog(skillMsg(prefix).replace('%s', skillMsg(530 + index)))
+            showSkillUseMessages(obj, skill, successCount, criticalChanceModifier)
+            giveExp = false
+        })
+    }
+
+    const healHpRoll = (): void => {
+        let roll: RollResult
+        if (skill === 'Doctor' && isRobotic(target!)) {
+            roll = RollResult.Failure
+        } else {
+            const skillValue = obj.getSkill(skill)
+            const r = randomRoll(skillValue, criticalChance)
+            emitSkillRoll(skill, obj, skillValue, r.roll, skillValue - r.delta)
+            roll = r.roll
+        }
+        if (rollIsSuccess(roll)) {
+            healHp(getRandomInt(minimumHpToHeal + 4, maximumHpToHeal + 10))
+            if (!skillUseSlotAdded) skillUpdateLastUse(id)
+            successCount = 1
+            showSkillUseMessages(obj, skill, successCount, criticalChanceModifier)
+            giveExp = false
+        } else {
+            uiLog(skillMsg(503)) // You fail to do any healing.
+        }
+        globalState.gMap?.updateMap() // scriptsExecMapUpdateProc
+    }
+
     switch (skill) {
         case 'First Aid':
-            return useFirstAid(user, target ?? user, criticalChanceModifier)
+            if (skillGetFreeUsageSlot(id) === -1) { showTooTired(); return { rc: -1, hpHealed: 0 } }
+            if (dead) {
+                dbg('skills', skillMsg(512 + getRandomInt(0, 2))) // CE: debugPrint only
+                break
+            }
+            if (currentHp < maximumHp) {
+                const roll = isRobotic(target) ? RollResult.Failure : skillRoll(obj, skill, criticalChance)
+                if (rollIsSuccess(roll)) {
+                    healHp(getRandomInt(minimumHpToHeal + 1, maximumHpToHeal + 5))
+                    skillUpdateLastUse(id)
+                    successCount = 1
+                } else {
+                    uiLog(skillMsg(503))
+                }
+                globalState.gMap?.updateMap()
+            } else {
+                if (obj.isPlayer) { showHealthy(obj, target); giveExp = false }
+            }
+            if (obj.isPlayer) GameTime.advanceSeconds(1800)
+            break
+
         case 'Doctor':
-            return useDoctor(user, target ?? user, criticalChanceModifier)
+            if (skillGetFreeUsageSlot(id) === -1) { showTooTired(); return { rc: -1, hpHealed: 0 } }
+            if (dead) { uiLog(skillMsg(512 + getRandomInt(0, 2))); break }
+            if (currentHp < maximumHp || isCrippled(target)) {
+                if (!isRobotic(target) && isCrippled(target)) healDamageFlags()
+                healHpRoll()
+            } else {
+                if (obj.isPlayer) { showHealthy(obj, target); giveExp = false }
+            }
+            if (obj.isPlayer) GameTime.advanceSeconds(3600 * damageHealingAttempts)
+            break
+
         case 'Sneak':
-            return useSneak(user)
+            // CE toggles sneaking in actions.cc _action_skill_use (dudeToggleState); skillUse
+            // itself does nothing for Sneak.
+            toggleSneak(obj)
+            break
+
         case 'Lockpick':
-            return useLockpick(user, target)
+            break
+
         case 'Steal':
-            // CE ref: inventory.cc:4505 inventoryOpenStealing() — real stealing is the
-            // interactive per-item UI (ui_steal.ts uiSteal(), wired from playerUse.ts).
-            // This fallback only fires if playerUseSkill() had no live critter target.
-            return makeResult(false, RollResult.Failure, 'There is nothing to steal.')
+            // scriptsRequestStealing — the steal screen (ui_steal.ts) opens from playerUse.ts
+            break
+
         case 'Traps':
-            return useTraps(user, target)
+            uiLog(skillMsg(551)) // You fail to find any traps.
+            return { rc: -1, hpHealed: 0 }
+
         case 'Science':
-            return useScience(user, target)
+            uiLog(skillMsg(552)) // You fail to learn anything.
+            return { rc: -1, hpHealed: 0 }
+
         case 'Repair':
-            return useRepair(user, target)
-        case 'Gambling':
-            // CE: Gambling is only usable at gambling tables via NPC interaction, not directly.
-            return makeResult(false, RollResult.Failure, 'You need to find somewhere to gamble.')
-        case 'Outdoorsman':
-            // CE: Outdoorsman is only relevant on the world map for encounter avoidance.
-            return makeResult(false, RollResult.Failure, 'Outdoorsman skill applies when traveling.')
+            if (!isRobotic(target)) { uiLog(skillMsg(553)); return { rc: -1, hpHealed: 0 } } // You cannot repair that.
+            if (skillGetFreeUsageSlot(id) === -1) { showTooTired(); return { rc: -1, hpHealed: 0 } }
+            if (dead) { uiLog(skillMsg(1101)); break } // You got it?
+            if (currentHp < maximumHp || isCrippled(target)) {
+                healDamageFlags()
+                healHpRoll()
+            } else if (obj.isPlayer) {
+                // CE formats 502 here even for the dude
+                uiLog(skillMsg((target as Critter).isPlayer ? 501 : 502).replace('%s', target.name ?? ''))
+                giveExp = false
+            }
+            if (obj.isPlayer) GameTime.advanceSeconds(1800 * damageHealingAttempts)
+            break
+
         default:
-            return makeResult(false, RollResult.Failure, `Skill ${skill} cannot be used directly.`)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// FIRST AID
-// FO2-CE ref: skill.cc skillUse() case SKILL_FIRST_AID
-// Heals 1-5 HP on success. +30 min game time. 3/day limit. Awards 25 XP.
-// ---------------------------------------------------------------------------
-function useFirstAid(user: Critter, target: Critter, criticalChanceModifier: number = 0): SkillUseResult {
-    logSkillHeader('First Aid', target, user)
-
-    if (target.dead) {
-        dbg('skills', '[SKILL]   Blocked: target is dead')
-        return blockedResult('You cannot heal the dead.')
+            dbg('skills', skillMsg(510)) // skill_use: invalid skill used.
+            return { rc: -1, hpHealed: 0 }
     }
 
-    if (!hasFreeUsageSlot('First Aid')) {
-        dbg('skills', '[SKILL]   Blocked: 3/day limit reached')
-        return blockedResult('You have already used First Aid too many times today.')
-    }
-
-    const targetHP = target.getStat('HP')
-    const targetMaxHP = target.getStat('Max HP')
-    if (targetHP >= targetMaxHP) {
-        dbg('skills', `[SKILL]   Blocked: target already at full health (${targetHP}/${targetMaxHP})`)
-        return blockedResult('The target is already at full health.')
-    }
-
-    const skillValue = user.getSkill('First Aid')
-    const critChance = user.getStat('Critical Chance') + criticalChanceModifier
-    const { roll, delta } = randomRoll(skillValue, critChance)
-
-    logSkillRoll(skillValue, [], skillValue, roll, delta)
-    emitSkillRoll('First Aid', user, skillValue, roll, skillValue - delta)
-
-    // Advance game time: +30 minutes
-    GameTime.advanceMinutes(30)
-    recordUsage('First Aid')
-
-    if (!rollIsSuccess(roll)) {
-        return makeResult(false, roll, 'First Aid was unsuccessful.')
-    }
-
-    // FO2-CE ref: skill.cc skillUse() SKILL_FIRST_AID — heal randomBetween(1 + ranks*4, 5 + ranks*10)
-    // Healer perk: +4 min and +10 max per rank.
-    const healerRanks = user.perks.filter(p => p === 'Healer').length
-    const healMin = 1 + healerRanks * 4
-    const healMax = 5 + healerRanks * 10
-    let hpToHeal = getRandomInt(healMin, healMax)
-
-    // Critical success: double healing
-    if (roll === RollResult.CriticalSuccess) {
-        hpToHeal *= 2
-    }
-
-    // Don't overheal
-    const actualHeal = Math.min(hpToHeal, targetMaxHP - targetHP)
-    target.stats.modifyBase('HP', actualHeal)
-
-    // Award XP
-    const xp = SKILL_XP['First Aid']
-    if (user.isPlayer && xp > 0) {
-        (globalState.player as any)?.addExperience?.(xp)
-    }
-
-    dbg('skills', `[SKILL]   Healed: ${actualHeal} HP (target: ${targetHP}→${targetHP + actualHeal}/${targetMaxHP})`)
-    logSkillXP(xp)
-
-    return makeResult(true, roll, `First Aid healed ${actualHeal} hit points.`, xp, actualHeal)
-}
-
-// ---------------------------------------------------------------------------
-// DOCTOR
-// FO2-CE ref: skill.cc skillUse() case SKILL_DOCTOR
-// Heals crippled limbs first, then 4-10 HP. +1-3 hours game time. Awards 50 XP.
-// ---------------------------------------------------------------------------
-function useDoctor(user: Critter, target: Critter, criticalChanceModifier: number = 0): SkillUseResult {
-    logSkillHeader('Doctor', target, user)
-
-    if (target.dead) {
-        dbg('skills', '[SKILL]   Blocked: target is dead')
-        return blockedResult('You cannot heal the dead.')
-    }
-
-    if (!hasFreeUsageSlot('Doctor')) {
-        dbg('skills', '[SKILL]   Blocked: 3/day limit reached')
-        return blockedResult('You have already used Doctor too many times today.')
-    }
-
-    const skillValue = user.getSkill('Doctor')
-    const critChance = user.getStat('Critical Chance') + criticalChanceModifier
-
-    // FO2-CE ref: skill.cc — Doctor first attempts to heal each crippled limb/blindness
-    // via individual rolls, then does a general HP heal.
-    const healableFlags: (keyof Critter)[] = [
-        'isBlinded', 'crippledLeftArm', 'crippledRightArm',
-        'crippledLeftLeg', 'crippledRightLeg',
-    ]
-
-    let limbsHealed = 0
-    let timeHours = 1
-
-    for (const flag of healableFlags) {
-        if (!(target as any)[flag]) continue
-
-        // Individual roll per limb/condition
-        const limbRoll = randomRoll(skillValue, critChance)
-        const limbD100 = skillValue - limbRoll.delta
-        emitSkillRoll('Doctor', user, skillValue, limbRoll.roll, limbD100)
-        if (rollIsSuccess(limbRoll.roll)) {
-            ;(target as any)[flag] = false
-            limbsHealed++
-            dbg('skills', `[SKILL]   Limb heal: ${String(flag)} — SUCCESS (roll ${limbD100} <= ${skillValue})`)
-        } else {
-            dbg('skills', `[SKILL]   Limb heal: ${String(flag)} — FAILURE (roll ${limbD100} > ${skillValue})`)
-        }
-        timeHours++ // Each attempt costs extra time
-    }
-
-    // General HP healing
-    const { roll, delta } = randomRoll(skillValue, critChance)
-
-    logSkillRoll(skillValue, [], skillValue, roll, delta)
-    emitSkillRoll('Doctor', user, skillValue, roll, skillValue - delta)
-
-    // Advance game time
-    GameTime.advanceHours(Math.min(timeHours, 3))
-    recordUsage('Doctor')
-
-    const targetHP = target.getStat('HP')
-    const targetMaxHP = target.getStat('Max HP')
-    let hpHealed = 0
-
-    if (rollIsSuccess(roll) && targetHP < targetMaxHP) {
-        // FO2-CE ref: skill.cc skillUse() SKILL_DOCTOR — heal randomBetween(4 + ranks*4, 10 + ranks*10)
-        const healerRanks = user.perks.filter(p => p === 'Healer').length
-        const healMin = 4 + healerRanks * 4
-        const healMax = 10 + healerRanks * 10
-        let hpToHeal = getRandomInt(healMin, healMax)
-
-        if (roll === RollResult.CriticalSuccess) {
-            hpToHeal *= 2
-        }
-
-        hpHealed = Math.min(hpToHeal, targetMaxHP - targetHP)
-        target.stats.modifyBase('HP', hpHealed)
-    }
-
-    // Award XP if anything was healed
-    let xp = 0
-    if (limbsHealed > 0 || hpHealed > 0) {
-        xp = SKILL_XP['Doctor']
-        if (user.isPlayer && xp > 0) {
-            (globalState.player as any)?.addExperience?.(xp)
-        }
-    }
-
-    const parts: string[] = []
-    if (limbsHealed > 0) parts.push(`healed ${limbsHealed} condition(s)`)
-    if (hpHealed > 0) parts.push(`restored ${hpHealed} HP`)
-    if (parts.length === 0) parts.push('treatment was unsuccessful')
-
-    if (hpHealed > 0) {
-        dbg('skills', `[SKILL]   Healed: ${hpHealed} HP (target: ${targetHP}→${targetHP + hpHealed}/${targetMaxHP})`)
-    }
-    logSkillXP(xp)
-
-    return makeResult(limbsHealed > 0 || hpHealed > 0, roll,
-        `Doctor: ${parts.join(', ')}.`, xp, hpHealed)
+    if (giveExp) showSkillUseMessages(obj, skill, successCount, criticalChanceModifier)
+    if (skill === 'First Aid' || skill === 'Doctor') globalState.gMap?.updateMap()
+    return result
 }
 
 // ---------------------------------------------------------------------------
 // SNEAK
-// FO2-CE ref: skill.cc skillUse() case SKILL_SNEAK — toggle sneak mode
+// FO2-CE ref: actions.cc _action_skill_use SKILL_SNEAK — dudeToggleState(DUDE_STATE_SNEAKING)
 // FO2-CE ref: intface.cc — sneak indicator on HUD
 // CE ref: critter.cc:1194 sneakEventProcess — periodic sneak-skill roll that
 // sets _sneak_working. True sneaking (dudeIsSneaking) requires both the
@@ -420,73 +388,21 @@ export function sneakClear(player: any): boolean {
     return true
 }
 
-function useSneak(user: Critter): SkillUseResult {
-    if (user.isPlayer) {
-        const player = globalState.player as any
-        if (player.isSneaking) {
-            player.isSneaking = false
-            player.sneakWorking = false
-            clearSneakTimer(player)
-            dbg('object', '[SNEAK] Sneak mode DEACTIVATED')
-            updateIndicatorBar()
-            return makeResult(true, RollResult.Success, 'You stop sneaking.')
-        } else {
-            player.isSneaking = true
-            // CE ref: critter.cc:1194 — fire first sneak event immediately on activation.
-            scheduleSneakEvent(player)
-            dbg('object', '[SNEAK] Sneak mode ACTIVATED')
-            updateIndicatorBar()
-            return makeResult(true, RollResult.Success, 'You are now sneaking.')
-        }
+function toggleSneak(user: Critter): void {
+    if (!user.isPlayer) return
+    const player = user as any
+    if (player.isSneaking) {
+        player.isSneaking = false
+        player.sneakWorking = false
+        clearSneakTimer(player)
+        dbg('object', '[SNEAK] Sneak mode DEACTIVATED')
+    } else {
+        player.isSneaking = true
+        // CE ref: critter.cc:1194 — fire first sneak event immediately on activation.
+        scheduleSneakEvent(player)
+        dbg('object', '[SNEAK] Sneak mode ACTIVATED')
     }
-    // Non-player critters: just toggle on globalState
-    const gs = globalState as any
-    gs.isSneaking = !gs.isSneaking
-    return makeResult(true, RollResult.Success, gs.isSneaking ? 'Sneaking.' : 'No longer sneaking.')
-}
-
-// ---------------------------------------------------------------------------
-// LOCKPICK
-// FO2-CE ref: skill.cc skillUse() case SKILL_LOCKPICK
-// Roll skill vs. lock difficulty. Script override expected for most doors.
-// ---------------------------------------------------------------------------
-function useLockpick(user: Critter, target: Critter | null): SkillUseResult {
-    logSkillHeader('Lockpick', target, user)
-
-    if (!target) {
-        return makeResult(false, RollResult.Failure, 'Nothing to pick.')
-    }
-
-    // CE ref: proto_instance.cc:1874 _obj_use_skill_on — bail if jammed (msg 2001: "It's jammed")
-    if ((target as any).jammed) {
-        return makeResult(false, RollResult.Failure, "It's jammed.")
-    }
-
-    globalState.audioEngine.playSfxByName('pickkeys')
-
-    // Lock difficulty is stored in the object's script/pro data.
-    // If the object has a lock difficulty, use it; otherwise default to 50.
-    const lockDifficulty: number = (target as any).pro?.extra?.lockDifficulty ?? 50
-    const skillValue = user.getSkill('Lockpick')
-    const modifier = -lockDifficulty
-    const finalChance = skillValue + modifier
-
-    const critChance = user.getStat('Critical Chance')
-    const { roll, delta } = randomRoll(finalChance, critChance)
-
-    logSkillRoll(skillValue, [['lock difficulty', modifier]], finalChance, roll, delta)
-    emitSkillRoll('Lockpick', user, finalChance, roll, finalChance - delta)
-
-    if (rollIsSuccess(roll)) {
-        const xp = SKILL_XP['Lockpick']
-        if (user.isPlayer && xp > 0) {
-            (globalState.player as any)?.addExperience?.(xp)
-        }
-        logSkillXP(xp)
-        return makeResult(true, roll, 'You pick the lock successfully.', xp)
-    }
-
-    return makeResult(false, roll, 'You fail to pick the lock.')
+    updateIndicatorBar()
 }
 
 // ---------------------------------------------------------------------------
@@ -543,141 +459,4 @@ export function performSteal(thief: Critter, target: Critter, item: Obj, stealCo
         item.name ?? item.pid, stealCount, stealChance, caught)
 
     return { success: !caught, caught }
-}
-
-// ---------------------------------------------------------------------------
-// TRAPS
-// FO2-CE ref: skill.cc skillUse() case SKILL_TRAPS
-// Roll vs. trap difficulty to disarm.
-// ---------------------------------------------------------------------------
-function useTraps(user: Critter, target: Critter | null): SkillUseResult {
-    logSkillHeader('Traps', target, user)
-
-    if (!target) {
-        return makeResult(false, RollResult.Failure, 'No trap to disarm.')
-    }
-
-    // FO2-CE ref: skill.cc — spring-trap disarm attempt sound
-    globalState.audioEngine.playSfxByName('sprtrap')
-
-    const trapDifficulty: number = (target as any).pro?.extra?.trapDifficulty ?? 50
-    const skillValue = user.getSkill('Traps')
-    const modifier = -trapDifficulty
-    const finalChance = skillValue + modifier
-
-    const critChance = user.getStat('Critical Chance')
-    const { roll, delta } = randomRoll(finalChance, critChance)
-
-    logSkillRoll(skillValue, [['trap difficulty', modifier]], finalChance, roll, delta)
-    emitSkillRoll('Traps', user, finalChance, roll, finalChance - delta)
-
-    if (rollIsSuccess(roll)) {
-        const xp = SKILL_XP['Traps']
-        if (user.isPlayer && xp > 0) {
-            (globalState.player as any)?.addExperience?.(xp)
-        }
-        logSkillXP(xp)
-        return makeResult(true, roll, 'You disarm the trap.', xp)
-    }
-
-    if (roll === RollResult.CriticalFailure) {
-        return makeResult(false, roll, 'You trigger the trap!')
-    }
-
-    return makeResult(false, roll, 'You fail to disarm the trap.')
-}
-
-// ---------------------------------------------------------------------------
-// SCIENCE
-// FO2-CE ref: skill.cc skillUse() case SKILL_SCIENCE
-// Mostly script-driven. Engine just provides a roll.
-// ---------------------------------------------------------------------------
-function useScience(user: Critter, target: Critter | null): SkillUseResult {
-    logSkillHeader('Science', target, user)
-
-    if (!target) {
-        return makeResult(false, RollResult.Failure, 'Nothing to examine.')
-    }
-
-    const skillValue = user.getSkill('Science')
-    const critChance = user.getStat('Critical Chance')
-    const { roll, delta } = randomRoll(skillValue, critChance)
-
-    logSkillRoll(skillValue, [], skillValue, roll, delta)
-    emitSkillRoll('Science', user, skillValue, roll, skillValue - delta)
-
-    if (rollIsSuccess(roll)) {
-        const xp = SKILL_XP['Science']
-        if (user.isPlayer && xp > 0) {
-            (globalState.player as any)?.addExperience?.(xp)
-        }
-        logSkillXP(xp)
-        return makeResult(true, roll, 'You learn something useful.', xp)
-    }
-
-    return makeResult(false, roll, 'You fail to learn anything useful.')
-}
-
-// ---------------------------------------------------------------------------
-// REPAIR
-// FO2-CE ref: skill.cc skillUse() case SKILL_REPAIR
-// Only works on "robot" type critters. Heals damage flags + HP.
-// +30 min to +3 hours game time. Awards 50 XP.
-// ---------------------------------------------------------------------------
-function useRepair(user: Critter, target: Critter | null): SkillUseResult {
-    logSkillHeader('Repair', target, user)
-
-    if (!target) {
-        return makeResult(false, RollResult.Failure, 'Nothing to repair.')
-    }
-
-    if (!hasFreeUsageSlot('Repair')) {
-        dbg('skills', '[SKILL]   Blocked: 3/day limit reached')
-        return makeResult(false, RollResult.Failure, 'You have already used Repair too many times today.')
-    }
-
-    const skillValue = user.getSkill('Repair')
-    const critChance = user.getStat('Critical Chance')
-    const { roll, delta } = randomRoll(skillValue, critChance)
-
-    logSkillRoll(skillValue, [], skillValue, roll, delta)
-    emitSkillRoll('Repair', user, skillValue, roll, skillValue - delta)
-
-    // Advance game time: +30 minutes minimum
-    GameTime.advanceMinutes(30)
-    recordUsage('Repair')
-
-    if (!rollIsSuccess(roll)) {
-        return makeResult(false, roll, 'Repair was unsuccessful.')
-    }
-
-    // Heal HP if target is a critter
-    const targetHP = target.getStat('HP')
-    const targetMaxHP = target.getStat('Max HP')
-    let hpHealed = 0
-
-    if (targetHP < targetMaxHP) {
-        const healMin = 4
-        const healMax = 10
-        let hpToHeal = getRandomInt(healMin, healMax)
-        if (roll === RollResult.CriticalSuccess) hpToHeal *= 2
-        hpHealed = Math.min(hpToHeal, targetMaxHP - targetHP)
-        target.stats.modifyBase('HP', hpHealed)
-    }
-
-    const xp = SKILL_XP['Repair']
-    if (user.isPlayer && xp > 0) {
-        (globalState.player as any)?.addExperience?.(xp)
-    }
-
-    if (hpHealed > 0) {
-        dbg('skills', `[SKILL]   Repaired: ${hpHealed} HP (target: ${targetHP}→${targetHP + hpHealed}/${targetMaxHP})`)
-    }
-    logSkillXP(xp)
-
-    const msg = hpHealed > 0
-        ? `Repair restored ${hpHealed} HP.`
-        : 'Repair was successful.'
-
-    return makeResult(true, roll, msg, xp, hpHealed)
 }

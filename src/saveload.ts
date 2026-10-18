@@ -29,7 +29,7 @@ import { SerializedMap } from './map.js'
 import { Critter, deserializeObj, SerializedObj } from './object.js'
 import { refreshStealthState } from './miscItem.js'
 import { Scripting } from './scripting.js'
-import { scheduleSneakEvent, sneakClear } from './skillUse.js'
+import { scheduleSneakEvent, sneakClear, serializeSkillUsage, deserializeSkillUsage } from './skillUse.js'
 import { restoreDrugEvent } from './drugs.js'
 import { drawHP, drawAC, uiDrawWeapon } from './ui_hud.js'
 import { getFileJSON } from './util.js'
@@ -97,6 +97,8 @@ export interface SaveGame {
     automap?: SavedAutomap
     // CE critter.cc killsSave / killsLoad: kills per kill type
     kills?: [number, number][]
+    // CE skill.cc skillsSave / skillsLoad: _timesSkillUsed (last 3 uses per skill)
+    skillUsage?: number[][]
 
     // Structured event log accumulated by logger.eventLogPush. Optional so
     // older saves (without the field) continue to load cleanly.
@@ -215,6 +217,7 @@ function gatherSaveData(name: string): SaveGame {
         seenMovies: [...globalState.seenMovies],
         automap: serializeAutomap(),
         kills: [...killCounts.entries()],
+        skillUsage: serializeSkillUsage(),
         eventLog: globalState.eventLog.slice(),
         timedEvents: Scripting.getTimedEventsSerialized(),
         // CE ref: worldmap.h wmGenData — persist car state across saves.
@@ -399,6 +402,7 @@ export function load(id: number): void {
                 restoreAutomap(save.automap) // the save's automap (none in older saves)
                 killCounts.clear()
                 for (const [type, n] of save.kills ?? []) killCounts.set(type, n)
+                deserializeSkillUsage(save.skillUsage)
                 globalState.player?.updateNativeLook() // CE loadsave.cc:1772
 
                 // Restore the structured event log. Older saves may have the field

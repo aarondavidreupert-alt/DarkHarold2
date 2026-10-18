@@ -64,12 +64,8 @@ export function initSkilldex(): void {
                 const skillName = SKILL_NAMES[skill - 1]
                 const player = globalState.player
                 if (!player) return
-                const result = skillUse(player, player, skillName)
-                uiLog(result.message)
-                if (result.hpHealed > 0) {
-                    drawHP(player.getStat('HP'))
-                }
-                dbg('skills', `[UI] Passive skill executed: ${skillName} result=${JSON.stringify(result)}`)
+                skillUse(player, player, skillName)
+                dbg('skills', `[UI] Passive skill executed: ${skillName}`)
                 return
             }
 
@@ -198,8 +194,7 @@ export function beginSkillTargeting(skill: Skills): void {
     if (skill === Skills.Sneak) {
         const player = globalState.player
         if (!player) return
-        const result = skillUse(player, player, SKILL_NAMES[skill - 1])
-        uiLog(result.message)
+        skillUse(player, player, SKILL_NAMES[skill - 1])
         return
     }
     globalState.uiMode = UIMode.useSkill
