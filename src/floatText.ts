@@ -20,11 +20,26 @@ limitations under the License.
 // darken instead of turning see-through) and outlined by bufferOutline (draw.cc).
 // Shown as canvases in a DOM layer over the game canvas.
 
+import { Point } from './geometry.js'
 import globalState from './globalState.js'
 import { font1, font3 } from './ui_font.js'
 import type { FontRenderer } from './ui/fontCore.js'
 
 const WRAP_WIDTH = 200
+const TEXT_OBJECTS_MAX_COUNT = 20
+
+// CE text_object.cc textObjectAdd: at most 20 messages (sfall fix); a new message of an
+// owner replaces its old one (textObjectsRemoveByOwner); the text stays on the tile the
+// owner stood on (no owner: the centre tile, unbounded). False when not added.
+export function addFloatMessage(fm: any): boolean {
+    const list = globalState.floatMessages as any[]
+    if (list.length >= TEXT_OBJECTS_MAX_COUNT) return false
+    if (!fm.msg) return false
+    for (let i = list.length - 1; i >= 0; i--) if (list[i].obj === fm.obj) list.splice(i, 1)
+    fm.tile = fm.obj?.position ? { ...fm.obj.position } : null
+    list.push(fm)
+    return true
+}
 
 // CE float_msg colours (interpreter_extra.cc opFloatMessage, FLOATING_MESSAGE_TYPE_*),
 // color.pal entries of the _colorTable values.
@@ -83,11 +98,12 @@ function hexRgb(hex: string): [number, number, number] {
     return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]
 }
 
-function buildCanvas(spec: FloatSpec): HTMLCanvasElement | null {
+function buildCanvas(spec: FloatSpec, fm?: any): HTMLCanvasElement | null {
     const font = spec.font === 103 ? font3 : font1
     if (!font.isLoaded()) return null
     const color = NAMED[spec.color] ?? spec.color
     const lines = wordWrap(font, spec.msg, WRAP_WIDTH)
+    if (fm) fm.lines = lines.length // CE linesCount, used for the display time
     const lineCanvases = lines.map((l) => font.renderCanvas(l, color))
     const step = font.lineHeight + 1
     const pad = spec.outline ? 1 : 0
@@ -157,29 +173,48 @@ function ensureLayer(): HTMLDivElement {
     return layer
 }
 
-// Called once per frame by the renderer with the screen anchor (top centre of the
-// owner, in canvas pixels) of every live message.
-export function updateFloatText(anchor: (obj: any) => { x: number, y: number } | null): void {
+// CE textObjectFindPlacement: centred 60 px above the tile, else shifted left / right,
+// beside it, or on it — the first spot inside the window; the offset from the tile is
+// kept. (tx, ty) is the tile's screen position, z the zoom of the world offsets.
+function findPlacement(w: number, h: number, tx: number, ty: number, unbounded: boolean, z: number, viewW: number, viewH: number): Point {
+    const fits = (x: number, y: number) => x >= 0 && x + w - 1 < viewW && y >= 0 && y + h - 1 < viewH
+    let x = tx + 16 * z - Math.trunc(w / 2)
+    let y = ty
+    if (!unbounded) y -= h + 60 * z
+    const tries: [number, number][] = []
+    tries.push([x, y])
+    x -= Math.trunc(w / 2); tries.push([x, y])
+    x += w; tries.push([x, y])
+    x = tx - 16 * z - w; y = ty - 16 * z - h; tries.push([x, y])
+    x += w + 64 * z; tries.push([x, y])
+    x = tx + 16 * z - Math.trunc(w / 2); y = ty; tries.push([x, y])
+    x -= Math.trunc(w / 2); tries.push([x, y])
+    x += w; tries.push([x, y])
+    for (const [px, py] of tries) if (fits(px, py)) return { x: px - tx, y: py - ty }
+    return { x: tx + 16 * z - Math.trunc(w / 2) - tx, y: -(h + 60 * z) }
+}
+
+// Called once per frame by the renderer: `tileScreen` gives a tile's screen position
+// (CE tileToScreenXY) in canvas pixels, `z` the zoom, viewW / viewH the game view.
+export function updateFloatText(tileScreen: (tile: Point) => Point, z: number, viewW: number, viewH: number): void {
     const live = new Set<object>()
-    const stackBottom = new Map<object, number>()
     const parent = ensureLayer()
     for (const fm of globalState.floatMessages as any[]) {
         let c = canvases.get(fm)
+        const tile: Point = fm.tile ?? globalState.centerTile
+        const ts = tileScreen(tile)
         if (!c) {
-            const built = buildCanvas({ msg: fm.msg, color: fm.color ?? FLOAT_MSG_COLOR[0], outline: fm.outline === undefined ? FLOAT_OUTLINE_BLACK : fm.outline, font: fm.font })
+            const built = buildCanvas({ msg: fm.msg, color: fm.color ?? FLOAT_MSG_COLOR[0], outline: fm.outline === undefined ? FLOAT_OUTLINE_BLACK : fm.outline, font: fm.font }, fm)
             if (!built) continue
             c = built
             canvases.set(fm, c)
             parent.appendChild(c)
+            fm.offset = findPlacement(c.width, c.height, ts.x, ts.y, !fm.tile, z, viewW, viewH)
         }
         live.add(fm)
-        const a = anchor(fm.obj)
-        if (!a) { c.style.display = 'none'; continue }
-        const bottom = stackBottom.get(fm.obj) ?? Math.round(a.y)
-        stackBottom.set(fm.obj, bottom - c.height)
         c.style.display = 'block'
-        c.style.left = Math.round(a.x - c.width / 2) + 'px'
-        c.style.top = (bottom - c.height) + 'px'
+        c.style.left = Math.round(ts.x + fm.offset.x) + 'px'
+        c.style.top = Math.round(ts.y + fm.offset.y) + 'px'
     }
     for (const [fm, c] of canvases) {
         if (!live.has(fm)) {

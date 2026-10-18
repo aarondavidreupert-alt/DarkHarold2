@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { addFloatMessage } from './floatText.js'
 import { ammoGetCapacity, ammoGetQuantity } from './weaponAmmo.js'
 import { heart } from './heart.js'
 import { hexFromScreen, hexNeighbors, hexDistance } from './geometry.js'
@@ -97,7 +98,7 @@ function skillPerformer(skill: Skills, target: Obj): Critter {
     const line = getMessage('skill', id)
     if (line) {
         // textObjectAdd(partyMember, msg, 101, _colorTable[32747], _colorTable[0])
-        globalState.floatMessages.push({ msg: line, obj: best, startTime: window.performance.now(), color: '#ffff5a', outline: '#000000' })
+        addFloatMessage({ msg: line, obj: best, startTime: window.performance.now(), color: '#ffff5a', outline: '#000000' })
     }
     if (nextToPlayer) return player
     best.clearAnim()

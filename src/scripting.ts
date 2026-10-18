@@ -18,7 +18,7 @@ Scripting system/engine for DarkFO
 
 import { Events } from './events.js'
 import { isPartyMemberPid } from './party.js'
-import { FLOAT_MSG_COLOR } from './floatText.js'
+import { addFloatMessage, FLOAT_MSG_COLOR } from './floatText.js'
 import { sfxBuildOpenName } from './sfxNames.js'
 import { FIDGET_BAD, FIDGET_GOOD, FIDGET_NEUTRAL, GAME_DIALOG_REACTION_NEUTRAL, reactToOption, startLips, startTalkingHead, talkToCritterReacts, isTalkingHeadActive } from './talkingHead.js'
 import { gameMoviePlay, SCRIPT_MOVIE_FLAGS } from './gameMovie.js'
@@ -2622,7 +2622,7 @@ export module Scripting {
                 floatMsgLastColor = floatMsgLastColor + 1 >= 13 ? 1 : floatMsgLastColor + 1
                 type = floatMsgLastColor
             }
-            globalState.floatMessages.push({
+            addFloatMessage({
                 msg: msg,
                 obj: obj, // CE opFloatMessage: over the object passed in (was this.self_obj)
                 startTime: window.performance.now(),

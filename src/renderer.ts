@@ -299,16 +299,14 @@ export class Renderer {
 
         //this.text("fps: " + heart.timer.getFPS(), SCREEN_WIDTH - 50, 15)
 
-        // Group float messages by anchor object so stacked messages don't
-        // overlap. CE ref: actions.cc _show_damage_to_object — textObjectAdd
-        // queues vertically with collision avoidance.
-        // Float messages are anchored to world objects but kept at a fixed text
-        // size: project the anchor through the zoom; floatText.ts draws them in the
-        // CE interface font (text_object.cc textObjectAdd) in a DOM layer.
-        updateFloatText((obj) => {
-            const bbox = objectBoundingBox(obj)
-            return bbox === null ? null : worldToScreen(bbox.x + bbox.w / 2, bbox.y)
-        })
+        // Float messages (CE text_object.cc) stay on their tile at a fixed text size;
+        // floatText.ts places them (textObjectFindPlacement) and draws them in the CE
+        // interface font in a DOM layer. CE tileToScreenXY is the tile's top-left:
+        // hexToScreen gives the sprite anchor (tile + 16, + 8).
+        updateFloatText((tile) => {
+            const scr = hexToScreen(tile.x, tile.y)
+            return worldToScreen(scr.x - 16, scr.y - 8)
+        }, getZoom(), SCREEN_WIDTH, SCREEN_HEIGHT)
 
         if (globalState.player.dead) {
             this.color(255, 0, 0, 50)

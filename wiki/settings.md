@@ -245,178 +245,44 @@ Note: `combat_messages` storage is inverted in the source — stored value 0 = v
 
 ### 4.1 Architecture
 
-> **Update 2026-10-15:** DH2 now reads `fallout2.cfg` at startup (`src/ui_options/fallout2Cfg.ts`, CE `configParseLine` / `settingsFromConfig`). The pipeline's `write_config` stage (`tools/fallout2Cfg.py`) writes it with CE `gameConfigInit` defaults plus a `[dh2]` section, and never overwrites an existing file. There is still no write-back (S-CI5). The text below describes the earlier state.
+`src/config.ts` holds the defaults (CE `settings.h` values; `Config` is also `window.Config`). At startup `src/ui_options/fallout2Cfg.ts` reads `fallout2.cfg` (CE `configParseLine` / `settingsFromConfig`): `[preferences]`, `[sound]`, `[system]` keys that matter in a browser, plus a `[dh2]` section for DH2-only options (window dragging, overlays, edge scroll, Pip-Boy at start, day/night curve …, see README). The asset pipeline's `write_config` stage (`tools/fallout2Cfg.py`) creates the file with CE `gameConfigInit` defaults and never overwrites it. Changes made in the Preferences window are kept in `localStorage` (`dh2_preferences`) and win over the file — a browser can't write the file back (S-CI5).
 
-DH2 had **no fallout2.cfg**. All configuration lives in a hard-coded in-memory TypeScript object (`src/config.ts`) with a separate localStorage layer for the subset of settings exposed in the in-game preferences panel. There is no `configRead()` or `configWrite()`. `Config` is also exposed as `window.Config` for browser DevTools inspection and live-mutation.
+### 4.2 Preferences (CE `preferences.cc`)
 
-```typescript
-// config.ts:141
-if (typeof window !== 'undefined') {
-    ;(window as any).Config = Config
-}
-```
+The Preferences window (`src/ui_options.ts buildPrefsPanel`) is CE's at CE pixel positions: the five 4-way knobs (game / combat difficulty, violence, target highlight, combat looks), the six toggles (combat messages, taunts, language filter, running, subtitles, item highlight), the sliders (combat speed + player speedup, text delay, the four volumes, brightness, mouse sensitivity) and DEFAULT / DONE / CANCEL. DEFAULT is `preferencesSetDefaults` (incl. the volumes at 22281 / 32767); CANCEL restores the values from when the window opened.
 
-### 4.2 Config Structure
+| CE key | DH2 field | CE default | Consumed in |
+|--------|-----------|------------|-------------|
+| `game_difficulty` | `Config.combat.gameDifficultyModifier` (75 / 100 / 125) | 1 (Normal) | skills, encounter rate / pick / count |
+| `combat_difficulty` | `Config.combat.difficultyModifier` | 1 | combat damage |
+| `violence_level` | `Config.combat.violenceLevel` | 3 (Maximum Blood) | death animations, blood (`critter/deathAnim.ts`, `lifecycle.ts`), `metarule VIOLENCE_FILTER` |
+| `target_highlight` | `Config.ui.targetHighlight` (off / on / targeting-only) | targeting only | combat outlines |
+| `combat_looks` | `Config.ui.combatLooks` | off | HUD look messages |
+| `combat_messages` | `Config.ui.combatMessages` | verbose | critical-hit lines |
+| `combat_taunts` | `Config.ui.combatTaunts` | on | AI taunts |
+| `language_filter` | `Config.ui.languageFilter` | off | `metarule LANGUAGE_FILTER` |
+| `running` | `Config.engine.doAlwaysRun` | off | walking / running |
+| `subtitles` | `Config.ui.subtitles` | off | movie / slide subtitles |
+| `item_highlight` | `Config.ui.itemHighlight` | on | item outlines (Tab) |
+| `combat_speed`, `player_speedup` | `Config.combat.combatSpeed`, `Config.engine.playerSpeedup` | 0, off | walk fps in combat |
+| `text_base_delay` | `Config.ui.textBaseDelay` | 3.5 | float text time (line delay derived as CE) |
+| `brightness`, `mouse_sensitivity` | `Config.ui.brightness`, `Config.ui.mouseSensitivity` | 1.0 | brightness filter; sensitivity stored only |
+| `running_burning_guy` | `Config.combat.runningBurningGuy` | on | `metarule3` / death anim |
+| `master_volume` … `speech_volume` | `audioEngine` (0–100) | 22281 / 32767 | Web Audio gains |
 
-| DH2 namespace | CE section | Purpose |
-|---------------|-----------|---------|
-| `Config.ui` | `preferences` (partial) | Display, overlays, combat messages |
-| `Config.engine` | `system` + `preferences` (partial) | Feature flags, script/render toggles |
-| `Config.combat` | `preferences` (partial) | Difficulty, speed, violence |
-| `Config.controls` | — (no CE equivalent) | Keyboard bindings |
-| `Config.scripting.debugLogShowType` | `debug` (partial) | Per-category log flags |
+### 4.3 DH2-only switches
 
-### 4.3 Key-by-Key Mapping
+Debug and engine toggles (`Config.ui.show*`, `Config.engine.*`, `Config.scripting.debugLogShowType`) have no CE key; the user-facing ones are `[dh2]` keys and console commands (README → Configuration).
 
-**Gameplay-relevant preferences:**
+### 4.4 URL Query Parameter
 
-| CE key | CE section | DH2 field | DH2 default | Notes |
-|--------|-----------|-----------|-------------|-------|
-| `game_difficulty` | preferences | `Config.combat.gameDifficultyModifier` | `100` | DH2 encodes as modifier: 75=Easy, 100=Normal, 125=Hard. **FIXED 2026-07-04 (S-CI2)**: now a field separate from combat_difficulty, driving skill checks + encounter rate. |
-| `combat_difficulty` | preferences | `Config.combat.difficultyModifier` | `100` | Same 75/100/125 encoding; damage multiplier only. Separate field from `game_difficulty` as of the S-CI2 fix. |
-| `violence_level` | preferences | `Config.combat.violenceLevel` | `2` | CE values match: 0=None, 1=Minimal, 2=Normal, 3=Maximum. DH2 default is 2 (Normal); CE default is 3 (Maximum Blood). |
-| `target_highlight` | preferences | `Config.ui.targetHighlight` | `true` | DH2 uses bool; CE uses 0/1/2. CE's "Targeting Only" mode has no DH2 equivalent (see §7 gap S-CI9). |
-| `combat_messages` | preferences | `Config.ui.combatMessages` | `'verbose'` | CE: 0=Verbose, 1=Brief (stored inverted). DH2 uses string literals. |
-| `running` | preferences | `Config.engine.doAlwaysRun` | `true` | CE default is false (walk). DH2 default is true (always run) — see §7 gap S-CI4. |
-| `subtitles` | preferences | `Config.ui.subtitles` | `false` | Match. DH2 has no speech audio, so this is moot. |
-| `combat_speed` | preferences | `Config.combat.combatSpeed` | `2` | CE: 0–50 integer, 0=slowest, 50=fastest. DH2: discrete values 1/2/4 where 1=Slow, 4=Fast. Inverse-scale semantics — see §7 gap S-CI3. |
-| `master_volume` | sound | `audioEngine.masterVolume` | — | DH2 uses 0–100 float via Web Audio GainNode; CE uses 0–32767 integer. |
-| `music_volume` | sound | `audioEngine.musicVolume` | — | Same scale difference. |
-| `sndfx_volume` | sound | `audioEngine.sfxVolume` | — | Same scale difference. |
-
-**Debug/render toggles (DH2-only, no CE key):**
-
-| DH2 field | Default | Description |
-|-----------|---------|-------------|
-| `Config.ui.showHexOverlay` | `false` | Hex grid overlay |
-| `Config.ui.showCoordinates` | `false` | Tile coordinates on hex grid |
-| `Config.ui.showPath` | `false` | Player path visualization |
-| `Config.ui.showBoundingBox` | `false` | Object bounding boxes |
-| `Config.engine.debug` | `true` | Enable `src/debug.ts` utilities |
-| `Config.engine.doDisasmOnUnimplOp` | `true` | Disassemble script on unknown opcode |
-| `Config.engine.doLogLazyLoads` | `false` | Log image lazy-loads |
-| `Config.engine.corpseTimeout` | `0` | Seconds until empty corpse removal (0=never) |
-| `Config.combat.damageCalculationType` | `0` | 0=Vanilla, 1=Glovz, 2=Glovz+MultTweak, 5=YAAM |
-
-### 4.4 SavedPreferences (localStorage Persistence)
-
-The subset of preferences exposed in the in-game preferences panel (`ui_options.ts`) is serialised to JSON and stored in `localStorage` under key `'dh2_preferences'` (`ui_options.ts:52`). Read back by `loadPreferences()` on the next session.
-
-Persisted fields:
-
-| localStorage key | Config target |
-|-----------------|--------------|
-| `difficultyModifier` | `Config.combat.difficultyModifier` |
-| `gameDifficultyModifier` | `Config.combat.gameDifficultyModifier` |
-| `combatSpeed` | `Config.combat.combatSpeed` |
-| `violenceLevel` | `Config.combat.violenceLevel` |
-| `targetHighlight` | `Config.ui.targetHighlight` |
-| `combatMessages` | `Config.ui.combatMessages` |
-| `doAlwaysRun` | `Config.engine.doAlwaysRun` |
-| `subtitles` | `Config.ui.subtitles` |
-| `masterVolume` | `audioEngine.masterVolume` |
-| `musicVolume` | `audioEngine.musicVolume` |
-| `sfxVolume` | `audioEngine.sfxVolume` |
-
-`speech_volume` is not persisted. Game and combat difficulty modifiers are separate CE concepts mapped to the same `difficultyModifier` value.
-
-### 4.5 Persisted Options Panel Controls
-
-DH2's in-game preferences panel (`UIMode.options` = 15) is built lazily via `buildPrefsPanel()`, opened from the Options menu (Preferences button or `P` key), and closed on DONE. `loadPreferences()` is called at startup to restore from `localStorage`. There is no CANCEL equivalent — changes take effect immediately. There is no DEFAULT button.
-
-The panel exposes 10 controls:
-
-> **Note (2026-07-04):** `buildPrefsPanel()` has been substantially rewritten
-> since this table was last fully audited (2026-06-02) — it now positions
-> controls at exact CE pixel coordinates via `primaryKnob`/`checkboxBtn`/
-> `redButton` helpers and has more than 10 rows. Only the Game/Combat
-> Difficulty row below has been re-verified as part of the S-CI2 fix; the
-> rest of this table may be stale and needs a full re-pass.
-
-| DH2 label | CE equivalent | DH2 Config field | Values | Default |
-|-----------|--------------|-----------------|--------|---------|
-| Game Difficulty | `game_difficulty` | `Config.combat.gameDifficultyModifier` | 75=Easy, 100=Normal, 125=Hard | 100 |
-| Combat Difficulty | `combat_difficulty` | `Config.combat.difficultyModifier` | 75=Easy, 100=Normal, 125=Hard | 100 |
-| Combat Speed | `combat_speed` | `Config.combat.combatSpeed` | 1=Slow, 2=Normal, 4=Fast | 2 |
-| Violence Level | `violence_level` | `Config.combat.violenceLevel` | 0–3 | 2 |
-| Target Highlight | `target_highlight` | `Config.ui.targetHighlight` | true/false | true |
-| Combat Messages | `combat_messages` | `Config.ui.combatMessages` | 'brief'/'verbose' | 'verbose' |
-| Running | `running` | `Config.engine.doAlwaysRun` | true/false | true |
-| Subtitles | `subtitles` | `Config.ui.subtitles` | true/false | false |
-| Master Volume | `master_volume` | audioEngine (0–100) | 0–100 | 100 |
-| Music Volume | `music_volume` | audioEngine (0–100) | 0–100 | 100 |
-| SFX Volume | `sndfx_volume` | audioEngine (0–100) | 0–100 | 100 |
-
-### 4.6 Config Fields Not Exposed in Panel
-
-Several `Config` fields map to CE preferences but are not accessible in the panel:
-
-| Config field | CE equivalent | Status |
-|-------------|--------------|--------|
-| `Config.combat.damageCalculationType` | *(no CE equivalent — DH2-only)* | Hardcoded 0=Vanilla; not a user option |
-| `Config.engine.doAlwaysRun` | `running` | Wired (in panel) |
-| `Config.ui.showRoof`, `showFloor`, `showObjects`, etc. | *(debug toggles)* | Dev-only, keyboard shortcuts in `main.ts` |
-| `Config.scripting.debugLogShowType.*` | *(no CE equivalent)* | Dev-only logging flags |
-| `Config.controls.*` | *(key bindings)* | Hardcoded; no UI to remap |
-
-### 4.7 Consumption of Preferences in DH2
-
-How each setting's stored value actually affects gameplay:
-
-| CE preference | DH2 Config field | Consumed in | Effect |
-|--------------|-----------------|-------------|--------|
-| `game_difficulty` | `Config.combat.gameDifficultyModifier` | `skills.ts:187` (skill modifier), `encounters.ts` (encounter rate) | 75=Easy: +20% on difficulty-affected skills, reduced encounter rate. 125=Hard: -10% skills, increased encounter rate. **FIXED 2026-07-04 (S-CI2)**: now a field separate from `combat_difficulty`. |
-| `combat_difficulty` | `Config.combat.difficultyModifier` | `combat/Combat.ts:333,398` (damage) | 75=Easy: reduced incoming combat damage. 125=Hard: increased damage. Separate field from `game_difficulty` as of the S-CI2 fix. |
-| `running` | `Config.engine.doAlwaysRun` | `main.ts:190,213,231`, `object.ts` | Controls whether player walks or runs by default when moving. Fully wired. |
-| `violence_level` | `Config.combat.violenceLevel` | *(not consumed)* | Stored in Config; no code reads it for death animation gating. No effect — see §7 gap S-CI2b. |
-| `combat_speed` | `Config.combat.combatSpeed` | *(not consumed)* | Stored in Config; no combat loop reads it for delays. No effect — see §7 gap S-CI3. |
-| `target_highlight` | `Config.ui.targetHighlight` | *(not consumed)* | Stored in Config; nothing reads it to control enemy highlighting. No effect — see §7 gap S-CI9. |
-| `combat_messages` | `Config.ui.combatMessages` | *(not consumed)* | Stored in Config; combat log message formatting does not read it. No effect. |
-| `subtitles` | `Config.ui.subtitles` | *(not consumed)* | Stored in Config; no speech audio path exists. No effect — see §7 gap S-CI8. |
-| `master_volume`, `music_volume`, `sndfx_volume` | `audioEngine.setVolume()` | `audio.ts` Web Audio API gain nodes | Fully wired. Volumes affect all sounds immediately. |
-| `speech_volume` | *(not in SavedPreferences)* | — | Not persisted. CE speech volume separate from SFX; DH2 has no speech audio. |
-
-### 4.8 URL Query Parameter
-
-`init.ts:45` reads `location.search` to determine the startup map:
-
-```typescript
-const mapFromQuery = location.search !== '' ? location.search.slice(1) : null
-// Usage: http://localhost/?artemple  → loads artemple directly, bypassing main menu
-```
-
-This is a developer shortcut with no CE equivalent.
+`?mapname` in the URL loads that map directly (developer shortcut, no CE equivalent).
 
 ---
 
 ## 5. CE Options Window (`options.cc`)
 
-CE `options.cc` implements the in-game pause/options overlay — a separate window from the Preferences window in `preferences.cc`. It is opened when the player presses Escape or clicks the Menu button on the HUD.
-
-The Options window presents a row of 6 action buttons plus the same 5 audio sliders that appear in the Preferences window:
-
-| Button | Action |
-|--------|--------|
-| Done | Close the overlay and resume play |
-| Save Game | Open the save-game screen |
-| Load Game | Open the load-game screen |
-| Preferences | Open the Preferences window (launches `doPreferences()`) |
-| Credits | Play the credits sequence |
-| Exit to DOS | Quit the game entirely |
-
-Audio sliders (Master, Music, SFX, Speech, Brightness) are inline copies of the Preferences sliders, sharing the same `settings.sound.*` / `settings.preferences.brightness` storage.
-
-### 5.1 DH2 Equivalent
-
-`UIMode.options` (= 15) panel in `src/ui_options.ts`, opened via the "Menu" HUD button (wired in `src/ui.ts`). The panel is a `WindowFrame` overlay built by `buildPrefsPanel()`.
-
-DH2 collapses the Options overlay and Preferences window into a single panel; CE keeps them as separate windows.
-
-**DH2 gaps vs CE `options.cc`:**
-- No CANCEL button: changes to sliders are applied immediately; CE reverts on Cancel via `_RestoreSettings()`.
-- No DEFAULT / reset-to-defaults button: CE's Preferences sub-window has a DEFAULT button that calls `preferencesSetDefaults(true)`.
-- No Credits button: credits sequence not implemented.
-- No Exit to DOS equivalent beyond closing the browser tab.
+The game menu (Escape / Menu button): SAVE GAME, LOAD GAME, PREFERENCES, EXIT GAME, DONE (keys S, L, P, E / Ctrl+Q / Ctrl+X / F10, O / D / Enter); `+` / `-` change the brightness. DH2 (`src/ui_options.ts initOptionsMenu`) has the same buttons and keys; the Preferences window is CE's separate window (§4.2). Credits are on the main menu, as in CE.
 
 ---
 
@@ -454,48 +320,16 @@ duration = gTextObjectsBaseDelay + (lineCount - 1) × gTextObjectsLineDelay
 
 ### 6.2 DH2 Equivalent
 
-| CE component | DH2 equivalent | Location |
-|-------------|---------------|---------|
-| `TextObject` pool (max 20) | `globalState.floatMessages[]` array | `src/globalState.ts:74` |
-| `textObjectsRenderInRect` | Float message render loop | `src/renderer.ts:207–216` |
-| Duration / expiry check | `main.ts:1011–1013` | Compared against `Config.ui.floatMessageDuration` |
-| `float_msg` opcode (0x810A) | `Script.float_msg()` | `src/scripting.ts`; wired in `src/vm_bridge.ts` |
-
-`Config.ui.floatMessageDuration` is fixed at 3 seconds (equivalent to CE's base delay default of 3.5 s, but not configurable at runtime).
-
-### 6.3 DH2 Gaps vs CE
-
-| Gap | CE behaviour | DH2 behaviour |
-|-----|-------------|--------------|
-| Configurable duration | `text_base_delay` preference (1–6 s) fed into `textObjectsSetBaseDelay()` | Fixed 3 s (`Config.ui.floatMessageDuration`); preference not wired |
-| Per-line delay | `gTextObjectsLineDelay = 1399 ms` × extra lines | Not implemented; all messages use the flat duration |
-| Collision avoidance | `textObjectFindPlacement` checks active objects and shifts upward to avoid overlap | No placement logic; messages may stack on the same pixel |
-| Font / color / outline | `textObjectAdd` accepts font, foreground color, and outline color; each message can differ | Font/color/outline ignored; DH2 renders plain HTML text |
-| Maximum concurrent | Hard cap of 20 via `TEXT_OBJECTS_MAX_COUNT` | No cap; array grows unbounded (small in practice) |
+`src/floatText.ts` ports `textObjectAdd`: at most 20 messages; a new message of an owner replaces its old one (`textObjectsRemoveByOwner`); the text is word-wrapped at 200 px in the interface font (101, 103 for warnings), lines centred `lineHeight + 1` apart, drawn on black and outlined (`bufferOutline`); it stays on the tile the owner stood on, placed by `textObjectFindPlacement` (centred 60 px above the tile, else the fallback spots that fit the view). The display time is `text_base_delay` + the CE line delay × the wrapped line count (`gameTick.ts`). Callers use `addFloatMessage`.
 
 ---
 
 ## 7. Known Gaps
 
-Gaps prefixed `S-CI` were originally `CI` in `config_ini.md`; prefixed `S-PR` were originally from `preferences.md`.
+| ID | Description | Status |
+|----|-------------|--------|
+| S-CI5 | Preferences changed in the game are kept in `localStorage`, not written back to `fallout2.cfg` (a browser can't write the file). | browser limit |
+| S-CI10 | CE `[system]` keys for DAT paths, art cache, `times_run` … have no meaning with pre-baked assets. | N/A (by design) |
+| — | `mouse_sensitivity` is stored and shown but doesn't scale the browser's pointer. | browser limit |
 
-| ID | Description | File(s) | CE Reference | Sev | Status |
-|----|-------------|---------|--------------|-----|--------|
-| S-CI1 | **No fallout2.cfg — all config is hardcoded.** DH2 has no file-based config; defaults are baked into `Config` in `src/config.ts`. User cannot change settings by editing a file between sessions. | `src/config.ts` | `config.cc:273 configRead()`; `game_config.h:8` | minor | **FIXED** — read at startup; created by the `write_config` pipeline stage (2026-10-15) |
-| S-CI2 | ✅ FIXED 2026-07-04 — `Config.combat.gameDifficultyModifier` (skill checks, `skill.cc:1129`; encounter rate, `worldmap.cc:3406`) is now separate from `Config.combat.difficultyModifier` (damage only, `combat.cc:4552-4572`). The two can now be mixed independently (e.g. Hard game difficulty with Easy combat difficulty), matching CE. No CE loot/XP effect from `game_difficulty` was actually found in source — that part of the original gap description didn't hold up. | `src/config.ts`; `src/skills.ts`; `src/worldmap/encounters.ts`; `src/ui_options.ts`; `src/ui_options/preferences.ts` | `settings.h:29-31`; `skill.cc:1129`; `worldmap.cc:3406`; `combat.cc:4552-4572` | minor | fixed |
-| S-CI2b | **Violence Level stored but not gated.** `Config.combat.violenceLevel` is set by the panel and persisted, but no code checks it before playing death animations or gore FX. All deaths render with full animation regardless of setting. | `src/combat.ts` | `preferences.cc` violence_level checks | minor | missing |
-| S-CI3 | **`combat_speed` uses inverse/incompatible scale.** CE: integer 0–50 where 0=slowest (maximum ms-per-frame delay) and 50=fastest. DH2: discrete values 1/2/4 where 1=Slow, 4=Fast. Semantics are reversed and not directly translatable. Additionally, `Config.combat.combatSpeed` is not consumed at runtime — no combat loop reads it. | `src/config.ts:67` | `preferences.cc:382`; `game_config.h:44` | low | bug |
-| S-CI4 | **`running` defaults differ.** CE default is `false` (walk by default); DH2 `doAlwaysRun` defaults to `true` (always run). Affects feel for new players. | `src/config.ts:41` | `settings.h:38` | low | bug |
-| S-CI5 | **Preferences stored in localStorage, not fallout2.cfg.** On platforms where localStorage is cleared (private browsing, cache clear), preferences reset. CE writes back to fallout2.cfg on exit. | `src/ui_options/preferences.ts` | `settings.cc:118 settingsToConfig()`; `config.cc:313 configWrite()` | minor | missing |
-| S-CI6 | **`speech_volume` not persisted.** The CE `speech_volume` key is loaded and saved. DH2 `savePreferences()` omits `sfxVolume`'s speech equivalent entirely. | `src/ui_options/preferences.ts` | `settings.cc:93` | low | bug |
-| S-CI7 | **`item_highlight` setting absent.** CE lets users toggle item-highlighting on cursor hover. DH2 has no `item_highlight` Config field or UI toggle. | `src/config.ts` | `game_config.h:37`; `settings.h:33` | low | missing |
-| S-CI8 | **No `text_base_delay` / `text_line_delay`.** CE auto-expires floating text after a configurable delay (default 3.5s). DH2 uses a fixed `floatMessageDuration = 3s` with no per-line delay and no collision avoidance (see §6.3 for full gap list). | `src/config.ts` | `game_config.h:46-47`; `settings.h:42-43`; `text_object.cc` | low | missing |
-| S-CI9 | **`target_highlight` loses "Targeting Only" mode.** CE has three states (Off/Targeting Only/All). DH2 collapses this to a boolean; the intermediate "Targeting Only" state is unavailable. Also, `Config.ui.targetHighlight` is not consumed at runtime — enemies are never highlighted regardless of setting. | `src/ui_options.ts` | `game_config.h:36`; `game_config.h:111-115 TargetHighlight enum` | low | bug |
-| S-CI10 | **CE system keys entirely absent.** `master_dat`, `master_patches`, `critter_dat`, `language`, `art_cache_size`, `times_run`, etc. have no DH2 equivalents — assets are pre-baked and paths are hard-coded in the asset pipeline. | `src/config.ts` | `settings.h:10-26` | — | N/A (by design) |
-| S-PR1 | **No CANCEL in preferences panel.** CE `_RestoreSettings()` reverts the session's values on Cancel. DH2 applies all changes immediately with no revert path. | `src/ui_options.ts` | `preferences.cc _RestoreSettings()` | low | missing |
-| S-PR2 | **No DEFAULT button.** CE `preferencesSetDefaults(true)` resets all settings to factory values. DH2 has no equivalent. | `src/ui_options.ts` | `preferences.cc preferencesSetDefaults()` | low | missing |
-| S-PR3 | **`combat_messages` and `combat_looks` and `combat_taunts` not consumed.** Stored in Config / panel, but the combat log and AI message systems do not read them at runtime. | `src/combat.ts` | `preferences.cc` | low | missing |
-| S-PR4 | **`brightness` has no WebGL equivalent.** CE adjusts the global colour palette via `colorSetBrightness()`, a palette-level operation. DH2 uses WebGL 2.0 with per-tile colour LUTs; there is no global brightness knob. Implementing it would require a uniform in the fragment shader. | `src/config.ts` | `preferences.cc brightnessIncrease/Decrease` | low | missing |
-| S-PR5 | **`language_filter`, `running_burning_guy` absent.** These CE preferences have no DH2 Config field or panel equivalent. | `src/config.ts` | `settings.h` | low | missing |
-
-<!-- audited: 2026-06-02 -->
+Fixed since the last audit: fallout2.cfg reading (S-CI1), separate game / combat difficulty (S-CI2), violence level (S-CI2b), combat speed (S-CI3, C50), running default (S-CI4), speech volume (S-CI6), item highlight (S-CI7), text delays (S-CI8), three-state target highlight (S-CI9), CANCEL / DEFAULT (S-PR1/2), combat messages / looks / taunts (S-PR3), brightness (S-PR4), language filter and running burning guy (S-PR5); 2026-10-18: CE defaults for violence (3) and target highlight (targeting only), DEFAULT sets combat messages to verbose and resets the volumes, float text as `textObjectAdd`. <!-- audited: 2026-10-18 -->

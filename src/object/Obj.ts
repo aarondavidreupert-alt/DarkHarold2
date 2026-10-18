@@ -17,6 +17,7 @@ limitations under the License.
 // Obj base class + top-of-file helpers + SerializedObj interface.
 // Split out of object.ts per wiki/ts-split-refactor.md §2.
 
+import { addFloatMessage } from '../floatText.js'
 import * as GameTime from '../gametime.js'
 import { playCharSfx, playOpenSfx, sfxBuildCharName, SCENERY_SOUND_EFFECT } from '../sfxNames.js'
 import { ammoFromRounds, ammoGetCapacity, ammoGetQuantity, ammoMergeInto, ammoSplitOff, initWeaponAmmo } from '../weaponAmmo.js'
@@ -1294,7 +1295,7 @@ export class Obj {
         // CE ref: item.cc itemAttemptAdd — refuse pickup if the player is over
         // their carry weight. Floats the standard "you can't carry any more" message.
         if (!source.canCarry(this, this.amount ?? 1)) {
-            globalState.floatMessages.push({
+            addFloatMessage({
                 msg: "You can't carry any more.",
                 obj: source, color: 'white', startTime: window.performance.now(),
             })

@@ -184,7 +184,7 @@ export function tickGame(): void {
         const fm = globalState.floatMessages[i]
         const baseDelay = Config.ui.textBaseDelay
         const lineDelay = (baseDelay - 1.0) * 0.4
-        const lineCount = (fm.msg.match(/\n/g)?.length ?? 0) + 1
+        const lineCount = fm.lines ?? (fm.msg.match(/\n/g)?.length ?? 0) + 1 // CE linesCount after word wrap
         const expiryMs = (baseDelay + lineDelay * lineCount) * 1000
         if (time >= fm.startTime + expiryMs) {
             globalState.floatMessages.splice(i--, 1)

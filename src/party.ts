@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { addFloatMessage } from './floatText.js'
 import globalState from './globalState.js'
 import { dbg } from './logger.js'
 import { Critter, deserializeObj, SerializedObj } from './object.js'
@@ -132,7 +133,7 @@ export class Party {
             if (fmt) uiLog(fmt.replace('%s', name))
             const individual = getMessage('misc', 9000 + 10 * desc.index + info.level - 1)
             if (individual) {
-                globalState.floatMessages.push({ msg: individual.replace('%s', name), obj, startTime: window.performance.now(), color: 'white' })
+                addFloatMessage({ msg: individual.replace('%s', name), obj, startTime: window.performance.now(), color: 'white' })
             }
             dbg('party', `${name} reached party level ${info.level}`)
         }

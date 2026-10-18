@@ -75,7 +75,7 @@ export const Config = {
         showFonts: false, // show all fonts for debugging?
         // FO2-CE ref: preferences.cc TargetHighlight enum (game_config.h:111)
         //   0=off, 1=on (always), 2=targeting-only (only while attack cursor)
-        targetHighlight: 'on' as 'off' | 'on' | 'targeting-only',
+        targetHighlight: 'targeting-only' as 'off' | 'on' | 'targeting-only', // CE settings.h default
         // FO2-CE ref: settings.h:33 item_highlight — persistent preference
         // (default true), not a held key. While on, whatever single item is
         // under the mouse cursor gets outlined (see input.ts mousemoved).
@@ -258,7 +258,7 @@ export const Config = {
         // fps in combat (animationComputeTicksPerFrame) — higher is faster.
         combatSpeed: 0,
         // FO2-CE ref: preferences.cc — VIOLENCE_LEVEL: 0=none, 1=minimum, 2=normal, 3=maximum
-        violenceLevel: 2 as 0 | 1 | 2 | 3,
+        violenceLevel: 3 as 0 | 1 | 2 | 3, // CE settings.h: VIOLENCE_LEVEL_MAXIMUM_BLOOD
     },
 
     // DH2 developer keys (Config.engine.devKeys) and the camera arrows. The game keys are

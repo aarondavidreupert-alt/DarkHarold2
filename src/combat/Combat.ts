@@ -15,6 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { addFloatMessage } from '../floatText.js'
 import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, ammoUseTopBox, findReloadAmmo, weaponGetBurstRounds, weaponReload } from '../weaponAmmo.js'
 import { AudioEngine } from '../audio.js'
 import { Config } from '../config.js'
@@ -1750,7 +1751,7 @@ export class Combat {
         if (globalState.floatMessages.length > 0) return // _ai_print_msg: textObjectsGetCount() > 0
         // CE combat_ai.cc:3401 — the AI packet's font / color / outline_color
         // (ai.txt: 101, palette 58, palette 55 for every packet).
-        globalState.floatMessages.push({
+        addFloatMessage({
             msg, obj, startTime: window.performance.now(), color: '#e4d80c', outline: '#1c0c18',
         })
     }

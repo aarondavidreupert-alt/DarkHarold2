@@ -406,7 +406,7 @@ function buildPrefsPanel(): HTMLElement {
         Config.combat.violenceLevel = 3
         Config.ui.targetHighlight = 'targeting-only'
         Config.ui.combatLooks = false
-        Config.ui.combatMessages = 'brief'
+        Config.ui.combatMessages = 'verbose' // CE combat_messages = 1 (msg 211 Verbose)
         Config.ui.combatTaunts = true
         Config.ui.languageFilter = false
         Config.engine.doAlwaysRun = false
@@ -417,6 +417,8 @@ function buildPrefsPanel(): HTMLElement {
         Config.ui.textBaseDelay = 3.5
         Config.ui.brightness = 1.0
         Config.ui.mouseSensitivity = 1.0
+        // CE: the four volumes back to 22281 of 32767
+        for (const v of ['master', 'music', 'sfx', 'speech'] as const) globalState.audioEngine.setVolume(v, Math.round(22281 * 100 / 32767))
         applyBrightness()
         refreshFns.forEach(f => f())
     })
@@ -427,9 +429,14 @@ function buildPrefsPanel(): HTMLElement {
         closePrefsPanel()
     })
 
-    // CANCEL — close without saving (live Config changes during session remain;
-    // full CE cancel-restore would need a snapshot taken at panel open).
-    redButton(263, 450, () => { closePrefsPanel() })
+    // CANCEL — CE _RestoreSettings: back to the values the window opened with.
+    redButton(263, 450, () => {
+        prefsRestore?.()
+        closePrefsPanel()
+        // rebuilt on the next open so the controls show the restored values
+        prefsPanel?.remove()
+        prefsPanel = null
+    })
 
     // ── Text labels ───────────────────────────────────────────────────────────
     // All coordinates sourced from preferences.cc fontDrawText() calls.
@@ -595,7 +602,33 @@ function buildPrefsPanel(): HTMLElement {
     return panel
 }
 
+// CE preferences.cc _SavePrefs / _RestoreSettings: the preferences as they were when the
+// window opened, put back by CANCEL.
+let prefsRestore: (() => void) | null = null
+function snapshotPrefs(): () => void {
+    const combat = {
+        gameDifficultyModifier: Config.combat.gameDifficultyModifier, difficultyModifier: Config.combat.difficultyModifier,
+        violenceLevel: Config.combat.violenceLevel, combatSpeed: Config.combat.combatSpeed,
+    }
+    const ui = {
+        targetHighlight: Config.ui.targetHighlight, combatLooks: Config.ui.combatLooks, combatMessages: Config.ui.combatMessages,
+        combatTaunts: Config.ui.combatTaunts, languageFilter: Config.ui.languageFilter, subtitles: Config.ui.subtitles,
+        itemHighlight: Config.ui.itemHighlight, textBaseDelay: Config.ui.textBaseDelay, brightness: Config.ui.brightness,
+        mouseSensitivity: Config.ui.mouseSensitivity,
+    }
+    const engine = { doAlwaysRun: Config.engine.doAlwaysRun, playerSpeedup: Config.engine.playerSpeedup }
+    const volumes = (['master', 'music', 'sfx', 'speech'] as const).map((v) => [v, getVolumeValue(v)] as const)
+    return () => {
+        Object.assign(Config.combat, combat)
+        Object.assign(Config.ui, ui)
+        Object.assign(Config.engine, engine)
+        for (const [v, value] of volumes) globalState.audioEngine.setVolume(v, value)
+        applyBrightness()
+    }
+}
+
 function openPrefsPanel(): void {
+    prefsRestore = snapshotPrefs()
     if (!prefsPanel) {
         prefsPanel = buildPrefsPanel()
         document.body.appendChild(prefsPanel)
