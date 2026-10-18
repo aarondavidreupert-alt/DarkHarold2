@@ -188,10 +188,12 @@ export function showCharacterScreen() {
         .show()
 
     const skillRowsEl = document.createElement('div')
+    // CE characterEditorDrawSkills: font 101 from (380, 27), fontGetLineHeight() + 1 =
+    // 11 px a row — fixed, so the list doesn't depend on the browser font's metrics.
     Object.assign(skillRowsEl.style, {
         position: 'absolute',
         left: '380px',
-        top: '25px',
+        top: '27px',
         fontSize: '0.69em',
     })
     characterWindow.elem.appendChild(skillRowsEl)
@@ -266,7 +268,7 @@ export function showCharacterScreen() {
     const tabStripEl = document.createElement('div')
     Object.assign(tabStripEl.style, {
         position: 'absolute',
-        left: '15px',
+        left: '11px',
         top: '330px',
     })
 
@@ -357,7 +359,7 @@ export function showCharacterScreen() {
         position: 'absolute',
         left: '348px',
         top: '313px',
-        width: '130px',
+        width: '136px', // CE characterEditorDrawCard: wordWrap(description, 136) from x 348
         background: 'transparent',
         border: 'none',
         padding: '0',
@@ -380,6 +382,10 @@ export function showCharacterScreen() {
         fontSize: '0.69em',
         color: '#000000',
         overflow: 'hidden',
+        // the pixel font's first glyph column sits left of the text box — the clip box
+        // starts 2 px further left, the text stays at x 348
+        paddingLeft: '2px',
+        marginLeft: '-2px',
         lineHeight: '1.3',
     })
     cardBodyEl.appendChild(cardDescEl)
@@ -501,6 +507,8 @@ export function showCharacterScreen() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 minWidth: '215px',
+                height: '11px',
+                lineHeight: '11px',
                 cursor: 'pointer',
                 color: isTagged ? '#a0a0a0' : '#3cf800', // CE 21140 tagged / 992
             })
