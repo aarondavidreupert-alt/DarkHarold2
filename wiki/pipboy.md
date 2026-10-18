@@ -75,10 +75,9 @@ CE has 4 physical tab buttons (index 1 is a spacer with no button):
 Plus a separate alarm bell button in the date/time bar at the top (key code 504), which
 also opens the alarm clock / rest screen.
 
-DH2 tab mapping:
+DH2 has the same four buttons and the alarm bell (`src/ui_pipboy/shell.ts`, tabs in `src/ui_pipboy/tabs/`): STATUS (quests and holodisks), AUTOMAPS, ARCHIVES (video archives) and ALARM CLOCK (rest) — see §9.
 
-| DH2 tab | CE equivalent | CE label | Status |
-|---|---|---|---|
+---|---|---|---|
 | STATUS | Button 0 | STATUS | ⚠️ Partially — CE STATUS shows quests+holodisks; DH2 shows HP/conditions |
 | AUTOMAPS | Button 2 | MAPS | ✅ Functional — different rendering engine |
 | ARCHIVES | Button 3 slot | (repurposed from VIDEO ARCHIVES) | ✅ Quest log only; no holodisks |
@@ -447,6 +446,6 @@ Implemented 2026-10-17 (§3.2): `data/data/holodisk.txt` is read as CE `holodisk
 
 - **Idle screensaver** (`pipboyRenderScreensaver`) — not ported; cosmetic.
 - **Automap renderer** — DH2 draws the seen tiles on a canvas instead of CE's AUTOMAP.DB FRM rendering (§4).
-- **Rest interruption** — CE bails out when any queued event's process returns true; DH2 stops on the observable results (combat, death, a dialogue / barter / worldmap).
+- ~~Rest interruption~~ — fixed: a queued event whose process returns true (CE `queueProcessEvents` bail — poison, radiation, drugs, scripts) emits `queueBail` and ends the rest (`shell.ts`). <!-- audited: 2026-10-18 -->
 
 <!-- audited: 2026-10-17 -->
