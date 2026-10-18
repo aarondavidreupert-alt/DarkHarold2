@@ -39,7 +39,10 @@ type Spatial = any
 export interface SerializedSpatial {
     script: string
     tileNum: number
-    radius: number
+    // CE Script.sp.radius — the map data's `range`. (Saves before 2026-10-18 wrote an
+    // always-0 `radius` instead; they fall back to 0 = exact tile.)
+    range?: number
+    radius?: number
     lvars?: { [lvar: number]: any }
 }
 
@@ -664,7 +667,7 @@ export class GameMap {
                 ? this.spatials.map(level => level.map((s: Spatial): SerializedSpatial => ({
                       script: s.script,
                       tileNum: s.tileNum,
-                      radius: s.radius ?? 0,
+                      range: s.range ?? 0,
                       lvars: s._script ? Object.assign({}, s._script.lvars) : undefined,
                   })))
                 : [[], [], []],
@@ -688,12 +691,13 @@ export class GameMap {
         // Restore spatials: re-load scripts from names, then reapply saved LVARs.
         // FO2-CE ref: map.cc mapLoad — spatials are always re-initialized from map data
         if (Array.isArray(obj.spatials)) {
-            this.spatials = obj.spatials.map(level =>
+            this.spatials = obj.spatials.map((level, elevation) =>
                 level.map((s: SerializedSpatial) => {
                     const spatial: Spatial = {
                         script: s.script,
                         tileNum: s.tileNum,
-                        radius: s.radius,
+                        range: s.range ?? s.radius ?? 0,
+                        elevation,
                         isSpatial: true,
                         position: fromTileNum(s.tileNum),
                     }

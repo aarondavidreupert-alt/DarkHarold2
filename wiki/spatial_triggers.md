@@ -336,15 +336,15 @@ and likely produce wrong results or throw.
 
 ## 8. Known Gaps vs CE
 
-| # | Feature | CE Behavior | DH2 Status | Impact |
-|---|---------|-------------|------------|--------|
-| 1 | `_scr_SpatialsEnabled` re-entracy guard | Set to false during proc, preventing nested triggers | MISSING — no guard | A `spatial_p_proc` that moves an object could trigger another spatial recursively; CE silently drops the inner call |
-| 2 | Cursor / hidden / flat object filter | Cursor objects and `OBJECT_HIDDEN`/`OBJECT_FLAT` objects cannot trigger spatials | MISSING — all `Critter.move` calls reach `hitSpatialTrigger` regardless of flags | Invisible / flat critters can trigger spatials; cursor never moves as an `Obj` in DH2 so partially moot |
-| 3 | `tile < 10` guard | Tiles 0–9 are invalid / reserved; never trigger spatials | MISSING | Very-low tile indices do not trigger in CE; DH2 may trigger |
-| 4 | `radius = 0` exact-match semantics | CE skips distance check entirely and only fires when the critter lands **exactly** on the spatial's tile | PARTIAL — DH2 `hexDistance(...) <= 0` is true only for exact match, so functionally equivalent; but the `range` field may have a default value issue (see §5.1 field-name note) | Correct in most cases |
-| 5 | `self_obj` type | CE creates a temporary invisible `OBJ_TYPE_INTERFACE` object at the spatial tile | DH2 uses the spatial dict itself | Opcodes that call CE's real object methods on `self_obj` may misbehave; partially patched by `isSpatial` guards in scripting.ts |
-| 6 | `target_obj` | CE explicitly sets `target_obj = nullptr` before proc | NOT SET in DH2 | Spatials that call `obj_type(target_obj)` or similar get undefined behaviour |
-| 7 | Explosion spatial trigger radius | `_scr_explode_scenery` passes the blast radius to the spatial scan | DH2 pass 2 hardcodes `SPATIAL_RADIUS_DEFAULT = 3` for map-object spatials | Explosions may under-trigger or over-trigger scripted objects depending on blast radius vs 3 |
-| 8 | `spatial.range` vs `spatial.radius` field name | n/a | Runtime object populated from JSON `"range"` key; `hitSpatialTrigger` reads `.range`; save code writes `.radius` — the two names coexist on the same dict | Save/load round-trip may lose range on spatials if `.radius` is written and `.range` is not read back |
-| 9 | `objectEnterMap` on spatials | CE does not call `map_enter_p_proc` on spatials (they have no such proc) | DH2 calls `Scripting.objectEnterMap(spatial, ...)` (`map.ts`); spatial scripts don't export `map_enter_p_proc` so it silently does nothing | Harmless no-op; slightly wasteful |
-| 10 | Elevation filtering for movement | CE `scriptsExecSpatialProc` is called with the current tile's elevation and only iterates spatials on that elevation | DH2 `getSpatials()` returns the current elevation's list (via `gMap.currentElevation`) — correct only if the elevation never changes mid-move | Elevation changes mid-move (e.g., stairways) could briefly scan the wrong elevation list |
+None open (re-audited 2026-10-18, C60):
+
+| # | CE behaviour | DH2 |
+|---|---|---|
+| 1 | `_scr_SpatialsEnabled` re-entrancy guard | ✅ `spatialsBusy` in `Critter.move` |
+| 2 | Hidden / flat movers (and the mouse cursors) never trigger | ✅ hidden and `OBJECT_FLAT` checked; DH2's cursors are not map objects |
+| 3 | Tiles below 10 never trigger | ✅ |
+| 4 | Own tile always; radius 0 = that tile only; else distance ≤ radius | ✅ `hitSpatialTrigger` |
+| 5 | `self_obj` of a spatial script | Equivalent: the spatial record carries `position`, `tileNum` and `elevation`, which is what `tile_num` / `elevation` on `self_obj` need |
+| 6 | The radius survives map save / revisit (`map.cc mapSave`) | ✅ fixed — DH2 saved an always-0 `radius`, so after a reload spatials fired only on their own tile |
+
+<!-- audited: 2026-10-18 -->

@@ -420,10 +420,16 @@ export function zsort(objects: Obj[]): void {
     objects.sort(objectZCompare)
 }
 
-// Spatial trigger lookup — shared by Obj.explode and Critter.move.
+// Spatial trigger lookup — shared by Obj.explode and Critter.move. CE scripts.cc
+// scriptsExecSpatialProc: the spatial's own tile always; otherwise within its radius,
+// and a radius of 0 means that tile only.
 export function hitSpatialTrigger(position: Point): any {
-    // TODO: return type (SpatialTrigger)
-    return globalState.gMap.getSpatials().filter((spatial) => hexDistance(position, spatial.position) <= spatial.range)
+    return globalState.gMap.getSpatials().filter((spatial) => {
+        const distance = hexDistance(position, spatial.position)
+        if (distance === 0) return true
+        const radius = spatial.range ?? 0
+        return radius !== 0 && distance <= radius
+    })
 }
 
 export interface SerializedObj {

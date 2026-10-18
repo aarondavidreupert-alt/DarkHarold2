@@ -268,9 +268,10 @@ export class Critter extends Obj {
             return false
         }
 
-        // CE scripts.cc scriptsExecSpatialProc: not for hidden objects or tiles below 10, and
-        // not while a spatial_p_proc is already running (_scr_SpatialsEnabled).
-        if (Config.engine.doSpatials !== false && this.visible !== false && toTileNum(position) >= 10 && !spatialsBusy) {
+        // CE scripts.cc scriptsExecSpatialProc: not for hidden or flat objects or tiles below
+        // 10, and not while a spatial_p_proc is already running (_scr_SpatialsEnabled).
+        if (Config.engine.doSpatials !== false && this.visible !== false && ((this.flags ?? 0) & 0x08) === 0 // OBJECT_FLAT
+            && toTileNum(position) >= 10 && !spatialsBusy) {
             spatialsBusy = true
             try {
             const hitSpatials = hitSpatialTrigger(position)
