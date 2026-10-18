@@ -363,10 +363,7 @@ The **self-subtraction** prevents the player from always appearing "well-lit" du
 their own torch. Without it, `objectGetLightIntensity(gDude)` would always return
 near-max regardless of ambient.
 
-DH2 has no equivalent of `objectGetLightIntensity`. The night-penalty path in
-`combat.ts` has the comment `"light conditions not yet factored in"` and does
-nothing. The self-subtraction is therefore not an issue in practice, but it would be
-needed if the night penalty were ever implemented.
+DH2: `getObjectLightIntensity` (`src/combat/hitChance.ts`) is the port — the tile intensity minus the dude's own light (for the dude), clamped to ambient … 65536. It feeds the darkness penalty and the Ghost perk (`skills.ts`, CE `perk.cc perkGetSkillModifier`: +20 Sneak when the value is above 45875, CE's own comparison).
 
 ---
 
@@ -471,8 +468,7 @@ AI-controlled attackers are not penalized.
 
 ### DH2 status
 
-**Not implemented.** `src/combat/hitChance.ts` has the comment
-`"light conditions not yet factored in"`.
+Implemented: `darknessPenalty` in `src/combat/hitChance.ts` (−40 / −25 / −10 at ≤ 40 / 60 / 80 % light) for the dude's attacks; Night Sight weapons skip it.
 
 ---
 
@@ -1059,7 +1055,7 @@ setObjectLightingMode('off')     // original per-fragment (no bleed; dark tops)
 
 **CE anchor**: `object.cc:835` — `lightIntensity = std::max(ambientIntensity, lightGetTileIntensity(elevation, objectListNode->obj->tile))`. The DH2 `'tile-y'` mode approximates this (one effective intensity per object tile), but extends it with per-column horizontal bilinear blending so walls catch the smooth gradient the floor has. CE uses a palette darkening table instead — exact per-pixel bilinear is a DH2 extension.
 
-**LD5 note**: CE's `objectGetLightIntensity()` subtracts `gDude->lightIntensity` before the ambient clamp (`object.cc:1753-1754`), but this function is only called from `combat.cc:4450` and `perk.cc:659` (gameplay, not render). The render path at `object.cc:835` does not subtract. LD5 remains open in the gameplay path; it was never part of the render fix.
+**LD5 note**: CE's `objectGetLightIntensity()` subtracts `gDude->lightIntensity` before the ambient clamp (`object.cc:1753-1754`), but this function is only called from `combat.cc:4450` and `perk.cc:659` (gameplay, not render). The render path at `object.cc:835` does not subtract. The gameplay path is `getObjectLightIntensity` (above), so LD5 is fixed too.
 
-**Gap status**: LD10 FIXED 2026-07-01. LD5 still missing (gameplay path).
+**Gap status**: LD10 FIXED 2026-07-01; LD5 FIXED (gameplay `getObjectLightIntensity`). <!-- audited: 2026-10-18 -->
 See `wiki/known_bugs.md §LD`.
