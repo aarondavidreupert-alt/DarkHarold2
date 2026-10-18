@@ -1848,30 +1848,36 @@ html, body {
 
 .areaCircle {
   position: absolute;
-  /*width: 100px; height: 100px;*/
-  /* CE wmInterfaceDrawCircleOverlay: the wrldsprN sphere darkens the map
-     (_dark_translucent_trans_buf_to_buf) */
-  background-repeat: no-repeat;
-  mix-blend-mode: multiply;
-  opacity: 0.6;
+  /* CE wmInterfaceDrawCircleOverlay: _dark_translucent_trans_buf_to_buf with
+     circleBlendTable = _getColorBlendTable(_colorTable[992]) — the sphere's gray step
+     blends the map toward green (992 = rgb555 0,31,0). A luminance mask of the
+     wrldsprN sprite over a green fill gives the same weighting. */
+  background-color: #00f800;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-mode: luminance;
+  mask-mode: luminance;
 }
 
 .areaSize-small {
   width: 12px;
   height: 12px;
-  background-image: url("art/intrface/wrldspr0.png");
+  -webkit-mask-image: url("art/intrface/wrldspr0.png");
+  mask-image: url("art/intrface/wrldspr0.png");
 }
 
 .areaSize-medium {
   width: 25px;
   height: 25px;
-  background-image: url("art/intrface/wrldspr1.png");
+  -webkit-mask-image: url("art/intrface/wrldspr1.png");
+  mask-image: url("art/intrface/wrldspr1.png");
 }
 
 .areaSize-large {
   width: 49px;
   height: 49px;
-  background-image: url("art/intrface/wrldspr2.png");
+  -webkit-mask-image: url("art/intrface/wrldspr2.png");
+  mask-image: url("art/intrface/wrldspr2.png");
 }
 
 .worldmapSquare {
