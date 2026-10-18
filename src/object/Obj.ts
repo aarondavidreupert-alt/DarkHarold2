@@ -847,7 +847,10 @@ export class Obj {
         } else {
             this.frame = 0
         }
-        this.lastFrameTime = 0
+        // CE animation.cc: the first frame is shown for a full 1000 / fps like every other
+        // (0 here advanced it on the next tick — an animate_forever loop, e.g. the New Reno
+        // casino lights, flashed frame 0 for one tick and blinked far too fast).
+        this.lastFrameTime = window.performance.now()
         this.anim = reversed ? 'reverse' : 'single'
         this.animCallback =
             callback ||
