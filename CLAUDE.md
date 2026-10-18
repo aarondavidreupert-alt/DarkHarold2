@@ -27,9 +27,9 @@ When researching any system before implementing or documenting:
 2. Fall back to `raw/fallout2-ce/src/` only when the wiki is silent, too high-level, or you suspect a discrepancy.
 3. If CE source and the wiki contradict each other, stop and flag the conflict rather than guessing.
 
-Available wiki docs (42 files in `wiki/`):
+Available wiki docs (42 system docs in `wiki/`, audited 2026-10-18):
 `actions.md`, `ai_behavior.md`, `animation.md`, `car_system.md`, `character_stats.md`, `combat.md`, `companion_party.md`, `critter_stats.md`, `damage_formula.md`, `dialogue_system.md`, `drugs.md`, `economy.md`, `endgame.md`, `faction_reputation.md`, `file_formats.md`, `hotkeys.md`, `interface_windows.md`, `items.md`, `known_bugs.md`, `lighting.md`, `map_scripting.md`, `palette_colors.md`, `pathfinding.md`, `perks_traits.md`, `pipboy.md`, `proto_system.md`, `quest_system.md`, `random_numbers.md`, `rendering.md`, `save_load.md`, `scripting_reference.md`, `scripting_vm.md`, `scroll_clamping.md`, `settings.md`, `skill_checks.md`, `sound_system.md`, `spatial_triggers.md`, `status_effects.md`, `tile_system.md`, `time_clock.md`, `weapon_combat.md`, `worldmap.md`.
-Meta/audit: `CODEBASE_FOCE.md`, `CODEBASE_jsFO.md`, `CROSS_CHECK_NOTES.md`.
+Meta/audit: `CODEBASE_FOCE.md`, `CODEBASE_jsFO.md`, `CROSS_CHECK_NOTES.md`, `alignment.md`, `extended_flags.md`, `failed_animation_offset_attempts.md`, `ts-split-refactor.md`, `edit_history.md`, `README.md`.
 
 ## File Access Policy
 - ALWAYS pull from the remote branch before reading any file
@@ -146,6 +146,11 @@ and all 181 vanilla opcodes (0 active `stub()` calls). Remaining deliberate appr
 are listed in README.md → "Known approximations" and `wiki/known_bugs.md`:
 - Action menu on right-click (CE: held left button); mouse wheel zooms (CE: scrolls)
 - Browser limits: no `fallout2.cfg` write-back (localStorage instead), mouse sensitivity stored only
+- DH2 day/night light curve on by default (`[dh2] day_night_cycle=0` = CE script-only lighting)
+- Cosmetic: no Pip-Boy screensaver, no palette fade around skill use
+
+The 2026-10-18 wiki re-audit (known_bugs C48–C61) checked every wiki doc against CE and the code;
+an opcode scan of the 1288 scripts in scripts.lst finds a handler for all 192 opcodes they use.
 
 ## Constraints
 - WebGL 2.0 only — no Three.js, no canvas 2D, no native deps

@@ -1,6 +1,6 @@
 # TypeScript Split Refactor — Audit & Strategy
 
-> **Status:** proposal only. No code has been changed.
+> **Status (2026-10-18):** largely carried out — `object/`, `map/`, `combat/`, `critter/`, `render/`, `worldmap/`, `perks/`, `ui_*/` and others are split behind barrels; `scripting.ts` is still one file (see CLAUDE.md → Conventions).
 > **Audit date:** 2026-06-04
 > **Scope:** every file under `src/` exceeding 400 lines.
 

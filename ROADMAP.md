@@ -5,15 +5,20 @@ unlocks the next. Phases 1–3 are pure connectivity — the engine infrastructu
 already exists, these wire it up. Phases 4–5 introduce the only genuinely new
 systems still needed.
 
-**Last audited: 2026-10-07** (branch `100percent`: every row in `wiki/known_bugs.md` closed or documented as won't-fix/approximation)
-Current estimate: **~98% complete** (was ~94% at 2026-10-06). The 2026-10-06/07 sprint ported the
+**Last audited: 2026-10-18** (branch `animations-finally-working`: every `wiki/*.md` re-audited against CE and the live code; the differences found were ported — `wiki/known_bugs.md` C48–C61)
+Current estimate: **~99% complete** (was ~98% at 2026-10-07). The 2026-10-18 audit ported the worldmap
+travel loop and random encounters (C55), CE `skillUse` (C59), the game-load script procs and
+`is_loading_game` (C61), translucency and the character-screen folders (C57), map aging (C52), the perk
+table checks (C51), float text (C56) and ambient sfx (C58), and fixed spatial ranges after a load (C60).
+An opcode scan finds a handler for every opcode the shipped scripts use. The last ~1% is a full
+playthrough plus the approximations in README → "Known approximations".
+
+Previous: **2026-10-07** (branch `100percent`: every row in `wiki/known_bugs.md` closed or documented as won't-fix/approximation) — **~98% complete** (was ~94% at 2026-10-06). The 2026-10-06/07 sprint ported the
 formerly deferred systems: movies (S15), talking heads/speech (P4), radiation, drugs/addiction, CE RNG,
 party level-ups and placement, the script-driven car (W14), line of fire/friendly fire/blast radius
 (C17), `attackDetermineToHit` (C18), the CE perk table (K6), per-object weapon ammo (LE12), MVAR
 persistence (M8), map-exit scripts (M9), party-free map snapshots (M10), look/examine (IU6), area reveal
-(W15) and fallout2.cfg (CI1). The last ~2% is a full playthrough plus the approximations in README →
-"Known approximations".
-Target: 95% (a playable end-to-end run through Fallout 2's main quest with
+(W15) and fallout2.cfg (CI1). Target: 95% (a playable end-to-end run through Fallout 2's main quest with
 companions, working scripted content, and correct combat).
 
 Phases 1–7 are now mostly complete. Phase 8 (rendering) is the largest remaining
