@@ -27,7 +27,7 @@ export const Config = {
         // game_mouse.cc gameMouseHandleScrolling scrolls only on the edge itself; 2 px
         // because a browser window can't always put the pointer on its last pixel.
         // fallout2.cfg [dh2] scroll_edge=<px>.
-        scrollPadding: 2,
+        scrollPadding: 10,
 
         showHexOverlay: false, // show hex grid?
         showCoordinates: false, // show coordinates on hex grid?
