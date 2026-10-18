@@ -203,7 +203,7 @@ The IDs are the CE `Perk` enum values (perk_defs.h). Weapon PROs store the same 
 | `PERK_WEAPON_FAST_RELOAD` (65) | Reload costs 1 AP | DONE — `Weapon.getReloadAPCost` |
 | `PERK_WEAPON_NIGHT_SIGHT` (66) | No darkness penalty | DONE — `getHitChance` |
 | `PERK_WEAPON_FLAMEBOY` (67) | Death-animation damage thresholds / 3 | DONE — `deathAnim.ts pickDeath` |
-| `PERK_WEAPON_ENHANCED_KNOCKOUT` (117) | Knockout on a hit with STR − 8 % chance, always on a critical | MISSING |
+| `PERK_WEAPON_ENHANCED_KNOCKOUT` (117) | Knockout on a hit with STR − 8 % chance, always on a critical | DONE — `Combat.computeEnhancedKnockout` / `computeCriticalHit` |
 
 CE ref: `perk_defs.h:65–124`, `item.cc:weaponGetActionPointCost` (Fast Reload, line ~1654),
 `combat.cc:attackComputeDamage` (Penetrate / Knockback / Accurate — lines ~4530–4558).
@@ -413,7 +413,7 @@ Full formula is in [damage_formula.md](damage_formula.md). Weapon-specific input
 ```
 dist = hexDistance(attacker, target)
 tempPER = attacker.PER − 2              // FO2 hardcoded penalty (CE: critter_get_stat_with_temp)
-dist -= tempPER × distModifier          // distModifier: 2 normally, 4 long_range, 5 scope (stub)
+dist -= tempPER × distModifier          // distModifier: 2 normally, 4 Long Range, 5 Scope Range (from 8 hexes)
 Sharpshooter perk: each rank reduces dist by 2
 if dist ≥ 0 and blinded: dist *= 12
 elif dist ≥ 0:            dist *= 4
@@ -426,34 +426,10 @@ All CE inputs are wired (light level, Scope Range ×5, melee region-penalty halv
 
 ## 11. Weapon Scripting Opcodes
 
-| Opcode | CE function | Args | DH2 method | Status |
-|--------|-------------|------|------------|--------|
-| `0x8112` | `item_w_subtype` | 1 | `item_w_subtype` | WIRED — returns PRO sub-type int |
-| `0x8117` | `item_w_ac` | 1 | `item_w_ac` | WIRED |
-| `0x8118` | `item_w_damage` | 3 | `item_w_damage` | PARTIAL — returns `min/max/type`; perk not factored |
-| `0x8119` | `item_w_damage_type` | 1 | `item_w_damage_type` | WIRED |
-| `0x811A` | `item_w_range` | 2 | `item_w_range` | WIRED — reads `maxRange1/2` from PRO |
-| `0x811C` | `item_w_anim_weap` | 2 | `item_w_anim_weap` | WIRED |
-| `0x811D` | `item_w_ammo_pid` | 1 | `item_w_ammo_pid` | WIRED — returns `pro.extra.ammoPID` |
-| `0x811E` | `item_w_ammo_type` | 1 | `item_w_ammo_type` | WIRED — returns `pro.extra.caliber` |
-| `0x811F` | `item_w_ammo_count` | 1 | `item_w_ammo_count` | WIRED — returns `pro.extra.rounds` |
-| `0x8120` | `item_w_max_ammo` | 1 | `item_w_max_ammo` | WIRED — returns `pro.extra.maxAmmo` |
-| `0x8121` | `item_w_perk` | 1 | `item_w_perk` | WIRED — returns `pro.extra.perk` |
-| — | `item_w_caliber` | 1 | **NOT IMPL** | MISSING |
-| — | `item_w_min_st` | 1 | **NOT IMPL** | MISSING |
-| — | `item_w_crit_fail` | 1 | **NOT IMPL** | MISSING |
+Fallout 2 has no `item_w_*` opcodes (the table that stood here listed numbers that are other opcodes — `0x8118` is `get_month`). Scripts reach weapons through `obj_item_subtype` (0x80C9), `wield_obj_critter` (0x80DA), `critter_inven_obj` and the `obj_pid` / proto checks of the script headers; all are wired (`scripting_reference.md` §4).
 
 ---
 
 ## 12. Known Gaps vs CE
 
-Re-audited 2026-10-17. Most of the old list here (single-shot ammo, caliber check, min-ST penalty, Accurate, Penetrate, Scope Range, Fast Reload, melee region halving, light level, critical-failure table) is now implemented. The current gap list for weapons, damage, criticals and death is in `wiki/combat.md` §10 "Still open". The weapon-specific gaps are:
-
-| Feature | CE Behavior | DH2 Status |
-|---------|-------------|------------|
-| Unarmed-type weapons (brass knuckles, power fist) | Weapon hit mode: min ST, One Hander and Accurate apply | Treated as plain unarmed in the hit chance |
-| Enhanced Knockout weapon perk | Knockout chance | Missing |
-| Critical-failure effects DUD / EXPLODE | Weapon duds / explodes | Become "destroy weapon" |
-| `item_w_caliber` / `item_w_min_st` / `item_w_crit_fail` | Script opcodes | Not wired (§11) |
-
-<!-- audited: 2026-10-17 -->
+None weapon-specific. Unarmed-type weapons take the weapon branch of the hit chance (skill, min ST, One Hander, Accurate — `hitChance.ts`), Enhanced Knockout is implemented, and the critical-failure flags follow CE: `DAM_EXPLODE` blasts around the attacker, `DAM_DUD` only replays the attacker's own hit reaction in CE (`actions.cc _action_ranged`) and has no further effect. Combat-wide status: `combat.md` §8. <!-- audited: 2026-10-18 -->

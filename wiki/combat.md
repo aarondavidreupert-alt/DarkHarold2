@@ -189,7 +189,7 @@ The conditions and the formula follow CE (fixed 2026-10-17):
 
 Earlier versions compared against the wrong name `'Explosion'`, used perk id 3 and capped the distance at 6.
 
-**Still not CE:** the critter is moved hex by hex instead of sliding with the fall animation and standing up again (CE `actionKnockdown` + `ANIM_BACK_TO_STANDING`). Spray and blast victims are knocked back too, while CE only knocks back the main defender.
+The knockback itself is CE `actionKnockdown` (slide with the fall animation, stops before blockers and exit grids, then stands up); only the main defender and explosion victims are knocked back (§10 "Closed by C30").
 
 ---
 
@@ -239,15 +239,7 @@ for their current turn and skips their next turn(s) until the flag clears.
 
 ### Divergences
 
-| Feature | CE | DH2 |
-|---------|-----|-----|
-| Death flag | `DAM_DEAD` bitmask on `combat.results` | `obj.dead = true` boolean |
-| Corpse inventory | hidden items destroyed, visible items stay | entire inventory stays |
-| Knockout state | `DAM_KNOCKED_OUT` flag | `skipTurns > 0` + `isKnockedDown` |
-| Critter prone state | `_critter_is_prone` checks fall animations | not queryable from scripts (`critter_state` returns 0 for prone) |
-| XP source | proto `experience` field, summed and given at combat end | same (`XPValue`, `giveExps`) — fixed 2026-10-17 |
-| Player death | `endgameSetupDeathEnding + quit` | DOM overlay; game does not hard-stop |
-| Script on kill | `destroy_p_proc` + `critter_p_proc` sequenced | only `Scripting.destroy()` |
+None. Death, knockdown and knockout use the same `combat.results` bits (`Critter.injuryFlags`, `src/combat/results.ts`); `critter_state` reports PRONE (§7); the player's death runs `endgameSetupDeathEnding` (`src/endgame/deathEndings.ts`); XP from the proto `experience`, given at combat end.
 
 ---
 
@@ -270,42 +262,12 @@ The AI sets `CRITTER_MANUEVER_FLEEING` when:
 While fleeing, the critter moves away from all threats and does not attack even if
 adjacent (`combat_ai.cc:2812`). Dialogue cannot be opened with a fleeing critter.
 
-`CRITTER_NO_FLEE` (`proto_types.h CritterFlags:0x200`) — proto-level flag that
-prevents AI from ever entering flee state. No movement restriction from script.
-
 CE has no "surrender" mechanic exposed to scripts; the flag
 `CRITTER_MANUEVER_FLEEING` covers both retreat and surrender behavior.
 
 ### DH2 fleeing
 
-**AI-driven flee** (combat.ts):
-```typescript
-if (obj.getStat('HP') <= obj.ai!.info.min_hp) {
-    // flee toward hardcoded left edge
-    const targetPos = { x: 128, y: obj.position.y }
-    this.walkUpTo(obj, idx, targetPos, AP.getAvailableMoveAP(), callback)
-}
-```
-
-Flee target is always `x=128` (left edge of map). CE picks the nearest map edge
-or a flee waypoint from the AI packet.
-
-**Script-driven flee flag** (scripting.ts:1028):
-```typescript
-critter_set_flee_state(obj, isFleeing) {
-    (obj as any).fleeing = !!isFleeing
-}
-critter_is_fleeing(obj) {
-    return (obj as any).fleeing ? 1 : 0
-}
-```
-
-The `.fleeing` property is set/read by scripts but **is not checked by `doAITurn`**.
-A critter marked fleeing by script will not actually flee unless its HP also drops
-below `min_hp`. This is a functional gap: CE honors `critter_set_flee_state`
-immediately; DH2 ignores it in the AI loop.
-
-`CRITTER_NO_FLEE` proto flag is not checked anywhere in DH2.
+The same: `Combat` checks `fleeing` (`CRITTER_MANUEVER_FLEEING`), the packet's `min_hp` and `hurt_too_much` at the start of an AI turn, and a fleeing critter runs as CE `_ai_run_away` (`Combat.ts`). `critter_set_flee_state` / `critter_is_fleeing` set and read that flag, so a script-set flee is honoured at once. (The old notes on a fixed flee target at x = 128 and an ignored script flag are obsolete; CE has no `CRITTER_NO_FLEE` check either.)
 
 ---
 
@@ -316,24 +278,19 @@ immediately; DH2 ignores it in the AI loop.
 | Opcode | Name | Args | CE function | DH2 status | DH2 source | Notes |
 |--------|------|------|-------------|------------|------------|-------|
 | 0x8128 | `combat_is_initialized` | 0 | `opCombatIsInitialized` | IMPLEMENTED | vm_bridge.ts:51 | Returns `scriptObj.combat_is_initialized` (0/1); set to 1 when `combat_p_proc` fires |
-| 0x80D0 | `attack_complex` | 8 | `opAttackComplex` | PARTIAL | scripting.ts:999 | Starts combat via `Combat.start(self_obj)`; all 7 parameters after `obj` ignored |
-| 0x80ED | `kill_critter` | 2 | `opKillCritter` | PARTIAL | scripting.ts:883 | Calls `critterKill(obj)`; `deathFrame` parameter ignored |
-| 0x80FB | `critter_state` | 1 | `opGetCritterState` | PARTIAL | scripting.ts:870 | Returns bitmask: bit 0 = dead; bit 1 (prone) always 0 (TODO) |
-| 0x80FF | `critter_attempt_placement` | 3 | `opCritterAttemptPlacement` | IMPLEMENTED | scripting.ts:851 | Tries target tile then 6 neighbors; falls through to `move_to` |
-| 0x8127 | `critter_injure` | 2 | `opCritterInjure` | IMPLEMENTED | scripting.ts:946 | ORs `how` into `critter.injuryFlags`; `how & 0x80` (DAM_DEAD) kills immediately |
-| 0x8151 | `critter_is_fleeing` | 1 | `opCritterIsFleeing` | PARTIAL | scripting.ts:955 | Returns `.fleeing` flag; not synced with AI HP-based flee state |
-| 0x8152 | `critter_set_flee_state` | 2 | `opCritterSetFleeState` | PARTIAL | scripting.ts:1028 | Sets `.fleeing` flag; AI loop does not honor it (gap documented in §6) |
-| 0x8153 | `terminate_combat` | 0 | `opTerminateCombat` | IMPLEMENTED | scripting.ts:1024 | Calls `globalState.combat.forceEnd()` |
-| 0x80B6 | `move_to` | 3 | `opMoveTo` | IMPLEMENTED | scripting.ts:1394 | Teleports object to tileNum; handles elevation change; centers camera for player |
-
-### Missing opcodes (not in `vm_bridge.ts`)
-
-| CE function | Opcode | Description | Impact |
-|-------------|--------|-------------|--------|
-| `opCritterStopAttacking` | 0x8155 | Clears hostile/aggro flag | NPCs can't be de-aggroed by script |
-| `opKillCritterType` | — | Kill all critters of a given kill type | Mass-kill sequences broken |
-| `opCritterDamage` | — | `critter_damage(obj, amount)` — direct HP reduction bypassing armor | Scripted damage events unavailable |
-| `opAttackSetup` | — | Pre-configures an attack before `attack_complex` | Scripted called-shot attacks broken |
+| 0x80D0 | `attack_complex` | 8 | `opAttackComplex` | IMPLEMENTED | scripting.ts | Self attacks the target; nothing when either is inactive / hidden or the target flees; `_gcsd` accuracy bonus, min / max damage and the results override for the first attack |
+| 0x80ED | `kill_critter` | 2 | `opKillCritter` | IMPLEMENTED | scripting.ts | `critterKill` without animation; the corpse is the single-frame death `deathFrame` |
+| 0x80EE | `kill_critter_type` | 2 | `opKillCritterType` | IMPLEMENTED | vm_bridge.ts | |
+| 0x80EF | `critter_dmg` | 3 | `opCritterDamage` | IMPLEMENTED | vm_bridge.ts | |
+| 0x80FB | `critter_state` | 1 | `opGetCritterState` | IMPLEMENTED | scripting.ts | DEAD 1; PRONE 2 when knocked out or in a knockdown; plus the DAM_CRIP bits |
+| 0x80FF | `critter_attempt_placement` | 3 | `opCritterAttemptPlacement` | IMPLEMENTED | scripting.ts | CE `_obj_attempt_placement` |
+| 0x8127 | `critter_injure` | 2 | `opCritterInjure` | IMPLEMENTED | scripting.ts | |
+| 0x8143 | `attack_setup` | 2 | `opAttackSetup` | IMPLEMENTED | vm_bridge.ts | |
+| 0x8151 | `critter_is_fleeing` | 1 | `opCritterIsFleeing` | IMPLEMENTED | scripting.ts | the AI's flee flag |
+| 0x8152 | `critter_set_flee_state` | 2 | `opCritterSetFleeState` | IMPLEMENTED | scripting.ts | the AI honours it |
+| 0x8153 | `terminate_combat` | 0 | `opTerminateCombat` | IMPLEMENTED | scripting.ts | |
+| 0x8155 | `critter_stop_attacking` | 1 | `opCritterStopAttacking` | IMPLEMENTED | scripting.ts | DISENGAGING, forgets its attacker |
+| 0x80B6 | `move_to` | 3 | `opMoveTo` | IMPLEMENTED | scripting.ts | |
 
 ### `combat_is_initialized` detail
 
@@ -346,49 +303,13 @@ during its own `combat_p_proc` callback.
 
 ### `attack_complex` detail
 
-CE `opAttackComplex` signature:
-```ssl
-attack_complex(obj, called_shot, num_attacks, bonus, min_dmg, max_dmg,
-               attacker_results, target_results)
-```
-
-DH2 ignores all parameters except `obj` (the initiating critter). It calls
-`Combat.start(self_obj)` which begins a full normal combat turn. Scripts that
-rely on `num_attacks > 1` or `bonus/min_dmg/max_dmg` overrides will not
-get the expected behavior.
-
-### `critter_state` bitmask
-
-CE bitmask values:
-```
-bit 0 (0x01) — DAM_DEAD       : critter is dead
-bit 1 (0x02) — DAM_KNOCKED_DOWN/OUT : critter is prone
-```
-
-DH2 only returns bit 0 (`obj.dead`). Bit 1 is documented as TODO in the source
-(`scripting.ts:879`).
+See the table above and §10 ("`attack_complex` — `_gcsd`").
 
 ---
 
 ## 8. Known Gaps vs CE
 
-| Feature | CE | DH2 | Impact |
-|---------|-----|-----|--------|
-| Knockback animation | knockdown slide + stand-up (`actionKnockdown`) | position moved hex by hex, no fall anim | Visual only; distance and conditions are CE |
-| `critter_set_flee_state` effect | Sets `CRITTER_MANUEVER_FLEEING`; AI immediately retreats | Sets `.fleeing` flag only; AI ignores it | Script-triggered fleeing non-functional |
-| `CRITTER_NO_FLEE` proto flag | Prevents AI from fleeing | Not checked | All critters can flee in DH2 |
-| `critter_stop_attacking` (0x8155) | Clears critter hostility | MISSING | De-aggro scripts fail silently |
-| `critter_state` prone bit | Bit 1 for knocked-down critters | Always 0 | Scripts checking `critter_state & 2` always get false |
-| `attack_complex` parameters | `numAttacks`, `bonus`, `minDmg`, `maxDmg`, `attackerResults`, `targetResults` | All ignored | Multi-attack / scripted-damage combat triggers simplified to normal combat start |
-| `kill_critter` `deathFrame` | Selects specific death animation by frame index | Ignored; uses damage-type fallback | Scripted death animations don't work |
-| `attack_complex` combat data | `_gcsd->actionPointsBonus` / `accuracyBonus` | Not tracked | Scripted fights don't get their AP and accuracy bonus |
-| `_combat_add_noncoms` | Adds nearby non-combatants to the fight mid-round | Not implemented | Large fights don't automatically pull in bystanders |
-| Surrender | CE has no surrender flag but `CRITTER_MANUEVER_FLEEING` covers it | Critters that flee just walk to map edge | Same effective behavior |
-| Fire DoT | CE applies at a specific phase; requires specific weapon flag | DH2 applies `onFireTurns--` at turn start | Timing differs slightly |
-| LOS-based auto-enrollment | All critters in LOS at combat start | Only critters on `triggerTeams` | Bystanders don't join even if they can see the fight |
-| Bonus AC from unused AP | Matches CE | Implemented (`bonusAC = getAvailableMoveAP()` at turn end) | ✓ matches |
-| Called shot (player) | Full UI with targeting | Implemented via `uiCalledShot()` | ✓ matches for player |
-| Called shot (AI) | AI can call shots based on ai.txt `hit_location` prefs | Not implemented | AI always targets torso |
+None open. The former rows (knockback animation, flee state, `critter_stop_attacking`, `critter_state` prone bit, `attack_complex` parameters and `_gcsd`, `kill_critter` death frame, `_combat_add_noncoms`, enrolment of every critter on the elevation, fire damage over time, AI called shots via `_ai_called_shot`) are all CE now. <!-- audited: 2026-10-18 -->
 
 ---
 

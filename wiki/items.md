@@ -344,14 +344,9 @@ by `refreshStealthState()` on every equip/unequip/swap/drop
 range for a stealthed critter, matching `isWithinPerception()`
 (`combat_ai.cc:3499-3520`).
 
-**Known simplification**: the save/load re-equip pass (`Critter.ts`) only
-restores weapon-subtype items into hand slots — a Stealth Boy equipped at
-save time falls back into plain inventory on load (its on/off + charge
-state still round-trips; the player just re-equips it that session).
+Hand items survive save / load for every critter: the dude's hands are saved as such, an NPC's hand items keep their `OBJECT_IN_LEFT/RIGHT_HAND` flag in the inventory (set by `invenWield`, also for the AI's `_ai_switch_weapons`) and any flagged item goes back into the hand on load.
 
-**Not implemented**: CE's `OBJECT_TRANS_GLASS` semi-transparent sprite
-rendering — needs a real WebGL shader/alpha change verified in a browser,
-deferred to visual/rendering work (same status as color-cycling, RD10).
+The Stealth Boy's `OBJECT_TRANS_GLASS` look is rendered (`faction_reputation.md` §6.9).
 
 ### 4.4 `_protinst_use_item_on` — use-item-on dispatch (`proto_instance.cc:1245`)
 
@@ -482,8 +477,7 @@ Lock/open opcodes (`src/scripting.ts`):
 | `obj_is_open` | 0x8130 | reads `obj.open` |
 | `obj_open` | 0x8131 | calls `setObjectOpen(obj, true)` |
 | `obj_close` | 0x8132 | calls `setObjectOpen(obj, false)` |
-| `jam_lock` | — | **not implemented** |
-| `unjam_lock` | — | **not implemented** |
+| `jam_lock` | 0x814D | sets `obj.jammed` (CE `opJamLock`); cleared by `objectUnjamAll` at midnight and on entering a map unvisited for 24 h (CE `_scripts_check_state_in_combat` / `mapLoadSaved`) |
 
 All wired in `vm_bridge.ts`.
 
