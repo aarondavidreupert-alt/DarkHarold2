@@ -53,6 +53,7 @@ import { uiAddDialogueOption, uiBarterMode, uiDrawWeapon, uiEndDialogue, uiLog, 
 import { drawAC, updateIndicatorBar } from './ui_hud.js'
 import { invenUnwield, invenWield, moveAllInventory, scriptHand } from './inventoryWield.js'
 import { SKILL_NAMES } from './skills.js'
+import { skillRoll } from './skillUse.js'
 import { arrayRemove, assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
 import { ScriptVM } from './vm.js'
 import { Worldmap } from './worldmap.js'
@@ -1020,9 +1021,10 @@ export module Scripting {
 
         // player
         give_exp_points(xp: number) {
+            // CE opGiveExpPoints → pcAddExperience: no message — the scripts display their
+            // own "You gain %d experience points." (the extra uiLog doubled it)
             if (!globalState.player) return
             globalState.player.addExperience(xp)
-            uiLog(`You gain ${xp} experience points.`)
         }
 
         // critters
@@ -1393,34 +1395,34 @@ export module Scripting {
             dbg('script', `has_skill(${skillName}, id=${skill}) → ${value}`)
             return value
         }
+        // CE opRollVsSkill → skill.cc skillRoll(obj, skill, modifier, &script->howMuch): for
+        // the dude the party member best at the skill rolls when it is also its own best
+        // skill (not Steal); sneaking adds +30 to Steal. A non-critter gives
+        // ROLL_CRITICAL_FAILURE.
         roll_vs_skill(obj: Obj, skill: number, bonus: number) {
-            // FO2-CE ref: skill.cc roll_vs_skill() — performs a skill roll for script checks
-            // skill is a numeric ID (0-17), maps to SKILL_NAMES
-            const skillName = SKILL_NAMES[skill] ?? `Unknown(${skill})`
-            const critter = obj as Critter
-            const skillValue = (typeof critter.getSkill === 'function') ? critter.getSkill(skillName) : 0
-            const critChance = (typeof critter.getStat === 'function') ? critter.getStat('Critical Chance') : 0
-            const { roll, delta } = randomRoll(skillValue + bonus, critChance)
-            dbg(
-                'script',
-                `roll_vs_skill: ${skillName} (id=${skill}) — `
-                + `base=${skillValue}, bonus=${bonus}, total=${skillValue + bonus}, `
-                + `critChance=${critChance}, roll=${RollResult[roll]}(${roll}), delta=${delta}`
-            )
+            const skillName = SKILL_NAMES[skill]
+            if (!isGameObject(obj) || obj.type !== 'critter' || skillName === undefined) return RollResult.CriticalFailure
+            const out = { howMuch: 0 }
+            const roll = skillRoll(obj as Critter, skillName, bonus, out)
+            this.howMuch = out.howMuch
+            dbg('script', `roll_vs_skill: ${skillName} (id=${skill}) bonus=${bonus} → ${RollResult[roll]}(${roll}), howMuch=${out.howMuch}`)
             return roll
         }
         do_check(obj: Obj, check: number, modifier: number) {
             // FO2-CE ref: interpreter_extra.cc opDoCheck + stat.cc statRoll
             // Only SPECIAL stats (0=STR…6=LUK) are valid; CE treats others as script errors.
-            if (check < 0 || check > 6) {
-                dbg('script', `do_check: stat index ${check} out of range (0–6); returning failure`)
-                return RollResult.Failure
+            // CE: an out-of-range stat or a null object leaves the roll at 0
+            // (ROLL_CRITICAL_FAILURE); statRoll sets script->howMuch = value − d10.
+            if (check < 0 || check > 6 || !isGameObject(obj)) {
+                dbg('script', `do_check: stat index ${check} out of range (0–6); returning critical failure`)
+                return RollResult.CriticalFailure
             }
             const critter = obj as Critter
             const statName = statMap[check]!
-            const value = (typeof critter.getStat === 'function') ? critter.getStat(statName) : 0
+            const value = ((typeof critter.getStat === 'function') ? critter.getStat(statName) : 0) + modifier
             const chance = getRandomInt(1, 10)
-            const roll = chance <= value + modifier ? RollResult.Success : RollResult.Failure
+            this.howMuch = value - chance
+            const roll = chance <= value ? RollResult.Success : RollResult.Failure
             dbg('script', `do_check: stat=${statName} base=${value} mod=${modifier} roll=${chance} → ${RollResult[roll]}`)
             return roll
         }

@@ -356,12 +356,12 @@ function toggleWaitMenu(): void {
             isRestAnimating = true
             restCancelled = false
             restBail = false
-            for (const r of rows) r.style.color = ''
+            for (const r of rows) r.style.color = '#00FF00'
             row.style.color = '#FFFF00'
             globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
             await restFor(option)
             globalState.audioEngine?.playSfxByName?.('ib2lu1x1')
-            row.style.color = ''
+            row.style.color = '#00FF00'
             isRestAnimating = false
             renderRestClock()
             // CE _proc_bail_flag: an event during the rest closes the Pip-Boy

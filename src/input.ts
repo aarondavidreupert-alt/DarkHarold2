@@ -235,10 +235,16 @@ export function installInputHandlers(): void {
         if (gameHandleKey(e, cycleMouseMode)) e.preventDefault()
     }, true)
 
+    // CE game_dialog.cc / gameMoviePlay / the message boxes run their own modal input loop:
+    // the map gets no clicks meanwhile. DH2's dialogue window leaves map visible around it,
+    // and a click there walked, opened the action menu and — on its release — reset
+    // uiMode to none, after which the dialogue's last option no longer closed it.
+    const MAP_MODAL = new Set([UIMode.dialogue, UIMode.barter, UIMode.companionControl, UIMode.movie, UIMode.dialog])
+
     heart.mousepressed = (x: number, y: number, btn: string) => {
         if (globalState.isInitializing || globalState.isLoading || globalState.isWaitingOnRemote) {
             return
-        } else if (globalState.gameUIDisabled) {
+        } else if (globalState.gameUIDisabled || MAP_MODAL.has(globalState.uiMode)) {
             return
         } else if (btn === 'l') {
             if (globalState.cursorMode === 'useItem') {

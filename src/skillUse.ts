@@ -110,7 +110,8 @@ function showSkillUseMessages(obj: Critter, skill: string, successCount: number,
 // if it is also that member's own best skill (partyMemberGetBestInSkill /
 // partyMemberGetBestSkill), not for Steal; `modifier` is added to the skill.
 // ---------------------------------------------------------------------------
-function skillRoll(critter: Critter, skill: string, modifier: number): RollResult {
+// `out.howMuch` receives the margin (CE `*howMuch`, the script's how_much).
+export function skillRoll(critter: Critter, skill: string, modifier: number, out?: { howMuch: number }): RollResult {
     if (critter.isPlayer && skill !== 'Steal') {
         let best: Critter | null = null
         let bestValue = 0
@@ -134,6 +135,7 @@ function skillRoll(critter: Critter, skill: string, modifier: number): RollResul
     const chance = skillValue + modifier
     const { roll, delta } = randomRoll(chance, critter.getStat('Critical Chance'))
     emitSkillRoll(skill, critter, chance, roll, chance - delta)
+    if (out) out.howMuch = delta
     return roll
 }
 
@@ -353,7 +355,9 @@ function clearSneakTimer(player: any): void {
 
 export function scheduleSneakEvent(player: any): void {
     const sneak = (player as Critter).getSkill('Sneak')
-    const passed = rollIsSuccess(randomRoll(sneak, 0).roll)
+    // CE sneakEventProcess: skillRoll(gDude, SKILL_SNEAK, 0) — party-best roller, the
+    // dude's critical chance
+    const passed = rollIsSuccess(skillRoll(player as Critter, 'Sneak', 0))
     player.sneakWorking = passed
 
     let ticks: number
@@ -416,10 +420,10 @@ export interface StealAttemptResult {
     caught: boolean
 }
 
-export function performSteal(thief: Critter, target: Critter, item: Obj, stealCount: number): StealAttemptResult {
+export function performSteal(thief: Critter, target: Critter, item: Obj, stealCount: number, isPlanting = false): StealAttemptResult {
     let stealModifier = -stealCount + 1
 
-    const hasPickpocket = thief.hasPerk?.('Pickpocket') ?? false
+    const hasPickpocket = thief.isPlayer && (thief.hasPerk?.('Pickpocket') ?? false)
     if (!hasPickpocket) {
         // CE ref: skill.cc:1039 — -4% per item size
         const size = (item.pro?.extra as any)?.size ?? 0
@@ -431,8 +435,8 @@ export function performSteal(thief: Critter, target: Critter, item: Obj, stealCo
         if (faceToFace) stealModifier -= 25
     }
 
-    // CE ref: skill.cc:1049 — +20 if target is knocked out or down
-    if ((target as any).isKnockedDown) stealModifier += 20
+    // CE ref: skill.cc:1049 — +20 if target is knocked out or down (DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN)
+    if (((target.injuryFlags ?? 0) & 0x03) !== 0) stealModifier += 20
 
     const stealChance = Math.min(95, stealModifier + thief.getSkill('Steal'))
 
@@ -457,6 +461,10 @@ export function performSteal(thief: Critter, target: Critter, item: Obj, stealCo
 
     dbg('skills', `[skill:Steal] item=%s stealCount=%d stealChance=%d%% caught=%s`,
         item.name ?? item.pid, stealCount, stealChance, caught)
+
+    // 570 / 572: You're caught stealing / planting the %s. 571 / 573: You steal / plant the %s.
+    const msgId = caught ? (isPlanting ? 572 : 570) : (isPlanting ? 573 : 571)
+    if (thief.isPlayer) uiLog(skillMsg(msgId).replace('%s', item.name ?? ''))
 
     return { success: !caught, caught }
 }
