@@ -318,6 +318,7 @@ export function deleteSave(id: number, callback?: () => void): void {
 export function load(id: number): void {
     // Load stored savegame with id
     beginMapFade() // CE lsgLoadGameInSlot → mapLoadSaved: the view is blank while loading
+    globalState.backgroundMapLoad = false // a loaded game's map plays its music
 
     withTransaction((trans) => {
         trans.objectStore('saves').get(id).onsuccess = function (e) {

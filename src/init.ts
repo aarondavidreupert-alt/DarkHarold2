@@ -94,6 +94,7 @@ export function initGame() {
         uiDrawWeapon()
         drawHP(player.getStat('HP'))
         drawAC(player.getStat('AC') + player.getArmorAC())
+        globalState.backgroundMapLoad = false
         void gameMoviePlay(MOVIE_ELDER, GAME_MOVIE_STOP_MUSIC).then(() => {
             randomSeedPrerandom(-1)
             globalState.gMap.loadMap('artemple')
@@ -112,6 +113,7 @@ export function initGame() {
         // Default startup: load the starting map in the background (the main menu
         // overlay covers the canvas so the player never sees it during menu).
         // This avoids potential game-loop crashes from a completely unloaded map.
+        globalState.backgroundMapLoad = true // silent: no map music under the intro / menu
         globalState.gMap.loadMap('artemple')
         // CE main.cc:86-91 — IPLOGO (fade in), INTRO, CREDITS before the main menu,
         // unless sfall's SkipOpeningMovies is set (Config.ui.skipOpeningMovies).

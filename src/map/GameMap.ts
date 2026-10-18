@@ -469,6 +469,9 @@ export class GameMap {
 	
 	/** @internal — used by mapLoader.ts via the prototype. */
 	playMapMusic(): void {
+		// The startup map DH2 loads behind the intro movies and the main menu stays silent:
+		// CE has no map loaded there (main.cc), so no map music plays over the movies.
+		if (globalState.backgroundMapLoad) return
 		const curMapInfo = getCurrentMapInfo()
 		dbg('audio', '[Music] curMapInfo:', curMapInfo)
 		dbg('audio', '[Music] music field:', curMapInfo?.music)

@@ -304,8 +304,12 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
                     if (finished) return
                     sub.textContent = ''
                     video.play().catch(() => void finish())
-                    setTimeout(() => { awaitingGesture = false }, 0)
                 }
+                // The click that starts playback must not also skip the movie: its
+                // mouseup (or the key's own keydown) is swallowed, input counts again after.
+                const armSkip = () => setTimeout(() => { awaitingGesture = false }, 0)
+                screen.addEventListener('mouseup', armSkip, { once: true, capture: true })
+                document.addEventListener('keyup', armSkip, { once: true, capture: true })
                 resumeListener = resume
                 screen.addEventListener('mousedown', resume)
                 document.addEventListener('keydown', resume, true)
