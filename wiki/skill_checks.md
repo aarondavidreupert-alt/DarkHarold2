@@ -144,7 +144,7 @@ Applied to the player's effective skill value (not the base):
 
 Affected skills: First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair, Speech, Barter, Gambling, Outdoorsman. Combat skills (Small Guns through Throwing) are **not** affected.
 
-**DH2 divergence:** `src/skills.ts` omits Speech, Barter, and Gambling from `DIFFICULTY_AFFECTED_SKILLS`. CE applies the modifier to all 12 skills listed above.
+DH2: `src/skills.ts skillGetGameDifficultyModifier` covers the same 12 skills.
 
 ---
 
@@ -156,7 +156,7 @@ These six skills have **no** `skillUse` implementation in `skill.cc`. They are u
 
 `skillUse()` in CE returns `-1` (invalid skill) for all combat skills; they fall through to the `default:` branch.
 
-**DH2 status: MISSING** — `skillUse.ts` does not handle any combat skill case; the `default:` branch returns a failure message. This is correct CE behaviour.
+**DH2:** same — `skillUse` `default:` (msg 510 to the debug log, returns −1).
 
 ---
 
@@ -189,8 +189,7 @@ These six skills have **no** `skillUse` implementation in `skill.cc`. They are u
 **Time cost:** +30 minutes game time (always, even on failure).  
 **XP:** 25 XP on success (player only).
 
-**DH2 status: WIRED** — `src/skillUse.ts:useFirstAid()`.  
-DH2 divergence: on Critical Success, DH2 doubles the heal roll; CE uses the same `randomBetween(1+, 5+)` formula for both Success and Critical Success.
+**DH2:** `src/skillUse.ts skillUse` (CE port). The roll is CE `skillRoll(obj, skill, criticalChance)` — the party member best at First Aid rolls if it is also its own best skill, and the critical chance is added to the skill value as in CE. Healer ranks count only for the dude. Robots always fail. The use slot is taken only on success; +1800 s for the dude even when the target is healthy or dead.
 
 ---
 
@@ -224,11 +223,10 @@ DH2 divergence: on Critical Success, DH2 doubles the heal roll; CE uses the same
 | Failure | Condition not cleared / No HP restored |
 | Critical Failure | Same as Failure |
 
-**Time cost:** +1 hour base, +1 hour per crippled-condition roll attempted (capped at 3 hours in DH2; CE uses `gameTimeAddSeconds(3600 × damageHealingAttempts)` without cap).  
+**Time cost:** `gameTimeAddSeconds(3600 × damageHealingAttempts)` — 1 hour, +1 hour per damage flag rolled.  
 **XP:** 50 XP on any success (player only).
 
-**DH2 status: WIRED** — `src/skillUse.ts:useDoctor()`.  
-DH2 divergence: CE's time cost is `3600 × damageHealingAttempts` seconds (no cap); DH2 caps at 3 hours via `Math.min(timeHours, 3)`.
+**DH2:** `src/skillUse.ts skillUse` (CE port): one `skillRoll` per damage flag (skill.msg 520/521/525/526 + 530–534, XP message after each), then a plain `randomRoll(skill, criticalChance)` for HP; time `3600 × damageHealingAttempts` seconds for the dude.
 
 ---
 
@@ -240,7 +238,7 @@ CE's `skillUse` for Sneak is a **no-op** — the switch case has no body before 
 
 The +30 Steal bonus for sneaking is applied inside `skillRoll` when `skill == SKILL_STEAL` and sneak is active.
 
-**DH2 status: PARTIAL** — `src/skillUse.ts:useSneak()` toggles `player.isSneaking`. The Sneak detection roll (per-tile) is not implemented.
+**DH2:** the skilldex toggles sneaking (`toggleSneak`, CE `_action_skill_use` → `dudeToggleState`); the periodic sneak roll is `scheduleSneakEvent` (CE `sneakEventProcess`).
 
 ---
 
@@ -250,9 +248,7 @@ The +30 Steal bonus for sneaking is applied inside `skillRoll` when `skill == SK
 
 CE's `skillUse` for Lockpick is a **no-op** at the engine level. All lockpicking logic in the original game is handled by map scripts (`use_skill_on_p_proc`). The engine provides `skillRoll(obj, SKILL_LOCKPICK, modifier)` for scripts to call via the `roll_vs_skill` intrinsic.
 
-**DH2 status: PARTIAL** — `src/skillUse.ts:useLockpick()` provides a fallback roll using `pro.extra.lockDifficulty` (default 50) when no script is present. Script-driven lockpicking (the normal path) goes through `roll_vs_skill` in scripting.ts.
-
-**Lockpick tool types (Expanded/Electronic Lockpick Set) — investigated 2026-07-04, confirmed not an engine-level gap** (`known_bugs.md` K4). `skillGetValue()` (`skill.cc:230-269`) has no item/tool-bonus logic whatsoever; any tool bonus in vanilla FO2 comes entirely from individual door/container scripts checking inventory and passing their own bonus into `roll_vs_skill`. DH2 already wires that opcode (`0x80AC`); `useLockpick()` correctly has no tool logic, matching CE's own no-op engine path.
+**DH2:** same — no engine effect; locks are opened by the door / container scripts. A jammed lock stops the use before the script (misc.msg 2001, `playerUse.ts`, CE `_obj_use_skill_on`).
 
 ---
 
@@ -314,7 +310,7 @@ else:
 
 CE's implementation is a hard return of `-1` with message 551 ("You fail to find any traps."). There is no roll — trap disarming is entirely script-driven via `use_skill_on_p_proc`. The engine displays a generic failure message when `skillUse` is called directly with Traps.
 
-**DH2 status: PARTIAL** — `src/skillUse.ts:useTraps()` provides a fallback roll against `pro.extra.trapDifficulty`. This is more functional than CE's bare `-1`, but genuine trap disarming still requires script support.
+**DH2:** same — skill.msg 551, returns −1.
 
 ---
 
@@ -324,7 +320,7 @@ CE's implementation is a hard return of `-1` with message 551 ("You fail to find
 
 CE returns `-1` with message 552 ("You fail to learn anything."). Science use is entirely script-driven. No engine-level roll in `skillUse`.
 
-**DH2 status: PARTIAL** — `src/skillUse.ts:useScience()` performs a `randomRoll(skillValue, critChance)` and returns success/failure. Actual science interactions require map scripts.
+**DH2:** same — skill.msg 552, returns −1.
 
 ---
 
@@ -352,9 +348,9 @@ CE returns `-1` with message 552 ("You fail to learn anything."). Science use is
 | Critical Failure | Same as Failure |
 
 **Time cost:** `1800 × damageHealingAttempts` seconds (+30 min base, +30 min per flag attempt).  
-**XP:** 50 XP on success (player only; `experience = 0` in gSkillDescriptions for Repair, but `_show_skill_use_messages` is called — could not verify XP grant from descriptor alone; SKILL_XP in DH2 sets 50).
+**XP:** none — `experience` is 0 for Repair in `gSkillDescriptions`, so `_show_skill_use_messages` returns at once.
 
-**DH2 status: PARTIAL** — `src/skillUse.ts:useRepair()` heals HP but does not check `BODY_TYPE_ROBOTIC`. The damage-flag healing loop is implemented. Time advance is fixed at +30 min (not per-flag as in CE).
+**DH2:** `src/skillUse.ts skillUse` (CE port): robots only (553 otherwise), dead robot 1101, damage flags then HP, `1800 × damageHealingAttempts` seconds. Repair has no XP (`experience` 0 in `gSkillDescriptions`).
 
 ---
 
@@ -364,7 +360,7 @@ CE returns `-1` with message 552 ("You fail to learn anything."). Science use is
 
 Speech is checked exclusively by dialogue scripts and the barter system. Scripts call `roll_vs_skill(obj, SKILL_SPEECH, modifier)` or `has_skill(obj, SKILL_SPEECH)` directly.
 
-**DH2 status: MISSING** — `skillUse.ts` `default:` branch. Script access via `roll_vs_skill` / `has_skill` is WIRED in `scripting.ts`.
+**DH2:** same — `default:` (returns −1); dialogue scripts use `roll_vs_skill` / `has_skill`.
 
 ---
 
@@ -374,7 +370,7 @@ Speech is checked exclusively by dialogue scripts and the barter system. Scripts
 
 Barter is used by the inventory/trade system: `inventory.cc:4690` reads both `partyGetBestSkillValue(SKILL_BARTER)` and `skillGetValue(npc, SKILL_BARTER)` to compute trade prices.
 
-**DH2 status: MISSING** — `skillUse.ts` `default:` branch. No trade-price system is implemented. Script access via `roll_vs_skill` / `has_skill` is WIRED in `scripting.ts`.
+**DH2:** same — `default:`; the barter screen uses the party's best Barter (`ui_barter/screen.ts`, CE `partyGetBestSkillValue`).
 
 ---
 
@@ -384,7 +380,7 @@ Barter is used by the inventory/trade system: `inventory.cc:4690` reads both `pa
 
 Gambling outcomes are script-driven (casino scripts). CE provides no engine-level `skillUse` handler for Gambling.
 
-**DH2 status: MISSING** — `skillUse.ts` `default:` branch. Script access via `roll_vs_skill` / `has_skill` is WIRED in `scripting.ts`.
+**DH2:** same — `default:`; casino scripts roll it.
 
 ---
 
@@ -394,7 +390,7 @@ Gambling outcomes are script-driven (casino scripts). CE provides no engine-leve
 
 Outdoorsman is used by the world-map system: `worldmap.cc:3456` reads `partyGetBestSkillValue(SKILL_OUTDOORSMAN)` to reduce random encounter frequency and improve travel safety. It is not a player-activated skill-use action.
 
-**DH2 status: MISSING** — `skillUse.ts` `default:` branch. World-map system is not implemented in DH2. Script access via `roll_vs_skill` / `has_skill` is WIRED in `scripting.ts`.
+**DH2:** same — `default:`; the worldmap encounter roll uses the party's best Outdoorsman (`worldmap/encounters.ts`, CE `wmRndEncounterOccurred`).
 
 ---
 
@@ -425,9 +421,7 @@ Returns the **effective skill value** (0–300) for the critter. Despite the nam
 
 ### `using_skill(obj, skill)` — opcode `0x80AB`
 
-**DH2 status: STUB** (`scripting.ts:790`, `vm_bridge.ts:145`)
-
-CE ref: `scripts.cc` — notifies the engine that a script is actively using a skill (for UI feedback and state tracking). Returns nothing meaningful. DH2 calls `stub('using_skill', arguments)`.
+**DH2: wired** — CE `opUsingSkill`: 1 for `SKILL_SNEAK` on the dude while sneaking, else 0.
 
 ---
 
@@ -439,7 +433,9 @@ Skills with usage limits (First Aid, Doctor, Repair) track the last 3 use timest
 - Fewer than 3 uses have been recorded, **or**
 - The oldest recorded use is more than 24 in-game hours ago.
 
-DH2 implements this identically in `src/skillUse.ts` via `hasFreeUsageSlot()` / `recordUsage()`.
+CE details: the slots hold the game time of the last three *successful* uses (`skillUpdateLastUse` runs on success only); when all three are taken, a use is allowed once `(now − oldest) / TICKS_PER_HOUR > 24` (whole hours). The slots are saved with the game and cleared on a new game.
+
+DH2: `src/skillUse.ts skillGetFreeUsageSlot` / `skillUpdateLastUse` (same rules), saved as `skillUsage` in the save, cleared by `gameReset.ts`.
 
 ---
 
@@ -447,17 +443,6 @@ DH2 implements this identically in `src/skillUse.ts` via `hasFreeUsageSlot()` / 
 
 | Area | fallout2-ce | DarkHarold2 |
 |------|------------|-------------|
-| Critical upgrade gate | Day ≥ 1 required (configurable) | Always permitted |
-| Difficulty modifier skills | Affects Speech, Barter, Gambling too | Only First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair, Outdoorsman |
-| First Aid crit success | Same heal range as normal success | Doubles the heal roll |
-| Doctor time cap | `3600 × attempts` seconds (no cap) | `min(3, attempts)` hours |
-| Steal: item size | −4% per size unit | ✅ Matches (2026-07-05) |
-| Steal: facing | −25% if face-to-face | ✅ Matches (2026-06-02) |
-| Steal: repeat penalty | −(`_gStealCount` − 1) | ✅ Matches (2026-07-05) |
-| Steal: party member | Auto critical success | ✅ Matches (2026-07-05) |
-| Steal: catch roll | Target's Steal skill minus modifier | ✅ Matches (2026-07-05) |
-| Repair: robot check | Only works on BODY_TYPE_ROBOTIC | No body-type check |
-| Repair: time cost | +30 min per damage-flag attempt | Fixed +30 min |
-| Traps/Science (direct use) | Hard −1 with message; script-only | Fallback roll using pro data |
-| World-map Outdoorsman | Reduces encounter frequency | Not implemented |
-| Barter trade prices | Both sides' Barter skill compared | Not implemented |
+| Screen fade | `paletteFadeTo(black)` around First Aid / Doctor / Repair | No fade |
+
+Everything else in this doc follows CE: the critical gate (day ≥ 1), difficulty on all 12 non-combat skills, First Aid / Doctor / Repair (heal ranges, no crit doubling, party-best `skillRoll`, robot rules, time per attempt, usage slots, XP from `gSkillDescriptions`), Lockpick no-op, Traps / Science −1, Steal (`performSteal`), Barter prices and Outdoorsman on the worldmap. <!-- audited: 2026-10-18 -->
