@@ -36,7 +36,7 @@ import {
     FORMATION_SURROUNDING, FORMATION_WEDGE,
 } from './encounterData.js'
 import { Square } from './types.js'
-import { areaIdContainingMap, getWorldmap, setAreaVisible, updateAreaMarkerPos } from './Worldmap.js'
+import { areaIdContainingMap, areaPosAtParty, getWorldmap, setAreaVisible, updateAreaMarkerPos } from './Worldmap.js'
 
 const TICKS_PER_DAY = 864000
 const MAP_IN_GAME_MOVIE1 = 149 // worldmap.h — Frank Horrigan
@@ -127,14 +127,14 @@ export function rndEncounterOccurred(pos: Point, inArea: boolean, square: Square
     if (!entry) return null
 
     if (entry.special) {
-        // CE: the area of the encounter map is put where the party stands and, unless
-        // locked, becomes known (DH2 areas are positioned by their centre)
+        // CE: the area of the encounter map is put at the party (worldPos + hotspot / 2 +
+        // sphere / 2) and, unless locked, becomes known
         const mapName = lookupMapName(encounterMapId)
         const areaIdx = mapName ? areaIdContainingMap(mapName) : 0
         const area: any = globalState.mapAreas?.[areaIdx]
         if (area) {
-            area.worldPosition = { x: pos.x, y: pos.y }
-            updateAreaMarkerPos(String(areaIdx), pos.x, pos.y)
+            area.worldPosition = areaPosAtParty(area, pos.x, pos.y)
+            updateAreaMarkerPos(String(areaIdx), area.worldPosition.x, area.worldPosition.y)
             if (!area.lockState) setAreaVisible(areaIdx, true)
         }
     }

@@ -25,7 +25,7 @@ import { Point, pointIntersectsCircle } from '../geometry.js'
 import globalState from '../globalState.js'
 import { hidev, makeEl, showv, uiCloseWorldMap, uiWorldMapShowArea } from '../ui.js'
 import { showConfirm } from '../ui_dialog.js'
-import { clamp, getFileBinarySync, getFileText } from '../util.js'
+import { clamp, getFileBinarySync, getFileText, getMessage } from '../util.js'
 import { Config } from '../config.js'
 import { dbg } from '../logger.js'
 import { Worldmap as WorldmapData, WorldmapPlayer } from './types.js'
@@ -47,6 +47,8 @@ export const SQUARE_SIZE = 50
 // minutes (wmGameTimeIncrement(18000)).
 const FRAME_MS = 1000 / 60
 const WALK_FRAME_TICKS = 18000
+const WM_START_X = 173
+const WM_START_Y = 122
 // CE ref: worldmap.h:8 #define CAR_FUEL_MAX (80000)
 export const CAR_FUEL_MAX = 80000
 
@@ -433,7 +435,35 @@ export function deserializeSquareStates(states: number[] | null | undefined): vo
 // and centered from init(), while the worldmap panel is still display:none,
 // where offsetWidth/offsetHeight both read 0 and silently turn "centered"
 // into an uncentered top-left placement instead.
-const AREA_CIRCLE_SIZE: { [size: string]: number } = { small: 8, medium: 32, large: 64 }
+// CE wmSphereData: wrldspr0/1/2.frm, 12 / 25 / 49 px. city.txt world_pos is the
+// sphere's top-left in window space (the view starts at WM_VIEW_X/Y), so in world
+// pixels the sphere spans world_pos − (22, 21) … + size.
+const AREA_CIRCLE_SIZE: { [size: string]: number } = { small: 12, medium: 25, large: 49 }
+const WM_VIEW_X = 22
+const WM_VIEW_Y = 21
+// CE hotspot1.frm (wmGenData.hotspotNormalFrmImage)
+const HOTSPOT_W = 25
+const HOTSPOT_H = 13
+
+// The centre of an area's sphere in world pixels — where wmTeleportToArea puts the
+// party and the town tabs walk to (city.x + w / 2 − WM_VIEW_X).
+export function areaCenter(area: { worldPosition: Point; size: string }): Point {
+    const s = AREA_CIRCLE_SIZE[area.size] ?? 0
+    return { x: area.worldPosition.x + Math.trunc(s / 2) - WM_VIEW_X, y: area.worldPosition.y + Math.trunc(s / 2) - WM_VIEW_Y }
+}
+
+// CE: a special encounter's / the out-of-gas area is put so the party stands at
+// worldPos + hotspot / 2 + sphere / 2 (city coordinates)
+export function areaPosAtParty(area: { size: string }, px: number, py: number): Point {
+    const s = AREA_CIRCLE_SIZE[area.size] ?? 0
+    return { x: px + Math.trunc(HOTSPOT_W / 2) + Math.trunc(s / 2), y: py + Math.trunc(HOTSPOT_H / 2) + Math.trunc(s / 2) }
+}
+
+// CE wmInterfaceDrawCircleOverlay: the name of a known area (map.msg 1500 + id), else
+// "Unknown" (worldmap.msg 1004)
+function areaLabelText(area: any): string {
+    return areaIsKnown(area.id) ? (getMessage('map', 1500 + area.id) ?? area.name) : (getMessage('worldmap', 1004) ?? 'Unknown')
+}
 
 // CE ref: worldmap.cc wmAreaSetPos() — moves a town-marker DOM element to match
 // updated worldPosition after a script calls wm_area_set_pos.
@@ -448,7 +478,11 @@ export function refreshAreaMarkers(): void {
             $existing?.remove()
             continue
         }
-        if ($existing) continue
+        if ($existing) {
+            const $label = $existing.querySelector('.areaLabel')
+            if ($label) $label.textContent = areaLabelText(area)
+            continue
+        }
 
         const $area = makeEl('div', { classes: ['area'], attrs: { 'data-area-key': key } })
         $worldmap.appendChild($area)
@@ -461,15 +495,15 @@ export function refreshAreaMarkers(): void {
         // offsetHeight — this can run while the worldmap panel is still
         // display:none (first open), where both would read 0.
         const circleSize = AREA_CIRCLE_SIZE[area.size] ?? 0
-        $area.style.left = (area.worldPosition.x - circleSize / 2) + 'px'
-        $area.style.top = (area.worldPosition.y - circleSize / 2) + 'px'
+        $area.style.left = (area.worldPosition.x - WM_VIEW_X) + 'px'
+        $area.style.top = (area.worldPosition.y - WM_VIEW_Y) + 'px'
 
         const $label = makeEl('div', {
             classes: ['areaLabel'],
-            style: { left: '0px', top: 2 + circleSize + 'px' },
+            style: { left: Math.trunc(circleSize / 2) + 'px', top: 3 + circleSize + 'px' },
         })
         $area.appendChild($label)
-        $label.textContent = area.name
+        $label.textContent = areaLabelText(area)
     }
 }
 
@@ -490,6 +524,7 @@ export function setAreaVisitedState(areaId: number, state: number): void {
     const old = area.visitedState ?? 0
     area.visitedState = state
     if (state === 2 && old === 0) area.visitedState = 1
+    refreshAreaMarkers()
 }
 
 // CE wmGetPartyCurArea / the saved currentAreaId
@@ -513,8 +548,9 @@ export function teleportToArea(areaId: number): void {
     walk.isWalking = false
     walk.distance = 0
     worldmapPlayer.target = null
-    worldmapPlayer.x = area.worldPosition.x
-    worldmapPlayer.y = area.worldPosition.y
+    const c = areaCenter(area)
+    worldmapPlayer.x = c.x
+    worldmapPlayer.y = c.y
     if ($worldmapPlayer) hidev($worldmapPlayer)
     if ($worldmapTarget) {
         setTargetImage('art/intrface/hotspot1.png', true)
@@ -542,7 +578,8 @@ export function travelToArea(areaId: number): void {
     if (!area || !areaIsKnown(areaId) || !worldmapPlayer || !$worldmapPlayer) return
     const here = withinArea(worldmapPlayer)
     if (here && here.id === areaId) return
-    partyInitWalking(area.worldPosition.x, area.worldPosition.y)
+    const c = areaCenter(area)
+    partyInitWalking(c.x, c.y)
 }
 
 // Save/load of the area states (CE worldmap.cc wmWorldMapSave/Load: state, visitedState, x, y,
@@ -600,8 +637,8 @@ export function resetWorldmap(): void {
     walk.distance = 0
 
     worldmapPlayer = {
-        x: globalState.mapAreas[0].worldPosition.x,
-        y: globalState.mapAreas[0].worldPosition.y,
+        x: WM_START_X, // CE wmGenDataReset: 173, 122 (Arroyo)
+        y: WM_START_Y,
         target: null,
         isInCar: _isInCar,
         carFuel: _carFuel,
@@ -617,9 +654,8 @@ export function updateAreaMarkerPos(areaKey: string, x: number, y: number): void
     if (!$worldmap) return
     const $area = $worldmap.querySelector<HTMLElement>(`[data-area-key="${areaKey}"]`)
     if (!$area) return
-    const size = AREA_CIRCLE_SIZE[globalState.mapAreas?.[areaKey]?.size] ?? 0
-    $area.style.left = (x - size / 2) + 'px'
-    $area.style.top  = (y - size / 2) + 'px'
+    $area.style.left = (x - WM_VIEW_X) + 'px'
+    $area.style.top  = (y - WM_VIEW_Y) + 'px'
 }
 
 // #worldmapTarget's CSS box (ui.css) is fixed at 25x13 to fit the
@@ -776,8 +812,8 @@ export function init(): void {
     }
 
     worldmapPlayer = {
-        x: globalState.mapAreas[0].worldPosition.x,
-        y: globalState.mapAreas[0].worldPosition.y,
+        x: WM_START_X, // CE wmGenDataInit: 173, 122 (Arroyo)
+        y: WM_START_Y,
         target: null,
         // CE ref: worldmap.cc wmGenData — restored from backing vars so car
         // state survives worldmap open/close and save/load cycles.
@@ -855,14 +891,16 @@ export function stop() {
 
 // check if we're inside an area
 export function withinArea(position: Point) {
+    // CE wmMatchWorldPosToArea: the first known area whose sphere rectangle holds the
+    // position (window space: position + WM_VIEW_X/Y against city.txt world_pos)
+    const vx = position.x + WM_VIEW_X
+    const vy = position.y + WM_VIEW_Y
     for (const areaNum in globalState.mapAreas) {
         const area = globalState.mapAreas[areaNum]
-        const radius = area.size === 'large' ? 32 : 16 // guessing for now
-
-        if (pointIntersectsCircle(area.worldPosition, radius, position)) {
-            dbg('worldmap', 'intersects ' + area.name)
-            return area
-        }
+        if (area.state !== true) continue
+        const s = AREA_CIRCLE_SIZE[area.size] ?? 0
+        if (vx >= area.worldPosition.x && vy >= area.worldPosition.y
+            && vx <= area.worldPosition.x + s && vy <= area.worldPosition.y + s) return area
     }
 
     return null
@@ -912,12 +950,19 @@ function carRanOutOfGas(): void {
         currentAreaId = CITY_CAR_OUT_OF_GAS
         const outOfGas = globalState.mapAreas?.[CITY_CAR_OUT_OF_GAS]
         if (outOfGas) {
-            outOfGas.worldPosition = { x: Math.round(worldmapPlayer.x), y: Math.round(worldmapPlayer.y) }
+            outOfGas.worldPosition = areaPosAtParty(outOfGas, worldmapPlayer.x, worldmapPlayer.y)
             ;(outOfGas as any).visitedState = 1
             setAreaVisible(CITY_CAR_OUT_OF_GAS, true) // CITY_STATE_KNOWN
             updateAreaMarkerPos(String(CITY_CAR_OUT_OF_GAS), outOfGas.worldPosition.x, outOfGas.worldPosition.y)
         }
     }
+}
+
+// CE wmDrawCursorStopped: the location / encounter marker centred on the party (the
+// 17×17 #worldmapPlayer box centres its image)
+function placePartyMarker(): void {
+    $worldmapPlayer.style.left = (worldmapPlayer.x - 8) + 'px'
+    $worldmapPlayer.style.top = (worldmapPlayer.y - 8) + 'px'
 }
 
 // CE wmPartyInitWalking: a Bresenham line from the party to (x, y)
@@ -1094,16 +1139,14 @@ export function updateWorldmapPlayer() {
                 ? rndEncounterOccurred({ x: worldmapPlayer.x, y: worldmapPlayer.y }, withinArea(worldmapPlayer) !== null, square, _isInCar)
                 : null
             if (roll) {
-                $worldmapPlayer.style.left = worldmapPlayer.x + 'px'
-                $worldmapPlayer.style.top = worldmapPlayer.y + 'px'
+                placePartyMarker()
                 void runEncounter(roll)
                 return
             }
         }
     }
 
-    $worldmapPlayer.style.left = worldmapPlayer.x + 'px'
-    $worldmapPlayer.style.top = worldmapPlayer.y + 'px'
+    placePartyMarker()
 
     // Keyboard and mouse-edge panning (active even when player is stationary).
     // CE ref: worldmap.cc WM_SCROLL_* — map can be scrolled independently of travel.

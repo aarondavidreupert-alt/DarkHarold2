@@ -489,7 +489,7 @@ So the party walks ~60 px a real second on easy terrain and a game day passes ev
 
 Areas carry `state` (known), `visitedState`, `lockState` and per-entrance `state`; `areaIsKnown` / `areaVisitedState` / `setAreaVisible` / `setAreaVisitedState` / `markMapVisited` are the CE functions above. `globalState.knownAreas` mirrors the known areas for the endgame / Pip-Boy checks. `currentAreaId` (CE `wmGenData.currentAreaId`) is −1 while walking, the matched area when a walk ends, and the new map's area after an exit-grid / `load_map` transition (`mapTransition` event → `teleportToArea`).
 
-`withinArea()` still matches by a circle (small 16 px, large 32 px) around the DH2 area centre, where CE `wmMatchWorldPosToArea` tests the sphere art's rectangle — see §17.
+Geometry is CE's: city.txt `world_pos` is the sphere's top-left in window space, so in world pixels the sphere (wrldspr0/1/2, 12 / 25 / 49 px) spans `world_pos − (22, 21)` … `+ size`. `withinArea()` is `wmMatchWorldPosToArea` (that rectangle, first known area), `areaCenter()` is where `wmTeleportToArea` and the town tabs put the party, `areaPosAtParty()` places a special-encounter / out-of-gas area (`worldPos + hotspot / 2 + sphere / 2`). The markers are the sphere art darkening the map with the name centred 3 px below (map.msg 1500 + id when known, else worldmap.msg 1004 "Unknown"); the party marker is centred on the party, the party starts at 173, 122.
 
 ---
 
@@ -826,9 +826,8 @@ Counters and the Horrigan flag are saved (`encounters`), and reset for a new gam
 
 | # | Area | CE | DH2 |
 |---|------|----|-----|
-| 1 | Area hit test | `wmMatchWorldPosToArea`: the sphere art's rectangle from city.txt `world_pos` (window space, `WM_VIEW_X/Y` offset) | Circle of 16 / 32 px around the DH2 area centre |
-| 2 | Special-encounter area position | `worldPos + hotspot / 2 + sphere / 2` (rectangle origin) | The area centre is put on the party (DH2 centres areas) |
-| 3 | sfall forced encounters | `wmForceEncounter` (sfall opcodes) | Not available (no sfall opcodes beyond the two used) |
-| 4 | Fade out before an encounter | `wmFadeOut` | The map loads without a palette fade |
+| 1 | sfall forced encounters | `wmForceEncounter` (sfall opcodes) | Not available (no sfall opcodes beyond the two used) |
+| 2 | Fade out before an encounter | `wmFadeOut` | The map loads without a palette fade |
+| 3 | Sphere blending | `_dark_translucent_trans_buf_to_buf` with the circle blend table | CSS multiply at 60 % |
 
 Everything else in this doc — travel pace, fog of war, encounter roll / pick / setup, formations, items, car travel, Pathfinder, Horrigan, counters, save state — is ported. <!-- audited: 2026-10-18 -->

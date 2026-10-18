@@ -1840,31 +1840,38 @@ html, body {
   position: absolute;
   font-family: sans-serif;
   color: #00FF00;
+  /* CE: centred under the sphere, 3 px below it, with a shadow (FONT_SHADOW) */
+  transform: translateX(-50%);
+  white-space: nowrap;
+  text-shadow: 1px 1px 0 #000;
 }
 
 .areaCircle {
   position: absolute;
   /*width: 100px; height: 100px;*/
-  border: 2px solid #00FF00;
-  border-radius: 50%;
-  /* circle */
-  background: #007F00;
-  opacity: 0.25;
+  /* CE wmInterfaceDrawCircleOverlay: the wrldsprN sphere darkens the map
+     (_dark_translucent_trans_buf_to_buf) */
+  background-repeat: no-repeat;
+  mix-blend-mode: multiply;
+  opacity: 0.6;
 }
 
 .areaSize-small {
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
+  background-image: url("art/intrface/wrldspr0.png");
 }
 
 .areaSize-medium {
-  width: 32px;
-  height: 32px;
+  width: 25px;
+  height: 25px;
+  background-image: url("art/intrface/wrldspr1.png");
 }
 
 .areaSize-large {
-  width: 64px;
-  height: 64px;
+  width: 49px;
+  height: 49px;
+  background-image: url("art/intrface/wrldspr2.png");
 }
 
 .worldmapSquare {
@@ -1891,8 +1898,11 @@ html, body {
 /* The player marker on the world map. Hidden until travelling. */
 #worldmapPlayer {
   position: absolute;
-  width: 25px;
-  height: 13px;
+  /* CE centres the location / encounter marker on the party: a 17x17 box with the
+     image centred (placePartyMarker puts the box at party - 8) */
+  width: 17px;
+  height: 17px;
+  background-position: center;
   background-repeat: no-repeat;
   background-image: url("art/intrface/wmaploc.png");
   /*visibility: hidden;*/
