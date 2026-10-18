@@ -85,11 +85,9 @@ CE periodic update (scripts.cc:509): calls `scriptsExecMapUpdateScripts(SCRIPT_P
    - Each object in `objectsAndSpatials` gets `objectEnterMap()` → `map_enter_p_proc()`
 6. `Events.emit('loadMapPost')`
 
-`GameMap.doEnterElevation()` (map.ts): called on elevation change, invokes `map_enter_p_proc` on map script and all objects/spatials at the new level.
-
 `GameMap.updateMap()` (map.ts): delegates to `Scripting.updateMap()`, which calls `map_update_p_proc` on the map script and every object with that proc.
 
-**Known gap:** There is a `TODO` at map.ts: "TODO: is map_enter_p_proc called on elevation change?" — `doEnterElevation()` does fire `map_enter_p_proc` but the relationship to `changeElevation()` calling `Scripting.updateMap()` (not `enterMap()`) is ambiguous. CE fires MAP_ENTER on every elevation change; DH2's behavior is partially correct but may miss some per-object enter calls.
+Elevation changes inside a map run `map_update_p_proc` (`changeElevation` → `Scripting.updateMap`), as CE `mapSetElevation`; `map_enter_p_proc` runs only on map load (CE `mapLoad` → `scriptsExecMapEnterProc`).
 
 ---
 
@@ -307,7 +305,7 @@ create_object_sid(pid, tile, elev, sid)  // 0x80B7
 
 Creates a new object with PID `pid` at `tile` on elevation `elev`, attaching script SID `sid` if nonzero. As CE `opCreateObject`: tile −1 becomes 0; an invalid elevation warns and returns null. An object on another elevation is placed there at once — CE's scripts don't depend on the elevation either. Adds the object to `globalState.gMap` (scripting.ts:1173).
 
-**Known gap:** Cross-elevation creation is partially stubbed — if `elev !== currentElevation`, DH2 logs a warning but still places the object on the requested elevation via `gMap.addObject(obj, elev)`. CE would keep the object inactive until that elevation is entered.
+An object created for another elevation is placed there at once, as in CE.
 
 ### 7.5 destroy_object
 
@@ -416,7 +414,7 @@ Returns 1 if `obj` is within the visible viewport, 0 otherwise (scripting.ts:128
 game_time_advance(ticks)  // 0x80FC
 ```
 
-Advances in-game time by `ticks` game ticks (stub in scripting.ts — delegates to a time advance helper).
+Advances in-game time by `ticks` game ticks and processes the expired timed events and crossed midnights (CE `opGameTimeAdvance` → `queueProcessEvents`; `GameTime.advanceTicks` + `gameTick.ts`).
 
 ### 8.6 Tile opcodes (summary)
 
@@ -546,16 +544,8 @@ Called once per game tick by the CE engine. Iterates the 40 slots; for each slot
 **`_nevs_clearevent(name)`**  
 Clears and resets the named slot without firing it.
 
-### 12.5 DH2 Status — NOT IMPLEMENTED
+### 12.5 DH2 Status
 
-No `_nevs_addevent`, `_nevs_signal`, or `_nevs_update` equivalent exists anywhere in DH2 source. Because NEVS is not script-opcode-accessible, its absence is invisible to `.int` script code. However, any CE engine behaviour that internally fires named events (e.g. certain map-level C callbacks) is silently absent in DH2.
+Not needed: NEVS is only reachable through the interpreter-library opcodes `0x8092`–`0x8095` (`opAddNamedEvent`, `opAddNamedHandler`, `opClearNamed`, `opSignalNamed`), and none of the 1288 scripts in scripts.lst uses them (opcode scan 2026-10-18 — every one of the 192 opcodes the game's scripts use has a DH2 handler). No engine code in CE calls NEVS either.
 
-| Item | Status |
-|------|--------|
-| `_nevs_addevent` | No DH2 equivalent |
-| `_nevs_signal` | No DH2 equivalent |
-| `_nevs_update` per-tick flush | No DH2 equivalent |
-| `_nevs_clearevent` | No DH2 equivalent |
-| Script opcode exposure | None in CE; not applicable in DH2 |
-
-<!-- audited: 2026-06-02 -->
+<!-- audited: 2026-10-18 -->
