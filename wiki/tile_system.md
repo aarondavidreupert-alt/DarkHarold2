@@ -245,7 +245,7 @@ The exact mapping is derived from `hexToScreen` (geometry.ts). After substitutin
 | 4 | (x+1, y) | −32 | 0 | W (4) |
 | 5 | (x, y−1) | −16 | −12 | NW (5) |
 
-DH2 direction numbers match CE rotation values for even-x tiles. For odd-x tiles the mapping is offset by one row; `hexNeighbors` handles this with the `if (x % 2 === 0)` branch. The net result: `hexInDirection(pos, n)` correctly moves to the CE `ROTATION_n` neighbour for any position. See gap TS2 for the mismatch in `hexDirectionTo`.
+DH2 direction numbers match CE rotation values for even-x tiles. For odd-x tiles the mapping is offset by one row; `hexNeighbors` handles this with the `if (x % 2 === 0)` branch. The net result: `hexInDirection(pos, n)` correctly moves to the CE `ROTATION_n` neighbour for any position, and `hexDirectionTo` is the inverse (§7.2).
 
 ---
 
@@ -341,30 +341,9 @@ int tileGetRotationTo(int tile1, int tile2)
 
 The formula maps screen-space atan2 to a clockwise bearing starting at NE (direction 0). It works in screen coordinates (y-down), so `-dy` flips to standard math convention. The result is a CE `Rotation` value (0–5).
 
-### 7.2 DH2: hexDirectionTo (geometry.ts)
+### 7.2 DH2: hexDirectionTo (geometry/hexGrid.ts)
 
-```typescript
-export function hexDirectionTo(a: Point, b: Point): number {
-    // TODO: check correctness
-    const delta = { x: b.x - a.x, y: b.y - a.y }
-
-    if (delta.x) {
-        const angle = (Math.atan2(-delta.y, delta.x) * 180) / Math.PI
-        let temp = (90 - angle) | 0
-        if (temp < 0) temp += 360
-        return Math.min((temp / 60) | 0, 5)
-    } else if (delta.y < 0) return 0
-    return 2
-}
-```
-
-**Bug:** This function applies atan2 to the **grid-space delta** `(b.x − a.x, b.y − a.y)`, not to the **screen-space delta**. Because DH2's x grid axis runs opposite to screen-x (decreasing grid-x = increasing screen-x), the atan2 angle is wrong. For example:
-
-- `hexDirectionTo({x:100, y:100}, {x:99, y:100})`: grid delta = (−1, 0)  
-  → `atan2(0, −1) = 180°` → bearing = 270 → returns **4 (W)**  
-  → CE `tileGetRotationTo` for the same pair returns **0 (NE)**
-
-The `"TODO: check correctness"` comment (geometry.ts) is warranted. See gap TS2.
+Projects both tiles with `hexToScreen` and applies CE's atan2 bearing to the screen delta (dx = 0: up → 0, down → 2), so it returns CE `tileGetRotationTo`'s rotation (TS2, fixed).
 
 ---
 
@@ -659,22 +638,9 @@ spatials: any[][] = null      // [elevation][spatialIndex]
 7. Rebuilds the lightmap.
 8. Emits `elevationChanged` event.
 
-### 16.3 doEnterElevation
+### 16.3 Stairs, ladders, elevators
 
-`doEnterElevation()` (map.ts) is called from stair and ladder activation (object.ts, 792, 799):
-
-```typescript
-doEnterElevation(): void {
-    if (this.mapScript?.map_enter_p_proc !== undefined) {
-        this.mapScript.map_enter_p_proc()
-    }
-    for (const obj of this.getObjectsAndSpatials()) {
-        Scripting.objectEnterMap(obj, elev, mapID)
-    }
-}
-```
-
-This fires `map_enter_p_proc` and each object's `map_enter_p_proc` on an **in-map elevation change** — which CE does not do. See gap EL2.
+An in-map elevation change (stairs, ladders, elevators) runs `map_update_p_proc` (`updateMap`, every elevation) — not `map_enter_p_proc` — as CE `mapSetElevation` (EL2, fixed).
 
 ### 16.4 Spatial Trigger Filtering
 
@@ -689,19 +655,11 @@ return globalState.gMap.getSpatials()  // getSpatials() uses currentElevation
 
 ### 16.5 `elevation()` Opcode
 
-```typescript
-// scripting.ts:752 — wired at vm_bridge.ts:158 as 0x80EC
-elevation(obj: Obj) {
-    if (isSpatial(obj) || isGameObject(obj)) return globalState.currentElevation
-    // ...
-}
-```
-
-Always returns the **player's current elevation**, ignoring the actual `obj.elevation`. CE returns `obj->elevation`. See gap EL1.
+`elevation(obj)` (0x80EC) returns `obj.elevation` (CE `opGetObjectElevation`; EL1, fixed).
 
 ### 16.6 Elevator Objects
 
-DH2 has no elevator opcode handler. Elevator-type scenery is treated as a stair object via `object.ts` stair/ladder branches, which use the destination elevation embedded in the object data. The `SCRIPT_REQUEST_ELEVATOR` path in CE (`scriptsHandleRequests`) — with its door-closing and same-map/cross-map split — is not implemented.
+`metarule(15, …)` (METARULE_ELEVATOR) → `useElevator()` (`main.ts`) → `uiElevator` with `lut/elevators.json` (CE `elevatorSelectLevel`); after the trip the elevator doors near the arrival are reset (EL3, fixed).
 
 ### 16.7 Elevation Presence vs. MapHeader.flags
 
@@ -719,16 +677,4 @@ this.objects = new Array(map.levels.length)
 
 ## 17. Known Gaps
 
-| ID | Description | File(s) | CE Reference | Sev | Status |
-|----|-------------|---------|--------------|-----|--------|
-| TS1 | **No edge-check in `hexInDirectionDistance`.** CE `tileGetTileInDirection` calls `tileIsEdge` and breaks if the tile is on the 200×200 grid boundary. DH2 `hexInDirectionDistance` has no equivalent guard; walking off the grid returns an `{x, y}` with values outside 0–199, which may cause out-of-bounds lookups in object lists or spatial arrays. | `src/geometry/hexGrid.ts` | `tile.cc:893 tileIsEdge()` | minor | bug |
-| TS2 | **`hexDirectionTo` uses grid-space delta instead of screen-space delta.** CE `tileGetRotationTo` projects both tiles to screen space first. DH2 applies atan2 to the raw grid delta `(b.x−a.x, b.y−a.y)`. Because DH2's x-axis is reversed relative to screen-x, the returned direction value is systematically wrong (e.g., returns 4/W instead of 0/NE for the NE neighbour). The function carries a "TODO: check correctness" comment. | `src/geometry/hexGrid.ts` | `tile.cc:910 tileGetRotationTo()` | major | bug |
-| TS3 | **No `_tile_num_beyond` equivalent.** CE uses this Bresenham-based function to find the tile at a given number of steps beyond a target along a straight line — used for projectile overshoot and `shoot_into_the_air`. DH2 has `hexLine(a, b)` which only walks *to* b, not past it. | `src/geometry/hexGrid.ts` | `tile.cc:944 _tile_num_beyond()` | minor | missing |
-| TS4 | **`tile_coord()` in tile.ts is unused and broken.** `tile.ts:81` contains a CE-compatible `tile_coord(tileNum)` implementation with hardcoded offsets (`tile_offx=272, tile_offy=182`) and an active `console.log`. It is never called from anywhere in the codebase. | `src/tile.ts:81` | `tile.cc:674 tileToScreenXY()` | low | bug |
-| EL1 | **`elevation(obj)` always returns player's current elevation.** `scripting.ts:753` returns `globalState.currentElevation` for all objects. CE `opGetObjectElevation` returns `obj->elevation`. Scripts that query a different object's elevation (e.g., checking if a party member fell to a lower level) get the wrong answer. | `scripting.ts:753`, `vm_bridge.ts:158` | `interpreter_extra.cc:2285 opGetObjectElevation()` | major | bug |
-| EL2 | **`doEnterElevation()` fires `map_enter_p_proc` on stair/ladder elevation change.** CE `mapSetElevation` fires only `map_update_p_proc`. DH2 calls `doEnterElevation()` which runs `map_enter_p_proc` on every stair/ladder use, causing map-entry side-effects (light resets, NPC repositions, first-visit flags) to run on every floor change. | `src/map/GameMap.ts`, `src/object/Obj.ts` | `map.cc:362 mapSetElevation()` | major | bug |
-| EL3 | **No elevator opcode handler.** CE `scriptsHandleRequests` has a dedicated elevator branch that closes old elevator doors, handles same-map vs. cross-map splits, and calls `mapSetElevation`. DH2 routes elevator-type objects through the generic stair/ladder path, skipping door animations and the same-map-different-elevation optimisation. | `object.ts` | `scripts.cc:926 scriptsHandleRequests SCRIPT_REQUEST_ELEVATOR` | minor | missing |
-| EL4 | ✅ Investigated 2026-07-05, not a real gap (see §16.7) — `_map_data_elev_flags` is a `.map`-file-stream-skip detail; DH2's `levels` array length already losslessly encodes the same "which elevations exist" information, and every runtime consumer (`GameMap.ts`, `mapLoader.ts`) derives elevation count dynamically from it rather than assuming a fixed 3. | `tools/fomap.py:48`; `src/map/GameMap.ts` | `map.cc:81,1377-1385,1404,1714 _map_data_elev_flags` | low | not-a-gap |
-| EL5 | **`getObjectsAndSpatials()` passes no elevation to `getSpatials()`, so `map_update_p_proc` is fired only on current-elevation objects and spatials.** CE `scriptsExecMapUpdateScripts` runs `map_update_p_proc` on all loaded scripts regardless of elevation. Critters on other elevations do not tick their scripts when the player is away. | `map.ts`, `scripting.ts:2118` | `scripts.cc:2601 scriptsExecMapUpdateScripts()` | minor | bug |
-
-<!-- audited: 2026-07-05 — EL4 corrected to not-a-gap, see known_bugs.md -->
+None open. TS1–TS4 and EL0–EL5 are fixed (edge check in `hexInDirectionDistance`, screen-space `hexDirectionTo`, `hexLineBeyond` = `_tile_num_beyond`, dead `tile_coord` removed, per-object elevation, `map_update_p_proc` on elevation changes, elevators, all elevations' `map_update_p_proc`); EL4 is not a gap. <!-- audited: 2026-10-18 -->
