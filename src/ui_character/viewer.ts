@@ -40,6 +40,7 @@ import { ADDICTION_KARMA_GVARS } from '../drugs.js'
 import { Scripting } from '../scripting.js'
 import { getMessage } from '../util.js'
 import { renderStatPanels } from './statPanels.js'
+import { createFolderView, FolderView } from './folders.js'
 
 // ── Window singleton ──────────────────────────────────────────────────────────
 // Shared between viewer (showCharacterScreen) and creator (showCharacterCreator)
@@ -286,160 +287,16 @@ export function showCharacterScreen() {
     })
     tabStripEl.appendChild(tabOverlayEl)
 
-    const tabContentEl = document.createElement('div')
-    Object.assign(tabContentEl.style, {
-        position: 'absolute',
-        left: '30px',
-        top: '370px',
-        fontSize: '0.69em',
-        color: '#3cf800',
-    })
-
-    const mkSectionHeader = (text: string) => {
-        const hdr = document.createElement('div')
-        hdr.textContent = text
-        Object.assign(hdr.style, {
-            color: '#3cf800',
-            fontSize: '0.85em',
-            margin: '2px 0 1px',
-            pointerEvents: 'none',
-            userSelect: 'none',
-        })
-        return hdr
-    }
-
-    const folderPanels: HTMLElement[] = FOLDER_TABS.map((t, i) => {
-        const panel = document.createElement('div')
-        if (i === 0) {
-            // ── TRAITS section ────────────────────────────────────────────────
-            panel.appendChild(mkSectionHeader('────── TRAITS ──────'))
-
-            const activeTraits: string[] = player.traits ?? []
-            if (activeTraits.length === 0) {
-                const none = document.createElement('div')
-                none.textContent = 'No traits selected.'
-                Object.assign(none.style, { color: '#3cf800', fontSize: '0.9em' })
-                panel.appendChild(none)
-            } else {
-                for (const traitName of activeTraits) {
-                    const line = document.createElement('div')
-                    line.textContent = traitName
-                    Object.assign(line.style, { color: '#3cf800', cursor: 'pointer' })
-                    line.onclick = () => showInfoCard(traitName, TRAIT_DESCRIPTIONS[traitName] ?? traitName, TRAIT_IMG[traitName])
-                    panel.appendChild(line)
-                }
-            }
-
-            // ── PERKS section ─────────────────────────────────────────────────
-            panel.appendChild(mkSectionHeader('────── PERKS ──────'))
-
-            const perks = player.perks ?? []
-            if (perks.length === 0) {
-                const none = document.createElement('div')
-                none.textContent = 'No perks.'
-                Object.assign(none.style, { color: '#3cf800', fontSize: '0.9em' })
-                panel.appendChild(none)
-            } else {
-                const counts: Record<string, number> = {}
-                for (const p of perks) counts[p] = (counts[p] ?? 0) + 1
-                for (const [perkName, rank] of Object.entries(counts)) {
-                    const def = PERKS.find(d => d.name === perkName)
-                    const line = document.createElement('div')
-                    line.textContent = rank > 1 ? `${perkName} (${rank})` : perkName
-                    line.style.color = '#3cf800'
-                    line.style.cursor = 'pointer'
-                    line.onclick = () => showInfoCard(perkName, def?.description ?? perkName, undefined)
-                    panel.appendChild(line)
-                }
-            }
-        } else if (i === 1) {
-            // KARMA panel — populated fresh each time the tab is activated
-            panel.dataset.karmaPanel = '1'
-        } else {
-            panel.textContent = t.label
-        }
-        panel.style.display = i === 0 ? 'block' : 'none'
-        tabContentEl.appendChild(panel)
-        return panel
-    })
-
-    const KARMA_TITLES: Array<[number, string]> = [
-        [750, 'Savior of the Damned'],
-        [500, 'Guardian of the Wastes'],
-        [250, 'Shield of Hope'],
-        [100, 'Defender'],
-        [0,   'Wanderer'],
-        [-99, 'Betrayer'],
-        [-249, 'Sword of Despair'],
-        [-499, 'Scourge of the Wastes'],
-        [-Infinity, 'Demon Spawn'],
-    ]
-
-    const TOWN_NAMES = [
-        'Arroyo', 'Klamath', 'The Den', 'Vault City', 'Gecko', 'Modoc',
-        'Sierra Base', 'Broken Hills', 'New Reno', 'Redding', 'NCR',
-        'Vault 13', 'San Francisco', 'Abbey', 'EPA', 'Primitive Tribe',
-        'Raiders', 'Vault 15', 'Ghost Farm',
-    ]
-
-    // CE ref: character_editor.cc:4586 — thresholds from gTownReputationEntries display logic.
-    const townStanding = (val: number): string => {
-        if (val >= 30)  return 'Idolized'
-        if (val >= 15)  return 'Liked'
-        if (val >= 1)   return 'Accepted'
-        if (val === 0)  return 'Neutral'
-        if (val >= -15) return 'Antipathy'   // CE: < 0 (not < -15)
-        if (val >= -30) return 'Hated'       // CE: < -15 (not < -30)
-        return 'Vilified'                    // CE: < -30
-    }
-
-    const addLine = (parent: HTMLElement, text: string) => {
-        const el = document.createElement('div')
-        el.textContent = text
-        Object.assign(el.style, { color: '#3cf800' })
-        parent.appendChild(el)
-    }
-
-    const refreshKarmaPanel = (panel: HTMLElement) => {
-        while (panel.firstChild) panel.removeChild(panel.firstChild)
-
-        // ── Global Karma ──────────────────────────────────────────────────────
-        panel.appendChild(mkSectionHeader('────── KARMA ──────'))
-        const karmaVal = player.stats.getBase('Karma')
-        addLine(panel, `Karma: ${karmaVal}`)
-        const title = (KARMA_TITLES.find(([threshold]) => karmaVal >= threshold) ?? KARMA_TITLES[KARMA_TITLES.length - 1])[1]
-        addLine(panel, title)
-
-        // ── Town Reputation ───────────────────────────────────────────────────
-        panel.appendChild(mkSectionHeader('────── REPUTATION ──────'))
-        for (const town of TOWN_NAMES) {
-            const key = `Rep_${town}`
-            const repStats = player.stats as any
-            if (!(key in (repStats.baseStats ?? {}))) continue
-            const val: number = player.stats.getBase(key)
-            addLine(panel, `${town}: ${townStanding(val)}`)
-        }
-
-        // ── Reliances (addictions) ────────────────────────────────────────────
-        // CE ref: character_editor.cc:5613 — one line per non-zero addiction GVAR,
-        // heading editor.msg 4001, names 1004 + index (gAddictionReputationVars order).
-        const addicted = ADDICTION_KARMA_GVARS.map((g, i) => [g, i] as const).filter(([g]) => Scripting.getGlobalVar(g) !== 0)
-        if (addicted.length > 0) {
-            panel.appendChild(mkSectionHeader(`────── ${(getMessage('editor', 4001) ?? 'Reliance').toUpperCase()} ──────`))
-            for (const [, i] of addicted) addLine(panel, getMessage('editor', 1004 + i) ?? '')
-        }
-    }
+    // The folder contents (CE folder view) — created with the info card below.
+    let folderView: FolderView | null = null
 
     let activeFolder = 0
     const activateFolder = (idx: number) => {
         activeFolder = idx
         tabImg.src = FOLDER_TABS[idx].sprite
-        folderPanels.forEach((p, i) => { p.style.display = i === idx ? 'block' : 'none' })
-        if (idx === 1) refreshKarmaPanel(folderPanels[1])
+        globalState.audioEngine?.playSfxByName?.('ib3p1xx1')
+        folderView?.setFolder(idx)
     }
-
-    // Populate karma panel for initial display if it starts active
-    refreshKarmaPanel(folderPanels[1])
 
     FOLDER_TABS.forEach((tab, idx) => {
         const region = document.createElement('div')
@@ -462,7 +319,6 @@ export function showCharacterScreen() {
     })
 
     characterWindow.elem.appendChild(tabStripEl)
-    characterWindow.elem.appendChild(tabContentEl)
 
     makePanelDraggable(characterWindow.elem, 'character')
 
@@ -528,7 +384,7 @@ export function showCharacterScreen() {
     })
     cardBodyEl.appendChild(cardDescEl)
 
-    const showInfoCard = (title: string, desc: string, imgPath?: string): void => {
+    const drawCard = (title: string, desc: string, imgPath?: string): void => {
         if (cardTitleEl.firstChild && cardTitleEl.firstChild !== cardDividerEl) cardTitleEl.removeChild(cardTitleEl.firstChild)
         cardTitleEl.insertBefore(font2.renderText(title.toUpperCase(), '#000000'), cardDividerEl)
         cardDescEl.textContent = desc
@@ -539,7 +395,14 @@ export function showCharacterScreen() {
             cardImgEl.style.visibility = 'hidden'
         }
     }
+    // A card of the stats / skills / traits: the folder loses its selection.
+    const showInfoCard = (title: string, desc: string, imgPath?: string): void => {
+        folderView?.blur()
+        drawCard(title, desc, imgPath)
+    }
     // ── end info card ──────────────────────────────────────────────────────────
+
+    folderView = createFolderView(characterWindow.elem, player, drawCard)
 
     const statValueWidgets: HTMLElement[] = []
     const statCommentLabels: Label[] = []
