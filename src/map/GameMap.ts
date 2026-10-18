@@ -382,6 +382,42 @@ export class GameMap {
         return cur
     }
 
+    // CE loadsave.cc lsgLoadGameInSlot → mapLoadSaved → mapLoad: with _loadingGame set,
+    // every script's start (scriptsExecStartProc), then map_enter_p_proc and
+    // map_update_p_proc run for the restored map — the scripts re-apply what they don't
+    // save (the Lighting macro's light level …) and skip their setup through
+    // is_loading_game; create / destroy / kill / visibility opcodes refuse meanwhile.
+    // The map music starts as on any map load (wmMapMusicStart).
+    runLoadGameProcs(): void {
+        if (!Config.engine.doLoadScripts) return
+        Scripting.setLoadingGame(true)
+        try {
+            for (const level of this.objects) {
+                for (const obj of level.slice()) {
+                    if (obj._script) Scripting.initScript(obj._script, obj)
+                }
+            }
+            const overridenStartPos = Scripting.enterMap(this.mapScript, this.getObjectsAndSpatials(),
+                this.currentElevation, this.mapID, false)
+            if (overridenStartPos && this.mapObj.levels[overridenStartPos.elevation]) {
+                globalState.player.position = overridenStartPos.position
+                globalState.player.orientation = overridenStartPos.orientation
+            }
+            this.objects.forEach((level) => {
+                for (const obj of level.slice()) {
+                    if (level.includes(obj)) obj.enterMap()
+                }
+            })
+            this.spatials.forEach((level) =>
+                level.forEach((spatial) => Scripting.objectEnterMap(spatial, this.currentElevation, this.mapID))
+            )
+            Scripting.updateMap(this.mapScript, this.getObjectsAndSpatials(), this.currentElevation)
+        } finally {
+            Scripting.setLoadingGame(false)
+        }
+        this.playMapMusic()
+    }
+
     doEnterNewMap(isFirstRun: boolean): void {
         // Tell scripts they've entered the new map
 

@@ -72,6 +72,11 @@ export module Scripting {
     var currentMapID: number | null = null
     var currentMapObject: Script | null = null
     var mapFirstRun = true
+    // CE loadsave.cc _loadingGame / _isLoadingGame — set while a saved game's map runs
+    // its start / map_enter / map_update procs (GameMap.runLoadGameProcs).
+    var loadingGame = false
+    export function isLoadingGame(): boolean { return loadingGame }
+    export function setLoadingGame(v: boolean): void { loadingGame = v }
     var scriptMessages: { [scriptName: string]: { [msgID: number]: string } } = {}
     var dialogueOptionProcs: (() => void)[] = [] // Maps dialogue options to handler callbacks
     var dialogueOptionTexts: string[] = [] // parallel to dialogueOptionProcs — display text, for the review log
@@ -775,7 +780,7 @@ export module Scripting {
                     return 0
                 }
                 case 22:
-                    return 0 // is_game_loading
+                    return loadingGame ? 1 : 0 // METARULE_IS_LOADGAME → _isLoadingGame
                 case 42: {
                     // CE ref: interpreter_extra.cc:3246 METARULE_DROP_ALL_INVEN —
                     // itemDropAll: everything (hands and armor too) onto the critter's
@@ -1178,6 +1183,7 @@ export module Scripting {
                         ;(<Critter>obj).aiNum = amount
                         return
                     case 6: // OBJECT_TEAM_NUM
+                        if (loadingGame) return // CE opCritterAddTrait: not while a game loads
                         ;(<Critter>obj).teamNum = amount
                         return
                     case 10: // OBJECT_CUR_ROT
@@ -1840,6 +1846,8 @@ export module Scripting {
             // Create object of pid and possibly script
             info('create_object_sid: pid=' + pid + ' tile=' + tile + ' elev=' + elev + ' sid=' + sid, undefined, this)
 
+            // CE opCreateObject: nothing is created while a game loads
+            if (loadingGame) { warn('create_object_sid: attempt to create in load/save-game', undefined, this); return null }
             if (elev < 0 || elev > 2) { warn('create_object_sid: elev out of range: elev=' + elev, undefined, this); return null }
             if (tile === -1) tile = 0 // CE opCreateObject
 
@@ -1916,6 +1924,8 @@ export module Scripting {
                 warn('set_obj_visibility: not a game object: ' + obj)
                 return
             }
+            // CE opSetObjectVisibility: refused while a game loads
+            if (loadingGame) return
             // CE ref: interpreter_extra.cc:2096 objectHide/objectShow call
             // _obj_turn_off_light/_obj_turn_on_light → triggers lightmap rebuild.
             obj.visible = !visibility
@@ -2066,6 +2076,8 @@ export module Scripting {
         destroy_object(obj: Obj) {
             // destroy object from world
             log('destroy_object', arguments)
+            // CE opDestroyObject: a critter isn't destroyed while a game loads
+            if (loadingGame && obj?.type === 'critter') { warn('destroy_object: attempt to destroy critter in load/save-game'); return }
             globalState.gMap.destroyObject(obj)
         }
         set_exit_grids(onElev: number, mapID: number, elevation: number, tileNum: number, rotation: number) {
@@ -2460,6 +2472,8 @@ export module Scripting {
         // CE opKillCritterType (0x80EE) — kill (or with deathFrame 0, destroy) every live,
         // visible critter of `pid` on the map. deathFrame 1 cycles CE's ftList.
         kill_critter_type(pid: number, deathFrame: number) {
+            // CE opKillCritterType: refused while a game loads
+            if (loadingGame) return
             // interpreter_extra.cc:2367 ftList (single-frame deaths)
             const FT_LIST = [62, 51, 52, 53, 63, 62, 54, 56, 59, 62, 63]
             let ft = 0

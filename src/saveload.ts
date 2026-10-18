@@ -484,6 +484,10 @@ export function load(id: number): void {
                 globalState.dirtyMapCache = { ...save.savedMaps }
                 delete globalState.dirtyMapCache[savedMap.name]
 
+                // CE mapLoad during a game load: start / map_enter / map_update with
+                // _loadingGame set (metarule 22), then the map music.
+                globalState.gMap.runLoadGameProcs()
+
                 const p = globalState.player!
                 drawHP(p.getStat('HP'))
                 drawAC(p.getStat('AC'))

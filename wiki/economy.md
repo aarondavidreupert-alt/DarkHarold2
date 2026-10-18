@@ -164,8 +164,8 @@ All implemented in `src/scripting.ts` inside the `Script` class.
 |--------|-----------|---------|
 | `obj_is_carrying_obj_pid` | `(obj, pid)` | Count of inventory items matching PID |
 | `obj_carrying_pid_obj` | `(obj, pid)` | First inventory item with matching PID, or `0` |
-| `critter_inven_obj` | `(critter, slot)` | Equipped item: `0`=worn armor, `1`=right hand, `2`=left hand; `-2` (INV_COUNT) returns `0` with a warning |
-| `inven_cmds` | `(obj, cmd, idx)` | STUB — `INVEN_CMD_INDEX_PTR` (13) only; always returns `null` |
+| `critter_inven_obj` | `(critter, slot)` | Equipped item: `0`=worn armor, `1`=right hand, `2`=left hand; `-2` (INV_COUNT) returns the inventory count (L10) |
+| `inven_cmds` | `(obj, cmd, idx)` | CE `_op_inven_cmds`: `INVEN_CMD_INDEX_PTR` (13, the only command) returns the item at `idx`, else null |
 
 ### §2.3 Caps (Currency)
 
