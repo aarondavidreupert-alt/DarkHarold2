@@ -62,6 +62,7 @@ const SOUND_VOLUME_MAX = 32767 // CE settings.h volumes are 0..0x7FFF
 // counterpart for. Unknown or out-of-range values are ignored (CE keeps defaults).
 export function applyCfg(cfg: CfgSections): void {
     const prefs = cfg['preferences'] ?? {}
+    const system = cfg['system'] ?? {}
     const sound = cfg['sound'] ?? {}
     const int = (v: string | undefined): number | null => {
         if (v === undefined) return null
@@ -108,6 +109,12 @@ export function applyCfg(cfg: CfgSections): void {
         const tbd = parseFloat(prefs['text_base_delay'])
         if (Number.isFinite(tbd) && tbd >= 1 && tbd <= 6) Config.ui.textBaseDelay = tbd
     }
+
+    // [system] color_cycling / cycle_speed_factor (CE cycle.cc colorCycleInit)
+    const cc = int(system['color_cycling'])
+    if (cc !== null) Config.ui.colorCycling = cc !== 0
+    const csf = int(system['cycle_speed_factor'])
+    if (csf !== null && csf > 0) Config.ui.cycleSpeedFactor = csf
 
     // [dh2] — DarkHarold2-only options (not in CE; CE ignores unknown sections).
     //   day_night_cycle=1  smooth hour-of-day light curve (default)

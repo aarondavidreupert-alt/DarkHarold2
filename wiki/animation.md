@@ -420,10 +420,10 @@ The high nibble of a FID identifies the object class, which determines the `art/
 | 4     | OBJ_TYPE_TILE       | art/tiles/   | yes (tiles)    |
 | 5     | OBJ_TYPE_MISC       | art/misc/    | yes (misc)     |
 | 6     | OBJ_TYPE_INTERFACE  | art/intrface/| yes (intrface) |
-| 7     | OBJ_TYPE_INVENTORY  | art/inven/   | partial        |
-| 8     | OBJ_TYPE_HEAD       | art/heads/   | partial        |
-| 9     | OBJ_TYPE_BACKGROUND | art/backgrnd/| no             |
-| 10    | OBJ_TYPE_SKILLDEX   | art/skilldex/| no             |
+| 7     | OBJ_TYPE_INVENTORY  | art/inven/   | yes (inven)    |
+| 8     | OBJ_TYPE_HEAD       | art/heads/   | yes (talking heads) |
+| 9     | OBJ_TYPE_BACKGROUND | art/backgrnd/| yes (dialogue backgrounds) |
+| 10    | OBJ_TYPE_SKILLDEX   | art/skilldex/| yes (cards)    |
 
 Source: `gArtListDescriptions` array, `raw/fallout2-ce/src/art.cc:55`.
 
@@ -633,9 +633,9 @@ type AnimEntry = AnimStep | AnimFunc
 
 `reg_anim_animate_forever(obj, anim)` (`src/scripting.ts:1613`) uses a recursive `singleAnimation` loop outside the batch system.
 
-`reg_anim_obj_move_to_tile(obj, tileNum, delay)` (`src/scripting.ts:1655`) calls `critter.walkTo(tile, false)` and ignores the delay argument.
+`reg_anim_obj_move_to_tile(obj, tileNum, delay)` registers a move step with its delay in the reg_anim batch (CE `animationRegisterMoveToTile`).
 
-Rotation and frame-set via `anim(obj, anim, param)` (`src/scripting.ts:1237`): only param values `1000` (set rotation) and `1010` (set frame) are implemented; all others are stubs.
+`anim(obj, anim, param)` is CE `opAnim` (AN11 in §13): animations below 1000 play (reversed when `param` is set), 1000 sets the rotation, 1010 the frame.
 
 ---
 
@@ -707,12 +707,13 @@ CE calls `tickersAdd(colorCycleTicker)` during init (`cycle.cc:cycleInit`). The 
 
 Because the effect is palette-level, it applies to every FRM sprite on screen simultaneously — a single palette write animates all water tiles, all fire tiles, and all active terminal monitors at once.
 
-### 12.5 DH2 Status — NOT IMPLEMENTED
+### 12.5 DH2 Status
 
-DH2 uses pre-baked PNG sprites extracted from FRM data via the Python pipeline. Palette indices are resolved to RGBA at extraction time; there is no runtime palette table. Palette cycling therefore has no equivalent mechanism in DH2.
+Implemented in the shaders (rendering.md RD10). The pipeline keeps a cycle mask per sprite (`colorCycle.ts parsePNGCycleMask`: palette index − 228 for entries 229–254), and `cycleColor()` in `shaders/fragment.glsl` rotates each group with CE's colours and rates (slime / shoreline / fire_slow 5 fps, fire_fast 7, monitors 10, bobber 30).
 
-| Item | Status |
-|------|--------|
+`[system] color_cycling` and `cycle_speed_factor` are read from fallout2.cfg (`colorCycle.ts cycleTime()`): off keeps the original palette order, the factor stretches every period as CE `gColorCycleSpeedFactor`.
+
+------|--------|
 | `color_cycling` ini flag | Not read by DH2 |
 | `cycle_speed_factor` ini flag | Not read by DH2 |
 | `colorCycleTicker` | No DH2 equivalent; no `tickersAdd` system |

@@ -10,6 +10,7 @@ import { WebGLRenderer } from './webglContext.js'
 import { hexDistance } from '../geometry.js'
 import { hexIsInFrontOf, hexIsToRightOf } from '../geometry/hexScreen.js'
 import { getActiveScrollBarBounds } from './camera.js'
+import { cycleTime } from '../colorCycle.js'
 
 declare module './webglContext.js' {
     interface WebGLRenderer {
@@ -106,7 +107,7 @@ WebGLRenderer.prototype.drawTileMap = function (tilemap: TileMap, offsetY: numbe
     const z = getZoom()
     gl.uniform2f(this.uScaleLocation, 80 * z, 36 * z)
     // CE ref: cycle.cc colorCycleTicker — floor tiles animate palette entries 229-254 too.
-    if (this.uCycleTime) gl.uniform1f(this.uCycleTime, performance.now() / 1000.0)
+    if (this.uCycleTime) gl.uniform1f(this.uCycleTime, cycleTime())
 
     // Roofs and fallback (unlit) floors are world geometry — react to
     // day/night + per-tile intensity like everything else on the map.
@@ -852,7 +853,7 @@ WebGLRenderer.prototype.renderFrame = function (
     gl.activeTexture(gl.TEXTURE7)
     gl.bindTexture(gl.TEXTURE_2D, this.getCycleMaskTex(imgPath))
     gl.activeTexture(gl.TEXTURE0)
-    if (this.uCycleTime) gl.uniform1f(this.uCycleTime, performance.now() / 1000.0)
+    if (this.uCycleTime) gl.uniform1f(this.uCycleTime, cycleTime())
 
     gl.uniform1f(this.uNumFramesLocation, totalFrames)
     gl.uniform1f(this.uFrameLocation, frame)

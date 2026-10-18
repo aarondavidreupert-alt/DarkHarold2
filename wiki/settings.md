@@ -245,7 +245,7 @@ Note: `combat_messages` storage is inverted in the source — stored value 0 = v
 
 ### 4.1 Architecture
 
-`src/config.ts` holds the defaults (CE `settings.h` values; `Config` is also `window.Config`). At startup `src/ui_options/fallout2Cfg.ts` reads `fallout2.cfg` (CE `configParseLine` / `settingsFromConfig`): `[preferences]`, `[sound]`, `[system]` keys that matter in a browser, plus a `[dh2]` section for DH2-only options (window dragging, overlays, edge scroll, Pip-Boy at start, day/night curve …, see README). The asset pipeline's `write_config` stage (`tools/fallout2Cfg.py`) creates the file with CE `gameConfigInit` defaults and never overwrites it. Changes made in the Preferences window are kept in `localStorage` (`dh2_preferences`) and win over the file — a browser can't write the file back (S-CI5).
+`src/config.ts` holds the defaults (CE `settings.h` values; `Config` is also `window.Config`). At startup `src/ui_options/fallout2Cfg.ts` reads `fallout2.cfg` (CE `configParseLine` / `settingsFromConfig`): `[preferences]`, `[sound]` and the `[system]` keys that matter in a browser (`color_cycling`, `cycle_speed_factor`), plus a `[dh2]` section for DH2-only options (window dragging, overlays, edge scroll, Pip-Boy at start, day/night curve …, see README). The asset pipeline's `write_config` stage (`tools/fallout2Cfg.py`) creates the file with CE `gameConfigInit` defaults and never overwrites it. Changes made in the Preferences window are kept in `localStorage` (`dh2_preferences`) and win over the file — a browser can't write the file back (S-CI5).
 
 ### 4.2 Preferences (CE `preferences.cc`)
 

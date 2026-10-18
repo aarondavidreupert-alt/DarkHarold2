@@ -105,6 +105,10 @@ export const Config = {
         combatTaunts: true,
         // CE settings.preferences.combat_looks — examine whatever the attack cursor points at (game_mouse.cc:745)
         combatLooks: false,
+        // CE settings.system.color_cycling / cycle_speed_factor (cycle.cc colorCycleInit,
+        // cycleSetSpeedFactor): palette cycling on, and its periods multiplied by the factor.
+        colorCycling: true,
+        cycleSpeedFactor: 1,
         // CE settings.preferences.brightness — palette gamma, 1.0–1.18 (color.cc colorSetBrightness)
         brightness: 1.0,
         // CE settings.preferences.mouse_sensitivity — 1.0–2.5 (stored; the browser owns the pointer speed)
