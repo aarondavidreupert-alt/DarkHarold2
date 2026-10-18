@@ -181,6 +181,21 @@ export class Critter extends Obj {
                 if (inv.flags & 0x1000000) obj.leftHand  = w       // OBJECT_IN_LEFT_HAND
                 else if (inv.flags & 0x2000000) obj.rightHand = w  // OBJECT_IN_RIGHT_HAND
             }
+        } else if (typeof mobj.extra?.hp === 'number') {
+            // CE: the map file stores each critter's current HP (data.critter.hp), and
+            // critterIsDead is HP <= 0 — the corpses a map starts with (Enclave soldiers in
+            // the Military Base …) are critters with 0 HP and a single-frame death FID.
+            const hp: number = mobj.extra.hp
+            if (hp <= 0) {
+                obj.stats.setBase('HP', 0)
+                obj.dead = true
+                obj.injuryFlags = (obj.injuryFlags | 0x80) >>> 0 // DAM_DEAD
+                obj.art = mobj.art // the map's death frame art (initialised to idle by init())
+                obj.frame = 0
+                obj.anim = 'dead'
+            } else {
+                obj.stats.setBase('HP', Math.min(hp, obj.getStat('Max HP')))
+            }
         }
 
         return obj
