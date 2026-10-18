@@ -173,20 +173,13 @@ export class Critter extends Obj {
             // point at the re-created inventory objects (not stale pre-deserialize refs).
             // CE ref: inventory.cc critterGetItem1/critterGetItem2 — use hand-slot
             // flags (OBJECT_IN_LEFT_HAND=0x1000000, OBJECT_IN_RIGHT_HAND=0x2000000).
-            // For already-hostile NPCs (mid-combat save) fall back to first-weapon
-            // heuristic if no flagged weapon is found, matching pre-save draw state.
+            // Any item can be in a hand (a flare, a Stealth Boy), not only weapons.
             obj.leftHand  = Critter.makeFist()
             obj.rightHand = Critter.makeFist()
-            let foundFlagged = false
             for (const inv of obj.inventory) {
-                if (inv.subtype !== 'weapon') continue
                 const w = inv as WeaponObj
-                if (inv.flags & 0x1000000) { obj.leftHand  = w; foundFlagged = true }  // OBJECT_IN_LEFT_HAND
-                else if (inv.flags & 0x2000000) { obj.rightHand = w; foundFlagged = true } // OBJECT_IN_RIGHT_HAND
-            }
-            // Hostile NPCs with no hand-flagged weapon in save data → draw first usable
-            if (obj.hostile && !foundFlagged) {
-                obj.equipFromInventory()
+                if (inv.flags & 0x1000000) obj.leftHand  = w       // OBJECT_IN_LEFT_HAND
+                else if (inv.flags & 0x2000000) obj.rightHand = w  // OBJECT_IN_RIGHT_HAND
             }
         }
 
@@ -218,7 +211,6 @@ export class Critter extends Obj {
         this.leftHand  = Critter.makeFist()
         this.rightHand = Critter.makeFist()
         for (const inv of this.inventory) {
-            if (inv.subtype !== 'weapon') continue
             const w = inv as WeaponObj
             if (inv.flags & 0x1000000) this.leftHand  = w  // OBJECT_IN_LEFT_HAND
             else if (inv.flags & 0x2000000) this.rightHand = w // OBJECT_IN_RIGHT_HAND

@@ -26,6 +26,7 @@ import { hexDirectionTo, hexDistance, hexFromScreen, hexInDirection, hexInDirect
 import globalState from '../globalState.js'
 import { eventLogPush, dbg, dbgWarn } from '../logger.js'
 import { cloneItem, createObjectWithPID, Critter, Obj, PROTO_ID_FLARE, PROTO_ID_LIT_FLARE, useFlare } from '../object.js'
+import { invenWield } from '../inventoryWield.js'
 import { Player } from '../player.js'
 import { Scripting } from '../scripting.js'
 import { drawAC, drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiEndButtonsGreenLights, uiEndButtonsRedLights, uiLog, uiStartCombat } from '../ui.js'
@@ -1346,10 +1347,8 @@ export class Combat {
         if (defenderBiped && defenderUnarmed && canPunch && inReach) return false
         const weapon = Combat.aiSearchInvenWeap(attacker, defender)
         if (!weapon) return false
-        const a = attacker as any
-        a.rightHand = weapon
-        a.activeHand = 'rightHand'
-        attacker.setIdleArt()
+        ;(attacker as any).activeHand = 'rightHand'
+        invenWield(attacker, weapon, 'rightHand') // _inven_wield(attacker, weapon, HAND_RIGHT)
         dbg('ai', `[AI] ${actorName(attacker)} wields ${weapon.name} (CE _ai_switch_weapons)`)
         return true
     }
@@ -2298,10 +2297,8 @@ export class Combat {
     private aiSwitchWeapons(obj: Critter, target: Critter, again: () => void): 'acting' | 'retry' | 'fail' {
         const best = Combat.aiSearchInvenWeap(obj, target)
         if (best) {
-            const a = obj as any
-            a.rightHand = best
-            a.activeHand = 'rightHand'
-            obj.setIdleArt()
+            ;(obj as any).activeHand = 'rightHand'
+            invenWield(obj, best, 'rightHand') // _inven_wield(attacker, weapon, HAND_RIGHT)
             dbg('ai', `[AI] ${actorName(obj)} wields ${best.name} (CE _ai_switch_weapons)`)
             return this.checkBadShot(obj, target, false) === 'notEnoughAp' ? 'fail' : 'retry'
         }
@@ -2312,10 +2309,8 @@ export class Combat {
             const wield = (): void => {
                 const got = inventoryCopyOf(obj, found)
                 if (got) {
-                    const a = obj as any
-                    a.rightHand = got
-                    a.activeHand = 'rightHand'
-                    obj.setIdleArt()
+                    ;(obj as any).activeHand = 'rightHand'
+                    invenWield(obj, got, 'rightHand')
                 }
                 again()
             }
