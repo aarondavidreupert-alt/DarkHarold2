@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { getCurrentMapInfo } from './data.js'
+import globalState from './globalState.js'
 import { dbg, dbgWarn } from './logger.js'
 import { getFileJSON, getRandomInt } from './util.js'
 import { getWeaponSounds, ImpactMaterial } from './soundMap.js'
@@ -61,8 +62,9 @@ export class NullAudioEngine implements AudioEngine {
 
 export class HTMLAudioEngine implements AudioEngine {
     //lastSfxTime: number = 0
-    nextSfxTime: number = 0
+    nextSfxTime: number = 0 // game tick of the next ambient sfx event (0: not scheduled)
     nextSfx: string | null = null
+    lastAmbientTime = -Infinity // CE _lastTime_1 (real time)
     musicAudio: HTMLAudioElement | null = null
 
     // Volume levels (0.0–1.0 internally; Preferences UI uses 0–100)
@@ -286,39 +288,45 @@ export class HTMLAudioEngine implements AudioEngine {
         this.stopMusic()
     }
 
+    // CE worldmap.cc wmSfxRollNextIdx: a roll over the map's ambient sfx chances; a roll
+    // past the last chance gives none ('').
     rollNextSfx(): string {
-        // Randomly obtain the next map sfx
         const curMapInfo = getCurrentMapInfo()
         if (!curMapInfo) return ''
-
         const sfx = curMapInfo.ambientSfx
         if (!sfx || sfx.length === 0) return ''
-        const sumFreqs = sfx.reduce((sum: number, x: [string, number]) => sum + x[1], 0)
-        if (sumFreqs === 0) return ''
-        let roll = getRandomInt(0, sumFreqs)
-
-		for (var i = 0; i < sfx.length; i++) {
-			var freq = sfx[i][1]
-			if (roll < freq) return sfx[i][0]
-			roll -= freq
-		}
-		// fallback statt throw
-		return sfx[0][0]
+        const total = sfx.reduce((sum: number, x: [string, number]) => sum + x[1], 0)
+        let chance = getRandomInt(0, total)
+        for (const [name, freq] of sfx) {
+            if (chance >= freq) {
+                chance -= freq
+                continue
+            }
+            return name
+        }
+        return ''
     }
 
+    // CE game_sound.cc ambientSoundEffectEventProcess: every 10 × random(15, 20) game ticks
+    // the rolled map sfx plays — not in combat, and not within 5 s (real time) of the last
+    // one; the next one is rolled when this one fires.
     tick(): void {
-        var time = window.performance.now()
-
-        if (!this.nextSfx) this.nextSfx = this.rollNextSfx()
-        if (!this.nextSfx) return  // map has no ambient SFX
-
-        if (time >= this.nextSfxTime) {
-            // play next sfx in queue
-            this.playSfx(this.nextSfx)
-
-            // queue up next sfx
+        const curMapInfo = getCurrentMapInfo()
+        if (!curMapInfo?.ambientSfx || curMapInfo.ambientSfx.length === 0) return
+        const now = globalState.gameTickTime
+        if (this.nextSfxTime === 0) {
             this.nextSfx = this.rollNextSfx()
-            this.nextSfxTime = time + getRandomInt(15, 20) * 1000
+            this.nextSfxTime = now + 10 * getRandomInt(15, 20)
+            return
+        }
+        if (now < this.nextSfxTime) return
+        const sfx = globalState.inCombat ? '' : this.nextSfx
+        this.nextSfx = this.rollNextSfx()
+        this.nextSfxTime = now + 10 * getRandomInt(15, 20)
+        if (sfx) {
+            const real = window.performance.now()
+            if (real - this.lastAmbientTime >= 5000) this.playSfx(sfx)
+            this.lastAmbientTime = real
         }
     }
 }

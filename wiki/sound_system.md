@@ -171,156 +171,9 @@ Special overrides:
 
 `CHARACTER_SOUND_EFFECT` enum values: `UNUSED`, `KNOCKDOWN`, `PASS_OUT`, `DIE`, `CONTACT`.
 
-### Ambient SFX — `gameSoundBuildAmbientSoundEffectName`
-
-CE source: `game_sound.cc:1354`
-
-```
-Format: A{name:6}1   (8 chars)
-```
-
-Example: base name `"windhw"` → `"AWINDHW1"`.
-
-### Interface SFX — `gameSoundBuildInterfaceName`
-
-CE source: `game_sound.cc:1370`
-
-```
-Format: N{name:6}1   (8 chars)
-```
-
-Note: `sfx_build_item_name` (opcode 0x8140) calls `gameSoundBuildInterfaceName` internally — same format, different opcode.
-
-### Scenery SFX — `sfxBuildSceneryName`
-
-CE source: `game_sound.h:75` — `sfxBuildSceneryName(actionType, action, name)`.
-Format details not reversed fully; passes through to scenery-specific naming logic.
-
-### Open/Close SFX — `sfxBuildOpenName`
-
-CE source: `game_sound.h:76` — `sfxBuildOpenName(obj, action)`.
-Used for door open/close sounds; derives name from object proto.
-
----
-
-## 4. SFX Playback Pipeline (CE)
-
-CE source: `game_sound.cc` — `soundPlayFile`, `soundEffectLoad`, `soundEffectLoadWithVolume`, `soundEffectPlay`, `soundEffectCallback`.
-
-```
-Script calls play_sfx(name)
-  → soundPlayFile(name)                      [game_sound.cc:1527]
-      → soundEffectLoad(name, nullptr)
-          → soundEffectsCacheFileOpen(...)   [sound_effects_cache.cc]
-          → soundDecoderInit(...)            [sound_decoder.cc]
-      → soundPlay(sound)
-          → soundEffectPlay(sound)           [sound.cc]
-              → soundEffectCallback on finish (frees Sound*)
-```
-
-- All SFX share a single global SFX volume: `gSoundEffectsVolume` (0–`VOLUME_MAX`=32768).
-- Master volume: `gMasterVolume`. Music volume: `gMusicVolume`.
-- SFX are decoded on-demand from the cache; the cache manages compressed ACM data in memory.
-- `soundPlayFile("ib1p1xx1")` / `"toggle"` etc. are the hardcoded UI sounds (inventory barter, etc.).
-
----
-
-## 5. Ambient Sound (CE)
-
-CE source: `game_sound.cc:2098` — `ambientSoundEffectEventProcess`.
-
-Ambient sound uses the timed event queue (`EVENT_TYPE_GSOUND_SFX_EVENT`):
-
-1. On map enter, `ambientSoundEffectEventProcess(nullptr, nullptr)` is called to prime the queue.
-2. Each invocation:
-   - Clears existing `GSOUND_SFX_EVENT` events.
-   - Picks the next ambient SFX index via `wmSfxRollNextIdx()` (weighted random from worldmap area's SFX list).
-   - Schedules the next event with delay `10 × randomBetween(15, 20)` ticks (= 150–200 game ticks).
-   - If ambient index ≥ 0 and not in combat: resolves SFX name via `wmSfxIdxName(idx, &fileName)` and calls `soundPlayFile(fileName)`.
-   - Enforces a 5000ms real-time cooldown (`_lastTime_1`) to prevent rapid-fire ambient plays.
-3. Ambient SFX are suppressed during combat (`isInCombat()` check).
-
-SFX names used here follow the `A{name:6}1` ambient naming convention.
-
----
-
-## 6. Background Music (CE)
-
-CE source: `game_sound.cc` — `backgroundSoundPlay`, `gBackgroundSound`, `gMusicVolume`.
-
-- One `Sound*` at a time (`gBackgroundSound`).
-- Music paths configured in `fallout2.cfg`: `GAME_CONFIG_MUSIC_PATH1_KEY`, `GAME_CONFIG_MUSIC_PATH2_KEY`.
-- Music filenames are stored per worldmap area via `wmSetMapMusic(mapIndex, name)` (called from the `set_map_music` scripting opcode, 0x80E2).
-- On area transition the engine calls `backgroundSoundPlay()` which resolves the stored name, allocates `gBackgroundSound`, and starts looping playback.
-- Volume: `soundSetVolume(gBackgroundSound, (int)(gMusicVolume * 0.94))` — the 0.94 factor reduces music during movies.
-- `gMusicVolume` is persisted in `settings.sound.music_volume`.
-
----
-
-## 7. DH2 Web Audio Implementation
-
-DH2 replaces the entire CE audio stack with Web Audio API + `HTMLAudioElement`. Source: `src/audio.ts`.
-
-### Architecture
-
-```
-                  SFX (AudioContext)
-┌──────────────────────────────────────────┐
-│  fetch → decodeAudioData → AudioBuffer   │
-│         source → sfxGainNode             │
-│                      ↓                   │
-│               masterGainNode             │
-│                      ↓                   │
-│              AudioContext.destination    │
-└──────────────────────────────────────────┘
-
-                Music (HTMLAudioElement)
-┌──────────────────────────────────────────┐
-│  new Audio('audio/music/*.wav')          │
-│  .loop = true                            │
-│  .volume = musicVolume × masterVolume    │
-└──────────────────────────────────────────┘
-```
-
-Music uses `HTMLAudioElement` because streaming and `.loop` are trivial there. SFX uses `AudioContext` + `decodeAudioData` because CE `.wav` files are 22050 Hz — `HTMLAudioElement` plays them at device rate (~44100/48000 Hz) without resampling, causing them to sound ~2× too fast.
-
-### Volume System
-
-Three channels, each 0–100 (UI) normalised to 0.0–1.0 internally:
-
-| Channel | GainNode | Description |
-|---------|----------|-------------|
-| `master` | `masterGainNode` | Global multiplier; also updates `musicAudio.volume` |
-| `sfx` | `sfxGainNode` | SFX-only multiplier |
-| `music` | (HTMLAudioElement) | Sets `musicAudio.volume = musicVolume × masterVolume` |
-
-`setVolume(channel, 0–100)` in `HTMLAudioEngine` — `src/audio.ts:223`.
-
-### SFX Loading and Caching
-
-`loadSfx(name)` in `src/audio.ts`:
-- Returns cached `AudioBuffer` from `sfxCache` immediately if present.
-- Returns `null` immediately if `sfxMissing` (negative cache) contains the name — avoids 404 console spam for repeated missing files (e.g., every burst shot for a weapon with no burst wav).
-- Otherwise: `fetch('audio/sfx/' + name + '.wav')` → `ctx.decodeAudioData` → store in `sfxCache`.
-- Deduplicates in-flight fetches via `sfxPending` map.
-
-`playSfx(sfx: string)` is fire-and-forget (Promise chain, errors logged).
-
-### Music Loading
-
-`playMusic(music: string)` in `src/audio.ts:150`:
-- Creates `new Audio('audio/music/' + music + '.wav')` with `.loop = true`.
-- Volume = `musicVolume × masterVolume`.
-
-Music is started on every map load by `src/map/GameMap.ts:playMapMusic()`, which reads `curMapInfo.music` — a string parsed from `maps/mapinfo.ini` via `src/data.ts`. Music is **not** driven by the `set_map_music` scripting opcode (which is unwired, see §8).
-
 ### Ambient SFX
 
-`MapInfo.ambientSfx: [string, number][]` — weighted list of `[stemName, weight]` pairs, parsed from `ambient_sfx = name:weight,name:weight,...` in `maps/mapinfo.ini` (`src/data.ts:257`).
-
-`rollNextSfx()` in `src/audio.ts` picks a weighted random stem. `tick()` plays it once and schedules the next for 15–20 seconds later. DH2 uses wall-clock milliseconds (`performance.now()`), not game ticks like CE.
-
-**Gap vs CE:** DH2 does not suppress ambient SFX during combat.
+`MapInfo.ambientSfx` is maps.txt `ambient_sfx = name:chance, …`. `HTMLAudioEngine.tick()` (game ticks) is CE `ambientSoundEffectEventProcess`: every `10 × random(15, 20)` game ticks the sfx rolled last time plays — not in combat, and not within 5 s of real time of the previous one — and the next is rolled (`rollNextSfx` = `wmSfxRollNextIdx`: a roll past the last chance gives none).
 
 ### Weapon SFX
 
@@ -337,45 +190,7 @@ Music is started on every map load by `src/map/GameMap.ts:playMapMusic()`, which
 
 ### CE → DH2 Status
 
-| Opcode | CE name | CE source | Args | DH2 status |
-|--------|---------|-----------|------|------------|
-| `0x80A3` | `play_sfx` | `interpreter_extra.cc:490` | `name: str` | Wired `vm_bridge.ts:173`, implemented `scripting.ts:1798` |
-| `0x80A5` | `sfx_build_open_name` | `interpreter_extra.cc:4401` | `obj, action: int` → `str` | **Not wired** |
-| `0x80E2` | `set_map_music` | `interpreter_extra.cc:2064` | `mapIndex: int, name: str` | **Not wired** |
-| `0x813B` | `reg_anim_play_sfx` | `interpreter_extra.cc:4253` | `obj, name: str, delay: int` | **Not wired** |
-| `0x813D` | `sfx_build_char_name` | `interpreter_extra.cc:4323` | `obj, anim, extra: int` → `str` | **Not wired** |
-| `0x813E` | `sfx_build_ambient_name` | `interpreter_extra.cc:4341` | `name: str` → `str` | **Not wired** |
-| `0x813F` | `sfx_build_interface_name` | `interpreter_extra.cc:4352` | `name: str` → `str` | **Not wired** |
-| `0x8140` | `sfx_build_item_name` | `interpreter_extra.cc:4363` | `name: str` → `str` | **Not wired** |
-| `0x8141` | `sfx_build_weapon_name` | `interpreter_extra.cc:4374` | `type, weapon, hitMode, target` → `str` | **Not wired** |
-| `0x8142` | `sfx_build_scenery_name` | `interpreter_extra.cc:4388` | `actionType, action, name: str` → `str` | **Not wired** |
-
-### `play_sfx` (0x80A3) — Implemented
-
-CE: `soundPlayFile(name)` → loads ACM, plays once.
-DH2: `globalState.audioEngine.playSfx(sfx.toLowerCase())` — fetch + decode + AudioBuffer play.
-
-```typescript
-// src/scripting.ts:1798
-play_sfx(sfx: string) {
-    if (!globalState.audioEngine) return
-    globalState.audioEngine.playSfx(sfx.toLowerCase())
-}
-```
-
-### `set_map_music` (0x80E2) — Not wired
-
-CE: `wmSetMapMusic(mapIndex, string)` — stores music name for a worldmap area index; the name is played by the engine on area entry.
-
-DH2 equivalent: `map.ts:playMapMusic()` reads `mapInfo.music` from the INI (data-driven), ignoring any script-driven overrides entirely.
-
-Scripts that call `set_map_music` at runtime will silently no-op in DH2 (opcode not in `vm_bridge.ts`).
-
-### `sfx_build_*` (0x813D–0x8142, 0x80A5) — Not wired
-
-These name-builder opcodes return a formatted SFX filename string to the script stack. Scripts use the returned name with `play_sfx`. Since none are wired, any script that tries to build and play a contextual SFX (critter footsteps, door opens, weapon hits) will fail silently.
-
-DH2 instead triggers weapon SFX through the engine's `playWeaponSfx` call in `src/combat/Combat.ts` (engine-driven, not script-driven).
+All sound opcodes are wired (see `scripting_reference.md` §4): `play_sfx` (0x80A3), `sfx_build_open_name` (0x80A5), `set_map_music` (0x80E2), `reg_anim_play_sfx` (0x813B, only inside a reg_anim batch as CE `_check_registry`), `sfx_build_char_name` / `ambient` / `interface` / `item` / `weapon` / `scenery` (0x813D–0x8142) — the name builders port CE `sfxBuild*` / `gameSoundBuild*` (`src/scripting.ts`, `src/sfxNames.ts`).
 
 ---
 
@@ -385,7 +200,7 @@ DH2 instead triggers weapon SFX through the engine's `playWeaponSfx` call in `sr
 |---------|---------|----------|
 | SFX files | `data/sound/sfx/*.ACM` | `audio/sfx/*.wav` |
 | Music files | `data/sound/music/*.ACM` | `audio/music/*.wav` |
-| Speech files | `data/sound/speech/*.ACM` | Not implemented |
+| Speech files | `data/sound/speech/<head>/*.ACM` | `audio/speech/<head>/*.mp3` (+ `.lip` lip-sync, `src/talkingHead.ts`) |
 | SFX catalogue | `data/sound/sfx/SNDLIST.LST` | `lut/lst/sound_sfx_sndlist.json` |
 
 DH2 ships pre-converted `.wav` files extracted from the ACM pipeline. The ACM decoder itself is not present in DH2; all decoding happens offline in the asset pipeline (`tools/setup.py`).
@@ -394,13 +209,8 @@ DH2 ships pre-converted `.wav` files extracted from the ACM pipeline. The ACM de
 
 ## 10. Known Gaps (DH2 vs CE)
 
-1. **`sfx_build_char_name` (0x813D) not wired** — critter footstep / animation SFX from scripts never play.
-2. **`sfx_build_weapon_name` (0x8141) not wired** — scripts that build weapon SFX names manually will silently fail.
-3. **`sfx_build_ambient_name` / `sfx_build_interface_name` / `sfx_build_item_name` / `sfx_build_scenery_name` / `sfx_build_open_name` not wired** — ambient and scenery SFX triggered from scripts silently no-op.
-4. **`reg_anim_play_sfx` (0x813B) not wired** — scheduled animation-sync SFX from scripts silently no-op.
-5. **`set_map_music` (0x80E2) not wired** — script-driven music changes at runtime are silently ignored; DH2 only plays music from map INI data.
-6. **Ambient SFX not suppressed during combat** — CE calls `isInCombat()` and skips the ambient play; DH2 `tick()` does not check combat state.
-7. **Ambient timing mismatch** — CE schedules ambient SFX with random 150–200 game ticks (queue event); DH2 uses wall-clock 15–20 seconds (`performance.now()`). Ticks ≠ seconds in CE (10 ticks/second means CE plays ambient every 15–20 seconds too, so this gap is minor).
-8. **Speech audio absent** — CE has a full speech system (`gSpeechVolume`, `speechPlay`, speech files per dialogue line). DH2 has no speech playback.
-9. **SFX volume not script-accessible** — CE has no scripting opcode for volume control (volume is a player preference), and DH2 matches this. Volume is set via the DH2 Preferences UI only.
-10. **`reg_anim_play_sfx` not wired** — animation-queued SFX (e.g., weapon take-out sounds timed to anim frames) are not triggered from scripts. Engine-side weapon SFX in combat are covered by `playWeaponSfx`, but scripted `reg_anim_play_sfx` calls are a gap.
+| Area | CE | DH2 |
+|---|---|---|
+| Decoding | ACM decoded at runtime | Pre-converted to WAV / MP3 by the pipeline (browser-safe; same sound) |
+
+Everything else in this doc is implemented (opcodes, map / script music, ambient timing and combat silence, speech with lip-sync, volumes from fallout2.cfg / Preferences). <!-- audited: 2026-10-18 -->
