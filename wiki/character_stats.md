@@ -358,15 +358,13 @@ Traits that affect derived stats or skills (from `trait.cc::traitGetStatModifier
 |---|---|---|
 | Gifted | +1 to all 7 SPECIAL; −5 skill points/level; −10 all skills | SPECIAL +1: IMPLEMENTED (`player.ts:159`); skill penalty: IMPLEMENTED (`skills.ts TRAIT_SKILL_MODIFIERS`) |
 | Bruiser | +2 STR; −2 AP | STR +2: IMPLEMENTED (`player.ts:162`); AP penalty: IMPLEMENTED (`traitGetStatModifier`) |
-| Small Frame | +1 AGI; carry weight penalty (−10×STR) | AGI +1: IMPLEMENTED (`player.ts:165`); carry penalty: NOT IMPLEMENTED |
-| Kamikaze | AC = 0 (armor-only); +5 Sequence | NOT IMPLEMENTED |
-| Fast Metabolism | +2 Healing Rate; Radiation Resistance = 0; Poison Resistance = 0 | NOT IMPLEMENTED |
-| Heavy Handed | +4 Melee Damage; −30 Better Criticals | NOT IMPLEMENTED |
-| Finesse | +10 Critical Chance | NOT IMPLEMENTED |
+| Small Frame | +1 AGI; carry weight penalty (−10×STR) | AGI on the base; carry in `Player.getStat` |
+| Kamikaze | AC = −base AC; +5 Sequence | `Player.getStat` |
+| Fast Metabolism | +2 Healing Rate; Radiation / Poison Resistance 0 | `Player.getStat` |
+| Heavy Handed | +4 Melee Damage; −30 Better Criticals | `Player.getStat` |
+| Finesse | +10 Critical Chance | `Player.getStat` |
 
-DH2 `skills.ts TRAIT_SKILL_MODIFIERS` handles Gifted (−10 all skills) and Good Natured skill
-effects at the skill-formula level; trait SPECIAL modifiers beyond Gifted/Bruiser/Small Frame
-are not applied.
+The SPECIAL parts sit on the base stats (moved by `Player.setTraits`), the derived parts are applied live in `Player.getStat` (CE `traitGetStatModifier`), the skill parts in `skills.ts traitGetSkillModifier` — see `perks_traits.md` §1.
 
 ---
 
@@ -455,69 +453,11 @@ Audit 2026-10-17 — all implemented:
 
 ### 5.5 Scripting Opcodes
 
-**`get_critter_stat` (opcode `0x80CA`)**
+**`get_critter_stat` (0x80CA)** covers all 38 stat ids — table in `critter_stats.md` §2.
 
-CE ref: `interpreter_extra.cc:4915`.  
-Args: `obj, stat` → returns stat value.  
-DH2 wired: YES (`vm_bridge.ts:70`).
+**`set_critter_stat` (0x80CB)** is CE `opSetCritterStat`: the dude only, the value added to the base (with trait modifier); derived stats 7–32 are refused; 35–37 go through HP / poison / radiation.
 
-DH2 `statMap` (`scripting.ts:90–100`) — indices handled:
-
-| Index | CE Constant | DH2 name | Notes |
-|-------|-------------|----------|-------|
-| 0 | `STAT_STRENGTH` | `'STR'` | |
-| 1 | `STAT_PERCEPTION` | `'PER'` | |
-| 2 | `STAT_ENDURANCE` | `'END'` | |
-| 3 | `STAT_CHARISMA` | `'CHA'` | |
-| 4 | `STAT_INTELLIGENCE` | `'INT'` | |
-| 5 | `STAT_AGILITY` | `'AGI'` | |
-| 6 | `STAT_LUCK` | `'LUK'` | |
-| 7 | `STAT_MAXIMUM_HIT_POINTS` | `'Max HP'` | |
-| 34 | `STAT_GENDER` | gender check | Returns 1 (female) or 0 (male); player only |
-| 35 | `STAT_CURRENT_HIT_POINTS` | `'HP'` | |
-| other | — | — | Falls through to `stub()`, returns 5 |
-
-Known gap: CE `critterGetStat` routes through the full modifier chain (bonus stats, perks,
-context). DH2 calls `obj.getStat(namedStat)` which calls `StatSet.get()` — the dependency
-chain for derived stats, but no live perk modifiers.
-
-CE stats not handled in DH2 statMap:
-- 8: `STAT_MAXIMUM_ACTION_POINTS` — missing (not in statMap; scripts wanting player AP would
-  call via `statMap` but 8 is undefined → stub → 5)
-- 9: `STAT_ARMOR_CLASS` — missing
-- 11: `STAT_MELEE_DAMAGE` — missing (DH2 name is `'Melee'`, not in statMap)
-- 12: `STAT_CARRY_WEIGHT` — missing
-- 13–16: Sequence, Healing Rate, Critical Chance, Better Criticals — missing
-- 31–32: Radiation/Poison Resistance — missing
-- 33: Age — missing
-- 36–37: Poison/Radiation Level — missing
-
-**`set_critter_stat` (opcode `0x80CB`)**
-
-CE ref: `interpreter_extra.cc:4916`.  
-CE behavior: calls `critterSetBonusStat(critter, stat, value)` — writes to the bonus layer.  
-DH2 status: NOT IMPLEMENTED. No method on `Script` class, not wired in `vm_bridge.ts`.
-
-**`get_pc_stat` / `set_pc_stat` / `mod_pc_stat`**
-
-| Method | CE opcode | DH2 wired | Notes |
-|--------|-----------|-----------|-------|
-| `get_pc_stat(pcstat)` | `0x80A6` | NOT WIRED | Method exists in `scripting.ts:891` |
-| `set_pc_stat(pcstat, value)` | unknown | NOT WIRED | Method exists in `scripting.ts:910` |
-| `mod_pc_stat(pcstat, delta)` | unknown | NOT WIRED | Method exists in `scripting.ts:926` |
-
-CE `PcStat` enum (`stat_defs.h`):
-
-| Index | CE Constant | DH2 impl |
-|-------|-------------|----------|
-| 0 | `PC_STAT_UNSPENT_SKILL_POINTS` | `player.skills.skillPoints` |
-| 1 | `PC_STAT_LEVEL` | `player.getStat('Level')` |
-| 2 | `PC_STAT_EXPERIENCE` | `player.getStat('Experience')` |
-| 3 | `PC_STAT_REPUTATION` | `player.stats.getBase('Reputation')` |
-| 4 | `PC_STAT_KARMA` | `player.stats.getBase('Karma')` |
-
-The methods exist and are correct, but because they are not wired in `vm_bridge.ts`, FO2
-scripts calling `get_pc_stat()` or `set_pc_stat()` will crash with an unknown opcode error.
+**`get_pc_stat` (0x80A6)** is wired: 0 unspent skill points, 1 level, 2 experience, 3 reputation, 4 karma. CE has no `set_pc_stat` / `mod_pc_stat` opcodes; DH2's helpers of that name are engine-internal.
 
 ---
 
