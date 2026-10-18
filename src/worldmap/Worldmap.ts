@@ -966,7 +966,37 @@ function placePartyMarker(): void {
 }
 
 // CE wmPartyInitWalking: a Bresenham line from the party to (x, y)
+// DH2 debug (console revealWorldmap / setInstantTravel, not in CE): a click on the
+// worldmap moves the party there at once — no game time, no encounters.
+let instantTravel = false
+export function setInstantTravel(on: boolean): void { instantTravel = on }
+
+// DH2 debug (console revealWorldmap, not in CE): every subtile visited, every area
+// known and visited with all its entrances.
+export function revealAll(): void {
+    if (worldmap) {
+        for (let x = 0; x < NUM_SQUARES_X; x++) for (let y = 0; y < NUM_SQUARES_Y; y++) markSquare(x, y, WORLDMAP_DISCOVERED)
+    }
+    for (const key in globalState.mapAreas ?? {}) {
+        const area: any = globalState.mapAreas[key]
+        area.state = true
+        area.visitedState = 2
+        for (const e of area.entrances ?? []) e.state = true
+        globalState.knownAreas.add(area.id)
+    }
+    refreshAreaMarkers()
+}
+
 function partyInitWalking(x: number, y: number): void {
+    if (instantTravel && worldmapPlayer) {
+        worldmapPlayer.x = x
+        worldmapPlayer.y = y
+        markSubTileRadiusVisited(x, y)
+        stopWalking()
+        applyPan(Math.floor(x - VIEW_W / 2), Math.floor(y - VIEW_H / 2))
+        placePartyMarker()
+        return
+    }
     worldmapPlayer.target = { x, y }
     walk.isWalking = true
     currentAreaId = -1

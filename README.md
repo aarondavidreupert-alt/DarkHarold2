@@ -520,6 +520,7 @@ _debug.addXP(2000)
 |---|---|---|
 | `addXP(n)` | Add `n` experience points. Fires level-up and opens the perk picker if the XP threshold is crossed. | `debug.addXP(2000)` |
 | `skipTemple()` | Skip the Temple of Trials: load Arroyo Village at the temple exit's destination (map 4, tile 11683). Also on `window` as `skipTemple()`. | `debug.skipTemple()` |
+| `revealWorldmap()` | Open the worldmap with every square, town and entrance revealed; clicks (map or town list) then move the party there at once — no game time, no encounters. `revealWorldmap(false)` reveals without instant travel; `setInstantTravel(false)` stops it. DH2 debug, not in CE. | `revealWorldmap()` |
 | `setHP(n)` | Set player current HP to `n`. | `debug.setHP(1)` |
 | `setKarma(n)` | Set player karma to `n`. Clamped to ±99999999. | `debug.setKarma(500)` |
 | `combatLog()` | Returns the current `eventLog` array (same data exported by the Combat Log tools). | `debug.combatLog()` |

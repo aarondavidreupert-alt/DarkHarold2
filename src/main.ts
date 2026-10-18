@@ -47,6 +47,7 @@ import { installInputHandlers } from './input.js'
 import { tickGame } from './gameTick.js'
 import { debug } from './debug.js'
 import './autocrawler.js'
+import { Worldmap } from './worldmap.js'
 
 // Re-export playerUse so existing call sites (scripting.ts imports it from './main.js')
 // keep working after the Phase 7 split.
@@ -355,6 +356,22 @@ window.onload = async function () {
     }
     // Console: skipTemple() — leave the Temple of Trials for Arroyo Village (src/debug.ts).
     ;(window as any).skipTemple = () => debug.skipTemple()
+    // Console (DH2 debug): revealWorldmap() — open the worldmap with every subtile, town
+    // and entrance revealed; a click then moves the party there at once (no time, no
+    // encounters). revealWorldmap(false) reveals without instant travel;
+    // setInstantTravel(false) switches it off again.
+    ;(window as any).revealWorldmap = (instant: boolean = true) => {
+        if (globalState.inCombat) { console.warn('[DH2] revealWorldmap: not in combat'); return }
+        uiWorldMap()              // loads the areas
+        Worldmap.revealAll()
+        Worldmap.setInstantTravel(instant !== false)
+        uiWorldMap()              // rebuilds the town list with every area
+        console.log(`[DH2] worldmap revealed${instant !== false ? ', instant travel on (setInstantTravel(false) to stop)' : ''}`)
+    }
+    ;(window as any).setInstantTravel = (on: boolean) => {
+        Worldmap.setInstantTravel(!!on)
+        console.log(`[DH2] worldmap instant travel ${on ? 'on' : 'off'}`)
+    }
     ;(window as any).setDevKeys = (on: boolean) => {
         Config.engine.devKeys = on !== false
         console.log(`[Input] developer hotkeys ${Config.engine.devKeys ? 'on' : 'off'}`)

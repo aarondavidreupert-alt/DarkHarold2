@@ -58,6 +58,8 @@ export module Worldmap {
     export const setCurrentAreaId = _WorldmapMod.setCurrentAreaId
     export const areaVisitedState = _WorldmapMod.areaVisitedState
     export const teleportToArea = _WorldmapMod.teleportToArea
+    export const revealAll = _WorldmapMod.revealAll
+    export const setInstantTravel = _WorldmapMod.setInstantTravel
     export const areaIdContainingMap = _WorldmapMod.areaIdContainingMap
     export const deserializeSquareStates = _WorldmapMod.deserializeSquareStates
 
