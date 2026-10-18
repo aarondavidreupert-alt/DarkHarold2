@@ -50,14 +50,7 @@ and compares it against `1 + floor(CHA / 2)`. The Magnetic Personality perk adds
 +1 to this cap. `METARULE_PARTY_COUNT` (ID 16) → `_getPartyMemberCount()` in
 `party_member.cc:900`, which counts living, non-hidden critters in `gPartyMembers`.
 
-DH2 enforces the limit inside `Party.maxSize()` (`party.ts:29`):
-
-```ts
-return 1 + Math.floor(player.getStat('CHA') / 2)
-```
-
-This matches the CE formula but is enforced engine-side rather than script-side.
-Magnetic Personality perk adjustment is absent.
+DH2: the same — `Party.addPartyMember` only rejects duplicates (CE `partyMemberAdd`); the companions' scripts apply the CHA / Magnetic Personality limit through `metarule(16)`.
 
 ### Serialization
 
@@ -71,14 +64,10 @@ Magnetic Personality perk adjustment is absent.
   `_partyMemberRecoverLoad` — a two-phase snapshot/restore around the save-file
   write that preserves script state and inventory item scripts.
 
-**DH2** (`saveload.ts:89`, `party.ts:74`):
+**DH2** (`saveload.ts`, `party.ts`):
 
-- `party.serialize()` calls `obj.serialize()` on each member and stores the result
-  in `SaveGame.party`.
-- `party.deserialize()` reconstructs members via `deserializeObj()`.
-- LVARs and script state are **not** saved with party members.
-- Level-up tracking (`level`, `numLevelUps`, `isEarly`) is **not** implemented or
-  persisted.
+- `party.serialize()` stores each member's object, including its script name and LVARs (`Script._serialize`); `deserialize()` rebuilds them.
+- `serializeLevels()` / `deserializeLevels()` save the `PartyMemberLevelUpInfo` (`level`, `numLevelUps`, `isEarly`) per party.txt member.
 
 ---
 
@@ -99,32 +88,7 @@ CE does not have a per-tick follow loop for non-combat situations. Instead:
 
 ### DH2
 
-`followPlayer()` (`party.ts:42`) is called every heartbeat tick when not in combat
-(`main.ts:1124`):
-
-```ts
-if (hexDistance(member.position, player.position) > 5) {
-    member.walkTo(player.position, false)
-}
-```
-
-- Distance threshold: **5 hexes** — matches CE DISTANCE_STAY_CLOSE.
-- `walkTo(player.position, false)` performs **immediate teleport**, not pathfinding.
-  Companions can pass through walls, doors, and blocked tiles.
-
-### Known Issues
-
-- `walkTo()` with `immediate = false` in DH2's implementation still resolves to a
-  direct position move without collision. True CE-style follow requires `_ai_move_steps_closer`
-  via the pathfinder — not yet implemented. Tracked in ROADMAP.md Phase 5c.
-
-### Edge Cases (CE behaviour, DH2 status unknown)
-
-| Scenario | CE behaviour | DH2 status |
-|---|---|---|
-| Door in the way | AI pathfinder handles; party member queues open-door action | ❌ Not tested — teleport bypasses doors |
-| Elevation change | `_partyMemberSyncPosition` places member at correct elevation on entry | ❌ Not implemented; elevation not checked in `followPlayer` |
-| Combat active | AI distance loop in `_combat_ai`; follow loop suppressed | ✅ `followPlayer` skipped when `inCombat` |
+The same: there is no engine follow loop — the companions' `critter_p_proc` (party follow macros) moves them. On map entry and on every elevation change `GameMap.placeParty()` puts the visible critter members around the dude as CE `_partyMemberSyncPosition` (rotation +4 / +2, distance 1, 1, 2, 2 …).
 
 ---
 
@@ -183,10 +147,7 @@ and per-field AI settings exposed by the control/customization screens (§8) **d
 behavior today, via the same `findTarget()`/`HP_FLEE_PCT`/distance-preference code paths used for
 every other combatant.
 
-There is still no equivalent of `_combat_add_noncoms`, `_combatai_want_to_join`, or the
-CE-style non-combatant promotion mechanism (party members are enrolled unconditionally rather than
-joining mid-fight when attacked or alerted) — tracked in ROADMAP.md Phase 4f as a remaining
-fidelity gap, not a "doesn't work at all" gap.
+Party members join like any other non-combatant: `Combat.combatSequence()` is CE `_combat_add_noncoms` and `wantToJoin` is `_combatai_want_to_join`.
 
 ---
 
@@ -229,8 +190,7 @@ to companions.
 
 ### DH2
 
-No equivalent of `_partyMemberIncLevels` exists. Party members never level up.
-Level-up tracking fields (`level`, `numLevelUps`, `isEarly`) are not stored or persisted.
+`Party.incLevels()` is CE `_partyMemberIncLevels` (called on each PC level-up): party.txt level-up schedule, `isEarly`, the level PIDs and `_partyMemberCopyLevelInfo`; the state is saved (`serializeLevels`).
 
 ---
 
@@ -263,58 +223,29 @@ The proc fires because of the dialogue open, not because `party_remove` triggers
 no proc fired by the opcode. `talk_p_proc` is correctly fired by DH2's `talk()`
 function (`scripting.ts:1974`) when dialogue opens.
 
-**Actual DH2 gap**: No dismissal dialogue flow exists for any companion. There are
-no companion dialogue scripts wired to a "leave party" node that would call
-`party_remove`. Removal can only happen via engine-triggered `party_remove` opcode
-calls. Tracked in ROADMAP.md Phase 5c ("dismissal dialogue hooks").
+Companion dismissal is the companions' own dialogue (the vanilla scripts' "leave the party" nodes call `party_remove`), which DH2 runs unchanged.
 
 ---
 
 ## 6. DH2 Implementation Status
 
-| Mechanic | CE source | DH2 status |
+| Mechanic | CE source | DH2 |
 |---|---|---|
-| `party_add` opcode | `interpreter_extra.cc:3945` | ✅ `scripting.ts:1808` → `party.ts:addPartyMember` |
-| `party_remove` opcode | `interpreter_extra.cc:3962` | ✅ `scripting.ts:1812` → `party.ts:removePartyMember` |
-| Max size enforcement | Script-side: `metarule(16)` vs CHA/2 | ✅ Engine-side `Party.maxSize()` (`party.ts:29`); Magnetic Personality perk missing |
-| Party serialization | `party_member.cc:partyMembersSave` | 🟡 Object state saved via `obj.serialize()`; LVARs, script state, level-up tracking not saved |
-| Follow (out-of-combat) | `party_member.cc:_partyMemberSyncPosition` | 🟡 Per-tick `followPlayer()` works; teleports instead of pathfinds |
-| Combat AI turns | `combat_ai.cc:_combat_ai`, `combat.cc:_combat_sequence_init` | ✅ Enrolled and act via `doAITurn()` (fixed 2026-06-02, P1); §3 corrected 2026-06-18 |
-| Non-combatant promotion | `combat.cc:_combat_add_noncoms` | ❌ Enrolled unconditionally at combat start rather than joining mid-fight when alerted |
-| Companion level-up | `party_member.cc:_partyMemberIncLevels` | ❌ Not implemented |
-| Dismissal dialogue flow | NPC scripts + `party_remove` opcode | ❌ No companion dismissal dialogue wired |
-| Control screen (disposition presets) | `game_dialog.cc:3354 partyMemberControlWindowInit` | ✅ `ui_companion.ts:uiCompanionControl` — see §8 |
-| Customize screen (6-category) | `game_dialog.cc:~3780 partyMemberCustomizationWindowInit` | ✅ `ui_companion.ts:uiCompanionCustomize` — see §8 |
-| Weight-based party trade | `inventory.cc:5031 inventoryOpenTrade`, weight check `inventory.cc:4710-4722` | ✅ `ui_companion_trade.ts:uiCompanionTrade` — see §8 |
-| Use Best Weapon/Armor buttons | `combat_ai.cc:_ai_search_inven_weap/_ai_search_inven_armor` | ✅ CE `w` / `a` handlers (C29) |
+| `party_add` / `party_remove` | `interpreter_extra.cc opPartyAdd / opPartyRemove` | ✅ `party.ts addPartyMember / removePartyMember` |
+| Max size | script-side (`metarule(16)` vs CHA / 2, Magnetic Personality) | ✅ the same — no engine limit |
+| Party serialization | `partyMembersSave` | ✅ objects with script LVARs, level-up info |
+| Placement / follow | `_partyMemberSyncPosition`, NPC scripts | ✅ `GameMap.placeParty` on map entry and elevation change; following is script-driven |
+| Combat AI turns | `combat_ai.cc _combat_ai` | ✅ `doAITurn()` |
+| Joining a fight | `combat.cc _combat_add_noncoms` | ✅ `Combat.combatSequence` / `wantToJoin` |
+| Companion level-up | `_partyMemberIncLevels` | ✅ `Party.incLevels` |
+| Dismissal | NPC dialogue + `party_remove` | ✅ the vanilla dialogue scripts |
+| Control / Customize screens, trade, Use Best Weapon / Armor | `game_dialog.cc`, `inventory.cc`, `combat_ai.cc` | ✅ §8 |
 
 ---
 
 ## 7. Known Gaps and Issues
 
-**`walkTo` teleports, does not pathfind** (`party.ts:48`): `member.walkTo(player.position, false)` resolves to an immediate position update in DH2, bypassing all collision and pathfinding. True CE-style follow uses `_ai_move_steps_closer` which respects the pathfinder.
-
-**Max size perk not applied**: `Party.maxSize()` returns `1 + floor(CHA / 2)` but does not check for the Magnetic Personality perk (+1 follower). CE enforces this in NPC scripts.
-
-**LVARs lost on reload**: Companion script local variables are not saved with party members. Quests that depend on a companion's LVAR state (e.g. Sulik's personal quest progress) silently reset on reload.
-
-**Level-up tracking not persisted**: Even if `_partyMemberIncLevels` were implemented, the `level`/`numLevelUps`/`isEarly` fields per companion are not in `SaveGame`.
-
-**Companion combat immunity — stale, corrected 2026-06-18.** This previously claimed party members
-take damage but never act. That was true before the 2026-06-02 fix (P1) and was left undated after
-it landed — see the corrected §3: companions are enrolled in `this.combatants` and do take AI turns,
-select targets, and attack via the same `doAITurn()`/`findTarget()` path as any other combatant.
-What's still missing is *promotion* (CE-style: companions start passive and join when attacked/
-alerted, `_combat_add_noncoms`) — DH2 enrolls them unconditionally and immediately at combat start
-instead.
-
-**Disposition/customize settings (§8) have a real combat effect.** Since companions do take AI
-turns, the per-field settings exposed by the control/customization screens (disposition presets,
-area-attack/run-away/best-weapon/distance/attack-who/chem-use) feed directly into that same
-decision-making — e.g. `runAwayMode` into the flee-threshold check, `attackWho`/`distance` into
-target/positioning preference. Not yet cross-checked field-by-field against every CE behavior listed
-in `wiki/ai_behavior.md`'s implementation-status table (some fields there are still marked PARTIAL/
-MISSING independent of this feature) — but the settings are not inert.
+None open beyond the cosmetic simplifications in §8.5. <!-- audited: 2026-10-18 -->
 
 ---
 
@@ -462,9 +393,7 @@ torn down and recreated across multiple combats.
 - **CE's palette-shade button "shimmer" / dialogue-window scroll-in animation are not replicated** —
   DH2's screens are static panels, consistent with the simplification already applied to the combat
   outline effect (`wiki/rendering.md` "Combat Outline Effect").
-- **Talk button doesn't re-enter dialogue.** CE's Talk button returns to the companion's normal
-  dialogue node; DH2 just closes the control screen, since there's no companion dialogue tree to
-  return to in the first place (see §6 "Dismissal dialogue flow" gap).
+- **Talk button** returns to the companion's dialogue (`Scripting.reenterDialogue`), as CE's `_dialogue_switch_mode = 1`.
 - **Weight-based trade reuses the shop barter screen's DOM/CSS** (`#barterBox`, background
   `barter.png`) rather than a dedicated companion-trade panel — this is actually consistent with CE,
   which uses the *same* `inventoryOpenTrade()` function for both shops and party members, just with
