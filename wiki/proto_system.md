@@ -367,8 +367,9 @@ CE opcode `0x8104` → `opGetProtoData` (interpreter_extra.cc:2962) → `protoGe
 | 555 | `ITEM_DATA_MEMBER_WEAPON_RANGE` | `extra.maxRange1` (as data_member=12) |
 
 **Critter** (`OBJ_TYPE_CRITTER`):
-| CE ID | CE name | DH2 mapped field |
-|-------|---------|-----------------|
+DH2's `proto_data` (0x8104, `scripting.ts`) is CE `opGetProtoData` with CE's data-member ids: the common members 0–6 (PID, name, description, FID, light distance / intensity, flags), then per type — items 7–15 and 555 (weapon range), critters 7 (action flags), 8 (script), 9 (data pointer → 0), 10 (head FID), 11 (body type), scenery / walls / misc 7–11.
+
+-------|---------|-----------------|
 | 0 | `CRITTER_DATA_MEMBER_PID` | — |
 | 3 | `CRITTER_DATA_MEMBER_FID` | — |
 | 9 | `CRITTER_DATA_MEMBER_DATA` | (bulk struct) — see gap PS2 |
@@ -390,4 +391,4 @@ DH2's `proto_data` method (scripting.ts:1090) is implemented but **opcode 0x8104
 | PS5 | ✅ Stale entry, corrected 2026-07-05 — already fixed, and the premise doesn't match current code. `scripting.ts:1454-1486 proto_data()`'s item switch already uses CE's real, non-sequential `ItemDataMember` IDs verbatim (`proto.h:13-28`: case 9=TYPE, 11=MATERIAL, 12=SIZE, 13=WEIGHT, 14=COST, 15=INVENTORY_FID, 555=WEAPON_RANGE — gap at 10 and jump to 555 both preserved), not the sequential 0/1/2/3 remapping this entry describes. | `scripting.ts:1454-1486` | `proto.h ItemDataMember` enum | major | fixed |
 | PS6 | ✅ **FIXED 2026-07-05** (found during LE10/Stealth Boy work). `readItem()`'s subtype dispatch (§ above PS3/PS4, a *different* MISC than PS4's top-level `PROTO_TYPE_MISC`) had no branch for `ITEM_SUBTYPE_MISC` (5) at all — `charges`/`powerType`/`powerTypePid` (`proto_types.h ProtoItemMiscData`, 3×int32) were silently dropped for every misc item (Stealth Boy, Geiger Counter, Motion Sensor). Added the branch; new `MiscItemProtoExtra` type in `proto_types.ts`. Container (subtype 1) and Key (subtype 6) remain unhandled — no current DH2 consumer needs their fields (`maxSize`/`openFlags`/`keyCode`). **Requires a pipeline re-run against real assets locally** to regenerate `proto/items/*.json` before this affects a running game. | `tools/proto.py` (readItem SUBTYPE_MISC branch) | `proto_types.h ProtoItemMiscData` | minor | fixed |
 
-<!-- audited: 2026-07-05 — PS6 added (misc-item charges fix, LE10); §6.3/§6.4 field-mapping tables corrected for IU6 (canUse/proto_data extendedFlags byte-swap fix, known_bugs.md); PS1 and PS5 corrected from stale "missing/bug" to "fixed" — both were already fixed in code, this table just wasn't updated to match known_bugs.md -->
+<!-- audited: 2026-10-18 — §6 data-member text brought up to date. 2026-07-05 — PS6 added (misc-item charges fix, LE10); §6.3/§6.4 field-mapping tables corrected for IU6 (canUse/proto_data extendedFlags byte-swap fix, known_bugs.md); PS1 and PS5 corrected from stale "missing/bug" to "fixed" — both were already fixed in code, this table just wasn't updated to match known_bugs.md -->
