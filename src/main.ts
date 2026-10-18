@@ -47,6 +47,7 @@ import { installInputHandlers } from './input.js'
 import { tickGame } from './gameTick.js'
 import { debug } from './debug.js'
 import './autocrawler.js'
+import './mapFade.js' // black screen over map changes (CE isoDisable / wmFadeOut)
 import { Worldmap } from './worldmap.js'
 
 // Re-export playerUse so existing call sites (scripting.ts imports it from './main.js')

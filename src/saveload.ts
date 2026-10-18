@@ -35,6 +35,7 @@ import { drawHP, drawAC, uiDrawWeapon } from './ui_hud.js'
 import { getFileJSON } from './util.js'
 import { gameReset } from './gameReset.js'
 import { Worldmap } from './worldmap.js'
+import { beginMapFade, endMapFade } from './mapFade.js'
 
 // Saving and loading support
 
@@ -316,6 +317,7 @@ export function deleteSave(id: number, callback?: () => void): void {
 
 export function load(id: number): void {
     // Load stored savegame with id
+    beginMapFade() // CE lsgLoadGameInSlot → mapLoadSaved: the view is blank while loading
 
     withTransaction((trans) => {
         trans.objectStore('saves').get(id).onsuccess = function (e) {
@@ -494,6 +496,7 @@ export function load(id: number): void {
                 uiDrawWeapon()
 
                 dbg('saveload', '[SaveLoad] Finished loading map %s', savedMap.name)
+                endMapFade()
             }
 
             const changingMap = globalState.gMap?.name !== save.currentMap

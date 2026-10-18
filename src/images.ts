@@ -23,7 +23,11 @@ function mightHaveCyclingPixels(art: string): boolean {
     return art.startsWith('art/tiles/') || art.startsWith('art/scenery/') || art.startsWith('art/misc/')
 }
 
+// Art that failed to load (missing PNG) — not requested again.
+const failedArt = new Set<string>()
+
 export function lazyLoadImage(art: string, callback?: (x: HTMLImageElement) => void) {
+    if (failedArt.has(art)) return
     if (globalState.images[art] !== undefined) {
         if (callback) {
             callback(globalState.images[art])
@@ -52,8 +56,13 @@ export function lazyLoadImage(art: string, callback?: (x: HTMLImageElement) => v
             for (let i = 0; i < callbacks.length; i++) {
                 callbacks[i](globalState.images[art])
             }
-            globalState.lazyAssetLoadingQueue[art] = undefined
         }
+        delete globalState.lazyAssetLoadingQueue[art]
+    }
+    // A missing file must not stay "loading" forever (mapFade waits on this queue).
+    img.onerror = function () {
+        failedArt.add(art)
+        delete globalState.lazyAssetLoadingQueue[art]
     }
     img.src = art + '.png'
 
