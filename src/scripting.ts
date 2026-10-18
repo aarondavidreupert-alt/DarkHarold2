@@ -51,7 +51,7 @@ import { centerCamera, objectOnScreen } from './renderer.js'
 import { fromTileNum, toTileNum } from './tile.js'
 import { uiAddDialogueOption, uiBarterMode, uiDrawWeapon, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, uiWorldMap, UIMode } from './ui.js'
 import { drawAC, updateIndicatorBar } from './ui_hud.js'
-import { invenUnwield, invenWield, moveAllInventory, scriptHand } from './inventoryWield.js'
+import { invenUnwield, invenWield, moveAllInventory, scriptHand, unequipForRemoval } from './inventoryWield.js'
 import { SKILL_NAMES } from './skills.js'
 import { skillRoll } from './skillUse.js'
 import { arrayRemove, assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
@@ -1295,27 +1295,32 @@ export module Scripting {
             dbg('inventory', 'add_mult_objs_to_inven: %d counts of %o to %o', count, item, obj)
             obj.addInventoryItem(item, count)
         }
-        rm_mult_objs_from_inven(obj: Obj, item: Obj, count: number) {
-            if (!isGameObject(obj)) {
-                warn('rm_mult_objs_from_inven: not a game object')
-                return
-            } else if (!isGameObject(item)) {
-                warn('rm_mult_objs_from_inven: item not a game object: ' + item)
-                return
-            } else if (obj.inventory === undefined) {
-                warn('rm_mult_objs_from_inven: object has no inventory!')
-                return
+        // CE opRemoveMultipleObjectsFromInventory: itemRemove(owner, item, min(quantity
+        // held, count)) — that object, equipped or not — and returns the quantity removed.
+        rm_mult_objs_from_inven(obj: Obj, item: Obj, count: number): number {
+            if (!isGameObject(obj) || !isGameObject(item) || obj.inventory === undefined) {
+                warn('rm_mult_objs_from_inven: not a game object / no inventory')
+                return 0
             }
             dbg('inventory', 'rm_mult_objs_from_inven: %d counts of %o from %o', count, item, obj)
-            for (let i = 0; i < obj.inventory.length; i++) {
-                if (obj.inventory[i].approxEq(item)) {
-                    obj.inventory[i].amount -= count
-                    if (obj.inventory[i].amount <= 0) obj.inventory.splice(i, 1)
-                    else ammoSplitOff(obj.inventory[i], obj.inventory[i].clone()) // the boxes left are full
-                    return
-                }
+            if (obj.type === 'critter') unequipForRemoval(obj as Critter, item)
+            let i = obj.inventory.indexOf(item)
+            if (i === -1) i = obj.inventory.findIndex((it) => it.approxEq(item))
+            if (i === -1) {
+                warn('rm_mult_objs_from_inven: item not found in inventory')
+                return 0
             }
-            warn('rm_mult_objs_from_inven: item not found in inventory')
+            const stack = obj.inventory[i]
+            const quantity = Math.min(stack.amount, count)
+            if (quantity <= 0) return 0
+            stack.amount -= quantity
+            if (stack.amount <= 0) {
+                obj.inventory.splice(i, 1)
+                stack.amount = quantity // the removed object carries the quantity on (_obj_connect)
+            } else {
+                ammoSplitOff(stack, stack.clone()) // the boxes left are full
+            }
+            return quantity
         }
         add_obj_to_inven(obj: Obj, item: Obj) {
             this.add_mult_objs_to_inven(obj, item, 1)

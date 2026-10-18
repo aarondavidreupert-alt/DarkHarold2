@@ -91,6 +91,39 @@ export function invenUnwield(c: Critter, hand: Hand): void {
 // item goes, worn armor and the hands included. An NPC's right-hand weapon leaves its
 // art first (_correctFidForRemovedItem); the dude loses his armor look and the
 // interface items refresh.
+// CE keeps equipped items in the inventory (flagged OBJECT_IN_*_HAND / OBJECT_WORN), so
+// itemRemove finds them; DH2's dude holds them outside the list. Before an item is
+// removed by a script (rm_obj_from_inven / rm_mult_objs_from_inven) it leaves the hand
+// or body here — back into the inventory list, flags cleared, art and HUD updated
+// (_correctFidForRemovedItem / interfaceUpdateItems).
+export function unequipForRemoval(c: Critter, item: Obj): void {
+    const a = c as any
+    for (const hand of ['leftHand', 'rightHand'] as Hand[]) {
+        if (a[hand] !== item) continue
+        item.flags = (item.flags ?? 0) & ~OBJECT_IN_ANY_HAND
+        if (c.isPlayer) {
+            if (!c.inventory.includes(item)) c.inventory.push(item)
+            a[hand] = undefined
+        } else {
+            a[hand] = (c.constructor as any).makeFist?.() ?? undefined
+        }
+        if (hand === scriptHand(c)) c.setIdleArt?.()
+        refreshStealthState(c)
+        updateHandFlareLight(c)
+        if (c.isPlayer) uiDrawWeapon()
+    }
+    if (a.armor === item) {
+        item.flags = (item.flags ?? 0) & ~OBJECT_WORN
+        a.armor = null
+        if (c.isPlayer) {
+            if (!c.inventory.includes(item)) c.inventory.push(item)
+            armorPerkSwap(c, item, null)
+            applyArmorArt(null)
+            drawAC(c.getStat('AC'))
+        }
+    }
+}
+
 export function moveAllInventory(from: Obj, to: Obj): void {
     const a = from as any
     if (from.type === 'critter') {
