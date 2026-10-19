@@ -42,9 +42,32 @@ function vmFloat(v: number): Number {
 function unbox(x: any): any {
     return x instanceof Number ? x.valueOf() : x
 }
-// CE opAdd: a float joins a string as "%.5f"
+// CE opAdd: a float joins a string as "%.5f"; a comparison result (a JS
+// boolean here, an int in CE) as 0/1
 function asText(x: any): any {
+    if (typeof x === 'boolean') return x ? 1 : 0
     return x instanceof Number ? x.valueOf().toFixed(5) : x
+}
+// CE opLogicalOperatorAnd/Or truthiness: an int or float is true when not 0, a
+// string always, a pointer when not null
+function sslTrue(x: any): boolean {
+    if (typeof x === 'string') return true
+    if (typeof x === 'number') return x !== 0
+    return !!x
+}
+
+// CE programFatalError: logs and longjmps out of the running procedure; the
+// script itself stays loaded. ScriptVM.run catches it (see there).
+export class VMFatalError extends Error {}
+let fatalHook: ((text: string) => void) | null = null
+/** Also report VM fatal errors here (the VM-vs-Lua test page uses it). */
+export function setVMFatalHook(hook: ((text: string) => void) | null): void {
+    fatalHook = hook
+}
+// CE opDivide / opModulo: "Division (DIV|MOD) by zero" is a fatal error
+function checkDivisor(vm: ScriptVM, op: string): void {
+    const d = unbox(vm.dataStack[vm.dataStack.length - 1])
+    if (d === 0 || d === false) throw new VMFatalError(`Division (${op}) by zero`)
 }
 function arith(f: (x: number, y: number) => number, intResult: (r: number) => number = (r) => r) {
     return function (this: ScriptVM) {
@@ -63,7 +86,8 @@ function arith(f: (x: number, y: number) => number, intResult: (r: number) => nu
 export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     0x8002: function () {}, // start critical (nop)
     0xc001: function () {
-        this.push(this.script.read32())
+        // CE opPush: a signed 32-bit int (sslc folds `-1` into 0xFFFFFFFF)
+        this.push(this.script.read32() | 0)
     }, // op_push_d
     0x800d: function () {
         this.retStack.push(this.pop())
@@ -243,11 +267,12 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     0x8038: binop(function (x, y) {
         return x > y
     }),
+    // CE opLogicalOperatorAnd/Or push 0/1, not an operand
     0x803e: binop(function (x, y) {
-        return x && y
+        return sslTrue(x) && sslTrue(y) ? 1 : 0
     }),
     0x803f: binop(function (x, y) {
-        return x || y
+        return sslTrue(x) || sslTrue(y) ? 1 : 0
     }),
     0x8040: binop(function (x, y) {
         return x & y
@@ -258,12 +283,18 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     0x8039: arith((x, y) => x + y),
     0x803a: arith((x, y) => x - y),
     0x803b: arith((x, y) => x * y),
-    0x803d: binop(function (x, y) {
-        return x % y
-    }),
+    0x803d: function () {
+        checkDivisor(this, 'MOD')
+        modulo.call(this)
+    },
     // CE opDivide: int / int truncates; with a float it is a float division
-    0x803c: arith((x, y) => x / y, (r) => r | 0),
+    0x803c: function () {
+        checkDivisor(this, 'DIV')
+        divide.call(this)
+    },
 }
+const modulo = binop((x, y) => x % y)
+const divide = arith((x, y) => x / y, (r) => r | 0)
 
 export class ScriptVM {
     script: BinaryReader
@@ -274,6 +305,7 @@ export class ScriptVM {
     svarBase: number = 0
     dvarBase: number = 0
     halted: boolean = false
+    aborted: boolean = false // the last run() stopped on a fatal error
 
     constructor(script: BinaryReader, intfile: IntFile) {
         this.script = script
@@ -311,9 +343,11 @@ export class ScriptVM {
         var proc = this.intfile.procedures[procName]
         // console.log("CALL " + procName + " @ " + proc.offset + " from " + this.scriptObj.scriptName)
         if (!proc) throw 'ScriptVM: unknown procedure ' + procName
+        const dataDepth = this.dataStack.length
+        const retDepth = this.retStack.length
 
-        // TODO: which way are args passed on the stack?
-        args.reverse()
+        // arguments first to last, then their count: a procedure's `fetch 0` is
+        // its first argument (CE opCall / opPushBase)
         args.forEach((arg) => this.push(arg))
         this.push(args.length)
 
@@ -323,6 +357,12 @@ export class ScriptVM {
         this.pc = proc.offset
         this.run()
 
+        if (this.aborted) {
+            // CE: the longjmp drops the procedure's frame; the caller sees 0
+            this.dataStack.length = dataDepth
+            this.retStack.length = retDepth
+            return 0
+        }
         return this.pop()
     }
 
@@ -358,6 +398,16 @@ export class ScriptVM {
 
     run(): void {
         this.halted = false
-        while (this.step()) {}
+        this.aborted = false
+        try {
+            while (this.step()) {}
+        } catch (e) {
+            if (!(e instanceof VMFatalError)) throw e
+            const text = `${this.intfile.name}: ${e.message}`
+            dbgWarn('script', 'fatal script error: %s', text)
+            this.aborted = true
+            this.halted = true
+            if (fatalHook) fatalHook(text)
+        }
     }
 }

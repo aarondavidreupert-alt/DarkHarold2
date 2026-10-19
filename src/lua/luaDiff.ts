@@ -15,6 +15,7 @@ import globalState from '../globalState.js'
 import { parseIntFile } from '../intfile.js'
 import { BinaryReader } from '../util.js'
 import { ScriptVMBridge } from '../vm_bridge.js'
+import { setVMFatalHook } from '../vm.js'
 import { attachLuaScript, detachLuaScript, initLuaRuntime, setLuaErrorHook, sslValue } from './luaRuntime.js'
 
 const OBJ_RESULTS = new Set([
@@ -117,6 +118,9 @@ class World {
     pureAnswer(name: string, args: any[]): any {
         const call = name + '(' + args.map(fmt).join(',') + ')'
         const h = hashOf(call, this.seed)
+        // critter_inven_obj(obj, -2) is INVEN_TYPE_INV_COUNT: a number (CE
+        // interpreter_extra.cc opCritterGetInventoryObject)
+        if (name === 'critter_inven_obj' && args[1] === -2) return h % 6
         if (OBJ_RESULTS.has(name)) {
             const i = (h % (this.pool.length + 1)) - 1
             return i < 0 ? 0 : this.pool[i]
@@ -152,8 +156,37 @@ function fmt(v: any): string {
     return String(v)
 }
 
+// Variables the script imports (fetch_external / store_external of a name it
+// does not export itself). In the game the map script exports them; CE stops
+// with "External variable does not exist" otherwise. The fake map script
+// exports each one with a seeded value, so neither backend reads a missing one.
+function importedNames(data: DataView, name: string): string[] {
+    const intfile = parseIntFile(new BinaryReader(data), name)
+    const used = new Set<string>()
+    const exported = new Set<string>()
+    let pc = intfile.codeOffset
+    let operand = -1
+    while (pc + 2 <= data.byteLength) {
+        const op = data.getUint16(pc)
+        if (op === 0x8014 || op === 0x8015 || op === 0x8016) {
+            // the name is pushed as a string or, for `x += 1`, an int (CE reads
+            // value.integerValue either way)
+            const id = intfile.identifiers[operand]
+            if (id !== undefined) (op === 0x8016 ? exported : used).add(id)
+        }
+        if (op === 0xc001 || op === 0x9001 || op === 0xa001) {
+            operand = pc + 6 <= data.byteLength ? data.getInt32(pc + 2) : -1
+            pc += 6
+        } else {
+            operand = -1
+            pc += 2
+        }
+    }
+    return [...used].filter((n) => !exported.has(n)).sort()
+}
+
 // The fields the engine sets on a Script before calling a procedure.
-function makeMock(world: World, name: string): any {
+function makeMock(world: World, name: string, imports: string[]): any {
     const t: any = {
         scriptName: name,
         lvars: {},
@@ -167,6 +200,7 @@ function makeMock(world: World, name: string): any {
         combat_is_initialized: 0,
     }
     t._mapScript = t
+    for (const n of imports) t[n] = hashOf('X' + n, world.seed) % 4
     const recorders: { [k: string]: (...a: any[]) => any } = {}
     const recorder = (k: string) =>
         recorders[k] ??
@@ -232,9 +266,9 @@ interface RunResult {
     error: string
 }
 
-function runVM(name: string, data: DataView, seed: number, plan: Plan): RunResult {
+function runVM(name: string, data: DataView, seed: number, plan: Plan, imports: string[]): RunResult {
     const world = new World(seed)
-    const mock = makeMock(world, name)
+    const mock = makeMock(world, name, imports)
     globalState.player = world.pool[5] as any
     const reader = new BinaryReader(data)
     const intfile = parseIntFile(reader, name)
@@ -243,6 +277,14 @@ function runVM(name: string, data: DataView, seed: number, plan: Plan): RunResul
     vm.scriptObj = mock
     mock._vm = vm
     for (const procName in intfile.procedures) mock[procName] = (...args: any[]) => vm.call(procName, args)
+    // a fatal script error (division by zero) stops the procedure, as a Lua error does
+    setVMFatalHook((text) => {
+        if (!world.errored) {
+            world.errored = true
+            world.errorText = text
+            world.trace.push('ERROR')
+        }
+    })
     world.trace.push('-- load')
     step(world, 'load', () => vm.run())
     world.trace.push('-- ' + plan.proc)
@@ -261,12 +303,13 @@ function runVM(name: string, data: DataView, seed: number, plan: Plan): RunResul
         step(world, 'option', () => opt())
     }
     world.trace.push('-- exported ' + exported(mock))
+    setVMFatalHook(null)
     return { trace: world.trace, error: world.errorText }
 }
 
-function runLua(name: string, source: string, seed: number, plan: Plan): RunResult {
+function runLua(name: string, source: string, seed: number, plan: Plan, imports: string[]): RunResult {
     const world = new World(seed)
-    const mock = makeMock(world, name)
+    const mock = makeMock(world, name, imports)
     globalState.player = world.pool[5] as any
     setLuaErrorHook((text) => {
         if (!world.errored) {
@@ -335,14 +378,15 @@ export async function runLuaDiff(names: string[], seeds: number, log: (s: string
         const data = new DataView(await intResp.arrayBuffer())
         const source = await luaResp.text()
         const procs = parseIntFile(new BinaryReader(data), name).proceduresTable.filter((p) => !p.name.startsWith('.'))
+        const imports = importedNames(data, name)
         report.scripts++
         let failed = 0
         for (const p of procs) {
             for (let seed = 1; seed <= seeds; seed++) {
                 const argRng = mulberry32(seed * 7919)
                 const plan: Plan = { proc: p.name, args: Array.from({ length: p.argc }, () => Math.floor(argRng() * 5)) }
-                const vmRun = runVM(name, data, seed, plan)
-                const luaRun = runLua(name, source, seed, plan)
+                const vmRun = runVM(name, data, seed, plan, imports)
+                const luaRun = runLua(name, source, seed, plan, imports)
                 let vm = vmRun.trace
                 let lua = luaRun.trace
                 if (vmRun.error.includes(TOTAL_BUDGET_ERROR) || luaRun.error.includes(TOTAL_BUDGET_ERROR)) {

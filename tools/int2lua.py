@@ -274,6 +274,7 @@ OP_CRITICAL_START = 0x8002
 OP_CRITICAL_DONE = 0x8003
 OP_JUMP = 0x8004
 OP_CALL = 0x8005
+OP_DETACH = 0x800F
 OP_A_TO_D = 0x800C
 OP_D_TO_A = 0x800D
 OP_EXIT_PROG = 0x8010
@@ -296,6 +297,12 @@ OP_IF = 0x802F
 OP_WHILE = 0x8030
 OP_STORE = 0x8031
 OP_FETCH = 0x8032
+
+# CE interpreter_lib.cc opSayStart ... opSayMessage: the interpreter library's
+# own dialogue windows, which Fallout 2 replaced with gdialog (gsay_*). Only
+# Fallout 1 leftovers that no scripts.lst entry names use them (barstow, dumar,
+# surf), and neither the VM nor the Lua runtime implements them.
+SAY_OPS = set(range(0x804C, 0x8062))
 
 # operator opcodes -> (SSL operator, Lua operator, Lua precedence, kind)
 COMPARE = {
@@ -791,7 +798,12 @@ class ProcDecompiler:
             elif op == 0x8046:  # negate
                 a = self.pop(stack, pc)
                 if isinstance(a, Const):
-                    e = Const(-a.value, a.is_float)
+                    v = -a.value
+                    if not a.is_float:
+                        # CE opNegate on a 32-bit int: -(-2147483648) stays -2147483648
+                        # (dccraps writes `-0x80000000` for bit 31)
+                        v = (v + 2**31) % 2**32 - 2**31
+                    e = Const(v, a.is_float)
                 else:
                     e = Neg(value(a))
                 self.push(stack, e, a)
@@ -814,13 +826,13 @@ class ProcDecompiler:
                 v = self.pop(stack, pc)
                 emit(Assign(self.local_name(n.value), value(v)))
             elif op == OP_FETCH_EXTERNAL:
-                n = self.pop(stack, pc)
+                n = self.ext_name(self.pop(stack, pc))
                 if not isinstance(n, Name):
                     raise DecompileError("%s: fetch_external of a computed name at 0x%x" % (self.proc.name, pc))
                 self.s.externals.add(n.name)
                 self.push(stack, Name(lua_name(n.name)), n)
             elif op == OP_STORE_EXTERNAL:
-                n = self.pop(stack, pc)
+                n = self.ext_name(self.pop(stack, pc))
                 v = self.pop(stack, pc)
                 if not isinstance(n, Name):
                     raise DecompileError("%s: store_external of a computed name at 0x%x" % (self.proc.name, pc))
@@ -884,7 +896,7 @@ class ProcDecompiler:
                     text = "call(%s)" % ", ".join([idx.lua()] + [value(a).lua() for a in args])
                 elif isinstance(idx, Const) and not idx.is_float:
                     target = self.s.proc_by_index(idx.value)
-                    if target.argc != argc.value:
+                    if target.argc != argc.value and self.s.uses_frame(target):
                         raise DecompileError("%s: %s called with %d args, expects %d"
                                              % (self.proc.name, target.name, argc.value, target.argc))
                     name = target.name
@@ -903,6 +915,8 @@ class ProcDecompiler:
                 self.flush(stack, out, pc)
                 target = addr.value
                 loop_head = addr.pc
+                if target > end and self.threads_to(end, target):
+                    target = end
                 if not (nxt <= target <= end):
                     raise DecompileError("%s: branch target 0x%x outside 0x%x..0x%x"
                                          % (self.proc.name, target, nxt, end))
@@ -920,6 +934,8 @@ class ProcDecompiler:
                     raise DecompileError("%s: while at 0x%x without a back jump" % (self.proc.name, pc))
                 # j == target: `else begin end`, an empty else branch
                 if j is not None and j >= target:
+                    if j > end and self.threads_to(end, j):
+                        j = end
                     if j > end:
                         raise DecompileError("%s: else branch at 0x%x runs past its block" % (self.proc.name, pc))
                     then = self.region(nxt, target - 8)
@@ -933,6 +949,11 @@ class ProcDecompiler:
 
             elif op == OP_EXIT_PROG:
                 emit(Exit())
+            elif op == OP_DETACH:
+                # CE opDetach only unlinks the program from a parent program; a
+                # game script has none (scriptLoad creates it standalone), so
+                # it does nothing
+                pass
 
             elif op in INTRINSICS:
                 name, argc, pushes = INTRINSICS[op]
@@ -945,6 +966,9 @@ class ProcDecompiler:
                     self.push(stack, e, first, pc)
                 else:
                     emit(ExprStmt(e))
+            elif op in SAY_OPS:
+                raise DecompileError("%s: interpreter-library dialogue opcode 0x%04x at 0x%x (CE interpreter_lib.cc"
+                                     " say*, not gdialog)" % (self.proc.name, op, pc))
             else:
                 raise DecompileError("%s: unsupported opcode 0x%04x at 0x%x" % (self.proc.name, op, pc))
             pc = nxt
@@ -971,6 +995,35 @@ class ProcDecompiler:
             e.used_as_value = False
             out.append(ExprStmt(e))
         del stack[:]
+
+    def threads_to(self, pc, target):
+        """True if the code at `pc` is a chain of `push X; jmp` that ends at
+        `target`. Some scripts (the ncr talk_p_procs, modinn) jump from a nested
+        if straight to where the enclosing block's closing jump goes instead of
+        to that jump; both run the same instructions, so the branch is treated
+        as ending the block at `pc`."""
+        seen = set()
+        while pc not in seen:
+            seen.add(pc)
+            if self.ops_at(pc, 2) != [OP_PUSH_INT, OP_JUMP]:
+                return False
+            pc = self.ins[self.at[pc]][2]
+            if pc == target:
+                return True
+        return False
+
+    def ext_name(self, n):
+        """sslc compiles `x += 1` on an imported variable as `push_int <identifier
+        offset>; fetch_external`: CE opFetchExternalVariable /
+        opStoreExternalVariable read the name as programGetIdentifier(
+        value.integerValue) whatever the value's type (src/vm_bridge.ts varName
+        does the same). A constant that is not an identifier offset stays an
+        error."""
+        if isinstance(n, Const) and not n.is_float and n.value in self.f.identifiers:
+            e = Name(self.f.identifiers[n.value])
+            e.pc = n.pc
+            return e
+        return n
 
     def jump_before(self, target):
         """Target of a `push X; jmp` that ends right before `target`, else None."""
@@ -1036,6 +1089,21 @@ class ScriptDecompiler:
         if not (0 <= i < len(self.f.procs)):
             raise DecompileError("procedure index %d out of range" % i)
         return self.f.procs[i]
+
+    def uses_frame(self, proc):
+        """True if the procedure reads or writes an argument or local variable.
+        CE opPushBase builds the frame from the argument count the caller
+        pushed, not the one in the procedure table, so a call with the wrong
+        count is harmless when the callee never touches its frame (sccop calls
+        getArmedPartyMember, declared with one parameter, with none)."""
+        f = self.f
+        ends = [p.offset for p in f.procs if p.offset > proc.offset] + [len(f.data)]
+        pc, end = proc.offset, min(ends)
+        while pc < end:
+            op, _arg, pc = f.instr(pc)
+            if op in (OP_FETCH, OP_STORE):
+                return True
+        return False
 
     def proc_index(self, name):
         for p in self.f.procs:
@@ -1122,7 +1190,7 @@ class ScriptDecompiler:
         prev = None
         while pc + 2 <= len(f.data):
             op, arg, nxt = f.instr(pc)
-            if op in (OP_FETCH_EXTERNAL, OP_STORE_EXTERNAL) and prev and prev[0] == OP_PUSH_STRING:
+            if op in (OP_FETCH_EXTERNAL, OP_STORE_EXTERNAL) and prev and prev[0] in (OP_PUSH_STRING, OP_PUSH_INT):
                 if prev[1] in f.identifiers:
                     out.add(f.identifiers[prev[1]])
             prev = (op, arg)

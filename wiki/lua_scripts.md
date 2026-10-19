@@ -2,8 +2,9 @@
 
 > DH2 addition (no CE counterpart). Started 2026-10-19 on branch `decompile-ini-to-lua`.
 > Goal: every game script readable and moddable, behaving exactly like the original bytecode.
-> Status: **pilot**. All 36 Arroyo scripts pass the VM-vs-Lua test; 1418 of 1443 scripts
-> decompile. The bytecode VM stays the default (`[dh2] script_backend=vm`).
+> Status: **pilot**. 1439 of 1443 scripts decompile; the four left are explained under "Scripts that stay
+> `.int`". The VM-vs-Lua test passes for Arroyo; Klamath, Den, Modoc and the scripts added on 2026-10-19
+> matched the VM except where the VM differed from CE; those VM bugs are fixed (`known_bugs.md` L6). The bytecode VM stays the default (`[dh2] script_backend=vm`).
 
 ## Pieces
 
@@ -51,6 +52,31 @@ never a silently wrong translation:
   table pushes `critter_heal`'s result). The call is a statement where it ran.
 - **Unused locals**: a local nobody reads leaves its initial value on the stack; the decompiler retries with
   one more local until the body balances.
+- **Imported variable by number**: sslc compiles `x += 1` on an `import variable` as `push_int <identifier
+  offset>; fetch_external` instead of `push_string`. CE `opFetchExternalVariable` reads the name as
+  `programGetIdentifier(value.integerValue)` whatever the type (the VM's `varName` does the same), so an
+  int constant that is an identifier offset is that name (bcgengrd, scbrahmn, the Vault City team9 scripts…).
+- **Threaded jumps**: a nested `if` may jump straight to where the enclosing block's closing `push X; jmp`
+  goes instead of to that jump (the NCR `talk_p_proc`s, modinn). Accepted only when the code at the block's
+  end is a chain of `push; jmp` that reaches exactly that target; the branch then ends at the block's end.
+- **`detach` (`0x800F`)**: CE `opDetach` only unlinks a program from its parent; game scripts have none, so
+  it emits nothing (genint).
+- **Argument count mismatch**: CE `opPushBase` builds the frame from the count the caller pushed, so a call
+  with the wrong count is accepted when the callee never fetches or stores a frame variable (sccop calls
+  `getArmedPartyMember`, declared with one parameter, with none). Otherwise it is an error.
+- **Negative constants**: `push -2147483648; negate` folds to -2147483648 (CE int32 negation), not 2^31.
+
+### Scripts that stay `.int`
+
+- **barstow, dumar, surf** use the interpreter library's own dialogue (`0x804C`–`0x8061`, CE
+  `interpreter_lib.cc opSayStart`, `opSayReply`, `opSayOption`, `opSayMessage`, `opSayEnd`), which Fallout 2
+  replaced with gdialog. Neither backend implements it, and no scripts.lst entry or map names these
+  Fallout 1 leftovers.
+- **mitoilet**: `description_p_proc` compiles `set_local_var(1)` without the variable number, so it pops a
+  word from below its own frame — in CE the `windowId` that `_setupCallWithReturnVal` pushed (it then writes
+  local variable `windowId` and breaks the call's stack restore), in the VM the last script variable. That is
+  undefined behaviour a decompiler can only reproduce by inventing an argument, so the script keeps its
+  bytecode (`loadLuaScript` falls back to the `.int`).
 
 `python tools/int2lua.py --check-bridge src/vm_bridge.ts` checks the intrinsic table (name, argc, pushes a
 result) against the VM bridge.
@@ -63,8 +89,8 @@ The output uses plain Lua where SSL and Lua agree and helpers from the prelude w
 |-----|-----------|-----|
 | `if (x)` | `if x ~= 0 then` | 0 is true in Lua |
 | `a + b` with a string | `a + b` | The prelude sets the string metatable's `__add` to SSL concatenation (CE `opAdd`; float as `%.5f`). Lua 5.4 does string arithmetic through that metatable — the reason for 5.4 over fengari's 5.3 |
-| `a / b` | `div(a, b)` | int / int truncates toward 0 (CE `opDivide`); `// ` floors |
-| `a % b` | `mod(a, b)` | sign of the dividend (C `%`) |
+| `a / b` | `div(a, b)` | int / int truncates toward 0 (CE `opDivide`); `// ` floors. By zero: a Lua error, so the procedure stops and returns 0 — CE `programFatalError` longjmps out of the script (the VM does the same since L6) |
+| `a % b` | `mod(a, b)` | sign of the dividend (C `%`); by zero stops the procedure like `div` |
 | `a and b` | `a and b` when `b` has no side effects, else `AND(a, b)` | sslc's `opAnd`/`opOr` evaluate both sides first; Lua skips the right side. The decompiler's `PURE` list says which intrinsics are safe to skip |
 | comparison used as a value | `b2i(a == b)` | CE comparisons push 0/1 |
 | `self_obj`, `dude_obj`, `game_time`, … | `self_obj`, … | Built-in variables, read on every access through the environment's `__index` (`vm_bridge.ts readBuiltinVar`, shared with the VM) |
@@ -103,6 +129,12 @@ The two call traces and the exported variables must match.
 
 - Calls in the decompiler's `PURE` list are not traced and answered from their arguments only, so Lua
   skipping one in `a and b` changes neither the trace nor later answers.
+- Imported variables (`fetch_external`/`store_external` of a name the script does not export, found by
+  scanning the `.int`) start with a seeded value on the fake map script; in the game the map script
+  exports them, and CE stops with "External variable does not exist" otherwise.
+- `critter_inven_obj(obj, -2)` (`INVEN_TYPE_INV_COUNT`) answers a number, the other types an object.
+- Procedures under test get their arguments in SSL order: `vm.call` pushes its argument list last-first,
+  so the harness hands it over reversed (the engine never calls a procedure with arguments).
 - A run is capped at 1000 calls with side effects (wait loops such as the traps' projectile loops never end
   against the fake world) and 50 000 calls in all; a run one backend cut at the total cap is compared as
   far as both got.
@@ -110,13 +142,26 @@ The two call traces and the exported variables must match.
 Result 2026-10-19: 36 scripts, 12 800 runs, **0 differences**. The only stopped runs are the wait loops
 (`atsrtrp0`, `sprtrp50`, one `acvillgr` flee loop), stopped at the same call in both backends.
 
+Wider sample, 2026-10-19 (20 seeds): the 21 scripts decompiled that day plus every Klamath (`k*`), Den
+(`d*`) and Modoc (`m*`) script — 235 scripts, 113 361 runs (3 cut short at the total cap), **24 differing
+procedures, all where the VM differs from CE** (`known_bugs.md` L6); none is a decompiler or prelude bug:
+- 12 a comparison concatenated into a string, VM `false` vs CE `0` (sccop, dcjoey, mcrat, mcvegeir);
+- 9 division / modulo by zero, which stops the procedure in CE and Lua but not in the VM (kcsulik, dcvic,
+  mcdavin, mcgrisha, mcmiria; the fake world answers 0 where the game rarely would);
+- 2 `and`/`or` used as a value, VM operand vs CE 0/1 (dccmitty `Node015`, dcsheila `talk_p_proc`);
+- 1 unsigned `push_int`, a script variable initialised to `-1` reads 4294967295 in the VM (kcsulik).
+After the VM fixes (L6, same day) the same 235 scripts: 113 780 runs, **0 differences**; Arroyo still 0.
+Runs that stopped with an error (about 1100 where the VM threw) stopped the same way in both backends: wait loops
+at the call cap, and `call(<variable>)` on a procedure variable the fake world leaves at 0.
+
 In game (`play.html?arvillag#script_backend=lua`): all 143 scripted objects and the map script run in Lua;
 the Elder's dialogue (talking head, quest node with the flask and money, the `gsay_message` farewell) runs
 through and returns to the map; 21 critter heartbeats at 0 ms update time.
 
 ## Open
 
-- 25 scripts do not decompile yet (`known_bugs.md` L1).
+- 4 scripts stay `.int` (see above, `known_bugs.md` L1).
+- Integer arithmetic is 64-bit in Lua; CE wraps at 32 bits. Vanilla scripts were not seen to overflow.
 - Constants are numbers (`global_var(7)`): naming from `vault13.gam` (GVARs) and the Black Isle script
   headers is the next readability step (L3).
 - Floats: the VM rounds every float result to 32 bits (`Math.fround`); Lua keeps doubles (L4).

@@ -44,18 +44,20 @@ local string_mt = getmetatable("")
 string_mt.__add = function(a, b) return text(a) .. text(b) end
 
 -- CE opDivide: int / int truncates toward zero, a float operand divides as
--- floats. Division by zero is 0, like the VM's (x / 0) | 0.
+-- floats. Division by zero stops the procedure (programFatalError longjmps out
+-- of the script); the runtime catches the error and the call returns 0.
 local function div(a, b)
+    if b == 0 then error("Division (DIV) by zero", 0) end
     if mtype(a) == "float" or mtype(b) == "float" then return a / b end
-    if b == 0 then return 0 end
     local q = a // b
     if q < 0 and q * b ~= a then q = q + 1 end
     return q
 end
 
--- CE opModulo: the remainder takes the sign of the dividend (C %).
+-- CE opModulo: the remainder takes the sign of the dividend (C %); by zero it
+-- stops the procedure like div.
 local function mod(a, b)
-    if b == 0 then return 0 end
+    if b == 0 then error("Division (MOD) by zero", 0) end
     return math.fmod(a, b)
 end
 
