@@ -330,6 +330,39 @@ LUA_KEYWORDS = {
 RUNTIME_NAMES = {"div", "mod", "AND", "OR", "b2i", "floor", "import", "export", "entry", "call", "exit"}
 
 
+# ---------------------------------------------------------------------------
+# Variable names: vault13.gam names the global variables (GVAR_*), a map's
+# <map>.gam its map variables (MVAR_*), one `NAME :=value;` line per variable
+# in number order (CE gameLoadGlobalVars / mapLoadMapVars read the values the
+# same way, by position).
+# ---------------------------------------------------------------------------
+
+_gam_cache = {}
+
+
+def read_gam(path, section):
+    """[name, ...] in variable-number order from a .gam file, or None."""
+    import re
+    key = (os.path.normcase(os.path.abspath(path)), section)
+    if key in _gam_cache:
+        return _gam_cache[key]
+    names = None
+    if os.path.exists(path):
+        names = []
+        inside = False
+        with open(path, encoding="latin-1") as fh:
+            for line in fh:
+                code = line.split("//")[0].strip()
+                if code.endswith(":") and ":=" not in code:
+                    inside = code[:-1].strip() == section
+                    continue
+                m = re.match(r"([A-Za-z_]\w*)\s*:=", code)
+                if inside and m:
+                    names.append(m.group(1))
+    _gam_cache[key] = names
+    return names
+
+
 class DecompileError(Exception):
     pass
 
@@ -960,6 +993,8 @@ class ProcDecompiler:
                 args = [self.pop(stack, pc) for _ in range(argc)][::-1]
                 if name in ("gsay_option", "giq_option"):
                     args[-2] = self.proc_target(args[-2], pc)
+                if name in self.s.var_names and args:
+                    args[0] = self.s.var_name(name, args[0])
                 e = Call(name, args, name in PURE, name in BUILTIN_VARS)
                 first = args[0] if args else None
                 if pushes:
@@ -1059,9 +1094,13 @@ class ProcDecompiler:
 
 
 class ScriptDecompiler:
-    def __init__(self, data, name):
+    def __init__(self, data, name, gvar_names=None, mvar_names=None):
         self.f = IntFile(data, name)
         self.name = name
+        # variable number -> name, for global_var(7) -> global_var(GVAR_ENEMY_ARROYO)
+        self.var_names = {"global_var": gvar_names or [], "set_global_var": gvar_names or [],
+                          "map_var": mvar_names or [], "set_map_var": mvar_names or []}
+        self.named_vars = {}  # name -> number, declared as locals at the top
         self.externals = set()
         self.value_calls_pending = []
         self.svars = []
@@ -1104,6 +1143,27 @@ class ScriptDecompiler:
             if op in (OP_FETCH, OP_STORE):
                 return True
         return False
+
+    def var_name(self, intrinsic, e):
+        """A constant variable number as its .gam name (a local declared at the
+        top of the script); anything else stays as it is."""
+        names = self.var_names[intrinsic]
+        if not (isinstance(e, Const) and not e.is_float and 0 <= e.value < len(names)):
+            return e
+        n = names[e.value]
+        if n in LUA_KEYWORDS or n in RUNTIME_NAMES or n in self.taken_names():
+            return e
+        if self.named_vars.setdefault(n, e.value) != e.value:
+            return e  # the same name for two numbers (a .gam typo): keep both numeric
+        named = Name(n)
+        named.kind = "num"
+        named.pc = e.pc
+        return named
+
+    def taken_names(self):
+        if not hasattr(self, "_taken"):
+            self._taken = set(self.svars) | set(lua_name(p.name) for p in self.f.procs) |                 set(lua_name(n) for n, _v in self.exports) | set(lua_name(n) for n in self.external_names())
+        return self._taken
 
     def proc_index(self, name):
         for p in self.f.procs:
@@ -1236,6 +1296,10 @@ class ScriptDecompiler:
             w("export(%s, %s)" % (lua_string(n), v.lua()))
         if self.exports:
             w("")
+        if self.named_vars:
+            for n, v in sorted(self.named_vars.items(), key=lambda kv: (not kv[0].startswith("GVAR"), kv[1])):
+                w("local %s = %d" % (n, v))
+            w("")
         if self.svars:
             for n, v in zip(self.svars, self.svar_inits):
                 w("%s = %s" % (n, v.lua()))
@@ -1297,10 +1361,16 @@ class ScriptDecompiler:
 
 
 def decompile_file(path):
+    """data/scripts/<name>.int -> Lua text. Variable names come from the
+    install's data/data/vault13.gam and, for a map's own script,
+    data/maps/<name>.gam; without them the numbers stay."""
     name = os.path.splitext(os.path.basename(path))[0].lower()
     with open(path, "rb") as fh:
         data = fh.read()
-    return ScriptDecompiler(data, name).emit()
+    root = os.path.dirname(os.path.dirname(os.path.abspath(path)))
+    gvars = read_gam(os.path.join(root, "data", "vault13.gam"), "GAME_GLOBAL_VARS")
+    mvars = read_gam(os.path.join(root, "maps", name + ".gam"), "MAP_GLOBAL_VARS")
+    return ScriptDecompiler(data, name, gvars, mvars).emit()
 
 
 def check_bridge(bridge_path):

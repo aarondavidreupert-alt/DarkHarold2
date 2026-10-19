@@ -65,6 +65,11 @@ never a silently wrong translation:
   with the wrong count is accepted when the callee never fetches or stores a frame variable (sccop calls
   `getArmedPartyMember`, declared with one parameter, with none). Otherwise it is an error.
 - **Negative constants**: `push -2147483648; negate` folds to -2147483648 (CE int32 negation), not 2^31.
+- **Variable names**: a constant `global_var(n)` / `set_global_var(n, …)` uses the name from the install's
+  `data/data/vault13.gam` (`global_var(GVAR_ENEMY_ARROYO)`), and in a map's own script `map_var(n)` the name
+  from `data/maps/<map>.gam`; each name is a `local NAME = n` at the top of the file. Variables are numbered
+  by their line order in the `.gam`, as CE reads the values. Without the file, or for a computed number, the
+  number stays.
 
 ### Scripts that stay `.int`
 
@@ -177,8 +182,10 @@ through and returns to the map; 21 critter heartbeats at 0 ms update time.
 ## Open
 
 - 4 scripts stay `.int` (see above, `known_bugs.md` L1).
-- Integer arithmetic is 64-bit in Lua; CE wraps at 32 bits. Vanilla scripts were not seen to overflow.
-- Constants are numbers (`global_var(7)`): naming from `vault13.gam` (GVARs) and the Black Isle script
-  headers is the next readability step (L3).
+- Integer `+ - *` are 64-bit in Lua and doubles in the VM; CE wraps at 32 bits. Matching CE in Lua would
+  need a helper call for every operator (unreadable output) and the VM would have to change with it; no
+  vanilla script is known to overflow, so both stay as they are.
+- LVARs, PIDs and message numbers are still numbers (L3): their names are in the Black Isle script
+  headers, which the game does not ship.
 - Floats: the VM rounds every float result to 32 bits (`Math.fround`); Lua keeps doubles (L4).
 - Mods: a load order for mod `.lua` files over the generated ones (L5).
