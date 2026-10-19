@@ -162,6 +162,14 @@ is not exercised), 1455 at the call caps (wait loops), 117 division by zero, 38 
 `use_skill_on_p_proc` calls itself; the VM stops at CE's 0x1000 limit, Lua at its own — 18 of these runs
 reach the total call cap in Lua first and are compared as far as both got).
 
+In game, both backends side by side (2026-10-19): on 12 town maps (ncr1, newr1, newr2, vctyctyd, redment,
+kladwtwn, denbus1, modmain, broken1, sfchina, gecksetl, navarro) every scripted object ran as Lua with no
+Lua error, and for each of the 194 critter scripts on them the player talked to the critter, took the first
+option and closed the dialogue, once per backend: whether a dialogue opens, the first reply, the option
+count and the reply after the first option match in all 58 dialogues. The one mismatch, the New Reno Jet
+dealer's greeting, is `random()` drawn from the game's RNG, which the map's heartbeats also use, so it
+depends on timing in either backend.
+
 In game (`play.html?arvillag#script_backend=lua`): all 143 scripted objects and the map script run in Lua;
 the Elder's dialogue (talking head, quest node with the flask and money, the `gsay_message` farewell) runs
 through and returns to the map; 21 critter heartbeats at 0 ms update time.
