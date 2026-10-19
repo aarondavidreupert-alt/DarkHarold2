@@ -3,8 +3,8 @@
 > DH2 addition (no CE counterpart). Started 2026-10-19 on branch `decompile-ini-to-lua`.
 > Goal: every game script readable and moddable, behaving exactly like the original bytecode.
 > Status: **pilot**. 1439 of 1443 scripts decompile; the four left are explained under "Scripts that stay
-> `.int`". The VM-vs-Lua test passes for Arroyo; Klamath, Den, Modoc and the scripts added on 2026-10-19
-> matched the VM except where the VM differed from CE; those VM bugs are fixed (`known_bugs.md` L6). The bytecode VM stays the default (`[dh2] script_backend=vm`).
+> `.int`". The VM-vs-Lua test over every decompiled script (1436, 646 965 runs) differs only in one
+> Black Isle script bug neither backend can match CE on (`known_bugs.md` L7). The bytecode VM stays the default (`[dh2] script_backend=vm`).
 
 ## Pieces
 
@@ -112,9 +112,8 @@ Intrinsic results are normalised to SSL values (`luaRuntime.ts sslValue`): boole
   code (CE `scriptExecProc`: `runProgram` + `_interpret` on first load).
 - **Dialogue**: every engine call runs in a coroutine. `gsay_end` and `gsay_message` yield; the dialogue's
   end (`scripting.ts dialogueExit`) resumes the most recently suspended procedure, then the one before it.
-  This is CE (`gameDialogEnter` runs the whole dialogue inside `gsay_end`). The VM instead resumes only the
-  most recent halt address, so after a `gsay_message` inside an option the code after `talk_p_proc`'s
-  `gsay_end` does not run there — see `known_bugs.md` L2.
+  This is CE (`gameDialogEnter` runs the whole dialogue inside `gsay_end`). The VM does the same since
+  2026-10-19 (`ScriptVM.resume`, `known_bugs.md` L2).
 - **Dialogue option targets** stay on the Lua side (a numbered registry); a Lua function that went through JS
   comes back as a JS proxy.
 - **Errors** in a Lua procedure are caught, logged (`dbgWarn('lua', …)`), and the call returns 0.
@@ -153,6 +152,15 @@ procedures, all where the VM differs from CE** (`known_bugs.md` L6); none is a d
 After the VM fixes (L6, same day) the same 235 scripts: 113 780 runs, **0 differences**; Arroyo still 0.
 Runs that stopped with an error (about 1100 where the VM threw) stopped the same way in both backends: wait loops
 at the call cap, and `call(<variable>)` on a procedure variable the fake world leaves at 0.
+
+All scripts, 2026-10-19, after the VM fixes (L2, L6, stack limits): every decompiled script (1436; the two
+`copy of mcgrisha` files and `rnduvilg.ssl` in `data/scripts` are left out), 20 seeds — 646 965 runs, 1308
+cut short at the total cap, **3 differing procedures**, all in bhrnddst (an object multiplied as the caps
+amount, `known_bugs.md` L7). Runs that stopped, the same way in both backends: 17 880 at `call(<variable>)`
+on a procedure variable the fake world leaves at 0 (the NCR / Reno talk scripts; the code after such a call
+is not exercised), 1455 at the call caps (wait loops), 117 division by zero, 38 stack overflow (nimyrdor's
+`use_skill_on_p_proc` calls itself; the VM stops at CE's 0x1000 limit, Lua at its own — 18 of these runs
+reach the total call cap in Lua first and are compared as far as both got).
 
 In game (`play.html?arvillag#script_backend=lua`): all 143 scripted objects and the map script run in Lua;
 the Elder's dialogue (talking head, quest node with the flask and money, the `gsay_message` farewell) runs

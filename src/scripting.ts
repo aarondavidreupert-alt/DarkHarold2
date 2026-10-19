@@ -540,11 +540,14 @@ export module Scripting {
         }
 
         if (currentDialogueObject) {
-            // resume from when we halted in gsay_end or gsay_message
-            var vm = currentDialogueObject._script!._vm!
-            vm.pc = vm.popAddr()
-            info(`[resuming from gsay_end/gsay_message (pc=0x${vm.pc.toString(16)})]`)
-            vm.run()
+            // resume what halted in gsay_end / gsay_message, like the Lua path
+            // above; clear the dialogue first, the code after gsay_end calls
+            // end_dialogue
+            const vm = currentDialogueObject._script!._vm!
+            currentDialogueObject = null
+            info('[resuming from gsay_end/gsay_message]')
+            vm.resume()
+            return
         }
 
         currentDialogueObject = null
@@ -2597,7 +2600,7 @@ export module Scripting {
         }
         gsay_end() {
             // Halt the VM so the player can interact with dialogue options.
-            // dialogueExit() resumes via vm.pc = vm.popAddr(); vm.run().
+            // dialogueExit() resumes it (ScriptVM.resume).
             //
             // CE ref: game_dialog.cc:3662 _gdCanBarter / :4357-4388 — Barter
             // and (for party members) Combat Control are persistent buttons

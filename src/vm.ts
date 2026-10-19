@@ -306,6 +306,9 @@ export class ScriptVM {
     dvarBase: number = 0
     halted: boolean = false
     aborted: boolean = false // the last run() stopped on a fatal error
+    // procedures halted inside gsay_end / gsay_message (stack depths at their
+    // call), innermost last; resume() continues them
+    suspended: { data: number; ret: number }[] = []
 
     constructor(script: BinaryReader, intfile: IntFile) {
         this.script = script
@@ -313,6 +316,9 @@ export class ScriptVM {
     }
 
     push(value: any): void {
+        // CE programStackPushValue: more than 0x1000 values is a fatal error
+        // (nimyrdor's use_skill_on_p_proc calls itself until it hits this)
+        if (this.dataStack.length > 0x1000) throw new VMFatalError('programStackPushValue: Stack overflow.')
         this.dataStack.push(value)
     }
 
@@ -363,7 +369,34 @@ export class ScriptVM {
             this.retStack.length = retDepth
             return 0
         }
+        if (this.retStack.length > retDepth) {
+            // halted in gsay_end / gsay_message, not returned: the frame stays
+            // for resume() (popping a "return value" here would eat a local)
+            this.suspended.push({ data: dataDepth, ret: retDepth })
+            return 0
+        }
         return this.pop()
+    }
+
+    /** The dialogue is over: continue the suspended procedures, innermost
+     *  first, as CE does (the dialogue runs inside gsay_end, which then
+     *  returns). One that halts again (another gsay_message) waits for the
+     *  next resume(). */
+    resume(): void {
+        while (this.suspended.length > 0) {
+            const depth = this.suspended.pop()!
+            this.pc = this.popAddr()
+            this.run()
+            if (this.aborted) {
+                this.dataStack.length = depth.data
+                this.retStack.length = depth.ret
+            } else if (this.retStack.length > depth.ret) {
+                this.suspended.push(depth)
+                return
+            } else {
+                this.pop() // its return value
+            }
+        }
     }
 
     step(): boolean {
@@ -389,6 +422,10 @@ export class ScriptVM {
             }
             return false
         }
+
+        // CE programReturnStackPushValue has the same 0x1000 limit; the opcodes
+        // push return addresses directly, so it is checked here
+        if (this.retStack.length > 0x1001) throw new VMFatalError('programReturnStackPushValue: Stack overflow.')
 
         if (this.pc === pc)
             // PC wasn't explicitly set, let's advance it to the current file offset

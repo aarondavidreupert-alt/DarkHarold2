@@ -291,10 +291,7 @@ function runVM(name: string, data: DataView, seed: number, plan: Plan, imports: 
     step(world, 'call', () => mock[plan.proc](...plan.args))
     if (world.suspended) {
         world.trace.push('-- resume')
-        step(world, 'resume', () => {
-            vm.pc = vm.popAddr()
-            vm.run()
-        })
+        step(world, 'resume', () => vm.resume())
     }
     if (world.options.length > 0) {
         world.trace.push('-- option')
@@ -344,6 +341,8 @@ export interface DiffFailure {
     seed: number
     line: number
     vm: string[]
+    vmTrace: string[] // the whole traces, for a closer look from the console
+    luaTrace: string[]
     lua: string[]
     vmError: string
     luaError: string
@@ -357,6 +356,16 @@ export interface DiffReport {
     missing: string[]
     vmErrors: number
     errors: { [text: string]: number } // why runs stopped (both backends agreeing)
+}
+
+// Let the page repaint the log between scripts. A MessageChannel message, not
+// setTimeout: a hidden tab runs chained timers at most once a minute.
+function yieldToPage(): Promise<void> {
+    return new Promise((r) => {
+        const ch = new MessageChannel()
+        ch.port1.onmessage = () => r()
+        ch.port2.postMessage(0)
+    })
 }
 
 function firstDiff(a: string[], b: string[]): number {
@@ -410,6 +419,7 @@ export async function runLuaDiff(names: string[], seeds: number, log: (s: string
                     report.failures.push({
                         script: name, proc: p.name, seed, line: i,
                         vm: vm.slice(Math.max(0, i - 3), i + 3), lua: lua.slice(Math.max(0, i - 3), i + 3),
+                        vmTrace: vm, luaTrace: lua,
                         vmError: vmRun.error, luaError: luaRun.error,
                     })
                     break // one failing seed per procedure is enough
@@ -417,7 +427,7 @@ export async function runLuaDiff(names: string[], seeds: number, log: (s: string
             }
         }
         log(`${name}: ${procs.length} procedures, ${failed ? failed + ' differ' : 'identical'}`)
-        await new Promise((r) => setTimeout(r, 0))
+        await yieldToPage()
     }
     return report
 }
