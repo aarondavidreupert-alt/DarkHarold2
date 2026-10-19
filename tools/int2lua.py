@@ -259,6 +259,22 @@ PURE = BUILTIN_VARS | {
     "anim_busy", "using_skill", "how_much", "anim_action_frame",
 }
 
+# Constant arguments that have names: intrinsic -> [(argument, kind)]. "gvar",
+# "mvar", "lvar": variable numbers; "pid": a proto id (CE PID values: items,
+# critters 0x01xxxxxx, scenery 0x02xxxxxx).
+NAMED_ARGS = {
+    "global_var": [(0, "gvar")], "set_global_var": [(0, "gvar")],
+    "map_var": [(0, "mvar")], "set_map_var": [(0, "mvar")],
+    "local_var": [(0, "lvar")], "set_local_var": [(0, "lvar")],
+    "create_object_sid": [(0, "pid")], "party_member_obj": [(0, "pid")],
+    "obj_is_carrying_obj_pid": [(1, "pid")], "obj_carrying_pid_obj": [(1, "pid")],
+    "tile_contains_pid_obj": [(2, "pid")], "tile_contains_obj_pid": [(2, "pid")],
+    "kill_critter_type": [(0, "pid")], "proto_data": [(0, "pid")],
+}
+# Lua allows 200 locals in a chunk; names beyond this stay numbers
+MAX_NAMED = 180
+NAME_ORDER = ("gvar", "mvar", "lvar", "pid")
+
 # fallout2-ce interpreter.h procedure flags
 PROC_FLAG_TIMED = 0x01
 PROC_FLAG_CONDITIONAL = 0x02
@@ -361,6 +377,104 @@ def read_gam(path, section):
                     names.append(m.group(1))
     _gam_cache[key] = names
     return names
+
+
+class SslNames:
+    """Names from SSL script sources, when the install has them in
+    data/scripts_src/ (the Unofficial Patch's scripts_src: <area>/<name>.ssl and
+    headers/*.h). A script's own .ssl and the headers it #includes name its
+    local variables (LVAR_*) and the map variables it uses (MVAR_*); itempid.h,
+    critrpid.h and scenepid.h name the PIDs. Those sources are the patched
+    scripts, so a script's names are only used when every procedure of the
+    vanilla .int is also in its .ssl."""
+
+    def __init__(self, root):
+        import re
+        self.re = re
+        self.files = {}  # lower-case relative path -> path, for case-insensitive #include
+        self.ssl = {}    # script name -> .ssl path
+        for d, _sub, names in os.walk(root):
+            for n in names:
+                p = os.path.join(d, n)
+                self.files[os.path.relpath(p, root).replace("\\", "/").lower()] = p
+                if n.lower().endswith(".ssl"):
+                    self.ssl.setdefault(n[:-4].lower(), p)
+        self.root = root
+        self.cache = {}
+        self.pids = {}
+        for h in ("itempid.h", "critrpid.h", "scenepid.h"):
+            p = self.files.get("headers/" + h)
+            for name, value in (self.read(p)["defines"] if p else []):
+                if name.startswith("PID_"):
+                    self.pids.setdefault(value, name)
+
+    def resolve(self, base, inc):
+        p = os.path.normpath(os.path.join(os.path.dirname(base), inc))
+        if os.path.exists(p):
+            return p
+        rel = os.path.relpath(p, self.root).replace("\\", "/").lower()
+        return self.files.get(rel)
+
+    def read(self, path):
+        """One file: its (name, number) #defines, procedures and #includes."""
+        if path in self.cache:
+            return self.cache[path]
+        re = self.re
+        out = {"defines": [], "procs": set(), "includes": []}
+        self.cache[path] = out
+        with open(path, encoding="latin-1") as fh:
+            for line in fh:
+                code = line.split("//")[0]
+                m = re.match(r'\s*#\s*include\s+"([^"]+)"', code)
+                if m:
+                    inc = self.resolve(path, m.group(1))
+                    if inc:
+                        out["includes"].append(inc)
+                    continue
+                m = re.match(r"\s*#\s*define\s+([A-Za-z_]\w*)\s+\(?\s*(\d+)\s*\)?\s*$", code)
+                if m:
+                    out["defines"].append((m.group(1), int(m.group(2))))
+                    continue
+                m = re.match(r"\s*procedure\s+([A-Za-z_]\w*)", code)
+                if m:
+                    out["procs"].add(m.group(1).lower())
+        return out
+
+    def for_script(self, name, int_procs):
+        """{"lvar": {n: name}, "mvar": {n: name}} for one script, or None when
+        there is no .ssl for it or it does not match the .int."""
+        path = self.ssl.get(name.lower())
+        if not path:
+            return None
+        seen, todo, procs = set(), [path], set()
+        found = {"LVAR_": {}, "MVAR_": {}}
+        while todo:
+            p = todo.pop()
+            if p in seen:
+                continue
+            seen.add(p)
+            f = self.read(p)
+            procs |= f["procs"]  # headers define procedures too (checkPartyMembersNearDoor)
+            for n, v in f["defines"]:
+                for prefix, table in found.items():
+                    if n.startswith(prefix):
+                        table.setdefault(v, set()).add(n)
+            todo.extend(f["includes"])
+        if not set(x.lower() for x in int_procs) <= procs:
+            return None
+        # a number two headers name differently (#ifdef variants) is ambiguous
+        return {"lvar": {v: ns.pop() for v, ns in found["LVAR_"].items() if len(ns) == 1},
+                "mvar": {v: ns.pop() for v, ns in found["MVAR_"].items() if len(ns) == 1}}
+
+
+_ssl_cache = {}
+
+
+def ssl_names(root):
+    root = os.path.normcase(os.path.abspath(root))
+    if root not in _ssl_cache:
+        _ssl_cache[root] = SslNames(root) if os.path.isdir(root) else None
+    return _ssl_cache[root]
 
 
 class DecompileError(Exception):
@@ -510,6 +624,21 @@ class Name(Expr):
 
     def lua(self):
         return self.name
+
+
+class NamedConst(Expr):
+    """A number with a name from the .gam / .ssl files (GVAR_ENEMY_ARROYO). It
+    is written as the name when the script declares it (ScriptDecompiler.emit
+    declares as many as Lua's local limit allows), else as the number."""
+
+    def __init__(self, name, value, script):
+        self.name = name
+        self.value = value
+        self.script = script
+        self.kind = "num"
+
+    def lua(self):
+        return self.name if self.name in self.script.declared else str(self.value)
 
 
 class ProcRef(Expr):
@@ -799,6 +928,11 @@ class ProcDecompiler:
 
             elif op in COMPARE:
                 b, a = self.pop(stack, pc), self.pop(stack, pc)
+                # obj_pid(x) == 16777278 -> obj_pid(x) == PID_SULIK
+                if isinstance(a, Call) and a.name == "obj_pid":
+                    b = self.s.name_const("pid", b)
+                elif isinstance(b, Call) and b.name == "obj_pid":
+                    a = self.s.name_const("pid", a)
                 self.push(stack, BinOp(COMPARE[op], value(a), value(b), "bool"), a)
             elif op in ARITH:
                 b, a = self.pop(stack, pc), self.pop(stack, pc)
@@ -993,8 +1127,8 @@ class ProcDecompiler:
                 args = [self.pop(stack, pc) for _ in range(argc)][::-1]
                 if name in ("gsay_option", "giq_option"):
                     args[-2] = self.proc_target(args[-2], pc)
-                if name in self.s.var_names and args:
-                    args[0] = self.s.var_name(name, args[0])
+                for k, kind in NAMED_ARGS.get(name, ()):
+                    args[k] = self.s.name_const(kind, args[k])
                 e = Call(name, args, name in PURE, name in BUILTIN_VARS)
                 first = args[0] if args else None
                 if pushes:
@@ -1094,13 +1228,24 @@ class ProcDecompiler:
 
 
 class ScriptDecompiler:
-    def __init__(self, data, name, gvar_names=None, mvar_names=None):
+    def __init__(self, data, name, gvar_names=None, mvar_names=None, ssl=None):
         self.f = IntFile(data, name)
         self.name = name
-        # variable number -> name, for global_var(7) -> global_var(GVAR_ENEMY_ARROYO)
-        self.var_names = {"global_var": gvar_names or [], "set_global_var": gvar_names or [],
-                          "map_var": mvar_names or [], "set_map_var": mvar_names or []}
-        self.named_vars = {}  # name -> number, declared as locals at the top
+        # number -> name per kind (NAMED_ARGS), for global_var(7) -> global_var(GVAR_ENEMY_ARROYO)
+        self.names = {"gvar": dict(enumerate(gvar_names or [])), "mvar": dict(enumerate(mvar_names or [])),
+                      "lvar": {}, "pid": {}}
+        self.ssl_matched = False
+        if ssl is not None:
+            self.names["pid"] = ssl.pids
+            own = ssl.for_script(name, [p.name for p in self.f.procs
+                                        if not p.name.startswith(".") and not p.flags & PROC_FLAG_IMPORTED])
+            if own is not None:
+                self.ssl_matched = True
+                self.names["lvar"] = own["lvar"]
+                if not self.names["mvar"]:  # a map's own .gam comes first
+                    self.names["mvar"] = own["mvar"]
+        self.named = {}       # name -> (kind, number), used somewhere in the script
+        self.declared = set()  # the names emit() declares as locals
         self.externals = set()
         self.value_calls_pending = []
         self.svars = []
@@ -1144,25 +1289,23 @@ class ScriptDecompiler:
                 return True
         return False
 
-    def var_name(self, intrinsic, e):
-        """A constant variable number as its .gam name (a local declared at the
-        top of the script); anything else stays as it is."""
-        names = self.var_names[intrinsic]
-        if not (isinstance(e, Const) and not e.is_float and 0 <= e.value < len(names)):
+    def name_const(self, kind, e):
+        """A constant number as its name (NamedConst); anything else as it is."""
+        if not (isinstance(e, Const) and not e.is_float):
             return e
-        n = names[e.value]
-        if n in LUA_KEYWORDS or n in RUNTIME_NAMES or n in self.taken_names():
+        n = self.names[kind].get(e.value)
+        if n is None or n in LUA_KEYWORDS or n in RUNTIME_NAMES or n in self.taken_names():
             return e
-        if self.named_vars.setdefault(n, e.value) != e.value:
-            return e  # the same name for two numbers (a .gam typo): keep both numeric
-        named = Name(n)
-        named.kind = "num"
+        if self.named.setdefault(n, (kind, e.value)) != (kind, e.value):
+            return e  # one name for two numbers (a typo in the sources): keep both numeric
+        named = NamedConst(n, e.value, self)
         named.pc = e.pc
         return named
 
     def taken_names(self):
         if not hasattr(self, "_taken"):
-            self._taken = set(self.svars) | set(lua_name(p.name) for p in self.f.procs) |                 set(lua_name(n) for n, _v in self.exports) | set(lua_name(n) for n in self.external_names())
+            self._taken = set(self.svars) | set(lua_name(p.name) for p in self.f.procs) | \
+                set(lua_name(n) for n, _v in self.exports) | set(lua_name(n) for n in self.external_names())
         return self._taken
 
     def proc_index(self, name):
@@ -1296,8 +1439,10 @@ class ScriptDecompiler:
             w("export(%s, %s)" % (lua_string(n), v.lua()))
         if self.exports:
             w("")
-        if self.named_vars:
-            for n, v in sorted(self.named_vars.items(), key=lambda kv: (not kv[0].startswith("GVAR"), kv[1])):
+        ordered = sorted(self.named.items(), key=lambda kv: (NAME_ORDER.index(kv[1][0]), kv[1][1]))[:MAX_NAMED]
+        self.declared = set(n for n, _kv in ordered)
+        if ordered:
+            for n, (_kind, v) in ordered:
                 w("local %s = %d" % (n, v))
             w("")
         if self.svars:
@@ -1362,15 +1507,17 @@ class ScriptDecompiler:
 
 def decompile_file(path):
     """data/scripts/<name>.int -> Lua text. Variable names come from the
-    install's data/data/vault13.gam and, for a map's own script,
-    data/maps/<name>.gam; without them the numbers stay."""
+    install's data/data/vault13.gam, for a map's own script data/maps/<name>.gam,
+    and SSL sources in data/scripts_src/ when present (SslNames); without them
+    the numbers stay."""
     name = os.path.splitext(os.path.basename(path))[0].lower()
     with open(path, "rb") as fh:
         data = fh.read()
     root = os.path.dirname(os.path.dirname(os.path.abspath(path)))
     gvars = read_gam(os.path.join(root, "data", "vault13.gam"), "GAME_GLOBAL_VARS")
     mvars = read_gam(os.path.join(root, "maps", name + ".gam"), "MAP_GLOBAL_VARS")
-    return ScriptDecompiler(data, name, gvars, mvars).emit()
+    ssl = ssl_names(os.path.join(root, "scripts_src"))
+    return ScriptDecompiler(data, name, gvars, mvars, ssl).emit()
 
 
 def check_bridge(bridge_path):
