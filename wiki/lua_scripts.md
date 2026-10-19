@@ -89,6 +89,12 @@ never a silently wrong translation:
     value two names share stay numbers.
   - Some expressions (`b2i`, `div`, `AND` …) are text before the declarations are known; a name in them is a
     marker until `emit` decides, so a name never appears without its `local`.
+- **Message texts**: a line that uses a message with constant numbers (`message_str`, `gsay_reply`,
+  `gsay_message`, `gsay_option`, `giq_option`) ends with the text as a comment —
+  `gsay_reply(11, 103)  -- "Congratulations, Chosen One, …"`. Message list n is the script on line n of
+  `data/scripts/scripts.lst` (as `src/data.ts lookupScriptName`), the text from
+  `data/text/english/dialog/<script>.msg`, cut at 70 characters. 50 483 lines get one; a message whose
+  `.msg` or number the game data lacks (e.g. `newrgo`, the bookshelf scripts' copied Lorri lines) gets none.
 
 ### Scripts that stay `.int`
 
@@ -224,5 +230,6 @@ through and returns to the map; 21 critter heartbeats at 0 ms update time.
 - Integer `+ - *` are 64-bit in Lua and doubles in the VM; CE wraps at 32 bits. Matching CE in Lua would
   need a helper call for every operator (unreadable output) and the VM would have to change with it; no
   vanilla script is known to overflow, so both stay as they are.
-- Message numbers are still numbers (L3); so are the LVARs of the scripts without a matching `.ssl`.
+- Message numbers stay numbers, with the text as a comment; the LVARs of the scripts without a matching
+  `.ssl` are still numbers (L3).
 - Floats: the VM rounds every float result to 32 bits (`Math.fround`); Lua keeps doubles (L4).

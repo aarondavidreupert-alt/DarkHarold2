@@ -514,6 +514,68 @@ class SslNames:
                 "mvar": {v: ns.pop() for v, ns in found["MVAR_"].items() if len(ns) == 1}}
 
 
+class MsgTexts:
+    """Message texts for comments: message list n is the script on line n of
+    data/scripts/scripts.lst (src/data.ts lookupScriptName), its texts in
+    data/text/english/dialog/<script>.msg as {number}{speech}{text}."""
+
+    # message references with constant numbers in a generated line: (list, number)
+    REFS = [r"\bmessage_str\((\d+), (\d+)\)", r"\bgsay_reply\((\d+), (\d+)\)",
+            r"\bgsay_message\((\d+), (\d+),", r"\bgsay_option\((\d+), (\d+),",
+            r"\bgiq_option\(-?\d+, (\d+), (\d+),"]
+    MAX_TEXT = 70
+
+    def __init__(self, root):
+        import re
+        self.re = re
+        self.dir = os.path.join(root, "text", "english", "dialog")
+        self.lst = []
+        lst = os.path.join(root, "scripts", "scripts.lst")
+        if os.path.exists(lst):
+            with open(lst, encoding="latin-1") as fh:
+                self.lst = [line.split(".")[0].strip().lower() for line in fh if line.strip()]
+        self.files = {}
+
+    def text(self, list_no, num):
+        if not (1 <= list_no <= len(self.lst)):
+            return None
+        name = self.lst[list_no - 1]
+        if name not in self.files:
+            texts = {}
+            path = os.path.join(self.dir, name + ".msg")
+            if os.path.exists(path):
+                with open(path, encoding="latin-1") as fh:
+                    body = fh.read()
+                for m in self.re.finditer(r"\{(\d+)\}\{[^}]*\}\{([^}]*)\}", body):
+                    texts[int(m.group(1))] = " ".join(m.group(2).split())
+            self.files[name] = texts
+        return self.files[name].get(num)
+
+    def comment(self, line):
+        """The texts a line refers to, as a trailing comment ("" if none)."""
+        out = []
+        for pattern in self.REFS:
+            for m in self.re.finditer(pattern, line):
+                t = self.text(int(m.group(1)), int(m.group(2)))
+                if t is None:
+                    continue
+                if len(t) > self.MAX_TEXT:
+                    t = t[:self.MAX_TEXT - 1].rstrip() + "…"
+                if t not in out:
+                    out.append(t)
+        return ("  -- " + " / ".join(lua_string(t) for t in out)) if out else ""
+
+
+_msg_cache = {}
+
+
+def msg_texts(root):
+    root = os.path.normcase(os.path.abspath(root))
+    if root not in _msg_cache:
+        _msg_cache[root] = MsgTexts(root)
+    return _msg_cache[root]
+
+
 _ssl_cache = {}
 
 
@@ -1292,9 +1354,10 @@ class ProcDecompiler:
 
 
 class ScriptDecompiler:
-    def __init__(self, data, name, gvar_names=None, mvar_names=None, ssl=None):
+    def __init__(self, data, name, gvar_names=None, mvar_names=None, ssl=None, msgs=None):
         self.f = IntFile(data, name)
         self.name = name
+        self.msgs = msgs  # MsgTexts: message text comments, or None
         # number -> name per kind (NAMED_ARGS), for global_var(7) -> global_var(GVAR_ENEMY_ARROYO)
         self.names = {"gvar": dict(enumerate(gvar_names or [])), "mvar": dict(enumerate(mvar_names or [])),
                       "lvar": {}, "pid": {}}
@@ -1534,8 +1597,13 @@ class ScriptDecompiler:
         while lines and lines[-1] == "":
             lines.pop()
         import re
-        return re.sub(NAMED_MARK, lambda m: m.group(1) if m.group(1) in self.declared else m.group(2),
-                      "\n".join(lines) + "\n")
+        text = re.sub(NAMED_MARK, lambda m: m.group(1) if m.group(1) in self.declared else m.group(2),
+                      "\n".join(lines))
+        if self.msgs is not None:
+            # a comment with the message text after each line that uses one
+            text = "\n".join(line if line.lstrip().startswith("--") else line + self.msgs.comment(line)
+                             for line in text.split("\n"))
+        return text + "\n"
 
     def value_calls(self):
         return set(name for name, e in self.value_calls_pending if e.used_as_value)
@@ -1578,7 +1646,8 @@ def decompile_file(path):
     """data/scripts/<name>.int -> Lua text. Variable names come from the
     install's data/data/vault13.gam, for a map's own script data/maps/<name>.gam,
     and SSL sources in data/scripts_src/ when present (SslNames); without them
-    the numbers stay."""
+    the numbers stay. A line that uses a message gets its text as a comment
+    (MsgTexts)."""
     name = os.path.splitext(os.path.basename(path))[0].lower()
     with open(path, "rb") as fh:
         data = fh.read()
@@ -1586,7 +1655,7 @@ def decompile_file(path):
     gvars = read_gam(os.path.join(root, "data", "vault13.gam"), "GAME_GLOBAL_VARS")
     mvars = read_gam(os.path.join(root, "maps", name + ".gam"), "MAP_GLOBAL_VARS")
     ssl = ssl_names(os.path.join(root, "scripts_src"))
-    return ScriptDecompiler(data, name, gvars, mvars, ssl).emit()
+    return ScriptDecompiler(data, name, gvars, mvars, ssl, msg_texts(root)).emit()
 
 
 def check_bridge(bridge_path):
