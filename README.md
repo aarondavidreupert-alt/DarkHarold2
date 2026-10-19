@@ -107,7 +107,8 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 46 | [`wiki/palette_colors.md`](wiki/palette_colors.md) | Palette colour usage audit — palette vs hard-coded colours |
 | 47 | [`wiki/scroll_clamping.md`](wiki/scroll_clamping.md) | Map scroll borders and edge rendering (`tileSetBorder`, `tileSetCenter`) |
 | 48 | [`wiki/ts-split-refactor.md`](wiki/ts-split-refactor.md) | Source split strategy and the subfolder / barrel convention |
-| 49 | [`wiki/edit_history.md`](wiki/edit_history.md) | Sprint notes, newest first |
+| 49 | [`wiki/lua_scripts.md`](wiki/lua_scripts.md) | Scripts decompiled to Lua (`tools/int2lua.py`), the Lua backend and the VM-vs-Lua test |
+| 50 | [`wiki/edit_history.md`](wiki/edit_history.md) | Sprint notes, newest first |
 
 ### 🐛 Known issues & roadmap
 
@@ -189,6 +190,7 @@ the wiki tracker is the source of truth.
 - **Worldmap** — CE travel loop (`wmPartyWalkingStep`, terrain pace, game time per frame) and random encounters (`wmRndEncounterOccurred` / `Pick` / `wmSetupRandomEncounter`: frequency, difficulty, Outdoorsman, formations, placement — C55), Pathfinder, walk masks, panning, labels; towns revealed by `mark_area_known` (W15), area state and party position saved; clicking the stopped party marker in the wilderness enters the desert map like CE (W16)
 - **Car (Highwayman)** — script-driven like CE: town map scripts place the car, the trunk travels in the party (W14); speed tiers (blower / New Reno upgrade / super car), fuel-saving upgrades, out-of-gas handling, metarule 52/53 trunk capacity; see [`wiki/car_system.md`](wiki/car_system.md)
 - **Scripting VM** — INT parser, all 181 vanilla opcodes bridged (S29), MVARs persisted per map (M8), `map_exit_p_proc` on every script (M9), timed events, `critter_p_proc` round-robin (CE `_script_chk_critters`)
+- **Lua scripts (pilot, opt-in)** — `tools/int2lua.py` decompiles 1418 of 1443 scripts to readable Lua; `[dh2] script_backend=lua` runs them (wasmoon). All 36 Arroyo scripts match the VM call for call in the `luadiff.html` test (L1–L5, [`wiki/lua_scripts.md`](wiki/lua_scripts.md))
 - **Time** — CE game clock and ambient light (`gAmbientIntensity`, Night Vision), midnight events, ARTIMER/AFAILED game events, time jumps drain timed events
 - **Status effects** — radiation (`critterAdjustRadiation`/`processRads`), drugs and addiction from proto data with withdrawal perks, poison decay (S26)
 - **Movies** — MVE → WebM pipeline stage, CE `gameMoviePlay` with subtitles and fades, Pip-Boy video archive (S15)

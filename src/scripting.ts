@@ -56,6 +56,7 @@ import { SKILL_NAMES } from './skills.js'
 import { skillRoll } from './skillUse.js'
 import { arrayRemove, assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
 import { ScriptVM } from './vm.js'
+import { attachLuaScript, isLuaReady, LuaScriptHandle } from './lua/luaRuntime.js'
 import { Worldmap } from './worldmap.js'
 import { ScriptVMBridge } from './vm_bridge.js'
 import { processMidnightForDay } from './gameTick.js'
@@ -273,13 +274,13 @@ export module Scripting {
 
     function warn(msg: string, type?: DebugLogShowType, script?: Script) {
         if (type !== undefined && Config.scripting.debugLogShowType[type] === false) return
-        if (script) console.log(`WARNING [${(script as any)._vm.intfile.name}]: ${msg}`)
+        if (script) console.log(`WARNING [${script.scriptName}]: ${msg}`)
         else console.log(`WARNING: ${msg}`)
     }
 
     export function info(msg: string, type?: DebugLogShowType, script?: Script) {
         if (type !== undefined && Config.scripting.debugLogShowType[type] === false) return
-        if (script) console.log(`INFO [${(script as any)._vm.intfile.name}]: ${msg}`)
+        if (script) console.log(`INFO [${script.scriptName}]: ${msg}`)
         else console.log(`INFO: ${msg}`)
     }
 
@@ -528,6 +529,16 @@ export module Scripting {
         dialogueBarterMod = 0
         info('[dialogue exit]')
 
+        const lua = currentDialogueObject?._script?._lua
+        if (lua) {
+            // the Lua backend suspended the procedure in gsay_end / gsay_message;
+            // the dialogue is over, so it continues (CE: gsay_end returns). Clear
+            // the dialogue first: the code after gsay_end calls end_dialogue.
+            currentDialogueObject = null
+            lua.resume()
+            return
+        }
+
         if (currentDialogueObject) {
             // resume from when we halted in gsay_end or gsay_message
             var vm = currentDialogueObject._script!._vm!
@@ -607,6 +618,7 @@ export module Scripting {
         scriptName!: string
         lvars!: { [lvar: number]: any }
         _vm?: ScriptVM
+        _lua?: LuaScriptHandle // set when the Lua backend runs this script (src/lua/)
         _mapScript?: Script
 
         // Special built-in variables
@@ -3099,6 +3111,11 @@ export module Scripting {
 
         info('loading script ' + name, 'load')
 
+        if (Config.scripting.backend === 'lua') {
+            const luaScript = loadLuaScript(name)
+            if (luaScript) return luaScript
+        }
+
         var path = 'data/scripts/' + name.toLowerCase() + '.int'
         var data: DataView = getFileBinarySync(path)
         var reader = new BinaryReader(data)
@@ -3122,6 +3139,31 @@ export module Scripting {
         // which will be patched by the GameScriptVM to allow
         // transparent procedure calls
         return vm.scriptObj
+    }
+
+    // Lua backend (src/lua/): data/scripts/<name>.lua from tools/int2lua.py. Null
+    // when there is no .lua file or it does not load, so the .int runs instead.
+    function loadLuaScript(name: string): Script | null {
+        if (!isLuaReady()) return null
+        const key = name.toLowerCase()
+        let source: string
+        try {
+            source = getFileText('data/scripts/' + key + '.lua')
+        } catch (e) {
+            dbg('lua', `no ${key}.lua, using ${key}.int`)
+            return null
+        }
+        const script = new Script()
+        script.scriptName = name
+        script.lvars = {}
+        script._mapScript = currentMapObject || script // map scripts are their own map scripts
+        try {
+            attachLuaScript(script, key, source)
+        } catch (e) {
+            dbgWarn('lua', `${key}.lua failed to load (${e}), using ${key}.int`)
+            return null
+        }
+        return script
     }
 
     export function initScript(script: Script, obj: Obj) {

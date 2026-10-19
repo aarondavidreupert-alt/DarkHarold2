@@ -20,7 +20,7 @@ DarkHarold2/
 │   ├── lst/         LST index JSON files (art_critters.json, scripts.json, …)
 │   └── pro/         Proto lookup indexes (proto_items.json, etc.)
 ├── maps/            Extracted map JSON + per-map image lists (*.json, *.images.json)
-├── lib/             Third-party JS (pathfinding-browser.js)
+├── lib/             Third-party JS (pathfinding-browser.js, wasmoon/ — Lua 5.4 in WebAssembly, MIT)
 ├── audio/           Extracted WAV audio (music/ and sfx/) — git-ignored
 ├── art/             Extracted PNG sprites — git-ignored
 ├── proto/           Extracted proto JSON — git-ignored
@@ -49,6 +49,7 @@ DarkHarold2/
 ├── wrappers/        macOS native wrappers
 ├── Modding/         Design documents (.docx, .txt) — not engine code
 ├── play.html        Main entry point (loads js/main.js)
+├── luadiff.html     VM-vs-Lua script test page (src/lua/luaDiff.ts)
 ├── ui.css           All UI/HUD styling
 ├── tsconfig.json    TypeScript config (target: ES2021, outDir: js/, strict)
 ├── package.json     npm devDeps only: typescript, eslint
@@ -131,7 +132,7 @@ the pipeline or the TS compiler.
 | `src/combat/lineOfFire.ts` | `_combat_is_shot_blocked` (LoF critter count) on top of `GameMap.straightPathObstacle` (`_make_straight_path_func`) | `combat.cc`, `animation.cc` |
 | `src/combat/whoHitMe.ts` | `_critter_set_who_hit_me` (incl. reaction −3), `_combatai_check_retaliation`, `_combatai_rating` | `critter.cc`, `combat_ai.cc` |
 
-Wiki references: [wiki/actions.md](wiki/actions.md) · [wiki/ai_behavior.md](wiki/ai_behavior.md) · [wiki/alignment.md](wiki/alignment.md) · [wiki/animation.md](wiki/animation.md) · [wiki/character_stats.md](wiki/character_stats.md) · [wiki/combat.md](wiki/combat.md) · [wiki/companion_party.md](wiki/companion_party.md) · [wiki/critter_stats.md](wiki/critter_stats.md) · [wiki/damage_formula.md](wiki/damage_formula.md) · [wiki/dialogue_system.md](wiki/dialogue_system.md) · [wiki/economy.md](wiki/economy.md) · [wiki/endgame.md](wiki/endgame.md) · [wiki/extended_flags.md](wiki/extended_flags.md) · [wiki/faction_reputation.md](wiki/faction_reputation.md) · [wiki/file_formats.md](wiki/file_formats.md) · [wiki/hotkeys.md](wiki/hotkeys.md) · [wiki/interface_windows.md](wiki/interface_windows.md) · [wiki/items.md](wiki/items.md) · [wiki/known_bugs.md](wiki/known_bugs.md) · [wiki/lighting.md](wiki/lighting.md) · [wiki/map_scripting.md](wiki/map_scripting.md) · [wiki/pathfinding.md](wiki/pathfinding.md) · [wiki/perks_traits.md](wiki/perks_traits.md) · [wiki/pipboy.md](wiki/pipboy.md) · [wiki/proto_system.md](wiki/proto_system.md) · [wiki/quest_system.md](wiki/quest_system.md) · [wiki/random_numbers.md](wiki/random_numbers.md) · [wiki/rendering.md](wiki/rendering.md) · [wiki/save_load.md](wiki/save_load.md) · [wiki/scripting_reference.md](wiki/scripting_reference.md) · [wiki/scripting_vm.md](wiki/scripting_vm.md) · [wiki/settings.md](wiki/settings.md) · [wiki/skill_checks.md](wiki/skill_checks.md) · [wiki/sound_system.md](wiki/sound_system.md) · [wiki/spatial_triggers.md](wiki/spatial_triggers.md) · [wiki/status_effects.md](wiki/status_effects.md) · [wiki/tile_system.md](wiki/tile_system.md) · [wiki/time_clock.md](wiki/time_clock.md) · [wiki/weapon_combat.md](wiki/weapon_combat.md) · [wiki/worldmap.md](wiki/worldmap.md) · [wiki/drugs.md](wiki/drugs.md) · [wiki/palette_colors.md](wiki/palette_colors.md) · [wiki/scroll_clamping.md](wiki/scroll_clamping.md) · [wiki/ts-split-refactor.md](wiki/ts-split-refactor.md)
+Wiki references: [wiki/actions.md](wiki/actions.md) · [wiki/ai_behavior.md](wiki/ai_behavior.md) · [wiki/alignment.md](wiki/alignment.md) · [wiki/animation.md](wiki/animation.md) · [wiki/character_stats.md](wiki/character_stats.md) · [wiki/combat.md](wiki/combat.md) · [wiki/companion_party.md](wiki/companion_party.md) · [wiki/critter_stats.md](wiki/critter_stats.md) · [wiki/damage_formula.md](wiki/damage_formula.md) · [wiki/dialogue_system.md](wiki/dialogue_system.md) · [wiki/economy.md](wiki/economy.md) · [wiki/endgame.md](wiki/endgame.md) · [wiki/extended_flags.md](wiki/extended_flags.md) · [wiki/faction_reputation.md](wiki/faction_reputation.md) · [wiki/file_formats.md](wiki/file_formats.md) · [wiki/hotkeys.md](wiki/hotkeys.md) · [wiki/interface_windows.md](wiki/interface_windows.md) · [wiki/items.md](wiki/items.md) · [wiki/known_bugs.md](wiki/known_bugs.md) · [wiki/lighting.md](wiki/lighting.md) · [wiki/map_scripting.md](wiki/map_scripting.md) · [wiki/pathfinding.md](wiki/pathfinding.md) · [wiki/perks_traits.md](wiki/perks_traits.md) · [wiki/pipboy.md](wiki/pipboy.md) · [wiki/proto_system.md](wiki/proto_system.md) · [wiki/quest_system.md](wiki/quest_system.md) · [wiki/random_numbers.md](wiki/random_numbers.md) · [wiki/rendering.md](wiki/rendering.md) · [wiki/save_load.md](wiki/save_load.md) · [wiki/scripting_reference.md](wiki/scripting_reference.md) · [wiki/scripting_vm.md](wiki/scripting_vm.md) · [wiki/settings.md](wiki/settings.md) · [wiki/skill_checks.md](wiki/skill_checks.md) · [wiki/sound_system.md](wiki/sound_system.md) · [wiki/spatial_triggers.md](wiki/spatial_triggers.md) · [wiki/status_effects.md](wiki/status_effects.md) · [wiki/tile_system.md](wiki/tile_system.md) · [wiki/time_clock.md](wiki/time_clock.md) · [wiki/weapon_combat.md](wiki/weapon_combat.md) · [wiki/worldmap.md](wiki/worldmap.md) · [wiki/drugs.md](wiki/drugs.md) · [wiki/palette_colors.md](wiki/palette_colors.md) · [wiki/scroll_clamping.md](wiki/scroll_clamping.md) · [wiki/ts-split-refactor.md](wiki/ts-split-refactor.md) · [wiki/lua_scripts.md](wiki/lua_scripts.md)
 
 ### Scripting VM
 
@@ -144,9 +145,14 @@ Three-file split — understand this before touching any opcode:
 | `src/scripting.ts` | `Script` class: one method per FO2 script intrinsic, TimedEvent system, GVAR/LVAR/MVAR access, all hook entry points (~2263 lines) | `scripts.cc`, `script_list.cc` |
 | `src/transpiler.ts` | INT file disassembler / transpiler (produces debug output) | — |
 | `src/intfile.ts` | `.INT` binary parser: procedure table, code section, string pool | — |
+| `src/lua/luaRuntime.ts` | Lua script backend: starts wasmoon (`lib/wasmoon/`), `attachLuaScript` gives a `Script` one method per Lua procedure; `[dh2] script_backend=lua` ([wiki/lua_scripts.md](wiki/lua_scripts.md)) | — (DH2 addition) |
+| `src/lua/prelude.ts` | Lua side: SSL semantics (`div`, `mod`, string `+`, `AND`/`OR`), per-script sandbox, coroutines for `gsay_end`/`gsay_message` | `interpreter.cc opAdd/opDivide/opModulo`; `game_dialog.cc gameDialogEnter` |
+| `src/lua/luaDiff.ts` | VM-vs-Lua differential test behind `luadiff.html` | — |
 
 To add an opcode: implement a method on `Script` in `scripting.ts`, then wire
-it in `vm_bridge.ts` with `bridged("methodName", argCount)`.
+it in `vm_bridge.ts` with `bridged("methodName", argCount)`; the Lua backend calls
+`Script` methods by name, and `tools/int2lua.py` needs the opcode in its
+`INTRINSICS` table (`--check-bridge src/vm_bridge.ts` compares the two).
 
 ### Audio
 
@@ -242,6 +248,7 @@ The engine consumes only pre-baked JSON/PNG — no runtime DAT parsing.
 | Crit table | `tools/parseCritTable.py` | `lut/criticalTables.json` |
 | Elevator table | `tools/parseElevatorTable.py` | `lut/elevators.json` |
 | GAM → JSON | `tools/parse_gam.py` (`convert_gam` stage; CE `globalVarsRead`) | `data/gvars.json` (from `data/data/vault13.gam`), `data/maps/*.mvars.json` |
+| INT → Lua | `tools/int2lua.py` (`decompile_scripts` stage; own decompiler, [wiki/lua_scripts.md](wiki/lua_scripts.md)) | `data/scripts/*.lua` (git-ignored, next to the `.int`) |
 | Default config | `tools/fallout2Cfg.py` (`write_config` stage; never overwrites) | `fallout2.cfg` (git-ignored) |
 | Worldmap stitch | `tools/stitchWorldmap.py` | `worldmap.png` |
 | Color tables | `tools/pal.py` (via pipeline) | `lut/colorTable.json`, `lut/color_lut.json`, `lut/color_rgb.json` |

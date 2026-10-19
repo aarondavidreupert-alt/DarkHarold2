@@ -122,6 +122,10 @@ export function applyCfg(cfg: CfgSections): void {
     const dh2 = cfg['dh2'] ?? {}
     const dnc = int(dh2['day_night_cycle'])
     if (dnc !== null) Config.engine.dayNightCycle = dnc !== 0
+    //   script_backend=lua  run the decompiled data/scripts/*.lua (tools/int2lua.py)
+    //   script_backend=vm   run the .int bytecode (default)
+    const sb = (dh2['script_backend'] ?? '').trim().toLowerCase()
+    if (sb === 'lua' || sb === 'vm') Config.scripting.backend = sb
     //   pixel_font=0  UI text in the browser font instead of the Fallout pixel font (default 1)
     const pf = int(dh2['pixel_font'])
     if (pf !== null) Config.ui.pixelFont = pf !== 0

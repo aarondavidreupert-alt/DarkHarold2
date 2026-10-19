@@ -51,6 +51,7 @@ STAGES = [
     ("convert_lsts", "Convert LST files (-> lut/lst/*.json)", True),
     ("convert_endgame", "Convert endgame slide data", True),
     ("convert_gam", "Convert global/map variables (GAM -> JSON)", True),
+    ("decompile_scripts", "Decompile scripts to Lua (INT -> LUA)", True),
     ("write_config", "Write default fallout2.cfg (keeps an existing one)", True),
     ("export_audio", "Convert audio (ACM -> WAV, needs acm2wav.exe)", False),
     ("export_movies", "Convert movies (MVE -> WebM, needs ffmpeg)", True),

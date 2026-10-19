@@ -293,6 +293,11 @@ export const Config = {
     },
 
     scripting: {
+        // Which engine runs the game scripts. 'vm': the .int bytecode (src/vm.ts).
+        // 'lua': the decompiled data/scripts/<name>.lua (tools/int2lua.py, src/lua/),
+        // falling back to the .int for a script without one. DH2 addition.
+        // Set in fallout2.cfg: [dh2] script_backend=lua/vm.
+        backend: 'vm' as 'vm' | 'lua',
         debugLogShowType: {
             // ── Scripting VM ──────────────────────────────────────────────────────
             stub: true,           // log unimplemented script opcodes (always-on recommended)
@@ -321,6 +326,7 @@ export const Config = {
             skills: false,        // skill check rolls and outcomes
             damage: false,        // damage formula breakdown: RD/CM/ADR/ADT/Base/Adj/Final
             script: false,        // script execution tracing (verbose)
+            lua: true,            // Lua script backend: load fallbacks, script errors
             map: false,           // map load, elevation change, exit grid transitions
             object: false,        // object creation, destruction, flag changes
             audio: true,         // audio load, play, stop events

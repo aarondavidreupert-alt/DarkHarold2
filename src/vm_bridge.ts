@@ -21,6 +21,7 @@ import { BinaryReader } from "./util.js"
 import { dbg } from "./logger.js"
 import { opMap, ScriptVM } from "./vm.js"
 import * as GameTime from "./gametime.js"
+import { BuiltinVarReader, setBuiltinVarReader } from "./lua/luaRuntime.js"
 
 // Bridge between Scripting API and the Scripting VM
 
@@ -45,21 +46,56 @@ export module ScriptVMBridge {
         return value
     }
 
+    // SSL built-in variables: the argument-less opcodes that read engine state.
+    // Shared with the Lua backend (src/lua/luaRuntime.ts), which reads them
+    // whenever a script names one.
+    const builtinVars: { [name: string]: (script: Scripting.Script) => any } = {
+        dude_obj: () => globalState.player,
+        self_obj: (s) => s.self_obj,
+        combat_is_initialized: (s) => s.combat_is_initialized,
+        get_month: () => GameTime.getDate().month + 1, // 1-indexed
+        game_time_hour: () => GameTime.getHourMilitary(), // CE: 100*hour+min (scripts.cc:332 gameTimeGetHour)
+        game_time: (s) => s.game_time,
+        game_time_in_seconds: () => GameTime.getTotalSeconds(), // CE: interpreter_extra.cc:2277 opGetGameTimeInSeconds → ticks/10
+        get_day: () => GameTime.getDate().day, // day of month
+        cur_map_index: (s) => s.cur_map_index,
+        source_obj: (s) => s.source_obj,
+        action_being_used: (s) => s.action_being_used,
+        target_obj: (s) => s.target_obj,
+        fixed_param: (s) => s.fixed_param,
+    }
+
+    /** A built-in variable's value; the zero-argument intrinsics that are
+     *  Script methods (game_difficulty, ...) are called. */
+    export function readBuiltinVar(script: Scripting.Script, name: string): any {
+        const reader = builtinVars[name]
+        if (reader) return reader(script)
+        const f = (<any>script)[name]
+        return typeof f === 'function' ? f.call(script) : undefined
+    }
+
+    setBuiltinVarReader(readBuiltinVar as BuiltinVarReader)
+
+    function builtin(name: string) {
+        const reader = builtinVars[name]
+        return function(this: GameScriptVM) { this.push(reader(this.scriptObj)) }
+    }
+
     var bridgeOpMap: { [opcode: number]: (this: GameScriptVM) => void } = {
-        0x80BF: function() { this.push(globalState.player) } // dude_obj
-       ,0x80BC: function() { this.push(this.scriptObj.self_obj) } // self_obj
-       ,0x8128: function() { this.push(this.scriptObj.combat_is_initialized) } // combat_is_initialized
-       ,0x8118: function() { this.push(GameTime.getDate().month + 1) } // get_month (1-indexed)
-       ,0x80F6: function() { this.push(GameTime.getHourMilitary()) } // game_time_hour — CE: 100*hour+min (scripts.cc:332 gameTimeGetHour)
+        0x80BF: builtin("dude_obj")
+       ,0x80BC: builtin("self_obj")
+       ,0x8128: builtin("combat_is_initialized")
+       ,0x8118: builtin("get_month")
+       ,0x80F6: builtin("game_time_hour")
        ,0x80A8: bridged("set_map_start", 4, false) // CE interpreter_extra.cc:4881 op_set_map_start (was a second game_time_hour, leaving 4 args on the stack)
-       ,0x80EA: function() { this.push(this.scriptObj.game_time) } // game_time
-       ,0x80EB: function() { this.push(GameTime.getTotalSeconds()) } // game_time_in_seconds — CE: interpreter_extra.cc:2277 opGetGameTimeInSeconds → ticks/10
-       ,0x8119: function() { this.push(GameTime.getDate().day) } // get_day (day of month)
-       ,0x8101: function() { this.push(this.scriptObj.cur_map_index) } // cur_map_index
-       ,0x80BD: function() { this.push(this.scriptObj.source_obj) } // source_obj
-       ,0x80FA: function() { this.push(this.scriptObj.action_being_used) } // action_being_used
-       ,0x80BE: function() { this.push(this.scriptObj.target_obj) } // target_obj
-       ,0x80F7: function() { this.push(this.scriptObj.fixed_param) } // fixed_param
+       ,0x80EA: builtin("game_time")
+       ,0x80EB: builtin("game_time_in_seconds")
+       ,0x8119: builtin("get_day")
+       ,0x8101: builtin("cur_map_index")
+       ,0x80BD: builtin("source_obj")
+       ,0x80FA: builtin("action_being_used")
+       ,0x80BE: builtin("target_obj")
+       ,0x80F7: builtin("fixed_param")
 
        ,0x8016: function() { this.mapScript()[this.pop()] = 0 } // op_export_var
        ,0x8015: function() { var name = varName.call(this, this.pop()); this.mapScript()[name] = this.popRaw() } // op_store_external

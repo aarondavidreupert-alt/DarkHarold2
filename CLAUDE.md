@@ -7,7 +7,7 @@ DarkHarold2 is a semi-faithful browser recreation of Fallout 2, forked from the 
 - Rendering: WebGL 2.0 (no canvas 2D fallback)
 - Audio: Web Audio API (ACM source files, converted to WAV by pipeline)
 - Asset pipeline: Python 3.9+ / Pipenv, scripts under `tools/` (`tools/setup.py` orchestrates full extraction; `tools/pipeline_gui.py` is a Tkinter GUI front-end)
-- Package management: npm (TS devDeps only — no runtime npm modules), Pipenv (Python)
+- Package management: npm (TS devDeps only — no runtime npm modules), Pipenv (Python). Browser libraries are vendored under `lib/` (pathfinding-browser.js, wasmoon/ — Lua 5.4 for the Lua script backend)
 - No native dependencies — browser-safe only
 
 ## Build Commands
@@ -27,8 +27,8 @@ When researching any system before implementing or documenting:
 2. Fall back to `raw/fallout2-ce/src/` only when the wiki is silent, too high-level, or you suspect a discrepancy.
 3. If CE source and the wiki contradict each other, stop and flag the conflict rather than guessing.
 
-Available wiki docs (42 system docs in `wiki/`, audited 2026-10-18):
-`actions.md`, `ai_behavior.md`, `animation.md`, `car_system.md`, `character_stats.md`, `combat.md`, `companion_party.md`, `critter_stats.md`, `damage_formula.md`, `dialogue_system.md`, `drugs.md`, `economy.md`, `endgame.md`, `faction_reputation.md`, `file_formats.md`, `hotkeys.md`, `interface_windows.md`, `items.md`, `known_bugs.md`, `lighting.md`, `map_scripting.md`, `palette_colors.md`, `pathfinding.md`, `perks_traits.md`, `pipboy.md`, `proto_system.md`, `quest_system.md`, `random_numbers.md`, `rendering.md`, `save_load.md`, `scripting_reference.md`, `scripting_vm.md`, `scroll_clamping.md`, `settings.md`, `skill_checks.md`, `sound_system.md`, `spatial_triggers.md`, `status_effects.md`, `tile_system.md`, `time_clock.md`, `weapon_combat.md`, `worldmap.md`.
+Available wiki docs (43 system docs in `wiki/`, audited 2026-10-18; `lua_scripts.md` added 2026-10-19):
+`actions.md`, `ai_behavior.md`, `animation.md`, `car_system.md`, `character_stats.md`, `combat.md`, `companion_party.md`, `critter_stats.md`, `damage_formula.md`, `dialogue_system.md`, `drugs.md`, `economy.md`, `endgame.md`, `faction_reputation.md`, `file_formats.md`, `hotkeys.md`, `interface_windows.md`, `items.md`, `known_bugs.md`, `lighting.md`, `lua_scripts.md`, `map_scripting.md`, `palette_colors.md`, `pathfinding.md`, `perks_traits.md`, `pipboy.md`, `proto_system.md`, `quest_system.md`, `random_numbers.md`, `rendering.md`, `save_load.md`, `scripting_reference.md`, `scripting_vm.md`, `scroll_clamping.md`, `settings.md`, `skill_checks.md`, `sound_system.md`, `spatial_triggers.md`, `status_effects.md`, `tile_system.md`, `time_clock.md`, `weapon_combat.md`, `worldmap.md`.
 Meta/audit: `CODEBASE_FOCE.md`, `CODEBASE_jsFO.md`, `CROSS_CHECK_NOTES.md`, `alignment.md`, `extended_flags.md`, `failed_animation_offset_attempts.md`, `ts-split-refactor.md`, `edit_history.md`, `README.md`.
 
 ## File Access Policy
@@ -49,6 +49,12 @@ Meta/audit: `CODEBASE_FOCE.md`, `CODEBASE_jsFO.md`, `CROSS_CHECK_NOTES.md`, `ali
 - src/config.ts — Config singleton with engine/UI/scripting/combat debug flags
 - src/main.ts — main game loop, input handling, map loading entry point
 - src/heart.ts — 60Hz heartbeat loop
+
+## Lua Script Backend (pilot)
+`tools/int2lua.py` decompiles `data/scripts/*.int` to `*.lua` (pipeline stage `decompile_scripts`); `src/lua/`
+runs them in place of the VM with `[dh2] script_backend=lua`. Both backends call the same `Script` methods.
+Check any decompiler or prelude change with `luadiff.html` (VM-vs-Lua differential test). Generated `.lua`
+files are derived from the user's install — never commit them. See `wiki/lua_scripts.md`.
 
 ## Scripting System Architecture
 Three-file split — understand this before touching any opcode:

@@ -21,7 +21,8 @@ import { hexDistance, hexesInRadius, hexIsInFrontOf, hexIsToRightOf, hexInDirect
 import globalState from './globalState.js'
 import { IDBCache } from './idbcache.js'
 import { initGame } from './init.js'
-import { dbg } from './logger.js'
+import { dbg, dbgWarn } from './logger.js'
+import { initLuaRuntime } from './lua/luaRuntime.js'
 import {
     clampCameraPosition,
     setScreenSize,
@@ -252,6 +253,19 @@ window.onload = async function () {
     // localStorage write-back on top (FO2-CE ref: preferences.cc — preferenceLoad()).
     loadFallout2Cfg()
     loadPreferences()
+    // play.html#script_backend=lua (or =vm) overrides fallout2.cfg for this page load; the
+    // query string is taken by the ?mapname shortcut (init.ts)
+    const backendOverride = /script_backend=(lua|vm)/.exec(location.hash)
+    if (backendOverride) Config.scripting.backend = backendOverride[1] as 'lua' | 'vm'
+    // fallout2.cfg [dh2] script_backend=lua — start the Lua engine before any script loads
+    if (Config.scripting.backend === 'lua') {
+        try {
+            await initLuaRuntime()
+        } catch (e) {
+            dbgWarn('lua', `Lua runtime failed to start (${e}); running the .int scripts`)
+            Config.scripting.backend = 'vm'
+        }
+    }
     // fallout2.cfg [dh2] pixel_font — ui.css switches every DOM text to the AAF web font.
     document.documentElement.classList.toggle('dh2-pixel-font', Config.ui.pixelFont)
 

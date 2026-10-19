@@ -59,6 +59,7 @@ import convertAudio
 import convertMovies
 import convertSpeech
 import parse_gam
+import int2lua
 import fallout2Cfg
 
 # global paths/flags
@@ -291,6 +292,33 @@ def convert_gam_vars(overwrite=True):
 		warn("Error converting .gam files (see traceback above). Will continue setup.")
 	return True
 
+def decompile_scripts(overwrite=True):
+	# data/scripts/*.int -> data/scripts/*.lua for the Lua script backend
+	# (fallout2.cfg [dh2] script_backend=lua, src/lua/). Generated from the
+	# user's own install like every other asset; a script that does not
+	# decompile keeps running as .int.
+	paths = sorted(glob.glob(os.path.join("data", "scripts", "*.int")))
+	if not paths:
+		warn("No data/scripts/*.int found - skipping script decompilation")
+		return True
+	info("Decompiling %d scripts to Lua..." % len(paths))
+	done, failed = 0, 0
+	for path in paths:
+		out = os.path.splitext(path)[0] + ".lua"
+		if not overwrite and os.path.exists(out):
+			continue
+		try:
+			text = int2lua.decompile_file(path)
+		except Exception as e:
+			failed += 1
+			info("  %s stays bytecode: %s" % (os.path.basename(path), e))
+			continue
+		with open(out, "w", encoding="utf-8", newline="\n") as fh:
+			fh.write(text)
+		done += 1
+	info("Decompiled %d scripts to Lua (%d left as .int)" % (done, failed))
+	return True
+
 def write_config(overwrite=True):
 	# fallout2.cfg with CE defaults + [dh2]. Never replaces an existing file: it holds
 	# the user's settings (CE gameConfigInit only writes defaults for missing keys).
@@ -384,6 +412,7 @@ STAGES = {
 	"convert_lsts": convert_lsts,
 	"convert_endgame": convert_endgame_data,
 	"convert_gam": convert_gam_vars,
+	"decompile_scripts": decompile_scripts,
 	"write_config": write_config,
 }
 
