@@ -71,6 +71,8 @@ the pipeline or the TS compiler.
 |------|---------|------------------------|
 | `src/main.ts` | Boot orchestrator: `initGame` wiring, `useElevator`, `heart.update`/`heart.draw` assignments. Split into `playerUse.ts` (object/critter interaction router), `input.ts` (mouse + keyboard handlers via `installInputHandlers()`), `gameTick.ts` (per-tick game loop) | `main.cc` |
 | `src/heart.ts` | 60 Hz rAF game loop (`heart.update` / `heart.draw`); exposes `_stepOnly` for headless testing | `main.cc` (game loop) |
+| `src/map/pathfinder.ts` | Hex path finder: literal CE `pathfinderFindPath` + `canUseDoor` (used by `GameMap.recalcPath`) | `animation.cc pathfinderFindPath` |
+| `src/hotkeys.ts` | The game keyboard: CE `gameHandleKey` + `_combat_input` (registered in `input.ts`) | `game.cc gameHandleKey`, `combat.cc _combat_input` |
 | `src/init.ts` | Engine boot sequence: asset loading, renderer init, scripting setup | `main.cc` init path |
 | `src/globalState.ts` | Central singleton: `gMap`, `player`, `combat`, `images`, `proMap`, camera, tick, eventLog | Spread across `game.cc`, `proto.cc` |
 | `src/config.ts` | `Config` singleton: all engine/UI/combat/scripting flags (debug, audio, lighting modes, etc.) | `preferences.cc` |
@@ -97,8 +99,8 @@ the pipeline or the TS compiler.
 | `src/map.ts` | Barrel — `GameMap`; split into `map/GameMap.ts` (class core: object lists, elevation, party, tile helpers, serialize) + `map/mapLoader.ts` (loadMap, loadNewMap, loadMapByID on GameMap.prototype via declaration merging) | `map.cc` |
 | `src/data.ts` | Area/map index lookups, message file loading, LST/script name resolution | `map.cc`, `scripts.cc` |
 | `src/pro.ts` | PRO (prototype) loading: `loadPRO`, PID encoding helpers, art path lookups | `proto.cc` |
-| `src/worldmap.ts` | Barrel — world-map travel screen; split into `worldmap/types.ts` (interfaces), `worldmap/parser.ts` (worldmap.txt parser), `worldmap/Worldmap.ts` (DOM + travel loop), `worldmap/encounters.ts` (encounter dispatch) | `worldmap.cc` |
-| `src/encounters.ts` | Barrel — random encounter system; split into `encounters/conditionLang.ts` (`worldmap.txt` condition mini-language: tokenizer/parser/eval) and `encounters/resolver.ts` (pickEncounter, positionCritters, evalEncounter) | `encounter.cc` |
+| `src/worldmap.ts` | Barrel — world-map travel screen; split into `worldmap/types.ts` (interfaces), `worldmap/parser.ts` (worldmap.txt parser), `worldmap/encounterData.ts` (CE encounter-table / type parsers), `worldmap/Worldmap.ts` (DOM, CE travel loop, fog, areas, car), `worldmap/encounters.ts` (CE `wmRndEncounterOccurred` / `Pick` / `wmSetupRandomEncounter`, formations) | `worldmap.cc` |
+| `src/encounters.ts` | Barrel — `encounters/conditionLang.ts` (`worldmap.txt` condition mini-language: tokenizer / parser / eval); the old `resolver.ts` was replaced by `worldmap/encounters.ts` (C55) | `worldmap.cc wmEvalConditional` |
 
 ### Objects & Characters
 
@@ -122,14 +124,14 @@ the pipeline or the TS compiler.
 
 | File | Purpose | fallout2-ce counterpart |
 |------|---------|------------------------|
-| `src/combat.ts` | Barrel — combat system; split into `combat/actionPoints.ts` (ActionPoints class), `combat/damage.ts` (4 damage-formula variants + dispatcher), `combat/AI.ts` (AI class + helpers), `combat/hitChance.ts` (getHitChance + to-hit pipeline as free functions), `combat/Combat.ts` (Combat class — turn flow, attack, AI dispatch, LoS). | `combat.cc`, `combat_ai.cc` |
-| `src/criticalEffects.ts` | Barrel — critical hit / failure system; split into `criticalEffects/effects.ts` (effect appliers + region table) + `criticalEffects/table.ts` (lookup + parsers + crit-fail table) | `critfail.cc` |
+| `src/combat.ts` | Barrel — combat system; split into `combat/actionPoints.ts` (ActionPoints class), `combat/damage.ts` (4 damage-formula variants + dispatcher), `combat/AI.ts` (AI class + helpers), `combat/hitChance.ts` (getHitChance + to-hit pipeline as free functions), `combat/results.ts` (DAM_* results, `_set_new_results`, knockout event, stand-up), `combat/explosion.ts` (blast rings, `actionExplode` damage, `_scr_explode_scenery`), `combat/Combat.ts` (Combat class — turn flow, the CE attack pipeline `attackCompute` / `_apply_damage` / `_combat_display`, AI dispatch, LoS). | `combat.cc`, `combat_ai.cc`, `actions.cc` |
+| `src/criticalEffects.ts` | Barrel — hit-location penalties (`criticalEffects/effects.ts`) and CE's critical hit tables (`criticalEffects/ceTables.ts`, generated from `combat.cc`; re-exported by `criticalEffects/table.ts`). The effects are applied by the attack pipeline in `combat/Combat.ts`. | `combat.cc` |
 | `src/unarmed.ts` | Unarmed mode definitions (9 modes, threshold/AP/damage table) | `unarmed.cc` |
-| `src/skillUse.ts` | Active skill use: First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair (622 lines) | `skill.cc::skillUse()` |
+| `src/skillUse.ts` | CE `skillUse` (First Aid / Doctor / Repair, use slots, skill XP), `skillRoll`, sneak toggle and sneak event, `performSteal` (462 lines) | `skill.cc skillUse, skillRoll, skillsPerformStealing` |
 | `src/combat/lineOfFire.ts` | `_combat_is_shot_blocked` (LoF critter count) on top of `GameMap.straightPathObstacle` (`_make_straight_path_func`) | `combat.cc`, `animation.cc` |
 | `src/combat/whoHitMe.ts` | `_critter_set_who_hit_me` (incl. reaction −3), `_combatai_check_retaliation`, `_combatai_rating` | `critter.cc`, `combat_ai.cc` |
 
-Wiki references: [wiki/actions.md](wiki/actions.md) · [wiki/ai_behavior.md](wiki/ai_behavior.md) · [wiki/alignment.md](wiki/alignment.md) · [wiki/animation.md](wiki/animation.md) · [wiki/character_stats.md](wiki/character_stats.md) · [wiki/combat.md](wiki/combat.md) · [wiki/companion_party.md](wiki/companion_party.md) · [wiki/critter_stats.md](wiki/critter_stats.md) · [wiki/damage_formula.md](wiki/damage_formula.md) · [wiki/dialogue_system.md](wiki/dialogue_system.md) · [wiki/economy.md](wiki/economy.md) · [wiki/endgame.md](wiki/endgame.md) · [wiki/extended_flags.md](wiki/extended_flags.md) · [wiki/faction_reputation.md](wiki/faction_reputation.md) · [wiki/file_formats.md](wiki/file_formats.md) · [wiki/hotkeys.md](wiki/hotkeys.md) · [wiki/interface_windows.md](wiki/interface_windows.md) · [wiki/items.md](wiki/items.md) · [wiki/known_bugs.md](wiki/known_bugs.md) · [wiki/lighting.md](wiki/lighting.md) · [wiki/map_scripting.md](wiki/map_scripting.md) · [wiki/pathfinding.md](wiki/pathfinding.md) · [wiki/perks_traits.md](wiki/perks_traits.md) · [wiki/pipboy.md](wiki/pipboy.md) · [wiki/proto_system.md](wiki/proto_system.md) · [wiki/quest_system.md](wiki/quest_system.md) · [wiki/random_numbers.md](wiki/random_numbers.md) · [wiki/rendering.md](wiki/rendering.md) · [wiki/save_load.md](wiki/save_load.md) · [wiki/scripting_reference.md](wiki/scripting_reference.md) · [wiki/scripting_vm.md](wiki/scripting_vm.md) · [wiki/settings.md](wiki/settings.md) · [wiki/skill_checks.md](wiki/skill_checks.md) · [wiki/sound_system.md](wiki/sound_system.md) · [wiki/spatial_triggers.md](wiki/spatial_triggers.md) · [wiki/status_effects.md](wiki/status_effects.md) · [wiki/tile_system.md](wiki/tile_system.md) · [wiki/time_clock.md](wiki/time_clock.md) · [wiki/weapon_combat.md](wiki/weapon_combat.md) · [wiki/worldmap.md](wiki/worldmap.md)
+Wiki references: [wiki/actions.md](wiki/actions.md) · [wiki/ai_behavior.md](wiki/ai_behavior.md) · [wiki/alignment.md](wiki/alignment.md) · [wiki/animation.md](wiki/animation.md) · [wiki/character_stats.md](wiki/character_stats.md) · [wiki/combat.md](wiki/combat.md) · [wiki/companion_party.md](wiki/companion_party.md) · [wiki/critter_stats.md](wiki/critter_stats.md) · [wiki/damage_formula.md](wiki/damage_formula.md) · [wiki/dialogue_system.md](wiki/dialogue_system.md) · [wiki/economy.md](wiki/economy.md) · [wiki/endgame.md](wiki/endgame.md) · [wiki/extended_flags.md](wiki/extended_flags.md) · [wiki/faction_reputation.md](wiki/faction_reputation.md) · [wiki/file_formats.md](wiki/file_formats.md) · [wiki/hotkeys.md](wiki/hotkeys.md) · [wiki/interface_windows.md](wiki/interface_windows.md) · [wiki/items.md](wiki/items.md) · [wiki/known_bugs.md](wiki/known_bugs.md) · [wiki/lighting.md](wiki/lighting.md) · [wiki/map_scripting.md](wiki/map_scripting.md) · [wiki/pathfinding.md](wiki/pathfinding.md) · [wiki/perks_traits.md](wiki/perks_traits.md) · [wiki/pipboy.md](wiki/pipboy.md) · [wiki/proto_system.md](wiki/proto_system.md) · [wiki/quest_system.md](wiki/quest_system.md) · [wiki/random_numbers.md](wiki/random_numbers.md) · [wiki/rendering.md](wiki/rendering.md) · [wiki/save_load.md](wiki/save_load.md) · [wiki/scripting_reference.md](wiki/scripting_reference.md) · [wiki/scripting_vm.md](wiki/scripting_vm.md) · [wiki/settings.md](wiki/settings.md) · [wiki/skill_checks.md](wiki/skill_checks.md) · [wiki/sound_system.md](wiki/sound_system.md) · [wiki/spatial_triggers.md](wiki/spatial_triggers.md) · [wiki/status_effects.md](wiki/status_effects.md) · [wiki/tile_system.md](wiki/tile_system.md) · [wiki/time_clock.md](wiki/time_clock.md) · [wiki/weapon_combat.md](wiki/weapon_combat.md) · [wiki/worldmap.md](wiki/worldmap.md) · [wiki/drugs.md](wiki/drugs.md) · [wiki/palette_colors.md](wiki/palette_colors.md) · [wiki/scroll_clamping.md](wiki/scroll_clamping.md) · [wiki/ts-split-refactor.md](wiki/ts-split-refactor.md)
 
 ### Scripting VM
 
@@ -162,7 +164,7 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/ui.ts` | Legacy UI root: `UIMode` enum, modal helpers, shared panel open/close (469 lines) |
 | `src/ui_panels.ts` | `UIMode` re-export + panel registration helpers (138 lines) |
 | `src/ui_hud.ts` | Main HUD bar: HP/AC/AP readouts, weapon display, combat buttons, message log (309 lines) |
-| `src/ui_character.ts` | Barrel — character screen + creator; split into `ui_character/descriptions.ts` (lookup tables), `ui_character/viewer.ts` (in-game character screen), `ui_character/creator.ts` (new-game creator flow), `ui_character/perkModal.ts` (level-up perk selection) |
+| `src/ui_character.ts` | Barrel — character screen + creator; split into `ui_character/descriptions.ts` (lookup tables), `ui_character/viewer.ts` (in-game character screen), `ui_character/folders.ts` (CE PERKS / KARMA / KILLS folder view), `ui_character/creator.ts` (new-game creator flow), `ui_character/perkModal.ts` (level-up perk selection), `ui_character/statPanels.ts` (CE status boxes) |
 | `src/ui_charactercreator.ts` | Entry-point shim into the character creator section of ui_character.ts (46 lines) |
 | `src/ui_pipboy.ts` | Barrel — Pip-Boy overlay; split into `ui_pipboy/shell.ts` (container + date/time bar + wait menu + tab dispatcher + shared widget helpers) and `ui_pipboy/tabs/{status,automaps,archives}.ts` |
 | `src/ui_inventory.ts` | Barrel — inventory panel; split into `ui_inventory/dragdrop.ts` (drag/drop primitives, uiMoveSlot, applyArmorArt, tryLoadAmmoIntoWeapon) + `ui_inventory/panel.ts` (closeInventory, initInventory, showInventory) |
@@ -172,12 +174,11 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/ui_worldmap.ts` | World map travel screen overlay (193 lines) |
 | `src/ui_calledshot.ts` | Called-shot body region selector (173 lines) |
 | `src/ui_elevator.ts` | Elevator floor selection dialog (108 lines) |
-| `src/ui_skilldex.ts` | Skilldex panel: active skill picker (190 lines) |
+| `src/ui_skilldex.ts` | Skilldex panel per CE skilldex.cc: skill buttons, values, CANCEL |
 | `src/ui_mainmenu.ts` | Main menu (New Game / Load / Options / Quit) (221 lines) |
 | `src/ui_options.ts` | Options/preferences screen; pref I/O (SavedPreferences, loadPreferences, savePreferences, getVolumeValue) carved into `ui_options/preferences.ts` |
-| `src/ui_saveload.ts` | Save/load slot UI (105 lines) |
+| `src/ui_saveload.ts` | Save/load window per CE loadsave.cc (slot list, info box, preview), plus scroll bar and delete |
 | `src/ui_automap.ts` | Standalone automap overlay (272 lines) |
-| `src/ui_timer.ts` | In-game countdown timer panel (97 lines) |
 | `src/ui_contextmenu.ts` | Right-click context menu (178 lines) |
 | `src/ui_font.ts` | Barrel — bitmap font renderer; split into `ui/fontCore.ts` (FontRenderer/FontWidget/renderBitmapText) + `ui/numberDials.ts` (setNumberDial/renderBignum); keeps font1–font4 singletons |
 | `src/ui_components.ts` | Shared UI components: buttons, sliders, scroll containers (215 lines) |
@@ -199,13 +200,15 @@ All UI files render to DOM elements over the WebGL canvas.
 |------|---------|
 | `src/gametime.ts` | Tick system: `TICKS_PER_*` constants, CE ambient light (`gAmbientIntensity`, light-level override), time accessors, time-jump handler (`game_time.cc`, `light.cc`) |
 | `src/drugs.ts` | Drug effects and addiction from proto data (`DRUG_DESCRIPTIONS`, withdrawal perks), timed events `drug:`/`withdrawal:` (`item.cc`) |
+| `src/perception.ts` | `canSee` / `isWithinPerception` shared by scripting and the combat AI (`actions.cc _can_see`, `combat_ai.cc isWithinPerception`) |
 | `src/radiation.ts` | `critterAdjustRadiation`, midnight `checkRads`, `processRads` and radiation timed events (`critter.cc`) |
 | `src/random.ts` | Park-Miller RNG with MSVC rand seeding and chi-square check; `randomBetween` (`random.cc`) |
 | `src/gameMovie.ts` | `gameMoviePlay` for the WebM movies (subtitles from `.sve`, fades from `.cfg`, seen-movie set) (`game_movie.cc`) |
 | `src/talkingHead.ts` | Talking heads: fidgets, reactions, lip-synced speech from `.lip` files (`game_dialog.cc`, `lips.cc`) |
+| `src/floatText.ts` | Floating text over critters in the CE interface font (text_object.cc textObjectAdd: wrap, outline, float_msg colours) |
 | `src/ui_options/fallout2Cfg.ts` | Reads `fallout2.cfg` into Config at startup (`config.cc`, `settings.cc`) |
-| `src/questData.ts` | All Fallout 2 quest definitions (GVAR index, thresholds, descriptions) (204 lines) |
-| `src/questLog.ts` | Reads GVARs against `questData` to produce active/completed quest list (53 lines) |
+| `src/questData.ts` | CE `questInit` / `holodiskInit`: quests from `data/data/quests.txt` + quests.msg + map.msg, holodisks from `data/data/holodisk.txt` |
+| `src/questLog.ts` | Reads GVARs against `questData` to produce the active/completed quest list |
 | `src/events.ts` | Pub/sub `Events` module + `scheduleExplosion` helper (52 lines) |
 | `src/logger.ts` | `dbg` / `dbgWarn` category-gated console logging; `eventLogPush` for structured combat log (63 lines) |
 | `src/eventlog.types.ts` | `EventLogEntry` / `EventLogInput` types (27 lines) |
@@ -233,10 +236,13 @@ The engine consumes only pre-baked JSON/PNG — no runtime DAT parsing.
 | PRO indexes | `tools/convertPRO.py` | `lut/pro/*.json` (proto lookup) |
 | AAF/FON fonts | `tools/fonts.py` (`tools/oldPy/fonts2.py`, `fonts7alphawhite.py`, `data_fonts*.py` are superseded iterations) | `art/fonts/` |
 | ACM → WAV | `acm2wav/` + `tools/convertAudio.py` | `audio/**/*.wav` |
+| AAF/FON fonts → PNG atlas + web font | `tools/exportFonts.py` (`export_fonts` stage; the `.woff` needs fontTools) | `art/fonts/font<N>_aaf.png/.json/.woff`, `font<N>_fon.png/.json` |
 | MVE → WebM | `tools/convertMovies.py` (`export_movies` stage; needs ffmpeg) | `art/cuts/*.webm` + `.json` |
 | Speech ACM → MP3 | `tools/convertSpeech.py` (`export_speech` stage; needs ffmpeg) | `audio/speech/<head>/*.mp3` |
 | Crit table | `tools/parseCritTable.py` | `lut/criticalTables.json` |
 | Elevator table | `tools/parseElevatorTable.py` | `lut/elevators.json` |
+| GAM → JSON | `tools/parse_gam.py` (`convert_gam` stage; CE `globalVarsRead`) | `data/gvars.json` (from `data/data/vault13.gam`), `data/maps/*.mvars.json` |
+| Default config | `tools/fallout2Cfg.py` (`write_config` stage; never overwrites) | `fallout2.cfg` (git-ignored) |
 | Worldmap stitch | `tools/stitchWorldmap.py` | `worldmap.png` |
 | Color tables | `tools/pal.py` (via pipeline) | `lut/colorTable.json`, `lut/color_lut.json`, `lut/color_rgb.json` |
 
@@ -271,7 +277,7 @@ reminders of the original bridged form, not the live wiring.
 
 ## Known Gaps and Incomplete Systems
 
-_Last audited: 2026-10-07 (branch `100percent`; earlier: 2026-10-06 reconciliation, first pass 2026-05-31). Every entry below is
+_Last audited: 2026-10-18 (full wiki re-audit, known_bugs C48–C61; earlier: 2026-10-07 branch `100percent`, 2026-10-06 reconciliation, first pass 2026-05-31). Every entry below is
 anchored to an active `stub(...)` call, a confirmed missing wire in
 `vm_bridge.ts`, or documented absent engine behaviour verified in source._
 
@@ -281,8 +287,10 @@ See `ROADMAP.md` for the prioritised plan.
 
 None — all 8 `stub(` occurrences in `src/` are commented out, and all 181 vanilla
 opcodes are bridged (S29). `play_gmovie` (S15), `obj_can_hear_obj` (S28) and metarule
-52/53 (W8) are implemented. See `wiki/known_bugs.md §2`.
-<!-- audited: 2026-10-07 -->
+52/53 (W8) are implemented. See `wiki/known_bugs.md §2`. An opcode scan of the 1288 scripts in
+scripts.lst (2026-10-18) finds a handler for all 192 opcodes they use; metarule 22
+(`is_loading_game`) is live (C61).
+<!-- audited: 2026-10-18 -->
 
 ### Engine Systems — Partial or Missing
 
@@ -290,7 +298,7 @@ opcodes are bridged (S29). `play_gmovie` (S15), `obj_can_hear_obj` (S28) and met
 |--------|---------|-------------|
 | Party member combat AI | `src/party.ts`, `src/combat/Combat.ts`, `src/map/GameMap.ts` | Party members take AI turns with their packets; level-ups (`incLevels`); CE placement on map entry; excluded from map snapshots (M10). |
 <!-- audited: 2026-06-18 -->
-| Active skill use | `src/skillUse.ts` | All active skills handled; Gambling/Outdoorsman return CE refusal messages (K2); Healer perk applied; Steal facing check present. Electronic lockpick bonuses are script-driven in CE (K4) — no engine change needed. |
+| Active skill use | `src/skillUse.ts` | CE `skillUse` port (C59): heal ranges, party-best `skillRoll`, robots, time per attempt, saved use slots, skill XP; Lockpick / Traps / Science script-driven as CE. Only the palette fade is left out. |
 | Subtitles / speech audio | `src/talkingHead.ts`, `src/gameMovie.ts` | Talking-head speech with lip sync (P4); movie subtitles from `.sve` (S15). |
 | Movie playback | `src/gameMovie.ts`, `tools/convertMovies.py` | `play_gmovie` / startup / ARTIMER / endgame movies play as WebM (S15). |
 | Endgame slideshow | `src/endgame.ts` | `endgame_slideshow` (0x8146) and `endgame_movie` (0x8148) wired. `playSlideshow()` iterates `lut/endgame.json`, shows static/panning PNG slides in a DOM overlay with narrator audio and subtitle support. `setupDeathEnding()` selects a death ending via weighted random from `lut/enddeath.json`. Split per wiki/ts-split-refactor.md §19: `endgame/deathEndings.ts` (selection) + `endgame/slideRender.ts` (slide rendering). See `wiki/endgame.md` and `wiki/known_bugs.md §23`. |
@@ -298,9 +306,9 @@ opcodes are bridged (S29). `play_gmovie` (S15), `obj_can_hear_obj` (S28) and met
 | NPC schedule AI | `src/gameTick.ts` | Script-driven, as in CE: one `critter_p_proc` per tick round-robin (`_script_chk_critters`); the DH2 engine wander/follow inventions were removed 2026-10-06. |
 | `wander_type` | — | Removed with the engine wander (2026-10-06); CE has no engine wander. |
 | Animation interleaving | `src/scripting.ts` | Fixed (S13, 2026-06-02): `reg_anim_func` entries fire in registration order between animate steps, matching CE `animationRegAnimFunc`. |
-| Worldmap | `src/worldmap.ts` (barrel; `src/worldmap/{types,parser,Worldmap,encounters}.ts`) | Functional. Area-entrance/city-hotspot misplacement fixed 2026-09-24 (`wiki/known_bugs.md` W13); difficulty modifier on encounter rate already implemented (`encounters.ts` `didEncounter()`, `Config.combat.gameDifficultyModifier`) — both claims in this row were stale. Car travel + local-map placement + trunk container substantially implemented, see `wiki/car_system.md` and `wiki/known_bugs.md` W8/M6. Encounter-spawned critters carry items/equipment (W3 FIXED 2026-06-03). |
-<!-- audited: 2026-09-30 -->
-| Quest system | `src/questData.ts`, `src/questLog.ts` | GVAR-based tracking and Pip-Boy display. XP and completion are script-driven in CE (`give_exp_points`), so there's no engine award. Descriptions are inlined in TS, not loaded from `quests.msg`. |
+| Worldmap | `src/worldmap.ts` (barrel; `src/worldmap/{types,parser,encounterData,Worldmap,encounters}.ts`) | CE travel loop and random encounters (C55): `wmPartyWalkingStep`, game time per frame, `wmRndEncounterOccurred` / `Pick` / `wmSetupRandomEncounter`, formations, placement; areas, fog, car (`wiki/car_system.md`). |
+<!-- audited: 2026-10-18 -->
+| Quest system | `src/questData.ts`, `src/questLog.ts` | GVAR-based tracking and Pip-Boy display. XP and completion are script-driven in CE (`give_exp_points`), so there's no engine award. Loaded from `quests.txt` / `quests.msg` as CE; STATUS page with locations, quests and holodisks (C40). |
 | Karma / reputation scripting | `src/scripting.ts` | `set_pc_stat` / `mod_pc_stat` handle Karma (4) and Reputation (3); all PCSTAT IDs 0–5 handled (S9/S10); town-rep GVARs synced to stats (R2). |
 | Lighting accuracy | `src/lighting.ts`, `src/lightmap.ts` | Functional. Lightmap hex sampling is parity-correct (RD17) with selectable interpolation (`setLightingBilinear`, default `hex-lerp`); directional wall occlusion reads `pro.extra.extendedFlags` so W-E walls no longer bleed light (LD11). Remaining: minor colour inaccuracies vs. original engine; CPU path slow on large maps; non-wall opaque-object directional shadowing still stubbed (LD11 note). See `wiki/alignment.md` §6–§8. |
 

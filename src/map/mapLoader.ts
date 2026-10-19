@@ -20,14 +20,17 @@ limitations under the License.
 
 import { ensureCycleMask } from '../images.js'
 import { Config } from '../config.js'
-import { getCurrentMapInfo, lookupMapName } from '../data.js'
+import { getCurrentMapInfo, lookupMapName, mapDeadBodiesAge } from '../data.js'
+import { itemDropAll } from '../critter.js'
+import * as GameTime from '../gametime.js'
 import { Events } from '../events.js'
 import { Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { heart } from '../heart.js'
 import { Lightmap } from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
-import { Critter, deserializeObj, Obj, objFromMapObject } from '../object.js'
+import { createObjectWithPID, Critter, deserializeObj, Obj, objectUnjamAll, objFromMapObject } from '../object.js'
+import { randomBetween } from '../random.js'
 import { centerCamera } from '../renderer.js'
 import { setMapScrollLimits } from '../render/camera.js'
 import { Scripting } from '../scripting.js'
@@ -37,6 +40,77 @@ import { showAlert } from '../ui_dialog.js'
 import { GameMap } from './GameMap.js'
 
 declare let PF: any
+
+const TICKS_PER_HOUR = 36000
+const KILL_TYPE_RAT = 7
+const KILL_TYPE_MANTIS = 12
+const KILL_TYPE_ROBOT = 10
+const CRITTER_NO_DROP = 0x40
+const CRITTER_NO_HEAL = 0x200
+const CRITTER_FLAT = 0x800
+const PID_BLOOD = 0x5000004
+
+// Put `obj` on `at`'s tile and elevation (z-ordered when that is the current one).
+function placeOnLevel(gMap: GameMap, obj: Obj, at: Obj): void {
+    const level = at.elevation ?? gMap.currentElevation
+    obj.elevation = level
+    gMap.addObject(obj, level)
+    if (level === gMap.currentElevation) obj.move({ ...at.position }, gMap.getObjects().length - 1, false)
+    else obj.position = { ...at.position }
+}
+
+// CE map.cc mapLoadSaved: a revisited map unjams its locks after a day and ages its
+// critters (_map_age_dead_critters).
+function mapLoadSavedAging(gMap: GameMap): void {
+    const now = globalState.gameTickTime
+    if (now < gMap.lastVisitTime) return
+    if (Math.trunc((now - gMap.lastVisitTime) / TICKS_PER_HOUR) >= 24) objectUnjamAll()
+    mapAgeDeadCritters(gMap, now)
+}
+
+// CE map.cc _map_age_dead_critters: on maps with dead_bodies_age, the living critters
+// (not the dude or the party) stop fleeing and heal 14 HP per 3 hours away
+// (_critter_heal_hours; not robots or CRITTER_NO_HEAL); after more than 6 days the
+// dead ones drop their items (unless CRITTER_NO_DROP) and turn into a blood / bones
+// pile (misc 0x5000004: random 0-3, +3 most critters, +6 flat ones; a frame past the
+// art's last is refused by objectSetFrame and stays 0). (CE's second
+// aging step, > 14 days, can never be reached — the > 6 days test comes first.)
+function mapAgeDeadCritters(gMap: GameMap, now: number): void {
+    if (!gMap.name || !mapDeadBodiesAge(gMap.name)) return
+    const hours = Math.trunc((now - gMap.lastVisitTime) / TICKS_PER_HOUR)
+    if (hours === 0) return
+    const party = globalState.gParty
+    const protoFlags = (c: Critter): number => ((c as any).pro?.extra?.flags ?? 0)
+    const critters: Critter[] = []
+    for (let level = 0; level < (gMap.objects?.length ?? 0); level++) {
+        for (const o of gMap.objects![level]) if (o.type === 'critter') critters.push(o as Critter)
+    }
+    for (const c of critters) {
+        if (c.isPlayer || party?.isPartyMember(c) || c.dead) continue
+        ;(c as any).fleeing = false
+        if (c.killType === KILL_TYPE_ROBOT || (protoFlags(c) & CRITTER_NO_HEAL) !== 0) continue
+        const maxHp = c.getStat('Max HP')
+        const hp = c.getStat('HP')
+        if (hp < maxHp) c.stats.setBase('HP', Math.min(maxHp, hp + 14 * Math.trunc(hours / 3)))
+    }
+    if (hours <= 6 * 24) return
+    for (const c of critters) {
+        if (c.isPlayer || !c.dead) continue
+        if (c.killType === KILL_TYPE_ROBOT || (protoFlags(c) & CRITTER_NO_HEAL) !== 0) continue
+        if ((protoFlags(c) & CRITTER_NO_DROP) === 0) itemDropAll(c)
+        const blood = createObjectWithPID(PID_BLOOD)
+        let frame = randomBetween(0, 3)
+        if ((protoFlags(c) & CRITTER_FLAT) !== 0) frame += 6
+        else if (c.killType !== KILL_TYPE_RAT && c.killType !== KILL_TYPE_MANTIS) frame += 3
+        if (frame < (globalState.imageInfo?.[blood.art]?.numFrames ?? 9)) blood.frame = frame
+        placeOnLevel(gMap, blood, c)
+        // objectDestroy — at once (nothing iterates the map yet), no destroy_p_proc
+        for (const level of gMap.objects ?? []) {
+            const i = level.indexOf(c)
+            if (i !== -1) { level.splice(i, 1); break }
+        }
+    }
+}
 
 // Spatial type — duplicated from GameMap.ts to avoid exposing it on the barrel.
 type Spatial = any
@@ -65,6 +139,8 @@ GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point,
         // scriptsExecMapExitProc runs map_exit_p_proc for the map script and every other
         // script on it (scripts.cc scriptsExecMapUpdateScripts), and only then is the map
         // saved. (The car's script removes the car this way when you drive off.)
+        // CE _map_save_in_game: _queue_leaving_map first
+        if (this.name !== null && this.objects !== null) Scripting.queueLeavingMap()
         if (Config.engine.doLoadScripts && this.name !== null && this.objects !== null) {
             if (this.mapScript?.map_exit_p_proc !== undefined) {
                 this.mapScript.self_obj = { _script: this.mapScript }
@@ -96,6 +172,7 @@ GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point,
 
             const map = globalState.dirtyMapCache[mapName]
             this.deserialize(map)
+            mapLoadSavedAging(this)
 
             // Set position and orientation
             if (startingPosition !== undefined) {

@@ -16,6 +16,7 @@ limitations under the License.
 
 /* eslint-disable @typescript-eslint/no-empty-function */
 
+import { updateFloatText } from './floatText.js'
 import { heart } from './heart.js'
 import { BoundingBox, hexCellTopLeft, hexFromScreen, hexesInRadius, hexToScreen, Point, pointInBoundingBox } from './geometry.js'
 import globalState from './globalState.js'
@@ -247,7 +248,7 @@ export class Renderer {
             }
         }
 
-        if (globalState.inCombat) {
+        if (Config.ui.showDebugOverlay && globalState.inCombat) {
             const whose = globalState.combat.inPlayerTurn
                 ? 'player'
                 : globalState.combat.combatants[globalState.combat.whoseTurn].name
@@ -270,48 +271,42 @@ export class Renderer {
             })
         }
 
-        this.renderText('x: ' + mouseHex.x, 5, 15)
-        this.renderText('y: ' + mouseHex.y, 60, 15)
-        const _hudTile = mouseHex.y * 200 + mouseHex.x
-        const _hudLit = (_hudTile >= 0 && _hudTile < 40000) ? Lightmap.tile_intensity[_hudTile] : 0
-        this.renderText('tile: ' + _hudTile, 115, 15)
-        this.renderText('mt: ' + mouseSquare.x + ',' + mouseSquare.y, 225, 15)
-        this.renderText('m: ' + mousePos[0] + ', ' + mousePos[1], 325, 15)
-        this.renderText('lit: ' + _hudLit, 5, 30)
-        const _ctrX = Math.round(globalState.cameraPosition.x + getWorldViewWidth() / 2)
-        const _ctrY = Math.round(globalState.cameraPosition.y + getWorldViewHeight() / 2)
-        this.renderText('ctr: ' + _ctrX + ',' + _ctrY + '  zoom:' + (globalState.cameraZoom || 1).toFixed(2), 5, 45)
-        const _b = (window as any).mapContentBounds
-        if (_b) {
-            const _z = getZoom()
-            const _cam = globalState.cameraPosition
-            const _l = Math.round((_b.minX - _cam.x) * _z)
-            const _r = Math.round((_b.maxX - _cam.x) * _z)
-            const _t = Math.round((_b.minY - _cam.y) * _z)
-            const _bot = Math.round((_b.maxY - _cam.y) * _z)
-            this.renderText('bbox L' + _l + ' R' + _r + ' T' + _t + ' B' + _bot + ' (scr ' + SCREEN_WIDTH + 'x' + SCREEN_HEIGHT + ')', 5, 60, 'left', 'yellow')
-        } else {
-            this.renderText('bbox: NULL', 5, 60, 'left', 'red')
+        if (Config.ui.showDebugOverlay) {
+            this.renderText('x: ' + mouseHex.x, 5, 15)
+            this.renderText('y: ' + mouseHex.y, 60, 15)
+            const _hudTile = mouseHex.y * 200 + mouseHex.x
+            const _hudLit = (_hudTile >= 0 && _hudTile < 40000) ? Lightmap.tile_intensity[_hudTile] : 0
+            this.renderText('tile: ' + _hudTile, 115, 15)
+            this.renderText('mt: ' + mouseSquare.x + ',' + mouseSquare.y, 225, 15)
+            this.renderText('m: ' + mousePos[0] + ', ' + mousePos[1], 325, 15)
+            this.renderText('lit: ' + _hudLit, 5, 30)
+            const _ctrX = Math.round(globalState.cameraPosition.x + getWorldViewWidth() / 2)
+            const _ctrY = Math.round(globalState.cameraPosition.y + getWorldViewHeight() / 2)
+            this.renderText('ctr: ' + _ctrX + ',' + _ctrY + '  zoom:' + (globalState.cameraZoom || 1).toFixed(2), 5, 45)
+            const _b = (window as any).mapContentBounds
+            if (_b) {
+                const _z = getZoom()
+                const _cam = globalState.cameraPosition
+                const _l = Math.round((_b.minX - _cam.x) * _z)
+                const _r = Math.round((_b.maxX - _cam.x) * _z)
+                const _t = Math.round((_b.minY - _cam.y) * _z)
+                const _bot = Math.round((_b.maxY - _cam.y) * _z)
+                this.renderText('bbox L' + _l + ' R' + _r + ' T' + _t + ' B' + _bot + ' (scr ' + SCREEN_WIDTH + 'x' + SCREEN_HEIGHT + ')', 5, 60, 'left', 'yellow')
+            } else {
+                this.renderText('bbox: NULL', 5, 60, 'left', 'red')
+            }
         }
 
         //this.text("fps: " + heart.timer.getFPS(), SCREEN_WIDTH - 50, 15)
 
-        // Group float messages by anchor object so stacked messages don't
-        // overlap. CE ref: actions.cc _show_damage_to_object — textObjectAdd
-        // queues vertically with collision avoidance.
-        const stackIndex = new Map<any, number>()
-        for (let i = 0; i < globalState.floatMessages.length; i++) {
-            const fm = globalState.floatMessages[i]
-            const bbox = objectBoundingBox(fm.obj)
-            if (bbox === null) continue
-            // Float messages are anchored to world objects but kept at a
-            // fixed text size. Project their anchor through the zoom then
-            // render with normal screen-space text.
-            const anchor = worldToScreen(bbox.x + bbox.w / 2, bbox.y)
-            const stack = stackIndex.get(fm.obj) ?? 0
-            stackIndex.set(fm.obj, stack + 1)
-            this.renderText(fm.msg, anchor.x, anchor.y - 16 - stack * 16, 'center', fm.color)
-        }
+        // Float messages (CE text_object.cc) stay on their tile at a fixed text size;
+        // floatText.ts places them (textObjectFindPlacement) and draws them in the CE
+        // interface font in a DOM layer. CE tileToScreenXY is the tile's top-left:
+        // hexToScreen gives the sprite anchor (tile + 16, + 8).
+        updateFloatText((tile) => {
+            const scr = hexToScreen(tile.x, tile.y)
+            return worldToScreen(scr.x - 16, scr.y - 8)
+        }, getZoom(), SCREEN_WIDTH, SCREEN_HEIGHT)
 
         if (globalState.player.dead) {
             this.color(255, 0, 0, 50)
@@ -420,6 +415,16 @@ export class Renderer {
         if (obj.shift !== null) {
             offsetX += obj.shift.x
             offsetY += obj.shift.y
+            // walkModel 'smooth' only: blend toward the next frame's position.
+            const blend = (obj as any).walkFrameBlend?.()
+            if (blend) {
+                offsetX += Math.round(blend.x)
+                offsetY += Math.round(blend.y)
+            }
+        } else if (Config.engine.animOffsetModel === 'ce' && obj.type === 'critter') {
+            // CE objectGetRect: tile + art direction offset + obj->x/y - width/2
+            offsetX += obj.ceOff.x
+            offsetY += obj.ceOff.y
         } else {
             offsetX += frameInfo.ox + obj.artOffset.x
             offsetY += frameInfo.oy + obj.artOffset.y
@@ -594,8 +599,11 @@ export function objectBoundingBox(obj: Obj): BoundingBox | null {
         return null
     }
     const dirOffset = info.directionOffsets[obj.orientation]
-    const offsetX = Math.floor(frameInfo.w / 2) - dirOffset.x - frameInfo.ox - obj.artOffset.x
-    const offsetY = frameInfo.h - dirOffset.y - frameInfo.oy - obj.artOffset.y
+    const ceModel = Config.engine.animOffsetModel === 'ce' && obj.type === 'critter' && obj.shift === null
+    const ox = ceModel ? obj.ceOff.x : frameInfo.ox + obj.artOffset.x
+    const oy = ceModel ? obj.ceOff.y : frameInfo.oy + obj.artOffset.y
+    const offsetX = Math.floor(frameInfo.w / 2) - dirOffset.x - ox
+    const offsetY = frameInfo.h - dirOffset.y - oy
 
     return { x: scr.x - offsetX, y: scr.y - offsetY, w: frameInfo.w, h: frameInfo.h }
 }

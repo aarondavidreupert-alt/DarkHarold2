@@ -317,7 +317,7 @@ export module Lightmap {
                         // loc_4A7500:
                         var nextTile = toTileNum(pos) + light_offsets[(lightOffsetsStart/4|0) + 36 * dir + i]
 
-                        if(nextTile > 0 && nextTile < 40000) { // nextTile is within valid tile range
+                        if(nextTile >= 0 && nextTile < 40000) { // CE hexGridTileIsValid
                             var edi = 1
                             // for each object at position nextTile
                             var objs = globalState.gMap.objectsAtPosition(fromTileNum(nextTile))
@@ -367,18 +367,13 @@ export module Lightmap {
                                         }
                                     }
                                 }
-                                // XXX: Is this just an elevation check?
-                                /*else { // TODO: check logic
-                                    if(edx !== 0) { // XXX: what is edx?
-                                        if(dir >= 2) {
-                                            if(dir === 3) {
-                                                edi = 0
-                                            }
-                                        }
-                                        else if(dir === 1)
-                                            edi = 0
-                                    }
-                                }*/
+                                // CE object.cc _obj_adjust_light: an opaque non-wall object isn't lit
+                                // from the E, SE and SW directions (rotations 1..3).
+                                else if (isLightBlocked && dir >= 1 && dir <= 3) {
+                                    edi = 0
+                                }
+                                // CE: the first opaque object on the tile decides (break)
+                                if (isLightBlocked) break
                             }
 
                             if(edi !== 0) {

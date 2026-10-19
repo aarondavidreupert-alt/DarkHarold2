@@ -25,6 +25,8 @@ import globalState from './globalState.js'
 import { dbg } from './logger.js'
 import { Scripting } from './scripting.js'
 import { Worldmap } from './worldmap.js'
+import { resetAutomap } from './automapData.js'
+import { resetSkillUsage } from './skillUse.js'
 
 export function gameReset(): void {
     // combatReset
@@ -38,9 +40,12 @@ export function gameReset(): void {
     globalState.eventLog = []
     globalState.dirtyMapCache = {}            // other maps' saved state
     killCounts.clear()                        // critterReset → killsReset
+    resetSkillUsage()                         // skillsReset → skill_use_slot_clear
     globalState.gParty.deserialize([])        // partyMembersReset
     globalState.gParty.deserializeLevels(undefined)
     Worldmap.resetWorldmap()                  // wmWorldMap_reset
+    Worldmap.resetEncounters()                // wmGenDataReset (didMeetFrankHorrigan)
+    resetAutomap()                            // automapReset: the automap belongs to the game
     globalState.player?.resetForNewGame()     // stats/skills/perks/traits/_inven_reset_dude
     globalState.player?.updateNativeLook()    // _proto_dude_update_gender: tribal again
     dbg('saveload', '[gameReset] per-game state cleared')

@@ -24,8 +24,10 @@ uniform float u_alpha;               // per-draw alpha multiplier (flat egg fall
 // CE ref: object.cc:5074 OBJECT_TRANS_GLASS — _dark_translucent_trans_buf_to_buf with
 // _glassGrayTable (desaturate) + _glassBlendTable (_colorTable[10239] ≈ teal/cyan).
 // When 1: desaturate texel to luma, then tint with the same teal blend.
-uniform int u_stealth;               // 1 = Stealth Boy OBJECT_TRANS_GLASS desaturate+tint
-uniform vec3 u_stealthTint;          // tint colour (CE exact = vec3(0.29,1,1); white = vec3(1,1,1))
+uniform int u_stealth;               // 1 = OBJECT_TRANS_* translucent (Stealth Boy, glass, steam, …)
+uniform vec3 u_stealthTint;          // the blend colour (_colorTable[...] of the trans flag)
+uniform int u_transGray;             // 0 = _glassGrayTable (r+5g+4b), 1 = _commonGrayTable (3r+6g+b)
+uniform int u_transQuant;            // 1 = CE's 8 gray steps (gray/7), 0 = smooth (Stealth Boy option)
 // CE ref: cycle.cc colorCycleTicker() — palette entries 229-254 cycle at runtime.
 // u_cycleMask: R8 texture unit 7; stored as (paletteIndex-228)/255 per pixel.
 // u_cycleTime: seconds since page load, updated per draw in renderFrame.
@@ -390,10 +392,19 @@ void main() {
     // Sprite colour is discarded — only luminance controls teal opacity.
     // _colorTable[10239] = 15-bit 0RRRRR GGGGG BBBBB: R=9 G=31 B=31
     //                     = RGB(74, 255, 255) ≈ vec3(0.29, 1.0, 1.0).
+    // The other trans flags use _commonGrayTable ((b + 3r + 6g)/10 >> 2) and their own
+    // colour; CE quantizes to the gray steps 0..7 of the 5-bit channels.
     if (u_stealth == 1) {
-        float luma = dot(texel.rgb, vec3(0.1, 0.5, 0.4));  // (r+5g+4b)/10 normalised
-        texel.rgb = u_stealthTint;                          // configurable tint (CE exact = teal)
-        texel.a  *= luma;                                   // dark→transparent, bright→tint
+        vec3 w = u_transGray == 0 ? vec3(0.1, 0.5, 0.4) : vec3(0.3, 0.6, 0.1);
+        float luma;
+        if (u_transQuant == 1) {
+            vec3 c5 = floor(texel.rgb * 31.0 + 0.5);
+            luma = floor(floor(dot(c5, w * 10.0) / 10.0) / 4.0) / 7.0;
+        } else {
+            luma = dot(texel.rgb, w);
+        }
+        texel.rgb = u_stealthTint;                          // the blend colour
+        texel.a  *= luma;                                   // dark→transparent, bright→colour
         // u_alpha (Config.ui.stealthAlpha) scales overall visibility via the
         // alpha local var below — no additional multiply needed here.
     }

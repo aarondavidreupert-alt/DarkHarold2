@@ -208,13 +208,13 @@ export function openAutomap(): void {
     scannerDot.onclick = refresh
     screen.appendChild(scannerDot)
 
-    // Zoom controls (top-right of the inner screen)
+    // Zoom controls (DH2): inside the top-right corner of the map inset
     const mkZoomBtn = (label: string, x: number, onClick: () => void) => {
         const btn = document.createElement('div')
         btn.textContent = label
         btn.style.cssText = `
             position: absolute;
-            left: ${x}px; top: ${MAP_INSET_Y - 22}px;
+            left: ${x}px; top: ${MAP_INSET_Y + 4}px;
             width: 22px; height: 18px;
             color: #00FF00; font-family: monospace; font-size: 14px;
             text-align: center; line-height: 18px;
@@ -224,8 +224,8 @@ export function openAutomap(): void {
         btn.onclick = onClick
         return btn
     }
-    screen.appendChild(mkZoomBtn('-', MAP_INSET_X + MAP_INSET_W - 50, () => { zoomOut(); refresh() }))
-    screen.appendChild(mkZoomBtn('+', MAP_INSET_X + MAP_INSET_W - 24, () => { zoomIn(); refresh() }))
+    screen.appendChild(mkZoomBtn('-', MAP_INSET_X + MAP_INSET_W - 58, () => { zoomOut(); refresh() }))
+    screen.appendChild(mkZoomBtn('+', MAP_INSET_X + MAP_INSET_W - 32, () => { zoomIn(); refresh() }))
 
     // CANCEL dot button
     const cancelDot = document.createElement('div')
@@ -248,7 +248,7 @@ export function openAutomap(): void {
 
     // Drag the automap panel from its frame; canvas drag-to-pan still wins
     // because makeDraggable skips elements with mousedown handlers.
-    makePanelDraggable(automapContainer)
+    makePanelDraggable(automapContainer, 'automap')
 }
 
 export function closeAutomap(): void {

@@ -80,29 +80,41 @@ def parse_gam_binary(filepath: str) -> list[int]:
     return []
 
 
-def parse_gam_text(filepath: str) -> dict[int, int]:
-    """Parse a text-format .GAM file with := assignments.
+def parse_gam_text(filepath: str, section: Optional[str] = None) -> dict[int, int]:
+    """Parse a text-format .GAM file the way CE game.cc globalVarsRead does.
 
-    Supports lines like:
-      GVAR_PLAYER_REPUTATION  :=50;  //(0)
-      MVAR_Darion_Attack      :=0;   //(1)
+    Skip to the line starting with `section` (strncmp of 16 chars), e.g.
+    "GAME_GLOBAL_VARS:" (vault13.gam) or "MAP_GLOBAL_VARS:" (map .gam). After it,
+    every line that is not empty and does not start with "//" is the next variable,
+    in file order. Its value is the integer after '=' (text after ';' is cut off),
+    or 0. The trailing "// 0" / "//(0)" comments are not used for the index.
 
     Returns a dict mapping variable index to value.
     """
     vars_dict: dict[int, int] = {}
-    pattern = re.compile(
-        r"^\s*((?:GVAR|MVAR)_\w+)\s*:=\s*(-?\d+)\s*;\s*//\s*\((\d+)\)",
-        re.IGNORECASE,
-    )
+    int_re = re.compile(r"\s*([-+]?\d+)")
+    with open(filepath, "r", encoding="latin-1", newline=None) as f:
+        lines = [line.rstrip("\n") for line in f]
 
-    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
-        for line in f:
-            m = pattern.match(line)
+    i = 0
+    if section is not None:
+        while i < len(lines) and not lines[i].startswith(section[:16]):
+            i += 1
+        i += 1
+
+    for line in lines[i:]:
+        if line == "" or line.startswith("//"):
+            continue
+        semi = line.find(";")
+        if semi != -1:
+            line = line[:semi]
+        value = 0
+        eq = line.find("=")
+        if eq != -1:
+            m = int_re.match(line[eq + 1:])
             if m:
-                _name = m.group(1)
-                value = int(m.group(2))
-                index = int(m.group(3))
-                vars_dict[index] = value
+                value = int(m.group(1))
+        vars_dict[len(vars_dict)] = value
 
     return vars_dict
 
@@ -114,7 +126,7 @@ def is_binary_file(filepath: str) -> bool:
     return b"\x00" in chunk
 
 
-def parse_gam_file(filepath: str) -> dict[int, int]:
+def parse_gam_file(filepath: str, section: Optional[str] = None) -> dict[int, int]:
     """Parse a .GAM file (auto-detecting binary vs text format).
 
     Returns a dict mapping variable index to initial value.
@@ -123,7 +135,7 @@ def parse_gam_file(filepath: str) -> dict[int, int]:
         values = parse_gam_binary(filepath)
         return {i: v for i, v in enumerate(values)}
     else:
-        return parse_gam_text(filepath)
+        return parse_gam_text(filepath, section)
 
 
 def find_case_insensitive(directory: str, filename: str) -> Optional[str]:
@@ -138,20 +150,13 @@ def find_case_insensitive(directory: str, filename: str) -> Optional[str]:
     return None
 
 
-def main():
-    if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <fallout2_data_dir>", file=sys.stderr)
-        print(
-            "\n  <fallout2_data_dir> should contain VAULT13.GAM and a maps/ directory.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+def convert_gam(data_dir: str = "data") -> None:
+    """data/data/vault13.gam -> data/gvars.json, data/maps/*.gam -> *.mvars.json.
 
-    data_dir = sys.argv[1]
-    if not os.path.isdir(data_dir):
-        print(f"Error: '{data_dir}' is not a directory", file=sys.stderr)
-        sys.exit(1)
-
+    CE loads the global vars from "data/vault13.gam" (game.cc gameInit), i.e.
+    data/data/vault13.gam after DAT extraction. data/maps/vault13.gam is the
+    Vault 13 *map's* vars file, not the global one.
+    """
     # Determine output directory (project root data/)
     script_dir = Path(__file__).resolve().parent
     project_root = script_dir.parent
@@ -160,10 +165,11 @@ def main():
     out_maps_dir.mkdir(parents=True, exist_ok=True)
 
     # --- Parse VAULT13.GAM for global variables ---
-    vault13_path = find_case_insensitive(data_dir, "VAULT13.GAM")
+    vault13_path = (find_case_insensitive(os.path.join(data_dir, "data"), "VAULT13.GAM")
+                    or find_case_insensitive(data_dir, "VAULT13.GAM"))
     if vault13_path:
         print(f"Parsing global vars from: {vault13_path}")
-        gvars = parse_gam_file(vault13_path)
+        gvars = parse_gam_file(vault13_path, "GAME_GLOBAL_VARS:")
         print(f"  Found {len(gvars)} global variables")
 
         # Write gvars.json - keys are string representations of indices
@@ -189,15 +195,23 @@ def main():
             gam_path = os.path.join(maps_dir, gam_file)
             map_name = os.path.splitext(gam_file)[0].lower()
 
-            mvars = parse_gam_file(gam_path)
-            if mvars:
-                mvars_out = {str(k): v for k, v in sorted(mvars.items())}
-                mvars_path = out_maps_dir / f"{map_name}.mvars.json"
-                with open(mvars_path, "w") as f:
-                    json.dump(mvars_out, f, indent=2)
-                print(f"  {map_name}: {len(mvars)} map vars -> {mvars_path}")
-            else:
-                print(f"  {map_name}: no map vars found (empty or unrecognized format)")
+            mvars = parse_gam_file(gam_path, "MAP_GLOBAL_VARS:")
+            # Always write the file (possibly "{}") so the engine never requests a
+            # missing one (CE map.cc: a map without vars just has none).
+            mvars_out = {str(k): v for k, v in sorted(mvars.items())}
+            mvars_path = out_maps_dir / f"{map_name}.mvars.json"
+            with open(mvars_path, "w") as f:
+                json.dump(mvars_out, f, indent=2)
+            print(f"  {map_name}: {len(mvars)} map vars -> {mvars_path}")
+
+        # Maps without a .GAM have no map vars (CE globalVarsRead fails, count 0).
+        gam_names = {os.path.splitext(f)[0].lower() for f in gam_files}
+        for map_file in sorted(os.listdir(maps_dir)):
+            map_name, ext = os.path.splitext(map_file)
+            if ext.lower() != ".map" or map_name.lower() in gam_names:
+                continue
+            with open(out_maps_dir / f"{map_name.lower()}.mvars.json", "w") as f:
+                json.dump({}, f)
     else:
         print(
             f"Warning: No maps/ directory found in {data_dir}",
@@ -205,6 +219,22 @@ def main():
         )
 
     print("\nDone.")
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} <extracted_data_dir>", file=sys.stderr)
+        print(
+            "\n  <extracted_data_dir> (normally data/) should contain data/VAULT13.GAM and maps/.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    data_dir = sys.argv[1]
+    if not os.path.isdir(data_dir):
+        print(f"Error: '{data_dir}' is not a directory", file=sys.stderr)
+        sys.exit(1)
+    convert_gam(data_dir)
 
 
 if __name__ == "__main__":

@@ -11,10 +11,12 @@ It is written primarily in TypeScript and Python, and targets recent browsers wi
 
 ## Status
 
-DarkHarold2 is not a complete remake at this time. Estimated overall completion: **~98%**.
+DarkHarold2 is not a complete remake at this time. Estimated overall completion: **~99%**.
 Every gap tracked in [`wiki/known_bugs.md`](wiki/known_bugs.md) is now closed on the `100percent` branch, including
 the systems previously deferred: movies, talking heads and speech, radiation, drugs and addiction, party level-ups,
-the car, and line of fire. The remaining share is verification and a few documented approximations: there has been
+the car, and line of fire. The 2026-10-18 audit re-checked every wiki doc against CE and the code and ported what
+still differed (worldmap travel and random encounters, skill use, game-load script procs, translucency, …). The
+remaining share is verification and a few documented approximations: there has been
 no full end-to-end playthrough yet, and a handful of places still simplify CE (listed under "Known approximations"
 below). See [`ROADMAP.md`](ROADMAP.md) and [`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
 
@@ -101,6 +103,11 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 42 | [`wiki/endgame.md`](wiki/endgame.md) | Endgame slides, death narrator |
 | 43 | [`wiki/extended_flags.md`](wiki/extended_flags.md) | Wall/scenery `extendedFlags` orientation bits — egg occlusion vs light blocking |
 | 44 | [`wiki/alignment.md`](wiki/alignment.md) | Screen-space anchor reference for all renderable categories (floor/roof `−96`, object bottom-centre anchor, `uniformFrameWidth` vs `frameWidth`, `8.4` lightmap-UV inverse) **plus the lighting-alignment work** — centring offset (RD17 §6), interpolation stripes / `hex-lerp` (§7), W-E wall occlusion (LD11 §8), object light-sampling modes (`wall-clamp` default), alpha-silhouette wall top-fade, and moving-torch smoothing (`egg-split`); §9 lists all runtime `setLighting*/setObjectLighting*/setWallTopFade*/setPlayerLightSmooth` console commands |
+| 45 | [`wiki/drugs.md`](wiki/drugs.md) | Drugs, chems, addiction and withdrawal (CE `item.cc` port) |
+| 46 | [`wiki/palette_colors.md`](wiki/palette_colors.md) | Palette colour usage audit — palette vs hard-coded colours |
+| 47 | [`wiki/scroll_clamping.md`](wiki/scroll_clamping.md) | Map scroll borders and edge rendering (`tileSetBorder`, `tileSetCenter`) |
+| 48 | [`wiki/ts-split-refactor.md`](wiki/ts-split-refactor.md) | Source split strategy and the subfolder / barrel convention |
+| 49 | [`wiki/edit_history.md`](wiki/edit_history.md) | Sprint notes, newest first |
 
 ### 🐛 Known issues & roadmap
 
@@ -159,43 +166,50 @@ pipenv run python tools/pipeline_gui.py
 ## Feature completion
 
 The buckets below are sourced from [`wiki/known_bugs.md`](wiki/known_bugs.md) (current
-audit: 2026-10-07). Items marked FIXED there roll up here. If you spot a contradiction,
+audit: 2026-10-18). Items marked FIXED there roll up here. If you spot a contradiction,
 the wiki tracker is the source of truth.
 
 ### ✅ Substantially implemented (~85–100%)
 
-- **Map loading & rendering** — tile maps, multi-elevation, WebGL 2.0 renderer, lightmap, real-time lighting, screen-space hex z-sort (RD09), camera clamp + `OBJECT_SCROLL_BLOCK` (RD11/RD12), per-building roof flood-fill + roofEgg transparency (RD06), post-roof hex cursor/outline pass (RD08), palette colour cycling for water/fire/monitors in both floor paths (RD10), pixel-precise `_tile_mask` hex picking (RD13), parity-correct lightmap hex sampling (RD17), directional wall light occlusion (LD11); see [`wiki/alignment.md`](wiki/alignment.md)
-- **Walking & running** — A\* pathfinding with separate path-blocking / shoot-blocking predicates (P4/P5/P6), `OBJECT_MULTIHEX` neighbour scan, scenery LoS via `OBJECT_LIGHT_THRU` (P7), door interaction, exit grids
-- **Combat** — `attackDetermineToHit` port (line-of-fire critter count, distance/perception with Long Range/Scope/Sharpshooter, min ST, Accurate, One Hander, knocked-down/multihex, combat difficulty — C18); `_compute_spray`/`_shoot_along_path` bursts that hit whoever stands on a line of fire, missed shots that fly on and hit someone else, grenade/rocket blast rings (C17); 6-level criticals, critical failures, YAAM, armor DR/DT, crippling, knockdown, DAM_DROP, fire; attack sound on frame 0 and damage on the FRM action frame (FA3); who-hit-me / retaliation and the reaction hit (C19); CE death animations (`_pick_death`: damage thresholds, violence level, Bloody Mess, fire dance, single-frame corpses) with their death sounds (C20)
-- **Combat AI** — AI packets (attack who, best weapon, distance modes, run-away), `_ai_pick_hit_mode` + `_combat_safety_invalidate_weapon` friendly-fire check, perception/LoS gate, taunts (gated by the combat-taunts preference)
+- **Map loading & rendering** — tile maps, multi-elevation, WebGL 2.0 renderer, lightmap, real-time lighting, screen-space hex z-sort (RD09), camera clamp + `OBJECT_SCROLL_BLOCK` (RD11/RD12), per-building roof flood-fill + roofEgg transparency (RD06), post-roof hex cursor/outline pass (RD08), palette colour cycling for water/fire/monitors in both floor paths (RD10, `[system] color_cycling` / `cycle_speed_factor`), CE translucency for force fields, windows, steam and Stealth Boy (C57), pixel-precise `_tile_mask` hex picking (RD13), parity-correct lightmap hex sampling (RD17), directional wall light occlusion (LD11); see [`wiki/alignment.md`](wiki/alignment.md)
+- **Walking & running** — the literal CE path finder (`pathfinderFindPath`, `canUseDoor`: NPCs open doors on the way, the player opens them himself — C45), separate shoot-blocking predicate (P6), `OBJECT_MULTIHEX` neighbour scan, scenery LoS via `OBJECT_LIGHT_THRU` (P7), exit grids (`set_exit_grids`, C39)
+- **Combat** — `attackDetermineToHit` port (line-of-fire critter count, distance/perception with Long Range/Scope/Sharpshooter, min ST, Accurate, One Hander, knocked-down/multihex, combat difficulty — C18); `_compute_spray`/`_shoot_along_path` bursts that hit whoever stands on a line of fire, missed shots that fly on and hit someone else, grenade/rocket blast rings (C17); 6-level criticals, critical failures, YAAM, armor DR/DT, crippling, knockdown, DAM_DROP, fire; attack sound on frame 0 and damage on the FRM action frame (FA3); who-hit-me / retaliation and the reaction hit (C19); CE death animations (`_pick_death`: damage thresholds, violence level, Bloody Mess, fire dance, single-frame corpses) with their death sounds (C20); CE attack roll, critical failures, melee damage, difficulty, kill XP and AP rules after the 2026-10-17 audit (C22)
+- **Combat AI** — CE `_combat_ai` port (C28):
+  - Fights: target choice (`_ai_danger_source`), weapon switching and picking up weapons from the floor, called shots, primary/secondary hit modes with the friendly-fire check (`_ai_pick_hit_mode`, `_combat_safety_invalidate_weapon`).
+  - Ammo and health: reloading and fetching ammo; stimpaks and chems by `chem_use`.
+  - Movement: fleeing (`min_hp`, `hurt_too_much`, disengage past `max_dist`), distance preferences (charge, snipe, stay close), taunts (gated by the combat-taunts preference).
 - **Perks & traits** — CE perk table (`perks/cePerks.ts`): perks addressed by CE id from scripts, per-rank stat effects (Toughness, Action Boy, Dodger, …), armor perks on equip (Powered Armor, …), `perkGetSkillModifier` as CE (K6); level-up with Swift Learner / Lifegiver, perk selection modal
 - **Dialogue** — full `gsay_*`/`giq_option`/`gsay_option` set, barter/combat-control buttons, review log, highlight overlays; **talking heads** with fidgets, reactions and lip-synced speech (P4)
 - **Bartering** — CE `_barter_compute_value`, reaction LVAR, Master Trader, difficulty bonus, scrollable tables, quantity picker
 - **Party / companions** — `party_add`/`party_remove`, companion level-ups from `party.txt` (`_partyMemberIncLevels`), CE `_partyMemberSyncPosition` placement on map entry, script-driven following (`critter_p_proc`), companion control/customize/trade screens; the party travels with the player and is excluded from map snapshots (M10)
-- **Inventory & items** — drag-and-drop, equip slots, carry weight, per-object weapon ammo (`ammoQuantity`/`ammoTypePid`, caliber-checked reload — LE12), container capacity, CE ammo bar (AF5)
-- **Active skill use** — First Aid, Doctor, Sneak, Lockpick, Steal, Traps, Science, Repair, Gambling/Outdoorsman messages; party delegation (AC6)
+- **Inventory & items** — drag-and-drop, equip slots, carry weight, CE ammo stacks (C36), container capacity, CE ammo bar (AF5); script wield / unwield / strip as CE (C44); flares light, burn out and light their holder (C46)
+- **Active skill use** — CE `skillUse` (C59): First Aid / Doctor / Repair with CE heal ranges, per-limb rolls by the party's best, robots only for Repair, time per attempt, the 3-a-day use slots (saved) and skill XP; Lockpick / Traps / Science left to the scripts as in CE; Sneak, Steal; party delegation (AC6)
 - **Look & examine** — `look_at_p_proc`/`description_p_proc` scripts, CE health/crippled text, Awareness details, weapon/ammo lines (IU6)
 - **Karma & reputation** — karma title, per-town reputation tiers; CE has no engine-side reaction modifier beyond the who-hit-me reaction hit (C19)
-- **Worldmap** — encounters (frequency, difficulty, formations, Outdoorsman), Pathfinder, walk masks, panning, labels; towns revealed by `mark_area_known` (W15), area state and party position saved; clicking the stopped party marker in the wilderness enters the desert map like CE (W16)
+- **Worldmap** — CE travel loop (`wmPartyWalkingStep`, terrain pace, game time per frame) and random encounters (`wmRndEncounterOccurred` / `Pick` / `wmSetupRandomEncounter`: frequency, difficulty, Outdoorsman, formations, placement — C55), Pathfinder, walk masks, panning, labels; towns revealed by `mark_area_known` (W15), area state and party position saved; clicking the stopped party marker in the wilderness enters the desert map like CE (W16)
 - **Car (Highwayman)** — script-driven like CE: town map scripts place the car, the trunk travels in the party (W14); speed tiers (blower / New Reno upgrade / super car), fuel-saving upgrades, out-of-gas handling, metarule 52/53 trunk capacity; see [`wiki/car_system.md`](wiki/car_system.md)
 - **Scripting VM** — INT parser, all 181 vanilla opcodes bridged (S29), MVARs persisted per map (M8), `map_exit_p_proc` on every script (M9), timed events, `critter_p_proc` round-robin (CE `_script_chk_critters`)
 - **Time** — CE game clock and ambient light (`gAmbientIntensity`, Night Vision), midnight events, ARTIMER/AFAILED game events, time jumps drain timed events
 - **Status effects** — radiation (`critterAdjustRadiation`/`processRads`), drugs and addiction from proto data with withdrawal perks, poison decay (S26)
 - **Movies** — MVE → WebM pipeline stage, CE `gameMoviePlay` with subtitles and fades, Pip-Boy video archive (S15)
 - **Audio** — music, weapon/action/ambient SFX, master/music/sfx/speech volumes, speech playback for talking heads
-- **Pip-Boy** — clock, alarm, STATUS (incl. quest log), ARCHIVES (video archive), AUTOMAP, rest menu
-- **Character screen / HUD** — SPECIAL/skills/perks, warnbox indicator badges, numbers.frm counters, AP lights, end-turn lights with enable/disable (AF6), CE to-hit hover readout
-- **Save / load** — IndexedDB; player, party (+ levels), inventory + weapon ammo, GVARs, MVARs, area states, timed events, car state, seen movies, thumbnails; CE `gameReset` before NEW GAME and every load, so nothing leaks between games (U12)
-- **Preferences** — full CE options panel, persisted (localStorage) and seeded from `fallout2.cfg` (CI1); DH2-only options in a `[dh2]` section of the same file, e.g. `day_night_cycle=0` for CE lighting instead of the default smooth day/night curve (GTC10); combat looks/taunts, brightness (CE gamma table) are live (CI18)
+- **Pip-Boy** — CE STATUS page (quest locations from `quests.txt`, holodisk reader), ARCHIVES (video archive), AUTOMAP, the CE alarm clock (`pipboyRest`: rest-location check, healing every 3 hours, until-party-healed), available after the Vault Suit movie (C40)
+- **Character screen / HUD** — SPECIAL/skills/perks, warnbox indicator badges, numbers.frm counters, AP lights, end-turn lights with enable/disable (AF6), CE to-hit hover readout, CE action menu (use-on inventory, skill on target, push, rotate — C42)
+- **Keyboard** — CE `gameHandleKey` layout: C I S O P Z N B M A Tab, 1–8 skills, Space / Return in combat, F1–F7 incl. quick save / load, Ctrl keys, brightness, rotate, date (C43)
+- **Endings** — victory slideshow (CE pan timing), credits, death screen then back to the main menu (C41)
+- **Save / load** — IndexedDB; player, party (+ levels), inventory + weapon ammo, GVARs, MVARs, area states, timed events, car state, kills, automap, skill use slots, seen movies, thumbnails; CE `gameReset` before NEW GAME and every load, so nothing leaks between games (U12); a load runs the map's start / map_enter / map_update procs with `is_loading_game` set, as CE (C61)
+- **Preferences** — full CE options panel, persisted (localStorage) and seeded from `fallout2.cfg` (CI1); DH2-only options in a `[dh2]` section of the same file, e.g. `day_night_cycle=0` for CE lighting instead of the default smooth day/night curve (GTC10), `pixel_font=0` to use the browser font instead of the default Fallout pixel font on all UI text (U15), `walk_model` / `anim_offset_model` to switch the CE walk and animation-offset models (FA13), `pipboy_available_at_game_start=1` (the sfall option; CE opens the Pip-Boy only after the Vault Suit movie, C40); `drag_windows=0` / `drag_<window>=0` to fix windows in place (dragging is a DH2 addition, C48); `debug_overlay=1` for the mouse-hex / tile / light / camera readouts (default off; console `setDebugOverlay(true)`), `fps_overlay=0` to hide the fps counter (default on; console `setFpsOverlay(false)`); `scroll_edge=<px>` for how close to the screen edge the map scrolls (default 10 — CE scrolls only on the edge itself); the pipeline's `write_config` stage creates the file with CE defaults; combat looks/taunts, brightness (CE gamma table) are live (CI18)
 - **Random numbers** — CE Park-Miller generator with MSVC seeding (RN)
 
 ---
 
 ### 🔶 Known approximations
 
-- **Ammo stacks** count rounds in `amount`, where CE keeps boxes plus rounds in the top box (LE12 note).
-- **AI blast safety** — CE's `_ai_move_away` to a safe distance and the full `_ai_switch_weapons` aren't ported; the AI drops from burst to single fire or holds fire (C17 note). Explosions from DAM_EXPLODE critical failures aren't generated.
 - **Hover readout** is a DOM overlay rather than a cursor blit, and isn't shown for non-critter targets (CI18).
+- **Action menu** opens on right-click instead of CE's held left button; the mouse wheel zooms instead of scrolling (C42 / C43).
+- **Pip-Boy** — no idle screensaver (cosmetic).
+- **Day / night** — DH2 adds a smooth day/night light curve by default; `[dh2] day_night_cycle=0` gives CE's script-only lighting (GTC10).
+- **Skill use** — no black palette fade around First Aid / Doctor / Repair (cosmetic).
 - **Browser limits** — preferences can't be written back to `fallout2.cfg` (CI5, localStorage instead); mouse sensitivity is stored but the browser owns pointer speed.
 - **Not playthrough-verified** — systems were checked individually in the browser; a full main-quest run hasn't been done.
 
@@ -505,6 +519,8 @@ _debug.addXP(2000)
 | Method | Description | Example |
 |---|---|---|
 | `addXP(n)` | Add `n` experience points. Fires level-up and opens the perk picker if the XP threshold is crossed. | `debug.addXP(2000)` |
+| `skipTemple()` | Skip the Temple of Trials: load Arroyo Village at the temple exit's destination (map 4, tile 11683). Also on `window` as `skipTemple()`. | `debug.skipTemple()` |
+| `revealWorldmap()` | Open the worldmap with every square, town and entrance revealed; clicks (map or town list) then move the party there at once — no game time, no encounters. `revealWorldmap(false)` reveals without instant travel; `setInstantTravel(false)` stops it. DH2 debug, not in CE. | `revealWorldmap()` |
 | `setHP(n)` | Set player current HP to `n`. | `debug.setHP(1)` |
 | `setKarma(n)` | Set player karma to `n`. Clamped to ±99999999. | `debug.setKarma(500)` |
 | `combatLog()` | Returns the current `eventLog` array (same data exported by the Combat Log tools). | `debug.combatLog()` |

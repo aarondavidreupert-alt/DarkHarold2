@@ -17,26 +17,29 @@ limitations under the License.
 // Obj base class + top-of-file helpers + SerializedObj interface.
 // Split out of object.ts per wiki/ts-split-refactor.md §2.
 
+import { addFloatMessage } from '../floatText.js'
+import * as GameTime from '../gametime.js'
 import { playCharSfx, playOpenSfx, sfxBuildCharName, SCENERY_SOUND_EFFECT } from '../sfxNames.js'
-import { initWeaponAmmo } from '../weaponAmmo.js'
+import { ammoFromRounds, ammoGetCapacity, ammoGetQuantity, ammoMergeInto, ammoSplitOff, initWeaponAmmo } from '../weaponAmmo.js'
 import type { Proto } from '../proto_types.js'
 
 // Object kinds as getPROTypeName() names them (plus map-object kinds that carry no proto).
 export type ObjType = 'item' | 'critter' | 'scenery' | 'wall' | 'tile' | 'misc' | 'spatial'
 import { ANIM_STAND, critterDamage } from '../critter.js'
 import { getLstId, lookupScriptName } from '../data.js'
-import { Events, scheduleExplosion } from '../events.js'
-import { hexDistance, hexesInRadius, hexIsInFrontOf, hexNeighbors, Point } from '../geometry.js'
+import { Events } from '../events.js'
+import { hexDirectionTo, hexDistance, hexIsInFrontOf, hexNeighbors, Point } from '../geometry.js'
+import { computeExplosionDamage, explosionRingCritters, scriptsExplodeScenery } from '../combat/explosion.js'
 import globalState from '../globalState.js'
 import { lazyLoadImage } from '../images.js'
 import { Lightmap } from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { getPROSubTypeName, getPROTypeName, loadPRO, lookupArt, makePID } from '../pro.js'
 import { Scripting } from '../scripting.js'
-import { fromTileNum } from '../tile.js'
-import { uiLoot, uiLog } from '../ui.js'
+import { fromTileNum, toTileNum } from '../tile.js'
+import { uiDrawWeapon, uiLoot, uiLog } from '../ui.js'
 import { getMessage, getRandomInt, skillRoll, RollResult } from '../util.js'
-import { showTimerDialog } from '../ui_timer.js'
+import { uiGetTimer } from '../ui_barter/swap.js'
 import { Config } from '../config.js'
 import { isChargedMiscItem, useChargedMiscItem } from '../miscItem.js'
 import { drawHP } from '../ui_hud.js'
@@ -106,7 +109,9 @@ function objectSwapItem(a: Obj, item: Obj, b: Obj, amount: number) {
     if (amount !== undefined && amount < item.amount) {
         // just deduct amount from a and give amount to b
         item.amount -= amount
-        b.addInventoryItem(cloneItem(item), amount)
+        const moved = cloneItem(item)
+        ammoSplitOff(item, moved) // CE itemRemove: the top ammo box goes with the moved boxes
+        b.addInventoryItem(moved, amount)
     } else {
         // just swap them
         a.inventory.splice(idx, 1)
@@ -122,45 +127,190 @@ export function objectGetDamageType(obj: any): string {
     throw 'no damage type for obj: ' + obj
 }
 
+// CE item.cc explosiveActivate / _queue_do_explosion_: dynamite (51 → armed 206) and
+// plastic explosives (85 → 209); damage 30-50 / 40-80, +10 each with the player's
+// Demolition Expert.
+const EXPLOSIVES: { [pid: number]: { active: number; min: number; max: number } } = {
+    51: { active: 206, min: 30, max: 50 },
+    85: { active: 209, min: 40, max: 80 },
+}
+
+// CE proto_instance.cc _obj_use_explosive — set the timer (10-180 s), then a Traps
+// roll (none with Demolition Expert): success arms it for 10 × seconds ticks, a
+// failure goes off early (half the time), a critical failure at once — both with
+// "Due to your inept handling..." (misc.msg 4000). The armed explosive stays where it
+// is: carried, it explodes on whoever carries it.
 async function useExplosive(obj: Obj, source: Critter): Promise<void> {
     if (!source.isPlayer) return
+    const desc = EXPLOSIVES[obj.pid]
+    if (!desc) {
+        // An armed explosive (206 / 209): CE OBJECT_QUEUED → "The timer is already ticking!"
+        if (obj.pid === 206 || obj.pid === 209) uiLog(getMessage('proto', 590) ?? 'The timer is already ticking!')
+        return
+    }
+    if (Scripting.timeEventList.some((e) => e.obj === obj && (e.userdata === 'explosion' || e.userdata === 'explosionFailure'))) {
+        uiLog(getMessage('proto', 590) ?? 'The timer is already ticking!') // OBJECT_QUEUED
+        return
+    }
+    const seconds = await uiGetTimer(obj)
+    if (seconds === -1) return
+    uiLog(getMessage('proto', 589) ?? 'You set the timer.')
 
-    const isDynamite = obj.pid === 51
-    const minDmg = isDynamite ? 30 : 40
-    const maxDmg = isDynamite ? 50 : 80
-    const radius  = isDynamite ? 2  : 3
+    // explosiveActivate: the armed proto
+    switchItemProto(obj, desc.active)
 
-    const chosenTurns = await showTimerDialog(obj)
-    if (chosenTurns === null) return // player cancelled
+    let delay = 10 * seconds
+    const roll = source.hasPerk('Demolition Expert') ? RollResult.Success : skillRoll(source, 'Traps').roll
+    let failure = false
+    if (roll === RollResult.CriticalFailure) { delay = 0; failure = true }
+    else if (roll === RollResult.Failure) { delay = Math.trunc(delay / 2); failure = true }
+    dbg('object', `[Object] explosive armed: ${seconds}s, Traps ${RollResult[roll]}, fires in ${delay} ticks`)
+    const fire = () => explosiveDetonate(obj, desc.min, desc.max, failure)
+    if (delay === 0) fire()
+    // CE queue.cc _queue_explode_exit: leaving the map sets it off at once, unanimated
+    else Scripting.timeEventList.push({ obj, ticks: delay, userdata: failure ? 'explosionFailure' : 'explosion', fn: fire,
+        leaveMap: () => { explosiveDetonate(obj, desc.min, desc.max, false, false); return true } })
+}
 
-    // Traps skill roll — skipped for Demolition Expert
-    let delayTurns = chosenTurns
-    if (source.hasPerk('Demolition Expert')) {
-        uiLog(`Armed! Timer set to ${delayTurns} turn(s).`)
+// The item becomes another proto in place (CE: item->pid = …) — art, inventory art, name.
+function switchItemProto(obj: Obj, pid: number): void {
+    const pro = loadPRO(pid, pid & 0xffff)
+    if (!pro) return
+    obj.pid = pid
+    obj.pro = pro
+    obj.art = lookupArt(makePID(pro.frmType, pro.frmPID))
+    const invPID = ((pro as any).extra?.invFRM ?? -1) & 0xffff
+    const invName = invPID !== 0xffff ? getLstId('art/inven/inven', invPID) : null
+    if (invName) obj.invArt = 'art/inven/' + invName.split('.')[0]
+    obj.name = getMessage('pro_item', pro.textID) ?? obj.name
+}
+
+// CE item.cc booksInit (vanilla table): book PID → [proto.msg line, skill]
+const BOOKS: { [pid: number]: [number, string] } = {
+    73: [802, 'Science'],     // PROTO_ID_BIG_BOOK_OF_SCIENCE
+    76: [803, 'Repair'],      // PROTO_ID_DEANS_ELECTRONICS
+    80: [804, 'First Aid'],   // PROTO_ID_FIRST_AID_BOOK
+    102: [805, 'Small Guns'], // PROTO_ID_GUNS_AND_BULLETS
+    86: [806, 'Outdoorsman'], // PROTO_ID_SCOUT_HANDBOOK
+}
+
+// CE proto_instance.cc _obj_use_book: not in combat (proto.msg 902); the dude's skill
+// rises by (100 − skill) / 10 points (×1.5 with Comprehension) — none past 100, "You
+// learn nothing new." (801) — and reading takes (11 − INT) hours; "You read the book."
+// (800) and the book's line. The book is used up (return 1).
+function useBook(book: Obj): void {
+    const [messageId0, skill] = BOOKS[book.pid]
+    if (globalState.inCombat) {
+        uiLog(getMessage('proto', 902) ?? 'You cannot do that in combat.')
+        return
+    }
+    const dude = globalState.player as Critter
+    let messageId = messageId0
+    let increase = Math.trunc((100 - dude.getSkill(skill)) / 10)
+    if (increase <= 0) {
+        messageId = 801
     } else {
-        const { roll } = skillRoll(source, 'Traps')
-        dbg('object', `[Object] Traps roll: ${RollResult[roll]}`)
-        if (roll === RollResult.CriticalFailure) {
-            uiLog('The explosive detonates in your hands!')
-            obj.explode(source, minDmg, maxDmg, radius)
-            return
-        } else if (roll === RollResult.Failure) {
-            delayTurns = Math.max(1, Math.floor(chosenTurns / 2))
-            uiLog(`You fumble the timer. Detonation in ${delayTurns} turn(s).`)
-        } else {
-            uiLog(`Armed! Detonation in ${delayTurns} turn(s).`)
+        if (dude.hasPerk('Comprehension')) increase = Math.trunc(150 * increase / 100)
+        for (let i = 0; i < increase; i++) {
+            if (dude.getSkill(skill) >= 300) break // skillAddForce: −3 at the cap
+            dude.skills.baseSkills[skill] = dude.skills.getBase(skill) + 1
         }
     }
+    GameTime.advanceSeconds(3600 * (11 - dude.getStat('INT')))
+    globalState.gMap?.updateMap() // scriptsExecMapUpdateProc
+    uiLog(getMessage('proto', 800) ?? 'You read the book.')
+    const line = getMessage('proto', messageId)
+    if (line) uiLog(line)
+    // _obj_use_item: rc 1 — the book is gone
+    const i = dude.inventory.indexOf(book)
+    if (i !== -1) {
+        if ((book.amount ?? 1) > 1) book.amount -= 1
+        else dude.inventory.splice(i, 1)
+    }
+}
 
-    // Mark as armed and swap art (explosiveActivate() equivalent).
-    // invArt is the in-inventory image; art is the on-map/dropped image.
-    // The item stays in inventory — the player drops it manually.
-    ;(obj as any).armed = true
-    obj.invArt = isDynamite ? 'art/inven/dynon'    : 'art/inven/plastion'
-    obj.art    = isDynamite ? 'art/items/dynamite'  : 'art/items/plstic'
+export const PROTO_ID_FLARE = 79
+export const PROTO_ID_LIT_FLARE = 205
 
-    scheduleExplosion(obj, minDmg, maxDmg, radius, delayTurns)
-    dbg('object', `[Object] ${isDynamite ? 'Dynamite' : 'Plastic Explosive'} armed: delay=${delayTurns}t dmg=${minDmg}-${maxDmg} r=${radius}`)
+// The critter carrying `item` (in a hand or the inventory), if any.
+function itemOwner(item: Obj): Critter | null {
+    const gMap = globalState.gMap
+    const player = globalState.player as Critter | null
+    const has = (c: any) => c && (c.inventory?.includes(item) || c.leftHand === item || c.rightHand === item)
+    if (has(player)) return player
+    return (gMap?.getObjects().find((o) => o.type === 'critter' && has(o)) as Critter | undefined) ?? null
+}
+
+// CE inventory.cc _invenWieldFunc (PROTO_ID_LIT_FLARE): a lit flare in a hand lights its
+// holder with the larger of the two lights; without it the holder's own light comes
+// back (the dude 4 hexes at full intensity — objectsInit — an NPC its proto's).
+export function updateHandFlareLight(c: Critter): void {
+    const a = c as any
+    let radius = c.isPlayer ? 4 : (c.pro as any)?.lightDistance ?? 0
+    let intensity = c.isPlayer ? 65536 : (c.pro as any)?.lightIntensity ?? 0
+    for (const h of [a.leftHand, a.rightHand]) {
+        if (h?.pid !== PROTO_ID_LIT_FLARE) continue
+        radius = Math.max(radius, h.lightRadius ?? 8)
+        intensity = Math.max(intensity, h.lightIntensity ?? 65536)
+    }
+    c.lightRadius = radius
+    c.lightIntensity = intensity
+}
+
+// CE proto_instance.cc _obj_use_flare: "You light the flare." (proto.msg 587 — CE prints
+// 588 in both branches, the text says 587 is meant), the flare becomes the lit flare
+// with an 8-hex full light, and burns out (is destroyed) after 72000 ticks; "The flare
+// is already lit." (588) while it burns.
+export function useFlare(obj: Obj, source: Critter): boolean {
+    if (obj.pid !== PROTO_ID_FLARE) return false
+    if (Scripting.timeEventList.some((e) => e.obj === obj && e.userdata === 'flare')) {
+        if (source.isPlayer) uiLog(getMessage('proto', 588) ?? 'The flare is already lit.')
+        return true
+    }
+    if (source.isPlayer) uiLog(getMessage('proto', 587) ?? 'You light the flare.')
+    switchItemProto(obj, PROTO_ID_LIT_FLARE)
+    obj.lightRadius = 8
+    obj.lightIntensity = 65536
+    const burnOut = () => {
+        const owner = itemOwner(obj)
+        if (owner) {
+            const a = owner as any
+            if (a.leftHand === obj) a.leftHand = owner.isPlayer ? undefined : (owner.constructor as any).makeFist?.()
+            if (a.rightHand === obj) a.rightHand = owner.isPlayer ? undefined : (owner.constructor as any).makeFist?.()
+            const i = owner.inventory.indexOf(obj)
+            if (i !== -1) owner.inventory.splice(i, 1)
+            updateHandFlareLight(owner)
+            if (owner.isPlayer) uiDrawWeapon()
+        } else {
+            globalState.gMap?.destroyObject(obj)
+            if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
+        }
+    }
+    // queue.cc EVENT_TYPE_FLARE: its clear proc is flareEventProcess — leaving the map burns it out
+    Scripting.timeEventList.push({ obj, ticks: 72000, userdata: 'flare', fn: burnOut, leaveMap: () => { burnOut(); return true } })
+    const owner = itemOwner(obj)
+    if (owner) updateHandFlareLight(owner)
+    else if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
+    return true
+}
+
+// CE queue.cc explosionEventProcess / explosionFailureEventProcess → _queue_do_explosion_:
+// at the owner's tile when carried.
+function explosiveDetonate(obj: Obj, min: number, max: number, failure: boolean, animate = true): void {
+    const gMap = globalState.gMap
+    if (!gMap) return
+    if (failure) uiLog(getMessage('misc', 4000) ?? 'Due to your inept handling, the explosive detonates prematurely.')
+    const player = globalState.player
+    if (player?.hasPerk('Demolition Expert')) { min += 10; max += 10 }
+    const owner = gMap.getObjects().find((o) => o.type === 'critter' && (o as Critter).inventory.includes(obj)) as Critter | undefined
+        ?? (player && player.inventory.includes(obj) ? player : undefined)
+    if (owner) {
+        const idx = owner.inventory.indexOf(obj)
+        if (idx !== -1) owner.inventory.splice(idx, 1)
+        obj.position = { ...owner.position }
+        gMap.addObject(obj)
+    }
+    obj.explode(player ?? null, min, max, 3, animate)
 }
 
 // Set the object (door/container) open/closed; returns true if possible, false if not (e.g. locked)
@@ -270,10 +420,16 @@ export function zsort(objects: Obj[]): void {
     objects.sort(objectZCompare)
 }
 
-// Spatial trigger lookup — shared by Obj.explode and Critter.move.
+// Spatial trigger lookup — shared by Obj.explode and Critter.move. CE scripts.cc
+// scriptsExecSpatialProc: the spatial's own tile always; otherwise within its radius,
+// and a radius of 0 means that tile only.
 export function hitSpatialTrigger(position: Point): any {
-    // TODO: return type (SpatialTrigger)
-    return globalState.gMap.getSpatials().filter((spatial) => hexDistance(position, spatial.position) <= spatial.range)
+    return globalState.gMap.getSpatials().filter((spatial) => {
+        const distance = hexDistance(position, spatial.position)
+        if (distance === 0) return true
+        const radius = spatial.range ?? 0
+        return radius !== 0 && distance <= radius
+    })
 }
 
 export interface SerializedObj {
@@ -355,6 +511,9 @@ export class Obj {
     // change during walk) and otherwise carries forward. Reset to {0,0} on walk end; updated at
     // every art switch via the exact zero-jump formula (see Critter.staticAnimation / clearAnim).
     artOffset: Point = { x: 0, y: 0 }
+    // CE obj->x/y sub-tile offset while not walking (Config.engine.animOffsetModel 'ce');
+    // see critterAnimation.ts ceOffsetAdd / ceStandOffset.
+    ceOff: Point = { x: 0, y: 0 }
 
     // Outline color, if outlined
     outline: string | null = null
@@ -443,6 +602,15 @@ export class Obj {
         obj.miscCharges = mobj.miscCharges
 
         obj.pro = mobj.pro || loadPRO(obj.pid, obj.pidID)
+        if (obj.subtype === 'ammo') {
+            if (deserializing && mobj.ammoQuantity === undefined) {
+                // saves from before the CE ammo model kept the rounds in `amount`
+                ammoFromRounds(obj, obj.amount ?? 1)
+            } else {
+                // CE proto.cc objectDataRead: the map stores the top box's rounds
+                obj.ammoQuantity = mobj.ammoQuantity ?? mobj.extra?.ammoCount
+            }
+        }
         if (obj.subtype === 'weapon') {
             if (deserializing && mobj.ammoQuantity === undefined && mobj.pro?.extra) {
                 // Saves from before per-object ammo kept the loaded rounds/type in a
@@ -633,6 +801,11 @@ export class Obj {
         if (this.type === 'misc') {
             return false
         }
+        // CE object.cc _obj_blocking_at: only critters, scenery and walls block; an item
+        // on the floor (dropped, thrown, ...) never does.
+        if (this.type === 'item') {
+            return false
+        }
         if (!this.pro) {
             return true
         } // XXX: ?
@@ -650,11 +823,6 @@ export class Obj {
     // closed-but-unlocked doors — the engine opens them mid-walk
     // (animation.cc:1805). Locked/jammed doors remain blockers. Shooting LoF
     // still uses `blocks()` so bullets do not pass through closed doors.
-    pathBlocks(): boolean {
-        if (this.subtype === 'door' && !this.open && !this.locked && !this.jammed) return false
-        return this.blocks()
-    }
-
     inAnim(): boolean {
         return !!this.animCallback // TODO: find a better way
     }
@@ -679,7 +847,10 @@ export class Obj {
         } else {
             this.frame = 0
         }
-        this.lastFrameTime = 0
+        // CE animation.cc: the first frame is shown for a full 1000 / fps like every other
+        // (0 here advanced it on the next tick — an animate_forever loop, e.g. the New Reno
+        // casino lights, flashed frame 0 for one tick and blinked far too fast).
+        this.lastFrameTime = window.performance.now()
         this.anim = reversed ? 'reverse' : 'single'
         this.animCallback =
             callback ||
@@ -689,8 +860,21 @@ export class Obj {
     }
 
     // Are two objects approximately (not necessarily strictly) equal?
-    approxEq(obj: Obj) {
-        return this.pid === obj.pid
+    // CE item.cc _item_identical — when two items share one inventory stack: same PID
+    // and script (a scripted item is its own), neither equipped / worn nor queued (a lit
+    // flare, an armed explosive, a running Stealth Boy), not containers, no inventories,
+    // and the same item data (a device's charges; a weapon's load in WeaponObj; an ammo
+    // box's or money's own quantity doesn't count).
+    approxEq(obj: Obj): boolean {
+        if (this.pid !== obj.pid) return false
+        if (this._script || obj._script) return false
+        const HELD = 0x1000000 | 0x2000000 | 0x4000000 // OBJECT_IN_LEFT/RIGHT_HAND, OBJECT_WORN (OBJECT_EQUIPPED)
+        if ((((this.flags ?? 0) | (obj.flags ?? 0)) & HELD) !== 0) return false
+        if (Scripting.timeEventList.some((e) => e.obj === this || e.obj === obj)) return false // OBJECT_QUEUED
+        if (this.subtype === 'container') return false
+        if ((this.inventory?.length ?? 0) !== 0 || (obj.inventory?.length ?? 0) !== 0) return false
+        if (((this as any).miscCharges ?? 0) !== ((obj as any).miscCharges ?? 0)) return false
+        return true
     }
 
     clone(): Obj {
@@ -707,45 +891,88 @@ export class Obj {
         return cloneItem(this)
     }
 
+    // CE item.cc itemAdd — joins a stack of the same item; an ammo stack combines its top
+    // boxes (ammoMergeInto). Ammo `amount` counts boxes, as CE's quantity does.
     addInventoryItem(item: Obj, count = 1): void {
-        // CE ref: item.cc:322 itemAdd() — ammo boxes have a per-box capacity
-        // (proto.extra.quantity). Filling an existing stack beyond capacity creates
-        // an additional overflow stack rather than unboundedly growing one entry.
-        const isAmmo = item.subtype === 'ammo'
-        const capacity: number = isAmmo ? (item.pro?.extra?.quantity ?? 0) : 0
-
         for (let i = 0; i < this.inventory.length; i++) {
-            if (this.inventory[i].approxEq(item)) {
-                if (isAmmo && capacity > 0) {
-                    const combined = this.inventory[i].amount + count
-                    if (combined > capacity) {
-                        this.inventory[i].amount = capacity
-                        // overflow — recurse with the remainder to fill/create next stack
-                        this.addInventoryItem(item, combined - capacity)
-                    } else {
-                        this.inventory[i].amount = combined
-                    }
-                } else {
-                    this.inventory[i].amount += count
-                }
-                return
-            }
+            const stack = this.inventory[i]
+            if (!stack.approxEq(item)) continue
+            if (item.subtype === 'ammo') ammoMergeInto(stack, count, ammoGetQuantity(item))
+            else stack.amount += count
+            return
         }
-
         // no existing item, add new inventory object
-        const clone = item.clone()
-        if (isAmmo && capacity > 0 && count > capacity) {
-            this.inventory.push(clone.setAmount(capacity))
-            this.addInventoryItem(item, count - capacity)
-        } else {
-            this.inventory.push(clone.setAmount(count))
-        }
+        this.inventory.push(item.clone().setAmount(count))
     }
 
-    // CE ref: item.cc objectGetInventoryWeight — sums pro.extra.weight per item.
+    // CE item.cc itemGetWeight — the proto weight (0 when hidden); power armors weigh
+    // half, a container adds its contents, a loaded weapon its rounds (by the box).
+    getWeight(): number {
+        const ex = this.pro?.extra ?? {}
+        let weight = ex.weight ?? 0
+        if ((((this as any).flags ?? 0) & 0x01) !== 0) weight = 0 // OBJECT_HIDDEN
+        const POWER_ARMORS = [3, 232, 348, 349] // PROTO_ID_POWER_ARMOR, HARDENED, ADVANCED, ADVANCED_MK_II
+        if (this.subtype === 'armor' && POWER_ARMORS.includes(this.pid)) weight = Math.trunc(weight / 2)
+        else if (this.subtype === 'container') weight += this.getInventoryWeight()
+        else if (this.subtype === 'weapon') {
+            const rounds = (this as any).ammoQuantity ?? 0
+            const ammoPid = (this as any).ammoTypePid ?? -1
+            if (rounds > 0 && ammoPid !== -1) {
+                const ammo = loadPRO(ammoPid, ammoPid & 0xffff)
+                const perBox = Math.max(1, ammo?.extra?.quantity ?? 1)
+                weight += (ammo?.extra?.weight ?? 0) * (Math.trunc((rounds - 1) / perBox) + 1)
+            }
+        }
+        return weight
+    }
+
+    // The weight of `count` of this item (ammo: `count` boxes).
+    stackWeight(count: number = this.amount ?? 1): number {
+        return this.getWeight() * count
+    }
+
+    // CE item.cc itemGetCost — proto cost; a container adds its contents, a loaded weapon
+    // its rounds' share of a box, an ammo box only the share of its rounds left.
+    getCost(): number {
+        const ex = this.pro?.extra ?? {}
+        let cost = ex.cost ?? 0
+        if (this.subtype === 'container') {
+            for (const it of this.inventory) cost += it.stackCost()
+        } else if (this.subtype === 'weapon') {
+            const rounds = ammoGetQuantity(this)
+            const ammoPid = (this as any).ammoTypePid ?? -1
+            if (rounds > 0 && ammoPid !== -1) {
+                const ammo = loadPRO(ammoPid, ammoPid & 0xffff)
+                const perBox = Math.max(1, ammo?.extra?.quantity ?? 1)
+                cost += Math.trunc(rounds * (ammo?.extra?.cost ?? 0) / perBox)
+            }
+        } else if (this.subtype === 'ammo') {
+            cost = Math.trunc(cost * ammoGetQuantity(this) / ammoGetCapacity(this))
+        }
+        return cost
+    }
+
+    // CE item.cc objectGetCost for one inventory entry: an ammo stack is its full boxes
+    // plus the partial top box.
+    stackCost(count: number = this.amount ?? 1): number {
+        if (this.subtype === 'ammo') return (this.pro?.extra?.cost ?? 0) * Math.max(0, count - 1) + this.getCost()
+        return this.getCost() * count
+    }
+
+    // CE item.cc objectGetInventoryWeight — every carried item; a critter also counts
+    // what it holds and wears outside the inventory list.
     getInventoryWeight(): number {
         let w = 0
-        for (const item of this.inventory) w += (item.pro?.extra?.weight ?? 0) * (item.amount ?? 1)
+        for (const item of this.inventory) w += item.stackWeight()
+        if (this.type === 'critter') {
+            const self = this as any
+            for (const slot of ['leftHand', 'rightHand', 'armor']) {
+                const item = self[slot]
+                if (item && item.pid !== undefined && !this.inventory.includes(item) && typeof item.stackWeight === 'function') {
+                    w += item.stackWeight()
+                }
+            }
+        }
         return w
     }
 
@@ -762,7 +989,7 @@ export class Obj {
         }
         if (this.type !== 'critter') return true
         const max = (this as unknown as Critter).getStat?.('Carry') ?? Infinity
-        const addWeight = (item.pro?.extra?.weight ?? 0) * count
+        const addWeight = item.stackWeight(count)
         return this.getInventoryWeight() + addWeight <= max
     }
 
@@ -830,7 +1057,8 @@ export class Obj {
     }
 
     get isExplosive(): boolean {
-        return this.pid === 85 /* Plastic Explosives */ || this.pid === 51 /* Dynamite */
+        // CE explosiveIsExplosive + explosiveIsActiveExplosive (armed 206 / 209)
+        return this.pid === 85 /* Plastic Explosives */ || this.pid === 51 /* Dynamite */ || this.pid === 206 || this.pid === 209
     }
 
     get isSelectable(): boolean {
@@ -917,6 +1145,18 @@ export class Obj {
             return true
         }
 
+        // CE _obj_use_item → _obj_use_book
+        if (BOOKS[this.pid]) {
+            useBook(this)
+            return true
+        }
+
+        // CE _obj_use_item → _obj_use_flare
+        if (this.pid === PROTO_ID_FLARE) {
+            useFlare(this, source ?? globalState.player as Critter)
+            return true
+        }
+
         // Play the interact animation on the source critter (non-blocking: the
         // interaction effect proceeds concurrently). Skipped for ladders because
         // the climb animation already handles the timing in the isLadder branch.
@@ -981,15 +1221,22 @@ export class Obj {
         return true
     }
 
-    explode(source: Obj | null, minDmg: number, maxDmg: number, radius: number = 8): void {
-        const damage = getRandomInt(minDmg, maxDmg)
+    // CE actions.cc actionExplode — the explosion sprite on the tile and the six around
+    // it, the critter on the tile plus up to 6 more in the blast rings (radius 3,
+    // _compute_explosion_on_extras), each taking d(min, max) − explosion DT/DR with
+    // knockback; then damage_p_proc for the scripts in range (_scr_explode_scenery).
+    // `_radius` is unused: CE's scripted explosions always use the rocket radius.
+    // `animate` false (CE actionExplode's animate): the blast lands at once, no sprites.
+    explode(source: Obj | null, minDmg: number, maxDmg: number, _radius: number = 3, animate = true): void {
         const killer = (source ?? this) as Critter // explosive itself as killer when source is null
+        const center = { x: this.position.x, y: this.position.y }
+        const elevation = this.elevation ?? globalState.gMap?.currentElevation ?? 0
+        const blast = () => this.explosionBlast(killer, center, elevation, minDmg, maxDmg)
+        if (!animate) return blast()
         const explosion = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
-        explosion.position = { x: this.position.x, y: this.position.y }
+        explosion.position = { ...center }
 
-        // CE ref: actions.cc:1605 actionExplode — 6 adjacent explosion sprites, one per rotation
-        const adjPositions = hexNeighbors(this.position)
-        const adjExplosions = adjPositions.map(pos => {
+        const adjExplosions = hexNeighbors(center).map(pos => {
             const adj = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
             adj.position = { x: pos.x, y: pos.y }
             return adj
@@ -1000,130 +1247,51 @@ export class Obj {
             globalState.gMap.addObject(explosion)
             for (const adj of adjExplosions) {
                 globalState.gMap!.addObject(adj)
-                adj.singleAnimation(false, () => { globalState.gMap?.destroyObject(adj) })
+                adj.singleAnimation(false, () => { adj.anim = null; globalState.gMap?.destroyObject(adj) })
             }
-            globalState.audioEngine?.playSfxByName('dynamite')
-            dbg('object', `[Object] explosion: dmg=${damage} radius=${radius}`)
+            globalState.audioEngine?.playSfxByName('whn1xxx1') // CE actionExplode
 
+            let fired = false
             explosion.singleAnimation(false, () => {
+                // updateAnim keeps calling a finished animation's callback until the anim
+                // is cleared; the blast happens once.
+                explosion.anim = null
+                if (fired) return
+                fired = true
                 globalState.gMap?.destroyObject(explosion)
-
-                const hexes = hexesInRadius(this.position, radius)
-                for (const hex of hexes) {
-                    // Snapshot — destroyObject() splices the live array mid-loop
-                    const objs = [...(globalState.gMap?.objectsAtPosition(hex) ?? [])]
-                    for (const target of objs) {
-                        if (target === explosion || target === this) continue
-
-                        if (target.type === 'critter' && !(target as Critter).dead) {
-                            dbg('object', `[Object] explosion hits ${(target as Critter).name} for ${damage}`)
-                            critterDamage(target as Critter, damage, killer, true, true, 'Explosive', undefined, { attackerAnim: ANIM_STAND, weapon: null })
-                        } else if (target.isDoor || target.isContainer) {
-                            // Vanilla: door/container destroy_p_proc swaps to destroyed-open FRM.
-                            // No destroy scripts yet — open the object and mark NoBlock
-                            // as a best-effort interim. Replace with destroyObject() +
-                            // script call once destroy scripts are implemented.
-                            target.open = true
-                            target.locked = false
-                            target.singleAnimation(false, () => {
-                                target.anim = null
-                                if (target.pro?.flags !== undefined) {
-                                    target.pro.flags |= 0x00000010 // NoBlock
-                                }
-                                Events.emit('objOpen', { obj: target })
-                                globalState.gMap?.updateMap()
-                            })
-                        } else if (target.type === 'item') {
-                            globalState.gMap?.destroyObject(target)
-                        }
-                        // walls: leave intact — vanilla walls are indestructible
-                    }
-                }
-
-                // Fire spatial_p_proc on any spatials whose radius covers the blast center.
-                // Vanilla sets scriptsRequestedExplosionTile to the explosion tile and
-                // then triggers spatials within their range — that is what hitSpatialTrigger does.
-                if (Config.engine.doSpatials !== false && globalState.gMap) {
-                    for (const spatialObj of hitSpatialTrigger(this.position)) {
-                        if (!spatialObj._script?.spatial_p_proc) continue
-                        try {
-                            Scripting.spatial(spatialObj, this)
-                        } catch (e) {
-                            dbgWarn('object', `[Object] spatial_p_proc error for ${spatialObj.script}:`, e)
-                        }
-                    }
-
-                    // Also fire on map objects carrying a spatial-type script
-                    // (e.g. temple wall scenery with ACTemDor). Vanilla's
-                    // scriptsExecSpatialProcs iterates all objects, not just the
-                    // invisible spatial list. Default radius 3 matches vanilla's
-                    // script->sp.radius default set in _obj_new_sid.
-                    const SPATIAL_RADIUS_DEFAULT = 3
-                    const blastPos = this.position
-                    const allObjs = globalState.gMap.getObjects()
-                    const scripted = allObjs.filter(o => o._script)
-                    const spatialCapable = scripted.filter(o => o._script?.spatial_p_proc)
-                    dbg(
-                        'object',
-                        `[Object] explosion @ (${blastPos.x},${blastPos.y}) — ` +
-                        `objects=${allObjs.length} scripted=${scripted.length} ` +
-                        `spatial-capable=${spatialCapable.length}`
-                    )
-                    for (const obj of spatialCapable) {
-                        const dist = hexDistance(obj.position, blastPos)
-                        if (dist > SPATIAL_RADIUS_DEFAULT) {
-                            dbg(
-                                'object',
-                                `[Object]   spatial candidate ${obj.script} pid=${obj.pid} ` +
-                                `@ (${obj.position.x},${obj.position.y}) dist=${dist} — out of range`
-                            )
-                            continue
-                        }
-                        dbg(
-                            'object',
-                            `[Object] explosion fires spatial_p_proc on ${obj.script} ` +
-                            `pid=${obj.pid} @ (${obj.position.x},${obj.position.y}) dist=${dist}`
-                        )
-                        try {
-                            Scripting.spatial(obj, this)
-                        } catch (e) {
-                            dbgWarn('object', `[Object] spatial_p_proc error for ${obj.script}:`, e)
-                        }
-                    }
-                    // Diagnostic: nearby scripted objects without spatial_p_proc
-                    for (const obj of scripted) {
-                        if (obj._script?.spatial_p_proc) continue
-                        const dist = hexDistance(obj.position, blastPos)
-                        if (dist > SPATIAL_RADIUS_DEFAULT) continue
-                        const procs = obj._script ? Object.keys(obj._script).filter(k => k.endsWith('_p_proc')) : []
-                        dbg(
-                            'object',
-                            `[Object]   nearby scripted (no spatial_p_proc) ${obj.script} ` +
-                            `pid=${obj.pid} @ (${obj.position.x},${obj.position.y}) dist=${dist} ` +
-                            `procs=[${procs.join(',')}]`
-                        )
-                    }
-                    // Diagnostic: dump every object within blast range so we can
-                    // identify the temple walls by art / PID / type. This lets us
-                    // register a stub keyed on whatever distinguishes them.
-                    dbg('object', `[Object]   --- all objects within ${SPATIAL_RADIUS_DEFAULT} tiles of blast ---`)
-                    for (const obj of allObjs) {
-                        const dist = hexDistance(obj.position, blastPos)
-                        if (dist > SPATIAL_RADIUS_DEFAULT) continue
-                        const proExtra = (obj.pro?.extra as any) ?? {}
-                        const protoSid = proExtra.scriptPID ?? proExtra.scriptID ?? 'n/a'
-                        dbg(
-                            'object',
-                            `[Object]     type=${obj.type} pid=${obj.pid} art=${obj.art} ` +
-                            `pos=(${obj.position.x},${obj.position.y}) dist=${dist} ` +
-                            `protoSid=${protoSid} hasScript=${!!obj._script}`
-                        )
-                    }
-                }
-
-                globalState.gMap?.destroyObject(this)
+                blast()
             })
         })
+    }
+
+    private explosionBlast(killer: Critter, center: Point, elevation: number, minDmg: number, maxDmg: number): void {
+        const gMap = globalState.gMap
+        if (!gMap) return
+
+        const atTile = gMap.blockingObjectAt(toTileNum(center), elevation, 0, null)
+        const main = atTile && atTile.type === 'critter' && !(atTile as Critter).dead ? atTile as Critter : null
+        const victims = [...(main ? [main] : []), ...explosionRingCritters(center, elevation, main, false)]
+        dbg('object', `[Object] explosion: ${minDmg}-${maxDmg}, ${victims.length} critter(s)`)
+        for (const v of victims) {
+            if (v.dead) continue
+            const { damage, knockback } = computeExplosionDamage(minDmg, maxDmg, v, getRandomInt)
+            critterDamage(v, damage, killer, true, true, 'Explosive', undefined, {
+                attackerAnim: ANIM_STAND, weapon: null, knockback,
+                knockbackRotation: hexDirectionTo(center, v.position),
+            })
+            if (v.isPlayer) drawHP(v.getStat('HP'))
+        }
+
+        scriptsExplodeScenery(this, center, elevation, (obj, target) => {
+            if (!obj._script) return
+            try {
+                Scripting.damage(obj, target, null as any, 20) // fixed param 20
+            } catch (e) {
+                dbgWarn('object', `[Object] damage_p_proc error for ${obj.script}:`, e)
+            }
+        })
+
+        globalState.gMap?.destroyObject(this)
     }
 
     pickup(source: Critter) {
@@ -1136,7 +1304,7 @@ export class Obj {
         // CE ref: item.cc itemAttemptAdd — refuse pickup if the player is over
         // their carry weight. Floats the standard "you can't carry any more" message.
         if (!source.canCarry(this, this.amount ?? 1)) {
-            globalState.floatMessages.push({
+            addFloatMessage({
                 msg: "You can't carry any more.",
                 obj: source, color: 'white', startTime: window.performance.now(),
             })
@@ -1159,28 +1327,26 @@ export class Obj {
         source.walkInFrontOf(this.position, playPickup)
     }
 
-    drop(source: Obj) {
-        // drop inventory object obj from source
-        let removed = false
-        for (let i = 0; i < source.inventory.length; i++) {
-            if (source.inventory[i] === this) {
-                removed = true
-                source.inventory.splice(i, 1) // remove from source
-                break
-            }
-        }
-        if (!removed) {
-            throw "dropObject: couldn't find object"
-        }
+    // CE proto_instance.cc _obj_drop(owner, item): the owner's is_dropping_p_proc
+    // (source_obj = the item), then the item's drop_p_proc (source_obj = the owner);
+    // either can override and keep the item. Otherwise it leaves the owner (inventory or
+    // hand / armor slot) and lands on the owner's tile. True when it was dropped.
+    drop(source: Obj): boolean {
+        if (source._script && Scripting.isDropping(source, this)) return false
+        if (this._script && Scripting.drop(this, source)) return false
 
-        if (this._script) {
-            Scripting.drop(this, source)
-        }
+        const owner = source as any
+        const i = source.inventory.indexOf(this)
+        if (i !== -1) source.inventory.splice(i, 1)
+        else for (const slot of ['leftHand', 'rightHand', 'armor']) if (owner[slot] === this) owner[slot] = null
+        this.flags = (this.flags ?? 0) & ~0x7000000 // no longer in a hand / worn
 
         globalState.audioEngine.playSfxByName('iputdown')
         globalState.gMap.addObject(this) // add to objects
+        if (this.pid === PROTO_ID_LIT_FLARE && Config.engine.doFloorLighting) Lightmap.rebuildLight() // its light now on the floor
         const idx = globalState.gMap.getObjects().length - 1 // our new index
         this.move({ x: source.position.x, y: source.position.y }, idx)
+        return true
     }
 
     // TODO: override this for subclasses

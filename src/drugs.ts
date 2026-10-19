@@ -204,7 +204,9 @@ function drugEffectAllowed(critter: Critter, pid: number): boolean {
 
 function scheduleDrugEvent(critter: Critter, ticks: number, pid: number, stats: number[], mods: number[]): void {
     const userdata = `${DRUG_TAG}${pid}:${stats.join(',')}:${mods.join(',')}`
-    Scripting.timeEventList.push({ obj: critter, ticks, userdata, fn: () => drugEffectEventProcess(critter, stats, mods) })
+    // CE item.cc _item_d_clear: leaving the map wears the drug off now, except on the party
+    Scripting.timeEventList.push({ obj: critter, ticks, userdata, fn: () => drugEffectEventProcess(critter, stats, mods),
+        leaveMap: () => { if (isPartyMember(critter)) return false; drugEffectEventProcess(critter, stats, mods); return true } })
 }
 
 // CE item.cc:2598 _insert_drug_effect — duration in game minutes.
@@ -223,7 +225,9 @@ function drugEffectEventProcess(critter: Critter, stats: number[], mods: number[
 
 function scheduleWithdrawal(critter: Critter, ticks: number, isStart: boolean, pid: number, perk: number): void {
     const userdata = `${WITHDRAWAL_TAG}${isStart ? 1 : 0}:${pid}:${perk}`
-    Scripting.timeEventList.push({ obj: critter, ticks, userdata, fn: () => withdrawalEventProcess(critter, isStart, pid, perk) })
+    // CE item.cc _item_wd_clear: off the party a running withdrawal ends when leaving the map
+    Scripting.timeEventList.push({ obj: critter, ticks, userdata, fn: () => withdrawalEventProcess(critter, isStart, pid, perk),
+        leaveMap: () => { if (isPartyMember(critter)) return false; if (!isStart) performWithdrawalEnd(critter, perk); return true } })
 }
 
 // CE item.cc:2917 _insert_withdrawal — duration in game minutes.
@@ -237,6 +241,11 @@ function applyWithdrawalPerk(critter: Critter, perk: number, sign: 1 | -1): void
     if (!def) return
     if (def.stat !== -1) adjustStat(critter, def.stat, sign * def.mod)
     for (let s = 0; s < 7; s++) adjustStat(critter, s, sign * def.special[s])
+}
+
+// CE party_member.cc objectIsPartyMember (the dude included)
+function isPartyMember(critter: Critter): boolean {
+    return critter === globalState.player || (globalState.gParty?.getPartyMembersAndPlayer() ?? []).includes(critter)
 }
 
 // CE item.cc:3039 performWithdrawalStart
@@ -267,11 +276,14 @@ function performWithdrawalEnd(critter: Critter, perk: number): void {
 function withdrawalEventProcess(critter: Critter, isStart: boolean, pid: number, perk: number): void {
     if (isStart) {
         performWithdrawalStart(critter, perk, pid)
+        if (isDude(critter)) Events.emit('queueBail')
         return
     }
     if (perk === PERK_JET_ADDICTION) return // Jet withdrawal only ends with the antidote
     performWithdrawalEnd(critter, perk)
     if (isDude(critter)) dudeClearAddiction(pid)
+    // CE returns 1 for the dude: queueProcessEvents stops (a rest ends)
+    if (isDude(critter)) Events.emit('queueBail')
 }
 
 // CE item.cc:2953 _item_wd_clear_all — taking the drug again ends an active

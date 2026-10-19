@@ -29,6 +29,37 @@ function binop(f: (x: any, y: any) => any) {
     }
 }
 
+// CE VALUE_TYPE_FLOAT (pushed by 0xA001): floats travel the data stack boxed in a
+// Number object so the arithmetic can tell them from integers (CE interpreter.cc
+// opAdd..opDivide: int op int stays an int — division truncates —, anything with a
+// float gives a float). pop() unboxes them for every other consumer.
+export function isVMFloat(x: any): x is Number {
+    return x instanceof Number
+}
+function vmFloat(v: number): Number {
+    return new Number(Math.fround(v))
+}
+function unbox(x: any): any {
+    return x instanceof Number ? x.valueOf() : x
+}
+// CE opAdd: a float joins a string as "%.5f"
+function asText(x: any): any {
+    return x instanceof Number ? x.valueOf().toFixed(5) : x
+}
+function arith(f: (x: number, y: number) => number, intResult: (r: number) => number = (r) => r) {
+    return function (this: ScriptVM) {
+        const rhs = this.popRaw()
+        const lhs = this.popRaw()
+        if (typeof lhs === 'string' || typeof rhs === 'string') {
+            this.push(f(asText(lhs), asText(rhs)))
+        } else if (isVMFloat(lhs) || isVMFloat(rhs)) {
+            this.push(vmFloat(f(unbox(lhs), unbox(rhs))))
+        } else {
+            this.push(intResult(f(lhs, rhs)))
+        }
+    }
+}
+
 export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     0x8002: function () {}, // start critical (nop)
     0xc001: function () {
@@ -72,7 +103,7 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     }, // op_set_global
     0x8013: function () {
         var num = this.pop()
-        this.dataStack[this.svarBase + num] = this.pop()
+        this.dataStack[this.svarBase + num] = this.popRaw()
     }, // op_store_global
     0x8012: function () {
         var num = this.pop()
@@ -95,17 +126,32 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     }, // op_if
     0x8031: function () {
         var varNum = this.pop()
-        this.dataStack[this.dvarBase + varNum] = this.pop()
+        this.dataStack[this.dvarBase + varNum] = this.popRaw()
     }, // op_store
     0x8032: function () {
         this.push(this.dataStack[this.dvarBase + this.pop()])
     }, // op_fetch
     0x8046: function () {
-        this.push(-this.pop())
+        const v = this.popRaw()
+        this.push(isVMFloat(v) ? vmFloat(-v.valueOf()) : -v)
     }, // op_negate
     0x8044: function () {
-        this.push(Math.floor(this.pop()))
-    }, // op_floor (TODO: should we truncate? Test negatives)
+        // CE opFloor: a float becomes (int)value — truncation; an int stays
+        this.push(Math.trunc(this.pop()))
+    }, // op_floor
+    0xa001: function () {
+        // CE: push a 32-bit float literal (VALUE_TYPE_FLOAT)
+        const bits = this.script.read32()
+        const view = new DataView(new ArrayBuffer(4))
+        view.setUint32(0, bits)
+        this.push(vmFloat(view.getFloat32(0)))
+    }, // op_push_f
+    0x806b: function () {
+        // CE interpreter_lib.cc opDisplay: shows the image file named by the string in
+        // the program's window. gcfestus.int passes a message text, so no file is found
+        // and nothing is drawn — only the argument is consumed.
+        this.pop()
+    }, // display
     0x801b: function () {
         this.push(this.dataStack[this.dataStack.length - 1])
     }, // op_dup
@@ -209,21 +255,14 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     0x8041: binop(function (x, y) {
         return x | y
     }),
-    0x8039: binop(function (x, y) {
-        return x + y
-    }),
-    0x803a: binop(function (x, y) {
-        return x - y
-    }),
-    0x803b: binop(function (x, y) {
-        return x * y
-    }),
+    0x8039: arith((x, y) => x + y),
+    0x803a: arith((x, y) => x - y),
+    0x803b: arith((x, y) => x * y),
     0x803d: binop(function (x, y) {
         return x % y
     }),
-    0x803c: binop(function (x, y) {
-        return (x / y) | 0
-    }), // TODO: truncate or not?
+    // CE opDivide: int / int truncates; with a float it is a float division
+    0x803c: arith((x, y) => x / y, (r) => r | 0),
 }
 
 export class ScriptVM {
@@ -245,9 +284,14 @@ export class ScriptVM {
         this.dataStack.push(value)
     }
 
-    pop(): any {
+    // a value with its float box (arithmetic, stores)
+    popRaw(): any {
         if (this.dataStack.length === 0) throw 'VM data stack underflow'
         return this.dataStack.pop()
+    }
+
+    pop(): any {
+        return unbox(this.popRaw())
     }
 
     popAddr(): any {

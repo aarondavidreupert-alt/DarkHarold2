@@ -27,7 +27,7 @@ export {
     initAutomapTracking,
 } from './automap/tracking.js'
 
-export { flushAutomapSave } from './automap/storage.js'
+export { flushAutomapSave, resetAutomap, serializeAutomap, restoreAutomap, SavedAutomap } from './automap/storage.js'
 
 export {
     RenderOptions,

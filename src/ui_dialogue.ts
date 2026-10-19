@@ -242,10 +242,22 @@ export function getVisibleDialoguePanel(): HTMLElement | null {
     return null
 }
 
-export function uiAddDialogueOption(msg: string, optionID: number) {
+// CE game_dialog.cc gameDialogRenderOptions / _gdialog_highlight colours: options green
+// (_colorTable[992]), the one under the mouse yellow (32747). With the Empathy perk the
+// option's reaction shows: good blue (31) / hovered magenta (31775), bad red (31744) /
+// hovered light red (32074), neutral as usual.
+const OPTION_COLOR = { normal: '#00F800', hover: '#F8F858', good: '#0000F8', goodHover: '#F800F8', bad: '#F80000', badHover: '#F85050' }
+
+export function uiAddDialogueOption(msg: string, optionID: number, reaction = 50) {
     const item = document.createElement('div')
     item.textContent = `- ${msg}`
     item.style.cursor = 'pointer'
+    const empathy = !!globalState.player?.hasPerk?.('Empathy')
+    const normal = empathy && reaction === 49 ? OPTION_COLOR.good : empathy && reaction === 51 ? OPTION_COLOR.bad : OPTION_COLOR.normal
+    const hover = empathy && reaction === 49 ? OPTION_COLOR.goodHover : empathy && reaction === 51 ? OPTION_COLOR.badHover : OPTION_COLOR.hover
+    item.style.color = normal
+    item.onmouseenter = () => { item.style.color = hover }
+    item.onmouseleave = () => { item.style.color = normal }
     item.onclick = () => Scripting.dialogueReply(optionID)
     $id('dialogueBoxTextArea').appendChild(item)
 }

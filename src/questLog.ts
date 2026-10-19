@@ -3,10 +3,11 @@
 // in the PipBoy ARCHIVES tab.
 
 import { Scripting } from './scripting.js'
-import { questDefs, questGvarSet, type QuestDef } from './questData.js'
+import { getQuestDefs, getQuestGvarSet } from './questData.js'
 
 export interface ActiveQuest {
     location: string
+    locationId: number
     description: string
     gvarIndex: number
     gvarValue: number
@@ -19,11 +20,12 @@ export function getActiveQuests(): ActiveQuest[] {
     const gvars = Scripting.getGlobalVars()
     const result: ActiveQuest[] = []
 
-    for (const q of questDefs) {
+    for (const q of getQuestDefs()) {
         const val = Number(gvars[q.gvarIndex] ?? 0)
         if (val >= q.displayThreshold) {
             result.push({
                 location: q.location,
+                locationId: q.locationId,
                 description: q.description,
                 gvarIndex: q.gvarIndex,
                 gvarValue: val,
@@ -44,7 +46,7 @@ export function getUnknownActiveGvars(): { index: number; value: number }[] {
     for (const k in gvars) {
         const idx = Number(k)
         const val = Number(gvars[k])
-        if (val !== 0 && !questGvarSet.has(idx)) {
+        if (val !== 0 && !getQuestGvarSet().has(idx)) {
             result.push({ index: idx, value: val })
         }
     }

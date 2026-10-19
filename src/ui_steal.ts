@@ -36,6 +36,7 @@ import { performSteal } from './skillUse.js'
 import { Scripting } from './scripting.js'
 import { initLoot } from './ui_loot.js'
 import { dbg } from './logger.js'
+import { getMessage } from './util.js'
 
 /**
  * CE ref: inventory.cc:4505 inventoryOpenStealing(). Every drag from the
@@ -43,8 +44,7 @@ import { dbg } from './logger.js'
  * instead of moving freely; getting caught ends the session immediately and
  * fires the target's pickup_p_proc (inventory.cc:4492-4499), matching CE —
  * the NPC's own script decides how it reacts. Dragging from the thief's
- * side to the target's side ("planting") is CE-supported but not wired here:
- * no DH2 script currently calls for it.
+ * side to the target's side plants the item, with the same roll (isPlanting).
  */
 export function uiSteal(thief: Critter, target: Critter): void {
     globalState.uiMode = UIMode.loot // reuse the loot UI mode/DOM
@@ -56,6 +56,7 @@ export function uiSteal(thief: Critter, target: Critter): void {
     let stealingXp = 0
     let stealingXpBonus = 10
     let ended = false
+    let caught = false
 
     function drawInventory($el: HTMLElement, who: 'l' | 'r', objects: Obj[]) {
         clearEl($el)
@@ -82,10 +83,14 @@ export function uiSteal(thief: Critter, target: Critter): void {
         ended = true
 
         // CE ref: inventory.cc:4470 — no bonus XP if caught, or vs. a party member.
-        if (stealingXp > 0 && !globalState.gParty.isPartyMember(target)) {
-            const maxXp = 300 - thief.getSkill('Steal')
-            const xp = Math.min(maxXp, stealingXp)
-            if (xp > 0) (thief as any).addExperience?.(xp)
+        if (!caught && stealingXp > 0 && !globalState.gParty.isPartyMember(target)) {
+            const xp = Math.min(300 - thief.getSkill('Steal'), stealingXp)
+            const p = thief as any
+            const before = p.stats?.get?.('Experience') ?? 0
+            p.addExperience?.(xp)
+            // inventry.msg 29: You gain %d experience points for successfully using your Steal skill.
+            const msg = getMessage('inventry', 29)
+            if (msg) uiLog(msg.replace('%d', String((p.stats?.get?.('Experience') ?? 0) - before)))
         }
 
         globalState.uiMode = UIMode.none
@@ -96,12 +101,18 @@ export function uiSteal(thief: Critter, target: Critter): void {
         initLoot() // restore the Done button's normal uiEndLoot() binding
     }
 
-    async function attemptSteal(item: Obj): Promise<void> {
+    // CE inventory.cc _move_inventory: the quantity first, then skillsPerformStealing
+    // (planting rolls too), then the move.
+    async function attemptSteal(item: Obj, isPlanting = false): Promise<void> {
+        const from = isPlanting ? thief : target
+        const to = isPlanting ? target : thief
         stealCount += 1
-        const result = performSteal(thief, target, item, stealCount)
+        const wantedAmount = item.amount > 1 ? await uiGetAmount(item) : 1
+        if (wantedAmount <= 0) return
+        const result = performSteal(thief, target, item, stealCount, isPlanting)
 
         if (!result.success) {
-            uiLog('You are caught stealing!')
+            caught = true
             dbg('skills', '[skill:Steal] caught stealing %s from %s', item.name ?? item.pid, target.name ?? 'critter')
             if (target._script) {
                 // CE ref: inventory.cc:4492-4499 — fires the target's own
@@ -113,25 +124,26 @@ export function uiSteal(thief: Critter, target: Critter): void {
             return
         }
 
-        const wantedAmount = item.amount > 1 ? await uiGetAmount(item) : 1
-        if (wantedAmount <= 0) return
-        if (!thief.canCarry?.(item, wantedAmount)) {
-            uiLog("You can't carry any more.")
+        if (!to.canCarry?.(item, wantedAmount)) {
+            uiLog(getMessage('inventry', 26) ?? 'There is no space left for that item.')
             return
         }
 
         stealingXp += stealingXpBonus
         stealingXpBonus += 10
 
-        uiSwapItem(target.inventory, item, thief.inventory, wantedAmount)
+        uiSwapItem(from.inventory, item, to.inventory, wantedAmount)
         drawSteal()
     }
 
     showv($id('lootBox'))
     hidev($id('lootBoxTakeAllButton')) // CE: 'Take All' is a no-op during a steal session (inventory.cc:4272)
 
-    makeDropTarget($id('lootBoxRight'), () => {
-        // Planting (thief -> target) not wired — see file header.
+    makeDropTarget($id('lootBoxRight'), (data: string) => {
+        if (data[0] !== 'l') return // thief -> target: planting (skillsPerformStealing isPlanting)
+        const item = thief.inventory[parseInt(data.slice(1))]
+        if (item === undefined) return
+        attemptSteal(item, true)
     })
     makeDropTarget($id('lootBoxLeft'), (data: string) => {
         if (data[0] !== 'r') return // only target -> thief drags are steal attempts

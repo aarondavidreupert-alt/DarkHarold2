@@ -8,6 +8,7 @@ import { tileToScreen, TILE_HEIGHT, TILE_WIDTH } from '../tile.js'
 import { getFileJSON } from '../util.js'
 import { dbg } from '../logger.js'
 import { WebGLRenderer } from './webglContext.js'
+import { cycleTime } from '../colorCycle.js'
 
 declare module './webglContext.js' {
     interface WebGLRenderer {
@@ -50,7 +51,7 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
     gl.uniform1i(this.uUseGPULighting, 0)
     // RD10 colour cycling: per-tile mask on unit 7 (bound with each texture below).
     if (this.uFloorUseCycle) gl.uniform1i(this.uFloorUseCycle, 1)
-    if (this.uFloorCycleTime) gl.uniform1f(this.uFloorCycleTime, performance.now() / 1000.0)
+    if (this.uFloorCycleTime) gl.uniform1f(this.uFloorCycleTime, cycleTime())
     const ambientCPU = GameTime.getAmbientLightNormalized()
     gl.uniform1f(this.uAmbient, ambientCPU)
     if (ambientCPU !== this.lastLoggedAmbient) {
@@ -221,7 +222,7 @@ WebGLRenderer.prototype.renderFloorToFBO = function (tileMap: TileMap): void {
     gl.disable(gl.DEPTH_TEST)
 
     gl.useProgram(this.tileShader)
-    if (this.uCycleTime) gl.uniform1f(this.uCycleTime, performance.now() / 1000.0)
+    if (this.uCycleTime) gl.uniform1f(this.uCycleTime, cycleTime())
     gl.activeTexture(gl.TEXTURE0)
     gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer)
     gl.enableVertexAttribArray(this.texCoordLocation)

@@ -530,39 +530,30 @@ is hit.
 
 ### 9.2 `opMap` — Base Opcodes (`vm.ts`)
 
-~35 opcodes are implemented directly in `opMap`:
+Opcode numbers are CE's `interpreter.h` `OPCODE_*` values.
 
-| CE Opcode | DH2 behavior |
-|---|---|
-| `0x8001` push | Reads 4-byte literal; type determined by lookahead — if next call is `fetch_proc_address` or a string-lookup pattern, it may be an identifier or string reference |
-| `0x8002` push_base | Pop argc from dataStack; push framePointer to retStack; framePointer = dataStack.length − argc |
-| `0x8003` pop_base | Pop framePointer from retStack |
-| `0x8004` pop_to_base | Truncate dataStack to framePointer length |
-| `0x8005` set_global | basePointer = dataStack.length |
-| `0x8006` dump | Pop N items |
-| `0x8027` jmp | Set pc to 4-byte address following opcode |
-| `0x8029` call | Pop proc index; set pc to proc.offset |
-| `0x802B` pop_return | pc = retStack.pop() |
-| `0x800C` if | Pop condition; if zero, pc = dataStack.pop() (branch); else discard address |
-| `0x800D` while | Pop condition; if zero, pc = dataStack.pop() |
-| `0x800E` store | Pop addr, pop value; dataStack[framePointer + addr] = value |
-| `0x800F` fetch | Pop addr; push dataStack[framePointer + addr] |
-| `0x8039` fetch_global | Pop addr; push dataStack[basePointer + addr] |
-| `0x803A` store_global | Pop addr, pop value; dataStack[basePointer + addr] = value |
-| `0x803B` swap | Swap top two stack items |
-| `0x803D` pop | Discard top of stack |
-| `0x803E` dup | Duplicate top of stack |
-| Arithmetic ops | Implemented: +, -, *, /, %, -(unary), &&, \|\|, !, &, \|, ^, ~, floor, <, <=, >, >=, ==, != |
-| `0x8036` dtoa | int → string |
-| `0x8037` exit_prog | Halts (how: pops return stack sentinel or sets flag) |
+| Opcode | CE name | DH2 |
+|---|---|---|
+| `0xC001` / `0xA001` / `0x9001` | push int / float / string | 4-byte operand; a float is boxed (`vmFloat`) so int / float arithmetic follows CE `opAdd` etc.; `0x9001` before fetch/store_external / export_var pushes the identifier name |
+| `0x8002` / `0x8003` | enter / leave critical section | no-op (DH2 never interleaves scripts) |
+| `0x8004` | jump | pc = pop |
+| `0x8005` | call | proc index → `proc.offset` |
+| `0x800C` / `0x800D` | a_to_d / d_to_a | move between data and return stack |
+| `0x8010` | exit_program | halt |
+| `0x8012` / `0x8013` | fetch / store global | `dataStack[svarBase + n]` |
+| `0x8014` / `0x8015` / `0x8016` | fetch / store external, export_var | map-script exported vars (`vm_bridge.ts`) |
+| `0x8019` / `0x801A` / `0x801B` / `0x801C` | swapa / pop / dup / pop_return | |
+| `0x8027` / `0x8028` | check arg count / lookup proc by name | |
+| `0x8029` / `0x802A` / `0x802B` / `0x802C` | pop_base / pop_to_base / push_base / set_global | frame handling |
+| `0x802F` / `0x8030` | if / while | pop condition, branch |
+| `0x8031` / `0x8032` | store / fetch | `dataStack[dvarBase + n]`; a stored float keeps its box |
+| `0x8033`–`0x8038` | == != <= >= < > | JS comparison of the unboxed values — same result as CE for int / float / object; a string vs number ordering (CE `strcmp` after `sprintf`) is an untested edge case |
+| `0x8039`–`0x803D` | + − × ÷ % | CE `opAdd` … (`arith`: string concat, float if either side is float, int division truncates) |
+| `0x803E`–`0x8041` | and / or / bitwise and / or | |
+| `0x8044` | floor | CE `opFloor`: truncation |
+| `0x8045` / `0x8046` | not / negate | |
 
-DH2 does **not** implement:
-- `opWait` (0x8009) — no waiting / `PROGRAM_IS_WAITING` support
-- `opDelayedCall` (0x8007) — no timed procedure schedule
-- `opCancel` / `opCancelAll` (0x800A/0x800B) — no procedure flag management
-- `opSpawn` / `opFork` / `opExec` (0x8046–0x8048) — no child programs
-- `opStoreExternal` / `opFetchExternal` (0x803F/0x8040) — external var access has a workaround via `mapScript()`
-- Critical section opcodes (0x8025/0x8026) — not implemented
+A scan of all 1448 `.int` files (2026-10-18) shows no other raw opcode in a script listed in scripts.lst: `call_at` / `call_when` / `callstart` / `exec` / `spawn` / `fork` / `wait` / `cancel` / `xor` / `bwnot` never occur. Only the unused `barstow` / `dumar` / `surf` / `genint` scripts (not in scripts.lst) contain `detach` (0x800F) and the `say*` ops (0x804D / 0x804E).
 
 ### 9.3 `vm_bridge.ts` — `bridgeOpMap`
 
@@ -663,8 +654,10 @@ variables (`self_obj`, `source_obj`, `game_time`, etc.) then call the method.
 | `timedEvent(script, userdata)` | `script.timed_event_p_proc()` | `SCRIPT_PROC_TIMED` (22) |
 | `pickup(obj, source)` | `obj._script.pickup_p_proc()` | `SCRIPT_PROC_PICKUP` (4) |
 | `drop(obj, source)` | `obj._script.drop_p_proc()` | `SCRIPT_PROC_DROP` (5) |
-
-(`scripting.ts:1938–2072`)
+| `lookAt` / `description(obj, source)` | `look_at_p_proc` / `description_p_proc` | `SCRIPT_PROC_LOOK_AT` (21) / `SCRIPT_PROC_DESCRIPTION` (3) |
+| `push(obj, source)` | `push_p_proc` | `SCRIPT_PROC_PUSH` (24), CE `actionPush` |
+| `isDropping(owner, item)` | `is_dropping_p_proc` | `SCRIPT_PROC_IS_DROPPING` (25), CE `_obj_drop` |
+| map unload (`mapLoader.ts`) | `map_exit_p_proc` (map script and objects) | `SCRIPT_PROC_MAP_EXIT` (16), CE `scriptsExecMapExitProc` |
 
 ### 10.2 `_didOverride`
 
@@ -677,74 +670,6 @@ it wants to suppress the default engine action. The dispatcher returns
 
 ## 11. Known Gaps
 
-### Gap #1 — No timed/conditional procedure flags at parse time
+DH2 runs scripts on events (use, talk, critter_p_proc, timed events …) instead of CE's per-frame `_updatePrograms` burst, and keeps strings as JS strings instead of CE's dynamic string heap. Neither is observable: no shipped script uses suspension (`wait`), timed / conditional procedure flags, child programs or the critical-section scheduling the burst model exists for (opcode scan in §9.2). `create_p_proc`, `combat_is_starting_p_proc` and `combat_is_over_p_proc` are not dispatched by CE either.
 
-`intfile.ts` asserts that procedure `time` and `conditionOffset` fields are 0.
-`flags` is read but dropped. DH2 cannot run TIMED or CONDITIONAL procedures via
-the bytecode mechanism — the compiled `call_condition` / `call_start` opcodes in
-scripts would trigger unhandled-opcode halts.
-
-DH2 uses its own `timeEventList` mechanism for timed events, bypassing CE's
-in-procedure-table scheduling entirely.
-
-### Gap #2 — No `_doEvents()` equivalent
-
-CE's `_doEvents()` runs every frame, scanning all loaded programs' procedure
-tables for TIMED/CONDITIONAL entries. DH2 has no equivalent loop. Scheduled
-events are handled entirely via `Scripting.timeEventList` and `Scripting.timedEvent()`.
-
-### Gap #3 — No per-frame program burst (`_updatePrograms`)
-
-CE runs all loaded scripts 10 opcodes per frame via `_updatePrograms`. DH2 has
-no equivalent continuous execution loop. Scripts only run when an event
-dispatcher (use, talk, map_enter, etc.) calls a specific proc.
-
-### Gap #4 — No `scriptsExecStartProc()` for all script types
-
-CE's `scriptsExecStartProc()` iterates all scripts in all five script type lists
-and calls SCRIPT_PROC_START on each. DH2's `initScript()` is called per-object,
-not via an engine-wide sweep.
-
-### Gap #5 — Missing procedure types
-
-Not dispatched in DH2:
-
-| CE Proc | Name | Reason not implemented |
-|---|---|---|
-| 3 | `description_p_proc` | No examine action |
-| 16 | `map_exit_p_proc` | Map exit dispatches neither this nor object-level procs |
-| 17 | `create_p_proc` | Objects created without script notification |
-| 21 | `look_at_p_proc` | No look-at action |
-| 24 | `push_p_proc` | Critter push not implemented |
-| 25 | `is_dropping_p_proc` | Drop flow truncated |
-| 26 | `combat_is_starting_p_proc` | Global combat start not broadcast |
-| 27 | `combat_is_over_p_proc` | Global combat end not broadcast |
-
-### Gap #6 — Value type erasure
-
-CE's `ProgramValue` carries a type tag (`VALUE_TYPE_INT`, `VALUE_TYPE_STRING`,
-etc.) on every stack slot. DH2's `dataStack: any[]` is untyped. String values
-are stored as JS strings, integers as JS numbers; pointer/float distinction is
-lost. Opcode handlers like `opConditionalOperatorEqual` in CE perform
-typed comparison (string-vs-string, float-vs-int, ptr-vs-int). DH2 uses JS `==`
-and `===` which collapse these distinctions.
-
-### Gap #7 — No external program calls (`opSpawn`, `opFork`, `opExec`)
-
-CE supports spawning child programs and calling exported procedures across
-program boundaries. DH2 has no cross-program call mechanism. `fetch_external`
-and `store_external` are patched via `_mapScript` references for the common
-MVAR read/write case, but arbitrary exported procedure calls are not supported.
-
-### Gap #8 — No `opWait` / suspension
-
-CE's `opWait` suspends a program mid-execution for N milliseconds. DH2 has no
-suspension; scripts must complete synchronously within a single `run()` call.
-
-### Gap #9 — Dynamic string heap not implemented
-
-CE has a reference-counted dynamic string heap in `program->dynamicStrings`
-with GC via `programMarkHeap`. DH2 uses raw JS strings — no reference counting,
-no heap, no `VALUE_TYPE_DYNAMIC_STRING` handling.
-
-<!-- audited: 2026-06-01 -->
+The former gaps #1–#9 (timed procs, `_doEvents`, burst loop, start sweep, missing procs, value typing, external calls, `wait`, string heap) are therefore closed: the missing procs are dispatched (§10.1), int / float typing follows CE (§9.2), and the rest is unused by the game's scripts. <!-- audited: 2026-10-18 -->

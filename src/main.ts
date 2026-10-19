@@ -36,7 +36,7 @@ import {
     uiWorldMap,
 } from './ui.js'
 import { drawHP } from './ui_hud.js'
-import { skillUse } from './skillUse.js'
+import { objUseItemOn } from './useItemOn.js'
 import { loadFallout2Cfg, loadPreferences } from './ui_options.js'
 import { getFileJSON, getRandomInt } from './util.js'
 import { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall, WebGLRenderer, setLightSourceOverlayActive, setLightOverlayMode, setLightOverlayRadiusScale, LightOverlayMode } from './webglrenderer.js'
@@ -45,35 +45,23 @@ import { fonUnpack } from './formats/fon.js'
 import { Lightmap } from './lightmap.js'
 import { installInputHandlers } from './input.js'
 import { tickGame } from './gameTick.js'
-import './debug.js'
+import { debug } from './debug.js'
 import './autocrawler.js'
+import './mapFade.js' // black screen over map changes (CE isoDisable / wmFadeOut)
+import { Worldmap } from './worldmap.js'
 
 // Re-export playerUse so existing call sites (scripting.ts imports it from './main.js')
 // keep working after the Phase 7 split.
 export { playerUse } from './playerUse.js'
 
-// CE ref: proto_instance.cc:1245 _protinst_use_item_on — First Aid Kit / Doctor's Bag
-// trigger their respective skills. 10% chance per use the supplies run out.
-// Wired via globalState.miscItemUseHandler to avoid a circular import from object.ts.
+// CE inventory.cc GAME_MOUSE_ACTION_MENU_ITEM_USE: an item without the use action is
+// used on the dude (_protinst_use_item_on) — the medical kits run their skill with the
+// kit's critical bonus. Wired via globalState.miscItemUseHandler (no object.ts cycle).
 function miscHealingItemUse(item: import('./object.js').Obj, user: import('./object.js').Critter): boolean {
-    let skill: string | null = null
-    // CE proto_types.h: First Aid Kit 47, Field Medic First Aid Kit 408 (First Aid);
-    // Doctor's Bag 91, Paramedics Bag 409 (Doctor). (107/108 are bones.)
-    if (item.pid === 47 || item.pid === 408) skill = 'First Aid'
-    else if (item.pid === 91 || item.pid === 409) skill = 'Doctor'
-    if (!skill) return false
-    const result = skillUse(user, user, skill)
-    uiLog(result.message)
-    if (result.hpHealed > 0 && user.isPlayer) drawHP(user.getStat('HP'))
-    // CE ref: proto_instance.cc — randomBetween(1, 10) == 1
-    if (getRandomInt(1, 10) === 1) {
-        const idx = user.inventory.indexOf(item)
-        if (idx !== -1) {
-            if (item.amount > 1) item.amount--
-            else user.inventory.splice(idx, 1)
-        }
-        uiLog('The supplies in the ' + (item.name || 'item') + ' run out.')
-    }
+    // CE proto_types.h: First Aid Kit 47, Field Medic First Aid Kit 408, Doctor's Bag 91,
+    // Paramedics Bag 409
+    if (![47, 408, 91, 409].includes(item.pid)) return false
+    objUseItemOn(user, user, item)
     return true
 }
 
@@ -264,6 +252,8 @@ window.onload = async function () {
     // localStorage write-back on top (FO2-CE ref: preferences.cc — preferenceLoad()).
     loadFallout2Cfg()
     loadPreferences()
+    // fallout2.cfg [dh2] pixel_font — ui.css switches every DOM text to the AAF web font.
+    document.documentElement.classList.toggle('dh2-pixel-font', Config.ui.pixelFont)
 
     // initialize cached data
 
@@ -334,6 +324,58 @@ window.onload = async function () {
     ;(window as any).setRoofEgg = (on: boolean) => {
         Config.ui.roofEgg = on !== false
         console.log(`[Roof] egg-transparency = ${Config.ui.roofEgg}`)
+    }
+
+    // setWalkModel('ce' | 'dh2' | 'smooth') — walk/run movement model (Config.engine.walkModel)
+    ;(window as any).setWalkModel = (model: 'ce' | 'dh2' | 'smooth') => {
+        if (model !== 'ce' && model !== 'dh2' && model !== 'smooth') {
+            console.log("[Walk] use 'ce' (CE _object_move, default), 'dh2' (old DarkFO chunks) or 'smooth' (ce + frame blend)")
+            return
+        }
+        Config.engine.walkModel = model
+        console.log(`[Walk] movement model = ${model}`)
+    }
+
+    // setAnimOffsetModel('ce' | 'dh2') — sprite offset across animation changes
+    // (Config.engine.animOffsetModel)
+    ;(window as any).setAnimOffsetModel = (model: 'ce' | 'dh2') => {
+        if (model !== 'ce' && model !== 'dh2') {
+            console.log("[Anim] use 'ce' (CE obj->x/y accumulator, default) or 'dh2' (old anchor-pinning artOffset)")
+            return
+        }
+        Config.engine.animOffsetModel = model
+        console.log(`[Anim] offset model = ${model}`)
+    }
+
+    // setDevKeys(true) — enable the DH2 developer hotkeys (h teleport, q/e elevation, ...)
+    // Console: the debug readouts and the fps counter (fallout2.cfg [dh2] debug_overlay / fps_overlay)
+    ;(window as any).setDebugOverlay = (on: boolean) => { Config.ui.showDebugOverlay = !!on; console.log(`[DH2] debug overlay ${on ? 'on' : 'off'}`) }
+    ;(window as any).setFpsOverlay = (on: boolean) => {
+        Config.ui.showFPS = !!on
+        if (globalState.$fpsOverlay) globalState.$fpsOverlay.style.display = on ? '' : 'none'
+        console.log(`[DH2] fps overlay ${on ? 'on' : 'off'}`)
+    }
+    // Console: skipTemple() — leave the Temple of Trials for Arroyo Village (src/debug.ts).
+    ;(window as any).skipTemple = () => debug.skipTemple()
+    // Console (DH2 debug): revealWorldmap() — open the worldmap with every subtile, town
+    // and entrance revealed; a click then moves the party there at once (no time, no
+    // encounters). revealWorldmap(false) reveals without instant travel;
+    // setInstantTravel(false) switches it off again.
+    ;(window as any).revealWorldmap = (instant: boolean = true) => {
+        if (globalState.inCombat) { console.warn('[DH2] revealWorldmap: not in combat'); return }
+        uiWorldMap()              // loads the areas
+        Worldmap.revealAll()
+        Worldmap.setInstantTravel(instant !== false)
+        uiWorldMap()              // rebuilds the town list with every area
+        console.log(`[DH2] worldmap revealed${instant !== false ? ', instant travel on (setInstantTravel(false) to stop)' : ''}`)
+    }
+    ;(window as any).setInstantTravel = (on: boolean) => {
+        Worldmap.setInstantTravel(!!on)
+        console.log(`[DH2] worldmap instant travel ${on ? 'on' : 'off'}`)
+    }
+    ;(window as any).setDevKeys = (on: boolean) => {
+        Config.engine.devKeys = on !== false
+        console.log(`[Input] developer hotkeys ${Config.engine.devKeys ? 'on' : 'off'}`)
     }
 
     // setDayNightCycle(true)  — DH2 smooth day/night light curve (default)

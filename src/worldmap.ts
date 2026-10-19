@@ -18,26 +18,10 @@ limitations under the License.
 // worldmap/{types,parser,Worldmap,encounters}.ts. See
 // wiki/ts-split-refactor.md §10.
 
-import {
-    EncounterTable as _EncounterTable,
-    Encounter as _Encounter,
-    EncounterRef as _EncounterRef,
-    EncounterGroup as _EncounterGroup,
-    EncounterCritter as _EncounterCritter,
-    EncounterPosition as _EncounterPosition,
-} from './worldmap/types.js'
 import * as _WorldmapMod from './worldmap/Worldmap.js'
 import * as _Encounters from './worldmap/encounters.js'
 
 export module Worldmap {
-    // Re-exported public types.
-    export type EncounterTable = _EncounterTable
-    export type Encounter = _Encounter
-    export type EncounterRef = _EncounterRef
-    export type EncounterGroup = _EncounterGroup
-    export type EncounterCritter = _EncounterCritter
-    export type EncounterPosition = _EncounterPosition
-
     // DOM lifecycle + travel loop (worldmap/Worldmap.ts).
     export const init = _WorldmapMod.init
     export const start = _WorldmapMod.start
@@ -61,13 +45,27 @@ export module Worldmap {
     export const setWorldmapGlobalVarHooks = _WorldmapMod.setWorldmapGlobalVarHooks
     export const setAreaVisible = _WorldmapMod.setAreaVisible
     export const setAreaVisitedState = _WorldmapMod.setAreaVisitedState
+    export const areaIsKnown = _WorldmapMod.areaIsKnown
+    export const markMapVisited = _WorldmapMod.markMapVisited
+    export const travelToArea = _WorldmapMod.travelToArea
     export const serializeAreaStates = _WorldmapMod.serializeAreaStates
     export const deserializeAreaStates = _WorldmapMod.deserializeAreaStates
     export const resetWorldmap = _WorldmapMod.resetWorldmap
     export const setPlayerWorldPos = _WorldmapMod.setPlayerWorldPos
     export const updateCarUI = _WorldmapMod.updateCarUI
+    export const serializeSquareStates = _WorldmapMod.serializeSquareStates
+    export const getCurrentAreaId = _WorldmapMod.getCurrentAreaId
+    export const setCurrentAreaId = _WorldmapMod.setCurrentAreaId
+    export const areaVisitedState = _WorldmapMod.areaVisitedState
+    export const teleportToArea = _WorldmapMod.teleportToArea
+    export const revealAll = _WorldmapMod.revealAll
+    export const setInstantTravel = _WorldmapMod.setInstantTravel
+    export const areaIdContainingMap = _WorldmapMod.areaIdContainingMap
+    export const deserializeSquareStates = _WorldmapMod.deserializeSquareStates
 
-    // Encounter dispatch (worldmap/encounters.ts).
-    export const getEncounterGroup = _Encounters.getEncounterGroup
-    export const doEncounter = _Encounters.doEncounter
+    // Random encounters (worldmap/encounters.ts): save / load / new game.
+    export type SavedEncounters = _Encounters.SavedEncounters
+    export const serializeEncounters = _Encounters.serializeEncounters
+    export const deserializeEncounters = _Encounters.deserializeEncounters
+    export const resetEncounters = _Encounters.resetEncounters
 }

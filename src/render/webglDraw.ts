@@ -10,6 +10,7 @@ import { WebGLRenderer } from './webglContext.js'
 import { hexDistance } from '../geometry.js'
 import { hexIsInFrontOf, hexIsToRightOf } from '../geometry/hexScreen.js'
 import { getActiveScrollBarBounds } from './camera.js'
+import { cycleTime } from '../colorCycle.js'
 
 declare module './webglContext.js' {
     interface WebGLRenderer {
@@ -106,7 +107,7 @@ WebGLRenderer.prototype.drawTileMap = function (tilemap: TileMap, offsetY: numbe
     const z = getZoom()
     gl.uniform2f(this.uScaleLocation, 80 * z, 36 * z)
     // CE ref: cycle.cc colorCycleTicker — floor tiles animate palette entries 229-254 too.
-    if (this.uCycleTime) gl.uniform1f(this.uCycleTime, performance.now() / 1000.0)
+    if (this.uCycleTime) gl.uniform1f(this.uCycleTime, cycleTime())
 
     // Roofs and fallback (unlit) floors are world geometry — react to
     // day/night + per-tile intensity like everything else on the map.
@@ -483,6 +484,17 @@ function isEggObject(obj: Obj): boolean {
     return true
 }
 
+// CE object.cc _obj_blend_table_init: the colour of each OBJECT_TRANS_* flag
+// (_colorTable[x] of a 15-bit RGB) and its gray table (glass: _glassGrayTable).
+const rgb555 = (c: number): [number, number, number] => [((c >> 10) & 31) / 31, ((c >> 5) & 31) / 31, (c & 31) / 31]
+const TRANS_BLEND: { [flag: number]: { rgb: [number, number, number]; glassGray: boolean } | undefined } = {
+    0x4000: { rgb: rgb555(31744), glassGray: false },  // OBJECT_TRANS_RED
+    0x10000: { rgb: rgb555(25439), glassGray: false }, // OBJECT_TRANS_WALL
+    0x20000: { rgb: rgb555(10239), glassGray: true },  // OBJECT_TRANS_GLASS
+    0x40000: { rgb: rgb555(32767), glassGray: false }, // OBJECT_TRANS_STEAM
+    0x80000: { rgb: rgb555(30689), glassGray: false }, // OBJECT_TRANS_ENERGY
+}
+
 WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     const renderInfo = this.objectRenderInfo(obj)
     if (!renderInfo || !renderInfo.visible) {
@@ -493,16 +505,29 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     // CE ref: item.cc:2460-2499 stealthBoyTurnOn() sets OBJECT_TRANS_GLASS on
     // the critter while active, rendering it semi-transparent (glass effect).
     const stealth = (obj as any).stealthActive === true
+    // CE object.cc _obj_render_object: OBJECT_TRANS_RED / WALL / GLASS / STEAM / ENERGY
+    // draw through _dark_translucent_trans_buf_to_buf — the sprite's gray step blends the
+    // flag's colour over the background (force fields, windows, steam, laser wires).
+    const trans = stealth ? null : TRANS_BLEND[(((obj as any).flags ?? 0) >>> 0) & 0xFC000] // CE switches on the whole mask (TRANS_NONE included)
 
     if (stealth) {
         const gl = this.gl
         gl.useProgram(this.tileShader)
         if (this.uAlpha) gl.uniform1f(this.uAlpha, Config.ui.stealthAlpha ?? 0.9)
         if (this.uStealth) gl.uniform1i(this.uStealth, Config.ui.stealthGrayscale !== false ? 1 : 0)
+        if (this.uTransGray) gl.uniform1i(this.uTransGray, 0)
+        if (this.uTransQuant) gl.uniform1i(this.uTransQuant, 0)
         if (this.uStealthTint) {
             const t = Config.ui.stealthTint ?? [1.0, 1.0, 1.0]
             gl.uniform3f(this.uStealthTint, t[0], t[1], t[2])
         }
+    } else if (trans) {
+        const gl = this.gl
+        gl.useProgram(this.tileShader)
+        if (this.uStealth) gl.uniform1i(this.uStealth, 1)
+        if (this.uTransGray) gl.uniform1i(this.uTransGray, trans.glassGray ? 0 : 1)
+        if (this.uTransQuant) gl.uniform1i(this.uTransQuant, 1)
+        if (this.uStealthTint) gl.uniform3f(this.uStealthTint, trans.rgb[0], trans.rgb[1], trans.rgb[2])
     }
 
     if (egg) {
@@ -652,10 +677,11 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         /*lit*/ true
     )
 
-    if (egg || stealth) {
+    if (egg || stealth || trans) {
         const gl = this.gl
         if (this.uAlpha) gl.uniform1f(this.uAlpha, 1.0)
-        if (stealth && this.uStealth) gl.uniform1i(this.uStealth, 0)
+        if ((stealth || trans) && this.uStealth) gl.uniform1i(this.uStealth, 0)
+        if (trans && this.uTransQuant) gl.uniform1i(this.uTransQuant, 0)
         if (egg && usesEggMaskTexture() && this.uEggMode) gl.uniform1i(this.uEggMode, 0)
     }
     if (this.uObjectBaseY) {
@@ -827,7 +853,7 @@ WebGLRenderer.prototype.renderFrame = function (
     gl.activeTexture(gl.TEXTURE7)
     gl.bindTexture(gl.TEXTURE_2D, this.getCycleMaskTex(imgPath))
     gl.activeTexture(gl.TEXTURE0)
-    if (this.uCycleTime) gl.uniform1f(this.uCycleTime, performance.now() / 1000.0)
+    if (this.uCycleTime) gl.uniform1f(this.uCycleTime, cycleTime())
 
     gl.uniform1f(this.uNumFramesLocation, totalFrames)
     gl.uniform1f(this.uFrameLocation, frame)

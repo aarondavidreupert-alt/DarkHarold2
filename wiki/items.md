@@ -344,14 +344,9 @@ by `refreshStealthState()` on every equip/unequip/swap/drop
 range for a stealthed critter, matching `isWithinPerception()`
 (`combat_ai.cc:3499-3520`).
 
-**Known simplification**: the save/load re-equip pass (`Critter.ts`) only
-restores weapon-subtype items into hand slots — a Stealth Boy equipped at
-save time falls back into plain inventory on load (its on/off + charge
-state still round-trips; the player just re-equips it that session).
+Hand items survive save / load for every critter: the dude's hands are saved as such, an NPC's hand items keep their `OBJECT_IN_LEFT/RIGHT_HAND` flag in the inventory (set by `invenWield`, also for the AI's `_ai_switch_weapons`) and any flagged item goes back into the hand on load.
 
-**Not implemented**: CE's `OBJECT_TRANS_GLASS` semi-transparent sprite
-rendering — needs a real WebGL shader/alpha change verified in a browser,
-deferred to visual/rendering work (same status as color-cycling, RD10).
+The Stealth Boy's `OBJECT_TRANS_GLASS` look is rendered (`faction_reputation.md` §6.9).
 
 ### 4.4 `_protinst_use_item_on` — use-item-on dispatch (`proto_instance.cc:1245`)
 
@@ -482,8 +477,7 @@ Lock/open opcodes (`src/scripting.ts`):
 | `obj_is_open` | 0x8130 | reads `obj.open` |
 | `obj_open` | 0x8131 | calls `setObjectOpen(obj, true)` |
 | `obj_close` | 0x8132 | calls `setObjectOpen(obj, false)` |
-| `jam_lock` | — | **not implemented** |
-| `unjam_lock` | — | **not implemented** |
+| `jam_lock` | 0x814D | sets `obj.jammed` (CE `opJamLock`); cleared by `objectUnjamAll` at midnight and on entering a map unvisited for 24 h (CE `gameTimeEventProcess` / `mapLoadSaved`) |
 
 All wired in `vm_bridge.ts`.
 
@@ -605,57 +599,38 @@ All opcodes listed by hex value with status against the CE implementation.
 | 0x80BA | `obj_is_carrying_obj_pid` | 2    | IMPLEMENTED | scripting.ts:678        | Counts inventory matches by PID |
 | 0x80D8 | `add_obj_to_inven`        | 2    | IMPLEMENTED | scripting.ts:734        | Delegates to `addInventoryItem(item, 1)` |
 | 0x80D9 | `rm_obj_from_inven`       | 2    | IMPLEMENTED | scripting.ts:738        | Delegates to `rm_mult_objs_from_inven(..., 1)` |
-| 0x80DA | `wield_obj_critter`       | 2    | PARTIAL     | scripting.ts:959        | Right hand only; no equip anim; no `_adjust_ac` |
+| 0x80DA | `wield_obj_critter`       | 2    | IMPLEMENTED | `src/inventoryWield.ts` | CE `_invenWieldFunc`: the dude's active hand / an NPC's right, armor on the body, the old item back to the inventory, hand / worn flags, art (C44) |
 | 0x8106 | `critter_inven_obj`       | 2    | IMPLEMENTED | scripting.ts:834        | where=0→armor, 1→rightHand, 2→leftHand; −2 warns |
-| 0x8109 | `inven_cmds`              | 3    | STUB        | scripting.ts:846        | INVEN_CMD_INDEX_PTR=13 always returns null |
+| 0x8109 | `inven_cmds`              | 3    | IMPLEMENTED | scripting.ts            | CE `_op_inven_cmds` only has INVEN_CMD_INDEX_PTR (13): the item at that index |
 | 0x810D | `obj_carrying_pid_obj`    | 2    | IMPLEMENTED | scripting.ts:740        | Returns first matching inventory item |
 | 0x8116 | `add_mult_objs_to_inven`  | 3    | IMPLEMENTED | scripting.ts:696        | Calls `addInventoryItem(item, count)` |
 | 0x8117 | `rm_mult_objs_from_inven` | 3    | IMPLEMENTED | scripting.ts:713        | Finds by `approxEq`, decrements amount |
 | 0x8138 | `item_caps_total`         | 1    | IMPLEMENTED | scripting.ts:640        | Returns `obj.money` (PID 41 search) |
 | 0x8139 | `item_caps_adjust`        | 2    | IMPLEMENTED | scripting.ts:644        | Adjusts bottle caps amount; creates if missing |
-| 0x8145 | `use_obj_on_obj`          | 2    | IMPLEMENTED | scripting.ts:1221       | Calls `obj.use(who, true)` — fires wrong proc (see §8 gap IU1) |
-| 0x8147 | `move_obj_inven_to_obj`   | 2    | IMPLEMENTED | scripting.ts:663        | `other.inventory = obj.inventory; obj.inventory = []` |
+| 0x8145 | `use_obj_on_obj`          | 2    | IMPLEMENTED | scripting.ts            | CE two-step chain: the item's `use_obj_on_p_proc`, then the target's (IU1 fixed) |
+| 0x8147 | `move_obj_inven_to_obj`   | 2    | IMPLEMENTED | `src/inventoryWield.ts` | CE `itemMoveAll`: everything, worn armor and the hands included; an NPC's art drops the weapon, the dude's armor look and HUD reset (C44) |
 
-### 7.2 Missing opcodes (not in `vm_bridge.ts`)
+### 7.2 Other item opcodes
 
-These CE scripting intrinsics have no entry in `src/vm_bridge.ts`:
-
-| CE function           | Description                              |
-|-----------------------|------------------------------------------|
-| `unwield_obj_critter` | Unequip weapon from critter slot         |
-| `item_size`           | Return item bulk size from proto         |
-| `item_weight`         | Return item weight from proto            |
-| `obj_is_in_inven`     | Test if item is currently in inventory   |
-| `inven_obj_is_wielded`| Test if item is currently equipped       |
-| `drop_obj`            | Drop item to map tile                    |
-| `pickup_obj`          | Pick up item from map tile               |
-| `item_d_take_drug`    | CE-style pro-data drug application       |
+`pickup_obj` (0x80D6), `drop_obj` (0x80D7), `inven_unwield` (0x812C, CE `_invenUnwieldFunc`: an NPC keeps the item in its inventory, the dude gets it back there — C44), `jam_lock` (0x814D) are wired. `item_size`, `item_weight`, `obj_is_in_inven`, `inven_obj_is_wielded`, `unwield_obj_critter` and `item_d_take_drug` are not vanilla Fallout 2 opcodes (sfall / internal functions) — nothing to wire.
 
 ---
 
 ## §8 Known Gaps
 
-| ID   | Area                          | CE behavior                                                       | DH2 behavior                                                         | CE reference                               | DH2 location              |
-|------|-------------------------------|-------------------------------------------------------------------|----------------------------------------------------------------------|--------------------------------------------|---------------------------|
-| —    | Carry weight enforcement      | Blocks pickup; AP penalty when over limit                         | Display only; no enforcement                                         | `stat.cc:571`, `item.cc:919`               | `src/ui_inventory/panel.ts` |
-| —    | Wield left hand (script)      | `_inven_wield(critter, item, HAND_LEFT)`                          | `wield_obj_critter` only sets `rightHand`                            | `inventory.h`                              | `scripting.ts:959`        |
-| —    | Equip animation               | `ANIM_DRAW_WEAPON` triggered on wield                             | No animation in `wield_obj_critter`                                  | `inventory.h`                              | `scripting.ts:959`        |
-| —    | AC bonus stat mutation        | `_adjust_ac` modifies bonus stats at equip                        | AC/DR read directly from `pro.extra` at query time                   | `inventory.h`                              | `src/object/Critter.ts`   |
-| —    | Drug data source              | All deltas from PRO file; extensible                              | Hardcoded `DRUG_TABLE` for 8 drugs only                              | `item.cc:2776`                             | `drugs.ts`                |
-| —    | Flower Child trait            | Halves addiction chance                                           | Not implemented in `computeAddictChance`                             | `item.cc:2776`                             | `drugs.ts:94`             |
-| —    | Robot drug immunity           | Robots can't use drugs                                            | Not checked in `useDrug()`                                           | `item.cc:2776`                             | `drugs.ts:107`            |
-| —    | Addiction persistence         | Stored as GVARs; survives save/load                               | In-memory `critter.addictions[]`; not persisted                      | `item.cc`                                  | `drugs.ts`                |
-| —    | Container weight              | Contents added to container weight                                | No container weight summing in DH2                                   | `item.cc:919`                              | —                         |
-| —    | Power armor weight halve      | PIDs 0x13, 0x16, 0x3E5 halved in `itemGetWeight`                 | Not implemented                                                      | `item.cc:757`                              | —                         |
-| —    | `inven_cmds`                  | 13 inventory manipulation sub-commands                            | STUB — only INVEN_CMD_INDEX_PTR=13, always null                      | `inventory.h`                              | `scripting.ts:846`        |
-| —    | Drop / pickup (script)        | `drop_obj` / `pickup_obj` map placement                           | Not wired in `vm_bridge.ts`                                          | `item.cc`                                  | `vm_bridge.ts` (missing)  |
-| —    | `unwield_obj_critter`         | Removes item from hand, triggers anim                             | Not wired in `vm_bridge.ts`                                          | `inventory.h`                              | `vm_bridge.ts` (missing)  |
-| IU1  | `use_obj_on_obj` wrong proc   | Fires `use_obj_on_p_proc` on target                               | Fires `use_p_proc` — quest-item interactions (e.g. Wrench on car) broken | `proto_instance.cc:1245`               | `scripting.ts:1227`       |
-| IU2  | Proc name mismatch            | `use_obj_on_p_proc` / `use_skill_on_p_proc`                      | DH2 declares `use_obj_on_me_p_proc` / `use_skill_on_me_p_proc`      | `scripts.h:61-62`                          | `scripting.ts:390-391`    |
-| IU3  | No jammed state               | `jam_lock` / `unjam_lock` exist; midnight unjam fires             | No jammed state on `Obj`; opcodes missing; midnight unjam never fires (cross-ref §GTC5 in known_bugs.md) | `proto_instance.cc:2131,2171`; `scripts.cc:418` | `scripting.ts` (missing) |
-| IU4  | No locked-door SFX/message    | Plays locked SFX + "That door is locked." before proc fires       | `setObjectOpen()` returns `false` silently                           | `proto_instance.cc:1710-1722`              | `src/object/Obj.ts`       |
-| IU5  | Container loot UI timing      | Loot screen shown only after `objectOpenClose()` animation        | `setObjectOpen()` calls `uiLoot(obj)` immediately                   | `proto_instance.cc:1825-1840`              | `src/object/Obj.ts`       |
-| IU6  | ✅ FIXED 2026-07-05 — `canUse` read a nonexistent `extendedFlags` key (items have no such top-level `extra` field) | Standalone-usable items (Stealth Boy, radios, etc.) never showed as usable | Fixed to read `extra.weaponFlags & 0x08` — see `known_bugs.md` IU6 for the full byte-swap derivation | `proto.cc:257 _proto_action_can_use()` | `src/object/Obj.ts:canUse` |
+| ID   | Area | Status |
+|------|------|--------|
+| — | Carry weight | ✅ `canCarry` (CE `itemAttemptAdd`) blocks pickup / loot over STAT_CARRY_WEIGHT; overloaded AP penalty in `Critter.getStat('AP')` (C35) |
+| — | Wield left hand / equip art / armor (script) | ✅ `invenWield` (C44) |
+| — | AC bonus | ✅ equivalent: DH2 reads armor AC / DR at query time instead of CE's `_adjust_ac` stat mutation |
+| — | Drug data | ✅ from the PRO (`drugs.ts`, CE `_item_d_take_drug`) |
+| — | Flower Child / robot immunity / addiction GVARs | ✅ `drugs.ts` (halved chance and withdrawal, BODY_TYPE_ROBOTIC, `GVAR_*_ADDICT`) |
+| — | Container / power armor / loaded weapon weight | ✅ `Obj.getWeight` (CE `itemGetWeight`, C36) |
+| — | `inven_cmds`, `pickup_obj`, `drop_obj`, `inven_unwield` | ✅ wired (§7) |
+| IU1–IU6 | use-on proc chain, proc names, jammed locks, locked-door SFX, loot timing, `canUse` | ✅ fixed (see known_bugs.md) |
+| — | `move_obj_inven_to_obj` left the dude's armor and hands (and NPC hand flags) behind | ✅ `moveAllInventory` (C44) |
 
-Last audited: 2026-07-05
+Open: none.
+
+Last audited: 2026-10-17
 <!-- 2026-07-05: added §4.3b misc charged items (Stealth Boy/Geiger Counter, LE10 fixed); IU6 canUse bitmask fix -->

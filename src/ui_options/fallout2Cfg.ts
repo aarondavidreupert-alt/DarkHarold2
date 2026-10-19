@@ -21,7 +21,7 @@ limitations under the License.
 // screen persist through localStorage (preferences.ts), which is applied after
 // this and so takes precedence.
 
-import { Config } from '../config.js'
+import { Config, DRAG_WINDOWS } from '../config.js'
 import globalState from '../globalState.js'
 import { dbg } from '../logger.js'
 import { getFileText } from '../util.js'
@@ -62,6 +62,7 @@ const SOUND_VOLUME_MAX = 32767 // CE settings.h volumes are 0..0x7FFF
 // counterpart for. Unknown or out-of-range values are ignored (CE keeps defaults).
 export function applyCfg(cfg: CfgSections): void {
     const prefs = cfg['preferences'] ?? {}
+    const system = cfg['system'] ?? {}
     const sound = cfg['sound'] ?? {}
     const int = (v: string | undefined): number | null => {
         if (v === undefined) return null
@@ -109,12 +110,51 @@ export function applyCfg(cfg: CfgSections): void {
         if (Number.isFinite(tbd) && tbd >= 1 && tbd <= 6) Config.ui.textBaseDelay = tbd
     }
 
+    // [system] color_cycling / cycle_speed_factor (CE cycle.cc colorCycleInit)
+    const cc = int(system['color_cycling'])
+    if (cc !== null) Config.ui.colorCycling = cc !== 0
+    const csf = int(system['cycle_speed_factor'])
+    if (csf !== null && csf > 0) Config.ui.cycleSpeedFactor = csf
+
     // [dh2] — DarkHarold2-only options (not in CE; CE ignores unknown sections).
     //   day_night_cycle=1  smooth hour-of-day light curve (default)
     //   day_night_cycle=0  CE lighting: only map scripts' set_light_level
     const dh2 = cfg['dh2'] ?? {}
     const dnc = int(dh2['day_night_cycle'])
     if (dnc !== null) Config.engine.dayNightCycle = dnc !== 0
+    //   pixel_font=0  UI text in the browser font instead of the Fallout pixel font (default 1)
+    const pf = int(dh2['pixel_font'])
+    if (pf !== null) Config.ui.pixelFont = pf !== 0
+    //   scroll_edge=<px>  how close to the screen edge the map scrolls (default 10; CE: the edge)
+    const se = int(dh2['scroll_edge'])
+    if (se !== null && se >= 0 && se <= 100) Config.ui.scrollPadding = se
+    //   debug_overlay=1  mouse-hex / tile / light / camera readouts (default 0)
+    const dbo = int(dh2['debug_overlay'])
+    if (dbo !== null) Config.ui.showDebugOverlay = dbo !== 0
+    //   fps_overlay=0    hide the fps counter (default 1)
+    const fpo = int(dh2['fps_overlay'])
+    if (fpo !== null) Config.ui.showFPS = fpo !== 0
+    //   drag_windows=0          no window can be dragged (default 1)
+    //   drag_<window>=0|1       per window: inventory, character, characterCreator, options,
+    //                           skilldex, pipboy, automap, loot, dialogue, dialogueReview,
+    //                           elevator, calledShot, moveItems, saveLoad, perks, dialogBox
+    const dw = int(dh2['drag_windows'])
+    if (dw !== null) Config.ui.dragWindows = dw !== 0
+    const dh2Lower: { [k: string]: string } = {}
+    for (const k in dh2) dh2Lower[k.toLowerCase()] = dh2[k]
+    for (const w of DRAG_WINDOWS) {
+        const v = int(dh2Lower['drag_' + w.toLowerCase()]) // case-insensitive (drag_characterCreator)
+        if (v !== null) Config.ui.dragWindow[w] = v !== 0
+    }
+    //   pipboy_available_at_game_start=1  Pip-Boy before the Vault Suit movie (sfall option)
+    const pa = int(dh2['pipboy_available_at_game_start'])
+    if (pa !== null) Config.engine.pipboyAvailableAtStart = pa !== 0
+    //   walk_model=ce|dh2|smooth      walk/run movement (console setWalkModel, default ce)
+    const wm = dh2['walk_model']?.toLowerCase()
+    if (wm === 'ce' || wm === 'dh2' || wm === 'smooth') Config.engine.walkModel = wm
+    //   anim_offset_model=ce|dh2      sprite offset across animations (console setAnimOffsetModel)
+    const am = dh2['anim_offset_model']?.toLowerCase()
+    if (am === 'ce' || am === 'dh2') Config.engine.animOffsetModel = am
 
     const eng = globalState.audioEngine
     if (eng) {

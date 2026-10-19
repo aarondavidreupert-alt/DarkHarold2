@@ -363,10 +363,7 @@ The **self-subtraction** prevents the player from always appearing "well-lit" du
 their own torch. Without it, `objectGetLightIntensity(gDude)` would always return
 near-max regardless of ambient.
 
-DH2 has no equivalent of `objectGetLightIntensity`. The night-penalty path in
-`combat.ts` has the comment `"light conditions not yet factored in"` and does
-nothing. The self-subtraction is therefore not an issue in practice, but it would be
-needed if the night penalty were ever implemented.
+DH2: `getObjectLightIntensity` (`src/combat/hitChance.ts`) is the port — the tile intensity minus the dude's own light (for the dude), clamped to ambient … 65536. It feeds the darkness penalty and the Ghost perk (`skills.ts`, CE `perk.cc perkGetSkillModifier`: +20 Sneak when the value is above 45875, CE's own comparison).
 
 ---
 
@@ -471,8 +468,7 @@ AI-controlled attackers are not penalized.
 
 ### DH2 status
 
-**Not implemented.** `src/combat/hitChance.ts` has the comment
-`"light conditions not yet factored in"`.
+Implemented: `darknessPenalty` in `src/combat/hitChance.ts` (−40 / −25 / −10 at ≤ 40 / 60 / 80 % light) for the dude's attacks; Night Sight weapons skip it.
 
 ---
 
@@ -727,21 +723,22 @@ treatment in both engines.
 
 | # | CE behaviour | DH2 status | Location |
 |---|---|---|---|
-| 1 | Night to-hit penalty (−10/−25/−40) when attacking in darkness | **Not implemented** | `combat.ts` comment |
+| 1 | Night to-hit penalty (−10/−25/−40) when the dude attacks into darkness | **FIXED** — `hitChance.ts darknessPenalty` (Night Sight weapons exempt); `getObjectLightIntensity` now clamps after subtracting the dude's own light, as CE (C46) | `combat.cc attackDetermineToHit`, `object.cc objectGetLightIntensity` |
 | 2 | `obj_set_light_level` (0x8107) changes tile intensity at runtime — CE calls `objectSetLight()` which triggers the full turn-off/turn-on cycle and refreshes the screen rect | **FIXED** — wired at `vm_bridge.ts:115`; `scripting.ts:1577-1588` sets `obj.lightRadius`/`obj.lightIntensity` then calls `Lightmap.rebuildLight()`, a full re-bake (`bakeStaticLight()` + `rebuildDynamicLight()`) rather than CE's targeted turn-off/turn-on subtract-add — functionally equivalent for static objects, costs a full rebake instead of an O(36) delta | `scripting.ts:1577`, `vm_bridge.ts:115` |
-| 3 | Night Vision perk adds 20 %/rank to ambient (`LIGHT_LEVEL_NIGHT_VISION_BONUS`) | **Not applied** to ambient in DH2 | `light.cc:50`; perk defined in `perks.ts` but unused |
+| 3 | Night Vision perk adds 20 %/rank to ambient | **FIXED** — `gametime.ts` (`LIGHT_LEVEL_NIGHT_VISION_BONUS`) | `light.cc lightSetAmbientIntensity` |
 | 4 | No built-in day/night curve — only script-driven ambient | DH2 adds a custom curve (`gametime.ts:181`). This is a DH2 extension beyond CE. | `gametime.ts` |
 | 5 | `set_light_level` always applied (indoor and outdoor) | **FIXED 2026-07-01** — outdoor-map guard removed; `setLightLevelOverride()` now honors the call on all map types, matching CE. Previously dropped on outdoor maps (e.g. SID 219 `Kladwtwn.int` — Klamath Downtown). | `gametime.ts:232` |
 | 6 | CE `set_light_level` maps 0-100 through piecewise ramp (`intensities[3]`) | **FIXED** — DH2 now matches the piecewise ramp exactly (`gametime.ts:244-253`); see `known_bugs.md` LD7 | `gametime.ts:244` |
-| 7 | Non-wall opaque scenery casts light shadow (the `edi=0` path in `_obj_adjust_light`) | **Commented out** in DH2 | `lightmap.ts:335-345` |
-| 8 | Per-elevation tile intensity (`gTileIntensity[ELEVATION_COUNT][HEX_GRID_SIZE]`) | DH2 `tile_intensity` is a flat `40000`-entry array — **no elevation separation** | `lightmap.ts:37` |
-| 9 | Solar Scorcher / flare AI: ambient threshold checks (0.95×MAX / 0.85×MAX) | Not implemented in DH2 AI | `combat_ai.cc:1772,2907` |
-| 10 | `obj_set_light_level` intensity argument is 0–100 %; CE converts via `(v * 65636) / 100` (note: CE typo, should be 65536) | **FIXED, with a deliberate departure** — DH2 uses the mathematically-correct `(intensity * 65536) / 100` (`scripting.ts:1586`) rather than reproducing CE's off-by-one-bit typo, so DH2 light levels are very slightly brighter (65536/65636 ≈ 0.15% difference) than literal CE output for the same percentage input | `scripting.ts:1586` |
+| 7 | Non-wall opaque objects aren't lit from E / SE / SW, and the first opaque object on a tile decides | **FIXED 2026-10-17** (C46) — ported in `lightmap.ts`; the dude now carries OBJECT_LIGHT_THRU (CE `objectsInit`) so he casts no shadow | `object.cc _obj_adjust_light`, `objectsInit` |
+| 8 | Per-elevation tile intensity | Equivalent — DH2 rebakes the current elevation's lights on every elevation change; lights never cross elevations | `lightmap.ts` |
+| 9 | Solar Scorcher / flare AI thresholds (0.95×MAX / 0.85×MAX) | **FIXED 2026-10-17** (C46) — `aiHaveAmmo` (scorcher needs ambient > 95 %), `takeThrownItem` lights a thrown flare when ambient < 85 % and INT ≥ 3 (`_cAIPrepWeaponItem`) | `combat_ai.cc aiHaveAmmo, _cAIPrepWeaponItem` |
+| 10 | `obj_set_light_level` converts `(v * 65636) / 100` | **FIXED 2026-10-17** (C46) — CE's constant kept literally, distance capped at 8, intensity 0 clears the light (`objectSetLight`) | `interpreter_extra.cc opSetObjectLightLevel` |
 | 11 | **Hidden objects do not emit light** — `_obj_adjust_light` bails when `OBJECT_HIDDEN` is set; CE `objectHide`/`objectShow` call `_obj_turn_off_light`/`_obj_turn_on_light` | **FIXED** — `obj_adjust_light` bails on `obj.visible === false` (`lightmap.ts:68-74`), and `set_obj_visibility` now calls `Lightmap.rebuildLight()` after flipping `obj.visible` (`scripting.ts:1504-1513`); see `known_bugs.md` LD1/LD4 | `lightmap.ts:68`; `scripting.ts:1504` / `object.cc:3973`; `interpreter_extra.cc:2096-2119` |
-| 12 | `OBJECT_LIGHTING` flag (`0x20`) must be set for an object to contribute light | DH2 does not check a PRO-data flag; instead it approximates the same effect with a magnitude heuristic — `lightRadius > 0 && lightIntensity > 655` (`lightmap.ts:69`) — so any object whose light fields happen to be populated above that threshold contributes light, regardless of whether `OBJECT_LIGHTING` would actually be set on the equivalent CE object | `lightmap.ts:68-74` / `object.cc:3977`; `obj_types.h:61` |
-| 13 | `objectGetLightIntensity` self-subtraction: player's own torch is excluded from the tile intensity used for night penalty | No DH2 equivalent — moot while night penalty is absent (gap #1), but needed if it is ever implemented | `combat.ts` / `object.cc:1748` |
+| 12 | `OBJECT_LIGHTING` (runtime flag: set when a light with intensity > 0 is turned on) | Equivalent in effect — DH2 objects default to intensity 655 (the baseline), so `lightRadius > 0 && lightIntensity > 655` selects the objects that actually add light | `object.cc _obj_turn_on_light` |
+| 13 | `objectGetLightIntensity` subtracts the dude's own light | **FIXED** — `hitChance.ts getObjectLightIntensity` | `object.cc:1748` |
+| 14 | Flares | **FIXED 2026-10-17** (C46) — using a flare lights it (`_obj_use_flare`: lit flare PID 205, 8 hexes at full intensity, burns out after 72000 ticks or on leaving the map); a lit flare in a hand lights its holder (`_invenWieldFunc`); thrown / dropped it lights the floor | `proto_instance.cc _obj_use_flare`; `queue.cc flareEventProcess`; `inventory.cc _invenWieldFunc` |
 
-<!-- audited: 2026-06-30 -->
+<!-- audited: 2026-10-17 -->
 
 ---
 
@@ -1058,7 +1055,7 @@ setObjectLightingMode('off')     // original per-fragment (no bleed; dark tops)
 
 **CE anchor**: `object.cc:835` — `lightIntensity = std::max(ambientIntensity, lightGetTileIntensity(elevation, objectListNode->obj->tile))`. The DH2 `'tile-y'` mode approximates this (one effective intensity per object tile), but extends it with per-column horizontal bilinear blending so walls catch the smooth gradient the floor has. CE uses a palette darkening table instead — exact per-pixel bilinear is a DH2 extension.
 
-**LD5 note**: CE's `objectGetLightIntensity()` subtracts `gDude->lightIntensity` before the ambient clamp (`object.cc:1753-1754`), but this function is only called from `combat.cc:4450` and `perk.cc:659` (gameplay, not render). The render path at `object.cc:835` does not subtract. LD5 remains open in the gameplay path; it was never part of the render fix.
+**LD5 note**: CE's `objectGetLightIntensity()` subtracts `gDude->lightIntensity` before the ambient clamp (`object.cc:1753-1754`), but this function is only called from `combat.cc:4450` and `perk.cc:659` (gameplay, not render). The render path at `object.cc:835` does not subtract. The gameplay path is `getObjectLightIntensity` (above), so LD5 is fixed too.
 
-**Gap status**: LD10 FIXED 2026-07-01. LD5 still missing (gameplay path).
+**Gap status**: LD10 FIXED 2026-07-01; LD5 FIXED (gameplay `getObjectLightIntensity`). <!-- audited: 2026-10-18 -->
 See `wiki/known_bugs.md §LD`.

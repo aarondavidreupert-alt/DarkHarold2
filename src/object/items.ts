@@ -57,7 +57,7 @@ export class WeaponObj extends Item {
     // state (ammo PID + remaining rounds) matches. Prevents loaded and unloaded
     // copies of the same weapon PID from merging into one stack.
     approxEq(obj: Obj): boolean {
-        if (this.pid !== obj.pid) return false
+        if (!super.approxEq(obj)) return false
         return weaponGetAmmoTypePid(this) === weaponGetAmmoTypePid(obj)
             && ammoGetQuantity(this) === ammoGetQuantity(obj)
     }

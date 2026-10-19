@@ -53,6 +53,14 @@ const MOVIE_FILE_NAMES = [
     'artimer4', 'credits',
 ]
 
+// The side files Fallout 2 ships for its movies (master.dat art/cuts/*.cfg,
+// text/english/cuts/*.sve). CE simply tries to open them (moviefx.cc movieEffectsLoad,
+// movie.cc movieLoadSubtitles) and carries on without; in the browser a missing file
+// is a logged 404, so the others aren't requested at all.
+const MOVIES_WITH_EFFECTS = new Set(['afailed', 'artimer1', 'artimer2', 'artimer3', 'artimer4', 'credits',
+    'derrick', 'elder', 'tanker', 'timeout', 'vsuit'])
+const MOVIES_WITH_SUBTITLES = new Set(['afailed', 'artimer1', 'artimer2', 'artimer3', 'artimer4', 'credits', 'elder'])
+
 // CE game_movie.h GameMovieFlags
 export const GAME_MOVIE_FADE_IN = 0x01
 export const GAME_MOVIE_FADE_OUT = 0x02
@@ -87,6 +95,7 @@ interface FadeEffect { frame: number; type: 'in' | 'out'; color: [number, number
 
 // CE movie.cc:559 movieLoadSubtitles — "frame:text" per line.
 function loadSubtitles(name: string): Subtitle[] {
+    if (!MOVIES_WITH_SUBTITLES.has(name)) return []
     const lang = 'english'
     try {
         const text = getFileText(`data/text/${lang}/cuts/${name}.sve`)
@@ -106,6 +115,7 @@ function loadSubtitles(name: string): Subtitle[] {
 
 // CE moviefx.cc movieEffectsLoad — art/cuts/<name>.cfg fade effects (colors 0-63).
 function loadEffects(name: string): FadeEffect[] {
+    if (!MOVIES_WITH_EFFECTS.has(name)) return []
     try {
         const ini = parseIni(getFileText(`data/art/cuts/${name}.cfg`))
         const frames = String(ini.info?.effect_frames ?? '').split(',').map((s) => parseInt(s, 10)).filter((n) => !isNaN(n))
@@ -294,8 +304,12 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
                     if (finished) return
                     sub.textContent = ''
                     video.play().catch(() => void finish())
-                    setTimeout(() => { awaitingGesture = false }, 0)
                 }
+                // The click that starts playback must not also skip the movie: its
+                // mouseup (or the key's own keydown) is swallowed, input counts again after.
+                const armSkip = () => setTimeout(() => { awaitingGesture = false }, 0)
+                screen.addEventListener('mouseup', armSkip, { once: true, capture: true })
+                document.addEventListener('keyup', armSkip, { once: true, capture: true })
                 resumeListener = resume
                 screen.addEventListener('mousedown', resume)
                 document.addEventListener('keydown', resume, true)

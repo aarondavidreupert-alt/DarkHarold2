@@ -25,6 +25,8 @@ import { ActionPoints, AI } from '../combat.js'
 import { Config } from '../config.js'
 import { Weapon } from '../critter.js'
 import { directionOfDelta, hexDistance, HEX_GRID_SIZE, Point } from '../geometry.js'
+import { toTileNum } from '../tile.js'
+import { canUseDoor } from '../map/pathfinder.js'
 import globalState from '../globalState.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Scripting } from '../scripting.js'
@@ -33,6 +35,9 @@ import { getAiPacket, AiPacket } from '../aiPackets.js'
 import { getObjectLightIntensity } from '../combat/hitChance.js'
 import { hitSpatialTrigger, Obj, ObjType, objectIsWeapon, SerializedObj, setObjectOpen } from './Obj.js'
 import { WeaponObj } from './items.js'
+
+// CE scripts.cc _scr_SpatialsEnabled — off while a spatial_p_proc runs
+let spatialsBusy = false
 
 export interface SerializedCritter extends SerializedObj {
     stats: any
@@ -97,19 +102,29 @@ export class Critter extends Obj {
     bonusAC = 0 // Temporary AC bonus from unused AP at end of turn
     perks: string[] = [] // List of acquired perks
     nextIdleAnimTime = 0 // performance.now() after which the next idle cycle begins; 0 = uninitialised
-    skipTurns = 0 // Number of combat turns to skip (set by knockdown/loseNextTurn effects)
-    isKnockedDown = false // Set by knockdown/knockout crit effects; consumed by critterDamage() to play the animation
     critDeath = false // a critical with DAM_DEAD hit this critter (criticalEffects 'death'); critterDamage kills it
     knockdownAnim: 'knockdownFront' | 'knockdownBack' | null = null // fall played by the last knockdown
 
-    // Crippled-limb flags (set by critical effects; persist for the fight)
-    crippledLeftArm = false
-    crippledRightArm = false
-    crippledLeftLeg = false
-    crippledRightLeg = false
-    isBlinded = false        // Blinded: heavy hit-chance penalty, Perception effectively 1
+    // CE critter->data.critter.combat.results: the DAM_* bits (src/combat/results.ts).
+    // The cripple / blind / prone accessors below read and write them.
+    injuryFlags = 0
 
-    injuryFlags?: number     // DAM_* bitmask from critter_injure (0x01=knocked down, 0x80=dead, etc.)
+    private resultBit(bit: number): boolean { return (this.injuryFlags & bit) !== 0 }
+    private setResultBit(bit: number, on: boolean): void {
+        this.injuryFlags = (on ? (this.injuryFlags | bit) : (this.injuryFlags & ~bit)) >>> 0
+    }
+    get crippledLeftLeg(): boolean { return this.resultBit(0x04) }   // DAM_CRIP_LEG_LEFT
+    set crippledLeftLeg(v: boolean) { this.setResultBit(0x04, !!v) }
+    get crippledRightLeg(): boolean { return this.resultBit(0x08) }  // DAM_CRIP_LEG_RIGHT
+    set crippledRightLeg(v: boolean) { this.setResultBit(0x08, !!v) }
+    get crippledLeftArm(): boolean { return this.resultBit(0x10) }   // DAM_CRIP_ARM_LEFT
+    set crippledLeftArm(v: boolean) { this.setResultBit(0x10, !!v) }
+    get crippledRightArm(): boolean { return this.resultBit(0x20) }  // DAM_CRIP_ARM_RIGHT
+    set crippledRightArm(v: boolean) { this.setResultBit(0x20, !!v) }
+    get isBlinded(): boolean { return this.resultBit(0x40) }         // DAM_BLIND
+    set isBlinded(v: boolean) { this.setResultBit(0x40, !!v) }
+    // CE _critter_is_prone: DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN
+    get isKnockedDown(): boolean { return this.resultBit(0x03) }
 
     // Poison / radiation / addiction (FO2-CE ref: critter.cc, radiation.cc)
     poisonLevel: number = 0
@@ -122,8 +137,6 @@ export class Critter extends Obj {
     addictedState: boolean = false
 
     // Combat status effect counters / flags
-    onFireTurns = 0          // Turns of fire DoT remaining; decremented in nextTurn
-    bypassArmorNextHit = false // Set by bypassArmor crit effect; zeroes DR/DT for the hit that triggered it
 
     static fromPID(pid: number, sid?: number): Critter {
         return Obj.fromPID_(new Critter(), pid, sid)
@@ -160,20 +173,28 @@ export class Critter extends Obj {
             // point at the re-created inventory objects (not stale pre-deserialize refs).
             // CE ref: inventory.cc critterGetItem1/critterGetItem2 — use hand-slot
             // flags (OBJECT_IN_LEFT_HAND=0x1000000, OBJECT_IN_RIGHT_HAND=0x2000000).
-            // For already-hostile NPCs (mid-combat save) fall back to first-weapon
-            // heuristic if no flagged weapon is found, matching pre-save draw state.
+            // Any item can be in a hand (a flare, a Stealth Boy), not only weapons.
             obj.leftHand  = Critter.makeFist()
             obj.rightHand = Critter.makeFist()
-            let foundFlagged = false
             for (const inv of obj.inventory) {
-                if (inv.subtype !== 'weapon') continue
                 const w = inv as WeaponObj
-                if (inv.flags & 0x1000000) { obj.leftHand  = w; foundFlagged = true }  // OBJECT_IN_LEFT_HAND
-                else if (inv.flags & 0x2000000) { obj.rightHand = w; foundFlagged = true } // OBJECT_IN_RIGHT_HAND
+                if (inv.flags & 0x1000000) obj.leftHand  = w       // OBJECT_IN_LEFT_HAND
+                else if (inv.flags & 0x2000000) obj.rightHand = w  // OBJECT_IN_RIGHT_HAND
             }
-            // Hostile NPCs with no hand-flagged weapon in save data → draw first usable
-            if (obj.hostile && !foundFlagged) {
-                obj.equipFromInventory()
+        } else if (typeof mobj.extra?.hp === 'number') {
+            // CE: the map file stores each critter's current HP (data.critter.hp), and
+            // critterIsDead is HP <= 0 — the corpses a map starts with (Enclave soldiers in
+            // the Military Base …) are critters with 0 HP and a single-frame death FID.
+            const hp: number = mobj.extra.hp
+            if (hp <= 0) {
+                obj.stats.setBase('HP', 0)
+                obj.dead = true
+                obj.injuryFlags = (obj.injuryFlags | 0x80) >>> 0 // DAM_DEAD
+                obj.art = mobj.art // the map's death frame art (initialised to idle by init())
+                obj.frame = 0
+                obj.anim = 'dead'
+            } else {
+                obj.stats.setBase('HP', Math.min(hp, obj.getStat('Max HP')))
             }
         }
 
@@ -205,11 +226,13 @@ export class Critter extends Obj {
         this.leftHand  = Critter.makeFist()
         this.rightHand = Critter.makeFist()
         for (const inv of this.inventory) {
-            if (inv.subtype !== 'weapon') continue
             const w = inv as WeaponObj
             if (inv.flags & 0x1000000) this.leftHand  = w  // OBJECT_IN_LEFT_HAND
             else if (inv.flags & 0x2000000) this.rightHand = w // OBJECT_IN_RIGHT_HAND
         }
+        // CE: a critter other than the player acts with its right-hand item
+        // (critterGetItem2 — the fid's weapon code, HIT_MODE_RIGHT_WEAPON_*).
+        if (!this.isPlayer && (this.rightHand as any)?.pid !== undefined) (this as any).activeHand = 'rightHand'
 
         // set them in their proper idle state for the weapon
         this.art = this.getAnimation('idle')
@@ -246,10 +269,11 @@ export class Critter extends Obj {
     }
 
     move(position: Point, curIdx?: number, signalEvents = true): boolean {
-        // CE ref: animation.cc:1805 — auto-open closed unlocked doors walked through
+        // CE ref: animation.cc _object_move — doors on the way are opened (canUseDoor)
         if (globalState.gMap) {
             for (const obj of globalState.gMap.objectsAtPosition(position)) {
-                if (obj.subtype === 'door' && !obj.open && !obj.locked && !obj.jammed) {
+                // _object_move: a blocking door the critter canUseDoor gets _obj_use_door
+                if (obj.subtype === 'door' && !obj.open && !obj.jammed && canUseDoor(this, obj)) {
                     setObjectOpen(obj, true, false, true)
                 }
             }
@@ -259,13 +283,19 @@ export class Critter extends Obj {
             return false
         }
 
-        if (Config.engine.doSpatials !== false) {
+        // CE scripts.cc scriptsExecSpatialProc: not for hidden or flat objects or tiles below
+        // 10, and not while a spatial_p_proc is already running (_scr_SpatialsEnabled).
+        if (Config.engine.doSpatials !== false && this.visible !== false && ((this.flags ?? 0) & 0x08) === 0 // OBJECT_FLAT
+            && toTileNum(position) >= 10 && !spatialsBusy) {
+            spatialsBusy = true
+            try {
             const hitSpatials = hitSpatialTrigger(position)
             for (let i = 0; i < hitSpatials.length; i++) {
                 const spatial = hitSpatials[i]
                 dbg('object', `[Object] triggered spatial ${spatial.script} (range=${spatial.range}) @ (${spatial.position.x}, ${spatial.position.y})`)
                 Scripting.spatial(spatial, this)
             }
+            } finally { spatialsBusy = false }
         }
 
         return true
@@ -286,18 +316,35 @@ export class Critter extends Obj {
         })
     }
 
+    // CE stat.cc critterGetStat — the stat plus its context modifiers: blindness −5 PER,
+    // overloaded −(excess / 40 + 1) AP, and age growing with the game years.
     getStat(stat: string) {
-        return this.stats.get(stat)
+        const value = this.stats.get(stat)
+        switch (stat) {
+            case 'PER':
+                return this.isBlinded ? Math.max(1, value - 5) : value // DAM_BLIND
+            case 'AP': {
+                const remaining = this.stats.get('Carry') - this.getInventoryWeight()
+                return remaining < 0 ? Math.max(1, value - (Math.trunc(-remaining / 40) + 1)) : value
+            }
+            case 'Age':
+                return value + Math.floor((globalState.gameTickTime ?? 0) / 315360000) // GAME_TIME_TICKS_PER_YEAR
+        }
+        return value
     }
 
     getEquippedArmor(): Obj | null {
-        // Player stores armor in a dedicated slot; NPCs check inventory
+        // Player stores armor in a dedicated slot; NPCs wear the inventory armor flagged
+        // OBJECT_WORN (CE critterGetArmor), else the first one carried.
         const self = this as any
         if (self.armor !== undefined) return self.armor
+        let first: Obj | null = null
         for (const item of this.inventory) {
-            if (item.subtype === 'armor') return item
+            if (item.subtype !== 'armor') continue
+            if ((((item as any).flags ?? 0) & 0x4000000) !== 0) return item // OBJECT_WORN
+            if (!first) first = item
         }
-        return null
+        return first
     }
 
     getArmorDR(damageType: string): number {
@@ -388,12 +435,29 @@ export class Critter extends Obj {
         if (running && !this.canRun()) {
             running = false
         }
+        // CE animation.cc: crippled legs walk (animationRegisterRunTo*); the dude running
+        // while sneaking stops sneaking unless he has Silent Running (_dude_run).
+        if (running && (this.crippledLeftLeg || this.crippledRightLeg)) running = false
+        if (running && this.isPlayer && (this as any).isSneaking && !this.hasPerk('Silent Running')) {
+            ;(this as any).isSneaking = false
+            ;(this as any).sneakWorking = false
+            Scripting.timeEventList.splice(0, Scripting.timeEventList.length,
+                ...Scripting.timeEventList.filter((e) => !(e.obj === this && e.userdata === 'sneak')))
+        }
+
+        // Critters without a walk/run FRM (spore plants, floaters' stand-only art) can't
+        // move: CE _object_move does nothing when artLock(sad->fid) fails (animation.cc).
+        const moveArt = this.getAnimation(running ? 'run' : 'walk')
+        if (!globalState.imageInfo[moveArt]) {
+            dbgWarn('movement', `[walkTo] ${this.name || this.pid} has no move art ${moveArt} — not moving`)
+            return false
+        }
 
         // set up animation properties
         const actualTarget = { x: path[path.length - 1][0], y: path[path.length - 1][1] }
         this.path = { path: path, index: 1, target: actualTarget, partial: 0 }
         this.anim = running ? 'run' : 'walk'
-        this.art = this.getAnimation(this.anim)
+        this.art = moveArt
         this.animCallback = callback || (() => this.clearAnim())
         this.frame = 0
         this.lastFrameTime = window.performance.now()
@@ -403,6 +467,12 @@ export class Critter extends Obj {
             throw Error()
         }
         this.orientation = dir
+        // CE ref: animation.cc _object_move (field_20 == -2000) — the walk starts on the
+        // hex centre (objectSetLocation) and then adds frame 0's FRM delta.
+        if (Config.engine.walkModel !== 'dh2') {
+            const d0 = globalState.imageInfo[this.art]?.frameOffsets[dir]?.[0]
+            if (d0) this.shift = { x: d0.x, y: d0.y }
+        }
         //console.log("start dir: %o", this.orientation)
 
         return true

@@ -92,6 +92,17 @@ export function uiWorldMap(onAreaMap = false) {
     const dnBtn = document.getElementById('wmLabelScrollDown')
     if (upBtn) upBtn.onclick = () => setLabelScroll(_labelScrollY - LABEL_STEP_PX)
     if (dnBtn) dnBtn.onclick = () => setLabelScroll(_labelScrollY + LABEL_STEP_PX)
+
+    // CE ref: worldmap.cc:3261 — the wheel over the town list scrolls it one tab (27 px)
+    // through wmInterfaceScrollTabsStart, like the arrows; the browser's own scroll
+    // would move the labels without the wmtabs background.
+    const labels = document.getElementById('worldMapLabels')
+    if (labels) {
+        labels.onwheel = (e: WheelEvent) => {
+            e.preventDefault()
+            if (e.deltaY !== 0) setLabelScroll(_labelScrollY + (e.deltaY > 0 ? LABEL_STEP_PX : -LABEL_STEP_PX))
+        }
+    }
 }
 
 function uiWorldMapAreaView() {
@@ -115,10 +126,8 @@ export function uiWorldMapShowArea(area: Area) {
     $areamap.style.backgroundImage = `url('${area.mapArt}.png')`
     clearEl($areamap)
 
-    // CE ref: worldmap.cc wmTownMapDraw — skips entrances whose state was set to 0
-    // by script (metarule3 104). DH2 defaults all entrances to state=true; scripts
-    // can still explicitly hide them. TODO: re-enable strict filter once map-open
-    // scripts reliably run.
+    // CE ref: worldmap.cc wmTownMapRefresh / wmTownMapInit — only entrances whose state
+    // is on (city.txt start state, metarule3 104) are drawn and clickable.
     const active = area.entrances.filter(e => e.state)
 
     // Entrances with x=0,y=0 in city.txt have no assigned position; after
@@ -186,18 +195,21 @@ function uiWorldMapLabels() {
     outer.innerHTML = "<div id='worldMapLabelsInner'></div>"
     const inner = $id('worldMapLabelsInner')
 
-    // CE ref: worldmap.cc wmMakeTabsLabelList — areas with labelFid != -1, sorted
-    // alphabetically. Sub-areas and encounter tables (id > 20) are excluded; those
-    // are Destroyed Arroyo (22) and Raiders (25) which share Arroyo's label art.
+    // CE ref: worldmap.cc wmMakeTabsLabelList — the known areas (wmAreaIsKnown: known
+    // and visited) with a label, sorted by name.
     const areas = Object.values(globalState.mapAreas)
-        .filter(a => a.id <= 20 && !!a.labelArt)
+        .filter(a => !!a.labelArt && Worldmap.areaIsKnown(a.id))
         .sort((a, b) => a.name.localeCompare(b.name))
 
     for (const area of areas) {
         const label = makeEl('img', { classes: ['worldMapLabelImage'], src: area.labelArt + '.png' })
         const labelButton = makeEl('div', {
             classes: ['worldMapLabelButton'],
-            click: () => { uiWorldMapShowArea(area) },
+            // CE quick destination: the party walks there (from a town map too)
+            click: () => {
+                uiWorldMapWorldView()
+                Worldmap.travelToArea(area.id)
+            },
         })
         const areaLabel = makeEl('div', {
             classes: ['worldMapLabel'],

@@ -77,13 +77,7 @@ town sense; it is a critter-local signed integer modified by `reactionSetValue`.
 
 #### DH2
 
-DH2 has three parallel stores, **none of which are connected to each other**:
-
-1. `globalVars: any = {}` in `scripting.ts:51` — the GVAR pool used by scripts,
-   keyed by integer GVAR index.
-2. `player.stats` (`StatSet`) — contains named stats `'Karma'`, `'Reputation'`,
-   and `'Rep_{town}'` used by the UI.
-3. Save file `gvars` field in `SaveGame` — serializes the `globalVars` pool.
+The GVAR pool (`Scripting` `globalVars`, saved with the game, initial values from `data/gvars.json` = vault13.gam) is authoritative, as in CE. The character screen's karma folder reads the GVARs directly (`src/ui_character/folders.ts`); `player.stats` `Karma` / `Rep_*` are kept in sync for older code paths only.
 
 ---
 
@@ -110,20 +104,7 @@ Sfall config — this is a CE enhancement, not original FO2.
 
 #### DH2
 
-The script path for karma writes (`set_global_var(0, N)`) goes to
-`globalVars[0]` — a plain dictionary entry. The UI karma display reads
-`player.stats.getBase('Karma')`. These are **never synchronized**.
-
-| Code path | Storage | Used by |
-|---|---|---|
-| `set_global_var(0, val)` | `globalVars[0]` | CE scripts |
-| `get_global_var(0)` | `globalVars[0]` | CE scripts |
-| `get_pc_stat(4)` / `set_pc_stat(4, val)` | `player.stats.getBase('Karma')` | UI, debug |
-| `debug.setKarma(n)` | `player.stats.setBase('Karma', n)` | Dev console |
-
-The character sheet karma display reads `player.stats.getBase('Karma')`. A CE
-script that does `set_global_var(GVAR_PLAYER_REPUTATION, 500)` has no effect on
-the displayed karma value.
+`set_global_var(0, N)` writes `globalVars[0]`; the karma folder shows `GVAR_PLAYER_REPUTATION` directly.
 
 ---
 
@@ -150,30 +131,7 @@ game data.
 
 #### DH2
 
-Hardcoded in `ui_character.ts–591`:
-
-```typescript
-const KARMA_TITLES: Array<[number, string]> = [
-    [750,      'Savior of the Damned'],
-    [500,      'Guardian of the Wastes'],
-    [250,      'Shield of Hope'],
-    [100,      'Defender'],
-    [0,        'Wanderer'],
-    [-99,      'Betrayer'],
-    [-249,     'Sword of Despair'],
-    [-499,     'Scourge of the Wastes'],
-    [-Infinity, 'Demon Spawn'],
-]
-```
-
-Title lookup: `KARMA_TITLES.find(([threshold]) => karmaVal >= threshold)` — reads
-`player.stats.getBase('Karma')`, NOT `globalVars[0]`.
-
-The title thresholds likely match CE's `genrep.txt` defaults. The boundary at
-0 (Wanderer) and the name progression match the in-game character editor.
-
-**DH2 gap**: Title display uses `player.stats.getBase('Karma')` while scripts
-modify `globalVars[0]` — the title will not update when CE scripts change karma.
+The title comes from `data/genrep.txt` (thresholds high → low, editor.msg names), as CE `genericReputationInit` — no hard-coded table.
 
 ---
 
@@ -219,11 +177,7 @@ the GVAR is non-zero.
 
 #### DH2
 
-These flags are stored in `globalVars[1]`, `globalVars[2]`, etc. Scripts that
-call `set_global_var(GVAR_CHILDKILLER_REPUTATION, 1)` (= `set_global_var(1, 1)`)
-will update `globalVars[1]` correctly. However, none of these flags are surfaced
-in DH2's UI — the karma panel only shows the score/title and town reps; there is
-no character-editor display of Childkiller, Berserker, etc.
+`src/ui_character/folders.ts` is CE `characterEditorDrawKarmaFolder`: every `data/karmavar.txt` entry (sorted by GVAR) — the score with its genrep title for GVAR 0, the other entries when their GVAR is non-zero — then the town reputations of the known areas, then the reliances; each line selects its card (skilldex art, editor.msg title and description).
 
 ---
 
@@ -278,74 +232,7 @@ on hard-coded thresholds per town.
 
 ### 2.2 DH2 Storage and UI
 
-**FIXED 2026-07-04 (roadmap R2).** Town reputation used to be split across two
-disconnected storage systems (GVAR pool vs. `player.stats`) with no sync path;
-this has been closed on the write side.
-
-**Script-side** (GVAR pool): `globalVars[47]` through `globalVars[66]` (and the
-higher-index ones). Scripts read/write these correctly.
-
-**UI-side** (player stats): `player.stats.getBase('Rep_Arroyo')` etc. The karma
-panel iterates `TOWN_NAMES` (`ui_character.ts–597`) and reads `Rep_{town}`:
-
-```typescript
-const TOWN_NAMES = [
-    'Arroyo', 'Klamath', 'The Den', 'Vault City', 'Gecko', 'Modoc',
-    'Sierra Base', 'Broken Hills', 'New Reno', 'Redding', 'NCR',
-    'Vault 13', 'San Francisco', 'Abbey', 'EPA', 'Primitive Tribe',
-    'Raiders', 'Vault 15', 'Ghost Farm',
-]
-```
-
-`Script.set_global_var()` (`scripting.ts:88-94, ~500-510`) now carries a
-`TOWN_REP_GVARS` lookup table mapping each town's GVAR index (47-66, 294, 308)
-to its `TOWN_NAMES` entry. Every `set_global_var(gvar, value)` call for a town
-GVAR mirrors the write into `player.stats.setBase('Rep_' + townName, value)` in
-the same call, the same way GVAR 0 already mirrored into `'Karma'`. This means
-any script that updates a town's reputation now populates the stat key the
-karma panel reads, so the town section is no longer permanently empty.
-
-**REGRESSION found and fixed 2026-07-05** (user-reported crash on opening the
-character screen after entering a town): `setBase()` writes unconditionally
-with no validation, but `StatSet.getBase()` (`char.ts:268-275`) throws
-`No dependencies for stat '<name>'` for any name not registered in
-`statDependencies` (`skills.ts`) — none of the 19 `Rep_*` names were
-registered, so the very first town-GVAR write from any script populated
-`baseStats` (passing the panel's presence guard) but crashed the next
-`getBase()` read, breaking the character screen. Fixed by registering all 19
-`Rep_*` entries in `statDependencies` (wide range, default 0, no
-dependencies, matching the pre-existing `Karma` entry).
-
-The panel still only displays a town if the key exists in
-`player.stats.baseStats` — a town whose GVAR a script never touches still
-won't appear, matching CE's behavior of not showing towns the player hasn't
-interacted with.
-
-**Town standing labels** — DH2 uses 7 tiers (`ui_character/viewer.ts:374-388`,
-`townStanding()`). **FIXED 2026-07-04**: the Antipathy/Hated/Vilified
-boundaries were off by one (`-14`/`-29` instead of `-15`/`-30`), which
-misclassified `val = -15` as Hated (should be Antipathy) and `val = -30` as
-Vilified (should be Hated). Corrected against `character_editor.cc:4586-4599`:
-
-| Range | Label |
-|---|---|
-| val ≥ 30 | Idolized |
-| 15 ≤ val < 30 | Liked |
-| 1 ≤ val < 15 | Accepted |
-| val = 0 | Neutral |
-| -15 ≤ val < 0 | Antipathy |
-| -30 ≤ val < -15 | Hated |
-| val < -30 | Vilified |
-
-CE has no equivalent engine-enforced tier table — towns use these labels in
-their own scripts via direct GVAR comparisons.
-
-**Remaining gap**: `Player` initialization does not pre-seed `Rep_*` stat keys
-at game start, and there is still no read-side sync (a `debug`-style direct
-write via `player.stats.setBase('Rep_...', n)` — e.g. from a save-editor tool
-— would not push back into `globalVars[gvar]`). CE has the same one-directional
-model (GVAR is authoritative; the character editor is a read-only view), so
-this asymmetry is intentional and not a bug.
+Scripts read and write the town GVARs (47–66, 294, 308). The karma folder lists `gTownReputationEntries` (GVAR, city) for every known area (`wmAreaIsKnown`), the city name from map.msg 1500 + city and the tier by CE's thresholds (< −30 Vilified, < −15 Hated, < 0 Antipathy, 0 Neutral, < 15 Accepted, < 30 Liked, else Idolized — editor.msg 2000–2006, card art 135–153, description + 100).
 
 ---
 
@@ -379,10 +266,7 @@ town's scripts decide when to turn hostile.
 
 ### DH2
 
-DH2 scripts can read/write LVARs correctly; LVAR[0]-based attitude would
-function if scripts use it. The `reaction_influence` opcode (0x80B3) is not
-wired in `vm_bridge.ts` — but since CE's implementation always returns 0, this
-is low-impact.
+LVAR 0 is the reaction value as in CE; `reaction_influence` (0x80B3) is wired and returns 0 like CE; being hit by the dude sets the victim's reaction to −3 (`combat/whoHitMe.ts`, `_critter_set_who_hit_me`).
 
 ---
 
@@ -444,17 +328,7 @@ through `set_global_var(0, ...)` and all town reputation changes go through
 
 ### DH2 wiring
 
-| CE opcode | DH2 wired | DH2 method |
-|---|---|---|
-| `get_global_var` (0x80C5) | Yes — `vm_bridge.ts:92` | `scripting.ts:448` — reads `globalVars[N]` |
-| `set_global_var` (0x80C6) | Yes — `vm_bridge.ts:93` | `scripting.ts:403` — writes `globalVars[N]` |
-| `get_pc_stat` (0x80A6) | Yes (implicit via bridged map) | `scripting.ts:891` — cases 0–5 |
-| `set_pc_stat` (none in CE) | n/a — not a CE opcode | `scripting.ts:910` — DH2 addition |
-| `mod_pc_stat` (none in CE) | n/a — not a CE opcode | `scripting.ts:926` — DH2 addition |
-| `reaction_influence` (0x80B3) | No — not in vm_bridge | Not implemented |
-
-`reaction_influence` is missing from vm_bridge, but CE's implementation always
-returns 0, so any script calling it would receive 0 in CE too. Low impact.
+`get_global_var` / `set_global_var` / `get_pc_stat` / `reaction_influence` are wired (see `scripting_reference.md` §4). `set_pc_stat` / `mod_pc_stat` exist as DH2 helpers but, like in CE, have no opcode.
 
 ---
 
@@ -768,26 +642,14 @@ semantics match CE's `OBJECT_HIDDEN` behaviour.
 
 ### 6.9 DH2 Current Status (Visual Egg)
 
-The egg system is **completely absent** from DH2. No component has been
-implemented.
-
-| Component | DH2 status |
+| Component | DH2 |
 |---|---|
-| `gEgg` pseudo-object | Not created |
-| Egg FRM loading (`OBJ_TYPE_INTERFACE` index 2) | Not loaded |
-| Egg position tracking (follows player) | Not implemented |
-| `tileIsInFrontOf` / `tileIsToRightOf` | Not implemented |
-| Wall/scenery positional check | Not implemented |
-| Egg screen-rect intersection test | Not implemented |
-| `_intensity_mask_buf_to_buf` equivalent (WebGL) | Not implemented |
-| `OBJECT_TRANS_*` flag rendering (glass, steam, etc.) | Not implemented (all objects drawn opaque) |
-| `tile_fill_roof` roof skip | Not implemented (see `wiki/rendering.md` §3) |
-| Egg masking on roof tiles | Not implemented |
-| `set_obj_visibility` opcode | **Implemented** — `scripting.ts:1213`, `vm_bridge.ts:133` |
-
-**Visual symptom**: Walls and large scenery objects in front of the player are
-drawn fully opaque. The player character can be completely hidden behind a wall
-with no transparency to indicate their position.
+| Egg mask (egg.frm), following the dude | `render/webglDraw.ts` (`Config.ui.eggMode`, default `dh2-egg`; `ce-egg` is the byte-for-byte CE occlusion test) |
+| `tileIsInFrontOf` / `tileIsToRightOf` and the wall-orientation check | `geometry` `hexIsInFrontOf` / `hexIsToRightOf`, `webglDraw.ts` |
+| Egg on roofs | roof tiles over the egg fade with the same mask |
+| `tile_fill_roof` | per-building roof hiding (`renderer.ts`) |
+| `OBJECT_TRANS_*` | `renderObject`: RED / WALL / GLASS / STEAM / ENERGY blend their flag colour by the sprite's gray step (`_dark_translucent_trans_buf_to_buf`, glass / common gray tables), switched on the whole flag mask as CE; the Stealth Boy uses the glass path |
+| `set_obj_visibility` | implemented |
 
 ---
 
@@ -797,29 +659,14 @@ with no transparency to indicate their position.
 
 | # | CE behaviour | DH2 status |
 |---|---|---|
-| K1 | Script karma writes (`set_global_var(0, N)`) should update the displayed karma score | **Fixed** (pre-existing, prior to this audit) — `set_global_var(0, N)` syncs into `player.stats` |
-| K2 | Town reputation UI reads from `gGameGlobalVars[47-66]` via character editor | **FIXED 2026-07-04 (R2), regression fixed 2026-07-05** — `set_global_var()` now syncs town-rep GVAR writes (indices 47-66, 294, 308) into `player.stats.setBase('Rep_' + town, ...)` via `TOWN_REP_GVARS`, so the town section populates once a script touches that GVAR. The 19 `Rep_*` names weren't registered in `statDependencies`, so the panel's `getBase()` read-back crashed the character screen — fixed by registering them in `skills.ts`. |
-| K3 | Special karma flags (Childkiller, Berserker, etc.) shown in character editor karma panel | **Gap** — stored correctly in `globalVars[1-3, 37-45]` by scripts but no UI display |
-| K4 | Town standing tier labels are per-town-script thresholds in CE | **Gap** — DH2 uses a hardcoded 7-tier table; not incorrect per se, but CE has no engine table |
-| K5 | `PC_STAT_REPUTATION` (pcstat 3) and `PC_STAT_KARMA` (pcstat 4) are vestigial in CE — always 0 | **Info** — DH2 adds `set_pc_stat`/`mod_pc_stat` for these; no CE script uses them |
-| K6 | `gvars.json` initial values match `data/vault13.gam` non-zero defaults | **Gap** — `gvars.json` typically absent; all GVARs start at 0 rather than CE defaults |
-| K7 | Town GVAR indices for Vault 15 (301), Ghost Farm (315), Navarro (635) are non-contiguous | **Info** — script access works; none appear in DH2's `TOWN_NAMES` UI list |
-| K8 | `reaction_influence` opcode (0x80B3) returns 0 in CE (stub) | **Gap** — not wired in `vm_bridge.ts`; scripts calling it will hit a missing-opcode error instead of silently getting 0 |
-| K9 | `_critter_set_who_hit_me` calls `reactionSetValue(critter, -3)` on player attack | **Gap** — not ported; NPC attitude (LVAR[0]) does not automatically worsen when player attacks |
+| K5 | `PC_STAT_REPUTATION` / `PC_STAT_KARMA` are vestigial in CE | Info — DH2's `get_pc_stat(3/4)` read `player.stats`; no vanilla script uses them |
+
+K1–K4 and K6–K9 are fixed (GVAR-backed karma folder from karmavar.txt / genrep.txt with CE town tiers, vault13.gam GVAR defaults, `reaction_influence`, who-hit-me reaction −3).
 
 ### 7.2 Visual Egg Gaps
 
 | # | CE behaviour | DH2 status |
 |---|---|---|
-| E1 | Walls/scenery in front of player fade using egg FRM gradient mask | **Not implemented** — walls always opaque |
-| E2 | Roof tiles at player's square rendered with egg circle cutout | **Not implemented** — roofs drawn fully opaque |
-| E3 | `tile_fill_roof` skips interior roof tiles when player enters building | **Not implemented** (see `wiki/rendering.md` §3) |
-| E4 | `OBJECT_TRANS_GLASS` objects render with glass blend table (~50% alpha) | **Not implemented** — no blend table; all objects render with standard `SRC_ALPHA` |
-| E5 | `OBJECT_TRANS_STEAM`, `_ENERGY`, `_RED`, `_WALL` — each uses its own palette blend table | **Not implemented** |
-| E6 | `OBJECT_TRANS_NONE` objects respect palette-index-0 transparency but are otherwise opaque | Partial — PNG alpha channel handles this correctly, but `OBJECT_TRANS_NONE` flag is never read |
-| E7 | Critters inside the egg zone are still drawn opaque (intentional exclusion) | Correctly excluded by type check (moot since egg itself is missing) |
-| E8 | `set_obj_transparency` as a script opcode | Does not exist in CE — `set_obj_visibility` is the real opcode and **is** implemented in DH2 |
-| E9 | `tileIsInFrontOf` / `tileIsToRightOf` geometry functions | Not present in DH2; needed for egg and also for correct combat sight-line logic |
-| E10 | Egg is reset / repositioned on elevation change synchronously with player | N/A (egg not present), but elevation change is handled in `changeElevation` (`map.ts`) |
+| E1 | Blend tables are palette lookups | The WebGL blend works on RGB (same formula, palette-free colours) |
 
-<!-- audited: 2026-07-05 — R2 regression fixed (Rep_* stats now registered in statDependencies, skills.ts) -->
+E2–E10 are implemented (egg mask on walls and roofs, roof fill, the `OBJECT_TRANS_*` blends, TRANS_NONE opaque, the in-front / right-of tests). <!-- audited: 2026-10-18 -->

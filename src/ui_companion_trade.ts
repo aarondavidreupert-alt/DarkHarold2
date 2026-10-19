@@ -93,7 +93,7 @@ export function uiCompanionTrade(companion: Critter): void {
 
     function totalWeight(objects: Obj[]): number {
         let total = 0
-        for (const o of objects) total += (o.pro?.extra?.weight ?? 0) * o.amount
+        for (const o of objects) total += o.stackWeight() // item.cc itemGetWeight
         return total
     }
 
@@ -102,7 +102,7 @@ export function uiCompanionTrade(companion: Critter): void {
         const player = globalState.player
 
         const playerCarry = player.getStat('Carry')
-        const playerCurrentWeight = workingPlayerInventory.reduce((s, o) => s + (o.pro?.extra?.weight ?? 0) * o.amount, 0)
+        const playerCurrentWeight = totalWeight(workingPlayerInventory)
         const playerWeightAvailable = playerCarry - playerCurrentWeight
         if (totalWeight(companionBarterTable) > playerWeightAvailable) {
             // CE ref: inventory.cc:4710-4718 — message 31 "Sorry, you cannot
@@ -114,7 +114,7 @@ export function uiCompanionTrade(companion: Critter): void {
         }
 
         const companionCarry = companion.getStat('Carry')
-        const companionCurrentWeight = workingCompanionInventory.reduce((s, o) => s + (o.pro?.extra?.weight ?? 0) * o.amount, 0)
+        const companionCurrentWeight = totalWeight(workingCompanionInventory)
         const companionWeightAvailable = companionCarry - companionCurrentWeight
         if (totalWeight(playerBarterTable) > companionWeightAvailable) {
             // CE ref: inventory.cc:4720-4728 — message 32 "Sorry, that's too

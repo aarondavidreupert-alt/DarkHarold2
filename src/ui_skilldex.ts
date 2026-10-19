@@ -23,13 +23,17 @@ import { dbg } from './logger.js'
 import { Skills, SKILL_NAMES } from './skills.js'
 import { skillUse } from './skillUse.js'
 import { Widget } from './ui_widget.js'
-import { font3, FontWidget, renderBignum } from './ui_font.js'
+import { CE_COLOR, font3, FontWidget, FoText, renderBignum } from './ui_font.js'
+import { getMessage } from './util.js'
 import { WindowFrame, SmallButton } from './ui_components.js'
 import { makePanelDraggable } from './ui_drag.js'
 import { UIMode } from './ui_panels.js'
 import { drawHP, uiLog } from './ui_hud.js'
 
 let skilldexWindow: WindowFrame
+// CE game_mouse.cc action menu USE_SKILL: skilldexOpen, then actionUseSkill on the
+// menu's object instead of the targeting cursor.
+let onSkillPicked: ((skill: Skills) => void) | null = null
 
 export function getSkilldexWindow(): WindowFrame | null {
     return skilldexWindow ?? null
@@ -50,45 +54,39 @@ export function initSkilldex(): void {
 
     function useSkill(skill: Skills) {
         return () => {
+            const picked = onSkillPicked
+            onSkillPicked = null
             skilldexWindow.close()
+            if (picked && !isPassiveSkill(skill)) { picked(skill); return }
 
             if (isPassiveSkill(skill)) {
                 // Passive/self skills: execute immediately, no target selection needed
                 const skillName = SKILL_NAMES[skill - 1]
                 const player = globalState.player
                 if (!player) return
-                const result = skillUse(player, player, skillName)
-                uiLog(result.message)
-                if (result.hpHealed > 0) {
-                    drawHP(player.getStat('HP'))
-                }
-                dbg('skills', `[UI] Passive skill executed: ${skillName} result=${JSON.stringify(result)}`)
+                skillUse(player, player, skillName)
+                dbg('skills', `[UI] Passive skill executed: ${skillName}`)
                 return
             }
 
-            // Target skills: enter targeting mode — cursor changes, game loop continues
-            globalState.uiMode = UIMode.useSkill
-            globalState.skillMode = skill
-            globalState.cursorMode = 'useSkill'
-            // CSS cursor fallback — crosshair visible even if WebGL crossuse asset is missing
-            const cnv = document.getElementById('cnv')
-            if (cnv) cnv.style.cursor = "url('art/intrface/crossuse.png') 11 11, crosshair"
-            dbg('skills', `[UI] Skill targeting mode: ${SKILL_NAMES[skill - 1]}`)
+            beginSkillTargeting(skill)
         }
     }
 
+    // CE ref: skilldex.cc skilldexWindowInit — skldxbox (185x368) right-aligned over
+    // the 640-wide interface bar, 4 px right / 6 px bottom margin above the bar.
+    const BAR_LEFT = (Config.ui.screenWidth - 640) / 2
     skilldexWindow = new WindowFrame(
         'art/intrface/skldxbox',
         {
-            // Positions are in the 800×600 layout frame provided by
-            // #uiStage; the stage centers those coordinates on screen.
-            x: Config.ui.screenWidth - 185,
-            y: Config.ui.screenHeight - 368 - 99,
+            x: BAR_LEFT + 640 - 185 - 4,
+            y: Config.ui.screenHeight - 99 - 1 - 368 - 6,
         },
         185,
         368
     )
-        .add(new FontWidget(65, 15, 'SKILLDEX', font3, '#FFD700'))
+        // "SKILLDEX" title: skilldex.msg 100, font 103 at (55, 14), _colorTable[18979]
+        .add(new FontWidget(55, 14, getMessage('skilldex', 100) ?? 'SKILLDEX', font3, CE_COLOR.label))
 
     // FO2-CE ref: skilldex.cc SkilldexSkill enum — 8 skills in order
     const skilldexSkills: [string, Skills][] = [
@@ -102,45 +100,54 @@ export function initSkilldex(): void {
         ['Repair',    Skills.Repair],
     ]
 
-    let yPos = 49
+    // CE skilldex.cc skilldexWindowInit: buttons skldxoff (up, buffer index*2) / skldxon
+    // (down, index*2+1), 86x33, at x 15, y 45 + 36*i; the
+    // name (skilldex.msg 102+i, font 103) centred: x = (86 - w) / 2 + 1,
+    // y = (33 - lineHeight) / 2 + 1, colour 18979 up / 14723 down. Values: big
+    // numbers at x 110, y 48 + 36*i.
+    const BTN_W = 86
+    const BTN_H = 33
+    new Image().src = 'art/intrface/skldxon.png' // preload the pressed state
     for (let i = 0; i < skilldexSkills.length; i++) {
         const [name, skill] = skilldexSkills[i]
+        const btn = new Widget('art/intrface/skldxoff.png', { x: 15, y: 45 + i * 36, w: BTN_W, h: BTN_H })
+            .mouseDownBG('art/intrface/skldxon.png')
+            .css({ cursor: 'pointer' })
+            .onClick(useSkill(skill))
+        skilldexWindow.add(btn)
 
-        // Skill name — div-per-glyph for transparent background
-        const nameWidget = new Widget(null, { x: 19, y: yPos - 5, w: 110, h: 24 })
-        nameWidget.css({ cursor: 'pointer', display: 'flex', alignItems: 'flex-end' }).onClick(useSkill(skill))
-        skilldexWindow.add(nameWidget)
-
-        // Render text once font is loaded
+        const text = getMessage('skilldex', 102 + i) ?? name.toUpperCase()
+        const label = new FoText(font3, text, CE_COLOR.label)
         font3.onLoad(() => {
-            const rendered = font3.renderText(name.toUpperCase(), '#FFD700')
-            rendered.style.pointerEvents = 'none'
-            nameWidget.elem.appendChild(rendered)
+            const x = Math.max(0, Math.trunc((BTN_W - font3.measureText(text)) / 2) + 1)
+            const y = Math.trunc((BTN_H - font3.lineHeight) / 2) + 1
+            Object.assign(label.elem.style, { position: 'absolute', left: x + 'px', top: y + 'px', pointerEvents: 'none' })
+            btn.elem.appendChild(label.elem)
         })
+        btn.elem.addEventListener('mousedown', () => { label.color = CE_COLOR.labelPressed })
+        for (const ev of ['mouseup', 'mouseleave']) btn.elem.addEventListener(ev, () => { label.color = CE_COLOR.label })
 
-        // FO2-CE ref: skilldex.cc — 3-digit skill value display next to each button
-        const valWidget = new Widget(null, { x: 112, y: yPos - 2, w: 42, h: 28 })
+        const valWidget = new Widget(null, { x: 110, y: 48 + i * 36, w: 42, h: 28 })
         skillValueElems.push(valWidget.elem)
         skilldexWindow.add(valWidget)
-
-        yPos += 36
     }
 
+    // CANCEL: skilldex.msg 101 at (72, 337), little red button at (48, 338).
     skilldexWindow.add(
-        new SmallButton(47, 339).onClick(() => { skilldexWindow.close() })
+        new SmallButton(48, 338).onClick(() => { skilldexWindow.close() })
     )
+    skilldexWindow.add(new FontWidget(72, 337, getMessage('skilldex', 101) ?? 'CANCEL', font3, CE_COLOR.label).css({ pointerEvents: 'none' }))
 
     Object.assign(skilldexWindow.elem.style, {
         backgroundImage: `url('${skilldexWindow.background}.png')`,
         backgroundRepeat: 'no-repeat',
-        backgroundSize: '100% 100%',
         zIndex: '20',
         cursor: 'default',
     })
 
     // Drag-to-reposition from non-interactive areas of the skilldex frame,
     // matching the PipBoy / automap / inventory / character panels.
-    makePanelDraggable(skilldexWindow.elem)
+    makePanelDraggable(skilldexWindow.elem, 'skilldex')
 
     // FO2-CE ref: skilldex.cc — update skill values when the skilldex is shown
     const origShow = skilldexWindow.show.bind(skilldexWindow)
@@ -180,8 +187,28 @@ export function initSkilldex(): void {
     document.addEventListener('keydown', skilldexKeyHandler)
 }
 
+// CE game.cc: gameMouseSetCursor(MOUSE_CURSOR_USE_CROSSHAIR) + gameMouseSetMode(
+// GAME_MOUSE_MODE_USE_<skill>) — the next click uses the skill on what is under it.
+// (Sneak toggles at once: _action_skill_use(SKILL_SNEAK).)
+export function beginSkillTargeting(skill: Skills): void {
+    if (skill === Skills.Sneak) {
+        const player = globalState.player
+        if (!player) return
+        skillUse(player, player, SKILL_NAMES[skill - 1])
+        return
+    }
+    globalState.uiMode = UIMode.useSkill
+    globalState.skillMode = skill
+    globalState.cursorMode = 'useSkill'
+    // CSS cursor fallback — crosshair visible even if WebGL crossuse asset is missing
+    const cnv = document.getElementById('cnv')
+    if (cnv) cnv.style.cursor = "url('art/intrface/crossuse.png') 11 11, crosshair"
+    dbg('skills', `[UI] Skill targeting mode: ${SKILL_NAMES[skill - 1]}`)
+}
+
 /** Open the skilldex panel. No-op if initSkilldex() hasn't been called yet. */
-export function showSkilldex(): void {
+export function showSkilldex(onPick: ((skill: Skills) => void) | null = null): void {
+    onSkillPicked = onPick
     skilldexWindow?.show()
 }
 

@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { restoreAutomap, SavedAutomap, serializeAutomap } from './automapData.js'
+import { killCounts } from './critter.js'
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 import { ensureCycleMask } from './images.js'
 import { restoreRadiationEvent } from './radiation.js'
@@ -27,12 +29,13 @@ import { SerializedMap } from './map.js'
 import { Critter, deserializeObj, SerializedObj } from './object.js'
 import { refreshStealthState } from './miscItem.js'
 import { Scripting } from './scripting.js'
-import { scheduleSneakEvent } from './skillUse.js'
+import { scheduleSneakEvent, sneakClear, serializeSkillUsage, deserializeSkillUsage } from './skillUse.js'
 import { restoreDrugEvent } from './drugs.js'
 import { drawHP, drawAC, uiDrawWeapon } from './ui_hud.js'
 import { getFileJSON } from './util.js'
 import { gameReset } from './gameReset.js'
 import { Worldmap } from './worldmap.js'
+import { beginMapFade, endMapFade } from './mapFade.js'
 
 // Saving and loading support
 
@@ -91,6 +94,12 @@ export interface SaveGame {
     // CE ref: game_movie.cc gameMoviesSave — bitmask of triggered story movies.
     // Optional so older saves (without the field) load cleanly.
     seenMovies?: number[]
+    // CE: AUTOMAP.DB is part of the save game
+    automap?: SavedAutomap
+    // CE critter.cc killsSave / killsLoad: kills per kill type
+    kills?: [number, number][]
+    // CE skill.cc skillsSave / skillsLoad: _timesSkillUsed (last 3 uses per skill)
+    skillUsage?: number[][]
 
     // Structured event log accumulated by logger.eventLogPush. Optional so
     // older saves (without the field) continue to load cleanly.
@@ -109,6 +118,11 @@ export interface SaveGame {
     currentCarAreaId?: number
     // CE ref: worldmap.cc wmWorldMapSave — wmGenData.worldPosX/Y.
     worldPos?: { x: number; y: number } | null
+    // CE wmWorldMap_save: every subtile's state, didMeetFrankHorrigan and the
+    // encounter entries' counters
+    subtiles?: number[] | null
+    currentAreaId?: number
+    encounters?: Worldmap.SavedEncounters
     // Name of the specific local map the car is parked on (DH2 addition).
 }
 
@@ -202,6 +216,9 @@ function gatherSaveData(name: string): SaveGame {
         knownAreas: [...globalState.knownAreas],
         areaStates: Worldmap.serializeAreaStates(),
         seenMovies: [...globalState.seenMovies],
+        automap: serializeAutomap(),
+        kills: [...killCounts.entries()],
+        skillUsage: serializeSkillUsage(),
         eventLog: globalState.eventLog.slice(),
         timedEvents: Scripting.getTimedEventsSerialized(),
         // CE ref: worldmap.h wmGenData — persist car state across saves.
@@ -209,6 +226,9 @@ function gatherSaveData(name: string): SaveGame {
         carFuel: Worldmap.getCarFuel(),
         currentCarAreaId: Worldmap.getCarAreaId(),
         worldPos: Worldmap.getPlayerWorldPos(),
+        subtiles: Worldmap.serializeSquareStates(),
+        currentAreaId: Worldmap.getCurrentAreaId(),
+        encounters: Worldmap.serializeEncounters(),
     }
 }
 
@@ -265,7 +285,7 @@ export function debugSave(): void {
     })
 }
 
-export function save(name: string, slot = -1, callback?: () => void): void {
+export function save(name: string, slot = -1, callback?: (id: number) => void): void {
     const save = gatherSaveData(name)
 
     const dirtyMapNames = Object.keys(globalState.dirtyMapCache)
@@ -279,15 +299,26 @@ export function save(name: string, slot = -1, callback?: () => void): void {
         save.id = slot
     }
 
+    let savedId = slot
     withTransaction((trans) => {
-        trans.objectStore('saves').put(save)
+        const req = trans.objectStore('saves').put(save)
+        req.onsuccess = () => { savedId = Number(req.result) }
 
         dbg('saveload', "[SaveLoad] Saving game data as '%s'", name)
+    }, () => callback?.(savedId))
+}
+
+// DH2 addition (CE has no delete): remove a saved game from the database.
+export function deleteSave(id: number, callback?: () => void): void {
+    withTransaction((trans) => {
+        trans.objectStore('saves').delete(id)
     }, callback)
 }
 
 export function load(id: number): void {
     // Load stored savegame with id
+    beginMapFade() // CE lsgLoadGameInSlot → mapLoadSaved: the view is blank while loading
+    globalState.backgroundMapLoad = false // a loaded game's map plays its music
 
     withTransaction((trans) => {
         trans.objectStore('saves').get(id).onsuccess = function (e) {
@@ -365,9 +396,16 @@ export function load(id: number): void {
                 Worldmap.setCarFuel(save.carFuel ?? 0)
                 Worldmap.setCarAreaId(save.currentCarAreaId ?? -1)
                 if (save.worldPos) Worldmap.setPlayerWorldPos(save.worldPos.x, save.worldPos.y)
+                Worldmap.deserializeSquareStates(save.subtiles)
+                Worldmap.setCurrentAreaId(save.currentAreaId ?? -1)
+                Worldmap.deserializeEncounters(save.encounters)
 
                 // Restore seen-movie set (CE ref: game_movie.cc gameMoviesLoad).
                 if (Array.isArray(save.seenMovies)) globalState.seenMovies = new Set(save.seenMovies)
+                restoreAutomap(save.automap) // the save's automap (none in older saves)
+                killCounts.clear()
+                for (const [type, n] of save.kills ?? []) killCounts.set(type, n)
+                deserializeSkillUsage(save.skillUsage)
                 globalState.player?.updateNativeLook() // CE loadsave.cc:1772
 
                 // Restore the structured event log. Older saves may have the field
@@ -396,7 +434,8 @@ export function load(id: number): void {
                             const playerForSneak = globalState.player
                             if (playerForSneak && (playerForSneak as any).isSneaking) {
                                 Scripting.timeEventList.push({ obj: playerForSneak, ticks, userdata,
-                                    fn: () => { if ((playerForSneak as any).isSneaking) scheduleSneakEvent(playerForSneak) } })
+                                    fn: () => { if ((playerForSneak as any).isSneaking) scheduleSneakEvent(playerForSneak) },
+                                    leaveMap: () => sneakClear(playerForSneak) })
                             }
                         } else if (typeof userdata === 'string' && userdata.startsWith('radiation:')) {
                             // CE ref: critter.cc radiationEventRead — restore sickness / recovery event.
@@ -407,7 +446,7 @@ export function load(id: number): void {
                             const player = globalState.player as Critter | null
                             if (player && !player.dead) {
                                 Scripting.timeEventList.push({ obj: player, ticks, userdata,
-                                    fn: () => Scripting.poisonDecayEvent(player) })
+                                    fn: () => Scripting.poisonDecayEvent(player), leaveMap: 'keep' })
                             }
                         } else if (obj?._script) {
                             const script = obj._script
@@ -426,7 +465,7 @@ export function load(id: number): void {
                         if (!hasEvent) {
                             const delay = 10 * (505 - 5 * playerForPoison.poisonLevel)
                             Scripting.timeEventList.push({ obj: playerForPoison, ticks: delay, userdata: 'poison',
-                                fn: () => Scripting.poisonDecayEvent(playerForPoison) })
+                                fn: () => Scripting.poisonDecayEvent(playerForPoison), leaveMap: 'keep' })
                         }
                     }
 
@@ -448,12 +487,17 @@ export function load(id: number): void {
                 globalState.dirtyMapCache = { ...save.savedMaps }
                 delete globalState.dirtyMapCache[savedMap.name]
 
+                // CE mapLoad during a game load: start / map_enter / map_update with
+                // _loadingGame set (metarule 22), then the map music.
+                globalState.gMap.runLoadGameProcs()
+
                 const p = globalState.player!
                 drawHP(p.getStat('HP'))
                 drawAC(p.getStat('AC'))
                 uiDrawWeapon()
 
                 dbg('saveload', '[SaveLoad] Finished loading map %s', savedMap.name)
+                endMapFade()
             }
 
             const changingMap = globalState.gMap?.name !== save.currentMap

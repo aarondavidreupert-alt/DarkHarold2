@@ -51,7 +51,7 @@ export module ScriptVMBridge {
        ,0x8128: function() { this.push(this.scriptObj.combat_is_initialized) } // combat_is_initialized
        ,0x8118: function() { this.push(GameTime.getDate().month + 1) } // get_month (1-indexed)
        ,0x80F6: function() { this.push(GameTime.getHourMilitary()) } // game_time_hour — CE: 100*hour+min (scripts.cc:332 gameTimeGetHour)
-       ,0x80a8: function() { this.push(GameTime.getHourMilitary()) } // game_time_hour (alt)
+       ,0x80A8: bridged("set_map_start", 4, false) // CE interpreter_extra.cc:4881 op_set_map_start (was a second game_time_hour, leaving 4 args on the stack)
        ,0x80EA: function() { this.push(this.scriptObj.game_time) } // game_time
        ,0x80EB: function() { this.push(GameTime.getTotalSeconds()) } // game_time_in_seconds — CE: interpreter_extra.cc:2277 opGetGameTimeInSeconds → ticks/10
        ,0x8119: function() { this.push(GameTime.getDate().day) } // get_day (day of month)
@@ -62,7 +62,7 @@ export module ScriptVMBridge {
        ,0x80F7: function() { this.push(this.scriptObj.fixed_param) } // fixed_param
 
        ,0x8016: function() { this.mapScript()[this.pop()] = 0 } // op_export_var
-       ,0x8015: function() { var name = varName.call(this, this.pop()); this.mapScript()[name] = this.pop() } // op_store_external
+       ,0x8015: function() { var name = varName.call(this, this.pop()); this.mapScript()[name] = this.popRaw() } // op_store_external
        ,0x8014: function() { this.push(this.mapScript()[varName.call(this, this.pop())]) } // op_fetch_external
 
        ,0x80B9: bridged("script_overrides", 0, false)
@@ -73,19 +73,15 @@ export module ScriptVMBridge {
        ,0x80CB: bridged("set_critter_stat", 3)
        ,0x8105: bridged("message_str", 2)
        ,0x80B8: bridged("display_msg", 1, false)
-       ,0x8111: bridged("reg_anim_begin", 1, false)
-       ,0x8112: bridged("reg_anim_end", 0, false)
-       ,0x8113: bridged("reg_anim_clear", 0, false)
-       ,0x810E: function() { // reg_anim_func — wraps proc addr into a callable (ref: giq_option pattern)
-            const procAddr = this.pop()
-            const obj = this.pop()
-            const procEntry = this.intfile.proceduresTable[procAddr]
-            const fn = procEntry ? () => { this.call(procEntry.name) } : null
-            this.scriptObj.reg_anim_func(obj, fn)
-       }
-       ,0x8110: bridged("reg_anim_obj_move_to_tile", 3, false)
-       ,0x8126: bridged("reg_anim_animate_forever", 2, false)
+       // CE interpreter_extra.cc:4983-4989 — reg_anim_func(cmd, param) is begin (1, flags),
+       // clear (2, obj) and end (3); then animate, animate_reverse, move/run to obj/tile.
+       ,0x810E: bridged("reg_anim_func", 2, false)
        ,0x810F: bridged("reg_anim_animate", 3, false)
+       ,0x8110: bridged("reg_anim_animate_reverse", 3, false)
+       ,0x8111: bridged("reg_anim_obj_move_to_obj", 3, false)
+       ,0x8112: bridged("reg_anim_obj_run_to_obj", 3, false)
+       ,0x8113: bridged("reg_anim_obj_move_to_tile", 3, false)
+       ,0x8126: bridged("reg_anim_animate_forever", 2, false)
        ,0x810C: bridged("anim", 3, false)
        ,0x80E7: bridged("anim_busy", 1)
        ,0x810B: bridged("metarule", 2)
@@ -103,7 +99,7 @@ export module ScriptVMBridge {
        ,0x8109: bridged("inven_cmds", 3)
        ,0x80FF: bridged("critter_attempt_placement", 3)
        ,0x8127: bridged("critter_injure", 2, false)
-       ,0x80E8: bridged("critter_heal", 2, false)
+       ,0x80E8: bridged("critter_heal", 2) // CE opCritterHeal pushes critterAdjustHitPoints' result
        ,0x8151: bridged("critter_is_fleeing", 1)
        ,0x8152: bridged("critter_set_flee_state", 2, false) // void?
        ,0x80DA: bridged("wield_obj_critter", 2, false)
@@ -112,7 +108,7 @@ export module ScriptVMBridge {
        ,0x80D8: bridged("add_obj_to_inven", 2, false)
        ,0x80D9: bridged("rm_obj_from_inven", 2, false) // CE: interpreter_extra.cc:4930 opRemoveObjectFromInventory (restored 2026-10-06; lost in b282cca)
        ,0x80DC: bridged("obj_can_see_obj", 2)
-       ,0x80E9: bridged("set_light_level", 1)
+       ,0x80E9: bridged("set_light_level", 1, false) // CE opSetLightLevel pushes nothing
        ,0x8107: bridged("obj_set_light_level", 3, false)
        ,0x80E6: bridged("set_exit_grids", 5, false)
        ,0x80BB: bridged("tile_contains_obj_pid", 3)
@@ -155,7 +151,7 @@ export module ScriptVMBridge {
        ,0x813C: bridged("critter_mod_skill", 3) // int or void?
        ,0x80EF: bridged("critter_dmg", 3, false)
        ,0x80ed: bridged("kill_critter", 2, false)
-       ,0x811a: bridged("explosion", 3) // int?
+       ,0x811A: bridged("explosion", 3, false) // CE opExplosion pushes nothing
        ,0x8122: bridged("poison", 2, false)      // CE: interpreter_extra.cc:5003 opPoison
        ,0x8123: bridged("get_poison", 1)          // CE: interpreter_extra.cc:5004 opGetPoison
        ,0x80FD: bridged("radiation_inc", 2, false) // CE: interpreter_extra.cc:4966 opRadiationIncrease
@@ -197,10 +193,10 @@ export module ScriptVMBridge {
        ,0x80F9: bridged("dialogue_system_enter", 0, false)
        ,0x8129: bridged("gdialog_mod_barter", 1, false)
        ,0x80DE: bridged("start_gdialog", 5, false)
-       ,0x811C: bridged("gsay_start", 0) // void?
+       ,0x811C: bridged("gsay_start", 0, false) // CE _op_gsay_start pushes nothing
        //,0x811D: bridged("gsay_end", 0) // void?
        ,0x811E: bridged("gsay_reply", 2, false)
-       ,0x80DF: bridged("end_dialogue", 0) // void?
+       ,0x80DF: bridged("end_dialogue", 0, false) // CE opEndGameDialog pushes nothing
        ,0x8120: bridged("gsay_message", 3, false)
        // Vanilla FO2 opcodes that were missing from the bridge (CE interpreter_extra.cc
        // interpreterRegisterOpcode table, diffed 2026-10-06).

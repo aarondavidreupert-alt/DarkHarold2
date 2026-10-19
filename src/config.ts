@@ -1,11 +1,33 @@
 // Configuration for the engine internals, controls and UI
 
+// The windows that can be dragged (DH2 addition) — fallout2.cfg [dh2] drag_<name>.
+export type DragWindow = 'inventory' | 'character' | 'characterCreator' | 'options' | 'skilldex' | 'pipboy'
+    | 'automap' | 'loot' | 'dialogue' | 'dialogueReview' | 'elevator' | 'calledShot' | 'moveItems'
+    | 'saveLoad' | 'perks' | 'dialogBox'
+export const DRAG_WINDOWS: DragWindow[] = ['inventory', 'character', 'characterCreator', 'options', 'skilldex',
+    'pipboy', 'automap', 'loot', 'dialogue', 'dialogueReview', 'elevator', 'calledShot', 'moveItems', 'saveLoad',
+    'perks', 'dialogBox']
+
 export const Config = {
     ui: {
+        // DH2 addition: windows can be dragged by their background (CE windows are fixed).
+        // fallout2.cfg [dh2] drag_windows=0 turns it off, drag_<window>=0 per window.
+        dragWindows: true,
+        // DH2 debug readouts (no CE equivalent): the mouse-hex / tile / light / camera /
+        // bbox lines at the top left and the combat-turn line at the top right (off),
+        // and the fps counter (on). fallout2.cfg [dh2] debug_overlay / fps_overlay,
+        // console setDebugOverlay(on) / setFpsOverlay(on).
+        showDebugOverlay: false,
+        showFPS: true,
+        dragWindow: {} as Partial<Record<DragWindow, boolean>>,
         screenWidth: 800,
         screenHeight: 600,
 
-        scrollPadding: 20, // how far the mouse has to be from an edge to scroll, in pixels
+        // How far from the screen edge the map starts scrolling, in pixels. CE
+        // game_mouse.cc gameMouseHandleScrolling scrolls only on the edge itself; 10 px
+        // because a browser window can't always put the pointer on its last pixel.
+        // fallout2.cfg [dh2] scroll_edge=<px>.
+        scrollPadding: 10,
 
         showHexOverlay: false, // show hex grid?
         showCoordinates: false, // show coordinates on hex grid?
@@ -27,6 +49,10 @@ export const Config = {
         // building) gets the same soft egg oval as walls. Toggle: setRoofEgg().
         // See wiki/rendering.md RD06. (Restored 2026-10-06; lost in b282cca.)
         roofEgg: true,
+        // DH2 option, not in CE: render all DOM UI text in the Fallout pixel font
+        // (art/fonts/font1_aaf.woff, CE FONT 101) instead of the browser font.
+        // Set in fallout2.cfg: [dh2] pixel_font=0 to use the browser font instead.
+        pixelFont: true,
         eggMode: 'dh2-egg' as 'alpha' | 'dh2-egg' | 'ce-egg' | 'bbox' | 'beta', // 'alpha'=flat transparent, 'dh2-egg'=CE egg.png mask (DH2 hand-tuned occlusion test), 'ce-egg'=CE egg.png mask using the byte-for-byte CE occlusion test (no DH2 deviations), 'bbox'=CE egg.png mask using a screen-space bounding-box overlap + draw-order depth test (DH2-original, not CE-derived), 'beta'=floor hex debug overlay (no wall transparency)
         eggAlpha:  undefined as number | undefined, // outer alpha — undefined = use default 0.4
         eggRadius: undefined as number | undefined, // hex radius — undefined = use default 8
@@ -49,7 +75,7 @@ export const Config = {
         showFonts: false, // show all fonts for debugging?
         // FO2-CE ref: preferences.cc TargetHighlight enum (game_config.h:111)
         //   0=off, 1=on (always), 2=targeting-only (only while attack cursor)
-        targetHighlight: 'on' as 'off' | 'on' | 'targeting-only',
+        targetHighlight: 'targeting-only' as 'off' | 'on' | 'targeting-only', // CE settings.h default
         // FO2-CE ref: settings.h:33 item_highlight — persistent preference
         // (default true), not a held key. While on, whatever single item is
         // under the mouse cursor gets outlined (see input.ts mousemoved).
@@ -79,6 +105,10 @@ export const Config = {
         combatTaunts: true,
         // CE settings.preferences.combat_looks — examine whatever the attack cursor points at (game_mouse.cc:745)
         combatLooks: false,
+        // CE settings.system.color_cycling / cycle_speed_factor (cycle.cc colorCycleInit,
+        // cycleSetSpeedFactor): palette cycling on, and its periods multiplied by the factor.
+        colorCycling: true,
+        cycleSpeedFactor: 1,
         // CE settings.preferences.brightness — palette gamma, 1.0–1.18 (color.cc colorSetBrightness)
         brightness: 1.0,
         // CE settings.preferences.mouse_sensitivity — 1.0–2.5 (stored; the browser owns the pointer speed)
@@ -87,6 +117,24 @@ export const Config = {
 
     engine: {
         debug: true, // set true to enable debug/cheat utilities in src/debug.ts
+        // DH2 developer hotkeys (teleport h, elevation q/e, layer toggles r/f/o/w, tile
+        // inspector i, kill k, ...; none of them exist in CE). Off so they can't fire
+        // while playing or typing; console: setDevKeys(true).
+        devKeys: false,
+        // Walk/run movement model (console: setWalkModel('ce' | 'dh2' | 'smooth')):
+        //   'ce'     — CE animation.cc _object_move: per-frame FRM deltas accumulate, the
+        //              critter steps a hex when the offset reaches the hex step and keeps
+        //              the remainder; the cycle never restarts at a hex
+        //   'dh2'    — the old DarkFO model: fixed frame chunks per hex, offset reset
+        //   'smooth' — 'ce' plus a render-time blend toward the next frame (not CE)
+        walkModel: 'ce' as 'ce' | 'dh2' | 'smooth',
+        // Sprite offset across animations (console: setAnimOffsetModel('ce' | 'dh2')):
+        //   'ce'  — CE obj->x/y accumulator: + old art's direction offset + new frame-0
+        //           delta at an art change (animation.cc _object_animate), + each frame's
+        //           delta, reset by _dude_stand when an action ends; drawn as
+        //           tile + art direction offset + obj->x - width/2 (object.cc objectGetRect)
+        //   'dh2' — the DH2 artOffset that pins the anchor point at every art change
+        animOffsetModel: 'ce' as 'ce' | 'dh2',
         doSaveDirtyMaps: true, // save dirty maps to in-memory cache?
         doLoadScripts: true, // should we load scripts?
         doUpdateCritters: true, // should we give critters heartbeats?
@@ -102,6 +150,9 @@ export const Config = {
         // false = CE lighting: only map scripts' set_light_level changes the light.
         // Set in fallout2.cfg: [dh2] day_night_cycle=0/1.
         dayNightCycle: true,
+        // sfall pipboy_available_at_game_start (CE pipboy.cc _pip_init_): the Pip-Boy opens
+        // before the Vault Suit movie. Set in fallout2.cfg: [dh2] pipboy_available_at_game_start=1.
+        pipboyAvailableAtStart: false,
         doZOrder: true, // Z-order objects?
         doEncounters: true, // allow random encounters?
         doInfiniteUse: false, // allow infinite-range object usage?
@@ -207,12 +258,15 @@ export const Config = {
         // Damage calculation ruleset: 0=Vanilla, 1=Glovz, 2=Glovz+MultTweak, 5=YAAM
         // Matches fallout2-ce DamageCalculationType enum values exactly.
         damageCalculationType: 0 as 0 | 1 | 2 | 5,
-        // FO2-CE ref: preferences.cc — combat speed: 0=fastest, 50=slowest (matches CE game_config.h:44 range).
-        combatSpeed: 25,
+        // CE preferences.cc combat_speed 0..50 (game_config.cc default 0): added to the walk
+        // fps in combat (animationComputeTicksPerFrame) — higher is faster.
+        combatSpeed: 0,
         // FO2-CE ref: preferences.cc — VIOLENCE_LEVEL: 0=none, 1=minimum, 2=normal, 3=maximum
-        violenceLevel: 2 as 0 | 1 | 2 | 3,
+        violenceLevel: 3 as 0 | 1 | 2 | 3, // CE settings.h: VIOLENCE_LEVEL_MAXIMUM_BLOOD
     },
 
+    // DH2 developer keys (Config.engine.devKeys) and the camera arrows. The game keys are
+    // CE's fixed gameHandleKey layout (src/hotkeys.ts).
     controls: {
         cameraDown: 'down',
         cameraUp: 'up',
@@ -229,17 +283,11 @@ export const Config = {
         moveTo: 'm',
         runTo: 'j',
         attack: 'g',
-        combat: 'c',
         playerToTargetRaycast: 'y',
         showTargetInventory: 'v',
         use: 'u',
         kill: 'k',
         worldmap: 'l',
-        pipboy: 'p',
-        calledShot: 'z',
-        saveKey: 'n',
-        loadKey: 'm',
-        inventory: 'b',
         // CE: KEYBIND_KEY_HIGHLIGHT_ITEMS — outlines all items while held.
         highlightItems: ' ',
     },

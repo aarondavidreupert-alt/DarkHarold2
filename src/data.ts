@@ -35,6 +35,8 @@ export interface Area {
     id: number
     size: string
     state: boolean
+    // city.txt lock_state=On (CE LOCK_STATE_LOCKED): only forced state changes apply
+    lockState: boolean
     worldPosition: Point
     mapArt?: string
     labelArt?: string
@@ -59,6 +61,12 @@ export interface MapInfo {
     ambientSfx: [string, number][]
     music: string
     randomStartPoints: { elevation: number; tileNum: number }[]
+    // CE worldmap.cc wmConfigInit: can_rest_here=Yes/No per elevation (default all Yes, flags 0x3F)
+    canRestHere: boolean[]
+    // saved=Yes|No (MAP_SAVED, default on) — only saved maps mark their area visited
+    saved: boolean
+    // dead_bodies_age=Yes|No (MAP_DEAD_BODIES_AGE, default on)
+    deadBodiesAge: boolean
 }
 
 export interface Elevator {
@@ -93,6 +101,7 @@ function parseAreas(data: string): AreaMap {
             id: areaID,
             size: area.size.toLowerCase(),
             state: area.start_state.toLowerCase() === 'on',
+            lockState: (area.lock_state ?? 'off').trim().toLowerCase() === 'on',
             worldPosition: { x: worldPos[0], y: worldPos[1] },
             entrances: [],
         }
@@ -122,9 +131,9 @@ function parseAreas(data: string): AreaMap {
 
                 const entrance = {
                     startState: s[0],
-                    // DH2: default true — startup scripts that reveal areas (metarule3 104) don't
-                    // reliably run in DH2, so start open; scripts can still explicitly hide entrances.
-                    state: true,
+                    // CE worldmap.cc wmConfigInit: entrance_N=On|Off,… — the start state;
+                    // scripts open more with metarule3 104 (wmMapMarkMapEntranceState).
+                    state: s[0].trim().toLowerCase() === 'on',
                     x: parseInt(s[1]),
                     y: parseInt(s[2]),
                     mapLookupName,
@@ -275,6 +284,9 @@ function parseMapInfo() {
             ambientSfx: ambientSfx,
             music: (ini[category].music || '').trim().toLowerCase(),
             randomStartPoints: randomStartPoints,
+            saved: (ini[category].saved ?? 'Yes').split(';')[0].trim().toLowerCase() !== 'no',
+            deadBodiesAge: (ini[category].dead_bodies_age ?? 'Yes').split(';')[0].trim().toLowerCase() !== 'no',
+            canRestHere: [0, 1, 2].map((e) => ((ini[category].can_rest_here ?? 'Yes,Yes,Yes').split(';')[0].split(',')[e] ?? 'Yes').trim().toLowerCase() !== 'no'),
         }
     }
 }
@@ -286,6 +298,21 @@ export function lookupMapFromLookup(lookupName: string) {
         if (mapInfo![mapID].lookupName === lookupName) return mapInfo![mapID]
     }
     return null
+}
+
+// CE worldmap.cc wmParseFindMapIdxMatch: maps.txt index by lookup_name (any case), or -1.
+export function mapIndexFromLookup(lookupName: string): number {
+    if (mapInfo === null) parseMapInfo()
+    for (const mapID in mapInfo!) {
+        if ((mapInfo![mapID].lookupName ?? '').toLowerCase() === lookupName.toLowerCase()) return Number(mapID)
+    }
+    return -1
+}
+
+// maps.txt entry by index
+export function getMapInfoById(mapID: number): MapInfo | null {
+    if (mapInfo === null) parseMapInfo()
+    return mapInfo![mapID] ?? null
 }
 
 export function lookupMapNameFromLookup(lookupName: string) {
@@ -303,6 +330,15 @@ export function lookupMapName(mapID: number): string | null {
     return mapInfo![mapID].name || null
 }
 
+// maps.txt index of a map by file name, or -1.
+export function mapIndexOf(mapName: string): number {
+    if (mapInfo === null) parseMapInfo()
+    for (const mapID in mapInfo!) {
+        if (mapInfo![mapID].name.toLowerCase() === mapName.toLowerCase()) return Number(mapID)
+    }
+    return -1
+}
+
 function getMapInfo(mapName: string) {
     if (mapInfo === null) parseMapInfo()
 
@@ -317,6 +353,24 @@ export function setMapMusicOverride(mapIndex: number, music: string): void {
     if (mapInfo === null) parseMapInfo()
     const info = mapInfo![mapIndex]
     if (info) info.music = music.trim().toLowerCase()
+}
+
+// CE worldmap.cc wmMapMarkVisited: is MAP_SAVED set for this map?
+export function mapIsSaved(mapName: string): boolean {
+    const info = getMapInfo(mapName)
+    return info ? info.saved : false
+}
+
+// CE worldmap.cc wmMapDeadBodiesAge
+export function mapDeadBodiesAge(mapName: string): boolean {
+    const info = getMapInfo(mapName)
+    return info ? info.deadBodiesAge : false
+}
+
+// CE worldmap.cc wmMapCanRestHere
+export function mapCanRestHere(elevation: number): boolean {
+    const info = globalState.gMap?.name ? getMapInfo(globalState.gMap.name) : null
+    return info ? info.canRestHere[elevation] !== false : true
 }
 
 export function getCurrentMapInfo() {

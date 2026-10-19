@@ -20,14 +20,17 @@ rest of the UI uses). Movement is clamped to keep at least one panel edge
 visible within the parent.
 */
 
+import { Config, DragWindow } from './config.js'
+
 function isInteractiveDescendant(target: EventTarget | null, root: HTMLElement): boolean {
     let el: HTMLElement | null = target as HTMLElement | null
     while (el && el !== root) {
         if (el.dataset && el.dataset.drag === 'no') return true
         if (el.onclick || el.onmousedown) return true
         const tag = el.tagName
+        // A canvas (the automap, the Pip-Boy map) handles its own drags (panning).
         if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT' ||
-            tag === 'TEXTAREA' || tag === 'A' || tag === 'IMG') return true
+            tag === 'TEXTAREA' || tag === 'A' || tag === 'IMG' || tag === 'CANVAS') return true
         // Honor `cursor: pointer` as a hint that this child is clickable
         const cs = window.getComputedStyle(el)
         if (cs.cursor === 'pointer' || cs.cursor === 'grab') return true
@@ -36,13 +39,16 @@ function isInteractiveDescendant(target: EventTarget | null, root: HTMLElement):
     return false
 }
 
-export function makePanelDraggable(elem: HTMLElement): void {
+// DH2 addition (CE windows are fixed): `kind` names the window for the per-window
+// switch in fallout2.cfg [dh2] (drag_windows=0 turns them all off, drag_<kind>=0 one).
+export function makePanelDraggable(elem: HTMLElement, kind: DragWindow): void {
     let isDragging = false
     let startMouseX = 0, startMouseY = 0
     let startLeft = 0, startTop = 0
 
     const onMouseDown = (e: MouseEvent) => {
         if (e.button !== 0) return
+        if (!Config.ui.dragWindows || Config.ui.dragWindow[kind] === false) return
         if (isInteractiveDescendant(e.target, elem)) return
 
         isDragging = true

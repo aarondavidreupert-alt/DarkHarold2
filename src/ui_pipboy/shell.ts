@@ -18,11 +18,21 @@ limitations under the License.
 // tab dispatcher, public open/close/toggle. Split out of ui_pipboy.ts.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §12.
 
+import { Events } from '../events.js'
 import globalState from '../globalState.js'
 import * as GameTime from '../gametime.js'
 import { UIMode } from '../ui_panels.js'
 import { Config } from '../config.js'
 import { makePanelDraggable } from '../ui_drag.js'
+import { getMessage } from '../util.js'
+import { showAlert } from '../ui_dialog.js'
+import { mapCanRestHere } from '../data.js'
+import { updateIndicatorBar } from '../ui_hud.js'
+import { gameMovieIsSeen, MOVIE_VSUIT } from '../gameMovie.js'
+import type { Critter } from '../object.js'
+
+// CE critter.h KILL_TYPE_ROBOT
+const KILL_TYPE_ROBOT = 10
 
 export type PipBoyTab = 'STATUS' | 'AUTOMAPS' | 'ARCHIVES' | 'CLOSE'
 
@@ -61,6 +71,11 @@ const dotElements: Map<string, HTMLDivElement> = new Map()
 let alarmOn = false
 let waitMenuDiv: HTMLDivElement | null = null
 let isRestAnimating = false  // prevents re-entry during time-advance animation
+
+// ESC stops a rest in progress (CE pipboyRest: inputGetInput() == KEY_ESCAPE)
+window.addEventListener('keydown', (e) => {
+    if (isRestAnimating && e.key === 'Escape') { restCancelled = true; e.stopImmediatePropagation() }
+}, true)
 
 // numbers.png sprite: each digit is 9x17, laid out horizontally 0-9 then extra glyphs
 // Index 12 = colon character
@@ -161,40 +176,148 @@ function renderDateTimeBar(): void {
     pipBoyContainer.appendChild(bar)
 }
 
-// CE ref: pipboy.cc _ClacTime — compute hours+minutes until wakeUpHour:00.
-// If already at that exact time, returns 24h (rest a full day).
+// CE pipboy.cc _ClacTime — hours and minutes until wakeUpHour:00 (24 h when it's that now).
 function calcTimeUntilHour(wakeUpHour: number): { hours: number; minutes: number } {
-    const curH = GameTime.getHour()
-    const curM = GameTime.getMinute()
-    if (curH === wakeUpHour && curM === 0) return { hours: 24, minutes: 0 }
-    let hours = wakeUpHour - curH
-    let minutes = 0
-    if (curM !== 0) {
+    let hours = GameTime.getHour()
+    let minutes = GameTime.getMinute()
+    if (hours === wakeUpHour && minutes === 0) return { hours: 24, minutes: 0 }
+    hours = wakeUpHour - hours
+    if (hours < 0) {
+        hours += 24
+        if (minutes !== 0) { hours -= 1; minutes = 60 - minutes }
+    } else if (minutes !== 0) {
         hours -= 1
-        minutes = 60 - curM
+        minutes = 60 - minutes
+        if (hours < 0) hours = 23
     }
-    if (hours < 0) hours += 24
     return { hours, minutes }
 }
 
-// CE ref: pipboy.cc:2105 PIPBOY_REST_DURATION_UNTIL_HEALED —
-// hoursToHeal = floor(hpToHeal / healingRate * 3); healingRate = max(END/3, 1).
-function minutesUntilHealed(): number {
-    const player = globalState.player
-    if (!player) return 0
-    const hp    = player.getStat('HP') as number
-    const maxHp = player.getStat('Max HP') as number
-    if (hp >= maxHp) return 0
-    const end = player.getStat('Endurance') as number
-    const healingRate = Math.max(Math.floor(end / 3), 1)
-    const hoursToHeal = Math.floor((maxHp - hp) / healingRate * 3)
-    return Math.max(hoursToHeal, 1) * 60
+// CE pipboy.h PIPBOY_REST_DURATION_*: 0-11 fixed / until an hour, 12 until healed,
+// 13 until the party is healed.
+const REST_UNTIL_HEALED = 12
+const REST_UNTIL_PARTY_HEALED = 13
+
+// CE pipboy.cc _rest_time — minutes rested since the last heal (reset when the Pip-Boy opens).
+let restTime = 0
+let restCancelled = false
+let restBail = false
+// CE queueProcessEvents returning 1 (poison at 5 HP or less, radiation, withdrawal,
+// the midnight movie) during a rest sets _proc_bail_flag
+Events.on('queueBail', () => { if (isRestAnimating) restBail = true })
+
+// CE party_member.cc partyIsAnyoneCanBeHealedByRest / partyGetMaxWoundToHealByRest:
+// living, visible, non-robot party members (the dude excluded).
+function restHealableParty(): Critter[] {
+    return (globalState.gParty?.getPartyMembers() ?? []).filter((c) =>
+        c.type === 'critter' && !c.dead && c.visible !== false && c.killType !== KILL_TYPE_ROBOT)
+}
+function partyMaxWound(): number {
+    let max = 0
+    for (const c of restHealableParty()) max = Math.max(max, c.getStat('Max HP') - c.getStat('HP'))
+    return max
 }
 
-function toggleWaitMenu(): void {
-    if (!pipBoyContainer) return
+// CE pipboy.cc _Check4Health / _AddHealth → party_member.cc _partyMemberRestingHeal(3):
+// every 180 minutes rested, the dude and each party member heal their Healing Rate.
+function check4Health(minutes: number): boolean {
+    restTime += minutes
+    if (restTime < 180) return false
+    restTime = 0
+    return true
+}
+function addHealth(): void {
+    for (const c of globalState.gParty?.getPartyMembersAndPlayer() ?? [globalState.player]) {
+        if (!c || c.type !== 'critter' || c.dead) continue
+        const hp = Math.min(c.getStat('HP') + c.getStat('Healing Rate'), c.getStat('Max HP'))
+        c.stats.setBase('HP', hp)
+    }
+    updateIndicatorBar()
+}
 
-    // Toggle off — restore previous tab
+// CE: queueProcessEvents during the rest returns true (_proc_bail_flag) — an event that
+// starts combat, kills the dude or opens a dialogue ends the rest and closes the Pip-Boy.
+function restInterrupted(): boolean {
+    const mode = globalState.uiMode
+    if (globalState.inCombat || globalState.player?.dead || mode === UIMode.dialogue || mode === UIMode.barter || mode === UIMode.worldMap) restBail = true
+    return restBail || restCancelled
+}
+
+const sleep = (ms: number) => new Promise<void>((res) => setTimeout(res, ms))
+
+// CE pipboy.cc pipboyRest(hours, minutes, duration): the clock runs at ~20 frames per
+// second over minutes / 1440 × 3.5 + 0.25 seconds, firing the queued events on the
+// way; ESC stops it. Returns true when the rest was cut short.
+async function pipboyRest(hours: number, minutes: number, duration: number): Promise<boolean> {
+    let rc = false
+    if (duration === 0) {
+        const hoursInMinutes = hours * 60
+        const v1 = hoursInMinutes + minutes
+        const v2 = v1 / 1440 * 3.5 + 0.25
+        const v3 = v1 > 0 ? minutes / v1 * v2 : 0
+        if (minutes !== 0) {
+            const start = GameTime.getTime()
+            const v4 = v3 * 20
+            for (let i = 0; i < Math.trunc(v4) && !rc; i++) {
+                GameTime.setTime(Math.trunc(i / v4 * (minutes * 600) + start))
+                rc = restInterrupted()
+                if (!rc) { renderRestClock(); await sleep(50) }
+            }
+            if (!rc) {
+                GameTime.setTime(start + 600 * minutes)
+                if (check4Health(minutes)) addHealth()
+            }
+            renderRestClock()
+        }
+        if (hours !== 0 && !rc) {
+            const start = GameTime.getTime()
+            const v7 = (v2 - v3) * 20
+            for (let h = 0; h < Math.trunc(v7) && !rc; h++) {
+                rc = restInterrupted()
+                if (rc) break
+                GameTime.setTime(Math.trunc(h / v7 * (hours * GameTime.TICKS_PER_HOUR) + start))
+                rc = restInterrupted()
+                if (!rc) {
+                    if (check4Health(Math.trunc(hoursInMinutes / v7))) addHealth()
+                    renderRestClock()
+                    await sleep(50)
+                }
+            }
+            if (!rc) GameTime.setTime(start + GameTime.TICKS_PER_HOUR * hours)
+            renderRestClock()
+        }
+    } else if (duration === REST_UNTIL_HEALED || duration === REST_UNTIL_PARTY_HEALED) {
+        const player = globalState.player!
+        const wound = () => player.getStat('Max HP') - player.getStat('HP')
+        if (wound() === 0 && !(duration === REST_UNTIL_PARTY_HEALED && partyMaxWound() > 0)) return false
+        // first pass: the dude
+        let hoursToHeal = Math.trunc(wound() / Math.max(1, player.getStat('Healing Rate')) * 3)
+        while (!rc && hoursToHeal !== 0) {
+            const h = Math.min(hoursToHeal, 24)
+            rc = await pipboyRest(h, 0, 0)
+            hoursToHeal -= h
+        }
+        // second pass: what's left (and the party), 3 hours at a time
+        const left = () => Math.max(wound(), duration === REST_UNTIL_PARTY_HEALED ? partyMaxWound() : 0)
+        while (!rc && left() !== 0) rc = await pipboyRest(3, 0, 0)
+    }
+    return rc
+}
+
+// CE pipboy.cc pipboyDrawHitPoints + the date / time bar during the rest.
+function renderRestClock(): void {
+    renderDateTimeBar()
+    const hpEl = pipBoyContainer?.querySelector('#pipboyRestHP')
+    const player = globalState.player
+    if (hpEl && player) hpEl.textContent = `${getMessage('pipboy', 301) ?? 'Hit Points'} ${player.getStat('HP')}/${player.getStat('Max HP')}`
+}
+
+// CE pipboy.cc pipboyHandleAlarmClock(1024) → pipboyWindowRenderRestOptions: ALARM CLOCK
+// (pipboy.msg 300), the hit points, and the rest options 302-315 (the last one only with
+// a party member that rest can heal).
+function toggleWaitMenu(): void {
+    if (!pipBoyContainer || isRestAnimating) return
+
     if (alarmOn) {
         alarmOn = false
         waitMenuDiv = null
@@ -203,88 +326,82 @@ function toggleWaitMenu(): void {
         return
     }
 
+    // CE critter.cc _critter_can_obj_dude_rest — "You cannot rest at this location!" (215)
+    if (!critterCanDudeRest()) {
+        globalState.audioEngine?.playSfxByName?.('iisxxxx1')
+        void showAlert(getMessage('pipboy', 215) ?? 'You cannot rest at this location!')
+        return
+    }
+
     alarmOn = true
     renderDateTimeBar()
 
-    // CE ref: pipboy.cc pipboyWindowRenderRestOptions — rest list renders into
-    // the main content view area, replacing whatever tab is shown.
     const screen = pipBoyContainer.querySelector('#pipboyScreen') as HTMLDivElement
     if (!screen) return
-    while (screen.firstChild) screen.removeChild(screen.firstChild)
+    clearScreen(screen)
 
     const content = makeContentArea()
-    content.appendChild(makeHeader('REST'))
+    content.appendChild(makeHeader(getMessage('pipboy', 300) ?? 'ALARM CLOCK'))
+    const hpRow = document.createElement('div')
+    hpRow.id = 'pipboyRestHP'
+    hpRow.style.cssText = TEXT_STYLE + 'font-size: 13px; text-align: center; padding: 2px 0 8px 0;'
+    content.appendChild(hpRow)
 
-    // CE ref: pipboy.cc PIPBOY_REST_DURATION_* — 13 options (UNTIL_PARTY_HEALED
-    // omitted; requires party members which DH2 does not yet implement).
-    type RestOption = { label: string; getMinutes: () => number }
-    const options: RestOption[] = [
-        { label: '10 minutes',     getMinutes: () => 10 },
-        { label: '30 minutes',     getMinutes: () => 30 },
-        { label: '1 hour',         getMinutes: () => 60 },
-        { label: '2 hours',        getMinutes: () => 120 },
-        { label: '3 hours',        getMinutes: () => 180 },
-        { label: '4 hours',        getMinutes: () => 240 },
-        { label: '5 hours',        getMinutes: () => 300 },
-        { label: '6 hours',        getMinutes: () => 360 },
-        { label: 'Until morning',  getMinutes: () => { const t = calcTimeUntilHour(8);  return t.hours * 60 + t.minutes } },
-        { label: 'Until noon',     getMinutes: () => { const t = calcTimeUntilHour(12); return t.hours * 60 + t.minutes } },
-        { label: 'Until evening',  getMinutes: () => { const t = calcTimeUntilHour(18); return t.hours * 60 + t.minutes } },
-        { label: 'Until midnight', getMinutes: () => { const t = calcTimeUntilHour(0);  return t.hours * 60 + t.minutes } },
-        { label: 'Until healed',   getMinutes: () => minutesUntilHealed() },
-    ]
-
-    for (const opt of options) {
-        content.appendChild(makeListItem(opt.label, async () => {
+    const count = (globalState.gParty?.getPartyMembers().length ?? 0) > 0 && restHealableParty().some((c) => c.getStat('HP') < c.getStat('Max HP'))
+        ? REST_UNTIL_PARTY_HEALED + 1 : REST_UNTIL_HEALED + 1
+    const rows: HTMLDivElement[] = []
+    for (let option = 0; option < count; option++) {
+        const row = makeListItem(getMessage('pipboy', 302 + option) ?? `Rest option ${option + 1}`, async () => {
             if (isRestAnimating) return
-            const mins = opt.getMinutes()
-            if (mins > 0) await advanceTime(mins)
-            alarmOn = false
-            waitMenuDiv = null
-            renderDateTimeBar()
-            renderTab(currentTab)
-        }))
+            isRestAnimating = true
+            restCancelled = false
+            restBail = false
+            for (const r of rows) r.style.color = '#00FF00'
+            row.style.color = '#FFFF00'
+            globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
+            await restFor(option)
+            globalState.audioEngine?.playSfxByName?.('ib2lu1x1')
+            row.style.color = '#00FF00'
+            isRestAnimating = false
+            renderRestClock()
+            // CE _proc_bail_flag: an event during the rest closes the Pip-Boy
+            if (restBail && pipBoyContainer) closePipBoy()
+        })
+        rows.push(row)
+        content.appendChild(row)
     }
 
     screen.appendChild(content)
-    waitMenuDiv = content  // track so toggle-off knows we're in rest mode
+    waitMenuDiv = content
+    renderRestClock()
 }
 
-// CE ref: pipboy.cc:1968 pipboyRest() — animates the date/time bar while advancing
-// game time, then heals the player. Animation formula: v2 = totalMinutes/1440*3.5+0.25
-// seconds total, ~20fps (50ms per frame), stepping game time proportionally each frame.
-async function advanceTime(minutes: number): Promise<void> {
-    if (isRestAnimating) return
-    isRestAnimating = true
+async function restFor(duration: number): Promise<void> {
+    if (duration === 0) await pipboyRest(0, 10, 0)
+    else if (duration === 1) await pipboyRest(0, 30, 0)
+    else if (duration <= 7) await pipboyRest(duration - 1, 0, 0)
+    else if (duration <= 11) {
+        const t = calcTimeUntilHour([8, 12, 18, 0][duration - 8])
+        await pipboyRest(t.hours, t.minutes, 0)
+    } else await pipboyRest(0, 0, duration)
+}
 
-    const startTicks = GameTime.getTime()
-    const totalTicks = minutes * GameTime.TICKS_PER_MINUTE
-    const animSeconds = minutes / 1440 * 3.5 + 0.25  // CE formula
-    const nSteps = Math.max(1, Math.round(animSeconds * 20))
-
-    for (let step = 0; step < nSteps; step++) {
-        const progress = (step + 1) / nSteps
-        GameTime.setTime(Math.round(startTicks + progress * totalTicks))
-        renderDateTimeBar()
-        await new Promise<void>(res => setTimeout(res, 50))
-    }
-
-    GameTime.setTime(startTicks + totalTicks)
-
-    // Heal player — CE ref: pipboy.cc:2029 _Check4Health() / _AddHealth()
+// CE critter.cc _critter_can_obj_dude_rest: no living critter on the elevation that is
+// hostile to the dude (its whoHitMe is the dude); where the map forbids resting
+// (maps.txt can_rest_here) every living critter of another team blocks it too.
+export function critterCanDudeRest(): boolean {
+    const gMap = globalState.gMap
     const player = globalState.player
-    if (player) {
-        const hp    = player.getStat('HP') as number
-        const maxHp = player.getStat('Max HP') as number
-        if (hp < maxHp) {
-            const end = player.getStat('Endurance') as number
-            const healingRate = Math.max(Math.floor(end / 3), 1)
-            const healed = Math.floor(minutes / 60 / 3 * healingRate)
-            player.stats.setBase('HP', Math.min(hp + healed, maxHp))
-        }
+    if (!gMap || !player) return true
+    const restricted = !mapCanRestHere(gMap.currentElevation)
+    for (const o of gMap.getObjects()) {
+        if (o.type !== 'critter' || o === player) continue
+        const c = o as Critter
+        if (c.dead) continue
+        if ((c as any).whoHitMe !== player && (!restricted || c.teamNum === player.teamNum)) continue
+        return false
     }
-
-    isRestAnimating = false
+    return true
 }
 
 function formatGameTime(_ticks: number): string {
@@ -358,7 +475,7 @@ export function makeContentArea(): HTMLDivElement {
 
 // Lazy tab imports — local require-style references so the side-effect import
 // order in the barrel (shell.ts loaded before tabs) doesn't matter for cycles.
-import { renderStatusTab } from './tabs/status.js'
+import { renderStatusTab, leaveStatusTab } from './tabs/status.js'
 import { renderAutomapsTab, resetAutomapNavState } from './tabs/automaps.js'
 import { renderArchivesTab } from './tabs/archives.js'
 
@@ -369,6 +486,7 @@ export function renderTab(tab: PipBoyTab): void {
     if (!screen) return
 
     currentTab = tab
+    leaveStatusTab()
 
     switch (tab) {
         case 'STATUS':
@@ -394,6 +512,13 @@ export function renderTab(tab: PipBoyTab): void {
 }
 
 export function openPipBoy(): void {
+    // CE pipboy.cc pipboyOpen: not before the Vault Suit movie (wmMapPipboyActive) —
+    // "You aren't wearing the pipboy!" (misc.msg 7000).
+    if (!gameMovieIsSeen(MOVIE_VSUIT) && !Config.engine.pipboyAvailableAtStart) {
+        void showAlert(getMessage('misc', 7000) ?? "You aren't wearing the pipboy!")
+        return
+    }
+    restTime = 0
     // Remove any stale container left in the DOM
     const existing = document.getElementById('pipBoyContainer')
     if (existing) existing.remove()
@@ -450,7 +575,7 @@ export function openPipBoy(): void {
 
     // Allow the user to drag the panel by clicking non-interactive background
     // areas (the pip.png frame) — tab dots/buttons are skipped automatically.
-    makePanelDraggable(pipBoyContainer)
+    makePanelDraggable(pipBoyContainer, 'pipboy')
 
     // Reset automap navigation each time PipBoy opens
     resetAutomapNavState()
@@ -461,16 +586,26 @@ export function openPipBoy(): void {
 
 export function closePipBoy(): void {
     if (!pipBoyContainer) return
+    restCancelled = true
+    leaveStatusTab()
 
     waitMenuDiv = null
     alarmOn = false
     pipBoyContainer.remove()
     pipBoyContainer = null
-    globalState.uiMode = UIMode.none
+    if (globalState.uiMode === UIMode.pipBoy) globalState.uiMode = UIMode.none
 
     // CE ref: pipboy.cc:712 pipboyWindowFree — scriptsExecMapUpdateProc() on close,
     // so map scripts react to time spent resting (e.g. their time-of-day lighting).
     globalState.gMap?.updateMap()
+}
+
+// CE pipboyOpen(PIPBOY_OPEN_INTENT_REST) — the Z key: the Pip-Boy straight on the
+// alarm clock.
+export function openPipBoyRest(): void {
+    if (pipBoyContainer) return
+    openPipBoy()
+    if (pipBoyContainer) toggleWaitMenu()
 }
 
 export function togglePipBoy(): void {

@@ -17,15 +17,12 @@ limitations under the License.
 // Random Encounter system. Barrel — see wiki/ts-split-refactor.md →
 // "Per-file split proposals" §20.
 
-import { Node as _Node, parseConds as _parseConds } from './encounters/conditionLang.js'
-import {
-    positionCritters as _positionCritters,
-    evalEncounter as _evalEncounter,
-} from './encounters/resolver.js'
+import { Node as _Node, parseConds as _parseConds, evalConds as _evalConds } from './encounters/conditionLang.js'
 
+// The encounter condition language of worldmap.txt ("If(...) And If(...)"); the
+// encounters themselves are worldmap/encounterData.ts + worldmap/encounters.ts.
 export module Encounters {
     export type Node = _Node
     export const parseConds = _parseConds
-    export const positionCritters = _positionCritters
-    export const evalEncounter = _evalEncounter
+    export const evalConds = _evalConds
 }

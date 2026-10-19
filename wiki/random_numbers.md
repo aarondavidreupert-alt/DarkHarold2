@@ -184,131 +184,25 @@ Non-uniform breakpoints: `randomBetween(1, 100)` compared against `<=20`, `<=45`
 
 ## 5. DH2 Implementation
 
-### 5.1 `getRandomInt(min, max)` (`src/util.ts:102`)
+`src/random.ts` is a port of CE `random.cc`:
 
-```typescript
-export function getRandomInt(min: number, max: number) {
-    return Math.floor(Math.random() * (max - min + 1)) + min
-}
-```
+- `getRandom` — Park-Miller (16807, Schrage) with the 32-entry Bays-Durham shuffle, the same arithmetic as CE.
+- `seedPrerandomInternal` (CE `randomSeedPrerandomInternal`, including its quirk that the loop never writes `_iv[0]`), `randomSeedPrerandom(-1)` reseeding from the CRT generator.
+- `randomInit` (CE `randomInit`): `srand(timeGetTime())` through an MSVC-CRT `rand()` port, then the chi-squared self-test `validatePrerandom` (CE `randomValidatePrerandom`, 25 buckets, warning above 36.42). It runs at module load and again from `Scripting.init` with `Date.now()` — different rolls each launch, as CE.
+- `randomBetween(min, max)` — inclusive, swapped bounds allowed, out-of-range result warned and clamped to `min` (CE `randomBetween`).
 
-Inclusive on both ends. Uses `Math.random()` which is either the browser's native implementation or a replacement installed by `seed()`.
+`util.ts getRandomInt` is `randomBetween`; `randomRoll` (`util.ts`) is CE `randomRoll` + `randomTranslateRoll` (d100 from 1, criticals only from day 1, crit failure on a second d100 ≤ −delta / 10). Math.random is no longer overridden. `Scripting.setSeed(n)` (crawler) seeds the generator for repeatable runs.
 
-### 5.2 Sin-based PRNG and deterministic seeding
-
-DH2 defines a `seed()` function inside the `Scripting` module (`scripting.ts:136`):
-
-```typescript
-function seed(s: number) {
-    Math.random = () => {
-        s = Math.sin(s) * 10000
-        return s - Math.floor(s)
-    }
-}
-```
-
-This replaces the global `Math.random` with a sin-based PRNG. `Scripting.init()` calls `seed(123)` (`scripting.ts:2206`) on every map load:
-
-```typescript
-export function init(mapName: string, mapID?: number) {
-    seed(123)   // ← resets PRNG to fixed seed every session
-    loadGlobalVars()
-    reset(mapName, mapID)
-}
-```
-
-Effect: **every DH2 session produces the same random sequence** — rolls are deterministic and reproducible. CE sessions differ every launch due to time-based seeding.
-
-The sin-based PRNG has no published statistical validation. Known weaknesses: lower-order bits are non-uniform, and the output can converge near 0 or 1 for certain seed values. It is adequate for d100 game rolls at macro scale.
-
-### 5.3 `randomRoll` (`src/util.ts:127`)
-
-Matches CE `randomRoll` + `randomTranslateRoll` formulas:
-
-```typescript
-export function randomRoll(difficulty, criticalSuccessModifier) {
-    const delta = difficulty - getRandomInt(1, 100)
-    let roll: RollResult
-    if (delta < 0) {
-        roll = RollResult.Failure
-        if (getRandomInt(1, 100) <= Math.floor(-delta / 10))
-            roll = RollResult.CriticalFailure
-    } else {
-        roll = RollResult.Success
-        if (getRandomInt(1, 100) <= Math.floor(delta / 10) + criticalSuccessModifier)
-            roll = RollResult.CriticalSuccess
-    }
-    return { roll, delta }
-}
-```
-
-`RollResult` enum values match CE `Roll` (CriticalFailure=0, Failure=1, Success=2, CriticalSuccess=3).
-
-Note: DH2 does not replicate CE's day-2 restriction on critical upgrades (always enabled).
-
-### 5.4 `random` opcode (`src/scripting.ts:455`, `vm_bridge.ts:68`)
-
-```typescript
-// scripting.ts:455
-random(min: number, max: number) {
-    log('random', arguments)
-    return getRandomInt(min, max)
-}
-
-// vm_bridge.ts:68
-0x80B4: bridged("random", 2)
-```
-
-Correctly delegates to `getRandomInt`. Opcode 0x80B4 is wired and functional.
-
-### 5.5 `roll_dice` opcode (`vm_bridge.ts`)
-
-Opcode 0x80B5 is **not registered** in `vm_bridge.ts`. Any script calling `roll_dice` will trigger an unknown-opcode trap in the VM. CE gracefully pushes 0; DH2 does not.
-
-### 5.6 Sniper perk (`src/combat/Combat.ts`)
-
-```typescript
-if (getRandomInt(1, 100) <= obj.getStat('LUK')) { isCrit = true }
-```
-
-DH2 uses **d100** instead of CE's **d10**. This makes the Sniper perk roughly 10× harder to trigger (e.g., LUK=7 → 7% chance in DH2 vs 70% in CE). Tracked as bug C1 in `wiki/known_bugs.md`.
-
-### 5.7 `rollSkillCheck` (`src/util.ts:110`)
-
-```typescript
-export function rollSkillCheck(skill, modifier, isBounded) {
-    const roll = getRandomInt(0, 100)   // 101 outcomes [0-100]
-    return roll < skill
-}
-```
-
-CE `randomBetween(1, 100)` has 100 possible outcomes. DH2 `getRandomInt(0, 100)` has **101** outcomes (includes 0), making every skill check very slightly easier. `randomRoll` (the skill-check wrapper) uses `getRandomInt(1, 100)` correctly — the deviation only affects the direct `rollSkillCheck` call path (used in combat hit rolls at `combat.ts`).
+Opcodes: `random` (0x80B4) → `randomBetween`; `roll_dice` (0x80B5) pops its two arguments and pushes 0, as CE's unimplemented handler. The Sniper perk rolls `randomBetween(1, 10) <= LUK` (`Combat.ts`, CE `combat.cc` attackCompute).
 
 ---
 
 ## 6. Distribution Comparison
 
-| Property | CE | DH2 |
-|----------|----|-----|
-| Generator | Park-Miller LCG + Bays-Durham shuffle | Sin-based PRNG |
-| Period | 2³¹ − 2 ≈ 2.1 × 10⁹ | Variable (sin orbit) |
-| Statistical validation | Chi-squared test at startup | None |
-| Seed source | `compat_timeGetTime()` (wall clock) | Fixed constant 123 |
-| Deterministic? | No | Yes — same sequence every session |
-| `randomBetween(1, 100)` range | [1, 100] inclusive, 100 values | [1, 100] inclusive, 100 values |
-| Out-of-range guard | debugPrint + clamp | None |
-| RNG saved in save file | No (save/load are stubs) | No |
+Same generator, same seeding scheme, same ranges — the distributions are CE's. Neither CE nor DH2 saves the generator state.
 
 ---
 
 ## 7. Known Gaps
 
-| ID | Description | File(s) | CE Reference | Sev | Status |
-|----|-------------|---------|--------------|-----|--------|
-| RN1 | **Fixed seed 123 makes every session deterministic.** `Scripting.init()` always calls `seed(123)`, resetting the sin-based PRNG to the same state. CE seeds from system time — different rolls every session. A new player always gets the same sequence of crits, misses, and drops. | `src/scripting.ts:2206` | `random.cc:39 randomInit()` | minor | bug |
-| RN2 | **`roll_dice` opcode (0x80B5) not registered.** Any script calling `roll_dice` hits an unknown-opcode trap. CE also never implemented the opcode, but it pushes 0 gracefully. | `src/vm_bridge.ts` | `interpreter_extra.cc:789 opRollDice()` | low | missing |
-| RN3 | **Sniper perk rolls d100 instead of d10.** `combat/Combat.ts` uses `getRandomInt(1, 100)` vs CE's `randomBetween(1, 10)`. Direct cause of known_bugs.md §C1. | `src/combat/Combat.ts` | `combat.cc:3892` | major | bug |
-| RN4 | **`rollSkillCheck` uses 101 outcomes ([0, 100]) vs CE's 100 ([1, 100]).** Makes hit rolls very slightly easier at all skill levels. Affects combat attack rolls (`combat/Combat.ts`). | `src/util.ts:110` | `random.cc:134 randomBetween()` | low | bug |
-| RN5 | **No chi-squared validation of DH2 PRNG.** CE runs 100,000-sample chi-squared test at startup. Sin-based PRNG has known non-uniform bit patterns that are not monitored. | `src/util.ts:102` | `random.cc:224 randomValidatePrerandom()` | low | missing |
-
-Last audited: 2026-06-02
+None. RN1–RN5 are fixed: time seed, `roll_dice` pushing 0, Sniper d10, d100 from 1, chi-squared self-test. <!-- audited: 2026-10-18 -->

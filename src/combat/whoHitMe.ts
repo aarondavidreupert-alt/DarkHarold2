@@ -48,7 +48,7 @@ export function critterSetWhoHitMe(a1: Critter, a2: Critter | null): void {
 
 // CE combat_ai.cc _combatai_rating — best of melee damage and wielded weapons' max
 // damage, plus AC; 0 for non-critters and the dead/knocked out.
-function combatAiRating(obj: Critter | null): number {
+export function combatAiRating(obj: Critter | null): number {
     if (!obj || obj.type !== 'critter') return 0
     if (obj.dead || ((obj.injuryFlags ?? 0) & 0x01) !== 0) return 0
     let damage = obj.getStat('Melee') // STAT_MELEE_DAMAGE

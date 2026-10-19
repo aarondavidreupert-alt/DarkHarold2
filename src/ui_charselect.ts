@@ -30,7 +30,7 @@ import { getMessage } from './util.js'
 
 const W = 640
 const H = 480
-const COLOR = '#00f800' // _colorTable[992]
+const COLOR = '#3cf800' // _colorTable[992] → color.pal entry 215
 const NAME_MID_X = 318
 const PRIMARY_STAT_MID_X = 362
 const SECONDARY_STAT_MID_X = 379

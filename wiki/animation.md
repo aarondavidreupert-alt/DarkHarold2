@@ -5,7 +5,7 @@ Covers FRM binary format, FID/animation ID encoding, the `reg_anim_*` batch syst
 
 > **Source anchor:** `raw/fallout2-ce/src/art.cc`, `art.h`, `animation.cc`, `animation.h`, `obj_types.h`, `cycle.cc`, `object.cc`  
 > **DH2 files:** `src/object/critterAnimation.ts`, `src/object/Critter.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/renderer.ts`, `tools/frmpixels.py` (pipeline)  
-> **Last audited:** 2026-07-04 — AN3 partially fixed (pipeline preserves actionFrame; runtime consumption still open)
+> **Last audited:** 2026-10-17 — reg_anim opcodes rewired to CE; anim ids played by `buildFid`; FPS default 10. AN table re-checked (§ Known gaps).
 
 ---
 
@@ -256,6 +256,36 @@ The same formula gives zero jump for mid-cycle idle frames (ox=1) and for all 6 
 
 After a complete draw-then-return cycle the artOffset may be ±1 px from zero (the draw animation's net `ox` drift). This matches CE's own accumulation (CE never resets `obj->x` between static animations). In practice this is imperceptible and is reset by any walk.
 
+### 4.3 CE Models (default since 2026-10-14) — `walkModel` / `animOffsetModel`
+
+Both models above were replaced by direct ports of CE's `obj->x/y` bookkeeping. The old
+behaviour stays available from the console for comparison.
+
+**Walking — `Config.engine.walkModel`, console `setWalkModel('ce' | 'dh2' | 'smooth')`**
+
+- `'ce'` (default) ports `animation.cc _object_move`. Every frame runs `objectSetNextFrame`, so the frame wraps freely.
+  - The frame's delta is added to `shift`.
+  - The critter enters the next hex once `shift` reaches that direction's hex step (tile.cc `_off_tile` / `dword_51D984`). The remainder carries over, so no pixels are lost at a hex boundary.
+  - The walk starts with frame 0's delta. The last hex ends on the hex centre.
+- `'dh2'` is the old fixed partials (`numFrames / getAnimDistance`). They reset `shift` to 0 at every hex, so the walk and run loops stutter by a few pixels per hex.
+- `'smooth'` is `'ce'` plus a sub-frame blend toward the next frame's delta. It is not CE.
+
+**Art changes — `Config.engine.animOffsetModel`, console `setAnimOffsetModel('ce' | 'dh2')`**
+
+`'ce'` (default) keeps `Obj.ceOff`, the CE `obj->x/y`. The renderer draws
+`dirOffset(current art) + ceOff`, as in `object.cc objectGetRect`.
+
+| Event | `ceOff` change | CE source |
+|-------|----------------|-----------|
+| Art change | `+= old art directionOffsets[rot] + new start frame delta` | `_object_animate`, fid change |
+| Forward frame | `+= delta(new frame)` | `_object_animate` |
+| Reverse frame | `-= delta(current frame)`, then step back | `_object_animate` |
+| Walk ended | `0` | `objectSetLocation` |
+| Action ends / stand | unarmed: `0`. Armed: `Σ take-out (Xc) frame deltas + stand (aa) directionOffsets[rot]` | `_dude_stand` |
+
+`'dh2'` is the anchor-pinning `artOffset` from §4.2. It cancels the offsets the FRMs were
+drawn with, so a 10mm SMG holster draws about 8 px right of CE and snaps back on the next stand.
+
 ---
 
 ## 5. Frame Sequencing and Sub-tile Offset Accumulation
@@ -390,10 +420,10 @@ The high nibble of a FID identifies the object class, which determines the `art/
 | 4     | OBJ_TYPE_TILE       | art/tiles/   | yes (tiles)    |
 | 5     | OBJ_TYPE_MISC       | art/misc/    | yes (misc)     |
 | 6     | OBJ_TYPE_INTERFACE  | art/intrface/| yes (intrface) |
-| 7     | OBJ_TYPE_INVENTORY  | art/inven/   | partial        |
-| 8     | OBJ_TYPE_HEAD       | art/heads/   | partial        |
-| 9     | OBJ_TYPE_BACKGROUND | art/backgrnd/| no             |
-| 10    | OBJ_TYPE_SKILLDEX   | art/skilldex/| no             |
+| 7     | OBJ_TYPE_INVENTORY  | art/inven/   | yes (inven)    |
+| 8     | OBJ_TYPE_HEAD       | art/heads/   | yes (talking heads) |
+| 9     | OBJ_TYPE_BACKGROUND | art/backgrnd/| yes (dialogue backgrounds) |
+| 10    | OBJ_TYPE_SKILLDEX   | art/skilldex/| yes (cards)    |
 
 Source: `gArtListDescriptions` array, `raw/fallout2-ce/src/art.cc:55`.
 
@@ -603,9 +633,9 @@ type AnimEntry = AnimStep | AnimFunc
 
 `reg_anim_animate_forever(obj, anim)` (`src/scripting.ts:1613`) uses a recursive `singleAnimation` loop outside the batch system.
 
-`reg_anim_obj_move_to_tile(obj, tileNum, delay)` (`src/scripting.ts:1655`) calls `critter.walkTo(tile, false)` and ignores the delay argument.
+`reg_anim_obj_move_to_tile(obj, tileNum, delay)` registers a move step with its delay in the reg_anim batch (CE `animationRegisterMoveToTile`).
 
-Rotation and frame-set via `anim(obj, anim, param)` (`src/scripting.ts:1237`): only param values `1000` (set rotation) and `1010` (set frame) are implemented; all others are stubs.
+`anim(obj, anim, param)` is CE `opAnim` (AN11 in §13): animations below 1000 play (reversed when `param` is set), 1000 sets the rotation, 1010 the frame.
 
 ---
 
@@ -613,28 +643,24 @@ Rotation and frame-set via `anim(obj, anim, param)` (`src/scripting.ts:1237`): o
 
 All animation-related script opcodes, their hex values, CE counterparts, and DH2 status.
 
-| Opcode | CE Function                     | Args | DH2 Method                | Status        |
-|--------|---------------------------------|------|---------------------------|---------------|
-| 0x8111 | reg_anim_begin                  | 1    | `reg_anim_begin`          | implemented   |
-| 0x8112 | reg_anim_end                    | 0    | `reg_anim_end`            | implemented   |
-| 0x8113 | reg_anim_clear                  | 0    | `reg_anim_clear`          | implemented   |
-| 0x810E | reg_anim_func                   | 2    | `reg_anim_func`           | implemented   |
-| 0x810F | reg_anim_animate                | 3    | `reg_anim_animate`        | implemented   |
-| 0x8110 | reg_anim_obj_move_to_tile       | 3    | `reg_anim_obj_move_to_tile` | partial (delay ignored) |
-| 0x8126 | reg_anim_animate_forever        | 2    | `reg_anim_animate_forever`| implemented   |
-| 0x80E7 | anim_busy                       | 1    | `anim_busy`               | implemented   |
-| 0x810C | anim                            | 3    | `anim`                    | partial (1000/1010 only) |
-| 0x80E3 | set_obj_visibility              | 2    | `set_obj_visibility`      | implemented   |
-| 0x80CE | animate_move_obj_to_tile        | 3    | (vm_bridge stub)          | stub          |
-| 0x80A3 | play_sfx                        | 1    | `play_sfx`                | implemented   |
-| 0x8136 | gfade_out                       | 1    | `gfade_out`               | implemented (CSS) |
-| 0x8137 | gfade_in                        | 1    | `gfade_in`                | implemented (CSS) |
-| —      | reg_anim_animate_and_hide       | —    | —                         | **missing**   |
-| —      | reg_anim_obj_run_to_tile        | —    | —                         | **missing**   |
-| —      | reg_anim_obj_move_to_obj        | —    | —                         | **missing**   |
-| —      | reg_anim_obj_run_to_obj         | —    | —                         | **missing**   |
+Corrected 2026-10-17 against CE `interpreter_extra.cc:4981-5028` (`interpreterRegisterOpcode`). DH2 had 0x8110-0x8113 as move_to_tile / begin / end / clear and 0x810E as a "queue this procedure" call. So the original scripts' `reg_anim_begin` / `reg_anim_end` (both 0x810E) never opened a batch, 0x8110 (animate reverse) moved the critter to tile = the anim id, and 0x8112 / 0x8113 left their arguments on the stack.
 
-`0x810E` (`reg_anim_func`) is handled by a custom inline wrapper in `src/vm_bridge.ts` rather than `bridged()` — it converts a script proc address to a callable JS function before pushing to the batch.
+| Opcode | CE | Args | DH2 | Notes |
+|--------|----|------|-----|-------|
+| 0x810C | anim | 3 | `anim` | rotation (1000), frame (1010), anim ids < 65 as a one-step batch (reversed when param ≠ 0) |
+| 0x810E | reg_anim_func(cmd, param) | 2 | `reg_anim_func` | 1 = begin (flags), 2 = clear (obj), 3 = end |
+| 0x810F | reg_anim_animate | 3 | `reg_anim_animate` | the critter's anim id (`buildFid`, weapon code kept); PID 0x100002F's fall only at violence ≥ 2 |
+| 0x8110 | reg_anim_animate_reverse | 3 | `reg_anim_animate_reverse` | |
+| 0x8111 | reg_anim_obj_move_to_obj | 3 | `reg_anim_obj_move_to_obj` | walks next to the object; the next step waits |
+| 0x8112 | reg_anim_obj_run_to_obj | 3 | `reg_anim_obj_run_to_obj` | runs |
+| 0x8113 | reg_anim_obj_move_to_tile | 3 | `reg_anim_obj_move_to_tile` | |
+| 0x8114 | reg_anim_obj_run_to_tile | 3 | `reg_anim_obj_run_to_tile` | |
+| 0x8126 | reg_anim_animate_forever | 2 | `reg_anim_animate_forever` | |
+| 0x813B | reg_anim_play_sfx | 3 | `reg_anim_play_sfx` | |
+| 0x80E7 | anim_busy | 1 | `anim_busy` | |
+| 0x80CE | animate_move_obj_to_tile | 3 | `animate_move_obj_to_tile` | |
+
+All reg_anim calls do nothing in combat, and outside `reg_anim_begin … reg_anim_end` (CE `_check_registry`).
 
 `gfade_out` / `gfade_in` are implemented via a CSS `black` overlay div with an `opacity` transition, not a WebGL render pass.
 
@@ -681,12 +707,13 @@ CE calls `tickersAdd(colorCycleTicker)` during init (`cycle.cc:cycleInit`). The 
 
 Because the effect is palette-level, it applies to every FRM sprite on screen simultaneously — a single palette write animates all water tiles, all fire tiles, and all active terminal monitors at once.
 
-### 12.5 DH2 Status — NOT IMPLEMENTED
+### 12.5 DH2 Status
 
-DH2 uses pre-baked PNG sprites extracted from FRM data via the Python pipeline. Palette indices are resolved to RGBA at extraction time; there is no runtime palette table. Palette cycling therefore has no equivalent mechanism in DH2.
+Implemented in the shaders (rendering.md RD10). The pipeline keeps a cycle mask per sprite (`colorCycle.ts parsePNGCycleMask`: palette index − 228 for entries 229–254), and `cycleColor()` in `shaders/fragment.glsl` rotates each group with CE's colours and rates (slime / shoreline / fire_slow 5 fps, fire_fast 7, monitors 10, bobber 30).
 
-| Item | Status |
-|------|--------|
+`[system] color_cycling` and `cycle_speed_factor` are read from fallout2.cfg (`colorCycle.ts cycleTime()`): off keeps the original palette order, the factor stretches every period as CE `gColorCycleSpeedFactor`.
+
+------|--------|
 | `color_cycling` ini flag | Not read by DH2 |
 | `cycle_speed_factor` ini flag | Not read by DH2 |
 | `colorCycleTicker` | No DH2 equivalent; no `tickersAdd` system |
@@ -698,27 +725,24 @@ Implementing palette cycling in DH2 would require either (a) baking multiple pre
 
 ---
 
-## 13. Known Gaps vs CE
+## 13. Known Gaps vs CE (re-audited 2026-10-18)
 
-| ID  | Description | File(s) | CE Reference | Sev | Status |
-|-----|-------------|---------|--------------|-----|--------|
-| AN1 | **`updateStaticAnim` hardcodes fps = 8.** Comment reads `// todo: get FPS from image info`. Should read `info.fps \|\| 10` like `updateLoopingAnim`. Scenery such as flowing water or fire plays at the wrong speed. | `object.ts` | `art.cc:713 artGetFramesPerSecond()` | minor | bug |
-| AN2 | **`getAnimDistance` reads direction 1 for the last frame.** `frameOffsets[1][numFrames-1].ox` uses direction E instead of direction 0 (NE). Returns wrong hex-steps-per-walk-cycle, causing partial-action boundaries to be off and walk animation to hitch or overshoot. | `object.ts` | `animation.cc:1716` | major | bug |
-| AN3 | **PARTIALLY FIXED 2026-07-04.** `actionFrame` was discarded by the extraction pipeline (`tools/frmpixels.py:40` read it into `_actionFrame` — leading underscore meant not saved — and it was absent from `imageMap.json`). The pipeline side is now fixed: `readFRMInfo()` returns `actionFrame` (no underscore), and `exportFRMs()` builds a per-direction `actionFrames` array that's written into each entry's `extra`/frame-info JSON. **Remaining gap**: no runtime code in `src/` reads the field yet — hit-detection and sound-sync still don't consume it, so weapon-attack timing is unaffected until a follow-up wires it into combat/animation playback. | `tools/frmpixels.py:40,71,218-229` (fixed); runtime consumption still missing | `art.h ArtFrame.actionFrame`, `animation.cc` | major | partial |
-| AN4 | **No combat walk speed bonus.** CE's `animationComputeTicksPerFrame` adds the `combat_speed` preference to ANIM_WALK in combat. DH2 uses a fixed `1000/fps` for all animations. | `src/object/critterAnimation.ts` | `animation.cc:3287 animationComputeTicksPerFrame()` | minor | missing |
-| AN5 | **`obj.shift = {x:0, y:0}` is truthy at walk start; frame 0's static ox/oy is skipped.** At the beginning of a walk cycle, `shift` is set to `{x:0,y:0}` — a truthy object. The renderer therefore takes the shift path and adds `+0`, while the correct static offset for frame 0 would be `frameInfo.ox`. For most walk FRMs `ox` at frame 0 is zero so the effect is invisible, but any FRM where frame 0 has a non-zero initial delta will display one frame off-anchor. | `renderer.ts:311`, `src/object/critterAnimation.ts` | `object.cc _obj_offset()` | low | bug |
-| AN6 | **FID composition / weapon stance animation not implemented for NPC critters.** CE builds a Frame Identifier via `buildFid(objectType, animType, weaponAnimCode, direction, rotation)` (`art.cc`), where `weaponAnimCode` selects the critter's armed-pose FRM set (0=unarmed, 1=pistol, 3=rifle, 4=big gun, etc.). DH2 has no `buildFid` equivalent — critter FRM paths come from a static `skin` string. The player's `skin` is updated at weapon-swap time via `playWeaponSwapAnim`, but NPC critters on a map never have their skin recalculated from their held weapon; they always display unarmed animations. Full detail: §9 (Weapon Animation Codes). | `src/object/critterAnimation.ts`; `src/renderer.ts` | `art.cc buildFid()`; `art.h ART_TYPE_CRITTER`; `proto_types.h ItemWeaponData.animCode` | medium | missing |
-| AN7 | **`reg_anim_animate_and_hide` — animate then hide object.** Not wired; no opcode entry. | `animation.cc` | ANIM_KIND_ANIMATE_AND_HIDE | medium | missing |
-| AN8 | **`reg_anim_obj_run_to_tile` — run (not walk) to tile.** Not wired; no opcode entry. | `animation.cc` | ANIM_KIND_RUN_TO_TILE | medium | missing |
-| AN9 | **`reg_anim_obj_move_to_obj` — move to another object's tile.** Not wired. | `animation.cc` | ANIM_KIND_MOVE_TO_OBJECT | medium | missing |
-| AN10 | **`reg_anim_obj_run_to_obj` — run to another object's tile.** Not wired. | `animation.cc` | ANIM_KIND_RUN_TO_OBJECT | medium | missing |
-| AN11 | **`anim()` param dispatch incomplete.** CE handles all `AnimationType` values; DH2 only implements param values `1000` (rotation) and `1010` (frame). All other param values are stubs. | `src/scripting.ts:1237` | `animation.cc` | minor | partial |
-| AN12 | **`animate_move_obj_to_tile` (0x80CE) unimplemented.** Wired in `vm_bridge` but has no implementation body. | `src/vm_bridge.ts` | CE animate + move combo | minor | stub |
-| AN13 | **Rotation field in FID unused at render time.** CE stores facing in bits 29-28 for death anims. DH2 stores facing on `obj.orientation`; FID rotation bits are not used at render time. | `src/object/critterAnimation.ts`, `src/renderer.ts` | `art.cc buildFid()`, `obj_types.h` | low | deviation |
-| AN14 | **CE animation sequence capacity not replicated.** CE supports 32 concurrent sequences with 55 descriptions each. DH2 supports one active batch at a time (single `animBatch` array). | `src/scripting.ts` | `animation.cc` ANIMATION_SEQUENCE_LIST_CAPACITY | low | deviation |
-| AN15 | **SF death animations (IDs 48–63) mostly absent.** CE maps all 16 to unique FRM suffixes `ra`–`rp`. DH2 only maps `death-laser` → `bg`; others fall back to regular death or are absent. | `src/object/critterAnimation.ts` | `animation.h` FIRST_SF_DEATH_ANIM | medium | missing |
-| AN16 | **All 28 `AnimationKind` values not handled.** DH2 batch system only processes `animate` and `func` kinds. | `src/scripting.ts` | `animation.h AnimationKind` | medium | missing |
-| AN17 | **`AnimationRequestOptions` flags silently ignored.** UNRESERVED, RESERVED, NO_STAND, PING, INSIGNIFICANT are all discarded in `reg_anim_begin`. | `src/scripting.ts` | `animation.h AnimationRequestOptions` | low | missing |
-| AN18 | **Palette cycling not implemented.** CE's `colorCycleTicker` rotates palette ranges to animate water, fire, and terminals. DH2 has no runtime palette system; all such objects display static frames only. | `src/renderer.ts` | `cycle.cc colorCycleTicker`, `cycleInit` | medium | missing |
+| ID | Status |
+|----|--------|
+| AN1 | ✅ default 10 fps (`artGetFramesPerSecond`) |
+| AN2 / AN5 | ✅ superseded: the CE walk model (`walkModel = 'ce'`, `_object_move` per-frame offsets) is the default; the old partial-action path (`getAnimDistance`) only runs with `walkModel = 'dh2'` |
+| AN3 | ✅ action frames exported and used (FA3) |
+| AN4 | ✅ combat walk speed — now literally `fps += combat_speed` for ANIM_WALK only (`animationComputeTicksPerFrame`; DH2 had it inverted and on running too; default `combat_speed` 0 as `game_config.cc`) — 2026-10-18 |
+| AN6 | ✅ weapon stances (`getAnimation` / `setIdleArt`) |
+| AN7 | — `reg_anim_animate_and_hide` is not a script opcode in vanilla Fallout 2 (internal `animationRegisterAnimateAndHide`) |
+| AN8–AN10 | ✅ `reg_anim_obj_run_to_tile`, `…move_to_obj`, `…run_to_obj` wired as CE (C37) |
+| AN11 | ✅ `anim()` is CE `opAnim` (2026-10-18): `_correctDeath`; a knockdown / death animation (20–35) leaves the critter lying, the CE `results &= DAM_KNOCKED_DOWN`; reversed animations end lying and set DAM_KNOCKED_DOWN; 1000 rotation, 1010 frame |
+| AN12 | ✅ `animate_move_obj_to_tile` implemented |
+| AN13 | Equivalent: the facing lives on `obj.orientation` instead of the FID bits |
+| AN14 / AN16 | Equivalent for scripts: every `reg_anim_begin … end` batch runs on its own (several at once); the kinds scripts can register — animate, animate reverse, move / run to tile / object, animate forever (2026-10-18: a batch step, outside combat only, any anim id), play sfx, callbacks — are all handled |
+| AN17 | Open (low): request flags (RESERVED / UNRESERVED / NO_STAND …) are not modelled |
+| AN15 | ✅ all death animations incl. SF (`critter/deathAnim.ts`) |
+| AN18 | ✅ palette cycling (RD10) |
+| — | `reg_anim_play_sfx` outside a batch plays nothing, as CE (2026-10-18) |
 
-<!-- audited: 2026-06-02 -->
+<!-- audited: 2026-10-18 -->

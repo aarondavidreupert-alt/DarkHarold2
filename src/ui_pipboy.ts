@@ -17,4 +17,4 @@ limitations under the License.
 // PipBoy barrel. See wiki/ts-split-refactor.md → "Per-file split
 // proposals" §12.
 
-export { openPipBoy, closePipBoy, togglePipBoy, isPipBoyOpen } from './ui_pipboy/shell.js'
+export { openPipBoy, openPipBoyRest, closePipBoy, togglePipBoy, isPipBoyOpen } from './ui_pipboy/shell.js'

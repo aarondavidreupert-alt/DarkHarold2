@@ -194,7 +194,7 @@ export function uiBarterMode(merchant: Critter) {
     function totalAmount(objects: Obj[]): number {
         let total = 0
         for (let i = 0; i < objects.length; i++) {
-            total += (objects[i].pro?.extra?.cost ?? 0) * objects[i].amount
+            total += objects[i].stackCost() // CE item.cc objectGetCost / itemGetCost
         }
         return total
     }
@@ -204,24 +204,24 @@ export function uiBarterMode(merchant: Critter) {
     // result = trunc(barterModMult * balancedCost) + caps
     function barterMinPlayerOffer(merchantTable: Obj[]): number {
         const player = globalState.player
-        const CAPS_PID = 41
 
         const totalCost = totalAmount(merchantTable)
-        const capsInTable = merchantTable
-            .filter(o => o.pid === CAPS_PID)
-            .reduce((s, o) => s + o.amount, 0)
+        const capsInTable = Scripting.itemGetTotalCaps({ inventory: merchantTable } as unknown as Obj) // itemGetTotalCaps(_btable)
         const costWithoutCaps = totalCost - capsInTable
 
-        // Barter skill: player's effective value + game difficulty modifier
-        // FO2-CE ref: skill.cc skillGetGameDifficultyModifier — Barter is one of the 12 affected skills
-        const diff = Config.combat.gameDifficultyModifier
-        const diffBonus = diff < 100 ? 20 : diff > 100 ? -10 : 0
-        const playerBarter = Math.max(0, (player.getSkill?.('Barter') ?? 0) + diffBonus)
+        // CE partyGetBestSkillValue(SKILL_BARTER): the best Barter in the party (the dude
+        // included, hidden members not); skillGetValue already holds the difficulty bonus.
+        let playerBarter = 0
+        for (const c of globalState.gParty?.getPartyMembersAndPlayer() ?? [player]) {
+            if (!c || c.visible === false) continue
+            playerBarter = Math.max(playerBarter, c.getSkill?.('Barter') ?? 0)
+        }
         const npcBarter = (merchant as any).getSkill?.('Barter') ?? 0
 
         // Reaction modifier from merchant LVAR 0 (CE ref: reaction.cc:18)
         const reactionVal = (merchant as any)._script?.lvars?.[0] ?? 0
-        const reactionMod = reactionVal > 10 ? -15 : reactionVal < -10 ? 25 : 0
+        // reactionTranslateValue: > 10 good (−15), > −10 neutral (0), else bad (+25)
+        const reactionMod = reactionVal > 10 ? -15 : reactionVal > -10 ? 0 : 25
 
         // Combined barterMod: script mod + reaction mod
         const scriptMod = Scripting.getDialogueBarterMod()
@@ -236,10 +236,24 @@ export function uiBarterMode(merchant: Critter) {
     function offer() {
         dbg('script', '[Barter] offer')
 
+        // CE inventory.cc _barter_attempt_transaction: first the weight — "Sorry, you cannot
+        // carry that much." (31) — then an empty offer or one worth less is "not good enough".
+        const player = globalState.player
+        const tableWeight = merchantBarterTable.reduce((w, o) => w + o.stackWeight(o.amount ?? 1), 0)
+        const carried = workingPlayerInventory.reduce((w, o) => w + o.stackWeight(o.amount ?? 1), 0)
+            + ['leftHand', 'rightHand', 'armor'].reduce((w, h) => {
+                const it = (player as any)[h]
+                return w + (it && it.pid !== undefined ? it.stackWeight(it.amount ?? 1) : 0)
+            }, 0)
+        if (tableWeight > player.getStat('Carry') - carried) {
+            uiSetDialogueReply(getMessage('inventry', 31) ?? 'Sorry, you cannot carry that much.')
+            return
+        }
+
         const playerOffered = totalAmount(playerBarterTable)
         const merchantNeed = barterMinPlayerOffer(merchantBarterTable)
 
-        if (playerOffered >= merchantNeed) {
+        if (playerBarterTable.length > 0 && playerOffered >= merchantNeed) {
             // OK, player offered equal to more more than the value
             dbg('script', '[Barter] offer accepted')
 

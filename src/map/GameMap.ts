@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { pathfinderFindPathPoints } from './pathfinder.js'
 import { Config } from '../config.js'
 import { getCurrentMapInfo } from '../data.js'
 import { Events } from '../events.js'
@@ -38,7 +39,10 @@ type Spatial = any
 export interface SerializedSpatial {
     script: string
     tileNum: number
-    radius: number
+    // CE Script.sp.radius — the map data's `range`. (Saves before 2026-10-18 wrote an
+    // always-0 `radius` instead; they fall back to 0 = exact tile.)
+    range?: number
+    radius?: number
     lvars?: { [lvar: number]: any }
 }
 
@@ -91,7 +95,10 @@ export class GameMap {
     _isOutdoorCachedElevation: number = -1
 
     getObjects(level?: number): Obj[] {
-        return this.objects[level === undefined ? this.currentElevation : level]
+        // While a map loads `objects` is null (mapLoader clears it); input handlers such as
+        // the mouse-move hover test can still ask — nothing is there yet.
+        if (!this.objects) return []
+        return this.objects[level === undefined ? this.currentElevation : level] ?? []
     }
 
     getSpatials(level?: number): any[] {
@@ -208,21 +215,6 @@ export class GameMap {
         Scripting.updateMap(this.mapScript, allObjs, this.currentElevation)
     }
 
-    doEnterElevation(): void {
-        if (!Config.engine.doLoadScripts) return
-        const elev = this.currentElevation
-        const mapID = this.mapID
-
-        if (this.mapScript && this.mapScript.map_enter_p_proc !== undefined) {
-            this.mapScript.self_obj = { _script: this.mapScript }
-            this.mapScript.map_enter_p_proc()
-        }
-
-        for (const obj of this.getObjectsAndSpatials()) {
-            Scripting.objectEnterMap(obj, elev, mapID)
-        }
-    }
-
     changeElevation(level: number, updateScripts = false, isMapLoading = false) {
         if (!this.mapObj.levels[level]) {
             dbgWarn('map', `changeElevation: elevation ${level} does not exist`)
@@ -242,7 +234,7 @@ export class GameMap {
 
         // If we're in combat, end it since we're moving off of that elevation
         if (globalState.inCombat) {
-            globalState.combat.end()
+            globalState.combat.forceEnd()
         }
 
         globalState.player.clearAnim()
@@ -336,6 +328,41 @@ export class GameMap {
         }
     }
 
+    // CE proto_instance.cc:2184 _obj_attempt_placement: the tile when it's free, else a
+    // free tile at distance 2..6 the dude can walk to — the loop runs on after a find,
+    // so the last examined tile is kept, as in CE — and, when that ends farther than
+    // radius + 2, any free neighbour (reachable or not). Returns the tile to use.
+    attemptPlacement(tile: number, elevation: number, radius: number): number {
+        if (tile === -1) return -1
+        const dude = globalState.player
+        let newTile = tile
+        if (this.blockingObjectAt(tile, elevation, 0, null) !== null) {
+            let dist = radius >= 1 ? radius : 1
+            let attempts = 0
+            const from = fromTileNum(tile)
+            while (dist < 7) {
+                attempts++
+                if (attempts >= 100) break
+                for (let rotation = 0; rotation < 6; rotation++) {
+                    newTile = toTileNum(hexInDirectionDistance(from, rotation, dist))
+                    if (this.blockingObjectAt(newTile, elevation, 0, null) === null && dist > 1
+                        && dude && this.recalcPath(dude.position, fromTileNum(newTile), false, dude).length > 0) break
+                }
+                dist++
+            }
+            if (radius !== 1 && dist > radius + 2) {
+                for (let rotation = 0; rotation < 6; rotation++) {
+                    const candidate = toTileNum(hexInDirection(from, rotation))
+                    if (this.blockingObjectAt(candidate, elevation, 0, null) === null) {
+                        newTile = candidate
+                        break
+                    }
+                }
+            }
+        }
+        return newTile
+    }
+
     // CE ref: proto_instance.cc:2244 _objPMAttemptPlacement + worldmap.cc
     // wmEvalTileNumForPlacement (not blocked, and reachable from the player): if the
     // wanted tile fails, spiral out from the player (direction v%6, step 1) up to 100
@@ -353,6 +380,42 @@ export class GameMap {
             if (hexDistance(dude.position, cur) > 8) return tile
         }
         return cur
+    }
+
+    // CE loadsave.cc lsgLoadGameInSlot → mapLoadSaved → mapLoad: with _loadingGame set,
+    // every script's start (scriptsExecStartProc), then map_enter_p_proc and
+    // map_update_p_proc run for the restored map — the scripts re-apply what they don't
+    // save (the Lighting macro's light level …) and skip their setup through
+    // is_loading_game; create / destroy / kill / visibility opcodes refuse meanwhile.
+    // The map music starts as on any map load (wmMapMusicStart).
+    runLoadGameProcs(): void {
+        if (!Config.engine.doLoadScripts) return
+        Scripting.setLoadingGame(true)
+        try {
+            for (const level of this.objects) {
+                for (const obj of level.slice()) {
+                    if (obj._script) Scripting.initScript(obj._script, obj)
+                }
+            }
+            const overridenStartPos = Scripting.enterMap(this.mapScript, this.getObjectsAndSpatials(),
+                this.currentElevation, this.mapID, false)
+            if (overridenStartPos && this.mapObj.levels[overridenStartPos.elevation]) {
+                globalState.player.position = overridenStartPos.position
+                globalState.player.orientation = overridenStartPos.orientation
+            }
+            this.objects.forEach((level) => {
+                for (const obj of level.slice()) {
+                    if (level.includes(obj)) obj.enterMap()
+                }
+            })
+            this.spatials.forEach((level) =>
+                level.forEach((spatial) => Scripting.objectEnterMap(spatial, this.currentElevation, this.mapID))
+            )
+            Scripting.updateMap(this.mapScript, this.getObjectsAndSpatials(), this.currentElevation)
+        } finally {
+            Scripting.setLoadingGame(false)
+        }
+        this.playMapMusic()
     }
 
     doEnterNewMap(isFirstRun: boolean): void {
@@ -406,6 +469,9 @@ export class GameMap {
 	
 	/** @internal — used by mapLoader.ts via the prototype. */
 	playMapMusic(): void {
+		// The startup map DH2 loads behind the intro movies and the main menu stays silent:
+		// CE has no map loaded there (main.cc), so no map music plays over the movies.
+		if (globalState.backgroundMapLoad) return
 		const curMapInfo = getCurrentMapInfo()
 		dbg('audio', '[Music] curMapInfo:', curMapInfo)
 		dbg('audio', '[Music] music field:', curMapInfo?.music)
@@ -599,169 +665,15 @@ export class GameMap {
         return null
     }
 
-    // CE ref: animation.cc:1715 pathfinderFindPath — custom hex A* with step costs.
-    // Replaces pathfinding-browser.js PF.AStarFinder to support:
-    //   P2: +10 direction-change cost outside combat (animation.cc:1838)
-    //   P3: +400/+100 radioactive goo penalty (animation.cc:1845)
-    // gooTiles: packed tile keys (y*W+x) of scenery PIDs 0x20003D9–0x20003DC.
-    // notInCombat: true when not in combat (direction-change cost only outside combat).
-    // geckoMover: true if moving critter's killType == KILL_TYPE_GECKO (15) → +100 instead of +400.
-    private static hexAStar(
-        start: Point, goal: Point,
-        blocked: number[][],
-        gooTiles: Set<number>,
-        notInCombat: boolean,
-        geckoMover: boolean,
-    ): number[][] {
-        const W = HEX_GRID_SIZE
-        const k = (x: number, y: number): number => y * W + x
-        const INF = 2e9
-
-        const g = new Float32Array(W * W).fill(INF)
-        const fromDir = new Int8Array(W * W).fill(-1)
-        const par = new Int32Array(W * W).fill(-1)
-
-        const sk = k(start.x, start.y)
-        const gk = k(goal.x, goal.y)
-        g[sk] = 0
-
-        // Min-heap with lazy deletion: each entry [f, tileKey, gSnapshot].
-        // When popped entry gSnapshot > g[key], it is a stale entry — skip it.
-        type HE = [number, number, number]
-        const heap: HE[] = [[0, sk, 0]]
-
-        const push = (f: number, key: number, gv: number): void => {
-            heap.push([f, key, gv])
-            let i = heap.length - 1
-            while (i > 0) {
-                const p = (i - 1) >> 1
-                if (heap[p][0] <= heap[i][0]) break
-                const tmp = heap[p]; heap[p] = heap[i]; heap[i] = tmp
-                i = p
-            }
-        }
-
-        const pop = (): HE | undefined => {
-            if (heap.length === 0) return undefined
-            const top = heap[0]
-            const last = heap.pop()!
-            if (heap.length > 0) {
-                heap[0] = last
-                let i = 0
-                while (true) {
-                    const l = 2 * i + 1, r = 2 * i + 2
-                    let m = i
-                    if (l < heap.length && heap[l][0] < heap[m][0]) m = l
-                    if (r < heap.length && heap[r][0] < heap[m][0]) m = r
-                    if (m === i) break
-                    const tmp = heap[m]; heap[m] = heap[i]; heap[i] = tmp
-                    i = m
-                }
-            }
-            return top
-        }
-
-        while (heap.length > 0) {
-            const entry = pop()!
-            const [, curr, gSnap] = entry
-            if (g[curr] < gSnap) continue // stale entry
-            if (curr === gk) break
-
-            const cx = curr % W, cy = (curr / W) | 0
-            const currDir = fromDir[curr]
-
-            const nbs = hexNeighbors({ x: cx, y: cy })
-            for (let d = 0; d < nbs.length; d++) {
-                const nb = nbs[d]
-                if (nb.x < 0 || nb.x >= W || nb.y < 0 || nb.y >= W) continue
-                if (blocked[nb.y][nb.x]) continue
-
-                const nk = k(nb.x, nb.y)
-
-                // Base step cost: CE animation.cc:1836 v27->cost = temp.cost + 50
-                let cost = 50
-                // P2: +10 on direction change outside combat. CE:1838
-                if (notInCombat && currDir !== -1 && currDir !== d) cost += 10
-                // P3: radioactive goo penalty. CE:1845 FIRST/LAST_RADIOACTIVE_GOO_PID
-                if (gooTiles.has(nk)) cost += geckoMover ? 100 : 400
-
-                const newG = g[curr] + cost
-                if (newG < g[nk]) {
-                    g[nk] = newG
-                    fromDir[nk] = d
-                    par[nk] = curr
-                    const h = hexDistance({ x: nb.x, y: nb.y }, goal) * 50
-                    push(newG + h, nk, newG)
-                }
-            }
-        }
-
-        if (g[gk] === INF) return []
-
-        const path: number[][] = []
-        let curr = gk
-        while (curr !== -1 && curr !== sk) {
-            path.push([curr % W, (curr / W) | 0])
-            curr = par[curr]
-        }
-        if (curr !== sk) return []
-        path.push([start.x, start.y])
-        path.reverse()
-        return path
-    }
-
+    // CE animation.cc _make_path → pathfinderFindPath (src/map/pathfinder.ts). The goal
+    // tile must be free unless `isGoalBlocking` is false (CE a5); `mover` (default: the
+    // player) decides door use and goo cost and doesn't block itself.
     recalcPath(start: Point, goal: Point, isGoalBlocking?: boolean, mover?: Obj) {
-        // FO2-CE ref: ai.cc — all pathFind() call sites guard against tile == -1;
-        // tile.cc tileIsValid() checks tile >= 0 && tile < gHexGridSize (200*200).
-        // Equivalent check on x,y coords: each must be in [0, HEX_GRID_SIZE).
         if (start.x < 0 || start.x >= HEX_GRID_SIZE || start.y < 0 || start.y >= HEX_GRID_SIZE ||
             goal.x < 0 || goal.x >= HEX_GRID_SIZE || goal.y < 0 || goal.y >= HEX_GRID_SIZE) {
             return []
         }
-        const matrix: number[][] = []
-
-        for (let y = 0; y < HEX_GRID_SIZE; y++) {
-            matrix[y] = new Array(HEX_GRID_SIZE).fill(0)
-        }
-
-        // CE ref: animation.cc:1845 FIRST_RADIOACTIVE_GOO_PID=0x20003D9 LAST=0x20003DC
-        const gooTiles = new Set<number>()
-        const W = HEX_GRID_SIZE
-
-        for (const obj of this.getObjects()) {
-            const ox = obj.position.x, oy = obj.position.y
-            // Skip objects with out-of-bounds positions (off-map sentinel values).
-            if (ox < 0 || ox >= HEX_GRID_SIZE || oy < 0 || oy >= HEX_GRID_SIZE) continue
-            // if there are multiple, any blocking one will block
-            const blocks = obj.pathBlocks()
-            matrix[oy][ox] |= <any>blocks
-            // CE ref: object.cc:2413 _obj_blocking_at — OBJECT_MULTIHEX (0x800)
-            // objects also block all 6 adjacent hexes.
-            if (blocks && (((obj as any).flags ?? 0) & 0x800) !== 0) {
-                for (const nb of hexNeighbors({ x: ox, y: oy })) {
-                    if (nb.x >= 0 && nb.x < HEX_GRID_SIZE && nb.y >= 0 && nb.y < HEX_GRID_SIZE) {
-                        matrix[nb.y][nb.x] = 1
-                    }
-                }
-            }
-            // P3: radioactive goo tiles. CE ref: animation.cc:1845
-            const pid = (obj as any).pid as number | undefined
-            if (pid !== undefined && pid >= 0x20003D9 && pid <= 0x20003DC) {
-                gooTiles.add(oy * W + ox)
-            }
-        }
-
-        if (isGoalBlocking === false) {
-            matrix[goal.y][goal.x] = 0
-        }
-
-        // P2: direction-change cost applies outside combat. CE ref: animation.cc:1838
-        const notInCombat = !globalState.inCombat
-        // P3: gecko critters get +100 penalty instead of +400. CE ref: animation.cc:1852
-        // KILL_TYPE_GECKO = 15 (proto_types.h)
-        const geckoMover = ((mover as any)?.killType ?? 0) === 15
-
-        return GameMap.hexAStar(start, goal, matrix, gooTiles, notInCombat, geckoMover)
+        return pathfinderFindPathPoints(mover ?? globalState.player ?? null, start, goal, isGoalBlocking !== false)
     }
 
     serialize(): SerializedMap {
@@ -794,7 +706,7 @@ export class GameMap {
                 ? this.spatials.map(level => level.map((s: Spatial): SerializedSpatial => ({
                       script: s.script,
                       tileNum: s.tileNum,
-                      radius: s.radius ?? 0,
+                      range: s.range ?? 0,
                       lvars: s._script ? Object.assign({}, s._script.lvars) : undefined,
                   })))
                 : [[], [], []],
@@ -818,12 +730,13 @@ export class GameMap {
         // Restore spatials: re-load scripts from names, then reapply saved LVARs.
         // FO2-CE ref: map.cc mapLoad — spatials are always re-initialized from map data
         if (Array.isArray(obj.spatials)) {
-            this.spatials = obj.spatials.map(level =>
+            this.spatials = obj.spatials.map((level, elevation) =>
                 level.map((s: SerializedSpatial) => {
                     const spatial: Spatial = {
                         script: s.script,
                         tileNum: s.tileNum,
-                        radius: s.radius,
+                        range: s.range ?? s.radius ?? 0,
+                        elevation,
                         isSpatial: true,
                         position: fromTileNum(s.tileNum),
                     }

@@ -22,6 +22,7 @@ limitations under the License.
 import { Config } from '../config.js'
 import globalState from '../globalState.js'
 import { Widget } from '../ui_widget.js'
+import { renderStatPanels } from './statPanels.js'
 import { font2, font3, makeFontLabel, renderBignum } from '../ui_font.js'
 import { WindowFrame, SmallButton, Label } from '../ui_components.js'
 import { makePanelDraggable } from '../ui_drag.js'
@@ -30,9 +31,11 @@ import {
     SPECIAL_FULL_NAMES, SPECIAL_DESCRIPTIONS, SKILL_DESCRIPTIONS,
     DERIVED_DESCRIPTIONS, CONDITION_DESCRIPTIONS, TRAIT_DESCRIPTIONS,
     SPECIAL_IMG, SKILL_IMG, DERIVED_IMG, CONDITION_IMG, TRAIT_IMG,
-    STAT_COMMENTS, STATS, SKILLS, TRAITS,
+    statComment, STATS, SKILLS, TRAITS,
 } from './descriptions.js'
 import { setCharacterWindow } from './viewer.js'
+import { showAlert, showConfirm } from '../ui_dialog.js'
+import { getMessage } from '../util.js'
 
 // ── showCharacterCreator() ────────────────────────────────────────────────────
 // FO2-CE ref: editor.cc editorRun() — character creation mode.
@@ -86,13 +89,15 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     skillPointBignumW.css({ display: 'none' })
 
     // ── Panel 2: HP display (conditions all inactive for new character) ────────
-    const panel2 = new Widget(null, { x: 196, y: 43, w: 'auto', h: 'auto' })
-        .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
+    // Both status boxes are drawn in one window-origin layer at CE coordinates
+    // (statPanels.ts); panel3 stays empty.
+    const panel2 = new Widget(null, { x: 0, y: 0, w: 'auto', h: 'auto' })
+        .css({ fontSize: '0.69em', whiteSpace: 'pre' })
     const panel2El = panel2.elem
 
     // ── Panel 3: derived stats ────────────────────────────────────────────────
     const panel3 = new Widget(null, { x: 196, y: 176, w: 'auto', h: 'auto' })
-        .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
+        .css({ fontSize: '0.69em', color: '#3cf800', whiteSpace: 'pre', lineHeight: '1.2' })
     const panel3El = panel3.elem
 
     // ── Skill rows container (replaces List widget) ───────────────────────────
@@ -130,7 +135,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     setCharacterWindow(characterWindow)
 
     characterWindow.elem.appendChild(skillRowsEl)
-    makePanelDraggable(characterWindow.elem)
+    makePanelDraggable(characterWindow.elem, 'characterCreator')
 
     // ── Info card ─────────────────────────────────────────────────────────────
     const cardImgEl = document.createElement('img') as HTMLImageElement
@@ -147,7 +152,6 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     cardImgEl.onload = () => { cardImgEl.style.visibility = 'visible' }
     cardImgEl.onerror = () => { cardImgEl.style.visibility = 'hidden' }
     characterWindow.elem.appendChild(cardImgEl)
-    makePanelDraggable(cardImgEl)
 
     const cardTitleEl = document.createElement('div')
     Object.assign(cardTitleEl.style, {
@@ -162,7 +166,6 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         width: '265px',
     })
     characterWindow.elem.appendChild(cardTitleEl)
-    makePanelDraggable(cardTitleEl)
 
     const cardBodyEl = document.createElement('div')
     Object.assign(cardBodyEl.style, {
@@ -177,7 +180,6 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         pointerEvents: 'auto',
     })
     characterWindow.elem.appendChild(cardBodyEl)
-    makePanelDraggable(cardBodyEl)
 
     const cardDividerEl = document.createElement('hr')
     Object.assign(cardDividerEl.style, {
@@ -222,7 +224,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         statValueWidgets.push(valW.elem)
         characterWindow.add(valW)
 
-        const commentLbl = new Label(105, 43 + n, '', '#00FF00').css({ fontSize: '0.69em' }) as Label
+        // CE characterEditorDrawPrimaryStat: description at x 103, y statY + 8
+        const commentLbl = new Label(103, 45 + n, '', '#3cf800').css({ fontSize: '0.69em' }) as Label
         statCommentLabels.push(commentLbl)
         characterWindow.add(commentLbl)
 
@@ -238,7 +241,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         pointerEvents: 'none',
     })
     font3.onLoad(() => {
-        poolTextEl.appendChild(font3.renderText('Char Points', '#FFD700'))
+        poolTextEl.appendChild(font3.renderText('Char Points', '#907824'))
     })
     characterWindow.elem.appendChild(poolTextEl)
 
@@ -426,7 +429,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             Object.assign(inp, { type: 'text', maxLength: 11, value: playerName })
             Object.assign(inp.style, {
                 position: 'relative', zIndex: '2',
-                fontSize: '0.9em', color: '#FFD700',
+                fontSize: '0.9em', color: '#907824',
                 background: 'transparent', border: 'none',
                 borderBottom: '1px solid #806814',
                 fontFamily: 'monospace', outline: 'none',
@@ -544,7 +547,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
 
     const updateNameDisplay = () => {
         while (nameLabelEl.firstChild) nameLabelEl.removeChild(nameLabelEl.firstChild)
-        nameLabelEl.appendChild(font3.renderText(playerName, '#FFD700'))
+        nameLabelEl.appendChild(font3.renderText(playerName, '#907824'))
     }
     updateNameDisplay()
     nameBtn.onclick = () => openCreatorPopup('name', updateNameDisplay)
@@ -572,7 +575,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
 
     const updateAgeDisplay = () => {
         while (ageLabelEl.firstChild) ageLabelEl.removeChild(ageLabelEl.firstChild)
-        ageLabelEl.appendChild(font3.renderText(String(playerAge), '#FFD700'))
+        ageLabelEl.appendChild(font3.renderText(String(playerAge), '#907824'))
     }
     updateAgeDisplay()
     ageBtn.onclick = () => openCreatorPopup('age', updateAgeDisplay)
@@ -600,7 +603,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
 
     const updateSexDisplay = () => {
         while (sexLabelEl.firstChild) sexLabelEl.removeChild(sexLabelEl.firstChild)
-        sexLabelEl.appendChild(font3.renderText(playerSex, '#FFD700'))
+        sexLabelEl.appendChild(font3.renderText(playerSex, '#907824'))
     }
     updateSexDisplay()
     sexBtn.onclick = () => openCreatorPopup('sex', updateSexDisplay)
@@ -619,7 +622,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             traitToggleImgs[i].src = selected
                 ? 'art/intrface/tgsklon.png'
                 : 'art/intrface/tgskloff.png'
-            traitRowEls[i].style.color = selected ? '#FFD700' : '#00FF00'
+            traitRowEls[i].style.color = selected ? '#a0a0a0' : '#3cf800' // CE 21140 picked / 992
         }
     }
 
@@ -721,7 +724,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         pointerEvents: 'none',
     })
     font3.onLoad(() => {
-        optionalTraitsLabelEl.appendChild(font3.renderText('Optional Traits', '#FFD700'))
+        optionalTraitsLabelEl.appendChild(font3.renderText('Optional Traits', '#907824'))
     })
     characterWindow.elem.appendChild(optionalTraitsLabelEl)
     characterWindow.elem.appendChild(leftColEl)
@@ -735,46 +738,19 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     ]
 
     const renderPanel2 = () => {
-        while (panel2El.firstChild) panel2El.removeChild(panel2El.firstChild)
-
-        const computedMaxHP = newStatSet.get('Max HP')
-        const hp = document.createElement('div')
-        hp.textContent = `Hit Points: ${computedMaxHP} / ${computedMaxHP}`
-        panel2El.appendChild(hp)
-
-        for (const label of CONDITION_LABELS) {
-            const line = document.createElement('div')
-            line.textContent = label
-            line.style.opacity = '0.3'  // new character: no conditions
-            line.style.cursor = 'pointer'
-            line.onclick = () => showInfoCard(label, CONDITION_DESCRIPTIONS[label] ?? label, CONDITION_IMG[label])
-            panel2El.appendChild(line)
-        }
+        renderStatPanels(panel2El, {
+            hp: newStatSet.get('Max HP'),
+            maxHp: newStatSet.get('Max HP'),
+            conditions: [false, false, false, false, false, false, false],
+            stats: newStatSet,
+            onInfo: (label, kind) => kind === 'condition'
+                ? showInfoCard(label, CONDITION_DESCRIPTIONS[label] ?? label, CONDITION_IMG[label])
+                : showInfoCard(label, DERIVED_DESCRIPTIONS[label] ?? label, DERIVED_IMG[label]),
+        })
     }
 
-    const renderPanel3 = () => {
-        while (panel3El.firstChild) panel3El.removeChild(panel3El.firstChild)
-
-        const rows: Array<[string, string | number]> = [
-            ['Armor Class',          newStatSet.get('AC')],
-            ['Action Points',        newStatSet.get('AP')],
-            ['Carry Weight',         newStatSet.get('Carry')],
-            ['Melee Damage',         newStatSet.get('Melee')],
-            ['Damage Resistance',    `${newStatSet.get('DR Normal')}%`],
-            ['Poison Resistance',    `${newStatSet.get('DR Poison')}%`],
-            ['Radiation Resistance', `${newStatSet.get('DR Radiation')}%`],
-            ['Sequence',             newStatSet.get('Sequence')],
-            ['Healing Rate',         newStatSet.get('Healing Rate')],
-            ['Critical Chance',      `${newStatSet.get('Critical Chance')}%`],
-        ]
-        for (const [label, value] of rows) {
-            const line = document.createElement('div')
-            line.textContent = `${label}: ${value}`
-            line.style.cursor = 'pointer'
-            line.onclick = () => showInfoCard(label, DERIVED_DESCRIPTIONS[label] ?? label, DERIVED_IMG[label])
-            panel3El.appendChild(line)
-        }
-    }
+    // Drawn by renderPanel2 (both boxes, statPanels.ts).
+    const renderPanel3 = () => {}
 
     // ── Tag Skills counter ────────────────────────────────────────────────────
     const tagLabelEl = document.createElement('div')
@@ -785,7 +761,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         pointerEvents: 'none',
     })
     font3.onLoad(() => {
-        tagLabelEl.appendChild(font3.renderText('Tag Skills', '#FFD700'))
+        tagLabelEl.appendChild(font3.renderText('Tag Skills', '#907824'))
     })
     characterWindow.elem.appendChild(tagLabelEl)
 
@@ -810,7 +786,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         for (const skill of SKILLS) {
             const isTagged = newSkillSet.isTagged(skill)
             const val = newSkillSet.get(skill, newStatSet, skillOpts)
-            const color = isTagged ? '#FFB000' : 'rgb(0,255,0)'
+            const color = isTagged ? '#a0a0a0' : '#3cf800' // CE characterEditorDrawSkills: 21140 tagged / 992
 
             const row = document.createElement('div')
             Object.assign(row.style, {
@@ -866,9 +842,13 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         for (let i = 0; i < STATS.length; i++) {
             const el = statValueWidgets[i]
             while (el.firstChild) el.removeChild(el.firstChild)
-            const base = newStatSet.getBase(STATS[i])
+            // CE shows the SPECIAL with its trait modifier (critterGetBaseStatWithTraitModifier)
+            const st = STATS[i]
+            const base = newStatSet.getBase(st) + (selectedTraits.includes('Gifted') ? 1 : 0)
+                + (st === 'STR' && selectedTraits.includes('Bruiser') ? 2 : 0)
+                + (st === 'AGI' && selectedTraits.includes('Small Frame') ? 1 : 0)
             el.appendChild(renderBignum(base, 2))
-            statCommentLabels[i].setText(STAT_COMMENTS[Math.max(1, Math.min(10, base))])
+            statCommentLabels[i].setText(statComment(base))
         }
 
         renderPanel2()
@@ -878,22 +858,31 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     }
 
     // ── DONE button ───────────────────────────────────────────────────────────
-    doneBtn.onClick(() => {
-        if (pool > 0) {
-            showInfoCard('Character', `You have ${pool} unspent attribute point${pool !== 1 ? 's' : ''}.`)
-            return
+    // CE character_editor.cc characterEditorShow (creation DONE): all character points
+    // spent (editor.msg 118/119), all tag skills chosen (142/143), every SPECIAL with
+    // its trait modifier within 1..10 (_is_supper_bonus, 157/158), and a Yes/No warning
+    // when the name is still "None" (160/161).
+    doneBtn.onClick(async () => {
+        const msg = (id: number) => getMessage('editor', id) ?? ''
+        const refuse = (a: number, b: number) => {
+            globalState.audioEngine?.playSfxByName?.('iisxxxx1')
+            return showAlert(`${msg(a)}
+${msg(b)}`)
         }
-        if (newSkillSet.tagged.length < 3) {
-            const need = 3 - newSkillSet.tagged.length
-            showInfoCard('Tag Skills', `Tag ${need} more skill${need !== 1 ? 's' : ''}.`)
-            return
-        }
-        if (!playerName.trim()) {
-            showInfoCard('Name', 'Please enter a character name.')
-            return
+        if (pool > 0) return refuse(118, 119)
+        if (newSkillSet.tagged.length < 3) return refuse(142, 143)
+        const traitMod = (stat: string) => (selectedTraits.includes('Gifted') ? 1 : 0)
+            + (stat === 'STR' && selectedTraits.includes('Bruiser') ? 2 : 0)
+            + (stat === 'AGI' && selectedTraits.includes('Small Frame') ? 1 : 0)
+        if (STATS.some((st) => { const v = newStatSet.getBase(st) + traitMod(st); return v < 1 || v > 10 })) return refuse(157, 158)
+        const name = playerName.trim() || 'None'
+        if (name.toLowerCase() === 'none') {
+            globalState.audioEngine?.playSfxByName?.('iisxxxx1')
+            if (!(await showConfirm(`${msg(160)}
+${msg(161)}`))) return
         }
 
-        player.applyCreationStats(newStatSet, newSkillSet, playerName.trim(), playerAge, playerSex, selectedTraits)
+        player.applyCreationStats(newStatSet, newSkillSet, name, playerAge, playerSex, selectedTraits)
         characterWindow.close()
         onDone()
     })

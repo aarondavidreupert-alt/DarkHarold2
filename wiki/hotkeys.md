@@ -138,213 +138,57 @@ Cases are case-insensitive (CE handles both `KEY_UPPERCASE_X` and `KEY_LOWERCASE
 
 ---
 
-## 3. DH2 Key Input Architecture
+## 3. DH2 Key Input Architecture (ported 2026-10-17, known_bugs C43)
 
-DH2's keyboard system is simpler than CE's and lives in two files:
+**`src/hotkeys.ts` `gameHandleKey(e)`** is CE `game.cc gameHandleKey` plus `combat.cc _combat_input`, on the full `KeyboardEvent` (`e.key`, `e.code` for Shift+digit, Ctrl / Alt). `installInputHandlers()` (`src/input.ts`) registers it as a window capture listener:
+- not while typing in a field, loading, or with the game UI disabled (movies);
+- an open window gets its own close keys first (CE runs each window's own input loop): Pip-Boy Esc / Return / P / Z, inventory Esc / I, automap Esc / Tab / Return; the options, skilldex, save/load, dialog and barter windows keep their own handlers;
+- otherwise the game keys only act on the map (`UIMode.none`, or skill targeting, where Esc cancels).
 
-**`src/heart.ts:_getKeyChar(keyCode: number)`** converts a browser `KeyboardEvent.keyCode`
-into a lowercase string:
+`interfaceBarEnabled()` = not during an AI combat turn; in combat only the player's turn reads keys (Space ends it, Return tries to end combat).
 
-```
-38→'up', 37→'left', 39→'right', 40→'down', 27→'escape', 13→'return'
-all others → String.fromCharCode(keyCode).toLowerCase()
-```
-
-`window.onkeydown` passes the result to `heart.keydown(k: string)`, which is
-assigned in `main.ts` to the main dispatcher.
-
-**Critical limitations vs CE:**
-1. **No modifier detection**: `e.keyCode` is read without checking `e.ctrlKey`,
-   `e.altKey`, or `e.shiftKey`. Ctrl+S and bare S produce the same string ('s').
-2. **F-keys collide with alphabetic keys**: `_getKeyChar` falls through to
-   `String.fromCharCode(keyCode)`, so F1 (keyCode 112)→'p', F2 (113)→'q', F3 (114)→'r',
-   F4 (115)→'s'. Pressing F1 accidentally triggers the Pip-Boy key.
-3. **No PageUp/PageDown/Home/Insert/Delete** special-case mapping — these produce
-   non-ASCII garbage via `String.fromCharCode()`.
-4. **No Ctrl+letter** support — Ctrl+S fires 's' (Skilldex default, but 's' is not
-   mapped in `Config.controls` so it silently no-ops in the main handler).
-
-Some UI panels bypass `heart.keydown` entirely by registering their own
-`document.addEventListener('keydown', handler)` with the full `KeyboardEvent`
-(giving them `e.key`, modifier flags, etc.). Those handlers work correctly.
-
-**`Config.controls`** (src/config.ts:72) is a flat object of `string` values —
-all lowercase key strings matching what `_getKeyChar` produces. Every
-`Config.controls.*` field is remappable by writing to the Config object (e.g. from the
-browser console), but there is no UI for it.
+`heart.keydown` (the old lower-case char path) now only carries the camera arrows, the DH2 item-highlight key (Space outside combat) and the DH2 developer keys (`Config.engine.devKeys`, console `setDevKeys(true)`: elevation q/e, layer toggles r/f/o/w, talk t, inspect i, move m, run j, attack g, raycast y, loot v, use u, kill k, worldmap l); with dev keys on, a key bound to one of those is not a game key. The old DarkFO game bindings (c combat, b inventory, n/m save/load, z called shot) are gone.
 
 ---
 
-## 4. DH2 Hotkey Table
+## 4. DH2 Hotkey Table — as CE
 
-### 4.1 Config.controls Bindings (main.ts:719)
-
-All handled in `heart.keydown` at `main.ts:719`. Key value from `Config.controls`.
-
-| Default key | Config field | Action | CE equivalent |
-|---|---|---|---|
-| `ArrowDown` (`'down'`) | `cameraDown` | Scroll camera down | Arrow Down (`mapScroll`) |
-| `ArrowUp` (`'up'`) | `cameraUp` | Scroll camera up | Arrow Up |
-| `ArrowLeft` (`'left'`) | `cameraLeft` | Scroll camera left | Arrow Left |
-| `ArrowRight` (`'right'`) | `cameraRight` | Scroll camera right | Arrow Right |
-| `q` | `elevationDown` | Go to previous elevation | No direct CE key (elevation change via map transitions) |
-| `e` | `elevationUp` | Go to next elevation | No direct CE key |
-| `r` | `showRoof` | Toggle roof tile rendering (debug) | No CE equivalent — dev toggle |
-| `f` | `showFloor` | Toggle floor tile rendering (debug) | No CE equivalent — dev toggle |
-| `o` | `showObjects` | Toggle object rendering (debug) | No CE equivalent — dev toggle |
-| `w` | `showWalls` | Toggle wall rendering (debug) | No CE equivalent — dev toggle |
-| `t` | `talkTo` | Talk to critter at mouse hex | CE: left-click critter with move cursor |
-| `i` | `inspect` | Tile inspector: dump the hex under the cursor (tile/world/elevation, tile_intensity + in-range light sources, egg/occlusion state, and every object's pid/art/flags/extendedFlags/light) to the console **and** the clipboard | No CE equivalent — dev tool |
-| `m` | `moveTo` | Walk player to mouse hex | CE: left-click ground |
-| `j` | `runTo` | Force-run player to mouse hex | No CE equivalent — dev shortcut |
-| `g` | `attack` | Attack critter at mouse hex (in combat) | CE: left-click critter in combat |
-| `c` | `combat` | Start combat / end player turn | CE: `A` starts combat; `Enter`/`Space` ends turn |
-| `y` | `playerToTargetRaycast` | Debug line-of-sight raycast to mouse | No CE equivalent — dev tool |
-| `v` | `showTargetInventory` | Loot / inspect inventory of object at mouse | No CE equivalent as a key |
-| `u` | `use` | Use all objects at mouse hex | CE: left-click object with use cursor |
-| `k` | `kill` | Instantly kill critter at mouse (debug cheat) | No CE equivalent |
-| `l` | `worldmap` | Open world map | CE: no direct hotkey (worldmap via exit grids) |
-| `p` | `pipboy` | Toggle Pip-Boy | CE: `P` opens; same letter |
-| `z` | `calledShot` | (Configured but handler commented out — no effect) | CE: weapon mode; called shot via `N` cycle |
-| `n` | `saveKey` | Open save game screen | CE: `Ctrl+S` / `F4` |
-| `m` | `loadKey` | Open load game screen ⚠️ conflicts with `moveTo` | CE: `Ctrl+L` / `F5` |
-| `b` | `inventory` | Toggle inventory screen | CE: `I` |
-
-### 4.2 Hardcoded Keys (not via Config.controls)
-
-| Key | Action | CE equivalent | Source |
-|---|---|---|---|
-| `Escape` | Cancel skill-targeting mode | CE: Escape opens options | `main.ts:724` |
-| `h` | Direct teleport player to mouse hex (`player.move()`) | No CE equivalent — debug leftover | `main.ts:884` |
-
-### 4.3 Mouse Input
-
-| Input | Action | CE equivalent |
+| Key | Action | CE |
 |---|---|---|
-| Left click | Use / attack based on cursor mode | Same in CE |
-| Right click | Cycle cursor mode: move → command → attack → move | CE: right-click cycles arrow / crosshair modes |
-| Scroll wheel | **Zoom** in/out, anchored on cursor | CE: scroll wheel **scrolls map** (CE never zooms) |
-
-### 4.4 UI Panel Key Handlers (bypass heart.keydown)
-
-These use `document.addEventListener('keydown')` directly and have full modifier access.
-
-**Options menu** (`ui_options.ts:407`, `optionsKeyHandler`):
-
-| Key | Action | CE equivalent |
-|---|---|---|
-| `S` | Save game | CE: `S` in options menu |
-| `L` | Load game | CE: `L` in options menu |
-| `P` | Open preferences panel | CE: `P` in options menu |
-| `X` | Quit to main menu (with confirm) | CE: `Ctrl+Q` / `F10` |
-| `D` / `Escape` | Close options menu | CE: `D` / `Escape` in options menu |
-
-**Skilldex** (`ui_skilldex.ts:164`, `skilldexKeyHandler`):
-
-| Key | Action | CE equivalent |
-|---|---|---|
-| `1`–`8` | Select skill at that position | CE: `1`–`8` direct skill shortcuts |
-| `Escape` | Close Skilldex | CE: `Escape` closes Skilldex |
+| `A` | start combat (not in combat) | `_combat(nullptr)` |
+| `B` | swap hands (`swapHands`) | `interfaceBarSwapHands` |
+| `C` | character screen | `characterEditorShow` |
+| `I` | inventory | `inventoryOpen` |
+| `Esc` / `O` | options | `showOptions` |
+| `P` | Pip-Boy; in combat "Pipboy not available in combat!" (misc.msg 7) | `pipboyOpen` |
+| `Z` | Pip-Boy on the alarm clock (`openPipBoyRest`); in combat misc.msg 7 | `pipboyOpen(PIPBOY_OPEN_INTENT_REST)` |
+| `S` | skilldex | `skilldexOpen` |
+| `N` | cycle the item action (`cycleActiveItemAction`) | `interfaceCycleItemAction` |
+| `M` | cycle the mouse mode (`cycleMouseMode`, also right-click) | `gameMouseCycleMode` |
+| `Tab` | automap | `automapShow` |
+| `1`–`8` (also Shift) | sneak toggle / skill crosshair: lockpick, steal, traps, first aid, doctor, science, repair (`beginSkillTargeting`) | `gameMouseSetMode(GAME_MOUSE_MODE_USE_*)` |
+| `Home` | back to the dude's elevation, scroll to him | `_tile_scroll_to(gDude->tile)` |
+| `-` `_` / `=` `+` | brightness − / + | `brightnessDecrease/Increase` |
+| `,` `<` / `.` `>` | turn the dude counter-clockwise / clockwise | `animationRegisterRotate*` |
+| `/` `?` | "<month>: <day>/<year> <time>" in the monitor (editor.msg 500+) | `gameTimeGetDate` |
+| `F1` | help screen (helpscrn) until any input | `showHelp` |
+| `F2` / `F3` | master volume −/+ 2047 of 32767 | `gameSoundSetMasterVolume` |
+| `F4` / `Ctrl+S` | save window | `lsgSaveGame(1)` |
+| `F5` / `Ctrl+L` | load window | `lsgLoadGame` |
+| `F6` / `F7` | quick save / load: the first time the window picks the slot, then straight into it (misc.msg 5 / 4) | `LOAD_SAVE_MODE_QUICK`, `_quick_done` |
+| `Ctrl+P` | pause window (charwin, PAUSED / DONE; +/- still work) | `showPause` |
+| `Ctrl+V` | version lines | `versionGetVersion` |
+| `Ctrl+Q` / `Ctrl+X` / `F10` | quit confirmation | `showQuitConfirmationDialog` |
+| `Space` (combat) | end turn | `_combat_input` |
+| `Return` (combat) | try to end combat | `combatAttemptEnd` |
+| arrows | scroll the map | `mapScroll` |
 
 ---
 
-## 5. CE → DH2 Mapping Summary
+## 5. Remaining differences
 
-| CE key | CE action | DH2 key | DH2 status |
-|---|---|---|---|
-| `P` / `p` | Open Pip-Boy | `p` | ✅ Implemented (`Config.controls.pipboy`) |
-| `I` / `i` | Open inventory | `b` | ✅ Implemented (different key: `Config.controls.inventory`) |
-| `C` / `c` | Character editor | — | ❌ Not implemented (no character editor screen) |
-| `S` / `s` | Skilldex | `s` in `ui_options`; DH2 has Skilldex opened from HUD | ⚠️ Partial — accessible via UI but no main-handler key |
-| `O` / `o` / `Escape` | Options | `o` key → options (via CE mapping) | ❌ `o` is mapped to `showObjects` toggle in DH2 |
-| `Tab` | Open automap overlay | `Tab` not mapped; automap is inside Pip-Boy | ❌ No Tab shortcut |
-| `A` / `a` | Start combat | `c` | ✅ Different key, same action |
-| `N` / `n` | Cycle weapon mode | `n` → save game | ❌ Weapon mode cycling not implemented; key repurposed |
-| `B` / `b` | Switch hands | `b` → inventory | ❌ Switch hands not as a key; key repurposed |
-| `Z` / `z` | Pip-Boy REST | — | ❌ REST not in Pip-Boy; no key |
-| `Space` | End player turn | — | ❌ Space not handled; `c` is end-turn in DH2 |
-| `Enter` | combatAttemptEnd() | — | ❌ `'return'` not bound in DH2 |
-| `1`–`8` | Direct skill shortcuts | `1`–`8` in Skilldex panel | ⚠️ Only works when Skilldex is open |
-| `Home` | Center on player | — | ❌ Not implemented (`Home` produces garbage in heart.ts) |
-| `-` / `_` | Brightness decrease | — | ❌ No brightness control (gap #5 in settings.md) |
-| `=` / `+` | Brightness increase | — | ❌ No brightness control |
-| `F2` | Volume down | — | ❌ F2 collides with `q` (elevation down) in heart.ts |
-| `F3` | Volume up | — | ❌ F3 collides with `r` (toggle roof) |
-| `F4` / `Ctrl+S` | Save game | `n` | ✅ Different key; same action |
-| `F5` / `Ctrl+L` | Load game | `m` (conflicts) | ⚠️ `loadKey:'m'` conflicts with `moveTo:'m'` |
-| `F6` | Quick save | — | ❌ No quick save |
-| `F7` | Quick load | — | ❌ No quick load |
-| `F1` | Help | — | ❌ F1→'p' in heart.ts (Pip-Boy collision); no help screen |
-| `,` / `<` | Rotate player CCW | — | ❌ Not implemented |
-| `.` / `>` | Rotate player CW | — | ❌ Not implemented |
-| `/` / `?` | Show date/time | — | ❌ Not implemented |
-| Arrow keys | Scroll map | Arrow keys | ✅ Same keys, same scroll action |
-| Mouse scroll | Scroll map | Mouse scroll | ❌ DH2 repurposed wheel as **zoom** not scroll |
-| `Ctrl+Q` / `F10` | Quit | — | ❌ No quit hotkey; browser handles page close |
+- **Mouse wheel** zooms (DH2 feature) instead of scrolling the map as CE `gameHandleKey(-1)`; the arrows scroll.
+- **Pause window** text is drawn in the browser font, not font 103/104.
+- **Space** doubles as the DH2 item-highlight key outside combat (CE has none there).
 
----
-
-## 6. Known Gaps
-
-### Gap #1 — F-key collisions in heart.ts
-
-`heart._getKeyChar()` uses `String.fromCharCode(e.keyCode)` as a fallback, which
-means F-keys fall through to their ASCII equivalents: F1→'p' (Pip-Boy), F2→'q'
-(elevation down), F3→'r' (roof toggle), F4→'s' (nothing), F5→'t' (talkTo), etc.
-CE's F1=Help, F2=Vol−, F3=Vol+, F4=Save, F5=Load are all absent or misfiring.
-To fix: add explicit cases for F-key keyCodes (112–123) in `_getKeyChar()`.
-
-### Gap #2 — `moveTo` / `loadKey` both mapped to 'm'
-
-`Config.controls` has `moveTo: 'm'` (line 85) and `loadKey: 'm'` (line 97).
-Both are checked in `heart.keydown`; pressing `m` triggers walk-to first and
-load-screen second every time. The load-screen was likely intended to be a
-different key (CE used `Ctrl+L` / `F5`). One of the two must be rebound.
-
-### Gap #3 — Escape is overloaded / conflicts with CE behaviour
-
-In CE, `Escape` opens the options menu (`game.cc:643`). In DH2 `Escape` cancels
-skill-targeting mode (`main.ts:724`), which is correct. But when skill-targeting
-is not active, `Escape` is dropped — there is no fallthrough to open options.
-CE's `O` key also maps to options; DH2 repurposed `o` to toggle object rendering.
-
-### Gap #4 — No Ctrl/Alt modifier support in heart.keydown
-
-All CE Ctrl-key bindings (`Ctrl+S`, `Ctrl+L`, `Ctrl+Q`, `Ctrl+P`, etc.) are
-unavailable in DH2 because `heart._getKeyChar()` ignores `e.ctrlKey`. The
-UI-panel handlers that use `document.addEventListener('keydown', …)` do have
-full modifier access, but the main world-level handler does not.
-
-### Gap #5 — Quick save / quick load absent
-
-CE `F6`/`F7` quick save and quick load have no equivalent in DH2.
-`uiSaveLoad()` always opens the full slot-selection screen.
-
-### Gap #6 — CE skill direct shortcuts (1–8) scope
-
-CE `1`–`8` activate skill mouse modes from anywhere in the world.
-In DH2 the `1`–`8` shortcut only works inside the Skilldex panel
-(`ui_skilldex.ts:173`); pressing a number key from the map does nothing.
-
-### Gap #7 — Scroll wheel repurposed as zoom
-
-CE uses the scroll wheel to scroll the map viewport (game.cc:495). DH2 uses it
-for zoom (main.ts:481). There is no keyboard zoom in CE; this is a DH2-only
-feature. The map scroll that the wheel provided in CE is covered by keyboard
-arrow keys (wired in both engines).
-
-### Gap #8 — calledShot key wired but not active
-
-`Config.controls.calledShot` is set to `'z'` (config.ts:95) but the handler in
-`main.ts` is commented out (lines 921–922). Pressing `z` does nothing in DH2.
-CE's `Z` opens the REST Pip-Boy screen, which is also absent (see wiki/pipboy.md
-gap #4).
-
-### Gap #9 — No key rebinding UI
-
-CE also has no key rebinding UI; bindings are hardcoded in both engines.
-DH2's `Config.controls` object is architecturally rebindable (it is plain JS and
-exposed on `window.Config`), but there is no panel or save/load for it — changes
-survive only for the current browser session.
-
-<!-- audited: 2026-06-01 -->
+<!-- audited: 2026-10-17 -->

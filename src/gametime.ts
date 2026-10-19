@@ -114,8 +114,10 @@ export interface GameDate {
     hours: number     // 0..23
     minutes: number   // 0..59
 }
-export function getDate(): GameDate {
-    const totalDays = getTotalDays()
+// `ticks` defaults to the current game time (e.g. a save's gameTickTime).
+export function getDate(ticks: number = globalState.gameTickTime): GameDate {
+    const totalDays = Math.floor(ticks / TICKS_PER_DAY)
+    const totalMinutes = Math.floor(ticks / TICKS_PER_MINUTE)
     let year = START_YEAR
     let month = START_MONTH
     let day = START_DAY + totalDays
@@ -127,7 +129,7 @@ export function getDate(): GameDate {
             year++
         }
     }
-    return { day, month, year, hours: getHour(), minutes: getMinute() }
+    return { day, month, year, hours: Math.floor(totalMinutes / 60) % 24, minutes: totalMinutes % 60 }
 }
 
 // "8:24 AM" style, for the PipBoy STATUS tab.
@@ -253,26 +255,4 @@ export function setLightLevelOverride(level0to100: number): void {
 // CE ref: map.cc:927 — ambient light resets to maximum on every map load.
 export function clearLightLevelOverride(): void {
     setAmbientIntensity(LIGHT_INTENSITY_MAX)
-}
-
-// --- Schedule helpers (NPC sleep / shop open hours) ---
-//
-// These are used by scripting and by the UI layer to gate interactions
-// like talking to a shopkeeper at 3 AM.
-
-// NPCs sleep at night by default. Roughly matches the ambient-light curve
-// so the "asleep" window aligns with "it's dark".
-const NIGHT_START_HOUR = 22
-const NIGHT_END_HOUR = 6
-export function isNightTime(): boolean {
-    const h = getHour()
-    return h >= NIGHT_START_HOUR || h < NIGHT_END_HOUR
-}
-
-// Typical Fallout 2 shop hours: open 9 AM to 6 PM.
-const SHOP_OPEN_HOUR = 9
-const SHOP_CLOSE_HOUR = 18
-export function isShopOpen(): boolean {
-    const h = getHour()
-    return h >= SHOP_OPEN_HOUR && h < SHOP_CLOSE_HOUR
 }

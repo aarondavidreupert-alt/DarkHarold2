@@ -22,15 +22,17 @@ limitations under the License.
 // source file (not inferred) — see wiki/companion_party.md §8 for the full
 // citation table.
 //
-// Known, documented simplification: "Use Best Weapon"/"Use Best Armor"
-// (CE's _ai_search_inven_weap/_ai_search_inven_armor) are not implemented —
-// CE's weapon-quality heuristic (AP cost, ammo availability, damage
-// comparison) is its own substantial sub-system. The buttons are present
-// (matching CE's layout) but currently just log a notice. See
-// wiki/known_bugs.md.
+// "Use Best Weapon" / "Use Best Armor" follow partyMemberControlWindowHandleEvents
+// (keys w / a): _ai_search_inven_weap / _ai_search_inven_armor, then the
+// _gdPickAIUpdateMsg reply.
 
 import globalState from './globalState.js'
-import { dbgWarn } from './logger.js'
+import { dbg } from './logger.js'
+import { Combat } from './combat.js'
+import { armorPerkSwap } from './perks.js'
+import { ammoGetCapacity, ammoGetQuantity, ammoUseTopBox, findReloadAmmo, weaponReload } from './weaponAmmo.js'
+import { getProtoMsg } from './util.js'
+import { randomBetween } from './random.js'
 import { Critter, Obj } from './object.js'
 import { UIMode, getUiContainer } from './ui_panels.js'
 import { font1, font3 } from './ui_font.js'
@@ -210,6 +212,58 @@ function makeGraphicButton(
     return el
 }
 
+// CE game_dialog.cc _gdPickAIUpdateMsg: proto.msg 670–674, or 677–678 for the dogs
+// (_Dogs: 0x1000088, 0x1000156, 0x1000180). Shown with
+// gameDialogRenderSupplementaryMessage in the reply window.
+function showAIUpdateMsg(companion: Critter): void {
+    const dog = [0x1000088, 0x1000156, 0x1000180].includes(companion.pid)
+    const num = dog ? 677 + randomBetween(0, 1) : 670 + randomBetween(0, 4)
+    const msg = getProtoMsg(num)
+    if (msg) $id('dialogueBoxReply').textContent = msg
+}
+
+// CE game_dialog.cc partyMemberControlWindowHandleEvents, key 'w': unwield the right
+// hand, wield _ai_search_inven_weap(critter, false, null) there and reload it
+// (aiAttemptWeaponReload). Nothing found leaves the hand empty, as in CE.
+function useBestWeapon(companion: Critter): boolean {
+    const c = companion as any
+    const old = c.rightHand
+    if (old && old.pid !== undefined) old.flags = ((old.flags ?? 0) & ~0x2000000) >>> 0 // OBJECT_IN_RIGHT_HAND
+    c.rightHand = Critter.makeFist()
+    const weapon = Combat.aiSearchInvenWeap(companion, null, false)
+    if (weapon) {
+        ;(weapon as any).flags = (((weapon as any).flags ?? 0) | 0x2000000) >>> 0
+        c.rightHand = weapon
+        c.activeHand = 'rightHand'
+        const cap = ammoGetCapacity(weapon as any)
+        if (cap > 0 && ammoGetQuantity(weapon as any) < cap) {
+            const ammo = findReloadAmmo(weapon as any, companion.inventory as any)
+            if (ammo && weaponReload(weapon as any, ammo as any) === 0) ammoUseTopBox(ammo, companion.inventory)
+        }
+        dbg('ai', `[Companion] ${companion.name} wields ${weapon.name}`)
+        showAIUpdateMsg(companion)
+    }
+    companion.setIdleArt()
+    return true
+}
+
+// CE game_dialog.cc partyMemberControlWindowHandleEvents, key 'a': unless the critter
+// is PID 0x10000A1, wear _ai_search_inven_armor (OBJECT_WORN, armor perk swap);
+// the update message shows either way.
+function useBestArmor(companion: Critter): void {
+    if (companion.pid !== 0x10000A1) {
+        const armor = Combat.aiSearchInvenArmor(companion)
+        if (armor) {
+            const old = companion.getEquippedArmor()
+            if (old) (old as any).flags = (((old as any).flags ?? 0) & ~0x4000000) >>> 0
+            ;(armor as any).flags = (((armor as any).flags ?? 0) | 0x4000000) >>> 0 // OBJECT_WORN
+            armorPerkSwap(companion, old, armor)
+            dbg('ai', `[Companion] ${companion.name} wears ${armor.name}`)
+        }
+    }
+    showAIUpdateMsg(companion)
+}
+
 /** Small 14x14 red action button (talk/trade/weapon/armor). */
 function makeActionButton(x: number, y: number, onClick: () => void): HTMLDivElement {
     const el = document.createElement('div')
@@ -299,10 +353,11 @@ export function uiCompanionControl(companion: Critter): void {
             uiCompanionTrade(companion)
         }))
         panel.appendChild(makeActionButton(236, 15, () => {
-            dbgWarn('stub', '[Companion] "Use best weapon" is not implemented yet — CE\'s _ai_search_inven_weap heuristic (AP cost, ammo, damage comparison) is a separate sub-system. See wiki/known_bugs.md.')
+            if (useBestWeapon(companion)) redraw()
         }))
         panel.appendChild(makeActionButton(235, 46, () => {
-            dbgWarn('stub', '[Companion] "Use best armor" is not implemented yet — see wiki/known_bugs.md.')
+            useBestArmor(companion)
+            redraw()
         }))
 
         // Disposition buttons.

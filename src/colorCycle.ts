@@ -5,6 +5,17 @@ declare class DecompressionStream {
     readonly readable: ReadableStream<Uint8Array>
 }
 
+import { Config } from './config.js'
+
+// The u_cycleTime the shaders animate the cycling entries by: CE colorCycleTicker
+// advances each group after period × gColorCycleSpeedFactor, and nothing cycles when
+// color_cycling is off (colorCycleInit returns before tickersAdd) — the palette then
+// keeps its original order, which t = 0 gives.
+export function cycleTime(): number {
+    if (!Config.ui.colorCycling) return 0
+    return performance.now() / 1000.0 / Math.max(1, Config.ui.cycleSpeedFactor)
+}
+
 // CE ref: cycle.cc colorCycleTicker() — palette entries 229–254 cycle at runtime.
 // Groups: slime (229-232, 5fps), monitors (233-237, 10fps), fire_slow (238-242, 5fps),
 //         fire_fast (243-247, 7fps), shoreline (248-253, 5fps), bobber (254, 30fps).

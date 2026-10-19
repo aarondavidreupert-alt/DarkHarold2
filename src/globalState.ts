@@ -33,7 +33,11 @@ interface FloatMessage {
     msg: string
     obj: Obj
     startTime: number
-    color: string
+    color: string           // CSS hex (floatText.ts FLOAT_MSG_COLOR) or an old colour name
+    outline?: string | null // outline colour; default black, null = none
+    font?: 101 | 103        // CE interface font (default 101)
+    tile?: Point | null     // CE textObject->tile: the owner's tile when it was added
+    lines?: number          // CE linesCount (after word wrap) — for the display time
 }
 
 const globalState = {
@@ -47,6 +51,7 @@ const globalState = {
     skillMode: Skills.None,
 
     isLoading: true, // are we currently loading a map?
+    backgroundMapLoad: false, // the startup map behind the intro / main menu (no music)
     isWaitingOnRemote: false, // are we waiting on the remote server to send critical info?
     isInitializing: true, // are we initializing the engine?
     loadingAssetsLoaded: 0, // how many images we've loaded
@@ -135,6 +140,7 @@ const globalState = {
     skillMode: Skills
 
     isLoading: boolean
+    backgroundMapLoad: boolean
     isWaitingOnRemote: boolean
     isInitializing: boolean
     loadingAssetsLoaded: number

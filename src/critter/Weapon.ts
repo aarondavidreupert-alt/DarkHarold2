@@ -98,16 +98,15 @@ const BIG_GUN_ANIM_CODES = new Set([8, 9, 10])
 // FO2-CE ref: item.cc — Energy damage types: Laser, Plasma, Electrical
 const ENERGY_DAMAGE_TYPES = new Set(['Laser', 'Plasma', 'Electrical'])
 
-// Derives the correct weapon skill from the weapon's PRO data.
-// Replaces the old hardcoded weaponSkillMap.
-function getWeaponSkillFromPro(weapon: WeaponObj): string {
+// CE item.cc weaponGetSkillForHitMode — the skill of one attack mode (primary or
+// secondary nibble of the proto's attackMode).
+function getWeaponSkillFromPro(weapon: WeaponObj, slot: 1 | 2 = 1): string {
     if (!weapon || !weapon.pro || !weapon.pro.extra) return 'Unarmed'
 
-    // Read primary attack mode from PRO
     const attackModes = weapon.pro.extra['attackMode'] ?? 0
-    const primaryMode = attackModes & 0xf
+    const mode = slot === 2 ? (attackModes >> 4) & 0xf : attackModes & 0xf
 
-    let skill = attackModeToBaseSkill[primaryMode] ?? 'Unarmed'
+    let skill = attackModeToBaseSkill[mode] ?? 'Unarmed'
 
     // FO2-CE refinement: Small Guns can be Energy Weapons or Big Guns
     if (skill === 'Small Guns') {
@@ -163,41 +162,6 @@ function parseAttack(weapon: WeaponObj): { first: AttackInfo; second: AttackInfo
     return { first: attackOne, second: attackTwo }
 }
 
-/** One unarmed combat move (Fallout 2 unarmed progression). */
-export interface UnarmedMove {
-    name: string
-    levelReq: number   // minimum character level
-    skillReq: number   // minimum Unarmed skill
-    minDmg: number
-    maxDmg: number
-    apCost: number
-    critBonus: number
-    penetrate: boolean // reduces target DR/DT to 20%
-}
-
-/** 14 unarmed moves from Fallout 2, ordered by unlock requirements (FO2 reference: unarmedFindBestAttack / item.cc). */
-export const UNARMED_MOVES: UnarmedMove[] = [
-    { name: 'punch',          levelReq: 1,  skillReq: 55, minDmg: 1, maxDmg: 2,  apCost: 3, critBonus: 0,  penetrate: false },
-    { name: 'kick',           levelReq: 1,  skillReq: 40, minDmg: 1, maxDmg: 3,  apCost: 3, critBonus: 0,  penetrate: false },
-    { name: 'strong punch',   levelReq: 6,  skillReq: 55, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 0,  penetrate: false },
-    { name: 'haymaker',       levelReq: 6,  skillReq: 60, minDmg: 3, maxDmg: 6,  apCost: 5, critBonus: 5,  penetrate: false },
-    { name: 'jab',            levelReq: 6,  skillReq: 60, minDmg: 3, maxDmg: 6,  apCost: 5, critBonus: 10, penetrate: false },
-    { name: 'hammer punch',   levelReq: 9,  skillReq: 60, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 5,  penetrate: false },
-    { name: 'groin kick',     levelReq: 9,  skillReq: 50, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 10, penetrate: false },
-    { name: 'palm strike',    levelReq: 12, skillReq: 70, minDmg: 3, maxDmg: 6,  apCost: 5, critBonus: 20, penetrate: false },
-    { name: 'lightning punch',levelReq: 12, skillReq: 75, minDmg: 3, maxDmg: 6,  apCost: 4, critBonus: 30, penetrate: false },
-    { name: 'powerkick',      levelReq: 12, skillReq: 60, minDmg: 5, maxDmg: 10, apCost: 4, critBonus: 5,  penetrate: false },
-    { name: 'piercing strike',levelReq: 16, skillReq: 75, minDmg: 3, maxDmg: 6,  apCost: 5, critBonus: 15, penetrate: true  },
-    { name: 'hip kick',       levelReq: 16, skillReq: 60, minDmg: 5, maxDmg: 10, apCost: 5, critBonus: 10, penetrate: false },
-    { name: 'hook kick',      levelReq: 18, skillReq: 75, minDmg: 5, maxDmg: 10, apCost: 6, critBonus: 10, penetrate: false },
-    { name: 'piercing kick',  levelReq: 20, skillReq: 80, minDmg: 5, maxDmg: 10, apCost: 7, critBonus: 15, penetrate: true  },
-]
-
-/** Returns the subset of unarmed moves available at the given Unarmed skill and character level. */
-export function getAvailableUnarmedMoves(unarmedSkill: number, charLevel: number): UnarmedMove[] {
-    return UNARMED_MOVES.filter(m => unarmedSkill >= m.skillReq && charLevel >= m.levelReq)
-}
-
 // Unarmed "weapon": no item, just the proto-shaped fields the AP/range code reads.
 export interface UnarmedWeaponStub { pro: { extra: { [key: string]: any } }; pid?: undefined }
 
@@ -211,7 +175,6 @@ export class Weapon {
     minDmg: number
     maxDmg: number
     weaponSkillType: string
-    unarmedMove: UnarmedMove | null = null // currently selected unarmed move (null for non-unarmed)
 
     attackOne!: { mode: number; APCost: number; maxRange: number }
     attackTwo!: { mode: number; APCost: number; maxRange: number }
@@ -222,7 +185,8 @@ export class Weapon {
         this.modes = ['single', 'called']
 
         if (weapon === null) {
-            // default punch — call initUnarmedMoves(skill, level) after construction to unlock progression
+            // fist: CE HIT_MODE_PUNCH (1-2, 3 AP) — critters other than the player always
+            // punch plainly (combat_ai.cc _ai_pick_hit_mode); the player's moves live in unarmed.ts
             this.type = 'melee'
             this.minDmg = 1
             this.maxDmg = 2
@@ -256,14 +220,19 @@ export class Weapon {
             // FO2-CE ref: item.cc — melee weapons use the melee damage/crit tables, not the gun tables
             if (this.weaponSkillType === 'Melee Weapons') this.type = 'melee'
 
-            // If the secondary attack is burst fire, add 'burst' to the mode cycle.
-            // attackTwo.mode is stored as a string at runtime ('fire burst'), but guard
-            // against the numeric form (7) in case PRO data is read differently.
-            // attackTwo.mode is a string at runtime despite the 'as number' cast in parseAttack.
-            // Check both the string form and the numeric value (7) defensively.
-            const secondaryMode: any = this.attackTwo?.mode
-            if (secondaryMode === 'fire burst' || secondaryMode === 7) {
-                this.modes = ['single', 'called', 'burst']
+            // CE interface.cc interfaceCycleItemAction: primary → primary aimed →
+            // secondary → secondary aimed (→ reload, see cycleMode). Aiming needs
+            // critterCanAim; the secondary exists when its attack type isn't NONE.
+            // 'burst' is a burst / continuous secondary, 'secondary' any other (a spear's
+            // throw, a knife's thrust).
+            this.modes = ['single']
+            if (this.canAim(1)) this.modes.push('called')
+            const second = (weapon.pro.extra.attackMode >> 4) & 0xf
+            if (second === 7 || second === 8) {
+                this.modes.push('burst')
+            } else if (second !== 0) {
+                this.modes.push('secondary')
+                if (this.canAim(2)) this.modes.push('secondaryCalled')
             }
         }
 
@@ -277,51 +246,55 @@ export class Weapon {
         const item = this.weapon as Obj
         const maxAmmo = ammoGetCapacity(item)
         const canReload = maxAmmo > 0 && ammoGetQuantity(item) < maxAmmo
-        const effectiveModes = canReload ? [...this.modes, 'reload'] : this.modes
+        // CE item.cc critterCanAim: the player's Fast Shot trait forbids aimed attacks.
+        const player = globalState.player as any
+        const fastShot = !!player && (player.traits ?? []).includes('Fast Shot')
+            && (player.leftHand === item || player.rightHand === item)
+        const modes = fastShot ? this.modes.filter((m) => m !== 'called' && m !== 'secondaryCalled') : this.modes
+        const effectiveModes = canReload ? [...modes, 'reload'] : modes
 
         const idx = effectiveModes.indexOf(this.mode)
         this.mode = effectiveModes[(idx + 1) % effectiveModes.length]
 
-        // For unarmed: update stats from the newly selected move (skip 'called' targeting mode)
-        if (this.weaponSkillType === 'Unarmed' && this.mode !== 'called') {
-            const move = UNARMED_MOVES.find(m => m.name === this.mode)
-            if (move) {
-                this.unarmedMove = move
-                this.name = move.name
-                this.minDmg = move.minDmg
-                this.maxDmg = move.maxDmg
-                this.weapon.pro.extra.APCost1 = move.apCost
-            }
-        }
-    }
-
-    /**
-     * Initialise unarmed move progression from critter stats.
-     * Call this after constructing Weapon(null) when you have the critter's skills/level.
-     * Filters UNARMED_MOVES by skillReq/levelReq, sets modes to available move names,
-     * and updates damage/AP to the first (weakest) available move.
-     */
-    initUnarmedMoves(unarmedSkill: number, charLevel: number): void {
-        const available = getAvailableUnarmedMoves(unarmedSkill, charLevel)
-        if (available.length === 0) return // nothing unlocked yet; keep base punch defaults
-        // Modes: move names + 'called' for targeted attacks
-        this.modes = [...available.map(m => m.name), 'called']
-        this.unarmedMove = available[0]
-        this.mode = available[0].name
-        this.name = available[0].name
-        this.minDmg = available[0].minDmg
-        this.maxDmg = available[0].maxDmg
-        this.weapon.pro.extra.APCost1 = available[0].apCost
-        this.weapon.pro.extra.APCost2 = available[0].apCost
-    }
-
-    /** True if the currently selected unarmed move penetrates armor (DR/DT reduced to 20%). */
-    isPenetrating(): boolean {
-        return this.unarmedMove?.penetrate ?? false
     }
 
     isCalled(): boolean {
-        return this.mode === 'called'
+        return this.mode === 'called' || this.mode === 'secondaryCalled'
+    }
+
+    /** The current action uses the secondary attack (HIT_MODE_*_WEAPON_SECONDARY). */
+    usesSecondary(): boolean {
+        return this.mode === 'burst' || this.mode === 'secondary' || this.mode === 'secondaryCalled'
+    }
+
+    /** Attack slot of the current action: 1 primary, 2 secondary. */
+    slot(): 1 | 2 {
+        return this.usesSecondary() ? 2 : 1
+    }
+
+    /** The proto attack mode (0 none … 8 flame) of a slot (default: the current one). */
+    attackModeOf(slot?: 1 | 2): number {
+        const modes = (this.weapon as any).pro?.extra?.attackMode ?? 0
+        return (slot ?? this.slot()) === 2 ? (modes >> 4) & 0xf : modes & 0xf
+    }
+
+    /** CE weaponGetSkillForHitMode for the current action's attack. */
+    skillForMode(): string {
+        if ((this.weapon as any).pid === undefined) return this.weaponSkillType
+        const slot = this.slot()
+        if (slot === 1) return this.weaponSkillType
+        return getWeaponSkillFromPro(this.weapon as WeaponObj, 2)
+    }
+
+    // CE item.cc critterCanAim (weapon part): no aimed burst / continuous fire, no aimed
+    // explosive, fire or EMP attacks, no aimed plasma throw. (The player's Fast Shot
+    // check is in cycleMode, since it depends on who holds the weapon.)
+    private canAim(slot: 1 | 2): boolean {
+        const mode = this.attackModeOf(slot)
+        if (mode === 7 || mode === 8) return false
+        const dmg = damageType[(this.weapon as any).pro?.extra?.dmgType ?? 0]
+        if (dmg === 'Explosive' || dmg === 'Fire' || dmg === 'EMP') return false
+        return !(dmg === 'Plasma' && mode === 5)
     }
 
     isBurst(): boolean {
@@ -336,7 +309,7 @@ export class Weapon {
     // TODO: enum
     // When called without an argument, derives the slot from the current mode.
     getMaximumRange(attackType?: number): number {
-        const slot = attackType ?? (this.mode === 'burst' ? 2 : 1)
+        const slot = attackType ?? this.slot()
         if (slot === 1) return this.weapon.pro.extra.maxRange1
         if (slot === 2) return this.weapon.pro.extra.maxRange2
         throw 'invalid attack type ' + slot
@@ -344,8 +317,28 @@ export class Weapon {
 
     // When called without an argument, derives the slot from the current mode.
     getAPCost(attackSlot?: number): number {
-        const slot = attackSlot ?? (this.mode === 'burst' ? 2 : 1)
+        const slot = attackSlot ?? this.slot()
         return this.weapon.pro.extra['APCost' + slot]
+    }
+
+    // CE item.cc weaponGetActionPointCost for an attack by `critter`: the slot's AP cost;
+    // the player's Fast Shot -1 for weapons with range > 2, Bonus HtH Attacks -1 for
+    // melee/unarmed, Bonus Rate of Fire -1 for ranged; +1 when aiming; never below 1.
+    getAttackAPCost(critter: Critter, slot?: number, aiming = false): number {
+        const s = slot ?? this.slot()
+        let ap = this.getAPCost(s)
+        if (critter.isPlayer) {
+            const traits: string[] = (critter as any).traits ?? []
+            const isItem = (this.weapon as any).pid !== undefined
+            const modes = isItem ? ((this.weapon as any).pro?.extra?.attackMode ?? 0) : 0
+            const mode = s === 2 ? (modes >> 4) & 0xf : modes & 0xf
+            const attackType = !isItem ? 'unarmed' : (['none', 'unarmed', 'unarmed', 'melee', 'melee', 'throw', 'ranged', 'ranged', 'ranged'][mode] ?? 'none')
+            if (isItem && traits.includes('Fast Shot') && this.getMaximumRange(s) > 2) ap -= 1
+            if ((attackType === 'melee' || attackType === 'unarmed') && critter.hasPerk('Bonus HtH Attacks')) ap -= 1
+            if (attackType === 'ranged' && critter.hasPerk('Bonus Rate of Fire')) ap -= 1
+        }
+        if (aiming) ap += 1
+        return Math.max(1, ap)
     }
 
     // CE ref: item.cc:1640 weaponGetActionPointCost HIT_MODE_*_WEAPON_RELOAD branch
@@ -389,12 +382,11 @@ export class Weapon {
             flame: 'l',
         }
 
-        // Burst uses the secondary attack skin; everything else uses the primary.
-        if (this.mode === 'burst') {
-            return modeSkinMap['fire burst'] // 'k'
-        }
-        if (this.attackOne && this.attackOne.mode !== attackMode.none) {
-            return modeSkinMap[this.attackOne.mode] ?? null
+        // CE critterGetAnimationForHitMode — the anim of the current action's attack mode
+        // (primary or secondary: burst 'k', a spear's throw 's', …).
+        const attack = this.usesSecondary() ? this.attackTwo : this.attackOne
+        if (attack && attack.mode !== attackMode.none) {
+            return modeSkinMap[attack.mode] ?? null
         }
 
         return null
@@ -411,6 +403,9 @@ export class Weapon {
                 return wep + 'b'
             case 'attack':
                 var attackSkin = this.getAttackSkin()
+                // CE art.cc (ANIM_THROW_ANIM): knife throw 'dm', spear throw 'gm', any other
+                // throw (rock, grenade, spike) the unarmed 'as'
+                if (attackSkin === 's') return wep === 'd' ? 'dm' : wep === 'g' ? 'gm' : 'as'
                 return wep + attackSkin
             case 'fidget':
                 return wep + 'a'  // idle IS the fidget/reload animation (Xa)

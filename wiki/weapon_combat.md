@@ -146,18 +146,18 @@ Seven damage types indexed 0–6 in CE (`damageType` enum, `proto_types.h`):
 
 | Index | CE Name | DH2 String | Stat suffix | Death anim |
 |-------|---------|------------|-------------|------------|
-| 0 | `DAMAGE_NORMAL` | `'Normal'` | `'DT Normal'` / `'DR Normal'` | `'death'` |
-| 1 | `DAMAGE_LASER` | `'Laser'` | `'DT Laser'` / `'DR Laser'` | `'death-laser'` |
-| 2 | `DAMAGE_FIRE` | `'Fire'` | `'DT Fire'` / `'DR Fire'` | `'death-fire'` |
-| 3 | `DAMAGE_PLASMA` | `'Plasma'` | `'DT Plasma'` / `'DR Plasma'` | `'death-plasma'` |
-| 4 | `DAMAGE_EMP` | `'Electrical'` | `'DT Electrical'` / `'DR Electrical'` | `'death-electro'` |
-| 5 | `DAMAGE_EXPLOSIVE` | `'EMP'` | `'DT EMP'` / `'DR EMP'` | `'death-electro'` |
-| 6 | `DAMAGE_RADIATION` | `'Explosive'` | `'DT Explosion'` / `'DR Explosion'` | `'death-explode'` |
+| 0 | `DAMAGE_TYPE_NORMAL` | `'Normal'` | `'DT Normal'` / `'DR Normal'` | `'death'` |
+| 1 | `DAMAGE_TYPE_LASER` | `'Laser'` | `'DT Laser'` / `'DR Laser'` | `'death-laser'` |
+| 2 | `DAMAGE_TYPE_FIRE` | `'Fire'` | `'DT Fire'` / `'DR Fire'` | `'death-fire'` |
+| 3 | `DAMAGE_TYPE_PLASMA` | `'Plasma'` | `'DT Plasma'` / `'DR Plasma'` | `'death-plasma'` |
+| 4 | `DAMAGE_TYPE_ELECTRICAL` | `'Electrical'` | `'DT Electrical'` / `'DR Electrical'` | `'death-electro'` |
+| 5 | `DAMAGE_TYPE_EMP` | `'EMP'` | `'DT EMP'` / `'DR EMP'` | `'death-electro'` |
+| 6 | `DAMAGE_TYPE_EXPLOSION` | `'Explosive'` | `'DT Explosive'` / `'DR Explosive'` | `'death-explode'` |
 
-> **Important:** DH2's `damageType` bidirectional map in `critter.ts` has the string names
-> for CE indices 4 and 5 **swapped**. CE index 4 is `DAMAGE_EMP` but DH2 maps it to `'Electrical'`;
-> CE index 5 is `DAMAGE_EXPLOSIVE` but DH2 maps it to `'EMP'`. This is an existing discrepancy in
-> the source; changing it would require updating all proto JSON data.
+> Corrected 2026-10-17: an earlier version of this table had CE's names shifted
+> (index 4 "EMP", 5 "EXPLOSIVE", 6 "RADIATION") and called DH2's mapping swapped. CE
+> `proto_types.h` orders them NORMAL, LASER, FIRE, PLASMA, ELECTRICAL, EMP, EXPLOSION —
+> exactly DH2's strings.
 
 ### 4.2 Damage Roll
 
@@ -167,8 +167,11 @@ const RD = getRandomInt(wep.minDmg, wep.maxDmg)
 ```
 
 Unarmed moves use their own `mode.minDmg` / `mode.maxDmg` instead of the weapon PRO
-(`combat.ts`). For explosives (`Obj.explode`), damage is hardcoded: Dynamite 30–50,
-Plastic Explosive 40–80 (`object.ts`).
+(`combat.ts`). Explosives follow CE `_obj_use_explosive` / `_queue_do_explosion_`
+(`src/object/Obj.ts`): the Set Timer window (10–180 s, 10-s steps), 10 × seconds ticks
+of game time, a Traps roll (failure: half the time, critical failure: at once, both
+"detonates prematurely"), Dynamite 30–50 / Plastic 40–80 (+10 with Demolition Expert),
+then `actionExplode` (`src/combat/explosion.ts`).
 
 ### 4.3 Armor Lookup
 
@@ -188,18 +191,19 @@ Unarmed attacks always use `DAMAGE_NORMAL`.
 The `perk` field in `ProtoItemWeaponData` refers to a `WeaponPerk` enum value embedded into
 the weapon's PRO. It is **different** from the critter-level `Perk` enum.
 
-| CE Constant | DH2 Proto Key | Meaning | DH2 Status |
-|-------------|--------------|---------|------------|
-| `PERK_WEAPON_LONG_RANGE` (1) | `pro.extra.perk == 1` | `distModifier = 4` (doubles range penalty reduction) | PARTIAL — `combat.ts` reads it; `distModifier=4` wired |
-| `PERK_WEAPON_ACCURATE` (2) | `pro.extra.perk == 2` | +20% hit chance for this weapon | STUB — not read in DH2 |
-| `PERK_WEAPON_PENETRATE` (3) | `pro.extra.perk == 3` | 80% DT/DR bypass on hit | STUB — not read; DH2 penetrate comes from unarmed `mode.penetrate` only |
-| `PERK_WEAPON_KNOCKBACK` (4) | `pro.extra.perk == 4` | Knockback divisor = 5 (not 10) | N/A — knockback not implemented |
-| `PERK_WEAPON_SCOPE_RANGE` (5) | `pro.extra.perk == 5` | `distModifier = 5` | STUB — not read (`distModifier=5` branch is comment in `combat.ts`) |
-| `PERK_WEAPON_FAST_RELOAD` (6) | `pro.extra.perk == 6` | Reload costs 0 AP | STUB — no AP cost for reload in DH2 |
-| `PERK_WEAPON_NIGHT_SIGHT` (7) | `pro.extra.perk == 7` | No night vision penalty | STUB — no night penalty system |
-| `PERK_WEAPON_FLAMEBOY` (8) | `pro.extra.perk == 8` | Fire damage deals splash | STUB |
-| `PERK_WEAPON_HANDLING` (9) | `pro.extra.perk == 9` | −3 minimum ST requirement | STUB — `minStrength` not checked |
-| `PERK_WEAPON_ENHANCED_KNOCKOUT` (10) | `pro.extra.perk == 10` | Knockout chance increased | STUB |
+The IDs are the CE `Perk` enum values (perk_defs.h). Weapon PROs store the same IDs as critter perks.
+
+| CE Constant (id) | Meaning | DH2 Status (audited 2026-10-17) |
+|------------------|---------|---------------------------------|
+| `PERK_WEAPON_LONG_RANGE` (58) | Perception bonus ×4 in the distance modifier | DONE — `hitChance.ts getHitDistanceModifier` |
+| `PERK_WEAPON_ACCURATE` (59) | +20 to hit | DONE — `getHitChance` |
+| `PERK_WEAPON_PENETRATE` (60) | DT ×20% (DR unchanged) | DONE 2026-10-17 — `Combat.getDamageDone` |
+| `PERK_WEAPON_KNOCKBACK` (61) | Knockback damage / 5 instead of / 10 | DONE 2026-10-17 — `lifecycle.ts critterDamage` (was checked as id 3) |
+| `PERK_WEAPON_SCOPE_RANGE` (64) | Perception bonus ×5, only from 8 hexes on | DONE — `getHitDistanceModifier` |
+| `PERK_WEAPON_FAST_RELOAD` (65) | Reload costs 1 AP | DONE — `Weapon.getReloadAPCost` |
+| `PERK_WEAPON_NIGHT_SIGHT` (66) | No darkness penalty | DONE — `getHitChance` |
+| `PERK_WEAPON_FLAMEBOY` (67) | Death-animation damage thresholds / 3 | DONE — `deathAnim.ts pickDeath` |
+| `PERK_WEAPON_ENHANCED_KNOCKOUT` (117) | Knockout on a hit with STR − 8 % chance, always on a critical | DONE — `Combat.computeEnhancedKnockout` / `computeCriticalHit` |
 
 CE ref: `perk_defs.h:65–124`, `item.cc:weaponGetActionPointCost` (Fast Reload, line ~1654),
 `combat.cc:attackComputeDamage` (Penetrate / Knockback / Accurate — lines ~4530–4558).
@@ -327,45 +331,69 @@ ammo. A rifle will not run dry from single-shot attacks.
 
 ---
 
-## 9. Unarmed Combat
+## 9. Unarmed Combat — CE `gUnarmedHitDescriptions` (since 2026-10-17)
 
-### 9.1 Unarmed Move Progression
+DH2 impl: `src/unarmed.ts`. CE ref: combat.cc `unarmedInitVanilla`, `unarmedGetPunchHitMode` / `unarmedGetKickHitMode` / `unarmedGetHitModeInRange`, `unarmedGetDamage`, `unarmedGetBonusCriticalChance`, `unarmedIsPenetrating`; interface.cc `interfaceUpdateItems`, `interfaceCycleItemAction`, `interfaceBarRefreshMainAction`.
 
-DH2 defines 14 unarmed moves in `UNARMED_MOVES` (`critter.ts`), unlocked by Unarmed
-skill and character level. CE equivalent: `unarmedFindBestAttack` in `item.cc`.
+### 9.1 Hit modes
 
-| Move | Level Req | Skill Req | Damage | AP | Crit Bonus | Penetrate |
-|------|-----------|-----------|--------|-----|-----------|-----------|
-| Punch | 1 | 55 | 1–2 | 3 | 0 | — |
-| Kick | 1 | 40 | 1–3 | 3 | 0 | — |
-| Strong Punch | 6 | 55 | 3–6 | 4 | 0 | — |
-| Haymaker | 6 | 60 | 3–6 | 5 | +5 | — |
-| Jab | 6 | 60 | 3–6 | 5 | +10 | — |
-| Hammer Punch | 9 | 60 | 3–6 | 4 | +5 | — |
-| Groin Kick | 9 | 50 | 3–6 | 4 | +10 | — |
-| Palm Strike | 12 | 70 | 3–6 | 5 | +20 | — |
-| Lightning Punch | 12 | 75 | 3–6 | 4 | +30 | — |
-| Power Kick | 12 | 60 | 5–10 | 4 | +5 | — |
-| Piercing Strike | 16 | 75 | 3–6 | 5 | +15 | **yes** |
-| Hip Kick | 16 | 60 | 5–10 | 5 | +10 | — |
-| Hook Kick | 18 | 75 | 5–10 | 6 | +10 | — |
-| Piercing Kick | 20 | 80 | 5–10 | 7 | +15 | **yes** |
+Every move does **1–2 damage + bonus damage**. Like any unarmed attack, the maximum also gets the Melee Damage stat (item.cc `weaponGetDamage`).
 
-`critBonus` is added to the critter's critical chance for that attack (`combat.ts` area).
-Penetrating moves reduce DT to 20% (`Weapon.isPenetrating()`, `critter.ts`).
+| HIT_MODE | Name | Req. level | Req. Unarmed | Req. ST / AG | Bonus dmg | Bonus crit | AP | Penetrate | Secondary | HUD FRM |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 4 PUNCH | Punch | – | – | – | 0 | 0 | 3 | – | – | punch |
+| 8 STRONG_PUNCH | Strong Punch | – | 55 | – / 6 | 3 | 0 | 3 | – | – | spunch |
+| 9 HAMMER_PUNCH | Hammer Punch | 6 | 75 | 5 / 6 | 5 | 5 | 3 | – | – | hampnch |
+| 10 HAYMAKER | Lightning Punch | 9 | 100 | 5 / 7 | 7 | 15 | 3 | – | – | cm_hymkr |
+| 11 JAB | Chop Punch | 5 | 75 | 5 / 7 | 3 | 10 | 3 | – | yes | cm_jab |
+| 12 PALM_STRIKE | Dragon Punch | 12 | 115 | 5 / 7 | 7 | 20 | 6 | yes | yes | cm_plmst |
+| 13 PIERCING_STRIKE | Force Punch | 16 | 130 | 5 / 7 | 10 | 40 | 8 | yes | yes | cm_pstrk |
+| 5 KICK | Kick | – | – | – | 0 | 0 | 3 | – | – | kick |
+| 14 STRONG_KICK | Strong Kick | – | 40 | – / 6 | 5 | 0 | 4 | – | – | skick |
+| 15 SNAP_KICK | Snap Kick | 6 | 60 | – / 6 | 7 | 0 | 4 | – | – | snapkick |
+| 16 POWER_KICK | Roundhouse Kick | 9 | 80 | 6 / 6 | 9 | 5 | 4 | – | – | cm_pwkck |
+| 17 HIP_KICK | Kip Kick | 6 | 60 | 6 / 7 | 7 | 0 | 7 | – | yes | hipk |
+| 18 HOOK_KICK | Jump Kick | 12 | 100 | 6 / 7 | 9 | 10 | 7 | yes | yes | cm_hookk |
+| 19 PIERCING_KICK | Death Blossom Kick | 15 | 125 | 6 / 8 | 12 | 50 | 9 | yes | yes | cm_prckk |
 
-### 9.2 Mode Cycle for Unarmed
+- **Bonus crit:** on a normal hit, a separate d100 ≤ bonus makes it a critical (CE `attackCompute`, sfall). It is not added to the critical chance.
+- **Penetrate:** DT drops to 20% (`unarmedIsPenetrating`).
+- **AP:** the move's cost, −1 with Bonus HtH Attacks, +1 when aimed, minimum 1 (`unarmedAPCost`, item.cc `weaponGetActionPointCost`).
 
-`Weapon.initUnarmedMoves(unarmedSkill, charLevel)` sets `this.modes` to the names of all
-available moves plus `'called'`. `cycleMode()` walks the list; selecting a named move updates
-`minDmg`, `maxDmg`, and `APCost1` on the synthetic proto.
+### 9.2 Hands and actions (player)
 
-**CE note:** In CE, special unarmed moves (Haymaker, Jab, etc.) are accessed via the HIT_MODE
-system (`HIT_MODE_PUNCH / KICK / STRONG_PUNCH` etc., ~18 values). DH2 maps these to the
-`UNARMED_MOVES` array. The critical bonus per move comes from `item.cc:unarmedGetBonusDamage`
-(which applies to crit chance, not damage in CE).
+- **Hands:** an empty **left** hand punches, an empty **right** hand kicks. This does not depend on the other hand; the old DH2 rule "kick only with both hands empty" was not CE.
+- **Primary** is the last non-secondary move of the hand's family the player qualifies for (Unarmed skill, level, ST, AG); without one it is Punch / Kick.
+- **Secondary** is the last qualifying secondary move. It exists only when it isn't the plain Punch / Kick.
+- **Right-click cycle** (`cycleUnarmedAction`): primary → primary aimed → secondary → secondary aimed. Aiming is skipped with Fast Shot (`critterCanAim`), and the secondary steps when there is no secondary move. The state is kept per hand (`globalState.punchModeIdx` / `kickModeIdx` = action index 0–3).
+- **HUD:** the action button shows the hit mode's FRM, the bullseye for an aimed attack, and the AP. An aimed punch or kick opens the called-shot window.
+- **Inventory:** for an empty hand the summary shows "No item" and "Unarmed dmg: (bonus + 1)–(bonus + Melee + 2)" (inventory.cc).
+
+### 9.3 Other critters
+
+NPCs and party members always use the plain punch (1–2 + Melee Damage, 3 AP). CE `_ai_pick_hit_mode` returns `HIT_MODE_PUNCH` without a weapon, and the move tables read only gDude's stats. Their empty hand is a fist object (`Critter.makeFist`, `Weapon(null)`). A player whose weapon is knocked away gets an empty hand slot and so keeps the moves.
 
 ---
+
+## 9a. Weapon Actions — Primary / Secondary (CE `interfaceCycleItemAction`, since 2026-10-17)
+
+The proto's `attackMode` holds the primary attack in the low nibble and the secondary in the high one. The modes are 0 none, 1 punch, 2 kick, 3 swing, 4 thrust, 5 throw, 6 single, 7 burst, 8 flame. Examples: a spear is 0x54 (thrust / throw), a throwing knife 0x35 (throw / swing), a rock 0x15 (throw / punch), an SMG 0x76 (single / burst).
+
+| `Weapon.mode` | CE action | Slot | Present when |
+|---|---|---|---|
+| `single` | PRIMARY | 1 | always |
+| `called` | PRIMARY_AIMING | 1 | `critterCanAim` (not burst/flame, not explosive/fire/EMP, not a plasma throw) |
+| `burst` | SECONDARY (burst / flame) | 2 | secondary mode 7 or 8 |
+| `secondary` | SECONDARY | 2 | any other secondary mode |
+| `secondaryCalled` | SECONDARY_AIMING | 2 | secondary present and aimable |
+| `reload` | RELOAD | – | magazine not full |
+
+- **Slot 2 values:** the action uses `APCost2` and `maxRange2`, its own skill (`skillForMode`, CE `weaponGetSkillForHitMode`; a spear's throw uses Throwing) and its own attack type (`weaponAttackType` reads the secondary nibble).
+- **Aimed:** +1 AP.
+- **Thrown attacks:** they fire a projectile, and the item lands where it hits (C25/C26).
+- **Throw animation** (CE art.cc, ANIM_THROW_ANIM): knife `dm`, spear `gm`, anything else `as`.
+- **HUD:** the label is the action's attack (`thrust`, `swing`, `throw`, `single`, `burst`, `reload`), plus the bullseye when aimed. The button shows the item's inventory picture for every weapon.
+- **AI:** `_ai_pick_hit_mode` uses any secondary attack, not only bursts (area_attack_mode / secondary_freq, range and AP of slot 2).
 
 ## 10. Hit Chance & Combat Roll
 
@@ -385,57 +413,23 @@ Full formula is in [damage_formula.md](damage_formula.md). Weapon-specific input
 ```
 dist = hexDistance(attacker, target)
 tempPER = attacker.PER − 2              // FO2 hardcoded penalty (CE: critter_get_stat_with_temp)
-dist -= tempPER × distModifier          // distModifier: 2 normally, 4 long_range, 5 scope (stub)
+dist -= tempPER × distModifier          // distModifier: 2 normally, 4 Long Range, 5 Scope Range (from 8 hexes)
 Sharpshooter perk: each rank reduces dist by 2
 if dist ≥ 0 and blinded: dist *= 12
 elif dist ≥ 0:            dist *= 4
 if dist < 0: modifier = 0
 ```
 
-**Not implemented in DH2:**
-- Light-level penalty (noted in `getHitChance` comment: `combat.ts`)
-- `distModifier = 5` for `PERK_WEAPON_SCOPE_RANGE`
-- Melee region-penalty halving (CE `combat.cc:4440`: `toHit += penalty / 2` for melee;
-  DH2 applies full penalty — see `damage_formula.md` Divergences)
+All CE inputs are wired (light level, Scope Range ×5, melee region-penalty halving). The open points are listed in `wiki/combat.md` §10.
 
 ---
 
 ## 11. Weapon Scripting Opcodes
 
-| Opcode | CE function | Args | DH2 method | Status |
-|--------|-------------|------|------------|--------|
-| `0x8112` | `item_w_subtype` | 1 | `item_w_subtype` | WIRED — returns PRO sub-type int |
-| `0x8117` | `item_w_ac` | 1 | `item_w_ac` | WIRED |
-| `0x8118` | `item_w_damage` | 3 | `item_w_damage` | PARTIAL — returns `min/max/type`; perk not factored |
-| `0x8119` | `item_w_damage_type` | 1 | `item_w_damage_type` | WIRED |
-| `0x811A` | `item_w_range` | 2 | `item_w_range` | WIRED — reads `maxRange1/2` from PRO |
-| `0x811C` | `item_w_anim_weap` | 2 | `item_w_anim_weap` | WIRED |
-| `0x811D` | `item_w_ammo_pid` | 1 | `item_w_ammo_pid` | WIRED — returns `pro.extra.ammoPID` |
-| `0x811E` | `item_w_ammo_type` | 1 | `item_w_ammo_type` | WIRED — returns `pro.extra.caliber` |
-| `0x811F` | `item_w_ammo_count` | 1 | `item_w_ammo_count` | WIRED — returns `pro.extra.rounds` |
-| `0x8120` | `item_w_max_ammo` | 1 | `item_w_max_ammo` | WIRED — returns `pro.extra.maxAmmo` |
-| `0x8121` | `item_w_perk` | 1 | `item_w_perk` | WIRED — returns `pro.extra.perk` |
-| — | `item_w_caliber` | 1 | **NOT IMPL** | MISSING |
-| — | `item_w_min_st` | 1 | **NOT IMPL** | MISSING |
-| — | `item_w_crit_fail` | 1 | **NOT IMPL** | MISSING |
+Fallout 2 has no `item_w_*` opcodes (the table that stood here listed numbers that are other opcodes — `0x8118` is `get_month`). Scripts reach weapons through `obj_item_subtype` (0x80C9), `wield_obj_critter` (0x80DA), `critter_inven_obj` and the `obj_pid` / proto checks of the script headers; all are wired (`scripting_reference.md` §4).
 
 ---
 
 ## 12. Known Gaps vs CE
 
-| # | Feature | CE Behavior | DH2 Status | Impact |
-|---|---------|-------------|------------|--------|
-| 1 | Single-shot ammo decrement | `weaponDecrAmmo` after each attack | MISSING — only burst deducts rounds | Guns never run dry from single-shot fire |
-| 2 | Caliber matching | Reload rejected if `weapon.caliber ≠ ammo.caliber` | STUB — any ammo loads any weapon | Wrong ammo can be loaded |
-| 3 | `minStrength` penalty | −20 hit chance if attacker ST < `minStrength` | MISSING — `pro.extra.minStr` never read | Heavy weapons equally accurate for weak characters |
-| 4 | `PERK_WEAPON_ACCURATE` | +20 hit chance for the weapon | STUB — `pro.extra.perk == 2` not read | Accurate weapons have no bonus |
-| 5 | `PERK_WEAPON_PENETRATE` | 80% DT/DR reduction on hit (weapon-level) | STUB — weapon perk not read; only unarmed `mode.penetrate` wired | Penetrating ranged weapons behave like normal |
-| 6 | `PERK_WEAPON_SCOPE_RANGE` | `distModifier = 5` | STUB — `distModifier=4` max, scope path is a comment | Scoped weapons have same range penalty as long-range |
-| 7 | `PERK_WEAPON_FAST_RELOAD` | Reload AP cost = 0 | STUB — no AP cost for reload at all in DH2 | Effectively all weapons have free reload |
-| 8 | Melee region-penalty halving | `regionPenalty / 2` for melee hit chance | MISSING — full penalty applied | Melee hit-chance is slightly harder than CE |
-| 9 | Light-level hit modifier | Night / darkness reduces hit chance | MISSING — noted in `getHitChance` comment | All attacks equally accurate at night |
-| 10 | `criticalFailureType` field | Per-weapon fail table selection | STUB — table selected by weapon category only | All knives use same fail table as all clubs |
-| 11 | `Weapon.canEquip(obj)` | CE checks ST ≥ `minStrength` and animation exists | DH2 checks only animation exists (`critter.ts`) | STR-heavy weapons can be equipped by anyone |
-| 12 | Damage type index swap | CE index 4 = EMP, 5 = Explosive | DH2 `damageType` map: 4 = 'Electrical', 5 = 'EMP' — string names swap EMP/Explosive indices | EMP vs Explosive damage type slightly wrong for edge cases |
-| 13 | Haymaker / special moves unarmed | CE `ANIM_HAYMAKER` etc. as distinct HIT_MODE values | DH2 implements move list but critical bonus (`critBonus`) not applied to `critChance` during roll | Unarmed crit bonuses from Haymaker, Palm Strike etc. are defined but not active in `rollHit` |
-| 14 | AI burst vs single choice | Prefers burst at close range, single at distance, based on AI `best_weapon` | Hardcoded `burstMinRange = 4` hex | AI burst preference is not weapon-specific |
+None weapon-specific. Unarmed-type weapons take the weapon branch of the hit chance (skill, min ST, One Hander, Accurate — `hitChance.ts`), Enhanced Knockout is implemented, and the critical-failure flags follow CE: `DAM_EXPLODE` blasts around the attacker, `DAM_DUD` only replays the attacker's own hit reaction in CE (`actions.cc _action_ranged`) and has no further effect. Combat-wide status: `combat.md` §8. <!-- audited: 2026-10-18 -->

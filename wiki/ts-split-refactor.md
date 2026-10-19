@@ -1,6 +1,6 @@
 # TypeScript Split Refactor — Audit & Strategy
 
-> **Status:** proposal only. No code has been changed.
+> **Status (2026-10-18):** largely carried out — `object/`, `map/`, `combat/`, `critter/`, `render/`, `worldmap/`, `perks/`, `ui_*/` and others are split behind barrels; `scripting.ts` is still one file (see CLAUDE.md → Conventions).
 > **Audit date:** 2026-06-04
 > **Scope:** every file under `src/` exceeding 400 lines.
 
@@ -289,7 +289,6 @@ src/
 ├── ui_pipboy.ts              ← barrel
 ├── ui_saveload.ts
 ├── ui_skilldex.ts
-├── ui_timer.ts
 ├── ui_unarmed.ts
 ├── ui_widget.ts
 ├── ui_worldmap.ts
@@ -369,7 +368,7 @@ Files that aren't being split keep their current top-level path. Specifically:
 `ui_calledshot.ts`, `ui_charactercreator.ts`, `ui_components.ts`,
 `ui_contextmenu.ts`, `ui_dialogue.ts`, `ui_drag.ts`, `ui_elevator.ts`,
 `ui_hud.ts`, `ui_loot.ts`, `ui_mainmenu.ts`, `ui_panels.ts`,
-`ui_saveload.ts`, `ui_skilldex.ts`, `ui_timer.ts`, `ui_unarmed.ts`,
+`ui_saveload.ts`, `ui_skilldex.ts`, `ui_unarmed.ts`,
 `ui_widget.ts`, `ui_worldmap.ts`, `unarmed.ts`, `util.ts`, `vm.ts`,
 `vm_bridge.ts`. The `formats/` subfolder is pre-existing and untouched.
 
@@ -796,7 +795,7 @@ to per-section helpers. Out of scope.
 | `src/worldmap/types.ts` | All interfaces (Encounter*, Square, Range, etc.) | Types only. |
 | `src/worldmap/parser.ts` | `parseWorldmap` — the line-by-line `worldmap.txt` parser. | `parseWorldmap`. |
 | `src/worldmap/Worldmap.ts` | Travel loop + DOM lifecycle: `init`, `start`, `stop`, `updateWorldmapPlayer`, `withinArea`, `centerWorldmapTarget`, `getPlayerWorldPos`, `setSquareStateAt`, `updateAreaMarkerPos`. | Public surface used by `ui.ts`. |
-| `src/worldmap/encounters.ts` | Worldmap-side encounter dispatch: `getEncounterGroup`, `execEncounter`, `doEncounter`, `didEncounter`. (Not to be confused with `encounters.ts` which handles encounter table evaluation.) | Encounter dispatch. |
+| `src/worldmap/encounters.ts` | Worldmap-side encounter dispatch: `getEncounterGroup`, `execEncounter`, `doEncounter`, `didEncounter`. (Not to be confused with `encounters.ts` which handles encounter table evaluation.) | Encounter dispatch. *(2026-10-18: replaced by the CE port — `rndEncounterOccurred`, `setupRandomEncounter`; parsers in `worldmap/encounterData.ts`.)* |
 
 `src/worldmap.ts` becomes a barrel that augments the `Worldmap` namespace
 across the four files (TypeScript supports merging a `namespace`/`module`
@@ -1108,7 +1107,7 @@ state (no `Critter`/`Combat` deps).
 | New file | Owns | Exports |
 |----------|------|---------|
 | `src/encounters/conditionLang.ts` | The expression parser + evaluator (`tokenizeCond`, `parseCond`, `parseConds`, `printTree`, `evalCond`, `evalConds` + AST types). | Parser/eval. |
-| `src/encounters/resolver.ts` | Encounter resolution: `evalEncounterCritter`, `evalEncounterCritters`, `pickEncounter`, `positionCritters`, `evalEncounter`. | Resolution API. |
+| `src/encounters/resolver.ts` | Encounter resolution: `evalEncounterCritter`, `evalEncounterCritters`, `pickEncounter`, `positionCritters`, `evalEncounter`. | Resolution API. *(Removed 2026-10-18 — CE port in `worldmap/encounters.ts`.)* |
 
 `src/encounters.ts` becomes a barrel augmenting the `Encounters` namespace.
 

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { Events } from './events.js'
+import { DAM_KNOCKED_OUT } from './combat/results.js'
 import { Worldmap } from './worldmap.js'
 import { gameMoviePlay, GAME_MOVIE_FADE_IN, GAME_MOVIE_FADE_OUT, GAME_MOVIE_PAUSE_MUSIC, GAME_MOVIE_STOP_MUSIC } from './gameMovie.js'
 import { getRandomInt } from './util.js'
@@ -46,6 +48,10 @@ import { Config } from './config.js'
 // persisted field (map entry resets the cadence anyway).
 let nextMapUpdateTick = 600
 let critterScriptCursor = -1 // CE scripts.cc _count_
+// CE runs _script_chk_critters from _doBkProcesses, i.e. once per main-loop pass
+// (CE's frame limiter: 60 fps) — not once per 10 Hz game tick.
+const CE_LOOP_MS = 1000 / 60
+let critterLoopLast = -1
 let gameEndingTriggered = false
 
 // Tracks the last elapsed-day count for midnight event detection (GTC5)
@@ -110,7 +116,9 @@ export function tickGame(): void {
     }
     const time = window.performance.now()
 
-    if (time - globalState.lastFPSTime >= 500) {
+    const $fps = globalState.$fpsOverlay
+    if ($fps) $fps.style.display = Config.ui.showFPS ? '' : 'none'
+    if (Config.ui.showFPS && time - globalState.lastFPSTime >= 500) {
         globalState.$fpsOverlay.textContent = 'fps: ' + heart.timer.getFPS()
         globalState.lastFPSTime = time
 
@@ -176,7 +184,7 @@ export function tickGame(): void {
         const fm = globalState.floatMessages[i]
         const baseDelay = Config.ui.textBaseDelay
         const lineDelay = (baseDelay - 1.0) * 0.4
-        const lineCount = (fm.msg.match(/\n/g)?.length ?? 0) + 1
+        const lineCount = fm.lines ?? (fm.msg.match(/\n/g)?.length ?? 0) + 1 // CE linesCount after word wrap
         const expiryMs = (baseDelay + lineDelay * lineCount) * 1000
         if (time >= fm.startTime + expiryMs) {
             globalState.floatMessages.splice(i--, 1)
@@ -189,11 +197,18 @@ export function tickGame(): void {
         globalState.lastGameTick = time
         globalState.gameTickTime++
 
-        // CE ref: scripts.cc:368 gameTimeAddTicks — end game after 13 elapsed years
-        if (globalState.gameTickTime >= 13 * GameTime.TICKS_PER_YEAR) {
+        // CE ref: scripts.cc:368 gameTimeAddTicks — after 13 years endgameSetupDeathEnding(
+        // TIMEOUT) and _game_user_wants_to_quit = 2: straight back to the main menu (no
+        // death scene — main.cc only shows one when _main_show_death_scene is set).
+        if (globalState.gameTickTime >= 13 * GameTime.TICKS_PER_YEAR && !gameEndingTriggered) {
+            gameEndingTriggered = true
             Endgame.setupDeathEnding(Endgame.DEATH_REASON_TIMEOUT)
-            Endgame.playDeathEnding().catch((e: unknown) => dbgWarn('endgame', 'GTC7 timeout ending error: ' + String(e)))
+            location.reload()
         }
+        // CE main.cc mainLoop: the dude dead or knocked out outside combat ends the game.
+        // (Death goes through critterKill's death animation → dudeDeathScene.)
+        const dude = globalState.player
+        if (dude && !globalState.inCombat && !dude.dead && ((dude.injuryFlags ?? 0) & DAM_KNOCKED_OUT) !== 0) Endgame.dudeDeathScene()
 
         // CE ref: scripts.cc:405 gameTimeEventProcess — midnight queue event.
         // Fires once per in-game day: unjams all doors and checks story-movie triggers.
@@ -262,14 +277,22 @@ export function tickGame(): void {
     // scripts (game_time_hour checks; party.h follow macros using tile_distance_objs /
     // rotation_to_tile / animate_move_obj_to_tile) — CE has no engine-side schedule,
     // wander or follow logic, so the DH2 inventions for those were removed 2026-10-06.
-    if (didTick && Config.engine.doUpdateCritters && !globalState.inCombat) {
-        const scripted = globalState.gMap.getObjects().filter(
-            (o) => o.type === 'critter' && o._script && !(o as Critter).dead)
-        if (scripted.length > 0) {
-            critterScriptCursor = (critterScriptCursor + 1) % scripted.length
-            const critter = scripted[critterScriptCursor] as Critter
-            Scripting.updateCritter(critter._script!, critter)
+    if (critterLoopLast < 0 || globalState.inCombat) critterLoopLast = time
+    if (Config.engine.doUpdateCritters && !globalState.inCombat) {
+        // As many CE loop passes as have elapsed since the last frame (capped, so a
+        // stalled tab doesn't burst).
+        const passes = Math.min(8, Math.floor((time - critterLoopLast) / CE_LOOP_MS))
+        critterLoopLast += passes * CE_LOOP_MS
+        if (passes > 0) {
+            const scripted = globalState.gMap.getObjects().filter(
+                (o) => o.type === 'critter' && o._script && !(o as Critter).dead)
+            for (let i = 0; i < passes && scripted.length > 0; i++) {
+                critterScriptCursor = (critterScriptCursor + 1) % scripted.length
+                const critter = scripted[critterScriptCursor] as Critter
+                Scripting.updateCritter(critter._script!, critter)
+            }
         }
+        if (time - critterLoopLast > 8 * CE_LOOP_MS) critterLoopLast = time
     }
 
     for (const obj of globalState.gMap.getObjects()) {
@@ -329,6 +352,7 @@ export function scriptsCheckGameEvents(day: number): void {
     dbg('map', `ARTIMER: ARTIMER${movieIdx + 1} triggered (day ${day})`)
     // CE: gameMoviePlay(movie, FADE_IN | FADE_OUT | PAUSE_MUSIC) — marks it seen.
     globalState.seenMovies.add(movieId)
+    Events.emit('queueBail') // CE gameTimeEventProcess: a movie stops queueProcessEvents
     void gameMoviePlay(movieId, GAME_MOVIE_FADE_IN | GAME_MOVIE_FADE_OUT | GAME_MOVIE_PAUSE_MUSIC)
 
     // CE ref: scripts.cc:487 — adjustRep: GVAR_TOWN_REP_ARROYO -= 15

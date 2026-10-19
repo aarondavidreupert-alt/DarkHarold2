@@ -133,13 +133,9 @@ GVARs live in a module-level `globalVars: any = {}` dict within the `Scripting` 
 
 MVARs (map variables) are stored **within the per-map `.SAV` files**, not in `SAVE.DAT`. Each map's save data includes its MVAR block. `_GameMap2Slot` (`loadsave.cc:2435`) saves the current map to `MAPS/*.SAV` then compresses all `.SAV` files into the slot directory.
 
-### DH2 (`src/scripting.ts:50, 177–446`)
+### DH2
 
-MVARs live in a module-level `mapVars: any` dict in `scripting.ts`, keyed by script name then by var index. Initial defaults are loaded from `data/maps/<scriptName>.mvars.json`.
-
-**MVARs are NOT persisted in DH2 saves.** `mapVars` is not included in `SerializedMap` (`src/map/GameMap.ts`) and is not included in `SaveGame` (`src/saveload.ts:34–69`). On reload, `mapVars` is reset to `{}` by `Scripting.init()` (`scripting.ts:2201`) and re-initialized from `.mvars.json` defaults.
-
-**Impact**: Any MVAR changes made during gameplay (quest flags, door states, one-time events tracked by MVARs) are **lost on page reload** and not restored when loading a save.
+MVARs live in `Scripting`'s `mapVars` (keyed by map script, defaults from `data/maps/<script>.mvars.json`) and are saved as `SaveGame.mvars`; they survive map transitions and are reset only by a new game or a load (M8).
 
 ---
 
@@ -240,9 +236,8 @@ spatials: this.spatials.map(level => level.map((s: Spatial) => ({
 
 ### DH2
 
-- **Kill counts**: No `kills` or `killCounts` field in `SaveGame`. Kill counts are **not persisted**. There is no `kill_count` scripting opcode visible in `vm_bridge.ts`.
-- **Addictions**: The `addictions: string[]` field on `Critter` is included in `SERIALIZED_CRITTER_PROPS` and is therefore saved with each critter including the player. Addiction state **is persisted** in DH2.
-- **Timed drug events**: The scripting `timeEventList` (TimedEvent callbacks) is **not persisted**. Drug withdrawal timers are lost on reload.
+- **Kill counts**: `SaveGame.kills` (CE `killsSave`), read by `critter_kill_count` / the character screen's KILLS folder.
+- **Addictions**: saved with the critter (`addictions`), and the withdrawal / drug-effect timers are part of the saved event queue (`timedEvents`).
 
 ---
 
@@ -258,9 +253,9 @@ FO2 scripts do not have direct `game_save` / `game_load` opcodes for triggering 
 | 0x80C4  | `set_map_var`             | 2    | implemented | writes `mapVars[scriptName][mvar]` |
 | 0x80C1  | `local_var`               | 1    | implemented | reads `this.lvars[lvar]` |
 | 0x80C2  | `set_local_var`           | 2    | implemented | writes `this.lvars[lvar]` |
-| 0x810B  | `metarule(22, ...)`       | 2    | partial    | case 22 = `METARULE_IS_LOADGAME`; DH2 always returns 0 |
+| 0x810B  | `metarule(22, ...)`       | 2    | implemented | case 22 = `METARULE_IS_LOADGAME`: 1 while a loaded game's map runs its procs (C61) |
 
-`METARULE_IS_LOADGAME` (metarule case 22) maps to CE's `_isLoadingGame()` in `interpreter_extra.cc:3232`. DH2 hardcodes `return 0` because there is no async load guard in the scripting VM.
+`METARULE_IS_LOADGAME` (metarule case 22) is CE's `_isLoadingGame()`. As in CE, loading a game runs every script's `start`, then `map_enter_p_proc` and `map_update_p_proc` with the flag set (`GameMap.runLoadGameProcs`); `create_object`, `destroy_object` on critters, `set_obj_visibility`, `kill_critter_type` and the team trait refuse meanwhile.
 
 Scripts that trigger saves in CE typically do so by calling into the `lsgSaveGame` / `lsgLoadGame` UI functions via engine events, not via script opcodes. DH2 save/load is triggered only through the UI layer.
 
@@ -276,60 +271,33 @@ DH2 uses the browser's **IndexedDB API** (`src/saveload.ts:291–308`):
 - Initialized by `saveLoadInit()` on page load
 - Data survives page reloads in the same browser profile
 
-### What DH2 Saves (`gatherSaveData`, `src/saveload.ts:71–108`)
+### What DH2 Saves (`gatherSaveData`, `src/saveload.ts`)
 
-| Category | What's saved | Location in SaveGame |
-|----------|-------------|---------------------|
-| Identity | save name, timestamp, version | top-level fields |
-| Map state | current map + all dirty maps (visited maps) | `savedMaps` |
-| Objects | all critters, items, scenery on saved maps | inside `SerializedMap.objects` |
-| Script LVARs | per-object and spatial script local vars | `SerializedObj._script.lvars` |
-| Map scripts | map script instance + its LVARs | `SerializedMap.mapScript` |
-| Player position | tile + orientation | `player.position/orientation` |
-| Player inventory | full item tree | `player.inventory` |
-| Player stats | HP, SPECIAL, derived stats | `playerState.stats` |
-| Player skills | base + invested points | `playerState.skills` |
-| Player traits | selected trait names | `playerState.traits` |
-| Player perks | acquired perk names | `playerState.perks` |
-| Player equipment | leftHand, rightHand, armor | `playerState.*Hand/armor` |
-| Player meta | name, gender, activeHand, isSneaking | `playerState.*` |
-| GVARs | all global variable values | `playerState.gvars` |
-| Game time | in-game tick counter | `gameTickTime` |
-| Party members | party objects | `party` |
-| Event log | structured combat/event log | `eventLog` |
-| Current elevation | current elevation index | `currentElevation` |
+| Category | Field |
+|----------|-------|
+| Identity, screenshot | `name`, `timestamp`, `version`, `screenshot` |
+| Current map + every visited map (objects with script LVARs, spatials, map script, last visit time) | `savedMaps`, `currentMap`, `currentElevation` |
+| Player: position, inventory, stats, skills, traits, perks, hands, armor, active hand, sneaking | `player`, `playerState` |
+| GVARs / MVARs | `playerState.gvars`, `mvars` |
+| Game time | `gameTickTime` |
+| Party and its level-up state | `party`, `partyLevels` |
+| Event queue (scripts' timers, drugs, withdrawal, radiation, poison, knockout, sneak …) | `timedEvents` |
+| Worldmap: known areas, area states, position, square states, current area, car, encounter state | `knownAreas`, `areaStates`, `worldPos`, `subtiles`, `currentAreaId`, `isInCar`, `carFuel`, `currentCarAreaId`, `encounters` |
+| Automap | `automap` |
+| Kill counts | `kills` |
+| Skill use slots | `skillUsage` |
+| Movies seen | `seenMovies` |
+| Event log | `eventLog` |
 
-### What DH2 Does NOT Save
-
-| Category | CE Handler | DH2 Gap |
-|----------|-----------|---------|
-| MVARs | map `.SAV` files | `mapVars` dict not in any serialized structure |
-| Kill counts | handler 7 (`killsSave`) | no `kills` field in `SaveGame` |
-| WorldMap state | handler 19 (`wmWorldMap_save`) | `globalState.knownAreas` not saved |
-| Automap data | handler 16 (`automapSave`) | no automap persistence |
-| Event queue | handler 24 (`queueSave`) | `timeEventList` not serialized |
-| Drug timers | part of queue | timed withdrawal events lost on reload |
-| Random seed | handler 9 (`randomSave`) | not saved; CE uses this for determinism |
-| Preferences | handler 17 (`preferencesSave`) | game preferences not persisted in save |
-| Skill usage | handler 22 (`skillsUsageSave`) | skill-use counters not persisted |
-| Pip-Boy | handler 20 (`pipboySave`) | Pip-Boy quests/notes not persisted |
-| Movies watched | handler 21 (`gameMoviesSave`) | movie-viewed flags not persisted |
+Not saved, as in CE or by design: the random generator (CE `randomSave` only resets the roll counter), preferences (CE keeps them in fallout2.cfg; DH2 in `localStorage`, S-CI5).
 
 ---
 
 ## 10. Known Gaps vs CE
 
-Listed in descending impact order:
+| Gap | Note |
+|-----|------|
+| Storage | IndexedDB records instead of SAVE.DAT + MAPS/*.SAV — same content, not file-compatible with CE saves |
+| Unvisited maps | Load fresh from `maps/*.json` — the same as CE, which loads them from the master .MAP |
 
-| Gap | Impact | DH2 Source |
-|-----|--------|-----------|
-| **MVARs not persisted** | Critical: quest flags, door states, one-time events stored as MVARs are lost; loading a save silently resets them to `.mvars.json` defaults | `scripting.ts:50` — `mapVars` never written to `SaveGame` |
-| **No unvisited-map state** | High: critters/objects on maps not yet visited in the current session load fresh from `maps/*.json`, not from CE `.SAV` equivalents | design limit: `dirtyMapCache` only covers visited maps |
-| **Kill counts lost** | Medium: `critter_kill_count` opcodes return stale data after reload; affects quest scripts that check kill thresholds | no `kills` in `SaveGame` |
-| **WorldMap / knownAreas not saved** | Medium: player loses discovered locations and worldmap position after reload | `globalState.knownAreas` not in `SaveGame` |
-| **Timed event queue not saved** | Medium: all `TimedEvent` callbacks (drug timers, scripted delays, scheduled AI) are lost on reload | `timeEventList` in `scripting.ts` not serialized |
-| **`is_game_loading` always false** | Medium: scripts that gate init behavior on `is_game_loading` may double-fire or skip load-time setup | `metarule` case 22 returns 0 always |
-| **Automap not persisted** | Low: minimap/automap resets on reload | no automap data structure |
-| **No save backup/restore** | Low: a failed save leaves the save slot in an inconsistent state | `save()` in `saveload.ts` is a single `IDBTransaction.put` with no rollback |
-| **CE version check** | Informational: CE rejects saves with version ≠ 1.2R; DH2 has `version: 1` but no enforcement | `SaveGame.version` field never validated on load |
-| **No save slot UI** | Informational: CE had 10 named slots; DH2 slots are auto-incremented IndexedDB entries | saves are written via `save(name, slot)` API; slot selection UI is external |
+Everything the former table listed (MVARs, kill counts, worldmap, event queue, automap, `is_loading_game`, the slot UI — `ui_saveload.ts` is CE's LOADSAVE screen) is implemented. <!-- audited: 2026-10-18 -->

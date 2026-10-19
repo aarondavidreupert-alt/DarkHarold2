@@ -18,6 +18,7 @@
 // Keyboard: Enter or Y = first button (YES/OK), Escape or N = last button (NO/Cancel).
 // UIMode.dialog is set while any dialog is open, blocking game key handlers.
 
+import { makePanelDraggable } from './ui_drag.js'
 import globalState from './globalState.js'
 import { font1, font3, FoText } from './ui_font.js'
 import { UIMode, getUiContainer } from './ui_panels.js'
@@ -88,7 +89,7 @@ function makeTextArea(message: string): HTMLDivElement {
     })
     for (const line of message.split('\n')) {
         if (line.trim()) {
-            new FoText(font1, line.toUpperCase(), '#c8b466').appendTo(el)
+            new FoText(font1, line, '#fc9c48').appendTo(el) // CE dbox body: caller colour, 32328
         }
     }
     return el
@@ -132,7 +133,7 @@ function makeDonebox(label: string, x: number): HTMLDivElement {
         pointerEvents: 'none',
         lineHeight: '0',
     })
-    new FoText(font3, label, '#c8b466').appendTo(labelWrap)
+    new FoText(font3, label, '#907824').appendTo(labelWrap) // CE dbox.cc:287 button label, 18979
     el.appendChild(labelWrap)
 
     // Button press animation: switch lilred down/up
@@ -158,6 +159,7 @@ export function showDialog(message: string, buttons: string[], dim = true): Prom
 
         const overlay = makeOverlay(dim)
         const box = makeDialogBox()
+        makePanelDraggable(box, 'dialogBox')
 
         box.appendChild(makeTextArea(message))
 
@@ -246,7 +248,7 @@ export function showInput(message: string, defaultValue = ''): Promise<string | 
             alignItems: 'center',
             justifyContent: 'center',
         })
-        new FoText(font1, message.toUpperCase(), '#c8b466').appendTo(textEl)
+        new FoText(font1, message, '#fc9c48').appendTo(textEl)
         box.appendChild(textEl)
 
         // Input field in the middle of the text area

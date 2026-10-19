@@ -1,6 +1,6 @@
 # Dialogue System Reference
 
-> Last audited: 2026-05-31  
+> Last audited: 2026-10-17  
 > Sources: `raw/fallout2-ce/src/game_dialog.cc`, `dialog.cc`, `reaction.cc`  
 > DH2 sources: `src/scripting.ts`, `src/vm_bridge.ts`, `src/ui_dialogue.ts`
 
@@ -134,135 +134,7 @@ All opcodes below are wired in `src/vm_bridge.ts`. Opcodes marked INLINE have a 
 | 0x8129 | `gdialog_mod_barter` | `(mod)` | `gameDialogBarter` | IMPLEMENTED |
 | 0x814E | `gdialog_set_barter_mod` | `(mod)` | `gameDialogSetBarterModifier` | IMPLEMENTED |
 
-Missing / stubbed:
-
-| Opcode | Name | Notes |
-|--------|------|-------|
-| 0x811F | `gSay_Option` | Commented out in `scripting.ts` line 1453; CE: `gameDialogAddMessageOption` |
-
-### Opcode details
-
-#### `start_gdialog` (0x80DE)
-
-```
-start_gdialog(msgFileID: number, obj: Obj, mood: number, headNum: number, backgroundID: number)
-```
-
-CE: `_gdialogInitFromScript(headFid, reaction)` — creates the dialogue window, sets up the talking-head fidget animation, disables the ISO map, stores `gGameDialogSpeaker`.
-
-DH2: Sets `currentDialogueObject = self_obj`, calls `uiStartDialogue(false, self_obj)` to slide the dialogue box into view. `mood`, `headNum`, and `backgroundID` are silently ignored.
-
----
-
-#### `gsay_start` (0x811C)
-
-```
-gsay_start()
-```
-
-CE: `_gdialogStart()` — resets option/review entry counts to 0.
-
-DH2: Clears `dialogueOptionProcs = []`. Opens dialogue UI if not already open.
-
----
-
-#### `gsay_reply` (0x811E)
-
-```
-gsay_reply(msgList: number, msgID: number)
-```
-
-CE: `gameDialogSetMessageReply` — looks up text in the message list and stores it for rendering in the NPC reply panel.
-
-DH2: Looks up `msgID` in `scriptMessages[msgList]`, calls `uiSetDialogueReply(msg)` which sets `#dialogueBoxReply.innerHTML` and clears the options area.
-
----
-
-#### `gsay_end` (0x811D) — inline
-
-```
-gsay_end()
-```
-
-CE: `_exitDialog = 1` sets a flag; the dialogue event loop then presents options and waits for input.
-
-DH2: `retStack.push(pc + 2)`, `halted = true`. Execution stops; the browser event loop takes over. No return value.
-
----
-
-#### `gsay_message` (0x8120)
-
-```
-gsay_message(msgList: number, msgID: number, reaction: number)
-```
-
-CE: `_gdialogSayMessage` — a combined reply+option shorthand for a single-option "OK/Done" dialogue beat.
-
-DH2: Calls `uiSetDialogueReply(msg)`, pushes a no-op proc into `dialogueOptionProcs`, renders `[Done]`, then halts the VM (uses `script.offset` as resume address, not `pc + 2`).
-
-`reaction` is accepted but not applied in DH2.
-
----
-
-#### `giq_option` (0x8121) — inline
-
-```
-giq_option(iqTest: number, msgList: number, msgID: number, target: proc, reaction: number)
-```
-
-CE: `gameDialogAddMessageOptionWithProcIdentifier` — adds the option text and a pointer to the target procedure if the IQ gate passes.
-
-DH2: See [IQ Gate](#iq-gate--giq_option) section. Wraps target proc in a closure and pushes it to `dialogueOptionProcs`.
-
----
-
-#### `end_dialogue` (0x80DF)
-
-```
-end_dialogue()
-```
-
-CE: `_dialogQuit()` → `_endDialog()` — frees reply structures, decrements the dialog stack depth.
-
-DH2: Calls `dialogueExit()` directly.
-
----
-
-#### `dialogue_system_enter` (0x80F9)
-
-```
-dialogue_system_enter()
-```
-
-CE: `_gdialogSystemEnter()` — re-enters the dialogue loop from inside a script (used by spatial scripts and some item interactions).
-
-DH2: Calls `talk(self_obj._script, self_obj)` to restart the talk procedure on the current object.
-
----
-
-#### `gdialog_set_barter_mod` (0x814E)
-
-```
-gdialog_set_barter_mod(mod: number)
-```
-
-CE: `gameDialogSetBarterModifier(modifier)` — sets `gGameDialogBarterModifier` (persists until session end).
-
-DH2: `dialogueBarterMod = mod`. Value is exported via `getDialogueBarterMod()` and consumed by `src/ui_barter/screen.ts` as a percentage markup. Reset to 0 on `dialogueExit()`.
-
----
-
-#### `gdialog_mod_barter` (0x8129)
-
-```
-gdialog_mod_barter(mod: number)
-```
-
-CE: `gameDialogBarter(modifier)` — sets the barter modifier and switches the dialogue UI to barter mode.
-
-DH2: Calls `uiBarterMode(self_obj as Critter)`, which opens the barter UI panel. The dialogue box remains visible (`uiMode` is set to `UIMode.barter`). If `dialogueReply` fires after this, the barter branch is detected and the dialogue is not closed (`vm_bridge.ts` / `scripting.ts:243–245`).
-
----
+`gsay_option` (0x811F, CE `_op_gsay_option`) is implemented too (inline, like `giq_option` without the IQ test).
 
 ## IQ Gate — `giq_option`
 
@@ -278,6 +150,8 @@ if ((iqTest > 0 && INT < iqTest) || (iqTest < 0 && INT > -iqTest)) return
 dialogueOptionProcs.push(target.bind(this))
 uiAddDialogueOption(msg, dialogueOptionProcs.length - 1)
 ```
+
+INT here is the player's INT **plus the Smooth Talker rank** (CE `_op_giq_option`).
 
 Gate rules:
 - `iqTest > 0`: option requires `INT ≥ iqTest` — hidden if player INT is too low
@@ -333,7 +207,11 @@ Barter modifier and speech checks can shift the raw reaction value up or down; g
 
 ### DH2 status
 
-**STUB.** The `reaction` parameter is accepted by `gsay_message`, `gsay_reply` (CE: `gSay_Option`), and `giq_option` in function signatures, but it is never stored, read, or applied. No equivalent of `reactionSetValue` / `reactionGetValue` is implemented. The talking-head animation system does not exist in DH2.
+Implemented (audit 2026-10-17):
+- Talking heads with fidgets, `_talk_to_critter_reacts` on the option's reaction (`src/talkingHead.ts reactToOption`), lips and speech (`startLips`).
+- The engine-side reaction change: being hit by the player sets LVAR 0 to −3 (`combat/whoHitMe.ts critterSetWhoHitMe`, CE `_critter_set_who_hit_me` → `reactionSetValue`).
+- Barter reads LVAR 0 through `reactionTranslateValue`: > 10 good (−15 %), > −10 neutral, else bad (+25 %). (Fixed 2026-10-17: −10 itself counted as neutral.)
+- `start_gdialog` with a head uses `reactionTranslateValue` of LVAR 0 for the head's starting mood.
 
 ---
 
@@ -451,18 +329,14 @@ DH2 message loading lives in `src/data.ts`:
 
 ## Known Gaps vs. CE
 
+Re-audited 2026-10-17. Closed since the first version of this table: `gsay_option`, reaction storage / translation, talking heads and fidgets, `start_gdialog` head / mood / background, the review window (P17), the party-member control and customisation screens (P5), barter → talk (`_barter_end_to_talk_to` → `Scripting.reenterDialogue`), music at half volume without a head and stopped / restarted with one (`talkingHead.ts`), the language filter (AF17) and speech.
+
 | Feature | CE | DH2 | Notes |
 |---------|-----|-----|-------|
-| `gSay_Option` (0x811F) | `gameDialogAddMessageOption` | MISSING | Uncommented stub only. Most scripts use `giq_option` instead. |
-| Reaction storage | `reactionSetValue` / local var 0 | MISSING | `reaction` param ignored everywhere in DH2 |
-| Reaction translation | `reactionTranslateValue` | MISSING | Threshold → GOOD/NEUTRAL/BAD mapping not implemented |
-| Talking-head fidget | `_talk_to_critter_reacts` | MISSING | No head FRM animation system |
-| `start_gdialog` mood/headNum/bgID | Used for head FRM and background | IGNORED | Parameters accepted but unused |
-| Dialogue review window | "Review" button shows history | MISSING | No `GameDialogReviewEntry` equivalent |
-| Party-member customisation | Combat-control sub-dialog | MISSING | `PartyMemberCustomizationOption` buttons not wired |
-| `gsay_message` resume address | `script.offset` (base of script) | DIFFERENT | CE uses the post-opcode address; DH2 uses script base. Functionally equivalent in practice because execution continues from the correct call frame, but diverges if the script has deeply nested calls. |
-| `_gdialog_barter_destroy_win` → re-enter talk | Seamless barter → dialogue return | PARTIAL | DH2 leaves re-entry to the script's own `node999` / `end_dialogue` call |
-| Music volume halved during dialogue | `_gsound_background_volume_get_set(vol/2)` | MISSING | No audio system in DH2 |
+| `gsay_message` resume address | `script.offset` after the opcode | Script base | Functionally equivalent in practice (execution continues in the right call frame). |
+| Persistent / temporary message-list IDs | 0x2000–0x2FFF / 0x3000–0x3FFF tracked separately | Not tracked | No script uses them in vanilla. |
+
+<!-- audited: 2026-10-17 -->
 
 ---
 

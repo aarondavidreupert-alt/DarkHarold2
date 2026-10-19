@@ -62,6 +62,8 @@ export class WebGLRenderer extends Renderer {
     uFloorLightZoom: WebGLUniformLocation | null = null
     uAlpha: WebGLUniformLocation | null = null
     uStealth: WebGLUniformLocation | null = null
+    uTransGray: WebGLUniformLocation | null = null
+    uTransQuant: WebGLUniformLocation | null = null
     uStealthTint: WebGLUniformLocation | null = null
     // CE ref: cycle.cc colorCycleTicker() — animated palette entries 229-254.
     uCycleTime: WebGLUniformLocation | null = null   // seconds since page load
@@ -473,6 +475,10 @@ export class WebGLRenderer extends Renderer {
         if (this.uStealth) gl.uniform1i(this.uStealth, 0)
         this.uStealthTint = gl.getUniformLocation(this.tileShader, 'u_stealthTint')
         if (this.uStealthTint) gl.uniform3f(this.uStealthTint, 1.0, 1.0, 1.0)
+        this.uTransGray = gl.getUniformLocation(this.tileShader, 'u_transGray')
+        if (this.uTransGray) gl.uniform1i(this.uTransGray, 0)
+        this.uTransQuant = gl.getUniformLocation(this.tileShader, 'u_transQuant')
+        if (this.uTransQuant) gl.uniform1i(this.uTransQuant, 0)
         this.uEggMode = gl.getUniformLocation(this.tileShader, 'u_eggMode')
         this.uEggCenter = gl.getUniformLocation(this.tileShader, 'u_eggCenter')
         this.uEggSize = gl.getUniformLocation(this.tileShader, 'u_eggSize')

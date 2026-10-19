@@ -3,7 +3,7 @@
 > Last audited: 2026-10-07 — **§0 supersedes the engine-side parking design described in §§1-8.**
 > Sources: `raw/fallout2-ce/src/worldmap.cc`, `worldmap.h`, `proto_instance.cc`, `proto_types.h`, `interpreter_extra.cc`, `game_vars.h`
 > DH2 sources: `src/map/mapLoader.ts`, `lut/car_parking.json`, `src/worldmap.ts` (barrel), `src/worldmap/Worldmap.ts`, `src/scripting.ts`, `src/object/Obj.ts`, `src/object/factories.ts`, `src/main.ts`
-> Cross-reference: [worldmap.md](worldmap.md) §"Car Movement"/Gap #12 — **note: that document predates the W8 fix (2026-09-13/14/16) and still describes DH2 as having "no car system"**. Treat this doc as authoritative for car-specific behavior; `worldmap.md`'s car sections are stale and not corrected as part of this pass (out of scope — flagged here only).
+> Cross-reference: [worldmap.md](worldmap.md) (rewritten 2026-10-18) covers the travel loop the car shares with walking (`wmPartyWalkingStep` 4–10× per frame by car, `wmCarUseGas`); this doc covers the car itself.
 
 ---
 

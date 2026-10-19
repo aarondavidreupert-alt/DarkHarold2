@@ -18,7 +18,7 @@ limitations under the License.
 // See wiki/ts-split-refactor.md §10.
 
 import { Point } from '../geometry.js'
-import { Encounters } from '../encounters.js'
+import { EncounterData } from './encounterData.js'
 
 export interface Square {
     terrainType: string //"mountain" | "ocean" | "desert" | "city" | "ocean"
@@ -41,75 +41,10 @@ export interface WorldmapPlayer {
 
 export interface Worldmap {
     squares: Square[][]
-    encounterTables: { [encounterType: string]: EncounterTable }
-    encounterGroups: { [groupName: string]: EncounterGroup }
-    encounterRates: { [frequency: string]: number }
+    // CE worldmap.txt random-encounter data (encounterData.ts)
+    encounters: EncounterData
     terrainSpeed: { [terrainType: string]: number }
     // CE ref: worldmap.cc:1337 — per-Tile-N `walk_mask_name`, indexed by tile number
     // (0..19, 4 wide x 5 tall). `null` where a tile has no mask (fully walkable).
     walkMaskNames: (string | null)[]
-}
-
-export interface EncounterTable {
-    maps: string[]
-    encounters: Encounter[]
-}
-
-export interface Encounter {
-    chance: number
-    scenery: any // TODO: scenery type (string?)
-    enc: EncounterRef //enc.enc ? parseEncounterReference(enc.enc) : enc.enc,
-    cond: any // TODO: condition type
-    condOrig: string | null // Original condition string
-    special: string | null
-    counter: number // remaining fires: -1=unlimited, 0=depleted, >0=limited
-}
-
-export interface EncounterRef {
-    type: 'ambush' | 'fighting'
-    target?: 'player'
-    party: EncounterParty
-    firstParty?: EncounterParty
-    secondParty?: EncounterParty
-}
-
-export interface EncounterParty {
-    start: number
-    end: number
-    name: string
-}
-
-export interface EncounterGroup {
-    critters: EncounterCritter[]
-    position: EncounterPosition
-    target?: 'player' | number
-}
-
-export interface Range {
-    start: number
-    end: number
-}
-
-export interface EncounterItem {
-    range?: Range
-    amount?: number
-
-    pid: number
-    wielded: boolean
-}
-
-export interface EncounterCritter {
-    position?: Point
-    cond?: Encounters.Node[]
-    ratio?: number
-
-    items: EncounterItem[]
-    pid: number
-    script: number
-    dead: boolean
-}
-
-export interface EncounterPosition {
-    type: string // Formation
-    spacing: number
 }

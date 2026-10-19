@@ -14,8 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { makePanelDraggable } from './ui_drag.js'
 import { beginUseItemOn, itemCanUseOn } from './useItemOn.js'
-import { ammoGetCapacity, ammoGetQuantity, findReloadAmmo, weaponReload } from './weaponAmmo.js'
+import { ammoGetCapacity, ammoGetQuantity, weaponAttemptReload } from './weaponAmmo.js'
 import { Combat } from './combat.js'
 import globalState from './globalState.js'
 import { dbg } from './logger.js'
@@ -23,7 +24,7 @@ import { Obj, objectIsWeapon } from './object.js'
 import { Config } from './config.js'
 import { openAutomap, closeAutomap, isAutomapOpen } from './ui_automap.js'
 import { openPipBoy, closePipBoy, isPipBoyOpen } from './ui_pipboy.js'
-import { getActivePunchMode, getActiveKickMode, nextPunchModeIdx, nextKickModeIdx } from './unarmed.js'
+import { cycleUnarmedAction } from './unarmed.js'
 import { initOptionsMenu, getOptionsWindow, showOptionsMenu, closeOptionsMenu } from './ui_options.js'
 import { initSkilldex, getSkilldexWindow, showSkilldex, closeSkilldex } from './ui_skilldex.js'
 import {
@@ -48,6 +49,7 @@ import {
     uiDrawWeapon,
     uiEndCombatAnimationDone,
     initLogScrollZones,
+    attackButtonDisabled,
 } from './ui_hud.js'
 import {
     UIMode,
@@ -131,6 +133,13 @@ function uiInit() {
     initLoot()
     initCalledShot()
 
+    // DH2: the remaining windows can be dragged too (fallout2.cfg [dh2] drag_*)
+    makePanelDraggable($id('lootBox'), 'loot')                // loot, steal
+    makePanelDraggable($id('dialogueContainer'), 'dialogue')  // dialogue, barter, companion screens
+    makePanelDraggable($id('elevatorBox'), 'elevator')
+    makePanelDraggable($id('calledShotBox'), 'calledShot')
+    makePanelDraggable($id('moveMultBox'), 'moveItems')
+
     const chrBtn = document.getElementById('chrButton')
     if (chrBtn) {
         chrBtn.onclick = () => {
@@ -168,6 +177,34 @@ import { $id, $img, $q, $qa, clearEl, show, hide, showv, hidev, off, appendHTML,
 // these via `from './ui.js'`).
 export { showv, hidev, makeEl } from './ui_dom.js'
 
+// CE interface.cc interfaceBarSwapHands — the B key and the change-hand button.
+export function swapHands(): void {
+    const p = globalState.player as any
+    const player = globalState.player
+    const nextHand: 'leftHand' | 'rightHand' = p.activeHand === 'leftHand' ? 'rightHand' : 'leftHand'
+    player.playWeaponSwapAnim(() => {
+        p.activeHand = nextHand
+        uiDrawWeapon()
+    })
+}
+
+// CE interface.cc interfaceCycleItemAction — the N key and a right-click on the item
+// button: a weapon's modes, or the unarmed hand's punch / kick moves.
+export function cycleActiveItemAction(): void {
+    const wep = globalState.player.equippedWeapon
+    if (!wep || !wep.weapon) {
+        const player = globalState.player!
+        const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
+        const activeItem = (player as any)[activeHand] as Obj | undefined
+        if (activeItem && !objectIsWeapon(activeItem)) return // non-weapon: one action
+        cycleUnarmedAction(player)
+        uiDrawWeapon()
+        return
+    }
+    wep.weapon.cycleMode()
+    uiDrawWeapon()
+}
+
 export function initUI() {
     uiInit()
 
@@ -196,38 +233,21 @@ export function initUI() {
 
     // lootBoxDoneButton wiring lives in ui_loot.ts → initLoot()
 
-    $id('handSwapButton').onclick = () => {
-        const p = globalState.player as any
-        const player = globalState.player
-        const nextHand: 'leftHand' | 'rightHand' = p.activeHand === 'leftHand' ? 'rightHand' : 'leftHand'
-        player.playWeaponSwapAnim(() => {
-            p.activeHand = nextHand
-            uiDrawWeapon()
-        })
-    }
+    $id('handSwapButton').onclick = () => swapHands()
 
-    /** Attempt to reload weaponObj from inventory. Returns true if rounds were loaded. */
+    /** CE interface.cc _intface_item_reload — weaponAttemptReload box after box until the
+     *  weapon is full or nothing fits; no message. Returns true if anything was loaded. */
     function reloadWeapon(weaponObj: Obj): boolean {
         const maxAmmo = ammoGetCapacity(weaponObj)
         if (maxAmmo <= 0 || ammoGetQuantity(weaponObj) >= maxAmmo) return false
-
-        // CE item.cc weaponCanBeReloadedWith — first ammo of the weapon's caliber.
         const inv = globalState.player.inventory
-        const ammoItem = findReloadAmmo(weaponObj, inv)
-        if (ammoItem === null) {
-            uiLog("No compatible ammo in inventory.")
-            return false
-        }
-
-        const toLoad = weaponReload(weaponObj, ammoItem)
-        if (toLoad <= 0) return false
-        if ((ammoItem.amount ?? 0) <= 0) inv.splice(inv.indexOf(ammoItem), 1)
-
-        uiLog(`Reloaded ${toLoad} round${toLoad !== 1 ? 's' : ''}.`)
-        return true
+        let loaded = false
+        while (weaponAttemptReload(weaponObj, inv) !== -1) loaded = true
+        return loaded
     }
 
     $id('attackButtonContainer').onclick = () => {
+        if (attackButtonDisabled()) return // CE buttonDisable(gSingleAttackButton)
         // Reload mode: immediately reload from inventory (AP cost in combat)
         const wep = globalState.player.equippedWeapon
         if (wep?.weapon?.mode === 'reload') {
@@ -239,7 +259,7 @@ export function initUI() {
                 }
                 globalState.player.AP.subtractCombatAP(reloadAP)
                 const ap = globalState.player.AP
-                drawAP(ap.getAvailableCombatAP(), ap.getTotalMaxAP())
+                drawAP(ap.getAvailableCombatAP(), ap.getTotalMaxAP(), ap.move)
             }
             reloadWeapon(wep)
             wep.weapon.mode = 'single'
@@ -283,30 +303,7 @@ export function initUI() {
     }
 
     $id('attackButtonContainer').oncontextmenu = () => {
-        // CE ref: interface.cc interfaceCycleItemAction — right-click cycles the active
-        // item's actions: a weapon's modes, or the unarmed hand's punch/kick moves.
-        const wep = globalState.player.equippedWeapon
-        if (!wep || !wep.weapon) {
-            const player = globalState.player!
-            const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
-            const activeItem = (player as any)[activeHand] as Obj | undefined
-            if (activeItem && !objectIsWeapon(activeItem)) return false // non-weapon: one action
-            const skill = player.getSkill('Unarmed')
-            const bothHandsEmpty = !(player as any).leftHand?.weapon && !(player as any).rightHand?.weapon
-            let mode
-            if (activeHand === 'rightHand' && bothHandsEmpty) {
-                globalState.kickModeIdx = nextKickModeIdx(skill, globalState.kickModeIdx)
-                mode = getActiveKickMode(skill, globalState.kickModeIdx)
-            } else {
-                globalState.punchModeIdx = nextPunchModeIdx(skill, globalState.punchModeIdx)
-                mode = getActivePunchMode(skill, globalState.punchModeIdx)
-            }
-            uiLog(`Unarmed: ${mode.name}`)
-            uiDrawWeapon()
-            return false
-        }
-        wep.weapon.cycleMode()
-        uiDrawWeapon()
+        cycleActiveItemAction()
         return false
     }
 
@@ -322,8 +319,9 @@ export function initUI() {
     }
 
     $id('endCombatButton').onclick = () => {
+        // CE combat.cc combatAttemptEnd
         if (globalState.inCombat) {
-            globalState.combat!.end()
+            globalState.combat!.attemptEnd()
         }
     }
 

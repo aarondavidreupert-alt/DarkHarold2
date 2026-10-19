@@ -33,12 +33,14 @@ import {
     SPECIAL_FULL_NAMES, SPECIAL_DESCRIPTIONS, SKILL_DESCRIPTIONS,
     DERIVED_DESCRIPTIONS, CONDITION_DESCRIPTIONS, TRAIT_DESCRIPTIONS,
     SPECIAL_IMG, SKILL_IMG, DERIVED_IMG, CONDITION_IMG, TRAIT_IMG,
-    STAT_COMMENTS, FOLDER_TABS, STATS, SKILLS,
+    statComment, FOLDER_TABS, STATS, SKILLS,
 } from './descriptions.js'
 import { showPerkModal } from './perkModal.js'
 import { ADDICTION_KARMA_GVARS } from '../drugs.js'
 import { Scripting } from '../scripting.js'
 import { getMessage } from '../util.js'
+import { renderStatPanels } from './statPanels.js'
+import { createFolderView, FolderView } from './folders.js'
 
 // ── Window singleton ──────────────────────────────────────────────────────────
 // Shared between viewer (showCharacterScreen) and creator (showCharacterCreator)
@@ -78,13 +80,15 @@ export function showCharacterScreen() {
     const skillPointBignumEl = skillPointBignumW.elem
 
     // Panel 2: Hit Points + condition flags (upper status box)
-    const panel2 = new Widget(null, { x: 196, y: 43, w: 'auto', h: 'auto' })
-        .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
+    // Both status boxes are drawn in one window-origin layer at CE coordinates
+    // (statPanels.ts); panel3 stays empty.
+    const panel2 = new Widget(null, { x: 0, y: 0, w: 'auto', h: 'auto' })
+        .css({ fontSize: '0.69em', whiteSpace: 'pre' })
     const panel2El = panel2.elem
 
     // Panel 3: derived stats (lower status box)
     const panel3 = new Widget(null, { x: 196, y: 176, w: 'auto', h: 'auto' })
-        .css({ fontSize: '0.69em', color: '#00FF00', whiteSpace: 'pre', lineHeight: '1.2' })
+        .css({ fontSize: '0.69em', color: '#3cf800', whiteSpace: 'pre', lineHeight: '1.2' })
     const panel3El = panel3.elem
 
     // Slider widget elements (initially hidden)
@@ -157,22 +161,23 @@ export function showCharacterScreen() {
             })
         )
         .add(makeFontLabel(552 + 18, 454, 'CANCEL', font3).css({ pointerEvents: 'none' }))
+        // CE characterEditorDrawPcStats: x 32 from y 280, lineHeight + 1 apart, editor.msg 113-115
         .add(
-            new Label(33, 278, `Level: ${currentLevel}`).css({
+            new Label(32, 280, `${getMessage('editor', 113) ?? 'Level:'} ${currentLevel}`).css({
                 fontSize: '0.69em',
-                color: '#00FF00',
+                color: '#3cf800',
             })
         )
         .add(
-            new Label(33, 289, `Exp: ${player.getStat('Experience')}`).css({
+            new Label(32, 291, `${getMessage('editor', 114) ?? 'Exp:'} ${player.getStat('Experience')}`).css({
                 fontSize: '0.69em',
-                color: '#00FF00',
+                color: '#3cf800',
             })
         )
         .add(
-            new Label(33, 300, `Next Level: ${nextLevelXP}`).css({
+            new Label(32, 302, `${getMessage('editor', 115) ?? 'Next Level:'} ${nextLevelXP}`).css({
                 fontSize: '0.69em',
-                color: '#00FF00',
+                color: '#3cf800',
             })
         )
         .add(makeFontLabel(380, 5, 'Skills', font3))
@@ -183,10 +188,12 @@ export function showCharacterScreen() {
         .show()
 
     const skillRowsEl = document.createElement('div')
+    // CE characterEditorDrawSkills: font 101 from (380, 27), fontGetLineHeight() + 1 =
+    // 11 px a row — fixed, so the list doesn't depend on the browser font's metrics.
     Object.assign(skillRowsEl.style, {
         position: 'absolute',
         left: '380px',
-        top: '25px',
+        top: '27px',
         fontSize: '0.69em',
     })
     characterWindow.elem.appendChild(skillRowsEl)
@@ -211,7 +218,7 @@ export function showCharacterScreen() {
         pointerEvents: 'none', zIndex: '2',
     })
     font3.onLoad(() => {
-        screenNameLbl.appendChild(font3.renderText(player.name || 'none', '#FFD700'))
+        screenNameLbl.appendChild(font3.renderText(player.name || 'none', '#907824'))
     })
     characterWindow.elem.appendChild(screenNameLbl)
 
@@ -232,7 +239,7 @@ export function showCharacterScreen() {
         pointerEvents: 'none', zIndex: '2',
     })
     font3.onLoad(() => {
-        screenAgeLbl.appendChild(font3.renderText(String(player.getStat('Age')), '#FFD700'))
+        screenAgeLbl.appendChild(font3.renderText(String(player.getStat('Age')), '#907824'))
     })
     characterWindow.elem.appendChild(screenAgeLbl)
 
@@ -253,7 +260,7 @@ export function showCharacterScreen() {
         pointerEvents: 'none', zIndex: '2',
     })
     font3.onLoad(() => {
-        screenSexLbl.appendChild(font3.renderText(player.gender === 'female' ? 'Female' : 'Male', '#FFD700'))
+        screenSexLbl.appendChild(font3.renderText(player.gender === 'female' ? 'Female' : 'Male', '#907824'))
     })
     characterWindow.elem.appendChild(screenSexLbl)
 
@@ -261,7 +268,7 @@ export function showCharacterScreen() {
     const tabStripEl = document.createElement('div')
     Object.assign(tabStripEl.style, {
         position: 'absolute',
-        left: '15px',
+        left: '11px',
         top: '330px',
     })
 
@@ -282,160 +289,16 @@ export function showCharacterScreen() {
     })
     tabStripEl.appendChild(tabOverlayEl)
 
-    const tabContentEl = document.createElement('div')
-    Object.assign(tabContentEl.style, {
-        position: 'absolute',
-        left: '30px',
-        top: '370px',
-        fontSize: '0.69em',
-        color: '#00FF00',
-    })
-
-    const mkSectionHeader = (text: string) => {
-        const hdr = document.createElement('div')
-        hdr.textContent = text
-        Object.assign(hdr.style, {
-            color: '#00FF00',
-            fontSize: '0.85em',
-            margin: '2px 0 1px',
-            pointerEvents: 'none',
-            userSelect: 'none',
-        })
-        return hdr
-    }
-
-    const folderPanels: HTMLElement[] = FOLDER_TABS.map((t, i) => {
-        const panel = document.createElement('div')
-        if (i === 0) {
-            // ── TRAITS section ────────────────────────────────────────────────
-            panel.appendChild(mkSectionHeader('────── TRAITS ──────'))
-
-            const activeTraits: string[] = player.traits ?? []
-            if (activeTraits.length === 0) {
-                const none = document.createElement('div')
-                none.textContent = 'No traits selected.'
-                Object.assign(none.style, { color: '#70A070', fontSize: '0.9em' })
-                panel.appendChild(none)
-            } else {
-                for (const traitName of activeTraits) {
-                    const line = document.createElement('div')
-                    line.textContent = traitName
-                    Object.assign(line.style, { color: '#FFD700', cursor: 'pointer' })
-                    line.onclick = () => showInfoCard(traitName, TRAIT_DESCRIPTIONS[traitName] ?? traitName, TRAIT_IMG[traitName])
-                    panel.appendChild(line)
-                }
-            }
-
-            // ── PERKS section ─────────────────────────────────────────────────
-            panel.appendChild(mkSectionHeader('────── PERKS ──────'))
-
-            const perks = player.perks ?? []
-            if (perks.length === 0) {
-                const none = document.createElement('div')
-                none.textContent = 'No perks.'
-                Object.assign(none.style, { color: '#00FF00', fontSize: '0.9em' })
-                panel.appendChild(none)
-            } else {
-                const counts: Record<string, number> = {}
-                for (const p of perks) counts[p] = (counts[p] ?? 0) + 1
-                for (const [perkName, rank] of Object.entries(counts)) {
-                    const def = PERKS.find(d => d.name === perkName)
-                    const line = document.createElement('div')
-                    line.textContent = rank > 1 ? `${perkName} (${rank})` : perkName
-                    line.style.color = '#FFD700'
-                    line.style.cursor = 'pointer'
-                    line.onclick = () => showInfoCard(perkName, def?.description ?? perkName, undefined)
-                    panel.appendChild(line)
-                }
-            }
-        } else if (i === 1) {
-            // KARMA panel — populated fresh each time the tab is activated
-            panel.dataset.karmaPanel = '1'
-        } else {
-            panel.textContent = t.label
-        }
-        panel.style.display = i === 0 ? 'block' : 'none'
-        tabContentEl.appendChild(panel)
-        return panel
-    })
-
-    const KARMA_TITLES: Array<[number, string]> = [
-        [750, 'Savior of the Damned'],
-        [500, 'Guardian of the Wastes'],
-        [250, 'Shield of Hope'],
-        [100, 'Defender'],
-        [0,   'Wanderer'],
-        [-99, 'Betrayer'],
-        [-249, 'Sword of Despair'],
-        [-499, 'Scourge of the Wastes'],
-        [-Infinity, 'Demon Spawn'],
-    ]
-
-    const TOWN_NAMES = [
-        'Arroyo', 'Klamath', 'The Den', 'Vault City', 'Gecko', 'Modoc',
-        'Sierra Base', 'Broken Hills', 'New Reno', 'Redding', 'NCR',
-        'Vault 13', 'San Francisco', 'Abbey', 'EPA', 'Primitive Tribe',
-        'Raiders', 'Vault 15', 'Ghost Farm',
-    ]
-
-    // CE ref: character_editor.cc:4586 — thresholds from gTownReputationEntries display logic.
-    const townStanding = (val: number): string => {
-        if (val >= 30)  return 'Idolized'
-        if (val >= 15)  return 'Liked'
-        if (val >= 1)   return 'Accepted'
-        if (val === 0)  return 'Neutral'
-        if (val >= -15) return 'Antipathy'   // CE: < 0 (not < -15)
-        if (val >= -30) return 'Hated'       // CE: < -15 (not < -30)
-        return 'Vilified'                    // CE: < -30
-    }
-
-    const addLine = (parent: HTMLElement, text: string) => {
-        const el = document.createElement('div')
-        el.textContent = text
-        Object.assign(el.style, { color: '#00FF00' })
-        parent.appendChild(el)
-    }
-
-    const refreshKarmaPanel = (panel: HTMLElement) => {
-        while (panel.firstChild) panel.removeChild(panel.firstChild)
-
-        // ── Global Karma ──────────────────────────────────────────────────────
-        panel.appendChild(mkSectionHeader('────── KARMA ──────'))
-        const karmaVal = player.stats.getBase('Karma')
-        addLine(panel, `Karma: ${karmaVal}`)
-        const title = (KARMA_TITLES.find(([threshold]) => karmaVal >= threshold) ?? KARMA_TITLES[KARMA_TITLES.length - 1])[1]
-        addLine(panel, title)
-
-        // ── Town Reputation ───────────────────────────────────────────────────
-        panel.appendChild(mkSectionHeader('────── REPUTATION ──────'))
-        for (const town of TOWN_NAMES) {
-            const key = `Rep_${town}`
-            const repStats = player.stats as any
-            if (!(key in (repStats.baseStats ?? {}))) continue
-            const val: number = player.stats.getBase(key)
-            addLine(panel, `${town}: ${townStanding(val)}`)
-        }
-
-        // ── Reliances (addictions) ────────────────────────────────────────────
-        // CE ref: character_editor.cc:5613 — one line per non-zero addiction GVAR,
-        // heading editor.msg 4001, names 1004 + index (gAddictionReputationVars order).
-        const addicted = ADDICTION_KARMA_GVARS.map((g, i) => [g, i] as const).filter(([g]) => Scripting.getGlobalVar(g) !== 0)
-        if (addicted.length > 0) {
-            panel.appendChild(mkSectionHeader(`────── ${(getMessage('editor', 4001) ?? 'Reliance').toUpperCase()} ──────`))
-            for (const [, i] of addicted) addLine(panel, getMessage('editor', 1004 + i) ?? '')
-        }
-    }
+    // The folder contents (CE folder view) — created with the info card below.
+    let folderView: FolderView | null = null
 
     let activeFolder = 0
     const activateFolder = (idx: number) => {
         activeFolder = idx
         tabImg.src = FOLDER_TABS[idx].sprite
-        folderPanels.forEach((p, i) => { p.style.display = i === idx ? 'block' : 'none' })
-        if (idx === 1) refreshKarmaPanel(folderPanels[1])
+        globalState.audioEngine?.playSfxByName?.('ib3p1xx1')
+        folderView?.setFolder(idx)
     }
-
-    // Populate karma panel for initial display if it starts active
-    refreshKarmaPanel(folderPanels[1])
 
     FOLDER_TABS.forEach((tab, idx) => {
         const region = document.createElement('div')
@@ -449,7 +312,7 @@ export function showCharacterScreen() {
         region.onclick = () => activateFolder(idx)
 
         font3.onLoad(() => {
-            const lbl = font3.renderText(tab.label, '#FFD700')
+            const lbl = font3.renderText(tab.label, '#907824')
             lbl.style.pointerEvents = 'none'
             region.appendChild(lbl)
         })
@@ -458,9 +321,8 @@ export function showCharacterScreen() {
     })
 
     characterWindow.elem.appendChild(tabStripEl)
-    characterWindow.elem.appendChild(tabContentEl)
 
-    makePanelDraggable(characterWindow.elem)
+    makePanelDraggable(characterWindow.elem, 'character')
 
     // ── Info card ─────────────────────────────────────────────────────────────
     const cardImgEl = document.createElement('img') as HTMLImageElement
@@ -477,7 +339,6 @@ export function showCharacterScreen() {
     cardImgEl.onload = () => { cardImgEl.style.visibility = 'visible' }
     cardImgEl.onerror = () => { cardImgEl.style.visibility = 'hidden' }
     characterWindow.elem.appendChild(cardImgEl)
-    makePanelDraggable(cardImgEl)
 
     const cardTitleEl = document.createElement('div')
     Object.assign(cardTitleEl.style, {
@@ -492,14 +353,13 @@ export function showCharacterScreen() {
         width: '265px',
     })
     characterWindow.elem.appendChild(cardTitleEl)
-    makePanelDraggable(cardTitleEl)
 
     const cardBodyEl = document.createElement('div')
     Object.assign(cardBodyEl.style, {
         position: 'absolute',
         left: '348px',
         top: '313px',
-        width: '130px',
+        width: '136px', // CE characterEditorDrawCard: wordWrap(description, 136) from x 348
         background: 'transparent',
         border: 'none',
         padding: '0',
@@ -507,7 +367,6 @@ export function showCharacterScreen() {
         pointerEvents: 'auto',
     })
     characterWindow.elem.appendChild(cardBodyEl)
-    makePanelDraggable(cardBodyEl)
 
     const cardDividerEl = document.createElement('hr')
     Object.assign(cardDividerEl.style, {
@@ -523,11 +382,15 @@ export function showCharacterScreen() {
         fontSize: '0.69em',
         color: '#000000',
         overflow: 'hidden',
+        // the pixel font's first glyph column sits left of the text box — the clip box
+        // starts 2 px further left, the text stays at x 348
+        paddingLeft: '2px',
+        marginLeft: '-2px',
         lineHeight: '1.3',
     })
     cardBodyEl.appendChild(cardDescEl)
 
-    const showInfoCard = (title: string, desc: string, imgPath?: string): void => {
+    const drawCard = (title: string, desc: string, imgPath?: string): void => {
         if (cardTitleEl.firstChild && cardTitleEl.firstChild !== cardDividerEl) cardTitleEl.removeChild(cardTitleEl.firstChild)
         cardTitleEl.insertBefore(font2.renderText(title.toUpperCase(), '#000000'), cardDividerEl)
         cardDescEl.textContent = desc
@@ -538,7 +401,14 @@ export function showCharacterScreen() {
             cardImgEl.style.visibility = 'hidden'
         }
     }
+    // A card of the stats / skills / traits: the folder loses its selection.
+    const showInfoCard = (title: string, desc: string, imgPath?: string): void => {
+        folderView?.blur()
+        drawCard(title, desc, imgPath)
+    }
     // ── end info card ──────────────────────────────────────────────────────────
+
+    folderView = createFolderView(characterWindow.elem, player, drawCard)
 
     const statValueWidgets: HTMLElement[] = []
     const statCommentLabels: Label[] = []
@@ -555,7 +425,8 @@ export function showCharacterScreen() {
         statValueWidgets.push(valW.elem)
         characterWindow.add(valW)
 
-        const commentLbl = new Label(105, 43 + n, '', '#00FF00').css({ fontSize: '0.69em' }) as Label
+        // CE characterEditorDrawPrimaryStat: description at x 103, y statY + 8
+        const commentLbl = new Label(103, 45 + n, '', '#3cf800').css({ fontSize: '0.69em' }) as Label
         statCommentLabels.push(commentLbl)
         characterWindow.add(commentLbl)
 
@@ -610,45 +481,19 @@ export function showCharacterScreen() {
     ]
 
     const renderPanel2 = () => {
-        while (panel2El.firstChild) panel2El.removeChild(panel2El.firstChild)
-
-        const hp = document.createElement('div')
-        hp.textContent = `Hit Points: ${player.getStat('HP')} / ${player.getStat('Max HP')}`
-        panel2El.appendChild(hp)
-
-        for (const [label, active] of CONDITIONS) {
-            const line = document.createElement('div')
-            line.textContent = label
-            line.style.opacity = active() ? '1' : '0.3'
-            line.style.cursor = 'pointer'
-            line.onclick = () => showInfoCard(label, CONDITION_DESCRIPTIONS[label] ?? label, CONDITION_IMG[label])
-            panel2El.appendChild(line)
-        }
+        renderStatPanels(panel2El, {
+            hp: player.getStat('HP'),
+            maxHp: newStatSet.get('Max HP'),
+            conditions: CONDITIONS.map(([, active]) => active()),
+            stats: newStatSet,
+            onInfo: (label, kind) => kind === 'condition'
+                ? showInfoCard(label, CONDITION_DESCRIPTIONS[label] ?? label, CONDITION_IMG[label])
+                : showInfoCard(label, DERIVED_DESCRIPTIONS[label] ?? label, DERIVED_IMG[label]),
+        })
     }
 
-    const renderPanel3 = () => {
-        while (panel3El.firstChild) panel3El.removeChild(panel3El.firstChild)
-
-        const rows: Array<[string, string | number]> = [
-            ['Armor Class',          newStatSet.get('AC')],
-            ['Action Points',        newStatSet.get('AP')],
-            ['Carry Weight',         newStatSet.get('Carry')],
-            ['Melee Damage',         newStatSet.get('Melee')],
-            ['Damage Resistance',    `${newStatSet.get('DR Normal')}%`],
-            ['Poison Resistance',    `${newStatSet.get('DR Poison')}%`],
-            ['Radiation Resistance', `${newStatSet.get('DR Radiation')}%`],
-            ['Sequence',             newStatSet.get('Sequence')],
-            ['Healing Rate',         newStatSet.get('Healing Rate')],
-            ['Critical Chance',      `${newStatSet.get('Critical Chance')}%`],
-        ]
-        for (const [label, value] of rows) {
-            const line = document.createElement('div')
-            line.textContent = `${label}: ${value}`
-            line.style.cursor = 'pointer'
-            line.onclick = () => showInfoCard(label, DERIVED_DESCRIPTIONS[label] ?? label, DERIVED_IMG[label])
-            panel3El.appendChild(line)
-        }
-    }
+    // Drawn by renderPanel2 (both boxes, statPanels.ts).
+    const renderPanel3 = () => {}
 
     const redrawStatsSkills = () => {
         while (skillRowsEl.firstChild) skillRowsEl.removeChild(skillRowsEl.firstChild)
@@ -662,8 +507,10 @@ export function showCharacterScreen() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 minWidth: '215px',
+                height: '11px',
+                lineHeight: '11px',
                 cursor: 'pointer',
-                color: isTagged ? '#FFD700' : '#00FF00',
+                color: isTagged ? '#a0a0a0' : '#3cf800', // CE 21140 tagged / 992
             })
             const nameSpan = document.createElement('span')
             nameSpan.textContent = skill
@@ -687,7 +534,7 @@ export function showCharacterScreen() {
             el.appendChild(renderBignum(value, 2))
 
             const clamped = Math.max(1, Math.min(10, value))
-            statCommentLabels[i].setText(STAT_COMMENTS[clamped])
+            statCommentLabels[i].setText(statComment(clamped))
         }
 
         updateSkillPointBignum()

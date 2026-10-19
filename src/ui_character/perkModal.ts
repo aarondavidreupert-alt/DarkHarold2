@@ -17,9 +17,11 @@ limitations under the License.
 // FO2-CE ref: editor.cc — level-up perk picker modal.
 // Triggered by showCharacterScreen() when player.pendingPerkPick is true.
 
+import { makePanelDraggable } from '../ui_drag.js'
 import { font2, font3 } from '../ui_font.js'
 import { getValidPerks, getPerkRank, applyPerk } from '../perks.js'
-import { PERK_IMG } from './descriptions.js'
+import { PERK_IMG, TRAIT_DESCRIPTIONS, TRAIT_IMG, TRAITS } from './descriptions.js'
+import { getMessage } from '../util.js'
 
 // ── Perk Selection Modal ──────────────────────────────────────────────────────
 // Shown when player.pendingPerkPick is true after level-up.
@@ -31,10 +33,54 @@ import { PERK_IMG } from './descriptions.js'
 //   CANCEL button:      lilredup at left 47  top 187; label at left 64  top 186
 //   DONE button:        lilredup at left 159 top 187; label at left 176 top 185
 
+// One row of the perk window's list.
+interface PickItem { name: string; description: string; img?: string; label?: string }
+
 export function showPerkModal(player: any): void {
     if (document.getElementById('perk-modal-overlay')) return
-
     const validPerks = getValidPerks(player)
+    const items: PickItem[] = validPerks.map((def) => ({
+        name: def.name, description: def.description, img: PERK_IMG[def.name] ?? def.img,
+        label: `${getPerkRank(player, def.name) + 1}/${def.maxRanks}`,
+    }))
+    showPickList(null, items, (name) => {
+        applyPerk(player, name)
+        // CE character_editor.cc perkDialogHandlePerk: Mutate! swaps a trait right away;
+        // backing out of it takes the perk back.
+        if (name === 'Mutate!') {
+            runMutate(player, () => {
+                const i = player.perks.lastIndexOf('Mutate!')
+                if (i !== -1) player.perks.splice(i, 1)
+                player.pendingPerkPick = true
+            })
+        }
+    }, () => {}, 'No eligible perks.')
+}
+
+// CE character_editor.cc perkDialogHandleMutatePerk — LOSE A TRAIT (editor.msg 154,
+// when the player has one), then PICK A NEW TRAIT (153) from the traits not kept.
+function runMutate(player: any, onCancel: () => void): void {
+    const current: string[] = (player.traits ?? []).slice()
+    const item = (t: string): PickItem => ({ name: t, description: TRAIT_DESCRIPTIONS[t] ?? '', img: TRAIT_IMG[t] })
+    const pickNew = (kept: string[]) => {
+        const options = TRAITS.filter((t) => !kept.includes(t)).map(item)
+        showPickList(getMessage('editor', 153) ?? 'PICK A NEW TRAIT', options,
+            (t) => player.setTraits([...kept, t]), onCancel)
+    }
+    if (current.length >= 1) {
+        showPickList(getMessage('editor', 154) ?? 'LOSE A TRAIT', current.map(item),
+            (t) => setTimeout(() => pickNew(current.filter((x) => x !== t)), 0), onCancel)
+    } else {
+        pickNew([])
+    }
+}
+
+// The perk window (perkwin.png) as a pick list: `title` over the list (CE draws it
+// at 49,16 in font 103), the card on the right, DONE / CANCEL.
+function showPickList(title: string | null, items: PickItem[], onDone: (name: string) => void, onCancel: () => void,
+                      emptyText = ''): void {
+    if (document.getElementById('perk-modal-overlay')) return
+    const validPerks = items
 
     const overlay = document.createElement('div')
     overlay.id = 'perk-modal-overlay'
@@ -58,6 +104,14 @@ export function showPerkModal(player: any): void {
         boxSizing: 'border-box',
     })
     box.onclick = (e) => e.stopPropagation()
+    makePanelDraggable(box, 'perks')
+
+    if (title) {
+        const titleEl = document.createElement('div')
+        Object.assign(titleEl.style, { position: 'absolute', left: '49px', top: '14px', pointerEvents: 'none' })
+        font3.onLoad(() => { titleEl.appendChild(font3.renderText(title)) })
+        box.appendChild(titleEl)
+    }
 
     // ── Left panel: scrollable perk list ─────────────────────────────────────
     const listEl = document.createElement('div')
@@ -130,7 +184,7 @@ export function showPerkModal(player: any): void {
         cardTitleEl.insertBefore(font2.renderText(def.name.toUpperCase(), '#000000'), cardDividerEl)
         cardDescEl.textContent = def.description
         cardImgEl.style.visibility = 'hidden'
-        const imgPath = PERK_IMG[def.name] ?? def.img
+        const imgPath = def.img
         if (imgPath) {
             cardImgEl.src = imgPath
         } else {
@@ -154,8 +208,8 @@ export function showPerkModal(player: any): void {
     doneBtn.onmouseup = doneBtn.onmouseleave = () => { doneBtn.style.backgroundImage = "url('art/intrface/lilredup.png')" }
     doneBtn.onclick = () => {
         if (!selectedPerk) return
-        applyPerk(player, selectedPerk)
         overlay.remove()
+        onDone(selectedPerk)
     }
     box.appendChild(doneBtn)
 
@@ -180,7 +234,7 @@ export function showPerkModal(player: any): void {
     })
     cancelBtn.onmousedown = () => { cancelBtn.style.backgroundImage = "url('art/intrface/lilreddn.png')" }
     cancelBtn.onmouseup = cancelBtn.onmouseleave = () => { cancelBtn.style.backgroundImage = "url('art/intrface/lilredup.png')" }
-    cancelBtn.onclick = () => { overlay.remove() }
+    cancelBtn.onclick = () => { overlay.remove(); onCancel() }
     box.appendChild(cancelBtn)
 
     const cancelLblEl = document.createElement('div')
@@ -196,13 +250,12 @@ export function showPerkModal(player: any): void {
     // ── Build list rows ───────────────────────────────────────────────────────
     if (validPerks.length === 0) {
         const none = document.createElement('div')
-        none.textContent = 'No eligible perks.'
-        Object.assign(none.style, { color: '#00FF00', fontSize: '0.68em', padding: '4px 3px' })
+        none.textContent = emptyText
+        Object.assign(none.style, { color: '#3cf800', fontSize: '0.68em', padding: '4px 3px' })
         listEl.appendChild(none)
     }
 
     for (const def of validPerks) {
-        const rank = getPerkRank(player, def.name)
 
         const row = document.createElement('div')
         Object.assign(row.style, {
@@ -212,7 +265,7 @@ export function showPerkModal(player: any): void {
             padding: '1px 3px',
             cursor: 'pointer',
             fontSize: '0.68em',
-            color: '#00FF00',
+            color: '#3cf800',
             backgroundColor: def.name === selectedPerk ? 'rgba(0,255,0,0.2)' : 'transparent',
         })
 
@@ -220,7 +273,7 @@ export function showPerkModal(player: any): void {
         nameSpan.textContent = def.name
 
         const rankSpan = document.createElement('span')
-        rankSpan.textContent = `${rank + 1}/${def.maxRanks}`
+        rankSpan.textContent = def.label ?? ''
         Object.assign(rankSpan.style, { color: '#70A070', fontSize: '0.9em' })
 
         row.appendChild(nameSpan)

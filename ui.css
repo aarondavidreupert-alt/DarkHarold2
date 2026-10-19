@@ -18,6 +18,36 @@ limitations under the License.
 
 /* Main stylesheet for the DarkFO UI */
 
+/* Text selection (drag over UI text) in the interface green instead of the
+   browser blue (DH2 styling; CE has no text selection). */
+::selection {
+  background-color: rgba(60, 248, 0, 0.45);
+  color: #fcfcfc;
+}
+
+/* DH2 option (fallout2.cfg [dh2] pixel_font, default on; not in CE): every DOM text in the
+   Fallout interface font — CE FONT 101 (data/font1.aaf) as a web font built by
+   tools/exportFonts.py. 9px = the AAF maxHeight, so one font pixel is one CSS
+   pixel; advances, space, baseline and line height are the CE metrics, and the
+   soft AAF edges come from COLRv1 layers in the text colour. main.ts sets the class.
+   #itemContextMenu keeps font-size 0 and #apBar line-height 0 (image-only rows). */
+@font-face {
+  font-family: 'Fallout Font 1';
+  src: url('art/fonts/font1_aaf.woff?r=3') format('woff');
+  font-display: block;
+}
+html.dh2-pixel-font body,
+html.dh2-pixel-font body *:not(#itemContextMenu):not(#itemContextMenu *):not(#apBar) {
+  font-family: 'Fallout Font 1', monospace !important;
+  font-size: 9px !important;
+  font-weight: normal !important;
+  font-style: normal !important;
+  letter-spacing: 0 !important;
+  line-height: normal !important;
+  -webkit-font-smoothing: none;
+  text-rendering: optimizeSpeed;
+}
+
 html, body {
   font-family: 'VT323', monospace;
   margin: 0;
@@ -287,12 +317,15 @@ html, body {
   background-image: url("art/intrface/mvenum.png");
 }
 
+/* CE interface.cc interfaceBarRefreshMainAction: the hit-mode label at its own size,
+   right-aligned at x = 181 - width, y = 7 in the 188 px button (STRONG PUNCH is 112 px) */
 #attackButtonType {
   position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 64px;
+  top: 7px;
+  right: 7px;
+  width: auto;
   height: auto;
+  image-rendering: pixelated;
 }
 
 #attackButtonWeapon {}
@@ -335,6 +368,15 @@ html, body {
 
 #attackButtonContainer:active #attackButton {
   background-image: url("art/intrface/sattkbdn.png");
+}
+
+/* CE interfaceBarRefreshMainAction isDisabled: intrface #73 (SATURBUP) up and down */
+#attackButtonContainer.weaponDisabled #attackButton,
+#attackButtonContainer.weaponDisabled:active #attackButton {
+  background-image: url("art/intrface/saturbup.png");
+}
+#attackButtonContainer.weaponDisabled:active #attackButtonWeapon {
+  transform: none;
 }
 /*
 #skilldexButton {
@@ -862,6 +904,22 @@ html, body {
 }
 
 /* Inventory button in context menu */
+#context_rotate {
+  background-image: url("art/intrface/rotaten.png");
+}
+
+#context_rotate:hover {
+  background-image: url("art/intrface/rotateh.png");
+}
+
+#context_push {
+  background-image: url("art/intrface/pushn.png");
+}
+
+#context_push:hover {
+  background-image: url("art/intrface/pushh.png");
+}
+
 #context_inventory {
   background-image: url("art/intrface/invenn.png");
 }
@@ -1505,9 +1563,10 @@ html, body {
   background-repeat: no-repeat;
   image-rendering: pixelated;
 }
+/* WM_WINDOW_GLOBE_OVERLAY_X/Y = 495/330 (worldmap.cc:80) */
 #wmGlobeImage {
   position: absolute;
-  left: 499px;
+  left: 495px;
   top: 330px;
   width: 134px;
   height: 89px;
@@ -1515,6 +1574,8 @@ html, body {
   background-repeat: no-repeat;
   image-rendering: pixelated;
 }
+/* wmscreen.frm, the car-mode overlay — shown only in the car (updateCarUI). */
+#wmScreenFrame[hidden] { display: none; }
 #wmScreenFrame {
   position: absolute;
   left: 499px;
@@ -1528,23 +1589,26 @@ html, body {
   z-index: 1;
 }
 
-/* CE ref: worldmap.cc:6219 wmInterfaceRefreshCarFuel — vertical fill bar.
-   WM_WINDOW_CAR_FUEL_BAR_X=500, WM_WINDOW_CAR_FUEL_BAR_Y=339, height=70px.
-   CE draws colour 196 (bright green ~#00c000) for filled, 14 (dark ~#202020) for empty. */
+/* CE ref: worldmap.cc:6219 wmInterfaceRefreshCarFuel — a 1 px column at
+   WM_WINDOW_CAR_FUEL_BAR_X/Y = 500/339, 70 px tall, drawn after (on top of) the
+   wmscreen overlay: palette 14 (#282828) where empty, and the filled part as
+   alternating rows of 196 (#64e464) and 14. */
 #wmCarFuelBarTrack {
   position: absolute;
   left: 500px;
   top: 339px;
-  width: 3px;
+  width: 1px;
   height: 70px;
-  background: #202020;
+  background: #282828;
+  z-index: 2;
 }
+#wmCarFuelBarTrack[hidden] { display: none; }
 #wmCarFuelBar {
   position: absolute;
   bottom: 0;
   left: 0;
-  width: 3px;
-  background: #00c000;
+  width: 1px;
+  background: repeating-linear-gradient(to bottom, #64e464 0, #64e464 1px, #282828 1px, #282828 2px);
 }
 
 #worldMapWorld {
@@ -1776,31 +1840,44 @@ html, body {
   position: absolute;
   font-family: sans-serif;
   color: #00FF00;
+  /* CE: centred under the sphere, 3 px below it, with a shadow (FONT_SHADOW) */
+  transform: translateX(-50%);
+  white-space: nowrap;
+  text-shadow: 1px 1px 0 #000;
 }
 
 .areaCircle {
   position: absolute;
-  /*width: 100px; height: 100px;*/
-  border: 2px solid #00FF00;
-  border-radius: 50%;
-  /* circle */
-  background: #007F00;
-  opacity: 0.25;
+  /* CE wmInterfaceDrawCircleOverlay: _dark_translucent_trans_buf_to_buf with
+     circleBlendTable = _getColorBlendTable(_colorTable[992]) — the sphere's gray step
+     blends the map toward green (992 = rgb555 0,31,0). A luminance mask of the
+     wrldsprN sprite over a green fill gives the same weighting. */
+  background-color: #00f800;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-mode: luminance;
+  mask-mode: luminance;
 }
 
 .areaSize-small {
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
+  -webkit-mask-image: url("art/intrface/wrldspr0.png");
+  mask-image: url("art/intrface/wrldspr0.png");
 }
 
 .areaSize-medium {
-  width: 32px;
-  height: 32px;
+  width: 25px;
+  height: 25px;
+  -webkit-mask-image: url("art/intrface/wrldspr1.png");
+  mask-image: url("art/intrface/wrldspr1.png");
 }
 
 .areaSize-large {
-  width: 64px;
-  height: 64px;
+  width: 49px;
+  height: 49px;
+  -webkit-mask-image: url("art/intrface/wrldspr2.png");
+  mask-image: url("art/intrface/wrldspr2.png");
 }
 
 .worldmapSquare {
@@ -1827,8 +1904,11 @@ html, body {
 /* The player marker on the world map. Hidden until travelling. */
 #worldmapPlayer {
   position: absolute;
-  width: 25px;
-  height: 13px;
+  /* CE centres the location / encounter marker on the party: a 17x17 box with the
+     image centred (placePartyMarker puts the box at party - 8) */
+  width: 17px;
+  height: 17px;
+  background-position: center;
   background-repeat: no-repeat;
   background-image: url("art/intrface/wmaploc.png");
   /*visibility: hidden;*/
@@ -2026,90 +2106,15 @@ html, body {
   cursor: url('art/intrface/stdarrow.png'), none !important;
 }
 
-/* Timed explosive timer dialog */
-.timerDialogOverlay {
-  position: absolute;
-  left: 0; top: 0;
-  width: 100%; height: 100%;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-}
 
-.timerDialog {
-  background: #1a1408;
-  border: 2px solid #6b5a00;
-  padding: 14px 18px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  min-width: 180px;
-}
 
-.timerDialogTitle {
-  color: #b38600;
-  font-family: 'VT323', monospace;
-  font-size: 18px;
-  letter-spacing: 1px;
-  text-align: center;
-}
 
-.timerDialogItemImg {
-  width: 56px;
-  height: 40px;
-  object-fit: contain;
-  image-rendering: pixelated;
-  background: #0a0a00;
-  border: 1px solid #333;
-}
 
-.timerDialogCounterRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
 
-.timerDialogCounter {
-  color: #00ff00;
-  font-family: 'VT323', monospace;
-  font-size: 36px;
-  width: 52px;
-  text-align: center;
-  background: #000;
-  border: 1px solid #333;
-  padding: 0 4px;
-  line-height: 1;
-}
 
-.timerDialogBtnRow {
-  display: flex;
-  gap: 8px;
-}
 
-.timerDialogBtn {
-  background: #2a2200;
-  border: 1px solid #6b5a00;
-  color: #b38600;
-  font-family: 'VT323', monospace;
-  font-size: 16px;
-  padding: 2px 12px;
-  cursor: url('art/intrface/stdarrow.png'), auto;
-}
 
-.timerDialogBtn:hover {
-  background: #3a3000;
-  border-color: #b38600;
-}
 
-.timerDialogStepBtn {
-  width: 30px;
-  height: 30px;
-  font-size: 20px;
-  padding: 0;
-}
 
 #bar *, #dialogueContainer *, #inventoryBox *, #lootBox *,
 #barterBox *, #worldMapContainer *, #elevatorBox *,

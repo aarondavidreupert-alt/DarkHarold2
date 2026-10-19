@@ -17,7 +17,8 @@ limitations under the License.
 // Inventory panel — split out of ui_inventory.ts. See
 // wiki/ts-split-refactor.md → "Per-file split proposals" §8.
 
-import { ammoGetQuantity, ammoSetQuantity, weaponGetAmmoTypePid } from '../weaponAmmo.js'
+import { beginUseItemOn, usePendingItemOn } from '../useItemOn.js'
+import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, ammoSplitOff, weaponGetAmmoTypePid } from '../weaponAmmo.js'
 import globalState from '../globalState.js'
 import { dbg } from '../logger.js'
 import { lazyLoadImage } from '../images.js'
@@ -32,6 +33,8 @@ import { makeDropTarget, makeDraggable, uiMoveSlot, applyArmorArt, tryLoadAmmoIn
 import { refreshStealthState } from '../miscItem.js'
 import { armorPerkSwap } from '../perks.js'
 import { Events } from '../events.js'
+import { unarmedHandMode } from '../unarmed.js'
+import { getMessage } from '../util.js'
 
 // --- Public open / close lifecycle -----------------------------------------
 
@@ -43,7 +46,17 @@ function onStatsChangedRefresh(): void {
     showInventory()
 }
 
+// CE inventory.cc inventoryOpenUseItemOn — the action menu's Inventory icon: the next
+// item clicked is used on this object (2 AP in combat), and the window closes.
+let useOnTarget: Obj | null = null
+
+export function showInventoryUseOn(target: Obj): void {
+    useOnTarget = target
+    showInventory(true)
+}
+
 export function closeInventory(): void {
+    useOnTarget = null
     if (!isInventoryOpen()) return
     globalState.uiMode = UIMode.none
     $id('inventoryBox').style.visibility = 'hidden'
@@ -74,7 +87,7 @@ export function initInventory(): void {
     })
 
     // Inventory panel is a static DOM element — wire drag once at init.
-    makePanelDraggable($id('inventoryBox'))
+    makePanelDraggable($id('inventoryBox'), 'inventory')
     $id('inventoryDoneButton').onclick = () => {
         globalState.uiMode = UIMode.none
         $id('inventoryBox').style.visibility = 'hidden'
@@ -97,7 +110,8 @@ export function initInventory(): void {
     }
 }
 
-export function showInventory() {
+export function showInventory(useOn = false) {
+    if (!useOn && !isInventoryOpen()) useOnTarget = null
     const wasOpen = isInventoryOpen()
     globalState.uiMode = UIMode.inventory
     if (!wasOpen) {
@@ -108,13 +122,13 @@ export function showInventory() {
 
     // CE ref: inventory.cc inventoryOpen() — deduct AP on first open during combat
     // Base cost: 4; Quick Pockets perk reduces by 2 per rank (CE: PERK_QUICK_POCKETS id=35)
-    if (!wasOpen && globalState.inCombat && globalState.player?.AP) {
+    if (!wasOpen && !useOnTarget && globalState.inCombat && globalState.player?.AP) {
         const player = globalState.player
         const qpRank = player.hasPerk('Quick Pockets') ? 1 : 0
         const apCost = Math.max(0, 4 - 2 * qpRank)
         if (apCost > 0) {
             player.AP.subtractCombatAP(apCost)
-            drawAP(player.AP.getAvailableCombatAP(), player.AP.getTotalMaxAP())
+            drawAP(player.AP.getAvailableCombatAP(), player.AP.getTotalMaxAP(), player.AP.move)
         }
     }
 
@@ -164,10 +178,16 @@ export function showInventory() {
             $info.appendChild(row)
         }
 
-        const addWeaponSection = (weapon: any, label: string) => {
+        const addWeaponSection = (weapon: any, label: string, hand: 'leftHand' | 'rightHand') => {
             addHR()
             if (!weapon) {
-                addRow(label, 'None')
+                // CE inventory.cc inventoryRenderSummary: "No item" and, for the player,
+                // "Unarmed dmg: bonus+min - bonus+Melee+max" of the hand's punch / kick
+                // hit mode (the selected primary or secondary one).
+                addRow(getMessage('inventry', 14) ?? 'No item', '')
+                const mode = unarmedHandMode(p as any, hand)
+                const melee = (p as any).getStat('Melee') ?? 0
+                addRow(`  ${getMessage('inventry', 24) ?? 'Unarmed dmg:'} ${mode.bonusDamage + mode.minDmg}-${mode.bonusDamage + melee + mode.maxDmg}`, '')
                 return
             }
             const name = weapon.name ?? label
@@ -256,19 +276,14 @@ export function showInventory() {
         $info.appendChild(twoCol)
 
         // Weapon sections
-        addWeaponSection(playerAny.leftHand ?? null, 'Left Hand')
-        addWeaponSection(playerAny.rightHand ?? null, 'Right Hand')
+        addWeaponSection(playerAny.leftHand ?? null, 'Left Hand', 'leftHand')
+        addWeaponSection(playerAny.rightHand ?? null, 'Right Hand', 'rightHand')
 
         // Total weight
         addHR()
-        let current = 0
-        for (const item of p.inventory) {
-            current += ((item.pro?.extra?.weight ?? 0) as number) * item.amount
-        }
-        if (playerAny.leftHand?.pro?.extra?.weight) current += playerAny.leftHand.pro.extra.weight
-        if (playerAny.rightHand?.pro?.extra?.weight) current += playerAny.rightHand.pro.extra.weight
-        if (armorExtra?.weight) current += armorExtra.weight
-        const max = 25 + p.getStat('STR') * 25
+        // CE item.cc objectGetInventoryWeight / STAT_CARRY_WEIGHT
+        const current = p.getInventoryWeight()
+        const max = p.getStat('Carry')
         addRow('Total Wt:', `${current}/${max}`)
     }
 
@@ -322,15 +337,9 @@ export function showInventory() {
     function updateWeightDisplay() {
         const $weight = document.getElementById('inventoryBoxWeight')
         if (!$weight) return
-        let current = 0
-        for (const item of globalState.player.inventory) {
-            current += ((item.pro?.extra?.weight ?? 0) as number) * item.amount
-        }
-        const playerAny = globalState.player as any
-        if (playerAny.leftHand?.pro?.extra?.weight) current += playerAny.leftHand.pro.extra.weight
-        if (playerAny.rightHand?.pro?.extra?.weight) current += playerAny.rightHand.pro.extra.weight
-        if (playerAny.armor?.pro?.extra?.weight) current += playerAny.armor.pro.extra.weight
-        const max = 25 + globalState.player.getStat('STR') * 25
+        // CE item.cc objectGetInventoryWeight / STAT_CARRY_WEIGHT
+        const current = globalState.player.getInventoryWeight()
+        const max = globalState.player.getStat('Carry')
         $weight.textContent = `Wt: ${current}/${max}`
     }
 
@@ -362,6 +371,14 @@ export function showInventory() {
             $el.appendChild(amtSpan)
             makeDraggable(img, 'i' + i, () => {
                 showInventory()
+            })
+            img.addEventListener('click', () => {
+                const target = useOnTarget
+                if (!target) return
+                closeInventory()
+                // _action_use_an_item_on_object (useItemOn.ts: walk there, 2 AP in combat)
+                beginUseItemOn(invObj)
+                usePendingItemOn(target)
             })
 
             // Allow ammo to be dropped onto a weapon in the inventory list
@@ -461,13 +478,16 @@ export function showInventory() {
                 const ammoCurrent = ammoGetQuantity(obj)
                 dbg('inventory', `[UI] unload: ammoPID=${ammoPID} rounds=${ammoCurrent}`)
                 if (ammoCurrent > 0) {
-                    if (ammoPID > 0) {
-                        // Create an ammo item and return it to inventory
+                    // CE inventory.cc unload → item.cc weaponUnload, repeated: one box at a
+                    // time holding up to a box's rounds; the weapon keeps its ammo type.
+                    while (ammoPID > 0 && ammoGetQuantity(obj) > 0) {
                         const ammoObj = createObjectWithPID(ammoPID)
-                        ammoObj.amount = ammoCurrent
-                        globalState.player.addInventoryItem(ammoObj, ammoCurrent)
+                        const rounds = ammoGetQuantity(obj)
+                        const capacity = ammoGetCapacity(ammoObj)
+                        ammoSetQuantity(ammoObj, Math.min(rounds, capacity))
+                        ammoSetQuantity(obj, Math.max(0, rounds - capacity))
+                        globalState.player.addInventoryItem(ammoObj, 1)
                     }
-                    // CE inventory.cc unload: the weapon keeps its ammo type, empty.
                     ammoSetQuantity(obj, 0)
                 }
                 uiDrawWeapon()
@@ -502,13 +522,13 @@ export function showInventory() {
                     const split = cloneItem(obj)
                     split.amount = wanted
                     obj.amount -= wanted
-                    split.drop(globalState.player)
+                    ammoSplitOff(obj, split) // CE itemRemove: the top ammo box goes along
+                    // a script that refuses the drop keeps the items with the dude
+                    if (!split.drop(globalState.player)) globalState.player.addInventoryItem(split, split.amount)
                 } else {
                     if (slot !== 'inventory') {
+                        globalState.player.inventory.push(obj)
                         playerAny[slot] = null
-                    } else {
-                        const idx = globalState.player.inventory.indexOf(obj)
-                        if (idx !== -1) globalState.player.inventory.splice(idx, 1)
                     }
                     obj.drop(globalState.player)
                 }

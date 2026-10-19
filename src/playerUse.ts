@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { addFloatMessage } from './floatText.js'
 import { ammoGetCapacity, ammoGetQuantity } from './weaponAmmo.js'
 import { heart } from './heart.js'
 import { hexFromScreen, hexNeighbors, hexDistance } from './geometry.js'
@@ -31,10 +32,11 @@ import {
     uiLoot,
     UIMode,
 } from './ui.js'
-import { getProtoMsg } from './util.js'
+import { getMessage, getProtoMsg } from './util.js'
 import { Config } from './config.js'
+import { randomBetween } from './random.js'
 import { uiSteal } from './ui_steal.js'
-import { getActiveUnarmedModeForHand } from './unarmed.js'
+import { currentUnarmed, unarmedAPCost } from './unarmed.js'
 
 // Return the skill ID used by the Fallout 2 engine
 export function getSkillID(skill: Skills): number {
@@ -62,7 +64,48 @@ export function getSkillID(skill: Skills): number {
     return -1
 }
 
-export function playerUseSkill(skill: Skills, obj: Obj): void {
+// CE actions.cc actionUseSkill: the skills that can't be used in combat (proto.msg 902).
+const NO_COMBAT_SKILLS = [Skills.FirstAid, Skills.Doctor, Skills.Lockpick, Skills.Steal, Skills.Traps, Skills.Science, Skills.Repair]
+
+// CE actions.cc actionUseSkill — who performs the player's skill: the party member best
+// at it in the whole party (partyMemberGetBestInSkill, the player first so ties stay
+// with the player), if it is also that member's own best skill
+// (partyMemberGetBestSkill), it is standing or walking, and the skill isn't Steal. The
+// member says a generic line (skill.msg 1000-1005); with the player right next to the
+// target the player does it after all (1100-1104).
+function skillPerformer(skill: Skills, target: Obj): Critter {
+    const player = globalState.player as Critter
+    if (skill === Skills.Steal || skill === Skills.Sneak) return player
+    const skillName = SKILL_NAMES[skill - 1]
+    let best: Critter | null = null
+    let bestValue = 0
+    for (const c of globalState.gParty?.getPartyMembersAndPlayer() ?? [player]) {
+        if (!c || c.dead || c.visible === false) continue
+        const v = c.getSkill(skillName)
+        if (v > bestValue) { bestValue = v; best = c }
+    }
+    if (!best || best === player) return player
+    let ownBest = SKILL_NAMES[0]
+    let ownValue = 0
+    for (const sk of SKILL_NAMES) {
+        const v = best.getSkill(sk)
+        if (v > ownValue) { ownValue = v; ownBest = sk }
+    }
+    if (ownBest !== skillName) return player
+    if (best.anim && best.anim !== 'idle' && best.anim !== 'walk' && best.anim !== 'run') return player
+    const nextToPlayer = hexDistance(player.position, target.position) <= 1
+    const id = nextToPlayer ? 1100 + randomBetween(0, 4) : 1000 + randomBetween(0, 5)
+    const line = getMessage('skill', id)
+    if (line) {
+        // textObjectAdd(partyMember, msg, 101, _colorTable[32747], _colorTable[0])
+        addFloatMessage({ msg: line, obj: best, startTime: window.performance.now(), color: '#ffff5a', outline: '#000000' })
+    }
+    if (nextToPlayer) return player
+    best.clearAnim()
+    return best
+}
+
+export function playerUseSkill(skill: Skills, obj: Obj, performer?: Critter): void {
     // FO2-CE ref: skill.cc skillUse() — engine handles the skill effect
     // Map enum to string name for the engine skillUse function
     const skillName = SKILL_NAMES[skill - 1] // Skills enum starts at 1 (SmallGuns=1)
@@ -70,13 +113,20 @@ export function playerUseSkill(skill: Skills, obj: Obj): void {
 
     dbg('script', `[Skill] playerUseSkill: ${skillName} (enum=${skill}, scriptId=${skillId}) on ${obj.name || obj.type || 'unknown'}`)
 
+    // CE proto_instance.cc _obj_use_skill_on: a jammed lock stops it before the script
+    if (obj.jammed) {
+        uiLog(getMessage('misc', 2001) ?? 'The lock is jammed.')
+        return
+    }
+
     // Non-passive target skills: try script override first, then engine fallback
     const target = obj as Critter
     let scriptHandled = false
     if (obj._script) {
         dbg('script', `[Skill] Object has script — trying Scripting.useSkillOn(skillId=${skillId})`)
         try {
-            scriptHandled = Scripting.useSkillOn(globalState.player as Critter, skillId, obj)
+            // CE _obj_use_skill_on: the target's use_skill_on_p_proc with the performer as source
+            scriptHandled = Scripting.useSkillOn(performer ?? globalState.player as Critter, skillId, obj)
         } catch (e) {
             dbgWarn('script', '[Skill] useSkillOn script error:', e)
         }
@@ -99,35 +149,9 @@ export function playerUseSkill(skill: Skills, obj: Obj): void {
             return
         }
 
-        // CE ref: actions.cc:1417-1450 actionUseSkill — for all non-Steal/non-Sneak skills,
-        // delegate to the party member who is best in the skill, provided it is also
-        // that member's personal best skill (partyMemberGetBestSkill check).
-        // CE ref: party_member.cc:1133 partyMemberGetBestSkill, :1160 partyMemberGetBestInSkill.
-        let user: Critter = globalState.player as Critter
-        if (skillName !== 'Steal' && skillName !== 'Sneak') {
-            const playerSkill = user.getSkill(skillName)
-            let best: Critter | null = null
-            let bestVal = playerSkill
-            for (const member of globalState.gParty.party) {
-                if (member.dead) continue
-                const s = member.getSkill(skillName)
-                if (s > bestVal) { best = member; bestVal = s }
-            }
-            if (best !== null) {
-                const b = best
-                const memberBestSkill = SKILL_NAMES.reduce((acc, sk) => b.getSkill(sk) > b.getSkill(acc) ? sk : acc, 'Small Guns')
-                if (memberBestSkill === skillName) {
-                    uiLog(`${b.name} steps in to help.`)
-                    user = b
-                }
-            }
-        }
+        const user: Critter = performer ?? globalState.player as Critter
         dbg('script', `[Skill] Engine fallback: skillUse("${skillName}") via ${user.name ?? 'player'}`)
-        const result = skillUse(user, target, skillName)
-        uiLog(result.message)
-        if (result.hpHealed > 0) {
-            drawHP(globalState.player!.getStat('HP'))
-        }
+        skillUse(user, target, skillName)
     }
 }
 
@@ -163,12 +187,20 @@ export function playerUse(obj: Obj | null) {
             return
         }
 
+        // CE actions.cc actionUseSkill: no First Aid, Doctor, Lockpick, Steal, Traps,
+        // Science or Repair in combat.
+        if (globalState.inCombat && NO_COMBAT_SKILLS.includes(skill)) {
+            uiLog(getProtoMsg(902))
+            return
+        }
+        const performer = skillPerformer(skill, obj)
+
         const skillCallback = function () {
-            globalState.player!.clearAnim()
-            playerUseSkill(skill, obj)
+            performer.clearAnim()
+            playerUseSkill(skill, obj, performer)
         }
 
-        if (Config.engine.doInfiniteUse === true || hexDistance(globalState.player!.position, obj.position) <= 1) {
+        if (Config.engine.doInfiniteUse === true || hexDistance(performer.position, obj.position) <= 1) {
             skillCallback()
             return
         }
@@ -177,7 +209,7 @@ export function playerUse(obj: Obj | null) {
         // target tile itself, which may be blocked by the scenery object).
         const neighbors = hexNeighbors(obj.position)
         const map = globalState.gMap!
-        const playerPos = globalState.player!.position
+        const playerPos = performer.position
         let dest: { x: number; y: number } | null = null
         let bestDist = Infinity
         for (const n of neighbors) {
@@ -188,7 +220,9 @@ export function playerUse(obj: Obj | null) {
             }
         }
         if (dest) {
-            globalState.player!.walkTo(dest, Config.engine.doAlwaysRun, skillCallback)
+            // CE: run when the target is 5 or more hexes away (the player follows doAlwaysRun)
+            const run = performer.isPlayer ? Config.engine.doAlwaysRun : hexDistance(playerPos, obj.position) >= 5
+            performer.walkTo(dest, run, skillCallback)
         } else {
             uiLog("Can't reach that.")
         }
@@ -224,7 +258,7 @@ export function playerUse(obj: Obj | null) {
                         maxWalkingDist
                     )
                 }
-                drawAP(globalState.player.AP.getAvailableMoveAP(), globalState.player.AP.getTotalMaxAP())
+                drawAP(globalState.player.AP.getAvailableCombatAP(), globalState.player.AP.getTotalMaxAP(), globalState.player.AP.move)
             }
         }
 
@@ -254,29 +288,55 @@ export function playerUse(obj: Obj | null) {
 
             // Determine AP cost for this attack up-front so we can guard before acting
             let attackAPCost: number
-            if (weapon === null) {
-                const p = globalState.player
-                const unarmedSkill = p.getSkill('Unarmed')
-                attackAPCost = getActiveUnarmedModeForHand(unarmedSkill, (p as any).activeHand ?? 'leftHand', globalState.punchModeIdx, globalState.kickModeIdx, !(p as any).leftHand?.weapon && !(p as any).rightHand?.weapon).apCost
-            } else if (weapon.weapon!.isCalled()) {
-                attackAPCost = weapon.weapon!.getAPCost(1) + 1
-            } else if (weapon.weapon!.isBurst()) {
-                attackAPCost = weapon.weapon!.getAPCost(2)
+            const unarmed = weapon === null ? currentUnarmed(globalState.player) : null
+            if (unarmed) {
+                attackAPCost = unarmedAPCost(globalState.player, unarmed.mode, unarmed.aiming)
             } else {
-                attackAPCost = weapon.weapon!.getAPCost(1)
+                // CE weaponGetActionPointCost for the current action (primary / secondary,
+                // +1 aimed)
+                attackAPCost = weapon.weapon!.getAttackAPCost(globalState.player, undefined, weapon.weapon!.isCalled())
             }
 
-            if (globalState.player.AP!.getAvailableCombatAP() < attackAPCost) {
-                uiLog(getProtoMsg(700)!) // "You don't have enough action points."
+            // CE combat.cc _combat_attack_this → _combat_check_bad_shot: refuse with
+            // combat.msg 100-106 (out of ammo, out of range, AP, aim blocked, crippled arms).
+            const aimingNow = unarmed ? unarmed.aiming : weapon!.weapon!.isCalled()
+            const bad = globalState.combat!.checkBadShot(globalState.player, <Critter>obj, aimingNow)
+            if (bad !== 'ok') {
+                const BAD_SHOT_MSG: { [k: string]: number } = {
+                    noAmmo: 101, outOfRange: 102, notEnoughAp: 100, aimBlocked: 104, bothArmsCrippled: 105, armCrippled: 106,
+                }
+                const id = BAD_SHOT_MSG[bad]
+                if (id !== undefined) uiLog((getMessage('combat', id) ?? '').replace('%d', String(attackAPCost)))
+                if (bad === 'noAmmo' && weapon) {
+                    const sid = (weapon as any).pro?.extra?.soundID
+                    if (typeof sid === 'number') globalState.audioEngine.playWeaponSfx(String.fromCharCode(sid), 'empty')
+                }
                 return
             }
 
             if (weapon === null) {
-                // Unarmed attack
-                globalState.player.AP!.subtractCombatAP(attackAPCost)
-                drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
-                dbg('combat', '[Combat] player unarmed attack')
-                globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')            } else {
+                // Unarmed attack — an aimed punch/kick opens the called-shot window
+                // (CE INTERFACE_ITEM_ACTION_PRIMARY_AIMING / SECONDARY_AIMING).
+                const strike = (region: string) => {
+                    globalState.player.AP!.subtractCombatAP(attackAPCost)
+                    drawAP(globalState.player.AP!.getAvailableCombatAP(), globalState.player.AP!.getTotalMaxAP(), globalState.player.AP!.move)
+                    dbg('combat', `[Combat] player unarmed attack (${unarmed!.mode.name}, ${region})`)
+                    globalState.combat!.attack(globalState.player, <Critter>obj, region)
+                }
+                if (unarmed!.aiming) {
+                    const art = who.hasAnimation('called-shot') ? who.getAnimation('called-shot') : 'art/critters/hmjmpsna'
+                    uiCalledShot(art, who, (region: string) => {
+                        if (globalState.player.AP!.getAvailableCombatAP() < attackAPCost) {
+                            uiLog(getProtoMsg(700)!)
+                        } else {
+                            strike(region)
+                        }
+                        uiCloseCalledShot()
+                    })
+                } else {
+                    strike('torso')
+                }
+            } else {
             // Block attack (and AP deduction) if ranged weapon has no ammo
             if (ammoGetCapacity(weapon as any) > 0 && ammoGetQuantity(weapon as any) === 0) {
                 uiLog('You: out of ammo!')
@@ -292,31 +352,31 @@ export function playerUse(obj: Obj | null) {
                 dbg('combat', '[Combat] called-shot art: %s', art)
 
                 uiCalledShot(art, who, (region: string) => {
-                    const calledAPCost = weapon.weapon!.getAPCost(1) + 1 // base weapon cost + 1 aiming surcharge
+                    const calledAPCost = attackAPCost
                     if (globalState.player.AP!.getAvailableCombatAP() < calledAPCost) {
                         uiLog(getProtoMsg(700)!) // "You don't have enough action points."
                         uiCloseCalledShot()
                         return
                     }
                     globalState.player.AP!.subtractCombatAP(calledAPCost)
-                    drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
+                    drawAP(globalState.player.AP!.getAvailableCombatAP(), globalState.player.AP!.getTotalMaxAP(), globalState.player.AP!.move)
                     dbg('combat', '[Combat] player attacks %s', region)
                     globalState.combat!.attack(globalState.player, <Critter>obj, region)
                     uiCloseCalledShot()
                 })
             } else if (weapon.weapon!.isBurst()) {
-                const burstAPCost = weapon.weapon!.getAPCost(2)
+                const burstAPCost = weapon.weapon!.getAttackAPCost(globalState.player, 2)
                 if (globalState.player.AP!.getAvailableCombatAP() < burstAPCost) {
                     uiLog(getProtoMsg(700)!) // "You don't have enough action points."
                     return
                 }
                 globalState.player.AP!.subtractCombatAP(burstAPCost)
-                drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
+                drawAP(globalState.player.AP!.getAvailableCombatAP(), globalState.player.AP!.getTotalMaxAP(), globalState.player.AP!.move)
                 dbg('combat', '[Combat] burst fire at %s', who.name)
                 // Route through attack() which detects isBurst() and does the multi-roll loop
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')            } else {
                 globalState.player.AP!.subtractCombatAP(attackAPCost)
-                drawAP(globalState.player.AP!.getAvailableMoveAP(), globalState.player.AP!.getTotalMaxAP())
+                drawAP(globalState.player.AP!.getAvailableCombatAP(), globalState.player.AP!.getTotalMaxAP(), globalState.player.AP!.move)
                 dbg('combat', '[Combat] player attacks torso')
                 globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')            }
             }

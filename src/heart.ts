@@ -335,7 +335,15 @@ class Heart {
 
 // XXX: we need a keymap, since browsers decide on being annoying and
 // not having a consistent keymap. (also, this won't work with special characters.)
+// Keys typed into a text field (save description, name entry, ...) belong to the
+// field, not to the game hotkeys.
+function isTypingTarget(t: EventTarget | null): boolean {
+    const el = t as HTMLElement | null
+    return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable === true)
+}
+
 window.onkeydown = function (e) {
+    if (isTypingTarget(e.target)) return
     const c = heart._getKeyChar(e.keyCode)
     heart._keysDown[c] = true
     if (heart.keydown !== undefined) {
@@ -344,6 +352,7 @@ window.onkeydown = function (e) {
 }
 
 window.onkeyup = function (e) {
+    if (isTypingTarget(e.target)) return
     const c = heart._getKeyChar(e.keyCode)
     heart._keysDown[c] = false
     if (heart.keyup !== undefined) {
