@@ -38,7 +38,7 @@ import {
 } from './ui.js'
 import { drawHP } from './ui_hud.js'
 import { objUseItemOn } from './useItemOn.js'
-import { loadFallout2Cfg, loadPreferences } from './ui_options.js'
+import { loadFallout2Cfg, loadPreferences, parseModList } from './ui_options.js'
 import { getFileJSON, getRandomInt } from './util.js'
 import { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall, WebGLRenderer, setLightSourceOverlayActive, setLightOverlayMode, setLightOverlayRadiusScale, LightOverlayMode } from './webglrenderer.js'
 import { Config } from './config.js'
@@ -257,6 +257,8 @@ window.onload = async function () {
     // query string is taken by the ?mapname shortcut (init.ts)
     const backendOverride = /script_backend=(lua|vm)/.exec(location.hash)
     if (backendOverride) Config.scripting.backend = backendOverride[1] as 'lua' | 'vm'
+    const modsOverride = /mods=([^&]*)/.exec(location.hash) // play.html#script_backend=lua&mods=a,b
+    if (modsOverride) Config.scripting.mods = parseModList(decodeURIComponent(modsOverride[1]))
     // fallout2.cfg [dh2] script_backend=lua — start the Lua engine before any script loads
     if (Config.scripting.backend === 'lua') {
         try {

@@ -38,3 +38,6 @@ art/cuts/
 
 # User config written by tools/setup.py (write_config stage)
 fallout2.cfg
+
+# Lua mods (mods/<name>/scripts/*.lua, [dh2] mods=) are user content
+mods/

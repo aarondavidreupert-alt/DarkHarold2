@@ -126,6 +126,8 @@ export function applyCfg(cfg: CfgSections): void {
     //   script_backend=vm   run the .int bytecode (default)
     const sb = (dh2['script_backend'] ?? '').trim().toLowerCase()
     if (sb === 'lua' || sb === 'vm') Config.scripting.backend = sb
+    //   mods=a,b  Lua mods in load order (mods/<name>/scripts/*.lua; later ones win)
+    if (dh2['mods'] !== undefined) Config.scripting.mods = parseModList(dh2['mods'])
     //   pixel_font=0  UI text in the browser font instead of the Fallout pixel font (default 1)
     const pf = int(dh2['pixel_font'])
     if (pf !== null) Config.ui.pixelFont = pf !== 0
@@ -186,4 +188,9 @@ export function loadFallout2Cfg(path = 'fallout2.cfg'): boolean {
     applyCfg(parseCfg(text))
     dbg('load', `${path} applied`)
     return true
+}
+
+/** `a, b` -> ['a', 'b']: folder names only (no paths), empty entries dropped. */
+export function parseModList(text: string): string[] {
+    return text.split(',').map((m) => m.trim()).filter((m) => /^[\w.-]+$/.test(m) && m !== '.' && m !== '..')
 }

@@ -3144,15 +3144,26 @@ export module Scripting {
         return vm.scriptObj
     }
 
-    // Lua backend (src/lua/): data/scripts/<name>.lua from tools/int2lua.py. Null
-    // when there is no .lua file or it does not load, so the .int runs instead.
+    // Lua backend (src/lua/): data/scripts/<name>.lua from tools/int2lua.py, or a
+    // mod's mods/<mod>/scripts/<name>.lua (Config.scripting.mods, the last listed
+    // mod that has the script wins). Null when there is no .lua file or it does
+    // not load, so the .int runs instead.
     function loadLuaScript(name: string): Script | null {
         if (!isLuaReady()) return null
         const key = name.toLowerCase()
-        let source: string
-        try {
-            source = getFileText('data/scripts/' + key + '.lua')
-        } catch (e) {
+        const paths = Config.scripting.mods.slice().reverse().map((m) => `mods/${m}/scripts/${key}.lua`)
+        paths.push('data/scripts/' + key + '.lua')
+        let source: string | null = null
+        for (const path of paths) {
+            try {
+                source = getFileText(path)
+            } catch (e) {
+                continue
+            }
+            if (path.startsWith('mods/')) dbg('lua', `${key}: using ${path}`)
+            break
+        }
+        if (source === null) {
             dbg('lua', `no ${key}.lua, using ${key}.int`)
             return null
         }

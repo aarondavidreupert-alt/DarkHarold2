@@ -37,7 +37,7 @@ import { getMessage } from './util.js'
 type TargetHighlight = 'off' | 'targeting-only' | 'on'
 
 export { SavedPreferences, PREFS_KEY, loadPreferences, savePreferences } from './ui_options/preferences.js'
-export { loadFallout2Cfg, parseCfg, applyCfg } from './ui_options/fallout2Cfg.js'
+export { loadFallout2Cfg, parseCfg, applyCfg, parseModList } from './ui_options/fallout2Cfg.js'
 
 let optionsWindow: WindowFrame
 

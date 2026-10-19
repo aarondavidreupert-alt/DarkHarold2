@@ -298,6 +298,10 @@ export const Config = {
         // falling back to the .int for a script without one. DH2 addition.
         // Set in fallout2.cfg: [dh2] script_backend=lua/vm.
         backend: 'vm' as 'vm' | 'lua',
+        // Lua mods, in load order: mods/<name>/scripts/<script>.lua replaces the
+        // generated data/scripts/<script>.lua; a later mod overrides an earlier one.
+        // DH2 addition, needs backend 'lua'. Set in fallout2.cfg: [dh2] mods=a,b.
+        mods: [] as string[],
         debugLogShowType: {
             // ── Scripting VM ──────────────────────────────────────────────────────
             stub: true,           // log unimplemented script opcodes (always-on recommended)

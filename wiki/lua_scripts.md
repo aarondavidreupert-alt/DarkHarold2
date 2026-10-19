@@ -105,6 +105,20 @@ The output uses plain Lua where SSL and Lua agree and helpers from the prelude w
 Intrinsic results are normalised to SSL values (`luaRuntime.ts sslValue`): booleans become 0/1,
 `null`/`undefined` become 0 (wasmoon also cannot return `null` into Lua).
 
+## Mods
+
+A mod is a folder `mods/<name>/scripts/` with `<script>.lua` files, written like the generated ones (start
+from a copy of `data/scripts/<script>.lua`). `fallout2.cfg`:
+
+    [dh2]
+    script_backend=lua
+    mods=bigger_guns,my_fixes
+
+lists the mods in load order: for each script the last listed mod that has it wins, then the generated
+`data/scripts/<script>.lua`, then the `.int`. `play.html#script_backend=lua&mods=a,b` overrides the list for one
+page load. Mod names are folder names only (letters, digits, `_ . -`). A mod script that fails to load falls
+back to the `.int`, like a generated one. `mods/` is git-ignored.
+
 ## Runtime
 
 - **One engine, one environment per script.** Script globals live in the script's own table; everything else
@@ -175,6 +189,12 @@ count and the reply after the first option match in all 58 dialogues. The one mi
 dealer's greeting, is `random()` drawn from the game's RNG, which the map's heartbeats also use, so it
 depends on timing in either backend.
 
+AutoCrawler, both backends (2026-10-19): `runDialogueCrawler` (every talkable NPC, every option clicked
+through to the end) on ncr1, broken1, redment and sfchina — 185 NPCs; status (complete / no dialogue /
+stuck / combat), options seen and replies per NPC are identical, no exceptions, no Lua errors. The 4
+"stuck" NPCs (e.g. the NCR craps dealer) are stuck in both. `runCombatCrawler` on klatoxcv: 5 of 5 fights
+complete in both. Not covered yet: barter screens and quest chains across maps.
+
 In game (`play.html?arvillag#script_backend=lua`): all 143 scripted objects and the map script run in Lua;
 the Elder's dialogue (talking head, quest node with the flask and money, the `gsay_message` farewell) runs
 through and returns to the map; 21 critter heartbeats at 0 ms update time.
@@ -188,4 +208,3 @@ through and returns to the map; 21 critter heartbeats at 0 ms update time.
 - LVARs, PIDs and message numbers are still numbers (L3): their names are in the Black Isle script
   headers, which the game does not ship.
 - Floats: the VM rounds every float result to 32 bits (`Math.fround`); Lua keeps doubles (L4).
-- Mods: a load order for mod `.lua` files over the generated ones (L5).
