@@ -77,6 +77,18 @@ never a silently wrong translation:
     The sources are the patched scripts, so a script takes their LVAR/MVAR names only when every procedure
     of the vanilla `.int` is also in its `.ssl` (1170 of 1238); a number two headers name differently stays
     a number. Without the files, or for a computed number, the number stays.
+  - from the same sources' `define.h` / `animcomd.h`, the arguments that take one of their constants:
+    `get_critter_stat(dude_obj, STAT_gender)`, `has_skill(…, SKILL_SPEECH)`, `get_pc_stat(PCSTAT_level)`,
+    `critter_inven_obj(…, INVEN_TYPE_RIGHT_HAND)`, `metarule(METARULE_IS_LOADGAME, 0)`,
+    `float_msg(…, FLOAT_MSG_YELLOW)`, `anim(…, ANIM_stand, …)`, `reg_anim_func(REG_ANIM_BEGIN, …)`,
+    `critter_dmg(…, DMG_fire)`, `critter_injure(…, DAM_KNOCKED_DOWN)`, `mark_area_known(MARK_TYPE_TOWN, …,
+    MARK_STATE_KNOWN)`, `start_gdialog(…, HEAD_ELDER, BACKGROUND_TENT)`, and `has_trait(TRAIT_PERK, dude_obj,
+    PERK_empathy)` — the third argument of `has_trait` / `critter_add_trait` by its type (TRAIT_PERK /
+    TRAIT_OBJECT / TRAIT_TRAIT, CE `CRITTER_TRAIT_*`). `metarule(METARULE_ELEVATOR, ELEV_…)` and
+    `metarule3(METARULE3_GET_KILL_COUNT, KILL_TYPE_…)` name their argument too. Bit-flag combinations and a
+    value two names share stay numbers.
+  - Some expressions (`b2i`, `div`, `AND` …) are text before the declarations are known; a name in them is a
+    marker until `emit` decides, so a name never appears without its `local`.
 
 ### Scripts that stay `.int`
 
@@ -212,6 +224,5 @@ through and returns to the map; 21 critter heartbeats at 0 ms update time.
 - Integer `+ - *` are 64-bit in Lua and doubles in the VM; CE wraps at 32 bits. Matching CE in Lua would
   need a helper call for every operator (unreadable output) and the VM would have to change with it; no
   vanilla script is known to overflow, so both stay as they are.
-- Message numbers, STAT/SKILL/PERK and the other `define.h` arguments are still numbers (L3); so are the
-  LVARs of the scripts without a matching `.ssl`.
+- Message numbers are still numbers (L3); so are the LVARs of the scripts without a matching `.ssl`.
 - Floats: the VM rounds every float result to 32 bits (`Math.fround`); Lua keeps doubles (L4).

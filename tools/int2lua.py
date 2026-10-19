@@ -271,9 +271,42 @@ NAMED_ARGS = {
     "tile_contains_pid_obj": [(2, "pid")], "tile_contains_obj_pid": [(2, "pid")],
     "kill_critter_type": [(0, "pid")], "proto_data": [(0, "pid")],
 }
+# define.h / animcomd.h name groups: (prefix, kind), first match wins
+ENUM_PREFIXES = [
+    ("STAT_", "stat"), ("PCSTAT_", "pcstat"), ("SKILL_", "skill"), ("PERK_", "perk"), ("TRAIT_", "trait"),
+    ("OBJECT_", "object"), ("INVEN_TYPE_", "inven"), ("METARULE3_", "metarule3"), ("METARULE_", "metarule"),
+    ("FLOAT_MSG_", "float_msg"), ("ANIMATE_ROTATION", "anim"), ("ANIMATE_SET_FRAME", "anim"), ("ANIM_", "anim"),
+    ("REG_ANIM_", "reg_anim"), ("DMG_", "dmg"), ("DAM_", "dam"), ("MARK_TYPE_", "mark_type"),
+    ("MARK_STATE_", "mark_state"), ("HEAD_", "head"), ("BACKGROUND_", "background"), ("ELEV_", "elev"),
+    ("KILL_TYPE_", "kill_type"),
+]
+ENUM_EXCLUDE = {"STAT_max_stat", "STAT_real_max_stat", "PCSTAT_max_pc_stat"}  # bounds, not values
+# Arguments named from those groups: intrinsic -> [(argument, kind)]; the
+# trait argument of has_trait / critter_add_trait depends on the trait type
+# (TRAIT_KINDS)
+ENUM_ARGS = {
+    "get_critter_stat": [(1, "stat")], "set_critter_stat": [(1, "stat")], "do_check": [(1, "stat")],
+    "get_pc_stat": [(0, "pcstat")],
+    "has_skill": [(1, "skill")], "using_skill": [(1, "skill")], "roll_vs_skill": [(1, "skill")],
+    "critter_mod_skill": [(1, "skill")],
+    "critter_inven_obj": [(1, "inven")],
+    "metarule": [(0, "metarule")], "metarule3": [(0, "metarule3")],
+    "float_msg": [(2, "float_msg")],
+    "anim": [(1, "anim")], "reg_anim_animate": [(1, "anim")], "reg_anim_animate_reverse": [(1, "anim")],
+    "reg_anim_animate_forever": [(1, "anim")], "kill_critter": [(1, "anim")],
+    "reg_anim_func": [(0, "reg_anim")],
+    "critter_dmg": [(2, "dmg")], "critter_injure": [(1, "dam")],
+    "mark_area_known": [(0, "mark_type"), (2, "mark_state")],
+    "start_gdialog": [(3, "head"), (4, "background")],
+    "has_trait": [(0, "trait_type")], "critter_add_trait": [(1, "trait_type")],
+    "critter_rm_trait": [(1, "trait_type")],
+}
+TRAIT_KINDS = {0: "perk", 1: "object", 2: "trait"}
+# METARULE_ELEVATOR's argument is an elevator, METARULE3_GET_KILL_COUNT's a kill type
+METARULE_ARGS = {("metarule", 15): (1, "elev"), ("metarule3", 103): (1, "kill_type")}
 # Lua allows 200 locals in a chunk; names beyond this stay numbers
 MAX_NAMED = 180
-NAME_ORDER = ("gvar", "mvar", "lvar", "pid")
+NAME_ORDER = ("gvar", "mvar", "lvar")  # then the define.h groups, then "pid"
 
 # fallout2-ce interpreter.h procedure flags
 PROC_FLAG_TIMED = 0x01
@@ -407,6 +440,20 @@ class SslNames:
             for name, value in (self.read(p)["defines"] if p else []):
                 if name.startswith("PID_"):
                     self.pids.setdefault(value, name)
+        # define.h / animcomd.h constants by prefix (ENUM_PREFIXES); a value two
+        # names share in one group (HEAD_MARCUS, HEAD_OVERSEER) stays a number
+        self.enums = {}
+        for h in ("define.h", "animcomd.h"):
+            p = self.files.get("headers/" + h)
+            for name, value in (self.read(p)["defines"] if p else []):
+                for prefix, kind in ENUM_PREFIXES:
+                    if name.startswith(prefix) and name not in ENUM_EXCLUDE:
+                        self.enums.setdefault(kind, {}).setdefault(value, set()).add(name)
+                        break
+        self.enums = {k: {v: ns.pop() for v, ns in t.items() if len(ns) == 1} for k, t in self.enums.items()}
+        # has_trait / critter_add_trait type (CE interpreter_extra.cc CRITTER_TRAIT_*;
+        # the headers use these names but sslc defines them)
+        self.enums["trait_type"] = {0: "TRAIT_PERK", 1: "TRAIT_OBJECT", 2: "TRAIT_TRAIT"}
 
     def resolve(self, base, inc):
         p = os.path.normpath(os.path.join(os.path.dirname(base), inc))
@@ -431,7 +478,7 @@ class SslNames:
                     if inc:
                         out["includes"].append(inc)
                     continue
-                m = re.match(r"\s*#\s*define\s+([A-Za-z_]\w*)\s+\(?\s*(\d+)\s*\)?\s*$", code)
+                m = re.match(r"\s*#\s*define\s+([A-Za-z_]\w*)\s+\(?\s*(-?\d+)\s*\)?\s*$", code)
                 if m:
                     out["defines"].append((m.group(1), int(m.group(2))))
                     continue
@@ -628,8 +675,10 @@ class Name(Expr):
 
 class NamedConst(Expr):
     """A number with a name from the .gam / .ssl files (GVAR_ENEMY_ARROYO). It
-    is written as the name when the script declares it (ScriptDecompiler.emit
-    declares as many as Lua's local limit allows), else as the number."""
+    becomes the name when the script declares it (ScriptDecompiler.emit declares
+    as many as Lua's local limit allows), else the number. Some expressions are
+    rendered to text during decompilation, before that is known, so lua() leaves
+    a marker that emit() resolves (NAMED_MARK)."""
 
     def __init__(self, name, value, script):
         self.name = name
@@ -638,7 +687,10 @@ class NamedConst(Expr):
         self.kind = "num"
 
     def lua(self):
-        return self.name if self.name in self.script.declared else str(self.value)
+        return "\x01%s\x02%d\x03" % (self.name, self.value)
+
+
+NAMED_MARK = "\x01([A-Za-z_]\\w*)\x02(-?\\d+)\x03"
 
 
 class ProcRef(Expr):
@@ -1127,8 +1179,20 @@ class ProcDecompiler:
                 args = [self.pop(stack, pc) for _ in range(argc)][::-1]
                 if name in ("gsay_option", "giq_option"):
                     args[-2] = self.proc_target(args[-2], pc)
-                for k, kind in NAMED_ARGS.get(name, ()):
-                    args[k] = self.s.name_const(kind, args[k])
+                for k, kind in NAMED_ARGS.get(name, []) + ENUM_ARGS.get(name, []):
+                    raw = args[k]
+                    args[k] = self.s.name_const(kind, raw)
+                    if kind == "trait_type" and isinstance(raw, Const):
+                        # the third argument, has_trait(type, obj, trait) and
+                        # critter_add_trait(obj, type, trait, amount): a perk, an
+                        # object property or a trait, by type
+                        t = TRAIT_KINDS.get(raw.value)
+                        if t:
+                            args[2] = self.s.name_const(t, args[2])
+                if name in ("metarule", "metarule3") and isinstance(args[0], (Const, NamedConst)):
+                    extra = METARULE_ARGS.get((name, args[0].value))
+                    if extra:
+                        args[extra[0]] = self.s.name_const(extra[1], args[extra[0]])
                 e = Call(name, args, name in PURE, name in BUILTIN_VARS)
                 first = args[0] if args else None
                 if pushes:
@@ -1237,6 +1301,7 @@ class ScriptDecompiler:
         self.ssl_matched = False
         if ssl is not None:
             self.names["pid"] = ssl.pids
+            self.names.update(ssl.enums)
             own = ssl.for_script(name, [p.name for p in self.f.procs
                                         if not p.name.startswith(".") and not p.flags & PROC_FLAG_IMPORTED])
             if own is not None:
@@ -1293,7 +1358,7 @@ class ScriptDecompiler:
         """A constant number as its name (NamedConst); anything else as it is."""
         if not (isinstance(e, Const) and not e.is_float):
             return e
-        n = self.names[kind].get(e.value)
+        n = self.names.get(kind, {}).get(e.value)
         if n is None or n in LUA_KEYWORDS or n in RUNTIME_NAMES or n in self.taken_names():
             return e
         if self.named.setdefault(n, (kind, e.value)) != (kind, e.value):
@@ -1439,7 +1504,9 @@ class ScriptDecompiler:
             w("export(%s, %s)" % (lua_string(n), v.lua()))
         if self.exports:
             w("")
-        ordered = sorted(self.named.items(), key=lambda kv: (NAME_ORDER.index(kv[1][0]), kv[1][1]))[:MAX_NAMED]
+        def rank(kind):
+            return NAME_ORDER.index(kind) if kind in NAME_ORDER else (len(NAME_ORDER) + 1 if kind == "pid" else len(NAME_ORDER))
+        ordered = sorted(self.named.items(), key=lambda kv: (rank(kv[1][0]), kv[1][0], kv[1][1]))[:MAX_NAMED]
         self.declared = set(n for n, _kv in ordered)
         if ordered:
             for n, (_kind, v) in ordered:
@@ -1466,7 +1533,9 @@ class ScriptDecompiler:
             w("")
         while lines and lines[-1] == "":
             lines.pop()
-        return "\n".join(lines) + "\n"
+        import re
+        return re.sub(NAMED_MARK, lambda m: m.group(1) if m.group(1) in self.declared else m.group(2),
+                      "\n".join(lines) + "\n")
 
     def value_calls(self):
         return set(name for name, e in self.value_calls_pending if e.used_as_value)
