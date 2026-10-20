@@ -83,8 +83,9 @@ if (typeof window !== 'undefined' && Config.engine.debug) {
             else if (_crawlParam === 'dialogue') runDialogueCrawler()
             else if (_crawlParam === 'combat') runCombatCrawler()
             else if (_crawlParam === 'story') {
-                const maps = new URLSearchParams(location.search).get('maps')
-                runStoryCrawler(maps ? { maps: maps.split(',') } : {})
+                const q = new URLSearchParams(location.search)
+                const maps = q.get('maps')
+                runStoryCrawler({ ...(maps ? { maps: maps.split(',') } : {}), traceDrawsFor: q.get('draws') ?? undefined })
             }
         })
     }

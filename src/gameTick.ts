@@ -114,6 +114,11 @@ export function tickGame(): void {
         return
     }
 
+    // CE game loop: a script's load_map transition, then game state 4 (a script's
+    // dialogue_system_enter) opening the dialogue
+    if (Scripting.processMapTransition()) return
+    Scripting.processDialogueRequest()
+
     // FO2-CE ref: Skill targeting mode keeps the game loop running so the
     // player can scroll the map and see hover feedback while picking a target.
     // All other UI modes (dialogue, inventory, etc.) pause the loop.

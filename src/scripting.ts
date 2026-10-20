@@ -2638,7 +2638,14 @@ export module Scripting {
                 warn('dialogue_system_enter: no self_obj')
                 return
             }
-            talk(this.self_obj._script, this.self_obj as Obj)
+            // CE opGameDialogSystemEnter: an inactive critter (dead / knocked out)
+            // or combat refuses; otherwise it only requests the dialogue (game
+            // state 4), which the main loop opens after this script returns —
+            // not a dialogue nested in the running one (processDialogueRequest)
+            const self = this.self_obj as any
+            if (self.type === 'critter' && (self.dead || ((self.injuryFlags ?? 0) & 0x01) !== 0)) return
+            if (globalState.inCombat) return
+            requestedDialogue = this.self_obj as Obj
         }
         float_msg(obj: Obj, msg: string, type: number) {
             log('float_msg', arguments)
@@ -2911,15 +2918,15 @@ export module Scripting {
             // map index does nothing.
             // The load is a map transition (mapSetTransition → mapHandleTransition), which
             // puts the worldmap party on the new map's area (wmTeleportToArea).
+            // CE mapSetTransition only records it: the main loop changes maps after the
+            // script returns and any dialogue has closed (processMapTransition), not
+            // in the middle of the running script
             if (typeof map === 'string') {
                 setGlobalVar(27, startLocation)
-                const name = map.split('.')[0].toLowerCase()
-                globalState.gMap.loadMap(name)
-                Events.emit('mapTransition', mapIndexOf(name))
+                pendingMapTransition = map.split('.')[0].toLowerCase()
             } else if (map >= 0) {
                 setGlobalVar(27, startLocation)
-                globalState.gMap.loadMapByID(map)
-                Events.emit('mapTransition', map)
+                pendingMapTransition = map
             }
         }
         play_gmovie(movieID: number) {
@@ -3235,6 +3242,39 @@ export module Scripting {
         script._didOverride = false
         script.push_p_proc()
         return script._didOverride
+    }
+
+    // dialogue_system_enter's request (CE gGameDialogSpeaker + game state 4)
+    let requestedDialogue: Obj | null = null
+    // load_map's transition (CE mapSetTransition): a map name or index
+    let pendingMapTransition: string | number | null = null
+
+    /** Change to the map a script's load_map asked for, once no dialogue runs and
+     *  no map is loading (CE game loop → mapHandleTransition). True if it did. */
+    export function processMapTransition(): boolean {
+        if (pendingMapTransition === null || globalState.uiMode !== UIMode.none || globalState.isLoading) return false
+        const map = pendingMapTransition
+        pendingMapTransition = null
+        if (typeof map === 'string') {
+            globalState.gMap.loadMap(map)
+            Events.emit('mapTransition', mapIndexOf(map))
+        } else {
+            globalState.gMap.loadMapByID(map)
+            Events.emit('mapTransition', map)
+        }
+        return true
+    }
+
+    /** Open the dialogue a script requested with dialogue_system_enter, once no
+     *  dialogue or combat is running. Called by the game tick (and the story
+     *  crawler, which ticks by hand). True if one was opened. */
+    export function processDialogueRequest(): boolean {
+        if (!requestedDialogue || globalState.uiMode !== UIMode.none || globalState.inCombat) return false
+        const obj = requestedDialogue
+        requestedDialogue = null
+        if (!obj._script || (obj as any).dead) return false
+        talk(obj._script, obj)
+        return true
     }
 
     export function talk(script: Script, obj: Obj): boolean {

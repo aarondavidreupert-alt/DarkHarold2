@@ -584,6 +584,7 @@ No DevTools interaction needed.
 | `play.html?crawl=dialogue` | `autoCrawler.runDialogueCrawler()` on the default map |
 | `play.html?crawl=combat` | `autoCrawler.runCombatCrawler()` on the default map |
 | `play.html?crawl=maps` | `autoCrawler.runMapCrawler()` — smoke-tests all 156 maps |
+| `play.html?crawl=story#script_backend=vm`, then `…=lua` | `autoCrawler.runStoryCrawler()` — the main-quest maps in story order, every dialogue path; the second run compares its trace with the first (`&maps=a,b` for a subset) |
 
 To run on a specific map, call the function manually from the console after load (see below).
 
@@ -638,6 +639,7 @@ autoCrawler.listHostileCritters()   // returns Critter[] — critters flagged ho
 | `runDialogueCrawler(mapName?)` | Walk every talkable NPC: call its talk proc, click through all dialogue options, assert `UIMode.none` on exit. Optionally loads `mapName` before crawling. Returns a `CrawlerReport`. |
 | `runCombatCrawler(mapName?)` | Engage every hostile critter one-on-one: enter combat, pass the player turn (End Turn), wait for the AI, then force-end. Optionally loads `mapName` before crawling. Returns a `CrawlerReport`. |
 | `runMapCrawler()` | Auto-discovers all maps from the `maps/` directory listing, loads each one in sequence, and records whether it loaded successfully, timed out, threw an exception, or placed the player correctly. Returns a `CrawlerReport`. |
+| `runStoryCrawler({ maps?, maxPathsPerNpc?, maxDepth? })` | Loads the main-quest maps in story order (`STORY_MAPS`) and explores every talkable NPC's dialogue tree path by path (talk, click along the path, end), recording per step the reply, the options and what changed: GVARs, the map's MVARs, every script's LVARs, the player's XP, caps and inventory, the map. Deterministic — the frame loop is paused, the clock pinned and the RNG reseeded per step — so the trace of a `script_backend=vm` run must equal a `=lua` one: each run stores its trace (IndexedDB) and compares with the other backend's. Returns a `StoryReport` (`firstDiff` per map). |
 | `listTalkableNPCs()` | Lists all critters on the current map that have a `talk` script procedure wired up. Useful for a quick pre-flight check before running the dialogue crawler. |
 | `listHostileCritters()` | Lists all living, visible critters on the current map that have a valid AI packet (combat-capable, regardless of their `hostile` flag). Useful for a quick pre-flight check before running the combat crawler. |
 | `downloadReport(report?)` | Downloads the `CrawlerReport` as a JSON file named `crawler_<type>_<map>_<timestamp>.json`. Omit the argument to download the most recent completed report. |

@@ -223,6 +223,31 @@ count and the reply after the first option match in all 58 dialogues. The one mi
 dealer's greeting, is `random()` drawn from the game's RNG, which the map's heartbeats also use, so it
 depends on timing in either backend.
 
+Story crawler (`autoCrawler.runStoryCrawler`, 2026-10-20): the main-quest maps in story order, every
+talkable NPC's dialogue tree path by path, each step's changes recorded (GVARs, the map's MVARs, every
+script's LVARs, the player's stats, XP, caps and inventory). Deterministic — the frame loop paused, the
+clock pinned, the RNG reseeded per step with `randomSeedExact` (CE's own seeding keeps one table slot from
+before, so the same seed could give different rolls) — so a `script_backend=vm` and a `=lua` run must give
+the same trace; each run stores its trace in IndexedDB and compares with the other backend's and with its
+own previous run (`repeatDiff`: nondeterminism in the crawl, not a backend difference). Objects are named
+`pid@tile` where the map file puts them (named before `map_enter_p_proc` moves any), so one extra object
+does not shift every later name. Each map starts from the crawl's starting state (GVARs, MVARs, the player's
+XP and caps reset), so a difference on one map does not carry into the next. Some engine work still runs on
+real-time timers (setTimeout-driven animations: a critter's facing when a script reads it), so a backend can
+differ from its own previous run; each map therefore gets a verdict: `backend-difference` only when VM and
+Lua part before either backend's own run-to-run instability, else `inconclusive` — run each backend twice
+(VM, VM, Lua, Lua). `rng:n` per line counts the random numbers the step's script code drew; with
+`?draws=<label>` (or `traceDrawsFor`) the lines of matching steps list a call stack per draw, and Lua
+errors and exceptions in click handlers are appended in `[…]`. The runs found L8, L9, L10 and L11.
+
+Result 2026-10-20 (29 story maps, about 14 400 steps per run, VM twice and Lua twice): **18 maps identical,
+0 backend differences, 11 inconclusive** — kladwtwn, the Den (denbus1/2, denres1), Modoc (modmain, modinn),
+New Reno (newr1–4) and reddown, where each backend already differs from its own previous run at the same
+line: critters a script places at random on map entry or poo/goo dropped behind a brahmin end up on
+different tiles because setTimeout-driven animations (facing, wandering) advance in real time while the
+crawl waits for assets. Making those animations step with the paused frame loop would make all 29 maps
+conclusive (follow-up).
+
 AutoCrawler, both backends (2026-10-19): `runDialogueCrawler` (every talkable NPC, every option clicked
 through to the end) on ncr1, broken1, redment and sfchina — 185 NPCs; status (complete / no dialogue /
 stuck / combat), options seen and replies per NPC are identical, no exceptions, no Lua errors. The 4

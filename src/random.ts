@@ -22,8 +22,19 @@ function crtRand(): number {
     return (_crtHoldRand >>> 16) & 0x7fff
 }
 
+/** Numbers drawn so far (debug: the story crawler records how many each step draws). */
+export let randomDraws = 0
+let drawHook: (() => void) | null = null
+
+/** Debug: called on every draw (the story crawler's traceDrawsFor). */
+export function setRandomDrawHook(hook: (() => void) | null): void {
+    drawHook = hook
+}
+
 // CE random.cc:104 getRandom — returns 0..max-1
 function getRandom(max: number): number {
+    randomDraws++
+    if (drawHook) drawHook()
     let v1 = 16807 * (_idum % 127773) - 2836 * Math.trunc(_idum / 127773)
     if (v1 < 0) v1 += 0x7fffffff
     if (v1 < 0) v1 += 0x7fffffff
@@ -64,6 +75,14 @@ export function randomBetween(min: number, max: number): number {
 /** CE random.cc:122 randomSeedPrerandom — `-1` reseeds from the CRT generator. */
 export function randomSeedPrerandom(seed: number): void {
     if (seed === -1) seed = crtRand()
+    seedPrerandomInternal(seed)
+}
+
+/** Debug/tests only: seed so the sequence depends on `seed` alone. CE's own
+ *  seeding (above) keeps _iv[0] from before, so the same seed can give
+ *  different numbers; the story crawler needs them reproducible. */
+export function randomSeedExact(seed: number): void {
+    _iv.fill(0)
     seedPrerandomInternal(seed)
 }
 

@@ -351,31 +351,43 @@ export class ScriptVM {
         if (!proc) throw 'ScriptVM: unknown procedure ' + procName
         const dataDepth = this.dataStack.length
         const retDepth = this.retStack.length
+        // a call can come while this VM is running: an intrinsic of the running
+        // procedure (game_time_advance firing this script's timed event) calls
+        // back into it. CE _executeProcedure saves and restores the interpreter's
+        // position around the nested run; so does this, or the outer procedure
+        // would stop at the nested one's end (halted) or go on at its pc.
+        const outer = { pc: this.pc, offset: this.script.offset, halted: this.halted, aborted: this.aborted }
+        try {
+            // arguments first to last, then their count: a procedure's `fetch 0` is
+            // its first argument (CE opCall / opPushBase)
+            args.forEach((arg) => this.push(arg))
+            this.push(args.length)
 
-        // arguments first to last, then their count: a procedure's `fetch 0` is
-        // its first argument (CE opCall / opPushBase)
-        args.forEach((arg) => this.push(arg))
-        this.push(args.length)
+            this.retStack.push(-1) // push return address (TODO: how is this handled?)
 
-        this.retStack.push(-1) // push return address (TODO: how is this handled?)
+            // run procedure code
+            this.pc = proc.offset
+            this.run()
 
-        // run procedure code
-        this.pc = proc.offset
-        this.run()
-
-        if (this.aborted) {
-            // CE: the longjmp drops the procedure's frame; the caller sees 0
-            this.dataStack.length = dataDepth
-            this.retStack.length = retDepth
-            return 0
+            if (this.aborted) {
+                // CE: the longjmp drops the procedure's frame; the caller sees 0
+                this.dataStack.length = dataDepth
+                this.retStack.length = retDepth
+                return 0
+            }
+            if (this.retStack.length > retDepth) {
+                // halted in gsay_end / gsay_message, not returned: the frame stays
+                // for resume() (popping a "return value" here would eat a local)
+                this.suspended.push({ data: dataDepth, ret: retDepth })
+                return 0
+            }
+            return this.pop()
+        } finally {
+            this.pc = outer.pc
+            this.script.seek(outer.offset)
+            this.halted = outer.halted
+            this.aborted = outer.aborted
         }
-        if (this.retStack.length > retDepth) {
-            // halted in gsay_end / gsay_message, not returned: the frame stays
-            // for resume() (popping a "return value" here would eat a local)
-            this.suspended.push({ data: dataDepth, ret: retDepth })
-            return 0
-        }
-        return this.pop()
     }
 
     /** The dialogue is over: continue the suspended procedures, innermost

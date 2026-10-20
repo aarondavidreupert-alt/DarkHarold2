@@ -27,8 +27,10 @@ import { finishLoadingIfReady } from '../gameTick.js'
 import globalState from '../globalState.js'
 import { heart } from '../heart.js'
 import { Critter } from '../object.js'
-import { randomSeedPrerandom } from '../random.js'
+import { setLuaErrorHook } from '../lua/luaRuntime.js'
+import { randomDraws, randomSeedExact, setRandomDrawHook } from '../random.js'
 import { Scripting } from '../scripting.js'
+import { toTileNum } from '../tile.js'
 import { UIMode, uiEndDialogue } from '../ui.js'
 import { critterDisplayName, getOptionElements, getReplyText, listTalkableNPCs, movePlayerAdjacent, setLastReport } from './shared.js'
 
@@ -50,6 +52,8 @@ export interface StoryOptions {
     maps?: string[]
     maxPathsPerNpc?: number
     maxDepth?: number
+    /** steps whose label contains this get a short call stack for every random draw */
+    traceDrawsFor?: string
 }
 
 export interface StoryMapResult {
@@ -57,10 +61,18 @@ export interface StoryMapResult {
     backend: string
     npcs: number
     steps: number
+    loadRng: number // random numbers drawn while the map loaded (map_enter_p_proc and asset callbacks)
     trace: string[]
     // filled when a trace from the other backend was stored
     comparedWith?: string
     firstDiff?: { line: number; mine: string; other: string } | null
+    // the first difference counts as a backend difference only before either
+    // backend's own run-to-run instability (repeatDiff); after it, the traces may
+    // differ from timing alone (setTimeout-driven animations) — "inconclusive"
+    verdict?: 'same' | 'backend-difference' | 'inconclusive'
+    // against the previous run on the same backend: a difference here is
+    // nondeterminism in the crawl itself, not a VM-vs-Lua difference
+    repeatDiff?: { line: number; mine: string; other: string } | null
 }
 
 export interface StoryReport {
@@ -68,29 +80,61 @@ export interface StoryReport {
     backend: string
     timestamp: number
     maps: StoryMapResult[]
-    summary: { maps: number; steps: number; compared: number; differing: number }
+    summary: { maps: number; steps: number; compared: number; differing: number; unstable: number; backendDifferences: number; inconclusive: number }
 }
 
 // ─── State capture ────────────────────────────────────────────────────────────
+
+// Objects are named by what they are and where they were first seen (pid@tile,
+// ~n for a second one there), not by the global uid or a list position: uids
+// shift with everything created before, and one extra object would shift every
+// position after it. An object only one backend has shows up as its own name.
+let labels = new Map<number, string>()
+let taken = new Set<string>()
+
+function resetLabels(): void {
+    labels = new Map()
+    taken = new Set()
+    for (const o of globalState.gMap ? globalState.gMap.getObjects() : []) label(o)
+}
+
+function label(o: any): string {
+    let l = labels.get(o.uid)
+    if (l === undefined) {
+        const base = `${(o.pid ?? -1).toString(16)}@${o.position ? toTileNum(o.position) : '-'}`
+        l = base
+        for (let n = 2; taken.has(l); n++) l = `${base}~${n}`
+        taken.add(l)
+        labels.set(o.uid, l)
+    }
+    return l
+}
 
 interface Snapshot {
     map: string
     gvars: { [k: string]: any }
     mvars: { [k: string]: any }
-    lvars: { [uid: string]: { [k: string]: any } }
+    lvars: { [label: string]: { [k: string]: any } }
+    tiles: { [label: string]: number } // scripted objects and the player: where they stand
     xp: number
     caps: number
     inv: { [pid: string]: number }
+    stats: { [name: string]: number }
     ui: number
 }
+
+// the player's stats a script can test (do_check, get_critter_stat …)
+const PLAYER_STATS = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK', 'HP', 'Max HP', 'Level']
 
 function capture(): Snapshot {
     const map = globalState.gMap
     const player = globalState.player as any
     const lvars: Snapshot['lvars'] = {}
+    const tiles: Snapshot['tiles'] = {}
     for (const o of map ? map.getObjects() : []) {
         const s = (o as any)._script
-        if (s && s.lvars) lvars[String((o as any).uid)] = { ...s.lvars }
+        if (s && s.lvars) lvars[label(o)] = { ...s.lvars }
+        if ((s || (o as any).isPlayer) && (o as any).position) tiles[label(o)] = toTileNum((o as any).position)
     }
     const mapScript = (map?.name ?? '').toLowerCase()
     const inv: Snapshot['inv'] = {}
@@ -100,9 +144,11 @@ function capture(): Snapshot {
         gvars: { ...Scripting.getGlobalVars() },
         mvars: { ...((Scripting.getMapVars() ?? {})[mapScript] ?? {}) },
         lvars,
+        tiles,
         xp: player?.stats?.get?.('Experience') ?? 0,
         caps: player ? Scripting.itemGetTotalCaps(player) : 0,
         inv,
+        stats: Object.fromEntries(PLAYER_STATS.map((n) => [n, player?.getStat?.(n) ?? 0])),
         ui: globalState.uiMode,
     }
 }
@@ -128,9 +174,11 @@ function diff(a: Snapshot, b: Snapshot): string {
     diffTable('M', a.mvars, b.mvars, out)
     const uids = new Set([...Object.keys(a.lvars), ...Object.keys(b.lvars)])
     for (const uid of [...uids].sort()) diffTable(`L${uid}.`, a.lvars[uid] ?? {}, b.lvars[uid] ?? {}, out)
+    diffTable('T', a.tiles, b.tiles, out)
     if (a.xp !== b.xp) out.push(`xp:${a.xp}>${b.xp}`)
     if (a.caps !== b.caps) out.push(`caps:${a.caps}>${b.caps}`)
     diffTable('I', a.inv, b.inv, out)
+    diffTable('P.', a.stats, b.stats, out)
     if (a.ui !== b.ui) out.push(`ui:${a.ui}>${b.ui}`)
     return out.join(' ')
 }
@@ -146,7 +194,7 @@ function hashOf(text: string): number {
 /** Before every step: fixed clock, RNG seeded from where in the run we are. */
 function pin(key: string): void {
     globalState.gameTickTime = PINNED_TIME
-    randomSeedPrerandom(hashOf(key))
+    randomSeedExact(hashOf(key))
 }
 
 // ─── One step ─────────────────────────────────────────────────────────────────
@@ -159,17 +207,50 @@ function dialogueView(): string {
 
 /** Run one action deterministically and return its trace line. Script errors
  *  are part of the trace (both backends must fail the same way). */
+let traceDrawsFor = ''
+
+function callers(): string {
+    // the frames between getRandom and the step: intrinsic, script procedure, …
+    const frames = (new Error().stack ?? '').split('\n').slice(3, 9)
+    return frames.map((f) => (f.trim().match(/at (?:Object\.|Script\.)?([\w.$<>]+)/) ?? [])[1] ?? '?').join('<')
+}
+
 async function step(key: string, label: string, action: () => void): Promise<string> {
+    const draws: string[] = []
+    if (traceDrawsFor && label.includes(traceDrawsFor)) setRandomDrawHook(() => draws.push(callers()))
+    // errors the action does not throw to us: a Lua script error (caught by the
+    // runtime) or an exception in a click handler (reported to window, not to click())
+    const hidden: string[] = []
+    setLuaErrorHook((t) => hidden.push('LUA ' + t.slice(0, 120)))
+    const onError = (e: ErrorEvent) => hidden.push('ERR ' + String(e.message).slice(0, 120))
+    window.addEventListener('error', onError)
     pin(key)
     const before = capture()
+    const drawsAtStart = randomDraws
     let error = ''
     try {
         action()
     } catch (e) {
         error = ` THROW ${String(e).slice(0, 80)}`
     }
+    // the script's own draws happen during the action; draws in the settle below
+    // come from asset callbacks (a talking head's fidget once its art arrives),
+    // which depend on download timing and are not counted
+    const scriptDraws = randomDraws - drawsAtStart
+    setRandomDrawHook(null)
     // let promise callbacks (Lua coroutine resumes, UI updates) settle; the frame loop stays paused
     await new Promise<void>((r) => setTimeout(r, 0))
+    // what the next game tick would do: a map change a script asked for, or a
+    // dialogue a script requested
+    try {
+        if (Scripting.processMapTransition()) {
+            if (!(await finishLoad(`${key}:transition`))) error += ' LOAD-TIMEOUT'
+        } else if (Scripting.processDialogueRequest()) {
+            await new Promise<void>((r) => setTimeout(r, 0))
+        }
+    } catch (e) {
+        error += ` THROW ${String(e).slice(0, 80)}`
+    }
     if (globalState.inCombat) {
         globalState.combat?.forceEnd()
         await new Promise<void>((r) => setTimeout(r, 0))
@@ -179,13 +260,18 @@ async function step(key: string, label: string, action: () => void): Promise<str
         uiEndDialogue()
         error += ' BARTER'
     }
-    return `${label} ${dialogueView()} {${diff(before, capture())}}${error}`
+    setLuaErrorHook(null)
+    window.removeEventListener('error', onError)
+    if (hidden.length) error += ` [${hidden.join(' ; ')}]`
+    const line = `${label} ${dialogueView()} {${diff(before, capture())}} rng:${scriptDraws}${error}` +
+        (draws.length ? ` draws=[${draws.join(' ; ')}]` : '')
+    return line
 }
 
 // ─── One NPC, one map ─────────────────────────────────────────────────────────
 
 async function crawlNpc(npc: Critter, mapName: string, trace: string[], opts: Required<StoryOptions>): Promise<number> {
-    const id = `${mapName}/${npc._script?.scriptName ?? '?'}#${npc.uid}`
+    const id = `${mapName}/${npc._script?.scriptName ?? '?'}#${label(npc)}`
     const frontier: number[][] = [[]]
     let runs = 0
     let steps = 0
@@ -221,21 +307,32 @@ async function crawlNpc(npc: Critter, mapName: string, trace: string[], opts: Re
 async function loadMapQuietly(name: string): Promise<boolean> {
     const map = globalState.gMap
     if (!map) return false
-    if (map.name === name) return true
+    if (map.name === name) {
+        resetLabels()
+        return true
+    }
     pin(`load:${name}`)
     map.loadMap(name)
-    // assets arrive on their own callbacks; the end of the load (map_enter_p_proc)
-    // is run here with the clock and RNG pinned, as the paused frame loop would not
+    return (await finishLoad(`loaded:${name}`)) && map.name === name
+}
+
+/** Wait for a map load to finish. Assets arrive on their own callbacks; the
+ *  end of the load (map_enter_p_proc) is run here with the clock and RNG pinned,
+ *  as the paused frame loop would not. */
+async function finishLoad(key: string): Promise<boolean> {
     const deadline = performance.now() + MAP_LOAD_TIMEOUT_MS
     while (globalState.isLoading) {
         if (performance.now() > deadline) return false
         await new Promise<void>((r) => setTimeout(r, 20))
         if (globalState.loadingAssetsLoaded === globalState.loadingAssetsTotal) {
-            pin(`loaded:${name}`)
+            // name the objects where the map file puts them, before map_enter_p_proc
+            // moves any (some scripts place critters at random on entry)
+            resetLabels()
+            pin(key)
             finishLoadingIfReady()
         }
     }
-    return map.name === name
+    return true
 }
 
 // ─── Trace storage (IndexedDB: traces are megabytes) ──────────────────────────
@@ -268,6 +365,14 @@ async function dbPut(key: string, value: string[]): Promise<void> {
     })
 }
 
+function firstDifference(mine: string[], other: string[]): { line: number; mine: string; other: string } | null {
+    const n = Math.max(mine.length, other.length)
+    for (let i = 0; i < n; i++) {
+        if (mine[i] !== other[i]) return { line: i, mine: mine[i] ?? '(end)', other: other[i] ?? '(end)' }
+    }
+    return null
+}
+
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
 export async function runStoryCrawler(options: StoryOptions = {}): Promise<StoryReport | null> {
@@ -283,26 +388,49 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
         maps: options.maps ?? STORY_MAPS,
         maxPathsPerNpc: options.maxPathsPerNpc ?? MAX_PATHS_PER_NPC,
         maxDepth: options.maxDepth ?? MAX_DEPTH,
+        traceDrawsFor: options.traceDrawsFor ?? '',
     }
+    traceDrawsFor = opts.traceDrawsFor
     const backend = Config.scripting.backend
     const other = backend === 'vm' ? 'lua' : 'vm'
     const report: StoryReport = {
         type: 'story', backend, timestamp: Date.now(), maps: [],
-        summary: { maps: 0, steps: 0, compared: 0, differing: 0 },
+        summary: { maps: 0, steps: 0, compared: 0, differing: 0, unstable: 0, backendDifferences: 0, inconclusive: 0 },
     }
     const prev = { ...Config.scripting.debugLogShowType }
     Config.scripting.debugLogShowType.stub = false
     Config.scripting.debugLogShowType.dialogue = false
     Config.scripting.debugLogShowType.combat = false
     heart.paused = true
+    // every map starts from the state the crawl started with, so one map's
+    // difference (or noise) does not carry into all the later ones
+    const baseline = {
+        gvars: { ...Scripting.getGlobalVars() },
+        mvars: JSON.parse(JSON.stringify(Scripting.getMapVars() ?? {})),
+        xp: (globalState.player as any).stats.getBase('Experience') as number,
+        hp: (globalState.player as any).stats.getBase('HP') as number,
+        caps: Scripting.itemGetTotalCaps(globalState.player as any),
+    }
     try {
         for (const mapName of opts.maps) {
+            Scripting.setGlobalVars(baseline.gvars)
+            Scripting.setMapVars(JSON.parse(JSON.stringify(baseline.mvars)))
+            ;(globalState.player as any).stats.setBase('Experience', baseline.xp)
+            ;(globalState.player as any).stats.setBase('HP', baseline.hp)
+            const capsDelta = baseline.caps - Scripting.itemGetTotalCaps(globalState.player as any)
+            if (capsDelta !== 0) Scripting.itemCapsAdjust(globalState.player as any, capsDelta)
+            const loadDraws = randomDraws
             if (!(await loadMapQuietly(mapName))) {
                 console.warn(`[AutoCrawler] story: ${mapName} did not load`)
                 continue
             }
-            const trace: string[] = [`map ${mapName}`]
+            const start = capture()
+            // draws during the load are reported, not compared line by line: asset
+            // loading is asynchronous, so counts may vary by a few
+            const loadRng = randomDraws - loadDraws
             const npcs = listTalkableNPCs()
+            const trace: string[] = [`map ${mapName} player ${JSON.stringify(start.stats)} xp:${start.xp} caps:${start.caps}`,
+                `npcs ${npcs.map((n) => `${n._script?.scriptName}#${label(n)}`).join(' ')}`]
             let steps = 0
             for (const npc of npcs) {
                 console.log(`[AutoCrawler] story ${mapName}: ${critterDisplayName(npc)} (${npc._script?.scriptName})`)
@@ -312,28 +440,39 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
                     break
                 }
             }
-            const result: StoryMapResult = { map: mapName, backend, npcs: npcs.length, steps, trace }
+            const result: StoryMapResult = { map: mapName, backend, npcs: npcs.length, steps, loadRng, trace }
             const key = `${opts.maxPathsPerNpc}/${opts.maxDepth}/${mapName}`
+            const previous = await dbGet(`${backend}:${key}`)
+            if (previous) {
+                result.repeatDiff = firstDifference(trace, previous)
+                if (result.repeatDiff) report.summary.unstable++
+            }
+            // where each backend stops agreeing with itself (stored per backend; a
+            // backend run once has no known instability yet)
+            const myStable = previous ? (result.repeatDiff?.line ?? Infinity) : undefined
+            if (myStable !== undefined) await dbPut(`${backend}:${key}:stable`, [String(myStable)])
             const stored = await dbGet(`${other}:${key}`)
             if (stored) {
                 result.comparedWith = other
-                const n = Math.max(stored.length, trace.length)
-                result.firstDiff = null
-                for (let i = 0; i < n; i++) {
-                    if (stored[i] !== trace[i]) {
-                        result.firstDiff = { line: i, mine: trace[i] ?? '(end)', other: stored[i] ?? '(end)' }
-                        break
-                    }
-                }
+                result.firstDiff = firstDifference(trace, stored)
                 report.summary.compared++
-                if (result.firstDiff) report.summary.differing++
+                const otherStable = Number((await dbGet(`${other}:${key}:stable`))?.[0] ?? NaN)
+                if (!result.firstDiff) result.verdict = 'same'
+                else {
+                    report.summary.differing++
+                    const limit = Math.min(myStable ?? -1, Number.isNaN(otherStable) ? -1 : otherStable)
+                    result.verdict = result.firstDiff.line < limit ? 'backend-difference' : 'inconclusive'
+                    if (result.verdict === 'backend-difference') report.summary.backendDifferences++
+                    else report.summary.inconclusive++
+                }
             }
             await dbPut(`${backend}:${key}`, trace)
             report.maps.push(result)
             report.summary.maps++
             report.summary.steps += steps
             console.log(`[AutoCrawler] story ${mapName}: ${npcs.length} NPCs, ${steps} steps` +
-                (result.comparedWith ? (result.firstDiff ? `, DIFFERS from ${other} at line ${result.firstDiff.line}` : `, same as ${other}`) : ''))
+                (result.comparedWith ? (result.firstDiff ? `, differs from ${other} at line ${result.firstDiff.line} (${result.verdict})` : `, same as ${other}`) : '') +
+                (result.repeatDiff ? `, differs from the previous ${backend} run at line ${result.repeatDiff.line}` : ''))
             setLastReport(report)
         }
     } finally {
@@ -342,6 +481,7 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
     }
     setLastReport(report)
     console.log(`[AutoCrawler] story: ${report.summary.maps} maps, ${report.summary.steps} steps, ` +
-        `${report.summary.compared} compared, ${report.summary.differing} differing`)
+        `${report.summary.compared} compared, ${report.summary.differing} differing ` +
+        `(${report.summary.backendDifferences} backend differences, ${report.summary.inconclusive} inconclusive), ${report.summary.unstable} unstable`)
     return report
 }
