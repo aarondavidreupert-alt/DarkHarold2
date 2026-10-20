@@ -1,6 +1,7 @@
 // AutoCrawler — report builders and download.
 
 import { getLastReport } from './shared.js'
+import type { StoryReport } from './story.js'
 import type {
     CombatCritterResult,
     CrawlerReport,
@@ -60,7 +61,7 @@ export function printSummary(report: CrawlerReport): void {
 
 /** Download a report as a timestamped JSON file.
  *  If called with no argument, downloads the most recent completed report. */
-export function downloadReport(report?: CrawlerReport | null): void {
+export function downloadReport(report?: CrawlerReport | StoryReport | null): void {
     const r = report ?? getLastReport()
     if (!r) {
         console.warn('[AutoCrawler] No report to download — run a crawl first.')
@@ -71,7 +72,7 @@ export function downloadReport(report?: CrawlerReport | null): void {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `crawler_${r.type}_${r.map}_${r.timestamp}.json`
+    a.download = `crawler_${r.type}_${'map' in r ? r.map : r.backend}_${r.timestamp}.json`
     a.click()
     URL.revokeObjectURL(url)
 }

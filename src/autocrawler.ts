@@ -4,6 +4,7 @@
 //   autoCrawler.runDialogueCrawler()           // crawl current map
 //   autoCrawler.runDialogueCrawler('artemple') // load map then crawl
 //   autoCrawler.runCombatCrawler()
+//   autoCrawler.runStoryCrawler()             // story maps, every dialogue path, VM-vs-Lua trace
 //   autoCrawler.downloadReport()               // download lastReport (no arg needed)
 //   autoCrawler.downloadReport(report)         // download a specific report
 //   autoCrawler.lastReport                     // access last completed report
@@ -16,6 +17,7 @@
 //   dialogue.ts — runDialogueCrawler + crawlOneNpc
 //   combat.ts   — runCombatCrawler + crawlOneCritter
 //   maps.ts     — runMapCrawler + discoverMapNames + crawlOneMap
+//   story.ts    — runStoryCrawler: deterministic dialogue-path crawl, VM-vs-Lua comparison
 //   report.ts   — buildReport, printSummary, downloadReport
 
 import { Config } from './config.js'
@@ -23,6 +25,7 @@ import globalState from './globalState.js'
 import { runCombatCrawler } from './autocrawler/combat.js'
 import { runDialogueCrawler } from './autocrawler/dialogue.js'
 import { runMapCrawler } from './autocrawler/maps.js'
+import { runStoryCrawler } from './autocrawler/story.js'
 import { downloadReport } from './autocrawler/report.js'
 import { getLastReport, listHostileCritters, listTalkableNPCs, waitFor } from './autocrawler/shared.js'
 
@@ -30,6 +33,8 @@ import { getLastReport, listHostileCritters, listTalkableNPCs, waitFor } from '.
 export { runDialogueCrawler } from './autocrawler/dialogue.js'
 export { runCombatCrawler } from './autocrawler/combat.js'
 export { runMapCrawler } from './autocrawler/maps.js'
+export { runStoryCrawler, STORY_MAPS } from './autocrawler/story.js'
+export type { StoryReport, StoryMapResult, StoryOptions } from './autocrawler/story.js'
 export { downloadReport } from './autocrawler/report.js'
 export { listTalkableNPCs, listHostileCritters } from './autocrawler/shared.js'
 export type {
@@ -44,6 +49,7 @@ export type {
 } from './autocrawler/types.js'
 
 import type { CrawlerReport } from './autocrawler/types.js'
+import type { StoryReport } from './autocrawler/story.js'
 
 // ─── Window exposure ──────────────────────────────────────────────────────────
 
@@ -52,17 +58,19 @@ if (typeof window !== 'undefined' && Config.engine.debug) {
         runDialogueCrawler,
         runCombatCrawler,
         runMapCrawler,
+        runStoryCrawler,
         listTalkableNPCs,
         listHostileCritters,
         downloadReport,
-        get lastReport(): CrawlerReport | null { return getLastReport() },
+        get lastReport(): CrawlerReport | StoryReport | null { return getLastReport() },
     }
 
     // URL auto-start: play.html?crawl=maps  |  ?crawl=dialogue  |  ?crawl=combat
+    //   |  ?crawl=story[&maps=a,b] (with #script_backend=vm / =lua)
     // init.ts skips the map-from-query load when ?crawl= is present, so the
     // default map (artemple) loads normally. We wait for it to finish then run.
     const _crawlParam = new URLSearchParams(location.search).get('crawl')
-    if (_crawlParam === 'maps' || _crawlParam === 'dialogue' || _crawlParam === 'combat') {
+    if (_crawlParam === 'maps' || _crawlParam === 'dialogue' || _crawlParam === 'combat' || _crawlParam === 'story') {
         waitFor(
             () => globalState.gMap !== null && globalState.player !== null && !globalState.isLoading,
             30000
@@ -74,6 +82,10 @@ if (typeof window !== 'undefined' && Config.engine.debug) {
             if (_crawlParam === 'maps') runMapCrawler()
             else if (_crawlParam === 'dialogue') runDialogueCrawler()
             else if (_crawlParam === 'combat') runCombatCrawler()
+            else if (_crawlParam === 'story') {
+                const maps = new URLSearchParams(location.search).get('maps')
+                runStoryCrawler(maps ? { maps: maps.split(',') } : {})
+            }
         })
     }
 }

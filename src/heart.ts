@@ -245,9 +245,14 @@ class Heart {
     }
 
     _tick(time: number) {
-        heart._stepOnly(time)
+        if (heart.paused) heart._lastTick = time // frozen: no frames, no catch-up on resume
+        else heart._stepOnly(time)
         window.requestAnimationFrame(heart._tick)
     }
+
+    // Debug: stop the frame loop (no heartbeats, animations or timed events) while
+    // the story crawler drives scripts step by step. DH2 test tooling, not CE.
+    paused = false
 
     // Run one logical frame without re-scheduling requestAnimationFrame.
     // Used by debug.step() and the AutoCrawler so that repeated synthetic

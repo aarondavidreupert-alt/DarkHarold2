@@ -8,6 +8,7 @@ import { heart } from '../heart.js'
 import { Critter } from '../object.js'
 import { centerCamera } from '../renderer.js'
 import type { CrawlerReport } from './types.js'
+import type { StoryReport } from './story.js'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -23,13 +24,13 @@ export const CRAWLER_HP = 9999
 
 // Last completed report — accessible as autoCrawler.lastReport in DevTools.
 // Exposed as a `let` re-export so consumers see live binding semantics.
-export let lastReport: CrawlerReport | null = null
+export let lastReport: CrawlerReport | StoryReport | null = null
 
-export function setLastReport(r: CrawlerReport | null): void {
+export function setLastReport(r: CrawlerReport | StoryReport | null): void {
     lastReport = r
 }
 
-export function getLastReport(): CrawlerReport | null {
+export function getLastReport(): CrawlerReport | StoryReport | null {
     return lastReport
 }
 
