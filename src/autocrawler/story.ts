@@ -27,13 +27,14 @@ import { finishLoadingIfReady } from '../gameTick.js'
 import { setGameMovieSkipAll } from '../gameMovie.js'
 import globalState from '../globalState.js'
 import { heart } from '../heart.js'
-import { Critter } from '../object.js'
+import { cloneItem, Critter } from '../object.js'
 import { setLuaErrorHook } from '../lua/luaRuntime.js'
 import { randomDraws, randomSeedExact, setRandomDrawHook } from '../random.js'
 import { Scripting } from '../scripting.js'
 import { toTileNum } from '../tile.js'
 import { setVMFatalHook } from '../vm.js'
 import { UIMode, uiEndDialogue } from '../ui.js'
+import { activeBarter } from '../ui_barter.js'
 import { uiElevatorDone } from '../ui_elevator.js'
 import { uiCloseWorldMap } from '../ui_worldmap.js'
 import { critterDisplayName, getOptionElements, getReplyText, listTalkableNPCs, movePlayerAdjacent, setLastReport } from './shared.js'
@@ -235,12 +236,39 @@ function inventoryOf(o: any): string {
     return Object.keys(inv).sort((a, b) => Number(a) - Number(b)).map((p) => `${p}x${inv[p]}`).join(',')
 }
 
+const PID_BOTTLE_CAPS = 41
+
+/** One purchase in an open barter screen: the merchant's cheapest item (one of
+ *  it), paid with exactly the caps the merchant asks (CE _barter_compute_value:
+ *  the script's barter modifier, the merchant's reaction, both Barter skills).
+ *  The bought item and the caps then show in the step's state change, and the
+ *  later dialogues run with them. */
+function barterTrade(): string {
+    const b = activeBarter
+    if (!b) return ' buy=no-screen'
+    const unit = (o: any) => o.stackCost(1)
+    const wares = b.merchantInventory().filter((o: any) => o.pid !== PID_BOTTLE_CAPS && unit(o) > 0)
+        .sort((x: any, y: any) => unit(x) - unit(y) || x.pid - y.pid)
+    if (wares.length === 0) return ' buy=nothing'
+    const item: any = wares[0]
+    b.put('merchant', item, 1)
+    const price = b.quote()
+    const caps: any = b.playerInventory().find((o: any) => o.pid === PID_BOTTLE_CAPS)
+    // an empty offer is never good enough (CE _barter_attempt_transaction): at least one cap
+    const pay = Math.max(price, 1)
+    if (!caps || (caps.amount ?? 1) < pay) return ` buy=${item.pid}@${price}:short`
+    b.put('player', caps, pay)
+    if (b.offer()) return ` buy=${item.pid}@${price}:ok`
+    // the merchant's answer (CE inventry.msg 28 not good enough / 31 cannot carry)
+    return ` buy=${item.pid}@${price}:refused("${getReplyText().slice(0, 40)}")`
+}
+
 /** A screen a script opened that the crawl does not drive: note it and close it. */
 function closeScreens(subject: any): string {
     let note = ''
     if (globalState.uiMode === UIMode.barter) {
         // the barter the script set up: its price modifier and what the merchant offers
-        note += ` BARTER mod=${Scripting.getDialogueBarterMod()} inv=[${inventoryOf(subject)}]`
+        note += ` BARTER mod=${Scripting.getDialogueBarterMod()} inv=[${inventoryOf(subject)}]` + barterTrade()
         uiEndDialogue()
     }
     if (globalState.uiMode === UIMode.worldMap) {
@@ -495,14 +523,16 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
     // a script's play_gmovie ends at once: a real movie's fade timer, video events and
     // uiMode switches would land in later steps at times that vary from run to run
     setGameMovieSkipAll(true)
-    // every map starts from the state the crawl started with, so one map's
-    // difference (or noise) does not carry into all the later ones
+    // every map starts from the state the crawl started with (GVARs, MVARs, XP, HP,
+    // the inventory and its caps), so one map's difference (or noise) does not
+    // carry into all the later ones
     const baseline = {
         gvars: { ...Scripting.getGlobalVars() },
         mvars: JSON.parse(JSON.stringify(Scripting.getMapVars() ?? {})),
         xp: (globalState.player as any).stats.getBase('Experience') as number,
         hp: (globalState.player as any).stats.getBase('HP') as number,
         caps: Scripting.itemGetTotalCaps(globalState.player as any),
+        inventory: (globalState.player as any).inventory.map(cloneItem) as any[],
     }
     try {
         for (const mapName of opts.maps) {
@@ -510,6 +540,8 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
             Scripting.setMapVars(JSON.parse(JSON.stringify(baseline.mvars)))
             ;(globalState.player as any).stats.setBase('Experience', baseline.xp)
             ;(globalState.player as any).stats.setBase('HP', baseline.hp)
+            // what the last map's purchases and scripts added or took
+            ;(globalState.player as any).inventory = baseline.inventory.map(cloneItem)
             const capsDelta = baseline.caps - Scripting.itemGetTotalCaps(globalState.player as any)
             if (capsDelta !== 0) Scripting.itemCapsAdjust(globalState.player as any, capsDelta)
             const loadDraws = randomDraws
@@ -539,8 +571,8 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
                 if (globalState.gMap?.name !== mapName) trace.push(`left the map for ${globalState.gMap?.name}`)
             }
             const result: StoryMapResult = { map: mapName, backend, npcs: npcs.length, steps, loadRng, trace }
-            // v2: message log + barter in the lines; +o: the object phase ran
-            const key = `v2${opts.objects ? '+o' : ''}/${opts.maxPathsPerNpc}/${opts.maxDepth}/${mapName}`
+            // v2: message log + barter in the lines; v3: a purchase in each barter; +o: the object phase ran
+            const key = `v3${opts.objects ? '+o' : ''}/${opts.maxPathsPerNpc}/${opts.maxDepth}/${mapName}`
             const previous = await dbGet(`${backend}:${key}`)
             if (previous) {
                 result.repeatDiff = firstDifference(trace, previous)

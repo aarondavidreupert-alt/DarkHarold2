@@ -18,4 +18,5 @@ limitations under the License.
 // "Per-file split proposals" §21.
 
 export { uiGetAmount, uiSwapItem } from './ui_barter/swap.js'
-export { uiBarterMode } from './ui_barter/screen.js'
+export { activeBarter, uiBarterMode } from './ui_barter/screen.js'
+export type { BarterControl } from './ui_barter/screen.js'

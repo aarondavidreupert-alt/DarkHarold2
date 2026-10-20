@@ -117,7 +117,22 @@ export function stopBarterPortraitAnimation(): void {
     }
 }
 
+/** The open barter screen's trade logic, for the story crawler, which trades
+ *  without dragging items (DH2 test tooling, not CE). */
+export interface BarterControl {
+    playerInventory(): Obj[]
+    merchantInventory(): Obj[]
+    /** what the merchant's table costs the player (CE _barter_compute_value) */
+    quote(): number
+    /** move `amount` of an inventory item onto its owner's table */
+    put(side: 'player' | 'merchant', item: Obj, amount: number): void
+    /** the Offer button; true if the trade went through */
+    offer(): boolean
+}
+export let activeBarter: BarterControl | null = null
+
 function uiEndBarterMode() {
+    activeBarter = null
     stopBarterPortraitAnimation()
     const $barterBox = $id('barterBox')
 
@@ -233,7 +248,7 @@ export function uiBarterMode(merchant: Critter) {
     }
 
     // TODO: checkOffer() or some-such
-    function offer() {
+    function offer(): boolean {
         dbg('script', '[Barter] offer')
 
         // CE inventory.cc _barter_attempt_transaction: first the weight — "Sorry, you cannot
@@ -247,7 +262,7 @@ export function uiBarterMode(merchant: Critter) {
             }, 0)
         if (tableWeight > player.getStat('Carry') - carried) {
             uiSetDialogueReply(getMessage('inventry', 31) ?? 'Sorry, you cannot carry that much.')
-            return
+            return false
         }
 
         const playerOffered = totalAmount(playerBarterTable)
@@ -279,13 +294,26 @@ export function uiBarterMode(merchant: Critter) {
             merchantBarterTable = []
 
             redrawBarterInventory()
+            return true
         } else {
             // CE ref: inventory.cc:4742-4755 _barter_attempt_transaction —
             // message 28 "No, your offer is not good enough.", rendered via
             // gameDialogRenderSupplementaryMessage into the dialogue reply
             // window (DH2: #dialogueBoxReply — see uiSetDialogueReply).
             uiSetDialogueReply(getMessage('inventry', 28) ?? 'No, your offer is not good enough.')
+            return false
         }
+    }
+
+    activeBarter = {
+        playerInventory: () => workingPlayerInventory,
+        merchantInventory: () => workingMerchantInventory,
+        quote: () => barterMinPlayerOffer(merchantBarterTable),
+        put: (side, item, amount) => {
+            if (side === 'player') uiSwapItem(workingPlayerInventory, item, playerBarterTable, amount)
+            else uiSwapItem(workingMerchantInventory, item, merchantBarterTable, amount)
+        },
+        offer: () => offer(),
     }
 
     function drawInventory($el: HTMLElement, who: 'p' | 'm' | 'l' | 'r', objects: Obj[], scroll: number = 0) {
@@ -379,7 +407,7 @@ export function uiBarterMode(merchant: Critter) {
     })
 
     $id('barterTalkButton').onclick = uiEndBarterMode
-    $id('barterOfferButton').onclick = offer
+    $id('barterOfferButton').onclick = () => { offer() }
 
     // CE ref: inventory.cc:1086-1225 — outer-inventory scroll buttons, one
     // item per click, clamped so there's always at least one item visible.

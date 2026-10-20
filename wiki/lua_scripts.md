@@ -232,7 +232,7 @@ the same trace; each run stores its trace in IndexedDB and compares with the oth
 own previous run (`repeatDiff`: nondeterminism in the crawl, not a backend difference). Objects are named
 `pid@tile` where the map file puts them (named before `map_enter_p_proc` moves any), so one extra object
 does not shift every later name. Each map starts from the crawl's starting state (GVARs, MVARs, the player's
-XP and caps reset), so a difference on one map does not carry into the next. A script's `play_gmovie`
+XP, HP and inventory with its caps reset), so a difference on one map does not carry into the next. A script's `play_gmovie`
 ends at once during the crawl (`setGameMovieSkipAll`), and `?crawl=` skips the opening movies and the main
 menu: a real movie's fade timer and `uiMode` switches would land in later steps. Each map gets a verdict:
 `backend-difference` only when VM and Lua part before either backend's own run-to-run instability
@@ -242,8 +242,12 @@ the random numbers the step's script code drew; with
 errors and exceptions in click handlers are appended in `[…]`; a fatal script error (CE `programFatalError`:
 stack overflow, division by zero) is `[FATAL …]` on both backends. Each line also has the message-window
 text the step produced (`log=[…]`: `display_msg`, skill results, XP). A barter screen a script opens is
-recorded with its price modifier and the merchant's inventory (`BARTER mod=… inv=[pid x n,…]`) and closed;
-a world map or elevator screen likewise. After the dialogues an **object pass** (`objects: false` turns it
+recorded with its price modifier and the merchant's inventory (`BARTER mod=… inv=[pid x n,…]`), then the
+crawl buys one of the merchant's cheapest items, paying exactly the caps the screen asks
+(`buy=<pid>@<price>:ok`, `:refused("<the merchant's answer>")`, `:short` when the player has too few caps,
+`buy=nothing`) through the screen's own trade logic (`activeBarter`: CE `_barter_compute_value` /
+`_barter_attempt_transaction`), and closes it; what is bought shows in the step's state change and the
+later dialogues run with it. A world map or elevator screen is noted and closed. After the dialogues an **object pass** (`objects: false` turns it
 off) runs every scripted object's other entry points with the player next to it: examine
 (`description_p_proc`), look (`look_at_p_proc`), use (`use_p_proc`, not on critters), pick up
 (`pickup_p_proc`, items) and First Aid, Doctor, Lockpick, Traps, Science and Repair (`use_skill_on_p_proc`)
@@ -265,11 +269,17 @@ starting with a space were lost: miwell's examine text; a missing message threw 
 and L17 (the Lua backend froze on a procedure that calls itself: First Aid on Eldridge's doors in New Reno;
 24 steps now end in `[FATAL Stack overflow]` on both backends).
 
+With a purchase in every barter screen and the inventory reset per map (2026-10-20; 29 maps, 27 264 steps;
+54 barter screens: 39 purchases, 3 refused for weight with the heavy debug start kit, 6 short of caps, 6 with
+nothing for sale; VM, Lua, VM): **all 29 maps identical on both backends**. A trade runs no script (CE
+calls none in `inventoryOpenTrade`); what it checks is that the script-set price modifier, the merchant's
+reaction (LVAR 0) and the stock a script gave the merchant agree, and the bought items in later dialogues.
+
 AutoCrawler, both backends (2026-10-19): `runDialogueCrawler` (every talkable NPC, every option clicked
 through to the end) on ncr1, broken1, redment and sfchina — 185 NPCs; status (complete / no dialogue /
 stuck / combat), options seen and replies per NPC are identical, no exceptions, no Lua errors. The 4
 "stuck" NPCs (e.g. the NCR craps dealer) are stuck in both. `runCombatCrawler` on klatoxcv: 5 of 5 fights
-complete in both. Not covered yet: buying and selling in a barter screen, and quest chains across maps.
+complete in both. Not covered yet: selling in a barter screen, and quest chains across maps.
 
 In game (`play.html?arvillag#script_backend=lua`): all 143 scripted objects and the map script run in Lua;
 the Elder's dialogue (talking head, quest node with the flask and money, the `gsay_message` farewell) runs

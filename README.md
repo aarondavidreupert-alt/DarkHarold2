@@ -584,7 +584,7 @@ No DevTools interaction needed.
 | `play.html?crawl=dialogue` | `autoCrawler.runDialogueCrawler()` on the default map |
 | `play.html?crawl=combat` | `autoCrawler.runCombatCrawler()` on the default map |
 | `play.html?crawl=maps` | `autoCrawler.runMapCrawler()` — smoke-tests all 156 maps |
-| `play.html?crawl=story#script_backend=vm`, then `…=lua` | `autoCrawler.runStoryCrawler()` — the main-quest maps in story order, every dialogue path, then every scripted object's examine / look / use / pick-up / skill procedures; the second run compares its trace with the first (`&maps=a,b` for a subset; changing only the `#…` part does not reload the page) |
+| `play.html?crawl=story#script_backend=vm`, then `…=lua` | `autoCrawler.runStoryCrawler()` — the main-quest maps in story order, every dialogue path (with a purchase in every barter screen), then every scripted object's examine / look / use / pick-up / skill procedures; the second run compares its trace with the first (`&maps=a,b` for a subset; changing only the `#…` part does not reload the page) |
 
 To run on a specific map, call the function manually from the console after load (see below).
 
