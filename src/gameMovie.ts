@@ -81,6 +81,14 @@ const FADE_MS = 500 // paletteFadeTo duration (palette.cc fades over ~60 steps)
 
 let playing: Promise<void> | null = null
 
+// Debug (story crawler): a movie ends as soon as it is asked for — the same as the
+// player skipping it at once, without the real-time fade, video and uiMode switches.
+// DH2 test tooling, not CE.
+let skipAll = false
+export function setGameMovieSkipAll(skip: boolean): void {
+    skipAll = skip
+}
+
 export function gameMovieIsPlaying(): boolean {
     return playing !== null
 }
@@ -171,6 +179,12 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
     if (playing) return playing.then(() => gameMoviePlay(movie, flags))
     const name = MOVIE_FILE_NAMES[movie]
     if (name === undefined) return Promise.resolve()
+    if (skipAll) {
+        // what finish() does once the movie ends
+        globalState.seenMovies.add(movie)
+        if (movie === MOVIE_VSUIT) globalState.player?.updateNativeLook()
+        return Promise.resolve()
+    }
     dbg('script', `[Movie] playing ${name}.mve (flags 0x${flags.toString(16)})`)
 
     playing = new Promise<void>((resolve) => {

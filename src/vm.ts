@@ -296,6 +296,15 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
 const modulo = binop((x, y) => x % y)
 const divide = arith((x, y) => x / y, (r) => r | 0)
 
+// a procedure halted in gsay_end / gsay_message (ScriptVM.suspended)
+interface Suspended {
+    data: number // stack depths it was called at
+    ret: number
+    dvarBase: number
+    dataFrame: any[] // its part of the stacks
+    retFrame: number[]
+}
+
 export class ScriptVM {
     script: BinaryReader
     intfile: IntFile
@@ -306,9 +315,11 @@ export class ScriptVM {
     dvarBase: number = 0
     halted: boolean = false
     aborted: boolean = false // the last run() stopped on a fatal error
-    // procedures halted inside gsay_end / gsay_message (stack depths at their
-    // call), innermost last; resume() continues them
-    suspended: { data: number; ret: number }[] = []
+    // procedures halted inside gsay_end / gsay_message, innermost last; resume()
+    // continues them. Each keeps its own stack frame (taken off the shared stacks
+    // when it halted) and the depths it was called at: frame pointers are
+    // absolute stack indices, so the frame goes back at the same depth.
+    suspended: Suspended[] = []
 
     constructor(script: BinaryReader, intfile: IntFile) {
         this.script = script
@@ -356,7 +367,7 @@ export class ScriptVM {
         // back into it. CE _executeProcedure saves and restores the interpreter's
         // position around the nested run; so does this, or the outer procedure
         // would stop at the nested one's end (halted) or go on at its pc.
-        const outer = { pc: this.pc, offset: this.script.offset, halted: this.halted, aborted: this.aborted }
+        const outer = { pc: this.pc, offset: this.script.offset, halted: this.halted, aborted: this.aborted, dvarBase: this.dvarBase }
         try {
             // arguments first to last, then their count: a procedure's `fetch 0` is
             // its first argument (CE opCall / opPushBase)
@@ -376,9 +387,18 @@ export class ScriptVM {
                 return 0
             }
             if (this.retStack.length > retDepth) {
-                // halted in gsay_end / gsay_message, not returned: the frame stays
-                // for resume() (popping a "return value" here would eat a local)
-                this.suspended.push({ data: dataDepth, ret: retDepth })
+                // halted in gsay_end / gsay_message, not returned: its frame waits
+                // for resume() (popping a "return value" here would eat a local).
+                // It comes off the shared stacks: a procedure that halts in a
+                // nested call (Den's Sheila: Node996's game_time_advance fires her
+                // timed event, which opens the after-scene dialogue) must not leave
+                // its frame under the outer procedure, which goes on running. (CE runs
+                // the dialogue inside gsay_end, game_dialog.cc gameDialogEnter, so
+                // there every nested run ends before the outer one continues.)
+                this.suspended.push({
+                    data: dataDepth, ret: retDepth, dvarBase: this.dvarBase,
+                    dataFrame: this.dataStack.splice(dataDepth), retFrame: this.retStack.splice(retDepth),
+                })
                 return 0
             }
             return this.pop()
@@ -387,6 +407,7 @@ export class ScriptVM {
             this.script.seek(outer.offset)
             this.halted = outer.halted
             this.aborted = outer.aborted
+            this.dvarBase = outer.dvarBase
         }
     }
 
@@ -395,19 +416,46 @@ export class ScriptVM {
      *  returns). One that halts again (another gsay_message) waits for the
      *  next resume(). */
     resume(): void {
-        while (this.suspended.length > 0) {
-            const depth = this.suspended.pop()!
-            this.pc = this.popAddr()
-            this.run()
-            if (this.aborted) {
-                this.dataStack.length = depth.data
-                this.retStack.length = depth.ret
-            } else if (this.retStack.length > depth.ret) {
-                this.suspended.push(depth)
-                return
-            } else {
-                this.pop() // its return value
+        const outer = { pc: this.pc, offset: this.script.offset, halted: this.halted, aborted: this.aborted, dvarBase: this.dvarBase }
+        try {
+            while (this.suspended.length > 0) {
+                const s = this.suspended.pop()!
+                // put the frame back at the depth it was called at: set aside what
+                // is above that depth now, fill up to it if the stacks are lower
+                const aboveData = this.dataStack.splice(s.data)
+                const aboveRet = this.retStack.splice(s.ret)
+                const dataLen = this.dataStack.length
+                const retLen = this.retStack.length
+                while (this.dataStack.length < s.data) this.dataStack.push(0)
+                while (this.retStack.length < s.ret) this.retStack.push(-1)
+                this.dataStack.push(...s.dataFrame)
+                this.retStack.push(...s.retFrame)
+                this.dvarBase = s.dvarBase
+                this.pc = this.popAddr()
+                this.run()
+                let halted = false
+                if (!this.aborted && this.retStack.length > s.ret) {
+                    // halted again (another gsay_message): wait for the next resume()
+                    s.dvarBase = this.dvarBase
+                    s.dataFrame = this.dataStack.splice(s.data)
+                    s.retFrame = this.retStack.splice(s.ret)
+                    this.suspended.push(s)
+                    halted = true
+                }
+                // returned (its return value is dropped), aborted or halted again:
+                // the stacks go back to what they were
+                this.dataStack.length = dataLen
+                this.retStack.length = retLen
+                this.dataStack.push(...aboveData)
+                this.retStack.push(...aboveRet)
+                if (halted) return
             }
+        } finally {
+            this.pc = outer.pc
+            this.script.seek(outer.offset)
+            this.halted = outer.halted
+            this.aborted = outer.aborted
+            this.dvarBase = outer.dvarBase
         }
     }
 

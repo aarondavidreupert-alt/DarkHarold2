@@ -686,7 +686,10 @@ export class Obj {
                     return
                 }
                 try {
-                    scriptName = lookupScriptName(lstIndex)
+                    // A proto's sid is a 0-based scripts.lst index (CE proto_instance.cc
+                    // _obj_new_sid: script->index = sid & 0xFFFFFF; scripts.cc scriptsGetFileName
+                    // reads gScriptsListEntries[index]); lookupScriptName takes the 1-based number.
+                    scriptName = lookupScriptName(lstIndex + 1)
                     dbg('object', `[Script] PRO sid=${lstIndex} → name='${scriptName}' (pid=${this.pid})`)
                 } catch (e) {
                     dbgWarn('object', `[Script] PRO sid=${lstIndex} lookup failed for pid=${this.pid}:`, e)

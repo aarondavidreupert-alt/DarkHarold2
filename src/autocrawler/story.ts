@@ -24,6 +24,7 @@ import { isCombatActive } from '../combat.js'
 import { Config } from '../config.js'
 import { START_TICKS } from '../gametime.js'
 import { finishLoadingIfReady } from '../gameTick.js'
+import { setGameMovieSkipAll } from '../gameMovie.js'
 import globalState from '../globalState.js'
 import { heart } from '../heart.js'
 import { Critter } from '../object.js'
@@ -68,7 +69,7 @@ export interface StoryMapResult {
     firstDiff?: { line: number; mine: string; other: string } | null
     // the first difference counts as a backend difference only before either
     // backend's own run-to-run instability (repeatDiff); after it, the traces may
-    // differ from timing alone (setTimeout-driven animations) — "inconclusive"
+    // differ from timing alone (anything still running on real time) — "inconclusive"
     verdict?: 'same' | 'backend-difference' | 'inconclusive'
     // against the previous run on the same backend: a difference here is
     // nondeterminism in the crawl itself, not a VM-vs-Lua difference
@@ -402,6 +403,9 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
     Config.scripting.debugLogShowType.dialogue = false
     Config.scripting.debugLogShowType.combat = false
     heart.paused = true
+    // a script's play_gmovie ends at once: a real movie's fade timer, video events and
+    // uiMode switches would land in later steps at times that vary from run to run
+    setGameMovieSkipAll(true)
     // every map starts from the state the crawl started with, so one map's
     // difference (or noise) does not carry into all the later ones
     const baseline = {
@@ -477,6 +481,7 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
         }
     } finally {
         heart.paused = false
+        setGameMovieSkipAll(false)
         Object.assign(Config.scripting.debugLogShowType, prev)
     }
     setLastReport(report)

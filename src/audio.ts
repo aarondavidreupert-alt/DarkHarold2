@@ -278,8 +278,16 @@ export class HTMLAudioEngine implements AudioEngine {
         }
     }
 
+    // CE game_sound.cc backgroundSoundDelete — stop the music and free its stream. Every restart
+    // goes through playMusic (a new element); a paused element that kept its src would keep
+    // its HTTP connection, and a few map changes would use up the browser's six per host.
     stopMusic(): void {
-        if (this.musicAudio) this.musicAudio.pause()
+        const el = this.musicAudio
+        if (!el) return
+        this.musicAudio = null
+        el.pause()
+        el.removeAttribute('src')
+        el.load()
     }
 
     stopAll(): void {

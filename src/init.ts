@@ -117,7 +117,11 @@ export function initGame() {
         globalState.gMap.loadMap('artemple')
         // CE main.cc:86-91 — IPLOGO (fade in), INTRO, CREDITS before the main menu,
         // unless sfall's SkipOpeningMovies is set (Config.ui.skipOpeningMovies).
-        if (Config.ui.skipOpeningMovies) {
+        // AutoCrawler (?crawl=): neither — the crawl plays on the background map, and the
+        // movies' real-time uiMode switches would land in the middle of its steps.
+        if (crawlParam) {
+            // nothing: autocrawler.ts starts the crawl once the map has loaded
+        } else if (Config.ui.skipOpeningMovies) {
             showMainMenu()
         } else {
             void gameMoviePlay(MOVIE_IPLOGO, GAME_MOVIE_FADE_IN)

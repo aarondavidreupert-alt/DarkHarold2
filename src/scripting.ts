@@ -22,7 +22,7 @@ import { addFloatMessage, FLOAT_MSG_COLOR } from './floatText.js'
 import { sfxBuildOpenName } from './sfxNames.js'
 import { FIDGET_BAD, FIDGET_GOOD, FIDGET_NEUTRAL, GAME_DIALOG_REACTION_NEUTRAL, reactToOption, startLips, startTalkingHead, talkToCritterReacts, isTalkingHeadActive } from './talkingHead.js'
 import { gameMoviePlay, SCRIPT_MOVIE_FLAGS } from './gameMovie.js'
-import { randomInit, randomSeedPrerandom } from './random.js'
+import { randomSeedPrerandom } from './random.js'
 import { critterAdjustRadiation } from './radiation.js'
 import { Combat, isCombatActive } from './combat.js'
 import { ANIM_FALL_BACK_SF, ANIM_FALL_FRONT_BLOOD_SF, correctDeath, critterDamage, critterKill, itemDropAll, killCounts } from './critter.js'
@@ -3567,8 +3567,8 @@ export module Scripting {
 
     export function init(mapName: string, mapID?: number) {
         Worldmap.setWorldmapGlobalVarHooks((g) => globalVars[g] ?? 0, setGlobalVar) // car GVARs
-        // CE ref: random.cc:31 randomInit() — seeds from compat_timeGetTime() for different rolls each launch
-        randomInit(Date.now())
+        // No randomInit here: CE seeds the RNG once per launch (game.cc gameInitWithOptions →
+        // random.cc randomInit; DH2: random.ts on module load), not on every map load.
         loadGlobalVars()
         reset(mapName, mapID)
     }

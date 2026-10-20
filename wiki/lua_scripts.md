@@ -232,21 +232,23 @@ the same trace; each run stores its trace in IndexedDB and compares with the oth
 own previous run (`repeatDiff`: nondeterminism in the crawl, not a backend difference). Objects are named
 `pid@tile` where the map file puts them (named before `map_enter_p_proc` moves any), so one extra object
 does not shift every later name. Each map starts from the crawl's starting state (GVARs, MVARs, the player's
-XP and caps reset), so a difference on one map does not carry into the next. Some engine work still runs on
-real-time timers (setTimeout-driven animations: a critter's facing when a script reads it), so a backend can
-differ from its own previous run; each map therefore gets a verdict: `backend-difference` only when VM and
-Lua part before either backend's own run-to-run instability, else `inconclusive` — run each backend twice
-(VM, VM, Lua, Lua). `rng:n` per line counts the random numbers the step's script code drew; with
+XP and caps reset), so a difference on one map does not carry into the next. A script's `play_gmovie`
+ends at once during the crawl (`setGameMovieSkipAll`), and `?crawl=` skips the opening movies and the main
+menu: a real movie's fade timer and `uiMode` switches would land in later steps. Each map gets a verdict:
+`backend-difference` only when VM and Lua part before either backend's own run-to-run instability
+(`repeatDiff`), else `inconclusive` — run each backend twice (VM, VM, Lua, Lua). `rng:n` per line counts
+the random numbers the step's script code drew; with
 `?draws=<label>` (or `traceDrawsFor`) the lines of matching steps list a call stack per draw, and Lua
-errors and exceptions in click handlers are appended in `[…]`. The runs found L8, L9, L10 and L11.
+errors and exceptions in click handlers are appended in `[…]`. The runs found L8–L15.
 
-Result 2026-10-20 (29 story maps, about 14 400 steps per run, VM twice and Lua twice): **18 maps identical,
-0 backend differences, 11 inconclusive** — kladwtwn, the Den (denbus1/2, denres1), Modoc (modmain, modinn),
-New Reno (newr1–4) and reddown, where each backend already differs from its own previous run at the same
-line: critters a script places at random on map entry or poo/goo dropped behind a brahmin end up on
-different tiles because setTimeout-driven animations (facing, wandering) advance in real time while the
-crawl waits for assets. Making those animations step with the paused frame loop would make all 29 maps
-conclusive (follow-up).
+Result 2026-10-20 (29 story maps, 14 461 steps per run, VM twice and Lua twice): **all 29 maps identical
+on both backends, each backend identical to its own previous run** (`unstable: 0`, 0 backend differences, 0
+inconclusive). The run-to-run noise of the first runs (kladwtwn, the Den, Modoc, New Reno, reddown) did
+not come from setTimeout-driven animations (nothing moves while the frame loop is paused) but from the RNG
+being reseeded from the clock on every first visit to a map (L12); the opening movies and script movies
+switched `uiMode` in real time (now skipped in the crawl), and stalled music streams blocked image loads
+(L13). The fixed runs found L14 (proto scripts one entry off in scripts.lst) and L15 (VM stack frame of a
+procedure halted in a nested call).
 
 AutoCrawler, both backends (2026-10-19): `runDialogueCrawler` (every talkable NPC, every option clicked
 through to the end) on ncr1, broken1, redment and sfchina — 185 NPCs; status (complete / no dialogue /
