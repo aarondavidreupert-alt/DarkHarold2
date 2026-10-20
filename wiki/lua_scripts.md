@@ -2,9 +2,10 @@
 
 > DH2 addition (no CE counterpart). Started 2026-10-19 on branch `decompile-ini-to-lua`.
 > Goal: every game script readable and moddable, behaving exactly like the original bytecode.
-> Status: **pilot**. 1439 of 1443 scripts decompile; the four left are explained under "Scripts that stay
+> Status: **default backend since 2026-10-21**. 1439 of 1443 scripts decompile; the four left are explained under "Scripts that stay
 > `.int`". The VM-vs-Lua test over every decompiled script (1436, 646 965 runs) differs only in one
-> Black Isle script bug neither backend can match CE on (`known_bugs.md` L7). The bytecode VM stays the default (`[dh2] script_backend=vm`).
+> Black Isle script bug neither backend can match CE on (`known_bugs.md` L7), and the story crawler plays 29 maps
+> identically on both. Lua is the default; `[dh2] script_backend=vm` runs the bytecode VM.
 
 ## Pieces
 
@@ -17,8 +18,11 @@
 | Hook | `src/scripting.ts` `loadScript` / `loadLuaScript` | With `Config.scripting.backend === 'lua'`, loads `<name>.lua`; no file or a load error → the `.int` runs |
 | Test | `luadiff.html`, `src/lua/luaDiff.ts` | VM-vs-Lua differential test (below) |
 
-Select the backend with `fallout2.cfg` `[dh2] script_backend=lua` (default `vm`), or for one page load
-with `play.html#script_backend=lua` (the query string is the `?mapname` shortcut).
+Select the backend with `fallout2.cfg` `[dh2] script_backend=lua` (the default; the pipeline's `write_config`
+stage writes the key) or `=vm`, or for one page load with `play.html#script_backend=vm` (the query string is the
+`?mapname` shortcut). Lua falls back to the VM as a whole when the install has no decompiled scripts
+(`data/scripts/obj_dude.lua` missing: the `decompile_scripts` stage did not run) or the Lua runtime does not
+start, and per script when a `.lua` is missing or does not load.
 
 ## Why a decompiler of our own
 
@@ -251,7 +255,15 @@ later dialogues run with it. A world map or elevator screen is noted and closed.
 off) runs every scripted object's other entry points with the player next to it: examine
 (`description_p_proc`), look (`look_at_p_proc`), use (`use_p_proc`, not on critters), pick up
 (`pickup_p_proc`, items) and First Aid, Doctor, Lockpick, Traps, Science and Repair (`use_skill_on_p_proc`)
-— only the script, as CE runs it before its engine fallback. The runs found L8–L17.
+— only the script, as CE runs it before its engine fallback. Last a **time pass** (`time: false` turns it
+off) lets game time go on in 11 steps from the crawl's fixed clock (6 × a game minute, 4 × an hour, a day):
+each step advances the clock the way a time jump does (the timed events that came due fire in due order,
+midnight; CE `queueProcessEvents`) and runs `map_update_p_proc` on the map's scripts, then every living
+scripted critter's `critter_p_proc` once, in map order (CE runs one per main-loop pass, round-robin,
+`_script_chk_critters`). Where a step sends a critter walking (`animate_move_obj_to_tile`, which the paused
+frame loop never plays) the line has `W<object>:walk@<tile>`. A fight a heartbeat starts is ended (`COMBAT`),
+a dialogue ended. Each map starts with no timed events, and objects a script destroys leave the map at the
+end of each step, as at the end of a frame. The runs found L8–L17.
 
 Result 2026-10-20 (29 story maps, 14 461 steps per run, VM twice and Lua twice): **all 29 maps identical
 on both backends, each backend identical to its own previous run** (`unstable: 0`, 0 backend differences, 0
@@ -274,6 +286,11 @@ With a purchase in every barter screen and the inventory reset per map (2026-10-
 nothing for sale; VM, Lua, VM): **all 29 maps identical on both backends**. A trade runs no script (CE
 calls none in `inventoryOpenTrade`); what it checks is that the script-set price modifier, the merchant's
 reaction (LVAR 0) and the stock a script gave the merchant agree, and the bought items in later dialogues.
+
+With the time pass (2026-10-21; 29 maps, 37 681 steps, 10 425 of them time steps; VM, Lua, VM): **all 29 maps
+identical on both backends, the VM identical to its own previous run** (0 backend differences, `unstable: 0`).
+The only fights a heartbeat starts are the Klamath trap caves' gecko (`ZCGecko`, every step, ended the same
+way on both). On this result Lua became the default backend (`[dh2] script_backend=lua`).
 
 AutoCrawler, both backends (2026-10-19): `runDialogueCrawler` (every talkable NPC, every option clicked
 through to the end) on ncr1, broken1, redment and sfchina — 185 NPCs; status (complete / no dialogue /

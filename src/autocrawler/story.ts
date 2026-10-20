@@ -22,8 +22,9 @@
 
 import { isCombatActive } from '../combat.js'
 import { Config } from '../config.js'
+import * as GameTime from '../gametime.js'
 import { START_TICKS } from '../gametime.js'
-import { finishLoadingIfReady } from '../gameTick.js'
+import { finishLoadingIfReady, setLastMidnightDay } from '../gameTick.js'
 import { setGameMovieSkipAll } from '../gameMovie.js'
 import globalState from '../globalState.js'
 import { heart } from '../heart.js'
@@ -61,6 +62,8 @@ export interface StoryOptions {
     traceDrawsFor?: string
     /** also run every scripted object's examine/look/use/pickup/skill procedures (default true) */
     objects?: boolean
+    /** then let game time pass: timed events, map_update_p_proc, critter heartbeats (default true) */
+    time?: boolean
 }
 
 export interface StoryMapResult {
@@ -123,6 +126,9 @@ interface Snapshot {
     mvars: { [k: string]: any }
     lvars: { [label: string]: { [k: string]: any } }
     tiles: { [label: string]: number } // scripted objects and the player: where they stand
+    // critters on their way somewhere: walk/run and the target tile (a script's
+    // animate_move_obj_to_tile / reg_anim; the paused frame loop never moves them)
+    goals: { [label: string]: string }
     xp: number
     caps: number
     inv: { [pid: string]: number }
@@ -138,7 +144,10 @@ function capture(): Snapshot {
     const player = globalState.player as any
     const lvars: Snapshot['lvars'] = {}
     const tiles: Snapshot['tiles'] = {}
+    const goals: Snapshot['goals'] = {}
     for (const o of map ? map.getObjects() : []) {
+        const path = (o as any).path
+        if (path?.target) goals[label(o)] = `${(o as any).anim}@${toTileNum(path.target)}`
         const s = (o as any)._script
         if (s && s.lvars) lvars[label(o)] = { ...s.lvars }
         if ((s || (o as any).isPlayer) && (o as any).position) tiles[label(o)] = toTileNum((o as any).position)
@@ -152,6 +161,7 @@ function capture(): Snapshot {
         mvars: { ...((Scripting.getMapVars() ?? {})[mapScript] ?? {}) },
         lvars,
         tiles,
+        goals,
         xp: player?.stats?.get?.('Experience') ?? 0,
         caps: player ? Scripting.itemGetTotalCaps(player) : 0,
         inv,
@@ -182,6 +192,7 @@ function diff(a: Snapshot, b: Snapshot): string {
     const uids = new Set([...Object.keys(a.lvars), ...Object.keys(b.lvars)])
     for (const uid of [...uids].sort()) diffTable(`L${uid}.`, a.lvars[uid] ?? {}, b.lvars[uid] ?? {}, out)
     diffTable('T', a.tiles, b.tiles, out)
+    diffTable('W', a.goals, b.goals, out)
     if (a.xp !== b.xp) out.push(`xp:${a.xp}>${b.xp}`)
     if (a.caps !== b.caps) out.push(`caps:${a.caps}>${b.caps}`)
     diffTable('I', a.inv, b.inv, out)
@@ -198,9 +209,12 @@ function hashOf(text: string): number {
     return (h % 0x7ffffffe) + 1
 }
 
+// the clock every step starts at; the time pass moves it on
+let pinnedClock = PINNED_TIME
+
 /** Before every step: fixed clock, RNG seeded from where in the run we are. */
 function pin(key: string): void {
-    globalState.gameTickTime = PINNED_TIME
+    globalState.gameTickTime = pinnedClock
     randomSeedExact(hashOf(key))
 }
 
@@ -333,6 +347,9 @@ async function step(key: string, label: string, action: () => void, subject?: an
         error += isCombatActive() ? ' COMBAT-STUCK' : ' COMBAT'
     }
     error += closeScreens(subject)
+    // the end of the frame: objects a script destroyed leave the map (the paused
+    // frame loop would never take them off, and later steps would run their scripts)
+    globalState.gMap?.drainRemovalQueue()
     setLuaErrorHook(null)
     setVMFatalHook(null)
     window.removeEventListener('error', onError)
@@ -417,6 +434,58 @@ async function crawlObjects(mapName: string, trace: string[]): Promise<number> {
                 steps++
             }
         }
+    }
+    return steps
+}
+
+// The time pass: the clock steps forward from the crawl's fixed time, 6 times a
+// game minute, 4 times a game hour and once a day (ticks: 10 per second).
+const TIME_STEPS = [600, 600, 600, 600, 600, 600, 36000, 36000, 36000, 36000, 864000]
+
+/** What happens on a map while game time passes, step by step and the same way
+ *  every run: the clock moves on (CE queueProcessEvents: the timed events that
+ *  came due fire in due order, midnight), map_update_p_proc runs on every script
+ *  of the map (CE scriptsExecMapUpdateProc, a 600-tick queue event), then every
+ *  living scripted critter's critter_p_proc once, in map order (CE runs one per
+ *  main-loop pass, round-robin, _script_chk_critters; the crawl has no frames).
+ *  A dialogue a heartbeat opens is ended; a fight it starts is ended (COMBAT). */
+async function crawlTime(mapName: string, trace: string[]): Promise<number> {
+    let steps = 0
+    let clock = PINNED_TIME
+    setLastMidnightDay(Math.floor(clock / GameTime.TICKS_PER_DAY))
+    try {
+        for (let k = 0; k < TIME_STEPS.length; k++) {
+            if (globalState.gMap?.name !== mapName) break
+            const dt = TIME_STEPS[k]
+            pinnedClock = clock
+            const id = `${mapName}/time${k}`
+            trace.push(await step(`${id}:advance`, `${id} +${dt} ticks`, () => {
+                GameTime.advanceTicks(dt) // fires the due timed events and midnight
+                globalState.gMap?.updateMap()
+            }))
+            steps++
+            clock += dt
+            pinnedClock = clock
+            if (globalState.uiMode === UIMode.dialogue) {
+                trace.push(await step(`${id}:advance:end`, `${id} end`, () => Scripting.dialogueEnd()))
+                steps++
+            }
+            const critters = (globalState.gMap?.getObjects() ?? []).filter(
+                (o): o is Critter => o instanceof Critter && !!o._script && !o.dead && !(o as any).isPlayer)
+            for (const c of critters) {
+                if (globalState.gMap?.name !== mapName) return steps
+                if (c.dead || !c._script || typeof c._script.critter_p_proc !== 'function') continue
+                const cid = `${id}/${c._script.scriptName ?? '?'}#${label(c)}`
+                trace.push(await step(`${cid}:heartbeat`, `${cid} heartbeat`, () => Scripting.updateCritter(c._script!, c), c))
+                steps++
+                if (globalState.uiMode === UIMode.dialogue) {
+                    trace.push(await step(`${cid}:heartbeat:end`, `${cid} end`, () => Scripting.dialogueEnd(), c))
+                    steps++
+                }
+            }
+        }
+    } finally {
+        pinnedClock = PINNED_TIME
     }
     return steps
 }
@@ -507,6 +576,7 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
         maxDepth: options.maxDepth ?? MAX_DEPTH,
         traceDrawsFor: options.traceDrawsFor ?? '',
         objects: options.objects ?? true,
+        time: options.time ?? true,
     }
     traceDrawsFor = opts.traceDrawsFor
     const backend = Config.scripting.backend
@@ -524,7 +594,7 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
     // uiMode switches would land in later steps at times that vary from run to run
     setGameMovieSkipAll(true)
     // every map starts from the state the crawl started with (GVARs, MVARs, XP, HP,
-    // the inventory and its caps), so one map's difference (or noise) does not
+    // the inventory and its caps, no timed events), so one map's difference (or noise) does not
     // carry into all the later ones
     const baseline = {
         gvars: { ...Scripting.getGlobalVars() },
@@ -542,6 +612,8 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
             ;(globalState.player as any).stats.setBase('HP', baseline.hp)
             // what the last map's purchases and scripts added or took
             ;(globalState.player as any).inventory = baseline.inventory.map(cloneItem)
+            // timers the last map's scripts set would fire in this map's time pass
+            Scripting.timeEventList.length = 0
             const capsDelta = baseline.caps - Scripting.itemGetTotalCaps(globalState.player as any)
             if (capsDelta !== 0) Scripting.itemCapsAdjust(globalState.player as any, capsDelta)
             const loadDraws = randomDraws
@@ -570,9 +642,15 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
                 steps += await crawlObjects(mapName, trace)
                 if (globalState.gMap?.name !== mapName) trace.push(`left the map for ${globalState.gMap?.name}`)
             }
+            if (opts.time && globalState.gMap?.name === mapName) {
+                console.log(`[AutoCrawler] story ${mapName}: time passing`)
+                steps += await crawlTime(mapName, trace)
+                if (globalState.gMap?.name !== mapName) trace.push(`left the map for ${globalState.gMap?.name}`)
+            }
             const result: StoryMapResult = { map: mapName, backend, npcs: npcs.length, steps, loadRng, trace }
-            // v2: message log + barter in the lines; v3: a purchase in each barter; +o: the object phase ran
-            const key = `v3${opts.objects ? '+o' : ''}/${opts.maxPathsPerNpc}/${opts.maxDepth}/${mapName}`
+            // v2: message log + barter in the lines; v3: a purchase in each barter; v4: removed
+            // objects leave the map after each step; +o / +t: the object / time pass ran
+            const key = `v4${opts.objects ? '+o' : ''}${opts.time ? '+t' : ''}/${opts.maxPathsPerNpc}/${opts.maxDepth}/${mapName}`
             const previous = await dbGet(`${backend}:${key}`)
             if (previous) {
                 result.repeatDiff = firstDifference(trace, previous)

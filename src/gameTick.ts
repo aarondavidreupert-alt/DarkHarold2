@@ -83,6 +83,12 @@ function processTimeJump(delta: number): void {
 }
 GameTime.setTimeJumpHandler(processTimeJump)
 
+/** The story crawler sets the clock back for every map: midnight then fires again
+ *  when its time pass crosses it (DH2 test tooling). */
+export function setLastMidnightDay(day: number): void {
+    lastMidnightDay = day
+}
+
 export function processMidnightForDay(day: number): void {
     if (lastMidnightDay === -1 || day <= lastMidnightDay) return
     lastMidnightDay = day

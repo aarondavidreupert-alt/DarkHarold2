@@ -293,11 +293,12 @@ export const Config = {
     },
 
     scripting: {
-        // Which engine runs the game scripts. 'vm': the .int bytecode (src/vm.ts).
-        // 'lua': the decompiled data/scripts/<name>.lua (tools/int2lua.py, src/lua/),
-        // falling back to the .int for a script without one. DH2 addition.
+        // Which engine runs the game scripts. 'lua' (default): the decompiled
+        // data/scripts/<name>.lua (tools/int2lua.py, src/lua/), falling back to the
+        // .int for a script without one, and to the VM if the Lua runtime does not
+        // start. 'vm': the .int bytecode (src/vm.ts). DH2 addition.
         // Set in fallout2.cfg: [dh2] script_backend=lua/vm.
-        backend: 'vm' as 'vm' | 'lua',
+        backend: 'lua' as 'vm' | 'lua',
         // Lua mods, in load order: mods/<name>/scripts/<script>.lua replaces the
         // generated data/scripts/<script>.lua; a later mod overrides an earlier one.
         // DH2 addition, needs backend 'lua'. Set in fallout2.cfg: [dh2] mods=a,b.

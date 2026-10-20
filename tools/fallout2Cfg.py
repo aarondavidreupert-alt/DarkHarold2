@@ -109,6 +109,11 @@ pixel_font=1
 walk_model=ce
 ; sprite offset across animation changes: ce (CE obj->x/y), dh2 (old anchor pinning)
 anim_offset_model=ce
+; game scripts: lua = the decompiled data/scripts/*.lua (tools/int2lua.py; a script
+; without one runs its .int), vm = the .int bytecode
+script_backend=lua
+; Lua mods in load order, e.g. mods=a,b (mods/<name>/scripts/*.lua; a later one wins)
+mods=
 """
 
 

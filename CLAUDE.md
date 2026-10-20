@@ -50,9 +50,10 @@ Meta/audit: `CODEBASE_FOCE.md`, `CODEBASE_jsFO.md`, `CROSS_CHECK_NOTES.md`, `ali
 - src/main.ts — main game loop, input handling, map loading entry point
 - src/heart.ts — 60Hz heartbeat loop
 
-## Lua Script Backend (pilot)
+## Lua Script Backend (default)
 `tools/int2lua.py` decompiles `data/scripts/*.int` to `*.lua` (pipeline stage `decompile_scripts`); `src/lua/`
-runs them in place of the VM with `[dh2] script_backend=lua`. Both backends call the same `Script` methods.
+runs them in place of the VM (`[dh2] script_backend=lua`, the default since 2026-10-21; `=vm` runs the bytecode,
+and so does an install without decompiled scripts). Both backends call the same `Script` methods.
 Check any decompiler or prelude change with `luadiff.html` (VM-vs-Lua differential test). Generated `.lua`
 files are derived from the user's install — never commit them. See `wiki/lua_scripts.md`.
 

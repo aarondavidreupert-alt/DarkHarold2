@@ -259,7 +259,17 @@ window.onload = async function () {
     if (backendOverride) Config.scripting.backend = backendOverride[1] as 'lua' | 'vm'
     const modsOverride = /mods=([^&]*)/.exec(location.hash) // play.html#script_backend=lua&mods=a,b
     if (modsOverride) Config.scripting.mods = parseModList(decodeURIComponent(modsOverride[1]))
-    // fallout2.cfg [dh2] script_backend=lua — start the Lua engine before any script loads
+    // fallout2.cfg [dh2] script_backend=lua (the default) — start the Lua engine before
+    // any script loads. An install whose pipeline did not decompile the scripts (no
+    // data/scripts/obj_dude.lua, the player's script) runs the VM instead of asking
+    // for a missing .lua before every .int.
+    if (Config.scripting.backend === 'lua') {
+        const decompiled = await fetch('data/scripts/obj_dude.lua', { method: 'HEAD' }).then((r) => r.ok, () => false)
+        if (!decompiled) {
+            dbgWarn('lua', 'no decompiled scripts (run the decompile_scripts pipeline stage); running the .int scripts')
+            Config.scripting.backend = 'vm'
+        }
+    }
     if (Config.scripting.backend === 'lua') {
         try {
             await initLuaRuntime()
