@@ -41,3 +41,6 @@ fallout2.cfg
 
 # Lua mods (mods/<name>/scripts/*.lua, [dh2] mods=) are user content
 mods/
+
+# Black Isle SSL sources from fallout.fandom.com (Interplay copyright), local only
+ssl/

@@ -413,13 +413,12 @@ def read_gam(path, section):
 
 
 class SslNames:
-    """Names from SSL script sources, when the install has them in
-    data/scripts_src/ (the Unofficial Patch's scripts_src: <area>/<name>.ssl and
-    headers/*.h). A script's own .ssl and the headers it #includes name its
-    local variables (LVAR_*) and the map variables it uses (MVAR_*); itempid.h,
-    critrpid.h and scenepid.h name the PIDs. Those sources are the patched
-    scripts, so a script's names are only used when every procedure of the
-    vanilla .int is also in its .ssl."""
+    """Names from one tree of SSL script sources (<dir>/<name>.ssl anywhere
+    below, headers/*.h; see ssl_sources). A script's own .ssl and the headers it
+    #includes name its local variables (LVAR_*) and the map variables it uses
+    (MVAR_*); itempid.h, critrpid.h and scenepid.h name the PIDs. Sources may be
+    of another game version, so a script's names are only used when every
+    procedure of the vanilla .int is also in its .ssl."""
 
     def __init__(self, root):
         import re
@@ -456,6 +455,8 @@ class SslNames:
         self.enums["trait_type"] = {0: "TRAIT_PERK", 1: "TRAIT_OBJECT", 2: "TRAIT_TRAIT"}
 
     def resolve(self, base, inc):
+        # Black Isle's sources write `#include "..\headers\define.h"`
+        inc = inc.replace("\\", "/")
         p = os.path.normpath(os.path.join(os.path.dirname(base), inc))
         if os.path.exists(p):
             return p
@@ -574,6 +575,15 @@ def msg_texts(root):
     if root not in _msg_cache:
         _msg_cache[root] = MsgTexts(root)
     return _msg_cache[root]
+
+
+def ssl_sources(root):
+    """The SSL source trees an install has, best first: ssl/ next to data/
+    (Black Isle's own sources, e.g. from the Fallout wiki's script library;
+    scripts in ssl/scripts/, headers in ssl/headers/), then data/scripts_src/
+    (the Unofficial Patch's, which renumbers some scripts' LVARs)."""
+    trees = [ssl_names(os.path.join(os.path.dirname(root), "ssl")), ssl_names(os.path.join(root, "scripts_src"))]
+    return [t for t in trees if t is not None]
 
 
 _ssl_cache = {}
@@ -1362,16 +1372,22 @@ class ScriptDecompiler:
         self.names = {"gvar": dict(enumerate(gvar_names or [])), "mvar": dict(enumerate(mvar_names or [])),
                       "lvar": {}, "pid": {}}
         self.ssl_matched = False
-        if ssl is not None:
-            self.names["pid"] = ssl.pids
-            self.names.update(ssl.enums)
-            own = ssl.for_script(name, [p.name for p in self.f.procs
-                                        if not p.name.startswith(".") and not p.flags & PROC_FLAG_IMPORTED])
+        # SSL source trees, best first (ssl_sources): PID and define.h names from
+        # all of them (an earlier tree's name wins), a script's own LVAR/MVAR
+        # names from the first tree whose .ssl matches the .int
+        int_procs = [p.name for p in self.f.procs if not p.name.startswith(".") and not p.flags & PROC_FLAG_IMPORTED]
+        for tree in reversed(ssl or []):
+            self.names["pid"] = {**self.names["pid"], **tree.pids}
+            for kind, table in tree.enums.items():
+                self.names[kind] = {**self.names.get(kind, {}), **table}
+        for tree in ssl or []:
+            own = tree.for_script(name, int_procs)
             if own is not None:
                 self.ssl_matched = True
                 self.names["lvar"] = own["lvar"]
                 if not self.names["mvar"]:  # a map's own .gam comes first
                     self.names["mvar"] = own["mvar"]
+                break
         self.named = {}       # name -> (kind, number), used somewhere in the script
         self.declared = set()  # the names emit() declares as locals
         self.externals = set()
@@ -1654,8 +1670,7 @@ def decompile_file(path):
     root = os.path.dirname(os.path.dirname(os.path.abspath(path)))
     gvars = read_gam(os.path.join(root, "data", "vault13.gam"), "GAME_GLOBAL_VARS")
     mvars = read_gam(os.path.join(root, "maps", name + ".gam"), "MAP_GLOBAL_VARS")
-    ssl = ssl_names(os.path.join(root, "scripts_src"))
-    return ScriptDecompiler(data, name, gvars, mvars, ssl, msg_texts(root)).emit()
+    return ScriptDecompiler(data, name, gvars, mvars, ssl_sources(root), msg_texts(root)).emit()
 
 
 def check_bridge(bridge_path):

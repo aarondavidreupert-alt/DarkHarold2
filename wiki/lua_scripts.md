@@ -70,13 +70,22 @@ never a silently wrong translation:
   - global variables (`global_var(GVAR_ENEMY_ARROYO)`) from the install's `data/data/vault13.gam`, and in a
     map's own script its map variables from `data/maps/<map>.gam` — numbered by line order, as CE reads the
     values;
-  - with SSL sources in `data/scripts_src/` (the Unofficial Patch's `scripts_src`, by killap — download it
-    yourself, it is not part of the repo): local variables (`local_var(LVAR_Herebefore)`) and the map
-    variables a script uses, from its `<name>.ssl` and the headers it `#include`s; and PIDs
+  - with SSL sources (local only, never committed): local variables (`local_var(LVAR_Herebefore)`) and the
+    map variables a script uses, from its `<name>.ssl` and the headers it `#include`s; and PIDs
     (`party_member_obj(PID_SULIK)`, `obj_pid(x) == PID_STIMPAK`) from `itempid.h`, `critrpid.h`, `scenepid.h`.
-    The sources are the patched scripts, so a script takes their LVAR/MVAR names only when every procedure
-    of the vanilla `.int` is also in its `.ssl` (1170 of 1238); a number two headers name differently stays
-    a number. Without the files, or for a computed number, the number stays.
+    Two source trees are read, best first (`ssl_sources`):
+    1. `ssl/` in the project (git-ignored): Black Isle's own sources, from the Fallout wiki's
+       [Fallout 2 script library](https://fallout.fandom.com/wiki/Category:Fallout_2_script_files) —
+       scripts in `ssl/scripts/`, headers in `ssl/headers/` (their `#include "..\headers\…"` expects that
+       layout). Their local-variable counts fit the vanilla `scripts.lst` far better (28 scripts over the
+       count vs 71) and where the two trees disagree the Unofficial Patch has renumbered (dcvic inserts
+       `LVAR_Hostile` at 5);
+    2. `data/scripts_src/`: the Unofficial Patch's `scripts_src` (by killap), for the scripts the first
+       tree does not match.
+    A script takes its LVAR/MVAR names from the first tree whose `.ssl` declares every procedure of the
+    vanilla `.int` (1164 of 1245 from `ssl/`, the rest of 1238 from the patch); PID and `define.h` names
+    come from both, the first tree's spelling winning. A number two headers name differently stays a
+    number. Without the files, or for a computed number, the number stays.
   - from the same sources' `define.h` / `animcomd.h`, the arguments that take one of their constants:
     `get_critter_stat(dude_obj, STAT_gender)`, `has_skill(…, SKILL_SPEECH)`, `get_pc_stat(PCSTAT_level)`,
     `critter_inven_obj(…, INVEN_TYPE_RIGHT_HAND)`, `metarule(METARULE_IS_LOADGAME, 0)`,
