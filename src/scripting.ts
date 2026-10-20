@@ -692,11 +692,9 @@ export module Scripting {
         }
         local_var(lvar: number) {
             log('local_var', arguments, 'lvars')
-            if (this.lvars[lvar] === undefined) {
-                warn('local_var: setting default value (0) for LVAR ' + lvar, 'lvars')
-                this.lvars[lvar] = 0
-            }
-            return this.lvars[lvar]
+            // CE scriptGetLocalVar: every LVAR exists from the start as 0 and a read
+            // never writes (an unset one is 0 here, not stored)
+            return this.lvars[lvar] ?? 0
         }
         map_var(mvar: number) {
             if (this._mapScript === undefined) {
@@ -707,12 +705,9 @@ export module Scripting {
             if (scriptName === undefined) {
                 warn('map_var: map script has no name')
                 return
-            } else if (mapVars[scriptName] === undefined) mapVars[scriptName] = {}
-            else if (mapVars[scriptName][mvar] === undefined) {
-                warn('map_var: setting default value (0) for MVAR ' + mvar, 'mvars')
-                mapVars[scriptName][mvar] = 0
             }
-            return mapVars[scriptName][mvar]
+            // CE mapGetGlobalVar: an MVAR the map never set is 0; a read never writes
+            return mapVars[scriptName]?.[mvar] ?? 0
         }
         set_map_var(mvar: number, value: any) {
             if (!this._mapScript) throw Error('set_map_var: no map script')

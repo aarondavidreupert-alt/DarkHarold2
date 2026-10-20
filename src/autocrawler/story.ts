@@ -23,6 +23,7 @@
 import { isCombatActive } from '../combat.js'
 import { Config } from '../config.js'
 import { START_TICKS } from '../gametime.js'
+import { finishLoadingIfReady } from '../gameTick.js'
 import globalState from '../globalState.js'
 import { heart } from '../heart.js'
 import { Critter } from '../object.js'
@@ -223,13 +224,18 @@ async function loadMapQuietly(name: string): Promise<boolean> {
     if (map.name === name) return true
     pin(`load:${name}`)
     map.loadMap(name)
-    // map loading finishes on its own callbacks; the frame loop stays paused
+    // assets arrive on their own callbacks; the end of the load (map_enter_p_proc)
+    // is run here with the clock and RNG pinned, as the paused frame loop would not
     const deadline = performance.now() + MAP_LOAD_TIMEOUT_MS
-    while (globalState.isLoading || map.name !== name) {
+    while (globalState.isLoading) {
         if (performance.now() > deadline) return false
         await new Promise<void>((r) => setTimeout(r, 20))
+        if (globalState.loadingAssetsLoaded === globalState.loadingAssetsTotal) {
+            pin(`loaded:${name}`)
+            finishLoadingIfReady()
+        }
     }
-    return true
+    return map.name === name
 }
 
 // ─── Trace storage (IndexedDB: traces are megabytes) ──────────────────────────

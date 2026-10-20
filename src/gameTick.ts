@@ -94,18 +94,24 @@ export function processMidnightForDay(day: number): void {
     if (player && !player.dead) checkRads(player)
 }
 
+/** End a map load once its assets are in: clear isLoading and run the loaded
+ *  callback (map_enter_p_proc & co.). False while assets are still loading.
+ *  Also called by the story crawler, which loads maps with the frame loop paused. */
+export function finishLoadingIfReady(): boolean {
+    if (!globalState.isLoading) return true
+    if (globalState.loadingAssetsLoaded !== globalState.loadingAssetsTotal) return false
+    globalState.isLoading = false
+    if (globalState.loadingLoadedCallback) {
+        globalState.loadingLoadedCallback()
+    }
+    return true
+}
+
 export function tickGame(): void {
     if (globalState.isInitializing || globalState.isWaitingOnRemote) {
         return
-    } else if (globalState.isLoading) {
-        if (globalState.loadingAssetsLoaded === globalState.loadingAssetsTotal) {
-            globalState.isLoading = false
-            if (globalState.loadingLoadedCallback) {
-                globalState.loadingLoadedCallback()
-            }
-        } else {
-            return
-        }
+    } else if (globalState.isLoading && !finishLoadingIfReady()) {
+        return
     }
 
     // FO2-CE ref: Skill targeting mode keeps the game loop running so the
