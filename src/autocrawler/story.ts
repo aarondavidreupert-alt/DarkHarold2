@@ -32,7 +32,10 @@ import { setLuaErrorHook } from '../lua/luaRuntime.js'
 import { randomDraws, randomSeedExact, setRandomDrawHook } from '../random.js'
 import { Scripting } from '../scripting.js'
 import { toTileNum } from '../tile.js'
+import { setVMFatalHook } from '../vm.js'
 import { UIMode, uiEndDialogue } from '../ui.js'
+import { uiElevatorDone } from '../ui_elevator.js'
+import { uiCloseWorldMap } from '../ui_worldmap.js'
 import { critterDisplayName, getOptionElements, getReplyText, listTalkableNPCs, movePlayerAdjacent, setLastReport } from './shared.js'
 
 /** Main-quest order (Arroyo → Klamath → the Den → Modoc → Vault City → Gecko → Broken Hills → New Reno →
@@ -55,6 +58,8 @@ export interface StoryOptions {
     maxDepth?: number
     /** steps whose label contains this get a short call stack for every random draw */
     traceDrawsFor?: string
+    /** also run every scripted object's examine/look/use/pickup/skill procedures (default true) */
+    objects?: boolean
 }
 
 export interface StoryMapResult {
@@ -216,13 +221,55 @@ function callers(): string {
     return frames.map((f) => (f.trim().match(/at (?:Object\.|Script\.)?([\w.$<>]+)/) ?? [])[1] ?? '?').join('<')
 }
 
-async function step(key: string, label: string, action: () => void): Promise<string> {
+/** What the message window got since `from` lines (display_msg, float_msg to the log …). */
+function logSince(from: number): string {
+    const items = document.querySelectorAll('#displayLog li')
+    const out: string[] = []
+    for (let i = from; i < items.length; i++) out.push((items[i].textContent ?? '').trim().slice(0, 80))
+    return out.length ? ` log=[${out.join(' | ')}]` : ''
+}
+
+function inventoryOf(o: any): string {
+    const inv: { [pid: string]: number } = {}
+    for (const item of o?.inventory ?? []) inv[String(item.pid)] = (inv[String(item.pid)] ?? 0) + (item.amount ?? 1)
+    return Object.keys(inv).sort((a, b) => Number(a) - Number(b)).map((p) => `${p}x${inv[p]}`).join(',')
+}
+
+/** A screen a script opened that the crawl does not drive: note it and close it. */
+function closeScreens(subject: any): string {
+    let note = ''
+    if (globalState.uiMode === UIMode.barter) {
+        // the barter the script set up: its price modifier and what the merchant offers
+        note += ` BARTER mod=${Scripting.getDialogueBarterMod()} inv=[${inventoryOf(subject)}]`
+        uiEndDialogue()
+    }
+    if (globalState.uiMode === UIMode.worldMap) {
+        uiCloseWorldMap()
+        note += ' WORLDMAP'
+    }
+    if (globalState.uiMode === UIMode.elevator) {
+        uiElevatorDone()
+        note += ' ELEVATOR'
+    }
+    return note
+}
+
+function fatalKind(text: string): string {
+    const m = text.match(/Stack overflow|Division \((?:DIV|MOD)\) by zero/)
+    return m ? m[0] : ''
+}
+
+async function step(key: string, label: string, action: () => void, subject?: any): Promise<string> {
     const draws: string[] = []
+    const logStart = document.querySelectorAll('#displayLog li').length
     if (traceDrawsFor && label.includes(traceDrawsFor)) setRandomDrawHook(() => draws.push(callers()))
     // errors the action does not throw to us: a Lua script error (caught by the
     // runtime) or an exception in a click handler (reported to window, not to click())
     const hidden: string[] = []
-    setLuaErrorHook((t) => hidden.push('LUA ' + t.slice(0, 120)))
+    // a fatal script error (CE programFatalError: a stack overflow, division by
+    // zero) stops the procedure on both backends: one marker for both
+    setVMFatalHook((t) => hidden.push('FATAL ' + fatalKind(t)))
+    setLuaErrorHook((t) => hidden.push(fatalKind(t) ? 'FATAL ' + fatalKind(t) : 'LUA ' + t.slice(0, 120)))
     const onError = (e: ErrorEvent) => hidden.push('ERR ' + String(e.message).slice(0, 120))
     window.addEventListener('error', onError)
     pin(key)
@@ -257,14 +304,12 @@ async function step(key: string, label: string, action: () => void): Promise<str
         await new Promise<void>((r) => setTimeout(r, 0))
         error += isCombatActive() ? ' COMBAT-STUCK' : ' COMBAT'
     }
-    if (globalState.uiMode === UIMode.barter) {
-        uiEndDialogue()
-        error += ' BARTER'
-    }
+    error += closeScreens(subject)
     setLuaErrorHook(null)
+    setVMFatalHook(null)
     window.removeEventListener('error', onError)
     if (hidden.length) error += ` [${hidden.join(' ; ')}]`
-    const line = `${label} ${dialogueView()} {${diff(before, capture())}} rng:${scriptDraws}${error}` +
+    const line = `${label} ${dialogueView()} {${diff(before, capture())}} rng:${scriptDraws}${logSince(logStart)}${error}` +
         (draws.length ? ` draws=[${draws.join(' ; ')}]` : '')
     return line
 }
@@ -282,7 +327,7 @@ async function crawlNpc(npc: Critter, mapName: string, trace: string[], opts: Re
         if (globalState.gMap?.name !== mapName) break
         runs++
         movePlayerAdjacent(npc)
-        trace.push(await step(`${id}:${path.join('.')}:talk`, `${id} [${path.join('.')}] talk`, () => Scripting.talk(npc._script!, npc)))
+        trace.push(await step(`${id}:${path.join('.')}:talk`, `${id} [${path.join('.')}] talk`, () => Scripting.talk(npc._script!, npc), npc))
         steps++
         let depth = 0
         for (; depth < path.length && globalState.uiMode === UIMode.dialogue; depth++) {
@@ -290,7 +335,7 @@ async function crawlNpc(npc: Critter, mapName: string, trace: string[], opts: Re
             const k = path[depth]
             if (k >= els.length) break
             const sub = path.slice(0, depth + 1).join('.')
-            trace.push(await step(`${id}:${sub}`, `${id} [${sub}] click ${k}`, () => els[k].click()))
+            trace.push(await step(`${id}:${sub}`, `${id} [${sub}] click ${k}`, () => els[k].click(), npc))
             steps++
         }
         if (globalState.uiMode === UIMode.dialogue) {
@@ -298,8 +343,51 @@ async function crawlNpc(npc: Critter, mapName: string, trace: string[], opts: Re
                 const n = getOptionElements().length
                 for (let k = 0; k < n; k++) frontier.push([...path, k])
             }
-            trace.push(await step(`${id}:${path.join('.')}:end`, `${id} [${path.join('.')}] end`, () => Scripting.dialogueEnd()))
+            trace.push(await step(`${id}:${path.join('.')}:end`, `${id} [${path.join('.')}] end`, () => Scripting.dialogueEnd(), npc))
             steps++
+        }
+    }
+    return steps
+}
+
+// CE skill ids as scripts see them in action_being_used (skill.h): the skills a
+// player uses on things — First Aid, Doctor, Lockpick, Traps, Science, Repair
+const OBJECT_SKILLS = [6, 7, 9, 11, 12, 13]
+
+/** Every scripted object's other entry points, with the player standing next
+ *  to it: examine (description_p_proc), look (look_at_p_proc), use (use_p_proc,
+ *  not on critters), pick up (pickup_p_proc, items) and the skills above
+ *  (use_skill_on_p_proc). Each runs only the script, as CE does before its
+ *  engine fallback; a dialogue a script starts is ended at once. */
+async function crawlObjects(mapName: string, trace: string[]): Promise<number> {
+    const map = globalState.gMap
+    const player = globalState.player as any
+    if (!map || !player) return 0
+    let steps = 0
+    for (const obj of map.getObjects().slice()) {
+        const s: any = (obj as any)._script
+        if (!s || (obj as any).isPlayer || !(obj as any).position) continue
+        const isCritter = obj instanceof Critter
+        const id = `${mapName}/${s.scriptName ?? '?'}#${label(obj)}`
+        const actions: [string, () => void][] = []
+        if (typeof s.description_p_proc === 'function') actions.push(['examine', () => Scripting.description(obj, player)])
+        if (typeof s.look_at_p_proc === 'function') actions.push(['look', () => Scripting.lookAt(obj, player)])
+        if (!isCritter && typeof s.use_p_proc === 'function') actions.push(['use', () => Scripting.use(obj, player)])
+        if (obj.type === 'item' && typeof s.pickup_p_proc === 'function') actions.push(['pickup', () => Scripting.pickup(obj, player)])
+        if (typeof s.use_skill_on_p_proc === 'function') {
+            for (const skill of OBJECT_SKILLS) actions.push([`skill${skill}`, () => Scripting.useSkillOn(player, skill, obj)])
+        }
+        for (const [what, action] of actions) {
+            if (globalState.gMap?.name !== mapName) return steps
+            // an earlier step may have destroyed it, or killed the critter
+            if (!map.getObjects().includes(obj) || (isCritter && (obj as Critter).dead)) break
+            movePlayerAdjacent(obj as Critter)
+            trace.push(await step(`${id}:${what}`, `${id} ${what}`, action, obj))
+            steps++
+            if (globalState.uiMode === UIMode.dialogue) {
+                trace.push(await step(`${id}:${what}:end`, `${id} ${what} end`, () => Scripting.dialogueEnd(), obj))
+                steps++
+            }
         }
     }
     return steps
@@ -390,6 +478,7 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
         maxPathsPerNpc: options.maxPathsPerNpc ?? MAX_PATHS_PER_NPC,
         maxDepth: options.maxDepth ?? MAX_DEPTH,
         traceDrawsFor: options.traceDrawsFor ?? '',
+        objects: options.objects ?? true,
     }
     traceDrawsFor = opts.traceDrawsFor
     const backend = Config.scripting.backend
@@ -444,8 +533,14 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
                     break
                 }
             }
+            if (opts.objects && globalState.gMap?.name === mapName) {
+                console.log(`[AutoCrawler] story ${mapName}: scripted objects`)
+                steps += await crawlObjects(mapName, trace)
+                if (globalState.gMap?.name !== mapName) trace.push(`left the map for ${globalState.gMap?.name}`)
+            }
             const result: StoryMapResult = { map: mapName, backend, npcs: npcs.length, steps, loadRng, trace }
-            const key = `${opts.maxPathsPerNpc}/${opts.maxDepth}/${mapName}`
+            // v2: message log + barter in the lines; +o: the object phase ran
+            const key = `v2${opts.objects ? '+o' : ''}/${opts.maxPathsPerNpc}/${opts.maxDepth}/${mapName}`
             const previous = await dbGet(`${backend}:${key}`)
             if (previous) {
                 result.repeatDiff = firstDifference(trace, previous)

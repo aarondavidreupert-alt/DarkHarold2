@@ -26,7 +26,7 @@ import { randomSeedPrerandom } from './random.js'
 import { critterAdjustRadiation } from './radiation.js'
 import { Combat, isCombatActive } from './combat.js'
 import { ANIM_FALL_BACK_SF, ANIM_FALL_FRONT_BLOOD_SF, correctDeath, critterDamage, critterKill, itemDropAll, killCounts } from './critter.js'
-import { areaContainingMap, getLstJson, lookupMapName, lookupScriptName, mapIndexOf, setMapMusicOverride } from './data.js'
+import { areaContainingMap, getLstJson, lookupMapName, lookupScriptName, mapIndexOf, parseMsgFile, setMapMusicOverride } from './data.js'
 import { CHEM_USE_MAP, getAiPacket } from './aiPackets.js'
 import * as GameTime from './gametime.js'
 import {
@@ -466,8 +466,12 @@ export module Scripting {
 
         if (scriptMessages[name] === undefined) loadMessageFile(name)
         if (scriptMessages[name] === undefined) throw 'getScriptMessage: loadMessageFile failed?'
-        if (scriptMessages[name][msg] === undefined)
-            throw 'getScriptMessage: no message ' + msg + ' for script ' + id + ' (' + name + ')'
+        if (scriptMessages[name][msg] === undefined) {
+            // CE scripts.cc _scr_get_msg_str_speech: a missing message is the text "Error"
+            // (vccharly asks for 134, which its .msg does not have)
+            warn('getScriptMessage: no message ' + msg + ' for script ' + id + ' (' + name + ')')
+            return 'Error'
+        }
 
         return scriptMessages[name][msg]
     }
@@ -3032,36 +3036,12 @@ export module Scripting {
         var msg = getFileText('data/text/english/dialog/' + name + '.msg')
         if (scriptMessages[name] === undefined) scriptMessages[name] = {}
 
-        // parse message file
-        var lines = msg.split(/\r|\n/)
-
-        // preprocess and merge lines
-        for (var i = 0; i < lines.length; i++) {
-            // comments/blanks
-            if (lines[i][0] === '#' || lines[i].trim() === '') {
-                lines.splice(i--, 1)
-                continue
-            }
-
-            // probably a continuation -- merge it with the last line
-            if (lines[i][0] !== '{') {
-                lines[i - 1] += lines[i]
-                lines.splice(i--, 1)
-                continue
-            }
-        }
-
-        for (var i = 0; i < lines.length; i++) {
-            // e.g. {100}{}{You have entered a dark cave in the side of a mountain.}
-            var m = lines[i].match(/\{(\d+)\}\{.*\}\{(.*)\}/)
-            if (m === null) throw 'message parsing: not a valid line: ' + lines[i]
-            // HACK: replace unicode replacement character with an apostrophe (because the Web sucks at character encodings)
-            scriptMessages[name][parseInt(m[1])] = m[2].replace(/\ufffd/g, "'")
+        for (const e of parseMsgFile(msg, name)) {
+            scriptMessages[name][e.num] = e.text
             // CE message.cc: the middle field is the speech file for talking heads.
-            const audio = lines[i].match(/^\{\d+\}\{([^}]*)\}/)
-            if (audio && audio[1].trim() !== '') {
+            if (e.audio.trim() !== '') {
                 if (scriptMessageAudio[name] === undefined) scriptMessageAudio[name] = {}
-                scriptMessageAudio[name][parseInt(m[1])] = audio[1].trim()
+                scriptMessageAudio[name][e.num] = e.audio.trim()
             }
         }
     }

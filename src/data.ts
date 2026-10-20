@@ -174,37 +174,59 @@ function allAreas() {
     return areas
 }
 
+export interface MsgEntry {
+    num: number
+    audio: string
+    text: string
+}
+
+/** Parse a .msg file as CE message.cc messageListLoad does: entries are three
+ *  {fields} (number, speech file, text); anything outside braces is skipped
+ *  (comments, indentation, stray text), newlines inside a field are dropped, a
+ *  later entry with the same number replaces the earlier one. A malformed
+ *  entry (a '}' outside braces, an unclosed field, a bad number) ends the
+ *  load; the entries before it are kept. */
+export function parseMsgFile(src: string, fileName = ''): MsgEntry[] {
+    const out: MsgEntry[] = []
+    let pos = 0
+    // CE _message_load_field: 0 = a field, 1 = end of file, else an error
+    const field = (): string | 1 | null => {
+        for (;;) {
+            if (pos >= src.length) return 1
+            const ch = src[pos++]
+            if (ch === '}') return null
+            if (ch === '{') break
+        }
+        let text = ''
+        for (;;) {
+            if (pos >= src.length) return null
+            const ch = src[pos++]
+            if (ch === '}') return text
+            // the file is read in text mode: \r\n is a newline, and newlines are dropped
+            if (ch !== '\n' && ch !== '\r') text += ch
+        }
+    }
+    for (;;) {
+        const num = field()
+        if (num === 1) break
+        const audio = num === null ? null : field()
+        const text = typeof audio === 'string' ? field() : null
+        const n = typeof num === 'string' ? Number(num.trim()) : NaN
+        if (typeof text !== 'string' || typeof audio !== 'string' || !Number.isInteger(n)) {
+            console.warn(`message file ${fileName}: malformed entry at offset ${pos}`)
+            break
+        }
+        // HACK: replace unicode replacement character with an apostrophe (because the Web sucks at character encodings)
+        out.push({ num: n, audio, text: text.replace(/\ufffd/g, "'") })
+    }
+    return out
+}
+
 export function loadMessage(name: string) {
     name = name.toLowerCase()
     var msg = getFileText('data/text/english/game/' + name + '.msg')
     if (globalState.messageFiles[name] === undefined) globalState.messageFiles[name] = {}
-
-    // parse message file
-    var lines = msg.split(/\r|\n/)
-
-    // preprocess and merge lines
-    for (var i = 0; i < lines.length; i++) {
-        // comments/blanks
-        if (lines[i][0] === '#' || lines[i].trim() === '') {
-            lines.splice(i--, 1)
-            continue
-        }
-
-        // probably a continuation -- merge it with the last line
-        if (lines[i][0] !== '{') {
-            lines[i - 1] += lines[i]
-            lines.splice(i--, 1)
-            continue
-        }
-    }
-
-    for (var i = 0; i < lines.length; i++) {
-        // e.g. {100}{}{You have entered a dark cave in the side of a mountain.}
-        var m = lines[i].match(/\{(\d+)\}\{.*\}\{(.*)\}/)
-        if (m === null) throw 'message parsing: not a valid line: ' + lines[i]
-        // HACK: replace unicode replacement character with an apostrophe (because the Web sucks at character encodings)
-        globalState.messageFiles[name][m[1]] = m[2].replace(/\ufffd/g, "'")
-    }
+    for (const e of parseMsgFile(msg, name)) globalState.messageFiles[name][e.num] = e.text
 }
 
 function loadLst(lst: string): string[] {

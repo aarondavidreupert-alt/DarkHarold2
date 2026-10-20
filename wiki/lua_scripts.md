@@ -239,7 +239,15 @@ menu: a real movie's fade timer and `uiMode` switches would land in later steps.
 (`repeatDiff`), else `inconclusive` — run each backend twice (VM, VM, Lua, Lua). `rng:n` per line counts
 the random numbers the step's script code drew; with
 `?draws=<label>` (or `traceDrawsFor`) the lines of matching steps list a call stack per draw, and Lua
-errors and exceptions in click handlers are appended in `[…]`. The runs found L8–L15.
+errors and exceptions in click handlers are appended in `[…]`; a fatal script error (CE `programFatalError`:
+stack overflow, division by zero) is `[FATAL …]` on both backends. Each line also has the message-window
+text the step produced (`log=[…]`: `display_msg`, skill results, XP). A barter screen a script opens is
+recorded with its price modifier and the merchant's inventory (`BARTER mod=… inv=[pid x n,…]`) and closed;
+a world map or elevator screen likewise. After the dialogues an **object pass** (`objects: false` turns it
+off) runs every scripted object's other entry points with the player next to it: examine
+(`description_p_proc`), look (`look_at_p_proc`), use (`use_p_proc`, not on critters), pick up
+(`pickup_p_proc`, items) and First Aid, Doctor, Lockpick, Traps, Science and Repair (`use_skill_on_p_proc`)
+— only the script, as CE runs it before its engine fallback. The runs found L8–L17.
 
 Result 2026-10-20 (29 story maps, 14 461 steps per run, VM twice and Lua twice): **all 29 maps identical
 on both backends, each backend identical to its own previous run** (`unstable: 0`, 0 backend differences, 0
@@ -250,11 +258,18 @@ switched `uiMode` in real time (now skipped in the crawl), and stalled music str
 (L13). The fixed runs found L14 (proto scripts one entry off in scripts.lst) and L15 (VM stack frame of a
 procedure halted in a nested call).
 
+With the object pass (2026-10-20; 29 maps, 27 196 steps per run, 12 803 of them object steps, 55 barter
+screens, 3 570 lines with message-window text; VM, Lua, VM): **all 29 maps identical on both backends, the
+VM identical to its own previous run** (0 backend differences, `unstable: 0`). It found L16 (`.msg` lines
+starting with a space were lost: miwell's examine text; a missing message threw instead of giving "Error")
+and L17 (the Lua backend froze on a procedure that calls itself: First Aid on Eldridge's doors in New Reno;
+24 steps now end in `[FATAL Stack overflow]` on both backends).
+
 AutoCrawler, both backends (2026-10-19): `runDialogueCrawler` (every talkable NPC, every option clicked
 through to the end) on ncr1, broken1, redment and sfchina — 185 NPCs; status (complete / no dialogue /
 stuck / combat), options seen and replies per NPC are identical, no exceptions, no Lua errors. The 4
 "stuck" NPCs (e.g. the NCR craps dealer) are stuck in both. `runCombatCrawler` on klatoxcv: 5 of 5 fights
-complete in both. Not covered yet: barter screens and quest chains across maps.
+complete in both. Not covered yet: buying and selling in a barter screen, and quest chains across maps.
 
 In game (`play.html?arvillag#script_backend=lua`): all 143 scripted objects and the map script run in Lua;
 the Elder's dialogue (talking head, quest node with the flask and money, the `gsay_message` farewell) runs

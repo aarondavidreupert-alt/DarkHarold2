@@ -376,7 +376,8 @@ LUA_KEYWORDS = {
 }
 # Names the runtime defines for the generated code; a script identifier with one
 # of these names is renamed like a Lua keyword.
-RUNTIME_NAMES = {"div", "mod", "AND", "OR", "b2i", "floor", "import", "export", "entry", "call", "exit"}
+RUNTIME_NAMES = {"div", "mod", "AND", "OR", "b2i", "floor", "import", "export", "entry", "call", "exit",
+                 "recursion_guard"}
 
 
 # ---------------------------------------------------------------------------
@@ -1198,6 +1199,7 @@ class ProcDecompiler:
                 e.is_proc_call = True
                 e.used_as_value = True
                 self.s.value_calls_pending.append((name, e))
+                self.s.call_edges.add((self.proc.name, name))
                 self.push(stack, e, args[0] if args else argc)
 
             elif op == OP_IF or op == OP_WHILE:
@@ -1392,6 +1394,7 @@ class ScriptDecompiler:
         self.declared = set()  # the names emit() declares as locals
         self.externals = set()
         self.value_calls_pending = []
+        self.call_edges = set()  # (caller, callee) procedure names, for recursive()
         self.svars = []
         self.svar_inits = []
         self.exports = []  # [name, initial value]
@@ -1600,9 +1603,13 @@ class ScriptDecompiler:
             w("")
         # procedures whose result some expression uses keep sslc's `return 0`
         callers = self.value_calls()
+        recursive = self.recursive()
         for p, pd, body in procs:
             args = ", ".join(pd.local_name(i) for i in range(p.argc))
             w("function %s(%s)" % (lua_name(p.name), args))
+            if p.name in recursive:
+                # CE stops a recursion that fills the stacks with a fatal error (prelude MAX_RECURSION)
+                w("    local _ <close> = recursion_guard()")
             for i, init in enumerate(pd.local_inits):
                 w("    local %s = %s" % (pd.local_name(p.argc + i), init.lua()))
             self.block(body, 1, w)
@@ -1620,6 +1627,25 @@ class ScriptDecompiler:
             text = "\n".join(line if line.lstrip().startswith("--") else line + self.msgs.comment(line)
                              for line in text.split("\n"))
         return text + "\n"
+
+    def recursive(self):
+        """Procedures that can reach themselves through static calls (a call
+        through a variable, `call(name)`, is not followed)."""
+        graph = {}
+        for a, b in self.call_edges:
+            graph.setdefault(a, set()).add(b)
+        found = set()
+        for start in graph:
+            seen, todo = set(), list(graph[start])
+            while todo:
+                n = todo.pop()
+                if n == start:
+                    found.add(start)
+                    break
+                if n not in seen:
+                    seen.add(n)
+                    todo.extend(graph.get(n, ()))
+        return found
 
     def value_calls(self):
         return set(name for name, e in self.value_calls_pending if e.used_as_value)

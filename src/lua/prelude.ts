@@ -23,8 +23,16 @@ __host_call, __host_var, __host_get_ext, __host_set_ext, __host_option, __host_l
 local type, tostring, select, pairs, error, pcall = type, tostring, select, pairs, error, pcall
 local load, rawget, rawset, setmetatable = load, rawget, rawset, setmetatable
 local mtype, fmt = math.type, string.format
-local co_create, co_resume, co_status, co_yield, co_running = coroutine.create, coroutine.resume,
-    coroutine.status, coroutine.yield, coroutine.running
+local co_create, co_resume, co_status, co_yield, co_running, co_close = coroutine.create, coroutine.resume,
+    coroutine.status, coroutine.yield, coroutine.running, coroutine.close
+
+-- CE programStackPushValue / programReturnStackPushValue: a program's stacks hold
+-- 0x1000 values; a procedure that recurses without end fills them and stops with
+-- a fatal error. sslc keeps 3 return-stack values per call, so the procedures
+-- int2lua marks as recursive ("local _ <close> = recursion_guard()") stop at
+-- 0x1000 / 3 nested levels per script. Approximate: CE's depth also depends on
+-- each procedure's locals and arguments.
+local MAX_RECURSION = 0x1000 // 3
 
 -- ---------------------------------------------------------------------------
 -- SSL value semantics
@@ -130,6 +138,9 @@ local function new_env(id, script, name)
     local env = {}
     local imports = {}
     local api = {}  -- intrinsic closures, made on first use
+    -- nesting of this script's recursive procedures (see MAX_RECURSION)
+    local depth = 0
+    local depth_closer = setmetatable({}, { __close = function() depth = depth - 1 end })
 
     local function intrinsic(k)
         local f = api[k]
@@ -161,6 +172,11 @@ local function new_env(id, script, name)
             return f(...)
         end,
         exit = function() error(EXIT, 0) end,
+        recursion_guard = function()
+            if depth >= MAX_RECURSION then error("Stack overflow.", 0) end
+            depth = depth + 1
+            return depth_closer
+        end,
         gsay_end = function()
             host_call(script, "gsay_end")
             co_yield(SUSPEND)
@@ -213,6 +229,8 @@ end
 local function step(id, co, where, ...)
     local ok, r = co_resume(co, ...)
     if not ok then
+        -- a dead coroutine keeps its to-be-closed variables open until closed
+        co_close(co)
         report(id, where, r)
         return 0
     end

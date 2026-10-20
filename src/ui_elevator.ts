@@ -61,7 +61,7 @@ function animateGauge(fromFloor: number, toFloor: number, levels: number, onDone
     setTimeout(tick, delay)
 }
 
-function uiElevatorDone() {
+export function uiElevatorDone() {
     globalState.uiMode = UIMode.none
     hidev($id('elevatorBox'))
 
