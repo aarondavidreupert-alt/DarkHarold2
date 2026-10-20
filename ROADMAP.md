@@ -137,19 +137,14 @@ a believable playthrough.
 ### 5a. Drug/chem effects and addiction ✅ Done (rewritten 2026-10-06 as a CE `item.cc` port — see wiki/drugs.md)
 ### 5b. Poison and radiation decay loops ✅ Done
 
-### 5c. Party / companion follow logic 🟡 Partial
-- `party.ts` has `followPlayer()` (CHA size cap enforced).
-- ✅ followPlayer now pathfinds to nearest free hex adjacent to player (2026-06-04).
-- ✅ `dismissPartyMember` helper added; `party_remove` opcode silently no-ops on
-  non-party objects per CE (2026-06-04).
-- **Missing**: companion level-up, formation pathfinding. (Companion inventory is reached via dialogue Trade in CE — implemented, IW8/P8; there is no HUD route to add.)
-- Ref: `wiki/companion_party.md §1,2,4,5`
+### 5c. Party / companion follow logic ✅ Done
+- Companion level-ups: `Party.incLevels`, a port of `party_member.cc _partyMemberIncLevels` driven by `party.txt` (known_bugs C6, 2026-10-06).
+- Placement: `placeParty` is CE `_partyMemberSyncPosition` (C6, 2026-10-07).
+- Following is script-driven by each member's `critter_p_proc` (party.h macros), as in CE; DH2's invented `Party.followPlayer` was removed (P2, 2026-10-06).
+- Ref: `wiki/companion_party.md`
 
-### 5d. Minimal NPC wander schedules 🟡 Partial
-- ✅ Wander radius now differentiated (2026-06-04): type 1=radius 5, type 2=15,
-  type 3=unrestricted, around lazily captured spawn position.
-- Day-night schedules deferred.
-- Ref: `ai.cc aiMoveSteps()`
+### 5d. NPC wander schedules ✅ Done (script-driven, as in CE)
+- CE has no engine schedule or wander code: each critter's own `critter_p_proc` does it (`game_time_hour` checks, `animate_move_obj_to_tile`). `gameTick.ts` runs `critter_p_proc` like CE `scripts.cc _script_chk_critters`, one critter script per tick, round-robin (known_bugs P2, 2026-10-06).
 
 ---
 
