@@ -369,6 +369,16 @@ export class ScriptVM {
         // would stop at the nested one's end (halted) or go on at its pc.
         const outer = { pc: this.pc, offset: this.script.offset, halted: this.halted, aborted: this.aborted, dvarBase: this.dvarBase }
         try {
+            // CE interpreter.cc _executeProcedure → _setupCallWithReturnVal: the
+            // program's flags, checkWaitFunc and windowId (0, null, 0 for a game
+            // script; programCreateByPath zeroes the Program) under the frame, popped
+            // by the exit stub after the procedure returns. A procedure never
+            // touches them unless it is broken: mitoilet's description_p_proc
+            // compiles set_local_var without the variable number and takes the
+            // windowId, 0 — its LVAR_Examined, as the source meant.
+            this.push(0)
+            this.push(0)
+            this.push(0)
             // arguments first to last, then their count: a procedure's `fetch 0` is
             // its first argument (CE opCall / opPushBase)
             args.forEach((arg) => this.push(arg))
@@ -401,7 +411,12 @@ export class ScriptVM {
                 })
                 return 0
             }
-            return this.pop()
+            const result = this.pop()
+            // the exit stub's pop of the three call words (CE opPopFlags…); mitoilet
+            // used one of them, which CE reports as a stack underflow after the
+            // procedure has done its work
+            this.dataStack.length = dataDepth
+            return result
         } finally {
             this.pc = outer.pc
             this.script.seek(outer.offset)

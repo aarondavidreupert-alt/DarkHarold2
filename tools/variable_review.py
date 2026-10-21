@@ -36,8 +36,9 @@ def main(argv):
         rows = list(csv.DictReader(fh, delimiter="\t"))
     listed = listed_scripts()
     rows = [r for r in rows if r["script"] in listed]
-    named = [r for r in rows if r["name"] and not r["inferred"]]
-    inferred = [r for r in rows if r["inferred"]]
+    named = [r for r in rows if r["name"] and not r["status"]]
+    inferred = [r for r in rows if r["status"] == "inferred"]
+    guessed = [r for r in rows if r["status"] == "guessed"]
     numbers = [r for r in rows if not r["name"]]
 
     w = []
@@ -55,33 +56,48 @@ def main(argv):
     w.append("|---|---|")
     w.append("| Named from a source (`vault13.gam`, `maps/<map>.gam`, the script's `.ssl`) | %d |" % len(named))
     w.append("| Inferred (below) | %d |" % len(inferred))
+    w.append("| Guessed (below) | %d |" % len(guessed))
     w.append("| Still numbers (below) | %d |" % len(numbers))
     w.append("")
     w.append("## Inferred names")
     w.append("")
     w.append("Marked `-- inferred: <why>` where the script's Lua declares them. Kinds: an `.ssl` that lacks a few")
     w.append("of the `.int`'s procedures (another version of the same script), a global variable used as the base")
-    w.append("of an index expression, and an operand the compiler left out, restored from the source.")
+    w.append("of an index expression, an operand the compiler left out, restored from the source, and a map")
+    w.append("variable whose code only runs on one map, named from that map's `.gam`.")
     w.append("")
     w.append("| Script | Kind | Number | Name | Source |")
     w.append("|---|---|---|---|---|")
     for r in sorted(inferred, key=lambda r: (r["script"], r["kind"], int(r["number"]))):
         w.append("| %s | %s | %s | `%s` | %s |" % (r["script"], KIND[r["kind"]], r["number"], r["name"], cell(r["source"])))
     w.append("")
+    w.append("## Guessed names")
+    w.append("")
+    w.append("Marked `-- guessed: <why>` where the script's Lua declares them: names no source gives, chosen")
+    w.append("by hand from what the code does (`CURATED_NAMES` in `tools/int2lua.py`). All are in scripts no")
+    w.append("map uses (the cut Colusa/Navarro guards, the test script).")
+    w.append("")
+    w.append("| Script | Kind | Number | Name | Why |")
+    w.append("|---|---|---|---|---|")
+    for r in sorted(guessed, key=lambda r: (r["script"], r["kind"], int(r["number"]))):
+        w.append("| %s | %s | %s | `%s` | %s |" % (r["script"], KIND[r["kind"]], r["number"], r["name"], cell(r["source"])))
+    w.append("")
     w.append("## Still numbers")
     w.append("")
     w.append("No source names these: the script's `.ssl` uses the bare number, `vault13.gam` has no entry for it,")
-    w.append("or no `.ssl` exists for the script. LVAR -1 is a generic macro's \"no variable\" argument; the code")
-    w.append("using it sits behind `if -1 > -1` and never runs (the Broken Hills `bc*` scripts).")
+    w.append("or no `.ssl` exists for the script.")
     w.append("")
-    w.append("| Script | Kind | Number | Why |")
-    w.append("|---|---|---|---|")
-    for r in sorted(numbers, key=lambda r: (r["script"], r["kind"], int(r["number"]))):
-        w.append("| %s | %s | %s | %s |" % (r["script"], KIND[r["kind"]], r["number"], cell(r["source"])))
+    if not numbers:
+        w.append("None: every variable these scripts use has a name.")
+    else:
+        w.append("| Script | Kind | Number | Why |")
+        w.append("|---|---|---|---|")
+        for r in sorted(numbers, key=lambda r: (r["script"], r["kind"], int(r["number"]))):
+            w.append("| %s | %s | %s | %s |" % (r["script"], KIND[r["kind"]], r["number"], cell(r["source"])))
     w.append("")
     with open(out, "w", encoding="utf-8", newline="\n") as fh:
         fh.write("\n".join(w))
-    print("%s: %d named, %d inferred, %d numbers" % (out, len(named), len(inferred), len(numbers)))
+    print("%s: %d named, %d inferred, %d guessed, %d numbers" % (out, len(named), len(inferred), len(guessed), len(numbers)))
     return 0
 
 

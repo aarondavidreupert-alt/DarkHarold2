@@ -416,13 +416,46 @@ def read_gam(path, section):
 # Operands the compiler left out of a script, restored from its source: (script,
 # procedure) -> (value, name, why). mitoilet description_p_proc compiles
 # `set_local_var(LVAR_Examined, true)` without the variable number, so the
-# bytecode pops a word from below its frame (CE: the windowId
-# _setupCallWithReturnVal pushed; the VM: the last script variable); the Lua
-# uses the source's LVAR_Examined (0).
+# bytecode pops the word below its frame: in CE the program's windowId that
+# _setupCallWithReturnVal pushed, 0 for a game script (src/vm.ts pushes the same)
+# — the source's LVAR_Examined (0).
 MISSING_OPERANDS = {
     ("mitoilet", "description_p_proc"): (0, "LVAR_Examined",
-                                         "the .int lacks this set_local_var argument; mitoilet.ssl has LVAR_Examined (0)"),
+                                         "the .int lacks this set_local_var argument; mitoilet.ssl has LVAR_Examined (0), and CE takes the windowId, 0"),
 }
+
+# Other #defines that name a variable number, used only for a number nothing else
+# names: define.h's caught_pickpocket counts thefts in local_var(NPC_REACTION_VAR)
+# (fcmarc: 8); the emitter scripts notify through map_var(MAP_NOTIFY) /
+# global_var(GLOBAL_NOTIFY). -1, their defaults, means none (behind `if (X > -1)`).
+VAR_DEFINES = {"NPC_REACTION_VAR": "LVAR_", "MAP_NOTIFY": "MVAR_", "GLOBAL_NOTIFY": "GVAR_"}
+
+# Names no source gives, chosen by hand: (script, kind, number) -> (name, status,
+# why). "inferred": the script's code for that variable only runs on one map,
+# whose .gam names it. "guessed": from what the code does with it (scripts no
+# map uses: the cut Colusa/Navarro guards, test1).
+CURATED_NAMES = {
+    ("mcatkdog", "mvar", 0): ("MVAR_Did_Fake_Dog_Kill", "inferred",
+                              "maps/modbrah.gam; used only under cur_map_index == 20 (modbrah)"),
+}
+for _s in ("ccguard", "cctech", "ccmaster", "test1"):
+    CURATED_NAMES[(_s, "lvar", 5)] = ("LVAR_Hostile", "guessed",
+                                      "the template's number; 2 after a theft, then attacks on sight")
+    CURATED_NAMES[(_s, "lvar", 6)] = ("LVAR_Personal_Enemy", "guessed",
+                                      "the template's number; set when the player damages the critter")
+for _s in ("ccguard", "cctech", "ccmaster"):
+    CURATED_NAMES[(_s, "lvar", 1)] = ("LVAR_reaction_level", "guessed",
+                                      "modreact.h's number; set to +4 / -4 (REACTION_LEVEL_EXCELLENT / ABYSMAL)")
+    CURATED_NAMES[(_s, "lvar", 3)] = ("LVAR_base_reaction", "guessed",
+                                      "modreact.h's number; set to +100 / -100 with LVAR 1")
+    CURATED_NAMES[(_s, "mvar", 2)] = ("MVAR_Alert_Status", "guessed",
+                                      "0-4, the dialogue branches on it; 4 once the player attacks or is exposed (\"GUARDS!\")")
+    CURATED_NAMES[(_s, "mvar", 3)] = ("MVAR_Claimed_New_Guy", "guessed",
+                                      "set to 1 when the player claims to be the new guy (ccmaster Node027)")
+CURATED_NAMES[("ccmaster", "lvar", 8)] = ("LVAR_Refuse_Talk", "guessed",
+                                          "never set (always 0); when 1, talking only gives a float message")
+CURATED_NAMES[("ccmaster", "lvar", 9)] = ("LVAR_Asked_If_New_Guy", "guessed",
+                                          "set at the first Node004 (\"You the guy Arch radioed about?\"), then reply 111")
 
 # SslNames.for_script: an .ssl whose tree lacks at most this many of the .int's
 # procedures is taken as another version of the same script (names marked inferred)
@@ -491,11 +524,14 @@ class SslNames:
         re = self.re
         # includes: paths, or ("macro", NAME) for `#include NAME` (ziLocker.ssl's
         # EXTRA_HEADER, a string #define of the script that includes it)
-        out = {"defines": [], "procs": set(), "includes": [], "strings": {}, "aliases": {}, "prefixes": set()}
+        out = {"defines": [], "procs": set(), "includes": [], "strings": {}, "aliases": {}, "prefixes": set(), "words": set()}
         self.cache[path] = out
         with open(path, encoding="latin-1") as fh:
             for line in fh:
-                code = line.split("//")[0]
+                # /* ... */ on the line, and a /* the line leaves open (`#define MAP_NOTIFY
+                # (-1) /* use this macro ...` goes on below)
+                code = re.sub(r"/\*.*?(\*/|$)", "", line.split("//")[0])
+                out["words"].update(re.findall(r"[A-Za-z_]\w*", code))
                 m = re.match(r'\s*#\s*include\s+"([^"]+)"', code)
                 if m:
                     inc = self.resolve(path, m.group(1))
@@ -537,7 +573,7 @@ class SslNames:
         version). With a few procedures missing (NEAR_MATCH_PROCS: another version of the
         same script) the names are still used, marked inferred. A number two names share
         keeps the one the script's own .ssl defines (ricshbox: LVAR_Restock_Time, not
-        modreact.h's LVAR_reaction), else it stays a number."""
+        modreact.h's LVAR_reaction), else the one its .ssl mentions, else it stays a number."""
         path = self.ssl.get(name.lower())
         if not path:
             return None
@@ -547,25 +583,30 @@ class SslNames:
         if len(missing) > NEAR_MATCH_PROCS:
             return None
         own = {n for n, _v in self.read(path)["defines"]}
+        mentioned = self.read(path)["words"]
 
         def pick(table):
             out = {}
             for v, ns in table.items():
                 if len(ns) > 1:
-                    ns = ns & own
+                    # the script's own define, else the one its .ssl mentions (wtpltrp2:
+                    # depolva.h names 77 twice, the trap uses MVAR_Plasma_Trap_L2_00)
+                    ns = (ns & own) or (ns & mentioned)
                 if len(ns) == 1:
                     out[v] = next(iter(ns))
             return out
         tree = os.path.basename(self.root)
         src = "%s/%s" % (tree, os.path.relpath(path, self.root).replace("\\", "/"))
-        return {"lvar": pick(found["LVAR_"]), "mvar": pick(found["MVAR_"]), "inferred": bool(missing),
+        return {"lvar": pick(found["LVAR_"]), "mvar": pick(found["MVAR_"]), "gvar": pick(found["GVAR_"]),
+                "inferred": bool(missing),
                 "source": src + (" (near match: the .int also has %s)" % ", ".join(missing) if missing else "")}
 
     def collect(self, path):
         """An .ssl and everything it #includes: (procedure names, {"LVAR_": {n:
         {names}}, "MVAR_": ...}, procedure-name template prefixes)."""
         seen, todo, procs = set(), [path], set()
-        found = {"LVAR_": {}, "MVAR_": {}}
+        found = {"LVAR_": {}, "MVAR_": {}, "GVAR_": {}}
+        extra = {}  # VAR_DEFINES: only for a number no LVAR_ / MVAR_ define names
         strings = {}  # string #defines seen so far, for `#include NAME`
         aliases = {}  # `#define x y`: procedure x compiles as y
         prefixes = set()  # procedure name templates (`procedure NOdds##...`)
@@ -585,11 +626,16 @@ class SslNames:
             prefixes |= f["prefixes"]
             strings.update(f["strings"])
             for n, v in f["defines"]:
-                for prefix, table in found.items():
+                for prefix in ("LVAR_", "MVAR_"):  # GVAR names come from vault13.gam
                     if n.startswith(prefix):
-                        table.setdefault(v, set()).add(n)
+                        found[prefix].setdefault(v, set()).add(n)
+                if n in VAR_DEFINES:
+                    extra.setdefault(VAR_DEFINES[n], {}).setdefault(v, set()).add(n)
             todo.extend(reversed(f["includes"]))  # in file order
         procs |= {aliases[p] for p in procs if p in aliases}
+        for prefix, table in extra.items():
+            for v, ns in table.items():
+                found[prefix].setdefault(v, ns)
         return procs, found, prefixes
 
 
@@ -1482,7 +1528,14 @@ class ScriptDecompiler:
             if not self.names["mvar"]:  # a map's own .gam comes first
                 self.names["mvar"] = own["mvar"]
                 self.var_source["mvar"], self.var_inferred["mvar"] = own["source"], own["inferred"]
+            # a GVAR number vault13.gam lacks (GLOBAL_NOTIFY's -1)
+            self.names["gvar"] = {**own["gvar"], **self.names["gvar"]}
         self.var_uses = {}  # (kind, number) -> name or None, every variable the code uses
+        self.guessed = {}  # name -> why it is guessed (CURATED_NAMES)
+        for (script, kind, num), (cname, status, why) in CURATED_NAMES.items():
+            if script == name and num not in self.names[kind]:
+                self.names[kind] = {**self.names[kind], num: cname}
+                (self.inferred if status == "inferred" else self.guessed)[cname] = why
         self.fixed_operands = set()  # pcs MISSING_OPERANDS supplied a value for
         self.operand_notes = {}      # name -> why (MISSING_OPERANDS), marked inferred
         self.named = {}       # name -> (kind, number), used somewhere in the script
@@ -1575,10 +1628,13 @@ class ScriptDecompiler:
         for (kind, v), n in sorted(self.var_uses.items()):
             if n and n in self.declared:
                 src = self.var_source[kind] or ""
-                why = self.inferred.get(n)
-                if why and not why.startswith("from "):  # the reason, unless it is just the source again
+                why = self.inferred.get(n) or self.guessed.get(n)
+                if (kind, v) in [(k, x) for (sc, k, x) in CURATED_NAMES if sc == self.name]:
+                    src = why  # a hand-chosen name: the evidence is its whole source
+                elif why and not why.startswith("from "):  # the reason, unless it is just the source again
                     src = "%s: %s" % (src, why)
-                rows.append((kind, v, n, src, n in self.inferred))
+                status = "guessed" if n in self.guessed else ("inferred" if n in self.inferred else "")
+                rows.append((kind, v, n, src, status))
             else:
                 if not self.var_source[kind]:
                     why = "no source names it"
@@ -1732,8 +1788,8 @@ class ScriptDecompiler:
         self.declared = set(n for n, _kv in ordered)
         if ordered:
             for n, (_kind, v) in ordered:
-                note = self.inferred.get(n)
-                w("local %s = %d%s" % (n, v, "  -- inferred: " + note if note else ""))
+                note = ("inferred", self.inferred[n]) if n in self.inferred else                     (("guessed", self.guessed[n]) if n in self.guessed else None)
+                w("local %s = %d%s" % (n, v, "  -- %s: %s" % note if note else ""))
             w("")
         if self.svars:
             for n, v in zip(self.svars, self.svar_inits):
@@ -1844,7 +1900,7 @@ def decompile_file(path, report=None):
     return text
 
 
-REPORT_HEADER = "script\tkind\tnumber\tname\tsource\tinferred"
+REPORT_HEADER = "script\tkind\tnumber\tname\tsource\tstatus"
 
 
 def write_report(path, rows):
@@ -1853,7 +1909,7 @@ def write_report(path, rows):
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(REPORT_HEADER + "\n")
         for script, kind, v, n, src, inf in sorted(rows):
-            fh.write("%s\t%s\t%d\t%s\t%s\t%s\n" % (script, kind, v, n, src, "inferred" if inf else ""))
+            fh.write("%s\t%s\t%d\t%s\t%s\t%s\n" % (script, kind, v, n, src, inf or ""))
 
 
 def check_bridge(bridge_path):
