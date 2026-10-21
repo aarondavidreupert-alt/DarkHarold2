@@ -22,7 +22,7 @@ import { hexDistance, hexFromScreen, hexInDirection, hexInDirectionDistance, hex
 import globalState from '../globalState.js'
 import { Lightmap } from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
-import { Critter, deserializeObj, Obj } from '../object.js'
+import { Critter, deserializeObj, Obj, zsortMap } from '../object.js'
 import { centerCamera } from '../renderer.js'
 import { computeMapContentBounds, computeObjectContentBounds, computeScrollBlockerBounds } from '../render/camera.js'
 import { Scripting } from '../scripting.js'
@@ -257,6 +257,10 @@ export class GameMap {
         // re-entry at the same elevation mustn't undo scripts' move_to on party members
         // (e.g. the car trunk, which its script parks next to the car).
         if (isMapLoading || level !== oldElevation) this.placeParty()
+
+        // draw order: the arrays come from the map file / a save in their own order, and
+        // the party was just appended (Obj.ts zsortMap, [dh2] object_sort)
+        zsortMap(this.objects)
 
         // Compute object bbox and CE-authoritative scroll blocker bbox.
         // scrollBlockerBounds is the primary source for bars and clamp.

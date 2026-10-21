@@ -161,6 +161,9 @@ export function applyCfg(cfg: CfgSections): void {
     //   walk_model=ce|dh2|smooth      walk/run movement (console setWalkModel, default ce)
     const wm = dh2['walk_model']?.toLowerCase()
     if (wm === 'ce' || wm === 'dh2' || wm === 'smooth') Config.engine.walkModel = wm
+    //   object_sort=ce|ce-dh2|dh2     object draw order (default ce-dh2; see Config.engine.objectSort)
+    const os = dh2['object_sort']?.toLowerCase()
+    if (os === 'ce' || os === 'ce-dh2' || os === 'dh2') Config.engine.objectSort = os
     //   anim_offset_model=ce|dh2      sprite offset across animations (console setAnimOffsetModel)
     const am = dh2['anim_offset_model']?.toLowerCase()
     if (am === 'ce' || am === 'dh2') Config.engine.animOffsetModel = am

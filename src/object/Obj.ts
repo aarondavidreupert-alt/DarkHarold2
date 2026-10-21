@@ -369,7 +369,36 @@ export function objectUnjamAll(): void {
     }
 }
 
+// CE object.cc OBJECT_FLAT: drawn before the other objects on its tile
+const OBJECT_FLAT = 0x08
+
+function tileOf(o: Obj): number {
+    return o.position.y * 200 + o.position.x
+}
+
+/** Draw order, Config.engine.objectSort ([dh2] object_sort). < 0: `a` is drawn first. */
 function objectZCompare(a: Obj, b: Obj): number {
+    if (Config.engine.objectSort === 'dh2') return objectZCompareDH2(a, b)
+    // CE object.cc _obj_render_pre_roof walks the view's hexes in _orderTable order, which
+    // _obj_order_table_init sorts by tile offset (_obj_order_comp_func_even/odd): ascending
+    // tile number. On one tile _obj_insert keeps flat objects first, the rest in insertion
+    // order (equal here, so the stable sort / insertion after equals keeps it).
+    const d = tileOf(a) - tileOf(b)
+    if (d !== 0) return d
+    const flatA = ((a.flags ?? 0) & OBJECT_FLAT) !== 0
+    const flatB = ((b.flags ?? 0) & OBJECT_FLAT) !== 0
+    if (flatA !== flatB) return flatA ? -1 : 1
+    if (Config.engine.objectSort === 'ce-dh2') {
+        // DH2 tie-break: a wall before whatever else stands on its tile
+        if (a.type === 'wall' && b.type !== 'wall') return -1
+        if (b.type === 'wall' && a.type !== 'wall') return 1
+    }
+    return 0
+}
+
+// [dh2] object_sort=dh2: the previous DH2 order (screen-space pairwise test). Not a
+// total order: objectZOrder's insertion depends on the array around it.
+function objectZCompareDH2(a: Obj, b: Obj): number {
     // CE ref: tile.cc tileIsInFrontOf — screen-space hex test correct for all
     // 6 hex directions. Falls back to hex-y / hex-x ordering only when both
     // tiles project to identical screen coordinates (shared tile), with walls
@@ -403,7 +432,8 @@ function objectZOrder(obj: Obj, index: number): void {
     let inserted = false
     for (let i = 0; i < objects.length; i++) {
         const zc = objectZCompare(obj, objects[i])
-        if (zc === -1) {
+        // dh2: the old test exactly (only a strict "in front" -1 counts)
+        if (Config.engine.objectSort === 'dh2' ? zc === -1 : zc < 0) {
             objects.splice(i, 0, obj) // insert at new index
             inserted = true
             break
@@ -418,6 +448,15 @@ function objectZOrder(obj: Obj, index: number): void {
 
 export function zsort(objects: Obj[]): void {
     objects.sort(objectZCompare)
+}
+
+/** Put every elevation's objects in draw order after a map or save load: the arrays
+ *  come from the map file or a save in whatever order they had, and objectZOrder's
+ *  insertion assumes the rest is sorted (an object placed early drew walls over the
+ *  player for good). Not for object_sort=dh2, whose test is not a total order. */
+export function zsortMap(levels: Obj[][] | null): void {
+    if (!levels || Config.engine.objectSort === 'dh2') return
+    for (const level of levels) if (level) zsort(level)
 }
 
 // Spatial trigger lookup — shared by Obj.explode and Critter.move. CE scripts.cc

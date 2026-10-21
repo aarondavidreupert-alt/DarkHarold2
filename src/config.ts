@@ -139,6 +139,14 @@ export const Config = {
         //           tile + art direction offset + obj->x - width/2 (object.cc objectGetRect)
         //   'dh2' — the DH2 artOffset that pins the anchor point at every art change
         animOffsetModel: 'ce' as 'ce' | 'dh2',
+        // Object draw order (fallout2.cfg [dh2] object_sort):
+        //   'ce'     — CE object.cc: ascending tile number (_obj_order_comp_func_even/odd sort
+        //              the view's hexes by tile offset), on a tile flat objects first, the
+        //              rest in the order they were put there (_obj_insert)
+        //   'ce-dh2' — 'ce', plus walls before other objects on a shared tile (DH2 tie-break)
+        //   'dh2'    — the old DH2 screen-space pairwise test (hexIsInFrontOf), no sort on
+        //              load; not a total order, so the result depends on the array's history
+        objectSort: 'ce-dh2' as 'ce' | 'ce-dh2' | 'dh2',
         doSaveDirtyMaps: true, // save dirty maps to in-memory cache?
         doLoadScripts: true, // should we load scripts?
         doUpdateCritters: true, // should we give critters heartbeats?

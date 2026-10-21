@@ -88,7 +88,7 @@ Frame:
 1. `OBJECT_FLAT` objects (e.g., floor decals) — dedicated first pass
 2. All remaining objects in the render table — drawn back-to-front
 
-CE's per-tile render table is sorted by `_obj_order_comp_func_even/odd` which encodes isometric depth by interleaving tile row/column offsets.
+CE's render table is sorted by `_obj_order_comp_func_even/odd`, which compare tile offsets (`tile - originTile`): ascending tile number, row by row (see §3 Object Sort).
 
 Object depth tie-breaking uses `tileIsInFrontOf` and `tileIsToRightOf`:
 
@@ -299,19 +299,31 @@ Floor tiles are iterated in reverse row order (`i = tileMap.length-1` down to 0)
 
 **Roof clipping** (RD06, FIXED 2026-06-15): `renderer.ts` flood-fills (`roofFloodFill`) the connected roof section the player stands under from their square tile each frame (matching CE `tile_fill_roof`), passing a `hideSet` to `renderRoof()` which skips those tiles. `Config.ui.showRoof` (default `true`) is a separate global on/off. `Config.ui.roofPeek` (**default off**) can additionally flood from the roof tile ~96px south (the one covering the player when *behind* a building), but full-hiding the whole roof that way is too aggressive. The behind-building case is instead handled by **roof egg-transparency** (`Config.ui.roofEgg`, **default on**, 2026-07-04): `renderRoof()` binds the egg mask (unit 6) and sets `u_eggMode=1` for the roof pass, so the same soft oval the walls get (`fragment.glsl` egg block) fades any *visible* roof tile overlapping the player — the character shows through without the whole roof vanishing. Under-building tiles are already removed via `hideSet`, so the full-hide rules are unchanged. Toggle: `setRoofEgg(bool)`. See **RD06** in §5.
 
-### Object Sort (`objectZCompare`, `object.ts`)
+### Object Sort (`objectZCompare`, `object/Obj.ts`) — `[dh2] object_sort`
 
-DH2 sorts objects by a simplified key:
+**CE order (corrected 2026-10-21).** `_obj_render_pre_roof` (`object.cc`) walks the view's hexes in
+`_orderTable[parity]` order. `_obj_order_table_init` sorts that table with `_obj_order_comp_func_even/odd`,
+which compare `_offsetTable` entries, and `_obj_offset_table_init` fills `_offsetTable` with
+`tile - originTile`: so CE draws in **ascending tile number** (`y * 200 + x`, row by row north to south).
+The parity tables only follow the view's top-left hex; they do not change the order. On one tile,
+`_obj_insert` keeps flat objects (`OBJECT_FLAT`) first and the rest in the order they were put there.
+(This section used to call CE's sort "isometric-correct" and Y-then-X an approximation of it; the CE
+source shows they are the same thing.)
 
-```
-Primary:   hex y (north-to-south), ascending
-Secondary: hex x (west-to-east), ascending
-Tertiary:  walls before non-walls at same tile
-```
+DH2 draws in the order of each elevation's object array; `objectZOrder` re-inserts an object after it
+moves, before the first object that sorts after it. `fallout2.cfg [dh2] object_sort` picks the order:
 
-This is **not** equivalent to CE's isometric-correct sort. CE uses a two-phase algorithm (`_obj_preload_sort` then the per-parity offset table `_obj_order_comp_func_even/odd`) that correctly handles all 6 hex directions. DH2's Y-then-X sort produces correct results for most cases but fails at the north-east / south-west diagonals. See deviation **RD09** in §5.
+| Value | Order |
+|-------|-------|
+| `ce` | tile number, then flat before non-flat, then insertion order (CE) |
+| `ce-dh2` (default) | `ce`, plus walls before other objects on a shared tile (DH2 tie-break) |
+| `dh2` | the previous DH2 order: a screen-space pairwise test (`hexIsInFrontOf`), y/x fallback |
 
-Object insertion after movement uses `objectZOrder` (`object.ts`) which does an in-place insertion-sort into the live objects array.
+With `ce` / `ce-dh2` every elevation's array is sorted whenever `changeElevation` runs, which every
+map load, map-cache load and save load ends with (`zsortMap`). The `dh2` test is not a total order, so
+the result depended on the array's history: a save could hold the player early in the array and draw
+the walls behind him over him for good (Klamath Downtown, known_bugs C67). `dh2` keeps that behaviour
+(no sort on load) for comparison.
 
 ---
 
@@ -472,7 +484,7 @@ If both yes → fix. If cosmetic/imperceptible → accept. If unsure → mark �
 | RD06 | Roof clipping | `tile_fill_roof` flood-fills the roof of the building the dude is in | `roofFloodFill` from the dude's square → hidden roof set; roof egg over the rest | — | — | ✅ Fixed |
 | RD07 | OBJECT_FLAT pass | `_obj_render_pre_roof` draws OBJECT_FLAT objects first | Two passes in `renderObjects()` (flat first) | — | — | ✅ Fixed |
 | RD08 | Post-roof pass | `_obj_render_post_roof`: outlines, text objects above the roofs | Outline pass and float text after the roofs | — | — | ✅ Fixed |
-| RD09 | Object depth sort | `tileIsInFrontOf` / `tileIsToRightOf` order | `objectZCompare` with `hexIsInFrontOf` / `hexIsToRightOf` | — | — | ✅ Fixed |
+| RD09 | Object depth sort | ascending tile number (`_obj_order_comp_func_even/odd` over `tile - originTile`), flat first on a tile | `objectZCompare` per `[dh2] object_sort`: `ce`, `ce-dh2` (default, walls first on a tile), `dh2` (old `hexIsInFrontOf` test); arrays sorted on every load (2026-10-21, C67) | — | — | ✅ Fixed |
 | RD10 | Color cycling | `colorCycleTicker` rotates palette 229–254 | Cycle mask texture + shader (`colorCycle.ts`) | — | — | ✅ Fixed |
 | RD11 | Scroll blocking | `OBJECT_SCROLL_BLOCK` stops the view | `clampCameraPosition` reverts into blocked hexes | — | — | ✅ Fixed |
 | RD12 | Scroll borders | `gTileBorderMin/Max` clamp | `MAP_WORLD_BOUNDS` from the corner hexes | — | — | ✅ Fixed |
