@@ -105,7 +105,8 @@ never a silently wrong translation:
     `data/scripts/variable_names.tsv` — every GVAR / MVAR / LVAR each script uses, its name, where the name
     comes from (`data/vault13.gam`, `maps/<map>.gam`, the `.ssl` file and tree) and whether it is
     inferred, or why it stays a number. Like the `.lua` files it is derived from the install and not
-    committed. 2026-10-21, scripts in scripts.lst: 18 546 variable uses named from a source, 67 inferred,
+    committed; [lua_variable_names.md](lua_variable_names.md) (`tools/variable_review.py`) keeps its
+    inferred names and remaining numbers for review. 2026-10-21, scripts in scripts.lst: 18 546 variable uses named from a source, 67 inferred,
     66 numbers (the source itself uses a bare number, or a GVAR `vault13.gam` lacks).
   - from the same sources' `define.h` / `animcomd.h`, the arguments that take one of their constants:
     `get_critter_stat(dude_obj, STAT_gender)`, `has_skill(…, SKILL_SPEECH)`, `get_pc_stat(PCSTAT_level)`,

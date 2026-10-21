@@ -1574,7 +1574,11 @@ class ScriptDecompiler:
         rows = []
         for (kind, v), n in sorted(self.var_uses.items()):
             if n and n in self.declared:
-                rows.append((kind, v, n, self.var_source[kind] or "", n in self.inferred))
+                src = self.var_source[kind] or ""
+                why = self.inferred.get(n)
+                if why and not why.startswith("from "):  # the reason, unless it is just the source again
+                    src = "%s: %s" % (src, why)
+                rows.append((kind, v, n, src, n in self.inferred))
             else:
                 if not self.var_source[kind]:
                     why = "no source names it"

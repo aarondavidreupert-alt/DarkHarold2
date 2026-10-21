@@ -48,6 +48,7 @@ entry is one to three sentences. For the live bug registry start with
 | [scripting_vm.md](scripting_vm.md) | DH2's three-file scripting architecture (`vm.ts` bytecode decoder, `vm_bridge.ts` opcode wiring, `scripting.ts` Script class), procedure hook lifecycle, stack layout, and the full `opMap` of low-level bytecode handlers. |
 | [scripting_reference.md](scripting_reference.md) | Full reference tables: `SCRIPT_PROC_*` hook IDs, variable scoping (GVAR/LVAR/MVAR), VM bytecodes (0x8000–0x804B), intrinsic opcodes (0x80A0+), `get_pc_stat` constants, `metarule` IDs, and the list of unwired opcodes. |
 | [lua_scripts.md](lua_scripts.md) | DH2 addition: `tools/int2lua.py` decompiles the `.int` scripts to Lua 5.4; the Lua backend (`src/lua/`, wasmoon) runs them with SSL semantics, coroutine dialogue and a per-script sandbox; `luadiff.html` checks them call for call against the VM. |
+| [lua_variable_names.md](lua_variable_names.md) | Generated review list (`tools/variable_review.py`): the Lua scripts' inferred variable names and the variables that stay numbers, with their sources |
 | [map_scripting.md](map_scripting.md) | Map-level script lifecycle (load, enter, exit, use, damage, spatial), NEVS named event system (`nevs.cc`), scripted elevation changes, and how `tools/fomap.py` extracts script headers into map JSON. |
 | [spatial_triggers.md](spatial_triggers.md) | CE `SCRIPT_TYPE_SPATIAL` trigger mechanics: tile/elevation encoding, `scriptsExecSpatialProc` dispatch, radius vs exact-tile matching, and DH2 `hitSpatialTrigger` implementation fidelity. |
 

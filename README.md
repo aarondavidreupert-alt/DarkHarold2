@@ -108,7 +108,8 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 47 | [`wiki/scroll_clamping.md`](wiki/scroll_clamping.md) | Map scroll borders and edge rendering (`tileSetBorder`, `tileSetCenter`) |
 | 48 | [`wiki/ts-split-refactor.md`](wiki/ts-split-refactor.md) | Source split strategy and the subfolder / barrel convention |
 | 49 | [`wiki/lua_scripts.md`](wiki/lua_scripts.md) | Scripts decompiled to Lua (`tools/int2lua.py`), the Lua backend and the VM-vs-Lua test |
-| 50 | [`wiki/edit_history.md`](wiki/edit_history.md) | Sprint notes, newest first |
+| 50 | [`wiki/lua_variable_names.md`](wiki/lua_variable_names.md) | Review list for the decompiled scripts' variable names: inferred names and remaining numbers |
+| 51 | [`wiki/edit_history.md`](wiki/edit_history.md) | Sprint notes, newest first |
 
 ### 🐛 Known issues & roadmap
 
