@@ -679,11 +679,18 @@ html, body {
   display: none;
 }
 
+/* one item in the inventory, loot, steal, barter and companion-trade lists
+   (ui_dom.ts appendItemSlot): icon and stack count centred, the count 2px below */
+.invItemSlot {
+  text-align: center;
+}
+
 .invItemAmount {
   display: block;
   text-align: center;
   color: #FCFC7C;
   font-size: 0.75em;
+  margin-top: 2px;
   margin-bottom: 2px;
 }
 

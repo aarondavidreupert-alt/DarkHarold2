@@ -25,7 +25,7 @@ import { uiGetAmount, uiSwapItem } from './ui_barter.js'
 import { uiLog } from './ui_hud.js'
 import { getMessage } from './util.js'
 import { makeDropTarget, makeDraggable } from './ui_inventory.js'
-import { $id, clearEl, showv, hidev, off, makeEl } from './ui_dom.js'
+import { appendItemSlot, $id, clearEl, showv, hidev, off, makeEl } from './ui_dom.js'
 
 // --- Loot screen -----------------------------------------------------------
 
@@ -98,10 +98,9 @@ export function uiLoot(object: Obj) {
             const img = makeEl('img', {
                 src: inventoryImage + '.png',
                 attrs: { title: objects[i].name },
-                style: { maxWidth: '72px', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
+                style: { maxWidth: '100%', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
             })
-            $el.appendChild(img)
-            $el.insertAdjacentHTML('beforeend', 'x' + objects[i].amount)
+            appendItemSlot($el, img, objects[i].amount)
             makeDraggable(img, who + i)
         }
     }

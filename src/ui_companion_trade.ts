@@ -38,7 +38,7 @@ import { Critter, cloneItem, Obj } from './object.js'
 import { UIMode } from './ui_panels.js'
 import { getVisibleDialoguePanel, uiSetDialogueReply, uiSwapDialoguePanel } from './ui_dialogue.js'
 import { makeDropTarget, makeDraggable } from './ui_inventory.js'
-import { $id, clearEl, makeEl } from './ui_dom.js'
+import { appendItemSlot, $id, clearEl, makeEl } from './ui_dom.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter/swap.js'
 import { renderBarterPortrait, startBarterPortraitAnimation, stopBarterPortraitAnimation } from './ui_barter/screen.js'
 import { Scripting } from './scripting.js'
@@ -148,8 +148,7 @@ export function uiCompanionTrade(companion: Critter): void {
                 attrs: { title: obj.name },
                 style: { maxWidth: '100%', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
             })
-            $el.appendChild(img)
-            $el.insertAdjacentHTML('beforeend', 'x' + obj.amount)
+            appendItemSlot($el, img, obj.amount)
             // drag-data index is the index into the underlying array (`i`),
             // not the on-screen position, so drops/swaps still target the
             // right item regardless of scroll offset.

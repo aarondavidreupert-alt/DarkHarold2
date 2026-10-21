@@ -28,7 +28,7 @@ import { Scripting } from '../scripting.js'
 import { drawAC, drawAP, uiDrawWeapon } from '../ui_hud.js'
 import { makePanelDraggable } from '../ui_drag.js'
 import { UIMode, closeAllPanels, isInventoryOpen, registerCloseInventoryPanel } from '../ui_panels.js'
-import { $id, clearEl, showv, hidev, makeEl } from '../ui_dom.js'
+import { appendItemSlot, $id, clearEl, showv, hidev, makeEl } from '../ui_dom.js'
 import { makeDropTarget, makeDraggable, uiMoveSlot, applyArmorArt, tryLoadAmmoIntoWeapon, dragInProgress } from './dragdrop.js'
 import { refreshStealthState } from '../miscItem.js'
 import { armorPerkSwap } from '../perks.js'
@@ -364,11 +364,7 @@ export function showInventory(useOn = false) {
                 makeItemContextMenu(e, invObj, 'inventory')
                 return false
             }
-            $el.appendChild(img)
-            const amtSpan = document.createElement('span')
-            amtSpan.className = 'invItemAmount'
-            amtSpan.textContent = 'x' + invObj.amount
-            $el.appendChild(amtSpan)
+            appendItemSlot($el, img, invObj.amount)
             makeDraggable(img, 'i' + i, () => {
                 showInventory()
             })
