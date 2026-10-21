@@ -88,8 +88,25 @@ never a silently wrong translation:
        tree does not match.
     A script takes its LVAR/MVAR names from the first tree whose `.ssl` declares every procedure of the
     vanilla `.int` (1164 of 1245 from `ssl/`, the rest of 1238 from the patch); PID and `define.h` names
-    come from both, the first tree's spelling winning. A number two headers name differently stays a
-    number. Without the files, or for a computed number, the number stays.
+    come from both, the first tree's spelling winning. Procedures count as declared when the `.ssl` tree
+    has them as `procedure x`, under a `#define x y` alias (`def_description_p_proc`), as the target of a
+    `call`, or from a `procedure Name##…` macro template (zcCrpDel.ssl `NOdds##name##x`); `#include` finds
+    a file of that name anywhere in the tree when its folder is missing (`..\generic\ziLocker.ssl`) and
+    follows `#include NAME` through a string `#define` (ziLocker's `EXTRA_HEADER`). A number two headers
+    name differently takes the name the script's own `.ssl` defines (ricshbox: `LVAR_Restock_Time`, not
+    modreact.h's `LVAR_reaction`), else stays a number. Without the files, or for a computed number, the
+    number stays.
+  - **Inferred names** (marked `-- inferred: <why>` where they are declared): an `.ssl` whose tree lacks at
+    most 3 of the `.int`'s procedures is taken as another version of the same script and names its
+    variables (door: the `.int` also has `checkPartyMembers`); a global variable used as the base of an
+    index expression (`GVAR_SALVATORE_WARNINGS + 2 - 1`, sslc folds the index to `251 + 2 - 1`); and an
+    operand the compiler left out, restored from the source (`MISSING_OPERANDS`: mitoilet).
+  - **The variable list**: the `decompile_scripts` stage (or `int2lua.py --report FILE`) writes
+    `data/scripts/variable_names.tsv` — every GVAR / MVAR / LVAR each script uses, its name, where the name
+    comes from (`data/vault13.gam`, `maps/<map>.gam`, the `.ssl` file and tree) and whether it is
+    inferred, or why it stays a number. Like the `.lua` files it is derived from the install and not
+    committed. 2026-10-21, scripts in scripts.lst: 18 546 variable uses named from a source, 67 inferred,
+    66 numbers (the source itself uses a bare number, or a GVAR `vault13.gam` lacks).
   - from the same sources' `define.h` / `animcomd.h`, the arguments that take one of their constants:
     `get_critter_stat(dude_obj, STAT_gender)`, `has_skill(…, SKILL_SPEECH)`, `get_pc_stat(PCSTAT_level)`,
     `critter_inven_obj(…, INVEN_TYPE_RIGHT_HAND)`, `metarule(METARULE_IS_LOADGAME, 0)`,
@@ -115,11 +132,12 @@ never a silently wrong translation:
   `interpreter_lib.cc opSayStart`, `opSayReply`, `opSayOption`, `opSayMessage`, `opSayEnd`), which Fallout 2
   replaced with gdialog. Neither backend implements it, and no scripts.lst entry or map names these
   Fallout 1 leftovers.
-- **mitoilet**: `description_p_proc` compiles `set_local_var(1)` without the variable number, so it pops a
-  word from below its own frame — in CE the `windowId` that `_setupCallWithReturnVal` pushed (it then writes
-  local variable `windowId` and breaks the call's stack restore), in the VM the last script variable. That is
-  undefined behaviour a decompiler can only reproduce by inventing an argument, so the script keeps its
-  bytecode (`loadLuaScript` falls back to the `.int`).
+- **mitoilet** (decompiled since 2026-10-21): `description_p_proc` compiles `set_local_var(1)` without the
+  variable number, so the bytecode pops a word from below its own frame — in CE the `windowId` that
+  `_setupCallWithReturnVal` pushed (it then writes local variable `windowId` and breaks the call's stack
+  restore), in the VM the last script variable. The Lua takes the number from the source
+  (`set_local_var(LVAR_Examined, 1)`, Black Isle's mitoilet.ssl `#define LVAR_Examined 0`), marked inferred
+  (`MISSING_OPERANDS`); the VM keeps the bytecode's behaviour. Only examining the open Modoc toilet runs it.
 
 `python tools/int2lua.py --check-bridge src/vm_bridge.ts` checks the intrinsic table (name, argc, pushes a
 result) against the VM bridge.
@@ -292,6 +310,11 @@ identical on both backends, the VM identical to its own previous run** (0 backen
 The only fights a heartbeat starts are the Klamath trap caves' gecko (`ZCGecko`, every step, ended the same
 way on both). On this result Lua became the default backend (`[dh2] script_backend=lua`).
 
+After the 2026-10-21 engine fixes (worldmap entry elevation C66, object draw order C67) and the
+decompiler's new names (inferred names, mitoilet decompiled; L1, L3) — 29 maps, 37 681 steps, VM, VM, Lua,
+Lua: **all 29 maps `same`, each backend identical to its own previous run** (`unstable: 0`, 0 backend
+differences, 0 inconclusive).
+
 AutoCrawler, both backends (2026-10-19): `runDialogueCrawler` (every talkable NPC, every option clicked
 through to the end) on ncr1, broken1, redment and sfchina — 185 NPCs; status (complete / no dialogue /
 stuck / combat), options seen and replies per NPC are identical, no exceptions, no Lua errors. The 4
@@ -304,10 +327,10 @@ through and returns to the map; 21 critter heartbeats at 0 ms update time.
 
 ## Open
 
-- 4 scripts stay `.int` (see above, `known_bugs.md` L1).
+- 3 scripts stay `.int`, the Fallout 1 leftovers (see above, `known_bugs.md` L1).
 - Integer `+ - *` are 64-bit in Lua and doubles in the VM; CE wraps at 32 bits. Matching CE in Lua would
   need a helper call for every operator (unreadable output) and the VM would have to change with it; no
   vanilla script is known to overflow, so both stay as they are.
-- Message numbers stay numbers, with the text as a comment; the LVARs of the scripts without a matching
-  `.ssl` are still numbers (L3).
+- Message numbers stay numbers, with the text as a comment; 66 variable uses in listed scripts have no
+  name in any source and stay numbers (`variable_names.tsv`, L3).
 - Floats: the VM rounds every float result to 32 bits (`Math.fround`); Lua keeps doubles (L4).

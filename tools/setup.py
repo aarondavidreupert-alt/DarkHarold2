@@ -303,12 +303,13 @@ def decompile_scripts(overwrite=True):
 		return True
 	info("Decompiling %d scripts to Lua..." % len(paths))
 	done, failed = 0, 0
+	rows = []  # the variable list: names and where they come from
 	for path in paths:
 		out = os.path.splitext(path)[0] + ".lua"
 		if not overwrite and os.path.exists(out):
 			continue
 		try:
-			text = int2lua.decompile_file(path)
+			text = int2lua.decompile_file(path, rows)
 		except Exception as e:
 			failed += 1
 			info("  %s stays bytecode: %s" % (os.path.basename(path), e))
@@ -317,6 +318,10 @@ def decompile_scripts(overwrite=True):
 			fh.write(text)
 		done += 1
 	info("Decompiled %d scripts to Lua (%d left as .int)" % (done, failed))
+	if rows:
+		report = os.path.join("data", "scripts", "variable_names.tsv")
+		int2lua.write_report(report, rows)
+		info("Variable names and their sources: %s" % report)
 	return True
 
 def write_config(overwrite=True):

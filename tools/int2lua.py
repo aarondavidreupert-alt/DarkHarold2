@@ -413,6 +413,22 @@ def read_gam(path, section):
     return names
 
 
+# Operands the compiler left out of a script, restored from its source: (script,
+# procedure) -> (value, name, why). mitoilet description_p_proc compiles
+# `set_local_var(LVAR_Examined, true)` without the variable number, so the
+# bytecode pops a word from below its frame (CE: the windowId
+# _setupCallWithReturnVal pushed; the VM: the last script variable); the Lua
+# uses the source's LVAR_Examined (0).
+MISSING_OPERANDS = {
+    ("mitoilet", "description_p_proc"): (0, "LVAR_Examined",
+                                         "the .int lacks this set_local_var argument; mitoilet.ssl has LVAR_Examined (0)"),
+}
+
+# SslNames.for_script: an .ssl whose tree lacks at most this many of the .int's
+# procedures is taken as another version of the same script (names marked inferred)
+NEAR_MATCH_PROCS = 3
+
+
 class SslNames:
     """Names from one tree of SSL script sources (<dir>/<name>.ssl anywhere
     below, headers/*.h; see ssl_sources). A script's own .ssl and the headers it
@@ -425,11 +441,13 @@ class SslNames:
         import re
         self.re = re
         self.files = {}  # lower-case relative path -> path, for case-insensitive #include
+        self.by_base = {}  # lower-case file name -> path (an #include into a folder the tree lacks)
         self.ssl = {}    # script name -> .ssl path
         for d, _sub, names in os.walk(root):
             for n in names:
                 p = os.path.join(d, n)
                 self.files[os.path.relpath(p, root).replace("\\", "/").lower()] = p
+                self.by_base.setdefault(n.lower(), p)
                 if n.lower().endswith(".ssl"):
                     self.ssl.setdefault(n[:-4].lower(), p)
         self.root = root
@@ -462,14 +480,18 @@ class SslNames:
         if os.path.exists(p):
             return p
         rel = os.path.relpath(p, self.root).replace("\\", "/").lower()
-        return self.files.get(rel)
+        # the Fallout wiki's tree keeps generic/*.ssl (ziLocker.ssl) in scripts/:
+        # the file of that name anywhere in the tree
+        return self.files.get(rel) or self.by_base.get(os.path.basename(inc).lower())
 
     def read(self, path):
         """One file: its (name, number) #defines, procedures and #includes."""
         if path in self.cache:
             return self.cache[path]
         re = self.re
-        out = {"defines": [], "procs": set(), "includes": []}
+        # includes: paths, or ("macro", NAME) for `#include NAME` (ziLocker.ssl's
+        # EXTRA_HEADER, a string #define of the script that includes it)
+        out = {"defines": [], "procs": set(), "includes": [], "strings": {}, "aliases": {}, "prefixes": set()}
         self.cache[path] = out
         with open(path, encoding="latin-1") as fh:
             for line in fh:
@@ -480,40 +502,95 @@ class SslNames:
                     if inc:
                         out["includes"].append(inc)
                     continue
+                m = re.match(r'\s*#\s*include\s+([A-Za-z_]\w*)\s*$', code)
+                if m:
+                    out["includes"].append(("macro", m.group(1)))
+                    continue
+                m = re.match(r'\s*#\s*define\s+([A-Za-z_]\w*)\s+"([^"]+)"', code)
+                if m:
+                    out["strings"][m.group(1)] = (path, m.group(2))
+                    continue
+                m = re.match(r"\s*#\s*define\s+([A-Za-z_]\w*)\s+([A-Za-z_]\w*)\s*$", code)
+                if m:  # `#define description_p_proc def_description_p_proc`: a procedure's real name
+                    out["aliases"][m.group(1).lower()] = m.group(2).lower()
+                    continue
                 m = re.match(r"\s*#\s*define\s+([A-Za-z_]\w*)\s+\(?\s*(-?\d+)\s*\)?\s*$", code)
                 if m:
                     out["defines"].append((m.group(1), int(m.group(2))))
                     continue
+                m = re.match(r"\s*procedure\s+([A-Za-z_]\w*)##", code)
+                if m:  # a macro template (`procedure NOdds##name##x`): names starting so
+                    out["prefixes"].add(m.group(1).lower())
                 m = re.match(r"\s*procedure\s+([A-Za-z_]\w*)", code)
                 if m:
                     out["procs"].add(m.group(1).lower())
+                # a procedure the source calls exists in the program, even when a
+                # macro makes it (zcCrpDel.ssl: `procedure check_Num_##number`)
+                for c in re.findall(r"\bcall\s+([A-Za-z_]\w*)", code):
+                    out["procs"].add(c.lower())
         return out
 
     def for_script(self, name, int_procs):
-        """{"lvar": {n: name}, "mvar": {n: name}} for one script, or None when
-        there is no .ssl for it or it does not match the .int."""
+        """{"lvar": {n: name}, "mvar": {n: name}, "source": str, "inferred": bool} for one
+        script, or None. Names come from the script's .ssl and its #includes when every
+        procedure of the vanilla .int is in them (the sources may be of another game
+        version). With a few procedures missing (NEAR_MATCH_PROCS: another version of the
+        same script) the names are still used, marked inferred. A number two names share
+        keeps the one the script's own .ssl defines (ricshbox: LVAR_Restock_Time, not
+        modreact.h's LVAR_reaction), else it stays a number."""
         path = self.ssl.get(name.lower())
         if not path:
             return None
+        procs, found, prefixes = self.collect(path)
+        missing = sorted(p for p in set(x.lower() for x in int_procs) - procs
+                         if not any(p.startswith(pre) for pre in prefixes))
+        if len(missing) > NEAR_MATCH_PROCS:
+            return None
+        own = {n for n, _v in self.read(path)["defines"]}
+
+        def pick(table):
+            out = {}
+            for v, ns in table.items():
+                if len(ns) > 1:
+                    ns = ns & own
+                if len(ns) == 1:
+                    out[v] = next(iter(ns))
+            return out
+        tree = os.path.basename(self.root)
+        src = "%s/%s" % (tree, os.path.relpath(path, self.root).replace("\\", "/"))
+        return {"lvar": pick(found["LVAR_"]), "mvar": pick(found["MVAR_"]), "inferred": bool(missing),
+                "source": src + (" (near match: the .int also has %s)" % ", ".join(missing) if missing else "")}
+
+    def collect(self, path):
+        """An .ssl and everything it #includes: (procedure names, {"LVAR_": {n:
+        {names}}, "MVAR_": ...}, procedure-name template prefixes)."""
         seen, todo, procs = set(), [path], set()
         found = {"LVAR_": {}, "MVAR_": {}}
+        strings = {}  # string #defines seen so far, for `#include NAME`
+        aliases = {}  # `#define x y`: procedure x compiles as y
+        prefixes = set()  # procedure name templates (`procedure NOdds##...`)
         while todo:
             p = todo.pop()
+            if isinstance(p, tuple):
+                where = strings.get(p[1])
+                p = self.resolve(where[0], where[1]) if where else None
+                if not p:
+                    continue
             if p in seen:
                 continue
             seen.add(p)
             f = self.read(p)
             procs |= f["procs"]  # headers define procedures too (checkPartyMembersNearDoor)
+            aliases.update(f["aliases"])
+            prefixes |= f["prefixes"]
+            strings.update(f["strings"])
             for n, v in f["defines"]:
                 for prefix, table in found.items():
                     if n.startswith(prefix):
                         table.setdefault(v, set()).add(n)
-            todo.extend(f["includes"])
-        if not set(x.lower() for x in int_procs) <= procs:
-            return None
-        # a number two headers name differently (#ifdef variants) is ambiguous
-        return {"lvar": {v: ns.pop() for v, ns in found["LVAR_"].items() if len(ns) == 1},
-                "mvar": {v: ns.pop() for v, ns in found["MVAR_"].items() if len(ns) == 1}}
+            todo.extend(reversed(f["includes"]))  # in file order
+        procs |= {aliases[p] for p in procs if p in aliases}
+        return procs, found, prefixes
 
 
 class MsgTexts:
@@ -1355,6 +1432,14 @@ class ProcDecompiler:
 
     def pop(self, stack, pc):
         if not stack:
+            fix = MISSING_OPERANDS.get((self.s.name, self.proc.name.lower()))
+            if fix is not None and pc not in self.s.fixed_operands:
+                # a word the compiler left out (MISSING_OPERANDS): the source's value
+                self.s.fixed_operands.add(pc)
+                e = Const(fix[0])
+                e.pc = pc
+                self.s.operand_notes[fix[1]] = fix[2]
+                return e
             raise DecompileError("%s: stack underflow at 0x%x" % (self.proc.name, pc))
         return stack.pop()
 
@@ -1382,14 +1467,24 @@ class ScriptDecompiler:
             self.names["pid"] = {**self.names["pid"], **tree.pids}
             for kind, table in tree.enums.items():
                 self.names[kind] = {**self.names.get(kind, {}), **table}
-        for tree in ssl or []:
-            own = tree.for_script(name, int_procs)
-            if own is not None:
-                self.ssl_matched = True
-                self.names["lvar"] = own["lvar"]
-                if not self.names["mvar"]:  # a map's own .gam comes first
-                    self.names["mvar"] = own["mvar"]
-                break
+        # where each kind's names come from (the variable list, report())
+        self.var_source = {"gvar": "data/vault13.gam" if gvar_names else None,
+                           "mvar": "maps/%s.gam" % name if mvar_names else None, "lvar": None}
+        self.var_inferred = {"gvar": False, "mvar": False, "lvar": False}
+        self.inferred = {}  # name -> why it is inferred (a comment where emit() declares it)
+        # an exact match in any tree before a near match (SslNames.for_script)
+        matches = [m for m in (tree.for_script(name, int_procs) for tree in ssl or []) if m is not None]
+        own = next((m for m in matches if not m["inferred"]), matches[0] if matches else None)
+        if own is not None:
+            self.ssl_matched = True
+            self.names["lvar"] = own["lvar"]
+            self.var_source["lvar"], self.var_inferred["lvar"] = own["source"], own["inferred"]
+            if not self.names["mvar"]:  # a map's own .gam comes first
+                self.names["mvar"] = own["mvar"]
+                self.var_source["mvar"], self.var_inferred["mvar"] = own["source"], own["inferred"]
+        self.var_uses = {}  # (kind, number) -> name or None, every variable the code uses
+        self.fixed_operands = set()  # pcs MISSING_OPERANDS supplied a value for
+        self.operand_notes = {}      # name -> why (MISSING_OPERANDS), marked inferred
         self.named = {}       # name -> (kind, number), used somewhere in the script
         self.declared = set()  # the names emit() declares as locals
         self.externals = set()
@@ -1438,16 +1533,57 @@ class ScriptDecompiler:
 
     def name_const(self, kind, e):
         """A constant number as its name (NamedConst); anything else as it is."""
+        if kind == "gvar" and isinstance(e, BinOp) and e.op in ("+", "-"):
+            # an index expression: sslc folds `GVAR_SALVATORE_WARNINGS + family - 1`
+            # to `251 + 2 - 1`; the base is named, marked inferred (the number could
+            # be a coincidence)
+            parent = e
+            while isinstance(parent.a, BinOp) and parent.a.op in ("+", "-"):
+                parent = parent.a
+            base = parent.a
+            named = self.name_const("gvar", base)
+            if named is not base:
+                parent.a = named
+                self.inferred.setdefault(named.name, "the base of an index expression (%d + ...)" % base.value)
+                self.var_uses[("gvar", base.value)] = named.name
+            return e
         if not (isinstance(e, Const) and not e.is_float):
             return e
+        record = kind in ("gvar", "mvar", "lvar")
+        if record:
+            self.var_uses.setdefault((kind, e.value), None)
         n = self.names.get(kind, {}).get(e.value)
         if n is None or n in LUA_KEYWORDS or n in RUNTIME_NAMES or n in self.taken_names():
             return e
         if self.named.setdefault(n, (kind, e.value)) != (kind, e.value):
             return e  # one name for two numbers (a typo in the sources): keep both numeric
+        if record:
+            self.var_uses[(kind, e.value)] = n
+            if n in self.operand_notes:
+                self.inferred.setdefault(n, self.operand_notes[n])
+            if self.var_inferred.get(kind):
+                self.inferred.setdefault(n, "from %s" % self.var_source[kind])
         named = NamedConst(n, e.value, self)
         named.pc = e.pc
         return named
+
+    def report(self):
+        """The variables the script uses: (kind, number, name or "", source, inferred),
+        after emit(); a name emit() could not declare (Lua's local limit) is listed as
+        a number."""
+        rows = []
+        for (kind, v), n in sorted(self.var_uses.items()):
+            if n and n in self.declared:
+                rows.append((kind, v, n, self.var_source[kind] or "", n in self.inferred))
+            else:
+                if not self.var_source[kind]:
+                    why = "no source names it"
+                elif not n:
+                    why = "not named in %s" % self.var_source[kind]
+                else:
+                    why = "not declared (Lua's local limit)"
+                rows.append((kind, v, "", why, False))
+        return rows
 
     def taken_names(self):
         if not hasattr(self, "_taken"):
@@ -1592,7 +1728,8 @@ class ScriptDecompiler:
         self.declared = set(n for n, _kv in ordered)
         if ordered:
             for n, (_kind, v) in ordered:
-                w("local %s = %d" % (n, v))
+                note = self.inferred.get(n)
+                w("local %s = %d%s" % (n, v, "  -- inferred: " + note if note else ""))
             w("")
         if self.svars:
             for n, v in zip(self.svars, self.svar_inits):
@@ -1684,7 +1821,7 @@ class ScriptDecompiler:
             self.block(s.orelse, depth + 1, w)
 
 
-def decompile_file(path):
+def decompile_file(path, report=None):
     """data/scripts/<name>.int -> Lua text. Variable names come from the
     install's data/data/vault13.gam, for a map's own script data/maps/<name>.gam,
     and SSL sources in data/scripts_src/ when present (SslNames); without them
@@ -1696,7 +1833,23 @@ def decompile_file(path):
     root = os.path.dirname(os.path.dirname(os.path.abspath(path)))
     gvars = read_gam(os.path.join(root, "data", "vault13.gam"), "GAME_GLOBAL_VARS")
     mvars = read_gam(os.path.join(root, "maps", name + ".gam"), "MAP_GLOBAL_VARS")
-    return ScriptDecompiler(data, name, gvars, mvars, ssl_sources(root), msg_texts(root)).emit()
+    sd = ScriptDecompiler(data, name, gvars, mvars, ssl_sources(root), msg_texts(root))
+    text = sd.emit()
+    if report is not None:
+        report.extend((name,) + row for row in sd.report())
+    return text
+
+
+REPORT_HEADER = "script\tkind\tnumber\tname\tsource\tinferred"
+
+
+def write_report(path, rows):
+    """The variable list: every GVAR / MVAR / LVAR a script uses, its name and where
+    the name comes from (decompile_file report rows)."""
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(REPORT_HEADER + "\n")
+        for script, kind, v, n, src, inf in sorted(rows):
+            fh.write("%s\t%s\t%d\t%s\t%s\t%s\n" % (script, kind, v, n, src, "inferred" if inf else ""))
 
 
 def check_bridge(bridge_path):
@@ -1717,6 +1870,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Decompile Fallout 2 .int scripts to Lua")
     ap.add_argument("files", nargs="*", help=".int files (globs allowed)")
     ap.add_argument("-o", "--out", help="output directory (default: print to stdout)")
+    ap.add_argument("--report", metavar="TSV", help="write the variable list (names and their sources) to TSV")
     ap.add_argument("--check-bridge", metavar="VM_BRIDGE_TS",
                     help="verify the intrinsic table against src/vm_bridge.ts and exit")
     args = ap.parse_args(argv)
@@ -1733,9 +1887,10 @@ def main(argv=None):
     if args.out:
         os.makedirs(args.out, exist_ok=True)
     failed = 0
+    rows = [] if args.report else None
     for path in paths:
         try:
-            text = decompile_file(path)
+            text = decompile_file(path, rows)
         except (DecompileError, struct.error, KeyError, IndexError) as e:
             failed += 1
             print("FAILED %s: %s" % (path, e), file=sys.stderr)
@@ -1746,6 +1901,8 @@ def main(argv=None):
                 fh.write(text)
         else:
             sys.stdout.write(text)
+    if args.report:
+        write_report(args.report, rows)
     if len(paths) > 1:
         print("%d/%d scripts decompiled" % (len(paths) - failed, len(paths)), file=sys.stderr)
     return 1 if failed else 0
