@@ -23,6 +23,7 @@ import { Worldmap } from './worldmap.js'
 import { UIMode } from './ui_panels.js'
 import { $id, clearEl, show, hide, showv, hidev, appendHTML, makeEl } from './ui_dom.js'
 import { dbg } from './logger.js'
+import { fromTileNum } from './tile.js'
 
 // CE ref: worldmap.cc — label list visible height ~182px, each tab 27px.
 // tabsBackgroundFrmImage.getHeight()=480, max scroll = 480-230=250, but we
@@ -155,7 +156,11 @@ export function uiWorldMapShowArea(area: Area) {
                 Worldmap.setCarAreaId(area.id)
                 dbg('worldmap', `car parked at area ${area.id} (${area.name})`)
             }
-            globalState.gMap.loadMap(mapName, undefined, entrance.elevation)
+            // CE worldmap.cc wmTownMapFunc → map.cc mapSetEnteringLocation(entrance elevation,
+            // tile, rotation); -1 (most city.txt entrances) is the map header's start (mapLoad)
+            const own = entrance.elevation >= 0 && entrance.tileNum >= 0
+            globalState.gMap.loadMap(mapName, own ? fromTileNum(entrance.tileNum) : undefined, own ? entrance.elevation : undefined)
+            if (own && Number.isFinite(entrance.orientation)) globalState.player.orientation = entrance.orientation
             uiCloseWorldMap()
         }
 

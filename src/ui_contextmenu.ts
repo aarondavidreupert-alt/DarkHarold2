@@ -34,6 +34,7 @@ import { hexDirectionTo, hexDistance, hexInDirection } from './geometry.js'
 import { toTileNum } from './tile.js'
 import { UIMode, closeAllPanels, isSkilldexOpen } from './ui_panels.js'
 import { $id, clearEl, makeEl } from './ui_dom.js'
+import { elevatorSpatialFor } from './elevatorUse.js'
 
 export function uiHideContextMenu() {
     globalState.uiMode = UIMode.none
@@ -129,6 +130,12 @@ export function uiContextMenu(obj: Obj, evt: any) {
         add('skill', skill)
     } else if (obj.type === 'scenery') {
         if (obj.canUse) add('use', use)
+        else {
+            // [dh2] elevator_use: walk into the elevator, which runs its spatial script as
+            // stepping in does (DH2 addition; CE has no Use on elevators)
+            const spatial = elevatorSpatialFor(obj)
+            if (spatial) add('use', () => { player.walkTo({ ...spatial.position }, false) })
+        }
         add('look', look)
         add('inventory', inventory)
         add('skill', skill)

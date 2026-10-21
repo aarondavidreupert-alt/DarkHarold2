@@ -50,6 +50,7 @@ export function initLoot(): void {
 
 export function uiLoot(object: Obj) {
     globalState.uiMode = UIMode.loot
+    $id('lootBoxTakeAllButton').style.visibility = '' // shown with the window (a steal hides it)
 
     async function uiLootMove(data: string /* "l"|"r" */, where: 'left' | 'right') {
         dbg('inventory', `[Loot] move ${data} to ${where}`)

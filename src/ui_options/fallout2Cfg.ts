@@ -131,6 +131,9 @@ export function applyCfg(cfg: CfgSections): void {
     //   pixel_font=0  UI text in the browser font instead of the Fallout pixel font (default 1)
     const pf = int(dh2['pixel_font'])
     if (pf !== null) Config.ui.pixelFont = pf !== 0
+    //   elevator_use=0  no Use action on elevators: only walking in calls them (CE) (default 1)
+    const eu = int(dh2['elevator_use'])
+    if (eu !== null) Config.ui.elevatorUse = eu !== 0
     //   scroll_edge=<px>  how close to the screen edge the map scrolls (default 10; CE: the edge)
     const se = int(dh2['scroll_edge'])
     if (se !== null && se >= 0 && se <= 100) Config.ui.scrollPadding = se

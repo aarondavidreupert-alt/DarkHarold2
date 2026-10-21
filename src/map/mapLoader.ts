@@ -123,7 +123,7 @@ declare module './GameMap.js' {
     }
 }
 
-GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point, startingElevation = 0, loadedCallback?: () => void): void {
+GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point, startingElevation?: number, loadedCallback?: () => void): void {
         // Fleeing to a map exit mid-combat is valid in CE: reaching an exit grid
         // (object.cc:1399-1432) makes combat.cc's turn loop quit (combat.cc:3186-3196)
         // before mapHandleTransition() (map.cc:1244-1256) loads the new map, so you
@@ -185,11 +185,13 @@ GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point,
 
             globalState.player.orientation = map.mapObj.startOrientation
 
-            // Set elevation — clamp to 0 if out of bounds (same guard as doEnterNewMap)
-            const requestedElev = Number(startingElevation) || 0
-            const safeElev = this.mapObj.levels[requestedElev] ? requestedElev : 0
+            // Set elevation: none / -1 is the map header's (CE map.cc mapLoad: gEnteringElevation
+            // == -1 → gMapHeader.enteringElevation); out of bounds clamps to it as well
+            const headerElev = Number(this.mapObj.startElevation) || 0
+            const requestedElev = startingElevation === undefined || startingElevation < 0 ? headerElev : Number(startingElevation) || 0
+            const safeElev = this.mapObj.levels[requestedElev] ? requestedElev : (this.mapObj.levels[headerElev] ? headerElev : 0)
             if (safeElev !== requestedElev) {
-                dbgWarn('map', `loadMap (dirty cache): starting elevation ${requestedElev} out of bounds (map has ${this.numLevels} levels), clamping to 0`)
+                dbgWarn('map', `loadMap (dirty cache): starting elevation ${requestedElev} out of bounds (map has ${this.numLevels} levels), using ${safeElev}`)
             }
             this.currentElevation = globalState.currentElevation = safeElev
 
@@ -283,7 +285,14 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
         this.mapID = map.mapID
         this.numLevels = (map.levels ?? []).length
 
-        let elevation = Number(startingElevation) || 0
+        // none / -1: the map header's entering elevation (CE map.cc mapLoad); one the map
+        // lacks would leave the previous map's elevation in place (changeElevation refuses it)
+        const headerElevation = Number(map.startElevation) || 0
+        let elevation = startingElevation === undefined || startingElevation < 0 ? headerElevation : Number(startingElevation) || 0
+        if (!(map.levels ?? [])[elevation]) {
+            dbgWarn('map', `loadMap: starting elevation ${elevation} out of bounds (map has ${(map.levels ?? []).length} levels), using ${headerElevation}`)
+            elevation = headerElevation
+        }
 
         if (Config.engine.doLoadScripts) {
             Scripting.init(mapName)

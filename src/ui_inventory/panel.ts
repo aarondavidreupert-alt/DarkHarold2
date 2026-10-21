@@ -61,9 +61,14 @@ export function closeInventory(): void {
     globalState.uiMode = UIMode.none
     $id('inventoryBox').style.visibility = 'hidden'
     if (globalState.player) globalState.player.clearAnim?.()
-    globalState.audioEngine.playSfxByName('isdxxxx1')
     uiDrawWeapon()
     Events.off('statsChanged', onStatsChangedRefresh)
+}
+
+// a button's press / release sounds (CE button.cc buttonSetCallbacks)
+function buttonSounds($el: HTMLElement, press: string, release: string): void {
+    $el.addEventListener('mousedown', (e) => { if (e.button === 0) globalState.audioEngine?.playSfxByName?.(press) })
+    $el.addEventListener('mouseup', (e) => { if (e.button === 0) globalState.audioEngine?.playSfxByName?.(release) })
 }
 
 /**
@@ -92,9 +97,11 @@ export function initInventory(): void {
         globalState.uiMode = UIMode.none
         $id('inventoryBox').style.visibility = 'hidden'
         globalState.player.clearAnim()
-        globalState.audioEngine.playSfxByName('isdxxxx1')
         uiDrawWeapon()
     }
+    // CE inventory.cc _setup_inventory: the Done button is a red button
+    // (game_sound.cc _gsound_red_butt_press / _release)
+    buttonSounds($id('inventoryDoneButton'), 'ib1p1xx1', 'ib1lu1x1')
 
     $id('inventoryBoxList').onwheel = (e: WheelEvent) => {
         const $el = $id('inventoryBoxList')
@@ -103,6 +110,9 @@ export function initInventory(): void {
         e.preventDefault()
     }
 
+    // CE interface.cc interfaceInit: the INV button plays _gsound_med_butt_press / _release;
+    // opening and closing the inventory make no sound of their own
+    buttonSounds($id('inventoryButton'), 'ib2p1xx1', 'ib2lu1x1')
     $id('inventoryButton').onclick = () => {
         if (isInventoryOpen()) { closeInventory(); return }
         closeAllPanels()
@@ -115,7 +125,6 @@ export function showInventory(useOn = false) {
     const wasOpen = isInventoryOpen()
     globalState.uiMode = UIMode.inventory
     if (!wasOpen) {
-        globalState.audioEngine.playSfxByName('iisxxxx1')
         Events.off('statsChanged', onStatsChangedRefresh)
         Events.on('statsChanged', onStatsChangedRefresh)
     }

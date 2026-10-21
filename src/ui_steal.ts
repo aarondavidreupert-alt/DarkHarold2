@@ -96,7 +96,9 @@ export function uiSteal(thief: Critter, target: Critter): void {
         hidev($id('lootBox'))
         off($id('lootBoxLeft'), 'drop dragenter dragover')
         off($id('lootBoxRight'), 'drop dragenter dragover')
-        showv($id('lootBoxTakeAllButton'))
+        // back to the window's visibility: an element set 'visible' shows even
+        // inside the hidden loot box (it stayed on the map after the steal)
+        $id('lootBoxTakeAllButton').style.visibility = ''
         initLoot() // restore the Done button's normal uiEndLoot() binding
     }
 
@@ -136,7 +138,7 @@ export function uiSteal(thief: Critter, target: Critter): void {
     }
 
     showv($id('lootBox'))
-    hidev($id('lootBoxTakeAllButton')) // CE: 'Take All' is a no-op during a steal session (inventory.cc:4272)
+    hidev($id('lootBoxTakeAllButton')) // CE inventory.cc _setup_inventory: no 'Take All' button when _gIsSteal
 
     makeDropTarget($id('lootBoxRight'), (data: string) => {
         if (data[0] !== 'l') return // thief -> target: planting (skillsPerformStealing isPlanting)
