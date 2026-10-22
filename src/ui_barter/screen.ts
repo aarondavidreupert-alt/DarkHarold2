@@ -29,6 +29,7 @@ import { appendItemSlot, $id, clearEl, makeEl } from '../ui_dom.js'
 import { uiGetAmount, uiSwapItem } from './swap.js'
 import { getMessage } from '../util.js'
 import { assetUrl } from '../modAssets.js'
+import { frameCell } from '../renderer.js'
 
 // CE ref: inventory.cc:1982-2070 _display_body — draws a critter's standing
 // FRM sprite into a portrait slot (60×100 box). Player uses ROTATION_SW (3)
@@ -58,10 +59,9 @@ export function renderBarterPortrait(el: HTMLElement, critter: Critter, useLastF
     if (!frameInfo) return
     const fw = frameInfo.w, fh = frameInfo.h
 
-    // Source x in the sprite sheet: each slot is info.frameWidth wide,
-    // content is pasted flush to the left edge of its slot (frmpixels.py:99).
-    const spriteCol = info.numFrames * direction + frameIndex
-    const sx = spriteCol * info.frameWidth
+    // The frame's cell in the sprite sheet (renderer.ts frameCell); the content is
+    // pasted at the cell's top-left corner (tools/frmpixels.py cellOrigin).
+    const { sx, sy } = frameCell(info, direction, frameIndex)
 
     el.textContent = ''
     let canvas = el.querySelector('canvas') as HTMLCanvasElement | null
@@ -82,7 +82,7 @@ export function renderBarterPortrait(el: HTMLElement, critter: Critter, useLastF
         const scale = Math.min(40 / fw, 67 / fh)
         const dw = fw * scale, dh = fh * scale
         const dx = (40 - dw) / 2, dy = 67 - dh
-        ctx.drawImage(img, sx, 0, fw, fh, dx, dy, dw, dh)
+        ctx.drawImage(img, sx, sy, fw, fh, dx, dy, dw, dh)
     }
 
     const img = globalState.images?.[art] as HTMLImageElement | undefined

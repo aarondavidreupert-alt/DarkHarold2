@@ -388,13 +388,18 @@ Culling is done in world coordinates before the draw call: if the sprite AABB is
 All frames (all directions × all animation frames) are packed into one horizontal PNG:
 
 ```
-[dir0frame0][dir0frame1]...[dir1frame0][dir1frame1]...
+[dir0frame0][dir0frame1]...[dir0frameN]     one row per direction;
+[dir1frame0][dir1frame1]...                 a row wraps past 8192 px
+...
 ```
 
-Frame index in the sheet: `totalFrames * orientation + frame`  
-UV x-start: `frameIndex * frameWidth / totalFrameWidth`
+Each frame's cell origin is `frameOffsets[dir][frame].sx / sy` in the image map, the grid size
+`columns` / `rows` (`tools/frmpixels.py gridLayout`, since 2026-10-23; before, all frames sat in one
+row, which broke sheets wider than the GPU texture limit — known_bugs RD18). `renderer.ts frameCell`
+gives the cell; a sheet without `sy` is read as the old single row (`numFrames * orientation + frame`).
 
-The `tileShader` uses `u_numFrames` and `u_frame` to compute the UV source rectangle entirely in the fragment shader.
+The `tileShader` picks the cell in the fragment shader: `u_frame` / `u_numFrames` (column / columns)
+and `u_row` / `u_numRows` (row / rows); whole-texture draws set 0 / 1 for both.
 
 ### Floor Lighting Modes
 

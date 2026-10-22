@@ -22,6 +22,23 @@ import pal
 from PIL import Image
 import numpy as np
 
+# Sprite sheet layout: every frame gets a frameWidth x frameHeight cell. Each direction
+# starts a new row (readable in an image viewer); a row wraps when it would get wider
+# than ATLAS_MAX_WIDTH, so no sheet exceeds what every WebGL implementation uploads as
+# one texture (the long single-row strips reached 74 976 px; GPUs allow 4096-16384).
+# Each frame's cell is in the image map as sx / sy; `columns` / `rows` give the grid.
+ATLAS_MAX_WIDTH = 8192
+
+def gridLayout(frameW, numFrames, numDirections):
+	"""(columns, rows per direction, total rows) for a sheet of frameW-wide cells."""
+	columns = max(1, min(numFrames, ATLAS_MAX_WIDTH // max(1, frameW)))
+	rowsPerDir = (numFrames + columns - 1) // columns
+	return columns, rowsPerDir, rowsPerDir * numDirections
+
+def cellOrigin(nDir, frameNum, frameW, frameH, columns, rowsPerDir):
+	"""top-left pixel of a frame's cell"""
+	return ((frameNum % columns) * frameW, (nDir * rowsPerDir + frameNum // columns) * frameH)
+
 def read16(f):
 	return struct.unpack("!h", f.read(2))[0]
 
@@ -83,15 +100,17 @@ def exportFRM(frmFile, outFile, palette, exportImage=True):
 
 		maxW = max(max(fo['w'] for fo in offset) for offset in frameOffsets)
 		maxH = max(max(fo['h'] for fo in offset) for offset in frameOffsets)
-		totalW = maxW * frmInfo['totalFrames']
+		numFrames = max(len(d) for d in frameOffsets)
+		columns, rowsPerDir, rows = gridLayout(maxW, numFrames, frmInfo['numDirections'])
 
 		frmInfo['frameWidth'] = maxW
 		frmInfo['frameHeight'] = maxH
+		frmInfo['columns'] = columns
+		frmInfo['rows'] = rows
 
 		if exportImage:
-			finalImg = Image.new("P", (totalW, maxH))
+			finalImg = Image.new("P", (columns * maxW, rows * maxH))
 			finalImg.putpalette(palette)
-			currentX = 0
 
 			for nDir in range(frmInfo['numDirections']):
 				for frameNum,frame in enumerate(framePixels[nDir]):
@@ -106,23 +125,20 @@ def exportFRM(frmFile, outFile, palette, exportImage=True):
 					#		pixels[(rowI, colI)] = palIdx
 
 					img = Image.fromarray(pixels, "P")
-					finalImg.paste(img, (currentX, 0))
-					currentX += maxW
+					finalImg.paste(img, cellOrigin(nDir, frameNum, maxW, maxH, columns, rowsPerDir))
 
 			finalImg.save(outFile, transparency=0)
 
 		# build an image map
-		sx = 0 # running total width offset
-		for direction in frmInfo['frameOffsets']:
+		for nDir, direction in enumerate(frmInfo['frameOffsets']):
 			ox = 0 # running total offsets
 			oy = 0
-			for frame in direction:
+			for frameNum, frame in enumerate(direction):
 				ox += frame['x']
 				oy += frame['y']
-				frame['sx'] = sx
+				frame['sx'], frame['sy'] = cellOrigin(nDir, frameNum, maxW, maxH, columns, rowsPerDir)
 				frame['ox'] = ox
 				frame['oy'] = oy
-				sx += maxW
 
 		del frmInfo['framePixels']
 		
@@ -143,8 +159,7 @@ def exportFRMs(frmFiles, outFile, palette, exportImage=True):
 	maxW = max(max(max(fo['w'] for fo in offset) for offset in info['frameOffsets']) for info in frmInfos)
 	maxH = max(max(max(fo['h'] for fo in offset) for offset in info['frameOffsets']) for info in frmInfos)
 	totalFrames = sum(info['totalFrames'] for info in frmInfos)
-
-	totalW = maxW * totalFrames
+	columns, rowsPerDir, rows = gridLayout(maxW, max(info['numFrames'] for info in frmInfos), len(frmInfos))
 
 	#print totalW, maxH
 
@@ -168,12 +183,10 @@ def exportFRMs(frmFiles, outFile, palette, exportImage=True):
 			raise Exception("frameOffsets is not 1 (more than one direction?)")
 
 	if exportImage:
-		finalImg = Image.new("P", (totalW, maxH))
+		finalImg = Image.new("P", (columns * maxW, rows * maxH))
 		finalImg.putpalette(palette)
-	currentX = 0
-	_sx = 0 # running total width offset
 
-	for frmInfo in frmInfos:
+	for fileDir, frmInfo in enumerate(frmInfos):
 			framePixels = frmInfo['framePixels']
 			frameOffsets = frmInfo['frameOffsets']
 
@@ -191,20 +204,18 @@ def exportFRMs(frmFiles, outFile, palette, exportImage=True):
 						#		pixels[(rowI, colI)] = palIdx
 
 						img = Image.fromarray(pixels, "P")
-						finalImg.paste(img, (currentX, 0))
-					currentX += maxW
+						finalImg.paste(img, cellOrigin(fileDir, frameNum, maxW, maxH, columns, rowsPerDir))
 
 			# build an image map
 			for direction in frmInfo['frameOffsets']:
 				ox = 0 # running total offsets
 				oy = 0
-				for frame in direction:
+				for frameNum, frame in enumerate(direction):
 					ox += frame['x']
 					oy += frame['y']
-					frame['sx'] = _sx
+					frame['sx'], frame['sy'] = cellOrigin(fileDir, frameNum, maxW, maxH, columns, rowsPerDir)
 					frame['ox'] = ox
 					frame['oy'] = oy
-					_sx += maxW
 
 			del frmInfo['framePixels']
 
@@ -225,6 +236,8 @@ def exportFRMs(frmFiles, outFile, palette, exportImage=True):
 	        'totalFrames': totalFrames,
 			'frameWidth': maxW,
 			'frameHeight': maxH,
+			'columns': columns,
+			'rows': rows,
 			'fps': _fps,
 			'actionFrame': actionFrames,
 			'numDirections': len(frmFiles),

@@ -233,6 +233,8 @@ WebGLRenderer.prototype.renderFloorToFBO = function (tileMap: TileMap): void {
 
     gl.uniform1f(this.uNumFramesLocation, 1)
     gl.uniform1f(this.uFrameLocation, 0)
+    gl.uniform1f(this.uNumRowsLocation, 1)
+    gl.uniform1f(this.uRowLocation, 0)
     // Tiles are drawn into the FBO at zoomed size so the cached floor
     // already reflects the current zoom; the composite pass is a plain
     // fullscreen quad on top.

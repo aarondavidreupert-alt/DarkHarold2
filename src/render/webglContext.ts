@@ -23,6 +23,8 @@ export class WebGLRenderer extends Renderer {
     uScaleLocation: WebGLUniformLocation
     uNumFramesLocation: WebGLUniformLocation
     uFrameLocation: WebGLUniformLocation
+    uNumRowsLocation: WebGLUniformLocation
+    uRowLocation: WebGLUniformLocation
     objectUVBuffer: WebGLBuffer
     texCoordBuffer: WebGLBuffer
     tileBuffer: WebGLBuffer
@@ -400,6 +402,8 @@ export class WebGLRenderer extends Renderer {
         this.texCoordLocation = gl.getAttribLocation(this.tileShader, 'a_texCoord')
         this.uNumFramesLocation = gl.getUniformLocation(this.tileShader, 'u_numFrames')
         this.uFrameLocation = gl.getUniformLocation(this.tileShader, 'u_frame')
+        this.uNumRowsLocation = gl.getUniformLocation(this.tileShader, 'u_numRows')!
+        this.uRowLocation = gl.getUniformLocation(this.tileShader, 'u_row')!
 
         //this.uOffsetLocation = gl.getUniformLocation(this.tileShader, "u_uOffset")
         this.uScaleLocation = gl.getUniformLocation(this.tileShader, 'u_scale')

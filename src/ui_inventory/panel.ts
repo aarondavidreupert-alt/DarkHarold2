@@ -325,7 +325,7 @@ export function showInventory(useOn = false) {
             canvas.height = frameInfo.h
             const ctx = canvas.getContext('2d')!
             ctx.clearRect(0, 0, canvas.width, canvas.height)
-            ctx.drawImage(img, frameInfo.sx, 0, frameInfo.w, frameInfo.h, 0, 0, frameInfo.w, frameInfo.h)
+            ctx.drawImage(img, frameInfo.sx, frameInfo.sy ?? 0, frameInfo.w, frameInfo.h, 0, 0, frameInfo.w, frameInfo.h)
         }
 
         lazyLoadImage(art, (img: HTMLImageElement) => {

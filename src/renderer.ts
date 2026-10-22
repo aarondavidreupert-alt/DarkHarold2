@@ -98,9 +98,32 @@ interface ObjectRenderInfo {
     frameHeight: number
     uniformFrameWidth: number
     uniformFrameHeight: number
-    spriteFrameNum: number
+    cell: FrameCell
     artInfo: any
     visible: boolean
+}
+
+/** Where a frame sits in its sprite sheet: its pixel origin and its grid cell.
+ *  tools/frmpixels.py lays frames out in frameWidth x frameHeight cells, each direction
+ *  starting a row, long rows wrapping (gridLayout); the image map gives each frame's
+ *  sx / sy and the sheet's columns / rows. Sheets from before the grid (no sy) are one
+ *  row: frame n of direction d is cell numFrames * d + n. */
+export interface FrameCell {
+    sx: number
+    sy: number
+    column: number
+    row: number
+    columns: number
+    rows: number
+}
+
+export function frameCell(info: any, orientation: number, frame: number): FrameCell {
+    const f = info.frameOffsets?.[orientation]?.[frame]
+    if (f && typeof f.sy === 'number' && info.columns) {
+        return { sx: f.sx, sy: f.sy, column: Math.round(f.sx / info.frameWidth), row: Math.round(f.sy / info.frameHeight), columns: info.columns, rows: info.rows ?? 1 }
+    }
+    const n = info.numFrames * orientation + frame
+    return { sx: n * info.frameWidth, sy: 0, column: n, row: 0, columns: info.totalFrames, rows: 1 }
 }
 
 export class Renderer {
@@ -460,8 +483,8 @@ export class Renderer {
             visible = false
         } // out of screen bounds, no need to draw
 
-        const spriteFrameNum = info.numFrames * obj.orientation + obj.frame
-        const sx = spriteFrameNum * info.frameWidth
+        const cell = frameCell(info, obj.orientation, obj.frame)
+        const sx = cell.sx
 
         return {
             x: scrX,
@@ -471,7 +494,7 @@ export class Renderer {
             frameHeight: frameInfo.h,
             uniformFrameWidth: info.frameWidth,
             uniformFrameHeight: info.frameHeight,
-            spriteFrameNum: spriteFrameNum,
+            cell,
             artInfo: info,
             visible: visible,
         }
@@ -559,14 +582,16 @@ export function objectOnScreen(obj: Obj): boolean {
 
 export function objectTransparentAt(obj: Obj, position: Point) {
     const frame = obj.frame !== undefined ? obj.frame : 0
-    const sx = globalState.imageInfo[obj.art].frameOffsets[obj.orientation][frame].sx
+    const f = globalState.imageInfo[obj.art].frameOffsets[obj.orientation][frame]
+    const sx = f.sx
+    const sy = f.sy ?? 0
 
     if (!globalState.tempCanvasCtx) {
         throw Error()
     }
 
     globalState.tempCanvasCtx.clearRect(0, 0, 1, 1) // clear previous color
-    globalState.tempCanvasCtx.drawImage(globalState.images[obj.art], sx + position.x, position.y, 1, 1, 0, 0, 1, 1)
+    globalState.tempCanvasCtx.drawImage(globalState.images[obj.art], sx + position.x, sy + position.y, 1, 1, 0, 0, 1, 1)
     const pixelAlpha = globalState.tempCanvasCtx.getImageData(0, 0, 1, 1).data[3]
 
     return pixelAlpha === 0
