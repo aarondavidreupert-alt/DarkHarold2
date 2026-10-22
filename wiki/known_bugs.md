@@ -630,8 +630,9 @@ See [wiki/interface_windows.md §11](interface_windows.md) for full documentatio
 | EV2 | **Sierra-2 / Military Base elevation remapping. VERIFIED 2026-07-27** — CE's imperative remapping (`elevator.cc:354–375`) converts a raw elevation + map pair into a gauge floor index. DH2's `lut/elevators.json` stores physical `(mapID, level)` pairs per button directly from CE `ElevatorDescription.elevation`, and `currentFloorIdx` is found by matching against them — an equivalent result without the per-ID remapping table. No code change needed. | `src/ui_elevator.ts` | `elevator.cc:354–375` | low | fixed |
 | EV3 | **`use_elevator` already covered via `metarule(15)`.** Wiki incorrectly attributed opcode `0x80FD` to `use_elevator`; CE `interpreter_extra.cc:4966` maps `0x80FD` to `opRadiationIncrease` (`radiation_inc`). Script-triggered elevator calls go through `metarule(id=15)` which is wired and calls `useElevator()`. No separate opcode needed. `0x80FD`/`radiation_inc` is a separate stub gap (see S27). | `src/scripting.ts:514` | `interpreter_extra.cc:4966` | minor | fixed |
 | EV4 | **`console.log` in production path. FIXED 2026-07-27** — All 4 `console.log` calls in `ui_elevator.ts` replaced with `dbg()`; added `import { dbg } from './logger.js'`. | `src/ui_elevator.ts` | — | low | fixed |
+| EV5 | **Elevator data needed fallout2.exe. FIXED 2026-10-22** — the pipeline's `elevator_table` stage read the 24 elevators out of the install's `fallout2.exe` (`tools/parseElevatorTable.py` → `lut/elevators.json`); without the `.exe` every elevator failed, and the JSON is no longer in git. They are now compiled in from CE `elevator.cc` (`src/ceElevators.ts`, generated from `gElevatorBackgrounds`, `gElevatorLevels`, `gElevatorDescriptions`, `gElevatorLevelLabels`), as the critical tables already were; identical to the `.exe` table entry for entry. The stage and the extractor are removed. sfall's `elevators.ini` (more elevators) is not read. | `src/ceElevators.ts`, `src/data.ts getElevator`, `tools/setup.py` | `elevator.cc` | minor | **FIXED 2026-10-22** |
 
-<!-- audited: 2026-06-02 -->
+<!-- audited: 2026-10-22 -->
 
 ---
 

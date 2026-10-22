@@ -158,7 +158,7 @@ pipenv run python tools/pipeline_gui.py
 | [`tools/convertLST.py`](tools/convertLST.py) | LST → JSON pre-bake (`lut/lst/`) |
 | [`tools/convertPRO.py`](tools/convertPRO.py) | Standalone PRO converter (debug) |
 | [`tools/convertEndgame.py`](tools/convertEndgame.py) | Endgame slide extraction |
-| [`tools/parseCritTable.py`](tools/parseCritTable.py) / [`tools/parseElevatorTable.py`](tools/parseElevatorTable.py) | EXE table extractors → `lut/` |
+| [`tools/parseCritTable.py`](tools/parseCritTable.py) | EXE table extractor → `lut/` |
 | [`tools/stitchWorldmap.py`](tools/stitchWorldmap.py) | One-off worldmap.png tile stitcher |
 | [`tools/mpserv.py`](tools/mpserv.py) | Multiplayer WebSocket server (unrelated to asset conversion) |
 | [`tools/oldPy/`](tools/oldPy/) | Superseded/experimental script iterations, kept for reference only |
@@ -247,7 +247,7 @@ The long-term goal is for the engine to own all its data in clean, typed, pre-ba
 
 The existing `lut/` directory already follows this pattern:
 - `lut/criticalTables.json` — crit tables extracted from the EXE
-- `lut/elevators.json` — elevator data extracted from the EXE
+- elevator data — now compiled in from CE `elevator.cc` (`src/ceElevators.ts`), like the critical tables
 - `lut/color_lut.json`, `lut/color_rgb.json` — palette data
 
 LST files are next.

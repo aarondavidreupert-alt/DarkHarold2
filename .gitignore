@@ -47,7 +47,8 @@ third_party/
 # Converted from the user's Fallout 2 install by the pipeline (tools/setup.py) - game data
 # (Interplay / Bethesda copyright), never committed, like art/ PNGs, maps and protos:
 # fonts (export_fonts), .lst indexes (convert_lsts), endgame tables (convert_endgame),
-# tables read from fallout2.exe (crit_table, elevator_table), and tools/convertPRO.py's output
+# tables read from fallout2.exe (crit_table; elevators.json from the removed elevator_table stage),
+# and tools/convertPRO.py's output
 art/fonts/
 lut/lst/
 lut/pro/

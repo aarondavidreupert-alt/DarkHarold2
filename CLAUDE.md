@@ -80,7 +80,8 @@ Engine consumes only pre-baked JSON/PNG — no runtime DAT parsing:
 - `proto/**/*.json` — PRO binary data as JSON (items/, critters/, scenery/, walls/, misc/)
 - `maps/*.json` — map data from fomap.py (tiles, objects, spatials, elevation, lights)
 - `lut/lst/*.json` — LST index files; naming: `art/critters/critters.lst` → `art_critters.json`
-- `lut/criticalTables.json`, `lut/elevators.json` — extracted from fallout2.exe binary
+- `lut/criticalTables.json` — extracted from fallout2.exe (no longer read: CE's critical and elevator tables
+  are compiled in, `src/criticalEffects/ceTables.ts`, `src/ceElevators.ts`)
 
 - `mods/<name>/` — mod folders (the pipeline's `build_mods` stage converts an install's mods, e.g. the
   Unofficial Patch, into the same layout plus `manifest.json`); active while listed in `mods/mods_order.txt`.

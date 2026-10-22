@@ -382,14 +382,14 @@ No functional gap in the skill list itself — DH2 shows the same 10 skills as C
 
 > **Source anchor:** `raw/fallout2-ce/src/elevator.cc`, `raw/fallout2-ce/src/elevator.h`
 > **DH2 files:** `src/ui_elevator.ts`, `src/data.ts` (`Elevator` interface, `getElevator`), `src/main.ts` (`useElevator`)
-> **Data:** `lut/elevators.json`
+> **Data:** `src/ceElevators.ts` (CE's tables, compiled in; until 2026-10-22 `lut/elevators.json` read from fallout2.exe)
 > `UIMode.elevator = 6`
 
 ### 11.1 Overview
 
 Elevators in Fallout 2 are multi-floor vertical travel points. A single elevator record spans up to 4 floors (levels), each mapping to a specific `(map, elevation, tile)` destination. The elevator UI presents floor-selection buttons overlaid on a background panel art; selecting a floor triggers a map load or elevation change.
 
-CE supports up to 50 elevator definitions (`ELEVATORS_MAX = 50`), overridable via sfall config (`elevators.ini`). DH2 reads a pre-baked `lut/elevators.json` extracted by the asset pipeline.
+CE supports up to 50 elevator definitions (`ELEVATORS_MAX = 50`), overridable via sfall config (`elevators.ini`). DH2 compiles in CE's 24 vanilla elevators (`src/ceElevators.ts`, generated from `elevator.cc`; it matched the table the pipeline used to read out of fallout2.exe entry for entry). sfall's `elevators.ini` is not read.
 
 ### 11.2 CE Data Structures (`elevator.cc`)
 
@@ -504,7 +504,7 @@ export interface Elevator {
 }
 ```
 
-Loaded lazily from `lut/elevators.json` via `getElevator(type)`.
+`getElevator(type)` returns `CE_ELEVATORS[type]` (`src/ceElevators.ts`); the entries also carry CE's floor labels (`levelLabels`).
 
 ---
 

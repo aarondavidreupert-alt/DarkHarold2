@@ -19,11 +19,11 @@ import globalState from './globalState.js'
 import { dbg } from './logger.js'
 import { Point } from './geometry.js'
 import { lookupInterfaceArt } from './pro.js'
+import { CE_ELEVATORS, Elevator } from './ceElevators.js'
 
 var lstFiles: { [lsgFile: string]: string[] } = {}
 var lstJsonFiles: { [lstFile: string]: any[] | null } = {}
 var mapInfo: { [mapID: number]: MapInfo } | null = null
-var elevatorInfo: { elevators: Elevator[] } | null = null
 
 export interface AreaMap {
     // XXX: Why does using a number key break areas?
@@ -69,20 +69,11 @@ export interface MapInfo {
     deadBodiesAge: boolean
 }
 
-export interface Elevator {
-    buttons: { tileNum: number; mapID: number; level: number }[]
-    buttonCount: number
-    labels: number
-    type: number
-}
+export type { Elevator } from './ceElevators.js'
 
+/** An elevator type's floors and art (CE elevator.cc tables, compiled in: ceElevators.ts). */
 export function getElevator(type: number): Elevator {
-    if (!elevatorInfo) {
-        dbg('map', 'loading elevator info')
-        elevatorInfo = getFileJSON('lut/elevators.json')
-    }
-
-    return elevatorInfo!.elevators[type]
+    return CE_ELEVATORS[type]
 }
 
 function parseAreas(data: string): AreaMap {

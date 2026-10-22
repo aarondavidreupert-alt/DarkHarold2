@@ -42,7 +42,6 @@ SETUP_PY = os.path.join(PROJECT_ROOT, "tools", "setup.py")
 # pipeline's actual execution order in tools/setup.py's STAGES dict.
 STAGES = [
     ("crit_table", "Parse critical hit table (from fallout2.exe)", True),
-    ("elevator_table", "Parse elevator table (from fallout2.exe)", True),
     ("extract_dats", "Extract DAT archives (master.dat / critter.dat)", True),
     ("export_images", "Export images (FRM -> PNG)", True),
     ("export_fonts", "Export fonts (AAF/FON -> PNG atlas)", True),

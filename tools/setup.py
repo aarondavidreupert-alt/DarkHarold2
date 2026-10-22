@@ -48,7 +48,6 @@ except ImportError:
 # script file lives.
 import dat2
 import parseCritTable
-import parseElevatorTable
 import exportImagesPar
 import exportFonts
 import exportPRO
@@ -119,27 +118,6 @@ def parse_crit_table(overwrite=True):
 			warn("Error occurred while parsing critical table (see traceback above).")
 	else:
 		warn("Cannot parse critical table, missing fallout2.exe")
-
-	return True
-
-def parse_elevator_table(overwrite=True):
-	outFile = "lut/elevators.json"
-	if not overwrite and os.path.exists(outFile):
-		info(f"Skipping elevator table parse - {outFile} already exists")
-		return True
-
-	if EXE_PATH is not None:
-		info("Parsing elevator table from fallout2.exe...")
-		try:
-			with open(EXE_PATH, "rb") as fp:
-				elevators = parseElevatorTable.parseElevators(fp)
-				json.dump(elevators, open(outFile, "w"))
-				info("Done parsing elevator table")
-		except Exception:
-			traceback.print_exc()
-			warn("Error occurred while parsing elevator table (see traceback above).")
-	else:
-		warn("Cannot parse elevator table, missing fallout2.exe")
 
 	return True
 
@@ -697,7 +675,6 @@ def delete_originals(paths=None):
 # the child process, never the GUI itself.
 STAGES = {
 	"crit_table": parse_crit_table,
-	"elevator_table": parse_elevator_table,
 	"extract_dats": extract_dats,
 	"export_images": export_images,
 	"export_fonts": export_fonts,
