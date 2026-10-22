@@ -59,6 +59,7 @@ import convertMovies
 import convertSpeech
 import parse_gam
 import int2lua
+import stitchWorldmap
 import fallout2Cfg
 
 # global paths/flags
@@ -449,6 +450,21 @@ def export_images(overwrite=True):
 
 	return True
 
+def stitch_worldmap(overwrite=True):
+	# art/intrface/wrldmp00-19.png (export_images) -> art/worldmap.png, the world map
+	# play.html shows (tools/stitchWorldmap.py; CE worldmap.cc draws the same 20 tiles)
+	outFile = os.path.join("art", "worldmap.png")
+	if not overwrite and os.path.exists(outFile):
+		info(f"Skipping world map - {outFile} already exists")
+		return True
+	try:
+		stitchWorldmap.stitch("art", outFile)
+		info("Wrote " + outFile)
+	except Exception:
+		traceback.print_exc()
+		warn("Error stitching the world map (see traceback above; needs export_images first).")
+	return True
+
 def export_fonts(overwrite=True):
 	# data/font<N>.aaf / .fon -> art/fonts/font<N>_aaf|_fon.png + .json (src/ui/fontCore.ts).
 	if not overwrite and os.path.exists(os.path.join("art", "fonts", "font1_aaf.json")):
@@ -677,6 +693,7 @@ STAGES = {
 	"crit_table": parse_crit_table,
 	"extract_dats": extract_dats,
 	"export_images": export_images,
+	"stitch_worldmap": stitch_worldmap,
 	"export_fonts": export_fonts,
 	"export_pros": export_pros,
 	"export_maps": export_maps,

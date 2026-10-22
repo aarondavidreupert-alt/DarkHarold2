@@ -44,6 +44,7 @@ STAGES = [
     ("crit_table", "Parse critical hit table (from fallout2.exe)", True),
     ("extract_dats", "Extract DAT archives (master.dat / critter.dat)", True),
     ("export_images", "Export images (FRM -> PNG)", True),
+    ("stitch_worldmap", "Stitch the world map (art/worldmap.png)", True),
     ("export_fonts", "Export fonts (AAF/FON -> PNG atlas)", True),
     ("export_pros", "Export prototypes (PRO -> JSON)", True),
     ("export_maps", "Export maps (MAP -> JSON)", True),

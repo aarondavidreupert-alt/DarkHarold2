@@ -16,7 +16,7 @@
 | Prelude | `src/lua/prelude.ts` | Lua side: SSL semantics, the per-script sandbox, coroutine driver for dialogue |
 | Runtime | `src/lua/luaRuntime.ts` | TS side: starts the engine, turns a `Script` object into a Lua-backed one (`attachLuaScript`) |
 | Hook | `src/scripting.ts` `loadScript` / `loadLuaScript` | With `Config.scripting.backend === 'lua'`, loads `<name>.lua`; no file or a load error → the `.int` runs |
-| Test | `luadiff.html`, `src/lua/luaDiff.ts` | VM-vs-Lua differential test (below) |
+| Test | `tools/luadiff.html`, `src/lua/luaDiff.ts` | VM-vs-Lua differential test (below) |
 
 Select the backend with `fallout2.cfg` `[dh2] script_backend=lua` (the default; the pipeline's `write_config`
 stage writes the key) or `=vm`, or for one page load with `play.html#script_backend=vm` (the query string is the
@@ -173,7 +173,7 @@ from the shipped `.int` and from CE**, so every one is:
   takes the original path when `fallout2.cfg [dh2] script_fixes=0`, drawing no extra random number;
 - tracked in `known_bugs.md`.
 
-The VM runs the original bytecode either way. `luadiff.html` shows a fix as a difference at that call —
+The VM runs the original bytecode either way. `tools/luadiff.html` shows a fix as a difference at that call —
 and only there.
 
 | ID | Script / procedure | The shipped script | The fix | Source of the intent |
@@ -249,7 +249,7 @@ commented file if there is none, as sfall does (`tools/fallout2Cfg.py write_defa
 
 ## VM-vs-Lua differential test
 
-`luadiff.html?scripts=a,b&seeds=N` (default: the 36 Arroyo scripts, 20 seeds). For every procedure and seed,
+`tools/luadiff.html?scripts=a,b&seeds=N` (default: the 36 Arroyo scripts, 20 seeds). For every procedure and seed,
 the script is loaded in both backends against an identical fake game: every intrinsic call is answered
 from a seeded random world (LVAR/GVAR/MVAR stores, a pool of fake objects) and recorded. Then the procedure
 runs with random arguments, a suspended dialogue is resumed, and the first dialogue option offered is run.

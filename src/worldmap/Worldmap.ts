@@ -40,7 +40,7 @@ export const WORLDMAP_SEEN = 2
 
 export const NUM_SQUARES_X = 4 * 7
 export const NUM_SQUARES_Y = 5 * 6
-// CE ref: worldmap.cc — worldmap.png is 1400×1500, 28×30 tiles → 50×50px per tile.
+// CE ref: worldmap.cc — art/worldmap.png (stitch_worldmap stage) is 1400×1500, 28×30 tiles → 50×50px per tile.
 export const SQUARE_SIZE = 50
 
 // CE wmWorldMapFunc runs one loop per frame of the 60 fps limiter (sharedFpsLimiter);

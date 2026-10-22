@@ -26,7 +26,9 @@ xcuserdata
 contents.xcworkspacedata
 node_modules
 js/
+# third-party programs the pipeline uses when present (not ours to redistribute)
 acm2wav.exe
+ffmpeg.exe
 
 
 
@@ -51,6 +53,7 @@ third_party/
 # and tools/convertPRO.py's output
 art/fonts/
 art/imageMap.json
+worldmap.png
 lut/lst/
 lut/pro/
 lut/endgame.json

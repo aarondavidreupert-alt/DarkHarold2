@@ -9,7 +9,7 @@
 //   autoCrawler.downloadReport(report)         // download a specific report
 //   autoCrawler.lastReport                     // access last completed report
 //
-// Design: see AutoCrawler.md in the project root.
+// Design: see wiki/autocrawler.md.
 //
 // This file is a BARREL — the implementation lives in `autocrawler/`:
 //   types.ts    — DialogueStatus, CombatStatus, MapStatus, result interfaces

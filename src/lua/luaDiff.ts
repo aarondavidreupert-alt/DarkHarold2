@@ -1,4 +1,4 @@
-// VM-vs-Lua differential test (luadiff.html). Every procedure of a script runs
+// VM-vs-Lua differential test (tools/luadiff.html). Every procedure of a script runs
 // once in the bytecode VM (src/vm.ts + vm_bridge.ts) and once as decompiled Lua
 // (src/lua/), each against an identical simulated game: every intrinsic call is
 // recorded with its arguments and answered from a seeded random world (stored

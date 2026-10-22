@@ -2,9 +2,11 @@
 <html>
 <head>
 	<meta charset="utf-8">
+	<!-- the page lives in tools/; its scripts and data load from the project root -->
+	<base href="../">
 	<title>Lua Diff</title>
 	<!-- VM-vs-Lua differential test for the decompiled scripts (src/lua/luaDiff.ts).
-	     luadiff.html?scripts=acmynoc,arvillag&seeds=20 ; no scripts= runs the Arroyo pilot set.
+	     tools/luadiff.html?scripts=acmynoc,arvillag&seeds=20 ; no scripts= runs the Arroyo pilot set.
 	     Needs data/scripts/*.int and the tools/int2lua.py output next to them. -->
 	<style>
 		body { font: 13px monospace; background: #111; color: #ccc; margin: 16px; }

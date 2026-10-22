@@ -196,7 +196,7 @@ follows sfall and is marked as a DH2 addition.
 6. **Decompiler names for UPU**: read the UPU repository's own `scripts_src` (it matches the v34 `.int`
    better than killap's 1.02.31) as an SSL tree; `SCRIPT_FIXES` entries that UPU already fixes are
    switched off for UPU scripts (their `.int` no longer has the bug).
-7. **Verify**: `luadiff.html` over all 1244 UPU scripts (VM vs Lua, 0 differences); the story crawler
+7. **Verify**: `tools/luadiff.html` over all 1244 UPU scripts (VM vs Lua, 0 differences); the story crawler
    on UPU data (VM, VM, Lua, Lua); a playtest of the changed areas (Redding / NCR caravans, Arroyo).
 8. **Docs**: this page becomes the reference; `lua_scripts.md`, `known_bugs.md` (new UP section),
    README ("UPU supported, optional"), `CODEBASE.md`.

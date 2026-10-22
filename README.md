@@ -23,7 +23,7 @@ below). See [`ROADMAP.md`](ROADMAP.md) and [`wiki/known_bugs.md`](wiki/known_bug
 If you're looking for documentation on how Fallout 2 works, documentation on certain file formats, or
 tools to work with them, this project will be useful to you as well.
 
-<img src="screenshot.png" width="640" height="480">
+<img src="docs/screenshot.png" width="640" height="480">
 
 ---
 
@@ -111,6 +111,7 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 50 | [`wiki/lua_variable_names.md`](wiki/lua_variable_names.md) | Review list for the decompiled scripts' variable names: inferred names and remaining numbers |
 | 51 | [`wiki/upu_support.md`](wiki/upu_support.md) | The Unofficial Patch (UPU) and mod folders: what UPU changes, how DH2 builds and loads it (`mods/<name>/`, sfall functions, global scripts, hooks), conflicts |
 | 52 | [`wiki/edit_history.md`](wiki/edit_history.md) | Sprint notes, newest first |
+| 53 | [`wiki/autocrawler.md`](wiki/autocrawler.md) | AutoCrawler: automated map / dialogue / combat test harness, URL auto-start, report format |
 
 ### 🐛 Known issues & roadmap
 
@@ -118,7 +119,6 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 |---|---|
 | [`wiki/known_bugs.md`](wiki/known_bugs.md) | Primary tracker — fix status per ID across all subsystems |
 | [`ROADMAP.md`](ROADMAP.md) | Phased plan (Phases 1–9) toward 95% with audit dates |
-| [`TODO.md`](TODO.md) | Older free-form TODO list — superseded by `wiki/known_bugs.md` |
 | Inline `// TODO` / `// FIXME` in `src/` | Source-level annotations |
 | [`CLAUDE.md`](CLAUDE.md) → "Intentionally Incomplete Systems" | Remaining deliberate approximations |
 
@@ -159,7 +159,7 @@ pipenv run python tools/pipeline_gui.py
 | [`tools/convertPRO.py`](tools/convertPRO.py) | Standalone PRO converter (debug) |
 | [`tools/convertEndgame.py`](tools/convertEndgame.py) | Endgame slide extraction |
 | [`tools/parseCritTable.py`](tools/parseCritTable.py) | EXE table extractor → `lut/` |
-| [`tools/stitchWorldmap.py`](tools/stitchWorldmap.py) | One-off worldmap.png tile stitcher |
+| [`tools/stitchWorldmap.py`](tools/stitchWorldmap.py) | World map tiles → `art/worldmap.png` (`stitch_worldmap` stage) |
 | [`tools/mpserv.py`](tools/mpserv.py) | Multiplayer WebSocket server (unrelated to asset conversion) |
 | [`tools/oldPy/`](tools/oldPy/) | Superseded/experimental script iterations, kept for reference only |
 | [`wiki/animation.md`](wiki/animation.md) → "imageMap.json" | Atlas/imageMap.json schema reference |
@@ -294,20 +294,16 @@ To use this, you'll need a few things:
     the standalone installer, and unpack on any platform supported by
     [innoextract](https://github.com/dscharrer/innoextract), or run the installer `.exe` if you're on Windows.
 
-The rest of the dependencies can be installed all at once if you're on macOS and using [Homebrew](https://brew.sh).
-Just run this command in the directory of your repository clone:
-
-```
-brew bundle
-```
-
-Otherwise you can install the dependencies manually:
+The other dependencies (on macOS with [Homebrew](https://brew.sh): `brew install pipenv innoextract node`):
 
 -   Python 3.9 or later, earlier minor versions of Python 3 may work, but are not tested. Python 2 is not supported.
 
 -   [Pipenv](https://github.com/pypa/pipenv) for Python dependency management.
 
 -   The TypeScript compiler, installed via `npm install` (you'll need [node.js](https://nodejs.org/en/)).
+
+-   [FFmpeg](https://ffmpeg.org/) for sound, movies and talking-head speech: on the PATH, or `ffmpeg.exe` placed in
+    the project root (it is not part of the repository).
 
 Once you've got all that, you can start trying it out.
 
