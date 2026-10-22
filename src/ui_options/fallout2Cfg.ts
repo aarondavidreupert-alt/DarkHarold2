@@ -130,7 +130,8 @@ export function applyCfg(cfg: CfgSections): void {
     const sf = int(dh2['script_fixes'])
     if (sf !== null) Config.scripting.scriptFixes = sf !== 0
     //   mods=a,b  Lua mods in load order (mods/<name>/scripts/*.lua; later ones win)
-    if (dh2['mods'] !== undefined) Config.scripting.mods = parseModList(dh2['mods'])
+    // (empty: mods/mods_order.txt decides, loadModsOrder)
+    if (dh2['mods'] !== undefined && dh2['mods'].trim() !== '') Config.scripting.mods = parseModList(dh2['mods'])
     //   pixel_font=0  UI text in the browser font instead of the Fallout pixel font (default 1)
     const pf = int(dh2['pixel_font'])
     if (pf !== null) Config.ui.pixelFont = pf !== 0
@@ -196,6 +197,32 @@ export function loadFallout2Cfg(path = 'fallout2.cfg'): boolean {
     }
     applyCfg(parseCfg(text))
     dbg('load', `${path} applied`)
+    return true
+}
+
+/** mods/mods_order.txt — the Lua mods in load order, in sfall's mods_order.txt format
+ *  (sfall LoadOrder.cpp GetExtraPatches): one entry per line, top to bottom, a later
+ *  line taking priority; `;` or `#` starts a comment; blank lines skipped. Entries are
+ *  folder names under mods/ (mods/<name>/scripts/*.lua); `.dat` entries are data mods
+ *  for the asset pipeline (wiki/upu_support.md) and are skipped here. fallout2.cfg
+ *  [dh2] mods= overrides the file when set. DH2 addition. Returns false if the file
+ *  is missing. */
+export function loadModsOrder(path = 'mods/mods_order.txt'): boolean {
+    let text: string
+    try {
+        text = getFileText(path)
+    } catch (_) {
+        return false
+    }
+    const mods: string[] = []
+    for (const raw of text.split(/\r?\n/)) {
+        const line = raw.replace(/[;#].*$/, '').trim()
+        if (line === '' || /\.dat$/i.test(line)) continue
+        const [name] = parseModList(line)
+        if (name !== undefined && !mods.includes(name)) mods.push(name)
+    }
+    Config.scripting.mods = mods
+    dbg('load', `${path}: ${mods.length ? mods.join(', ') : 'no Lua mods'}`)
     return true
 }
 

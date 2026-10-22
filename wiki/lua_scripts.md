@@ -213,6 +213,13 @@ lists the mods in load order: for each script the last listed mod that has it wi
 page load. Mod names are folder names only (letters, digits, `_ . -`). A mod script that fails to load falls
 back to the `.int`, like a generated one. `mods/` is git-ignored.
 
+The load order can instead live in **`mods/mods_order.txt`**, in sfall's format (sfall `LoadOrder.cpp`):
+one mod per line, top to bottom, a later line taking priority; `;` or `#` comments a line or its rest out.
+`.dat` lines are data mods for the asset pipeline ([upu_support.md](upu_support.md)) and are skipped here.
+`[dh2] mods=` overrides the file when it is not empty; the pipeline's `write_config` stage creates an empty,
+commented file if there is none, as sfall does (`tools/fallout2Cfg.py write_default_mods_order`,
+`src/ui_options/fallout2Cfg.ts loadModsOrder`).
+
 ## Runtime
 
 - **One engine, one environment per script.** Script globals live in the script's own table; everything else

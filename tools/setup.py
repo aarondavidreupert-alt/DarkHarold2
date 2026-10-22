@@ -331,6 +331,8 @@ def write_config(overwrite=True):
 		info("Wrote default fallout2.cfg")
 	else:
 		info("Keeping existing fallout2.cfg")
+	if fallout2Cfg.write_default_mods_order():
+		info("Wrote mods/mods_order.txt (no mods)")
 	return True
 
 def export_maps(overwrite=True):

@@ -40,3 +40,7 @@ mods/
 
 # Black Isle SSL sources from fallout.fandom.com (Interplay copyright), local only
 ssl/
+
+# Third-party mods downloaded for analysis (e.g. the Unofficial Patch, UPU), local only:
+# their own licences / no licence; DH2 reads mods from the user's install (wiki/upu_support.md)
+third_party/

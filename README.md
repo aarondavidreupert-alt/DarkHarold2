@@ -109,7 +109,8 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 48 | [`wiki/ts-split-refactor.md`](wiki/ts-split-refactor.md) | Source split strategy and the subfolder / barrel convention |
 | 49 | [`wiki/lua_scripts.md`](wiki/lua_scripts.md) | Scripts decompiled to Lua (`tools/int2lua.py`), the Lua backend and the VM-vs-Lua test |
 | 50 | [`wiki/lua_variable_names.md`](wiki/lua_variable_names.md) | Review list for the decompiled scripts' variable names: inferred names and remaining numbers |
-| 51 | [`wiki/edit_history.md`](wiki/edit_history.md) | Sprint notes, newest first |
+| 51 | [`wiki/upu_support.md`](wiki/upu_support.md) | The Unofficial Patch: findings and the plan to support it (not implemented) |
+| 52 | [`wiki/edit_history.md`](wiki/edit_history.md) | Sprint notes, newest first |
 
 ### 🐛 Known issues & roadmap
 
@@ -745,6 +746,8 @@ For map reports (`type: "maps"`, `map: "*"`), each result entry has `map`, `stat
 ## License
 
 DarkHarold2 is licensed under the terms of the Apache 2 license. See `LICENSE.txt` for the full license text.
+
+Credits for the projects, mods and people DarkHarold2 builds on are in [`CREDITS.md`](CREDITS.md).
 
 ## Contributing
 

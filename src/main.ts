@@ -38,7 +38,7 @@ import {
 } from './ui.js'
 import { drawHP } from './ui_hud.js'
 import { objUseItemOn } from './useItemOn.js'
-import { loadFallout2Cfg, loadPreferences, parseModList } from './ui_options.js'
+import { loadFallout2Cfg, loadModsOrder, loadPreferences, parseModList } from './ui_options.js'
 import { getFileJSON, getRandomInt } from './util.js'
 import { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall, WebGLRenderer, setLightSourceOverlayActive, setLightOverlayMode, setLightOverlayRadiusScale, LightOverlayMode } from './webglrenderer.js'
 import { Config } from './config.js'
@@ -251,6 +251,8 @@ window.onload = async function () {
     // Apply persisted user preferences (volume, difficulty, etc.) after audioEngine is ready:
     // fallout2.cfg first (CE game_config.cc gameConfigInit), then the options screen's
     // localStorage write-back on top (FO2-CE ref: preferences.cc — preferenceLoad()).
+    // mods/mods_order.txt first: fallout2.cfg's [dh2] mods= overrides it when set
+    loadModsOrder()
     loadFallout2Cfg()
     loadPreferences()
     // play.html#script_backend=lua (or =vm) overrides fallout2.cfg for this page load; the
