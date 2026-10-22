@@ -26,7 +26,6 @@ xcuserdata
 contents.xcworkspacedata
 node_modules
 js/
-lut/elevators.json
 acm2wav.exe
 
 
@@ -44,3 +43,15 @@ ssl/
 # Third-party mods downloaded for analysis (e.g. the Unofficial Patch, UPU), local only:
 # their own licences / no licence; DH2 reads mods from the user's install (wiki/upu_support.md)
 third_party/
+
+# Converted from the user's Fallout 2 install by the pipeline (tools/setup.py) - game data
+# (Interplay / Bethesda copyright), never committed, like art/ PNGs, maps and protos:
+# fonts (export_fonts), .lst indexes (convert_lsts), endgame tables (convert_endgame),
+# tables read from fallout2.exe (crit_table, elevator_table), and tools/convertPRO.py's output
+art/fonts/
+lut/lst/
+lut/pro/
+lut/endgame.json
+lut/enddeath.json
+lut/criticalTables.json
+lut/elevators.json

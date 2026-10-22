@@ -284,8 +284,20 @@ window.onload = async function () {
             Config.scripting.backend = 'vm'
         }
     }
-    // fallout2.cfg [dh2] pixel_font — ui.css switches every DOM text to the AAF web font.
-    document.documentElement.classList.toggle('dh2-pixel-font', Config.ui.pixelFont)
+    // fallout2.cfg [dh2] pixel_font — ui.css switches every DOM text to the AAF web font,
+    // art/fonts/font1_aaf.woff. It is built from the install by the export_fonts pipeline
+    // stage (not in git); without it the UI keeps the browser font instead of falling back
+    // to a 9px monospace.
+    let pixelFont = false
+    if (Config.ui.pixelFont) {
+        try {
+            pixelFont = (await document.fonts.load("9px 'Fallout Font 1'")).length > 0
+        } catch (_) {
+            pixelFont = false
+        }
+        if (!pixelFont) dbgWarn('load', 'art/fonts/font1_aaf.woff did not load (run the export_fonts pipeline stage); using the browser font')
+    }
+    document.documentElement.classList.toggle('dh2-pixel-font', pixelFont)
 
     // initialize cached data
 

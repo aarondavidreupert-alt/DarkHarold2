@@ -248,7 +248,7 @@ The engine consumes only pre-baked JSON/PNG — no runtime DAT parsing.
 | PRO → JSON | `tools/exportPRO.py` | `proto/**/*.json` |
 | MAP → JSON | `tools/fomap.py` (`tools/oldPy/convertMaps.py` is an unused parallel variant) | `maps/*.json`, `maps/*.images.json` |
 | LST → JSON | `tools/convertLST.py` | `lut/lst/*.json` |
-| PRO indexes | `tools/convertPRO.py` | `lut/pro/*.json` (proto lookup) |
+| PRO indexes | `tools/convertPRO.py` (no pipeline stage; nothing reads its output) | `lut/pro/*.json` (proto lookup) |
 | AAF/FON fonts | `tools/fonts.py` (`tools/oldPy/fonts2.py`, `fonts7alphawhite.py`, `data_fonts*.py` are superseded iterations) | `art/fonts/` |
 | ACM → WAV | `acm2wav/` + `tools/convertAudio.py` | `audio/**/*.wav` |
 | AAF/FON fonts → PNG atlas + web font | `tools/exportFonts.py` (`export_fonts` stage; the `.woff` needs fontTools) | `art/fonts/font<N>_aaf.png/.json/.woff`, `font<N>_fon.png/.json` |
@@ -256,6 +256,10 @@ The engine consumes only pre-baked JSON/PNG — no runtime DAT parsing.
 | Speech ACM → MP3 | `tools/convertSpeech.py` (`export_speech` stage; needs ffmpeg) | `audio/speech/<head>/*.mp3` |
 | Crit table | `tools/parseCritTable.py` | `lut/criticalTables.json` |
 | Elevator table | `tools/parseElevatorTable.py` | `lut/elevators.json` |
+
+All of these are converted from the user's own Fallout 2 install and never committed (`.gitignore`;
+untracked 2026-10-22: the fonts, `lut/lst/`, `lut/pro/`, `lut/criticalTables.json`, `lut/elevators.json`).
+A fresh clone needs the pipeline run before the game starts.
 | GAM → JSON | `tools/parse_gam.py` (`convert_gam` stage; CE `globalVarsRead`) | `data/gvars.json` (from `data/data/vault13.gam`), `data/maps/*.mvars.json` |
 | INT → Lua | `tools/int2lua.py` (`decompile_scripts` stage; own decompiler, [wiki/lua_scripts.md](wiki/lua_scripts.md)) | `data/scripts/*.lua` (git-ignored, next to the `.int`) |
 | Default config | `tools/fallout2Cfg.py` (`write_config` stage; never overwrites) | `fallout2.cfg` (git-ignored) |
