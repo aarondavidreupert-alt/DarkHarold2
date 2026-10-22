@@ -53,7 +53,7 @@ STAGES = [
     ("decompile_scripts", "Decompile scripts to Lua (INT -> LUA)", True),
     ("write_config", "Write default fallout2.cfg (keeps an existing one)", True),
     ("build_mods", "Build mod folders from the install's mods (mods/mods_order.txt -> mods/<name>/)", True),
-    ("export_audio", "Convert audio (ACM -> WAV, needs acm2wav.exe)", False),
+    ("export_audio", "Convert audio (ACM -> WAV, needs ffmpeg)", True),
     ("export_movies", "Convert movies (MVE -> WebM, needs ffmpeg)", True),
     ("export_speech", "Convert talking-head speech (ACM -> MP3, needs ffmpeg)", True),
 ]

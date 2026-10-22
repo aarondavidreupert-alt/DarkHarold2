@@ -691,9 +691,10 @@ STAGES = {
 	"build_mods": build_mods,
 }
 
-# Stages run by default when --stages is not given. export_audio is opt-in
-# only (needs acm2wav.exe manually placed in the project root).
-DEFAULT_STAGES = [s for s in STAGES if s != "export_audio"]
+# Stages run by default when --stages is not given: all of them. (export_audio was
+# opt-in while it needed acm2wav.exe; it runs on ffmpeg, as movies and speech do, and
+# skips itself with a warning without it.)
+DEFAULT_STAGES = list(STAGES)
 
 def main():
 	global SRC_DIR, NO_EXTRACT_DAT, NO_EXPORT_IMAGES, NO_MODS
@@ -713,7 +714,7 @@ def main():
 	parser.add_argument("--no-mods", action="store_true",
 		help="Build no mod folders from the install's mods/mods_order.txt (e.g. the Unofficial Patch): the vanilla game only")
 	parser.add_argument("--stages", default=None,
-		help="Comma-separated list of stages to run (default: all except export_audio). "
+		help="Comma-separated list of stages to run (default: all). "
 		     "Choices: " + ",".join(STAGES))
 	parser.add_argument("--overwrite", dest="overwrite", action="store_true", default=True,
 		help="Regenerate every output file even if it already exists (default)")

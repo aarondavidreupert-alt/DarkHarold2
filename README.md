@@ -151,7 +151,7 @@ pipenv run python tools/pipeline_gui.py
 | [`tools/frmpixels.py`](tools/frmpixels.py) | FRM pixel helpers and atlas generation |
 | [`tools/exportPRO.py`](tools/exportPRO.py) / [`tools/proto.py`](tools/proto.py) | PRO binary → JSON |
 | [`tools/fomap.py`](tools/fomap.py) | MAP → JSON (tiles, objects, spatials, lights) |
-| [`tools/convertAudio.py`](tools/convertAudio.py) | ACM → WAV (uses `acm2wav`) |
+| [`tools/convertAudio.py`](tools/convertAudio.py) | ACM → WAV (`export_audio` stage; ffmpeg, music via `acm2wav.exe` when present) |
 | [`tools/dat2.py`](tools/dat2.py) | DAT2 archive extractor |
 | [`tools/pal.py`](tools/pal.py) | PAL palette loading |
 | [`tools/fonts.py`](tools/fonts.py) | FON font extraction |
@@ -338,7 +338,7 @@ Alternatively, Firefox can load directly from `file://` by opening `play.html` f
 
 Review `src/config.ts` for engine options. Be sure to re-compile if you change them.
 
-OPTIONAL: If you want sound, run `python tools/convertAudio.py`. You'll need the `acm2wav` tool (you can get it from No Mutants Allowed), placed in the project root.
+Sound is converted by the pipeline's `export_audio` stage (default since 2026-10-23); it needs ffmpeg on the PATH or `ffmpeg.exe` in the project root, like movies and speech. `acm2wav.exe` in the project root is optional (used for music when present).
 
 ## Debug Logging
 
@@ -468,11 +468,9 @@ of DarkHarold2 and are only given to explain the status quo. The technical direc
     A: Python is actually quite fast when written well, despite many peoples' expectations. It is very elegant and allows me to write
     backend code like file parsers and exporters with tiny code, very few troubles, and that I know is portable and safe.
 
--   **Q:** Why do I need `acm2wav` for sound?
+-   **Q:** Do I need `acm2wav` for sound?
 
-    A: Because it hasn't been ported to Python yet. If you're willing to contribute, give it a shot: the original Pascal source code is available online.
-
-    Additionally, FFmpeg might be able to transcode ACM audio, so give that a shot. (See [darkf/darkfo#30](https://github.com/darkf/darkfo/issues/30))
+    A: No. The pipeline decodes the ACM sound with ffmpeg (sound effects mono, as CE plays them: `tools/acmMono.py`); `acm2wav.exe` in the project root is only used for music when present. (Background: [darkf/darkfo#30](https://github.com/darkf/darkfo/issues/30))
 
 -   **Q:** Why convert all assets up front, why not load them directly?
 
