@@ -703,6 +703,23 @@ the bytecode VM stays the default until the backend covers every script.
 
 ---
 
+## 32. Unofficial Patch (UPU) support
+
+Opt-in by installing it: the pipeline reads the install's `mods/mods_order.txt` (`setup.py --no-mods` for the
+vanilla game). Details, conflicts and what was checked: [`upu_support.md`](upu_support.md).
+
+| ID | Description | File(s) | Reference | Sev | Status |
+|----|-------------|---------|-----------|-----|--------|
+| UP1 | **Not verified on a UPU install.** The pipeline overlay was run on a mock install and the v34 scripts decompiled (1239 / 1244); `luadiff`, the story crawler and a playtest on UPU data are still to do. | `tools/setup.py`, `tools/int2lua.py` | — | minor | open |
+| UP2 | **sfall global scripts not run.** v34's four `gl_k_*` scripts need sfall hooks (`INVENTORYMOVE`, `GAMEMODECHANGE`, `register_hook_proc`) or `fs_*` functions CE does not have: the Magic 8-Ball, the Dogmeat fix, and the optional Goris de-robing / walking speed settings are missing. As CE. | — | CE `sfall_global_scripts.cc` (no hooks) | minor | open (as CE) |
+| UP3 | **`mcjo` stays bytecode under the Lua backend.** A procedure-local variable without a constant initialiser — a shape `int2lua.py` does not decompile; it runs on the VM. | `tools/int2lua.py` | — | minor | open |
+| UP4 | **sfall functions only as far as UPU uses them.** `get/set_proto_data` map only offsets 96 (magazine size) and 388 (body type), `explosions_metarule` only 6, `sfall_func0-2` only `combat_data` / `get_object_data` (Attack fields), `fs_copy` only checks that the file exists; others warn and return -1 / 0. Arrays are not saved with the game (as CE; sfall saves them). | `src/scripting.ts`, `src/sfallArrays.ts` | CE `sfall_opcodes.cc`, `sfall_arrays.cc`, `sfall_metarules.cc` | minor | partial |
+| UP5 | **`sfall.dat` and `f2_res.dat` skipped.** sfall's own scripts / interface art and the hi-res patch's art (`hr_*.frm`, `.edg`) are left out: DH2 scales and zooms the original interface itself and has none of sfall's engine features. Deliberate. | `tools/setup.py SKIPPED_MOD_ARCHIVES` | — | — | by design |
+
+<!-- audited: 2026-10-22 -->
+
+---
+
 ## 29. Intentionally Deferred — Do Not Implement Unless Tasked
 
 Empty as of 2026-10-07 (branch `100percent`). Every system formerly listed here is implemented:

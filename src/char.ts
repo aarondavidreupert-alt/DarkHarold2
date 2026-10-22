@@ -229,6 +229,10 @@ export class SkillSet {
 
 export class StatSet {
     baseStats: { [name: string]: number } = {};
+    // CE critter proto d.stat_bonus as sfall's set_critter_extra_stat / set_pc_extra_stat
+    // change it (sfall opcodes 0x815B, 0x815F): added to the stat. A proto's own bonus is
+    // already in baseStats (fromPro), so this holds only what scripts set.
+    bonusStats: { [name: string]: number } = {};
     useBonuses: boolean;
 
     constructor(baseStats?: { [name: string]: number }, useBonuses: boolean=true) {
@@ -238,7 +242,9 @@ export class StatSet {
     }
 
     clone(): StatSet {
-        return new StatSet(Object.assign({}, this.baseStats), this.useBonuses);
+        const c = new StatSet(Object.assign({}, this.baseStats), this.useBonuses);
+        c.bonusStats = Object.assign({}, this.bonusStats);
+        return c;
     }
 
     static fromPro(pro: any): StatSet {
@@ -284,7 +290,7 @@ export class StatSet {
         if(!statDep)
             throw Error(`No dependencies for stat '${stat}'`);
 
-        let statValue = base;
+        let statValue = base + (this.bonusStats[stat] ?? 0);
         if(this.useBonuses) {
             for(const dep of statDep.dependencies) {
                 if(dep.statType)
@@ -303,14 +309,26 @@ export class StatSet {
         this.setBase(stat, this.getBase(stat) + change);
     }
 
+    getBonus(stat: string): number {
+        return this.bonusStats[stat] ?? 0;
+    }
+
+    setBonus(stat: string, value: number) {
+        if (value === 0) delete this.bonusStats[stat];
+        else this.bonusStats[stat] = value;
+    }
+
     serialize() {
         return {
             baseStats: Object.assign({}, this.baseStats),
+            bonusStats: Object.assign({}, this.bonusStats),
             useBonuses: this.useBonuses,
         }
     }
 
     static deserialize(data: ReturnType<StatSet['serialize']>): StatSet {
-        return new StatSet(data.baseStats, data.useBonuses)
+        const s = new StatSet(data.baseStats, data.useBonuses)
+        s.bonusStats = Object.assign({}, (data as any).bonusStats ?? {}) // saves before 2026-10-22 have none
+        return s
     }
 }

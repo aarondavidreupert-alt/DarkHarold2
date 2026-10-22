@@ -72,6 +72,11 @@ import {
 let combatActive = false
 export function isCombatActive(): boolean { return combatActive }
 
+// CE combat.cc _main_ctd: the attack being (or last) resolved; sfall's combat_data
+// (sfall_metarules.cc mf_combat_data → combat_get_data) reads it while in combat
+let mainAttack: Attack | null = null
+export function combatGetData(): Attack | null { return combatActive ? mainAttack : null }
+
 /** Free-form combat trace, gated by Config.scripting.debugLogShowType.combat.
  *  Player-visible combat messages go through uiLog() — never mix the two.
  *  Structured events go through eventLogPush() so they survive into the save. */
@@ -803,6 +808,7 @@ export class Combat {
 
         // CE combat.cc _combat_attack: attackInit + attackCompute before the animation.
         const a = attackInit(obj, target, weaponObj, region)
+        mainAttack = a // CE _main_ctd (sfall combat_data)
         const gcsd = this.gcsd
         if (gcsd && gcsd.attacker === obj) a.accuracyBonus = gcsd.accuracyBonus
         this.attackCompute(a)

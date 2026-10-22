@@ -280,6 +280,14 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     0x8041: binop(function (x, y) {
         return x | y
     }),
+    // CE interpreter.cc opBitwiseOperatorXor / opBitwiseOperatorNot (32-bit ints); no
+    // vanilla script uses them, the Unofficial Patch's craps scripts do (wiki/upu_support.md)
+    0x8042: binop(function (x, y) {
+        return x ^ y
+    }),
+    0x8043: function () {
+        this.push(~this.pop())
+    },
     0x8039: arith((x, y) => x + y),
     0x803a: arith((x, y) => x - y),
     0x803b: arith((x, y) => x * y),

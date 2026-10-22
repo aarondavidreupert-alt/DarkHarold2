@@ -23,6 +23,18 @@ import { randomBetween } from './random.js'
 
 // Utility functions
 
+/** Whether a file the page could load exists (a synchronous HEAD request). */
+export function fileExistsSync(path: string): boolean {
+    try {
+        const xhr = new XMLHttpRequest()
+        xhr.open('HEAD', path, false)
+        xhr.send()
+        return xhr.status >= 200 && xhr.status < 300
+    } catch (_) {
+        return false
+    }
+}
+
 export function parseIni(text: string) {
     // Parse a .ini-style categorized key-value format
     const ini: { [category: string]: any } = {}

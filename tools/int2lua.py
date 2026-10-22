@@ -35,6 +35,7 @@ Usage:
 
 import argparse
 import glob
+import json
 import os
 import struct
 import sys
@@ -154,6 +155,54 @@ INTRINSICS = {
     0x80FE: ("radiation_dec", 2, False),
     0x826E: ("make_straight_path", 3, True),
     0x826F: ("obj_blocking_at", 3, True),
+    # sfall arrays (CE sfall_opcodes.cc; Script methods in src/scripting.ts)
+    0x822D: ("create_array", 2, True),
+    0x822E: ("set_array", 3, False),
+    0x822F: ("get_array", 2, True),
+    0x8230: ("free_array", 1, False),
+    0x8231: ("len_array", 1, True),
+    0x8232: ("resize_array", 2, False),
+    0x8233: ("temp_array", 2, True),
+    0x8234: ("fix_array", 1, False),
+    0x8235: ("string_split", 2, True),
+    0x8236: ("list_as_array", 1, True),
+    0x8239: ("scan_array", 2, True),
+    0x8256: ("array_key", 2, True),
+    0x8257: ("arrayexpr", 2, True),
+    # other sfall functions the Unofficial Patch uses (CE sfall_opcodes.cc handlers)
+    0x81ED: ("abs", 1, True),                        # op_abs
+    0x81AC: ("get_ini_setting", 1, True),            # op_get_ini_setting
+    0x8261: ("explosions_metarule", 3, True),        # op_explosions_metarule
+    0x8206: ("set_self", 1, False),                  # op_set_self
+    0x8204: ("get_proto_data", 2, True),             # op_get_proto_data
+    0x8205: ("set_proto_data", 3, False),            # op_set_proto_data
+    0x8217: ("get_weapon_ammo_pid", 1, True),        # opGetWeaponAmmoPid
+    0x8218: ("set_weapon_ammo_pid", 2, False),       # opSetWeaponAmmoPid
+    0x8219: ("get_weapon_ammo_count", 1, True),      # opGetWeaponAmmoCount
+    0x821A: ("set_weapon_ammo_count", 2, False),     # opSetWeaponAmmoCount
+    0x815A: ("set_pc_base_stat", 2, False),          # op_set_pc_base_stat
+    0x815B: ("set_pc_extra_stat", 2, False),         # opSetPcBonusStat
+    0x815C: ("get_pc_base_stat", 1, True),           # op_get_pc_base_stat
+    0x815D: ("get_pc_extra_stat", 1, True),          # opGetPcBonusStat
+    0x8271: ("party_member_list", 1, True),          # opPartyMemberList
+    0x81F5: ("get_script", 1, True),                 # op_get_script
+    0x8172: ("set_world_map_pos", 2, False),         # op_set_world_map_pos
+    0x81B6: ("set_car_current_town", 1, False),      # op_set_car_current_town
+    0x8164: ("game_loaded", 0, True),                # op_game_loaded
+    0x816A: ("set_global_script_repeat", 1, False),  # op_set_global_script_repeat
+    0x819B: ("set_global_script_type", 1, False),    # op_set_global_script_type
+    0x819D: ("set_sfall_global", 2, False),          # opSetGlobalVar
+    0x819E: ("get_sfall_global_int", 1, True),       # opGetGlobalInt
+    0x81AF: ("get_game_mode", 0, True),              # opGetGameMode
+    0x8162: ("tap_key", 1, False),                   # op_tap_key
+    0x8276: ("sfall_func0", 1, True),                # op_sfall_func0 → sfall_metarules.cc, by name
+    0x8277: ("sfall_func1", 2, True),
+    0x8278: ("sfall_func2", 3, True),
+    # sfall functions CE lacks (sfall Opcodes.cpp), used by UPU scripts
+    0x815F: ("set_critter_extra_stat", 3, False),
+    0x8160: ("get_critter_base_stat", 2, True),
+    0x8161: ("get_critter_extra_stat", 2, True),
+    0x81F8: ("fs_copy", 2, True),
     0x80A1: ("give_exp_points", 1, False),
     0x8138: ("item_caps_total", 1, True),
     0x8139: ("item_caps_adjust", 2, True),
@@ -730,6 +779,37 @@ def ssl_sources(root):
     (the Unofficial Patch's, which renumbers some scripts' LVARs)."""
     trees = [ssl_names(os.path.join(os.path.dirname(root), "ssl")), ssl_names(os.path.join(root, "scripts_src"))]
     return [t for t in trees if t is not None]
+
+
+def upu_ssl_tree(root):
+    """The Unofficial Patch's (UPU) own script sources, when fetched into
+    third_party/upu_src/scripts_src (wiki/upu_support.md), else None."""
+    return ssl_names(os.path.join(os.path.dirname(root), "third_party", "upu_src", "scripts_src"))
+
+
+_mod_sources_cache = {}
+
+
+def script_from_mod(root, name):
+    """Whether tools/setup.py took data/scripts/<name>.int from a mod archive
+    (data/mod_sources.json: "mods/upu.dat", ...) rather than the vanilla data."""
+    key = os.path.normcase(os.path.abspath(root))
+    if key not in _mod_sources_cache:
+        try:
+            with open(os.path.join(root, "mod_sources.json"), encoding="utf-8") as fh:
+                _mod_sources_cache[key] = json.load(fh)
+        except (OSError, ValueError):
+            _mod_sources_cache[key] = {}
+    return _mod_sources_cache[key].get("scripts/%s.int" % name, "").startswith("mods/")
+
+
+def script_ssl_sources(root, name):
+    """ssl_sources for one script: a script the pipeline took from a mod archive
+    (data/mod_sources.json, tools/setup.py) reads the UPU tree first, as its .int was
+    compiled from it; the vanilla scripts keep Black Isle's, then killap's."""
+    trees = ssl_sources(root)
+    upu = upu_ssl_tree(root) if script_from_mod(root, name) else None
+    return [upu] + trees if upu is not None else trees
 
 
 _ssl_cache = {}
@@ -1398,7 +1478,7 @@ class ProcDecompiler:
                 args = [self.pop(stack, pc) for _ in range(argc)][::-1]
                 if name in ("gsay_option", "giq_option"):
                     args[-2] = self.proc_target(args[-2], pc)
-                fix = SCRIPT_FIXES.get((self.s.name, self.proc.name.lower()), {}).get(name)
+                fix = self.s.script_fixes.get((self.s.name, self.proc.name.lower()), {}).get(name)
                 if fix is not None:
                     args = [self.script_fix(a, fix) for a in args]
                 for k, kind in NAMED_ARGS.get(name, []) + ENUM_ARGS.get(name, []):
@@ -1516,7 +1596,7 @@ class ProcDecompiler:
 
     def pop(self, stack, pc):
         if not stack:
-            fix = MISSING_OPERANDS.get((self.s.name, self.proc.name.lower()))
+            fix = self.s.missing_operands.get((self.s.name, self.proc.name.lower()))
             if fix is not None and pc not in self.s.fixed_operands:
                 # a word the compiler left out (MISSING_OPERANDS): the source's value
                 self.s.fixed_operands.add(pc)
@@ -1575,6 +1655,10 @@ class ScriptDecompiler:
                 self.names[kind] = {**self.names[kind], num: cname}
                 (self.inferred if status == "inferred" else self.guessed)[cname] = why
         self.script_fixes_applied = 0  # SCRIPT_FIXES operands replaced
+        # the per-script repairs of the vanilla .int; decompile_file clears them for a
+        # script taken from a mod (recompiled from fixed sources, wiki/upu_support.md)
+        self.script_fixes = SCRIPT_FIXES
+        self.missing_operands = MISSING_OPERANDS
         self.fixed_operands = set()  # pcs MISSING_OPERANDS supplied a value for
         self.operand_notes = {}      # name -> why (MISSING_OPERANDS), marked inferred
         self.named = {}       # name -> (kind, number), used somewhere in the script
@@ -1932,7 +2016,9 @@ def decompile_file(path, report=None):
     root = os.path.dirname(os.path.dirname(os.path.abspath(path)))
     gvars = read_gam(os.path.join(root, "data", "vault13.gam"), "GAME_GLOBAL_VARS")
     mvars = read_gam(os.path.join(root, "maps", name + ".gam"), "MAP_GLOBAL_VARS")
-    sd = ScriptDecompiler(data, name, gvars, mvars, ssl_sources(root), msg_texts(root))
+    sd = ScriptDecompiler(data, name, gvars, mvars, script_ssl_sources(root, name), msg_texts(root))
+    if script_from_mod(root, name):
+        sd.script_fixes, sd.missing_operands = {}, {}
     text = sd.emit()
     if report is not None:
         report.extend((name,) + row for row in sd.report())

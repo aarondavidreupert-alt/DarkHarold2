@@ -143,6 +143,8 @@ Three-file split — understand this before touching any opcode:
 | `src/vm.ts` | `ScriptVM` class + `opMap`: low-level bytecode decoder (stack ops, arithmetic, jumps, 319 lines) | `scripts.cc` (VM core) |
 | `src/vm_bridge.ts` | `bridgeOpMap`: maps ~118 bytecode opcode values to `Script` methods via `bridged(procName, argc)` factory (245 lines) | `scripts.cc` (opcode table) |
 | `src/scripting.ts` | `Script` class: one method per FO2 script intrinsic, TimedEvent system, GVAR/LVAR/MVAR access, all hook entry points (~2263 lines) | `scripts.cc`, `script_list.cc` |
+| `src/sfallArrays.ts` | sfall arrays (list / associative, temporary arrays freed per game tick) for the Unofficial Patch's scripts ([wiki/upu_support.md](wiki/upu_support.md)) | `sfall_arrays.cc`, `sfall_lists.cc` |
+| `src/sfallIni.ts` | `get_ini_setting`: reads `file\|section\|key` from the install's ini files the pipeline copied to `data/` | `sfall_ini.cc` |
 | `src/transpiler.ts` | INT file disassembler / transpiler (produces debug output) | — |
 | `src/intfile.ts` | `.INT` binary parser: procedure table, code section, string pool | — |
 | `src/lua/luaRuntime.ts` | Lua script backend: starts wasmoon (`lib/wasmoon/`), `attachLuaScript` gives a `Script` one method per Lua procedure; `[dh2] script_backend=lua` ([wiki/lua_scripts.md](wiki/lua_scripts.md)) | — (DH2 addition) |

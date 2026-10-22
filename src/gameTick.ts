@@ -19,6 +19,7 @@ import { gameMoviePlay, GAME_MOVIE_FADE_IN, GAME_MOVIE_FADE_OUT, GAME_MOVIE_PAUS
 import { getRandomInt } from './util.js'
 import { checkRads } from './radiation.js'
 import { heart } from './heart.js'
+import { deleteAllTempArrays } from './sfallArrays.js'
 import globalState from './globalState.js'
 import { dbg, dbgWarn } from './logger.js'
 import { Critter, objectUnjamAll } from './object.js'
@@ -131,6 +132,9 @@ export function tickGame(): void {
     if (globalState.uiMode !== UIMode.none && globalState.uiMode !== UIMode.useSkill) {
         return
     }
+    // CE scripts.cc scriptsHandleRequests, at the end of each game-loop pass: free the
+    // sfall temporary arrays (a dialogue runs inside gsay_end in CE, so they live through it)
+    deleteAllTempArrays()
     const time = window.performance.now()
 
     const $fps = globalState.$fpsOverlay

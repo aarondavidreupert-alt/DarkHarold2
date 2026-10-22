@@ -20,6 +20,7 @@ limitations under the License.
 // MVARs, worldmap, car, party, timers — leaks into the next one.
 
 import { killCounts } from './critter.js'
+import { sfallArraysReset } from './sfallArrays.js'
 import { START_TICKS } from './gametime.js'
 import globalState from './globalState.js'
 import { dbg } from './logger.js'
@@ -46,6 +47,7 @@ export function gameReset(): void {
     Worldmap.resetWorldmap()                  // wmWorldMap_reset
     Worldmap.resetEncounters()                // wmGenDataReset (didMeetFrankHorrigan)
     resetAutomap()                            // automapReset: the automap belongs to the game
+    sfallArraysReset()                        // sfallArraysReset (CE game.cc gameReset)
     globalState.player?.resetForNewGame()     // stats/skills/perks/traits/_inven_reset_dude
     globalState.player?.updateNativeLook()    // _proto_dude_update_gender: tribal again
     dbg('saveload', '[gameReset] per-game state cleared')

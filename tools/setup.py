@@ -17,7 +17,7 @@ limitations under the License.
 # Setup script to import Fallout 2 data for DarkFO
 
 from __future__ import print_function
-import sys, os, glob, json, traceback
+import sys, os, glob, json, re, shutil, traceback
 
 def error(msg):
 	print("ERROR:", msg)
@@ -65,6 +65,17 @@ import fallout2Cfg
 # global paths/flags
 SRC_DIR = None
 NO_EXTRACT_DAT = False
+NO_MODS = False  # --no-mods: only master.dat / critter.dat / patchXXX.dat (the vanilla game)
+
+# Mod archives the pipeline never reads, though an install may have them: sfall's own
+# resources (sfall.dat: its item-highlighting and NPC-control scripts and replacement
+# interface art, sfall engine features) and the hi-res patch (f2_res.dat: high-resolution
+# interface art and .edg scroll edges, which DarkHarold2's own resolution scaling and zoom
+# replace; CE reads neither). See wiki/upu_support.md.
+SKIPPED_MOD_ARCHIVES = {
+	"sfall.dat": "sfall engine resources (highlighting / party control scripts, interface art)",
+	"f2_res.dat": "hi-res patch art and map edges (DarkHarold2 scales the view itself)",
+}
 NO_EXPORT_IMAGES = False
 EXE_PATH = None
 
@@ -153,9 +164,114 @@ def extract_dats(overwrite=True):
 		info("Extracting critter.dat...")
 		extract_dat(os.path.join(SRC_DIR, "critter.dat"))
 
+		# what the game loads over them, lowest priority first, each overwriting the files
+		# before it (install_overlays); which archive each file came from goes to
+		# data/mod_sources.json
+		sources = {}
+		for label, kind, path in install_overlays():
+			info("Extracting %s..." % label)
+			for name in (overlay_dat(path) if kind == "dat" else overlay_dir(path)):
+				sources[name] = label
+		for name in copy_install_inis():
+			sources[name] = "install"
+		if sources:
+			with open(os.path.join("data", "mod_sources.json"), "w", encoding="utf-8") as fh:
+				json.dump(dict(sorted(sources.items())), fh, indent=0)
+			info("%d files from patches / mods (data/mod_sources.json)" % len(sources))
+		elif os.path.exists(os.path.join("data", "mod_sources.json")):
+			os.remove(os.path.join("data", "mod_sources.json"))
+
 		info("Done extracting DAT archives.")
 
 	return True
+
+def install_overlays():
+	"""[(label, "dat" | "dir", path)] the install loads over master.dat / critter.dat,
+	lowest priority first: patch000.dat ... patch099.dat (CE game.cc gameInit,
+	"patch%03d.dat"), then sfall's mods/mods_order.txt top to bottom, a later line winning
+	(sfall LoadOrder.cpp; ddraw.ini: master_patches > critter_patches > mods_order.txt >
+	PatchFileXX > patchXXX.dat > sfall.dat > critter.dat > f2_res > master.dat).
+	SKIPPED_MOD_ARCHIVES are left out, and with --no-mods everything after patchXXX.dat.
+	The install's loose data/ folder (CE master_patches) is not read: it holds the music
+	and save games, which the pipeline takes elsewhere."""
+	out = []
+	for i in range(100):
+		p = os.path.join(SRC_DIR, "patch%03d.dat" % i)
+		if os.path.isfile(p):
+			out.append(("patch%03d.dat" % i, "dat", p))
+	if NO_MODS:
+		return out
+	order = os.path.join(SRC_DIR, "mods", "mods_order.txt")
+	if not os.path.isfile(order):
+		return out
+	seen = []
+	with open(order, encoding="latin-1") as fh:
+		for line in fh:
+			entry = re.split(r"[;#]", line, 1)[0].strip()
+			if entry:
+				seen.append(entry)
+	# a name listed twice counts at its last line (LoadOrder.cpp keeps the last occurrence)
+	entries = [e for i, e in enumerate(seen) if e not in seen[i + 1:]]
+	for entry in entries:
+		base = os.path.basename(entry.replace("\\", "/")).lower()
+		if base in SKIPPED_MOD_ARCHIVES:
+			info("Skipping mods/%s: %s" % (entry, SKIPPED_MOD_ARCHIVES[base]))
+			continue
+		p = os.path.join(SRC_DIR, "mods", entry)
+		if os.path.isfile(p) and entry.lower().endswith(".dat"):
+			out.append(("mods/" + entry, "dat", p))
+		elif os.path.isdir(p):
+			out.append(("mods/" + entry, "dir", p))
+		else:
+			info("mods_order.txt: mods/%s not found, skipped" % entry)
+	return out
+
+def copy_install_inis():
+	"""Copy the install's ddraw.ini and mods/*.ini into data/ (same relative paths): scripts
+	read settings from them with sfall's get_ini_setting("mods\\upu.ini|main|wipe_inventory"),
+	resolved against the game folder (CE sfall_ini.cc; src/sfallIni.ts reads data/<file>).
+	Not with --no-mods. Returns the paths written."""
+	if NO_MODS:
+		return []
+	names = []
+	candidates = [("ddraw.ini", os.path.join(SRC_DIR, "ddraw.ini"))]
+	mods = os.path.join(SRC_DIR, "mods")
+	if os.path.isdir(mods):
+		for n in sorted(os.listdir(mods)):
+			if n.lower().endswith(".ini"):
+				candidates.append(("mods/" + n.lower(), os.path.join(mods, n)))
+	for rel, src in candidates:
+		if os.path.isfile(src):
+			out = os.path.join("data", rel)
+			os.makedirs(os.path.dirname(out) or "data", exist_ok=True)
+			shutil.copyfile(src, out)
+			names.append(rel)
+	return names
+
+def overlay_dat(path):
+	"""Extract one .dat over data/; returns the (lower-case) paths it wrote."""
+	names = []
+	with open(path, "rb") as f:
+		tree = dat2.readDAT(f, posixPaths=True)
+		for name, entry in tree.items():
+			out = os.path.join("data", name)
+			os.makedirs(os.path.dirname(out), exist_ok=True)
+			with open(out, "wb") as fp:
+				fp.write(dat2.readFile(f, entry))
+			names.append(name.lower())
+	return names
+
+def overlay_dir(path):
+	"""Copy one mod folder over data/ (paths lower-cased, as in the .dat files)."""
+	names = []
+	for root, _dirs, files in os.walk(path):
+		for n in files:
+			rel = os.path.relpath(os.path.join(root, n), path).replace("\\", "/").lower()
+			out = os.path.join("data", rel)
+			os.makedirs(os.path.dirname(out), exist_ok=True)
+			shutil.copyfile(os.path.join(root, n), out)
+			names.append(rel)
+	return names
 
 def export_images(overwrite=True):
 	if not overwrite and os.path.exists("art") and os.listdir("art"):
@@ -428,13 +544,15 @@ STAGES = {
 DEFAULT_STAGES = [s for s in STAGES if s != "export_audio"]
 
 def main():
-	global SRC_DIR, NO_EXTRACT_DAT, NO_EXPORT_IMAGES
+	global SRC_DIR, NO_EXTRACT_DAT, NO_EXPORT_IMAGES, NO_MODS
 
 	import argparse
 	parser = argparse.ArgumentParser(description="Import Fallout 2 game data into DarkHarold2's pre-baked asset format.")
 	parser.add_argument("install_dir", help="Path to the Fallout 2 installation directory")
 	parser.add_argument("--no-extract-dat", action="store_true", help="Skip extracting master.dat/critter.dat (use existing data/)")
 	parser.add_argument("--no-export-images", action="store_true", help="Skip FRM-to-PNG image export")
+	parser.add_argument("--no-mods", action="store_true",
+		help="Ignore the install's mods/mods_order.txt (e.g. the Unofficial Patch): extract the vanilla game")
 	parser.add_argument("--stages", default=None,
 		help="Comma-separated list of stages to run (default: all except export_audio). "
 		     "Choices: " + ",".join(STAGES))
@@ -453,6 +571,7 @@ def main():
 	SRC_DIR = args.install_dir
 	NO_EXTRACT_DAT = args.no_extract_dat
 	NO_EXPORT_IMAGES = args.no_export_images
+	NO_MODS = args.no_mods
 
 	if args.stages:
 		selected = [s.strip() for s in args.stages.split(",") if s.strip()]

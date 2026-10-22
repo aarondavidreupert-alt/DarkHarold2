@@ -194,6 +194,46 @@ export module ScriptVMBridge {
        ,0x80FE: bridged("radiation_dec", 2, false) // CE: interpreter_extra.cc:4967 opRadiationDecrease
        ,0x826E: bridged("make_straight_path", 3)    // CE: sfall_opcodes.cc:937 op_make_straight_path
        ,0x826F: bridged("obj_blocking_at", 3)       // CE: sfall_opcodes.cc:951 op_obj_blocking_at
+       // sfall arrays (CE sfall_opcodes.cc, src/sfallArrays.ts)
+       ,0x822D: bridged("create_array", 2)          // CE opCreateArray
+       ,0x822E: bridged("set_array", 3, false)      // CE opSetArray
+       ,0x822F: bridged("get_array", 2)             // CE opGetArray
+       ,0x8230: bridged("free_array", 1, false)     // CE opFreeArray
+       ,0x8231: bridged("len_array", 1)             // CE opLenArray
+       ,0x8232: bridged("resize_array", 2, false)   // CE opResizeArray
+       ,0x8233: bridged("temp_array", 2)            // CE opTempArray
+       ,0x8234: bridged("fix_array", 1, false)      // CE opFixArray
+       ,0x8235: bridged("string_split", 2)          // CE opStringSplit
+       ,0x8236: bridged("list_as_array", 1)         // CE op_list_as_array
+       ,0x8239: bridged("scan_array", 2)            // CE opScanArray
+       ,0x8256: bridged("array_key", 2)             // CE opGetArrayKey
+       ,0x8257: bridged("arrayexpr", 2)             // CE opStackArray
+       // other sfall functions the Unofficial Patch uses (CE sfall_opcodes.cc; Script methods)
+       ,0x81ED: bridged("abs", 1)                   // CE op_abs
+       ,0x81AC: bridged("get_ini_setting", 1)       // CE op_get_ini_setting
+       ,0x8261: bridged("explosions_metarule", 3)   // CE op_explosions_metarule
+       ,0x8206: bridged("set_self", 1, false)       // CE op_set_self
+       ,0x8204: bridged("get_proto_data", 2)        // CE op_get_proto_data
+       ,0x8205: bridged("set_proto_data", 3, false) // CE op_set_proto_data
+       ,0x8217: bridged("get_weapon_ammo_pid", 1)   // CE opGetWeaponAmmoPid
+       ,0x8218: bridged("set_weapon_ammo_pid", 2, false) // CE opSetWeaponAmmoPid
+       ,0x8219: bridged("get_weapon_ammo_count", 1) // CE opGetWeaponAmmoCount
+       ,0x821A: bridged("set_weapon_ammo_count", 2, false) // CE opSetWeaponAmmoCount
+       ,0x815A: bridged("set_pc_base_stat", 2, false)  // CE op_set_pc_base_stat
+       ,0x815B: bridged("set_pc_extra_stat", 2, false) // CE opSetPcBonusStat
+       ,0x815C: bridged("get_pc_base_stat", 1)      // CE op_get_pc_base_stat
+       ,0x815D: bridged("get_pc_extra_stat", 1)     // CE opGetPcBonusStat
+       ,0x815F: bridged("set_critter_extra_stat", 3, false) // sfall (not in CE)
+       ,0x8160: bridged("get_critter_base_stat", 2) // sfall (not in CE)
+       ,0x8161: bridged("get_critter_extra_stat", 2) // sfall (not in CE)
+       ,0x8271: bridged("party_member_list", 1)     // CE opPartyMemberList
+       ,0x81F5: bridged("get_script", 1)            // CE op_get_script
+       ,0x8172: bridged("set_world_map_pos", 2, false) // CE op_set_world_map_pos
+       ,0x81B6: bridged("set_car_current_town", 1, false) // CE op_set_car_current_town
+       ,0x81F8: bridged("fs_copy", 2)               // sfall (not in CE): existence check only
+       ,0x8276: bridged("sfall_func0", 1)           // CE op_sfall_func0
+       ,0x8277: bridged("sfall_func1", 2)           // CE op_sfall_func1
+       ,0x8278: bridged("sfall_func2", 3)           // CE op_sfall_func2
        ,0x80A1: bridged("give_exp_points", 1, false)
        ,0x8138: bridged("item_caps_total", 1)
        ,0x8139: bridged("item_caps_adjust", 2)

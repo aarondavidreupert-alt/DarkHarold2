@@ -109,7 +109,7 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 48 | [`wiki/ts-split-refactor.md`](wiki/ts-split-refactor.md) | Source split strategy and the subfolder / barrel convention |
 | 49 | [`wiki/lua_scripts.md`](wiki/lua_scripts.md) | Scripts decompiled to Lua (`tools/int2lua.py`), the Lua backend and the VM-vs-Lua test |
 | 50 | [`wiki/lua_variable_names.md`](wiki/lua_variable_names.md) | Review list for the decompiled scripts' variable names: inferred names and remaining numbers |
-| 51 | [`wiki/upu_support.md`](wiki/upu_support.md) | The Unofficial Patch: findings and the plan to support it (not implemented) |
+| 51 | [`wiki/upu_support.md`](wiki/upu_support.md) | The Unofficial Patch (UPU): what it changes, how DH2 runs it (pipeline overlay, sfall functions), conflicts |
 | 52 | [`wiki/edit_history.md`](wiki/edit_history.md) | Sprint notes, newest first |
 
 ### 🐛 Known issues & roadmap
@@ -193,6 +193,7 @@ the wiki tracker is the source of truth.
 - **Car (Highwayman)** — script-driven like CE: town map scripts place the car, the trunk travels in the party (W14); speed tiers (blower / New Reno upgrade / super car), fuel-saving upgrades, out-of-gas handling, metarule 52/53 trunk capacity; see [`wiki/car_system.md`](wiki/car_system.md)
 - **Scripting VM** — INT parser, all 181 vanilla opcodes bridged (S29), MVARs persisted per map (M8), `map_exit_p_proc` on every script (M9), timed events, `critter_p_proc` round-robin (CE `_script_chk_critters`)
 - **Lua scripts (default)** — `tools/int2lua.py` decompiles 1440 of 1443 scripts to readable Lua (the other 3 are unused Fallout 1 leftovers), with global, map and local variables by name from the game data and Black Isle's sources (a few inferred and marked so; `data/scripts/variable_names.tsv` lists every variable and where its name comes from); they run by default (wasmoon; `[dh2] script_backend=vm` runs the `.int` bytecode instead, and an install without decompiled scripts falls back to it), `[dh2] mods=a,b` loads mod scripts in order. All 1436 decompiled scripts match the VM call for call in the `luadiff.html` test except one Black Isle script bug; the story crawler's deterministic playthrough of 29 main-quest maps (every dialogue path, every scripted object's examine / use / skill procedures, barter purchases, game time passing; 37 681 steps) is identical on both backends (L1–L18, [`wiki/lua_scripts.md`](wiki/lua_scripts.md))
+- **Unofficial Patch (UPU), optional** — the pipeline extracts the install's `patchXXX.dat` and the `mods/*.dat` in `mods/mods_order.txt` (sfall's load order; `--no-mods` for vanilla); the sfall script functions UPU uses are ported from CE (arrays, ini settings, stats, proto data, …). Not yet played through on a UPU install; sfall's global scripts (hooks) and the hi-res / `sfall.dat` art are left out (UP1–UP5, [`wiki/upu_support.md`](wiki/upu_support.md))
 - **Time** — CE game clock and ambient light (`gAmbientIntensity`, Night Vision), midnight events, ARTIMER/AFAILED game events, time jumps drain timed events
 - **Status effects** — radiation (`critterAdjustRadiation`/`processRads`), drugs and addiction from proto data with withdrawal perks, poison decay (S26)
 - **Movies** — MVE → WebM pipeline stage, CE `gameMoviePlay` with subtitles and fades, Pip-Boy video archive (S15)

@@ -256,6 +256,21 @@ export function getLstJson(lst: string, id: number): any {
     return lstJsonFiles[lst]![id] ?? null
 }
 
+/** The 1-based script number of a script name (scripts.lst line + 1; lookupScriptName's
+ *  inverse), or 0. sfall get_script (CE op_get_script: obj->scriptIndex + 1). */
+let scriptIndexByName: Map<string, number> | null = null
+export function scriptNumberOf(name: string): number {
+    if (!scriptIndexByName) {
+        scriptIndexByName = new Map()
+        const list: string[] = getFileJSON('lut/lst/scripts.json') ?? []
+        list.forEach((line, i) => {
+            const n = String(line).split('.')[0].trim().toLowerCase()
+            if (n && !scriptIndexByName!.has(n)) scriptIndexByName!.set(n, i + 1)
+        })
+    }
+    return scriptIndexByName.get(String(name ?? '').toLowerCase()) ?? 0
+}
+
 export function lookupScriptName(scriptID: number): string {
     dbg('script', 'SID: ' + scriptID)
     const lookupName = getLstId('scripts/scripts', scriptID - 1)

@@ -86,6 +86,9 @@ never a silently wrong translation:
        `LVAR_Hostile` at 5);
     2. `data/scripts_src/`: the Unofficial Patch's `scripts_src` (by killap), for the scripts the first
        tree does not match.
+    A script the pipeline took from a mod (`data/mod_sources.json`: the Unofficial Patch, UPU) reads
+    `third_party/upu_src/scripts_src` (UPU's own sources) first, and the script fixes below are off for it —
+    its `.int` is recompiled from fixed sources ([upu_support.md](upu_support.md)).
     A script takes its LVAR/MVAR names from the first tree whose `.ssl` declares every procedure of the
     vanilla `.int` (1164 of 1245 from `ssl/`, the rest of 1238 from the patch); PID and `define.h` names
     come from both, the first tree's spelling winning. Procedures count as declared when the `.ssl` tree

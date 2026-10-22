@@ -1,8 +1,11 @@
 # Unofficial Patch (UPU) support — findings and plan
 
-> Status: **plan, nothing implemented** (2026-10-22). DarkHarold2 plays the vanilla data of the
-> user's install. This page records what the Unofficial Patch is, what it changes, what DH2 would need
-> to run it, and the order to build that in. See also [lua_scripts.md](lua_scripts.md) ("Script fixes"),
+> Status: **implemented, not yet played through** (2026-10-22). The pipeline extracts the install's
+> `patchXXX.dat` and the `mods/*.dat` in `mods/mods_order.txt` over the vanilla data, and the script
+> functions UPU needs are ported from CE. Not verified on a real UPU install (none was at hand): the
+> pipeline was run on a mock install, the scripts decompiled from the v34 release. See
+> **Implementation** below for what runs, what is skipped and why. This page records what the
+> Unofficial Patch is, what it changes and how DH2 supports it. See also [lua_scripts.md](lua_scripts.md) ("Script fixes"),
 > [known_bugs.md](known_bugs.md) L7.
 
 ## What it is
@@ -39,10 +42,11 @@ corrections, mechanics changes (critical rolls on doors / containers / traps, lo
 reworked encounters (Redding / NCR caravans), optional settings (merchant inventory wipe, critter walk
 speed, Goris de-robing speed).
 
-## What DH2 lacks to run it
+## What DH2 lacked to run it (before 2026-10-22)
 
-The UPU scripts use **242 opcodes; 49 of them DH2 does not implement** (scan of all 1244 `.int`).
-`int2lua.py` decompiles 767 of the 1244 today; the others stop at one of these opcodes.
+The UPU scripts use **242 opcodes; 49 of them DH2 did not implement** (scan of all 1244 `.int`).
+`int2lua.py` decompiled 767 of the 1244; the others stopped at one of these opcodes. (Now: 1239 — see
+Implementation.)
 
 | Group | Opcodes (CE name) | Scripts | In CE? |
 |-------|-------------------|---------|--------|
@@ -62,7 +66,41 @@ The data side: DH2's pipeline (`tools/setup.py extract_dats`) extracts only `mas
 `game.cc` loads those) nor sfall's `mods/*.dat` in `mods_order.txt` order (CE does not load those
 either; sfall does).
 
-## Plan
+## Implementation (2026-10-22)
+
+| Step | Done | Where |
+|------|------|-------|
+| 1. Pipeline | `extract_dats` extracts, after `master.dat` / `critter.dat`: `patch000.dat`–`patch099.dat` (CE `game.cc`), then each `mods/mods_order.txt` line top to bottom (a `.dat` or a folder; a later line wins, a name listed twice counts at its last line — sfall `LoadOrder.cpp`). Which archive each file came from is written to `data/mod_sources.json`. The install's `ddraw.ini` and `mods/*.ini` are copied to `data/` for `get_ini_setting`. `setup.py --no-mods` / the pipeline GUI's "Vanilla game" checkbox reads only the patches. The install's loose `data/` folder is not read (music and saves, taken elsewhere). | `tools/setup.py install_overlays / overlay_dat / overlay_dir / copy_install_inis`, `tools/pipeline_gui.py` |
+| 2. XOR | `0x8042` bitwise XOR and `0x8043` bitwise NOT in the VM (CE `opBitwiseOperatorXor` / `Not`); `int2lua` already had both | `src/vm.ts` |
+| 3. sfall arrays | port of CE `sfall_arrays.cc` (list and associative arrays, `CONSTVAL`, sort / rsort / reverse / shuffle via `resize_array`, `ARRAY_MAX_SIZE`, strings cut to 254), `string_split`, `list_as_array` (`sfall_lists.cc`), `stack_array` (`arrayexpr`). Temporary arrays are freed once per game tick (CE `scripts.cc scriptsHandleRequests` → `DeleteAllTempArrays`), all arrays on a new game. **Not saved** with the game — CE does not save them either (sfall does). Both backends call the same `Script` methods. | `src/sfallArrays.ts`, `src/scripting.ts`, `src/gameTick.ts`, `src/gameReset.ts` |
+| 4. Other sfall functions | `abs`; `get_ini_setting` (CE `sfall_ini.cc`: `atol` of the value, 0 when missing, -1 for a malformed name; files read from `data/`); `explosions_metarule` 6 (an explosive's damage range — the only one UPU uses; the others warn); `set_self` (consumed by the next `use_obj_on_obj` / `pickup_obj`, as in CE); `get/set_proto_data` (only the offsets UPU uses: 96 a weapon's magazine size, 388 a critter's body type — DH2's protos are JSON); weapon ammo pid / count; pc and critter base / bonus stats (`StatSet` got a bonus part, saved); `party_member_list`; `get_script`; `set_world_map_pos`; `set_car_current_town`; `sfall_func0-2` for `combat_data` and `get_object_data` on it (the Attack fields at sfall's offsets). sfall-only, not in CE: `set_critter_extra_stat`, `get_critter_base/extra_stat` (same work as the pc forms), `fs_copy` (only an existence check — Cassidy's script asks whether a talking-head mod is installed). | `src/scripting.ts`, `src/vm_bridge.ts`, `tools/int2lua.py INTRINSICS`, `src/sfallIni.ts`, `src/char.ts` |
+| 5. Global scripts | **not done.** The four `gl_*.int` in v34 are all killap's `gl_k_*` and all need sfall hooks or functions CE lacks: `gl_k_8ball` (the `INVENTORYMOVE` hook: the Magic 8-Ball), `gl_k_dogmeat_fix` (`GAMEMODECHANGE` hook, `register_hook_proc` 0x8262), `gl_k_goris_derobing` and `gl_k_walking_speed` (rewrite FRM frame rates through `fs_*` 0x8202 — cosmetic options). CE implements no hooks, so these stay off; `sfall_global_scripts.cc` itself was not ported (nothing would use it). | — |
+| 6. Decompiler names | a script `data/mod_sources.json` lists as from `mods/` reads `third_party/upu_src/scripts_src` (UPU's own sources, fetched with a sparse clone of the repository, git-ignored) before Black Isle's and killap's trees; the `SCRIPT_FIXES` / `MISSING_OPERANDS` repairs of the vanilla `.int` (L7 bhrnddst, mitoilet) are off for it (UPU's `.int` is recompiled from fixed sources). On the v34 scripts: variables left as numbers drop from 5136 to 16. Vanilla scripts decompile byte-identical to before. | `tools/int2lua.py script_from_mod / script_ssl_sources / upu_ssl_tree` |
+| 7. Verify | `npx tsc` clean, `--check-bridge` passes; the vanilla decompile is unchanged (1440 / 1443, the same three Fallout 1 leftovers). UPU: **1239 of 1244** scripts decompile — the four `gl_k_*` above and `mcjo` (a procedure-local variable without a constant initialiser, a shape int2lua does not know; it runs on the VM). Arrays, `string_split`, `get_ini_setting`, `explosions_metarule` and the per-tick freeing of temporary arrays checked in the browser. **Not done:** `luadiff` and the story crawler on UPU data, and a playtest — they need a UPU install run through the pipeline. | — |
+
+To fetch UPU's sources for step 6 (optional; without them UPU scripts use killap's names where they fit):
+
+    git clone --depth 1 --filter=blob:none --sparse https://github.com/BGforgeNet/Fallout2_Unofficial_Patch.git third_party/upu_src
+    git -C third_party/upu_src sparse-checkout set scripts_src
+
+### Conflicts with DH2 (checked)
+
+- **`f2_res.dat`** (the hi-res patch's art: `hr_*.frm` interface backgrounds for larger resolutions,
+  `.edg` map-edge files) — **skipped** by the pipeline (`SKIPPED_MOD_ARCHIVES`). DH2 draws the
+  interface at the original size and scales / zooms the whole screen itself; CE does not read `.edg`
+  files either.
+- **`sfall.dat`** (sfall's own global scripts `gl_highlighting` / `gl_partycontrol` and replacement
+  interface art for sfall's extra buttons) — **skipped**: they belong to sfall engine features DH2 does
+  not have (item highlighting, controlling party members in combat), and the art would replace
+  DH2's vanilla interface frames.
+- **sfall engine options in `ddraw.ini`** (speed, graphics, gameplay tweaks): not used. UPU's content
+  does not depend on them; `ddraw.ini` is only copied so `get_ini_setting` can read it.
+- **DH2's own Lua mods** are separate: the pipeline reads the *install's* `mods/mods_order.txt`, the
+  Lua loader the *project's* `mods/mods_order.txt` (where `.dat` lines are skipped,
+  [lua_scripts.md](lua_scripts.md) → Mods). A Lua mod overrides the script UPU's `.int` decompiled to.
+- **Script fixes:** the L7 fix and mitoilet's restored operand apply only to the vanilla `.int`.
+
+## Plan (as written before the implementation)
 
 Vanilla stays the default; UPU is opt-in, detected from the install (`mods/upu.dat`) or chosen in the
 pipeline. Everything that CE implements is ported from CE with the `.cc` / function cited; what CE lacks
@@ -115,6 +153,6 @@ call them, so they change nothing for the vanilla game (as in CE). What sfall ch
 DH2 adopts later gets a `[dh2]` / `[sfall]` switch in `fallout2.cfg`, off by default. UPU as a whole is
 optional: the pipeline only reads it when it is installed and chosen.
 
-Open question before step 1: whether UPU's content relies on sfall engine options it configures in
-`ddraw.ini` (beyond the script functions). Redistribution is not an issue: DH2 ships nothing from UPU and
+Open question before step 1 (answered: no — see Conflicts): whether UPU's content relies on sfall
+engine options it configures in `ddraw.ini` (beyond the script functions). Redistribution is not an issue: DH2 ships nothing from UPU and
 reads the user's own install, as for vanilla. Credits: [`CREDITS.md`](../CREDITS.md).

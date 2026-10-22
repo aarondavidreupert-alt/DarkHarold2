@@ -135,6 +135,15 @@ const EXPLOSIVES: { [pid: number]: { active: number; min: number; max: number } 
     85: { active: 209, min: 40, max: 80 },
 }
 
+/** CE item.cc explosiveGetDamage: the damage range of an explosive (its plain or armed
+ *  pid), or null. sfall explosions_metarule 6 (EXPL_GET_EXPLOSION_DAMAGE). */
+export function explosiveGetDamage(pid: number): { min: number; max: number } | null {
+    for (const [p, d] of Object.entries(EXPLOSIVES)) {
+        if (Number(p) === pid || d.active === pid) return { min: d.min, max: d.max }
+    }
+    return null
+}
+
 // CE proto_instance.cc _obj_use_explosive — set the timer (10-180 s), then a Traps
 // roll (none with Demolition Expert): success arms it for 10 × seconds ticks, a
 // failure goes off early (half the time), a critical failure at once — both with

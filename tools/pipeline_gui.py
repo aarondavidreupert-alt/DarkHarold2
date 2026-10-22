@@ -129,6 +129,13 @@ class PipelineGUI:
             variable=self.delete_originals_var,
         ).pack(anchor="w", padx=8, pady=(2, 4))
 
+        self.no_mods_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            options_frame,
+            text="Vanilla game: ignore the install's mods (mods/mods_order.txt, e.g. the Unofficial Patch)",
+            variable=self.no_mods_var,
+        ).pack(anchor="w", padx=8, pady=(2, 4))
+
         # --- Run controls ---
         run_frame = ttk.Frame(root)
         run_frame.pack(fill="x", **pad)
@@ -199,6 +206,8 @@ class PipelineGUI:
         ]
         if self.delete_originals_var.get():
             cmd += ["--delete-originals", "--yes"]
+        if self.no_mods_var.get():
+            cmd += ["--no-mods"]
 
         self.log_text.configure(state="normal")
         self.log_text.delete("1.0", "end")

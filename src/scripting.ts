@@ -17,6 +17,8 @@ Scripting system/engine for DarkFO
 */
 
 import { Events } from './events.js'
+import { sfallIniGetInt } from './sfallIni.js'
+import * as SfallArrays from './sfallArrays.js'
 import { isPartyMemberPid } from './party.js'
 import { addFloatMessage, FLOAT_MSG_COLOR } from './floatText.js'
 import { sfxBuildOpenName } from './sfxNames.js'
@@ -24,9 +26,9 @@ import { FIDGET_BAD, FIDGET_GOOD, FIDGET_NEUTRAL, GAME_DIALOG_REACTION_NEUTRAL, 
 import { gameMoviePlay, SCRIPT_MOVIE_FLAGS } from './gameMovie.js'
 import { randomSeedPrerandom } from './random.js'
 import { critterAdjustRadiation } from './radiation.js'
-import { Combat, isCombatActive } from './combat.js'
+import { Combat, combatGetData, isCombatActive } from './combat.js'
 import { ANIM_FALL_BACK_SF, ANIM_FALL_FRONT_BLOOD_SF, correctDeath, critterDamage, critterKill, itemDropAll, killCounts } from './critter.js'
-import { areaContainingMap, getLstJson, lookupMapName, lookupScriptName, mapIndexOf, parseMsgFile, setMapMusicOverride } from './data.js'
+import { areaContainingMap, getLstJson, lookupMapName, lookupScriptName, mapIndexOf, parseMsgFile, scriptNumberOf, setMapMusicOverride } from './data.js'
 import { CHEM_USE_MAP, getAiPacket } from './aiPackets.js'
 import * as GameTime from './gametime.js'
 import {
@@ -42,7 +44,7 @@ import globalState from './globalState.js'
 import { parseIntFile } from './intfile.js'
 import { dbg, dbgWarn } from './logger.js'
 import { useElevator } from './main.js'
-import { Critter, createObjectWithPID, Obj, objectGetDamageType, zsort } from './object.js'
+import { Critter, createObjectWithPID, explosiveGetDamage, Obj, objectGetDamageType, zsort } from './object.js'
 import { applyPerk, CE_PERKS, getPerkRank, perkApplyEffect, perkNameById, PERKS } from './perks.js'
 import { Player } from './player.js'
 import { loadPRO, lookupArt, makePID } from './pro.js'
@@ -54,14 +56,14 @@ import { drawAC, updateIndicatorBar } from './ui_hud.js'
 import { invenUnwield, invenWield, moveAllInventory, scriptHand, unequipForRemoval } from './inventoryWield.js'
 import { SKILL_NAMES } from './skills.js'
 import { skillRoll } from './skillUse.js'
-import { arrayRemove, assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
+import { arrayRemove, assert, BinaryReader, fileExistsSync, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
 import { ScriptVM } from './vm.js'
 import { attachLuaScript, isLuaReady, LuaScriptHandle } from './lua/luaRuntime.js'
 import { Worldmap } from './worldmap.js'
 import { ScriptVMBridge } from './vm_bridge.js'
 import { processMidnightForDay } from './gameTick.js'
 import { Config } from './config.js'
-import { ammoSplitOff } from './weaponAmmo.js'
+import { ammoGetQuantity, ammoSetQuantity, ammoSplitOff, weaponGetAmmoTypePid, weaponSetAmmoTypePid } from './weaponAmmo.js'
 import { refreshStealthState } from './miscItem.js'
 import { isWithinPerception } from './perception.js'
 
@@ -616,6 +618,13 @@ export module Scripting {
         if (animation === 13) return weaponType <= 0 ? ['a', 'n'] : [chr('d', weaponType - 1), 'e']
         if (animation <= 1 && weaponType > 0) return [chr('d', weaponType - 1), chr('a', animation)]
         return ['a', chr('a', animation)]
+    }
+
+    // sfall get_object_data on combat_data (CE combat_defs.h Attack at sfall's 32-bit offsets)
+    const ATTACK_FIELDS_BY_OFFSET: { [offset: number]: string } = {
+        0: 'attacker', 8: 'weapon', 16: 'attackerDamage', 20: 'attackerFlags', 24: 'ammoQuantity',
+        28: 'criticalMessageId', 32: 'defender', 44: 'defenderDamage', 48: 'defenderFlags', 52: 'defenderKnockback',
+        56: 'oops',
     }
 
     export class Script {
@@ -1975,7 +1984,9 @@ export module Scripting {
             info('use_obj_on_obj: ' + (obj.name ?? obj.pid) + ' on ' + (who.name ?? who.pid))
             // CE ref: interpreter_extra.cc:4564 opUseObjectOnObject; proto_instance.cc:1296
             // obj=item, who=target, this.self_obj=critter doing the using
-            const source = this.self_obj as unknown as Obj
+            // sfall set_self: this one call runs as that object (CE opUseObjectOnObject)
+            const source = (this.overriddenSelf ?? this.self_obj) as unknown as Obj
+            this.overriddenSelf = null
             // Step 1: if item has use_obj_on_p_proc, fire it with target_obj=who
             if (obj._script && obj._script.use_obj_on_p_proc !== undefined) {
                 obj._script.self_obj = obj as ScriptableObj
@@ -2179,6 +2190,179 @@ export module Scripting {
             if (!isGameObject(obj) || !globalState.gMap) return null
             return globalState.gMap.straightPathBlockingObject(obj, fromTileNum(destTile), blockingType)
         }
+        // ── sfall arrays (CE sfall_opcodes.cc op*Array → sfall_arrays.cc; src/sfallArrays.ts).
+        // Used by the Unofficial Patch's scripts, never by vanilla ones.
+        // CE opCreateArray (0x822D) / opTempArray (0x8233): a negative length = associative
+        create_array(len: number, flags: number) { return SfallArrays.createArray(len, flags) }
+        temp_array(len: number, flags: number) { return SfallArrays.createTempArray(len, flags) }
+        // CE opFixArray (0x8234) / opFreeArray (0x8230)
+        fix_array(id: number) { SfallArrays.fixArray(id) }
+        free_array(id: number) { SfallArrays.freeArray(id) }
+        // CE opSetArray (0x822E): a 0 written to a map key removes it
+        set_array(id: number, key: any, value: any) { SfallArrays.setArray(id, key, value, true) }
+        // CE opGetArray (0x822F): with a string instead of an array id, the character at key
+        get_array(id: any, key: any) {
+            if (typeof id === 'string') return typeof key === 'number' && key >= 0 && key < id.length ? id[key] : ''
+            return SfallArrays.getArray(id, key)
+        }
+        // CE opLenArray (0x8231): -1 for no such array; opResizeArray (0x8232): also sort / reverse / shuffle
+        len_array(id: number) { return SfallArrays.lenArray(id) }
+        resize_array(id: number, len: number) { SfallArrays.resizeArray(id, len) }
+        // CE opScanArray (0x8239): a list's index / a map's key holding value, else -1
+        scan_array(id: number, value: any) { return SfallArrays.scanArray(id, value) }
+        // CE opGetArrayKey (0x8256): the key at index (index -1: 1 if associative)
+        array_key(id: number, index: number) { return SfallArrays.arrayKey(id, index) }
+        // CE opStackArray (0x8257): sslc's array literals, into the last created array
+        arrayexpr(key: any, value: any) { return SfallArrays.stackArray(key, value) }
+        // CE opStringSplit (0x8235)
+        string_split(str: string, split: string) { return SfallArrays.stringSplit(String(str ?? ''), String(split ?? '')) }
+        // CE op_list_as_array (0x8236) → sfall_lists.cc sfall_lists_fill: the map's objects of
+        // a type (0 critters, 1 items, 2 scenery, 3 walls, 5 misc, 6 spatial, 9 all; 4 tiles:
+        // nothing, as in sfall), every elevation, as a temporary list
+        list_as_array(type: number) {
+            const map = globalState.gMap
+            const out: object[] = []
+            if (map && type === 6) {
+                for (const level of (map.spatials ?? []) as any[][]) for (const s of level ?? []) out.push(s)
+            } else if (map && type !== 4) {
+                const kinds: { [t: number]: string } = { 0: 'critter', 1: 'item', 2: 'scenery', 3: 'wall', 5: 'misc' }
+                for (const level of map.objects ?? []) {
+                    for (const o of level ?? []) if (type === 9 || o.type === kinds[type]) out.push(o)
+                }
+            }
+            return SfallArrays.arrayFromObjects(out)
+        }
+        // ── other sfall functions the Unofficial Patch uses (CE sfall_opcodes.cc)
+        // CE op_abs (0x81ED)
+        abs(v: number) { return Math.abs(Number(v) || 0) }
+        // CE op_get_ini_setting (0x81AC) → sfall_ini.cc; src/sfallIni.ts
+        get_ini_setting(triplet: string) { return sfallIniGetInt(triplet) }
+        // CE op_explosions_metarule (0x8261). The UPU uses only 6, EXPL_GET_EXPLOSION_DAMAGE:
+        // a temporary array [min, max] of an explosive's damage (item.cc explosiveGetDamage);
+        // the others change the next explosion and are not supported (a warning, 0).
+        explosions_metarule(metarule: number, param1: number, _param2: number) {
+            if (metarule === 6) {
+                const d = explosiveGetDamage(param1)
+                const id = SfallArrays.createTempArray(2, 0)
+                SfallArrays.setArray(id, 0, d?.min ?? 0, false)
+                SfallArrays.setArray(id, 1, d?.max ?? 0, false)
+                return id
+            }
+            warn('explosions_metarule: metarule ' + metarule + ' is not supported')
+            return 0
+        }
+        // CE op_set_self (0x8206): the next use_obj_on_obj / pickup_obj runs as obj
+        // (interpreter_extra.cc opUseObjectOnObject / opPickup consume overriddenSelf)
+        overriddenSelf: Obj | null = null
+        set_self(obj: Obj) { this.overriddenSelf = isGameObject(obj) ? obj : null }
+        // CE op_get_proto_data / op_set_proto_data (0x8204 / 0x8205) read and write a proto
+        // by byte offset. DH2's protos are JSON, so only the offsets the UPU uses map to a
+        // field: an item's 96 (weapon d.max_ammo) and a critter's 388 (d.body). Others: -1.
+        get_proto_data(pid: number, offset: number) {
+            const pro = loadPRO(pid, pid & 0xffff) as any
+            if (!pro) return -1
+            if (offset === 96 && pro.type === 0) return pro.extra?.maxAmmo ?? -1
+            if (offset === 388 && pro.type === 1) return pro.extra?.bodyType ?? -1
+            warn('get_proto_data: offset ' + offset + ' of pid ' + pid + ' is not mapped')
+            return -1
+        }
+        set_proto_data(pid: number, offset: number, value: number) {
+            const pro = loadPRO(pid, pid & 0xffff) as any
+            if (!pro || !pro.extra) return
+            if (offset === 96 && pro.type === 0) pro.extra.maxAmmo = value
+            else if (offset === 388 && pro.type === 1) pro.extra.bodyType = value
+            else warn('set_proto_data: offset ' + offset + ' of pid ' + pid + ' is not mapped')
+        }
+        // CE opGetWeaponAmmoPid / opSetWeaponAmmoPid / opGetWeaponAmmoCount /
+        // opSetWeaponAmmoCount (0x8217-0x821A): a weapon's loaded ammo (misc items:
+        // their charges)
+        get_weapon_ammo_pid(obj: Obj) {
+            if (!isGameObject(obj) || obj.type !== 'item') return -1
+            if (obj.subtype === 'weapon') return weaponGetAmmoTypePid(obj)
+            return -1
+        }
+        set_weapon_ammo_pid(obj: Obj, pid: number) {
+            if (isGameObject(obj) && obj.type === 'item' && obj.subtype === 'weapon') weaponSetAmmoTypePid(obj, pid)
+        }
+        get_weapon_ammo_count(obj: Obj) {
+            if (!isGameObject(obj) || obj.type !== 'item') return 0
+            if (obj.subtype === 'weapon' || obj.subtype === 'ammo') return ammoGetQuantity(obj)
+            if (obj.subtype === 'misc') return (obj as any).charges ?? 0
+            return 0
+        }
+        set_weapon_ammo_count(obj: Obj, count: number) {
+            if (!isGameObject(obj) || obj.type !== 'item') return
+            if (obj.subtype === 'weapon' || obj.subtype === 'ammo') ammoSetQuantity(obj, count)
+            else if (obj.subtype === 'misc') (obj as any).charges = count
+        }
+        // CE op_set_pc_base_stat / op_get_pc_base_stat / opSetPcBonusStat / opGetPcBonusStat
+        // (0x815A-0x815D) and sfall's critter forms (0x815F-0x8161; not in CE, same work)
+        set_pc_base_stat(stat: number, value: number) { this.setCritterStatPart(globalState.player as Critter, stat, value, false) }
+        set_pc_extra_stat(stat: number, value: number) { this.setCritterStatPart(globalState.player as Critter, stat, value, true) }
+        get_pc_base_stat(stat: number) { return this.getCritterStatPart(globalState.player as Critter, stat, false) }
+        get_pc_extra_stat(stat: number) { return this.getCritterStatPart(globalState.player as Critter, stat, true) }
+        set_critter_extra_stat(obj: Critter, stat: number, value: number) { this.setCritterStatPart(obj, stat, value, true) }
+        get_critter_base_stat(obj: Critter, stat: number) { return this.getCritterStatPart(obj, stat, false) }
+        get_critter_extra_stat(obj: Critter, stat: number) { return this.getCritterStatPart(obj, stat, true) }
+        private setCritterStatPart(obj: Critter, stat: number, value: number, bonus: boolean) {
+            const name = statMap[stat]
+            if (!isGameObject(obj) || obj.type !== 'critter' || !name) return
+            if (bonus) obj.stats.setBonus(name, value)
+            else obj.stats.setBase(name, value) // CE critterSetBaseStat
+        }
+        private getCritterStatPart(obj: Critter, stat: number, bonus: boolean): number {
+            const name = statMap[stat]
+            if (!isGameObject(obj) || obj.type !== 'critter' || !name) return 0
+            return bonus ? obj.stats.getBonus(name) : obj.stats.getBase(name)
+        }
+        // CE opPartyMemberList (0x8271): a temporary array of the party (party_member.cc
+        // get_all_party_members_objects: the dude first; without include_hidden only
+        // living, visible critters)
+        party_member_list(includeHidden: number) {
+            const members = [globalState.player, ...(globalState.gParty?.getPartyMembers() ?? [])]
+                .filter((o: any) => o && (includeHidden || (o.type === 'critter' && !o.dead && o.visible !== false)))
+            return SfallArrays.arrayFromObjects(members as object[])
+        }
+        // CE op_get_script (0x81F5): the object's script number (scripts.lst line + 1), 0 for none
+        get_script(obj: Obj) {
+            const name = isGameObject(obj) ? (obj as any)._script?.scriptName : null
+            return name ? scriptNumberOf(name) : 0
+        }
+        // CE op_set_world_map_pos (0x8172) → worldmap.cc wmSetPartyWorldPos
+        set_world_map_pos(x: number, y: number) { Worldmap.setPlayerWorldPos(x, y) }
+        // CE op_set_car_current_town (0x81B6) → wmCarSetCurrentArea
+        set_car_current_town(area: number) { Worldmap.setCarAreaId(area) }
+        // sfall fs_copy (0x81F8; not in CE): copies a file into sfall's virtual file system.
+        // DH2 has none; it answers only whether the source exists (-1 if not) — what the
+        // UPU's Cassidy script asks (has_head: is the talking-head mod installed).
+        fs_copy(_dest: string, src: string) {
+            const p = String(src ?? '').replace(/\\/g, '/').toLowerCase()
+            return fileExistsSync('data/' + p) || fileExistsSync(p.replace(/\.frm$/, '.png')) ? 0 : -1
+        }
+        // sfall_func0-2 (0x8276-0x8278) → CE sfall_metarules.cc sfall_metarule, by name. The
+        // UPU uses combat_data (mf_combat_data: the current attack while in combat) and
+        // get_object_data (mf_get_object_data: an int at a byte offset — here only the
+        // Attack fields, at sfall's 32-bit offsets).
+        sfall_func0(name: string) { return this.sfallMetarule(name, []) }
+        sfall_func1(name: string, a: any) { return this.sfallMetarule(name, [a]) }
+        sfall_func2(name: string, a: any, b: any) { return this.sfallMetarule(name, [a, b]) }
+        private sfallMetarule(name: string, args: any[]): any {
+            switch (name) {
+                case 'combat_data': return combatGetData()
+                case 'get_object_data': {
+                    const a: any = args[0]
+                    const field = ATTACK_FIELDS_BY_OFFSET[args[1]]
+                    if (a && field && field in a) {
+                        const v = a[field]
+                        return v ?? 0
+                    }
+                    warn('get_object_data: offset ' + args[1] + ' is not mapped')
+                    return 0
+                }
+            }
+            warn('sfall_func: ' + name + ' is not supported')
+            return 0
+        }
         tile_num_in_direction(tile: number, direction: number, distance: number) {
             if (distance === 0) {
                 //warn("tile_num_in_direction: distance=" + distance)
@@ -2340,7 +2524,9 @@ export module Scripting {
         // CE opPickup (0x80D6) — actionPickUp(script->target, obj)
         pickup_obj(obj: Obj) {
             if (!isGameObject(obj)) return
-            const who = (this.target_obj ?? this.self_obj) as Critter
+            // sfall set_self: this one call runs as that object (CE opPickup)
+            const who = (this.overriddenSelf ?? this.target_obj ?? this.self_obj) as Critter
+            this.overriddenSelf = null
             if (!who || who.type !== 'critter') return
             obj.pickup?.(who)
         }

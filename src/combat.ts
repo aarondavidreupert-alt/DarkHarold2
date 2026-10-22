@@ -20,4 +20,4 @@ limitations under the License.
 
 export { ActionPoints } from './combat/actionPoints.js'
 export { AI } from './combat/AI.js'
-export { Combat, isCombatActive } from './combat/Combat.js'
+export { Combat, combatGetData, isCombatActive } from './combat/Combat.js'
