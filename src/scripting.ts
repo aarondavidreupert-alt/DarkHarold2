@@ -1257,8 +1257,23 @@ export module Scripting {
                 warn('item_caps_adjust: not game object: ' + obj)
                 return -1
             }
+            // DH2 guard, not CE: an amount that is not a number (bhrnddst's caravan
+            // guards pass their rifle object, L7; the VM makes that NaN) changes
+            // nothing instead of turning the caps stack into NaN. CE (interpreter.cc
+            // opMultiply, interpreter_extra.cc opItemCapsAdjust) multiplies the
+            // pointer's bits and adds a garbage amount, which cannot be reproduced.
+            if (typeof amount !== 'number' || !Number.isFinite(amount)) {
+                warn('item_caps_adjust: amount is not a number: ' + amount)
+                return -1
+            }
             info('item_caps_adjust: ' + obj.name + ' caps ' + (amount >= 0 ? '+' : '') + amount)
             return itemCapsAdjust(obj, amount)
+        }
+        // Not an opcode: the decompiled Lua asks this before a script fix
+        // (tools/int2lua.py SCRIPT_FIXES): 1 = use the fix, 0 = the original behaviour.
+        // DH2 addition, fallout2.cfg [dh2] script_fixes.
+        dh2_script_fixes() {
+            return Config.scripting.scriptFixes ? 1 : 0
         }
         move_obj_inven_to_obj(obj: Obj, other: Obj) {
             if (obj === null || other === null) {

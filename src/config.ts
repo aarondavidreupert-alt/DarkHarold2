@@ -315,6 +315,12 @@ export const Config = {
         // generated data/scripts/<script>.lua; a later mod overrides an earlier one.
         // DH2 addition, needs backend 'lua'. Set in fallout2.cfg: [dh2] mods=a,b.
         mods: [] as string[],
+        // Script fixes (tools/int2lua.py SCRIPT_FIXES, wiki/lua_scripts.md "Script fixes"):
+        // the decompiled Lua repairs a few Black Isle script bugs the way the sources
+        // meant (L7: bhrnddst's caravan guards get caps, not their rifle). Deliberate
+        // deviations from the shipped scripts and from CE; 0 runs the original
+        // behaviour. Lua backend only. Set in fallout2.cfg: [dh2] script_fixes=0/1.
+        scriptFixes: true,
         debugLogShowType: {
             // ── Scripting VM ──────────────────────────────────────────────────────
             stub: true,           // log unimplemented script opcodes (always-on recommended)

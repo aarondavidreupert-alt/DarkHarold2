@@ -118,6 +118,8 @@ object_sort=ce-dh2
 script_backend=lua
 ; Lua mods in load order, e.g. mods=a,b (mods/<name>/scripts/*.lua; a later one wins)
 mods=
+; 1 = the decompiled scripts fix a few Black Isle bugs as the sources meant (wiki/lua_scripts.md "Script fixes"), 0 = keep the original behaviour
+script_fixes=1
 """
 
 

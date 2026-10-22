@@ -126,6 +126,9 @@ export function applyCfg(cfg: CfgSections): void {
     //   script_backend=vm   run the .int bytecode
     const sb = (dh2['script_backend'] ?? '').trim().toLowerCase()
     if (sb === 'lua' || sb === 'vm') Config.scripting.backend = sb
+    //   script_fixes=0  the decompiled scripts keep the original bugs (default 1, SCRIPT_FIXES)
+    const sf = int(dh2['script_fixes'])
+    if (sf !== null) Config.scripting.scriptFixes = sf !== 0
     //   mods=a,b  Lua mods in load order (mods/<name>/scripts/*.lua; later ones win)
     if (dh2['mods'] !== undefined) Config.scripting.mods = parseModList(dh2['mods'])
     //   pixel_font=0  UI text in the browser font instead of the Fallout pixel font (default 1)

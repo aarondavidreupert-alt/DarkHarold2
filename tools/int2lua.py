@@ -424,6 +424,28 @@ MISSING_OPERANDS = {
                                          "the .int lacks this set_local_var argument; mitoilet.ssl has LVAR_Examined (0), and CE takes the windowId, 0"),
 }
 
+# Script fixes: deliberate deviations from the shipped bytecode (and from CE), for
+# Black Isle bugs whose intent the sources make clear. Each is switchable at run
+# time ([dh2] script_fixes, Script.dh2_script_fixes; off = the original
+# behaviour), marked in the generated Lua, and listed in wiki/lua_scripts.md
+# ("Script fixes") and wiki/known_bugs.md. (script, procedure) -> {intrinsic:
+# (local variable the bytecode passes by mistake, Lua expression the source meant,
+# note)}.
+#
+# L7 bhrnddst DMRV_Caravan: Black Isle's source gives each caravan guard
+# `give_money(Critter, item)` -- `item` holds the hunting rifle Create_Enemy just
+# made (LVar3), so the bytecode passes the weapon object as the caps amount, with
+# and without Fortune Finder (CE multiplies the pointer's bits: a garbage amount).
+# The Unofficial Patch (scripts_src/maps/bhrnddst.ssl) gives random(10, 20), the
+# guards' amount in DMRV_Highwaymen.
+SCRIPT_FIXES = {
+    ("bhrnddst", "dmrv_caravan"): {
+        "item_caps_adjust": ("LVar3", "random(10, 20)",
+                             "DH2 fix (L7): the .int passes the guard's rifle object; Unofficial Patch: random(10, 20)"),
+    },
+}
+
+
 # Other #defines that name a variable number, used only for a number nothing else
 # names: define.h's caught_pickpocket counts thefts in local_var(NPC_REACTION_VAR)
 # (fcmarc: 8); the emitter scripts notify through map_var(MAP_NOTIFY) /
@@ -1376,6 +1398,9 @@ class ProcDecompiler:
                 args = [self.pop(stack, pc) for _ in range(argc)][::-1]
                 if name in ("gsay_option", "giq_option"):
                     args[-2] = self.proc_target(args[-2], pc)
+                fix = SCRIPT_FIXES.get((self.s.name, self.proc.name.lower()), {}).get(name)
+                if fix is not None:
+                    args = [self.script_fix(a, fix) for a in args]
                 for k, kind in NAMED_ARGS.get(name, []) + ENUM_ARGS.get(name, []):
                     raw = args[k]
                     args[k] = self.s.name_const(kind, raw)
@@ -1472,6 +1497,19 @@ class ProcDecompiler:
             return ProcRef(e.value)
         raise DecompileError("%s: dialogue option target is not a procedure at 0x%x" % (self.proc.name, pc))
 
+    def script_fix(self, e, fix):
+        """SCRIPT_FIXES: the local variable `fix[0]` in an intrinsic's argument
+        becomes the source's intended expression while [dh2] script_fixes is on."""
+        local, intended, note = fix
+        if isinstance(e, Name) and e.name == local:
+            self.s.script_fixes_applied += 1
+            return Raw("(dh2_script_fixes() ~= 0 and %s --[[ %s ]] or %s)" % (intended, note, local), pure=False)
+        if isinstance(e, BinOp):
+            e.a = self.script_fix(e.a, fix)
+            e.b = self.script_fix(e.b, fix)
+            e.pure = e.a.pure and e.b.pure
+        return e
+
     def push(self, stack, e, origin, pc=None):
         e.pc = origin.pc if origin is not None and origin.pc is not None else pc
         stack.append(e)
@@ -1536,6 +1574,7 @@ class ScriptDecompiler:
             if script == name and num not in self.names[kind]:
                 self.names[kind] = {**self.names[kind], num: cname}
                 (self.inferred if status == "inferred" else self.guessed)[cname] = why
+        self.script_fixes_applied = 0  # SCRIPT_FIXES operands replaced
         self.fixed_operands = set()  # pcs MISSING_OPERANDS supplied a value for
         self.operand_notes = {}      # name -> why (MISSING_OPERANDS), marked inferred
         self.named = {}       # name -> (kind, number), used somewhere in the script

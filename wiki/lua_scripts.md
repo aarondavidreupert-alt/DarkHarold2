@@ -154,6 +154,32 @@ never a silently wrong translation:
 `python tools/int2lua.py --check-bridge src/vm_bridge.ts` checks the intrinsic table (name, argc, pushes a
 result) against the VM bridge.
 
+## Script fixes (deliberate deviations from the shipped scripts)
+
+The decompiler leaves the scripts' behaviour alone — with one kind of exception: a Black Isle bug whose
+intent the sources make clear may be repaired in the generated Lua. Each repair is a **deliberate deviation
+from the shipped `.int` and from CE**, so every one is:
+
+- listed in `SCRIPT_FIXES` in `tools/int2lua.py` (script, procedure, the intrinsic, the variable the
+  bytecode passes by mistake, the expression the source meant, and why), and in the table below;
+- marked where it happens in the generated Lua, as an inline comment
+  (`--[[ DH2 fix (L7): … ]]`);
+- switchable at run time: the Lua asks `dh2_script_fixes()` (a `Script` method, not an opcode) and
+  takes the original path when `fallout2.cfg [dh2] script_fixes=0`, drawing no extra random number;
+- tracked in `known_bugs.md`.
+
+The VM runs the original bytecode either way. `luadiff.html` shows a fix as a difference at that call —
+and only there.
+
+| ID | Script / procedure | The shipped script | The fix | Source of the intent |
+|----|--------------------|--------------------|---------|----------------------|
+| L7 | `bhrnddst` `DMRV_Caravan`, the guard loop (also reached from `Redding_DMRV_Encounter`, `Redding_Band_Encounter`) | `give_money(Critter, item)`: `item` (`LVar3`) holds the hunting rifle `Create_Enemy` just made, so every caravan guard is given the rifle object as caps — `item_caps_adjust(Critter, LVar3)`, `2 * LVar3` with Fortune Finder. CE adds a garbage amount (pointer bits), the VM NaN, the Lua stopped the procedure (with the perk: the slaves were never created) | `random(10, 20)` caps, doubled with Fortune Finder as the rest of the script does | the Unofficial Patch's `scripts_src/maps/bhrnddst.ssl` (killap) gives `random(10, 20)`, the guards' amount in `DMRV_Highwaymen` |
+
+Not a script fix, and not switchable: `item_caps_adjust` with an amount that is not a number changes nothing
+(with a warning) instead of making the caps stack NaN — a guard in `src/scripting.ts` for both backends.
+CE adds a garbage amount there, which cannot be reproduced. (mitoilet's restored operand, `MISSING_OPERANDS`,
+is not a deviation: it is what CE does, L18.)
+
 ## SSL semantics in Lua
 
 The output uses plain Lua where SSL and Lua agree and helpers from the prelude where they do not:
