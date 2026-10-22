@@ -150,17 +150,22 @@ def find_case_insensitive(directory: str, filename: str) -> Optional[str]:
     return None
 
 
-def convert_gam(data_dir: str = "data") -> None:
+def convert_gam(data_dir: str = "data", out_dir: Optional[str] = None, empty_for_maps_without_gam: bool = True) -> None:
     """data/data/vault13.gam -> data/gvars.json, data/maps/*.gam -> *.mvars.json.
 
     CE loads the global vars from "data/vault13.gam" (game.cc gameInit), i.e.
     data/data/vault13.gam after DAT extraction. data/maps/vault13.gam is the
     Vault 13 *map's* vars file, not the global one.
+
+    out_dir: where data/gvars.json and data/maps/ go (default: the project's data/;
+    tools/setup.py build_mods passes a mod's data/). empty_for_maps_without_gam=False
+    leaves out the "{}" files for maps without a .gam (a mod's map may use the
+    vanilla .gam).
     """
     # Determine output directory (project root data/)
     script_dir = Path(__file__).resolve().parent
     project_root = script_dir.parent
-    out_data_dir = project_root / "data"
+    out_data_dir = Path(out_dir) if out_dir else project_root / "data"
     out_maps_dir = out_data_dir / "maps"
     out_maps_dir.mkdir(parents=True, exist_ok=True)
 
@@ -206,7 +211,7 @@ def convert_gam(data_dir: str = "data") -> None:
 
         # Maps without a .GAM have no map vars (CE globalVarsRead fails, count 0).
         gam_names = {os.path.splitext(f)[0].lower() for f in gam_files}
-        for map_file in sorted(os.listdir(maps_dir)):
+        for map_file in (sorted(os.listdir(maps_dir)) if empty_for_maps_without_gam else []):
             map_name, ext = os.path.splitext(map_file)
             if ext.lower() != ".map" or map_name.lower() in gam_names:
                 continue

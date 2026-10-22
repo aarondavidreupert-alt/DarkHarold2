@@ -16,6 +16,7 @@ import { getFileJSON, getFileText, getMessage } from '../util.js'
 import { Worldmap } from '../worldmap.js'
 import { font1 } from '../ui_font.js'
 import { TRAITS, TRAIT_DESCRIPTIONS } from './descriptions.js'
+import { assetUrl } from '../modAssets.js'
 
 const GREEN = '#3cf800' // _colorTable[992]
 const YELLOW = '#fcfc7c' // _colorTable[32747]
@@ -232,10 +233,10 @@ export function createFolderView(parent: HTMLElement, player: any, showCard: (ti
     // characterEditorFolderViewScroll and its arrow buttons (uparwoff/on, dnarwoff/on)
     const arrow = (y: number, off: string, on: string, dir: number) => {
         const img = document.createElement('img')
-        img.src = off
+        img.src = assetUrl(off)
         Object.assign(img.style, { position: 'absolute', left: '317px', top: y + 'px', cursor: 'pointer' })
-        img.onmousedown = () => { img.src = on }
-        img.onmouseup = img.onmouseleave = () => { img.src = off }
+        img.onmousedown = () => { img.src = assetUrl(on) }
+        img.onmouseup = img.onmouseleave = () => { img.src = assetUrl(off) }
         img.onclick = () => {
             if (dir >= 0) {
                 if (MAX_LINES + topLine[folder] <= lineCount) {

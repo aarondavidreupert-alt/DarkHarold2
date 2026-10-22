@@ -1,3 +1,4 @@
+import { assetUrl } from './modAssets.js'
 // Copyright 2014-2026 darkf
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,7 +39,7 @@ export class Widget {
             top: `${bbox.y}px`,
             width: `${bbox.w}px`,
             height: `${bbox.h}px`,
-            backgroundImage: background && `url('${background}')`,
+            backgroundImage: background && `url('${assetUrl(background)}')`,
         })
     }
 
@@ -55,10 +56,10 @@ export class Widget {
         if (!this.elem.onmouseenter) {
             // Set up events for hovering/not hovering
             this.elem.onmouseenter = () => {
-                this.elem.style.backgroundImage = `url('${this.hoverBackground}')`
+                this.elem.style.backgroundImage = `url('${assetUrl(this.hoverBackground)}')`
             }
             this.elem.onmouseleave = () => {
-                this.elem.style.backgroundImage = `url('${this.background}')`
+                this.elem.style.backgroundImage = `url('${assetUrl(this.background)}')`
             }
         }
 
@@ -71,10 +72,10 @@ export class Widget {
         if (!this.elem.onmousedown) {
             // Set up events for mouse down/up
             this.elem.onmousedown = () => {
-                this.elem.style.backgroundImage = `url('${this.mouseDownBackground}')`
+                this.elem.style.backgroundImage = `url('${assetUrl(this.mouseDownBackground)}')`
             }
             this.elem.onmouseup = () => {
-                this.elem.style.backgroundImage = `url('${this.background}')`
+                this.elem.style.backgroundImage = `url('${assetUrl(this.background)}')`
             }
         }
 

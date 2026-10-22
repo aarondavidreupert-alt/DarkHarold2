@@ -18,6 +18,7 @@ import globalState from './globalState.js'
 import { UIMode } from './ui_panels.js'
 import { renderAutomapCanvas, drawAutomapInto } from './automapData.js'
 import { makePanelDraggable } from './ui_drag.js'
+import { assetUrl } from './modAssets.js'
 
 let automapContainer: HTMLDivElement | null = null
 
@@ -161,7 +162,7 @@ export function openAutomap(): void {
     screen.style.cssText = `
         position: relative;
         width: 516px; height: 460px;
-        background-image: url('art/intrface/automap.png');
+        background-image: url('${assetUrl('art/intrface/automap.png')}');
         background-size: contain;
         background-repeat: no-repeat;
         overflow: visible;
@@ -202,7 +203,7 @@ export function openAutomap(): void {
         position: absolute;
         left: 105px; top: 435px;
         width: 15px; height: 16px;
-        background-image: url('art/intrface/lilredup.png');
+        background-image: url('${assetUrl('art/intrface/lilredup.png')}');
         cursor: pointer;
     `
     scannerDot.onclick = refresh
@@ -233,7 +234,7 @@ export function openAutomap(): void {
         position: absolute;
         left: 265px; top: 435px;
         width: 15px; height: 16px;
-        background-image: url('art/intrface/lilredup.png');
+        background-image: url('${assetUrl('art/intrface/lilredup.png')}');
         cursor: pointer;
     `
     cancelDot.onclick = () => {

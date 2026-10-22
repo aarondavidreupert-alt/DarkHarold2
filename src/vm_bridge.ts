@@ -230,7 +230,46 @@ export module ScriptVMBridge {
        ,0x81F5: bridged("get_script", 1)            // CE op_get_script
        ,0x8172: bridged("set_world_map_pos", 2, false) // CE op_set_world_map_pos
        ,0x81B6: bridged("set_car_current_town", 1, false) // CE op_set_car_current_town
-       ,0x81F8: bridged("fs_copy", 2)               // sfall (not in CE): existence check only
+       ,0x81F8: bridged("fs_copy", 2)               // sfall (not in CE): sfallFs.ts
+       // sfall global scripts, global variables, hooks, virtual files (Script methods;
+       // src/sfallGlobalScripts.ts, src/sfallHooks.ts, src/sfallFs.ts)
+       ,0x8164: bridged("game_loaded", 0)                    // CE op_game_loaded
+       ,0x816A: bridged("set_global_script_repeat", 1, false) // CE op_set_global_script_repeat
+       ,0x819B: bridged("set_global_script_type", 1, false)  // CE op_set_global_script_type
+       ,0x819D: bridged("set_sfall_global", 2, false)        // CE opSetGlobalVar
+       ,0x819E: bridged("get_sfall_global_int", 1)           // CE opGetGlobalInt
+       ,0x81AF: bridged("get_game_mode", 0)                  // CE opGetGameMode
+       ,0x8162: bridged("tap_key", 1, false)                 // CE op_tap_key
+       ,0x81E4: bridged("get_sfall_arg", 0)                  // sfall (not in CE): hooks
+       ,0x81E5: bridged("set_sfall_return", 1, false)        // sfall (not in CE): hooks
+       ,0x823C: bridged("get_sfall_args", 0)                 // sfall (not in CE): hooks
+       ,0x823D: bridged("set_sfall_arg", 2, false)           // sfall (not in CE): hooks
+       ,0x81F4: bridged("set_script", 2, false)              // sfall (not in CE)
+       ,0x81F9: bridged("fs_find", 1)                        // sfall (not in CE): sfallFs.ts
+       ,0x81FA: bridged("fs_write_byte", 2, false)           // sfall (not in CE)
+       ,0x81FB: bridged("fs_write_short", 2, false)          // sfall (not in CE)
+       ,0x81FC: bridged("fs_write_int", 2, false)            // sfall (not in CE)
+       ,0x81FD: bridged("fs_write_int", 2, false)            // sfall (not in CE): fs_write_float, the same bytes
+       ,0x81FF: bridged("fs_delete", 1, false)               // sfall (not in CE)
+       ,0x8200: bridged("fs_size", 1)                        // sfall (not in CE)
+       ,0x8201: bridged("fs_pos", 1)                         // sfall (not in CE)
+       ,0x8202: bridged("fs_seek", 2, false)                 // sfall (not in CE)
+       ,0x8203: bridged("fs_resize", 2, false)               // sfall (not in CE)
+       ,0x8209: bridged("fs_read_byte", 1)                   // sfall (not in CE)
+       ,0x820A: bridged("fs_read_short", 1)                  // sfall (not in CE)
+       ,0x820B: bridged("fs_read_int", 1)                    // sfall (not in CE)
+       // sfall register_hook_proc (0x8262): like gsay_option, the procedure argument (a
+       // procedure number, 0 = unregister) becomes a function
+       ,0x8262: function() {
+            var proc = this.pop()
+            var hookId = this.pop()
+            var procFn = null
+            if (proc !== 0) {
+                var procName = typeof proc === 'string' ? proc : this.intfile.proceduresTable[proc].name
+                procFn = () => { this.call(procName) }
+            }
+            this.scriptObj.register_hook_proc(hookId, procFn)
+       }
        ,0x8276: bridged("sfall_func0", 1)           // CE op_sfall_func0
        ,0x8277: bridged("sfall_func1", 2)           // CE op_sfall_func1
        ,0x8278: bridged("sfall_func2", 3)           // CE op_sfall_func2

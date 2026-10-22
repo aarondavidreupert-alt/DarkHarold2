@@ -24,6 +24,7 @@ import { UIMode } from './ui_panels.js'
 import { $id, clearEl, show, hide, showv, hidev, appendHTML, makeEl } from './ui_dom.js'
 import { dbg } from './logger.js'
 import { fromTileNum } from './tile.js'
+import { assetUrl } from './modAssets.js'
 
 // CE ref: worldmap.cc — label list visible height ~182px, each tab 27px.
 // tabsBackgroundFrmImage.getHeight()=480, max scroll = 480-230=250, but we
@@ -124,7 +125,7 @@ export function uiWorldMapShowArea(area: Area) {
     uiWorldMapAreaView()
 
     const $areamap = $id('areamap')
-    $areamap.style.backgroundImage = `url('${area.mapArt}.png')`
+    $areamap.style.backgroundImage = `url('${assetUrl(area.mapArt + '.png')}')`
     clearEl($areamap)
 
     // CE ref: worldmap.cc wmTownMapRefresh / wmTownMapInit — only entrances whose state

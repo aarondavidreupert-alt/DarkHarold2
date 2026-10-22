@@ -30,6 +30,7 @@ import { getCurrentMapInfo, getLstJson } from './data.js'
 import { lazyLoadImage } from './images.js'
 import { dbg } from './logger.js'
 import { getFileBinarySync, getRandomInt } from './util.js'
+import { assetUrl } from './modAssets.js'
 
 // CE art.h HeadAnimation
 export const HEAD_ANIMATION_VERY_GOOD_REACTION = 0
@@ -259,7 +260,7 @@ function loadLips(audioName: string): Lips | null {
         markers.push({ marker: dv.getInt32(p, false), position: dv.getInt32(p + 4, false) })
         p += 8
     }
-    const audio = new Audio(`audio/speech/${headName}/${base}.mp3${AUDIO_ASSET_QUERY}`)
+    const audio = new Audio(assetUrl(`audio/speech/${headName}/${base}.mp3${AUDIO_ASSET_QUERY}`))
     return { phonemes, markers, totalBytes, audio }
 }
 

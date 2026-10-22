@@ -32,6 +32,7 @@ import globalState from './globalState.js'
 import { applyBrightness, getVolumeValue, savePreferences } from './ui_options/preferences.js'
 import { showConfirm } from './ui_dialog.js'
 import { getMessage } from './util.js'
+import { assetUrl } from './modAssets.js'
 
 // FO2-CE ref: preferences.cc TargetHighlight enum — 0=off, 1=targeting-only, 2=all-enemies.
 type TargetHighlight = 'off' | 'targeting-only' | 'on'
@@ -64,7 +65,7 @@ function buildPrefsPanel(): HTMLElement {
         transform: 'translate(-50%, -50%)',
         width: '640px',
         height: '480px',
-        backgroundImage: "url('art/intrface/prefscrn.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/prefscrn.png') + "')",
         backgroundRepeat: 'no-repeat',
         backgroundSize: '640px 480px',
         zIndex: '30',
@@ -140,7 +141,7 @@ function buildPrefsPanel(): HTMLElement {
     function primaryKnob(x: number, y: number, getFrame: () => number, cycle: () => void): void {
         const el = document.createElement('div')
         Object.assign(el.style, {
-            backgroundImage: "url('art/intrface/prfbknbs.png')",
+            backgroundImage: "url('" + assetUrl('art/intrface/prfbknbs.png') + "')",
             backgroundRepeat: 'no-repeat',
             backgroundSize: '46px 188px',
             cursor: 'pointer',
@@ -158,7 +159,7 @@ function buildPrefsPanel(): HTMLElement {
     function secondaryKnob(x: number, y: number, getFrame: () => number, toggle: () => void): void {
         const el = document.createElement('div')
         Object.assign(el.style, {
-            backgroundImage: "url('art/intrface/prflknbs.png')",
+            backgroundImage: "url('" + assetUrl('art/intrface/prflknbs.png') + "')",
             backgroundRepeat: 'no-repeat',
             backgroundSize: '22px 50px',
             cursor: 'pointer',
@@ -189,7 +190,7 @@ function buildPrefsPanel(): HTMLElement {
         inputToVal: (n: number) => number,
     ): void {
         const knobImg = document.createElement('img') as HTMLImageElement
-        knobImg.src = 'art/intrface/prfsldof.png'
+        knobImg.src = assetUrl('art/intrface/prfsldof.png')
         Object.assign(knobImg.style, {
             position: 'absolute',
             top: knobY + 'px',
@@ -249,7 +250,7 @@ function buildPrefsPanel(): HTMLElement {
         const el = document.createElement('img') as HTMLImageElement
         abs(el as unknown as HTMLElement, x, y, 18, 18)
         el.style.cursor = 'pointer'
-        const refresh = (): void => { el.src = getValue() ? 'art/intrface/prfxin.png' : 'art/intrface/prfxout.png' }
+        const refresh = (): void => { el.src = assetUrl(getValue() ? 'art/intrface/prfxin.png' : 'art/intrface/prfxout.png') }
         refresh()
         el.addEventListener('click', () => { setValue(!getValue()); refresh() })
         refreshFns.push(refresh)
@@ -261,14 +262,14 @@ function buildPrefsPanel(): HTMLElement {
     function redButton(x: number, y: number, onClick: () => void): void {
         const el = document.createElement('div')
         Object.assign(el.style, {
-            backgroundImage: "url('art/intrface/lilredup.png')",
+            backgroundImage: "url('" + assetUrl('art/intrface/lilredup.png') + "')",
             backgroundRepeat: 'no-repeat',
             cursor: 'pointer',
         })
         abs(el, x, y, 15, 16)
-        el.addEventListener('mousedown', () => { el.style.backgroundImage = "url('art/intrface/lilreddn.png')" })
-        el.addEventListener('mouseup', () => { el.style.backgroundImage = "url('art/intrface/lilredup.png')"; onClick() })
-        el.addEventListener('mouseleave', () => { el.style.backgroundImage = "url('art/intrface/lilredup.png')" })
+        el.addEventListener('mousedown', () => { el.style.backgroundImage = "url('" + assetUrl('art/intrface/lilreddn.png') + "')" })
+        el.addEventListener('mouseup', () => { el.style.backgroundImage = "url('" + assetUrl('art/intrface/lilredup.png') + "')"; onClick() })
+        el.addEventListener('mouseleave', () => { el.style.backgroundImage = "url('" + assetUrl('art/intrface/lilredup.png') + "')" })
     }
 
     // ── Local state for prefs not yet in Config ───────────────────────────────
@@ -696,7 +697,7 @@ export function initOptionsMenu(): void {
         () => { optionsWindow.close() },                      // 504 DONE
     ]
     const fallback = ['SAVE GAME', 'LOAD GAME', 'PREFERENCES', 'EXIT GAME', 'DONE']
-    new Image().src = 'art/intrface/opbtnon.png' // preload the pressed state (no blank first press)
+    new Image().src = assetUrl('art/intrface/opbtnon.png') // preload the pressed state (no blank first press)
 
     handlers.forEach((handler, i) => {
         const btnWidget = new Widget('art/intrface/opbtnoff.png', { x: 13, y: 17 + i * (OPTIONS_BTN_H + 3), w: OPTIONS_BTN_W, h: OPTIONS_BTN_H })
@@ -720,7 +721,7 @@ export function initOptionsMenu(): void {
     })
 
     Object.assign(optionsWindow.elem.style, {
-        backgroundImage: `url('${optionsWindow.background}.png')`,
+        backgroundImage: `url('${assetUrl(optionsWindow.background + '.png')}')`,
         backgroundRepeat: 'no-repeat',
         zIndex: '20',
         cursor: 'default',

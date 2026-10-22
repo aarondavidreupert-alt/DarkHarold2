@@ -5,6 +5,7 @@ import { getZoom, Renderer, SCREEN_HEIGHT, SCREEN_WIDTH, TileMap } from '../rend
 import { Config } from '../config.js'
 import { Font } from '../formats/fon.js'
 import { dbg } from '../logger.js'
+import { assetUrl } from '../modAssets.js'
 
 export interface ShaderSources {
     fragment: string
@@ -321,7 +322,7 @@ export class WebGLRenderer extends Renderer {
         }
         // Bump the version string whenever egg.png is regenerated via
         // tools/export_mask_frms.py so the browser discards the cached copy.
-        img.src = 'art/intrface/egg.png?v=20260623b'
+        img.src = assetUrl('art/intrface/egg.png?v=20260623b')
     }
 
     init(): void {

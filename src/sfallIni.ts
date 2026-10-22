@@ -2,8 +2,10 @@
 // sfall_ini_get_string) for get_ini_setting (sfall 0x81AC). A setting is named
 // "file|section|key", the file relative to the game folder (the Unofficial Patch asks
 // "mods\upu.ini|main|wipe_inventory"). The asset pipeline copies the install's
-// ddraw.ini and mods/*.ini into data/ (tools/setup.py copy_install_inis), so the file is
-// read from data/<file>. Files are read once per page load.
+// ddraw.ini into data/ and a mod's mods/<mod>.ini into its mod folder
+// (mods/<mod>/data/mods/<mod>.ini, tools/setup.py build_mods), so the file is read as
+// data/<file> through the mod asset overlay (modAssets.ts). Files are read once per
+// page load.
 
 import { getFileText, parseIni } from './util.js'
 
@@ -46,4 +48,18 @@ export function sfallIniGetInt(triplet: string): number {
     if (text === null) return -1
     const n = parseInt(text.trim(), 10)
     return Number.isFinite(n) ? n | 0 : 0
+}
+
+/** sfall set_ini_setting (sfall_func2 "set_ini_setting"; sfall IniFiles.cpp writes the
+ *  file): DH2 cannot write the install's files, so the value holds for this page load
+ *  only (as fallout2.cfg changes live in localStorage, not in the file). */
+export function sfallIniSet(triplet: string, value: any): void {
+    const parts = String(triplet ?? '').split('|')
+    if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return
+    const path = 'data/' + parts[0].replace(/\\/g, '/').replace(/^\/+/, '')
+    readIni(parts[0])
+    const ini = cache.get(path) ?? {}
+    const section = (ini[parts[1].toLowerCase()] ??= {})
+    section[parts[2].toLowerCase()] = String(value)
+    cache.set(path, ini)
 }

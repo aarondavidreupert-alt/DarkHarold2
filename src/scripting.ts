@@ -17,8 +17,12 @@ Scripting system/engine for DarkFO
 */
 
 import { Events } from './events.js'
-import { sfallIniGetInt } from './sfallIni.js'
+import { activeAssetMods, assetLayer } from './modAssets.js'
+import { sfallIniGetInt, sfallIniSet } from './sfallIni.js'
 import * as SfallArrays from './sfallArrays.js'
+import * as SfallFs from './sfallFs.js'
+import * as SfallHooks from './sfallHooks.js'
+import * as GlobalScripts from './sfallGlobalScripts.js'
 import { isPartyMemberPid } from './party.js'
 import { addFloatMessage, FLOAT_MSG_COLOR } from './floatText.js'
 import { sfxBuildOpenName } from './sfxNames.js'
@@ -56,7 +60,7 @@ import { drawAC, updateIndicatorBar } from './ui_hud.js'
 import { invenUnwield, invenWield, moveAllInventory, scriptHand, unequipForRemoval } from './inventoryWield.js'
 import { SKILL_NAMES } from './skills.js'
 import { skillRoll } from './skillUse.js'
-import { arrayRemove, assert, BinaryReader, fileExistsSync, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
+import { arrayRemove, assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
 import { ScriptVM } from './vm.js'
 import { attachLuaScript, isLuaReady, LuaScriptHandle } from './lua/luaRuntime.js'
 import { Worldmap } from './worldmap.js'
@@ -531,6 +535,7 @@ export module Scripting {
     }
 
     function dialogueExit() {
+        SfallHooks.gameModeSpecial(false) // sfall: SPECIAL while the dialogue panel closes
         uiEndDialogue()
         dialogueBarterMod = 0
         info('[dialogue exit]')
@@ -2332,25 +2337,100 @@ export module Scripting {
         set_world_map_pos(x: number, y: number) { Worldmap.setPlayerWorldPos(x, y) }
         // CE op_set_car_current_town (0x81B6) → wmCarSetCurrentArea
         set_car_current_town(area: number) { Worldmap.setCarAreaId(area) }
-        // sfall fs_copy (0x81F8; not in CE): copies a file into sfall's virtual file system.
-        // DH2 has none; it answers only whether the source exists (-1 if not) — what the
-        // UPU's Cassidy script asks (has_head: is the talking-head mod installed).
-        fs_copy(_dest: string, src: string) {
-            const p = String(src ?? '').replace(/\\/g, '/').toLowerCase()
-            return fileExistsSync('data/' + p) || fileExistsSync(p.replace(/\.frm$/, '.png')) ? 0 : -1
+        // sfall's virtual file system (0x81F8-0x820B; not in CE) → src/sfallFs.ts. The UPU
+        // edits critter FRM frame rates (gl_k_goris_derobing, gl_k_walking_speed) and asks
+        // whether a talking head exists (Cassidy's has_head: fs_copy(...) != -1).
+        fs_copy(path: string, source: string) { return SfallFs.fsCopy(path, source) }
+        fs_find(path: string) { return SfallFs.fsFind(path) }
+        fs_delete(id: number) { SfallFs.fsDelete(id) }
+        fs_size(id: number) { return SfallFs.fsSize(id) }
+        fs_pos(id: number) { return SfallFs.fsPos(id) }
+        fs_seek(id: number, pos: number) { SfallFs.fsSeek(id, pos) }
+        fs_resize(id: number, size: number) { SfallFs.fsResize(id, size) }
+        fs_read_byte(id: number) { return SfallFs.fsReadByte(id) }
+        fs_read_short(id: number) { return SfallFs.fsReadShort(id) }
+        fs_read_int(id: number) { return SfallFs.fsReadInt(id) }
+        fs_write_byte(id: number, v: number) { SfallFs.fsWriteByte(id, v) }
+        fs_write_short(id: number, v: number) { SfallFs.fsWriteShort(id, v) }
+        fs_write_int(id: number, v: number) { SfallFs.fsWriteInt(id, v) }
+
+        // ── sfall global scripts, global variables and hooks (src/sfallGlobalScripts.ts,
+        // CE sfall_global_scripts.cc / sfall_global_vars.cc; hooks: src/sfallHooks.ts,
+        // not in CE)
+        // CE op_game_loaded (0x8164)
+        game_loaded() { return GlobalScripts.globalScriptIsLoaded(this) ? 1 : 0 }
+        // CE op_set_global_script_repeat (0x816A) / op_set_global_script_type (0x819B)
+        set_global_script_repeat(frames: number) { GlobalScripts.setGlobalScriptRepeat(this, frames) }
+        set_global_script_type(type: number) { GlobalScripts.setGlobalScriptType(this, type) }
+        // CE opSetGlobalVar / opGetGlobalInt (0x819D / 0x819E)
+        set_sfall_global(key: any, value: number) { GlobalScripts.setSfallGlobal(key, value) }
+        get_sfall_global_int(key: any) { return GlobalScripts.getSfallGlobal(key) }
+        // CE opGetGameMode (0x81AF): sfall's loop flags
+        get_game_mode() { return SfallHooks.gameMode() | 0 }
+        // CE op_tap_key (0x8162): a DirectInput key press. DH2 dispatches the key to the
+        // page; only the keys scripts use are mapped (DIK_ESCAPE: gl_k_dogmeat_fix).
+        tap_key(dik: number) {
+            const key = ({ 1: 'Escape', 28: 'Enter', 57: ' ' } as { [dik: number]: string })[dik]
+            if (key === undefined) {
+                warn('tap_key: DirectInput key ' + dik + ' is not mapped')
+                return
+            }
+            for (const type of ['keydown', 'keyup']) document.dispatchEvent(new KeyboardEvent(type, { key, bubbles: true }))
+        }
+        // sfall register_hook_proc (0x8262): `proc` a procedure of this script (a function on
+        // both backends: vm_bridge.ts wraps the procedure number), 0 unregisters
+        register_hook_proc(hookId: number, proc: any) {
+            SfallHooks.registerHookProc(hookId, this, typeof proc === 'function' ? () => proc.call(this) : null)
+        }
+        // sfall get_sfall_arg / set_sfall_return / get_sfall_args / set_sfall_arg
+        // (0x81E4 / 0x81E5 / 0x823C / 0x823D)
+        get_sfall_arg() { return SfallHooks.hookArg() }
+        set_sfall_return(value: any) { SfallHooks.hookReturn(value) }
+        get_sfall_args() { return SfallArrays.arrayFromObjects(SfallHooks.hookArgs() as object[]) }
+        set_sfall_arg(n: number, value: any) { SfallHooks.setHookArg(n, value) }
+        // sfall set_script (0x81F4; not in CE, sfall Objects.cpp op_set_script): gives the
+        // object script number `value` (scripts.lst line, 1-based) and runs its start, then
+        // its map_enter_p_proc unless bit 0x80000000 is set
+        set_script(obj: Obj, value: number) {
+            if (!isGameObject(obj)) return
+            const index = (value >>> 0) & ~0xf0000000
+            if (index === 0) {
+                warn('set_script: invalid script index ' + index)
+                return
+            }
+            ;(obj as any).script = undefined
+            obj._script = undefined
+            obj.loadScript(index)
+            const script = obj._script as Script | undefined
+            if (script && ((value >>> 0) & 0x80000000) === 0 && script.map_enter_p_proc !== undefined) objectEnterMap(obj, obj.elevation ?? 0, currentMapID ?? 0)
         }
         // sfall_func0-2 (0x8276-0x8278) → CE sfall_metarules.cc sfall_metarule, by name. The
-        // UPU uses combat_data (mf_combat_data: the current attack while in combat) and
-        // get_object_data (mf_get_object_data: an int at a byte offset — here only the
-        // Attack fields, at sfall's 32-bit offsets).
+        // UPU uses combat_data (mf_combat_data: the current attack while in combat),
+        // get_object_data (mf_get_object_data: an int at a byte offset of an Attack or an
+        // object, at sfall's 32-bit offsets — here only the fields the UPU reads),
+        // dialog_obj (the critter the player talks to) and get_sfall_arg_at (hooks).
         sfall_func0(name: string) { return this.sfallMetarule(name, []) }
         sfall_func1(name: string, a: any) { return this.sfallMetarule(name, [a]) }
         sfall_func2(name: string, a: any, b: any) { return this.sfallMetarule(name, [a, b]) }
         private sfallMetarule(name: string, args: any[]): any {
             switch (name) {
                 case 'combat_data': return combatGetData()
+                case 'dialog_obj': return currentDialogueObject ?? 0
+                case 'set_ini_setting': sfallIniSet(args[0], args[1]); return 0 // sfall IniFiles.cpp
+                case 'get_sfall_arg_at': return SfallHooks.hookArgAt(args[0])
                 case 'get_object_data': {
                     const a: any = args[0]
+                    if (isGameObject(a)) {
+                        // CE object_types.h Object, sfall define_extra.h OBJ_DATA_*
+                        if (args[1] === 0x64) return a.pid ?? 0 // OBJ_DATA_PID
+                        if (args[1] === 0x78 || args[1] === 0x80) { // OBJ_DATA_SID / SCRIPT_INDEX
+                            const name = a._script?.scriptName
+                            const n = name ? scriptNumberOf(name) : 0
+                            return n > 0 ? (args[1] === 0x80 ? n - 1 : n) : -1
+                        }
+                        warn('get_object_data: object offset ' + args[1] + ' is not mapped')
+                        return 0
+                    }
                     const field = ATTACK_FIELDS_BY_OFFSET[args[1]]
                     if (a && field && field in a) {
                         const v = a[field]
@@ -3211,12 +3291,14 @@ export module Scripting {
         party_add(obj: Critter) {
             log('party_add', arguments)
             globalState.gParty.addPartyMember(obj)
+            if (currentDialogueObject) SfallHooks.gameModeSpecial(true) // sfall: joins in dialogue
         }
         party_remove(obj: Critter) {
             // CE ref: interpreter_extra.cc:3956 — silently no-ops when obj isn't a
             // party member (dismissal dialogue hook).
             log('party_remove', arguments)
             globalState.gParty.dismissPartyMember(obj)
+            if (currentDialogueObject) SfallHooks.gameModeSpecial(true) // sfall: leaves in dialogue
         }
 
         _serialize(): SerializedScript {
@@ -3277,6 +3359,11 @@ export module Scripting {
         return stub
     }
 
+    /** CE sfall_gl_scr_exec_start_proc after a save is loaded (loadsave.cc) */
+    export function startSfallGlobalScripts(): void {
+        GlobalScripts.startGlobalScripts((name) => loadScript(name))
+    }
+
     export function loadScriptBySid(sid: number): Script | null {
         const procs = _stubBySid.get(sid)
         if (!procs) return null
@@ -3330,12 +3417,19 @@ export module Scripting {
     // Lua backend (src/lua/): data/scripts/<name>.lua from tools/int2lua.py, or a
     // mod's mods/<mod>/scripts/<name>.lua (Config.scripting.mods, the last listed
     // mod that has the script wins). Null when there is no .lua file or it does
-    // not load, so the .int runs instead.
+    // not load, so the .int runs instead. data/scripts/ paths go through the mod
+    // asset overlay (modAssets.ts): a mod whose .int did not decompile has no .lua,
+    // and the .lua of a lower layer (the vanilla script) must not run in its place.
     function loadLuaScript(name: string): Script | null {
         if (!isLuaReady()) return null
         const key = name.toLowerCase()
-        const paths = Config.scripting.mods.slice().reverse().map((m) => `mods/${m}/scripts/${key}.lua`)
-        paths.push('data/scripts/' + key + '.lua')
+        // hand-written Lua mods (no manifest) first; a pipeline-built mod folder's scripts
+        // come through the asset overlay as data/scripts/<name>.lua, unless that layer has
+        // only the .int
+        const assetMods = activeAssetMods()
+        const paths = Config.scripting.mods.filter((m) => !assetMods.includes(m)).reverse().map((m) => `mods/${m}/scripts/${key}.lua`)
+        if (assetLayer(`data/scripts/${key}.int`) <= assetLayer(`data/scripts/${key}.lua`)) paths.push('data/scripts/' + key + '.lua')
+        else dbg('lua', `${key}: the mod's ${key}.int has no .lua`)
         let source: string | null = null
         for (const path of paths) {
             try {
@@ -3666,6 +3760,7 @@ export module Scripting {
                 updated++
             }
         }
+        GlobalScripts.globalScriptsMapProc('map_update_p_proc') // CE scriptsExecMapUpdateScripts
 
         // info("updated " + updated + " objects")
     }
@@ -3690,6 +3785,9 @@ export module Scripting {
             mapScript.self_obj = { _script: mapScript }
             mapScript.map_enter_p_proc()
         }
+        GlobalScripts.globalScriptsMapProc('map_enter_p_proc') // CE scriptsExecMapUpdateScripts
+        // a new game: its global scripts start once its map is loaded (CE main.cc)
+        GlobalScripts.startGlobalScriptsIfRequested((name) => loadScript(name))
 
         if (overrideStartPos) {
             const r = overrideStartPos

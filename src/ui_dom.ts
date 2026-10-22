@@ -1,3 +1,4 @@
+import { assetUrl } from './modAssets.js'
 // Copyright 2024-2026 darkf
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -87,7 +88,7 @@ export function makeEl(tag: string, options: ElementOptions): HTMLElement {
         $el.id = options.id
     }
     if (options.src !== undefined) {
-        ;($el as HTMLImageElement).src = options.src
+        ;($el as HTMLImageElement).src = assetUrl(options.src)
     }
     if (options.classes !== undefined) {
         $el.className = options.classes.join(' ')

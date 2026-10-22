@@ -35,7 +35,6 @@ Usage:
 
 import argparse
 import glob
-import json
 import os
 import struct
 import sys
@@ -188,13 +187,6 @@ INTRINSICS = {
     0x81F5: ("get_script", 1, True),                 # op_get_script
     0x8172: ("set_world_map_pos", 2, False),         # op_set_world_map_pos
     0x81B6: ("set_car_current_town", 1, False),      # op_set_car_current_town
-    0x8164: ("game_loaded", 0, True),                # op_game_loaded
-    0x816A: ("set_global_script_repeat", 1, False),  # op_set_global_script_repeat
-    0x819B: ("set_global_script_type", 1, False),    # op_set_global_script_type
-    0x819D: ("set_sfall_global", 2, False),          # opSetGlobalVar
-    0x819E: ("get_sfall_global_int", 1, True),       # opGetGlobalInt
-    0x81AF: ("get_game_mode", 0, True),              # opGetGameMode
-    0x8162: ("tap_key", 1, False),                   # op_tap_key
     0x8276: ("sfall_func0", 1, True),                # op_sfall_func0 → sfall_metarules.cc, by name
     0x8277: ("sfall_func1", 2, True),
     0x8278: ("sfall_func2", 3, True),
@@ -203,6 +195,33 @@ INTRINSICS = {
     0x8160: ("get_critter_base_stat", 2, True),
     0x8161: ("get_critter_extra_stat", 2, True),
     0x81F8: ("fs_copy", 2, True),
+    # sfall global scripts, global variables, hooks, virtual files
+    0x8164: ("game_loaded", 0, True),           # CE op_game_loaded
+    0x816A: ("set_global_script_repeat", 1, False), # CE op_set_global_script_repeat
+    0x819B: ("set_global_script_type", 1, False), # CE op_set_global_script_type
+    0x819D: ("set_sfall_global", 2, False),      # CE opSetGlobalVar
+    0x819E: ("get_sfall_global_int", 1, True),  # CE opGetGlobalInt
+    0x81AF: ("get_game_mode", 0, True),         # CE opGetGameMode
+    0x8162: ("tap_key", 1, False),               # CE op_tap_key
+    0x81E4: ("get_sfall_arg", 0, True),         # sfall (not in CE): hooks
+    0x81E5: ("set_sfall_return", 1, False),      # sfall (not in CE): hooks
+    0x823C: ("get_sfall_args", 0, True),        # sfall (not in CE): hooks
+    0x823D: ("set_sfall_arg", 2, False),         # sfall (not in CE): hooks
+    0x81F4: ("set_script", 2, False),            # sfall (not in CE)
+    0x81F9: ("fs_find", 1, True),               # sfall (not in CE): sfallFs.ts
+    0x81FA: ("fs_write_byte", 2, False),         # sfall (not in CE)
+    0x81FB: ("fs_write_short", 2, False),        # sfall (not in CE)
+    0x81FC: ("fs_write_int", 2, False),          # sfall (not in CE)
+    0x81FD: ("fs_write_int", 2, False),          # sfall (not in CE): fs_write_float, the same bytes
+    0x81FF: ("fs_delete", 1, False),             # sfall (not in CE)
+    0x8200: ("fs_size", 1, True),               # sfall (not in CE)
+    0x8201: ("fs_pos", 1, True),                # sfall (not in CE)
+    0x8202: ("fs_seek", 2, False),               # sfall (not in CE)
+    0x8203: ("fs_resize", 2, False),             # sfall (not in CE)
+    0x8209: ("fs_read_byte", 1, True),          # sfall (not in CE)
+    0x820A: ("fs_read_short", 1, True),         # sfall (not in CE)
+    0x820B: ("fs_read_int", 1, True),           # sfall (not in CE)
+    0x8262: ("register_hook_proc", 2, False),  # sfall: the procedure argument is a ProcRef (proc_target)
     0x80A1: ("give_exp_points", 1, False),
     0x8138: ("item_caps_total", 1, True),
     0x8139: ("item_caps_adjust", 2, True),
@@ -721,15 +740,18 @@ class MsgTexts:
             r"\bgiq_option\(-?\d+, (\d+), (\d+),"]
     MAX_TEXT = 70
 
-    def __init__(self, root):
+    def __init__(self, roots):
+        """roots: data dirs, best first (a mod's data/, then the vanilla data/)."""
         import re
         self.re = re
-        self.dir = os.path.join(root, "text", "english", "dialog")
+        self.dirs = [os.path.join(r, "text", "english", "dialog") for r in roots]
         self.lst = []
-        lst = os.path.join(root, "scripts", "scripts.lst")
-        if os.path.exists(lst):
-            with open(lst, encoding="latin-1") as fh:
-                self.lst = [line.split(".")[0].strip().lower() for line in fh if line.strip()]
+        for r in roots:
+            lst = os.path.join(r, "scripts", "scripts.lst")
+            if os.path.exists(lst):
+                with open(lst, encoding="latin-1") as fh:
+                    self.lst = [line.split(".")[0].strip().lower() for line in fh if line.strip()]
+                break
         self.files = {}
 
     def text(self, list_no, num):
@@ -738,8 +760,8 @@ class MsgTexts:
         name = self.lst[list_no - 1]
         if name not in self.files:
             texts = {}
-            path = os.path.join(self.dir, name + ".msg")
-            if os.path.exists(path):
+            path = next((p for p in (os.path.join(d, name + ".msg") for d in self.dirs) if os.path.exists(p)), "")
+            if path:
                 with open(path, encoding="latin-1") as fh:
                     body = fh.read()
                 for m in self.re.finditer(r"\{(\d+)\}\{[^}]*\}\{([^}]*)\}", body):
@@ -765,11 +787,11 @@ class MsgTexts:
 _msg_cache = {}
 
 
-def msg_texts(root):
-    root = os.path.normcase(os.path.abspath(root))
-    if root not in _msg_cache:
-        _msg_cache[root] = MsgTexts(root)
-    return _msg_cache[root]
+def msg_texts(roots):
+    roots = tuple(os.path.normcase(os.path.abspath(r)) for r in ([roots] if isinstance(roots, str) else roots))
+    if roots not in _msg_cache:
+        _msg_cache[roots] = MsgTexts(roots)
+    return _msg_cache[roots]
 
 
 def ssl_sources(root):
@@ -781,35 +803,10 @@ def ssl_sources(root):
     return [t for t in trees if t is not None]
 
 
-def upu_ssl_tree(root):
-    """The Unofficial Patch's (UPU) own script sources, when fetched into
-    third_party/upu_src/scripts_src (wiki/upu_support.md), else None."""
-    return ssl_names(os.path.join(os.path.dirname(root), "third_party", "upu_src", "scripts_src"))
-
-
-_mod_sources_cache = {}
-
-
-def script_from_mod(root, name):
-    """Whether tools/setup.py took data/scripts/<name>.int from a mod archive
-    (data/mod_sources.json: "mods/upu.dat", ...) rather than the vanilla data."""
-    key = os.path.normcase(os.path.abspath(root))
-    if key not in _mod_sources_cache:
-        try:
-            with open(os.path.join(root, "mod_sources.json"), encoding="utf-8") as fh:
-                _mod_sources_cache[key] = json.load(fh)
-        except (OSError, ValueError):
-            _mod_sources_cache[key] = {}
-    return _mod_sources_cache[key].get("scripts/%s.int" % name, "").startswith("mods/")
-
-
-def script_ssl_sources(root, name):
-    """ssl_sources for one script: a script the pipeline took from a mod archive
-    (data/mod_sources.json, tools/setup.py) reads the UPU tree first, as its .int was
-    compiled from it; the vanilla scripts keep Black Isle's, then killap's."""
-    trees = ssl_sources(root)
-    upu = upu_ssl_tree(root) if script_from_mod(root, name) else None
-    return [upu] + trees if upu is not None else trees
+# The Unofficial Patch's (UPU) own script sources, fetched into third_party/upu_src
+# (wiki/upu_support.md): a mod's scripts read them first (decompile_file mod=True).
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+UPU_SSL = os.path.join(PROJECT_ROOT, "third_party", "upu_src", "scripts_src")
 
 
 _ssl_cache = {}
@@ -1478,6 +1475,8 @@ class ProcDecompiler:
                 args = [self.pop(stack, pc) for _ in range(argc)][::-1]
                 if name in ("gsay_option", "giq_option"):
                     args[-2] = self.proc_target(args[-2], pc)
+                elif name == "register_hook_proc" and not (isinstance(args[1], Const) and args[1].value == 0):
+                    args[1] = self.proc_target(args[1], pc)  # 0 unregisters
                 fix = self.s.script_fixes.get((self.s.name, self.proc.name.lower()), {}).get(name)
                 if fix is not None:
                     args = [self.script_fix(a, fix) for a in args]
@@ -2004,20 +2003,31 @@ class ScriptDecompiler:
             self.block(s.orelse, depth + 1, w)
 
 
-def decompile_file(path, report=None):
+def decompile_file(path, report=None, base=None, mod=False):
     """data/scripts/<name>.int -> Lua text. Variable names come from the
     install's data/data/vault13.gam, for a map's own script data/maps/<name>.gam,
     and SSL sources in data/scripts_src/ when present (SslNames); without them
     the numbers stay. A line that uses a message gets its text as a comment
-    (MsgTexts)."""
+    (MsgTexts).
+    A mod's script (tools/setup.py build_mods: mods/<mod>/data/scripts/<name>.int):
+    `base` lists the data dirs under the mod's own, best first (earlier mods, then the
+    vanilla data/), for the files the mod does not have; `mod` reads the UPU sources
+    first (UPU_SSL) and switches the vanilla .int's repairs off (SCRIPT_FIXES,
+    MISSING_OPERANDS): a mod's .int is recompiled from fixed sources."""
     name = os.path.splitext(os.path.basename(path))[0].lower()
     with open(path, "rb") as fh:
         data = fh.read()
     root = os.path.dirname(os.path.dirname(os.path.abspath(path)))
-    gvars = read_gam(os.path.join(root, "data", "vault13.gam"), "GAME_GLOBAL_VARS")
-    mvars = read_gam(os.path.join(root, "maps", name + ".gam"), "MAP_GLOBAL_VARS")
-    sd = ScriptDecompiler(data, name, gvars, mvars, script_ssl_sources(root, name), msg_texts(root))
-    if script_from_mod(root, name):
+    roots = [root] + list(base or [])
+
+    def first(*rel):
+        return next((p for p in (os.path.join(r, *rel) for r in roots) if os.path.exists(p)), os.path.join(root, *rel))
+    gvars = read_gam(first("data", "vault13.gam"), "GAME_GLOBAL_VARS")
+    mvars = read_gam(first("maps", name + ".gam"), "MAP_GLOBAL_VARS")
+    trees = ssl_sources(roots[-1])
+    upu = ssl_names(UPU_SSL) if mod else None
+    sd = ScriptDecompiler(data, name, gvars, mvars, [upu] + trees if upu is not None else trees, msg_texts(roots))
+    if mod:
         sd.script_fixes, sd.missing_operands = {}, {}
     text = sd.emit()
     if report is not None:

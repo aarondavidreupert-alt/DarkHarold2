@@ -42,6 +42,8 @@ import {
 import * as Endgame from './endgame.js'
 import * as GameTime from './gametime.js'
 import { Config } from './config.js'
+import { pollGameMode } from './sfallHooks.js'
+import { globalScriptsProcessInput, globalScriptsProcessMain, globalScriptsProcessWorldmap } from './sfallGlobalScripts.js'
 
 // Next gameTickTime at which map_update_p_proc should fire across all map
 // scripts. Fallout 2 schedules this via a 600-tick queue event, so we mirror
@@ -126,6 +128,12 @@ export function tickGame(): void {
     if (Scripting.processMapTransition()) return
     Scripting.processDialogueRequest()
 
+    // sfall: HOOK_GAMEMODECHANGE when the game mode changed; the global scripts of type 1
+    // run every frame wherever the game is (CE's input ticker), type 2 / 3 on the world map
+    pollGameMode()
+    globalScriptsProcessInput()
+    if (globalState.uiMode === UIMode.worldMap) globalScriptsProcessWorldmap()
+
     // FO2-CE ref: Skill targeting mode keeps the game loop running so the
     // player can scroll the map and see hover feedback while picking a target.
     // All other UI modes (dialogue, inventory, etc.) pause the loop.
@@ -135,6 +143,7 @@ export function tickGame(): void {
     // CE scripts.cc scriptsHandleRequests, at the end of each game-loop pass: free the
     // sfall temporary arrays (a dialogue runs inside gsay_end in CE, so they live through it)
     deleteAllTempArrays()
+    globalScriptsProcessMain() // CE main.cc mainLoop: sfall_gl_scr_process_main
     const time = window.performance.now()
 
     const $fps = globalState.$fpsOverlay

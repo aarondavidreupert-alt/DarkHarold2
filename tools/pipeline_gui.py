@@ -53,6 +53,7 @@ STAGES = [
     ("convert_gam", "Convert global/map variables (GAM -> JSON)", True),
     ("decompile_scripts", "Decompile scripts to Lua (INT -> LUA)", True),
     ("write_config", "Write default fallout2.cfg (keeps an existing one)", True),
+    ("build_mods", "Build mod folders from the install's mods (mods/mods_order.txt -> mods/<name>/)", True),
     ("export_audio", "Convert audio (ACM -> WAV, needs acm2wav.exe)", False),
     ("export_movies", "Convert movies (MVE -> WebM, needs ffmpeg)", True),
     ("export_speech", "Convert talking-head speech (ACM -> MP3, needs ffmpeg)", True),
@@ -132,7 +133,7 @@ class PipelineGUI:
         self.no_mods_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             options_frame,
-            text="Vanilla game: ignore the install's mods (mods/mods_order.txt, e.g. the Unofficial Patch)",
+            text="Vanilla game: build no mod folders from the install's mods (mods/mods_order.txt, e.g. the Unofficial Patch)",
             variable=self.no_mods_var,
         ).pack(anchor="w", padx=8, pady=(2, 4))
 

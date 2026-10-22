@@ -27,6 +27,7 @@ import { CreatorInitialState, showCharacterCreator, STATS } from './ui_character
 import { font1 } from './ui_font.js'
 import { UIMode } from './ui_panels.js'
 import { getMessage } from './util.js'
+import { assetUrl } from './modAssets.js'
 
 const W = 640
 const H = 480
@@ -55,10 +56,10 @@ function button(frame: HTMLElement, x: number, y: number, w: number, h: number, 
     const b = document.createElement('div')
     Object.assign(b.style, {
         position: 'absolute', left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px',
-        backgroundImage: `url('${up}')`, backgroundRepeat: 'no-repeat', cursor: 'pointer',
+        backgroundImage: `url('${assetUrl(up)}')`, backgroundRepeat: 'no-repeat', cursor: 'pointer',
     })
-    b.onmousedown = () => { b.style.backgroundImage = `url('${down}')`; sfx(sound) }
-    b.onmouseup = b.onmouseleave = () => { b.style.backgroundImage = `url('${up}')` }
+    b.onmousedown = () => { b.style.backgroundImage = `url('${assetUrl(down)}')`; sfx(sound) }
+    b.onmouseup = b.onmouseleave = () => { b.style.backgroundImage = `url('${assetUrl(up)}')` }
     b.onclick = action
     frame.appendChild(b)
 }
@@ -74,7 +75,7 @@ function build(): void {
     Object.assign(frame.style, {
         position: 'absolute', width: W + 'px', height: H + 'px', left: '50%', top: '50%',
         transform: 'translate(-50%, -50%)',
-        backgroundImage: "url('art/intrface/pickchar.png')", backgroundRepeat: 'no-repeat', // FID 174
+        backgroundImage: "url('" + assetUrl('art/intrface/pickchar.png') + "')", backgroundRepeat: 'no-repeat', // FID 174
     })
     canvas = document.createElement('canvas')
     canvas.width = W
@@ -155,7 +156,7 @@ function draw(): void {
     const index = current
     const face = new Image()
     face.onload = face.onerror = () => { if (index === current) drawPage(face.naturalWidth > 0 ? face : null) }
-    face.src = PREMADE_CHARACTERS[index].face
+    face.src = assetUrl(PREMADE_CHARACTERS[index].face)
 }
 
 function drawPage(face: HTMLImageElement | null): void {

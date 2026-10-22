@@ -26,6 +26,7 @@ import { getMessage } from './util.js'
 import { currentUnarmed, unarmedAPCost } from './unarmed.js'
 import { $id, $img, $q, clearEl, show, hide, showv, hidev } from './ui_dom.js'
 import { font1 } from './ui_font.js'
+import { assetUrl } from './modAssets.js'
 
 // --- Digit readouts (shared by HP / AC / called-shot chance) ---------------
 
@@ -147,7 +148,7 @@ export function drawAP(current: number, max: number, freeMove: number = 0, isPla
         const el = document.getElementById('apLight' + (i + 1)) as HTMLImageElement | null
         if (!el) return
         if (src) {
-            el.src = src
+            el.src = assetUrl(src)
             el.style.visibility = 'visible'
         } else {
             el.style.visibility = 'hidden'
@@ -206,7 +207,7 @@ function buildBadgeSrcCanvases(cb: () => void): void {
     if (badgeBuildPending) return
     badgeBuildPending = true
     const img = new Image()
-    img.src = 'art/intrface/warnbox.png'
+    img.src = assetUrl('art/intrface/warnbox.png')
     img.onload = () => {
         font1.onLoad(() => {
             const map = new Map<string, HTMLCanvasElement>()
@@ -381,7 +382,7 @@ export function uiDrawWeapon(): void {
         if (activeItem && activeItem.invArt && !objectIsWeapon(activeItem)) {
             $wepImg.style.display = ''
             $wepImg.onload = null
-            $wepImg.src = activeItem.invArt + '.png'
+            $wepImg.src = assetUrl(activeItem.invArt + '.png')
             $typeImg.style.display = 'none'
             hide($id('attackButtonCalled'))
             return
@@ -394,7 +395,7 @@ export function uiDrawWeapon(): void {
         const ap = unarmedAPCost(player, mode, aiming)
         $wepImg.style.display = 'none'
         $typeImg.style.display = ''
-        $img('attackButtonType').src = `art/intrface/${mode.icon}.png`
+        $img('attackButtonType').src = assetUrl(`art/intrface/${mode.icon}.png`)
         const CHAR_W = 10
         if (ap <= 9) {
             $id('attackButtonAPDigit').style.backgroundPosition = 0 - CHAR_W * ap + 'px'
@@ -422,7 +423,7 @@ export function uiDrawWeapon(): void {
             })
             this.setAttribute('draggable', 'false')
         }
-        $wepImg.src = weapon.invArt + '.png'
+        $wepImg.src = assetUrl(weapon.invArt + '.png')
     }
 
     // draw weapon AP cost digit
@@ -446,7 +447,7 @@ export function uiDrawWeapon(): void {
         1: 'punch', 2: 'kick', 3: 'swing', 4: 'thrust', 5: 'throw', 6: 'single', 7: 'burst', 8: 'burst',
     }
     const type = mode === 'reload' ? 'reload' : (ATTACK_LABEL[weapon.weapon.attackModeOf()] ?? 'single')
-    $img('attackButtonType').src = `art/intrface/${type}.png`
+    $img('attackButtonType').src = assetUrl(`art/intrface/${type}.png`)
 
     // hide or show called shot sigil?
     if (weapon.weapon.isCalled()) {
@@ -520,14 +521,14 @@ export function uiEndButtonsRedLights(): void {
     setEndButtonsEnabled(false)
     const el = document.getElementById('endLights')
     if (!el) return
-    el.style.backgroundImage = "url('art/intrface/endltred.png')"
+    el.style.backgroundImage = "url('" + assetUrl('art/intrface/endltred.png') + "')"
     el.style.display = 'block'
 }
 export function uiEndButtonsGreenLights(): void {
     setEndButtonsEnabled(true)
     const el = document.getElementById('endLights')
     if (!el) return
-    el.style.backgroundImage = "url('art/intrface/endltgrn.png')"
+    el.style.backgroundImage = "url('" + assetUrl('art/intrface/endltgrn.png') + "')"
     el.style.display = 'block'
 }
 export function uiEndButtonsClearLights(): void {

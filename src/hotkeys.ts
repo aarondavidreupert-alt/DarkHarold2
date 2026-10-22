@@ -37,6 +37,7 @@ import { toggleAutomap } from './ui_automap.js'
 import { uiQuickLoad, uiQuickSave, uiSaveLoad } from './ui_saveload.js'
 import { getVolumeValue, savePreferences } from './ui_options/preferences.js'
 import { swapHands, cycleActiveItemAction } from './ui.js'
+import { assetUrl } from './modAssets.js'
 
 const click = () => globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
 
@@ -56,7 +57,7 @@ function showHelp(): void {
     const overlay = document.createElement('div')
     overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:20000;display:flex;align-items:center;justify-content:center;'
     const img = document.createElement('img')
-    img.src = 'art/intrface/helpscrn.png'
+    img.src = assetUrl('art/intrface/helpscrn.png')
     img.style.cssText = 'width:640px;height:480px;image-rendering:pixelated;'
     overlay.appendChild(img)
     const prev = globalState.uiMode
@@ -79,14 +80,14 @@ function showPause(): void {
     const overlay = document.createElement('div')
     overlay.style.cssText = 'position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;'
     const win = document.createElement('div')
-    win.style.cssText = "position:relative;width:139px;height:72px;margin-top:-108px;background:url('art/intrface/charwin.png');"
+    win.style.cssText = "position:relative;width:139px;height:72px;margin-top:-108px;background:url('" + assetUrl('art/intrface/charwin.png') + "');"
     const title = document.createElement('div')
     title.style.cssText = 'position:absolute;left:0;right:0;top:10px;text-align:center;color:#907824;font:bold 14px monospace;'
     title.textContent = getMessage('options', 301) ?? 'PAUSED'
     const done = document.createElement('div')
-    done.style.cssText = "position:absolute;left:13px;top:42px;width:108px;height:24px;background:url('art/intrface/donebox.png');"
+    done.style.cssText = "position:absolute;left:13px;top:42px;width:108px;height:24px;background:url('" + assetUrl('art/intrface/donebox.png') + "');"
     const btn = document.createElement('div')
-    btn.style.cssText = "position:absolute;left:13px;top:4px;width:15px;height:16px;background:url('art/intrface/lilredup.png');cursor:pointer;"
+    btn.style.cssText = "position:absolute;left:13px;top:4px;width:15px;height:16px;background:url('" + assetUrl('art/intrface/lilredup.png') + "');cursor:pointer;"
     const label = document.createElement('div')
     label.style.cssText = 'position:absolute;left:39px;top:4px;color:#907824;font:bold 12px monospace;'
     label.textContent = getMessage('options', 300) ?? 'DONE'
@@ -106,7 +107,7 @@ function showPause(): void {
         else if (e.key === '-' || e.key === '_') changeBrightness(-1)
         else close()
     }
-    btn.onmousedown = () => { btn.style.backgroundImage = "url('art/intrface/lilreddn.png')" }
+    btn.onmousedown = () => { btn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilreddn.png') + "')" }
     btn.onclick = () => close()
     window.addEventListener('keydown', onKey, true)
     document.body.appendChild(overlay)

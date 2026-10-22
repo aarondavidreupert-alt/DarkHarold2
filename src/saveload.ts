@@ -36,6 +36,7 @@ import { getFileJSON } from './util.js'
 import { gameReset } from './gameReset.js'
 import { Worldmap } from './worldmap.js'
 import { beginMapFade, endMapFade } from './mapFade.js'
+import { deserializeSfallGlobals, serializeSfallGlobals } from './sfallGlobalScripts.js'
 
 // Saving and loading support
 
@@ -43,6 +44,7 @@ let db: IDBDatabase
 
 // Save game metadata + maps
 export interface SaveGame {
+    sfallGlobals?: [string, number][] // sfall global variables (sfallGlobalScripts.ts); older saves: none
     id?: number
     version: number
     name: string
@@ -213,6 +215,7 @@ function gatherSaveData(name: string): SaveGame {
             gvars: Object.assign({}, Scripting.getGlobalVars()),
         },
         mvars: Scripting.getMapVars(),
+        sfallGlobals: serializeSfallGlobals(), // CE loadsave.cc sfall_gl_vars_save
         knownAreas: [...globalState.knownAreas],
         areaStates: Worldmap.serializeAreaStates(),
         seenMovies: [...globalState.seenMovies],
@@ -385,6 +388,7 @@ export function load(id: number): void {
                 // Restore MVARs (map variables). Older saves lack this field; those
                 // will reset to the default .mvars.json values on first script run.
                 if (save.mvars !== undefined) Scripting.setMapVars(save.mvars)
+                deserializeSfallGlobals(save.sfallGlobals) // CE sfall_gl_vars_load
 
                 // Restore discovered worldmap areas.
                 if (Array.isArray(save.knownAreas)) globalState.knownAreas = new Set(save.knownAreas)
@@ -496,6 +500,7 @@ export function load(id: number): void {
                 drawAC(p.getStat('AC'))
                 uiDrawWeapon()
 
+                Scripting.startSfallGlobalScripts() // CE loadsave.cc: sfall_gl_scr_exec_start_proc
                 dbg('saveload', '[SaveLoad] Finished loading map %s', savedMap.name)
                 endMapFade()
             }

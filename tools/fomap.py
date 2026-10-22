@@ -59,8 +59,29 @@ def blankTileMap():
     # 100x100 2D array
     return [[0]*100 for _ in range(100)]
 
+def dataFile(dataDir, path):
+    """path under dataDir; dataDir may be a list of data dirs, best first (a mod's
+    data/ over the vanilla one, tools/setup.py build_mods): the first that has it."""
+    dirs = [dataDir] if isinstance(dataDir, str) else dataDir
+    for d in dirs:
+        p = os.path.join(d, path)
+        if os.path.exists(p):
+            return p
+    return os.path.join(dirs[0], path)
+
+def getCritterProtoFID(protoPID):
+    """The FID in a critter's .pro (offset 8), or None."""
+    try:
+        lst = readLst(DATA_DIR, "proto/critters/critters.lst")
+        name = lst[(protoPID & 0xffff) - 1].decode('ascii').split()[0]
+        with open(dataFile(DATA_DIR, "proto/critters/" + name), "rb") as f:
+            f.seek(8)
+            return readU32(f)
+    except (IndexError, OSError, UnicodeDecodeError):
+        return None
+
 def getProSubType(path):
-    with open(os.path.join(DATA_DIR, path), "rb") as f:
+    with open(dataFile(DATA_DIR, path), "rb") as f:
         f.seek(0x20)
         return readU32(f)
 
@@ -323,6 +344,15 @@ def parseObject(f, lstFiles: dict[str, list[bytes]]):
 
     elif objType == 1: # critter
         namedType = "critter"
+        if (frmPID & 0xfff) >= len(lstFiles["critters"]):
+            # a FID past critters.lst (UPU's reddown peasant): CE artExists fails and
+            # draws nothing; DH2 needs an image for every critter, so it takes the one
+            # its proto has (a deliberate deviation, wiki/upu_support.md)
+            protoFID = getCritterProtoFID(protoPID)
+            print("WARNING: critter FID 0x%x is past critters.lst (%d entries) - using the proto's 0x%x"
+                  % (frmPID, len(lstFiles["critters"]), protoFID if protoFID is not None else -1))
+            if protoFID is not None and (protoFID & 0xfff) < len(lstFiles["critters"]):
+                frmPID = protoFID
         art = stripExt(getCritterArtPath(frmPID, lstFiles["critters"]))
 
         f.read(4*4)
@@ -410,7 +440,11 @@ def parseObject(f, lstFiles: dict[str, list[bytes]]):
     #if "artPath" in extra:
     #    obj["art"] = extra["artPath"].lower()
 
-    if scriptID != -1:
+    if scriptID != -1 and (scriptID & 0xffffff) >= len(lstFiles["scripts"]):
+        # past the end of scripts.lst: CE scriptsGetFileName fails and the object runs
+        # no script (as for map scripts, parseMapScripts)
+        print("WARNING: object script index %d is past scripts.lst (%d entries) - no script" % (scriptID, len(lstFiles["scripts"])))
+    elif scriptID != -1:
         scriptName = stripExt(lstFiles["scripts"][scriptID].decode('ascii').split()[0])
         obj["script"] = scriptName
     elif scriptID == -1 and mapPID != 0xFFFFFFFF:
@@ -499,7 +533,7 @@ def parseMap(f: BufferedReader, lstFiles: dict[str, list[bytes]]):
            }
 
 def readLst(dataDir, path):
-    with open(os.path.join(dataDir, path), "rb") as f:
+    with open(dataFile(dataDir, path), "rb") as f:
         return [x.rstrip() for x in list(f)]
 
 def getImageList(map):
@@ -515,7 +549,7 @@ def getImageList(map):
 
     return list(images)
 
-def exportMap(dataDir: str, mapFile: str, outFile: str, verbose=False):
+def exportMap(dataDir, mapFile: str, outFile: str, verbose=False):
     global DATA_DIR
 
     DATA_DIR = dataDir # TODO: make this not global

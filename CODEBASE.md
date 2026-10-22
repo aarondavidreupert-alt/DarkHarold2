@@ -22,6 +22,9 @@ DarkHarold2/
 ├── maps/            Extracted map JSON + per-map image lists (*.json, *.images.json)
 ├── lib/             Third-party JS (pathfinding-browser.js, wasmoon/ — Lua 5.4 in WebAssembly, MIT)
 ├── audio/           Extracted WAV audio (music/ and sfx/) — git-ignored
+├── mods/            Mod folders (git-ignored but mods_order.txt): Lua mods (mods/<name>/scripts/), and the
+│                    ones build_mods makes from the install's mods (mods/upu/ + manifest.json, modAssets.ts)
+├── third_party/     Optional reference sources (git-ignored): UPU's scripts_src, sfall's scripting headers
 ├── art/             Extracted PNG sprites — git-ignored
 ├── proto/           Extracted proto JSON — git-ignored
 ├── tools/           Asset pipeline (Python 3) — moved here from repo root 2026-06-18
@@ -144,7 +147,11 @@ Three-file split — understand this before touching any opcode:
 | `src/vm_bridge.ts` | `bridgeOpMap`: maps ~118 bytecode opcode values to `Script` methods via `bridged(procName, argc)` factory (245 lines) | `scripts.cc` (opcode table) |
 | `src/scripting.ts` | `Script` class: one method per FO2 script intrinsic, TimedEvent system, GVAR/LVAR/MVAR access, all hook entry points (~2263 lines) | `scripts.cc`, `script_list.cc` |
 | `src/sfallArrays.ts` | sfall arrays (list / associative, temporary arrays freed per game tick) for the Unofficial Patch's scripts ([wiki/upu_support.md](wiki/upu_support.md)) | `sfall_arrays.cc`, `sfall_lists.cc` |
-| `src/sfallIni.ts` | `get_ini_setting`: reads `file\|section\|key` from the install's ini files the pipeline copied to `data/` | `sfall_ini.cc` |
+| `src/sfallIni.ts` | `get_ini_setting` / `set_ini_setting`: reads `file\|section\|key` from the install's ini files the pipeline copied (`data/ddraw.ini`, a mod's `data/mods/<mod>.ini`) | `sfall_ini.cc` |
+| `src/sfallGlobalScripts.ts` | sfall global scripts (the active mods' `gl*.int`: start, repeat, type, map procedures, `game_loaded`) and sfall global variables (saved) | `sfall_global_scripts.cc`, `sfall_global_vars.cc` |
+| `src/sfallHooks.ts` | sfall hook scripts (`register_hook_proc`, `get_sfall_arg`, `set_sfall_return`; `HOOK_INVENTORYMOVE`, `HOOK_GAMEMODECHANGE`) and `get_game_mode` flags | — (DH2 addition after sfall `HookScripts.cpp`) |
+| `src/sfallFs.ts` | sfall's virtual files (`fs_copy`, `fs_seek`, `fs_read_*`, `fs_write_*`); an art FRM header edits the image's fps | — (DH2 addition after sfall `FileSystem.cpp`) |
+| `src/modAssets.ts` | Mod asset overlay: `assetUrl(path)` picks the highest-priority active mod folder (`mods/<name>/manifest.json`) that has a file; merges `art/imageMap.json` / `proto/pro.json`; rewrites overridden `ui.css` images | — (DH2 addition after sfall's `mods_order.txt`) |
 | `src/transpiler.ts` | INT file disassembler / transpiler (produces debug output) | — |
 | `src/intfile.ts` | `.INT` binary parser: procedure table, code section, string pool | — |
 | `src/lua/luaRuntime.ts` | Lua script backend: starts wasmoon (`lib/wasmoon/`), `attachLuaScript` gives a `Script` one method per Lua procedure; `[dh2] script_backend=lua` ([wiki/lua_scripts.md](wiki/lua_scripts.md)) | — (DH2 addition) |

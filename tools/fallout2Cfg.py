@@ -116,7 +116,7 @@ object_sort=ce-dh2
 ; game scripts: lua = the decompiled data/scripts/*.lua (tools/int2lua.py; a script
 ; without one runs its .int), vm = the .int bytecode
 script_backend=lua
-; Lua mods in load order, e.g. mods=a,b (mods/<name>/scripts/*.lua; a later one wins); empty = mods/mods_order.txt
+; mods in load order, e.g. mods=upu,b (folders under mods/; a later one wins); empty = mods/mods_order.txt
 mods=
 ; 1 = the decompiled scripts fix a few Black Isle bugs as the sources meant (wiki/lua_scripts.md "Script fixes"), 0 = keep the original behaviour
 script_fixes=1
@@ -137,9 +137,12 @@ DEFAULT_MODS_ORDER = r"""; mods_order.txt - DarkHarold2 mod load order (sfall's 
 ; One mod per line, loaded top to bottom; a later line takes priority over an earlier one.
 ; ';' or '#' starts a comment - put one in front of a line to switch that mod off.
 ;
-; Lua script mods: a folder name under mods/ (mods/<name>/scripts/<script>.lua replaces the
-; generated data/scripts/<script>.lua). fallout2.cfg [dh2] mods=a,b overrides this file.
-; Data mods (.dat, e.g. upu.dat) are for the asset pipeline - see wiki/upu_support.md.
+; Each line names a folder under mods/:
+; - a mod the pipeline built from your install's mods (build_mods: mods/upu/ from the
+;   Unofficial Patch's mods/upu.dat, with a manifest.json) - its files replace the game's;
+; - a Lua script mod: mods/<name>/scripts/<script>.lua replaces data/scripts/<script>.lua.
+; The pipeline adds the mods it builds at the end. fallout2.cfg [dh2] mods=a,b overrides
+; this file. See wiki/upu_support.md.
 """
 
 

@@ -22,6 +22,7 @@ import { font2, font3 } from '../ui_font.js'
 import { getValidPerks, getPerkRank, applyPerk } from '../perks.js'
 import { PERK_IMG, TRAIT_DESCRIPTIONS, TRAIT_IMG, TRAITS } from './descriptions.js'
 import { getMessage } from '../util.js'
+import { assetUrl } from '../modAssets.js'
 
 // ── Perk Selection Modal ──────────────────────────────────────────────────────
 // Shown when player.pendingPerkPick is true after level-up.
@@ -96,7 +97,7 @@ function showPickList(title: string | null, items: PickItem[], onDone: (name: st
     const box = document.createElement('div')
     Object.assign(box.style, {
         position: 'relative',
-        backgroundImage: "url('art/intrface/perkwin.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/perkwin.png') + "')",
         backgroundRepeat: 'no-repeat',
         backgroundSize: '573px 230px',
         width: '573px',
@@ -186,7 +187,7 @@ function showPickList(title: string | null, items: PickItem[], onDone: (name: st
         cardImgEl.style.visibility = 'hidden'
         const imgPath = def.img
         if (imgPath) {
-            cardImgEl.src = imgPath
+            cardImgEl.src = assetUrl(imgPath)
         } else {
             cardImgEl.src = ''
         }
@@ -198,14 +199,14 @@ function showPickList(title: string | null, items: PickItem[], onDone: (name: st
         position: 'absolute',
         left: '159px', top: '187px',
         width: '15px', height: '16px',
-        backgroundImage: "url('art/intrface/lilredup.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/lilredup.png') + "')",
         backgroundRepeat: 'no-repeat', backgroundSize: '15px 16px',
         opacity: '0.4',
         pointerEvents: 'none',
         zIndex: '1',
     })
-    doneBtn.onmousedown = () => { doneBtn.style.backgroundImage = "url('art/intrface/lilreddn.png')" }
-    doneBtn.onmouseup = doneBtn.onmouseleave = () => { doneBtn.style.backgroundImage = "url('art/intrface/lilredup.png')" }
+    doneBtn.onmousedown = () => { doneBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilreddn.png') + "')" }
+    doneBtn.onmouseup = doneBtn.onmouseleave = () => { doneBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilredup.png') + "')" }
     doneBtn.onclick = () => {
         if (!selectedPerk) return
         overlay.remove()
@@ -227,13 +228,13 @@ function showPickList(title: string | null, items: PickItem[], onDone: (name: st
         position: 'absolute',
         left: '47px', top: '187px',
         width: '15px', height: '16px',
-        backgroundImage: "url('art/intrface/lilredup.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/lilredup.png') + "')",
         backgroundRepeat: 'no-repeat', backgroundSize: '15px 16px',
         cursor: 'pointer',
         zIndex: '1',
     })
-    cancelBtn.onmousedown = () => { cancelBtn.style.backgroundImage = "url('art/intrface/lilreddn.png')" }
-    cancelBtn.onmouseup = cancelBtn.onmouseleave = () => { cancelBtn.style.backgroundImage = "url('art/intrface/lilredup.png')" }
+    cancelBtn.onmousedown = () => { cancelBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilreddn.png') + "')" }
+    cancelBtn.onmouseup = cancelBtn.onmouseleave = () => { cancelBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilredup.png') + "')" }
     cancelBtn.onclick = () => { overlay.remove(); onCancel() }
     box.appendChild(cancelBtn)
 

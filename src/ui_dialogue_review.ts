@@ -29,6 +29,7 @@ limitations under the License.
 import { makePanelDraggable } from './ui_drag.js'
 import { Scripting } from './scripting.js'
 import { getUiContainer } from './ui_panels.js'
+import { assetUrl } from './modAssets.js'
 
 const SCROLL_STEP_PX = 32
 
@@ -52,7 +53,7 @@ export function uiShowDialogueReview(): void {
         height: '480px',
         zIndex: '950',
         // CE ref: game_dialog.cc:1314-1321 — FRM 102 (review.frm).
-        backgroundImage: "url('art/intrface/review.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/review.png') + "')",
         backgroundSize: '100% 100%',
         imageRendering: 'pixelated',
     })
@@ -103,12 +104,12 @@ export function uiShowDialogueReview(): void {
         width: '35px',
         height: '35px',
         cursor: 'pointer',
-        backgroundImage: "url('art/intrface/di_bgup1.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/di_bgup1.png') + "')",
         backgroundSize: '100% 100%',
     })
-    scrollUpBtn.addEventListener('mousedown', () => { scrollUpBtn.style.backgroundImage = "url('art/intrface/di_bgup2.png')" })
-    scrollUpBtn.addEventListener('mouseup', () => { scrollUpBtn.style.backgroundImage = "url('art/intrface/di_bgup1.png')" })
-    scrollUpBtn.addEventListener('mouseleave', () => { scrollUpBtn.style.backgroundImage = "url('art/intrface/di_bgup1.png')" })
+    scrollUpBtn.addEventListener('mousedown', () => { scrollUpBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/di_bgup2.png') + "')" })
+    scrollUpBtn.addEventListener('mouseup', () => { scrollUpBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/di_bgup1.png') + "')" })
+    scrollUpBtn.addEventListener('mouseleave', () => { scrollUpBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/di_bgup1.png') + "')" })
     scrollUpBtn.addEventListener('click', () => { list.scrollTop -= SCROLL_STEP_PX })
     panel.appendChild(scrollUpBtn)
 
@@ -120,12 +121,12 @@ export function uiShowDialogueReview(): void {
         width: '35px',
         height: '37px',
         cursor: 'pointer',
-        backgroundImage: "url('art/intrface/di_bgdn1.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/di_bgdn1.png') + "')",
         backgroundSize: '100% 100%',
     })
-    scrollDownBtn.addEventListener('mousedown', () => { scrollDownBtn.style.backgroundImage = "url('art/intrface/di_bgdn2.png')" })
-    scrollDownBtn.addEventListener('mouseup', () => { scrollDownBtn.style.backgroundImage = "url('art/intrface/di_bgdn1.png')" })
-    scrollDownBtn.addEventListener('mouseleave', () => { scrollDownBtn.style.backgroundImage = "url('art/intrface/di_bgdn1.png')" })
+    scrollDownBtn.addEventListener('mousedown', () => { scrollDownBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/di_bgdn2.png') + "')" })
+    scrollDownBtn.addEventListener('mouseup', () => { scrollDownBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/di_bgdn1.png') + "')" })
+    scrollDownBtn.addEventListener('mouseleave', () => { scrollDownBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/di_bgdn1.png') + "')" })
     scrollDownBtn.addEventListener('click', () => { list.scrollTop += SCROLL_STEP_PX })
     panel.appendChild(scrollDownBtn)
 
@@ -139,7 +140,7 @@ export function uiShowDialogueReview(): void {
         width: '82px',
         height: '46px',
         cursor: 'pointer',
-        backgroundImage: "url('art/intrface/di_done1.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/di_done1.png') + "')",
         backgroundSize: '100% 100%',
     })
 
@@ -148,9 +149,9 @@ export function uiShowDialogueReview(): void {
         document.removeEventListener('keydown', keyHandler, true)
     }
 
-    doneBtn.addEventListener('mousedown', () => { doneBtn.style.backgroundImage = "url('art/intrface/di_done2.png')" })
-    doneBtn.addEventListener('mouseup', () => { doneBtn.style.backgroundImage = "url('art/intrface/di_done1.png')" })
-    doneBtn.addEventListener('mouseleave', () => { doneBtn.style.backgroundImage = "url('art/intrface/di_done1.png')" })
+    doneBtn.addEventListener('mousedown', () => { doneBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/di_done2.png') + "')" })
+    doneBtn.addEventListener('mouseup', () => { doneBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/di_done1.png') + "')" })
+    doneBtn.addEventListener('mouseleave', () => { doneBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/di_done1.png') + "')" })
     doneBtn.addEventListener('click', close)
     panel.appendChild(doneBtn)
 

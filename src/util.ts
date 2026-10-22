@@ -20,6 +20,7 @@ import { loadMessage } from './data.js'
 import globalState from './globalState.js'
 import { dbgWarn } from './logger.js'
 import { randomBetween } from './random.js'
+import { assetUrl } from './modAssets.js'
 
 // Utility functions
 
@@ -27,7 +28,7 @@ import { randomBetween } from './random.js'
 export function fileExistsSync(path: string): boolean {
     try {
         const xhr = new XMLHttpRequest()
-        xhr.open('HEAD', path, false)
+        xhr.open('HEAD', assetUrl(path), false)
         xhr.send()
         return xhr.status >= 200 && xhr.status < 300
     } catch (_) {
@@ -67,7 +68,7 @@ export function parseIni(text: string) {
 
 export function getFileText(path: string, err?: () => void): string {
     const xhr = new XMLHttpRequest()
-    xhr.open('GET', path, false)
+    xhr.open('GET', assetUrl(path), false) // an active mod's copy first (modAssets.ts)
     xhr.send(null)
     if (xhr.status !== 200) throw Error(`getFileText: got status ${xhr.status} when requesting '${path}'`)
 
@@ -81,7 +82,7 @@ export function getFileJSON(path: string, err?: () => void): any {
 // GET binary data into a DataView
 function getFileBinaryAsync(path: string, callback: (data: DataView) => void) {
     const xhr = new XMLHttpRequest()
-    xhr.open('GET', path, true)
+    xhr.open('GET', assetUrl(path), true)
     xhr.responseType = 'arraybuffer'
     xhr.onload = (evt) => {
         callback(new DataView(xhr.response))
@@ -95,7 +96,7 @@ export function getFileBinarySync(path: string) {
     // so we transfer as a user-defined charset and then decode it manually.
 
     const xhr = new XMLHttpRequest()
-    xhr.open('GET', path, false)
+    xhr.open('GET', assetUrl(path), false)
     // Tell browser not to mess with the response type/encoding
     xhr.overrideMimeType('text/plain; charset=x-user-defined')
     xhr.send(null)

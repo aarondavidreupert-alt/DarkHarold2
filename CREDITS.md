@@ -35,8 +35,10 @@ are on the linked pages.
   is kept in `third_party/` (not committed).
 - **sfall** — Timeslip and many other contributors, now maintained by the sfall team: NovaRain,
   phobos2077, FakelsHub, vlad-saritasa, Vennor, burner1024, wipe2238 and others
-  (<https://github.com/sfall-team/sfall>). The engine extension UPU builds on; its opcodes and
-  `mods_order.txt` rules are the reference for DH2's mod support.
+  (<https://github.com/sfall-team/sfall>). The engine extension UPU builds on; its opcodes, hook
+  scripts (`HookScripts.cpp`, `hookscripts.md`), virtual file system (`FileSystem.cpp`) and
+  `mods_order.txt` rules are the reference for DH2's mod support (reimplemented from the documented
+  behaviour, no sfall code copied; its scripting headers are kept in `third_party/`, not committed).
 - **UPU's companion mods**, linked from its readme: High quality music, Hero Appearance, Party Orders,
   NPC armor, FO2tweaks, Cassidy talking head (BGforge), and Inventory Filter (rotators,
   <https://github.com/rotators/InventoryFilter>).

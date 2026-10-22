@@ -21,6 +21,7 @@ import { Point } from './geometry.js'
 import { dbgWarn } from './logger.js'
 import { CSSBoundingBox, Widget } from './ui_widget.js'
 import { getUiContainer } from './ui_panels.js'
+import { assetUrl } from './modAssets.js'
 
 export class WindowFrame {
     children: Widget[] = []
@@ -42,7 +43,7 @@ export class WindowFrame {
             top: `${position.y}px`,
             width: `${width}px`,
             height: `${height}px`,
-            backgroundImage: `url('${background}')`,
+            backgroundImage: `url('${assetUrl(background)}')`,
         })
 
         if (children) {

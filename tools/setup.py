@@ -65,7 +65,7 @@ import fallout2Cfg
 # global paths/flags
 SRC_DIR = None
 NO_EXTRACT_DAT = False
-NO_MODS = False  # --no-mods: only master.dat / critter.dat / patchXXX.dat (the vanilla game)
+NO_MODS = False  # --no-mods: build no mod folders (build_mods), the vanilla game only
 
 # Mod archives the pipeline never reads, though an install may have them: sfall's own
 # resources (sfall.dat: its item-highlighting and NPC-control scripts and replacement
@@ -164,114 +164,288 @@ def extract_dats(overwrite=True):
 		info("Extracting critter.dat...")
 		extract_dat(os.path.join(SRC_DIR, "critter.dat"))
 
-		# what the game loads over them, lowest priority first, each overwriting the files
-		# before it (install_overlays); which archive each file came from goes to
-		# data/mod_sources.json
-		sources = {}
-		for label, kind, path in install_overlays():
-			info("Extracting %s..." % label)
-			for name in (overlay_dat(path) if kind == "dat" else overlay_dir(path)):
-				sources[name] = label
-		for name in copy_install_inis():
-			sources[name] = "install"
-		if sources:
-			with open(os.path.join("data", "mod_sources.json"), "w", encoding="utf-8") as fh:
-				json.dump(dict(sorted(sources.items())), fh, indent=0)
-			info("%d files from patches / mods (data/mod_sources.json)" % len(sources))
-		elif os.path.exists(os.path.join("data", "mod_sources.json")):
-			os.remove(os.path.join("data", "mod_sources.json"))
+		# Black Isle's patches, which CE loads over them (game.cc gameInit,
+		# "patch%03d.dat"); sfall's mods/ become mod folders (build_mods)
+		for i in range(100):
+			p = os.path.join(SRC_DIR, "patch%03d.dat" % i)
+			if os.path.isfile(p):
+				info("Extracting patch%03d.dat..." % i)
+				overlay_dat(p, "data")
+		# sfall's own settings file, read by get_ini_setting("ddraw.ini|...")
+		if not NO_MODS and os.path.isfile(os.path.join(SRC_DIR, "ddraw.ini")):
+			shutil.copyfile(os.path.join(SRC_DIR, "ddraw.ini"), os.path.join("data", "ddraw.ini"))
+		stale = os.path.join("data", "mod_sources.json")  # written by an older pipeline
+		if os.path.exists(stale):
+			os.remove(stale)
 
 		info("Done extracting DAT archives.")
 
 	return True
 
-def install_overlays():
-	"""[(label, "dat" | "dir", path)] the install loads over master.dat / critter.dat,
-	lowest priority first: patch000.dat ... patch099.dat (CE game.cc gameInit,
-	"patch%03d.dat"), then sfall's mods/mods_order.txt top to bottom, a later line winning
-	(sfall LoadOrder.cpp; ddraw.ini: master_patches > critter_patches > mods_order.txt >
-	PatchFileXX > patchXXX.dat > sfall.dat > critter.dat > f2_res > master.dat).
-	SKIPPED_MOD_ARCHIVES are left out, and with --no-mods everything after patchXXX.dat.
-	The install's loose data/ folder (CE master_patches) is not read: it holds the music
-	and save games, which the pipeline takes elsewhere."""
-	out = []
-	for i in range(100):
-		p = os.path.join(SRC_DIR, "patch%03d.dat" % i)
-		if os.path.isfile(p):
-			out.append(("patch%03d.dat" % i, "dat", p))
-	if NO_MODS:
-		return out
+def install_mods():
+	"""[(name, label, "dat" | "dir", path)] the install's sfall mods in load order, lowest
+	priority first: mods/mods_order.txt top to bottom, a later line winning, a name listed
+	twice counting at its last line (sfall LoadOrder.cpp; ddraw.ini: master_patches >
+	critter_patches > mods_order.txt > PatchFileXX > patchXXX.dat > sfall.dat >
+	critter.dat > f2_res > master.dat). SKIPPED_MOD_ARCHIVES are left out. `name` is the
+	mod folder build_mods writes: the archive's or folder's name without extension."""
 	order = os.path.join(SRC_DIR, "mods", "mods_order.txt")
-	if not os.path.isfile(order):
-		return out
+	if NO_MODS or not os.path.isfile(order):
+		return []
 	seen = []
 	with open(order, encoding="latin-1") as fh:
 		for line in fh:
 			entry = re.split(r"[;#]", line, 1)[0].strip()
 			if entry:
 				seen.append(entry)
-	# a name listed twice counts at its last line (LoadOrder.cpp keeps the last occurrence)
 	entries = [e for i, e in enumerate(seen) if e not in seen[i + 1:]]
+	out = []
 	for entry in entries:
 		base = os.path.basename(entry.replace("\\", "/")).lower()
 		if base in SKIPPED_MOD_ARCHIVES:
 			info("Skipping mods/%s: %s" % (entry, SKIPPED_MOD_ARCHIVES[base]))
 			continue
+		name = re.sub(r"[^a-z0-9_.-]", "_", os.path.splitext(base)[0])
 		p = os.path.join(SRC_DIR, "mods", entry)
-		if os.path.isfile(p) and entry.lower().endswith(".dat"):
-			out.append(("mods/" + entry, "dat", p))
+		if os.path.isfile(p) and base.endswith(".dat"):
+			out.append((name, "mods/" + entry, "dat", p))
 		elif os.path.isdir(p):
-			out.append(("mods/" + entry, "dir", p))
+			out.append((name, "mods/" + entry, "dir", p))
 		else:
 			info("mods_order.txt: mods/%s not found, skipped" % entry)
 	return out
 
-def copy_install_inis():
-	"""Copy the install's ddraw.ini and mods/*.ini into data/ (same relative paths): scripts
-	read settings from them with sfall's get_ini_setting("mods\\upu.ini|main|wipe_inventory"),
-	resolved against the game folder (CE sfall_ini.cc; src/sfallIni.ts reads data/<file>).
-	Not with --no-mods. Returns the paths written."""
-	if NO_MODS:
-		return []
-	names = []
-	candidates = [("ddraw.ini", os.path.join(SRC_DIR, "ddraw.ini"))]
-	mods = os.path.join(SRC_DIR, "mods")
-	if os.path.isdir(mods):
-		for n in sorted(os.listdir(mods)):
-			if n.lower().endswith(".ini"):
-				candidates.append(("mods/" + n.lower(), os.path.join(mods, n)))
-	for rel, src in candidates:
-		if os.path.isfile(src):
-			out = os.path.join("data", rel)
-			os.makedirs(os.path.dirname(out) or "data", exist_ok=True)
-			shutil.copyfile(src, out)
-			names.append(rel)
-	return names
-
-def overlay_dat(path):
-	"""Extract one .dat over data/; returns the (lower-case) paths it wrote."""
+def overlay_dat(path, dest):
+	"""Extract one .dat into dest/ (paths lower-cased); returns the paths it wrote."""
 	names = []
 	with open(path, "rb") as f:
 		tree = dat2.readDAT(f, posixPaths=True)
 		for name, entry in tree.items():
-			out = os.path.join("data", name)
+			name = name.lower()
+			out = os.path.join(dest, name)
 			os.makedirs(os.path.dirname(out), exist_ok=True)
 			with open(out, "wb") as fp:
 				fp.write(dat2.readFile(f, entry))
-			names.append(name.lower())
+			names.append(name)
 	return names
 
-def overlay_dir(path):
-	"""Copy one mod folder over data/ (paths lower-cased, as in the .dat files)."""
+def overlay_dir(path, dest):
+	"""Copy one mod folder into dest/ (paths lower-cased, as in the .dat files)."""
 	names = []
 	for root, _dirs, files in os.walk(path):
 		for n in files:
 			rel = os.path.relpath(os.path.join(root, n), path).replace("\\", "/").lower()
-			out = os.path.join("data", rel)
+			out = os.path.join(dest, rel)
 			os.makedirs(os.path.dirname(out), exist_ok=True)
 			shutil.copyfile(os.path.join(root, n), out)
 			names.append(rel)
 	return names
+
+# Files a mod folder merges into the vanilla one instead of replacing it (they index
+# every image / proto; src/modAssets.ts MERGED_FILES)
+MOD_MERGED_FILES = ["art/imageMap.json", "proto/pro.json"]
+
+def build_mods(overwrite=True):
+	"""Each install mod (install_mods: the Unofficial Patch's mods/upu.dat, ...) becomes a
+	folder mods/<name>/ that mirrors the project layout, converted with the same
+	converters as the vanilla data, plus mods/<name>/manifest.json listing its files.
+	The engine loads a mod's file instead of the vanilla one while the mod is listed in
+	the project's mods/mods_order.txt (src/modAssets.ts) — the vanilla files are never
+	changed. Lookups a converter needs from files the mod does not have (a map's protos
+	and .lst files, a script's message texts) fall back to the mods below it, then the
+	vanilla data/. A DH2 addition after sfall's mods/ load order; wiki/upu_support.md."""
+	mods = install_mods()
+	if not mods:
+		info("No install mods to build (mods/mods_order.txt)" + (" - --no-mods" if NO_MODS else ""))
+		return True
+	lower = [os.path.join("data")]  # data dirs under the mod being built, best first
+	for name, label, kind, path in mods:
+		out = os.path.join("mods", name)
+		manifest = os.path.join(out, "manifest.json")
+		if os.path.isdir(out) and not os.path.exists(manifest):
+			warn("mods/%s exists and is not a pipeline-built mod (no manifest.json) - not touching it" % name)
+			continue
+		if not overwrite and os.path.exists(manifest):
+			info("Skipping mod %s - %s already exists" % (name, manifest))
+			lower.insert(0, os.path.join(out, "data"))
+			continue
+		if os.path.isdir(out):
+			shutil.rmtree(out)
+		info("Building mod folder mods/%s from %s..." % (name, label))
+		data = os.path.join(out, "data")
+		raw = overlay_dat(path, data) if kind == "dat" else overlay_dir(path, data)
+		# its settings: mods/<name>.ini next to the archive (get_ini_setting("mods\\upu.ini|..."))
+		ini = os.path.join(SRC_DIR, "mods", name + ".ini")
+		if os.path.isfile(ini):
+			os.makedirs(os.path.join(data, "mods"), exist_ok=True)
+			shutil.copyfile(ini, os.path.join(data, "mods", name + ".ini"))
+		build_mod_assets(out, data, lower, raw)
+		# the raw files the conversion replaced, which the engine never reads (as
+		# --delete-originals for the vanilla data; rebuilt from the archive on the next
+		# run). .pro / .lst / .gam stay: a later mod's build looks them up.
+		for r in raw:
+			if re.search(r"\.(frm|fr[0-5]|map|acm|pal)$", r):
+				try:
+					os.remove(os.path.join(data, r))
+				except OSError:
+					pass
+		for root, _dirs, _fs in os.walk(out, topdown=False):  # converters' empty output folders
+			if root != out and not os.listdir(root):
+				os.rmdir(root)
+		files, merge = [], []
+		for root, _dirs, fs in os.walk(out):
+			for n in fs:
+				rel = os.path.relpath(os.path.join(root, n), out).replace("\\", "/")
+				if rel == "manifest.json":
+					continue
+				(merge if rel in MOD_MERGED_FILES else files).append(rel)
+		with open(manifest, "w", encoding="utf-8") as fh:
+			json.dump({"name": name, "source": label, "generated": "tools/setup.py build_mods",
+				"files": sorted(files), "merge": sorted(merge)}, fh, indent=0)
+		info("mods/%s: %d files (%s)" % (name, len(files) + len(merge), manifest))
+		add_to_mods_order(name)
+		lower.insert(0, data)
+	return True
+
+def build_mod_assets(out, data, lower, raw):
+	"""Convert one mod's raw files (data = mods/<name>/data, `raw` the paths extracted
+	there) into mods/<name>/: the converters of the vanilla stages, run on the mod's
+	files only. `lower` lists the data dirs under it, best first."""
+	layers = [data] + lower
+	has = lambda prefix: any(r.startswith(prefix) for r in raw)
+	# images (the mod's own art; art/imageMap.json lists only them - merged at run time)
+	if any(r.startswith("art/") and re.search(r"\.fr[m0-5]$", r) for r in raw):
+		pal = next((p for p in (os.path.join(d, "color.pal") for d in layers) if os.path.exists(p)), None)
+		if pal is None:
+			warn("No color.pal - mod art not converted")
+		else:
+			info("  converting images...")
+			try:
+				exportImagesPar.convertAll(exportImagesPar.readPAL(pal), data, os.path.join(out, "art"))
+			except Exception:
+				traceback.print_exc()
+				warn("Error converting the mod's images (see traceback above).")
+	if any(re.match(r"font\d+\.(aaf|fon)$", r) for r in raw):
+		exportFonts.convert_all(data, os.path.join(out, "art", "fonts"), verbose=False)
+	# protos (proto/pro.json with the mod's protos only - merged at run time)
+	if has("proto/") and any(r.endswith(".pro") for r in raw):
+		info("  converting protos...")
+		exportPRO.extractPROs(os.path.join(data, "proto"), os.path.join(out, "proto"))
+		for sub in os.listdir(os.path.join(out, "proto")):  # extractPROs' empty per-type folders
+			d = os.path.join(out, "proto", sub)
+			if os.path.isdir(d) and not os.listdir(d):
+				os.rmdir(d)
+	# .lst files: each the whole list (a mod ships the full list with its additions)
+	if any(r.endswith(".lst") for r in raw):
+		convertLST.convert_lsts(data, os.path.join(out, "lut", "lst"))
+	# global and map variables
+	if any(r.endswith(".gam") for r in raw):
+		parse_gam.convert_gam(data, data, empty_for_maps_without_gam=False)
+	# maps: the mod's own, and every vanilla map whose conversion the mod's .lst / proto
+	# files change (fomap takes art names and object subtypes from them)
+	maps_out = os.path.join(out, "maps")
+	mod_maps = [r for r in raw if r.startswith("maps/") and r.endswith(".map")]
+	lookups_changed = any(r.endswith(".lst") or r.endswith(".pro") for r in raw)
+	if mod_maps or lookups_changed:
+		info("  converting maps...")
+		os.makedirs(maps_out, exist_ok=True)
+	for r in mod_maps:
+		mapName = os.path.splitext(os.path.basename(r))[0]
+		try:
+			fomap.exportMap(layers, os.path.join(data, r), os.path.join(maps_out, mapName + ".json"))
+		except Exception:
+			traceback.print_exc()
+			warn("Error converting the mod's map %s (see traceback above)." % r)
+		mvars = os.path.join(data, "maps", mapName + ".mvars.json")
+		if not os.path.exists(mvars) and not any(os.path.exists(os.path.join(d, "maps", mapName + ".mvars.json")) for d in lower):
+			with open(mvars, "w") as fh:  # a new map without a .gam (CE: no map vars)
+				json.dump({}, fh)
+	if lookups_changed:
+		mod_names = {os.path.splitext(os.path.basename(r))[0] for r in mod_maps}
+		vanilla = sorted(glob.glob(os.path.join("data", "maps", "*.map")))
+		if not vanilla:
+			warn("No data/maps/*.map (deleted originals?) - the vanilla maps are not checked against the mod's .lst / proto changes")
+		for mapFile in vanilla:
+			mapName = os.path.splitext(os.path.basename(mapFile))[0].lower()
+			current = os.path.join("maps", mapName + ".json")
+			if mapName in mod_names or not os.path.exists(current):
+				continue
+			target = os.path.join(maps_out, mapName + ".json")
+			try:
+				fomap.exportMap(layers, mapFile, target)
+			except Exception:
+				traceback.print_exc()
+				continue
+			# keep it only where the mod changes the result (the image list is a set: fomap
+			# writes it in no fixed order)
+			for ext in (".json", ".images.json"):
+				a, b = os.path.join(maps_out, mapName + ext), os.path.join("maps", mapName + ext)
+				if not (os.path.exists(a) and os.path.exists(b)):
+					continue
+				if ext == ".images.json":
+					same = set(json.load(open(a))) == set(json.load(open(b)))
+				else:
+					same = open(a, "rb").read() == open(b, "rb").read()
+				if same:
+					os.remove(a)
+		if os.path.isdir(maps_out) and not os.listdir(maps_out):
+			os.rmdir(maps_out)
+	# endgame slides / death endings
+	if any(re.search(r"(^|/)(endgame|enddeath)\.txt$|art/intrface/intrface\.lst$", r) for r in raw):
+		tmp = os.path.join(out, "_endgame")
+		for rel in ("data/endgame.txt", "data/enddeath.txt", "art/intrface/intrface.lst"):
+			src = next((p for p in (os.path.join(d, rel) for d in layers) if os.path.exists(p)), None)
+			if src:
+				os.makedirs(os.path.dirname(os.path.join(tmp, rel)), exist_ok=True)
+				shutil.copyfile(src, os.path.join(tmp, rel))
+		os.makedirs(os.path.join(out, "lut"), exist_ok=True)
+		convertEndgame.convert_endgame(tmp, os.path.join(out, "lut"))
+		shutil.rmtree(tmp)
+	# sound effects, music, speech, movies (need ffmpeg, as the vanilla stages)
+	ffmpeg = convertMovies.findFfmpeg()
+	if (has("sound/") or has("art/cuts/")) and ffmpeg is None:
+		warn("ffmpeg not found - the mod's sound / movies are not converted")
+	elif ffmpeg is not None:
+		if os.path.isdir(os.path.join(data, "sound", "sfx")):
+			info("  converting sound effects...")
+			convertAudio.convertSfxDir(ffmpeg, os.path.join(data, "sound", "sfx"), os.path.join(out, "audio", "sfx"))
+		if os.path.isdir(os.path.join(data, "sound", "music")):
+			convertAudio.convertMusicDir(ffmpeg, os.path.join(data, "sound", "music"), os.path.join(out, "audio", "music"))
+		if os.path.isdir(os.path.join(data, "sound", "speech")):
+			convertSpeech.convertAll(os.path.join(data, "sound", "speech"), os.path.join(out, "audio", "speech"))
+		if os.path.isdir(os.path.join(data, "art", "cuts")):
+			convertMovies.convertAll(os.path.join(data, "art", "cuts"), os.path.join(out, "art", "cuts"))
+	# scripts: Lua next to the mod's .int; names from the UPU sources when fetched
+	paths = sorted(glob.glob(os.path.join(data, "scripts", "*.int")))
+	if paths:
+		info("  decompiling %d scripts..." % len(paths))
+		done, rows = 0, []
+		for path in paths:
+			try:
+				text = int2lua.decompile_file(path, rows, base=lower, mod=True)
+			except Exception as e:
+				info("  %s stays bytecode: %s" % (os.path.basename(path), e))
+				continue
+			with open(os.path.splitext(path)[0] + ".lua", "w", encoding="utf-8", newline="\n") as fh:
+				fh.write(text)
+			done += 1
+		info("  decompiled %d of %d scripts" % (done, len(paths)))
+		if rows:
+			int2lua.write_report(os.path.join(data, "scripts", "variable_names.tsv"), rows)
+
+def add_to_mods_order(name):
+	"""Lists a built mod in the project's mods/mods_order.txt (at the end: the highest
+	priority), unless a line already names it, commented out or not."""
+	path = os.path.join("mods", "mods_order.txt")
+	lines = open(path, encoding="utf-8").read().splitlines() if os.path.exists(path) else []
+	for line in lines:
+		if re.sub(r"^[;#\s]+", "", line).split(";")[0].split("#")[0].strip().lower() == name:
+			return
+	lines.append(name)
+	os.makedirs("mods", exist_ok=True)
+	with open(path, "w", encoding="utf-8", newline="\n") as fh:
+		fh.write("\n".join(lines) + "\n")
+	info("Added %s to mods/mods_order.txt" % name)
 
 def export_images(overwrite=True):
 	if not overwrite and os.path.exists("art") and os.listdir("art"):
@@ -537,6 +711,7 @@ STAGES = {
 	"convert_gam": convert_gam_vars,
 	"decompile_scripts": decompile_scripts,
 	"write_config": write_config,
+	"build_mods": build_mods,
 }
 
 # Stages run by default when --stages is not given. export_audio is opt-in
@@ -545,6 +720,13 @@ DEFAULT_STAGES = [s for s in STAGES if s != "export_audio"]
 
 def main():
 	global SRC_DIR, NO_EXTRACT_DAT, NO_EXPORT_IMAGES, NO_MODS
+	# a converter's non-ASCII message must not end the run when the output is a
+	# file or pipe in a legacy code page (the GUI, a redirected log)
+	for stream in (sys.stdout, sys.stderr):
+		try:
+			stream.reconfigure(errors="replace")
+		except AttributeError:
+			pass
 
 	import argparse
 	parser = argparse.ArgumentParser(description="Import Fallout 2 game data into DarkHarold2's pre-baked asset format.")
@@ -552,7 +734,7 @@ def main():
 	parser.add_argument("--no-extract-dat", action="store_true", help="Skip extracting master.dat/critter.dat (use existing data/)")
 	parser.add_argument("--no-export-images", action="store_true", help="Skip FRM-to-PNG image export")
 	parser.add_argument("--no-mods", action="store_true",
-		help="Ignore the install's mods/mods_order.txt (e.g. the Unofficial Patch): extract the vanilla game")
+		help="Build no mod folders from the install's mods/mods_order.txt (e.g. the Unofficial Patch): the vanilla game only")
 	parser.add_argument("--stages", default=None,
 		help="Comma-separated list of stages to run (default: all except export_audio). "
 		     "Choices: " + ",".join(STAGES))

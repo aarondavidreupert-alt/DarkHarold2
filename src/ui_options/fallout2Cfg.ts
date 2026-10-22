@@ -129,7 +129,7 @@ export function applyCfg(cfg: CfgSections): void {
     //   script_fixes=0  the decompiled scripts keep the original bugs (default 1, SCRIPT_FIXES)
     const sf = int(dh2['script_fixes'])
     if (sf !== null) Config.scripting.scriptFixes = sf !== 0
-    //   mods=a,b  Lua mods in load order (mods/<name>/scripts/*.lua; later ones win)
+    //   mods=a,b  mods in load order (folders under mods/: built asset mods, Lua mods; later ones win)
     // (empty: mods/mods_order.txt decides, loadModsOrder)
     if (dh2['mods'] !== undefined && dh2['mods'].trim() !== '') Config.scripting.mods = parseModList(dh2['mods'])
     //   pixel_font=0  UI text in the browser font instead of the Fallout pixel font (default 1)
@@ -200,11 +200,12 @@ export function loadFallout2Cfg(path = 'fallout2.cfg'): boolean {
     return true
 }
 
-/** mods/mods_order.txt — the Lua mods in load order, in sfall's mods_order.txt format
+/** mods/mods_order.txt — the mods in load order, in sfall's mods_order.txt format
  *  (sfall LoadOrder.cpp GetExtraPatches): one entry per line, top to bottom, a later
  *  line taking priority; `;` or `#` starts a comment; blank lines skipped. Entries are
- *  folder names under mods/ (mods/<name>/scripts/*.lua); `.dat` entries are data mods
- *  for the asset pipeline (wiki/upu_support.md) and are skipped here. fallout2.cfg
+ *  folder names under mods/: Lua mods (mods/<name>/scripts/*.lua) and the asset folders
+ *  the pipeline builds from an install's mods (mods/<name>/manifest.json, modAssets.ts);
+ *  `.dat` entries name archives, not folders, and are skipped (wiki/upu_support.md). fallout2.cfg
  *  [dh2] mods= overrides the file when set. DH2 addition. Returns false if the file
  *  is missing. */
 export function loadModsOrder(path = 'mods/mods_order.txt'): boolean {
@@ -219,7 +220,10 @@ export function loadModsOrder(path = 'mods/mods_order.txt'): boolean {
         const line = raw.replace(/[;#].*$/, '').trim()
         if (line === '' || /\.dat$/i.test(line)) continue
         const [name] = parseModList(line)
-        if (name !== undefined && !mods.includes(name)) mods.push(name)
+        if (name === undefined) continue
+        // a name listed twice counts at its last line (sfall LoadOrder.cpp)
+        if (mods.includes(name)) mods.splice(mods.indexOf(name), 1)
+        mods.push(name)
     }
     Config.scripting.mods = mods
     dbg('load', `${path}: ${mods.length ? mods.join(', ') : 'no Lua mods'}`)

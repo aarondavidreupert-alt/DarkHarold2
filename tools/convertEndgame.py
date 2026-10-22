@@ -95,7 +95,13 @@ def convert_endgame(data_dir='data', lut_dir='lut'):
     lst_path = os.path.join(data_dir, 'art', 'intrface', 'intrface.lst')
     intrface_lst = read_lst(lst_path)
 
-    endgame_path = os.path.join(data_dir, 'endgame.txt')
+    # the DATs keep them in data\ (CE endgame.cc "data\endgame.txt"), i.e.
+    # data/data/endgame.txt after extraction
+    def data_txt(name):
+        nested = os.path.join(data_dir, 'data', name)
+        return nested if os.path.exists(nested) else os.path.join(data_dir, name)
+
+    endgame_path = data_txt('endgame.txt')
     if os.path.exists(endgame_path):
         endings = parse_endgame(endgame_path, intrface_lst)
         out = os.path.join(lut_dir, 'endgame.json')
@@ -105,7 +111,7 @@ def convert_endgame(data_dir='data', lut_dir='lut'):
     else:
         print(f'Warning: {endgame_path} not found, skipping endgame.json')
 
-    enddeath_path = os.path.join(data_dir, 'enddeath.txt')
+    enddeath_path = data_txt('enddeath.txt')
     if os.path.exists(enddeath_path):
         death_endings = parse_enddeath(enddeath_path)
         out = os.path.join(lut_dir, 'enddeath.json')

@@ -16,6 +16,7 @@ import globalState from './globalState.js'
 import { Config } from './config.js'
 import { dbg } from './logger.js'
 import { parsePNGCycleMask } from './colorCycle.js'
+import { assetUrl } from './modAssets.js'
 
 // CE ref: cycle.cc — cycling palette entries only appear in tiles, scenery, and misc art.
 // Critters, interfaces, items, heads, and skilldex never use indices 229-254.
@@ -64,7 +65,7 @@ export function lazyLoadImage(art: string, callback?: (x: HTMLImageElement) => v
         failedArt.add(art)
         delete globalState.lazyAssetLoadingQueue[art]
     }
-    img.src = art + '.png'
+    img.src = assetUrl(art + '.png')
 
     ensureCycleMask(art)
 }

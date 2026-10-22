@@ -28,6 +28,7 @@ import { Config } from '../config.js'
 import { appendItemSlot, $id, clearEl, makeEl } from '../ui_dom.js'
 import { uiGetAmount, uiSwapItem } from './swap.js'
 import { getMessage } from '../util.js'
+import { assetUrl } from '../modAssets.js'
 
 // CE ref: inventory.cc:1982-2070 _display_body — draws a critter's standing
 // FRM sprite into a portrait slot (60×100 box). Player uses ROTATION_SW (3)
@@ -91,7 +92,7 @@ export function renderBarterPortrait(el: HTMLElement, critter: Critter, useLastF
         // Image not yet in cache — listen for load via a temporary img element
         const loader = new Image()
         loader.onload = () => draw(loader)
-        loader.src = art + '.png'
+        loader.src = assetUrl(art + '.png')
     }
 }
 
@@ -171,7 +172,7 @@ export function uiBarterMode(merchant: Critter) {
         // reset explicitly since this is always the vendor case (party
         // members are routed to uiCompanionTrade, see P7/scripting.ts).
         // CE ref: game_dialog.cc:3194-3200 (FRM 111 barter.frm).
-        $barterBox.style.backgroundImage = "url('art/intrface/barter.png')"
+        $barterBox.style.backgroundImage = "url('" + assetUrl('art/intrface/barter.png') + "')"
         $barterBox.style.display = ''
         $barterBox.style.visibility = 'visible'
         $barterBox.style.pointerEvents = 'auto'
