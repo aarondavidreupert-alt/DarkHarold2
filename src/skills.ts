@@ -67,7 +67,9 @@ class Skill {
 }
 
 class Dependency {
-    constructor(public statType: string, public multiplier: number) {}
+    // baseOnly: read the stat's base (traits included, no bonus layer) — CE
+    // critterGetBaseStatWithTraitModifier, which only Max HP uses.
+    constructor(public statType: string, public multiplier: number, public baseOnly = false) {}
 }
 
 class Stat {
@@ -115,8 +117,9 @@ export const statDependencies: { [name: string]: Stat } = {
     AGI: new Stat(1, 10, 5, []),
     LUK: new Stat(1, 10, 5, []),
 
-    // FO2-CE ref: stat.cc — HP = 15 + (2 × END) + STR (STR multiplier is 1, not 2)
-    'Max HP': new Stat(0, 999, 0, [new Dependency('One', 15), new Dependency('END', 2), new Dependency('STR', 1)]),
+    // FO2-CE ref: stat.cc critterUpdateDerivedStats — Max HP = 15 + 2 × END + STR, from the
+    // base values with traits (drugs, radiation, armor and Gain-SPECIAL perks don't count).
+    'Max HP': new Stat(0, 999, 0, [new Dependency('One', 15), new Dependency('END', 2, true), new Dependency('STR', 1, true)]),
     AP: new Stat(1, 99, 0, [new Dependency('One', 5), new Dependency('AGI', 0.5)]),
     AC: new Stat(0, 999, 0, [new Dependency('AGI', 1)]),
     Melee: new Stat(1, 500, 0, [new Dependency('One', -5), new Dependency('STR', 1)]),

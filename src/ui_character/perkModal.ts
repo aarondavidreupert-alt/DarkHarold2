@@ -20,7 +20,7 @@ limitations under the License.
 import { makePanelDraggable } from '../ui_drag.js'
 import { font2, font3 } from '../ui_font.js'
 import { getValidPerks, getPerkRank, applyPerk } from '../perks.js'
-import { PERK_IMG, TRAIT_DESCRIPTIONS, TRAIT_IMG, TRAITS } from './descriptions.js'
+import { PERK_IMG, SKILL_DESCRIPTIONS, SKILL_IMG, SKILLS, TRAIT_DESCRIPTIONS, TRAIT_IMG, TRAITS } from './descriptions.js'
 import { getMessage } from '../util.js'
 
 // ── Perk Selection Modal ──────────────────────────────────────────────────────
@@ -36,36 +36,56 @@ import { getMessage } from '../util.js'
 // One row of the perk window's list.
 interface PickItem { name: string; description: string; img?: string; label?: string }
 
-export function showPerkModal(player: any): void {
+// `onChange` runs after the dude changed (a perk taken, a trait or tag swapped, a perk
+// handed back), so the character screen can pick the change up before DONE.
+export function showPerkModal(player: any, onChange: () => void = () => {}): void {
     if (document.getElementById('perk-modal-overlay')) return
     const validPerks = getValidPerks(player)
     const items: PickItem[] = validPerks.map((def) => ({
         name: def.name, description: def.description, img: PERK_IMG[def.name] ?? def.img,
         label: `${getPerkRank(player, def.name) + 1}/${def.maxRanks}`,
     }))
+    // CE perkDialogShow: backing out of the Tag! / Mutate! follow-up dialog takes the
+    // perk back (perkRemove), so a perk can be picked again.
+    const takeBack = (name: string) => () => {
+        const i = player.perks.lastIndexOf(name)
+        if (i !== -1) player.perks.splice(i, 1)
+        if (name === 'Tag!') player.skills.hasTagPerk = false
+        player.pendingPerkPick = true
+        onChange()
+    }
     showPickList(null, items, (name) => {
+        const hadTag = getPerkRank(player, 'Tag!') > 0
         applyPerk(player, name)
-        // CE character_editor.cc perkDialogHandlePerk: Mutate! swaps a trait right away;
-        // backing out of it takes the perk back.
-        if (name === 'Mutate!') {
-            runMutate(player, () => {
-                const i = player.perks.lastIndexOf('Mutate!')
-                if (i !== -1) player.perks.splice(i, 1)
-                player.pendingPerkPick = true
-            })
+        onChange()
+        if (name === 'Tag!' && !hadTag) {
+            setTimeout(() => runTagPick(player, onChange, takeBack('Tag!')), 0)
+        } else if (name === 'Mutate!') {
+            runMutate(player, onChange, takeBack('Mutate!'))
         }
     }, () => {}, 'No eligible perks.')
 }
 
+// CE character_editor.cc perkDialogHandleTagPerk — PICK A NEW TAG SKILL (editor.msg 155)
+// from the untagged skills; it becomes the 4th tag (gCharacterEditorTempTaggedSkills[3]).
+function runTagPick(player: any, onChange: () => void, onCancel: () => void): void {
+    const options = SKILLS.filter((sk) => !player.skills.isTagged(sk))
+        .map((sk): PickItem => ({ name: sk, description: SKILL_DESCRIPTIONS[sk] ?? '', img: SKILL_IMG[sk] }))
+    showPickList(getMessage('editor', 155) ?? 'PICK A NEW TAG SKILL', options, (sk) => {
+        player.skills.tagged = [...player.skills.tagged.slice(0, 3), sk]
+        onChange()
+    }, onCancel)
+}
+
 // CE character_editor.cc perkDialogHandleMutatePerk — LOSE A TRAIT (editor.msg 154,
 // when the player has one), then PICK A NEW TRAIT (153) from the traits not kept.
-function runMutate(player: any, onCancel: () => void): void {
+function runMutate(player: any, onChange: () => void, onCancel: () => void): void {
     const current: string[] = (player.traits ?? []).slice()
     const item = (t: string): PickItem => ({ name: t, description: TRAIT_DESCRIPTIONS[t] ?? '', img: TRAIT_IMG[t] })
     const pickNew = (kept: string[]) => {
         const options = TRAITS.filter((t) => !kept.includes(t)).map(item)
         showPickList(getMessage('editor', 153) ?? 'PICK A NEW TRAIT', options,
-            (t) => player.setTraits([...kept, t]), onCancel)
+            (t) => { player.setTraits([...kept, t]); onChange() }, onCancel)
     }
     if (current.length >= 1) {
         showPickList(getMessage('editor', 154) ?? 'LOSE A TRAIT', current.map(item),

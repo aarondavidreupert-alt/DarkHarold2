@@ -435,7 +435,7 @@ export function showCharacterScreen() {
 
     const newStatSet = globalState.player!.stats.clone()
     const newSkillSet = globalState.player!.skills.clone()
-    const playerSkillOpts = { isPlayer: true, perks: globalState.player!.perks }
+    const playerSkillOpts = { isPlayer: true, perks: globalState.player!.perks, traits: (globalState.player as any).traits }
 
     const openingBaseSkills: { [name: string]: number } = {}
     for (const skill of SKILLS) {
@@ -630,7 +630,21 @@ export function showCharacterScreen() {
 
     // FO2-CE ref: editor.cc editorRun() — perk selector is triggered inside the
     // editor, not at XP gain. Show it now if a pick is pending.
+    // CE runs the perk dialog on the live dude; DH2's screen edits clones, so a perk's
+    // changes (Educated / Here and Now skill points, Tag!, Mutate!, Gain SPECIAL) are
+    // copied into them here — DONE would otherwise write the old values back.
+    const syncFromPlayer = () => {
+        newSkillSet.baseSkills = Object.assign({}, player.skills.baseSkills)
+        newSkillSet.tagged = player.skills.tagged.slice()
+        newSkillSet.skillPoints = player.skills.skillPoints
+        newSkillSet.hasTagPerk = player.skills.hasTagPerk
+        newStatSet.baseStats = Object.assign({}, player.stats.baseStats)
+        newStatSet.bonusStats = Object.assign({}, player.stats.bonusStats)
+        playerSkillOpts.traits = (player as any).traits
+        for (const skill of SKILLS) openingBaseSkills[skill] = newSkillSet.getBase(skill)
+        redrawStatsSkills()
+    }
     if (player.pendingPerkPick) {
-        showPerkModal(player)
+        showPerkModal(player, syncFromPlayer)
     }
 }

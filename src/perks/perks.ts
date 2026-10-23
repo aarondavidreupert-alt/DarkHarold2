@@ -136,7 +136,7 @@ export function applyPerk(player: Player, perkName: string): void {
     // CE character_editor.cc perkDialogHandlePerk: Lifegiver adds 4 max HP (and HP) at
     // once, Educated 2 unspent skill points.
     if (perkName === 'Lifegiver') {
-        player.stats.modifyBase('Max HP', 4)
+        player.stats.modifyBonus('Max HP', 4) // CE critterSetBonusStat(MAX_HP, +4)
         player.stats.modifyBase('HP', 4)
     } else if (perkName === 'Educated') {
         player.skills.skillPoints += 2

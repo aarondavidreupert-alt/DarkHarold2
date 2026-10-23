@@ -48,10 +48,10 @@ Findings marked ✔ were re-checked against the code by the merging pass.
 |---|---|---|---|
 | H1 | Pipeline | ✔ **Locked / jammed state, misc-item charges (money on the ground) and key codes are dropped by `tools/fomap.py`** (it skips CE's `data.flags` word after the inventory header). Everything locked in a map file starts unlocked; only `obj_lock` scripts lock. Door state is also not saved or restored. | ITEM-12, OBJ-02 |
 | H2 | Pipeline | ✔ **Ladders never change map.** `fomap.py` stores the FO2 ladder `destinationMap` (CE `proto.cc` reads it first) as `unknown1`; `Obj.use` reads `extra.destinationMap`. Stairs: CE changes map only for `> 0`. | ITEM-13, ACT-07 |
-| H3 | Skills | ✔ **NPC skills are too low by the skill's `defaultValue`** (Unarmed −30, Melee −20, …): `SkillSet.fromPro` stores raw invested points but `SkillSet.get` treats them as `startValue + invested`. Affects NPC to-hit, steal catch, barter, party best skill. | SKILL-01 |
-| H4 | Stats | **No bonus-stat layer.** Drugs, radiation, armour and Gain-SPECIAL perks write base stats, so Max HP changes while on Buffout / in Power Armour and level-ups on Mentats give extra skill points permanently. | STAT-01, TRAIT-03 |
-| H5 | Char editor | **Level-up perk effects are lost** (stale skill copy written back on DONE): Educated, Tag! (no tag pick at all), Here and Now. | CHAR-01 |
-| H6 | Char editor | **Trait skill modifiers (Gifted, Good Natured) only apply in the creator**, not in play. Conflicts with `perks_traits.md` §1. | CHAR-02 |
+| H3 | Skills | **FIXED 2026-10-24 (known_bugs PA3).** ✔ **NPC skills are too low by the skill's `defaultValue`** (Unarmed −30, Melee −20, …): `SkillSet.fromPro` stores raw invested points but `SkillSet.get` treats them as `startValue + invested`. Affects NPC to-hit, steal catch, barter, party best skill. | SKILL-01 |
+| H4 | Stats | **FIXED 2026-10-24 (known_bugs PA4).** **No bonus-stat layer.** Drugs, radiation, armour and Gain-SPECIAL perks write base stats, so Max HP changes while on Buffout / in Power Armour and level-ups on Mentats give extra skill points permanently. | STAT-01, TRAIT-03 |
+| H5 | Char editor | **FIXED 2026-10-24 (known_bugs PA5).** **Level-up perk effects are lost** (stale skill copy written back on DONE): Educated, Tag! (no tag pick at all), Here and Now. | CHAR-01 |
+| H6 | Char editor | **FIXED 2026-10-24 (known_bugs PA6).** **Trait skill modifiers (Gifted, Good Natured) only apply in the creator**, not in play. Conflicts with `perks_traits.md` §1. | CHAR-02 |
 | H7 | Scripts | **FIXED 2026-10-24 (known_bugs PA7).** ✔ **`add_obj_to_inven` adds a clone**; the original stays on the map and the script handle is not the inventory item (`Obj.addInventoryItem` → `item.clone()`). NPCs can end up with two copies. | OP-03 |
 | H8 | Scripts | **FIXED 2026-10-24 (known_bugs PA8).** ✔ **`obj_is_carrying_obj_pid` counts stacks, not quantity**, and ignores bags and equipped items. Every "have N of X" check is wrong. | OP-02, INV-01, INV-02 |
 | H9 | Scripts | **FIXED 2026-10-24 (known_bugs PA9).** **`destroy_object` on a carried item does nothing** (and queued timers survive). | OP-04, ITEM-15 |
@@ -135,7 +135,7 @@ Per CLAUDE.md these are flagged here; the fixed-entry text in `known_bugs.md` is
 | known_bugs **C3**: YAAM matches CE | CE's YAAM never adds damage; DH2 Glovz / YAAM both differ | combat COMBAT-13 |
 | known_bugs **RD06**: roof clipping "exactly CE" | flood fill is CE, but hex→roof square uses `(y+1)>>1` (CE `y>>1`) | object_map_tile TILE-02 |
 | known_bugs **S20**: `tile_is_visible` correct | CE uses distance from screen centre, not the light map | script_opcodes OP-10 |
-| `perks_traits.md` §1: skills read traits live | only the creator passes traits | chareditor CHAR-02 |
+| `perks_traits.md` §1: skills read traits live | only the creator passed traits — fixed 2026-10-24 (PA6) | chareditor CHAR-02 |
 | `save_load.md` §9: prefs only in fallout2.cfg | CE saves them in every save (handler 17) | game_saveload SAVE-01 |
 | `scripting_vm.md` §4: base opcode numbers | wrong (push_base = 0x802B, add = 0x8039) | script_engine SCR-14 |
 | `lighting.md` §6: non-wall rotations 2..4 | CE and DH2 use 1..3 | object_map_tile |

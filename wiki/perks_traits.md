@@ -19,7 +19,7 @@ Traits are selected during **character creation** only (max 2). They provide tra
 
 **DH2 Storage:** `Player.traits: string[]` (names as in `TRAIT_DESCRIPTIONS`, `src/ui_character/descriptions.ts`), set at character creation and by Mutate! (`Player.setTraits`).
 
-**DH2 Live vs Applied:** skills read the traits live (`traitGetSkillModifier` in `src/skills.ts`). The derived-stat parts of `traitGetStatModifier` are applied live in `Player.getStat` (`src/player.ts`: AP, AC, Melee, Carry, Sequence, Healing Rate, Critical Chance, Better Criticals, DR Radiation/Poison); only the SPECIAL parts (Gifted +1 all, Bruiser ST +2, Small Frame AG +1) are kept on the base stats and swapped by `setTraits` — equivalent, since CE's `critterGetBaseStatWithTraitModifier` adds them to the base.
+**DH2 Live vs Applied:** skills read the traits live (`traitGetSkillModifier` in `src/skills.ts`; `Critter.getSkill` and the character screen pass the dude's traits since 2026-10-24 — before, only the creator did, known_bugs PA6). The derived-stat parts of `traitGetStatModifier` are applied live in `Player.getStat` (`src/player.ts`: AP, AC, Melee, Carry, Sequence, Healing Rate, Critical Chance, Better Criticals, DR Radiation/Poison); only the SPECIAL parts (Gifted +1 all, Bruiser ST +2, Small Frame AG +1) are kept on the base stats and swapped by `setTraits` — equivalent, since CE's `critterGetBaseStatWithTraitModifier` adds them to the base.
 
 ### 1.2 Traits Table
 
@@ -296,7 +296,7 @@ See §1.3. DH2 applies the derived-stat parts live in `Player.getStat`, the SPEC
 
 ### 4.4 CE `perkAddEffect(critter, perk)` — `perk.cc:554`
 
-Bonus stat layer `+= statModifier`; `HERE_AND_NOW` grants the XP to the next level; `maxRank == −1` perks add `stats[0..6]`. DH2 has no separate bonus layer — `perkApplyEffect` writes the base stats (sign −1 for `perkRemoveEffect`); armor perks swap via `armorPerkSwap` (CE `_adjust_ac`).
+Bonus stat layer `+= statModifier`; `HERE_AND_NOW` grants the XP to the next level; `maxRank == −1` perks add `stats[0..6]`. DH2 writes the bonus layer too (`StatSet.bonusStats`, since 2026-10-24, known_bugs PA4) — `perkApplyEffect` (sign −1 for `perkRemoveEffect`), Gain-SPECIAL perks included, so Max HP (base ST / EN only) ignores them as in CE; armor perks swap via `armorPerkSwap` (CE `_adjust_ac`). Tag! asks PICK A NEW TAG SKILL (editor.msg 155) and is taken back on cancel (CE `perkDialogHandleTagPerk`).
 
 ---
 

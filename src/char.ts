@@ -40,6 +40,9 @@ export class SkillSet {
     tagged: string[] = [];
     skillPoints: number = 0;
     hasTagPerk: boolean = false; // Tag! perk acquired
+    // baseSkills of a proto critter include CE's defaultValue (fromPro); saves from
+    // before 2026-10-24 stored the raw proto points (Critter.fromMapObject migrates them).
+    protoDefaults: boolean = false;
 
     constructor(baseSkills?: { [name: string]: number }, tagged?: string[], skillPoints?: number) {
         // Copy construct a SkillSet
@@ -65,7 +68,18 @@ export class SkillSet {
             skills = { ...skills, 'Melee Weapons': skills['Melee'] }
             delete skills['Melee']
         }
-        return new SkillSet(skills);
+        const s = new SkillSet(SkillSet.withProtoDefaults(skills ?? {}));
+        s.protoDefaults = true;
+        return s;
+    }
+
+    // FO2-CE ref: skill.cc skillGetValue — defaultValue + the proto's raw points. DH2
+    // stores the sum in baseSkills, as it does for the dude, so get() treats both alike.
+    static withProtoDefaults(raw: { [name: string]: number }): { [name: string]: number } {
+        const out: { [name: string]: number } = {};
+        for (const skill in skillDependencies)
+            out[skill] = skillDependencies[skill].startValue + (raw[skill] ?? 0);
+        return out;
     }
 
     // FO2-CE ref: skill.cc skillGetBaseValue() — raw invested points from proto
@@ -229,9 +243,10 @@ export class SkillSet {
 
 export class StatSet {
     baseStats: { [name: string]: number } = {};
-    // CE critter proto d.stat_bonus as sfall's set_critter_extra_stat / set_pc_extra_stat
-    // change it (sfall opcodes 0x815B, 0x815F): added to the stat. A proto's own bonus is
-    // already in baseStats (fromPro), so this holds only what scripts set.
+    // CE critter proto d.stat_bonus (critterSetBonusStat): added to the stat. Drugs,
+    // radiation and perk effects land here, as do sfall's set_critter_extra_stat /
+    // set_pc_extra_stat (0x815B, 0x815F). A proto's own bonus is already in baseStats
+    // (fromPro). Saves from before 2026-10-24 have drug / perk deltas in the base.
     bonusStats: { [name: string]: number } = {};
     useBonuses: boolean;
 
@@ -294,7 +309,7 @@ export class StatSet {
         if(this.useBonuses) {
             for(const dep of statDep.dependencies) {
                 if(dep.statType)
-                    statValue += Math.floor(this.get(dep.statType) * dep.multiplier);
+                    statValue += Math.floor((dep.baseOnly ? this.getBase(dep.statType) : this.get(dep.statType)) * dep.multiplier);
             }
         }
 
@@ -311,6 +326,11 @@ export class StatSet {
 
     getBonus(stat: string): number {
         return this.bonusStats[stat] ?? 0;
+    }
+
+    // CE critterSetBonusStat(critter, stat, critterGetBonusStat + delta)
+    modifyBonus(stat: string, change: number) {
+        this.setBonus(stat, this.getBonus(stat) + change);
     }
 
     setBonus(stat: string, value: number) {

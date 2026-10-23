@@ -730,10 +730,10 @@ groups get rows here; the MED findings are tracked by their report IDs (e.g. `SC
 |----|-------------|------------|-----|--------|
 | PA1 | `tools/fomap.py` drops `data.flags` (locked / jammed), misc charges (money on the ground), key codes; door state not saved | ITEM-12, OBJ-02 | high | open (pipeline) |
 | PA2 | Ladders never change map: FO2 ladder `destinationMap` stored as `unknown1` | ITEM-13, ACT-07 | high | open (pipeline) |
-| PA3 | NPC skills too low by `defaultValue` (`SkillSet.fromPro` / `get`) | SKILL-01 | high | open |
-| PA4 | No bonus-stat layer: drugs / radiation / armour / Gain-SPECIAL change Max HP and level-up HP / SP | STAT-01 | high | open |
-| PA5 | Level-up perk effects lost on DONE (Educated, Tag!, Here and Now); no Tag! skill pick | CHAR-01 | high | open |
-| PA6 | Trait skill modifiers only applied in the creator | CHAR-02 | high | open |
+| PA3 | NPC skills too low by `defaultValue` (`SkillSet.fromPro` / `get`) | SKILL-01 | high | **FIXED 2026-10-24 — `SkillSet.fromPro` stores CE `defaultValue` + the raw proto points (`withProtoDefaults`); older saves are migrated on load (`protoDefaults` flag).** |
+| PA4 | No bonus-stat layer: drugs / radiation / armour / Gain-SPECIAL change Max HP and level-up HP / SP | STAT-01 | high | **FIXED 2026-10-24 — drugs, radiation and perk effects (Gain-SPECIAL, armor perks, Lifegiver) go on `StatSet.bonusStats` (CE `critterSetBonusStat`); Max HP reads base ST / EN. Saves from before keep their old deltas in the base.** |
+| PA5 | Level-up perk effects lost on DONE (Educated, Tag!, Here and Now); no Tag! skill pick | CHAR-01 | high | **FIXED 2026-10-24 — the perk window calls back and the character screen re-copies the dude before DONE; Tag! asks PICK A NEW TAG SKILL and is taken back on cancel (CE `perkDialogHandleTagPerk`).** |
+| PA6 | Trait skill modifiers only applied in the creator | CHAR-02 | high | **FIXED 2026-10-24 — `Critter.getSkill` and the character screen pass the dude's traits (CE `traitGetSkillModifier`).** |
 | PA7 | `add_obj_to_inven` / `add_mult_objs_to_inven` add a clone | OP-03 | high | **FIXED 2026-10-24 — the object itself becomes the entry (a joined stack takes the new object, as `itemAdd`), leaves the map; a carried item is refused; quantity clamped 1..99999.** |
 | PA8 | `obj_is_carrying_obj_pid` counts stacks; no bags / equipped items | OP-02, INV-01, INV-02 | high | **FIXED 2026-10-24 — `inventoryWield.ts carriedQuantityByPid` / `carriedObjectByPid` (CE `objectGetCarriedQuantityByPid` / `…ObjectByPid`): quantities, bags, the dude's equipped items.** |
 | PA9 | `destroy_object` on a carried item does nothing | OP-04, ITEM-15 | high | **FIXED 2026-10-24 — the owner (any carrier, bags included: `findItemHolder`) loses it first, then `destroy_p_proc`; `destroy_mult_objs` uses the same search. Queued timers of the destroyed object are not cleared (unverified in CE).** |

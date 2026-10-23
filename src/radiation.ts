@@ -163,13 +163,13 @@ function processRads(obj: Critter, level: number, isHealing: boolean): void {
 
     for (let i = 0; i < RADIATION_EFFECT_STATS.length; i++) {
         const delta = modifier * row[i]
-        if (delta !== 0) obj.stats.modifyBase(RADIATION_EFFECT_STATS[i], delta)
+        if (delta !== 0) obj.stats.modifyBonus(RADIATION_EFFECT_STATS[i], delta) // CE critterSetBonusStat
     }
 
     // SFALL fix kept by CE: removing the effects can never kill.
     if (!isHealing && !obj.dead) {
         for (let i = 0; i < RADIATION_EFFECT_PRIMARY_STAT_COUNT; i++) {
-            if (obj.stats.getBase(RADIATION_EFFECT_STATS[i]) < 1) { // PRIMARY_STAT_MIN
+            if (obj.stats.get(RADIATION_EFFECT_STATS[i]) < 1) { // PRIMARY_STAT_MIN
                 critterKill(obj)
                 break
             }

@@ -106,8 +106,8 @@ function dudeClearAddiction(pid: number): void {
     if (!dudeIsAddicted(-1)) setAddictedState(false)
 }
 
-// critterSetBonusStat() for the stats a drug can touch. DH2 keeps no separate
-// bonus layer, so the delta lands on the base value (reversible by the later events).
+// critterSetBonusStat() for the stats a drug can touch: the delta goes on the bonus
+// layer (reversed by the later events).
 function adjustStat(critter: Critter, stat: number, delta: number): void {
     if (delta === 0) return
     if (stat === STAT_CURRENT_HIT_POINTS) {
@@ -120,7 +120,7 @@ function adjustStat(critter: Critter, stat: number, delta: number): void {
         critterAdjustRadiation(critter, delta)
     } else {
         const name = STAT_NAME_BY_ID[stat]
-        if (name) critter.stats.modifyBase(name, delta)
+        if (name) critter.stats.modifyBonus(name, delta)
     }
 }
 

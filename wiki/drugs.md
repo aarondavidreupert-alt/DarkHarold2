@@ -50,5 +50,5 @@ Timed events use string userdata, saved with the timed-event queue:
 
 ## Known gaps
 
-- DH2 has no separate bonus-stat layer, so deltas land on base stats (sums match CE).
+- The deltas land on the bonus layer (`StatSet.modifyBonus`, CE `critterSetBonusStat`; since 2026-10-24, known_bugs PA4), so Max HP and the level-up HP / skill points (base stats) ignore active drugs as in CE. Saves from before then have the deltas in the base.
 - CE `_item_d_clear` (flush pending drug events of non-party critters on map exit) is not modelled.

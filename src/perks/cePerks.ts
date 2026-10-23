@@ -284,7 +284,7 @@ export function perkIdByName(name: string): number {
 function adjust(critter: Critter, stat: number, delta: number): void {
     if (delta === 0) return
     const name = STAT_NAME_BY_ID[stat]
-    if (name) critter.stats.modifyBase(name, delta)
+    if (name) critter.stats.modifyBonus(name, delta) // CE critterSetBonusStat
 }
 
 // CE perk.cc:554 perkAddEffect / :594 perkRemoveEffect (stat + SPECIAL parts;
@@ -293,8 +293,7 @@ export function perkApplyEffect(critter: Critter, id: number, sign: 1 | -1): voi
     const p = CE_PERKS[id]
     if (!p) return
     // PERK_GAIN_STRENGTH … PERK_GAIN_LUCK (84-90): CE adds 1 to the SPECIAL live in
-    // critterGetStat and recomputes the derived stats; DH2 derives live from the base,
-    // so the +1 goes on the base.
+    // critterGetStat; DH2 puts it on the bonus layer, so Max HP (base only) ignores it.
     if (critter.isPlayer && id >= 84 && id <= 90) adjust(critter, id - 84, sign)
     if (p.stat !== -1) adjust(critter, p.stat, sign * p.statMod)
     if (p.maxRank === -1) for (let s = 0; s < 7; s++) adjust(critter, s, sign * p.stats[s])
@@ -302,7 +301,7 @@ export function perkApplyEffect(critter: Critter, id: number, sign: 1 | -1): voi
 
 // CE inventory.cc _adjust_ac (perk part): for party members (the player included),
 // the old armor's proto perk is removed and the new one's added (Powered Armor ST +3,
-// etc.). The effect lands in base stats, which are saved — so never reapply on load.
+// etc.). The effect lands in the bonus stats, which are saved — so never reapply on load.
 export function armorPerkSwap(critter: Critter, oldArmor: any, newArmor: any): void {
     if (oldArmor === newArmor) return
     const oldPerk = oldArmor?.pro?.extra?.perk

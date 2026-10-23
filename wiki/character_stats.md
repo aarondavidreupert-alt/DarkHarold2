@@ -440,7 +440,7 @@ Audit 2026-10-17 — all implemented:
 | Overloaded | Max AP − (excess weight / 40 + 1) | `Critter.getStat('AP')`, with CE `objectGetInventoryWeight` / `itemGetWeight` (`Obj.getInventoryWeight`, `getWeight`, `stackWeight`) |
 | Age | + game years | `Critter.getStat('Age')` |
 | Unused AP → AC | + remaining AP while it isn't the critter's turn; HtH Evade (player, no weapon in either hand): AP × 2 + Unarmed / 12 | `Combat.nextTurn` (`bonusAC`) |
-| Gain Strength … Gain Luck | +1 SPECIAL | +1 on the base when taken (`perkApplyEffect`), so the derived stats follow (CE recomputes them) |
+| Gain Strength … Gain Luck | +1 SPECIAL | +1 on the bonus layer when taken (`perkApplyEffect`): the derived stats follow, Max HP (base ST / EN, CE `critterGetBaseStatWithTraitModifier`) doesn't |
 | Adrenaline Rush | +1 ST below half HP | `Player.getStat` |
 | Mirrored Shades in a hand | +1 CH | `Player.getStat` |
 | Alcohol / Autodoc raised / lowered HP (I/II) | ±2 / ±4 Max HP | `Player.getStat` |

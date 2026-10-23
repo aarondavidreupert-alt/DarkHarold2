@@ -165,7 +165,12 @@ export class Critter extends Obj {
                 dbgWarn('object', '[Deserialize] stat set: %o to: %o', mobj.stats, obj.stats)
             }
             if (mobj.skills) {
-                obj.skills = new SkillSet(mobj.skills.baseSkills, mobj.skills.tagged, mobj.skills.skillPoints)
+                const sk = mobj.skills
+                const proto = sk.protoDefaults || !mobj.isPlayer
+                const base = proto && !sk.protoDefaults ? SkillSet.withProtoDefaults(sk.baseSkills ?? {}) : sk.baseSkills
+                obj.skills = new SkillSet(base, sk.tagged, sk.skillPoints)
+                obj.skills.hasTagPerk = !!sk.hasTagPerk
+                obj.skills.protoDefaults = proto
                 dbgWarn('object', '[Deserialize] skill set: %o to: %o', mobj.skills, obj.skills)
             }
 
@@ -310,6 +315,8 @@ export class Critter extends Obj {
         return this.skills.get(skill, this.stats, {
             isPlayer: this.isPlayer,
             perks: this.perks,
+            // CE traitGetSkillModifier — the dude's traits (Gifted, Good Natured) apply always
+            traits: this.isPlayer ? (this as any).traits : undefined,
             // CE perkGetSkillModifier: Ghost reads objectGetLightIntensity(gDude).
             lightIntensity: skill === 'Sneak' && this.perks.includes('Ghost') && globalState.player
                 ? getObjectLightIntensity(globalState.player as Critter, true) : undefined,
