@@ -29,6 +29,9 @@ limitations under the License.
 # The output panel keeps every line and shows them through a filter: errors
 # and warnings only, stage summaries (per-file progress hidden), or
 # everything. "Copy shown" / "Save log..." hand over just what is shown.
+#
+# Cancel stops the run (setup.py and its children) and offers to remove the
+# files the run wrote under the output folders.
 
 import glob
 import os
@@ -84,6 +87,106 @@ def count_originals():
         for path in glob.glob(os.path.join(PROJECT_ROOT, pattern), recursive=True):
             found.setdefault(os.path.normcase(os.path.abspath(path)), path)
     return list(found.values())
+
+
+# --- Cancel + clean-up ---
+# Where the pipeline writes its output (tools/setup.py stages). A cancelled run
+# offers to remove what it wrote there, found by comparing against a snapshot
+# taken just before the run; git-tracked files are never removed.
+OUTPUT_ROOTS = ["data", "art", "proto", "maps", "lut", "audio", "mods"]
+OUTPUT_ROOT_FILES = ["fallout2.cfg", "worldmap.png"]
+
+
+def snapshot_outputs():
+    """{relative path: mtime_ns} of every file under the output roots."""
+    snap = {}
+
+    def walk(path):
+        try:
+            with os.scandir(path) as it:
+                for entry in it:
+                    if entry.is_dir(follow_symlinks=False):
+                        walk(entry.path)
+                    elif entry.is_file(follow_symlinks=False):
+                        try:
+                            snap[os.path.relpath(entry.path, PROJECT_ROOT)] = entry.stat().st_mtime_ns
+                        except OSError:
+                            pass
+        except OSError:
+            pass
+
+    for root in OUTPUT_ROOTS:
+        walk(os.path.join(PROJECT_ROOT, root))
+    for name in OUTPUT_ROOT_FILES:
+        path = os.path.join(PROJECT_ROOT, name)
+        if os.path.isfile(path):
+            snap[name] = os.stat(path).st_mtime_ns
+    return snap
+
+
+def tracked_files():
+    """Git-tracked paths (normcased, relative), or None without git."""
+    try:
+        out = subprocess.run(["git", "ls-files", "-z"], cwd=PROJECT_ROOT, capture_output=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    return {os.path.normcase(os.path.normpath(p)) for p in out.stdout.decode("utf-8", "replace").split("\0") if p}
+
+
+def written_since(before):
+    """(new, overwritten) files under the output roots relative to `before`,
+    git-tracked files left out."""
+    after = snapshot_outputs()
+    tracked = tracked_files() or set()
+    new, changed = [], []
+    for rel, mtime in after.items():
+        if os.path.normcase(os.path.normpath(rel)) in tracked:
+            continue
+        if rel not in before:
+            new.append(rel)
+        elif before[rel] != mtime:
+            changed.append(rel)
+    return new, changed
+
+
+def remove_files(rels):
+    """Delete the files, then the directories that became empty. Returns (removed, failed)."""
+    removed, failed = 0, 0
+    dirs = set()
+    for rel in rels:
+        path = os.path.join(PROJECT_ROOT, rel)
+        try:
+            os.remove(path)
+            removed += 1
+            dirs.add(os.path.dirname(path))
+        except OSError:
+            failed += 1
+    roots = {os.path.normcase(os.path.join(PROJECT_ROOT, r)) for r in OUTPUT_ROOTS} | {os.path.normcase(PROJECT_ROOT)}
+    for d in sorted(dirs, key=len, reverse=True):
+        while os.path.normcase(d) not in roots and d.startswith(PROJECT_ROOT):
+            try:
+                os.rmdir(d)  # only succeeds when empty
+            except OSError:
+                break
+            d = os.path.dirname(d)
+    return removed, failed
+
+
+def kill_tree(proc):
+    """Stop setup.py and everything it started (image-export worker pool, ffmpeg)."""
+    if proc.poll() is not None:
+        return
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        import signal
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except OSError:
+            proc.terminate()
 
 
 # --- Log filtering ---
@@ -150,6 +253,8 @@ class PipelineGUI:
         self.lines = []  # (level, text) of the whole run
         self.classifier = LineClassifier()
         self.last_shown = None  # (normalised text, repeat count) for collapsing
+        self.before = {}  # snapshot_outputs() taken when the run started
+        self.cancelled = False
 
         pad = {"padx": 8, "pady": 4}
 
@@ -205,6 +310,8 @@ class PipelineGUI:
         run_frame.pack(fill="x", **pad)
         self.run_button = ttk.Button(run_frame, text="Run", command=self.on_run)
         self.run_button.pack(side="left")
+        self.cancel_button = ttk.Button(run_frame, text="Cancel", command=self.on_cancel, state="disabled")
+        self.cancel_button.pack(side="left", padx=(6, 0))
         self.status_var = tk.StringVar(value="Idle")
         ttk.Label(run_frame, textvariable=self.status_var).pack(side="left", padx=10)
 
@@ -356,6 +463,10 @@ class PipelineGUI:
         self.log("$ " + " ".join(cmd) + "\n")
 
         self.run_button.configure(state="disabled")
+        self.status_var.set("Noting existing files...")
+        self.root.update_idletasks()
+        self.before = snapshot_outputs()
+        self.cancelled = False
         self.status_var.set("Running...")
 
         self.proc = subprocess.Popen(
@@ -365,7 +476,9 @@ class PipelineGUI:
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            start_new_session=(os.name != "nt"),  # own process group for kill_tree
         )
+        self.cancel_button.configure(state="normal")
         threading.Thread(target=self._reader_thread, daemon=True).start()
         self.root.after(100, self._poll_queue)
 
@@ -385,25 +498,82 @@ class PipelineGUI:
                 if kind == "line":
                     self.log(payload, self.classifier.level(payload))
                 elif kind == "done":
-                    self.log(f"--- Process exited with code {payload} ---\n",
-                             LEVEL_INFO if payload == 0 else LEVEL_ERROR)
-                    self.status_var.set("Done" if payload == 0 else f"Failed (exit {payload})")
-                    self.run_button.configure(state="normal")
                     self.proc = None
+                    self.cancel_button.configure(state="disabled")
+                    if self.cancelled:
+                        self.log("--- Cancelled ---\n", LEVEL_ERROR)
+                        self.status_var.set("Cancelled")
+                        self.offer_cleanup()
+                    else:
+                        self.log(f"--- Process exited with code {payload} ---\n",
+                                 LEVEL_INFO if payload == 0 else LEVEL_ERROR)
+                        self.status_var.set("Done" if payload == 0 else f"Failed (exit {payload})")
+                    self.run_button.configure(state="normal")
                     return
         except queue.Empty:
             pass
         if self.proc is not None:
             self.root.after(100, self._poll_queue)
 
+    def on_cancel(self):
+        if self.proc is None or self.proc.poll() is not None:
+            return
+        if not messagebox.askyesno("Cancel run", "Stop the running pipeline now?"):
+            return
+        self.cancelled = True
+        self.cancel_button.configure(state="disabled")
+        self.status_var.set("Cancelling...")
+        kill_tree(self.proc)
+
+    def offer_cleanup(self):
+        """After a cancel: offer to remove what the run wrote (see written_since)."""
+        self.status_var.set("Looking for files this run wrote...")
+        self.root.update_idletasks()
+        new, changed = written_since(self.before)
+        self.status_var.set("Cancelled")
+        if not new and not changed:
+            self.log("The run wrote no files.\n")
+            return
+
+        dlg = tk.Toplevel(self.root)
+        dlg.title("Remove what the run wrote?")
+        dlg.transient(self.root)
+        dlg.grab_set()
+        dirs = sorted({rel.replace("\\", "/").split("/")[0] for rel in new + changed})
+        text = (f"The cancelled run created {len(new)} new file(s) and overwrote {len(changed)} "
+                f"existing one(s) (in {', '.join(dirs)}).\n\n"
+                "Remove new files only: keeps output from earlier runs.\n"
+                "Remove all written files: also removes the files it overwrote "
+                "(their earlier version is gone already).\n\n"
+                "Git-tracked files are never removed. Source files deleted by "
+                "\"Delete original source files\" can't be restored: re-run the DAT extraction.")
+        ttk.Label(dlg, text=text, wraplength=460, justify="left").pack(padx=12, pady=12)
+        buttons = ttk.Frame(dlg)
+        buttons.pack(pady=(0, 12))
+
+        def do(rels):
+            dlg.destroy()
+            if not rels:
+                self.log("Kept the files the run wrote.\n")
+                return
+            self.status_var.set("Removing files...")
+            self.root.update_idletasks()
+            removed, failed = remove_files(rels)
+            self.log(f"Removed {removed} file(s) the cancelled run wrote"
+                     + (f", {failed} could not be removed" if failed else "") + ".\n",
+                     LEVEL_ERROR if failed else LEVEL_INFO)
+            self.status_var.set("Cancelled; removed %d file(s)" % removed)
+
+        ttk.Button(buttons, text="Remove new files only", command=lambda: do(new)).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Remove all written files", command=lambda: do(new + changed)).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Keep everything", command=lambda: do([])).pack(side="left", padx=4)
+        dlg.protocol("WM_DELETE_WINDOW", lambda: do([]))
+
     def on_close(self):
         if self.proc is not None and self.proc.poll() is None:
             if not messagebox.askyesno("Pipeline running", "A pipeline run is still in progress. Quit anyway?"):
                 return
-            try:
-                self.proc.terminate()
-            except OSError:
-                pass
+            kill_tree(self.proc)
         self.root.destroy()
 
 
