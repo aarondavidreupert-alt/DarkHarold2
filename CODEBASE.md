@@ -19,7 +19,7 @@ DarkHarold2/
 ├── lut/             Pre-baked JSON lookup tables (LST indexes, crit tables, etc.)
 │   ├── lst/         LST index JSON files (art_critters.json, scripts.json, …)
 │   └── pro/         Proto lookup indexes (proto_items.json, etc.)
-├── maps/            Extracted map JSON + per-map image lists (*.json, *.images.json)
+├── maps/            Extracted map JSON + per-map image lists (*.json, *.images.json) — git-ignored
 ├── lib/             Third-party JS (pathfinding-browser.js, wasmoon/ — Lua 5.4 in WebAssembly, MIT)
 ├── audio/           Extracted WAV audio (music/ and sfx/) — git-ignored
 ├── mods/            Mod folders (git-ignored but mods_order.txt): Lua mods (mods/<name>/scripts/), and the
@@ -47,9 +47,6 @@ DarkHarold2/
 │   ├── convertEndgame.py  Endgame slide extraction
 │   ├── parseCritTable.py  Extracts criticalTables.json from fallout2.exe
 │   └── oldPy/             Superseded/experimental script iterations — reference only
-├── acm2wav/         Pascal source of the old ACM→WAV converter (no longer used)
-├── wrappers/        macOS native wrappers
-├── Modding/         Design documents (.docx, .txt) — not engine code
 ├── play.html        Main entry point (loads js/main.js)
 ├── ui.css           All UI/HUD styling
 ├── tsconfig.json    TypeScript config (target: ES2021, outDir: js/, strict)
@@ -57,7 +54,7 @@ DarkHarold2/
 ├── Pipfile          Python deps for asset pipeline
 ├── CLAUDE.md        Claude Code project instructions
 ├── ROADMAP.md       Phased roadmap to 95% completion
-├── docs/            README images (screenshot.png)
+├── docs/            README images (screenshot.png); planning/ — design documents (.docx, .txt), not engine code
 └── tools/luadiff.html  VM-vs-Lua script test page (src/lua/luaDiff.ts)
 ```
 

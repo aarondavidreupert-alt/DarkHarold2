@@ -120,6 +120,33 @@ script_backend=lua
 mods=
 ; 1 = the decompiled scripts fix a few Black Isle bugs as the sources meant (wiki/lua_scripts.md "Script fixes"), 0 = keep the original behaviour
 script_fixes=1
+; 1 = the Pip-Boy opens before the Vault Suit movie (sfall option), 0 = CE
+pipboy_available_at_game_start=0
+; dragging windows by their background (DH2 addition; CE windows are fixed)
+; drag_windows=0 turns it off everywhere; drag_<window>=0/1 per window
+drag_windows=1
+drag_inventory=1
+drag_character=1
+drag_characterCreator=1
+drag_options=1
+drag_skilldex=1
+drag_pipboy=1
+drag_automap=1
+drag_loot=1
+drag_dialogue=1
+drag_dialogueReview=1
+drag_elevator=1
+drag_calledShot=1
+drag_moveItems=1
+drag_saveLoad=1
+drag_perks=1
+drag_dialogBox=1
+; debug readouts at the top of the screen (mouse hex, tile, light, camera, bbox; combat turn)
+debug_overlay=0
+; fps counter
+fps_overlay=1
+; pixels from the screen edge at which the map scrolls (CE: the edge itself)
+scroll_edge=10
 """
 
 

@@ -22,8 +22,6 @@ proto/
 audio/
 /audiotest
 .DS_Store
-xcuserdata
-contents.xcworkspacedata
 node_modules
 js/
 # third-party programs the pipeline uses when present (not ours to redistribute)
@@ -60,3 +58,7 @@ lut/endgame.json
 lut/enddeath.json
 lut/criticalTables.json
 lut/elevators.json
+# maps (export_maps: maps/<name>.json + .images.json)
+maps/
+# your settings: write_config writes CE defaults + [dh2] (tools/fallout2Cfg.py) when missing
+/fallout2.cfg
