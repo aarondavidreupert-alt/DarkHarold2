@@ -29,7 +29,7 @@ DarkHarold2/
 ├── art/             Extracted PNG sprites — git-ignored
 ├── proto/           Extracted proto JSON — git-ignored
 ├── tools/           Asset pipeline (Python 3) — moved here from repo root 2026-06-18
-│   ├── setup.py           Full extraction pipeline (run once against Fallout2/); --stages/--skip-existing/--delete-originals
+│   ├── setup.py           Full extraction pipeline (run once against Fallout2/; last stage compile_ts: npm install + tsc); --stages/--skip-existing/--delete-originals
 │   ├── pipeline_gui.py    Tkinter GUI front-end for setup.py
 │   ├── fomap.py           Map extractor (MAP → maps/*.json)
 │   ├── exportImagesPar.py FRM → PNG sprite exporter (parallel; the one setup.py actually uses)

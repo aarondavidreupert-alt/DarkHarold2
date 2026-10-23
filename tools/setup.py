@@ -673,6 +673,34 @@ def export_maps(overwrite=True):
 
 	return True
 
+def compile_ts(overwrite=True):
+	# src/**/*.ts -> js/ (play.html loads js/main.js). npm install first when
+	# node_modules has no TypeScript yet (package.json: dev dependencies only).
+	# Always compiles: tsc is quick and js/ must match src/.
+	import subprocess
+	npm = shutil.which("npm")
+	node = shutil.which("node")
+	if npm is None or node is None:
+		warn("node.js not found (https://nodejs.org) - TypeScript not compiled. "
+		     "Install it, then run `npm install` and `npx tsc` in the project folder.")
+		return False
+	tsc = os.path.join("node_modules", "typescript", "bin", "tsc")
+	if not os.path.exists(tsc):
+		info("Installing the TypeScript compiler (npm install)...")
+		progress.busy("npm install")
+		sys.stdout.flush()  # our lines before the tool's
+		if subprocess.run([npm, "install", "--no-audit", "--no-fund"]).returncode != 0 or not os.path.exists(tsc):
+			warn("npm install failed (see above) - TypeScript not compiled.")
+			return False
+	info("Compiling TypeScript (tsc -> js/)...")
+	progress.busy("tsc")
+	sys.stdout.flush()  # our lines before the tool's
+	if subprocess.run([node, tsc]).returncode != 0:
+		warn("tsc reported errors (see above); js/ may be incomplete.")
+		return False
+	info("Compiled the TypeScript to js/")
+	return True
+
 # Raw extracted source files that are fully superseded by converted output
 # (art/*.png, proto/pro.json, maps/*.json, audio/*.wav) and confirmed never
 # read directly by the running engine (grepped against src/*.ts). This is a
@@ -743,6 +771,7 @@ STAGES = {
 	"decompile_scripts": decompile_scripts,
 	"write_config": write_config,
 	"build_mods": build_mods,
+	"compile_ts": compile_ts,
 }
 
 # Stages run by default when --stages is not given: all of them. (export_audio was
@@ -822,7 +851,8 @@ def main():
 
 	info("")
 	info("Setup complete. Please review the messages above, looking for any warnings.")
-	info("Please run tsc after this to compile the source files.")
+	if "compile_ts" not in selected:
+		info("Please run tsc after this to compile the source files.")
 
 if __name__ == "__main__":
 	main()

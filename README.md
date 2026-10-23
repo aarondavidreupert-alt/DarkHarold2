@@ -330,7 +330,9 @@ If you're comfortable with setting up nginx, lighttpd, or Apache, go for that. I
 
 -   Python 3: `python -m http.server`
 
-Then run `npx tsc` after you've run `npm install` to compile the source code.
+The pipeline's last stage, `compile_ts`, compiles the source code to `js/` (it runs
+`npm install` first when `node_modules/` has no TypeScript yet, and needs node.js). After
+changing `src/`, or without that stage, run `npm install` once and then `npx tsc`.
 
 Browse to `http://localhost/play.html?artemple` (or whatever port you're using). If all went well, it should begin the game. If not, check the JavaScript console for errors.
 

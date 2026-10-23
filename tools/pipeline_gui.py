@@ -70,6 +70,7 @@ STAGES = [
     ("export_audio", "Convert audio (ACM -> WAV)", True),
     ("export_movies", "Convert movies (MVE -> WebM, needs ffmpeg)", True),
     ("export_speech", "Convert talking-head speech (ACM -> MP3, needs ffmpeg)", True),
+    ("compile_ts", "Compile the game (npm install if needed, then tsc -> js/)", True),
 ]
 STAGE_LABELS = {stage_id: label for stage_id, label, _ in STAGES}
 STAGE_LABELS["delete_originals"] = "Delete original source files"
