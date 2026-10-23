@@ -19,6 +19,7 @@ limitations under the License.
 from __future__ import print_function
 import os, glob, json
 import proto
+import progress
 
 subdirs = ("items", "critters", "scenery", "walls", "tiles", "misc")
 
@@ -31,6 +32,8 @@ def extractPROs(dataProtoPath, outDir, onError=onError, verbose=False):
 
     # master JSON dict
     root_map = {}
+    total = sum(len(glob.glob(os.path.join(dataProtoPath, s, "*.pro"))) for s in subdirs)
+    done = 0
 
     for subdir in subdirs:
         if not os.path.exists(os.path.join(outDir, subdir)):
@@ -42,6 +45,8 @@ def extractPROs(dataProtoPath, outDir, onError=onError, verbose=False):
         for protofile in glob.glob(os.path.join(dataProtoPath, subdir, "*.pro")):
             baseFile = os.path.basename(os.path.splitext(protofile)[0])
             id = int(baseFile)
+            progress.step(done, total, subdir + "/" + baseFile)
+            done += 1
 
             try:
                 if verbose: print("Dumping", protofile, "...")
@@ -54,6 +59,7 @@ def extractPROs(dataProtoPath, outDir, onError=onError, verbose=False):
 
     with open(os.path.join(outDir, "pro.json"), "w") as fp:
         print("Writing master JSON map...")
+        progress.busy("writing proto/pro.json")
         json.dump(root_map, fp, indent=2)
 
 def main():

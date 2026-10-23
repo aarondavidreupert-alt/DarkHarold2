@@ -31,6 +31,8 @@ import struct
 import subprocess
 import sys
 
+import progress
+
 MVE_SIGNATURE = b"Interplay MVE File\x1a\x00"
 
 
@@ -85,9 +87,9 @@ def convertAll(srcDir=os.path.join("data", "art", "cuts"), outDir=os.path.join("
         return False
     os.makedirs(outDir, exist_ok=True)
 
-    for name in sorted(os.listdir(srcDir)):
-        if not name.lower().endswith(".mve"):
-            continue
+    names = [n for n in sorted(os.listdir(srcDir)) if n.lower().endswith(".mve")]
+    for i, name in enumerate(names):
+        progress.step(i, len(names), name)
         base = os.path.splitext(name)[0].lower()
         src = os.path.join(srcDir, name)
         outVideo = os.path.join(outDir, base + ".webm")

@@ -1,5 +1,7 @@
 import glob, os
 
+import progress
+
 from acmDecoder import AcmError, decode_file, write_wav
 from acmMono import convertAcmMono
 
@@ -12,20 +14,24 @@ from acmMono import convertAcmMono
 # stereo, which made the SFX play at double speed.
 def convertSfxDir(inDir, outDir):
     os.makedirs(outDir, exist_ok=True)
-    for path in glob.glob(os.path.join(inDir, "*.[Aa][Cc][Mm]")):
+    paths = glob.glob(os.path.join(inDir, "*.[Aa][Cc][Mm]"))
+    for i, path in enumerate(paths):
         basename = os.path.splitext(os.path.basename(path))[0]
         outpath = os.path.join(outDir, basename.lower() + ".wav")
         print(path)
+        progress.step(i, len(paths), "sfx/" + basename)
         if not convertAcmMono(None, path, outpath, []):
             print("WARNING: could not decode %s" % path)
 
 # Music keeps the header's (stereo) layout: the decoded stream is interleaved L/R.
 def convertMusicDir(inDir, outDir):
     os.makedirs(outDir, exist_ok=True)
-    for path in glob.glob(os.path.join(inDir, "*.[Aa][Cc][Mm]")):
+    paths = glob.glob(os.path.join(inDir, "*.[Aa][Cc][Mm]"))
+    for i, path in enumerate(paths):
         basename = os.path.splitext(os.path.basename(path))[0]
         outpath = os.path.join(outDir, basename.lower() + ".wav")
         print(path)
+        progress.step(i, len(paths), "music/" + basename)
         try:
             channels, rate, samples = decode_file(path)
         except AcmError as e:

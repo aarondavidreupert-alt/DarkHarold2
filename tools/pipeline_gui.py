@@ -30,6 +30,11 @@ limitations under the License.
 # and warnings only, stage summaries (per-file progress hidden), or
 # everything. "Copy shown" / "Save log..." hand over just what is shown.
 #
+# Two progress bars: the whole run (stage i of n) and the running stage
+# (file i of n, or a moving bar while it cannot count). setup.py and its
+# converters print "@@stage" / "@@step" lines for them when DH2_PROGRESS=1
+# (tools/progress.py); they never reach the log.
+#
 # Cancel stops the run (setup.py and its children) and offers to remove the
 # files the run wrote under the output folders.
 
@@ -66,6 +71,8 @@ STAGES = [
     ("export_movies", "Convert movies (MVE -> WebM, needs ffmpeg)", True),
     ("export_speech", "Convert talking-head speech (ACM -> MP3, needs ffmpeg)", True),
 ]
+STAGE_LABELS = {stage_id: label for stage_id, label, _ in STAGES}
+STAGE_LABELS["delete_originals"] = "Delete original source files"
 
 # Mirrors tools/setup.py's DELETE_ORIGINALS_GLOBS — kept duplicated rather
 # than imported so this GUI never needs numpy/Pillow just to launch and
@@ -246,7 +253,7 @@ class PipelineGUI:
     def __init__(self, root):
         self.root = root
         root.title("DarkHarold2 Asset Pipeline")
-        root.geometry("760x620")
+        root.geometry("760x720")
 
         self.proc = None
         self.out_queue = queue.Queue()
@@ -315,6 +322,26 @@ class PipelineGUI:
         self.status_var = tk.StringVar(value="Idle")
         ttk.Label(run_frame, textvariable=self.status_var).pack(side="left", padx=10)
 
+        # --- Progress ---
+        progress_frame = ttk.LabelFrame(root, text="Progress")
+        progress_frame.pack(fill="x", **pad)
+        progress_frame.columnconfigure(1, weight=1)
+        ttk.Label(progress_frame, text="Overall:").grid(row=0, column=0, sticky="w", padx=(8, 4), pady=(4, 0))
+        self.overall_bar = ttk.Progressbar(progress_frame, mode="determinate", maximum=1000)
+        self.overall_bar.grid(row=0, column=1, sticky="ew", padx=(0, 8), pady=(4, 0))
+        self.overall_var = tk.StringVar(value="")
+        ttk.Label(progress_frame, textvariable=self.overall_var).grid(row=1, column=1, sticky="w", pady=(0, 4))
+        ttk.Label(progress_frame, text="Current:").grid(row=2, column=0, sticky="w", padx=(8, 4))
+        self.current_bar = ttk.Progressbar(progress_frame, mode="determinate", maximum=1000)
+        self.current_bar.grid(row=2, column=1, sticky="ew", padx=(0, 8))
+        self.current_var = tk.StringVar(value="")
+        # fixed width: a long file name must not resize the window
+        ttk.Label(progress_frame, textvariable=self.current_var, width=90).grid(row=3, column=1, sticky="w", pady=(0, 6))
+        self.stage_index = 0  # @@stage i of n: the running stage (1-based), 0 = none yet
+        self.stage_count = 0
+        self.stage_name = ""
+        self.current_busy = False
+
         # --- Log output ---
         log_frame = ttk.LabelFrame(root, text="Output")
         log_frame.pack(fill="both", expand=True, **pad)
@@ -338,6 +365,61 @@ class PipelineGUI:
         self.log_text.pack(fill="both", expand=True)
 
         root.protocol("WM_DELETE_WINDOW", self.on_close)
+
+    def set_busy(self, busy):
+        """Current bar: a moving bar while the stage cannot count, else a filled share."""
+        if busy == self.current_busy:
+            return
+        self.current_busy = busy
+        if busy:
+            self.current_bar.configure(mode="indeterminate")
+            self.current_bar.start(15)
+        else:
+            self.current_bar.stop()
+            self.current_bar.configure(mode="determinate")
+
+    def reset_progress(self):
+        self.stage_index, self.stage_count, self.stage_name = 0, 0, ""
+        self.set_busy(False)
+        self.overall_bar["value"] = 0
+        self.current_bar["value"] = 0
+        self.overall_var.set("")
+        self.current_var.set("")
+
+    def on_progress(self, line):
+        """An @@stage / @@step line from tools/progress.py."""
+        parts = line.rstrip("\n").split(" ", 3)
+        try:
+            a, b = int(parts[1]), int(parts[2])
+        except (IndexError, ValueError):
+            return
+        text = parts[3] if len(parts) > 3 else ""
+        if parts[0] == "@@stage":
+            self.stage_index, self.stage_count = a, b
+            self.stage_name = STAGE_LABELS.get(text, text)
+            self.overall_bar["value"] = 1000 * (a - 1) / max(b, 1)
+            self.overall_var.set("Stage %d of %d: %s" % (a, b, self.stage_name))
+            self.set_busy(True)
+            self.current_var.set("")
+        elif parts[0] == "@@step":
+            if b <= 0:
+                self.set_busy(True)
+                self.current_var.set(text)
+                return
+            self.set_busy(False)
+            frac = min((a + 1) / b, 1.0)  # item a (0-based) under way
+            self.current_bar["value"] = 1000 * frac
+            self.current_var.set("%d / %d   %s" % (min(a + 1, b), b, text))
+            if self.stage_count:
+                self.overall_bar["value"] = 1000 * (self.stage_index - 1 + frac) / self.stage_count
+
+    def finish_progress(self, ok):
+        self.set_busy(False)
+        if ok:
+            self.overall_bar["value"] = 1000
+            self.current_bar["value"] = 1000
+            self.overall_var.set("Finished %d stage%s" % (self.stage_count, "" if self.stage_count == 1 else "s"))
+            self.current_var.set("")
 
     def set_all_stages(self, value):
         for var in self.stage_vars.values():
@@ -468,10 +550,16 @@ class PipelineGUI:
         self.before = snapshot_outputs()
         self.cancelled = False
         self.status_var.set("Running...")
+        self.reset_progress()
+        self.overall_var.set("Starting...")
+        self.set_busy(True)
 
+        # progress lines for the bars; unbuffered so the log keeps up with the run
+        env = dict(os.environ, DH2_PROGRESS="1", PYTHONUNBUFFERED="1")
         self.proc = subprocess.Popen(
             cmd,
             cwd=PROJECT_ROOT,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -496,10 +584,14 @@ class PipelineGUI:
             while True:
                 kind, payload = self.out_queue.get_nowait()
                 if kind == "line":
-                    self.log(payload, self.classifier.level(payload))
+                    if payload.startswith("@@"):
+                        self.on_progress(payload)
+                    else:
+                        self.log(payload, self.classifier.level(payload))
                 elif kind == "done":
                     self.proc = None
                     self.cancel_button.configure(state="disabled")
+                    self.finish_progress(payload == 0 and not self.cancelled)
                     if self.cancelled:
                         self.log("--- Cancelled ---\n", LEVEL_ERROR)
                         self.status_var.set("Cancelled")

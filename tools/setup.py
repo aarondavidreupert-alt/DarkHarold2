@@ -61,6 +61,7 @@ import parse_gam
 import int2lua
 import stitchWorldmap
 import fallout2Cfg
+import progress
 
 # global paths/flags
 SRC_DIR = None
@@ -199,7 +200,8 @@ def overlay_dat(path, dest):
 	names = []
 	with open(path, "rb") as f:
 		tree = dat2.readDAT(f, posixPaths=True)
-		for name, entry in tree.items():
+		for i, (name, entry) in enumerate(tree.items()):
+			progress.step(i, len(tree), os.path.basename(path) + ": " + name)
 			name = name.lower()
 			out = os.path.join(dest, name)
 			os.makedirs(os.path.dirname(out), exist_ok=True)
@@ -251,6 +253,7 @@ def build_mods(overwrite=True):
 		if os.path.isdir(out):
 			shutil.rmtree(out)
 		info("Building mod folder mods/%s from %s..." % (name, label))
+		progress.busy("mods/%s: extracting %s" % (name, label))
 		data = os.path.join(out, "data")
 		raw = overlay_dat(path, data) if kind == "dat" else overlay_dir(path, data)
 		# its settings: mods/<name>.ini next to the archive (get_ini_setting("mods\\upu.ini|..."))
@@ -344,7 +347,8 @@ def build_mod_assets(out, data, lower, raw):
 		vanilla = sorted(glob.glob(os.path.join("data", "maps", "*.map")))
 		if not vanilla:
 			warn("No data/maps/*.map (deleted originals?) - the vanilla maps are not checked against the mod's .lst / proto changes")
-		for mapFile in vanilla:
+		for i, mapFile in enumerate(vanilla):
+			progress.step(i, len(vanilla), "checking " + os.path.basename(mapFile))
 			mapName = os.path.splitext(os.path.basename(mapFile))[0].lower()
 			current = os.path.join("maps", mapName + ".json")
 			if mapName in mod_names or not os.path.exists(current):
@@ -400,7 +404,8 @@ def build_mod_assets(out, data, lower, raw):
 	if paths:
 		info("  decompiling %d scripts..." % len(paths))
 		done, rows = 0, []
-		for path in paths:
+		for i, path in enumerate(paths):
+			progress.step(i, len(paths), os.path.basename(path))
 			try:
 				text = int2lua.decompile_file(path, rows, base=lower, mod=True)
 			except Exception as e:
@@ -586,7 +591,8 @@ def decompile_scripts(overwrite=True):
 	info("Decompiling %d scripts to Lua..." % len(paths))
 	done, failed = 0, 0
 	rows = []  # the variable list: names and where they come from
-	for path in paths:
+	for i, path in enumerate(paths):
+		progress.step(i, len(paths), os.path.basename(path))
 		out = os.path.splitext(path)[0] + ".lua"
 		if not overwrite and os.path.exists(out):
 			continue
@@ -639,7 +645,9 @@ def export_maps(overwrite=True):
 	except OSError:
 		listed = None  # no maps.txt: treat every map as listed
 
-	for mapFile in glob.glob(os.path.join("data", "maps", "*.map")):
+	mapFiles = glob.glob(os.path.join("data", "maps", "*.map"))
+	for i, mapFile in enumerate(mapFiles):
+		progress.step(i, len(mapFiles), os.path.basename(mapFile))
 		mapName = os.path.basename(mapFile).lower()
 		outFile = os.path.join("maps", os.path.splitext(mapName)[0] + ".json")
 
@@ -703,7 +711,8 @@ def delete_originals(paths=None):
 	if paths is None:
 		paths = find_originals()
 	deleted, failed = 0, 0
-	for path in paths:
+	for i, path in enumerate(paths):
+		progress.step(i, len(paths), path)
 		try:
 			os.remove(path)
 			deleted += 1
@@ -787,11 +796,16 @@ def main():
 		if NO_EXPORT_IMAGES and "export_images" in selected:
 			selected.remove("export_images")
 
+	# the GUI's progress bars: one step per stage, plus deleting the originals
+	count = len(selected) + (1 if args.delete_originals else 0)
+	progress.busy("checking the install")
 	setup_check()
-	for name in selected:
+	for i, name in enumerate(selected):
+		progress.stage(i + 1, count, name)
 		STAGES[name](overwrite=args.overwrite)
 
 	if args.delete_originals:
+		progress.stage(count, count, "delete_originals")
 		originals = find_originals()
 		if not originals:
 			info("No original source files found to delete.")

@@ -28,6 +28,7 @@ import subprocess
 
 from acmMono import convertAcmMono
 from convertMovies import findFfmpeg
+import progress
 
 
 def convertAll(srcDir=os.path.join("data", "sound", "speech"), outDir=os.path.join("audio", "speech"), overwrite=True, verbose=True):
@@ -40,6 +41,8 @@ def convertAll(srcDir=os.path.join("data", "sound", "speech"), outDir=os.path.jo
         return False
 
     count = 0
+    total = sum(1 for _root, _dirs, fs in os.walk(srcDir) for n in fs if n.lower().endswith(".acm"))
+    done = 0
     for head in sorted(os.listdir(srcDir)):
         headDir = os.path.join(srcDir, head)
         if not os.path.isdir(headDir):
@@ -49,6 +52,8 @@ def convertAll(srcDir=os.path.join("data", "sound", "speech"), outDir=os.path.jo
         for name in sorted(os.listdir(headDir)):
             if not name.lower().endswith(".acm"):
                 continue
+            progress.step(done, total, head + "/" + name)
+            done += 1
             out = os.path.join(outHead, os.path.splitext(name)[0].lower() + ".mp3")
             if not overwrite and os.path.exists(out):
                 continue

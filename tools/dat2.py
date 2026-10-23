@@ -16,6 +16,7 @@ limitations under the License.
 
 from __future__ import print_function
 import sys, os, struct, zlib, collections
+import progress
 
 # Fallout 2 .DAT (DAT2) file reader
 
@@ -109,6 +110,7 @@ def dumpFiles(f, outDir, verbose=False):
 		mkdirs(outDir + "/" + os.path.dirname(filename))
 
 		if verbose: print("[%d/%d] dumping %s..." % (i, numFiles, filename.encode('ascii')))
+		progress.step(i - 1, numFiles, filename)
 		with open(outPath, "wb") as fp:
 			try:
 				fp.write(readFile(f, fileEntry))
