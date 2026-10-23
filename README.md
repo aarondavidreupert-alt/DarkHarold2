@@ -12,13 +12,16 @@ It is written primarily in TypeScript and Python, and targets recent browsers wi
 ## Status
 
 DarkHarold2 is not a complete remake at this time. Estimated overall completion: **~99%**.
-Every gap tracked in [`wiki/known_bugs.md`](wiki/known_bugs.md) is now closed on the `100percent` branch, including
+Every gap tracked in [`wiki/known_bugs.md`](wiki/known_bugs.md) before 2026-10-24 was closed on the `100percent` branch, including
 the systems previously deferred: movies, talking heads and speech, radiation, drugs and addiction, party level-ups,
 the car, and line of fire. The 2026-10-18 audit re-checked every wiki doc against CE and the code and ported what
 still differed (worldmap travel and random encounters, skill use, game-load script procs, translucency, …). The
 remaining share is verification and a few documented approximations: there has been
 no full end-to-end playthrough yet, and a handful of places still simplify CE (listed under "Known approximations"
-below). See [`ROADMAP.md`](ROADMAP.md) and [`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
+below). The 2026-10-24 function-by-function CE parity audit
+([`wiki/CE_PARITY_AUDIT.md`](wiki/CE_PARITY_AUDIT.md)) found 1780 CE function rows, 835 of them matching, and opened
+23 HIGH groups (known_bugs §33: e.g. locked doors and ladders lost in the map pipeline, NPC skills too low,
+level-up perk effects lost, several script opcodes) plus ~150 MED findings. See [`ROADMAP.md`](ROADMAP.md) and [`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
 
 If you're looking for documentation on how Fallout 2 works, documentation on certain file formats, or
 tools to work with them, this project will be useful to you as well.
@@ -109,6 +112,7 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 48 | [`wiki/ts-split-refactor.md`](wiki/ts-split-refactor.md) | Source split strategy and the subfolder / barrel convention |
 | 49 | [`wiki/lua_scripts.md`](wiki/lua_scripts.md) | Scripts decompiled to Lua (`tools/int2lua.py`), the Lua backend and the VM-vs-Lua test |
 | 50 | [`wiki/lua_variable_names.md`](wiki/lua_variable_names.md) | Review list for the decompiled scripts' variable names: inferred names and remaining numbers |
+| 50a | [`wiki/CE_PARITY_AUDIT.md`](wiki/CE_PARITY_AUDIT.md) | 2026-10-24 function-by-function CE parity audit; per-subsystem tables in `wiki/ce_audit/` |
 | 51 | [`wiki/upu_support.md`](wiki/upu_support.md) | The Unofficial Patch (UPU): what it changes, how DH2 runs it (pipeline overlay, sfall functions), conflicts |
 | 52 | [`wiki/edit_history.md`](wiki/edit_history.md) | Sprint notes, newest first |
 
@@ -211,7 +215,7 @@ the wiki tracker is the source of truth.
 ### 🔶 Known approximations
 
 - **Hover readout** is a DOM overlay rather than a cursor blit, and isn't shown for non-critter targets (CI18).
-- **Action menu** opens on right-click instead of CE's held left button; the mouse wheel zooms instead of scrolling (C42 / C43).
+- **Action menu** opens on a command-mode left click instead of CE's held left button (README previously said right-click; see CE parity audit MOUSE-02); the mouse wheel zooms instead of scrolling (C42 / C43).
 - **Pip-Boy** — no idle screensaver (cosmetic).
 - **Day / night** — DH2 adds a smooth day/night light curve by default; `[dh2] day_night_cycle=0` gives CE's script-only lighting (GTC10).
 - **Skill use** — no black palette fade around First Aid / Doctor / Repair (cosmetic).
