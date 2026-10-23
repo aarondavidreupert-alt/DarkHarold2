@@ -250,13 +250,13 @@ export class Renderer {
             // position through the zoom and scale the image dimensions too
             // so it lines up with the (zoomed) hex grid underneath.
             const z = getZoom()
-            const hexImg = globalState.images['hex_outline']
+            const hexImg = globalState.images['img/hex_outline']
             const hexW = hexImg?.naturalWidth ?? 32
             const hexH = hexImg?.naturalHeight ?? 16
             // CE draws the hex cursor at tileToScreenXY (cell top-left).
             const scr = hexCellTopLeft(mouseHex.x, mouseHex.y)
             const screen = worldToScreen(scr.x, scr.y)
-            this.renderImage('hex_outline', screen.x, screen.y, hexW * z, hexH * z)
+            this.renderImage('img/hex_outline', screen.x, screen.y, hexW * z, hexH * z)
         }
 
         for (const window of this.windows.filter((w) => w.showing)) {

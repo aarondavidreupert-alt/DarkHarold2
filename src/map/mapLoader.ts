@@ -384,7 +384,7 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
 
         // load some testing art
         load('art/critters/hmjmpsat')
-        load('hex_outline')
+        load('img/hex_outline') // DH2's hex cursor outline (not game art)
 
         // load cursor assets
         load('art/intrface/stdarrow')

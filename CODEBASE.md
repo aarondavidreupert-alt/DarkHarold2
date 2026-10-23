@@ -20,6 +20,7 @@ DarkHarold2/
 │   ├── lst/         LST index JSON files (art_critters.json, scripts.json, …)
 │   └── pro/         Proto lookup indexes (proto_items.json, etc.)
 ├── maps/            Extracted map JSON + per-map image lists (*.json, *.images.json) — git-ignored
+├── img/             DH2's own images (hex_outline.png: the hex cursor outline, loaded by mapLoader.ts)
 ├── lib/             Third-party JS (pathfinding-browser.js, wasmoon/ — Lua 5.4 in WebAssembly, MIT)
 ├── audio/           Extracted WAV audio (music/ and sfx/) — git-ignored
 ├── mods/            Mod folders (git-ignored but mods_order.txt): Lua mods (mods/<name>/scripts/), and the
