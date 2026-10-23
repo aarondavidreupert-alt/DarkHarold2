@@ -35,13 +35,19 @@ limitations under the License.
 # converters print "@@stage" / "@@step" lines for them when DH2_PROGRESS=1
 # (tools/progress.py); they never reach the log.
 #
+# A Requirements panel lists numpy, Pillow, fontTools, FFmpeg and node.js;
+# Run warns when a ticked stage needs one that is missing.
+#
 # Cancel stops the run (setup.py and its children) and offers to remove the
 # files the run wrote under the output folders.
 
 import glob
+import importlib.metadata
+import importlib.util
 import os
 import queue
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -74,6 +80,65 @@ STAGES = [
 ]
 STAGE_LABELS = {stage_id: label for stage_id, label, _ in STAGES}
 STAGE_LABELS["delete_originals"] = "Delete original source files"
+
+# What the pipeline needs besides this Python: (id, name, needed by, required?).
+# "needed by" None = every run (setup.py exits without numpy / Pillow); a
+# stage list = those stages skip their work with a warning when it is missing.
+# required False = optional: the stage runs, without one extra (fontTools: the
+# pixel font's .woff, exportFonts.py).
+REQUIREMENTS = [
+    ("numpy", "Python module numpy", None, True),
+    ("PIL", "Python module Pillow", None, True),
+    ("fontTools", "Python module fontTools", ["export_fonts"], False),
+    ("ffmpeg", "FFmpeg", ["export_movies", "export_speech"], True),
+    ("node", "node.js + npm", ["compile_ts"], True),
+]
+
+
+def find_ffmpeg():
+    """As tools/convertMovies.py findFfmpeg: ffmpeg.exe in the project root, else the PATH."""
+    local = os.path.join(PROJECT_ROOT, "ffmpeg.exe")
+    return local if os.path.exists(local) else shutil.which("ffmpeg")
+
+
+def check_requirements():
+    """id -> (found?, detail) for each of REQUIREMENTS, checked for the Python
+    this GUI runs setup.py with."""
+    found = {}
+    for mod, dist in (("numpy", "numpy"), ("PIL", "Pillow"), ("fontTools", "fonttools")):
+        if importlib.util.find_spec(mod) is None:
+            found[mod] = (False, "not installed: pip install %s" % dist)
+        else:
+            try:
+                found[mod] = (True, importlib.metadata.version(dist))
+            except importlib.metadata.PackageNotFoundError:
+                found[mod] = (True, "installed")
+    ffmpeg = find_ffmpeg()
+    found["ffmpeg"] = (True, ffmpeg) if ffmpeg else (
+        False, "not found: ffmpeg.exe in the project folder, or ffmpeg on the PATH")
+    node, npm = shutil.which("node"), shutil.which("npm")
+    if node and npm:
+        try:
+            version = subprocess.run([node, "--version"], capture_output=True, text=True,
+                                     timeout=10).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            version = ""
+        found["node"] = (True, version or node)
+    else:
+        found["node"] = (False, "not found: https://nodejs.org")
+    return found
+
+
+def missing_for(selected, found):
+    """[(name, stages that need it, required?)] for what the selected stages lack."""
+    out = []
+    for rid, name, stages, required in REQUIREMENTS:
+        if found[rid][0]:
+            continue
+        users = selected if stages is None else [s for s in stages if s in selected]
+        if users:
+            out.append((name, users, required))
+    return out
 
 # Mirrors tools/setup.py's DELETE_ORIGINALS_GLOBS — kept duplicated rather
 # than imported so this GUI never needs numpy/Pillow just to launch and
@@ -254,7 +319,7 @@ class PipelineGUI:
     def __init__(self, root):
         self.root = root
         root.title("DarkHarold2 Asset Pipeline")
-        root.geometry("1280x720")
+        root.geometry("1320x780")
 
         self.proc = None
         self.out_queue = queue.Queue()
@@ -329,6 +394,13 @@ class PipelineGUI:
         self.status_var = tk.StringVar(value="Idle")
         ttk.Label(run_frame, textvariable=self.status_var).pack(side="left", padx=10)
 
+        # --- Requirements ---
+        self.req_frame = ttk.LabelFrame(right, text="Requirements")
+        self.req_frame.pack(fill="x", **pad)
+        self.req_frame.columnconfigure(2, weight=1)
+        self.found = {}
+        self.refresh_requirements()
+
         # --- Progress ---
         progress_frame = ttk.LabelFrame(right, text="Progress")
         progress_frame.pack(fill="x", **pad)
@@ -372,6 +444,50 @@ class PipelineGUI:
         self.log_text.pack(fill="both", expand=True)
 
         root.protocol("WM_DELETE_WINDOW", self.on_close)
+
+    def refresh_requirements(self):
+        """(Re)check REQUIREMENTS and list them: found (green), missing (red),
+        missing but optional (orange), with what needs each."""
+        for child in self.req_frame.winfo_children():
+            child.destroy()
+        self.found = check_requirements()
+        for row, (rid, name, stages, required) in enumerate(REQUIREMENTS):
+            ok, detail = self.found[rid]
+            mark, color = ("OK", "#008000") if ok else (("missing", "#c00000") if required else ("missing", "#c07000"))
+            users = "every run" if stages is None else ", ".join(
+                STAGE_LABELS[s].split(" (")[0] for s in stages)
+            if not required:
+                users += " (optional)"
+            ttk.Label(self.req_frame, text=mark, foreground=color, width=8).grid(
+                row=row, column=0, sticky="w", padx=(8, 4))
+            ttk.Label(self.req_frame, text=name, width=24).grid(row=row, column=1, sticky="w")
+            ttk.Label(self.req_frame, text=detail, wraplength=300).grid(row=row, column=2, sticky="w", padx=(0, 8))
+            ttk.Label(self.req_frame, text="for: " + users, foreground="#606060", wraplength=260).grid(
+                row=row, column=3, sticky="w", padx=(0, 8))
+        ttk.Button(self.req_frame, text="Check again", command=self.refresh_requirements).grid(
+            row=len(REQUIREMENTS), column=0, columnspan=2, sticky="w", padx=8, pady=(2, 6))
+
+    def confirm_requirements(self, selected):
+        """Before a run: False when it should not start. numpy / Pillow missing
+        stops it (setup.py cannot run); another missing tool asks first."""
+        self.refresh_requirements()
+        missing = missing_for(selected, self.found)
+        if not missing:
+            return True
+        if not (self.found["numpy"][0] and self.found["PIL"][0]):
+            messagebox.showerror(
+                "Missing Python modules",
+                "The pipeline needs numpy and Pillow for the Python it runs with:\n%s\n\n"
+                "Install them (pipenv install, or pip install numpy pillow fonttools) "
+                "and start this window from that environment." % sys.executable)
+            return False
+        lines = ["- %s: %s%s" % (name, ", ".join(STAGE_LABELS[s].split(" (")[0] for s in stages),
+                                 "" if required else " (optional extra only)")
+                 for name, stages, required in missing]
+        return messagebox.askyesno(
+            "Missing requirements",
+            "Missing for the ticked stages:\n\n" + "\n".join(lines) +
+            "\n\nThose stages will skip that part with a warning. Run anyway?")
 
     def set_busy(self, busy):
         """Current bar: a moving bar while the stage cannot count, else a filled share."""
@@ -517,6 +633,9 @@ class PipelineGUI:
         selected = [stage_id for stage_id, var in self.stage_vars.items() if var.get()]
         if not selected:
             messagebox.showerror("No stages selected", "Select at least one pipeline stage to run.")
+            return
+
+        if not self.confirm_requirements(selected):
             return
 
         if self.delete_originals_var.get():

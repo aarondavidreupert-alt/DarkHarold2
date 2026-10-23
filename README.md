@@ -317,7 +317,9 @@ python tools/setup.py path/to/Fallout2/installation/directory
 
 Or use the graphical front-end (`python tools/pipeline_gui.py`) to pick which stages to
 run, whether to overwrite existing output, and whether to delete the raw source files
-once converted. Two progress bars show the whole run (stage i of n) and the running
+once converted. A Requirements panel shows whether numpy, Pillow, fontTools, FFmpeg and
+node.js are there, and **Run** warns before it starts when a ticked stage needs one that
+is missing (without numpy or Pillow it does not start). Two progress bars show the whole run (stage i of n) and the running
 stage (file i of n, with the file's name). Its output panel can show errors and warnings only, stage summaries, or
 every file, collapses repeated lines, and copies or saves just what is shown — handy
 for bug reports. **Cancel** stops a run and offers to remove the files it wrote
