@@ -39,7 +39,7 @@ DarkHarold2/
 │   ├── proto.py           PRO binary parser
 │   ├── dat2.py            DAT2 archive extractor
 │   ├── fonts.py           FON font extraction
-│   ├── convertAudio.py    ACM → WAV (ffmpeg; acm2wav.exe optional, music)
+│   ├── convertAudio.py    ACM → WAV (acmDecoder.py: CE sound_decoder.cc port, no ffmpeg)
 │   ├── stitchWorldmap.py  World map tiles → art/worldmap.png (stitch_worldmap stage)
 │   ├── mpserv.py          Multiplayer WebSocket server (unrelated to asset conversion)
 │   ├── convertLST.py      LST → JSON pre-bake (lut/lst/)
@@ -47,7 +47,7 @@ DarkHarold2/
 │   ├── convertEndgame.py  Endgame slide extraction
 │   ├── parseCritTable.py  Extracts criticalTables.json from fallout2.exe
 │   └── oldPy/             Superseded/experimental script iterations — reference only
-├── acm2wav/         Pascal source for ACM→WAV converter
+├── acm2wav/         Pascal source of the old ACM→WAV converter (no longer used)
 ├── wrappers/        macOS native wrappers
 ├── Modding/         Design documents (.docx, .txt) — not engine code
 ├── play.html        Main entry point (loads js/main.js)
@@ -250,7 +250,7 @@ The engine consumes only pre-baked JSON/PNG — no runtime DAT parsing.
 | LST → JSON | `tools/convertLST.py` | `lut/lst/*.json` |
 | PRO indexes | `tools/convertPRO.py` (no pipeline stage; nothing reads its output) | `lut/pro/*.json` (proto lookup) |
 | AAF/FON fonts | `tools/fonts.py` (`tools/oldPy/fonts2.py`, `fonts7alphawhite.py`, `data_fonts*.py` are superseded iterations) | `art/fonts/` |
-| ACM → WAV | `tools/convertAudio.py` (`export_audio` stage, default; ffmpeg — `acm2wav/` optional for music) | `audio/**/*.wav` |
+| ACM → WAV | `tools/convertAudio.py` (`export_audio` stage, default; `tools/acmDecoder.py`, a port of CE `sound_decoder.cc`) | `audio/**/*.wav` |
 | AAF/FON fonts → PNG atlas + web font | `tools/exportFonts.py` (`export_fonts` stage; the `.woff` needs fontTools) | `art/fonts/font<N>_aaf.png/.json/.woff`, `font<N>_fon.png/.json` |
 | MVE → WebM | `tools/convertMovies.py` (`export_movies` stage; needs ffmpeg) | `art/cuts/*.webm` + `.json` |
 | Speech ACM → MP3 | `tools/convertSpeech.py` (`export_speech` stage; needs ffmpeg) | `audio/speech/<head>/*.mp3` |

@@ -20,8 +20,8 @@ limitations under the License.
 # keeps the ~4,400 s of speech around 35 MB instead of ~385 MB. The .lip files
 # stay in data/sound/speech/ and are read by the engine directly.
 #
-# Requires ffmpeg (its interplay_acm decoder) on PATH or ffmpeg.exe in the
-# project root.
+# Decoded by tools/acmDecoder.py (CE sound_decoder.cc port); requires ffmpeg (the
+# MP3 encoder) on PATH or ffmpeg.exe in the project root.
 
 import os
 import subprocess

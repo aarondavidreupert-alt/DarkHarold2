@@ -380,16 +380,17 @@ def build_mod_assets(out, data, lower, raw):
 		os.makedirs(os.path.join(out, "lut"), exist_ok=True)
 		convertEndgame.convert_endgame(tmp, os.path.join(out, "lut"))
 		shutil.rmtree(tmp)
-	# sound effects, music, speech, movies (need ffmpeg, as the vanilla stages)
+	# sound effects and music (Python ACM decoder); speech and movies need ffmpeg, as
+	# the vanilla stages
+	if os.path.isdir(os.path.join(data, "sound", "sfx")):
+		info("  converting sound effects...")
+		convertAudio.convertSfxDir(os.path.join(data, "sound", "sfx"), os.path.join(out, "audio", "sfx"))
+	if os.path.isdir(os.path.join(data, "sound", "music")):
+		convertAudio.convertMusicDir(os.path.join(data, "sound", "music"), os.path.join(out, "audio", "music"))
 	ffmpeg = convertMovies.findFfmpeg()
-	if (has("sound/") or has("art/cuts/")) and ffmpeg is None:
-		warn("ffmpeg not found - the mod's sound / movies are not converted")
+	if (has("sound/speech/") or has("art/cuts/")) and ffmpeg is None:
+		warn("ffmpeg not found - the mod's speech / movies are not converted")
 	elif ffmpeg is not None:
-		if os.path.isdir(os.path.join(data, "sound", "sfx")):
-			info("  converting sound effects...")
-			convertAudio.convertSfxDir(ffmpeg, os.path.join(data, "sound", "sfx"), os.path.join(out, "audio", "sfx"))
-		if os.path.isdir(os.path.join(data, "sound", "music")):
-			convertAudio.convertMusicDir(ffmpeg, os.path.join(data, "sound", "music"), os.path.join(out, "audio", "music"))
 		if os.path.isdir(os.path.join(data, "sound", "speech")):
 			convertSpeech.convertAll(os.path.join(data, "sound", "speech"), os.path.join(out, "audio", "speech"))
 		if os.path.isdir(os.path.join(data, "art", "cuts")):
@@ -495,11 +496,8 @@ def export_pros(overwrite=True):
 	return True
 
 def export_audio(overwrite=True):
-	# DH2-specific conversion. Needs ffmpeg (SFX are decoded mono, as CE plays them —
-	# see tools/acmMono.py); music uses acm2wav.exe when present, else ffmpeg.
-	if convertMovies.findFfmpeg() is None:
-		warn("ffmpeg not found (PATH or project root) - skipping audio conversion")
-		return True
+	# DH2-specific conversion with tools/acmDecoder.py (CE sound_decoder.cc port; no
+	# ffmpeg needed). SFX are decoded mono, as CE plays them (tools/acmMono.py).
 	if not os.path.exists("data/sound/sfx") and not os.path.exists("data/sound/music"):
 		warn("data/sound/{sfx,music} not found - run DAT extraction first")
 		return True
@@ -662,9 +660,15 @@ DELETE_ORIGINALS_GLOBS = [
 def find_originals():
 	"""Return the list of raw source files eligible for deletion (see
 	DELETE_ORIGINALS_GLOBS). Pure query, deletes nothing."""
-	found = []
+	# *.acm and *.ACM match the same files on a case-insensitive file system
+	# (Windows), so dedupe on the normalised path or every ACM is listed twice.
+	found, seen = [], set()
 	for pattern in DELETE_ORIGINALS_GLOBS:
-		found.extend(glob.glob(pattern, recursive=True))
+		for path in glob.glob(pattern, recursive=True):
+			key = os.path.normcase(os.path.abspath(path))
+			if key not in seen:
+				seen.add(key)
+				found.append(path)
 	return found
 
 def delete_originals(paths=None):
@@ -709,8 +713,7 @@ STAGES = {
 }
 
 # Stages run by default when --stages is not given: all of them. (export_audio was
-# opt-in while it needed acm2wav.exe; it runs on ffmpeg, as movies and speech do, and
-# skips itself with a warning without it.)
+# opt-in while it needed acm2wav.exe; it decodes ACM in Python now.)
 DEFAULT_STAGES = list(STAGES)
 
 def main():

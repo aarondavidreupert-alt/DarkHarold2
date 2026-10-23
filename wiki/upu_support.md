@@ -89,7 +89,7 @@ and `patchXXX.dat`).
                              changes alter are re-converted and kept when they differ
       lut/lst/*.json         the mod's .lst files, each the whole list
       lut/endgame.json …     endgame / death slides when the mod changes them
-      audio/sfx/*.wav        sound (ffmpeg, as the vanilla stages)
+      audio/sfx/*.wav        sound (tools/acmDecoder.py, as the vanilla stages)
       data/scripts/*.int|lua scripts: the .int and its decompiled Lua
       data/text/**.msg, data/data/*.txt, data/gvars.json, data/maps/*.mvars.json
       data/mods/upu.ini      the install's mods/upu.ini (get_ini_setting)

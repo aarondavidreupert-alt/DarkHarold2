@@ -22,14 +22,16 @@ limitations under the License.
 # carry channels=2 in the header (data/sound/speech/bosss/ssa2.acm: 706990
 # samples, 2 ch, 22050 Hz; its .lip counts 1413980 bytes = 706990 mono 16-bit
 # samples = 32 s). Decoding those as stereo halves the length and plays twice as
-# fast. Both decoders (acm2wav, ffmpeg's interplay_acm) emit the samples in stream
-# order, so the raw s16 output read back as one channel at the header's rate is
+# fast. The decoder (acmDecoder.py, as CE's sound_decoder.cc) emits the samples in
+# stream order, so the raw s16 output read back as one channel at the header's rate is
 # exactly the stream CE plays.
 
-import os
 import struct
 import subprocess
-import tempfile
+
+import numpy as np
+
+from acmDecoder import AcmError, decode_file, write_wav
 
 ACM_MAGIC = 0x01032897
 
@@ -61,37 +63,29 @@ def wavDataChunk(path):
 
 
 def decodeAcmRaw(ffmpeg, src):
-    """All decoded s16 samples of `src` in stream order. acm2wav.exe (project root)
-    decodes every file completely but labels everything stereo, which doesn't matter
-    for the raw stream; ffmpeg's decoder drops the tail of some files (decode errors
-    near EOF), so it is the fallback."""
-    acm2wav = os.path.abspath("acm2wav.exe")
-    if os.path.exists(acm2wav):
-        with tempfile.TemporaryDirectory() as tmp:
-            subprocess.run([acm2wav, os.path.abspath(src)], cwd=tmp, stdout=subprocess.PIPE)
-            out = os.path.join(tmp, os.path.splitext(os.path.basename(src))[0] + ".wav")
-            if not os.path.exists(out):
-                outs = [f for f in os.listdir(tmp) if f.lower().endswith(".wav")]
-                out = os.path.join(tmp, outs[0]) if outs else None
-            if out:
-                data = wavDataChunk(out)
-                if data:
-                    return data
-    if ffmpeg is None:
+    """All decoded s16 samples of `src` in stream order (acmDecoder.py, a port of CE's
+    sound_decoder.cc: complete, unlike ffmpeg's decoder, which drops the tail of some
+    files with decode errors near EOF). `ffmpeg` is unused, kept for the callers."""
+    try:
+        return decode_file(src)[2].astype("<i2").tobytes() or None
+    except AcmError as e:
+        print("WARNING: %s: %s" % (src, e))
         return None
-    decode = subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-max_error_rate", "1.0", "-i", src,
-                             "-f", "s16le", "-c:a", "pcm_s16le", "pipe:1"],
-                            stdout=subprocess.PIPE)
-    return decode.stdout or None
 
 
 def convertAcmMono(ffmpeg, src, dst, outArgs):
-    """Decode `src`, take the samples as one mono stream at the header rate and encode
-    to `dst` with `outArgs` (e.g. ["-c:a", "pcm_s16le"]). Returns True on success."""
+    """Decode `src`, take the samples as one mono stream at the header rate and write
+    `dst`: a .wav directly, anything else encoded by ffmpeg with `outArgs` (e.g.
+    ["-c:a", "libmp3lame", "-b:a", "64k"]). Returns True on success."""
     header = acmHeader(src)
     rate = header[2] if header and header[2] > 0 else 22050
     raw = decodeAcmRaw(ffmpeg, src)
     if not raw:
+        return False
+    if dst.lower().endswith(".wav"):
+        write_wav(dst, np.frombuffer(raw, "<i2"), rate, 1)
+        return True
+    if ffmpeg is None:
         return False
     encode = subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
                              "-f", "s16le", "-ar", str(rate), "-ac", "1", "-i", "pipe:0"] + outArgs + [dst],

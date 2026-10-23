@@ -151,7 +151,7 @@ pipenv run python tools/pipeline_gui.py
 | [`tools/frmpixels.py`](tools/frmpixels.py) | FRM pixel helpers and atlas generation |
 | [`tools/exportPRO.py`](tools/exportPRO.py) / [`tools/proto.py`](tools/proto.py) | PRO binary → JSON |
 | [`tools/fomap.py`](tools/fomap.py) | MAP → JSON (tiles, objects, spatials, lights) |
-| [`tools/convertAudio.py`](tools/convertAudio.py) | ACM → WAV (`export_audio` stage; ffmpeg, music via `acm2wav.exe` when present) |
+| [`tools/convertAudio.py`](tools/convertAudio.py) | ACM → WAV (`export_audio` stage; ACM decoded by `tools/acmDecoder.py`, a port of CE `sound_decoder.cc`) |
 | [`tools/dat2.py`](tools/dat2.py) | DAT2 archive extractor |
 | [`tools/pal.py`](tools/pal.py) | PAL palette loading |
 | [`tools/fonts.py`](tools/fonts.py) | FON font extraction |
@@ -334,7 +334,7 @@ Alternatively, Firefox can load directly from `file://` by opening `play.html` f
 
 Review `src/config.ts` for engine options. Be sure to re-compile if you change them.
 
-Sound is converted by the pipeline's `export_audio` stage (default since 2026-10-23); it needs ffmpeg on the PATH or `ffmpeg.exe` in the project root, like movies and speech. `acm2wav.exe` in the project root is optional (used for music when present).
+Sound is converted by the pipeline's `export_audio` stage (default since 2026-10-23). Sound effects and music are decoded in Python (`tools/acmDecoder.py`, a port of CE's `sound_decoder.cc`) and need no external tool; speech (MP3) and movies need ffmpeg on the PATH or `ffmpeg.exe` in the project root.
 
 ## Debug Logging
 
@@ -466,7 +466,7 @@ of DarkHarold2 and are only given to explain the status quo. The technical direc
 
 -   **Q:** Do I need `acm2wav` for sound?
 
-    A: No. The pipeline decodes the ACM sound with ffmpeg (sound effects mono, as CE plays them: `tools/acmMono.py`); `acm2wav.exe` in the project root is only used for music when present. (Background: [darkf/darkfo#30](https://github.com/darkf/darkfo/issues/30))
+    A: No. The pipeline decodes ACM itself (`tools/acmDecoder.py`, a port of CE's `sound_decoder.cc`; sound effects mono, as CE plays them: `tools/acmMono.py`). It matches acm2wav's output sample for sample, and unlike ffmpeg's decoder it doesn't drop the end of some files. (Background: [darkf/darkfo#30](https://github.com/darkf/darkfo/issues/30))
 
 -   **Q:** Why convert all assets up front, why not load them directly?
 
