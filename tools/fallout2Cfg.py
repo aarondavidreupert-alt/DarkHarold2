@@ -153,6 +153,11 @@ scroll_limit=1
 ; ce = CE's scroll limits: the map's scroll-blocker ring and 480x400 px from the player;
 ; dh2 = the older rectangle guessed from the blockers' / floor's bounding box
 scroll_bounds=ce
+; 1 = with scroll_bounds=ce the view stays within 480x400 px of the player (CE), 0 = it goes
+; as far as the blocker ring and the black border allow (console setScrollPlayerLimit)
+scroll_player_limit=1
+; 1 = no one (player or NPC) walks past the black border around the map, 0 = no such limit
+walk_limit=1
 """
 
 

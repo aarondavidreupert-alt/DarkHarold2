@@ -400,6 +400,11 @@ window.onload = async function () {
         if (globalState.$fpsOverlay) globalState.$fpsOverlay.style.display = on ? '' : 'none'
         console.log(`[DH2] fps overlay ${on ? 'on' : 'off'}`)
     }
+    // Console: CE's 480×400 px scroll limit around the player (fallout2.cfg [dh2] scroll_player_limit)
+    ;(window as any).setScrollPlayerLimit = (on: boolean) => {
+        Config.ui.scrollPlayerLimit = !!on
+        console.log(`[DH2] scroll limit around the player ${on ? 'on' : 'off'}`)
+    }
     // Console: skipTemple() — leave the Temple of Trials for Arroyo Village (src/debug.ts).
     ;(window as any).skipTemple = () => debug.skipTemple()
     // Console (DH2 debug): revealWorldmap() — open the worldmap with every subtile, town

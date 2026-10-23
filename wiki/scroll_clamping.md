@@ -37,10 +37,36 @@ ports both checks. DH2 moves the camera in smaller steps than CE, so the move fr
 last accepted centre is walked in 8 px samples (less than a hex, so the ring can't be
 skipped), x then y: a refused axis stops and the other still moves (CE refuses a
 diagonal step whole). Centring on the player, map load, elevation change and scripted
-`tile_set_center` / `move_to` skip the checks (CE: `move_to`, map load). The black border
-sits a CE view half (320×190) outside the blocker groups whose bbox holds the player
-(`scrollRingBounds`); without blockers, the floor bbox. `scroll_bounds=dh2` keeps the
-rectangle clamp described below. known_bugs RD20.
+`tile_set_center` / `move_to` skip the checks (CE: `move_to`, map load).
+
+The black border is where the original 640×380 view's edge is when its centre tile is
+the last free hex before the ring: CE draws the centre tile's top-left at
+((640−32)/2, (380−16)/2), so the view spans ±320×190 px around that hex's centre
+(`hexToScreen` is the hex centre). `computeScrollBlockerBounds` flood-fills the free
+hexes (hex neighbours, blockers as walls) into areas; `scrollRingBounds` is the
+hex-centre bbox of the area the player stands in, and the border sits 320×190 px
+outside it. It lies one hex (x) / two rows (y) inside the outermost blockers (newrst:
+reachable x 2944–4912, y 1355–2291; blockers 2912–4944, 1331–2315). An area that
+touches the grid edge (ring with a gap) falls back to the blocker groups around the
+player; no blockers, the floor bbox. `scroll_bounds=dh2` keeps the rectangle clamp
+described below.
+
+The border is chosen once per elevation (the area at or next to the player's hex when
+it is first needed) and kept while the player walks: blockers don't block walking, and
+choosing it from the player's current hex made the newrst south border jump out when
+the player stepped onto a blocker. It is chosen again only when the player stands inside
+another closed area (an exit grid or a script put them there).
+
+**Walking (`[dh2] walk_limit=1`, default; DH2 addition — CE has no such limit):** the
+path finder (`map/pathfinder.ts`) refuses any step from inside the black border to a
+hex outside it, for the player and NPCs alike (`walkBorderBounds`); a mover already
+outside may still walk. The walking area also takes in every exit grid that has no hex
+inside the border, so all exits stay reachable: of all map elevations only `ncr2`/0
+(exit to map 42) and `redwan1`/1 have such an exit.
+
+`[dh2] scroll_player_limit=0` / console `setScrollPlayerLimit(false)` drops the
+480×400 px player limit: the view then goes as far as the ring and the black border
+allow. known_bugs RD20.
 
 ## The core question: where does CE store "map bounds"?
 

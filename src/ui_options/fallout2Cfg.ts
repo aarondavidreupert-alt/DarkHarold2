@@ -148,6 +148,13 @@ export function applyCfg(cfg: CfgSections): void {
     //   scroll_bounds=dh2  the older rectangle guessed from the blockers' / floor's bounding box
     const sbd = (dh2['scroll_bounds'] ?? '').trim().toLowerCase()
     if (sbd === 'ce' || sbd === 'dh2') Config.ui.scrollBounds = sbd
+    //   scroll_player_limit=0  no 480×400 px limit around the player (default 1, CE); the
+    //                          blocker ring and the black border still stop the view
+    const spl = int(dh2['scroll_player_limit'])
+    if (spl !== null) Config.ui.scrollPlayerLimit = spl !== 0
+    //   walk_limit=0  critters may walk past the black map border (default 1: they stop at it)
+    const wl = int(dh2['walk_limit'])
+    if (wl !== null) Config.ui.walkLimitToBorder = wl !== 0
     //   debug_overlay=1  mouse-hex / tile / light / camera readouts (default 0)
     const dbo = int(dh2['debug_overlay'])
     if (dbo !== null) Config.ui.showDebugOverlay = dbo !== 0
