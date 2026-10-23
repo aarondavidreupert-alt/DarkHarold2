@@ -141,6 +141,13 @@ export function applyCfg(cfg: CfgSections): void {
     //   scroll_edge=<px>  how close to the screen edge the map scrolls (default 10; CE: the edge)
     const se = int(dh2['scroll_edge'])
     if (se !== null && se >= 0 && se <= 100) Config.ui.scrollPadding = se
+    //   scroll_limit=0  the screen centre may scroll past the black map border (default 1)
+    const sl = int(dh2['scroll_limit'])
+    if (sl !== null) Config.ui.scrollLimitToBorder = sl !== 0
+    //   scroll_bounds=ce   CE's scroll limits: the map's blocker ring and 480×400 px from the player (default)
+    //   scroll_bounds=dh2  the older rectangle guessed from the blockers' / floor's bounding box
+    const sbd = (dh2['scroll_bounds'] ?? '').trim().toLowerCase()
+    if (sbd === 'ce' || sbd === 'dh2') Config.ui.scrollBounds = sbd
     //   debug_overlay=1  mouse-hex / tile / light / camera readouts (default 0)
     const dbo = int(dh2['debug_overlay'])
     if (dbo !== null) Config.ui.showDebugOverlay = dbo !== 0

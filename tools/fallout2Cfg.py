@@ -147,6 +147,12 @@ debug_overlay=0
 fps_overlay=1
 ; pixels from the screen edge at which the map scrolls (CE: the edge itself)
 scroll_edge=10
+; 1 = the screen centre never scrolls past the black border around the map (it reaches
+; the middle of the screen at most), 0 = no such limit
+scroll_limit=1
+; ce = CE's scroll limits: the map's scroll-blocker ring and 480x400 px from the player;
+; dh2 = the older rectangle guessed from the blockers' / floor's bounding box
+scroll_bounds=ce
 """
 
 
