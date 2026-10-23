@@ -17,7 +17,7 @@ limitations under the License.
 # Setup script to import Fallout 2 data for DarkFO
 
 from __future__ import print_function
-import sys, os, glob, json, re, shutil, traceback
+import sys, os, glob, json, re, shutil, traceback, io, contextlib
 
 def error(msg):
 	print("ERROR:", msg)
@@ -625,6 +625,20 @@ def export_maps(overwrite=True):
 	if not os.path.exists("maps"):
 		os.mkdir("maps")
 
+	# CE loads maps only through data/data/maps.txt (map.cc mapLoadById /
+	# _map_get_index_of). The vanilla data also ships two unlisted leftovers,
+	# newr1a.map and newr2a.map, in an older broken format; an unlisted map that
+	# fails is noted in one line instead of a traceback.
+	listed = set()
+	try:
+		with open(os.path.join("data", "data", "maps.txt"), encoding="latin-1") as fh:
+			for line in fh:
+				m = re.match(r"\s*map_name\s*=\s*(\S+)", line, re.IGNORECASE)
+				if m:
+					listed.add(m.group(1).lower())
+	except OSError:
+		listed = None  # no maps.txt: treat every map as listed
+
 	for mapFile in glob.glob(os.path.join("data", "maps", "*.map")):
 		mapName = os.path.basename(mapFile).lower()
 		outFile = os.path.join("maps", os.path.splitext(mapName)[0] + ".json")
@@ -632,10 +646,20 @@ def export_maps(overwrite=True):
 		if not overwrite and os.path.exists(outFile):
 			continue
 
+		inMapsTxt = listed is None or os.path.splitext(mapName)[0] in listed
+		# fomap prints its progress; held back so an unused map's failure stays quiet
+		captured = io.StringIO()
 		try:
+			with contextlib.redirect_stdout(captured), contextlib.redirect_stderr(captured):
+				fomap.exportMap("data", mapFile, outFile)
 			info(f"Converting map {mapFile}, will write the result to {outFile}")
-			fomap.exportMap("data", mapFile, outFile)
+			sys.stdout.write(captured.getvalue())
 		except Exception:
+			if not inMapsTxt:
+				info(f"Skipped map {mapFile}: not in data/data/maps.txt (unused by the game) and not convertible")
+				continue
+			info(f"Converting map {mapFile}, will write the result to {outFile}")
+			sys.stdout.write(captured.getvalue())
 			traceback.print_exc()
 			warn("Error converting map %s (see traceback above). Will continue converting the rest." % mapFile)
 
