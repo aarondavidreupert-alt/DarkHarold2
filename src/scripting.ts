@@ -53,7 +53,7 @@ import { centerCamera, objectOnScreen } from './renderer.js'
 import { fromTileNum, toTileNum } from './tile.js'
 import { uiAddDialogueOption, uiBarterMode, uiDrawWeapon, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, uiWorldMap, UIMode } from './ui.js'
 import { drawAC, updateIndicatorBar } from './ui_hud.js'
-import { invenUnwield, invenWield, moveAllInventory, scriptHand, unequipForRemoval } from './inventoryWield.js'
+import { carriedObjectByPid, carriedQuantityByPid, findItemHolder, invenUnwield, invenWield, moveAllInventory, scriptHand, unequipForRemoval } from './inventoryWield.js'
 import { SKILL_NAMES } from './skills.js'
 import { skillRoll } from './skillUse.js'
 import { arrayRemove, assert, BinaryReader, fileExistsSync, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
@@ -445,6 +445,18 @@ export module Scripting {
         return false
     }
 
+    // DAMAGE_TYPE_* order (proto_types.h), as Weapon.ts names them
+    const DAMAGE_TYPE_NAMES = ['Normal', 'Laser', 'Fire', 'Plasma', 'Electrical', 'EMP', 'Explosive']
+
+    // Every object that can carry items: the map's objects on all elevations and the dude.
+    function allCarriers(): Obj[] {
+        const levels: Obj[][] = globalState.gMap?.objects ?? []
+        const all = levels.flat()
+        const dude = globalState.player
+        if (dude && !all.includes(dude)) all.push(dude)
+        return all
+    }
+
     function isSpatial(obj: any): boolean {
         if (!obj) return false
         return obj.isSpatial === true
@@ -650,8 +662,6 @@ export module Scripting {
         action_being_used!: number
         game_time_hour!: number
 
-        combat_is_initialized!: 0 | 1
-        game_time!: number
 
         // Script procedure prototypes
         start!: () => void
@@ -773,8 +783,9 @@ export module Scripting {
                     useElevator()
                     break
                 case 16:
-                    // CE ref: interpreter_extra.cc:3219 METARULE_PARTY_COUNT
-                    return globalState.gParty?.party.length ?? 0
+                    // CE ref: interpreter_extra.cc:3219 METARULE_PARTY_COUNT → party_member.cc
+                    // _getPartyMemberCount: the dude plus every member that is a live, visible critter.
+                    return 1 + (globalState.gParty?.party ?? []).filter((m) => m.type === 'critter' && !m.dead && m.visible !== false).length
                 case 17: // METARULE_AREA_KNOWN — CE wmAreaVisitedState
                     return Worldmap.areaVisitedState(target)
                 case 18: {
@@ -1298,8 +1309,9 @@ export module Scripting {
             info('move_obj_inven_to_obj: ' + obj.inventory.length + ' to ' + other.inventory.length, 'inventory')
             moveAllInventory(obj, other) // CE itemMoveAll — armor and hands included
         }
+        // CE opObjectIsCarryingObjectWithPid → objectGetCarriedQuantityByPid: the quantity of
+        // every matching stack, bags and the dude's equipped items included.
         obj_is_carrying_obj_pid(obj: Obj, pid: number) {
-            // Number of inventory items with matching PID
             log('obj_is_carrying_obj_pid', arguments)
             if (!isGameObject(obj)) {
                 warn('obj_is_carrying_obj_pid: not a game object')
@@ -1308,16 +1320,13 @@ export module Scripting {
                 warn('obj_is_carrying_obj_pid: object has no inventory!')
                 return 0
             }
-
-            //info("obj_is_carrying_obj_pid: " + pid, "inventory")
-            var count = 0
-            for (var i = 0; i < obj.inventory.length; i++) {
-                if (obj.inventory[i].pid === pid) count++
-            }
-            return count
+            return carriedQuantityByPid(obj, pid)
         }
+        // CE opAddMultipleObjectsToInventory (quantity clamped to 1..99999; 0 adds nothing)
+        // → item.cc itemAdd, then _obj_disconnect: the object itself becomes the inventory
+        // entry and leaves the map. Joining a stack, itemAdd keeps the new object and
+        // destroys the old one, so the script's handle stays the carried item.
         add_mult_objs_to_inven(obj: Obj, item: Obj, count: number) {
-            // Add count copies of item to obj's inventory
             if (!isGameObject(obj)) {
                 warn('add_mult_objs_to_inven: not a game object')
                 return
@@ -1328,10 +1337,28 @@ export module Scripting {
                 warn('add_mult_objs_to_inven: object has no inventory!')
                 return
             }
-
-            //info("add_mult_objs_to_inven: " + count + " counts of " + item.toString(), "inventory")
-            dbg('inventory', 'add_mult_objs_to_inven: %d counts of %o to %o', count, item, obj)
-            obj.addInventoryItem(item, count)
+            const quantity = count < 0 ? 1 : Math.min(count, 99999)
+            if (quantity < 1) return
+            // CE checks item->owner only in the single form; DH2 has no owner pointer, and
+            // a carried object listed twice would be two references to one object.
+            if (findItemHolder(item, allCarriers())) {
+                warn('add_mult_objs_to_inven: item was already attached to something else')
+                return
+            }
+            dbg('inventory', 'add_mult_objs_to_inven: %d counts of %o to %o', quantity, item, obj)
+            const a = obj as any
+            const i = obj.inventory.findIndex((stack) => stack.approxEq(item))
+            const stack = i === -1 ? null : obj.inventory[i]
+            if (!stack) {
+                item.amount = quantity
+                obj.inventory.push(item)
+            } else if (item.subtype === 'ammo' || stack === a.leftHand || stack === a.rightHand || stack === a.armor) {
+                obj.addInventoryItem(item, quantity) // ammo boxes combine; an equipped stack stays
+            } else {
+                item.amount = stack.amount + quantity
+                obj.inventory[i] = item
+            }
+            if (globalState.gMap?.objects?.some((level: Obj[]) => level.includes(item))) globalState.gMap.removeObject(item)
         }
         // CE opRemoveMultipleObjectsFromInventory: itemRemove(owner, item, min(quantity
         // held, count)) — that object, equipped or not — and returns the quantity removed.
@@ -1366,17 +1393,14 @@ export module Scripting {
         rm_obj_from_inven(obj: Obj, item: Obj) {
             this.rm_mult_objs_from_inven(obj, item, 1)
         }
+        // CE opObjectCarryingObjectByPid → objectGetCarriedObjectByPid (bags searched).
         obj_carrying_pid_obj(obj: Obj, pid: number) {
             log('obj_carrying_pid_obj', arguments)
             if (!isGameObject(obj)) {
                 warn('obj_carrying_pid_obj: not a game object: ' + obj)
                 return 0
             }
-
-            for (var i = 0; i < obj.inventory.length; i++) {
-                if (obj.inventory[i].pid === pid) return obj.inventory[i]
-            }
-            return 0
+            return carriedObjectByPid(obj, pid) ?? 0
         }
         elevation(obj: Obj) {
             // CE ref: interpreter_extra.cc:2285 opGetObjectElevation — returns obj->elevation
@@ -1654,12 +1678,30 @@ export module Scripting {
             // NPC's right), armor on the body; the old item back to the inventory.
             invenWield(obj as Critter, item, scriptHand(obj as Critter))
         }
-        critter_dmg(obj: Critter, damage: number, damageType: string) {
+        // CE opCritterDamage → actions.cc actionDamage: bit 0x100 of the type bypasses
+        // armor, 0x200 skips the animation; otherwise _compute_dmg_damage takes the
+        // target's DT for the type, then its DR percent (never below 0). No knockback:
+        // CE computes it only for CRITTER_NO_KNOCKBACK critters, which can't be knocked back.
+        critter_dmg(obj: Critter, damage: number, damageTypeWithFlags: number) {
             if (!isGameObject(obj)) {
                 warn('critter_dmg: not game object: ' + obj)
                 return
             }
-            critterDamage(obj, damage, this.self_obj as Critter, true, true, damageType, undefined, { scriptDamage: true })
+            if (obj.type !== 'critter') {
+                warn("critter_dmg: can't call on non-critters")
+                return
+            }
+            const flags = Number(damageTypeWithFlags) | 0
+            const animate = (flags & 0x200) === 0
+            const bypassArmor = (flags & 0x100) !== 0
+            const damageType = DAMAGE_TYPE_NAMES[flags & ~0x300] ?? 'Normal'
+            let amount = damage
+            if (!bypassArmor) {
+                amount = damage - (obj.getStat('DT ' + damageType) + obj.getArmorDT(damageType))
+                if (amount > 0) amount -= Math.trunc((obj.getStat('DR ' + damageType) + obj.getArmorDR(damageType)) * amount / 100)
+                if (amount < 0) amount = 0
+            }
+            critterDamage(obj, amount, this.self_obj as Critter, true, animate, damageType, undefined, { scriptDamage: true })
         }
         // CE opCritterHeal → critter.cc critterAdjustHitPoints: HP + amount, capped at max;
         // at 0 or below (a negative amount) the critter dies. Returns 0.
@@ -2125,6 +2167,16 @@ export module Scripting {
             log('destroy_object', arguments)
             // CE opDestroyObject: a critter isn't destroyed while a game loads
             if (loadingGame && obj?.type === 'critter') { warn('destroy_object: attempt to destroy critter in load/save-game'); return }
+            // CE: a carried object first leaves its owner (objectGetOwner → itemRemove, the
+            // dude's interface refreshed), then objectDestroy runs its destroy_p_proc.
+            const holder = isGameObject(obj) ? findItemHolder(obj, allCarriers()) : null
+            if (holder) {
+                if (holder.type === 'critter') unequipForRemoval(holder as Critter, obj)
+                arrayRemove(holder.inventory, obj)
+                if (holder === globalState.player) uiDrawWeapon()
+                destroy(obj)
+                return
+            }
             globalState.gMap.destroyObject(obj)
         }
         set_exit_grids(onElev: number, mapID: number, elevation: number, tileNum: number, rotation: number) {
@@ -2652,9 +2704,9 @@ export module Scripting {
         // owner (returns how many), or destroy the object outright when it has no owner.
         destroy_mult_objs(obj: Obj, quantity: number) {
             if (!isGameObject(obj)) return 0
-            const owner = globalState.gMap.getObjects().find((o) => o.inventory?.includes(obj))
-                ?? (globalState.player?.inventory?.includes(obj) ? globalState.player : undefined)
+            const owner = findItemHolder(obj, allCarriers())
             if (owner) {
+                if (owner.type === 'critter') unequipForRemoval(owner as Critter, obj)
                 const have = obj.amount ?? 1
                 const n = Math.min(have, quantity)
                 if (n >= have) arrayRemove(owner.inventory, obj)
@@ -3392,7 +3444,6 @@ export module Scripting {
         if (!script || script[proc] === undefined) return false
         script.source_obj = source
         script.self_obj = obj as ScriptableObj
-        script.game_time = Math.max(1, globalState.gameTickTime)
         script.cur_map_index = currentMapID
         script._didOverride = false
         script[proc]()
@@ -3418,7 +3469,6 @@ export module Scripting {
         if (!script || !script.push_p_proc) return false
         script.self_obj = obj as ScriptableObj
         script.source_obj = source
-        script.game_time = Math.max(1, globalState.gameTickTime)
         script.cur_map_index = currentMapID
         script._didOverride = false
         script.push_p_proc()
@@ -3460,7 +3510,6 @@ export module Scripting {
 
     export function talk(script: Script, obj: Obj): boolean {
         script.self_obj = obj as ScriptableObj
-        script.game_time = Math.max(1, globalState.gameTickTime)
         script.cur_map_index = currentMapID
         script._didOverride = false
         script.talk_p_proc()
@@ -3471,7 +3520,6 @@ export module Scripting {
         // critter heartbeat (critter_p_proc)
         if (!script.critter_p_proc) return false // TODO: Should we override or not if it doesn't exist? Probably not.
 
-        script.game_time = globalState.gameTickTime
         script.cur_map_index = currentMapID
         script._didOverride = false
         script.self_obj = obj as ScriptableObj
@@ -3486,7 +3534,6 @@ export module Scripting {
         // CE scriptExecProc: a script without the proc just does nothing
         if (!script || !script.spatial_p_proc) return
 
-        script.game_time = globalState.gameTickTime
         script.cur_map_index = currentMapID
         script.source_obj = source
         script.self_obj = spatialObj as ScriptableObj
@@ -3498,7 +3545,6 @@ export module Scripting {
 
         obj._script.self_obj = obj as ScriptableObj
         obj._script.source_obj = source || 0
-        obj._script.game_time = Math.max(1, globalState.gameTickTime)
         obj._script.cur_map_index = currentMapID
         obj._script._didOverride = false
         obj._script.destroy_p_proc()
@@ -3511,7 +3557,6 @@ export module Scripting {
         obj._script.self_obj = obj as ScriptableObj
         obj._script.target_obj = target
         obj._script.source_obj = source
-        obj._script.game_time = Math.max(1, globalState.gameTickTime)
         obj._script.cur_map_index = currentMapID
         obj._script._didOverride = false
         obj._script.fixed_param = damage // CE _damage_object: scriptSetFixedParam(sid, damage)
@@ -3614,11 +3659,9 @@ export module Scripting {
 
         info('[COMBAT EVENT ' + event + ']')
 
-        obj._script.combat_is_initialized = 1
         obj._script.fixed_param = fixed_param
         if (target !== undefined) obj._script.target_obj = target
         obj._script.self_obj = obj as ScriptableObj
-        obj._script.game_time = Math.max(1, globalState.gameTickTime)
         obj._script.cur_map_index = currentMapID
         obj._script._didOverride = false
 
@@ -3645,7 +3688,6 @@ export module Scripting {
         mapFirstRun = false
 
         if (mapScript) {
-            mapScript.combat_is_initialized = globalState.inCombat ? 1 : 0
             if (mapScript.map_update_p_proc !== undefined) {
                 mapScript.self_obj = { _script: mapScript }
                 mapScript.map_update_p_proc()
@@ -3656,9 +3698,7 @@ export module Scripting {
         for (var i = 0; i < gameObjects.length; i++) {
             var script = gameObjects[i]._script
             if (script !== undefined && script.map_update_p_proc !== undefined) {
-                script.combat_is_initialized = globalState.inCombat ? 1 : 0
                 script.self_obj = gameObjects[i] as ScriptableObj
-                script.game_time = Math.max(1, globalState.gameTickTime)
                 // Fallout 2 style HHMM: "8:24 AM" => 824, "3:00 PM" => 1500
                 script.game_time_hour = GameTime.getHourMilitary()
                 script.cur_map_index = currentMapID
@@ -3710,9 +3750,7 @@ export module Scripting {
     export function objectRunProc(obj: Obj, proc: 'map_exit_p_proc'): void {
         const script: any = obj._script
         if (script === undefined || script[proc] === undefined) return
-        script.combat_is_initialized = globalState.inCombat ? 1 : 0
         script.self_obj = obj as ScriptableObj
-        script.game_time = Math.max(1, globalState.gameTickTime)
         script.game_time_hour = GameTime.getHourMilitary()
         script.cur_map_index = currentMapID
         script[proc]()
@@ -3721,9 +3759,7 @@ export module Scripting {
     export function objectEnterMap(obj: Obj, elevation: number, mapID: number) {
         var script = obj._script
         if (script !== undefined && script.map_enter_p_proc !== undefined) {
-            script.combat_is_initialized = 0
             script.self_obj = obj as ScriptableObj
-            script.game_time = Math.max(1, globalState.gameTickTime)
             script.game_time_hour = GameTime.getHourMilitary()
             script.cur_map_index = currentMapID
             script.map_enter_p_proc()

@@ -161,3 +161,46 @@ export function moveAllInventory(from: Obj, to: Obj): void {
         }
     }
 }
+
+// What an object carries as CE's inventory list holds it: the dude's hand and armor
+// items are appended, since DH2 keeps them outside his list.
+export function carriedList(o: Obj): Obj[] {
+    const list = o.inventory ?? []
+    const a = o as any
+    if (!a.isPlayer) return list
+    const equipped = [a.leftHand, a.rightHand, a.armor].filter((it: any) => isReal(it) && !list.includes(it))
+    return equipped.length ? list.concat(equipped) : list
+}
+
+// CE inventory.cc objectGetCarriedQuantityByPid — the quantity of every matching
+// stack, bags included.
+export function carriedQuantityByPid(o: Obj, pid: number): number {
+    let quantity = 0
+    for (const item of carriedList(o)) {
+        if (item.pid === pid) quantity += item.amount ?? 1
+        quantity += carriedQuantityByPid(item, pid)
+    }
+    return quantity
+}
+
+// CE inventory.cc objectGetCarriedObjectByPid — the first match, searching bags.
+export function carriedObjectByPid(o: Obj, pid: number): Obj | null {
+    for (const item of carriedList(o)) {
+        if (item.pid === pid) return item
+        const found = carriedObjectByPid(item, pid)
+        if (found) return found
+    }
+    return null
+}
+
+// CE item->owner: the object whose list (or equipped slot) holds `item` directly —
+// a bag for an item inside one. Searches the given objects and their bags.
+export function findItemHolder(item: Obj, roots: Obj[]): Obj | null {
+    for (const o of roots) {
+        const list = carriedList(o)
+        if (list.includes(item)) return o
+        const inBag = findItemHolder(item, list)
+        if (inBag) return inBag
+    }
+    return null
+}

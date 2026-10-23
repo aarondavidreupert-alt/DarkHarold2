@@ -50,7 +50,7 @@ and compares it against `1 + floor(CHA / 2)`. The Magnetic Personality perk adds
 +1 to this cap. `METARULE_PARTY_COUNT` (ID 16) → `_getPartyMemberCount()` in
 `party_member.cc:900`, which counts living, non-hidden critters in `gPartyMembers`.
 
-DH2: the same — `Party.addPartyMember` only rejects duplicates (CE `partyMemberAdd`); the companions' scripts apply the CHA / Magnetic Personality limit through `metarule(16)`.
+DH2: the same — `Party.addPartyMember` only rejects duplicates (CE `partyMemberAdd`); the companions' scripts apply the CHA / Magnetic Personality limit through `metarule(16)`, which counts the dude plus the live, visible critter members as CE `_getPartyMemberCount` (until 2026-10-24 DH2 returned the companion count, one too low; known_bugs PA12).
 
 ### Serialization
 

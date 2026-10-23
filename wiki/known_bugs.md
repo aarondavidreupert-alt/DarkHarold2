@@ -734,12 +734,12 @@ groups get rows here; the MED findings are tracked by their report IDs (e.g. `SC
 | PA4 | No bonus-stat layer: drugs / radiation / armour / Gain-SPECIAL change Max HP and level-up HP / SP | STAT-01 | high | open |
 | PA5 | Level-up perk effects lost on DONE (Educated, Tag!, Here and Now); no Tag! skill pick | CHAR-01 | high | open |
 | PA6 | Trait skill modifiers only applied in the creator | CHAR-02 | high | open |
-| PA7 | `add_obj_to_inven` / `add_mult_objs_to_inven` add a clone | OP-03 | high | open |
-| PA8 | `obj_is_carrying_obj_pid` counts stacks; no bags / equipped items | OP-02, INV-01, INV-02 | high | open |
-| PA9 | `destroy_object` on a carried item does nothing | OP-04, ITEM-15 | high | open |
-| PA10 | `critter_dmg` ignores armour and flags 0x100 / 0x200 | OP-05, ACT-01 | high | open |
-| PA11 | `game_time` / `combat_is_initialized` are per-script snapshots | OP-01, SCR-02 | high | open |
-| PA12 | Dead companions stay in the party; party-count metarule off by one | COMBAT-03, CRIT-02, PTY-01, OP-06, PTY-04 | high | open |
+| PA7 | `add_obj_to_inven` / `add_mult_objs_to_inven` add a clone | OP-03 | high | **FIXED 2026-10-24 — the object itself becomes the entry (a joined stack takes the new object, as `itemAdd`), leaves the map; a carried item is refused; quantity clamped 1..99999.** |
+| PA8 | `obj_is_carrying_obj_pid` counts stacks; no bags / equipped items | OP-02, INV-01, INV-02 | high | **FIXED 2026-10-24 — `inventoryWield.ts carriedQuantityByPid` / `carriedObjectByPid` (CE `objectGetCarriedQuantityByPid` / `…ObjectByPid`): quantities, bags, the dude's equipped items.** |
+| PA9 | `destroy_object` on a carried item does nothing | OP-04, ITEM-15 | high | **FIXED 2026-10-24 — the owner (any carrier, bags included: `findItemHolder`) loses it first, then `destroy_p_proc`; `destroy_mult_objs` uses the same search. Queued timers of the destroyed object are not cleared (unverified in CE).** |
+| PA10 | `critter_dmg` ignores armour and flags 0x100 / 0x200 | OP-05, ACT-01 | high | **FIXED 2026-10-24 — flags decoded; `_compute_dmg_damage` (amount − DT, − DR %, ≥ 0); the type picks the death anim. Still DH2: no message-window line, `self_obj` as source instead of CE's hidden dummy attacker.** |
+| PA11 | `game_time` / `combat_is_initialized` are per-script snapshots | OP-01, SCR-02 | high | **FIXED 2026-10-24 — both builtins read live (`vm_bridge.ts`: `gameTickTime`, `globalState.inCombat`); the per-entry-point copies are gone.** |
+| PA12 | Dead companions stay in the party; party-count metarule off by one | COMBAT-03, CRIT-02, PTY-01, OP-06, PTY-04 | high | **FIXED 2026-10-24 — `critterKill` drops the member (`partyMemberRemove`), saves load without dead members; metarule 16 = 1 + live, visible critter members.** |
 | PA13 | Companion Custom screen writes wrong area-attack / run-away values | PTY-02 | high | open |
 | PA14 | Return from Barter / Trade / Control re-runs `talk_p_proc` | DLG-01 (P6/P10) | high | open |
 | PA15 | Primary burst / flame weapons fire one round | COMBAT-01 | high | open |

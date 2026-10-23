@@ -52,12 +52,12 @@ Findings marked ✔ were re-checked against the code by the merging pass.
 | H4 | Stats | **No bonus-stat layer.** Drugs, radiation, armour and Gain-SPECIAL perks write base stats, so Max HP changes while on Buffout / in Power Armour and level-ups on Mentats give extra skill points permanently. | STAT-01, TRAIT-03 |
 | H5 | Char editor | **Level-up perk effects are lost** (stale skill copy written back on DONE): Educated, Tag! (no tag pick at all), Here and Now. | CHAR-01 |
 | H6 | Char editor | **Trait skill modifiers (Gifted, Good Natured) only apply in the creator**, not in play. Conflicts with `perks_traits.md` §1. | CHAR-02 |
-| H7 | Scripts | ✔ **`add_obj_to_inven` adds a clone**; the original stays on the map and the script handle is not the inventory item (`Obj.addInventoryItem` → `item.clone()`). NPCs can end up with two copies. | OP-03 |
-| H8 | Scripts | ✔ **`obj_is_carrying_obj_pid` counts stacks, not quantity**, and ignores bags and equipped items. Every "have N of X" check is wrong. | OP-02, INV-01, INV-02 |
-| H9 | Scripts | **`destroy_object` on a carried item does nothing** (and queued timers survive). | OP-04, ITEM-15 |
-| H10 | Scripts | **`critter_dmg` ignores armour and the 0x100 / 0x200 flags**, reads the damage type as a name, prints nothing. | OP-05, ACT-01 |
-| H11 | Scripts | **`game_time` and `combat_is_initialized` are per-script snapshots**, stale or `undefined` in many procs. | OP-01, SCR-02 |
-| H12 | Party | **Dead companions are never removed from the party**: count against the limit, follow to every map, still returned by `party_member_obj`. Party-count metarule 16 is also off by one (player not counted). | COMBAT-03, CRIT-02, PTY-01, OP-06, PTY-04 |
+| H7 | Scripts | **FIXED 2026-10-24 (known_bugs PA7).** ✔ **`add_obj_to_inven` adds a clone**; the original stays on the map and the script handle is not the inventory item (`Obj.addInventoryItem` → `item.clone()`). NPCs can end up with two copies. | OP-03 |
+| H8 | Scripts | **FIXED 2026-10-24 (known_bugs PA8).** ✔ **`obj_is_carrying_obj_pid` counts stacks, not quantity**, and ignores bags and equipped items. Every "have N of X" check is wrong. | OP-02, INV-01, INV-02 |
+| H9 | Scripts | **FIXED 2026-10-24 (known_bugs PA9).** **`destroy_object` on a carried item does nothing** (and queued timers survive). | OP-04, ITEM-15 |
+| H10 | Scripts | **FIXED 2026-10-24 (known_bugs PA10).** **`critter_dmg` ignores armour and the 0x100 / 0x200 flags**, reads the damage type as a name, prints nothing. | OP-05, ACT-01 |
+| H11 | Scripts | **FIXED 2026-10-24 (known_bugs PA11).** **`game_time` and `combat_is_initialized` are per-script snapshots**, stale or `undefined` in many procs. | OP-01, SCR-02 |
+| H12 | Party | **FIXED 2026-10-24 (known_bugs PA12).** **Dead companions are never removed from the party**: count against the limit, follow to every map, still returned by `party_member_obj`. Party-count metarule 16 is also off by one (player not counted). | COMBAT-03, CRIT-02, PTY-01, OP-06, PTY-04 |
 | H13 | Party | **Companion Custom screen writes wrong values** ("Always!" → sometimes; run-away list shifted, "tourniquet" flees at first damage). | PTY-02 |
 | H14 | Dialogue | **Returning from Barter / Trade / Combat Control re-runs `talk_p_proc`**; the node set after `gdialog_mod_barter` is lost (64 scripts) and code after `gsay_end` runs twice. | DLG-01 (extends P6/P10) |
 | H15 | Combat | **Primary burst / flame weapons fire one round** (minigun, gatling laser, flamers — 12 protos); flamer spray not ported. | COMBAT-01 |

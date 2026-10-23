@@ -183,7 +183,10 @@ export class Party {
 
     deserialize(objs: SerializedObj[]): void {
         this.party.length = 0
-        for (const obj of objs) this.party.push(<Critter>deserializeObj(obj))
+        for (const obj of objs) {
+            const member = <Critter>deserializeObj(obj)
+            if (!member.dead) this.party.push(member) // saves from before critterKill removed the dead
+        }
     }
 }
 

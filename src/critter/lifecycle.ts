@@ -80,6 +80,9 @@ export function critterKill(
     // critterDamage (e.g. burst fire overkill) or scripts can call this twice.
     if (obj.dead) return
     obj.dead = true
+    // CE critter.cc critterKill (and combat.cc's kill path): partyMemberRemove first —
+    // a dead companion leaves the party.
+    globalState.gParty?.dismissPartyMember(obj)
     obj.outline = null
     obj.critDeath = false
     // CE critter.cc:894 — critter->data.critter.hp = 0; DAM_DEAD replaces the other results
