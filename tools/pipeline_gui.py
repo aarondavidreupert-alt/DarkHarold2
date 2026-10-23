@@ -253,7 +253,7 @@ class PipelineGUI:
     def __init__(self, root):
         self.root = root
         root.title("DarkHarold2 Asset Pipeline")
-        root.geometry("760x720")
+        root.geometry("1280x720")
 
         self.proc = None
         self.out_queue = queue.Queue()
@@ -265,8 +265,14 @@ class PipelineGUI:
 
         pad = {"padx": 8, "pady": 4}
 
+        # two columns: the settings and Run on the left, progress and output on the right
+        left = ttk.Frame(root)
+        left.pack(side="left", fill="y", padx=(4, 0), pady=4)
+        right = ttk.Frame(root)
+        right.pack(side="left", fill="both", expand=True, padx=(0, 4), pady=4)
+
         # --- Install dir picker ---
-        dir_frame = ttk.Frame(root)
+        dir_frame = ttk.Frame(left)
         dir_frame.pack(fill="x", **pad)
         ttk.Label(dir_frame, text="Fallout 2 install directory:").pack(side="left")
         self.install_dir_var = tk.StringVar()
@@ -274,7 +280,7 @@ class PipelineGUI:
         ttk.Button(dir_frame, text="Browse...", command=self.browse_dir).pack(side="left")
 
         # --- Stage checkboxes ---
-        stages_frame = ttk.LabelFrame(root, text="Pipeline stages")
+        stages_frame = ttk.LabelFrame(left, text="Pipeline stages")
         stages_frame.pack(fill="x", **pad)
         self.stage_vars = {}
         for stage_id, label, default in STAGES:
@@ -288,32 +294,32 @@ class PipelineGUI:
         ttk.Button(select_frame, text="Select None", command=lambda: self.set_all_stages(False)).pack(side="left")
 
         # --- Options ---
-        options_frame = ttk.LabelFrame(root, text="Options")
+        options_frame = ttk.LabelFrame(left, text="Options")
         options_frame.pack(fill="x", **pad)
 
         self.overwrite_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(
             options_frame,
-            text="Overwrite already-generated output files (unchecked = skip a stage whose output already exists)",
+            text="Overwrite already-generated output files\n(unchecked = skip a stage whose output already exists)",
             variable=self.overwrite_var,
         ).pack(anchor="w", padx=8, pady=(4, 2))
 
         self.delete_originals_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             options_frame,
-            text="Delete original source files after conversion (FRM/PRO/MAP/ACM under data/ — not needed for a real install)",
+            text="Delete original source files after conversion\n(FRM/PRO/MAP/ACM under data/ — not needed for a real install)",
             variable=self.delete_originals_var,
         ).pack(anchor="w", padx=8, pady=(2, 4))
 
         self.no_mods_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             options_frame,
-            text="Vanilla game: build no mod folders from the install's mods (mods/mods_order.txt, e.g. the Unofficial Patch)",
+            text="Vanilla game: build no mod folders from the install's mods\n(mods/mods_order.txt, e.g. the Unofficial Patch)",
             variable=self.no_mods_var,
         ).pack(anchor="w", padx=8, pady=(2, 4))
 
         # --- Run controls ---
-        run_frame = ttk.Frame(root)
+        run_frame = ttk.Frame(left)
         run_frame.pack(fill="x", **pad)
         self.run_button = ttk.Button(run_frame, text="Run", command=self.on_run)
         self.run_button.pack(side="left")
@@ -323,7 +329,7 @@ class PipelineGUI:
         ttk.Label(run_frame, textvariable=self.status_var).pack(side="left", padx=10)
 
         # --- Progress ---
-        progress_frame = ttk.LabelFrame(root, text="Progress")
+        progress_frame = ttk.LabelFrame(right, text="Progress")
         progress_frame.pack(fill="x", **pad)
         progress_frame.columnconfigure(1, weight=1)
         ttk.Label(progress_frame, text="Overall:").grid(row=0, column=0, sticky="w", padx=(8, 4), pady=(4, 0))
@@ -336,14 +342,14 @@ class PipelineGUI:
         self.current_bar.grid(row=2, column=1, sticky="ew", padx=(0, 8))
         self.current_var = tk.StringVar(value="")
         # fixed width: a long file name must not resize the window
-        ttk.Label(progress_frame, textvariable=self.current_var, width=90).grid(row=3, column=1, sticky="w", pady=(0, 6))
+        ttk.Label(progress_frame, textvariable=self.current_var, width=60).grid(row=3, column=1, sticky="w", pady=(0, 6))
         self.stage_index = 0  # @@stage i of n: the running stage (1-based), 0 = none yet
         self.stage_count = 0
         self.stage_name = ""
         self.current_busy = False
 
         # --- Log output ---
-        log_frame = ttk.LabelFrame(root, text="Output")
+        log_frame = ttk.LabelFrame(right, text="Output")
         log_frame.pack(fill="both", expand=True, **pad)
         filter_frame = ttk.Frame(log_frame)
         filter_frame.pack(fill="x", pady=(2, 4))
