@@ -30,7 +30,8 @@ import { canUseDoor } from '../map/pathfinder.js'
 import globalState from '../globalState.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Scripting } from '../scripting.js'
-import { getMessage } from '../util.js'
+import { getMessage, getProtoMsg } from '../util.js'
+import { drawAP, uiLog } from '../ui_hud.js'
 import { getAiPacket, AiPacket } from '../aiPackets.js'
 import { getObjectLightIntensity } from '../combat/hitChance.js'
 import { hitSpatialTrigger, Obj, ObjType, objectIsWeapon, SerializedObj, setObjectOpen } from './Obj.js'
@@ -99,7 +100,6 @@ export class Critter extends Obj {
 
     isPlayer = false // Is this critter the player character?
     dead = false // Is this critter dead?
-    bonusAC = 0 // Temporary AC bonus from unused AP at end of turn
     perks: string[] = [] // List of acquired perks
     nextIdleAnimTime = 0 // performance.now() after which the next idle cycle begins; 0 = uninitialised
     critDeath = false // a critical with DAM_DEAD hit this critter (criticalEffects 'death'); critterDamage kills it
@@ -509,6 +509,45 @@ export class Critter extends Obj {
 
         //console.log("path: %o, callback %o", path, callback)
         return this.walkTo(targetPos, running, callback, undefined, path)
+    }
+
+    // CE actions.cc _action_use_an_object / actionPickUp / _action_loot_container /
+    // actionUseSkill: out of combat a walk up to the target, then `action`. In combat the
+    // player acts only on their turn and walks only as far as the AP allow
+    // (animationRegisterMoveToObject(…, combat.ap)), paying the move; then
+    // _check_scenery_ap_cost takes `apCost` AP (3; proto.msg 700 when short). CE walks
+    // as far as it can and then fails; DH2 refuses a walk the AP can't finish.
+    walkInFrontOfToAct(targetPos: Point, action: () => void, apCost = 3): void {
+        const ap = this.AP
+        if (!globalState.inCombat || !this.isPlayer || !ap) {
+            this.walkInFrontOf(targetPos, action)
+            return
+        }
+        if (!(globalState.combat?.inPlayerTurn || Config.combat.allowWalkDuringAnyTurn)) return
+        const redraw = () => drawAP(ap.getAvailableCombatAP(), ap.getTotalMaxAP(), ap.move)
+        const act = () => {
+            if (apCost > 0) {
+                if (ap.getAvailableCombatAP() < apCost) {
+                    uiLog(getProtoMsg(700) ?? "You don't have enough action points.")
+                    return
+                }
+                ap.subtractCombatAP(apCost)
+                redraw()
+            }
+            action()
+        }
+        const path = globalState.gMap.recalcPath(this.position, targetPos, false, this)
+        if (path.length === 0) return
+        const steps = Math.max(0, path.length - 2) // walkInFrontOf stops next to the target
+        if (steps > ap.getAvailableMoveAP()) {
+            uiLog(getProtoMsg(700) ?? "You don't have enough action points.")
+            return
+        }
+        if (!this.walkInFrontOf(targetPos, act)) return
+        if (steps > 0) {
+            ap.subtractMoveAP(steps)
+            redraw()
+        }
     }
 
     serialize(): SerializedCritter {

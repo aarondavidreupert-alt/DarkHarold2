@@ -82,7 +82,7 @@ class ActionPoints {
 | Unarmed (AI) | 3 | `doAITurn` |
 | Unarmed (player, empty hand) | the hit mode's AP (−1 Bonus HtH Attacks, +1 aimed) | `unarmedAPCost()` — `wiki/weapon_combat.md` §9 |
 
-**Unused AP → Bonus AC**: at the end of each critter's turn, the remaining AP converts 1:1 to `bonusAC` for the next round (`Combat.ts`). Free move points do not count. This is reset to 0 at the start of that critter's own turn. Matches CE: `critter->data.critter.combat.results & DAM_HIT` reduces bonus AC.
+**Unused AP → AC** (CE `stat.cc critterGetStat(STAT_ARMOR_CLASS)`): in combat a critter's current combat AP count as AC while it isn't its turn (`Combat.unusedApAC`). Every combatant gets its full AP at the start of each round (CE `_combat_set_move_all`, `Combat.setMoveAll`), so a critter that hasn't acted yet has its full AP as AC, one that has acted its leftover; non-combatants and anyone out of combat have 0. Free move points do not count. HtH Evade (player, no weapon in either hand): AP × 2 + Unarmed / 12. (Until 2026-10-24 DH2 counted only the leftover after the critter's own turn — known_bugs PA17.)
 
 ---
 

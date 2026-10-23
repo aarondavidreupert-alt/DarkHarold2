@@ -297,8 +297,17 @@ export class Weapon {
         return !(dmg === 'Plasma' && mode === 5)
     }
 
+    // CE attackCompute: the hit mode's anim is ANIM_FIRE_BURST (attack mode 7) or
+    // ANIM_FIRE_CONTINUOUS (8) — primary or secondary (the minigun's and the flamer's
+    // primary attack sprays too).
     isBurst(): boolean {
-        return this.mode === 'burst'
+        if (this.mode === 'reload') return false
+        const mode = this.attackModeOf()
+        return mode === 7 || mode === 8
+    }
+
+    isContinuous(): boolean {
+        return this.mode !== 'reload' && this.attackModeOf() === 8
     }
 
     getProjectilePID(): number {

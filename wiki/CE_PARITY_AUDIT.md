@@ -60,10 +60,10 @@ Findings marked ✔ were re-checked against the code by the merging pass.
 | H12 | Party | **FIXED 2026-10-24 (known_bugs PA12).** **Dead companions are never removed from the party**: count against the limit, follow to every map, still returned by `party_member_obj`. Party-count metarule 16 is also off by one (player not counted). | COMBAT-03, CRIT-02, PTY-01, OP-06, PTY-04 |
 | H13 | Party | **Companion Custom screen writes wrong values** ("Always!" → sometimes; run-away list shifted, "tourniquet" flees at first damage). | PTY-02 |
 | H14 | Dialogue | **Returning from Barter / Trade / Combat Control re-runs `talk_p_proc`**; the node set after `gdialog_mod_barter` is lost (64 scripts) and code after `gsay_end` runs twice. | DLG-01 (extends P6/P10) |
-| H15 | Combat | **Primary burst / flame weapons fire one round** (minigun, gatling laser, flamers — 12 protos); flamer spray not ported. | COMBAT-01 |
-| H16 | Combat | ✔ **sfall critical-table fixes not applied.** CE defaults `OverrideCriticalTable=2` (`sfall_config.cc:42`), ~90 entry fixes; DH2 has only the static arrays. | COMBAT-02 |
-| H17 | Combat | **Unused-AP AC bonus is not CE's model** (CE: everyone starts the round with full AP). Conflicts with known_bugs C22. | COMBAT-04 |
-| H18 | Combat | **Free movement in combat for use / pickup / loot / skill**: no AP limit, no 3-AP action cost. | ACT-02, ITEM-17 |
+| H15 | Combat | **FIXED 2026-10-24 (known_bugs PA15).** **Primary burst / flame weapons fire one round** (minigun, gatling laser, flamers — 12 protos); flamer spray not ported. | COMBAT-01 |
+| H16 | Combat | **FIXED 2026-10-24 (known_bugs PA16).** ✔ **sfall critical-table fixes not applied.** CE defaults `OverrideCriticalTable=2` (`sfall_config.cc:42`), ~90 entry fixes; DH2 has only the static arrays. | COMBAT-02 |
+| H17 | Combat | **FIXED 2026-10-24 (known_bugs PA17).** **Unused-AP AC bonus is not CE's model** (CE: everyone starts the round with full AP). Conflicts with known_bugs C22. | COMBAT-04 |
+| H18 | Combat | **FIXED 2026-10-24 (known_bugs PA18).** **Free movement in combat for use / pickup / loot / skill**: no AP limit, no 3-AP action cost. | ACT-02, ITEM-17 |
 | H19 | Doors | **Open doors still block** shots, light, placement and explosions (no open-door flags set). | OBJ-01 |
 | H20 | Items | Natural weapons use the wrong hidden flag (count weight, can be knocked loose / looted). Energy cells can't refuel the car. | ITEM-01, ITEM-07 |
 | H21 | Worldmap | Subtile-visited metarule3 105 always returns 1 (Vault City scouting job); state numbers swapped. Entrances never auto-open on map entry. Town map always shown, even for areas without art (blank `undefined.png`). | WM-01, WM-02, WM-03 |
@@ -131,7 +131,7 @@ Per CLAUDE.md these are flagged here; the fixed-entry text in `known_bugs.md` is
 
 | Doc claim | Audit result | Report |
 |---|---|---|
-| known_bugs **C22**: unused-AP AC fixed | CE gives every combatant full AP at round start; DH2 uses last round's leftover | combat COMBAT-04 |
+| known_bugs **C22**: unused-AP AC fixed | CE gives every combatant full AP at round start; DH2 used last round's leftover — fixed 2026-10-24 (PA17) | combat COMBAT-04 |
 | known_bugs **C3**: YAAM matches CE | CE's YAAM never adds damage; DH2 Glovz / YAAM both differ | combat COMBAT-13 |
 | known_bugs **RD06**: roof clipping "exactly CE" | flood fill is CE, but hex→roof square uses `(y+1)>>1` (CE `y>>1`) | object_map_tile TILE-02 |
 | known_bugs **S20**: `tile_is_visible` correct | CE uses distance from screen centre, not the light map | script_opcodes OP-10 |

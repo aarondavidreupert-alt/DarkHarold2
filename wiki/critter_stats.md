@@ -121,7 +121,7 @@ All `STAT_*` enum values from `stat_defs.h` (0–37). The `get_critter_stat` opc
 | 6 | `STAT_LUCK` | `LUK` | baseStats[6] | `'LUK'` | WIRED |
 | 7 | `STAT_MAXIMUM_HIT_POINTS` | `Max HP` | baseStats[7] | `'Max HP'` | WIRED (Alcohol/Autodoc perks in `Player.getStat`) |
 | 8 | `STAT_MAXIMUM_ACTION_POINTS` | `AP` | baseStats[8] | special case | WIRED — `getStat('AP')`, overweight penalty |
-| 9 | `STAT_ARMOR_CLASS` | `AC` | baseStats[9] | special case | WIRED — base + worn armor AC + unused combat AP (`bonusAC`, HtH Evade) |
+| 9 | `STAT_ARMOR_CLASS` | `AC` | baseStats[9] | special case | WIRED — base + worn armor AC + unused combat AP (`Combat.unusedApAC`, HtH Evade) |
 | 10 | `STAT_UNARMED_DAMAGE` | — | baseStats[10] | special case | returns 0 (unarmed bonus is per hit mode, `unarmed.ts`) |
 | 11 | `STAT_MELEE_DAMAGE` | `Melee` | baseStats[11] | `'Melee'` | WIRED |
 | 12 | `STAT_CARRY_WEIGHT` | `Carry` | baseStats[12] | `'Carry'` | WIRED |

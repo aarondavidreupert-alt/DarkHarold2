@@ -402,7 +402,7 @@ Full formula is in [damage_formula.md](damage_formula.md). Weapon-specific input
 | Input | Source |
 |-------|--------|
 | `weaponSkill` | `obj.getSkill(weapon.weaponSkillType)` |
-| `AC` | `target.getStat('AC') + target.getArmorAC() + target.bonusAC + ammoStats.ACmod` |
+| `AC` | `target.getStat('AC') + target.getArmorAC() + combat.unusedApAC(target) + ammoStats.ACmod` |
 | `hitDistanceModifier` | `getHitDistanceModifier()` — dist, PER, Sharpshooter perk, weapon perk |
 | `regionHitChanceDec` | `CriticalEffects.regionHitChanceDecTable[region]` |
 | `partialCoverPenalty` | +10 per critter between attacker and target |

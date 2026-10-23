@@ -1374,8 +1374,9 @@ export class Obj {
                 doPickup()
             }
         }
-        // Walk to the object first, then play the pickup animation
-        source.walkInFrontOf(this.position, playPickup)
+        // Walk to the object first, then play the pickup animation (in combat: AP-limited
+        // walk + 3 AP, CE actionPickUp / _check_scenery_ap_cost)
+        source.walkInFrontOfToAct(this.position, playPickup)
     }
 
     // CE proto_instance.cc _obj_drop(owner, item): the owner's is_dropping_p_proc

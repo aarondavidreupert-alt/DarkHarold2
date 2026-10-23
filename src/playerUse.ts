@@ -205,6 +205,12 @@ export function playerUse(obj: Obj | null) {
             return
         }
 
+        // CE actionUseSkill in combat: an AP-limited walk (no scenery AP cost).
+        if (globalState.inCombat && performer.isPlayer) {
+            performer.walkInFrontOfToAct(obj.position, skillCallback, 0)
+            return
+        }
+
         // Walk to the nearest reachable hex adjacent to the target (not the
         // target tile itself, which may be blocked by the scenery object).
         const neighbors = hexNeighbors(obj.position)
@@ -365,7 +371,7 @@ export function playerUse(obj: Obj | null) {
                     uiCloseCalledShot()
                 })
             } else if (weapon.weapon!.isBurst()) {
-                const burstAPCost = weapon.weapon!.getAttackAPCost(globalState.player, 2)
+                const burstAPCost = weapon.weapon!.getAttackAPCost(globalState.player, weapon.weapon!.slot()) // a primary burst (minigun) uses slot 1
                 if (globalState.player.AP!.getAvailableCombatAP() < burstAPCost) {
                     uiLog(getProtoMsg(700)!) // "You don't have enough action points."
                     return
@@ -421,7 +427,7 @@ export function playerUse(obj: Obj | null) {
     if (Config.engine.doInfiniteUse === true) {
         callback()
     } else {
-        globalState.player.walkInFrontOf(obj.position, callback)
+        globalState.player.walkInFrontOfToAct(obj.position, callback)
     }
 }
 

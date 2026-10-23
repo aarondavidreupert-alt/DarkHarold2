@@ -1075,8 +1075,8 @@ export module Scripting {
             if (stat === 9) {
                 // STAT_ARMOR_CLASS — CE stat.cc critterGetStat: base + bonus (the worn armor's
                 // AC, _adjust_ac) + in combat the unused AP while it isn't the critter's turn
-                // (bonusAC, HtH Evade included; reset at its turn start).
-                return obj.getStat('AC') + obj.getArmorAC() + (globalState.inCombat ? obj.bonusAC ?? 0 : 0)
+                // (Combat.unusedApAC, HtH Evade included).
+                return obj.getStat('AC') + obj.getArmorAC() + (globalState.combat?.unusedApAC(obj as Critter) ?? 0)
             }
             if (stat === 10) {
                 // STAT_UNARMED_DAMAGE — CE ref: stat.cc critterStatBaseGetter (default 0 bonus)

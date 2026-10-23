@@ -241,7 +241,7 @@ if dist < 0: modifier = 0
 
 **Ammo AC modifier:**
 ```
-AC = target.AC + target.armorAC + target.bonusAC + ammo.ACmod
+AC = target.AC + target.armorAC + combat.unusedApAC(target) + ammo.ACmod
 ```
 Negative `ACmod` (AP rounds) makes the target easier to hit.
 

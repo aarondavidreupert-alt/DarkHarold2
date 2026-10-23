@@ -439,7 +439,7 @@ Audit 2026-10-17 — all implemented:
 | `DAM_BLIND` | −5 PER | `Critter.getStat` |
 | Overloaded | Max AP − (excess weight / 40 + 1) | `Critter.getStat('AP')`, with CE `objectGetInventoryWeight` / `itemGetWeight` (`Obj.getInventoryWeight`, `getWeight`, `stackWeight`) |
 | Age | + game years | `Critter.getStat('Age')` |
-| Unused AP → AC | + remaining AP while it isn't the critter's turn; HtH Evade (player, no weapon in either hand): AP × 2 + Unarmed / 12 | `Combat.nextTurn` (`bonusAC`) |
+| Unused AP → AC | + remaining AP while it isn't the critter's turn; HtH Evade (player, no weapon in either hand): AP × 2 + Unarmed / 12 | `Combat.unusedApAC` (full AP from round start until the critter acts, CE `_combat_set_move_all`) |
 | Gain Strength … Gain Luck | +1 SPECIAL | +1 on the bonus layer when taken (`perkApplyEffect`): the derived stats follow, Max HP (base ST / EN, CE `critterGetBaseStatWithTraitModifier`) doesn't |
 | Adrenaline Rush | +1 ST below half HP | `Player.getStat` |
 | Mirrored Shades in a hand | +1 CH | `Player.getStat` |

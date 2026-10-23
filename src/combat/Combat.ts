@@ -47,7 +47,8 @@ import { combatAiRating, critterSetWhoHitMe, noteHit } from './whoHitMe.js'
 import { lazyLoadImage } from '../images.js'
 import { canSee, isWithinPerception } from '../perception.js'
 import { getLstJson } from '../data.js'
-import { CRITICAL_HIT_TABLES, PLAYER_CRITICAL_HIT_TABLE, type CriticalHitDescription } from '../criticalEffects/ceTables.js'
+import { type CriticalHitDescription } from '../criticalEffects/ceTables.js'
+import { CRITICAL_HIT_TABLES, PLAYER_CRITICAL_HIT_TABLE } from '../criticalEffects/table.js'
 import {
     attackFindInvalidFlags, combatStandup, critterIsProne, doRandomCripple, knockoutEventProcess, removeKnockoutEvents,
     DAM_BACKWASH, DAM_BYPASS, DAM_CRIP_RANDOM, DAM_CRITICAL, DAM_DEAD, DAM_DESTROY, DAM_DROP, DAM_DUD, DAM_EXPLODE, DAM_HIT,
@@ -455,7 +456,7 @@ export class Combat {
             const burst = weaponGetBurstRounds(weaponObj as any)
             if (burst < q) q = burst
             roundsSpent = q
-            const spray = this.computeSpray(attacker, a.defender, q, range)
+            const spray = this.computeSpray(attacker, a.defender, q, range, !!weapon?.isContinuous?.())
             roll = spray.roll
             ammoQuantity = spray.mainHits
             // _shoot_along_path: each extra takes its rounds at ×2 (attackComputeDamage)
@@ -1160,7 +1161,9 @@ export class Combat {
 
     // CE combat.cc _compute_spray — the roll and the rounds per victim, no damage. Also
     // used by the AI safety check (_combat_safety_invalidate_weapon), as in CE.
-    private computeSpray(obj: Critter, target: Critter, ammoQuantity: number, range: number): { roll: RollResult; mainHits: number; extras: Map<Critter, number> } {
+    // `continuous` is CE's anim == ANIM_FIRE_CONTINUOUS (flamers): one round per line,
+    // one per critter on it.
+    private computeSpray(obj: Critter, target: Critter, ammoQuantity: number, range: number, continuous = false): { roll: RollResult; mainHits: number; extras: Map<Critter, number> } {
         const chance = this.getHitChance(obj, target, 'torso')
         let accuracy = chance.hit
         let { roll } = randomRoll(accuracy, chance.crit)
@@ -1173,12 +1176,15 @@ export class Combat {
             if (roll === RollResult.CriticalSuccess) accuracy += 20
 
             // Non-sfall split (sfall's burst mod is off by default).
-            let centerRounds = Math.trunc(ammoQuantity / 3)
-            if (centerRounds === 0) centerRounds = 1
-            const leftRounds = Math.trunc(ammoQuantity / 3)
-            const rightRounds = ammoQuantity - centerRounds - leftRounds
-            let mainTargetRounds = Math.trunc(centerRounds / 2)
-            if (mainTargetRounds === 0) { mainTargetRounds = 1; centerRounds -= 1 }
+            let centerRounds = 1, leftRounds = 1, rightRounds = 1, mainTargetRounds = 1
+            if (!continuous) {
+                centerRounds = Math.trunc(ammoQuantity / 3)
+                if (centerRounds === 0) centerRounds = 1
+                leftRounds = Math.trunc(ammoQuantity / 3)
+                rightRounds = ammoQuantity - centerRounds - leftRounds
+                mainTargetRounds = Math.trunc(centerRounds / 2)
+                if (mainTargetRounds === 0) { mainTargetRounds = 1; centerRounds -= 1 }
+            }
 
             for (let i = 0; i < mainTargetRounds; i++) {
                 if (rollIsSuccess(randomRoll(accuracy, 0).roll)) mainHits += 1
@@ -1186,16 +1192,16 @@ export class Combat {
             if (mainHits === 0 && this.checkRangedMiss(obj, target, range, 'torso')) mainHits = 1
 
             const mainEnd = hexLineBeyond(obj.position, target.position, range)
-            mainHits += this.shootAlongPath(obj, target, mainEnd, centerRounds - mainHits, extras)
+            mainHits += this.shootAlongPath(obj, target, mainEnd, centerRounds - mainHits, extras, continuous)
 
             const centerTile = hexDistance(obj.position, target.position) <= 3
                 ? hexLineBeyond(obj.position, target.position, 3)
                 : target.position
             const rotation = hexDirectionTo(centerTile, obj.position)
             const leftEnd = hexLineBeyond(obj.position, hexInDirection(centerTile, (rotation + 1) % 6), range)
-            mainHits += this.shootAlongPath(obj, target, leftEnd, leftRounds, extras)
+            mainHits += this.shootAlongPath(obj, target, leftEnd, leftRounds, extras, continuous)
             const rightEnd = hexLineBeyond(obj.position, hexInDirection(centerTile, (rotation + 5) % 6), range)
-            mainHits += this.shootAlongPath(obj, target, rightEnd, rightRounds, extras)
+            mainHits += this.shootAlongPath(obj, target, rightEnd, rightRounds, extras, continuous)
 
             if (roll !== RollResult.Failure || (mainHits <= 0 && extras.size <= 0)) {
                 if (rollIsSuccess(roll) && mainHits === 0 && extras.size === 0) roll = RollResult.Failure
@@ -1444,12 +1450,12 @@ export class Combat {
             return false
         }
 
-        if (hitMode !== 'secondary') return false // only burst/continuous sprays
+        // only a burst / continuous attack sprays — CE checks the hit mode's anim, primary or secondary
+        const slot = hitMode === 'secondary' ? 2 : 1
+        const sprayMode = weapon.attackModeOf(slot)
+        if (sprayMode !== 7 && sprayMode !== 8) return false
         const ammo = Math.min(ammoGetQuantity(weaponObj), weaponGetBurstRounds(weaponObj))
-        const prev = weapon.mode
-        weapon.mode = 'burst'
-        const { extras } = this.computeSpray(attacker, defender, ammo, weapon.getMaximumRange(2))
-        weapon.mode = prev
+        const { extras } = this.computeSpray(attacker, defender, ammo, weapon.getMaximumRange(slot), sprayMode === 8)
         for (const c of extras.keys()) if (isTeamMate(c) && hurts(c)) return true
         return false
     }
@@ -1457,18 +1463,19 @@ export class Combat {
     // CE combat.cc _shoot_along_path — walks the line of fire from the attacker to
     // `endTile`; each critter met rolls its own to-hit per remaining round. Rounds on the
     // main target are returned; others accumulate in `extras` (max 6 victims).
-    private shootAlongPath(attacker: Critter, defender: Critter, endTile: Point, rounds: number, extras: Map<Critter, number>): number {
+    private shootAlongPath(attacker: Critter, defender: Critter, endTile: Point, rounds: number, extras: Map<Critter, number>, continuous = false): number {
         let remaining = rounds
         let mainHits = 0
         let current = attacker.position
         let critter: Obj | null = attacker
         while (critter !== null) {
-            if (remaining <= 0 || (current.x === endTile.x && current.y === endTile.y) || extras.size >= 6) break
+            if ((remaining <= 0 && !continuous) || (current.x === endTile.x && current.y === endTile.y) || extras.size >= 6) break
             critter = nextShootObstacle(attacker, current, endTile, critter)
             if (critter === null) break
             if (critter.type !== 'critter') break
 
             const accuracy = this.getHitChance(attacker, critter as Critter, 'torso').hit
+            if (continuous) remaining = 1
             let roundsHit = 0
             while (randomBetween(1, 100) <= accuracy && remaining > 0) {
                 remaining -= 1
@@ -1476,11 +1483,14 @@ export class Combat {
             }
             if (roundsHit !== 0) {
                 if (critter === defender) mainHits += roundsHit
-                else extras.set(critter as Critter, (extras.get(critter as Critter) ?? 0) + roundsHit)
+                // CE: a burst adds up a critter's hits over the lines; continuous fire
+                // keeps the first.
+                else if (!continuous || !extras.has(critter as Critter)) extras.set(critter as Critter, (extras.get(critter as Critter) ?? 0) + roundsHit)
             }
             current = critter.position
         }
-        return mainHits
+        // CE: continuous fire's path hits never count on the main target
+        return continuous ? 0 : mainHits
     }
 
     // CE combat.cc _check_ranged_miss — looks for someone on the line of fire to take a
@@ -2989,33 +2999,15 @@ export class Combat {
         // CE: attack_complex's start data covers the first combatant's turn only.
         if (this.turnNum > 2) this.gcsd = null
 
-        // Convert unused AP to bonus AC for the critter whose turn just ended
-        if (this.whoseTurn > 0 || this.turnNum > 2) {
-            var prevIdx = this.whoseTurn - 1
-            if (prevIdx < 0) prevIdx = this.combatants.length - 1
-            var prev = this.combatants[prevIdx]
-            if (!prev.dead && prev.AP) {
-                // CE stat.cc critterGetStat(STAT_ARMOR_CLASS): + remaining combat AP while it
-                // isn't the critter's turn; the player's HtH Evade with no weapon in either
-                // hand doubles it and adds Unarmed / 12.
-                let apMult = 1, evade = 0
-                if (prev.isPlayer && prev.hasPerk(perkNameById(93) ?? 'HtH Evade')) {
-                    const armed = (h: any) => !!h && h.pid !== undefined && h.subtype === 'weapon' && (h.weapon?.getAnim?.('idle') ?? 'aa') !== 'aa'
-                    if (!armed((prev as any).leftHand) && !armed((prev as any).rightHand)) {
-                        apMult = 2
-                        evade = Math.trunc(prev.getSkill('Unarmed') / 12)
-                    }
-                }
-                prev.bonusAC = prev.AP.getAvailableCombatAP() * apMult + evade
-                // CE ref: stat.cc:203-242 — unused AP counts as AC while it isn't the critter's turn.
-                if (prev.isPlayer) drawAC(prev.getStat('AC') + prev.bonusAC)
-            }
-        }
+        // CE combat.cc _combat: _combat_set_move_all at the start of every round — each
+        // combatant gets its full AP, which counts as AC until it acts (unusedApAC).
+        if (this.whoseTurn === 0) this.setMoveAll()
+
+        if (this.player.AP && !this.combatants[this.whoseTurn].isPlayer) drawAC(this.player.getStat('AC') + this.unusedApAC(this.player))
 
         if (this.combatants[this.whoseTurn].isPlayer) {
-            // player turn — reset bonus AC from last turn, then reset AP
+            // player turn — reset AP
             this.playerHadTurn = true
-            this.player.bonusAC = 0
             this.inPlayerTurn = true
             this.player.AP!.resetAP()
             if (this.turnSkipped(this.player)) return this.nextTurn()
@@ -3056,7 +3048,6 @@ export class Combat {
                 return this.nextTurn()
             }
 
-            critter.bonusAC = 0 // reset bonus AC at start of this critter's turn
             critter.AP!.resetAP()
             // CE combat.cc _combat_turn: knocked out, dead or losing the turn → no turn
             // (DAM_LOSE_TURN is used up); a prone critter first stands up (3 AP).
@@ -3066,6 +3057,34 @@ export class Combat {
             }
             this.beginAITurn(critter)
         }
+    }
+
+    // The critters that take turns (CE _list_com): the player, hostiles, the player's team.
+    private isActiveCombatant(c: Critter): boolean {
+        return !c.dead && (c.isPlayer || c.hostile || c.teamNum === this.player.teamNum)
+    }
+
+    // CE combat.cc _combat_set_move_all — full AP for every combatant at a round's start.
+    private setMoveAll(): void {
+        for (const c of this.combatants) if (this.isActiveCombatant(c)) c.AP?.resetAP()
+    }
+
+    // CE stat.cc critterGetStat(STAT_ARMOR_CLASS): in combat, a critter's unused AP counts
+    // as AC while it isn't its turn — the full AP before it acts in a round, the leftover
+    // after (non-combatants have 0, CE _combat_begin). The player's HtH Evade with no
+    // weapon in either hand doubles it and adds Unarmed / 12.
+    unusedApAC(c: Critter): number {
+        if (!globalState.inCombat || !c.AP || !this.isActiveCombatant(c)) return 0
+        if (this.combatants[this.whoseTurn] === c) return 0
+        let apMult = 1, evade = 0
+        if (c.isPlayer && c.hasPerk(perkNameById(93) ?? 'HtH Evade')) {
+            const armed = (h: any) => !!h && h.pid !== undefined && h.subtype === 'weapon' && (h.weapon?.getAnim?.('idle') ?? 'aa') !== 'aa'
+            if (!armed((c as any).leftHand) && !armed((c as any).rightHand)) {
+                apMult = 2
+                evade = Math.trunc(c.getSkill('Unarmed') / 12)
+            }
+        }
+        return c.AP.getAvailableCombatAP() * apMult + evade
     }
 
     // CE combat.cc _combat_turn head: DAM_KNOCKED_OUT | DAM_DEAD | DAM_LOSE_TURN skip the

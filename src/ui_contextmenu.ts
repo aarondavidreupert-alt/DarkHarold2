@@ -101,7 +101,7 @@ export function uiContextMenu(obj: Obj, evt: any) {
         })
     }
     const use = () => {
-        player.walkInFrontOf(obj.position, () => {
+        player.walkInFrontOfToAct(obj.position, () => {
             player.clearAnim()
             obj.use(player)
         })
@@ -163,7 +163,7 @@ function objActionCanTalkTo(c: Critter): boolean {
 // CE actions.cc _action_loot_container: walk (run from 5 hexes) to it, then loot.
 function uiLootWalk(target: Obj): void {
     const player = globalState.player as Critter
-    player.walkInFrontOf(target.position, () => {
+    player.walkInFrontOfToAct(target.position, () => {
         player.clearAnim()
         uiLoot(target)
     })

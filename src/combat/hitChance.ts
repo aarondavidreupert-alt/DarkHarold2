@@ -180,7 +180,7 @@ export function getHitChance(obj: Critter, target: Critter, region: string, from
     }
 
     // Defender AC (+ ammo AC modifier), floored at 0.
-    const AC = Math.max(0, target.getStat('AC') + target.getArmorAC() + target.bonusAC + ammoACmod)
+    const AC = Math.max(0, target.getStat('AC') + target.getArmorAC() + (globalState.combat?.unusedApAC(target) ?? 0) + ammoACmod)
     toHit -= AC
 
     // hit_location_penalty: full for ranged/throw, half (C truncation) otherwise.
