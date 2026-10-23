@@ -36,7 +36,8 @@ limitations under the License.
 # (tools/progress.py); they never reach the log.
 #
 # A Requirements panel lists numpy, Pillow, fontTools, FFmpeg and node.js;
-# Run warns when a ticked stage needs one that is missing.
+# Run warns when a ticked stage needs one that is missing (an option turns
+# that check off).
 #
 # Cancel stops the run (setup.py and its children) and offers to remove the
 # files the run wrote under the output folders.
@@ -384,6 +385,13 @@ class PipelineGUI:
             variable=self.no_mods_var,
         ).pack(anchor="w", padx=8, pady=(2, 4))
 
+        self.check_requirements_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            options_frame,
+            text="Check the requirements before a run\n(unchecked = run without warnings about missing tools)",
+            variable=self.check_requirements_var,
+        ).pack(anchor="w", padx=8, pady=(2, 4))
+
         # --- Run controls ---
         run_frame = ttk.Frame(left)
         run_frame.pack(fill="x", **pad)
@@ -635,7 +643,7 @@ class PipelineGUI:
             messagebox.showerror("No stages selected", "Select at least one pipeline stage to run.")
             return
 
-        if not self.confirm_requirements(selected):
+        if self.check_requirements_var.get() and not self.confirm_requirements(selected):
             return
 
         if self.delete_originals_var.get():
