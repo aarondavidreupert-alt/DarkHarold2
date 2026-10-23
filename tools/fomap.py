@@ -271,10 +271,14 @@ def parseItemObj(f, frmPID, protoPID, itemsLst, itemsProtoLst):
         item["subtype"] = "drug"
     elif subtype == 5: # misc
         item["subtype"] = "misc"
-        f.read(4) # unknown?
+        # CE proto.cc objectDataRead: misc.charges (a money pile's amount, itemGetMoney);
+        # 0xCCCCCCCC is the mapper's "unset" (CE objectFixData) and is left out
+        charges = read32(f)
+        if charges != -0x33333334:
+            item["charges"] = charges
     elif subtype == 6: # key
         item["subtype"] = "key"
-        f.read(4) # unknown?
+        item["keyCode"] = read32(f) # CE key.keyCode
 
     return item
 
@@ -300,7 +304,12 @@ def parseObject(f, lstFiles: dict[str, list[bytes]]):
     mapPID = readU32(f)
     scriptID = read32(f)
     numInventory = readU32(f)
-    f.read(4*3) # unknown
+    # CE proto.cc objectDataRead: inventory capacity, the (meaningless) items pointer,
+    # then for non-critters data.flags (CONTAINER_FLAG_LOCKED 0x02000000 / OBJ_JAMMED
+    # 0x04000000); for critters the critter data starts here (field_0).
+    f.read(4*2)
+    dataFlags = readU32(f)
+    if objType == 1: dataFlags = None # critter field_0, not flags
 
     # extra (per-type) object info
     extra = {}
@@ -347,7 +356,8 @@ def parseObject(f, lstFiles: dict[str, list[bytes]]):
 
         if subtype == 0: # door
             extra["subtype"] = "door"
-            f.read(4) # unknown?
+            # CE door.openFlags: DOOR_FLAG_LOCKED 0x02000000, DOOR_FLAG_JAMMGED 0x04000000
+            extra["openFlags"] = readU32(f)
         elif subtype == 2: # elevator
             extra["subtype"] = "elevator"
             extra["type"] = readU32(f)
@@ -357,8 +367,8 @@ def parseObject(f, lstFiles: dict[str, list[bytes]]):
             extra["destination"] = read32(f)
             extra["destinationMap"] = read32(f)
         elif subtype in (3, 4): # ladder up/down
-            if not FO1_MODE: # FO2
-                extra["unknown1"] = read32(f)
+            if not FO1_MODE: # FO2 — CE proto.cc: ladder.destinationMap, then destinationBuiltTile
+                extra["destinationMap"] = read32(f)
                 extra["destination"] = read32(f)
             else: # FO1
                 extra["destination"] = read32(f) # XXX / TODO: verify
@@ -394,6 +404,9 @@ def parseObject(f, lstFiles: dict[str, list[bytes]]):
             "lightIntensity": lightIntensity,
             "inventory": inventory
            }
+    if dataFlags: # only when set — vanilla maps have none (0xCCCCCCCC = unset, CE objectDataRead)
+        if dataFlags != 0xCCCCCCCC:
+            obj["dataFlags"] = dataFlags
 
     if art:
         obj["art"] = art.lower()

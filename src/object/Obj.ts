@@ -515,6 +515,10 @@ export interface SerializedObj {
     miscCharges?: number
     ammoQuantity?: number
     ammoTypePid?: number
+    // door / container state (set only when true)
+    open?: boolean
+    locked?: boolean
+    jammed?: boolean
 }
 
 export class Obj {
@@ -648,8 +652,28 @@ export class Obj {
         obj.extra = mobj.extra
         obj.miscOn = mobj.miscOn
         obj.miscCharges = mobj.miscCharges
+        if (deserializing) {
+            // door / container state saved by serialize() (CE keeps it in data.flags /
+            // door.openFlags and the frame, _obj_save_obj)
+            obj.open = !!mobj.open
+            obj.locked = !!mobj.locked
+            obj.jammed = !!mobj.jammed
+            if (obj.open && typeof mobj.frame === 'number') obj.frame = mobj.frame
+        } else {
+            // CE objectIsLocked / objectIsJammed: a door keeps its lock in door.openFlags,
+            // anything else in data.flags (tools/fomap.py emits both from the .map)
+            const lockFlags = (mobj.type === 'scenery' ? mobj.extra?.openFlags : mobj.dataFlags) ?? 0
+            obj.locked = (lockFlags & 0x02000000) !== 0 // DOOR_FLAG_LOCKED / CONTAINER_FLAG_LOCKED
+            obj.jammed = (lockFlags & 0x04000000) !== 0 // DOOR_FLAG_JAMMGED / OBJ_JAMMED
+        }
 
         obj.pro = mobj.pro || loadPRO(obj.pid, obj.pidID)
+        if (!deserializing && typeof mobj.extra?.charges === 'number' && mobj.extra.charges >= 0) {
+            // CE misc.charges from the .map: a money pile on the ground holds its amount
+            // there (itemGetMoney; _obj_pickup takes at least 1), a charged item its charges.
+            if (obj.pid === 41 && mobj.amount === undefined) obj.amount = Math.max(1, mobj.extra.charges) // PROTO_ID_MONEY
+            else if (obj.pid !== 41 && mobj.miscCharges === undefined && mobj.extra.charges !== (obj.pro as any)?.extra?.charges) obj.miscCharges = mobj.extra.charges
+        }
         if (obj.subtype === 'ammo') {
             if (deserializing && mobj.ammoQuantity === undefined) {
                 // saves from before the CE ammo model kept the rounds in `amount`
@@ -1218,10 +1242,13 @@ export class Obj {
         if (this.isDoor || this.isContainer) {
             toggleObjectOpen(this, true, true)
         } else if (this.isStairs) {
+            // CE proto_instance.cc useStairs: builtTile -1 fails; destinationMap > 0 is
+            // another map, anything else this one.
+            if (this.extra.destination === -1 || this.extra.destination === undefined) return false
             const destTile = fromTileNum(this.extra.destination & 0xffff)
             const destElev = ((this.extra.destination >> 28) & 0xf) >> 1
 
-            if (this.extra.destinationMap === -1 && this.extra.destination !== -1) {
+            if (!(this.extra.destinationMap > 0)) {
                 // same map, new destination
                 dbg('object', `[Object] stairs: tile=(${destTile.x}, ${destTile.y}), elev=${destElev}`)
 
@@ -1236,13 +1263,22 @@ export class Obj {
         } else if (this.isLadder) {
             const isTop = this.pro.extra.subType === 4
             // CE ref: proto_instance.cc:1512 useLadderDown/useLadderUp — reads tile and
-            // elevation from the packed destinationBuiltTile field (same format as stairs).
+            // elevation from the packed destinationBuiltTile field (same format as stairs);
+            // builtTile -1 fails, destinationMap != 0 is a map transition (tools/fomap.py
+            // reads it since 2026-10-24; before, every ladder stayed on its map).
+            if (this.extra.destination === -1 || this.extra.destination === undefined) return false
             const destTile = fromTileNum(this.extra.destination & 0xffff)
             const destElev = ((this.extra.destination >> 28) & 0xf) >> 1
-            dbg('object', `[Object] ladder (${isTop ? 'top' : 'bottom'} → tile=${destTile.x},${destTile.y} elev=${destElev})`)
+            const destMap = this.extra.destinationMap ?? 0
+            dbg('object', `[Object] ladder (${isTop ? 'top' : 'bottom'} → map ${destMap} tile=${destTile.x},${destTile.y} elev=${destElev})`)
 
-            if (this.extra.destinationMap !== -1 && this.extra.destinationMap != null) {
-                globalState.gMap.loadMapByID(this.extra.destinationMap, destTile, destElev)
+            if (destMap < 0) {
+                // CE mapHandleTransition: -1 town map, -2 world map — no vanilla ladder has either
+                dbgWarn('object', `[Object] ladder to map ${destMap} (town / world map) not supported`)
+                return false
+            }
+            if (destMap !== 0) {
+                globalState.gMap.loadMapByID(destMap, destTile, destElev)
                 return true
             }
 
@@ -1434,6 +1470,9 @@ export class Obj {
             lightIntensity: this.lightIntensity,
             miscOn: this.miscOn,
             miscCharges: this.miscCharges,
+            open: this.open || undefined,
+            locked: this.locked || undefined,
+            jammed: this.jammed || undefined,
             ammoQuantity: this.ammoQuantity,
             ammoTypePid: this.ammoTypePid,
         }

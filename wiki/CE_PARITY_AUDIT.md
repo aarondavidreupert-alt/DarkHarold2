@@ -46,8 +46,8 @@ Findings marked ✔ were re-checked against the code by the merging pass.
 
 | # | Area | Finding | IDs |
 |---|---|---|---|
-| H1 | Pipeline | ✔ **Locked / jammed state, misc-item charges (money on the ground) and key codes are dropped by `tools/fomap.py`** (it skips CE's `data.flags` word after the inventory header). Everything locked in a map file starts unlocked; only `obj_lock` scripts lock. Door state is also not saved or restored. | ITEM-12, OBJ-02 |
-| H2 | Pipeline | ✔ **Ladders never change map.** `fomap.py` stores the FO2 ladder `destinationMap` (CE `proto.cc` reads it first) as `unknown1`; `Obj.use` reads `extra.destinationMap`. Stairs: CE changes map only for `> 0`. | ITEM-13, ACT-07 |
+| H1 | Pipeline | **FIXED 2026-10-24 (known_bugs PA1).** ✔ **Locked / jammed state, misc-item charges (money on the ground) and key codes are dropped by `tools/fomap.py`** (it skips CE's `data.flags` word after the inventory header). Everything locked in a map file would start unlocked — the 2026-10-24 re-export found no vanilla map object with a lock flag, so this affects mods only; only `obj_lock` scripts lock. Door state is also not saved or restored. | ITEM-12, OBJ-02 |
+| H2 | Pipeline | **FIXED 2026-10-24 (known_bugs PA2).** ✔ **Ladders never change map.** `fomap.py` stores the FO2 ladder `destinationMap` (CE `proto.cc` reads it first) as `unknown1`; `Obj.use` reads `extra.destinationMap`. Stairs: CE changes map only for `> 0`. | ITEM-13, ACT-07 |
 | H3 | Skills | **FIXED 2026-10-24 (known_bugs PA3).** ✔ **NPC skills are too low by the skill's `defaultValue`** (Unarmed −30, Melee −20, …): `SkillSet.fromPro` stores raw invested points but `SkillSet.get` treats them as `startValue + invested`. Affects NPC to-hit, steal catch, barter, party best skill. | SKILL-01 |
 | H4 | Stats | **FIXED 2026-10-24 (known_bugs PA4).** **No bonus-stat layer.** Drugs, radiation, armour and Gain-SPECIAL perks write base stats, so Max HP changes while on Buffout / in Power Armour and level-ups on Mentats give extra skill points permanently. | STAT-01, TRAIT-03 |
 | H5 | Char editor | **FIXED 2026-10-24 (known_bugs PA5).** **Level-up perk effects are lost** (stale skill copy written back on DONE): Educated, Tag! (no tag pick at all), Here and Now. | CHAR-01 |
@@ -146,8 +146,7 @@ Per CLAUDE.md these are flagged here; the fixed-entry text in `known_bugs.md` is
 
 ## 5. Suggested fix order
 
-1. **Pipeline (needs an asset task):** H1, H2 in `tools/fomap.py` — read `data.flags`, door `openFlags`, misc
-   charges, key codes, ladder `destinationMap`; maps must be re-exported.
+1. **Pipeline:** H1, H2 in `tools/fomap.py` — done 2026-10-24 (maps re-exported).
 2. **Script correctness (quests):** H7–H11, H12 party count / dead members, OP-07, DLG-01/02, SCR-05, MAP-01.
 3. **Character rules:** H3–H6, TRAIT-01/02, STAT-02.
 4. **Combat:** H15–H18, COMBAT-05…10, AI-01…07, ACT-04.

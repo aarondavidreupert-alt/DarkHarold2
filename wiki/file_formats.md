@@ -183,7 +183,7 @@ Fields after the 12-byte shared pid/messageId/fid:
 
 wallLightTypeFlags (2B), actionFlags (2B), scriptPID (4B), subType (4B), materialID (4B), soundID (1B).
 
-Subtypes: 0=Door (+walkthroughFlag), 1=Stairs (+destination+destinationMap), 2=Elevator (+elevatorType+elevatorLevel), 3/4=Ladder (+destination), 5=Generic.
+Subtypes: 0=Door (+walkthroughFlag), 1=Stairs (+destination+destinationMap), 2=Elevator (+elevatorType+elevatorLevel), 3/4=Ladder (+destinationMap+destination in a FO2 .map), 5=Generic.
 
 ---
 
@@ -291,8 +291,16 @@ Each object (~80 bytes shared header):
 - mapPID (U32)
 - scriptID (S32)
 - numInventory (U32)
-- 3×4B unknown
-- type-specific extra data
+- inventory capacity (U32), items pointer (meaningless), then `data.flags` (U32) for
+  non-critters — CONTAINER_FLAG_LOCKED 0x02000000 / OBJ_JAMMED 0x04000000; `fomap.py` emits
+  it as `dataFlags` when set (no vanilla map sets it). For critters this word is the start of
+  the critter data.
+- type-specific extra data (CE `proto.cc objectDataRead`): weapon ammoQuantity + ammoTypePid,
+  ammo quantity, misc `charges` (a money pile's amount; 0xCCCCCCCC = unset, not emitted), key
+  `keyCode`; door `openFlags` (DOOR_FLAG_LOCKED / JAMMED as above), stairs destinationBuiltTile
+  + destinationMap, elevator type + level, FO2 ladder destinationMap + destinationBuiltTile
+  (`destination`; until 2026-10-24 the map was dropped as `unknown1`), exit grid map / tile /
+  elevation / rotation
 - inventory items (numInventory recursive object entries)
 
 ---
