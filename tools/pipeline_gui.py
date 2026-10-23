@@ -25,10 +25,15 @@ limitations under the License.
 # interpreter, rather than importing it directly, so a missing numpy/Pillow
 # or a setup_check() failure (which calls sys.exit()) only ends the child
 # process and never crashes the GUI itself.
+#
+# The output panel keeps every line and shows them through a filter: errors
+# and warnings only, stage summaries (per-file progress hidden), or
+# everything. "Copy shown" / "Save log..." hand over just what is shown.
 
 import glob
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -54,7 +59,7 @@ STAGES = [
     ("decompile_scripts", "Decompile scripts to Lua (INT -> LUA)", True),
     ("write_config", "Write default fallout2.cfg (keeps an existing one)", True),
     ("build_mods", "Build mod folders from the install's mods (mods/mods_order.txt -> mods/<name>/)", True),
-    ("export_audio", "Convert audio (ACM -> WAV, needs ffmpeg)", True),
+    ("export_audio", "Convert audio (ACM -> WAV)", True),
     ("export_movies", "Convert movies (MVE -> WebM, needs ffmpeg)", True),
     ("export_speech", "Convert talking-head speech (ACM -> MP3, needs ffmpeg)", True),
 ]
@@ -73,10 +78,65 @@ DELETE_ORIGINALS_GLOBS = [
 
 
 def count_originals():
-    found = []
+    # *.acm and *.ACM match the same files on Windows: dedupe (as setup.py).
+    found = {}
     for pattern in DELETE_ORIGINALS_GLOBS:
-        found.extend(glob.glob(os.path.join(PROJECT_ROOT, pattern), recursive=True))
-    return found
+        for path in glob.glob(os.path.join(PROJECT_ROOT, pattern), recursive=True):
+            found.setdefault(os.path.normcase(os.path.abspath(path)), path)
+    return list(found.values())
+
+
+# --- Log filtering ---
+# Each output line gets a level; the panel shows lines up to the chosen one.
+LEVEL_ERROR, LEVEL_INFO, LEVEL_DETAIL = 0, 1, 2
+VERBOSITY = [
+    ("Errors & warnings only", LEVEL_ERROR),
+    ("Normal (stage summaries)", LEVEL_INFO),
+    ("Verbose (every file)", LEVEL_DETAIL),
+]
+
+_ERROR_RE = re.compile(r"\b(error|warning|failed|failure|exception|traceback|not found|out of range|"
+                       r"invalid|could not|cannot|missing)\b", re.IGNORECASE)
+# Per-file progress lines of the converters (tools/setup.py and friends).
+_DETAIL_RE = re.compile(
+    r"^(\[\d+/\d+\] |"                         # [12/12220] art/...
+    r"data[/\\]sound[/\\]|"                     # ACM being converted
+    r"spatial: |-?\d+ s_\w+ scripts|"           # map script listing
+    r"version: |name: '|"                       # map header
+    r"using map script |\(map script |"
+    r"Converting map |Converting \S+\.mve |"
+    r"speech: \S+ done|"
+    r"  \S+: -?\d+ map vars -> |"
+    r"scanning directories|processing \d+|"
+    r"Parsing global vars from|  Found \d+ global|  Wrote )")
+# Hex addresses / ids that make otherwise identical lines differ (ffmpeg's
+# "[interplayacm @ 000001c2b8b38600]").
+_HEX_RE = re.compile(r"\b(0x)?[0-9a-fA-F]{8,}\b")
+
+
+class LineClassifier:
+    """Levels for a stream of lines. A Python traceback (header, indented lines,
+    the exception line) is an error as a whole."""
+
+    def __init__(self):
+        self.in_traceback = False
+
+    def level(self, line):
+        text = line.rstrip("\r\n")
+        # anywhere in the line: stderr and stdout lines interleave unflushed
+        # ("...out of range: 67108947Traceback (most recent call last):")
+        if "Traceback (most recent call last)" in text:
+            self.in_traceback = True
+            return LEVEL_ERROR
+        if self.in_traceback:
+            if text.strip() and not text[:1].isspace():
+                self.in_traceback = False  # the exception line ends it
+            return LEVEL_ERROR
+        if _ERROR_RE.search(text):
+            return LEVEL_ERROR
+        if _DETAIL_RE.match(text):
+            return LEVEL_DETAIL
+        return LEVEL_INFO
 
 
 class PipelineGUI:
@@ -87,6 +147,9 @@ class PipelineGUI:
 
         self.proc = None
         self.out_queue = queue.Queue()
+        self.lines = []  # (level, text) of the whole run
+        self.classifier = LineClassifier()
+        self.last_shown = None  # (normalised text, repeat count) for collapsing
 
         pad = {"padx": 8, "pady": 4}
 
@@ -148,7 +211,23 @@ class PipelineGUI:
         # --- Log output ---
         log_frame = ttk.LabelFrame(root, text="Output")
         log_frame.pack(fill="both", expand=True, **pad)
+        filter_frame = ttk.Frame(log_frame)
+        filter_frame.pack(fill="x", pady=(2, 4))
+        ttk.Label(filter_frame, text="Show:").pack(side="left", padx=(4, 4))
+        self.verbosity_var = tk.StringVar(value=VERBOSITY[1][0])
+        combo = ttk.Combobox(filter_frame, textvariable=self.verbosity_var, state="readonly",
+                             values=[name for name, _ in VERBOSITY], width=26)
+        combo.pack(side="left")
+        combo.bind("<<ComboboxSelected>>", lambda e: self.rerender())
+        self.collapse_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(filter_frame, text="Collapse repeated lines", variable=self.collapse_var,
+                        command=self.rerender).pack(side="left", padx=8)
+        ttk.Button(filter_frame, text="Save log...", command=self.save_log).pack(side="right", padx=4)
+        ttk.Button(filter_frame, text="Copy shown", command=self.copy_shown).pack(side="right")
+        self.counts_var = tk.StringVar(value="")
+        ttk.Label(filter_frame, textvariable=self.counts_var).pack(side="right", padx=8)
         self.log_text = scrolledtext.ScrolledText(log_frame, wrap="word", state="disabled")
+        self.log_text.tag_configure("error", foreground="#c00000")
         self.log_text.pack(fill="both", expand=True)
 
         root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -162,11 +241,72 @@ class PipelineGUI:
         if path:
             self.install_dir_var.set(path)
 
-    def log(self, text):
+    def max_level(self):
+        return dict(VERBOSITY).get(self.verbosity_var.get(), LEVEL_INFO)
+
+    def log(self, text, level=LEVEL_INFO):
+        """Record one line of output and show it if the filter lets it through."""
+        self.lines.append((level, text))
         self.log_text.configure(state="normal")
-        self.log_text.insert("end", text)
+        self._show(level, text)
         self.log_text.see("end")
         self.log_text.configure(state="disabled")
+        self._update_counts()
+
+    def _show(self, level, text):
+        if level > self.max_level():
+            return
+        tag = ("error",) if level == LEVEL_ERROR else ()
+        if self.collapse_var.get():
+            key = _HEX_RE.sub("#", text.strip())
+            if self.last_shown and self.last_shown[0] == key:
+                count = self.last_shown[1] + 1
+                self.last_shown = (key, count)
+                if count > 2:  # replace the previous "(repeated ...)" note
+                    self.log_text.delete("end-2l linestart", "end-1c")
+                self.log_text.insert("end", "    (repeated %d more time%s)\n"
+                                     % (count - 1, "" if count == 2 else "s"), tag)
+                return
+            self.last_shown = (key, 1)
+        if not text.endswith("\n"):
+            text += "\n"
+        self.log_text.insert("end", text, tag)
+
+    def rerender(self):
+        self.log_text.configure(state="normal")
+        self.log_text.delete("1.0", "end")
+        self.last_shown = None
+        for level, text in self.lines:
+            self._show(level, text)
+        self.log_text.see("end")
+        self.log_text.configure(state="disabled")
+
+    def _update_counts(self):
+        errors = sum(1 for level, _ in self.lines if level == LEVEL_ERROR)
+        self.counts_var.set("%d error/warning line%s" % (errors, "" if errors == 1 else "s"))
+
+    def shown_text(self):
+        return self.log_text.get("1.0", "end-1c")
+
+    def copy_shown(self):
+        self.root.clipboard_clear()
+        self.root.clipboard_append(self.shown_text())
+        self.status_var.set("Copied the shown output to the clipboard")
+
+    def save_log(self):
+        path = filedialog.asksaveasfilename(title="Save log", defaultextension=".txt",
+                                            initialfile="pipeline-log.txt",
+                                            filetypes=[("Text", "*.txt"), ("All files", "*.*")])
+        if not path:
+            return
+        if messagebox.askyesno("Save log", "Save only the lines shown with the current filter?\n\n"
+                                           "No = save the whole log."):
+            text = self.shown_text()
+        else:
+            text = "".join(t if t.endswith("\n") else t + "\n" for _, t in self.lines)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        self.status_var.set("Saved " + path)
 
     def on_run(self):
         if self.proc is not None:
@@ -210,10 +350,10 @@ class PipelineGUI:
         if self.no_mods_var.get():
             cmd += ["--no-mods"]
 
-        self.log_text.configure(state="normal")
-        self.log_text.delete("1.0", "end")
-        self.log_text.configure(state="disabled")
-        self.log("$ " + " ".join(cmd) + "\n\n")
+        self.lines = []
+        self.classifier = LineClassifier()
+        self.rerender()
+        self.log("$ " + " ".join(cmd) + "\n")
 
         self.run_button.configure(state="disabled")
         self.status_var.set("Running...")
@@ -243,9 +383,10 @@ class PipelineGUI:
             while True:
                 kind, payload = self.out_queue.get_nowait()
                 if kind == "line":
-                    self.log(payload)
+                    self.log(payload, self.classifier.level(payload))
                 elif kind == "done":
-                    self.log(f"\n--- Process exited with code {payload} ---\n")
+                    self.log(f"--- Process exited with code {payload} ---\n",
+                             LEVEL_INFO if payload == 0 else LEVEL_ERROR)
                     self.status_var.set("Done" if payload == 0 else f"Failed (exit {payload})")
                     self.run_button.configure(state="normal")
                     self.proc = None
