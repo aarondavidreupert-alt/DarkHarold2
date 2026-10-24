@@ -22,6 +22,7 @@ import { makePanelDraggable } from './ui_drag.js'
 import globalState from './globalState.js'
 import { font1, font3, FoText } from './ui_font.js'
 import { UIMode, getUiContainer } from './ui_panels.js'
+import { assetUrl } from './modAssets.js'
 
 // ── CE layout constants (dbox.cc DIALOG_TYPE_LARGE) ──────────────────────────
 
@@ -63,7 +64,7 @@ function makeDialogBox(): HTMLDivElement {
         position: 'relative',
         width: DIALOG_W + 'px',
         height: DIALOG_H + 'px',
-        backgroundImage: "url('art/intrface/lgdialog.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/lgdialog.png') + "')",
         backgroundSize: '100% 100%',
         imageRendering: 'pixelated',
         flexShrink: '0',
@@ -105,14 +106,14 @@ function makeDonebox(label: string, x: number): HTMLDivElement {
         top: DONE_Y + 'px',
         width: DONEBOX_W + 'px',
         height: DONEBOX_H + 'px',
-        backgroundImage: "url('art/intrface/donebox.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/donebox.png') + "')",
         backgroundSize: '100% 100%',
         imageRendering: 'pixelated',
         cursor: 'pointer',
     })
 
     const lilred = document.createElement('img')
-    lilred.src = 'art/intrface/lilredup.png'
+    lilred.src = assetUrl('art/intrface/lilredup.png')
     Object.assign(lilred.style, {
         position: 'absolute',
         left: LILRED_X + 'px',
@@ -137,9 +138,9 @@ function makeDonebox(label: string, x: number): HTMLDivElement {
     el.appendChild(labelWrap)
 
     // Button press animation: switch lilred down/up
-    el.addEventListener('mousedown', () => { lilred.src = 'art/intrface/lilreddn.png' })
-    el.addEventListener('mouseup',   () => { lilred.src = 'art/intrface/lilredup.png' })
-    el.addEventListener('mouseleave',() => { lilred.src = 'art/intrface/lilredup.png' })
+    el.addEventListener('mousedown', () => { lilred.src = assetUrl('art/intrface/lilreddn.png') })
+    el.addEventListener('mouseup',   () => { lilred.src = assetUrl('art/intrface/lilredup.png') })
+    el.addEventListener('mouseleave',() => { lilred.src = assetUrl('art/intrface/lilredup.png') })
 
     return el
 }

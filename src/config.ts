@@ -29,6 +29,26 @@ export const Config = {
         // fallout2.cfg [dh2] scroll_edge=<px>.
         scrollPadding: 10,
 
+        // Never scroll the screen centre past the black border around the map, so the
+        // border reaches the middle of the screen at most (clampCameraPosition). DH2
+        // addition: CE's clamp is a fixed grid inset. fallout2.cfg [dh2] scroll_limit=0|1.
+        scrollLimitToBorder: true,
+
+        // How far the map scrolls. 'ce': CE's limits (tile.cc tileSetCenter) — the
+        // centre never steps onto the scroll-blocker ring the map places around its
+        // playfield, nor more than 480×400 px further from the player; the black border
+        // sits around the ring the player is in. 'dh2': the older clamp to a rectangle
+        // guessed from the blockers' / floor's bounding box (render/camera.ts).
+        // fallout2.cfg [dh2] scroll_bounds=ce|dh2.
+        scrollBounds: 'ce' as 'ce' | 'dh2',
+        // scroll_bounds=ce's player limit (480×400 px). Off, the view goes as far as
+        // the blocker ring / black border allow. fallout2.cfg [dh2]
+        // scroll_player_limit=0|1, console setScrollPlayerLimit(on).
+        scrollPlayerLimit: true,
+        // No critter (player or NPC) paths from inside the black map border to outside
+        // it (map/pathfinder.ts). DH2 addition. fallout2.cfg [dh2] walk_limit=0|1.
+        walkLimitToBorder: true,
+
         showHexOverlay: false, // show hex grid?
         showCoordinates: false, // show coordinates on hex grid?
         showCursor: true, // show hex cursor?

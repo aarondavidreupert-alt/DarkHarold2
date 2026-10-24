@@ -43,6 +43,7 @@ import { uiGetAmount, uiSwapItem } from './ui_barter/swap.js'
 import { renderBarterPortrait, startBarterPortraitAnimation, stopBarterPortraitAnimation } from './ui_barter/screen.js'
 import { Scripting } from './scripting.js'
 import { getMessage } from './util.js'
+import { assetUrl } from './modAssets.js'
 
 // CE ref: game_dialog.cc:3178-3186 _barter_end_to_talk_to — barter/trade
 // always exits straight back to the normal Talk/dialogue window, even when
@@ -65,7 +66,7 @@ export function uiCompanionTrade(companion: Critter): void {
     // #barterBox is shared with uiBarterMode() (vendor barter, barter.png) —
     // CE ref: game_dialog.cc:3194-3200 _gdialog_barter_create_win picks FRM
     // 420 (trade.frm) instead of FRM 111 (barter.frm) for party members.
-    $barterBox.style.backgroundImage = "url('art/intrface/trade.png')"
+    $barterBox.style.backgroundImage = "url('" + assetUrl('art/intrface/trade.png') + "')"
     uiSwapDialoguePanel(getVisibleDialoguePanel(), $barterBox)
     // CE ref: inventory.cc:2039-2052 _display_body — player at (15,25),
     // barterer at (560,25), both 60x100. Player: ROTATION_SW, frame 0,

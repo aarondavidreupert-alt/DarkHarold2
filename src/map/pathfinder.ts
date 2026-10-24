@@ -10,6 +10,8 @@
 import globalState from '../globalState.js'
 import { hexInDirection, hexToScreen, HEX_GRID_SIZE, Point } from '../geometry.js'
 import type { Obj } from '../object.js'
+import { Config } from '../config.js'
+import { walkBorderBounds } from '../render/camera.js'
 
 const MAX_NODES = 2000
 const MAX_STEPS = 800
@@ -97,6 +99,19 @@ export function pathfinderFindPath(mover: Obj | null, from: Point, to: Point, go
 
     if (goalMustBeFree && block.has(toTile)) return []
 
+    // [dh2] walk_limit=1 (default; DH2 addition, CE has no such limit): no step from
+    // inside the black map border to a hex outside it (walkBorderBounds), so
+    // neither the player nor an NPC walks into the black. A mover already outside can
+    // still walk; scripts' move_to doesn't path.
+    const border = !shoot && Config.ui.walkLimitToBorder && elevation === globalState.gMap?.currentElevation
+        ? walkBorderBounds() : null
+    const inside = (x: number, y: number): boolean => {
+        if (!border) return true
+        const s = hexToScreen(x, y)
+        return s.x >= border.minX && s.x <= border.maxX && s.y >= border.minY && s.y <= border.maxY
+    }
+    if (border && inside(from.x, from.y) && !inside(to.x, to.y)) return []
+
     const isCritter = mover?.type === 'critter'
     const isGecko = isCritter && ((mover as any).killType ?? 0) === KILL_TYPE_GECKO
     const notInCombat = !globalState.inCombat
@@ -146,6 +161,7 @@ export function pathfinderFindPath(mover: Obj | null, from: Point, to: Point, go
                 const obstacle = block.get(tile)
                 if (obstacle && !(mover && canUseDoor(mover, obstacle))) continue
             }
+            if (border && !inside(n.x, n.y) && inside(tx, ty)) continue
 
             let slot = 0
             while (slot < MAX_NODES && open[slot].tile !== -1) slot++

@@ -27,6 +27,7 @@ import { Config } from './config.js'
 import globalState from './globalState.js'
 import { dbg, dbgWarn } from './logger.js'
 import { getFileText, parseIni } from './util.js'
+import { assetUrl } from './modAssets.js'
 
 // CE game_movie.h MovieId / game_movie.cc:21 gMovieFileNames
 export const MOVIE_IPLOGO = 0
@@ -199,7 +200,7 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
         const box = document.createElement('div')
         Object.assign(box.style, { position: 'relative', width: MOVIE_W + 'px', height: MOVIE_H + 'px', background: '#000', overflow: 'hidden' })
         const video = document.createElement('video')
-        video.src = `art/cuts/${name}.webm`
+        video.src = assetUrl(`art/cuts/${name}.webm`)
         video.preload = 'auto'
         video.playsInline = true
         // No browser chrome on the movie: Chrome otherwise overlays its own cast /

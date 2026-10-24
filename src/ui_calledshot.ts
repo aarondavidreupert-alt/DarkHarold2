@@ -24,6 +24,7 @@ import { Critter } from './object.js'
 import { drawDigits } from './ui_hud.js'
 import { UIMode } from './ui_panels.js'
 import { $id, $qa, show, hide, makeEl } from './ui_dom.js'
+import { assetUrl } from './modAssets.js'
 
 /**
  * Wire the static called-shot panel: pre-create the two digit divs inside
@@ -71,7 +72,7 @@ export function uiCalledShot(art: string, target: Critter, callback?: (regionHit
     drawChance('leftLeg')
     drawChance('rightLeg')
 
-    $id('calledShotBackground').style.backgroundImage = `url('${art}.png')`
+    $id('calledShotBackground').style.backgroundImage = `url('${assetUrl(art + '.png')}')`
 
     // Map region name to the Critter's crippled flag
     const crippledFlags: { [region: string]: keyof Critter } = {

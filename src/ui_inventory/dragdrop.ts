@@ -31,6 +31,7 @@ import { Scripting } from '../scripting.js'
 import { uiGetAmount } from '../ui_barter/swap.js'
 import { drawAC, uiDrawWeapon, uiLog } from '../ui_hud.js'
 import { showInventory } from './panel.js'
+import { HOOK_INVENTORYMOVE, hasHook, runHook } from '../sfallHooks.js'
 
 // True between a slot/inventory image's dragstart and its dragend. Guards
 // against showInventory() (wired to the 'statsChanged' event — see panel.ts)
@@ -95,6 +96,17 @@ export async function tryLoadAmmoIntoWeapon(ammoObj: Obj, weaponObj: Obj): Promi
     return true
 }
 
+// sfall HOOK_INVENTORYMOVE (sfallHooks.ts; not in CE): runs before the player moves an
+// item between the backpack (0), the hands (1 left, 2 right) and the armor slot (3), or
+// reloads a weapon by dropping ammo on it (4); a return other than -1 cancels the move.
+function inventoryMoveHookCancels(target: string, item: Obj | null, replaced: Obj | null): boolean {
+    if (!item || !hasHook(HOOK_INVENTORYMOVE)) return false
+    const slot = ({ inventory: 0, leftHand: 1, rightHand: 2, armor: 3 } as { [k: string]: number })[target] ?? 0
+    const reload = slot !== 0 && slot !== 3 && replaced !== null && item.subtype === 'ammo'
+    const ret = runHook(HOOK_INVENTORYMOVE, [reload ? 4 : slot, item, replaced ?? 0])
+    return ret.length > 0 && ret[0] !== -1
+}
+
 // TODO: Rewrite this sanely (and not directly modify the player object's properties...)
 export async function uiMoveSlot(data: string, target: string) {
     const playerUnsafe = globalState.player as any
@@ -112,6 +124,7 @@ export async function uiMoveSlot(data: string, target: string) {
 
         // CE ref: inventory.cc — armor slot only accepts armor items
         if (target === 'armor' && obj.subtype !== 'armor') return
+        if (inventoryMoveHookCancels(target, obj, playerUnsafe[target])) return
 
         // Drag-drop reload: ammo from inventory dropped onto a hand slot with a weapon
         if ((target === 'leftHand' || target === 'rightHand') && playerUnsafe[target]) {
@@ -140,6 +153,7 @@ export async function uiMoveSlot(data: string, target: string) {
             globalState.player.inventory.splice(idx, 1)
         }
     } else {
+        if (inventoryMoveHookCancels(target, playerUnsafe[data], target === 'inventory' ? null : playerUnsafe[target])) return
         obj = playerUnsafe[data]
         playerUnsafe[data] = null // remove object from slot
     }

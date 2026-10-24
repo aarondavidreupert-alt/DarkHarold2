@@ -14,27 +14,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+# The world map image: the 20 world map tiles (art/intrface/wrldmp00-19.png, from the
+# install's WRLDMP*.FRM via export_images) stitched into art/worldmap.png, 1400x1500
+# (CE worldmap.cc draws the same tiles, 4 across and 5 down, each 350x300). The
+# pipeline's stitch_worldmap stage runs it after export_images.
+
+import os, sys
 from PIL import Image
 
+TILES_ACROSS, TILES_DOWN, TILE_W, TILE_H = 4, 5, 350, 300
+
+def stitch(artDir="art", outPath=os.path.join("art", "worldmap.png")):
+	img = Image.new("RGBA", (TILE_W * TILES_ACROSS, TILE_H * TILES_DOWN))
+	for i in range(TILES_ACROSS * TILES_DOWN):
+		tile = Image.open(os.path.join(artDir, "intrface", "wrldmp%02d.png" % i))
+		img.paste(tile, ((i % TILES_ACROSS) * TILE_W, (i // TILES_ACROSS) * TILE_H))
+	img.save(outPath)
+	return outPath
+
 def main():
-	# 20 tiles, 7x6 squares each
-	# each tile is 350x300
-	# 4 tiles horizontally, 5 vertically
-
-	img = Image.new("RGBA", (350*4, 300*5))
-
-	for i in range(0, 20):
-		print(i)
-		tilePath = "art/intrface/wrldmp%s.png" % str(i).zfill(2)
-		tile = Image.open(tilePath)
-
-		x = i % 4
-		y = i // 4
-
-		img.paste(tile, (x*350, y*300))
-
-	img.save("worldmap.png")
-
+	print(stitch(*sys.argv[1:3]))
 
 if __name__ == '__main__':
 	main()

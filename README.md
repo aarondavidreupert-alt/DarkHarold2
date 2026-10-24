@@ -26,7 +26,7 @@ character rules, combat, the map pipeline, doors, worldmap, dialogue, VM robustn
 If you're looking for documentation on how Fallout 2 works, documentation on certain file formats, or
 tools to work with them, this project will be useful to you as well.
 
-<img src="screenshot.png" width="640" height="480">
+<img src="docs/screenshot.png" width="640" height="480">
 
 ---
 
@@ -113,8 +113,9 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 49 | [`wiki/lua_scripts.md`](wiki/lua_scripts.md) | Scripts decompiled to Lua (`tools/int2lua.py`), the Lua backend and the VM-vs-Lua test |
 | 50 | [`wiki/lua_variable_names.md`](wiki/lua_variable_names.md) | Review list for the decompiled scripts' variable names: inferred names and remaining numbers |
 | 50a | [`wiki/CE_PARITY_AUDIT.md`](wiki/CE_PARITY_AUDIT.md) | 2026-10-24 function-by-function CE parity audit; per-subsystem tables in `wiki/ce_audit/` |
-| 51 | [`wiki/upu_support.md`](wiki/upu_support.md) | The Unofficial Patch (UPU): what it changes, how DH2 runs it (pipeline overlay, sfall functions), conflicts |
+| 51 | [`wiki/upu_support.md`](wiki/upu_support.md) | The Unofficial Patch (UPU) and mod folders: what UPU changes, how DH2 builds and loads it (`mods/<name>/`, sfall functions, global scripts, hooks), conflicts |
 | 52 | [`wiki/edit_history.md`](wiki/edit_history.md) | Sprint notes, newest first |
+| 53 | [`wiki/autocrawler.md`](wiki/autocrawler.md) | AutoCrawler: automated map / dialogue / combat test harness, URL auto-start, report format |
 
 ### 🐛 Known issues & roadmap
 
@@ -122,7 +123,6 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 |---|---|
 | [`wiki/known_bugs.md`](wiki/known_bugs.md) | Primary tracker — fix status per ID across all subsystems |
 | [`ROADMAP.md`](ROADMAP.md) | Phased plan (Phases 1–9) toward 95% with audit dates |
-| [`TODO.md`](TODO.md) | Older free-form TODO list — superseded by `wiki/known_bugs.md` |
 | Inline `// TODO` / `// FIXME` in `src/` | Source-level annotations |
 | [`CLAUDE.md`](CLAUDE.md) → "Intentionally Incomplete Systems" | Remaining deliberate approximations |
 
@@ -155,15 +155,15 @@ pipenv run python tools/pipeline_gui.py
 | [`tools/frmpixels.py`](tools/frmpixels.py) | FRM pixel helpers and atlas generation |
 | [`tools/exportPRO.py`](tools/exportPRO.py) / [`tools/proto.py`](tools/proto.py) | PRO binary → JSON |
 | [`tools/fomap.py`](tools/fomap.py) | MAP → JSON (tiles, objects, spatials, lights) |
-| [`tools/convertAudio.py`](tools/convertAudio.py) | ACM → WAV (uses `acm2wav`) |
+| [`tools/convertAudio.py`](tools/convertAudio.py) | ACM → WAV (`export_audio` stage; ACM decoded by `tools/acmDecoder.py`, a port of CE `sound_decoder.cc`) |
 | [`tools/dat2.py`](tools/dat2.py) | DAT2 archive extractor |
 | [`tools/pal.py`](tools/pal.py) | PAL palette loading |
 | [`tools/fonts.py`](tools/fonts.py) | FON font extraction |
 | [`tools/convertLST.py`](tools/convertLST.py) | LST → JSON pre-bake (`lut/lst/`) |
 | [`tools/convertPRO.py`](tools/convertPRO.py) | Standalone PRO converter (debug) |
 | [`tools/convertEndgame.py`](tools/convertEndgame.py) | Endgame slide extraction |
-| [`tools/parseCritTable.py`](tools/parseCritTable.py) / [`tools/parseElevatorTable.py`](tools/parseElevatorTable.py) | EXE table extractors → `lut/` |
-| [`tools/stitchWorldmap.py`](tools/stitchWorldmap.py) | One-off worldmap.png tile stitcher |
+| [`tools/parseCritTable.py`](tools/parseCritTable.py) | EXE table extractor → `lut/` |
+| [`tools/stitchWorldmap.py`](tools/stitchWorldmap.py) | World map tiles → `art/worldmap.png` (`stitch_worldmap` stage) |
 | [`tools/mpserv.py`](tools/mpserv.py) | Multiplayer WebSocket server (unrelated to asset conversion) |
 | [`tools/oldPy/`](tools/oldPy/) | Superseded/experimental script iterations, kept for reference only |
 | [`wiki/animation.md`](wiki/animation.md) → "imageMap.json" | Atlas/imageMap.json schema reference |
@@ -197,7 +197,7 @@ the wiki tracker is the source of truth.
 - **Car (Highwayman)** — script-driven like CE: town map scripts place the car, the trunk travels in the party (W14); speed tiers (blower / New Reno upgrade / super car), fuel-saving upgrades, out-of-gas handling, metarule 52/53 trunk capacity; see [`wiki/car_system.md`](wiki/car_system.md)
 - **Scripting VM** — INT parser, all 181 vanilla opcodes bridged (S29), MVARs persisted per map (M8), `map_exit_p_proc` on every script (M9), timed events, `critter_p_proc` round-robin (CE `_script_chk_critters`)
 - **Lua scripts (default)** — `tools/int2lua.py` decompiles 1440 of 1443 scripts to readable Lua (the other 3 are unused Fallout 1 leftovers), with global, map and local variables by name from the game data and Black Isle's sources (a few inferred and marked so; `data/scripts/variable_names.tsv` lists every variable and where its name comes from); they run by default (wasmoon; `[dh2] script_backend=vm` runs the `.int` bytecode instead, and an install without decompiled scripts falls back to it), `[dh2] mods=a,b` loads mod scripts in order. All 1436 decompiled scripts match the VM call for call in the `luadiff.html` test except one Black Isle script bug; the story crawler's deterministic playthrough of 29 main-quest maps (every dialogue path, every scripted object's examine / use / skill procedures, barter purchases, game time passing; 37 681 steps) is identical on both backends (L1–L18, [`wiki/lua_scripts.md`](wiki/lua_scripts.md))
-- **Unofficial Patch (UPU), optional** — the pipeline extracts the install's `patchXXX.dat` and the `mods/*.dat` in `mods/mods_order.txt` (sfall's load order; `--no-mods` for vanilla); the sfall script functions UPU uses are ported from CE (arrays, ini settings, stats, proto data, …). Not yet played through on a UPU install; sfall's global scripts (hooks) and the hi-res / `sfall.dat` art are left out (UP1–UP5, [`wiki/upu_support.md`](wiki/upu_support.md))
+- **Unofficial Patch (UPU), optional** — the pipeline builds the install's `mods/upu.dat` into a mod folder `mods/upu/` that the engine loads over the untouched vanilla files while `upu` is listed in `mods/mods_order.txt` (switch it off with a `;`); the sfall script functions, global scripts, hooks and virtual files UPU uses are ported (from CE where CE has them), all four of its global scripts run. Not yet played through on a real UPU install; the hi-res / `sfall.dat` art is left out (UP1–UP6, [`wiki/upu_support.md`](wiki/upu_support.md))
 - **Time** — CE game clock and ambient light (`gAmbientIntensity`, Night Vision), midnight events, ARTIMER/AFAILED game events, time jumps drain timed events
 - **Status effects** — radiation (`critterAdjustRadiation`/`processRads`), drugs and addiction from proto data with withdrawal perks, poison decay (S26)
 - **Movies** — MVE → WebM pipeline stage, CE `gameMoviePlay` with subtitles and fades, Pip-Boy video archive (S15)
@@ -207,7 +207,7 @@ the wiki tracker is the source of truth.
 - **Keyboard** — CE `gameHandleKey` layout: C I S O P Z N B M A Tab, 1–8 skills, Space / Return in combat, F1–F7 incl. quick save / load, Ctrl keys, brightness, rotate, date (C43)
 - **Endings** — victory slideshow (CE pan timing), credits, death screen then back to the main menu (C41)
 - **Save / load** — IndexedDB; player, party (+ levels), inventory + weapon ammo, GVARs, MVARs, area states, timed events, car state, kills, automap, skill use slots, seen movies, thumbnails; CE `gameReset` before NEW GAME and every load, so nothing leaks between games (U12); a load runs the map's start / map_enter / map_update procs with `is_loading_game` set, as CE (C61)
-- **Preferences** — full CE options panel, persisted (localStorage) and seeded from `fallout2.cfg` (CI1); DH2-only options in a `[dh2]` section of the same file, e.g. `day_night_cycle=0` for CE lighting instead of the default smooth day/night curve (GTC10), `pixel_font=0` to use the browser font instead of the default Fallout pixel font on all UI text (U15), `script_fixes=0` to keep the original Black Isle script bugs the decompiled Lua repairs (L7), `elevator_use=0` to drop the Use action on elevators (a DH2 addition; CE elevators open only when you walk in, C66), `walk_model` / `anim_offset_model` to switch the CE walk and animation-offset models (FA13), `object_sort=ce|ce-dh2|dh2` for the object draw order (default `ce-dh2`: CE's tile order plus walls first on a shared tile; `dh2` = the old screen-space test, C67), `pipboy_available_at_game_start=1` (the sfall option; CE opens the Pip-Boy only after the Vault Suit movie, C40); `drag_windows=0` / `drag_<window>=0` to fix windows in place (dragging is a DH2 addition, C48); `debug_overlay=1` for the mouse-hex / tile / light / camera readouts (default off; console `setDebugOverlay(true)`), `fps_overlay=0` to hide the fps counter (default on; console `setFpsOverlay(false)`); `scroll_edge=<px>` for how close to the screen edge the map scrolls (default 10 — CE scrolls only on the edge itself); the pipeline's `write_config` stage creates the file with CE defaults; combat looks/taunts, brightness (CE gamma table) are live (CI18)
+- **Preferences** — full CE options panel, persisted (localStorage) and seeded from `fallout2.cfg` (CI1); DH2-only options in a `[dh2]` section of the same file, e.g. `day_night_cycle=0` for CE lighting instead of the default smooth day/night curve (GTC10), `pixel_font=0` to use the browser font instead of the default Fallout pixel font on all UI text (U15), `script_fixes=0` to keep the original Black Isle script bugs the decompiled Lua repairs (L7), `elevator_use=0` to drop the Use action on elevators (a DH2 addition; CE elevators open only when you walk in, C66), `walk_model` / `anim_offset_model` to switch the CE walk and animation-offset models (FA13), `object_sort=ce|ce-dh2|dh2` for the object draw order (default `ce-dh2`: CE's tile order plus walls first on a shared tile; `dh2` = the old screen-space test, C67), `pipboy_available_at_game_start=1` (the sfall option; CE opens the Pip-Boy only after the Vault Suit movie, C40); `drag_windows=0` / `drag_<window>=0` to fix windows in place (dragging is a DH2 addition, C48); `debug_overlay=1` for the mouse-hex / tile / light / camera readouts (default off; console `setDebugOverlay(true)`), `fps_overlay=0` to hide the fps counter (default on; console `setFpsOverlay(false)`); `scroll_edge=<px>` for how close to the screen edge the map scrolls (default 10 — CE scrolls only on the edge itself); `scroll_limit=0` to let the screen centre scroll past the black map border (default 1: the border reaches the middle of the screen at most, RD19); `scroll_bounds=dh2` for the older scroll rectangle (default `ce`: CE's limits — the map's scroll-blocker ring and 480×400 px from the player, RD20), `scroll_player_limit=0` to drop that player limit (console `setScrollPlayerLimit(false)`), `walk_limit=0` to let the player and NPCs walk past the black border (default 1: they stop at it; exits outside it stay reachable); the pipeline's `write_config` stage creates the file with CE defaults; combat looks/taunts, brightness (CE gamma table) are live (CI18)
 - **Random numbers** — CE Park-Miller generator with MSVC seeding (RN)
 
 ---
@@ -251,7 +251,7 @@ The long-term goal is for the engine to own all its data in clean, typed, pre-ba
 
 The existing `lut/` directory already follows this pattern:
 - `lut/criticalTables.json` — crit tables extracted from the EXE
-- `lut/elevators.json` — elevator data extracted from the EXE
+- elevator data — now compiled in from CE `elevator.cc` (`src/ceElevators.ts`), like the critical tables
 - `lut/color_lut.json`, `lut/color_rgb.json` — palette data
 
 LST files are next.
@@ -298,20 +298,16 @@ To use this, you'll need a few things:
     the standalone installer, and unpack on any platform supported by
     [innoextract](https://github.com/dscharrer/innoextract), or run the installer `.exe` if you're on Windows.
 
-The rest of the dependencies can be installed all at once if you're on macOS and using [Homebrew](https://brew.sh).
-Just run this command in the directory of your repository clone:
-
-```
-brew bundle
-```
-
-Otherwise you can install the dependencies manually:
+The other dependencies (on macOS with [Homebrew](https://brew.sh): `brew install pipenv innoextract node`):
 
 -   Python 3.9 or later, earlier minor versions of Python 3 may work, but are not tested. Python 2 is not supported.
 
 -   [Pipenv](https://github.com/pypa/pipenv) for Python dependency management.
 
 -   The TypeScript compiler, installed via `npm install` (you'll need [node.js](https://nodejs.org/en/)).
+
+-   [FFmpeg](https://ffmpeg.org/) for sound, movies and talking-head speech: on the PATH, or `ffmpeg.exe` placed in
+    the project root (it is not part of the repository).
 
 Once you've got all that, you can start trying it out.
 
@@ -325,7 +321,14 @@ python tools/setup.py path/to/Fallout2/installation/directory
 
 Or use the graphical front-end (`python tools/pipeline_gui.py`) to pick which stages to
 run, whether to overwrite existing output, and whether to delete the raw source files
-once converted.
+once converted. A Requirements panel shows whether numpy, Pillow, fontTools, FFmpeg and
+node.js are there, and **Run** warns before it starts when a ticked stage needs one that
+is missing (without numpy or Pillow it does not start; an option turns this check off).
+Two progress bars show the whole run (stage i of n) and the running
+stage (file i of n, with the file's name). Its output panel can show errors and warnings only, stage summaries, or
+every file, collapses repeated lines, and copies or saves just what is shown — handy
+for bug reports. **Cancel** stops a run and offers to remove the files it wrote
+(git-tracked files are never touched).
 
 This will take a few minutes, it's unpacking the game archives and converting relevant game data into a format DarkHarold2 can use.
 
@@ -334,7 +337,9 @@ If you're comfortable with setting up nginx, lighttpd, or Apache, go for that. I
 
 -   Python 3: `python -m http.server`
 
-Then run `npx tsc` after you've run `npm install` to compile the source code.
+The pipeline's last stage, `compile_ts`, compiles the source code to `js/` (it runs
+`npm install` first when `node_modules/` has no TypeScript yet, and needs node.js). After
+changing `src/`, or without that stage, run `npm install` once and then `npx tsc`.
 
 Browse to `http://localhost/play.html?artemple` (or whatever port you're using). If all went well, it should begin the game. If not, check the JavaScript console for errors.
 
@@ -342,7 +347,7 @@ Alternatively, Firefox can load directly from `file://` by opening `play.html` f
 
 Review `src/config.ts` for engine options. Be sure to re-compile if you change them.
 
-OPTIONAL: If you want sound, run `python tools/convertAudio.py`. You'll need the `acm2wav` tool (you can get it from No Mutants Allowed), placed in the project root.
+Sound is converted by the pipeline's `export_audio` stage (default since 2026-10-23). Sound effects and music are decoded in Python (`tools/acmDecoder.py`, a port of CE's `sound_decoder.cc`) and need no external tool; speech (MP3) and movies need ffmpeg on the PATH or `ffmpeg.exe` in the project root.
 
 ## Debug Logging
 
@@ -472,11 +477,9 @@ of DarkHarold2 and are only given to explain the status quo. The technical direc
     A: Python is actually quite fast when written well, despite many peoples' expectations. It is very elegant and allows me to write
     backend code like file parsers and exporters with tiny code, very few troubles, and that I know is portable and safe.
 
--   **Q:** Why do I need `acm2wav` for sound?
+-   **Q:** Do I need `acm2wav` for sound?
 
-    A: Because it hasn't been ported to Python yet. If you're willing to contribute, give it a shot: the original Pascal source code is available online.
-
-    Additionally, FFmpeg might be able to transcode ACM audio, so give that a shot. (See [darkf/darkfo#30](https://github.com/darkf/darkfo/issues/30))
+    A: No. The pipeline decodes ACM itself (`tools/acmDecoder.py`, a port of CE's `sound_decoder.cc`; sound effects mono, as CE plays them: `tools/acmMono.py`). It matches acm2wav's output sample for sample, and unlike ffmpeg's decoder it doesn't drop the end of some files. (Background: [darkf/darkfo#30](https://github.com/darkf/darkfo/issues/30))
 
 -   **Q:** Why convert all assets up front, why not load them directly?
 

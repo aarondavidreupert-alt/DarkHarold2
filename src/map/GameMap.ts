@@ -230,6 +230,8 @@ export class GameMap {
         this.roofMap = this.mapObj.levels[level].tiles.roof
         // Floor bbox kept for diagnostics only (window.mapContentBounds).
         computeMapContentBounds(this.floorMap)
+        // the blocker ring and exit grids, before placeParty's paths ([dh2] walk_limit)
+        computeScrollBlockerBounds(this.getObjects(level))
         //this.spatials = this.mapObj.levels[level]["spatials"]
 
         // If we're in combat, end it since we're moving off of that elevation
@@ -262,10 +264,8 @@ export class GameMap {
         // the party was just appended (Obj.ts zsortMap, [dh2] object_sort)
         zsortMap(this.objects)
 
-        // Compute object bbox and CE-authoritative scroll blocker bbox.
-        // scrollBlockerBounds is the primary source for bars and clamp.
+        // Object bbox (diagnostics); the scroll blockers were read above.
         computeObjectContentBounds(this.getObjects())
-        computeScrollBlockerBounds(this.getObjects())
 
         // set up renderer data
         globalState.renderer.initData(this.roofMap, this.floorMap, this.getObjects())

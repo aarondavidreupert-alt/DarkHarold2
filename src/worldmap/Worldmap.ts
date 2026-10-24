@@ -32,6 +32,7 @@ import { Worldmap as WorldmapData, WorldmapPlayer } from './types.js'
 import { parseWorldmap } from './parser.js'
 import { cancelEncounter, EncounterRoll, resetEncounterTimer, rndEncounterOccurred, setupRandomEncounter } from './encounters.js'
 import { drawHP } from '../ui_hud.js'
+import { assetUrl } from '../modAssets.js'
 
 export const WORLDMAP_UNDISCOVERED = 0
 export const WORLDMAP_DISCOVERED = 1
@@ -39,7 +40,7 @@ export const WORLDMAP_SEEN = 2
 
 export const NUM_SQUARES_X = 4 * 7
 export const NUM_SQUARES_Y = 5 * 6
-// CE ref: worldmap.cc — worldmap.png is 1400×1500, 28×30 tiles → 50×50px per tile.
+// CE ref: worldmap.cc — art/worldmap.png (stitch_worldmap stage) is 1400×1500, 28×30 tiles → 50×50px per tile.
 export const SQUARE_SIZE = 50
 
 // CE wmWorldMapFunc runs one loop per frame of the 60 fps limiter (sharedFpsLimiter);
@@ -703,7 +704,7 @@ function centerWorldmapCrosshair(x: number, y: number): void {
 // not be clipped the same way — toggle the class alongside the image so
 // the clickable area always matches whichever graphic is actually showing.
 function setTargetImage(url: string, isHotspot: boolean): void {
-    $worldmapTarget.style.backgroundImage = `url('${url}')`
+    $worldmapTarget.style.backgroundImage = `url('${assetUrl(url)}')`
     $worldmapTarget.classList.toggle('wmHotspotShape', isHotspot)
 }
 
@@ -1166,10 +1167,10 @@ async function blinkEncounterIcon(special: boolean): Promise<void> {
     const bright = special ? 'art/intrface/wmrnden2.png' : 'art/intrface/wmapfgt0.png'
     showv($worldmapPlayer)
     for (let i = 0; i < 7; i++) {
-        $worldmapPlayer.style.backgroundImage = `url('${i % 2 === 0 ? dark : bright}')`
+        $worldmapPlayer.style.backgroundImage = `url('${assetUrl(i % 2 === 0 ? dark : bright)}')`
         await new Promise<void>((r) => setTimeout(r, 200))
     }
-    $worldmapPlayer.style.backgroundImage = "url('art/intrface/wmaploc.png')"
+    $worldmapPlayer.style.backgroundImage = "url('" + assetUrl('art/intrface/wmaploc.png') + "')"
 }
 
 // CE wmWorldMapFunc after wmRndEncounterOccurred returned 1: a spotted encounter asks

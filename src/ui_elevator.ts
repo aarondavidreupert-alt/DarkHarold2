@@ -27,6 +27,7 @@ import { fromTileNum } from './tile.js'
 import { UIMode } from './ui_panels.js'
 import { $id, $qa, showv, hidev } from './ui_dom.js'
 import { dbg } from './logger.js'
+import { assetUrl } from './modAssets.js'
 
 // CE ref: elevator.cc — gauge sprite gaj000.png: 92×715, 13 rows (frames 0-12).
 // Frame 0 = needle at bottom, frame 12 = needle at top.
@@ -85,12 +86,12 @@ export function uiElevator(elevator: Elevator) {
 
         const $elevatorLabel = $id('elevatorLabel')
         showv($elevatorLabel)
-        $elevatorLabel.style.backgroundImage = `url('${labelArt}.png')`
+        $elevatorLabel.style.backgroundImage = `url('${assetUrl(labelArt + '.png')}')`
     }
 
     const $elevatorBox = $id('elevatorBox')
     showv($elevatorBox)
-    $elevatorBox.style.backgroundImage = `url('${art}.png')`
+    $elevatorBox.style.backgroundImage = `url('${assetUrl(art + '.png')}')`
 
     // Determine current floor index for gauge init
     let currentFloorIdx = 0

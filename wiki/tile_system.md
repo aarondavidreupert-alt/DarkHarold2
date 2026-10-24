@@ -659,7 +659,7 @@ return globalState.gMap.getSpatials()  // getSpatials() uses currentElevation
 
 ### 16.6 Elevator Objects
 
-`metarule(15, …)` (METARULE_ELEVATOR) → `useElevator()` (`main.ts`) → `uiElevator` with `lut/elevators.json` (CE `elevatorSelectLevel`); after the trip the elevator doors near the arrival are reset (EL3, fixed).
+`metarule(15, …)` (METARULE_ELEVATOR) → `useElevator()` (`main.ts`) → `uiElevator` with CE's elevator table (`src/ceElevators.ts`; CE `elevatorSelectLevel`); after the trip the elevator doors near the arrival are reset (EL3, fixed).
 
 ### 16.7 Elevation Presence vs. MapHeader.flags
 

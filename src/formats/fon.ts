@@ -14,6 +14,7 @@
 
 import { assert } from '../util.js'
 import struct from './struct.js'
+import { assetUrl } from '../modAssets.js'
 
 const fonHeader = struct('<iiiii')
 const headerSize = 5 * 4
@@ -37,7 +38,7 @@ function fontDataSize(width: number, height: number): number {
 }
 
 export async function fonUnpack(filepath: string): Promise<Font> {
-    const response = await fetch(filepath)
+    const response = await fetch(assetUrl(filepath))
     const buffer = await response.arrayBuffer()
 
     const [numSymbols, height, spacing] = fonHeader.unpack(buffer)

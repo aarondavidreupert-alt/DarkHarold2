@@ -30,6 +30,7 @@ import { getCurrentMapInfo, getLstJson } from './data.js'
 import { lazyLoadImage } from './images.js'
 import { dbg } from './logger.js'
 import { getFileBinarySync, getRandomInt } from './util.js'
+import { assetUrl } from './modAssets.js'
 
 // CE art.h HeadAnimation
 export const HEAD_ANIMATION_VERY_GOOD_REACTION = 0
@@ -63,7 +64,7 @@ const HEAD_PHONEME_LOOKUP = [
 const HEAD_W = 388
 const HEAD_H = 200
 
-interface HeadArt { key: string; numFrames: number; fps: number; frames: { sx: number; w: number; h: number; x: number }[]; dirX: number; dirY: number }
+interface HeadArt { key: string; numFrames: number; fps: number; frames: { sx: number; sy: number; w: number; h: number; x: number }[]; dirX: number; dirY: number }
 interface Lips { phonemes: number[]; markers: { marker: number; position: number }[]; totalBytes: number; audio: HTMLAudioElement }
 
 let canvas: HTMLCanvasElement | null = null
@@ -110,7 +111,7 @@ function loadHeadArt(key: string): HeadArt | null {
         key,
         numFrames: info.numFrames,
         fps: info.fps || 10, // CE artGetFramesPerSecond: 0 → 10
-        frames: info.frameOffsets[0].map((f: any) => ({ sx: f.sx, w: f.w, h: f.h, x: f.x })),
+        frames: info.frameOffsets[0].map((f: any) => ({ sx: f.sx, sy: f.sy ?? 0, w: f.w, h: f.h, x: f.x })),
         dirX: dir.x,
         dirY: dir.y,
     }
@@ -152,7 +153,7 @@ function render(art: HeadArt | null, frame: number): void {
     const y = Math.floor(offset / 640)
     const x = offset - y * 640
     const img = globalState.images[art.key]
-    if (img) ctx.drawImage(img, f.sx, 0, f.w, f.h, x, y, f.w, f.h)
+    if (img) ctx.drawImage(img, f.sx, f.sy, f.w, f.h, x, y, f.w, f.h)
     else lazyLoadImage(art.key, () => render(art, frame))
 }
 
@@ -259,7 +260,7 @@ function loadLips(audioName: string): Lips | null {
         markers.push({ marker: dv.getInt32(p, false), position: dv.getInt32(p + 4, false) })
         p += 8
     }
-    const audio = new Audio(`audio/speech/${headName}/${base}.mp3${AUDIO_ASSET_QUERY}`)
+    const audio = new Audio(assetUrl(`audio/speech/${headName}/${base}.mp3${AUDIO_ASSET_QUERY}`))
     return { phonemes, markers, totalBytes, audio }
 }
 

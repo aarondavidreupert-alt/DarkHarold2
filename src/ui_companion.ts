@@ -48,6 +48,7 @@ import { uiCompanionTrade } from './ui_companion_trade.js'
 import { getVisibleDialoguePanel, uiSwapDialoguePanel } from './ui_dialogue.js'
 import { $id } from './ui_dom.js'
 import { Scripting } from './scripting.js'
+import { assetUrl } from './modAssets.js'
 
 // ── Layout constants (verified against game_dialog.cc) ───────────────────────
 
@@ -179,7 +180,7 @@ function makePanel(bgImage: string, w: number, h: number): HTMLDivElement {
         position: 'relative',
         width: w + 'px',
         height: h + 'px',
-        backgroundImage: `url('art/intrface/${bgImage}.png')`,
+        backgroundImage: `url('${assetUrl(`art/intrface/${bgImage}.png`)}')`,
         backgroundSize: '100% 100%',
         imageRendering: 'pixelated',
         flexShrink: '0',
@@ -202,7 +203,7 @@ function makeGraphicButton(
         top: y + 'px',
         width: w + 'px',
         height: h + 'px',
-        backgroundImage: `url('art/intrface/${img}.png')`,
+        backgroundImage: `url('${assetUrl(`art/intrface/${img}.png`)}')`,
         backgroundSize: '100% 100%',
         imageRendering: 'pixelated',
         cursor: disabled ? 'default' : 'pointer',
@@ -273,14 +274,14 @@ function makeActionButton(x: number, y: number, onClick: () => void): HTMLDivEle
         top: y + 'px',
         width: ACTION_BTN_SIZE + 'px',
         height: ACTION_BTN_SIZE + 'px',
-        backgroundImage: "url('art/intrface/di_rdbt2.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/di_rdbt2.png') + "')",
         backgroundSize: '100% 100%',
         imageRendering: 'pixelated',
         cursor: 'pointer',
     })
-    el.addEventListener('mousedown', () => { el.style.backgroundImage = "url('art/intrface/di_rdbt1.png')" })
-    el.addEventListener('mouseup', () => { el.style.backgroundImage = "url('art/intrface/di_rdbt2.png')" })
-    el.addEventListener('mouseleave', () => { el.style.backgroundImage = "url('art/intrface/di_rdbt2.png')" })
+    el.addEventListener('mousedown', () => { el.style.backgroundImage = "url('" + assetUrl('art/intrface/di_rdbt1.png') + "')" })
+    el.addEventListener('mouseup', () => { el.style.backgroundImage = "url('" + assetUrl('art/intrface/di_rdbt2.png') + "')" })
+    el.addEventListener('mouseleave', () => { el.style.backgroundImage = "url('" + assetUrl('art/intrface/di_rdbt2.png') + "')" })
     el.addEventListener('click', onClick)
     return el
 }
@@ -317,7 +318,7 @@ export function uiCompanionControl(companion: Critter): void {
         // (HP/AP/weight/equipped gear) and the disposition button rest-states
         // in sync after any action.
         panel.innerHTML = ''
-        panel.style.backgroundImage = "url('art/intrface/control.png')"
+        panel.style.backgroundImage = "url('" + assetUrl('art/intrface/control.png') + "')"
         panel.style.backgroundSize = '100% 100%'
         ;(panel.style as any).imageRendering = 'pixelated'
 
@@ -417,7 +418,7 @@ export function uiCompanionCustomize(companion: Critter): void {
 
     function redraw(): void {
         panel.innerHTML = ''
-        panel.style.backgroundImage = "url('art/intrface/custom.png')"
+        panel.style.backgroundImage = "url('" + assetUrl('art/intrface/custom.png') + "')"
         panel.style.backgroundSize = '100% 100%'
         ;(panel.style as any).imageRendering = 'pixelated'
 

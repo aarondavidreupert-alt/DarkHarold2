@@ -6,6 +6,7 @@ declare class DecompressionStream {
 }
 
 import { Config } from './config.js'
+import { assetUrl } from './modAssets.js'
 
 // The u_cycleTime the shaders animate the cycling entries by: CE colorCycleTicker
 // advances each group after period × gColorCycleSpeedFactor, and nothing cycles when
@@ -72,7 +73,7 @@ function paeth(a: number, b: number, c: number): number {
 export async function parsePNGCycleMask(url: string): Promise<CycleMask | null> {
     let buf: ArrayBuffer
     try {
-        const resp = await fetch(url)
+        const resp = await fetch(assetUrl(url))
         if (!resp.ok) return null
         buf = await resp.arrayBuffer()
     } catch {

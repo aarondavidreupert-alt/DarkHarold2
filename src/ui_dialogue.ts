@@ -31,6 +31,7 @@ import { uiCompanionControl } from './ui_companion.js'
 import { uiLog } from './ui_hud.js'
 import { getProtoMsg } from './util.js'
 import { uiShowDialogueReview } from './ui_dialogue_review.js'
+import { assetUrl } from './modAssets.js'
 
 // Smoothly transition an element's top property from an origin to a target
 // position over a duration. Used for the dialogue / barter slide-up animation.
@@ -77,7 +78,7 @@ function setupDialogueActionButtons(target: Critter | undefined): void {
     if (!target) {
         $barterBtn.style.display = 'none'
         $controlBtn.style.display = 'none'
-        $id('dialogueBox').style.backgroundImage = "url('art/intrface/di_talk.png')"
+        $id('dialogueBox').style.backgroundImage = "url('" + assetUrl('art/intrface/di_talk.png') + "')"
         return
     }
 
@@ -87,7 +88,7 @@ function setupDialogueActionButtons(target: Critter | undefined): void {
     const canBarter = (proFlags & 0x02) !== 0
 
     $id('dialogueBox').style.backgroundImage =
-        `url('art/intrface/${isPartyMember ? 'di_talkp' : 'di_talk'}.png')`
+        `url('${assetUrl(`art/intrface/${isPartyMember ? 'di_talkp' : 'di_talk'}.png`)}')`
 
     $barterBtn.style.display = ''
     $barterBtn.onclick = () => {

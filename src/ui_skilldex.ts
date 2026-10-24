@@ -29,6 +29,7 @@ import { WindowFrame, SmallButton } from './ui_components.js'
 import { makePanelDraggable } from './ui_drag.js'
 import { UIMode } from './ui_panels.js'
 import { drawHP, uiLog } from './ui_hud.js'
+import { assetUrl } from './modAssets.js'
 
 let skilldexWindow: WindowFrame
 // CE game_mouse.cc action menu USE_SKILL: skilldexOpen, then actionUseSkill on the
@@ -107,7 +108,7 @@ export function initSkilldex(): void {
     // numbers at x 110, y 48 + 36*i.
     const BTN_W = 86
     const BTN_H = 33
-    new Image().src = 'art/intrface/skldxon.png' // preload the pressed state
+    new Image().src = assetUrl('art/intrface/skldxon.png') // preload the pressed state
     for (let i = 0; i < skilldexSkills.length; i++) {
         const [name, skill] = skilldexSkills[i]
         const btn = new Widget('art/intrface/skldxoff.png', { x: 15, y: 45 + i * 36, w: BTN_W, h: BTN_H })
@@ -139,7 +140,7 @@ export function initSkilldex(): void {
     skilldexWindow.add(new FontWidget(72, 337, getMessage('skilldex', 101) ?? 'CANCEL', font3, CE_COLOR.label).css({ pointerEvents: 'none' }))
 
     Object.assign(skilldexWindow.elem.style, {
-        backgroundImage: `url('${skilldexWindow.background}.png')`,
+        backgroundImage: `url('${assetUrl(skilldexWindow.background + '.png')}')`,
         backgroundRepeat: 'no-repeat',
         zIndex: '20',
         cursor: 'default',
@@ -202,7 +203,7 @@ export function beginSkillTargeting(skill: Skills): void {
     globalState.cursorMode = 'useSkill'
     // CSS cursor fallback — crosshair visible even if WebGL crossuse asset is missing
     const cnv = document.getElementById('cnv')
-    if (cnv) cnv.style.cursor = "url('art/intrface/crossuse.png') 11 11, crosshair"
+    if (cnv) cnv.style.cursor = "url('" + assetUrl('art/intrface/crossuse.png') + "') 11 11, crosshair"
     dbg('skills', `[UI] Skill targeting mode: ${SKILL_NAMES[skill - 1]}`)
 }
 

@@ -4,6 +4,7 @@
 import globalState from '../globalState.js'
 import { getFileText } from '../util.js'
 import { dbgWarn } from '../logger.js'
+import { assetUrl } from '../modAssets.js'
 
 // Slide canvas dimensions (CE: ENDGAME_ENDING_WINDOW_WIDTH/HEIGHT)
 const SLIDE_W = 640
@@ -155,7 +156,7 @@ function loadImageToCanvas(ctx: CanvasRenderingContext2D, imagePath: string | nu
             ctx.fillRect(0, 0, SLIDE_W, SLIDE_H)
             resolve(null)
         }
-        img.src = imagePath
+        img.src = assetUrl(imagePath)
     })
 }
 
@@ -337,7 +338,7 @@ export async function showPanningSlide(
                 dbgWarn('endgame', 'panning image not found:', imagePath)
                 resolve(i)
             }
-            i.src = imagePath
+            i.src = assetUrl(imagePath)
         })
     }
 

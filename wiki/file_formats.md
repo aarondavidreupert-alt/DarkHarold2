@@ -50,8 +50,14 @@ Palette index 0 = transparent.
 
 ### Output (DH2 pipeline)
 
-`exportFRM` outputs a PNG sprite sheet: all frames (all directions) stitched horizontally at `maxW × maxH` each.  
-A JSON metadata blob is returned describing `frameOffsets[dir][frame].{sx, ox, oy, w, h}` where `sx` is the X pixel position in the sheet and `ox/oy` are cumulative directional offsets.
+`exportFRM` / `exportFRMs` output a PNG sprite sheet of `maxW × maxH` cells laid out as a grid
+(since 2026-10-23): each direction starts a new row, and a row wraps when it would be wider than
+`ATLAS_MAX_WIDTH` (8192 px), so the sheet opens readably in an image viewer and every sheet fits in
+one WebGL texture (the old single-row strips reached 74 976 px; GPUs upload at most 4096–16384).
+A JSON metadata blob is returned describing `frameOffsets[dir][frame].{sx, sy, ox, oy, w, h}` where
+`sx`/`sy` is the frame's cell origin in the sheet and `ox/oy` are cumulative directional offsets, plus
+the sheet's `columns` / `rows`. `src/renderer.ts frameCell` turns them into the shader's cell; a sheet
+without `sy` (converted before the grid) is read as one row.
 
 **Palette**: `tools/pal.py:readPAL` reads `data/color.pal` (768-byte RGB triplets, 256 colours).
 

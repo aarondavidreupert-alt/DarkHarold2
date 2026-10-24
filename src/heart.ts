@@ -1,3 +1,4 @@
+import { assetUrl } from './modAssets.js'
 /* heart.js v0.0.1
    copyright (c) 2012 darkf
    licensed under the terms of the MIT license, see LICENSE for details
@@ -95,7 +96,7 @@ class Graphics {
             heart._imagesLoading.splice(heart._imagesLoading.indexOf(img), 1) /* remove img from the loading sequence */
             callback(img)
         }
-        img.src = src
+        img.src = assetUrl(src)
     }
 
     draw(drawable: HTMLImageElement, x: number, y: number) {

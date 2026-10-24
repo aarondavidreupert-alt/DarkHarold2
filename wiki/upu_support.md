@@ -1,12 +1,12 @@
 # Unofficial Patch (UPU) support — findings and plan
 
-> Status: **implemented, not yet played through** (2026-10-22). The pipeline extracts the install's
-> `patchXXX.dat` and the `mods/*.dat` in `mods/mods_order.txt` over the vanilla data, and the script
-> functions UPU needs are ported from CE. Not verified on a real UPU install (none was at hand): the
-> pipeline was run on a mock install, the scripts decompiled from the v34 release. See
-> **Implementation** below for what runs, what is skipped and why. This page records what the
-> Unofficial Patch is, what it changes and how DH2 supports it. See also [lua_scripts.md](lua_scripts.md) ("Script fixes"),
-> [known_bugs.md](known_bugs.md) L7.
+> Status: **implemented, not yet played through** (2026-10-22). The pipeline builds the install's
+> mods (`mods/upu.dat`) into a mod folder `mods/upu/` that the engine loads over the untouched vanilla
+> files while `upu` is listed in `mods/mods_order.txt`; the sfall script functions, global scripts and
+> hooks UPU uses are ported (from CE where CE has them). Checked on a mock install with the real
+> `upu.dat`, not yet on a real UPU install. See **Implementation** for what runs, what is skipped and
+> why. See also [lua_scripts.md](lua_scripts.md) ("Script fixes", "Mods"), [known_bugs.md](known_bugs.md)
+> section 32 (UP1–UP6).
 
 ## What it is
 
@@ -68,20 +68,88 @@ either; sfall does).
 
 ## Implementation (2026-10-22)
 
-| Step | Done | Where |
-|------|------|-------|
-| 1. Pipeline | `extract_dats` extracts, after `master.dat` / `critter.dat`: `patch000.dat`–`patch099.dat` (CE `game.cc`), then each `mods/mods_order.txt` line top to bottom (a `.dat` or a folder; a later line wins, a name listed twice counts at its last line — sfall `LoadOrder.cpp`). Which archive each file came from is written to `data/mod_sources.json`. The install's `ddraw.ini` and `mods/*.ini` are copied to `data/` for `get_ini_setting`. `setup.py --no-mods` / the pipeline GUI's "Vanilla game" checkbox reads only the patches. The install's loose `data/` folder is not read (music and saves, taken elsewhere). | `tools/setup.py install_overlays / overlay_dat / overlay_dir / copy_install_inis`, `tools/pipeline_gui.py` |
-| 2. XOR | `0x8042` bitwise XOR and `0x8043` bitwise NOT in the VM (CE `opBitwiseOperatorXor` / `Not`); `int2lua` already had both | `src/vm.ts` |
-| 3. sfall arrays | port of CE `sfall_arrays.cc` (list and associative arrays, `CONSTVAL`, sort / rsort / reverse / shuffle via `resize_array`, `ARRAY_MAX_SIZE`, strings cut to 254), `string_split`, `list_as_array` (`sfall_lists.cc`), `stack_array` (`arrayexpr`). Temporary arrays are freed once per game tick (CE `scripts.cc scriptsHandleRequests` → `DeleteAllTempArrays`), all arrays on a new game. **Not saved** with the game — CE does not save them either (sfall does). Both backends call the same `Script` methods. | `src/sfallArrays.ts`, `src/scripting.ts`, `src/gameTick.ts`, `src/gameReset.ts` |
-| 4. Other sfall functions | `abs`; `get_ini_setting` (CE `sfall_ini.cc`: `atol` of the value, 0 when missing, -1 for a malformed name; files read from `data/`); `explosions_metarule` 6 (an explosive's damage range — the only one UPU uses; the others warn); `set_self` (consumed by the next `use_obj_on_obj` / `pickup_obj`, as in CE); `get/set_proto_data` (only the offsets UPU uses: 96 a weapon's magazine size, 388 a critter's body type — DH2's protos are JSON); weapon ammo pid / count; pc and critter base / bonus stats (`StatSet` got a bonus part, saved); `party_member_list`; `get_script`; `set_world_map_pos`; `set_car_current_town`; `sfall_func0-2` for `combat_data` and `get_object_data` on it (the Attack fields at sfall's offsets). sfall-only, not in CE: `set_critter_extra_stat`, `get_critter_base/extra_stat` (same work as the pc forms), `fs_copy` (only an existence check — Cassidy's script asks whether a talking-head mod is installed). | `src/scripting.ts`, `src/vm_bridge.ts`, `tools/int2lua.py INTRINSICS`, `src/sfallIni.ts`, `src/char.ts` |
-| 5. Global scripts | **not done.** The four `gl_*.int` in v34 are all killap's `gl_k_*` and all need sfall hooks or functions CE lacks: `gl_k_8ball` (the `INVENTORYMOVE` hook: the Magic 8-Ball), `gl_k_dogmeat_fix` (`GAMEMODECHANGE` hook, `register_hook_proc` 0x8262), `gl_k_goris_derobing` and `gl_k_walking_speed` (rewrite FRM frame rates through `fs_*` 0x8202 — cosmetic options). CE implements no hooks, so these stay off; `sfall_global_scripts.cc` itself was not ported (nothing would use it). | — |
-| 6. Decompiler names | a script `data/mod_sources.json` lists as from `mods/` reads `third_party/upu_src/scripts_src` (UPU's own sources, fetched with a sparse clone of the repository, git-ignored) before Black Isle's and killap's trees; the `SCRIPT_FIXES` / `MISSING_OPERANDS` repairs of the vanilla `.int` (L7 bhrnddst, mitoilet) are off for it (UPU's `.int` is recompiled from fixed sources). On the v34 scripts: variables left as numbers drop from 5136 to 16. Vanilla scripts decompile byte-identical to before. | `tools/int2lua.py script_from_mod / script_ssl_sources / upu_ssl_tree` |
-| 7. Verify | `npx tsc` clean, `--check-bridge` passes; the vanilla decompile is unchanged (1440 / 1443, the same three Fallout 1 leftovers). UPU: **1239 of 1244** scripts decompile — the four `gl_k_*` above and `mcjo` (a procedure-local variable without a constant initialiser, a shape int2lua does not know; it runs on the VM). Arrays, `string_split`, `get_ini_setting`, `explosions_metarule` and the per-tick freeing of temporary arrays checked in the browser. **Not done:** `luadiff` and the story crawler on UPU data, and a playtest — they need a UPU install run through the pipeline. | — |
+### Mod folders
 
-To fetch UPU's sources for step 6 (optional; without them UPU scripts use killap's names where they fit):
+UPU is a **mod folder**, `mods/upu/`, not a change to the vanilla files. The pipeline
+(`tools/setup.py build_mods`, last stage; GUI "Build mod folders…") turns each archive or folder the
+install's `mods/mods_order.txt` lists into `mods/<name>/`, laid out like the project root and
+converted by the same converters as the vanilla data, and adds the name to the project's
+`mods/mods_order.txt`. At start the engine reads `mods/<name>/manifest.json` of every listed mod
+(`src/modAssets.ts`); from then on every asset load asks `assetUrl(path)` and gets the copy of the
+highest-priority mod that has the file, else the vanilla one. Switching UPU off is a `;` in front of
+its line (or `fallout2.cfg [dh2] mods=` / `play.html#mods=`); no pipeline re-run, the vanilla game
+is untouched. A DH2 addition modelled on sfall's `mods/` (CE loads only `master.dat`, `critter.dat`
+and `patchXXX.dat`).
+
+    mods/upu/
+      manifest.json          the files below; "merge": the two merged files
+      art/**.png             the mod's images; art/imageMap.json lists only them (merged)
+      proto/pro.json         the mod's protos only (merged per type and id)
+      maps/*.json            the mod's maps (+ .images.json); vanilla maps the mod's .lst / proto
+                             changes alter are re-converted and kept when they differ
+      lut/lst/*.json         the mod's .lst files, each the whole list
+      lut/endgame.json …     endgame / death slides when the mod changes them
+      audio/sfx/*.wav        sound (tools/acmDecoder.py, as the vanilla stages)
+      data/scripts/*.int|lua scripts: the .int and its decompiled Lua
+      data/text/**.msg, data/data/*.txt, data/gvars.json, data/maps/*.mvars.json
+      data/mods/upu.ini      the install's mods/upu.ini (get_ini_setting)
+
+Rules worth knowing:
+
+- **Load order**: the install's `mods/mods_order.txt` top to bottom, a later line winning, a name
+  listed twice counting at its last line (sfall `LoadOrder.cpp`). `sfall.dat` and `f2_res.dat` are
+  skipped (Conflicts). The install's `patchXXX.dat` still go into the vanilla `data/` (CE `game.cc`;
+  the UPU installer moves `patch000.dat` away, as UPU contains it).
+- **Two merged files**: `art/imageMap.json` and `proto/pro.json` index every image / proto, so a mod
+  ships only its own entries and `mergeModJSON` adds them on top of the vanilla file (the cached one).
+- **Stylesheets**: `ui.css` rules whose `url()` a mod overrides are rewritten at start
+  (`overrideStylesheets`); the interface code's own `url()` / `img.src` go through `assetUrl`.
+- **Lookups during the build** fall back from the mod's files to earlier mods', then the vanilla
+  `data/` (a map's protos and `.lst` files, a script's message texts, `fomap.dataFile`).
+- **Scripts**: the mod's `.int` and its `.lua` come from the same layer; a script whose `.int` did not
+  decompile (`mcjo`) runs as bytecode instead of a lower layer's `.lua` (`loadLuaScript` → `assetLayer`).
+  Names come from UPU's own sources first (`int2lua.decompile_file(mod=True)`, `third_party/upu_src`),
+  and the vanilla `.int`'s repairs (`SCRIPT_FIXES` L7, mitoilet's operand) are off. On v34: variables
+  left as numbers drop from 5136 to 16; **1243 of 1244** scripts decompile.
+- **Raw files** the conversion replaces (`.frm`, `.map`, `.acm`, `.pal`) are deleted after the build
+  (as `--delete-originals`); `.pro`, `.lst`, `.gam` stay for a later mod's build. UPU v34: 5442 files,
+  229 MB (mostly map JSON).
+- **Bad references in UPU's maps** (`fomap`): two objects name a script past `scripts.lst`
+  (gecksetl, vctyctyd) — no script, as CE; a Redding peasant (reddown) names critter art past
+  `critters.lst` — CE draws nothing, DH2 takes the proto's art (a deliberate deviation, UP6).
+
+To fetch UPU's sources (optional; without them UPU scripts get killap's names where they fit):
 
     git clone --depth 1 --filter=blob:none --sparse https://github.com/BGforgeNet/Fallout2_Unofficial_Patch.git third_party/upu_src
     git -C third_party/upu_src sparse-checkout set scripts_src
+
+### Script functions
+
+| Group | What | Where |
+|-------|------|-------|
+| XOR / NOT | `0x8042` / `0x8043` in the VM (CE `opBitwiseOperatorXor` / `Not`) | `src/vm.ts` |
+| sfall arrays | port of CE `sfall_arrays.cc` / `sfall_lists.cc`: list and associative arrays, `CONSTVAL`, sort / rsort / reverse / shuffle, `string_split`, `list_as_array`, `stack_array`; temporary arrays freed per game tick (CE `scriptsHandleRequests`), all on a new game; **not saved** (as CE; sfall saves them) | `src/sfallArrays.ts` |
+| CE sfall functions | `abs`, `get_ini_setting` (CE `sfall_ini.cc`: files under `data/`, through the mod overlay), `explosions_metarule` 6, `set_self`, `get/set_proto_data` (offsets 96 magazine size, 388 body type), weapon ammo pid / count, pc and critter base / bonus stats, `party_member_list`, `get_script`, `set_world_map_pos`, `set_car_current_town`, `sfall_func0-2` (`combat_data`, `get_object_data` on an Attack or an object — PID / SID / script index —, `dialog_obj`, `get_sfall_arg_at`, `set_ini_setting`) | `src/scripting.ts`, `src/sfallIni.ts` |
+| global scripts | port of CE `sfall_global_scripts.cc`: the active mods' `data/scripts/gl*.int` (sfall's `GlobalScriptPaths` default) start after a new game's map loads and after a save loads; `game_loaded`, `set_global_script_repeat`, `set_global_script_type` (0 game loop + map procedures, 1 every frame also in dialogue / menus, 2 world map, 3 both) | `src/sfallGlobalScripts.ts`, `gameTick.ts`, `init.ts`, `saveload.ts` |
+| global variables | port of CE `sfall_global_vars.cc`: an 8-character or numeric key, 0 removes; saved with the game (`SaveGame.sfallGlobals`) | `src/sfallGlobalScripts.ts` |
+| hooks (not in CE) | after sfall `HookScripts.cpp`: `register_hook_proc` (0 unregisters; the last registered runs first), `get_sfall_arg`, `get_sfall_arg_at`, `get_sfall_args`, `set_sfall_arg`, `set_sfall_return`. Hook points that fire: `HOOK_INVENTORYMOVE` (24; the player moving an item between backpack, hands and armor slot, or reloading by dropping ammo on a weapon — slots 0–4; dropping, picking up and containers do not fire it), `HOOK_GAMEMODECHANGE` (31; `get_game_mode` flags from DH2's UI mode, combat and the player's turn, with sfall's `SPECIAL` pulse when a dialogue closes or a party member joins / leaves in it). Others can be registered and never run. | `src/sfallHooks.ts`, `ui_inventory/dragdrop.ts` |
+| virtual files (not in CE) | after sfall `FileSystem.cpp`: `fs_copy`, `fs_find`, `fs_seek`, `fs_read_*`, `fs_write_*` (big-endian, as sfall), `fs_size`, `fs_pos`, `fs_resize`, `fs_delete`. An art FRM is a synthesized header (DH2 has PNGs); writing its fps / action frame updates the image's `imageMap` entry — what `gl_k_goris_derobing` (Goris's de-robing, `goris_derobing_speed`) and `gl_k_walking_speed` (slow walkers: fps = frame count, `critters_walk_faster`) do. They need the install's `ddraw.ini` with `UseFileSystemOverride=1` (UPU's default); `set_ini_setting` holds for the page load only (DH2 does not write the install's files). | `src/sfallFs.ts` |
+| other | `set_script` (sfall `op_set_script`: script number, start, map_enter unless bit 31), `tap_key` (CE `op_tap_key`; Escape / Enter / Space dispatched to the page) | `src/scripting.ts` |
+
+What UPU's four global scripts do in DH2 now: `gl_k_8ball` gives an unscripted Magic 8-Ball its script
+when you first move it into a hand slot (until New Reno is known, it just marks itself done);
+`gl_k_dogmeat_fix` corrects Dogmeat's AI packet after his dialogue; the two speed options above.
+
+### Verified (2026-10-22)
+
+`npx tsc` clean; `int2lua --check-bridge` passes; the vanilla decompile is byte-identical (1440 / 1443).
+`build_mods` on a mock install with the real `upu.dat` / `upu.ini` (no tracebacks, 3½ min). In the
+browser with `upu` listed: `arcaves` loads UPU's map, Lua and messages from `mods/upu/`, vanilla files
+stay vanilla, the merged image map has UPU's art; the global scripts start (8-Ball marks itself done,
+the Dogmeat fix registers its hook, Goris's animation goes 10 → 50 fps, a slow walker 15 → 11 fps);
+hook order, return override and unregistering, game mode flags and the 8-character key rule checked.
+With `#mods=` (UPU off): nothing is read from `mods/` but the order file, no global scripts, no
+failed requests. **Not done:** a playtest, `luadiff` and the story crawler on UPU data (UP1).
 
 ### Conflicts with DH2 (checked)
 
@@ -93,11 +161,13 @@ To fetch UPU's sources for step 6 (optional; without them UPU scripts use killap
   interface art for sfall's extra buttons) — **skipped**: they belong to sfall engine features DH2 does
   not have (item highlighting, controlling party members in combat), and the art would replace
   DH2's vanilla interface frames.
+- **`gl_ammomod.int`**, which the UPU installer puts loose into the install's `data/scripts/` (sfall's
+  optional ammo formulas, `mods/AmmoGlovz.ini` / `AmmoYAAM.ini`): not read — the pipeline does not
+  read the install's loose `data/`, and it needs hooks DH2 does not fire.
 - **sfall engine options in `ddraw.ini`** (speed, graphics, gameplay tweaks): not used. UPU's content
-  does not depend on them; `ddraw.ini` is only copied so `get_ini_setting` can read it.
-- **DH2's own Lua mods** are separate: the pipeline reads the *install's* `mods/mods_order.txt`, the
-  Lua loader the *project's* `mods/mods_order.txt` (where `.dat` lines are skipped,
-  [lua_scripts.md](lua_scripts.md) → Mods). A Lua mod overrides the script UPU's `.int` decompiled to.
+  does not depend on them; `ddraw.ini` is copied to `data/` so `get_ini_setting` can read it.
+- **DH2's own Lua mods** share the project's `mods/mods_order.txt` with the built mod folders; a Lua
+  mod's `scripts/<script>.lua` wins over UPU's script (Lua mods are looked up first).
 - **Script fixes:** the L7 fix and mitoilet's restored operand apply only to the vanilla `.int`.
 
 ## Plan (as written before the implementation)
@@ -126,7 +196,7 @@ follows sfall and is marked as a DH2 addition.
 6. **Decompiler names for UPU**: read the UPU repository's own `scripts_src` (it matches the v34 `.int`
    better than killap's 1.02.31) as an SSL tree; `SCRIPT_FIXES` entries that UPU already fixes are
    switched off for UPU scripts (their `.int` no longer has the bug).
-7. **Verify**: `luadiff.html` over all 1244 UPU scripts (VM vs Lua, 0 differences); the story crawler
+7. **Verify**: `tools/luadiff.html` over all 1244 UPU scripts (VM vs Lua, 0 differences); the story crawler
    on UPU data (VM, VM, Lua, Lua); a playtest of the changed areas (Redding / NCR caravans, Arroyo).
 8. **Docs**: this page becomes the reference; `lua_scripts.md`, `known_bugs.md` (new UP section),
    README ("UPU supported, optional"), `CODEBASE.md`.

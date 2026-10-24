@@ -27,9 +27,9 @@ When researching any system before implementing or documenting:
 2. Fall back to `raw/fallout2-ce/src/` only when the wiki is silent, too high-level, or you suspect a discrepancy.
 3. If CE source and the wiki contradict each other, stop and flag the conflict rather than guessing.
 
-Available wiki docs (43 system docs in `wiki/`, audited 2026-10-18; `lua_scripts.md` added 2026-10-19, `lua_variable_names.md` (generated review list) 2026-10-21, `upu_support.md` (Unofficial Patch plan) 2026-10-22):
+Available wiki docs (43 system docs in `wiki/`, audited 2026-10-18; `lua_scripts.md` added 2026-10-19, `lua_variable_names.md` (generated review list) 2026-10-21, `upu_support.md` (Unofficial Patch, mod folders) 2026-10-22):
 `actions.md`, `ai_behavior.md`, `animation.md`, `car_system.md`, `character_stats.md`, `combat.md`, `companion_party.md`, `critter_stats.md`, `damage_formula.md`, `dialogue_system.md`, `drugs.md`, `economy.md`, `endgame.md`, `faction_reputation.md`, `file_formats.md`, `hotkeys.md`, `interface_windows.md`, `items.md`, `known_bugs.md`, `lighting.md`, `lua_scripts.md`, `lua_variable_names.md`, `map_scripting.md`, `upu_support.md`, `palette_colors.md`, `pathfinding.md`, `perks_traits.md`, `pipboy.md`, `proto_system.md`, `quest_system.md`, `random_numbers.md`, `rendering.md`, `save_load.md`, `scripting_reference.md`, `scripting_vm.md`, `scroll_clamping.md`, `settings.md`, `skill_checks.md`, `sound_system.md`, `spatial_triggers.md`, `status_effects.md`, `tile_system.md`, `time_clock.md`, `weapon_combat.md`, `worldmap.md`.
-Meta/audit: `CODEBASE_FOCE.md`, `CODEBASE_jsFO.md`, `CROSS_CHECK_NOTES.md`, `alignment.md`, `extended_flags.md`, `failed_animation_offset_attempts.md`, `ts-split-refactor.md`, `edit_history.md`, `README.md`.
+Meta/audit: `CODEBASE_FOCE.md`, `CODEBASE_jsFO.md`, `CROSS_CHECK_NOTES.md`, `alignment.md`, `extended_flags.md`, `failed_animation_offset_attempts.md`, `ts-split-refactor.md`, `edit_history.md`, `autocrawler.md` (AutoCrawler usage), `README.md`.
 
 ## File Access Policy
 - ALWAYS pull from the remote branch before reading any file
@@ -54,7 +54,7 @@ Meta/audit: `CODEBASE_FOCE.md`, `CODEBASE_jsFO.md`, `CROSS_CHECK_NOTES.md`, `ali
 `tools/int2lua.py` decompiles `data/scripts/*.int` to `*.lua` (pipeline stage `decompile_scripts`); `src/lua/`
 runs them in place of the VM (`[dh2] script_backend=lua`, the default since 2026-10-21; `=vm` runs the bytecode,
 and so does an install without decompiled scripts). Both backends call the same `Script` methods.
-Check any decompiler or prelude change with `luadiff.html` (VM-vs-Lua differential test). Generated `.lua`
+Check any decompiler or prelude change with `tools/luadiff.html` (VM-vs-Lua differential test). Generated `.lua`
 files are derived from the user's install — never commit them. See `wiki/lua_scripts.md`.
 
 ## Scripting System Architecture
@@ -80,7 +80,14 @@ Engine consumes only pre-baked JSON/PNG — no runtime DAT parsing:
 - `proto/**/*.json` — PRO binary data as JSON (items/, critters/, scenery/, walls/, misc/)
 - `maps/*.json` — map data from fomap.py (tiles, objects, spatials, elevation, lights)
 - `lut/lst/*.json` — LST index files; naming: `art/critters/critters.lst` → `art_critters.json`
-- `lut/criticalTables.json`, `lut/elevators.json` — extracted from fallout2.exe binary
+- `lut/criticalTables.json` — extracted from fallout2.exe (no longer read: CE's critical and elevator tables
+  are compiled in, `src/criticalEffects/ceTables.ts`, `src/ceElevators.ts`)
+
+- `mods/<name>/` — mod folders (the pipeline's `build_mods` stage converts an install's mods, e.g. the
+  Unofficial Patch, into the same layout plus `manifest.json`); active while listed in `mods/mods_order.txt`.
+  **Every asset load must go through `assetUrl(path)` (`src/modAssets.ts`) or the `getFile*` helpers in
+  `src/util.ts`** (which call it), so a mod's copy replaces the vanilla file — `img.src`, CSS `url()`,
+  `fetch`, `new Audio` included. See `wiki/upu_support.md`.
 
 Proto type encoding (pid high byte): 0=items, 1=critters, 2=scenery, 3=walls, 4=tiles, 5=misc
 Tile coordinate convention: `tileNum = y * 200 + x` (200-wide grid, 40000 max tiles per elevation)

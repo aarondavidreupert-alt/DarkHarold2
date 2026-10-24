@@ -22,6 +22,7 @@ import { Obj } from '../object.js'
 import { $id } from '../ui_dom.js'
 import globalState from '../globalState.js'
 import { ammoGetQuantity, ammoMergeInto, ammoSplitOff } from '../weaponAmmo.js'
+import { assetUrl } from '../modAssets.js'
 
 // CE ref: inventory.cc:5534-5568 _draw_amount — BIGNUM.frm (FRM 170,
 // art/intrface/bignum.png, 336×24) is a 24-glyph sprite strip at 14px/glyph.
@@ -105,10 +106,10 @@ export function uiGetAmount(item: Obj): Promise<number> {
         }
 
         bignumImg.onload = () => { bignumReady = true; redraw() }
-        bignumImg.src = 'art/intrface/bignum.png'
+        bignumImg.src = assetUrl('art/intrface/bignum.png')
         if (item.invArt) {
             iconImg.onload = () => { iconReady = true; redraw() }
-            iconImg.src = item.invArt + '.png'
+            iconImg.src = assetUrl(item.invArt + '.png')
         }
 
         // CE ref: inventory.cc:5816 — plus/minus buttons with click-and-hold acceleration.
@@ -230,7 +231,7 @@ export function uiGetTimer(item: Obj): Promise<number> {
         for (const [img, src] of [[bignum, 'art/intrface/bignum.png'], [timer, 'art/intrface/timer.png'], [icon, item.invArt ? item.invArt + '.png' : '']] as [HTMLImageElement, string][]) {
             if (!src) continue
             img.onload = () => { ready++; redraw() }
-            img.src = src
+            img.src = assetUrl(src)
         }
         const sfx = (name: string) => { try { (globalState as any).audioEngine?.playSfxByName(name) } catch (e) { void e } }
         const onPlus = (e: Event) => { e.preventDefault(); if (value < MAX) { value += 10; redraw() } }

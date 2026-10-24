@@ -38,6 +38,7 @@ import { fromTileNum, hexToTile } from '../tile.js'
 import { arrayWithout, getFileJSON } from '../util.js'
 import { showAlert } from '../ui_dialog.js'
 import { GameMap } from './GameMap.js'
+import { globalScriptsMapProc } from '../sfallGlobalScripts.js'
 
 declare let PF: any
 
@@ -146,6 +147,7 @@ GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point,
                 this.mapScript.self_obj = { _script: this.mapScript }
                 this.mapScript.map_exit_p_proc()
             }
+            globalScriptsMapProc('map_exit_p_proc') // CE scriptsExecMapUpdateScripts
             const party = new Set<Obj>(globalState.gParty.getPartyMembersAndPlayer())
             const scripted = [...this.objects.flat(), ...((this.spatials ?? []) as any[]).flat()]
                 .filter((o: any) => o && !party.has(o) && o._script?.map_exit_p_proc !== undefined)
@@ -382,7 +384,7 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
 
         // load some testing art
         load('art/critters/hmjmpsat')
-        load('hex_outline')
+        load('img/hex_outline') // DH2's hex cursor outline (not game art)
 
         // load cursor assets
         load('art/intrface/stdarrow')

@@ -5,6 +5,7 @@ import { getZoom, Renderer, SCREEN_HEIGHT, SCREEN_WIDTH, TileMap } from '../rend
 import { Config } from '../config.js'
 import { Font } from '../formats/fon.js'
 import { dbg } from '../logger.js'
+import { assetUrl } from '../modAssets.js'
 
 export interface ShaderSources {
     fragment: string
@@ -22,6 +23,8 @@ export class WebGLRenderer extends Renderer {
     uScaleLocation: WebGLUniformLocation
     uNumFramesLocation: WebGLUniformLocation
     uFrameLocation: WebGLUniformLocation
+    uNumRowsLocation: WebGLUniformLocation
+    uRowLocation: WebGLUniformLocation
     objectUVBuffer: WebGLBuffer
     texCoordBuffer: WebGLBuffer
     tileBuffer: WebGLBuffer
@@ -321,7 +324,7 @@ export class WebGLRenderer extends Renderer {
         }
         // Bump the version string whenever egg.png is regenerated via
         // tools/export_mask_frms.py so the browser discards the cached copy.
-        img.src = 'art/intrface/egg.png?v=20260623b'
+        img.src = assetUrl('art/intrface/egg.png?v=20260623b')
     }
 
     init(): void {
@@ -399,6 +402,8 @@ export class WebGLRenderer extends Renderer {
         this.texCoordLocation = gl.getAttribLocation(this.tileShader, 'a_texCoord')
         this.uNumFramesLocation = gl.getUniformLocation(this.tileShader, 'u_numFrames')
         this.uFrameLocation = gl.getUniformLocation(this.tileShader, 'u_frame')
+        this.uNumRowsLocation = gl.getUniformLocation(this.tileShader, 'u_numRows')!
+        this.uRowLocation = gl.getUniformLocation(this.tileShader, 'u_row')!
 
         //this.uOffsetLocation = gl.getUniformLocation(this.tileShader, "u_uOffset")
         this.uScaleLocation = gl.getUniformLocation(this.tileShader, 'u_scale')

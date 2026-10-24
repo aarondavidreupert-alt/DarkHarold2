@@ -88,7 +88,7 @@ function makeDigit(digit: number, left: number, top: number): HTMLDivElement {
         position: absolute;
         left: ${left}px; top: ${top}px;
         width: ${DIGIT_W}px; height: ${DIGIT_H}px;
-        background-image: url('art/intrface/numbers.png');
+        background-image: url('${assetUrl('art/intrface/numbers.png')}');
         background-position-x: -${digit * DIGIT_W}px;
         background-repeat: no-repeat;
     `
@@ -129,7 +129,7 @@ function renderDateTimeBar(): void {
         position: absolute;
         left: 46px; top: 0px;
         width: 29px; height: 14px;
-        background-image: url('art/intrface/months.png');
+        background-image: url('${assetUrl('art/intrface/months.png')}');
         background-position-y: -${month * 15}px;
         background-repeat: no-repeat;
         image-rendering: pixelated;
@@ -153,7 +153,7 @@ function renderDateTimeBar(): void {
         position: absolute;
         left: 125px; top: -5px;
         width: 28px; height: 24px;
-        background-image: url('art/intrface/${alarmOn ? 'alarmin' : 'alarmout'}.png');
+        background-image: url('${assetUrl(`art/intrface/${alarmOn ? 'alarmin' : 'alarmout'}.png`)}');
         background-repeat: no-repeat;
         image-rendering: pixelated;
         cursor: pointer;
@@ -478,6 +478,7 @@ export function makeContentArea(): HTMLDivElement {
 import { renderStatusTab, leaveStatusTab } from './tabs/status.js'
 import { renderAutomapsTab, resetAutomapNavState } from './tabs/automaps.js'
 import { renderArchivesTab } from './tabs/archives.js'
+import { assetUrl } from '../modAssets.js'
 
 export function renderTab(tab: PipBoyTab): void {
     if (!pipBoyContainer) return
@@ -506,8 +507,8 @@ export function renderTab(tab: PipBoyTab): void {
     // Update indicator dots
     for (const [tabName, dotEl] of dotElements) {
         dotEl.style.backgroundImage = tabName === tab
-            ? "url('art/intrface/lilreddn.png')"
-            : "url('art/intrface/lilredup.png')"
+            ? "url('" + assetUrl('art/intrface/lilreddn.png') + "')"
+            : "url('" + assetUrl('art/intrface/lilredup.png') + "')"
     }
 }
 
@@ -534,7 +535,7 @@ export function openPipBoy(): void {
     pipBoyContainer.style.cssText = `
         position: absolute; left: 80px; top: 21px;
         width: 640px; height: 480px;
-        background-image: url('art/intrface/pip.png');
+        background-image: url('${assetUrl('art/intrface/pip.png')}');
         background-size: 640px 480px;
         z-index: 100;
     `
@@ -559,7 +560,7 @@ export function openPipBoy(): void {
             position: absolute;
             left: ${btn.x}px; top: ${btn.y}px;
             width: 15px; height: 16px;
-            background-image: url('art/intrface/lilredup.png');
+            background-image: url('${assetUrl('art/intrface/lilredup.png')}');
             cursor: pointer;
         `
         dot.onclick = () => renderTab(btn.tab)

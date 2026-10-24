@@ -129,7 +129,7 @@ export function applyCfg(cfg: CfgSections): void {
     //   script_fixes=0  the decompiled scripts keep the original bugs (default 1, SCRIPT_FIXES)
     const sf = int(dh2['script_fixes'])
     if (sf !== null) Config.scripting.scriptFixes = sf !== 0
-    //   mods=a,b  Lua mods in load order (mods/<name>/scripts/*.lua; later ones win)
+    //   mods=a,b  mods in load order (folders under mods/: built asset mods, Lua mods; later ones win)
     // (empty: mods/mods_order.txt decides, loadModsOrder)
     if (dh2['mods'] !== undefined && dh2['mods'].trim() !== '') Config.scripting.mods = parseModList(dh2['mods'])
     //   pixel_font=0  UI text in the browser font instead of the Fallout pixel font (default 1)
@@ -141,6 +141,20 @@ export function applyCfg(cfg: CfgSections): void {
     //   scroll_edge=<px>  how close to the screen edge the map scrolls (default 10; CE: the edge)
     const se = int(dh2['scroll_edge'])
     if (se !== null && se >= 0 && se <= 100) Config.ui.scrollPadding = se
+    //   scroll_limit=0  the screen centre may scroll past the black map border (default 1)
+    const sl = int(dh2['scroll_limit'])
+    if (sl !== null) Config.ui.scrollLimitToBorder = sl !== 0
+    //   scroll_bounds=ce   CE's scroll limits: the map's blocker ring and 480×400 px from the player (default)
+    //   scroll_bounds=dh2  the older rectangle guessed from the blockers' / floor's bounding box
+    const sbd = (dh2['scroll_bounds'] ?? '').trim().toLowerCase()
+    if (sbd === 'ce' || sbd === 'dh2') Config.ui.scrollBounds = sbd
+    //   scroll_player_limit=0  no 480×400 px limit around the player (default 1, CE); the
+    //                          blocker ring and the black border still stop the view
+    const spl = int(dh2['scroll_player_limit'])
+    if (spl !== null) Config.ui.scrollPlayerLimit = spl !== 0
+    //   walk_limit=0  critters may walk past the black map border (default 1: they stop at it)
+    const wl = int(dh2['walk_limit'])
+    if (wl !== null) Config.ui.walkLimitToBorder = wl !== 0
     //   debug_overlay=1  mouse-hex / tile / light / camera readouts (default 0)
     const dbo = int(dh2['debug_overlay'])
     if (dbo !== null) Config.ui.showDebugOverlay = dbo !== 0
@@ -200,11 +214,12 @@ export function loadFallout2Cfg(path = 'fallout2.cfg'): boolean {
     return true
 }
 
-/** mods/mods_order.txt — the Lua mods in load order, in sfall's mods_order.txt format
+/** mods/mods_order.txt — the mods in load order, in sfall's mods_order.txt format
  *  (sfall LoadOrder.cpp GetExtraPatches): one entry per line, top to bottom, a later
  *  line taking priority; `;` or `#` starts a comment; blank lines skipped. Entries are
- *  folder names under mods/ (mods/<name>/scripts/*.lua); `.dat` entries are data mods
- *  for the asset pipeline (wiki/upu_support.md) and are skipped here. fallout2.cfg
+ *  folder names under mods/: Lua mods (mods/<name>/scripts/*.lua) and the asset folders
+ *  the pipeline builds from an install's mods (mods/<name>/manifest.json, modAssets.ts);
+ *  `.dat` entries name archives, not folders, and are skipped (wiki/upu_support.md). fallout2.cfg
  *  [dh2] mods= overrides the file when set. DH2 addition. Returns false if the file
  *  is missing. */
 export function loadModsOrder(path = 'mods/mods_order.txt'): boolean {
@@ -219,7 +234,10 @@ export function loadModsOrder(path = 'mods/mods_order.txt'): boolean {
         const line = raw.replace(/[;#].*$/, '').trim()
         if (line === '' || /\.dat$/i.test(line)) continue
         const [name] = parseModList(line)
-        if (name !== undefined && !mods.includes(name)) mods.push(name)
+        if (name === undefined) continue
+        // a name listed twice counts at its last line (sfall LoadOrder.cpp)
+        if (mods.includes(name)) mods.splice(mods.indexOf(name), 1)
+        mods.push(name)
     }
     Config.scripting.mods = mods
     dbg('load', `${path}: ${mods.length ? mods.join(', ') : 'no Lua mods'}`)

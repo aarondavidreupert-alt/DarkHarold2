@@ -38,6 +38,7 @@ import {
 } from './ui.js'
 import { drawHP } from './ui_hud.js'
 import { objUseItemOn } from './useItemOn.js'
+import { initModAssets, mergeModJSON, overrideStylesheets } from './modAssets.js'
 import { loadFallout2Cfg, loadModsOrder, loadPreferences, parseModList } from './ui_options.js'
 import { getFileJSON, getRandomInt } from './util.js'
 import { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall, WebGLRenderer, setLightSourceOverlayActive, setLightOverlayMode, setLightOverlayRadiusScale, LightOverlayMode } from './webglrenderer.js'
@@ -261,6 +262,9 @@ window.onload = async function () {
     if (backendOverride) Config.scripting.backend = backendOverride[1] as 'lua' | 'vm'
     const modsOverride = /mods=([^&]*)/.exec(location.hash) // play.html#script_backend=lua&mods=a,b
     if (modsOverride) Config.scripting.mods = parseModList(decodeURIComponent(modsOverride[1]))
+    // the active mods' asset folders (mods/<mod>/manifest.json), before any asset loads
+    initModAssets(Config.scripting.mods)
+    overrideStylesheets()
     // fallout2.cfg [dh2] script_backend=lua (the default) — start the Lua engine before
     // any script loads. An install whose pipeline did not decompile the scripts (no
     // data/scripts/obj_dude.lua, the player's script) runs the VM instead of asking
@@ -280,8 +284,20 @@ window.onload = async function () {
             Config.scripting.backend = 'vm'
         }
     }
-    // fallout2.cfg [dh2] pixel_font — ui.css switches every DOM text to the AAF web font.
-    document.documentElement.classList.toggle('dh2-pixel-font', Config.ui.pixelFont)
+    // fallout2.cfg [dh2] pixel_font — ui.css switches every DOM text to the AAF web font,
+    // art/fonts/font1_aaf.woff. It is built from the install by the export_fonts pipeline
+    // stage (not in git); without it the UI keeps the browser font instead of falling back
+    // to a 9px monospace.
+    let pixelFont = false
+    if (Config.ui.pixelFont) {
+        try {
+            pixelFont = (await document.fonts.load("9px 'Fallout Font 1'")).length > 0
+        } catch (_) {
+            pixelFont = false
+        }
+        if (!pixelFont) dbgWarn('load', 'art/fonts/font1_aaf.woff did not load (run the export_fonts pipeline stage); using the browser font')
+    }
+    document.documentElement.classList.toggle('dh2-pixel-font', pixelFont)
 
     // initialize cached data
 
@@ -308,13 +324,14 @@ window.onload = async function () {
         IDBCache.get(key, (cached) => {
             if (cached && cached.__stamp !== undefined && cached.__stamp === stamp && stamp !== '') {
                 dbg('map', '[Main] %s loaded from cache DB', key)
-                callback(cached.data)
+                // the vanilla file is cached; the active mods' entries are merged on top
+                callback(mergeModJSON(path, cached.data, getFileJSON))
             } else {
                 // Version query string so the HTTP cache can't hand back an old body either.
                 const value = getFileJSON(stamp ? `${path}?v=${encodeURIComponent(stamp)}` : path)
                 IDBCache.add(key, { __stamp: stamp, data: value })
                 dbg('map', '[Main] %s loaded and cached (stamp %s)', key, stamp)
-                callback(value)
+                callback(mergeModJSON(path, value, getFileJSON))
             }
         })
     }
@@ -382,6 +399,11 @@ window.onload = async function () {
         Config.ui.showFPS = !!on
         if (globalState.$fpsOverlay) globalState.$fpsOverlay.style.display = on ? '' : 'none'
         console.log(`[DH2] fps overlay ${on ? 'on' : 'off'}`)
+    }
+    // Console: CE's 480×400 px scroll limit around the player (fallout2.cfg [dh2] scroll_player_limit)
+    ;(window as any).setScrollPlayerLimit = (on: boolean) => {
+        Config.ui.scrollPlayerLimit = !!on
+        console.log(`[DH2] scroll limit around the player ${on ? 'on' : 'off'}`)
     }
     // Console: skipTemple() — leave the Temple of Trials for Arroyo Village (src/debug.ts).
     ;(window as any).skipTemple = () => debug.skipTemple()

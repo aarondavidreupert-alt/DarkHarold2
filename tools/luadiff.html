@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<!-- the page lives in tools/; its scripts and data load from the project root -->
+	<base href="../">
+	<title>Lua Diff</title>
+	<!-- VM-vs-Lua differential test for the decompiled scripts (src/lua/luaDiff.ts).
+	     tools/luadiff.html?scripts=acmynoc,arvillag&seeds=20 ; no scripts= runs the Arroyo pilot set.
+	     Needs data/scripts/*.int and the tools/int2lua.py output next to them. -->
+	<style>
+		body { font: 13px monospace; background: #111; color: #ccc; margin: 16px; }
+		h1 { font-size: 16px; }
+		.ok { color: #6c6; } .bad { color: #e66; }
+		pre { background: #1b1b1b; padding: 8px; overflow-x: auto; }
+	</style>
+	<script src="lib/pathfinding-browser.js"></script>
+	<script src="lut/intensityColorTable.js"></script>
+	<script src="lib/wasmoon/index.js"></script>
+</head>
+<body>
+	<h1>VM vs Lua</h1>
+	<div id="status">running...</div>
+	<pre id="log"></pre>
+	<div id="failures"></div>
+	<script type="module">
+		// the engine modules import each other in a cycle that main.js is part of, so
+		// it has to be the first import; its window.onload (the game boot) is disabled
+		import './js/main.js'
+		import { runLuaDiff } from './js/lua/luaDiff.js'
+		window.onload = null
+		const ARROYO = ['acbrahmn', 'acdog', 'aceric', 'acfist', 'acjordan', 'acklint', 'acmorlis', 'acmynoc',
+			'acnagor', 'acsporpl', 'actemvil', 'acvillgr', 'acwarior', 'ahelder', 'ahhakun', 'aibkdor', 'aichest',
+			'aicrops', 'aitemcst', 'aitemdor', 'animfrvr', 'ascrldr', 'aswell', 'atdeath', 'atgoo', 'atsrtrp0',
+			'doorl100', 'sprtrp50', 'zclrat', 'zclscorp', 'arbridge', 'arcaves', 'ardead', 'argarden', 'artemple',
+			'arvillag']
+		const q = new URLSearchParams(location.search)
+		const names = q.get('scripts') ? q.get('scripts').split(',') : ARROYO
+		const seeds = parseInt(q.get('seeds') || '20')
+		const logEl = document.getElementById('log')
+		const log = (s) => { logEl.textContent += s + '\n' }
+		try {
+			const r = await runLuaDiff(names, seeds, log)
+			window.luaDiffResult = r
+			const status = document.getElementById('status')
+			status.className = r.failures.length ? 'bad' : 'ok'
+			status.textContent = `${r.scripts} scripts, ${r.runs} runs (${r.truncated} cut short), ${r.failures.length} differing procedures, ` +
+				`${r.vmErrors} runs where the VM threw, missing: ${r.missing.join(', ') || 'none'}`
+			const box = document.getElementById('failures')
+			for (const f of r.failures) {
+				const pre = document.createElement('pre')
+				pre.textContent = `${f.script}:${f.proc} seed ${f.seed}, trace line ${f.line}\n` +
+					`VM : ${f.vm.join('\n     ')}\nLua: ${f.lua.join('\n     ')}` +
+					(f.vmError || f.luaError ? `\nerrors: VM ${f.vmError || '-'} / Lua ${f.luaError || '-'}` : '')
+				box.appendChild(pre)
+			}
+			const errs = Object.entries(r.errors)
+			if (errs.length) {
+				const pre = document.createElement('pre')
+				pre.textContent = 'runs that stopped with an error:\n' + errs.map(([k, n]) => `${n}x ${k}`).join('\n')
+				box.appendChild(pre)
+			}
+		} catch (e) {
+			document.getElementById('status').textContent = 'crashed: ' + e + '\n' + (e.stack || '')
+		}
+	</script>
+</body>
+</html>

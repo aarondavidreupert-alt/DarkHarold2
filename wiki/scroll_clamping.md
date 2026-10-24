@@ -5,6 +5,68 @@
   `tileSetCenter()` (line 537, scroll-reject at 574), `_tile_scroll_to()` (line 1947)
 - `src/map_defs.h` — grid dimensions
 - `src/object.cc:2559` — `_obj_scroll_blocking_at` (misc scroll-blocker objects)
+- `src/map.cc` `mapScroll` (32×24 px steps), `isoInit` (both checks on);
+  `src/interpreter_extra.cc` `opMoveTo` (both off while moving the player)
+
+## CE's scroll restrictions (2026-10-23 — corrects the section below)
+
+`tileSetCenter` refuses a new centre tile unless the caller passes
+`TILE_SET_CENTER_FLAG_IGNORE_SCROLL_RESTRICTIONS`. Besides the fixed grid border it
+has two checks, both on during play (`isoInit`), switched off only while a script's
+`move_to` moves the player:
+
+1. **Scroll blocking** (`gTileScrollBlockingEnabled`): the step is refused when the new
+   centre tile holds a scroll blocker (misc pid `0x500000C`, `art/misc/block`). Mappers
+   placed them as a closed, two-tile-thick ring around each playfield, so the centre can
+   never cross it, whatever the ring's shape. This *is* the per-map border, and it needs
+   no bounding box: blockers outside the ring change nothing.
+2. **Scroll limiting** (`gTileScrollLimitingEnabled`): a step that moves the centre further
+   from the player is refused once the centre would be ≥ 480 px (x) or ≥ 400 px (y) from
+   the player's tile.
+
+No map, script or config value sets a border: the 1440 decompiled scripts never touch
+scrolling, and sfall only queries blockers (`obj_blocking_at` type 4).
+
+The bounding-box approach below fails where a map has several blocker groups: 7 of 215
+map elevations (`broken2`/1, `desrt13`/1+2, `newr2`/1, `newrst`/0, `sfchina`/0,
+`sfchina2`/1). On `newrst` (New Reno Stables) the ring reaches y = 2315 but 58 blockers
+outside it reach y = 2723, so the south border sat ~400 px too low.
+
+**DH2 (`[dh2] scroll_bounds=ce`, default; `clampCameraCE` in `src/render/camera.ts`)**
+ports both checks. DH2 moves the camera in smaller steps than CE, so the move from the
+last accepted centre is walked in 8 px samples (less than a hex, so the ring can't be
+skipped), x then y: a refused axis stops and the other still moves (CE refuses a
+diagonal step whole). Centring on the player, map load, elevation change and scripted
+`tile_set_center` / `move_to` skip the checks (CE: `move_to`, map load).
+
+The black border is where the original 640×380 view's edge is when its centre tile is
+the last free hex before the ring: CE draws the centre tile's top-left at
+((640−32)/2, (380−16)/2), so the view spans ±320×190 px around that hex's centre
+(`hexToScreen` is the hex centre). `computeScrollBlockerBounds` flood-fills the free
+hexes (hex neighbours, blockers as walls) into areas; `scrollRingBounds` is the
+hex-centre bbox of the area the player stands in, and the border sits 320×190 px
+outside it. It lies one hex (x) / two rows (y) inside the outermost blockers (newrst:
+reachable x 2944–4912, y 1355–2291; blockers 2912–4944, 1331–2315). An area that
+touches the grid edge (ring with a gap) falls back to the blocker groups around the
+player; no blockers, the floor bbox. `scroll_bounds=dh2` keeps the rectangle clamp
+described below.
+
+The border is chosen once per elevation (the area at or next to the player's hex when
+it is first needed) and kept while the player walks: blockers don't block walking, and
+choosing it from the player's current hex made the newrst south border jump out when
+the player stepped onto a blocker. It is chosen again only when the player stands inside
+another closed area (an exit grid or a script put them there).
+
+**Walking (`[dh2] walk_limit=1`, default; DH2 addition — CE has no such limit):** the
+path finder (`map/pathfinder.ts`) refuses any step from inside the black border to a
+hex outside it, for the player and NPCs alike (`walkBorderBounds`); a mover already
+outside may still walk. The walking area also takes in every exit grid that has no hex
+inside the border, so all exits stay reachable: of all map elevations only `ncr2`/0
+(exit to map 42) and `redwan1`/1 have such an exit.
+
+`[dh2] scroll_player_limit=0` / console `setScrollPlayerLimit(false)` drops the
+480×400 px player limit: the view then goes as far as the ring and the black border
+allow. known_bugs RD20.
 
 ## The core question: where does CE store "map bounds"?
 
@@ -151,7 +213,12 @@ clamp coords. `getActiveScrollLimits()` insets them by (320, 190) automatically.
 ### Scroll clamp — `clampCameraPosition()`
 Clamps the viewport **centre** (camera top-left + half view) to the active
 limits. Rejects moves whose centre hex is a misc `pidID=12` scroll blocker
-(CE ref `object.cc:2559`). Bails out entirely while `window.borderDebug` is set
+(CE ref `object.cc:2559`). That rejection keeps the pre-clamp centre, which can
+already be past the limits when the clamp target sits on the blocker ring, so
+`[dh2] scroll_limit=1` (default, `Config.ui.scrollLimitToBorder`) clamps the
+centre once more to the black border (`getActiveScrollBarBounds()`): the border
+reaches the middle of the screen at most (known_bugs RD19). `scroll_limit=0`
+drops that last clamp. Bails out entirely while `window.borderDebug` is set
 so calibration can scroll freely. Called from mouse-edge scroll (`gameTick.ts`),
 arrow/WASD (`input.ts`), `centerCamera()`, and the zoom wheel (`main.ts`).
 

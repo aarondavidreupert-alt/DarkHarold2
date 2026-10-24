@@ -22,12 +22,11 @@ proto/
 audio/
 /audiotest
 .DS_Store
-xcuserdata
-contents.xcworkspacedata
 node_modules
 js/
-lut/elevators.json
+# third-party programs the pipeline uses when present (not ours to redistribute)
 acm2wav.exe
+ffmpeg.exe
 
 
 
@@ -44,3 +43,22 @@ ssl/
 # Third-party mods downloaded for analysis (e.g. the Unofficial Patch, UPU), local only:
 # their own licences / no licence; DH2 reads mods from the user's install (wiki/upu_support.md)
 third_party/
+
+# Converted from the user's Fallout 2 install by the pipeline (tools/setup.py) - game data
+# (Interplay / Bethesda copyright), never committed, like art/ PNGs, maps and protos:
+# fonts (export_fonts), the image index (export_images), .lst indexes (convert_lsts), endgame tables (convert_endgame),
+# tables read from fallout2.exe (crit_table; elevators.json from the removed elevator_table stage),
+# and tools/convertPRO.py's output
+art/fonts/
+art/imageMap.json
+worldmap.png
+lut/lst/
+lut/pro/
+lut/endgame.json
+lut/enddeath.json
+lut/criticalTables.json
+lut/elevators.json
+# maps (export_maps: maps/<name>.json + .images.json)
+maps/
+# your settings: write_config writes CE defaults + [dh2] (tools/fallout2Cfg.py) when missing
+/fallout2.cfg

@@ -1,3 +1,4 @@
+import { assetUrl } from '../modAssets.js'
 // Copyright 2024-2026 darkf
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -50,7 +51,7 @@ export function setNumberDial(
         sign.style.cssText = `
             position: absolute; left: ${left}px; top: 0;
             width: ${NUM_DIGIT_W}px; height: ${NUM_DIGIT_H}px;
-            background-image: url('${NUM_SPRITE}');
+            background-image: url('${assetUrl(NUM_SPRITE)}');
             background-position: ${-NUM_DIGIT_W * NUM_MINUS_IDX}px 0;
         `
         container.appendChild(sign)
@@ -63,7 +64,7 @@ export function setNumberDial(
         el.style.cssText = `
             position: absolute; left: ${left}px; top: 0;
             width: ${NUM_DIGIT_W}px; height: ${NUM_DIGIT_H}px;
-            background-image: url('${NUM_SPRITE}');
+            background-image: url('${assetUrl(NUM_SPRITE)}');
             background-position: ${-NUM_DIGIT_W * d}px 0;
         `
         container.appendChild(el)
@@ -103,7 +104,7 @@ export function renderBignum(
     for (const ch of str) {
         const n = parseInt(ch)
         const div = document.createElement('div')
-        div.style.cssText = `width:${BIG_W}px;height:${BIG_H}px;background-image:url('${BIG_SPRITE}');background-position:${-(n * BIG_W)}px ${yOffset}px;background-repeat:no-repeat;flex-shrink:0;`
+        div.style.cssText = `width:${BIG_W}px;height:${BIG_H}px;background-image:url('${assetUrl(BIG_SPRITE)}');background-position:${-(n * BIG_W)}px ${yOffset}px;background-repeat:no-repeat;flex-shrink:0;`
         container.appendChild(div)
     }
     return container

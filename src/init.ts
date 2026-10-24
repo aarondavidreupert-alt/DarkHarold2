@@ -33,6 +33,7 @@ import { initCharacterCreator } from './ui_charactercreator.js'
 import { initCharacterSelector, showCharacterSelector } from './ui_charselect.js'
 import { Worldmap } from './worldmap.js'
 import { initAutomapTracking } from './automapData.js'
+import { requestGlobalScriptsStart } from './sfallGlobalScripts.js'
 
 export function initGame() {
     // initialize player
@@ -97,6 +98,7 @@ export function initGame() {
         globalState.backgroundMapLoad = false
         void gameMoviePlay(MOVIE_ELDER, GAME_MOVIE_STOP_MUSIC).then(() => {
             randomSeedPrerandom(-1)
+            requestGlobalScriptsStart() // sfall: after the new game's map has loaded
             globalState.gMap.loadMap('artemple')
         })
     }

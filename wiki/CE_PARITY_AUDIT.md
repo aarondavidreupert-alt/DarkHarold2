@@ -111,7 +111,7 @@ front (ANIM-02); sneak / encumbrance run rules (ANIM-03); pickup script before w
 
 **World & map:** town-map hotspots and labels (WM-06); fog on `mark_area_known` (WM-08); entrance elevation −1
 (WM-09); runtime lights (OBJ-03); automap seen-area (OBJ-04, AUTO-01); roof row off-by-one (TILE-02); scroll limit
-(TILE-03); picking skips `objects[0]` / roofs / corpses (OBJ-06, MOUSE-06).
+(TILE-03 — ported on branch `ce-audit-results`, commits 8c260689 / 2e033fca); picking skips `objects[0]` / roofs / corpses (OBJ-06, MOUSE-06).
 
 **Dialogue / party:** `gsay_message` [Done] ends dialogue (DLG-02); empty-option replies (DLG-03); no keyboard in
 dialogue (DLG-04); dispositions from `ai.txt` not `party.txt` (PTY-03); control screen readout (PTY-05).
@@ -141,7 +141,7 @@ Per CLAUDE.md these are flagged here; the fixed-entry text in `known_bugs.md` is
 | `save_load.md` §9: prefs only in fallout2.cfg | CE saves them in every save (handler 17) | game_saveload SAVE-01 |
 | `scripting_vm.md` §4: base opcode numbers | wrong (push_base = 0x802B, add = 0x8039) | script_engine SCR-14 |
 | `lighting.md` §6: non-wall rotations 2..4 | CE and DH2 use 1..3 | object_map_tile |
-| `scroll_clamping.md`: scroll limited | CE's ~480×400 px limit is missing | object_map_tile TILE-03 |
+| `scroll_clamping.md`: scroll limited | CE's ~480×400 px limit was missing — ported since (`ce-audit-results`, 8c260689 / 2e033fca) | object_map_tile TILE-03 |
 | `companion_party.md`: party count = CE | off by one | script_opcodes OP-06 |
 | `companion_party.md` §8.4: packet numbers don't fit | they do (`packet_num` = base − disposition) | dialogue_party |
 | README "Known approximations": action menu on right-click | code opens it on any command-mode left click | sound_input MOUSE-02 |

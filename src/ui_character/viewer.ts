@@ -41,6 +41,7 @@ import { Scripting } from '../scripting.js'
 import { getMessage } from '../util.js'
 import { renderStatPanels } from './statPanels.js'
 import { createFolderView, FolderView } from './folders.js'
+import { assetUrl } from '../modAssets.js'
 
 // ── Window singleton ──────────────────────────────────────────────────────────
 // Shared between viewer (showCharacterScreen) and creator (showCharacterCreator)
@@ -103,7 +104,7 @@ export function showCharacterScreen() {
         position: 'absolute',
         width: '43px',
         height: '29px',
-        backgroundImage: "url('art/intrface/slider.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/slider.png') + "')",
         backgroundRepeat: 'no-repeat',
         left: '-8px',
         top: '-10px',
@@ -114,7 +115,7 @@ export function showCharacterScreen() {
         position: 'absolute',
         width: '22px',
         height: '12px',
-        backgroundImage: "url('art/intrface/splsoff.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/splsoff.png') + "')",
         backgroundRepeat: 'no-repeat',
         cursor: 'pointer',
         left: '14px',
@@ -127,7 +128,7 @@ export function showCharacterScreen() {
         position: 'absolute',
         width: '22px',
         height: '12px',
-        backgroundImage: "url('art/intrface/snegoff.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/snegoff.png') + "')",
         backgroundRepeat: 'no-repeat',
         cursor: 'pointer',
         left: '14px',
@@ -206,7 +207,7 @@ export function showCharacterScreen() {
     Object.assign(screenNameBtn.style, {
         position: 'absolute', left: '11px', top: '0px',
         width: '145px', height: '35px',
-        backgroundImage: "url('art/intrface/nameoff.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/nameoff.png') + "')",
         backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
         pointerEvents: 'none',
     })
@@ -227,7 +228,7 @@ export function showCharacterScreen() {
     Object.assign(screenAgeBtn.style, {
         position: 'absolute', left: '156px', top: '0px',
         width: '81px', height: '35px',
-        backgroundImage: "url('art/intrface/ageoff.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/ageoff.png') + "')",
         backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
         pointerEvents: 'none',
     })
@@ -248,7 +249,7 @@ export function showCharacterScreen() {
     Object.assign(screenSexBtn.style, {
         position: 'absolute', left: '237px', top: '0px',
         width: '80px', height: '35px',
-        backgroundImage: "url('art/intrface/sexoff.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/sexoff.png') + "')",
         backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
         pointerEvents: 'none',
     })
@@ -273,7 +274,7 @@ export function showCharacterScreen() {
     })
 
     const tabImg = document.createElement('img')
-    tabImg.src = FOLDER_TABS[0].sprite
+    tabImg.src = assetUrl(FOLDER_TABS[0].sprite)
     tabImg.style.display = 'block'
     tabImg.style.pointerEvents = 'none'
     tabStripEl.appendChild(tabImg)
@@ -295,7 +296,7 @@ export function showCharacterScreen() {
     let activeFolder = 0
     const activateFolder = (idx: number) => {
         activeFolder = idx
-        tabImg.src = FOLDER_TABS[idx].sprite
+        tabImg.src = assetUrl(FOLDER_TABS[idx].sprite)
         globalState.audioEngine?.playSfxByName?.('ib3p1xx1')
         folderView?.setFolder(idx)
     }
@@ -395,7 +396,7 @@ export function showCharacterScreen() {
         cardTitleEl.insertBefore(font2.renderText(title.toUpperCase(), '#000000'), cardDividerEl)
         cardDescEl.textContent = desc
         if (imgPath) {
-            cardImgEl.src = imgPath
+            cardImgEl.src = assetUrl(imgPath)
         } else {
             cardImgEl.src = ''
             cardImgEl.style.visibility = 'hidden'
@@ -572,16 +573,16 @@ export function showCharacterScreen() {
             if (repeatTimer !== null) { clearInterval(repeatTimer); repeatTimer = null }
         }
         btn.onmousedown = () => {
-            btn.style.backgroundImage = `url('${onSprite}')`
+            btn.style.backgroundImage = `url('${assetUrl(onSprite)}')`
             modifySkill(inc)
             repeatTimer = window.setInterval(() => modifySkill(inc), 100)
         }
         btn.onmouseup = () => {
-            btn.style.backgroundImage = `url('${offSprite}')`
+            btn.style.backgroundImage = `url('${assetUrl(offSprite)}')`
             stopRepeat()
         }
         btn.onmouseleave = () => {
-            btn.style.backgroundImage = `url('${offSprite}')`
+            btn.style.backgroundImage = `url('${assetUrl(offSprite)}')`
             stopRepeat()
         }
     }

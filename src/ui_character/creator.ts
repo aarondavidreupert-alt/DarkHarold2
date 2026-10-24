@@ -36,6 +36,7 @@ import {
 import { setCharacterWindow } from './viewer.js'
 import { showAlert, showConfirm } from '../ui_dialog.js'
 import { getMessage } from '../util.js'
+import { assetUrl } from '../modAssets.js'
 
 // ── showCharacterCreator() ────────────────────────────────────────────────────
 // FO2-CE ref: editor.cc editorRun() — character creation mode.
@@ -204,7 +205,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         cardTitleEl.insertBefore(font2.renderText(title.toUpperCase(), '#000000'), cardDividerEl)
         cardDescEl.textContent = desc
         if (imgPath) {
-            cardImgEl.src = imgPath
+            cardImgEl.src = assetUrl(imgPath)
         } else {
             cardImgEl.src = ''
             cardImgEl.style.visibility = 'hidden'
@@ -262,9 +263,9 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
 
     // ── SPECIAL ± buttons (stplsoff/stplson · stnegoff/stnegon) ─────────────
     const wireEbut = (btn: HTMLElement, imgOff: string, imgOn: string, onPress: () => void) => {
-        btn.onmousedown  = () => { btn.style.backgroundImage = `url('${imgOn}')`;  onPress() }
-        btn.onmouseup    = () => { btn.style.backgroundImage = `url('${imgOff}')` }
-        btn.onmouseleave = () => { btn.style.backgroundImage = `url('${imgOff}')` }
+        btn.onmousedown  = () => { btn.style.backgroundImage = `url('${assetUrl(imgOn)}')`;  onPress() }
+        btn.onmouseup    = () => { btn.style.backgroundImage = `url('${assetUrl(imgOff)}')` }
+        btn.onmouseleave = () => { btn.style.backgroundImage = `url('${assetUrl(imgOff)}')` }
     }
 
     let si = 0
@@ -276,7 +277,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             top: `${38 + si * 33}px`,
             width: '16px',
             height: '12px',
-            backgroundImage: "url('art/intrface/stplsoff.png')",
+            backgroundImage: "url('" + assetUrl('art/intrface/stplsoff.png') + "')",
             backgroundRepeat: 'no-repeat',
             backgroundSize: '16px 12px',
             cursor: 'pointer',
@@ -290,7 +291,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             top: `${48 + si * 33}px`,
             width: '16px',
             height: '12px',
-            backgroundImage: "url('art/intrface/stnegoff.png')",
+            backgroundImage: "url('" + assetUrl('art/intrface/stnegoff.png') + "')",
             backgroundRepeat: 'no-repeat',
             backgroundSize: '16px 12px',
             cursor: 'pointer',
@@ -352,7 +353,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         const box = document.createElement('div')
         Object.assign(box.style, {
             position: 'relative',
-            backgroundImage: "url('art/intrface/charwin.png')",
+            backgroundImage: "url('" + assetUrl('art/intrface/charwin.png') + "')",
             backgroundRepeat: 'no-repeat',
             backgroundSize: '100% 100%',
             display: 'flex',
@@ -387,7 +388,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         Object.assign(doneBoxEl.style, {
             position: 'absolute', left: '18px', top: '-3px',
             width: '108px', height: '24px',
-            backgroundImage: "url('art/intrface/donebox.png')",
+            backgroundImage: "url('" + assetUrl('art/intrface/donebox.png') + "')",
             backgroundRepeat: 'no-repeat', backgroundSize: '108px 24px',
             pointerEvents: 'none', zIndex: '0',
         })
@@ -400,12 +401,12 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         const doneBtn = document.createElement('div')
         Object.assign(doneBtn.style, {
             width: '15px', height: '16px',
-            backgroundImage: "url('art/intrface/lilredup.png')",
+            backgroundImage: "url('" + assetUrl('art/intrface/lilredup.png') + "')",
             backgroundRepeat: 'no-repeat', backgroundSize: '15px 16px',
             cursor: 'pointer', zIndex: '1', position: 'relative',
         })
-        doneBtn.onmousedown  = () => { doneBtn.style.backgroundImage = "url('art/intrface/lilreddn.png')" }
-        doneBtn.onmouseup    = doneBtn.onmouseleave = () => { doneBtn.style.backgroundImage = "url('art/intrface/lilredup.png')" }
+        doneBtn.onmousedown  = () => { doneBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilreddn.png') + "')" }
+        doneBtn.onmouseup    = doneBtn.onmouseleave = () => { doneBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilredup.png') + "')" }
         doneBtn.onclick      = () => confirmAndClose()
 
         doneRow.appendChild(doneLblEl)
@@ -418,7 +419,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             Object.assign(nameBoxBg.style, {
                 position: 'absolute',
                 width: '111px', height: '20px',
-                backgroundImage: "url('art/intrface/namebox.png')",
+                backgroundImage: "url('" + assetUrl('art/intrface/namebox.png') + "')",
                 backgroundRepeat: 'no-repeat', backgroundSize: '111px 20px',
                 pointerEvents: 'none', zIndex: '1',
             })
@@ -461,13 +462,13 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
                 const btn = document.createElement('div')
                 Object.assign(btn.style, {
                     width: '20px', height: '18px',
-                    backgroundImage: `url('art/intrface/${upSrc}')`,
+                    backgroundImage: `url('${assetUrl(`art/intrface/${upSrc}`)}')`,
                     backgroundRepeat: 'no-repeat', backgroundSize: '20px 18px',
                     cursor: 'pointer',
                     position: 'relative', zIndex: '3',
                 })
-                btn.onmousedown = () => { btn.style.backgroundImage = `url('art/intrface/${dnSrc}')` }
-                btn.onmouseup = btn.onmouseleave = () => { btn.style.backgroundImage = `url('art/intrface/${upSrc}')` }
+                btn.onmousedown = () => { btn.style.backgroundImage = `url('${assetUrl(`art/intrface/${dnSrc}`)}')` }
+                btn.onmouseup = btn.onmouseleave = () => { btn.style.backgroundImage = `url('${assetUrl(`art/intrface/${upSrc}`)}')` }
                 btn.onclick = () => {
                     const next = popupAge + delta
                     if (next >= 16 && next <= 35) { popupAge = next; refreshBignum() }
@@ -479,7 +480,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
 
             const ageBoxBg = document.createElement('div')
             Object.assign(ageBoxBg.style, {
-                backgroundImage: "url('art/intrface/agebox.png')",
+                backgroundImage: "url('" + assetUrl('art/intrface/agebox.png') + "')",
                 backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
                 pointerEvents: 'none', zIndex: '1',
                 position: 'absolute',
@@ -499,20 +500,20 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             const femEl = document.createElement('div')
 
             const refreshSexBtns = () => {
-                malEl.style.backgroundImage = `url('art/intrface/male${playerSex === 'Male' ? 'on' : 'off'}.png')`
-                femEl.style.backgroundImage = `url('art/intrface/fem${playerSex === 'Female' ? 'on' : 'off'}.png')`
+                malEl.style.backgroundImage = `url('${assetUrl(`art/intrface/male${playerSex === 'Male' ? 'on' : 'off'}.png`)}')`
+                femEl.style.backgroundImage = `url('${assetUrl(`art/intrface/fem${playerSex === 'Female' ? 'on' : 'off'}.png`)}')`
             }
 
             Object.assign(malEl.style, {
                 width: '45px', height: '43px',
-                backgroundImage: `url('art/intrface/male${playerSex === 'Male' ? 'on' : 'off'}.png')`,
+                backgroundImage: `url('${assetUrl(`art/intrface/male${playerSex === 'Male' ? 'on' : 'off'}.png`)}')`,
                 backgroundRepeat: 'no-repeat', cursor: 'pointer',
             })
             malEl.onclick = () => { playerSex = 'Male'; updateSexDisplay(); refreshSexBtns() }
 
             Object.assign(femEl.style, {
                 width: '45px', height: '43px',
-                backgroundImage: `url('art/intrface/fem${playerSex === 'Female' ? 'on' : 'off'}.png')`,
+                backgroundImage: `url('${assetUrl(`art/intrface/fem${playerSex === 'Female' ? 'on' : 'off'}.png`)}')`,
                 backgroundRepeat: 'no-repeat', cursor: 'pointer',
             })
             femEl.onclick = () => { playerSex = 'Female'; updateSexDisplay(); refreshSexBtns() }
@@ -532,12 +533,12 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     Object.assign(nameBtn.style, {
         position: 'absolute', left: '11px', top: '0px',
         width: '145px', height: '35px',
-        backgroundImage: "url('art/intrface/nameoff.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/nameoff.png') + "')",
         backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
         cursor: 'pointer', zIndex: '1',
     })
-    nameBtn.onmousedown  = () => { nameBtn.style.backgroundImage = "url('art/intrface/nameon.png')" }
-    nameBtn.onmouseup    = nameBtn.onmouseleave = () => { nameBtn.style.backgroundImage = "url('art/intrface/nameoff.png')" }
+    nameBtn.onmousedown  = () => { nameBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/nameon.png') + "')" }
+    nameBtn.onmouseup    = nameBtn.onmouseleave = () => { nameBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/nameoff.png') + "')" }
 
     const nameLabelEl = document.createElement('div')
     Object.assign(nameLabelEl.style, {
@@ -560,12 +561,12 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     Object.assign(ageBtn.style, {
         position: 'absolute', left: '156px', top: '0px',
         width: '81px', height: '35px',
-        backgroundImage: "url('art/intrface/ageoff.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/ageoff.png') + "')",
         backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
         cursor: 'pointer', zIndex: '1',
     })
-    ageBtn.onmousedown  = () => { ageBtn.style.backgroundImage = "url('art/intrface/ageon.png')" }
-    ageBtn.onmouseup    = ageBtn.onmouseleave = () => { ageBtn.style.backgroundImage = "url('art/intrface/ageoff.png')" }
+    ageBtn.onmousedown  = () => { ageBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/ageon.png') + "')" }
+    ageBtn.onmouseup    = ageBtn.onmouseleave = () => { ageBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/ageoff.png') + "')" }
 
     const ageLabelEl = document.createElement('div')
     Object.assign(ageLabelEl.style, {
@@ -588,12 +589,12 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     Object.assign(sexBtn.style, {
         position: 'absolute', left: '237px', top: '0px',
         width: '80px', height: '35px',
-        backgroundImage: "url('art/intrface/sexoff.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/sexoff.png') + "')",
         backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
         cursor: 'pointer', zIndex: '1',
     })
-    sexBtn.onmousedown  = () => { sexBtn.style.backgroundImage = "url('art/intrface/sexon.png')" }
-    sexBtn.onmouseup    = sexBtn.onmouseleave = () => { sexBtn.style.backgroundImage = "url('art/intrface/sexoff.png')" }
+    sexBtn.onmousedown  = () => { sexBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/sexon.png') + "')" }
+    sexBtn.onmouseup    = sexBtn.onmouseleave = () => { sexBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/sexoff.png') + "')" }
 
     const sexLabelEl = document.createElement('div')
     Object.assign(sexLabelEl.style, {
@@ -619,9 +620,9 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     const refreshTraitPanel = () => {
         for (let i = 0; i < TRAITS.length; i++) {
             const selected = selectedTraits.includes(TRAITS[i])
-            traitToggleImgs[i].src = selected
+            traitToggleImgs[i].src = assetUrl(selected
                 ? 'art/intrface/tgsklon.png'
-                : 'art/intrface/tgskloff.png'
+                : 'art/intrface/tgskloff.png')
             traitRowEls[i].style.color = selected ? '#a0a0a0' : '#3cf800' // CE 21140 picked / 992
         }
     }
@@ -666,7 +667,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         })
 
         const toggleImg = document.createElement('img') as HTMLImageElement
-        toggleImg.src = 'art/intrface/tgskloff.png'
+        toggleImg.src = assetUrl('art/intrface/tgskloff.png')
         Object.assign(toggleImg.style, {
             width: '17px',
             height: '11px',
@@ -797,13 +798,13 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             const toggleBtn = document.createElement('div')
             Object.assign(toggleBtn.style, {
                 width: '17px', height: '11px',
-                backgroundImage: `url('art/intrface/${isTagged ? 'tgsklon' : 'tgskloff'}.png')`,
+                backgroundImage: `url('${assetUrl(`art/intrface/${isTagged ? 'tgsklon' : 'tgskloff'}.png`)}')`,
                 backgroundRepeat: 'no-repeat', backgroundSize: '17px 11px',
                 flexShrink: '0',
             })
-            toggleBtn.onmousedown  = () => { toggleBtn.style.backgroundImage = "url('art/intrface/tgsklon.png')" }
-            toggleBtn.onmouseup    = () => { toggleBtn.style.backgroundImage = `url('art/intrface/${isTagged ? 'tgsklon' : 'tgskloff'}.png')` }
-            toggleBtn.onmouseleave = () => { toggleBtn.style.backgroundImage = `url('art/intrface/${isTagged ? 'tgsklon' : 'tgskloff'}.png')` }
+            toggleBtn.onmousedown  = () => { toggleBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/tgsklon.png') + "')" }
+            toggleBtn.onmouseup    = () => { toggleBtn.style.backgroundImage = `url('${assetUrl(`art/intrface/${isTagged ? 'tgsklon' : 'tgskloff'}.png`)}')` }
+            toggleBtn.onmouseleave = () => { toggleBtn.style.backgroundImage = `url('${assetUrl(`art/intrface/${isTagged ? 'tgsklon' : 'tgskloff'}.png`)}')` }
 
             const capturedSkill = skill
             toggleBtn.onclick = (e) => {

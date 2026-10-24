@@ -2,8 +2,10 @@ precision mediump float;
 precision highp int;
 
 uniform sampler2D u_image;
-uniform float u_numFrames;
-uniform float u_frame;
+uniform float u_numFrames; // sprite sheet columns
+uniform float u_frame;     // the frame's column
+uniform float u_numRows;   // sprite sheet rows (each direction starts a row; long rows wrap)
+uniform float u_row;       // the frame's row
 
 // World lighting — mirrors fragmentLighting.glsl's GPU path so walls,
 // objects, critters, scenery and roofs darken at night and brighten in
@@ -323,9 +325,9 @@ vec3 cycleColor(int palIdx, float t) {
 }
 
 void main() {
-    float frameWidth = 1.0 / u_numFrames;
     vec2 coord = v_texCoord;
-    coord.x = coord.x / u_numFrames + frameWidth * u_frame;
+    coord.x = (coord.x + u_frame) / u_numFrames;
+    coord.y = (coord.y + u_row) / u_numRows;
 
     vec4 texel = texture2D(u_image, coord);
 

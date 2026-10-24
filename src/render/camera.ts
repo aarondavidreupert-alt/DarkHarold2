@@ -17,7 +17,7 @@ limitations under the License.
 // Camera / zoom / screen-coord helpers split out of renderer.ts.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §16.
 
-import { hexFromScreen, hexToScreen, Point } from '../geometry.js'
+import { hexFromScreen, hexNeighbors, hexToScreen, Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { Obj } from '../object.js'
 import { Config } from '../config.js'
@@ -148,6 +148,18 @@ export function setMapScrollLimits(mapName: string): void {
 export function getActiveScrollBarBounds(): typeof CE_CENTER_BOUNDS | null {
     if ((window as any).scrollLimits) return (window as any).scrollLimits
     if (_activeBarBounds) return _activeBarBounds
+    if (Config.ui.scrollBounds === 'ce') {
+        // the ring the player is in, a CE view half (320×190) out: where the original
+        // 640×380 view's edge is when its centre stands on the ring
+        const ring = scrollRingBounds()
+        if (ring) {
+            return {
+                minX: ring.minX - ORIGINAL_ISO_WINDOW_WIDTH / 2, maxX: ring.maxX + ORIGINAL_ISO_WINDOW_WIDTH / 2,
+                minY: ring.minY - ORIGINAL_ISO_WINDOW_HEIGHT / 2, maxY: ring.maxY + ORIGINAL_ISO_WINDOW_HEIGHT / 2,
+            }
+        }
+        return mapContentBounds ?? null
+    }
     if (scrollBlockerBounds) {
         const refHalfX = 290  // empirical: blocker ring sits ~290px inside the bar edge
         const refHalfY = 172  // empirical: blocker ring sits ~172px inside the bar edge
@@ -266,6 +278,190 @@ export function computeScrollBlockerBounds(objects: Obj[]): void {
     scrollBlockerBounds = (count === 0) ? null : { minX, maxX, minY, maxY }
     ;(window as any).scrollBlockerBounds = scrollBlockerBounds
     dbg('map', '[scroll] scrollBlockerBounds =', JSON.stringify(scrollBlockerBounds), count + ' blockers')
+
+    // [dh2] scroll_bounds=ce: the blocker hexes (clampCameraCE) and their groups
+    // (blockers within 2 hexes of each other), for the black border around the ring
+    // the player is in (scrollRingBounds). A map can hold several groups: newrst has
+    // its ring plus a second, outside one.
+    _blockerHexes = new Set()
+    for (const obj of objects) {
+        if ((obj as any).type !== SCROLL_BLOCKER_TYPE || (obj as any).pidID !== SCROLL_BLOCKER_PIDID) continue
+        const pos = (obj as any).position
+        if (pos && pos.x != null && pos.y != null) _blockerHexes.add(pos.x + pos.y * 200)
+    }
+    _blockerGroups = []
+    const seen = new Set<number>()
+    for (const start of _blockerHexes) {
+        if (seen.has(start)) continue
+        seen.add(start)
+        const g = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity }
+        const stack = [start]
+        while (stack.length) {
+            const k = stack.pop() as number
+            const hx = k % 200, hy = (k / 200) | 0
+            const p = hexToScreen(hx, hy)
+            g.minX = Math.min(g.minX, p.x); g.maxX = Math.max(g.maxX, p.x)
+            g.minY = Math.min(g.minY, p.y); g.maxY = Math.max(g.maxY, p.y)
+            for (let dy = -2; dy <= 2; dy++) {
+                for (let dx = -2; dx <= 2; dx++) {
+                    const nx = hx + dx, ny = hy + dy
+                    if (nx < 0 || nx >= 200 || ny < 0 || ny >= 200) continue
+                    const n = nx + ny * 200
+                    if (_blockerHexes.has(n) && !seen.has(n)) { seen.add(n); stack.push(n) }
+                }
+            }
+        }
+        _blockerGroups.push(g)
+    }
+
+    // The areas the view centre can reach: the free hexes split by the blockers
+    // (hex neighbours), each with the bbox of its hex centres. An area touching the
+    // grid's edge is open (no closed ring around it).
+    _hexArea = new Int32Array(40000).fill(-1)
+    _areas = []
+    if (_blockerHexes.size > 0) {
+        for (let start = 0; start < 40000; start++) {
+            if (_hexArea[start] !== -1 || _blockerHexes.has(start)) continue
+            const id = _areas.length
+            const a = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, open: false }
+            _hexArea[start] = id
+            const stack = [start]
+            while (stack.length) {
+                const k = stack.pop() as number
+                const hx = k % 200, hy = (k / 200) | 0
+                if (hx === 0 || hx === 199 || hy === 0 || hy === 199) a.open = true
+                const p = hexToScreen(hx, hy)
+                a.minX = Math.min(a.minX, p.x); a.maxX = Math.max(a.maxX, p.x)
+                a.minY = Math.min(a.minY, p.y); a.maxY = Math.max(a.maxY, p.y)
+                for (const n of hexNeighbors({ x: hx, y: hy })) {
+                    if (n.x < 0 || n.x >= 200 || n.y < 0 || n.y >= 200) continue
+                    const nk = n.x + n.y * 200
+                    if (_hexArea[nk] === -1 && !_blockerHexes.has(nk)) { _hexArea[nk] = id; stack.push(nk) }
+                }
+            }
+            _areas.push(a)
+        }
+    }
+    _ceCentre = null // the next centerCamera (elevation change, map load) sets it
+    _ringBounds = undefined // chosen again for this elevation (scrollRingBounds)
+    _walkBounds = undefined
+    // exit grids (misc pid 0x5000010-0x5000017) by destination, for walkBorderBounds
+    _exitGroups = new Map()
+    for (const obj of objects) {
+        const pid = (obj as any).pid as number
+        if ((obj as any).type !== 'misc' || pid < 0x5000010 || pid > 0x5000017 || !(obj as any).position) continue
+        const ex = (obj as any).extra ?? {}
+        const key = `${ex.exitMapID}/${ex.startingPosition}/${ex.startingElevation}`
+        if (!_exitGroups.has(key)) _exitGroups.set(key, [])
+        _exitGroups.get(key)!.push(hexToScreen((obj as any).position.x, (obj as any).position.y))
+    }
+}
+
+let _exitGroups: Map<string, Point[]> = new Map()
+let _walkBounds: typeof CE_CENTER_BOUNDS | null | undefined = undefined
+
+// [dh2] walk_limit=1: where critters may walk (map/pathfinder.ts) — the black border
+// (getActiveScrollBarBounds), widened over any exit grid that has no hex inside it, so
+// every exit stays reachable (ncr2's exit to map 42 and one of redwan1's lie outside).
+// Fixed per elevation, as the border is.
+export function walkBorderBounds(): typeof CE_CENTER_BOUNDS | null {
+    const bar = getActiveScrollBarBounds() // may choose the ring again (resets _walkBounds)
+    if (_walkBounds !== undefined) return _walkBounds
+    if (!bar) return null
+    const b = { ...bar }
+    const inside = (p: Point) => p.x >= bar.minX && p.x <= bar.maxX && p.y >= bar.minY && p.y <= bar.maxY
+    for (const hexes of _exitGroups.values()) {
+        if (hexes.some(inside)) continue
+        for (const p of hexes) {
+            b.minX = Math.min(b.minX, p.x - 16); b.maxX = Math.max(b.maxX, p.x + 16)
+            b.minY = Math.min(b.minY, p.y - 12); b.maxY = Math.max(b.maxY, p.y + 12)
+        }
+    }
+    // a live blackBar() edit changes the border: don't keep it
+    if (!(window as any).scrollLimits && !(window as any).borderDebug) _walkBounds = b
+    return b
+}
+
+// Blocker hexes (x + y*200) and blocker groups' world bboxes on this elevation.
+let _blockerHexes: Set<number> = new Set()
+let _blockerGroups: { minX: number; maxX: number; minY: number; maxY: number }[] = []
+// The reachable areas (computeScrollBlockerBounds): area index per hex (-1 = blocker
+// or no blockers on this elevation) and each area's hex-centre bbox.
+let _hexArea: Int32Array = new Int32Array(0)
+let _areas: { minX: number; maxX: number; minY: number; maxY: number; open: boolean }[] = []
+
+// [dh2] scroll_bounds=ce: where the view centre can go. The hex centres of the area
+// the player stands in, when a ring closes it (CE's centre tile can be any of them,
+// and the original view reaches 320×190 px past it — getActiveScrollBarBounds);
+// else the bbox of the blocker groups around the player (whose bbox holds the
+// player), else of all of them; null without blockers.
+// Chosen once per elevation, on the first call after computeScrollBlockerBounds (the
+// centerCamera on the player that follows it), so the border stays where it is while
+// the player walks — blockers don't block walking, and a blocker hex is in no area.
+// undefined = not chosen yet.
+// Chosen again only when the player stands inside another closed area (an exit grid or
+// script put them there): not on a blocker hex or in the open area outside the ring.
+let _ringBounds: typeof CE_CENTER_BOUNDS | null | undefined = undefined
+let _ringArea: (typeof _areas)[number] | null = null
+
+export function scrollRingBounds(): typeof CE_CENTER_BOUNDS | null {
+    const pl = globalState.player
+    if (_ringBounds !== undefined && pl && pl.position && _hexArea.length === 40000) {
+        const id = _hexArea[pl.position.x + pl.position.y * 200]
+        if (id >= 0 && !_areas[id].open && _areas[id] !== _ringArea) _ringBounds = undefined
+    }
+    if (_ringBounds === undefined) {
+        _ringBounds = chooseRingBounds()
+        _walkBounds = undefined
+    }
+    return _ringBounds
+}
+
+// The closed area at or next to `pos` (a blocker hex: its neighbours, up to 3 hexes out).
+function closedAreaNear(pos: Point): (typeof _areas)[number] | null {
+    let ring: Point[] = [pos]
+    const seen = new Set<number>([pos.x + pos.y * 200])
+    for (let r = 0; r <= 3; r++) {
+        for (const h of ring) {
+            const id = _hexArea[h.x + h.y * 200]
+            if (id >= 0 && !_areas[id].open) return _areas[id]
+        }
+        const next: Point[] = []
+        for (const h of ring) {
+            for (const n of hexNeighbors(h)) {
+                const k = n.x + n.y * 200
+                if (n.x < 0 || n.x >= 200 || n.y < 0 || n.y >= 200 || seen.has(k)) continue
+                seen.add(k)
+                next.push(n)
+            }
+        }
+        ring = next
+    }
+    return null
+}
+
+function chooseRingBounds(): typeof CE_CENTER_BOUNDS | null {
+    _ringArea = null
+    if (_blockerGroups.length === 0) return null
+    const pl = globalState.player
+    if (pl && pl.position && _hexArea.length === 40000) {
+        const a = closedAreaNear(pl.position)
+        if (a) {
+            _ringArea = a
+            return { minX: a.minX, maxX: a.maxX, minY: a.minY, maxY: a.maxY }
+        }
+    }
+    const p = globalState.player
+    let groups = _blockerGroups
+    if (p && p.position) {
+        const s = hexToScreen(p.position.x, p.position.y)
+        const around = _blockerGroups.filter(g => s.x >= g.minX && s.x <= g.maxX && s.y >= g.minY && s.y <= g.maxY)
+        if (around.length) groups = around
+    }
+    return {
+        minX: Math.min(...groups.map(g => g.minX)), maxX: Math.max(...groups.map(g => g.maxX)),
+        minY: Math.min(...groups.map(g => g.minY)), maxY: Math.max(...groups.map(g => g.maxY)),
+    }
 }
 
 // Scan the floor tilemap for the interior playfield bbox and store the bar
@@ -427,11 +623,107 @@ let _bbKeyListener: ((e: KeyboardEvent) => void) | null = null
 // Keep the old name as an alias so renderer.ts re-exports work unchanged.
 export const MAP_WORLD_BOUNDS = CE_CENTER_BOUNDS
 
+// CE ref: tile.cc tileSetCenter — the scroll restrictions. Called after every
+// camera move (edge scroll, keys, zoom). [dh2] scroll_bounds=ce (default) ports
+// CE's two automatic limits (clampCameraCE); =dh2 is the older DH2 clamp to a
+// rectangle guessed from the blocker / floor bounding boxes (clampCameraDH2).
 export function clampCameraPosition(): void {
     // Calibration mode (borderCalib()): let the camera scroll freely so each
     // edge can be reached and grabbed without half-set bounds locking scroll.
     if ((window as any).borderDebug) return
+    if (Config.ui.scrollBounds === 'ce') clampCameraCE(false)
+    else clampCameraDH2()
+}
 
+// CE's player limit (tile.cc tileSetCenter, gTileScrollLimitingEnabled): a step
+// that moves the centre further from the player is refused once it would be
+// 480 px (x) or 400 px (y) away from them.
+const CE_SCROLL_LIMIT_X = 480
+const CE_SCROLL_LIMIT_Y = 400
+// Sample distance when walking the centre from its last position to the new one,
+// in world px: less than a hex, so the two-hex-thick blocker ring can't be skipped.
+const CE_SCROLL_SAMPLE = 8
+
+// The last centre clampCameraCE accepted (world px); null until the first
+// centerCamera of a map.
+let _ceCentre: Point | null = null
+
+function playerLimitRefuses(fromX: number, fromY: number, toX: number, toY: number): boolean {
+    // [dh2] scroll_player_limit=0 / console setScrollPlayerLimit(false): off
+    if (!Config.ui.scrollPlayerLimit) return false
+    const p = globalState.player
+    if (!p || !p.position) return false
+    // CE compares the two tiles' tileToScreenXY points; hexToScreen is the hex's
+    // centre, as the view centre is
+    const d = hexToScreen(p.position.x, p.position.y)
+    const dx = Math.abs(d.x - toX)
+    const dy = Math.abs(d.y - toY)
+    if (dx > Math.abs(d.x - fromX) || dy > Math.abs(d.y - fromY)) {
+        return dx >= CE_SCROLL_LIMIT_X || dy >= CE_SCROLL_LIMIT_Y
+    }
+    return false
+}
+
+// CE ref: object.cc _obj_scroll_blocking_at — the centre hex holds a scroll blocker.
+function blockerAtCentre(cx: number, cy: number): boolean {
+    if (_blockerHexes.size === 0) return false
+    const h = hexFromScreen(cx, cy)
+    return _blockerHexes.has(h.x + h.y * 200)
+}
+
+// [dh2] scroll_bounds=ce. CE refuses each scroll step whose new centre tile holds
+// a scroll blocker (the ring mappers placed around the playfield) or that takes
+// the centre too far from the player, then keeps the grid border. DH2 moves the
+// camera by less than CE's 32×24 px steps, so the move from the last accepted
+// centre is walked in CE_SCROLL_SAMPLE steps, x first, then y: a refused axis
+// stops there and the other still moves (CE refuses a diagonal step whole; here
+// the view slides along the ring). ignoreRestrictions: centring on the player or
+// a script's tile_set_center / move_to (CE turns the checks off around move_to
+// and on map load) — only the grid border applies.
+function clampCameraCE(ignoreRestrictions: boolean): void {
+    const halfW = getWorldViewWidth() / 2
+    const halfH = getWorldViewHeight() / 2
+    let cx = globalState.cameraPosition.x + halfW
+    let cy = globalState.cameraPosition.y + halfH
+
+    if (!ignoreRestrictions && _ceCentre) {
+        const tx = cx, ty = cy
+        cx = _ceCentre.x
+        cy = _ceCentre.y
+        for (const axis of ['x', 'y'] as const) {
+            const target = axis === 'x' ? tx : ty
+            for (;;) {
+                const cur = axis === 'x' ? cx : cy
+                const left = target - cur
+                if (left === 0) break
+                const step = Math.sign(left) * Math.min(Math.abs(left), CE_SCROLL_SAMPLE)
+                const nx = axis === 'x' ? cx + step : cx
+                const ny = axis === 'y' ? cy + step : cy
+                if (blockerAtCentre(nx, ny) || playerLimitRefuses(cx, cy, nx, ny)) break
+                cx = nx
+                cy = ny
+            }
+        }
+    }
+
+    // CE tileSetBorder: the grid border, whatever the restrictions
+    cx = Math.max(CE_CENTER_BOUNDS.minX, Math.min(CE_CENTER_BOUNDS.maxX, cx))
+    cy = Math.max(CE_CENTER_BOUNDS.minY, Math.min(CE_CENTER_BOUNDS.maxY, cy))
+    // [dh2] scroll_limit=1: never past the black border (RD19)
+    if (Config.ui.scrollLimitToBorder) {
+        const bar = getActiveScrollBarBounds()
+        if (bar) {
+            cx = Math.max(bar.minX, Math.min(bar.maxX, cx))
+            cy = Math.max(bar.minY, Math.min(bar.maxY, cy))
+        }
+    }
+    _ceCentre = { x: cx, y: cy }
+    globalState.cameraPosition.x = cx - halfW
+    globalState.cameraPosition.y = cy - halfH
+}
+
+// [dh2] scroll_bounds=dh2: the older clamp to a rectangle (getActiveScrollLimits).
+function clampCameraDH2(): void {
     const viewW = getWorldViewWidth()
     const viewH = getWorldViewHeight()
     const halfW = viewW / 2
@@ -463,6 +755,16 @@ export function clampCameraPosition(): void {
             nextCY = prevCY
         }
     }
+    // The blocker rejection above keeps the pre-clamp centre, which can already be
+    // past the limits (the clamp target sits on the blocker ring, e.g. arvillag), so
+    // each scroll step went further out. [dh2] scroll_limit=1 (default): the centre
+    // never passes the black border (getActiveScrollBarBounds), so the border
+    // reaches the middle of the screen at most.
+    if (Config.ui.scrollLimitToBorder) {
+        const bar = getActiveScrollBarBounds() ?? lim
+        nextCX = Math.max(bar.minX, Math.min(bar.maxX, nextCX))
+        nextCY = Math.max(bar.minY, Math.min(bar.maxY, nextCY))
+    }
     globalState.cameraPosition.x = nextCX - halfW
     globalState.cameraPosition.y = nextCY - halfH
 }
@@ -475,5 +777,6 @@ export function centerCamera(around: Point) {
     const viewH = getWorldViewHeight()
     globalState.cameraPosition.x = (scr.x - viewW / 2) | 0
     globalState.cameraPosition.y = (scr.y - viewH / 2) | 0
-    clampCameraPosition()
+    if (Config.ui.scrollBounds === 'ce' && !(window as any).borderDebug) clampCameraCE(true)
+    else clampCameraPosition()
 }

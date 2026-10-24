@@ -19,6 +19,7 @@ import globalState from './globalState.js'
 import { dbg, dbgWarn } from './logger.js'
 import { getFileJSON, getRandomInt } from './util.js'
 import { getWeaponSounds, ImpactMaterial } from './soundMap.js'
+import { assetUrl } from './modAssets.js'
 
 // Has the page had a user gesture yet? (browser autoplay policy; true where the
 // UserActivation API is missing)
@@ -118,7 +119,7 @@ export class HTMLAudioEngine implements AudioEngine {
         const ctx = this.getCtx()
         const promise = (async () => {
             try {
-                const res = await fetch('audio/sfx/' + name + '.wav' + AUDIO_ASSET_QUERY)
+                const res = await fetch(assetUrl('audio/sfx/' + name + '.wav' + AUDIO_ASSET_QUERY))
                 if (!res.ok) {
                     dbgWarn('audio', '[Audio] could not load:', name, `(${res.status})`)
                     this.sfxMissing.add(name)
@@ -196,7 +197,7 @@ export class HTMLAudioEngine implements AudioEngine {
             // File missing (404) or unsupported format — fail silently to avoid console spam
             dbgWarn('audio', '[Audio] could not load:', soundName)
         }, false)
-        sound.src = 'audio/' + soundName + '.wav' + AUDIO_ASSET_QUERY
+        sound.src = assetUrl('audio/' + soundName + '.wav' + AUDIO_ASSET_QUERY)
         return sound
     }
 

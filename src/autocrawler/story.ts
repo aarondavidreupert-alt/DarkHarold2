@@ -8,7 +8,7 @@
 // CE RNG is reseeded from the step's position in the run. So a run with
 // script_backend=vm and one with script_backend=lua must produce the same
 // trace; the first run stores its trace (IndexedDB, per map) and a run on the
-// other backend compares against it — the in-game counterpart of luadiff.html.
+// other backend compares against it — the in-game counterpart of tools/luadiff.html.
 //
 //   play.html?crawl=story#script_backend=vm    (stores the VM trace)
 //   play.html?crawl=story#script_backend=lua   (compares; report on autoCrawler.lastReport)

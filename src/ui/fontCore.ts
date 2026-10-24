@@ -24,6 +24,7 @@
 
 import { dbgWarn } from '../logger.js'
 import { Widget } from '../ui_widget.js'
+import { assetUrl } from '../modAssets.js'
 
 export interface SymbolInfo {
     x: number
@@ -115,9 +116,9 @@ export class FontRenderer {
             this.checkLoaded()
         }
         img.onerror = () => dbgWarn('renderer', `FontRenderer: failed to load ${this.spriteUrl}`)
-        img.src = this.spriteUrl
+        img.src = assetUrl(this.spriteUrl)
 
-        fetch(this.jsonPath + FONT_ASSET_QUERY)
+        fetch(assetUrl(this.jsonPath + FONT_ASSET_QUERY))
             .then((r) => r.json())
             .then((info: SymbolInfoMap & { meta?: FontMeta }) => {
                 this.meta = info.meta ?? null

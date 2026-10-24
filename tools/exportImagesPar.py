@@ -19,6 +19,7 @@ limitations under the License.
 import sys, os, glob, json, time, multiprocessing
 import pal
 import frmpixels
+import progress
 
 N_PROCS = 2
 CHUNKSIZE = 4
@@ -112,6 +113,7 @@ def convertAll(palette, dataDir, outDir, mode='both', imageMapMode='yes', nProcs
 		if verbose: print(f"processing {numTasks} FR[0-5]s...")
 		for (k,v) in pool.imap(convertFRX, tasks, chunksize=CHUNKSIZE):
 			if verbose: print(f"[{i}/{numTasks}] {k}...")
+			progress.step(i - 1, numTasks, k)
 			imageInfo[k] = v
 			i += 1
 
@@ -126,11 +128,13 @@ def convertAll(palette, dataDir, outDir, mode='both', imageMapMode='yes', nProcs
 		if verbose: print("processing FRMs...")
 		for (k,v) in pool.imap(convertFRM, tasks, chunksize=CHUNKSIZE):
 			if verbose: print(f"[{i}/{numTasks}] {k}...")
+			progress.step(i - 1, numTasks, k)
 			imageInfo[k] = v
 			i += 1
 
 	if imageMapMode != 'no':
 		if verbose: print("writing image map...")
+		progress.busy("writing the image map")
 		
 		# write new imageMap
 		json.dump(imageInfo, open(outDir + "/imageMap.json", "w"))

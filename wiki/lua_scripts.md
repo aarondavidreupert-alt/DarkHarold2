@@ -16,7 +16,7 @@
 | Prelude | `src/lua/prelude.ts` | Lua side: SSL semantics, the per-script sandbox, coroutine driver for dialogue |
 | Runtime | `src/lua/luaRuntime.ts` | TS side: starts the engine, turns a `Script` object into a Lua-backed one (`attachLuaScript`) |
 | Hook | `src/scripting.ts` `loadScript` / `loadLuaScript` | With `Config.scripting.backend === 'lua'`, loads `<name>.lua`; no file or a load error → the `.int` runs |
-| Test | `luadiff.html`, `src/lua/luaDiff.ts` | VM-vs-Lua differential test (below) |
+| Test | `tools/luadiff.html`, `src/lua/luaDiff.ts` | VM-vs-Lua differential test (below) |
 
 Select the backend with `fallout2.cfg` `[dh2] script_backend=lua` (the default; the pipeline's `write_config`
 stage writes the key) or `=vm`, or for one page load with `play.html#script_backend=vm` (the query string is the
@@ -86,9 +86,11 @@ never a silently wrong translation:
        `LVAR_Hostile` at 5);
     2. `data/scripts_src/`: the Unofficial Patch's `scripts_src` (by killap), for the scripts the first
        tree does not match.
-    A script the pipeline took from a mod (`data/mod_sources.json`: the Unofficial Patch, UPU) reads
-    `third_party/upu_src/scripts_src` (UPU's own sources) first, and the script fixes below are off for it —
-    its `.int` is recompiled from fixed sources ([upu_support.md](upu_support.md)).
+    A mod's script (`tools/setup.py build_mods` decompiles `mods/<mod>/data/scripts/*.int` with
+    `decompile_file(base=…, mod=True)`) reads `third_party/upu_src/scripts_src` (the Unofficial Patch's own
+    sources) first, looks up message texts and `.gam` names in the mod's files before the vanilla ones,
+    and has the script fixes below switched off — its `.int` is recompiled from fixed sources
+    ([upu_support.md](upu_support.md)).
     A script takes its LVAR/MVAR names from the first tree whose `.ssl` declares every procedure of the
     vanilla `.int` (1164 of 1245 from `ssl/`, the rest of 1238 from the patch); PID and `define.h` names
     come from both, the first tree's spelling winning. Procedures count as declared when the `.ssl` tree
@@ -171,7 +173,7 @@ from the shipped `.int` and from CE**, so every one is:
   takes the original path when `fallout2.cfg [dh2] script_fixes=0`, drawing no extra random number;
 - tracked in `known_bugs.md`.
 
-The VM runs the original bytecode either way. `luadiff.html` shows a fix as a difference at that call —
+The VM runs the original bytecode either way. `tools/luadiff.html` shows a fix as a difference at that call —
 and only there.
 
 | ID | Script / procedure | The shipped script | The fix | Source of the intent |
@@ -218,7 +220,11 @@ back to the `.int`, like a generated one. `mods/` is git-ignored.
 
 The load order can instead live in **`mods/mods_order.txt`**, in sfall's format (sfall `LoadOrder.cpp`):
 one mod per line, top to bottom, a later line taking priority; `;` or `#` comments a line or its rest out.
-`.dat` lines are data mods for the asset pipeline ([upu_support.md](upu_support.md)) and are skipped here.
+The same file lists the mod folders the pipeline builds from an install's mods (`mods/upu/` from the
+Unofficial Patch, with a `manifest.json`): their decompiled scripts load through the asset overlay as
+`data/scripts/<script>.lua` (`src/modAssets.ts`), after the hand-written Lua mods; a built mod whose
+`.int` did not decompile runs that `.int`, not the vanilla `.lua` ([upu_support.md](upu_support.md)).
+`.dat` lines are skipped.
 `[dh2] mods=` overrides the file when it is not empty; the pipeline's `write_config` stage creates an empty,
 commented file if there is none, as sfall does (`tools/fallout2Cfg.py write_default_mods_order`,
 `src/ui_options/fallout2Cfg.ts loadModsOrder`).
@@ -243,7 +249,7 @@ commented file if there is none, as sfall does (`tools/fallout2Cfg.py write_defa
 
 ## VM-vs-Lua differential test
 
-`luadiff.html?scripts=a,b&seeds=N` (default: the 36 Arroyo scripts, 20 seeds). For every procedure and seed,
+`tools/luadiff.html?scripts=a,b&seeds=N` (default: the 36 Arroyo scripts, 20 seeds). For every procedure and seed,
 the script is loaded in both backends against an identical fake game: every intrinsic call is answered
 from a seeded random world (LVAR/GVAR/MVAR stores, a pool of fake objects) and recorded. Then the procedure
 runs with random arguments, a suspended dialogue is resumed, and the first dialogue option offered is run.

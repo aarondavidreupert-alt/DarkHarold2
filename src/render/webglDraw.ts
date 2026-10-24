@@ -11,6 +11,7 @@ import { hexDistance } from '../geometry.js'
 import { hexIsInFrontOf, hexIsToRightOf } from '../geometry/hexScreen.js'
 import { getActiveScrollBarBounds } from './camera.js'
 import { cycleTime } from '../colorCycle.js'
+import type { FrameCell } from '../renderer.js'
 
 declare module './webglContext.js' {
     interface WebGLRenderer {
@@ -30,8 +31,7 @@ declare module './webglContext.js' {
             y: number,
             width: number,
             height: number,
-            totalFrames: number,
-            frame: number,
+            cell: FrameCell,
             lit?: boolean,
         ): void
         setRoofLighting(): void
@@ -104,6 +104,8 @@ WebGLRenderer.prototype.drawTileMap = function (tilemap: TileMap, offsetY: numbe
     gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
     gl.uniform1f(this.uNumFramesLocation, 1)
     gl.uniform1f(this.uFrameLocation, 0)
+    gl.uniform1f(this.uNumRowsLocation, 1)
+    gl.uniform1f(this.uRowLocation, 0)
     const z = getZoom()
     gl.uniform2f(this.uScaleLocation, 80 * z, 36 * z)
     // CE ref: cycle.cc colorCycleTicker — floor tiles animate palette entries 229-254 too.
@@ -179,6 +181,8 @@ WebGLRenderer.prototype.renderRoof = function (roof: TileMap, hideSet?: Set<stri
     gl.bindBuffer(gl.ARRAY_BUFFER, this.tileBuffer)
     gl.uniform1f(this.uNumFramesLocation, 1)
     gl.uniform1f(this.uFrameLocation, 0)
+    gl.uniform1f(this.uNumRowsLocation, 1)
+    gl.uniform1f(this.uRowLocation, 0)
     const z = getZoom()
     gl.uniform2f(this.uScaleLocation, 80 * z, 36 * z)
 
@@ -672,8 +676,7 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         (renderInfo.y - globalState.cameraPosition.y) * z,
         renderInfo.uniformFrameWidth * z,
         renderInfo.uniformFrameHeight * z,
-        renderInfo.artInfo.totalFrames,
-        renderInfo.spriteFrameNum,
+        renderInfo.cell,
         /*lit*/ true
     )
 
@@ -782,8 +785,7 @@ WebGLRenderer.prototype.renderOutlinePass = function (objs: Obj[]): void {
                     baseY + dy * z,
                     w,
                     h,
-                    renderInfo.artInfo.totalFrames,
-                    renderInfo.spriteFrameNum,
+                    renderInfo.cell,
                     /*lit*/ false
                 )
             }
@@ -797,8 +799,7 @@ WebGLRenderer.prototype.renderOutlinePass = function (objs: Obj[]): void {
                 baseY,
                 w,
                 h,
-                renderInfo.artInfo.totalFrames,
-                renderInfo.spriteFrameNum,
+                renderInfo.cell,
                 /*lit*/ true
             )
         }
@@ -813,8 +814,7 @@ WebGLRenderer.prototype.renderOutlinePass = function (objs: Obj[]): void {
                 baseY,
                 w,
                 h,
-                renderInfo.artInfo.totalFrames,
-                renderInfo.spriteFrameNum,
+                renderInfo.cell,
                 /*lit*/ false
             )
         }
@@ -830,8 +830,7 @@ WebGLRenderer.prototype.renderFrame = function (
     y: number,
     width: number,
     height: number,
-    totalFrames: number,
-    frame: number,
+    cell: FrameCell,
     lit = false
 ): void {
     // TODO: uses hack
@@ -855,8 +854,10 @@ WebGLRenderer.prototype.renderFrame = function (
     gl.activeTexture(gl.TEXTURE0)
     if (this.uCycleTime) gl.uniform1f(this.uCycleTime, cycleTime())
 
-    gl.uniform1f(this.uNumFramesLocation, totalFrames)
-    gl.uniform1f(this.uFrameLocation, frame)
+    gl.uniform1f(this.uNumFramesLocation, cell.columns)
+    gl.uniform1f(this.uFrameLocation, cell.column)
+    gl.uniform1f(this.uNumRowsLocation, cell.rows)
+    gl.uniform1f(this.uRowLocation, cell.row)
 
     gl.uniform2f(this.offsetLocation, x, y)
     gl.uniform2f(this.uScaleLocation, width, height)
@@ -866,9 +867,12 @@ WebGLRenderer.prototype.renderFrame = function (
     gl.drawArrays(gl.TRIANGLES, 0, 6)
 }
 
+// a whole image as one cell (UI images, fullscreen art)
+const WHOLE_IMAGE: FrameCell = { sx: 0, sy: 0, column: 0, row: 0, columns: 1, rows: 1 }
+
 WebGLRenderer.prototype.renderImage = function (imgPath: string, x: number, y: number, width: number, height: number): void {
     // UI path — never darkened by ambient.
-    this.renderFrame(imgPath, x, y, width, height, 1, 0, /*lit*/ false)
+    this.renderFrame(imgPath, x, y, width, height, WHOLE_IMAGE, /*lit*/ false)
 }
 
 WebGLRenderer.prototype.renderFont = function (font: Font, x: number, y: number) {
@@ -883,6 +887,8 @@ WebGLRenderer.prototype.renderFont = function (font: Font, x: number, y: number)
 
     gl.uniform1f(this.uNumFramesLocation, 1)
     gl.uniform1f(this.uFrameLocation, 0)
+    gl.uniform1f(this.uNumRowsLocation, 1)
+    gl.uniform1f(this.uRowLocation, 0)
 
     gl.uniform2f(this.offsetLocation, x, y)
     gl.uniform2f(this.uScaleLocation, width, font.height)

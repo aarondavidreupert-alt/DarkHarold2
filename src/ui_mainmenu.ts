@@ -30,6 +30,7 @@ import { uiSaveLoad } from './ui_saveload.js'
 import globalState from './globalState.js'
 import { dbgWarn } from './logger.js'
 import { UIMode } from './ui_panels.js'
+import { assetUrl } from './modAssets.js'
 
 // Enum mirrors fallout2-ce MainMenuButton order exactly.
 const enum MainMenuButton {
@@ -85,7 +86,7 @@ export function initMainMenu(newGameCb: () => void): void {
         left: '50%',
         top: '50%',
         transform: 'translate(-50%, -50%)',
-        backgroundImage: "url('art/intrface/mainmenu.png')",
+        backgroundImage: "url('" + assetUrl('art/intrface/mainmenu.png') + "')",
         backgroundRepeat: 'no-repeat',
         backgroundSize: '640px 480px',
     })
@@ -104,7 +105,7 @@ export function initMainMenu(newGameCb: () => void): void {
             top: `${y}px`,
             width: '26px',
             height: '26px',
-            backgroundImage: "url('art/intrface/menuup.png')",
+            backgroundImage: "url('" + assetUrl('art/intrface/menuup.png') + "')",
             backgroundRepeat: 'no-repeat',
             cursor: 'pointer',
             zIndex: '1',
@@ -112,13 +113,13 @@ export function initMainMenu(newGameCb: () => void): void {
 
         const idx = i
         btn.onmousedown = () => {
-            btn.style.backgroundImage = "url('art/intrface/menudown.png')"
+            btn.style.backgroundImage = "url('" + assetUrl('art/intrface/menudown.png') + "')"
         }
         btn.onmouseup = () => {
-            btn.style.backgroundImage = "url('art/intrface/menuup.png')"
+            btn.style.backgroundImage = "url('" + assetUrl('art/intrface/menuup.png') + "')"
         }
         btn.onmouseleave = () => {
-            btn.style.backgroundImage = "url('art/intrface/menuup.png')"
+            btn.style.backgroundImage = "url('" + assetUrl('art/intrface/menuup.png') + "')"
         }
         btn.onclick = () => handleButton(idx as MainMenuButton)
         frameElem.appendChild(btn)
