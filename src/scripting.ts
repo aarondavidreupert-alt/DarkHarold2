@@ -84,6 +84,11 @@ export module Scripting {
     var scriptMessages: { [scriptName: string]: { [msgID: number]: string } } = {}
     var dialogueOptionProcs: (() => void)[] = [] // Maps dialogue options to handler callbacks
     var dialogueOptionTexts: string[] = [] // parallel to dialogueOptionProcs — display text, for the review log
+    // CE game_dialog.cc gameDialogBarter only sets _dialogue_switch_mode = 2; the dialogue
+    // loop opens the barter screen once the option's procedure has returned (with the
+    // reply and options it set up). The merchant waiting for that, while an option runs.
+    var pendingBarter: Critter | null = null
+    var inDialogueReply = false
     var dialogueOptionReactions: number[] = [] // parallel — GAME_DIALOG_REACTION_* (head reaction on pick)
     var scriptMessageAudio: { [msgFile: string]: { [msgID: number]: string } } = {} // {id}{audio}{text} middle field
     var currentDialogueObject: Obj | null = null
@@ -516,7 +521,18 @@ export module Scripting {
         dialogueOptionProcs = []
         dialogueOptionTexts = []
         dialogueOptionReactions = []
-        f()
+        inDialogueReply = true
+        try {
+            f()
+        } finally {
+            inDialogueReply = false
+        }
+        if (pendingBarter) {
+            const merchant = pendingBarter
+            pendingBarter = null
+            uiBarterMode(merchant)
+            return
+        }
         // by this point the option's callback may have switched to an
         // entirely different screen (barter, companion control/customize) —
         // the "no more options, close dialogue" logic below only applies if
@@ -571,15 +587,19 @@ export module Scripting {
         currentDialogueObject = null
     }
 
+    // Back from Barter / Trade / Combat Control. CE gameDialogTicker mode 1 recreates the
+    // window and gdUnhide shows the same reply and options again — talk_p_proc runs once
+    // per conversation. With no options left (the node that opened barter set none), the
+    // dialogue is over.
     export function reenterDialogue(): void {
         if (!currentDialogueObject || !currentDialogueObject._script) {
             return
         }
-        globalState.uiMode = UIMode.dialogue
-        dialogueOptionProcs = []
-        dialogueOptionTexts = []
-        dialogueOptionReactions = []
-        talk(currentDialogueObject._script, currentDialogueObject)
+        uiStartDialogue(true, currentDialogueObject as Critter)
+        if (dialogueOptionProcs.length === 0) {
+            dbg('dialogue', '[dialogue exit after barter (no options)]')
+            dialogueExit()
+        }
     }
 
     /** Returns the number of currently pending dialogue option procs.
@@ -2484,7 +2504,9 @@ export module Scripting {
             dbg('dialogue', '--> barter mode')
             if (!this.self_obj) throw 'need self_obj'
             dialogueBarterMod = mod
-            uiBarterMode(this.self_obj as Critter)
+            // inside an option's procedure: open it when the procedure has returned
+            if (inDialogueReply) pendingBarter = this.self_obj as Critter
+            else uiBarterMode(this.self_obj as Critter)
         }
         start_gdialog(msgFileID: number, obj: Obj, mood: number, headNum: number, backgroundID: number) {
             log('start_gdialog', arguments)

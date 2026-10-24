@@ -259,9 +259,11 @@ export function tickGame(): void {
                 event.ticks--
                 if (event.ticks <= 0) {
                     Scripting.info('timed event triggered', 'timer')
-                    event.fn()
+                    // off the list before it runs (as processTimeJump does): an event that
+                    // throws must not fire again every tick
                     timedEvents.splice(i--, 1)
                     numEvents--
+                    event.fn()
                 }
             }
         }

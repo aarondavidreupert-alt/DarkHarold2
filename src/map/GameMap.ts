@@ -480,12 +480,11 @@ export class GameMap {
 		dbg('audio', '[Music] curMapInfo:', curMapInfo)
 		dbg('audio', '[Music] music field:', curMapInfo?.music)
 		globalState.audioEngine.stopAll()
-		if (curMapInfo && curMapInfo.music) {
-			dbg('audio', '[Music] calling playMusic with:', curMapInfo.music)
-			globalState.audioEngine.playMusic(curMapInfo.music)
-		} else {
-			dbg('audio', '[Music] no music to play')
-		}
+		// CE map.cc mapLoad starts the looping wind2; wmMapMusicStart replaces it only when
+		// maps.txt gives the map music, so a map without a music= entry keeps the wind.
+		const music = curMapInfo?.music || 'wind2'
+		dbg('audio', '[Music] calling playMusic with:', music)
+		globalState.audioEngine.playMusic(music)
 	}
 	
 

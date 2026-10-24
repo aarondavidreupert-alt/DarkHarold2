@@ -329,7 +329,7 @@ DH2 message loading lives in `src/data.ts`:
 
 ## Known Gaps vs. CE
 
-Re-audited 2026-10-17. Closed since the first version of this table: `gsay_option`, reaction storage / translation, talking heads and fidgets, `start_gdialog` head / mood / background, the review window (P17), the party-member control and customisation screens (P5), barter → talk (`_barter_end_to_talk_to` → `Scripting.reenterDialogue`), music at half volume without a head and stopped / restarted with one (`talkingHead.ts`), the language filter (AF17) and speech.
+Re-audited 2026-10-17. Closed since the first version of this table: `gsay_option`, reaction storage / translation, talking heads and fidgets, `start_gdialog` head / mood / background, the review window (P17), the party-member control and customisation screens (P5), barter → talk (`_barter_end_to_talk_to` → `Scripting.reenterDialogue`: since 2026-10-24 the same reply and options come back, as CE `gdUnhide`, instead of re-running `talk_p_proc`; `gdialog_mod_barter` inside an option opens barter after the option's procedure has set up its node — known_bugs PA14), music at half volume without a head and stopped / restarted with one (`talkingHead.ts`), the language filter (AF17) and speech.
 
 | Feature | CE | DH2 | Notes |
 |---------|-----|-----|-------|

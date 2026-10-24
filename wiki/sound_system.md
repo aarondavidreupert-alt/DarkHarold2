@@ -213,4 +213,6 @@ DH2 ships pre-converted `.wav` files extracted from the ACM pipeline. The ACM de
 |---|---|---|
 | Decoding | ACM decoded at runtime | Pre-converted to WAV / MP3 by the pipeline (browser-safe; same sound) |
 
+Music outside maps (2026-10-24, known_bugs PA23): the world map plays `23world` (`20car` in the car, CE `wmInterfaceInit`), the main menu `07desert` (CE `main.cc`), and a map without a `music=` entry keeps CE's `wind2` (`mapLoad`).
+
 Everything else in this doc is implemented (opcodes, map / script music, ambient timing and combat silence, speech with lip-sync, volumes from fallout2.cfg / Preferences). <!-- audited: 2026-10-18 -->

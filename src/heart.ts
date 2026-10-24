@@ -8,6 +8,7 @@
 
    Thank you for using heart.js! :-)
 */
+import { dbgWarn } from './logger.js'
 
 type MouseButton = 'l' | 'm' | 'r' | 'unknown'
 
@@ -245,9 +246,16 @@ class Heart {
     }
 
     _tick(time: number) {
-        if (heart.paused) heart._lastTick = time // frozen: no frames, no catch-up on resume
-        else heart._stepOnly(time)
+        // the next frame is requested first, so an exception in one frame can't stop the loop
         window.requestAnimationFrame(heart._tick)
+        if (heart.paused) heart._lastTick = time // frozen: no frames, no catch-up on resume
+        else {
+            try {
+                heart._stepOnly(time)
+            } catch (e) {
+                dbgWarn('script', 'frame error: %o', e)
+            }
+        }
     }
 
     // Debug: stop the frame loop (no heartbeats, animations or timed events) while

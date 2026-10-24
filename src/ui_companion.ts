@@ -83,8 +83,8 @@ const CUSTOM_BUTTONS: { y: number; x: number; category: CustomAiCategory; frmUp:
 // message text reproduced from game/custom.msg via the CE source comments.
 const CUSTOM_OPTIONS: { [K in CustomAiCategory]: { value: AiPacket[K]; label: string }[] } = {
     areaAttackMode: [
-        { value: 'sometimes', label: "Always! Don't worry about hitting me" },
-        { value: 'no_pref', label: "Sometimes, don't worry about hitting me" },
+        { value: 'always', label: "Always! Don't worry about hitting me" },
+        { value: 'sometimes', label: "Sometimes, don't worry about hitting me" },
         { value: 'be_sure', label: "Be sure you won't hit me" },
         { value: 'be_careful', label: 'Be careful not to hit me' },
         { value: 'be_absolutely_sure', label: "Be absolutely sure you won't hit me" },
@@ -94,7 +94,7 @@ const CUSTOM_OPTIONS: { [K in CustomAiCategory]: { value: AiPacket[K]; label: st
         { value: 'finger_hurts', label: 'Your finger hurts' },
         { value: 'bleeding', label: "You're bleeding a bit" },
         { value: 'not_feeling_good', label: 'Not feeling good' },
-        { value: 'none', label: 'You need a tourniquet' },
+        { value: 'tourniquet', label: 'You need a tourniquet' },
         { value: 'never', label: 'Never!' },
     ],
     bestWeapon: [

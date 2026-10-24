@@ -60,6 +60,8 @@ export function uiCloseWorldMap() {
 export function uiWorldMap(onAreaMap = false) {
     globalState.uiMode = UIMode.worldMap
     show($id('worldMapContainer'))
+    // CE worldmap.cc wmInterfaceInit: _gsound_background_play_level_music(isInCar ? "20car" : "23world")
+    globalState.audioEngine.playMusic(Worldmap.getIsInCar() ? '20car' : '23world')
 
     if (!globalState.mapAreas) {
         globalState.mapAreas = loadAreas()

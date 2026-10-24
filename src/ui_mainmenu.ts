@@ -220,6 +220,9 @@ export function showMainMenu(): void {
     if (!overlayElem) return
     overlayElem.style.display = 'block'
     globalState.uiMode = UIMode.mainMenu
+    // CE main.cc main menu loop: _gsound_background_play_level_music("07desert") each time
+    // the menu shows (a new game or a load replaces it with the map's music)
+    globalState.audioEngine.playMusic('07desert')
 }
 
 export function hideMainMenu(): void {

@@ -58,8 +58,8 @@ Findings marked ✔ were re-checked against the code by the merging pass.
 | H10 | Scripts | **FIXED 2026-10-24 (known_bugs PA10).** **`critter_dmg` ignores armour and the 0x100 / 0x200 flags**, reads the damage type as a name, prints nothing. | OP-05, ACT-01 |
 | H11 | Scripts | **FIXED 2026-10-24 (known_bugs PA11).** **`game_time` and `combat_is_initialized` are per-script snapshots**, stale or `undefined` in many procs. | OP-01, SCR-02 |
 | H12 | Party | **FIXED 2026-10-24 (known_bugs PA12).** **Dead companions are never removed from the party**: count against the limit, follow to every map, still returned by `party_member_obj`. Party-count metarule 16 is also off by one (player not counted). | COMBAT-03, CRIT-02, PTY-01, OP-06, PTY-04 |
-| H13 | Party | **Companion Custom screen writes wrong values** ("Always!" → sometimes; run-away list shifted, "tourniquet" flees at first damage). | PTY-02 |
-| H14 | Dialogue | **Returning from Barter / Trade / Combat Control re-runs `talk_p_proc`**; the node set after `gdialog_mod_barter` is lost (64 scripts) and code after `gsay_end` runs twice. | DLG-01 (extends P6/P10) |
+| H13 | Party | **FIXED 2026-10-24 (known_bugs PA13).** **Companion Custom screen writes wrong values** ("Always!" → sometimes; run-away list shifted, "tourniquet" flees at first damage). | PTY-02 |
+| H14 | Dialogue | **FIXED 2026-10-24 (known_bugs PA14).** **Returning from Barter / Trade / Combat Control re-runs `talk_p_proc`**; the node set after `gdialog_mod_barter` is lost (64 scripts) and code after `gsay_end` runs twice. | DLG-01 (extends P6/P10) |
 | H15 | Combat | **FIXED 2026-10-24 (known_bugs PA15).** **Primary burst / flame weapons fire one round** (minigun, gatling laser, flamers — 12 protos); flamer spray not ported. | COMBAT-01 |
 | H16 | Combat | **FIXED 2026-10-24 (known_bugs PA16).** ✔ **sfall critical-table fixes not applied.** CE defaults `OverrideCriticalTable=2` (`sfall_config.cc:42`), ~90 entry fixes; DH2 has only the static arrays. | COMBAT-02 |
 | H17 | Combat | **FIXED 2026-10-24 (known_bugs PA17).** **Unused-AP AC bonus is not CE's model** (CE: everyone starts the round with full AP). Conflicts with known_bugs C22. | COMBAT-04 |
@@ -67,8 +67,10 @@ Findings marked ✔ were re-checked against the code by the merging pass.
 | H19 | Doors | **FIXED 2026-10-24 (known_bugs PA19).** **Open doors still block** shots, light, placement and explosions (no open-door flags set). | OBJ-01 |
 | H20 | Items | **FIXED 2026-10-24 (known_bugs PA20).** Natural weapons use the wrong hidden flag (count weight, can be knocked loose / looted). Energy cells can't refuel the car. | ITEM-01, ITEM-07 |
 | H21 | Worldmap | **FIXED 2026-10-24 (known_bugs PA21).** Subtile-visited metarule3 105 always returns 1 (Vault City scouting job); state numbers swapped. Entrances never auto-open on map entry. Town map always shown, even for areas without art (blank `undefined.png`). | WM-01, WM-02, WM-03 |
-| H22 | Engine | **(VM backend)** non-`VMFatalError` exceptions escape and stop the frame loop; a throwing timed event re-fires every tick. Lua backend is safe. | SCR-01 |
-| H23 | Audio | Only map music exists: no worldmap (`23world` / `20car`), main menu (`07desert`) or `wind2` fallback music. | SND-01, WM-07 |
+| H22 | Engine | **FIXED 2026-10-24 (known_bugs PA22).** **(VM backend)** non-`VMFatalError` exceptions escape and stop the frame loop; a throwing timed event re-fires every tick. Lua backend is safe. | SCR-01 |
+| H23 | Audio | **FIXED 2026-10-24 (known_bugs PA23).** Only map music exists: no worldmap (`23world` / `20car`), main menu (`07desert`) or `wind2` fallback music. | SND-01, WM-07 |
+
+**All 23 HIGH groups were fixed on 2026-10-24** (known_bugs §33). The MED / LOW findings below are open unless a report says otherwise.
 
 ## 3. MED findings by theme
 

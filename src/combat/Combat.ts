@@ -258,9 +258,12 @@ interface AiTurnState {
 // CE item.cc gHealingItemPids: stimpak, super stimpak, healing powder.
 const HEALING_PIDS = [40, 144, 273]
 
-// CE combat_ai.cc _hp_run_away_value by run_away_mode (none … tourniquet).
+// CE game_dialog.cc _custom_settings stores a run-away choice as RUN_AWAY_MODE_X − 1, the
+// index into combat_ai.cc _hp_run_away_value {0, 25, 40, 60, 75, 100} that
+// aiSetRunAwayMode uses: Abject coward 0 % (min_hp = max HP), … Never! 100 % (min_hp 0).
+// 'none' is what DH2 stored for "You need a tourniquet" before 2026-10-24.
 const RUN_AWAY_HP_PCT: { [mode: string]: number } = {
-    none: 0, coward: 25, finger_hurts: 40, bleeding: 60, not_feeling_good: 75, tourniquet: 100,
+    coward: 0, finger_hurts: 25, bleeding: 40, not_feeling_good: 60, tourniquet: 75, never: 100, none: 75,
 }
 
 // CE AiPacket.min_hp — the flee threshold (_combat_ai: HP < min_hp). It is the ai.txt

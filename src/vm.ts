@@ -191,7 +191,11 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
 
     0x8028: function () {
         // op_lookup_string_proc (look up procedure index by name)
-        this.push(this.intfile.procedures[this.pop()].index)
+        // CE opLookupStringProc → programFatalError when the name isn't a procedure
+        const name = this.pop()
+        const proc = this.intfile.procedures[name]
+        if (!proc) throw new VMFatalError(`Could not find procedure ${name}`)
+        this.push(proc.index)
     },
     0x8027: function () {
         // op_check_arg_count
@@ -199,7 +203,8 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
         var procIdx = this.pop()
         var proc = this.intfile.proceduresTable[procIdx]
         dbg('script', 'CHECK ARGS: argc=%d procIdx=%d, proc=%o', argc, procIdx, proc)
-        if (argc !== proc.argc) throw `vm error: expected ${proc.argc} args, got ${argc} args when calling ${proc.name}`
+        // CE opCheckProcedureArgumentCount → programFatalError
+        if (argc !== proc.argc) throw new VMFatalError(`Wrong number of args to procedure ${proc.name}: expected ${proc.argc}, got ${argc}`)
     },
 
     //,0x806B: function() { console.log("DISPLAY: %s", this.pop()) }
@@ -343,7 +348,7 @@ export class ScriptVM {
 
     // a value with its float box (arithmetic, stores)
     popRaw(): any {
-        if (this.dataStack.length === 0) throw 'VM data stack underflow'
+        if (this.dataStack.length === 0) throw new VMFatalError('programStackPopValue: Stack underflow.')
         return this.dataStack.pop()
     }
 
@@ -352,7 +357,7 @@ export class ScriptVM {
     }
 
     popAddr(): any {
-        if (this.retStack.length === 0) throw 'VM return stack underflow'
+        if (this.retStack.length === 0) throw new VMFatalError('programReturnStackPopValue: Stack underflow.')
         return this.retStack.pop()
     }
 
@@ -522,8 +527,13 @@ export class ScriptVM {
         try {
             while (this.step()) {}
         } catch (e) {
-            if (!(e instanceof VMFatalError)) throw e
-            const text = `${this.intfile.name}: ${e.message}`
+            // CE programFatalError longjmps out of the running procedure only. Any other
+            // exception (an intrinsic's edge case, a broken mod script) ends the
+            // procedure the same way instead of escaping into the game loop.
+            if (!(e instanceof VMFatalError)) {
+                dbgWarn('script', 'script error in %s at pc %s: %o', this.intfile.name, this.pc.toString(16), e)
+            }
+            const text = `${this.intfile.name}: ${e instanceof Error ? e.message : String(e)}`
             dbgWarn('script', 'fatal script error: %s', text)
             this.aborted = true
             this.halted = true
