@@ -131,7 +131,7 @@ Each subtile (DH2 "square", one global 28 × 30 grid of the 4 × 5 tiles' 7 × 6
 | `SUBTILE_STATE_VISITED` | `WORLDMAP_DISCOVERED` | 1 | `worldmapSquare-discovered` |
 | `SUBTILE_STATE_KNOWN` | `WORLDMAP_SEEN` | 2 | `worldmapSquare-seen` |
 
-`markSubTileRadiusVisited(x, y)` (`Worldmap.ts`) is CE `wmMarkSubTileRadiusVisited` / `wmSubTileMarkRadiusVisited`: every subtile within 1 (Scout: 2) becomes known (only while unknown), the party's subtile visited; `fill_s` also visits the subtiles above it in its tile, `fill_w` those to its left and the whole row of the tile to the left. Called every walking frame and when the worldmap opens. The states are saved (`subtiles` in the save, CE `wmWorldMap_save`).
+`markSubTileRadiusVisited(x, y)` (`Worldmap.ts`) is CE `wmMarkSubTileRadiusVisited` / `wmSubTileMarkRadiusVisited`: every subtile within 1 (Scout: 2) becomes known (only while unknown), the party's subtile visited; `fill_s` also visits the subtiles above it in its tile, `fill_w` those to its left and the whole row of the tile to the left. Called every walking frame and when the worldmap opens, and by metarule3 101 with the script's radius. The states are saved (`subtiles` in the save, CE `wmWorldMap_save`). The Value column is DH2's numbering; CE numbers known 1 and visited 2 (`SUBTILE_STATE_*`), which metarule3 105 returns (`subTileVisitedState`, CE `wmSubTileGetVisitedState` — Vault City's `vcstark` tests `> 1`).
 
 ### Player Start Position
 
@@ -191,11 +191,13 @@ Each area has up to 10 entrances. An entrance is a specific map + starting posit
 | `state` (0/1) | `startState` (string) | 0=locked, 1=unlocked |
 | `x`, `y` | `x`, `y` | World-map pixel position of entrance marker |
 | `map` | `mapName`, `mapLookupName` | Target map |
-| `elevation` | `elevation` | Starting elevation |
+| `elevation` | `elevation` | Starting elevation; −1 (most entrances) = any / the map header's start (kept raw since 2026-10-24) |
 | `tile` | `tileNum` | Starting tile |
 | `rotation` | `orientation` | Facing direction |
 
-`wmMapIsKnown(mapIdx)` in CE checks the specific entrance's `state == 1`. DH2 keeps each entrance's `state` (city.txt start state, metarule3 104) and saves it; the town map shows only the open ones.
+`wmMapIsKnown(mapIdx)` in CE checks the specific entrance's `state == 1`. DH2 keeps each entrance's `state` (city.txt start state) and saves it; the town map shows only the open ones. `Worldmap.markMapEntranceState` is CE `wmMapMarkMapEntranceState` (saved maps only; the first area with the map, its first entrance whose elevation matches, −1 matching any): map load and elevation changes open the entrance the party reaches, as CE `mapLoad` / `mapSetElevation` do, and metarule3 104 goes through it.
+
+Clicking an area's hotspot (CE `wmWorldMapFunc`) shows the town map only when the area is visited (`visitedState` 2) and has town-map art; otherwise the first open entrance's map loads at its header start (`wmAreaFindFirstValidMap`, opening entrance 0 when none is) and the area becomes visited.
 
 ### globalState worldmap fields
 

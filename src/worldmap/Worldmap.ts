@@ -19,7 +19,7 @@ limitations under the License.
 
 import { scriptsCheckGameEvents } from '../gameTick.js'
 import { Events } from '../events.js'
-import { areaContainingMap, loadAreas, lookupMapName, mapIsSaved } from '../data.js'
+import { areaContainingMap, loadAreas, lookupMapName, mapIsSaved, type Area } from '../data.js'
 import * as GameTime from '../gametime.js'
 import { Point, pointIntersectsCircle } from '../geometry.js'
 import globalState from '../globalState.js'
@@ -388,9 +388,10 @@ function markSquare(x: number, y: number, state: number): void {
 // (Scout: 2) become known, the party's visited; "fill_s" also visits the subtiles
 // above it in its tile, "fill_w" those to its left and the whole row of the tile to the
 // left. (DH2 keeps one global grid of the 4×5 tiles' 7×6 subtiles.)
-export function markSubTileRadiusVisited(px: number, py: number): void {
+export function markSubTileRadiusVisited(px: number, py: number, radiusOverride?: number): void {
     if (!worldmap) return
-    const radius = globalState.player?.perks.includes('Scout') ? 2 : 1
+    // metarule3 101 (CE wmSubTileMarkRadiusVisited) passes the radius; travel uses Scout's
+    const radius = radiusOverride ?? (globalState.player?.perks.includes('Scout') ? 2 : 1)
     const sx = Math.floor(px / SQUARE_SIZE)
     const sy = Math.floor(py / SQUARE_SIZE)
     for (let dy = -radius; dy <= radius; dy++) {
@@ -407,6 +408,17 @@ export function markSubTileRadiusVisited(px: number, py: number): void {
         for (let x = sx - 1; x >= tileLeft - 1 && x >= 0; x--) markSquare(x, sy, WORLDMAP_DISCOVERED)
         if (tileLeft > 0) for (let x = tileLeft - 7; x < tileLeft; x++) markSquare(x, sy, WORLDMAP_DISCOVERED)
     }
+}
+
+// CE worldmap.cc wmSubTileGetVisitedState: the subtile at world pixel (x, y) as CE
+// numbers it — 0 unknown, 1 known, 2 visited (DH2's SEEN is CE's known, DISCOVERED its
+// visited).
+export function subTileVisitedState(px: number, py: number): number {
+    if (!worldmap) return 0
+    const sx = Math.floor(px / SQUARE_SIZE), sy = Math.floor(py / SQUARE_SIZE)
+    if (sx < 0 || sx >= NUM_SQUARES_X || sy < 0 || sy >= NUM_SQUARES_Y) return 0
+    const state = worldmap.squares[sx][sy].state
+    return state === WORLDMAP_DISCOVERED ? 2 : state === WORLDMAP_SEEN ? 1 : 0
 }
 
 // Save / load of the subtile states (CE wmWorldMap_save writes every subtile)
@@ -695,9 +707,63 @@ function setTargetImage(url: string, isHotspot: boolean): void {
     $worldmapTarget.classList.toggle('wmHotspotShape', isHotspot)
 }
 
+// CE worldmap.cc wmWorldMapFunc, hotspot release: the town map only for an area already
+// visited (visitedState 2) that has town-map art (mapFid); otherwise the map of the first
+// open entrance (wmAreaFindFirstValidMap — entrance 0 is opened when none is) loads at its
+// map header's start (mapLoadById), and the area becomes visited.
+function enterArea(area: Area): void {
+    if ((area.visitedState ?? 0) === 2 && area.mapArt) {
+        uiWorldMapShowArea(area)
+        return
+    }
+    if (area.entrances.length === 0) return
+    let entrance = area.entrances.find((e) => e.state)
+    if (!entrance) {
+        entrance = area.entrances[0]
+        entrance.state = true
+    }
+    area.visitedState = 2
+    if (_isInCar) {
+        setIsInCar(false)
+        setCarAreaId(area.id)
+    }
+    dbg('worldmap', `[Worldmap] entering ${area.name} → ${entrance.mapName} (no town map)`)
+    globalState.gMap.loadMap(entrance.mapName)
+    uiCloseWorldMap()
+}
+
+// CE worldmap.cc wmMapMarkMapEntranceState(mapIdx, elevation, state): only a saved map
+// (MAP_SAVED); the first area with an entrance to it (wmMatchAreaContainingMapIdx), and in
+// it the first entrance to the map whose elevation matches, -1 on either side matching
+// any (wmMatchEntranceElevFromMap). False when nothing matched (CE -1).
+export function markMapEntranceState(mapName: string, elevation: number, state: boolean): boolean {
+    if (!globalState.mapAreas || !mapIsSaved(mapName)) return false
+    const name = mapName.toLowerCase()
+    const sameMap = (e: any) => (e.mapName ?? '').toLowerCase() === name
+    for (const key of Object.keys(globalState.mapAreas)) {
+        const area = globalState.mapAreas[key]
+        if (!area.entrances.some(sameMap)) continue
+        const entrance = area.entrances.find((e) => sameMap(e) && (elevation === -1 || e.elevation === -1 || e.elevation === elevation))
+        if (!entrance) return false
+        entrance.state = state
+        return true
+    }
+    return false
+}
+
 export function init(): void {
-    // map.cc mapLoad → wmMapMarkVisited(gMapHeader.index)
-    Events.on('loadMapPost', () => { if (globalState.gMap?.name) markMapVisited(globalState.gMap.name) })
+    // map.cc mapLoad → wmMapMarkVisited(gMapHeader.index) and
+    // wmMapMarkMapEntranceState(gMapHeader.index, gElevation, 1): the town-map entrance
+    // of the map the party reaches opens (exit grids and ladders land here too)
+    Events.on('loadMapPost', () => {
+        if (!globalState.gMap?.name) return
+        markMapVisited(globalState.gMap.name)
+        markMapEntranceState(globalState.gMap.name, globalState.gMap.currentElevation, true)
+    })
+    // map.cc mapSetElevation → wmMapMarkMapEntranceState(gMapHeader.index, elevation, 1)
+    Events.on('elevationChanged', (e: { elevation: number; isMapLoading?: boolean }) => {
+        if (globalState.gMap?.name && !e.isMapLoading) markMapEntranceState(globalState.gMap.name, e.elevation, true)
+    })
     // map.cc mapHandleTransition: a map change by exit grid / load_map puts the party on
     // the new map's area (wmMatchAreaContainingMapIdx → wmTeleportToArea)
     Events.on('mapTransition', (mapID: number) => {
@@ -765,7 +831,7 @@ export function init(): void {
         if (area !== null) {
             setTargetImage('art/intrface/hotspot1.png', true)
             e.stopPropagation()
-            uiWorldMapShowArea(area)
+            enterArea(area)
         } else if (worldmapPlayer.target === null) {
             setTargetImage('art/intrface/hotspot1.png', true)
             e.stopPropagation()

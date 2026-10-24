@@ -62,6 +62,9 @@ export module Worldmap {
     export const setInstantTravel = _WorldmapMod.setInstantTravel
     export const areaIdContainingMap = _WorldmapMod.areaIdContainingMap
     export const deserializeSquareStates = _WorldmapMod.deserializeSquareStates
+    export const subTileVisitedState = _WorldmapMod.subTileVisitedState
+    export const markMapEntranceState = _WorldmapMod.markMapEntranceState
+    export const markSubTileRadiusVisited = _WorldmapMod.markSubTileRadiusVisited
 
     // Random encounters (worldmap/encounters.ts): save / load / new game.
     export type SavedEncounters = _Encounters.SavedEncounters

@@ -22,7 +22,7 @@ import globalState from '../globalState.js'
 import { Scripting } from '../scripting.js'
 import { randomBetween } from '../random.js'
 import type { Critter } from '../object/Critter.js'
-import type { Obj } from '../object/Obj.js'
+import { itemIsHidden, type Obj } from '../object/Obj.js'
 
 export const DAM_KNOCKED_OUT = 0x01
 export const DAM_KNOCKED_DOWN = 0x02
@@ -54,7 +54,6 @@ export const DAM_CRIP = DAM_CRIP_LEG_ANY | DAM_CRIP_ARM_ANY | DAM_BLIND
 
 const CRITTER_NO_DROP = 0x40       // proto critter flags (proto_types.h)
 const CRITTER_INVULNERABLE = 0x400
-const OBJECT_HIDDEN = 0x01
 
 export function results(c: Critter): number {
     return c.injuryFlags ?? 0
@@ -85,7 +84,7 @@ export function doRandomCripple(flags: number): number {
 export function attackFindInvalidFlags(critter: Critter | null, item: Obj | null): number {
     let flags = 0
     if (critter && (protoFlags(critter) & CRITTER_NO_DROP) !== 0) flags |= DAM_DROP
-    if (item && (((item as any).flags ?? 0) & OBJECT_HIDDEN) !== 0) flags |= DAM_DROP
+    if (item && itemIsHidden(item)) flags |= DAM_DROP
     return flags
 }
 

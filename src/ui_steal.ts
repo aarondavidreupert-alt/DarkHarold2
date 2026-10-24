@@ -26,7 +26,7 @@ limitations under the License.
 // steal-session state).
 
 import globalState from './globalState.js'
-import { Critter, Obj } from './object.js'
+import { Critter, itemIsHidden, Obj } from './object.js'
 import { UIMode } from './ui_panels.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter.js'
 import { uiLog } from './ui_hud.js'
@@ -61,6 +61,8 @@ export function uiSteal(thief: Critter, target: Critter): void {
     function drawInventory($el: HTMLElement, who: 'l' | 'r', objects: Obj[]) {
         clearEl($el)
         for (let i = 0; i < objects.length; i++) {
+            // CE inventory.cc itemMoveAllHidden: natural weapons aren't shown
+            if (itemIsHidden(objects[i])) continue
             const inventoryImage = objects[i].invArt
             const img = makeEl('img', {
                 src: inventoryImage + '.png',

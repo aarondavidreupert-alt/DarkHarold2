@@ -19,7 +19,7 @@ limitations under the License.
 
 import globalState from './globalState.js'
 import { dbg } from './logger.js'
-import { Obj } from './object.js'
+import { itemIsHidden, Obj } from './object.js'
 import { UIMode } from './ui_panels.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter.js'
 import { uiLog } from './ui_hud.js'
@@ -95,6 +95,8 @@ export function uiLoot(object: Obj) {
         clearEl($el)
 
         for (let i = 0; i < objects.length; i++) {
+            // CE inventory.cc itemMoveAllHidden: natural weapons aren't shown
+            if (itemIsHidden(objects[i])) continue
             const inventoryImage = objects[i].invArt
             const img = makeEl('img', {
                 src: inventoryImage + '.png',

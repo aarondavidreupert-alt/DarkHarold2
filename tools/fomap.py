@@ -404,6 +404,8 @@ def parseObject(f, lstFiles: dict[str, list[bytes]]):
             "lightIntensity": lightIntensity,
             "inventory": inventory
            }
+    if frameNum and extra.get("subtype") == "door": # an open door's frame (CE objectIsOpen: frame != 0)
+        obj["frame"] = frameNum
     if dataFlags: # only when set — vanilla maps have none (0xCCCCCCCC = unset, CE objectDataRead)
         if dataFlags != 0xCCCCCCCC:
             obj["dataFlags"] = dataFlags

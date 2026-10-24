@@ -339,6 +339,7 @@ export function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent 
     }
 
     obj.open = open
+    setDoorPassable(obj, open)
     // CE ref: proto_instance.cc:1764/1773 (doors) and :1842/1846 (containers) —
     // sfxBuildOpenName(obj, OPEN / CLOSED): S{O,C}DOORS<id> / I{O,C}CNTNR<id>.
     playOpenSfx(obj, open ? SCENERY_SOUND_EFFECT.open : SCENERY_SOUND_EFFECT.closed)
@@ -358,6 +359,24 @@ export function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent 
     })
 
     return true
+}
+
+// CE item.cc itemIsHidden: the proto's ITEM_HIDDEN (extendedFlags 0x08000000 — the high
+// byte tools/proto.py keeps as itemFlags), set on natural weapons (claws, spore spikes,
+// robot and turret guns). Not the object flag OBJECT_HIDDEN.
+export function itemIsHidden(item: Obj | null | undefined): boolean {
+    return !!item && (((item as any).pro?.extra?.itemFlags ?? 0) & 0x08) !== 0
+}
+
+// CE proto_instance.cc _check_door_state: an open door (CE _obj_is_portal) gets
+// OBJECT_OPEN_DOOR (shoot-through, light-through, no-block), a closed one loses it, and
+// the light is rebuilt — every blocking, line-of-fire and light query reads these flags.
+const OBJECT_OPEN_DOOR = 0xA0000010
+export function setDoorPassable(obj: Obj, open: boolean): void {
+    if (!obj.isDoor) return
+    const flags = (obj.flags ?? 0) >>> 0
+    obj.flags = (open ? flags | OBJECT_OPEN_DOOR : flags & ~OBJECT_OPEN_DOOR) >>> 0
+    if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
 }
 
 // Toggle the object (door/container) open/closed; returns true if possible, false if not (e.g. locked)
@@ -665,6 +684,12 @@ export class Obj {
             const lockFlags = (mobj.type === 'scenery' ? mobj.extra?.openFlags : mobj.dataFlags) ?? 0
             obj.locked = (lockFlags & 0x02000000) !== 0 // DOOR_FLAG_LOCKED / CONTAINER_FLAG_LOCKED
             obj.jammed = (lockFlags & 0x04000000) !== 0 // DOOR_FLAG_JAMMGED / OBJ_JAMMED
+            // CE door.openFlags 0x01 (_check_door_state) / objectIsOpen (frame != 0): a door
+            // the map leaves open, drawn on its saved frame; its flags already carry OBJECT_OPEN_DOOR
+            if (mobj.type === 'scenery' && (lockFlags & 0x01) !== 0) {
+                obj.open = true
+                if (typeof mobj.frame === 'number') obj.frame = mobj.frame
+            }
         }
 
         obj.pro = mobj.pro || loadPRO(obj.pid, obj.pidID)
@@ -985,7 +1010,7 @@ export class Obj {
     getWeight(): number {
         const ex = this.pro?.extra ?? {}
         let weight = ex.weight ?? 0
-        if ((((this as any).flags ?? 0) & 0x01) !== 0) weight = 0 // OBJECT_HIDDEN
+        if (itemIsHidden(this)) weight = 0 // CE itemGetWeight: itemIsHidden
         const POWER_ARMORS = [3, 232, 348, 349] // PROTO_ID_POWER_ARMOR, HARDENED, ADVANCED, ADVANCED_MK_II
         if (this.subtype === 'armor' && POWER_ARMORS.includes(this.pid)) weight = Math.trunc(weight / 2)
         else if (this.subtype === 'container') weight += this.getInventoryWeight()

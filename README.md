@@ -21,7 +21,7 @@ no full end-to-end playthrough yet, and a handful of places still simplify CE (l
 below). The 2026-10-24 function-by-function CE parity audit
 ([`wiki/CE_PARITY_AUDIT.md`](wiki/CE_PARITY_AUDIT.md)) found 1780 CE function rows, 835 of them matching, and opened
 23 HIGH groups (known_bugs §33: e.g. locked doors and ladders lost in the map pipeline, NPC skills too low,
-level-up perk effects lost) plus ~150 MED findings; the six script-opcode groups (PA7–PA12) the four character-rule groups (PA3–PA6), the four combat groups (PA15–PA18) and the map-pipeline groups (PA1–PA2: ladders between maps, door state) were fixed the same day. See [`ROADMAP.md`](ROADMAP.md) and [`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
+level-up perk effects lost) plus ~150 MED findings; the six script-opcode groups (PA7–PA12) the four character-rule groups (PA3–PA6), the four combat groups (PA15–PA18) the map-pipeline groups (PA1–PA2: ladders between maps, door state) and the world / door groups (PA19–PA21) were fixed the same day. See [`ROADMAP.md`](ROADMAP.md) and [`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
 
 If you're looking for documentation on how Fallout 2 works, documentation on certain file formats, or
 tools to work with them, this project will be useful to you as well.

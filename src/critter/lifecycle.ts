@@ -21,7 +21,7 @@ limitations under the License.
 import { Config } from '../config.js'
 import globalState from '../globalState.js'
 import { dbg, dbgWarn } from '../logger.js'
-import { Obj } from '../object/Obj.js'
+import { itemIsHidden, Obj } from '../object/Obj.js'
 import type { Critter } from '../object/Critter.js'
 import { Scripting } from '../scripting.js'
 import * as Endgame from '../endgame.js'
@@ -83,6 +83,13 @@ export function critterKill(
     // CE critter.cc critterKill (and combat.cc's kill path): partyMemberRemove first —
     // a dead companion leaves the party.
     globalState.gParty?.dismissPartyMember(obj)
+    // CE critter.cc critterKill: itemDestroyAllHidden — natural weapons go with the critter
+    const hidden = obj.inventory.filter((it) => itemIsHidden(it))
+    if (hidden.length) {
+        obj.inventory = obj.inventory.filter((it) => !itemIsHidden(it))
+        const a = obj as any
+        for (const hand of ['leftHand', 'rightHand']) if (hidden.includes(a[hand])) a[hand] = (obj.constructor as any).makeFist?.()
+    }
     obj.outline = null
     obj.critDeath = false
     // CE critter.cc:894 — critter->data.critter.hp = 0; DAM_DEAD replaces the other results

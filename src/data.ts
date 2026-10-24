@@ -37,6 +37,8 @@ export interface Area {
     state: boolean
     // city.txt lock_state=On (CE LOCK_STATE_LOCKED): only forced state changes apply
     lockState: boolean
+    // CE CityInfo.visitedState: 0 unvisited, 1 known, 2 visited (set by the worldmap)
+    visitedState?: number
     worldPosition: Point
     mapArt?: string
     labelArt?: string
@@ -138,7 +140,8 @@ function parseAreas(data: string): AreaMap {
                     y: parseInt(s[2]),
                     mapLookupName,
                     mapName,
-                    elevation: Math.max(0, parseInt(s[4])),
+                    // -1 = any elevation / the map header's start (CE keeps it raw)
+                    elevation: parseInt(s[4]),
                     tileNum: parseInt(s[5]),
                     orientation: parseInt(s[6]),
                 }

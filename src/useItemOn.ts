@@ -30,6 +30,8 @@ import { drawAP, drawHP, uiDrawWeapon } from './ui_hud.js'
 import { uiLog } from './ui.js'
 import { getProtoMsg, getRandomInt } from './util.js'
 import { Config } from './config.js'
+import { ammoGetCapacity, ammoGetQuantity } from './weaponAmmo.js'
+import { Worldmap } from './worldmap.js'
 
 const PROTO_ID_FIRST_AID_KIT = 47
 const PROTO_ID_DOCTORS_BAG = 91
@@ -198,7 +200,34 @@ function defaultUseItem(user: Critter, target: Obj, item: Obj): number {
         if (critter.isPlayer) drawHP(critter.getStat('HP'))
         return rc
     }
-    // Not ported: power cells on the car (_obj_use_power_on_car), flares (_obj_use_flare).
+    // SFALL fix kept by CE: only on the car or its trunk.
+    if (item.subtype === 'ammo' && (target.pid === PROTO_ID_CAR || target.pid === PROTO_ID_CAR_TRUNK)) {
+        const rc = usePowerOnCar(item)
+        if (rc === 1) return 1
+        if (rc === 0) return -1
+    }
+    // Not ported: flares (_obj_use_flare).
     if (user.isPlayer) uiLog(getProtoMsg(582) ?? 'That does nothing.')
     return -1
+}
+
+const PROTO_ID_CAR = 0x20003F1
+const PROTO_ID_CAR_TRUNK = 455
+const PROTO_ID_SMALL_ENERGY_CELL = 38
+const PROTO_ID_MICRO_FUSION_CELL = 39
+
+// CE proto_instance.cc _obj_use_power_on_car: a Small Energy Cell gives 16000 fuel, a Micro
+// Fusion Cell 40000, scaled by the charge left (wmCarFillGas); proto.msg 595. A full tank
+// gives 596 and keeps the cell (SFALL fix). -1: not a power cell.
+function usePowerOnCar(item: Obj): number {
+    const density = item.pid === PROTO_ID_SMALL_ENERGY_CELL ? 16000 : item.pid === PROTO_ID_MICRO_FUSION_CELL ? 40000 : 0
+    if (density === 0) return -1
+    if (Worldmap.getCarFuel() < Worldmap.CAR_FUEL_MAX) {
+        const capacity = Math.max(1, ammoGetCapacity(item))
+        Worldmap.addCarFuel(Math.trunc(ammoGetQuantity(item) * density / capacity))
+        uiLog(getProtoMsg(595) ?? 'You charge the car with more power.')
+        return 1
+    }
+    uiLog(getProtoMsg(596) ?? 'The car is already full of power.')
+    return 0
 }

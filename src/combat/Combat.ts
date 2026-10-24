@@ -25,7 +25,7 @@ import { Lightmap } from '../lightmap.js'
 import { hexDirectionTo, hexDistance, hexFromScreen, hexInDirection, hexInDirectionDistance, hexLine, hexLineBeyond, hexNearestNeighbor, hexNeighbors, hexToScreen, Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { eventLogPush, dbg, dbgWarn } from '../logger.js'
-import { cloneItem, createObjectWithPID, Critter, Obj, PROTO_ID_FLARE, PROTO_ID_LIT_FLARE, useFlare } from '../object.js'
+import { cloneItem, createObjectWithPID, Critter, itemIsHidden, Obj, PROTO_ID_FLARE, PROTO_ID_LIT_FLARE, useFlare } from '../object.js'
 import { invenWield } from '../inventoryWield.js'
 import { Player } from '../player.js'
 import { Scripting } from '../scripting.js'
@@ -1323,7 +1323,7 @@ export class Combat {
             if ((ex.perk ?? -1) !== -1) avg *= 2
             const unsafe = !!defender && !!combat && combat.combatSafetyInvalidateWeapon(attacker, w, 'primary', defender, false)
             const order = unsafe ? -1 : prefs.indexOf(attackType)
-            const hidden = ((((w as any).flags ?? 0) >>> 0) & 0x01) !== 0 // OBJECT_HIDDEN
+            const hidden = itemIsHidden(w) // CE itemIsHidden (ITEM_HIDDEN proto flag)
             return { avg, order: order === -1 ? 999 : order, cost: ex.cost ?? 0, hidden }
         }
         const a = score(w1)

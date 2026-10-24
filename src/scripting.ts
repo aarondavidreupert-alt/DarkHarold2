@@ -954,9 +954,8 @@ export module Scripting {
                 return
             }
             case 101:
-                // METARULE3_MARK_SUBTILE — CE ref: worldmap.cc:5076 wmSubTileMarkRadiusVisited.
-                // Worldmap fog-of-war subtile grid — not implemented in DH2. Safe no-op: CE
-                // uses this only for exploration tracking; missing it leaves the map fully visible.
+                // METARULE3_MARK_SUBTILE — CE ref: worldmap.cc:5076 wmSubTileMarkRadiusVisited(x, y, radius)
+                Worldmap.markSubTileRadiusVisited(obj as number, userdata as number, radius as number)
                 return 0
             case 102:
                 // METARULE3_SET_WM_MUSIC — CE ref: interpreter_extra.cc:1968-2060:
@@ -968,30 +967,16 @@ export module Scripting {
                 // Returns how many critters of killType `obj` have been killed.
                 return killCounts.get(obj as number) ?? 0
             case 104: {
-                // CE ref: worldmap.cc:2940 wmMapMarkMapEntranceState(mapIdx, elevation, state)
-                // Sets entrance->state for the entrance matching mapIdx+elevation.
-                const entrMapName = lookupMapName(obj as number)
-                if (entrMapName && globalState.mapAreas) {
-                    const elevIdx = userdata as number
-                    const newState = (radius as number) !== 0
-                    for (const areaKey of Object.keys(globalState.mapAreas)) {
-                        for (const entr of (globalState.mapAreas[areaKey] as any).entrances) {
-                            if (entr.mapName && entr.mapName.toLowerCase() === entrMapName.toLowerCase()
-                                    && entr.elevation === elevIdx) {
-                                entr.state = newState
-                            }
-                        }
-                    }
-                }
+                // CE ref: worldmap.cc:2940 wmMapMarkMapEntranceState(mapIdx, elevation, state);
+                // the result stays 0 (interpreter_extra.cc opMetarule3)
+                const entrMapName = typeof obj === 'number' && obj >= 0 ? lookupMapName(obj) : null
+                if (entrMapName) Worldmap.markMapEntranceState(entrMapName, userdata as number, (radius as number) !== 0)
                 return 0
             }
             case 105:
-                // METARULE3_WM_SUBTILE_STATE — CE ref: worldmap.cc:5125 wmSubTileGetVisitedState.
-                // Same missing subsystem as 101.
-                // METARULE3_WM_SUBTILE_STATE — CE ref: worldmap.cc:5125 wmSubTileGetVisitedState.
-                // Subtile fog-of-war query — not implemented in DH2. Return 1 (visited) so
-                // scripts that gate on visited state proceed rather than stall.
-                return 1
+                // METARULE3_WM_SUBTILE_STATE — CE ref: worldmap.cc:5125 wmSubTileGetVisitedState:
+                // 0 unknown, 1 known, 2 visited (Vault City's vcstark tests > 1)
+                return Worldmap.subTileVisitedState(obj as number, userdata as number)
             case 106: {
                 // METARULE3_TILE_GET_NEXT_CRITTER
                 // TODO: use elevation

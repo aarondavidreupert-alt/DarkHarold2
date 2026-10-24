@@ -297,7 +297,7 @@ Each object (~80 bytes shared header):
   the critter data.
 - type-specific extra data (CE `proto.cc objectDataRead`): weapon ammoQuantity + ammoTypePid,
   ammo quantity, misc `charges` (a money pile's amount; 0xCCCCCCCC = unset, not emitted), key
-  `keyCode`; door `openFlags` (DOOR_FLAG_LOCKED / JAMMED as above), stairs destinationBuiltTile
+  `keyCode`; door `openFlags` (0x01 open — the door's `frame` is emitted then; DOOR_FLAG_LOCKED / JAMMED as above), stairs destinationBuiltTile
   + destinationMap, elevator type + level, FO2 ladder destinationMap + destinationBuiltTile
   (`destination`; until 2026-10-24 the map was dropped as `unknown1`), exit grid map / tile /
   elevation / rotation
