@@ -108,7 +108,8 @@ export function uiQuickLoad(): void {
     uiSaveLoad(false, true)
 }
 
-export function uiSaveLoad(isSave: boolean, quick = false): void {
+// onCancel: CE main.cc — the main menu comes back when its LOAD GAME window is cancelled
+export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void) | null = null): void {
     quickDone = false
     // CE loadsave.cc lsgSaveGame: _QuickSnapShot before the save window opens.
     if (isSave) takeSaveSnapshot()
@@ -121,7 +122,7 @@ export function uiSaveLoad(isSave: boolean, quick = false): void {
     const win = new WindowFrame('art/intrface/lsgame.png', { x: 80, y: 20 }, 640, 480)
         .add(cover)
         .add(new SmallButton(391, 349).onClick(() => { void confirm() }))
-        .add(new SmallButton(495, 349).onClick(close))
+        .add(new SmallButton(495, 349).onClick(cancel))
         .add(new SmallButton(391, 323).onClick(() => { void remove() }))
         .add(new Widget('art/intrface/uparwoff.png', { x: 35, y: 58, w: 11, h: 14 }).mouseDownBG('art/intrface/uparwon.png').onClick(() => move(-1)))
         .add(new Widget('art/intrface/dnarwoff.png', { x: 35, y: 72, w: 11, h: 14 }).mouseDownBG('art/intrface/dnarwon.png').onClick(() => move(1)))
@@ -272,6 +273,11 @@ export function uiSaveLoad(isSave: boolean, quick = false): void {
         win.close()
     }
 
+    function cancel(): void {
+        close()
+        onCancel?.()
+    }
+
     async function confirm(): Promise<void> {
         if (busy) return
         busy = true
@@ -321,7 +327,7 @@ export function uiSaveLoad(isSave: boolean, quick = false): void {
                 case 'Home': select(0); return true
                 case 'End': select(slots.length - 1); return true
                 case 'Enter': void confirm(); return true
-                case 'Escape': close(); return true
+                case 'Escape': cancel(); return true
                 case 'Delete': void remove(); return true
             }
             return false

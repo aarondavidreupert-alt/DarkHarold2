@@ -251,17 +251,20 @@ export function initUI() {
         // Reload mode: immediately reload from inventory (AP cost in combat)
         const wep = globalState.player.equippedWeapon
         if (wep?.weapon?.mode === 'reload') {
-            if (globalState.inCombat && globalState.player.AP) {
-                const reloadAP = wep.weapon.getReloadAPCost() // CE ref: item.cc:1640
-                if (globalState.player.AP.getAvailableCombatAP() < reloadAP) {
-                    uiLog("You don't have enough action points.")
-                    return
+            // CE interface.cc _intface_use_item (RELOAD): in combat nothing happens without the
+            // AP; the AP go only when something loaded. _intface_item_reload plays the weapon's
+            // ready sound.
+            const ap = globalState.inCombat ? globalState.player.AP : null
+            const reloadAP = wep.weapon.getReloadAPCost() // CE ref: item.cc:1640
+            if (ap && ap.getAvailableCombatAP() < reloadAP) return
+            if (reloadWeapon(wep)) {
+                const soundID = (wep as any).pro?.extra?.soundID
+                if (typeof soundID === 'number') globalState.audioEngine?.playWeaponSfx(String.fromCharCode(soundID), 'reload')
+                if (ap) {
+                    ap.subtractCombatAP(reloadAP)
+                    drawAP(ap.getAvailableCombatAP(), ap.getTotalMaxAP(), ap.move)
                 }
-                globalState.player.AP.subtractCombatAP(reloadAP)
-                const ap = globalState.player.AP
-                drawAP(ap.getAvailableCombatAP(), ap.getTotalMaxAP(), ap.move)
             }
-            reloadWeapon(wep)
             wep.weapon.mode = 'single'
             uiDrawWeapon()
             return

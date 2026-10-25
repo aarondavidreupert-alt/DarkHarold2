@@ -65,7 +65,7 @@ export async function playSlideshow(): Promise<void> {
         endings = getFileJSON('lut/endgame.json') as EndgameEnding[]
     } catch (_e) {
         dbgWarn('endgame', 'lut/endgame.json not found — skipping slideshow')
-        await showContinueDialog()
+        await playMovie()
         return
     }
 
@@ -85,13 +85,9 @@ export async function playSlideshow(): Promise<void> {
 
     removeOverlay()
 
-    // CE: endgamePlaySlideshow → endgamePlayMovie → endgameEndingHandleContinuePlaying
-    const wantsContinue = await showContinueDialog()
-    if (!wantsContinue) {
-        // CE: _game_user_wants_to_quit = 2 (main game loop exits)
-        dbg('endgame', 'player chose to quit — reloading page')
-        location.reload()
-    }
+    // CE scripts.cc scriptsHandleRequests (SCRIPT_REQUEST_ENDGAME): endgamePlaySlideshow,
+    // then endgamePlayMovie — akiss, the credits and the continue dialog
+    await playMovie()
 }
 
 // CE: endgame.cc:234-258 endgamePlayMovie (0x43F810)

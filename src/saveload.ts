@@ -76,6 +76,7 @@ export interface SaveGame {
         traits: string[]
         perks: string[]
         pendingPerkPick: boolean
+        levelUpAvailable?: boolean
         name: string
         gender: string
         activeHand: string
@@ -208,6 +209,7 @@ function gatherSaveData(name: string): SaveGame {
             traits: p.traits.slice(),
             perks: p.perks.slice(),
             pendingPerkPick: p.pendingPerkPick,
+            levelUpAvailable: p.levelUpAvailable,
             name: p.name,
             gender: p.gender,
             activeHand: p.activeHand,
@@ -372,6 +374,7 @@ export function load(id: number): void {
                     p.traits = ps.traits.slice()
                     p.perks = ps.perks.slice()
                     p.pendingPerkPick = ps.pendingPerkPick
+                    p.levelUpAvailable = ps.levelUpAvailable ?? false
                     p.name = ps.name
                     p.gender = ps.gender
                     p.activeHand = ps.activeHand as 'leftHand' | 'rightHand'

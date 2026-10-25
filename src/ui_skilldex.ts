@@ -186,6 +186,10 @@ export function initSkilldex(): void {
         }
     }
     document.addEventListener('keydown', skilldexKeyHandler)
+    // CE skilldexOpen runs its own input loop: the map is frozen and no game key reaches
+    // gameHandleKey while the window is open
+    skilldexWindow.onShow = () => { globalState.uiMode = UIMode.skilldex }
+    skilldexWindow.onClose = () => { if (globalState.uiMode === UIMode.skilldex) globalState.uiMode = UIMode.none }
 }
 
 // CE game.cc: gameMouseSetCursor(MOUSE_CURSOR_USE_CROSSHAIR) + gameMouseSetMode(

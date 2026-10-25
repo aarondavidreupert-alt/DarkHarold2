@@ -59,12 +59,17 @@ export class WindowFrame {
         return this
     }
 
+    // Called after the window opens / closes (e.g. a modal window's uiMode)
+    onShow: (() => void) | null = null
+    onClose: (() => void) | null = null
+
     show(): this {
         if (this.showing) {
             return this
         }
         this.showing = true
         getUiContainer().appendChild(this.elem)
+        this.onShow?.()
         return this
     }
 
@@ -74,6 +79,7 @@ export class WindowFrame {
         }
         this.showing = false
         this.elem.parentNode!.removeChild(this.elem)
+        this.onClose?.()
     }
 
     toggle(): this {

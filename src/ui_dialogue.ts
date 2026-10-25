@@ -249,7 +249,30 @@ export function getVisibleDialoguePanel(): HTMLElement | null {
 // hovered light red (32074), neutral as usual.
 const OPTION_COLOR = { normal: '#00F800', hover: '#F8F858', good: '#0000F8', goodHover: '#F800F8', bad: '#F80000', badHover: '#F85050' }
 
+// CE game_dialog.cc _gdProcess keys: 1-9 pick option n (0 ignored, sfall fix), B the
+// Barter button
+let dialogueKeysInstalled = false
+function installDialogueKeys(): void {
+    if (dialogueKeysInstalled) return
+    dialogueKeysInstalled = true
+    window.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (globalState.uiMode !== UIMode.dialogue || e.ctrlKey || e.altKey || e.metaKey) return
+        if ($id('dialogueBox').style.visibility === 'hidden') return
+        const k = e.key.toLowerCase()
+        if (k >= '1' && k <= '9') {
+            const options = $id('dialogueBoxTextArea').children
+            const option = options[Number(k) - 1] as HTMLElement | undefined
+            option?.click()
+        } else if (k === 'b') {
+            const $barter = $id('dialogueBarterButton')
+            if ($barter.style.display !== 'none') $barter.click()
+        } else return
+        e.preventDefault()
+    })
+}
+
 export function uiAddDialogueOption(msg: string, optionID: number, reaction = 50) {
+    installDialogueKeys()
     const item = document.createElement('div')
     item.textContent = `- ${msg}`
     item.style.cursor = 'pointer'

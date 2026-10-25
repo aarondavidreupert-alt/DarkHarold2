@@ -22,6 +22,7 @@ limitations under the License.
 import { Config } from '../config.js'
 import { Events } from '../events.js'
 import globalState from '../globalState.js'
+import { UIMode } from '../ui_panels.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Widget } from '../ui_widget.js'
 import { font2, font3, makeFontLabel, renderBignum } from '../ui_font.js'
@@ -71,6 +72,36 @@ export function closeCharacterScreen(): void {
 
 export function showCharacterScreen() {
     const player = globalState.player!
+    // CE character_editor.cc characterEditorShow: DUDE_STATE_LEVEL_UP_AVAILABLE goes out
+    player.levelUpAvailable = false
+    updateIndicatorBar()
+    // CE characterEditorSavePlayer / characterEditorRestorePlayer: CANCEL puts the perks,
+    // the free perk, traits, SPECIAL / HP and skills back as they were when the screen opened
+    const saved = {
+        perks: player.perks.slice(),
+        traits: ((player as any).traits ?? []).slice(),
+        pendingPerkPick: player.pendingPerkPick,
+        baseStats: Object.assign({}, player.stats.baseStats),
+        bonusStats: Object.assign({}, player.stats.bonusStats),
+        baseSkills: Object.assign({}, player.skills.baseSkills),
+        tagged: player.skills.tagged.slice(),
+        skillPoints: player.skills.skillPoints,
+        hasTagPerk: player.skills.hasTagPerk,
+    }
+    const cancel = () => {
+        player.perks = saved.perks
+        ;(player as any).traits = saved.traits
+        player.pendingPerkPick = saved.pendingPerkPick
+        player.stats.baseStats = saved.baseStats
+        player.stats.bonusStats = saved.bonusStats
+        player.skills.baseSkills = saved.baseSkills
+        player.skills.tagged = saved.tagged
+        player.skills.skillPoints = saved.skillPoints
+        player.skills.hasTagPerk = saved.hasTagPerk
+        updateIndicatorBar()
+        Events.emit('statsChanged')
+        closeCharacterScreen()
+    }
 
     // FO2-CE ref: stat.cc pcGetExperienceForLevel() — XP needed for next level
     const currentLevel = player.getStat('Level')
@@ -157,9 +188,7 @@ export function showCharacterScreen() {
         .add(doneButton)
         .add(makeFontLabel(455 + 18, 454, 'DONE', font3).css({ pointerEvents: 'none' }))
         .add(
-            new SmallButton(552, 454).onClick(() => {
-                closeCharacterScreen()
-            })
+            new SmallButton(552, 454).onClick(cancel)
         )
         .add(makeFontLabel(552 + 18, 454, 'CANCEL', font3).css({ pointerEvents: 'none' }))
         // CE characterEditorDrawPcStats: x 32 from y 280, lineHeight + 1 apart, editor.msg 113-115
@@ -647,5 +676,25 @@ export function showCharacterScreen() {
     }
     if (player.pendingPerkPick) {
         showPerkModal(player, syncFromPlayer)
+    }
+
+    // CE characterEditorShow runs its own input loop (the map is paused): Return / D = done,
+    // ESC / C = cancel
+    characterWindow.onShow = null
+    globalState.uiMode = UIMode.char
+    const onKey = (e: KeyboardEvent) => {
+        if (!characterWindow.showing || globalState.uiMode !== UIMode.char) return
+        if (document.getElementById('perk-modal-overlay')) return // the perk dialog has its own keys
+        const k = e.key.length === 1 ? e.key.toLowerCase() : e.key
+        if (k === 'Enter' || k === 'd') doneButton.elem.click()
+        else if (k === 'Escape' || k === 'c') cancel()
+        else return
+        e.preventDefault()
+        e.stopPropagation()
+    }
+    document.addEventListener('keydown', onKey, true)
+    characterWindow.onClose = () => {
+        document.removeEventListener('keydown', onKey, true)
+        if (globalState.uiMode === UIMode.char) globalState.uiMode = UIMode.none
     }
 }

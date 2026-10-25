@@ -47,6 +47,7 @@ export class Player extends Critter {
         this.perks = []
         this.traits = []
         this.pendingPerkPick = false
+        this.levelUpAvailable = false
         if (this.dead) {
             this.anim = 'idle'
             this.frame = 0
@@ -260,6 +261,7 @@ export class Player extends Critter {
 
             this.stats.modifyBase('Level', 1)
             currentLevel++
+            this.levelUpAvailable = true // CE stat.cc:764 DUDE_STATE_LEVEL_UP_AVAILABLE
 
             globalState.audioEngine.playSfxByName('levelup')
             // CE stat.cc:757 — stat.msg 600 "You have gone up a level."
@@ -302,6 +304,9 @@ export class Player extends Critter {
 
     // Set to true when a perk pick is available (at character screen)
     pendingPerkPick = false
+    // CE DUDE_STATE_LEVEL_UP_AVAILABLE: the LEVEL indicator, set on a level-up and cleared
+    // when the character screen opens
+    levelUpAvailable = false
 
     // FO2-CE ref: editor.cc editorRun() — apply character-creation choices to player.
     // Called by showCharacterCreator() DONE handler after validation passes.

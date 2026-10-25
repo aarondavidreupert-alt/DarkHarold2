@@ -23,7 +23,7 @@
 //   i = INTRO, n = NEW GAME, l = LOAD GAME, o = OPTIONS, c = CREDITS, e/ESC = EXIT
 
 import { createOverlay, removeOverlay, showCredits } from './endgame/slideRender.js'
-import { showOptionsMenu } from './ui_options.js'
+import { openPrefsPanel } from './ui_options.js'
 import { gameMoviePlay, GAME_MOVIE_STOP_MUSIC, MOVIE_CREDITS, MOVIE_INTRO } from './gameMovie.js'
 import { font4 } from './ui_font.js'
 import { uiSaveLoad } from './ui_saveload.js'
@@ -192,12 +192,12 @@ function handleButton(btn: MainMenuButton): void {
 
         case MainMenuButton.LOAD_GAME:
             hideMainMenu()
-            uiSaveLoad(false)
+            uiSaveLoad(false, false, () => showMainMenu()) // CE main.cc:151-186: the menu resumes
             break
 
         case MainMenuButton.OPTIONS:
-            // CE main.cc:197 — doPreferences(true): the same preferences screen as in game.
-            showOptionsMenu()
+            // CE main.cc:197 — doPreferences(true): the preferences screen only.
+            openPrefsPanel(true)
             break
 
         case MainMenuButton.CREDITS:

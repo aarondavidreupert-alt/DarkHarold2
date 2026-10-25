@@ -177,6 +177,12 @@ LOW findings are listed in each report only.
 | | OBJ-04 | the automap marks CE's seen band (32 rows × 40 tiles around the dude's 8-tile block) |
 | | OBJ-06, MOUSE-06 (part) | object picking: the bottom object can be picked, hidden objects are skipped, a wall's egg-transparent part and dead / knocked-out critters lose to what lies under them (falling back to them). Still open: no pick through a visible roof |
 | | TILE-02 | hex → roof square is CE's `(x >> 1, y >> 1)` (odd hex rows were one square south) |
+| UI | CHAR-03, OPT-01 | the character screen, Options and the Skilldex are modal (the map pauses, game keys don't reach it); character screen keys Return / D done, Esc / C cancel |
+| | CHAR-04, HUD-01 | CANCEL on the character screen restores perks, traits, the free perk, SPECIAL / HP and skills; the LEVEL light follows CE's level-up flag (on at a level-up, off when the screen opens; saved) |
+| | HUD-02 | the HUD reload spends AP only when something loaded, plays the weapon's ready sound, prints nothing when short of AP |
+| | MENU-01, MENU-02 | main-menu OPTIONS opens Preferences over the menu; cancelling its LOAD GAME returns to the menu |
+| | END-01 | the endgame slideshow goes on to akiss, the credits and the continue dialog |
+| | DLG-04 (part) | dialogue keys 1–9 pick an option, B barters. Still open: page keys, control / customise screen keys |
 
 Still open from these groups: COMBAT-10 (joining critters' immediate turn), COMBAT-13 (Glovz / YAAM opt-in formulas), ACT-05 (point / unpoint animations), MOUSE-06 roof test.
 

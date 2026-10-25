@@ -29,6 +29,7 @@ import { WindowFrame } from './ui_components.js'
 import { makePanelDraggable } from './ui_drag.js'
 import { uiSaveLoad } from './ui_saveload.js'
 import globalState from './globalState.js'
+import { UIMode } from './ui_panels.js'
 import { applyBrightness, getVolumeValue, savePreferences } from './ui_options/preferences.js'
 import { showConfirm } from './ui_dialog.js'
 import { getMessage } from './util.js'
@@ -628,12 +629,14 @@ function snapshotPrefs(): () => void {
     }
 }
 
-function openPrefsPanel(): void {
+// aboveMainMenu: CE main.cc MAIN_MENU_OPTIONS → doPreferences(true), over the menu overlay
+export function openPrefsPanel(aboveMainMenu = false): void {
     prefsRestore = snapshotPrefs()
     if (!prefsPanel) {
         prefsPanel = buildPrefsPanel()
         document.body.appendChild(prefsPanel)
     }
+    prefsPanel.style.zIndex = aboveMainMenu ? '1001' : '30'
     prefsPanel.style.display = 'block'
 }
 
@@ -728,6 +731,10 @@ export function initOptionsMenu(): void {
     })
 
     makePanelDraggable(optionsWindow.elem, 'options')
+    // CE showOptions runs its own input loop: the map is frozen and no game key reaches
+    // gameHandleKey while the window is open
+    optionsWindow.onShow = () => { globalState.uiMode = UIMode.options }
+    optionsWindow.onClose = () => { if (globalState.uiMode === UIMode.options) globalState.uiMode = UIMode.none }
 
     const optionsKeyHandler = (e: KeyboardEvent) => {
         if (!optionsWindow.showing) return

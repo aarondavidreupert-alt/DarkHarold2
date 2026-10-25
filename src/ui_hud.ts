@@ -260,7 +260,7 @@ export function updateIndicatorBar(): void {
     // CE interface.cc:2323 — dudeHasState(DUDE_STATE_ADDICTED)
     if ((player as any).addictedState === true)          active.add('ADDICT')
     if ((player as any).isSneaking)                      active.add('SNEAK')
-    if (((player as any).skills?.skillPoints ?? 0) > 0) active.add('LEVEL')
+    if ((player as any).levelUpAvailable === true)       active.add('LEVEL') // CE DUDE_STATE_LEVEL_UP_AVAILABLE
     if (((player as any).poisonLevel    ?? 0) > 0)      active.add('POISONED')
     // CE: critterGetRadiation(gDude) > RADATION_INDICATOR_THRESHOLD (65) — strictly greater
     if (((player as any).radiationLevel ?? 0) > 65)     active.add('RADIATED')
