@@ -32,7 +32,7 @@ import { randomSeedPrerandom } from './random.js'
 import { critterAdjustRadiation } from './radiation.js'
 import { Combat, combatGetData, isCombatActive } from './combat.js'
 import { ANIM_FALL_BACK_SF, ANIM_FALL_FRONT_BLOOD_SF, correctDeath, critterDamage, critterKill, itemDropAll, killCounts } from './critter.js'
-import { areaContainingMap, getLstJson, lookupMapName, lookupScriptName, mapIndexOf, parseMsgFile, scriptNumberOf, setMapMusicOverride } from './data.js'
+import { areaContainingMap, getElevator, getLstJson, lookupMapName, lookupScriptName, mapIndexOf, parseMsgFile, scriptNumberOf, setMapMusicOverride } from './data.js'
 import { CHEM_USE_MAP, getAiPacket } from './aiPackets.js'
 import * as GameTime from './gametime.js'
 import {
@@ -47,8 +47,8 @@ import { Lightmap } from './lightmap.js'
 import globalState from './globalState.js'
 import { parseIntFile } from './intfile.js'
 import { dbg, dbgWarn } from './logger.js'
-import { useElevator } from './main.js'
-import { Critter, createObjectWithPID, explosiveGetDamage, Obj, objectGetDamageType, zsort } from './object.js'
+import { uiElevator } from './ui_elevator.js'
+import { Critter, createObjectWithPID, explosiveGetDamage, Obj, objectGetDamageType, setObjectOpen, zsort } from './object.js'
 import { applyPerk, CE_PERKS, getPerkRank, perkApplyEffect, perkNameById, PERKS } from './perks.js'
 import { Player } from './player.js'
 import { loadPRO, lookupArt, makePID } from './pro.js'
@@ -70,6 +70,9 @@ import { Config } from './config.js'
 import { ammoGetQuantity, ammoSetQuantity, ammoSplitOff, weaponGetAmmoTypePid, weaponSetAmmoTypePid } from './weaponAmmo.js'
 import { refreshStealthState } from './miscItem.js'
 import { isWithinPerception } from './perception.js'
+import { getCenterTile } from './render/camera.js'
+import { AI } from './combat/AI.js'
+import { objUseItemOn } from './useItemOn.js'
 
 export module Scripting {
     var gameObjects: Obj[] | null = null
@@ -95,6 +98,9 @@ export module Scripting {
     // CE gDialogReplyMessageListId != -1: a reply the dialogue loop has to show (set by
     // gsay_reply / gsay_message, cleared when a gsay_message's loop ends)
     var dialogueReplyPending = false
+    // the map script's map_enter_p_proc is running (override_map_start hands its position
+    // to the map loader then)
+    var inMapEnter = false
     var inDialogueReply = false
     var dialogueOptionReactions: number[] = [] // parallel — GAME_DIALOG_REACTION_* (head reaction on pick)
     var scriptMessageAudio: { [msgFile: string]: { [msgID: number]: string } } = {} // {id}{audio}{text} middle field
@@ -227,6 +233,7 @@ export module Scripting {
         // 'keep' (poison, radiation), or a clear proc that returns true when the event goes
         // (false keeps it). Unset: the event is dropped (script timers and the rest).
         leaveMap?: 'keep' | (() => boolean)
+        script?: boolean // CE EVENT_TYPE_SCRIPT (add_timer_event)
     }
 
     // CE queue.cc _queue_leaving_map (map.cc _map_save_in_game): every event type marked
@@ -462,6 +469,29 @@ export module Scripting {
     // DAMAGE_TYPE_* order (proto_types.h), as Weapon.ts names them
     const DAMAGE_TYPE_NAMES = ['Normal', 'Laser', 'Fire', 'Plasma', 'Electrical', 'EMP', 'Explosive']
 
+    // CE scripts.cc scriptsRequestElevator(self, type): the elevator stub (0x200050D) in the
+    // 10×10 tiles around the script's object (its type and level win), else the explicit
+    // type; -1 refuses. The elevator opens after the script (a request).
+    function requestElevator(self: Obj | null, explicitType: number): void {
+        if (!self?.position) return
+        let type = explicitType
+        const elevation = (self as any).elevation ?? globalState.gMap.currentElevation
+        const objects: Obj[] = globalState.gMap.getObjects(elevation)
+        search: for (let dy = -5; dy < 5; dy++) {
+            for (let dx = -5; dx < 5; dx++) {
+                const x = self.position.x + dx, y = self.position.y + dy
+                const stub = objects.find((o) => o.pid === 0x200050D && o.position?.x === x && o.position?.y === y)
+                if (stub) { type = (stub as any).extra?.type ?? type; break search }
+            }
+        }
+        if (type === -1 || type === undefined) return
+        setTimeout(() => {
+            const elevator = getElevator(type)
+            if (elevator) uiElevator(elevator)
+            else warn('metarule(15): no elevator type ' + type)
+        }, 0)
+    }
+
     // Every object that can carry items: the map's objects on all elevations and the dude.
     function allCarriers(): Obj[] {
         const levels: Obj[][] = globalState.gMap?.objects ?? []
@@ -624,14 +654,12 @@ export module Scripting {
         seed(n)
     }
 
+    // CE opObjectCanSeeObject: same elevation, both on the map, within perception (any
+    // target), and the target is the first obstacle of _make_straight_path(a, a, b)
     function objCanSeeObj(obj: Critter, target: Obj): boolean {
-        // Is target within obj's perception, or is it a non-critter object (without perception)?
-        if (target.type !== 'critter' || isWithinPerception(obj, target as Critter)) {
-            // Then, is anything blocking obj from drawing a straight line to target?
-            const hit = globalState.gMap.hexLinecast(obj.position, target.position)
-            return !hit
-        }
-        return false
+        if (obj.elevation !== target.elevation || !obj.position || !target.position) return false
+        if (!isWithinPerception(obj, target as Critter)) return false
+        return globalState.gMap.straightPathBlockingObject(obj, target.position, 0) === target
     }
 
     export interface SerializedScript {
@@ -802,16 +830,16 @@ export module Scripting {
                     // CE ref: interpreter_extra.cc:3208 METARULE_SIGNAL_END_GAME
                     // Sets _game_user_wants_to_quit = 2 → triggers endgame sequence
                     dbg('script', 'metarule(13): signal end game')
-                    // DH2 defers full end-game to Endgame.triggerEnd; fire whatever we have
-                    ;(Endgame as any).triggerEnd?.()
+                    // CE: _game_user_wants_to_quit = 2 — the game loop ends and returns to the main
+                    // menu once the script has finished (as after the end slides, endgame.ts)
+                    setTimeout(() => location.reload(), 0)
                     return 0
                 }
                 case 14:
                     return mapFirstRun // map_first_run
-                case 15: // elevator
-                    if (target !== -1) throw 'elevator given explicit type'
-                    useElevator()
-                    break
+                case 15: // METARULE_ELEVATOR → scripts.cc scriptsRequestElevator(self, type)
+                    requestElevator(this.self_obj as Obj, target)
+                    return 0
                 case 16:
                     // CE ref: interpreter_extra.cc:3219 METARULE_PARTY_COUNT → party_member.cc
                     // _getPartyMemberCount: the dude plus every member that is a live, visible critter.
@@ -819,28 +847,21 @@ export module Scripting {
                 case 17: // METARULE_AREA_KNOWN — CE wmAreaVisitedState
                     return Worldmap.areaVisitedState(target)
                 case 18: {
-                    // FO2-CE ref: proto.cc drugEffect — is critter under influence of drugs?
-                    const checkObj = (this as any).self ?? null
-                    if (checkObj) {
-                        const hasDrug = timeEventList.some(
-                            (e: any) => e.obj === checkObj &&
-                            typeof e.userdata === 'string' &&
-                            (e.userdata as string).startsWith('drug:') &&
-                            !(e.userdata as string).startsWith('drug:delayed:')
-                        )
-                        return hasDrug ? 1 : 0
-                    }
-                    return 0
+                    // CE METARULE_WHO_ON_DRUGS → queueHasEvent(param, EVENT_TYPE_DRUG): any drug
+                    // event of the critter passed in (delayed effects are drug events too)
+                    if (!isGameObject(target)) return 0
+                    const hasDrug = timeEventList.some(
+                        (e: any) => e.obj === target && typeof e.userdata === 'string' && (e.userdata as string).startsWith('drug:'))
+                    return hasDrug ? 1 : 0
                 }
                 case 19: {
-                    // CE ref: interpreter_extra.cc:3228 METARULE_MAP_KNOWN
-                    // wmMapIsKnown() — in CE maps have their own known-state; in DH2 we
-                    // approximate using knownAreas: a map is known if its area has been visited
-                    if (!globalState.mapAreas) return 0
+                    // CE ref: interpreter_extra.cc:3228 METARULE_MAP_KNOWN → worldmap.cc wmMapIsKnown:
+                    // the first entrance to that map (maps.txt index) decides — its state == 1
+                    const mapName = typeof target === 'number' && target >= 0 ? lookupMapName(target) : null
+                    if (!mapName || !globalState.mapAreas) return 0
                     for (const key of Object.keys(globalState.mapAreas)) {
-                        const area = globalState.mapAreas[key]
-                        if (area.entrances.some((e: any) => e.mapName === target || (e.mapLookupName ?? '') === target))
-                            return globalState.knownAreas.has(area.id) ? 1 : 0
+                        const e = globalState.mapAreas[key].entrances.find((x: any) => (x.mapName ?? '').toLowerCase() === mapName.toLowerCase())
+                        if (e) return e.state ? 1 : 0
                     }
                     return 0
                 }
@@ -973,15 +994,16 @@ export module Scripting {
         metarule3(id: number, obj: any, userdata: any, radius: number): any {
             switch (id) {
             case 100: {
-                // METARULE3_CLR_FIXED_TIMED_EVENTS
-                for (var i = 0; i < timeEventList.length; i++) {
-                    if (timeEventList[i].obj === obj && timeEventList[i].userdata === userdata) {
+                // METARULE3_CLR_FIXED_TIMED_EVENTS → _queue_clear_type(EVENT_TYPE_SCRIPT,
+                // _scrQueueRemoveFixed): every script timer of that object with that fixed param
+                for (let i = timeEventList.length - 1; i >= 0; i--) {
+                    const e = timeEventList[i]
+                    if (e.obj === obj && e.userdata === userdata && (e.script || typeof e.userdata === 'number')) {
                         info('removing timed event (userdata ' + userdata + ')', 'timer')
                         timeEventList.splice(i, 1)
-                        return
                     }
                 }
-                return
+                return 0
             }
             case 101:
                 // METARULE3_MARK_SUBTILE — CE ref: worldmap.cc:5076 wmSubTileMarkRadiusVisited(x, y, radius)
@@ -1000,23 +1022,25 @@ export module Scripting {
                 // CE ref: worldmap.cc:2940 wmMapMarkMapEntranceState(mapIdx, elevation, state);
                 // the result stays 0 (interpreter_extra.cc opMetarule3)
                 const entrMapName = typeof obj === 'number' && obj >= 0 ? lookupMapName(obj) : null
-                if (entrMapName) Worldmap.markMapEntranceState(entrMapName, userdata as number, (radius as number) !== 0)
-                return 0
+                // CE: the result of wmMapMarkMapEntranceState, 0 or -1
+                if (entrMapName && Worldmap.markMapEntranceState(entrMapName, userdata as number, (radius as number) !== 0)) return 0
+                return -1
             }
             case 105:
                 // METARULE3_WM_SUBTILE_STATE — CE ref: worldmap.cc:5125 wmSubTileGetVisitedState:
                 // 0 unknown, 1 known, 2 visited (Vault City's vcstark tests > 1)
                 return Worldmap.subTileVisitedState(obj as number, userdata as number)
             case 106: {
-                // METARULE3_TILE_GET_NEXT_CRITTER
-                // TODO: use elevation
-                var tile = obj,
-                    elevation = userdata,
-                    lastCritter = radius
-                var objs = globalState.gMap.objectsAtPosition(fromTileNum(tile))
+                // METARULE3_TILE_GET_NEXT_CRITTER: the critter after `previous` among the objects
+                // at (tile, elevation) — the dude included; the first one when previous is 0
+                const p = fromTileNum(obj as number)
+                const previous = radius as any
                 log('metarule3 106 (tile_get_next_critter)', arguments)
-                for (var i = 0; i < objs.length; i++) {
-                    if (objs[i].type === 'critter' && !(<Critter>objs[i]).isPlayer) return objs[i]
+                let found = !previous
+                for (const o of globalState.gMap.getObjects(userdata as number)) {
+                    if (o.position?.x !== p.x || o.position?.y !== p.y) continue
+                    if (o.type === 'critter' && found) return o
+                    if (o === previous) found = true
                 }
                 return 0
             }
@@ -1230,13 +1254,23 @@ export module Scripting {
                 // CRITTER_TRAIT_OBJECT — CE ref: interpreter_extra.cc:2869 opCritterAddTrait
                 // Unknown OBJECT traits are silently ignored in CE (default: break).
                 switch (trait) {
-                    case 5: // OBJECT_AI_PACKET
+                    case 5: // OBJECT_AI_PACKET — CE combat_ai.cc critterSetAiPacket
                         ;(<Critter>obj).aiNum = amount
+                        // the cached packet (combat/AI.ts) is rebuilt from the new number
+                        if ((<Critter>obj).ai) (<Critter>obj).ai = new AI(<Critter>obj)
                         return
-                    case 6: // OBJECT_TEAM_NUM
-                        if (loadingGame) return // CE opCritterAddTrait: not while a game loads
-                        ;(<Critter>obj).teamNum = amount
+                    case 6: { // OBJECT_TEAM_NUM
+                        // CE opCritterAddTrait: not for party members, an unchanged team, or while a
+                        // game loads; then combat_ai.cc critterSetTeam — who hit it is forgotten if
+                        // now on that team, and so is its last target
+                        const c = <Critter>obj
+                        if (globalState.gParty?.isPartyMember(c) || c.teamNum === amount || loadingGame) return
+                        c.teamNum = amount
+                        const who = (c as any).whoHitMe
+                        if (who && who.teamNum === amount) (c as any).whoHitMe = null
+                        ;(c as any).aiLastTarget = null
                         return
+                    }
                     case 10: // OBJECT_CUR_ROT
                         obj.orientation = Math.max(0, Math.min(5, amount))
                         return
@@ -1520,11 +1554,18 @@ export module Scripting {
             dbg('script', `is_critical(${RollResult[roll] ?? roll}) → ${result}`)
             return result
         }
+        // CE opCritterGetInventoryObject: for the dude a hand counts only while it is the
+        // active one (interfaceGetCurrentHand); a non-critter gives 0.
         critter_inven_obj(obj: Critter, where: number) {
-            if (!isGameObject(obj)) throw 'critter_inven_obj: not game object'
+            if (!isGameObject(obj) || obj.type !== 'critter') {
+                warn('critter_inven_obj: not a critter')
+                return 0
+            }
+            const real = (h: any) => (h && h.pid !== undefined ? h : null)
+            const active = (obj as any).isPlayer ? ((obj as any).activeHand ?? 'leftHand') : null
             if (where === 0) return (obj as Critter).getEquippedArmor() ?? null // INVEN_TYPE_WORN
-            else if (where === 1) return obj.rightHand // INVEN_TYPE_RIGHT_HAND
-            else if (where === 2) return obj.leftHand // INVEN_TYPE_LEFT_HAND
+            else if (where === 1) return active && active === 'leftHand' ? null : real(obj.rightHand) // INVEN_TYPE_RIGHT_HAND
+            else if (where === 2) return active && active !== 'leftHand' ? null : real(obj.leftHand) // INVEN_TYPE_LEFT_HAND
             else if (where === -2) {
                 // INVEN_TYPE_INV_COUNT — CE ref: inventory.cc critter_inven_obj() returns inventory.length
                 return (obj as Critter).inventory.length
@@ -1856,9 +1897,10 @@ export module Scripting {
                 return
             }
             info('obj_close')
-            if (!obj.open) return
-            obj.use(this.self_obj as Critter, false)
-            //stub("obj_close", arguments)
+            // CE proto_instance.cc objectClose → objectOpenClose: a locked object stays as it is
+            // (silently); no one animates and no loot window opens
+            if (!obj.open || obj.locked) return
+            setObjectOpen(obj, false, false, true)
         }
         obj_open(obj: Obj) {
             if (!isGameObject(obj)) {
@@ -1866,9 +1908,9 @@ export module Scripting {
                 return
             }
             info('obj_open')
-            if (obj.open) return
-            obj.use(this.self_obj as Critter, false)
-            //stub("obj_open", arguments)
+            // CE proto_instance.cc objectOpen → objectOpenClose (lock checked, silently)
+            if (obj.open || obj.locked) return
+            setObjectOpen(obj, true, false, true)
         }
         proto_data(pid: number, data_member: number): any {
             // CE ref: proto.cc:1099 protoGetDataMember (+ proto.h *_DATA_MEMBER_* enums).
@@ -2044,6 +2086,13 @@ export module Scripting {
             // sfall set_self: this one call runs as that object (CE opUseObjectOnObject)
             const source = (this.overriddenSelf ?? this.self_obj) as unknown as Obj
             this.overriddenSelf = null
+            // A critter using it: CE _obj_use_item_on — the item's and the target's
+            // use_obj_on_p_proc, then (not overridden) the engine's default use: a drug or
+            // healing item takes effect and is used up (useItemOn.ts, the player's path)
+            if (source && (source as any).type === 'critter') {
+                objUseItemOn(source as unknown as Critter, who, obj)
+                return
+            }
             // Step 1: if item has use_obj_on_p_proc, fire it with target_obj=who
             if (obj._script && obj._script.use_obj_on_p_proc !== undefined) {
                 obj._script.self_obj = obj as ScriptableObj
@@ -2149,7 +2198,17 @@ export module Scripting {
         override_map_start(x: number, y: number, elevation: number, rotation: number) {
             log('override_map_start', arguments)
             info(`override_map_start: ${x}, ${y} / elevation ${elevation}`)
-            overrideStartPos = { position: { x, y }, orientation: rotation, elevation }
+            // CE opOverrideMapStart moves the dude at once (rotation, location, view centre).
+            // In the map script's map_enter_p_proc the map loader places the party from it;
+            // anywhere else the player moves now.
+            if (inMapEnter) {
+                overrideStartPos = { position: { x, y }, orientation: rotation, elevation }
+                return
+            }
+            const player = globalState.player
+            if (!player) return
+            player.orientation = rotation
+            this.move_to(player, 200 * y + x, elevation)
         }
         obj_pid(obj: Obj) {
             if (!isGameObject(obj)) {
@@ -2213,6 +2272,8 @@ export module Scripting {
                 warn('tile_distance_objs: ' + a + ' or ' + b + ' are not game objects')
                 return null
             }
+            // CE opTileDistanceBetweenObjects: 9999 across elevations
+            if (!isSpatial(a) && !isSpatial(b) && a.elevation !== b.elevation) return 9999
             return hexDistance(a.position, b.position)
         }
         tile_distance(a: number, b: number) {
@@ -2236,10 +2297,12 @@ export module Scripting {
             }
             return 0 // it's not there
         }
+        // CE interpreter_extra.cc tileIsVisible: near the view's centre tile — the tile-number
+        // difference within 5 columns (% 200) or 5 rows (/ 200); CE's own loose test, kept
         tile_is_visible(tile: number) {
-            // FO2-CE ref: scripts.cc — checks tile light intensity > 0
-            if (tile < 0 || tile >= Lightmap.tile_intensity.length) return 0
-            return Lightmap.tile_intensity[tile] > 0 ? 1 : 0
+            const c = getCenterTile()
+            const d = Math.abs(c.y * 200 + c.x - tile)
+            return d % 200 < 5 || Math.trunc(d / 200) < 5 ? 1 : 0
         }
         // CE ref: sfall_opcodes.cc:951 op_obj_blocking_at — first blocking object at
         // (tile, elevation) for block type 0=BLOCK/1=SHOOT/2=AI/3=SIGHT/4=SCROLL
@@ -2519,25 +2582,16 @@ export module Scripting {
                 newTile = hexInDirection(newTile, direction)
             return toTileNum(newTile)
         }
+        // CE opTileInTileRect: only ul and lr count — lr.x <= x <= ul.x, ul.y <= y <= lr.y, inclusive
         tile_in_tile_rect(ul: number, ur: number, ll: number, lr: number, t: number) {
-            //stub("tile_in_tile_rect", arguments, "tiles")
-            const _ul = fromTileNum(ul),
-                _ur = fromTileNum(ur)
-            const _ll = fromTileNum(ll),
-                _lr = fromTileNum(lr)
-            const _t = fromTileNum(t)
-            return tile_in_tile_rect(_t, _ur, _lr, _ll, _ul) ? 1 : 0
+            void ur; void ll
+            const x = t % 200, y = Math.trunc(t / 200)
+            return x >= lr % 200 && x <= ul % 200 && y >= Math.trunc(ul / 200) && y <= Math.trunc(lr / 200) ? 1 : 0
         }
+        // CE opTileContainsObjectWithPid: the objects on that tile of the given elevation
         tile_contains_obj_pid(tile: number, elevation: number, pid: number) {
-            if (elevation !== globalState.currentElevation) {
-                warn('tile_contains_obj_pid: not same elevation')
-                return 0
-            }
-            var objs = globalState.gMap.objectsAtPosition(fromTileNum(tile))
-            for (var i = 0; i < objs.length; i++) {
-                if (objs[i].pid === pid) return 1
-            }
-            return 0
+            const p = fromTileNum(tile)
+            return globalState.gMap.getObjects(elevation).some((o) => o.pid === pid && o.position?.x === p.x && o.position?.y === p.y) ? 1 : 0
         }
         rotation_to_tile(srcTile: number, destTile: number) {
             var src = fromTileNum(srcTile),
@@ -2547,23 +2601,30 @@ export module Scripting {
             warn('rotation_to_tile: invalid hex: ' + srcTile + ' / ' + destTile)
             return -1 // TODO/XXX: what does this return if invalid?
         }
-        move_to(obj: Obj, tileNum: number, elevation: number) {
+        move_to(obj: Obj, tileNum: number, elevation: number): number {
             if (!isGameObject(obj)) {
                 warn('move_to: not a game object: ' + obj)
-                return
+                return -1
             }
-            if (elevation !== globalState.currentElevation) {
+            // CE opMoveTo → objectSetLocation(object, tile, elevation): the object's own
+            // elevation decides; a critter leaving its elevation leaves combat; returns the tile
+            const isPlayer = obj instanceof Critter && obj.isPlayer
+            const fromElevation = isPlayer ? globalState.currentElevation : (obj.elevation ?? globalState.currentElevation)
+            if (elevation !== fromElevation) {
                 info('move_to: moving to elevation ' + elevation)
-
-                if (obj instanceof Critter && obj.isPlayer) globalState.gMap.changeElevationFaded(elevation, true)
+                if (isPlayer) globalState.gMap.changeElevationFaded(elevation, true)
                 else {
-                    globalState.gMap.removeObject(obj)
-                    globalState.gMap.addObject(obj, elevation)
+                    const levels: Obj[][] = globalState.gMap.objects ?? []
+                    if (levels[fromElevation]) arrayRemove(levels[fromElevation], obj)
+                    if (levels[elevation] && !levels[elevation].includes(obj)) levels[elevation].push(obj)
+                    obj.elevation = elevation
+                    if (obj.type === 'critter' && globalState.inCombat) globalState.combat?.removeCombatant(obj as Critter)
                 }
             }
             obj.position = fromTileNum(tileNum)
 
-            if (obj instanceof Critter && obj.isPlayer) centerCamera(obj.position)
+            if (isPlayer) centerCamera(obj.position)
+            return tileNum
         }
 
         // combat
@@ -3184,7 +3245,17 @@ export module Scripting {
                 )
                 return
             }
-            if (!obj.walkTo(tile, !!isRun)) {
+            // CE opAnimateMoveObjectToTile: nothing for an inactive critter or in combat;
+            // 0x10 (ANIMATE_INTERRUPT) clears the current animation and is dropped; then a
+            // walk for 0, a run for anything else
+            if (obj.type === 'critter' && (obj.dead || ((obj.injuryFlags ?? 0) & 0x01) !== 0)) return // DAM_KNOCKED_OUT
+            if (globalState.inCombat) return
+            let flags = Number(isRun) | 0
+            if ((flags & 0x10) !== 0) {
+                obj.clearAnim()
+                flags &= ~0x10
+            }
+            if (!obj.walkTo(tile, flags !== 0)) {
                 warn('animate_move_obj_to_tile: no path', 'movement', this)
                 return
             }
@@ -3253,6 +3324,7 @@ export module Scripting {
                 ticks: ticks,
                 obj: obj,
                 userdata: userdata,
+                script: true,
                 fn: function () {
                     timedEvent(obj._script!, userdata)
                 }.bind(this),
@@ -3874,7 +3946,12 @@ export module Scripting {
             // CE map.cc mapLoad: scriptSetFixedParam(gMapSid, (gMapHeader.flags & 1) == 0) — 1 on
             // the first visit (the map not saved yet)
             mapScript.fixed_param = isFirstRun ? 1 : 0
-            mapScript.map_enter_p_proc()
+            inMapEnter = true
+            try {
+                mapScript.map_enter_p_proc()
+            } finally {
+                inMapEnter = false
+            }
         }
         GlobalScripts.globalScriptsMapProc('map_enter_p_proc') // CE scriptsExecMapUpdateScripts
         // a new game: its global scripts start once its map is loaded (CE main.cc)

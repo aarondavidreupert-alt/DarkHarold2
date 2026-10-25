@@ -139,6 +139,15 @@ LOW findings are listed in each report only.
 | Save / load | SAVE-01 | preferences saved with the game and applied on load |
 | | SAVE-02, COMBAT-14 | a save made in combat resumes the fight (order, turn, round, XP, player AP) |
 | | SAVE-03, SCR-10 (part) | timed events keyed by object uid (uids stay unique after a load); knockout events rebuilt; flare / explosive events no longer become fake script calls |
+| Script opcodes | OP-07, WM-05 | metarule 13 returns to the main menu after the script; 15 requests the elevator from the stub around the script's object (no throw); 18 checks the critter passed in for drug events; 19 reads the map's entrance state |
+| | OP-08 | `critter_inven_obj`: the dude's hand slot counts only while it is the active hand |
+| | OP-09 | `animate_move_obj_to_tile`: 0x10 clears the current animation; nothing in combat or for an inactive critter |
+| | OP-10, OBJ-05 | `tile_is_visible` (CE centre-tile test), `tile_in_tile_rect` (inclusive, ul / lr), `tile_contains_obj_pid` (any elevation), `obj_can_see_obj` (elevation, perception, first obstacle of the straight path), `tile_distance_objs` (9999 across elevations) |
+| | OP-11, OP-12 | `override_map_start` moves the player at once outside map_enter; `move_to` uses the object's own elevation, moves it between elevation lists, takes a critter out of combat, returns the tile |
+| | OP-14 | metarule3 100 clears every matching script timer; 104 returns 0 / −1; 106 walks the critters after `previous`, dude included |
+| | OP-16, AI-02 | `critter_add_trait` AI packet rebuilds the cached packet; TEAM skips party members / unchanged teams and clears who-hit-me and the last target |
+| | OP-17 | `obj_open` / `obj_close` toggle without the use animation, loot window or lock message (a locked object stays, as CE) |
+| | OP-18 | `use_obj_on_obj` by a critter runs the engine's default use (drugs, healing) after the scripts |
 
 ## 4. Conflicts with the wiki / known_bugs (flagged, not resolved)
 

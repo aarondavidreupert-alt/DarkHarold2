@@ -478,7 +478,7 @@ export function load(id: number): void {
                             dbgWarn('saveload', `[SaveLoad] ${userdata} event not restored`)
                         } else if (obj?._script) {
                             const script = obj._script
-                            Scripting.timeEventList.push({ obj, ticks, userdata,
+                            Scripting.timeEventList.push({ obj, ticks, userdata, script: true,
                                 fn: () => Scripting.timedEvent(script, userdata)
                             })
                         }

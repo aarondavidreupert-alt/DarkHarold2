@@ -769,6 +769,11 @@ function clampCameraDH2(): void {
     globalState.cameraPosition.y = nextCY - halfH
 }
 
+// CE gCenterTile: the hex at the centre of the view
+export function getCenterTile(): Point {
+    return hexFromScreen(globalState.cameraPosition.x + getWorldViewWidth() / 2, globalState.cameraPosition.y + getWorldViewHeight() / 2)
+}
+
 export function centerCamera(around: Point) {
     const scr = hexToScreen(around.x, around.y)
     // The visible world region shrinks as zoom grows, so divide by zoom

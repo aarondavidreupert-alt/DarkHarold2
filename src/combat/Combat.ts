@@ -2878,6 +2878,16 @@ export class Combat {
         globalState.gMap.updateMap()
     }
 
+    // CE combat.cc _combat_delete_critter: out of the turn order (the current turn stays
+    // with whoever has it)
+    removeCombatant(c: Critter): void {
+        const i = this.combatants.indexOf(c)
+        if (i === -1) return
+        this.combatants.splice(i, 1)
+        if (i < this.whoseTurn) this.whoseTurn--
+        this.playerIdx = this.combatants.indexOf(this.player)
+    }
+
     // CE combat.cc combatSave: the turn order by object id, whose turn it is, the round,
     // the XP collected and the player's AP / free move.
     serializeState(): SavedCombat {
