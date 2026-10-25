@@ -93,7 +93,7 @@ Top findings:
 | _obj_light_table_init | `obj_light_table_init` `lightmap/lightTable.ts` | ✅ MATCH | — | Numerically identical offsets. |
 | _obj_blend_table_init/exit | shaders | 🚫 N/A | — | |
 | objectAllocate / objectDeallocate / objectListNodeCreate / objectListNodeDestroy | `new Obj` | 🚫 N/A | — | |
-| _obj_adjust_light | `obj_adjust_light` `lightmap.ts:76` | 🟡 PARTIAL | LOW | Falloff, 36-cell table, shadow switch and wall branches all match. Differences: it bails on `lightIntensity <= 655` (CE `<= 0`) and needs `lightRadius > 0` (CE: the OBJECT_LIGHTING flag). `lightRadius > 8` isn't clamped before the `(I−655)/(r+1)` step. Smooth player light / `derived` / `naive` modes are DH2 options. The open-door case is OBJ-01. |
+| _obj_adjust_light | `obj_adjust_light` `lightmap.ts:76` | ✅ FIXED (2026-10-25) | LOW | Falloff, 36-cell table, shadow switch and wall branches all match. Differences: it bails on `lightIntensity <= 655` (CE `<= 0`) and needs `lightRadius > 0` (CE: the OBJECT_LIGHTING flag). `lightRadius > 8` isn't clamped before the `(I−655)/(r+1)` step. Smooth player light / `derived` / `naive` modes are DH2 options. The open-door case is OBJ-01. |
 | objectDrawOutline | `renderOutlinePass` | 🚫 N/A | — | Rendering. |
 | _obj_render_object (egg occlusion test) | `isCEOccludingWall` / `isCEOccludingWallLiteral` `webglDraw.ts` | ⚠️ DIFFERS | LOW | Deliberate: the default `eggMode='dh2-egg'` is hand-tuned. `'ce-egg'` is the literal port, minus CE's `gDude HIDDEN` and `OBJECT_FLAG_0xFC000` (translucent) skips. Documented in `wiki/extended_flags.md` §8 / RD16. |
 | _obj_fix_violence_settings | — (grep: none in object code) | ❌ MISSING | LOW | Unverified whether death anims are remapped by the violence level elsewhere (animation auditor). |
@@ -111,7 +111,7 @@ Top findings:
 | mapGetName / mapGetCityName / _map_get_description_idx_ / _is_map_idx_same / _get_map_idx_same / mapGetCurrentMap | `data.ts lookupMapName`, `getCurrentMapInfo` | ✅ MATCH | — | Not re-verified (maps.txt parser). |
 | mapScroll | `input.ts:404–416` + `clampCameraPosition` | ⚠️ DIFFERS | LOW | DH2 scrolls per pixel with no 33 ms gate, CE in 32×24 px tile steps via `tileSetCenter`. Documented presentation deviation. |
 | mapBuildPath / mapMakeMapsDirectory | — | 🚫 N/A | — | File I/O. |
-| mapSetEnteringLocation | `loadMap(…, startingPosition, startingElevation)` | 🟡 PARTIAL | LOW | No rotation parameter (MAP-02). |
+| mapSetEnteringLocation | `loadMap(…, startingPosition, startingElevation)` | ✅ FIXED (2026-10-25) | LOW | No rotation parameter (MAP-02). |
 | mapNewMap | — | 🚫 N/A | — | Mapper / error path. |
 | mapLoadByName / mapLoadById | `loadMap` `mapLoader.ts:126` / `loadMapByID` | ✅ MATCH | — | |
 | mapLoad | `loadNewMap` `mapLoader.ts:221` + `doEnterNewMap` | ⚠️ DIFFERS | MED | Ambient reset ✓. Map script map_enter → object map_enter → map_update ✓. **map_update runs twice** (MAP-01). Object `start` procs run at object creation, before the map script's map_enter (CE: map_enter of the map script first, then `scriptsExecStartProc`); scripting auditor. `_map_fix_critter_combat_data` not present (LOW). |

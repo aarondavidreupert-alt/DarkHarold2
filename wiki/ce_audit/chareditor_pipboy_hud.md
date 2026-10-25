@@ -59,8 +59,8 @@ Top findings:
 | characterEditorEditAge | `creator.ts:450` | ✅ | — | 16..35. No auto-repeat while held (cosmetic). |
 | characterEditorEditGender | `creator.ts:497` | ✅ | — | |
 | characterEditorAdjustPrimaryStat | `creator.ts:301-317` | ⚠️ | MED | "+" limit uses the base value only (CHAR-05). No auto-repeat. "−" min 1 ✅. |
-| characterEditorShowOptions (save/load/print/erase .GCD) | — | ❌ | LOW | CHAR-06. |
-| characterFileExists / characterPrintToFile / _AddSpaces / _AddDots | — | ❌ | LOW | PRINT button inert, `viewer.ts:154` (CHAR-06). |
+| characterEditorShowOptions (save/load/print/erase .GCD) | — | ✅ FIXED (2026-10-25) | LOW | CHAR-06. |
+| characterFileExists / characterPrintToFile / _AddSpaces / _AddDots | — | ✅ FIXED (2026-10-25) | LOW | PRINT button inert, `viewer.ts:154` (CHAR-06). |
 | characterEditorResetScreen / RegisterInfoAreas | per-element onclick | 🚫 | — | |
 | characterEditorSavePlayer / RestorePlayer | `viewer.ts:436-437` (skills + stats clone only) | 🟡 | MED | Only skills are snapshotted; perks, the free-perk flag, traits and HP are not (CHAR-01, CHAR-04). |
 | _itostndn | — | ❌ | LOW | No comma formatting. |

@@ -54,7 +54,7 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | itemDropAll | `itemDropAll` critter/lifecycle.ts:300 | 🟡 PARTIAL | LOW | Drops everything, hands and armor included. Not done: the critter's art back to the proto FID / `_adjust_ac` when the armor comes off (the art is not verified) |
 | _item_identical | `Obj.approxEq` Obj.ts:918, `WeaponObj.approxEq` items.ts:58 | ✅ MATCH | LOW | DH2 compares "has a script" where CE compares sid. Otherwise held/queued, container, inventory, charges and weapon load all match |
 | itemGetName / itemGetDescription | `Obj.getName` / `getDescription` Obj.ts | ✅ MATCH | – | |
-| itemGetType | `obj.subtype` / `obj_item_subtype` scripting.ts:1934 | ⚠️ DIFFERS | LOW | CE reports the Shiv (383) as ITEM_TYPE_MISC (concealed weapon); DH2 reports its proto type. ITEM-20 |
+| itemGetType | `obj.subtype` / `obj_item_subtype` scripting.ts:1934 | ✅ FIXED (2026-10-25) | LOW | CE reports the Shiv (383) as ITEM_TYPE_MISC (concealed weapon); DH2 reports its proto type. ITEM-20 — **Fixed 2026-10-25:** obj_item_subtype and the AI weapon searches (ITEM-20). |
 | itemGetMaterial | — | 🚫 N/A | – | Unused in CE |
 | itemGetSize | `pro.extra.size` (canCarry) | ✅ MATCH | – | |
 | itemGetWeight | `Obj.getWeight` Obj.ts:961 | ⚠️ DIFFERS | HIGH | Formula matches (power armour ÷2, container contents, ammo by the box), but "hidden = 0" reads OBJECT_HIDDEN instead of ITEM_HIDDEN. ITEM-01 |
@@ -70,7 +70,7 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | itemReplace | — (useItemOn.ts `removeOne`) | 🟡 PARTIAL | LOW | After the last unit in a hand is used, CE moves an identical item from the inventory into the hand; DH2 leaves the hand empty |
 | itemIsHidden | object flag 0x01 at Obj.ts:963, combat/results.ts:87, Combat.ts:1320 | ⚠️ DIFFERS | HIGH | ITEM-01 |
 | weaponGetAttackTypeForHitMode | Weapon.ts:333, hitChance.ts:125 | ✅ MATCH | – | |
-| weaponGetSkillForHitMode | `getWeaponSkillFromPro` Weapon.ts:104 | ⚠️ DIFFERS | LOW | Big Guns comes from animCode {8,9,10} instead of the ext flag 0x0100 (`weaponFlags & 0x01`). Mode 0 → 'Unarmed' (CE −1). ITEM-05 |
+| weaponGetSkillForHitMode | `getWeaponSkillFromPro` Weapon.ts:104 | ✅ FIXED (2026-10-25) | LOW | Big Guns comes from animCode {8,9,10} instead of the ext flag 0x0100 (`weaponFlags & 0x01`). Mode 0 → 'Unarmed' (CE −1). ITEM-05 |
 | weaponGetSkillValue | `Critter.getSkill(skillForMode)` | ✅ MATCH | – | |
 | weaponGetDamageMinMax | `pro.extra.minDmg/maxDmg` | ✅ MATCH | – | |
 | weaponGetDamage | `rollWeaponDamage` Combat.ts:225; unarmed.ts | ✅ MATCH | – | Includes the sfall Bonus HtH Damage fix |
@@ -88,17 +88,17 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | critterCanAim | Weapon.ts:293, cycleMode Fast Shot :249; unarmed.ts:115 | ✅ MATCH | – | |
 | weaponCanBeUnloaded / weaponUnload | ui_inventory/panel.ts:481 | ✅ MATCH | – | Repeats one box at a time, as inventory.cc does |
 | weaponGetPrimary/SecondaryActionPointCost | `Weapon.getAPCost` Weapon.ts:320 | ✅ MATCH | – | |
-| _item_w_compute_ammo_cost | — | ❌ MISSING | LOW | The Super Cattle Prod (399) and Mega Power Fist (407) should use 2 charges per hit; DH2 uses 1 (Combat.ts:489/897). ITEM-16 |
+| _item_w_compute_ammo_cost | — | ✅ FIXED (2026-10-25) | LOW | The Super Cattle Prod (399) and Mega Power Fist (407) should use 2 charges per hit; DH2 uses 1 (Combat.ts:489/897). ITEM-16 — **Fixed 2026-10-25:** pids 399 / 407 use 2 charges (ITEM-16). |
 | weaponIsGrenade / weaponGetDamageRadius / weaponGetGrenadeExplosionRadius / weaponGetRocketExplosionRadius | combat/explosion.ts:28-29, Combat.ts:424-444 | ✅ MATCH | – | |
 | weaponGetAmmo{ArmorClass,DamageResistance}Modifier / DamageMultiplier / DamageDivisor; ammoGet* (same four) | combat damage reads the ammo proto `AC modifier / DR modifier / damMult / damDiv` | ✅ MATCH | – | Grouped; the damage formula is audited under combat |
 | armorGetArmorClass / DamageResistance / DamageThreshold / Perk / MaleFid / FemaleFid | Critter stats, `armorPerkSwap`, `applyArmorArt` | ✅ MATCH | – | Grouped |
-| miscItemGetMaxCharges / GetCharges / SetCharges | `miscCharges` miscItem.ts:108 | 🟡 PARTIAL | LOW | No clamp to the max; charges start from the proto on the first turn-on; the map's charges are lost (ITEM-12) |
-| miscItemGetPowerType / GetPowerTypePid / IsConsumable | proto_types.ts:149 (fields only) | 🟡 PARTIAL | LOW | Only used through itemAttemptAdd (recharging with cells), which is missing (ITEM-19) |
+| miscItemGetMaxCharges / GetCharges / SetCharges | `miscCharges` miscItem.ts:108 | ✅ FIXED (2026-10-25) | LOW | No clamp to the max; charges start from the proto on the first turn-on; the map's charges are lost (ITEM-12) |
+| miscItemGetPowerType / GetPowerTypePid / IsConsumable | proto_types.ts:149 (fields only) | ✅ FIXED (2026-10-25) | LOW | Only used through itemAttemptAdd (recharging with cells), which is missing (ITEM-19) |
 | _item_m_use_charged_item | `useChargedMiscItem` miscItem.ts:127 | 🟡 PARTIAL | MED | Motion Sensor branch missing. ITEM-03 |
-| miscItemConsumeCharge / miscItemTrickleEventProcess | `scheduleTrickle` miscItem.ts:85 | ⚠️ DIFFERS | LOW | ITEM-04 |
+| miscItemConsumeCharge / miscItemTrickleEventProcess | `scheduleTrickle` miscItem.ts:85 | ✅ FIXED (2026-10-25) | LOW | ITEM-04 |
 | miscItemIsOn | miscItem.ts:62 | ✅ MATCH | – | |
-| miscItemTurnOn | miscItem.ts:108 | ⚠️ DIFFERS | LOW | No immediate charge use, no "not owned" refusal (item.msg 9), no Geiger rad reading (msg 8), no pid I→II swap, English literals. ITEM-04 |
-| miscItemTurnOff / _item_m_turn_off_from_queue | miscItem.ts:73; leaveMap :102 | ✅ MATCH | LOW | No pid II→I swap (ITEM-04) |
+| miscItemTurnOn | miscItem.ts:108 | ✅ FIXED (2026-10-25) | LOW | No immediate charge use, no "not owned" refusal (item.msg 9), no Geiger rad reading (msg 8), no pid I→II swap, English literals. ITEM-04 |
+| miscItemTurnOff / _item_m_turn_off_from_queue | miscItem.ts:73; leaveMap :102 | ✅ FIXED (2026-10-25) | LOW | No pid II→I swap (ITEM-04) |
 | stealthBoyTurnOn / stealthBoyTurnOff | `refreshStealthState` miscItem.ts:142; render/webglDraw.ts:505 | ✅ MATCH | – | The miscItem.ts header still says "TRANS_GLASS not implemented"; C57 implemented it |
 | containerGetMaxSize / containerGetTotalSize | `canCarry` Obj.ts:1034 | ✅ MATCH | – | |
 | _insert_drug_effect | drugs.ts:213 | ✅ MATCH | – | Chem Resistant halves the delay |
@@ -124,10 +124,10 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
 | proto_make_path / _proto_list_str / proto_size | `loadPRO` pro.ts:27 (lst lookup) | 🚫 N/A | – | JSON pipeline |
-| _proto_action_can_use | `Obj.canUse` Obj.ts:1119 | ⚠️ DIFFERS | LOW | Items: `weaponFlags & 0x08` (0x0800) + containers matches. Scenery: reads `extra.weaponFlags`, which scenery JSON doesn't have (it stores `extendedFlags`), so the flag is ignored. ITEM-14 |
+| _proto_action_can_use | `Obj.canUse` Obj.ts:1119 | ✅ FIXED (2026-10-25) | LOW | Items: `weaponFlags & 0x08` (0x0800) + containers matches. Scenery: reads `extra.weaponFlags`, which scenery JSON doesn't have (it stores `extendedFlags`), so the flag is ignored. ITEM-14 — **Fixed 2026-10-25:** scenery reads its own extendedFlags (ITEM-14). |
 | _proto_action_can_use_on | `itemCanUseOn` useItemOn.ts:47 | ✅ MATCH | – | |
 | _proto_action_can_talk_to | `objActionCanTalkTo` ui_contextmenu.ts:159 | 🟡 PARTIAL | LOW | The ext-flag 0x4000 "talk" on non-critters is ignored |
-| _proto_action_can_pickup | — | ❌ MISSING | LOW | Ground containers with ext flag 0x8000 (bags) can't be picked up; DH2 always opens them. ITEM-14 |
+| _proto_action_can_pickup | — | ✅ FIXED (2026-10-25) | LOW | Ground containers with ext flag 0x8000 (bags) can't be picked up; DH2 always opens them. ITEM-14 — **Fixed 2026-10-25:** Obj.canPickUp (ITEM-14). |
 | protoGetMessage / protoGetName / protoGetDescription | `getMessage(cat, textID[+1])` Obj.ts; proto_data 1/2 | ✅ MATCH | LOW | CE's `protoGetName(0x1000000)` returns the dude's own name |
 | proto_item_init / proto_item_subdata_init / proto_critter_init / proto_scenery_init / proto_scenery_subdata_init / proto_wall_init / proto_tile_init / proto_misc_init / proto_copy_proto / proto_new / _proto_find_free_subnode / _proto_new_id / proto_max_id | — | 🚫 N/A | – | Mapper / editor defaults |
 | proto_is_subtype | `pro.extra.subType` checks | ✅ MATCH | – | |
@@ -148,7 +148,7 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | _obj_sid / _obj_new_sid / _obj_new_sid_inst | `Obj.loadScript` Obj.ts:723 | 🚫 N/A | – | Script instances; scripts.lst index as CE |
 | _obj_look_at / _obj_look_at_func | `objLookAt` examine.ts:47 | ✅ MATCH | – | |
 | _obj_examine / _obj_examine_func | `objExamine` examine.ts:55 | ✅ MATCH | LOW | Ammo line uses the weapon's caliber (see ammoGetCaliber) |
-| _obj_pickup | `Obj.pickup` Obj.ts:1348 | 🟡 PARTIAL | LOW | proto.msg 905 replaced by a hard-coded float "You can't carry any more."; money uses `amount` |
+| _obj_pickup | `Obj.pickup` Obj.ts:1348 | ✅ FIXED (2026-10-25) | LOW | proto.msg 905 replaced by a hard-coded float "You can't carry any more."; money uses `amount` — **Fixed 2026-10-25:** proto.msg 905. |
 | _obj_remove_from_inven | slot clearing in `drop` / `invenUnwield` | 🟡 PARTIAL | LOW | Art / interface refresh happen elsewhere |
 | _obj_drop | `Obj.drop` Obj.ts:1385; `drop_obj` scripting.ts:2534 | 🟡 PARTIAL | LOW | Script procs match. CE drops **one** item of a stack (`itemRemove(…,1)`); DH2 drops the whole stack (the inventory UI splits it first) |
 | _obj_destroy | `GameMap.destroyObject` GameMap.ts:148 | 🟡 PARTIAL | MED | No owner-inventory removal and no `queueRemoveEvents(obj)`. ITEM-15 |
@@ -160,7 +160,7 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | _obj_use_misc_item | — (use_p_proc via Obj.use) | 🟡 PARTIAL | MED | use_p_proc runs, but the item is not consumed. ITEM-08 |
 | _protinst_use_item | `Obj.use` Obj.ts:1139 | 🟡 PARTIAL | LOW | Different order (script first). "That does nothing." (582) not shown for unusable items |
 | _protinstTestDroppedExplosive | — | ❌ MISSING | MED | ITEM-06 |
-| _obj_use_item | `Obj.use` consumption per branch (drug, book) | 🟡 PARTIAL | LOW | rc 2 → drop on the tile missing (ITEM-06); no itemReplace |
+| _obj_use_item | `Obj.use` consumption per branch (drug, book) | ✅ FIXED (2026-10-25) | LOW | rc 2 → drop on the tile missing (ITEM-06); no itemReplace — **Fixed 2026-10-25:** 480 "You see: %s." (ITEM-10). |
 | _protinst_default_use_item | `defaultUseItem` useItemOn.ts:181 | 🟡 PARTIAL | HIGH | Drug branch matches (582 / 583-586 / 581). Missing: ammo → car (ITEM-07), flare used on a target (LOW) |
 | _protinst_use_item_on | `protinstUseItemOn` useItemOn.ts:146 | ⚠️ DIFFERS | MED | Medical kits match (902, skillUse, 1 in 10 used up, 900/901/910/911). The scripted-item path differs. ITEM-09 |
 | _obj_use_item_on | `objUseItemOn` useItemOn.ts:134 | 🟡 PARTIAL | MED | Correct for the player's crosshair; script `use_obj_on_obj` bypasses it. ITEM-09 |
@@ -169,14 +169,14 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | useLadderDown / useLadderUp | Obj.ts:1236 | ⚠️ DIFFERS | HIGH | ITEM-13 |
 | useStairs | Obj.ts:1221 | ⚠️ DIFFERS | MED | `destinationMap > 0` test; `builtTile == -1` refusal; rotation. ITEM-13 |
 | _set_door_state_open / _set_door_state_closed / _check_door_state | `setObjectOpen` Obj.ts:326 (`obj.open`, animation) | ✅ MATCH | LOW | Light rebuild on the door state (`_obj_rebuild_all_light`) not verified |
-| _obj_use_door | `Obj.use` → `toggleObjectOpen` | 🟡 PARTIAL | LOW | CE plays the locked sfx and still runs the script, and **doesn't refuse** a locked door itself; DH2 refuses. "Something is blocking" (597) missing. ITEM-10 |
-| _obj_use_container | `Obj.use` → `setObjectOpen` → `uiLoot` | 🟡 PARTIAL | LOW | 485/486 messages missing; locked text hard-coded (487 text) |
+| _obj_use_door | `Obj.use` → `toggleObjectOpen` | ✅ FIXED (2026-10-25) | LOW | CE plays the locked sfx and still runs the script, and **doesn't refuse** a locked door itself; DH2 refuses. "Something is blocking" (597) missing. ITEM-10 — **Fixed 2026-10-25:** the lock is left to the script, 597 (ITEM-10). |
+| _obj_use_container | `Obj.use` → `setObjectOpen` → `uiLoot` | ✅ FIXED (2026-10-25) | LOW | 485/486 messages missing; locked text hard-coded (487 text) — **Fixed 2026-10-25:** 485 / 486 / 487 from proto.msg (ITEM-10). |
 | _obj_use_skill_on | `playerUseSkill` playerUse.ts:107 | ✅ MATCH | – | Jammed → misc.msg 2001, then use_skill_on_p_proc, then skillUse |
 | _obj_is_portal / _obj_is_lockable / _obj_is_openable | `isDoor` / `isContainer` Obj.ts:1088-1105 | ✅ MATCH | – | |
-| objectIsLocked / objectLock / objectUnlock | `obj_is_locked` / `obj_lock` / `obj_unlock` scripting.ts:1755-1778 | 🟡 PARTIAL | LOW | Accepts any object type (CE: items / scenery only); initial lock data lost (ITEM-12) |
+| objectIsLocked / objectLock / objectUnlock | `obj_is_locked` / `obj_lock` / `obj_unlock` scripting.ts:1755-1778 | ✅ FIXED (2026-10-25) | LOW | Accepts any object type (CE: items / scenery only); initial lock data lost (ITEM-12) |
 | objectIsOpen | `obj_is_open` scripting.ts:1788 | ✅ MATCH | – | |
-| objectOpenClose / objectOpen / objectClose | `obj_open` / `obj_close` scripting.ts:1796-1814 | 🟡 PARTIAL | LOW | ITEM-11 |
-| objectIsJammed / objectJamLock / objectUnjamLock / objectUnjamAll | `jammed`, `jam_lock` scripting.ts:1780, `objectUnjamAll` Obj.ts:373 | ✅ MATCH | LOW | `objectUnjamLock` on open/close missing (ITEM-11) |
+| objectOpenClose / objectOpen / objectClose | `obj_open` / `obj_close` scripting.ts:1796-1814 | ✅ FIXED (2026-10-25) | LOW | ITEM-11 — **Fixed 2026-10-25:** no animation, unjams (ITEM-11). |
+| objectIsJammed / objectJamLock / objectUnjamLock / objectUnjamAll | `jammed`, `jam_lock` scripting.ts:1780, `objectUnjamAll` Obj.ts:373 | ✅ FIXED (2026-10-25) | LOW | `objectUnjamLock` on open/close missing (ITEM-11) — **Fixed 2026-10-25:** obj_open / obj_close unjam (ITEM-11). |
 | _obj_attempt_placement | `GameMap.attemptPlacement` GameMap.ts:338 | ✅ MATCH | – | CE's keep-the-last-tile quirk is kept |
 | _objPMAttemptPlacement | `GameMap.attemptPartyPlacement` GameMap.ts:374 | ✅ MATCH | – | |
 

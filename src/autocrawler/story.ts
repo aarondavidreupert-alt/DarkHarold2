@@ -37,6 +37,7 @@ import { setVMFatalHook } from '../vm.js'
 import { UIMode, uiEndDialogue } from '../ui.js'
 import { activeBarter } from '../ui_barter.js'
 import { uiElevatorDone } from '../ui_elevator.js'
+import { uiLogCount } from '../ui_hud.js'
 import { uiCloseWorldMap } from '../ui_worldmap.js'
 import { critterDisplayName, getOptionElements, getReplyText, listTalkableNPCs, movePlayerAdjacent, setLastReport } from './shared.js'
 
@@ -238,9 +239,9 @@ function callers(): string {
 
 /** What the message window got since `from` lines (display_msg, float_msg to the log …). */
 function logSince(from: number): string {
-    const items = document.querySelectorAll('#displayLog li')
+    const items = document.querySelectorAll<HTMLElement>('#displayLog li')
     const out: string[] = []
-    for (let i = from; i < items.length; i++) out.push((items[i].textContent ?? '').trim().slice(0, 80))
+    for (const li of Array.from(items)) if (Number(li.dataset.seq) >= from) out.push((li.textContent ?? '').trim().slice(0, 80))
     return out.length ? ` log=[${out.join(' | ')}]` : ''
 }
 
@@ -303,7 +304,7 @@ function fatalKind(text: string): string {
 
 async function step(key: string, label: string, action: () => void, subject?: any): Promise<string> {
     const draws: string[] = []
-    const logStart = document.querySelectorAll('#displayLog li').length
+    const logStart = uiLogCount()
     if (traceDrawsFor && label.includes(traceDrawsFor)) setRandomDrawHook(() => draws.push(callers()))
     // errors the action does not throw to us: a Lua script error (caught by the
     // runtime) or an exception in a click handler (reported to window, not to click())

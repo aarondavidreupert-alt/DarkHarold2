@@ -77,13 +77,13 @@ Top findings:
 | `gameDialogInit` | — | 🚫 N/A | — | sfall `DialogGameFix` / `NumbersInDialogue` config; DH2 has no number keys at all (DLG-04). |
 | `_gdialogReset`, `gameDialogReset`, `gameDialogExit` | `talkingHead.ts:286 endLips` via `uiEndDialogue` | ✅ | — | Only ends lips. |
 | `_gdialogActive` | `globalState.uiMode === UIMode.dialogue` / `currentDialogueObject` | ✅ | — | |
-| `gameDialogEnter` | `scripting.ts:3461 talk` + callers (`playerUse.ts:409`, `ui_contextmenu.ts:100`, `input.ts:458`) | ⚠️ | LOW | Combat refusal is in the callers, not in `talk`; no `_action_can_talk_to` (660 "can't see", 661 > 12 hexes) for the `dialogue_system_enter` path; barter modifier reset on exit instead of entry (same effect); camera centre not restored at the end (DLG-07). |
+| `gameDialogEnter` | `scripting.ts:3461 talk` + callers (`playerUse.ts:409`, `ui_contextmenu.ts:100`, `input.ts:458`) | ✅ FIXED (2026-10-25) | LOW | Combat refusal is in the callers, not in `talk`; no `_action_can_talk_to` (660 "can't see", 661 > 12 hexes) for the `dialogue_system_enter` path; barter modifier reset on exit instead of entry (same effect); camera centre not restored at the end (DLG-07). |
 | `_gdialogSystemEnter` | `scripting.ts:3452 processDialogueRequest` | ✅ | — | Request opened by the game tick (L9). |
 | `gameDialogStartLips` | `talkingHead.ts:267 startLips` | 🟡 | LOW | "censor" sfx for a null name ✅. CE still plays the ACM when the `.lip` file is missing (`lipsLoad` goes on with no stream); DH2 plays nothing without a `.lip`. Unverified whether vanilla has such lines. |
 | `gameDialogEndLips` | `talkingHead.ts:286 endLips` | ✅ | — | |
 | `gameDialogEnable` / `gameDialogDisable` | `talkingHead.ts:307 ticker` (rAF) | 🚫 N/A | — | |
 | `_gdialogInitFromScript` | `scripting.ts:2452 start_gdialog` → `ui_dialogue.ts:133 uiStartDialogue`, `talkingHead.ts:372 startTalkingHead` | 🟡 | LOW | Head / reaction / music (half volume or stop) ✅. CE `opStartGameDialog` returns at once in combat; DH2 still opens the UI (only the head is skipped). No `textObjectsReset` (floating texts stay), no `indicatorBarHide`. |
-| `_gdialogExitFromScript` | `scripting.ts:533 dialogueExit` → `ui_dialogue.ts:184 uiEndDialogue` / `stopTalkingHead` | ⚠️ | LOW | Music restore ✅. CE refuses to exit while a barter / control switch is pending (`_dialogue_switch_mode` 2/8/11) — DH2's architecture differs (DLG-01). No camera restore (DLG-07). |
+| `_gdialogExitFromScript` | `scripting.ts:533 dialogueExit` → `ui_dialogue.ts:184 uiEndDialogue` / `stopTalkingHead` | ✅ FIXED (2026-10-25) | LOW | Music restore ✅. CE refuses to exit while a barter / control switch is pending (`_dialogue_switch_mode` 2/8/11) — DH2's architecture differs (DLG-01). No camera restore (DLG-07). |
 | `gameDialogSetBackground` | `talkingHead.ts:373` | ✅ | — | |
 | `gameDialogRenderSupplementaryMessage` | `ui_companion.ts:222 showAIUpdateMsg`, `ui_companion_trade.ts` (`uiSetDialogueReply`) | ⚠️ | LOW | The dialogue Barter button's 903 / 913 refusals go to the message monitor (`ui_dialogue.ts:102 uiLog`), CE shows them in the reply window. |
 | `_gdialogStart` | `scripting.ts:2754 gsay_start` | ⚠️ | LOW | Options cleared ✅. CE also empties the review list on every `gsay_start`; DH2 empties it on a fresh `start_gdialog` only (same in practice). |
@@ -101,7 +101,7 @@ Top findings:
 | `_gdProcess` | `ui_dialogue.ts:261` (click) + `scripting.ts:492 dialogueReply` | ❌ | MED | DLG-04: no 1–9 / B / Space / ↑ / ↓ keys, no 10 s auto-paging of over-long replies. |
 | `_gdProcessChoice` | `scripting.ts:492 dialogueReply` | ✅ | — | Review option, `_talk_to_critter_reacts` with the option's reaction, end when the proc adds no options ✅. The sub-screen cases are DLG-01. |
 | `gameDialogOptionOnMouseEnter`, `gameDialogOptionOnMouseExit` | `ui_dialogue.ts:249-260` | ✅ | — | Hover yellow, Empathy blue / red (+ hover magenta / light red) as CE. |
-| `gameDialogRenderReply`, `_gdProcessUpdate` | `ui_dialogue.ts:196 uiSetDialogueReply`, `:251` | ⚠️ | LOW | Scrollable div instead of CE pages; CE gives no button to options that don't fit the 112 px window (still reachable by key); `[Done]` text hard-coded instead of proto.msg 650; "Go on" (655) case missing (DLG-03). |
+| `gameDialogRenderReply`, `_gdProcessUpdate` | `ui_dialogue.ts:196 uiSetDialogueReply`, `:251` | ✅ FIXED (2026-10-25) | LOW | Scrollable div instead of CE pages; CE gives no button to options that don't fit the 112 px window (still reachable by key); `[Done]` text hard-coded instead of proto.msg 650; "Go on" (655) case missing (DLG-03). |
 | `_gdCreateHeadWindow`, `_gdDestroyHeadWindow` | `talkingHead.ts:349 ensureCanvas`, `:399 stopTalkingHead` | ✅ | — | |
 | `_gdSetupFidget` | `talkingHead.ts:160 setupFidget` | ✅ | — | Fidget choice 68 / 52 / 77 %, phoneme anim per reaction ✅. |
 | `gameDialogWaitForFidgetToComplete`, `_gdPlayTransition` | `talkingHead.ts:190 playTransition` | ✅ | LOW | Async (promise chain) instead of a blocking loop; the dialogue stays clickable during a transition. |
@@ -122,7 +122,7 @@ Top findings:
 | `gameDialogCombatControlButtonOnMouseUp` | `ui_dialogue.ts:110-113` | ✅ | — | |
 | `_gdPickAIUpdateMsg` | `ui_companion.ts:218 showAIUpdateMsg` | ✅ | — | 670–674, dogs 677–678. |
 | `_gdCanBarter` | — (control Trade button `ui_companion.ts:346`) | ⚠️ | LOW | CE's control-screen Trade (D) checks `CRITTER_BARTER` and shows 913 "can't carry anything" (e.g. dogs); DH2 opens the trade screen unconditionally from the control screen (the dialogue Barter button does check). |
-| `partyMemberControlWindowHandleEvents` | `ui_companion.ts:228 useBestWeapon`, `:253 useBestArmor`, disposition clicks | ⚠️ | LOW | Logic ✅ (unwield right hand, `_ai_search_inven_weap`, reload, message only when found; armor except PID 0x10000A1, message always). Keys W / A / D missing (Esc ✅). |
+| `partyMemberControlWindowHandleEvents` | `ui_companion.ts:228 useBestWeapon`, `:253 useBestArmor`, disposition clicks | ✅ FIXED (2026-10-25) | LOW | Logic ✅ (unwield right hand, `_ai_search_inven_weap`, reload, message only when found; armor except PID 0x10000A1, message always). Keys W / A / D missing (Esc ✅). — **Fixed 2026-10-25:** keys W / A / D (DLG-04). |
 | `partyMemberCustomizationWindowInit`, `…Free`, `…HandleEvents`, `…Update` | `ui_companion.ts:406 uiCompanionCustomize` | ⚠️ | LOW | Done button at (593,161) — CE (593,101), key Enter missing; current values shown as raw keys (`be_sure`) next to the buttons instead of the custom.msg text at x 232; "Not Applicable" (99) for unset area-attack missing; extra DH2 title line. |
 | `_gdCustomSelectRedraw`, `_gdCustomSelect` | `ui_companion.ts:458 uiCustomCategoryPicker` | ⚠️ | MED | Unsupported values not greyed / refused (PTY-03); single click commits (CE: select, then Done / Enter or double-click; Cancel / Esc); hard-coded English labels instead of custom.msg; no Done / Cancel buttons (70,164)/(176,163). |
 | `_gdCustomUpdateSetting` | `party.ts:261 setCompanionCustomSetting` + `ui_companion.ts:84 CUSTOM_OPTIONS` | ⚠️ | HIGH | PTY-02. Also PTY-06 (custom values dropped on a disposition change). |
@@ -196,7 +196,7 @@ Top findings:
 | `opGameDialogSystemEnter` | `scripting.ts:2840` | ✅ | — | |
 | `combat_ai.cc aiSetDisposition` | `party.ts:231 setCompanionDisposition` | ✅ | — | Name lookup ≡ `packet_num − (disp − cur)` for all party packets checked (see doc error above). |
 | `combat_ai.cc aiSetRunAwayMode` (min_hp) | `combat/Combat.ts:269 aiMinHp` | ⚠️ | HIGH | Table keyed by the wrong index — PTY-02. |
-| `combat_ai.cc aiSave` (custom packets) | `Critter.customAiOverrides` (saved) | ⚠️ | LOW | PTY-06. |
+| `combat_ai.cc aiSave` (custom packets) | `Critter.customAiOverrides` (saved) | ✅ FIXED (2026-10-25) | LOW | PTY-06. |
 
 ## Detailed findings
 

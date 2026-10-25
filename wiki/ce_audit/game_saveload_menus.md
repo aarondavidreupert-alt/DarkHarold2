@@ -69,7 +69,7 @@ Top findings:
 
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| falloutMain | `src/init.ts:89-131`, `src/ui_mainmenu.ts:177` | 🟡 PARTIAL | LOW | IPLOGO→INTRO→CREDITS (+ SkipOpeningMovies) ✓; NEW GAME → selector → ELDER → reseed → artemple ✓; menu INTRO/CREDITS ✓. Missing: main-menu music `07desert` (`main.cc:97`), QUOTES (Shift+C), screensaver/timeout → INTRO, return to the menu after death/quit (DH2 reloads). OPTIONS/LOAD issues: MENU-01/02. |
+| falloutMain | `src/init.ts:89-131`, `src/ui_mainmenu.ts:177` | ✅ FIXED (2026-10-25) | LOW | IPLOGO→INTRO→CREDITS (+ SkipOpeningMovies) ✓; NEW GAME → selector → ELDER → reseed → artemple ✓; menu INTRO/CREDITS ✓. Missing: main-menu music `07desert` (`main.cc:97`), QUOTES (Shift+C), screensaver/timeout → INTRO, return to the menu after death/quit (DH2 reloads). OPTIONS/LOAD issues: MENU-01/02. |
 | falloutInit | `initGame` | ✅ MATCH | — | |
 | main_reset_system | `initMainMenu(() => { gameReset(); … })` (`init.ts:107`) | ✅ MATCH | — | |
 | main_exit_system | — | 🚫 N/A | — | |
@@ -140,7 +140,7 @@ Top findings:
 | preferencesInit / _SetSystemPrefs | `ui_options/preferences.ts:50 loadPreferences` | ✅ MATCH | — | |
 | _SaveSettings / _RestoreSettings | `ui_options.ts:608 snapshotPrefs` (CANCEL) | ✅ MATCH | — | |
 | preferencesSetDefaults | DEFAULT button `ui_options.ts:401` | ⚠️ DIFFERS | LOW | DEFAULT button = CE values ✓; but DH2 *initial* defaults differ: `playerSpeedup: true` (`config.ts:160`, CE `false`), volumes 100 % (CE 22281/32767 ≈ 68 %). |
-| _JustUpdate_ | applied ad hoc on change | 🟡 PARTIAL | LOW | `aiMessageListReloadIfNeeded` (badword reload) missing — see PREF-02. |
+| _JustUpdate_ | applied ad hoc on change | ✅ FIXED (2026-10-25) | LOW | `aiMessageListReloadIfNeeded` (badword reload) missing — see PREF-02. |
 | _UpdateThing / preferencesWindowInit / preferencesWindowFree / _DoThing | `ui_options.ts:58 buildPrefsPanel` | ✅ MATCH | — | Knobs, sliders, checkbox (rendering not pixel-verified). |
 | _SavePrefs | `preferences.ts:102 savePreferences` | ✅ MATCH | — | |
 | preferencesSave / preferencesLoad | — | ❌ MISSING | MED | SAVE-01. |
@@ -223,7 +223,7 @@ Top findings:
 |---|---|---|---|---|
 | automapInit / automapReset / automapExit | `automap/tracking.ts:127`, `storage.ts:238 resetAutomap` | ✅ MATCH | — | |
 | automapLoad / automapSave | `SaveGame.automap` (`storage.ts:249/258`) | ✅ MATCH | — | CE saves the flags in SAVE.DAT and AUTOMAP.DB in the slot; DH2 saves the seen data. |
-| _automapDisplayMap / automapSetDisplayMap | — | ❌ MISSING | LOW | maps.txt `automap=no` maps should not be listed in the Pip-Boy AUTOMAPS tab (`pipboy.cc:1604`). |
+| _automapDisplayMap / automapSetDisplayMap | — | ✅ FIXED (2026-10-25) | LOW | maps.txt `automap=no` maps should not be listed in the Pip-Boy AUTOMAPS tab (`pipboy.cc:1604`). — **Fixed 2026-10-25:** the Pip-Boy list hides them (PIP-01). |
 | automapShow | `ui_automap.ts:146 openAutomap`, `input.ts:161` | ✅ FIXED | MED | AUTO-01 (fixed 2026-10-25). |
 | automapRenderInMapWindow | `automap/render.ts:48 drawAutomapInto` | ✅ FIXED | MED | AUTO-01 (fixed 2026-10-25): CE colours and detail levels. |
 | automapRenderInPipboyWindow | `ui_pipboy` AUTOMAPS → `drawAutomapInto` | 🟡 PARTIAL | LOW | Same renderer. |
@@ -234,7 +234,7 @@ Top findings:
 
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| skilldexOpen | `ui_skilldex.ts:210 showSkilldex` + key handler | ⚠️ DIFFERS | LOW | Not modal (OPT-01: game keeps running); S and Return don't close it (CE + sfall do); 1–8 pick a skill (DH2-only — CE's buttons have no key binding; 1–8 on the map go straight to targeting). |
+| skilldexOpen | `ui_skilldex.ts:210 showSkilldex` + key handler | ✅ FIXED (2026-10-25) | LOW | Not modal (OPT-01: game keeps running); S and Return don't close it (CE + sfall do); 1–8 pick a skill (DH2-only — CE's buttons have no key binding; 1–8 on the map go straight to targeting). |
 | skilldexWindowInit / skilldexWindowFree | `ui_skilldex.ts:41 initSkilldex` | ✅ MATCH | — | Layout per U18. |
 
 ### display_monitor.cc

@@ -233,6 +233,47 @@ PARTLY FIXED): 119 fixed, 1 checked and not ported:
   CE would re-run `start` when an unguarded proc (`critter_p_proc`, `look_at_p_proc`, …) is missing. Left as DH2's
   "no proc, nothing runs".
 
+### LOW table rows — sweep of 2026-10-26
+
+The reports hold 369 table rows rated LOW. 71 are now marked **✅ FIXED (2026-10-25)**: those whose
+cited finding was fixed, and those fixed under another ID (Glovz rounding, the body-part modifiers, the
+control-screen keys, the special message pairs, case-insensitive procedures …). 21 were already MATCH.
+The rest — about 275 — still differ; they were not re-tested one by one against today's code, so a few
+may be stale. Sorted by what they are:
+
+**Worth fixing (player-visible, CE behaviour clear):**
+- *Messages and dialogs:* `_is_next_to` / `_can_talk_to` "Can't reach that." (CE misc.msg 2000, with a
+  recheck after the walk); the character editor's refusals (editor.msg 132–136, 140 / 141, 148 / 149 dialogs
+  with iisxxxx1 instead of a log line or nothing); the dialogue Barter refusals (903 / 913) in the reply
+  window; the death message in a dialog box (misc.msg 1006); `[sound] sounds= / music= / speech=0`.
+- *Inventory:* newest-first item order; ammo counts shown as rounds and `x<n>` only above 1; ammo dropped on
+  a weapon that can't take it is refused; the wield / unwield animations; the quantity window's typing
+  (first digit replaces, Backspace); drop one item of a stack; a used-up hand item refilled from the
+  inventory (`itemReplace`); caps in carried containers counted.
+- *Combat:* `_print_tohit` "00" for 0 %; the called-shot window allows crippled limbs; "X" for every bad shot
+  (range, AP, blocked aim), not just ammo; `_determine_to_hit_no_range` without the scope's distance term;
+  DAM_DEAD drops all the critter's queued events; the swap-hands button drops the crosshair; a hand change
+  resets the attack to primary; the crosshair picks a critter, else only a door; the item outline only in
+  arrow mode after the hover delay.
+- *Game flow:* quitting and the endgame's "No" go back to the main menu (now: page reload); the death screen
+  and endgame subtitles follow the subtitles preference; DH2's initial defaults (player speedup on, volumes
+  100 %) are CE's (off, 22281 / 32767); the elevator panel's Esc and floor keys; the save description
+  pre-filled and capped at 29 characters; music paused under the save/load screen.
+- *World map / scripts:* the night ambient remap (brdchir1 → cricket); CITY_FAKE_VAULT_13_A / B swap;
+  `wmCarFillGas` returns the overflow; `wmSetMapMusic` restarts the current map's music; the 24-hour time
+  string; `nextMapUpdateTick` reset on load; `pcSetStat` lowering XP levels down (and Here and Now removed);
+  the party's control-screen Trade checks CRITTER_BARTER; recruiting clears the recruit's script timers.
+
+**Presentation only (left as DH2's):** fonts and text widths, scroll and tab speeds, number and gauge
+animations, cursor hotspots, palette fades, splash and credits styling, colour-cycling pauses.
+
+**Unused by shipped scripts or sfall extras:** opcodes no script uses (opNoop, opDump, delayed / conditional
+calls, external procedures, child programs), sfall's critical-table and burst-mod options, 16 of the 18 sfall
+metarules, the type checks behind CE's fatal "integer expected" errors.
+
+**Deliberate DH2 choices (documented elsewhere):** unlimited save slots, the egg occlusion mode, per-pixel
+scrolling, the browser screenshot, desktop-only input, the walk-next-to-talk rule.
+
 ## 4. Conflicts with the wiki / known_bugs (flagged, not resolved)
 
 Per CLAUDE.md these are flagged here; the fixed-entry text in `known_bugs.md` is annotated, not rewritten.

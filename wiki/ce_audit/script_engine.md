@@ -44,7 +44,7 @@ Top findings, most severe first:
 | gameTimeAddTicks | gametime.ts `advanceTicks`; gameTick.ts:216-225 | 🟡 | LOW | The 13-year TIMEOUT check runs only on the 10 Hz tick path, not on a jump, so it fires on the next tick |
 | gameTimeAddSeconds | gametime.ts `advanceSeconds` | ✅ | | |
 | gameTimeScheduleUpdateEvent | gameTick.ts `lastMidnightDay`, `nextMapUpdateTick` | 🟡 | LOW | Midnight is a day-number compare. `nextMapUpdateTick` is never reset on map load; CE schedules +600 ticks from the load |
-| gameTimeEventProcess | gameTick.ts `processMidnightForDay` | 🟡 | LOW | Midnight unjam, story check and rads are done. CE skips the story check while a dialogue is active and skips everything while a movie plays; DH2 can run it from `game_time_advance` inside a dialogue |
+| gameTimeEventProcess | gameTick.ts `processMidnightForDay` | ✅ FIXED (2026-10-25) | LOW | Midnight unjam, story check and rads are done. CE skips the story check while a dialogue is active and skips everything while a movie plays; DH2 can run it from `game_time_advance` inside a dialogue — **Fixed 2026-10-25:** no story check during a dialogue ("Smaller ones"). |
 | _scriptsCheckGameEvents | gameTick.ts `scriptsCheckGameEvents` | ✅ | LOW | Day thresholds are hard-coded to the sfall defaults 90/180/270/360; CE reads them from ddraw.ini |
 | mapUpdateEventProcess | gameTick.ts:273-281 | ⚠️ | MED | SCR-04: blocked in combat |
 | scriptsNewObjectId | Obj uid | 🟡 | | Not compared in detail |
@@ -53,23 +53,23 @@ Top findings, most severe first:
 | _doBkProcesses | gameTick.ts `tickGame` | 🟡 | | DH2 has no `_updatePrograms` burst (documented, scripting_vm.md §11) |
 | _script_chk_critters | gameTick.ts:296-314 | ✅ | LOW | One `critter_p_proc` per 60 Hz pass, round-robin. DH2 rotates only over live critters of the current elevation; CE over the whole critter script list (dead and off-elevation ones included, unverified) |
 | _script_chk_timed_events | gameTick.ts:216-282 | ⚠️ | MED | SCR-03, SCR-04. Ignores `stopProcess`; only the rest loop uses `queueBail` |
-| _scrSetQueueTestVals / _scrQueueRemoveFixed | scripting.ts:936 (metarule3 100) | ⚠️ | LOW | CE clears **every** EVENT_TYPE_SCRIPT event of that object with that fixed param; DH2 removes only the first match, of any type |
+| _scrSetQueueTestVals / _scrQueueRemoveFixed | scripting.ts:936 (metarule3 100) | ✅ FIXED (2026-10-25) | LOW | CE clears **every** EVENT_TYPE_SCRIPT event of that object with that fixed param; DH2 removes only the first match, of any type — **Fixed 2026-10-25:** every match is removed. |
 | scriptAddTimerEvent | scripting.ts:3080 `add_timer_event` | ✅ | | Relative ticks, bound to `obj._script` |
 | scriptEventWrite / scriptEventRead | saveload.ts:223, 420-482 | 🟡 | MED | SCR-10 |
 | scriptEventProcess | scripting.ts:3372 `timedEvent` | 🟡 | MED | `fixed_param` is set. `self_obj`, `game_time` and `cur_map_index` are not refreshed (SCR-02) |
-| scriptsClearPendingRequests / _scripts_clear_combat_requests | — | ❌ | LOW | No request flags (SCR-07) |
+| scriptsClearPendingRequests / _scripts_clear_combat_requests | — | ✅ FIXED (2026-10-25) | LOW | No request flags (SCR-07) |
 | scriptsHandleRequests | gameTick.ts:126-127 (`processMapTransition`, `processDialogueRequest`), 136 (`deleteAllTempArrays`) | 🟡 | MED | Dialogue and map transition are deferred as in CE; combat, explosion, world map, elevator and endgame run at once (SCR-07) |
 | _scripts_check_state_in_combat | — | ❌ | LOW | Elevator / looting requests made in combat |
 | scriptsRequestCombat / _scripts_request_combat_locked | scripting.ts:1734, 2645 `Combat.start` | ⚠️ | MED | Runs at once (SCR-07) |
 | scripts_request_townmap / scriptsRequestWorldMap | scripting.ts:2686 `world_map` → `uiWorldMap()` | ⚠️ | LOW | Runs at once. CE also sets `_game_user_wants_to_quit = 1` in combat |
 | scriptsRequestElevator | metarule 15 → `useElevator` | 🟡 | | Not compared in detail (elevator audit) |
-| scriptsRequestExplosion | scripting.ts:3030 `explosion` | ⚠️ | LOW | Explodes inside the script (SCR-07) |
+| scriptsRequestExplosion | scripting.ts:3030 `explosion` | ✅ FIXED (2026-10-25) | LOW | Explodes inside the script (SCR-07) |
 | scriptsRequestDialog | scripting.ts:2853 → `processDialogueRequest` | ✅ | | Deferred |
 | scriptsRequestEndgame | scripting.ts:3145 | ⚠️ | LOW | Starts the async slideshow at once; CE plays the slideshow and then the movie from the request |
 | scriptsRequestLooting / scriptsRequestStealing | (other audit) | 🟡 | | |
 | _script_make_path | — | 🚫 | | Paths are built in `loadScript` |
 | scriptExecProc | dispatchers in scripting.ts; vm.ts:367 `call` | ⚠️ | MED | SCR-08 (dead after a fatal error), SCR-11 (missing proc → procedure index 1). `scriptOverrides = 0` → `_didOverride = false` ✅; `source` is not cleared afterwards |
-| scriptLocateProcs / scriptHasProc | intfile.ts `procedures` map | ⚠️ | LOW | Case-sensitive name lookup; CE `programFindProcedure` uses `stricmp` |
+| scriptLocateProcs / scriptHasProc | intfile.ts `procedures` map | ✅ FIXED (2026-10-25) | LOW | Case-sensitive name lookup; CE `programFindProcedure` uses `stricmp` — **Fixed 2026-10-25:** case-insensitive names ("Smaller ones"). |
 | scriptsLoadScriptsList / scriptsFreeScriptsList / _scr_find_str_run_info / scriptsGetFileName | `lookupScriptName` | 🟡 | LOW | The scripts.lst `local_vars=` count is not used (no LVAR bounds) |
 | scriptsSetDudeScript / scriptsClearDudeScript | — | ❌ | MED | SCR-09 |
 | scriptsInit / _scr_reset / _scr_game_init / scriptsReset / scriptsExit / _scr_message_free / _scr_game_exit | scripting.ts:3733 `reset`, 3749 `init`, 358 `resetGameState` | ✅ | | |
@@ -79,13 +79,13 @@ Top findings, most severe first:
 | scriptGetScript / scriptGetNewId / scriptAdd / scriptsRemoveLocalVars / scriptRemove / _scr_remove_all / _scr_remove_all_force | — | 🚫 | | JS object ownership. `scriptRemove`'s removal of the owner's SCRIPT events is done by `destroy_object` / `rm_timer_event` ✅ |
 | scriptGetFirstSpatialScript / scriptGetNextSpatialScript | GameMap.ts:104 `getSpatials` | ✅ | | |
 | _scr_spatials_enable / _scr_spatials_disable | Critter.ts `spatialsBusy` | 🟡 | LOW | CE also turns spatials off during map_enter / map_update / explode_scenery |
-| scriptsExecSpatialProc | Critter.ts:285-298, Obj.ts:474 `hitSpatialTrigger` | 🟡 | LOW | Hidden / flat / tile < 10 / re-entry checks ✅. DH2 uses the current elevation's spatials, CE the object's elevation. In CE only `_object_move` (animated, non-straight) triggers |
+| scriptsExecSpatialProc | Critter.ts:285-298, Obj.ts:474 `hitSpatialTrigger` | ✅ FIXED (2026-10-25) | LOW | Hidden / flat / tile < 10 / re-entry checks ✅. DH2 uses the current elevation's spatials, CE the object's elevation. In CE only `_object_move` (animated, non-straight) triggers — **Fixed 2026-10-25:** the object's elevation's spatials ("Smaller ones"). |
 | scriptsExecStartProc | GameMap.ts:400, Obj.ts:731/767 `initScript` | ⚠️ | MED | SCR-05 |
 | scriptsExecMapEnterProc | GameMap.ts:445-468 `doEnterNewMap` | ⚠️ | MED | SCR-05 |
 | scriptsExecMapUpdateProc | GameMap.ts:207 `updateMap`, 273 | ⚠️ | MED | SCR-04 (runs twice at load) |
 | scriptsExecMapUpdateScripts | scripting.ts:3643 `updateMap`, 3673 `enterMap`, 3721 `objectEnterMap` | 🟡 | LOW | Map script first ✅. Then objects in array order, then spatials; CE goes by script list type. Inventory items' scripts are not iterated (unverified whether DH2 gives them scripts) |
 | scriptsExecMapExitProc | mapLoader.ts:139-155 | ✅ | | `_queue_leaving_map` first, party excluded |
-| scriptsGetMessageList / _scr_get_msg_str / _scr_get_msg_str_speech | scripting.ts:458 `getScriptMessage`, 483 `speakScriptMessage` | 🟡 | LOW | Missing message → "Error" ✅; lips ✅. The special pairs (0,0) / (−1,−1) → "" and (−2,−2) → proto.msg 650 are not handled |
+| scriptsGetMessageList / _scr_get_msg_str / _scr_get_msg_str_speech | scripting.ts:458 `getScriptMessage`, 483 `speakScriptMessage` | ✅ FIXED (2026-10-25) | LOW | Missing message → "Error" ✅; lips ✅. The special pairs (0,0) / (−1,−1) → "" and (−2,−2) → proto.msg 650 are not handled — **Fixed 2026-10-25:** the special pairs ("Smaller ones"). |
 | scriptGetLocalVar / scriptSetLocalVar | scripting.ts:701-711 | ✅ | LOW | Unset = 0 ✅. CE refuses LVARs in map/system scripts (−1); DH2 allows them |
 | _scr_end_combat | — | ✅ | | Dead code in CE: `_combat_ending_guy` is set only after this returns true (combat.cc:5370-5376), so the map's `combat_p_proc` is never reached |
 | _scr_explode_scenery | combat/explosion.ts:85 | ✅ | | See the combat audit |
@@ -114,7 +114,7 @@ Top findings, most severe first:
 | opDivide | vm.ts:299 | ✅ | | int/int truncates (`|0`), float division, fatal on /0 |
 | opModulo | vm.ts:294 | ⚠️ | LOW | CE: a float operand is fatal ("Trying to MOD a float"); DH2 computes a JS `%` |
 | opLogicalOperatorAnd / Or | vm.ts:271-276 | ✅ | | Push 0/1 |
-| opLogicalOperatorNot | vm.ts:249 | ⚠️ | LOW | Pushes a JS boolean, not an int |
+| opLogicalOperatorNot | vm.ts:249 | ✅ FIXED (2026-10-25) | LOW | Pushes a JS boolean, not an int — **Fixed 2026-10-25:** `!` pushes an int. |
 | opUnaryMinus | vm.ts:158 | ✅ | LOW | A string gives NaN; CE "Invalid arg given to NEG" (fatal) |
 | opBitwiseOperatorNot / And / Or / Xor | vm.ts:277-290 | ✅ | | |
 | opFloor | vm.ts:162 | ✅ | LOW | A string gives NaN; CE fatal |
@@ -136,14 +136,14 @@ Top findings, most severe first:
 | opExportProcedure (0x8017) | — | ❌ | LOW | No cross-program procedures; unused |
 | opExit (0x800E) / opDetach (0x800F) / opCallStart / opSpawn / forkProgram / opFork / opExec (0x8008-0x800B) | — | ❌ | LOW | Child programs; `detach` only appears in unlisted scripts (scripting_vm.md §9.2) |
 | opCheckProcedureArgumentCount | vm.ts:197 | ⚠️ | MED | Throws a plain string (not `VMFatalError`) → SCR-01 |
-| opLookupStringProc | vm.ts:192 | ⚠️ | LOW | Case-sensitive; can match index 0 (CE starts at 1); an unknown name throws a TypeError → SCR-01 |
+| opLookupStringProc | vm.ts:192 | ✅ FIXED (2026-10-25) | LOW | Case-sensitive; can match index 0 (CE starts at 1); an unknown name throws a TypeError → SCR-01 |
 | interpreterRegisterOpcodeHandlers / interpreterRegisterOpcode | vm.ts `opMap` + vm_bridge.ts:361 | ✅ | | |
 | _interpretClose | — | 🚫 | | |
 | _interpret | vm.ts:485 `step`, 519 `run` | ⚠️ | MED | No burst limit (documented). An unknown opcode makes `step()` return false: a silent halt with a warning (CE fatal). `call()` then finds the −1 sentinel still on the return stack and stores the frame as a **suspended dialogue frame** (vm.ts:407-421) — see SCR-12 |
 | _setupCallWithReturnVal / _setupCall | vm.ts:387-395 | ✅ | | Pushes flags, checkWaitFunc and windowId as 0 |
 | _setupExternalCallWithReturnVal / _setupExternalCall | — | ❌ | LOW | No imported procedures |
 | _executeProc | — | ❌ | LOW | Only for timed / conditional procs (unused) |
-| programFindProcedure | intfile.ts `procedures[name]` | ⚠️ | LOW | Case-sensitive |
+| programFindProcedure | intfile.ts `procedures[name]` | ✅ FIXED (2026-10-25) | LOW | Case-sensitive — **Fixed 2026-10-25:** case-insensitive names ("Smaller ones"). |
 | _executeProcedure | vm.ts:367 `call` | ✅ | | Saves and restores pc / offset / halted / dvarBase around nested runs, as CE saves `env`. Fatal error → returns 0 ✅ |
 | _doEvents | — | ❌ | LOW | Unused (documented) |
 | programListNodeFree / programListNodeCreate / runProgram / runScript / _updatePrograms / programListFree / interpreterPrintStats | — | 🚫 | | Event-driven model (documented) |
@@ -160,11 +160,11 @@ Top findings, most severe first:
 |---|---|---|---|---|
 | queueInit / queueExit | — | 🚫 | | |
 | queueLoad / queueSave | saveload.ts:223, 416-482 | 🟡 | MED | SCR-10. CE matches objects by id; DH2 by PID (the first object with that PID wins) |
-| queueAddEvent | `timeEventList.push` (scripting.ts, drugs.ts, radiation.ts, combat/results.ts, Obj.ts, miscItem.ts, skillUse.ts) | 🟡 | LOW | Relative countdown instead of absolute time. Ties keep insertion order (= CE FIFO). Counts down only outside combat (SCR-03) |
+| queueAddEvent | `timeEventList.push` (scripting.ts, drugs.ts, radiation.ts, combat/results.ts, Obj.ts, miscItem.ts, skillUse.ts) | ✅ FIXED (2026-10-25) | LOW | Relative countdown instead of absolute time. Ties keep insertion order (= CE FIFO). Counts down only outside combat (SCR-03) |
 | queueRemoveEvents | scripting.ts:3094 `rm_timer_event`; `destroy_object`; gameTick.ts:246 (dead critter) | ✅ | | CE combat.cc:4799 removes on death; DH2 drops events whose owner is dead |
 | queueRemoveEventsByType | various (knockout, sneak, party) | ✅ | | |
 | queueHasEvent | `timeEventList.some(...)` | ✅ | | |
-| queueProcessEvents | gameTick.ts:240-262 (per tick), 70-85 `processTimeJump` | ⚠️ | LOW | Due-time order on a jump ✅. The per-tick path ignores `stopProcess`, and removing other events from inside `fn()` shifts the indices of the live loop (events can be skipped). `fn()` runs before the splice (SCR-01 repeat) |
+| queueProcessEvents | gameTick.ts:240-262 (per tick), 70-85 `processTimeJump` | ✅ FIXED (2026-10-25) | LOW | Due-time order on a jump ✅. The per-tick path ignores `stopProcess`, and removing other events from inside `fn()` shifts the indices of the live loop (events can be skipped). `fn()` runs before the splice (SCR-01 repeat) |
 | queueClear | scripting.ts:363 `resetGameState` | ✅ | | |
 | _queue_clear_type | ad hoc filters | ✅ | | |
 | queueGetNextEventTime / queueIsEmpty | — | 🚫 | | Not needed with countdowns |
@@ -191,11 +191,11 @@ Top findings, most severe first:
 | sfall_opcodes.cc opcode table (83 opcodes) | vm_bridge.ts:195-236 | 🟡 | MED (mods) | 36 of 83 are bridged (arrays, ini, proto data, ammo, pc stats, script, party list, sfall_func0-2, abs, explosions_metarule, path, blocking), plus 4 not in CE (0x815F-0x8161, 0x81F8). Missing 47 include 0x8193 active_hand, 0x819D/0x819E sfall gvars, 0x81EB get_ini_string, 0x81EC sqrt, 0x8237 atoi, 0x8238 atof, 0x824E substr, 0x824F strlen, 0x8253 typeof, 0x8263 `^`, 0x8267 round, 0x826B message_str_game, 0x827F div, 0x8279-0x827C sfall_func3-6, 0x820D-0x820F list_begin/next/end, 0x8164 game_loaded, 0x8170 in_world_map, 0x8171/0x8229 force_encounter, mouse / key / screen / version ops. SCR-12 |
 | sfall_arrays.cc (CreateArray … StackArray, DeleteAllTempArrays, sfallArraysReset) | sfallArrays.ts | ✅ | LOW | Faithful port. Int and float are told apart by `Number.isInteger`, because `bridged()` unboxes floats, so `2.0` is stored as INT (documented in the file header) |
 | sfall_metarules.cc (18 metarules) | scripting.ts:2346-2364 | 🟡 | LOW | `combat_data` and `get_object_data` (Attack offsets only); the other 16 warn and return 0 |
-| sfall_global_vars.cc (store / fetch / save / load) | — | ❌ | LOW | Opcodes 0x819D/0x819E missing; planned in upu_support.md |
+| sfall_global_vars.cc (store / fetch / save / load) | — | ✅ FIXED (2026-10-25) | LOW | Opcodes 0x819D/0x819E missing; planned in upu_support.md — **Fixed 2026-10-25:** 0x819D / 0x819E have handlers. |
 | sfall_global_scripts.cc (gl_* scripts) | — | ❌ | LOW | Documented deviation (upu_support.md item 5: the killap `gl_k_*` scripts need sfall hooks CE lacks) |
-| sfall_lists.cc (sfallListsCreate / GetNext / Destroy / fill) | scripting.ts `list_as_array` → sfallArrays.ts `arrayFromObjects` | 🟡 | LOW | Only `list_as_array`; `list_begin/next/end` missing |
+| sfall_lists.cc (sfallListsCreate / GetNext / Destroy / fill) | scripting.ts `list_as_array` → sfallArrays.ts `arrayFromObjects` | ✅ FIXED (2026-10-25) | LOW | Only `list_as_array`; `list_begin/next/end` missing — **Fixed 2026-10-25:** list_begin / list_next / list_end (SCR-12). |
 | sfall_ini.cc (parse_ini_triplet / get_int / get_string / set_*) | sfallIni.ts | 🟡 | LOW | DH2 needs exactly 3 `|` parts (CE: the key is the rest, so it may contain `|`). Files are cached per page load (CE re-reads on every call). No `set_ini_setting`; no sfall base path (DH2 reads `data/<file>`) |
-| sfall_kb_helpers.cc | — | ❌ | LOW | key_pressed / tap_key opcodes missing |
+| sfall_kb_helpers.cc | — | ✅ FIXED (2026-10-25) | LOW | key_pressed / tap_key opcodes missing — **Fixed 2026-10-25:** key_pressed and tap_key (SCR-12). |
 | sfall_config.cc | gametime.ts constants, gameTick.ts ARTIMER_DAYS, config.ts | 🟡 | LOW | Start date and artimer days are hard-coded to the defaults; ddraw.ini `[Misc]` overrides are ignored |
 
 ### Lua backend (src/lua/) vs CE semantics
@@ -205,7 +205,7 @@ Top findings, most severe first:
 | opAdd string concat | prelude.ts `string_mt.__add`, `text()` | ✅ | | `%.5f` / `%d` |
 | opDivide / opModulo / opFloor | prelude.ts `div` / `mod` / `floor` | ✅ | LOW | Float MOD computes instead of the CE fatal error; 64-bit ints, no 32-bit wrap |
 | comparisons | plain Lua `==` / `<` | ⚠️ | LOW | Comparing a string with a number using `<` raises a Lua error and aborts the procedure; CE uses `strcmp` |
-| truthiness | prelude.ts `truthy` | ⚠️ | LOW | `""` is false in AND/OR; the VM's `sslTrue` says a string is always true (backends disagree) |
+| truthiness | prelude.ts `truthy` | ✅ FIXED (2026-10-25) | LOW | `""` is false in AND/OR; the VM's `sslTrue` says a string is always true (backends disagree) — **Fixed 2026-10-25:** a string is true in both backends (SCR-13). |
 | intrinsic results | luaRuntime.ts `sslValue` | ✅ | | null → 0, boolean → 0/1 (better than the VM, SCR-06) |
 | fatal errors | prelude.ts `step` (catches, returns 0) | ✅ | | Robust against SCR-01; CE's "script dead after a fatal error" (SCR-08) is not modelled |
 | recursion limit | prelude.ts `MAX_RECURSION = 0x1000 // 3` | 🟡 | | Documented approximation |

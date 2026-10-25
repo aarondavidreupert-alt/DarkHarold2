@@ -67,7 +67,7 @@ Top findings:
 
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| `actionKnockdown` (actions.cc:102) | `actionKnockdown` src/critter/lifecycle.ts:278 | ⚠️ | LOW | Distance loop, exit-grid stop, the extra `distance--`, the FALL_FRONT→FALL_BACK art fallback, the KNOCKDOWN sfx and the 20-hex cap all match. The slide (`moveStraight`, lifecycle.ts:257) moves one *hex* per frame. CE `_make_straight_path(..., 4)` makes a node every 4 screen pixels, one per tick, so the DH2 slide is ~4–8× faster (ANIM-05). |
+| `actionKnockdown` (actions.cc:102) | `actionKnockdown` src/critter/lifecycle.ts:278 | ✅ FIXED (2026-10-25) | LOW | Distance loop, exit-grid stop, the extra `distance--`, the FALL_FRONT→FALL_BACK art fallback, the KNOCKDOWN sfx and the 20-hex cap all match. The slide (`moveStraight`, lifecycle.ts:257) moves one *hex* per frame. CE `_make_straight_path(..., 4)` makes a node every 4 screen pixels, one per tick, so the DH2 slide is ~4–8× faster (ANIM-05). |
 | `_action_blood` (:157) | `bloodAnim` src/critter/deathAnim.ts:217 | ✅ | — | |
 | `_pick_death` (:183) | `pickDeath` deathAnim.ts:140 | ✅ | — | Thresholds, Molotov, Pyromaniac, Flameboy, SPECIAL_DEATH, Bloody Mess and the tables all match. |
 | `_check_death` (:260) | `checkDeath` deathAnim.ts:124 | ✅ | — | |
@@ -123,8 +123,8 @@ Top findings:
 | `animationRegisterRunToObject` (:646) | same, `run: true`; `walkInFrontOf` Critter.ts:481 | ⚠️ | MED | ANIM-03 (sneak, encumbrance, overloaded message). Crippled legs → walk ✓, no run art → walk ✓. |
 | `animationRegisterMoveToTile` (:694) | AnimMove step; `walkTo` Critter.ts:409 | ⚠️ | LOW | CE `_anim_move(a5 = 0)` paths onto an *occupied* goal and stops one short (animateMoveObjectToTile). DH2 `recalcPath(goal must be free)` finds no path, so a script move to an occupied tile does nothing. |
 | `animationRegisterRunToTile` (:728) | same, `run: true` | ⚠️ | MED | ANIM-03. |
-| `animationRegisterMoveToTileStraight` (:778) | `moveStraight` lifecycle.ts:257 | ⚠️ | LOW | ANIM-05 (slide speed). |
-| `animationRegisterMoveToTileStraightAndWaitForComplete` (:813) | `moveStraight` (waits for anim + slide) | ✅ | LOW | Waits for both ✓. Speed as ANIM-05. |
+| `animationRegisterMoveToTileStraight` (:778) | `moveStraight` lifecycle.ts:257 | ✅ FIXED (2026-10-25) | LOW | ANIM-05 (slide speed). |
+| `animationRegisterMoveToTileStraightAndWaitForComplete` (:813) | `moveStraight` (waits for anim + slide) | ✅ FIXED (2026-10-25) | LOW | Waits for both ✓. Speed as ANIM-05. |
 | `animationRegisterAnimate` (:847) | AnimStep / `staticAnimation('anim:'+id)` | ✅ | — | |
 | `animationRegisterAnimateReversed` (:875) | AnimStep `reversed` | ✅ | — | |
 | `animationRegisterAnimateAndHide` (:904) | explosion sprites `singleAnimation` + `destroyObject` (Obj.ts:1301) | ✅ | — | |
@@ -137,7 +137,7 @@ Top findings:
 | `animationRegisterTakeOutWeapon` (:1186) | `playWeaponSwapAnim` critterAnimation.ts:670 | ✅ | LOW | Swap ✓ with the TAKE_OUT sfx. Not used after use / climb / throw (CE re-draws the weapon after each). |
 | `animationRegisterSetLightDistance` / `SetLightIntensity` (:1220,3311) | — | 🚫 | — | Only the sfall `ExplosionsEmitLight` option (off by default). |
 | `animationRegisterToggleOutline` (:1243) | — | 🚫 | — | |
-| `animationRegisterPlaySoundEffect` (:1264) | `reg_anim_play_sfx` scripting.ts:2573; `playCharAnimSfx` | ✅ | LOW | Delay unit differs (ANIM-01). |
+| `animationRegisterPlaySoundEffect` (:1264) | `reg_anim_play_sfx` scripting.ts:2573; `playCharAnimSfx` | ✅ FIXED (2026-10-25) | LOW | Delay unit differs (ANIM-01). |
 | `animationRegisterAnimateForever` (:1296) | AnimForever step scripting.ts:2960 | ✅ | — | |
 | `animationRegisterPing` (:1324) | — | 🚫 | — | Cross-sequence sync. |
 | `animationRunSequence` / `_anim_set_continue` / `_anim_set_end` (:1352–1663) | `doStep` scripting.ts:2936 | ⚠️ | MED | ANIM-01. The final `_dude_stand` of every critter owner unless NO_STAND matches `clearAnim` ✓. |
@@ -148,7 +148,7 @@ Top findings:
 | `animateMoveObjectToObject` (:2140) | see MoveToObject | 🟡 | LOW | AP truncation: `walkTo(maxLength)` callers. |
 | `_make_stair_path` / `_anim_move_on_stairs` / `_check_for_falling` / `_check_gravity` (:2180,2463,2494,3270) | — | 🚫 | — | No `animationRegister*` creates these kinds in CE (dead code). |
 | `animateMoveObjectToTile` / `_anim_move` (:2359,2384) | `walkTo` Critter.ts:409 | 🟡 | LOW | See MoveToTile (occupied goal). |
-| `animateMoveObjectToTileStraight` (:2421) | `moveStraight`, `flyProjectile` | 🟡 | LOW | Projectiles: 32-px nodes ✓. Critters: 4-px nodes not ported (ANIM-05). |
+| `animateMoveObjectToTileStraight` (:2421) | `moveStraight`, `flyProjectile` | ✅ FIXED (2026-10-25) | LOW | Projectiles: 32-px nodes ✓. Critters: 4-px nodes not ported (ANIM-05). |
 | `_object_move` (:2529) | `walkFrameCE` critterAnimation.ts:511, `Critter.move` Critter.ts:270 | ⚠️ | MED | Per-frame FRM deltas and hex-step crossing ✓ (FA13). Doors opened via canUseDoor ✓. Missing: the blocker check on the next hex with re-path (`_make_path(..., 1)`) or stop, and the per-hex AP charge with a stop at 0 AP (DH2 charges the path up front). ANIM-02. |
 | `_object_straight_move` (:2650) | `moveStraight` / `flyProjectile` updateAnim | ✅ | LOW | WAIT_FOR_COMPLETION ✓. |
 | `_anim_animate` (:2705) | `staticAnimation` critterAnimation.ts:581 | ✅ | — | Missing art → no play ✓. |
@@ -156,14 +156,14 @@ Top findings:
 | `_object_anim_compact` (:2908) | — | 🚫 | — | |
 | `_check_move` (:2942) | — | ❌ | LOW | Ctrl+move in combat (keep AP for one attack) and `interrupt_walk`. |
 | `_dude_move` / `_dude_run` (:2976,3000) | playerUse.ts:233–268, input.ts:481 `runTo` | 🟡 | LOW | Walk ✓, run key ✓, run cancels Sneak without Silent Running ✓. Clicking the same destination twice does not run. |
-| `_dude_fidget` (:3019) | `updateLoopingAnim` critterAnimation.ts:332 | ⚠️ | LOW | ANIM-04. |
+| `_dude_fidget` (:3019) | `updateLoopingAnim` critterAnimation.ts:332 | ✅ FIXED (2026-10-25) | LOW | ANIM-04. |
 | `_dude_stand` (:3113) | `clearAnim` + `ceStandOffset` critterAnimation.ts:698,765 | ✅ | — | Take-out sum + stand rotation offset ✓. CE keeps a fire-dance fid (rare). |
 | `_dude_standup` (:3182) | `dudeStandup` src/combat/results.ts:133 | ✅ | — | |
 | `actionRotate` (:3199) | context-menu rotate | ✅ | — | No prone check (LOW). |
 | `_anim_hide` / `_anim_change_fid` (:3220,3236) | — | 🚫 | — | |
 | `animationStop` (:3256) | — | 🚫 | — | unverified: DH2 drops pending callbacks on map change through object teardown. |
 | `animationComputeTicksPerFrame` (:3287) | critterAnimation.ts:404 | ✅ | — | Combat walk + combat_speed, the dude only with player_speedup. |
-| `reportOverloaded` (:3332) | — | ❌ | LOW | Part of ANIM-03. |
+| `reportOverloaded` (:3332) | — | ✅ FIXED (2026-10-25) | LOW | Part of ANIM-03. |
 
 ## Detailed findings
 

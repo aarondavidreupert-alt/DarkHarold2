@@ -344,10 +344,24 @@ export function attackButtonDisabled(): boolean {
 
 const LOG_LINE_HEIGHT = 13 // approx px per line for 8pt font
 
+// CE display_monitor.cc displayMonitorAddMessage: plain text (a message is never markup),
+// the last DISPLAY_MONITOR_LINES_CAPACITY (100) lines kept. Each line carries its number
+// (data-seq) for readers that follow the log (uiLogCount, the story crawler).
+const LOG_CAPACITY = 100
+let logSeq = 0
 export function uiLog(msg: string): void {
     const $log = $id('displayLog')
-    $log.insertAdjacentHTML('beforeend', `<li>${msg}</li>`)
+    const li = document.createElement('li')
+    li.textContent = msg
+    li.dataset.seq = String(logSeq++)
+    $log.appendChild(li)
+    while ($log.children.length > LOG_CAPACITY) $log.removeChild($log.firstChild!)
     $log.scrollTop = $log.scrollHeight
+}
+
+/** How many lines the message window has received so far. */
+export function uiLogCount(): number {
+    return logSeq
 }
 
 export function initLogScrollZones(): void {

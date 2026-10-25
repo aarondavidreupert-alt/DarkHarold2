@@ -49,7 +49,7 @@ Top findings, most severe first:
 | `_find_cid` | — | 🚫 | | Save/load helper. |
 | `combatLoad` | saveload.ts:333 (ends combat on load) | ❌ | MED | COMBAT-14: combat state isn't restored. |
 | `combatSave` | — | ❌ | MED | COMBAT-14: DH2 allows saving in combat (hotkeys.ts:177/201/203) but writes no combat state. |
-| `_combat_safety_invalidate_weapon` | `combatSafetyInvalidateWeapon` Combat.ts:1416 | ⚠️ | LOW | No `PROTO_ID_0x10001E0` exemption. `safeDistance` is a boolean (no distance computed). Distances are plain hex, not multihex-aware. Primary-burst weapons are never simulated (COMBAT-01). |
+| `_combat_safety_invalidate_weapon` | `combatSafetyInvalidateWeapon` Combat.ts:1416 | ✅ FIXED (2026-10-25) | LOW | No `PROTO_ID_0x10001E0` exemption. `safeDistance` is a boolean (no distance computed). Distances are plain hex, not multihex-aware. Primary-burst weapons are never simulated (COMBAT-01). |
 | `_combat_safety_invalidate_weapon_func` | same, Combat.ts:1416 | ⚠️ | LOW | CE literal DR×(max−DT) test and the INT<5 radius cut are ported. The `attackerFriend` parameter isn't (see next row). |
 | `_combatTestIncidentalHit` | `attackWouldIntersect` Combat.ts:2654 | 🟡 | LOW | CE checks the given friend (any team) against the blast radius and the spray extras. DH2 checks only the first obstacle, then the team-only test. |
 | `_combat_whose_turn` | `whoseTurn` / `inPlayerTurn` Combat.ts:353 | ✅ | | |
@@ -72,7 +72,7 @@ Top findings, most severe first:
 | `_combat_give_exps` | `giveExps` Combat.ts:1716 | ✅ | | proto.msg 621 + 622–625 / 626 (35 % at full HP), actual XP gained. |
 | `_combat_add_noncoms` | `combatSequence` Combat.ts:2016 | ⚠️ | MED | COMBAT-10: CE gives a joiner max AP and an immediate `_combat_turn`; DH2 only flags it hostile. |
 | `_compare_faster` | `sortBySequence` Combat.ts:2041 | ✅ | | Sequence, then Luck. |
-| `_combat_sequence_init` | `sequenceInit` Combat.ts:2048 | ⚠️ | LOW | Order and whoHitMe as CE. In CE only the placed critters are `_list_com`; in DH2 every critter is in the list and same-team critters act at once (COMBAT-10). CE sets whoHitMe when either one is non-null; DH2 needs both. |
+| `_combat_sequence_init` | `sequenceInit` Combat.ts:2048 | ✅ FIXED (2026-10-25) | LOW | Order and whoHitMe as CE. In CE only the placed critters are `_list_com`; in DH2 every critter is in the list and same-team critters act at once (COMBAT-10). CE sets whoHitMe when either one is non-null; DH2 needs both. |
 | `_combat_sequence` | `combatSequence` Combat.ts:2016 | ✅ | | Dead / KO / disengaging leave, sort, +5 s. |
 | `combatAttemptEnd` | `attemptEnd` Combat.ts:2087 | ⚠️ | LOW | CE runs the hostiles check only when `_combat_elev == dude elevation`; DH2 always does. `_caiTeamCombatExit` not called. |
 | `_combat_turn_run` | animation callbacks | 🚫 | | Busy-wait loop; DH2 is callback-driven. |
@@ -97,7 +97,7 @@ Top findings, most severe first:
 | `_determine_to_hit` | `getHitChance` hitChance.ts:139 | ✅ | | |
 | `_determine_to_hit_no_range` | `getHitChance(..., useDistance=false)` | ⚠️ | LOW | CE adds the distance term only when `useDistance` or it is a bonus (>0). DH2 always subtracts it, so a Scope Range weapon (min distance 8) gets −32 in the AI's no-range check. |
 | `_determine_to_hit_from_tile` | `getHitChance(..., from)` | ✅ | | |
-| `attackDetermineToHit` | `getHitChance` hitChance.ts:139 | ⚠️ | LOW | All terms match: skill, perception/range perks, Sharpshooter, blind ×−12 / −25, line-of-fire −10s, One Hander, min ST, Accurate, AC + ammo AC, location penalty (half for melee), multihex +15, darkness / Night Sight, knockdown +40, difficulty ±20, cap 95. The one difference is that `_gcsd->accuracyBonus` isn't added inside (COMBAT-15). AC uses `bonusAC` (COMBAT-04). |
+| `attackDetermineToHit` | `getHitChance` hitChance.ts:139 | ✅ FIXED (2026-10-25) | LOW | All terms match: skill, perception/range perks, Sharpshooter, blind ×−12 / −25, line-of-fire −10s, One Hander, min ST, Accurate, AC + ammo AC, location penalty (half for melee), multihex +15, darkness / Night Sight, knockdown +40, difficulty ±20, cap 95. The one difference is that `_gcsd->accuracyBonus` isn't added inside (COMBAT-15). AC uses `bonusAC` (COMBAT-04). |
 | `attackComputeDamage` | `attackComputeDamage` 646 / `damageAgainst` 662 / damage.ts | ⚠️ | MED | Vanilla formula, bypass, penetrate (weapon + unarmed), Finesse, Bonus Ranged Damage, difficulty, Living Anatomy / Pyromaniac, knockback rules and Stonewall match. Differences: Glovz / YAAM (COMBAT-13); natural damage type; Living Anatomy reads the hit critter's kill type (CE: `attack->defender` even on a self-hit, LOW). |
 | `attackComputeDeathFlags` | Combat.ts:533 | ✅ | | |
 | `_apply_damage` | `applyDamage` Combat.ts:951 | ⚠️ | MED | COMBAT-07 / 08: the miss path (results, retaliation and onlookers for oops) is missing; `damage_p_proc` gating differs; no damage proc for a non-critter defender (N/A, DH2 targets only critters). The attacker's combat_p_proc(2) after a hit matches. |
@@ -150,11 +150,11 @@ Top findings, most severe first:
 | `damageModGetBonusHthDamageFix` | `rollWeaponDamage` Combat.ts:225 | ✅ | | |
 | `damageModGetDisplayBonusDamage` | — | 🚫 | | Off by default; display-only. |
 | `damageModCalculateGlovz` | `computeDamageGlovz` / `GlovzTweak` damage.ts:50/62 | ⚠️ | MED | COMBAT-13: different formula. |
-| `damageModGlovzDivRound` | `glovzRound` damage.ts:34 | ⚠️ | LOW | CE rounds half to even with special cases for dividend < divisor; DH2 is plain round-half-up. |
-| `damageModCalculateYaam` | `computeDamageYaam` damage.ts:74 | ⚠️ | LOW | COMBAT-13: DH2 implements the intended sfall YAAM. CE's YAAM yields 0 (pointer bug) and uses the extra DR only. DH2 also gets DR with ammo RM already added (double count). |
-| `combat_get_hit_location_penalty` | `regionHitChanceDecTable` effects.ts:22 | 🟡 | LOW | Values match (sign flipped); the sfall `get_bodypart_hit_modifier` opcode has no handler in DH2. |
-| `combat_set_hit_location_penalty` | — | ❌ | LOW | sfall `set_bodypart_hit_modifier` (0x81E0) missing. |
-| `combat_reset_hit_location_penalty` | — | ❌ | LOW | Needs the above. |
+| `damageModGlovzDivRound` | `glovzRound` damage.ts:34 | ✅ FIXED (2026-10-25) | LOW | CE rounds half to even with special cases for dividend < divisor; DH2 is plain round-half-up. — **Fixed 2026-10-25:** ported literally (COMBAT-13). |
+| `damageModCalculateYaam` | `computeDamageYaam` damage.ts:74 | ✅ FIXED (2026-10-25) | LOW | COMBAT-13: DH2 implements the intended sfall YAAM. CE's YAAM yields 0 (pointer bug) and uses the extra DR only. DH2 also gets DR with ammo RM already added (double count). |
+| `combat_get_hit_location_penalty` | `regionHitChanceDecTable` effects.ts:22 | ✅ FIXED (2026-10-25) | LOW | Values match (sign flipped); the sfall `get_bodypart_hit_modifier` opcode has no handler in DH2. — **Fixed 2026-10-25:** get_bodypart_hit_modifier has a handler (SCR-12). |
+| `combat_set_hit_location_penalty` | — | ✅ FIXED (2026-10-25) | LOW | sfall `set_bodypart_hit_modifier` (0x81E0) missing. — **Fixed 2026-10-25:** set_bodypart_hit_modifier has a handler (SCR-12). |
+| `combat_reset_hit_location_penalty` | — | ✅ FIXED (2026-10-25) | LOW | Needs the above. — **Fixed 2026-10-25:** the get / set opcodes exist (SCR-12). |
 | `combat_get_data` | `combatGetData` Combat.ts:78 | ✅ | | sfall `combat_data`. |
 | (static data) `_cf_table` | `CF_TABLE` Combat.ts:107 | ✅ | | |
 | (static data) `hit_location_penalty_default` | effects.ts:22 | ✅ | | |

@@ -98,7 +98,7 @@ Top findings, by severity:
 | `wmMouseBkProc` | `Worldmap.ts:858 _onWMMouseMove` | ⚠️ | LOW | CE: the screen-edge pixel, 20 px every 50 ms, scroll cursors (and "can't scroll" cursors). DH2: a 20 px band inside the view, 2 px a frame, no cursor change. |
 | `wmMarkSubTileOffsetVisited` / `wmMarkSubTileOffsetKnown` / `wmMarkSubTileOffsetVisitedFunc` | `Worldmap.ts:373 markSquare` | ✅ | — | "Known only while unknown" rule kept. The numbers are swapped against CE (WM-01). |
 | `wmMarkSubTileRadiusVisited` | `Worldmap.ts:391 markSubTileRadiusVisited` | ✅ | — | Radius 1 / Scout 2; `fill_s`, `fill_w` (including the CE `subtileX-- >= 0` step into the left tile). |
-| `wmSubTileMarkRadiusVisited` (script) | `scripting.ts:945 metarule3 101` | ❌ | LOW | Returns 0 and does nothing; the implementation exists but has a fixed radius (Scout) and is not exported. Used by `bhrnddst`. NEW. |
+| `wmSubTileMarkRadiusVisited` (script) | `scripting.ts:945 metarule3 101` | ✅ FIXED (2026-10-25) | LOW | Returns 0 and does nothing; the implementation exists but has a fixed radius (Scout) and is not exported. Used by `bhrnddst`. NEW. — **Fixed 2026-10-25:** metarule3 101 marks the subtiles. |
 | `wmSubTileGetVisitedState` | `scripting.ts:977 metarule3 105` | ❌ | HIGH | Always returns 1 (WM-01). |
 | `wmTileGrabArt` | CSS background tiles | 🚫 | — | |
 | `wmInterfaceRefresh` | DOM: `refreshAreaMarkers:472`, square classes, `placePartyMarker:963` | ✅ | — | Areas whose state is not UNKNOWN are drawn; unknown subtiles are hidden and known ones dimmed (CSS). |
@@ -148,7 +148,7 @@ Top findings, by severity:
 | `wmBlinkRndEncounterIcon` | `Worldmap.ts:1098 blinkEncounterIcon` | ✅ | — | 7 × 200 ms, FIDs 154/155 (wmapfgt0/1) and 438/439 (wmrnden2/3). |
 | `wmSetPartyWorldPos` | `Worldmap.ts:351 setPlayerWorldPos` | ✅ | — | DH2 also stops a walk and resets the marker (harmless). |
 | `wmCarSetCurrentArea` | `setCarAreaId` (`set_car_current_town`) | ✅ | — | |
-| `wmForceEncounter` | — | ❌ | LOW | sfall `force_encounter` / `force_encounter_with_flags` (`sfall_opcodes.cc:158/589`) and the branch in `wmRndEncounterOccurred`. Documented in worldmap.md §17 #1. |
+| `wmForceEncounter` | — | ✅ FIXED (2026-10-25) | LOW | sfall `force_encounter` / `force_encounter_with_flags` (`sfall_opcodes.cc:158/589`) and the branch in `wmRndEncounterOccurred`. Documented in worldmap.md §17 #1. — **Fixed 2026-10-25:** force_encounter / _with_flags (SCR-12). |
 
 ## Detailed findings
 

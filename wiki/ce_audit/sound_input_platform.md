@@ -44,7 +44,7 @@ Top findings:
 | speechSetVolume / Get / _gsound_speech_volume_get_set | `audio.ts:261` (speech branch), `talkingHead.ts:280` | ✅ MATCH | — | speech at `speech × master × 0.69` (lips). Volume change during playback not applied live (CE applies it) — trivial. |
 | speechSetEndCallback / GetDuration | `talkingHead.ts` | 🚫 N/A | — | handled by `<audio>` events. |
 | speechLoad / _gsound_speech_play_preloaded / speechPlay / speechDelete / Pause / Resume | `talkingHead.ts:262`, `endgame/slideRender.ts:52` | ✅ MATCH | — | dialogue speech, endgame narrator. Death narration (`main.cc:440`) is the endgame/main auditor's scope. `preferences.cc:1502` "narrator\options" not checked here. |
-| _gsound_play_sfx_file_volume | — | ❌ MISSING | LOW | used by combat_ai.cc (2741–2934) for AI combat sounds with relative volume; see SND-02. |
+| _gsound_play_sfx_file_volume | — | ✅ FIXED (2026-10-25) | LOW | used by combat_ai.cc (2741–2934) for AI combat sounds with relative volume; see SND-02. |
 | soundEffectLoad (incl. human `H?XXXX` fallback, `MALIEU`/`MAMTN2`→`MAMTNT`) | `sfxNames.ts:83` `playCharSfx`, `audio.ts:108` `loadSfx` | ⚠️ DIFFERS | LOW | Human fallback matches (AU5). Missing: the `MALIEU*`/`MAMTN2*` → `MAMTNT*` fallback (Lieutenant / mutant critters with no own sound file use the generic mutant sounds in CE; silent in DH2) — SND-04. Missing: `SOUND_EFFECTS_MAX_COUNT` (4) concurrent-effect cap — SND-03. |
 | soundEffectLoadWithVolume | — | ❌ MISSING | MED | see SND-02 (distance attenuation). |
 | soundEffectDelete / _gsnd_anim_sound / soundEffectPlay / soundEffectCallback | `audio.ts:142` `playBuffer` | 🚫 N/A | — | fire-and-forget BufferSource. |
