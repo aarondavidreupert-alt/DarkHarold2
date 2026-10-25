@@ -772,12 +772,12 @@ an install picks them up by re-running the `export_maps` stage (`pipenv run pyth
 
 The MED findings of the 2026-10-24 audit (§33), worked through on branch `small-autits`. They keep their report IDs;
 the per-batch list of what changed is the "MED findings fixed" table in [`CE_PARITY_AUDIT.md`](CE_PARITY_AUDIT.md),
-and every `ce_audit/` section header is marked FIXED / PARTLY FIXED. 120 MED findings: 114 fixed, 2 partly, 4 open.
+and every `ce_audit/` section header is marked FIXED / PARTLY FIXED. 120 MED findings: 116 fixed, 4 open or not ported.
 
 | ID | Description | Status |
 |----|-------------|--------|
 | PM1 | Open MED findings | **OPEN** — COMBAT-13 (Glovz / YAAM opt-in formulas, conflicts with C3) |
-| PM2 | Partly fixed | **PARTIAL** — INV-13 / INV-12 (bags in the barter, companion-trade and steal windows) |
+| PM2 | Partly fixed | **FIXED 2026-10-25** — the last ones (AUTO-01, SCR-05, SCR-10, ANIM-02, INV-12 / INV-13) are done |
 | PM3 | SCR-11 — CE runs procedure index 1 for a missing proc | **CHECKED, NOT PORTED** — index 1 is the pure `checkPartyMembersNearDoor` in 1212 of the 1443 shipped scripts, `start` in ~210; DH2 keeps "no proc, nothing runs" |
 | PM4 | MOUSE-01 / MOUSE-02 — move-mode clicks act on objects; the action menu on a command click | **APPROXIMATION** — the documented action-menu deviation (CLAUDE.md, README "Known approximations") |
 

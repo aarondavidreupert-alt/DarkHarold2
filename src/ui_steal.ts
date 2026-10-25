@@ -30,11 +30,11 @@ import { Critter, itemIsHidden, Obj } from './object.js'
 import { UIMode } from './ui_panels.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter.js'
 import { uiLog } from './ui_hud.js'
-import { examineToLog, itemMenuActions, makeDropTarget, makeDraggable, showItemMenu, unloadWeapon } from './ui_inventory.js'
+import { examineToLog, itemMenuActions, makeDropTarget, makeDraggable, MAX_OPEN_BAGS, showItemMenu, unloadWeapon } from './ui_inventory.js'
 import { appendItemSlot, $id, clearEl, showv, hidev, off, makeEl } from './ui_dom.js'
 import { performSteal } from './skillUse.js'
 import { Scripting } from './scripting.js'
-import { initLoot } from './ui_loot.js'
+import { drawLootBagViews, initLoot } from './ui_loot.js'
 import { dbg } from './logger.js'
 import { getMessage } from './util.js'
 
@@ -57,6 +57,11 @@ export function uiSteal(thief: Critter, target: Critter): void {
     let stealingXpBonus = 10
     let ended = false
     let caught = false
+    // CE _container_enter: each side's open bags (the steal window is a loot window)
+    const thiefBags: Obj[] = []
+    const targetBags: Obj[] = []
+    const thiefList = () => thiefBags.length ? thiefBags[thiefBags.length - 1].inventory : thief.inventory
+    const targetList = () => targetBags.length ? targetBags[targetBags.length - 1].inventory : target.inventory
 
     function drawInventory($el: HTMLElement, who: 'l' | 'r', objects: Obj[]) {
         clearEl($el)
@@ -79,12 +84,17 @@ export function uiSteal(thief: Critter, target: Critter): void {
             const ownerIsDude = who === 'l'
             img.oncontextmenu = (e: MouseEvent) => {
                 e.preventDefault()
-                // (no bag opening while stealing yet: USE left out)
-                showItemMenu(e, itemMenuActions(item, false, ownerIsDude).filter((a) => a !== 'use'), (action) => {
-                    const owner = ownerIsDude ? thief : target
-                    if (action === 'look') examineToLog(item)
+                showItemMenu(e, itemMenuActions(item, false, ownerIsDude), (action) => {
+                    const bags = ownerIsDude ? thiefBags : targetBags
+                    const owner: Obj = bags[bags.length - 1] ?? (ownerIsDude ? thief : target)
+                    if (action === 'use' && item.subtype === 'container') { if (bags.length < MAX_OPEN_BAGS) bags.push(item) }
+                    else if (action === 'look') examineToLog(item)
                     else if (action === 'unload') unloadWeapon(item, (ammo) => owner.addInventoryItem(ammo, 1))
-                    else if (action === 'drop') item.drop(thief)
+                    else if (action === 'drop') {
+                        const list = thiefList()
+                        if (list !== thief.inventory) { list.splice(list.indexOf(item), 1); thief.inventory.push(item) }
+                        item.drop(thief)
+                    }
                     drawSteal()
                 })
                 return false
@@ -93,8 +103,9 @@ export function uiSteal(thief: Critter, target: Critter): void {
     }
 
     function drawSteal() {
-        drawInventory($id('lootBoxLeft'), 'l', thief.inventory)
-        drawInventory($id('lootBoxRight'), 'r', target.inventory)
+        drawInventory($id('lootBoxLeft'), 'l', thiefList())
+        drawInventory($id('lootBoxRight'), 'r', targetList())
+        drawLootBagViews(thiefBags, targetBags, drawSteal)
     }
 
     function endSteal() {
@@ -125,8 +136,10 @@ export function uiSteal(thief: Critter, target: Critter): void {
     // CE inventory.cc _move_inventory: the quantity first, then skillsPerformStealing
     // (planting rolls too), then the move.
     async function attemptSteal(item: Obj, isPlanting = false): Promise<void> {
-        const from = isPlanting ? thief : target
-        const to = isPlanting ? target : thief
+        const fromList = isPlanting ? thiefList() : targetList()
+        const toList = isPlanting ? targetList() : thiefList()
+        const toBag = isPlanting ? targetBags[targetBags.length - 1] : thiefBags[thiefBags.length - 1]
+        const to: Obj = toBag ?? (isPlanting ? target : thief)
         stealCount += 1
         const wantedAmount = item.amount > 1 ? await uiGetAmount(item) : 1
         if (wantedAmount <= 0) return
@@ -145,7 +158,8 @@ export function uiSteal(thief: Critter, target: Critter): void {
             return
         }
 
-        if (!to.canCarry?.(item, wantedAmount)) {
+        // (into the thief's open bag: its room and the thief's carry weight, CE itemAttemptAdd)
+        if (!to.canCarry?.(item, wantedAmount) || (toBag && !isPlanting && !thief.canCarry(item, wantedAmount))) {
             uiLog(getMessage('inventry', 26) ?? 'There is no space left for that item.')
             return
         }
@@ -153,7 +167,7 @@ export function uiSteal(thief: Critter, target: Critter): void {
         stealingXp += stealingXpBonus
         stealingXpBonus += 10
 
-        uiSwapItem(from.inventory, item, to.inventory, wantedAmount)
+        uiSwapItem(fromList, item, toList, wantedAmount)
         drawSteal()
     }
 
@@ -162,14 +176,14 @@ export function uiSteal(thief: Critter, target: Critter): void {
 
     makeDropTarget($id('lootBoxRight'), (data: string) => {
         if (data[0] !== 'l') return // thief -> target: planting (skillsPerformStealing isPlanting)
-        const item = thief.inventory[parseInt(data.slice(1))]
+        const item = thiefList()[parseInt(data.slice(1))]
         if (item === undefined) return
         attemptSteal(item, true)
     })
     makeDropTarget($id('lootBoxLeft'), (data: string) => {
         if (data[0] !== 'r') return // only target -> thief drags are steal attempts
         const idx = parseInt(data.slice(1))
-        const item = target.inventory[idx]
+        const item = targetList()[idx]
         if (item === undefined) return
         attemptSteal(item)
     })

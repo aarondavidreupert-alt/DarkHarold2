@@ -160,7 +160,7 @@ Top findings (by severity):
 - DH2: `src/ui_inventory/panel.ts:146 showItemInfo` → name + `getDescription()` only. `src/examine.ts:objExamine` implements the CE text but isn't used here.
 - **Fix:** render `objExamine(player, item)` lines plus the weight line.
 
-### INV-12 — Context menus (MED, NEW) — **PARTLY FIXED 2026-10-25**
+### INV-12 — Context menus (MED, NEW) — **FIXED 2026-10-25**
 - CE: `inventoryWindowOpenContextMenu`:
   - Normal window: the same action set for list and equipped items. A weapon that can be unloaded gets look / unload / drop / cancel; use-able items get look / use / drop / cancel; anything else gets look / drop / cancel. Dropping an equipped item moves it out of the slot first.
   - Loot / trade windows: menus too (`_act_weap2`, `_act_just_use` for bags, `_act_nothing`, own items `_act_use` / `_act_no_use`).
@@ -168,11 +168,13 @@ Top findings (by severity):
 - DH2: `src/ui_inventory/panel.ts:567-594`: equipped slots get the "no drop" sets plus a DH2 Unequip; the loot, barter and steal screens have no menu (`ui_loot.ts`, `ui_barter/screen.ts`, `ui_steal.ts` only drag).
 - **Impact:** you can't unload a weapon or examine an item in a container or corpse before taking it, and you can't drop an equipped item directly.
 - **Fix:** use the same set selection as CE for slots; add right-click menus (Look / Unload) to the other windows.
+- **Fixed 2026-10-25:** CE's action sets in every window (`src/ui_inventory/itemMenu.ts`); USE on a bag opens it in the inventory, loot, steal, barter and companion-trade windows (in the trade windows only from either side's list, not the tables).
 
-### INV-13 — No nested containers (bags / backpacks) (MED, NEW) — **PARTLY FIXED 2026-10-25**
+### INV-13 — No nested containers (bags / backpacks) (MED, NEW) — **FIXED 2026-10-25**
 - CE: `_container_enter` / `_container_exit` (up to 9 levels, in every window type), `_drop_into_container` (drag onto a bag in the list, a hand slot, or the body view while inside a bag; `itemAttemptAdd` with the bag's capacity).
 - DH2: nothing. Bag and backpack items are opaque; their contents can't be seen or moved, and nothing can be put in.
 - **Fix:** a container stack in the inventory, loot and barter views (the `Use` action on a container item, plus a back button / body-view drop target).
+- **Fixed 2026-10-25:** a bag stack per side (up to 9) in the inventory, loot, steal, barter and companion-trade windows; the body view shows the open bag (`drawBagView`) and a click there goes back up; moves into an open bag check its room (and, for the dude's, his carry weight). The trade windows open the working copies, so a bag's changes count only when the deal is made. Dropping onto a bag's icon works in the inventory window only.
 
 ### INV-14 — Dropping an armed explosive alerts no one (MED, NEW) — **FIXED 2026-10-25**
 - CE: context-menu Drop of an active explosive sets `_dropped_explosive`. At `_exit_inventory`, the critters in the would-be blast (`_compute_explosion_on_extras`) that are not on the dude's team and pass a PE `statRoll` mark the dude as who-hit-me; the first one requests combat.

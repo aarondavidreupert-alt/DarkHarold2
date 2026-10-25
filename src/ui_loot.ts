@@ -25,7 +25,7 @@ import { uiGetAmount, uiSwapItem } from './ui_barter.js'
 import { uiLog } from './ui_hud.js'
 import { getMessage } from './util.js'
 import { Scripting } from './scripting.js'
-import { examineToLog, itemMenuActions, makeDropTarget, makeDraggable, showItemMenu, unloadWeapon } from './ui_inventory.js'
+import { drawBagView, examineToLog, itemMenuActions, makeDropTarget, makeDraggable, MAX_OPEN_BAGS, showItemMenu, unloadWeapon } from './ui_inventory.js'
 import { appendItemSlot, $id, clearEl, showv, hidev, off, makeEl } from './ui_dom.js'
 
 // --- Loot screen -----------------------------------------------------------
@@ -137,7 +137,7 @@ export function uiLoot(object: Obj) {
                 showItemMenu(e, itemMenuActions(item, false, ownerIsDude), (action) => {
                     const bags = ownerIsDude ? leftBags : rightBags
                     const owner = bags[bags.length - 1] ?? (ownerIsDude ? globalState.player : object)
-                    if (action === 'use' && item.subtype === 'container') { if (bags.length < 9) bags.push(item) }
+                    if (action === 'use' && item.subtype === 'container') { if (bags.length < MAX_OPEN_BAGS) bags.push(item) }
                     else if (action === 'look') examineToLog(item)
                     else if (action === 'unload') unloadWeapon(item, (ammo) => owner.addInventoryItem(ammo, 1))
                     else if (action === 'drop') {
@@ -181,27 +181,17 @@ export function uiLoot(object: Obj) {
         drawLoot()
     }
 
-    function drawBagView(id: string, left: number, bags: Obj[]): void {
-        let $view = document.getElementById(id)
-        if (!$view) {
-            $view = makeEl('div', { attrs: { id }, style: { position: 'absolute', left: left + 'px', top: '35px', width: '60px', height: '100px', cursor: 'pointer' } })
-            $id('lootBox').appendChild($view)
-        }
-        clearEl($view)
-        const bag = bags[bags.length - 1]
-        $view.style.display = bag ? 'block' : 'none'
-        if (!bag) return
-        $view.appendChild(makeEl('img', { src: bag.invArt ? bag.invArt + '.png' : '', attrs: { title: bag.name ?? '' },
-            style: { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' } }))
-        $view.onclick = () => { bags.pop(); drawLoot() } // CE _container_exit
-    }
-
     function drawLoot() {
         drawInventory($id('lootBoxLeft'), 'l', leftList())
         drawInventory($id('lootBoxRight'), 'r', rightList())
-        drawBagView('lootBoxLeftBag', 44, leftBags)
-        drawBagView('lootBoxRightBag', 422, rightBags)
+        drawLootBagViews(leftBags, rightBags, drawLoot)
     }
 
     drawLoot()
+}
+
+// the loot (and steal) window's body views: CE INVENTORY_LOOT_LEFT / RIGHT_BODY_VIEW
+export function drawLootBagViews(leftBags: Obj[], rightBags: Obj[], redraw: () => void): void {
+    drawBagView($id('lootBox'), 'lootBoxLeftBag', { left: 44, top: 35, width: 60, height: 100 }, leftBags, redraw)
+    drawBagView($id('lootBox'), 'lootBoxRightBag', { left: 422, top: 35, width: 60, height: 100 }, rightBags, redraw)
 }

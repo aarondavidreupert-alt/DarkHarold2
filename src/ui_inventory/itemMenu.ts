@@ -21,7 +21,7 @@ import globalState from '../globalState.js'
 import { Obj, createObjectWithPID } from '../object.js'
 import { objExamine } from '../examine.js'
 import { uiLog } from '../ui_hud.js'
-import { $id, clearEl, hidev } from '../ui_dom.js'
+import { $id, clearEl, hidev, makeEl } from '../ui_dom.js'
 import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, weaponCanBeUnloaded, weaponGetAmmoTypePid } from '../weaponAmmo.js'
 
 export type ItemMenuAction = 'look' | 'use' | 'drop' | 'unload' | 'cancel'
@@ -105,4 +105,27 @@ export function showItemMenu(e: MouseEvent, actions: ItemMenuAction[], run: (act
         }
         $menu.appendChild(btn)
     }
+}
+
+// CE inventory.cc _container_enter / _container_exit in the loot and trade windows: a side's
+// open bags (up to 9 deep); the body view shows the open one (_display_body with its fid)
+// and a click there goes back up one (the 2500 / 2501 buttons). `body` is the side's critter
+// picture, hidden while a bag is shown.
+export const MAX_OPEN_BAGS = 9
+export function drawBagView(parent: HTMLElement, id: string, rect: { left: number; top: number; width: number; height: number },
+    bags: Obj[], onExit: () => void, body?: HTMLElement): void {
+    let $view = document.getElementById(id)
+    if (!$view) {
+        $view = makeEl('div', { attrs: { id }, style: { position: 'absolute', cursor: 'pointer', zIndex: '2' } })
+        parent.appendChild($view)
+    }
+    Object.assign($view.style, { left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', height: rect.height + 'px' })
+    clearEl($view)
+    const bag = bags[bags.length - 1]
+    $view.style.display = bag ? 'block' : 'none'
+    if (body) body.style.visibility = bag ? 'hidden' : ''
+    if (!bag) return
+    $view.appendChild(makeEl('img', { src: bag.invArt ? bag.invArt + '.png' : '', attrs: { title: bag.name ?? '' },
+        style: { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' } }))
+    $view.onclick = () => { bags.pop(); onExit() }
 }

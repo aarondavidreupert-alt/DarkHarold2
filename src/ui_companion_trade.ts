@@ -38,7 +38,7 @@ import { relinkTradedHands, tradeHeldAside } from './inventoryWield.js'
 import { Critter, cloneItem, Obj } from './object.js'
 import { UIMode } from './ui_panels.js'
 import { getVisibleDialoguePanel, uiSetDialogueReply, uiSwapDialoguePanel } from './ui_dialogue.js'
-import { examineToLog, itemMenuActions, makeDropTarget, makeDraggable, showItemMenu, unloadWeapon } from './ui_inventory.js'
+import { drawBagView, examineToLog, itemMenuActions, makeDropTarget, makeDraggable, MAX_OPEN_BAGS, showItemMenu, unloadWeapon } from './ui_inventory.js'
 import { appendItemSlot, $id, clearEl, makeEl } from './ui_dom.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter/swap.js'
 import { renderBarterPortrait, startBarterPortraitAnimation, stopBarterPortraitAnimation } from './ui_barter/screen.js'
@@ -84,6 +84,12 @@ export function uiCompanionTrade(companion: Critter): void {
 
     let playerBarterTable: Obj[] = []
     let companionBarterTable: Obj[] = []
+
+    // CE _container_enter in the trade window: each side's open bags (in the working copies)
+    const playerBags: Obj[] = []
+    const companionBags: Obj[] = []
+    const playerList = () => playerBags.length ? playerBags[playerBags.length - 1].inventory : workingPlayerInventory
+    const companionList = () => companionBags.length ? companionBags[companionBags.length - 1].inventory : workingCompanionInventory
 
     // Scroll offsets — CE ref: inventory.cc _ptable_offset/_target_pud
     // (outer inventories, scroll buttons at inventory.cc:1086-1225) and the
@@ -138,6 +144,8 @@ export function uiCompanionTrade(companion: Critter): void {
         workingCompanionInventory = companion.inventory.filter((it) => !heldAside.includes(it)).map(cloneItem)
         playerBarterTable = []
         companionBarterTable = []
+        playerBags.length = 0 // (the bags were working copies)
+        companionBags.length = 0
 
         redraw()
     }
@@ -157,13 +165,18 @@ export function uiCompanionTrade(companion: Critter): void {
             // not the on-screen position, so drops/swaps still target the
             // right item regardless of scroll offset.
             makeDraggable(img, who + i)
-            // CE inventoryWindowOpenContextMenu (trade window): Look and Unload; the rounds go to
-            // the list the weapon is in (DH2 trades on working copies, so no Drop mid-trade)
+            // CE inventoryWindowOpenContextMenu (trade window): Look, Unload and Use on a bag in
+            // either side's list (_container_enter); the rounds go to the list the weapon is in
+            // (DH2 trades on working copies, so no Drop mid-trade)
             img.oncontextmenu = (e: MouseEvent) => {
                 e.preventDefault()
-                const actions = itemMenuActions(obj, false, who === 'p' || who === 'l').filter((a) => a !== 'drop' && a !== 'use')
+                const inList = who === 'p' || who === 'm'
+                const actions = itemMenuActions(obj, false, who === 'p' || who === 'l')
+                    .filter((a) => a !== 'drop' && (a !== 'use' || (inList && obj.subtype === 'container')))
                 showItemMenu(e, actions, (action) => {
-                    if (action === 'look') examineToLog(obj)
+                    const bags = who === 'p' ? playerBags : companionBags
+                    if (action === 'use') { if (bags.length < MAX_OPEN_BAGS) bags.push(obj) }
+                    else if (action === 'look') examineToLog(obj)
                     else if (action === 'unload') unloadWeapon(obj, (ammo) => objects.push(ammo))
                     redraw()
                 })
@@ -175,8 +188,8 @@ export function uiCompanionTrade(companion: Critter): void {
     async function uiMove(data: string, where: 'left' | 'right' | 'leftInv' | 'rightInv'): Promise<void> {
         const from = (
             {
-                p: workingPlayerInventory,
-                m: workingCompanionInventory,
+                p: playerList(),
+                m: companionList(),
                 l: playerBarterTable,
                 r: companionBarterTable,
             } as any
@@ -193,16 +206,19 @@ export function uiCompanionTrade(companion: Critter): void {
         const to = {
             left: playerBarterTable,
             right: companionBarterTable,
-            leftInv: workingPlayerInventory,
-            rightInv: workingCompanionInventory,
+            leftInv: playerList(),
+            rightInv: companionList(),
         }[where]
         if (to === from) return
 
-        if (obj.amount > 1) {
-            uiSwapItem(from, obj, to, await uiGetAmount(obj))
-        } else {
-            uiSwapItem(from, obj, to, 1)
+        const amount = obj.amount > 1 ? await uiGetAmount(obj) : 1
+        // back into an open bag: CE _drop_into_container's room check (inventry.msg 26)
+        const toBag = where === 'leftInv' ? playerBags[playerBags.length - 1] : where === 'rightInv' ? companionBags[companionBags.length - 1] : undefined
+        if (amount > 0 && toBag && !toBag.canCarry(obj, amount)) {
+            uiSetDialogueReply(getMessage('inventry', 26) ?? 'There is no space left for that item.')
+            return
         }
+        uiSwapItem(from, obj, to, amount)
 
         redraw()
     }
@@ -222,7 +238,7 @@ export function uiCompanionTrade(companion: Critter): void {
         redraw()
     }
     $id('barterScrollLeftDown').onclick = () => {
-        playerInvScroll = Math.min(Math.max(0, workingPlayerInventory.length - 1), playerInvScroll + 1)
+        playerInvScroll = Math.min(Math.max(0, playerList().length - 1), playerInvScroll + 1)
         redraw()
     }
     $id('barterScrollRightUp').onclick = () => {
@@ -230,7 +246,7 @@ export function uiCompanionTrade(companion: Critter): void {
         redraw()
     }
     $id('barterScrollRightDown').onclick = () => {
-        companionInvScroll = Math.min(Math.max(0, workingCompanionInventory.length - 1), companionInvScroll + 1)
+        companionInvScroll = Math.min(Math.max(0, companionList().length - 1), companionInvScroll + 1)
         redraw()
     }
 
@@ -255,13 +271,18 @@ export function uiCompanionTrade(companion: Critter): void {
 
     function redraw(): void {
         // Clamp scroll offsets in case items were moved out from under them.
-        playerInvScroll = Math.min(playerInvScroll, Math.max(0, workingPlayerInventory.length - 1))
-        companionInvScroll = Math.min(companionInvScroll, Math.max(0, workingCompanionInventory.length - 1))
+        playerInvScroll = Math.min(playerInvScroll, Math.max(0, playerList().length - 1))
+        companionInvScroll = Math.min(companionInvScroll, Math.max(0, companionList().length - 1))
         playerOfferScroll = Math.min(playerOfferScroll, Math.max(0, playerBarterTable.length - 1))
         companionOfferScroll = Math.min(companionOfferScroll, Math.max(0, companionBarterTable.length - 1))
 
-        drawInventory($id('barterBoxInventoryLeft'), 'p', workingPlayerInventory, playerInvScroll)
-        drawInventory($id('barterBoxInventoryRight'), 'm', workingCompanionInventory, companionInvScroll)
+        drawInventory($id('barterBoxInventoryLeft'), 'p', playerList(), playerInvScroll)
+        drawInventory($id('barterBoxInventoryRight'), 'm', companionList(), companionInvScroll)
+        // CE _display_body: the open bag in the side's body view
+        drawBagView($id('barterBox'), 'barterBoxPlayerBag', { left: 29, top: 45, width: 40, height: 67 }, playerBags,
+            () => { playerInvScroll = 0; redraw() }, $id('barterBoxPlayerPortrait'))
+        drawBagView($id('barterBox'), 'barterBoxMerchantBag', { left: 574, top: 45, width: 40, height: 67 }, companionBags,
+            () => { companionInvScroll = 0; redraw() }, $id('barterBoxMerchantPortrait'))
         drawInventory($id('barterBoxLeft'), 'l', playerBarterTable, playerOfferScroll)
         drawInventory($id('barterBoxRight'), 'r', companionBarterTable, companionOfferScroll)
 
