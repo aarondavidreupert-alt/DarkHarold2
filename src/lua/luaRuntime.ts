@@ -40,6 +40,8 @@ export interface LuaHostScript {
 export interface LuaScriptHandle {
     /** continue the procedures suspended in gsay_end / gsay_message */
     resume(): boolean
+    /** continue only the innermost suspended procedure (a gsay_message [Done]) */
+    resumeOne(): boolean
     hasSuspended(): boolean
 }
 
@@ -59,6 +61,7 @@ let luaLoad: (id: number, script: LuaHostScript, name: string, source: string) =
 let luaCall: (id: number, name: string, ...args: any[]) => any
 let luaCallOption: (id: number, option: number) => any
 let luaResume: (id: number) => boolean
+let luaResumeOne: (id: number) => boolean
 let luaHasSuspended: (id: number) => boolean
 let luaEntryName: (id: number) => string
 let luaUnload: (id: number) => void
@@ -128,6 +131,7 @@ export async function initLuaRuntime(wasmUri = 'lib/wasmoon/glue.wasm', factory?
     luaCall = lua.global.get('__call')
     luaCallOption = lua.global.get('__call_option')
     luaResume = lua.global.get('__resume')
+    luaResumeOne = lua.global.get('__resume_one')
     luaHasSuspended = lua.global.get('__has_suspended')
     luaEntryName = lua.global.get('__entry_name')
     luaUnload = lua.global.get('__unload')
@@ -147,6 +151,7 @@ export function attachLuaScript(script: LuaHostScript, name: string, source: str
     }
     script._lua = {
         resume: () => luaResume(id),
+        resumeOne: () => luaResumeOne(id),
         hasSuspended: () => luaHasSuspended(id),
     }
     const entry = luaEntryName(id)

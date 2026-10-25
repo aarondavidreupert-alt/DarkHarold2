@@ -48,7 +48,8 @@ export const PREFS_KEY = 'dh2_preferences'
 
 /** Read persisted preferences from localStorage and apply them to Config + audioEngine. */
 export function loadPreferences(): void {
-    const raw = localStorage.getItem(PREFS_KEY)
+    let raw: string | null = null
+    try { raw = localStorage.getItem(PREFS_KEY) } catch { return }
     if (!raw) return
     let prefs: SavedPreferences
     try {
@@ -56,7 +57,12 @@ export function loadPreferences(): void {
     } catch {
         return
     }
+    applyPreferences(prefs)
+}
 
+/** Apply a preference set to Config + audioEngine (CE preferences.cc preferencesLoad →
+ *  _JustUpdate_: also used when a save game brings its own preferences). */
+export function applyPreferences(prefs: SavedPreferences): void {
     if (prefs.gameDifficultyModifier !== undefined) Config.combat.gameDifficultyModifier = prefs.gameDifficultyModifier
     if (prefs.difficultyModifier !== undefined) Config.combat.difficultyModifier = prefs.difficultyModifier
     if (prefs.combatSpeed !== undefined) Config.combat.combatSpeed = prefs.combatSpeed
@@ -100,6 +106,12 @@ export function getVolumeValue(channel: 'master' | 'music' | 'sfx' | 'speech'): 
 }
 
 export function savePreferences(): void {
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify(currentPreferences())) } catch { /* storage blocked */ }
+}
+
+/** The preferences as they are now (CE preferences.cc preferencesSave writes these into
+ *  every save game, handler 17 of loadsave.cc). */
+export function currentPreferences(): SavedPreferences {
     const eng = globalState.audioEngine
     const hasVol = eng && 'masterVolume' in eng
     const he = hasVol ? ((eng as unknown) as { masterVolume: number; musicVolume: number; sfxVolume: number }) : null
@@ -127,7 +139,7 @@ export function savePreferences(): void {
         sfxVolume: he ? Math.round(he.sfxVolume * 100) : 100,
         speechVolume: heSpeech ? Math.round(heSpeech.speechVolume * 100) : 100,
     }
-    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs))
+    return prefs
 }
 
 // CE ref: color.cc colorSetBrightness — gamma table over the 6-bit palette:

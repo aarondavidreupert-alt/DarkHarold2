@@ -60,7 +60,7 @@ import { drawAC, updateIndicatorBar } from './ui_hud.js'
 import { carriedObjectByPid, carriedQuantityByPid, findItemHolder, invenUnwield, invenWield, moveAllInventory, scriptHand, unequipForRemoval } from './inventoryWield.js'
 import { SKILL_NAMES } from './skills.js'
 import { skillRoll } from './skillUse.js'
-import { arrayRemove, assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
+import { arrayRemove, assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getProtoMsg, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
 import { ScriptVM } from './vm.js'
 import { attachLuaScript, isLuaReady, LuaScriptHandle } from './lua/luaRuntime.js'
 import { Worldmap } from './worldmap.js'
@@ -92,6 +92,9 @@ export module Scripting {
     // loop opens the barter screen once the option's procedure has returned (with the
     // reply and options it set up). The merchant waiting for that, while an option runs.
     var pendingBarter: Critter | null = null
+    // CE gDialogReplyMessageListId != -1: a reply the dialogue loop has to show (set by
+    // gsay_reply / gsay_message, cleared when a gsay_message's loop ends)
+    var dialogueReplyPending = false
     var inDialogueReply = false
     var dialogueOptionReactions: number[] = [] // parallel — GAME_DIALOG_REACTION_* (head reaction on pick)
     var scriptMessageAudio: { [msgFile: string]: { [msgID: number]: string } } = {} // {id}{audio}{text} middle field
@@ -238,6 +241,7 @@ export module Scripting {
     }
 
     export interface SerializedTimedEvent {
+        objUid?: number | null // CE queueSave writes the owner's object id; saves before 2026-10-25 only have the PID
         objPid: number | null
         ticks: number
         userdata: any
@@ -383,6 +387,7 @@ export module Scripting {
     // CE ref: scripts.cc scriptsSaveProcedureNames — timed events persisted with map save
     export function getTimedEventsSerialized(): SerializedTimedEvent[] {
         return timeEventList.map(e => ({
+            objUid: e.obj?.uid ?? null,
             objPid: e.obj?.pid ?? null,
             ticks: e.ticks,
             userdata: e.userdata,
@@ -2600,6 +2605,7 @@ export module Scripting {
             // reenter, reenterDialogue() already set it before calling talk()).
             if (globalState.uiMode !== UIMode.dialogue) {
                 dialogueReviewLog = []
+                dialogueReplyPending = false
             }
             currentDialogueObject = this.self_obj as Critter
             uiStartDialogue(false, this.self_obj as Critter)
@@ -2912,6 +2918,7 @@ export module Scripting {
             // CE ref: game_dialog.cc:1134-1146 gameDialogSetMessageReply ->
             // gameDialogAddReviewMessage.
             dialogueReviewLog.push({ reply: msg, option: null })
+            dialogueReplyPending = true // CE gameDialogSetMessageReply
         }
         gsay_message(msgList: number, msgID: string | number, reaction: number) {
             // ref: fallout2-ce dialog.cc gDialogSayMessage
@@ -2926,11 +2933,21 @@ export module Scripting {
             // CE ref: game_dialog.cc:1148-1160 gameDialogSetTextReply ->
             // gameDialogAddReviewText.
             dialogueReviewLog.push({ reply: msg, option: null })
-            // single synthesised [Done] option; dialogueReply will call dialogueExit
-            // because dialogueOptionProcs will be empty after the no-op proc fires
-            dialogueOptionProcs.push(() => { /* no-op: dialogueReply checks length after */ })
-            dialogueOptionTexts.push('[Done]')
-            uiAddDialogueOption('[Done]', dialogueOptionProcs.length - 1)
+            // CE _op_gsay_message → _gdialogSayMessage: a nested dialogue loop with one
+            // [Done] option (proto.msg 650); picking it returns into this procedure with the
+            // dialogue still open, and the reply is cleared (gDialogReplyMessageListId = -1),
+            // so a later gsay_end returns at once. dialogueReply closes the dialogue only if
+            // the procedure then sets no new options.
+            const self = this
+            dialogueReplyPending = true
+            dialogueOptionProcs.push(() => {
+                dialogueReplyPending = false
+                if (self._lua) self._lua.resumeOne()
+                else self._vm?.resume(true)
+            })
+            const done = getProtoMsg(650) ?? '[Done]'
+            dialogueOptionTexts.push(done)
+            uiAddDialogueOption(done, dialogueOptionProcs.length - 1)
             // save resume address and halt VM, mirroring the gsay_end convention
             if (this._vm) {
                 this._vm.retStack.push(this._vm.script.offset)
@@ -2948,8 +2965,24 @@ export module Scripting {
             // here; moved to real always-present buttons wired in
             // uiStartDialogue() (ui_dialogue.ts) to match CE — see
             // wiki/known_bugs.md P9.
-            info('[gsay_end: halting VM for dialogue]', 'dialogue')
-            if (this._vm) this._vm.halted = true
+            // CE game_dialog.cc _gdialogGo: with no reply pending (none set, or a gsay_message
+            // already ran its own loop) it returns at once; a reply with no options gets the
+            // implicit option (-1, -1: proto.msg 655 for INT < 4, else an empty entry) that
+            // continues. Returns 1 when the caller should suspend for the dialogue (the VM
+            // opcode / the Lua prelude do the suspending).
+            if (!dialogueReplyPending) {
+                info('[gsay_end: no reply pending, returns]', 'dialogue')
+                return 0
+            }
+            if (dialogueOptionProcs.length === 0) {
+                const text = globalState.player.getStat('INT') < 4 ? (getProtoMsg(655) ?? '') : ''
+                dialogueOptionProcs.push(() => {})
+                dialogueOptionTexts.push(text)
+                dialogueOptionReactions.push(50)
+                uiAddDialogueOption(text, dialogueOptionProcs.length - 1)
+            }
+            info('[gsay_end: halting for dialogue]', 'dialogue')
+            return 1
         }
         end_dialogue() {
             info('[end_dialogue]', 'dialogue')

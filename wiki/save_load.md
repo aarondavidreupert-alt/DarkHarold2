@@ -289,7 +289,9 @@ DH2 uses the browser's **IndexedDB API** (`src/saveload.ts:291–308`):
 | Movies seen | `seenMovies` |
 | Event log | `eventLog` |
 
-Not saved, as in CE or by design: the random generator (CE `randomSave` only resets the roll counter), preferences (CE keeps them in fallout2.cfg; DH2 in `localStorage`, S-CI5).
+Not saved, as in CE or by design: the random generator (CE `randomSave` only resets the roll counter).
+
+Saved since 2026-10-25 (CE parity audit): the preferences (`preferences`, CE handler 17 — a load applies them and makes them the current settings, `_SavePrefs`; they also stay in `localStorage`), a running combat (`combat`: turn order by object uid, whose turn, round, XP, the player's AP — CE `combatSave` / `combatLoad`), and timed events keyed by the owner's `uid` (CE object id) instead of its PID; knockout events are rebuilt as such, a lit flare or an armed explosive is not restored yet.
 
 ---
 

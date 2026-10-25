@@ -448,7 +448,9 @@ export class ScriptVM {
      *  first, as CE does (the dialogue runs inside gsay_end, which then
      *  returns). One that halts again (another gsay_message) waits for the
      *  next resume(). */
-    resume(): void {
+    // onlyOne: continue just the innermost suspended procedure (a gsay_message [Done]
+    // returns into it, CE _gdialogSayMessage); the others keep waiting.
+    resume(onlyOne = false): void {
         const outer = { pc: this.pc, offset: this.script.offset, halted: this.halted, aborted: this.aborted, dvarBase: this.dvarBase }
         try {
             while (this.suspended.length > 0) {
@@ -481,7 +483,7 @@ export class ScriptVM {
                 this.retStack.length = retLen
                 this.dataStack.push(...aboveData)
                 this.retStack.push(...aboveRet)
-                if (halted) return
+                if (halted || onlyOne) return
             }
         } finally {
             this.pc = outer.pc

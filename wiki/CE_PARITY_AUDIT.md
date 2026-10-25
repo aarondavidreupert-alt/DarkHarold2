@@ -135,6 +135,10 @@ LOW findings are listed in each report only.
 | | SCR-03 | the clock no longer advances in combat (combat time = 5 s per round, as CE) |
 | | SCR-05 (part) | map script and spatial scripts get `start` after the map script's `map_enter_p_proc`; `fixed_param` = first visit for the map script and every object's `map_enter_p_proc`. Object `start` still runs at script load (before the map script's `map_enter_p_proc`). |
 | | SCR-08 | a script that hits a fatal error runs no further procs (both backends), as CE's PROGRAM_FLAG_EXITED |
+| Dialogue | DLG-02, DLG-03 | CE's pending-reply model: `gsay_end` runs the dialogue only while a reply is pending and adds CE's implicit option (proto.msg 655 / empty) when the reply has none; a `gsay_message` [Done] returns into its procedure with the dialogue open, which closes only if no options follow |
+| Save / load | SAVE-01 | preferences saved with the game and applied on load |
+| | SAVE-02, COMBAT-14 | a save made in combat resumes the fight (order, turn, round, XP, player AP) |
+| | SAVE-03, SCR-10 (part) | timed events keyed by object uid (uids stay unique after a load); knockout events rebuilt; flare / explosive events no longer become fake script calls |
 
 ## 4. Conflicts with the wiki / known_bugs (flagged, not resolved)
 

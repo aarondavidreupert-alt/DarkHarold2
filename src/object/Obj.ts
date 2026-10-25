@@ -652,6 +652,8 @@ export class Obj {
         //console.log("fromMapObject: %o", mobj)
         if (mobj.uid) {
             obj.uid = mobj.uid
+            // keep new uids clear of restored ones (saved timers are keyed by uid, CE object ids)
+            if (mobj.uid >= _lastObjectUID) _lastObjectUID = mobj.uid + 1
         }
         obj.pid = mobj.pid
         obj.pidID = mobj.pidID

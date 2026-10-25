@@ -357,10 +357,12 @@ export module ScriptVMBridge {
             // halt where we are, saving our return address.
             // we will resume when the dialogue system resumes us on dialogue exit
             // usually to run cleanup code.
+            // CE _gdialogGo: the dialogue runs only while a reply is pending
+            const r = this.scriptObj.gsay_end()
+            if (!r) return
             dbg('script', "halting in gsay_end (pc=0x%s)", this.pc.toString(16))
             this.retStack.push(this.pc + 2)
             this.halted = true
-            this.scriptObj.gsay_end()
        }
 
        // gsay_option — CE: interpreter_extra.cc _op_gsay_option (0x811F); like giq_option without the IQ test.

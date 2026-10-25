@@ -65,6 +65,15 @@ import {
     weaponAttackType,
 } from './hitChance.js'
 
+// A combat in a save game (CE combatSave)
+export interface SavedCombat {
+    order: number[]
+    whoseTurn: number
+    turnNum: number
+    combatExps: number
+    playerAP: { combat: number; move: number }
+}
+
 // Turn-based combat system
 
 // Re-entry guard: prevents Combat.start() from firing while a combat instance
@@ -2867,6 +2876,47 @@ export class Combat {
 
         globalState.combat.nextTurn()
         globalState.gMap.updateMap()
+    }
+
+    // CE combat.cc combatSave: the turn order by object id, whose turn it is, the round,
+    // the XP collected and the player's AP / free move.
+    serializeState(): SavedCombat {
+        return {
+            order: this.combatants.map((c) => c.uid),
+            whoseTurn: this.combatants[this.whoseTurn]?.uid ?? -1,
+            turnNum: this.turnNum,
+            combatExps: this.combatExps,
+            playerAP: { combat: this.player.AP?.combat ?? 0, move: this.player.AP?.move ?? 0 },
+        }
+    }
+
+    // CE loadsave.cc → combat.cc combatLoad: a save made in combat resumes the fight —
+    // the saved order (critters no longer there drop out) and turn;
+    // on the player's turn the saved AP carry on.
+    static restore(data: SavedCombat): void {
+        if (combatActive) return
+        combatActive = true
+        globalState.inCombat = true
+        const c = new Combat(globalState.gMap.getObjects())
+        globalState.combat = c
+        const byUid = new Map(c.combatants.map((x) => [x.uid, x] as [number, Critter]))
+        // exactly the saved list (CE reads the cids back); the player is always in it
+        const ordered = data.order.map((u) => byUid.get(u)).filter((x): x is Critter => !!x)
+        if (!ordered.includes(c.player)) ordered.unshift(c.player)
+        c.combatants = ordered
+        c.playerIdx = ordered.indexOf(c.player)
+        c.combatExps = data.combatExps ?? 0
+        const turn = Math.max(0, ordered.findIndex((x) => x.uid === data.whoseTurn))
+        c.whoseTurn = turn - 1
+        c.turnNum = Math.max(1, (data.turnNum ?? 1) - 1)
+        c.playerHadTurn = true
+        c.hasAttacked = true
+        c.nextTurn()
+        if (c.inPlayerTurn && c.player.AP && data.playerAP) {
+            c.player.AP.combat = data.playerAP.combat
+            c.player.AP.move = data.playerAP.move
+            drawAP(c.player.AP.getAvailableCombatAP(), c.player.AP.getTotalMaxAP(), c.player.AP.move)
+        }
     }
 
     // Combat over (CE _combat_over): used by the round check, the end-combat button

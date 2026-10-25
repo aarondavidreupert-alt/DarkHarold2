@@ -96,9 +96,7 @@ export function setNewResults(c: Critter, flags: number): void {
         removeKnockoutEvents(c)
     } else if ((flags & DAM_KNOCKED_OUT) !== 0) {
         removeKnockoutEvents(c)
-        const ticks = 10 * (35 - 3 * c.getStat('END'))
-        Scripting.timeEventList.push({ obj: c, ticks, userdata: 'knockout', fn: () => knockoutEventProcess(c),
-            leaveMap: () => critterWakeClear(c) })
+        scheduleKnockoutEvent(c, 10 * (35 - 3 * c.getStat('END')))
     }
     c.injuryFlags = (results(c) | (flags & (DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN | DAM_CRIP | DAM_DEAD | DAM_LOSE_TURN))) >>> 0
 }
@@ -120,6 +118,12 @@ function critterWakeClear(c: Critter): boolean {
 
 // CE critter.cc knockoutEventProcess: the critter comes to and lies knocked down; in
 // combat it stands up at the start of its next turn, otherwise at once.
+// CE queue.cc EVENT_TYPE_KNOCKOUT (also rebuilt from a save, saveload.ts)
+export function scheduleKnockoutEvent(c: Critter, ticks: number): void {
+    Scripting.timeEventList.push({ obj: c, ticks, userdata: 'knockout', fn: () => knockoutEventProcess(c),
+        leaveMap: () => critterWakeClear(c) })
+}
+
 export function knockoutEventProcess(c: Critter): void {
     if ((results(c) & DAM_DEAD) !== 0 || c.dead) return
     c.injuryFlags = ((results(c) & ~(DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN)) | DAM_KNOCKED_DOWN) >>> 0

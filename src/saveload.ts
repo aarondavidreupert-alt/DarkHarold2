@@ -37,6 +37,9 @@ import { gameReset } from './gameReset.js'
 import { Worldmap } from './worldmap.js'
 import { beginMapFade, endMapFade } from './mapFade.js'
 import { deserializeSfallGlobals, serializeSfallGlobals } from './sfallGlobalScripts.js'
+import { applyPreferences, currentPreferences, savePreferences, type SavedPreferences } from './ui_options/preferences.js'
+import { scheduleKnockoutEvent } from './combat/results.js'
+import { Combat, type SavedCombat } from './combat/Combat.js'
 
 // Saving and loading support
 
@@ -45,6 +48,8 @@ let db: IDBDatabase
 // Save game metadata + maps
 export interface SaveGame {
     sfallGlobals?: [string, number][] // sfall global variables (sfallGlobalScripts.ts); older saves: none
+    preferences?: SavedPreferences // CE loadsave.cc handler 17 preferencesSave; older saves: none
+    combat?: SavedCombat // CE combatSave: a save made in combat; older saves: none
     id?: number
     version: number
     name: string
@@ -232,6 +237,8 @@ function gatherSaveData(name: string): SaveGame {
         subtiles: Worldmap.serializeSquareStates(),
         currentAreaId: Worldmap.getCurrentAreaId(),
         encounters: Worldmap.serializeEncounters(),
+        preferences: currentPreferences(),
+        combat: globalState.inCombat && globalState.combat ? globalState.combat.serializeState() : undefined,
     }
 }
 
@@ -403,6 +410,12 @@ export function load(id: number): void {
                 Worldmap.deserializeSquareStates(save.subtiles)
                 Worldmap.setCurrentAreaId(save.currentAreaId ?? -1)
                 Worldmap.deserializeEncounters(save.encounters)
+                // CE preferencesLoad: the save's preferences apply (_JustUpdate_) and become
+                // the settings (_SavePrefs(0)); saves from before 2026-10-25 have none
+                if (save.preferences) {
+                    applyPreferences(save.preferences)
+                    savePreferences()
+                }
 
                 // Restore seen-movie set (CE ref: game_movie.cc gameMoviesLoad).
                 if (Array.isArray(save.seenMovies)) globalState.seenMovies = new Set(save.seenMovies)
@@ -422,11 +435,15 @@ export function load(id: number): void {
                 // CE ref: scripts.cc scriptsSaveProcedureNames / scriptsLoadProcedureNames.
                 // Older saves without this field are silently skipped.
                 if (Array.isArray(save.timedEvents)) {
-                    const mapObjects = globalState.gMap.getObjects()
+                    // CE queueLoad: the owner by object id (objectFindById); old saves by PID
+                    const mapObjects = [...globalState.gMap.getObjects(), ...(globalState.gMap.getSpatials() ?? [])]
+                    const byUid = new Map<number, any>()
+                    for (const o of mapObjects) byUid.set(o.uid, o)
+                    if (globalState.player) byUid.set(globalState.player.uid, globalState.player)
                     for (const ev of save.timedEvents) {
-                        const obj = ev.objPid !== null
-                            ? mapObjects.find(o => o.pid === ev.objPid) ?? null
-                            : null
+                        const obj = ev.objUid != null
+                            ? byUid.get(ev.objUid) ?? null
+                            : ev.objPid !== null ? mapObjects.find(o => o.pid === ev.objPid) ?? null : null
                         const { ticks, userdata } = ev
                         if (typeof userdata === 'string' && (userdata.startsWith('drug:') || userdata.startsWith('withdrawal:'))) {
                             // CE ref: item.cc drugEffectEventRead / withdrawalEventRead. Old-format
@@ -452,6 +469,13 @@ export function load(id: number): void {
                                 Scripting.timeEventList.push({ obj: player, ticks, userdata,
                                     fn: () => Scripting.poisonDecayEvent(player), leaveMap: 'keep' })
                             }
+                        } else if (userdata === 'knockout') {
+                            // CE queue.cc knockout event: the critter wakes up when it runs out
+                            if (obj && obj.type === 'critter' && !obj.dead) scheduleKnockoutEvent(obj as Critter, ticks)
+                        } else if (userdata === 'flare' || userdata === 'explosion' || userdata === 'explosionFailure') {
+                            // engine events DH2 can't rebuild from a save yet (a lit flare, an armed
+                            // explosive); never a script's timed_event_p_proc
+                            dbgWarn('saveload', `[SaveLoad] ${userdata} event not restored`)
                         } else if (obj?._script) {
                             const script = obj._script
                             Scripting.timeEventList.push({ obj, ticks, userdata,
@@ -499,6 +523,9 @@ export function load(id: number): void {
                 drawHP(p.getStat('HP'))
                 drawAC(p.getStat('AC'))
                 uiDrawWeapon()
+
+                // CE loadsave.cc combatLoad: a save made in combat resumes it
+                if (save.combat) Combat.restore(save.combat)
 
                 Scripting.startSfallGlobalScripts() // CE loadsave.cc: sfall_gl_scr_exec_start_proc
                 dbg('saveload', '[SaveLoad] Finished loading map %s', savedMap.name)

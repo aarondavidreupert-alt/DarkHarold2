@@ -178,8 +178,9 @@ local function new_env(id, script, name)
             return depth_closer
         end,
         gsay_end = function()
-            host_call(script, "gsay_end")
-            co_yield(SUSPEND)
+            -- CE _gdialogGo: the dialogue runs only while a reply is pending
+            local r = host_call(script, "gsay_end")
+            if r ~= 0 and r ~= nil and r ~= false then co_yield(SUSPEND) end
         end,
         gsay_message = function(list, msg, reaction)
             host_call(script, "gsay_message", list, msg, reaction)
@@ -300,6 +301,16 @@ function __resume(id)
         if co_status(top.co) == "suspended" then return true end
     end
     return false
+end
+
+-- Resume only the most recently suspended procedure (the one a gsay_message
+-- [Done] returns into, CE _gdialogSayMessage); true if it suspended again.
+function __resume_one(id)
+    local s = suspended[id]
+    if s == nil or #s == 0 then return false end
+    local top = table.remove(s)
+    step(id, top.co, top.where)
+    return co_status(top.co) == "suspended"
 end
 
 function __has_suspended(id)
