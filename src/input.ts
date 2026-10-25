@@ -27,6 +27,7 @@ import {
     getZoom,
     SCREEN_HEIGHT,
     SCREEN_WIDTH,
+    screenToWorld,
 } from './renderer.js'
 import { objLookAt } from './examine.js'
 import { Scripting } from './scripting.js'
@@ -49,6 +50,7 @@ import { gameHandleKey } from './hotkeys.js'
 import { closeInventory } from './ui_inventory.js'
 import { closeAutomap } from './ui_automap.js'
 import { playerUse, cancelSkillTargeting } from './playerUse.js'
+import { primaryActionIcon } from './ui_contextmenu.js'
 
 // Tile inspector — build a structured, copy-pasteable dump of everything the
 // debug tooling knows about the hex tile under the cursor: its lighting, the
@@ -176,22 +178,61 @@ function isKey(k: string, control: keyof typeof Config.controls): boolean {
     return Config.engine.devKeys || !DEV_CONTROLS.has(control)
 }
 
+// CE game_mouse.cc gameMouseRefresh (ARROW mode): after the mouse rests 250 ms over an
+// object the cursor shows its primary action's icon (nothing over empty ground), and
+// _obj_look_at runs only when the pointed object changes (gGameMousePointedObject).
+let lastPointedObject: Obj | null = null
+function scheduleArrowHover(): void {
+    globalState.showLookCursor = false
+    if (globalState.commandModeTimer !== null) clearTimeout(globalState.commandModeTimer)
+    globalState.commandModeTimer = window.setTimeout(() => {
+        const hoverObj = getObjectUnderCursor((_: Obj) => true)
+        globalState.hoverActionIcon = hoverObj ? primaryActionIcon(hoverObj) : null
+        globalState.showLookCursor = hoverObj !== null
+        if (hoverObj && hoverObj !== lastPointedObject && globalState.player) {
+            lastPointedObject = hoverObj
+            for (const line of objLookAt(globalState.player, hoverObj)) uiLog(line)
+        }
+    }, 250)
+}
+
+// CE game_mouse.cc gameMouseRefresh (MOVE mode): after a 250 ms rest the hex cursor shows
+// the AP the walk costs in combat (critterGetMovementPointCostAdjustedForCrippledLegs minus
+// the free move; white), or a red X when it exceeds the dude's AP or there is no path.
+let hexCursorTimer: number | null = null
+function scheduleHexCursorAP(): void {
+    globalState.hexCursorText = null
+    if (hexCursorTimer !== null) clearTimeout(hexCursorTimer)
+    if (globalState.cursorMode !== 'move') return
+    hexCursorTimer = window.setTimeout(() => {
+        const player = globalState.player
+        const gMap = globalState.gMap
+        if (!player || !gMap || globalState.cursorMode !== 'move') return
+        const mouse = heart.mouse.getPosition()
+        const world = screenToWorld(mouse[0], mouse[1])
+        const hex = hexFromScreen(world.x, world.y)
+        const path = gMap.recalcPath(player.position, hex, undefined, player)
+        const distance = Math.max(0, path.length - 1)
+        if (distance === 0) { globalState.hexCursorText = { text: 'X', color: '#fc0000' }; return }
+        if (!globalState.inCombat || !player.AP) return
+        let cost = distance
+        if (player.crippledLeftLeg && player.crippledRightLeg) cost *= 8
+        else if (player.crippledLeftLeg || player.crippledRightLeg) cost *= 4
+        const required = Math.max(0, cost - player.AP.move)
+        globalState.hexCursorText = required <= player.AP.getAvailableCombatAP()
+            ? { text: String(required), color: '#fcfcfc' }
+            : { text: 'X', color: '#fc0000' }
+    }, 250)
+}
+
 // CE game_mouse.cc gameMouseCycleMode — right-click and the M key: move (hex) → command
 // (arrow) → attack (crosshair, only in combat with a weapon or empty hand) → move.
 function cycleMouseMode(): void {
     if (globalState.cursorMode === 'move') {
         // move (hex) → command (arrow)
         globalState.cursorMode = 'command'
-        globalState.showLookCursor = false
-        if (globalState.commandModeTimer !== null) clearTimeout(globalState.commandModeTimer)
-        globalState.commandModeTimer = window.setTimeout(() => {
-            globalState.showLookCursor = true
-            const hoverObj = getObjectUnderCursor((_: Obj) => true)
-            // CE game_mouse.cc look-cursor hover: _obj_look_at
-            if (hoverObj && globalState.player) {
-                for (const line of objLookAt(globalState.player, hoverObj)) uiLog(line)
-            }
-        }, 1000)
+        lastPointedObject = null
+        scheduleArrowHover()
     } else if (globalState.cursorMode === 'command') {
         // command (arrow) → attack (crosshair). CE ref: game_mouse.cc
         // gameMouseCycleMode — the crosshair is skipped (back to move) outside
@@ -313,18 +354,8 @@ export function installInputHandlers(): void {
         }
 
         // Reset look-cursor timer on movement in command mode
-        if (globalState.cursorMode === 'command') {
-            globalState.showLookCursor = false
-            if (globalState.commandModeTimer !== null) clearTimeout(globalState.commandModeTimer)
-            globalState.commandModeTimer = window.setTimeout(() => {
-                globalState.showLookCursor = true
-                const hoverObj = getObjectUnderCursor((_: Obj) => true)
-                // CE game_mouse.cc look-cursor hover: _obj_look_at
-                if (hoverObj && globalState.player) {
-                    for (const line of objLookAt(globalState.player, hoverObj)) uiLog(line)
-                }
-            }, 1000)
-        }
+        if (globalState.cursorMode === 'command') scheduleArrowHover()
+        scheduleHexCursorAP()
 
         // Scroll interrupts any mode; HUD/move only apply when not in command/attack
         const SCROLL_PAD = Config.ui.scrollPadding

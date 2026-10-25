@@ -111,6 +111,8 @@ const globalState = {
     preScrollCursorMode: 'move' as CursorMode,
     cursorPos: { x: 0, y: 0 },
     showLookCursor: false,
+    hoverActionIcon: null,
+    hexCursorText: null,
     commandModeTimer: null as number | null,
 
     // CE ref: game_config.h:37 item_highlight — held purely as runtime input
@@ -197,6 +199,8 @@ const globalState = {
     preScrollCursorMode: CursorMode
     cursorPos: Point
     showLookCursor: boolean
+    hoverActionIcon: string | null // the ARROW cursor's primary-action icon (input.ts)
+    hexCursorText: { text: string; color: string } | null // the MOVE cursor's AP / X (input.ts)
     commandModeTimer: number | null
 
     highlightItemsKeyHeld: boolean

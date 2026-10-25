@@ -150,6 +150,22 @@ export function uiContextMenu(obj: Obj, evt: any) {
 
 // CE critter.h CRITTER_NO_STEAL
 const CRITTER_NO_STEAL = 0x20
+
+// CE game_mouse.cc gameMouseRefresh (ARROW mode): the pointed object's primary action, whose
+// icon the cursor shows — USE for items and usable scenery, TALK for a talkable critter out of
+// combat, LOOK in combat / for walls / other scenery / no-steal critters, ROTATE for the dude
+export function primaryActionIcon(obj: Obj): string {
+    const icon = (name: string) => 'art/intrface/' + name
+    if (obj.type === 'item') return icon('usegetn')
+    if (obj.type === 'critter') {
+        const c = obj as Critter
+        if (c === globalState.player) return icon('rotaten')
+        if (objActionCanTalkTo(c)) return icon(globalState.inCombat ? 'lookn' : 'talkn')
+        return icon((critterProtoFlags(c) & CRITTER_NO_STEAL) !== 0 ? 'lookn' : 'usegetn')
+    }
+    if (obj.type === 'scenery') return icon(obj.canUse ? 'usegetn' : 'lookn')
+    return icon('lookn')
+}
 function critterProtoFlags(c: Critter): number {
     return ((c.pro as any)?.extra?.flags ?? 0) >>> 0
 }

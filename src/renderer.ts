@@ -257,6 +257,9 @@ export class Renderer {
             const scr = hexCellTopLeft(mouseHex.x, mouseHex.y)
             const screen = worldToScreen(scr.x, scr.y)
             this.renderImage('img/hex_outline', screen.x, screen.y, hexW * z, hexH * z)
+            // CE gameMouseRenderActionPoints: the AP / X centred in the hex cursor (font 101)
+            const apText = globalState.hexCursorText
+            if (apText) this.renderText(apText.text, screen.x + hexW * z / 2, screen.y + hexH * z / 2 + 4, 'center', apText.color)
         }
 
         for (const window of this.windows.filter((w) => w.showing)) {
@@ -348,8 +351,9 @@ export class Renderer {
                 const actarrowImg = globalState.images['art/intrface/actarrow']
                 this.renderImage('art/intrface/actarrow', rawX, rawY, actarrowImg?.naturalWidth ?? 28, actarrowImg?.naturalHeight ?? 13)
                 if (globalState.showLookCursor) {
-                    const looknImg = globalState.images['art/intrface/lookn']
-                    this.renderImage('art/intrface/lookn', rawX + 40, rawY, looknImg?.naturalWidth ?? 32, looknImg?.naturalHeight ?? 32)
+                    const icon = globalState.hoverActionIcon ?? 'art/intrface/lookn'
+                    const iconImg = globalState.images[icon]
+                    this.renderImage(icon, rawX + 40, rawY, iconImg?.naturalWidth ?? 32, iconImg?.naturalHeight ?? 32)
                 }
             } else if (globalState.cursorMode === 'attack') {
                 // Fallout 2 attack crosshair cursor (acrshair); centered on the mouse hotspot

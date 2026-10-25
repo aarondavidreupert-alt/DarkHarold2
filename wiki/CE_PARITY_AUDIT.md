@@ -186,8 +186,10 @@ LOW findings are listed in each report only.
 | Party | PTY-03 | party.txt's disposition and Custom-value lists are read: dispositions it doesn't list are disabled, Custom values it doesn't list are greyed and refused |
 | | PTY-05 | the control screen shows CE's eight fields at CE's positions: right-hand item and worn armor (proto.msg 10 for none), the standing SW sprite, HP, best skill, weight (red when encumbered), melee damage, AP |
 | | DLG-04 (part) | dialogue keys 1–9 pick an option, B barters. Still open: page keys, control / customise screen keys |
+| Input | MOUSE-03, MOUSE-04 | the arrow cursor shows the pointed object's primary-action icon after 250 ms (use / talk / look / rotate; nothing over empty ground); "You see" only when the pointed object changes |
+| | MOUSE-05 | the hex cursor shows the move's AP cost in combat (white) or a red X (too far / no path) after 250 ms |
 
-Still open from these groups: COMBAT-10 (joining critters' immediate turn), COMBAT-13 (Glovz / YAAM opt-in formulas), ACT-05 (point / unpoint animations), MOUSE-06 roof test.
+Still open from these groups: COMBAT-10 (joining critters' immediate turn), COMBAT-13 (Glovz / YAAM opt-in formulas), ACT-05 (point / unpoint animations), MOUSE-06 roof test. MOUSE-01 / MOUSE-02 are the documented action-menu approximation (CLAUDE.md, README).
 
 ## 4. Conflicts with the wiki / known_bugs (flagged, not resolved)
 
