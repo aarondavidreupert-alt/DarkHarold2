@@ -182,6 +182,7 @@ LOW findings are listed in each report only.
 | | HUD-02 | the HUD reload spends AP only when something loaded, plays the weapon's ready sound, prints nothing when short of AP |
 | | MENU-01, MENU-02 | main-menu OPTIONS opens Preferences over the menu; cancelling its LOAD GAME returns to the menu |
 | | END-01 | the endgame slideshow goes on to akiss, the credits and the continue dialog |
+| | CHAR-05 | the creation screen's derived stats and skills include the traits (SPECIAL bonus and trait effects); "+" stops at base + trait bonus = 10 |
 | | DLG-04 (part) | dialogue keys 1–9 pick an option, B barters. Still open: page keys, control / customise screen keys |
 
 Still open from these groups: COMBAT-10 (joining critters' immediate turn), COMBAT-13 (Glovz / YAAM opt-in formulas), ACT-05 (point / unpoint animations), MOUSE-06 roof test.

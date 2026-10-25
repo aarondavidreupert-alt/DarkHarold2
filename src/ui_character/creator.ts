@@ -83,6 +83,10 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
 
     // SkillCalcOptions — traits array updated live so skill list reflects Good Natured etc.
     const skillOpts: SkillCalcOptions = { isPlayer: true, perks: [], traits: selectedTraits }
+    // CE trait.cc traitGetStatModifier: the traits' SPECIAL bonus
+    const traitSpecialMod = (stat: string): number => (selectedTraits.includes('Gifted') ? 1 : 0)
+        + (stat === 'STR' && selectedTraits.includes('Bruiser') ? 2 : 0)
+        + (stat === 'AGI' && selectedTraits.includes('Small Frame') ? 1 : 0)
 
     // ── Skill point pool bignum (not used in creation — tags only) ────────────
     const skillPointBignumW = new Widget(null, { x: 523, y: 228, w: 28, h: 28 })
@@ -302,7 +306,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         wireEbut(upBtn, 'art/intrface/stplsoff.png', 'art/intrface/stplson.png', () => {
             if (pool <= 0) return
             const cur = newStatSet.getBase(capturedStat)
-            if (cur >= 10) return
+            // CE characterEditorAdjustPrimaryStat: "+" only while base + trait modifier < 10
+            if (cur + traitSpecialMod(capturedStat) >= 10) return
             newStatSet.setBase(capturedStat, cur + 1)
             pool--
             updatePoolLabel()
@@ -738,12 +743,26 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         'Crippled Right Leg', 'Crippled Left Leg',
     ]
 
+    // CE critterGetBaseStatWithTraitModifier / critterGetStat: the creation screen's derived
+    // stats and skills follow the picked traits — their SPECIAL bonus (Gifted, Bruiser,
+    // Small Frame) and the trait effects of Player.getStat (AP, carry, sequence, …)
+    const creatorView = (): StatSet => {
+        const special = newStatSet.clone()
+        for (const st of STATS) special.setBase(st, Math.max(1, Math.min(10, special.getBase(st) + traitSpecialMod(st))))
+        const dude: any = Object.create(Object.getPrototypeOf(globalState.player))
+        Object.assign(dude, { stats: special, traits: selectedTraits, perks: [], inventory: [], injuryFlags: 0 })
+        const view = special.clone()
+        view.get = (stat: string) => dude.getStat(stat)
+        return view
+    }
+
     const renderPanel2 = () => {
+        const view = creatorView()
         renderStatPanels(panel2El, {
-            hp: newStatSet.get('Max HP'),
-            maxHp: newStatSet.get('Max HP'),
+            hp: view.get('Max HP'),
+            maxHp: view.get('Max HP'),
             conditions: [false, false, false, false, false, false, false],
-            stats: newStatSet,
+            stats: view,
             onInfo: (label, kind) => kind === 'condition'
                 ? showInfoCard(label, CONDITION_DESCRIPTIONS[label] ?? label, CONDITION_IMG[label])
                 : showInfoCard(label, DERIVED_DESCRIPTIONS[label] ?? label, DERIVED_IMG[label]),
@@ -784,9 +803,10 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     const redrawStatsSkills = () => {
         // Rebuild skill rows
         while (skillRowsEl.firstChild) skillRowsEl.removeChild(skillRowsEl.firstChild)
+        const skillView = creatorView()
         for (const skill of SKILLS) {
             const isTagged = newSkillSet.isTagged(skill)
-            const val = newSkillSet.get(skill, newStatSet, skillOpts)
+            const val = newSkillSet.get(skill, skillView, skillOpts)
             const color = isTagged ? '#a0a0a0' : '#3cf800' // CE characterEditorDrawSkills: 21140 tagged / 992
 
             const row = document.createElement('div')
@@ -845,9 +865,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             while (el.firstChild) el.removeChild(el.firstChild)
             // CE shows the SPECIAL with its trait modifier (critterGetBaseStatWithTraitModifier)
             const st = STATS[i]
-            const base = newStatSet.getBase(st) + (selectedTraits.includes('Gifted') ? 1 : 0)
-                + (st === 'STR' && selectedTraits.includes('Bruiser') ? 2 : 0)
-                + (st === 'AGI' && selectedTraits.includes('Small Frame') ? 1 : 0)
+            const base = newStatSet.getBase(st) + traitSpecialMod(st)
             el.appendChild(renderBignum(base, 2))
             statCommentLabels[i].setText(statComment(base))
         }
@@ -872,10 +890,7 @@ ${msg(b)}`)
         }
         if (pool > 0) return refuse(118, 119)
         if (newSkillSet.tagged.length < 3) return refuse(142, 143)
-        const traitMod = (stat: string) => (selectedTraits.includes('Gifted') ? 1 : 0)
-            + (stat === 'STR' && selectedTraits.includes('Bruiser') ? 2 : 0)
-            + (stat === 'AGI' && selectedTraits.includes('Small Frame') ? 1 : 0)
-        if (STATS.some((st) => { const v = newStatSet.getBase(st) + traitMod(st); return v < 1 || v > 10 })) return refuse(157, 158)
+        if (STATS.some((st) => { const v = newStatSet.getBase(st) + traitSpecialMod(st); return v < 1 || v > 10 })) return refuse(157, 158)
         const name = playerName.trim() || 'None'
         if (name.toLowerCase() === 'none') {
             globalState.audioEngine?.playSfxByName?.('iisxxxx1')
