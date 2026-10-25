@@ -25,7 +25,7 @@ import { uiGetAmount, uiSwapItem } from './ui_barter.js'
 import { uiLog } from './ui_hud.js'
 import { getMessage } from './util.js'
 import { Scripting } from './scripting.js'
-import { makeDropTarget, makeDraggable } from './ui_inventory.js'
+import { examineToLog, itemMenuActions, makeDropTarget, makeDraggable, showItemMenu, unloadWeapon } from './ui_inventory.js'
 import { appendItemSlot, $id, clearEl, showv, hidev, off, makeEl } from './ui_dom.js'
 
 // --- Loot screen -----------------------------------------------------------
@@ -119,6 +119,20 @@ export function uiLoot(object: Obj) {
             })
             appendItemSlot($el, img, objects[i].amount)
             makeDraggable(img, who + i)
+            // CE inventoryWindowOpenContextMenu (loot window)
+            const item = objects[i]
+            const ownerIsDude = who === 'l'
+            img.oncontextmenu = (e: MouseEvent) => {
+                e.preventDefault()
+                showItemMenu(e, itemMenuActions(item, false, ownerIsDude), (action) => {
+                    const owner = ownerIsDude ? globalState.player : object
+                    if (action === 'look') examineToLog(item)
+                    else if (action === 'unload') unloadWeapon(item, (ammo) => owner.addInventoryItem(ammo, 1))
+                    else if (action === 'drop') item.drop(globalState.player)
+                    drawLoot()
+                })
+                return false
+            }
         }
     }
 

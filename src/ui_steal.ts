@@ -30,7 +30,7 @@ import { Critter, itemIsHidden, Obj } from './object.js'
 import { UIMode } from './ui_panels.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter.js'
 import { uiLog } from './ui_hud.js'
-import { makeDropTarget, makeDraggable } from './ui_inventory.js'
+import { examineToLog, itemMenuActions, makeDropTarget, makeDraggable, showItemMenu, unloadWeapon } from './ui_inventory.js'
 import { appendItemSlot, $id, clearEl, showv, hidev, off, makeEl } from './ui_dom.js'
 import { performSteal } from './skillUse.js'
 import { Scripting } from './scripting.js'
@@ -74,6 +74,20 @@ export function uiSteal(thief: Critter, target: Critter): void {
             })
             appendItemSlot($el, img, objects[i].amount)
             makeDraggable(img, who + i)
+            // CE inventoryWindowOpenContextMenu (the loot window, stealing)
+            const item = objects[i]
+            const ownerIsDude = who === 'l'
+            img.oncontextmenu = (e: MouseEvent) => {
+                e.preventDefault()
+                showItemMenu(e, itemMenuActions(item, false, ownerIsDude), (action) => {
+                    const owner = ownerIsDude ? thief : target
+                    if (action === 'look') examineToLog(item)
+                    else if (action === 'unload') unloadWeapon(item, (ammo) => owner.addInventoryItem(ammo, 1))
+                    else if (action === 'drop') item.drop(thief)
+                    drawSteal()
+                })
+                return false
+            }
         }
     }
 

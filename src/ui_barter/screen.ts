@@ -24,7 +24,7 @@ import { Critter, cloneItem, Obj } from '../object.js'
 import { Scripting } from '../scripting.js'
 import { UIMode } from '../ui_panels.js'
 import { uiAnimateBox, uiSetDialogueReply } from '../ui_dialogue.js'
-import { makeDropTarget, makeDraggable } from '../ui_inventory.js'
+import { examineToLog, itemMenuActions, makeDropTarget, makeDraggable, showItemMenu, unloadWeapon } from '../ui_inventory.js'
 import { Config } from '../config.js'
 import { appendItemSlot, $id, clearEl, makeEl } from '../ui_dom.js'
 import { uiGetAmount, uiSwapItem } from './swap.js'
@@ -343,6 +343,18 @@ export function uiBarterMode(merchant: Critter) {
             // not the on-screen position, so drops/swaps still target the
             // right item regardless of scroll offset.
             makeDraggable(img, who + i)
+            // CE inventoryWindowOpenContextMenu (trade window): Look and Unload; the rounds go to
+            // the list the weapon is in (DH2 trades on working copies, so no Drop mid-trade)
+            img.oncontextmenu = (e: MouseEvent) => {
+                e.preventDefault()
+                const actions = itemMenuActions(obj, false, who === 'p' || who === 'l').filter((a) => a !== 'drop')
+                showItemMenu(e, actions, (action) => {
+                    if (action === 'look') examineToLog(obj)
+                    else if (action === 'unload') unloadWeapon(obj, (ammo) => objects.push(ammo))
+                    redrawBarterInventory()
+                })
+                return false
+            }
         }
     }
 

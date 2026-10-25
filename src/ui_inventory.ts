@@ -19,3 +19,4 @@ limitations under the License.
 
 export { makeDropTarget, makeDraggable } from './ui_inventory/dragdrop.js'
 export { closeInventory, initInventory, showInventory, showInventoryUseOn } from './ui_inventory/panel.js'
+export { examineToLog, itemMenuActions, showItemMenu, unloadWeapon } from './ui_inventory/itemMenu.js'

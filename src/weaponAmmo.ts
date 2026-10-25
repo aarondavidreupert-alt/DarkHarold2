@@ -191,6 +191,15 @@ export function weaponAttemptReload(w: Obj, inventory: Obj[]): number {
     return rc === -1 ? -1 : 0
 }
 
+// CE item.cc weaponCanBeUnloaded: a weapon with a magazine holding rounds of a known ammo
+// type (not the Solar Scorcher)
+export function weaponCanBeUnloaded(w: Obj | null | undefined): boolean {
+    if (!w || !isWeapon(w)) return false
+    if (ammoGetCapacity(w) <= 0 || ammoGetQuantity(w) <= 0) return false
+    if (isSolarScorcher(w)) return false
+    return weaponGetAmmoTypePid(w) !== -1
+}
+
 // First inventory ammo that fits (CE _item_w_try_reload / inventory search).
 export function findReloadAmmo(w: Obj, inventory: Obj[]): Obj | null {
     return inventory.find((item) => weaponCanBeReloadedWith(w, item)) ?? null

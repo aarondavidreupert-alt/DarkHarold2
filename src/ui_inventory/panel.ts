@@ -39,6 +39,7 @@ import { Events } from '../events.js'
 import { unarmedHandMode } from '../unarmed.js'
 import { getMessage, getProtoMsg } from '../util.js'
 import { objExamine } from '../examine.js'
+import { itemMenuActions, unloadWeapon } from './itemMenu.js'
 
 // --- Public open / close lifecycle -----------------------------------------
 
@@ -525,22 +526,8 @@ export function showInventory(useOn = false) {
                 showInventory()
                 break
             case 'unload': {
-                const ammoPID = weaponGetAmmoTypePid(obj)
-                const ammoCurrent = ammoGetQuantity(obj)
-                dbg('inventory', `[UI] unload: ammoPID=${ammoPID} rounds=${ammoCurrent}`)
-                if (ammoCurrent > 0) {
-                    // CE inventory.cc unload → item.cc weaponUnload, repeated: one box at a
-                    // time holding up to a box's rounds; the weapon keeps its ammo type.
-                    while (ammoPID > 0 && ammoGetQuantity(obj) > 0) {
-                        const ammoObj = createObjectWithPID(ammoPID)
-                        const rounds = ammoGetQuantity(obj)
-                        const capacity = ammoGetCapacity(ammoObj)
-                        ammoSetQuantity(ammoObj, Math.min(rounds, capacity))
-                        ammoSetQuantity(obj, Math.max(0, rounds - capacity))
-                        globalState.player.addInventoryItem(ammoObj, 1)
-                    }
-                    ammoSetQuantity(obj, 0)
-                }
+                dbg('inventory', `[UI] unload: ammoPID=${weaponGetAmmoTypePid(obj)} rounds=${ammoGetQuantity(obj)}`)
+                unloadWeapon(obj, (ammo) => globalState.player.addInventoryItem(ammo, 1))
                 uiDrawWeapon()
                 showInventory()
                 break
@@ -610,29 +597,15 @@ export function showInventory(useOn = false) {
             top: `${ly}px`,
         })
 
-        const isWeaponWithAmmo = obj.subtype === 'weapon' && (obj.pro?.extra?.maxAmmo ?? 0) > 0
         const fromInventory = slot === 'inventory'
 
-        // Determine action set — mirrors fallout2-ce _act_weap/_act_use/_act_no_use etc.
+        // CE inventoryWindowOpenContextMenu (inventory window): _act_weap / _act_use / _act_no_use
+        // for the list and the hand / armor slots alike (an equipped item leaves its slot first
+        // when dropped)
         type Action = { action: ItemAction; label: string; closeOnClick?: boolean }
-        let actions: Action[]
-
-        if (isWeaponWithAmmo) {
-            // _act_weap / _act_weap2
-            actions = fromInventory
-                ? [{ action: 'look', label: 'Look', closeOnClick: false }, { action: 'unload', label: 'Unload' }, { action: 'drop', label: 'Drop' }, { action: 'cancel', label: 'Cancel' }]
-                : [{ action: 'look', label: 'Look', closeOnClick: false }, { action: 'unload', label: 'Unload' }, { action: 'cancel', label: 'Cancel' }]
-        } else if (obj.canUse) {
-            // _act_use / _act_just_use
-            actions = fromInventory
-                ? [{ action: 'look', label: 'Look', closeOnClick: false }, { action: 'use', label: 'Use' }, { action: 'drop', label: 'Drop' }, { action: 'cancel', label: 'Cancel' }]
-                : [{ action: 'look', label: 'Look', closeOnClick: false }, { action: 'use', label: 'Use' }, { action: 'cancel', label: 'Cancel' }]
-        } else {
-            // _act_no_use / _act_nothing
-            actions = fromInventory
-                ? [{ action: 'look', label: 'Look', closeOnClick: false }, { action: 'drop', label: 'Drop' }, { action: 'cancel', label: 'Cancel' }]
-                : [{ action: 'look', label: 'Look', closeOnClick: false }, { action: 'cancel', label: 'Cancel' }]
-        }
+        const LABELS: { [a: string]: string } = { look: 'Look', use: 'Use', drop: 'Drop', unload: 'Unload', cancel: 'Cancel' }
+        const actions: Action[] = itemMenuActions(obj, true, true, !fromInventory)
+            .map((a) => ({ action: a as ItemAction, label: LABELS[a], closeOnClick: a === 'look' ? false : undefined }))
 
         // DarkHarold2 addition: unequip button for equipped slots
         if (!fromInventory) {

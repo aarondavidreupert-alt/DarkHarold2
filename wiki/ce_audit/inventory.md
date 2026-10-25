@@ -160,7 +160,7 @@ Top findings (by severity):
 - DH2: `src/ui_inventory/panel.ts:146 showItemInfo` → name + `getDescription()` only. `src/examine.ts:objExamine` implements the CE text but isn't used here.
 - **Fix:** render `objExamine(player, item)` lines plus the weight line.
 
-### INV-12 — Context menus (MED, NEW)
+### INV-12 — Context menus (MED, NEW) — **PARTLY FIXED 2026-10-25**
 - CE: `inventoryWindowOpenContextMenu`:
   - Normal window: the same action set for list and equipped items. A weapon that can be unloaded gets look / unload / drop / cancel; use-able items get look / use / drop / cancel; anything else gets look / drop / cancel. Dropping an equipped item moves it out of the slot first.
   - Loot / trade windows: menus too (`_act_weap2`, `_act_just_use` for bags, `_act_nothing`, own items `_act_use` / `_act_no_use`).
