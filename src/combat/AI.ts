@@ -31,7 +31,9 @@ export class AI {
         // chosen settings persist even though they're not a distinct named
         // ai.txt packet of their own.
         this.packet = combatant.customAiOverrides
-            ? { ...base, ...combatant.customAiOverrides }
+            ? { ...base, ...combatant.customAiOverrides,
+                // a Custom best_weapon choice is an explicit setting (not CE's unset -1)
+                ...(combatant.customAiOverrides.bestWeapon !== undefined ? { bestWeaponUnset: false } : {}) }
             : base
     }
 }

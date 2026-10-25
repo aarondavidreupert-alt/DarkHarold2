@@ -146,6 +146,8 @@ export class GameMap {
     }
 
     destroyObject(obj: Obj): void {
+        // CE object.cc / opDestroyObject: _combat_delete_critter — out of the turn order
+        if (obj.type === 'critter' && globalState.inCombat) globalState.combat?.removeCombatant(obj as Critter)
         Scripting.destroy(obj)
         this.removeObject(obj)
     }

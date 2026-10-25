@@ -30,6 +30,7 @@ import { getLstId, lookupScriptName } from '../data.js'
 import { Events } from '../events.js'
 import { hexDirectionTo, hexDistance, hexIsInFrontOf, hexNeighbors, Point } from '../geometry.js'
 import { computeExplosionDamage, explosionRingCritters, scriptsExplodeScenery } from '../combat/explosion.js'
+import { Combat } from '../combat/Combat.js'
 import globalState from '../globalState.js'
 import { lazyLoadImage } from '../images.js'
 import { Lightmap } from '../lightmap.js'
@@ -1386,14 +1387,44 @@ export class Obj {
         const main = atTile && atTile.type === 'critter' && !(atTile as Critter).dead ? atTile as Critter : null
         const victims = [...(main ? [main] : []), ...explosionRingCritters(center, elevation, main, false)]
         dbg('object', `[Object] explosion: ${minDmg}-${maxDmg}, ${victims.length} critter(s)`)
+        const wasDead = new Set(victims.filter((v) => v.dead))
         for (const v of victims) {
             if (v.dead) continue
             const { damage, knockback } = computeExplosionDamage(minDmg, maxDmg, v, getRandomInt)
             critterDamage(v, damage, killer, true, true, 'Explosive', undefined, {
                 attackerAnim: ANIM_STAND, weapon: null, knockback,
                 knockbackRotation: hexDirectionTo(center, v.position),
+                // CE actionExplode → _check_death(ANIM_EXPLODED_TO_NOTHING, MAX_BLOOD) (the
+                // max-blood path critter_dmg uses too)
+                scriptDamage: true,
             })
             if (v.isPlayer) drawHP(v.getStat('HP'))
+        }
+        // CE actions.cc _report_explosion: the source gets the XP of every critter that newly
+        // died (the dude only), survivors remember it as who hit them, and out of combat the
+        // first survivor starts a fight with it (scriptsRequestCombat, after this)
+        let xp = 0
+        let anyDefender: Critter | null = null
+        for (const v of victims) {
+            if (v === killer) continue
+            if (v.dead) {
+                if (killer?.isPlayer && !wasDead.has(v)) xp += (v.pro?.extra as any)?.XPValue ?? 0
+            } else if (killer) {
+                ;(v as any).whoHitMe = killer
+                anyDefender ??= v
+            }
+        }
+        if (killer?.isPlayer) Combat.giveExps(xp)
+        if (anyDefender && killer && !globalState.inCombat) {
+            const attacker = anyDefender
+            // CE: CombatStartData { attacker: the survivor, defender: the source, no bonuses }
+            setTimeout(() => {
+                if (globalState.inCombat || attacker.dead) return
+                Combat.start(undefined, {
+                    attacker, defender: killer, actionPointsBonus: 0, accuracyBonus: 0, damageBonus: 0,
+                    minDamage: 0, maxDamage: 0x7fffffff, overrideAttackResults: false, attackerResults: 0, targetResults: 0,
+                })
+            }, 0)
         }
 
         scriptsExplodeScenery(this, center, elevation, (obj, target) => {

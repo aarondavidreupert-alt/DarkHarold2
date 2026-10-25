@@ -33,6 +33,7 @@ export interface AiPacket {
     disposition: Disposition
     attackWho: AttackWho
     bestWeapon: BestWeapon
+    bestWeaponUnset?: boolean   // no best_weapon line (CE -1): the damage override applies, as for unarmed_over_throw
     areaAttackMode: AreaAttackMode
     distance: DistanceMode
     runAwayMode: RunAwayMode
@@ -179,6 +180,7 @@ function buildPacket(sectionName: string, raw: Record<string, string>): AiPacket
         disposition:      parseEnum(raw['disposition'],      DISPOSITIONS,      DISPOSITION_MAP,       'none'),
         attackWho:        parseEnum(raw['attack_who'],       ATTACK_WHOS,       ATTACK_WHO_MAP,        'closest'),
         bestWeapon:       parseEnum(raw['best_weapon'],      BEST_WEAPONS,      BEST_WEAPON_MAP,       'no_pref'),
+        bestWeaponUnset:  raw['best_weapon'] === undefined,
         areaAttackMode:   parseEnum(raw['area_attack_mode'], AREA_ATTACK_MODES, AREA_ATTACK_MODE_MAP,  'no_pref'),
         distance:         parseEnum(raw['distance'],         DISTANCE_MODES,    DISTANCE_MAP,          'on_your_own'),
         runAwayMode:      parseEnum(raw['run_away_mode'],    RUN_AWAY_MODES,    RUN_AWAY_MODE_MAP,     'none'),
@@ -234,6 +236,7 @@ const FALLBACK_PACKET: AiPacket = {
     disposition: 'none',
     attackWho: 'closest',
     bestWeapon: 'no_pref',   // -1 in FO2 → RANGED > THROW > MELEE > UNARMED
+    bestWeaponUnset: true,
     areaAttackMode: 'no_pref',
     distance: 'on_your_own',
     runAwayMode: 'none',

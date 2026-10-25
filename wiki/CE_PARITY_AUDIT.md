@@ -148,6 +148,20 @@ LOW findings are listed in each report only.
 | | OP-16, AI-02 | `critter_add_trait` AI packet rebuilds the cached packet; TEAM skips party members / unchanged teams and clears who-hit-me and the last target |
 | | OP-17 | `obj_open` / `obj_close` toggle without the use animation, loot window or lock message (a locked object stays, as CE) |
 | | OP-18 | `use_obj_on_obj` by a critter runs the engine's default use (drugs, healing) after the scripts |
+| Combat | COMBAT-05 | `script_overrides` in a turn-start `combat_p_proc` takes the turn over |
+| | COMBAT-06 | invulnerable critters (CRITTER_INVULNERABLE) take no damage |
+| | COMBAT-07 | `damage_p_proc` skipped where CE's `_damage_object` a4 says so (self-hit from a critical failure, accidental victim, bystanders of a normal attack) and between party members |
+| | COMBAT-08 | a miss still makes the intended target consider retaliating and notifies onlookers |
+| | COMBAT-09, COMBAT-11 | who-hit-me cleared at combat start and end; the player's attack records the player's who-hit-me and every attacker's last target |
+| | COMBAT-12 | a destroyed critter, or one moved to another elevation, leaves the turn order |
+| | COMBAT-16, COMBAT-17 | Super Cattle Prod / Mega Power Fist use 2 charges a hit; punches and kicks work with both arms crippled |
+| AI | AI-01 | the held weapon gets CE's team-safety check (switching weapons if unsafe), the attacker steps out of its own blast, a failed approach makes it flee |
+| | AI-03, AI-04 | a dead team-mate's killer is a target; "strongest" / "weakest" sorted as CE (the vanilla inversion) |
+| | AI-05, AI-06 | the secondary attack checks its own attack type against the preference, a throw needs a fall-back weapon or a failed INT roll; only an unset `best_weapon` lets average damage override the order |
+| | AI-07 | a hurt critter flees from CE's `a2` (the attack_complex defender, else the player) |
+| Actions | ACT-04 | explosions give the player the XP of new kills, survivors remember the bomber and start a fight (CE `_report_explosion`), victims die exploded to nothing |
+
+Still open from these groups: COMBAT-10 (joining critters' immediate turn), COMBAT-13 (Glovz / YAAM opt-in formulas), ACT-05 (point / unpoint animations).
 
 ## 4. Conflicts with the wiki / known_bugs (flagged, not resolved)
 

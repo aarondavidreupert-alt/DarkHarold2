@@ -251,6 +251,7 @@ export type BadShot = 'ok' | 'noAmmo' | 'outOfRange' | 'notEnoughAp' | 'dead' | 
 
 // Per-turn state of the CE AI port (Combat.doAITurn phases).
 interface AiTurnState {
+    safetyChecked?: boolean // CE _ai_try_attack's weapon safety check ran this turn
     phase: 'start' | 'drugs' | 'prefs' | 'attack' | 'end'
     target: Critter | null
     attempts: number
@@ -391,6 +392,10 @@ export class Combat {
             return false
         }) as Critter[]
 
+        // CE combat.cc _combat_begin: whoHitMe starts empty for every critter on the elevation
+        // (sequenceInit / team combat then set the attacker's and defender's)
+        for (const o of objects) if (o instanceof Critter) (o as any).whoHitMe = null
+
         // The first round's order comes from sequenceInit (Combat.start); later rounds
         // are sorted by Sequence (combatSequence).
         this.playerIdx = this.combatants.findIndex((x) => x.isPlayer)
@@ -500,6 +505,9 @@ export class Combat {
             }
         }
         a.ammoQuantity = weaponObj && ammoGetCapacity(weaponObj as any) > 0 ? (attackType === 'ranged' ? roundsSpent : 1) : 0
+        // CE item.cc _item_w_compute_ammo_cost: the Super Cattle Prod and the Mega Power Fist use
+        // two charges a hit
+        if (a.ammoQuantity > 0 && (weaponObj?.pid === 399 || weaponObj?.pid === 407)) a.ammoQuantity *= 2
 
         switch (roll) {
             case RollResult.CriticalSuccess:
@@ -812,12 +820,8 @@ export class Combat {
             return
         }
 
-        // Both arms crippled: can't attack at all
-        if (obj.crippledLeftArm && obj.crippledRightArm) {
-            uiLog(`${who} can't attack — both arms are crippled!`)
-            if (callback) callback()
-            return
-        }
+        // (CE _combat_check_bad_shot refuses a weapon with both arms crippled — checkBadShot;
+        // punches and kicks stay possible)
 
         // CE combat.cc _combat_attack: attackInit + attackCompute before the animation.
         const a = attackInit(obj, target, weaponObj, region)
@@ -825,6 +829,10 @@ export class Combat {
         const gcsd = this.gcsd
         if (gcsd && gcsd.attacker === obj) a.accuracyBonus = gcsd.accuracyBonus
         this.attackCompute(a)
+        // CE combat.cc _combat_attack: the dude remembers whom he attacks (_ai_danger_source,
+        // the party's attack_who), and every attacker its last target
+        if (obj.isPlayer) critterSetWhoHitMe(obj, a.defender)
+        ;(obj as any).aiLastTarget = a.defender
         if (gcsd && gcsd.attacker === obj) {
             // CE _combat_attack: the attack_complex bonuses and clamps
             a.defenderDamage += gcsd.damageBonus
@@ -968,7 +976,8 @@ export class Combat {
             this.attackerWeaponEffects(a)
             if (a.attackerFlags !== 0 || a.attackerDamage > 0) {
                 critterDamage(attacker, a.attackerDamage, attacker, true, true, dmgType, undefined,
-                    { flags: a.attackerFlags & ~DAM_HIT, weapon: a.weapon, hitFromFront: true })
+                    { flags: a.attackerFlags & ~DAM_HIT, weapon: a.weapon, hitFromFront: true,
+                      noDamageProc: a.defender === a.oops }) // CE _apply_damage: a4 = defender == oops
                 if (attacker.isPlayer) drawHP(attacker.getStat('HP'))
                 if (!globalState.combat) return
                 if (attacker.dead) this.perish(attacker, attacker, dmgType)
@@ -982,6 +991,7 @@ export class Combat {
                 flags: a.defenderFlags, weapon: a.weapon, knockback: a.defenderKnockback,
                 knockbackRotation: hexDirectionTo(attacker.position, defender.position),
                 hitFromFront: isHitFromFront(defender, attacker),
+                noDamageProc: accidental, // CE _apply_damage: a4 = defender != oops
             })
             noteHit(defender, attacker, accidental) // CE combat.cc:4706
             if (defender.isPlayer) drawHP(defender.getStat('HP'))
@@ -993,6 +1003,11 @@ export class Combat {
             }
             if (!globalState.combat) return
             if (defender.dead) this.perish(defender, attacker, dmgType)
+        } else if (defender.type === 'critter' && !defender.dead) {
+            // CE _apply_damage: the defender block runs on a miss too (no damage, no flags) —
+            // the intended target considers retaliating, the onlookers notice
+            noteHit(defender, attacker, defender !== a.oops)
+            this.notifyOnlookers(defender)
         }
 
         for (const x of a.extras) {
@@ -1002,6 +1017,7 @@ export class Combat {
                 flags: x.flags, weapon: a.weapon, knockback: x.knockback,
                 knockbackRotation: hexDirectionTo(a.explosionTile ?? attacker.position, c.position),
                 hitFromFront: isHitFromFront(c, attacker),
+                noDamageProc: a.defender === a.oops, // CE _apply_damage: a4 = defender == oops for extras
             })
             noteHit(c, attacker, true)
             if (c.isPlayer) drawHP(c.getStat('HP'))
@@ -1349,7 +1365,9 @@ export class Combat {
         }
         if (w1 && w1.pid === PROTO_ID_FLARE) return w2
         if (w2.pid === PROTO_ID_FLARE && w1) return w1
-        if ((best === 'no_pref' || best === 'unarmed_over_throw') && Math.abs(b.avg - a.avg) > 5) {
+        // CE combat_ai.cc:1963: best_weapon == -1 (unset) or >= UNARMED_OVER_THROW — an explicit
+        // no_pref keeps the preference order
+        if ((packet.bestWeaponUnset || best === 'unarmed_over_throw' || best === 'never') && Math.abs(b.avg - a.avg) > 5) {
             return b.avg > a.avg ? w2 : w1
         }
         return a.order > b.order ? w2 : w1
@@ -1410,10 +1428,16 @@ export class Combat {
                     useSecondary = randomBetween(1, freq) === 1
                 }
         }
-        if (useSecondary && !(Combat.WEAP_PREF_ORDERINGS[packet.bestWeapon] ?? []).includes('ranged')) useSecondary = false
+        // CE _ai_pick_hit_mode: _caiHasWeapPrefType(ai, the secondary mode's attack type)
+        const secondaryType = withSecondary(() => weaponAttackType(weaponObj))
+        if (useSecondary && !(Combat.WEAP_PREF_ORDERINGS[packet.bestWeapon] ?? []).includes(secondaryType)) useSecondary = false
         // SFALL fixes kept by CE: range and AP of the secondary mode.
         if (useSecondary && hexDistance(attacker.position, defender.position) > weapon.getMaximumRange(2)) useSecondary = false
         if (useSecondary && (attacker.AP?.getAvailableCombatAP() ?? 0) < weapon.getAPCost(2)) useSecondary = false
+        // CE: a throw (the spear's, the knife's) only with another weapon to fall back on, or
+        // on a failed INT roll (statRoll <= ROLL_FAILURE)
+        if (useSecondary && secondaryType === 'throw'
+            && Combat.aiSearchInvenWeap(attacker, defender, false) === null && statRoll(attacker, 4, 0)) useSecondary = false
         return useSecondary ? 'secondary' : 'primary'
     }
 
@@ -1432,7 +1456,9 @@ export class Combat {
     // `withSafeDistance` mirrors CE passing safeDistancePtr: the attacker standing in its
     // own blast then isn't disqualifying (CE would step back first; DH2 doesn't).
     combatSafetyInvalidateWeapon(attacker: Critter, weaponObj: Obj, hitMode: 'primary' | 'secondary',
-                                         defender: Critter, withSafeDistance: boolean): boolean {
+                                         defender: Critter, withSafeDistance: boolean,
+                                         out?: { safeDistance: number }): boolean {
+        if (out) out.safeDistance = 0
         const weapon = (weaponObj as any).weapon
         if (!weapon) return false
         const team = attacker.teamNum
@@ -1458,7 +1484,14 @@ export class Combat {
             for (const c of this.combatants) {
                 if (isTeamMate(c) && hexDistance(defender.position, c.position) < damageRadius && hurts(c)) return true
             }
-            if (hexDistance(defender.position, attacker.position) <= damageRadius) return !withSafeDistance
+            if (hexDistance(defender.position, attacker.position) <= damageRadius) {
+                // CE: *safeDistancePtr = damageRadius - distance + 1 (the steps back to take)
+                if (withSafeDistance) {
+                    if (out) out.safeDistance = damageRadius - hexDistance(defender.position, attacker.position) + 1
+                    return false
+                }
+                return true
+            }
             return false
         }
 
@@ -1738,7 +1771,12 @@ export class Combat {
     private giveExps(): void {
         const xp = this.combatExps
         this.combatExps = 0
-        const player = this.player
+        Combat.giveExps(xp)
+    }
+
+    // CE combat.cc _combat_give_exps — the XP and proto.msg 621 with a random prefix
+    static giveExps(xp: number): void {
+        const player = globalState.player as Player | null
         if (xp <= 0 || !player || player.dead) return
         const before = player.stats.get('Experience')
         player.addExperience(xp)
@@ -1796,11 +1834,12 @@ export class Combat {
         if (targets.length === 0) return null
         const attackWho = obj.ai?.packet.attackWho ?? 'closest'
         switch (attackWho) {
+            // same order as CE _compare_strength / _compare_weakness (see aiDangerSource)
             case 'strongest':
-                targets.sort((a, b) => this.combataiRating(b) - this.combataiRating(a))
+                targets.sort((a, b) => this.combataiRating(a) - this.combataiRating(b))
                 return targets[0]
             case 'weakest':
-                targets.sort((a, b) => this.combataiRating(a) - this.combataiRating(b))
+                targets.sort((a, b) => this.combataiRating(b) - this.combataiRating(a))
                 return targets[0]
             case 'whomever':
             case 'whomever_attacking_me': {
@@ -1871,6 +1910,9 @@ export class Combat {
             // CE combat.cc _combat_turn: combat_p_proc once at the start of the turn
             if (Config.engine.doLoadScripts === true && obj._script !== undefined) {
                 if (Scripting.combatEvent(obj, 'turnBegin') === true) return
+                // CE combat.cc _combat_turn: script_overrides in that combat_p_proc takes the turn
+                // over — no AI turn
+                if (obj._script?._didOverride) return this.nextTurn()
             }
         }
         const st: AiTurnState = (obj as any)._aiTurn
@@ -1888,7 +1930,10 @@ export class Combat {
                         target: st.target ? actorName(st.target) : null, hp: obj.getStat('HP'), minHp,
                         message: `${actorName(obj)} flees`,
                     })
-                    if (!this.aiRunAway(obj, st.target, endTurn)) this.nextTurn()
+                    // CE _combat_ai(a1, a2): _ai_run_away(a1, a2), a2 being the attack_complex defender
+                    // or null — and null means away from the dude (the companion runs from the player)
+                    const fleeFrom = this.gcsd && this.gcsd.attacker === obj ? this.gcsd.defender : null
+                    if (!this.aiRunAway(obj, fleeFrom, endTurn)) this.nextTurn()
                     return
                 }
                 st.phase = 'drugs'
@@ -1966,15 +2011,19 @@ export class Combat {
         // aiFindAttackers: the one I attacked, my team's attacker, the one my team attacked
         const byDistance = this.combatants.slice().sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
         for (const c of byDistance) {
-            if (c === obj || c.dead) continue
+            if (c === obj) continue
             const hit: Critter | null = (c as any).whoHitMe ?? null
-            if (!targets[1] && hit === obj) { targets[1] = c; continue }
+            // CE aiFindAttackers: a dead team-mate still points at its killer (slot 2)
+            if (!targets[1] && !c.dead && hit === obj) { targets[1] = c; continue }
             if (!targets[2] && c.teamNum === obj.teamNum && hit && hit !== obj && hit.teamNum !== obj.teamNum && !hit.dead) { targets[2] = hit; continue }
-            if (!targets[3] && c.teamNum !== obj.teamNum && hit && hit.teamNum === obj.teamNum) { targets[3] = c; continue }
+            if (!targets[3] && !c.dead && c.teamNum !== obj.teamNum && hit && hit.teamNum === obj.teamNum) { targets[3] = c; continue }
         }
         let list = targets.filter((t): t is Critter => !!t && !(ignoreFleeing && (t as any).fleeing))
-        if (attackWho === 'strongest') list.sort((a, b) => this.combataiRating(b) - this.combataiRating(a))
-        else if (attackWho === 'weakest') list.sort((a, b) => this.combataiRating(a) - this.combataiRating(b))
+        // CE _compare_strength sorts "strongest" by rating ascending and _compare_weakness
+        // "weakest" descending — a vanilla oddity CE keeps (its comments say "melee then
+        // ranged" / "ranged then melee")
+        if (attackWho === 'strongest') list.sort((a, b) => this.combataiRating(a) - this.combataiRating(b))
+        else if (attackWho === 'weakest') list.sort((a, b) => this.combataiRating(b) - this.combataiRating(a))
         else list.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
         for (const c of list) {
             if (!this.isWithinPerception(obj, c)) continue
@@ -2200,6 +2249,19 @@ export class Combat {
             weapon.mode = this.aiPickHitMode(obj, wObj!, target) === 'secondary'
                 ? (Combat.secondaryModeName(weapon) ?? 'single') : 'single'
         }
+        // CE _ai_try_attack: the held weapon in the chosen hit mode is checked for the team's
+        // safety (switching weapons if it would hurt a team-mate), and the attacker standing in
+        // its own blast learns how far to step back (safeDistance)
+        const safety = { safeDistance: 0 }
+        if (weapon && !st.safetyChecked) {
+            st.safetyChecked = true
+            const mode: 'primary' | 'secondary' = weapon.usesSecondary?.() ? 'secondary' : 'primary'
+            if (this.combatSafetyInvalidateWeapon(obj, wObj!, mode, target, true, safety)) {
+                if (weapon && prevMode !== undefined) weapon.mode = prevMode
+                const r = this.aiSwitchWeapons(obj, target, again)
+                if (r !== 'fail') return r
+            }
+        }
         const minToHit = packet.minToHit
         const bad = this.checkBadShot(obj, target, false)
         const restore = () => { if (weapon && prevMode !== undefined && weapon.mode !== prevMode) weapon.mode = prevMode }
@@ -2239,6 +2301,10 @@ export class Combat {
                 return this.aiMoveStepsCloser(obj, target, AP.getAvailableMoveAP(), true, again) ? 'acting' : 'done'
             case 'ok': {
                 const accuracy = this.getHitChance(obj, target, 'torso').hit
+                if (safety.safeDistance > 0) {
+                    // CE: _ai_move_away(attacker, defender, safeDistance) before the attack
+                    if (this.aiMoveAway(obj, target, safety.safeDistance, false, () => { restore(); again() })) return 'acting'
+                }
                 if (accuracy < minToHit) {
                     const noRange = this.getHitChance(obj, target, 'torso', obj.position, false).hit
                     if (noRange < minToHit) {
@@ -2258,7 +2324,14 @@ export class Combat {
                             if (this.getHitChance(obj, target, 'torso', from).hit >= minToHit) break
                         }
                     }
-                    if (steps > 0 && this.aiMoveStepsCloser(obj, target, steps, true, () => { restore(); again() })) return 'acting'
+                    if (steps > 0) {
+                        if (this.aiMoveStepsCloser(obj, target, steps, true, () => { restore(); again() })) return 'acting'
+                        // CE: _ai_move_steps_closer == -1 → "FLEEING: Can't possibly get closer"
+                        restore()
+                        dbg('ai', `[AI] ${actorName(obj)}: FLEEING: Can't possibly get closer to Target!`)
+                        if (!this.aiRunAway(obj, target, endTurn)) return 'done'
+                        return 'acting'
+                    }
                 }
                 return this.aiAttack(obj, target, () => { restore(); again() }) ? 'acting' : (restore(), 'done')
             }
@@ -2884,7 +2957,9 @@ export class Combat {
         const i = this.combatants.indexOf(c)
         if (i === -1) return
         this.combatants.splice(i, 1)
-        if (i < this.whoseTurn) this.whoseTurn--
+        // at or before the current turn: the index moves down, so the next turn is still the
+        // critter after the one acting
+        if (i <= this.whoseTurn) this.whoseTurn--
         this.playerIdx = this.combatants.indexOf(this.player)
     }
 
@@ -2963,6 +3038,8 @@ export class Combat {
     // no animation) and every combatant's maneuver (fleeing / disengaging) and
     // damage-last-turn are cleared.
     private combatOver(): void {
+        // CE combat.cc _combat_over: who hit whom is forgotten for every critter on the elevation
+        for (const o of globalState.gMap?.getObjects() ?? []) if (o.type === 'critter') (o as any).whoHitMe = null
         for (const c of this.combatants) {
             ;(c as any).fleeing = false
             ;(c as any).disengaging = false

@@ -60,6 +60,9 @@ export interface KillOptions {
     weapon?: Obj | null
     attackerAnim?: number
     scriptDamage?: boolean // critter_dmg → actionDamage's max-blood anim (actions.cc:1933)
+    // CE combat.cc _damage_object's a4: no damage_p_proc (a self-hit from a critical
+    // failure, an accidental victim, burst / blast bystanders of a normal attack)
+    noDamageProc?: boolean
     deathFrame?: number
     // The hit's DAM_* results and knockback (CE _show_damage_to_object arguments)
     flags?: number
@@ -355,12 +358,17 @@ export function critterDamage(
     setNewResults(obj, flags)
     if ((flags & DAM_DEAD) !== 0) obj.critDeath = true
 
-    if (damage > 0) {
+    // CE combat.cc _damage_object: an invulnerable critter (CRITTER_INVULNERABLE) takes nothing
+    const invulnerable = ((((obj.pro as any)?.extra?.flags ?? 0) >>> 0) & 0x400) !== 0
+    if (damage > 0 && !invulnerable) {
         obj.stats.modifyBase('HP', -damage)
         // CE combat.cc _damage_object: combat.damageLastTurn += damage
         ;(obj as any).damageLastTurn = ((obj as any).damageLastTurn ?? 0) + damage
-        // CE _damage_object: damage_p_proc only for damage that landed
-        if (useScript && obj._script) Scripting.damage(obj, obj, source, damage)
+        // CE _damage_object: damage_p_proc only for damage that landed, not with a4 set, and
+        // not when the victim and the attacker are both in the party (the dude included)
+        const inParty = (c: Critter | undefined) => !!c && (c.isPlayer || !!globalState.gParty?.isPartyMember(c))
+        if (useScript && obj._script && !killOptions.noDamageProc && !(inParty(obj) && inParty(source)))
+            Scripting.damage(obj, obj, source, damage)
     }
     // A critical with DAM_DEAD kills whatever the HP (CE combat.cc _apply_damage).
     if (obj.getStat('HP') <= 0 || obj.critDeath) {
