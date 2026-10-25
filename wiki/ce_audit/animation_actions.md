@@ -259,7 +259,7 @@ Top findings:
   attack with the existing action-frame callback, then `anim:44` (unpoint) before `proceed`.
 - known_bugs: NEW.
 
-### ANIM-02 — Walking never detects blockers mid-path; AP is taken up front (MED, NEW) — **PARTLY FIXED 2026-10-25**
+### ANIM-02 — Walking never detects blockers mid-path; AP is taken up front (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `animation.cc _object_move`. At each hex step it checks `_obj_blocking_at(next)`.
   A door the critter can use is opened. Any other blocker triggers a re-path
   (`_make_path(..., a5 = 1)`), or the walk ends when no path is left. In combat, each hex costs
@@ -273,6 +273,7 @@ Top findings:
 - **Fix:** in `walkFrameCE`, before `move(next)`, test `blockingObjectAt(next)`; open the door if
   `canUseDoor`, otherwise re-path to the target with the goal required free, or stop. Charge AP
   per hex.
+- **Fixed 2026-10-25:** a blocker on the next hex makes the walk re-path within its paid hexes or end (usable doors open). The AP are still charged when the walk starts, but a walk that ends early (blocked, or a script stopped it) gets back the AP of the hexes it didn't walk, free move points counted as spent first (`ActionPoints.refundWalk`), so the cost is CE's per-hex one.
 - known_bugs: NEW.
 
 ### ANIM-03 — Run rules: Sneak, encumbrance, overloaded message (MED, NEW) — **FIXED 2026-10-25**

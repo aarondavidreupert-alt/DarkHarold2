@@ -172,7 +172,7 @@ LOW findings are listed in each report only.
 | | ACT-07 | a ladder up is climbed from its SE neighbour, facing it: a drawn weapon put away (when the art exists), the climb animation and sound, the transition, the weapon taken out; a ladder down uses the magic-hands animation; map transitions wait for the animation (checked: gecktunl ⇄ geckjunk) |
 | | ACT-06 | pickup walks first, then plays the pickup animation; the sound, pickup_p_proc and the carry check (proto.msg 905) happen on its action frame |
 | | ANIM-01 | reg_anim sequences follow CE's cursor: delay 0 runs with the previous step, N > 0 starts N ticks after it began, −1 waits for every started step (one animation at a time per object); sound steps take their delay and source |
-| | ANIM-02 (part) | a critter that steps into a walking critter's path makes it re-path to the goal within the hexes it set out to walk, or the walk ends there (usable doors still open). AP stay charged up front |
+| | ANIM-02 | a critter that steps into a walking critter's path makes it re-path to the goal within the hexes it set out to walk, or the walk ends there (usable doors still open); a walk that ends early gets the AP of the hexes it didn't walk back |
 | | ANIM-03 | run → walk for an encumbered critter (misc.msg 8000 / 8001 for the party), crippled legs and the dude sneaking without Silent Running (Sneak stays); only the dude's run command ends Sneak |
 | Stats / critters | STAT-02, RAD-01 | Melee Damage and Healing Rate have CE's minimum of 1 before perk / trait deltas; radiation HP changes go through current HP (capped at max), not a bonus |
 | | TRAIT-01, TRAIT-02 | Fast Metabolism zeroes only the base Radiation / Poison resistance (Rad-X etc. still count); Small Frame uses base STR without Bruiser / Gifted |
@@ -218,12 +218,11 @@ LOW findings are listed in each report only.
 Fixed earlier with the HIGH groups: INV-02 (PA8), ITEM-15 (PA9), CRIT-02 (PA12), ITEM-17 (PA18), WM-04 / WM-09 (PA21), WM-07 (PA23). Already in the code when audited: TILE-03 (`camera.ts playerLimitRefuses`, on by default).
 
 Status of the 120 MED findings with their own section in `ce_audit/` (each header there is marked FIXED /
-PARTLY FIXED): 112 fixed, 4 partly fixed, 4 open or not ported:
+PARTLY FIXED): 113 fixed, 3 partly fixed, 4 open or not ported:
 
 - **Open:** COMBAT-13
   (the Glovz / YAAM opt-in damage formulas; conflicts with known_bugs C3).
-- **Partly fixed, rest open:** INV-13 / INV-12 (bags in the barter, companion-trade and steal windows), SCR-05 (object `start` still runs at script load),
-  ANIM-02 (AP still charged up front).
+- **Partly fixed, rest open:** INV-13 / INV-12 (bags in the barter, companion-trade and steal windows), SCR-05 (object `start` still runs at script load).
 - **Checked, not ported:** SCR-11 — a scan of the 1443 shipped `.int` files shows procedure index 1 is the pure
   `checkPartyMembersNearDoor` helper in 1212 of them (CE's fallback has no effect there) and `start` in about 210;
   CE would re-run `start` when an unguarded proc (`critter_p_proc`, `look_at_p_proc`, …) is missing. Left as DH2's

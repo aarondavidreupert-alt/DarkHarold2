@@ -30,6 +30,7 @@ import { Critter } from './Critter.js'
 // Imported from Obj (not the barrel) to avoid a cycle through ../object.js.
 import { Obj } from './Obj.js'
 import { canUseDoor } from '../map/pathfinder.js'
+import { drawAP } from '../ui_hud.js'
 
 // Suppress unused-import warning — Obj is referenced indirectly via the
 // import-cycle break documented above.
@@ -394,6 +395,7 @@ Critter.prototype.updateAnim = function (this: Critter): void {
 
     if ((window as any).__test?.fastMode) {
         this.position = { x: this.path.target.x, y: this.path.target.y }
+        this.path.walked = this.path.path.length - 1
         const callback = this.animCallback
         this.clearAnim()
         if (callback) callback()
@@ -450,7 +452,11 @@ Critter.prototype.updateAnim = function (this: Critter): void {
             let pos = this.path.path[this.path.index++]
             const hex = { x: pos[0], y: pos[1] }
 
+            // (counted first: move() side effects can end the walk — refundWalk)
+            const path = this.path
+            path.walked = (path.walked ?? 0) + 1
             if (!this.move(hex)) {
+                path.walked--
                 return
             }
             if (!this.path) {
@@ -552,7 +558,10 @@ Critter.prototype.walkFrameCE = function (this: Critter): void {
             if (nd != null) this.orientation = nd
         }
     }
-    if (!this.move({ x: pos[0], y: pos[1] })) return
+    // (counted first: move() side effects can end the walk — refundWalk)
+    const path = this.path
+    path.walked = (path.walked ?? 0) + 1
+    if (!this.move({ x: pos[0], y: pos[1] })) { path.walked--; return }
     if (!this.path) return // move() side effects can end the walk
 
     if (this.position.x === this.path.target.x && this.position.y === this.path.target.y) {
@@ -734,6 +743,10 @@ Critter.prototype.clearAnim = function (this: Critter): void {
 
     // Call the Obj base clearAnim — Critter's own prototype overrides, so use the parent prototype.
     Obj.prototype.clearAnim.call(this)
+    if (this.path?.paid) {
+        this.AP?.refundWalk(this.path)
+        if (this.isPlayer && globalState.inCombat && this.AP) drawAP(this.AP.getAvailableCombatAP(), this.AP.getTotalMaxAP(), this.AP.move)
+    }
     this.path = null
 
     const newArt = this.getAnimation('idle')
