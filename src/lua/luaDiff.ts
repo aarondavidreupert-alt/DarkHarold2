@@ -208,12 +208,13 @@ function makeMock(world: World, name: string, imports: string[]): any {
             if (++world.totalCalls > TOTAL_BUDGET) throw Error(TOTAL_BUDGET_ERROR)
             if (!PURE.has(k) && ++world.calls > CALL_BUDGET) throw Error(BUDGET_ERROR)
             for (const a of args) if (typeof a === 'function') world.options.push(a)
-            const r = world.answer(k, args.map(sslValue))
+            // Script.gsay_end answers 1 while a reply is pending and the caller (the VM
+            // opcode / the Lua prelude) suspends; the harness always takes that path
+            const r = k === 'gsay_end' ? 1 : world.answer(k, args.map(sslValue))
             if (!PURE.has(k)) world.trace.push(`${k}(${args.map(fmt).join(', ')}) -> ${fmt(r)}`)
             const vm = t._vm
             if (k === 'gsay_end') {
                 world.suspended = true
-                if (vm) vm.halted = true
             } else if (k === 'gsay_message') {
                 // Script.gsay_message: save the resume address and halt (scripting.ts)
                 world.suspended = true
