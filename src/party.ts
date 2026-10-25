@@ -34,7 +34,11 @@ interface PartyMemberLevelDesc {
     levelMinimum: number
     levelUpEvery: number
     levelPids: number[]
+    // CE partyMembersInit: the dispositions / Custom values party.txt allows (option tokens)
+    options: { [iniKey: string]: Set<string> }
 }
+
+const PARTY_OPTION_KEYS = ['disposition', 'area_attack_mode', 'run_away_mode', 'best_weapon', 'distance', 'attack_who', 'chem_use']
 
 // CE ref: party_member.cc:61 PartyMemberLevelUpInfo
 export interface PartyMemberLevelUpInfo {
@@ -64,12 +68,23 @@ function loadPartyDescs(): PartyMemberLevelDesc[] {
                 levelMinimum: parseInt(sec.level_minimum ?? '0', 10) || 0,
                 levelUpEvery: parseInt(sec.level_up_every ?? '0', 10) || 0,
                 levelPids,
+                options: Object.fromEntries(PARTY_OPTION_KEYS.map((k) => [k,
+                    new Set(String(sec[k] ?? '').split(',').map((x: string) => x.trim()).filter((x: string) => x))])),
             })
         }
     } catch (e) {
         dbg('party', `party.txt not loaded: ${e}`)
     }
     return partyDescs
+}
+
+// CE party_member.cc partyMemberSupportsDisposition / …AreaAttackMode / …RunAwayMode /
+// …BestWeapon / …Distance / …AttackWho / …ChemUse: whether party.txt lists the value for
+// this companion (a critter party.txt doesn't know allows everything).
+export function partyMemberSupports(critter: Critter, iniKey: string, value: string): boolean {
+    const desc = loadPartyDescs().find((d) => d.pid === critter.pid)
+    if (!desc) return true
+    return desc.options[iniKey]?.has(value) ?? true
 }
 
 // CE party_member.cc gPartyMemberPids — the critters party.txt lists (possible companions).

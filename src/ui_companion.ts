@@ -31,7 +31,9 @@ import { dbg } from './logger.js'
 import { Combat } from './combat.js'
 import { armorPerkSwap } from './perks.js'
 import { ammoGetCapacity, ammoGetQuantity, ammoUseTopBox, findReloadAmmo, weaponReload } from './weaponAmmo.js'
-import { getProtoMsg } from './util.js'
+import { getMessage, getProtoMsg } from './util.js'
+import { frameCell } from './renderer.js'
+import { SKILL_NAMES } from './skills.js'
 import { randomBetween } from './random.js'
 import { Critter, Obj } from './object.js'
 import { UIMode, getUiContainer } from './ui_panels.js'
@@ -41,6 +43,7 @@ import { AiPacket, Disposition, findCompanionPacketForDisposition } from './aiPa
 import {
     CustomAiCategory,
     getCompanionEffectivePacket,
+    partyMemberSupports,
     setCompanionCustomSetting,
     setCompanionDisposition,
 } from './party.js'
@@ -82,6 +85,12 @@ const CUSTOM_BUTTONS: { y: number; x: number; category: CustomAiCategory; frmUp:
 
 // Per-category value options. CE ref: game_dialog.cc:394-441 (_custom_settings) —
 // message text reproduced from game/custom.msg via the CE source comments.
+// party.txt key of each Custom category
+const CUSTOM_INI_KEY: { [K in CustomAiCategory]: string } = {
+    areaAttackMode: 'area_attack_mode', runAwayMode: 'run_away_mode', bestWeapon: 'best_weapon',
+    distance: 'distance', attackWho: 'attack_who', chemUse: 'chem_use',
+}
+
 const CUSTOM_OPTIONS: { [K in CustomAiCategory]: { value: AiPacket[K]; label: string }[] } = {
     areaAttackMode: [
         { value: 'always', label: "Always! Don't worry about hitting me" },
@@ -293,6 +302,30 @@ function makeLabel(x: number, y: number, text: string, color = '#c8b466'): HTMLD
     return wrap
 }
 
+// CE partyMemberControlWindowUpdate "Render preview": frame 0 of the standing animation
+// facing SW, unscaled, centred at (39, 132) inside the cleared 70×98 box at (8, 84)
+function makeStandingPreview(critter: Critter): HTMLCanvasElement {
+    const canvas = document.createElement('canvas')
+    canvas.width = 70
+    canvas.height = 98
+    Object.assign(canvas.style, { position: 'absolute', left: '8px', top: '84px', imageRendering: 'pixelated', pointerEvents: 'none' })
+    const art = (critter as any).getAnimation?.('idle') ?? critter.art
+    const info = art ? globalState.imageInfo?.[art] : undefined
+    if (!info) return canvas
+    const direction = Math.min(3, info.frameOffsets.length - 1) // ROTATION_SW
+    const frame = info.frameOffsets[direction]?.[0]
+    if (!frame) return canvas
+    const { sx, sy } = frameCell(info, direction, 0)
+    const draw = (img: HTMLImageElement) => {
+        canvas.getContext('2d')?.drawImage(img, sx, sy, frame.w, frame.h,
+            39 - 8 - Math.trunc(frame.w / 2), 132 - 84 - Math.trunc(frame.h / 2), frame.w, frame.h)
+    }
+    const cached = globalState.images?.[art] as HTMLImageElement | undefined
+    if (cached?.complete) draw(cached)
+    else { const img = new Image(); img.onload = () => draw(img); img.src = assetUrl(art + '.png') }
+    return canvas
+}
+
 // ── Control window ────────────────────────────────────────────────────────────
 
 /**
@@ -322,25 +355,32 @@ export function uiCompanionControl(companion: Critter): void {
         panel.style.backgroundSize = '100% 100%'
         ;(panel.style as any).imageRendering = 'pixelated'
 
-        // Stat readout. CE ref: game_dialog.cc partyMemberControlWindowUpdate
-        // (~line 3542) — weapon name y=20, armor name y=49, HP y=96, weight y=131.
-        const weapon = (companion as any).equippedWeapon
+        // Stat readout. CE ref: game_dialog.cc:3542 partyMemberControlWindowUpdate — font 101,
+        // green: right-hand item (or proto.msg 10) at (112,20), worn armor at (112,49), the
+        // standing SW sprite centred at (39,132), HP (240,96), best skill (240,113), weight
+        // (240,131, red when encumbered), melee damage (240,148), AP (240,167). (control.png
+        // carries the captions.)
+        const GREEN = '#00f800'
+        const none = getProtoMsg(10) ?? 'None'
+        const right = (companion as any).rightHand
+        const rightItem = right && right.pid !== undefined ? right : null
         const armor = companion.getEquippedArmor?.()
-        panel.appendChild(makeLabel(20, 4, companion.name ?? 'Companion', '#ffff80'))
-        panel.appendChild(makeLabel(20, 20, 'Weapon: ' + (weapon?.name ?? 'None')))
-        panel.appendChild(makeLabel(20, 38, 'Armor: ' + (armor?.name ?? 'None')))
-
-        const hp = companion.getStat('HP')
-        const maxHp = companion.getStat('Max HP')
-        panel.appendChild(makeLabel(20, 60, `HP: ${hp}/${maxHp}`))
-
+        panel.appendChild(makeLabel(112, 20, rightItem?.name ?? none, GREEN))
+        panel.appendChild(makeLabel(112, 49, armor?.name ?? none, GREEN))
+        panel.appendChild(makeStandingPreview(companion))
+        panel.appendChild(makeLabel(240, 96, `${companion.getStat('HP')}/${companion.getStat('Max HP')}`, GREEN))
+        let bestSkill = 0, bestValue = 0 // CE partyMemberGetBestSkill
+        SKILL_NAMES.forEach((name, i) => { const v = companion.getSkill(name); if (v > bestValue) { bestValue = v; bestSkill = i } })
+        panel.appendChild(makeLabel(240, 113, getMessage('skill', 100 + bestSkill) ?? SKILL_NAMES[bestSkill], GREEN))
         const weight = companion.getInventoryWeight()
-        const maxWeight = companion.getStat('Carry')
-        const overWeight = weight > maxWeight
-        panel.appendChild(makeLabel(20, 78, `Weight: ${weight}/${maxWeight}`, overWeight ? '#ff4444' : '#c8b466'))
+        const carry = companion.getStat('Carry')
+        panel.appendChild(makeLabel(240, 131, `${weight}/${carry}`, weight > carry ? '#f80000' : GREEN))
+        panel.appendChild(makeLabel(240, 148, String(companion.getStat('Melee')), GREEN))
+        const maxAP = companion.getStat('AP')
+        const ap = globalState.inCombat ? ((companion as any).AP?.getAvailableCombatAP?.() ?? maxAP) : maxAP
+        panel.appendChild(makeLabel(240, 167, `${ap}/${maxAP}`, GREEN))
 
         const packet = getCompanionEffectivePacket(companion)
-        panel.appendChild(makeLabel(20, 96, 'Disposition: ' + packet.disposition))
 
         // Action buttons — CE ref: game_dialog.cc:3388-3418.
         panel.appendChild(makeActionButton(593, 41, close))
@@ -363,8 +403,10 @@ export function uiCompanionControl(companion: Critter): void {
 
         // Disposition buttons.
         for (const btn of DISPOSITION_BUTTONS) {
+            // CE partyMemberControlWindowInit: a disposition party.txt doesn't list is disabled
             const supported = packet.disposition === btn.disposition
-                || !!findSiblingPreview(companion, btn.disposition)
+                || (partyMemberSupports(companion, 'disposition', btn.disposition)
+                    && (btn.disposition === 'custom' || !!findSiblingPreview(companion, btn.disposition)))
             panel.appendChild(makeGraphicButton(
                 DISPOSITION_BTN_X, btn.y, DISPOSITION_BTN_W, DISPOSITION_BTN_H,
                 btn.frmBase + 'up', btn.frmBase + 'dn', btn.frmBase + 'off',
@@ -484,10 +526,13 @@ function uiCustomCategoryPicker(
     const list = document.createElement('div')
     Object.assign(list.style, { position: 'absolute', left: '20px', top: '40px', width: (W - 40) + 'px' })
     for (const opt of options) {
+        // CE _gdCustomSelect: values party.txt doesn't list are greyed and refused
+        const allowed = partyMemberSupports(companion, CUSTOM_INI_KEY[category], String(opt.value))
         const row = document.createElement('div')
-        Object.assign(row.style, { cursor: 'pointer', padding: '4px 0' })
-        const text = new FoText(font3, opt.label, '#c8b466')
+        Object.assign(row.style, { cursor: allowed ? 'pointer' : 'default', padding: '4px 0' })
+        const text = new FoText(font3, opt.label, allowed ? '#c8b466' : '#606060')
         text.appendTo(row)
+        if (!allowed) { list.appendChild(row); continue }
         row.addEventListener('mouseenter', () => { text.color = '#fcfc7c' })
         row.addEventListener('mouseleave', () => { text.color = '#c8b466' })
         row.addEventListener('click', () => {
