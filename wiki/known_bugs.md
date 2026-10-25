@@ -777,7 +777,7 @@ and every `ce_audit/` section header is marked FIXED / PARTLY FIXED. 120 MED fin
 | ID | Description | Status |
 |----|-------------|--------|
 | PM1 | Open MED findings | **OPEN** — COMBAT-13 (Glovz / YAAM opt-in formulas, conflicts with C3) |
-| PM2 | Partly fixed | **PARTIAL** — INV-13 (bags in the loot / barter windows), INV-12 (container USE outside the inventory window, money quantity drop), SCR-05 (object `start` at script load), SCR-10 (flare / explosive timers not restored), ANIM-02 (AP charged up front), AUTO-01 (no High / Low detail) |
+| PM2 | Partly fixed | **PARTIAL** — INV-13 / INV-12 (bags in the barter, companion-trade and steal windows), SCR-05 (object `start` at script load), SCR-10 (flare / explosive timers not restored), ANIM-02 (AP charged up front), AUTO-01 (no High / Low detail) |
 | PM3 | SCR-11 — CE runs procedure index 1 for a missing proc | **CHECKED, NOT PORTED** — index 1 is the pure `checkPartyMembersNearDoor` in 1212 of the 1443 shipped scripts, `start` in ~210; DH2 keeps "no proc, nothing runs" |
 | PM4 | MOUSE-01 / MOUSE-02 — move-mode clicks act on objects; the action menu on a command click | **APPROXIMATION** — the documented action-menu deviation (CLAUDE.md, README "Known approximations") |
 

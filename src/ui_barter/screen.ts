@@ -347,7 +347,7 @@ export function uiBarterMode(merchant: Critter) {
             // the list the weapon is in (DH2 trades on working copies, so no Drop mid-trade)
             img.oncontextmenu = (e: MouseEvent) => {
                 e.preventDefault()
-                const actions = itemMenuActions(obj, false, who === 'p' || who === 'l').filter((a) => a !== 'drop')
+                const actions = itemMenuActions(obj, false, who === 'p' || who === 'l').filter((a) => a !== 'drop' && a !== 'use')
                 showItemMenu(e, actions, (action) => {
                     if (action === 'look') examineToLog(obj)
                     else if (action === 'unload') unloadWeapon(obj, (ammo) => objects.push(ammo))

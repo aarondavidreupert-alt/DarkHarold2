@@ -66,10 +66,17 @@ export function uiLoot(object: Obj) {
     globalState.uiMode = UIMode.loot
     $id('lootBoxTakeAllButton').style.visibility = '' // shown with the window (a steal hides it)
 
+    // CE inventory.cc _container_enter in the loot window: each side can open its bags (up to
+    // 9 deep); the body view (CE INVENTORY_LOOT_LEFT / RIGHT_BODY_VIEW) shows the open one
+    const leftBags: Obj[] = []
+    const rightBags: Obj[] = []
+    const leftList = () => leftBags.length ? leftBags[leftBags.length - 1].inventory : globalState.player.inventory
+    const rightList = () => rightBags.length ? rightBags[rightBags.length - 1].inventory : object.inventory
+
     async function uiLootMove(data: string /* "l"|"r" */, where: 'left' | 'right') {
         dbg('inventory', `[Loot] move ${data} to ${where}`)
 
-        const from = ({ l: globalState.player.inventory, r: object.inventory } as any)[data[0]]
+        const from = ({ l: leftList(), r: rightList() } as any)[data[0]]
 
         if (from === undefined) {
             throw 'uiLootMove: wrong data: ' + data
@@ -81,7 +88,7 @@ export function uiLoot(object: Obj) {
             throw 'uiLootMove: obj not found in list (' + idx + ')'
         }
 
-        const to = { left: globalState.player.inventory, right: object.inventory }[where]
+        const to = { left: leftList(), right: rightList() }[where]
 
         if (to === undefined) {
             throw 'uiLootMove: invalid location: ' + where
@@ -92,8 +99,11 @@ export function uiLoot(object: Obj) {
 
         const wantedAmount = obj.amount > 1 ? await uiGetAmount(obj) : 1
         // CE ref: item.cc itemAttemptAdd — enforce STAT_CARRY_WEIGHT on the receiving critter.
-        const toOwner: any = where === 'left' ? globalState.player! : object
-        if (wantedAmount > 0 && !toOwner.canCarry?.(obj, wantedAmount)) {
+        const toBag = where === 'left' ? leftBags[leftBags.length - 1] : rightBags[rightBags.length - 1]
+        const toOwner: any = toBag ?? (where === 'left' ? globalState.player! : object)
+        // (an open bag of the dude's: its room and the dude's carry weight, CE itemAttemptAdd)
+        const tooHeavy = toBag && where === 'left' && from !== globalState.player.inventory && !globalState.player.canCarry(obj, wantedAmount)
+        if (wantedAmount > 0 && (tooHeavy || !toOwner.canCarry?.(obj, wantedAmount))) {
             // CE ref: inventory.cc:4622/4657 — msg 26 when the container is full,
             // msg 25 when the player is over their weight capacity.
             uiLog(where === 'left'
@@ -125,10 +135,16 @@ export function uiLoot(object: Obj) {
             img.oncontextmenu = (e: MouseEvent) => {
                 e.preventDefault()
                 showItemMenu(e, itemMenuActions(item, false, ownerIsDude), (action) => {
-                    const owner = ownerIsDude ? globalState.player : object
-                    if (action === 'look') examineToLog(item)
+                    const bags = ownerIsDude ? leftBags : rightBags
+                    const owner = bags[bags.length - 1] ?? (ownerIsDude ? globalState.player : object)
+                    if (action === 'use' && item.subtype === 'container') { if (bags.length < 9) bags.push(item) }
+                    else if (action === 'look') examineToLog(item)
                     else if (action === 'unload') unloadWeapon(item, (ammo) => owner.addInventoryItem(ammo, 1))
-                    else if (action === 'drop') item.drop(globalState.player)
+                    else if (action === 'drop') {
+                        const list = ownerIsDude ? leftList() : rightList()
+                        if (list !== globalState.player.inventory) { list.splice(list.indexOf(item), 1); globalState.player.inventory.push(item) }
+                        item.drop(globalState.player)
+                    }
                     drawLoot()
                 })
                 return false
@@ -165,9 +181,26 @@ export function uiLoot(object: Obj) {
         drawLoot()
     }
 
+    function drawBagView(id: string, left: number, bags: Obj[]): void {
+        let $view = document.getElementById(id)
+        if (!$view) {
+            $view = makeEl('div', { attrs: { id }, style: { position: 'absolute', left: left + 'px', top: '35px', width: '60px', height: '100px', cursor: 'pointer' } })
+            $id('lootBox').appendChild($view)
+        }
+        clearEl($view)
+        const bag = bags[bags.length - 1]
+        $view.style.display = bag ? 'block' : 'none'
+        if (!bag) return
+        $view.appendChild(makeEl('img', { src: bag.invArt ? bag.invArt + '.png' : '', attrs: { title: bag.name ?? '' },
+            style: { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' } }))
+        $view.onclick = () => { bags.pop(); drawLoot() } // CE _container_exit
+    }
+
     function drawLoot() {
-        drawInventory($id('lootBoxLeft'), 'l', globalState.player.inventory)
-        drawInventory($id('lootBoxRight'), 'r', object.inventory)
+        drawInventory($id('lootBoxLeft'), 'l', leftList())
+        drawInventory($id('lootBoxRight'), 'r', rightList())
+        drawBagView('lootBoxLeftBag', 44, leftBags)
+        drawBagView('lootBoxRightBag', 422, rightBags)
     }
 
     drawLoot()

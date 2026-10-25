@@ -79,7 +79,8 @@ export function uiSteal(thief: Critter, target: Critter): void {
             const ownerIsDude = who === 'l'
             img.oncontextmenu = (e: MouseEvent) => {
                 e.preventDefault()
-                showItemMenu(e, itemMenuActions(item, false, ownerIsDude), (action) => {
+                // (no bag opening while stealing yet: USE left out)
+                showItemMenu(e, itemMenuActions(item, false, ownerIsDude).filter((a) => a !== 'use'), (action) => {
                     const owner = ownerIsDude ? thief : target
                     if (action === 'look') examineToLog(item)
                     else if (action === 'unload') unloadWeapon(item, (ammo) => owner.addInventoryItem(ammo, 1))
