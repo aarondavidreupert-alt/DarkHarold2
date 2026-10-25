@@ -110,8 +110,9 @@ export function uiContextMenu(obj: Obj, evt: any) {
     // CE game_mouse.cc gameMouseHandleActionMenu — the icons per object type
     const critter = obj.type === 'critter' ? obj as Critter : null
     if (obj.type === 'item') {
-        // ITEM: USE (actionPickUp) LOOK [INVENTORY SKILL for containers] CANCEL
-        add('use', obj.isContainer ? use : () => obj.pickup(player))
+        // ITEM: USE (actionPickUp: a container that can't be picked up is opened) LOOK
+        // [INVENTORY SKILL for containers] CANCEL
+        add('use', obj.canPickUp ? () => obj.pickup(player) : use)
         add('look', look)
         if (obj.isContainer) { add('inventory', inventory); add('skill', skill) }
     } else if (critter) {

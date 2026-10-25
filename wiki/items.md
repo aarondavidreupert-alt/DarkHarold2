@@ -319,13 +319,13 @@ name — no engine default behaviour beyond that. Items (misc, radios) fire
 ✅ FIXED 2026-07-05. CE ref: `item.cc:2246-2499`. Stealth Boy and Geiger
 Counter are `ITEM_SUBTYPE_MISC` items with a finite charge count
 (`ProtoItemMiscData.charges`) that drain while toggled on. CE represents
-on/off by literally swapping the item's own pid between the "I" (off) and
-"II" (on) proto variant; DH2 tracks the same state directly on the `Obj`
-instance instead (`miscOn`/`miscCharges`, new `src/miscItem.ts`), to avoid
-mutating the shared cached `Proto` object every instance of that pid points
-to (see `Obj.ts serialize()`'s "if pro changes in the future, this should be
-cloned" note — proto objects are cache-shared via `proMap`/`loadPRO`, not
-cloned per instance).
+on/off by swapping the item's own pid between the "I" (off) and "II" (on)
+proto variant; DH2 does the same since 2026-10-25 (ITEM-04: `switchItemProto`
+points the object at the other proto, nothing shared is mutated) and keeps
+`miscOn`/`miscCharges` on the `Obj` (`src/miscItem.ts`). Turning on needs a
+carrier (item.msg 9) and uses a charge at once (item.msg 5 without one);
+item.msg 6 / 7 on and off, 8 the Geiger reading. The trickle event
+(`userdata 'trickle'`) is rebuilt from a save.
 
 **Pipeline note**: this uncovered a real, separate gap — `tools/proto.py`'s
 `readItem()` had no `SUBTYPE_MISC` branch at all, so `charges`/`powerType`/

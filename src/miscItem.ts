@@ -19,21 +19,17 @@ limitations under the License.
 // item.cc miscItemTurnOn()/miscItemTurnOff()/miscItemTrickleEventProcess()
 // (item.cc:2246-2449). LE10.
 //
-// CE represents on/off state by literally swapping the item's own pid
-// between the "I" (off) and "II" (on) proto IDs. DH2 instead tracks the
-// same on/off + remaining-charge state directly on the Obj instance
-// (miscOn/miscCharges) — functionally identical, but avoids mutating the
-// shared, cached Proto object `Obj.pro` points to (proto instances are
-// shared across every object with the same pid via proMap/loadPRO — see
-// the "XXX: if pro changes in the future, this should be cloned" note at
-// Obj.ts's serialize()).
+// CE represents on/off state by swapping the item's pid between the "I" (off)
+// and "II" (on) proto IDs; DH2 does the same (switchItemProto points the object
+// at the other proto, so scripts testing PID 207 / 210 see the active item) and
+// keeps miscOn / miscCharges on the Obj instance.
 //
 // NOT implemented here: CE's OBJECT_TRANS_GLASS semi-transparent sprite
 // rendering. That needs a real WebGL shader/alpha change verified in a
 // browser — deferred, same as the color-cycling (RD10) work. See
 // wiki/items.md LE10.
 
-import type { Critter, Obj } from './object.js'
+import { switchItemProto, type Critter, type Obj } from './object.js'
 import { Scripting } from './scripting.js'
 import { dbg } from './logger.js'
 import { uiLog } from './ui_hud.js'
@@ -72,34 +68,37 @@ function clearTrickleEvent(item: Obj): void {
     if (idx !== -1) Scripting.timeEventList.splice(idx, 1)
 }
 
-// CE ref: item.cc:2412-2448 miscItemTurnOff()
+// item.msg 5 "%s has no charges left." / 6 "%s is on." / 7 "%s is off."
+function logItemMsg(num: number, fallback: string, item: Obj): void {
+    uiLog((getMessage('item', num) ?? fallback).replace('%s', item.name || ''))
+}
+
+// CE ref: item.cc:2412-2448 miscItemTurnOff() — the pid back to the "I" proto
 export function miscItemTurnOff(item: Obj, owner: Critter | null): void {
     if (!miscItemIsOn(item)) return
     item.miscOn = false
     clearTrickleEvent(item)
+    switchItemProto(item, isStealthBoy(item) ? PROTO_ID_STEALTH_BOY_I : PROTO_ID_GEIGER_COUNTER_I)
 
     if (owner) refreshStealthState(owner)
-    if (owner?.isPlayer) uiLog(`${item.name || 'It'} is off.`)
+    if (owner?.isPlayer) logItemMsg(7, '%s is off.', item)
     dbg('object', 'miscItem: %s turned off', item.name || item.pid)
 }
 
-// CE ref: item.cc:2297-2327 miscItemTrickleEventProcess() — 600 ticks (one
-// in-game minute) per charge for Stealth Boy; 3000 ticks (five in-game
-// minutes) per charge for Geiger Counter. Self-rescheduling.
-function scheduleTrickle(item: Obj, owner: Critter | null): void {
-    const isStealthBoyPid = item.pid === PROTO_ID_STEALTH_BOY_I || item.pid === PROTO_ID_STEALTH_BOY_II
+// CE ref: item.cc:2297-2327 miscItemTrickleEventProcess() — a charge every 600 ticks (one
+// in-game minute) for the Stealth Boy, 3000 (five minutes) for the Geiger counter; off when
+// none is left. Self-rescheduling; also rebuilt from a save (EVENT_TYPE_ITEM_TRICKLE).
+export function scheduleTrickle(item: Obj, owner: Critter | null, ticks = isStealthBoy(item) ? 600 : 3000): void {
     Scripting.timeEventList.push({
-        ticks: isStealthBoyPid ? 600 : 3000,
+        ticks,
         obj: item,
-        userdata: null,
+        userdata: 'trickle',
         fn: () => {
-            const charges = (item.miscCharges ?? 0) - 1
-            item.miscCharges = charges
-            if (charges <= 0) {
-                if (owner?.isPlayer) uiLog(`${item.name || 'It'} has no charges left.`)
-                miscItemTurnOff(item, owner)
-            } else {
+            if (miscItemConsumeCharge(item) === 0) {
                 scheduleTrickle(item, owner)
+            } else {
+                if (owner?.isPlayer) logItemMsg(5, '%s has no charges left.', item)
+                miscItemTurnOff(item, owner)
             }
         },
         // CE item.cc _item_m_turn_off_from_queue — off when leaving the map
@@ -107,23 +106,33 @@ function scheduleTrickle(item: Obj, owner: Critter | null): void {
     })
 }
 
-// CE ref: item.cc:2346-2410 miscItemTurnOn()
+// CE ref: item.cc:2346-2410 miscItemTurnOn() — only from a carrier (item.msg 9), a charge at
+// once (item.msg 5 without one), the pid to the "II" proto; item.msg 6, and for the Geiger
+// counter item.msg 8 with the dude's radiation.
 export function miscItemTurnOn(item: Obj, owner: Critter | null): void {
     if (miscItemIsOn(item)) return
-
-    if (item.miscCharges === undefined) {
-        item.miscCharges = (item.pro?.extra as any)?.charges ?? 0
+    if (!owner) {
+        uiLog(getMessage('item', 9) ?? 'This item can only be used from the interface bar.')
+        return
     }
-    if ((item.miscCharges ?? 0) <= 0) {
-        if (owner?.isPlayer) uiLog(`${item.name || 'It'} has no charges left.`)
+    if (miscItemConsumeCharge(item) !== 0) {
+        if (owner.isPlayer) logItemMsg(5, '%s has no charges left.', item)
         return
     }
 
+    const stealthBoy = isStealthBoy(item)
     item.miscOn = true
+    switchItemProto(item, stealthBoy ? PROTO_ID_STEALTH_BOY_II : PROTO_ID_GEIGER_COUNTER_II)
     scheduleTrickle(item, owner)
 
-    if (owner) refreshStealthState(owner)
-    if (owner?.isPlayer) uiLog(`${item.name || 'It'} is on.`)
+    refreshStealthState(owner)
+    if (owner.isPlayer) {
+        logItemMsg(6, '%s is on.', item)
+        if (!stealthBoy) {
+            const fmt = getMessage('item', 8) ?? 'You pass the Geiger counter over you body. The rem counter reads: %d'
+            uiLog(fmt.replace('%d', String((owner as any).radiationLevel ?? 0)))
+        }
+    }
     dbg('object', 'miscItem: %s turned on (%d charges)', item.name || item.pid, item.miscCharges ?? 0)
 }
 

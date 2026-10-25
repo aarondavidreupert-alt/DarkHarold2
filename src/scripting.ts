@@ -1920,6 +1920,7 @@ export module Scripting {
             // CE proto_instance.cc objectClose → objectOpenClose: a locked object stays as it is
             // (silently); no one animates and no loot window opens
             if (!obj.open || obj.locked) return
+            obj.jammed = false // objectUnjamLock
             setObjectOpen(obj, false, false, true)
         }
         obj_open(obj: Obj) {
@@ -1930,6 +1931,7 @@ export module Scripting {
             info('obj_open')
             // CE proto_instance.cc objectOpen → objectOpenClose (lock checked, silently)
             if (obj.open || obj.locked) return
+            obj.jammed = false // objectUnjamLock
             setObjectOpen(obj, true, false, true)
         }
         proto_data(pid: number, data_member: number): any {
@@ -2052,18 +2054,21 @@ export module Scripting {
         obj_name(obj: Obj) {
             return obj.name
         }
+        // CE interpreter_extra.cc opGetItemType: itemGetType for an item, −1 otherwise; the
+        // Shiv (PROTO_ID_SHIV 383) is ITEM_TYPE_MISC (5), so weapon searches miss it
         obj_item_subtype(obj: Obj) {
             if (!isGameObject(obj)) {
                 warn('obj_item_subtype: not game object: ' + obj)
-                return null
+                return -1
             }
 
             if (obj.type === 'item' && obj.pro != null) {
+                if (obj.pid === 383) return 5
                 // pro.py serializes as 'subType' (capital T)
-                return obj.pro.extra.subType ?? obj.pro.extra.subtype ?? null
+                return obj.pro.extra.subType ?? obj.pro.extra.subtype ?? -1
             }
             warn('obj_item_subtype: not an item: ' + obj)
-            return null
+            return -1
         }
         anim_busy(obj: Obj) {
             log('anim_busy', arguments)

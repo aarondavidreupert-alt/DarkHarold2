@@ -198,13 +198,14 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 - **DH2**: `Obj.use` has no branch for it (`isChargedMiscItem` covers only 52/54/207/210). Using the sensor does nothing; only the encounter Outdoorsman +20 bonus exists (worldmap/encounters.ts:148).
 - **Fix**: add the branch; open the automap with the critter-showing mode, if the automap supports one.
 
-### ITEM-04 — Stealth Boy / Geiger details (LOW, NEW)
+### ITEM-04 — Stealth Boy / Geiger details (LOW, NEW) — **FIXED 2026-10-25**
 `miscItemTurnOn`:
 - CE uses a charge at once and refuses when the item has no owner (item.msg 9).
 - CE prints item.msg 6, and for the Geiger counter also msg 8 with the dude's radiation.
 - CE swaps the pid I → II, and `miscItemTurnOff` swaps it back, so scripts testing PID 207/210 see the active item.
 
 DH2 (miscItem.ts:108) differs on each point: no charge at turn-on (the total run time is the same, but switching off and on again doesn't use a charge), no message 8 or 9, English literals instead of item.msg, and the pid never changes.
+- **Fixed 2026-10-25:** turn-on needs a carrier (item.msg 9) and uses a charge at once (item.msg 5), the pid swaps to the II proto and back (`switchItemProto`), item.msg 6 / 7 and the Geiger's msg 8; the trickle event is typed and rebuilt from a save.
 
 ### ITEM-06 — Armed explosive stays carried; no onlooker check (MED, NEW) — **FIXED 2026-10-25**
 - **CE**: `_obj_use_explosive` returns 2. `_obj_use_item` then calls `itemRemove` + `itemReplace` and `_obj_connect`s the explosive at the owner's tile, followed by `_protinstTestDroppedExplosive`. That function walks the blast ring (`_compute_explosion_on_extras`); each non-dude, non-team critter that passes a PE `statRoll` ≥ 2 gets who-hit-me = dude, and the first one starts combat if none is running.
@@ -279,13 +280,14 @@ DH2 `canCarry` (Obj.ts:1033) differs from CE in three places:
 - **Misc item as owner**: CE accepts only that item's `powerTypePid` (recharging) and refuses everything else.
 - **Non-biped critter**: CE refuses with −5 unless the critter has CRITTER_BARTER (sfall fix). DH2 lets the player plant items on animals and robots.
 
-### ITEM-05 / 10 / 11 / 14 / 16 / 20 (LOW, NEW)
+### ITEM-05 / 10 / 11 / 14 / 16 / 20 (LOW, NEW) — **FIXED 2026-10-25**
 - **ITEM-05**: Big Guns is decided by animCode instead of the 0x0100 ext flag (Weapon.ts:96). This is equivalent unless a proto's animCode and flag disagree, which was not checked.
 - **ITEM-10**: some `_obj_use*` messages are missing: 480 "You see", 485/486 container open / search, 597 "something is blocking" when closing a door. A locked door is refused by the engine in DH2; in CE only its script refuses.
 - **ITEM-11**: `obj_open` / `obj_close` go through `Obj.use(self,false)`, which plays the self critter's "use" animation and doesn't unjam. CE `objectOpenClose` does no critter animation, unjams the lock, refuses when locked and runs no script.
 - **ITEM-14**: `_proto_action_can_pickup` (ext flag 0x8000 containers) is missing. The scenery `_proto_action_can_use` reads the wrong JSON field.
 - **ITEM-16**: `_item_w_compute_ammo_cost` is missing: the Super Cattle Prod and Mega Power Fist should use 2 charges per hit.
 - **ITEM-20**: Shiv as ITEM_TYPE_MISC (`itemGetType`).
+- **Fixed 2026-10-25:** ITEM-05: Big Guns from the 0x0100 flag (the Flame Breath, pid 427, has the big-gun anim code but not the flag, so it is Small Guns as in CE). ITEM-10: proto.msg 480 after a scenery use, 485 / 486 for containers, 487 + the locked sound for a locked container (before its script), 597 when a door closes on something; a locked door plays its locked sound and only its script refuses. ITEM-11: obj_open / obj_close already went through setObjectOpen without an animation; they now unjam too. ITEM-14: `Obj.canPickUp` (bags and backpacks, ext flag 0x8000, are picked up from the ground; other containers open), scenery can-use reads its own `extendedFlags`. ITEM-16 was already in (`Combat.ts`: pids 399 / 407 use 2 charges). ITEM-20: `obj_item_subtype` gives the Shiv ITEM_TYPE_MISC and −1 for a non-item (the AI's weapon choice still sees it as a weapon).
 
 ## DH2-only behaviour
 

@@ -247,7 +247,7 @@ export function testDroppedExplosive(dude: Critter): void {
 }
 
 // The item becomes another proto in place (CE: item->pid = …) — art, inventory art, name.
-function switchItemProto(obj: Obj, pid: number): void {
+export function switchItemProto(obj: Obj, pid: number): void {
     const pro = loadPRO(pid, pid & 0xffff)
     if (!pro) return
     obj.pid = pid
@@ -394,15 +394,17 @@ function explosiveDetonate(obj: Obj, min: number, max: number, failure: boolean,
     obj.explode(player ?? null, min, max, 3, animate)
 }
 
-// Set the object (door/container) open/closed; returns true if possible, false if not (e.g. locked)
-export function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent = true): boolean {
+// Set the object (door/container) open/closed; returns true if possible, false if not (e.g. locked).
+// `ignoreLock`: the dude's / a critter's use of a door, where CE leaves the lock to the door's
+// script (_obj_use_door plays the locked sound and opens it when the script doesn't override).
+export function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent = true, ignoreLock = false): boolean {
     if (!obj.isDoor && !obj.isContainer) {
         return false
     }
 
     // Open/closable doors/containers
     // TODO: Door/Container subclasses
-    if (obj.locked) {
+    if (obj.locked && !ignoreLock) {
         // CE ref: proto_instance.cc:1712 _obj_use_door — SLDOORS<id> for locked doors;
         //         proto_instance.cc:1804 — ILCNTNR<id> + msg 487 for locked containers
         playOpenSfx(obj, SCENERY_SOUND_EFFECT.locked)
@@ -1245,6 +1247,13 @@ export class Obj {
         return this.type === 'item' && this.pro.extra.subType === 1 // SUBTYPE_CONTAINER
     }
 
+    // CE proto.cc _proto_action_can_pickup: any item but a container without ext flag 0x8000
+    // (bags and backpacks have it; chests and lockers don't, they are opened). 0x8000 is
+    // bit 7 of the proto JSON's weaponFlags byte.
+    get canPickUp(): boolean {
+        return this.type === 'item' && (!this.isContainer || ((this.pro?.extra?.weaponFlags ?? 0) & 0x80) !== 0)
+    }
+
     get isExplosive(): boolean {
         // CE explosiveIsExplosive + explosiveIsActiveExplosive (armed 206 / 209)
         return this.pid === 85 /* Plastic Explosives */ || this.pid === 51 /* Dynamite */ || this.pid === 206 || this.pid === 209
@@ -1264,9 +1273,11 @@ export class Obj {
                 return true
             } else {
                 // CE ref: proto.cc:257 _proto_action_can_use() bit 0x0800.
-                // FO2 .pro files are big-endian; proto.py reads the 4 extendedFlags
-                // bytes separately as itemFlags/actionFlags/weaponFlags/attackMode.
-                // Bit 0x0800 lands in byte 2 (weaponFlags, bit 0x08) after the swap.
+                // FO2 .pro files are big-endian; proto.py reads an item's 4 extendedFlags
+                // bytes separately as itemFlags/actionFlags/weaponFlags/attackMode, so
+                // bit 0x0800 lands in byte 2 (weaponFlags, bit 0x08). Scenery keeps the
+                // whole int32 as extendedFlags.
+                if (this.type === 'scenery') return ((this.pro.extra.extendedFlags ?? 0) & 0x0800) !== 0
                 return (this.pro.extra.weaponFlags & 0x08) != 0
             }
         }
@@ -1296,6 +1307,16 @@ export class Obj {
         if (this.canUse === false && !this.isContainer) {
             dbg('object', "[Object] can't use object")
             return false
+        }
+
+        // CE _obj_use_container: a locked container — its locked sound and proto.msg 487, and
+        // no script; _obj_use_door: a locked door plays its locked sound, its script decides
+        if (this.locked && (this.isContainer || this.isDoor)) {
+            playOpenSfx(this, SCENERY_SOUND_EFFECT.locked)
+            if (this.isContainer) {
+                if (source?.isPlayer ?? true) uiLog(getProtoMsg(487) ?? 'It is locked.')
+                return false
+            }
         }
 
         if (useScript !== false && this._script && this._script.use_p_proc !== undefined) {
@@ -1371,7 +1392,20 @@ export class Obj {
             source.staticAnimation('use', () => source.clearAnim())
         }
 
-        if (this.isDoor || this.isContainer) {
+        if (this.isDoor) {
+            // CE _obj_use_door: closing over something in the doorway — proto.msg 597
+            if (this.open) {
+                const gMap = globalState.gMap
+                const elevation = (this as any).elevation ?? gMap.currentElevation
+                if (gMap.blockingObjectAt(toTileNum(this.position), elevation, 0, this) !== null) {
+                    uiLog(getProtoMsg(597) ?? 'The doorway seems to be blocked.')
+                    return false
+                }
+            }
+            setObjectOpen(this, !this.open, true, true, true)
+        } else if (this.isContainer) {
+            // CE _obj_use_container: proto.msg 485 "You search the %s." / 486 "You close the %s."
+            if (source?.isPlayer ?? true) uiLog((getProtoMsg(this.open ? 486 : 485) ?? (this.open ? 'You close the %s.' : 'You search the %s.')).replace('%s', this.name ?? ''))
             toggleObjectOpen(this, true, true)
         } else if (this.isStairs) {
             // CE proto_instance.cc useStairs: builtTile -1 fails; destinationMap > 0 is
@@ -1454,6 +1488,8 @@ export class Obj {
             return true
         } else {
             this.singleAnimation()
+            // CE _obj_use: a scenery use no script overrode — "You see: %s." (proto.msg 480)
+            if (this.type === 'scenery' && (source?.isPlayer ?? true)) uiLog((getProtoMsg(480) ?? 'You see: %s.').replace('%s', this.name ?? ''))
         }
 
         globalState.gMap.updateMap()

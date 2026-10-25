@@ -92,8 +92,8 @@ const attackModeToBaseSkill: { [mode: number]: string } = {
     8: 'Small Guns',
 }
 
-// FO2-CE ref: item.cc — Big Gun animCodes: 8 (Big Gun), 9 (Minigun), 10 (Rocket Launcher)
-const BIG_GUN_ANIM_CODES = new Set([8, 9, 10])
+// CE proto_types.h ItemProtoExtendedFlags_BigGun (0x0100: the proto JSON's weaponFlags byte, bit 0)
+const BIG_GUN_FLAG = 0x01
 
 // FO2-CE ref: item.cc — Energy damage types: Laser, Plasma, Electrical
 const ENERGY_DAMAGE_TYPES = new Set(['Laser', 'Plasma', 'Electrical'])
@@ -114,8 +114,8 @@ function getWeaponSkillFromPro(weapon: WeaponObj, slot: 1 | 2 = 1): string {
         if (dmgType && ENERGY_DAMAGE_TYPES.has(dmgType)) {
             skill = 'Energy Weapons'
         } else {
-            const animCode = weapon.pro.extra.animCode ?? 0
-            if (BIG_GUN_ANIM_CODES.has(animCode)) {
+            // (the flag, not the anim code: the Flame Breath, pid 427, has the big-gun anim but not the flag)
+            if (((weapon.pro.extra as any).weaponFlags ?? 0) & BIG_GUN_FLAG) {
                 skill = 'Big Guns'
             }
         }

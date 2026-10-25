@@ -27,7 +27,7 @@ import { dbg, dbgWarn } from './logger.js'
 import type { EventLogEntry } from './eventlog.types.js'
 import { SerializedMap } from './map.js'
 import { Critter, deserializeObj, PROTO_ID_LIT_FLARE, scheduleExplosion, scheduleFlareBurnOut, SerializedObj } from './object.js'
-import { refreshStealthState } from './miscItem.js'
+import { refreshStealthState, scheduleTrickle } from './miscItem.js'
 import { Scripting } from './scripting.js'
 import { scheduleSneakEvent, sneakClear, serializeSkillUsage, deserializeSkillUsage } from './skillUse.js'
 import { restoreDrugEvent } from './drugs.js'
@@ -446,13 +446,16 @@ export function load(id: number): void {
                     const byUid = new Map<number, any>()
                     // (items too, in inventories and bags: a lit flare in a hand; uid -1 is only the dude's)
                     const visited = new Set<any>()
-                    const addByUid = (o: any) => {
+                    const carrier = new Map<any, any>() // an item's critter (CE objectGetOwner)
+                    const addByUid = (o: any, owner: any = null) => {
                         if (!o || visited.has(o)) return
                         visited.add(o)
                         if (o.uid !== -1) byUid.set(o.uid, o)
-                        for (const it of o.inventory ?? []) addByUid(it)
-                        addByUid(o.leftHand)
-                        addByUid(o.rightHand)
+                        if (owner) carrier.set(o, owner)
+                        const own = o.type === 'critter' ? o : owner
+                        for (const it of o.inventory ?? []) addByUid(it, own)
+                        addByUid(o.leftHand, own)
+                        addByUid(o.rightHand, own)
                     }
                     for (const o of mapObjects) addByUid(o)
                     addByUid(globalState.player)
@@ -492,6 +495,9 @@ export function load(id: number): void {
                         } else if (userdata === 'flare') {
                             // CE queue.cc flare event: the lit flare burns out when it runs out
                             if (obj && obj.pid === PROTO_ID_LIT_FLARE) scheduleFlareBurnOut(obj, ticks)
+                        } else if (userdata === 'trickle') {
+                            // CE queue.cc EVENT_TYPE_ITEM_TRICKLE: a switched-on Stealth Boy / Geiger
+                            if (obj && obj.miscOn) scheduleTrickle(obj, carrier.get(obj) ?? null, ticks)
                         } else if (userdata === 'explosion' || userdata === 'explosionFailure') {
                             // CE queue.cc explosion events: the armed explosive goes off
                             if (obj) scheduleExplosion(obj, ticks, userdata === 'explosionFailure')
