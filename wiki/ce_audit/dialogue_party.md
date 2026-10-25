@@ -200,61 +200,61 @@ Top findings:
 
 ## Detailed findings
 
-### PTY-01 — Dead party members stay in the party
+### PTY-01 — Dead party members stay in the party — **FIXED 2026-10-24 (PA12)**
 - **CE:** `critter.cc critterKill` → `partyMemberRemove(critter)` (first thing it does); `combat.cc` kill path (`~:4881`) → `partyMemberRemove`. A dead companion leaves the party: not counted by `_getPartyMemberCount`, not placed on map change, its corpse stays on the map where it died.
 - **DH2:** `globalState.gParty` is only changed by `party_add` / `party_remove` (`scripting.ts:3211-3219`) and save / reset; nothing in `critter/lifecycle.ts critterKill` or `Combat.ts` removes a dead member. Vanilla companion scripts don't call `party_remove` in `destroy_p_proc` (checked kcsulik, hcmarcus, nhmyron, ocgoris, gclenny, ian).
 - **Impact:** after a companion dies (common), `metarule(16)` still counts it — the CHA cap blocks a replacement; `GameMap.changeElevation` / `placeParty` (`GameMap.ts:243-259, 317`) move the corpse to every new map and next to the player; `party_member_obj(PID)` still returns the corpse (scripts think e.g. Sulik is with you); dead skills still count in `partyBestSkill` (encounter avoidance, barter). Unverified in game.
 - **Fix:** call `globalState.gParty.dismissPartyMember(critter)` at the start of `critterKill` (and the combat kill path), as CE.
 - **Ref:** NEW.
 
-### PTY-02 — Custom-screen values written wrongly (area attack, run away)
+### PTY-02 — Custom-screen values written wrongly (area attack, run away) — **FIXED 2026-10-24 (PA13)**
 - **CE:** `game_dialog.cc:394-410 _custom_settings`: Always! → `AREA_ATTACK_MODE_ALWAYS`, Sometimes → `SOMETIMES`, … ; run-away entries store `RUN_AWAY_MODE_X − 1` = 0…5, and `aiSetRunAwayMode` sets `min_hp = maxHP − maxHP · _hp_run_away_value[i] / 100` with `{0, 25, 40, 60, 75, 100}`: Abject coward min_hp = max HP, finger hurts 75 %, bleeding 60 %, not feeling good 40 %, tourniquet 25 %, Never! 0.
 - **DH2:** `ui_companion.ts:85-99 CUSTOM_OPTIONS`: "Always!" → `'sometimes'`, "Sometimes" → `'no_pref'`; run-away coward / finger_hurts / bleeding / not_feeling_good / **'none'** (for "You need a tourniquet") / never. `Combat.ts:262-275 aiMinHp` uses `{none:0, coward:25, finger_hurts:40, bleeding:60, not_feeling_good:75, tourniquet:100}` keyed by name, i.e. one CE step off: coward → min 75 %, finger → 60 %, bleeding → 40 %, not feeling good → 25 %, "tourniquet" (`none`) → min = max HP (flees at the first damage), "Never!" → not in the table → the packet's ai.txt `min_hp`.
 - **Impact:** a companion told "Always" burst only sometimes, "Sometimes" uses the no-preference rule; run-away settings are all wrong, and the tourniquet setting is the opposite of what was chosen.
 - **Fix:** store `'always'` / `'sometimes'`; map run-away labels to CE's percentage index (coward 0, finger 25, bleeding 40, not feeling 60, tourniquet 75, never 100) and compute `min_hp` from that index, with "tourniquet" stored as `'tourniquet'`.
 - **Ref:** NEW.
 
-### PTY-03 — Disposition / custom-value availability ignores party.txt
+### PTY-03 — Disposition / custom-value availability ignores party.txt — **FIXED 2026-10-25**
 - **CE:** `partyMembersInit` parses every member's `disposition`, `area_attack_mode`, `run_away_mode`, `best_weapon`, `distance`, `attack_who`, `chem_use` lists; `partyMemberControlWindowInit` disables disposition buttons not in the list (`partyMemberSupportsDisposition`, `disposition[d + 1]`), `_gdCustomSelect` greys and refuses values not in the lists.
 - **DH2:** `party.ts:50` parses only pid / level fields. `ui_companion.ts:365 supported = … || findSiblingPreview()` — true whenever ai.txt has `PARTY <NAME> <DISP>`, which every companion has for all five. `uiCustomCategoryPicker` offers every value.
 - **Impact:** e.g. Marcus (party.txt: custom, aggressive, berserk; distance charge / on_your_own; run away tourniquet / never) can be made a Coward that snipes; Myron can go Berserk; Lenny Aggressive / Berserk; Goris Coward / Defensive.
 - **Fix:** parse the seven lists in `loadPartyDescs` and port the seven `partyMemberSupports*` (note the `+1` index for disposition and run-away mode).
 - **Ref:** NEW (companion_party.md §8.2 documents the ai.txt rule as if it were CE's).
 
-### PTY-04 — `METARULE_PARTY_COUNT` is `party.length`
+### PTY-04 — `METARULE_PARTY_COUNT` is `party.length` — **FIXED 2026-10-24 (PA12)**
 - **CE:** `_getPartyMemberCount` = `gPartyMembersLength` (dude included) minus members that are not critters, dead or hidden.
 - **DH2:** `scripting.ts:776-777` returns `gParty.party.length` — dude not counted, the car trunk (`zicrtrnk` calls `party_add`) and dead / hidden members counted.
 - **Impact:** companion scripts test `metarule(16) − GVAR_PLAYER_GOT_CAR − 1 ≥ floor(CHA/2) + MP` (e.g. `kcsulik Node043`). Without a car DH2's value is one lower → one companion more than CE can join; with the car the trunk happens to replace the missing dude; dead (PTY-01) or hidden members wrongly count.
 - **Fix:** `1 + members.filter(c => c.type === 'critter' && !c.dead && visible).length`.
 - **Ref:** NEW (companion_party.md §1 states the CE rule but says DH2 is "the same").
 
-### PTY-05 — Control screen readout
+### PTY-05 — Control screen readout — **FIXED 2026-10-25**
 - **CE:** `partyMemberControlWindowUpdate`: right-hand item name (or proto.msg 10) at (112,20), armor at (112,49), standing SW sprite centred at (39,132), HP `cur/max` (240,96), best skill name (240,113), weight `inv/carry` (240,131, red when encumbered), melee damage (240,148), AP `cur/max` (240,167).
 - **DH2:** `ui_companion.ts:326-342` — name, "Weapon:", "Armor:", "HP:", "Weight:", "Disposition:" labels at x 20, y 4…96; no sprite, best skill, melee damage or AP; weapon is `equippedWeapon` rather than the right-hand item.
 - **Impact:** layout clashes with control.png's own captions; information missing.
 - **Fix:** draw CE's eight fields at CE's positions (proto.msg 10 for "None", `skillGetName(partyMemberGetBestSkill)`).
 - **Ref:** NEW.
 
-### DLG-01 — Returning from Barter / Trade / Combat Control re-runs `talk_p_proc`
+### DLG-01 — Returning from Barter / Trade / Combat Control re-runs `talk_p_proc` — **FIXED 2026-10-24 (PA14)**
 - **CE:** barter, trade and the control / customise screens run inside the dialogue loop (`_gdProcess` switch modes 3 / 9 / 12, `gameDialogTicker`). Afterwards `_dialogue_switch_mode = 1` re-creates the window and `gdUnhide` shows the *same* reply and options — including those the node set up right after `gdialog_mod_barter` (e.g. `gsay_reply(…); giq_option(… "Bye")`, `gsay_message("Thanks for your business")`). `talk_p_proc` runs once per conversation.
 - **DH2:** `gdialog_mod_barter` opens barter immediately (`scripting.ts:2444`); `uiEndBarterMode`, `uiEndCompanionTrade` and the control screen's Talk all call `Scripting.reenterDialogue` (`scripting.ts:562`), which clears the options and calls `talk()` again. Because the first `talk_p_proc` is still suspended in `gsay_end` (`vm.ts ScriptVM.suspended`, `lua/prelude.ts suspended`), the second run suspends on top of it, and `resume()` later continues both (`vm.ts:441-476` loops until the stack is empty; Lua `__resume` likewise).
 - **Impact:** in 64 vanilla scripts with `gdialog_mod_barter` the post-barter node is lost and the greeting starts over (re-greets, re-runs reaction / karma setup and any counters before `gsay_end`); the code after `gsay_end` (`end_dialogue`, post-talk actions) runs once per re-entry when the conversation ends. Unverified in game.
 - **Fix:** keep the options / reply across the sub-screen (don't clear `dialogueOptionProcs` in `reenterDialogue`, just re-render them), and only call `talk` when there is no suspended dialogue — i.e. port CE's "return to the same node".
 - **Ref:** P6 / P10 describe the re-entry design; the lost node and double tail are NEW.
 
-### DLG-02 — `gsay_message` ends the dialogue; the following `gsay_end` suspends again
+### DLG-02 — `gsay_message` ends the dialogue; the following `gsay_end` suspends again — **FIXED 2026-10-25**
 - **CE:** `_op_gsay_message` → `gameDialogSetMessageReply`, option (−2,−2 = proto.msg 650 "[Done]"), `_gdialogSayMessage` → `_gdialogGo` → a nested `_gdProcess`. Picking [Done] returns to the script inside the open dialogue; `gDialogReplyMessageListId = −1`, so a later `gsay_end` returns at once (`_gdialogGo: if (gDialogReplyMessageListId == -1) return 0`).
 - **DH2:** `scripting.ts:2777-2799` adds a no-op `[Done]` and suspends; picking it → `dialogueReply` → no options → `dialogueExit` closes the UI and resumes. When the `gsay_message` was reached directly from `talk_p_proc` (36 scripts, e.g. `robctrl talk_p_proc`, `ccqmstr Node001` else-branch), the resumed code reaches `gsay_end`, which suspends again (`vm_bridge.ts:317`, `prelude.ts:180`) with no UI — `end_dialogue` and anything after it wait for the next dialogue end of that script, then run out of order. A `gsay_message` followed by more options in the same flow would lose them (no vanilla case found).
 - **Fix:** don't close the UI on the gsay_message [Done]; just resume the suspended procedure. Track "reply pending" (set by `gsay_reply`, cleared by `gsay_message` / option pick) and make `gsay_end` return without suspending when no reply is pending.
 - **Ref:** NEW (L2 fixed a related stack bug).
 
-### DLG-03 — `gsay_end` with a reply but no options
+### DLG-03 — `gsay_end` with a reply but no options — **FIXED 2026-10-25**
 - **CE:** `_gdialogGo` adds an implicit option (−1,−1): text proto.msg 655 ("Go on") for INT < 4, otherwise an empty entry; key 1 / click continues and ends the loop.
 - **DH2:** nothing is added; the reply is shown with no option and the VM stays suspended (only Review is clickable). Vanilla nodes like `zark21` / `scenlone Node004` have no options but are reached from an option proc (ending the dialogue as CE does); a top-level case was not found, so impact is likely LOW. Unverified in game.
 - **Fix:** in `gsay_end`, if a reply is pending and no options exist, add the CE implicit option.
 - **Ref:** NEW.
 
-### DLG-04 — No keyboard control in dialogue / companion screens
+### DLG-04 — No keyboard control in dialogue / companion screens — **PARTLY FIXED 2026-10-25**
 - **CE:** `_gdProcess`: keys `1`–`9` pick option *n* (also options without a button), `0` ignored (sfall fix), `B` = Barter button, Space / auto after 10 s next page of a long reply, ↑ / ↓ page back / forward, mouse wheel → arrows. Control screen W / A / D / Esc, customise Enter / Esc, picker Enter / Esc, review ↑ / ↓ / Esc.
 - **DH2:** `input.ts:224-236` returns for any non-none UI mode and the dialogue has no key handler (`ui_dialogue.ts`); Esc exists only on the companion screens and the review.
 - **Fix:** a keydown handler while `uiMode === dialogue` mapping `1`–`9` to `dialogueReply(n−1)` and `b` to the Barter button; W / A / D on the control screen; Enter on customise / picker.

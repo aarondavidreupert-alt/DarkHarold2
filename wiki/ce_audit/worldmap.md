@@ -152,7 +152,7 @@ Top findings, by severity:
 
 ## Detailed findings
 
-### WM-01 — Subtile-state query is a stub; the state numbers are swapped
+### WM-01 — Subtile-state query is a stub; the state numbers are swapped — **FIXED 2026-10-24 (PA21)**
 - CE: `worldmap.cc:5125 wmSubTileGetVisitedState`, `interpreter_extra.cc:1995 METARULE3_WM_SUBTILE_STATE`; enum `SUBTILE_STATE_UNKNOWN 0 / KNOWN 1 / VISITED 2` (`worldmap.cc:188-190`).
 - DH2: `src/scripting.ts:977-983` returns 1; `src/worldmap/Worldmap.ts:36-38` defines `WORLDMAP_DISCOVERED = 1` (used for visited) and `WORLDMAP_SEEN = 2` (used for known).
 - CE behaviour: returns the subtile's state at world pixel (x, y): 0 unknown, 1 known, 2 visited.
@@ -161,7 +161,7 @@ Top findings, by severity:
 - Fix: export a `getSubtileState(x, y)` from Worldmap.ts that maps DH2 states to CE numbers (UNDISCOVERED→0, SEEN→1, DISCOVERED→2), or renumber the DH2 constants to CE's. Renumbering needs a save migration, because `serializeSquareStates` writes the raw values.
 - Ref: NEW.
 
-### WM-02 — Entrances are never opened by map load, elevation change or exit grid
+### WM-02 — Entrances are never opened by map load, elevation change or exit grid — **FIXED 2026-10-24 (PA21)**
 - CE: `map.cc:1029` (mapLoad) `wmMapMarkMapEntranceState(gMapHeader.index, gElevation, 1)`; `map.cc:376` (mapSetElevation); `object.cc:1434`, `proto_instance.cc:1530/1564/1598` (exit grids and their transitions).
 - DH2: `src/scripting.ts:959` (metarule3 104) is the only writer of `entrance.state` apart from load and reveal; `Worldmap.ts:700` handles `loadMapPost` with `markMapVisited` only.
 - CE behaviour: any map or elevation the player reaches opens its town-map entrance. For example, walking into the Klamath Trapper Town or the Den business district by exit grid adds that hotspot to the town map.
@@ -170,49 +170,49 @@ Top findings, by severity:
 - Fix: port `wmMapMarkMapEntranceState` as a Worldmap function with CE matching (see WM-04). Call it from the `loadMapPost` handler (map index plus current elevation), from elevation changes and from exit-grid transitions (target map and elevation). Route metarule3 104 through it.
 - Ref: NEW.
 
-### WM-03 — The town map is always shown; `wmAreaFindFirstValidMap` is missing
+### WM-03 — The town map is always shown; `wmAreaFindFirstValidMap` is missing — **FIXED 2026-10-24 (PA21)**
 - CE: `worldmap.cc:3141-3172` (hotspot release) and `:3192` (T key): `if (city->visitedState == 2 && city->mapFid != -1) wmTownMapFunc(&map) else { wmAreaFindFirstValidMap(&map); city->visitedState = 2; }`. `worldmap.cc:6460 wmAreaFindFirstValidMap`: the first entrance with state ≠ 0; if none, entrance 0 is opened and used. The map is loaded with no entering location, so the map header's start is used.
 - DH2: `src/worldmap/Worldmap.ts:763-768` calls `uiWorldMapShowArea(area)` for any area; `src/ui_worldmap.ts:123`.
 - Impact: the first visit to a town shows its town map instead of entering it. Areas without town-map art (`townmap_art_idx=-1`: Enclave, Abbey, Primitive Tribe, EPA, Ghost Farm, Car Outta Gas, Destroyed Arroyo, Klamath Toxic Caves and the random-encounter / special areas) show `url('undefined.png')` with auto-placed entrance buttons, where CE goes straight onto the map. HIGH (visible UI break in every special encounter re-visit and several story areas).
 - Fix: in the hotspot handler, test `area.visitedState === 2 && area.mapArt`. Otherwise pick the first entrance with `state` set (else open entrance 0), set `visitedState = 2`, do the car parking, and `loadMap(entrance.mapName)` with no position override.
 - Ref: NEW.
 
-### WM-04 — metarule3 104 entrance matching differs
+### WM-04 — metarule3 104 entrance matching differs — **FIXED 2026-10-24 (PA21)**
 - CE: `worldmap.cc:2940 wmMapMarkMapEntranceState`: requires MAP_SAVED; takes the first area containing the map (`wmMatchAreaContainingMapIdx`) and the first entrance of that area with `entrance->map == mapIdx && (elevation == -1 || entrance->elevation == -1 || elevation == entrance->elevation)`; sets `state` on that one entrance and returns 0/−1.
 - DH2: `src/scripting.ts:959-975` changes every entrance in every area whose map name matches and whose `elevation === elevIdx`; `src/data.ts:141` stores entrance elevation as `Math.max(0, parseInt(s[4]))`, so −1 becomes 0. There is no MAP_SAVED check, and it always returns 0.
 - Impact: a script call with elevation 1 or 2 for an entrance whose city.txt elevation is −1 (most entrances) does nothing in DH2. A call with elevation −1 matches nothing. MED.
 - Fix: keep the raw elevation (−1) in `AreaEntrance` and clamp only where it is used for loading. Implement the CE matching (see WM-02 for the shared function).
 - Ref: NEW.
 
-### WM-05 — METARULE_MAP_KNOWN always returns 0
+### WM-05 — METARULE_MAP_KNOWN always returns 0 — **FIXED 2026-10-25**
 - CE: `worldmap.cc:5612 wmMapIsKnown(mapIdx)`: the first area or entrance whose `map == mapIdx`; returns `entrance->state == 1`.
 - DH2: `src/scripting.ts:794-805` compares `e.mapName === target`, but `target` is a maps.txt index (number), so nothing matches; it also tests area visit instead of the entrance state.
 - Impact: `nccody.lua` (`giq_option(…, 211 + metarule(METARULE_MAP_KNOWN, 58), …)`) always shows the "unknown" line variant; `mitrpdor` and `osvdrcmp` use it only in debug messages. MED.
 - Fix: `lookupMapName(target)`, find the first matching entrance, return `entrance.state ? 1 : 0`.
 - Ref: NEW. (`wiki/scripting_reference.md:400` lists case 19 as handled.)
 
-### WM-06 — Town-map entrances with −1 coordinates are shown; labels are lookup names
+### WM-06 — Town-map entrances with −1 coordinates are shown; labels are lookup names — **FIXED 2026-10-25**
 - CE: `worldmap.cc:5862 wmTownMapInit` / `:5915 wmTownMapRefresh`: skips `state == 0` and also `x == -1 || y == -1`; labels each hotspot with worldmap.msg `200 + 10 * area + index`, centred under it.
 - DH2: `src/ui_worldmap.ts:139-192`: "orphaned" entrances (x−22 ≤ 5 and y−21 ≤ 5, which includes −1/−1) are placed in rows of 3 below the art; `:168` labels with `entrance.mapLookupName`.
 - Impact: any −1/−1 entrance that a script opens (Desert Encounter 2–10 are "On" with −1/−1; In Game Movie Map 1, Bess Dead) appears as a clickable button that CE never shows. Labels read like "Destroyed Arroyo Bridge" / "Den Residential 1" rather than the localized worldmap.msg names. MED.
 - Fix: skip x or y = −1; use `getMessage('worldmap', 200 + 10 * area.id + index)` as the label.
 - Ref: NEW (W9 fixed only the offset).
 
-### WM-07 — No worldmap music
+### WM-07 — No worldmap music — **FIXED 2026-10-24 (PA23)**
 - CE: `worldmap.cc:4459-4460 wmInterfaceInit`: `_gsound_background_play_level_music(isInCar ? "20car" : "23world", 12)`. On exit, the next map's `wmMapMusicStart` takes over.
 - DH2: neither name appears in `src/`; `uiWorldMap` / `Worldmap.start` play nothing, so the local map's music keeps playing or stops.
 - Impact: audible difference on every trip. MED.
 - Fix: in `uiWorldMap`, `audioEngine.playMusic(getIsInCar() ? '20car' : '23world')`.
 - Ref: NEW.
 
-### WM-08 — Area visited state has no fog side effects
+### WM-08 — Area visited state has no fog side effects — **FIXED 2026-10-25**
 - CE: `worldmap.cc:5641 wmAreaMarkVisitedState`: if the city is known and `state != 0`, `wmMarkSubTileRadiusVisited(city->x, city->y)` (radius 1, Scout 2, at the sphere's world_pos). For `state == 1`, the city's own subtile becomes KNOWN; `2` on a never-visited city becomes `1`.
 - DH2: `src/worldmap/Worldmap.ts:521 setAreaVisitedState` keeps only the 2→1 rule.
 - Impact: towns revealed by `mark_area_known` (for example, a town a character tells you about) appear inside unrevealed fog instead of in a small cleared patch. MED (cosmetic, but on the main map).
 - Fix: when `area.state && state !== 0`, call `markSubTileRadiusVisited(area.worldPosition.x, area.worldPosition.y)`. For state 1, `markSquare(…, SEEN)` at that point.
 - Ref: NEW.
 
-### WM-09 — Entrance elevation −1 with a tile: player placed on the tile instead of the header start
+### WM-09 — Entrance elevation −1 with a tile: player placed on the tile instead of the header start — **FIXED 2026-10-24 (PA21)**
 - CE: `ui → wmTownMapFunc → mapSetEnteringLocation(elevation, tile, rotation)`; `map.cc:860`: `if (gEnteringElevation == -1) mapSetEnteringLocation(header elevation, header tile, header rotation)`. The tile is discarded.
 - DH2: `src/data.ts:141` clamps the elevation to 0; `src/ui_worldmap.ts:161-163` treats `elevation >= 0 && tileNum >= 0` as an own location.
 - Impact: Broken Hills 2 (21948), NCR: Downtown (12316), San Fran Dock (26900) and Destroyed Arroyo Bridge (26719) put the player on that tile at elevation 0 instead of the map's default start. MED (the tiles may well be valid, but they are not where CE places you).

@@ -182,18 +182,18 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 
 ## Detailed findings
 
-### ITEM-01 — Hidden (natural) items: wrong flag, hidden-item helpers missing (HIGH, NEW)
+### ITEM-01 — Hidden (natural) items: wrong flag, hidden-item helpers missing (HIGH, NEW) — **FIXED 2026-10-24 (PA20)**
 - **CE**: `item.cc itemIsHidden` → `proto->item.extendedFlags & ITEM_HIDDEN (0x08000000)`. It is used by `itemGetWeight` (weight 0), `itemMoveAllHidden` (inventory.cc:4127 moves hidden items out of the loot view), `itemDestroyAllHidden` (critter.cc:905 on kill, combat.cc:4858), `_attackFindInvalidFlags` (combat.cc:4170, no DAM_DROP) and `_ai_best_weapon` (combat_ai.cc:1877/1921).
 - **DH2**: every one of these checks reads the object flag `OBJECT_HIDDEN` 0x01 (Obj.ts:963, combat/results.ts:87, Combat.ts:1320). The proto byte where tools/proto.py stores ITEM_HIDDEN (`itemFlags & 0x08`) is read only by `proto_data` member 7 (scripting.ts:1849). `itemMoveAllHidden` and `itemDestroyAllHidden` have no counterpart.
 - **Impact**: natural weapons (claws, spore spikes, robot and turret guns) count toward weight, can be knocked out of the hand by a critical, are not the AI's preferred weapon, and can be looted from corpses.
 - **Fix**: add an `itemIsHidden(obj)` helper that reads `(pro.extra.itemFlags & 0x08) !== 0` and use it at those call sites. Call `itemDestroyAllHidden` in `critterKill`; filter hidden items in `uiLoot` / steal.
 
-### ITEM-02 — Solar Scorcher can't be recharged (MED, NEW)
+### ITEM-02 — Solar Scorcher can't be recharged (MED, NEW) — **FIXED 2026-10-25**
 - **CE**: `weaponAttemptReload` for pid 390 skips the ammo search and calls `weaponReload(weapon, NULL)`. `weaponCanBeReloadedWith` passes when `lightGetAmbientIntensity() > 65536 × 0.95`, else prints item.msg 500. `weaponReload` then fills the weapon to capacity.
 - **DH2**: `weaponAttemptReload` (weaponAmmo.ts:171) only searches inventory ammo and returns −1. `isSolarScorcher` and `solarScorcherCanRecharge` (weaponAmmo.ts:124/128) are never called. The HUD still offers "reload" (Weapon.ts cycleMode), and `getReloadAPCost` gives 0 AP.
 - **Fix**: in `weaponAttemptReload`, if `isSolarScorcher(w)`: when `solarScorcherCanRecharge(GameTime.getAmbientLight())`, set `ammoQuantity = capacity` and return 0; else log item.msg 500 and return −1.
 
-### ITEM-03 — Motion Sensor use missing (MED, NEW)
+### ITEM-03 — Motion Sensor use missing (MED, NEW) — **FIXED 2026-10-25**
 - **CE**: `_item_m_use_charged_item`: for PROTO_ID_MOTION_SENSOR (59), `miscItemConsumeCharge` == 0 → `automapShow(true, true)` (automap with critters shown); otherwise item.msg 5 "%s has no charges left."
 - **DH2**: `Obj.use` has no branch for it (`isChargedMiscItem` covers only 52/54/207/210). Using the sensor does nothing; only the encounter Outdoorsman +20 bonus exists (worldmap/encounters.ts:148).
 - **Fix**: add the branch; open the automap with the critter-showing mode, if the automap supports one.
@@ -206,23 +206,23 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 
 DH2 (miscItem.ts:108) differs on each point: no charge at turn-on (the total run time is the same, but switching off and on again doesn't use a charge), no message 8 or 9, English literals instead of item.msg, and the pid never changes.
 
-### ITEM-06 — Armed explosive stays carried; no onlooker check (MED, NEW)
+### ITEM-06 — Armed explosive stays carried; no onlooker check (MED, NEW) — **FIXED 2026-10-25**
 - **CE**: `_obj_use_explosive` returns 2. `_obj_use_item` then calls `itemRemove` + `itemReplace` and `_obj_connect`s the explosive at the owner's tile, followed by `_protinstTestDroppedExplosive`. That function walks the blast ring (`_compute_explosion_on_extras`); each non-dude, non-team critter that passes a PE `statRoll` ≥ 2 gets who-hit-me = dude, and the first one starts combat if none is running.
 - **DH2**: `useExplosive` (Obj.ts:152) keeps the item in the inventory. The comment says "carried, it explodes on whoever carries it", and `explosiveDetonate` handles a carried explosive. There is no watcher check.
 - **Impact**: setting a charge in vanilla means placing it at your feet. In DH2 the player must drop it by hand or blow up, and planting explosives near guards never provokes them.
 - **Fix**: after the timer is set, move the item from its owner to the owner's tile and port `_protinstTestDroppedExplosive`.
 
-### ITEM-07 — Energy cells don't charge the car (HIGH, NEW)
+### ITEM-07 — Energy cells don't charge the car (HIGH, NEW) — **FIXED 2026-10-24 (PA20)**
 - **CE**: `_protinst_default_use_item`, ITEM_TYPE_AMMO with a target of `PROTO_ID_CAR` / `PROTO_ID_CAR_TRUNK` → `_obj_use_power_on_car`. A Small Energy Cell (38) gives 16000 and a Micro Fusion Cell (39) 40000, scaled by rounds / capacity. This calls `wmCarFillGas`, prints proto.msg 595 "You charge the car with more power" and uses up the cell. With a full tank it prints 596 and keeps the cell (sfall fix).
 - **DH2**: useItemOn.ts:201 says it is not ported, so the player gets "That does nothing."
 - **Fix**: in `defaultUseItem`, for an ammo pid of 38/39 used on the car scenery pids, add fuel via the Worldmap car API (`setCarFuel`, CAR_FUEL_MAX 80000) and return 1, or −1 with message 596 when full.
 
-### ITEM-08 — Misc "use" items not consumed (MED, NEW, unverified impact)
+### ITEM-08 — Misc "use" items not consumed (MED, NEW, unverified impact) — **FIXED 2026-10-25**
 - **CE**: `_obj_use_misc_item` for Ramirez box closed (431), Raiders map (444), Cat's Paw #5 (331), Pip-Boy Lingual Enhancer (499), Survey map (523) and Pip-Boy Medical Enhancer (516) runs use_p_proc when scripted, then returns 1. `_obj_use_item` then destroys the item, script or no script.
 - **DH2**: `Obj.use` runs use_p_proc and keeps the item (or plays its animation).
 - **Impact**: these items stay in the inventory and can be re-used unless their scripts call `destroy_object` themselves. Whether they do was not checked against the decompiled scripts.
 
-### ITEM-09 — Scripted use-item-on semantics; script use_obj_on_obj skips the engine (MED, NEW)
+### ITEM-09 — Scripted use-item-on semantics; script use_obj_on_obj skips the engine (MED, NEW) — **FIXED 2026-10-25**
 - **CE** `_protinst_use_item_on`, no medical kit:
   - Item has no sid: the target's USE_OBJ_ON proc runs; if it doesn't override, the default (`_protinst_default_use_item`) applies.
   - Item has a sid: the item's proc runs. Its **`scr_return` value** (`script->returnValue`, interpreter_extra.cc:484) decides, not the override flag. Only when it is 0 does the target's proc and then the default run. Otherwise that value is returned, and 1 destroys the item in `_obj_use_item_on`.
@@ -230,7 +230,7 @@ DH2 (miscItem.ts:108) differs on each point: no charge at turn-on (the total run
 - **Script path**: script `use_obj_on_obj` (scripting.ts:1979) only chains the two procs. CE `opUseObjectOnObject` calls `_action_use_an_item_on_object` (critter self) or `_obj_use_item_on`, so a script that feeds a stimpak or uses a kit on someone gets the engine's drug / First Aid / Doctor default and the item is used up. In DH2 nothing happens without script overrides. This extends closed IU1, which wired only the proc chain.
 - **Fix**: read `returnValue` for the item path. Route `use_obj_on_obj` through `objUseItemOn(self, target, item)`, with the walk-up when self is a critter.
 
-### ITEM-12 — Map object data lost in the pipeline (HIGH, NEW)
+### ITEM-12 — Map object data lost in the pipeline (HIGH, NEW) — **FIXED 2026-10-24 (PA1)**
 - **CE** `objectDataRead` reads, for non-critters:
   - `data.flags` (items: CONTAINER_FLAG_LOCKED 0x02000000 / CONTAINER_FLAG_JAMMED 0x04000000)
   - door `openFlags` (DOOR_FLAG_LOCKED 0x02000000 / DOOR_FLAG_JAMMGED 0x04000000)
@@ -252,28 +252,28 @@ DH2 (miscItem.ts:108) differs on each point: no charge at turn-on (the total run
   - `fromMapObject_`: set `locked = (flags & 0x02000000) !== 0` and `jammed = (flags & 0x04000000) !== 0`.
   - Also take the ground money `amount` and `miscCharges` from `charges`.
 
-### ITEM-13 — Ladder / stairs destinations (HIGH ladders, MED stairs, NEW)
+### ITEM-13 — Ladder / stairs destinations (HIGH ladders, MED stairs, NEW) — **FIXED 2026-10-24 (PA2)**
 - **CE** `useLadderUp` / `useLadderDown`: builtTile −1 means fail. `destinationMap != 0` means a map transition with tile, elevation and rotation, plus `wmMapMarkMapEntranceState`; otherwise the user moves on the same map. `useStairs` is the same except it tests `destinationMap > 0`.
 - **DH2**: fomap.py stores the FO2 ladder's first int, `destinationMap`, as `extra.unknown1`. Obj.ts:1244 tests `extra.destinationMap`, which is always undefined, so every ladder is treated as same-map: the player is placed at that tile and elevation of the *current* map. For stairs, Obj.ts:1224 treats only `destinationMap === -1` as same-map, so a 0 value would load map 0, and a stair with destination −1 is not refused. The rotation is ignored.
 - **Fix**: in the loader, rename `unknown1` → `destinationMap`; then apply CE's tests (`!= 0` for ladders, `> 0` for stairs, refuse builtTile −1).
 
-### ITEM-15 — Destroying a carried / queued object (MED, NEW; overlaps the interpreter_extra audit)
+### ITEM-15 — Destroying a carried / queued object (MED, NEW; overlaps the interpreter_extra audit) — **FIXED 2026-10-24 (PA9)**
 - **CE**: `_obj_destroy` calls `_obj_remove_from_inven(owner)` and `queueRemoveEvents(obj)`. `opDestroyObject` likewise removes a carried item from its owner (`itemRemove` of the whole quantity).
 - **DH2**: `GameMap.destroyObject` (GameMap.ts:148) runs destroy_p_proc and queues a *map* removal. For an item in an inventory, `drainRemovalQueue` only warns "object not found on map" and the item stays. Timed events of the object (flare, explosive, script timers) are not removed.
 - **Fix**: find the owner (inventory or hand / armor slot) and remove the item from it; drop the object's `timeEventList` entries.
 
-### ITEM-17 — No 3-AP cost for scenery / pickup / container use in combat (MED, NEW)
+### ITEM-17 — No 3-AP cost for scenery / pickup / container use in combat (MED, NEW) — **FIXED 2026-10-24 (PA18)**
 - **CE**: `_check_scenery_ap_cost` is registered by actions.cc for `_action_use_an_object`, `actionPickUp` and loot (actions.cc:1041/1109/1183/1289). In combat, fewer than 3 AP gives proto.msg 700 and refuses; otherwise it subtracts 3 AP.
 - **DH2**: no AP is charged for `Obj.use`, `Obj.pickup` or `uiLoot` in combat (playerUse.ts:417, ui_contextmenu.ts:103/113). Only item-on-target use costs 2 AP (useItemOn.ts:76).
 - **Fix**: check and spend 3 combat AP in those paths when `inCombat`.
 
-### ITEM-18 — Dude's EMP resistance (MED, NEW)
+### ITEM-18 — Dude's EMP resistance (MED, NEW) — **FIXED 2026-10-25**
 - **CE**: `_proto_dude_init` sets `proto->critter.data.baseStats[STAT_DAMAGE_RESISTANCE_EMP] = 100` (bodyType, XP, killType and damageType 0). The dude is immune to EMP, as biological critter protos are.
 - **DH2**: the player's StatSet defaults DR EMP to 0 (skills.ts:135), and `resetForNewGame` doesn't set it.
 - **Impact**: EMP grenades or other EMP damage hurt the player.
 - **Fix**: set the player's base `DR EMP` to 100 at creation and on reset.
 
-### ITEM-19 — itemAttemptAdd gaps (MED, NEW)
+### ITEM-19 — itemAttemptAdd gaps (MED, NEW) — **FIXED 2026-10-25**
 DH2 `canCarry` (Obj.ts:1033) differs from CE in three places:
 - **Container in a critter**: CE also checks the critter owner's STAT_CARRY_WEIGHT. DH2 checks only the container's size, so putting items into a backpack bypasses the weight limit.
 - **Misc item as owner**: CE accepts only that item's `powerTypePid` (recharging) and refuses everything else.

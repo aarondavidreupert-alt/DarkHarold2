@@ -120,7 +120,7 @@ declare module './GameMap.js' {
     interface GameMap {
         loadMap(mapName: string, startingPosition?: Point, startingElevation?: number, loadedCallback?: () => void): void
         loadNewMap(mapName: string, startingPosition?: Point, startingElevation?: number, loadedCallback?: () => void): void
-        loadMapByID(mapID: number, startingPosition?: Point, startingElevation?: number): void
+        loadMapByID(mapID: number, startingPosition?: Point, startingElevation?: number, startingOrientation?: number): void
     }
 }
 
@@ -418,10 +418,23 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
     }
 
 
-GameMap.prototype.loadMapByID = function (mapID: number, startingPosition?: Point, startingElevation?: number): void {
+GameMap.prototype.loadMapByID = function (mapID: number, startingPosition?: Point, startingElevation?: number, startingOrientation?: number): void {
         const mapName = lookupMapName(mapID)
         if (mapName !== null) {
-            this.loadMap(mapName, startingPosition, startingElevation)
+            // CE mapHandleTransition (an exit grid's transition): after the map loaded — and its
+            // scripts ran, so a script's override_map_start doesn't win — the dude goes to the
+            // transition's tile and elevation and takes its rotation
+            const place = startingOrientation === undefined || startingPosition === undefined ? undefined : () => {
+                const player = globalState.player
+                if (!player) return
+                if (startingElevation !== undefined && this.currentElevation !== startingElevation && this.mapObj?.levels?.[startingElevation]) {
+                    this.changeElevation(startingElevation, false)
+                }
+                if (player.position.x !== startingPosition.x || player.position.y !== startingPosition.y) player.position = { ...startingPosition }
+                player.orientation = startingOrientation
+                centerCamera(player.position)
+            }
+            this.loadMap(mapName, startingPosition, startingElevation, place)
         } else {
             dbgWarn('map', "couldn't lookup map name for map ID " + mapID)
         }

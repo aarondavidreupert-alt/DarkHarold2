@@ -212,7 +212,7 @@ Top findings, most severe first:
 
 ## Detailed findings
 
-### SCR-01 — non-fatal exceptions escape the VM and stop the game loop (HIGH, VM backend)
+### SCR-01 — non-fatal exceptions escape the VM and stop the game loop (HIGH, VM backend) — **FIXED 2026-10-24 (PA22)**
 - **CE:** `interpreter.cc` `programFatalError` (`programStackPopValue` underflow, `opCheckProcedureArgumentCount`, `opLookupStringProc`, type-checked pops). `longjmp` to the running procedure's `setjmp` in `_interpret`; only that call ends.
 - **DH2:**
   - `vm.ts:346` and `355` throw plain strings, `vm.ts:202` throws a string, and `vm.ts:194` hits a TypeError on an unknown name. Intrinsics also throw: `scripting.ts:772` `throw 'elevator given explicit type'`, `:726` `throw Error('set_map_var: no map script')`, and `combatEvent` / `pickup` / `useSkillOn` when the object has no script.
@@ -227,14 +227,14 @@ Top findings, most severe first:
   - Wrap `heart.update` in try/catch, or arm `requestAnimationFrame` first.
 - **Ref:** NEW.
 
-### SCR-02 — `game_time` is a stale snapshot (MED-HIGH)
+### SCR-02 — `game_time` is a stale snapshot (MED-HIGH) — **FIXED 2026-10-24 (PA11)**
 - **CE:** `interpreter_extra.cc:2269 opGetGameTime` → `scripts.cc:283 gameTimeGetTime()`, read live on every access.
 - **DH2:** `vm_bridge.ts:58 game_time: (s) => s.game_time`. The value is set only by `talk`, `updateCritter`, `spatial`, `destroy`, `damage`, `combatEvent`, `updateMap`, `objectEnterMap`, `objectRunProc`, `runViewProc` and `push` (`scripting.ts:3395-3726`). It is never set by `timedEvent` (3372), `use` (3404), `useSkillOn` (3522), `pickup`, `drop`, `isDropping`, `useObjOnItem`, `useObjOnMe`, or `initScript` (`start`). In those procs `game_time` is whatever an earlier proc of that script left there, or `undefined` for a fresh script. After `game_time_advance` inside a proc, the old value is returned.
 - **Impact:** Script timers that store or compare `game_time` (cooldowns, "come back tomorrow") miscompute, mainly in `timed_event_p_proc` and `use_p_proc`. `game_time_in_seconds` and `game_time_hour` are live, so scripts disagree with themselves. This affects both backends (Lua reads the same reader).
 - **Fix:** `game_time: () => globalState.gameTickTime` (CE has no 1-tick clamp in `opGetGameTime`; `gameTimeSetTime` already keeps the clock ≥ 1).
 - **Ref:** NEW.
 
-### SCR-03 — clock runs in combat; event countdown frozen (MED)
+### SCR-03 — clock runs in combat; event countdown frozen (MED) — **FIXED 2026-10-25**
 - **CE:** `scripts.cc:748 _script_chk_timed_events`. `gGameTime += 1` every 100 ms **only when not in combat**. The queue is still drained in combat, and combat time comes from `combat.cc:3071 gameTimeAddSeconds(5)` per round.
 - **DH2:** `gameTick.ts:216` runs `globalState.gameTickTime++` on every 10 Hz tick, in combat too. The countdown at `gameTick.ts:238` is skipped in combat; only the 5 s jumps (`processTimeJump`) decrement events.
 - **Impact:** In a long combat the clock gains real time (5 minutes of fighting = 3000 extra ticks), while drug, knockout, poison and script timers don't see that time. Effects:
@@ -244,7 +244,7 @@ Top findings, most severe first:
 - **Fix:** Guard the increment with `!globalState.inCombat`, as CE does.
 - **Ref:** NEW; the time_clock.md §10 description omits the combat case.
 
-### SCR-04 — map_update_p_proc cadence (MED)
+### SCR-04 — map_update_p_proc cadence (MED) — **FIXED 2026-10-25**
 - **CE:**
   - `map.cc:1010-1011`: `mapLoad` runs `scriptsExecMapUpdateProc` once.
   - `scripts.cc:507 mapUpdateEventProcess`: the queue event every 600 ticks.
@@ -258,7 +258,7 @@ Top findings, most severe first:
 - **Fix:** Drop the second `updateMap` at load (call `changeElevation(…, false, …)` after `doEnterNewMap`). Add a 30 s `performance.now()` timer that is skipped in dialogue. Allow both paths in combat. Reset `nextMapUpdateTick = now + 600` on map load.
 - **Ref:** NEW.
 
-### SCR-05 — map-load procs: `start`, order, `fixed_param` (MED)
+### SCR-05 — map-load procs: `start`, order, `fixed_param` (MED) — **PARTLY FIXED 2026-10-25**
 - **CE `map.cc mapLoad`:**
   1. `scriptSetFixedParam(gMapSid, first visit)`, then the map script's `map_enter_p_proc` with spatials off (`map.cc:963-975`).
   2. The party is placed.
@@ -273,14 +273,14 @@ Top findings, most severe first:
 - **Fix:** After the map script's `map_enter_p_proc`, run `initScript` (`start`) for the map script, the spatials and all objects. Set `fixed_param` before each object's `map_enter_p_proc`.
 - **Ref:** NEW. C61 covers the load-game path only.
 
-### SCR-06 — VM: loosely typed values in comparisons (MED, VM backend)
+### SCR-06 — VM: loosely typed values in comparisons (MED, VM backend) — **FIXED 2026-10-25**
 - **CE:** `interpreter.cc:865-1410`, the comparison operators switch on `VALUE_TYPE_*`. int vs ptr compares the pointer value, so a null object equals 0. int vs string formats with `%d` and uses `strcmp`. They push an int 0/1.
 - **DH2:** `vm.ts:252-269` uses JS `==` / `<`. `vm_bridge.ts:37-39` pushes the raw intrinsic result: `null` (e.g. `critter_inven_obj` at `scripting.ts:1494-1504`, `create_object_sid` refusals at 1895-1902), `undefined` (`map_var` without a map script) or booleans. `null == 0` and `undefined == 0` are false.
 - **Impact:** SSL like `if (obj == 0)` or `if (item != 0)` takes the wrong branch on the VM backend. Booleans also reach intrinsics and GVAR/LVAR storage as `true` / `false`. The Lua backend normalises (`luaRuntime.ts sslValue`), so the two backends disagree.
 - **Fix:** Normalise in `bridged()` and `builtin()` (null/undefined → 0, boolean → 0/1), and push `+result` from the comparison ops and `!`.
 - **Ref:** NEW.
 
-### SCR-07 — script requests run at once (MED)
+### SCR-07 — script requests run at once (MED) — **FIXED 2026-10-25**
 - **CE:** `scripts.cc:894 scriptsHandleRequests`, called from the game loop after the script returns. Combat (`_combat`), town map, world map, elevator, explosion (`actionExplode`), dialogue, endgame (slideshow, then movie), looting and stealing are all deferred through `gScriptsRequests`.
 - **DH2:** Dialogue and `load_map` are deferred (`scripting.ts:3435-3459`). The others run inside the intrinsic:
   - `attack_setup` / `attack_complex` → `Combat.start` (`scripting.ts:1734`, `2645`);
@@ -291,7 +291,7 @@ Top findings, most severe first:
 - **Fix:** Add a request bitfield as CE has, and handle it at the start of `tickGame` next to `processDialogueRequest`.
 - **Ref:** NEW (C30 ported the combat-start data but not the deferral).
 
-### SCR-08 — scripts keep running after a fatal error (MED)
+### SCR-08 — scripts keep running after a fatal error (MED) — **FIXED 2026-10-25**
 - **CE:**
   - `interpreter.cc:2632-2636`: the `setjmp` return sets `program->flags |= PROGRAM_FLAG_EXITED | PROGRAM_FLAG_0x04`.
   - `scripts.cc:1302`: `if ((program->flags & 0x0124) != 0) return 0;`. Every later proc of that script is skipped until the script is loaded again on the next map load.
@@ -300,14 +300,14 @@ Top findings, most severe first:
 - **Fix:** Keep a per-VM `dead` flag that `call()` checks, reset by `loadScript`. Mirror it in Lua (`step` on error).
 - **Ref:** NEW.
 
-### SCR-09 — no obj_dude script (MED, impact unverified)
+### SCR-09 — no obj_dude script (MED, impact unverified) — **FIXED 2026-10-25**
 - **CE:** `scripts.cc:1460 scriptsSetDudeScript` (`object.cc:3649/3660`) gives the dude sid 0x4000000, script index 0 = `obj_dude.int`. It is in the critter list, so it gets the `critter_p_proc` round-robin and `start` / `map_enter` / `map_update`. Its `timed_event_p_proc` receives `add_timer_event(dude_obj, …)`.
 - **DH2:** `globalState.player._script` is undefined. `add_timer_event` with `dude_obj` warns and does nothing (`scripting.ts:3073-3076`).
 - **Impact:** Whatever `obj_dude.int` does (not inspected; no `.int` data in the repo) never happens. Any script's `add_timer_event(dude_obj, …)` is lost.
 - **Fix:** Load `obj_dude` (scripts.lst index 1, 1-based) as the player's script at game start, and include it in the critter round-robin and the map proc loops.
 - **Ref:** NEW.
 
-### SCR-10 — queue save/load identity and type routing (MED, save/load)
+### SCR-10 — queue save/load identity and type routing (MED, save/load) — **PARTLY FIXED 2026-10-25**
 - **CE:** `queue.cc:84 queueLoad` / `191 queueSave` store the event type, absolute time and owner **object id**. On load, each type's `readProc` rebuilds the event's data.
 - **DH2:** `scripting.ts:375 getTimedEventsSerialized` stores `objPid` and the userdata. `saveload.ts:423` resolves the owner with `mapObjects.find(o => o.pid === ev.objPid)`, which picks the first same-PID object.
   - Only drug, withdrawal, sneak, radiation and poison are rebuilt.
@@ -324,7 +324,7 @@ Top findings, most severe first:
 - **Fix:** Confirm with an opcode / procedure-table scan of the shipped scripts before changing anything.
 - **Ref:** NEW.
 
-### SCR-12 — sfall opcode coverage; unknown opcodes are misread as a dialogue suspension (MED for mods)
+### SCR-12 — sfall opcode coverage; unknown opcodes are misread as a dialogue suspension (MED for mods) — **PARTLY FIXED 2026-10-25**
 - **CE:** `sfall_opcodes.cc` registers 83 opcodes; an unregistered opcode is `programFatalError("Undefined opcode")`.
 - **DH2:** 36 of them are bridged (see the table). `vm.ts:495-506` returns `false` from `step()`, so `run()` halts with the −1 sentinel still on `retStack`. `call()` (`vm.ts:407-421`) then treats the frame as halted in `gsay_end` and stores it in `suspended`. The next `resume()` continues it from whatever address is on top of the stored return frame.
 - **Impact:** Mods that use sfall string or math functions (`substr`, `strlen`, `atoi`, `sqrt`, `round`, `^`, sfall gvars) break silently, and `resume()` can later run a half-finished procedure. Vanilla is not affected (C54 scan).

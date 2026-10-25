@@ -191,9 +191,11 @@ LOW findings are listed in each report only.
 | | INV-14, ITEM-19 | an armed explosive dropped from the inventory runs the same watcher check when it closes; non-biped critters without CRITTER_BARTER take no items |
 | World | WM-06, WM-08 | town-map entrances at −1/−1 are not shown, labels are worldmap.msg 200 + 10 × area + index; a known area marked visited clears the fog around it (state 1 makes its subtile known) |
 | | OBJ-03 | objects created at runtime take their proto's light (and relight the map) |
-| | OBJ-04 | the automap marks CE's seen band (32 rows × 40 tiles around the dude's 8-tile block) |
+| | OBJ-04, AUTO-01 (part) | the automap marks CE's seen band (32 rows × 40 tiles around the dude's 8-tile block) |
 | | OBJ-06, MOUSE-06 (part) | object picking: the bottom object can be picked, hidden objects are skipped, a wall's egg-transparent part and dead / knocked-out critters lose to what lies under them (falling back to them). Still open: no pick through a visible roof |
 | | TILE-02 | hex → roof square is CE's `(x >> 1, y >> 1)` (odd hex rows were one square south) |
+| | MAP-02 | exit grids follow CE's mapHandleTransition: map 0 / −2 world map, −1 town map; another map (or this one at the current elevation) reloads; the dude lands on the grid's tile, elevation and rotation after the map's scripts ran (header start on the Modoc B&B / Squat A maps); in combat the fight ends first |
+| Input | PREF-01 | Shift inverts the running preference on a move click |
 | UI | CHAR-03, OPT-01 | the character screen, Options and the Skilldex are modal (the map pauses, game keys don't reach it); character screen keys Return / D done, Esc / C cancel |
 | | CHAR-04, HUD-01 | CANCEL on the character screen restores perks, traits, the free perk, SPECIAL / HP and skills; the LEVEL light follows CE's level-up flag (on at a level-up, off when the screen opens; saved) |
 | | HUD-02 | the HUD reload spends AP only when something loaded, plays the weapon's ready sound, prints nothing when short of AP |
@@ -207,11 +209,25 @@ LOW findings are listed in each report only.
 | | MOUSE-05 | the hex cursor shows the move's AP cost in combat (white) or a red X (too far / no path) after 250 ms |
 | Sound | SND-02 | sounds of items, critters and scenery (weapon fire and hits, character and door sounds, explosions) play at full volume on screen; off screen full up to PE hexes, falling to ⅓ at 2 × PE (`src/soundVolume.ts`) |
 | | SND-05 | combat attack / hit sounds use CE's `sfxBuildWeaponName` (variant 2 for burst / secondary modes, the target's material, X for plasma / EMP / explosion); a missing file is silent (no invented fallbacks) |
-| | MSG-01 | the language filter masks the badwords.txt words in script dialogue and AI combat lines (`src/badwords.ts`, CE's rule including its start-of-message quirk) |
+| | MSG-01, PREF-02 | the language filter masks the badwords.txt words in script dialogue and AI combat lines (`src/badwords.ts`, CE's rule including its start-of-message quirk) |
 
-Fixed earlier with the HIGH groups: INV-02 (PA8), ITEM-15 (PA9), CRIT-02 (PA12), ITEM-17 (PA18), WM-04 / WM-09 (PA21), WM-07 (PA23).
+Fixed earlier with the HIGH groups: INV-02 (PA8), ITEM-15 (PA9), CRIT-02 (PA12), ITEM-17 (PA18), WM-04 / WM-09 (PA21), WM-07 (PA23). Already in the code when audited: TILE-03 (`camera.ts playerLimitRefuses`, on by default).
 
-Still open from these groups: COMBAT-13 (Glovz / YAAM opt-in formulas), MOUSE-06 roof test. MOUSE-01 / MOUSE-02 are the documented action-menu approximation (CLAUDE.md, README).
+Status of the 120 MED findings with their own section in `ce_audit/` (each header there is marked FIXED /
+PARTLY FIXED): 104 fixed, 8 partly fixed, 8 open or not ported:
+
+- **Open:** INV-12 (context menus in the loot / barter / steal windows and on the hand slots), INV-13 (nested
+  containers), PIP-01 (the AUTOMAPS tab's city / map lists), CHAR-06 (PRINT and the creation OPTIONS), COMBAT-13
+  (the Glovz / YAAM opt-in damage formulas; conflicts with known_bugs C3).
+- **Partly fixed, rest open:** AUTO-01 (no High / Low detail switch; the scanner and the seen band are CE's), SCR-05 (object `start` still runs at script load), SCR-10 (flare / explosive timed
+  events not restored), SCR-12 (sfall string / math opcodes), DLG-04 (page keys, control / customise keys),
+  ACT-07 (weapon put away / taken out around the climb), ANIM-02 (AP still charged up front), MOUSE-06 (no pick
+  through a visible roof).
+- **Checked, not ported:** SCR-11 — a scan of the 1443 shipped `.int` files shows procedure index 1 is the pure
+  `checkPartyMembersNearDoor` helper in 1212 of them (CE's fallback has no effect there) and `start` in about 210;
+  CE would re-run `start` when an unguarded proc (`critter_p_proc`, `look_at_p_proc`, …) is missing. Left as DH2's
+  "no proc, nothing runs".
+- **Approximations kept:** MOUSE-01 / MOUSE-02, the documented action-menu approximation (CLAUDE.md, README).
 
 ## 4. Conflicts with the wiki / known_bugs (flagged, not resolved)
 

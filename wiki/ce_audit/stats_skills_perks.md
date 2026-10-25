@@ -228,7 +228,7 @@ Top findings (by severity):
 
 ## Detailed findings
 
-### STAT-01 — No bonus-stat layer: Max HP, level-up HP and level-up SP read drug/radiation/perk/armor SPECIAL
+### STAT-01 — No bonus-stat layer: Max HP, level-up HP and level-up SP read drug/radiation/perk/armor SPECIAL — **FIXED 2026-10-24 (PA4)**
 - **CE:** `stat.cc:554 critterUpdateDerivedStats` — `baseStats[MAX_HP] = baseWithTrait(ST) + 2·baseWithTrait(EN) + 15`;
   `stat.cc:731 pcAddExperienceWithOptions` / `pcSetExperience` — `hpPerLevel = baseWithTrait(EN)/2 + 2 + 4·Lifegiver`;
   `character_editor.cc characterEditorUpdateLevel` — `sp += baseWithTrait(IN)·2`. Drugs (`item.cc` →
@@ -246,7 +246,7 @@ Top findings (by severity):
   `wiki/perks_traits.md:299` and `wiki/character_stats.md:443` document "no separate bonus layer" but not these
   consequences. **NEW.**
 
-### STAT-02 — Derived-stat clamp applied after perk/trait/radiation deltas
+### STAT-02 — Derived-stat clamp applied after perk/trait/radiation deltas — **FIXED 2026-10-25**
 - **CE:** derived base = `max(ST−5,1)` / `max(EN/3,1)`; bonus (Bonus HtH Damage +2/rank, Faster Healing +2/rank,
   radiation HR −3/−5/−10) added in `critterGetStat`, then clamped to the table range (Melee 0..500, Healing Rate 0..30).
 - **DH2:** `skills.ts:121/124` — `Melee` min 1, `Healing Rate` min 1, the perk delta sits in the base, so
@@ -255,7 +255,7 @@ Top findings (by severity):
   radiation can't lower HR below 1 (CE: 0). **Fix:** keep the `max(…,1)` in the formula and the delta outside it
   (bonus layer), table mins 0. **NEW.**
 
-### SKILL-01 — Proto critters' skills are `defaultValue` points low
+### SKILL-01 — Proto critters' skills are `defaultValue` points low — **FIXED 2026-10-24 (PA3)**
 - **CE:** `skill.cc:230 skillGetValue` — `defaultValue + statModifier·(stat1+stat2) + skills[skill]·mult`, where
   `skills[]` is the proto's raw invested value (`tools/proto.py:246 readCritterSkills` stores exactly that).
 - **DH2:** `src/char.ts:66 getBase` returns the raw proto value; `get()` computes `invested = base − startValue`
@@ -266,14 +266,14 @@ Top findings (by severity):
 - **Fix:** in `SkillSet.fromPro`, store `startValue + raw` (consistent with the player representation), or
   track invested points separately. **NEW.**
 
-### TRAIT-01 — Fast Metabolism removes all radiation/poison resistance
+### TRAIT-01 — Fast Metabolism removes all radiation/poison resistance — **FIXED 2026-10-25**
 - **CE:** `trait.cc:262` — modifier `−critterGetBaseStat(RAD_RES)` / `−(POISON_RES)` (the derived 2·EN / 5·EN
   only); bonus (Rad-X +50 via drug bonus) and Vault City Inoculations (+10, added after) remain.
 - **DH2:** `src/player.ts:167` — `return 0`.
 - **Impact:** Rad-X does nothing for a Fast Metabolism character; Inoculations neither. **Fix:** subtract only the
   derived part (needs STAT-01's bonus layer, else `2·END`/`5·END`). **NEW.**
 
-### TRAIT-02 — Small Frame carry penalty uses the wrong strength; overload AP ignores Small Frame
+### TRAIT-02 — Small Frame carry penalty uses the wrong strength; overload AP ignores Small Frame — **FIXED 2026-10-25**
 - **CE:** `trait.cc:243` — `−10·critterGetBaseStat(gDude, ST)` (raw proto base, no trait/bonus). Overload in
   `stat.cc:200` uses `critterGetStat(CARRY_WEIGHT)` (trait included).
 - **DH2:** `src/player.ts:162` — `−10·stats.getBase('STR')` (includes Bruiser +2, Gifted +1, Buffout, Gain
@@ -282,7 +282,7 @@ Top findings (by severity):
   characters lose fewer AP than CE. **Fix:** subtract the trait's ST from the base for the penalty; use
   `this.getStat('Carry')` in the overload branch. **NEW.**
 
-### CRIT-01 — Script kills run destroy_p_proc
+### CRIT-01 — Script kills run destroy_p_proc — **FIXED 2026-10-25**
 - **CE:** `critter.cc:818 critterKill` never runs SCRIPT_PROC_DESTROY; it `scriptRemove`s the sid. Only
   `combat.cc:4857 _damage_object` and `combat.cc:6018 _combatKillCritterOutsideCombat` run destroy_p_proc first.
   `opKillCritter` (`interpreter_extra.cc:2301`) / `kill_critter_type` → `critterKill` directly.
@@ -292,7 +292,7 @@ Top findings (by severity):
   skips (with `source_obj = 0`). **Fix:** pass `useScript=false` from the non-combat callers and drop the corpse's
   script like CE. **NEW.**
 
-### CRIT-02 — Dead party members stay in the party
+### CRIT-02 — Dead party members stay in the party — **FIXED 2026-10-24 (PA12)**
 - **CE:** `critterKill` → `partyMemberRemove(critter)` first.
 - **DH2:** `lifecycle.ts` never calls `gParty.removePartyMember`; `party.ts` has no dead filter (only some callers
   filter `!dead`, e.g. encounters.ts:254, party_member_list).
@@ -300,14 +300,14 @@ Top findings (by severity):
   hidden members, `party_member_count`, level-ups). **Fix:** remove from party in `critterKill`. **NEW**
   (cross-check with dialogue_party audit).
 
-### RAD-01 — Radiation HP effect bypasses critterAdjustHitPoints
+### RAD-01 — Radiation HP effect bypasses critterAdjustHitPoints — **FIXED 2026-10-25**
 - **CE:** `_process_rads` → `critterSetBonusStat(STAT_CURRENT_HIT_POINTS, ±n)` → `critterAdjustHitPoints`
   (capped at Max HP; kill at ≤ 0).
 - **DH2:** `src/radiation.ts:166` `modifyBase('HP', delta)`; `StatSet` clamps HP to 0..999 only.
 - **Impact:** the 7-day recovery returns 5/15/20 HP even if the player healed in the meantime → HP above Max HP.
   **Fix:** use a capped HP adjust for the HP entry. **NEW.**
 
-### CRIT-03 — critterGetName ignores scrname.msg
+### CRIT-03 — critterGetName ignores scrname.msg — **FIXED 2026-10-25**
 - **CE:** `critter.cc:235` — `scrname.msg` entry `101 + scriptIndex` (if non-empty) wins over `protoGetName`.
 - **DH2:** `src/object/Critter.ts:210` — proto name (`pro_crit`) only; no `scrname` anywhere in src/ or tools/.
 - **Impact:** script-specific critter names (look-at, combat messages, `obj_name`) can differ. Exact impact depends

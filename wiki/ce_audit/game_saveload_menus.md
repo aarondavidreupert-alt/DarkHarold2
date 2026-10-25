@@ -333,7 +333,7 @@ Top findings:
 
 ## Detailed findings
 
-### SAVE-01 — Preferences are part of a CE save
+### SAVE-01 — Preferences are part of a CE save — **FIXED 2026-10-25**
 - **CE:** `loadsave.cc:240` `_master_load_list[17] = preferencesLoad`; `preferences.cc:823 preferencesSave` writes game/combat
   difficulty, violence, target highlight, combat looks/messages/taunts, language filter, running, subtitles, item highlight,
   combat speed, player speedup, text delay, four volumes, brightness, mouse sensitivity; `preferencesLoad` (`:860`) reads them,
@@ -345,7 +345,7 @@ Top findings:
 - **Wiki conflict:** `wiki/save_load.md` §9 "Not saved, as in CE …: preferences (CE keeps them in fallout2.cfg …)" contradicts
   CE source — flag for the save_load.md owner. NEW.
 
-### SAVE-02 — Combat state not saved
+### SAVE-02 — Combat state not saved — **FIXED 2026-10-25**
 - **CE:** `combat.cc:2214 combatSave` (state, `_combat_turn_running`, free move, XP, combatant list by cid, AI info);
   `lsgLoadGameInSlot` (`loadsave.cc:1703`) ends a running fight with `_combat_over_from_load`, then `combatLoad` resumes the saved one.
 - **DH2:** `uiSaveLoad` has no combat check; `gatherSaveData` stores no combat; `load` (`saveload.ts:336`) force-ends combat.
@@ -354,7 +354,7 @@ Top findings:
 - **Fix:** either serialize `Combat` (turn order by object id, current index, AP, `free_move`) or, minimally, refuse saving
   while `inCombat` with a message (not CE, but honest). NEW.
 
-### SAVE-03 — Timed events keyed by PID
+### SAVE-03 — Timed events keyed by PID — **FIXED 2026-10-25**
 - **CE:** `queue.cc:191 queueSave` writes the owner's **object id**; `queueLoad` resolves it with `objectFindById`.
 - **DH2:** `scripting.ts:375 getTimedEventsSerialized` writes `objPid`; `saveload.ts:422` re-attaches with
   `mapObjects.find(o => o.pid === ev.objPid)`.
@@ -362,7 +362,7 @@ Top findings:
   the others never fire after a load. Timers whose owner isn't on the current map are silently dropped.
 - **Fix:** give objects a persistent id (they're serialized per map) and key on it; fall back to PID+position. NEW (refines U7).
 
-### OPT-01 — Options window and Skilldex are not modal
+### OPT-01 — Options window and Skilldex are not modal — **FIXED 2026-10-25**
 - **CE:** `showOptions` / `skilldexOpen` run their own input loop; the map is frozen and no game key reaches `gameHandleKey`.
 - **DH2:** `ui_options.ts:759 showOptionsMenu` and `ui_skilldex.ts:210 showSkilldex` only show a `WindowFrame`; `uiMode` stays
   `none` (no code sets `UIMode.options` or `UIMode.skilldex`), so `gameTick.ts:132` keeps the world running and
@@ -372,20 +372,20 @@ Top findings:
 - **Fix:** set `globalState.uiMode = UIMode.options` / `UIMode.skilldex` on show and restore on close (the enums exist).
   (The character screen appears to have the same gap — outside this scope, unverified.) NEW.
 
-### MENU-01 — Main-menu OPTIONS
+### MENU-01 — Main-menu OPTIONS — **FIXED 2026-10-25**
 - **CE:** `main.cc:196` `MAIN_MENU_OPTIONS` → `doPreferences(true)` (the preferences screen only).
 - **DH2:** `ui_mainmenu.ts:197` → `showOptionsMenu()` (Save/Load/Preferences/Exit window, `z-index:20`) while the main-menu overlay
   (`z-index:1000`) stays visible — the window is most likely hidden behind it (render unverified), and its key handler is live:
   **S** opens the save screen for the hidden background map.
 - **Fix:** call `openPrefsPanel()` (export it) above the menu overlay. NEW.
 
-### MENU-02 — Cancel on main-menu LOAD GAME
+### MENU-02 — Cancel on main-menu LOAD GAME — **FIXED 2026-10-25**
 - **CE:** `main.cc:151-186` — whether the load succeeds or not, the menu loop resumes (`mainMenuWindowInit`).
 - **DH2:** `ui_mainmenu.ts:192` hides the menu, `ui_saveload.ts:269 close()` sets `uiMode = none` and nothing re-shows the menu:
   the player is dropped onto the background `artemple` map with the placeholder character. MED.
 - **Fix:** pass an `onCancel` to `uiSaveLoad` from the main menu that calls `showMainMenu()`. NEW.
 
-### END-01 — `endgame_slideshow` skips the credits
+### END-01 — `endgame_slideshow` skips the credits — **FIXED 2026-10-25**
 - **CE:** `interpreter_extra.cc:4573 opEndgameSlideshow` → `scriptsRequestEndgame()`; `scripts.cc:1012` runs
   `endgamePlaySlideshow(); endgamePlayMovie();` — the slideshow has no continue dialog of its own; `endgamePlayMovie` plays akiss,
   the credits and then asks "Continue playing?" (`endgame.cc:234-258`).
@@ -394,20 +394,20 @@ Top findings:
 - **Impact:** finishing the game shows the slides but never the end credits. (`wiki/endgame.md` §1 documents the CE chain correctly.)
 - **Fix:** at the end of `playSlideshow`, `await playMovie()` instead of the continue dialog. NEW.
 
-### PREF-01 — Shift doesn't invert running
+### PREF-01 — Shift doesn't invert running — **FIXED 2026-10-25**
 - **CE:** `game_mouse.cc:936-948` — in move mode, Shift held walks when "running" is on and runs when it is off.
 - **DH2:** `playerUse.ts:248/266` use `Config.engine.doAlwaysRun` only; no `shiftKey` test anywhere in `src/` except the camera debug.
 - **Impact:** with the CE default (walk), there is no way to run with a single click — a core control. MED.
 - **Fix:** pass `e.shiftKey` from the map click into `playerUse` and XOR it with `doAlwaysRun`. NEW.
 
-### PREF-02 — Language filter has no filtering
+### PREF-02 — Language filter has no filtering — **FIXED 2026-10-25**
 - **CE:** `message.cc:552 messageListFilterBadwords` on every script message list (`scripts.cc:2703`) and on combatai.msg
   (`combat_ai.cc:3572`, reloaded by `aiMessageListReloadIfNeeded` when the preference changes); `badwords.txt`.
 - **DH2:** `Config.ui.languageFilter` is read only by metarule 10 (`scripting.ts:857`); no `badwords` code exists.
 - **Impact:** the option is visible but does nothing for dialogue/taunt text. MED (AF17 only wired the metarule).
 - **Fix:** load `data/badwords.txt` and replace matches with `gBadwordsReplacements` chars when building msg lists. NEW.
 
-### AUTO-01 — Automap is a DH2 approximation
+### AUTO-01 — Automap is a DH2 approximation — **PARTLY FIXED 2026-10-25**
 - **CE:** `automap.cc:298 automapShow` — `_obj_process_seen()` marks objects seen; walls (green 992) and, in High detail, scenery
   (480) on seen tiles; dude red; **S** (scanner button) needs a Motion Sensor in a hand with charges, consumes one and shows
   critters (misc.msg 17/18 otherwise); **H/L** and the switch toggle detail; Tab/Esc/A close; Ctrl+Q/Alt+X/F10 quit.

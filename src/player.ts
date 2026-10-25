@@ -389,26 +389,45 @@ export class Player extends Critter {
             if (objs[i].type === 'misc' && objs[i].extra && objs[i].extra.exitMapID !== undefined) {
                 // walking on an exit grid
                 // todo: exit grids are likely multi-hex (maybe have a set?)
-                var exitMapID = Number(objs[i].extra.exitMapID) || -1
-                var startingPosition = fromTileNum(Number(objs[i].extra.startingPosition) || 0)
-                var startingElevation = Number(objs[i].extra.startingElevation) || 0
+                // CE object.cc (dude on an exit grid) → map.cc mapSetTransition / mapHandleTransition:
+                // map 0 → -2; -1 the town map, -2 the world map; another map — or this one at the
+                // current elevation — is (re)loaded; then a tile other than -1 / 0 places the dude
+                // there with the grid's elevation and rotation (not on the Modoc B&B / Squat A maps:
+                // the header start).
+                const ex = objs[i].extra
+                let exitMapID = Number(ex.exitMapID)
+                if (!Number.isFinite(exitMapID) || exitMapID === 0) exitMapID = -2
+                const tile = Number(ex.startingPosition ?? -1)
+                const startingElevation = Number(ex.startingElevation) || 0
+                const rotation = Number(ex.startingOrientation) || 0
                 this.clearAnim()
+                // CE mapSetTransition in combat: _game_user_wants_to_quit ends the fight first
+                if (globalState.inCombat && exitMapID < 0) {
+                    globalState.combat?.forceEnd()
+                    globalState.inCombat = false
+                }
 
-                if (startingPosition.x === -1 || startingPosition.y === -1 || exitMapID < 0) {
-                    // world map
+                if (exitMapID === -1) {
+                    dbg('map', 'exit grid -> town map')
+                    uiWorldMap(true)
+                } else if (exitMapID < 0) {
                     dbg('map', 'exit grid -> worldmap')
                     uiWorldMap()
                 } else {
-                    // another map
-                    dbg('map', `exit grid -> map ${exitMapID} elevation ${startingElevation} @ ${startingPosition.x}, ${startingPosition.y}`)
-                    if (exitMapID === globalState.gMap.mapID) {
-                        // same map, different elevation
-                        globalState.gMap.changeElevation(Number(startingElevation) || 0, true)
-                        globalState.player.move(startingPosition)
-                        centerCamera(globalState.player.position)
-                    } else {
-                        globalState.gMap.loadMapByID(exitMapID, startingPosition, startingElevation)
+                    const gMap = globalState.gMap
+                    const placeOnTile = tile !== -1 && tile !== 0 && exitMapID !== 19 /* MAP_MODOC_BEDNBREAKFAST */
+                        && exitMapID !== 37 /* MAP_THE_SQUAT_A */ && startingElevation >= 0 && startingElevation <= 2
+                    const position = placeOnTile ? fromTileNum(tile) : undefined
+                    dbg('map', `exit grid -> map ${exitMapID} elevation ${startingElevation} @ ${tile}`)
+                    if (exitMapID !== gMap.mapID || gMap.currentElevation === startingElevation) {
+                        gMap.loadMapByID(exitMapID, position, placeOnTile ? startingElevation : undefined, placeOnTile ? rotation : undefined)
                         Events.emit('mapTransition', exitMapID) // CE mapHandleTransition → wmTeleportToArea
+                    } else if (position) {
+                        // same map, another elevation: no reload
+                        gMap.changeElevation(startingElevation, true)
+                        globalState.player.move(position)
+                        globalState.player.orientation = rotation
+                        centerCamera(globalState.player.position)
                     }
                 }
 

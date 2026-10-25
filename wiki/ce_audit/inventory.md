@@ -83,7 +83,7 @@ Top findings (by severity):
 
 ## Detailed findings
 
-### INV-01 — `obj_is_carrying_obj_pid` counts stacks, not items (HIGH, NEW)
+### INV-01 — `obj_is_carrying_obj_pid` counts stacks, not items (HIGH, NEW) — **FIXED 2026-10-24 (PA8)**
 - CE: `inventory.cc objectGetCarriedQuantityByPid` (via `interpreter_extra.cc:1040 opObjectIsCarryingObjectWithPid`).
 - DH2: `src/scripting.ts:1301-1317`.
 - **CE behaviour:** sums `inventoryItem->quantity` for every entry with the pid and recurses into each item's own inventory (bags). For the dude, wielded and worn items are ordinary inventory entries (flagged OBJECT_IN_*_HAND / OBJECT_WORN), so they count too.
@@ -91,24 +91,24 @@ Top findings (by severity):
 - **Impact:** quest and dialogue checks like "bring me 5 X", "do you have the holodisk / the gun", and "is the dude wearing armor X" get the wrong count. A wielded quest weapon counts as "not carried". Wide blast radius across the 1288 scripts.
 - **Fix:** sum `amount` recursively and, for the dude, add the equipped slots (as `unequipForRemoval` does for removal). The same applies to INV-02.
 
-### INV-02 — `obj_carrying_pid_obj` misses bags and the dude's equipped items (MED, NEW)
+### INV-02 — `obj_carrying_pid_obj` misses bags and the dude's equipped items (MED, NEW) — **FIXED 2026-10-24 (PA8)**
 - CE: `objectGetCarriedObjectByPid` (recursive). DH2: `src/scripting.ts:1369`.
 - DH2 scans the top-level `inventory[]` only. A script that fetches the dude's wielded weapon or worn armor by pid (for example to `rm_obj_from_inven` it) gets 0.
 - **Fix:** recurse, and check `leftHand`, `rightHand` and `armor` for the dude.
 
-### INV-03 — Merchants and companions trade away their equipped weapon and armor (MED, NEW)
+### INV-03 — Merchants and companions trade away their equipped weapon and armor (MED, NEW) — **FIXED 2026-10-25**
 - CE: `inventory.cc:5040-5055 inventoryOpenTrade` removes `critterGetArmor` and `critterGetItem2` from the barterer before the window opens. If there is no right-hand item and the barterer is not a party member, it removes the first weapon instead (`_inven_find_type(…, ITEM_TYPE_WEAPON)`). All of them are re-added with their flags at exit.
 - DH2: `src/ui_barter/screen.ts:193-194`, `src/ui_companion_trade.ts` (`companion.inventory.map(cloneItem)`). NPC equipped items stay in `inventory[]` (`inventoryWield.ts` header, `Critter.ts:222`), so they appear and can be bought. After a deal, `merchant.inventory` is replaced by clones, so `merchant.rightHand` / `armor` keep pointing at objects no longer in the inventory.
 - **Impact:** you can buy a guard-merchant's gun or a vendor's armor, or strip a companion's armor through Trade, which CE forbids. Stale hand references follow.
 - **Fix:** filter out (or hold aside) the flagged hand / worn items (plus CE's first-weapon rule for vendors) when building the working inventory, and re-link the hand references to the new clones after a deal.
 
-### INV-04 — Stealing equipped items (MED, NEW)
+### INV-04 — Stealing equipped items (MED, NEW) — **FIXED 2026-10-25**
 - CE: `inventoryOpenLooting:4135-4148` (`_gIsSteal`) removes item1, item2 and armor from the target and restores them at exit.
 - DH2: `src/ui_steal.ts:221` shows `target.inventory` in full; `uiSwapItem` moves the item without clearing `target.rightHand` / `armor`.
 - **Impact:** you can pickpocket a raider's wielded weapon or worn armor, and the NPC keeps fighting with a weapon that is now in your inventory (shared object).
 - **Fix:** exclude the hand / worn flagged items from the steal view.
 
-### INV-05 — Looting skips pickup_p_proc / NO_STEAL / hidden items (MED, NEW)
+### INV-05 — Looting skips pickup_p_proc / NO_STEAL / hidden items (MED, NEW) — **FIXED 2026-10-25**
 - CE: `inventoryOpenLooting:4067-4111`:
   - `CRITTER_NO_STEAL` → msg 50 "You can't find anything to take from that." and return.
   - Not stealing → the target's `pickup_p_proc` (source = looter); `script_overrides` aborts.
@@ -118,23 +118,23 @@ Top findings (by severity):
 - **Impact:** script-protected containers and corpses (scripts that react to looting, or override it) don't work. NO_STEAL critters (some bodies flagged so) can be looted. Script-hidden inventory shows up.
 - **Fix:** port the pre-checks into `uiLoot` (or a wrapper), plus the hidden-items filter.
 
-### INV-06 — A knocked-out target opens the steal window (MED, NEW)
+### INV-06 — A knocked-out target opens the steal window (MED, NEW) — **FIXED 2026-10-25**
 - CE: `inventoryOpenStealing:4510` `_gIsSteal = … && critterIsActive(target)`; `critterIsActive` is false for DAM_KNOCKED_OUT | DAM_DEAD, so a KO target opens a plain loot window (no rolls, no XP, nothing hidden).
 - DH2: `src/playerUse.ts:141-146` checks only `target.dead`; the comment claims KO targets loot freely, but the code sends them to `uiSteal`.
 - **Fix:** `if (target.dead || (target.injuryFlags & DAM_KNOCKED_OUT)) uiLoot(target)`.
 
-### INV-07 — Inventory in combat without enough AP (MED, NEW)
+### INV-07 — Inventory in combat without enough AP (MED, NEW) — **FIXED 2026-10-25**
 - CE: `inventoryOpen:566-590`: with 4 − 2×QP AP required and fewer AP left → inventry.msg 19 "You don't have enough action points to use inventory" and no window. It also returns unless it is the dude's turn.
 - DH2: `src/ui_inventory/panel.ts:134-142`: `subtractCombatAP` returns false when short (`combat/actionPoints.ts:74`), the result is ignored, and the window opens for free.
 - **Fix:** check `getAvailableCombatAP() < apCost` → uiLog(msg 19) and don't open.
 
-### INV-08 — Barter merchant-table price and trade feedback (MED, NEW)
+### INV-08 — Barter merchant-table price and trade feedback (MED, NEW) — **FIXED 2026-10-25**
 - CE: `inventoryWindowRenderInnerInventories:4999-5010` prints `$<_barter_compute_value>` under the merchant's table (for party members, msg 30 + weight). `inventoryOpenTrade` shows msg 27 "Ok, that's a good trade." after a successful vendor deal; `T` = talk, `M` = offer.
 - DH2: `src/ui_barter/screen.ts:462-466` shows the raw cost sum on both sides; `offer()` succeeds silently; no keys.
 - **Impact:** the player can't see what the merchant actually wants (the price is often 2× or more the raw cost) and has to guess.
 - **Fix:** `$id('barterBoxRightAmount').textContent = '$' + barterMinPlayerOffer(merchantBarterTable)`; add msg 27 and the T / M keys.
 
-### INV-09 — Inventory summary panel values (MED, NEW)
+### INV-09 — Inventory summary panel values (MED, NEW) — **FIXED 2026-10-25**
 - CE: `inventoryRenderSummary` uses `gSummaryStats` / `gSummaryStats2`: HP cur/max, `STAT_ARMOR_CLASS`, and for Normal / Laser / Fire / Plasma / **Explode**, `DT/DR%` from the critter stats (armor plus perks, traits, drugs). Hand lines:
   - weapon: `Dmg: min-max(+Melee for melee/unarmed)`, plus `Rng:` only when range > 1 (or thrown), using the active (secondary) mode's range;
   - `Ammo: q/cap <ammo name>` when the weapon has capacity;
@@ -149,13 +149,13 @@ Top findings (by severity):
   - non-weapons print just the name.
 - **Fix:** use `getStat('AC')` and the critter DT/DR getters for every damage type (Explosion, not Electrical); port the hand-line rules.
 
-### INV-10 — Equipping fires pickup_p_proc; hand → armor slot accepts any item (MED, NEW)
+### INV-10 — Equipping fires pickup_p_proc; hand → armor slot accepts any item (MED, NEW) — **FIXED 2026-10-25**
 - CE: `_inven_pickup` / `_switch_hand` run no script proc. The armor slot accepts only `ITEM_TYPE_ARMOR` from any source (`inventory.cc:2440`).
 - DH2: `src/ui_inventory/dragdrop.ts:164-168` calls `Scripting.pickup(obj, player)` when an item goes into a hand. The cited "inventory.cc:4494" is the caught-stealing pickup, not equip. The armor-type guard at `:114` runs only for drags from the list; a drag from a hand slot to the armor slot (`data = 'leftHand'`) puts a weapon in `armor`.
 - **Impact:** scripted items' pickup_p_proc fires again on every equip (double rewards or messages, or a script refusing a pickup the player already made). A weapon can be "worn" as armor.
 - **Fix:** remove the pickup call; apply the armor-type check for every source.
 
-### INV-11 — Inventory "Look" skips the examine pipeline (MED, NEW)
+### INV-11 — Inventory "Look" skips the examine pipeline (MED, NEW) — **FIXED 2026-10-25**
 - CE: `inventoryExamineItem` → name, separator, `_obj_examine_func` (the item's `description_p_proc`, with override; proto description or msg 493; weapon "loaded with" line 526; ammo AC/DR/damage-mod lines 510-512), then "It weighs %d pound(s)." (proto.msg 540/541). In loot and barter windows Look prints `_obj_examine_func` to the monitor.
 - DH2: `src/ui_inventory/panel.ts:146 showItemInfo` → name + `getDescription()` only. `src/examine.ts:objExamine` implements the CE text but isn't used here.
 - **Fix:** render `objExamine(player, item)` lines plus the weight line.
@@ -174,12 +174,12 @@ Top findings (by severity):
 - DH2: nothing. Bag and backpack items are opaque; their contents can't be seen or moved, and nothing can be put in.
 - **Fix:** a container stack in the inventory, loot and barter views (the `Use` action on a container item, plus a back button / body-view drop target).
 
-### INV-14 — Dropping an armed explosive alerts no one (MED, NEW)
+### INV-14 — Dropping an armed explosive alerts no one (MED, NEW) — **FIXED 2026-10-25**
 - CE: context-menu Drop of an active explosive sets `_dropped_explosive`. At `_exit_inventory`, the critters in the would-be blast (`_compute_explosion_on_extras`) that are not on the dude's team and pass a PE `statRoll` mark the dude as who-hit-me; the first one requests combat.
 - DH2: no equivalent in `closeInventory` / `itemAction('drop')`.
 - **Fix:** set a flag on dropping an armed explosive (`explosiveIsActiveExplosive` pids) and port the watcher loop on close.
 
-### INV-15 — NPCs "wear" the first armor they carry (MED, NEW — DH2-only)
+### INV-15 — NPCs "wear" the first armor they carry (MED, NEW — DH2-only) — **FIXED 2026-10-25**
 - CE: `critterGetArmor` returns only the OBJECT_WORN item, else null.
 - DH2: `src/object/Critter.ts:336-347 getEquippedArmor` falls back to the first armor in the inventory.
 - **Impact:** vendors and NPCs carrying armor for sale or as loot get its AC / DR / DT in combat (`getArmorDR`) and in `critter_inven_obj(…, INVEN_TYPE_WORN)` (`scripting.ts:1486`), unlike CE. (Overlaps the combat audit; reported here because it is `critterGetArmor`.)

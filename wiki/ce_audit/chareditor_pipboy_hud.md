@@ -165,31 +165,31 @@ Top findings:
 
 ## Detailed findings
 
-### CHAR-01 — Level-up perk effects lost; Tag! does nothing (HIGH, NEW)
+### CHAR-01 — Level-up perk effects lost; Tag! does nothing (HIGH, NEW) — **FIXED 2026-10-24 (PA5)**
 - **CE**: `character_editor.cc characterEditorShow` → `characterEditorUpdateLevel` → `perkDialogShow`, then `perkDialogHandleTagPerk` / `perkDialogHandleMutatePerk` / the Lifegiver and Educated branches (lines 5933-5960). The perk changes the dude directly; the editor works on the live dude, so DONE keeps them. Tag! opens "PICK A NEW TAG SKILL" (editor.msg 155) and stores the skill in `gCharacterEditorTempTaggedSkills[3]`.
 - **DH2**: `src/ui_character/viewer.ts:436-437` clones `player.skills` (and stats), and only then (`:633`) opens `showPerkModal`. `applyPerk` (`src/perks/perks.ts:120-150`) changes `player.skills` (Educated `skillPoints += 2`, Tag! `hasTagPerk = true`, Here and Now → `addExperience` → level-up SP). DONE (`viewer.ts:617-620`) then writes the clone's `skillPoints` and `hasTagPerk` over them. Nothing in the game can tag a 4th skill (only the creator has tag toggles).
 - **Impact**: Educated's first-rank +2 SP is lost on DONE. Tag! is a wasted perk. Here and Now's level-up skill points are lost.
 - **Fix**: open the perk modal before cloning, or re-clone / merge `skillPoints` and `hasTagPerk` after the modal closes. Add a Tag! step (the perk window listing the untagged skills) that sets `tagged[3]`, and remove the perk if the player backs out (CE).
 
-### CHAR-02 — Trait skill modifiers not applied after creation (HIGH, NEW; the wiki is wrong)
+### CHAR-02 — Trait skill modifiers not applied after creation (HIGH, NEW; the wiki is wrong) — **FIXED 2026-10-24 (PA6)**
 - **CE**: `skill.cc skillGetValue` always adds `traitGetSkillModifier(skill)` for the dude (Gifted −10 to all, Good Natured +15 First Aid/Doctor/Speech/Barter and −10 to combat skills).
 - **DH2**: `SkillSet.get` (`src/char.ts:127-130`) applies them only when `options.traits` is passed. `Critter.getSkill` (`src/object/Critter.ts:307-315`) and the character screen (`viewer.ts:438`, `playerSkillOpts`) never pass `traits`. Only the creator (`creator.ts:84`) does. `applyCreationStats` doesn't bake them into the base either.
 - **Impact**: every skill check, the skill-point cost bands and the character screen read Gifted characters 10 % too high and Good Natured ones without the bonus or the penalty. `wiki/perks_traits.md` §1 ("skills read the traits live") contradicts the code. Flagged as a wiki/code conflict.
 - **Fix**: pass `traits: this.traits` in `Critter.getSkill` when `isPlayer`, and in the viewer's `playerSkillOpts`. The scripting `has_skill` path probably goes through `getSkill` (verify).
 
-### CHAR-03 — The character screen is not modal and has no keyboard input (MED, NEW)
+### CHAR-03 — The character screen is not modal and has no keyboard input (MED, NEW) — **FIXED 2026-10-25**
 - **CE**: `characterEditorShow` runs its own input loop (`GameMode::kEditor`); the game is paused. Keys: Return/D = done, ESC/C = cancel, P = print, Tab and arrows move the selection, +/− adjust skills, Ctrl-Q quits.
 - **DH2**: `showCharacterScreen` never sets `globalState.uiMode` (`UIMode.char` exists but is unused), so `gameTick.ts:132` keeps the world running and `input.ts:234` keeps sending game hotkeys (ESC opens the options menu, I the inventory…). The viewer has no key handler (the creator handles ESC only).
 - **Impact**: time, NPC movement and timed events go on while you read the screen; clicks on the map pass through around it.
 - **Fix**: set `uiMode = UIMode.char` on open and `none` on close, and add the CE keys (Return/D, ESC/C, P).
 
-### CHAR-04 — CANCEL keeps a perk taken in the level-up dialog (MED, NEW)
+### CHAR-04 — CANCEL keeps a perk taken in the level-up dialog (MED, NEW) — **FIXED 2026-10-25**
 - **CE**: `characterEditorRestorePlayer` → `_pop_perks` puts every perk back to its saved rank and restores `gCharacterEditorHasFreePerk`, the unspent SP, the tags, the traits and the HP. Cancelling a level-up undoes the perk, so it can be picked again next time.
 - **DH2**: `applyPerk` sets `pendingPerkPick = false` and pushes the perk right away; the viewer's CANCEL (`viewer.ts:159`) only closes the window.
 - **Impact**: the choice can't be taken back (CE allows it); with Mutate!, the trait swap stays.
 - **Fix**: snapshot perks, traits, `pendingPerkPick`, Max HP/HP and SP when the screen opens; restore them on CANCEL.
 
-### CHAR-05 — Creator ignores the trait SPECIAL bonuses in derived stats, skills and the "+" limit (MED, NEW)
+### CHAR-05 — Creator ignores the trait SPECIAL bonuses in derived stats, skills and the "+" limit (MED, NEW) — **FIXED 2026-10-25**
 - **CE**: `characterEditorAdjustPrimaryStat` lets "+" through only while `critterGetBaseStatWithTraitModifier + critterGetBonusStat < 10`. `critterUpdateDerivedStats` and `skillGetValue` use the trait-modified SPECIAL, so picking Bruiser or Gifted updates AP, carry weight, melee damage, HP and the skill % right away.
 - **DH2**: `creator.ts:304` checks `cur >= 10` on the base only. `renderStatPanels` and `SkillSet.get` get `newStatSet` (no trait SPECIAL, no `Player.getStat` trait effects). Only the SPECIAL bignums add the trait bonus by hand (`creator.ts:847`).
 - **Impact**: the creation screen shows the wrong HP, AP, carry weight, sequence, AC and skill % whenever a trait is picked. With Gifted you can raise a base stat to 10 (shown as 11) and only DONE refuses it (157/158).
@@ -200,13 +200,13 @@ Top findings:
 - **DH2**: PRINT label and button with no handler (`viewer.ts:154-155`); no OPTIONS button in the creator.
 - **Fix**: PRINT → a browser text download in CE's format; OPTIONS → save/load a GCD-equivalent JSON (localStorage or download).
 
-### HUD-01 — LEVEL indicator tied to unspent skill points (MED, NEW)
+### HUD-01 — LEVEL indicator tied to unspent skill points (MED, NEW) — **FIXED 2026-10-25**
 - **CE**: `interface.cc indicatorBarRefresh` shows LEVEL while `DUDE_STATE_LEVEL_UP_AVAILABLE` is set. It is set in `stat.cc:764` on level-up and cleared in `characterEditorShow` (line 1193) and `stat.cc:815`.
 - **DH2**: `ui_hud.ts:262` uses `skills.skillPoints > 0`.
 - **Impact**: banked skill points keep LEVEL lit forever; in CE it goes out once the character screen has been opened.
 - **Fix**: add a `levelUpAvailable` flag on Player: set it in `addExperience` on level-up, clear it when the character screen closes, save it.
 
-### HUD-02 — HUD reload charges AP even when nothing loads (MED, NEW)
+### HUD-02 — HUD reload charges AP even when nothing loads (MED, NEW) — **FIXED 2026-10-25**
 - **CE**: `interface.cc _intface_use_item` (RELOAD action, in combat): if `ap >= required` and `_intface_item_reload() == 0` (something loaded), subtract the AP. `_intface_item_reload` plays `sfxBuildWeaponName(WEAPON_SOUND_EFFECT_READY)`. With too few AP nothing happens and nothing is printed.
 - **DH2**: `ui.ts:253-267` subtracts the AP first, then `reloadWeapon`, whatever the result. It logs "You don't have enough action points." (an invented string) and plays no sound.
 - **Fix**: charge the AP only when `reloadWeapon()` returns true; drop the log line; play the weapon's ready sfx.

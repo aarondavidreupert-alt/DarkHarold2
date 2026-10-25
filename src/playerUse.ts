@@ -254,8 +254,9 @@ export function playerUse(obj: Obj | null) {
             }
 
             const maxWalkingDist = globalState.player.AP.getAvailableMoveAP()
-            if (Config.engine.doAlwaysRun) globalState.player.stopSneakToRun() // CE _dude_run
-            if (!globalState.player.walkTo(mouseHex, Config.engine.doAlwaysRun, undefined, maxWalkingDist)) {
+            const run = moveClickRuns()
+            if (run) globalState.player.stopSneakToRun() // CE _dude_run
+            if (!globalState.player.walkTo(mouseHex, run, undefined, maxWalkingDist)) {
                 dbg('map', '[Main] cannot walk there')
             } else {
                 if (!globalState.player.AP.subtractMoveAP(globalState.player.path.path.length - 1)) {
@@ -273,8 +274,9 @@ export function playerUse(obj: Obj | null) {
         }
 
         // Walking out of combat
-        if (Config.engine.doAlwaysRun) globalState.player.stopSneakToRun() // CE _dude_run
-        if (!globalState.player.walkTo(mouseHex, Config.engine.doAlwaysRun)) {
+        const run = moveClickRuns()
+        if (run) globalState.player.stopSneakToRun() // CE _dude_run
+        if (!globalState.player.walkTo(mouseHex, run)) {
             dbg('map', '[Main] cannot walk there')
         }
 
@@ -435,6 +437,16 @@ export function playerUse(obj: Obj | null) {
         // CE _action_climb_ladder: a ladder up is climbed from its SE neighbour
         globalState.player.walkInFrontOfToAct(obj.position, callback, 3, obj.isLadder && obj.pro?.extra?.subType === 3 ? hexInDirection(obj.position, 2) : undefined)
     }
+}
+
+// CE game_mouse.cc:937 _gmouse_handle_event (move mode): the running preference, inverted
+// while Shift is held
+let shiftHeld = false
+window.addEventListener('keydown', (e) => { if (e.key === 'Shift') shiftHeld = true })
+window.addEventListener('keyup', (e) => { if (e.key === 'Shift') shiftHeld = false })
+window.addEventListener('blur', () => { shiftHeld = false })
+function moveClickRuns(): boolean {
+    return Config.engine.doAlwaysRun !== shiftHeld
 }
 
 export function changeCursor(_image: string) {

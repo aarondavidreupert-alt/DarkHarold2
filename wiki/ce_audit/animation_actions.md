@@ -167,7 +167,7 @@ Top findings:
 
 ## Detailed findings
 
-### ACT-01 — `critter_dmg` is not `actionDamage` (HIGH, NEW)
+### ACT-01 — `critter_dmg` is not `actionDamage` (HIGH, NEW) — **FIXED 2026-10-24 (PA10)**
 - **CE:** `interpreter_extra.cc opCritterDamage` → `actions.cc actionDamage`, `_compute_dmg_damage`, `_report_dmg`.
 - **DH2:** `src/scripting.ts:1657 critter_dmg` → `critterDamage(obj, damage, self_obj, …, damageType, …, { scriptDamage: true })`.
 - **CE behaviour:**
@@ -195,7 +195,7 @@ Top findings:
   damage line the way `combatDisplay` does.
 - known_bugs: NEW.
 
-### ACT-02 — No AP limit or cost for use / pickup / loot / skill moves in combat (HIGH, NEW)
+### ACT-02 — No AP limit or cost for use / pickup / loot / skill moves in combat (HIGH, NEW) — **FIXED 2026-10-24 (PA18)**
 - **CE:** `_action_use_an_item_on_object`, `actionPickUp`, `_action_loot_container` and
   `actionUseSkill` all call `animationRegisterMoveToObject(..., critter->combat.ap)` in combat.
   `_check_scenery_ap_cost` (proto_instance.cc:1403) then takes 3 AP, or prints proto.msg 700
@@ -211,7 +211,7 @@ Top findings:
   `use` / `pickup` / loot (msg 700 if short).
 - known_bugs: NEW.
 
-### ANIM-01 — reg_anim delay semantics (MED, NEW)
+### ANIM-01 — reg_anim delay semantics (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `animation.cc animationRunSequence`, `_anim_set_continue`.
 - **DH2:** `src/scripting.ts:2926 reg_anim_end` (`doStep`).
 - **CE behaviour:** step 0 always starts at once.
@@ -227,7 +227,7 @@ Top findings:
   and block on −1 until all started steps are done.
 - known_bugs: NEW.
 
-### ACT-04 — Explosions lack `_report_explosion` and the explosion death anim (MED, NEW)
+### ACT-04 — Explosions lack `_report_explosion` and the explosion death anim (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `actions.cc actionExplode`, `_report_explosion`, `_show_damage_to_object`
   (`fid == buildFid(MISC, 10)` → EXPLODED_TO_NOTHING).
 - **DH2:** `src/object/Obj.ts:1281 explode`, `:1318 explosionBlast`.
@@ -248,7 +248,7 @@ Top findings:
   is the player, and log damage lines.
 - known_bugs: NEW (C32 covers the timer and damage only).
 
-### ACT-05 — No ANIM_POINT / ANIM_UNPOINT on ranged attacks (MED, NEW)
+### ACT-05 — No ANIM_POINT / ANIM_UNPOINT on ranged attacks (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `actions.cc _action_ranged`: `animationRegisterAnimate(attacker, ANIM_POINT, -1)`
   before the fire anim, and `ANIM_UNPOINT` after it unless the attacker is knocked down or dead.
   Throws use neither.
@@ -259,7 +259,7 @@ Top findings:
   attack with the existing action-frame callback, then `anim:44` (unpoint) before `proceed`.
 - known_bugs: NEW.
 
-### ANIM-02 — Walking never detects blockers mid-path; AP is taken up front (MED, NEW)
+### ANIM-02 — Walking never detects blockers mid-path; AP is taken up front (MED, NEW) — **PARTLY FIXED 2026-10-25**
 - **CE:** `animation.cc _object_move`. At each hex step it checks `_obj_blocking_at(next)`.
   A door the critter can use is opened. Any other blocker triggers a re-path
   (`_make_path(..., a5 = 1)`), or the walk ends when no path is left. In combat, each hex costs
@@ -275,7 +275,7 @@ Top findings:
   per hex.
 - known_bugs: NEW.
 
-### ANIM-03 — Run rules: Sneak, encumbrance, overloaded message (MED, NEW)
+### ANIM-03 — Run rules: Sneak, encumbrance, overloaded message (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `animation.cc animationRegisterRunToObject` / `RunToTile` and `reportOverloaded`.
 - **CE behaviour:**
   - The critter walks instead of running when it has a crippled leg, when it is the dude
@@ -290,7 +290,7 @@ Top findings:
   `critterIsEncumbered` → walk + message.
 - known_bugs: NEW.
 
-### ACT-06 — Pickup runs the script before walking (MED, NEW)
+### ACT-06 — Pickup runs the script before walking (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `actions.cc actionPickUp`: walk (run ≥ 5 out of combat; move AP in combat),
   `_is_next_to`, `_check_scenery_ap_cost`, ANIM_MAGIC_HANDS_GROUND, then on its action frame the
   item sfx and `_obj_pickup` (pickup_p_proc, carry check, add).
@@ -303,7 +303,7 @@ Top findings:
   the carry check and the add.
 - known_bugs: NEW.
 
-### ACT-07 — Ladder handling (MED/LOW, NEW)
+### ACT-07 — Ladder handling (MED/LOW, NEW) — **PARTLY FIXED 2026-10-25**
 - **CE:** `actions.cc _action_use_an_item_on_object` → `_action_climb_ladder`, only for
   `SCENERY_TYPE_LADDER_UP` (3) with no item. It walks to `tileGetTileInDirection(ladder, SE, 1)`,
   checks `_is_next_to`, rotates to the ladder, charges 3 AP in combat, puts the weapon away,

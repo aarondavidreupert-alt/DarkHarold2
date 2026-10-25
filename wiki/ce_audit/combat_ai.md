@@ -111,7 +111,7 @@ Top findings, most severe first:
 
 ## Detailed findings
 
-### AI-01 — `_ai_try_attack`: weapon safety switch, safe-distance step back and failed-approach flee are missing
+### AI-01 — `_ai_try_attack`: weapon safety switch, safe-distance step back and failed-approach flee are missing — **FIXED 2026-10-25**
 - CE: `combat_ai.cc:_ai_try_attack` (2710–2721, 2838–2843, 2881–2885)
 - DH2: `src/combat/Combat.ts:2160 aiTryAttackStep`, `:2289 aiWieldOrRetrieve`
 - CE behaviour:
@@ -123,7 +123,7 @@ Top findings, most severe first:
 - Suggested fix: on the first try-attack step, when a real weapon is held, call `combatSafetyInvalidateWeapon(..., withSafeDistance=true)` and, if it is unsafe, `aiSwitchWeapons`. Compute safeDistance (the damage radius when the attacker is inside it) and call `aiMoveAway(obj, target, safeDistance)` before attacking. On a failed approach move, call `aiRunAway` instead of attacking.
 - known_bugs: NEW. The no-step-back part is only noted in a code comment.
 
-### AI-02 — `critterSetTeam` side effects missing
+### AI-02 — `critterSetTeam` side effects missing — **FIXED 2026-10-25**
 - CE: `combat_ai.cc:critterSetTeam`; `interpreter_extra.cc:2898 opCritterAddTrait` (OBJECT_TEAM)
 - DH2: `src/scripting.ts:1210`
 - CE behaviour: the opcode ignores party members and same-value writes, and does nothing while loading. `critterSetTeam` sets the team, clears `whoHitMe` if that critter is now on the same team, clears `aiInfoSetLastTarget`, and re-outlines in combat.
@@ -132,7 +132,7 @@ Top findings, most severe first:
 - Suggested fix: add a `critterSetTeam(c, team)` helper in `whoHitMe.ts` mirroring CE and call it from `critter_add_trait` and `party.ts`, with the party-member and same-value guards in the opcode.
 - known_bugs: NEW.
 
-### AI-03 — `aiFindAttackers` ignores dead team-mates
+### AI-03 — `aiFindAttackers` ignores dead team-mates — **FIXED 2026-10-25**
 - CE: `combat_ai.cc:aiFindAttackers` (1495–1507)
 - DH2: `src/combat/Combat.ts:1947`
 - CE behaviour: the whoHitFriend slot only requires `candidate.team == team`. A dead candidate is allowed, provided its whoHitMe is alive and on another team.
@@ -141,14 +141,14 @@ Top findings, most severe first:
 - Suggested fix: apply the dead check only to slots 1 and 3.
 - known_bugs: NEW.
 
-### AI-04 — strongest / weakest sorting is inverted relative to CE
+### AI-04 — strongest / weakest sorting is inverted relative to CE — **FIXED 2026-10-25**
 - CE: `_compare_strength` (ascending, so "strongest" puts the weakest first), `_compare_weakness` (descending). Used in `_ai_danger_source` (1678–1691).
 - DH2: `Combat.ts:1954–1955` (and `findTarget` 1777–1782)
 - Impact: companions set to "Attack strongest" or "Attack weakest" pick the opposite target from CE / vanilla. This is a vanilla oddity: CE keeps it and its comments call the functions "melee then ranged" / "ranged then melee".
 - Suggested fix: decide on a policy. For CE fidelity, swap the comparators. Either way, document it in `wiki/ai_behavior.md`.
 - known_bugs: NEW.
 
-### AI-05 — `_ai_pick_hit_mode` preference type and throw guard
+### AI-05 — `_ai_pick_hit_mode` preference type and throw guard — **FIXED 2026-10-25**
 - CE: `combat_ai.cc:_ai_pick_hit_mode` (2272–2348)
 - DH2: `Combat.ts:1364 aiPickHitMode`
 - CE behaviour:
@@ -160,7 +160,7 @@ Top findings, most severe first:
 - Suggested fix: use `weaponAttackType` for mode 2, run full `aiCanUseWeapon` for the secondary, and add the throw guard (`aiSearchInvenWeap(obj, target, false)` or `statRoll(INT) <= 1`).
 - known_bugs: NEW.
 
-### AI-06 — `_ai_best_weapon` damage override applied to explicit no_pref
+### AI-06 — `_ai_best_weapon` damage override applied to explicit no_pref — **FIXED 2026-10-25**
 - CE: `combat_ai.cc:1963`, condition `ai->best_weapon == -1 || ai->best_weapon >= BEST_WEAPON_UNARMED_OVER_THROW`
 - DH2: `Combat.ts:1334`, `best === 'no_pref' || best === 'unarmed_over_throw'`
 - CE behaviour: only an unset best_weapon (-1) and unarmed_over_throw (6) let a >5 avg-damage gap override the preference order. An explicit `no_pref` (0) uses the order (ranged > throw > melee > unarmed).
@@ -169,14 +169,14 @@ Top findings, most severe first:
 - Suggested fix: keep an "unset" distinction in `aiPackets.ts`, e.g. `bestWeaponUnset: boolean` or a distinct `'unset'` value sharing the no_pref ordering row.
 - known_bugs: NEW.
 
-### AI-07 — the flee source in `_combat_ai`
+### AI-07 — the flee source in `_combat_ai` — **FIXED 2026-10-25**
 - CE: `combat_ai.cc:3075–3081`, `_ai_run_away(a1, a2)` where `a2` is the caller's argument. `combat.cc` normally passes the gcsd defender or null, and null → gDude inside `_ai_run_away`.
 - DH2: `Combat.ts:1860–1869`, which first computes `st.target = aiDangerSource(obj)` and flees from it
 - Impact: in CE a hurt NPC (including a companion) runs from the player's position, and `max_dist` is measured to the player. In DH2 it runs from its enemy, which is more sensible but not CE. The decision between FLEEING and DISENGAGING (distance < max_dist) also changes.
 - Suggested fix: pass the turn's incoming `a2` (gcsd defender or null) to `aiRunAway`, or record this as a deliberate deviation.
 - known_bugs: NEW (C28 says "away from the threat", which is not exactly CE).
 
-### AI-08 — `_combat_ai` tail: teammate choice and `_ai_find_friend`
+### AI-08 — `_combat_ai` tail: teammate choice and `_ai_find_friend` — **FIXED 2026-10-25**
 - CE: `_ai_find_nearest_team_in_combat` (it needs `whoHitMe != null`) for team ≠ 0; `_ai_find_friend` never moves, because the step count `distance − 5` is computed only when `5 > distance`
 - DH2: `Combat.ts:2731–2738`, `:2771` (`nearestOfTeamExcept`, no whoHitMe filter; moves `d−5` toward the friend)
 - Impact: DH2 NPCs that are out of range of their target regroup on idle or non-fighting team-mates, and close in on friends in step 1. CE NPCs either just disengage or stay.

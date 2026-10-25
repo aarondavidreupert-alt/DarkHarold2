@@ -229,19 +229,19 @@ Top findings:
 
 ## Detailed findings
 
-### SND-01 — Worldmap, main-menu and fallback music never play (HIGH, NEW)
+### SND-01 — Worldmap, main-menu and fallback music never play (HIGH, NEW) — **FIXED 2026-10-24 (PA23)**
 - **CE:** `worldmap.cc wmInterfaceInit` (4447, call at 4461): `_gsound_background_play_level_music(isInCar ? "20car" : "23world", 12)` when the world map opens; `main.cc:97` plays `07desert` behind the main menu (and `backgroundSoundDelete` on exit, `main.cc:214/255`); `map.cc mapLoad:819` starts the looping `wind2` while a map loads, and `wmMapMusicStart` (`worldmap.cc:6489`) replaces it only when the map's `music=` in maps.txt is set — a map without music keeps `wind2`.
 - **DH2:** only `GameMap.playMapMusic` (`src/map/GameMap.ts:475`) calls `playMusic`, and only with `curMapInfo.music`. `src/ui_worldmap.ts`, `src/worldmap/`, `src/ui_mainmenu.ts` contain no audio calls (grep), so the previous town's track keeps playing on the world map (nothing stops or replaces it; not checked in the browser), the main menu is silent, and maps without a `music=` entry are silent instead of playing `wind2`.
 - **Impact:** audible on every world-map trip and at every start.
 - **Fix:** add `playMusic(inCar ? '20car' : '23world')` in the worldmap open path and restart the map music on worldmap exit via the existing map-load path; `playMusic('07desert')` when the main menu is shown (not under the intro movies, C64); in `playMapMusic`, fall back to `wind2` when `curMapInfo.music` is empty.
 
-### SND-02 — No distance attenuation of off-screen sounds (MED, NEW)
+### SND-02 — No distance attenuation of off-screen sounds (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `game_sound.cc _gsound_compute_relative_volume` — for an item/critter/scenery source (its owner if carried): full volume when its rect intersects the iso window; when off screen, full up to `distance ≤ PE`, linear `0x7FFF − 0x5554·(d−PE)/PE` between PE and 2·PE, and `0x2AAA` (⅓) beyond 2·PE. Used for every animation-registered sound (`animation.cc:1276`: weapon fire/hit, character sounds, `reg_anim_play_sfx`) and AI combat sounds (`combat_ai.cc:2741-2934` via `_gsound_play_sfx_file_volume`). The result scales `gSoundEffectsVolume` (`soundEffectLoadWithVolume`).
 - **DH2:** `HTMLAudioEngine.playSfx` (`src/audio.ts`) plays every sfx at `sfxVolume × master`; no position input.
 - **Impact:** off-screen fights, doors and NPC sounds are as loud as on-screen ones; the player's Perception has no effect.
 - **Fix:** add an optional source object to `playSfx` / `playCharSfx` / `playWeaponSfx` / `playOpenSfx`, compute the CE factor (screen-rect test against the camera view, `hexDistance` to the player, PE), and feed it to a per-source `GainNode`.
 
-### SND-05 — Engine weapon sounds don't use `sfxBuildWeaponName` rules (MED, NEW)
+### SND-05 — Engine weapon sounds don't use `sfxBuildWeaponName` rules (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `game_sound.cc sfxBuildWeaponName` → `W<type><id><variant><material>XX1`: variant `2` for any hit mode other than left/right primary and punch (burst, secondary melee modes, …) for ATTACK and HIT; material `X` when not a hit, no target, or damage type explosion/plasma/EMP; otherwise `M`/`W`/`S` from the item/scenery/wall material, `F` for critters (material −1). A missing file is silent (`soundEffectLoad` fails).
 - **DH2:** `soundMap.ts:110 getWeaponSounds` + `audio.ts:222 playWeaponSfx`, called from `Combat.ts:831/912`: attack variant 2 only when `isBurst()` (not for other secondary modes); the HIT sound is always variant 1 and always `F` (`material` default 'flesh'; Combat never passes one); plasma / EMP / explosive weapons ask for `WH<id>1FXX1` first; DH2-only fallbacks: a missing burst sound plays the single-shot one, a missing material hit plays `…1XXX1`. The `sfx_build_weapon_name` opcode (`scripting.ts:2610`) is correct.
 - **Impact:** wrong or missing hit sample for burst hits and secondary attacks; plasma/EMP/explosive hits may play a flesh sample where the file exists.
@@ -259,27 +259,27 @@ Top findings:
 - **Doc mismatch:** README "Known approximations" says the action menu opens on *right-click*; the code opens it on left-click in command mode and uses right-click to cycle modes (as CE).
 - **Fix:** left-click = CE primary action; open the menu after a ~250 ms hold (or keep click-opens-menu but as documented); keep `cursorMode = 'command'` after the menu closes. Update the README line.
 
-### MOUSE-03 — Hover icon is always the look icon (MED, NEW)
+### MOUSE-03 — Hover icon is always the look icon (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `gameMouseRefresh` + `gameMouseRenderPrimaryAction`: after the mouse rests 250 ms in ARROW mode over an object, the cursor shows the arrow plus the icon of the object's *primary action* (USE for items and usable scenery, TALK for talkable critters out of combat, LOOK in combat / for walls / non-usable scenery / no-steal critters, ROTATE for the dude; flipped to the left near the right edge, fid 285). Nothing over empty ground.
 - **DH2:** `input.ts:187` and `input.ts:319` (look timers) + `renderer.ts:327`: after 1000 ms always draws `lookn` beside the arrow, also over empty ground.
 - **Fix:** compute the CE primary action for the hovered object and draw its `*n` icon (the same icons the action menu already uses), 250 ms delay.
 
-### MOUSE-04 — "You see …" repeats on every hover pause (MED, NEW)
+### MOUSE-04 — "You see …" repeats on every hover pause (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** in ARROW mode, `_obj_look_at(gDude, obj)` runs only when the pointed object *changes* (`gGameMousePointedObject`, `game_mouse.cc:713`).
 - **DH2:** `input.ts` mousemoved timer: every time the mouse stops for 1 s over an object it prints `objLookAt` again (and re-runs its `look_at_p_proc`), so wiggling over one NPC fills the message window with duplicates.
 - **Fix:** remember the last looked-at object (reset when the pointer leaves objects or the mode changes) and only call `objLookAt` on change; use 250 ms.
 
-### MOUSE-05 — No AP cost / "X" on the hex cursor (MED, NEW)
+### MOUSE-05 — No AP cost / "X" on the hex cursor (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `gameMouseRefresh` (move mode, 250 ms rest): `_make_path` from the dude; in combat draws the AP the move costs (`max(0, cost − free_move)`, white) or a red `X` when it exceeds the dude's AP; out of combat a red `X` when there is no path (`gameMouseRenderActionPoints`, font 101 on the hex cursor).
 - **DH2:** `renderer.ts:221` draws only `hex_outline`; no path/AP readout. Players only learn the cost after clicking.
 - **Fix:** on a 250 ms rest compute `recalcPath` length and the CE AP cost (crippled-leg adjustment via the existing movement-cost helper) and render the number / `X` centred in the hex cursor.
 
-### MOUSE-06 — Object picking ignores roofs and corpses; skips objects[0] (MED, NEW)
+### MOUSE-06 — Object picking ignores roofs and corpses; skips objects[0] (MED, NEW) — **PARTLY FIXED 2026-10-25**
 - **CE:** `gameMouseGetObjectUnderCursor`: with `objectType == -1`, nothing is picked when the mouse is over a visible roof outside the egg (`_square_roof_intersect` / `_obj_intersects_with(gEgg)`); walking the intersect list top-down it skips dead or knocked-out critters (and translucent hits) in favour of something underneath, falling back to the lowest candidate; the dude is excluded unless asked for.
 - **DH2:** `renderer.ts:611 getObjectUnderCursor`: no roof test (objects inside roofed buildings can be clicked/looked at from outside), the topmost opaque hit wins even if it is a corpse lying on an item, and the loop `for (i = objects.length − 1; i > 0; i--)` never tests `objects[0]`.
 - **Fix:** add the roof/egg test, the dead/KO skip, and `i >= 0`.
 
-### MSG-01 — Language filter does not mask words (MED, NEW)
+### MSG-01 — Language filter does not mask words (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `message.cc badwordsInit` reads `data/badwords.txt`; `messageListFilterBadwords` replaces whole-word matches (case-insensitive, word boundary = non-alpha) with characters cycled from `!@#$%&*@#*!&$%#&%#*%!$&%@*$@&` in script dialogue messages (`scripts.cc:2703`) and AI combat taunts (`combat_ai.cc:3572/3602`) when `language_filter` is on.
 - **DH2:** `Config.ui.languageFilter` is saved, shown in Preferences and returned by metarule 47 `METARULE_LANGUAGE_FILTER` (`scripting.ts:857`), but no text is filtered.
 - **Fix:** export `badwords.txt` in the pipeline, apply the CE filter in `Scripting.loadMessageFile` (`scripting.ts:3234`) and the AI message loader when the preference is on (CE reloads the AI list on change, `aiMessageListReloadIfNeeded`).

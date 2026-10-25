@@ -162,14 +162,14 @@ Top findings, most severe first:
 
 ## Detailed findings
 
-### COMBAT-01 — Primary burst / flame weapons never spray (HIGH, NEW)
+### COMBAT-01 — Primary burst / flame weapons never spray (HIGH, NEW) — **FIXED 2026-10-24 (PA15)**
 - **CE:** `combat.cc:attackCompute` computes `anim = critterGetAnimationForHitMode(attacker, hitMode)`, then `if (anim == ANIM_FIRE_BURST || anim == ANIM_FIRE_CONTINUOUS) roll = _compute_spray(...)`. That covers the primary hit mode too. Continuous mode (flamers) uses 1 left / 1 main / 1 centre / 1 right round. `_shoot_along_path` gives each critter on a line one round (`remainingRounds = 1`) and doesn't count path hits on the main target. The AI safety check (`_combat_safety_invalidate_weapon_func`) also simulates the spray for any hit mode whose anim is burst / continuous.
 - **DH2:** `Combat.ts:442` `const isBurst = !!weapon?.isBurst?.()`, and `Weapon.ts:300` `isBurst()` returns `this.mode === 'burst'`. The `'burst'` mode is added only for a *secondary* attack mode of 7/8 (`Weapon.ts:231`). For a primary 7/8 weapon, `modes = ['single']` (it can't be aimed). The safety check returns false for `hitMode !== 'secondary'` (Combat.ts:1447).
 - **Affected protos (pro.json):** primary mode 7 — 12 Minigun, 28 Gatling Laser, 350 Avenger, 355 Vindicator, 387, 389, 395, 518, 520; primary mode 8 — 11 Flamer, 400 Improved Flamer, 427.
 - **Impact:** the game's heaviest weapons hit one target with one round's damage. No spray, no friendly fire, and a 1-round ammo cost instead of `min(ammo, burstRounds)`. Gameplay balance changes a lot (Frank Horrigan, Enclave troopers and Navarro carry these). The AI's safety check never blocks a minigun.
 - **Fix:** decide spray from the current hit mode's attack mode (7 → burst, 8 → continuous) for both slots. Port the continuous branch in `computeSpray` / `shootAlongPath`. Make `getAttackSkin`, the HUD and `aiPickHitMode` agree.
 
-### COMBAT-02 — sfall critical-table fixes (OverrideCriticalTable=2) not applied (HIGH, NEW)
+### COMBAT-02 — sfall critical-table fixes (OverrideCriticalTable=2) not applied (HIGH, NEW) — **FIXED 2026-10-24 (PA16)**
 - **CE:** `combat.cc:criticalsInit`. `sfall_config.cc:42` defaults `OverrideCriticalTable` to 2, and mode 2 rewrites about 90 entries. Examples:
   - KILL_TYPE_MAN, uncalled, effect 2: flags `DAM_KNOCKED_DOWN | DAM_BYPASS`, message 5019.
   - Child leg effects 1–2: no massive flags, message 5216.
@@ -183,13 +183,13 @@ Top findings, most severe first:
 - **Impact:** about a quarter of critical hits on humans with unaimed shots (effect 2, roll 46–70) lose the knockdown and armor bypass. Other kill types lose their fixes, and wrong messages show.
 - **Fix:** apply the mode-2 `criticalsSetValue` list on top of `CRITICAL_HIT_TABLES` (a copy at init), or regenerate ceTables.ts with the patches baked in.
 
-### COMBAT-03 — Dead party members stay in the party (HIGH, NEW)
+### COMBAT-03 — Dead party members stay in the party (HIGH, NEW) — **FIXED 2026-10-24 (PA12)**
 - **CE:** `combat.cc:_damage_object` on death runs `scriptRemove(a1->sid); a1->sid = -1; partyMemberRemove(a1);`.
 - **DH2:** `critterKill` (lifecycle.ts:71) / `perish` (Combat.ts:1687) never call `gParty.removePartyMember`; it has no callers at all.
 - **Impact:** `METARULE_PARTY_COUNT` (scripting.ts:776) counts corpses, so party-size limits block recruiting after a companion dies. Party iteration (`GameMap.ts:244/324`, `mapLoader.ts:149/359`, `skillUse.ts`, `drugs.ts:248`) includes dead members, e.g. the corpse is carried to the next map.
 - **Fix:** in `critterKill`, when the victim is a party member, remove it (`partyMemberRemove` semantics) and drop its script, as CE does. Also check the `party_member_list` / `party_member_obj` opcodes.
 
-### COMBAT-04 — Unused-AP Armor Class bonus not CE's model (HIGH, conflicts with known_bugs C22)
+### COMBAT-04 — Unused-AP Armor Class bonus not CE's model (HIGH, conflicts with known_bugs C22) — **FIXED 2026-10-24 (PA17)**
 - **CE:** `stat.cc:203` STAT_ARMOR_CLASS adds `critter->data.critter.combat.ap` (×2 + Unarmed/12 with HtH Evade) when `isInCombat() && _combat_whose_turn() != critter`. `combat.cc:_combat_set_move_all` sets `ap = max AP` for every combatant at the **start of each round**. `_combat_begin` sets `ap = 0` for everyone and `_combat_over` sets it to 0 again. So:
   - a combatant that hasn't acted yet this round has its **full AP** as AC;
   - after acting it keeps its leftover;
@@ -203,19 +203,19 @@ Top findings, most severe first:
 - **Impact:** to-hit against critters later in the turn order is too high by up to ~10 %, and too low against neutrals. Stale AC lingers after combat. Known_bugs C22 ("Bonus AC counts only leftover AP") reads CE as leftover-only, which is wrong for critters that haven't acted yet.
 - **Fix:** model `combat.ap` like CE. Reset all combatants' AP at round start (not turn start), leave non-combatants at 0, and zero it at combat end. Then derive AC from current AP when it isn't the critter's turn, instead of a separate `bonusAC`.
 
-### COMBAT-05 — `script_overrides` in combat_p_proc (turn start) ignored (MED, NEW)
+### COMBAT-05 — `script_overrides` in combat_p_proc (turn start) ignored (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `combat.cc:_combat_turn` runs `scriptSetObjects(sid, null, null); fixedParam 4; SCRIPT_PROC_COMBAT`. If the script sets `scriptOverrides`, the standup, the player's input and `_combat_ai` are all skipped.
 - **DH2:** `Combat.ts:1851` calls `Scripting.combatEvent(obj, 'turnBegin')`. `scripting.ts:3625` has `// TODO: script_overrides`, and the return value is only the terminate flag. The proc also runs after the standup and without clearing source/target.
 - **Impact:** scripts that take over a critter's turn (COMBAT_SUBTYPE_TURN + `script_overrides`) still get the AI's turn.
 - **Fix:** read `_didOverride` after the proc and end the turn when it is set. Run the proc before the standup, and null source/target first.
 
-### COMBAT-06 — Invulnerable critters lose HP (MED, NEW)
+### COMBAT-06 — Invulnerable critters lose HP (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `_damage_object` returns if `_critter_flag_check(pid, CRITTER_INVULNERABLE)`. `_set_new_results` and `_check_for_death` skip such critters too.
 - **DH2:** `critterDamage` (lifecycle.ts:348) subtracts HP and kills at ≤ 0 without the check; only `setNewResults` / `checkForDeath` / the crit functions test it.
 - **Impact:** proto 481 (the only critter with flag 0x400) can be damaged and killed. So can script-flagged critters.
 - **Fix:** add the invulnerable early-out to `critterDamage` (the combat path).
 
-### COMBAT-07 — `damage_p_proc` gating of `_damage_object` not ported (MED, NEW)
+### COMBAT-07 — `damage_p_proc` gating of `_damage_object` not ported (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `_damage_object(obj, dmg, animated, a4, attacker)` runs damage_p_proc only when `!a4` and not (both party members). `_apply_damage` passes:
   - for the attacker: `a4 = defender == oops`, so a self-hit from a normal critical failure gets **no** proc;
   - for the defender: `a4 = defender != oops`, so an accidental victim gets **no** proc;
@@ -224,19 +224,19 @@ Top findings, most severe first:
 - **Impact:** extra `damage_p_proc` runs, e.g. a companion hit by the player's burst reacts, and bystanders turn hostile through their scripts where CE leaves them alone.
 - **Fix:** pass CE's `a4` and the party check into `critterDamage` (killOptions).
 
-### COMBAT-08 — Miss path of `_apply_damage` (MED, NEW)
+### COMBAT-08 — Miss path of `_apply_damage` (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** the defender block runs for any live critter defender, hit or not. On a miss `defender == oops` and flags are 0, so `_set_new_results(defender, 0)` and `_combatai_check_retaliation(defender, attacker)` run (whoHitMe), then `_combatai_notify_onlookers(defender)`. An accidental hit also notifies onlookers of `oops`.
 - **DH2:** `applyDamage` (Combat.ts:966) handles the defender only with DAM_HIT and never notifies for `a.oops`. Instead `attack()` (Combat.ts:784) flips the target to `hostile` with whoHitMe before the roll; that DH2-only shortcut covers non-hostile targets only.
 - **Impact:** a target that is already hostile doesn't switch retaliation to an attacker who missed. Onlookers aren't engaged by misses.
 - **Fix:** run `noteHit(defender, attacker, false)` and `notifyOnlookers` for the intended target on misses, plus `notifyOnlookers(oops)` on accidental hits. Drop the DH2 `hostile` flip.
 
-### COMBAT-09 — whoHitMe never reset per combat (MED, NEW)
+### COMBAT-09 — whoHitMe never reset per combat (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `_combat_begin` and `_combat_over` set `whoHitMe = nullptr` for every critter on the elevation.
 - **DH2:** never cleared, except `critter_stop_attacking` (scripting.ts:2678) and the AI's strongest / weakest / closest reset.
 - **Impact:** the next fight starts with stale attackers (`aiDangerSource` returns them; `shouldEnd` / `attemptEnd` team checks see old team-mate hits). Combat may refuse to end, or critters retaliate against old foes.
 - **Fix:** clear whoHitMe in the `Combat` constructor (before `sequenceInit` / teamCombat) and in `combatOver`.
 
-### COMBAT-10 — Joining critters and party members (MED, NEW)
+### COMBAT-10 — Joining critters and party members (MED, NEW) — **FIXED 2026-10-25**
 - **CE:**
   - `_combat_sequence_init` makes only the attacker, the defender and the dude combatants.
   - At round end `_combat_add_noncoms` runs `_combatai_notify_friends(dude)`. Each critter for which `_combatai_want_to_join` is true gets max AP and **an immediate `_combat_turn`**, then acts again in the next round.
@@ -247,13 +247,13 @@ Top findings, most severe first:
 - **Impact:** a different turn order. CE joiners get an extra immediate turn, and DH2 party members act before CE would let them.
 - **Fix:** run the joiner's turn right away (needs re-entrancy in `nextTurn`), and require joining for party members.
 
-### COMBAT-11 — Player's attack doesn't set the player's whoHitMe (MED, NEW)
+### COMBAT-11 — Player's attack doesn't set the player's whoHitMe (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `_combat_attack` runs `if (attacker == gDude) _critter_set_who_hit_me(attacker, defender)` and `aiInfoSetLastTarget(attacker, defender)` for every attacker.
 - **DH2:** `attack()` sets neither for the player; `aiLastTarget` is set only at the AI's first attempt (Combat.ts:2167).
 - **Impact:** `_ai_danger_source` / `aiFindAttackers` (the "my team's attacker" slot) and party `attack_who` logic can't see whom the player is fighting. Party members pick other targets. `_combat_should_end`'s whoHitMe test also differs.
 - **Fix:** add both calls in `attack()` after `attackCompute`.
 
-### COMBAT-12 — No `_combat_delete_critter` (MED, NEW, impact unverified)
+### COMBAT-12 — No `_combat_delete_critter` (MED, NEW, impact unverified) — **FIXED 2026-10-25**
 - **CE:** script opcodes (destroy_object, move to another elevation, party changes) and `object.cc` call `_combat_delete_critter`, which removes the critter from the combat list, zeroes AP and whoHitMe and calls `_combatai_delete_critter`.
 - **DH2:** `combatants` is never pruned; `nextTurn` skips only `dead` critters. A destroyed or moved live critter keeps its turn slot (its AI runs while it is off the map) and counts in `shouldEnd`.
 - **Fix:** add `Combat.deleteCritter(obj)` and call it from `destroyObject`, `move_to` across elevations and `party_remove`.
@@ -269,7 +269,7 @@ Top findings, most severe first:
 - **Impact:** only with `damageCalculationType` 1 / 2 / 5 (default 0).
 - **Fix:** port Glovz literally. For YAAM, either keep the intended version (document it as a deliberate deviation in known_bugs C3) or match CE. In both cases pass the raw DR (without RM) to the non-vanilla rulesets.
 
-### COMBAT-14 — Combat state not saved (MED, NEW)
+### COMBAT-14 — Combat state not saved (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `combatSave` / `combatLoad` persist `gCombatState`, the free move, `_combat_exps`, the combatant / non-combatant split, the order, whoHitMe and the AI info. A save made in combat reloads in combat, on the player's turn.
 - **DH2:** saving is allowed in combat (hotkeys.ts:177/201/203). saveload.ts writes no combat state, and loading always ends combat (saveload.ts:336).
 - **Impact:** save / reload during a fight escapes it, and the kill XP collected so far (`combatExps`) is lost.
@@ -280,13 +280,13 @@ Top findings, most severe first:
 - **DH2:** Combat.ts:813/467 adds the bonus after the cap, for the first single-shot attack only (not in `computeSpray`), then clears `gcsd`.
 - **Fix:** read `gcsd.accuracyBonus` inside `getHitChance` before the cap, and clear `gcsd` at the end of the first turn.
 
-### COMBAT-16 — Super Cattle Prod / Mega Power Fist ammo cost (MED, NEW)
+### COMBAT-16 — Super Cattle Prod / Mega Power Fist ammo cost (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `attackCompute` → `item.cc:_item_w_compute_ammo_cost` doubles `ammoQuantity` for PROTO_ID_SUPER_CATTLE_PROD (399) and PROTO_ID_MEGA_POWER_FIST (407).
 - **DH2:** not ported; Combat.ts:489 always uses 1 for a non-ranged weapon.
 - **Impact:** these two weapons use half the charges they should.
 - **Fix:** double `a.ammoQuantity` for those pids.
 
-### COMBAT-17 — Both arms crippled blocks unarmed attacks (MED, NEW)
+### COMBAT-17 — Both arms crippled blocks unarmed attacks (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `_combat_check_bad_shot` checks crippled arms only when `critterGetWeaponForHitMode` returns a weapon. Punches and kicks (weapon nullptr) are allowed, crippled or not.
 - **DH2:** `attack()` (Combat.ts:803) returns early ("can't attack — both arms are crippled!") for any attacker with both arms crippled, unarmed included. The message is invented as well.
 - **Fix:** remove the guard; `checkBadShot` already returns `bothArmsCrippled` for real weapons.

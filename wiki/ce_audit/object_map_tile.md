@@ -181,70 +181,70 @@ Top findings:
 
 ## Detailed findings
 
-### OBJ-01 — Open doors keep blocking movement queries, shots and light
+### OBJ-01 — Open doors keep blocking movement queries, shots and light — **FIXED 2026-10-24 (PA19)**
 - CE: `proto_instance.cc _check_door_state` sets `door->flags |= OBJECT_OPEN_DOOR` (= `OBJECT_SHOOT_THRU | OBJECT_LIGHT_THRU | OBJECT_NO_BLOCK`, `obj_types.h:89`) when opened, clears it when closed, and calls `_obj_rebuild_all_light()`. Every blocking query (`object.cc _obj_blocking_at`, `_obj_shoot_blocking_at`, `_obj_ai_blocking_at`, `_obj_sight_blocking_at`) and `_obj_adjust_light` then see an open door as passable or transparent.
 - DH2: `setObjectOpen` (`src/object/Obj.ts:326`) only sets `obj.open`. `Obj.blocks()` (`Obj.ts:848`) honours `open`, so the walk pathfinder is right. But `GameMap.blockingObjectAt` (`GameMap.ts:515`), `straightPathObstacle` (`:595`), `pathfinder.ts blockingMap` in shoot mode, and `lightmap.ts obj_adjust_light` (`:76`) read `flags`, which never change. Nothing rebuilds light on open/close.
 - Impact: in combat you can't shoot through an open doorway (`combatIsShotBlocked` sees the door as a non-critter obstacle), and the AI's shoot paths fail the same way. `critter_attempt_placement`, explosions, knockback, `obj_blocking_tile` / `obj_blocking_line` (sfall), worldmap encounter placement and `ui_contextmenu` push all treat the open-door tile as blocked. Light never spills through an opened door.
 - Fix: in `setObjectOpen`, for doors (CE `_obj_is_portal`), set or clear `flags` bits `0xA0000010` and call `Lightmap.rebuildLight()` when `doFloorLighting`. Also set them when restoring state (see OBJ-02).
 - Ref: NEW (P4 / C45 fixed only the pathfinder side).
 
-### OBJ-02 — Door open / locked / jammed state is lost on save, load and map revisit
+### OBJ-02 — Door open / locked / jammed state is lost on save, load and map revisit — **FIXED 2026-10-24 (PA1)**
 - CE: the state lives in `obj->data.scenery.door.openFlags` (`0x01` open, `OBJ_LOCKED 0x02000000`, `OBJ_JAMMED 0x04000000`). It is read from the .map (`proto.cc objectDataRead`) and saved with the object (`_obj_save_obj`).
 - DH2: `tools/fomap.py` door branch reads the 4-byte field and throws it away (`f.read(4) # unknown?`). `Obj.serialize` (`Obj.ts:1404`) writes neither `open` nor `locked` nor `jammed`. `fromMapObject_` (`Obj.ts:627`) restores none of them. `GameMap.serialize`, used both for the dirty-map cache and for saves, goes through `Obj.serialize`.
 - Impact: a door the player opened is closed again after leaving and re-entering a map, or after a save/load. A door locked by `obj_lock` comes back unlocked unless its script re-locks it in `map_enter_p_proc`. Doors locked in the map data itself are never locked. The jam timer (`objectUnjamAll` after 24 h) has nothing to work on after a reload.
 - Fix: serialize `open` / `locked` / `jammed` (and container equivalents) in `Obj.serialize` / `fromMapObject_`. Re-apply the OBJ-01 flags on load. Pipeline: emit `openFlags` for doors (and containers' `openFlags`). This needs an asset re-export, so get the user's approval per CLAUDE.md.
 - Ref: NEW.
 
-### OBJ-03 — Runtime-created objects ignore the proto light
+### OBJ-03 — Runtime-created objects ignore the proto light — **FIXED 2026-10-25**
 - CE: `object.cc objectCreateWithFidPid` → `objectSetLight(obj, proto->lightDistance, proto->lightIntensity)`.
 - DH2: `Obj.fromPID_` (`Obj.ts:587`) never touches `lightRadius` / `lightIntensity`, so they stay 0 / 655. Only map-placed objects get light (from the map record, `Obj.ts:642`), and flares are special-cased (`Obj.ts:258–302`).
 - Impact: `create_object` of any light-emitting scenery, misc or item (glowing goo, lamps, burning barrels spawned by scripts) produces no light.
 - Fix: in `fromPID_`, set `lightRadius = min(pro.lightDistance, 8)` and `lightIntensity = pro.lightIntensity` (0 = none), then rebuild the light if it is placed on the map.
 - Ref: NEW (C46 covered `obj_set_light_level` and flares only).
 
-### OBJ-04 — Automap "seen" area is much smaller than CE's
+### OBJ-04 — Automap "seen" area is much smaller than CE's — **FIXED 2026-10-25**
 - CE: `objectSetLocation(gDude)` → `obj_set_seen(tile)`. `_obj_process_seen` (`object.cc:3054`) expands each seen bitmap byte to ±16 byte-rows (step 25 bytes = 1 hex row) × ±2 bytes (8 hexes each), so roughly ±16 rows × ±16–23 columns. It sets `OBJECT_SEEN` on every object there, and the automap draws walls/scenery with `OBJECT_SEEN` (`automap.cc:1077`).
 - DH2: `automap/tracking.ts markSeenAt` marks hexes within `REVEAL_RADIUS = 5` of the player.
 - Impact: the automap reveals about a third of the area CE does per step. Walls just off-screen stay unmapped.
 - Fix: mark using CE's band (or port `_obj_process_seen` on the 5001-byte bitmap).
 - Ref: NEW (the automap auditor may also report this).
 
-### OBJ-05 — `obj_can_see_obj` uses a different line and blocker rule (cross-ref)
+### OBJ-05 — `obj_can_see_obj` uses a different line and blocker rule (cross-ref) — **FIXED 2026-10-25**
 - CE: `interpreter_extra.cc opObjectCanSeeObject`: same elevation, both tiles valid, `isWithinPerception(obj1, obj2)` for **any** obj2, then `_make_straight_path(obj1, from, to, nullptr, &obstacle, 16)` with `_obj_blocking_at`. It returns true only if the first obstacle **is** obj2.
 - DH2: `scripting.ts:585 objCanSeeObj` skips perception for non-critters and has no elevation check. It calls `GameMap.hexLinecast` (`GameMap.ts:649`), which walks `hexLine` (greedy nearest-neighbour, not CE's screen Bresenham) and returns the first object that `blocks()`, skipping SHOOT_THRU and dead critters (shoot semantics). Any blocker means not seen.
 - Impact: NPC sight checks differ near corners and through glass/shoot-thru objects. A dead critter in the way blocks in CE but not in DH2. Two critters in a row: CE says not seen (the first one is the obstacle), DH2 says seen if the front one doesn't `blocks()`.
 - Fix: implement it with `straightPathObstacle(obj1, obj1.position, obj2.position, 0, null) === obj2`, plus the elevation and perception checks.
 - Ref: NEW. Scripting auditor owns the opcode.
 
-### MAP-01 — `map_update_p_proc` runs twice per map load
+### MAP-01 — `map_update_p_proc` runs twice per map load — **FIXED 2026-10-25**
 - CE: `map.cc mapLoad`: `mapSetElevation` runs while `gMapSid == -1` (no update), the map script's `map_enter` runs, then `scriptsExecStartProc` → `scriptsExecMapEnterProc` → **one** `scriptsExecMapUpdateProc`.
 - DH2: `loadNewMap` (`mapLoader.ts:221`) → `doEnterNewMap` (`GameMap.ts:425`) ends with `Scripting.updateMap(…)` (`:471`). Then `changeElevation(this.currentElevation, true, true)` (`mapLoader.ts:367`) calls `Scripting.updateMap` again (`GameMap.ts:277`). The dirty-cache path does the same (`mapLoader.ts:205`).
 - Impact: every map/object `map_update_p_proc` runs twice on entry. Scripts that count, roll random events, advance state or spawn things in `map_update_p_proc` do it twice.
 - Fix: pass `updateScripts=false` to the second `changeElevation` (or drop that call).
 - Ref: NEW.
 
-### MAP-02 — Exit-grid transition semantics
+### MAP-02 — Exit-grid transition semantics — **FIXED 2026-10-25**
 - CE: `object.cc objectSetLocation(gDude)` → `mapSetTransition` (map 0 → −2). `map.cc mapHandleTransition`: `map == -1` → `wmTownMap()`, `-2` → `wmWorldMap()`. Otherwise it reloads when `map != current || elevation == current elevation`. It then places the dude on the transition tile and elevation unless tile is −1/0 or the map is MODOC_BEDNBREAKFAST / THE_SQUAT_A, and **sets `gDude` rotation = transition.rotation**.
 - DH2: `player.ts:368 Player.move` treats `exitMapID < 0` (and map 0, via `Number(x) || -1`) or tile −1 as `uiWorldMap()` (world view, never the town view). `startingOrientation` is never used, so `loadMap` sets the orientation to the header's `startOrientation`. The same map at the same elevation just moves the player, with no reload. There are no B&B / Squat exceptions. `set_exit_grids` (`scripting.ts:2131`) doesn't update the rotation either.
 - Impact: walking out of a multi-map town through a `-1` grid shows the world map instead of the town map. The player faces the wrong way on arrival. The two maps with special dude placement put the player on the grid's tile instead of letting their scripts place him.
 - Fix: map −1 → `uiWorldMap(true)` (area view of the current area), −2/0 → world view. Pass and apply `startingOrientation`. Add the two map-index exceptions.
 - Ref: NEW.
 
-### TILE-02 — Hex→roof square mapping is off by one row for odd hex rows
+### TILE-02 — Hex→roof square mapping is off by one row for odd hex rows — **FIXED 2026-10-25**
 - CE: `object.cc objectSetLocation`: `roofX = tile % 200 / 2; roofY = tile / 200 / 2`, which is square `(x>>1, y>>1)` (DH2 roof arrays are mirrored to `[y][99-x]` by `fomap.py:78`).
 - DH2: `tile.ts:53 hexToTile` and `renderer.ts:189` use `tileFromScreen(hexToScreen(h))`. Numerically, for all 40 000 hexes: x = `99-(x>>1)` (199/200 columns ✓), but **y = `(y+1)>>1` for every odd hex y** (19 900 of 40 000 hexes).
 - Impact: on odd rows the roof flood starts one square south of CE's. Standing just inside a building's north edge reveals nothing, or standing just outside a southern edge reveals the roof. `GameMap.hasRoofAt` is off the same way.
 - Fix: `hexToTile = { x: 99 - (pos.x >> 1), y: pos.y >> 1 }`. Check it against the `roofPeek` heuristic, which was tuned on top of the old mapping.
 - Ref: NEW. RD06 claims "exactly matching CE"; that holds for the flood algorithm, not for the start square.
 
-### TILE-03 — Scroll limiting around the dude is missing
+### TILE-03 — Scroll limiting around the dude is missing — **already in the code (camera.ts playerLimitRefuses)**
 - CE: `tile.cc tileSetCenter`, with `gTileScrollLimitingEnabled` (on: `map.cc:225 isoInit`): if the new centre is farther from the dude than the current one and `dx >= 480 || dy >= 400` (screen px), the scroll is refused. `move_to(dude)` temporarily disables it (`interpreter_extra.cc:805`).
 - DH2: `camera.ts:430 clampCameraPosition` only clamps to the map bounds and the scroll-blocker hex.
 - Impact: the player can scroll to any part of a large map (e.g. see guards or encounter critters far away) where CE stops the view at about one screen from the character.
 - Fix: in `clampCameraPosition`, compute the new centre's screen delta from `hexToScreen(player)` and refuse the move with CE's rule. Use 480/400 in world px (zoom-independent), and skip it during scripted moves.
 - Ref: NEW. `scroll_clamping.md` doesn't mention it.
 
-### OBJ-06 — `getObjectUnderCursor` never picks `objects[0]` and ignores the egg (MED)
+### OBJ-06 — `getObjectUnderCursor` never picks `objects[0]` and ignores the egg (MED) — **FIXED 2026-10-25**
 - CE: `object.cc _obj_intersects_with` returns flag 0x04 when a wall/scenery pixel lies inside the egg and the object qualifies for egg transparency. `game_mouse.cc` uses that to skip the wall. Hidden objects never intersect.
 - DH2: `renderer.ts:611` loops `for (let i = objects.length - 1; i > 0; i--)`, so the first array entry can never be picked. There is no egg skip: clicking a critter through the egg-transparent part of a wall picks the wall. Hidden objects are only filtered if the caller's predicate does it.
 - Fix: `i >= 0`. Skip `GameMap.isHiddenObj`. When `isEggObject(obj)` and the egg mask covers the pixel, continue.
