@@ -267,7 +267,9 @@ function isExitGridAt(t: Point): boolean {
 // CE animation.cc animationRegisterMoveToTileStraight — the critter slides along `path`
 // while `anim` plays, keeping its last frame if the slide outlasts it. _make_straight_path
 // puts a node every 4 screen pixels for a critter and _object_straight_move takes one node a
-// frame, so a hex takes its screen length / 4 frames (8 sideways, 5 on a diagonal).
+// frame (a hex: its screen length / 4 frames, 8 sideways, 5 on a diagonal), setting the tile
+// the node is on and the pixel offset from it — the sprite glides (`slideOffset`, drawn by the
+// renderer) and changes tile half-way.
 const STRAIGHT_NODE_PIXELS = 4
 function moveStraight(obj: Critter, anim: string, path: Point[], then: () => void): void {
     let index = 0
@@ -277,17 +279,29 @@ function moveStraight(obj: Critter, anim: string, path: Point[], then: () => voi
     obj.staticAnimation(anim, () => { animDone = true; finish() }, true)
     if (slideDone) return
     const fps = globalState.imageInfo[obj.art]?.fps || 10
-    const framesTo = (from: Point, to: Point): number => {
-        const a = hexToScreen(from.x, from.y), b = hexToScreen(to.x, to.y)
-        return Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / STRAIGHT_NODE_PIXELS))
-    }
+    let from = { ...obj.position }
+    let frame = 0
+    let moved = false
     const step = () => {
         if (obj.dead && index === 0 && !globalState.gMap) return
-        obj.move({ ...path[index++] }, undefined, false)
-        if (index >= path.length) { slideDone = true; finish(); return }
-        setTimeout(step, framesTo(path[index - 1], path[index]) * 1000 / fps)
+        const to = path[index]
+        const a = hexToScreen(from.x, from.y), b = hexToScreen(to.x, to.y)
+        const frames = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / STRAIGHT_NODE_PIXELS))
+        frame++
+        const t = frame / frames
+        if (!moved && t >= 0.5) { obj.move({ ...to }, undefined, false); moved = true }
+        const at = moved ? b : a
+        ;(obj as any).slideOffset = t >= 1 ? undefined : { x: Math.round(a.x + (b.x - a.x) * t - at.x), y: Math.round(a.y + (b.y - a.y) * t - at.y) }
+        if (t >= 1) {
+            from = { ...to }
+            frame = 0
+            moved = false
+            index++
+            if (index >= path.length) { slideDone = true; finish(); return }
+        }
+        setTimeout(step, 1000 / fps)
     }
-    setTimeout(step, framesTo(obj.position, path[0]) * 1000 / fps)
+    setTimeout(step, 1000 / fps)
 }
 
 // CE actions.cc actionKnockdown — knockback slide: up to MAX_KNOCKDOWN_DISTANCE (20)

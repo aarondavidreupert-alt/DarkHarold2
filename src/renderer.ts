@@ -412,7 +412,7 @@ export class Renderer {
     }
 
     objectRenderInfo(obj: Obj): ObjectRenderInfo | null {
-        const scr = hexToScreen(obj.position.x, obj.position.y)
+        const scr = slidScreenPos(obj)
         let visible = obj.visible
 
         if (globalState.images[obj.art] === undefined) {
@@ -607,8 +607,16 @@ export function objectTransparentAt(obj: Obj, position: Point) {
 }
 
 // get an object's bounding box in screen-space (note: not camera-space)
-export function objectBoundingBox(obj: Obj): BoundingBox | null {
+// The object's tile on screen, plus the pixel offset of a straight slide in progress
+// (critter/lifecycle.ts moveStraight: CE _object_straight_move's obj->x/y between tiles).
+function slidScreenPos(obj: Obj): Point {
     const scr = hexToScreen(obj.position.x, obj.position.y)
+    const slide = (obj as any).slideOffset as Point | undefined
+    return slide ? { x: scr.x + slide.x, y: scr.y + slide.y } : scr
+}
+
+export function objectBoundingBox(obj: Obj): BoundingBox | null {
+    const scr = slidScreenPos(obj)
 
     if (globalState.images[obj.art] === undefined) {
         // no art

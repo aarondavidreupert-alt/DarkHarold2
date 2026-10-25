@@ -367,6 +367,12 @@ function clearNeutralOutlines(): void {
 }
 
 // A combat encounter
+// CE item.cc itemGetType: the item's proto type, except the Shiv (PROTO_ID_SHIV 383), which
+// counts as ITEM_TYPE_MISC — the AI's weapon searches pass it over.
+function ceItemType(item: Obj): string | undefined {
+    return item.pid === 383 ? 'misc' : item.subtype
+}
+
 export class Combat {
     combatants: Critter[]
     playerIdx: number
@@ -1302,7 +1308,7 @@ export class Combat {
         let best: Obj | null = null
         for (const item of attacker.inventory) {
             const weapon = (item as any).weapon
-            if (item.subtype !== 'weapon' || !weapon || item === inHand) continue
+            if (ceItemType(item) !== 'weapon' || !weapon || item === inHand) continue
             if (checkAP && weapon.getAPCost(1) > ap) continue
             // _ai_can_use_weapon: arms good enough, the attack FRM, enough skill, and the
             // attack type is one the packet's best_weapon allows
@@ -2619,11 +2625,12 @@ export class Combat {
         const packet = obj.ai!.packet
         const inHand = obj.equippedWeapon
         for (const item of items) {
-            if (kind === 'weapon' && item.subtype === 'weapon') {
+            const type = ceItemType(item)
+            if (kind === 'weapon' && type === 'weapon') {
                 if (this.aiCanUseWeapon(obj, item)) return item
             } else if (kind === 'ammo' && item.subtype === 'ammo') {
                 if (inHand && inHand.pid !== undefined && findReloadAmmo(inHand as any, [item] as any)) return item
-            } else if ((kind === 'drug' && item.subtype === 'drug') || (kind === 'misc' && item.subtype === 'misc')) {
+            } else if ((kind === 'drug' && type === 'drug') || (kind === 'misc' && type === 'misc')) {
                 if (aiCanUseItem(obj, item, packet)) return item
             }
         }

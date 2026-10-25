@@ -333,7 +333,7 @@ Top findings:
 - **Impact:** knockback and the burning run end several times sooner, and the slide outruns the
   fall animation.
 - known_bugs: NEW.
-- **Fixed 2026-10-25:** a hex of the straight slide takes its screen length / 4 frames at the art's fps (CE's node every 4 pixels, one a frame); the critter still steps a hex at a time, without the in-between pixel offsets.
+- **Fixed 2026-10-25:** a hex of the straight slide takes its screen length / 4 frames at the art's fps (CE's node every 4 pixels, one a frame); the sprite glides 4 px a frame (`slideOffset`, drawn by the renderer) and changes tile half-way, as CE's nodes do.
 
 ## DH2-only behaviour
 - `walkInFrontOf` (Critter.ts:481) is DH2's universal "go next to it": it stops one path step
