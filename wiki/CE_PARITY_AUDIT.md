@@ -169,7 +169,7 @@ LOW findings are listed in each report only.
 | | AI-08 | an out-of-range AI keeps engaged near a friend without closing in on it (CE _ai_find_friend never moves); the idle regroup follows a combatant team-mate someone hit (_ai_find_nearest_team_in_combat) |
 | Actions | ACT-04 | explosions give the player the XP of new kills, survivors remember the bomber and start a fight (CE `_report_explosion`), victims die exploded to nothing |
 | | ACT-05 | ranged (non-throw) attacks aim first (ANIM_POINT) and lower the weapon after the shot (ANIM_UNPOINT, not when knocked down or dead) |
-| | ACT-07 (part) | a ladder up is climbed from its SE neighbour, facing it (climb animation and sound, then the transition); a ladder down uses the magic-hands animation; map transitions wait for the animation. Still open: put weapon away / take it out |
+| | ACT-07 | a ladder up is climbed from its SE neighbour, facing it: a drawn weapon put away (when the art exists), the climb animation and sound, the transition, the weapon taken out; a ladder down uses the magic-hands animation; map transitions wait for the animation (checked: gecktunl ⇄ geckjunk) |
 | | ACT-06 | pickup walks first, then plays the pickup animation; the sound, pickup_p_proc and the carry check (proto.msg 905) happen on its action frame |
 | | ANIM-01 | reg_anim sequences follow CE's cursor: delay 0 runs with the previous step, N > 0 starts N ticks after it began, −1 waits for every started step (one animation at a time per object); sound steps take their delay and source |
 | | ANIM-02 (part) | a critter that steps into a walking critter's path makes it re-path to the goal within the hexes it set out to walk, or the walk ends there (usable doors still open). AP stay charged up front |
@@ -218,7 +218,7 @@ LOW findings are listed in each report only.
 Fixed earlier with the HIGH groups: INV-02 (PA8), ITEM-15 (PA9), CRIT-02 (PA12), ITEM-17 (PA18), WM-04 / WM-09 (PA21), WM-07 (PA23). Already in the code when audited: TILE-03 (`camera.ts playerLimitRefuses`, on by default).
 
 Status of the 120 MED findings with their own section in `ce_audit/` (each header there is marked FIXED /
-PARTLY FIXED): 107 fixed, 9 partly fixed, 4 open or not ported:
+PARTLY FIXED): 108 fixed, 8 partly fixed, 4 open or not ported:
 
 - **Open:** COMBAT-13
   (the Glovz / YAAM opt-in damage formulas; conflicts with known_bugs C3).

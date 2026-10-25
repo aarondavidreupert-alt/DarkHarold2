@@ -303,7 +303,7 @@ Top findings:
   the carry check and the add.
 - known_bugs: NEW.
 
-### ACT-07 — Ladder handling (MED/LOW, NEW) — **PARTLY FIXED 2026-10-25**
+### ACT-07 — Ladder handling (MED/LOW, NEW) — **FIXED 2026-10-25**
 - **CE:** `actions.cc _action_use_an_item_on_object` → `_action_climb_ladder`, only for
   `SCENERY_TYPE_LADDER_UP` (3) with no item. It walks to `tileGetTileInDirection(ladder, SE, 1)`,
   checks `_is_next_to`, rotates to the ladder, charges 3 AP in combat, puts the weapon away,

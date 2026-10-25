@@ -18,7 +18,7 @@ limitations under the License.
 // Split out of object.ts per wiki/ts-split-refactor.md §2.
 
 import * as GameTime from '../gametime.js'
-import { playCharSfx, playOpenSfx, sfxBuildCharName, SCENERY_SOUND_EFFECT } from '../sfxNames.js'
+import { ANIM, critterWeaponCode, playCharAnimSfx, playCharSfx, playOpenSfx, sfxBuildCharName, SCENERY_SOUND_EFFECT } from '../sfxNames.js'
 import { ammoFromRounds, ammoGetCapacity, ammoGetQuantity, ammoMergeInto, ammoSplitOff, initWeaponAmmo } from '../weaponAmmo.js'
 import type { Proto } from '../proto_types.js'
 
@@ -1410,13 +1410,28 @@ export class Obj {
             const actor = source ?? globalState.player
             if (!isTop) {
                 // CE actions.cc _action_climb_ladder (SCENERY_TYPE_LADDER_UP): facing the
-                // ladder, ANIM_CLIMB_LADDER with its sound (actions.cc:1050), then _obj_use
+                // ladder, a drawn weapon put away (ANIM_PUT_AWAY), ANIM_CLIMB_LADDER with its
+                // sound (actions.cc:1050), _obj_use, then the weapon taken out (ANIM_TAKE_OUT)
                 actor.orientation = hexDirectionTo(actor.position, this.position)
-                playCharSfx(actor, sfxBuildCharName(actor, 4 /* ANIM_CLIMB_LADDER */))
-                if (actor.hasAnimation('climb')) {
-                    actor.staticAnimation('climb', () => { actor.clearAnim(); transition() })
-                    return true // updateMap() runs in transition()
+                const weaponCode = critterWeaponCode(actor)
+                const takeOut = () => {
+                    if (weaponCode > 0 && actor.hasAnimation('weapon-draw')) {
+                        playCharAnimSfx(actor, ANIM.takeOut, weaponCode)
+                        actor.staticAnimation('weapon-draw', () => actor.clearAnim())
+                    }
                 }
+                const climb = () => {
+                    playCharSfx(actor, sfxBuildCharName(actor, 4 /* ANIM_CLIMB_LADDER */))
+                    if (actor.hasAnimation('climb')) actor.staticAnimation('climb', () => { actor.clearAnim(); transition(); takeOut() })
+                    else { transition(); takeOut() }
+                }
+                if (weaponCode > 0 && actor.hasAnimation('weapon-holster')) {
+                    playCharAnimSfx(actor, ANIM.putAway)
+                    actor.staticAnimation('weapon-holster', climb)
+                } else {
+                    climb()
+                }
+                return true // updateMap() runs in transition()
             } else if (actor.hasAnimation('use')) {
                 // A ladder down: the normal magic-hands use (CE _action_use_an_item_on_object)
                 actor.staticAnimation('use', () => { actor.clearAnim(); transition() })
