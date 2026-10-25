@@ -894,14 +894,32 @@ export class Combat {
             if (callback) callback()
             else if (!obj.isKnockedDown) obj.clearAnim()
         }
+        // CE actions.cc _action_ranged: a ranged (non-throw) attack aims first (ANIM_POINT)
+        // and lowers the weapon at the end (ANIM_UNPOINT) unless knocked down or dead
+        const POINT = 'anim:43', UNPOINT = 'anim:44' // ANIM_POINT / ANIM_UNPOINT
+        const aims = attackTypeOf(weaponObj) === 'ranged'
+        let fireDone = false
+        let unpointed = false
+        const afterAttack = (): void => {
+            if (!fireDone || !finished || unpointed) return
+            unpointed = true
+            if (aims && !obj.dead && !obj.isKnockedDown && obj.hasAnimation(UNPOINT)) {
+                obj.staticAnimation(UNPOINT, () => { animDone = true; proceed() }, true)
+            } else {
+                animDone = true
+                proceed()
+            }
+        }
         const resolveAttack = (): void => {
             if (resolved) return
             resolved = true
-            const deferred = this.resolveAttack(a, who, () => { finished = true; proceed() })
+            const deferred = this.resolveAttack(a, who, () => { finished = true; afterAttack() })
             if (!deferred) finished = true
         }
-        obj.staticAnimation(attackAnim, () => { resolveAttack(); animDone = true; proceed() },
+        const fire = (): void => obj.staticAnimation(attackAnim, () => { resolveAttack(); fireDone = true; afterAttack() },
             attackAnim !== 'attack', undefined, resolveAttack)
+        if (aims && obj.hasAnimation(POINT)) obj.staticAnimation(POINT, fire, true)
+        else fire()
     }
 
     // Second half of attack(): on the action frame — the projectile (CE _action_ranged:
