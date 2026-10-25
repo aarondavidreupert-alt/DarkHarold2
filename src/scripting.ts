@@ -18,7 +18,7 @@ Scripting system/engine for DarkFO
 
 import { Events } from './events.js'
 import { activeAssetMods, assetLayer } from './modAssets.js'
-import { sfallIniGetInt, sfallIniSet } from './sfallIni.js'
+import { sfallIniGetInt, sfallIniGetString, sfallIniSet } from './sfallIni.js'
 import * as SfallArrays from './sfallArrays.js'
 import * as SfallFs from './sfallFs.js'
 import * as SfallHooks from './sfallHooks.js'
@@ -39,6 +39,7 @@ import * as GameTime from './gametime.js'
 import {
     hexDirectionTo,
     hexDistance,
+    hexFromScreen,
     hexInDirection,
     hexNearestNeighbor,
     Point,
@@ -54,7 +55,12 @@ import { applyPerk, CE_PERKS, getPerkRank, perkApplyEffect, perkNameById, PERKS 
 import { Player } from './player.js'
 import { loadPRO, lookupArt, makePID } from './pro.js'
 import * as Endgame from './endgame.js'
-import { centerCamera, objectOnScreen } from './renderer.js'
+import { centerCamera, objectOnScreen, SCREEN_HEIGHT, SCREEN_WIDTH, screenToWorld } from './renderer.js'
+import { sfallKeyPressed, sfallMouseButtons } from './sfallInput.js'
+import { CriticalEffects } from './criticalEffects.js'
+import { heart } from './heart.js'
+import { showAlert } from './ui_dialog.js'
+import { currentUnarmed } from './unarmed.js'
 import { fromTileNum, toTileNum } from './tile.js'
 import { uiAddDialogueOption, uiBarterMode, uiDrawWeapon, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, uiWorldMap, UIMode } from './ui.js'
 import { drawAC, updateIndicatorBar } from './ui_hud.js'
@@ -697,6 +703,17 @@ export module Scripting {
         28: 'criticalMessageId', 32: 'defender', 44: 'defenderDamage', 48: 'defenderFlags', 52: 'defenderKnockback',
         56: 'oops',
     }
+
+    // sfall: CE hit locations → DH2 region names (combat_defs.h HIT_LOCATION_*)
+    const SFALL_HIT_LOCATIONS = ['head', 'leftArm', 'rightArm', 'torso', 'rightLeg', 'leftLeg', 'eyes', 'groin']
+    // CE message.cc STANDARD_MESSAGE_LIST_* / PROTO_MESSAGE_LIST_* file names
+    const SFALL_STANDARD_MESSAGE_FILES = ['combat', 'combatai', 'scrname', 'misc', 'custom', 'inventry', 'item', 'lsgame',
+        'map', 'options', 'perk', 'pipboy', 'quests', 'proto', 'script', 'skill', 'skilldex', 'stat', 'trait', 'worldmap']
+    const SFALL_PROTO_MESSAGE_FILES = ['pro_item', 'pro_crit', 'pro_scen', 'pro_wall', 'pro_tile', 'pro_misc']
+    // CE sfall_lists.cc: the open object lists
+    const sfallLists = new Map<number, { objects: any[]; next: number }>()
+    let nextSfallListId = 0xCCCCCC
+    let sfallMessageWindowOpen = false
 
     export class Script {
         // Stuff we hacked in
@@ -2496,6 +2513,133 @@ export module Scripting {
         get_sfall_global_int(key: any) { return GlobalScripts.getSfallGlobal(key) }
         // CE opGetGameMode (0x81AF): sfall's loop flags
         get_game_mode() { return SfallHooks.gameMode() | 0 }
+        // ── further sfall opcodes (CE sfall_opcodes.cc) ──
+        // CE opReadByte (0x8156): only the target-highlight setting's address is answered
+        read_byte(addr: number) {
+            if (addr === 0x56d38c) {
+                const th = Config.ui.targetHighlight as string | boolean
+                return th === 'on' || th === true ? 1 : th === 'targeting-only' ? 2 : 0 // combatGetTargetHighlight
+            }
+            warn(`read_byte: attempt to read 0x${(addr >>> 0).toString(16)}`)
+            return 0
+        }
+        get_year() { return GameTime.getDate().year } // CE op_get_year (0x8163)
+        // CE op_force_encounter / op_force_encounter_with_flags (0x8171 / 0x8229) → wmForceEncounter
+        force_encounter(map: number) { Worldmap.forceEncounter(map, 0) }
+        force_encounter_with_flags(map: number, flags: number) { Worldmap.forceEncounter(map, flags) }
+        key_pressed(dik: number) { return sfallKeyPressed(dik) ? 1 : 0 } // CE op_key_pressed (0x816C)
+        in_world_map() { return globalState.uiMode === UIMode.worldMap ? 1 : 0 } // CE op_in_world_map (0x8170)
+        // CE opGetCurrentHand (0x8193): interfaceGetCurrentHand, HAND_LEFT 0 / HAND_RIGHT 1
+        active_hand() { return (globalState.player as any)?.activeHand === 'rightHand' ? 1 : 0 }
+        get_uptime() { return Math.trunc(window.performance.now()) } // CE op_get_uptime (0x81B3): getTicks
+        // CE op_get/set_bodypart_hit_modifier (0x81DF / 0x81E0): hit_location_penalty (negative)
+        get_bodypart_hit_modifier(location: number) {
+            const region = SFALL_HIT_LOCATIONS[location]
+            return region ? -(CriticalEffects.regionHitChanceDecTable[region] ?? 0) : 0
+        }
+        set_bodypart_hit_modifier(location: number, penalty: number) {
+            const region = SFALL_HIT_LOCATIONS[location]
+            if (region) CriticalEffects.regionHitChanceDecTable[region] = -(Number(penalty) || 0)
+        }
+        // CE op_get_ini_string (0x81EB): the string, or -1
+        get_ini_string(triplet: string) { return sfallIniGetString(triplet) ?? -1 }
+        // CE opListBegin / opListNext / opListEnd (0x820D-0x820F) → sfall_lists.cc: a snapshot
+        // of the map's objects of a list type (0 critters, 1 items, 2 scenery, 3 walls, 5 misc,
+        // 6 spatial scripts, 9 all; 4 tiles is not implemented by sfall)
+        list_begin(type: number) {
+            const gMap = globalState.gMap
+            let objects: any[] = []
+            if (gMap && type !== 4) {
+                if (type === 6) objects = gMap.getSpatials ? gMap.getSpatials() : []
+                else {
+                    const all = (gMap.objects ?? []).flat()
+                    const kind = ['critter', 'item', 'scenery', 'wall', '', 'misc'][type]
+                    objects = type === 9 ? all : all.filter((o: Obj) => o.type === kind)
+                }
+            }
+            const id = nextSfallListId++
+            sfallLists.set(id, { objects, next: 0 })
+            return id
+        }
+        list_next(id: number) {
+            const list = sfallLists.get(id)
+            if (!list || list.next >= list.objects.length) return 0
+            return list.objects[list.next++]
+        }
+        list_end(id: number) { sfallLists.delete(id) }
+        // CE opGetVersionMajor / Minor / Patch (0x8210-0x8212): sfall 4.3.4
+        sfall_ver_major() { return 4 }
+        sfall_ver_minor() { return 3 }
+        sfall_ver_build() { return 4 }
+        get_mouse_x() { return Math.trunc(heart.mouse.getPosition()[0]) } // CE opGetMouseX (0x821C)
+        get_mouse_y() { return Math.trunc(heart.mouse.getPosition()[1]) } // CE opGetMouseY (0x821D)
+        get_mouse_buttons() { return sfallMouseButtons() } // CE op_get_mouse_buttons (0x821E)
+        get_screen_width() { return SCREEN_WIDTH } // CE opGetScreenWidth (0x8220)
+        get_screen_height() { return SCREEN_HEIGHT } // CE opGetScreenHeight (0x8221)
+        // CE op_create_message_window (0x8224): a message box, its text split at "\n"
+        create_message_window(text: string) {
+            if (typeof text !== 'string' || text === '' || sfallMessageWindowOpen) return
+            sfallMessageWindowOpen = true
+            void showAlert(text).finally(() => { sfallMessageWindowOpen = false })
+        }
+        // CE op_get_attack_type (0x8228): the hit mode of the active hand's action — 0 / 1
+        // left primary / secondary, 2 / 3 right, the unarmed modes for an empty hand
+        get_attack_type() {
+            const player = globalState.player as any
+            if (!player) return -1
+            const hand: 'leftHand' | 'rightHand' = player.activeHand ?? 'leftHand'
+            const item = player[hand]
+            if (item && item.pid !== undefined && item.weapon) return (hand === 'leftHand' ? 0 : 2) + (item.weapon.usesSecondary?.() ? 1 : 0)
+            return currentUnarmed(player).mode.hitMode
+        }
+        // CE opParseInt (0x8237): strtol(string, nullptr, 0) — decimal, 0x hex, 0 octal
+        atoi(text: any) {
+            const m = /^\s*([+-]?)(0[xX][0-9a-fA-F]+|0[0-7]*|[1-9][0-9]*)/.exec(String(text ?? ''))
+            if (!m) return 0
+            const body = m[2]
+            const v = /^0[xX]/.test(body) ? parseInt(body.slice(2), 16) : body.length > 1 && body[0] === '0' ? parseInt(body, 8) : parseInt(body, 10)
+            return (m[1] === '-' ? -v : v) | 0
+        }
+        // CE op_tile_under_cursor (0x824B)
+        tile_under_cursor() {
+            const mouse = heart.mouse.getPosition()
+            const world = screenToWorld(mouse[0], mouse[1])
+            const hex = hexFromScreen(world.x, world.y)
+            return toTileNum(hex)
+        }
+        // CE opSubstr (0x824E)
+        substr(text: any, start: number, length: number) {
+            const str = String(text ?? '')
+            const len = str.length
+            let startPos = start | 0
+            let count = length | 0
+            if (startPos < 0) {
+                startPos += len // from the end
+                if (startPos < 0) startPos = 0
+            }
+            if (count < 0) {
+                count += len - startPos // cut off at the end
+                if (count === 0) return ''
+                count = Math.abs(count)
+            }
+            if (startPos >= len) return ''
+            if (count === 0 || count + startPos > len) count = len - startPos
+            return str.substr(startPos, count)
+        }
+        strlen(text: any) { return String(text ?? '').length } // CE opGetStringLength (0x824F)
+        // CE opGetMessage (0x826B) → messageListRepositoryGetMsg: the standard message files
+        // (0 combat … 19 worldmap), the proto lists from 0x1000
+        message_str_game(fileId: number, msgId: number) {
+            const file = fileId >= 0x1000 ? SFALL_PROTO_MESSAGE_FILES[fileId - 0x1000] : SFALL_STANDARD_MESSAGE_FILES[fileId]
+            return (file ? getMessage(file, msgId) : null) ?? 'Error'
+        }
+        // CE opArtExists (0x8274)
+        art_exists(fid: number) {
+            try {
+                const art = lookupArt(fid)
+                return art && globalState.imageInfo?.[art] !== undefined ? 1 : 0
+            } catch { return 0 }
+        }
         // CE op_tap_key (0x8162): a DirectInput key press. DH2 dispatches the key to the
         // page; only the keys scripts use are mapped (DIK_ESCAPE: gl_k_dogmeat_fix).
         tap_key(dik: number) {
@@ -2541,6 +2685,10 @@ export module Scripting {
         sfall_func0(name: string) { return this.sfallMetarule(name, []) }
         sfall_func1(name: string, a: any) { return this.sfallMetarule(name, [a]) }
         sfall_func2(name: string, a: any, b: any) { return this.sfallMetarule(name, [a, b]) }
+        sfall_func3(name: string, a: any, b: any, c: any) { return this.sfallMetarule(name, [a, b, c]) }
+        sfall_func4(name: string, a: any, b: any, c: any, d: any) { return this.sfallMetarule(name, [a, b, c, d]) }
+        sfall_func5(name: string, a: any, b: any, c: any, d: any, e: any) { return this.sfallMetarule(name, [a, b, c, d, e]) }
+        sfall_func6(name: string, a: any, b: any, c: any, d: any, e: any, f: any) { return this.sfallMetarule(name, [a, b, c, d, e, f]) }
         private sfallMetarule(name: string, args: any[]): any {
             switch (name) {
                 case 'combat_data': return combatGetData()

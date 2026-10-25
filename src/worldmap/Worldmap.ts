@@ -1201,7 +1201,7 @@ async function runEncounter(roll: EncounterRoll): Promise<void> {
     walk.isWalking = false
     walk.distance = 0
     worldmapPlayer.target = null
-    globalState.gMap.loadMap(mapName, undefined, undefined, () => setupRandomEncounter())
+    globalState.gMap.loadMap(mapName, undefined, undefined, roll.forced ? undefined : () => setupRandomEncounter())
     uiCloseWorldMap()
 }
 

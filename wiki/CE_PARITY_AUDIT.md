@@ -138,7 +138,7 @@ LOW findings are listed in each report only.
 | | SCR-06 | VM: intrinsic results and built-ins are typed as CE (null object → 0, truth values 0 / 1, like the Lua backend); comparisons and `!` push 0 / 1 |
 | | SCR-07 | `attack_setup` / `attack_complex` (out of combat), `world_map`, `explosion` and `endgame_slideshow` are requests the game loop runs after the script returns and the dialogue is over, in CE's order |
 | | SCR-09 | the dude runs `obj_dude` (critter / map-update / timer / drop / use-on procs: GECK experience and drop block, mutation messages, `add_timer_event(dude_obj, …)`); its LVARs are saved |
-| | SCR-12 (part) | VM: an unknown opcode is a fatal error that ends the procedure (it was read as a dialogue suspension). The sfall string / math opcodes are still missing |
+| | SCR-12 | VM: an unknown opcode is a fatal error that ends the procedure (it was read as a dialogue suspension); all 83 CE sfall opcodes now have a handler — strings (`substr`, `strlen`, `atoi`, `atof`, `typeof`), math (`sqrt`, `^`, `round`, `div`, typed as CE in `vm.ts`), lists, `sfall_func3-6`, version, mouse / key / screen, hit-location modifiers, `message_str_game`, `art_exists`, `force_encounter(_with_flags)` (`src/sfallInput.ts` for keys and buttons). A mod script that uses one of the 34 new ones has no `.lua` (tools/int2lua.py doesn't know them) and runs on the VM |
 | Dialogue | DLG-02, DLG-03 | CE's pending-reply model: `gsay_end` runs the dialogue only while a reply is pending and adds CE's implicit option (proto.msg 655 / empty) when the reply has none; a `gsay_message` [Done] returns into its procedure with the dialogue open, which closes only if no options follow |
 | Save / load | SAVE-01 | preferences saved with the game and applied on load |
 | | SAVE-02, COMBAT-14 | a save made in combat resumes the fight (order, turn, round, XP, player AP) |
@@ -218,12 +218,12 @@ LOW findings are listed in each report only.
 Fixed earlier with the HIGH groups: INV-02 (PA8), ITEM-15 (PA9), CRIT-02 (PA12), ITEM-17 (PA18), WM-04 / WM-09 (PA21), WM-07 (PA23). Already in the code when audited: TILE-03 (`camera.ts playerLimitRefuses`, on by default).
 
 Status of the 120 MED findings with their own section in `ce_audit/` (each header there is marked FIXED /
-PARTLY FIXED): 106 fixed, 10 partly fixed, 4 open or not ported:
+PARTLY FIXED): 107 fixed, 9 partly fixed, 4 open or not ported:
 
 - **Open:** COMBAT-13
   (the Glovz / YAAM opt-in damage formulas; conflicts with known_bugs C3).
 - **Partly fixed, rest open:** INV-13 (bags in the loot / barter windows), INV-12 (container USE outside the inventory window, money drop), AUTO-01 (no High / Low detail switch; the scanner and the seen band are CE's), SCR-05 (object `start` still runs at script load), SCR-10 (flare / explosive timed
-  events not restored), SCR-12 (sfall string / math opcodes), DLG-04 (page keys, control / customise keys),
+  events not restored), DLG-04 (page keys, control / customise keys),
   ACT-07 (weapon put away / taken out around the climb), ANIM-02 (AP still charged up front), MOUSE-06 (no pick
   through a visible roof).
 - **Checked, not ported:** SCR-11 — a scan of the 1443 shipped `.int` files shows procedure index 1 is the pure

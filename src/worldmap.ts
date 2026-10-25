@@ -71,4 +71,5 @@ export module Worldmap {
     export const serializeEncounters = _Encounters.serializeEncounters
     export const deserializeEncounters = _Encounters.deserializeEncounters
     export const resetEncounters = _Encounters.resetEncounters
+    export const forceEncounter = _Encounters.forceEncounter
 }

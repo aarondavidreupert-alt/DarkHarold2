@@ -301,6 +301,42 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
         checkDivisor(this, 'MOD')
         modulo.call(this)
     },
+    // sfall math (CE sfall_opcodes.cc), here for the typed values: floats stay boxed
+    // op_sqrt (0x81EC): a float
+    0x81ec: function () {
+        this.push(vmFloat(Math.sqrt(Number(unbox(this.popRaw())) || 0)))
+    },
+    // op_atof (0x8238): a float
+    0x8238: function () {
+        this.push(vmFloat(parseFloat(String(unbox(this.popRaw()))) || 0))
+    },
+    // opTypeOf (0x8253): 1 int, 2 float, 3 string (anything else)
+    0x8253: function () {
+        const v = this.popRaw()
+        this.push(isVMFloat(v) ? 2 : typeof v === 'number' ? 1 : 3)
+    },
+    // op_power (0x8263, `^`): an int for two ints, else a float
+    0x8263: function () {
+        const exp = this.popRaw(), base = this.popRaw()
+        const r = Math.fround(Math.pow(Number(unbox(base)) || 0, Number(unbox(exp)) || 0))
+        this.push(!isVMFloat(base) && !isVMFloat(exp) && typeof base === 'number' && typeof exp === 'number' ? Math.trunc(r) | 0 : vmFloat(r))
+    },
+    // opRound (0x8267): to the nearest int, halves away from zero
+    0x8267: function () {
+        const f = Number(unbox(this.popRaw())) || 0
+        let i = Math.trunc(f)
+        const mod = f - i
+        if (Math.abs(mod) >= 0.5) i += mod > 0 ? 1 : -1
+        this.push(i | 0)
+    },
+    // op_div (0x827F): unsigned for two ints, a float division with a float; 0 on division by 0
+    0x827f: function () {
+        const divisor = this.popRaw(), dividend = this.popRaw()
+        const d = Number(unbox(divisor)) || 0
+        if ((d | 0) === 0 && !isVMFloat(divisor)) { this.push(0); return }
+        if (isVMFloat(dividend) || isVMFloat(divisor)) this.push(vmFloat((Number(unbox(dividend)) || 0) / d))
+        else this.push(Math.trunc((Number(dividend) >>> 0) / (d >>> 0)) | 0)
+    },
     // CE opDivide: int / int truncates; with a float it is a float division
     0x803c: function () {
         checkDivisor(this, 'DIV')

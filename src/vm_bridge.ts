@@ -274,6 +274,41 @@ export module ScriptVMBridge {
        ,0x8276: bridged("sfall_func0", 1)           // CE op_sfall_func0
        ,0x8277: bridged("sfall_func1", 2)           // CE op_sfall_func1
        ,0x8278: bridged("sfall_func2", 3)           // CE op_sfall_func2
+       ,0x8279: bridged("sfall_func3", 4)           // CE op_sfall_func3
+       ,0x827A: bridged("sfall_func4", 5)           // CE op_sfall_func4
+       ,0x827B: bridged("sfall_func5", 6)           // CE op_sfall_func5
+       ,0x827C: bridged("sfall_func6", 7)           // CE op_sfall_func6
+       // further sfall functions (CE sfall_opcodes.cc; Script methods — the float math is in vm.ts)
+       ,0x8156: bridged("read_byte", 1)             // CE opReadByte
+       ,0x8163: bridged("get_year", 0)              // CE op_get_year
+       ,0x816C: bridged("key_pressed", 1)           // CE op_key_pressed
+       ,0x8170: bridged("in_world_map", 0)          // CE op_in_world_map
+       ,0x8171: bridged("force_encounter", 1, false) // CE op_force_encounter
+       ,0x8229: bridged("force_encounter_with_flags", 2, false) // CE op_force_encounter_with_flags
+       ,0x8193: bridged("active_hand", 0)           // CE opGetCurrentHand
+       ,0x81B3: bridged("get_uptime", 0)            // CE op_get_uptime
+       ,0x81DF: bridged("get_bodypart_hit_modifier", 1) // CE op_get_bodypart_hit_modifier
+       ,0x81E0: bridged("set_bodypart_hit_modifier", 2, false) // CE op_set_bodypart_hit_modifier
+       ,0x81EB: bridged("get_ini_string", 1)        // CE op_get_ini_string
+       ,0x820D: bridged("list_begin", 1)            // CE opListBegin
+       ,0x820E: bridged("list_next", 1)             // CE opListNext
+       ,0x820F: bridged("list_end", 1, false)       // CE opListEnd
+       ,0x8210: bridged("sfall_ver_major", 0)       // CE opGetVersionMajor
+       ,0x8211: bridged("sfall_ver_minor", 0)       // CE opGetVersionMinor
+       ,0x8212: bridged("sfall_ver_build", 0)       // CE opGetVersionPatch
+       ,0x821C: bridged("get_mouse_x", 0)           // CE opGetMouseX
+       ,0x821D: bridged("get_mouse_y", 0)           // CE opGetMouseY
+       ,0x821E: bridged("get_mouse_buttons", 0)     // CE op_get_mouse_buttons
+       ,0x8220: bridged("get_screen_width", 0)      // CE opGetScreenWidth
+       ,0x8221: bridged("get_screen_height", 0)     // CE opGetScreenHeight
+       ,0x8224: bridged("create_message_window", 1, false) // CE op_create_message_window
+       ,0x8228: bridged("get_attack_type", 0)       // CE op_get_attack_type
+       ,0x8237: bridged("atoi", 1)                  // CE opParseInt
+       ,0x824B: bridged("tile_under_cursor", 0)     // CE op_tile_under_cursor
+       ,0x824E: bridged("substr", 3)                // CE opSubstr
+       ,0x824F: bridged("strlen", 1)                // CE opGetStringLength
+       ,0x826B: bridged("message_str_game", 2)      // CE opGetMessage
+       ,0x8274: bridged("art_exists", 1)            // CE opArtExists
        ,0x80A1: bridged("give_exp_points", 1, false)
        ,0x8138: bridged("item_caps_total", 1)
        ,0x8139: bridged("item_caps_adjust", 2)

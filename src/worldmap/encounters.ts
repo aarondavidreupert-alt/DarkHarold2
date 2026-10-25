@@ -59,6 +59,19 @@ export interface EncounterRoll {
     blink: 'random' | 'special' | null // wmBlinkRndEncounterIcon
     fadeOut: boolean
     ask: { title: string; body: string } | null // detected: YES/NO before loading
+    forced?: boolean // sfall force_encounter: the map loads without the random encounter setup
+}
+
+// sfall: CE worldmap.cc wmForceEncounter (op_force_encounter / _with_flags): the next
+// encounter check loads this map. Flags: 0x1 NO_CAR, 0x2 LOCK (no override until it
+// happened), 0x4 NO_ICON, 0x8 ICON_SP, 0x10 FADEOUT.
+let forcedEncounterMapId = -1
+let forcedEncounterFlags = 0
+export function forceEncounter(mapId: number, flags: number): void {
+    if ((forcedEncounterFlags & 0x80000000) !== 0) return
+    forcedEncounterMapId = mapId
+    forcedEncounterFlags = (flags >>> 0) & ~0x80000000
+    if ((forcedEncounterFlags & 0x2) !== 0) forcedEncounterFlags = (forcedEncounterFlags | 0x80000000) >>> 0
 }
 
 // CE wmInterfaceInit: wmLastRndTime = getTicks()
@@ -105,6 +118,19 @@ export function rndEncounterOccurred(pos: Point, inArea: boolean, square: Square
         encounterMapId = -1
         didMeetFrankHorrigan = true
         return { mapId: MAP_IN_GAME_MOVIE1, blink: 'special', fadeOut: true, ask: null }
+    }
+
+    // CE (sfall): the forced encounter, after the Horrigan one; fade-out and the blinking
+    // icon exclude each other
+    if (forcedEncounterMapId !== -1) {
+        const flags = forcedEncounterFlags
+        const roll: EncounterRoll = {
+            mapId: forcedEncounterMapId, fadeOut: (flags & 0x10) !== 0, ask: null, forced: true,
+            blink: (flags & 0x10) !== 0 || (flags & 0x4) !== 0 ? null : (flags & 0x8) !== 0 ? 'special' : 'random',
+        }
+        forcedEncounterMapId = -1
+        forcedEncounterFlags = 0
+        return roll
     }
 
     const worldmap = getWorldmap()
@@ -469,6 +495,8 @@ export function deserializeEncounters(data: SavedEncounters | undefined): void {
 }
 export function resetEncounters(): void {
     didMeetFrankHorrigan = false
+    forcedEncounterMapId = -1
+    forcedEncounterFlags = 0
     oldWorldPosX = 0
     oldWorldPosY = 0
     cancelEncounter()
