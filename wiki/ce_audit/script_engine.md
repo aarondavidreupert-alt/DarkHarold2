@@ -324,7 +324,7 @@ Top findings, most severe first:
 - **Fix:** Confirm with an opcode / procedure-table scan of the shipped scripts before changing anything.
 - **Ref:** NEW.
 
-### SCR-12 — sfall opcode coverage; unknown opcodes are misread as a dialogue suspension (MED for mods) — **PARTLY FIXED 2026-10-25**
+### SCR-12 — sfall opcode coverage; unknown opcodes are misread as a dialogue suspension (MED for mods) — **FIXED 2026-10-25**
 - **CE:** `sfall_opcodes.cc` registers 83 opcodes; an unregistered opcode is `programFatalError("Undefined opcode")`.
 - **DH2:** 36 of them are bridged (see the table). `vm.ts:495-506` returns `false` from `step()`, so `run()` halts with the −1 sentinel still on `retStack`. `call()` (`vm.ts:407-421`) then treats the frame as halted in `gsay_end` and stores it in `suspended`. The next `resume()` continues it from whatever address is on top of the stored return frame.
 - **Impact:** Mods that use sfall string or math functions (`substr`, `strlen`, `atoi`, `sqrt`, `round`, `^`, sfall gvars) break silently, and `resume()` can later run a half-finished procedure. Vanilla is not affected (C54 scan).
