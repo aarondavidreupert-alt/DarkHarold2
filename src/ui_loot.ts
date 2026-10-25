@@ -24,6 +24,7 @@ import { UIMode } from './ui_panels.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter.js'
 import { uiLog } from './ui_hud.js'
 import { getMessage } from './util.js'
+import { showAlert } from './ui_dialog.js'
 import { Scripting } from './scripting.js'
 import { drawBagView, examineToLog, itemMenuActions, makeDropTarget, makeDraggable, MAX_OPEN_BAGS, showItemMenu, unloadWeapon } from './ui_inventory.js'
 import { appendItemSlot, $id, clearEl, showv, hidev, off, makeEl } from './ui_dom.js'
@@ -164,20 +165,16 @@ export function uiLoot(object: Obj) {
         uiLootMove(data, 'right')
     })
 
+    // CE inventoryOpenLooting KEY_UPPERCASE_A (the TAKE ALL button sends it too): everything
+    // or nothing — the target's whole inventory weight against the room left, else inventry.msg 31
     $id('lootBoxTakeAllButton').onclick = () => {
         dbg('inventory', '[Loot] take all')
-        const inv = object.inventory.slice(0) // clone inventory
-        let blocked = false
         const player = globalState.player!
-        for (let i = 0; i < inv.length; i++) {
-            // CE ref: item.cc itemAttemptAdd — skip items that would overweigh the player.
-            if (!player.canCarry(inv[i], inv[i].amount)) {
-                blocked = true
-                continue
-            }
-            uiSwapItem(object.inventory, inv[i], player.inventory, inv[i].amount)
+        if (object.getInventoryWeight() > player.getStat('Carry') - player.getInventoryWeight()) {
+            void showAlert(getMessage('inventry', 31) ?? 'Sorry, you cannot carry that much.')
+            return
         }
-        if (blocked) uiLog("You can't carry any more.")
+        for (const item of object.inventory.slice()) uiSwapItem(object.inventory, item, player.inventory, item.amount)
         drawLoot()
     }
 
@@ -194,4 +191,17 @@ export function uiLoot(object: Obj) {
 export function drawLootBagViews(leftBags: Obj[], rightBags: Obj[], redraw: () => void): void {
     drawBagView($id('lootBox'), 'lootBoxLeftBag', { left: 44, top: 35, width: 60, height: 100 }, leftBags, redraw)
     drawBagView($id('lootBox'), 'lootBoxRightBag', { left: 422, top: 35, width: 60, height: 100 }, rightBags, redraw)
+}
+
+// CE inventoryOpenLooting's keys (the steal window too): Esc closes, A (Shift+A) takes all
+export function lootKey(e: KeyboardEvent): boolean {
+    const quantity = document.getElementById('moveMultOverlay') // the quantity window has its own keys
+    if (quantity && getComputedStyle(quantity).display !== 'none') return false
+    if (e.key === 'Escape') { $id('lootBoxDoneButton').click(); return true }
+    if (e.key === 'A') {
+        const takeAll = $id('lootBoxTakeAllButton')
+        if (takeAll.style.visibility !== 'hidden') takeAll.click() // (none while stealing)
+        return true
+    }
+    return false
 }

@@ -378,7 +378,9 @@ name and looking up the exact match — correct regardless of on-disk packet ord
 `setCompanionDisposition()` (`party.ts`) calls this, then re-points `critter.aiNum` at the new
 packet and (if an `AI` instance already exists for this critter) immediately updates
 `critter.ai.packet` too, so the change takes effect without waiting for the critter to next enter
-combat. Switching to anything other than `'custom'` clears `critter.customAiOverrides`.
+combat. `critter.customAiOverrides` is kept across a switch to a named disposition and applies only
+while the custom packet is in use, so switching back to Custom restores the settings (CE writes them
+into the CUSTOM packet itself; PTY-06, 2026-10-25).
 
 `setCompanionCustomSetting()` applies one field override on top of the companion's `'custom'`
 packet (cloned, never mutating the shared canonical packet object keyed by `packetNum` in

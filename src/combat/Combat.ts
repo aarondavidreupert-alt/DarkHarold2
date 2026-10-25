@@ -40,7 +40,7 @@ import type { AiPacket } from '../aiPackets.js'
 import { ANIM, CHARACTER_SOUND_EFFECT, playCharAnimSfx, sfxBuildWeaponName } from '../sfxNames.js'
 import { filterBadwordsText } from '../badwords.js'
 import { ActionPoints } from './actionPoints.js'
-import { AI, fleeHpThreshold } from './AI.js'
+import { AI } from './AI.js'
 import { computeDamage } from './damage.js'
 import { combatIsShotBlocked, nextShootObstacle } from './lineOfFire.js'
 import { explosionRingCritters } from './explosion.js'
@@ -288,7 +288,7 @@ const RUN_AWAY_HP_PCT: { [mode: string]: number } = {
 // value; a party member's run-away setting (aiSetRunAwayMode) sets it to
 // max HP − max HP × percent / 100.
 function aiMinHp(obj: Critter, packet: AiPacket): number {
-    const custom = obj.customAiOverrides?.runAwayMode
+    const custom = packet.disposition === 'custom' ? obj.customAiOverrides?.runAwayMode : undefined
     if (custom !== undefined && RUN_AWAY_HP_PCT[custom] !== undefined) {
         const maxHp = obj.getStat('Max HP') ?? obj.getStat('HP')
         return maxHp - Math.trunc(maxHp * RUN_AWAY_HP_PCT[custom] / 100)

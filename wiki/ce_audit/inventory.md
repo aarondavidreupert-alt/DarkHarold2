@@ -187,9 +187,10 @@ Top findings (by severity):
 - **Impact:** vendors and NPCs carrying armor for sale or as loot get its AC / DR / DT in combat (`getArmorDR`) and in `critter_inven_obj(…, INVEN_TYPE_WORN)` (`scripting.ts:1486`), unlike CE. (Overlaps the combat audit; reported here because it is `critterGetArmor`.)
 - **Fix:** drop the fallback, or limit it to data that lacks flags, with a comment.
 
-### INV-16 — Take All is partial and uses a hardcoded message (LOW, NEW)
+### INV-16 — Take All is partial and uses a hardcoded message (LOW, NEW) — **FIXED 2026-10-25**
 - CE: `inventoryOpenLooting` `KEY_UPPERCASE_A`: if the target's whole inventory weight exceeds the remaining capacity → msg 31 "Sorry, you cannot carry that much." and **nothing** moves; otherwise `itemMoveAll`. The `A` key also triggers it.
 - DH2: `src/ui_loot.ts:121-136` moves every item that fits, skips the rest, and logs the hardcoded English "You can't carry any more."; no `A` key.
+- **Fixed 2026-10-25:** everything or nothing: the target's whole inventory weight against the room left, else inventry.msg 31 in a dialog box; Shift+A (the button's key) takes all and Esc closes the loot window (`ui_loot.ts lootKey`).
 
 ## DH2-only behaviour
 

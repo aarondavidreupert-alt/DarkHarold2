@@ -183,13 +183,15 @@ Top findings, most severe first:
 - Suggested fix: add a `whoHitMe` filter to the step-4 teammate selection, and drop the move in step 1, returning false after confirming a friend within PER×2.
 - known_bugs: NEW. Severity LOW-MED.
 
-### AI-09 — ai.txt parsing details (LOW, listed for completeness)
+### AI-09 — ai.txt parsing details (LOW, listed for completeness) — **FIXED 2026-10-25**
 - `aiPackets.ts` numeric maps follow no CE enum order: `ATTACK_WHO_MAP` = whomever, closest, … where CE is whomever_attacking_me, strongest, weakest, whomever, closest. `DISTANCE_MAP` starts at on_your_own where CE is stay_close, charge, snipe, on_your_own, stay. `RUN_AWAY_MODE_MAP` and `AREA_ATTACK_MODE_MAP` differ the same way. They are reached only with numeric values, which vanilla ai.txt does not use.
 - Missing-key defaults are 'closest', 'on_your_own' and chance 85; CE uses -1 or aborts.
 - `hit_groin_end` is not incremented (CE `aiInit:446`).
+- **Fixed 2026-10-25:** the numeric fallbacks follow CE's enum order (−1 = the fallback); `hit_groin_end` is incremented as in `aiInit`. Missing-key defaults stay DH2's (CE aborts loading ai.txt).
 
-### AI-10 — dead helper `fleeHpThreshold` (LOW)
+### AI-10 — dead helper `fleeHpThreshold` (LOW) — **FIXED 2026-10-25**
 - `src/combat/AI.ts:43–55` exports `HP_FLEE_PCT` / `fleeHpThreshold` (HP% = pct of max). It is imported in `Combat.ts:42` but never called. It encodes the "inverted percentage" model that C28 replaced, so it is misleading. Delete it or mark it obsolete.
+- **Fixed 2026-10-25:** `HP_FLEE_PCT` / `fleeHpThreshold` removed.
 
 ## DH2-only behaviour
 

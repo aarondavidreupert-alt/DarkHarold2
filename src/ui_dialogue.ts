@@ -22,6 +22,8 @@ import { stopTalkingHead } from './talkingHead.js'
 import globalState from './globalState.js'
 import { Critter } from './object.js'
 import { objectBoundingBox } from './renderer.js'
+import { centerCamera, getCenterTile } from './render/camera.js'
+import type { Point } from './geometry.js'
 import { Scripting } from './scripting.js'
 import { UIMode } from './ui_panels.js'
 import { $id } from './ui_dom.js'
@@ -167,6 +169,9 @@ export function uiStartDialogue(force: boolean, target?: Critter) {
     if (!target || alreadyShowing) {
         return
     }
+    // CE gameDialogEnter: the centre tile and the dude's tile, for the exit
+    const p = globalState.player
+    dialogueReturn = { center: getCenterTile(), dudeTile: p ? { ...p.position } : null }
     const bbox = objectBoundingBox(target)
     if (bbox !== null) {
         const dc = $id('dialogueContainer')
@@ -182,9 +187,20 @@ export function uiStartDialogue(force: boolean, target?: Critter) {
     }
 }
 
+// CE gGameDialogOldCenterTile / gGameDialogOldDudeTile
+let dialogueReturn: { center: Point; dudeTile: Point | null } | null = null
+
 export function uiEndDialogue() {
     // TODO: Transition the dialogue box down?
     globalState.uiMode = UIMode.none
+    // CE _gdialogExitFromScript: back to the centre tile the dialogue started from — the
+    // dude's if he moved meanwhile
+    if (dialogueReturn) {
+        const p = globalState.player
+        const moved = p && dialogueReturn.dudeTile && (p.position.x !== dialogueReturn.dudeTile.x || p.position.y !== dialogueReturn.dudeTile.y)
+        centerCamera(moved ? p.position : dialogueReturn.center)
+        dialogueReturn = null
+    }
     stopTalkingHead() // CE _gdialogExitFromScript: head window + music
 
     $id('dialogueContainer').style.visibility = 'hidden'

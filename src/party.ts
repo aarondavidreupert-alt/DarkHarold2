@@ -252,16 +252,12 @@ export function setCompanionDisposition(critter: Critter, disposition: Dispositi
     if (!newPacket) return false
 
     critter.aiNum = newPacket.packetNum
-    if (critter.ai) critter.ai.packet = newPacket
 
-    // Switching to a named preset uses that preset's authored values as-is —
-    // any leftover per-field overrides from a previous Custom session no
-    // longer apply (and would otherwise silently reappear if the player
-    // switches back to Custom later expecting a clean slate... actually no,
-    // CE's Custom screen always reflects the *current* packet's values, so
-    // clearing here is specifically about not leaking AGGRESSIVE-session
-    // overrides into a later DEFENSIVE session, etc).
-    if (disposition !== 'custom') critter.customAiOverrides = null
+    // A named preset uses its authored values as-is; the Custom settings stay for a later switch
+    // back (CE aiSet* writes them into the CUSTOM packet itself, which aiSave keeps). The AI
+    // applies them only while the custom packet is in use (customOverridesFor).
+    if (critter.ai) critter.ai.packet = disposition === 'custom' && critter.customAiOverrides
+        ? { ...newPacket, ...critter.customAiOverrides } : newPacket
 
     return true
 }
@@ -299,5 +295,11 @@ export function setCompanionCustomSetting<K extends CustomAiCategory>(
  *  merged), for UI display purposes — mirrors the merge AI's constructor does. */
 export function getCompanionEffectivePacket(critter: Critter): AiPacket {
     const base = critter.ai?.packet ?? getAiPacket(critter.aiNum)
-    return critter.customAiOverrides ? { ...base, ...critter.customAiOverrides } : base
+    const custom = customOverridesFor(critter, base)
+    return custom ? { ...base, ...custom } : base
+}
+
+/** The companion's Custom settings, when its packet is the custom one (PTY-06). */
+function customOverridesFor(critter: Critter, packet: AiPacket): Partial<AiPacket> | null {
+    return packet.disposition === 'custom' ? critter.customAiOverrides : null
 }

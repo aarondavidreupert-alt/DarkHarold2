@@ -57,8 +57,9 @@ export interface AiPacket {
 // Numeric encoding isn't used by any real ai.txt entry (all use string keys),
 // kept only as a defensive fallback to match CE's parser exactly.
 const DISPOSITION_MAP: Disposition[]      = ['none', 'custom', 'coward', 'defensive', 'aggressive', 'berserk']
-// FO2: 0=whomever 1=closest 2=weakest 3=strongest 4=which_side_most_hurt 5=whoever_attacking_me
-const ATTACK_WHO_MAP: AttackWho[]         = ['whomever', 'closest', 'weakest', 'strongest', 'closest', 'whomever_attacking_me']
+// The numeric maps below are a DH2 fallback (CE reads these keys only as strings, vanilla ai.txt
+// has no numbers); they follow CE combat_ai_defs.h's enum order, and −1 is the fallback.
+const ATTACK_WHO_MAP: AttackWho[]         = ['whomever_attacking_me', 'strongest', 'weakest', 'whomever', 'closest']
 // FO2-CE enum: -1=unset→no_pref, 0=no_pref, 1=melee, 2=melee_over_ranged, 3=ranged_over_melee,
 //              4=ranged, 5=unarmed, 6=unarmed_over_throw, 7=random, 8=never
 // parseEnum maps -1 → index 0 ('no_pref'), matching _weapPrefOrderings[best_weapon+1] row 0.
@@ -66,11 +67,9 @@ const BEST_WEAPON_MAP: BestWeapon[] = [
     'no_pref', 'melee', 'melee_over_ranged', 'ranged_over_melee',
     'ranged', 'unarmed', 'unarmed_over_throw', 'random', 'never',
 ]
-const AREA_ATTACK_MODE_MAP: AreaAttackMode[] = ['no_pref', 'be_careful', 'be_sure', 'be_absolutely_sure', 'sometimes']
-// FO2: 0=on_your_own 1=charge 2=snipe 3=stay 4=random
-const DISTANCE_MAP: DistanceMode[]        = ['on_your_own', 'charge', 'snipe', 'stay', 'random']
-// FO2 stored as -1…4; we normalise -1→'never', 0→'none', 1–4 follow
-const RUN_AWAY_MODE_MAP: RunAwayMode[]    = ['never', 'none', 'bleeding', 'finger_hurts', 'not_feeling_good', 'coward']
+const AREA_ATTACK_MODE_MAP: AreaAttackMode[] = ['always', 'sometimes', 'be_sure', 'be_careful', 'be_absolutely_sure']
+const DISTANCE_MAP: DistanceMode[]        = ['stay_close', 'charge', 'snipe', 'on_your_own', 'stay']
+const RUN_AWAY_MODE_MAP: RunAwayMode[]    = ['none', 'coward', 'finger_hurts', 'bleeding', 'not_feeling_good', 'tourniquet', 'never']
 // CE combat_ai.cc gChemUseKeys: 0=clean 1=stims_when_hurt_little 2=stims_when_hurt_lots 3=sometimes 4=anytime 5=always
 export const CHEM_USE_MAP: ChemUse[]             = ['clean', 'stims_when_hurt_little', 'stims_when_hurt_lots', 'sometimes', 'anytime', 'always']
 
@@ -99,12 +98,9 @@ function parseEnum<T extends string>(
     if (!raw || raw === '') return fallback
     const lower = raw.toLowerCase().trim()
     if (validSet.has(lower)) return lower as T
-    // Try numeric code (handles both positive and -1 for run_away_mode)
+    // a numeric code (CE enum value; −1 = unset → the fallback)
     const n = parseInt(raw, 10)
-    if (!isNaN(n)) {
-        const idx = n < 0 ? 0 : n                   // -1 → index 0 for run_away_mode='never'
-        if (idx >= 0 && idx < numericMap.length) return numericMap[idx]
-    }
+    if (!isNaN(n) && n >= 0 && n < numericMap.length) return numericMap[n]
     return fallback
 }
 
@@ -164,7 +160,8 @@ function buildMessageRanges(raw: Record<string, string>): Partial<Record<string,
         'hit_right_leg', 'hit_left_leg', 'hit_eyes', 'hit_groin']
     for (const key of keys) {
         const start = parseIntField(raw[key + '_start'], 0)
-        const end   = parseIntField(raw[key + '_end'],   0)
+        // (CE aiInit: hit_groin_end++ after reading it — one more line for groin hits)
+        const end   = parseIntField(raw[key + '_end'],   0) + (key === 'hit_groin' ? 1 : 0)
         if (start > 0 && end > 0) {
             ranges[key] = [start, end]
         }

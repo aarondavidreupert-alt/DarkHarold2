@@ -342,10 +342,11 @@ Top findings, most severe first:
   - `!` pushes a boolean.
 - No shipped script is known to depend on these. Ref: NEW (scripting_vm.md §9.2 already notes the string ordering edge case).
 
-### SCR-14 — wiki inconsistency (LOW, doc)
+### SCR-14 — wiki inconsistency (LOW, doc) — **FIXED 2026-10-25**
 - `wiki/scripting_vm.md` §4's opcode table numbers the base opcodes wrongly; for example it lists 0x8002 as push_base, 0x8016 as `+` and 0x8027 as jmp.
 - CE `interpreter.h:17-92` has OPCODE_PUSH_BASE = 0x802B, OPCODE_ADD = 0x8039, OPCODE_JUMP = 0x8004. §9.2 of the same doc uses the right numbers.
 - Per the CLAUDE.md wiki rule, this is a wiki / CE conflict to flag; CE is right. Ref: NEW.
+- **Fixed 2026-10-25:** the §4 table is regenerated from CE `interpreter.h`; §9.4's pop_return number fixed too.
 
 ### Smaller ones (LOW, collected)
 - **Midnight during a dialogue** (`gameTick.ts processMidnightForDay`): CE `gameTimeEventProcess` skips `_scriptsCheckGameEvents` while a dialogue is active, and everything while a movie plays.

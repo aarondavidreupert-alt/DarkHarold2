@@ -260,15 +260,17 @@ Top findings:
 - **Fix:** a keydown handler while `uiMode === dialogue` mapping `1`–`9` to `dialogueReply(n−1)` and `b` to the Barter button; W / A / D on the control screen; Enter on customise / picker.
 - **Ref:** NEW.
 
-### PTY-06 — Custom settings dropped on a disposition change (LOW)
+### PTY-06 — Custom settings dropped on a disposition change (LOW) — **FIXED 2026-10-25**
 - **CE:** custom values are stored in the companion's CUSTOM packet itself (`aiSet*` write `aiGetPacket`), saved by `aiSave`; switching to Aggressive and back to Custom restores them.
 - **DH2:** `party.ts:246` clears `customAiOverrides` when a named disposition is chosen.
 - **Ref:** NEW.
+- **Fixed 2026-10-25:** a named disposition keeps the companion's Custom settings; they apply only while the custom packet is in use, so switching back restores them.
 
-### DLG-07 — Camera not restored after dialogue (LOW)
+### DLG-07 — Camera not restored after dialogue (LOW) — **FIXED 2026-10-25**
 - **CE:** `_gdialogExitFromScript` scrolls back to the centre tile saved at `gameDialogEnter` (or to the dude if he moved).
 - **DH2:** `uiStartDialogue` centres on the speaker (`ui_dialogue.ts:166-181`); `uiEndDialogue` leaves the camera there.
 - **Ref:** NEW.
+- **Fixed 2026-10-25:** `uiStartDialogue` saves the centre tile and the dude's tile; `uiEndDialogue` centres back on it, or on the dude if he moved (no scroll animation).
 
 ## DH2-only behaviour
 

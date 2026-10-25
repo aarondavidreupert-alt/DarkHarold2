@@ -30,28 +30,15 @@ export class AI {
         // party.ts) — applied on top of the base packet so individually
         // chosen settings persist even though they're not a distinct named
         // ai.txt packet of their own.
-        this.packet = combatant.customAiOverrides
-            ? { ...base, ...combatant.customAiOverrides,
+        // (only while the custom packet is in use — a named disposition keeps them for later)
+        const custom = base.disposition === 'custom' ? combatant.customAiOverrides : null
+        this.packet = custom
+            ? { ...base, ...custom,
                 // a Custom best_weapon choice is an explicit setting (not CE's unset -1)
-                ...(combatant.customAiOverrides.bestWeapon !== undefined ? { bestWeaponUnset: false } : {}) }
+                ...(custom.bestWeapon !== undefined ? { bestWeaponUnset: false } : {}) }
             : base
     }
 }
 
 // ── AI helpers ────────────────────────────────────────────────────────────────
 
-/** CE ref: combat_ai.cc — RunAwayMode percentage thresholds.
- *  'never' falls through to raw packet.minHp as an absolute HP value. */
-export const HP_FLEE_PCT: Partial<Record<string, number>> = {
-    none: 0,
-    coward: 25,
-    finger_hurts: 40,
-    bleeding: 60,
-    not_feeling_good: 75,
-}
-
-export function fleeHpThreshold(packet: AiPacket, maxHp: number): number {
-    const pct = HP_FLEE_PCT[packet.runAwayMode]
-    if (pct === undefined) return packet.minHp  // 'never' → use raw minHp from ai.txt
-    return Math.floor(maxHp * pct / 100)
-}
