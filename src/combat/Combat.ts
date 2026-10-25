@@ -37,7 +37,7 @@ import { toTileNum } from '../tile.js'
 import { currentUnarmed, unarmedAPCost, type UnarmedMode } from '../unarmed.js'
 import { useDrug } from '../drugs.js'
 import type { AiPacket } from '../aiPackets.js'
-import { ANIM, CHARACTER_SOUND_EFFECT, playCharAnimSfx } from '../sfxNames.js'
+import { ANIM, CHARACTER_SOUND_EFFECT, playCharAnimSfx, sfxBuildWeaponName } from '../sfxNames.js'
 import { ActionPoints } from './actionPoints.js'
 import { AI, fleeHpThreshold } from './AI.js'
 import { computeDamage } from './damage.js'
@@ -144,6 +144,13 @@ const PRIMARY_STATS = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK']
 function statRoll(c: Critter, stat: number, modifier: number): boolean {
     const value = c.getStat(PRIMARY_STATS[stat]) + modifier
     return randomBetween(1, 10) <= value
+}
+
+// The attack is in a mode other than the primary one (CE hit modes other than the left /
+// right primary and the punch): a weapon's burst or secondary mode
+function weaponSecondaryMode(weaponObj: Obj | null | undefined): boolean {
+    const mode = (weaponObj as any)?.weapon?.mode
+    return mode === 'burst' || mode === 'secondary'
 }
 
 // CE combat.cc _check_for_death: damage that takes the critter to 0 HP adds DAM_DEAD.
@@ -848,8 +855,8 @@ export class Combat {
         const rawAttackSoundID = weaponObj?.pro?.extra?.soundID
         const attackSoundChar = typeof rawAttackSoundID === 'number' ? String.fromCharCode(rawAttackSoundID) : null
         if (attackSoundChar && !(window as any).__test?.fastMode) {
-            const isBurstAttack = !!(weaponObj?.weapon?.isBurst?.())
-            globalState.audioEngine.playWeaponSfx(attackSoundChar, isBurstAttack ? 'attack_burst' : 'attack')
+            // CE sfxBuildWeaponName(WEAPON_SOUND_EFFECT_ATTACK): a missing file stays silent
+            globalState.audioEngine.playSfxByName(sfxBuildWeaponName(1, weaponObj, weaponSecondaryMode(weaponObj), null).toLowerCase(), obj)
         }
         // CE combat.cc _combat_attack: a critter other than the player kicks instead of
         // punching 1 time in 4 when it has the kick art (same damage and AP).
@@ -930,10 +937,10 @@ export class Combat {
                     // CE ref: actions.cc:637 — an unarmed hit sounds sfxBuildCharName(attacker,
                     // anim, CONTACT); a weapon its HIT sound.
                     if (a.unarmedAnim >= 0) playCharAnimSfx(obj, a.unarmedAnim, CHARACTER_SOUND_EFFECT.contact)
-                    else audio.playWeaponSfx(soundIdChar || '#', 'impact')
+                    else if (soundIdChar) audio.playSfxByName(sfxBuildWeaponName(4, weaponObj, weaponSecondaryMode(weaponObj), a.defender ?? intended).toLowerCase(), a.defender ?? intended)
                 }
             } else {
-                if (!(window as any).__test?.fastMode && isRangedType) audio.playSfxByName('cmbtflx')
+                if (!(window as any).__test?.fastMode && isRangedType) audio.playSfxByName('cmbtflx', intended)
                 // CE actions.cc: a miss dodges unless prone; a ranged miss only when the
                 // weapon has no visible projectile. Melee dodges play their sound.
                 if (!projectilePid && !intended.dead && !intended.isKnockedDown && !intended.inAnim() && intended.hasAnimation('dodge')) {
@@ -2447,7 +2454,7 @@ export class Combat {
         if (floorAmmo && this.aiRetrieveObject(obj, floorAmmo, again)) return 'acting'
         const soundId = (wObj as any).pro?.extra?.soundID
         if (typeof soundId === 'number' && !(window as any).__test?.fastMode) {
-            globalState.audioEngine.playWeaponSfx(String.fromCharCode(soundId), 'empty')
+            globalState.audioEngine.playWeaponSfx(String.fromCharCode(soundId), 'empty', undefined, obj)
         }
         uiLog(`${obj.name} ${getMessage('misc', 5001) ?? 'is out of ammo for the'} ${wObj.name}.`)
         const a = obj as any
@@ -2468,7 +2475,7 @@ export class Combat {
         else AP.subtractCombatAP(cost)
         const soundId = (wObj as any).pro?.extra?.soundID
         if (typeof soundId === 'number' && !(window as any).__test?.fastMode) {
-            globalState.audioEngine.playWeaponSfx(String.fromCharCode(soundId), 'reload')
+            globalState.audioEngine.playWeaponSfx(String.fromCharCode(soundId), 'reload', undefined, obj)
         }
         combatDebug(`AI ${obj.name}: reloaded ${loaded} rounds`)
         this.aiMagicHands(obj, wObj, 5002, then)

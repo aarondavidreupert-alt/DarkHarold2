@@ -94,7 +94,7 @@ export function playCharSfx(critter: Obj, name: string | null): void {
     }
     const found = candidates.find((c) => audio.hasSfx(c))
     dbg('audio', `[SFX] char ${name} → ${found ?? '(none)'}`)
-    if (found) audio.playSfx(found.toLowerCase())
+    if (found) audio.playSfx(found.toLowerCase(), critter)
 }
 
 // Scenery/container action sound by CE name (no fallback in CE).
@@ -104,5 +104,25 @@ export function playOpenSfx(obj: Obj, action: number): void {
     const name = sfxBuildOpenName(obj, action)
     const ok = audio.hasSfx(name)
     dbg('audio', `[SFX] open ${name}${ok ? '' : ' (missing)'}`)
-    if (ok) audio.playSfx(name.toLowerCase())
+    if (ok) audio.playSfx(name.toLowerCase(), obj)
+}
+
+// CE game_sound.cc sfxBuildWeaponName: W<effect><weapon sound id><variant><material>XX1.
+// effectType 0 ready / 1 attack / 2 out of ammo / 3 flame / 4 hit; variant 2 for an attack
+// or hit in a mode other than the primary ones and the punch (CE hit modes 0, 2, 4);
+// material X unless a hit on a target with a damage type other than plasma / EMP /
+// explosion — then M / W / S from the item, scenery or wall material, F for a critter.
+export function sfxBuildWeaponName(effectType: number, weapon: Obj | null | undefined, secondaryMode: boolean, target: Obj | null | undefined): string {
+    const typeCode = 'RAOFH'[effectType] ?? 'A'
+    const sid = (weapon as any)?.pro?.extra?.soundID
+    const weaponCode = typeof sid === 'number' ? String.fromCharCode(sid) : 'A'
+    const variant = (effectType === 1 || effectType === 4) && secondaryMode ? 2 : 1
+    const dmg = (weapon as any)?.pro?.extra?.dmgType
+    let material = 'X'
+    if (effectType === 4 && target && dmg !== 3 /* plasma */ && dmg !== 5 /* EMP */ && dmg !== 6 /* explosion */) {
+        const extra = (target as any).pro?.extra
+        const m = target.type === 'wall' ? extra?.material : (target.type === 'item' || target.type === 'scenery') ? extra?.materialID : -1
+        material = (m === 0 || m === 1 || m === 2) ? 'M' : m === 3 ? 'W' : (m === 4 || m === 5 || m === 6) ? 'S' : 'F'
+    }
+    return `W${typeCode}${weaponCode}${variant}${material}XX1`.toUpperCase()
 }

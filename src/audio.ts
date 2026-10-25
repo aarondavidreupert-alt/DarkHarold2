@@ -20,6 +20,8 @@ import { dbg, dbgWarn } from './logger.js'
 import { getFileJSON, getRandomInt } from './util.js'
 import { getWeaponSounds, ImpactMaterial } from './soundMap.js'
 import { assetUrl } from './modAssets.js'
+import type { Obj } from './object.js'
+import { soundSourceVolume } from './soundVolume.js'
 
 // Has the page had a user gesture yet? (browser autoplay policy; true where the
 // UserActivation API is missing)
@@ -34,12 +36,13 @@ export const AUDIO_ASSET_QUERY = '?r=2'
 // Audio engine for handling music and sound effects
 
 export interface AudioEngine {
-    playSfx(sfx: string): void
-    playSfxByName(stem: string): void
+    // source: the object making the sound (CE _gsound_compute_relative_volume)
+    playSfx(sfx: string, source?: Obj | null): void
+    playSfxByName(stem: string, source?: Obj | null): void
     hasSfx(stem: string): boolean
     playMusic(music: string): void
     playSound(soundName: string): HTMLAudioElement | null
-    playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial): void
+    playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial, source?: Obj | null): void
     stopMusic(): void
     stopAll(): void
     tick(): void
@@ -140,7 +143,7 @@ export class HTMLAudioEngine implements AudioEngine {
         return promise
     }
 
-    private async playBuffer(name: string, buf: AudioBuffer): Promise<void> {
+    private async playBuffer(name: string, buf: AudioBuffer, source: Obj | null = null): Promise<void> {
         const ctx = this.getCtx()
         // Browsers suspend the context until the first user gesture.  Awaiting
         // resume() here ensures source.start() doesn't fire into a suspended
@@ -148,20 +151,29 @@ export class HTMLAudioEngine implements AudioEngine {
         if (ctx.state === 'suspended') {
             try { await ctx.resume() } catch { /* will retry on next play */ }
         }
-        const source = ctx.createBufferSource()
-        source.buffer = buf
-        // Route through sfxGainNode → masterGainNode → destination for volume control
-        source.connect(this.sfxGainNode!)
-        source.start()
+        const node = ctx.createBufferSource()
+        node.buffer = buf
+        // Route through sfxGainNode → masterGainNode → destination for volume control; an
+        // off-screen source through its own gain first (CE _gsound_compute_relative_volume)
+        const relative = soundSourceVolume(source)
+        if (relative < 1) {
+            const gain = ctx.createGain()
+            gain.gain.value = relative
+            node.connect(gain)
+            gain.connect(this.sfxGainNode!)
+        } else {
+            node.connect(this.sfxGainNode!)
+        }
+        node.start()
         // Log every actual play (not just first-load) so the console reflects
         // sound events 1:1 — including cache hits like repeated door toggles.
         dbg('audio', '[Sound]', name)
     }
 
-    playSfx(sfx: string): void {
+    playSfx(sfx: string, source: Obj | null = null): void {
         // Fire-and-forget; errors are logged inside loadSfx / playBuffer.
         this.loadSfx(sfx).then(buf => {
-            if (buf) return this.playBuffer(sfx, buf)
+            if (buf) return this.playBuffer(sfx, buf, source)
             return undefined
         }).catch(e => dbgWarn('audio', '[Audio] playSfx failed:', sfx, e))
     }
@@ -209,7 +221,7 @@ export class HTMLAudioEngine implements AudioEngine {
         return stem.toUpperCase() in this.sfxLookup!
     }
 
-    playSfxByName(stem: string): void {
+    playSfxByName(stem: string, source: Obj | null = null): void {
         if (!this.sfxLookup) {
             this.sfxLookup = getFileJSON('lut/lst/sound_sfx_sndlist.json') ?? {}
         }
@@ -217,10 +229,10 @@ export class HTMLAudioEngine implements AudioEngine {
             dbgWarn('audio', `[Audio] SFX stem not found: ${stem}`)
             return
         }
-        this.playSfx(stem)
+        this.playSfx(stem, source)
     }
 
-    playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material: ImpactMaterial = 'flesh'): void {
+    playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material: ImpactMaterial = 'flesh', source: Obj | null = null): void {
         if (!soundId) return
         const sounds = getWeaponSounds(soundId, material)
         const file = sounds[type]
@@ -231,9 +243,9 @@ export class HTMLAudioEngine implements AudioEngine {
         // 404, fall back to the single-shot attack sound.
         if (type === 'attack_burst') {
             this.loadSfx(file).then(buf => {
-                if (buf) return this.playBuffer(file, buf)
+                if (buf) return this.playBuffer(file, buf, source)
                 return this.loadSfx(sounds.attack).then(fb => {
-                    if (fb) return this.playBuffer(sounds.attack, fb)
+                    if (fb) return this.playBuffer(sounds.attack, fb, source)
                     return undefined
                 })
             }).catch(e => dbgWarn('audio', '[Audio] playWeaponSfx burst failed:', file, e))
@@ -250,13 +262,13 @@ export class HTMLAudioEngine implements AudioEngine {
             if (!(file.toUpperCase() in this.sfxLookup!)) {
                 const xxxImpact = `wh${soundId.toLowerCase()}1xxx1`
                 if (xxxImpact.toUpperCase() in this.sfxLookup!) {
-                    this.playSfx(xxxImpact)
+                    this.playSfx(xxxImpact, source)
                 }
                 return
             }
         }
 
-        this.playSfx(file)
+        this.playSfx(file, source)
     }
 
     setVolume(channel: 'master' | 'music' | 'sfx' | 'speech', value: number): void {

@@ -1436,7 +1436,7 @@ export class Obj {
                 globalState.gMap!.addObject(adj)
                 adj.singleAnimation(false, () => { adj.anim = null; globalState.gMap?.destroyObject(adj) })
             }
-            globalState.audioEngine?.playSfxByName('whn1xxx1') // CE actionExplode
+            globalState.audioEngine?.playSfxByName('whn1xxx1', this) // CE actionExplode
 
             let fired = false
             explosion.singleAnimation(false, () => {

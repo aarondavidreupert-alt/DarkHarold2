@@ -188,6 +188,8 @@ LOW findings are listed in each report only.
 | | DLG-04 (part) | dialogue keys 1–9 pick an option, B barters. Still open: page keys, control / customise screen keys |
 | Input | MOUSE-03, MOUSE-04 | the arrow cursor shows the pointed object's primary-action icon after 250 ms (use / talk / look / rotate; nothing over empty ground); "You see" only when the pointed object changes |
 | | MOUSE-05 | the hex cursor shows the move's AP cost in combat (white) or a red X (too far / no path) after 250 ms |
+| Sound | SND-02 | sounds of items, critters and scenery (weapon fire and hits, character and door sounds, explosions) play at full volume on screen; off screen full up to PE hexes, falling to ⅓ at 2 × PE (`src/soundVolume.ts`) |
+| | SND-05 | combat attack / hit sounds use CE's `sfxBuildWeaponName` (variant 2 for burst / secondary modes, the target's material, X for plasma / EMP / explosion); a missing file is silent (no invented fallbacks) |
 
 Still open from these groups: COMBAT-10 (joining critters' immediate turn), COMBAT-13 (Glovz / YAAM opt-in formulas), ACT-05 (point / unpoint animations), MOUSE-06 roof test. MOUSE-01 / MOUSE-02 are the documented action-menu approximation (CLAUDE.md, README).
 

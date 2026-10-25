@@ -25,7 +25,7 @@ import * as SfallHooks from './sfallHooks.js'
 import * as GlobalScripts from './sfallGlobalScripts.js'
 import { isPartyMemberPid } from './party.js'
 import { addFloatMessage, FLOAT_MSG_COLOR } from './floatText.js'
-import { sfxBuildOpenName } from './sfxNames.js'
+import { sfxBuildOpenName, sfxBuildWeaponName } from './sfxNames.js'
 import { FIDGET_BAD, FIDGET_GOOD, FIDGET_NEUTRAL, GAME_DIALOG_REACTION_NEUTRAL, reactToOption, startLips, startTalkingHead, talkToCritterReacts, isTalkingHeadActive } from './talkingHead.js'
 import { gameMoviePlay, SCRIPT_MOVIE_FLAGS } from './gameMovie.js'
 import { randomSeedPrerandom } from './random.js'
@@ -2816,17 +2816,8 @@ export module Scripting {
         }
         // CE opSfxBuildWeaponName (0x8141) — game_sound.cc sfxBuildWeaponName
         sfx_build_weapon_name(effectType: number, weapon: Obj, hitMode: number, target: Obj) {
-            const typeCode = 'RAOFH'[effectType] ?? 'A'
-            const sid = weapon?.pro?.extra?.soundID
-            const weaponCode = typeof sid === 'number' ? String.fromCharCode(sid) : 'A'
-            const variant = (effectType !== 0 && effectType !== 2 && hitMode !== 0 && hitMode !== 2 && hitMode !== 4) ? 2 : 1
-            const dmg = weapon?.pro?.extra?.dmgType
-            let material = 'X'
-            if (typeCode === 'H' && isGameObject(target) && dmg !== 3 /* plasma */ && dmg !== 5 /* EMP */ && dmg !== 6 /* explosion */) {
-                const m = target.type === 'wall' ? target.pro?.extra?.material : (target.type === 'item' || target.type === 'scenery') ? target.pro?.extra?.materialID : -1
-                material = (m === 0 || m === 1 || m === 2) ? 'M' : m === 3 ? 'W' : (m === 4 || m === 5 || m === 6) ? 'S' : 'F'
-            }
-            return `W${typeCode}${weaponCode}${variant}${material}XX1`.toUpperCase()
+            // CE hit modes 0 / 2 (left / right weapon primary) and 4 (punch) are the primary ones
+            return sfxBuildWeaponName(effectType, weapon, hitMode !== 0 && hitMode !== 2 && hitMode !== 4, isGameObject(target) ? target : null)
         }
         // CE opSfxBuildSceneryName (0x8142)
         sfx_build_scenery_name(name: string, action: number, actionType: number) {
