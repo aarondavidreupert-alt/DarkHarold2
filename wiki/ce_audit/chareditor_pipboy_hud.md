@@ -211,7 +211,7 @@ Top findings:
 - **DH2**: `ui.ts:253-267` subtracts the AP first, then `reloadWeapon`, whatever the result. It logs "You don't have enough action points." (an invented string) and plays no sound.
 - **Fix**: charge the AP only when `reloadWeapon()` returns true; drop the log line; play the weapon's ready sfx.
 
-### PIP-01 — AUTOMAPS tab structure isn't CE (MED, NEW)
+### PIP-01 — AUTOMAPS tab structure isn't CE (MED, NEW) — **FIXED 2026-10-25**
 - **CE**: `pipboy.cc pipboyWindowHandleAutomaps` / `_PrintAMList` / `_PrintAMelevList`.
   - Level 1: the cities that have automap data (`mapGetCityName`), filtered by `_automapDisplayMap(map)` (`automap.cc _displayMapList`: maps 0-2, 52-53, 59-60, 68-77, 80-91, 94-125, 127, 141-146 and 149-159 hidden; the sfall `automap=` key in maps.txt can change this), merged by `_is_map_idx_same`, sorted by name (`_qscmp`), header 205.
   - Level 2: the current city's maps first, then the other maps of that city (`_get_map_idx_same`), each elevation named by `mapGetName` (map.msg).

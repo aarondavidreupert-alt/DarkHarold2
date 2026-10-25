@@ -199,6 +199,7 @@ LOW findings are listed in each report only.
 | Input | PREF-01 | Shift inverts the running preference on a move click |
 | UI | CHAR-03, OPT-01 | the character screen, Options and the Skilldex are modal (the map pauses, game keys don't reach it); character screen keys Return / D done, Esc / C cancel |
 | | CHAR-04, HUD-01 | CANCEL on the character screen restores perks, traits, the free perk, SPECIAL / HP and skills; the LEVEL light follows CE's level-up flag (on at a level-up, off when the screen opens; saved) |
+| | PIP-01 | Pip-Boy AUTOMAPS lists as CE: cities by map.msg name (1500 + area), CE's hidden-map table, sorted; a city's maps by elevation name (map.msg 200 + 3 × map + elevation), the chosen map first; pipboy.msg 205 / 201. The map view keeps DH2's zoom and pan |
 | | HUD-02 | the HUD reload spends AP only when something loaded, plays the weapon's ready sound, prints nothing when short of AP |
 | | MENU-01, MENU-02 | main-menu OPTIONS opens Preferences over the menu; cancelling its LOAD GAME returns to the menu |
 | | END-01 | the endgame slideshow goes on to akiss, the credits and the continue dialog |
@@ -215,10 +216,10 @@ LOW findings are listed in each report only.
 Fixed earlier with the HIGH groups: INV-02 (PA8), ITEM-15 (PA9), CRIT-02 (PA12), ITEM-17 (PA18), WM-04 / WM-09 (PA21), WM-07 (PA23). Already in the code when audited: TILE-03 (`camera.ts playerLimitRefuses`, on by default).
 
 Status of the 120 MED findings with their own section in `ce_audit/` (each header there is marked FIXED /
-PARTLY FIXED): 104 fixed, 9 partly fixed, 7 open or not ported:
+PARTLY FIXED): 105 fixed, 9 partly fixed, 6 open or not ported:
 
 - **Open:** INV-13 (nested
-  containers), PIP-01 (the AUTOMAPS tab's city / map lists), CHAR-06 (PRINT and the creation OPTIONS), COMBAT-13
+  containers), CHAR-06 (PRINT and the creation OPTIONS), COMBAT-13
   (the Glovz / YAAM opt-in damage formulas; conflicts with known_bugs C3).
 - **Partly fixed, rest open:** INV-12 (container USE, money drop), AUTO-01 (no High / Low detail switch; the scanner and the seen band are CE's), SCR-05 (object `start` still runs at script load), SCR-10 (flare / explosive timed
   events not restored), SCR-12 (sfall string / math opcodes), DLG-04 (page keys, control / customise keys),
