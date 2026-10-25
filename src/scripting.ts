@@ -723,6 +723,7 @@ export module Scripting {
         lvars!: { [lvar: number]: any }
         _vm?: ScriptVM
         _lua?: LuaScriptHandle // set when the Lua backend runs this script (src/lua/)
+        _pendingEntry?: () => void // startup code not run yet (setDeferObjectStart)
         _mapScript?: Script
 
         // Special built-in variables
@@ -3743,7 +3744,10 @@ export module Scripting {
         vm.scriptObj.lvars = {}
         vm.scriptObj._mapScript = currentMapObject || vm.scriptObj // map scripts are their own map scripts
         vm.scriptObj._vm = vm
-        vm.run()
+        // CE scriptExecProc runs the startup code when the program loads, on its first proc —
+        // for a map's objects that is scriptsExecStartProc (startMapScripts)
+        if (deferObjectStart) vm.scriptObj._pendingEntry = () => vm.run()
+        else vm.run()
 
         // return the scriptObj, which is a clone of ScriptProto
         // which will be patched by the GameScriptVM to allow
@@ -3786,7 +3790,7 @@ export module Scripting {
         script.lvars = {}
         script._mapScript = currentMapObject || script // map scripts are their own map scripts
         try {
-            attachLuaScript(script, key, source)
+            attachLuaScript(script, key, source, deferObjectStart)
         } catch (e) {
             dbgWarn('lua', `${key}.lua failed to load (${e}), using ${key}.int`)
             return null
@@ -3795,11 +3799,21 @@ export module Scripting {
     }
 
     // CE map.cc mapLoad → scriptsExecStartProc: after the map script's map_enter_p_proc and
-    // the party's placement, `start` runs for the map script and the spatial scripts too
-    // (object scripts run theirs when DH2 loads them).
-    export function startMapAndSpatialScripts(mapScript: Script | null, spatials: Obj[]): void {
+    // the party's placement, `start` runs for every script on the map, list by list — the map
+    // script, the spatials, items (and scenery), critters. Scripts loaded meanwhile (the map's,
+    // its objects', those its map_enter_p_proc creates) wait for it (setDeferObjectStart); their
+    // startup code runs when their first proc does, as CE loads a program on its first proc.
+    let deferObjectStart = false
+    export function setDeferObjectStart(on: boolean): void {
+        deferObjectStart = on
+    }
+    export function startMapScripts(mapScript: Script | null, spatials: Obj[], objects: Obj[]): void {
+        deferObjectStart = false
         if (mapScript) initScript(mapScript, { _script: mapScript } as any)
         for (const spatial of spatials) if (spatial._script) initScript(spatial._script, spatial)
+        const scripted = objects.filter((o) => o._script)
+        for (const o of scripted) if (o.type !== 'critter' && o._script) initScript(o._script, o)
+        for (const o of scripted) if (o.type === 'critter' && o._script) initScript(o._script, o)
     }
 
     // CE scripts.cc scriptsSetDudeScript (object.cc objectsInit / new game): the dude runs
@@ -3827,6 +3841,9 @@ export module Scripting {
     export function initScript(script: Script, obj: Obj) {
         script.self_obj = obj as ScriptableObj
         script.cur_map_index = currentMapID!
+        if (deferObjectStart) return // startMapScripts runs it
+        const entry = script._pendingEntry
+        if (entry) { script._pendingEntry = undefined; entry() }
         if (script.start !== undefined) script.start()
     }
 

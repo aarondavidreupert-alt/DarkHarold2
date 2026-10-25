@@ -21,8 +21,8 @@ no full end-to-end playthrough yet, and a handful of places still simplify CE (l
 below). The 2026-10-24 function-by-function CE parity audit
 ([`wiki/CE_PARITY_AUDIT.md`](wiki/CE_PARITY_AUDIT.md)) found 1780 CE function rows, 835 of them matching, and opened
 23 HIGH groups (known_bugs §33) plus ~150 MED findings; all 23 HIGH groups were fixed the same day (script opcodes,
-character rules, combat, the map pipeline, doors, worldmap, dialogue, VM robustness, music), and on 2026-10-25 113 of the
-120 MED findings (3 more in part; known_bugs §34 lists what is left). See [`ROADMAP.md`](ROADMAP.md) and [`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
+character rules, combat, the map pipeline, doors, worldmap, dialogue, VM robustness, music), and on 2026-10-25 114 of the
+120 MED findings (2 more in part; known_bugs §34 lists what is left). See [`ROADMAP.md`](ROADMAP.md) and [`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
 
 If you're looking for documentation on how Fallout 2 works, documentation on certain file formats, or
 tools to work with them, this project will be useful to you as well.

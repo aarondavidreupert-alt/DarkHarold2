@@ -447,7 +447,12 @@ export module ScriptVMBridge {
             // patch scriptObj to allow transparent procedure calls
             // TODO: maybe we should check if we're interrupting the VM
             for(const procName in this.intfile.procedures) {
-                (<any>this.scriptObj)[procName] = () => { this.call(procName) }
+                (<any>this.scriptObj)[procName] = () => {
+                    // CE scriptExecProc: the startup code runs before the first proc (setDeferObjectStart)
+                    const entry = this.scriptObj._pendingEntry
+                    if (entry) { this.scriptObj._pendingEntry = undefined; entry() }
+                    this.call(procName)
+                }
             }
         }
 

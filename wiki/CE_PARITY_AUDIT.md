@@ -133,7 +133,7 @@ LOW findings are listed in each report only.
 |---|---|---|
 | Map load / script lifecycle | MAP-01, SCR-04 | one `map_update_p_proc` per map load; map updates also run in combat and every 30 s of real time (CE `_script_chk_timed_events`) |
 | | SCR-03 | the clock no longer advances in combat (combat time = 5 s per round, as CE) |
-| | SCR-05 (part) | map script and spatial scripts get `start` after the map script's `map_enter_p_proc`; `fixed_param` = first visit for the map script and every object's `map_enter_p_proc`. Object `start` still runs at script load (before the map script's `map_enter_p_proc`). |
+| | SCR-05 | on a map load (fresh or revisited) `start` runs after the map script's `map_enter_p_proc` and the party's placement, for the map script, the spatials, items and scenery, then critters; a script's startup code waits for its first proc; `fixed_param` = first visit for the map script and every object's `map_enter_p_proc` |
 | | SCR-08 | a script that hits a fatal error runs no further procs (both backends), as CE's PROGRAM_FLAG_EXITED |
 | | SCR-06 | VM: intrinsic results and built-ins are typed as CE (null object → 0, truth values 0 / 1, like the Lua backend); comparisons and `!` push 0 / 1 |
 | | SCR-07 | `attack_setup` / `attack_complex` (out of combat), `world_map`, `explosion` and `endgame_slideshow` are requests the game loop runs after the script returns and the dialogue is over, in CE's order |
@@ -218,11 +218,11 @@ LOW findings are listed in each report only.
 Fixed earlier with the HIGH groups: INV-02 (PA8), ITEM-15 (PA9), CRIT-02 (PA12), ITEM-17 (PA18), WM-04 / WM-09 (PA21), WM-07 (PA23). Already in the code when audited: TILE-03 (`camera.ts playerLimitRefuses`, on by default).
 
 Status of the 120 MED findings with their own section in `ce_audit/` (each header there is marked FIXED /
-PARTLY FIXED): 113 fixed, 3 partly fixed, 4 open or not ported:
+PARTLY FIXED): 114 fixed, 2 partly fixed, 4 open or not ported:
 
 - **Open:** COMBAT-13
   (the Glovz / YAAM opt-in damage formulas; conflicts with known_bugs C3).
-- **Partly fixed, rest open:** INV-13 / INV-12 (bags in the barter, companion-trade and steal windows), SCR-05 (object `start` still runs at script load).
+- **Partly fixed, rest open:** INV-13 / INV-12 (bags in the barter, companion-trade and steal windows).
 - **Checked, not ported:** SCR-11 — a scan of the 1443 shipped `.int` files shows procedure index 1 is the pure
   `checkPartyMembersNearDoor` helper in 1212 of them (CE's fallback has no effect there) and `start` in about 210;
   CE would re-run `start` when an unguarded proc (`critter_p_proc`, `look_at_p_proc`, …) is missing. Left as DH2's

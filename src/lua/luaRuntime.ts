@@ -141,13 +141,18 @@ export async function initLuaRuntime(wasmUri = 'lib/wasmoon/glue.wasm', factory?
 /** Turn `script` into a Lua-backed script: load `source`, give the object a
  *  method per procedure and run the entry procedure once, as the VM's startup
  *  code does (CE scripts.cc scriptExecProc: runProgram + _interpret on load). */
-export function attachLuaScript(script: LuaHostScript, name: string, source: string): void {
+export function attachLuaScript(script: LuaHostScript, name: string, source: string, deferEntry = false): void {
     if (!engine) throw Error('attachLuaScript: Lua runtime not initialised')
     const id = nextScriptId++
     scriptIds.set(script, id)
     const procs: string[] = luaLoad(id, script, name, source)
     for (const procName of Object.values(procs)) {
-        script[procName] = (...args: any[]) => sslValue(luaCall(id, procName, ...args))
+        script[procName] = (...args: any[]) => {
+            // CE scriptExecProc: the startup code runs before the first proc (deferEntry)
+            const entry = script._pendingEntry
+            if (entry) { script._pendingEntry = undefined; entry() }
+            return sslValue(luaCall(id, procName, ...args))
+        }
     }
     script._lua = {
         resume: () => luaResume(id),
@@ -155,7 +160,10 @@ export function attachLuaScript(script: LuaHostScript, name: string, source: str
         hasSuspended: () => luaHasSuspended(id),
     }
     const entry = luaEntryName(id)
-    if (typeof script[entry] === 'function') script[entry]()
+    if (typeof script[entry] !== 'function') return
+    // (a map object's: when its first proc runs, Scripting.initScript)
+    if (deferEntry) script._pendingEntry = () => script[entry]()
+    else script[entry]()
 }
 
 /** Drop the Lua state of a script (its environment and suspended procedures). */

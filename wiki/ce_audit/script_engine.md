@@ -258,7 +258,7 @@ Top findings, most severe first:
 - **Fix:** Drop the second `updateMap` at load (call `changeElevation(…, false, …)` after `doEnterNewMap`). Add a 30 s `performance.now()` timer that is skipped in dialogue. Allow both paths in combat. Reset `nextMapUpdateTick = now + 600` on map load.
 - **Ref:** NEW.
 
-### SCR-05 — map-load procs: `start`, order, `fixed_param` (MED) — **PARTLY FIXED 2026-10-25**
+### SCR-05 — map-load procs: `start`, order, `fixed_param` (MED) — **FIXED 2026-10-25**
 - **CE `map.cc mapLoad`:**
   1. `scriptSetFixedParam(gMapSid, first visit)`, then the map script's `map_enter_p_proc` with spatials off (`map.cc:963-975`).
   2. The party is placed.
@@ -272,6 +272,7 @@ Top findings, most severe first:
 - **Impact:** Vanilla map and spatial `start` procs are mostly empty (unverified for all 1288 scripts). Any setup a script does in `start` is skipped. Object `start` code that reads MVARs or GVARs set by the map script's `map_enter_p_proc` sees the old values. Scripts that test `fixed_param` in `map_enter_p_proc` get a stale value.
 - **Fix:** After the map script's `map_enter_p_proc`, run `initScript` (`start`) for the map script, the spatials and all objects. Set `fixed_param` before each object's `map_enter_p_proc`.
 - **Ref:** NEW. C61 covers the load-game path only.
+- **Fixed 2026-10-25:** `fixed_param` = first visit for the map script and each object's `map_enter_p_proc`. On a map load (fresh or revisited) scripts loaded meanwhile wait (`Scripting.setDeferObjectStart`): their startup code runs with their first proc, as CE loads a program on its first `scriptExecProc` (the map script's before `map_enter_p_proc`), and after the party is placed `startMapScripts` runs `start` for the map script, the spatials, items and scenery, then critters. Revisited maps' scripts now get `start` too, after their LVARs are restored. The load-game path (`runLoadGameProcs`, C61) is unchanged.
 
 ### SCR-06 — VM: loosely typed values in comparisons (MED, VM backend) — **FIXED 2026-10-25**
 - **CE:** `interpreter.cc:865-1410`, the comparison operators switch on `VALUE_TYPE_*`. int vs ptr compares the pointer value, so a null object equals 0. int vs string formats with `%d` and uses `strcmp`. They push an int 0/1.

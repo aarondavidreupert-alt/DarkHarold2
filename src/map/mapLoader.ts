@@ -173,6 +173,8 @@ GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point,
             Events.emit('loadMapPre')
 
             const map = globalState.dirtyMapCache[mapName]
+            // the scripts start in doEnterNewMap (CE scriptsExecStartProc), after their LVARs are back
+            Scripting.setDeferObjectStart(true)
             this.deserialize(map)
             mapLoadSavedAging(this)
 
@@ -299,6 +301,9 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
 
         if (Config.engine.doLoadScripts) {
             Scripting.init(mapName)
+            // the scripts start in doEnterNewMap (CE scriptsExecStartProc); the map script's
+            // startup code runs before its map_enter_p_proc, the first proc it gets
+            Scripting.setDeferObjectStart(true)
             try {
                 this.mapScript = Scripting.loadScript(mapName)
                 Scripting.setMapScript(this.mapScript)
