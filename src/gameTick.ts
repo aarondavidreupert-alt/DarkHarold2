@@ -50,6 +50,8 @@ import { globalScriptsProcessInput, globalScriptsProcessMain, globalScriptsProce
 // the cadence here and reschedule from a local counter rather than a
 // persisted field (map entry resets the cadence anyway).
 let nextMapUpdateTick = 600
+// CE scripts.cc _script_chk_timed_events: map_update_p_proc also every 30 s of real time
+let lastRealTimeMapUpdate = -1
 let critterScriptCursor = -1 // CE scripts.cc _count_
 // CE runs _script_chk_critters from _doBkProcesses, i.e. once per main-loop pass
 // (CE's frame limiter: 60 fps) — not once per 10 Hz game tick.
@@ -222,10 +224,21 @@ export function tickGame(): void {
         }
     }
 
+    // CE scripts.cc _script_chk_timed_events: every 30000 ms of real time,
+    // scriptsExecMapUpdateScripts(MAP_UPDATE), in combat too — not while a dialogue runs
+    // (GAME_STATE_4), which the uiMode gate above already ensures
+    if (lastRealTimeMapUpdate < 0) lastRealTimeMapUpdate = time
+    if (globalState.gMap && time - lastRealTimeMapUpdate >= 30000) {
+        lastRealTimeMapUpdate = time
+        globalState.gMap.updateMap()
+    }
+
     const didTick = time - globalState.lastGameTick >= 1000 / 10 // 10 Hz game tick
     if (didTick) {
         globalState.lastGameTick = time
-        globalState.gameTickTime++
+        // CE scripts.cc _script_chk_timed_events: the clock advances only out of combat;
+        // combat time is the 5 s per round (combat.cc gameTimeAddSeconds)
+        if (!globalState.inCombat) globalState.gameTickTime++
 
         // CE ref: scripts.cc:368 gameTimeAddTicks — after 13 years endgameSetupDeathEnding(
         // TIMEOUT) and _game_user_wants_to_quit = 2: straight back to the main menu (no
@@ -282,8 +295,8 @@ export function tickGame(): void {
         // queued by mapUpdateEventProcess. Mirror that cadence here so
         // scripts can check `game_time_hour` and drive NPC behavior (shop
         // hours, sleep schedules, etc.) without any engine-level gates.
-        if (!globalState.inCombat && globalState.gMap) {
-            // CE ref: scripts.cc:507 mapUpdateEventProcess — a queue event whose time
+        if (globalState.gMap) {
+            // CE ref: scripts.cc:507 mapUpdateEventProcess (the queue runs in combat too) — a queue event whose time
             // has passed fires once on the next queueProcessEvents, also after a time
             // jump (rest, load), then re-queues itself 600 ticks ahead.
             if (globalState.gameTickTime >= nextMapUpdateTick) {

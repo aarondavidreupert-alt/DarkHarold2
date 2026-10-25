@@ -127,6 +127,15 @@ no AP / X on hex cursor (MOUSE-03…05); language filter does nothing (MSG-01, P
 
 LOW findings are listed in each report only.
 
+### MED findings fixed (2026-10-25, branch `small-autits`)
+
+| Batch | IDs | What changed |
+|---|---|---|
+| Map load / script lifecycle | MAP-01, SCR-04 | one `map_update_p_proc` per map load; map updates also run in combat and every 30 s of real time (CE `_script_chk_timed_events`) |
+| | SCR-03 | the clock no longer advances in combat (combat time = 5 s per round, as CE) |
+| | SCR-05 (part) | map script and spatial scripts get `start` after the map script's `map_enter_p_proc`; `fixed_param` = first visit for the map script and every object's `map_enter_p_proc`. Object `start` still runs at script load (before the map script's `map_enter_p_proc`). |
+| | SCR-08 | a script that hits a fatal error runs no further procs (both backends), as CE's PROGRAM_FLAG_EXITED |
+
 ## 4. Conflicts with the wiki / known_bugs (flagged, not resolved)
 
 Per CLAUDE.md these are flagged here; the fixed-entry text in `known_bugs.md` is annotated, not rewritten.

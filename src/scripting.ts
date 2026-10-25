@@ -3516,6 +3516,14 @@ export module Scripting {
         return script
     }
 
+    // CE map.cc mapLoad → scriptsExecStartProc: after the map script's map_enter_p_proc and
+    // the party's placement, `start` runs for the map script and the spatial scripts too
+    // (object scripts run theirs when DH2 loads them).
+    export function startMapAndSpatialScripts(mapScript: Script | null, spatials: Obj[]): void {
+        if (mapScript) initScript(mapScript, { _script: mapScript } as any)
+        for (const spatial of spatials) if (spatial._script) initScript(spatial._script, spatial)
+    }
+
     export function initScript(script: Script, obj: Obj) {
         script.self_obj = obj as ScriptableObj
         script.cur_map_index = currentMapID!
@@ -3830,6 +3838,9 @@ export module Scripting {
         if (mapScript && mapScript.map_enter_p_proc !== undefined) {
             info('calling map enter')
             mapScript.self_obj = { _script: mapScript }
+            // CE map.cc mapLoad: scriptSetFixedParam(gMapSid, (gMapHeader.flags & 1) == 0) — 1 on
+            // the first visit (the map not saved yet)
+            mapScript.fixed_param = isFirstRun ? 1 : 0
             mapScript.map_enter_p_proc()
         }
         GlobalScripts.globalScriptsMapProc('map_enter_p_proc') // CE scriptsExecMapUpdateScripts
@@ -3865,6 +3876,8 @@ export module Scripting {
         var script = obj._script
         if (script !== undefined && script.map_enter_p_proc !== undefined) {
             script.self_obj = obj as ScriptableObj
+            // CE scripts.cc scriptsExecMapUpdateScripts(MAP_ENTER): fixed_param = first visit
+            script.fixed_param = mapFirstRun ? 1 : 0
             script.game_time_hour = GameTime.getHourMilitary()
             script.cur_map_index = currentMapID
             script.map_enter_p_proc()

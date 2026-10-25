@@ -454,6 +454,8 @@ export class GameMap {
         // place party again, so if the map script overrided the start position we're in the right place
         this.placeParty()
 
+        Scripting.startMapAndSpatialScripts(this.mapScript, this.spatials.flat())
+
         // Tell objects' scripts that they're now on the map. CE ref: scripts.cc
         // scriptsExecMapUpdateScripts builds the script list first and skips scripts
         // removed meanwhile — map_enter procs create and destroy objects, and a live

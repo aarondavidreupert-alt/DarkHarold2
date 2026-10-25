@@ -368,8 +368,13 @@ export class ScriptVM {
         return disassembly
     }
 
+    // CE interpreter.cc: a fatal error sets PROGRAM_FLAG_EXITED, and scripts.cc
+    // scriptExecProc then skips every later proc of the script until it is loaded again
+    dead = false
+
     // call a named procedure
     call(procName: string, args: any[] = []): any {
+        if (this.dead) return 0
         var proc = this.intfile.procedures[procName]
         // console.log("CALL " + procName + " @ " + proc.offset + " from " + this.scriptObj.scriptName)
         if (!proc) throw 'ScriptVM: unknown procedure ' + procName
@@ -537,6 +542,7 @@ export class ScriptVM {
             dbgWarn('script', 'fatal script error: %s', text)
             this.aborted = true
             this.halted = true
+            this.dead = true
             if (fatalHook) fatalHook(text)
         }
     }

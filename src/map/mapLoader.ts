@@ -203,8 +203,9 @@ GameMap.prototype.loadMap = function (mapName: string, startingPosition?: Point,
             // Enter map
             this.doEnterNewMap(false)
 
-            // Change elevation again
-            this.changeElevation(this.currentElevation, true, false)
+            // Change elevation again — no script update: doEnterNewMap already ran CE
+            // mapLoad's one scriptsExecMapUpdateProc
+            this.changeElevation(this.currentElevation, false, false)
 
 
             // Done
@@ -365,8 +366,8 @@ GameMap.prototype.loadNewMap = function (mapName: string, startingPosition?: Poi
             this.doEnterNewMap(true)
             elevation = this.currentElevation
 
-            // change elevation with script updates
-            this.changeElevation(this.currentElevation, true, true)
+            // no script update here: doEnterNewMap ran CE mapLoad's one scriptsExecMapUpdateProc
+            this.changeElevation(this.currentElevation, false, true)
 
         }
 

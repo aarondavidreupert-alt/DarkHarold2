@@ -219,9 +219,13 @@ end
 -- ---------------------------------------------------------------------------
 
 local suspended = {}  -- id -> stack of suspended coroutines
+-- CE interpreter.cc: a fatal error sets PROGRAM_FLAG_EXITED, and scripts.cc
+-- scriptExecProc skips every later proc of that script until it is loaded again
+local dead = {}       -- id -> true after an error
 
 local function report(id, where, err)
     if err == EXIT then return end
+    dead[id] = true
     local env = scripts[id]
     host_log("error", tostring(env and env.__name or "?") .. ":" .. tostring(where) .. ": " .. tostring(err))
 end
@@ -269,6 +273,7 @@ function __entry_name(id)
 end
 
 function __call(id, name, ...)
+    if dead[id] then return 0 end
     local env = scripts[id]
     local f = env and rawget(env, name)
     if type(f) ~= "function" then return 0 end
@@ -277,6 +282,7 @@ end
 
 -- A dialogue option target (see option_ref) run as an engine entry.
 function __call_option(id, n)
+    if dead[id] then return 0 end
     local t = options[id]
     local f = t and t[n]
     if f == nil then return 0 end
@@ -305,6 +311,7 @@ function __unload(id)
     scripts[id] = nil
     suspended[id] = nil
     options[id] = nil
+    dead[id] = nil
 end
 
 -- nothing in the engine state needs these after this chunk (the locals above
