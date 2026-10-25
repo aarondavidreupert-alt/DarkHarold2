@@ -128,7 +128,9 @@ export function tickGame(): void {
     // CE game loop: a script's load_map transition, then game state 4 (a script's
     // dialogue_system_enter) opening the dialogue
     if (Scripting.processMapTransition()) return
+    Scripting.processScriptRequests()
     Scripting.processDialogueRequest()
+    Scripting.processEndgameRequest()
 
     // sfall: HOOK_GAMEMODECHANGE when the game mode changed; the global scripts of type 1
     // run every frame wherever the game is (CE's input ticker), type 2 / 3 on the world map

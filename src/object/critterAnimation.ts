@@ -29,6 +29,7 @@ import { currentUnarmed } from '../unarmed.js'
 import { Critter } from './Critter.js'
 // Imported from Obj (not the barrel) to avoid a cycle through ../object.js.
 import { Obj } from './Obj.js'
+import { canUseDoor } from '../map/pathfinder.js'
 
 // Suppress unused-import warning — Obj is referenced indirectly via the
 // import-cycle break documented above.
@@ -521,9 +522,36 @@ Critter.prototype.walkFrameCE = function (this: Critter): void {
     if (!crossedHexStep(dir, this.shift.x, this.shift.y)) return
 
     const rest = { x: this.shift.x - HEX_STEP_X[dir], y: this.shift.y - HEX_STEP_Y[dir] }
-    const pos = this.path.path[this.path.index++]
+    let pos = this.path.path[this.path.index++]
     if (!pos) return
     this.shift = { x: 0, y: 0 } // objectSetLocation clears the offset
+    // CE animation.cc _object_move: a blocker on the next hex (one that moved into the path)
+    // — a door the critter can use opens (move()); anything else makes it re-path to the goal,
+    // within the hexes it set out to walk (their AP are paid), or the walk ends there.
+    const gMap = globalState.gMap
+    if (gMap) {
+        const elevation = (this as any).elevation ?? gMap.currentElevation
+        const blocker = gMap.blockingObjectAt(pos[1] * 200 + pos[0], elevation, 0, this)
+        const usableDoor = !!blocker && blocker.subtype === 'door' && !blocker.jammed && canUseDoor(this, blocker)
+        if (blocker && !usableDoor) {
+            const budget = this.path.path.length - this.path.index + 1 // hexes still to walk
+            const repath = gMap.recalcPath(this.position, this.path.target, true, this)
+            if (repath.length < 2 || repath.length - 1 > budget) {
+                dbg('movement', `[walk] ${this.name || this.pid}: blocked at (${pos[0]}, ${pos[1]}), walk ends`)
+                const callback = this.animCallback
+                this.clearAnim()
+                // in combat the turn goes on (the AI and the player's AP bookkeeping wait for it);
+                // out of combat the rest of the action is dropped, as CE's ended sequence
+                if (globalState.inCombat && callback) callback()
+                return
+            }
+            this.path.path = repath
+            this.path.index = 2
+            pos = repath[1]
+            const nd = directionOfDelta(this.position.x, this.position.y, pos[0], pos[1])
+            if (nd != null) this.orientation = nd
+        }
+    }
     if (!this.move({ x: pos[0], y: pos[1] })) return
     if (!this.path) return // move() side effects can end the walk
 

@@ -38,6 +38,7 @@ export function gameReset(): void {
     globalState.combat = null
 
     Scripting.resetGameState()                // gameLoadGlobalVars, _scr_reset, scriptsReset, queueExit
+    Scripting.clearScriptRequests()           // scriptsReset: gScriptsRequests = 0
     globalState.seenMovies = new Set()        // gameMoviesReset
     globalState.gameTickTime = START_TICKS    // gameTimeReset (via _scr_reset)
     globalState.eventLog = []

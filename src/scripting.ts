@@ -1830,12 +1830,13 @@ export module Scripting {
             if (!initiator.isPlayer) initiator.hostile = true
             // CombatStartData: bonus → accuracy, min/max damage; equal attacker / target
             // results override the hit's results (CE's quirk: the target's are used).
-            Combat.start(initiator, {
+            // CE scriptsRequestCombat: the fight starts from the game loop once the script returns
+            requestScript('combat', () => Combat.start(initiator, {
                 attacker: initiator, defender: target, actionPointsBonus: 0,
                 accuracyBonus: bonus, damageBonus: 0, minDamage: minDmg, maxDamage: maxDmg,
                 overrideAttackResults: attackerResults === targetResults,
                 attackerResults, targetResults,
-            })
+            }))
         }
         terminate_combat() {
             info('[terminate_combat]')
@@ -2842,10 +2843,10 @@ export module Scripting {
             } else if (Config.engine.doCombat) {
                 // scriptsRequestCombat with neutral start data
                 if (!a.isPlayer) a.hostile = true
-                Combat.start(a.isPlayer ? undefined : a, {
+                requestScript('combat', () => Combat.start(a.isPlayer ? undefined : a, {
                     attacker: a, defender: d, actionPointsBonus: 0, accuracyBonus: 0, damageBonus: 0,
                     minDamage: 0, maxDamage: 0x7fffffff, overrideAttackResults: false, attackerResults: 0, targetResults: 0,
-                })
+                }))
             }
         }
         // CE opDestroyMultipleObjects (0x8144) — remove `quantity` of an item from its
@@ -2884,7 +2885,7 @@ export module Scripting {
         }
         // CE opWorldmap (0x8108) — scriptsRequestWorldMap
         world_map() {
-            uiWorldMap()
+            requestScript('worldMap', () => uiWorldMap()) // CE scriptsRequestWorldMap
         }
         // CE opRegAnimObjectRunToTile (0x8114) — as move_to_tile, running.
         reg_anim_obj_run_to_tile(obj: Obj, tileNum: number, delay: number) {
@@ -3268,11 +3269,14 @@ export module Scripting {
             log('explosion', arguments)
             // CE interpreter_extra.cc opExplosion → scriptsRequestExplosion → actionExplode:
             // d(1, damage) (0 when damage is 0) with no source object.
-            const explosives = createObjectWithPID(makePID(0 /* items */, 85 /* Plastic Explosives */), -1)
-            explosives.position = fromTileNum(tile)
-            globalState.gMap.addObject(explosives)
-            explosives.explode(null, damage === 0 ? 0 : 1, damage)
-            globalState.gMap.removeObject(explosives)
+            // (scriptsRequestExplosion: it goes off from the game loop once the script returns)
+            requestScript('explosion', () => {
+                const explosives = createObjectWithPID(makePID(0 /* items */, 85 /* Plastic Explosives */), -1)
+                explosives.position = fromTileNum(tile)
+                globalState.gMap.addObject(explosives)
+                explosives.explode(null, damage === 0 ? 0 : 1, damage)
+                globalState.gMap.removeObject(explosives)
+            })
         }
 
         gfade_out(time: number) {
@@ -3381,11 +3385,12 @@ export module Scripting {
             void gameMoviePlay(movieID, SCRIPT_MOVIE_FLAGS[movieID] ?? 0)
         }
         endgame_slideshow() {
-            // CE: interpreter_extra.cc:opEndgameSlideshow (0x8146)
-            // CE defers via scriptsRequestEndgame() flag; DH2 fires async directly.
-            info('endgame_slideshow: starting')
-            Endgame.playSlideshow().catch((e: unknown) => {
-                info('endgame_slideshow error: ' + String(e))
+            // CE: interpreter_extra.cc:opEndgameSlideshow (0x8146) → scriptsRequestEndgame
+            info('endgame_slideshow: requested')
+            requestScript('endgame', () => {
+                Endgame.playSlideshow().catch((e: unknown) => {
+                    info('endgame_slideshow error: ' + String(e))
+                })
             })
         }
         endgame_movie() {
@@ -3730,6 +3735,36 @@ export module Scripting {
     /** Open the dialogue a script requested with dialogue_system_enter, once no
      *  dialogue or combat is running. Called by the game tick (and the story
      *  crawler, which ticks by hand). True if one was opened. */
+    // CE scripts.cc gScriptsRequests / scriptsHandleRequests: what a script asks for — a
+    // fight, the world map, an explosion, the endgame — happens from the game loop after the
+    // script returned (with the dialogue over), in CE's order; the dialogue request between.
+    type ScriptRequestKind = 'combat' | 'worldMap' | 'explosion' | 'endgame'
+    const scriptRequests = new Map<ScriptRequestKind, () => void>()
+    function requestScript(kind: ScriptRequestKind, run: () => void): void {
+        scriptRequests.set(kind, run) // CE keeps one of each (the last request's data)
+    }
+    function runScriptRequest(kind: ScriptRequestKind): void {
+        const run = scriptRequests.get(kind)
+        if (!run) return
+        scriptRequests.delete(kind)
+        try { run() } catch (e) { warn(`script request ${kind}: ${e}`) }
+    }
+    export function processScriptRequests(): void {
+        if (scriptRequests.size === 0 || globalState.uiMode !== UIMode.none) return
+        if (scriptRequests.has('combat') && !globalState.inCombat) runScriptRequest('combat')
+        else scriptRequests.delete('combat') // in combat attack_setup / attack_complex only engage
+        runScriptRequest('worldMap')
+        runScriptRequest('explosion')
+    }
+    export function processEndgameRequest(): void {
+        if (globalState.uiMode !== UIMode.none) return
+        runScriptRequest('endgame')
+    }
+    // gameReset / map change: pending requests go
+    export function clearScriptRequests(): void {
+        scriptRequests.clear()
+    }
+
     export function processDialogueRequest(): boolean {
         if (!requestedDialogue || globalState.uiMode !== UIMode.none || globalState.inCombat) return false
         const obj = requestedDialogue

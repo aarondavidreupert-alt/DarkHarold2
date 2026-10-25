@@ -136,6 +136,7 @@ LOW findings are listed in each report only.
 | | SCR-05 (part) | map script and spatial scripts get `start` after the map script's `map_enter_p_proc`; `fixed_param` = first visit for the map script and every object's `map_enter_p_proc`. Object `start` still runs at script load (before the map script's `map_enter_p_proc`). |
 | | SCR-08 | a script that hits a fatal error runs no further procs (both backends), as CE's PROGRAM_FLAG_EXITED |
 | | SCR-06 | VM: intrinsic results and built-ins are typed as CE (null object → 0, truth values 0 / 1, like the Lua backend); comparisons and `!` push 0 / 1 |
+| | SCR-07 | `attack_setup` / `attack_complex` (out of combat), `world_map`, `explosion` and `endgame_slideshow` are requests the game loop runs after the script returns and the dialogue is over, in CE's order |
 | | SCR-09 | the dude runs `obj_dude` (critter / map-update / timer / drop / use-on procs: GECK experience and drop block, mutation messages, `add_timer_event(dude_obj, …)`); its LVARs are saved |
 | | SCR-12 (part) | VM: an unknown opcode is a fatal error that ends the procedure (it was read as a dialogue suspension). The sfall string / math opcodes are still missing |
 | Dialogue | DLG-02, DLG-03 | CE's pending-reply model: `gsay_end` runs the dialogue only while a reply is pending and adds CE's implicit option (proto.msg 655 / empty) when the reply has none; a `gsay_message` [Done] returns into its procedure with the dialogue open, which closes only if no options follow |
@@ -168,6 +169,7 @@ LOW findings are listed in each report only.
 | Actions | ACT-04 | explosions give the player the XP of new kills, survivors remember the bomber and start a fight (CE `_report_explosion`), victims die exploded to nothing |
 | | ACT-05 | ranged (non-throw) attacks aim first (ANIM_POINT) and lower the weapon after the shot (ANIM_UNPOINT, not when knocked down or dead) |
 | | ACT-06 | pickup walks first, then plays the pickup animation; the sound, pickup_p_proc and the carry check (proto.msg 905) happen on its action frame |
+| | ANIM-02 (part) | a critter that steps into a walking critter's path makes it re-path to the goal within the hexes it set out to walk, or the walk ends there (usable doors still open). AP stay charged up front |
 | | ANIM-03 | run → walk for an encumbered critter (misc.msg 8000 / 8001 for the party), crippled legs and the dude sneaking without Silent Running (Sneak stays); only the dude's run command ends Sneak |
 | Stats / critters | STAT-02, RAD-01 | Melee Damage and Healing Rate have CE's minimum of 1 before perk / trait deltas; radiation HP changes go through current HP (capped at max), not a bonus |
 | | TRAIT-01, TRAIT-02 | Fast Metabolism zeroes only the base Radiation / Poison resistance (Rad-X etc. still count); Small Frame uses base STR without Bruiser / Gifted |
