@@ -26,7 +26,7 @@ import { heart } from './heart.js'
 import { dbg, dbgWarn } from './logger.js'
 import type { EventLogEntry } from './eventlog.types.js'
 import { SerializedMap } from './map.js'
-import { Critter, deserializeObj, SerializedObj } from './object.js'
+import { Critter, deserializeObj, PROTO_ID_LIT_FLARE, scheduleExplosion, scheduleFlareBurnOut, SerializedObj } from './object.js'
 import { refreshStealthState } from './miscItem.js'
 import { Scripting } from './scripting.js'
 import { scheduleSneakEvent, sneakClear, serializeSkillUsage, deserializeSkillUsage } from './skillUse.js'
@@ -444,7 +444,18 @@ export function load(id: number): void {
                     // CE queueLoad: the owner by object id (objectFindById); old saves by PID
                     const mapObjects = [...globalState.gMap.getObjects(), ...(globalState.gMap.getSpatials() ?? [])]
                     const byUid = new Map<number, any>()
-                    for (const o of mapObjects) byUid.set(o.uid, o)
+                    // (items too, in inventories and bags: a lit flare in a hand; uid -1 is only the dude's)
+                    const visited = new Set<any>()
+                    const addByUid = (o: any) => {
+                        if (!o || visited.has(o)) return
+                        visited.add(o)
+                        if (o.uid !== -1) byUid.set(o.uid, o)
+                        for (const it of o.inventory ?? []) addByUid(it)
+                        addByUid(o.leftHand)
+                        addByUid(o.rightHand)
+                    }
+                    for (const o of mapObjects) addByUid(o)
+                    addByUid(globalState.player)
                     if (globalState.player) byUid.set(globalState.player.uid, globalState.player)
                     for (const ev of save.timedEvents) {
                         const obj = ev.objUid != null
@@ -478,10 +489,12 @@ export function load(id: number): void {
                         } else if (userdata === 'knockout') {
                             // CE queue.cc knockout event: the critter wakes up when it runs out
                             if (obj && obj.type === 'critter' && !obj.dead) scheduleKnockoutEvent(obj as Critter, ticks)
-                        } else if (userdata === 'flare' || userdata === 'explosion' || userdata === 'explosionFailure') {
-                            // engine events DH2 can't rebuild from a save yet (a lit flare, an armed
-                            // explosive); never a script's timed_event_p_proc
-                            dbgWarn('saveload', `[SaveLoad] ${userdata} event not restored`)
+                        } else if (userdata === 'flare') {
+                            // CE queue.cc flare event: the lit flare burns out when it runs out
+                            if (obj && obj.pid === PROTO_ID_LIT_FLARE) scheduleFlareBurnOut(obj, ticks)
+                        } else if (userdata === 'explosion' || userdata === 'explosionFailure') {
+                            // CE queue.cc explosion events: the armed explosive goes off
+                            if (obj) scheduleExplosion(obj, ticks, userdata === 'explosionFailure')
                         } else if (obj?._script) {
                             const script = obj._script
                             Scripting.timeEventList.push({ obj, ticks, userdata, script: true,

@@ -183,11 +183,19 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
         obj.position = { x: source.position.x, y: source.position.y }
         testDroppedExplosive(source)
     }
-    const fire = () => explosiveDetonate(obj, desc.min, desc.max, failure)
-    if (delay === 0) fire()
+    if (delay === 0) explosiveDetonate(obj, desc.min, desc.max, failure)
+    else scheduleExplosion(obj, delay, failure)
+}
+
+// CE queue.cc EVENT_TYPE_EXPLOSION / EXPLOSION_FAILURE on an armed explosive (also queueLoad:
+// the event keeps only its owner, the damage comes from the pid, explosiveGetDamage)
+export function scheduleExplosion(obj: Obj, ticks: number, failure: boolean): void {
+    const dmg = explosiveGetDamage(obj.pid)
+    if (!dmg) return
     // CE queue.cc _queue_explode_exit: leaving the map sets it off at once, unanimated
-    else Scripting.timeEventList.push({ obj, ticks: delay, userdata: failure ? 'explosionFailure' : 'explosion', fn: fire,
-        leaveMap: () => { explosiveDetonate(obj, desc.min, desc.max, false, false); return true } })
+    Scripting.timeEventList.push({ obj, ticks, userdata: failure ? 'explosionFailure' : 'explosion',
+        fn: () => explosiveDetonate(obj, dmg.min, dmg.max, failure),
+        leaveMap: () => { explosiveDetonate(obj, dmg.min, dmg.max, false, false); return true } })
 }
 
 // CE item.cc itemRemove(owner, item, 1) + itemReplace: a single item comes off the stack
@@ -339,6 +347,15 @@ export function useFlare(obj: Obj, source: Critter): boolean {
     switchItemProto(obj, PROTO_ID_LIT_FLARE)
     obj.lightRadius = 8
     obj.lightIntensity = 65536
+    scheduleFlareBurnOut(obj, 72000)
+    const owner = itemOwner(obj)
+    if (owner) updateHandFlareLight(owner)
+    else if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
+    return true
+}
+
+// CE queue.cc EVENT_TYPE_FLARE (flareEventProcess) on a lit flare (also queueLoad)
+export function scheduleFlareBurnOut(obj: Obj, ticks: number): void {
     const burnOut = () => {
         const owner = itemOwner(obj)
         if (owner) {
@@ -354,12 +371,8 @@ export function useFlare(obj: Obj, source: Critter): boolean {
             if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
         }
     }
-    // queue.cc EVENT_TYPE_FLARE: its clear proc is flareEventProcess — leaving the map burns it out
-    Scripting.timeEventList.push({ obj, ticks: 72000, userdata: 'flare', fn: burnOut, leaveMap: () => { burnOut(); return true } })
-    const owner = itemOwner(obj)
-    if (owner) updateHandFlareLight(owner)
-    else if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
-    return true
+    // its clear proc is flareEventProcess too — leaving the map burns it out
+    Scripting.timeEventList.push({ obj, ticks, userdata: 'flare', fn: burnOut, leaveMap: () => { burnOut(); return true } })
 }
 
 // CE queue.cc explosionEventProcess / explosionFailureEventProcess → _queue_do_explosion_:

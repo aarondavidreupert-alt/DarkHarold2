@@ -307,7 +307,7 @@ Top findings, most severe first:
 - **Fix:** Load `obj_dude` (scripts.lst index 1, 1-based) as the player's script at game start, and include it in the critter round-robin and the map proc loops.
 - **Ref:** NEW.
 
-### SCR-10 — queue save/load identity and type routing (MED, save/load) — **PARTLY FIXED 2026-10-25**
+### SCR-10 — queue save/load identity and type routing (MED, save/load) — **FIXED 2026-10-25**
 - **CE:** `queue.cc:84 queueLoad` / `191 queueSave` store the event type, absolute time and owner **object id**. On load, each type's `readProc` rebuilds the event's data.
 - **DH2:** `scripting.ts:375 getTimedEventsSerialized` stores `objPid` and the userdata. `saveload.ts:423` resolves the owner with `mapObjects.find(o => o.pid === ev.objPid)`, which picks the first same-PID object.
   - Only drug, withdrawal, sneak, radiation and poison are rebuilt.
@@ -316,6 +316,7 @@ Top findings, most severe first:
 - **Impact:** Script timers move to the wrong guard among identical critters, and spurious `timed_event_p_proc` calls are made with a string `fixed_param`.
 - **Fix:** Serialise the object uid and an explicit event type, and rebuild each type through its own constructor.
 - **Ref:** NEW (U7 restored script timers but not their identity).
+- **Fixed 2026-10-25:** events are keyed by object uid (items in inventories and hands included; uid −1 is only the dude's) and rebuilt by type: knockout, a lit flare's burn-out, an armed explosive's explosion / failure.
 
 ### SCR-11 — missing proc runs procedure index 1 in CE (LOW-MED, unverified impact)
 - **CE:** `scripts.cc:1306-1309` and `1323-1326`: `v9 = script->procs[proc]; if (v9 == 0) v9 = 1;`. `SCRIPT_PROC_NO_PROC` is 0 (`scripts.h:50`), so a script that lacks the requested proc runs procedure index 1 instead.

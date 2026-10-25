@@ -142,7 +142,7 @@ LOW findings are listed in each report only.
 | Dialogue | DLG-02, DLG-03 | CE's pending-reply model: `gsay_end` runs the dialogue only while a reply is pending and adds CE's implicit option (proto.msg 655 / empty) when the reply has none; a `gsay_message` [Done] returns into its procedure with the dialogue open, which closes only if no options follow |
 | Save / load | SAVE-01 | preferences saved with the game and applied on load |
 | | SAVE-02, COMBAT-14 | a save made in combat resumes the fight (order, turn, round, XP, player AP) |
-| | SAVE-03, SCR-10 (part) | timed events keyed by object uid (uids stay unique after a load); knockout events rebuilt; flare / explosive events no longer become fake script calls |
+| | SAVE-03, SCR-10 | timed events keyed by object uid (uids stay unique after a load; items in inventories and hands found too); knockout, lit-flare and armed-explosive events rebuilt |
 | Script opcodes | OP-07, WM-05 | metarule 13 returns to the main menu after the script; 15 requests the elevator from the stub around the script's object (no throw); 18 checks the critter passed in for drug events; 19 reads the map's entrance state |
 | | OP-08 | `critter_inven_obj`: the dude's hand slot counts only while it is the active hand |
 | | OP-09 | `animate_move_obj_to_tile`: 0x10 clears the current animation; nothing in combat or for an inactive critter |
@@ -218,12 +218,11 @@ LOW findings are listed in each report only.
 Fixed earlier with the HIGH groups: INV-02 (PA8), ITEM-15 (PA9), CRIT-02 (PA12), ITEM-17 (PA18), WM-04 / WM-09 (PA21), WM-07 (PA23). Already in the code when audited: TILE-03 (`camera.ts playerLimitRefuses`, on by default).
 
 Status of the 120 MED findings with their own section in `ce_audit/` (each header there is marked FIXED /
-PARTLY FIXED): 111 fixed, 5 partly fixed, 4 open or not ported:
+PARTLY FIXED): 112 fixed, 4 partly fixed, 4 open or not ported:
 
 - **Open:** COMBAT-13
   (the Glovz / YAAM opt-in damage formulas; conflicts with known_bugs C3).
-- **Partly fixed, rest open:** INV-13 / INV-12 (bags in the barter, companion-trade and steal windows), SCR-05 (object `start` still runs at script load), SCR-10 (flare / explosive timed
-  events not restored),
+- **Partly fixed, rest open:** INV-13 / INV-12 (bags in the barter, companion-trade and steal windows), SCR-05 (object `start` still runs at script load),
   ANIM-02 (AP still charged up front).
 - **Checked, not ported:** SCR-11 — a scan of the 1443 shipped `.int` files shows procedure index 1 is the pure
   `checkPartyMembersNearDoor` helper in 1212 of them (CE's fallback has no effect there) and `start` in about 210;
