@@ -163,18 +163,25 @@ function processRads(obj: Critter, level: number, isHealing: boolean): void {
 
     for (let i = 0; i < RADIATION_EFFECT_STATS.length; i++) {
         const delta = modifier * row[i]
-        if (delta !== 0) obj.stats.modifyBonus(RADIATION_EFFECT_STATS[i], delta) // CE critterSetBonusStat
+        if (delta === 0) continue
+        if (RADIATION_EFFECT_STATS[i] === 'HP') {
+            // CE critterSetBonusStat(STAT_CURRENT_HIT_POINTS) → critterAdjustHitPoints: current HP
+            // moves by the delta, capped at Max HP (the death check follows below)
+            obj.stats.setBase('HP', Math.min(obj.getStat('Max HP'), obj.getStat('HP') + delta))
+        } else {
+            obj.stats.modifyBonus(RADIATION_EFFECT_STATS[i], delta) // CE critterSetBonusStat
+        }
     }
 
     // SFALL fix kept by CE: removing the effects can never kill.
     if (!isHealing && !obj.dead) {
         for (let i = 0; i < RADIATION_EFFECT_PRIMARY_STAT_COUNT; i++) {
             if (obj.stats.get(RADIATION_EFFECT_STATS[i]) < 1) { // PRIMARY_STAT_MIN
-                critterKill(obj)
+                critterKill(obj, undefined, false)
                 break
             }
         }
-        if (!obj.dead && obj.getStat('HP') <= 0) critterKill(obj)
+        if (!obj.dead && obj.getStat('HP') <= 0) critterKill(obj, undefined, false) // CE critterKill: no destroy_p_proc
     }
 
     if (obj.dead && isPlayer(obj)) {

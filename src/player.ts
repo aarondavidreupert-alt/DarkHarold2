@@ -28,7 +28,8 @@ import { uiLog, uiWorldMap } from './ui.js'
 
 // Contains the Player class and relevant initialization logic
 
-const newPlayerStats = () => new StatSet({ AGI: 8, INT: 8, STR: 8, CHA: 8, HP: 100 })
+// CE proto.cc _proto_dude_init: the dude proto has DR EMP 100
+const newPlayerStats = () => new StatSet({ AGI: 8, INT: 8, STR: 8, CHA: 8, HP: 100, 'DR EMP': 100 })
 const newPlayerSkills = () => new SkillSet(undefined, undefined, 10) // Start off with 10 skill points
 
 export class Player extends Critter {
@@ -158,12 +159,19 @@ export class Player extends Critter {
             case 'AP': return Math.max(1, t.includes('Bruiser') ? value - 2 : value) // clamped like CE critterGetStat
             case 'AC': return t.includes('Kamikaze') ? 0 : value // -critterGetBaseStat(AC)
             case 'Melee': return t.includes('Heavy Handed') ? value + 4 : value
-            case 'Carry': return t.includes('Small Frame') ? value - 10 * this.stats.getBase('STR') : value
+            // CE trait.cc: Small Frame −10 × critterGetBaseStat(ST) — the raw base, without the
+            // traits' own +ST (Bruiser +2, Gifted +1) or any bonus
+            case 'Carry': return t.includes('Small Frame')
+                ? value - 10 * (this.stats.getBase('STR') - (t.includes('Bruiser') ? 2 : 0) - (t.includes('Gifted') ? 1 : 0))
+                : value
             case 'Sequence': return t.includes('Kamikaze') ? value + 5 : value
             case 'Healing Rate': return t.includes('Fast Metabolism') ? value + 2 : value
             case 'Critical Chance': return t.includes('Finesse') ? value + 10 : value
             case 'Better Criticals': return t.includes('Heavy Handed') ? value - 30 : value
-            case 'DR Radiation': case 'DR Poison': return t.includes('Fast Metabolism') ? 0 : value
+            // CE trait.cc: Fast Metabolism −critterGetBaseStat (the 2·EN / 5·EN part only); Rad-X's
+            // bonus and the Inoculations stay
+            case 'DR Radiation': case 'DR Poison':
+                return t.includes('Fast Metabolism') ? Math.max(0, value - (this.stats.get(stat) - this.stats.getBonus(stat))) : value
         }
         return value
     }

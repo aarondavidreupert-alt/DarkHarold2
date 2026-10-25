@@ -346,7 +346,7 @@ export module Scripting {
         critter.stats.setBase('HP', Math.min(hp, critter.getStat('Max HP')))
         const msg = getMessage('misc', 3001) // "You take damage from poison."
         if (msg) uiLog(msg)
-        if (hp <= 0 && !critter.dead) critterKill(critter, undefined, true)
+        if (hp <= 0 && !critter.dead) critterKill(critter, undefined, false) // CE critterAdjustHitPoints → critterKill: no destroy_p_proc
         // CE returns 1 at 5 HP or less: queueProcessEvents stops (a rest ends)
         if (hp <= 5) Events.emit('queueBail')
     }
@@ -1618,7 +1618,7 @@ export module Scripting {
         // is the single-frame death `deathFrame` (ANIM_*_SF; others → LAST_SF_DEATH_ANIM).
         kill_critter(obj: Critter, deathFrame: number) {
             log('kill_critter', arguments)
-            critterKill(obj, undefined, true, { deathFrame })
+            critterKill(obj, undefined, false, { deathFrame }) // CE critterKill never runs destroy_p_proc
         }
         get_poison(obj: Obj) {
             // FO2-CE ref: critter.cc critterGetPoison
@@ -1771,7 +1771,7 @@ export module Scripting {
             const maxHp = c.getStat('Max HP')
             const newHp = c.getStat('HP') + amount
             c.stats.setBase('HP', Math.min(newHp, maxHp))
-            if (newHp <= 0 && !c.dead) critterKill(c, undefined, true)
+            if (newHp <= 0 && !c.dead) critterKill(c, undefined, false)
             if (c.isPlayer) updateIndicatorBar()
             info('critter_heal: ' + obj.name + ' ' + amount + ' HP')
             return 0
@@ -2921,7 +2921,7 @@ export module Scripting {
                     } else {
                         frame = deathFrame >= ANIM_FALL_BACK_SF && deathFrame <= ANIM_FALL_FRONT_BLOOD_SF ? deathFrame : ANIM_FALL_BACK_SF
                     }
-                    critterKill(c, undefined, true, { deathFrame: frame })
+                    critterKill(c, undefined, false, { deathFrame: frame })
                 }
             }
         }

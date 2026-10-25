@@ -77,7 +77,10 @@ class Stat {
         public min: number,
         public max: number,
         public defaultValue: number,
-        public dependencies: Dependency[]
+        public dependencies: Dependency[],
+        // CE critterUpdateDerivedStats floors the derived part alone (max(ST − 5, 1),
+        // max(EN / 3, 1)); the bonus (perks, radiation) is added after
+        public derivedMin?: number
     ) {}
 }
 
@@ -122,10 +125,12 @@ export const statDependencies: { [name: string]: Stat } = {
     'Max HP': new Stat(0, 999, 0, [new Dependency('One', 15), new Dependency('END', 2, true), new Dependency('STR', 1, true)]),
     AP: new Stat(1, 99, 0, [new Dependency('One', 5), new Dependency('AGI', 0.5)]),
     AC: new Stat(0, 999, 0, [new Dependency('AGI', 1)]),
-    Melee: new Stat(1, 500, 0, [new Dependency('One', -5), new Dependency('STR', 1)]),
+    // CE stat.cc: Melee Damage 0..500, base max(ST − 5, 1)
+    Melee: new Stat(0, 500, 0, [new Dependency('One', -5), new Dependency('STR', 1)], 1),
     Carry: new Stat(0, 999, 0, [new Dependency('One', 25), new Dependency('STR', 25)]),
     Sequence: new Stat(0, 60, 0, [new Dependency('PER', 2)]),
-    'Healing Rate': new Stat(1, 30, 0, [new Dependency('END', 1 / 3)]),
+    // CE stat.cc: Healing Rate 0..30, base max(EN / 3, 1)
+    'Healing Rate': new Stat(0, 30, 0, [new Dependency('END', 1 / 3)], 1),
     'Critical Chance': new Stat(0, 100, 0, [new Dependency('LUK', 1)]),
     'Better Criticals': new Stat(-60, 100, 0, []),
     'DT EMP': new Stat(0, 100, 0, []),

@@ -160,6 +160,11 @@ LOW findings are listed in each report only.
 | | AI-05, AI-06 | the secondary attack checks its own attack type against the preference, a throw needs a fall-back weapon or a failed INT roll; only an unset `best_weapon` lets average damage override the order |
 | | AI-07 | a hurt critter flees from CE's `a2` (the attack_complex defender, else the player) |
 | Actions | ACT-04 | explosions give the player the XP of new kills, survivors remember the bomber and start a fight (CE `_report_explosion`), victims die exploded to nothing |
+| Stats / critters | STAT-02, RAD-01 | Melee Damage and Healing Rate have CE's minimum of 1 before perk / trait deltas; radiation HP changes go through current HP (capped at max), not a bonus |
+| | TRAIT-01, TRAIT-02 | Fast Metabolism zeroes only the base Radiation / Poison resistance (Rad-X etc. still count); Small Frame uses base STR without Bruiser / Gifted |
+| | CRIT-01 | `kill_critter`, `kill_critter_type`, `critter_heal`, poison and radiation deaths no longer run `destroy_p_proc` (an NPC's chem death still does, as CE `_combatKillCritterOutsideCombat`) |
+| | CRIT-03 | critters take their scrname.msg name (101 + script index) over the proto name |
+| Items | ITEM-18 | the dude has DR EMP 100 |
 
 Still open from these groups: COMBAT-10 (joining critters' immediate turn), COMBAT-13 (Glovz / YAAM opt-in formulas), ACT-05 (point / unpoint animations).
 

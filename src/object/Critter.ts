@@ -31,6 +31,7 @@ import globalState from '../globalState.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Scripting } from '../scripting.js'
 import { getMessage, getProtoMsg } from '../util.js'
+import { scriptNumberOf } from '../data.js'
 import { drawAP, uiLog } from '../ui_hud.js'
 import { getAiPacket, AiPacket } from '../aiPackets.js'
 import { getObjectLightIntensity } from '../combat/hitChance.js'
@@ -206,6 +207,21 @@ export class Critter extends Obj {
         return obj
     }
 
+    // CE critter.cc critterGetName: scrname.msg 101 + the script's scripts.lst index wins over
+    // the proto name when it is non-empty (the dude keeps his own name).
+    protected override scriptAttached(): void {
+        if (this.isPlayer || !this.script) return
+        const number = scriptNumberOf(this.script) // scripts.lst index + 1
+        if (number === 0) return
+        const name = getMessage('scrname', 100 + number)
+        if (name) this.name = name
+    }
+
+    // CE object.cc objectGetName → critterGetName
+    override getName(): string {
+        return this.name || super.getName()
+    }
+
     init() {
         super.init()
 
@@ -325,13 +341,14 @@ export class Critter extends Obj {
 
     // CE stat.cc critterGetStat — the stat plus its context modifiers: blindness −5 PER,
     // overloaded −(excess / 40 + 1) AP, and age growing with the game years.
-    getStat(stat: string) {
+    getStat(stat: string): number {
         const value = this.stats.get(stat)
         switch (stat) {
             case 'PER':
                 return this.isBlinded ? Math.max(1, value - 5) : value // DAM_BLIND
             case 'AP': {
-                const remaining = this.stats.get('Carry') - this.getInventoryWeight()
+                // CE stat.cc:200: critterGetStat(CARRY_WEIGHT) — the traits included (Small Frame)
+                const remaining = this.getStat('Carry') - this.getInventoryWeight()
                 return remaining < 0 ? Math.max(1, value - (Math.trunc(-remaining / 40) + 1)) : value
             }
             case 'Age':

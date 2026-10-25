@@ -307,10 +307,13 @@ export class StatSet {
 
         let statValue = base + (this.bonusStats[stat] ?? 0);
         if(this.useBonuses) {
+            let derived = 0;
             for(const dep of statDep.dependencies) {
                 if(dep.statType)
-                    statValue += Math.floor((dep.baseOnly ? this.getBase(dep.statType) : this.get(dep.statType)) * dep.multiplier);
+                    derived += Math.floor((dep.baseOnly ? this.getBase(dep.statType) : this.get(dep.statType)) * dep.multiplier);
             }
+            if(statDep.derivedMin !== undefined) derived = Math.max(statDep.derivedMin, derived);
+            statValue += derived;
         }
 
         return clamp(statDep.min, statDep.max, statValue);

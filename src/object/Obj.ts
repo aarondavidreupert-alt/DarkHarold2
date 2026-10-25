@@ -783,6 +783,7 @@ export class Obj {
                     try { Scripting.initScript(this._script, this) } catch (e) {
                         dbgWarn('object', `[Script] initScript stub error for sid=${lstIndex}:`, e)
                     }
+                    this.scriptAttached()
                     return
                 }
                 try {
@@ -820,9 +821,13 @@ export class Obj {
                 } catch (e) {
                     dbgWarn('object', '[Script] initScript error for %s:', scriptName, e)
                 }
+                this.scriptAttached()
             }
         }
     }
+
+    // Called once a script is attached (Critter: CE critterGetName's scrname.msg name)
+    protected scriptAttached(): void {}
 
     enterMap(): void {
         // TODO: do we updateMap?

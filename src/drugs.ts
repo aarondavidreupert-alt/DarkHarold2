@@ -181,7 +181,7 @@ function performDrugEffect(critter: Critter, stats: number[], mods: number[], is
         }
     } else if (!critter.dead) {
         // CE kills via the HP adjustment; item.msg 4 (dude) is fetched but never shown.
-        critterKill(critter)
+        critterKill(critter, undefined, !isDude(critter)) // CE _combatKillCritterOutsideCombat runs destroy_p_proc for NPCs
     }
     if (isDude(critter)) Events.emit('statsChanged')
 }
