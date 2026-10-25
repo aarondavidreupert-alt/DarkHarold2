@@ -143,6 +143,7 @@ Three-file split — understand this before touching any opcode:
 |------|---------|------------------------|
 | `src/vm.ts` | `ScriptVM` class + `opMap`: low-level bytecode decoder (stack ops, arithmetic, jumps, 319 lines) | `scripts.cc` (VM core) |
 | `src/vm_bridge.ts` | `bridgeOpMap`: maps ~118 bytecode opcode values to `Script` methods via `bridged(procName, argc)` factory (245 lines) | `scripts.cc` (opcode table) |
+| `src/scriptProcs.ts` | SCRIPT_PROC_* numbers (`script_action`) and the intrinsics that end a procedure on its own `self_obj`, shared by both script backends | `scripts.cc gScriptProcNames`, `interpreter_extra.cc` |
 | `src/scripting.ts` | `Script` class: one method per FO2 script intrinsic, TimedEvent system, GVAR/LVAR/MVAR access, all hook entry points (~2263 lines) | `scripts.cc`, `script_list.cc` |
 | `src/sfallArrays.ts` | sfall arrays (list / associative, temporary arrays freed per game tick) for the Unofficial Patch's scripts ([wiki/upu_support.md](wiki/upu_support.md)) | `sfall_arrays.cc`, `sfall_lists.cc` |
 | `src/sfallIni.ts` | `get_ini_setting` / `set_ini_setting`: reads `file\|section\|key` from the install's ini files the pipeline copied (`data/ddraw.ini`, a mod's `data/mods/<mod>.ini`) | `sfall_ini.cc` |
