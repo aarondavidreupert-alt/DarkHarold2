@@ -2111,14 +2111,16 @@ export class Combat {
     // CE combat.cc _combat_sequence — between rounds: non-combatants that want to join
     // do (_combat_add_noncoms); knocked-out and disengaging critters leave the fight;
     // 5 seconds of game time pass.
-    private combatSequence(): void {
+    private combatSequence(): Critter[] {
         this.notifyFriends(this.player)
+        const joiners: Critter[] = []
         for (const c of this.combatants) {
             if (c.isPlayer || c.dead || c.hostile) continue
             if (this.wantToJoin(c)) {
                 c.hostile = true
                 ;(c as any).engaging = false // maneuver = NONE
                 ;(c as any).disengaging = false
+                joiners.push(c)
                 combatDebug(`${actorName(c)} joins the fight`)
             }
         }
@@ -2132,6 +2134,7 @@ export class Combat {
         }
         this.sortBySequence()
         GameTime.advanceSeconds(5)
+        return joiners
     }
 
     // CE combat.cc _combat_sequence → qsort(_compare_faster): Sequence, then Luck, highest first.
@@ -3038,6 +3041,7 @@ export class Combat {
     }
 
     private finish(result: 'normal' | 'forced'): void {
+        this.joinQueue = null
         // Set all combatants to non-hostile and remove their outline
         for (const combatant of this.combatants) {
             combatant.hostile = false
@@ -3144,8 +3148,13 @@ export class Combat {
         return true
     }
 
+    // CE combat.cc _combat_add_noncoms: the critters that joined at the round's end, still
+    // to take their immediate turn (null while none are pending)
+    private joinQueue: Critter[] | null = null
+
     nextTurn(): void {
         this.refreshHighlights()
+        if (this.joinQueue !== null) return this.nextJoinTurn()
 
         // CE combat.cc _combat_turn: the player's damageLastTurn resets once the input ends.
         if (this.combatants[this.whoseTurn]?.isPlayer) (this.player as any).damageLastTurn = 0
@@ -3157,12 +3166,38 @@ export class Combat {
             this.whoseTurn = 0
             // CE combat.cc _combat: after each round _combat_sequence (joins, leaves, 5 s
             // of game time — knockout wake-ups fire), then _combat_should_end.
-            this.combatSequence()
+            const joiners = this.combatSequence()
             if (this.shouldEnd()) {
                 this.end()
                 return
             }
+            if (joiners.length > 0) {
+                this.joinQueue = joiners
+                return this.nextJoinTurn()
+            }
         }
+        this.beginTurn()
+    }
+
+    // CE _combat_add_noncoms: a joiner gets its full AP and an immediate _combat_turn (and
+    // acts again in its place of the next round); then the round begins
+    private nextJoinTurn(): void {
+        const next = this.joinQueue?.shift()
+        if (!next) {
+            this.joinQueue = null
+            this.whoseTurn = 0
+            return this.beginTurn()
+        }
+        if (next.dead || !next.AP) return this.nextJoinTurn()
+        this.whoseTurn = this.combatants.indexOf(next)
+        this.inPlayerTurn = false
+        next.AP.resetAP()
+        if (this.turnSkipped(next)) return this.nextJoinTurn()
+        if (critterIsProne(next)) return combatStandup(next, () => this.beginAITurn(next))
+        this.beginAITurn(next)
+    }
+
+    private beginTurn(): void {
         // CE: attack_complex's start data covers the first combatant's turn only.
         if (this.turnNum > 2) this.gcsd = null
 
@@ -3199,11 +3234,10 @@ export class Combat {
             if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat1')
             uiEndButtonsRedLights()
             var critter = this.combatants[this.whoseTurn]
-            // Party members (same team as player) take AI turns even without hostile flag.
-            // CE ref: party.cc — party members participate fully in combat on the player's side.
-            const isFriendly = critter.teamNum === globalState.player.teamNum
+            // CE: only combatants act — party members too join first (_combat_add_noncoms,
+            // via _combatai_notify_friends at the end of a round)
             if (critter.dead === true) return this.nextTurn()
-            if (!critter.hostile && !isFriendly) {
+            if (!critter.hostile) {
                 // A bystander still runs the friendlyDead step of CE _combat_ai: away from
                 // a body it saw fall without seeing the killer (_combatai_notify_onlookers).
                 const fd: Critter | null = (critter as any).aiFriendlyDead ?? null
@@ -3226,9 +3260,10 @@ export class Combat {
         }
     }
 
-    // The critters that take turns (CE _list_com): the player, hostiles, the player's team.
+    // The critters that take turns (CE _list_com): the player and the combatants (`hostile`;
+    // party members too, once they joined).
     private isActiveCombatant(c: Critter): boolean {
-        return !c.dead && (c.isPlayer || c.hostile || c.teamNum === this.player.teamNum)
+        return !c.dead && (c.isPlayer || c.hostile)
     }
 
     // CE combat.cc _combat_set_move_all — full AP for every combatant at a round's start.
@@ -3306,7 +3341,7 @@ export class Combat {
             if (obj.dead || obj.isPlayer || !obj.visible) continue
             if (!wantHighlight) { obj.outline = null; continue }
             const sameTeam = obj.teamNum === globalState.player.teamNum
-            obj.outline = (obj as any).hostile ? 'red' : sameTeam ? 'green' : 'blue'
+            obj.outline = sameTeam ? 'green' : (obj as any).hostile ? 'red' : 'blue'
         }
     }
 }

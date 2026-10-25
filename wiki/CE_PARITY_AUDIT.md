@@ -154,6 +154,7 @@ LOW findings are listed in each report only.
 | | COMBAT-08 | a miss still makes the intended target consider retaliating and notifies onlookers |
 | | COMBAT-09, COMBAT-11 | who-hit-me cleared at combat start and end; the player's attack records the player's who-hit-me and every attacker's last target |
 | | COMBAT-12 | a destroyed critter, or one moved to another elevation, leaves the turn order |
+| | COMBAT-10 | critters that join at a round's end (party members included, via notify-friends) get their full AP and an immediate turn; party members no longer act before they join; joined companions keep the green outline |
 | | COMBAT-16, COMBAT-17 | Super Cattle Prod / Mega Power Fist use 2 charges a hit; punches and kicks work with both arms crippled |
 | AI | AI-01 | the held weapon gets CE's team-safety check (switching weapons if unsafe), the attacker steps out of its own blast, a failed approach makes it flee |
 | | AI-03, AI-04 | a dead team-mate's killer is a target; "strongest" / "weakest" sorted as CE (the vanilla inversion) |
@@ -193,7 +194,7 @@ LOW findings are listed in each report only.
 | | SND-05 | combat attack / hit sounds use CE's `sfxBuildWeaponName` (variant 2 for burst / secondary modes, the target's material, X for plasma / EMP / explosion); a missing file is silent (no invented fallbacks) |
 | | MSG-01 | the language filter masks the badwords.txt words in script dialogue and AI combat lines (`src/badwords.ts`, CE's rule including its start-of-message quirk) |
 
-Still open from these groups: COMBAT-10 (joining critters' immediate turn), COMBAT-13 (Glovz / YAAM opt-in formulas), MOUSE-06 roof test. MOUSE-01 / MOUSE-02 are the documented action-menu approximation (CLAUDE.md, README).
+Still open from these groups: COMBAT-13 (Glovz / YAAM opt-in formulas), MOUSE-06 roof test. MOUSE-01 / MOUSE-02 are the documented action-menu approximation (CLAUDE.md, README).
 
 ## 4. Conflicts with the wiki / known_bugs (flagged, not resolved)
 
