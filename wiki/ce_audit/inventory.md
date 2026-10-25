@@ -169,7 +169,7 @@ Top findings (by severity):
 - **Impact:** you can't unload a weapon or examine an item in a container or corpse before taking it, and you can't drop an equipped item directly.
 - **Fix:** use the same set selection as CE for slots; add right-click menus (Look / Unload) to the other windows.
 
-### INV-13 — No nested containers (bags / backpacks) (MED, NEW)
+### INV-13 — No nested containers (bags / backpacks) (MED, NEW) — **PARTLY FIXED 2026-10-25**
 - CE: `_container_enter` / `_container_exit` (up to 9 levels, in every window type), `_drop_into_container` (drag onto a bag in the list, a hand slot, or the body view while inside a bag; `itemAttemptAdd` with the bag's capacity).
 - DH2: nothing. Bag and backpack items are opaque; their contents can't be seen or moved, and nothing can be put in.
 - **Fix:** a container stack in the inventory, loot and barter views (the `Use` action on a container item, plus a back button / body-view drop target).

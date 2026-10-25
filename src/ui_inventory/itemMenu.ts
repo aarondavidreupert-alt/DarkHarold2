@@ -45,7 +45,8 @@ export function itemMenuActions(item: Obj, normal: boolean, ownerIsDude: boolean
         // (A container's USE enters it — CE _container_enter — which DH2 doesn't have yet.)
         return ownerIsDude ? ['look', 'drop', 'cancel'] : ['look', 'cancel'] // _act_no_use / _act_nothing
     }
-    if (item.subtype === 'container' && inSlot) return ['look', 'drop', 'cancel']
+    // a container in the list opens with USE (_container_enter); in a hand it can't
+    if (item.subtype === 'container') return inSlot ? ['look', 'drop', 'cancel'] : ['look', 'use', 'drop', 'cancel']
     return canUseOrUseOn(item) ? ['look', 'use', 'drop', 'cancel'] : ['look', 'drop', 'cancel'] // _act_use / _act_no_use
 }
 

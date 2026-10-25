@@ -32,7 +32,7 @@ import { drawAC, drawAP, uiDrawWeapon, uiLog } from '../ui_hud.js'
 import { makePanelDraggable } from '../ui_drag.js'
 import { UIMode, closeAllPanels, isInventoryOpen, registerCloseInventoryPanel } from '../ui_panels.js'
 import { appendItemSlot, $id, clearEl, showv, hidev, makeEl } from '../ui_dom.js'
-import { makeDropTarget, makeDraggable, uiMoveSlot, applyArmorArt, tryLoadAmmoIntoWeapon, dragInProgress } from './dragdrop.js'
+import { makeDropTarget, makeDraggable, uiMoveSlot, applyArmorArt, tryLoadAmmoIntoWeapon, dragInProgress, inventoryList, currentContainer, enterContainer, exitContainer, exitAllContainers } from './dragdrop.js'
 import { refreshStealthState } from '../miscItem.js'
 import { armorPerkSwap } from '../perks.js'
 import { Events } from '../events.js'
@@ -65,6 +65,7 @@ let droppedExplosive = false
 
 export function closeInventory(): void {
     useOnTarget = null
+    exitAllContainers()
     if (!isInventoryOpen()) return
     // CE _exit_inventory: the dropped explosive's would-be victims may notice
     if (droppedExplosive && globalState.player) testDroppedExplosive(globalState.player)
@@ -144,6 +145,7 @@ export function showInventory(useOn = false) {
         }
     }
     globalState.uiMode = UIMode.inventory
+    if (!wasOpen) exitAllContainers()
     if (!wasOpen) {
         Events.off('statsChanged', onStatsChangedRefresh)
         Events.on('statsChanged', onStatsChangedRefresh)
@@ -353,6 +355,18 @@ export function showInventory(useOn = false) {
             _portraitInterval = null
         }
 
+        // CE _container_enter: the body view shows the open bag; clicking it closes the bag
+        // (_container_exit), and an item dropped there goes into it
+        const bag = currentContainer()
+        $char.onclick = null
+        if (bag) {
+            const img = makeEl('img', { src: bag.invArt ? bag.invArt + '.png' : '', attrs: { title: bag.name ?? '' },
+                style: { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', cursor: 'pointer' } })
+            $char.appendChild(img)
+            $char.onclick = () => { exitContainer(); showInventory() }
+            return
+        }
+
         const art = globalState.player.getAnimation('idle')
         let currentOrientation = 0
 
@@ -438,12 +452,34 @@ export function showInventory(useOn = false) {
                 makeDropTarget(img, (data: string) => {
                     if (data[0] !== 'i') return // only inventory items
                     const srcIdx = parseInt(data.slice(1))
-                    const srcObj = globalState.player.inventory[srcIdx]
+                    const srcObj = inventoryList()[srcIdx]
                     if (!srcObj || srcObj === capturedWeapon) return
                     if (tryLoadAmmoIntoWeapon(srcObj, capturedWeapon)) {
                         uiDrawWeapon()
                         showInventory()
                     }
+                })
+            }
+            // CE inventory.cc _drop_into_container: an item dropped on a bag in the list goes
+            // into it, within its capacity (itemAttemptAdd)
+            if (invObj.subtype === 'container') {
+                const bag = invObj
+                makeDropTarget(img, (data: string) => {
+                    const playerAny = globalState.player as any
+                    const list = inventoryList()
+                    const src: Obj | undefined = data[0] === 'i' ? list[parseInt(data.slice(1))] : playerAny[data]
+                    if (!src || src === bag || src.pid === undefined) return
+                    if (!bag.canCarry(src, src.amount ?? 1)) return
+                    if (data[0] === 'i') list.splice(list.indexOf(src), 1)
+                    else {
+                        playerAny[data] = null
+                        if (data === 'armor') { armorPerkSwap(globalState.player!, src, null); applyArmorArt(null) }
+                        else refreshStealthState(globalState.player!)
+                        uiDrawWeapon()
+                    }
+                    src.flags = (src.flags ?? 0) & ~0x7000000
+                    bag.addInventoryItem(src, src.amount ?? 1)
+                    showInventory()
                 })
             }
         }
@@ -460,6 +496,12 @@ export function showInventory(useOn = false) {
             case 'cancel':
                 break
             case 'use':
+                // CE GAME_MOUSE_ACTION_MENU_ITEM_USE on a container: _container_enter
+                if (obj.subtype === 'container' && slot === 'inventory') {
+                    enterContainer(obj)
+                    showInventory()
+                    break
+                }
                 dbg('inventory', '[UI] using object: ' + obj.art)
                 obj.use(globalState.player)
                 showInventory()  // refresh so consumed items disappear
@@ -472,6 +514,13 @@ export function showInventory(useOn = false) {
                     playerAny[slot] = null
                     if (slot === 'leftHand' || slot === 'rightHand') refreshStealthState(globalState.player!)
                 }
+                if (slot === 'inventory' && currentContainer()) {
+                    // CE _obj_drop(owner, item): out of the open bag, onto the dude's tile
+                    const list = inventoryList()
+                    const i = list.indexOf(obj)
+                    if (i !== -1) list.splice(i, 1)
+                    globalState.player.inventory.push(obj)
+                }
                 if (obj.pid === 206 || obj.pid === 209) droppedExplosive = true // explosiveIsActiveExplosive
                 obj.drop(globalState.player)
                 globalState.player.clearAnim()
@@ -481,11 +530,12 @@ export function showInventory(useOn = false) {
             case 'equip_left':
             case 'equip_right': {
                 const targetSlot = action === 'equip_left' ? 'leftHand' : 'rightHand'
-                const idx = globalState.player.inventory.indexOf(obj)
+                const list = inventoryList()
+                const idx = list.indexOf(obj)
                 if (idx !== -1) {
-                    globalState.player.inventory.splice(idx, 1)
+                    list.splice(idx, 1)
                     if (playerAny[targetSlot]) {
-                        globalState.player.inventory.push(playerAny[targetSlot])
+                        list.push(playerAny[targetSlot])
                     }
                     playerAny[targetSlot] = obj
                     refreshStealthState(globalState.player!)
@@ -496,11 +546,12 @@ export function showInventory(useOn = false) {
                 break
             }
             case 'equip_armor': {
-                const idx = globalState.player.inventory.indexOf(obj)
+                const list = inventoryList()
+                const idx = list.indexOf(obj)
                 if (idx !== -1) {
-                    globalState.player.inventory.splice(idx, 1)
+                    list.splice(idx, 1)
                     if (playerAny.armor) {
-                        globalState.player.inventory.push(playerAny.armor)
+                        list.push(playerAny.armor)
                     }
                     armorPerkSwap(globalState.player!, playerAny.armor ?? null, obj)
                     playerAny.armor = obj
@@ -527,7 +578,8 @@ export function showInventory(useOn = false) {
                 break
             case 'unload': {
                 dbg('inventory', `[UI] unload: ammoPID=${weaponGetAmmoTypePid(obj)} rounds=${ammoGetQuantity(obj)}`)
-                unloadWeapon(obj, (ammo) => globalState.player.addInventoryItem(ammo, 1))
+                const bagNow = slot === 'inventory' ? currentContainer() : null
+                unloadWeapon(obj, (ammo) => (bagNow ?? globalState.player).addInventoryItem(ammo, 1))
                 uiDrawWeapon()
                 showInventory()
                 break
@@ -639,7 +691,7 @@ export function showInventory(useOn = false) {
         $slotEl.appendChild(img)
     }
 
-    drawInventory($id('inventoryBoxList'), globalState.player.inventory)
+    drawInventory($id('inventoryBoxList'), inventoryList())
     showStats()
     drawCharacterPortrait()
     updateWeightDisplay()

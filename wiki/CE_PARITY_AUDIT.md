@@ -183,6 +183,7 @@ LOW findings are listed in each report only.
 | | INV-05, INV-06 | looting: CRITTER_NO_STEAL → inventry.msg 50, the target's pickup_p_proc runs and can override; a knocked-out target opens the loot window, not stealing |
 | | INV-07, INV-10 | inventory in combat without enough AP → inventry.msg 19, no window; equipping runs no pickup_p_proc; the armor slot takes only armor from any source |
 | | INV-12 (part) | CE's action sets (`src/ui_inventory/itemMenu.ts`): the inventory window's list and hand / armor slots alike (Drop on equipped items, Unload only for a weapon with rounds); right-click menus in the loot, steal, barter and companion-trade windows (Look to the message window, Unload, Drop for the dude's items in loot). Still open: a container's USE (INV-13), money's quantity drop |
+| | INV-13 (part) | bags in the inventory window: USE on a carried container opens it (up to 9 levels, CE _container_enter), the body view shows it and a click closes it; the list then works on the bag — equip, unload, drop (to the dude's feet), moving a hand item in; an item dropped on a bag icon goes into it within its capacity. Still open: bags in the loot / barter windows |
 | | INV-15 | NPCs get armor stats only from the OBJECT_WORN item (no carried-armor fallback) |
 | | INV-08 | the merchant's table shows what the merchant wants for it; a deal says inventry.msg 27; T talks, M offers |
 | | INV-09 | the inventory summary shows CE's fields: HP, the AC stat, DT/DR% per damage type from the critter's stats (Explosion, not Electrical), CE's weapon lines (active mode, melee bonus, range rule, ammo), "(Not worn)" for held armor, Total Wt red when encumbered |
@@ -217,12 +218,11 @@ LOW findings are listed in each report only.
 Fixed earlier with the HIGH groups: INV-02 (PA8), ITEM-15 (PA9), CRIT-02 (PA12), ITEM-17 (PA18), WM-04 / WM-09 (PA21), WM-07 (PA23). Already in the code when audited: TILE-03 (`camera.ts playerLimitRefuses`, on by default).
 
 Status of the 120 MED findings with their own section in `ce_audit/` (each header there is marked FIXED /
-PARTLY FIXED): 106 fixed, 9 partly fixed, 5 open or not ported:
+PARTLY FIXED): 106 fixed, 10 partly fixed, 4 open or not ported:
 
-- **Open:** INV-13 (nested
-  containers), COMBAT-13
+- **Open:** COMBAT-13
   (the Glovz / YAAM opt-in damage formulas; conflicts with known_bugs C3).
-- **Partly fixed, rest open:** INV-12 (container USE, money drop), AUTO-01 (no High / Low detail switch; the scanner and the seen band are CE's), SCR-05 (object `start` still runs at script load), SCR-10 (flare / explosive timed
+- **Partly fixed, rest open:** INV-13 (bags in the loot / barter windows), INV-12 (container USE outside the inventory window, money drop), AUTO-01 (no High / Low detail switch; the scanner and the seen band are CE's), SCR-05 (object `start` still runs at script load), SCR-10 (flare / explosive timed
   events not restored), SCR-12 (sfall string / math opcodes), DLG-04 (page keys, control / customise keys),
   ACT-07 (weapon put away / taken out around the climb), ANIM-02 (AP still charged up front), MOUSE-06 (no pick
   through a visible roof).

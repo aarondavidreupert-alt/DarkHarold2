@@ -67,6 +67,25 @@ export function makeDraggable($el: HTMLElement, data: string, endCallback?: () =
     }
 }
 
+// CE inventory.cc _container_enter / _container_exit: the list shows the innermost open bag
+// (up to 9 levels deep); the dude's own inventory when none is open
+const openContainers: Obj[] = []
+export function inventoryList(): Obj[] {
+    return openContainers.length > 0 ? openContainers[openContainers.length - 1].inventory : globalState.player.inventory
+}
+export function currentContainer(): Obj | null {
+    return openContainers[openContainers.length - 1] ?? null
+}
+export function enterContainer(bag: Obj): void {
+    if (openContainers.length < 9) openContainers.push(bag)
+}
+export function exitContainer(): void {
+    openContainers.pop()
+}
+export function exitAllContainers(): void {
+    openContainers.length = 0
+}
+
 /**
  * Try to load ammoObj into weaponObj.
  * Compatibility per CE item.cc weaponCanBeReloadedWith: same caliber, and a loaded
@@ -77,7 +96,7 @@ export function makeDraggable($el: HTMLElement, data: string, endCallback?: () =
 // weapon's READY sound on success.
 export async function tryLoadAmmoIntoWeapon(ammoObj: Obj, weaponObj: Obj): Promise<boolean> {
     if (!weaponCanBeReloadedWith(weaponObj, ammoObj)) return false
-    const inventory = globalState.player.inventory
+    const inventory = inventoryList()
     const boxes = (ammoObj.amount ?? 1) > 1 ? await uiGetAmount(ammoObj) : 1
     if (boxes <= 0) return false
     let reloaded = false
@@ -120,7 +139,7 @@ export async function uiMoveSlot(data: string, target: string) {
 
         const idx = parseInt(data.slice(1))
         dbg('inventory', '[UI] inventory idx: ' + idx)
-        obj = globalState.player.inventory[idx]
+        obj = inventoryList()[idx]
 
         // CE ref: inventory.cc — armor slot only accepts armor items
         if (target === 'armor' && obj.subtype !== 'armor') return
@@ -147,10 +166,10 @@ export async function uiMoveSlot(data: string, target: string) {
                 obj = split
                 // inventory entry stays — only count was reduced above
             } else {
-                globalState.player.inventory.splice(idx, 1)
+                inventoryList().splice(idx, 1)
             }
         } else {
-            globalState.player.inventory.splice(idx, 1)
+            inventoryList().splice(idx, 1)
         }
     } else {
         // CE inventory.cc:2440 — the armor slot accepts only armor, from any source (and a
@@ -158,6 +177,9 @@ export async function uiMoveSlot(data: string, target: string) {
         if (target === 'armor' && playerUnsafe[data]?.subtype !== 'armor') return
         if (data === 'armor' && target !== 'inventory' && playerUnsafe[target] && playerUnsafe[target].subtype !== 'armor') return
         if (inventoryMoveHookCancels(target, playerUnsafe[data], target === 'inventory' ? null : playerUnsafe[target])) return
+        // CE _drop_into_container: an open bag takes it only within its capacity (itemAttemptAdd)
+        const bag = currentContainer()
+        if (target === 'inventory' && bag && playerUnsafe[data] && !bag.canCarry(playerUnsafe[data], playerUnsafe[data].amount ?? 1)) return
         obj = playerUnsafe[data]
         playerUnsafe[data] = null // remove object from slot
     }
@@ -165,12 +187,14 @@ export async function uiMoveSlot(data: string, target: string) {
     dbg('inventory', `[UI] drop target: obj=${obj} data=${data} target=${target}`)
 
     if (target === 'inventory') {
-        globalState.player.inventory.push(obj)
+        const bag = currentContainer()
+        if (bag) bag.addInventoryItem(obj, obj.amount ?? 1)
+        else globalState.player.inventory.push(obj)
     } else {
         if (playerUnsafe[target] !== undefined && playerUnsafe[target] !== null) {
             // perform a swap
             if (data[0] === 'i') {
-                globalState.player.inventory.push(playerUnsafe[target])
+                inventoryList().push(playerUnsafe[target])
             } // inventory -> slot
             else {
                 playerUnsafe[data] = playerUnsafe[target]
