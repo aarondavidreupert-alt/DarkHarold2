@@ -247,17 +247,19 @@ Top findings:
 - **Impact:** wrong or missing hit sample for burst hits and secondary attacks; plasma/EMP/explosive hits may play a flesh sample where the file exists.
 - **Fix:** route the combat calls through one `sfxBuildWeaponName(effect, weapon, hitMode, target)` (move the opcode body to `sfxNames.ts`) and drop the invented fallbacks (or keep them behind a `[dh2]` switch as a documented deviation).
 
-### MOUSE-01 — Move-mode click acts on objects (MED, NEW)
+### MOUSE-01 — Move-mode click acts on objects (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `game_mouse.cc _gmouse_handle_event` (left up, `GAME_MOUSE_MODE_MOVE`): always `_dude_move` / `_dude_run` to the hex under the cursor (in combat with `free_move + AP`); Shift inverts the `running` preference. Objects are only used from the arrow (command) or crosshair cursors.
 - **DH2:** `input.ts:269` → `playerUse(getObjectUnderCursor(isSelectable))` (`playerUse.ts:168`): clicking a critter in combat attacks it, clicking a usable object uses it, even with the hex cursor. No Shift run/walk toggle (only `doAlwaysRun`).
 - **Impact:** CE players' muscle memory (walk next to a critter by clicking it) triggers attacks/uses; no quick walk/run toggle.
 - **Fix:** in move mode, always walk to `mouseHex`; read `e.shiftKey` to invert `Config.engine.doAlwaysRun`. (DarkFO legacy; could be a `[dh2]` option if kept.)
+- **Fixed 2026-10-25:** as an option: `[dh2] mouse_mode=ce` makes a move-cursor click always walk / run to the hex (Shift inverts running, PREF-01). The default `dh2` keeps DH2's click-to-use.
 
-### MOUSE-02 — Arrow-mode click opens the action menu instead of the primary action; mode resets (MED, partly documented C42)
+### MOUSE-02 — Arrow-mode click opens the action menu instead of the primary action; mode resets (MED, partly documented C42) — **FIXED 2026-10-25**
 - **CE:** a click in ARROW mode does the primary action (item: pick up; dude: rotate; talkable critter: talk, or examine in combat; other critter: loot; usable scenery: use; else examine — `game_mouse.cc:942-990`); only holding the button opens the action menu (`MOUSE_EVENT_LEFT_BUTTON_DOWN_REPEAT`). The mode stays ARROW afterwards.
 - **DH2:** `input.ts:258` opens `uiContextMenu` on every left click in command mode; `uiHideContextMenu` (`ui_contextmenu.ts:41`) sets `cursorMode = 'move'`, so after any action the player has to right-click back to the arrow.
 - **Doc mismatch:** README "Known approximations" says the action menu opens on *right-click*; the code opens it on left-click in command mode and uses right-click to cycle modes (as CE).
 - **Fix:** left-click = CE primary action; open the menu after a ~250 ms hold (or keep click-opens-menu but as documented); keep `cursorMode = 'command'` after the menu closes. Update the README line.
+- **Fixed 2026-10-25:** as an option: with `[dh2] mouse_mode=ce` an arrow click does CE's primary action (`ui_contextmenu.ts uiPrimaryAction`), holding the button 250 ms (`BUTTON_REPEAT_TIME`) opens the action menu and the release picks the icon under the pointer, and the cursor stays an arrow. Default `dh2` unchanged.
 
 ### MOUSE-03 — Hover icon is always the look icon (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `gameMouseRefresh` + `gameMouseRenderPrimaryAction`: after the mouse rests 250 ms in ARROW mode over an object, the cursor shows the arrow plus the icon of the object's *primary action* (USE for items and usable scenery, TALK for talkable critters out of combat, LOOK in combat / for walls / non-usable scenery / no-steal critters, ROTATE for the dude; flipped to the left near the right edge, fid 285). Nothing over empty ground.

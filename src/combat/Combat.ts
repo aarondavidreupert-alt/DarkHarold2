@@ -709,7 +709,7 @@ export class Combat {
         const damageBonus = attacker.isPlayer && attackType === 'ranged'
             ? 2 * attacker.perks.filter((p) => p === 'Bonus Ranged Damage').length : 0
         const ammo = unarmed ? { X: 1, Y: 1, RM: 0, ACmod: 0 } : this.getAmmoStats(weaponObj!)
-        DR = clamp(0, 100, DR + ammo.RM)
+        // (DR without the ammo modifier: each ruleset applies it its own way, damage.ts)
         const CD = combatDifficultyDamageModifier(attacker)
         const melee = attackType === 'melee' || attackType === 'unarmed'
 

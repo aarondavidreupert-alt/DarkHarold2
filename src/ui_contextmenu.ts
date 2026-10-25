@@ -35,11 +35,68 @@ import { toTileNum } from './tile.js'
 import { UIMode, closeAllPanels, isSkilldexOpen } from './ui_panels.js'
 import { $id, clearEl, makeEl } from './ui_dom.js'
 import { elevatorSpatialFor } from './elevatorUse.js'
+import { Config } from './config.js'
 
 export function uiHideContextMenu() {
     globalState.uiMode = UIMode.none
-    globalState.cursorMode = 'move'
+    // CE: the mode stays ARROW after an action menu ([dh2] mouse_mode=ce); DH2 goes back to move
+    globalState.cursorMode = Config.ui.mouseMode === 'ce' ? 'command' : 'move'
     $id('itemContextMenu').style.visibility = 'hidden'
+}
+
+// The actions behind the menu's icons (and CE's click actions, uiPrimaryAction).
+function objectActions(obj: Obj) {
+    const player = globalState.player as Critter
+    return {
+        // CE: LOOK → _obj_examine (proto_instance.cc _obj_examine_func)
+        look: () => { for (const line of objExamine(player, obj)) uiLog(line) },
+        // CE: INVENTORY → inventoryOpenUseItemOn(target)
+        inventory: () => showInventoryUseOn(obj),
+        // CE: USE_SKILL → skilldexOpen, then actionUseSkill(gDude, target, skill)
+        skill: () => {
+            if (isSkilldexOpen()) { closeSkilldex(); return }
+            closeAllPanels()
+            showSkilldex((sk: Skills) => {
+                globalState.uiMode = UIMode.useSkill
+                globalState.skillMode = sk
+                playerUse(obj)
+            })
+        },
+        talk: () => {
+            // CE actions.cc actionTalk — walk up to the critter, then its talk_p_proc
+            if (!obj._script) { dbgWarn('dialogue', '[Dialog] obj has no script'); return }
+            player.walkInFrontOf(obj.position, () => {
+                player.clearAnim()
+                dbg('dialogue', '[Dialog] talking to ' + obj.name)
+                Scripting.talk(obj._script!, obj)
+            })
+        },
+        use: () => {
+            player.walkInFrontOfToAct(obj.position, () => {
+                player.clearAnim()
+                obj.use(player)
+            }, 3, obj.isLadder && obj.pro?.extra?.subType === 3 ? hexInDirection(obj.position, 2) : undefined) // CE _action_climb_ladder: from the SE neighbour
+        },
+        // CE actionPickUp: a container that can't be picked up is opened
+        pickUp: () => { if (obj.canPickUp) obj.pickup(player); else objectActions(obj).use() },
+        rotate: () => { player.orientation = (player.orientation + 1) % 6 }, // objectRotateClockwise
+    }
+}
+
+// CE game_mouse.cc _gmouse_handle_event (ARROW mode, button released before the menu opened):
+// the object's primary action — pick up an item, rotate the dude, talk to a talkable critter
+// (examine it in combat), loot any other critter, use usable scenery, else examine.
+export function uiPrimaryAction(obj: Obj): void {
+    const a = objectActions(obj)
+    if (obj.type === 'item') a.pickUp()
+    else if (obj.type === 'critter') {
+        const c = obj as Critter
+        if (c === globalState.player) { if (!c.anim || c.anim === 'idle') a.rotate() }
+        else if (objActionCanTalkTo(c)) { if (globalState.inCombat) a.look(); else a.talk() }
+        else uiLootWalk(c)
+    } else if (obj.type === 'scenery') {
+        if (obj.canUse) a.use(); else a.look()
+    } else if (obj.type === 'wall') a.look()
 }
 
 export function uiContextMenu(obj: Obj, evt: any) {
@@ -76,48 +133,19 @@ export function uiContextMenu(obj: Obj, evt: any) {
     })
     const player = globalState.player as Critter
     const add = (action: string, fn?: () => void) => $menu.appendChild(button(obj, action, fn))
-
-    // CE: LOOK → _obj_examine (proto_instance.cc _obj_examine_func)
-    const look = () => { for (const line of objExamine(player, obj)) uiLog(line) }
-    // CE: INVENTORY → inventoryOpenUseItemOn(target)
-    const inventory = () => showInventoryUseOn(obj)
-    // CE: USE_SKILL → skilldexOpen, then actionUseSkill(gDude, target, skill)
-    const skill = () => {
-        if (isSkilldexOpen()) { closeSkilldex(); return }
-        closeAllPanels()
-        showSkilldex((sk: Skills) => {
-            globalState.uiMode = UIMode.useSkill
-            globalState.skillMode = sk
-            playerUse(obj)
-        })
-    }
-    const talk = () => {
-        // CE actions.cc actionTalk — walk up to the critter, then its talk_p_proc
-        if (!obj._script) { dbgWarn('dialogue', '[Dialog] obj has no script'); return }
-        player.walkInFrontOf(obj.position, () => {
-            player.clearAnim()
-            dbg('dialogue', '[Dialog] talking to ' + obj.name)
-            Scripting.talk(obj._script!, obj)
-        })
-    }
-    const use = () => {
-        player.walkInFrontOfToAct(obj.position, () => {
-            player.clearAnim()
-            obj.use(player)
-        }, 3, obj.isLadder && obj.pro?.extra?.subType === 3 ? hexInDirection(obj.position, 2) : undefined) // CE _action_climb_ladder: from the SE neighbour
-    }
+    const { look, inventory, skill, talk, use, pickUp, rotate } = objectActions(obj)
 
     // CE game_mouse.cc gameMouseHandleActionMenu — the icons per object type
     const critter = obj.type === 'critter' ? obj as Critter : null
     if (obj.type === 'item') {
         // ITEM: USE (actionPickUp: a container that can't be picked up is opened) LOOK
         // [INVENTORY SKILL for containers] CANCEL
-        add('use', obj.canPickUp ? () => obj.pickup(player) : use)
+        add('use', pickUp)
         add('look', look)
         if (obj.isContainer) { add('inventory', inventory); add('skill', skill) }
     } else if (critter) {
         if (critter === player) {
-            add('rotate', () => { player.orientation = (player.orientation + 1) % 6 }) // objectRotateClockwise
+            add('rotate', rotate)
         } else {
             if (objActionCanTalkTo(critter)) {
                 if (!globalState.inCombat) add('talk', talk)

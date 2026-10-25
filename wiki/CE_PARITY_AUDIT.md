@@ -222,15 +222,16 @@ flag and the fatal error for a missing external variable are left as they are). 
 Fixed earlier with the HIGH groups: INV-02 (PA8), ITEM-15 (PA9), CRIT-02 (PA12), ITEM-17 (PA18), WM-04 / WM-09 (PA21), WM-07 (PA23). Already in the code when audited: TILE-03 (`camera.ts playerLimitRefuses`, on by default).
 
 Status of the 120 MED findings with their own section in `ce_audit/` (each header there is marked FIXED /
-PARTLY FIXED): 116 fixed, 4 open or not ported:
+PARTLY FIXED): 119 fixed, 1 checked and not ported:
 
-- **Open:** COMBAT-13
-  (the Glovz / YAAM opt-in damage formulas; conflicts with known_bugs C3).
+- **Fixed 2026-10-25 as options:** COMBAT-13 (`[dh2] damage_formula=vanilla|glovz|glovz_tweak|yaam`: Glovz
+  ported literally, YAAM as intended — CE's adds no damage; wiki/damage_formula.md), MOUSE-01 / MOUSE-02
+  (`[dh2] mouse_mode=dh2|ce`, default dh2: `ce` walks on a move click, does the primary action on an arrow
+  click, opens the action menu after a 250 ms hold and keeps the arrow).
 - **Checked, not ported:** SCR-11 — a scan of the 1443 shipped `.int` files shows procedure index 1 is the pure
   `checkPartyMembersNearDoor` helper in 1212 of them (CE's fallback has no effect there) and `start` in about 210;
   CE would re-run `start` when an unguarded proc (`critter_p_proc`, `look_at_p_proc`, …) is missing. Left as DH2's
   "no proc, nothing runs".
-- **Approximations kept:** MOUSE-01 / MOUSE-02, the documented action-menu approximation (CLAUDE.md, README).
 
 ## 4. Conflicts with the wiki / known_bugs (flagged, not resolved)
 

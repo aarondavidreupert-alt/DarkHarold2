@@ -100,7 +100,23 @@ DT is cut to 20% (like a penetrating unarmed move); DR is unchanged.
 
 ## Stage 2 — Core Formula Variants
 
-Selected by `Config.combat.damageCalculationType` (default 0 = Vanilla).
+Selected by `Config.combat.damageCalculationType` (default 0 = Vanilla), set from
+`fallout2.cfg` `[dh2] damage_formula=` (sfall's `DamageFormula` in ddraw.ini; CE reads the same
+values from its sfall config). Code: `src/combat/damage.ts`, one function per ruleset.
+
+### Choosing a formula
+
+| `damage_formula=` | sfall value | What it changes |
+|---|---|---|
+| `vanilla` (default) | 0 | Fallout 2's own formula. Armour's DT comes off after the multipliers, then DR %. Ammo with a big multiplier (AP rounds) or divisor (JHP) swings damage a lot. |
+| `glovz` | 1 | Glovz's rebalance. Ammo no longer multiplies damage: it shrinks the target's DT (÷ ammo divisor) and DR (÷ ammo multiplier) instead, and an ammo DR modifier always helps the attacker. Easy / Hard shift DR by ±20 instead of scaling damage. Unarmoured targets take 10–20 % more from special ammo. Criticals add half the multiplier as a bonus (a normal hit ×2). Armour matters more, and AP vs. JHP behaves as the item descriptions say. |
+| `glovz_tweak` | 2 | Glovz, but the hit multiplier adds 25 % per point instead of 50 %: criticals hit softer. |
+| `yaam` | 5 | YAAM ("Yet Another Ammo Mod"). Vanilla's order, but the ammo DR modifier lowers DT instead of DR; a modifier bigger than the DT turns into 10 DR per point against the target. DT comes off before the multipliers. YAAM was made together with its own ammo values: with the vanilla protos, AP ammo (DR modifier −35) *adds* 35 DT and does next to nothing — use it with a mod that ships YAAM ammo. |
+
+The formula only changes damage numbers — hit chance, criticals' effects, knockback and the
+post-formula perk bonuses (Living Anatomy, Pyromaniac) are the same for all four. A save made with
+one formula plays fine with another. Each ruleset receives DR without the ammo modifier; vanilla
+adds it (clamped to 0–100) itself, as CE does.
 
 ### Vanilla (type 0 or default)
 CE ref: `attackComputeDamage`, combat.cc ~4578.
@@ -163,9 +179,14 @@ CE ref: `damageModCalculateYaam`, combat.cc lines 6767–6813.
 
 YAAM is **not** a simple Vanilla variant — it has a fundamentally different algorithm.
 The ammo DR modifier adjusts DT rather than DR, DT is subtracted **before** multiplying,
-and the `/2` halving step is retained. **DH2's YAAM implementation diverges** (see Divergences table).
+and the `/2` halving step is retained.
 
-CE algorithm per `damageModCalculateYaam`:
+**CE's own copy is broken:** it ends with `context->damagePtr += damage`, which moves the pointer
+instead of adding the damage, so YAAM in CE does no damage at all; and it takes off only the extra
+DR, not `effectiveDR`. DH2 (`computeDamageYaam`) implements the formula as meant, below
+(COMBAT-13, 2026-10-25).
+
+Intended algorithm (`damageModCalculateYaam` with both bugs fixed):
 ```
 calculatedDT = DT − ammo.RM        // ammo modifier reduces DT, not DR
 if calculatedDT < 0:               // overflow converts to extra DR
@@ -333,7 +354,8 @@ Before 2026-10-17 DH2 gave +1 AP per turn for each of the two attack perks and +
 | Distance modifier | `distModifier` 2/4/5 by weapon perk | implemented (`getHitDistanceModifier`) |
 | EMP damage | special DR/DT tables | lookup via stat system (EMP DT/DR stats) |
 | Critical tables | hardcoded in fallout2.exe | extracted to `lut/criticalTables.json` |
-| YAAM formula | DT subtracted before multiply; ammo RM adjusts DT; `/2` present (combat.cc:6767) | DT after multiply; ammo RM adjusts DR; no `/2` — matches Vanilla minus halving |
+| YAAM formula | adds no damage (`damagePtr += damage` bug) and uses only the extra DR (combat.cc:6767) | the intended formula: DT before the multipliers, ammo RM lowers DT, `/2`, effective DR (2026-10-25) |
+| Glovz formula | `damageModCalculateGlovz` | ported literally, `damageModGlovzDivRound` included (2026-10-25; before, DH2 had a different formula) |
 | Melee hit penalty | `regionPenalty / 2` for melee (combat.cc:4440) | implemented |
 | Unarmed moves | `gUnarmedHitDescriptions` (bonus damage, bonus crit, AP, requirements) | implemented 2026-10-17 (`src/unarmed.ts`, `wiki/weapon_combat.md` §9) |
 

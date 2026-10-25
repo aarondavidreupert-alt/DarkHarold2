@@ -185,6 +185,14 @@ export function applyCfg(cfg: CfgSections): void {
     //   anim_offset_model=ce|dh2      sprite offset across animations (console setAnimOffsetModel)
     const am = dh2['anim_offset_model']?.toLowerCase()
     if (am === 'ce' || am === 'dh2') Config.engine.animOffsetModel = am
+    //   mouse_mode=dh2|ce             clicks: DH2's (default) or CE game_mouse.cc (Config.ui.mouseMode)
+    const mm = dh2['mouse_mode']?.trim().toLowerCase()
+    if (mm === 'ce' || mm === 'dh2') Config.ui.mouseMode = mm
+    //   damage_formula=vanilla|glovz|glovz_tweak|yaam (or sfall's DamageFormula numbers 0/1/2/5):
+    //   the damage ruleset (src/combat/damage.ts, wiki/damage_formula.md)
+    const df = dh2['damage_formula']?.trim().toLowerCase()
+    const formula = ({ vanilla: 0, '0': 0, glovz: 1, '1': 1, glovz_tweak: 2, '2': 2, yaam: 5, '5': 5 } as { [k: string]: 0 | 1 | 2 | 5 })[df ?? '']
+    if (formula !== undefined) Config.combat.damageCalculationType = formula
 
     const eng = globalState.audioEngine
     if (eng) {

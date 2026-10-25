@@ -51,7 +51,7 @@ import { closeInventory } from './ui_inventory.js'
 import { automapKey, closeAutomap } from './ui_automap.js'
 import { lootKey } from './ui_loot.js'
 import { playerUse, cancelSkillTargeting } from './playerUse.js'
-import { primaryActionIcon } from './ui_contextmenu.js'
+import { primaryActionIcon, uiPrimaryAction } from './ui_contextmenu.js'
 
 // Tile inspector — build a structured, copy-pasteable dump of everything the
 // debug tooling knows about the hex tile under the cursor: its lighting, the
@@ -285,6 +285,8 @@ export function installInputHandlers(): void {
     // and a click there walked, opened the action menu and — on its release — reset
     // uiMode to none, after which the dialogue's last option no longer closed it.
     const MAP_MODAL = new Set([UIMode.dialogue, UIMode.barter, UIMode.companionControl, UIMode.movie, UIMode.dialog])
+    // [dh2] mouse_mode=ce: an arrow-cursor press waiting for its release or the 250 ms hold
+    let arrowHold: { timer: number; menu: boolean } | null = null
 
     heart.mousepressed = (x: number, y: number, btn: string) => {
         if (globalState.isInitializing || globalState.isLoading || globalState.isWaitingOnRemote) {
@@ -297,9 +299,22 @@ export function installInputHandlers(): void {
                 // (the player included), then back to the move cursor.
                 usePendingItemOn(getObjectUnderCursor((_: Obj) => true))
             } else if (globalState.cursorMode === 'command') {
-                // open context menu immediately on any object under cursor
                 const obj = getObjectUnderCursor((_: Obj) => true)
-                if (obj) {
+                if (Config.ui.mouseMode === 'ce') {
+                    // CE game_mouse.cc: the menu opens on LEFT_BUTTON_DOWN_REPEAT (held for
+                    // BUTTON_REPEAT_TIME, 250 ms); a release before that is the primary action
+                    if (arrowHold) clearTimeout(arrowHold.timer)
+                    arrowHold = {
+                        menu: false,
+                        timer: window.setTimeout(() => {
+                            if (!arrowHold) return
+                            arrowHold.menu = true
+                            const held = getObjectUnderCursor((_: Obj) => true)
+                            if (held) uiContextMenu(held, { clientX: x, clientY: y })
+                        }, 250),
+                    }
+                } else if (obj) {
+                    // open context menu immediately on any object under cursor
                     uiContextMenu(obj, { clientX: x, clientY: y })
                 }
             } else if (globalState.cursorMode === 'attack') {
@@ -310,6 +325,9 @@ export function installInputHandlers(): void {
                 }
             } else if (globalState.uiMode === UIMode.useSkill) {
                 playerUse(getObjectUnderCursor((_: Obj) => true))
+            } else if (Config.ui.mouseMode === 'ce') {
+                // CE _gmouse_handle_event (MOVE mode): always walk / run to the hex
+                playerUse(null)
             } else {
                 playerUse(getObjectUnderCursor((obj) => obj.isSelectable))
             }
@@ -329,7 +347,24 @@ export function installInputHandlers(): void {
         }
     }
 
-    heart.mousereleased = (_x: number, _y: number, btn: string) => {
+    heart.mousereleased = (x: number, y: number, btn: string) => {
+        if (btn === 'l' && arrowHold) {
+            // [dh2] mouse_mode=ce: released before the menu opened — the primary action; with
+            // the menu open, the icon under the pointer is chosen (CE's menu follows the drag)
+            const hold = arrowHold
+            arrowHold = null
+            clearTimeout(hold.timer)
+            if (!hold.menu) {
+                const obj = getObjectUnderCursor((_: Obj) => true)
+                if (obj) uiPrimaryAction(obj)
+                return
+            }
+            const el = document.elementFromPoint(x, y) as HTMLElement | null
+            const icon = el?.closest('.itemContextMenuButton') as HTMLElement | null
+            if (icon) icon.click()
+            else if (globalState.uiMode === UIMode.contextMenu) uiHideContextMenu()
+            return
+        }
         // If released on the canvas while context menu is open (no button selected), close + move mode
         if (btn === 'l' && globalState.uiMode === UIMode.contextMenu) {
             uiHideContextMenu()

@@ -41,6 +41,11 @@ export const Config = {
         // guessed from the blockers' / floor's bounding box (render/camera.ts).
         // fallout2.cfg [dh2] scroll_bounds=ce|dh2.
         scrollBounds: 'ce' as 'ce' | 'dh2',
+        // [dh2] mouse_mode: 'dh2' (default) — a move-cursor click uses / attacks the object under
+        // it, an arrow-cursor click opens the action menu and the cursor goes back to move;
+        // 'ce' — game_mouse.cc: a move click always walks to the hex, an arrow click does the
+        // primary action, holding the button 250 ms opens the action menu, the arrow stays.
+        mouseMode: 'dh2' as 'ce' | 'dh2',
         // scroll_bounds=ce's player limit (480×400 px). Off, the view goes as far as
         // the blocker ring / black border allow. fallout2.cfg [dh2]
         // scroll_player_limit=0|1, console setScrollPlayerLimit(on).

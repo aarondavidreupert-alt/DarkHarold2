@@ -258,7 +258,7 @@ Top findings, most severe first:
 - **DH2:** `combatants` is never pruned; `nextTurn` skips only `dead` critters. A destroyed or moved live critter keeps its turn slot (its AI runs while it is off the map) and counts in `shouldEnd`.
 - **Fix:** add `Combat.deleteCritter(obj)` and call it from `destroyObject`, `move_to` across elevations and `party_remove`.
 
-### COMBAT-13 — Glovz / YAAM damage formulas (MED, opt-in; conflicts with known_bugs C3)
+### COMBAT-13 — Glovz / YAAM damage formulas (MED, opt-in; conflicts with known_bugs C3) — **FIXED 2026-10-25**
 - **CE Glovz** (`damageModCalculateGlovz`):
   - DT is divided by ammoY (DivRound); DR is shifted ±20 by difficulty, lowered by the absolute ammo DR modifier, then divided by ammoX; DR ≥ 100 means no damage.
   - Per round: damage, minus DT, minus DR%; then +15 / 20 / 10 % for unarmored targets.
@@ -268,6 +268,7 @@ Top findings, most severe first:
 - **CE YAAM** (`damageModCalculateYaam`) is broken: `context->damagePtr += damage` advances the pointer, so no damage is added, and it reduces by the local extra DR, not `calculatedDamageResistance`. DH2 implements the intended version, but `damageAgainst` already adds ammo RM to DR (Combat.ts:683) before YAAM applies RM to DT.
 - **Impact:** only with `damageCalculationType` 1 / 2 / 5 (default 0).
 - **Fix:** port Glovz literally. For YAAM, either keep the intended version (document it as a deliberate deviation in known_bugs C3) or match CE. In both cases pass the raw DR (without RM) to the non-vanilla rulesets.
+- **Fixed 2026-10-25:** Glovz and Glovz-tweak are literal ports of `damageModCalculateGlovz` (`damageModGlovzDivRound` included); YAAM is the intended formula, CE's own copy adds no damage (deliberate deviation, known_bugs C3). Each ruleset gets the raw DR, vanilla adds the ammo modifier itself. Picked with `fallout2.cfg [dh2] damage_formula=vanilla|glovz|glovz_tweak|yaam` (default vanilla); explained in wiki/damage_formula.md "Choosing a formula".
 
 ### COMBAT-14 — Combat state not saved (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `combatSave` / `combatLoad` persist `gCombatState`, the free move, `_combat_exps`, the combatant / non-combatant split, the order, whoHitMe and the AI info. A save made in combat reloads in combat, on the player's turn.

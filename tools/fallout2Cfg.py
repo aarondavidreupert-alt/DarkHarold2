@@ -113,6 +113,14 @@ walk_model=ce
 anim_offset_model=ce
 ; object draw order: ce (CE: by tile), ce-dh2 (CE + walls first on a tile), dh2 (old screen-space test)
 object_sort=ce-dh2
+; mouse clicks: dh2 = a move-cursor click uses / attacks what is under it, an arrow-cursor
+; click opens the action menu; ce = CE: a move click always walks, an arrow click does the
+; primary action (talk, pick up, use, look), holding the button opens the action menu
+mouse_mode=dh2
+; damage formula (sfall's DamageFormula; wiki/damage_formula.md): vanilla = Fallout 2's own,
+; glovz = Glovz's (DR before multipliers, armour matters more), glovz_tweak = Glovz with the
+; critical multiplier as +25 % steps, yaam = YAAM (ammo DR modifier lowers DT instead)
+damage_formula=vanilla
 ; game scripts: lua = the decompiled data/scripts/*.lua (tools/int2lua.py; a script
 ; without one runs its .int), vm = the .int bytecode
 script_backend=lua
