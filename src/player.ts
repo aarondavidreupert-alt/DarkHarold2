@@ -48,6 +48,7 @@ export class Player extends Critter {
         this.traits = []
         this.pendingPerkPick = false
         this.levelUpAvailable = false
+        this._script = undefined // a new obj_dude at the next map entry (Scripting.ensureDudeScript)
         if (this.dead) {
             this.anim = 'idle'
             this.frame = 0

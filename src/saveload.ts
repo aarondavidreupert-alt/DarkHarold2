@@ -77,6 +77,7 @@ export interface SaveGame {
         perks: string[]
         pendingPerkPick: boolean
         levelUpAvailable?: boolean
+        dudeScriptLvars?: { [lvar: number]: any } // obj_dude's LVARs (CE: the dude's script, saved with the objects)
         name: string
         gender: string
         activeHand: string
@@ -210,6 +211,7 @@ function gatherSaveData(name: string): SaveGame {
             perks: p.perks.slice(),
             pendingPerkPick: p.pendingPerkPick,
             levelUpAvailable: p.levelUpAvailable,
+            dudeScriptLvars: p._script ? Object.assign({}, p._script.lvars) : undefined,
             name: p.name,
             gender: p.gender,
             activeHand: p.activeHand,
@@ -375,6 +377,7 @@ export function load(id: number): void {
                     p.perks = ps.perks.slice()
                     p.pendingPerkPick = ps.pendingPerkPick
                     p.levelUpAvailable = ps.levelUpAvailable ?? false
+                    Scripting.setPendingDudeLvars(ps.dudeScriptLvars ?? null) // obj_dude reattaches at map entry
                     p.name = ps.name
                     p.gender = ps.gender
                     p.activeHand = ps.activeHand as 'leftHand' | 'rightHand'
@@ -520,6 +523,7 @@ export function load(id: number): void {
 
                 // CE mapLoad during a game load: start / map_enter / map_update with
                 // _loadingGame set (metarule 22), then the map music.
+                Scripting.ensureDudeScript() // obj_dude with its saved LVARs (setPendingDudeLvars)
                 globalState.gMap.runLoadGameProcs()
 
                 const p = globalState.player!

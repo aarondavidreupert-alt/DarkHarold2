@@ -21,7 +21,7 @@ import { BinaryReader } from "./util.js"
 import { dbg } from "./logger.js"
 import { opMap, ScriptVM } from "./vm.js"
 import * as GameTime from "./gametime.js"
-import { BuiltinVarReader, setBuiltinVarReader } from "./lua/luaRuntime.js"
+import { BuiltinVarReader, setBuiltinVarReader, sslValue } from "./lua/luaRuntime.js"
 
 // Bridge between Scripting API and the Scripting VM
 
@@ -35,8 +35,9 @@ export module ScriptVMBridge {
             args.reverse()
 
             var r = (<any>this.scriptObj)[procName].apply(this.scriptObj, args)
+            // CE values are typed: a null object is 0, a truth value 0 / 1 (as the Lua backend's sslValue)
             if(pushResult)
-                this.push(r)
+                this.push(sslValue(r))
         }
     }
 
@@ -78,7 +79,7 @@ export module ScriptVMBridge {
 
     function builtin(name: string) {
         const reader = builtinVars[name]
-        return function(this: GameScriptVM) { this.push(reader(this.scriptObj)) }
+        return function(this: GameScriptVM) { this.push(sslValue(reader(this.scriptObj))) }
     }
 
     var bridgeOpMap: { [opcode: number]: (this: GameScriptVM) => void } = {

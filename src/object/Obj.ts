@@ -297,6 +297,8 @@ function useBook(book: Obj): void {
 
 export const PROTO_ID_FLARE = 79
 export const PROTO_ID_LIT_FLARE = 205
+// CE proto_types.h: the misc items _obj_use_misc_item uses up
+const MISC_USE_CONSUMED: ReadonlySet<number> = new Set([431, 444, 331, 499, 523, 516])
 
 // The critter carrying `item` (in a hand or the inventory), if any.
 function itemOwner(item: Obj): Critter | null {
@@ -1260,6 +1262,24 @@ export class Obj {
 
     // Returns whether or not the object was used
     use(source?: Critter, useScript?: boolean): boolean {
+        // CE proto_instance.cc _obj_use_misc_item: Ramirez's box, the Raiders map, Cat's Paw #5,
+        // the Pip-Boy enhancers and the survey map run their use_p_proc (no override) and are
+        // then used up (_obj_use_item rc 1: itemRemove + _obj_destroy)
+        if (MISC_USE_CONSUMED.has(this.pid)) {
+            const owner = itemOwner(this)
+            if (owner) {
+                if (useScript !== false && this._script?.use_p_proc !== undefined) Scripting.use(this, owner)
+                if ((this.amount ?? 1) > 1) this.amount -= 1
+                else {
+                    const i = owner.inventory.indexOf(this)
+                    if (i !== -1) owner.inventory.splice(i, 1)
+                    const a = owner as any
+                    for (const hand of ['leftHand', 'rightHand']) if (a[hand] === this) a[hand] = owner.isPlayer ? null : (owner.constructor as any).makeFist?.()
+                    if (owner.isPlayer) uiDrawWeapon()
+                }
+                return true
+            }
+        }
         if (this.canUse === false && !this.isContainer) {
             dbg('object', "[Object] can't use object")
             return false

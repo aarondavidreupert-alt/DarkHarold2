@@ -251,26 +251,27 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     },
 
     // logic/comparison
+    // CE interpreter.cc: the comparisons and ! push an int 0 / 1
     0x8045: function () {
-        this.push(!this.pop())
+        this.push(sslTrue(this.pop()) ? 0 : 1)
     },
     0x8033: binop(function (x, y) {
-        return x == y
+        return +(x == y)
     }),
     0x8034: binop(function (x, y) {
-        return x != y
+        return +(x != y)
     }),
     0x8035: binop(function (x, y) {
-        return x <= y
+        return +(x <= y)
     }),
     0x8036: binop(function (x, y) {
-        return x >= y
+        return +(x >= y)
     }),
     0x8037: binop(function (x, y) {
-        return x < y
+        return +(x < y)
     }),
     0x8038: binop(function (x, y) {
-        return x > y
+        return +(x > y)
     }),
     // CE opLogicalOperatorAnd/Or push 0/1, not an operand
     0x803e: binop(function (x, y) {
@@ -505,17 +506,13 @@ export class ScriptVM {
         // dispatch based on opMap
         if (opMap[opcode] !== undefined) opMap[opcode].call(this)
         else {
-            dbgWarn('script',
-                'unimplemented opcode %s (pc=%s) in %s',
-                opcode.toString(16),
-                this.pc.toString(16),
-                this.intfile.name
-            )
+            // CE interpreter.cc: an unregistered opcode is programFatalError("Undefined
+            // opcode") — the procedure ends (not a halt the dialogue code would resume)
             if (Config.engine.doDisasmOnUnimplOp) {
                 dbg('script', 'disassembly:')
                 dbg('script', transpile(this.intfile, this.script))
             }
-            return false
+            throw new VMFatalError(`Undefined opcode ${opcode.toString(16)} (pc=${this.pc.toString(16)}) in ${this.intfile.name}`)
         }
 
         // CE programReturnStackPushValue has the same 0x1000 limit; the opcodes

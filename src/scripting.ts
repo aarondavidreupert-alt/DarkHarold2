@@ -3624,6 +3624,28 @@ export module Scripting {
         for (const spatial of spatials) if (spatial._script) initScript(spatial._script, spatial)
     }
 
+    // CE scripts.cc scriptsSetDudeScript (object.cc objectsInit / new game): the dude runs
+    // obj_dude.int (scripts.lst index 0) — GECK experience, the GECK drop block, the mutation
+    // messages, its timers (add_timer_event(dude_obj, …)). A loaded game's LVARs go in
+    // before its start proc runs.
+    let pendingDudeLvars: { [lvar: number]: any } | null = null
+    export function setPendingDudeLvars(lvars: { [lvar: number]: any } | null): void {
+        pendingDudeLvars = lvars
+        if (globalState.player) globalState.player._script = undefined
+    }
+    export function ensureDudeScript(): void {
+        const player = globalState.player
+        if (!player || player._script) return
+        let script: Script | null = null
+        try { script = loadScript('obj_dude') } catch (e) { warn('obj_dude: ' + e) }
+        if (!script) return
+        if (pendingDudeLvars) script.lvars = pendingDudeLvars
+        pendingDudeLvars = null
+        player.script = 'obj_dude'
+        player._script = script
+        initScript(script, player)
+    }
+
     export function initScript(script: Script, obj: Obj) {
         script.self_obj = obj as ScriptableObj
         script.cur_map_index = currentMapID!
@@ -3930,6 +3952,7 @@ export module Scripting {
         gameObjects = objects
         currentMapID = mapID
         mapFirstRun = isFirstRun
+        ensureDudeScript()
 
         // Fallout 2 resets ambient light to max on every map load; any
         // script darkness is reapplied by the new map's map_enter_p_proc.

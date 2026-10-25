@@ -135,6 +135,9 @@ LOW findings are listed in each report only.
 | | SCR-03 | the clock no longer advances in combat (combat time = 5 s per round, as CE) |
 | | SCR-05 (part) | map script and spatial scripts get `start` after the map script's `map_enter_p_proc`; `fixed_param` = first visit for the map script and every object's `map_enter_p_proc`. Object `start` still runs at script load (before the map script's `map_enter_p_proc`). |
 | | SCR-08 | a script that hits a fatal error runs no further procs (both backends), as CE's PROGRAM_FLAG_EXITED |
+| | SCR-06 | VM: intrinsic results and built-ins are typed as CE (null object → 0, truth values 0 / 1, like the Lua backend); comparisons and `!` push 0 / 1 |
+| | SCR-09 | the dude runs `obj_dude` (critter / map-update / timer / drop / use-on procs: GECK experience and drop block, mutation messages, `add_timer_event(dude_obj, …)`); its LVARs are saved |
+| | SCR-12 (part) | VM: an unknown opcode is a fatal error that ends the procedure (it was read as a dialogue suspension). The sfall string / math opcodes are still missing |
 | Dialogue | DLG-02, DLG-03 | CE's pending-reply model: `gsay_end` runs the dialogue only while a reply is pending and adds CE's implicit option (proto.msg 655 / empty) when the reply has none; a `gsay_message` [Done] returns into its procedure with the dialogue open, which closes only if no options follow |
 | Save / load | SAVE-01 | preferences saved with the game and applied on load |
 | | SAVE-02, COMBAT-14 | a save made in combat resumes the fight (order, turn, round, XP, player AP) |
@@ -148,6 +151,7 @@ LOW findings are listed in each report only.
 | | OP-16, AI-02 | `critter_add_trait` AI packet rebuilds the cached packet; TEAM skips party members / unchanged teams and clears who-hit-me and the last target |
 | | OP-17 | `obj_open` / `obj_close` toggle without the use animation, loot window or lock message (a locked object stays, as CE) |
 | | OP-18 | `use_obj_on_obj` by a critter runs the engine's default use (drugs, healing) after the scripts |
+| Items (misc use) | ITEM-08 | Ramirez's box, the Raiders map, Cat's Paw #5, the Pip-Boy enhancers and the survey map run use_p_proc and are used up |
 | Combat | COMBAT-05 | `script_overrides` in a turn-start `combat_p_proc` takes the turn over |
 | | COMBAT-06 | invulnerable critters (CRITTER_INVULNERABLE) take no damage |
 | | COMBAT-07 | `damage_p_proc` skipped where CE's `_damage_object` a4 says so (self-hit from a critical failure, accidental victim, bystanders of a normal attack) and between party members |
@@ -196,6 +200,8 @@ LOW findings are listed in each report only.
 | Sound | SND-02 | sounds of items, critters and scenery (weapon fire and hits, character and door sounds, explosions) play at full volume on screen; off screen full up to PE hexes, falling to ⅓ at 2 × PE (`src/soundVolume.ts`) |
 | | SND-05 | combat attack / hit sounds use CE's `sfxBuildWeaponName` (variant 2 for burst / secondary modes, the target's material, X for plasma / EMP / explosion); a missing file is silent (no invented fallbacks) |
 | | MSG-01 | the language filter masks the badwords.txt words in script dialogue and AI combat lines (`src/badwords.ts`, CE's rule including its start-of-message quirk) |
+
+Fixed earlier with the HIGH groups: INV-02 (PA8), ITEM-15 (PA9), CRIT-02 (PA12), ITEM-17 (PA18), WM-04 / WM-09 (PA21), WM-07 (PA23).
 
 Still open from these groups: COMBAT-13 (Glovz / YAAM opt-in formulas), MOUSE-06 roof test. MOUSE-01 / MOUSE-02 are the documented action-menu approximation (CLAUDE.md, README).
 
