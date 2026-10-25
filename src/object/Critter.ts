@@ -289,6 +289,15 @@ export class Critter extends Obj {
         if (!this.rightHand) this.rightHand = Critter.makeFist()
     }
 
+    // CE animation.cc _dude_run: the dude's run command ends Sneak (unless Silent Running)
+    stopSneakToRun(): void {
+        if (!this.isPlayer || !(this as any).isSneaking || this.hasPerk('Silent Running')) return
+        ;(this as any).isSneaking = false
+        ;(this as any).sneakWorking = false
+        Scripting.timeEventList.splice(0, Scripting.timeEventList.length,
+            ...Scripting.timeEventList.filter((e) => !(e.obj === this && e.userdata === 'sneak')))
+    }
+
     move(position: Point, curIdx?: number, signalEvents = true): boolean {
         // CE ref: animation.cc _object_move — doors on the way are opened (canUseDoor)
         if (globalState.gMap) {
@@ -442,15 +451,20 @@ export class Critter extends Obj {
         if (running && !this.canRun()) {
             running = false
         }
-        // CE animation.cc: crippled legs walk (animationRegisterRunTo*); the dude running
-        // while sneaking stops sneaking unless he has Silent Running (_dude_run).
-        if (running && (this.crippledLeftLeg || this.crippledRightLeg)) running = false
-        if (running && this.isPlayer && (this as any).isSneaking && !this.hasPerk('Silent Running')) {
-            ;(this as any).isSneaking = false
-            ;(this as any).sneakWorking = false
-            Scripting.timeEventList.splice(0, Scripting.timeEventList.length,
-                ...Scripting.timeEventList.filter((e) => !(e.obj === this && e.userdata === 'sneak')))
+        // CE animation.cc animationRegisterRunToTile / RunToObject: an encumbered critter walks
+        // (a party member, the dude included, reports it: misc.msg 8000 / 8001); so do crippled legs and the dude
+        // sneaking without Silent Running (Sneak stays on — only _dude_run, the explicit run
+        // command, ends it: stopSneakToRun)
+        if (running && this.getInventoryWeight() > this.getStat('Carry')) {
+            running = false
+            if (this.isPlayer) uiLog(getMessage('misc', 8000) ?? 'You are overloaded.')
+            else if (globalState.gParty?.isPartyMember(this)) {
+                const fmt = getMessage('misc', 8001) ?? '%s is overloaded.'
+                uiLog(fmt.replace('%s', this.getName()))
+            }
         }
+        if (running && (this.crippledLeftLeg || this.crippledRightLeg)) running = false
+        if (running && this.isPlayer && (this as any).isSneaking && !this.hasPerk('Silent Running')) running = false
 
         // Critters without a walk/run FRM (spore plants, floaters' stand-only art) can't
         // move: CE _object_move does nothing when artLock(sad->fid) fails (animation.cc).

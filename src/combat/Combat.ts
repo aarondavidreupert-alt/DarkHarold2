@@ -2853,14 +2853,13 @@ export class Combat {
                     a.aiFriendlyDead = null
                     return this.aiMoveAway(obj, fd, 10, false, then)
                 }
+                // CE _ai_find_friend(PER × 2, 5): a friend that near keeps it engaged; the
+                // "move closer" there never runs (its step count, distance − 5, is computed
+                // only when distance < 5)
                 const friend = this.nearestOfTeamExcept(obj)
                 const per = obj.getStat('PER')
-                if (!friend || hexDistance(obj.position, friend.position) > per * 2) {
-                    a.disengaging = true
-                    return false
-                }
-                const d = hexDistance(obj.position, friend.position)
-                return d > 5 && this.aiMoveStepsCloser(obj, friend, d - 5, false, then)
+                if (!friend || hexDistance(obj.position, friend.position) > per * 2) a.disengaging = true
+                return false
             },
             () => {
                 if (target || party) return false
@@ -2893,7 +2892,8 @@ export class Combat {
                         maxTeammateDistance = PARTY_DISTANCES[packet.distance] ?? 5
                     }
                 } else {
-                    teammate = this.nearestOfTeamExcept(obj)
+                    // CE _ai_find_nearest_team_in_combat: a combatant team-mate someone hit
+                    teammate = this.nearestOfTeamExcept(obj, true)
                 }
                 if (!target && teammate && hexDistance(obj.position, teammate.position) > maxTeammateDistance) {
                     const d = hexDistance(obj.position, teammate.position)
@@ -2910,10 +2910,11 @@ export class Combat {
         return false
     }
 
-    private nearestOfTeamExcept(obj: Critter): Critter | null {
+    private nearestOfTeamExcept(obj: Critter, inCombat = false): Critter | null {
         let best: Critter | null = null
         for (const c of this.combatants) {
             if (c === obj || c.dead || c.teamNum !== obj.teamNum) continue
+            if (inCombat && (!this.isActiveCombatant(c) || !(c as any).whoHitMe)) continue
             if (!best || hexDistance(obj.position, c.position) < hexDistance(obj.position, best.position)) best = c
         }
         return best

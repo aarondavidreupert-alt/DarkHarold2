@@ -160,8 +160,11 @@ LOW findings are listed in each report only.
 | | AI-03, AI-04 | a dead team-mate's killer is a target; "strongest" / "weakest" sorted as CE (the vanilla inversion) |
 | | AI-05, AI-06 | the secondary attack checks its own attack type against the preference, a throw needs a fall-back weapon or a failed INT roll; only an unset `best_weapon` lets average damage override the order |
 | | AI-07 | a hurt critter flees from CE's `a2` (the attack_complex defender, else the player) |
+| | AI-08 | an out-of-range AI keeps engaged near a friend without closing in on it (CE _ai_find_friend never moves); the idle regroup follows a combatant team-mate someone hit (_ai_find_nearest_team_in_combat) |
 | Actions | ACT-04 | explosions give the player the XP of new kills, survivors remember the bomber and start a fight (CE `_report_explosion`), victims die exploded to nothing |
 | | ACT-05 | ranged (non-throw) attacks aim first (ANIM_POINT) and lower the weapon after the shot (ANIM_UNPOINT, not when knocked down or dead) |
+| | ACT-06 | pickup walks first, then plays the pickup animation; the sound, pickup_p_proc and the carry check (proto.msg 905) happen on its action frame |
+| | ANIM-03 | run → walk for an encumbered critter (misc.msg 8000 / 8001 for the party), crippled legs and the dude sneaking without Silent Running (Sneak stays); only the dude's run command ends Sneak |
 | Stats / critters | STAT-02, RAD-01 | Melee Damage and Healing Rate have CE's minimum of 1 before perk / trait deltas; radiation HP changes go through current HP (capped at max), not a bonus |
 | | TRAIT-01, TRAIT-02 | Fast Metabolism zeroes only the base Radiation / Poison resistance (Rad-X etc. still count); Small Frame uses base STR without Bruiser / Gifted |
 | | CRIT-01 | `kill_critter`, `kill_critter_type`, `critter_heal`, poison and radiation deaths no longer run `destroy_p_proc` (an NPC's chem death still does, as CE `_combatKillCritterOutsideCombat`) |

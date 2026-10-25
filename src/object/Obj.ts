@@ -17,7 +17,6 @@ limitations under the License.
 // Obj base class + top-of-file helpers + SerializedObj interface.
 // Split out of object.ts per wiki/ts-split-refactor.md §2.
 
-import { addFloatMessage } from '../floatText.js'
 import * as GameTime from '../gametime.js'
 import { playCharSfx, playOpenSfx, sfxBuildCharName, SCENERY_SOUND_EFFECT } from '../sfxNames.js'
 import { ammoFromRounds, ammoGetCapacity, ammoGetQuantity, ammoMergeInto, ammoSplitOff, initWeaponAmmo } from '../weaponAmmo.js'
@@ -39,7 +38,7 @@ import { getPROSubTypeName, getPROTypeName, loadPRO, lookupArt, makePID } from '
 import { Scripting } from '../scripting.js'
 import { fromTileNum, toTileNum } from '../tile.js'
 import { uiDrawWeapon, uiLoot, uiLog } from '../ui.js'
-import { getMessage, getRandomInt, skillRoll, RollResult } from '../util.js'
+import { getMessage, getProtoMsg, getRandomInt, skillRoll, RollResult } from '../util.js'
 import { uiGetTimer } from '../ui_barter/swap.js'
 import { Config } from '../config.js'
 import { isChargedMiscItem, useChargedMiscItem } from '../miscItem.js'
@@ -1511,37 +1510,35 @@ export class Obj {
         globalState.gMap?.destroyObject(this)
     }
 
+    // CE actions.cc actionPickUp: walk to the item (in combat: AP-limited walk + 3 AP,
+    // _check_scenery_ap_cost), ANIM_MAGIC_HANDS_GROUND, and on its action frame the pickup
+    // sound and proto_instance.cc _obj_pickup — the item's pickup_p_proc (an override keeps
+    // it where it is), then itemAttemptAdd (proto.msg 905 when too heavy).
     pickup(source: Critter) {
-        if (this._script) {
-            dbg('object', '[Object] picking up %o', this)
-            if (Scripting.pickup(this, source)) {
-                return // script handled it
+        let done = false
+        const objPickup = () => {
+            if (done) return
+            done = true
+            globalState.audioEngine.playSfxByName('ipickup1', source)
+            if (this._script) {
+                dbg('object', '[Object] picking up %o', this)
+                if (Scripting.pickup(this, source)) return // script handled it
             }
-        }
-        // CE ref: item.cc itemAttemptAdd — refuse pickup if the player is over
-        // their carry weight. Floats the standard "you can't carry any more" message.
-        if (!source.canCarry(this, this.amount ?? 1)) {
-            addFloatMessage({
-                msg: "You can't carry any more.",
-                obj: source, color: 'white', startTime: window.performance.now(),
-            })
-            return
-        }
-        const doPickup = () => {
-            globalState.audioEngine.playSfxByName('ipickup1')
+            if (!source.canCarry(this, this.amount ?? 1)) {
+                uiLog(getProtoMsg(905) ?? 'You cannot pick that up. You are at your maximum weight capacity.')
+                return
+            }
             source.addInventoryItem(this, this.amount)
             globalState.gMap.destroyObject(this)
-            source.clearAnim()
         }
         const playPickup = () => {
             if (source.hasAnimation('pickUp')) {
-                source.staticAnimation('pickUp', doPickup)
+                source.staticAnimation('pickUp', () => { objPickup(); source.clearAnim() }, false, undefined, objPickup)
             } else {
-                doPickup()
+                objPickup()
+                source.clearAnim()
             }
         }
-        // Walk to the object first, then play the pickup animation (in combat: AP-limited
-        // walk + 3 AP, CE actionPickUp / _check_scenery_ap_cost)
         source.walkInFrontOfToAct(this.position, playPickup)
     }
 

@@ -254,6 +254,7 @@ export function playerUse(obj: Obj | null) {
             }
 
             const maxWalkingDist = globalState.player.AP.getAvailableMoveAP()
+            if (Config.engine.doAlwaysRun) globalState.player.stopSneakToRun() // CE _dude_run
             if (!globalState.player.walkTo(mouseHex, Config.engine.doAlwaysRun, undefined, maxWalkingDist)) {
                 dbg('map', '[Main] cannot walk there')
             } else {
@@ -272,6 +273,7 @@ export function playerUse(obj: Obj | null) {
         }
 
         // Walking out of combat
+        if (Config.engine.doAlwaysRun) globalState.player.stopSneakToRun() // CE _dude_run
         if (!globalState.player.walkTo(mouseHex, Config.engine.doAlwaysRun)) {
             dbg('map', '[Main] cannot walk there')
         }

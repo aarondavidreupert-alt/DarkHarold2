@@ -510,6 +510,7 @@ export function installInputHandlers(): void {
             globalState.player.walkTo(mouseHex)
         }
         if (isKey(k, 'runTo')) {
+            globalState.player.stopSneakToRun() // CE _dude_run
             globalState.player.walkTo(mouseHex, true)
         }
         if (isKey(k, 'attack')) {
