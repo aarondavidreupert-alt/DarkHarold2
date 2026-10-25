@@ -104,7 +104,7 @@ export function uiContextMenu(obj: Obj, evt: any) {
         player.walkInFrontOfToAct(obj.position, () => {
             player.clearAnim()
             obj.use(player)
-        })
+        }, 3, obj.isLadder && obj.pro?.extra?.subType === 3 ? hexInDirection(obj.position, 2) : undefined) // CE _action_climb_ladder: from the SE neighbour
     }
 
     // CE game_mouse.cc gameMouseHandleActionMenu — the icons per object type

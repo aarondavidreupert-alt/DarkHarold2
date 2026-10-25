@@ -210,7 +210,7 @@ export module Scripting {
     // Animation batch (reg_anim_begin / reg_anim_end queue)
     // ref: fallout2-ce animation.cc animationRegAnimFunc / animationRegAnimAnimate
     interface AnimStep { kind: 'animate'; obj: Obj; anim: number; delay: number; reversed?: boolean }
-    interface AnimFunc  { kind: 'func';    fn: (() => void) | null }
+    interface AnimFunc  { kind: 'func';    fn: (() => void) | null; delay?: number }
     // animationRegisterMoveTo{Tile,Object} / RunTo…: walk (or run) there; the next step
     // waits until it arrives (or can't get there).
     interface AnimMove  { kind: 'move'; obj: Obj; to: Point | Obj; run: boolean; delay: number }
@@ -2784,8 +2784,8 @@ export module Scripting {
             if (!isGameObject(obj) || typeof sfx !== 'string') return
             // CE animationRegisterPlaySoundEffect: a step of the current reg_anim batch;
             // outside one (_check_registry) nothing plays.
-            const play = () => globalState.audioEngine?.playSfxByName?.(sfx.toLowerCase())
-            if (animBatch !== null) animBatch.push({ kind: 'func', obj, fn: () => setTimeout(play, Math.max(0, delay) * 100) } as any)
+            const play = () => globalState.audioEngine?.playSfxByName?.(sfx.toLowerCase(), obj)
+            if (animBatch !== null) animBatch.push({ kind: 'func', fn: () => play(), delay })
         }
         // CE opSfxBuildCharName (0x813D) — game_sound.cc sfxBuildCharName
         sfx_build_char_name(obj: Obj, anim: number, extra: number): string | null {
@@ -3159,55 +3159,80 @@ export module Scripting {
             const batch = animBatch
             animBatch = null
 
-            // CE ref: animation.cc::animationRegAnimFunc — callbacks are fired in
-            // registration order, interleaved between animate steps (not batched at end).
-            function doStep(i: number) {
-                // Fire all consecutive func entries at this position before the next animate
-                while (i < batch.length && batch[i].kind === 'func') {
-                    const fn = (batch[i] as AnimFunc).fn
-                    if (fn !== null) fn()
-                    i++
+            // CE animation.cc animationRunSequence / _anim_set_continue: step 0 starts at once;
+            // then a step with delay 0 starts together with the previous one, N > 0 starts N
+            // ticks after the previous one began, and -1 waits until every started step has
+            // finished. (A step for an object that is still busy with an earlier one of this
+            // batch waits for it — one animation at a time per object.)
+            const TICK_MS = 100
+            let next = 0
+            let running = 0
+            let waiting = false
+            const busy = new Map<Obj, (() => void)[]>()
+            const finish = (obj: Obj | null) => {
+                running--
+                if (obj) {
+                    const queue = busy.get(obj)
+                    const following = queue?.shift()
+                    if (following) following()
+                    else busy.delete(obj)
                 }
-                if (i >= batch.length) return
-
-                if ((batch[i] as any).kind === 'move') {
-                    const mv = batch[i] as unknown as AnimMove
-                    const go = () => {
-                        const dest = (mv.to as any).position ?? mv.to
-                        const c = mv.obj as Critter
-                        const done = () => { c.clearAnim?.(); doStep(i + 1) }
-                        if (typeof c.walkTo !== 'function') { mv.obj.position = { ...dest }; return doStep(i + 1) }
-                        // CE animationRegisterMoveToObject: to the tile next to the object
-                        const target = (mv.to as any).position ? hexNearestNeighbor(c.position, dest)?.hex ?? dest : dest
-                        if (!c.walkTo(target, mv.run, done)) done()
-                    }
-                    if (mv.delay > 0) setTimeout(go, mv.delay * 100)
-                    else go()
+                advance()
+            }
+            const run = (entry: AnimEntry, done: () => void): void => {
+                if (entry.kind === 'func') {
+                    if (entry.fn !== null) entry.fn()
+                    return done()
+                }
+                if (entry.kind === 'move') {
+                    const dest = (entry.to as any).position ?? entry.to
+                    const c = entry.obj as Critter
+                    const arrived = () => { c.clearAnim?.(); done() }
+                    if (typeof c.walkTo !== 'function') { entry.obj.position = { ...dest }; return done() }
+                    // CE animationRegisterMoveToObject: to the tile next to the object
+                    const target = (entry.to as any).position ? hexNearestNeighbor(c.position, dest)?.hex ?? dest : dest
+                    if (!c.walkTo(target, entry.run, arrived)) arrived()
                     return
                 }
-                if ((batch[i] as any).kind === 'forever') {
-                    const fv = batch[i] as unknown as AnimForever
+                if (entry.kind === 'forever') {
                     const loop = (): void => {
-                        if (fv.obj.type === 'critter') (fv.obj as Critter).staticAnimation('anim:' + fv.anim, loop, true)
-                        else fv.obj.singleAnimation(false, loop)
+                        if (entry.obj.type === 'critter') (entry.obj as Critter).staticAnimation('anim:' + entry.anim, loop, true)
+                        else entry.obj.singleAnimation(false, loop)
                     }
                     loop()
-                    return // never ends: the rest of the batch waits, as in CE
+                    return // never ends: a later -1 step waits for good, as in CE
                 }
-                const step = batch[i] as AnimStep
-                const obj = step.obj
-                const next = () => { obj.clearAnim(); doStep(i + 1) }
+                const obj = entry.obj
+                const end = () => { obj.clearAnim(); done() }
                 // anim=0 is ANIM_STAND — snap to idle rather than playing a cycle
-                if (step.anim === 0) {
-                    if (step.delay > 0) setTimeout(next, step.delay * 100)
-                    else next()
-                } else {
-                    const play = () => playAnimId(obj, step.anim, step.reversed === true, next)
-                    if (step.delay > 0) setTimeout(play, step.delay * 100)
-                    else play()
+                if (entry.anim === 0) end()
+                else playAnimId(obj, entry.anim, entry.reversed === true, end)
+            }
+            const start = (entry: AnimEntry): void => {
+                running++
+                const obj = entry.kind === 'func' ? null : entry.obj
+                const go = () => run(entry, () => finish(obj))
+                if (obj && busy.has(obj)) { busy.get(obj)!.push(go); return }
+                if (obj) busy.set(obj, [])
+                go()
+            }
+            function advance(): void {
+                while (!waiting && next < batch.length) {
+                    const entry = batch[next]
+                    const delay = next === 0 ? 0 : ((entry as any).delay ?? 0)
+                    if (delay === -1 || delay < -1) {
+                        if (running > 0) return
+                    } else if (delay > 0) {
+                        waiting = true
+                        next++
+                        setTimeout(() => { waiting = false; start(entry); advance() }, delay * TICK_MS)
+                        return
+                    }
+                    next++
+                    start(entry)
                 }
             }
-            doStep(0)
+            advance()
         }
 
         // CE opRegAnimAnimateForever: outside combat, animationRegisterAnimateForever —

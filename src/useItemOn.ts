@@ -157,11 +157,19 @@ function protinstUseItemOn(user: Critter, target: Obj, item: Obj): number {
     }
 
     if (skill === null) {
-        // Item script first (use_obj_on_p_proc with target_obj = target), then the
-        // target's own use_obj_on_p_proc (target_obj = item); unless one overrides,
-        // the engine default applies.
-        if (Scripting.useObjOnItem(item, user, target)) return 0
-        if (Scripting.useObjOnMe(target, item, user)) return 0
+        // CE: an unscripted item — the target's use_obj_on_p_proc (target_obj = item), the
+        // engine default unless it overrides (then its scr_return value). A scripted item —
+        // its own use_obj_on_p_proc (target_obj = target) decides by its scr_return value,
+        // not the override: 0 goes on to the target's proc and the default; anything else is
+        // the result (1 uses the item up).
+        if (!item._script) {
+            if (Scripting.useObjOnMe(target, item, user)) return target._script?.returnValue ?? 0
+            return defaultUseItem(user, target, item)
+        }
+        Scripting.useObjOnItem(item, user, target)
+        const rv = item._script.returnValue ?? 0
+        if (rv !== 0) return rv
+        if (Scripting.useObjOnMe(target, item, user)) return rv
         return defaultUseItem(user, target, item)
     }
 

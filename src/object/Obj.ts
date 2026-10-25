@@ -1396,29 +1396,34 @@ export class Obj {
                 dbgWarn('object', `[Object] ladder to map ${destMap} (town / world map) not supported`)
                 return false
             }
-            if (destMap !== 0) {
-                globalState.gMap.loadMapByID(destMap, destTile, destElev)
-                return true
+            const transition = () => {
+                if (destMap !== 0) {
+                    globalState.gMap.loadMapByID(destMap, destTile, destElev)
+                    return
+                }
+                globalState.player.position = destTile
+                globalState.gMap.changeElevationFaded(destElev)
+                // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc
+                globalState.gMap.updateMap()
             }
 
             const actor = source ?? globalState.player
-            // CE ref: actions.cc:1050 — sfxBuildCharName(critter, ANIM_CLIMB_LADDER) is
-            // played as the climb starts (HMWARRAE → fallback HMXXXXAE etc.).
-            playCharSfx(actor, sfxBuildCharName(actor, 4 /* ANIM_CLIMB_LADDER */))
-            if (actor.hasAnimation('climb')) {
-                actor.staticAnimation('climb', () => {
-                    actor.clearAnim()
-                    actor.position = destTile
-                    globalState.gMap.changeElevationFaded(destElev)
-                    // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc
-                    globalState.gMap.updateMap()
-                })
-                return true // updateMap() handled in callback above; skip the one below
+            if (!isTop) {
+                // CE actions.cc _action_climb_ladder (SCENERY_TYPE_LADDER_UP): facing the
+                // ladder, ANIM_CLIMB_LADDER with its sound (actions.cc:1050), then _obj_use
+                actor.orientation = hexDirectionTo(actor.position, this.position)
+                playCharSfx(actor, sfxBuildCharName(actor, 4 /* ANIM_CLIMB_LADDER */))
+                if (actor.hasAnimation('climb')) {
+                    actor.staticAnimation('climb', () => { actor.clearAnim(); transition() })
+                    return true // updateMap() runs in transition()
+                }
+            } else if (actor.hasAnimation('use')) {
+                // A ladder down: the normal magic-hands use (CE _action_use_an_item_on_object)
+                actor.staticAnimation('use', () => { actor.clearAnim(); transition() })
+                return true
             }
-            globalState.player.position = destTile
-            globalState.gMap.changeElevationFaded(destElev)
-            // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc
-            globalState.gMap.updateMap()
+            transition()
+            return true
         } else {
             this.singleAnimation()
         }

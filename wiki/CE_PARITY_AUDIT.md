@@ -153,6 +153,7 @@ LOW findings are listed in each report only.
 | | OP-17 | `obj_open` / `obj_close` toggle without the use animation, loot window or lock message (a locked object stays, as CE) |
 | | OP-18 | `use_obj_on_obj` by a critter runs the engine's default use (drugs, healing) after the scripts |
 | Items (misc use) | ITEM-08 | Ramirez's box, the Raiders map, Cat's Paw #5, the Pip-Boy enhancers and the survey map run use_p_proc and are used up |
+| | ITEM-09 | a scripted item's use_obj_on_p_proc decides by its `scr_return` value (0 → the target's proc and the default; 1 uses the item up), an unscripted item's target override returns the target's value |
 | Combat | COMBAT-05 | `script_overrides` in a turn-start `combat_p_proc` takes the turn over |
 | | COMBAT-06 | invulnerable critters (CRITTER_INVULNERABLE) take no damage |
 | | COMBAT-07 | `damage_p_proc` skipped where CE's `_damage_object` a4 says so (self-hit from a critical failure, accidental victim, bystanders of a normal attack) and between party members |
@@ -168,7 +169,9 @@ LOW findings are listed in each report only.
 | | AI-08 | an out-of-range AI keeps engaged near a friend without closing in on it (CE _ai_find_friend never moves); the idle regroup follows a combatant team-mate someone hit (_ai_find_nearest_team_in_combat) |
 | Actions | ACT-04 | explosions give the player the XP of new kills, survivors remember the bomber and start a fight (CE `_report_explosion`), victims die exploded to nothing |
 | | ACT-05 | ranged (non-throw) attacks aim first (ANIM_POINT) and lower the weapon after the shot (ANIM_UNPOINT, not when knocked down or dead) |
+| | ACT-07 (part) | a ladder up is climbed from its SE neighbour, facing it (climb animation and sound, then the transition); a ladder down uses the magic-hands animation; map transitions wait for the animation. Still open: put weapon away / take it out |
 | | ACT-06 | pickup walks first, then plays the pickup animation; the sound, pickup_p_proc and the carry check (proto.msg 905) happen on its action frame |
+| | ANIM-01 | reg_anim sequences follow CE's cursor: delay 0 runs with the previous step, N > 0 starts N ticks after it began, −1 waits for every started step (one animation at a time per object); sound steps take their delay and source |
 | | ANIM-02 (part) | a critter that steps into a walking critter's path makes it re-path to the goal within the hexes it set out to walk, or the walk ends there (usable doors still open). AP stay charged up front |
 | | ANIM-03 | run → walk for an encumbered critter (misc.msg 8000 / 8001 for the party), crippled legs and the dude sneaking without Silent Running (Sneak stays); only the dude's run command ends Sneak |
 | Stats / critters | STAT-02, RAD-01 | Melee Damage and Healing Rate have CE's minimum of 1 before perk / trait deltas; radiation HP changes go through current HP (capped at max), not a bonus |

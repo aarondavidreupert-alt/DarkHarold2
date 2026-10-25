@@ -531,10 +531,17 @@ export class Critter extends Obj {
     // (animationRegisterMoveToObject(…, combat.ap)), paying the move; then
     // _check_scenery_ap_cost takes `apCost` AP (3; proto.msg 700 when short). CE walks
     // as far as it can and then fails; DH2 refuses a walk the AP can't finish.
-    walkInFrontOfToAct(targetPos: Point, action: () => void, apCost = 3): void {
+    // `exactHex`: walk onto that hex instead of next to the target (CE _action_climb_ladder:
+    // the ladder's SE neighbour)
+    walkInFrontOfToAct(targetPos: Point, action: () => void, apCost = 3, exactHex?: Point): void {
         const ap = this.AP
+        const walkThere = (then: () => void): boolean => {
+            if (!exactHex) return this.walkInFrontOf(targetPos, then)
+            if (this.position.x === exactHex.x && this.position.y === exactHex.y) { then(); return true }
+            return this.walkTo(exactHex, Config.engine.doAlwaysRun || hexDistance(this.position, exactHex) >= 5, then)
+        }
         if (!globalState.inCombat || !this.isPlayer || !ap) {
-            this.walkInFrontOf(targetPos, action)
+            walkThere(action)
             return
         }
         if (!(globalState.combat?.inPlayerTurn || Config.combat.allowWalkDuringAnyTurn)) return
@@ -550,14 +557,16 @@ export class Critter extends Obj {
             }
             action()
         }
-        const path = globalState.gMap.recalcPath(this.position, targetPos, false, this)
-        if (path.length === 0) return
-        const steps = Math.max(0, path.length - 2) // walkInFrontOf stops next to the target
+        const path = exactHex
+            ? globalState.gMap.recalcPath(this.position, exactHex, true, this)
+            : globalState.gMap.recalcPath(this.position, targetPos, false, this)
+        if (path.length === 0 && !(exactHex && this.position.x === exactHex.x && this.position.y === exactHex.y)) return
+        const steps = exactHex ? Math.max(0, path.length - 1) : Math.max(0, path.length - 2) // walkInFrontOf stops next to the target
         if (steps > ap.getAvailableMoveAP()) {
             uiLog(getProtoMsg(700) ?? "You don't have enough action points.")
             return
         }
-        if (!this.walkInFrontOf(targetPos, act)) return
+        if (!walkThere(act)) return
         if (steps > 0) {
             ap.subtractMoveAP(steps)
             redraw()

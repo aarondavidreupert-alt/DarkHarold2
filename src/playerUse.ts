@@ -15,7 +15,7 @@
 import { addFloatMessage } from './floatText.js'
 import { ammoGetCapacity, ammoGetQuantity } from './weaponAmmo.js'
 import { heart } from './heart.js'
-import { hexFromScreen, hexNeighbors, hexDistance } from './geometry.js'
+import { hexFromScreen, hexNeighbors, hexDistance, hexInDirection } from './geometry.js'
 import globalState from './globalState.js'
 import { dbg, dbgWarn } from './logger.js'
 import { Critter, Obj } from './object.js'
@@ -432,7 +432,8 @@ export function playerUse(obj: Obj | null) {
     if (Config.engine.doInfiniteUse === true) {
         callback()
     } else {
-        globalState.player.walkInFrontOfToAct(obj.position, callback)
+        // CE _action_climb_ladder: a ladder up is climbed from its SE neighbour
+        globalState.player.walkInFrontOfToAct(obj.position, callback, 3, obj.isLadder && obj.pro?.extra?.subType === 3 ? hexInDirection(obj.position, 2) : undefined)
     }
 }
 
