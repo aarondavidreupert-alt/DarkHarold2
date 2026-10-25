@@ -37,7 +37,7 @@ const TOWN_REPUTATION: [number, number][] = [
 ]
 
 export interface Card { frmId: number; title: string; description: string }
-interface Line { kind: 'heading' | 'string' | 'kills'; text: string; count?: number; card: Card | null }
+export interface Line { kind: 'heading' | 'string' | 'kills'; text: string; count?: number; card: Card | null }
 
 const editorMsg = (id: number) => getMessage('editor', id) ?? ''
 
@@ -91,7 +91,7 @@ function perksFolder(player: any): { lines: Line[]; fallback: Card } {
 }
 
 // CE characterEditorDrawKarmaFolder
-function karmaFolder(): { lines: Line[]; fallback: Card } {
+export function karmaFolder(): { lines: Line[]; fallback: Card } {
     karmaEntries ??= readTable('data/data/karmavar.txt').sort((a, b) => a[0] - b[0])
     genericReputation ??= readTable('data/data/genrep.txt').sort((a, b) => b[0] - a[0])
     const gvar = (n: number) => Number(Scripting.getGlobalVar(n)) || 0

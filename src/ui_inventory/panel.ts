@@ -302,7 +302,7 @@ export function showInventory(useOn = false) {
         const dtdr = (type: string) => `${p.getStat('DT ' + type) + p.getArmorDT(type)}/${Math.min(100, p.getStat('DR ' + type) + p.getArmorDR(type))}%`
         const derivedStats: [string, string][] = [
             [msg(7, 'Hit Points'), `${p.getStat('HP')}/${p.getStat('Max HP')}`],
-            [msg(8, 'Armor Class'), String(p.getStat('AC'))],
+            [msg(8, 'Armor Class'), String(p.getStat('AC') + p.getArmorAC())],
             [msg(9, 'Normal'), dtdr('Normal')],
             [msg(10, 'Laser'), dtdr('Laser')],
             [msg(11, 'Fire'), dtdr('Fire')],

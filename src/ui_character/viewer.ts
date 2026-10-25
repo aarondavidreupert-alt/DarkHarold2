@@ -41,6 +41,7 @@ import { ADDICTION_KARMA_GVARS } from '../drugs.js'
 import { Scripting } from '../scripting.js'
 import { getMessage } from '../util.js'
 import { renderStatPanels } from './statPanels.js'
+import { printCharacterSheet } from './printSheet.js'
 import { createFolderView, FolderView } from './folders.js'
 import { assetUrl } from '../modAssets.js'
 
@@ -183,7 +184,7 @@ export function showCharacterScreen() {
         480
     )
         // FO2-CE ref: editor.cc — Print / Done / Cancel buttons
-        .add(new SmallButton(345, 454))
+        .add(new SmallButton(345, 454).onClick(() => printCharacterSheet())) // CE characterPrintToFile
         .add(makeFontLabel(345 + 18, 454, 'PRINT', font3).css({ pointerEvents: 'none' }))
         .add(doneButton)
         .add(makeFontLabel(455 + 18, 454, 'DONE', font3).css({ pointerEvents: 'none' }))
@@ -679,7 +680,7 @@ export function showCharacterScreen() {
     }
 
     // CE characterEditorShow runs its own input loop (the map is paused): Return / D = done,
-    // ESC / C = cancel
+    // ESC / C = cancel, P = print
     characterWindow.onShow = null
     globalState.uiMode = UIMode.char
     const onKey = (e: KeyboardEvent) => {
@@ -687,6 +688,7 @@ export function showCharacterScreen() {
         if (document.getElementById('perk-modal-overlay')) return // the perk dialog has its own keys
         const k = e.key.length === 1 ? e.key.toLowerCase() : e.key
         if (k === 'Enter' || k === 'd') doneButton.elem.click()
+        else if (k === 'p') printCharacterSheet()
         else if (k === 'Escape' || k === 'c') cancel()
         else return
         e.preventDefault()

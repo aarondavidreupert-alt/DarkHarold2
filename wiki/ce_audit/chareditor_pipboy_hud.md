@@ -195,7 +195,7 @@ Top findings:
 - **Impact**: the creation screen shows the wrong HP, AP, carry weight, sequence, AC and skill % whenever a trait is picked. With Gifted you can raise a base stat to 10 (shown as 11) and only DONE refuses it (157/158).
 - **Fix**: build a temporary Player-like view (trait SPECIAL added, the `Player.getStat` trait switch) for the creator's panels; compare base + trait bonus against 10 in "+".
 
-### CHAR-06 — No print-to-file and no creation OPTIONS (LOW–MED, NEW)
+### CHAR-06 — No print-to-file and no creation OPTIONS (LOW–MED, NEW) — **FIXED 2026-10-25**
 - **CE**: `characterPrintToFile` writes a text sheet (in-game PRINT, creation OPTIONS → PRINT). `characterEditorShowOptions` saves, loads and erases `.GCD` premades.
 - **DH2**: PRINT label and button with no handler (`viewer.ts:154-155`); no OPTIONS button in the creator.
 - **Fix**: PRINT → a browser text download in CE's format; OPTIONS → save/load a GCD-equivalent JSON (localStorage or download).

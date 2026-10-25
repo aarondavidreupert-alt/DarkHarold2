@@ -35,6 +35,7 @@ import {
 } from './descriptions.js'
 import { setCharacterWindow } from './viewer.js'
 import { showAlert, showConfirm } from '../ui_dialog.js'
+import { showCreatorOptions } from './creatorOptions.js'
 import { getMessage } from '../util.js'
 import { assetUrl } from '../modAssets.js'
 
@@ -116,6 +117,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     })
 
     // ── Build WindowFrame ─────────────────────────────────────────────────────
+    const optionsBtn = new SmallButton(345, 454)
     const doneBtn = new SmallButton(455, 454)
     const cancelBtn = new SmallButton(552, 454)
 
@@ -128,6 +130,9 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         640,
         480
     )
+        // CE characterEditorShow (creation): OPTIONS at (345, 454), editor.msg 101 at x 363
+        .add(optionsBtn)
+        .add(makeFontLabel(363, 454, getMessage('editor', 101) ?? 'OPTIONS', font3).css({ pointerEvents: 'none' }))
         .add(doneBtn)
         .add(makeFontLabel(455 + 18, 454, 'DONE', font3).css({ pointerEvents: 'none' }))
         .add(cancelBtn)
@@ -901,6 +906,33 @@ ${msg(161)}`))) return
         player.applyCreationStats(newStatSet, newSkillSet, name, playerAge, playerSex, selectedTraits)
         characterWindow.close()
         onDone()
+    })
+
+    // ── OPTIONS button ────────────────────────────────────────────────────────
+    // CE characterEditorShowOptions: save / load / print / erase the character being made
+    optionsBtn.onClick(() => {
+        showCreatorOptions(characterWindow.elem, {
+            snapshot: () => ({
+                name: playerName, age: playerAge, sex: playerSex, characterPoints: pool,
+                special: Object.fromEntries(STATS.map((st) => [st, newStatSet.getBase(st)])),
+                tagged: newSkillSet.tagged.slice(), traits: selectedTraits.slice(),
+            }),
+            reopen: (state) => {
+                characterWindow.close()
+                showCharacterCreator(onDone, onCancel, state)
+            },
+            printable: () => {
+                const special = newStatSet.clone()
+                for (const st of STATS) special.setBase(st, Math.max(1, Math.min(10, special.getBase(st) + traitSpecialMod(st))))
+                special.setBase('Age', playerAge)
+                const dude: any = Object.create(Object.getPrototypeOf(globalState.player))
+                Object.assign(dude, {
+                    stats: special, skills: newSkillSet, traits: selectedTraits.slice(), perks: [], inventory: [],
+                    isPlayer: true, injuryFlags: 0, name: playerName, gender: playerSex === 'Female' ? 'female' : 'male',
+                })
+                return dude
+            },
+        })
     })
 
     // ── CANCEL button ─────────────────────────────────────────────────────────

@@ -203,6 +203,7 @@ LOW findings are listed in each report only.
 | | HUD-02 | the HUD reload spends AP only when something loaded, plays the weapon's ready sound, prints nothing when short of AP |
 | | MENU-01, MENU-02 | main-menu OPTIONS opens Preferences over the menu; cancelling its LOAD GAME returns to the menu |
 | | END-01 | the endgame slideshow goes on to akiss, the credits and the continue dialog |
+| | CHAR-06 | PRINT (character screen button and P key; creation OPTIONS → PRINT TO FILE) writes CE's characterPrintToFile sheet as a `.TXT` download (`printSheet.ts`); the creation OPTIONS window (`creatorOptions.ts`: SAVE / LOAD / PRINT TO FILE / ERASE / DONE, keys S L P E D) keeps premades in localStorage in place of `.GCD` files. AC / resistances in the sheet and the inventory summary include the worn armor (CE critterGetStat) |
 | | CHAR-05 | the creation screen's derived stats and skills include the traits (SPECIAL bonus and trait effects); "+" stops at base + trait bonus = 10 |
 | Party | PTY-03 | party.txt's disposition and Custom-value lists are read: dispositions it doesn't list are disabled, Custom values it doesn't list are greyed and refused |
 | | PTY-05 | the control screen shows CE's eight fields at CE's positions: right-hand item and worn armor (proto.msg 10 for none), the standing SW sprite, HP, best skill, weight (red when encumbered), melee damage, AP |
@@ -216,10 +217,10 @@ LOW findings are listed in each report only.
 Fixed earlier with the HIGH groups: INV-02 (PA8), ITEM-15 (PA9), CRIT-02 (PA12), ITEM-17 (PA18), WM-04 / WM-09 (PA21), WM-07 (PA23). Already in the code when audited: TILE-03 (`camera.ts playerLimitRefuses`, on by default).
 
 Status of the 120 MED findings with their own section in `ce_audit/` (each header there is marked FIXED /
-PARTLY FIXED): 105 fixed, 9 partly fixed, 6 open or not ported:
+PARTLY FIXED): 106 fixed, 9 partly fixed, 5 open or not ported:
 
 - **Open:** INV-13 (nested
-  containers), CHAR-06 (PRINT and the creation OPTIONS), COMBAT-13
+  containers), COMBAT-13
   (the Glovz / YAAM opt-in damage formulas; conflicts with known_bugs C3).
 - **Partly fixed, rest open:** INV-12 (container USE, money drop), AUTO-01 (no High / Low detail switch; the scanner and the seen band are CE's), SCR-05 (object `start` still runs at script load), SCR-10 (flare / explosive timed
   events not restored), SCR-12 (sfall string / math opcodes), DLG-04 (page keys, control / customise keys),
