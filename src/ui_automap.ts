@@ -26,6 +26,10 @@ import { assetUrl } from './modAssets.js'
 let automapContainer: HTMLDivElement | null = null
 // CE automap.cc AUTOMAP_WITH_SCANNER: living critters shown (motion sensor)
 let scannerOn = false
+// CE gAutomapFlags AUTOMAP_WTH_HIGH_DETAILS: kept between openings (Low at the start)
+let highDetail = false
+let automapDetailKeys: ((e: KeyboardEvent) => void) | null = null
+export function automapKey(e: KeyboardEvent): void { automapDetailKeys?.(e) }
 
 // Inset of the dark map area within automap.png (516x460 image).
 // These dimensions are authoritative — do not override via CSS.
@@ -187,7 +191,7 @@ export function openAutomap(useScanner = false): void {
     const renderOpts = () => {
         const map = globalState.gMap
         const pan = map ? getAutomapPan(map.name, map.currentElevation) : { x: 0, y: 0 }
-        return { zoom: zoomLevel, panX: pan.x, panY: pan.y, scanner: scannerOn }
+        return { zoom: zoomLevel, panX: pan.x, panY: pan.y, scanner: scannerOn, highDetail }
     }
 
     const canvas = renderAutomapCanvas(MAP_INSET_W, MAP_INSET_H, renderOpts())
@@ -232,6 +236,31 @@ export function openAutomap(useScanner = false): void {
         refresh()
     }
     screen.appendChild(scannerDot)
+
+    // CE automapShow: the LOW / HIGH detail switch (autoup / autodwn at 457, 340 in the 519×480
+    // window; down = Low) and its keys L / H (CE's keys leave the switch art as it was; here it follows)
+    const toggle = document.createElement('div')
+    const drawToggle = () => {
+        toggle.style.backgroundImage = `url('${assetUrl(highDetail ? 'art/intrface/autoup.png' : 'art/intrface/autodwn.png')}')`
+    }
+    toggle.style.cssText = `position: absolute; left: 438px; top: 326px; width: 40px; height: 71px;
+        background-size: contain; background-repeat: no-repeat; cursor: pointer;`
+    drawToggle()
+    const setDetail = (high: boolean) => {
+        if (high === highDetail) return
+        highDetail = high
+        globalState.audioEngine?.playSfxByName?.('toggle')
+        drawToggle()
+        refresh()
+    }
+    toggle.onclick = () => setDetail(!highDetail)
+    screen.appendChild(toggle)
+    automapDetailKeys = (e: KeyboardEvent) => {
+        const k = e.key.toLowerCase()
+        if (k === 'h') setDetail(true)
+        else if (k === 'l') setDetail(false)
+        else if (k === 's') scannerDot.click()
+    }
 
     // Zoom controls (DH2): inside the top-right corner of the map inset
     const mkZoomBtn = (label: string, x: number, onClick: () => void) => {

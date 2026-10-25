@@ -34,6 +34,8 @@ export interface RenderOptions {
     panY?: number
     // CE AUTOMAP_WITH_SCANNER: living, visible critters drawn on any tile
     scanner?: boolean
+    // CE AUTOMAP_WTH_HIGH_DETAILS: scenery drawn too
+    highDetail?: boolean
 }
 
 export function renderAutomapCanvas(width: number, height: number, opts: RenderOptions = {}): HTMLCanvasElement {
@@ -136,26 +138,24 @@ export function drawAutomapInto(canvas: HTMLCanvasElement, opts: RenderOptions =
     interface RenderObj { x: number; y: number; color: string; anyTile?: boolean }
     const renderObjects: RenderObj[] = []
 
+    // CE automap.cc automapRenderInMapWindow (in game): walls green (colour 992), the dude red
+    // (31744), scenery only in High detail (480; not PROTO_ID_0x2000158), PROTO_ID_0x2000031 in
+    // 32328, living critters red with the scanner; items and the rest aren't drawn (colour 0)
+    const WALL = '#00f800', SCENERY = '#007800', DUDE = '#f80000', SPECIAL = '#f89040'
     const colorForLive = (obj: any): string | null => {
-        if (obj.type === 'wall') return '#888888'
-        if (obj.type === 'scenery') {
-            return (obj.pro && obj.pro.extra && obj.pro.extra.subType === 0)
-                ? '#FF8800' // door
-                : '#3388FF' // other scenery
-        }
-        if (obj.type === 'item') return '#FFCC00'
         if (obj.type === 'critter') {
-            // CE automapRenderInMapWindow: other critters only with the scanner
-            if ((obj as any).isPlayer || !opts.scanner || obj.dead || obj.visible === false) return null
-            return '#FF3333'
+            if ((obj as any).isPlayer) return null // the marker below
+            return opts.scanner && !obj.dead && obj.visible !== false ? DUDE : null
         }
+        if (obj.pid === 0x2000031) return SPECIAL
+        if (obj.type === 'wall') return WALL
+        if (obj.type === 'scenery') return opts.highDetail && obj.pid !== 0x2000158 ? SCENERY : null
         return null
     }
-    const colorForSnapshot = (t: ObjType): string => {
-        if (t === 'w') return '#888888'
-        if (t === 'd') return '#FF8800'
-        if (t === 's') return '#3388FF'
-        return '#FFCC00' // 'i'
+    const colorForSnapshot = (t: ObjType): string | null => {
+        if (t === 'w') return WALL
+        if (t === 'd' || t === 's') return opts.highDetail ? SCENERY : null
+        return null // 'i'
     }
 
     if (isCurrentMap && map) {
@@ -167,7 +167,8 @@ export function drawAutomapInto(canvas: HTMLCanvasElement, opts: RenderOptions =
         }
     } else {
         for (const e of getObjectSnapshot(mapName, elevation)) {
-            renderObjects.push({ x: e.x, y: e.y, color: colorForSnapshot(e.t) })
+            const c = colorForSnapshot(e.t)
+            if (c) renderObjects.push({ x: e.x, y: e.y, color: c })
         }
     }
 
@@ -183,11 +184,11 @@ export function drawAutomapInto(canvas: HTMLCanvasElement, opts: RenderOptions =
     ctx.lineWidth = 1
     ctx.strokeRect(ox - 2, oy - 2, HEX_RANGE * scale + 4, HEX_RANGE * scale + 4)
 
-    // Player marker (yellow cross) — only when rendering the current map
+    // Player marker (CE: the dude in red, 31744) — only when rendering the current map
     if (isCurrentMap && player) {
         const px = ox + player.position.x * scale
         const py = oy + player.position.y * scale
-        ctx.fillStyle = '#FFFF00'
+        ctx.fillStyle = DUDE
         ctx.fillRect(px - 3, py - 1, 7, 3)
         ctx.fillRect(px - 1, py - 3, 3, 7)
     }

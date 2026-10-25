@@ -224,8 +224,8 @@ Top findings:
 | automapInit / automapReset / automapExit | `automap/tracking.ts:127`, `storage.ts:238 resetAutomap` | ✅ MATCH | — | |
 | automapLoad / automapSave | `SaveGame.automap` (`storage.ts:249/258`) | ✅ MATCH | — | CE saves the flags in SAVE.DAT and AUTOMAP.DB in the slot; DH2 saves the seen data. |
 | _automapDisplayMap / automapSetDisplayMap | — | ❌ MISSING | LOW | maps.txt `automap=no` maps should not be listed in the Pip-Boy AUTOMAPS tab (`pipboy.cc:1604`). |
-| automapShow | `ui_automap.ts:146 openAutomap`, `input.ts:161` | 🟡 PARTIAL | MED | AUTO-01. |
-| automapRenderInMapWindow | `automap/render.ts:48 drawAutomapInto` | ⚠️ DIFFERS | MED | AUTO-01: reveal model and colours differ. |
+| automapShow | `ui_automap.ts:146 openAutomap`, `input.ts:161` | ✅ FIXED | MED | AUTO-01 (fixed 2026-10-25). |
+| automapRenderInMapWindow | `automap/render.ts:48 drawAutomapInto` | ✅ FIXED | MED | AUTO-01 (fixed 2026-10-25): CE colours and detail levels. |
 | automapRenderInPipboyWindow | `ui_pipboy` AUTOMAPS → `drawAutomapInto` | 🟡 PARTIAL | LOW | Same renderer. |
 | automapSaveCurrent / automapSaveEntry / automapLoadEntry / automapSaveHeader / automapLoadHeader / _decode_map_data / automapCreate / _copy_file_data | `automap/storage.ts` (IndexedDB) | 🚫 N/A | — | |
 | automapGetHeader | `tracking.ts:90 getArchivedMaps` | 🟡 PARTIAL | LOW | |
@@ -407,7 +407,7 @@ Top findings:
 - **Impact:** the option is visible but does nothing for dialogue/taunt text. MED (AF17 only wired the metarule).
 - **Fix:** load `data/badwords.txt` and replace matches with `gBadwordsReplacements` chars when building msg lists. NEW.
 
-### AUTO-01 — Automap is a DH2 approximation — **PARTLY FIXED 2026-10-25**
+### AUTO-01 — Automap is a DH2 approximation — **FIXED 2026-10-25**
 - **CE:** `automap.cc:298 automapShow` — `_obj_process_seen()` marks objects seen; walls (green 992) and, in High detail, scenery
   (480) on seen tiles; dude red; **S** (scanner button) needs a Motion Sensor in a hand with charges, consumes one and shows
   critters (misc.msg 17/18 otherwise); **H/L** and the switch toggle detail; Tab/Esc/A close; Ctrl+Q/Alt+X/F10 quit.
@@ -417,6 +417,7 @@ Top findings:
 - **Impact:** what the automap reveals differs from CE (rooms seen through doors/across the screen are not shown); Motion Sensor
   has no automap use. MED, not in README "Known approximations".
 - **Fix:** mark seen from on-screen objects as `_obj_process_seen`; port the scanner and detail flags; fix close keys. NEW.
+- **Fixed 2026-10-25:** the seen band is CE's (OBJ-04); the scanner needs a charged Motion Sensor in a hand; walls green, scenery only in High detail, the dude red, items not drawn; the LOW / HIGH switch (autoup / autodwn) and H / L; Tab / Esc / A close, S presses the scanner. DH2 keeps zoom / pan, and the switch art follows the keys (CE's doesn't).
 
 ## DH2-only behaviour
 

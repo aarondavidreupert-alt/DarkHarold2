@@ -21,8 +21,8 @@ no full end-to-end playthrough yet, and a handful of places still simplify CE (l
 below). The 2026-10-24 function-by-function CE parity audit
 ([`wiki/CE_PARITY_AUDIT.md`](wiki/CE_PARITY_AUDIT.md)) found 1780 CE function rows, 835 of them matching, and opened
 23 HIGH groups (known_bugs §33) plus ~150 MED findings; all 23 HIGH groups were fixed the same day (script opcodes,
-character rules, combat, the map pipeline, doors, worldmap, dialogue, VM robustness, music), and on 2026-10-25 104 of the
-120 MED findings (8 more in part; known_bugs §34 lists what is left). See [`ROADMAP.md`](ROADMAP.md) and [`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
+character rules, combat, the map pipeline, doors, worldmap, dialogue, VM robustness, music), and on 2026-10-25 111 of the
+120 MED findings (5 more in part; known_bugs §34 lists what is left). See [`ROADMAP.md`](ROADMAP.md) and [`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
 
 If you're looking for documentation on how Fallout 2 works, documentation on certain file formats, or
 tools to work with them, this project will be useful to you as well.
@@ -203,7 +203,7 @@ the wiki tracker is the source of truth.
 - **Status effects** — radiation (`critterAdjustRadiation`/`processRads`), drugs and addiction from proto data with withdrawal perks, poison decay (S26)
 - **Movies** — MVE → WebM pipeline stage, CE `gameMoviePlay` with subtitles and fades, Pip-Boy video archive (S15)
 - **Audio** — music, weapon/action/ambient SFX, master/music/sfx/speech volumes, speech playback for talking heads
-- **Pip-Boy** — CE STATUS page (quest locations from `quests.txt`, holodisk reader), ARCHIVES (video archive), AUTOMAP (CE's seen band; critters only with the Motion Sensor scanner), the CE alarm clock (`pipboyRest`: rest-location check, healing every 3 hours, until-party-healed), available after the Vault Suit movie (C40)
+- **Pip-Boy** — CE STATUS page (quest locations from `quests.txt`, holodisk reader), ARCHIVES (video archive), AUTOMAP (CE's seen band, colours and High / Low detail; critters only with the Motion Sensor scanner), the CE alarm clock (`pipboyRest`: rest-location check, healing every 3 hours, until-party-healed), available after the Vault Suit movie (C40)
 - **Character screen / HUD** — SPECIAL/skills/perks, warnbox indicator badges, numbers.frm counters, AP lights, end-turn lights with enable/disable (AF6), CE to-hit hover readout, CE action menu (use-on inventory, skill on target, push, rotate — C42)
 - **Keyboard** — CE `gameHandleKey` layout: C I S O P Z N B M A Tab, 1–8 skills, Space / Return in combat, F1–F7 incl. quick save / load, Ctrl keys, brightness, rotate, date (C43)
 - **Endings** — victory slideshow (CE pan timing), credits, death screen then back to the main menu (C41)

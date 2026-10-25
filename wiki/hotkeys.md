@@ -142,7 +142,7 @@ Cases are case-insensitive (CE handles both `KEY_UPPERCASE_X` and `KEY_LOWERCASE
 
 **`src/hotkeys.ts` `gameHandleKey(e)`** is CE `game.cc gameHandleKey` plus `combat.cc _combat_input`, on the full `KeyboardEvent` (`e.key`, `e.code` for Shift+digit, Ctrl / Alt). `installInputHandlers()` (`src/input.ts`) registers it as a window capture listener:
 - not while typing in a field, loading, or with the game UI disabled (movies);
-- an open window gets its own close keys first (CE runs each window's own input loop): Pip-Boy Esc / Return / P / Z, inventory Esc / I, automap Esc / Tab / Return; the options, skilldex, save/load, dialog and barter windows keep their own handlers;
+- an open window gets its own close keys first (CE runs each window's own input loop): Pip-Boy Esc / Return / P / Z, inventory Esc / I, automap Tab / Esc / A (H / L detail, S scanner); the options, skilldex, save/load, dialog and barter windows keep their own handlers;
 - otherwise the game keys only act on the map (`UIMode.none`, or skill targeting, where Esc cancels).
 
 `interfaceBarEnabled()` = not during an AI combat turn; in combat only the player's turn reads keys (Space ends it, Return tries to end combat).

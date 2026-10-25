@@ -193,7 +193,7 @@ LOW findings are listed in each report only.
 | | INV-14, ITEM-19 | an armed explosive dropped from the inventory runs the same watcher check when it closes; non-biped critters without CRITTER_BARTER take no items |
 | World | WM-06, WM-08 | town-map entrances at −1/−1 are not shown, labels are worldmap.msg 200 + 10 × area + index; a known area marked visited clears the fog around it (state 1 makes its subtile known) |
 | | OBJ-03 | objects created at runtime take their proto's light (and relight the map) |
-| | OBJ-04, AUTO-01 (part) | the automap marks CE's seen band (32 rows × 40 tiles around the dude's 8-tile block) |
+| | OBJ-04, AUTO-01 | the automap marks CE's seen band (32 rows × 40 tiles around the dude's 8-tile block); CE colours (walls green, scenery only in High detail, the dude red), the LOW / HIGH switch and H / L, Tab / Esc / A close, S scanner |
 | | OBJ-06, MOUSE-06 | object picking: the bottom object can be picked, hidden objects are skipped, a wall's egg-transparent part and dead / knocked-out critters lose to what lies under them (falling back to them); nothing is picked over a visible roof outside the egg, except with the crosshair (CE's critter pick) |
 | | TILE-02 | hex → roof square is CE's `(x >> 1, y >> 1)` (odd hex rows were one square south) |
 | | MAP-02 | exit grids follow CE's mapHandleTransition: map 0 / −2 world map, −1 town map; another map (or this one at the current elevation) reloads; the dude lands on the grid's tile, elevation and rotation after the map's scripts ran (header start on the Modoc B&B / Squat A maps); in combat the fight ends first |
@@ -218,11 +218,11 @@ LOW findings are listed in each report only.
 Fixed earlier with the HIGH groups: INV-02 (PA8), ITEM-15 (PA9), CRIT-02 (PA12), ITEM-17 (PA18), WM-04 / WM-09 (PA21), WM-07 (PA23). Already in the code when audited: TILE-03 (`camera.ts playerLimitRefuses`, on by default).
 
 Status of the 120 MED findings with their own section in `ce_audit/` (each header there is marked FIXED /
-PARTLY FIXED): 110 fixed, 6 partly fixed, 4 open or not ported:
+PARTLY FIXED): 111 fixed, 5 partly fixed, 4 open or not ported:
 
 - **Open:** COMBAT-13
   (the Glovz / YAAM opt-in damage formulas; conflicts with known_bugs C3).
-- **Partly fixed, rest open:** INV-13 / INV-12 (bags in the barter, companion-trade and steal windows), AUTO-01 (no High / Low detail switch; the scanner and the seen band are CE's), SCR-05 (object `start` still runs at script load), SCR-10 (flare / explosive timed
+- **Partly fixed, rest open:** INV-13 / INV-12 (bags in the barter, companion-trade and steal windows), SCR-05 (object `start` still runs at script load), SCR-10 (flare / explosive timed
   events not restored),
   ANIM-02 (AP still charged up front).
 - **Checked, not ported:** SCR-11 — a scan of the 1443 shipped `.int` files shows procedure index 1 is the pure

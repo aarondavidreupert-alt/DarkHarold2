@@ -48,7 +48,7 @@ import { currentUnarmed, unarmedAPCost } from './unarmed.js'
 import { closePipBoy } from './ui_pipboy.js'
 import { gameHandleKey } from './hotkeys.js'
 import { closeInventory } from './ui_inventory.js'
-import { closeAutomap } from './ui_automap.js'
+import { automapKey, closeAutomap } from './ui_automap.js'
 import { playerUse, cancelSkillTargeting } from './playerUse.js'
 import { primaryActionIcon } from './ui_contextmenu.js'
 
@@ -160,8 +160,9 @@ function closeWindowKey(e: KeyboardEvent): boolean {
         case UIMode.inventory: // inventory.cc inventoryOpen: Esc, I
             if (k === 'Escape' || k === 'i') { closeInventory(); return true }
             return false
-        case UIMode.automap: // automap.cc automapShow: Esc, Tab, Return
-            if (k === 'Escape' || k === 'Tab' || k === 'Enter') { closeAutomap(); return true }
+        case UIMode.automap: // automap.cc automapShow: Tab, Esc, A close; H / L detail; S scanner
+            if (k === 'Escape' || k === 'Tab' || k === 'a') { closeAutomap(); return true }
+            if (k === 'h' || k === 'l' || k === 's') { automapKey(e); return true }
             return false
     }
     return false
