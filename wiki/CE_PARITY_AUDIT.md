@@ -190,6 +190,7 @@ LOW findings are listed in each report only.
 | | MOUSE-05 | the hex cursor shows the move's AP cost in combat (white) or a red X (too far / no path) after 250 ms |
 | Sound | SND-02 | sounds of items, critters and scenery (weapon fire and hits, character and door sounds, explosions) play at full volume on screen; off screen full up to PE hexes, falling to ⅓ at 2 × PE (`src/soundVolume.ts`) |
 | | SND-05 | combat attack / hit sounds use CE's `sfxBuildWeaponName` (variant 2 for burst / secondary modes, the target's material, X for plasma / EMP / explosion); a missing file is silent (no invented fallbacks) |
+| | MSG-01 | the language filter masks the badwords.txt words in script dialogue and AI combat lines (`src/badwords.ts`, CE's rule including its start-of-message quirk) |
 
 Still open from these groups: COMBAT-10 (joining critters' immediate turn), COMBAT-13 (Glovz / YAAM opt-in formulas), ACT-05 (point / unpoint animations), MOUSE-06 roof test. MOUSE-01 / MOUSE-02 are the documented action-menu approximation (CLAUDE.md, README).
 

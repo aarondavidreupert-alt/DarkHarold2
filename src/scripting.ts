@@ -26,6 +26,7 @@ import * as GlobalScripts from './sfallGlobalScripts.js'
 import { isPartyMemberPid } from './party.js'
 import { addFloatMessage, FLOAT_MSG_COLOR } from './floatText.js'
 import { sfxBuildOpenName, sfxBuildWeaponName } from './sfxNames.js'
+import { filterBadwords } from './badwords.js'
 import { FIDGET_BAD, FIDGET_GOOD, FIDGET_NEUTRAL, GAME_DIALOG_REACTION_NEUTRAL, reactToOption, startLips, startTalkingHead, talkToCritterReacts, isTalkingHeadActive } from './talkingHead.js'
 import { gameMoviePlay, SCRIPT_MOVIE_FLAGS } from './gameMovie.js'
 import { randomSeedPrerandom } from './random.js'
@@ -3484,6 +3485,7 @@ export module Scripting {
                 scriptMessageAudio[name][e.num] = e.audio.trim()
             }
         }
+        filterBadwords(scriptMessages[name]) // CE scripts.cc:2703 messageListFilterBadwords
     }
 
     export function setMapScript(script: Script) {

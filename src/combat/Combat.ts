@@ -38,6 +38,7 @@ import { currentUnarmed, unarmedAPCost, type UnarmedMode } from '../unarmed.js'
 import { useDrug } from '../drugs.js'
 import type { AiPacket } from '../aiPackets.js'
 import { ANIM, CHARACTER_SOUND_EFFECT, playCharAnimSfx, sfxBuildWeaponName } from '../sfxNames.js'
+import { filterBadwordsText } from '../badwords.js'
 import { ActionPoints } from './actionPoints.js'
 import { AI, fleeHpThreshold } from './AI.js'
 import { computeDamage } from './damage.js'
@@ -1796,7 +1797,8 @@ export class Combat {
     }
 
     getCombatAIMessage(id: number) {
-        return getMessage('combatai', id)
+        const text = getMessage('combatai', id)
+        return text === null ? null : filterBadwordsText(text) // CE combat_ai.cc:3572 messageListFilterBadwords
     }
 
     // CE combat_ai.cc _combatai_msg / _ai_print_msg — a floating line for run / move /
