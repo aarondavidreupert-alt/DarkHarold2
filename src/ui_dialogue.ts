@@ -194,10 +194,24 @@ export function uiEndDialogue() {
     $id('dialogueCombatControlButton').style.display = 'none'
 }
 
+// CE _gdProcess: a reply too long for its window turns to the next page every 10 s
+let replyPageTimer: number | null = null
+
 export function uiSetDialogueReply(reply: string) {
     const $dialogueBoxReply = $id('dialogueBoxReply')
     $dialogueBoxReply.innerHTML = reply
     $dialogueBoxReply.scrollTop = 0
+    if (replyPageTimer !== null) clearInterval(replyPageTimer)
+    replyPageTimer = window.setInterval(() => {
+        const $r = $id('dialogueBoxReply')
+        const atEnd = $r.scrollTop + $r.clientHeight >= $r.scrollHeight - 1
+        if (atEnd || globalState.uiMode !== UIMode.dialogue) {
+            if (replyPageTimer !== null) clearInterval(replyPageTimer)
+            replyPageTimer = null
+            return
+        }
+        $r.scrollTop += Math.max(1, $r.clientHeight)
+    }, 10000)
 
     $id('dialogueBoxTextArea').innerHTML = ''
 }
@@ -266,6 +280,11 @@ function installDialogueKeys(): void {
         } else if (k === 'b') {
             const $barter = $id('dialogueBarterButton')
             if ($barter.style.display !== 'none') $barter.click()
+        } else if (k === 'arrowup' || k === 'arrowdown' || k === ' ') {
+            // CE _gdProcess: a reply too long for its window pages with Up / Down and Space
+            const $reply = $id('dialogueBoxReply')
+            const page = Math.max(1, $reply.clientHeight)
+            $reply.scrollTop += k === 'arrowup' ? -page : page
         } else return
         e.preventDefault()
     })

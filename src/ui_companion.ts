@@ -156,6 +156,10 @@ function setActiveEscapeClose(close: (() => void) | null): void {
     if (escapeListenerInstalled) return
     escapeListenerInstalled = true
     document.addEventListener('keydown', (e: KeyboardEvent) => {
+        // the screen's own keys (CE partyMemberControlWindowHandleEvents: W best weapon,
+        // A best armor, D trade; the customise screen: Return like Esc)
+        const action = activeScreenKeys?.[e.key.length === 1 ? e.key.toLowerCase() : e.key]
+        if (action && globalState.uiMode === UIMode.companionControl) { e.preventDefault(); action(); return }
         if (e.key !== 'Escape' || !activeEscapeClose) return
         e.preventDefault()
         const fn = activeEscapeClose
@@ -163,6 +167,7 @@ function setActiveEscapeClose(close: (() => void) | null): void {
         fn!()
     }, true)
 }
+let activeScreenKeys: { [key: string]: () => void } | null = null
 
 // ── DOM helpers ────────────────────────────────────────────────────────────────
 
@@ -342,6 +347,7 @@ export function uiCompanionControl(companion: Critter): void {
     // normal dialogue/Talk window, regardless of how Control was entered.
     function close(): void {
         activeEscapeClose = null
+        activeScreenKeys = null
         globalState.uiMode = UIMode.dialogue
         uiSwapDialoguePanel(panel, $id('dialogueBox'), () => Scripting.reenterDialogue())
     }
@@ -431,6 +437,11 @@ export function uiCompanionControl(companion: Critter): void {
     redraw()
     uiSwapDialoguePanel(getVisibleDialoguePanel(), panel)
     setActiveEscapeClose(close)
+    activeScreenKeys = {
+        w: () => { if (useBestWeapon(companion)) redraw() },
+        a: () => { useBestArmor(companion); redraw() },
+        d: () => { activeEscapeClose = null; activeScreenKeys = null; uiCompanionTrade(companion) },
+    }
 }
 
 /** Cheap existence check used only to decide whether to show a disposition
@@ -486,6 +497,7 @@ export function uiCompanionCustomize(companion: Critter): void {
     redraw()
     uiSwapDialoguePanel(getVisibleDialoguePanel(), panel)
     setActiveEscapeClose(close)
+    activeScreenKeys = { Enter: () => { activeScreenKeys = null; close() } } // CE: Return like Esc
 }
 
 // ── Per-category value picker (cussel.png) ───────────────────────────────────

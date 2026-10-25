@@ -254,7 +254,7 @@ Top findings:
 - **Fix:** in `gsay_end`, if a reply is pending and no options exist, add the CE implicit option.
 - **Ref:** NEW.
 
-### DLG-04 — No keyboard control in dialogue / companion screens — **PARTLY FIXED 2026-10-25**
+### DLG-04 — No keyboard control in dialogue / companion screens — **FIXED 2026-10-25**
 - **CE:** `_gdProcess`: keys `1`–`9` pick option *n* (also options without a button), `0` ignored (sfall fix), `B` = Barter button, Space / auto after 10 s next page of a long reply, ↑ / ↓ page back / forward, mouse wheel → arrows. Control screen W / A / D / Esc, customise Enter / Esc, picker Enter / Esc, review ↑ / ↓ / Esc.
 - **DH2:** `input.ts:224-236` returns for any non-none UI mode and the dialogue has no key handler (`ui_dialogue.ts`); Esc exists only on the companion screens and the review.
 - **Fix:** a keydown handler while `uiMode === dialogue` mapping `1`–`9` to `dialogueReply(n−1)` and `b` to the Barter button; W / A / D on the control screen; Enter on customise / picker.

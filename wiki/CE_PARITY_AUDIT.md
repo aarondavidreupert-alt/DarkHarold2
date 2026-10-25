@@ -208,7 +208,7 @@ LOW findings are listed in each report only.
 | | CHAR-05 | the creation screen's derived stats and skills include the traits (SPECIAL bonus and trait effects); "+" stops at base + trait bonus = 10 |
 | Party | PTY-03 | party.txt's disposition and Custom-value lists are read: dispositions it doesn't list are disabled, Custom values it doesn't list are greyed and refused |
 | | PTY-05 | the control screen shows CE's eight fields at CE's positions: right-hand item and worn armor (proto.msg 10 for none), the standing SW sprite, HP, best skill, weight (red when encumbered), melee damage, AP |
-| | DLG-04 (part) | dialogue keys 1–9 pick an option, B barters. Still open: page keys, control / customise screen keys |
+| | DLG-04 | dialogue keys 1–9 pick an option, B barters; a long reply pages with Up / Down / Space and on its own every 10 s; the control screen's W (best weapon), A (best armor), D (trade), Esc (talk); the customise screen's Return like Esc |
 | Input | MOUSE-03, MOUSE-04 | the arrow cursor shows the pointed object's primary-action icon after 250 ms (use / talk / look / rotate; nothing over empty ground); "You see" only when the pointed object changes |
 | | MOUSE-05 | the hex cursor shows the move's AP cost in combat (white) or a red X (too far / no path) after 250 ms |
 | Sound | SND-02 | sounds of items, critters and scenery (weapon fire and hits, character and door sounds, explosions) play at full volume on screen; off screen full up to PE hexes, falling to ⅓ at 2 × PE (`src/soundVolume.ts`) |
@@ -218,12 +218,12 @@ LOW findings are listed in each report only.
 Fixed earlier with the HIGH groups: INV-02 (PA8), ITEM-15 (PA9), CRIT-02 (PA12), ITEM-17 (PA18), WM-04 / WM-09 (PA21), WM-07 (PA23). Already in the code when audited: TILE-03 (`camera.ts playerLimitRefuses`, on by default).
 
 Status of the 120 MED findings with their own section in `ce_audit/` (each header there is marked FIXED /
-PARTLY FIXED): 109 fixed, 7 partly fixed, 4 open or not ported:
+PARTLY FIXED): 110 fixed, 6 partly fixed, 4 open or not ported:
 
 - **Open:** COMBAT-13
   (the Glovz / YAAM opt-in damage formulas; conflicts with known_bugs C3).
 - **Partly fixed, rest open:** INV-13 (bags in the loot / barter windows), INV-12 (container USE outside the inventory window, money drop), AUTO-01 (no High / Low detail switch; the scanner and the seen band are CE's), SCR-05 (object `start` still runs at script load), SCR-10 (flare / explosive timed
-  events not restored), DLG-04 (page keys, control / customise keys),
+  events not restored),
   ANIM-02 (AP still charged up front).
 - **Checked, not ported:** SCR-11 — a scan of the 1443 shipped `.int` files shows procedure index 1 is the pure
   `checkPartyMembersNearDoor` helper in 1212 of them (CE's fallback has no effect there) and `start` in about 210;
