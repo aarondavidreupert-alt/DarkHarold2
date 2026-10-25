@@ -110,7 +110,9 @@ export class GameMap {
     }
 
     addObject(obj: Obj, level?: number): void {
-        this.objects[level === undefined ? this.currentElevation : level].push(obj)
+        const elevation = level === undefined ? this.currentElevation : level
+        this.objects[elevation].push(obj)
+        obj.elevation = elevation // (its spatial checks and move_to read it)
         // CE ref: objAddToMap (obj.cc) — purely spatial placement; does NOT fire map_enter_p_proc.
         // map_enter_p_proc is fired once per map load by scriptsExecMapEnterProc, not on every add.
         // Calling enterMap() here causes infinite recursion when move_to is used inside map_enter_p_proc.

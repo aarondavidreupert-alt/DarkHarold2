@@ -277,7 +277,7 @@ function runVM(name: string, data: DataView, seed: number, plan: Plan, imports: 
     const vm = new ScriptVMBridge.GameScriptVM(reader, intfile)
     vm.scriptObj = mock
     mock._vm = vm
-    for (const procName in intfile.procedures) mock[procName] = (...args: any[]) => vm.call(procName, args)
+    for (const procName in intfile.procedures) mock[procName] = (...args: any[]) => vm.engineCall(procName, args)
     // a fatal script error (division by zero) stops the procedure, as a Lua error does
     setVMFatalHook((text) => {
         if (!world.errored) {

@@ -99,7 +99,8 @@ export function processMidnightForDay(day: number): void {
     lastMidnightDay = day
     dbg('map', 'QUEUE PROCESS: Midnight!')
     objectUnjamAll()
-    scriptsCheckGameEvents(day)
+    // CE gameTimeEventProcess: not while a dialogue is up (no movie plays here: it pauses the tick)
+    if (!Scripting.dialogueActive()) scriptsCheckGameEvents(day)
     // CE ref: scripts.cc:424 gameTimeEventProcess → critter.cc:495 _critter_check_rads(gDude)
     const player = globalState.player as Critter | null
     if (player && !player.dead) checkRads(player)

@@ -19,6 +19,7 @@ import { IntFile } from "./intfile.js"
 import { Scripting } from "./scripting.js"
 import { BinaryReader } from "./util.js"
 import { dbg } from "./logger.js"
+import { scriptProcNumber, STOPS_PROC_ON_SELF } from "./scriptProcs.js"
 import { opMap, ScriptVM } from "./vm.js"
 import * as GameTime from "./gametime.js"
 import { BuiltinVarReader, setBuiltinVarReader, sslValue } from "./lua/luaRuntime.js"
@@ -34,7 +35,14 @@ export module ScriptVMBridge {
                 args.push(this.pop())
             args.reverse()
 
+            const self = this.scriptObj.self_obj
             var r = (<any>this.scriptObj)[procName].apply(this.scriptObj, args)
+            // (destroying / killing / damaging its own self_obj ends the procedure — CE drops its frame)
+            if(STOPS_PROC_ON_SELF.has(procName) && self && args[0] === self) {
+                this.halted = true
+                this.aborted = true
+                return
+            }
             // CE values are typed: a null object is 0, a truth value 0 / 1 (as the Lua backend's sslValue)
             if(pushResult)
                 this.push(sslValue(r))
@@ -447,13 +455,25 @@ export module ScriptVMBridge {
             // patch scriptObj to allow transparent procedure calls
             // TODO: maybe we should check if we're interrupting the VM
             for(const procName in this.intfile.procedures) {
-                (<any>this.scriptObj)[procName] = () => {
-                    // CE scriptExecProc: the startup code runs before the first proc (setDeferObjectStart)
-                    const entry = this.scriptObj._pendingEntry
-                    if (entry) { this.scriptObj._pendingEntry = undefined; entry() }
-                    this.call(procName)
-                }
+                (<any>this.scriptObj)[procName] = () => { this.engineCall(procName) }
+                // CE programFindProcedure compares names case-insensitively (Talk_P_Proc is talk_p_proc)
+                const lower = procName.toLowerCase()
+                if (lower !== procName && !(lower in this.intfile.procedures)) (<any>this.scriptObj)[lower] = (<any>this.scriptObj)[procName]
             }
+        }
+
+        // An engine entry into a procedure (CE scripts.cc scriptExecProc): the startup code runs
+        // before the first proc (setDeferObjectStart); script->action = proc before the run,
+        // script->source = 0 after it (not while the proc waits in a dialogue).
+        engineCall(procName: string, args: any[] = []): any {
+            const so = this.scriptObj
+            const entry = so._pendingEntry
+            if (entry) { so._pendingEntry = undefined; entry() }
+            so.action = scriptProcNumber(procName)
+            const waiting = this.suspended.length
+            const r = this.call(procName, args)
+            if (this.suspended.length <= waiting) so.source_obj = 0
+            return r
         }
 
         mapScript(): any {

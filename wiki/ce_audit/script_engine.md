@@ -333,7 +333,7 @@ Top findings, most severe first:
 - **Fix:** Throw `VMFatalError('Undefined opcode …')` for an unknown opcode. Port the pure sfall functions (string, math, typeof, sfall gvars, active_hand, game_loaded, in_world_map).
 - **Ref:** Partly in upu_support.md (planned items); the suspension side effect is NEW.
 
-### SCR-13 — minor VM semantics (LOW)
+### SCR-13 — minor VM semantics (LOW) — **PARTLY FIXED 2026-10-25**
 - These come from `opAdd` / `opSubtract` / `opMultiply` / `opModulo` / `opUnaryMinus` / `opFloor` / `opIf` / `opNot` (`interpreter.cc:1412-1880`):
   - no 32-bit wraparound (CE `opAdd` turns overflow into a float; sub and mul wrap);
   - MOD of a float is computed instead of a fatal error;
@@ -341,6 +341,7 @@ Top findings, most severe first:
   - `""` is false in `if`;
   - `!` pushes a boolean.
 - No shipped script is known to depend on these. Ref: NEW (scripting_vm.md §9.2 already notes the string ordering edge case).
+- **Fixed 2026-10-25:** PARTLY: `if` / `while` and AND / OR treat a string, even "", as true in both backends (CE `ProgramValue::isEmpty`); `!` already pushed an int. Not ported (needs int2lua changes, Lua integers are 64-bit): 32-bit wraparound / ADD overflow to float, the fatal errors for MOD of a float and arithmetic on strings.
 
 ### SCR-14 — wiki inconsistency (LOW, doc) — **FIXED 2026-10-25**
 - `wiki/scripting_vm.md` §4's opcode table numbers the base opcodes wrongly; for example it lists 0x8002 as push_base, 0x8016 as `+` and 0x8027 as jmp.
@@ -348,7 +349,7 @@ Top findings, most severe first:
 - Per the CLAUDE.md wiki rule, this is a wiki / CE conflict to flag; CE is right. Ref: NEW.
 - **Fixed 2026-10-25:** the §4 table is regenerated from CE `interpreter.h`; §9.4's pop_return number fixed too.
 
-### Smaller ones (LOW, collected)
+### Smaller ones (LOW, collected) — **PARTLY FIXED 2026-10-25**
 - **Midnight during a dialogue** (`gameTick.ts processMidnightForDay`): CE `gameTimeEventProcess` skips `_scriptsCheckGameEvents` while a dialogue is active, and everything while a movie plays.
 - **`metarule3(100)`** removes only the first match; CE removes all matching script events.
 - **Spatial triggers** use the current elevation's spatials, not the moving object's own (`Obj.ts:475`, `GameMap.ts:104`).
@@ -357,6 +358,7 @@ Top findings, most severe first:
 - **LVARs** are allowed in map scripts.
 - **Procedure lookup** is case-sensitive.
 - **External variables** are not checked for existence.
+- **Fixed 2026-10-25:** midnight's script checks skip a dialogue (`Scripting.dialogueActive`; a movie pauses the tick anyway); `metarule3(100)` already removed every match; spatials are the moving object's elevation (`addObject` now sets `elevation`); `message_str` (0, 0) / (−1, −1) are empty and (−2, −2) proto.msg 650; a map script's `local_var` is −1 and its `set_local_var` stores nothing; procedure names match case-insensitively. Left as they are: `queueProcessEvents`' stop flag (it only delays the rest of the due events by one tick; DH2's callbacks don't return it) and missing external variables (CE stops the script with a fatal error, DH2 reads 0).
 
 ## DH2-only behaviour
 

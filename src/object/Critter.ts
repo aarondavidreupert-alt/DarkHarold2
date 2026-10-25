@@ -319,7 +319,7 @@ export class Critter extends Obj {
             && toTileNum(position) >= 10 && !spatialsBusy) {
             spatialsBusy = true
             try {
-            const hitSpatials = hitSpatialTrigger(position)
+            const hitSpatials = hitSpatialTrigger(position, (this as any).elevation ?? globalState.gMap.currentElevation)
             for (let i = 0; i < hitSpatials.length; i++) {
                 const spatial = hitSpatials[i]
                 dbg('object', `[Object] triggered spatial ${spatial.script} (range=${spatial.range}) @ (${spatial.position.x}, ${spatial.position.y})`)

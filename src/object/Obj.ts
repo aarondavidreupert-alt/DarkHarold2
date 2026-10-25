@@ -564,8 +564,10 @@ export function zsortMap(levels: Obj[][] | null): void {
 // Spatial trigger lookup — shared by Obj.explode and Critter.move. CE scripts.cc
 // scriptsExecSpatialProc: the spatial's own tile always; otherwise within its radius,
 // and a radius of 0 means that tile only.
-export function hitSpatialTrigger(position: Point): any {
-    return globalState.gMap.getSpatials().filter((spatial) => {
+// CE scripts.cc scriptsExecSpatialProc(object, tile, elevation): the spatials of the moving
+// object's elevation (a critter on another floor than the dude's triggers its own floor's)
+export function hitSpatialTrigger(position: Point, elevation?: number): any {
+    return (globalState.gMap.getSpatials(elevation) ?? []).filter((spatial: any) => {
         const distance = hexDistance(position, spatial.position)
         if (distance === 0) return true
         const radius = spatial.range ?? 0

@@ -11,6 +11,7 @@
 // The interpreter is wasmoon (Lua 5.4 in WebAssembly, lib/wasmoon/, MIT),
 // loaded by play.html as the `wasmoon` global.
 
+import { scriptProcNumber, STOPS_PROC_ON_SELF } from '../scriptProcs.js'
 import { LUA_PRELUDE } from './prelude.js'
 import { dbg, dbgWarn } from '../logger.js'
 
@@ -100,7 +101,17 @@ export async function initLuaRuntime(wasmUri = 'lib/wasmoon/glue.wasm', factory?
             dbgWarn('lua', `${script.scriptName}: no intrinsic ${name}`)
             return 0
         }
-        return sslValue(f.apply(script, args))
+        const self = script.self_obj
+        const r = sslValue(f.apply(script, args))
+        // (on its own self_obj these end the procedure: the prelude's intrinsic raises EXIT)
+        if (STOPS_PROC_ON_SELF.has(name) && self && args[0] === self) script._stopProc = true
+        return r
+    })
+    // true once (and cleared) when the last intrinsic ended the procedure (STOPS_PROC_ON_SELF)
+    lua.global.set('__host_stopped', (script: LuaHostScript) => {
+        const stop = script._stopProc === true
+        script._stopProc = false
+        return stop
     })
     lua.global.set('__host_var', (script: LuaHostScript, name: string) => sslValue(readBuiltin!(script, name)))
     // CE exported variables live on the map script (vm_bridge.ts op_fetch_external)
@@ -151,8 +162,16 @@ export function attachLuaScript(script: LuaHostScript, name: string, source: str
             // CE scriptExecProc: the startup code runs before the first proc (deferEntry)
             const entry = script._pendingEntry
             if (entry) { script._pendingEntry = undefined; entry() }
-            return sslValue(luaCall(id, procName, ...args))
+            // … script->action = proc before the run, script->source = 0 after it (not while
+            // the proc waits in a dialogue)
+            script.action = scriptProcNumber(procName)
+            const result = sslValue(luaCall(id, procName, ...args))
+            if (!luaHasSuspended(id)) script.source_obj = 0
+            return result
         }
+        // CE programFindProcedure compares names case-insensitively (Talk_P_Proc is talk_p_proc)
+        const lower = procName.toLowerCase()
+        if (lower !== procName && !procs.includes(lower)) script[lower] = script[procName]
     }
     script._lua = {
         resume: () => luaResume(id),
@@ -161,9 +180,11 @@ export function attachLuaScript(script: LuaHostScript, name: string, source: str
     }
     const entry = luaEntryName(id)
     if (typeof script[entry] !== 'function') return
-    // (a map object's: when its first proc runs, Scripting.initScript)
-    if (deferEntry) script._pendingEntry = () => script[entry]()
-    else script[entry]()
+    // (run as the VM runs its startup code, not as an engine call: no action / source change;
+    // a map object's runs when its first proc does, Scripting.initScript)
+    const run = () => { luaCall(id, entry) }
+    if (deferEntry) script._pendingEntry = run
+    else run()
 }
 
 /** Drop the Lua state of a script (its environment and suspended procedures). */

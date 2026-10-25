@@ -144,7 +144,8 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     }, // op_exit_prog
 
     0x802f: function () {
-        if (!this.pop()) {
+        // CE opIf → ProgramValue::isEmpty: 0 / 0.0 / a null object are false, a string true
+        if (!sslTrue(this.pop())) {
             this.pc = this.pop()
         } else this.pop()
     }, // op_if
@@ -181,9 +182,9 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     }, // op_dup
 
     0x8030: function () {
-        // op_while
+        // op_while (CE opWhile: ProgramValue::isEmpty, as op_if)
         var cond = this.pop()
-        if (!cond) {
+        if (!sslTrue(cond)) {
             var pc = this.pop()
             this.pc = pc
         }

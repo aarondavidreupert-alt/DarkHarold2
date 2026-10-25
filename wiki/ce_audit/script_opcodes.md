@@ -462,11 +462,12 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
 - Fix: compare with `obj.elevation`, re-home the object between elevation lists whenever they
   differ, return the tile.
 
-### OP-13 — per-proc script fields aren't reset (LOW, NEW)
+### OP-13 — per-proc script fields aren't reset (LOW, NEW) — **FIXED 2026-10-25**
 - CE `scripts.cc scriptExecProc` (:1336–1340): `script->action = proc` before the run,
   `script->source = nullptr` after it; `target` defaults to the owner.
 - DH2: `action` is never assigned (`script_action` is always 0); `source_obj` keeps its last value
   across procs (a `critter_p_proc` sees whoever last talked to the critter; CE sees 0).
+- **Fixed 2026-10-25:** every engine call into a procedure (VM `GameScriptVM.engineCall`, the Lua proc wrapper) sets `action` to its SCRIPT_PROC_* number (`src/scriptProcs.ts`) and clears `source_obj` afterwards, unless the procedure is waiting in a dialogue. Startup code is not an engine call (no change).
 
 ### OP-14 — `metarule3` 100 / 105 / 106 (MED, NEW) — **FIXED 2026-10-25**
 - 106 TILE_GET_NEXT_CRITTER: CE walks the critters at (tile, elevation) and returns the one after
@@ -477,10 +478,11 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
   matching event, of any type.
 - 101 / 105 subtile marking: DH2 no-op / constant 1 (worldmap fog of war not implemented).
 
-### OP-15 — self-destruction doesn't stop the procedure (LOW, NEW)
+### OP-15 — self-destruction doesn't stop the procedure (LOW, NEW) — **FIXED 2026-10-25**
 - CE `destroy_object`, `destroy_mult_objs`, `kill_critter` and `critter_dmg` on self set
   PROGRAM_FLAG_0x0100, which ends `_interpret` (interpreter.cc:2628 / 2649). DH2 keeps executing
   the rest of the procedure on a destroyed / dead self.
+- **Fixed 2026-10-25:** `destroy_object`, `destroy_mult_objs`, `kill_critter` and `critter_dmg` on the script's own `self_obj` end the procedure (VM: halt and drop the frame; Lua: EXIT). CE's flag also keeps the script from running any later procedure until it is reloaded; DH2 stops only the current one.
 
 ### OP-16 — `critter_add_trait` OBJECT traits (MED, NEW) — **FIXED 2026-10-25**
 - CE `opCritterAddTrait`: AI_PACKET → `combat_ai.cc:3280 critterSetAiPacket` (also writes the

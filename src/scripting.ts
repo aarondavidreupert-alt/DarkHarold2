@@ -112,6 +112,10 @@ export module Scripting {
     var dialogueOptionReactions: number[] = [] // parallel — GAME_DIALOG_REACTION_* (head reaction on pick)
     var scriptMessageAudio: { [msgFile: string]: { [msgID: number]: string } } = {} // {id}{audio}{text} middle field
     var currentDialogueObject: Obj | null = null
+    /** CE game_dialog.cc _gdialogActive: a dialogue (or its barter / control screens) is up. */
+    export function dialogueActive(): boolean {
+        return currentDialogueObject !== null
+    }
 
     // Conversation review log. CE ref: game_dialog.cc gDialogReviewEntries —
     // every NPC line (gsay_reply/gsay_message) paired with whichever option
@@ -523,6 +527,11 @@ export module Scripting {
             // passed in a string message
             return msg
 
+        // CE scripts.cc _scr_get_msg_str_speech: (0, 0) and (−1, −1) are an empty string,
+        // (−2, −2) proto.msg 650
+        if ((id === 0 && msg === 0) || (id === -1 && msg === -1)) return ''
+        if (id === -2 && msg === -2) return getProtoMsg(650) ?? ''
+
         var name = getScriptName(id)
         if (name === null) {
             warn('getScriptMessage: no script with ID ' + id)
@@ -786,6 +795,8 @@ export module Scripting {
             }
         }
         set_local_var(lvar: number, value: any) {
+            // CE scriptSetLocalVar: a map script has no LVARs in scripts.lst — nothing is stored
+            if (globalState.gMap?.mapScript === this) { warn('set_local_var: map scripts have no local vars'); return }
             this.lvars[lvar] = value
             info('set_local_var: ' + lvar + ' = ' + value + ' [' + this.scriptName + ']', 'lvars')
             log('set_local_var', arguments, 'lvars')
@@ -793,7 +804,8 @@ export module Scripting {
         local_var(lvar: number) {
             log('local_var', arguments, 'lvars')
             // CE scriptGetLocalVar: every LVAR exists from the start as 0 and a read
-            // never writes (an unset one is 0 here, not stored)
+            // never writes (an unset one is 0 here, not stored); a map script's read is −1
+            if (globalState.gMap?.mapScript === this) { warn('local_var: map scripts have no local vars'); return -1 }
             return this.lvars[lvar] ?? 0
         }
         map_var(mvar: number) {

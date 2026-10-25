@@ -125,7 +125,11 @@ endgame (END-01).
 arrow-mode click opens menu, no Shift run toggle (MOUSE-01, MOUSE-02, PREF-01); hover icon, repeated "You see",
 no AP / X on hex cursor (MOUSE-03…05); language filter does nothing (MSG-01, PREF-02).
 
-LOW findings are listed in each report only.
+LOW findings are listed in each report only. The 16 LOW findings with a section of their own were worked
+through on 2026-10-25 (each header marked FIXED / PARTLY FIXED): 14 fixed (ANIM-04, ANIM-05, COMBAT-15, AI-09,
+AI-10, PTY-06, DLG-07, INV-16, ITEM-04, the ITEM-05 / 10 / 11 / 14 / 16 / 20 group, SCR-14, OP-13, OP-15; CHAR-06
+earlier), 2 in part — SCR-13 (the 32-bit int semantics need int2lua changes) and "Smaller ones" (the queue's stop
+flag and the fatal error for a missing external variable are left as they are). SCR-11 stays checked, not ported.
 
 ### MED findings fixed (2026-10-25, branch `small-autits`)
 

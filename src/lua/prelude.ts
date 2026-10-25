@@ -13,12 +13,13 @@
 //   __host_set_ext(script, name, v)
 //   __host_option(script, kind, fn, ...)  gsay_option / giq_option with a Lua target
 //   __host_log(level, text)
+//   __host_stopped(script)           true when the last intrinsic ended the procedure
 
 export const LUA_PRELUDE = String.raw`
 local host_call, host_var = __host_call, __host_var
 local host_get_ext, host_set_ext = __host_get_ext, __host_set_ext
-local host_option, host_log = __host_option, __host_log
-__host_call, __host_var, __host_get_ext, __host_set_ext, __host_option, __host_log = nil
+local host_option, host_log, host_stopped = __host_option, __host_log, __host_stopped
+__host_call, __host_var, __host_get_ext, __host_set_ext, __host_option, __host_log, __host_stopped = nil
 
 local type, tostring, select, pairs, error, pcall = type, tostring, select, pairs, error, pcall
 local load, rawget, rawset, setmetatable = load, rawget, rawset, setmetatable
@@ -76,9 +77,9 @@ local function floor(v)
     return math.tointeger(r) or r
 end
 
--- SSL truth: 0 (and the empty string, as in the VM) is false.
+-- SSL truth (CE ProgramValue::isEmpty): 0 is false; a string, even "", is true.
 local function truthy(v)
-    return v ~= 0 and v ~= false and v ~= nil and v ~= ""
+    return v ~= 0 and v ~= false and v ~= nil
 end
 
 -- sslc compiles and/or to opAnd/opOr: both sides are evaluated first.
@@ -115,6 +116,8 @@ local BUILTIN_VARS = {
 
 local SUSPEND = {}  -- yielded by gsay_end / gsay_message
 local EXIT = {}     -- raised by exit() (CE opExit / opExitProgram)
+-- the intrinsics that end the procedure on the script's own self_obj (scriptProcs.ts)
+local STOPS_PROC_ON_SELF = { destroy_object = true, destroy_mult_objs = true, kill_critter = true, critter_dmg = true }
 
 -- Scripts are keyed by a numeric id the host assigns: wasmoon wraps a JS object
 -- in a new userdata every time it crosses into Lua, so the object itself is not
@@ -145,7 +148,16 @@ local function new_env(id, script, name)
     local function intrinsic(k)
         local f = api[k]
         if f == nil then
-            f = function(...) return host_call(script, k, ...) end
+            if STOPS_PROC_ON_SELF[k] then
+                -- CE PROGRAM_FLAG_0x0100: destroying / killing / damaging self_obj ends the procedure
+                f = function(...)
+                    local r = host_call(script, k, ...)
+                    if host_stopped(script) then error(EXIT, 0) end
+                    return r
+                end
+            else
+                f = function(...) return host_call(script, k, ...) end
+            end
             api[k] = f
         end
         return f
