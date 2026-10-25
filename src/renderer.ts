@@ -130,6 +130,8 @@ export class Renderer {
     private windows: WindowFrame[] = []
     private objects: Obj[]
     roofTiles: TileMap
+    // the roof squares the last frame left out (the flood fill around the dude); picking reads it
+    lastRoofHideSet: Set<string> | null = null
     floorTiles: TileMap
     fonts: Font[]
 
@@ -223,6 +225,7 @@ export class Renderer {
                     for (const k of roofFloodFill(this.roofTiles, cover.x, cover.y)) hideSet.add(k)
                 }
             }
+            this.lastRoofHideSet = hideSet
             this.renderRoof(this.roofTiles, hideSet)
         }
 
@@ -653,6 +656,15 @@ export function getObjectUnderCursor(p: (obj: Obj) => boolean) {
     const player = globalState.player
     const mouseHex = hexFromScreen(mousePosition.x, mousePosition.y)
     const eggRadius = Config.ui.eggRadius ?? 8
+    // CE: with objectType -1 (not the crosshair's critter pick) nothing is picked over a visible
+    // roof outside the egg (_square_roof_intersect / _obj_intersects_with(gEgg))
+    const renderer = globalState.renderer
+    if (globalState.cursorMode !== 'attack' && Config.ui.showRoof && renderer?.roofTiles && player
+        && !(Config.ui.showEgg !== false && hexDistance(player.position, mouseHex) <= eggRadius)) {
+        const sq = tileFromScreen(mousePosition.x, mousePosition.y + 96) // roofs draw 96 px up
+        const roofTile = renderer.roofTiles[sq.x]?.[sq.y]
+        if (roofTile && roofTile !== 'grid000' && !renderer.lastRoofHideSet?.has(`${sq.x},${sq.y}`)) return null
+    }
     let candidate: Obj | null = null
     for (let i = objects.length - 1; i >= 0; i--) {
         const obj = objects[i]

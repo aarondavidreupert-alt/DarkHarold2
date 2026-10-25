@@ -274,7 +274,7 @@ Top findings:
 - **DH2:** `renderer.ts:221` draws only `hex_outline`; no path/AP readout. Players only learn the cost after clicking.
 - **Fix:** on a 250 ms rest compute `recalcPath` length and the CE AP cost (crippled-leg adjustment via the existing movement-cost helper) and render the number / `X` centred in the hex cursor.
 
-### MOUSE-06 — Object picking ignores roofs and corpses; skips objects[0] (MED, NEW) — **PARTLY FIXED 2026-10-25**
+### MOUSE-06 — Object picking ignores roofs and corpses; skips objects[0] (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `gameMouseGetObjectUnderCursor`: with `objectType == -1`, nothing is picked when the mouse is over a visible roof outside the egg (`_square_roof_intersect` / `_obj_intersects_with(gEgg)`); walking the intersect list top-down it skips dead or knocked-out critters (and translucent hits) in favour of something underneath, falling back to the lowest candidate; the dude is excluded unless asked for.
 - **DH2:** `renderer.ts:611 getObjectUnderCursor`: no roof test (objects inside roofed buildings can be clicked/looked at from outside), the topmost opaque hit wins even if it is a corpse lying on an item, and the loop `for (i = objects.length − 1; i > 0; i--)` never tests `objects[0]`.
 - **Fix:** add the roof/egg test, the dead/KO skip, and `i >= 0`.
