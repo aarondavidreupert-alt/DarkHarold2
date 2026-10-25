@@ -2223,6 +2223,10 @@ export class Combat {
     // player's ST + 2 per Heave Ho!, at most 10); no weapon reaches 1 (2 with
     // CRITTER_LONG_LIMBS).
     attackRange(critter: Critter, weaponObj: Obj | null): number {
+        return Combat.weaponRange(critter, weaponObj)
+    }
+
+    static weaponRange(critter: Critter, weaponObj: Obj | null): number {
         if (!weaponObj || weaponObj.pid === undefined) return (((critter.pro as any)?.extra?.flags ?? 0) & 0x2000) ? 2 : 1
         let range = (weaponObj as any).weapon.getMaximumRange()
         if (attackTypeOf(weaponObj) === 'throw') {

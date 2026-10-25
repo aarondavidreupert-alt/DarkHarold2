@@ -178,6 +178,9 @@ LOW findings are listed in each report only.
 | | INV-05, INV-06 | looting: CRITTER_NO_STEAL → inventry.msg 50, the target's pickup_p_proc runs and can override; a knocked-out target opens the loot window, not stealing |
 | | INV-07, INV-10 | inventory in combat without enough AP → inventry.msg 19, no window; equipping runs no pickup_p_proc; the armor slot takes only armor from any source |
 | | INV-15 | NPCs get armor stats only from the OBJECT_WORN item (no carried-armor fallback) |
+| | INV-08 | the merchant's table shows what the merchant wants for it; a deal says inventry.msg 27; T talks, M offers |
+| | INV-09 | the inventory summary shows CE's fields: HP, the AC stat, DT/DR% per damage type from the critter's stats (Explosion, not Electrical), CE's weapon lines (active mode, melee bonus, range rule, ammo), "(Not worn)" for held armor, Total Wt red when encumbered |
+| | INV-11 | inventory Look runs the examine pipeline (description_p_proc, weapon / ammo lines) and adds the weight line (proto.msg 540 / 541) |
 | Items | ITEM-02, ITEM-03 | the Solar Scorcher recharges in daylight (item.msg 500 otherwise); the Motion Sensor uses a charge and opens the automap in scanner mode (critters shown only then; the SCANNER button needs a sensor in hand, misc.msg 17 / 18) |
 | | ITEM-06 | an armed explosive is put down at the user's feet; non-team critters nearby that pass a PE roll suspect the player and start a fight |
 | | INV-14, ITEM-19 | an armed explosive dropped from the inventory runs the same watcher check when it closes; non-biped critters without CRITTER_BARTER take no items |

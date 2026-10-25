@@ -19,6 +19,9 @@ limitations under the License.
 
 import { beginUseItemOn, usePendingItemOn } from '../useItemOn.js'
 import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, ammoSplitOff, weaponGetAmmoTypePid } from '../weaponAmmo.js'
+import { weaponAttackType } from '../combat/hitChance.js'
+import { Combat } from '../combat.js'
+import { loadPRO } from '../pro.js'
 import globalState from '../globalState.js'
 import { dbg } from '../logger.js'
 import { lazyLoadImage } from '../images.js'
@@ -34,7 +37,8 @@ import { refreshStealthState } from '../miscItem.js'
 import { armorPerkSwap } from '../perks.js'
 import { Events } from '../events.js'
 import { unarmedHandMode } from '../unarmed.js'
-import { getMessage } from '../util.js'
+import { getMessage, getProtoMsg } from '../util.js'
+import { objExamine } from '../examine.js'
 
 // --- Public open / close lifecycle -----------------------------------------
 
@@ -165,11 +169,19 @@ export function showInventory(useOn = false) {
         nameEl.className = 'invItemName'
         nameEl.textContent = obj.name || ''
         $info.appendChild(nameEl)
-        const desc = obj.getDescription ? obj.getDescription() : null
-        if (desc) {
+        // CE inventory.cc inventoryExamineItem: _obj_examine_func (description_p_proc, the
+        // proto description, the weapon / ammo lines), then "It weighs %d pound(s)."
+        // (proto.msg 540 / 541 for one pound) unless the item weighs nothing
+        const lines = globalState.player ? objExamine(globalState.player, obj) : []
+        const weight = obj.getWeight() // CE itemGetWeight
+        if (weight !== 0) {
+            const fmt = getProtoMsg(weight === 1 ? 541 : 540) ?? 'It weighs %d pounds.'
+            lines.push(fmt.replace('%d', String(weight)))
+        }
+        for (const line of lines) {
             const descEl = document.createElement('div')
             descEl.className = 'invItemDesc'
-            descEl.textContent = desc
+            descEl.textContent = line
             $info.appendChild(descEl)
         }
     }
@@ -214,14 +226,29 @@ export function showInventory(useOn = false) {
                 addRow(`  ${getMessage('inventry', 24) ?? 'Unarmed dmg:'} ${mode.bonusDamage + mode.minDmg}-${mode.bonusDamage + melee + mode.maxDmg}`, '')
                 return
             }
-            const name = weapon.name ?? label
-            addRow(name, '')
+            // CE inventoryRenderSummary: the item's name; armor held in a hand "(Not worn)";
+            // a weapon "Dmg: min-max" (+ Melee Damage for melee / unarmed modes) and, for a
+            // throw or a range above 1, "Rng: r" — of the hand's active mode; "Ammo: q/cap
+            // <ammo>" when it takes ammo
+            addRow(weapon.name ?? label, '')
+            if (weapon.subtype !== 'weapon') {
+                if (weapon.subtype === 'armor') addRow(getMessage('inventry', 18) ?? '(Not worn)', '')
+                return
+            }
             const pro = weapon.pro?.extra
-            if (pro) {
-                const minD = pro.minDmg ?? '?'
-                const maxD = pro.maxDmg ?? '?'
-                const rng = pro.maxRange1 ?? '?'
-                addRow(`  Dmg: ${minD}-${maxD}`, `Rng: ${rng}`)
+            if (!pro) return
+            const attackType = weaponAttackType(weapon)
+            const melee = attackType === 'melee' || attackType === 'unarmed' ? p.getStat('Melee') : 0
+            const range = Combat.weaponRange(p as any, weapon)
+            const dmg = `${getMessage('inventry', 15) ?? 'Dmg:'} ${pro.minDmg ?? 0}-${(pro.maxDmg ?? 0) + melee}`
+            if (attackType !== 'throw' && range <= 1) addRow(dmg, '')
+            else addRow(`${dmg}   ${getMessage('inventry', 16) ?? 'Rng:'} ${range}`, '')
+            const cap = ammoGetCapacity(weapon)
+            if (cap > 0) {
+                const q = ammoGetQuantity(weapon)
+                const ammoPid = weaponGetAmmoTypePid(weapon)
+                const ammoName = q !== 0 && ammoPid !== -1 ? ' ' + (getMessage('pro_item', loadPRO(ammoPid, ammoPid & 0xffff)?.textID ?? -1) ?? '') : ''
+                addRow(`${getMessage('inventry', 17) ?? 'Ammo:'} ${q}/${cap}${ammoName}`, '')
             }
         }
 
@@ -267,18 +294,19 @@ export function showInventory(useOn = false) {
             leftCol.appendChild(row)
         }
 
-        const armorAC: number = armorExtra?.AC ?? 0
-        const baseAC: number = p.getStat('AGI')
-        const dr = (key: string) => armorExtra?.stats?.[key] ?? 0
-
+        // CE gSummaryStats / gSummaryStats2 with inventry.msg 7-13: HP cur/max, Armor
+        // Class, then DT/DR% for Normal, Laser, Fire, Plasma and Explosion — the critter's
+        // stats (armor, perks, traits, drugs)
+        const msg = (id: number, fallback: string) => (getMessage('inventry', id) ?? fallback).trim()
+        const dtdr = (type: string) => `${p.getStat('DT ' + type) + p.getArmorDT(type)}/${Math.min(100, p.getStat('DR ' + type) + p.getArmorDR(type))}%`
         const derivedStats: [string, string][] = [
-            ['HP', `${p.getStat('HP')}/${p.getStat('Max HP')}`],
-            ['AC', String(baseAC + armorAC)],
-            ['Normal', `${dr('DR Normal')}%`],
-            ['Laser', `${dr('DR Laser')}%`],
-            ['Fire', `${dr('DR Fire')}%`],
-            ['Plasma', `${dr('DR Plasma')}%`],
-            ['Explode', `${dr('DR Electrical')}%`],
+            [msg(7, 'Hit Points'), `${p.getStat('HP')}/${p.getStat('Max HP')}`],
+            [msg(8, 'Armor Class'), String(p.getStat('AC'))],
+            [msg(9, 'Normal'), dtdr('Normal')],
+            [msg(10, 'Laser'), dtdr('Laser')],
+            [msg(11, 'Fire'), dtdr('Fire')],
+            [msg(12, 'Plasma'), dtdr('Plasma')],
+            [msg(13, 'Explode'), dtdr('Explosive')],
         ]
 
         for (const [lbl, val] of derivedStats) {
@@ -308,7 +336,9 @@ export function showInventory(useOn = false) {
         // CE item.cc objectGetInventoryWeight / STAT_CARRY_WEIGHT
         const current = p.getInventoryWeight()
         const max = p.getStat('Carry')
-        addRow('Total Wt:', `${current}/${max}`)
+        addRow(getMessage('inventry', 20) ?? 'Total Wt:', `${current}/${max}`)
+        // CE: red while encumbered
+        if (current > max) (($info.lastElementChild as HTMLElement).lastElementChild as HTMLElement).style.color = '#fc0000'
     }
 
     let _portraitInterval: ReturnType<typeof setInterval> | null = null

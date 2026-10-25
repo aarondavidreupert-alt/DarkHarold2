@@ -133,6 +133,8 @@ export interface BarterControl {
 }
 export let activeBarter: BarterControl | null = null
 
+let barterKeyHandler: ((e: KeyboardEvent) => void) | null = null
+
 function uiEndBarterMode() {
     activeBarter = null
     stopBarterPortraitAnimation()
@@ -298,6 +300,8 @@ export function uiBarterMode(merchant: Critter) {
             merchantBarterTable = []
 
             redrawBarterInventory()
+            // CE inventoryOpenTrade: inventry.msg 27 "Ok, that's a good trade." (not for party members)
+            uiSetDialogueReply(getMessage('inventry', 27) ?? "Ok, that's a good trade.")
             return true
         } else {
             // CE ref: inventory.cc:4742-4755 _barter_attempt_transaction —
@@ -411,6 +415,17 @@ export function uiBarterMode(merchant: Critter) {
 
     $id('barterTalkButton').onclick = uiEndBarterMode
     $id('barterOfferButton').onclick = () => { offer() }
+    // CE inventoryOpenTrade keys: T talk (back to the dialogue), M make the offer
+    if (barterKeyHandler) window.removeEventListener('keydown', barterKeyHandler)
+    barterKeyHandler = (e: KeyboardEvent) => {
+        if (globalState.uiMode !== UIMode.barter) return
+        const k = e.key.toLowerCase()
+        if (k === 't') uiEndBarterMode()
+        else if (k === 'm') offer()
+        else return
+        e.preventDefault()
+    }
+    window.addEventListener('keydown', barterKeyHandler)
 
     // CE ref: inventory.cc:1086-1225 — outer-inventory scroll buttons, one
     // item per click, clamped so there's always at least one item visible.
@@ -463,8 +478,10 @@ export function uiBarterMode(merchant: Critter) {
         drawInventory($id('barterBoxLeft'), 'l', playerBarterTable, playerOfferScroll)
         drawInventory($id('barterBoxRight'), 'r', merchantBarterTable, merchantOfferScroll)
 
+        // CE inventoryWindowRenderInnerInventories: the player's table at its cost, the
+        // merchant's at what the merchant wants for it (_barter_compute_value)
         const moneyLeft = totalAmount(playerBarterTable)
-        const moneyRight = totalAmount(merchantBarterTable)
+        const moneyRight = barterMinPlayerOffer(merchantBarterTable)
 
         $id('barterBoxLeftAmount').innerHTML = '$' + moneyLeft
         $id('barterBoxRightAmount').innerHTML = '$' + moneyRight

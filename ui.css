@@ -740,6 +740,11 @@ html, body {
   flex: 1 1 auto;
 }
 
+/* CE inventoryRenderSummary: one line per stat (labels like "Armor Class" don't wrap) */
+.invStatColRight .invStatLabel {
+  white-space: nowrap;
+}
+
 .number {
   position: absolute;
   /* 0 1 2 3 4 5 6 7 8 9 turn1 turn2 - */
