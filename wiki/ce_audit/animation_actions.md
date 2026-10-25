@@ -317,21 +317,23 @@ Top findings:
 - **Fix:** branch on subType 3. Walk to the SE neighbour, then follow CE's sequence.
 - known_bugs: NEW.
 
-### ANIM-04 — Idle fidget (LOW, NEW)
+### ANIM-04 — Idle fidget (LOW, NEW) — **FIXED 2026-10-25**
 - **CE:** `animation.cc _dude_fidget`: out of combat only, one random on-screen standing critter
   every `clamp(20 / n, 1, 7)` s + 0–3 s. The stand sfx plays for the dude, or for 'm…'-art
   critters within PER × 2.
 - **DH2:** `critterAnimation.ts:332`. Every critter loops its idle on its own, every 3–10 s, in
   combat too, with no sfx.
 - known_bugs: NEW.
+- **Fixed 2026-10-25:** CE's single `_dude_fidget` scheduler (`critterAnimation.ts dudeFidget`): out of combat, one random standing critter on screen, its stand sound for the dude or an 'm…' critter within PER × 2, the next after clamp(20 / n, 1, 7) s + 0–3 s; other critters stand on frame 0.
 
-### ANIM-05 — Straight-move speed for knockback and fire dance (LOW, NEW)
+### ANIM-05 — Straight-move speed for knockback and fire dance (LOW, NEW) — **FIXED 2026-10-25**
 - **CE:** `animateMoveObjectToTileStraight`, `_make_straight_path(..., 4)` for critters. A node
   is every 4 screen pixels, one per animation tick.
 - **DH2:** `lifecycle.ts:257 moveStraight`, one hex per frame.
 - **Impact:** knockback and the burning run end several times sooner, and the slide outruns the
   fall animation.
 - known_bugs: NEW.
+- **Fixed 2026-10-25:** a hex of the straight slide takes its screen length / 4 frames at the art's fps (CE's node every 4 pixels, one a frame); the critter still steps a hex at a time, without the in-between pixel offsets.
 
 ## DH2-only behaviour
 - `walkInFrontOf` (Critter.ts:481) is DH2's universal "go next to it": it stops one path step

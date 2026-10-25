@@ -19,7 +19,9 @@ limitations under the License.
 // object.ts per wiki/ts-split-refactor.md §2.
 
 import { Config } from '../config.js'
-import { directionOfDelta, hexToScreen, Point } from '../geometry.js'
+import { directionOfDelta, hexDistance, hexToScreen, Point } from '../geometry.js'
+import { randomBetween } from '../random.js'
+import { objectOnScreen } from '../renderer.js'
 import globalState from '../globalState.js'
 import { lazyLoadImage } from '../images.js'
 import { dbg, dbgWarn } from '../logger.js'
@@ -328,18 +330,51 @@ Critter.prototype.updateStaticAnim = function (this: Critter): void {
     }
 }
 
-// Advance the idle animation one frame, with a random pause between cycles so critters
-// play their idle/fidget loop periodically rather than continuously.
-// Never sets animCallback, so inAnim() stays false and movement is never blocked.
+// CE animation.cc _dude_fidget (a ticker while a map is up, off in combat): one random critter
+// standing on screen plays its stand animation once, the stand sound for the dude or for an
+// 'm…'-art critter within PER × 2 hexes; the next one comes clamp(20 / candidates, 1, 7) s
+// plus 0–3 s later (7 s when there was none). The Woodsman encounter's PID 0x10000FA is left out.
+let fidgetLastTime = 0
+let fidgetNextDelay = 0
+function dudeFidget(time: number): void {
+    const gMap = globalState.gMap
+    const dude = globalState.player
+    if (!gMap || !dude || globalState.inCombat || dude.visible === false) return
+    if (time - fidgetLastTime <= fidgetNextDelay) return
+    fidgetLastTime = time
+    const candidates: Critter[] = []
+    for (const o of gMap.getObjects()) {
+        if (candidates.length >= 100) break
+        if (o.type !== 'critter' || o.visible === false || (o as Critter).dead) continue
+        const c = o as Critter
+        if (c.anim && c.anim !== 'idle') continue // ANIM_STAND only
+        if (gMap.mapID === 97 && c.pid === 0x10000fa) continue // MAP_SPECIAL_RND_WOODSMAN
+        if (objectOnScreen(c)) candidates.push(c)
+    }
+    let delay = 7
+    if (candidates.length > 0) {
+        const c = candidates[randomBetween(0, candidates.length - 1)]
+        const name = c.art?.split('/').pop() ?? ''
+        if (c === dude || ((name[0] === 'm' || name[0] === 'M') && hexDistance(c.position, dude.position) < dude.getStat('PER') * 2)) {
+            playCharAnimSfx(c, 0 /* ANIM_STAND */)
+        }
+        c.nextIdleAnimTime = time // its one cycle starts (a frame from now)
+        c.lastFrameTime = time
+        delay = Math.trunc(20 / candidates.length)
+    }
+    fidgetNextDelay = randomBetween(0, 3000) + 1000 * Math.max(1, Math.min(7, delay))
+}
+
+// Advance the idle animation one frame: a critter stands on frame 0 until _dude_fidget picks
+// it, then plays its stand animation once. Never sets animCallback, so inAnim() stays false
+// and movement is never blocked.
 Critter.prototype.updateLoopingAnim = function (this: Critter): void {
     const info = globalState.imageInfo[this.art]
     if (!info || !info.numFrames) return
     const time = window.performance.now()
+    dudeFidget(time)
 
-    if (this.nextIdleAnimTime === 0) {
-        // Stagger first play per critter so they don't all start in sync on map load
-        this.nextIdleAnimTime = time + Math.random() * 5000
-    }
+    if (this.nextIdleAnimTime === 0) this.nextIdleAnimTime = Infinity // standing still until picked
 
     if (time < this.nextIdleAnimTime) {
         // Holding the pause between cycles — sit on frame 0.
@@ -358,8 +393,7 @@ Critter.prototype.updateLoopingAnim = function (this: Critter): void {
         if (this.frame >= info.numFrames) {
             this.frame = 0
             this.ceOff = ceStandOffset(this) // the fidget ends with _dude_stand
-            // Pause 3–10 s before the next idle cycle
-            this.nextIdleAnimTime = time + 3000 + Math.random() * 7000
+            this.nextIdleAnimTime = Infinity // until _dude_fidget picks it again
         }
     }
 }

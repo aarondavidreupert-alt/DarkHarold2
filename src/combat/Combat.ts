@@ -444,7 +444,7 @@ export class Combat {
         return _getHitChance(obj, target, region, from ?? obj.position, useDistance)
     }
 
-    // CE combat.cc _gcsd — attack_complex's start data, for the first attack only.
+    // CE combat.cc _gcsd — attack_complex's start data, for the first combatant's turn.
     gcsd: CombatStartData | null = null
 
     // CE attackCompute (SFALL form): explosive damage — or a thrown Plasma/EMP grenade —
@@ -490,7 +490,7 @@ export class Combat {
                 a.extras.push({ critter: victim, damage: d.damage, flags: 0, knockback: d.knockback })
             }
         } else {
-            roll = randomRoll(chance.hit + a.accuracyBonus, chance.crit).roll
+            roll = randomRoll(chance.hit, chance.crit).roll
         }
         dbg('rolls', `${actorName(attacker)} attacks ${actorName(a.defender)} — hit chance ${chance.hit}%, roll ${RollResult[roll]}`)
 
@@ -835,19 +835,19 @@ export class Combat {
         const a = attackInit(obj, target, weaponObj, region)
         mainAttack = a // CE _main_ctd (sfall combat_data)
         const gcsd = this.gcsd
-        if (gcsd && gcsd.attacker === obj) a.accuracyBonus = gcsd.accuracyBonus
+        if (gcsd) a.accuracyBonus = gcsd.accuracyBonus // (sfall combat data; getHitChance adds it)
         this.attackCompute(a)
         // CE combat.cc _combat_attack: the dude remembers whom he attacks (_ai_danger_source,
         // the party's attack_who), and every attacker its last target
         if (obj.isPlayer) critterSetWhoHitMe(obj, a.defender)
         ;(obj as any).aiLastTarget = a.defender
-        if (gcsd && gcsd.attacker === obj) {
-            // CE _combat_attack: the attack_complex bonuses and clamps
+        if (gcsd) {
+            // CE _combat_attack: the attack_complex bonuses and clamps, on every attack of the
+            // first combatant's turn (_gcsd is cleared when that turn ends, beginTurn)
             a.defenderDamage += gcsd.damageBonus
             if (a.defenderDamage < gcsd.minDamage) a.defenderDamage = gcsd.minDamage
             if (a.defenderDamage > gcsd.maxDamage) a.defenderDamage = gcsd.maxDamage
             if (gcsd.overrideAttackResults) a.defenderFlags = gcsd.targetResults
-            this.gcsd = null
         }
 
         // CE ref: actions.cc:629 _action_melee / _action_ranged — the weapon's ATTACK

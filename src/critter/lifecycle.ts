@@ -25,7 +25,7 @@ import { itemIsHidden, Obj } from '../object/Obj.js'
 import type { Critter } from '../object/Critter.js'
 import { Scripting } from '../scripting.js'
 import * as Endgame from '../endgame.js'
-import { hexInDirection, HEX_GRID_SIZE, Point } from '../geometry.js'
+import { hexInDirection, hexToScreen, HEX_GRID_SIZE, Point } from '../geometry.js'
 import { randomBetween } from '../random.js'
 import { toTileNum } from '../tile.js'
 import {
@@ -265,8 +265,10 @@ function isExitGridAt(t: Point): boolean {
 }
 
 // CE animation.cc animationRegisterMoveToTileStraight — the critter slides along `path`
-// while `anim` plays (one hex per frame at the FRM's fps), keeping its last frame if
-// the slide outlasts it.
+// while `anim` plays, keeping its last frame if the slide outlasts it. _make_straight_path
+// puts a node every 4 screen pixels for a critter and _object_straight_move takes one node a
+// frame, so a hex takes its screen length / 4 frames (8 sideways, 5 on a diagonal).
+const STRAIGHT_NODE_PIXELS = 4
 function moveStraight(obj: Critter, anim: string, path: Point[], then: () => void): void {
     let index = 0
     let animDone = false
@@ -275,13 +277,17 @@ function moveStraight(obj: Critter, anim: string, path: Point[], then: () => voi
     obj.staticAnimation(anim, () => { animDone = true; finish() }, true)
     if (slideDone) return
     const fps = globalState.imageInfo[obj.art]?.fps || 10
+    const framesTo = (from: Point, to: Point): number => {
+        const a = hexToScreen(from.x, from.y), b = hexToScreen(to.x, to.y)
+        return Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / STRAIGHT_NODE_PIXELS))
+    }
     const step = () => {
         if (obj.dead && index === 0 && !globalState.gMap) return
         obj.move({ ...path[index++] }, undefined, false)
         if (index >= path.length) { slideDone = true; finish(); return }
-        setTimeout(step, 1000 / fps)
+        setTimeout(step, framesTo(path[index - 1], path[index]) * 1000 / fps)
     }
-    setTimeout(step, 1000 / fps)
+    setTimeout(step, framesTo(obj.position, path[0]) * 1000 / fps)
 }
 
 // CE actions.cc actionKnockdown — knockback slide: up to MAX_KNOCKDOWN_DISTANCE (20)

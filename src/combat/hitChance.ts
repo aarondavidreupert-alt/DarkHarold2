@@ -194,6 +194,10 @@ export function getHitChance(obj: Critter, target: Critter, region: string, from
         toHit -= darknessPenalty(target)
     }
 
+    // CE attackDetermineToHit: attack_complex's accuracy bonus (_gcsd) for every to-hit during
+    // the first combatant's turn, before the 95 cap (spray lines and AI decisions included)
+    toHit += (globalState.combat as any)?.gcsd?.accuracyBonus ?? 0
+
     if (obj.isBlinded) toHit -= 25
     if (((target.injuryFlags ?? 0) & 0x03) !== 0) toHit += 40 // DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN
 

@@ -275,10 +275,11 @@ Top findings, most severe first:
 - **Impact:** save / reload during a fight escapes it, and the kill XP collected so far (`combatExps`) is lost.
 - **Fix:** serialise the `Combat` fields and resume, or refuse saving in combat (CE does allow it).
 
-### COMBAT-15 — attack_complex (`_gcsd`) bonuses (LOW, NEW)
+### COMBAT-15 — attack_complex (`_gcsd`) bonuses (LOW, NEW) — **FIXED 2026-10-25**
 - **CE:** `_gcsd` is non-null for the whole first combatant turn. `attackDetermineToHit` adds `accuracyBonus` before the 95 cap, for every to-hit computed (spray lines, AI decisions), and `_combat_attack` applies the damage clamps to every attack in that turn.
 - **DH2:** Combat.ts:813/467 adds the bonus after the cap, for the first single-shot attack only (not in `computeSpray`), then clears `gcsd`.
 - **Fix:** read `gcsd.accuracyBonus` inside `getHitChance` before the cap, and clear `gcsd` at the end of the first turn.
+- **Fixed 2026-10-25:** `getHitChance` adds `gcsd.accuracyBonus` before the 95 cap (every to-hit of the first combatant's turn, spray and AI included); the damage clamps and result override apply to every attack of that turn; `gcsd` is cleared when the turn ends (`beginTurn`).
 
 ### COMBAT-16 — Super Cattle Prod / Mega Power Fist ammo cost (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `attackCompute` → `item.cc:_item_w_compute_ammo_cost` doubles `ammoQuantity` for PROTO_ID_SUPER_CATTLE_PROD (399) and PROTO_ID_MEGA_POWER_FIST (407).
