@@ -36,6 +36,7 @@ import { getMessage, getProtoMsg } from './util.js'
 import { Config } from './config.js'
 import { randomBetween } from './random.js'
 import { uiSteal } from './ui_steal.js'
+import { DAM_KNOCKED_OUT } from './combat/results.js'
 import { currentUnarmed, unarmedAPCost } from './unarmed.js'
 
 // Return the skill ID used by the Fallout 2 engine
@@ -137,9 +138,11 @@ export function playerUseSkill(skill: Skills, obj: Obj, performer?: Critter): vo
 
     if (!scriptHandled) {
         // CE ref: actions.cc:1350,1428-1431 — Steal opens the interactive per-item UI.
-        // Dead/knocked-out targets get free loot instead.
+        // CE inventory.cc:4510 inventoryOpenStealing: _gIsSteal needs critterIsActive, so dead
+        // and knocked-out targets get a plain loot window.
         if (skillName === 'Steal') {
-            if (obj.type === 'critter' && target.dead !== true) {
+            const inactive = target.dead === true || ((target as Critter).injuryFlags & DAM_KNOCKED_OUT) !== 0
+            if (obj.type === 'critter' && !inactive) {
                 uiSteal(globalState.player as Critter, target)
             } else if (obj.type === 'critter') {
                 uiLoot(obj)

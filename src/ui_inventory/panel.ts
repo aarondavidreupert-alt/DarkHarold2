@@ -25,7 +25,7 @@ import { lazyLoadImage } from '../images.js'
 import { Obj, createObjectWithPID, cloneItem } from '../object.js'
 import { uiGetAmount } from '../ui_barter/swap.js'
 import { Scripting } from '../scripting.js'
-import { drawAC, drawAP, uiDrawWeapon } from '../ui_hud.js'
+import { drawAC, drawAP, uiDrawWeapon, uiLog } from '../ui_hud.js'
 import { makePanelDraggable } from '../ui_drag.js'
 import { UIMode, closeAllPanels, isInventoryOpen, registerCloseInventoryPanel } from '../ui_panels.js'
 import { appendItemSlot, $id, clearEl, showv, hidev, makeEl } from '../ui_dom.js'
@@ -123,6 +123,15 @@ export function initInventory(): void {
 export function showInventory(useOn = false) {
     if (!useOn && !isInventoryOpen()) useOnTarget = null
     const wasOpen = isInventoryOpen()
+    // CE inventory.cc inventoryOpen: in combat, too few AP → inventry.msg 19 and no window
+    if (!wasOpen && !useOn && !useOnTarget && globalState.inCombat && globalState.player?.AP) {
+        const player = globalState.player
+        const apCost = Math.max(0, 4 - 2 * (player.hasPerk('Quick Pockets') ? 1 : 0))
+        if (apCost > 0 && apCost > player.AP.getAvailableCombatAP()) {
+            uiLog(getMessage('inventry', 19) ?? "You don't have enough action points to use inventory")
+            return
+        }
+    }
     globalState.uiMode = UIMode.inventory
     if (!wasOpen) {
         Events.off('statsChanged', onStatsChangedRefresh)

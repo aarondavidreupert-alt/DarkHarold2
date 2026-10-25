@@ -32,6 +32,8 @@ export interface RenderOptions {
     // Pan offset in canvas pixels, applied after auto-centering
     panX?: number
     panY?: number
+    // CE AUTOMAP_WITH_SCANNER: living, visible critters drawn on any tile
+    scanner?: boolean
 }
 
 export function renderAutomapCanvas(width: number, height: number, opts: RenderOptions = {}): HTMLCanvasElement {
@@ -131,7 +133,7 @@ export function drawAutomapInto(canvas: HTMLCanvasElement, opts: RenderOptions =
     // visited — not just the one currently loaded.
     const objSize = Math.max(2, Math.ceil(scale * 1.6))
 
-    interface RenderObj { x: number; y: number; color: string }
+    interface RenderObj { x: number; y: number; color: string; anyTile?: boolean }
     const renderObjects: RenderObj[] = []
 
     const colorForLive = (obj: any): string | null => {
@@ -143,7 +145,8 @@ export function drawAutomapInto(canvas: HTMLCanvasElement, opts: RenderOptions =
         }
         if (obj.type === 'item') return '#FFCC00'
         if (obj.type === 'critter') {
-            if ((obj as any).isPlayer) return null
+            // CE automapRenderInMapWindow: other critters only with the scanner
+            if ((obj as any).isPlayer || !opts.scanner || obj.dead || obj.visible === false) return null
             return '#FF3333'
         }
         return null
@@ -160,7 +163,7 @@ export function drawAutomapInto(canvas: HTMLCanvasElement, opts: RenderOptions =
             if (!obj || !obj.position) continue
             const c = colorForLive(obj)
             if (!c) continue
-            renderObjects.push({ x: obj.position.x, y: obj.position.y, color: c })
+            renderObjects.push({ x: obj.position.x, y: obj.position.y, color: c, anyTile: obj.type === 'critter' })
         }
     } else {
         for (const e of getObjectSnapshot(mapName, elevation)) {
@@ -170,7 +173,7 @@ export function drawAutomapInto(canvas: HTMLCanvasElement, opts: RenderOptions =
 
     for (const o of renderObjects) {
         const tileKey = `${o.x},${o.y}`
-        if (!seen.has(tileKey)) continue
+        if (!o.anyTile && !seen.has(tileKey)) continue
         ctx.fillStyle = o.color
         ctx.fillRect(ox + o.x * scale - 1, oy + o.y * scale - 1, objSize, objSize)
     }

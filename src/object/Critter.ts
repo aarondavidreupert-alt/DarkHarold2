@@ -358,40 +358,23 @@ export class Critter extends Obj {
     }
 
     getEquippedArmor(): Obj | null {
-        // Player stores armor in a dedicated slot; NPCs wear the inventory armor flagged
-        // OBJECT_WORN (CE critterGetArmor), else the first one carried.
+        // Player stores armor in a dedicated slot; NPCs wear only the inventory armor
+        // flagged OBJECT_WORN (CE inventory.cc critterGetArmor) — carried armor gives nothing.
         const self = this as any
         if (self.armor !== undefined) return self.armor
-        let first: Obj | null = null
         for (const item of this.inventory) {
-            if (item.subtype !== 'armor') continue
             if ((((item as any).flags ?? 0) & 0x4000000) !== 0) return item // OBJECT_WORN
-            if (!first) first = item
         }
-        return first
+        return null
     }
 
+    // CE stat.cc critterGetStat: the worn armor's DR / DT only
     getArmorDR(damageType: string): number {
-        const armor = this.getEquippedArmor()
-        if (armor?.pro?.extra?.stats) return armor.pro.extra.stats['DR ' + damageType] ?? 0
-        // Secondary scan: find armor item by PRO structure (handles NPCs whose
-        // armor subtype may not be set but whose PRO carries the stats block)
-        for (const item of this.inventory) {
-            if (item.pro?.extra?.stats?.['DR ' + damageType] !== undefined)
-                return item.pro.extra.stats['DR ' + damageType]
-        }
-        return 0
+        return this.getEquippedArmor()?.pro?.extra?.stats?.['DR ' + damageType] ?? 0
     }
 
     getArmorDT(damageType: string): number {
-        const armor = this.getEquippedArmor()
-        if (armor?.pro?.extra?.stats) return armor.pro.extra.stats['DT ' + damageType] ?? 0
-        // Secondary scan: find armor item by PRO structure
-        for (const item of this.inventory) {
-            if (item.pro?.extra?.stats?.['DT ' + damageType] !== undefined)
-                return item.pro.extra.stats['DT ' + damageType]
-        }
-        return 0
+        return this.getEquippedArmor()?.pro?.extra?.stats?.['DT ' + damageType] ?? 0
     }
 
     getArmorAC(): number {

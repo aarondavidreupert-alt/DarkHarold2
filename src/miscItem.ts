@@ -37,17 +37,21 @@ import type { Critter, Obj } from './object.js'
 import { Scripting } from './scripting.js'
 import { dbg } from './logger.js'
 import { uiLog } from './ui_hud.js'
+import { getMessage } from './util.js'
+import { openAutomap } from './ui_automap.js'
 
 export const PROTO_ID_GEIGER_COUNTER_I = 52
 export const PROTO_ID_GEIGER_COUNTER_II = 207
 export const PROTO_ID_STEALTH_BOY_I = 54
 export const PROTO_ID_STEALTH_BOY_II = 210
+export const PROTO_ID_MOTION_SENSOR = 59
 
 const CHARGED_MISC_PIDS: ReadonlySet<number> = new Set([
     PROTO_ID_GEIGER_COUNTER_I,
     PROTO_ID_GEIGER_COUNTER_II,
     PROTO_ID_STEALTH_BOY_I,
     PROTO_ID_STEALTH_BOY_II,
+    PROTO_ID_MOTION_SENSOR,
 ])
 
 export function isChargedMiscItem(item: Obj): boolean {
@@ -123,8 +127,32 @@ export function miscItemTurnOn(item: Obj, owner: Critter | null): void {
     dbg('object', 'miscItem: %s turned on (%d charges)', item.name || item.pid, item.miscCharges ?? 0)
 }
 
+// CE item.cc miscItemGetCharges (a missing count is the proto's)
+export function miscItemGetCharges(item: Obj): number {
+    if (item.miscCharges === undefined) item.miscCharges = (item.pro?.extra as any)?.charges ?? 0
+    return item.miscCharges ?? 0
+}
+
+// CE item.cc miscItemConsumeCharge: 0 when a charge was used, -1 when none was left
+export function miscItemConsumeCharge(item: Obj): number {
+    const charges = miscItemGetCharges(item)
+    if (charges <= 0) return -1
+    item.miscCharges = charges - 1
+    return 0
+}
+
 // "Use" toggle — CE ref: item.cc:2246-2280 _item_m_use_charged_item()
 export function useChargedMiscItem(item: Obj, owner: Critter | null): void {
+    if (item.pid === PROTO_ID_MOTION_SENSOR) {
+        // CE: a charge opens the automap with the scanner on, else item.msg 5
+        if (miscItemConsumeCharge(item) === 0) {
+            openAutomap(true)
+        } else {
+            const fmt = getMessage('item', 5) ?? '%s has no charges left.'
+            uiLog(fmt.replace('%s', item.name || ''))
+        }
+        return
+    }
     if (miscItemIsOn(item)) {
         miscItemTurnOff(item, owner)
     } else {

@@ -153,6 +153,10 @@ export async function uiMoveSlot(data: string, target: string) {
             globalState.player.inventory.splice(idx, 1)
         }
     } else {
+        // CE inventory.cc:2440 — the armor slot accepts only armor, from any source (and a
+        // swap may not put the other item there either)
+        if (target === 'armor' && playerUnsafe[data]?.subtype !== 'armor') return
+        if (data === 'armor' && target !== 'inventory' && playerUnsafe[target] && playerUnsafe[target].subtype !== 'armor') return
         if (inventoryMoveHookCancels(target, playerUnsafe[data], target === 'inventory' ? null : playerUnsafe[target])) return
         obj = playerUnsafe[data]
         playerUnsafe[data] = null // remove object from slot
@@ -174,12 +178,7 @@ export async function uiMoveSlot(data: string, target: string) {
         }
 
         playerUnsafe[target] = obj // move the object over
-
-        // CE ref: inventory.cc:4494 — SCRIPT_PROC_PICKUP fires when the player
-        // equips an item from the inventory screen (in addition to ground pickup).
-        if ((target === 'leftHand' || target === 'rightHand') && obj?._script && globalState.player) {
-            try { Scripting.pickup(obj, globalState.player) } catch (_e) { /* ignore */ }
-        }
+        // (CE _inven_pickup / _switch_hand run no script proc when equipping.)
     }
 
     // Update armor appearance if armor slot changed

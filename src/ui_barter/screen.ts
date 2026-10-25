@@ -18,6 +18,7 @@ limitations under the License.
 // → "Per-file split proposals" §21.
 
 import globalState from '../globalState.js'
+import { relinkTradedHands, tradeHeldAside } from '../inventoryWield.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Critter, cloneItem, Obj } from '../object.js'
 import { Scripting } from '../scripting.js'
@@ -192,7 +193,8 @@ export function uiBarterMode(merchant: Critter) {
 
     // a copy of inventories for both parties
     let workingPlayerInventory = globalState.player.inventory.map(cloneItem)
-    let workingMerchantInventory = merchant.inventory.map(cloneItem)
+    const heldAside = tradeHeldAside(merchant, false) // CE: worn armor / right-hand item not for trade
+    let workingMerchantInventory = merchant.inventory.filter((it) => !heldAside.includes(it)).map(cloneItem)
 
     // and our working barter tables
     let playerBarterTable: Obj[] = []
@@ -276,7 +278,7 @@ export function uiBarterMode(merchant: Critter) {
             // finalize and apply the deal
 
             // swap to working inventories
-            merchant.inventory = workingMerchantInventory
+            merchant.inventory = [...heldAside, ...workingMerchantInventory]
             globalState.player.inventory = workingPlayerInventory
 
             // add in the table items
@@ -289,7 +291,8 @@ export function uiBarterMode(merchant: Critter) {
 
             // re-clone so we can continue bartering if necessary
             workingPlayerInventory = globalState.player.inventory.map(cloneItem)
-            workingMerchantInventory = merchant.inventory.map(cloneItem)
+            relinkTradedHands(merchant, globalState.player)
+            workingMerchantInventory = merchant.inventory.filter((it) => !heldAside.includes(it)).map(cloneItem)
 
             playerBarterTable = []
             merchantBarterTable = []

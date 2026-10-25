@@ -63,6 +63,9 @@ export function uiSteal(thief: Critter, target: Critter): void {
         for (let i = 0; i < objects.length; i++) {
             // CE inventory.cc itemMoveAllHidden: natural weapons aren't shown
             if (itemIsHidden(objects[i])) continue
+            // CE inventoryOpenLooting:4135-4148 (_gIsSteal): the target's hand items and worn
+            // armor are taken out of the window (OBJECT_IN_LEFT/RIGHT_HAND | OBJECT_WORN)
+            if (who === 'r' && ((objects[i].flags ?? 0) & 0x7000000) !== 0) continue
             const inventoryImage = objects[i].invArt
             const img = makeEl('img', {
                 src: inventoryImage + '.png',

@@ -24,6 +24,7 @@ import { UIMode } from './ui_panels.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter.js'
 import { uiLog } from './ui_hud.js'
 import { getMessage } from './util.js'
+import { Scripting } from './scripting.js'
 import { makeDropTarget, makeDraggable } from './ui_inventory.js'
 import { appendItemSlot, $id, clearEl, showv, hidev, off, makeEl } from './ui_dom.js'
 
@@ -49,6 +50,19 @@ export function initLoot(): void {
 }
 
 export function uiLoot(object: Obj) {
+    // CE inventory.cc inventoryOpenLooting pre-checks: a CRITTER_NO_STEAL critter →
+    // inventry.msg 50; then the target's pickup_p_proc (source = the looter), whose
+    // script_overrides keeps the window closed.
+    if (object.type === 'critter' && (((object.pro as any)?.extra?.flags ?? 0) & 0x20) !== 0) {
+        uiLog(getMessage('inventry', 50) ?? "You can't find anything to take from that.")
+        return
+    }
+    if ((object._script as any)?.pickup_p_proc && globalState.player) {
+        let overridden = false
+        try { overridden = Scripting.pickup(object, globalState.player) } catch (e) { dbg('inventory', '[Loot] pickup_p_proc error: ' + e) }
+        if (overridden) return
+    }
+
     globalState.uiMode = UIMode.loot
     $id('lootBoxTakeAllButton').style.visibility = '' // shown with the window (a steal hides it)
 

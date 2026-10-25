@@ -34,6 +34,7 @@ limitations under the License.
 // the accept-check and the amount readout (weight instead of $).
 
 import globalState from './globalState.js'
+import { relinkTradedHands, tradeHeldAside } from './inventoryWield.js'
 import { Critter, cloneItem, Obj } from './object.js'
 import { UIMode } from './ui_panels.js'
 import { getVisibleDialoguePanel, uiSetDialogueReply, uiSwapDialoguePanel } from './ui_dialogue.js'
@@ -78,7 +79,8 @@ export function uiCompanionTrade(companion: Critter): void {
     renderBarterPortrait($id('barterBoxMerchantPortrait'), companion, true)
 
     let workingPlayerInventory = globalState.player.inventory.map(cloneItem)
-    let workingCompanionInventory = companion.inventory.map(cloneItem)
+    const heldAside = tradeHeldAside(companion, true) // CE: worn armor / right-hand item not for trade
+    let workingCompanionInventory = companion.inventory.filter((it) => !heldAside.includes(it)).map(cloneItem)
 
     let playerBarterTable: Obj[] = []
     let companionBarterTable: Obj[] = []
@@ -125,14 +127,15 @@ export function uiCompanionTrade(companion: Critter): void {
         }
 
         // Accepted — finalize.
-        companion.inventory = workingCompanionInventory
+        companion.inventory = [...heldAside, ...workingCompanionInventory]
         globalState.player.inventory = workingPlayerInventory
 
         for (const item of companionBarterTable) globalState.player.addInventoryItem(item, item.amount)
         for (const item of playerBarterTable) companion.addInventoryItem(item, item.amount)
 
         workingPlayerInventory = globalState.player.inventory.map(cloneItem)
-        workingCompanionInventory = companion.inventory.map(cloneItem)
+        relinkTradedHands(companion, globalState.player)
+        workingCompanionInventory = companion.inventory.filter((it) => !heldAside.includes(it)).map(cloneItem)
         playerBarterTable = []
         companionBarterTable = []
 

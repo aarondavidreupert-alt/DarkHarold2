@@ -165,8 +165,14 @@ LOW findings are listed in each report only.
 | | CRIT-01 | `kill_critter`, `kill_critter_type`, `critter_heal`, poison and radiation deaths no longer run `destroy_p_proc` (an NPC's chem death still does, as CE `_combatKillCritterOutsideCombat`) |
 | | CRIT-03 | critters take their scrname.msg name (101 + script index) over the proto name |
 | Items | ITEM-18 | the dude has DR EMP 100 |
+| Inventory | INV-03, INV-04 | the barterer's worn armor and right-hand item (a vendor's first weapon if the hand is empty) stay out of barter / companion trade; hand items and worn armor are not in the steal view; hand references relinked after a deal |
+| | INV-05, INV-06 | looting: CRITTER_NO_STEAL → inventry.msg 50, the target's pickup_p_proc runs and can override; a knocked-out target opens the loot window, not stealing |
+| | INV-07, INV-10 | inventory in combat without enough AP → inventry.msg 19, no window; equipping runs no pickup_p_proc; the armor slot takes only armor from any source |
+| | INV-15 | NPCs get armor stats only from the OBJECT_WORN item (no carried-armor fallback) |
+| Items | ITEM-02, ITEM-03 | the Solar Scorcher recharges in daylight (item.msg 500 otherwise); the Motion Sensor uses a charge and opens the automap in scanner mode (critters shown only then; the SCANNER button needs a sensor in hand, misc.msg 17 / 18) |
+| | ITEM-06 | an armed explosive is put down at the user's feet; non-team critters nearby that pass a PE roll suspect the player and start a fight |
 
-Still open from these groups: COMBAT-10 (joining critters' immediate turn), COMBAT-13 (Glovz / YAAM opt-in formulas), ACT-05 (point / unpoint animations).
+Still open from these groups: COMBAT-10 (joining critters' immediate turn), COMBAT-13 (Glovz / YAAM opt-in formulas), ACT-05 (point / unpoint animations), INV-14 (inventory Drop of an armed explosive doesn't run the watcher check yet), ITEM-19.
 
 ## 4. Conflicts with the wiki / known_bugs (flagged, not resolved)
 

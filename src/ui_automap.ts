@@ -15,12 +15,17 @@ limitations under the License.
 */
 
 import globalState from './globalState.js'
-import { UIMode } from './ui_panels.js'
+import { closeAllPanels, UIMode } from './ui_panels.js'
+import { miscItemConsumeCharge, miscItemGetCharges, PROTO_ID_MOTION_SENSOR } from './miscItem.js'
+import { uiLog } from './ui_hud.js'
+import { getMessage } from './util.js'
 import { renderAutomapCanvas, drawAutomapInto } from './automapData.js'
 import { makePanelDraggable } from './ui_drag.js'
 import { assetUrl } from './modAssets.js'
 
 let automapContainer: HTMLDivElement | null = null
+// CE automap.cc AUTOMAP_WITH_SCANNER: living critters shown (motion sensor)
+let scannerOn = false
 
 // Inset of the dark map area within automap.png (516x460 image).
 // These dimensions are authoritative — do not override via CSS.
@@ -141,7 +146,10 @@ export function attachAutomapWheelZoom(
     canvas.addEventListener('wheel', onWheel, { passive: false })
 }
 
-export function openAutomap(): void {
+export function openAutomap(useScanner = false): void {
+    // CE automapShow(isInGame, isUsingScanner) — using the Motion Sensor opens it scanning
+    if (useScanner) closeAllPanels()
+    scannerOn = useScanner
     // Remove any stale container
     const existing = document.getElementById('automapContainer')
     if (existing) existing.remove()
@@ -179,7 +187,7 @@ export function openAutomap(): void {
     const renderOpts = () => {
         const map = globalState.gMap
         const pan = map ? getAutomapPan(map.name, map.currentElevation) : { x: 0, y: 0 }
-        return { zoom: zoomLevel, panX: pan.x, panY: pan.y }
+        return { zoom: zoomLevel, panX: pan.x, panY: pan.y, scanner: scannerOn }
     }
 
     const canvas = renderAutomapCanvas(MAP_INSET_W, MAP_INSET_H, renderOpts())
@@ -206,7 +214,23 @@ export function openAutomap(): void {
         background-image: url('${assetUrl('art/intrface/lilredup.png')}');
         cursor: pointer;
     `
-    scannerDot.onclick = refresh
+    // CE automap.cc KEY_S: a Motion Sensor in a hand with charges turns the scanner on
+    // (one charge), else misc.msg 17 / 18
+    scannerDot.onclick = () => {
+        if (!scannerOn) {
+            const p = globalState.player as any
+            const scanner = [p?.leftHand, p?.rightHand].find((it) => it?.pid === PROTO_ID_MOTION_SENSOR) ?? null
+            if (scanner && miscItemGetCharges(scanner) > 0) {
+                miscItemConsumeCharge(scanner)
+                scannerOn = true
+            } else {
+                globalState.audioEngine?.playSfxByName('iisxxxx1')
+                const msg = getMessage('misc', scanner ? 18 : 17)
+                if (msg) uiLog(msg)
+            }
+        }
+        refresh()
+    }
     screen.appendChild(scannerDot)
 
     // Zoom controls (DH2): inside the top-right corner of the map inset

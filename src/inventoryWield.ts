@@ -204,3 +204,32 @@ export function findItemHolder(item: Obj, roots: Obj[]): Obj | null {
     }
     return null
 }
+
+// CE inventory.cc:5040-5055 inventoryOpenTrade: the barterer's worn armor and right-hand
+// item stay out of the trade — and, for a barterer outside the party with an empty right
+// hand, its first weapon (_inven_find_type ITEM_TYPE_WEAPON). They are re-added at exit.
+export function tradeHeldAside(c: Critter, isPartyMember: boolean): Obj[] {
+    const aside: Obj[] = []
+    const worn = c.inventory.find((it) => ((it.flags ?? 0) & OBJECT_WORN) !== 0)
+    if (worn) aside.push(worn)
+    const right = c.inventory.find((it) => ((it.flags ?? 0) & OBJECT_IN_RIGHT_HAND) !== 0)
+    if (right) aside.push(right)
+    else if (!isPartyMember) {
+        const weapon = c.inventory.find((it) => it.subtype === 'weapon' && !aside.includes(it))
+        if (weapon) aside.push(weapon)
+    }
+    return aside
+}
+
+// After a trade replaced an NPC's inventory with clones: point the hands at the items
+// that now carry the hand flags (a hand item that left goes back to the fist), and clear
+// the hand / worn flags of the items the dude received (his slots live outside the list).
+export function relinkTradedHands(c: Critter, player: Critter): void {
+    const a = c as any
+    for (const [hand, flag] of [['leftHand', OBJECT_IN_LEFT_HAND], ['rightHand', OBJECT_IN_RIGHT_HAND]] as [Hand, number][]) {
+        const held = c.inventory.find((it) => ((it.flags ?? 0) & flag) !== 0)
+        if (held) a[hand] = held
+        else if (isReal(a[hand]) && !c.inventory.includes(a[hand])) a[hand] = (c.constructor as any).makeFist?.()
+    }
+    for (const it of player.inventory) it.flags = (it.flags ?? 0) & ~(OBJECT_IN_ANY_HAND | OBJECT_WORN)
+}

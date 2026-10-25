@@ -148,8 +148,8 @@ export function explosiveGetDamage(pid: number): { min: number; max: number } | 
 // CE proto_instance.cc _obj_use_explosive — set the timer (10-180 s), then a Traps
 // roll (none with Demolition Expert): success arms it for 10 × seconds ticks, a
 // failure goes off early (half the time), a critical failure at once — both with
-// "Due to your inept handling..." (misc.msg 4000). The armed explosive stays where it
-// is: carried, it explodes on whoever carries it.
+// "Due to your inept handling..." (misc.msg 4000). The armed explosive is put down at
+// the user's feet (CE _obj_use_item rc 2).
 async function useExplosive(obj: Obj, source: Critter): Promise<void> {
     if (!source.isPlayer) return
     const desc = EXPLOSIVES[obj.pid]
@@ -166,6 +166,8 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
     if (seconds === -1) return
     uiLog(getMessage('proto', 589) ?? 'You set the timer.')
 
+    // CE _obj_use_item rc 2: one explosive leaves its owner (itemRemove / itemReplace)
+    obj = takeOneFromOwner(obj, source)
     // explosiveActivate: the armed proto
     switchItemProto(obj, desc.active)
 
@@ -175,11 +177,66 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
     if (roll === RollResult.CriticalFailure) { delay = 0; failure = true }
     else if (roll === RollResult.Failure) { delay = Math.trunc(delay / 2); failure = true }
     dbg('object', `[Object] explosive armed: ${seconds}s, Traps ${RollResult[roll]}, fires in ${delay} ticks`)
+    // … and is placed at the owner's feet (_obj_connect), then _protinstTestDroppedExplosive
+    const gMap = globalState.gMap
+    if (gMap) {
+        gMap.addObject(obj)
+        obj.position = { x: source.position.x, y: source.position.y }
+        testDroppedExplosive(source)
+    }
     const fire = () => explosiveDetonate(obj, desc.min, desc.max, failure)
     if (delay === 0) fire()
     // CE queue.cc _queue_explode_exit: leaving the map sets it off at once, unanimated
     else Scripting.timeEventList.push({ obj, ticks: delay, userdata: failure ? 'explosionFailure' : 'explosion', fn: fire,
         leaveMap: () => { explosiveDetonate(obj, desc.min, desc.max, false, false); return true } })
+}
+
+// CE item.cc itemRemove(owner, item, 1) + itemReplace: a single item comes off the stack
+// (or out of the hand, which then takes an identical item from the inventory). Returns it.
+function takeOneFromOwner(obj: Obj, owner: Critter): Obj {
+    const a = owner as any
+    if ((obj.amount ?? 1) > 1) {
+        obj.amount -= 1
+        const one = cloneItem(obj)
+        one.amount = 1
+        return one
+    }
+    const idx = owner.inventory.indexOf(obj)
+    if (idx !== -1) owner.inventory.splice(idx, 1)
+    for (const hand of ['leftHand', 'rightHand']) {
+        if (a[hand] !== obj) continue
+        const same = owner.inventory.find((it) => it.pid === obj.pid)
+        if (!same) a[hand] = owner.isPlayer ? null : (owner.constructor as any).makeFist?.()
+        else if ((same.amount ?? 1) > 1) { same.amount -= 1; a[hand] = Object.assign(cloneItem(same), { amount: 1 }) }
+        else { owner.inventory.splice(owner.inventory.indexOf(same), 1); a[hand] = same }
+        if (owner.isPlayer) uiDrawWeapon()
+    }
+    return obj
+}
+
+// CE proto_instance.cc _protinstTestDroppedExplosive: the critters in the would-be blast
+// around the dude that aren't on his team and pass a PE roll suspect him; the first one
+// starts a fight out of combat.
+function testDroppedExplosive(dude: Critter): void {
+    if (!dude.isPlayer) return
+    const elevation = globalState.gMap?.currentElevation ?? 0
+    let watcher: Critter | null = null
+    for (const c of explosionRingCritters(dude.position, elevation, dude, false)) {
+        if (c === dude || c.dead || c.teamNum === dude.teamNum) continue
+        if (getRandomInt(1, 10) > c.getStat('PER')) continue // statRoll(STAT_PERCEPTION) < success
+        ;(c as any).whoHitMe = dude
+        watcher ??= c
+    }
+    if (watcher && !globalState.inCombat) {
+        const attacker = watcher
+        setTimeout(() => {
+            if (globalState.inCombat || attacker.dead) return
+            Combat.start(undefined, {
+                attacker, defender: dude, actionPointsBonus: 0, accuracyBonus: 0, damageBonus: 0,
+                minDamage: 0, maxDamage: 99999, overrideAttackResults: false, attackerResults: 0, targetResults: 0,
+            })
+        }, 0)
+    }
 }
 
 // The item becomes another proto in place (CE: item->pid = …) — art, inventory art, name.

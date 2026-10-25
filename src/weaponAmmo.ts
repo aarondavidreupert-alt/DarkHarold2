@@ -24,6 +24,9 @@ limitations under the License.
 // field `rounds` is CE's burstRounds, not the loaded ammo.)
 
 import type { Obj } from './object.js'
+import { getAmbientLight } from './gametime.js'
+import { uiLog } from './ui_hud.js'
+import { getMessage } from './util.js'
 
 const isWeapon = (w: Obj | null | undefined): w is Obj => !!w && w.subtype === 'weapon' && !!w.pro?.extra
 const isAmmo = (a: Obj | null | undefined): boolean => !!a && a.subtype === 'ammo' && !!a.pro?.extra
@@ -170,6 +173,16 @@ export function ammoUseTopBox(ammo: Obj, inventory: Obj[]): void {
 // type that fits. Returns -1 when the weapon is full or there is nothing to load.
 export function weaponAttemptReload(w: Obj, inventory: Obj[]): number {
     if (ammoGetQuantity(w) >= ammoGetCapacity(w)) return -1
+    // CE: the Solar Scorcher skips the ammo search; weaponReload(weapon, NULL) fills it
+    // to capacity above 95% ambient light, else item.msg 500.
+    if (isSolarScorcher(w)) {
+        if (!solarScorcherCanRecharge(getAmbientLight())) {
+            uiLog(getMessage('item', 500) ?? 'There is not enough light to recharge this item.')
+            return -1
+        }
+        ammoSetQuantity(w, ammoGetCapacity(w))
+        return 0
+    }
     const ammo = inventory.find((a) => a.subtype === 'ammo' && a.pid === weaponGetAmmoTypePid(w) && weaponCanBeReloadedWith(w, a))
         ?? inventory.find((a) => weaponCanBeReloadedWith(w, a))
     if (!ammo) return -1
