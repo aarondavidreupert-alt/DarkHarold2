@@ -50,11 +50,11 @@ export function tileFromScreen(x: number, y: number): Point {
     return { x: 99 - Math.round(tx), y: Math.round(ty) }
 }
 
+// CE object.cc objectSetLocation: the square of a hex is (tile % 200 / 2, tile / 200 / 2);
+// DH2's square arrays are mirrored in x ([y][99 - x], fomap.py). (Going through the screen
+// position put every odd hex row one square too far south.)
 export function hexToTile(pos: Point): Point {
-    // Calculate screen position of `pos`, then look up which roof tile that belongs to,
-    // and then calculate the square tile position from the screen position.
-    const scrPos = hexToScreen(pos.x, pos.y)
-    return tileFromScreen(scrPos.x, scrPos.y)
+    return { x: 99 - (pos.x >> 1), y: pos.y >> 1 }
 }
 
 function getCenterTile(cameraPosition: Point): Point {

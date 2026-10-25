@@ -371,10 +371,10 @@ const SQUARE_STATE_CLASS: { [state: number]: string } = {
 
 // CE wmMarkSubTileOffsetVisitedFunc: a subtile becomes known (SEEN) only while still
 // unknown; visited (DISCOVERED) always.
-function markSquare(x: number, y: number, state: number): void {
+function markSquare(x: number, y: number, state: number, force = false): void {
     if (x < 0 || x >= NUM_SQUARES_X || y < 0 || y >= NUM_SQUARES_Y) return
     const square = worldmap.squares[x][y]
-    if (state === WORLDMAP_SEEN && square.state !== WORLDMAP_UNDISCOVERED) return
+    if (!force && state === WORLDMAP_SEEN && square.state !== WORLDMAP_UNDISCOVERED) return
     if (square.state === state) return
     const old = square.state
     square.state = state
@@ -535,8 +535,14 @@ export function setAreaVisitedState(areaId: number, state: number): void {
     const area: any = globalState.mapAreas?.[areaId]
     if (!area) return
     const old = area.visitedState ?? 0
+    // CE worldmap.cc wmAreaMarkVisitedState: a known area clears the fog around itself;
+    // state 1 makes its own subtile known
+    const pos = area.worldPosition
+    if (area.state === true && state !== 0 && pos) markSubTileRadiusVisited(pos.x, pos.y)
     area.visitedState = state
-    if (state === 2 && old === 0) area.visitedState = 1
+    if (state === 1 && pos && worldmap) {
+        markSquare(Math.floor(pos.x / SQUARE_SIZE), Math.floor(pos.y / SQUARE_SIZE), WORLDMAP_SEEN, true)
+    } else if (state === 2 && old === 0) area.visitedState = 1
     refreshAreaMarkers()
 }
 

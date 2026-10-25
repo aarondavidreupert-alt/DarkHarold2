@@ -24,8 +24,6 @@ import { hexDistance, Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { initStorage, scheduleSave, flushAutomapSave } from './storage.js'
 
-export const REVEAL_RADIUS = 5
-
 // "mapName:elevation" → Set of "x,y"
 export const seenData: Map<string, Set<string>> = new Map()
 
@@ -103,22 +101,25 @@ export function getSeenTiles(mapName: string, elevation: number): Set<string> {
     return seenData.get(mapKey(mapName, elevation)) ?? new Set()
 }
 
-export function markSeenAt(mapName: string, elevation: number, position: Point, radius = REVEAL_RADIUS): void {
+// CE object.cc obj_set_seen + _obj_process_seen: the dude's tile sets one bit of the
+// 5001-byte seen bitmap (8 tiles a byte, 25 bytes a 200-tile row); each set byte marks
+// the bytes within ±2 on the 32 rows from 16 above to 15 below — a band of 32 rows ×
+// 40 tiles around the dude's 8-tile block.
+export function markSeenAt(mapName: string, elevation: number, position: Point): void {
     const k = mapKey(mapName, elevation)
     let set = seenData.get(k)
     if (!set) {
         set = new Set()
         seenData.set(k, set)
     }
-    const minX = Math.max(0, position.x - radius)
-    const maxX = Math.min(199, position.x + radius)
-    const minY = Math.max(0, position.y - radius)
-    const maxY = Math.min(199, position.y + radius)
-    for (let x = minX; x <= maxX; x++) {
-        for (let y = minY; y <= maxY; y++) {
-            if (hexDistance(position, { x, y }) <= radius) {
-                set.add(`${x},${y}`)
-            }
+    const byte = (position.y * 200 + position.x) >> 3
+    for (let row = -16; row < 16; row++) {
+        const center = byte + row * 25
+        if (center < 0 || center >= 5001) continue
+        for (let b = -2; b <= 2; b++) {
+            const v = center + b
+            if (v < 0 || v > 5000) continue
+            for (let t = v * 8; t < v * 8 + 8 && t < 40000; t++) set.add(`${t % 200},${Math.floor(t / 200)}`)
         }
     }
     scheduleSave(k, 'tiles')

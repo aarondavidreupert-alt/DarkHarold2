@@ -217,7 +217,7 @@ function takeOneFromOwner(obj: Obj, owner: Critter): Obj {
 // CE proto_instance.cc _protinstTestDroppedExplosive: the critters in the would-be blast
 // around the dude that aren't on his team and pass a PE roll suspect him; the first one
 // starts a fight out of combat.
-function testDroppedExplosive(dude: Critter): void {
+export function testDroppedExplosive(dude: Critter): void {
     if (!dude.isPlayer) return
     const elevation = globalState.gMap?.currentElevation ?? 0
     let watcher: Critter | null = null
@@ -675,6 +675,12 @@ export class Obj {
         obj.pid = pid
         obj.pro = pro
         obj.flags = obj.pro.flags
+        // CE object.cc objectCreateWithFidPid → objectSetLight(proto lightDistance, lightIntensity)
+        const lightDistance = (pro as any).lightDistance ?? 0
+        if (lightDistance > 0) {
+            obj.lightRadius = Math.min(lightDistance, 8)
+            obj.lightIntensity = (pro as any).lightIntensity ?? 0
+        }
 
         // TODO: Subclasses
         if (pidType == 0) {
@@ -1153,6 +1159,10 @@ export class Obj {
             return total + (item.pro?.extra?.size ?? 0) * count < maxSize
         }
         if (this.type !== 'critter') return true
+        // CE item.cc itemAttemptAdd: a non-biped critter takes nothing (-5) unless it has
+        // CRITTER_BARTER (sfall fix: Skynet, Goris)
+        const extra = this.pro?.extra as any
+        if ((extra?.bodyType ?? 0) !== 0 && ((extra?.flags ?? 0) & 0x02) === 0) return false
         const max = (this as unknown as Critter).getStat?.('Carry') ?? Infinity
         const addWeight = item.stackWeight(count)
         return this.getInventoryWeight() + addWeight <= max

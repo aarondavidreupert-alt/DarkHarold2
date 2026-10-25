@@ -171,8 +171,14 @@ LOW findings are listed in each report only.
 | | INV-15 | NPCs get armor stats only from the OBJECT_WORN item (no carried-armor fallback) |
 | Items | ITEM-02, ITEM-03 | the Solar Scorcher recharges in daylight (item.msg 500 otherwise); the Motion Sensor uses a charge and opens the automap in scanner mode (critters shown only then; the SCANNER button needs a sensor in hand, misc.msg 17 / 18) |
 | | ITEM-06 | an armed explosive is put down at the user's feet; non-team critters nearby that pass a PE roll suspect the player and start a fight |
+| | INV-14, ITEM-19 | an armed explosive dropped from the inventory runs the same watcher check when it closes; non-biped critters without CRITTER_BARTER take no items |
+| World | WM-06, WM-08 | town-map entrances at −1/−1 are not shown, labels are worldmap.msg 200 + 10 × area + index; a known area marked visited clears the fog around it (state 1 makes its subtile known) |
+| | OBJ-03 | objects created at runtime take their proto's light (and relight the map) |
+| | OBJ-04 | the automap marks CE's seen band (32 rows × 40 tiles around the dude's 8-tile block) |
+| | OBJ-06, MOUSE-06 (part) | object picking: the bottom object can be picked, hidden objects are skipped, a wall's egg-transparent part and dead / knocked-out critters lose to what lies under them (falling back to them). Still open: no pick through a visible roof |
+| | TILE-02 | hex → roof square is CE's `(x >> 1, y >> 1)` (odd hex rows were one square south) |
 
-Still open from these groups: COMBAT-10 (joining critters' immediate turn), COMBAT-13 (Glovz / YAAM opt-in formulas), ACT-05 (point / unpoint animations), INV-14 (inventory Drop of an armed explosive doesn't run the watcher check yet), ITEM-19.
+Still open from these groups: COMBAT-10 (joining critters' immediate turn), COMBAT-13 (Glovz / YAAM opt-in formulas), ACT-05 (point / unpoint animations), MOUSE-06 roof test.
 
 ## 4. Conflicts with the wiki / known_bugs (flagged, not resolved)
 

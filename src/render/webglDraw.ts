@@ -499,6 +499,10 @@ const TRANS_BLEND: { [flag: number]: { rgb: [number, number, number]; glassGray:
     0x80000: { rgb: rgb555(30689), glassGray: false }, // OBJECT_TRANS_ENERGY
 }
 
+WebGLRenderer.prototype.isEggTransparent = function (obj: Obj): boolean {
+    return isEggObject(obj)
+}
+
 WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     const renderInfo = this.objectRenderInfo(obj)
     if (!renderInfo || !renderInfo.visible) {

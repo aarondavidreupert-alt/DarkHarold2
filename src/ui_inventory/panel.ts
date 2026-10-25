@@ -22,7 +22,7 @@ import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, ammoSplitOff, weapon
 import globalState from '../globalState.js'
 import { dbg } from '../logger.js'
 import { lazyLoadImage } from '../images.js'
-import { Obj, createObjectWithPID, cloneItem } from '../object.js'
+import { Obj, createObjectWithPID, cloneItem, testDroppedExplosive } from '../object.js'
 import { uiGetAmount } from '../ui_barter/swap.js'
 import { Scripting } from '../scripting.js'
 import { drawAC, drawAP, uiDrawWeapon, uiLog } from '../ui_hud.js'
@@ -55,9 +55,15 @@ export function showInventoryUseOn(target: Obj): void {
     showInventory(true)
 }
 
+// CE inventory.cc _dropped_explosive: an armed explosive was dropped from the inventory
+let droppedExplosive = false
+
 export function closeInventory(): void {
     useOnTarget = null
     if (!isInventoryOpen()) return
+    // CE _exit_inventory: the dropped explosive's would-be victims may notice
+    if (droppedExplosive && globalState.player) testDroppedExplosive(globalState.player)
+    droppedExplosive = false
     globalState.uiMode = UIMode.none
     $id('inventoryBox').style.visibility = 'hidden'
     if (globalState.player) globalState.player.clearAnim?.()
@@ -435,6 +441,7 @@ export function showInventory(useOn = false) {
                     playerAny[slot] = null
                     if (slot === 'leftHand' || slot === 'rightHand') refreshStealthState(globalState.player!)
                 }
+                if (obj.pid === 206 || obj.pid === 209) droppedExplosive = true // explosiveIsActiveExplosive
                 obj.drop(globalState.player)
                 globalState.player.clearAnim()
                 uiDrawWeapon()

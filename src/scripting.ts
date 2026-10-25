@@ -2024,6 +2024,8 @@ export module Scripting {
             globalState.gMap.addObject(obj, elev)
             obj.position = fromTileNum(tile)
             zsort(globalState.gMap.objects[elev])
+            // CE objectCreateWithFidPid → objectSetLight: a lit proto lights its tile
+            if (obj.lightRadius > 0 && obj.lightIntensity > 0 && Config.engine.doFloorLighting) Lightmap.rebuildLight()
 
             return obj
         }

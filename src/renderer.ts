@@ -18,12 +18,12 @@ limitations under the License.
 
 import { updateFloatText } from './floatText.js'
 import { heart } from './heart.js'
-import { BoundingBox, hexCellTopLeft, hexFromScreen, hexesInRadius, hexToScreen, Point, pointInBoundingBox } from './geometry.js'
+import { BoundingBox, hexCellTopLeft, hexDistance, hexFromScreen, hexesInRadius, hexToScreen, Point, pointInBoundingBox } from './geometry.js'
 import globalState from './globalState.js'
 import { lazyLoadImage } from './images.js'
 import { dbg } from './logger.js'
 import { Obj } from './object.js'
-import { tileFromScreen } from './tile.js'
+import { hexToTile, tileFromScreen } from './tile.js'
 import { Config } from './config.js'
 import { WindowFrame } from './ui.js'
 import { Font } from './formats/fon.js'
@@ -209,7 +209,7 @@ export class Renderer {
             let hideSet: Set<string> | null = null
             if (globalState.player) {
                 const scr = hexToScreen(globalState.player.position.x, globalState.player.position.y)
-                const own = tileFromScreen(scr.x, scr.y)   // = hexToTile(player); CE behavior
+                const own = hexToTile(globalState.player.position) // CE objectSetLocation roofX / roofY
                 hideSet = roofFloodFill(this.roofTiles, own.x, own.y)
                 // Roofs draw 96px up, so the roof sprite that visually COVERS the
                 // player when they stand behind (north of) a building belongs to a
@@ -548,6 +548,8 @@ export class Renderer {
         this.renderObject(obj)
     }
     renderObject(obj: Obj): void {}
+    // Whether the egg makes obj see-through near the dude (WebGL: webglDraw.ts isEggObject)
+    isEggTransparent(obj: Obj): boolean { return false }
     renderOutlinePass(objs: Obj[]): void {}
     renderWindow(window: WindowFrame): void {
         this.renderImage(window.background, window.position.x, window.position.y, window.width, window.height)
@@ -639,22 +641,31 @@ export function getObjectUnderCursor(p: (obj: Obj) => boolean) {
     // in world coordinates) are hit-tested in the same space.
     const mousePosition = screenToWorld(mouse[0], mouse[1])
 
-    // reverse z-ordered search
+    // CE game_mouse.cc gameMouseGetObjectUnderCursor: walk the intersect list top-down;
+    // every hit is a candidate, and the first opaque one outside the egg that is not a
+    // dead or knocked-out critter wins — else the lowest candidate. Hidden objects never
+    // intersect (object.cc _obj_intersects_with).
     const objects = globalState.gMap.getObjects()
-    for (let i = objects.length - 1; i > 0; i--) {
-        const bbox = objectBoundingBox(objects[i])
-        if (bbox === null) {
-            continue
-        }
-        if (pointInBoundingBox(mousePosition, bbox)) {
-            if (p === undefined || p(objects[i]) === true) {
-                const mouseRel = { x: mousePosition.x - bbox.x, y: mousePosition.y - bbox.y }
-                if (!objectTransparentAt(objects[i], mouseRel)) {
-                    return objects[i]
-                }
-            }
-        }
+    const player = globalState.player
+    const mouseHex = hexFromScreen(mousePosition.x, mousePosition.y)
+    const eggRadius = Config.ui.eggRadius ?? 8
+    let candidate: Obj | null = null
+    for (let i = objects.length - 1; i >= 0; i--) {
+        const obj = objects[i]
+        if (obj.visible === false || (((obj as any).flags ?? 0) & 0x01) !== 0) continue // GameMap.isHiddenObj (OBJECT_HIDDEN)
+        const bbox = objectBoundingBox(obj)
+        if (bbox === null || !pointInBoundingBox(mousePosition, bbox)) continue
+        if (p !== undefined && p(obj) !== true) continue
+        const mouseRel = { x: mousePosition.x - bbox.x, y: mousePosition.y - bbox.y }
+        if (objectTransparentAt(obj, mouseRel)) continue // DH2 lists only pixel hits
+        candidate = obj
+        const inEgg = Config.ui.showEgg !== false && player && hexDistance(player.position, mouseHex) <= eggRadius
+            && globalState.renderer?.isEggTransparent(obj)
+        if (inEgg) continue
+        const c = obj as any
+        if (obj.type === 'critter' && (c.dead || ((c.injuryFlags ?? 0) & 0x01) !== 0)) continue // DAM_KNOCKED_OUT | DAM_DEAD
+        return obj
     }
 
-    return null
+    return candidate
 }

@@ -17,6 +17,7 @@ limitations under the License.
 // World map: travel-screen overlay (worldmap canvas + per-area entrance
 // view), plus the area label list down the right side.
 
+import { getMessage } from './util.js'
 import globalState from './globalState.js'
 import { Area, loadAreas, lookupMapNameFromLookup } from './data.js'
 import { Worldmap } from './worldmap.js'
@@ -131,16 +132,11 @@ export function uiWorldMapShowArea(area: Area) {
     clearEl($areamap)
 
     // CE ref: worldmap.cc wmTownMapRefresh / wmTownMapInit — only entrances whose state
-    // is on (city.txt start state, metarule3 104) are drawn and clickable.
-    const active = area.entrances.filter(e => e.state)
-
-    // Entrances with x=0,y=0 in city.txt have no assigned position; after
-    // subtracting the WM_VIEW offset (22,21) they'd land at/below (0,0) and
-    // cluster in the top-left corner. Split and auto-distribute those.
+    // is on (city.txt start state, metarule3 104) and that have a position (x, y != -1)
+    // are drawn and clickable.
     const WM_VIEW_X = 22
     const WM_VIEW_Y = 21
-    const positioned = active.filter(e => e.x - WM_VIEW_X > 5 || e.y - WM_VIEW_Y > 5)
-    const orphaned   = active.filter(e => e.x - WM_VIEW_X <= 5 && e.y - WM_VIEW_Y <= 5)
+    const positioned = area.entrances.filter(e => e.state && e.x !== -1 && e.y !== -1)
 
     function makeEntrance(entrance: typeof area.entrances[0], left: number, top: number): void {
         dbg('worldmap', '[Worldmap] area entrance:', entrance.mapLookupName, `@ (${left}, ${top})`)
@@ -168,7 +164,9 @@ export function uiWorldMapShowArea(area: Area) {
         }
 
         $entranceEl.appendChild($hotspot)
-        appendHTML($entranceEl, entrance.mapLookupName)
+        // CE wmTownMapInit: the label is worldmap.msg 200 + 10 * area + entrance index
+        const label = getMessage('worldmap', 200 + 10 * area.id + area.entrances.indexOf(entrance)) ?? entrance.mapLookupName
+        appendHTML($entranceEl, label)
         $entranceEl.style.left = left + 'px'
         $entranceEl.style.top  = top + 'px'
         $areamap.appendChild($entranceEl)
@@ -180,18 +178,6 @@ export function uiWorldMapShowArea(area: Area) {
         // blitted at (WM_VIEW_X=22, WM_VIEW_Y=21). Subtract that offset so the hotspot
         // aligns with its rendered position on the FRM background image.
         makeEntrance(entrance, entrance.x - WM_VIEW_X, entrance.y - WM_VIEW_Y)
-    }
-
-    // Auto-distribute orphaned entrances (no valid city.txt coordinates) in a
-    // horizontal row below the FRM background image, 3 per row × 150px columns.
-    const ORPHAN_START_Y = 195
-    const ORPHAN_COL_W   = 150
-    const ORPHAN_ROW_H   = 30
-    const COLS_PER_ROW   = 3
-    for (let i = 0; i < orphaned.length; i++) {
-        const col = i % COLS_PER_ROW
-        const row = Math.floor(i / COLS_PER_ROW)
-        makeEntrance(orphaned[i], 10 + col * ORPHAN_COL_W, ORPHAN_START_Y + row * ORPHAN_ROW_H)
     }
 }
 
