@@ -30,7 +30,7 @@ import { saveLoadInit } from './saveload.js'
 import { drawAC, drawHP, initUI, uiDrawWeapon, uiLog } from './ui.js'
 import { initMainMenu, showMainMenu } from './ui_mainmenu.js'
 import { takeMainMenuReturn } from './mainMenuReturn.js'
-import { hideSplash } from './splash.js'
+import { hideSplash, waitForSplashClick } from './splash.js'
 import { sfallIniGetString } from './sfallIni.js'
 
 // sfall ddraw.ini [Misc] SkipOpeningMovies (0 / 1 / 2), else Config.ui.skipOpeningMovies
@@ -139,8 +139,10 @@ export function initGame() {
             hideSplash()
             showMainMenu()
         } else {
-            // the movie screen covers the splash; it goes with the main menu
-            void gameMoviePlay(MOVIE_IPLOGO, GAME_MOVIE_FADE_IN)
+            // the movie screen covers the splash; it goes with the main menu. Before the first
+            // user gesture the splash waits for a click, so the logo plays with its sound.
+            void waitForSplashClick()
+                .then(() => gameMoviePlay(MOVIE_IPLOGO, GAME_MOVIE_FADE_IN))
                 .then(() => gameMoviePlay(MOVIE_INTRO, 0))
                 .then(() => gameMoviePlay(MOVIE_CREDITS, 0))
                 .then(() => { hideSplash(); showMainMenu() })

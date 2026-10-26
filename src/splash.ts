@@ -54,6 +54,33 @@ function loadSplash(index: number): { canvas: HTMLCanvasElement; next: number } 
 
 let overlay: HTMLElement | null = null
 
+/** The browser plays a movie with sound only after a user gesture. Without one yet, the
+ *  splash ("Please stand by") asks for a click and resolves once it is over (on the
+ *  mouse-up / key-up, so the same click can't skip the movie that follows); with one
+ *  already, or no splash, at once. */
+export function waitForSplashClick(): Promise<void> {
+    const active = (navigator as any).userActivation?.hasBeenActive ?? true
+    if (active || !overlay) return Promise.resolve()
+    const label = document.createElement('div')
+    label.textContent = '[click to play]'
+    label.style.cssText = 'position:absolute;left:0;bottom:24px;width:100%;text-align:center;color:#fcfcfc;font:12px monospace;text-shadow:1px 1px 0 #000;'
+    overlay.appendChild(label)
+    overlay.style.cursor = 'pointer'
+    return new Promise((resolve) => {
+        const done = (e: Event) => {
+            e.preventDefault()
+            e.stopPropagation()
+            document.removeEventListener('mouseup', done, true)
+            document.removeEventListener('keyup', done, true)
+            label.remove()
+            if (overlay) overlay.style.cursor = ''
+            resolve()
+        }
+        document.addEventListener('mouseup', done, true)
+        document.addEventListener('keyup', done, true)
+    })
+}
+
 /** Takes the splash away (the first movie or the main menu is up). */
 export function hideSplash(): void {
     overlay?.remove()
