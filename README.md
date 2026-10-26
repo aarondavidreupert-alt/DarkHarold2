@@ -50,7 +50,7 @@ existing maintainers stay oriented; each section builds on the previous.
 |---|---|
 | [`CODEBASE.md`](CODEBASE.md) | Full module map, repository layout, file responsibilities, key data flows |
 | `src/` | TypeScript engine (renderer, object, critter, vm, scripting, combat, party, …) |
-| `src/main.ts` | Main game loop, input handling, map-load entry |
+| `src/main.ts` | Boot: renderer, audio, fallout2.cfg, asset caches, `initGame` (game loop: `gameTick.ts`; input: `input.ts`) |
 | `src/heart.ts` | 60 Hz heartbeat loop |
 | `src/globalState.ts` | Central game-state singleton (`gMap`, `player`, `combatActive`, …) |
 | `src/config.ts` | Engine / UI / scripting / combat flags |
@@ -117,6 +117,7 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 51 | [`wiki/upu_support.md`](wiki/upu_support.md) | The Unofficial Patch (UPU) and mod folders: what UPU changes, how DH2 builds and loads it (`mods/<name>/`, sfall functions, global scripts, hooks), conflicts |
 | 52 | [`wiki/edit_history.md`](wiki/edit_history.md) | Sprint notes, newest first |
 | 53 | [`wiki/autocrawler.md`](wiki/autocrawler.md) | AutoCrawler: automated map / dialogue / combat test harness, URL auto-start, report format |
+| 54 | [`wiki/cleanup_audit.md`](wiki/cleanup_audit.md) | 2026-10-26 codebase hygiene audit: dead code, debug console (`play.html#dev`), stale docs; SAFE items fixed, RISKY items open |
 
 ### 🐛 Known issues & roadmap
 
@@ -495,21 +496,20 @@ of DarkHarold2 and are only given to explain the status quo. The technical direc
 ## Development / Debug
 
 `src/debug.ts` exports a typed `debug` object with cheat/testing utilities.
-It is a **no-op in production** — all methods return immediately unless
-`Config.engine.debug` is `true`.
+All methods return immediately unless `Config.engine.debug` is `true` (the default).
+
+### Developer console (`play.html#dev`)
+
+The DH2 console commands — `skipTemple()`, `revealWorldmap()`, `giveCar()`, `blackBar()`,
+`lightingDebug()`, `setEggMode()`, `setDevKeys()`, the other `set...()` switches and the
+`debugGlobalState` / `debugRenderer` / `debugLightmap` handles — are only registered when the URL hash
+has `dev`: `play.html#dev`, or with other hash keys `play.html#script_backend=lua&dev`
+(`src/devConsole/`). `exportEventLog()` / `__eventLog` (Combat Log) and `globalState`, `Config`,
+`Scripting` are always there.
 
 ### Enabling
 
-Open `src/config.ts` and flip the flag:
-
-```ts
-engine: {
-    debug: true,   // ← change this
-    ...
-}
-```
-
-Rebuild (`npx tsc`) and reload the page.
+`Config.engine.debug` is on by default (`src/config.ts`); the AutoCrawler needs it too.
 
 ### Using from the Browser DevTools
 
@@ -533,8 +533,8 @@ _debug.addXP(2000)
 | Method | Description | Example |
 |---|---|---|
 | `addXP(n)` | Add `n` experience points. Fires level-up and opens the perk picker if the XP threshold is crossed. | `debug.addXP(2000)` |
-| `skipTemple()` | Skip the Temple of Trials: load Arroyo Village at the temple exit's destination (map 4, tile 11683). Also on `window` as `skipTemple()`. | `debug.skipTemple()` |
-| `revealWorldmap()` | Open the worldmap with every square, town and entrance revealed; clicks (map or town list) then move the party there at once — no game time, no encounters. `revealWorldmap(false)` reveals without instant travel; `setInstantTravel(false)` stops it. DH2 debug, not in CE. | `revealWorldmap()` |
+| `skipTemple()` | Skip the Temple of Trials: load Arroyo Village at the temple exit's destination (map 4, tile 11683). Also on `window` as `skipTemple()` (`play.html#dev`). | `debug.skipTemple()` |
+| `revealWorldmap()` | (`window`, `play.html#dev`) Open the worldmap with every square, town and entrance revealed; clicks (map or town list) then move the party there at once — no game time, no encounters. `revealWorldmap(false)` reveals without instant travel; `setInstantTravel(false)` stops it. DH2 debug, not in CE. | `revealWorldmap()` |
 | `setHP(n)` | Set player current HP to `n`. | `debug.setHP(1)` |
 | `setKarma(n)` | Set player karma to `n`. Clamped to ±99999999. | `debug.setKarma(500)` |
 | `combatLog()` | Returns the current `eventLog` array (same data exported by the Combat Log tools). | `debug.combatLog()` |
@@ -546,7 +546,7 @@ _debug.addXP(2000)
 
 ### Car system (worldmap travel)
 
-In-game, the car is handed over by quest scripts (`GVAR_PLAYER_GOT_CAR` + metarule 31 `GIVE_CAR_TO_PARTY`). To enable it instantly from the DevTools console — **no in-game unlock required**:
+In-game, the car is handed over by quest scripts (`GVAR_PLAYER_GOT_CAR` + metarule 31 `GIVE_CAR_TO_PARTY`). To enable it instantly from the DevTools console (`play.html#dev`) — **no in-game unlock required**:
 
 ```js
 // Give the car with a full tank (80 000 fuel units)

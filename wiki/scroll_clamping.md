@@ -1,5 +1,7 @@
 # Scroll Clamping & Map Edge Rendering
 
+> Console commands named here (`setXyz()`, `...Debug()`) are registered only for `play.html#dev` (`src/devConsole/`).
+
 ## CE Reference
 - `src/tile.cc` — `tileInit()` (line 290), `tileSetBorder()` (line 462),
   `tileSetCenter()` (line 537, scroll-reject at 574), `_tile_scroll_to()` (line 1947)
@@ -64,7 +66,7 @@ outside may still walk. The walking area also takes in every exit grid that has 
 inside the border, so all exits stay reachable: of all map elevations only `ncr2`/0
 (exit to map 42) and `redwan1`/1 have such an exit.
 
-`[dh2] scroll_player_limit=0` / console `setScrollPlayerLimit(false)` drops the
+`[dh2] scroll_player_limit=0` / console `setScrollPlayerLimit(false)` (`play.html#dev`) drops the
 480×400 px player limit: the view then goes as far as the ring and the black border
 allow. known_bugs RD20.
 

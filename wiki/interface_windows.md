@@ -381,7 +381,7 @@ No functional gap in the skill list itself — DH2 shows the same 10 skills as C
 ## 11. Elevator (`elevator.cc` / `elevator.h` / `src/ui_elevator.ts`)
 
 > **Source anchor:** `raw/fallout2-ce/src/elevator.cc`, `raw/fallout2-ce/src/elevator.h`
-> **DH2 files:** `src/ui_elevator.ts`, `src/data.ts` (`Elevator` interface, `getElevator`), `src/main.ts` (`useElevator`)
+> **DH2 files:** `src/ui_elevator.ts`, `src/data.ts` (`Elevator` interface, `getElevator`), `src/scripting.ts` (`requestElevator`, metarule 15)
 > **Data:** `src/ceElevators.ts` (CE's tables, compiled in; until 2026-10-22 `lut/elevators.json` read from fallout2.exe)
 > `UIMode.elevator = 6`
 
@@ -452,15 +452,18 @@ Special elevation remapping is applied for two hardcoded elevators:
 - `ELEVATOR_MILITARY_BASE_LOWER` — elevation offset −2 when ≥ 2
 - `ELEVATOR_MILITARY_BASE_UPPER` — offset −2 when elevation = 4
 
-### 11.4 DH2 Implementation (`src/ui_elevator.ts`, `src/main.ts`)
+### 11.4 DH2 Implementation (`src/ui_elevator.ts`, `src/scripting.ts`)
 
 #### Trigger
 
-`main.ts:1160 useElevator()`:
+The elevator spatial scripts call metarule 15 (METARULE_ELEVATOR); `requestElevator()` in
+`scripting.ts` ports CE `scriptsRequestElevator`:
 
-1. Searches the 6 tiles adjacent to the player for a scenery object with `PID = 1293` (the Elevator Stub scenery)
-2. Reads `elevatorStub.extra.type` and `elevatorStub.extra.level` to look up the elevator record
-3. Calls `uiElevator(elevator)` with the JSON record
+1. Scans the 10×10 tiles around the script's self object for the elevator stub (pid `0x200050D`) and takes its `extra.type`, else the explicit type (−1 → nothing)
+2. Looks the type up in CE's elevator table (`getElevator`, `src/ceElevators.ts`)
+3. Calls `uiElevator(elevator)` once the script has returned
+
+(The old `main.ts useElevator()`, which searched around the player for pid 1293, had no caller and was removed 2026-10-26.)
 
 #### `uiElevator(elevator)` (`ui_elevator.ts:56`)
 

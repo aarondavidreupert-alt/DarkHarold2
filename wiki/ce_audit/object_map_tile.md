@@ -256,7 +256,7 @@ Top findings:
 - Static/dynamic light split (`bakeStaticLight` / `rebuildDynamicLight`), smooth moving-light modes (`playerLightSmooth`: `blend`, `egg-split`), and the `derived` / `naive` propagation modes (`Config.engine.lightPropagationMode`). In CE other lights' shadows from a moving critter are only recomputed on `_obj_rebuild_all_light`; DH2 recomputes critter lights every frame.
 - `changeElevationFaded` (`GameMap.ts:294`): a black overlay fade on stairs, ladders and elevators. CE `mapSetElevation` has no fade, though the code comment cites it.
 - `mapFade.ts`: holds a black screen until assets settle (replaces CE's synchronous `isoDisable` / `isoEnable`).
-- Scroll bounds: auto bounds from the scroll-blocker bbox / floor bbox, per-map bar table, black edge overlay, `blackBar()` editor, mouse-wheel zoom. Documented in `scroll_clamping.md` and README "Known approximations".
+- Scroll bounds: auto bounds from the scroll-blocker bbox / floor bbox, per-map bar table, black edge overlay, `blackBar()` editor (console, `play.html#dev`), mouse-wheel zoom. Documented in `scroll_clamping.md` and README "Known approximations".
 - `roofPeek` second roof flood (`renderer.ts:198`, `Config.ui.roofPeek`).
 - Egg modes `dh2-egg` (default, hand-tuned), `alpha`, `bbox`, `beta` (`webglDraw.ts`). `ce-egg` is the literal CE test.
 - Deferred object removal (`removeObject` → `drainRemovalQueue` per tick). CE `objectDestroy` is immediate.

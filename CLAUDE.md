@@ -3,7 +3,7 @@
 DarkHarold2 is a semi-faithful browser recreation of Fallout 2, forked from the DarkFO project (Apache 2.0 license). Goal: faithful F2 gameplay with only minor tweaks — do not invent features, follow the originals.
 
 ## Tech Stack
-- Engine/logic: TypeScript (strict mode: noImplicitAny, noImplicitReturns), compiled with `npx tsc` → `js/`
+- Engine/logic: TypeScript (`noImplicitAny`, `noImplicitReturns`, `noImplicitThis`, `alwaysStrict`; **not** full `strict` — `strictNullChecks` is off), compiled with `npx tsc -p .` (`npm run build`) → `js/`
 - Rendering: WebGL 2.0 (no canvas 2D fallback)
 - Audio: Web Audio API (ACM source files, converted to WAV by pipeline)
 - Asset pipeline: Python 3.9+ / Pipenv, scripts under `tools/` (`tools/setup.py` orchestrates full extraction; `tools/pipeline_gui.py` is a Tkinter GUI front-end)
@@ -29,7 +29,7 @@ When researching any system before implementing or documenting:
 
 Available wiki docs (43 system docs in `wiki/`, audited 2026-10-18; `lua_scripts.md` added 2026-10-19, `lua_variable_names.md` (generated review list) 2026-10-21, `upu_support.md` (Unofficial Patch, mod folders) 2026-10-22):
 `actions.md`, `ai_behavior.md`, `animation.md`, `car_system.md`, `character_stats.md`, `combat.md`, `companion_party.md`, `critter_stats.md`, `damage_formula.md`, `dialogue_system.md`, `drugs.md`, `economy.md`, `endgame.md`, `faction_reputation.md`, `file_formats.md`, `hotkeys.md`, `interface_windows.md`, `items.md`, `known_bugs.md`, `lighting.md`, `lua_scripts.md`, `lua_variable_names.md`, `map_scripting.md`, `upu_support.md`, `palette_colors.md`, `pathfinding.md`, `perks_traits.md`, `pipboy.md`, `proto_system.md`, `quest_system.md`, `random_numbers.md`, `rendering.md`, `save_load.md`, `scripting_reference.md`, `scripting_vm.md`, `scroll_clamping.md`, `settings.md`, `skill_checks.md`, `sound_system.md`, `spatial_triggers.md`, `status_effects.md`, `tile_system.md`, `time_clock.md`, `weapon_combat.md`, `worldmap.md`.
-Meta/audit: `CODEBASE_FOCE.md`, `CODEBASE_jsFO.md`, `CROSS_CHECK_NOTES.md`, `alignment.md`, `extended_flags.md`, `failed_animation_offset_attempts.md`, `ts-split-refactor.md`, `edit_history.md`, `autocrawler.md` (AutoCrawler usage), `README.md`.
+Meta/audit: `CE_PARITY_AUDIT.md` (+ `ce_audit/`, function-by-function CE parity tables), `cleanup_audit.md` (codebase hygiene audit, 2026-10-26), `CODEBASE_FOCE.md`, `CODEBASE_jsFO.md`, `CROSS_CHECK_NOTES.md`, `alignment.md`, `extended_flags.md`, `failed_animation_offset_attempts.md`, `ts-split-refactor.md`, `edit_history.md`, `autocrawler.md` (AutoCrawler usage), `README.md`.
 
 ## File Access Policy
 - ALWAYS pull from the remote branch before reading any file
@@ -37,17 +37,20 @@ Meta/audit: `CODEBASE_FOCE.md`, `CODEBASE_jsFO.md`, `CROSS_CHECK_NOTES.md`, `ali
 - Never fabricate reference files (pal.py, frmpixels.py, example_scripts/, etc.)
 
 ## Key Files
-- src/scripting.ts — Script class with all opcode intrinsic methods (~1700 lines)
-- src/vm.ts — bytecode VM (opMap of 32+ raw bytecode handlers)
-- src/vm_bridge.ts — wires bytecode opcodes to Script class methods (bridgeOpMap, ~150 entries)
+- src/scripting.ts — Script class with all opcode intrinsic methods (~4500 lines)
+- src/vm.ts — bytecode VM (opMap of raw bytecode handlers)
+- src/vm_bridge.ts — wires bytecode opcodes to Script class methods (bridgeOpMap, ~270 `bridged()` entries)
+- src/lua/ — the Lua script backend (luaRuntime.ts, prelude.ts, luaDiff.ts)
 - src/player.ts — Player class and stat initialization
-- src/gametime.ts — in-game time constants, tick system, day/night cycle
-- src/combat.ts — combat loop, AI, hit/damage calculation, critical effects
-- src/critter.ts — critter damage/kill/heal helpers
-- src/object.ts — Obj / Critter base types
-- src/globalState.ts — central game state singleton (gMap, player, combatActive, etc.)
+- src/gametime.ts — in-game time constants, day/night cycle; src/gameTick.ts — the per-tick game loop
+- src/combat/Combat.ts — combat loop, AI, hit/damage (src/combat.ts is its barrel; also combat/{AI,damage,hitChance,...}.ts, criticalEffects/)
+- src/critter/lifecycle.ts — critter damage/kill helpers (src/critter.ts is its barrel)
+- src/object/Obj.ts, src/object/Critter.ts — Obj / Critter types (src/object.ts is their barrel)
+- src/globalState.ts — central game state singleton (gMap, player, combat, etc.)
 - src/config.ts — Config singleton with engine/UI/scripting/combat debug flags
-- src/main.ts — main game loop, input handling, map loading entry point
+- src/main.ts — boot only: renderer, audio, fallout2.cfg, the asset caches, `initGame`
+- src/input.ts, src/hotkeys.ts — mouse and keyboard handlers; src/playerUse.ts — object interaction
+- src/devConsole/ — DH2 developer console commands, registered for `play.html#dev` only
 - src/heart.ts — 60Hz heartbeat loop
 
 ## Lua Script Backend (default)
@@ -171,4 +174,4 @@ an opcode scan of the 1288 scripts in scripts.lst finds a handler for all 192 op
 - WebGL 2.0 only — no Three.js, no canvas 2D, no native deps
 - Browser-safe: no Node.js-only APIs in src/
 - Do not modify the asset pipeline (Python) unless the task is explicitly about assets
-- TypeScript strict mode enforced — no implicit any, no implicit returns
+- TypeScript: no implicit any, no implicit returns (tsconfig.json; `strictNullChecks` is off)

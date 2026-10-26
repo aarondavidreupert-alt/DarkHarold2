@@ -1,5 +1,7 @@
 # Lighting System
 
+> Console commands named here (`setXyz()`, `...Debug()`) are registered only for `play.html#dev` (`src/devConsole/`).
+
 Documents the Fallout 2 lighting system — intensity scale, ambient light,
 per-object light sources, propagation/blockers, night penalty, time-of-day
 transitions, scripting opcodes, visibility interactions, and render integration.

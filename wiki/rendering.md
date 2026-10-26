@@ -264,7 +264,7 @@ A text overlay rendered each frame on the 2D `textCanvas` shows live cursor diag
 | `mt:` | Square tile (80 × 36) coords | `tileFromScreen(mouseWorld)` |
 | `m:` | Raw screen pixels | `heart.mouse.getPosition()` |
 
-`tile:` matches the `tileNum` values printed by `eggDebug()` (`src/main.ts`) — hover over a hex and the displayed number equals the wall/floor index used in `eggDebug()` output. Useful for cross-checking which hex is under the cursor without needing to calculate `y * 200 + x` manually.
+`tile:` matches the `tileNum` values printed by `eggDebug()` (`src/devConsole/egg.ts`, `play.html#dev`) — hover over a hex and the displayed number equals the wall/floor index used in `eggDebug()` output. Useful for cross-checking which hex is under the cursor without needing to calculate `y * 200 + x` manually.
 
 ### DH2 Multi-Elevation (`GameMap.changeElevation`, `map.ts`)
 

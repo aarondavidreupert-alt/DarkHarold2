@@ -1,5 +1,7 @@
 # Screen-Space Alignment — CE vs DH2
 
+> Console commands named here (`setXyz()`, `...Debug()`) are registered only for `play.html#dev` (`src/devConsole/`).
+
 How Fallout 2 CE positions and aligns every renderable category in screen
 space, and exactly where DH2's WebGL 2.0 renderer agrees, deviates, or
 approximates. This is the single reference for "why is *X* drawn — or lit — at

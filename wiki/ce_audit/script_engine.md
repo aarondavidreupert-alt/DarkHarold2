@@ -62,7 +62,7 @@ Top findings, most severe first:
 | _scripts_check_state_in_combat | — | ✅ FIXED (2026-10-26) | LOW | Elevator / looting requests made in combat — **2026-10-26:** the elevator request opens in combat as well (it is queued outside the combat loop), as CE runs it from the combat loop; looting is not a script request in DH2 — stale row. |
 | scriptsRequestCombat / _scripts_request_combat_locked | scripting.ts:1734, 2645 `Combat.start` | ✅ FIXED (SCR-07) | MED | Runs at once (SCR-07) |
 | scripts_request_townmap / scriptsRequestWorldMap | scripting.ts:2686 `world_map` → `uiWorldMap()` | ✅ FIXED (2026-10-26) | LOW | Runs at once. CE also sets `_game_user_wants_to_quit = 1` in combat — **2026-10-26:** world_map in combat ends the fight first (CE _game_user_wants_to_quit = 1); the map opens once the script returns. |
-| scriptsRequestElevator | metarule 15 → `useElevator` | 🟡 | | Not compared in detail (elevator audit) |
+| scriptsRequestElevator | metarule 15 → `requestElevator` (scripting.ts; `useElevator` removed 2026-10-26) | 🟡 | | Not compared in detail (elevator audit) |
 | scriptsRequestExplosion | scripting.ts:3030 `explosion` | ✅ FIXED (2026-10-25) | LOW | Explodes inside the script (SCR-07) |
 | scriptsRequestDialog | scripting.ts:2853 → `processDialogueRequest` | ✅ | | Deferred |
 | scriptsRequestEndgame | scripting.ts:3145 | ✅ FIXED (2026-10-26) | LOW | Starts the async slideshow at once; CE plays the slideshow and then the movie from the request — **2026-10-26:** the request runs from the game loop after the script and playSlideshow awaits the movie, so slides then movie as CE — stale row. |

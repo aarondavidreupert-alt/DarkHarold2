@@ -221,7 +221,7 @@ Top findings, by severity:
 
 ## DH2-only behaviour
 
-- Debug helpers: `window.giveCar([fuel])` (Worldmap.ts:147), `revealWorldmap()` / `setInstantTravel()` (`revealAll`, instant travel with no time or encounters; main.ts:388-401), the `worldmap` dev key `l` (input.ts:560, dev keys only).
+- Debug helpers (console, `play.html#dev`, `src/devConsole/`): `giveCar([fuel])` (Worldmap.ts), `revealWorldmap()` / `setInstantTravel()` (`revealAll`, instant travel with no time or encounters; devConsole/toggles.ts), the `worldmap` dev key `l` (input.ts:560, dev keys only).
 - WASD as well as arrow keys for panning; mouse-edge band of 20 px inside the view.
 - `Config.engine.doEncounters` turns encounter rolls off; `Config.engine.doCombat` gates the fighting-groups combat start.
 - Condition language accepts `<=`, `>=` and `or` (no vanilla data uses them; the CE semantics of OR are different).

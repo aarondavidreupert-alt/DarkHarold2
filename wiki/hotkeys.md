@@ -147,7 +147,7 @@ Cases are case-insensitive (CE handles both `KEY_UPPERCASE_X` and `KEY_LOWERCASE
 
 `interfaceBarEnabled()` = not during an AI combat turn; in combat only the player's turn reads keys (Space ends it, Return tries to end combat).
 
-`heart.keydown` (the old lower-case char path) now only carries the camera arrows, the DH2 item-highlight key (Space outside combat) and the DH2 developer keys (`Config.engine.devKeys`, console `setDevKeys(true)`: elevation q/e, layer toggles r/f/o/w, talk t, inspect i, move m, run j, attack g, raycast y, loot v, use u, kill k, worldmap l); with dev keys on, a key bound to one of those is not a game key. The old DarkFO game bindings (c combat, b inventory, n/m save/load, z called shot) are gone.
+`heart.keydown` (the old lower-case char path) now only carries the camera arrows, the DH2 item-highlight key (Space outside combat) and the DH2 developer keys (`Config.engine.devKeys`, console `setDevKeys(true)` on `play.html#dev`: elevation q/e, layer toggles r/f/o/w, talk t, inspect i, move m, run j, attack g, raycast y, loot v, use u, kill k, worldmap l); with dev keys on, a key bound to one of those is not a game key. The old DarkFO game bindings (c combat, b inventory, n/m save/load, z called shot) are gone.
 
 ---
 

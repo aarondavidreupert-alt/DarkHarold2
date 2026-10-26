@@ -1,8 +1,9 @@
 # DarkHarold2 — Codebase Map
 
 DarkHarold2 is a browser-based recreation of Fallout 2, forked from the DarkFO
-project (Apache 2.0). Written in TypeScript (strict mode) with WebGL 2.0
-rendering and a Python 3 asset pipeline. Estimated completion: ~55%.
+project (Apache 2.0). Written in TypeScript (no implicit any / returns; `strictNullChecks`
+off) with WebGL 2.0 rendering and a Python 3 asset pipeline. Estimated completion: ~99%
+(canonical figure: ROADMAP.md).
 
 Ground-truth reference: [fallout2-ce](https://github.com/alexbatalov/fallout2-ce)
 (authoritative C++ source). Secondary: [jsFO](https://github.com/ajxs/jsFO).
@@ -21,7 +22,9 @@ DarkHarold2/
 │   └── pro/         Proto lookup indexes (proto_items.json, etc.)
 ├── maps/            Extracted map JSON + per-map image lists (*.json, *.images.json) — git-ignored
 ├── img/             DH2's own images (hex_outline.png: the hex cursor outline, loaded by mapLoader.ts)
-├── lib/             Third-party JS (pathfinding-browser.js, wasmoon/ — Lua 5.4 in WebAssembly, MIT)
+├── lib/             Third-party JS, vendored without version info: wasmoon/ (Lua 5.4 in WebAssembly, MIT,
+│                    added 2026-10-19), pathfinding-browser.js (PathFinding.js from DarkFO; unused since the
+│                    CE hex A*, still loaded by play.html — cleanup_audit CA14)
 ├── audio/           Extracted WAV audio (music/ and sfx/) — git-ignored
 ├── mods/            Mod folders (git-ignored but mods_order.txt): Lua mods (mods/<name>/scripts/), and the
 │                    ones build_mods makes from the install's mods (mods/upu/ + manifest.json, modAssets.ts)
@@ -70,7 +73,7 @@ the pipeline or the TS compiler.
 
 | File | Purpose | fallout2-ce counterpart |
 |------|---------|------------------------|
-| `src/main.ts` | Boot orchestrator: `initGame` wiring, `useElevator`, `heart.update`/`heart.draw` assignments. Split into `playerUse.ts` (object/critter interaction router), `input.ts` (mouse + keyboard handlers via `installInputHandlers()`), `gameTick.ts` (per-tick game loop) | `main.cc` |
+| `src/main.ts` | Boot orchestrator: renderer + shaders, audio, fallout2.cfg / preferences, the IndexedDB asset caches, `initGame` wiring, `heart.update`/`heart.draw` assignments. Split into `playerUse.ts` (object/critter interaction router), `input.ts` (mouse + keyboard handlers via `installInputHandlers()`), `gameTick.ts` (per-tick game loop) | `main.cc` |
 | `src/heart.ts` | 60 Hz rAF game loop (`heart.update` / `heart.draw`); exposes `_stepOnly` for headless testing | `main.cc` (game loop) |
 | `src/map/pathfinder.ts` | Hex path finder: literal CE `pathfinderFindPath` + `canUseDoor` (used by `GameMap.recalcPath`) | `animation.cc pathfinderFindPath` |
 | `src/hotkeys.ts` | The game keyboard: CE `gameHandleKey` + `_combat_input` (registered in `input.ts`) | `game.cc gameHandleKey`, `combat.cc _combat_input` |
@@ -133,7 +136,7 @@ the pipeline or the TS compiler.
 | `src/combat/lineOfFire.ts` | `_combat_is_shot_blocked` (LoF critter count) on top of `GameMap.straightPathObstacle` (`_make_straight_path_func`) | `combat.cc`, `animation.cc` |
 | `src/combat/whoHitMe.ts` | `_critter_set_who_hit_me` (incl. reaction −3), `_combatai_check_retaliation`, `_combatai_rating` | `critter.cc`, `combat_ai.cc` |
 
-Wiki references: [wiki/CE_PARITY_AUDIT.md](wiki/CE_PARITY_AUDIT.md) (+ `wiki/ce_audit/`) · [wiki/actions.md](wiki/actions.md) · [wiki/ai_behavior.md](wiki/ai_behavior.md) · [wiki/alignment.md](wiki/alignment.md) · [wiki/animation.md](wiki/animation.md) · [wiki/character_stats.md](wiki/character_stats.md) · [wiki/combat.md](wiki/combat.md) · [wiki/companion_party.md](wiki/companion_party.md) · [wiki/critter_stats.md](wiki/critter_stats.md) · [wiki/damage_formula.md](wiki/damage_formula.md) · [wiki/dialogue_system.md](wiki/dialogue_system.md) · [wiki/economy.md](wiki/economy.md) · [wiki/endgame.md](wiki/endgame.md) · [wiki/extended_flags.md](wiki/extended_flags.md) · [wiki/faction_reputation.md](wiki/faction_reputation.md) · [wiki/file_formats.md](wiki/file_formats.md) · [wiki/hotkeys.md](wiki/hotkeys.md) · [wiki/interface_windows.md](wiki/interface_windows.md) · [wiki/items.md](wiki/items.md) · [wiki/known_bugs.md](wiki/known_bugs.md) · [wiki/lighting.md](wiki/lighting.md) · [wiki/map_scripting.md](wiki/map_scripting.md) · [wiki/pathfinding.md](wiki/pathfinding.md) · [wiki/perks_traits.md](wiki/perks_traits.md) · [wiki/pipboy.md](wiki/pipboy.md) · [wiki/proto_system.md](wiki/proto_system.md) · [wiki/quest_system.md](wiki/quest_system.md) · [wiki/random_numbers.md](wiki/random_numbers.md) · [wiki/rendering.md](wiki/rendering.md) · [wiki/save_load.md](wiki/save_load.md) · [wiki/scripting_reference.md](wiki/scripting_reference.md) · [wiki/scripting_vm.md](wiki/scripting_vm.md) · [wiki/settings.md](wiki/settings.md) · [wiki/skill_checks.md](wiki/skill_checks.md) · [wiki/sound_system.md](wiki/sound_system.md) · [wiki/spatial_triggers.md](wiki/spatial_triggers.md) · [wiki/status_effects.md](wiki/status_effects.md) · [wiki/tile_system.md](wiki/tile_system.md) · [wiki/time_clock.md](wiki/time_clock.md) · [wiki/weapon_combat.md](wiki/weapon_combat.md) · [wiki/worldmap.md](wiki/worldmap.md) · [wiki/drugs.md](wiki/drugs.md) · [wiki/palette_colors.md](wiki/palette_colors.md) · [wiki/scroll_clamping.md](wiki/scroll_clamping.md) · [wiki/ts-split-refactor.md](wiki/ts-split-refactor.md) · [wiki/lua_scripts.md](wiki/lua_scripts.md) · [wiki/lua_variable_names.md](wiki/lua_variable_names.md) · [wiki/upu_support.md](wiki/upu_support.md)
+Wiki references: [wiki/CE_PARITY_AUDIT.md](wiki/CE_PARITY_AUDIT.md) (+ `wiki/ce_audit/`) · [wiki/actions.md](wiki/actions.md) · [wiki/ai_behavior.md](wiki/ai_behavior.md) · [wiki/alignment.md](wiki/alignment.md) · [wiki/animation.md](wiki/animation.md) · [wiki/character_stats.md](wiki/character_stats.md) · [wiki/combat.md](wiki/combat.md) · [wiki/companion_party.md](wiki/companion_party.md) · [wiki/critter_stats.md](wiki/critter_stats.md) · [wiki/damage_formula.md](wiki/damage_formula.md) · [wiki/dialogue_system.md](wiki/dialogue_system.md) · [wiki/economy.md](wiki/economy.md) · [wiki/endgame.md](wiki/endgame.md) · [wiki/extended_flags.md](wiki/extended_flags.md) · [wiki/faction_reputation.md](wiki/faction_reputation.md) · [wiki/file_formats.md](wiki/file_formats.md) · [wiki/hotkeys.md](wiki/hotkeys.md) · [wiki/interface_windows.md](wiki/interface_windows.md) · [wiki/items.md](wiki/items.md) · [wiki/known_bugs.md](wiki/known_bugs.md) · [wiki/lighting.md](wiki/lighting.md) · [wiki/map_scripting.md](wiki/map_scripting.md) · [wiki/pathfinding.md](wiki/pathfinding.md) · [wiki/perks_traits.md](wiki/perks_traits.md) · [wiki/pipboy.md](wiki/pipboy.md) · [wiki/proto_system.md](wiki/proto_system.md) · [wiki/quest_system.md](wiki/quest_system.md) · [wiki/random_numbers.md](wiki/random_numbers.md) · [wiki/rendering.md](wiki/rendering.md) · [wiki/save_load.md](wiki/save_load.md) · [wiki/scripting_reference.md](wiki/scripting_reference.md) · [wiki/scripting_vm.md](wiki/scripting_vm.md) · [wiki/settings.md](wiki/settings.md) · [wiki/skill_checks.md](wiki/skill_checks.md) · [wiki/sound_system.md](wiki/sound_system.md) · [wiki/spatial_triggers.md](wiki/spatial_triggers.md) · [wiki/status_effects.md](wiki/status_effects.md) · [wiki/tile_system.md](wiki/tile_system.md) · [wiki/time_clock.md](wiki/time_clock.md) · [wiki/weapon_combat.md](wiki/weapon_combat.md) · [wiki/worldmap.md](wiki/worldmap.md) · [wiki/drugs.md](wiki/drugs.md) · [wiki/palette_colors.md](wiki/palette_colors.md) · [wiki/scroll_clamping.md](wiki/scroll_clamping.md) · [wiki/ts-split-refactor.md](wiki/ts-split-refactor.md) · [wiki/lua_scripts.md](wiki/lua_scripts.md) · [wiki/lua_variable_names.md](wiki/lua_variable_names.md) · [wiki/upu_support.md](wiki/upu_support.md) · [wiki/cleanup_audit.md](wiki/cleanup_audit.md)
 
 ### Scripting VM
 
@@ -229,6 +232,7 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/images.ts` | `lazyLoadImage`: async image cache; `artExists()`: Promise-based existence check |
 | `src/util.ts` | General helpers: file fetch, dice rolls, `BinaryReader`, `parseIni`, skill roll, etc. (261 lines) |
 | `src/geometry.ts` | Barrel — hex/isometric geometry utilities; split into `geometry/hexScreen.ts` (projection + cube/round helpers) and `geometry/hexGrid.ts` (topology, lines, bbox predicates) |
+| `src/devConsole.ts` | Barrel — DH2 developer console commands (`setEggMode()`, `lightingDebug()`, `blackBar()`, `giveCar()`, ...) in `devConsole/{register,toggles,lighting,egg}.ts`, registered for `play.html#dev` only; `devConsole/eventLog.ts` (`exportEventLog()`, `__eventLog`) on every load |
 | `src/debug.ts` | Dev/cheat console utilities: `debug.addXP`, `debug.teleport`, etc. — active when `Config.engine.debug = true` (79 lines) |
 | `src/formats/fon.ts` | FON bitmap font binary parser |
 | `src/formats/struct.js` | Binary struct unpacker (Python-style format strings) |

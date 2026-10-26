@@ -259,7 +259,7 @@ After a complete draw-then-return cycle the artOffset may be ±1 px from zero (t
 ### 4.3 CE Models (default since 2026-10-14) — `walkModel` / `animOffsetModel`
 
 Both models above were replaced by direct ports of CE's `obj->x/y` bookkeeping. The old
-behaviour stays available from the console for comparison.
+behaviour stays available from the console (`play.html#dev`) for comparison.
 
 **Walking — `Config.engine.walkModel`, console `setWalkModel('ce' | 'dh2' | 'smooth')`**
 
