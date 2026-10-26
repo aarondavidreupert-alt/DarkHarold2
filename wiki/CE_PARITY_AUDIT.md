@@ -255,10 +255,9 @@ save description pre-filled and capped; night crickets, the Fake Vault 13 swap, 
 `wmSetMapMusic`, the 24-hour time, the map-update timer after a load, `pcSetStat` levelling down, a recruit's
 script timers dropped; `wield_obj_critter`'s take-out animation.
 
-**Still open from that list:** doors can't be attacked (the crosshair ignores them); the put-away animations
-(an NPC's weapon switch, `inven_unwield`) — the hand changes at once and the art would have to lag; the party
-status refresh in the middle of a dialogue; an NPC already holding the Shiv stabs (CE punches); the death
-screen's subtitle timing.
+**Done since (2026-10-26):** doors can be attacked (the crosshair → `_combat_attack_this`); the put-away
+animations (an NPC's weapon switch, `inven_unwield`); the party status refresh in the middle of a dialogue;
+an NPC holding the Shiv punches; the death screen shows the whole subtitle text as CE does.
 
 **Presentation only (left as DH2's):** fonts and text widths, scroll and tab speeds, number and gauge
 animations, cursor hotspots, palette fades, splash and credits styling, colour-cycling pauses.
@@ -267,8 +266,11 @@ animations, cursor hotspots, palette fades, splash and credits styling, colour-c
 calls, external procedures, child programs), sfall's critical-table and burst-mod options, 16 of the 18 sfall
 metarules, the type checks behind CE's fatal "integer expected" errors.
 
-**Deliberate DH2 choices (documented elsewhere):** unlimited save slots, the egg occlusion mode, per-pixel
-scrolling, the browser screenshot, desktop-only input, the walk-next-to-talk rule.
+**Deliberate DH2 choices, each with a CE switch in `fallout2.cfg [dh2]` (default DH2's):** unlimited save
+slots (`save_slots=ce`: ten, no DELETE), the egg occlusion mode (`egg_mode=ce-egg`), smooth scrolling
+(`scroll_mode=ce`: 32 × 24 px steps), the wheel zoom (`mouse_wheel=ce`), the walk-next-to-talk rule
+(`talk_mode=ce`: talk within 9 hexes in line of sight), DH2's clicks (`mouse_mode=ce`). Without a switch: the
+browser screenshot and desktop-only input (browser limits).
 
 ## 4. Conflicts with the wiki / known_bugs (flagged, not resolved)
 

@@ -29,6 +29,7 @@ import {
 } from './playerUse.js'
 import {
     clampCameraPosition,
+    ceMapScroll,
     getObjectUnderCursor,
     SCREEN_HEIGHT,
     SCREEN_WIDTH,
@@ -178,18 +179,25 @@ export function tickGame(): void {
         // a 15-px-world step would fly across half the screen; zoomed
         // out, it would barely register.
         const scrollStep = 15 / (globalState.cameraZoom || 1.0)
-        if (mousePos[0] <= Config.ui.scrollPadding) {
-            globalState.cameraPosition.x -= scrollStep
-        }
-        if (mousePos[0] >= SCREEN_WIDTH - Config.ui.scrollPadding) {
-            globalState.cameraPosition.x += scrollStep
-        }
-
-        if (mousePos[1] <= Config.ui.scrollPadding) {
-            globalState.cameraPosition.y -= scrollStep
-        }
-        if (mousePos[1] >= SCREEN_HEIGHT - Config.ui.scrollPadding) {
-            globalState.cameraPosition.y += scrollStep
+        if (Config.ui.scrollMode === 'ce') {
+            // CE game_mouse.cc gameMouseHandleScrolling → mapScroll: whole 32 × 24 px steps
+            const pad = Config.ui.scrollPadding
+            const dx = mousePos[0] <= pad ? -1 : mousePos[0] >= SCREEN_WIDTH - pad ? 1 : 0
+            const dy = mousePos[1] <= pad ? -1 : mousePos[1] >= SCREEN_HEIGHT - pad ? 1 : 0
+            ceMapScroll(dx, dy)
+        } else {
+            if (mousePos[0] <= Config.ui.scrollPadding) {
+                globalState.cameraPosition.x -= scrollStep
+            }
+            if (mousePos[0] >= SCREEN_WIDTH - Config.ui.scrollPadding) {
+                globalState.cameraPosition.x += scrollStep
+            }
+            if (mousePos[1] <= Config.ui.scrollPadding) {
+                globalState.cameraPosition.y -= scrollStep
+            }
+            if (mousePos[1] >= SCREEN_HEIGHT - Config.ui.scrollPadding) {
+                globalState.cameraPosition.y += scrollStep
+            }
         }
         // Clamp to map bounds so we never scroll past the world edge.
         // CE ref: tile.cc:537 gTileBorderMin/MaxX/Y.

@@ -53,6 +53,7 @@ export {
     getWorldViewWidth,
     getWorldViewHeight,
     clampCameraPosition,
+    ceMapScroll,
     centerCamera,
     MAP_WORLD_BOUNDS,
 } from './render/camera.js'

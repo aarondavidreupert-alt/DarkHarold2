@@ -36,6 +36,7 @@ import { UIMode, closeAllPanels, isSkilldexOpen } from './ui_panels.js'
 import { $id, clearEl, makeEl } from './ui_dom.js'
 import { elevatorSpatialFor } from './elevatorUse.js'
 import { Config } from './config.js'
+import { approachToTalk } from './talkApproach.js'
 
 export function uiHideContextMenu() {
     globalState.uiMode = UIMode.none
@@ -65,8 +66,7 @@ function objectActions(obj: Obj) {
         talk: () => {
             // CE actions.cc actionTalk — walk up to the critter, then its talk_p_proc
             if (!obj._script) { dbgWarn('dialogue', '[Dialog] obj has no script'); return }
-            player.walkInFrontOf(obj.position, () => {
-                player.clearAnim()
+            approachToTalk(player, obj, () => {
                 dbg('dialogue', '[Dialog] talking to ' + obj.name)
                 Scripting.talk(obj._script!, obj)
             })

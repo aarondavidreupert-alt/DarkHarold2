@@ -46,6 +46,16 @@ export const Config = {
         // 'ce' — game_mouse.cc: a move click always walks to the hex, an arrow click does the
         // primary action, holding the button 250 ms opens the action menu, the arrow stays.
         mouseMode: 'dh2' as 'ce' | 'dh2',
+        // [dh2] scroll_mode: 'dh2' (default) — smooth edge / arrow scrolling, 15 px a tick; 'ce' —
+        // map.cc mapScroll: 32 × 24 px steps, one every 33 ms (camera.ts ceMapScroll)
+        scrollMode: 'dh2' as 'ce' | 'dh2',
+        // [dh2] mouse_wheel: 'zoom' (default, DH2) zooms the map; 'ce' scrolls it a step
+        // (game.cc gameHandleKey → mapScroll; up / down, sideways with a tilt wheel)
+        mouseWheel: 'zoom' as 'zoom' | 'ce',
+        // [dh2] save_slots: 'dh2' (default) — any number of slots, a free one always at the end,
+        // DELETE / Del removes a save; 'ce' — loadsave.cc: ten slots, no deleting (the
+        // ten oldest saves fill them; any more stay stored but aren't listed)
+        saveSlots: 'dh2' as 'ce' | 'dh2',
         // scroll_bounds=ce's player limit (480×400 px). Off, the view goes as far as
         // the blocker ring / black border allow. fallout2.cfg [dh2]
         // scroll_player_limit=0|1, console setScrollPlayerLimit(on).
@@ -148,6 +158,9 @@ export const Config = {
         // CE settings.sound.sounds / music / speech (fallout2.cfg [sound] sounds=, music=,
         // speech=; default 1): sounds=0 silences everything (gameSoundInit is skipped), music=0
         // the background music, speech=0 the talking heads' speech.
+        // [dh2] talk_mode: 'dh2' (default) — the dude walks up to everyone he talks to; 'ce' —
+        // actions.cc actionTalk: from where he stands when under 9 hexes and in sight (talkApproach.ts)
+        talkMode: 'dh2' as 'ce' | 'dh2',
         soundsEnabled: true,
         musicEnabled: true,
         speechEnabled: true,

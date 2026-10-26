@@ -188,6 +188,21 @@ export function applyCfg(cfg: CfgSections): void {
     //   mouse_mode=dh2|ce             clicks: DH2's (default) or CE game_mouse.cc (Config.ui.mouseMode)
     const mm = dh2['mouse_mode']?.trim().toLowerCase()
     if (mm === 'ce' || mm === 'dh2') Config.ui.mouseMode = mm
+    //   talk_mode=dh2|ce              Talk: walk up first (default) or CE talk at < 9 hexes in line of sight
+    const tm = dh2['talk_mode']?.trim().toLowerCase()
+    if (tm === 'ce' || tm === 'dh2') Config.engine.talkMode = tm
+    //   scroll_mode=dh2|ce            edge / arrow-key scrolling: smooth (default) or CE 32 × 24 px steps
+    const sm = dh2['scroll_mode']?.trim().toLowerCase()
+    if (sm === 'ce' || sm === 'dh2') Config.ui.scrollMode = sm
+    //   mouse_wheel=zoom|ce           the wheel zooms (default) or scrolls the map as in CE
+    const mw = dh2['mouse_wheel']?.trim().toLowerCase()
+    if (mw === 'ce' || mw === 'zoom') Config.ui.mouseWheel = mw
+    //   save_slots=dh2|ce             unlimited slots with DELETE (default) or CE's ten
+    const ss = dh2['save_slots']?.trim().toLowerCase()
+    if (ss === 'ce' || ss === 'dh2') Config.ui.saveSlots = ss
+    //   egg_mode=dh2-egg|ce-egg|alpha|bbox   wall transparency around the player (Config.ui.eggMode)
+    const em = dh2['egg_mode']?.trim().toLowerCase()
+    if (em === 'dh2-egg' || em === 'ce-egg' || em === 'alpha' || em === 'bbox') Config.ui.eggMode = em
     //   damage_formula=vanilla|glovz|glovz_tweak|yaam (or sfall's DamageFormula numbers 0/1/2/5):
     //   the damage ruleset (src/combat/damage.ts, wiki/damage_formula.md)
     const df = dh2['damage_formula']?.trim().toLowerCase()

@@ -354,7 +354,7 @@ export function playerUse(obj: Obj | null) {
             } else {
             // Block attack (and AP deduction) if ranged weapon has no ammo
             if (ammoGetCapacity(weapon as any) > 0 && ammoGetQuantity(weapon as any) === 0) {
-                uiLog('You: out of ammo!')
+                uiLog(getMessage('combat', 101) ?? 'Out of ammo.')
                 return
             }
 

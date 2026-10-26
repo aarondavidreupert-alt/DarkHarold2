@@ -30,6 +30,7 @@ import { makePanelDraggable } from './ui_drag.js'
 import { uiLog } from './ui_hud.js'
 import { areaContainingMap, loadAreas, mapIndexOf } from './data.js'
 import * as GameTime from './gametime.js'
+import { Config } from './config.js'
 import globalState from './globalState.js'
 import { dbg } from './logger.js'
 import { deleteSave, getSaveSnapshot, load, save, SaveGame, saveList, takeSaveSnapshot } from './saveload.js'
@@ -123,10 +124,11 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
         .add(cover)
         .add(new SmallButton(391, 349).onClick(() => { void confirm() }))
         .add(new SmallButton(495, 349).onClick(cancel))
-        .add(new SmallButton(391, 323).onClick(() => { void remove() }))
         .add(new Widget('art/intrface/uparwoff.png', { x: 35, y: 58, w: 11, h: 14 }).mouseDownBG('art/intrface/uparwon.png').onClick(() => move(-1)))
         .add(new Widget('art/intrface/dnarwoff.png', { x: 35, y: 72, w: 11, h: 14 }).mouseDownBG('art/intrface/dnarwon.png').onClick(() => move(1)))
         .show()
+    // DH2's DELETE button; [dh2] save_slots=ce has none (CE loadsave.cc)
+    if (Config.ui.saveSlots !== 'ce') win.add(new SmallButton(391, 323).onClick(() => { void remove() }))
     const el = win.elem
     makePanelDraggable(el, 'saveLoad')
 
@@ -134,7 +136,7 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
         addText(el, lsg(isSave ? 102 : 100, isSave ? 'SAVE GAME' : 'LOAD GAME'), 48, 27, font3, CE_COLOR.label)
         addText(el, lsg(104, 'DONE'), 410, 348, font3, CE_COLOR.label)
         addText(el, lsg(105, 'CANCEL'), 515, 348, font3, CE_COLOR.label)
-        addText(el, 'DELETE', 410, 322, font3, CE_COLOR.label) // DH2 addition
+        if (Config.ui.saveSlots !== 'ce') addText(el, 'DELETE', 410, 322, font3, CE_COLOR.label) // DH2 addition
     })
 
     // Preview: CE loadsave.cc:479-491 — the slot thumbnail (224x133, drawn 223x132)
@@ -170,7 +172,8 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
 
     function rebuildSlots(): void {
         slots = [...saves]
-        if (isSave || slots.length === 0) slots.push(null)
+        if (Config.ui.saveSlots === 'ce') slots = slots.slice(0, MIN_SLOTS) // [dh2] save_slots=ce
+        else if (isSave || slots.length === 0) slots.push(null)
         while (slots.length < MIN_SLOTS) slots.push(null)
         cursor = Math.min(cursor, slots.length - 1)
     }
@@ -308,7 +311,7 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
 
     async function remove(): Promise<void> {
         const s = slots[cursor]
-        if (busy || !s || s.id === undefined) return
+        if (busy || !s || s.id === undefined || Config.ui.saveSlots === 'ce') return
         busy = true
         try {
             if (await showConfirm(`Delete "${s.name}"?`)) deleteSave(s.id, refresh)

@@ -832,7 +832,8 @@ export class Combat {
 
         // Early ammo guard — no animation, no AP loss for any attacker
         if (!aiHaveAmmo(weaponObj)) {
-            uiLog(`${who}: out of ammo!`)
+            // CE _combat_attack → combat.msg 101 "Out of ammo." (the AI checks before it attacks)
+            if (obj.isPlayer) uiLog(getMessage('combat', 101) ?? 'Out of ammo.')
             if (callback) callback()
             return
         }

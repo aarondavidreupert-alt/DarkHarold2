@@ -785,3 +785,17 @@ export function centerCamera(around: Point) {
     if (Config.ui.scrollBounds === 'ce' && !(window as any).borderDebug) clampCameraCE(true)
     else clampCameraPosition()
 }
+
+// CE map.cc mapScroll(dx, dy): the view moves a whole step — 32 px across, 24 px down — and
+// at most every 33 ms ([dh2] scroll_mode=ce for edge / arrow scrolling, mouse_wheel=ce).
+let lastMapScroll = 0
+export function ceMapScroll(dx: number, dy: number): boolean {
+    if (dx === 0 && dy === 0) return false
+    const now = performance.now()
+    if (now - lastMapScroll < 33) return false
+    lastMapScroll = now
+    globalState.cameraPosition.x += dx * 32
+    globalState.cameraPosition.y += dy * 24
+    clampCameraPosition()
+    return true
+}

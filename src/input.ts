@@ -23,6 +23,7 @@ import { Lightmap } from './lightmap.js'
 import { Obj, objectIsWeapon } from './object.js'
 import {
     clampCameraPosition,
+    ceMapScroll,
     getObjectUnderCursor,
     getZoom,
     SCREEN_HEIGHT,
@@ -50,6 +51,7 @@ import { gameHandleKey } from './hotkeys.js'
 import { closeInventory } from './ui_inventory.js'
 import { automapKey, closeAutomap } from './ui_automap.js'
 import { lootKey } from './ui_loot.js'
+import { approachToTalk } from './talkApproach.js'
 import { elevatorKey } from './ui_elevator.js'
 import { playerUse, playerAttackDoor, cancelSkillTargeting } from './playerUse.js'
 import { primaryActionIcon, uiPrimaryAction } from './ui_contextmenu.js'
@@ -471,7 +473,10 @@ export function installInputHandlers(): void {
         // Keep keyboard pan speed consistent on-screen regardless of zoom
         // (see the mouse-edge scroll block in heart.update for the same trick).
         const kbStep = 15 / kz
-        if (isKey(k, 'cameraDown')) {
+        // [dh2] scroll_mode=ce: CE gameHandleKey's arrows → mapScroll (32 × 24 px steps)
+        if (Config.ui.scrollMode === 'ce' && (isKey(k, 'cameraDown') || isKey(k, 'cameraRight') || isKey(k, 'cameraLeft') || isKey(k, 'cameraUp'))) {
+            ceMapScroll(isKey(k, 'cameraRight') ? 1 : isKey(k, 'cameraLeft') ? -1 : 0, isKey(k, 'cameraDown') ? 1 : isKey(k, 'cameraUp') ? -1 : 0)
+        } else if (isKey(k, 'cameraDown')) {
             globalState.cameraPosition.y += kbStep
             clampCameraPosition()
         }
@@ -524,8 +529,7 @@ export function installInputHandlers(): void {
                     // CE ref: actions.cc:1832-1860 actionTalk — walks the
                     // player to the NPC (registers a run-to animation) before
                     // the dialogue callback fires, unless already close.
-                    globalState.player.walkInFrontOf(critter.position, () => {
-                        globalState.player.clearAnim()
+                    approachToTalk(globalState.player, critter, () => {
                         dbg('dialogue', '[Dialog] talking to ' + critter.name)
                         Scripting.talk(critter._script!, critter)
                     })

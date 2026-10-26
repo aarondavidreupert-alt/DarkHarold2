@@ -121,6 +121,20 @@ mouse_mode=dh2
 ; glovz = Glovz's (DR before multipliers, armour matters more), glovz_tweak = Glovz with the
 ; critical multiplier as +25 % steps, yaam = YAAM (ammo DR modifier lowers DT instead)
 damage_formula=vanilla
+; Talk: dh2 = the player walks up to the critter first, ce = CE: talks from where they
+; stand when the critter is under 9 hexes away and in line of sight (outside combat)
+talk_mode=dh2
+; map scrolling at the screen edge and with the arrow keys: dh2 = smooth, ce = CE's
+; 32 x 24 px steps
+scroll_mode=dh2
+; mouse wheel: zoom = zooms the map (DH2), ce = scrolls the map as in CE
+mouse_wheel=zoom
+; save / load slots: dh2 = any number, always a free one, DELETE removes a save;
+; ce = CE's ten slots and no deleting (with more saves, only the first ten are listed)
+save_slots=dh2
+; walls in front of the player: dh2-egg = CE's egg mask with DH2's occlusion test,
+; ce-egg = CE's egg with CE's exact test, alpha = flat transparency, bbox = bounding boxes
+egg_mode=dh2-egg
 ; game scripts: lua = the decompiled data/scripts/*.lua (tools/int2lua.py; a script
 ; without one runs its .int), vm = the .int bytecode
 script_backend=lua

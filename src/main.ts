@@ -25,6 +25,7 @@ import { dbg, dbgWarn } from './logger.js'
 import { initLuaRuntime } from './lua/luaRuntime.js'
 import {
     clampCameraPosition,
+    ceMapScroll,
     setScreenSize,
     ZOOM_MAX,
     ZOOM_MIN,
@@ -200,6 +201,12 @@ window.onload = async function () {
                 // Ignore zoom while a modal UI (dialog, inventory, pipboy)
                 // is up — it'd desync the underlying paused map.
                 if (globalState.uiMode !== UIMode.none && globalState.uiMode !== UIMode.useSkill) {
+                    return
+                }
+                // [dh2] mouse_wheel=ce: CE game.cc gameHandleKey — the wheel scrolls the map a
+                // step (up = north, a tilt wheel sideways)
+                if (Config.ui.mouseWheel === 'ce') {
+                    ceMapScroll(Math.sign(e.deltaX), Math.sign(e.deltaY))
                     return
                 }
 
