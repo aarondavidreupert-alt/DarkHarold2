@@ -124,6 +124,10 @@ damage_formula=vanilla
 ; Talk: dh2 = the player walks up to the critter first, ce = CE: talks from where they
 ; stand when the critter is under 9 hexes away and in line of sight (outside combat)
 talk_mode=dh2
+; offering a running item in barter (a burning flare, an armed explosive, a switched-on Geiger
+; counter or Stealth Boy): dh2 = the merchant says what is wrong with it, ce = CE's
+; "No, your offer is not good enough."
+barter_running_item=dh2
 ; map scrolling at the screen edge and with the arrow keys: dh2 = smooth, ce = CE's
 ; 32 x 24 px steps
 scroll_mode=dh2

@@ -259,6 +259,17 @@ export function uiBarterMode(merchant: Critter) {
         return Math.trunc(barterModMult * balancedCost) + capsInTable
     }
 
+    // DH2: the merchant's refusal of an offered item that is still running (a timed event)
+    function runningItemReply(item: Obj | null): string {
+        switch (item?.pid) {
+            case 205: return "Get that burning flare away from my stock!"
+            case 206: case 209: return "That thing is ticking! Get it out of here!"
+            case 207: return "Switch that Geiger counter off first. The clicking's driving me crazy."
+            case 210: return "Turn that Stealth Boy off first. I like to see what I'm buying."
+            default: return "Whatever that thing is doing, make it stop before you sell it to me."
+        }
+    }
+
     // TODO: checkOffer() or some-such
     function offer(): boolean {
         dbg('script', '[Barter] offer')
@@ -287,6 +298,13 @@ export function uiBarterMode(merchant: Critter) {
         const queued = new Set(Scripting.timeEventList.map((e) => (e.obj as Obj | null)?.uid).filter((u) => u !== undefined))
         const isQueued = (o: Obj): boolean => queued.has(o.uid) || (o.inventory ?? []).some(isQueued)
         const queuedOffer = playerBarterTable.some(isQueued)
+        // [dh2] barter_running_item=dh2: the merchant says what is wrong with it (CE: 28)
+        if (queuedOffer && Config.engine.barterRunningItem === 'dh2') {
+            const running = (o: Obj): Obj | null => queued.has(o.uid) ? o : (o.inventory ?? []).map(running).find((x) => x) ?? null
+            const item = playerBarterTable.map(running).find((x) => x) ?? null
+            uiSetDialogueReply(runningItemReply(item))
+            return false
+        }
 
         if (playerBarterTable.length > 0 && !queuedOffer && playerOffered >= merchantNeed) {
             // OK, player offered equal to more more than the value

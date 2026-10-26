@@ -191,6 +191,9 @@ export function applyCfg(cfg: CfgSections): void {
     //   talk_mode=dh2|ce              Talk: walk up first (default) or CE talk at < 9 hexes in line of sight
     const tm = dh2['talk_mode']?.trim().toLowerCase()
     if (tm === 'ce' || tm === 'dh2') Config.engine.talkMode = tm
+    //   barter_running_item=dh2|ce    a running item in a barter offer: its own refusal (default) or CE's 28
+    const br = dh2['barter_running_item']?.trim().toLowerCase()
+    if (br === 'ce' || br === 'dh2') Config.engine.barterRunningItem = br
     //   scroll_mode=dh2|ce            edge / arrow-key scrolling: smooth (default) or CE 32 × 24 px steps
     const sm = dh2['scroll_mode']?.trim().toLowerCase()
     if (sm === 'ce' || sm === 'dh2') Config.ui.scrollMode = sm

@@ -161,6 +161,11 @@ export const Config = {
         // [dh2] talk_mode: 'dh2' (default) — the dude walks up to everyone he talks to; 'ce' —
         // actions.cc actionTalk: from where he stands when under 9 hexes and in sight (talkApproach.ts)
         talkMode: 'dh2' as 'ce' | 'dh2',
+        // [dh2] barter_running_item: 'dh2' (default) — offering a running item (a burning
+        // flare, an armed explosive, a switched-on Geiger counter / Stealth Boy) gets its own
+        // refusal from the merchant; 'ce' — inventory.cc _barter_attempt_transaction's
+        // inventry.msg 28 "No, your offer is not good enough."
+        barterRunningItem: 'dh2' as 'ce' | 'dh2',
         soundsEnabled: true,
         musicEnabled: true,
         speechEnabled: true,
