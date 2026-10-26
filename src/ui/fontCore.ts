@@ -382,7 +382,10 @@ export function renderBitmapText(
         const glyph = glyphMap[String(text.charCodeAt(i))]
         if (i > 0) x += letterSpacing
         if (glyph) {
-            if (glyph.w > 0 && glyph.h > 0) {
+            // A space only advances (CE wordSpacing): in the font3 / font4 atlases its cell is
+            // wider than its packed slot and reaches into the '!' beside it, which drew a
+            // 1-2 px sliver in every gap ("NEW GAME", "LOAD GAME")
+            if (glyph.w > 0 && glyph.h > 0 && text[i] !== ' ') {
                 ctx.drawImage(spriteSheet, glyph.x, glyph.y, glyph.w, glyph.h, x, 0, glyph.w, glyph.h)
             }
             x += glyph.w
