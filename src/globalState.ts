@@ -20,7 +20,7 @@ import { AreaMap } from './data.js'
 import { Point } from './geometry.js'
 import type { EventLogEntry } from './eventlog.types.js'
 import { GameMap, SerializedMap } from './map.js'
-import { Obj } from './object.js'
+import { Critter, Obj } from './object.js'
 import { Party } from './party.js'
 import { Player } from './player.js'
 import { Renderer } from './renderer.js'
@@ -28,6 +28,21 @@ import { Skills } from './skills.js'
 import { UIMode } from './ui.js'
 
 export type CursorMode = 'move' | 'command' | 'attack' | 'interface' | 'scroll' | 'useSkill' | 'useItem'
+
+/** One art/imageMap.json entry: an FRM's frame layout (the export_images pipeline stage). */
+export interface ImageInfo {
+    numFrames: number // frames per direction
+    totalFrames: number
+    frameWidth: number // the sprite-sheet cell
+    frameHeight: number
+    fps: number
+    actionFrame: number | number[] // one per direction where they differ
+    numDirections: number
+    directionOffsets: Point[]
+    // per direction, per frame: offset (x, y), size (w, h), sheet position (sx, sy; sy
+    // absent = 0), accumulated offset (ox, oy)
+    frameOffsets: { x: number; y: number; w: number; h: number; sx: number; sy?: number; ox: number; oy: number }[][]
+}
 
 interface FloatMessage {
     msg: string
@@ -76,6 +91,8 @@ const globalState = {
     lastGameTick: 0, // real time of the last game tick
     gameHasFocus: false, // do we have input focus?
     lastMousePickTime: 0, // time when we last checked what's under the mouse cursor
+    lastUpdateTime: 0, // ms the last game tick took (FPS overlay)
+    lastDrawTime: 0, // ms the last frame took to draw (FPS overlay)
     lastFPSTime: 0, // Time since FPS counter was last updated
 
     floatMessages: [],
@@ -153,7 +170,7 @@ const globalState = {
     images: { [name: string]: HTMLImageElement } // Image cache
     // undefined = cycle mask fetch not yet started/complete; null = no cycling pixels; CycleMask = animated
     cycleMasks: { [name: string]: CycleMask | null | undefined }
-    imageInfo: any // Metadata about images (Number of frames, FPS, etc)
+    imageInfo: { [art: string]: ImageInfo } | null // art/imageMap.json: frame counts, FPS, offsets
     currentElevation: number // current map elevation
     tempCanvas: HTMLCanvasElement | null // temporary canvas used for detecting single pixels
     tempCanvasCtx: CanvasRenderingContext2D | null // and the context for it
@@ -208,9 +225,9 @@ const globalState = {
 
     // Drug use handler — set from main.ts after importing drugs.ts
     // to avoid circular import (object.ts -> scripting.ts -> object.ts)
-    drugHandler: ((item: Obj, user: any) => boolean) | null
+    drugHandler: ((item: Obj, user: Critter) => boolean) | null
     // First Aid Kit / Doctor's Bag handler — set from main.ts for same reason
-    miscItemUseHandler: ((item: Obj, user: any) => boolean) | null
+    miscItemUseHandler: ((item: Obj, user: Critter) => boolean) | null
 }
 
 export default globalState

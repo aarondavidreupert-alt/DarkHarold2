@@ -44,7 +44,7 @@ function load(path: string): Uint8Array | null {
         const dv = new DataView(data.buffer)
         dv.setUint32(0, 4) // FRM version
         dv.setUint16(4, info.fps ?? 10)
-        dv.setUint16(6, info.actionFrame ?? 0)
+        dv.setUint16(6, (info.actionFrame as number) ?? 0) // a per-direction list writes 0 (known_bugs CA46)
         dv.setUint16(8, info.numFrames ?? 1)
         return data
     }
