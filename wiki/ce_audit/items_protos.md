@@ -45,13 +45,13 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | itemsInit / itemsReset / itemsExit / _item_load_ / itemsLoad / itemsSave | `getMessage('item', …)`; static tables in Obj.ts / drugs.ts | 🚫 N/A | – | item.msg comes from the message JSON; books, explosives and healing pids are constants |
 | itemAttemptAdd | `Obj.canCarry` Obj.ts:1033 (+ pickup Obj.ts:1355, ui_loot.ts:80/127) | ✅ FIXED (ITEM-19) | MED | Critter weight check and the container `>=` size check match; three CE checks are missing. ITEM-19 |
 | itemAdd | `Obj.addInventoryItem` Obj.ts:947; `ammoMergeInto` weaponAmmo.ts:69 | ✅ MATCH | LOW | Ammo top-box merge is the same. CE replaces the stack's object with the incoming one; DH2 keeps the old object. Stealth Boy II in hand → `refreshStealthState` |
-| itemRemove | inventory splice at call sites; `ammoSplitOff` weaponAmmo.ts:83 | 🟡 PARTIAL | LOW | CE also looks inside containers and clears OBJECT_EQUIPPED / Stealth Boy; DH2 handles this at each call site. Container recursion not verified |
+| itemRemove | inventory splice at call sites; `ammoSplitOff` weaponAmmo.ts:83 | ✅ FIXED (2026-10-26) | LOW | CE also looks inside containers and clears OBJECT_EQUIPPED / Stealth Boy; DH2 handles this at each call site. Container recursion not verified — **2026-10-26:** a script removal searches the bags recursively (rm_mult_objs_from_inven); the hand / worn flags and the Stealth Boy are handled where items leave (unequipForRemoval). |
 | _item_compact | Array.splice | 🚫 N/A | – | |
-| _item_move_func / itemMove / itemMoveForce | ui_loot.ts transfer; `move_obj_inven_to_obj` | 🟡 PARTIAL | LOW | No "put it back, else drop at the owner's tile" fallback when the add fails |
+| _item_move_func / itemMove / itemMoveForce | ui_loot.ts transfer; `move_obj_inven_to_obj` | 🚫 N/A (2026-10-26) | LOW | No "put it back, else drop at the owner's tile" fallback when the add fails — **2026-10-26:** DH2's transfers check room before they remove, and itemMoveAll forces the add, so the put-back / drop-on-the-tile path never comes up. |
 | itemMoveAll | inventoryWield.ts:90 | ✅ MATCH | – | |
 | itemMoveAllHidden | — | ✅ FIXED (ITEM-01) | MED | Used by inventory.cc:4127 to keep hidden items out of the loot / steal window. ITEM-01 |
 | itemDestroyAllHidden | — | ✅ FIXED (ITEM-01) | HIGH | Called on death (critter.cc:905, combat.cc:4858) to destroy natural weapons; in DH2 they stay in the corpse's inventory. ITEM-01 |
-| itemDropAll | `itemDropAll` critter/lifecycle.ts:300 | 🟡 PARTIAL | LOW | Drops everything, hands and armor included. Not done: the critter's art back to the proto FID / `_adjust_ac` when the armor comes off (the art is not verified) |
+| itemDropAll | `itemDropAll` critter/lifecycle.ts:300 | ✅ FIXED (2026-10-26) | LOW | Drops everything, hands and armor included. Not done: the critter's art back to the proto FID / `_adjust_ac` when the armor comes off (the art is not verified) — **2026-10-26:** money as one pile, every other unit its own object (ammo: the first box partial, the rest full, each with a new uid); worn armour off resets the art (the dude's armour art and perks), the hands empty. |
 | _item_identical | `Obj.approxEq` Obj.ts:918, `WeaponObj.approxEq` items.ts:58 | ✅ MATCH | LOW | DH2 compares "has a script" where CE compares sid. Otherwise held/queued, container, inventory, charges and weapon load all match |
 | itemGetName / itemGetDescription | `Obj.getName` / `getDescription` Obj.ts | ✅ MATCH | – | |
 | itemGetType | `obj.subtype` / `obj_item_subtype` scripting.ts:1934 | ✅ FIXED (2026-10-25) | LOW | CE reports the Shiv (383) as ITEM_TYPE_MISC (concealed weapon); DH2 reports its proto type. ITEM-20 — **Fixed 2026-10-25:** obj_item_subtype and the AI weapon searches (ITEM-20). |
@@ -65,7 +65,7 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | itemGetInventoryFid | `Item.init` invArt items.ts:46 | ✅ MATCH | – | |
 | critterGetWeaponForHitMode | hand slots + `Weapon.slot()` | ✅ MATCH | – | |
 | itemGetActionPointCost | useItemOn.ts:40 `USE_ITEM_AP = 2`; `Weapon.getAttackAPCost` | ✅ MATCH | – | |
-| itemGetQuantity | `obj_is_carrying_obj_pid` scripting.ts:1301; inventory amounts | 🟡 PARTIAL | LOW | No recursion into containers (sfall-fixed CE) checked |
+| itemGetQuantity | `obj_is_carrying_obj_pid` scripting.ts:1301; inventory amounts | ✅ FIXED (2026-10-26) | LOW | No recursion into containers (sfall-fixed CE) checked — **2026-10-26:** removals and destroy_object find items inside bags. |
 | itemIsQueued | timeEventList scan in approxEq Obj.ts:924 | ✅ FIXED (2026-10-26) | LOW | The barter refusal of queued items (inventory.cc:4735) was not verified — **2026-10-26:** the barter refusal of queued offers (by uid on the working copies). |
 | itemReplace | — (useItemOn.ts `removeOne`) | ✅ FIXED (2026-10-26) | LOW | After the last unit in a hand is used, CE moves an identical item from the inventory into the hand; DH2 leaves the hand empty — **2026-10-26:** refillHand (bags included). |
 | itemIsHidden | object flag 0x01 at Obj.ts:963, combat/results.ts:87, Combat.ts:1320 | ✅ FIXED (ITEM-01) | HIGH | ITEM-01 |
@@ -102,7 +102,7 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | stealthBoyTurnOn / stealthBoyTurnOff | `refreshStealthState` miscItem.ts:142; render/webglDraw.ts:505 | ✅ MATCH | – | The miscItem.ts header still says "TRANS_GLASS not implemented"; C57 implemented it |
 | containerGetMaxSize / containerGetTotalSize | `canCarry` Obj.ts:1034 | ✅ MATCH | – | |
 | _insert_drug_effect | drugs.ts:213 | ✅ MATCH | – | Chem Resistant halves the delay |
-| _perform_drug_effect | drugs.ts:136 | 🟡 PARTIAL | LOW | DH2 changes base stats instead of CE's bonus layer (documented in code). An HP change doesn't clear the FLEEING flag. NPC death: CE `_combatKillCritterOutsideCombat`, DH2 `critterKill` |
+| _perform_drug_effect | drugs.ts:136 | ✅ FIXED (2026-10-26) | LOW | DH2 changes base stats instead of CE's bonus layer (documented in code). An HP change doesn't clear the FLEEING flag. NPC death: CE `_combatKillCritterOutsideCombat`, DH2 `critterKill` — **2026-10-26:** drugs use the bonus layer (stale note); an HP change ends fleeing; the NPC death line was already there (a second print added on 2026-10-26 is removed again). |
 | _drug_effect_allowed | drugs.ts:199 | ✅ MATCH | – | |
 | _item_d_take_drug | `useDrug` drugs.ts:316 | ✅ MATCH | – | Jet antidote (sfall fix), withdrawal reset, addiction roll with traits / Flower Child |
 | _item_d_clear / drugEffectEventProcess | drugs.ts:205-226 | ✅ MATCH | – | |
@@ -113,10 +113,10 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | itemGetTotalCaps / itemCapsAdjust | scripting.ts:117 / :128 | ✅ MATCH | – | |
 | itemGetMoney / itemSetMoney | `Obj.money` Obj.ts:1078 (`amount`) | ✅ MATCH | – | Ground money: the map's charges are lost (ITEM-12) |
 | booksInit / booksExit / booksInitVanilla / booksAdd / booksGetInfo | `BOOKS` Obj.ts:198 | ✅ MATCH | – | |
-| booksInitCustom | — | ❌ MISSING | LOW | sfall `BooksFile` |
+| booksInitCustom | — | 🚫 N/A (2026-10-26) | LOW | sfall `BooksFile` — **2026-10-26:** sfall BooksFile — no shipped data uses it. |
 | explosionsInit / explosionsReset / explosionsExit / explosiveAdd / explosiveIsExplosive / explosiveIsActiveExplosive / explosiveActivate / explosiveSetDamage / explosionEmitsLight / weaponSet*ExplosionRadius | `EXPLOSIVES` Obj.ts:133, `isExplosive` Obj.ts:1109 | ✅ MATCH | – | Vanilla constants match (30-50 / 40-80, radius 2/3). The sfall-config overrides are not ported |
-| explosiveGetDamage | Obj.ts:140; `explosions_metarule` 6 scripting.ts:2243 | ⚠️ DIFFERS | LOW | DH2 also answers for the armed pids 206/209 (CE: plain pids only) |
-| explosionSettingsReset / explosionGet/SetPattern / Get/SetFrm / SetRadius / Get/SetDamageType / Get/SetMaxTargets | scripting.ts:2251 (warns) | ❌ MISSING | LOW | sfall `explosions_metarule` 0-5 / 7+ are unsupported (documented in code) |
+| explosiveGetDamage | Obj.ts:140; `explosions_metarule` 6 scripting.ts:2243 | ✅ FIXED (2026-10-26) | LOW | DH2 also answers for the armed pids 206/209 (CE: plain pids only) — **2026-10-26:** ddraw.ini Dynamite_Dmg* / PlasticExplosive_Dmg*; the script metarule answers for the plain pids only (CE); the timer keeps using the armed pid's range (CE reads uninitialised values there). |
+| explosionSettingsReset / explosionGet/SetPattern / Get/SetFrm / SetRadius / Get/SetDamageType / Get/SetMaxTargets | scripting.ts:2251 (warns) | 🚫 N/A (2026-10-26) | LOW | sfall `explosions_metarule` 0-5 / 7+ are unsupported (documented in code) — **2026-10-26:** sfall explosions_metarule 0-5 / 7+ — no shipped script uses them. |
 | healingItemsInit / healingItemsInitVanilla / healingItemsInitCustom / itemIsHealing | `HEALING_PIDS` Combat.ts:258 | ✅ MATCH | – | sfall tweaks file not supported |
 
 ### proto.cc
@@ -126,14 +126,14 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | proto_make_path / _proto_list_str / proto_size | `loadPRO` pro.ts:27 (lst lookup) | 🚫 N/A | – | JSON pipeline |
 | _proto_action_can_use | `Obj.canUse` Obj.ts:1119 | ✅ FIXED (2026-10-25) | LOW | Items: `weaponFlags & 0x08` (0x0800) + containers matches. Scenery: reads `extra.weaponFlags`, which scenery JSON doesn't have (it stores `extendedFlags`), so the flag is ignored. ITEM-14 — **Fixed 2026-10-25:** scenery reads its own extendedFlags (ITEM-14). |
 | _proto_action_can_use_on | `itemCanUseOn` useItemOn.ts:47 | ✅ MATCH | – | |
-| _proto_action_can_talk_to | `objActionCanTalkTo` ui_contextmenu.ts:159 | 🟡 PARTIAL | LOW | The ext-flag 0x4000 "talk" on non-critters is ignored |
+| _proto_action_can_talk_to | `objActionCanTalkTo` ui_contextmenu.ts:159 | 🚫 N/A (2026-10-26) | LOW | The ext-flag 0x4000 "talk" on non-critters is ignored — **2026-10-26:** CE's _obj_action_can_talk_to also requires a critter, so the 0x4000 flag never makes a non-critter talkable. |
 | _proto_action_can_pickup | — | ✅ FIXED (2026-10-25) | LOW | Ground containers with ext flag 0x8000 (bags) can't be picked up; DH2 always opens them. ITEM-14 — **Fixed 2026-10-25:** Obj.canPickUp (ITEM-14). |
 | protoGetMessage / protoGetName / protoGetDescription | `getMessage(cat, textID[+1])` Obj.ts; proto_data 1/2 | ✅ MATCH | LOW | CE's `protoGetName(0x1000000)` returns the dude's own name |
 | proto_item_init / proto_item_subdata_init / proto_critter_init / proto_scenery_init / proto_scenery_subdata_init / proto_wall_init / proto_tile_init / proto_misc_init / proto_copy_proto / proto_new / _proto_find_free_subnode / _proto_new_id / proto_max_id | — | 🚫 N/A | – | Mapper / editor defaults |
 | proto_is_subtype | `pro.extra.subType` checks | ✅ MATCH | – | |
 | objectDataReset / objectCritterCombatDataRead / objectCritterCombatDataWrite / objectDataWrite | `Obj.serialize` Obj.ts:1405 | 🚫 N/A | – | JSON save |
 | objectDataRead | tools/fomap.py `parseObject` / `parseItemObj`; `Obj.fromMapObject_` Obj.ts:632 | ✅ FIXED (ITEM-12, ITEM-13) | HIGH | Lost: `data.flags` (container lock / jam), door `openFlags`, misc `charges`, key `keyCode`; the ladder `destinationMap` lands in `unknown1`. ITEM-12, ITEM-13 |
-| _proto_update_gen | `initWeaponAmmo` weaponAmmo.ts:33; misc charges lazily, miscItem.ts:112 | 🟡 PARTIAL | LOW | Weapons are full; door openFlags / ladder map defaults from the proto are not applied |
+| _proto_update_gen | `initWeaponAmmo` weaponAmmo.ts:33; misc charges lazily, miscItem.ts:112 | ✅ FIXED (2026-10-26) | LOW | Weapons are full; door openFlags / ladder map defaults from the proto are not applied — **2026-10-26:** a runtime-created door takes the proto's open flags (lock / jam), stairs and ladders their destinations, an elevator its type and level; an exit grid starts nowhere. |
 | _proto_update_init | Critter.fromPID init (HP = max, AP, team, AI) | ✅ MATCH | – | Not re-verified field by field |
 | _proto_dude_update_gender | `Player.updateNativeLook` player.ts:99 | ✅ MATCH | – | |
 | _proto_dude_init / _ResetPlayer | `Player.resetForNewGame` player.ts:42 | ✅ FIXED (ITEM-18) | MED | The dude proto's DR EMP = 100 is missing; the player has DR EMP 0 (skills.ts:135). ITEM-18 |
@@ -149,7 +149,7 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | _obj_look_at / _obj_look_at_func | `objLookAt` examine.ts:47 | ✅ MATCH | – | |
 | _obj_examine / _obj_examine_func | `objExamine` examine.ts:55 | ✅ MATCH | LOW | Ammo line uses the weapon's caliber (see ammoGetCaliber) |
 | _obj_pickup | `Obj.pickup` Obj.ts:1348 | ✅ FIXED (2026-10-25) | LOW | proto.msg 905 replaced by a hard-coded float "You can't carry any more."; money uses `amount` — **Fixed 2026-10-25:** proto.msg 905. |
-| _obj_remove_from_inven | slot clearing in `drop` / `invenUnwield` | 🟡 PARTIAL | LOW | Art / interface refresh happen elsewhere |
+| _obj_remove_from_inven | slot clearing in `drop` / `invenUnwield` | 🚫 N/A (2026-10-26) | LOW | Art / interface refresh happen elsewhere — **2026-10-26:** the art and interface refresh where the slot is cleared (drop / invenUnwield / uiDrawWeapon) — the same result. |
 | _obj_drop | `Obj.drop` Obj.ts:1385; `drop_obj` scripting.ts:2534 | ✅ FIXED (2026-10-26) | LOW | Script procs match. CE drops **one** item of a stack (`itemRemove(…,1)`); DH2 drops the whole stack (the inventory UI splits it first) — **2026-10-26:** `drop_obj` drops one of a stack; the handle is the dropped item, a copy keeps the rest. |
 | _obj_destroy | `GameMap.destroyObject` GameMap.ts:148 | ✅ FIXED (ITEM-15) | MED | No owner-inventory removal and no `queueRemoveEvents(obj)`. ITEM-15 |
 | _obj_use_book | `useBook` Obj.ts:210 | ✅ MATCH | – | No palette fade (cosmetic) |
@@ -160,12 +160,12 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | _obj_use_misc_item | — (use_p_proc via Obj.use) | ✅ FIXED (ITEM-08) | MED | use_p_proc runs, but the item is not consumed. ITEM-08 |
 | _protinst_use_item | `Obj.use` Obj.ts:1139 | 🟡 PARTLY FIXED (2026-10-26) | LOW | Different order (script first). "That does nothing." (582) not shown for unusable items — **2026-10-26:** "That does nothing." (582); the script still runs first. |
 | _protinstTestDroppedExplosive | — | ✅ FIXED (ITEM-06) | MED | ITEM-06 |
-| _obj_use_item | `Obj.use` consumption per branch (drug, book) | ✅ FIXED (2026-10-26) | LOW | rc 2 → drop on the tile missing (ITEM-06); no itemReplace — **Fixed 2026-10-25:** 480 "You see: %s." (ITEM-10). — **2026-10-26:** "You see: %s" (480) was already shown. |
+| _obj_use_item | `Obj.use` consumption per branch (drug, book) | ✅ FIXED (2026-10-25) | LOW | rc 2 → drop on the tile missing (ITEM-06); no itemReplace — **Fixed 2026-10-25:** 480 "You see: %s." (ITEM-10). |
 | _protinst_default_use_item | `defaultUseItem` useItemOn.ts:181 | ✅ FIXED (ITEM-07) | HIGH | Drug branch matches (582 / 583-586 / 581). Missing: ammo → car (ITEM-07), flare used on a target (LOW) |
 | _protinst_use_item_on | `protinstUseItemOn` useItemOn.ts:146 | ✅ FIXED (ITEM-09) | MED | Medical kits match (902, skillUse, 1 in 10 used up, 900/901/910/911). The scripted-item path differs. ITEM-09 |
 | _obj_use_item_on | `objUseItemOn` useItemOn.ts:134 | ✅ FIXED (ITEM-09) | MED | Correct for the player's crosshair; script `use_obj_on_obj` bypasses it. ITEM-09 |
 | _check_scenery_ap_cost | — | ✅ FIXED (ITEM-17) | MED | ITEM-17 |
-| _obj_use | `Obj.use` scenery branch Obj.ts:1201 | 🟡 PARTIAL | LOW | Fallback "You see: %s" (480) missing (DH2 plays the scenery animation). ITEM-10 |
+| _obj_use | `Obj.use` scenery branch Obj.ts:1201 | ✅ FIXED (2026-10-25) | LOW | Fallback "You see: %s" (480) missing (DH2 plays the scenery animation). ITEM-10 — **2026-10-26:** the 480 fallback is shown (Obj.use scenery branch, since 2026-10-25). |
 | useLadderDown / useLadderUp | Obj.ts:1236 | ✅ FIXED (ITEM-13) | HIGH | ITEM-13 |
 | useStairs | Obj.ts:1221 | ✅ FIXED (ITEM-13) | MED | `destinationMap > 0` test; `builtTile == -1` refusal; rotation. ITEM-13 |
 | _set_door_state_open / _set_door_state_closed / _check_door_state | `setObjectOpen` Obj.ts:326 (`obj.open`, animation) | ✅ MATCH | LOW | Light rebuild on the door state (`_obj_rebuild_all_light`) not verified |

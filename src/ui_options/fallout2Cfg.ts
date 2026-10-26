@@ -206,6 +206,9 @@ export function applyCfg(cfg: CfgSections): void {
     //   mouse_wheel=zoom|ce           the wheel zooms (default) or scrolls the map as in CE
     const mw = dh2['mouse_wheel']?.trim().toLowerCase()
     if (mw === 'ce' || mw === 'zoom') Config.ui.mouseWheel = mw
+    //   elevation_fade=1|0            a fade on elevation changes (default) or CE's instant switch
+    const ef = int(dh2['elevation_fade'])
+    if (ef !== null) Config.ui.elevationFade = ef !== 0
     //   combat_outline=dh2|ce         combat outlines: DH2's (blue neutrals) or CE's line-of-fire rule
     const co = dh2['combat_outline']?.trim().toLowerCase()
     if (co === 'ce' || co === 'dh2') Config.ui.combatOutline = co

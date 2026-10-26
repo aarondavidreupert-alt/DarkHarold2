@@ -164,15 +164,6 @@ export function randomRoll(difficulty: number, criticalSuccessModifier: number):
     return { roll, delta }
 }
 
-// FO2-CE ref: skill.cc skillRoll() — full skill check with stat lookup
-// Takes a Critter, resolves skill value, applies modifier, and rolls.
-// Returns { roll: RollResult, delta: number }
-export function skillRoll(who: Critter, skill: string, modifier: number = 0): { roll: RollResult, delta: number } {
-    const skillValue = who.getSkill(skill)
-    const critChance = who.getStat('Critical Chance')
-    return randomRoll(skillValue + modifier, critChance)
-}
-
 export function rollIsSuccess(roll: RollResult): boolean {
     return roll === RollResult.Success || roll === RollResult.CriticalSuccess
 }

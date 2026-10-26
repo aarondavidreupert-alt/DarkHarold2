@@ -85,6 +85,21 @@ export function artGetCode(animation: number, weaponType: number): [string, stri
     return ['a', animCode]
 }
 
+// CE art.cc artCritterFidShouldRun: critters.lst's third column (a line without an alias
+// runs) — the AI runs only critters it marks (combat_ai.cc:2424), ART-02
+const shouldRunCache = new Map<string, boolean>()
+export function critterArtShouldRun(art: string): boolean {
+    const base = (art.split('/').pop() ?? '').slice(0, 6).toLowerCase()
+    let run = shouldRunCache.get(base)
+    if (run === undefined) {
+        run = true
+        for (let i = 1, e; (e = getLstJson("art/critters/critters", i)) !== null; i++)
+            if (e?.frm?.toLowerCase() === base) { run = e.walk === undefined || (e.run ?? 0) !== 0; break }
+        shouldRunCache.set(base, run)
+    }
+    return run
+}
+
 // Port of CE art.cc:615 artBuildFilePath() for OBJ_TYPE_CRITTER (without extension).
 // Previously threw "reindex(?)" / "0x14" etc. for death, dodge and throw animations.
 function getCritterArtPath(frmPID: number) {
@@ -97,9 +112,10 @@ function getCritterArtPath(frmPID: number) {
         const alias = getLstJson("art/critters/critters", idx)?.walk
         if (typeof alias === 'number' && alias > 0) idx = alias
         else {
-            // CE falls back to the vault-dweller art when the lst line has no alias.
+            // CE art.cc artInit: a line with no alias falls back to _art_vault_guy_num — the
+            // tribal male (hmwarr), ART-01
             for (let i = 1, e; (e = getLstJson("art/critters/critters", i)) !== null; i++)
-                if (e.frm?.toLowerCase() === 'hmjmps') { idx = i; break }
+                if (e.frm?.toLowerCase() === 'hmwarr') { idx = i; break }
         }
     }
 

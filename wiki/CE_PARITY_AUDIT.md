@@ -267,6 +267,23 @@ dead last target is stored as none; an animated explosion refuses a second one, 
 re-queues. Found on the way: a combat walk click fell through to an unlimited walk after the AP-limited
 one (the player could cross the map on 8 AP) — fixed.
 
+**Third batch — every open row resolved (2026-10-26, 219 rows):** each remaining LOW row now reads ✅ FIXED,
+🟡 PARTLY FIXED or 🚫 N/A with a dated note saying why (134 / 6 / 79). Fixed in this batch, among others:
+`set_obj_visibility` keeps OBJECT_HIDDEN in step; a dying critter becomes flat and no-block; destroying a
+light source, wall or scenery rebuilds the lightmap; corpses placed in the map file follow the violence
+setting; exit grids are only pids 0x5000010–17; `tileGetTileInDirection` / `tileGetRotationTo` as CE
+(TILE-01); the dialogue camera walks toward the speaker (`_tile_scroll_to`); `world_map` in combat ends the
+fight; no spatial scripts during map_enter / map_update / script explosions; sfall ini keys may hold `|`;
+SPECIAL bases keep the trait part above 10 (Mutate! dropping Gifted) and `get_pc_base_stat` leaves it out;
+the explosive timer rolls Traps through the party-aware `skillRoll`; unarmed attacks use the critter proto's
+damage type; music plays at × 0.94, stops at volume 0 and restarts when raised, and pauses under the save /
+load window; the MALIEU / MAMTN2 → MAMTNT sound fallback (SND-04); the hmwarr alias fallback and the
+critters.lst run column for the AI (ART-01 / 02); CE's word wrap for float text (WRAP-01); the world-map
+time remainder reset, `wm_area_set_pos` bounds and `wmCarIsOutOfGas`. The N/A rows are opcodes and sfall
+extras no shipped script uses, CE leniency the scripts never reach (checked with luadiff), cosmetic timing,
+and browser limits. One N/A row needs an asset-pipeline change that was not authorised: the roof flag bits
+(`square_init`, `tools/fomap.py`).
+
 **Report tables tidied (2026-10-26):** 189 HIGH / MED rows in `ce_audit/*.md` still showed their original
 status though their finding (cited by ID, or named in the row) was fixed; they now read ✅ FIXED / 🟡 PARTLY
 FIXED with the finding IDs. One MED row is open: `critterSetBonusStat` (HP / poison / radiation routing for
@@ -282,7 +299,9 @@ metarules, the type checks behind CE's fatal "integer expected" errors.
 **Deliberate DH2 choices, each with a CE switch in `fallout2.cfg [dh2]` (default DH2's):** unlimited save
 slots (`save_slots=ce`: ten, no DELETE), the egg occlusion mode (`egg_mode=ce-egg`), smooth scrolling
 (`scroll_mode=ce`: 32 × 24 px steps), the wheel zoom (`mouse_wheel=ce`), the walk-next-to-talk rule
-(`talk_mode=ce`: talk within 9 hexes in line of sight), DH2's clicks (`mouse_mode=ce`). Without a switch: the
+(`talk_mode=ce`: talk within 9 hexes in line of sight), DH2's clicks (`mouse_mode=ce`), the merchant's reply
+to a running item (`barter_running_item=ce`), DH2's combat outlines (`combat_outline=ce`), the fade on
+elevation changes (`elevation_fade=0`). Without a switch: the
 browser screenshot and desktop-only input (browser limits).
 
 ## 4. Conflicts with the wiki / known_bugs (flagged, not resolved)

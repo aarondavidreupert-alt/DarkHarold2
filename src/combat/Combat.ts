@@ -77,7 +77,7 @@ import {
     DAM_HIT_SELF, DAM_HURT_SELF, DAM_KNOCKED_DOWN, DAM_KNOCKED_OUT, DAM_LOSE_AMMO, DAM_LOSE_TURN, DAM_ON_FIRE,
     DAM_RANDOM_HIT,
 } from './results.js'
-import { loadPRO, makePID } from '../pro.js'
+import { critterArtShouldRun, loadPRO, makePID } from '../pro.js'
 import {
     accountForPartialCover as _accountForPartialCover,
     getAmmoStats as _getAmmoStats,
@@ -223,6 +223,13 @@ interface Attack {
     unarmedAnim: number // ANIM_THROW_PUNCH / ANIM_KICK_LEG for an unarmed attack, else -1
 }
 
+// CE item.cc weaponGetDamageType: with no weapon, the critter proto's damage type
+// (critterGetDamageType) — Normal for most, plasma / electrical for a few creatures
+const DAMAGE_TYPE_NAMES = ['Normal', 'Laser', 'Fire', 'Plasma', 'Electrical', 'EMP', 'Explosive']
+function unarmedDamageType(critter: Critter): string {
+    return DAMAGE_TYPE_NAMES[(critter as any).pro?.extra?.damageType ?? 0] ?? 'Normal'
+}
+
 // CE combat.cc attackInit
 function attackInit(attacker: Critter, defender: Critter, weaponObj: Obj | null, region: string): Attack {
     return {
@@ -231,7 +238,7 @@ function attackInit(attacker: Critter, defender: Critter, weaponObj: Obj | null,
         hitLocation: region, attackerFlags: 0, defenderFlags: 0, attackerDamage: 0, defenderDamage: 0,
         defenderKnockback: 0, criticalMessageId: -1, ammoQuantity: 0, accuracyBonus: 0,
         tile: null, landing: null, explosionTile: null, extras: [],
-        damageType: (weaponObj as any)?.weapon?.getDamageType?.() ?? 'Normal',
+        damageType: weaponObj === null ? unarmedDamageType(attacker) : ((weaponObj as any).weapon?.getDamageType?.() ?? 'Normal'),
         unarmedAnim: -1,
     }
 }
@@ -766,7 +773,7 @@ export class Combat {
         const unarmed = weaponObj === null
         const mode = hitMode ?? (unarmed ? currentUnarmed(attacker).mode : null)
         const wep = (weaponObj as any)?.weapon
-        const damageType = unarmed ? 'Normal' : (wep?.getDamageType?.() ?? 'Normal')
+        const damageType = unarmed ? unarmedDamageType(attacker) : (wep?.getDamageType?.() ?? 'Normal')
         let DT = target.getStat('DT ' + damageType) + target.getArmorDT(damageType)
         let DR = target.getStat('DR ' + damageType) + target.getArmorDR(damageType)
         if ((flags & DAM_BYPASS) !== 0 && damageType !== 'EMP') {
@@ -2801,7 +2808,7 @@ export class Combat {
         if (hexDistance(obj.position, target.position) <= 1) return false
         const AP = obj.AP!
         steps = Math.min(steps, AP.getAvailableMoveAP())
-        const run = steps >= Math.trunc(obj.AP!.getMaxAP() / 2) && obj.canRun()
+        const run = steps >= Math.trunc(obj.AP!.getMaxAP() / 2) && obj.canRun() && critterArtShouldRun(obj.art)
         // CE _ai_move_steps_closer: the "move" taunt comes first
         if (taunt) this.maybeTaunt(obj, 'move')
         const gMap = globalState.gMap!

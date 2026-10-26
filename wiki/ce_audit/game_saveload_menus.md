@@ -47,21 +47,21 @@ Top findings:
 
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| gameInitWithOptions | `src/init.ts:37` initGame, `src/main.ts` | 🟡 PARTIAL | LOW | Subsystem init is spread over main/init; no splash (`showSplash`), no `fallout2.cfg` command-line overrides (URL `?map` debug start is DH2-only). |
+| gameInitWithOptions | `src/init.ts:37` initGame, `src/main.ts` | ✅ FIXED (2026-10-26) | LOW | Subsystem init is spread over main/init; no splash (`showSplash`), no `fallout2.cfg` command-line overrides (URL `?map` debug start is DH2-only). — **2026-10-26:** the splash (showSplash) while the game loads; ddraw.ini SkipOpeningMovies is read (1 skips the movies, 2 the splash too); a browser has no command line for fallout2.cfg overrides. |
 | gameReset | `src/gameReset.ts:32` | ✅ MATCH | — | Combat, scripts/GVARs/queue, movies, time, kills, skill use, party, worldmap, encounters, automap, sfall arrays, dude. Not cleared: the message log (CE neither, it is cleared by `interfaceReset`/map reset — unverified). |
 | gameExit | — | 🚫 N/A | — | Page unload. |
-| gameHandleKey | `src/hotkeys.ts:159` + `src/input.ts:224` | ⚠️ DIFFERS | LOW | All CE keys present (see hotkeys list in GAME-01). Diffs: `/` date uses 12-h "8:24 AM" (CE `gameTimeGetTimeString` "%d:%02d", 24-h, `scripts.cc:340`); wheel zooms (documented approximation); arrows pan 15 px instead of `mapScroll` one step; Space = DH2 item highlight sweep outside combat. |
-| gameUiDisable / gameUiEnable | `src/scripting.ts:3187` game_ui_disable/enable | ⚠️ DIFFERS | LOW | CE `interfaceBarDisable` greys the bar's buttons and freezes the message log; DH2 **hides** the whole HUD bar (`visibility:hidden`). Input blocking matches (`input.ts:227`). |
+| gameHandleKey | `src/hotkeys.ts:159` + `src/input.ts:224` | ✅ FIXED (2026-10-26) | LOW | All CE keys present (see hotkeys list in GAME-01). Diffs: `/` date uses 12-h "8:24 AM" (CE `gameTimeGetTimeString` "%d:%02d", 24-h, `scripts.cc:340`); wheel zooms (documented approximation); arrows pan 15 px instead of `mapScroll` one step; Space = DH2 item highlight sweep outside combat. — **2026-10-26:** "/" shows the 24-hour time (stale); the wheel and arrow scrolling have CE options ([dh2] mouse_wheel / scroll_mode = ce); the held item-highlight key is a DH2 addition with no CE binding to clash with. |
+| gameUiDisable / gameUiEnable | `src/scripting.ts:3187` game_ui_disable/enable | ✅ FIXED (2026-10-26) | LOW | CE `interfaceBarDisable` greys the bar's buttons and freezes the message log; DH2 **hides** the whole HUD bar (`visibility:hidden`). Input blocking matches (`input.ts:227`). — **2026-10-26:** the bar stays visible with its buttons (and the log's scroll) disabled; messages still arrive. |
 | gameUiIsDisabled | `globalState.gameUIDisabled` | ✅ MATCH | — | |
 | gameGetGlobalVar / gameSetGlobalVar | `Scripting.getGlobalVar/setGlobalVar` | ✅ MATCH | — | sfall "display karma changes" option not ported (sfall-only). |
 | gameLoadGlobalVars / globalVarsRead | `Scripting.loadGlobalVars` (`scripting.ts:383`, `data/gvars.json`) | ✅ MATCH | — | vault13.gam pre-parsed by the pipeline. |
 | gameGetState / gameRequestState / gameUpdateState | `Scripting.processDialogueRequest` (`gameTick.ts:127`) | 🚫 N/A | — | CE's state machine only defers dialogue entry (`_gdialogSystemEnter`); DH2 has its own request flag. |
-| gameTakeScreenshot | — | ❌ MISSING | LOW | F12 screenshot in CE windows; browser has its own. |
+| gameTakeScreenshot | — | 🚫 N/A (2026-10-26) | LOW | F12 screenshot in CE windows; browser has its own. — **2026-10-26:** the browser's own screenshot (a browser limit). |
 | gameFreeGlobalVars | — | 🚫 N/A | — | |
 | showHelp | `src/hotkeys.ts:55` | ✅ MATCH | — | helpscrn over black until any input. |
 | showQuitConfirmationDialog | `src/ui_options.ts:672` quitConfirmation | ✅ FIXED (2026-10-26) | LOW | misc.msg 0 Yes/No ✓; Yes **reloads the page** (opening movies replay unless skipped) instead of `_game_user_wants_to_quit = 2` → main menu. — **2026-10-26:** Yes goes to the main menu (a fresh page, no opening movies). |
 | gameDbInit | — | 🚫 N/A | — | DAT files unpacked by the pipeline. |
-| showSplash | — | ❌ MISSING | LOW | Random `splash<n>.rix` before the intro movies. |
+| showSplash | — | ✅ FIXED (2026-10-26) | LOW | Random `splash<n>.rix` before the intro movies. — **2026-10-26:** splash<n>.rix decoded and faded in while the game loads, n cycling per start (localStorage stands in for [system] splash). |
 | gameShowDeathDialog | `src/radiation.ts:181` | ✅ FIXED (2026-10-26) | LOW | CE (sfall) shows misc.msg 1006 in a modal dialog box; DH2 logs it to the message log. — **2026-10-26:** misc.msg 1006 in a dialog box. |
 | gameGetGlobalPointer / gameSetGlobalPointer | — | 🚫 N/A | — | sfall pointer vars, unused. |
 
@@ -79,7 +79,7 @@ Top findings:
 | mainLoop | `src/gameTick.ts` | ✅ MATCH | — | Death check incl. knocked-out-outside-combat (`gameTick.ts:232`), scripts' requests, map transitions. |
 | showDeath | `src/endgame.ts:129` dudeDeathScene / playDeathEnding | 🟡 PARTLY FIXED (2026-10-26) | LOW | DEATH.FRM + narrator, any input/end of speech/3 s ✓. Diffs: subtitles shown whether or not the preference is on (CE only with `subtitles`), shown timed like slides rather than one word-wrapped block at the bottom; no death.pal; afterwards page reload (CE: main menu). — **2026-10-26:** subtitles only with the preference; their timing stays DH2's. |
 | _main_death_voiceover_callback | `showStaticSlide` audio `ended` | ✅ MATCH | — | |
-| _mainDeathGrabTextFile / _mainDeathWordWrap | `slideRender.ts:17 loadSubtitleLines` | 🟡 PARTIAL | LOW | See showDeath. |
+| _mainDeathGrabTextFile / _mainDeathWordWrap | `slideRender.ts:17 loadSubtitleLines` | ✅ FIXED (2026-10-26) | LOW | See showDeath. — **2026-10-26:** the whole text as one block, only with the subtitles preference (showDeathScreen). |
 
 ### loadsave.cc
 
@@ -87,7 +87,7 @@ Top findings:
 |---|---|---|---|---|
 | _InitLoadSave | `ui_saveload.ts:89` (`quickDone = false`) | ✅ MATCH | — | `_quick_done` survives NEW GAME in both. sfall AutoQuickSave not ported. |
 | _ResetLoadSave | — | 🚫 N/A | — | Deletes MAPS/*.SAV temp files. |
-| lsgSaveGame | `ui_saveload.ts:93 uiQuickSave`, `:111 uiSaveLoad(true)` | 🟡 PARTIAL | LOW | Snapshot, overwrite confirm (lsgame 131), quick-slot reuse + misc.msg 5 ✓. Diffs: description dialog not pre-filled with the slot's old text and not capped at 29 chars; options window closed before the save screen opens (CE returns to it on cancel); unlimited slots + DELETE (DH2 additions). |
+| lsgSaveGame | `ui_saveload.ts:93 uiQuickSave`, `:111 uiSaveLoad(true)` | ✅ FIXED (2026-10-26) | LOW | Snapshot, overwrite confirm (lsgame 131), quick-slot reuse + misc.msg 5 ✓. Diffs: description dialog not pre-filled with the slot's old text and not capped at 29 chars; options window closed before the save screen opens (CE returns to it on cancel); unlimited slots + DELETE (DH2 additions). — **2026-10-26:** the description starts with the slot's old text, 29 characters at most; from the game menu, cancelling comes back to the menu; slots per [dh2] save_slots. |
 | _QuickSnapShot | `saveload.ts:144 takeSaveSnapshot` | ✅ MATCH | — | 640×380 centre → 224×133. |
 | lsgLoadGame | `ui_saveload.ts:102 uiQuickLoad`, `uiSaveLoad(false)` | ✅ MATCH | — | Quick load + misc.msg 4 ✓. |
 | lsgWindowInit / lsgWindowFree | `ui_saveload.ts:111-337` | ✅ MATCH | — | Layout per U18/U19. |
@@ -95,7 +95,7 @@ Top findings:
 | _isLoadingGame | `Scripting.setLoadingGame` (C61) | ✅ MATCH | — | |
 | lsgLoadGameInSlot | `saveload.ts:318 load` | ✅ FIXED (SAVE-02, SAVE-03) | MED | gameReset, map, procs with `_loadingGame`, `_proto_dude_update_gender` ✓. Missing "Game loaded." (lsgame 141) message; combat not restored (SAVE-02); timers by PID (SAVE-03). |
 | lsgSaveHeaderInSlot / lsgLoadHeaderInSlot | `SaveGame` fields (`name`, `timestamp`, `gameTickTime`, `currentMap`, `currentElevation`, `playerState.name`) | ✅ MATCH | — | |
-| _GetSlotList | `saveLoad` / `saveList` (`saveload.ts:267`) | ⚠️ DIFFERS | LOW | DH2-only: unlimited slots (IndexedDB), scroll bar. |
+| _GetSlotList | `saveLoad` / `saveList` (`saveload.ts:267`) | ✅ FIXED (2026-10-26) | LOW | DH2-only: unlimited slots (IndexedDB), scroll bar. — **2026-10-26:** as an option: [dh2] save_slots=ce gives CE's ten slots. |
 | _ShowSlotList / _DrawInfoBox / _LoadTumbSlot | `ui_saveload.ts:177/194` | ✅ MATCH | — | |
 | _GetComment / _get_input_str2 | `ui_dialog.ts:230 showInput` | 🟡 PARTLY FIXED (2026-10-26) | LOW | Generic input box: no default text, no 29-char limit, not lsgame `BOX` art. — **2026-10-26:** the old description, 29 characters; the input is still DH2's. |
 | _DummyFunc / _PrepLoad | `gameReset()` in `load` (`saveload.ts:342`) | ✅ MATCH | — | |
@@ -114,7 +114,7 @@ Top findings:
 | gameConfigSave / gameConfigExit | localStorage `dh2_preferences` | 🚫 N/A | — | Documented (CI5). |
 | gameConfigResolvePath | — | 🚫 N/A | — | |
 | settingsInit (settings) | `loadFallout2Cfg` + `loadPreferences` | ✅ MATCH | — | |
-| settingsFromConfig | `fallout2Cfg.ts:65 applyCfg` | 🟡 PARTIAL | LOW | All [preferences]/[sound] keys DH2 uses ✓ (+ color_cycling, cycle_speed_factor). `text_line_delay` not read (DH2 derives it from base delay like `_JustUpdate_`); `language`, `scroll_lock`, `interrupt_walk`, debug keys ignored. |
+| settingsFromConfig | `fallout2Cfg.ts:65 applyCfg` | ✅ FIXED (2026-10-26) | LOW | All [preferences]/[sound] keys DH2 uses ✓ (+ color_cycling, cycle_speed_factor). `text_line_delay` not read (DH2 derives it from base delay like `_JustUpdate_`); `language`, `scroll_lock`, `interrupt_walk`, debug keys ignored. — **2026-10-26:** text_line_delay and [system] interrupt_walk are read; scroll_lock has no CE reader; language is English only (the data); the debug keys have no use in a browser. |
 | settingsSave / settingsExit / settingsToConfig | `savePreferences` (localStorage) | 🚫 N/A | — | CI5. |
 | settingsRead / settingsWrite (×4 each) | — | 🚫 N/A | — | Typed helpers. |
 | configInit / configFree / configGet*/configSet* (config) | `CfgSections` object | 🚫 N/A | — | |
@@ -129,8 +129,8 @@ Top findings:
 |---|---|---|---|---|
 | showOptions | `ui_options.ts:680 initOptionsMenu`, `:759 showOptionsMenu` | ✅ FIXED (OPT-01) | MED | Layout/keys per options.cc ✓, but not modal: OPT-01. |
 | optionsWindowInit / optionsWindowFree | `ui_options.ts:680` | ✅ MATCH | — | |
-| showPause | `hotkeys.ts:78` | 🟡 PARTIAL | LOW | charwin + PAUSED/DONE, +/- brightness, any key closes, game paused ✓; no `_ShadeScreen` darkening. |
-| _ShadeScreen | — | ❌ MISSING | LOW | |
+| showPause | `hotkeys.ts:78` | ✅ FIXED (2026-10-26) | LOW | charwin + PAUSED/DONE, +/- brightness, any key closes, game paused ✓; no `_ShadeScreen` darkening. — **2026-10-26:** the map turns grey while paused from the game (_ShadeScreen). |
+| _ShadeScreen | — | ✅ FIXED (2026-10-26) | LOW | **2026-10-26:** grayscale filter on the map canvas (grayscalePaletteApply). |
 | _init_options_menu | — | 🚫 N/A | — | |
 
 ### preferences.cc
@@ -151,12 +151,12 @@ Top findings:
 
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| mainMenuWindowInit | `ui_mainmenu.ts:61 initMainMenu` | ⚠️ DIFFERS | LOW | Buttons at (30, 19+41i) ✓. Labels hard-coded English, left-aligned at x 65 (CE misc.msg 9–14, font 104, centred on x 126, y+1); footer hard-coded "© 1998 Interplay Productions" in font4 (CE misc.msg 20 at (15,460) font 100 + version string right-aligned at 615). |
+| mainMenuWindowInit | `ui_mainmenu.ts:61 initMainMenu` | ✅ FIXED (2026-10-26) | LOW | Buttons at (30, 19+41i) ✓. Labels hard-coded English, left-aligned at x 65 (CE misc.msg 9–14, font 104, centred on x 126, y+1); footer hard-coded "© 1998 Interplay Productions" in font4 (CE misc.msg 20 at (15,460) font 100 + version string right-aligned at 615). — **2026-10-26:** labels misc.msg 9-14 in font 104 centred on x 126; the copyright (misc.msg 20) at (15, 460) and "FALLOUT II 1.02" ending at 615 in font 100, colour 21091. |
 | mainMenuWindowFree / Hide / Unhide | `hideMainMenu` / `showMainMenu` | ✅ MATCH | — | No fade. |
 | _main_menu_is_enabled | — | 🚫 N/A | — | |
 | mainMenuWindowHandleEvents | `ui_mainmenu.ts:163 handleKey`, `:177 handleButton` | ✅ FIXED (MENU-01) | MED | i/n/l/o/c/e/Esc ✓. Missing: nmselec0/1 sounds, Shift+C quotes, D screensaver, idle timeout → INTRO, +/- brightness, Ctrl+R selfrun (N/A). OPTIONS/LOAD: MENU-01/02. EXIT = `window.close()` (no-op for normal tabs). |
 | main_menu_fatal_error | — | 🚫 N/A | — | |
-| main_menu_play_sound | — | ❌ MISSING | LOW | nmselec0 (press) / nmselec1 (select). |
+| main_menu_play_sound | — | ✅ FIXED (2026-10-26) | LOW | nmselec0 (press) / nmselec1 (select). — **2026-10-26:** nmselec0 on a button press, nmselec1 on a choice (keys too); + / - brightness; Shift + Credits shows quotes.txt. |
 
 ### character_selector.cc
 
@@ -184,7 +184,7 @@ Top findings:
 | _endgame_movie_callback / _endgame_movie_bk_process | `music` pause at end | ✅ MATCH | — | |
 | endgameEndingInit / endgameEndingFree | `lut/endgame.json` | ✅ MATCH | — | |
 | endgameDeathEndingInit / Exit | `deathEndings.ts:41` (`lut/enddeath.json`, default nar_5) | ✅ MATCH | — | |
-| endgameSetupDeathEnding | `deathEndings.ts:78` | ⚠️ DIFFERS | LOW | Selection incl. Modoc index 12 ✓. TIMEOUT reason doesn't play `MOVIE_TIMEOUT` (FADE_IN\|FADE_OUT\|PAUSE_MUSIC) before quitting (`gameTick.ts:224` reloads at once). |
+| endgameSetupDeathEnding | `deathEndings.ts:78` | ✅ FIXED (2026-10-26) | LOW | Selection incl. Modoc index 12 ✓. TIMEOUT reason doesn't play `MOVIE_TIMEOUT` (FADE_IN\|FADE_OUT\|PAUSE_MUSIC) before quitting (`gameTick.ts:224` reloads at once). — **2026-10-26:** the TIMEOUT reason plays MOVIE_TIMEOUT (fade in / out, music paused) before the main menu; the 13-year check runs every frame (time jumps included). |
 | endgameDeathEndingValidate | `deathEndings.ts:61` | ✅ MATCH | — | |
 | endgameDeathEndingGetFileName | `deathEndings.ts:116` | ✅ MATCH | — | CE falls back to nar_4 if the table is empty; DH2 keeps nar_5 (LOW). |
 | endgameEndingUpdateOverlay | — | 🚫 N/A | — | |
@@ -193,7 +193,7 @@ Top findings:
 
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| creditsOpen | `slideRender.ts:168 showCredits` | ⚠️ DIFFERS | LOW | 20 ms/px (CE `CREDITS_WINDOW_SCROLLING_DELAY` 38 ms), browser monospace in invented colours (CE title/name fonts, `_colorTable[18917]/[13673]/[17969]`); no reversed style (quotes.txt), no background fid. |
+| creditsOpen | `slideRender.ts:168 showCredits` | ✅ FIXED (2026-10-26) | LOW | 20 ms/px (CE `CREDITS_WINDOW_SCROLLING_DELAY` 38 ms), browser monospace in invented colours (CE title/name fonts, `_colorTable[18917]/[13673]/[17969]`); no reversed style (quotes.txt), no background fid. — **2026-10-26:** 1 px every 38 ms, fonts 103 / 104 with colours 13673 / 18917 / 17969, the reversed style for quotes.txt, wide lines skipped, any input stops; background fid -1 in every CE call. |
 | creditsFileParseNextLine | inline in `showCredits` | ✅ MATCH | — | `;` skip, `@` title, `#` highlighted name. |
 
 ### game_movie.cc, movie.cc, movie_effect.cc
@@ -203,7 +203,7 @@ Top findings:
 | gameMoviesInit / gameMoviesReset | `globalState.seenMovies`, `gameReset.ts:39` | ✅ MATCH | — | |
 | gameMoviesLoad / gameMoviesSave | `SaveGame.seenMovies` | ✅ MATCH | — | |
 | gameMoviePlay | `gameMovie.ts:206` | ✅ MATCH | — | Flags, skip on key/click, seen-set, VSUIT look, subtitles only with pref + .sve. Subtitles in 12 px monospace (CE font 101 on subtitle palette) — LOW. Movie volume follows *music* volume (unverified vs CE). |
-| gameMovieFadeOut | — | ❌ MISSING | LOW | CE restores the palette after a FADE_IN-only movie (DERRICK) on the next map load; DH2's fade layer is simply removed. |
+| gameMovieFadeOut | — | ✅ FIXED (2026-10-26) | LOW | CE restores the palette after a FADE_IN-only movie (DERRICK) on the next map load; DH2's fade layer is simply removed. — **2026-10-26:** after a FADE_IN-only movie the screen stays black until the next map load or the main menu (a following movie brings its own palette). |
 | gameMovieIsSeen / gameMovieIsPlaying | `gameMovie.ts:94/89` | ✅ MATCH | — | |
 | gameMovieBuildSubtitlesFilePath | `loadSubtitles` (`data/text/english/cuts/*.sve`) | ✅ MATCH | — | English only. |
 | movie.cc / movie_effect.cc (MVE decoder, `_movieRun`, `movieEffectsLoad`, subtitles) | `<video>` WebM + `loadEffects` + `loadSubtitles` | 🚫 N/A | — | Behaviour ported: .cfg fades, .sve frame timing at MVE timer fps. |
@@ -226,9 +226,9 @@ Top findings:
 | _automapDisplayMap / automapSetDisplayMap | — | ✅ FIXED (2026-10-25) | LOW | maps.txt `automap=no` maps should not be listed in the Pip-Boy AUTOMAPS tab (`pipboy.cc:1604`). — **Fixed 2026-10-25:** the Pip-Boy list hides them (PIP-01). |
 | automapShow | `ui_automap.ts:146 openAutomap`, `input.ts:161` | ✅ FIXED | MED | AUTO-01 (fixed 2026-10-25). |
 | automapRenderInMapWindow | `automap/render.ts:48 drawAutomapInto` | ✅ FIXED | MED | AUTO-01 (fixed 2026-10-25): CE colours and detail levels. |
-| automapRenderInPipboyWindow | `ui_pipboy` AUTOMAPS → `drawAutomapInto` | 🟡 PARTIAL | LOW | Same renderer. |
+| automapRenderInPipboyWindow | `ui_pipboy` AUTOMAPS → `drawAutomapInto` | ✅ FIXED (2026-10-26) | LOW | Same renderer. — **2026-10-26:** the CE renderer (drawAutomapInto) — nothing differs. |
 | automapSaveCurrent / automapSaveEntry / automapLoadEntry / automapSaveHeader / automapLoadHeader / _decode_map_data / automapCreate / _copy_file_data | `automap/storage.ts` (IndexedDB) | 🚫 N/A | — | |
-| automapGetHeader | `tracking.ts:90 getArchivedMaps` | 🟡 PARTIAL | LOW | |
+| automapGetHeader | `tracking.ts:90 getArchivedMaps` | ✅ FIXED (2026-10-26) | LOW | **2026-10-26:** getArchivedMaps lists the maps with automap data, as the AUTOMAP.DB header does. |
 
 ### skilldex.cc
 
@@ -242,13 +242,13 @@ Top findings:
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
 | displayMonitorInit | `#displayLog` (`play.html:152`) | ✅ MATCH | — | |
-| displayMonitorReset | — | ⚠️ DIFFERS | LOW | Never cleared (unverified when CE clears it: `interfaceReset` from `map.cc:258`). |
+| displayMonitorReset | — | ✅ FIXED (2026-10-26) | LOW | Never cleared (unverified when CE clears it: `interfaceReset` from `map.cc:258`). — **2026-10-26:** the log empties on gameReset (new game, load). |
 | displayMonitorExit / display_clear | — | 🚫 N/A | — | |
-| displayMonitorAddMessage | `ui_hud.ts:346 uiLog` | ⚠️ DIFFERS | LOW | No `\x95` bullet per message, no `monitor` beep (≥500 ms apart, not in combat), no 100-line ring buffer (DOM grows without bound), CSS word wrap instead of CE's, text inserted as **HTML** (`insertAdjacentHTML`) — a `<` in a message breaks it. Colour #00FF00 (CE green 992). |
+| displayMonitorAddMessage | `ui_hud.ts:346 uiLog` | 🟡 PARTLY FIXED (2026-10-26) | LOW | No `\x95` bullet per message, no `monitor` beep (≥500 ms apart, not in combat), no 100-line ring buffer (DOM grows without bound), CSS word wrap instead of CE's, text inserted as **HTML** (`insertAdjacentHTML`) — a `<` in a message breaks it. Colour #00FF00 (CE green 992). — **2026-10-26:** the • knob, the "monitor" beep (500 ms apart, not in combat), 100 lines, colour 992, text not HTML (already); the wrap is CSS's. |
 | displayMonitorRefresh | DOM | ✅ MATCH | — | |
 | displayMonitorScrollUpOnMouseDown / …DownOnMouseDown | `ui_hud.ts:352 initLogScrollZones` | ✅ MATCH | — | One line per click (no auto-repeat). |
-| displayMonitorScrollUp/DownOnMouseEnter / OnMouseExit | — | ❌ MISSING | LOW | Up/down arrow cursors over the log. |
-| displayMonitorDisable / displayMonitorEnable | `game_ui_disable` hides the bar | ⚠️ DIFFERS | LOW | See gameUiDisable. |
+| displayMonitorScrollUp/DownOnMouseEnter / OnMouseExit | — | ✅ FIXED (2026-10-26) | LOW | Up/down arrow cursors over the log. — **2026-10-26:** suparrow / sdnarrow cursors over the log (ui.css) — stale row. |
+| displayMonitorDisable / displayMonitorEnable | `game_ui_disable` hides the bar | ✅ FIXED (2026-10-26) | LOW | See gameUiDisable. — **2026-10-26:** see gameUiDisable. |
 | consoleFileInit / Reset / Exit / AddMessage / Flush | `eventLog` (DH2-only structured log) | 🚫 N/A | — | sfall console log file. |
 
 ### Game keys (gameHandleKey) — GAME-01 detail

@@ -32,11 +32,22 @@ function readIni(file: string): { [section: string]: { [key: string]: string } }
     return cache.get(path) ?? null
 }
 
+// CE sfall_ini.cc parse_ini_triplet: file and section end at the first two '|'; the key is
+// the rest, '|' included. null when there are fewer than two separators.
+function parseIniTriplet(triplet: string): [string, string, string] | null {
+    const s = String(triplet ?? '')
+    const a = s.indexOf('|')
+    if (a < 0) return null
+    const b = s.indexOf('|', a + 1)
+    if (b < 0) return null
+    return [s.slice(0, a), s.slice(a + 1, b), s.slice(b + 1)]
+}
+
 /** CE sfall_ini_get_string: the setting's text; '' for a missing file, section or key;
  *  null when `triplet` is not "file|section|key". */
 export function sfallIniGetString(triplet: string): string | null {
-    const parts = String(triplet ?? '').split('|')
-    if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return null
+    const parts = parseIniTriplet(triplet)
+    if (!parts || !parts[0] || !parts[1] || !parts[2]) return null
     const ini = readIni(parts[0])
     return ini?.[parts[1].toLowerCase()]?.[parts[2].toLowerCase()] ?? ''
 }
@@ -54,8 +65,8 @@ export function sfallIniGetInt(triplet: string): number {
  *  file): DH2 cannot write the install's files, so the value holds for this page load
  *  only (as fallout2.cfg changes live in localStorage, not in the file). */
 export function sfallIniSet(triplet: string, value: any): void {
-    const parts = String(triplet ?? '').split('|')
-    if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return
+    const parts = parseIniTriplet(triplet)
+    if (!parts || !parts[0] || !parts[1] || !parts[2]) return
     const path = 'data/' + parts[0].replace(/\\/g, '/').replace(/^\/+/, '')
     readIni(parts[0])
     const ini = cache.get(path) ?? {}

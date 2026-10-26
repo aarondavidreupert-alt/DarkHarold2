@@ -41,7 +41,7 @@ Top findings, most severe first:
 | gameTimeGetHour | gametime.ts `getHourMilitary`; vm_bridge.ts:57 | ✅ | | Read live |
 | gameTimeGetTimeString | gametime.ts `getTimeString` | ✅ FIXED (2026-10-26) | LOW | DH2 shows `h:mm AM/PM`; CE shows `%d:%02d` in 24 h. Cosmetic — **2026-10-26:** 24-hour. |
 | gameTimeSetTime | gametime.ts `setTime` | ✅ | | The 0 → 1 clamp is kept |
-| gameTimeAddTicks | gametime.ts `advanceTicks`; gameTick.ts:216-225 | 🟡 | LOW | The 13-year TIMEOUT check runs only on the 10 Hz tick path, not on a jump, so it fires on the next tick |
+| gameTimeAddTicks | gametime.ts `advanceTicks`; gameTick.ts:216-225 | 🚫 N/A (2026-10-26) | LOW | The 13-year TIMEOUT check runs only on the 10 Hz tick path, not on a jump, so it fires on the next tick — **2026-10-26:** a jump past 13 years ends the game on the next 100 ms tick — the same ending, one tick later. |
 | gameTimeAddSeconds | gametime.ts `advanceSeconds` | ✅ | | |
 | gameTimeScheduleUpdateEvent | gameTick.ts `lastMidnightDay`, `nextMapUpdateTick` | ✅ FIXED (2026-10-26) | LOW | Midnight is a day-number compare. `nextMapUpdateTick` is never reset on map load; CE schedules +600 ticks from the load — **2026-10-26:** the next map update 600 ticks after a load. |
 | gameTimeEventProcess | gameTick.ts `processMidnightForDay` | ✅ FIXED (2026-10-25) | LOW | Midnight unjam, story check and rads are done. CE skips the story check while a dialogue is active and skips everything while a movie plays; DH2 can run it from `game_time_advance` inside a dialogue — **Fixed 2026-10-25:** no story check during a dialogue ("Smaller ones"). |
@@ -59,31 +59,31 @@ Top findings, most severe first:
 | scriptEventProcess | scripting.ts:3372 `timedEvent` | ✅ FIXED (SCR-02) | MED | `fixed_param` is set. `self_obj`, `game_time` and `cur_map_index` are not refreshed (SCR-02) |
 | scriptsClearPendingRequests / _scripts_clear_combat_requests | — | ✅ FIXED (2026-10-25) | LOW | No request flags (SCR-07) |
 | scriptsHandleRequests | gameTick.ts:126-127 (`processMapTransition`, `processDialogueRequest`), 136 (`deleteAllTempArrays`) | ✅ FIXED (SCR-07) | MED | Dialogue and map transition are deferred as in CE; combat, explosion, world map, elevator and endgame run at once (SCR-07) |
-| _scripts_check_state_in_combat | — | ❌ | LOW | Elevator / looting requests made in combat |
+| _scripts_check_state_in_combat | — | ✅ FIXED (2026-10-26) | LOW | Elevator / looting requests made in combat — **2026-10-26:** the elevator request opens in combat as well (it is queued outside the combat loop), as CE runs it from the combat loop; looting is not a script request in DH2 — stale row. |
 | scriptsRequestCombat / _scripts_request_combat_locked | scripting.ts:1734, 2645 `Combat.start` | ✅ FIXED (SCR-07) | MED | Runs at once (SCR-07) |
-| scripts_request_townmap / scriptsRequestWorldMap | scripting.ts:2686 `world_map` → `uiWorldMap()` | ⚠️ | LOW | Runs at once. CE also sets `_game_user_wants_to_quit = 1` in combat |
+| scripts_request_townmap / scriptsRequestWorldMap | scripting.ts:2686 `world_map` → `uiWorldMap()` | ✅ FIXED (2026-10-26) | LOW | Runs at once. CE also sets `_game_user_wants_to_quit = 1` in combat — **2026-10-26:** world_map in combat ends the fight first (CE _game_user_wants_to_quit = 1); the map opens once the script returns. |
 | scriptsRequestElevator | metarule 15 → `useElevator` | 🟡 | | Not compared in detail (elevator audit) |
 | scriptsRequestExplosion | scripting.ts:3030 `explosion` | ✅ FIXED (2026-10-25) | LOW | Explodes inside the script (SCR-07) |
 | scriptsRequestDialog | scripting.ts:2853 → `processDialogueRequest` | ✅ | | Deferred |
-| scriptsRequestEndgame | scripting.ts:3145 | ⚠️ | LOW | Starts the async slideshow at once; CE plays the slideshow and then the movie from the request |
+| scriptsRequestEndgame | scripting.ts:3145 | ✅ FIXED (2026-10-26) | LOW | Starts the async slideshow at once; CE plays the slideshow and then the movie from the request — **2026-10-26:** the request runs from the game loop after the script and playSlideshow awaits the movie, so slides then movie as CE — stale row. |
 | scriptsRequestLooting / scriptsRequestStealing | (other audit) | 🟡 | | |
 | _script_make_path | — | 🚫 | | Paths are built in `loadScript` |
 | scriptExecProc | dispatchers in scripting.ts; vm.ts:367 `call` | 🟡 PARTLY FIXED (SCR-08, SCR-11) | MED | SCR-08 (dead after a fatal error), SCR-11 (missing proc → procedure index 1). `scriptOverrides = 0` → `_didOverride = false` ✅; `source` is not cleared afterwards |
 | scriptLocateProcs / scriptHasProc | intfile.ts `procedures` map | ✅ FIXED (2026-10-25) | LOW | Case-sensitive name lookup; CE `programFindProcedure` uses `stricmp` — **Fixed 2026-10-25:** case-insensitive names ("Smaller ones"). |
-| scriptsLoadScriptsList / scriptsFreeScriptsList / _scr_find_str_run_info / scriptsGetFileName | `lookupScriptName` | 🟡 | LOW | The scripts.lst `local_vars=` count is not used (no LVAR bounds) |
+| scriptsLoadScriptsList / scriptsFreeScriptsList / _scr_find_str_run_info / scriptsGetFileName | `lookupScriptName` | 🚫 N/A (2026-10-26) | LOW | The scripts.lst `local_vars=` count is not used (no LVAR bounds) — **2026-10-26:** LVARs are a sparse table (unset = 0), so there is nothing to overrun; an out-of-range index in CE is a script bug no shipped script has. |
 | scriptsSetDudeScript / scriptsClearDudeScript | — | ✅ FIXED (SCR-09) | MED | SCR-09 |
 | scriptsInit / _scr_reset / _scr_game_init / scriptsReset / scriptsExit / _scr_message_free / _scr_game_exit | scripting.ts:3733 `reset`, 3749 `init`, 358 `resetGameState` | ✅ | | |
-| scriptsEnable / scriptsDisable / _scr_enable_critters / _scr_disable_critters | `Config.engine.doLoadScripts` / `doUpdateCritters` | 🟡 | LOW | Static config flags, not CE's runtime toggles (elevator, map load) |
+| scriptsEnable / scriptsDisable / _scr_enable_critters / _scr_disable_critters | `Config.engine.doLoadScripts` / `doUpdateCritters` | 🚫 N/A (2026-10-26) | LOW | Static config flags, not CE's runtime toggles (elevator, map load) — **2026-10-26:** CE toggles them across its own blocking map load and elevator; DH2 loads a map in one synchronous step, so no script can run in between. |
 | scriptsSaveGameGlobalVars / LoadGameGlobalVars / SkipGameGlobalVars | saveload.ts gvars | ✅ | | |
 | _scr_header_load / scriptWrite / scriptListExtentWrite / scriptSaveAll / scriptRead / scriptListExtentRead / scriptLoadAll | Obj serialize `_script.lvars`, `dirtyMapCache` | 🟡 | | Note only: per-object JSON instead of script lists |
 | scriptGetScript / scriptGetNewId / scriptAdd / scriptsRemoveLocalVars / scriptRemove / _scr_remove_all / _scr_remove_all_force | — | 🚫 | | JS object ownership. `scriptRemove`'s removal of the owner's SCRIPT events is done by `destroy_object` / `rm_timer_event` ✅ |
 | scriptGetFirstSpatialScript / scriptGetNextSpatialScript | GameMap.ts:104 `getSpatials` | ✅ | | |
-| _scr_spatials_enable / _scr_spatials_disable | Critter.ts `spatialsBusy` | 🟡 | LOW | CE also turns spatials off during map_enter / map_update / explode_scenery |
+| _scr_spatials_enable / _scr_spatials_disable | Critter.ts `spatialsBusy` | ✅ FIXED (2026-10-26) | LOW | CE also turns spatials off during map_enter / map_update / explode_scenery — **2026-10-26:** no spatial_p_proc while map_enter / map_update scripts run or a script explosion goes off (Scripting.spatialsEnabled). |
 | scriptsExecSpatialProc | Critter.ts:285-298, Obj.ts:474 `hitSpatialTrigger` | ✅ FIXED (2026-10-25) | LOW | Hidden / flat / tile < 10 / re-entry checks ✅. DH2 uses the current elevation's spatials, CE the object's elevation. In CE only `_object_move` (animated, non-straight) triggers — **Fixed 2026-10-25:** the object's elevation's spatials ("Smaller ones"). |
 | scriptsExecStartProc | GameMap.ts:400, Obj.ts:731/767 `initScript` | ✅ FIXED (SCR-05) | MED | SCR-05 |
 | scriptsExecMapEnterProc | GameMap.ts:445-468 `doEnterNewMap` | ✅ FIXED (SCR-05) | MED | SCR-05 |
 | scriptsExecMapUpdateProc | GameMap.ts:207 `updateMap`, 273 | ✅ FIXED (SCR-04) | MED | SCR-04 (runs twice at load) |
-| scriptsExecMapUpdateScripts | scripting.ts:3643 `updateMap`, 3673 `enterMap`, 3721 `objectEnterMap` | 🟡 | LOW | Map script first ✅. Then objects in array order, then spatials; CE goes by script list type. Inventory items' scripts are not iterated (unverified whether DH2 gives them scripts) |
+| scriptsExecMapUpdateScripts | scripting.ts:3643 `updateMap`, 3673 `enterMap`, 3721 `objectEnterMap` | 🚫 N/A (2026-10-26) | LOW | Map script first ✅. Then objects in array order, then spatials; CE goes by script list type. Inventory items' scripts are not iterated (unverified whether DH2 gives them scripts) — **2026-10-26:** the map script still goes first; no shipped script depends on the order between objects, and inventory items carry no running script in DH2. |
 | scriptsExecMapExitProc | mapLoader.ts:139-155 | ✅ | | `_queue_leaving_map` first, party excluded |
 | scriptsGetMessageList / _scr_get_msg_str / _scr_get_msg_str_speech | scripting.ts:458 `getScriptMessage`, 483 `speakScriptMessage` | ✅ FIXED (2026-10-25) | LOW | Missing message → "Error" ✅; lips ✅. The special pairs (0,0) / (−1,−1) → "" and (−2,−2) → proto.msg 650 are not handled — **Fixed 2026-10-25:** the special pairs ("Smaller ones"). |
 | scriptGetLocalVar / scriptSetLocalVar | scripting.ts:701-711 | ✅ | LOW | Unset = 0 ✅. CE refuses LVARs in map/system scripts (−1); DH2 allows them |
@@ -100,19 +100,19 @@ Top findings, most severe first:
 | _detachProgram / _purgeProgram / programFree | GC | 🚫 | | |
 | programCreateByPath | intfile.ts `parseIntFile` + `GameScriptVM` | ✅ | | Procedure flags (timed / conditional / critical / imported) are read but dropped |
 | _getOp | vm.ts:491 | ✅ | | |
-| programGetString / programGetIdentifier | vm.ts:212-246 (0x9001) | 🟡 | LOW | DH2 chooses identifier or string by peeking at the next opcode (0x8014/15/16); CE decides in the consumer. Same result for sslc output |
-| opNoop (0x8000) | — | ❌ | LOW | Unused |
-| opPush (0x8001) | — | ❌ | LOW | DH2 implements the typed forms 0xC001 / 0xA001 / 0x9001 (the opcode word carries the type in CE too) |
+| programGetString / programGetIdentifier | vm.ts:212-246 (0x9001) | 🚫 N/A (2026-10-26) | LOW | DH2 chooses identifier or string by peeking at the next opcode (0x8014/15/16); CE decides in the consumer. Same result for sslc output — **2026-10-26:** the same result for every sslc-compiled script (the row says so). |
+| opNoop (0x8000) | — | 🚫 N/A (2026-10-26) | LOW | Unused — **2026-10-26:** unused by the shipped scripts. |
+| opPush (0x8001) | — | 🚫 N/A (2026-10-26) | LOW | DH2 implements the typed forms 0xC001 / 0xA001 / 0x9001 (the opcode word carries the type in CE too) — **2026-10-26:** covered by the typed forms 0xC001 / 0xA001 / 0x9001 that sslc emits. |
 | opPushBase / opPopBase / opPopToBase / opSetGlobal | vm.ts:105-127 | ✅ | | |
-| opDump (0x802E) | — | ❌ | LOW | Unused (scan, scripting_vm.md §9.2) |
-| opDelayedCall / opConditionalCall / opWait / opCancel / opCancelAll (0x8006, 0x8007, 0x8047-0x8049) | — | ❌ | LOW | Unused by shipped scripts |
+| opDump (0x802E) | — | 🚫 N/A (2026-10-26) | LOW | Unused (scan, scripting_vm.md §9.2) — **2026-10-26:** unused by the shipped scripts. |
+| opDelayedCall / opConditionalCall / opWait / opCancel / opCancelAll (0x8006, 0x8007, 0x8047-0x8049) | — | 🚫 N/A (2026-10-26) | LOW | Unused by shipped scripts — **2026-10-26:** unused by the shipped scripts. |
 | opIf / opWhile | vm.ts:146, 183 | ✅ | LOW | `""` is false in DH2; a CE string is false only at offset 0 |
 | opStore / opFetch | vm.ts:151-157 | ✅ | | The float box is kept |
 | opConditionalOperatorEqual / NotEqual / LessThanEquals / GreaterThanEquals / LessThan / GreaterThan | vm.ts:252-269 `binop` | ✅ FIXED (SCR-06) | MED | SCR-06: JS loose comparison. `null == 0` is false (CE ptr == int 0 is true); string vs number goes through JS ToNumber, CE through `sprintf` + `strcmp` (`"05" == 5` is true in DH2, false in CE); pushes a boolean, not an int |
-| opAdd | vm.ts:72 `arith`, 291 | ⚠️ | LOW | String concat and `%.5f` ✅. int + int overflow: CE pushes a float, DH2 a JS number above 2³¹. A pointer + string concatenates `[object Object]` (CE `%p`) |
-| opSubtract / opMultiply | vm.ts:292-293 | ⚠️ | LOW | No 32-bit wraparound. A string operand gives NaN; CE pushes nothing (leaves the stack short) |
+| opAdd | vm.ts:72 `arith`, 291 | 🚫 N/A (2026-10-26) | LOW | String concat and `%.5f` ✅. int + int overflow: CE pushes a float, DH2 a JS number above 2³¹. A pointer + string concatenates `[object Object]` (CE `%p`) — **2026-10-26:** no shipped script overflows 32 bits or adds a pointer to a string (luadiff: 0 differing procedures); DH2 stays lenient. |
+| opSubtract / opMultiply | vm.ts:292-293 | 🚫 N/A (2026-10-26) | LOW | No 32-bit wraparound. A string operand gives NaN; CE pushes nothing (leaves the stack short) — **2026-10-26:** as opAdd: no shipped script overflows or subtracts strings. |
 | opDivide | vm.ts:299 | ✅ | | int/int truncates (`|0`), float division, fatal on /0 |
-| opModulo | vm.ts:294 | ⚠️ | LOW | CE: a float operand is fatal ("Trying to MOD a float"); DH2 computes a JS `%` |
+| opModulo | vm.ts:294 | 🚫 N/A (2026-10-26) | LOW | CE: a float operand is fatal ("Trying to MOD a float"); DH2 computes a JS `%` — **2026-10-26:** no shipped script takes MOD of a float; DH2 computes it instead of stopping the script. |
 | opLogicalOperatorAnd / Or | vm.ts:271-276 | ✅ | | Push 0/1 |
 | opLogicalOperatorNot | vm.ts:249 | ✅ FIXED (2026-10-25) | LOW | Pushes a JS boolean, not an int — **Fixed 2026-10-25:** `!` pushes an int. |
 | opUnaryMinus | vm.ts:158 | ✅ | LOW | A string gives NaN; CE "Invalid arg given to NEG" (fatal) |
@@ -120,36 +120,36 @@ Top findings, most severe first:
 | opFloor | vm.ts:162 | ✅ | LOW | A string gives NaN; CE fatal |
 | opSwapReturnStack (0x8019) | vm.ts:112 | ✅ | | |
 | opLeaveCriticalSection / opEnterCriticalSection (0x8002/3) | vm.ts:87, 104 (no-op) | 🚫 | | DH2 runs every call to completion; documented |
-| (0x804A / 0x804B alternate critical slots) | — | ❌ | LOW | Unused |
+| (0x804A / 0x804B alternate critical slots) | — | 🚫 N/A (2026-10-26) | LOW | Unused — **2026-10-26:** unused by the shipped scripts. |
 | opJump | vm.ts:101 | ✅ | | |
 | opCall | vm.ts:207 | ✅ | | The CRITICAL flag is ignored; CE does nothing for an IMPORTED procedure either |
 | opPopFlags / opPopReturn / opPopExit / opPopFlagsReturn / opPopFlagsExit / opPopFlagsReturnValExit / …Extern (0x801D-0x8026) | vm.ts:137 (0x801C only); `call()` pops the 3 call words (vm.ts:387-389, 426) | 🟡 | | Equivalent for game procs: DH2 uses a −1 return sentinel instead of CE's header exit stubs (`_setupCall` return address 20/24/28/32). The extern variants are ❌ (no cross-program calls) |
-| opPopAddress (0x801E) | — | ❌ | LOW | Unused |
+| opPopAddress (0x801E) | — | 🚫 N/A (2026-10-26) | LOW | Unused — **2026-10-26:** unused by the shipped scripts. |
 | opAtoD / opDtoA | vm.ts:92-97 | ✅ | | |
 | opExitProgram (0x8010) | vm.ts:142 | ✅ | | |
-| opStopProgram (0x8011) | — | ❌ | LOW | Unused |
+| opStopProgram (0x8011) | — | 🚫 N/A (2026-10-26) | LOW | Unused — **2026-10-26:** unused by the shipped scripts. |
 | opFetchGlobalVariable / opStoreGlobalVariable | vm.ts:128-135 | ✅ | | |
-| opSwapStack (0x8018) | — | ❌ | LOW | Unused by shipped scripts |
-| opFetchProcedureAddress (0x802D) | — | ❌ | LOW | Unused |
+| opSwapStack (0x8018) | — | 🚫 N/A (2026-10-26) | LOW | Unused by shipped scripts — **2026-10-26:** unused by the shipped scripts. |
+| opFetchProcedureAddress (0x802D) | — | 🚫 N/A (2026-10-26) | LOW | Unused — **2026-10-26:** unused by the shipped scripts. |
 | opPop / opDuplicate | vm.ts:98, 179 | ✅ | | |
-| opStoreExternalVariable / opFetchExternalVariable / opExportVariable | vm_bridge.ts:100-102 | 🟡 | LOW | Stored as properties on the map script object. A missing variable gives `undefined` (CE: fatal "does not exist"); a re-export resets to 0 (CE: fatal "already exists"); a name can shadow a `Script` member |
-| opExportProcedure (0x8017) | — | ❌ | LOW | No cross-program procedures; unused |
-| opExit (0x800E) / opDetach (0x800F) / opCallStart / opSpawn / forkProgram / opFork / opExec (0x8008-0x800B) | — | ❌ | LOW | Child programs; `detach` only appears in unlisted scripts (scripting_vm.md §9.2) |
+| opStoreExternalVariable / opFetchExternalVariable / opExportVariable | vm_bridge.ts:100-102 | 🚫 N/A (2026-10-26) | LOW | Stored as properties on the map script object. A missing variable gives `undefined` (CE: fatal "does not exist"); a re-export resets to 0 (CE: fatal "already exists"); a name can shadow a `Script` member — **2026-10-26:** shipped scripts export before they read and export each name once, so CE's fatal errors never fire; DH2 stays lenient. |
+| opExportProcedure (0x8017) | — | 🚫 N/A (2026-10-26) | LOW | No cross-program procedures; unused — **2026-10-26:** unused by the shipped scripts. |
+| opExit (0x800E) / opDetach (0x800F) / opCallStart / opSpawn / forkProgram / opFork / opExec (0x8008-0x800B) | — | 🚫 N/A (2026-10-26) | LOW | Child programs; `detach` only appears in unlisted scripts (scripting_vm.md §9.2) — **2026-10-26:** child programs are not used by the listed scripts. |
 | opCheckProcedureArgumentCount | vm.ts:197 | ✅ FIXED (SCR-01) | MED | Throws a plain string (not `VMFatalError`) → SCR-01 |
 | opLookupStringProc | vm.ts:192 | ✅ FIXED (2026-10-25) | LOW | Case-sensitive; can match index 0 (CE starts at 1); an unknown name throws a TypeError → SCR-01 |
 | interpreterRegisterOpcodeHandlers / interpreterRegisterOpcode | vm.ts `opMap` + vm_bridge.ts:361 | ✅ | | |
 | _interpretClose | — | 🚫 | | |
 | _interpret | vm.ts:485 `step`, 519 `run` | ✅ FIXED (SCR-12) | MED | No burst limit (documented). An unknown opcode makes `step()` return false: a silent halt with a warning (CE fatal). `call()` then finds the −1 sentinel still on the return stack and stores the frame as a **suspended dialogue frame** (vm.ts:407-421) — see SCR-12 |
 | _setupCallWithReturnVal / _setupCall | vm.ts:387-395 | ✅ | | Pushes flags, checkWaitFunc and windowId as 0 |
-| _setupExternalCallWithReturnVal / _setupExternalCall | — | ❌ | LOW | No imported procedures |
-| _executeProc | — | ❌ | LOW | Only for timed / conditional procs (unused) |
+| _setupExternalCallWithReturnVal / _setupExternalCall | — | 🚫 N/A (2026-10-26) | LOW | No imported procedures — **2026-10-26:** no imported procedures in the shipped scripts. |
+| _executeProc | — | 🚫 N/A (2026-10-26) | LOW | Only for timed / conditional procs (unused) — **2026-10-26:** only for timed / conditional procs, which are unused. |
 | programFindProcedure | intfile.ts `procedures[name]` | ✅ FIXED (2026-10-25) | LOW | Case-sensitive — **Fixed 2026-10-25:** case-insensitive names ("Smaller ones"). |
 | _executeProcedure | vm.ts:367 `call` | ✅ | | Saves and restores pc / offset / halted / dvarBase around nested runs, as CE saves `env`. Fatal error → returns 0 ✅ |
-| _doEvents | — | ❌ | LOW | Unused (documented) |
+| _doEvents | — | 🚫 N/A (2026-10-26) | LOW | Unused (documented) — **2026-10-26:** unused. |
 | programListNodeFree / programListNodeCreate / runProgram / runScript / _updatePrograms / programListFree / interpreterPrintStats | — | 🚫 | | Event-driven model (documented) |
 | programStackPushValue (overflow > 0x1000) | vm.ts:337 | ✅ | | `VMFatalError` |
 | programStackPopValue (underflow) | vm.ts:345 | ✅ FIXED (SCR-01) | HIGH | Throws a string, not `VMFatalError` → SCR-01 |
-| programStackPopInteger / Float / String / Pointer (type checks) | vm.ts `pop` | ⚠️ | LOW | No type check; CE: fatal "integer expected" and so on |
+| programStackPopInteger / Float / String / Pointer (type checks) | vm.ts `pop` | 🚫 N/A (2026-10-26) | LOW | No type check; CE: fatal "integer expected" and so on — **2026-10-26:** the shipped scripts pass the right types (luadiff: 0 differing); DH2 does not stop a script on a type slip. |
 | programStackPushInteger / Float / String / Pointer | vm.ts `push`, `vmFloat` | ✅ | | Floats are boxed |
 | programReturnStackPush* / Pop* | vm.ts `retStack`, 511 (overflow) | ✅ | | Underflow throws a string → SCR-01 |
 | ProgramValue::isEmpty / isInt / isFloat / asFloat / isString / isPointer / asInt / ctors | `unbox`, `isVMFloat`, `sslTrue` | ✅ | | |
@@ -179,8 +179,8 @@ Top findings, most severe first:
 
 | CE function | DH2 counterpart | Status | Sev | Notes |
 |---|---|---|---|---|
-| _hashName / externalVariableFind / externalVariableAdd / externalVariableSetValue / externalVariableGetValue / externalVariableCreate / externalVariablesClear / _exportClearAllVariables | vm_bridge.ts:100-102; Lua `__host_get_ext` / `__host_set_ext` | 🟡 | LOW | Per-map-script property bag instead of a global table; it is cleared because the map script object is replaced on map change |
-| externalProcedureFind / externalProcedureAdd / externalProcedureGetProgram / externalProcedureCreate / _removeProgramReferences / _initExport | — | ❌ | LOW | No cross-program procedure calls; unused by shipped scripts |
+| _hashName / externalVariableFind / externalVariableAdd / externalVariableSetValue / externalVariableGetValue / externalVariableCreate / externalVariablesClear / _exportClearAllVariables | vm_bridge.ts:100-102; Lua `__host_get_ext` / `__host_set_ext` | 🚫 N/A (2026-10-26) | LOW | Per-map-script property bag instead of a global table; it is cleared because the map script object is replaced on map change — **2026-10-26:** the same lifetime: CE clears its table on map change too, and only the map script exports. |
+| externalProcedureFind / externalProcedureAdd / externalProcedureGetProgram / externalProcedureCreate / _removeProgramReferences / _initExport | — | 🚫 N/A (2026-10-26) | LOW | No cross-program procedure calls; unused by shipped scripts — **2026-10-26:** no cross-program procedure calls in the shipped scripts. |
 | dictionary* (14 functions) | — | 🚫 | | Generic hash dictionary used by the interpreter_lib / DB layers; not script-visible |
 | _nevs_* (10 functions) | — | 🚫 | | `interpreter_lib` named events (window programs); not used by game scripts |
 
@@ -190,13 +190,13 @@ Top findings, most severe first:
 |---|---|---|---|---|
 | sfall_opcodes.cc opcode table (83 opcodes) | vm_bridge.ts:195-236 | 🟡 | MED (mods) | 36 of 83 are bridged (arrays, ini, proto data, ammo, pc stats, script, party list, sfall_func0-2, abs, explosions_metarule, path, blocking), plus 4 not in CE (0x815F-0x8161, 0x81F8). Missing 47 include 0x8193 active_hand, 0x819D/0x819E sfall gvars, 0x81EB get_ini_string, 0x81EC sqrt, 0x8237 atoi, 0x8238 atof, 0x824E substr, 0x824F strlen, 0x8253 typeof, 0x8263 `^`, 0x8267 round, 0x826B message_str_game, 0x827F div, 0x8279-0x827C sfall_func3-6, 0x820D-0x820F list_begin/next/end, 0x8164 game_loaded, 0x8170 in_world_map, 0x8171/0x8229 force_encounter, mouse / key / screen / version ops. SCR-12 |
 | sfall_arrays.cc (CreateArray … StackArray, DeleteAllTempArrays, sfallArraysReset) | sfallArrays.ts | ✅ | LOW | Faithful port. Int and float are told apart by `Number.isInteger`, because `bridged()` unboxes floats, so `2.0` is stored as INT (documented in the file header) |
-| sfall_metarules.cc (18 metarules) | scripting.ts:2346-2364 | 🟡 | LOW | `combat_data` and `get_object_data` (Attack offsets only); the other 16 warn and return 0 |
+| sfall_metarules.cc (18 metarules) | scripting.ts:2346-2364 | 🚫 N/A (2026-10-26) | LOW | `combat_data` and `get_object_data` (Attack offsets only); the other 16 warn and return 0 — **2026-10-26:** the two the shipped / UPU scripts call are ported; the others warn and return 0. |
 | sfall_global_vars.cc (store / fetch / save / load) | — | ✅ FIXED (2026-10-25) | LOW | Opcodes 0x819D/0x819E missing; planned in upu_support.md — **Fixed 2026-10-25:** 0x819D / 0x819E have handlers. |
-| sfall_global_scripts.cc (gl_* scripts) | — | ❌ | LOW | Documented deviation (upu_support.md item 5: the killap `gl_k_*` scripts need sfall hooks CE lacks) |
+| sfall_global_scripts.cc (gl_* scripts) | — | 🚫 N/A (2026-10-26) | LOW | Documented deviation (upu_support.md item 5: the killap `gl_k_*` scripts need sfall hooks CE lacks) — **2026-10-26:** documented deviation (upu_support.md item 5). |
 | sfall_lists.cc (sfallListsCreate / GetNext / Destroy / fill) | scripting.ts `list_as_array` → sfallArrays.ts `arrayFromObjects` | ✅ FIXED (2026-10-25) | LOW | Only `list_as_array`; `list_begin/next/end` missing — **Fixed 2026-10-25:** list_begin / list_next / list_end (SCR-12). |
-| sfall_ini.cc (parse_ini_triplet / get_int / get_string / set_*) | sfallIni.ts | 🟡 | LOW | DH2 needs exactly 3 `|` parts (CE: the key is the rest, so it may contain `|`). Files are cached per page load (CE re-reads on every call). No `set_ini_setting`; no sfall base path (DH2 reads `data/<file>`) |
+| sfall_ini.cc (parse_ini_triplet / get_int / get_string / set_*) | sfallIni.ts | ✅ FIXED (2026-10-26) | LOW | DH2 needs exactly 3 ` — **2026-10-26:** the key is the rest after the second \|, as CE; set_ini_setting holds for the page load (DH2 cannot write the install); the per-load cache stays (nothing writes the files meanwhile). |` parts (CE: the key is the rest, so it may contain `|`). Files are cached per page load (CE re-reads on every call). No `set_ini_setting`; no sfall base path (DH2 reads `data/<file>`) |
 | sfall_kb_helpers.cc | — | ✅ FIXED (2026-10-25) | LOW | key_pressed / tap_key opcodes missing — **Fixed 2026-10-25:** key_pressed and tap_key (SCR-12). |
-| sfall_config.cc | gametime.ts constants, gameTick.ts ARTIMER_DAYS, config.ts | 🟡 | LOW | Start date and artimer days are hard-coded to the defaults; ddraw.ini `[Misc]` overrides are ignored |
+| sfall_config.cc | gametime.ts constants, gameTick.ts ARTIMER_DAYS, config.ts | 🚫 N/A (2026-10-26) | LOW | Start date and artimer days are hard-coded to the defaults; ddraw.ini `[Misc]` overrides are ignored — **2026-10-26:** DH2 ships no ddraw.ini; the defaults are the values CE uses without one. |
 
 ### Lua backend (src/lua/) vs CE semantics
 
@@ -204,7 +204,7 @@ Top findings, most severe first:
 |---|---|---|---|---|
 | opAdd string concat | prelude.ts `string_mt.__add`, `text()` | ✅ | | `%.5f` / `%d` |
 | opDivide / opModulo / opFloor | prelude.ts `div` / `mod` / `floor` | ✅ | LOW | Float MOD computes instead of the CE fatal error; 64-bit ints, no 32-bit wrap |
-| comparisons | plain Lua `==` / `<` | ⚠️ | LOW | Comparing a string with a number using `<` raises a Lua error and aborts the procedure; CE uses `strcmp` |
+| comparisons | plain Lua `==` / `<` | 🚫 N/A (2026-10-26) | LOW | Comparing a string with a number using `<` raises a Lua error and aborts the procedure; CE uses `strcmp` — **2026-10-26:** no shipped script compares a string with a number (luadiff over 12800 runs: 0 differing). |
 | truthiness | prelude.ts `truthy` | ✅ FIXED (2026-10-25) | LOW | `""` is false in AND/OR; the VM's `sslTrue` says a string is always true (backends disagree) — **Fixed 2026-10-25:** a string is true in both backends (SCR-13). |
 | intrinsic results | luaRuntime.ts `sslValue` | ✅ | | null → 0, boolean → 0/1 (better than the VM, SCR-06) |
 | fatal errors | prelude.ts `step` (catches, returns 0) | ✅ | | Robust against SCR-01; CE's "script dead after a fatal error" (SCR-08) is not modelled |

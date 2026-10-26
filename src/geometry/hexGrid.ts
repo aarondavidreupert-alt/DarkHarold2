@@ -74,9 +74,10 @@ export function hexInDirectionDistance(position: Point, dir: number, distance: n
         return position
     }
 
-    let tile = hexInDirection(position, dir)
-    // repeat for each further distance, stopping at grid edge
-    for (var i = 0; i < distance - 1; i++) {
+    // CE tile.cc tileGetTileInDirection: the edge test comes before every step, the first
+    // one included — from an edge tile it stays put
+    let tile = position
+    for (let i = 0; i < distance; i++) {
         if (hexIsEdge(tile)) break
         tile = hexInDirection(tile, dir)
     }
@@ -117,10 +118,12 @@ export function hexDirectionTo(a: Point, b: Point): number {
     const dx = sb.x - sa.x
     const dy = sb.y - sa.y
     if (dx !== 0) {
-        const angle = (Math.atan2(-dy, dx) * 180) / Math.PI
-        let temp = (90 - angle) | 0
-        if (temp < 0) temp += 360
-        return Math.min((temp / 60) | 0, 5)
+        // CE truncates the angle first (v6 = trunc(atan2 · 180 · 1/π)), then 90 − v6 — TILE-01
+        const v6 = Math.trunc(Math.atan2(-dy, dx) * 180.0 * 0.3183098862851122)
+        let v7 = 360 - (v6 + 180) - 90
+        if (v7 < 0) v7 += 360
+        v7 = Math.trunc(v7 / 60)
+        return v7 >= 6 ? 5 : v7
     }
     return dy < 0 ? 0 : 2 // dy<0=up=NE(0), dy>0=down=SE(2)
 }

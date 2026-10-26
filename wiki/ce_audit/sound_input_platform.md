@@ -28,24 +28,24 @@ Top findings:
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
 | gameSoundInit | `main.ts:246` `new HTMLAudioEngine()` | 🚫 N/A | — | Web Audio / `<audio>` replaces DirectSound init, cache, file IO procs. `[sound] initialize/sounds/music/speech` enable flags not read (only volumes, CI1). |
-| gameSoundReset | `audio.ts:293` `stopAll` | 🟡 PARTIAL | LOW | stops music + ambient schedule; speech is stopped separately (talkingHead). No effect counter to reset. |
+| gameSoundReset | `audio.ts:293` `stopAll` | 🚫 N/A (2026-10-26) | LOW | stops music + ambient schedule; speech is stopped separately (talkingHead). No effect counter to reset. — **2026-10-26:** DH2 keeps no sound-effect counter to reset. |
 | gameSoundExit | — | 🚫 N/A | — | page unload. |
 | soundEffectsEnable / Disable / IsEnabled | — | ✅ FIXED (2026-10-26) | LOW | No "sounds on/off" switch (`[sound] sounds=0`); sfx volume 0 is the only way to mute. — **2026-10-26:** [sound] sounds=0. |
-| gameSoundSetMasterVolume / Get | `audio.ts:261` `setVolume('master')` | ⚠️ DIFFERS | LOW | CE: master 0 disables music (`_gsound_background_df_vol`) and re-enables it (restarting the track) when raised. DH2 just scales volume (music keeps playing silently, resumes mid-track). |
-| soundEffectsSetVolume / Get | `audio.ts:261` (sfx branch) | ⚠️ DIFFERS | LOW | CE sets volume at allocation (`_gsound_get_sound_ready_for_effect`), so already-playing sfx keep the old volume; DH2 gain node changes live. Inaudible in practice. |
+| gameSoundSetMasterVolume / Get | `audio.ts:261` `setVolume('master')` | ✅ FIXED (2026-10-26) | LOW | CE: master 0 disables music (`_gsound_background_df_vol`) and re-enables it (restarting the track) when raised. DH2 just scales volume (music keeps playing silently, resumes mid-track). — **2026-10-26:** a master volume of 0 stops the music; raised again, the track starts over (_gsound_background_df_vol). |
+| soundEffectsSetVolume / Get | `audio.ts:261` (sfx branch) | 🚫 N/A (2026-10-26) | LOW | CE sets volume at allocation (`_gsound_get_sound_ready_for_effect`), so already-playing sfx keep the old volume; DH2 gain node changes live. Inaudible in practice. — **2026-10-26:** only already-playing effects differ, for their last few hundred ms. |
 | backgroundSoundDisable / Enable / IsEnabled | — | 🟡 PARTLY FIXED (2026-10-26) | LOW | No music on/off (`[sound] music=0`). Movie volume coupling (`movieSetVolume(music×0.94)`) not ported (gameMovie volume is independent — unverified beyond grep). — **2026-10-26:** [sound] music=0; the movie volume coupling is not. |
-| backgroundSoundSetVolume / Get / _gsound_background_volume_get_set | `audio.ts:261` (music branch) | ⚠️ DIFFERS | LOW | CE plays music at `musicVolume × 0.94` and disables music at volume 0 (restart on raise). DH2 uses `music × master` with no 0.94 factor and never disables. |
+| backgroundSoundSetVolume / Get / _gsound_background_volume_get_set | `audio.ts:261` (music branch) | ✅ FIXED (2026-10-26) | LOW | CE plays music at `musicVolume × 0.94` and disables music at volume 0 (restart on raise). DH2 uses `music × master` with no 0.94 factor and never disables. — **2026-10-26:** music plays at music × 0.94 (× master); 0 stops it and raising restarts the track. |
 | backgroundSoundSetEndCallback / GetDuration | — | 🚫 N/A | — | no CE callers set an end callback for map music in vanilla flow (endgame uses it; DH2 endgame drives its own timing). |
 | backgroundSoundLoad (+ `_gsound_background_play_level_music`) | `audio.ts:168` `playMusic`, `GameMap.ts:475` `playMapMusic` | ✅ FIXED (SND-01) | HIGH | Map music matches (`wmMapMusicStart`, loop). But the other CE callers are absent — see SND-01 (worldmap `23world`/`20car`, main-menu `07desert`, map-load `wind2`). No `_gsound_background_fade` (CE leaves it 0 in vanilla, so no fade — match). CE restarts the same track on every map load (backgroundSoundDelete + load); DH2 also restarts (`stopAll` + `playMusic`) — match. |
 | backgroundSoundDelete | `audio.ts:284` `stopMusic` | ✅ MATCH | — | L13 (drops the stream). |
-| backgroundSoundRestart | `talkingHead.ts:410` (dialog end) | 🟡 PARTIAL | LOW | only the dialogue restart (`game_dialog.cc:999`) is ported; master/music re-enable restart is not (see above). |
-| backgroundSoundPause / Resume | — | ❌ MISSING | LOW | CE pauses music during save/load screens (`loadsave.cc:1537`) and non-stopping movies (`game_movie.cc:189/298`). DH2 keeps playing under the save/load screen; `gameMovie.ts:294` only implements the STOP flag. |
+| backgroundSoundRestart | `talkingHead.ts:410` (dialog end) | ✅ FIXED (2026-10-26) | LOW | only the dialogue restart (`game_dialog.cc:999`) is ported; master/music re-enable restart is not (see above). — **2026-10-26:** the volume restart is ported with the master / music volume rows. |
+| backgroundSoundPause / Resume | — | ✅ FIXED (2026-10-26) | LOW | CE pauses music during save/load screens (`loadsave.cc:1537`) and non-stopping movies (`game_movie.cc:189/298`). DH2 keeps playing under the save/load screen; `gameMovie.ts:294` only implements the STOP flag. — **2026-10-26:** the music pauses under the save / load window; movies already paused it with GAME_MOVIE_PAUSE_MUSIC. |
 | speechDisable / Enable / IsEnabled | — | ✅ FIXED (2026-10-26) | LOW | `[sound] speech=0` not honoured. — **2026-10-26:** [sound] speech=0. |
 | speechSetVolume / Get / _gsound_speech_volume_get_set | `audio.ts:261` (speech branch), `talkingHead.ts:280` | ✅ MATCH | — | speech at `speech × master × 0.69` (lips). Volume change during playback not applied live (CE applies it) — trivial. |
 | speechSetEndCallback / GetDuration | `talkingHead.ts` | 🚫 N/A | — | handled by `<audio>` events. |
 | speechLoad / _gsound_speech_play_preloaded / speechPlay / speechDelete / Pause / Resume | `talkingHead.ts:262`, `endgame/slideRender.ts:52` | ✅ MATCH | — | dialogue speech, endgame narrator. Death narration (`main.cc:440`) is the endgame/main auditor's scope. `preferences.cc:1502` "narrator\options" not checked here. |
 | _gsound_play_sfx_file_volume | — | ✅ FIXED (2026-10-25) | LOW | used by combat_ai.cc (2741–2934) for AI combat sounds with relative volume; see SND-02. |
-| soundEffectLoad (incl. human `H?XXXX` fallback, `MALIEU`/`MAMTN2`→`MAMTNT`) | `sfxNames.ts:83` `playCharSfx`, `audio.ts:108` `loadSfx` | ⚠️ DIFFERS | LOW | Human fallback matches (AU5). Missing: the `MALIEU*`/`MAMTN2*` → `MAMTNT*` fallback (Lieutenant / mutant critters with no own sound file use the generic mutant sounds in CE; silent in DH2) — SND-04. Missing: `SOUND_EFFECTS_MAX_COUNT` (4) concurrent-effect cap — SND-03. |
+| soundEffectLoad (incl. human `H?XXXX` fallback, `MALIEU`/`MAMTN2`→`MAMTNT`) | `sfxNames.ts:83` `playCharSfx`, `audio.ts:108` `loadSfx` | ✅ FIXED (2026-10-26) | LOW | Human fallback matches (AU5). Missing: the `MALIEU*`/`MAMTN2*` → `MAMTNT*` fallback (Lieutenant / mutant critters with no own sound file use the generic mutant sounds in CE; silent in DH2) — SND-04. Missing: `SOUND_EFFECTS_MAX_COUNT` (4) concurrent-effect cap — SND-03. — **2026-10-26:** SND-04: MALIEU… / MAMTN2… fall back to MAMTNT…. |
 | soundEffectLoadWithVolume | — | ✅ FIXED (SND-02) | MED | see SND-02 (distance attenuation). |
 | soundEffectDelete / _gsnd_anim_sound / soundEffectPlay / soundEffectCallback | `audio.ts:142` `playBuffer` | 🚫 N/A | — | fire-and-forget BufferSource. |
 | _gsound_compute_relative_volume | — | ✅ FIXED (SND-02) | MED | SND-02. |
@@ -55,7 +55,7 @@ Top findings:
 | sfxBuildWeaponName | opcode: `scripting.ts:2610`; engine: `soundMap.ts:110` `getWeaponSounds` + `audio.ts:222` `playWeaponSfx` | ✅ FIXED (SND-05) | MED | Opcode port matches. The engine path does not use it: hit sound variant always `1` (CE `2` for non-primary hit modes, e.g. burst), material always flesh (`F`), never `X` for plasma/EMP/explosive damage, and the DH2-only fallbacks (burst→single, material→`xxx`). SND-05. |
 | sfxBuildSceneryName | `scripting.ts:2624` | ✅ MATCH | — | `S%c%c%4s1`. |
 | sfxBuildOpenName | `sfxNames.ts:32` | ✅ MATCH | — | AU5; `A` only when no proto, byte 0 → no file. |
-| _gsound_red/med/lrg_butt_press/release, _gsound_toggle_butt_press_ | per-UI calls, e.g. `ui_inventory/panel.ts:70`, `hotkeys.ts:41` | 🟡 PARTIAL | LOW | Names identical (`ib1p1xx1`/`ib1lu1x1`/`ib2…`/`ib3…`/`toggle`); wired per screen by hand. Coverage per screen belongs to the UI auditors. Release sounds are wired only where DH2 added mouseup handlers (inventory, pipboy). |
+| _gsound_red/med/lrg_butt_press/release, _gsound_toggle_butt_press_ | per-UI calls, e.g. `ui_inventory/panel.ts:70`, `hotkeys.ts:41` | 🚫 N/A (2026-10-26) | LOW | Names identical (`ib1p1xx1`/`ib1lu1x1`/`ib2…`/`ib3…`/`toggle`); wired per screen by hand. Coverage per screen belongs to the UI auditors. Release sounds are wired only where DH2 added mouseup handlers (inventory, pipboy). — **2026-10-26:** the names match; per-screen coverage is in the UI audits. |
 | soundPlayFile | `audio.ts:211` `playSfxByName` | ✅ MATCH | — | looks the stem up in sndlist first (CE: load fails silently). |
 | _gsound_bkg_proc | — | 🚫 N/A | — | browser audio needs no pump. |
 | gameSoundFileOpen/Read/Write/Seek/Tell/GetSize/Close, gameSoundIsCompressed, _gsound_file_exists_f, _gsound_setup_paths | — | 🚫 N/A | — | fetch() of pre-converted WAV/MP3. |
@@ -82,8 +82,8 @@ Top findings:
 |---|---|---|---|---|
 | gameMouseInit / Reset / Exit | `mapLoader.ts:383` (cursor art preload) | 🚫 N/A | — | |
 | _gmouse_enable / _gmouse_disable | `globalState.gameUIDisabled` checks in `input.ts` | ✅ MATCH | — | |
-| _gmouse_enable_scrolling / _gmouse_disable_scrolling / gmouse_scrolling_is_enabled / _gmouse_is_scrolling / _gmouse_get_click_to_scroll | `gameTick.ts:155` (`gameHasFocus`) | 🟡 PARTIAL | LOW | No explicit scroll enable flag (CE disables it on worldmap / map load); DH2 gates on focus and UI mode. `click_to_scroll` not ported. |
-| gameMouseHandleScrolling (+ map.cc mapScroll) | `gameTick.ts:162`, `input.ts:344` (scroll cursor), `renderer.ts:357` | ⚠️ DIFFERS | LOW | CE: only on the exact screen-edge pixel, steps 32 px (x) / 24 px (y) every ≥33 ms, and shows the `*_INVALID` (red, "blocked") scroll cursor when `mapScroll` fails. DH2: `[dh2] scroll_edge` zone (default 10 px, documented), 15 px/tick both axes (~900 px/s vs CE ~970/727), no blocked-scroll cursor. MOUSE-07. |
+| _gmouse_enable_scrolling / _gmouse_disable_scrolling / gmouse_scrolling_is_enabled / _gmouse_is_scrolling / _gmouse_get_click_to_scroll | `gameTick.ts:155` (`gameHasFocus`) | 🚫 N/A (2026-10-26) | LOW | No explicit scroll enable flag (CE disables it on worldmap / map load); DH2 gates on focus and UI mode. `click_to_scroll` not ported. — **2026-10-26:** the same effect: DH2 scrolls only with no window open (worldmap, map load included); click_to_scroll is a debug option. |
+| gameMouseHandleScrolling (+ map.cc mapScroll) | `gameTick.ts:162`, `input.ts:344` (scroll cursor), `renderer.ts:357` | ✅ FIXED (2026-10-26) | LOW | CE: only on the exact screen-edge pixel, steps 32 px (x) / 24 px (y) every ≥33 ms, and shows the `*_INVALID` (red, "blocked") scroll cursor when `mapScroll` fails. DH2: `[dh2] scroll_edge` zone (default 10 px, documented), 15 px/tick both axes (~900 px/s vs CE ~970/727), no blocked-scroll cursor. MOUSE-07. — **2026-10-26:** as an option: [dh2] scroll_mode=ce (32 × 24 px steps, 33 ms). |
 | gameMouseRefresh (hover logic) | `input.ts:294` `mousemoved`, `gameTick.ts:180`, `renderer.ts:318` | ✅ FIXED (MOUSE-03, MOUSE-04, MOUSE-05) | MED | see MOUSE-03 (primary-action icon), MOUSE-04 (repeated look message), MOUSE-05 (AP readout on hex cursor), item outline timing. |
 | gameMouseClickOnInterfaceBar | DOM `#bar` swallows clicks | 🚫 N/A | — | |
 | _gmouse_handle_event — right button | `input.ts:283` → `cycleMouseMode` | ✅ MATCH | — | |
@@ -93,7 +93,7 @@ Top findings:
 | _gmouse_handle_event — USE_CROSSHAIR (item on object) | `input.ts:253` `usePendingItemOn` | ✅ MATCH | — | AP cost in combat handled in `useItemOn.ts` (not re-verified here). |
 | _gmouse_handle_event — skill crosshairs | `input.ts:267` → `playerUse` (useSkill) | ✅ MATCH | — | CE: clicking empty ground keeps the mode only when actionUseSkill fails; DH2 First Aid/Doctor on empty ground → self (CE: `object == nullptr` → leaves mode, no self-use). ⚠️ LOW, see MOUSE-08. |
 | _gmouse_handle_event — action menu (left-hold) | `ui_contextmenu.ts:45` `uiContextMenu` | ✅ MATCH (content) | — | C42: menu items per type match CE; opening gesture differs (documented). |
-| gameMouseSetCursor / GetCursor (incl. animated wait cursor) | `renderer.ts:318-372` canvas-drawn cursors, CSS on DOM | 🟡 PARTIAL | LOW | Hotspot: CE `offsetX = w/2 - ox`, `offsetY = h-1-oy` (FRM offsets); DH2 uses top-left for arrows and centre for crosshairs (approximate). Animated `wait` cursor (`MOUSE_CURSOR_WAIT_PLANET/WATCH`) not used. |
+| gameMouseSetCursor / GetCursor (incl. animated wait cursor) | `renderer.ts:318-372` canvas-drawn cursors, CSS on DOM | 🚫 N/A (2026-10-26) | LOW | Hotspot: CE `offsetX = w/2 - ox`, `offsetY = h-1-oy` (FRM offsets); DH2 uses top-left for arrows and centre for crosshairs (approximate). Animated `wait` cursor (`MOUSE_CURSOR_WAIT_PLANET/WATCH`) not used. — **2026-10-26:** the hotspots are within a few pixels; DH2 has no blocking waits for the wait cursor. |
 | gmouse_set_mapper_mode / _gmouse_3d_enable_modes | — | 🚫 N/A | — | mapper only. |
 | gameMouseSetMode / GetMode | `globalState.cursorMode` | ✅ MATCH | — | mode change re-runs `refreshHighlights` (CE `_combat_outline_on/off` when entering/leaving crosshair). |
 | gameMouseCycleMode | `input.ts:181` `cycleMouseMode` | ✅ MATCH | — | crosshair skipped outside combat and with a non-weapon active item (C43). |
@@ -116,7 +116,7 @@ Top findings:
 
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| artInit (lst load, critter alias + run column, head fidget counts, sfall native-look names) | `tools/convertLST.py` → `lut/lst/art_*.json`; `pro.ts:93` | 🟡 PARTIAL | LOW | Lists, alias (`walk` field) and run column are exported. ART-01: a critters.lst line without an alias falls back to `hmjmps` in DH2; CE uses `_art_vault_guy_num` = the **tribal male** (`hmwarr`, sfall `DudeNativeLook` configurable). DH2 also ignores an alias of 0 (`alias > 0`); CE uses it. Neither case is expected in vanilla critters.lst (unverified against a live install). sfall native-look keys not read. |
+| artInit (lst load, critter alias + run column, head fidget counts, sfall native-look names) | `tools/convertLST.py` → `lut/lst/art_*.json`; `pro.ts:93` | ✅ FIXED (2026-10-26) | LOW | Lists, alias (`walk` field) and run column are exported. ART-01: a critters.lst line without an alias falls back to `hmjmps` in DH2; CE uses `_art_vault_guy_num` = the **tribal male** (`hmwarr`, sfall `DudeNativeLook` configurable). DH2 also ignores an alias of 0 (`alias > 0`); CE uses it. Neither case is expected in vanilla critters.lst (unverified against a live install). sfall native-look keys not read. — **2026-10-26:** ART-01: a critters.lst line without an alias falls back to the tribal male (hmwarr). |
 | artReset / artExit / artCacheFlush / artLock / artLockFrameData* / artUnlock, artCacheGetFileSizeImpl / ReadDataImpl / FreeImpl | `images.ts`, `idbcache.ts` | 🚫 N/A | — | browser image cache. |
 | artGetObjectTypeName / artIsObjectTypeHidden | — | 🚫 N/A | — | mapper-only hide flags. |
 | artGetFidgetCount | `talkingHead.ts` (heads.lst good/neutral/bad counts) | ✅ MATCH | — | P4. |
@@ -130,7 +130,7 @@ Top findings:
 | artGetFrameCount / Width / Height / Size / FrameOffsets / RotationOffsets / FrameData / Frame | `imageMap.json` (frmpixels.py) | ✅ MATCH | — | |
 | artExists / _art_fid_valid | `Critter.hasAnimation` | ✅ MATCH | — | |
 | _art_alias_num | `pro.ts:97`, `Combat.ts:1157` (hit-location msg) | ✅ MATCH | — | |
-| artCritterFidShouldRun | `Critter.ts:304` `canRun()` = has `run` art | ⚠️ DIFFERS | LOW | ART-02: CE reads critters.lst column 3 (the AI runs only if it is set, `combat_ai.cc:2424`); DH2 runs whenever a run FRM exists. The column is exported but unused. |
+| artCritterFidShouldRun | `Critter.ts:304` `canRun()` = has `run` art | ✅ FIXED (2026-10-26) | LOW | ART-02: CE reads critters.lst column 3 (the AI runs only if it is set, `combat_ai.cc:2424`); DH2 runs whenever a run FRM exists. The column is exported but unused. — **2026-10-26:** ART-02: the AI runs only critters whose critters.lst run column is set (critterArtShouldRun). |
 | artAliasFid | `pro.ts:61` `ALIASED_CRITTER_ANIMS` | ✅ MATCH | — | same 8 anims (27, 29, 30, 33, 55, 57, 58, 64). |
 | buildFid / buildFidInternal | `scripting.ts:1964` (art_change_fid etc.) | ✅ MATCH | — | |
 | artReadFrameData / ReadHeader / artLoad / artRead / artWrite* / artGetDataSize / paddingForSize, FrmImage | `tools/frmpixels.py` | 🚫 N/A | — | offline FRM decode. |
@@ -141,7 +141,7 @@ Top findings:
 |---|---|---|---|---|
 | colorCycleInit / Reset / Free | `colorCycle.ts:15` `cycleTime`, `parsePNGCycleMask` | ✅ MATCH | — | `[system] color_cycling` / `cycle_speed_factor` read (C60). |
 | colorCycleTicker | `shaders/fragment.glsl:263` `cycleColor` | ✅ MATCH | — | Same 6 groups and ranges (slime 229–232 @200 ms, monitors 233–237 @100 ms, fire_slow 238–242 @200 ms, fire_fast 243–247 @142 ms, shoreline 248–253 @200 ms, bobber 254 @33 ms), same 6-bit colours ×4, same rotation direction (`ci = (k − f) mod N`), bobber 0→60→0 step 4 (DH2: continuous triangle, 1 s period — same envelope, not stepped). |
-| colorCycleDisable / Enable / Enabled | — | ❌ MISSING | LOW | CE freezes cycling while dialogue, Pip-Boy, skilldex, char editor, worldmap, options, save/load, elevator, movies are open, and during palette fades. DH2 keeps animating the map behind DOM windows. Mostly invisible (map covered). |
+| colorCycleDisable / Enable / Enabled | — | 🚫 N/A (2026-10-26) | LOW | CE freezes cycling while dialogue, Pip-Boy, skilldex, char editor, worldmap, options, save/load, elevator, movies are open, and during palette fades. DH2 keeps animating the map behind DOM windows. Mostly invisible (map covered). — **2026-10-26:** the map is covered while those windows are open. |
 | cycleSetSpeedFactor | `Config.ui.cycleSpeedFactor` | ✅ MATCH | — | |
 
 ### color.cc / palette.cc
@@ -150,7 +150,7 @@ Top findings:
 |---|---|---|---|---|
 | colorPaletteLoad, _initColors, _setIntensityTables, _setMixTableColor, _buildBlendTable, _getColorBlendTable, _calculateColor, Color2RGB, _setSystemPalette*, _getSystemPalette | pipeline (palette baked into PNGs), `FLOAT_MSG_COLOR` / `CE_COLOR` tables | 🚫 N/A | — | Colour-table indices (`_colorTable[n]`) are hand-converted per call site; spot-checked float / dbox / accuracy colours match. |
 | colorSetBrightness | SVG component-transfer filter (CI18) | ✅ MATCH | — | |
-| colorPaletteFadeBetween / paletteFadeTo / paletteInit (fade-step calibration) | `mapFade.ts:31` | ⚠️ DIFFERS | LOW | PAL-01: CE fades over ~700 ms (`gPaletteFadeSteps = 60·700/measured`), both to and from black; DH2 cuts to black instantly and fades in over 250 ms. |
+| colorPaletteFadeBetween / paletteFadeTo / paletteInit (fade-step calibration) | `mapFade.ts:31` | 🚫 N/A (2026-10-26) | LOW | PAL-01: CE fades over ~700 ms (`gPaletteFadeSteps = 60·700/measured`), both to and from black; DH2 cuts to black instantly and fades in over 250 ms. — **2026-10-26:** DH2 holds black until the new map has drawn (mapFade.ts), which a timed palette fade cannot do. |
 | paletteReset / paletteExit / paletteSetEntries / InRange | — | 🚫 N/A | — | |
 
 ### message.cc
@@ -161,11 +161,11 @@ Top findings:
 | messageListInit / Free | `globalState.messageFiles`, `scriptMessages` | 🚫 N/A | — | |
 | messageListLoad / _message_load_field | `data.ts:189` `parseMsgFile` | ✅ MATCH | — | brace fields, newlines dropped, stops at the first malformed entry, later duplicates replace earlier ones. Small differences (LOW): no 1024-char field limit, path hard-coded to `text/english/` (CE `settings.system.language` with the sfall English fallback), `�` → `'` (encoding hack). |
 | messageListGetItem / _message_find / _message_add | `util.ts:204` `getMessage` | ✅ MATCH | — | |
-| getmsg (`"Error"` on a missing id) | `getMessage` returns `null` | ⚠️ DIFFERS | LOW | CE prints the string `Error`; DH2 callers substitute `''`, a fallback, or skip. Script `message_str` behaviour belongs to the interpreter audit. |
-| _message_make_path | — | 🟡 PARTIAL | LOW | english only. |
-| _message_parse_number | `Number(num.trim())` | ⚠️ DIFFERS | LOW | DH2 trims the number field; CE rejects leading/trailing blanks and ends the load there. DH2 is more lenient. |
+| getmsg (`"Error"` on a missing id) | `getMessage` returns `null` | 🚫 N/A (2026-10-26) | LOW | CE prints the string `Error`; DH2 callers substitute `''`, a fallback, or skip. Script `message_str` behaviour belongs to the interpreter audit. — **2026-10-26:** the callers give their own fallback; the script side prints Error (fixed in the script audit). |
+| _message_make_path | — | 🚫 N/A (2026-10-26) | LOW | english only. — **2026-10-26:** DH2 ships the English text only. |
+| _message_parse_number | `Number(num.trim())` | 🚫 N/A (2026-10-26) | LOW | DH2 trims the number field; CE rejects leading/trailing blanks and ends the load there. DH2 is more lenient. — **2026-10-26:** no shipped .msg has blanks there; DH2 stays lenient. |
 | messageListFilterBadwords | — | ✅ FIXED (MSG-01) | MED | MSG-01. |
-| messageListFilterGenderWords (sfall `GameDialogGenderWords`, `<male^female>`) | — | ❌ MISSING | LOW | sfall option, off by default; vanilla .msg files don't use it. |
+| messageListFilterGenderWords (sfall `GameDialogGenderWords`, `<male^female>`) | — | 🚫 N/A (2026-10-26) | LOW | sfall option, off by default; vanilla .msg files don't use it. — **2026-10-26:** sfall option, off by default; no shipped .msg uses it. |
 | messageListRepositoryInit / Reset / Exit / SetStandardMessageList / SetProtoMessageList / AddExtra / GetMsg / Load | `getMessage(name, id)` by file name | 🚫 N/A | — | sfall `add_extra_msg_file` / `message_str_game` — sfall auditor's scope. |
 
 ### text_object.cc (floating text)
@@ -173,7 +173,7 @@ Top findings:
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
 | textObjectsInit / Reset / Free | `globalState.floatMessages` | ✅ MATCH | — | |
-| textObjectsDisable / Enable | — | ❌ MISSING | LOW | CE stops expiring text while disabled; impact unverified. |
+| textObjectsDisable / Enable | — | 🚫 N/A (2026-10-26) | LOW | CE stops expiring text while disabled; impact unverified. — **2026-10-26:** float text expires by real time; the windows that disable it in CE cover the map. |
 | textObjectsSetBaseDelay / SetLineDelay | `gameTick.ts:207` (`textBaseDelay`, `(base−1)·0.4`) | ✅ MATCH | — | C56; CE clamps the line delay to 0–2 s, which the 1–6 base range never exceeds. |
 | textObjectAdd | `floatText.ts:34` `addFloatMessage` + `buildCanvas` | ✅ MATCH | — | 20-object cap, empty string refused, one per owner, fixed tile (does not follow the owner), centred lines `lineHeight+1` apart, black fill + `bufferOutline`, font 101/103. Word wrap differs slightly — WRAP-01. |
 | textObjectsRenderInRect | `floatText.ts:199` `updateFloatText` (DOM canvases) | ✅ MATCH | — | text is not scaled by zoom (deliberate fixed text size); offsets are scaled. |
@@ -186,8 +186,8 @@ Top findings:
 
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| wordWrap | `floatText.ts:78` (float text); CSS wrapping elsewhere | ⚠️ DIFFERS | LOW | WRAP-01: CE breaks after a space **or hyphen**, character-wraps a word wider than the line, and treats `\n` as an ordinary break candidate; DH2 breaks only at spaces, never splits a long word (the line overflows), and forces a break at `\n`. |
-| interfaceFontGetStringWidthImpl (font_manager.cc) | `fontCore.ts:166` `measureText` | ⚠️ DIFFERS | LOW | CE adds letterSpacing after every glyph incl. the last one and uses the font's `wordSpacing` for spaces; DH2 drops the trailing spacing and uses the atlas space glyph (4 px fallback). ±1 px in centring and wrap points. |
+| wordWrap | `floatText.ts:78` (float text); CSS wrapping elsewhere | ✅ FIXED (2026-10-26) | LOW | WRAP-01: CE breaks after a space **or hyphen**, character-wraps a word wider than the line, and treats `\n` as an ordinary break candidate; DH2 breaks only at spaces, never splits a long word (the line overflows), and forces a break at `\n`. — **2026-10-26:** WRAP-01: float text wraps as CE's wordWrap — after a space or hyphen, a long word breaks mid-word, \\n is an ordinary break. |
+| interfaceFontGetStringWidthImpl (font_manager.cc) | `fontCore.ts:166` `measureText` | 🚫 N/A (2026-10-26) | LOW | CE adds letterSpacing after every glyph incl. the last one and uses the font's `wordSpacing` for spaces; DH2 drops the trailing spacing and uses the atlas space glyph (4 px fallback). ±1 px in centring and wrap points. — **2026-10-26:** ±1 px; DH2's layouts are positioned against its own measure. |
 | interfaceFontsInit / Draw / LineHeight / CharacterWidth / Monospaced* / LetterSpacing / BufferSize (AAF) | `fontCore.ts` `FontRenderer`, `renderBitmapText`; `tools/exportFonts.py` | ✅ MATCH | — | line height = maxHeight + lineSpacing. |
 | text_font.cc (FON bitmap fonts: fontInit, fontSetCurrent, fontDrawText, …) | `formats/fon.ts` `fonUnpack`, `ui_font.ts` | ✅ MATCH | — | bit-packed glyph decode. |
 
@@ -195,7 +195,7 @@ Top findings:
 
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| showDialogBox | `ui_dialog.ts:155` `showDialog` | 🟡 PARTIAL | LOW | DBOX-01: only the LARGE layout; CE picks MEDIUM (`medialog`) when there is no 2nd button, width ≤ 168 px and ≤ 5 lines. Keys: CE Return (plays `ib1p1xx1`) = yes, Esc = no, Y/N only with flag 0x10 (YES_NO); DH2 always accepts Y/N. Colours / fonts / positions match. |
+| showDialogBox | `ui_dialog.ts:155` `showDialog` | 🚫 N/A (2026-10-26) | LOW | DBOX-01: only the LARGE layout; CE picks MEDIUM (`medialog`) when there is no 2nd button, width ≤ 168 px and ≤ 5 lines. Keys: CE Return (plays `ib1p1xx1`) = yes, Esc = no, Y/N only with flag 0x10 (YES_NO); DH2 always accepts Y/N. Colours / fonts / positions match. — **2026-10-26:** the large layout serves every DH2 caller; the medium box only changes the plate size. |
 | showLoadFileDialog / showSaveFileDialog / fileDialogRenderFileList | — | 🚫 N/A | — | character-editor `.gcd` load/save dialog (chareditor auditor); the browser has no file system. |
 
 ### kb.cc / input.cc / mouse.cc / mouse_manager.cc / dinput.cc / touch.cc
@@ -205,14 +205,14 @@ Top findings:
 | input.cc inputInit/Exit/GetInput, event queue, `_GNW95_process_message/key`, focus loss | `heart.ts`, `input.ts:224` (DOM events) | 🚫 N/A | — | |
 | input.cc tickersExecute/Add/Remove/Enable/Disable | `heart.ts` loop, `gameTick.ts` | 🚫 N/A | — | |
 | input.cc getTicks / getTicksSince / getTicksBetween / _get_bk_time / inputPauseForTocks / inputBlockForTocks | `performance.now()` | 🚫 N/A | — | |
-| input.cc takeScreenshot / screenshotHandler* (F12 → `scrNNNNN.bmp`) | — | ❌ MISSING | LOW | browser screenshot instead. |
+| input.cc takeScreenshot / screenshotHandler* (F12 → `scrNNNNN.bmp`) | — | 🚫 N/A (2026-10-26) | LOW | browser screenshot instead. — **2026-10-26:** a browser cannot write scrNNNNN.bmp; the browser screenshot does the job. |
 | input.cc buildNormalizedQwertyKeys, beginTextInput/endTextInput | DOM `KeyboardEvent.key` | 🚫 N/A | — | |
 | kb.cc keyboardInit…keyboardPeekEvent, layouts (QWERTY/AZERTY/QWERTZ/IT/ES), `_kb_simulate_key` | `hotkeys.ts` on `KeyboardEvent.key` | 🚫 N/A | — | the browser handles layouts; the game key map itself is `game.cc gameHandleKey` (other auditor, C43). |
 | mouse.cc mouseInit…mouse_get_last_buttons (cursor blit, `_mouse_info`, click-in tests, sensitivity) | `heart.ts`, `renderer.ts:318` | 🚫 N/A | — | sensitivity stored only (documented). |
 | mouse.cc mouseGetWheel / convertMouseWheelToArrowKey | `main.ts:178` (wheel zoom) | 🚫 N/A (documented) | — | README "Known approximations": the wheel zooms instead of scrolling (C43). Wheel list scrolling exists per window (inventory, save/load, automap, worldmap). |
 | mouse_manager.cc (animated cursor cache, used by interpreter_lib) | — | 🚫 N/A | — | |
 | dinput.cc | — | 🚫 N/A | — | |
-| touch.cc (gesture → mouse) | — | ❌ MISSING | LOW | no touch input (desktop browser target). |
+| touch.cc (gesture → mouse) | — | 🚫 N/A (2026-10-26) | LOW | no touch input (desktop browser target). — **2026-10-26:** desktop browser target. |
 
 ### Platform / infrastructure (grouped)
 

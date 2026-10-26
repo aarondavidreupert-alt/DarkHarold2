@@ -639,6 +639,7 @@ export function deserializeAreaStates(data: { [id: string]: SavedArea } | undefi
 // area states back to city.txt, party back at Arroyo, no car (fuel CAR_FUEL_MAX, no
 // parking area) and the subtile fog of worldmap.txt.
 export function resetWorldmap(): void {
+    gameTimeIncRemainder = 0 // CE wmWorldMap_reset: gGameTimeIncRemainder = 0
     _isInCar = false
     _carFuel = CAR_FUEL_MAX
     _currentCarAreaId = -1

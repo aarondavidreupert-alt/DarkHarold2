@@ -21,7 +21,7 @@ limitations under the License.
 import { Config } from '../config.js'
 import globalState from '../globalState.js'
 import { dbg, dbgWarn } from '../logger.js'
-import { giveNewUid, itemIsHidden, Obj } from '../object/Obj.js'
+import { giveNewUid, itemIsHidden, Obj, zsort } from '../object/Obj.js'
 import type { Critter } from '../object/Critter.js'
 import { Scripting } from '../scripting.js'
 import * as Endgame from '../endgame.js'
@@ -98,6 +98,14 @@ export function critterKill(
     }
     obj.outline = null
     obj.critDeath = false
+    // CE critter.cc critterKill: unless the proto has CRITTER_FLAT, the body stops blocking
+    // (OBJECT_NO_BLOCK) and _obj_toggle_flat makes it OBJECT_FLAT — drawn first on its tile
+    if (((((obj.pro as any)?.extra?.flags ?? 0) & 0x800) === 0)) {
+        obj.flags = ((obj.flags ?? 0) | 0x10 | 0x08) >>> 0
+        const gm = globalState.gMap
+        const level = gm?.objects?.[obj.elevation ?? gm.currentElevation]
+        if (level && Config.engine.objectSort !== 'dh2') zsort(level)
+    }
     // CE critter.cc:894 — critter->data.critter.hp = 0; DAM_DEAD replaces the other results
     if (obj.stats.getBase('HP') > 0) obj.stats.setBase('HP', 0)
     removeKnockoutEvents(obj)
@@ -262,9 +270,13 @@ function blockedTile(obj: Critter, t: Point): boolean {
     return !!globalState.gMap?.blockingObjectAt(toTileNum(t), obj.elevation, 0, obj)
 }
 
+// CE object.cc isExitGridAt: an exit grid pid (0x5000010-0x5000017) that isn't hidden
 function isExitGridAt(t: Point): boolean {
     const objs = globalState.gMap?.objectsAtPosition(t) ?? []
-    return objs.some((o: Obj) => o.type === 'misc' && (o as any).extra?.exitMapID !== undefined)
+    return objs.some((o: Obj) => {
+        const pid = (o.pid ?? 0) >>> 0
+        return pid >= 0x5000010 && pid <= 0x5000017 && (((o.flags ?? 0) & 0x01) === 0) && o.visible !== false
+    })
 }
 
 // CE animation.cc animationRegisterMoveToTileStraight — the critter slides along `path`

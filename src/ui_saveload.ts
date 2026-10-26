@@ -116,6 +116,7 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
     // CE loadsave.cc lsgSaveGame: _QuickSnapShot before the save window opens.
     if (isSave) takeSaveSnapshot()
     globalState.uiMode = UIMode.saveLoad
+    globalState.audioEngine?.pauseMusic?.() // CE loadsave.cc backgroundSoundPause
 
     // lscover (the "13" plate) at (340, 39) hides the photo frame only in the LOAD window
     // while an empty slot is selected (loadsave.cc:983); otherwise lsgame's photo frame
@@ -276,6 +277,7 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
         document.removeEventListener('keydown', onKey, true)
         globalState.uiMode = UIMode.none
         win.close()
+        globalState.audioEngine?.resumeMusic?.()
     }
 
     function cancel(): void {

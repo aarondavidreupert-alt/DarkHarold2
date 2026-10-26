@@ -66,7 +66,7 @@ Top findings (by severity):
 | randomInit | src/random.ts:100 `randomInit` | ✅ | | srand(time) → seed from MSVC-style `rand()` → chi-square self-test. |
 | _roll_reset_ / randomReset / randomExit / randomSave / randomLoad | — | 🚫 | | All no-ops in CE (RNG state is not saved). |
 | randomRoll | src/util.ts:142 `randomRoll` | ✅ | | `delta = difficulty − d100`, howMuch = delta. |
-| randomTranslateRoll (static) | src/util.ts:146-161 (inline) | 🟡 | LOW | Day-1 crit lockout, `-delta/10` / `delta/10 + critMod` (trunc) match. sfall `RemoveCriticalTimelimits` option not supported (CE reads it from ddraw.ini). |
+| randomTranslateRoll (static) | src/util.ts:146-161 (inline) | 🚫 N/A (2026-10-26) | LOW | Day-1 crit lockout, `-delta/10` / `delta/10 + critMod` (trunc) match. sfall `RemoveCriticalTimelimits` option not supported (CE reads it from ddraw.ini). — **2026-10-26:** DH2 ships no ddraw.ini; RemoveCriticalTimelimits is off without one, which is what DH2 does. |
 | randomBetween | src/random.ts:64 | ✅ | | Incl. swapped-range branch and out-of-range fallback. |
 | getRandom (static) | src/random.ts:35 | ✅ | | Park-Miller + 32-slot shuffle, identical arithmetic. |
 | randomSeedPrerandom | src/random.ts:76 | ✅ | | `-1` → CRT rand. |
@@ -91,7 +91,7 @@ Top findings (by severity):
 | traitsInit / traitsExit | message loading (`getMessage('trait', …)`) | 🚫 | | msg-file plumbing. |
 | traitsReset | src/player.ts:47 `resetForNewGame` (`traits = []`) | ✅ | | |
 | traitsLoad / traitsSave | Player serialization (`traits`) | ✅ | | |
-| traitsSetSelected | src/player.ts:84 `setTraits` | 🟡 | LOW | SPECIAL parts are baked into the base and swapped (see TRAIT-03); `applyCreationStats` clamps the baked base to 10, so a base-10 stat + Gifted loses the point permanently if the trait is later removed by Mutate! (CE keeps base 10, shows 10). |
+| traitsSetSelected | src/player.ts:84 `setTraits` | ✅ FIXED (2026-10-26) | LOW | SPECIAL parts are baked into the base and swapped (see TRAIT-03); `applyCreationStats` clamps the baked base to 10, so a base-10 stat + Gifted loses the point permanently if the trait is later removed by Mutate! (CE keeps base 10, shows 10). — **2026-10-26:** the creation-time clamp is gone: a base of 10 + Gifted stays 11 underneath (shown as 10, StatSet.get caps it), so Mutate! taking Gifted away leaves 10 as in CE; get_pc_base_stat now leaves the trait part out (critterGetBaseStat). |
 | traitsGetSelected | `player.traits` | ✅ | | |
 | traitGetName / traitGetDescription / traitGetFrmId | ui_character (trait.msg 100+/200+, intrface ids) | 🚫 | | UI text/art — chareditor audit. |
 | traitIsSelected | `traits.includes(name)` | ✅ | | |
@@ -108,14 +108,14 @@ Top findings (by severity):
 | perkGetRankData (static) | `player.perks` / scripting `perkRankOwner` | ✅ | | Ranks = occurrences in `perks[]`. |
 | perkCanAdd (static) | src/perks/perks.ts:62 | ✅ | | All branches incl. GVAR flag 0x4000000, negative bounds (CE's `gvar >= value1` quirk kept), AND/OR/FIRST_ONLY, SPECIAL `<`/upper bounds via `getStat` (critterGetStat). Tables identical to CE (diffed). |
 | perkResetRanks (static) | — | ✅ | | Implicit (new arrays). |
-| perkAdd | src/perks/perks.ts:120 `applyPerk` (after `getValidPerks`) | 🟡 | LOW | `applyPerk` checks max rank from `perks.data.ts` (PERK-01) not CE; real gate is `perkCanAdd` in the modal. Lifegiver/Educated immediate effects added here (CE does them in character_editor — documented). |
+| perkAdd | src/perks/perks.ts:120 `applyPerk` (after `getValidPerks`) | 🚫 N/A (2026-10-26) | LOW | `applyPerk` checks max rank from `perks.data.ts` (PERK-01) not CE; real gate is `perkCanAdd` in the modal. Lifegiver/Educated immediate effects added here (CE does them in character_editor — documented). — **2026-10-26:** the real gate is perkCanAdd in the perk dialog; Lifegiver / Educated effects in applyPerk are documented. |
 | perkAddForce | scripting `critter_add_trait` (perk) path | ✅ | | (unverified in detail — script audit). |
-| perkRemove | perkApplyEffect(…, −1) | 🟡 | LOW | HERE_AND_NOW removal (`pcSetStat(XP − bonus)` → level-down) not handled ("handled by caller"; no caller does). |
+| perkRemove | perkApplyEffect(…, −1) | 🚫 N/A (2026-10-26) | LOW | HERE_AND_NOW removal (`pcSetStat(XP − bonus)` → level-down) not handled ("handled by caller"; no caller does). — **2026-10-26:** nothing removes Here and Now in DH2 (no script or engine caller), so the XP reversal never runs in CE either. |
 | perkGetAvailablePerks | src/perks/perks.ts:19 `getValidPerks` | ✅ | | Falls back to `perks.data.ts` minimums when perk.msg is missing. |
 | perkGetRank / perkHasRank | src/perks/perks.ts:105 `getPerkRank`, `Critter.hasPerk` | ✅ | | |
 | perkGetName / perkGetDescription / perkGetFrmId | cePerks.ts:262, perks.ts:33 `perkDefById` | ✅ | | frmId from CE_PERK_REQS[6]. PERKS overrides (PERK-01). |
 | perkAddEffect | src/perks/cePerks.ts:294 `perkApplyEffect(+1)`; HERE_AND_NOW in perks.ts:146 | ✅ FIXED (STAT-01, STAT-02) | MED | Stat modifier / maxRank −1 SPECIAL deltas land on the **base** (STAT-01, STAT-02). Gain-SPECIAL perks put +1 on the base (CE: live +1 in critterGetStat, not in base-with-trait). HERE_AND_NOW: CE `pcAddExperienceWithOptions(bonus, false)` — no party level-ups; DH2 `addExperience` levels party members too (LOW). |
-| perkRemoveEffect | perkApplyEffect(−1) | 🟡 | LOW | As above; HERE_AND_NOW XP not removed. |
+| perkRemoveEffect | perkApplyEffect(−1) | 🚫 N/A (2026-10-26) | LOW | As above; HERE_AND_NOW XP not removed. — **2026-10-26:** as perkRemove: no caller removes Here and Now. |
 | perkGetSkillModifier | src/skills.ts:182-249 | ✅ | | All 14 perks + Ghost light > 45875 on gDude; perkHasRank (once per perk). |
 
 ### stat.cc
@@ -129,9 +129,9 @@ Top findings (by severity):
 | critterGetBaseStatWithTraitModifier | `stats.getBase()` (traits baked) | ✅ FIXED (STAT-01) | HIGH | DH2 base also contains drugs, radiation, armor perks, Gain-SPECIAL perks → STAT-01. |
 | critterGetBaseStat | `stats.getBase()` | ✅ FIXED (STAT-01) | MED | Same contamination (used by Kamikaze / Small Frame / Fast Metabolism). |
 | critterGetBonusStat | src/char.ts:318 `getBonus` | ✅ FIXED (STAT-01) | MED | Only sfall `set_*_extra_stat` writes it; drugs/perks/radiation/armor don't (STAT-01). |
-| critterSetBaseStat | src/scripting.ts:2307 `setCritterStatPart`, 1103 `set_critter_stat` | ⚠️ | LOW | `set_critter_stat` refuses derived 7–32 ✓, routes 36/37 ✓; but SPECIAL is stored without CE's −2/−3 range refusal (value−trait outside 1..10 is rejected in CE), and HP (35) uses `modifyBase` — no cap at Max HP and no `critterKill` at ≤0 (CE `critterAdjustHitPoints`). `set_pc_base_stat` has no derived-stat refusal. |
+| critterSetBaseStat | src/scripting.ts:2307 `setCritterStatPart`, 1103 `set_critter_stat` | ✅ FIXED (2026-10-26) | LOW | `set_critter_stat` refuses derived 7–32 ✓, routes 36/37 ✓; but SPECIAL is stored without CE's −2/−3 range refusal (value−trait outside 1..10 is rejected in CE), and HP (35) uses `modifyBase` — no cap at Max HP and no `critterKill` at ≤0 (CE `critterAdjustHitPoints`). `set_pc_base_stat` has no derived-stat refusal. — **2026-10-26:** set_*_base_stat: 35-37 adjust to the value, derived 7-32 refused, SPECIAL outside 1..10 (less the dude's trait part) refused; set_critter_stat HP goes through critterAdjustHitPoints (Max HP cap, death at 0). |
 | critterIncBaseStat / critterDecBaseStat | character creator SPECIAL buttons | ✅ | | chareditor audit. |
-| critterSetBonusStat | src/char.ts:322 `setBonus` | 🟡 | MED | No `critterUpdateDerivedStats` needed (DH2 derives live), but HP/poison/rad routing for 35–37 missing in `set_*_extra_stat` (statMap name only). |
+| critterSetBonusStat | src/char.ts:322 `setBonus` | ✅ FIXED (2026-10-26) | MED | No `critterUpdateDerivedStats` needed (DH2 derives live), but HP/poison/rad routing for 35–37 missing in `set_*_extra_stat` (statMap name only). — **2026-10-26:** set_*_extra_stat 35-37 go through critterAdjustHitPoints / poison / radiation by the value. |
 | protoCritterDataResetStats | `StatSet` defaults (`statDependencies.defaultValue`) | ✅ | | SPECIAL 5, Age 25. |
 | critterUpdateDerivedStats | src/skills.ts:117-128 live dependencies | ✅ FIXED (STAT-01, STAT-02) | HIGH | Formulas match (`15+ST+2EN`, `AG/2+5`, `AG`, `max(ST−5,1)`, `25ST+25`, `2PE`, `max(EN/3,1)`, `LK`, 0, `2EN`, `5EN`) but Max HP reads live ST/EN (STAT-01) and min/max clamp after deltas (STAT-02). |
 | statGetName / statGetDescription / statGetValueDescription / statGetFrmId | ui_character/statPanels.ts | 🚫 | | UI. |
@@ -161,17 +161,17 @@ Top findings (by severity):
 | skillsGetCost | src/skills.ts:198 `skillImprovementCost` | ✅ | | 1/2/3/4/5/6 at 101/126/151/176/201. |
 | skillSub | src/char.ts:156 `decBase` | ✅ | | Refund via post-decrement effective value is equivalent to CE's cost(value−1) + tagged bracket correction (checked all bracket edges). |
 | skillSubForce | `decBase(…, false)` | ✅ | | |
-| skillRoll | src/skillUse.ts:114 (also src/util.ts:169 simpler variant) | 🟡 | LOW | skillUse.ts version matches (party best-in-skill + own-best-skill test, Steal excluded, Steal +30 while really sneaking, crit chance of roller). `util.ts skillRoll` (used by Obj.ts:172 trap disarm) lacks the party substitution. |
+| skillRoll | src/skillUse.ts:114 (also src/util.ts:169 simpler variant) | ✅ FIXED (2026-10-26) | LOW | skillUse.ts version matches (party best-in-skill + own-best-skill test, Steal excluded, Steal +30 while really sneaking, crit chance of roller). `util.ts skillRoll` (used by Obj.ts:172 trap disarm) lacks the party substitution. — **2026-10-26:** the util.ts variant is gone; the explosive timer now rolls Traps through the party-aware skillRoll as CE. |
 | skillGetName / skillGetDescription / skillGetAttributes / skillGetFrmId | ui_character | 🚫 | | |
 | _show_skill_use_messages (static) | src/skillUse.ts:96 | ✅ | | XP 25/50/25/25/25/100, field_28 (+abs critMod) for Lockpick/Steal/Traps, msg 505. |
 | skillUse | src/skillUse.ts:181 | ✅ | | First Aid / Doctor / Repair flows, robot checks, critChance passed as the *modifier* (CE quirk) kept, damage-flag loop with repeated XP, daily slots, time cost 1800 / 3600·n / 1800·n, messages 500–592/1101. Palette fades omitted (documented cosmetic). Sneak toggled here (CE does it in `_action_skill_use`) — equivalent at call sites. |
-| skillsPerformStealing | src/skillUse.ts:423 `performSteal` | 🟡 | LOW | Formula matches (−stealCount+1, −4·size, −25 front, +20 prone, cap 95, party = crit success, catch = target Steal − mod). Non-critter target branch (`30 − mod`) absent (DH2 only steals from critters). |
+| skillsPerformStealing | src/skillUse.ts:423 `performSteal` | 🚫 N/A (2026-10-26) | LOW | Formula matches (−stealCount+1, −4·size, −25 front, +20 prone, cap 95, party = crit success, catch = target Steal − mod). Non-critter target branch (`30 − mod`) absent (DH2 only steals from critters). — **2026-10-26:** DH2 offers Steal on critters only, so the non-critter branch has no way in. |
 | skillGetGameDifficultyModifier | src/skills.ts:213 | ✅ | | 12 skills, Easy +20 / Hard −10 from `game_difficulty` (not combat difficulty). |
 | skillGetFreeUsageSlot (static) | src/skillUse.ts:50 | ✅ | | |
 | skillUpdateLastUse | src/skillUse.ts:61 | ✅ | | |
 | skill_use_slot_clear | src/skillUse.ts:72 | ✅ | | |
 | skillsUsageSave / skillsUsageLoad | src/skillUse.ts:75/78 | ✅ | | |
-| skillsGetGenericResponse | — | ❌ | LOW | `randomBetween(0, count)` msg 1100+0..4 (dude) / 1000+0..5. Used by proto_instance `_obj_use_skill_on` fallbacks (out of scope; unverified whether DH2 shows these elsewhere). |
+| skillsGetGenericResponse | — | ✅ FIXED (2026-10-26) | LOW | `randomBetween(0, count)` msg 1100+0..4 (dude) / 1000+0..5. Used by proto_instance `_obj_use_skill_on` fallbacks (out of scope; unverified whether DH2 shows these elsewhere). — **2026-10-26:** playerUse.ts skillPerformer: the party member says skill.msg 1000-1005 (1100-1104 when the player is next to the target) — stale row. |
 
 ### critter.cc
 
@@ -179,7 +179,7 @@ Top findings (by severity):
 |---|---|---|---|---|
 | critterInit / critterExit | — | 🚫 | | msg plumbing (but see critterGetName). |
 | critterReset | src/gameReset.ts:43 (`killCounts.clear()`), Player.resetForNewGame | ✅ | | Dude name reset handled by the creator. |
-| critterLoad / critterSave | saveload (sneakWorking not serialized; dude proto data = Player.serialize) | 🟡 | LOW | `_sneak_working` is not saved; reloading while sneaking restarts the roll (unverified). |
+| critterLoad / critterSave | saveload (sneakWorking not serialized; dude proto data = Player.serialize) | ✅ FIXED (2026-10-26) | LOW | `_sneak_working` is not saved; reloading while sneaking restarts the roll (unverified). — **2026-10-26:** sneakWorking is saved and restored (saveload.ts) — stale row. |
 | critterProtoDataCopy | — | 🚫 | | memcpy helper. |
 | critterGetName | src/object/Critter.ts:210 (`pro_crit` name only) | ✅ FIXED (CRIT-03) | MED | CRIT-03: no `scrname.msg` lookup (101 + scriptIndex) before the proto name. |
 | dudeSetName / dudeResetName | `player.name` (creator) | ✅ | | 32-char limit enforced by the creator UI (unverified). |
@@ -196,12 +196,12 @@ Top findings (by severity):
 | _process_rads | src/radiation.ts:151 `processRads` | ✅ FIXED (RAD-01, STAT-01) | MED | Table, level−1 indexing, msgs 1000+n / 3003, death check match. Effects go on the base (STAT-01) and HP via `modifyBase` — recovery can push HP above Max HP and the HP loss can drop HP ≤ 0 without CE's kill-in-adjust (DH2 has an explicit HP ≤ 0 kill instead, equivalent). RAD-01. |
 | radiationEventProcess | src/radiation.ts:187 | ✅ | | 7-day recovery, clears others (undoing pending recoveries), returns bail. |
 | radiationEventRead / radiationEventWrite | src/radiation.ts:113 `restoreRadiationEvent` (userdata string) | ✅ | | |
-| critterGetDamageType | — (unverified) | 🟡 | LOW | Proto `damageType` (unarmed damage type) — not found by grep in Critter; combat audit. |
+| critterGetDamageType | — (unverified) | ✅ FIXED (2026-10-26) | LOW | Proto `damageType` (unarmed damage type) — not found by grep in Critter; combat audit. — **2026-10-26:** an unarmed attack takes the critter proto's damage type (critterGetDamageType via weaponGetDamageType) — plasma / electrical for the three creatures that have one. |
 | critter_kill_count_clear | killCounts.clear() | ✅ | | |
 | killsIncByType | src/critter/lifecycle.ts:93-96 | ✅ | | Kills by player or player's team. |
 | killsGetByType | killCounts.get | ✅ | | |
 | killsLoad / killsSave | saveload (killCounts) | ✅ | | (unverified field name). |
-| critterGetKillType | src/object/Critter.ts:390 `killType` getter | ⚠️ | LOW | Dude returns 19 (used as the player critical table index, Combat.ts:128); CE returns KILL_TYPE_MAN/WOMAN by gender. No vanilla consumer of the dude's kill type in scope; flagged for combat audit. |
+| critterGetKillType | src/object/Critter.ts:390 `killType` getter | 🚫 N/A (2026-10-26) | LOW | Dude returns 19 (used as the player critical table index, Combat.ts:128); CE returns KILL_TYPE_MAN/WOMAN by gender. No vanilla consumer of the dude's kill type in scope; flagged for combat audit. — **2026-10-26:** the 19 only picks the player critical table; nothing counts the dude as a kill. |
 | killTypeGetName / killTypeGetDescription | ui_character kills list (proto.msg 1450/1469) | 🚫 | | UI. |
 | _critter_heal_hours | src/map/mapLoader.ts:93 | ✅ | | `14·(hours/3)` capped, fleeing cleared. |
 | _critterClearObjDrugs (static) | gameTick.ts:251 (events of dead objects dropped) | ✅ | | |
@@ -222,7 +222,7 @@ Top findings (by severity):
 | _critter_set_who_hit_me | src/combat/whoHitMe.ts:34 | ✅ | | Team test, INT roll −1, party exemption (dude counted), reaction −3. |
 | _critter_can_obj_dude_rest | src/ui_pipboy/shell.ts:392 | ✅ | | |
 | critterGetMovementPointCostAdjustedForCrippledLegs | src/combat/actionPoints.ts:62 | ✅ | | ×4 / ×8. |
-| critterIsEncumbered | Obj.ts:1042 / Critter.ts:327 (inline) | 🟡 | LOW | Uses `getStat('Carry')` in Obj (✓) but `stats.get('Carry')` in the AP penalty (no Small Frame). |
+| critterIsEncumbered | Obj.ts:1042 / Critter.ts:327 (inline) | ✅ FIXED (2026-10-26) | LOW | Uses `getStat('Carry')` in Obj (✓) but `stats.get('Carry')` in the AP penalty (no Small Frame). — **2026-10-26:** both use getStat('Carry') now — stale row. |
 | critterIsFleeing | `fleeing` flag | ✅ | | |
 | _critter_flag_check / critter_flag_set / critter_flag_unset | `pro.extra.flags` reads (lifecycle.ts:110, mapLoader) | ✅ | | set/unset only used by `radiated` (own field) — fine. |
 

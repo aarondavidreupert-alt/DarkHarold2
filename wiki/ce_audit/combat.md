@@ -50,23 +50,23 @@ Top findings, most severe first:
 | `combatLoad` | saveload.ts:333 (ends combat on load) | ✅ FIXED (COMBAT-14) | MED | COMBAT-14: combat state isn't restored. |
 | `combatSave` | — | ✅ FIXED (COMBAT-14) | MED | COMBAT-14: DH2 allows saving in combat (hotkeys.ts:177/201/203) but writes no combat state. |
 | `_combat_safety_invalidate_weapon` | `combatSafetyInvalidateWeapon` Combat.ts:1416 | ✅ FIXED (2026-10-25) | LOW | No `PROTO_ID_0x10001E0` exemption. `safeDistance` is a boolean (no distance computed). Distances are plain hex, not multihex-aware. Primary-burst weapons are never simulated (COMBAT-01). |
-| `_combat_safety_invalidate_weapon_func` | same, Combat.ts:1416 | ⚠️ | LOW | CE literal DR×(max−DT) test and the INT<5 radius cut are ported. The `attackerFriend` parameter isn't (see next row). |
-| `_combatTestIncidentalHit` | `attackWouldIntersect` Combat.ts:2654 | 🟡 | LOW | CE checks the given friend (any team) against the blast radius and the spray extras. DH2 checks only the first obstacle, then the team-only test. |
+| `_combat_safety_invalidate_weapon_func` | same, Combat.ts:1416 | ✅ FIXED (2026-10-26) | LOW | CE literal DR×(max−DT) test and the INT<5 radius cut are ported. The `attackerFriend` parameter isn't (see next row). — **2026-10-26:** the attackerFriend parameter: a friend (any team) within the blast radius or among the spray's extras makes the shot unsafe. |
+| `_combatTestIncidentalHit` | `attackWouldIntersect` Combat.ts:2654 | ✅ FIXED (2026-10-26) | LOW | CE checks the given friend (any team) against the blast radius and the spray extras. DH2 checks only the first obstacle, then the team-only test. — **2026-10-26:** attackWouldIntersect passes the friend to the safety test (combatSafetyInvalidateWeapon attackerFriend). |
 | `_combat_whose_turn` | `whoseTurn` / `inPlayerTurn` Combat.ts:353 | ✅ | | |
 | `_combat_data_init` | — | 🚫 | | Proto instance init (damageLastTurn / results = 0); DH2 defaults the fields. |
-| `_combatInitAIInfoList` | fields on critters (`aiFriendlyDead`, `aiLastTarget`, `aiLastItem`) | 🟡 | LOW | Not reset at combat begin (only `aiFriendlyDead` / `aiLastItem` at combatOver, Combat.ts:2897). `aiLastTarget` is never cleared. |
+| `_combatInitAIInfoList` | fields on critters (`aiFriendlyDead`, `aiLastTarget`, `aiLastItem`) | ✅ FIXED (2026-10-26) | LOW | Not reset at combat begin (only `aiFriendlyDead` / `aiLastItem` at combatOver, Combat.ts:2897). `aiLastTarget` is never cleared. — **2026-10-26:** friendlyDead, lastTarget and lastItem start empty at combat begin. |
 | `aiInfoCopy` | — | 🚫 | | Array compaction. |
 | `aiInfoGetFriendlyDead` | `(c as any).aiFriendlyDead` | ✅ | | |
 | `aiInfoSetFriendlyDead` | `notifyOnlookers` Combat.ts:1999 | ✅ | | |
 | `aiInfoGetLastTarget` | `aiLastTarget` Combat.ts:1922 | ✅ | | |
 | `aiInfoSetLastTarget` | Combat.ts:2167 (AI attempt start only) | ✅ FIXED (2026-10-26) | LOW | CE sets it in every `_combat_attack`, the player's attacks included, and stores null for a dead target. DH2 sets it at the AI's first attempt only. — **2026-10-26:** every attack sets it (it already did), a dead target stored as none. |
 | `aiInfoGetLastItem` | `aiLastItem` Combat.ts:2440 | ✅ | | |
-| `aiInfoSetLastItem` | Combat.ts:2543 | ⚠️ | LOW | CE bug: always stores nullptr, and the caller passes the item as the critter. So in CE lastItem is never set; DH2 stores the item and retries it. |
-| `_combatAIInfoSetLastMove` | — | ❌ | LOW | lastMove isn't modelled (it's read by combat_ai). |
+| `aiInfoSetLastItem` | Combat.ts:2543 | ✅ FIXED (2026-10-26) | LOW | CE bug: always stores nullptr, and the caller passes the item as the critter. So in CE lastItem is never set; DH2 stores the item and retries it. — **2026-10-26:** CE's behaviour kept: nothing is stored (it always writes nullptr), so an item not reached is searched for again. |
+| `_combatAIInfoSetLastMove` | — | 🚫 N/A (2026-10-26) | LOW | lastMove isn't modelled (it's read by combat_ai). — **2026-10-26:** CE sets lastMove but never reads it (no aiInfoGetLastMove caller) — nothing to model. |
 | `_combat_begin` | `Combat` ctor Combat.ts:359, `start` Combat.ts:2797 | ✅ FIXED (COMBAT-04, COMBAT-09) | MED | Missing: `whoHitMe = null` for every critter (COMBAT-09); `maneuver &= ENGAGING` (stale DISENGAGING / FLEEING from `critter_stop_attacking` survives); `ap = 0` (COMBAT-04); the PROTO_ID_0x1000098 robot's fid 99→100 transform anim. `_caiTeamCombatInit` matches (teamCombat). |
 | `_combat_begin_extra` | `refreshHighlights` Combat.ts:3112 | ✅ | | Outline refresh + `attackInit`; `_combat_ai_begin` is combat_ai scope. |
-| `_combat_update_critters_in_los` | `refreshHighlights` | 🟡 | LOW | See next row. |
-| `_combat_update_critter_outline_for_los` | `refreshHighlights` Combat.ts:3112 | ⚠️ | LOW | CE: red/green by team (not by "hostile") for critters in line of fire; a different outline type for unseen critters within PER×5 (half through glass). DH2: red only if `hostile`, else green or blue, no line-of-fire test. Blue for neutrals is a documented DH2 addition (CI11). |
+| `_combat_update_critters_in_los` | `refreshHighlights` | ✅ FIXED (2026-10-26) | LOW | See next row. — **2026-10-26:** see the outline row. |
+| `_combat_update_critter_outline_for_los` | `refreshHighlights` Combat.ts:3112 | ✅ FIXED (2026-10-26) | LOW | CE: red/green by team (not by "hostile") for critters in line of fire; a different outline type for unseen critters within PER×5 (half through glass). DH2: red only if `hostile`, else green or blue, no line-of-fire test. Blue for neutrals is a documented DH2 addition (CI11). — **2026-10-26:** as an option: [dh2] combat_outline=ce — red / green by team in the dude's line of fire, the palette-61 outline within PER × 5 (half through glass) out of sight, none farther; the default keeps DH2's blue neutrals (CI11). |
 | `_combat_over` | `finish` Combat.ts:2865, `combatOver` Combat.ts:2892 | ✅ FIXED (COMBAT-04, COMBAT-09) | MED | Missing `whoHitMe = null` (COMBAT-09) and `ap = 0` (bonus AC stays, COMBAT-04). AI reload runs for all map critters, not just `_list_com` (LOW). Robot fid 100→99 anim missing. XP, prone-dude wake-up and maneuver reset match. |
 | `_combat_over_from_load` | saveload.ts:337 `forceEnd` | ✅ | | |
 | `_combat_give_exps` | `giveExps` Combat.ts:1716 | ✅ | | proto.msg 621 + 622–625 / 626 (35 % at full HP), actual XP gained. |
@@ -108,7 +108,7 @@ Top findings, most severe first:
 | `combatCopyDamageAmountDescription` | `damageAmountDescription` Combat.ts:1122 | ✅ | | |
 | `combatAddDamageFlagsDescription` | `damageFlagsDescription` Combat.ts:1135 | ✅ | | |
 | `_combat_anim_begin` | — | 🚫 | | UI disable / cursor during the animation. |
-| `_combat_anim_finished` | `resolveAttack` / `proceed` Combat.ts:856–945 | 🟡 | LOW | Ammo spend → display → apply → standup after the attacker's own knockdown matches. DH2 applies on the action frame / projectile impact; CE applies after the whole animation (ordering only). `_scr_end_combat` (dead path) not ported. |
+| `_combat_anim_finished` | `resolveAttack` / `proceed` Combat.ts:856–945 | 🚫 N/A (2026-10-26) | LOW | Ammo spend → display → apply → standup after the attacker's own knockdown matches. DH2 applies on the action frame / projectile impact; CE applies after the whole animation (ordering only). `_scr_end_combat` (dead path) not ported. — **2026-10-26:** kept: DH2 applies the damage on the action frame / impact, CE after the whole animation — ordering only; the dead-path _scr_end_combat is not reachable in DH2's turn loop. |
 | `_combat_standup` | `combatStandup` results.ts:147 | ✅ | | 3 AP (1 with Quick Recovery). |
 | `_print_tohit` | `drawDigits` ui_calledshot.ts:58 | ✅ FIXED (2026-10-26) | LOW | CE shows "00" for 0 % and dashes only below 0; DH2 shows "--" for ≤ 0. — **2026-10-26:** "00" for 0 %. |
 | `hitLocationGetName` | `hitLocationName` Combat.ts:1153 | ✅ | | combat.msg 1000 + 10 × alias + location. |
@@ -118,8 +118,8 @@ Top findings, most severe first:
 | `calledShotSelectHitLocation` | `uiCalledShot` ui_calledshot.ts:52 | ✅ FIXED (2026-10-26) | LOW | 8 locations with the hit mode's to-hit, Esc/cancel. DH2-only: crippled limbs are greyed out and can't be picked (CE allows them). No `icsxxxx1` sound on pick. — **2026-10-26:** crippled limbs can be picked, icsxxxx1. |
 | `_combat_check_bad_shot` | `checkBadShot` Combat.ts:2136 | ✅ | | Order and conditions match (two-hand flag = weaponFlags 0x02, i.e. 0x200). |
 | `_combat_to_hit` | `uiShowCombatHover` ui_hud.ts:594 | ✅ FIXED (2026-10-26) | LOW | CE shows "X" whenever `_combat_check_bad_shot` fails (range, AP, aim blocked); DH2 tests only ammo. — **2026-10-26:** X for every _combat_check_bad_shot refusal. |
-| `_combat_attack_this` | playerUse.ts:278–380 | 🟡 | LOW | combat.msg 100–106 refusals and the out-of-ammo sound match. The out-of-combat branch (start `_combat` with csd so the player's first turn auto-attacks) isn't reachable in DH2. |
-| `_combat_outline_on` | `refreshHighlights` Combat.ts:3112 | 🟡 | LOW | See the outline row. |
+| `_combat_attack_this` | playerUse.ts:278–380 | ✅ FIXED (2026-10-26) | LOW | combat.msg 100–106 refusals and the out-of-ammo sound match. The out-of-combat branch (start `_combat` with csd so the player's first turn auto-attacks) isn't reachable in DH2. — **2026-10-26:** out of combat a crosshair click on a critter starts the fight on the dude's turn and attacks (input.ts); doors too (playerAttackDoor). |
+| `_combat_outline_on` | `refreshHighlights` Combat.ts:3112 | ✅ FIXED (2026-10-26) | LOW | See the outline row. — **2026-10-26:** see the outline row. |
 | `_combat_outline_off` | `finish` / `clearNeutralOutlines` Combat.ts:338 | ✅ | | |
 | `_combat_highlight_change` | `refreshHighlights` (pref change) | ✅ | | |
 | `_combat_is_shot_blocked` | `combatIsShotBlocked` lineOfFire.ts:39 | ✅ | | sfall fixes (flags, multihex step) included. |
@@ -131,11 +131,11 @@ Top findings, most severe first:
 | `criticalsInit` | ceTables.ts (static) | ✅ FIXED (COMBAT-02) | HIGH | COMBAT-02: mode-2 fixes missing; modes 1/3 (ini override files) are sfall-only (LOW). |
 | `criticalsReset` | — | 🚫 | | No mutable tables. |
 | `criticalsExit` | — | 🚫 | | |
-| `criticalsGetValue` | — | ❌ | LOW | sfall `get_critical_table` has no backing; no opcode found in DH2. |
-| `criticalsSetValue` | — | ❌ | LOW | sfall `set_critical_table`. |
-| `criticalsResetValue` | — | ❌ | LOW | sfall `reset_critical_table`. |
-| `burstModInit` | — | 🟡 | LOW | Burst mod off by default in CE; DH2 hardcodes the vanilla split. |
-| `burstModComputeRounds` | — | ❌ | LOW | Only used with BurstMod=1. |
+| `criticalsGetValue` | — | 🚫 N/A (2026-10-26) | LOW | sfall `get_critical_table` has no backing; no opcode found in DH2. — **2026-10-26:** CE has no script opcode for it either; only the ini override modes 1 / 3 use it (CriticalOverrides.ini, sfall-only). |
+| `criticalsSetValue` | — | 🚫 N/A (2026-10-26) | LOW | sfall `set_critical_table`. — **2026-10-26:** as criticalsGetValue. |
+| `criticalsResetValue` | — | 🚫 N/A (2026-10-26) | LOW | sfall `reset_critical_table`. — **2026-10-26:** as criticalsGetValue. |
+| `burstModInit` | — | ✅ FIXED (2026-10-26) | LOW | Burst mod off by default in CE; DH2 hardcodes the vanilla split. — **2026-10-26:** ddraw.ini [Misc] ComputeSprayMod and its ComputeSpray_* keys (off by default, as CE). |
+| `burstModComputeRounds` | — | ✅ FIXED (2026-10-26) | LOW | Only used with BurstMod=1. — **2026-10-26:** ported (computeSpray with ComputeSprayMod=1). |
 | `unarmedInit` | unarmed.ts:59–78 | ✅ | | |
 | `unarmedInitVanilla` | `PUNCH` / `KICK` / `ADVANCED_*` unarmed.ts:59 | ✅ | | All 14 entries checked (level, skill, ST, AG, bonus, crit, AP, penetrate, secondary). |
 | `unarmedInitCustom` | — | 🚫 | | sfall `UnarmedFile` ini override. |

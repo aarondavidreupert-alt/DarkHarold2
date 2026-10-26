@@ -668,7 +668,9 @@ function playerLimitRefuses(fromX: number, fromY: number, toX: number, toY: numb
 function blockerAtCentre(cx: number, cy: number): boolean {
     if (_blockerHexes.size === 0) return false
     const h = hexFromScreen(cx, cy)
-    return _blockerHexes.has(h.x + h.y * 200)
+    const tile = h.x + h.y * 200
+    if (tile <= 0 || tile >= 40000) return false // CE excludes tile 0 (and off-grid tiles)
+    return _blockerHexes.has(tile)
 }
 
 // [dh2] scroll_bounds=ce. CE refuses each scroll step whose new centre tile holds
@@ -784,6 +786,16 @@ export function centerCamera(around: Point) {
     globalState.cameraPosition.y = (scr.y - viewH / 2) | 0
     if (Config.ui.scrollBounds === 'ce' && !(window as any).borderDebug) clampCameraCE(true)
     else clampCameraPosition()
+}
+
+// CE tile.cc _tile_scroll_to(tile, 2): the centre walks toward the tile and stops at the
+// first centre tileSetCenter refuses (a scroll blocker, the player limit) — the checks stay
+// on, unlike centerCamera (CE turns them off only for move_to and a map load)
+export function tileScrollTo(around: Point): void {
+    const scr = hexToScreen(around.x, around.y)
+    globalState.cameraPosition.x = (scr.x - getWorldViewWidth() / 2) | 0
+    globalState.cameraPosition.y = (scr.y - getWorldViewHeight() / 2) | 0
+    clampCameraPosition()
 }
 
 // CE map.cc mapScroll(dx, dy): the view moves a whole step — 32 px across, 24 px down — and

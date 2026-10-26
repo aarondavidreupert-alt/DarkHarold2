@@ -133,6 +133,8 @@ barter_running_item=dh2
 scroll_mode=dh2
 ; mouse wheel: zoom = zooms the map (DH2), ce = scrolls the map as in CE
 mouse_wheel=zoom
+; 1 = a short fade from black when the elevation changes (DH2), 0 = CE's instant switch
+elevation_fade=1
 ; combat outlines: dh2 = red hostile, green team, blue for neutrals (seen through walls);
 ; ce = CE: red / green by team for critters in the line of fire, a dim outline for those
 ; out of sight within Perception x 5 hexes, none farther

@@ -159,7 +159,7 @@ schedules, unarmed special moves, talking heads + speech + subtitles, movies, en
 and all 181 vanilla opcodes (0 active `stub()` calls). Remaining deliberate approximations
 are listed in README.md → "Known approximations" and `wiki/known_bugs.md`:
 - Action menu on a command-mode click (CE: held left button; `[dh2] mouse_mode=ce` gives CE's clicks); mouse wheel zooms (CE: scrolls; `mouse_wheel=ce`)
-- `[dh2]` CE switches for other DH2 choices: `talk_mode`, `scroll_mode`, `save_slots`, `egg_mode`, `barter_running_item` (defaults keep DH2's)
+- `[dh2]` CE switches for other DH2 choices: `talk_mode`, `scroll_mode`, `save_slots`, `egg_mode`, `barter_running_item`, `combat_outline`, `elevation_fade` (defaults keep DH2's)
 - Browser limits: no `fallout2.cfg` write-back (localStorage instead), mouse sensitivity stored only
 - DH2 day/night light curve on by default (`[dh2] day_night_cycle=0` = CE script-only lighting)
 - Cosmetic: no Pip-Boy screensaver, no palette fade around skill use

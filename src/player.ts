@@ -17,7 +17,7 @@ limitations under the License.
 import { perkNameById } from './perks.js'
 import { SkillSet, StatSet } from './char.js'
 import { dbg } from './logger.js'
-import { clamp, getMessage } from './util.js'
+import { getMessage } from './util.js'
 import { Events } from './events.js'
 import { Point } from './geometry.js'
 import globalState from './globalState.js'
@@ -366,10 +366,8 @@ export class Player extends Critter {
             this.stats.modifyBase('AGI', 1)
         }
 
-        // Clamp all SPECIAL to [1, 10] after trait modifications
-        for (const s of SPECIALS) {
-            this.stats.setBase(s, clamp(1, 10, this.stats.getBase(s)))
-        }
+        // No clamp here: CE keeps the base and the trait part apart, and only the total is
+        // capped at 10 (StatSet.get) — so a 10 + Gifted is still 10 after Mutate! drops Gifted
 
         // Max HP is derived (skills.ts: 15 + 2×END + STR on a base of 0); a fresh
         // character starts at full HP (CE _proto_dude_init: critterAdjustHitPoints).

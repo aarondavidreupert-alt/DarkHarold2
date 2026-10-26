@@ -61,6 +61,9 @@ export const Config = {
         // DELETE / Del removes a save; 'ce' — loadsave.cc: ten slots, no deleting (the
         // ten oldest saves fill them; any more stay stored but aren't listed)
         saveSlots: 'dh2' as 'ce' | 'dh2',
+        // [dh2] elevation_fade: 1 (default, DH2) — a short fade from black on stairs, ladders,
+        // elevators and script elevation changes; 0 — CE mapSetElevation's instant switch
+        elevationFade: true,
         // scroll_bounds=ce's player limit (480×400 px). Off, the view goes as far as
         // the blocker ring / black border allow. fallout2.cfg [dh2]
         // scroll_player_limit=0|1, console setScrollPlayerLimit(on).

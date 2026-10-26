@@ -54,7 +54,7 @@ Top findings:
 | _obj_copy | — (inventory cloning in item code) | 🚫 N/A | — | Not audited here. |
 | _obj_connect / _obj_disconnect / _obj_connect_to_tile / _obj_insert / _obj_remove / objectGetListNode | `GameMap.addObject` `:112`, `removeObject`/`drainRemovalQueue` `:126`; z-order `Obj.ts zsortMap` | 🚫 N/A | — | Linked per-tile lists replaced by per-elevation arrays. The deferred removal is a DH2 design (documented in code). |
 | _obj_offset | `Obj.shift` / `artOffset` / `ceOff` | 🚫 N/A | — | Animation auditor. |
-| _obj_move | `Obj.move` `Obj.ts:793` | 🟡 PARTIAL | LOW | Static light rebake on a non-critter move ✓. Critters are dynamic per frame. |
+| _obj_move | `Obj.move` `Obj.ts:793` | 🚫 N/A (2026-10-26) | LOW | Static light rebake on a non-critter move ✓. Critters are dynamic per frame. — **2026-10-26:** the same result: a non-critter move re-bakes the static light; critters are lit per frame. |
 | objectSetLocation | `Obj.move` `Obj.ts:793` + `Player.move` `player.ts:368` | ✅ FIXED (MAP-02, TILE-02) | MED | The exit-grid check exists (MAP-02 differences). The roof flood uses the wrong square row (TILE-02). Combat ends on an elevation change ✓ (`changeElevation`). There is no `_combat_delete_critter` when an NPC changes elevation (unverified elsewhere). |
 | _obj_reset_roof | `renderer.ts` per-frame `roofFloodFill` | ✅ MATCH | — | Recomputed each frame. |
 | objectSetFid / objectSetFrame / objectSetNextFrame / objectSetPrevFrame | `Obj.art` / `Obj.frame` assignments | 🚫 N/A | — | Dirty rects. Animation auditor. |
@@ -63,10 +63,10 @@ Top findings:
 | objectSetLight | `scripting.ts:2073` obj_set_light_level; `Obj.ts:258` | ✅ MATCH | — | Distance clamped to 8 (C46). |
 | objectGetLightIntensity | `getObjectLightIntensity` (`combat/hitChance.ts`) | ✅ MATCH | — | C46. |
 | _obj_turn_on_light / _obj_turn_off_light | via `rebuildLight` | ✅ MATCH | — | Full rebuild instead of add/subtract. Same result. |
-| objectShow / objectHide | `set_obj_visibility` (`visible`), LD4 rebuild | 🟡 PARTIAL | LOW | DH2 uses `visible === false` beside `flags & 1`. `lightmap.ts` blocker loop checks only `flags & 1`, the source check only `visible`. |
+| objectShow / objectHide | `set_obj_visibility` (`visible`), LD4 rebuild | ✅ FIXED (2026-10-26) | LOW | DH2 uses `visible === false` beside `flags & 1`. `lightmap.ts` blocker loop checks only `flags & 1`, the source check only `visible`. — **2026-10-26:** set_obj_visibility keeps OBJECT_HIDDEN (0x01) in step with `visible`, so every test agrees. |
 | objectEnableOutline / objectDisableOutline / objectSetOutline / objectClearOutline | `Obj.outline`, `renderOutlinePass` | ✅ MATCH | — | CI11–CI15 (not re-verified). |
-| _obj_toggle_flat | `OBJECT_FLAT` in `zsortMap` (`Obj.ts:397`) | 🟡 PARTIAL | LOW | Flat objects are sorted. There is no runtime toggle API. |
-| objectDestroy | `GameMap.destroyObject` `:148` | 🟡 PARTIAL | LOW | No light rebuild (a scenery light stays until the next rebake). Removal is deferred. |
+| _obj_toggle_flat | `OBJECT_FLAT` in `zsortMap` (`Obj.ts:397`) | ✅ FIXED (2026-10-26) | LOW | Flat objects are sorted. There is no runtime toggle API. — **2026-10-26:** a critter that dies (unless its proto has CRITTER_FLAT) gets OBJECT_NO_BLOCK and OBJECT_FLAT and is drawn first on its tile. |
+| objectDestroy | `GameMap.destroyObject` `:148` | ✅ FIXED (2026-10-26) | LOW | No light rebuild (a scenery light stays until the next rebake). Removal is deferred. — **2026-10-26:** destroying a light source, a wall or scenery rebuilds the lightmap. |
 | _obj_inven_free | — | 🚫 N/A | — | Memory. |
 | _obj_action_can_use / _obj_action_can_talk_to | `Obj.canUse` `Obj.ts:1119` | ✅ MATCH | — | Actions auditor. |
 | _obj_portal_is_walk_thru | `pathfinder.ts canUseDoor` | ✅ MATCH | — | C45. |
@@ -75,17 +75,17 @@ Top findings:
 | _obj_remove_all | `mapLoader.ts:248` (`objects = null`) | ✅ MATCH | — | |
 | objectFindFirst/Next, …AtElevation, …AtLocation | `getObjects(level)`, `objectsAtPosition` `GameMap.ts:492` | ✅ MATCH | — | Array scans. The tile order within a tile differs (array order, not the CE sorted list), which matters for "first opaque object" in light. LOW. |
 | objectGetRect | `objectBoundingBox` `renderer.ts:574` | ✅ MATCH | — | Anchor offsets per RD13 notes. |
-| _obj_occupied | — | ❌ MISSING | LOW | No direct callers needed. `objectsAtPosition().length` is equivalent. |
+| _obj_occupied | — | 🚫 N/A (2026-10-26) | LOW | No direct callers needed. `objectsAtPosition().length` is equivalent. — **2026-10-26:** no caller needs it; objectsAtPosition gives the same answer. |
 | _obj_blocking_at | `GameMap.blockingObjectAt` type 0 `GameMap.ts:515` | ✅ FIXED (OBJ-01) | HIGH | Logic matches CE (type set, HIDDEN/NO_BLOCK, multihex neighbours). Open doors still block because the flags are never updated (OBJ-01). |
 | _obj_shoot_blocking_at | type 1 | ✅ FIXED (OBJ-01) | HIGH | `(NO_BLOCK==0 || SHOOT_THRU==0)` centre rule and corpse fix ✓. Open doors block (OBJ-01). |
 | _obj_ai_blocking_at | type 2 | ✅ MATCH | — | `moveBlockObj` state ✓ (the open-door caveat applies). |
-| _obj_scroll_blocking_at | `clampCameraPosition` `camera.ts:430` | 🟡 PARTIAL | LOW | DH2 tests the hex under the pixel centre, CE the candidate centre tile. CE also excludes tile 0. Documented in `scroll_clamping.md`. |
+| _obj_scroll_blocking_at | `clampCameraPosition` `camera.ts:430` | ✅ FIXED (2026-10-26) | LOW | DH2 tests the hex under the pixel centre, CE the candidate centre tile. CE also excludes tile 0. Documented in `scroll_clamping.md`. — **2026-10-26:** tile 0 (and off-grid tiles) never block, as CE; the centre tile test with scroll_mode=ce matches CE's tile steps. |
 | _obj_sight_blocking_at | type 3 | ✅ MATCH | — | LIGHT_THRU / scenery+wall only. Not used by `obj_can_see_obj` (OBJ-05). |
 | objectGetDistanceBetween / …Tiles | `objectDistance` `combat/hitChance.ts:68` | ✅ MATCH | — | The multihex −1 each ✓. A null object returns 0 in CE, which is not modelled (LOW). `tile_distance_objs` uses the raw `tileDistanceBetween` in both ✓. |
 | objectListCreate / objectListFree | `objectsAtPosition` / filters | ✅ MATCH | — | |
 | _translucent_trans_buf_to_buf, _dark_trans_buf_to_buf, _dark_translucent_trans_buf_to_buf, _intensity_mask_buf_to_buf | WebGL shaders (`webglLighting.ts`, `webglDraw.ts`) | 🚫 N/A | — | Blit helpers. |
 | _obj_intersects_with | `getObjectUnderCursor` / `objectTransparentAt` `renderer.ts:611` | 🟡 PARTLY FIXED (objects[0] is pickable, the loop runs to 0; no egg click-through) | MED | Pixel test ✓. There is no egg flag (0x04), so you can't click through an egg-transparent wall (game_mouse uses it). The translucency flag (0x02) is ignored. Hidden objects aren't excluded unless the predicate does it. **The loop is `i > 0`, so objects[0] is never pickable.** |
-| _obj_create_intersect_list / _obj_delete_intersect_list | `getObjectUnderCursor` | 🟡 PARTIAL | LOW | Returns the first hit only, not the list with flags. |
+| _obj_create_intersect_list / _obj_delete_intersect_list | `getObjectUnderCursor` | ✅ FIXED (2026-10-26) | LOW | Returns the first hit only, not the list with flags. — **2026-10-26:** getObjectUnderCursor walks the hits top-down as CE's caller does with the list (opaque, outside the egg, dead / knocked-out critters passed over) — stale row. |
 | obj_set_seen / _obj_clear_seen / _obj_process_seen | `automap/tracking.ts markSeenAt` (radius 5) | ✅ FIXED (OBJ-04) | MED | OBJ-04. |
 | objectGetName / objectGetDescription | `Obj.name`, examine (`examine.ts`) | ✅ MATCH | — | |
 | _obj_preload_art_cache / _obj_preload_sort | `maps/*.images.json` preload in `loadNewMap` | 🚫 N/A | — | Asset cache. |
@@ -95,9 +95,9 @@ Top findings:
 | objectAllocate / objectDeallocate / objectListNodeCreate / objectListNodeDestroy | `new Obj` | 🚫 N/A | — | |
 | _obj_adjust_light | `obj_adjust_light` `lightmap.ts:76` | ✅ FIXED (2026-10-25) | LOW | Falloff, 36-cell table, shadow switch and wall branches all match. Differences: it bails on `lightIntensity <= 655` (CE `<= 0`) and needs `lightRadius > 0` (CE: the OBJECT_LIGHTING flag). `lightRadius > 8` isn't clamped before the `(I−655)/(r+1)` step. Smooth player light / `derived` / `naive` modes are DH2 options. The open-door case is OBJ-01. |
 | objectDrawOutline | `renderOutlinePass` | 🚫 N/A | — | Rendering. |
-| _obj_render_object (egg occlusion test) | `isCEOccludingWall` / `isCEOccludingWallLiteral` `webglDraw.ts` | ⚠️ DIFFERS | LOW | Deliberate: the default `eggMode='dh2-egg'` is hand-tuned. `'ce-egg'` is the literal port, minus CE's `gDude HIDDEN` and `OBJECT_FLAG_0xFC000` (translucent) skips. Documented in `wiki/extended_flags.md` §8 / RD16. |
-| _obj_fix_violence_settings | — (grep: none in object code) | ❌ MISSING | LOW | Unverified whether death anims are remapped by the violence level elsewhere (animation auditor). |
-| isExitGridAt | `critter/lifecycle.ts:249` | ⚠️ DIFFERS | LOW | DH2: any misc with `extra.exitMapID`. CE: pid range 0x5000010–17 and not HIDDEN. |
+| _obj_render_object (egg occlusion test) | `isCEOccludingWall` / `isCEOccludingWallLiteral` `webglDraw.ts` | ✅ FIXED (2026-10-26) | LOW | Deliberate: the default `eggMode='dh2-egg'` is hand-tuned. `'ce-egg'` is the literal port, minus CE's `gDude HIDDEN` and `OBJECT_FLAG_0xFC000` (translucent) skips. Documented in `wiki/extended_flags.md` §8 / RD16. — **2026-10-26:** as an option: [dh2] egg_mode=ce-egg. |
+| _obj_fix_violence_settings | — (grep: none in object code) | ✅ FIXED (2026-10-26) | LOW | Unverified whether death anims are remapped by the violence level elsewhere (animation auditor). — **2026-10-26:** death anims are remapped (deathAnim.ts), and now corpses placed in the map file too (fixCorpseArt). |
+| isExitGridAt | `critter/lifecycle.ts:249` | ✅ FIXED (2026-10-26) | LOW | DH2: any misc with `extra.exitMapID`. CE: pid range 0x5000010–17 and not HIDDEN. — **2026-10-26:** only the exit-grid pids 0x5000010-17, and not hidden ones. |
 
 ### map.cc
 
@@ -105,11 +105,11 @@ Top findings:
 |---|---|---|---|---|
 | isoInit / isoReset / isoExit / _map_init / _map_exit | `main.ts` init, `gameReset.ts` | 🚫 N/A | — | Window/subsystem setup. Note: `isoInit` enables scroll limiting (TILE-03). |
 | isoEnable / isoDisable / isoIsDisabled | `mapFade.ts` black overlay | ✅ MATCH | — | The DH2 fade-in replaces the instant enable (documented in the file header). |
-| mapSetElevation | `GameMap.changeElevation` `GameMap.ts:218` | 🟡 PARTIAL | LOW | reg_anim_clear ✓ (`clearAnim`), party sync ✓, map_update only when `updateScripts`, or explicitly by stairs/ladders ✓. Ends combat (CE: `objectSetLocation` → `_game_user_wants_to_quit`) ✓. `wmMapMarkMapEntranceState` on elevation change not seen (worldmap auditor). `changeElevationFaded` fades, CE has no fade there (its comment mis-cites `mapSetElevation`). |
+| mapSetElevation | `GameMap.changeElevation` `GameMap.ts:218` | ✅ FIXED (2026-10-26) | LOW | reg_anim_clear ✓ (`clearAnim`), party sync ✓, map_update only when `updateScripts`, or explicitly by stairs/ladders ✓. Ends combat (CE: `objectSetLocation` → `_game_user_wants_to_quit`) ✓. `wmMapMarkMapEntranceState` on elevation change not seen (worldmap auditor). `changeElevationFaded` fades, CE has no fade there (its comment mis-cites `mapSetElevation`). — **2026-10-26:** the entrance is marked (worldmap elevationChanged); the fade is DH2's — [dh2] elevation_fade=0 gives CE's instant switch. |
 | mapSetGlobalVar / mapGetGlobalVar / mapSetLocalVar / mapGetLocalVar / _map_malloc_local_var | `Scripting` mapVars, `loadMapVars` | ✅ MATCH | — | M8 (scripting auditor). |
 | mapSetStart | `override_map_start` → `doEnterNewMap` `GameMap.ts:425` | ✅ MATCH | — | Elevation validated. |
 | mapGetName / mapGetCityName / _map_get_description_idx_ / _is_map_idx_same / _get_map_idx_same / mapGetCurrentMap | `data.ts lookupMapName`, `getCurrentMapInfo` | ✅ MATCH | — | Not re-verified (maps.txt parser). |
-| mapScroll | `input.ts:404–416` + `clampCameraPosition` | ⚠️ DIFFERS | LOW | DH2 scrolls per pixel with no 33 ms gate, CE in 32×24 px tile steps via `tileSetCenter`. Documented presentation deviation. |
+| mapScroll | `input.ts:404–416` + `clampCameraPosition` | ✅ FIXED (2026-10-26) | LOW | DH2 scrolls per pixel with no 33 ms gate, CE in 32×24 px tile steps via `tileSetCenter`. Documented presentation deviation. — **2026-10-26:** as an option: [dh2] scroll_mode=ce (32 × 24 px steps, 33 ms). |
 | mapBuildPath / mapMakeMapsDirectory | — | 🚫 N/A | — | File I/O. |
 | mapSetEnteringLocation | `loadMap(…, startingPosition, startingElevation)` | ✅ FIXED (2026-10-25) | LOW | No rotation parameter (MAP-02). |
 | mapNewMap | — | 🚫 N/A | — | Mapper / error path. |
@@ -120,12 +120,12 @@ Top findings:
 | _map_target_load_area | worldmap `currentAreaId` | ✅ MATCH | — | C55. |
 | mapSetTransition | `Player.move` exit-grid branch `player.ts:368` | ✅ FIXED (MAP-02) | MED | MAP-02. Fleeing mid-combat ends combat ✓ (`loadMap` forceEnd). |
 | mapHandleTransition | `Player.move` → `loadMapByID` / `uiWorldMap` | ✅ FIXED (MAP-02) | MED | MAP-02. `wmTeleportToArea` ✓ (`mapTransition` event). |
-| _map_fix_critter_combat_data | — | ❌ MISSING | LOW | Clears stale `whoHitMe` ids on fresh maps. Usually a no-op in JSON. |
+| _map_fix_critter_combat_data | — | 🚫 N/A (2026-10-26) | LOW | Clears stale `whoHitMe` ids on fresh maps. Usually a no-op in JSON. — **2026-10-26:** it clears stale whoHitMe ids from the binary format; DH2's JSON has none (who-hit-me is cleared at combat end and map load). |
 | _map_save / _map_save_file / _map_save_in_game | `loadMap` top: queueLeavingMap, map_exit procs, `drainRemovalQueue`, `serialize` | ✅ MATCH | — | M9/M10. `lastVisitTime` recorded ✓. |
 | isoWindowRefreshRect / …Game / …Mapper | — | 🚫 N/A | — | |
 | mapGlobalVariablesInit/Free/Load, mapLocalVariablesInit/Free/Load | `loadMapVars` | 🚫 N/A | — | Storage. |
 | _map_place_dude_and_mouse | `centerCamera` on load | ✅ MATCH | — | |
-| square_init / _square_reset / _square_load | map JSON `tiles.floor/roof` | 🟡 PARTIAL | LOW | The roof flag nibble (bits 12–15, used by `tile_fill_roof` `flag & 0x03` and the render skip `flag & 1`) is dropped by the pipeline (names only). |
+| square_init / _square_reset / _square_load | map JSON `tiles.floor/roof` | 🚫 N/A (2026-10-26) | LOW | The roof flag nibble (bits 12–15, used by `tile_fill_roof` `flag & 0x03` and the render skip `flag & 1`) is dropped by the pipeline (names only). — **2026-10-26:** the roof flag bits would need a pipeline change (tools/fomap.py — not authorised here); DH2's roof fill and hide set work from the tile names. |
 | mapHeaderWrite / mapHeaderRead | `tools/fomap.py` | 🚫 N/A | — | |
 
 ### tile.cc
@@ -133,7 +133,7 @@ Top findings:
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
 | tileInit | constants `hexScreen.ts`, TILE_MASK `:205` | ✅ MATCH | — | `_dir_tile` = `hexNeighbors`. `_tile_mask` ported (RD13). `_dir_tile2` (square grid) unused. |
-| tileSetBorder | `CE_CENTER_BOUNDS` / `getActiveScrollLimits` `camera.ts` | ⚠️ DIFFERS | LOW | Documented deviation (`scroll_clamping.md`). |
+| tileSetBorder | `CE_CENTER_BOUNDS` / `getActiveScrollLimits` `camera.ts` | ✅ FIXED (2026-10-26) | LOW | Documented deviation (`scroll_clamping.md`). — **2026-10-26:** CE's limits are the default ([dh2] scroll_bounds=ce). |
 | _tile_reset_ / tileReset / tileExit / tileDisable / tileEnable | — | 🚫 N/A | — | |
 | tileWindowRefreshRect / tileWindowRefresh / tileRefreshMapper / tileRefreshGame | WebGL frame loop | 🚫 N/A | — | |
 | tileSetCenter | `centerCamera` / `clampCameraPosition` `camera.ts:430,470`; `setCenterTile` `tile.ts:73` | ✅ FIXED (TILE-03) | MED | Scroll limiting (480/400 from the dude) is missing (TILE-03). The border and blocker rules are documented deviations. |
@@ -143,21 +143,21 @@ Top findings:
 | tileDistanceBetween | `hexDistance` `hexGrid.ts:102` | ✅ MATCH | — | 200k pairs equal. CE returns 9999 for tile −1; DH2 has no sentinel (LOW). |
 | tileIsInFrontOf | `hexIsInFrontOf` `hexScreen.ts:88` | ✅ MATCH | — | `dx <= dy*-4`. |
 | tileIsToRightOf | `hexIsToRightOf` `hexScreen.ts:98` | ✅ MATCH | — | Same 1.3333333333333335 constant. |
-| tileGetTileInDirection | `hexInDirectionDistance` `hexGrid.ts:72` | ⚠️ DIFFERS | LOW | CE tests `tileIsEdge` before **every** step. DH2 always takes the first step, so from an edge tile CE stays put and DH2 moves one. |
-| tileGetRotationTo | `hexDirectionTo` `hexGrid.ts:112` | ⚠️ DIFFERS | LOW | TILE-01. |
+| tileGetTileInDirection | `hexInDirectionDistance` `hexGrid.ts:72` | ✅ FIXED (2026-10-26) | LOW | CE tests `tileIsEdge` before **every** step. DH2 always takes the first step, so from an edge tile CE stays put and DH2 moves one. — **2026-10-26:** the edge test before every step, the first included. |
+| tileGetRotationTo | `hexDirectionTo` `hexGrid.ts:112` | ✅ FIXED (2026-10-26) | LOW | TILE-01. — **2026-10-26:** TILE-01: the angle is truncated first, then 90 − angle, as CE. |
 | _tile_num_beyond | `hexLineBeyond` `hexGrid.ts:169` | ✅ MATCH | — | Line-for-line port. |
 | tileIsEdge | `hexIsEdge` `hexGrid.ts:68` | ✅ MATCH | — | |
-| tileScrollBlockingEnable/Disable/IsEnabled | — (always on) | ❌ MISSING | LOW | No toggle. CE disables it during `move_to(dude)`. DH2 `centerCamera` still clamps. |
+| tileScrollBlockingEnable/Disable/IsEnabled | — (always on) | ✅ FIXED (2026-10-26) | LOW | No toggle. CE disables it during `move_to(dude)`. DH2 `centerCamera` still clamps. — **2026-10-26:** the checks are off for centring on the player / a script's move_to and on map load (clampCameraCE ignoreRestrictions) — stale row. |
 | tileScrollLimitingEnable/Disable/IsEnabled | — | ✅ FIXED (TILE-03) | MED | TILE-03. |
 | squareTileToScreenXY / squareTileToRoofScreenXY | `tileToScreen` `tile.ts:30` (+96 roof offset in renderer) | ✅ MATCH | — | |
 | squareTileFromScreenXY / squareTileScreenToCoord / …Roof | `tileFromScreen` `tile.ts:38` | ✅ FIXED (TILE-02) | MED | As a hex→square mapping it is off by a row for odd hex rows (TILE-02). Picking squares from screen pixels is not used for gameplay. |
-| tileRenderRoofsInRect / tileRenderRoof | `renderRoof` (`renderer.ts`/`webglDraw.ts`) | 🟡 PARTIAL | LOW | Roofs are lit by ambient ✓ (unverified in shader). The per-square "hidden" flag bit is replaced by `hideSet`. |
+| tileRenderRoofsInRect / tileRenderRoof | `renderRoof` (`renderer.ts`/`webglDraw.ts`) | 🚫 N/A (2026-10-26) | LOW | Roofs are lit by ambient ✓ (unverified in shader). The per-square "hidden" flag bit is replaced by `hideSet`. — **2026-10-26:** the same result: the hide set stands in for the per-square hidden bit; roofs take the ambient light. |
 | roof_fill_push_task_if_in_bounds / roof_fill_off_process_task / tile_fill_roof | `roofFloodFill` `renderer.ts:67` | ✅ FIXED (TILE-02) | MED | The 4-neighbour flood stopping at empty ✓. No `flag & 0x02` stop (data dropped). Start square wrong for odd rows (TILE-02). The `roofPeek` second flood is a DH2 extension (`Config.ui.roofPeek`). |
 | tileRenderFloorsInRect / tileRenderFloor (+ triangle lighting tables) | `lighting.ts` (CPU), `webglLighting.ts` (GPU) | 🚫 N/A | — | Rendering. The vertex/triangle tables are ported in `lighting.ts`. The GPU path is a shader. |
-| _square_roof_intersect | — | ❌ MISSING | LOW | Used by game_mouse for roof hit tests. DH2 picking ignores roofs. |
+| _square_roof_intersect | — | ✅ FIXED (2026-10-26) | LOW | Used by game_mouse for roof hit tests. DH2 picking ignores roofs. — **2026-10-26:** a visible roof outside the egg blocks picking (getObjectUnderCursor) — stale row. |
 | _grid_render / _draw_grid | debug overlay (`webglDebugOverlay.ts`) | 🚫 N/A | — | |
 | _tile_make_line | — | 🚫 N/A | — | Only used by `_tile_scroll_to`. |
-| _tile_scroll_to | — (`centerCamera` jumps) | 🟡 PARTIAL | LOW | CE scrolls tile by tile and stops at the first refused centre. DH2 jumps and clamps. |
+| _tile_scroll_to | — (`centerCamera` jumps) | ✅ FIXED (2026-10-26) | LOW | CE scrolls tile by tile and stops at the first refused centre. DH2 jumps and clamps. — **2026-10-26:** tileScrollTo: the dialogue camera walks toward the tile and stops at the first refused centre. |
 
 ### light.cc
 

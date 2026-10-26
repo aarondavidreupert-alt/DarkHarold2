@@ -23,7 +23,7 @@ import globalState from './globalState.js'
 import { Events } from './events.js'
 import { Critter } from './object.js'
 import { objectBoundingBox } from './renderer.js'
-import { centerCamera, getCenterTile } from './render/camera.js'
+import { clampCameraPosition, getCenterTile, tileScrollTo } from './render/camera.js'
 import type { Point } from './geometry.js'
 import { Scripting } from './scripting.js'
 import { UIMode } from './ui_panels.js'
@@ -195,6 +195,8 @@ export function uiStartDialogue(force: boolean, target?: Critter) {
         const z = globalState.cameraZoom || 1.0
         globalState.cameraPosition.x = bbox.x - dx / z
         globalState.cameraPosition.y = bbox.y - dy / z
+        // CE _gdialogInitFromScript → _tile_scroll_to(speaker, 2): the scroll limits hold
+        clampCameraPosition()
     }
 }
 
@@ -210,7 +212,7 @@ export function uiEndDialogue() {
     if (dialogueReturn) {
         const p = globalState.player
         const moved = p && dialogueReturn.dudeTile && (p.position.x !== dialogueReturn.dudeTile.x || p.position.y !== dialogueReturn.dudeTile.y)
-        centerCamera(moved ? p.position : dialogueReturn.center)
+        tileScrollTo(moved ? p.position : dialogueReturn.center) // _tile_scroll_to(…, 2)
         dialogueReturn = null
     }
     stopTalkingHead() // CE _gdialogExitFromScript: head window + music

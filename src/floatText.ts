@@ -79,23 +79,37 @@ interface FloatSpec {
     font?: 101 | 103
 }
 
-// CE wordWrap — break at spaces so no line is wider than `width`.
+// CE word_wrap.cc wordWrap (WRAP-01): a line breaks after the last space (any whitespace,
+// '\n' included) or hyphen that still fits; a word wider than the line breaks mid-word.
 function wordWrap(font: FontRenderer, text: string, width: number): string[] {
+    if (font.measureText(text) < width) return [text]
+    const gap = font.letterSpacing
     const lines: string[] = []
-    for (const para of text.split('\n')) {
-        let line = ''
-        for (const word of para.split(' ')) {
-            const tryLine = line ? line + ' ' + word : word
-            if (line && font.measureText(tryLine) > width) {
-                lines.push(line)
-                line = word
-            } else {
-                line = tryLine
-            }
+    let start = 0
+    let accum = 0
+    let prevBreak = -1
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i]
+        accum += gap + font.measureText(ch)
+        if (accum <= width) {
+            if (/\s/.test(ch) || ch === '-') prevBreak = i
+            continue
         }
-        lines.push(line)
+        if (prevBreak >= 0) {
+            lines.push(text.slice(start, prevBreak + 1)) // word wrap
+            start = prevBreak + 1
+            i = prevBreak
+        } else {
+            lines.push(text.slice(start, i)) // character wrap
+            start = i
+            i--
+        }
+        prevBreak = -1
+        accum = 0
     }
-    return lines
+    lines.push(text.slice(start))
+    // the drawn line leaves out the break character's trailing blank / newline
+    return lines.map((l) => l.replace(/\s+$/, ''))
 }
 
 function hexRgb(hex: string): [number, number, number] {

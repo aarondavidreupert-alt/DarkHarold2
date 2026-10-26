@@ -41,7 +41,7 @@ Top findings, by severity:
 | `wmGenDataInit` | `Worldmap.ts:814` (party at 173,122), `resetWorldmap` | ✅ | — | Fuel, car area, Horrigan flag, current area: the CE defaults. |
 | `wmGenDataReset` | `Worldmap.ts:617 resetWorldmap`, `encounters.ts:470 resetEncounters` | ✅ | — | |
 | `wmWorldMap_exit` | — | 🚫 | — | Frees memory. |
-| `wmWorldMap_reset` | `Worldmap.ts:617` | 🟡 | LOW | `gGameTimeIncRemainder = 0` (the sfall Pathfinder remainder) is not reset; `gameTimeIncRemainder` survives NEW GAME and load. `wmMarkAllSubTiles(0)` is matched by reparsing worldmap.txt. |
+| `wmWorldMap_reset` | `Worldmap.ts:617` | ✅ FIXED (2026-10-26) | LOW | `gGameTimeIncRemainder = 0` (the sfall Pathfinder remainder) is not reset; `gameTimeIncRemainder` survives NEW GAME and load. `wmMarkAllSubTiles(0)` is matched by reparsing worldmap.txt. — **2026-10-26:** gameTimeIncRemainder is reset with the world map (new game / load). |
 | `wmWorldMap_save` | `saveload.ts:217-231`, `serializeAreaStates:588`, `serializeSquareStates:413`, `serializeEncounters encounters.ts:455` | ✅ | — | JSON in place of the binary format. `encounterMapId/TableId/EntryId` and `encounterIconIsVisible` are not saved; DH2 clears them after setup, so nothing is lost. |
 | `wmWorldMap_load` | `saveload.ts:389-400` | ✅ | — | `wmInterfaceCenterOnParty` happens when the worldmap opens. |
 | `wmWorldMapSaveTempData` / `wmWorldMapLoadTempData` | `resetWorldmap` (re-reads city.txt / worldmap.txt) | 🚫 | — | |
@@ -58,7 +58,7 @@ Top findings, by severity:
 | `wmParseSubTileInfo` | `parser.ts:30 parseSquare` | ✅ | — | DH2 is more lenient: a missing day-part frequency falls back to the first one; CE fails the load. |
 | `wmParseFindEncounterTypeMatch` / `wmParseFindTerrainTypeMatch` | name lookups at use time (`encounters.ts:187`, `:230`) | ✅ | — | Resolved by lower-case name on every roll instead of once at parse time. |
 | `wmParseEncounterItemType` / `wmParseItemType` | `encounterData.ts:161`, `:135` | ✅ | — | `{wielded}`/`(wielded)`/`{worn}`/`(worn)`. |
-| `wmParseConditional` | `encounterData.ts:118 parseConditional` → `conditionLang.ts:139 parseConds` | ⚠️ | LOW | CE stores at most 3 sub-conditions joined by `and`/`or`; its `strstr` searches the rest of the line. DH2 uses a general expression parser. It has no `or` token, and it accepts `<=`/`>=`, which CE does not. Vanilla worldmap.txt uses only `And` and at most 3 terms, so the outcome is the same there. |
+| `wmParseConditional` | `encounterData.ts:118 parseConditional` → `conditionLang.ts:139 parseConds` | 🚫 N/A (2026-10-26) | LOW | CE stores at most 3 sub-conditions joined by `and`/`or`; its `strstr` searches the rest of the line. DH2 uses a general expression parser. It has no `or` token, and it accepts `<=`/`>=`, which CE does not. Vanilla worldmap.txt uses only `And` and at most 3 terms, so the outcome is the same there. — **2026-10-26:** the same outcome on the shipped worldmap.txt (the row says so). |
 | `wmParseSubConditional` / `wmParseConditionalEval` | `conditionLang.ts:46 tokenizeCond`, `:79 parseCond` | ✅ | — | rand / global / player(level) / days_played / time_of_day / enctr(num_critters); ops `==` `!=` `<` `>`. |
 | `wmAreaSlotInit` / `wmAreaInit` | `data.ts:88 parseAreas` | ✅ FIXED (WM-04, WM-09) | MED | Entrance elevation is clamped `Math.max(0, …)` (`data.ts:141`), which breaks WM-04 and WM-09. CE stops at the first missing `entrance_N`; DH2 reads every `entrance_*` key. lock_state, size and art indexes match. |
 | `wmParseFindMapIdxMatch` | `data.ts:341 mapIndexFromLookup` | ✅ | — | |
@@ -74,7 +74,7 @@ Top findings, by severity:
 | `wmWorldMap` | `ui_worldmap.ts:60 uiWorldMap` | ✅ | — | |
 | `wmWorldMapFunc` | `Worldmap.ts:1136 updateWorldmapPlayer` (+ `init` click handlers) | ✅ FIXED (WM-03) | MED | The walking frame matches (steps, car steps, fuel, out of gas, healing, fog, end of walk, 18000 ticks, encounter). Gaps: hotspot click ignores the town-map rule (WM-03); keys T / Home / Ctrl+F1–F7 / Ctrl+↑↓ are missing; arrow keys pan 2 px a frame only while stopped (CE: 20 px a press, also while walking); the mouse wheel over the map does not scroll it (CE 20 px). Out of gas: CE matches the area at the mouse (`worldX/worldY`, a CE bug); DH2 uses the party position. |
 | `wmCheckGameAreaEvents` | — | ✅ FIXED (2026-10-26) | LOW | CE `mapLoad` hides CITY_FAKE_VAULT_13_A (45) and shows / visits B (46) while the party is at A. NEW. — **2026-10-26:** the Fake Vault 13 swap. |
-| `wmInterfaceCenterOnParty` | `applyPan(x − 222, y − 219)` at `Worldmap.ts:850, 1164` | ⚠️ | LOW | CE offsets are −203/−200 and it is bound to Home. DH2 centers on the 445×438 view and recenters every walking frame; CE scrolls 1 px a step, so the party keeps its place on screen. |
+| `wmInterfaceCenterOnParty` | `applyPan(x − 222, y − 219)` at `Worldmap.ts:850, 1164` | 🚫 N/A (2026-10-26) | LOW | CE offsets are −203/−200 and it is bound to Home. DH2 centers on the 445×438 view and recenters every walking frame; CE scrolls 1 px a step, so the party keeps its place on screen. — **2026-10-26:** DH2 centres on its own view; following the party while walking is a DH2 choice. |
 | `wmCheckGameEvents` | `Worldmap.ts:1138 scriptsCheckGameEvents` | ✅ | — | |
 | `wmRndEncounterOccurred` | `encounters.ts:95 rndEncounterOccurred` | ✅ | — | 1.5 s gate, 3 px in both axes, no roll inside an area, Horrigan after day 35 (special blink, no question), frequency ±freq/15 by difficulty, roll 0–100, special area put at the party and made known unless locked, car day-part modifier [40,30,0], best party Outdoorsman + motion sensor 20, cap 95, + tile difficulty, XP 100 − skill and misc.msg 8500, worldmap.msg 2999 / 3000+50t+e. The sfall forced-encounter branch is missing (see `wmForceEncounter`). The motion sensor is looked for in the top-level inventory only; CE also requires `owner == gDude`, so the outcome is the same. |
 | `wmPartyFindCurSubTile` / `wmFindCurSubTileFromPos` / `wmFindCurTileFromPos` | `Worldmap.ts:1044 squareAt`, `parser.ts` (difficulty copied onto each square) | ✅ | — | One global 28×30 grid in place of 20 tiles × 7×6; the same for positions in range. |
@@ -91,11 +91,11 @@ Top findings, by severity:
 | `wmWorldPosInvalid` | `Worldmap.ts:82 worldPosInvalid` | ✅ | — | CE bit formula including its "TODO: Check math" quirk. |
 | `wmPartyInitWalking` | `Worldmap.ts:990 partyInitWalking` | ✅ | — | Bresenham set-up the same as CE. CE centers the view if the cursor is not visible; DH2 always centers. DH2 debug `instantTravel` added (DH2-only). |
 | `wmPartyWalkingStep` | `Worldmap.ts:1052 partyWalkingStep` | ✅ | — | Terrain counter 1..4, difficulty ≥ 1, walk-mask stop. When blocked, CE matches the area with `(worldPosX, worldPosX)` (a CE typo); DH2 uses the correct (x, y). |
-| `wmInterfaceScrollTabsStart` / `Stop` / `Update` | `ui_worldmap.ts:35 setLabelScroll` | 🟡 | LOW | 27 px a step; CE animates 7×delta over several frames and disables the tab buttons while scrolling. DH2 jumps. |
+| `wmInterfaceScrollTabsStart` / `Stop` / `Update` | `ui_worldmap.ts:35 setLabelScroll` | 🚫 N/A (2026-10-26) | LOW | 27 px a step; CE animates 7×delta over several frames and disables the tab buttons while scrolling. DH2 jumps. — **2026-10-26:** the same end position; the animation is cosmetic. |
 | `wmInterfaceInit` | `ui_worldmap.ts:60 uiWorldMap`, `Worldmap.ts:873 start` | ✅ FIXED (WM-07) | MED | Resets the encounter timer. Missing: worldmap music `20car`/`23world` (WM-07), `_map_save_in_game(true)` before the worldmap opens (not verified whether the DH2 map cache covers it), `scriptsDisable` (DH2 pauses the game loop through uiMode). |
 | `wmInterfaceExit` | `ui_worldmap.ts:50 uiCloseWorldMap`, `Worldmap.ts:879 stop` | ✅ | — | Encounter fields cleared after setup. |
-| `wmInterfaceScroll` / `wmInterfaceScrollPixel` | `Worldmap.ts:204 applyPan`, `:1183-1191` | ⚠️ | LOW | Step 20 px (CE) vs 2 px a frame; panning is disabled while walking. |
-| `wmMouseBkProc` | `Worldmap.ts:858 _onWMMouseMove` | ⚠️ | LOW | CE: the screen-edge pixel, 20 px every 50 ms, scroll cursors (and "can't scroll" cursors). DH2: a 20 px band inside the view, 2 px a frame, no cursor change. |
+| `wmInterfaceScroll` / `wmInterfaceScrollPixel` | `Worldmap.ts:204 applyPan`, `:1183-1191` | 🚫 N/A (2026-10-26) | LOW | Step 20 px (CE) vs 2 px a frame; panning is disabled while walking. — **2026-10-26:** DH2 pans smoothly; the step size is cosmetic. |
+| `wmMouseBkProc` | `Worldmap.ts:858 _onWMMouseMove` | 🚫 N/A (2026-10-26) | LOW | CE: the screen-edge pixel, 20 px every 50 ms, scroll cursors (and "can't scroll" cursors). DH2: a 20 px band inside the view, 2 px a frame, no cursor change. — **2026-10-26:** as wmInterfaceScroll: DH2 pans smoothly inside a band. |
 | `wmMarkSubTileOffsetVisited` / `wmMarkSubTileOffsetKnown` / `wmMarkSubTileOffsetVisitedFunc` | `Worldmap.ts:373 markSquare` | ✅ | — | "Known only while unknown" rule kept. The numbers are swapped against CE (WM-01). |
 | `wmMarkSubTileRadiusVisited` | `Worldmap.ts:391 markSubTileRadiusVisited` | ✅ | — | Radius 1 / Scout 2; `fill_s`, `fill_w` (including the CE `subtileX-- >= 0` step into the left tile). |
 | `wmSubTileMarkRadiusVisited` (script) | `scripting.ts:945 metarule3 101` | ✅ FIXED (2026-10-25) | LOW | Returns 0 and does nothing; the implementation exists but has a fixed radius (Scout) and is not exported. Used by `bhrnddst`. NEW. — **Fixed 2026-10-25:** metarule3 101 marks the subtiles. |
@@ -115,7 +115,7 @@ Top findings, by severity:
 | `wmAreaMarkVisited` | `setAreaVisitedState(id, 2)` | ✅ | — | |
 | `wmAreaMarkVisitedState` | `Worldmap.ts:521 setAreaVisitedState` | ✅ FIXED (WM-08) | MED | The 2→1 first-visit rule is kept; the fog reveal and the subtile-known side effects are missing (WM-08). |
 | `wmAreaSetVisibleState` | `Worldmap.ts:512 setAreaVisible` | ✅ | — | Callers implement `force`/`lockState` (special encounter checks `lockState`; mark_area_known forces). |
-| `wmAreaSetWorldPos` | `scripting.ts:3179 wm_area_set_pos`, internal assignments | ⚠️ | LOW | CE refuses x/y outside 0…1400 / 0…1500 (returns −1, with a script error in `opWmAreaSetPos`); DH2 accepts any value. |
+| `wmAreaSetWorldPos` | `scripting.ts:3179 wm_area_set_pos`, internal assignments | ✅ FIXED (2026-10-26) | LOW | CE refuses x/y outside 0…1400 / 0…1500 (returns −1, with a script error in `opWmAreaSetPos`); DH2 accepts any value. — **2026-10-26:** wm_area_set_pos refuses x/y outside 0..1399 / 0..1499. |
 | `wmGetPartyWorldPos` | `Worldmap.ts:345 getPlayerWorldPos` | ✅ | — | DH2 rounds; positions are integers anyway. Returns 0,0 (metarule 44/45) before the worldmap is initialised. |
 | `wmGetPartyCurArea` | `Worldmap.ts:531 getCurrentAreaId` | ✅ | — | |
 | `wmMarkAllSubTiles` | `resetWorldmap` re-parse | ✅ | — | |
@@ -127,7 +127,7 @@ Top findings, by severity:
 | `wmCarUseGas` | `Worldmap.ts:196 carUseGas` | ✅ | — | Super car −90 %, NR upgrade −10 %, regulator /2, clamp 0. |
 | `wmCarFillGas` | `Worldmap.ts:289 addCarFuel`, `scripting.ts:907 metarule 32` | ✅ FIXED (2026-10-26) | LOW | CE returns the amount that does not fit; DH2 metarule returns 1. DH2 ignores negative amounts; CE subtracts them. — **2026-10-26:** CE's amount and result. |
 | `wmCarGasAmount` | `getCarFuel` | ✅ | — | |
-| `wmCarIsOutOfGas` | `scripting.ts:1024 metarule3 110` | ⚠️ | LOW | CE `carFuel <= 0` whether or not the party is in the car; DH2 also requires `isInCar`. Not used by name in the vanilla scripts. |
+| `wmCarIsOutOfGas` | `scripting.ts:1024 metarule3 110` | ✅ FIXED (2026-10-26) | LOW | CE `carFuel <= 0` whether or not the party is in the car; DH2 also requires `isInCar`. Not used by name in the vanilla scripts. — **2026-10-26:** metarule3 110: carFuel <= 0, in the car or not. |
 | `wmCarCurrentArea` | `getCarAreaId`, metarule 30 | ✅ | — | |
 | `wmCarGiveToParty` | `scripting.ts:890 metarule 31` | ✅ | — | Empty-tank message 1502 and −1; isInCar; worldmap; CAR_OUT_OF_GAS reset. DH2 opens the worldmap at once instead of through a −2 map transition at the end of the frame. |
 | `wmSfxMaxCount` / `wmSfxRollNextIdx` | `audio.ts:301 rollNextSfx` | ✅ | — | |
@@ -144,7 +144,7 @@ Top findings, by severity:
 | `wmSetMapMusic` | `data.ts:389 setMapMusicOverride` | ✅ FIXED (2026-10-26) | LOW | CE restarts the music at once when the index is the current map; DH2 only stores it for the next load. — **2026-10-26:** the current map's music restarts. |
 | `wmMatchAreaContainingMapIdx` | `Worldmap.ts:911 areaIdContainingMap` | ✅ | — | 0 when nothing matches, as in CE. |
 | `wmTeleportToArea` | `Worldmap.ts:543 teleportToArea` | ✅ | — | Sphere centre − WM_VIEW (sfall fix). |
-| `wmFadeOut` / `wmFadeIn` / `wmFadeReset` | `mapFade.ts beginMapFade/endMapFade` | 🟡 | LOW | Black overlay around map loads, not a palette fade; nothing before the encounter blink (documented in worldmap.md §17 #2). |
+| `wmFadeOut` / `wmFadeIn` / `wmFadeReset` | `mapFade.ts beginMapFade/endMapFade` | 🚫 N/A (2026-10-26) | LOW | Black overlay around map loads, not a palette fade; nothing before the encounter blink (documented in worldmap.md §17 #2). — **2026-10-26:** documented in worldmap.md §17 #2. |
 | `wmBlinkRndEncounterIcon` | `Worldmap.ts:1098 blinkEncounterIcon` | ✅ | — | 7 × 200 ms, FIDs 154/155 (wmapfgt0/1) and 438/439 (wmrnden2/3). |
 | `wmSetPartyWorldPos` | `Worldmap.ts:351 setPlayerWorldPos` | ✅ | — | DH2 also stops a walk and resets the marker (harmless). |
 | `wmCarSetCurrentArea` | `setCarAreaId` (`set_car_current_town`) | ✅ | — | |

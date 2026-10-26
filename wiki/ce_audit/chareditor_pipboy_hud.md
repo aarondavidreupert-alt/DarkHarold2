@@ -42,18 +42,18 @@ Top findings:
 | characterEditorShow — `_proto_dude_update_gender` on creation done | `player.ts:353` updateNativeLook | ✅ | — | |
 | characterEditorWindowInit / WindowFree | viewer/creator WindowFrame build | 🚫 | — | Layout coordinates follow CE. |
 | characterEditorInit / Reset (5 char points, last level 1) | `creator.ts:67` pool = 5 | ✅ | — | |
-| _get_input_str / _isdoschar | `creator.ts:428` `<input maxLength=11>` | ⚠️ | LOW | Any Unicode accepted (CE: DOS charset only). Field shows "none" where CE starts empty for "None". |
+| _get_input_str / _isdoschar | `creator.ts:428` `<input maxLength=11>` | ✅ FIXED (2026-10-26) | LOW | Any Unicode accepted (CE: DOS charset only). Field shows "none" where CE starts empty for "None". — **2026-10-26:** the name field takes space..'z' (KEY_FIRST/LAST_INPUT_CHARACTER, flags 0 — the DOS filter is only for file names), 11 at most; "None" starts empty. |
 | _strmfe | — | 🚫 | — | Filename helper for print/save. |
 | characterEditorDrawFolders | `folders.ts:187` draw | ✅ | — | C57. |
 | characterEditorDrawPerksFolder | `folders.ts:63` | ✅ | — | Traits heading 156, perks 109, "(rank)", fallback card 71/124/127. |
 | characterEditorKillsCompare / DrawKillsFolder | `folders.ts:146` | ✅ | — | proto.msg 1450+ / 1469+, sorted by name. |
-| characterEditorDrawBigNumber | `ui_font.ts renderBignum` | ⚠️ | LOW | Static; CE animates the digits counting up or down. |
-| characterEditorDrawPcStats | `viewer.ts:165-182` | ⚠️ | LOW | XP has no thousands separators (`_itostndn`); at max level CE leaves "Next Level" blank (msg 175 above 999,999); the lines can't be selected for their cards. |
+| characterEditorDrawBigNumber | `ui_font.ts renderBignum` | ✅ FIXED (2026-10-26) | LOW | Static; CE animates the digits counting up or down. — **2026-10-26:** a changed digit shows glyph 11 for 123 ms, ones then tens (setBignum); out of 0..99 shows 99. |
+| characterEditorDrawPcStats | `viewer.ts:165-182` | ✅ FIXED (2026-10-26) | LOW | XP has no thousands separators (`_itostndn`); at max level CE leaves "Next Level" blank (msg 175 above 999,999); the lines can't be selected for their cards. — **2026-10-26:** thousands commas; "Next Level" blank at level 99, editor.msg 175 above 999,999; the three lines open their cards. |
 | characterEditorDrawPrimaryStat | `viewer.ts:530`, `creator.ts:842` | ✅ | — | Value and stat.msg 301-310 comment (clamped). |
 | characterEditorDrawGender / Age / Name | `creator.ts:530-612`, `viewer.ts:204-265` | ✅ | — | |
 | characterEditorDrawDerivedStats | `statPanels.ts:84` renderStatPanels | ✅ FIXED (CHAR-05) | MED | Labels, order and formats match CE. The creator feeds it a bare StatSet without trait effects (CHAR-05). |
 | characterEditorDrawSkills | `viewer.ts:498`, `creator.ts:783` | ✅ FIXED (CHAR-02) | HIGH | Colours ✅. Values leave out trait modifiers in game (CHAR-02). Hard-coded English skill names. |
-| characterEditorDrawCard | `viewer.ts:393` drawCard | 🟡 | LOW | Skill cards lack CE's attributes/default subtitle (`skillGetAttributes`). No cards for Level/Exp/Next Level/Tag Skills/Skill Points (120-123). The texts are hard-coded English in `descriptions.ts`, not stat.msg/skill.msg/trait.msg/editor.msg 400-406. |
+| characterEditorDrawCard | `viewer.ts:393` drawCard | ✅ FIXED (2026-10-26) | LOW | Skill cards lack CE's attributes/default subtitle (`skillGetAttributes`). No cards for Level/Exp/Next Level/Tag Skills/Skill Points (120-123). The texts are hard-coded English in `descriptions.ts`, not stat.msg/skill.msg/trait.msg/editor.msg 400-406. — **2026-10-26:** texts from stat.msg / skill.msg / trait.msg / editor.msg (English kept as fallback), skill cards with "Base: n% + (attributes)", cards for Level / Exp / Next Level / Character Points / Skill Points / Tag Skills / Optional Traits / Skills. |
 | characterEditorEditName | `creator.ts:416` | ✅ | — | Max 11, an empty entry keeps the old name. |
 | _PrintName | — | 🚫 | — | |
 | characterEditorEditAge | `creator.ts:450` | ✅ | — | 16..35. No auto-repeat while held (cosmetic). |
@@ -63,21 +63,21 @@ Top findings:
 | characterFileExists / characterPrintToFile / _AddSpaces / _AddDots | — | ✅ FIXED (2026-10-25) | LOW | PRINT button inert, `viewer.ts:154` (CHAR-06). |
 | characterEditorResetScreen / RegisterInfoAreas | per-element onclick | 🚫 | — | |
 | characterEditorSavePlayer / RestorePlayer | `viewer.ts:436-437` (skills + stats clone only) | ✅ FIXED (CHAR-01, CHAR-04) | MED | Only skills are snapshotted; perks, the free-perk flag, traits and HP are not (CHAR-01, CHAR-04). |
-| _itostndn | — | ❌ | LOW | No comma formatting. |
+| _itostndn | — | ✅ FIXED (2026-10-26) | LOW | No comma formatting. — **2026-10-26:** thousands commas (toLocaleString en-US is the same grouping). |
 | characterEditorDrawCardWithOptions | `viewer.ts:393` | 🚫 | — | |
 | characterEditorHandleFolderButtonPressed | `viewer.ts:296` activateFolder | ✅ | — | ib3p1xx1, folder card. |
-| characterEditorHandleInfoButtonPressed | per-element onclick | 🟡 | LOW | SPECIAL/skills/derived/conditions/traits are clickable; Level/Exp/Next Level/Tag/SP are not. |
+| characterEditorHandleInfoButtonPressed | per-element onclick | ✅ FIXED (2026-10-26) | LOW | SPECIAL/skills/derived/conditions/traits are clickable; Level/Exp/Next Level/Tag/SP are not. — **2026-10-26:** Level / Exp / Next Level / Skill Points / Tag Skills / Optional Traits / Skills open their cards. |
 | characterEditorHandleAdjustSkillButtonPressed | `viewer.ts:547` modifySkill | ✅ FIXED (2026-10-26) | LOW | Cost and minimum logic ✅ (`char.ts:150-191`). The errors (editor.msg 132/133 "At maximum level", 134/135 "At minimum level", 136 "Not enough skill points") are only a `dbgWarn` — no dialog, no error sound. — **2026-10-26:** the 132-136 refusals in a dialog with iisxxxx1. |
 | characterEditorToggleTaggedSkill | `creator.ts:809` | ✅ FIXED (2026-10-26) | LOW | A 4th tag is refused silently; CE shows 140/141 with iisxxxx1. — **2026-10-26:** 140 / 141 in a dialog. |
 | characterEditorDrawOptionalTraits | `creator.ts:619` refreshTraitPanel | ✅ | — | |
 | characterEditorToggleOptionalTrait | `creator.ts:690` | ✅ FIXED (2026-10-26) | LOW | A 3rd trait shows the invented card text "You may only pick 2 traits."; CE shows the dialog 148/149 with iisxxxx1. — **2026-10-26:** 148 / 149 in a dialog. |
 | characterEditorDrawKarmaFolder | `folders.ts:93` | ✅ | — | karmavar/genrep, town tiers (−30/−15/0/15/30), addictions 4001. |
 | characterEditorSave / Load (last level, free perk) | `saveload.ts:203` pendingPerkPick | ✅ | — | |
-| characterEditorUpdateLevel | `player.ts:262-287` (at XP gain) | 🟡 | LOW | Same SP formula and every-3/4-levels rule. Differences: SP is computed when the XP arrives, not when the editor opens (INT is read at a different time); no 37-perk cap. |
+| characterEditorUpdateLevel | `player.ts:262-287` (at XP gain) | ✅ FIXED (2026-10-26) | LOW | Same SP formula and every-3/4-levels rule. Differences: SP is computed when the XP arrives, not when the editor opens (INT is read at a different time); no 37-perk cap. — **2026-10-26:** the points and the free perk come when the screen opens (editorUpdateLevel; CANCEL undoes it), from base INT then; no free perk with 37 perks taken; the last level seen is saved. |
 | perkDialogRefreshPerks / perkDialogShow | `perkModal.ts:39` showPerkModal | ✅ FIXED (CHAR-01) | HIGH | No Tag! skill step (CHAR-01). Lifegiver/Educated effects in `applyPerk` ✅, but Educated is undone by the viewer's DONE (CHAR-01). |
-| perkDialogHandleInput | `perkModal.ts:80` showPickList | ⚠️ | LOW | Mouse only (CE: arrows, Return, ESC, Page keys, double-click). 11 visible lines vs a scrolled div. |
-| perkDialogDrawPerks / perkDialogOptionCompare | `perkModal.ts:42`, `perks.ts:19` getValidPerks | ⚠️ | LOW | Listed by perk id, not sorted by name. Rank shown as "n/max" (CE: "(rank)" only when rank > 0). |
-| perkDialogRefreshTraits / DrawTraits | `perkModal.ts:62` runMutate | ⚠️ | LOW | PICK A NEW TRAIT offers the trait just dropped (CE leaves out both original traits) and isn't sorted by name. |
+| perkDialogHandleInput | `perkModal.ts:80` showPickList | ✅ FIXED (2026-10-26) | LOW | Mouse only (CE: arrows, Return, ESC, Page keys, double-click). 11 visible lines vs a scrolled div. — **2026-10-26:** Up / Down, Page Up / Down (11), Return, Esc; a click on the selected line is DONE. |
+| perkDialogDrawPerks / perkDialogOptionCompare | `perkModal.ts:42`, `perks.ts:19` getValidPerks | ✅ FIXED (2026-10-26) | LOW | Listed by perk id, not sorted by name. Rank shown as "n/max" (CE: "(rank)" only when rank > 0). — **2026-10-26:** sorted by name (case-insensitive); "(rank)" only once taken. |
+| perkDialogRefreshTraits / DrawTraits | `perkModal.ts:62` runMutate | ✅ FIXED (2026-10-26) | LOW | PICK A NEW TRAIT offers the trait just dropped (CE leaves out both original traits) and isn't sorted by name. — **2026-10-26:** PICK A NEW TRAIT leaves out both original traits, sorted by name; the Tag! list is sorted too. |
 | perkDialogHandleMutatePerk | `perkModal.ts:50-76` | ✅ | — | LOSE (154) → PICK (153); backing out takes the perk away. |
 | perkDialogRefreshSkills / HandleTagPerk / DrawSkills | — | ✅ FIXED (CHAR-01) | HIGH | CHAR-01. |
 | perkDialogDrawCard | `perkModal.ts:180` | ✅ | — | |
@@ -96,14 +96,14 @@ Top findings:
 | pipboyOpen — wmMapPipboyActive / misc.msg 7000 gate | `ui_pipboy/shell.ts:514` | ✅ | — | |
 | pipboyOpen — keys ESC/Return/P/Z close, PgUp/PgDn | `input.ts:155`, `status.ts:189` | ✅ | — | |
 | pipboyOpen — REST intent (Z) | `shell.ts:605` openPipBoyRest | ✅ | — | |
-| pipboyOpen — idle screensaver | — | ❌ | LOW | Documented approximation. |
+| pipboyOpen — idle screensaver | — | ✅ FIXED (2026-10-26) | LOW | Documented approximation. — **2026-10-26:** after 2 idle minutes the bombs fall over the bare screen (ui_pipboy/logo.ts, CE's spawn rate, speeds and 50 ms steps); any input ends it. |
 | pipboyWindowInit — rest option count | `shell.ts:350` | ✅ | — | Party > 0 and someone healable. |
-| pipboyWindowInit — logo + holiday name start screen; "pipon" sound | `shell.ts:584` opens STATUS | ⚠️ | LOW | No logo screen, no holiday (pipboy.msg holiday ids). pipon: not in the data (C40). |
+| pipboyWindowInit — logo + holiday name start screen; "pipon" sound | `shell.ts:584` opens STATUS | 🟡 PARTLY FIXED (2026-10-26) | LOW | No logo screen, no holiday (pipboy.msg holiday ids). pipon: not in the data (C40). — **2026-10-26:** the Pip-Boy opens on the logo with the holiday name (pipboy.msg 100-107) until a tab is picked; pipon is still not in the data (C40). |
 | pipboyWindowInit — `_rest_time = 0`, `_proc_bail_flag = 0` | `shell.ts:521` | ✅ | — | |
 | pipboyWindowFree — scriptsExecMapUpdateProc, indicatorBarShow, interfaceBarRefresh | `shell.ts:587` (updateMap) | ✅ | — | |
 | _pip_init_ / pipboyInit / pipboyReset | `Config.engine.pipboyAvailableAtStart` | ✅ | — | |
 | pipboyDrawNumber / pipboyDrawDate | `shell.ts:105` renderDateTimeBar | ✅ | — | DDMonYYYY + HHMM, no colon, as in CE. |
-| pipboyDrawText / pipboyDrawBackButton | `status.ts:47` textLine, shell helpers | 🚫 | LOW | DOM monospace font, colours #00FF00/#FFFF5A approximate CE 992/32747. |
+| pipboyDrawText / pipboyDrawBackButton | `status.ts:47` textLine, shell helpers | ✅ FIXED (2026-10-26) | LOW | DOM monospace font, colours #00FF00/#FFFF5A approximate CE 992/32747. — **2026-10-26:** colours 992 / 32747 (#3cf800 / #fcfc7c); the pixel font covers the text. |
 | _save_pipboy / pipboySave / pipboyLoad | — | ✅ | — | CE saves nothing. |
 | pipboyWindowHandleStatus | `status.ts:75` renderStatusTab, `:136` renderQuestList | ✅ | — | Thresholds `gvar >= display`, completed `>= completed` struck through; 203 when there are no quests. |
 | pipboyWindowRenderQuestLocationList | `status.ts:66` questLocations | ✅ | — | |
@@ -117,10 +117,10 @@ Top findings:
 | pipboyDrawHitPoints | `shell.ts:308` renderRestClock | ✅ | — | |
 | pipboyWindowCreateButtons / DestroyButtons | DOM onclick | 🚫 | — | |
 | pipboyRest (fixed / until hour) | `shell.ts:251` | ✅ | — | Same frame math; events fire through `setTime` → timeJumpHandler; ESC; queue bail (C53). |
-| pipboyRest (until healed / party healed) | `shell.ts:289-303` | ⚠️ | LOW | CE's second pass rests one extra 3 h block after the last heal (it loops on the hpToHeal measured *before* the rest, `pipboy.cc:2140-2160`); DH2 checks before each block. No wait-watch cursor. |
+| pipboyRest (until healed / party healed) | `shell.ts:289-303` | ✅ FIXED (2026-10-26) | LOW | CE's second pass rests one extra 3 h block after the last heal (it loops on the hpToHeal measured *before* the rest, `pipboy.cc:2140-2160`); DH2 checks before each block. No wait-watch cursor. — **2026-10-26:** the second pass tests the wound measured before the last block (one extra 3 h block, as CE); the animated wait-watch cursor (WAIT2) while resting. |
 | _Check4Health / _AddHealth (`_partyMemberRestingHeal(3)`) | `shell.ts:223-236` | ✅ | — | Every 180 min, Healing Rate to the dude and party. |
 | _ClacTime | `shell.ts:180` | ✅ | — | Literal port. |
-| pipboyRenderScreensaver | — | ❌ | LOW | Documented (README known approximations). |
+| pipboyRenderScreensaver | — | ✅ FIXED (2026-10-26) | LOW | Documented (README known approximations). — **2026-10-26:** ported (ui_pipboy/logo.ts). |
 | questInit / questFree / questDescriptionCompare | `questData.ts:43` getQuestDefs | ✅ | — | quests.txt, quests.msg, map.msg, sorted by location (DH2's sort is stable; CE qsort order within a location is unverified). |
 | holodiskInit / holodiskFree | `questData.ts:58` | ✅ | — | |
 
@@ -128,10 +128,10 @@ Top findings:
 
 | CE function | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| interfaceInit (bar window, buttons, sounds) | `ui.ts:208` initUI + static HTML | 🟡 | LOW | Every CE button exists (inventory, options, skilldex, map, chr, pip, swap, attack, end turn/combat). Per-button press sounds not checked one by one. |
+| interfaceInit (bar window, buttons, sounds) | `ui.ts:208` initUI + static HTML | ✅ FIXED (2026-10-26) | LOW | Every CE button exists (inventory, options, skilldex, map, chr, pip, swap, attack, end turn/combat). Per-button press sounds not checked one by one. — **2026-10-26:** the bar buttons sound ib2p1xx1 / ib2lu1x1, the item button ib3p1xx1 / ib3lu1x1. |
 | interfaceReset / interfaceFree | — | 🚫 | — | |
-| interfaceLoad / interfaceSave | `saveload.ts:206` activeHand | 🟡 | LOW | The current hand is saved. The bar enabled/hidden state and end-button visibility are not (a scripted `game_ui_disable` across a save is lost). |
-| interfaceBarHide / Show | — | 🟡 | LOW | Unverified for script hides (movies hide the whole UI). |
+| interfaceLoad / interfaceSave | `saveload.ts:206` activeHand | ✅ FIXED (2026-10-26) | LOW | The current hand is saved. The bar enabled/hidden state and end-button visibility are not (a scripted `game_ui_disable` across a save is lost). — **2026-10-26:** the game_ui_disable state is saved and restored with the hand. |
+| interfaceBarHide / Show | — | 🚫 N/A (2026-10-26) | LOW | Unverified for script hides (movies hide the whole UI). — **2026-10-26:** no script opcode hides the bar (game_ui_disable no longer hides it, as CE); movies hide the whole UI. |
 | interfaceBarEnable / Disable / Enabled | `globalState.gameUIDisabled`, `input.ts:225` | ✅ | — | |
 | interfaceBarRefresh | uiDrawWeapon/drawHP/drawAC callers | ✅ | — | |
 | interfaceRenderHitPoints | `ui_hud.ts:90` drawHP | ✅ | — | 25 % / 50 % colour bands, 250/(Δ+1) ms per step. |
@@ -144,7 +144,7 @@ Top findings:
 | interfaceCycleItemAction | `ui.ts:193`, `Weapon.ts:244` cycleMode | ✅ | — | primary → aimed → secondary → secondary aimed → reload (if not full); Fast Shot blocks aiming. |
 | _intface_use_item | `ui.ts:249` attack button onclick | ✅ FIXED (HUD-02) | MED | HUD-02 (reload AP). Misc-item use in combat: CE checks and charges AP (`itemGetActionPointCost`); DH2 calls `activeItem.use(player)`, AP charge unverified. Crosshair + combat start ✅. |
 | _intface_update_ammo_lights | `ui_hud.ts:461` uiUpdateAmmoBar | ✅ | — | |
-| interfaceBarEndButtonsShow | `ui_hud.ts:538` uiStartCombat | ⚠️ | LOW | Animation frames ✅. The "iciboxx1" open sound is missing (only icibcxx1 on close). Fixed 66 ms per frame vs the FRM's fps. |
+| interfaceBarEndButtonsShow | `ui_hud.ts:538` uiStartCombat | ✅ FIXED (2026-10-26) | LOW | Animation frames ✅. The "iciboxx1" open sound is missing (only icibcxx1 on close). Fixed 66 ms per frame vs the FRM's fps. — **2026-10-26:** iciboxx1 on opening; a frame every 1000 / the FRM's fps. |
 | interfaceBarEndButtonsHide | `ui_hud.ts:559`, `Combat.ts:2882` | ✅ | — | |
 | interfaceBarEndButtonsRenderGreenLights / RedLights | `ui_hud.ts:519-532` | ✅ | — | Buttons enabled/disabled with the lights. |
 | intface_init_items | — | 🚫 | — | |
@@ -155,11 +155,11 @@ Top findings:
 | _intface_item_reload | `ui.ts:240` reloadWeapon | ✅ FIXED (HUD-02) | MED | HUD-02: no weapon ready sfx (`sfxBuildWeaponName(READY)`); DH2 forces 'single' where CE calls `interfaceCycleItemAction` (also ends on primary). |
 | interfaceRenderCounter | `ui_hud.ts:41` drawDigits | ✅ | — | |
 | intface_fatal_error | — | 🚫 | — | |
-| indicatorBarInit | `ui_hud.ts:205` buildBadgeSrcCanvases | ⚠️ | LOW | Labels hard-coded English; CE uses intrface.msg 100-104. |
+| indicatorBarInit | `ui_hud.ts:205` buildBadgeSrcCanvases | ✅ FIXED (2026-10-26) | LOW | Labels hard-coded English; CE uses intrface.msg 100-104. — **2026-10-26:** the labels from intrface.msg 100-104. |
 | interfaceBarFree / indicatorBarReset | — | 🚫 | — | |
 | indicatorBarRefresh | `ui_hud.ts:234` updateIndicatorBar | ✅ FIXED (HUD-01) | MED | HUD-01 (LEVEL source). SNEAK/ADDICT/POISONED (> 0)/RADIATED (> 65) ✅. |
 | indicatorBoxCompareByPosition / indicatorBarRender / indicatorBarAdd | `ui_hud.ts:279` | ✅ | — | Enum order, connector geometry. |
-| indicatorBarShow / Hide | — | 🟡 | LOW | No explicit hide; the Pip-Boy/inventory windows cover it (unverified for every window). |
+| indicatorBarShow / Hide | — | ✅ FIXED (2026-10-26) | LOW | No explicit hide; the Pip-Boy/inventory windows cover it (unverified for every window). — **2026-10-26:** hidden while the dialogue, the character screen or the Pip-Boy is open. |
 | customInterfaceBarInit/Exit/GetBackgroundImageData, sidePanelsInit/Exit/Hide/Show/Draw | — | 🚫 | — | sfall hi-res features. |
 | interface_get_current_attack_mode (sfall) | — | 🚫 | — | sfall opcode helper (out of scope here). |
 

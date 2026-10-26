@@ -46,6 +46,8 @@ export interface AudioEngine {
     playSound(soundName: string): HTMLAudioElement | null
     playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial, source?: Obj | null): void
     stopMusic(): void
+    pauseMusic(): void
+    resumeMusic(): void
     stopAll(): void
     tick(): void
     setVolume(channel: 'master' | 'music' | 'sfx' | 'speech', value: number): void
@@ -61,6 +63,8 @@ export class NullAudioEngine implements AudioEngine {
     }
     playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial): void {}
     stopMusic(): void {}
+    pauseMusic(): void {}
+    resumeMusic(): void {}
     stopAll(): void {}
     tick(): void {}
     setVolume(_channel: 'master' | 'music' | 'sfx' | 'speech', _value: number): void {}
@@ -81,6 +85,10 @@ export class HTMLAudioEngine implements AudioEngine {
     nextSfx: string | null = null
     lastAmbientTime = -Infinity // CE _lastTime_1 (real time)
     musicAudio: HTMLAudioElement | null = null
+    // CE game_sound.cc: the track to restart when a zero volume is raised (_gsound_background_df_vol)
+    lastMusic: string | null = null
+    musicOffByVolume = false
+    pausedMusic: HTMLAudioElement | null = null
 
     // Volume levels (0.0–1.0 internally; Preferences UI uses 0–100). CE game_config.cc
     // gameConfigInit: every volume starts at 22281 of 32767 (fallout2.cfg sets them otherwise).
@@ -193,12 +201,34 @@ export class HTMLAudioEngine implements AudioEngine {
 
     playMusic(music: string): void {
         this.stopMusic()
+        this.lastMusic = music
         if (!Config.engine.soundsEnabled || !Config.engine.musicEnabled) return // [sound] sounds=0 / music=0
+        // CE backgroundSoundSetVolume: a zero music or master volume disables the music
+        if (this.musicVolume === 0 || this.masterVolume === 0) { this.musicOffByVolume = true; return }
         this.musicAudio = this.playSound('music/' + music)
         if (this.musicAudio) {
             this.musicAudio.loop = true
-            this.musicAudio.volume = this.musicVolume * this.masterVolume
+            this.musicAudio.volume = this.musicElementVolume()
         }
+    }
+
+    // CE plays the background music at gMusicVolume × 0.94 (under the master mix)
+    private musicElementVolume(): number {
+        return this.musicVolume * 0.94 * this.masterVolume
+    }
+
+    // CE backgroundSoundPause / Resume (loadsave.cc: under the save / load window)
+    pauseMusic(): void {
+        if (this.musicAudio && !this.musicAudio.paused) {
+            this.musicAudio.pause()
+            this.pausedMusic = this.musicAudio
+        }
+    }
+
+    resumeMusic(): void {
+        const el = this.pausedMusic
+        this.pausedMusic = null
+        if (el && el === this.musicAudio) el.play().catch(e => dbg('audio', '[Audio] play() blocked:', e))
     }
 
     playSound(soundName: string): HTMLAudioElement | null {
@@ -288,14 +318,23 @@ export class HTMLAudioEngine implements AudioEngine {
     setVolume(channel: 'master' | 'music' | 'sfx' | 'speech', value: number): void {
         // value is 0–100 from the UI; normalise to 0.0–1.0
         const v = Math.max(0, Math.min(100, value)) / 100
-        if (channel === 'master') {
-            this.masterVolume = v
-            if (this.masterGainNode) this.masterGainNode.gain.value = v
+        if (channel === 'master' || channel === 'music') {
+            if (channel === 'master') {
+                this.masterVolume = v
+                if (this.masterGainNode) this.masterGainNode.gain.value = v
+            } else {
+                this.musicVolume = v
+            }
             // Music uses HTMLAudioElement so update its volume directly.
-            if (this.musicAudio) this.musicAudio.volume = this.musicVolume * v
-        } else if (channel === 'music') {
-            this.musicVolume = v
-            if (this.musicAudio) this.musicAudio.volume = v * this.masterVolume
+            if (this.musicAudio) this.musicAudio.volume = this.musicElementVolume()
+            // CE gameSoundSetMasterVolume / backgroundSoundSetVolume: at 0 the music stops
+            // (backgroundSoundDisable); raised again, the track starts over
+            if (this.musicVolume === 0 || this.masterVolume === 0) {
+                if (this.musicAudio) { this.stopMusic(); this.musicOffByVolume = true }
+            } else if (this.musicOffByVolume) {
+                this.musicOffByVolume = false
+                if (this.lastMusic) this.playMusic(this.lastMusic)
+            }
         } else if (channel === 'speech') {
             // FO2-CE ref: settings.cc:93 speech_volume — stored for future speech playback.
             this.speechVolume = v
@@ -310,6 +349,7 @@ export class HTMLAudioEngine implements AudioEngine {
     // its HTTP connection, and a few map changes would use up the browser's six per host.
     stopMusic(): void {
         const el = this.musicAudio
+        this.musicOffByVolume = false
         if (!el) return
         this.musicAudio = null
         el.pause()

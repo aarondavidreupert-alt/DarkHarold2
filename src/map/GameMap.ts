@@ -152,6 +152,11 @@ export class GameMap {
         if (obj.type === 'critter' && globalState.inCombat) globalState.combat?.removeCombatant(obj as Critter)
         Scripting.destroy(obj)
         this.removeObject(obj)
+        // CE objectDestroy → _obj_turn_off_light / tileWindowRefresh: a light source, or a wall /
+        // scenery that shaped the light, leaves the lightmap at once
+        if (Config.engine.doFloorLighting && ((obj.lightRadius ?? 0) > 0 || obj.type === 'wall' || obj.type === 'scenery')) {
+            Lightmap.rebuildLight()
+        }
     }
 
     hasRoofAt(pos: Point, elevation?: number): boolean {
@@ -292,11 +297,10 @@ export class GameMap {
         Events.emit('elevationChanged', { elevation: level, oldElevation, isMapLoading })
     }
 
-    // CE ref: map.cc mapSetElevation — fades to black (~166ms), switches elevation, fades in (~83ms).
-    // DH2 approximation: instant black overlay while the switch occurs synchronously underneath,
-    // then fades the overlay to transparent (166ms) so the new elevation is revealed.
+    // DH2: a black overlay while the elevation switches underneath, faded out over 166 ms.
+    // CE map.cc mapSetElevation switches with no fade — [dh2] elevation_fade=0.
     changeElevationFaded(level: number, updateScripts = false): void {
-        if (typeof document === 'undefined') {
+        if (typeof document === 'undefined' || !Config.ui.elevationFade) {
             this.changeElevation(level, updateScripts, false)
             return
         }

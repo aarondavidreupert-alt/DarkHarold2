@@ -37,6 +37,7 @@ import { getAiPacket, AiPacket } from '../aiPackets.js'
 import { getObjectLightIntensity } from '../combat/hitChance.js'
 import { hitSpatialTrigger, Obj, ObjType, objectIsWeapon, SerializedObj, setObjectOpen } from './Obj.js'
 import { WeaponObj } from './items.js'
+import { fixCorpseArt } from '../critter/deathAnim.js'
 
 // CE scripts.cc _scr_SpatialsEnabled — off while a spatial_p_proc runs
 let spatialsBusy = false
@@ -196,7 +197,7 @@ export class Critter extends Obj {
                 obj.stats.setBase('HP', 0)
                 obj.dead = true
                 obj.injuryFlags = (obj.injuryFlags | 0x80) >>> 0 // DAM_DEAD
-                obj.art = mobj.art // the map's death frame art (initialised to idle by init())
+                obj.art = fixCorpseArt(mobj.art) // the map's death frame (init() set idle); violence level
                 obj.frame = 0
                 obj.anim = 'dead'
             } else {
@@ -314,9 +315,10 @@ export class Critter extends Obj {
         }
 
         // CE scripts.cc scriptsExecSpatialProc: not for hidden or flat objects or tiles below
-        // 10, and not while a spatial_p_proc is already running (_scr_SpatialsEnabled).
+        // 10, and not while a spatial_p_proc is already running or map_enter / map_update
+        // scripts run (_scr_SpatialsEnabled).
         if (Config.engine.doSpatials !== false && this.visible !== false && ((this.flags ?? 0) & 0x08) === 0 // OBJECT_FLAT
-            && toTileNum(position) >= 10 && !spatialsBusy) {
+            && toTileNum(position) >= 10 && !spatialsBusy && Scripting.spatialsEnabled()) {
             spatialsBusy = true
             try {
             const hitSpatials = hitSpatialTrigger(position, (this as any).elevation ?? globalState.gMap.currentElevation)

@@ -38,7 +38,8 @@ import { getPROSubTypeName, getPROTypeName, loadPRO, lookupArt, makePID } from '
 import { Scripting } from '../scripting.js'
 import { fromTileNum, toTileNum } from '../tile.js'
 import { uiDrawWeapon, uiLoot, uiLog } from '../ui.js'
-import { getMessage, getProtoMsg, getRandomInt, skillRoll, RollResult } from '../util.js'
+import { getMessage, getProtoMsg, getRandomInt, RollResult } from '../util.js'
+import { skillRoll } from '../skillUse.js'
 import { uiGetTimer } from '../ui_barter/swap.js'
 import { Config } from '../config.js'
 import { isChargedMiscItem, useChargedMiscItem } from '../miscItem.js'
@@ -188,7 +189,7 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
     switchItemProto(obj, desc.active)
 
     let delay = 10 * seconds
-    const roll = source.hasPerk('Demolition Expert') ? RollResult.Success : skillRoll(source, 'Traps').roll
+    const roll = source.hasPerk('Demolition Expert') ? RollResult.Success : skillRoll(source, 'Traps', 0)
     let failure = false
     if (roll === RollResult.CriticalFailure) { delay = 0; failure = true }
     else if (roll === RollResult.Failure) { delay = Math.trunc(delay / 2); failure = true }

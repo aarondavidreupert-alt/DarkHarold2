@@ -79,7 +79,8 @@ export function critterWeaponCode(critter: Obj): number {
 
 // CE game_sound.cc:1105-1150 — play `name`; if a human critter (H…/N…) has no
 // sound of its own, try H<gender>XXXX<code> (HA… picks M/F by STAT_GENDER), then
-// HMXXXX<code> for female critters.
+// HMXXXX<code> for female critters. CE game_sound.cc:1161: the Lieutenant and the second
+// mutant (MALIEU… / MAMTN2…) fall back to the generic mutant's MAMTNT….
 export function playCharSfx(critter: Obj, name: string | null): void {
     const audio = globalState.audioEngine
     if (!audio || !name) return
@@ -92,6 +93,8 @@ export function playCharSfx(critter: Obj, name: string | null): void {
             if (g === 'F') candidates.push(`HMXXXX${name.slice(6)}`)
         }
     }
+    const head = name.slice(0, 6).toUpperCase()
+    if (head === 'MALIEU' || head === 'MAMTN2') candidates.push(`MAMTNT${name.slice(6)}`)
     const found = candidates.find((c) => audio.hasSfx(c))
     dbg('audio', `[SFX] char ${name} → ${found ?? '(none)'}`)
     if (found) audio.playSfx(found.toLowerCase(), critter)

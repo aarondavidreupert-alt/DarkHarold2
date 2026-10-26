@@ -109,6 +109,14 @@ export module Scripting {
     // the map script's map_enter_p_proc is running (override_map_start hands its position
     // to the map loader then)
     var inMapEnter = false
+    // CE _scr_spatials_disable / _scr_spatials_enable: no spatial_p_proc while map_enter /
+    // map_update scripts run or scenery explodes
+    let spatialsOff = 0
+    export function spatialsEnabled(): boolean { return spatialsOff === 0 }
+    function withSpatialsOff<T>(fn: () => T): T {
+        spatialsOff++
+        try { return fn() } finally { spatialsOff-- }
+    }
     var inDialogueReply = false
     var dialogueOptionReactions: number[] = [] // parallel — GAME_DIALOG_REACTION_* (head reaction on pick)
     var scriptMessageAudio: { [msgFile: string]: { [msgID: number]: string } } = {} // {id}{audio}{text} middle field
@@ -1131,8 +1139,8 @@ export module Scripting {
                 return idx === -1 ? 0 : idx
             }
             case 110:
-                // CE ref: worldmap.cc:5984 wmCarIsOutOfGas — returns 1 if car fuel is 0.
-                return (Worldmap.getIsInCar() && Worldmap.getCarFuel() === 0) ? 1 : 0
+                // CE ref: worldmap.cc wmCarIsOutOfGas — carFuel <= 0, in the car or not
+                return Worldmap.getCarFuel() <= 0 ? 1 : 0
             case 111: {
                 // METARULE3_111 (_map_target_load_area) — CE ref: map.cc:1202.
                 // Returns the worldmap area index containing the current map, or -1.
@@ -2166,6 +2174,9 @@ export module Scripting {
             // CE ref: interpreter_extra.cc:2096 objectHide/objectShow call
             // _obj_turn_off_light/_obj_turn_on_light → triggers lightmap rebuild.
             obj.visible = !visibility
+            // objectHide / objectShow set OBJECT_HIDDEN (0x01): kept in step with `visible`, so
+            // the flag tests (blocking, light, line of fire) and the visible tests agree
+            obj.flags = visibility ? ((obj.flags ?? 0) | 0x01) : ((obj.flags ?? 0) & ~0x01)
             if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
         }
         use_obj_on_obj(obj: Obj, who: Obj) {
@@ -2554,7 +2565,9 @@ export module Scripting {
         private getCritterStatPart(obj: Critter, stat: number, bonus: boolean): number {
             const name = statMap[stat]
             if (!isGameObject(obj) || obj.type !== 'critter' || !name) return 0
-            return bonus ? obj.stats.getBonus(name) : obj.stats.getBase(name)
+            if (bonus) return obj.stats.getBonus(name)
+            // sfall get_pc_base_stat → critterGetBaseStat: the base without the dude's traits
+            return obj.stats.getBase(name) - (stat <= 6 ? traitSpecialPart(obj, stat) : 0)
         }
         // CE opPartyMemberList (0x8271): a temporary array of the party (party_member.cc
         // get_all_party_members_objects: the dude first; without include_hidden only
@@ -3144,6 +3157,8 @@ export module Scripting {
         }
         // CE opWorldmap (0x8108) — scriptsRequestWorldMap
         world_map() {
+            // CE scriptsRequestWorldMap: in combat _game_user_wants_to_quit = 1 — the fight ends
+            if (globalState.inCombat) globalState.combat?.end()
             requestScript('worldMap', () => uiWorldMap()) // CE scriptsRequestWorldMap
         }
         // CE opRegAnimObjectRunToTile (0x8114) — as move_to_tile, running.
@@ -3588,7 +3603,7 @@ export module Scripting {
                 const explosives = createObjectWithPID(makePID(0 /* items */, 85 /* Plastic Explosives */), -1)
                 explosives.position = fromTileNum(tile)
                 globalState.gMap.addObject(explosives)
-                explosives.explode(null, damage === 0 ? 0 : 1, damage)
+                withSpatialsOff(() => explosives.explode(null, damage === 0 ? 0 : 1, damage))
                 globalState.gMap.removeObject(explosives)
             })
         }
@@ -3738,6 +3753,8 @@ export module Scripting {
             if (!globalState.mapAreas) { warn('wm_area_set_pos: mapAreas not loaded'); return }
             const areaKey = String(area)
             if (!globalState.mapAreas[areaKey]) { warn('wm_area_set_pos: unknown area ' + area); return }
+            // CE wmAreaSetWorldPos: refused (-1) off the 1400 × 1500 world map
+            if (x < 0 || x >= 1400 || y < 0 || y >= 1500) { warn(`wm_area_set_pos: ${x}, ${y} is off the map`); return }
             globalState.mapAreas[areaKey].worldPosition = { x, y }
             Worldmap.updateAreaMarkerPos(areaKey, x, y)
         }
@@ -4309,6 +4326,10 @@ export module Scripting {
     }
 
     export function updateMap(mapScript: Script, objects: Obj[], elevation: number) {
+        withSpatialsOff(() => updateMapScripts(mapScript, objects))
+    }
+
+    function updateMapScripts(mapScript: Script, objects: Obj[]) {
         gameObjects = objects
         mapFirstRun = false
 
@@ -4344,6 +4365,10 @@ export module Scripting {
         mapID: number,
         isFirstRun: boolean
     ): StartPos | null {
+        return withSpatialsOff(() => enterMapScripts(mapScript, objects, mapID, isFirstRun))
+    }
+
+    function enterMapScripts(mapScript: Script, objects: Obj[], mapID: number, isFirstRun: boolean): StartPos | null {
         gameObjects = objects
         currentMapID = mapID
         mapFirstRun = isFirstRun

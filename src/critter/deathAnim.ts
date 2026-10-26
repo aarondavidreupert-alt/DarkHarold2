@@ -19,6 +19,7 @@ limitations under the License.
 // _obj_fix_violence_settings. Animations are CE anim ids; Critter.getAnimation
 // resolves 'anim:<id>' to the art code (pro.ts artGetCode).
 
+import { artGetCode } from '../pro.js'
 import { Config } from '../config.js'
 import { hexInDirection } from '../geometry.js'
 import globalState from '../globalState.js'
@@ -232,6 +233,23 @@ export function fixViolenceSettings(anim: number): number {
     }
     if (anim >= start && anim <= end) return anim === ANIM_FALL_BACK_BLOOD_SF ? ANIM_FALL_BACK_SF : ANIM_FALL_FRONT_SF
     return anim
+}
+
+// CE object.cc objectRead → _obj_fix_violence_settings: a corpse placed in the map file
+// with a gory single-frame death (its art's two-letter code) becomes a plain fall below the
+// violence level that shows it. Returns the art to use.
+export function fixCorpseArt(art: string): string {
+    const base = art.slice(0, -2)
+    const suffix = art.slice(-2)
+    for (let id = ANIM_BIG_HOLE_SF; id <= ANIM_FALL_FRONT_BLOOD_SF; id++) {
+        const code = artGetCode(id, 0)
+        if (!code || code[0] + code[1] !== suffix) continue
+        const fixed = fixViolenceSettings(id)
+        if (fixed === id) return art
+        const to = artGetCode(fixed, 0)
+        return to ? base + to[0] + to[1] : art
+    }
+    return art
 }
 
 // critter.cc critterKill — the single-frame corpse a kill without animation shows:
