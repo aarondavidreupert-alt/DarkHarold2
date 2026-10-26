@@ -194,6 +194,12 @@ function scheduleArrowHover(): void {
     if (globalState.commandModeTimer !== null) clearTimeout(globalState.commandModeTimer)
     globalState.commandModeTimer = window.setTimeout(() => {
         const hoverObj = getObjectUnderCursor((_: Obj) => true)
+        // CE gameMouseRefresh (ARROW, after the 250 ms rest): with item_highlight an item under
+        // the cursor gets OUTLINE_TYPE_ITEM
+        if (Config.ui.itemHighlight && hoverObj?.type === 'item' && !hoverObj.outline) {
+            hoverObj.outline = 'yellow'
+            globalState.hoveredItem = hoverObj
+        }
         globalState.hoverActionIcon = hoverObj ? primaryActionIcon(hoverObj) : null
         globalState.showLookCursor = hoverObj !== null
         if (hoverObj && hoverObj !== lastPointedObject && globalState.player) {
@@ -321,9 +327,10 @@ export function installInputHandlers(): void {
                     uiContextMenu(obj, { clientX: x, clientY: y })
                 }
             } else if (globalState.cursorMode === 'attack') {
-                // only attack if there's a valid target — no walking fallthrough
-                const target = getObjectUnderCursor((_: Obj) => true)
-                if (target && target !== globalState.player) {
+                // CE _gmouse_handle_event (CROSSHAIR): the critter under the cursor (else a door,
+                // which DH2 can't attack yet) — never a use of other objects, no walking
+                const target = getObjectUnderCursor((o: Obj) => o.type === 'critter' && o !== globalState.player)
+                if (target) {
                     playerUse(target)
                 }
             } else if (globalState.uiMode === UIMode.useSkill) {
@@ -377,22 +384,11 @@ export function installInputHandlers(): void {
     heart.mousemoved = (x: number, y: number) => {
         globalState.cursorPos = { x, y }
 
-        // CE ref: game_mouse.cc:680 — while the item_highlight preference is
-        // on, outline whatever single item is currently under the mouse
-        // cursor (persists outside the render loop so it also participates
-        // in the post-roof outline pass, matching CE's OUTLINE_TYPE_ITEM
-        // being queued the same way as combat outlines).
-        const hoveredItem = Config.ui.itemHighlight
-            ? getObjectUnderCursor((o: Obj) => o.type === 'item')
-            : null
-        if (globalState.hoveredItem !== hoveredItem) {
-            if (globalState.hoveredItem && globalState.hoveredItem.outline === 'yellow') {
-                globalState.hoveredItem.outline = null
-            }
-            if (hoveredItem && !hoveredItem.outline) {
-                hoveredItem.outline = 'yellow'
-            }
-            globalState.hoveredItem = hoveredItem
+        // CE game_mouse.cc _gmouse_remove_item_outline: a move takes the hovered item's
+        // outline off; the arrow-mode hover (scheduleArrowHover) puts it back after 250 ms
+        if (globalState.hoveredItem) {
+            if (globalState.hoveredItem.outline === 'yellow') globalState.hoveredItem.outline = null
+            globalState.hoveredItem = null
         }
 
         // Reset look-cursor timer on movement in command mode

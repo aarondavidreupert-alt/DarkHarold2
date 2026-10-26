@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Called-shot screen: per-region hit-chance readouts on the Pip-Boy-style
-// targeting overlay. Crippled limbs are greyed out and unclickable.
+// targeting overlay (CE calledShotSelectHitLocation).
 
 import { Combat } from './combat.js'
 import globalState from './globalState.js'
@@ -57,7 +57,8 @@ export function uiCalledShot(art: string, target: Critter, callback?: (regionHit
     function drawChance(region: string) {
         let chance: any = (globalState.combat ?? new Combat([])).getHitChance(globalState.player, target, region).hit
         dbg('combat', `[UI] called shot: id: #calledShot-${region}-chance #digit | chance: ${chance}`)
-        if (chance <= 0) {
+        // CE _print_tohit: two digits from 0 ("00"), dashes only below 0
+        if (chance < 0) {
             chance = '--'
         }
         drawDigits('#calledShot-' + region + '-chance #digit', chance, 2, false)
@@ -74,44 +75,16 @@ export function uiCalledShot(art: string, target: Critter, callback?: (regionHit
 
     $id('calledShotBackground').style.backgroundImage = `url('${assetUrl(art + '.png')}')`
 
-    // Map region name to the Critter's crippled flag
-    const crippledFlags: { [region: string]: keyof Critter } = {
-        leftArm:  'crippledLeftArm',
-        rightArm: 'crippledRightArm',
-        leftLeg:  'crippledLeftLeg',
-        rightLeg: 'crippledRightLeg',
-    }
-
+    // CE calledShotSelectHitLocation: every location can be picked (a crippled limb too), and
+    // the pick plays icsxxxx1
     for (const $label of $qa('.calledShotLabel')) {
-        const id = ($label as HTMLElement).id
-        const regionHit = id.split('-')[1]
-        const crippledKey = crippledFlags[regionHit]
-        const isCrippled = crippledKey ? !!(target as any)[crippledKey] : false
-
-        if (isCrippled) {
-            // Gray out crippled parts so the player knows they're already damaged
-            Object.assign(($label as HTMLElement).style, {
-                color: '#666666',
-                textDecoration: 'line-through',
-                cursor: 'default',
-                pointerEvents: 'none',
-            })
-            const $chance = $id('calledShot-' + regionHit + '-chance')
-            if ($chance) Object.assign(($chance as HTMLElement).style, { opacity: '0.4' })
-        } else {
-            // Reset styles (in case uiCalledShot is called multiple times)
-            Object.assign(($label as HTMLElement).style, {
-                color: '',
-                textDecoration: '',
-                cursor: '',
-                pointerEvents: '',
-            })
-            $label.onclick = (evt: MouseEvent) => {
-                const clickedRegion = (evt.target as HTMLElement).id.split('-')[1]
-                dbg('combat', `[UI] called shot: clicked region ${clickedRegion}`)
-                if (callback) {
-                    callback(clickedRegion)
-                }
+        Object.assign(($label as HTMLElement).style, { color: '', textDecoration: '', cursor: '', pointerEvents: '' })
+        $label.onclick = (evt: MouseEvent) => {
+            const clickedRegion = (evt.target as HTMLElement).id.split('-')[1]
+            dbg('combat', `[UI] called shot: clicked region ${clickedRegion}`)
+            globalState.audioEngine?.playSfxByName?.('icsxxxx1')
+            if (callback) {
+                callback(clickedRegion)
             }
         }
     }

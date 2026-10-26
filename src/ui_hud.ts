@@ -375,7 +375,24 @@ export function initLogScrollZones(): void {
 
 // --- Weapon bar ------------------------------------------------------------
 
+// CE interface.cc interfaceUpdateItems: an item new in a hand starts on its primary action
+// (a weapon put back in a hand isn't still in burst or reload mode).
+const lastHandItems: { leftHand: unknown; rightHand: unknown } = { leftHand: undefined, rightHand: undefined }
+function resetChangedHandActions(): void {
+    const p = globalState.player as any
+    if (!p) return
+    for (const hand of ['leftHand', 'rightHand'] as const) {
+        const item = p[hand]
+        if (item !== lastHandItems[hand]) {
+            const w = item?.weapon
+            if (w && Array.isArray(w.modes) && w.modes.length) w.mode = w.modes[0]
+            lastHandItems[hand] = item
+        }
+    }
+}
+
 export function uiDrawWeapon(): void {
+    resetChangedHandActions()
     // draw the active weapon in the interface bar
     const weapon = globalState.player!.equippedWeapon
     clearEl($id('attackButton'))
@@ -623,8 +640,13 @@ export function uiShowCombatHover(target: Obj, screenX: number, screenY: number)
     const notPlayerTeam = isCritter && (target as Critter).teamNum !== player.teamNum
     let text: string
     let color: string
-    const weaponOk = !globalState.combat || (player.equippedWeapon === null || aiHaveAmmoForHover(player))
-    if (isCritter && !(target as Critter).dead && weaponOk && globalState.combat) {
+    // CE _combat_to_hit: " X " whenever _combat_check_bad_shot refuses (dead, crippled arms, AP,
+    // range, ammo, blocked aim) for the current hit mode
+    const weapon = player.equippedWeapon
+    const real = !!weapon && (weapon as any).pid !== undefined
+    const aiming = real ? !!(weapon as any).weapon?.isCalled?.() : !!currentUnarmed(player)?.aiming
+    const shotOk = !!globalState.combat && isCritter && globalState.combat.checkBadShot(player, target as Critter, aiming) === 'ok'
+    if (isCritter && shotOk && globalState.combat) {
         const hit = globalState.combat.getHitChance(player, target as Critter, 'torso').hit
         text = `${hit}%`
         color = rgb555(notPlayerTeam ? 32767 : 32495)
@@ -644,12 +666,6 @@ export function uiShowCombatHover(target: Obj, screenX: number, screenY: number)
     $hover.style.color = color
     $hover.style.whiteSpace = 'pre'
     $hover.textContent = text
-}
-
-// _combat_check_bad_shot's ammo test, enough for the hover's OK/" X " split.
-function aiHaveAmmoForHover(player: Critter): boolean {
-    const w = player.equippedWeapon
-    return ammoGetCapacity(w) === 0 || ammoGetQuantity(w) > 0
 }
 
 export function uiHideCombatHover(): void {

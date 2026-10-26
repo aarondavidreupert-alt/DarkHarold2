@@ -98,6 +98,9 @@ export function getHitDistanceModifier(obj: Critter, target: Critter, weapon: Ob
 
     if (distanceMod >= 0) distanceMod *= obj.isBlinded ? -12 : -4
     else distanceMod *= -4
+    // CE: toHit += distanceMod only with useDistance or when it is a bonus — the no-range check
+    // doesn't take a scope's minimum-distance penalty (−32 for Scope Range)
+    if (!useDistance && distanceMod <= 0) return 0
     return -distanceMod
 }
 

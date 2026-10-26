@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { makePanelDraggable } from './ui_drag.js'
-import { beginUseItemOn, itemCanUseOn } from './useItemOn.js'
+import { beginUseItemOn, cancelUseItemOn, itemCanUseOn } from './useItemOn.js'
 import { ammoGetCapacity, ammoGetQuantity, weaponAttemptReload } from './weaponAmmo.js'
 import { Combat } from './combat.js'
 import globalState from './globalState.js'
@@ -186,6 +186,9 @@ export function swapHands(): void {
         p.activeHand = nextHand
         uiDrawWeapon()
     })
+    // CE: the crosshair and the use-item crosshair go back to the move cursor
+    if (globalState.cursorMode === 'useItem') cancelUseItemOn()
+    if (globalState.cursorMode === 'attack' || globalState.cursorMode === 'useItem') globalState.cursorMode = 'move'
 }
 
 // CE interface.cc interfaceCycleItemAction — the N key and a right-click on the item

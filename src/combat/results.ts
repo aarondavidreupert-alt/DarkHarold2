@@ -93,7 +93,10 @@ export function attackFindInvalidFlags(critter: Critter | null, item: Obj | null
 export function setNewResults(c: Critter, flags: number): void {
     if (c.type !== 'critter' || (protoFlags(c) & CRITTER_INVULNERABLE) !== 0) return
     if ((flags & DAM_DEAD) !== 0) {
-        removeKnockoutEvents(c)
+        // CE _set_new_results: queueRemoveEvents(critter) — every queued event it owns
+        // (knockout, drugs, script timers …)
+        const list = Scripting.timeEventList
+        for (let i = list.length - 1; i >= 0; i--) if (list[i].obj === c) list.splice(i, 1)
     } else if ((flags & DAM_KNOCKED_OUT) !== 0) {
         removeKnockoutEvents(c)
         scheduleKnockoutEvent(c, 10 * (35 - 3 * c.getStat('END')))
