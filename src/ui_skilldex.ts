@@ -28,7 +28,6 @@ import { getMessage } from './util.js'
 import { WindowFrame, SmallButton } from './ui_components.js'
 import { makePanelDraggable } from './ui_drag.js'
 import { UIMode } from './ui_panels.js'
-import { drawHP, uiLog } from './ui_hud.js'
 import { assetUrl } from './modAssets.js'
 
 let skilldexWindow: WindowFrame

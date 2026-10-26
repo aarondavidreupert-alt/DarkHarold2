@@ -21,7 +21,7 @@ import { scriptsCheckGameEvents } from '../gameTick.js'
 import { Events } from '../events.js'
 import { areaContainingMap, loadAreas, lookupMapName, mapIsSaved, type Area } from '../data.js'
 import * as GameTime from '../gametime.js'
-import { Point, pointIntersectsCircle } from '../geometry.js'
+import { Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { hidev, makeEl, showv, uiCloseWorldMap, uiWorldMapShowArea } from '../ui.js'
 import { showConfirm } from '../ui_dialog.js'
@@ -788,21 +788,6 @@ export function init(): void {
         const name = mapID >= 0 ? lookupMapName(mapID) : null
         if (name) teleportToArea(areaIdContainingMap(name))
     })
-    /*$("#worldmap").mousemove(function(e) {
-        var offset = $(this).offset()
-        var x = e.pageX - parseInt(offset.left)
-        var y = e.pageY - parseInt(offset.top)
-
-        var scrollLeft = $(this).scrollLeft()
-        var scrollTop = $(this).scrollTop()
-
-        console.log(scrollLeft + " | " +  $(this).width())
-
-        if(x <= 15) $(this).scrollLeft(scrollLeft - 15)
-        if(x >= $(this).width() - 15) { console.log("y"); $(this).scrollLeft(scrollLeft + 15) }
-
-        console.log(x + ", " + y)
-    })*/
 
     $worldmapPlayer = document.getElementById('worldmapPlayer')
     $worldmapTarget = document.getElementById('worldmapTarget')

@@ -27,32 +27,19 @@ import { openPipBoy, closePipBoy, isPipBoyOpen } from './ui_pipboy.js'
 import { cycleUnarmedAction } from './unarmed.js'
 import { initOptionsMenu, getOptionsWindow, showOptionsMenu, closeOptionsMenu } from './ui_options.js'
 import { initSkilldex, getSkilldexWindow, showSkilldex, closeSkilldex } from './ui_skilldex.js'
-import {
-    initInventory,
-    showInventory,
-    makeDropTarget,
-    makeDraggable,
-} from './ui_inventory.js'
+import { initInventory } from './ui_inventory.js'
 import { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './ui_character.js'
-import { uiBarterMode } from './ui_barter.js'
-import { initLoot, uiLoot } from './ui_loot.js'
-import { uiWorldMap, uiCloseWorldMap, uiWorldMapShowArea } from './ui_worldmap.js'
-import { uiElevator } from './ui_elevator.js'
-import { initCalledShot, uiCalledShot, uiCloseCalledShot } from './ui_calledshot.js'
-import { uiContextMenu, uiHideContextMenu } from './ui_contextmenu.js'
+import { initLoot } from './ui_loot.js'
+import { initCalledShot } from './ui_calledshot.js'
 import {
     drawHP,
     drawAC,
     drawAP,
-    drawDigits,
-    uiLog,
     uiDrawWeapon,
     uiEndCombatAnimationDone,
-    initLogScrollZones,
     attackButtonDisabled,
 } from './ui_hud.js'
 import {
-    UIMode,
     initUiContainer,
     closeAllPanels,
     isCharacterOpen,
@@ -186,7 +173,7 @@ function uiInit() {
 // initOptionsMenu() has moved to ui_options.ts.
 // initCharacterScreen() has moved to ui_character.ts as showCharacterScreen().
 
-import { $id, $img, $q, $qa, clearEl, show, hide, showv, hidev, off, appendHTML, makeEl } from './ui_dom.js'
+import { $id } from './ui_dom.js'
 // Preserve the existing public surface (worldmap.ts and ui_options.ts read
 // these via `from './ui.js'`).
 export { showv, hidev, makeEl } from './ui_dom.js'
@@ -226,21 +213,6 @@ export function initUI() {
     uiInit()
 
     // calledShot digit divs + cancel button live in ui_calledshot.ts → initCalledShot()
-
-    /*
-    $id("worldmapViewButton").onclick = () => {
-        var onAreaMap = ($("#areamap").css("visibility") === "visible")
-        if(onAreaMap)
-            uiWorldMapWorldView()
-        else {
-            var currentArea = areaContainingMap(gMap.name)
-            if(currentArea)
-                uiWorldMapShowArea(currentArea)
-            else
-                uiWorldMapAreaView()
-        }
-    }
-    */
 
     $id('optionsButton').onclick = () => {
         if (isOptionsOpen()) { closeOptionsMenu(); return }

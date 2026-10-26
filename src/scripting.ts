@@ -38,13 +38,11 @@ import { areaContainingMap, getElevator, getLstJson, lookupMapName, lookupScript
 import { CHEM_USE_MAP, getAiPacket } from './aiPackets.js'
 import * as GameTime from './gametime.js'
 import {
-    hexDirectionTo,
     hexDistance,
     hexFromScreen,
     hexInDirection,
     hexNearestNeighbor,
     Point,
-    tile_in_tile_rect,
 } from './geometry.js'
 import { Lightmap } from './lightmap.js'
 import globalState from './globalState.js'
@@ -52,7 +50,7 @@ import { parseIntFile } from './intfile.js'
 import { dbg, dbgWarn } from './logger.js'
 import { uiElevator } from './ui_elevator.js'
 import { Critter, createObjectWithPID, explosiveGetDamage, giveNewUid, Obj, objectGetDamageType, setObjectOpen, zsort } from './object.js'
-import { applyPerk, CE_PERKS, getPerkRank, perkApplyEffect, perkNameById, PERKS } from './perks.js'
+import { CE_PERKS, getPerkRank, perkApplyEffect, perkNameById } from './perks.js'
 import { Player } from './player.js'
 import { loadPRO, lookupArt, makePID } from './pro.js'
 import * as Endgame from './endgame.js'
@@ -68,16 +66,14 @@ import { drawAC, updateIndicatorBar } from './ui_hud.js'
 import { carriedObjectByPid, carriedQuantityByPid, findItemHolder, invenUnwield, invenWield, moveAllInventory, scriptHand, unequipForRemoval } from './inventoryWield.js'
 import { SKILL_NAMES } from './skills.js'
 import { skillRoll } from './skillUse.js'
-import { arrayRemove, assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getProtoMsg, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
+import { arrayRemove, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getProtoMsg, getRandomInt, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
 import { ScriptVM } from './vm.js'
 import { attachLuaScript, isLuaReady, LuaScriptHandle } from './lua/luaRuntime.js'
 import { Worldmap } from './worldmap.js'
 import { ScriptVMBridge } from './vm_bridge.js'
 import { setChildProgramLoader, vmClearPrograms, vmDoEvents } from './vm.js'
-import { processMidnightForDay } from './gameTick.js'
 import { Config } from './config.js'
 import { ammoGetQuantity, ammoSetQuantity, ammoSplitOff, weaponGetAmmoTypePid, weaponSetAmmoTypePid } from './weaponAmmo.js'
-import { refreshStealthState } from './miscItem.js'
 import { isWithinPerception } from './perception.js'
 import { getCenterTile } from './render/camera.js'
 import { AI } from './combat/AI.js'
@@ -2103,11 +2099,6 @@ export module Scripting {
             //stub("create_object_sid", arguments)
 
             // TODO: if tile is valid...
-            /*if(elevation !== currentElevation) {
-                warn("create_object_sid: want to create object on another elevation (current=" + currentElevation + ", elev=" + elevation + ")")
-                return
-            }*/
-
             // add it to the map, then set its position and fix its draw order.
             // Rendering is a plain painter's-algorithm draw in array order (no
             // depth buffer, no per-tile sort) — a raw `obj.position = ...`
@@ -3890,10 +3881,8 @@ export module Scripting {
         var path = 'data/scripts/' + name.toLowerCase() + '.int'
         var data: DataView = getFileBinarySync(path)
         var reader = new BinaryReader(data)
-        //console.log("[%s] loaded %d bytes", name, reader.length)
         var intfile = parseIntFile(reader, name.toLowerCase())
 
-        //console.log("%s int file: %o", name, intfile)
 
         if (!currentMapObject)
             dbg('load', 'note: using current script (%s) as map script for this object', intfile.name)
@@ -4420,10 +4409,6 @@ export module Scripting {
         }
 
         // XXX: caller should do this for all objects, which is better?
-        /*for(var i = 0; i < gameObjects.length; i++) {
-            objectEnterMap(gameObjects[i], elevation, mapID)			
-        }*/
-
         return null
     }
 

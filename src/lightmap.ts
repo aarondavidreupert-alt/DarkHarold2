@@ -117,7 +117,6 @@ export module Lightmap {
 
         var light_per_dist = /* obj.lightIntensity - */ (((obj.lightIntensity - 655) / (obj.lightRadius+1)) | 0)
 
-        //console.log("light per dist: %d", light_per_dist)
 
         var stackArray = new Array(36)
         var light = obj.lightIntensity
@@ -337,7 +336,6 @@ export module Lightmap {
 
                                 // ebx = (curObj+20h) & 0x0F000000 >> 24
                                 if(curObj.type === "wall") {
-                                    //console.log("obj flags: " + curObj.flags.toString(16))
                                     if(!(curObj.flags & 8)) { // Flat flag? (OBJECT_FLAT, object.cc:4553)
                                         // Wall ORIENTATION bits live in the wall proto's extendedFlags
                                         // (flags_ext), NOT the common PRO header `flags`. CE reads
@@ -349,7 +347,6 @@ export module Lightmap {
                                         // NW-SE walls happened to match the default. See wiki/known_bugs
                                         // LD11 / wiki/extended_flags.md §4.
                                         var flags = curObj.pro.extra?.extendedFlags ?? 0
-                                        //console.log("wall extendedFlags: " + flags.toString(16))
                                         if(flags & 0x8000000 || flags & 0x40000000) {
                                             if(dir != 4 && dir != 5 && (dir || i >= 8) && (dir != 3 || i <= 15))
                                                 edi = 0

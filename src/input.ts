@@ -36,11 +36,9 @@ import {
     drawAP,
     uiContextMenu,
     uiHideContextMenu,
-    uiInventoryScreen,
     uiLog,
     uiLoot,
     UIMode,
-    uiSaveLoad,
     uiWorldMap,
 } from './ui.js'
 import { getProtoMsg } from './util.js'

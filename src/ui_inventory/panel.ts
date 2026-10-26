@@ -18,16 +18,15 @@ limitations under the License.
 // wiki/ts-split-refactor.md → "Per-file split proposals" §8.
 
 import { beginUseItemOn, usePendingItemOn } from '../useItemOn.js'
-import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, ammoSplitOff, weaponGetAmmoTypePid } from '../weaponAmmo.js'
+import { ammoGetCapacity, ammoGetQuantity, ammoSplitOff, weaponGetAmmoTypePid } from '../weaponAmmo.js'
 import { weaponAttackType } from '../combat/hitChance.js'
 import { Combat } from '../combat.js'
 import { loadPRO } from '../pro.js'
 import globalState from '../globalState.js'
 import { dbg } from '../logger.js'
 import { lazyLoadImage } from '../images.js'
-import { Obj, createObjectWithPID, cloneItem, testDroppedExplosive } from '../object.js'
+import { Obj, cloneItem, testDroppedExplosive } from '../object.js'
 import { uiGetAmount } from '../ui_barter/swap.js'
-import { Scripting } from '../scripting.js'
 import { drawAC, drawAP, uiDrawWeapon, uiLog } from '../ui_hud.js'
 import { makePanelDraggable } from '../ui_drag.js'
 import { UIMode, closeAllPanels, isInventoryOpen, registerCloseInventoryPanel } from '../ui_panels.js'

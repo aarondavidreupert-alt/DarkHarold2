@@ -27,7 +27,7 @@ import { centerCamera } from '../renderer.js'
 import { computeMapContentBounds, computeObjectContentBounds, computeScrollBlockerBounds } from '../render/camera.js'
 import { Scripting } from '../scripting.js'
 import { fromTileNum, hexToTile, toTileNum } from '../tile.js'
-import { arrayRemove, arrayWithout } from '../util.js'
+import { arrayRemove } from '../util.js'
 
 declare let PF: any
 

@@ -26,7 +26,6 @@ import { Skills, SKILL_NAMES } from './skills.js'
 import { skillUse } from './skillUse.js'
 import {
     drawAP,
-    drawHP,
     uiCalledShot,
     uiCloseCalledShot,
     uiLog,

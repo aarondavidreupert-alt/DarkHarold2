@@ -22,7 +22,7 @@ import * as GameTime from '../gametime.js'
 import { getMessage } from '../util.js'
 import { SKILL_NAMES } from '../skills.js'
 import { killCounts } from '../critter.js'
-import { CE_PERK_REQS, perkNameById, PERK_COUNT } from '../perks/cePerks.js'
+import { perkNameById, PERK_COUNT } from '../perks/cePerks.js'
 import { getPerkRank } from '../perks.js'
 import { karmaFolder } from './folders.js'
 

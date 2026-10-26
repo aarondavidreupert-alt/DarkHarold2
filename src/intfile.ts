@@ -44,21 +44,14 @@ export function parseIntFile(reader: BinaryReader, name: string=""): IntFile {
     var numProcs = reader.read32()
     var procs: Procedure[] = []
     var procedures: { [name: string]: Procedure } = {}
-    //console.log("procs: %d", numProcs)
-    //console.log("")
 
     for(var i = 0; i < numProcs; i++) {
         var nameIndex = reader.read32()
         var flags = reader.read32()
-        //console.log("name index: %d", nameIndex)
-        //console.log("flags: %d", flags)
         assertEq(reader.read32(), 0, "unk0 != 0")
         assertEq(reader.read32(), 0, "unk1 != 0")
         var offset = reader.read32()
-        //console.log("offset: %d", offset)
         var argc = reader.read32()
-        //console.log("argc: %d", argc)
-        //console.log("")
 
         procs.push({nameIndex: nameIndex
                    ,name: ""
@@ -81,7 +74,6 @@ export function parseIntFile(reader: BinaryReader, name: string=""): IntFile {
         var len = reader.read16()
         var offset = reader.offset - baseOffset + 4
         var str = ""
-        // console.log("len=%d, offset=%d", len, offset)
 
         for(var j = 0; j < len; j++) {
             var c = reader.read8()
@@ -89,7 +81,6 @@ export function parseIntFile(reader: BinaryReader, name: string=""): IntFile {
                 str += String.fromCharCode(c)
         }
 
-        // console.log("str=%s", str)
         identifiers[offset] = str
     }
 
@@ -101,11 +92,6 @@ export function parseIntFile(reader: BinaryReader, name: string=""): IntFile {
     // and populate the procedures table
     procs.forEach(proc => procedures[proc.name] = proc)
 
-    // procs.forEach(proc => console.log("proc: %o", proc))
-
-    /*console.log("")
-    console.log("strings:")
-    console.log("")*/
 
     // offset->strings table
     var stringEnd = reader.read32()
@@ -121,7 +107,6 @@ export function parseIntFile(reader: BinaryReader, name: string=""): IntFile {
             var len = reader.read16()
             var offset = reader.offset - baseOffset + 4
             var str = ""
-            // console.log("len=%d, offset=%d, stringEnd=%d", len, offset, stringEnd)
 
             for(var j = 0; j < len; j++) {
                 var c = reader.read8()
@@ -129,7 +114,6 @@ export function parseIntFile(reader: BinaryReader, name: string=""): IntFile {
                     str += String.fromCharCode(c)
             }
 
-            // console.log("str=%s", str)
             strings[offset] = str
         }
     }

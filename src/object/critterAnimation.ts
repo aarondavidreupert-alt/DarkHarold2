@@ -137,7 +137,6 @@ function getAnimPartialActions(art: string, anim: string): { movement: number; a
     // extend last partial action to the last frame
     partialActions.actions[partialActions.actions.length - 1].endFrame = globalState.imageInfo[art].numFrames
 
-    //console.log("partials: %o", partialActions)
     return partialActions
 }
 
@@ -524,7 +523,6 @@ Critter.prototype.updateAnim = function (this: Critter): void {
 
         if (this.position.x === this.path.target.x && this.position.y === this.path.target.y) {
             // reached target position
-            //console.log("target reached")
 
             const callback = this.animCallback
             this.clearAnim()

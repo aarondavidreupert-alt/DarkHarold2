@@ -15,7 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Critter } from './object.js'
 import { loadMessage } from './data.js'
 import globalState from './globalState.js'
 import { dbgWarn } from './logger.js'

@@ -100,7 +100,6 @@ export class Scenery extends Obj {
 
     init() {
         super.init()
-        //console.log("Scenery init")
 
         if (!this.pro) {
             return
@@ -129,6 +128,5 @@ export class Door extends Scenery {
 
     init() {
         super.init()
-        //console.log("Door init")
     }
 }

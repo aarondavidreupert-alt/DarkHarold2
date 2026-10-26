@@ -20,7 +20,7 @@ limitations under the License.
 
 import { dbgWarn } from '../logger.js'
 import { Events } from '../events.js'
-import { hexDistance, Point } from '../geometry.js'
+import { Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { initStorage, scheduleSave, flushAutomapSave } from './storage.js'
 

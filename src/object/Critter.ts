@@ -228,7 +228,6 @@ export class Critter extends Obj {
 
         this.stats = StatSet.fromPro(this.pro)
         this.skills = SkillSet.fromPro(this.pro.extra.skills)
-        // console.log("Loaded stats/skills from PRO: HP=%d Speech=%d", this.stats.get("HP"), this.skills.get("Speech", this.stats))
         this.name = getMessage('pro_crit', this.pro.textID) || ''
 
         // initialize AI packet / team number
@@ -440,7 +439,6 @@ export class Critter extends Obj {
 
         if (path.length === 0) {
             // no path
-            //console.log("not a valid path")
             return false
         }
 
@@ -496,7 +494,6 @@ export class Critter extends Obj {
             const d0 = globalState.imageInfo[this.art]?.frameOffsets[dir]?.[0]
             if (d0) this.shift = { x: d0.x, y: d0.y }
         }
-        //console.log("start dir: %o", this.orientation)
 
         return true
     }
@@ -523,7 +520,6 @@ export class Critter extends Obj {
             running = true
         }
 
-        //console.log("path: %o, callback %o", path, callback)
         return this.walkTo(targetPos, running, callback, undefined, path)
     }
 

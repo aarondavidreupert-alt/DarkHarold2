@@ -23,9 +23,9 @@ import { Config } from '../config.js'
 import { Events } from '../events.js'
 import globalState from '../globalState.js'
 import { UIMode } from '../ui_panels.js'
-import { dbg, dbgWarn } from '../logger.js'
+import { dbg } from '../logger.js'
 import { Widget } from '../ui_widget.js'
-import { font1, font2, font3, makeFontLabel, renderBignum, setBignum } from '../ui_font.js'
+import { font1, font2, font3, makeFontLabel, setBignum } from '../ui_font.js'
 import { skillDependencies } from '../skills.js'
 
 // CE characterEditorDrawCardWithOptions: the title in font 102, and the attributes line (a
@@ -40,19 +40,16 @@ export function renderCardTitle(title: string, subtitle?: string): HTMLElement {
 import { setIndicatorBarHidden, updateIndicatorBar } from '../ui_hud.js'
 import { WindowFrame, SmallButton, Label } from '../ui_components.js'
 import { makePanelDraggable } from '../ui_drag.js'
-import { PERKS } from '../perks.js'
 import {
-    SPECIAL_NAMES, SPECIAL_TEXTS, SKILL_TEXTS, DERIVED_TEXTS, CONDITION_TEXTS, TRAIT_TEXTS,
-    skillTitle, skillSubtitle, derivedTitle, conditionTitle, traitTitle,
-    SPECIAL_IMG, SKILL_IMG, DERIVED_IMG, CONDITION_IMG, TRAIT_IMG,
+    SPECIAL_NAMES, SPECIAL_TEXTS, SKILL_TEXTS, DERIVED_TEXTS, CONDITION_TEXTS,
+    skillTitle, skillSubtitle, derivedTitle, conditionTitle,
+    SPECIAL_IMG, SKILL_IMG, DERIVED_IMG, CONDITION_IMG,
     statComment, FOLDER_TABS, STATS, SKILLS, EDITOR_CARDS,
 } from './descriptions.js'
 
 // The editor-line cards (Level, Exp, …); set once the card area exists
 let editorCard: (key: keyof typeof EDITOR_CARDS) => void = () => {}
 import { showPerkModal } from './perkModal.js'
-import { ADDICTION_KARMA_GVARS } from '../drugs.js'
-import { Scripting } from '../scripting.js'
 import { getMessage } from '../util.js'
 import { showAlert } from '../ui_dialog.js'
 import { renderStatPanels } from './statPanels.js'

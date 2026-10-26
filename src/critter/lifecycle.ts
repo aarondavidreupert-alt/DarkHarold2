@@ -20,7 +20,7 @@ limitations under the License.
 
 import { Config } from '../config.js'
 import globalState from '../globalState.js'
-import { dbg, dbgWarn } from '../logger.js'
+import { dbg } from '../logger.js'
 import { giveNewUid, itemIsHidden, Obj, zsort } from '../object/Obj.js'
 import type { Critter } from '../object/Critter.js'
 import { Scripting } from '../scripting.js'

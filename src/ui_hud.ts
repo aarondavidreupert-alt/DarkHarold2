@@ -18,7 +18,7 @@ limitations under the License.
 // combat hover info, and the scrolling message log.
 
 import { objExamine, objLookAt } from './examine.js'
-import { ammoGetCapacity, ammoGetQuantity } from './weaponAmmo.js'
+import { ammoGetQuantity } from './weaponAmmo.js'
 import { Config } from './config.js'
 import globalState from './globalState.js'
 import { Critter, Obj, WeaponObj, objectIsWeapon } from './object.js'

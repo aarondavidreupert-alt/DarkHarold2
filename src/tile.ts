@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { hexFromScreen, hexToScreen, Point } from './geometry.js'
+import { hexFromScreen, Point } from './geometry.js'
 import globalState from './globalState.js'
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 

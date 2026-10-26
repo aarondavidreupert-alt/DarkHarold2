@@ -36,7 +36,6 @@ function menuSound(name: string): void {
 const MENU_TEXT = '#b89c28'
 import { uiSaveLoad } from './ui_saveload.js'
 import globalState from './globalState.js'
-import { dbgWarn } from './logger.js'
 import { UIMode } from './ui_panels.js'
 import { assetUrl } from './modAssets.js'
 

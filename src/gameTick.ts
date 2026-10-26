@@ -17,12 +17,11 @@ import { Events } from './events.js'
 import { DAM_KNOCKED_OUT } from './combat/results.js'
 import { Worldmap } from './worldmap.js'
 import { gameMoviePlay, GAME_MOVIE_FADE_IN, GAME_MOVIE_FADE_OUT, GAME_MOVIE_PAUSE_MUSIC, GAME_MOVIE_STOP_MUSIC, MOVIE_TIMEOUT } from './gameMovie.js'
-import { getRandomInt } from './util.js'
 import { checkRads } from './radiation.js'
 import { heart } from './heart.js'
 import { deleteAllTempArrays } from './sfallArrays.js'
 import globalState from './globalState.js'
-import { dbg, dbgWarn } from './logger.js'
+import { dbg } from './logger.js'
 import { Critter, objectUnjamAll } from './object.js'
 import {
     changeCursor,
@@ -35,12 +34,7 @@ import {
     SCREEN_WIDTH,
 } from './renderer.js'
 import { Scripting } from './scripting.js'
-import {
-    uiHideCombatHover,
-    uiLog,
-    UIMode,
-    uiShowCombatHover,
-} from './ui.js'
+import { uiHideCombatHover, UIMode, uiShowCombatHover } from './ui.js'
 import * as Endgame from './endgame.js'
 import * as GameTime from './gametime.js'
 import { Config } from './config.js'

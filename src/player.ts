@@ -394,16 +394,6 @@ export class Player extends Critter {
         dbg('object', `[CharCreator] Applied: ${name}, ${sex}, age ${age}, traits [${traits.join(', ')}], HP ${maxHp}, SP ${skills.skillPoints}`)
     }
 
-    /*
-    var obj = {position: {x: 94, y: 109}, orientation: 2, frame: 0, type: "critter",
-                   art: "art/critters/hmjmpsaa", isPlayer: true, anim: "idle", lastFrameTime: 0,
-                   path: null, animCallback: null,
-                   leftHand: playerWeapon, rightHand: null, weapon: null, armor: null,
-                   dead: false, name: "Player", gender: "male", inventory: [
-                   {type: "misc", name: "Money", pid: 41, pidID: 41, amount: 1337, pro: {textID: 4100, extra: {cost: 1}, invFRM: 117440552}, invArt: 'art/inven/cap2'}
-                   ], stats: null, skills: null, tempChanges: null}
-    */
-
     move(position: Point, curIdx?: number, signalEvents: boolean = true): boolean {
         if (!super.move(position, curIdx, signalEvents)) return false
 

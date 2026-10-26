@@ -103,7 +103,6 @@ function parseAreas(data: string): AreaMap {
         var mapArtIdx = parseInt(area.townmap_art_idx)
         var labelArtIdx = parseInt(area.townmap_label_art_idx)
 
-        //console.log(mapArtIdx + " - " + labelArtIdx)
 
         if (mapArtIdx !== -1) newArea.mapArt = lookupInterfaceArt(mapArtIdx)
         if (labelArtIdx !== -1) newArea.labelArt = lookupInterfaceArt(labelArtIdx)

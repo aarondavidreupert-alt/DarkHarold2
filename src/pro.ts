@@ -145,6 +145,5 @@ export function lookupArt(frmPID: number) {
                 "misc": "art/misc/misc"}
     var path = "art/" + type + "/" + getLstJson(lsts[type], pidID)!
 
-    // console.log("LOOKUP ART: " + path)
     return path.toLowerCase()
 }

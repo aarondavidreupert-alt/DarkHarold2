@@ -17,13 +17,10 @@ limitations under the License.
 // PipBoy ARCHIVES tab — split out of ui_pipboy.ts. See
 // wiki/ts-split-refactor.md → "Per-file split proposals" §12.
 
-import { Config } from '../../config.js'
 import globalState from '../../globalState.js'
 import { gameMovieIsSeen, gameMoviePlay, GAME_MOVIE_FADE_IN, GAME_MOVIE_FADE_OUT, GAME_MOVIE_PAUSE_MUSIC } from '../../gameMovie.js'
 import { getMessage } from '../../util.js'
-import { getActiveQuests, getUnknownActiveGvars } from '../../questLog.js'
 import {
-    CONTENT_H,
     TEXT_STYLE,
     clearScreen,
     makeContentArea,

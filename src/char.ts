@@ -263,7 +263,6 @@ export class StatSet {
     }
 
     static fromPro(pro: any): StatSet {
-        // console.log("stats fromPro: %o", pro);
 
         const { baseStats, bonusStats } = pro.extra;
 

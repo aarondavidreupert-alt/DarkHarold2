@@ -34,17 +34,15 @@ import {
     initLogScrollZones,
     uiElevator,
     UIMode,
-    uiLog,
     uiWorldMap,
 } from './ui.js'
-import { drawHP } from './ui_hud.js'
 import { objUseItemOn } from './useItemOn.js'
 import { initModAssets, mergeModJSON, overrideStylesheets } from './modAssets.js'
 import { loadFallout2Cfg, loadModsOrder, loadPreferences, parseModList } from './ui_options.js'
 import { showSplash } from './splash.js'
 import { isMainMenuReturn } from './mainMenuReturn.js'
 import { skipOpeningMoviesLevel } from './init.js'
-import { getFileJSON, getRandomInt } from './util.js'
+import { getFileJSON } from './util.js'
 import { WebGLRenderer } from './webglrenderer.js'
 import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'

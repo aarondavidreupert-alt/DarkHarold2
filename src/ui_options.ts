@@ -25,7 +25,7 @@ limitations under the License.
 import { returnToMainMenu } from './mainMenuReturn.js'
 import { Config } from './config.js'
 import { Widget } from './ui_widget.js'
-import { CE_COLOR, font1, font3, font4, FontWidget, FontRenderer, FoText } from './ui_font.js'
+import { CE_COLOR, font1, font3, font4, FontRenderer, FoText } from './ui_font.js'
 import { WindowFrame } from './ui_components.js'
 import { makePanelDraggable } from './ui_drag.js'
 import { uiSaveLoad } from './ui_saveload.js'

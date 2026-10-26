@@ -796,7 +796,6 @@ export class Obj {
 
     static fromMapObject_<T extends Obj>(obj: T, mobj: any, deserializing = false): T {
         // Load an Obj from a map object
-        //console.log("fromMapObject: %o", mobj)
         if (mobj.uid) {
             obj.uid = mobj.uid
             // keep new uids clear of restored ones (saved timers are keyed by uid, CE object ids)
@@ -898,7 +897,6 @@ export class Obj {
             this.uid = _lastObjectUID++
         }
 
-        //console.log("init: %o", this)
         if (this.inventory !== undefined) {
             // containers and critters
             this.inventory = this.inventory.map((obj) => objFromMapObject(obj))

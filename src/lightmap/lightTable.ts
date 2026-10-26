@@ -41,7 +41,6 @@ let isInit = false
 
 // eax = tile, edx = direction, ebx = distance
 function tile_num_in_direction(tileNum: number, dir: number, distance: number): number {
-    //console.log("tileNum: " + tileNum + " (" + tileNum.toString(16) + ")")
     if (dir < 0 || dir > 5)
         throw "tile_num_in_direction: dir = " + dir
     if (distance === 0)
@@ -53,7 +52,6 @@ function tile_num_in_direction(tileNum: number, dir: number, distance: number): 
         return -1
     }
 
-    //console.log("tile: %d,%d -> %d,%d", fromTileNum(tileNum).x, fromTileNum(tileNum).y, hex.x, hex.y)
     return toTileNum(hex)
 }
 
@@ -119,7 +117,6 @@ export function obj_light_table_init(): void {
                     eax = tile_num_in_direction(eax, edx, ebx)
                     eax -= edi
                     ebx = v20
-                    //console.log("light_offsets[%d] = %d", (esi-4)/4|0, eax)
                     light_offsets[(esi-4)/4|0] = eax
                 }
                 while (ecx < ebx)
@@ -194,7 +191,6 @@ export function obj_light_table_init(): void {
                     eax = tile_num_in_direction(eax, edx, ebx)
                     eax -= edi
                     edx = v1c
-                    //console.log("light_offsets[%d] = %d", (esi-4)/4|0, eax)
                     light_offsets[(esi-4)/4|0] = eax
                 }
                 while (ecx < edx)
