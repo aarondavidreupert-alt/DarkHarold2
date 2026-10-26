@@ -125,12 +125,9 @@ function setupDialogueActionButtons(target: Critter | undefined): void {
  * re-runs talk_p_proc -> start_gdialog -> uiStartDialogue, so updating it
  * here covers both CE call sites with one hook.
  */
+// CE game_dialog.cc gameDialogRenderCaps: itemGetTotalCaps — carried bags count too
 function updateDialogueCaps(): void {
-    const CAPS_PID = 41
-    const caps = globalState.player.inventory
-        .filter(o => o.pid === CAPS_PID)
-        .reduce((s, o) => s + o.amount, 0)
-    $id('dialogueCapsDisplay').textContent = '$' + caps
+    $id('dialogueCapsDisplay').textContent = '$' + Scripting.itemGetTotalCaps(globalState.player)
 }
 
 export function uiStartDialogue(force: boolean, target?: Critter) {

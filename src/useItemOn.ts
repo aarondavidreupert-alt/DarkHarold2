@@ -23,7 +23,7 @@ import { useDrug } from './drugs.js'
 import { hexDistance, hexNeighbors } from './geometry.js'
 import globalState from './globalState.js'
 import { dbg } from './logger.js'
-import { Critter, Obj } from './object.js'
+import { Critter, Obj, refillHand } from './object.js'
 import { Scripting } from './scripting.js'
 import { skillUse } from './skillUse.js'
 import { drawAP, drawHP, uiDrawWeapon } from './ui_hud.js'
@@ -128,8 +128,9 @@ function removeOne(user: Critter, item: Obj): void {
     }
     const u = user as any
     if (item.amount > 1) { item.amount--; return }
-    if (u.leftHand === item) u.leftHand = undefined
-    else if (u.rightHand === item) u.rightHand = undefined
+    // CE _obj_use_item_on: itemRemove + itemReplace — the hand takes an identical item
+    if (u.leftHand === item) refillHand(user, 'leftHand', item)
+    else if (u.rightHand === item) refillHand(user, 'rightHand', item)
 }
 
 // proto_instance.cc _obj_use_item_on — rc 1 = the item is used up.

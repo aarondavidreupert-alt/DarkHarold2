@@ -129,3 +129,11 @@ export function drawBagView(parent: HTMLElement, id: string, rect: { left: numbe
         style: { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' } }))
     $view.onclick = () => { bags.pop(); onExit() }
 }
+
+/** CE inventory.cc _display_inventory_info: an ammo stack shows its rounds
+ *  (capacity × (boxes − 1) + the top box's), anything else `x<n>` only above 1; at most 99999. */
+export function itemCountLabel(item: Obj): string | null {
+    const amount = item.amount ?? 1
+    if (item.subtype === 'ammo') return 'x' + Math.min(99999, ammoGetCapacity(item) * (amount - 1) + ammoGetQuantity(item))
+    return amount > 1 ? 'x' + Math.min(99999, amount) : null
+}

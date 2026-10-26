@@ -1764,7 +1764,7 @@ export module Scripting {
             info('wield_obj_critter: ' + obj.name + ' wields ' + (item.name ?? item.pid))
             // CE opWieldItem → inventory.cc _invenWieldFunc: the dude's active hand (an
             // NPC's right), armor on the body; the old item back to the inventory.
-            invenWield(obj as Critter, item, scriptHand(obj as Critter))
+            invenWield(obj as Critter, item, scriptHand(obj as Critter), true)
         }
         // CE opCritterDamage → actions.cc actionDamage: bit 0x100 of the type bypasses
         // armor, 0x200 skips the animation; otherwise _compute_dmg_damage takes the

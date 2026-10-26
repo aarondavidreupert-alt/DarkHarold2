@@ -39,7 +39,7 @@ import { Events } from '../events.js'
 import { unarmedHandMode } from '../unarmed.js'
 import { getMessage, getProtoMsg } from '../util.js'
 import { objExamine } from '../examine.js'
-import { itemMenuActions, unloadWeapon } from './itemMenu.js'
+import { itemCountLabel, itemMenuActions, unloadWeapon } from './itemMenu.js'
 
 // --- Public open / close lifecycle -----------------------------------------
 
@@ -418,7 +418,8 @@ export function showInventory(useOn = false) {
         clearEl($id('inventoryBoxItem2'))
         clearEl($id('inventoryBoxArmor'))
 
-        for (let i = 0; i < objects.length; i++) {
+        // CE inventory.cc _display_inventory: newest first (items[length − (i + offset + 1)])
+        for (let i = objects.length - 1; i >= 0; i--) {
             const invObj = objects[i]
             const img = makeEl('img', {
                 src: invObj.invArt ? invObj.invArt + '.png' : '',
@@ -433,7 +434,7 @@ export function showInventory(useOn = false) {
                 makeItemContextMenu(e, invObj, 'inventory')
                 return false
             }
-            appendItemSlot($el, img, invObj.amount)
+            appendItemSlot($el, img, itemCountLabel(invObj))
             makeDraggable(img, 'i' + i, () => {
                 showInventory()
             })

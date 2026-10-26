@@ -12,6 +12,9 @@ import { armorPerkSwap } from './perks/cePerks.js'
 import { applyArmorArt } from './ui_inventory/dragdrop.js'
 import { drawAC, uiDrawWeapon } from './ui_hud.js'
 import { updateHandFlareLight } from './object.js'
+import { ANIM, critterWeaponCode, playCharAnimSfx } from './sfxNames.js'
+import globalState from './globalState.js'
+import { UIMode } from './ui_panels.js'
 
 const OBJECT_IN_LEFT_HAND = 0x1000000
 const OBJECT_IN_RIGHT_HAND = 0x2000000
@@ -32,7 +35,11 @@ export function scriptHand(c: Critter): Hand {
 // CE _invenWieldFunc(critter, item, hand): armor goes on (the old armor stays in the
 // inventory), anything else into the hand, the old item back to the inventory. The
 // critter's art follows (the weapon drawn when it is the active hand).
-export function invenWield(c: Critter, item: Obj, hand: Hand): void {
+// `animate` (the script opcodes): CE _invenWieldFunc registers animationRegisterTakeOutWeapon
+// for the new weapon when the map is showing (!isoIsDisabled) and the hand is the one in use.
+// (CE's ANIM_PUT_AWAY of the old weapon first, and the unwield's, aren't played: the hand
+// changes at once, the art would have to lag behind.)
+export function invenWield(c: Critter, item: Obj, hand: Hand, animate = false): void {
     const a = c as any
     if (item.subtype === 'armor') {
         const old = c.isPlayer ? a.armor ?? null : c.getEquippedArmor?.() ?? null
@@ -63,10 +70,22 @@ export function invenWield(c: Critter, item: Obj, hand: Hand): void {
         if (!c.inventory.includes(item)) c.inventory.push(item)
         item.flags = ((item.flags ?? 0) & ~OBJECT_IN_ANY_HAND) | (hand === 'rightHand' ? OBJECT_IN_RIGHT_HAND : OBJECT_IN_LEFT_HAND)
     }
+    const wasDrawn = hand === scriptHand(c) && critterWeaponCode(c) > 0
     a[hand] = item
     if (hand === scriptHand(c)) c.setIdleArt?.()
     refreshStealthState(c) // item.cc stealthBoyTurnOn
     if (c.isPlayer) uiDrawWeapon()
+    if (animate && hand === scriptHand(c) && mapShowing() && !c.inAnim() && (wasDrawn || critterWeaponCode(c) > 0)) {
+        if (critterWeaponCode(c) > 0 && c.hasAnimation('weapon-draw')) {
+            playCharAnimSfx(c, ANIM.takeOut, critterWeaponCode(c))
+            c.staticAnimation('weapon-draw', () => c.clearAnim())
+        }
+    }
+}
+
+// CE isoIsDisabled: no window over the map
+function mapShowing(): boolean {
+    return globalState.uiMode === UIMode.none
 }
 
 // CE _invenUnwieldFunc(critter, hand): the item leaves the hand (an NPC keeps it in

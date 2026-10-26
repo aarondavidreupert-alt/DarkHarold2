@@ -132,10 +132,13 @@ export function uiGetAmount(item: Obj): Promise<number> {
         const doneBtn   = $id('moveMultDoneBtn')
         const cancelBtn = $id('moveMultCancelBtn')
 
-        function onPlusDown(e: Event)  { e.preventDefault(); count = Math.min(max, count + 1); redraw(); startHold(1) }
-        function onMinusDown(e: Event) { e.preventDefault(); count = Math.max(1,   count - 1); redraw(); startHold(-1) }
-        function onAllClick()          { count = max; redraw() }
-        function onDoneClick()         { cleanup(count) }
+        // CE inventoryQuantitySelect: typing starts over on the first digit (isTyping); the
+        // buttons end it
+        let typing = false
+        function onPlusDown(e: Event)  { e.preventDefault(); typing = false; count = Math.min(max, count + 1); redraw(); startHold(1) }
+        function onMinusDown(e: Event) { e.preventDefault(); typing = false; count = Math.max(1,   count - 1); redraw(); startHold(-1) }
+        function onAllClick()          { typing = false; count = max; redraw() }
+        function onDoneClick()         { if (count >= 1 && count <= max) cleanup(count); else globalState.audioEngine?.playSfxByName?.('iisxxxx1') }
         function onCancelClick()       { cleanup(0) }
 
         plusBtn.addEventListener('mousedown', onPlusDown)
@@ -148,18 +151,31 @@ export function uiGetAmount(item: Obj): Promise<number> {
         doneBtn.addEventListener('click',   onDoneClick)
         cancelBtn.addEventListener('click', onCancelClick)
 
-        // CE ref: inventory.cc:5707-5717 — direct digit key input (KEY_0-KEY_9).
+        // CE ref: inventory.cc inventoryQuantitySelect (MOVE_ITEMS): a digit — the first one
+        // replaces the value — makes it 10 × value % 100000 + digit, Backspace drops the last
+        // digit; Return takes a value from 1 to max (ib1p1xx1), else iisxxxx1 and keeps going.
         const keyHandler = (e: KeyboardEvent) => {
-            if (e.key === 'Enter')  { cleanup(count); return }
+            if (e.key === 'Enter') {
+                if (count >= 1 && count <= max) { globalState.audioEngine?.playSfxByName?.('ib1p1xx1'); cleanup(count) }
+                else globalState.audioEngine?.playSfxByName?.('iisxxxx1')
+                return
+            }
             if (e.key === 'Escape') { cleanup(0);     return }
-            const d = parseInt(e.key)
+            const d = e.key.length === 1 ? parseInt(e.key) : NaN
             if (!isNaN(d) && d >= 0 && d <= 9) {
-                const typed = count < 10000 ? count * 10 + d : d
-                count = Math.max(1, Math.min(max, typed))
+                if (!typing) count = 0
+                count = (10 * count) % 100000 + d
+                typing = true
                 redraw()
             }
-            if (e.key === 'ArrowUp')   { count = Math.min(max, count + 1); redraw() }
-            if (e.key === 'ArrowDown') { count = Math.max(1,   count - 1); redraw() }
+            if (e.key === 'Backspace') {
+                if (!typing) count = 0
+                count = Math.trunc(count / 10)
+                typing = true
+                redraw()
+            }
+            if (e.key === 'ArrowUp')   { typing = false; count = Math.min(max, count + 1); redraw() }
+            if (e.key === 'ArrowDown') { typing = false; count = Math.max(1,   count - 1); redraw() }
         }
         document.addEventListener('keydown', keyHandler, true)
 

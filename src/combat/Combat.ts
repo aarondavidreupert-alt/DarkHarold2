@@ -25,7 +25,7 @@ import { Lightmap } from '../lightmap.js'
 import { hexDirectionTo, hexDistance, hexFromScreen, hexInDirection, hexInDirectionDistance, hexLine, hexLineBeyond, hexNearestNeighbor, hexNeighbors, hexToScreen, Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { eventLogPush, dbg, dbgWarn } from '../logger.js'
-import { cloneItem, createObjectWithPID, Critter, itemIsHidden, Obj, PROTO_ID_FLARE, PROTO_ID_LIT_FLARE, useFlare } from '../object.js'
+import { cloneItem, createObjectWithPID, Critter, itemIsHidden, Obj, PROTO_ID_FLARE, PROTO_ID_LIT_FLARE, refillHand, useFlare } from '../object.js'
 import { invenWield } from '../inventoryWield.js'
 import { Player } from '../player.js'
 import { Scripting } from '../scripting.js'
@@ -1751,8 +1751,8 @@ export class Combat {
         } else {
             const idx = attacker.inventory.indexOf(weaponObj)
             if (idx !== -1) attacker.inventory.splice(idx, 1)
-            for (const hand of ['leftHand', 'rightHand']) {
-                if (a[hand] === weaponObj) a[hand] = attacker.isPlayer ? undefined : Critter.makeFist()
+            for (const hand of ['leftHand', 'rightHand'] as const) {
+                if (a[hand] === weaponObj) refillHand(attacker, hand, weaponObj) // CE actions.cc:763 itemReplace
             }
             item = weaponObj
         }

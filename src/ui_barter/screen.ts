@@ -24,7 +24,7 @@ import { Critter, cloneItem, Obj } from '../object.js'
 import { Scripting } from '../scripting.js'
 import { UIMode } from '../ui_panels.js'
 import { uiAnimateBox, uiSetDialogueReply } from '../ui_dialogue.js'
-import { drawBagView, examineToLog, itemMenuActions, makeDropTarget, makeDraggable, MAX_OPEN_BAGS, showItemMenu, unloadWeapon } from '../ui_inventory.js'
+import { drawBagView, examineToLog, itemMenuActions, makeDropTarget, makeDraggable, MAX_OPEN_BAGS, showItemMenu, unloadWeapon, itemCountLabel } from '../ui_inventory.js'
 import { Config } from '../config.js'
 import { appendItemSlot, $id, clearEl, makeEl } from '../ui_dom.js'
 import { uiGetAmount, uiSwapItem } from './swap.js'
@@ -336,7 +336,9 @@ export function uiBarterMode(merchant: Critter) {
     function drawInventory($el: HTMLElement, who: 'p' | 'm' | 'l' | 'r', objects: Obj[], scroll: number = 0) {
         clearEl($el)
 
-        for (let i = scroll; i < objects.length; i++) {
+        // CE inventory.cc _display_inventory: newest first (items[length − (i + offset + 1)])
+        for (let k = scroll; k < objects.length; k++) {
+            const i = objects.length - 1 - k
             const obj = objects[i]
             const inventoryImage = obj.invArt
             if (!inventoryImage) {
@@ -347,7 +349,7 @@ export function uiBarterMode(merchant: Critter) {
                 attrs: { title: obj.name },
                 style: { maxWidth: '100%', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
             })
-            appendItemSlot($el, img, obj.amount)
+            appendItemSlot($el, img, itemCountLabel(obj))
             // drag-data index is the index into the underlying array (`i`),
             // not the on-screen position, so drops/swaps still target the
             // right item regardless of scroll offset.

@@ -26,7 +26,7 @@ import { uiLog } from './ui_hud.js'
 import { getMessage } from './util.js'
 import { showAlert } from './ui_dialog.js'
 import { Scripting } from './scripting.js'
-import { drawBagView, examineToLog, itemMenuActions, makeDropTarget, makeDraggable, MAX_OPEN_BAGS, showItemMenu, unloadWeapon } from './ui_inventory.js'
+import { drawBagView, examineToLog, itemMenuActions, makeDropTarget, makeDraggable, MAX_OPEN_BAGS, showItemMenu, unloadWeapon, itemCountLabel } from './ui_inventory.js'
 import { appendItemSlot, $id, clearEl, showv, hidev, off, makeEl } from './ui_dom.js'
 
 // --- Loot screen -----------------------------------------------------------
@@ -119,7 +119,8 @@ export function uiLoot(object: Obj) {
     function drawInventory($el: HTMLElement, who: 'p' | 'm' | 'l' | 'r', objects: Obj[]) {
         clearEl($el)
 
-        for (let i = 0; i < objects.length; i++) {
+        // CE inventory.cc _display_inventory: newest first (items[length − (i + offset + 1)])
+        for (let i = objects.length - 1; i >= 0; i--) {
             // CE inventory.cc itemMoveAllHidden: natural weapons aren't shown
             if (itemIsHidden(objects[i])) continue
             const inventoryImage = objects[i].invArt
@@ -128,7 +129,7 @@ export function uiLoot(object: Obj) {
                 attrs: { title: objects[i].name },
                 style: { maxWidth: '100%', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
             })
-            appendItemSlot($el, img, objects[i].amount)
+            appendItemSlot($el, img, itemCountLabel(objects[i]))
             makeDraggable(img, who + i)
             // CE inventoryWindowOpenContextMenu (loot window)
             const item = objects[i]

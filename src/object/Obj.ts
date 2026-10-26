@@ -210,15 +210,29 @@ function takeOneFromOwner(obj: Obj, owner: Critter): Obj {
     }
     const idx = owner.inventory.indexOf(obj)
     if (idx !== -1) owner.inventory.splice(idx, 1)
-    for (const hand of ['leftHand', 'rightHand']) {
-        if (a[hand] !== obj) continue
-        const same = owner.inventory.find((it) => it.pid === obj.pid)
-        if (!same) a[hand] = owner.isPlayer ? null : (owner.constructor as any).makeFist?.()
-        else if ((same.amount ?? 1) > 1) { same.amount -= 1; a[hand] = Object.assign(cloneItem(same), { amount: 1 }) }
-        else { owner.inventory.splice(owner.inventory.indexOf(same), 1); a[hand] = same }
-        if (owner.isPlayer) uiDrawWeapon()
-    }
+    for (const hand of ['leftHand', 'rightHand'] as const) if (a[hand] === obj) refillHand(owner, hand, obj)
     return obj
+}
+
+// CE item.cc itemReplace: the hand whose item was used up takes an identical one (same pid, no
+// script) from the inventory or a carried bag; else it is empty (an NPC's: its fist).
+export function refillHand(owner: Critter, hand: 'leftHand' | 'rightHand', used: Obj): void {
+    const a = owner as any
+    const find = (list: Obj[]): { list: Obj[]; item: Obj } | null => {
+        for (const it of list) {
+            if (it.pid === used.pid && !it._script) return { list, item: it }
+            if (it.subtype === 'container' && it.inventory?.length) {
+                const inner = find(it.inventory)
+                if (inner) return inner
+            }
+        }
+        return null
+    }
+    const same = find(owner.inventory)
+    if (!same) a[hand] = owner.isPlayer ? null : (owner.constructor as any).makeFist?.()
+    else if ((same.item.amount ?? 1) > 1) { same.item.amount -= 1; a[hand] = Object.assign(cloneItem(same.item), { amount: 1 }) }
+    else { same.list.splice(same.list.indexOf(same.item), 1); a[hand] = same.item }
+    if (owner.isPlayer) uiDrawWeapon()
 }
 
 // CE proto_instance.cc _protinstTestDroppedExplosive: the critters in the would-be blast
@@ -1300,7 +1314,7 @@ export class Obj {
                     const i = owner.inventory.indexOf(this)
                     if (i !== -1) owner.inventory.splice(i, 1)
                     const a = owner as any
-                    for (const hand of ['leftHand', 'rightHand']) if (a[hand] === this) a[hand] = owner.isPlayer ? null : (owner.constructor as any).makeFist?.()
+                    for (const hand of ['leftHand', 'rightHand'] as const) if (a[hand] === this) refillHand(owner, hand, this)
                     if (owner.isPlayer) uiDrawWeapon()
                 }
                 return true
@@ -1346,9 +1360,11 @@ export class Obj {
                             if (this.amount > 1) this.amount--
                             else owner.inventory.splice(idx, 1)
                         } else {
+                            // in a hand: one off the stack, the last one replaced (itemReplace)
                             const ownerAny = owner as any
-                            if (ownerAny.leftHand === this) ownerAny.leftHand = null
-                            else if (ownerAny.rightHand === this) ownerAny.rightHand = null
+                            const hand = ownerAny.leftHand === this ? 'leftHand' : ownerAny.rightHand === this ? 'rightHand' : null
+                            if (hand && (this.amount ?? 1) > 1) this.amount--
+                            else if (hand) refillHand(owner as Critter, hand, this)
                         }
                     }
                     if (source?.isPlayer) drawHP(source.getStat('HP'))

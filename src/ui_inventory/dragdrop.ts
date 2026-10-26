@@ -152,6 +152,8 @@ export async function uiMoveSlot(data: string, target: string) {
                 showInventory()
                 return
             }
+            // CE inventory.cc _switch_hand: ammo on a weapon it can't load isn't swapped in
+            if (obj.subtype === 'ammo' && playerUnsafe[target].subtype === 'weapon' && playerUnsafe[target].pid !== 383) return
         }
 
         if (obj.amount > 1) {

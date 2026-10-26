@@ -117,8 +117,12 @@ export function makeEl(tag: string, options: ElementOptions): HTMLElement {
  *  trade): its icon with the stack count centred below, the same in every screen
  *  (ui.css .invItemSlot / .invItemAmount). DH2 layout: CE inventory.cc
  *  _display_inventory_info prints "x<n>" over the icon's top-left corner. */
-export function appendItemSlot($el: HTMLElement, img: HTMLElement, amount: number): void {
-    const amt = makeEl('span', { classes: ['invItemAmount'] })
-    amt.textContent = 'x' + amount
-    $el.appendChild(makeEl('div', { classes: ['invItemSlot'], children: [img, amt] }))
+export function appendItemSlot($el: HTMLElement, img: HTMLElement, label: string | null): void {
+    const children: HTMLElement[] = [img]
+    if (label !== null) {
+        const amt = makeEl('span', { classes: ['invItemAmount'] })
+        amt.textContent = label
+        children.push(amt)
+    }
+    $el.appendChild(makeEl('div', { classes: ['invItemSlot'], children }))
 }

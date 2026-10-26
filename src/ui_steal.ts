@@ -30,7 +30,7 @@ import { Critter, itemIsHidden, Obj } from './object.js'
 import { UIMode } from './ui_panels.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter.js'
 import { uiLog } from './ui_hud.js'
-import { examineToLog, itemMenuActions, makeDropTarget, makeDraggable, MAX_OPEN_BAGS, showItemMenu, unloadWeapon } from './ui_inventory.js'
+import { examineToLog, itemMenuActions, makeDropTarget, makeDraggable, MAX_OPEN_BAGS, showItemMenu, unloadWeapon, itemCountLabel } from './ui_inventory.js'
 import { appendItemSlot, $id, clearEl, showv, hidev, off, makeEl } from './ui_dom.js'
 import { performSteal } from './skillUse.js'
 import { Scripting } from './scripting.js'
@@ -65,7 +65,8 @@ export function uiSteal(thief: Critter, target: Critter): void {
 
     function drawInventory($el: HTMLElement, who: 'l' | 'r', objects: Obj[]) {
         clearEl($el)
-        for (let i = 0; i < objects.length; i++) {
+        // CE inventory.cc _display_inventory: newest first (items[length − (i + offset + 1)])
+        for (let i = objects.length - 1; i >= 0; i--) {
             // CE inventory.cc itemMoveAllHidden: natural weapons aren't shown
             if (itemIsHidden(objects[i])) continue
             // CE inventoryOpenLooting:4135-4148 (_gIsSteal): the target's hand items and worn
@@ -77,7 +78,7 @@ export function uiSteal(thief: Critter, target: Critter): void {
                 attrs: { title: objects[i].name },
                 style: { maxWidth: '100%', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
             })
-            appendItemSlot($el, img, objects[i].amount)
+            appendItemSlot($el, img, itemCountLabel(objects[i]))
             makeDraggable(img, who + i)
             // CE inventoryWindowOpenContextMenu (the loot window, stealing)
             const item = objects[i]
